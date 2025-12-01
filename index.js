@@ -61,7 +61,7 @@ app.get('/api/openai-test', (req, res) => {
   });
 });
 
-// ============ Intent Routing Helper (Powered-Up) ============
+// ============ Intent Routing Helper (Powered-Up + Music) ============
 
 const intentConfig = {
   tv: {
@@ -79,8 +79,8 @@ const intentConfig = {
     label: 'radio',
     keywords: [
       'radio', 'online radio', 'audio stream', 'stream audio', 'listen live',
-      'dj', 'dj nova', 'nova', 'music', 'playlist', 'mix', 'audio show',
-      'gospel sunday', 'showtime', 'radio show', 'podcast', 'talk show',
+      'dj', 'dj nova', 'nova', 'music block', 'gospel sunday', 'showtime',
+      'radio show', 'talk show', 'podcast',
     ],
     weight: 1.0,
   },
@@ -91,7 +91,7 @@ const intentConfig = {
       'editorial content', 'branded content', 'news distribution',
       'article distribution', 'content insert', 'community feature from news canada',
     ],
-    weight: 1.2, // more specific
+    weight: 1.2,
   },
   ads: {
     label: 'ads',
@@ -113,6 +113,15 @@ const intentConfig = {
       'verify rights', 'ip issues', 'ip check',
     ],
     weight: 1.3,
+  },
+  music: {
+    label: 'music',
+    keywords: [
+      'music', 'song', 'songs', 'playlist', 'track', 'tracks',
+      'lyrics', 'chorus', 'verse', 'album', 'artist', 'band',
+      'play this song', 'music licensing', 'socan', 'entandem',
+    ],
+    weight: 1.1,
   },
 };
 
@@ -166,7 +175,7 @@ function detectIntent(message = '') {
   return scoreIntent(message);
 }
 
-// ============ Sandblast Knowledge Layer (with richer PD/show catalog) ============
+// ============ Sandblast Knowledge Layer (with richer PD/show catalog + Music Licensing) ============
 //
 // Internal-only notes to make answers feel grounded in Sandblast.
 // Do NOT read these verbatim; use them as background context.
@@ -177,6 +186,11 @@ Core overview of Sandblast:
 - Sandblast is a media ecosystem combining TV, radio, digital streaming, News Canada integrations, and AI-powered consulting.
 - The mission is to deliver community-friendly entertainment, retro programming, and practical media support for small and medium businesses.
 - SandblastGPT acts as the “AI operations brain,” helping visitors understand TV, radio, PD content, News Canada, ads, and AI services.
+
+Licensing awareness:
+- Sandblast holds music performance and communication-to-the-public licensing via organizations such as Entandem and SOCAN.
+- This licensing allows Sandblast to legally play music on the platform and talk about music, artists, and songs in a broadcast context.
+- Even with licensing, AI answers should describe music and lyrics rather than reproducing long lyric passages.
 
 Signature recurring campaigns and elements:
 - Sunday Movie Block: weekly retro film showcase using verified public-domain titles.
@@ -230,6 +244,10 @@ Sandblast Radio:
 - Gospel Sunday is one of the signature recurring radio blocks, featuring uplifting and inspirational programming.
 - DJ Nova is the core voiced personality for intros and transitions, providing energy and a consistent audio identity.
 - Listeners access the station via a live web stream or embedded radio player.
+
+Licensing note:
+- Because Sandblast holds music licensing via Entandem and SOCAN, music programming on the radio stream can include licensed commercial tracks in compliance with those agreements.
+- AI responses should describe shows, genres, moods, and high-level song information, not stream or distribute music files directly.
 
 Recurring radio campaigns:
 - Gospel Sunday: consistent weekly anchor with positive, community-oriented sound.
@@ -318,6 +336,32 @@ How to talk about PD with the audience:
 - Emphasize that Sandblast takes a cautious, responsible approach to PD usage.
 - Make it clear that this is an internal verification process and not formal legal advice.
 - Connect PD usage back to the value for viewers: more retro content, more variety, and the ability to build unique themed blocks around classic material.
+`.trim(),
+
+  music: `
+Music and licensing on Sandblast:
+- Sandblast holds appropriate music licensing through organizations like Entandem and SOCAN, which enables:
+  - Playing licensed music tracks on Sandblast Radio and associated streams.
+  - Discussing songs, artists, genres, and music history on-air.
+  - Referencing lyrics in a high-level, descriptive way as part of commentary.
+
+Guidance for AI responses:
+- It is appropriate to:
+  - Describe the style, mood, and themes of songs and artists.
+  - Reference song titles, artist names, albums, and release years.
+  - Paraphrase or briefly allude to lyrical themes (for example, “this song talks about resilience and starting over”).
+- It is not appropriate to:
+  - Output long blocks of lyrics or reproduce songs in text.
+  - Claim to stream, sell, or redistribute audio files directly via the AI.
+
+Use cases:
+- Explaining what kind of music plays during Gospel Sunday or DJ Nova sets.
+- Suggesting general types of music that might fit a listener’s mood on Sandblast Radio.
+- Talking about how Sandblast’s licensed music integrates with ads, promos, or special events.
+
+Tone:
+- Keep music explanations friendly, vivid, and easy to imagine.
+- Make it clear that the actual playback happens on Sandblast’s licensed streams, not through the AI itself.
 `.trim(),
 };
 
@@ -410,12 +454,22 @@ function buildSystemPrompt(routeInfo) {
         '- Reinforce that Sandblast aims to be respectful and careful with rights.';
       break;
 
+    case 'music':
+      routeExtra =
+        'You are in the Music / Licensing-aware mode.\n\n' +
+        'Focus on:\n' +
+        '- Explaining how music fits into Sandblast Radio and other streams (for example, Gospel Sunday, DJ Nova sets, curated playlists).\n' +
+        '- Acknowledging that Sandblast holds appropriate licensing (for example, via Entandem and SOCAN) to play music on its streams.\n' +
+        '- Describing songs, artists, genres, and moods rather than outputting long lyric passages.\n' +
+        '- Making it clear that actual music playback happens on Sandblast’s streams, not directly through the AI.';
+      break;
+
     case 'general':
     default:
       routeExtra =
         'You are in General Sandblast mode.\n\n' +
         'Focus on:\n' +
-        '- Explaining what Sandblast Channel is and how TV, radio, News Canada, PD, and AI consulting interconnect.\n' +
+        '- Explaining what Sandblast Channel is and how TV, radio, News Canada, PD, music licensing, and AI consulting interconnect.\n' +
         '- Helping the user understand what they can do next: watch, listen, learn about AI, or explore advertising options.\n' +
         '- Offer one clear, simple next step in your answer.';
       break;
@@ -433,7 +487,10 @@ function buildSystemPrompt(routeInfo) {
 //
 app.post('/api/sandblast-gpt', async (req, res) => {
   try {
-    const userMessage = req.body && (req.body.message || req.body.input) ? (req.body.message || req.body.input) : '';
+    const userMessage =
+      req.body && (req.body.message || req.body.input)
+        ? req.body.message || req.body.input
+        : '';
     const persona = (req.body && req.body.persona) || 'sandblast_assistant';
     const context = (req.body && req.body.context) || 'homepage';
     const sessionId = (req.body && req.body.session_id) || null;
@@ -450,7 +507,7 @@ app.post('/api/sandblast-gpt', async (req, res) => {
       return res.json({
         success: true,
         reply:
-          'SandblastGPT is online, but I did not receive any question yet. Try asking me about TV, radio, News Canada, ads, or public domain.',
+          'SandblastGPT is online, but I did not receive any question yet. Try asking me about TV, radio, music, News Canada, ads, or public domain.',
         echo: {
           received: userMessage,
           persona: persona,
@@ -539,7 +596,10 @@ app.post('/api/sandblast-gpt', async (req, res) => {
       },
     });
   } catch (error) {
-    const details = error && error.response && error.response.data ? error.response.data : error.message || error;
+    const details =
+      error && error.response && error.response.data
+        ? error.response.data
+        : error.message || error;
     console.error('Error in /api/sandblast-gpt:', details);
 
     res.status(500).json({
