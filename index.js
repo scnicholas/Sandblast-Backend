@@ -1,6 +1,6 @@
 // =======================================================
 // Sandblast Backend - Full Version with ElevenLabs TTS
-// (No node-fetch import; uses global fetch in Node 18+)
+// (POST main route + GET test route)
 // =======================================================
 
 const express = require('express');
@@ -167,6 +167,45 @@ async function callSandblastBrain({ message, persona, context, session_id }) {
 }
 
 // -------------------------------------------------------
+// Shared core logic: build a full response object
+// -------------------------------------------------------
+async function buildSandblastResponse({ message, persona, context, session_id }) {
+  // Layer 1
+  const local = handleQuickLocalReply({ message, persona });
+
+  if (local.handled) {
+    const audioUrl = await generateVoiceAudio(local.reply, persona);
+    return {
+      source: "local-routing",
+      reply: local.reply,
+      voice: {
+        shouldSpeak: !!audioUrl,
+        audioUrl
+      }
+    };
+  }
+
+  // Layer 2
+  const brainReply = await callSandblastBrain({
+    message,
+    persona,
+    context,
+    session_id
+  });
+
+  const audioUrl = await generateVoiceAudio(brainReply, persona);
+
+  return {
+    source: "backend-brain",
+    reply: brainReply,
+    voice: {
+      shouldSpeak: !!audioUrl,
+      audioUrl
+    }
+  };
+}
+
+// -------------------------------------------------------
 // Health Check
 // -------------------------------------------------------
 app.get('/', (req, res) => {
@@ -174,7 +213,7 @@ app.get('/', (req, res) => {
 });
 
 // -------------------------------------------------------
-// Main API: /api/sandblast-gpt
+// Main API (POST): /api/sandblast-gpt
 // -------------------------------------------------------
 app.post('/api/sandblast-gpt', async (req, res) => {
   try {
@@ -185,51 +224,53 @@ app.post('/api/sandblast-gpt', async (req, res) => {
       session_id = null
     } = req.body || {};
 
-    // ---------------------------------------------------
-    // LAYER 1 Routing
-    // ---------------------------------------------------
-    const local = handleQuickLocalReply({ message, persona });
-
-    if (local.handled) {
-      const audioUrl = await generateVoiceAudio(local.reply, persona);
-
-      return res.json({
-        source: "local-routing",
-        reply: local.reply,
-        voice: {
-          shouldSpeak: !!audioUrl,
-          audioUrl
-        }
-      });
-    }
-
-    // ---------------------------------------------------
-    // LAYER 2 Brain
-    // ---------------------------------------------------
-    const brainReply = await callSandblastBrain({
+    const response = await buildSandblastResponse({
       message,
       persona,
       context,
       session_id
     });
 
-    const audioUrl = await generateVoiceAudio(brainReply, persona);
-
-    return res.json({
-      source: "backend-brain",
-      reply: brainReply,
-      voice: {
-        shouldSpeak: !!audioUrl,
-        audioUrl
-      }
-    });
-
+    return res.json(response);
   } catch (err) {
     console.error("Error in /api/sandblast-gpt:", err);
 
     return res.status(500).json({
       source: "error",
       reply: "Something went wrong in the Sandblast backend.",
+      voice: {
+        shouldSpeak: false,
+        audioUrl: null
+      }
+    });
+  }
+});
+
+// -------------------------------------------------------
+// Test API (GET): /api/sandblast-gpt-test
+// Lets you hit it from the browser and see JSON
+// -------------------------------------------------------
+app.get('/api/sandblast-gpt-test', async (req, res) => {
+  try {
+    const message = req.query.message || "Test from GET";
+    const persona = req.query.persona || "sandblast_assistant";
+    const context = req.query.context || "homepage";
+    const session_id = null;
+
+    const response = await buildSandblastResponse({
+      message,
+      persona,
+      context,
+      session_id
+    });
+
+    return res.json(response);
+  } catch (err) {
+    console.error("Error in /api/sandblast-gpt-test:", err);
+
+    return res.status(500).json({
+      source: "error",
+      reply: "Something went wrong in the Sandblast backend (test route).",
       voice: {
         shouldSpeak: false,
         audioUrl: null
