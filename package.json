@@ -1,19 +1,19 @@
 {
   "name": "sandblast-backend",
   "version": "1.0.0",
-  "description": "",
+  "description": "Backend for SandblastGPT and Sandblast Channel routing brain",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node index.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
+    "express": "^4.21.0",
     "cors": "^2.8.5",
-    "express": "^5.1.0",
-    "node-fetch": "^3.3.2"
-  }
+    "axios": "^1.7.7",
+    "dotenv": "^16.4.5"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "license": "MIT"
 }
