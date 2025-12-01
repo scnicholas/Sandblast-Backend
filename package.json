@@ -1,7 +1,7 @@
 {
   "name": "sandblast-backend",
   "version": "1.0.0",
-  "description": "Backend for SandblastGPT and Sandblast Channel routing brain",
+  "description": "Backend for Sandblast project",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
@@ -10,7 +10,8 @@
     "express": "^4.21.0",
     "cors": "^2.8.5",
     "axios": "^1.7.7",
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "openai": "^4.0.0"
   },
   "engines": {
     "node": ">=14.0.0"
