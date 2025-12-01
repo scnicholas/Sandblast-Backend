@@ -52,6 +52,15 @@ app.get('/api/tts-test', (req, res) => {
   });
 });
 
+// Simple config check for OpenAI
+app.get('/api/openai-test', (req, res) => {
+  res.json({
+    status: 'ok',
+    openai_api_key_present: !!process.env.OPENAI_API_KEY,
+    message: 'This just checks env vars. Use POST /api/sandblast-gpt for real answers.',
+  });
+});
+
 // ============ Intent Routing Helper ============
 
 function detectIntent(message = '') {
@@ -69,7 +78,7 @@ function detectIntent(message = '') {
     return 'news_canada';
   }
 
-  if (text.includes('ad ') || text.includes('advertising') || text.includes('sponsorship') || text.includes('sponsor')) {
+  if (text.includes(' ad ') || text.includes('advertising') || text.includes('sponsorship') || text.includes('sponsor')) {
     return 'ads';
   }
 
@@ -176,6 +185,8 @@ Focus on:
 // POST /api/sandblast-gpt
 // Body: { message: string, persona?: string, context?: string, session_id?: string | null }
 //
+// Returns: { success, reply, echo, meta }
+//
 app.post('/api/sandblast-gpt', async (req, res) => {
   try {
     const userMessage = req.body?.message || req.body?.input || '';
@@ -222,7 +233,7 @@ app.post('/api/sandblast-gpt', async (req, res) => {
 
     // 2) Call OpenAI for a real answer
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4.1-mini', // you can upgrade to gpt-4.1 later
+      model: 'gpt-4.1-mini', // upgradeable later
       messages: [
         {
           role: 'system',
