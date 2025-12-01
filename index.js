@@ -166,11 +166,10 @@ function detectIntent(message = '') {
   return scoreIntent(message);
 }
 
-// ============ Sandblast Knowledge Layer (CLEAN) ============
+// ============ Sandblast Knowledge Layer (with richer PD/show catalog) ============
 //
-// This is your built-in "mini knowledge base" to make replies feel
-// like SandblastGPT actually knows the operation. No Stephenson’s,
-// no Upcycle – only real Sandblast campaigns and structure.
+// Internal-only notes to make answers feel grounded in Sandblast.
+// Do NOT read these verbatim; use them as background context.
 
 const knowledgeByRoute = {
   general: `
@@ -195,9 +194,32 @@ Sandblast TV:
 - Sunday Movie Block is a key anchor: a rotating public-domain movie featured as an “event” slot.
 - Retro TV Hours include short serial chapters and classic TV-style programming, subject to public-domain verification.
 
+Internal PD/retro catalog snapshot (examples, not a legal list):
+- Serial and adventure style titles Sandblast may feature after PD verification:
+  - "Daredevils of the Red Circle"
+  - "The Shadow" serials
+  - "Spy Smasher"
+  - "Agent X-9"
+  - "Flying G-Men"
+  - "G-Men"
+  - "Gangbusters"
+- Classic-era crime, mystery, and action shows Sandblast may review for inclusion:
+  - "Dragnet" (classic TV period)
+  - "Highway Patrol"
+  - "Ghost Squad"
+  - "Dial 999"
+- Other retro categories to draw from:
+  - Westerns and frontier shows
+  - Detective and noir-style series
+  - Vintage sci-fi and suspense
+
+Important:
+- These titles are examples used to shape tone and recommendations.
+- Public-domain status must always be checked individually through Sandblast's PD process before treating any specific title as cleared.
+
 How to speak about TV:
 - Emphasize the feel: retro, nostalgic, community-friendly.
-- Describe blocks like “Sunday Movie” or “Retro TV Hour” rather than promising exact times.
+- Mention a few examples naturally (“classic serials like Spy Smasher or Daredevils of the Red Circle”) without claiming legal certainty.
 - Encourage visitors to check the stream or platform announcements for the current lineup.
 - Keep explanations short and clear so they sound good when read out by Vera’s voice.
 `.trim(),
@@ -268,6 +290,30 @@ High-level PD verification mindset:
 3) Documentation:
    - Keep internal notes or records of where PD confirmations came from, to maintain a clear decision trail.
 
+Internal PD catalog framing (for the model’s awareness):
+- There are two mental buckets:
+  1) Titles already treated as PD-cleared for Sandblast programming, based on prior checks.
+  2) Classic-era titles under review or considered as candidates that always require fresh verification.
+
+Examples of classic-era titles that may fall into the “review / candidate” bucket:
+- Serial/adventure examples:
+  - "Daredevils of the Red Circle"
+  - "The Shadow" serials
+  - "Spy Smasher"
+  - "Agent X-9"
+  - "Flying G-Men"
+- Crime/action TV-style examples:
+  - "Gangbusters"
+  - "Dragnet" (classic TV era)
+  - "Highway Patrol"
+  - "Ghost Squad"
+  - "Dial 999"
+
+Important:
+- These names are examples to make your explanations concrete.
+- You must never imply that any specific title is definitively public domain or legally cleared.
+- When speaking to users, you can say that Sandblast “uses carefully verified public-domain classics, including serials and crime shows from that era,” and, at most, mention one or two examples as illustrations.
+
 How to talk about PD with the audience:
 - Emphasize that Sandblast takes a cautious, responsible approach to PD usage.
 - Make it clear that this is an internal verification process and not formal legal advice.
@@ -319,7 +365,8 @@ You are in the TV / streaming mode.
 Focus on:
 - Sunday Movie Block, Retro TV Hours, and how to watch Sandblast TV.
 - Explaining the style of content (retro, PD-based, classic shows) rather than rigid schedule grids.
-- Suggesting that viewers check the current stream or announcements for the latest lineup.
+- You may naturally mention one or two example serials or shows from the internal catalog, but do not make legal claims about their status.
+- Suggest that viewers check the current stream or announcements for the latest lineup.
       `.trim();
       break;
 
@@ -363,7 +410,8 @@ You are in the Public Domain / PD Watchdog mode.
 Focus on:
 - Explaining why Sandblast uses public-domain retro content and how it fits into blocks like Sunday Movie and Retro TV Hours.
 - Describing the verification process in high-level, non-legal terms.
-- Reinforcing that Sandblast aims to be respectful and careful with rights.
+- You may reference classic-era serials and crime shows as examples, but always stress that specific titles must be individually verified.
+- Reinforce that Sandblast aims to be respectful and careful with rights.
       `.trim();
       break;
 
@@ -534,13 +582,13 @@ app.post('/api/tts', async (req, res) => {
   // --- Guard: limit text length for TTS (safety + performance) ---
   const MAX_TTS_CHARS = 800;
   if (text.length > MAX_TTS_CHARS) {
-    console.warn(`TTS text too long (${text.length} chars). Truncating to ${MAX_TTS_CHARS}.`);
+    console.warn(\`TTS text too long (\${text.length} chars). Truncating to \${MAX_TTS_CHARS}.\`);
     text = text.slice(0, MAX_TTS_CHARS);
   }
 
   try {
     const apiKey = process.env.ELEVENLABS_API_KEY;
-    const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
+    const url = \`https://api.elevenlabs.io/v1/text-to-speech/\${voiceId}\`;
 
     console.log('Calling ElevenLabs TTS:', {
       voiceId,
@@ -605,5 +653,5 @@ app.post('/api/tts', async (req, res) => {
 
 // ============ Start Server ============
 app.listen(PORT, () => {
-  console.log(`Sandblast backend listening on port ${PORT}`);
+  console.log(\`Sandblast backend listening on port \${PORT}\`);
 });
