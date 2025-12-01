@@ -61,7 +61,7 @@ app.get('/api/openai-test', (req, res) => {
   });
 });
 
-// ============ Intent Routing Helper (Powered-Up) ============
+// ============ Intent Routing Helper (Main Route) ============
 
 const intentConfig = {
   tv: {
@@ -91,7 +91,7 @@ const intentConfig = {
       'editorial content', 'branded content', 'news distribution',
       'article distribution', 'content insert', 'community feature from news canada'
     ],
-    weight: 1.2, // more specific phrase, boost slightly
+    weight: 1.2,
   },
   ads: {
     label: 'ads',
@@ -102,7 +102,7 @@ const intentConfig = {
       'package', 'pricing', 'cost to advertise', 'budget', 'spend',
       'brand exposure'
     ],
-    weight: 1.3, // usually a strong, clear intent
+    weight: 1.3,
   },
   public_domain: {
     label: 'public_domain',
@@ -166,13 +166,109 @@ function detectIntent(message = '') {
   return scoreIntent(message);
 }
 
+// ============ Sub-Intent Helper (Pricing / Schedule / Technical / Strategy) ============
+
+const subIntentConfig = {
+  pricing: {
+    label: 'pricing',
+    keywords: [
+      'price', 'pricing', 'cost', 'how much', 'rate', 'rates',
+      'budget', 'spend', 'per month', 'per spot', 'per ad', 'fee', 'charge'
+    ],
+    weight: 1.3,
+  },
+  schedule: {
+    label: 'schedule',
+    keywords: [
+      'schedule', 'when does', 'what time', 'what times', 'time slot',
+      'time slots', 'lineup', 'airtime', 'broadcast time', 'on tonight',
+      'calendar'
+    ],
+    weight: 1.1,
+  },
+  technical: {
+    label: 'technical',
+    keywords: [
+      'how do i', 'how to', 'set up', 'setup', 'integrate', 'integration',
+      'api', 'webflow', 'render', 'backend', 'front end', 'frontend',
+      'config', 'configuration', 'install', 'connect', 'embed', 'widget'
+    ],
+    weight: 1.2,
+  },
+  strategy: {
+    label: 'strategy',
+    keywords: [
+      'strategy', 'plan', 'growth', 'campaign', 'funnel', 'positioning',
+      'brand', 'branding', 'optimize', 'optimization', 'results', 'roi',
+      'audience', 'target', 'targeting', 'conversion', 'engagement',
+      'reach', 'scale'
+    ],
+    weight: 1.0,
+  },
+};
+
+function scoreSubIntent(message = '') {
+  const text = message.toLowerCase();
+  const scores = [];
+  let best = { label: 'general', score: 0, hits: [] };
+
+  Object.values(subIntentConfig).forEach((sub) => {
+    let score = 0;
+    const hits = [];
+
+    sub.keywords.forEach((kw) => {
+      if (text.includes(kw)) {
+        score += 1;
+        hits.push(kw);
+      }
+    });
+
+    score *= sub.weight;
+
+    if (score > 0) {
+      scores.push({ label: sub.label, score, hits });
+    }
+
+    if (score > best.score) {
+      best = { label: sub.label, score, hits };
+    }
+  });
+
+  const confidence = best.score > 0 ? Math.min(1, best.score / 3) : 0;
+
+  if (best.score === 0) {
+    return {
+      subIntent: 'general',
+      confidence: 0,
+      scores,
+      reason: 'No clear sub-intent detected. Using general explanation.',
+    };
+  }
+
+  return {
+    subIntent: best.label,
+    confidence,
+    scores,
+    reason: `Sub-intent "${best.label}" chosen based on keywords: ${best.hits.join(', ')}`,
+  };
+}
+
+function detectSubIntent(message = '') {
+  return scoreSubIntent(message);
+}
+
 // ============ System Prompt Helper ============
 
-function buildSystemPrompt(routeInfo) {
+function buildSystemPrompt(routeInfo, subInfo) {
   const route = routeInfo?.route || 'general';
-  const confidence = routeInfo?.confidence ?? 0;
-  const reason = routeInfo?.reason || '';
-  const scores = routeInfo?.scores || [];
+  const routeConfidence = routeInfo?.confidence ?? 0;
+  const routeReason = routeInfo?.reason || '';
+  const routeScores = routeInfo?.scores || [];
+
+  const subIntent = subInfo?.subIntent || 'general';
+  const subConfidence = subInfo?.confidence ?? 0;
+  const subReason = subInfo?.reason || '';
+  const subScores = subInfo?.scores || [];
 
   // Global identity
   let base = `
@@ -186,9 +282,12 @@ General behavior:
 - If you don’t know something, say so and suggest a practical next action.
 
 Routing context:
-- The routing module has selected the route "${route}" with confidence ${confidence.toFixed(2)}.
-- Reason: ${reason || 'No specific reason provided.'}
-- Scores per route (for your awareness, not to be repeated directly): ${JSON.stringify(scores)}
+- Main route: "${route}" with confidence ${routeConfidence.toFixed(2)}.
+- Main route reason: ${routeReason || 'No specific reason provided.'}
+- Sub-intent: "${subIntent}" with confidence ${subConfidence.toFixed(2)}.
+- Sub-intent reason: ${subReason || 'No specific sub-intent reason.'}
+- Scores per route (for your awareness, not to be repeated directly): ${JSON.stringify(routeScores)}
+- Scores per sub-intent (for your awareness, not to be repeated directly): ${JSON.stringify(subScores)}
 `.trim();
 
   let routeExtra = '';
@@ -264,7 +363,66 @@ Focus on:
       break;
   }
 
-  return `${base}\n\n${routeExtra}`;
+  let subExtra = '';
+
+  switch (subIntent) {
+    case 'pricing':
+      subExtra = `
+Sub-intent focus: pricing and budgets.
+
+Focus on:
+- Giving a clear, simple sense of cost structure (ranges, not exact numbers unless known).
+- Linking pricing back to value: reach, exposure, and community impact.
+- Ending with one practical next step to talk about a tailored package.
+      `.trim();
+      break;
+
+    case 'schedule':
+      subExtra = `
+Sub-intent focus: schedule and timing.
+
+Focus on:
+- When shows or blocks typically air (e.g., evenings, weekends, special blocks).
+- How someone can check the latest schedule (website, social posts, or contacting Sandblast).
+- Keeping it audio-friendly, like a quick on-air explanation.
+      `.trim();
+      break;
+
+    case 'technical':
+      subExtra = `
+Sub-intent focus: technical / how-to.
+
+Focus on:
+- Explaining steps simply, like you are guiding someone who is not deeply technical.
+- Keeping instructions high-level (no massive code dumps).
+- Encouraging them to follow up with more details if they get stuck.
+      `.trim();
+      break;
+
+    case 'strategy':
+      subExtra = `
+Sub-intent focus: strategy and growth.
+
+Focus on:
+- Framing Sandblast as a strategic media partner.
+- Talking about audience, positioning, and outcomes in clear language.
+- Offering one or two concrete ideas they could act on next.
+      `.trim();
+      break;
+
+    case 'general':
+    default:
+      subExtra = `
+Sub-intent focus: general explanation.
+
+Focus on:
+- Giving a clear, straightforward answer.
+- One main idea, one supporting detail, and one next step.
+      `.trim();
+      break;
+  }
+
+  return `${base}\n\n${routeExtra}\n\n${subExtra}`;
 }
 
 // ============ Main Brain Endpoint ============
@@ -306,10 +464,11 @@ app.post('/api/sandblast-gpt', async (req, res) => {
       });
     }
 
-    // 1) Detect intent / route (richer info)
+    // 1) Detect main route + sub-intent
     const routing = detectIntent(userMessage);
+    const subRouting = detectSubIntent(userMessage);
     const route = routing.route;
-    const systemPrompt = buildSystemPrompt(routing);
+    const systemPrompt = buildSystemPrompt(routing, subRouting);
 
     console.log('[/api/sandblast-gpt] Incoming message:', {
       message: userMessage,
@@ -317,6 +476,7 @@ app.post('/api/sandblast-gpt', async (req, res) => {
       context,
       route,
       routing,
+      subRouting,
       sessionId,
     });
 
@@ -337,8 +497,8 @@ User message:
 Context:
 - Persona: ${persona}
 - UI context: ${context}
-- Route detected: ${route}
-- Routing confidence: ${routing.confidence.toFixed(2)}
+- Main route detected: ${route} (confidence: ${routing.confidence.toFixed(2)})
+- Sub-intent detected: ${subRouting.subIntent} (confidence: ${subRouting.confidence.toFixed(2)})
 
 Answer in a natural spoken style, as if you are Vera explaining this out loud. Keep it concise but clear.
           `.trim(),
@@ -361,7 +521,8 @@ Answer in a natural spoken style, as if you are Vera explaining this out loud. K
         persona,
         context,
         route,
-        routing, // expose full routing info for debugging / future UI
+        routing,
+        subRouting,
       },
       meta: {
         source: 'sandblast-openai',
