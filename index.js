@@ -36,20 +36,17 @@ app.get('/api/sandblast-gpt-test', (req, res) => {
   });
 });
 
-// Optional: quick config check for TTS (no audio, just config status)
+// Optional config check
 app.get('/api/tts-test', (req, res) => {
   res.json({
     status: 'ok',
-    elevelabs_api_key_present: !!process.env.ELEVENLABS_API_KEY,
+    elevenlabs_api_key_present: !!process.env.ELEVENLABS_API_KEY,
     elevenlabs_voice_id_present: !!process.env.ELEVENLABS_VOICE_ID,
-    message: 'This only checks env vars. Use POST /api/tts for real audio.',
+    message: 'This just checks env vars. Use POST /api/tts for real audio.',
   });
 });
 
 // ============ Main Brain Endpoint ============
-//
-// This is the text “brain” stub. Your Webflow widget calls this first.
-//
 app.post('/api/sandblast-gpt', async (req, res) => {
   try {
     const userMessage = req.body?.message || req.body?.input || null;
@@ -87,13 +84,13 @@ app.post('/api/sandblast-gpt', async (req, res) => {
 // POST /api/tts
 // Body: { text: "Hello from Sandblast" }
 //
-// Returns: audio/mpeg stream (MP3)
+// Returns: audio/mpeg stream (MP3) on success
 //
 app.post('/api/tts', async (req, res) => {
   const text = req.body?.text;
   const voiceId = req.body?.voiceId || process.env.ELEVENLABS_VOICE_ID;
 
-  // Basic validation
+  // --- Basic validation ---
   if (!text) {
     return res.status(400).json({
       success: false,
@@ -141,7 +138,7 @@ app.post('/api/tts', async (req, res) => {
         'Accept': 'audio/mpeg',
         'xi-api-key': apiKey,
       },
-      responseType: 'arraybuffer', // get raw audio bytes
+      responseType: 'arraybuffer', // raw audio bytes
     });
 
     if (!response.data || !response.data.length) {
@@ -152,7 +149,7 @@ app.post('/api/tts', async (req, res) => {
       });
     }
 
-    // Audio response headers
+    // --- Audio response ---
     res.set({
       'Content-Type': 'audio/mpeg',
       'Content-Length': response.data.length,
@@ -161,7 +158,7 @@ app.post('/api/tts', async (req, res) => {
 
     return res.send(Buffer.from(response.data, 'binary'));
   } catch (error) {
-    const status = error.response?.status;
+    const status = error.response?.status || 500;
     const details = error.response?.data || error.message;
 
     console.error('Error calling ElevenLabs TTS:', {
@@ -169,7 +166,8 @@ app.post('/api/tts', async (req, res) => {
       details,
     });
 
-    return res.status(500).json({
+    // Important: return JSON with the actual details so the widget can show you why it failed
+    return res.status(status).json({
       success: false,
       error: 'Failed to generate audio with ElevenLabs.',
       status,
