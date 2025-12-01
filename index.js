@@ -166,72 +166,112 @@ function detectIntent(message = '') {
   return scoreIntent(message);
 }
 
-// ============ Sandblast Knowledge Layer ============
+// ============ Sandblast Knowledge Layer (CLEAN) ============
 //
 // This is your built-in "mini knowledge base" to make replies feel
-// like SandblastGPT actually knows the operation.
+// like SandblastGPT actually knows the operation. No Stephenson’s,
+// no Upcycle – only real Sandblast campaigns and structure.
 
 const knowledgeByRoute = {
   general: `
 Core overview of Sandblast:
-- Sandblast is a media ecosystem that combines TV, radio, digital content, AI, and public-domain programming.
-- The focus is on community storytelling, retro entertainment, and practical media solutions for small and medium businesses.
-- SandblastGPT acts as the "AI front desk" and operations brain: it explains how TV, radio, News Canada, ads, and public-domain content fit together.
-- Sandblast also experiments with AI consulting and agentic AI workflows to help businesses modernize and use automation effectively.
+- Sandblast is a media ecosystem combining TV, radio, digital streaming, News Canada integrations, and AI-powered consulting.
+- The mission is to deliver community-friendly entertainment, retro programming, and practical media support for small and medium businesses.
+- SandblastGPT acts as the “AI operations brain,” helping visitors understand TV, radio, PD content, News Canada, ads, and AI services.
+
+Signature recurring campaigns and elements:
+- Sunday Movie Block: weekly retro film showcase using verified public-domain titles.
+- Retro TV Hours: rotating classic TV episodes, serials, and vintage dramatic shorts.
+- Gospel Sunday (Radio): a consistent inspirational block on the radio stream.
+- DJ Nova segments: high-energy intros and transitions that shape the Sandblast radio personality.
+- AI/Small Business Workshops: Sandblast AI Consulting sessions that teach owners how to apply AI and automation in real operations.
+- Sandblast Community Features: spotlight stories, general announcements, and public-awareness messages aligned with the platform mission.
 `.trim(),
 
   tv: `
-Sandblast TV – internal reference:
-- TV is focused on retro series, vintage movie serials, classic films, and community-oriented video blocks, often sourced from verified public-domain material.
-- Programming is organized into themed blocks (for example: classic TV hours, retro movie blocks, and special event segments).
-- Viewers typically access Sandblast TV through an online streaming link or embedded player on the Sandblast site, rather than traditional cable.
-- Exact times and shows can change, so when asked for precise schedules, you should guide people to the latest schedule on the site or via Sandblast's announcements.
+Sandblast TV:
+- Focuses on retro content: movie serials, vintage dramas, classic films, and PD-friendly episodes.
+- Programming is organized into blocks rather than rigid, minute-by-minute schedules; viewers tune in via the streaming player.
+- Sunday Movie Block is a key anchor: a rotating public-domain movie featured as an “event” slot.
+- Retro TV Hours include short serial chapters and classic TV-style programming, subject to public-domain verification.
+
+How to speak about TV:
+- Emphasize the feel: retro, nostalgic, community-friendly.
+- Describe blocks like “Sunday Movie” or “Retro TV Hour” rather than promising exact times.
+- Encourage visitors to check the stream or platform announcements for the current lineup.
+- Keep explanations short and clear so they sound good when read out by Vera’s voice.
 `.trim(),
 
   radio: `
-Sandblast Radio – internal reference:
-- Radio centers on curated music blocks, talk segments, and special shows like Gospel Sunday.
-- DJ Nova is a core on-air personality voice: high-energy, friendly, and focused on intros, lifestyle tips, and smooth transitions between songs or topics.
-- Listeners usually tune in via a web stream or embedded player; it is designed to feel like a live, community-focused station.
-- Scheduling can change, so you should describe the feel and type of programming, then suggest they check the site or live player for current shows.
+Sandblast Radio:
+- Centered on curated music blocks, talk elements, and special event shows.
+- Gospel Sunday is one of the signature recurring radio blocks, featuring uplifting and inspirational programming.
+- DJ Nova is the core voiced personality for intros and transitions, providing energy and a consistent audio identity.
+- Listeners access the station via a live web stream or embedded radio player.
+
+Recurring radio campaigns:
+- Gospel Sunday: consistent weekly anchor with positive, community-oriented sound.
+- DJ Nova segments: lifestyle- and vibe-focused mini-breaks that introduce sets or themes.
+- Occasional community-awareness messages and short informative segments tied into the radio schedule.
+
+When responding:
+- Keep lines snappy and “radio-friendly.”
+- Focus on how it feels to listen, and give a clear step like “open the live stream” instead of heavy technical details.
 `.trim(),
 
   news_canada: `
-News Canada on Sandblast – internal reference:
-- News Canada provides ready-made editorial and branded content: short articles, features, and segments that can be used by media outlets.
-- Sandblast integrates selected News Canada pieces into its platform to give audiences practical, relevant information (e.g., lifestyle tips, public interest topics).
-- For local businesses and community organizations, News Canada content can be paired with Sandblast placements to create more informative and credible campaigns.
-- When explaining this, focus on how Sandblast uses News Canada to boost value for viewers and create smarter campaigns for advertisers, not as a replacement for local content but as a complement.
+News Canada on Sandblast:
+- News Canada provides ready-made editorial content: short articles and features on topics like food, lifestyle, finance, health, and community.
+- Sandblast incorporates selected News Canada pieces to add practical, useful information to its mix of entertainment and community programming.
+- These pieces are often aligned with themes, seasons, or campaign focuses (for example, winter safety, healthy eating, or financial literacy).
+
+How to talk about News Canada:
+- Emphasize that it adds professional, useful information alongside entertainment.
+- Make it clear that Sandblast uses these pieces as part of a broader content strategy, not as a replacement for original or community-driven content.
+- Explain that some campaigns may mix News Canada editorial with Sandblast TV, radio, or digital placements for more impact.
 `.trim(),
 
   ads: `
-Advertising and sponsorship on Sandblast – internal reference:
-- Sandblast offers flexible advertising options that can span TV, radio, and digital placements.
-- Examples of ad formats: on-air TV spots, radio mentions, sponsored segments, banner placements on the site, and integrations with News Canada-style content.
-- The platform is designed to be accessible to small and medium businesses, not just large brands.
-- Messaging should emphasize:
-  - Community focus and reach within the Sandblast audience.
-  - Ability to mix TV, radio, and digital for better impact.
-  - Willingness to discuss budgets and create sensible packages rather than rigid, one-size-only plans.
-- When asked about pricing, you can talk about ranges and the fact that exact numbers depend on duration, placement, and frequency, then invite them to talk with Sandblast directly.
+Advertising on Sandblast:
+- Sandblast offers modular ad placements across TV, radio, and digital platforms.
+- Typical options include:
+  - Short TV bumpers or sponsor lines around the Sunday Movie Block or Retro TV Hours.
+  - Radio mentions or sponsor lines around Gospel Sunday or other radio segments.
+  - Banner or tile placements on Sandblast’s digital properties.
+  - Integrations where News Canada content is paired with sponsor messaging (where appropriate).
+
+Core ad philosophy:
+- Sandblast aims to be accessible to small and medium businesses; packages are flexible rather than one-size-fits-all.
+- The focus is on community feel and repeated presence, not just a single exposure.
+- Multi-channel approaches (TV + radio + digital) are encouraged where budget allows.
+
+How to answer ad questions:
+- Talk about the ability to sponsor Sunday Movie, Retro TV, Gospel Sunday, or themed digital content.
+- If specific pricing is requested, explain that budgets and packages are tailored, based on:
+  - Duration of campaign.
+  - Frequency of placements.
+  - Mix of channels (TV, radio, digital, editorial integrations).
+- Encourage a follow-up conversation or outreach to discuss exact packages instead of giving hard numbers you do not have.
 `.trim(),
 
   public_domain: `
-Public Domain and Sandblast – internal reference:
-- A significant portion of Sandblast's retro and classic content comes from the public domain (PD).
-- Sandblast treats public-domain verification seriously: it is not legal advice, but there is a structured, cautious approach.
-- Internal high-level PD verification steps:
-  1) Quick PD test:
-     - Check if the work appears to be from a very old era (for example, early 20th century) where many items may already be public domain.
-     - Scan trusted PD lists or references to see if the title is commonly recognized as public domain.
-  2) Deeper verification:
-     - Look for official records or documentation when possible.
-     - Cross-check multiple PD reference sites and, where relevant, official copyright databases.
-  3) Recordkeeping:
-     - Keep notes or proof of where PD information was found, so there is a clear trace of the decision.
-- When you talk about PD, you must make clear:
-  - You are explaining Sandblast's cautious process, not giving formal legal advice.
-  - Viewers should understand that Sandblast does its best to respect rights and use public-domain works responsibly.
+Public Domain and Sandblast:
+- A large portion of Sandblast’s retro content comes from public-domain (PD) films, serials, and shows.
+- Using PD content allows Sandblast to build consistent retro programming blocks like Sunday Movie and Retro TV Hours.
+
+High-level PD verification mindset:
+1) Quick PD assessment:
+   - Look at the age and known status of the work.
+   - Check whether it is commonly cited as public domain in trusted references.
+2) Cross-checking:
+   - Use multiple PD reference sources and, where relevant, official copyright records when possible.
+3) Documentation:
+   - Keep internal notes or records of where PD confirmations came from, to maintain a clear decision trail.
+
+How to talk about PD with the audience:
+- Emphasize that Sandblast takes a cautious, responsible approach to PD usage.
+- Make it clear that this is an internal verification process and not formal legal advice.
+- Connect PD usage back to the value for viewers: more retro content, more variety, and the ability to build unique themed blocks around classic material.
 `.trim(),
 };
 
@@ -277,10 +317,9 @@ ${knowledge}
 You are in the TV / streaming mode.
 
 Focus on:
-- TV schedule, retro shows, movie blocks, and how to watch Sandblast TV.
-- Explaining what kind of content is on Sandblast TV (retro series, movie serials, etc.).
-- Suggesting how viewers could engage (time blocks, special events, themed nights).
-If asked for specific times or shows, answer based on what you know or describe how the viewer can check the current schedule on Sandblast's site or announcements.
+- Sunday Movie Block, Retro TV Hours, and how to watch Sandblast TV.
+- Explaining the style of content (retro, PD-based, classic shows) rather than rigid schedule grids.
+- Suggesting that viewers check the current stream or announcements for the latest lineup.
       `.trim();
       break;
 
@@ -289,8 +328,8 @@ If asked for specific times or shows, answer based on what you know or describe 
 You are in the Radio / audio mode.
 
 Focus on:
-- Sandblast Radio streaming, DJ Nova intros, audio shows, and music or talk blocks.
-- How a listener can tune in, what they can expect, and how live shows work.
+- Sandblast Radio streaming, Gospel Sunday, DJ Nova segments, and overall listening experience.
+- How a listener can tune in, what type of content they can expect, and the feel of the station.
 - Keep answers snappy so they sound natural as spoken radio explanations.
       `.trim();
       break;
@@ -300,9 +339,9 @@ Focus on:
 You are in the News Canada mode.
 
 Focus on:
-- Explaining what the News Canada partnership/content is and how Sandblast uses their material.
-- How businesses or community organizations could benefit from News Canada features on Sandblast.
-- Make it sound like a smart, strategic media move, but still easy to understand.
+- Explaining what the News Canada content is and how Sandblast uses it to add helpful, editorial-style information.
+- How this integrates with Sandblast TV, radio, or digital campaigns to create more informative programming.
+- Keep it simple and spoken-word friendly.
       `.trim();
       break;
 
@@ -311,9 +350,9 @@ Focus on:
 You are in the Advertising / Sponsorship mode.
 
 Focus on:
-- How businesses can advertise on Sandblast (TV, radio, digital, News Canada tie-ins).
-- Simple breakdown of options: on-air spots, banners, sponsored blocks, community features.
-- Emphasize community focus, flexibility for small and medium businesses, and clear next steps (for example, contacting Sandblast to discuss a custom package).
+- How businesses can advertise on Sandblast (TV, radio, digital, and News Canada tie-ins).
+- Using real recurring elements such as Sunday Movie, Retro TV Hours, Gospel Sunday, and AI/small-business workshop tie-ins as examples of sponsorship opportunities.
+- Emphasize flexibility, community focus, and the idea of building packages, not forcing one standard plan.
       `.trim();
       break;
 
@@ -322,10 +361,9 @@ Focus on:
 You are in the Public Domain / PD Watchdog mode.
 
 Focus on:
-- Explaining public domain content, how Sandblast uses PD shows and films.
-- High-level description of checking PD status (not legal advice).
-- Reinforce that Sandblast takes PD verification seriously and uses a step-by-step, cautious process.
-- Keep explanations short and clear enough to be spoken as a quick segment.
+- Explaining why Sandblast uses public-domain retro content and how it fits into blocks like Sunday Movie and Retro TV Hours.
+- Describing the verification process in high-level, non-legal terms.
+- Reinforcing that Sandblast aims to be respectful and careful with rights.
       `.trim();
       break;
 
@@ -335,9 +373,9 @@ Focus on:
 You are in General Sandblast mode.
 
 Focus on:
-- Explaining what Sandblast Channel is, and how TV/radio/AI consulting fit together.
-- Helping the user understand what SandblastGPT can do for them (questions, guidance, information).
-- Offer one clear suggestion for how they can explore or use Sandblast next.
+- Explaining what Sandblast Channel is and how TV, radio, News Canada, PD, and AI consulting interconnect.
+- Helping the user understand what they can do next: watch, listen, learn about AI, or explore advertising options.
+- Offer one clear, simple next step in your answer.
       `.trim();
       break;
   }
@@ -384,7 +422,7 @@ app.post('/api/sandblast-gpt', async (req, res) => {
       });
     }
 
-    // 1) Detect intent / route
+    // 1) Detect intent / route (richer info)
     const routing = detectIntent(userMessage);
     const route = routing.route;
     const systemPrompt = buildSystemPrompt(routing);
@@ -438,7 +476,7 @@ Answer in a natural spoken style, as if you are Vera explaining this out loud. K
         persona,
         context,
         route,
-        routing,
+        routing, // for debugging / future UI
       },
       meta: {
         source: 'sandblast-openai',
