@@ -61,37 +61,119 @@ app.get('/api/openai-test', (req, res) => {
   });
 });
 
-// ============ Intent Routing Helper ============
+// ============ Intent Routing Helper (Powered-Up) ============
+
+const intentConfig = {
+  tv: {
+    label: 'tv',
+    keywords: [
+      'tv', 'television', 'channel', 'channels', 'movie', 'movies', 'film',
+      'series', 'serial', 'episode', 'episodes', 'show', 'shows',
+      'program guide', 'tv guide', 'schedule', 'lineup', 'on tonight',
+      'watch sandblast', 'watch online', 'streaming tv', 'retro tv',
+      'sunday movie', 'movie block'
+    ],
+    weight: 1.0,
+  },
+  radio: {
+    label: 'radio',
+    keywords: [
+      'radio', 'online radio', 'audio stream', 'stream audio', 'listen live',
+      'dj', 'dj nova', 'nova', 'music', 'playlist', 'mix', 'audio show',
+      'gospel sunday', 'showtime', 'radio show', 'podcast', 'talk show'
+    ],
+    weight: 1.0,
+  },
+  news_canada: {
+    label: 'news_canada',
+    keywords: [
+      'news canada', 'newswire', 'feature article', 'ready-to-use content',
+      'editorial content', 'branded content', 'news distribution',
+      'article distribution', 'content insert', 'community feature from news canada'
+    ],
+    weight: 1.2, // more specific phrase, boost slightly
+  },
+  ads: {
+    label: 'ads',
+    keywords: [
+      ' ad ', 'ads ', 'advertise', 'advertising', 'commercial', 'ad spot',
+      'airtime', 'rate card', 'sponsorship', 'sponsor', 'sponsored',
+      'media buy', 'campaign', 'promotion', 'promote my business',
+      'package', 'pricing', 'cost to advertise', 'budget', 'spend',
+      'brand exposure'
+    ],
+    weight: 1.3, // usually a strong, clear intent
+  },
+  public_domain: {
+    label: 'public_domain',
+    keywords: [
+      'public domain', 'pd ', 'pd content', 'copyright', 'copyright status',
+      'rights', 'licensing', 'expired copyright', 'archive.org',
+      'publicdomain', 'royalty free', 'clearance', 'rights clearance',
+      'verify rights', 'ip issues', 'ip check'
+    ],
+    weight: 1.3,
+  },
+};
+
+function scoreIntent(message = '') {
+  const text = message.toLowerCase();
+  const scores = [];
+  let best = { label: 'general', score: 0, hits: [] };
+
+  Object.values(intentConfig).forEach((intent) => {
+    let score = 0;
+    const hits = [];
+
+    intent.keywords.forEach((kw) => {
+      if (text.includes(kw)) {
+        score += 1;
+        hits.push(kw);
+      }
+    });
+
+    score *= intent.weight;
+
+    if (score > 0) {
+      scores.push({ label: intent.label, score, hits });
+    }
+
+    if (score > best.score) {
+      best = { label: intent.label, score, hits };
+    }
+  });
+
+  const confidence = best.score > 0 ? Math.min(1, best.score / 4) : 0;
+
+  if (best.score === 0) {
+    return {
+      route: 'general',
+      confidence: 0,
+      scores,
+      reason: 'No strong intent keywords detected. Falling back to general.',
+    };
+  }
+
+  return {
+    route: best.label,
+    confidence,
+    scores,
+    reason: `Highest score for "${best.label}" based on keywords: ${best.hits.join(', ')}`,
+  };
+}
 
 function detectIntent(message = '') {
-  const text = message.toLowerCase();
-
-  if (text.includes('tv') || text.includes('schedule') || text.includes('channel') || text.includes('movies')) {
-    return 'tv';
-  }
-
-  if (text.includes('radio') || text.includes('stream') || text.includes('audio show') || text.includes('dj')) {
-    return 'radio';
-  }
-
-  if (text.includes('news canada') || text.includes('newswire') || text.includes('article distribution')) {
-    return 'news_canada';
-  }
-
-  if (text.includes(' ad ') || text.includes('advertising') || text.includes('sponsorship') || text.includes('sponsor')) {
-    return 'ads';
-  }
-
-  if (text.includes('public domain') || text.includes('pd ') || text.includes('copyright') || text.includes('archive.org')) {
-    return 'public_domain';
-  }
-
-  return 'general';
+  return scoreIntent(message);
 }
 
 // ============ System Prompt Helper ============
 
-function buildSystemPrompt(route) {
+function buildSystemPrompt(routeInfo) {
+  const route = routeInfo?.route || 'general';
+  const confidence = routeInfo?.confidence ?? 0;
+  const reason = routeInfo?.reason || '';
+  const scores = routeInfo?.scores || [];
+
   // Global identity
   let base = `
 You are SandblastGPT, the AI brain for Sandblast Channel (TV + radio + digital + News Canada + public domain curation + Sandblast AI consulting).
@@ -102,6 +184,11 @@ General behavior:
 - Avoid long monologues. Get to the point, then offer one clear next step.
 - Be friendly, confident, and helpful, but not overly casual.
 - If you don’t know something, say so and suggest a practical next action.
+
+Routing context:
+- The routing module has selected the route "${route}" with confidence ${confidence.toFixed(2)}.
+- Reason: ${reason || 'No specific reason provided.'}
+- Scores per route (for your awareness, not to be repeated directly): ${JSON.stringify(scores)}
 `.trim();
 
   let routeExtra = '';
@@ -219,15 +306,17 @@ app.post('/api/sandblast-gpt', async (req, res) => {
       });
     }
 
-    // 1) Detect intent / route
-    const route = detectIntent(userMessage);
-    const systemPrompt = buildSystemPrompt(route);
+    // 1) Detect intent / route (richer info)
+    const routing = detectIntent(userMessage);
+    const route = routing.route;
+    const systemPrompt = buildSystemPrompt(routing);
 
     console.log('[/api/sandblast-gpt] Incoming message:', {
       message: userMessage,
       persona,
       context,
       route,
+      routing,
       sessionId,
     });
 
@@ -249,6 +338,7 @@ Context:
 - Persona: ${persona}
 - UI context: ${context}
 - Route detected: ${route}
+- Routing confidence: ${routing.confidence.toFixed(2)}
 
 Answer in a natural spoken style, as if you are Vera explaining this out loud. Keep it concise but clear.
           `.trim(),
@@ -271,6 +361,7 @@ Answer in a natural spoken style, as if you are Vera explaining this out loud. K
         persona,
         context,
         route,
+        routing, // expose full routing info for debugging / future UI
       },
       meta: {
         source: 'sandblast-openai',
