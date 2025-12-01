@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: sandblast-backend
+    env: node
+    plan: free
+    region: oregon          # change if your Render region is different
+    branch: main            # change to your actual Git branch name if not "main"
+    buildCommand: "npm install"
+    startCommand: "npm start"
+    autoDeploy: true
