@@ -61,7 +61,7 @@ app.get('/api/openai-test', (req, res) => {
   });
 });
 
-// ============ Intent Routing Helper (Main Route) ============
+// ============ Intent Routing Helper (Powered-Up) ============
 
 const intentConfig = {
   tv: {
@@ -91,7 +91,7 @@ const intentConfig = {
       'editorial content', 'branded content', 'news distribution',
       'article distribution', 'content insert', 'community feature from news canada'
     ],
-    weight: 1.2,
+    weight: 1.2, // more specific
   },
   ads: {
     label: 'ads',
@@ -166,111 +166,90 @@ function detectIntent(message = '') {
   return scoreIntent(message);
 }
 
-// ============ Sub-Intent Helper (Pricing / Schedule / Technical / Strategy) ============
+// ============ Sandblast Knowledge Layer ============
+//
+// This is your built-in "mini knowledge base" to make replies feel
+// like SandblastGPT actually knows the operation.
 
-const subIntentConfig = {
-  pricing: {
-    label: 'pricing',
-    keywords: [
-      'price', 'pricing', 'cost', 'how much', 'rate', 'rates',
-      'budget', 'spend', 'per month', 'per spot', 'per ad', 'fee', 'charge'
-    ],
-    weight: 1.3,
-  },
-  schedule: {
-    label: 'schedule',
-    keywords: [
-      'schedule', 'when does', 'what time', 'what times', 'time slot',
-      'time slots', 'lineup', 'airtime', 'broadcast time', 'on tonight',
-      'calendar'
-    ],
-    weight: 1.1,
-  },
-  technical: {
-    label: 'technical',
-    keywords: [
-      'how do i', 'how to', 'set up', 'setup', 'integrate', 'integration',
-      'api', 'webflow', 'render', 'backend', 'front end', 'frontend',
-      'config', 'configuration', 'install', 'connect', 'embed', 'widget'
-    ],
-    weight: 1.2,
-  },
-  strategy: {
-    label: 'strategy',
-    keywords: [
-      'strategy', 'plan', 'growth', 'campaign', 'funnel', 'positioning',
-      'brand', 'branding', 'optimize', 'optimization', 'results', 'roi',
-      'audience', 'target', 'targeting', 'conversion', 'engagement',
-      'reach', 'scale'
-    ],
-    weight: 1.0,
-  },
+const knowledgeByRoute = {
+  general: `
+Core overview of Sandblast:
+- Sandblast is a media ecosystem that combines TV, radio, digital content, AI, and public-domain programming.
+- The focus is on community storytelling, retro entertainment, and practical media solutions for small and medium businesses.
+- SandblastGPT acts as the "AI front desk" and operations brain: it explains how TV, radio, News Canada, ads, and public-domain content fit together.
+- Sandblast also experiments with AI consulting and agentic AI workflows to help businesses modernize and use automation effectively.
+`.trim(),
+
+  tv: `
+Sandblast TV – internal reference:
+- TV is focused on retro series, vintage movie serials, classic films, and community-oriented video blocks, often sourced from verified public-domain material.
+- Programming is organized into themed blocks (for example: classic TV hours, retro movie blocks, and special event segments).
+- Viewers typically access Sandblast TV through an online streaming link or embedded player on the Sandblast site, rather than traditional cable.
+- Exact times and shows can change, so when asked for precise schedules, you should guide people to the latest schedule on the site or via Sandblast's announcements.
+`.trim(),
+
+  radio: `
+Sandblast Radio – internal reference:
+- Radio centers on curated music blocks, talk segments, and special shows like Gospel Sunday.
+- DJ Nova is a core on-air personality voice: high-energy, friendly, and focused on intros, lifestyle tips, and smooth transitions between songs or topics.
+- Listeners usually tune in via a web stream or embedded player; it is designed to feel like a live, community-focused station.
+- Scheduling can change, so you should describe the feel and type of programming, then suggest they check the site or live player for current shows.
+`.trim(),
+
+  news_canada: `
+News Canada on Sandblast – internal reference:
+- News Canada provides ready-made editorial and branded content: short articles, features, and segments that can be used by media outlets.
+- Sandblast integrates selected News Canada pieces into its platform to give audiences practical, relevant information (e.g., lifestyle tips, public interest topics).
+- For local businesses and community organizations, News Canada content can be paired with Sandblast placements to create more informative and credible campaigns.
+- When explaining this, focus on how Sandblast uses News Canada to boost value for viewers and create smarter campaigns for advertisers, not as a replacement for local content but as a complement.
+`.trim(),
+
+  ads: `
+Advertising and sponsorship on Sandblast – internal reference:
+- Sandblast offers flexible advertising options that can span TV, radio, and digital placements.
+- Examples of ad formats: on-air TV spots, radio mentions, sponsored segments, banner placements on the site, and integrations with News Canada-style content.
+- The platform is designed to be accessible to small and medium businesses, not just large brands.
+- Messaging should emphasize:
+  - Community focus and reach within the Sandblast audience.
+  - Ability to mix TV, radio, and digital for better impact.
+  - Willingness to discuss budgets and create sensible packages rather than rigid, one-size-only plans.
+- When asked about pricing, you can talk about ranges and the fact that exact numbers depend on duration, placement, and frequency, then invite them to talk with Sandblast directly.
+`.trim(),
+
+  public_domain: `
+Public Domain and Sandblast – internal reference:
+- A significant portion of Sandblast's retro and classic content comes from the public domain (PD).
+- Sandblast treats public-domain verification seriously: it is not legal advice, but there is a structured, cautious approach.
+- Internal high-level PD verification steps:
+  1) Quick PD test:
+     - Check if the work appears to be from a very old era (for example, early 20th century) where many items may already be public domain.
+     - Scan trusted PD lists or references to see if the title is commonly recognized as public domain.
+  2) Deeper verification:
+     - Look for official records or documentation when possible.
+     - Cross-check multiple PD reference sites and, where relevant, official copyright databases.
+  3) Recordkeeping:
+     - Keep notes or proof of where PD information was found, so there is a clear trace of the decision.
+- When you talk about PD, you must make clear:
+  - You are explaining Sandblast's cautious process, not giving formal legal advice.
+  - Viewers should understand that Sandblast does its best to respect rights and use public-domain works responsibly.
+`.trim(),
 };
 
-function scoreSubIntent(message = '') {
-  const text = message.toLowerCase();
-  const scores = [];
-  let best = { label: 'general', score: 0, hits: [] };
-
-  Object.values(subIntentConfig).forEach((sub) => {
-    let score = 0;
-    const hits = [];
-
-    sub.keywords.forEach((kw) => {
-      if (text.includes(kw)) {
-        score += 1;
-        hits.push(kw);
-      }
-    });
-
-    score *= sub.weight;
-
-    if (score > 0) {
-      scores.push({ label: sub.label, score, hits });
-    }
-
-    if (score > best.score) {
-      best = { label: sub.label, score, hits };
-    }
-  });
-
-  const confidence = best.score > 0 ? Math.min(1, best.score / 3) : 0;
-
-  if (best.score === 0) {
-    return {
-      subIntent: 'general',
-      confidence: 0,
-      scores,
-      reason: 'No clear sub-intent detected. Using general explanation.',
-    };
-  }
-
-  return {
-    subIntent: best.label,
-    confidence,
-    scores,
-    reason: `Sub-intent "${best.label}" chosen based on keywords: ${best.hits.join(', ')}`,
-  };
-}
-
-function detectSubIntent(message = '') {
-  return scoreSubIntent(message);
+// Helper to get knowledge text
+function getKnowledgeForRoute(route) {
+  return knowledgeByRoute[route] || knowledgeByRoute.general;
 }
 
 // ============ System Prompt Helper ============
 
-function buildSystemPrompt(routeInfo, subInfo) {
+function buildSystemPrompt(routeInfo) {
   const route = routeInfo?.route || 'general';
-  const routeConfidence = routeInfo?.confidence ?? 0;
-  const routeReason = routeInfo?.reason || '';
-  const routeScores = routeInfo?.scores || [];
+  const confidence = routeInfo?.confidence ?? 0;
+  const reason = routeInfo?.reason || '';
+  const scores = routeInfo?.scores || [];
+  const knowledge = getKnowledgeForRoute(route);
 
-  const subIntent = subInfo?.subIntent || 'general';
-  const subConfidence = subInfo?.confidence ?? 0;
-  const subReason = subInfo?.reason || '';
-  const subScores = subInfo?.scores || [];
-
-  // Global identity
+  // Global identity + routing + internal knowledge
   let base = `
 You are SandblastGPT, the AI brain for Sandblast Channel (TV + radio + digital + News Canada + public domain curation + Sandblast AI consulting).
 
@@ -282,12 +261,12 @@ General behavior:
 - If you don’t know something, say so and suggest a practical next action.
 
 Routing context:
-- Main route: "${route}" with confidence ${routeConfidence.toFixed(2)}.
-- Main route reason: ${routeReason || 'No specific reason provided.'}
-- Sub-intent: "${subIntent}" with confidence ${subConfidence.toFixed(2)}.
-- Sub-intent reason: ${subReason || 'No specific sub-intent reason.'}
-- Scores per route (for your awareness, not to be repeated directly): ${JSON.stringify(routeScores)}
-- Scores per sub-intent (for your awareness, not to be repeated directly): ${JSON.stringify(subScores)}
+- The routing module has selected the route "${route}" with confidence ${confidence.toFixed(2)}.
+- Reason: ${reason || 'No specific reason provided.'}
+- Scores per route (for your awareness, not to be repeated directly): ${JSON.stringify(scores)}
+
+Sandblast internal reference for this route:
+${knowledge}
 `.trim();
 
   let routeExtra = '';
@@ -301,7 +280,7 @@ Focus on:
 - TV schedule, retro shows, movie blocks, and how to watch Sandblast TV.
 - Explaining what kind of content is on Sandblast TV (retro series, movie serials, etc.).
 - Suggesting how viewers could engage (time blocks, special events, themed nights).
-If asked for specific times or shows, answer based on what you know or describe how the viewer can check the current schedule.
+If asked for specific times or shows, answer based on what you know or describe how the viewer can check the current schedule on Sandblast's site or announcements.
       `.trim();
       break;
 
@@ -334,7 +313,7 @@ You are in the Advertising / Sponsorship mode.
 Focus on:
 - How businesses can advertise on Sandblast (TV, radio, digital, News Canada tie-ins).
 - Simple breakdown of options: on-air spots, banners, sponsored blocks, community features.
-- Emphasize community focus, flexibility for small and medium businesses, and clear next steps (e.g., contact Sandblast to discuss a package).
+- Emphasize community focus, flexibility for small and medium businesses, and clear next steps (for example, contacting Sandblast to discuss a custom package).
       `.trim();
       break;
 
@@ -345,7 +324,7 @@ You are in the Public Domain / PD Watchdog mode.
 Focus on:
 - Explaining public domain content, how Sandblast uses PD shows and films.
 - High-level description of checking PD status (not legal advice).
-- Reinforce that Sandblast takes PD verification seriously and uses a step-by-step process.
+- Reinforce that Sandblast takes PD verification seriously and uses a step-by-step, cautious process.
 - Keep explanations short and clear enough to be spoken as a quick segment.
       `.trim();
       break;
@@ -356,73 +335,14 @@ Focus on:
 You are in General Sandblast mode.
 
 Focus on:
-- Explaining what Sandblast Channel is, how TV/radio/AI consulting fit together.
+- Explaining what Sandblast Channel is, and how TV/radio/AI consulting fit together.
 - Helping the user understand what SandblastGPT can do for them (questions, guidance, information).
 - Offer one clear suggestion for how they can explore or use Sandblast next.
       `.trim();
       break;
   }
 
-  let subExtra = '';
-
-  switch (subIntent) {
-    case 'pricing':
-      subExtra = `
-Sub-intent focus: pricing and budgets.
-
-Focus on:
-- Giving a clear, simple sense of cost structure (ranges, not exact numbers unless known).
-- Linking pricing back to value: reach, exposure, and community impact.
-- Ending with one practical next step to talk about a tailored package.
-      `.trim();
-      break;
-
-    case 'schedule':
-      subExtra = `
-Sub-intent focus: schedule and timing.
-
-Focus on:
-- When shows or blocks typically air (e.g., evenings, weekends, special blocks).
-- How someone can check the latest schedule (website, social posts, or contacting Sandblast).
-- Keeping it audio-friendly, like a quick on-air explanation.
-      `.trim();
-      break;
-
-    case 'technical':
-      subExtra = `
-Sub-intent focus: technical / how-to.
-
-Focus on:
-- Explaining steps simply, like you are guiding someone who is not deeply technical.
-- Keeping instructions high-level (no massive code dumps).
-- Encouraging them to follow up with more details if they get stuck.
-      `.trim();
-      break;
-
-    case 'strategy':
-      subExtra = `
-Sub-intent focus: strategy and growth.
-
-Focus on:
-- Framing Sandblast as a strategic media partner.
-- Talking about audience, positioning, and outcomes in clear language.
-- Offering one or two concrete ideas they could act on next.
-      `.trim();
-      break;
-
-    case 'general':
-    default:
-      subExtra = `
-Sub-intent focus: general explanation.
-
-Focus on:
-- Giving a clear, straightforward answer.
-- One main idea, one supporting detail, and one next step.
-      `.trim();
-      break;
-  }
-
-  return `${base}\n\n${routeExtra}\n\n${subExtra}`;
+  return `${base}\n\n${routeExtra}`;
 }
 
 // ============ Main Brain Endpoint ============
@@ -464,11 +384,10 @@ app.post('/api/sandblast-gpt', async (req, res) => {
       });
     }
 
-    // 1) Detect main route + sub-intent
+    // 1) Detect intent / route
     const routing = detectIntent(userMessage);
-    const subRouting = detectSubIntent(userMessage);
     const route = routing.route;
-    const systemPrompt = buildSystemPrompt(routing, subRouting);
+    const systemPrompt = buildSystemPrompt(routing);
 
     console.log('[/api/sandblast-gpt] Incoming message:', {
       message: userMessage,
@@ -476,7 +395,6 @@ app.post('/api/sandblast-gpt', async (req, res) => {
       context,
       route,
       routing,
-      subRouting,
       sessionId,
     });
 
@@ -498,7 +416,6 @@ Context:
 - Persona: ${persona}
 - UI context: ${context}
 - Main route detected: ${route} (confidence: ${routing.confidence.toFixed(2)})
-- Sub-intent detected: ${subRouting.subIntent} (confidence: ${subRouting.confidence.toFixed(2)})
 
 Answer in a natural spoken style, as if you are Vera explaining this out loud. Keep it concise but clear.
           `.trim(),
@@ -522,7 +439,6 @@ Answer in a natural spoken style, as if you are Vera explaining this out loud. K
         context,
         route,
         routing,
-        subRouting,
       },
       meta: {
         source: 'sandblast-openai',
