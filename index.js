@@ -71,7 +71,7 @@ const intentConfig = {
       'series', 'serial', 'episode', 'episodes', 'show', 'shows',
       'program guide', 'tv guide', 'schedule', 'lineup', 'on tonight',
       'watch sandblast', 'watch online', 'streaming tv', 'retro tv',
-      'sunday movie', 'movie block'
+      'sunday movie', 'movie block',
     ],
     weight: 1.0,
   },
@@ -80,7 +80,7 @@ const intentConfig = {
     keywords: [
       'radio', 'online radio', 'audio stream', 'stream audio', 'listen live',
       'dj', 'dj nova', 'nova', 'music', 'playlist', 'mix', 'audio show',
-      'gospel sunday', 'showtime', 'radio show', 'podcast', 'talk show'
+      'gospel sunday', 'showtime', 'radio show', 'podcast', 'talk show',
     ],
     weight: 1.0,
   },
@@ -89,7 +89,7 @@ const intentConfig = {
     keywords: [
       'news canada', 'newswire', 'feature article', 'ready-to-use content',
       'editorial content', 'branded content', 'news distribution',
-      'article distribution', 'content insert', 'community feature from news canada'
+      'article distribution', 'content insert', 'community feature from news canada',
     ],
     weight: 1.2, // more specific
   },
@@ -100,7 +100,7 @@ const intentConfig = {
       'airtime', 'rate card', 'sponsorship', 'sponsor', 'sponsored',
       'media buy', 'campaign', 'promotion', 'promote my business',
       'package', 'pricing', 'cost to advertise', 'budget', 'spend',
-      'brand exposure'
+      'brand exposure',
     ],
     weight: 1.3,
   },
@@ -110,7 +110,7 @@ const intentConfig = {
       'public domain', 'pd ', 'pd content', 'copyright', 'copyright status',
       'rights', 'licensing', 'expired copyright', 'archive.org',
       'publicdomain', 'royalty free', 'clearance', 'rights clearance',
-      'verify rights', 'ip issues', 'ip check'
+      'verify rights', 'ip issues', 'ip check',
     ],
     weight: 1.3,
   },
@@ -158,7 +158,7 @@ function scoreIntent(message = '') {
     route: best.label,
     confidence,
     scores,
-    reason: `Highest score for "${best.label}" based on keywords: ${best.hits.join(', ')}`,
+    reason: 'Highest score for "' + best.label + '" based on keywords: ' + best.hits.join(', '),
   };
 }
 
@@ -321,7 +321,6 @@ How to talk about PD with the audience:
 `.trim(),
 };
 
-// Helper to get knowledge text
 function getKnowledgeForRoute(route) {
   return knowledgeByRoute[route] || knowledgeByRoute.general;
 }
@@ -329,106 +328,100 @@ function getKnowledgeForRoute(route) {
 // ============ System Prompt Helper ============
 
 function buildSystemPrompt(routeInfo) {
-  const route = routeInfo?.route || 'general';
-  const confidence = routeInfo?.confidence ?? 0;
-  const reason = routeInfo?.reason || '';
-  const scores = routeInfo?.scores || [];
+  const route = routeInfo && routeInfo.route ? routeInfo.route : 'general';
+  const confidence =
+    routeInfo && typeof routeInfo.confidence === 'number'
+      ? routeInfo.confidence
+      : 0;
+  const reason = routeInfo && routeInfo.reason ? routeInfo.reason : '';
+  const scores = routeInfo && routeInfo.scores ? routeInfo.scores : [];
   const knowledge = getKnowledgeForRoute(route);
 
-  // Global identity + routing + internal knowledge
-  let base = `
-You are SandblastGPT, the AI brain for Sandblast Channel (TV + radio + digital + News Canada + public domain curation + Sandblast AI consulting).
-
-General behavior:
-- Speak as if you are talking out loud for Vera's TTS voice.
-- Use short, clear sentences. 1–3 sentences per paragraph max.
-- Avoid long monologues. Get to the point, then offer one clear next step.
-- Be friendly, confident, and helpful, but not overly casual.
-- If you don’t know something, say so and suggest a practical next action.
-
-Routing context:
-- The routing module has selected the route "${route}" with confidence ${confidence.toFixed(2)}.
-- Reason: ${reason || 'No specific reason provided.'}
-- Scores per route (for your awareness, not to be repeated directly): ${JSON.stringify(scores)}
-
-Sandblast internal reference for this route:
-${knowledge}
-`.trim();
+  let base =
+    'You are SandblastGPT, the AI brain for Sandblast Channel (TV + radio + digital + News Canada + public domain curation + Sandblast AI consulting).\n\n' +
+    'General behavior:\n' +
+    '- Speak as if you are talking out loud for Vera\'s TTS voice.\n' +
+    '- Use short, clear sentences. 1–3 sentences per paragraph max.\n' +
+    '- Avoid long monologues. Get to the point, then offer one clear next step.\n' +
+    '- Be friendly, confident, and helpful, but not overly casual.\n' +
+    '- If you don’t know something, say so and suggest a practical next action.\n\n' +
+    'Routing context:\n' +
+    '- The routing module has selected the route "' +
+    route +
+    '" with confidence ' +
+    confidence.toFixed(2) +
+    '.\n' +
+    '- Reason: ' +
+    (reason || 'No specific reason provided.') +
+    '\n' +
+    '- Scores per route (for your awareness, not to be repeated directly): ' +
+    JSON.stringify(scores) +
+    '\n\n' +
+    'Sandblast internal reference for this route:\n' +
+    knowledge;
 
   let routeExtra = '';
 
   switch (route) {
     case 'tv':
-      routeExtra = `
-You are in the TV / streaming mode.
-
-Focus on:
-- Sunday Movie Block, Retro TV Hours, and how to watch Sandblast TV.
-- Explaining the style of content (retro, PD-based, classic shows) rather than rigid schedule grids.
-- You may naturally mention one or two example serials or shows from the internal catalog, but do not make legal claims about their status.
-- Suggest that viewers check the current stream or announcements for the latest lineup.
-      `.trim();
+      routeExtra =
+        'You are in the TV / streaming mode.\n\n' +
+        'Focus on:\n' +
+        '- Sunday Movie Block, Retro TV Hours, and how to watch Sandblast TV.\n' +
+        '- Explaining the style of content (retro, PD-based, classic shows) rather than rigid schedule grids.\n' +
+        '- You may naturally mention one or two example serials or shows from the internal catalog, but do not make legal claims about their status.\n' +
+        '- Suggest that viewers check the current stream or announcements for the latest lineup.';
       break;
 
     case 'radio':
-      routeExtra = `
-You are in the Radio / audio mode.
-
-Focus on:
-- Sandblast Radio streaming, Gospel Sunday, DJ Nova segments, and overall listening experience.
-- How a listener can tune in, what type of content they can expect, and the feel of the station.
-- Keep answers snappy so they sound natural as spoken radio explanations.
-      `.trim();
+      routeExtra =
+        'You are in the Radio / audio mode.\n\n' +
+        'Focus on:\n' +
+        '- Sandblast Radio streaming, Gospel Sunday, DJ Nova segments, and overall listening experience.\n' +
+        '- How a listener can tune in, what type of content they can expect, and the feel of the station.\n' +
+        '- Keep answers snappy so they sound natural as spoken radio explanations.';
       break;
 
     case 'news_canada':
-      routeExtra = `
-You are in the News Canada mode.
-
-Focus on:
-- Explaining what the News Canada content is and how Sandblast uses it to add helpful, editorial-style information.
-- How this integrates with Sandblast TV, radio, or digital campaigns to create more informative programming.
-- Keep it simple and spoken-word friendly.
-      `.trim();
+      routeExtra =
+        'You are in the News Canada mode.\n\n' +
+        'Focus on:\n' +
+        '- Explaining what the News Canada content is and how Sandblast uses it to add helpful, editorial-style information.\n' +
+        '- How this integrates with Sandblast TV, radio, or digital campaigns to create more informative programming.\n' +
+        '- Keep it simple and spoken-word friendly.';
       break;
 
     case 'ads':
-      routeExtra = `
-You are in the Advertising / Sponsorship mode.
-
-Focus on:
-- How businesses can advertise on Sandblast (TV, radio, digital, and News Canada tie-ins).
-- Using real recurring elements such as Sunday Movie, Retro TV Hours, Gospel Sunday, and AI/small-business workshop tie-ins as examples of sponsorship opportunities.
-- Emphasize flexibility, community focus, and the idea of building packages, not forcing one standard plan.
-      `.trim();
+      routeExtra =
+        'You are in the Advertising / Sponsorship mode.\n\n' +
+        'Focus on:\n' +
+        '- How businesses can advertise on Sandblast (TV, radio, digital, and News Canada tie-ins).\n' +
+        '- Using real recurring elements such as Sunday Movie, Retro TV Hours, Gospel Sunday, and AI/small-business workshop tie-ins as examples of sponsorship opportunities.\n' +
+        '- Emphasize flexibility, community focus, and the idea of building packages, not forcing one standard plan.';
       break;
 
     case 'public_domain':
-      routeExtra = `
-You are in the Public Domain / PD Watchdog mode.
-
-Focus on:
-- Explaining why Sandblast uses public-domain retro content and how it fits into blocks like Sunday Movie and Retro TV Hours.
-- Describing the verification process in high-level, non-legal terms.
-- You may reference classic-era serials and crime shows as examples, but always stress that specific titles must be individually verified.
-- Reinforce that Sandblast aims to be respectful and careful with rights.
-      `.trim();
+      routeExtra =
+        'You are in the Public Domain / PD Watchdog mode.\n\n' +
+        'Focus on:\n' +
+        '- Explaining why Sandblast uses public-domain retro content and how it fits into blocks like Sunday Movie and Retro TV Hours.\n' +
+        '- Describing the verification process in high-level, non-legal terms.\n' +
+        '- You may reference classic-era serials and crime shows as examples, but always stress that specific titles must be individually verified.\n' +
+        '- Reinforce that Sandblast aims to be respectful and careful with rights.';
       break;
 
     case 'general':
     default:
-      routeExtra = `
-You are in General Sandblast mode.
-
-Focus on:
-- Explaining what Sandblast Channel is and how TV, radio, News Canada, PD, and AI consulting interconnect.
-- Helping the user understand what they can do next: watch, listen, learn about AI, or explore advertising options.
-- Offer one clear, simple next step in your answer.
-      `.trim();
+      routeExtra =
+        'You are in General Sandblast mode.\n\n' +
+        'Focus on:\n' +
+        '- Explaining what Sandblast Channel is and how TV, radio, News Canada, PD, and AI consulting interconnect.\n' +
+        '- Helping the user understand what they can do next: watch, listen, learn about AI, or explore advertising options.\n' +
+        '- Offer one clear, simple next step in your answer.';
       break;
   }
 
-  return `${base}\n\n${routeExtra}`;
+  return base + '\n\n' + routeExtra;
 }
 
 // ============ Main Brain Endpoint ============
@@ -440,10 +433,10 @@ Focus on:
 //
 app.post('/api/sandblast-gpt', async (req, res) => {
   try {
-    const userMessage = req.body?.message || req.body?.input || '';
-    const persona = req.body?.persona || 'sandblast_assistant';
-    const context = req.body?.context || 'homepage';
-    const sessionId = req.body?.session_id || null;
+    const userMessage = req.body && (req.body.message || req.body.input) ? (req.body.message || req.body.input) : '';
+    const persona = (req.body && req.body.persona) || 'sandblast_assistant';
+    const context = (req.body && req.body.context) || 'homepage';
+    const sessionId = (req.body && req.body.session_id) || null;
 
     if (!process.env.OPENAI_API_KEY) {
       console.error('OPENAI_API_KEY is not set');
@@ -456,11 +449,12 @@ app.post('/api/sandblast-gpt', async (req, res) => {
     if (!userMessage) {
       return res.json({
         success: true,
-        reply: 'SandblastGPT is online, but I did not receive any question yet. Try asking me about TV, radio, News Canada, ads, or public domain.',
+        reply:
+          'SandblastGPT is online, but I did not receive any question yet. Try asking me about TV, radio, News Canada, ads, or public domain.',
         echo: {
           received: userMessage,
-          persona,
-          context,
+          persona: persona,
+          context: context,
           route: 'none',
         },
         meta: {
@@ -477,11 +471,11 @@ app.post('/api/sandblast-gpt', async (req, res) => {
 
     console.log('[/api/sandblast-gpt] Incoming message:', {
       message: userMessage,
-      persona,
-      context,
-      route,
-      routing,
-      sessionId,
+      persona: persona,
+      context: context,
+      route: route,
+      routing: routing,
+      sessionId: sessionId,
     });
 
     // 2) Call OpenAI for a real answer
@@ -494,17 +488,23 @@ app.post('/api/sandblast-gpt', async (req, res) => {
         },
         {
           role: 'user',
-          content: `
-User message:
-"${userMessage}"
-
-Context:
-- Persona: ${persona}
-- UI context: ${context}
-- Main route detected: ${route} (confidence: ${routing.confidence.toFixed(2)})
-
-Answer in a natural spoken style, as if you are Vera explaining this out loud. Keep it concise but clear.
-          `.trim(),
+          content:
+            'User message:\n"' +
+            userMessage +
+            '"\n\n' +
+            'Context:\n' +
+            '- Persona: ' +
+            persona +
+            '\n' +
+            '- UI context: ' +
+            context +
+            '\n' +
+            '- Main route detected: ' +
+            route +
+            ' (confidence: ' +
+            routing.confidence.toFixed(2) +
+            ')\n\n' +
+            'Answer in a natural spoken style, as if you are Vera explaining this out loud. Keep it concise but clear.',
         },
       ],
       temperature: 0.6,
@@ -512,8 +512,13 @@ Answer in a natural spoken style, as if you are Vera explaining this out loud. K
     });
 
     const replyText =
-      completion.choices?.[0]?.message?.content?.trim() ||
-      'I had trouble generating a reply, but SandblastGPT is online. Please try asking again.';
+      completion &&
+      completion.choices &&
+      completion.choices[0] &&
+      completion.choices[0].message &&
+      completion.choices[0].message.content
+        ? completion.choices[0].message.content.trim()
+        : 'I had trouble generating a reply, but SandblastGPT is online. Please try asking again.';
 
     // 3) Return the structured JSON your widget already expects
     res.json({
@@ -521,10 +526,10 @@ Answer in a natural spoken style, as if you are Vera explaining this out loud. K
       reply: replyText,
       echo: {
         received: userMessage,
-        persona,
-        context,
-        route,
-        routing, // for debugging / future UI
+        persona: persona,
+        context: context,
+        route: route,
+        routing: routing, // for debugging / future UI
       },
       meta: {
         source: 'sandblast-openai',
@@ -534,12 +539,13 @@ Answer in a natural spoken style, as if you are Vera explaining this out loud. K
       },
     });
   } catch (error) {
-    console.error('Error in /api/sandblast-gpt:', error.response?.data || error.message || error);
+    const details = error && error.response && error.response.data ? error.response.data : error.message || error;
+    console.error('Error in /api/sandblast-gpt:', details);
 
     res.status(500).json({
       success: false,
       error: 'Internal server error in /api/sandblast-gpt.',
-      details: error.response?.data || error.message || null,
+      details: details || null,
     });
   }
 });
@@ -552,8 +558,9 @@ Answer in a natural spoken style, as if you are Vera explaining this out loud. K
 // Returns: audio/mpeg stream (MP3) on success
 //
 app.post('/api/tts', async (req, res) => {
-  let text = req.body?.text;
-  const voiceId = req.body?.voiceId || process.env.ELEVENLABS_VOICE_ID;
+  let text = req.body && req.body.text ? req.body.text : null;
+  const voiceId =
+    (req.body && req.body.voiceId) || process.env.ELEVENLABS_VOICE_ID;
 
   // --- Basic validation ---
   if (!text) {
@@ -582,24 +589,31 @@ app.post('/api/tts', async (req, res) => {
   // --- Guard: limit text length for TTS (safety + performance) ---
   const MAX_TTS_CHARS = 800;
   if (text.length > MAX_TTS_CHARS) {
-    console.warn(\`TTS text too long (\${text.length} chars). Truncating to \${MAX_TTS_CHARS}.\`);
+    console.warn(
+      'TTS text too long (' +
+        text.length +
+        ' chars). Truncating to ' +
+        MAX_TTS_CHARS +
+        '.'
+    );
     text = text.slice(0, MAX_TTS_CHARS);
   }
 
   try {
     const apiKey = process.env.ELEVENLABS_API_KEY;
-    const url = \`https://api.elevenlabs.io/v1/text-to-speech/\${voiceId}\`;
+    const url =
+      'https://api.elevenlabs.io/v1/text-to-speech/' + String(voiceId);
 
     console.log('Calling ElevenLabs TTS:', {
-      voiceId,
+      voiceId: voiceId,
       textPreview: text.slice(0, 80) + (text.length > 80 ? '...' : ''),
     });
 
     const response = await axios({
       method: 'POST',
-      url,
+      url: url,
       data: {
-        text,
+        text: text,
         model_id: 'eleven_monolingual_v1',
         voice_settings: {
           stability: 0.3,
@@ -610,7 +624,7 @@ app.post('/api/tts', async (req, res) => {
       },
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'audio/mpeg',
+        Accept: 'audio/mpeg',
         'xi-api-key': apiKey,
       },
       responseType: 'arraybuffer',
@@ -624,7 +638,10 @@ app.post('/api/tts', async (req, res) => {
       });
     }
 
-    console.log('ElevenLabs TTS succeeded. Audio bytes:', response.data.length);
+    console.log(
+      'ElevenLabs TTS succeeded. Audio bytes:',
+      response.data.length
+    );
 
     res.set({
       'Content-Type': 'audio/mpeg',
@@ -634,24 +651,24 @@ app.post('/api/tts', async (req, res) => {
 
     return res.send(Buffer.from(response.data, 'binary'));
   } catch (error) {
-    const status = error.response?.status || 500;
-    const details = error.response?.data || error.message;
+    const status = (error.response && error.response.status) || 500;
+    const details = error.response ? error.response.data : error.message;
 
     console.error('Error calling ElevenLabs TTS:', {
-      status,
-      details,
+      status: status,
+      details: details,
     });
 
     return res.status(status).json({
       success: false,
       error: 'Failed to generate audio with ElevenLabs.',
-      status,
-      details,
+      status: status,
+      details: details,
     });
   }
 });
 
 // ============ Start Server ============
 app.listen(PORT, () => {
-  console.log(\`Sandblast backend listening on port \${PORT}\`);
+  console.log('Sandblast backend listening on port ' + PORT);
 });
