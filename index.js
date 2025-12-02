@@ -1,16 +1,65 @@
 // index.js
 
+// ============ ENV + DEBUG ============
+
+// Load .env FIRST
+const path = require('path');
+console.log('DEBUG: Starting Sandblast backend…');
+console.log('DEBUG: process.cwd() =', process.cwd());
+console.log(
+  'DEBUG: Expecting .env at =',
+  path.resolve(process.cwd(), '.env')
+);
+
+require('dotenv').config();
+
+console.log(
+  'DEBUG: OPENAI_API_KEY present?',
+  !!process.env.OPENAI_API_KEY
+);
+if (process.env.OPENAI_API_KEY) {
+  console.log(
+    'DEBUG: OPENAI_API_KEY length =',
+    process.env.OPENAI_API_KEY.length
+  );
+} else {
+  console.warn(
+    'WARN: OPENAI_API_KEY is missing or empty in process.env'
+  );
+}
+
+console.log(
+  'DEBUG: ELEVENLABS_API_KEY present?',
+  !!process.env.ELEVENLABS_API_KEY
+);
+console.log(
+  'DEBUG: ELEVENLABS_VOICE_ID present?',
+  !!process.env.ELEVENLABS_VOICE_ID
+);
+
 // ============ Imports ============
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const OpenAI = require('openai');
-require('dotenv').config();
 
-// ============ OpenAI Client ============
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// ============ OpenAI Client (guarded) ============
+//
+// We DO NOT throw if the key is missing.
+// Instead, we log and let the routes return a clean error.
+// This avoids the hard crash you're seeing.
+let openai = null;
+
+if (!process.env.OPENAI_API_KEY) {
+  console.error(
+    'ERROR: OPENAI_API_KEY is not set. /api/sandblast-gpt will return a 500 until this is fixed.'
+  );
+} else {
+  openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+  console.log('DEBUG: OpenAI client initialized.');
+}
 
 // ============ App Setup ============
 const app = express();
@@ -21,10 +70,8 @@ const PORT = process.env.PORT || 3000;
 
 // ============ INLINE SONG DATABASE ============
 //
-// For now we keep this internal so you don’t have to manage
-// extra files or build scripts. We can always move it to an
-// external JSON later if you want.
-//
+// No external files. This keeps your brain working
+// even if file paths are tricky on Windows.
 const SONG_DB = [
   {
     id: 'i_will_always_love_you-whitney_houston-1992',
@@ -36,7 +83,7 @@ const SONG_DB = [
     tags: ['love songs', 'big ballad'],
     source: 'Sandblast curated catalog',
     license:
-      'Metadata only. Audio/lyrics are governed by music licensing via Entandem, SOCAN, and other agreements.',
+      'Metadata only. Audio/lyrics subject to music licensing via Entandem/SOCAN and other agreements.',
   },
   {
     id: 'at_last-etta_james-1960',
@@ -48,7 +95,7 @@ const SONG_DB = [
     tags: ['wedding', 'slow dance'],
     source: 'Sandblast curated catalog',
     license:
-      'Metadata only. Audio/lyrics are governed by music licensing via Entandem, SOCAN, and other agreements.',
+      'Metadata only. Audio/lyrics subject to music licensing via Entandem/SOCAN and other agreements.',
   },
   {
     id: 'unforgettable-nat_king_cole_natalie_cole-1991',
@@ -60,7 +107,7 @@ const SONG_DB = [
     tags: ['standards', 'slow set'],
     source: 'Sandblast curated catalog',
     license:
-      'Metadata only. Audio/lyrics are governed by music licensing via Entandem, SOCAN, and other agreements.',
+      'Metadata only. Audio/lyrics subject to music licensing via Entandem/SOCAN and other agreements.',
   },
   {
     id: 'when_a_man_loves_a_woman-percy_sledge-1966',
@@ -72,7 +119,7 @@ const SONG_DB = [
     tags: ['love songs', 'deep soul'],
     source: 'Sandblast curated catalog',
     license:
-      'Metadata only. Audio/lyrics are governed by music licensing via Entandem, SOCAN, and other agreements.',
+      'Metadata only. Audio/lyrics subject to music licensing via Entandem/SOCAN and other agreements.',
   },
   {
     id: 'unchained_melody-righteous_brothers-1965',
@@ -84,7 +131,7 @@ const SONG_DB = [
     tags: ['slow dance', 'evergreen'],
     source: 'Sandblast curated catalog',
     license:
-      'Metadata only. Audio/lyrics are governed by music licensing via Entandem, SOCAN, and other agreements.',
+      'Metadata only. Audio/lyrics subject to music licensing via Entandem/SOCAN and other agreements.',
   },
   {
     id: 'youre_the_inspiration-chicago-1984',
@@ -96,15 +143,13 @@ const SONG_DB = [
     tags: ['vera theme', 'slow set'],
     source: 'Sandblast curated catalog',
     license:
-      'Metadata only. Audio/lyrics are governed by music licensing via Entandem, SOCAN, and other agreements.',
+      'Metadata only. Audio/lyrics subject to music licensing via Entandem/SOCAN and other agreements.',
   },
 ];
 
 console.log(`Inline SONG_DB loaded with ${SONG_DB.length} songs.`);
 
 // ============ SONG HELPERS ============
-
-// Find songs that match a user message (by title / artist / tags)
 function findSongsForMessage(message) {
   const text = (message || '').toLowerCase();
   if (!text || !SONG_DB.length) return [];
@@ -116,30 +161,25 @@ function findSongsForMessage(message) {
       song.artist && text.includes(String(song.artist).toLowerCase());
     const tagMatch =
       Array.isArray(song.tags) &&
-      song.tags.some((tag) =>
-        text.includes(String(tag).toLowerCase())
-      );
+      song.tags.some((tag) => text.includes(String(tag).toLowerCase()));
+
     return titleMatch || artistMatch || tagMatch;
   });
 
-  return matches.slice(0, 5); // keep prompt tight
+  return matches.slice(0, 5);
 }
 
-// Format song metadata as text for the prompt
 function formatSongContext(songs) {
   if (!songs || !songs.length) return '';
   let out = 'Relevant songs from the Sandblast internal catalog:\n';
   songs.forEach((song, idx) => {
     out +=
-      (idx + 1) +
-      ') ' +
-      (song.title || 'Unknown title') +
-      ' — ' +
-      (song.artist || 'Unknown artist') +
-      (song.year ? ' (' + song.year + ')' : '') +
-      (song.genre ? ' | Genre: ' + song.genre : '') +
+      `${idx + 1}) ${song.title || 'Unknown title'} — ` +
+      `${song.artist || 'Unknown artist'}` +
+      (song.year ? ` (${song.year})` : '') +
+      (song.genre ? ` | Genre: ${song.genre}` : '') +
       (song.mood && song.mood.length
-        ? ' | Mood: ' + song.mood.join(', ')
+        ? ` | Mood: ${song.mood.join(', ')}`
         : '') +
       '\n';
   });
@@ -149,87 +189,98 @@ function formatSongContext(songs) {
   return out;
 }
 
-// ============ Basic Routes ============
-app.get('/', (req, res) => {
-  res.json({
-    status: 'ok',
-    message: 'Sandblast backend is running.',
-  });
-});
-
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-  });
-});
-
-app.get('/api/sandblast-gpt-test', (req, res) => {
-  res.json({
-    status: 'ok',
-    message: 'Test endpoint reached. Backend is responding.',
-    hint: 'Use POST /api/sandblast-gpt for real requests.',
-  });
-});
-
-// Simple config check for TTS (no audio, just env status)
-app.get('/api/tts-test', (req, res) => {
-  res.json({
-    status: 'ok',
-    elevenlabs_api_key_present: !!process.env.ELEVENLABS_API_KEY,
-    elevenlabs_voice_id_present: !!process.env.ELEVENLABS_VOICE_ID,
-    message: 'This just checks env vars. Use POST /api/tts for real audio.',
-  });
-});
-
-// Simple config check for OpenAI
-app.get('/api/openai-test', (req, res) => {
-  res.json({
-    status: 'ok',
-    openai_api_key_present: !!process.env.OPENAI_API_KEY,
-    message: 'This just checks env vars. Use POST /api/sandblast-gpt for real answers.',
-  });
-});
-
-// ============ Intent Routing Helper (Powered-Up + Music) ============
+// ============ INTENT ROUTING ============
 
 const intentConfig = {
   tv: {
     label: 'tv',
     keywords: [
-      'tv', 'television', 'channel', 'channels', 'movie', 'movies', 'film',
-      'series', 'serial', 'episode', 'episodes', 'show', 'shows',
-      'program guide', 'tv guide', 'schedule', 'lineup', 'on tonight',
-      'watch sandblast', 'watch online', 'streaming tv', 'retro tv',
-      'sunday movie', 'movie block',
+      'tv',
+      'television',
+      'channel',
+      'channels',
+      'movie',
+      'movies',
+      'film',
+      'series',
+      'serial',
+      'episode',
+      'episodes',
+      'show',
+      'shows',
+      'program guide',
+      'tv guide',
+      'schedule',
+      'lineup',
+      'on tonight',
+      'watch sandblast',
+      'watch online',
+      'streaming tv',
+      'retro tv',
+      'sunday movie',
+      'movie block',
     ],
     weight: 1.0,
   },
   radio: {
     label: 'radio',
     keywords: [
-      'radio', 'online radio', 'audio stream', 'stream audio', 'listen live',
-      'dj', 'dj nova', 'nova', 'music block', 'gospel sunday', 'showtime',
-      'radio show', 'talk show', 'podcast',
+      'radio',
+      'online radio',
+      'audio stream',
+      'stream audio',
+      'listen live',
+      'dj',
+      'dj nova',
+      'nova',
+      'music block',
+      'gospel sunday',
+      'showtime',
+      'radio show',
+      'talk show',
+      'podcast',
     ],
     weight: 1.0,
   },
   news_canada: {
     label: 'news_canada',
     keywords: [
-      'news canada', 'newswire', 'feature article', 'ready-to-use content',
-      'editorial content', 'branded content', 'news distribution',
-      'article distribution', 'content insert', 'community feature from news canada',
+      'news canada',
+      'newswire',
+      'feature article',
+      'ready-to-use content',
+      'editorial content',
+      'branded content',
+      'news distribution',
+      'article distribution',
+      'content insert',
+      'community feature from news canada',
     ],
     weight: 1.2,
   },
   ads: {
     label: 'ads',
     keywords: [
-      ' ad ', 'ads ', 'advertise', 'advertising', 'commercial', 'ad spot',
-      'airtime', 'rate card', 'sponsorship', 'sponsor', 'sponsored',
-      'media buy', 'campaign', 'promotion', 'promote my business',
-      'package', 'pricing', 'cost to advertise', 'budget', 'spend',
+      ' ad ',
+      'ads ',
+      'advertise',
+      'advertising',
+      'commercial',
+      'ad spot',
+      'airtime',
+      'rate card',
+      'sponsorship',
+      'sponsor',
+      'sponsored',
+      'media buy',
+      'campaign',
+      'promotion',
+      'promote my business',
+      'package',
+      'pricing',
+      'cost to advertise',
+      'budget',
+      'spend',
       'brand exposure',
     ],
     weight: 1.3,
@@ -237,19 +288,44 @@ const intentConfig = {
   public_domain: {
     label: 'public_domain',
     keywords: [
-      'public domain', 'pd ', 'pd content', 'copyright', 'copyright status',
-      'rights', 'licensing', 'expired copyright', 'archive.org',
-      'publicdomain', 'royalty free', 'clearance', 'rights clearance',
-      'verify rights', 'ip issues', 'ip check',
+      'public domain',
+      'pd ',
+      'pd content',
+      'copyright',
+      'copyright status',
+      'rights',
+      'licensing',
+      'expired copyright',
+      'archive.org',
+      'publicdomain',
+      'royalty free',
+      'clearance',
+      'rights clearance',
+      'ip issues',
+      'ip check',
     ],
     weight: 1.3,
   },
   music: {
     label: 'music',
     keywords: [
-      'music', 'song', 'songs', 'playlist', 'track', 'tracks',
-      'lyrics', 'chorus', 'verse', 'album', 'artist', 'band',
-      'play this song', 'music licensing', 'socan', 'entandem',
+      'music',
+      'song',
+      'songs',
+      'playlist',
+      'track',
+      'tracks',
+      'lyrics',
+      'chorus',
+      'verse',
+      'album',
+      'artist',
+      'band',
+      'play this song',
+      'music licensing',
+      'socan',
+      'entandem',
+      'dj nova',
     ],
     weight: 1.1,
   },
@@ -307,7 +383,7 @@ function detectIntent(message = '') {
   return scoreIntent(message);
 }
 
-// ============ Sandblast Knowledge Layer ============
+// ============ KNOWLEDGE LAYER ============
 
 const knowledgeByRoute = {
   general: `
@@ -321,115 +397,71 @@ Licensing awareness:
 - This licensing allows Sandblast to legally play music on the platform and talk about music, artists, and songs in a broadcast context.
 - Even with licensing, AI answers should describe music and lyrics rather than reproducing long lyric passages.
 
-Signature recurring campaigns:
+Signature recurring campaigns and elements:
 - Sunday Movie Block: weekly retro film showcase using verified public-domain titles.
 - Retro TV Hours: rotating classic TV episodes, serials, and vintage dramatic shorts.
 - Gospel Sunday (Radio): a consistent inspirational block on the radio stream.
-- DJ Nova segments: energetic intros and transitions that shape the Sandblast radio personality.
-- AI/Small Business Workshops: Sandblast AI Consulting sessions that teach owners how to apply AI and automation in real operations.
-- Sandblast Community Features: spotlight stories, announcements, and public-awareness messages aligned with the platform mission.
+- DJ Nova segments: high-energy intros and transitions that shape the Sandblast radio personality.
+- AI/Small Business Workshops: Sandblast AI Consulting sessions teaching owners how to apply AI and automation in real operations.
 `.trim(),
 
   tv: `
 Sandblast TV:
 - Focuses on retro content: movie serials, vintage dramas, classic films, and PD-friendly episodes.
-- Programming is organized into blocks, such as Sunday Movie and Retro TV Hours, rather than minute-by-minute schedule grids.
-- Viewers tune in via the streaming player rather than traditional cable.
-
-Examples of classic titles that may be reviewed (subject to PD verification):
-- "Daredevils of the Red Circle"
-- "The Shadow" serials
-- "Spy Smasher"
-- "Agent X-9"
-- "Flying G-Men"
-- "G-Men"
-- "Gangbusters"
-- "Highway Patrol"
-- "Ghost Squad"
-- "Dial 999"
-
-Important:
-- These are examples for tone. Do not claim any specific legal status in responses.
+- Programming is organized into blocks rather than rigid minute-by-minute schedules; viewers tune in via the streaming player.
+- Sunday Movie Block is a key anchor: a rotating public-domain movie featured as an “event” slot.
+- Retro TV Hours include short serial chapters and classic TV-style programming, subject to public-domain verification.
 `.trim(),
 
   radio: `
 Sandblast Radio:
 - Centered on curated music blocks, talk elements, and special event shows.
-- Gospel Sunday is a signature recurring block featuring uplifting and inspirational programming.
-- DJ Nova is the voiced personality for intros and transitions, giving the station energy and identity.
-- Listeners access the stream via the embedded player or direct streaming links.
+- Gospel Sunday is one of the signature recurring radio blocks, featuring uplifting and inspirational programming.
+- DJ Nova is the core voiced personality for intros and transitions, providing energy and a consistent audio identity.
+- Listeners access the station via a live web stream or embedded radio player.
 
 Licensing note:
-- Because Sandblast holds music licensing via Entandem and SOCAN, music programming can include licensed commercial tracks in compliance with those agreements.
-- AI responses describe the experience and content; they do not stream or distribute the audio themselves.
+- Because Sandblast holds music licensing via Entandem and SOCAN, music programming on the radio stream can include licensed commercial tracks in compliance with those agreements.
+- AI responses should describe shows, genres, moods, and high-level song information, not stream or distribute music files directly.
 `.trim(),
 
   news_canada: `
 News Canada on Sandblast:
-- News Canada provides ready-made editorial content on topics like lifestyle, food, finance, and community.
-- Sandblast uses selected pieces to add practical, useful information to the mix of entertainment and community programming.
-- These features can be aligned with themes, seasons, or campaign focuses.
+- News Canada provides ready-made editorial content: short articles and features on topics like food, lifestyle, finance, health, and community.
+- Sandblast incorporates selected News Canada pieces to add practical, useful information to its mix of entertainment and community programming.
 `.trim(),
 
   ads: `
 Advertising on Sandblast:
 - Sandblast offers modular ad placements across TV, radio, and digital platforms.
+- Typical options include:
+  - Short TV bumpers or sponsor lines around Sunday Movie Block or Retro TV Hours.
+  - Radio mentions or sponsor lines around Gospel Sunday or other radio segments.
+  - Banner or tile placements on Sandblast’s digital properties.
 
-Typical options:
-- TV: short sponsor bumpers around Sunday Movie and Retro TV Hours.
-- Radio: sponsor mentions, taglines, or promos around Gospel Sunday and other blocks.
-- Digital: banner or tile placements on Sandblast properties.
-- Integrated features: pairing informational content or community stories with sponsor messaging where appropriate.
-
-Ad philosophy:
-- Accessible for small and medium businesses.
-- Focus on community connection, repeated presence, and clear calls to action rather than one-off impressions.
+Core ad philosophy:
+- Sandblast aims to be accessible to small and medium businesses; packages are flexible.
+- The focus is on community feel and repeated presence, not just a single exposure.
 `.trim(),
 
   public_domain: `
 Public Domain and Sandblast:
-- Many retro films, serials, and shows used by Sandblast are sourced from the public domain when verified as such.
-- Public-domain content allows for stable programming blocks like Sunday Movie and Retro TV Hours.
-
-High-level PD mindset (not legal advice):
-1) Quick PD assessment (era, publication, renewal clues).
-2) Cross-checking multiple sources and, where relevant, official records.
-3) Storing documentation of PD decisions internally.
-
-Examples of titles that may be evaluated:
-- "Daredevils of the Red Circle"
-- "The Shadow" serials
-- "Spy Smasher"
-- "Agent X-9"
-- "Flying G-Men"
-- "Gangbusters"
-- "Dragnet" (classic era)
-- "Highway Patrol"
-- "Ghost Squad"
-- "Dial 999"
-
-Important:
-- Do not present AI answers as legal clearance. Emphasize that Sandblast uses its own verification process.
+- A large portion of Sandblast’s retro content comes from public-domain (PD) films, serials, and shows.
+- Using PD content allows Sandblast to build consistent retro programming blocks like Sunday Movie and Retro TV Hours.
+- PD status must be checked individually; do not make legal claims about specific titles in AI answers.
 `.trim(),
 
   music: `
 Music and licensing on Sandblast:
-- Sandblast holds appropriate music licensing through organizations like Entandem and SOCAN.
-- This licensing supports:
-  - Playing licensed music tracks on Sandblast Radio and related streams.
-  - Talking about songs, artists, genres, and music history on-air.
-  - Referencing lyrics at a high level as part of commentary, not reproducing full lyrics.
+- Sandblast holds appropriate music licensing through organizations like Entandem and SOCAN, which enables:
+  - Playing licensed music tracks on Sandblast Radio and associated streams.
+  - Discussing songs, artists, genres, and music history on-air.
+  - Referencing lyrics in a high-level, descriptive way as part of commentary.
 
 Internal song catalog:
-- Sandblast maintains an internal catalog with metadata for tracks:
-  - Title, artist, year, genre, mood, tags, and programming notes.
-- When users ask about specific songs or artists, a subset of matching songs may be provided to the AI for context.
-
-Guidance for AI responses:
-- Describe style, mood, and themes of songs and artists.
-- Reference titles, artists, albums, and release years.
-- Paraphrase or briefly allude to lyrical themes; do not output long lyric passages.
-- Make it clear that playback happens on Sandblast streams, not through the chat reply.
+- Sandblast maintains an internal song catalog with metadata for tracks.
+- When users ask about specific songs or artists, a small subset of this catalog may be surfaced for the AI.
+- Describe style, mood, and themes; do not output long lyric passages.
 `.trim(),
 };
 
@@ -437,38 +469,34 @@ function getKnowledgeForRoute(route) {
   return knowledgeByRoute[route] || knowledgeByRoute.general;
 }
 
-// ============ System Prompt Helper ============
+// ============ SYSTEM PROMPT BUILDER ============
 
-function buildSystemPrompt(routeInfo) {
-  const route = routeInfo && routeInfo.route ? routeInfo.route : 'general';
+function buildSystemPrompt(routingInfo) {
+  const route = routingInfo?.route || 'general';
   const confidence =
-    routeInfo && typeof routeInfo.confidence === 'number'
-      ? routeInfo.confidence
+    typeof routingInfo?.confidence === 'number'
+      ? routingInfo.confidence
       : 0;
-  const reason = routeInfo && routeInfo.reason ? routeInfo.reason : '';
-  const scores = routeInfo && routeInfo.scores ? routeInfo.scores : [];
+  const reason = routingInfo?.reason || '';
+  const scores = routingInfo?.scores || [];
   const knowledge = getKnowledgeForRoute(route);
 
   let base =
     'You are SandblastGPT, the AI brain for Sandblast Channel (TV + radio + digital + News Canada + public domain curation + Sandblast AI consulting).\n\n' +
     'General behavior:\n' +
-    '- Speak as if you are talking out loud for Vera\'s TTS voice.\n' +
+    "- Speak as if you are talking out loud for Vera's TTS voice.\n" +
     '- Use short, clear sentences. 1–3 sentences per paragraph max.\n' +
     '- Avoid long monologues. Get to the point, then offer one clear next step.\n' +
     '- Be friendly, confident, and helpful, but not overly casual.\n' +
-    '- If you don’t know something, say so and suggest a practical next action.\n\n' +
+    'If you don’t know something, say so and suggest a practical next action.\n\n' +
     'Routing context:\n' +
-    '- The routing module has selected the route "' +
-    route +
-    '" with confidence ' +
-    confidence.toFixed(2) +
-    '.\n' +
-    '- Reason: ' +
-    (reason || 'No specific reason provided.') +
-    '\n' +
-    '- Scores per route (for your awareness, not to be repeated directly): ' +
-    JSON.stringify(scores) +
-    '\n\n' +
+    `- The routing module has selected the route "${route}" with confidence ${confidence.toFixed(
+      2
+    )}.\n` +
+    `- Reason: ${reason || 'No specific reason provided.'}\n` +
+    `- Scores per route (for your awareness, not to be repeated directly): ${JSON.stringify(
+      scores
+    )}\n\n` +
     'Sandblast internal reference for this route:\n' +
     knowledge;
 
@@ -477,81 +505,88 @@ function buildSystemPrompt(routeInfo) {
   switch (route) {
     case 'tv':
       routeExtra =
-        'You are in the TV / streaming mode.\n\n' +
-        'Focus on Sunday Movie Block, Retro TV Hours, and how to watch Sandblast TV via the streaming player.\n' +
-        'Describe the style of content (retro, PD-based, classic shows) rather than giving rigid timings if you are not certain.';
+        '\n\nYou are in TV / streaming mode. Focus on Sunday Movie Block, Retro TV Hours, and how to watch Sandblast TV.';
       break;
-
     case 'radio':
       routeExtra =
-        'You are in the Radio / audio mode.\n\n' +
-        'Focus on Sandblast Radio streaming, Gospel Sunday, DJ Nova segments, and the listening experience.\n' +
-        'Keep answers snappy and radio-friendly.';
+        '\n\nYou are in Radio / audio mode. Focus on Sandblast Radio, Gospel Sunday, DJ Nova segments, and listening experience.';
       break;
-
     case 'news_canada':
       routeExtra =
-        'You are in the News Canada mode.\n\n' +
-        'Focus on how News Canada content enhances Sandblast with useful editorial pieces and how businesses or communities can benefit from that.';
+        '\n\nYou are in News Canada mode. Explain how News Canada content integrates into Sandblast.';
       break;
-
     case 'ads':
       routeExtra =
-        'You are in the Advertising / Sponsorship mode.\n\n' +
-        'Focus on explaining ad options across TV, radio, and digital, using recurring blocks as examples.\n' +
-        'Emphasize flexibility and community orientation, and suggest one clear next step (such as contacting Sandblast to discuss packages).';
+        '\n\nYou are in Advertising / Sponsorship mode. Explain ad options and keep it simple and business-friendly.';
       break;
-
     case 'public_domain':
       routeExtra =
-        'You are in the Public Domain / PD Watchdog mode.\n\n' +
-        'Focus on why Sandblast uses PD retro content and the high-level verification mindset.\n' +
-        'Avoid making legal claims about specific titles; instead, explain the process conceptually.';
+        '\n\nYou are in Public Domain / PD mode. Explain PD usage at a high level without giving legal advice.';
       break;
-
     case 'music':
       routeExtra =
-        'You are in the Music / Licensing-aware mode.\n\n' +
-        'Focus on how music fits into Sandblast (radio streams, Gospel Sunday, curated playlists, DJ Nova sets).\n' +
-        'Acknowledge that Sandblast has music licensing (e.g., via Entandem and SOCAN).\n' +
-        'Describe songs, artists, genres, and moods, but do not output long lyric passages.\n' +
-        'Clarify that actual playback happens on Sandblast streams, not in this chat.';
+        '\n\nYou are in Music mode. You may describe songs, artists, genres, and moods. Do NOT output long lyric passages. Playback happens on Sandblast streams, not via the AI.';
       break;
-
-    case 'general':
     default:
       routeExtra =
-        'You are in General Sandblast mode.\n\n' +
-        'Explain what Sandblast Channel is and how its TV, radio, News Canada, PD content, and AI consulting fit together.\n' +
-        'Offer one clear suggestion for what the user can do next.';
-      break;
+        '\n\nYou are in General Sandblast mode. Explain how the pieces fit together and offer a clear next step.';
   }
 
-  return base + '\n\n' + routeExtra;
+  return `${base}${routeExtra}`;
 }
 
-// ============ Main Brain Endpoint ============
-//
-// POST /api/sandblast-gpt
-// Body: { message: string, persona?: string, context?: string, session_id?: string | null }
-//
-// Returns: { success, reply, echo, meta }
-//
+// ============ BASIC ROUTES ============
+
+app.get('/', (req, res) => {
+  res.json({
+    status: 'ok',
+    message: 'Sandblast backend is running.',
+  });
+});
+
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.get('/api/openai-test', (req, res) => {
+  res.json({
+    status: 'ok',
+    openai_api_key_present: !!process.env.OPENAI_API_KEY,
+    message:
+      'This just checks env vars. Use POST /api/sandblast-gpt for real answers.',
+  });
+});
+
+app.get('/api/tts-test', (req, res) => {
+  res.json({
+    status: 'ok',
+    elevenlabs_api_key_present: !!process.env.ELEVENLABS_API_KEY,
+    elevenlabs_voice_id_present: !!process.env.ELEVENLABS_VOICE_ID,
+    message: 'This just checks env vars. Use POST /api/tts for real audio.',
+  });
+});
+
+// ============ MAIN BRAIN ENDPOINT ============
+
 app.post('/api/sandblast-gpt', async (req, res) => {
   try {
     const userMessage =
-      req.body && (req.body.message || req.body.input)
-        ? req.body.message || req.body.input
-        : '';
-    const persona = (req.body && req.body.persona) || 'sandblast_assistant';
-    const context = (req.body && req.body.context) || 'homepage';
-    const sessionId = (req.body && req.body.session_id) || null;
+      req.body?.message || req.body?.input || '';
+    const persona = req.body?.persona || 'sandblast_assistant';
+    const context = req.body?.context || 'homepage';
+    const sessionId = req.body?.session_id || null;
 
-    if (!process.env.OPENAI_API_KEY) {
-      console.error('OPENAI_API_KEY is not set');
+    if (!openai) {
+      console.error(
+        'ERROR: /api/sandblast-gpt called but OpenAI client is not initialized.'
+      );
       return res.status(500).json({
         success: false,
-        error: 'OPENAI_API_KEY is not configured on the server.',
+        error:
+          'SandblastGPT brain is not available because OPENAI_API_KEY is not configured on the server.',
       });
     }
 
@@ -573,11 +608,9 @@ app.post('/api/sandblast-gpt', async (req, res) => {
       });
     }
 
-    // 1) Detect route
     const routing = detectIntent(userMessage);
     const route = routing.route;
 
-    // 2) If music, pull matching songs from SONG_DB
     const matchedSongs =
       route === 'music' ? findSongsForMessage(userMessage) : [];
     const songContextText = formatSongContext(matchedSongs);
@@ -594,33 +627,21 @@ app.post('/api/sandblast-gpt', async (req, res) => {
       sessionId,
     });
 
-    // 3) Call OpenAI
     const completion = await openai.chat.completions.create({
       model: 'gpt-4.1-mini',
       messages: [
-        {
-          role: 'system',
-          content: systemPrompt,
-        },
+        { role: 'system', content: systemPrompt },
         {
           role: 'user',
           content:
-            'User message:\n"' +
-            userMessage +
-            '"\n\n' +
+            `User message:\n"${userMessage}"\n\n` +
             (songContextText ? songContextText + '\n\n' : '') +
             'Context:\n' +
-            '- Persona: ' +
-            persona +
-            '\n' +
-            '- UI context: ' +
-            context +
-            '\n' +
-            '- Main route detected: ' +
-            route +
-            ' (confidence: ' +
-            routing.confidence.toFixed(2) +
-            ')\n\n' +
+            `- Persona: ${persona}\n` +
+            `- UI context: ${context}\n` +
+            `- Main route detected: ${route} (confidence: ${routing.confidence.toFixed(
+              2
+            )})\n\n` +
             'Answer in a natural spoken style, as if you are Vera explaining this out loud. Keep it concise but clear.',
         },
       ],
@@ -629,15 +650,9 @@ app.post('/api/sandblast-gpt', async (req, res) => {
     });
 
     const replyText =
-      completion &&
-      completion.choices &&
-      completion.choices[0] &&
-      completion.choices[0].message &&
-      completion.choices[0].message.content
-        ? completion.choices[0].message.content.trim()
-        : 'I had trouble generating a reply, but SandblastGPT is online. Please try asking again.';
+      completion?.choices?.[0]?.message?.content?.trim() ||
+      'I had trouble generating a reply, but SandblastGPT is online. Please try asking again.';
 
-    // 4) Return widget-safe JSON
     res.json({
       success: true,
       reply: replyText,
@@ -658,30 +673,23 @@ app.post('/api/sandblast-gpt', async (req, res) => {
     });
   } catch (error) {
     const details =
-      error && error.response && error.response.data
-        ? error.response.data
-        : error.message || error;
+      error?.response?.data || error.message || error;
     console.error('Error in /api/sandblast-gpt:', details);
 
     res.status(500).json({
       success: false,
       error: 'Internal server error in /api/sandblast-gpt.',
-      details: details || null,
+      details,
     });
   }
 });
 
-// ============ ElevenLabs TTS Endpoint ============
-//
-// POST /api/tts
-// Body: { text: "Hello from Sandblast" }
-//
-// Returns: audio/mpeg stream (MP3) on success
-//
+// ============ ELEVENLABS TTS ENDPOINT ============
+
 app.post('/api/tts', async (req, res) => {
-  let text = req.body && req.body.text ? req.body.text : null;
+  let text = req.body?.text;
   const voiceId =
-    (req.body && req.body.voiceId) || process.env.ELEVENLABS_VOICE_ID;
+    req.body?.voiceId || process.env.ELEVENLABS_VOICE_ID;
 
   if (!text) {
     return res.status(400).json({
@@ -709,19 +717,16 @@ app.post('/api/tts', async (req, res) => {
   const MAX_TTS_CHARS = 800;
   if (text.length > MAX_TTS_CHARS) {
     console.warn(
-      'TTS text too long (' +
-        text.length +
-        ' chars). Truncating to ' +
-        MAX_TTS_CHARS +
-        '.'
+      `TTS text too long (${text.length} chars). Truncating to ${MAX_TTS_CHARS}.`
     );
     text = text.slice(0, MAX_TTS_CHARS);
   }
 
   try {
     const apiKey = process.env.ELEVENLABS_API_KEY;
-    const url =
-      'https://api.elevenlabs.io/v1/text-to-speech/' + String(voiceId);
+    const url = `https://api.elevenlabs.io/v1/text-to-speech/${String(
+      voiceId
+    )}`;
 
     console.log('Calling ElevenLabs TTS:', {
       voiceId,
@@ -770,8 +775,8 @@ app.post('/api/tts', async (req, res) => {
 
     return res.send(Buffer.from(response.data, 'binary'));
   } catch (error) {
-    const status = (error.response && error.response.status) || 500;
-    const details = error.response ? error.response.data : error.message;
+    const status = error?.response?.status || 500;
+    const details = error?.response?.data || error.message;
 
     console.error('Error calling ElevenLabs TTS:', {
       status,
@@ -787,7 +792,7 @@ app.post('/api/tts', async (req, res) => {
   }
 });
 
-// ============ Start Server ============
+// ============ START SERVER ============
 app.listen(PORT, () => {
-  console.log('Sandblast backend listening on port ' + PORT);
+  console.log(`Sandblast backend listening on port ${PORT}`);
 });
