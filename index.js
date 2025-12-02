@@ -2,7 +2,7 @@
 
 // ============ ENV + DEBUG ============
 
-// Load .env FIRST (even if you’re using Windows env vars, this is harmless)
+// Load .env FIRST (still works if you ever add one; Windows env vars override)
 const path = require('path');
 console.log('DEBUG: Starting Sandblast backend…');
 console.log('DEBUG: process.cwd() =', process.cwd());
@@ -44,6 +44,10 @@ const axios = require('axios');
 const OpenAI = require('openai');
 
 // ============ OpenAI Client (guarded) ============
+//
+// We DO NOT throw if the key is missing.
+// Instead, we log and let the routes return a clean error.
+// This avoids hard crashes.
 let openai = null;
 
 if (!process.env.OPENAI_API_KEY) {
@@ -64,23 +68,9 @@ app.use(cors());
 
 const PORT = process.env.PORT || 3000;
 
-// ============ ADMIN MODE HELPER ============
-//
-// Mac-only admin mode, gated by ADMIN_SECRET in environment.
-// To call admin endpoints, send header:  x-admin-secret: <your secret>
-function isAdmin(req) {
-  const adminSecret = process.env.ADMIN_SECRET;
-  if (!adminSecret) {
-    // If there is no ADMIN_SECRET set, no one is admin.
-    return false;
-  }
-  const incoming = req.headers['x-admin-secret'];
-  return incoming && incoming === adminSecret;
-}
-
 // ============ INLINE SONG DATABASE ============
 //
-// No external files. This keeps your brain working even if file paths are tricky.
+// Rich internal catalog with moods, eras, tempo, energy, etc.
 const SONG_DB = [
   {
     id: 'i_will_always_love_you-whitney_houston-1992',
@@ -188,49 +178,9 @@ const SONG_DB = [
 
 console.log(`Inline SONG_DB loaded with ${SONG_DB.length} songs.`);
 
-// ============ SONG HELPERS ============
-
-function findSongsForMessage(message) {
-  const text = (message || '').toLowerCase();
-  if (!text || !SONG_DB.length) return [];
-
-  const matches = SONG_DB.filter((song) => {
-    const titleMatch =
-      song.title && text.includes(String(song.title).toLowerCase());
-    const artistMatch =
-      song.artist && text.includes(String(song.artist).toLowerCase());
-    const tagMatch =
-      Array.isArray(song.vibeTags) &&
-      song.vibeTags.some((tag) => text.includes(String(tag).toLowerCase()));
-
-    return titleMatch || artistMatch || tagMatch;
-  });
-
-  return matches.slice(0, 5);
-}
-
-function formatSongContext(songs) {
-  if (!songs || !songs.length) return '';
-  let out = 'Relevant songs from the Sandblast internal catalog:\n';
-  songs.forEach((song, idx) => {
-    out +=
-      `${idx + 1}) ${song.title || 'Unknown title'} — ` +
-      `${song.artist || 'Unknown artist'}` +
-      (song.year ? ` (${song.year})` : '') +
-      (song.genre ? ` | Genre: ${song.genre}` : '') +
-      (song.mood && song.mood.length
-        ? ` | Mood: ${song.mood.join(', ')}`
-        : '') +
-      '\n';
-  });
-  out +=
-    '\nUse this catalog information to answer questions about these songs. ' +
-    'Describe the songs, artists, style, and mood, but do not output full lyrics.\n';
-  return out;
-}
-
 // ============ MUSIC INTELLIGENCE HELPERS ============
 
+// Interpret what kind of block / vibe the user is asking for
 function interpretMusicRequest(message = '') {
   const text = message.toLowerCase();
 
@@ -255,15 +205,12 @@ function interpretMusicRequest(message = '') {
     text.includes('workout');
 
   const wants80s =
-    text.includes('80s') ||
-    text.includes("80's") ||
-    text.includes('1980s');
+    text.includes('80s') || text.includes("80's") || text.includes('1980s');
 
   const wants60s =
-    text.includes('60s') ||
-    text.includes("60's") ||
-    text.includes('1960s');
+    text.includes('60s') || text.includes("60's") || text.includes('1960s');
 
+  // Defaults
   let desiredTempo = 'slow';
   let desiredEnergyRange = [2, 3]; // [min, max]
   let desiredEra = null;
@@ -303,6 +250,7 @@ function interpretMusicRequest(message = '') {
   };
 }
 
+// Rank songs in SONG_DB based on the interpreted request
 function rankSongsForMusicRequest(message = '') {
   const analysis = interpretMusicRequest(message);
   const results = [];
@@ -333,6 +281,7 @@ function rankSongsForMusicRequest(message = '') {
       reasons.push('era match');
     }
 
+    // Romance / late-night vibes
     const lowerMoods = (song.mood || []).map((m) => String(m).toLowerCase());
     const lowerVibes = (song.vibeTags || []).map((v) =>
       String(v).toLowerCase()
@@ -359,6 +308,7 @@ function rankSongsForMusicRequest(message = '') {
       }
     }
 
+    // If user typed specific title / artist
     const text = message.toLowerCase();
     if (song.title && text.includes(song.title.toLowerCase())) {
       score += 3;
@@ -374,6 +324,7 @@ function rankSongsForMusicRequest(message = '') {
     }
   });
 
+  // Sort by score descending
   results.sort((a, b) => b.score - a.score);
 
   return {
@@ -382,6 +333,7 @@ function rankSongsForMusicRequest(message = '') {
   };
 }
 
+// Format recommendations so the LLM has a clear, structured view
 function formatMusicRecommendationsForLLM(message = '') {
   const rankedResult = rankSongsForMusicRequest(message);
   const { analysis, ranked } = rankedResult;
@@ -402,9 +354,7 @@ function formatMusicRecommendationsForLLM(message = '') {
 
   top.forEach((entry, idx) => {
     const s = entry.song;
-    text += `${idx + 1}) ${s.title} — ${s.artist} (${
-      s.year || 'n/a'
-    })`;
+    text += `${idx + 1}) ${s.title} — ${s.artist} (${s.year || 'n/a'})`;
     if (s.tempo || s.energy || s.era) {
       text += ' [';
       if (s.tempo) text += `tempo: ${s.tempo}; `;
@@ -412,9 +362,7 @@ function formatMusicRecommendationsForLLM(message = '') {
       if (s.era) text += `era: ${s.era}; `;
       text += ']';
     }
-    text += ` (score: ${entry.score}, reasons: ${entry.reasons.join(
-      ', '
-    )})\n`;
+    text += ` (score: ${entry.score}, reasons: ${entry.reasons.join(', ')})\n`;
   });
 
   text +=
@@ -427,6 +375,46 @@ function formatMusicRecommendationsForLLM(message = '') {
     textBlock: text,
     topSongs,
   };
+}
+
+// Simple helper for direct song mentions (can still be used if needed)
+function findSongsForMessage(message) {
+  const text = (message || '').toLowerCase();
+  if (!text || !SONG_DB.length) return [];
+
+  const matches = SONG_DB.filter((song) => {
+    const titleMatch =
+      song.title && text.includes(String(song.title).toLowerCase());
+    const artistMatch =
+      song.artist && text.includes(String(song.artist).toLowerCase());
+    const tagMatch =
+      Array.isArray(song.vibeTags) &&
+      song.vibeTags.some((tag) => text.includes(String(tag).toLowerCase()));
+
+    return titleMatch || artistMatch || tagMatch;
+  });
+
+  return matches.slice(0, 5);
+}
+
+function formatSongContext(songs) {
+  if (!songs || !songs.length) return '';
+  let out = 'Relevant songs from the Sandblast internal catalog:\n';
+  songs.forEach((song, idx) => {
+    out +=
+      `${idx + 1}) ${song.title || 'Unknown title'} — ` +
+      `${song.artist || 'Unknown artist'}` +
+      (song.year ? ` (${song.year})` : '') +
+      (song.genre ? ` | Genre: ${song.genre}` : '') +
+      (song.mood && song.mood.length
+        ? ` | Mood: ${song.mood.join(', ')}`
+        : '') +
+      '\n';
+  });
+  out +=
+    '\nUse this catalog information to answer questions about these songs. ' +
+    'Describe the songs, artists, style, and mood, but do not output full lyrics.\n';
+  return out;
 }
 
 // ============ INTENT ROUTING ============
@@ -779,6 +767,19 @@ function buildSystemPrompt(routingInfo) {
   return `${base}${routeExtra}`;
 }
 
+// ============ ADMIN MODE HELPER ============
+//
+// Mac-only admin mode, gated by ADMIN_SECRET in environment.
+function isAdmin(req) {
+  const adminSecret = process.env.ADMIN_SECRET;
+  if (!adminSecret) {
+    // If there is no ADMIN_SECRET set, no one is admin.
+    return false;
+  }
+  const incoming = req.headers['x-admin-secret'];
+  return incoming && incoming === adminSecret;
+}
+
 // ============ BASIC ROUTES ============
 
 app.get('/', (req, res) => {
@@ -855,7 +856,7 @@ app.post('/api/sandblast-gpt', async (req, res) => {
     const routing = detectIntent(userMessage);
     const route = routing.route;
 
-    // Rich music context when in music mode
+    // Music-specific intelligence: ranked recommendations + Nova intros
     let songContextText = '';
     let matchedSongs = [];
     let musicRecBlock = null;
@@ -937,91 +938,6 @@ app.post('/api/sandblast-gpt', async (req, res) => {
       details,
     });
   }
-});
-
-// ============ ADMIN ROUTES (MAC ONLY) ============
-
-// List all songs currently in the in-memory catalog
-app.get('/api/admin/music/list', (req, res) => {
-  if (!isAdmin(req)) {
-    return res.status(403).json({
-      success: false,
-      error: 'Not authorized. Admin secret required.',
-    });
-  }
-
-  return res.json({
-    success: true,
-    count: SONG_DB.length,
-    songs: SONG_DB,
-  });
-});
-
-// Add a song to the in-memory SONG_DB
-app.post('/api/admin/music/add', (req, res) => {
-  if (!isAdmin(req)) {
-    return res.status(403).json({
-      success: false,
-      error: 'Not authorized. Admin secret required.',
-    });
-  }
-
-  const {
-    title,
-    artist,
-    year,
-    genre,
-    era,
-    bpm,
-    tempo,
-    energy,
-    mood,
-    vibeTags,
-    recommendedBlocks,
-  } = req.body || {};
-
-  if (!title || !artist) {
-    return res.status(400).json({
-      success: false,
-      error: 'title and artist are required.',
-    });
-  }
-
-  const newSong = {
-    id:
-      `${String(title).toLowerCase().replace(/\s+/g, '_')}-` +
-      `${String(artist).toLowerCase().replace(/\s+/g, '_')}`,
-    title,
-    artist,
-    year: year || null,
-    genre: genre || null,
-    era: era || null,
-    bpm: typeof bpm === 'number' ? bpm : null,
-    tempo: tempo || null,
-    energy:
-      typeof energy === 'number' && energy >= 1 && energy <= 5
-        ? energy
-        : null,
-    mood: Array.isArray(mood) ? mood : [],
-    vibeTags: Array.isArray(vibeTags) ? vibeTags : [],
-    recommendedBlocks: Array.isArray(recommendedBlocks)
-      ? recommendedBlocks
-      : [],
-    source: 'Admin-added via Mac-only mode',
-    license:
-      'Metadata only. Audio/lyrics subject to music licensing via Entandem/SOCAN and other agreements.',
-  };
-
-  SONG_DB.push(newSong);
-
-  console.log('ADMIN: Added new song to SONG_DB:', newSong);
-
-  return res.json({
-    success: true,
-    message: 'Song added to in-memory catalog.',
-    song: newSong,
-    totalSongs: SONG_DB.length,
-  });
 });
 
 // ============ ELEVENLABS TTS ENDPOINT ============
@@ -1130,6 +1046,91 @@ app.post('/api/tts', async (req, res) => {
       details,
     });
   }
+});
+
+// ============ ADMIN ROUTES (MAC ONLY) ============
+
+// List all songs currently in the in-memory catalog
+app.get('/api/admin/music/list', (req, res) => {
+  if (!isAdmin(req)) {
+    return res.status(403).json({
+      success: false,
+      error: 'Not authorized. Admin secret required.',
+    });
+  }
+
+  return res.json({
+    success: true,
+    count: SONG_DB.length,
+    songs: SONG_DB,
+  });
+});
+
+// Add a song to the in-memory SONG_DB
+app.post('/api/admin/music/add', (req, res) => {
+  if (!isAdmin(req)) {
+    return res.status(403).json({
+      success: false,
+      error: 'Not authorized. Admin secret required.',
+    });
+  }
+
+  const {
+    title,
+    artist,
+    year,
+    genre,
+    era,
+    bpm,
+    tempo,
+    energy,
+    mood,
+    vibeTags,
+    recommendedBlocks,
+  } = req.body || {};
+
+  if (!title || !artist) {
+    return res.status(400).json({
+      success: false,
+      error: 'title and artist are required.',
+    });
+  }
+
+  const newSong = {
+    id:
+      `${String(title).toLowerCase().replace(/\s+/g, '_')}-` +
+      `${String(artist).toLowerCase().replace(/\s+/g, '_')}`,
+    title,
+    artist,
+    year: year || null,
+    genre: genre || null,
+    era: era || null,
+    bpm: typeof bpm === 'number' ? bpm : null,
+    tempo: tempo || null,
+    energy:
+      typeof energy === 'number' && energy >= 1 && energy <= 5
+        ? energy
+        : null,
+    mood: Array.isArray(mood) ? mood : [],
+    vibeTags: Array.isArray(vibeTags) ? vibeTags : [],
+    recommendedBlocks: Array.isArray(recommendedBlocks)
+      ? recommendedBlocks
+      : [],
+    source: 'Admin-added via Mac-only mode',
+    license:
+      'Metadata only. Audio/lyrics subject to music licensing via Entandem/SOCAN and other agreements.',
+  };
+
+  SONG_DB.push(newSong);
+
+  console.log('ADMIN: Added new song to SONG_DB:', newSong);
+
+  return res.json({
+    success: true,
+    message: 'Song added to in-memory catalog.',
+    song: newSong,
+    totalSongs: SONG_DB.length,
+  });
 });
 
 // ============ START SERVER ============
