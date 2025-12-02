@@ -3,7 +3,7 @@
 
 const express = require("express");
 const cors = require("cors");
-const { classifyIntent } = require("./utils/intentClassifier"); // ensure this path is correct
+const { classifyIntent } = require("./Utils/intentClassifier"); // Ensure the correct casing
 
 const app = express();
 
@@ -32,7 +32,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
 
   // 2. Build structured response (Phase 1 – routing only)
   let payload = {
-    intent,            // "tv_video", "music_radio", etc.
+    intent,            // e.g., "tv_video", "music_radio", etc.
     echo: userMessage, // what user sent
   };
 
