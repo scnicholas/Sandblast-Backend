@@ -2,7 +2,7 @@
 
 // ============ ENV + DEBUG ============
 
-// Load .env FIRST
+// Load .env FIRST (even if you’re using Windows env vars, this is harmless)
 const path = require('path');
 console.log('DEBUG: Starting Sandblast backend…');
 console.log('DEBUG: process.cwd() =', process.cwd());
@@ -44,10 +44,6 @@ const axios = require('axios');
 const OpenAI = require('openai');
 
 // ============ OpenAI Client (guarded) ============
-//
-// We DO NOT throw if the key is missing.
-// Instead, we log and let the routes return a clean error.
-// This avoids the hard crash you're seeing.
 let openai = null;
 
 if (!process.env.OPENAI_API_KEY) {
@@ -68,10 +64,23 @@ app.use(cors());
 
 const PORT = process.env.PORT || 3000;
 
+// ============ ADMIN MODE HELPER ============
+//
+// Mac-only admin mode, gated by ADMIN_SECRET in environment.
+// To call admin endpoints, send header:  x-admin-secret: <your secret>
+function isAdmin(req) {
+  const adminSecret = process.env.ADMIN_SECRET;
+  if (!adminSecret) {
+    // If there is no ADMIN_SECRET set, no one is admin.
+    return false;
+  }
+  const incoming = req.headers['x-admin-secret'];
+  return incoming && incoming === adminSecret;
+}
+
 // ============ INLINE SONG DATABASE ============
 //
-// No external files. This keeps your brain working
-// even if file paths are tricky on Windows.
+// No external files. This keeps your brain working even if file paths are tricky.
 const SONG_DB = [
   {
     id: 'i_will_always_love_you-whitney_houston-1992',
@@ -79,8 +88,13 @@ const SONG_DB = [
     artist: 'Whitney Houston',
     year: 1992,
     genre: 'Pop',
-    mood: ['powerful', 'emotional'],
-    tags: ['love songs', 'big ballad'],
+    era: '1990s',
+    bpm: 66,
+    tempo: 'slow',
+    energy: 3, // 1–5
+    mood: ['powerful', 'emotional', 'farewell', 'romantic'],
+    vibeTags: ['big ballad', 'showstopper', 'late-night'],
+    recommendedBlocks: ['late-night romance', 'big movie moment'],
     source: 'Sandblast curated catalog',
     license:
       'Metadata only. Audio/lyrics subject to music licensing via Entandem/SOCAN and other agreements.',
@@ -91,8 +105,13 @@ const SONG_DB = [
     artist: 'Etta James',
     year: 1960,
     genre: 'Soul',
-    mood: ['romantic', 'classic'],
-    tags: ['wedding', 'slow dance'],
+    era: '1960s',
+    bpm: 62,
+    tempo: 'slow',
+    energy: 2,
+    mood: ['romantic', 'classic', 'intimate'],
+    vibeTags: ['wedding', 'first dance', 'slow dance'],
+    recommendedBlocks: ['wedding feature', 'late-night romance'],
     source: 'Sandblast curated catalog',
     license:
       'Metadata only. Audio/lyrics subject to music licensing via Entandem/SOCAN and other agreements.',
@@ -103,8 +122,13 @@ const SONG_DB = [
     artist: 'Nat King Cole & Natalie Cole',
     year: 1991,
     genre: 'Jazz',
-    mood: ['smooth', 'romantic'],
-    tags: ['standards', 'slow set'],
+    era: '1990s',
+    bpm: 72,
+    tempo: 'slow',
+    energy: 2,
+    mood: ['smooth', 'romantic', 'nostalgic'],
+    vibeTags: ['classy', 'evening dinner', 'elegant'],
+    recommendedBlocks: ['dinner hour', 'late-night romance'],
     source: 'Sandblast curated catalog',
     license:
       'Metadata only. Audio/lyrics subject to music licensing via Entandem/SOCAN and other agreements.',
@@ -115,8 +139,13 @@ const SONG_DB = [
     artist: 'Percy Sledge',
     year: 1966,
     genre: 'Soul',
-    mood: ['dramatic', 'emotional'],
-    tags: ['love songs', 'deep soul'],
+    era: '1960s',
+    bpm: 72,
+    tempo: 'slow',
+    energy: 3,
+    mood: ['dramatic', 'emotional', 'romantic'],
+    vibeTags: ['heart-on-sleeve', 'late-night', 'soul classic'],
+    recommendedBlocks: ['deep soul hour', 'late-night romance'],
     source: 'Sandblast curated catalog',
     license:
       'Metadata only. Audio/lyrics subject to music licensing via Entandem/SOCAN and other agreements.',
@@ -127,8 +156,13 @@ const SONG_DB = [
     artist: 'The Righteous Brothers',
     year: 1965,
     genre: 'Pop',
-    mood: ['haunting', 'romantic'],
-    tags: ['slow dance', 'evergreen'],
+    era: '1960s',
+    bpm: 84,
+    tempo: 'slow',
+    energy: 3,
+    mood: ['haunting', 'romantic', 'emotional'],
+    vibeTags: ['evergreen', 'slow dance', 'soundtrack'],
+    recommendedBlocks: ['retro romance', 'late-night'],
     source: 'Sandblast curated catalog',
     license:
       'Metadata only. Audio/lyrics subject to music licensing via Entandem/SOCAN and other agreements.',
@@ -139,8 +173,13 @@ const SONG_DB = [
     artist: 'Chicago',
     year: 1984,
     genre: 'Soft Rock',
-    mood: ['romantic', 'uplifting'],
-    tags: ['vera theme', 'slow set'],
+    era: '1980s',
+    bpm: 64,
+    tempo: 'slow',
+    energy: 3,
+    mood: ['romantic', 'uplifting', 'sentimental'],
+    vibeTags: ['vera theme', 'slow set', '80s'],
+    recommendedBlocks: ['dedications hour', 'late-night romance'],
     source: 'Sandblast curated catalog',
     license:
       'Metadata only. Audio/lyrics subject to music licensing via Entandem/SOCAN and other agreements.',
@@ -150,6 +189,7 @@ const SONG_DB = [
 console.log(`Inline SONG_DB loaded with ${SONG_DB.length} songs.`);
 
 // ============ SONG HELPERS ============
+
 function findSongsForMessage(message) {
   const text = (message || '').toLowerCase();
   if (!text || !SONG_DB.length) return [];
@@ -160,8 +200,8 @@ function findSongsForMessage(message) {
     const artistMatch =
       song.artist && text.includes(String(song.artist).toLowerCase());
     const tagMatch =
-      Array.isArray(song.tags) &&
-      song.tags.some((tag) => text.includes(String(tag).toLowerCase()));
+      Array.isArray(song.vibeTags) &&
+      song.vibeTags.some((tag) => text.includes(String(tag).toLowerCase()));
 
     return titleMatch || artistMatch || tagMatch;
   });
@@ -187,6 +227,206 @@ function formatSongContext(songs) {
     '\nUse this catalog information to answer questions about these songs. ' +
     'Describe the songs, artists, style, and mood, but do not output full lyrics.\n';
   return out;
+}
+
+// ============ MUSIC INTELLIGENCE HELPERS ============
+
+function interpretMusicRequest(message = '') {
+  const text = message.toLowerCase();
+
+  const wantsLateNight =
+    text.includes('late night') ||
+    text.includes('late-night') ||
+    text.includes('after dark') ||
+    text.includes('slow jam') ||
+    text.includes('quiet storm');
+
+  const wantsRomantic =
+    text.includes('romantic') ||
+    text.includes('love songs') ||
+    text.includes('date night') ||
+    text.includes('wedding');
+
+  const wantsUpbeat =
+    text.includes('upbeat') ||
+    text.includes('energy') ||
+    text.includes('party') ||
+    text.includes('dance') ||
+    text.includes('workout');
+
+  const wants80s =
+    text.includes('80s') ||
+    text.includes("80's") ||
+    text.includes('1980s');
+
+  const wants60s =
+    text.includes('60s') ||
+    text.includes("60's") ||
+    text.includes('1960s');
+
+  let desiredTempo = 'slow';
+  let desiredEnergyRange = [2, 3]; // [min, max]
+  let desiredEra = null;
+  let blockType = 'general romance';
+
+  if (wantsUpbeat && !wantsLateNight && !wantsRomantic) {
+    desiredTempo = 'mid';
+    desiredEnergyRange = [3, 5];
+    blockType = 'upbeat / mid-tempo feature';
+  }
+
+  if (wantsLateNight || wantsRomantic) {
+    desiredTempo = 'slow';
+    desiredEnergyRange = [1, 3];
+    blockType = 'late-night romance';
+  }
+
+  if (wants80s) {
+    desiredEra = '1980s';
+  } else if (wants60s) {
+    desiredEra = '1960s';
+  }
+
+  return {
+    wantsLateNight,
+    wantsRomantic,
+    wantsUpbeat,
+    wants80s,
+    wants60s,
+    desiredTempo,
+    desiredEnergyRange,
+    desiredEra,
+    blockType,
+    description: `Block type: ${blockType}. Tempo: ${desiredTempo}. Energy range: ${desiredEnergyRange[0]}–${desiredEnergyRange[1]}${
+      desiredEra ? `. Preferred era: ${desiredEra}.` : '.'
+    }`,
+  };
+}
+
+function rankSongsForMusicRequest(message = '') {
+  const analysis = interpretMusicRequest(message);
+  const results = [];
+
+  SONG_DB.forEach((song) => {
+    let score = 0;
+    const reasons = [];
+
+    // Tempo match
+    if (song.tempo === analysis.desiredTempo) {
+      score += 2;
+      reasons.push('tempo match');
+    }
+
+    // Energy match
+    if (
+      typeof song.energy === 'number' &&
+      song.energy >= analysis.desiredEnergyRange[0] &&
+      song.energy <= analysis.desiredEnergyRange[1]
+    ) {
+      score += 2;
+      reasons.push('energy range match');
+    }
+
+    // Era match
+    if (analysis.desiredEra && song.era === analysis.desiredEra) {
+      score += 2;
+      reasons.push('era match');
+    }
+
+    const lowerMoods = (song.mood || []).map((m) => String(m).toLowerCase());
+    const lowerVibes = (song.vibeTags || []).map((v) =>
+      String(v).toLowerCase()
+    );
+
+    if (analysis.wantsRomantic) {
+      if (lowerMoods.includes('romantic')) {
+        score += 2;
+        reasons.push('romantic mood');
+      }
+      if (
+        lowerVibes.includes('wedding') ||
+        lowerVibes.includes('first dance')
+      ) {
+        score += 1;
+        reasons.push('wedding / first dance vibe');
+      }
+    }
+
+    if (analysis.wantsLateNight) {
+      if (lowerVibes.includes('late-night')) {
+        score += 2;
+        reasons.push('late-night vibe');
+      }
+    }
+
+    const text = message.toLowerCase();
+    if (song.title && text.includes(song.title.toLowerCase())) {
+      score += 3;
+      reasons.push('direct title mention');
+    }
+    if (song.artist && text.includes(song.artist.toLowerCase())) {
+      score += 2;
+      reasons.push('artist mention');
+    }
+
+    if (score > 0) {
+      results.push({ song, score, reasons });
+    }
+  });
+
+  results.sort((a, b) => b.score - a.score);
+
+  return {
+    analysis,
+    ranked: results,
+  };
+}
+
+function formatMusicRecommendationsForLLM(message = '') {
+  const rankedResult = rankSongsForMusicRequest(message);
+  const { analysis, ranked } = rankedResult;
+
+  if (!ranked.length) {
+    return {
+      analysis,
+      textBlock:
+        'No strong matches in the internal song catalog for this request. You may still answer in general music terms without naming specific tracks.',
+      topSongs: [],
+    };
+  }
+
+  const top = ranked.slice(0, 5);
+  let text = 'Music request analysis:\n';
+  text += `${analysis.description}\n\n`;
+  text += 'Top internal song matches for this block:\n';
+
+  top.forEach((entry, idx) => {
+    const s = entry.song;
+    text += `${idx + 1}) ${s.title} — ${s.artist} (${
+      s.year || 'n/a'
+    })`;
+    if (s.tempo || s.energy || s.era) {
+      text += ' [';
+      if (s.tempo) text += `tempo: ${s.tempo}; `;
+      if (typeof s.energy === 'number') text += `energy: ${s.energy}; `;
+      if (s.era) text += `era: ${s.era}; `;
+      text += ']';
+    }
+    text += ` (score: ${entry.score}, reasons: ${entry.reasons.join(
+      ', '
+    )})\n`;
+  });
+
+  text +=
+    '\nUse this ranked list to speak like a music director. Suggest 2–3 tracks that best fit, explain why, and optionally give a short DJ Nova style intro line for the block.\n';
+
+  const topSongs = top.map((entry) => entry.song);
+
+  return {
+    analysis,
+    textBlock: text,
+    topSongs,
+  };
 }
 
 // ============ INTENT ROUTING ============
@@ -525,7 +765,11 @@ function buildSystemPrompt(routingInfo) {
       break;
     case 'music':
       routeExtra =
-        '\n\nYou are in Music mode. You may describe songs, artists, genres, and moods. Do NOT output long lyric passages. Playback happens on Sandblast streams, not via the AI.';
+        '\n\nYou are in Music mode. You may describe songs, artists, genres, moods, and how they fit into Sandblast Radio blocks.\n' +
+        '- Use the internal catalog when provided to talk like a music director.\n' +
+        '- Suggest specific songs for blocks (late-night romance, dinner hour, dedications, etc.) based on tempo, era, and mood.\n' +
+        '- NEVER output long lyric passages. It is fine to describe themes or mention a short fragment if needed.\n' +
+        '- When helpful, include one short “DJ Nova intro” line (labeled clearly) that could be spoken before the block starts.';
       break;
     default:
       routeExtra =
@@ -611,9 +855,20 @@ app.post('/api/sandblast-gpt', async (req, res) => {
     const routing = detectIntent(userMessage);
     const route = routing.route;
 
-    const matchedSongs =
-      route === 'music' ? findSongsForMessage(userMessage) : [];
-    const songContextText = formatSongContext(matchedSongs);
+    // Rich music context when in music mode
+    let songContextText = '';
+    let matchedSongs = [];
+    let musicRecBlock = null;
+
+    if (route === 'music') {
+      musicRecBlock = formatMusicRecommendationsForLLM(userMessage);
+      matchedSongs = musicRecBlock.topSongs || [];
+
+      songContextText =
+        (formatSongContext(matchedSongs) || '') +
+        '\n\n' +
+        (musicRecBlock.textBlock || '');
+    }
 
     const systemPrompt = buildSystemPrompt(routing);
 
@@ -682,6 +937,91 @@ app.post('/api/sandblast-gpt', async (req, res) => {
       details,
     });
   }
+});
+
+// ============ ADMIN ROUTES (MAC ONLY) ============
+
+// List all songs currently in the in-memory catalog
+app.get('/api/admin/music/list', (req, res) => {
+  if (!isAdmin(req)) {
+    return res.status(403).json({
+      success: false,
+      error: 'Not authorized. Admin secret required.',
+    });
+  }
+
+  return res.json({
+    success: true,
+    count: SONG_DB.length,
+    songs: SONG_DB,
+  });
+});
+
+// Add a song to the in-memory SONG_DB
+app.post('/api/admin/music/add', (req, res) => {
+  if (!isAdmin(req)) {
+    return res.status(403).json({
+      success: false,
+      error: 'Not authorized. Admin secret required.',
+    });
+  }
+
+  const {
+    title,
+    artist,
+    year,
+    genre,
+    era,
+    bpm,
+    tempo,
+    energy,
+    mood,
+    vibeTags,
+    recommendedBlocks,
+  } = req.body || {};
+
+  if (!title || !artist) {
+    return res.status(400).json({
+      success: false,
+      error: 'title and artist are required.',
+    });
+  }
+
+  const newSong = {
+    id:
+      `${String(title).toLowerCase().replace(/\s+/g, '_')}-` +
+      `${String(artist).toLowerCase().replace(/\s+/g, '_')}`,
+    title,
+    artist,
+    year: year || null,
+    genre: genre || null,
+    era: era || null,
+    bpm: typeof bpm === 'number' ? bpm : null,
+    tempo: tempo || null,
+    energy:
+      typeof energy === 'number' && energy >= 1 && energy <= 5
+        ? energy
+        : null,
+    mood: Array.isArray(mood) ? mood : [],
+    vibeTags: Array.isArray(vibeTags) ? vibeTags : [],
+    recommendedBlocks: Array.isArray(recommendedBlocks)
+      ? recommendedBlocks
+      : [],
+    source: 'Admin-added via Mac-only mode',
+    license:
+      'Metadata only. Audio/lyrics subject to music licensing via Entandem/SOCAN and other agreements.',
+  };
+
+  SONG_DB.push(newSong);
+
+  console.log('ADMIN: Added new song to SONG_DB:', newSong);
+
+  return res.json({
+    success: true,
+    message: 'Song added to in-memory catalog.',
+    song: newSong,
+    totalSongs: SONG_DB.length,
+  });
 });
 
 // ============ ELEVENLABS TTS ENDPOINT ============
@@ -793,6 +1133,7 @@ app.post('/api/tts', async (req, res) => {
 });
 
 // ============ START SERVER ============
+
 app.listen(PORT, () => {
   console.log(`Sandblast backend listening on port ${PORT}`);
 });
