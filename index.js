@@ -3,7 +3,14 @@
 
 const express = require("express");
 const cors = require("cors");
-const { classifyIntent } = require("./Utils/intentClassifier"); // Ensure the correct casing
+const { classifyIntent } = require("./Utils/intentClassifier");
+
+// Import response modules
+const musicModule = require("./responseModules/musicModule");
+const tvModule = require("./responseModules/tvModule");
+const newsModule = require("./responseModules/newsModule");
+const advertisingModule = require("./responseModules/advertisingModule");
+const aiConsultingModule = require("./responseModules/aiConsultingModule");
 
 const app = express();
 
@@ -27,50 +34,35 @@ app.get("/", (req, res) => {
 app.post("/api/sandblast-gpt", (req, res) => {
   const userMessage = req.body.message || "";
 
-  // 1. Classify intent
+  // 1. Classify the user's intent
   const intent = classifyIntent(userMessage);
 
-  // 2. Build structured response (Phase 1 – routing only)
-  let payload = {
-    intent,            // e.g., "tv_video", "music_radio", etc.
-    echo: userMessage, // what user sent
-  };
+  // 2. Build the response based on the intent
+  let payload = { intent, echo: userMessage };
 
   switch (intent) {
-    case "tv_video":
-      payload.category = "tv_video";
-      payload.message =
-        "I’ve classified this as a Sandblast TV / video request. I can route users to shows, movies, and retro programming.";
+    case "music_radio":
+      payload = musicModule.getMusicResponse(userMessage);
       break;
 
-    case "music_radio":
-      payload.category = "music_radio";
-      payload.message =
-        "I’ve classified this as a Sandblast Radio / music request. I can route users to live radio, DJ Nova, Gospel Sunday, and playlists.";
+    case "tv_video":
+      payload = tvModule.getTvResponse(userMessage);
       break;
 
     case "news_canada":
-      payload.category = "news_canada";
-      payload.message =
-        "I’ve classified this as a News Canada request. I can route users to articles, features, and updates.";
+      payload = newsModule.getNewsResponse(userMessage);
       break;
 
     case "advertising":
-      payload.category = "advertising";
-      payload.message =
-        "I’ve classified this as an Advertising / Promotions request. I can guide users toward running ads or sponsoring shows on Sandblast.";
+      payload = advertisingModule.getAdvertisingResponse(userMessage);
       break;
 
     case "ai_consulting":
-      payload.category = "ai_consulting";
-      payload.message =
-        "I’ve classified this as an AI Consulting / AI help request. I can guide users to Sandblast AI Consulting services.";
+      payload = aiConsultingModule.getAiConsultingResponse(userMessage);
       break;
 
     default:
-      payload.category = "general";
-      payload.message =
-        "I’m treating this as a general request. I handle TV, radio/music, News Canada, advertising, and AI consulting. Ask me what you’d like to do, and I’ll route you correctly.";
+      payload.message = "I’m not sure what you meant. Please try asking in a different way.";
       break;
   }
 
@@ -83,8 +75,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
 app.post("/api/sandblast-gpt-test", (req, res) => {
   res.json({
     ok: true,
-    message:
-      'Backend test successful. Use "/api/sandblast-gpt" with { "message": "Hello" } to test routing.'
+    message: 'Backend test successful. Use "/api/sandblast-gpt" with { "message": "Hello" } to test routing.'
   });
 });
 
