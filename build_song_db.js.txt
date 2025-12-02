@@ -1,0 +1,42 @@
+// build_song_db.js
+//
+// Simple script to convert CSV (top40_songs.csv)
+// into a JSON file (song_db.json) for SandblastGPT.
+//
+
+const fs = require('fs');
+const path = require('path');
+
+const inputPath = path.join(__dirname, 'data', 'top40_songs.csv');
+const outputPath = path.join(__dirname, 'song_db.json');
+
+console.log("Reading:", inputPath);
+
+if (!fs.existsSync(inputPath)) {
+  console.error("ERROR: CSV file not found:", inputPath);
+  process.exit(1);
+}
+
+const csv = fs.readFileSync(inputPath, 'utf8').trim();
+const lines = csv.split(/\r?\n/);
+
+const header = lines[0].split(',');
+const rows = lines.slice(1);
+
+const songs = rows.map((row) => {
+  const cols = row.split(',').map((c) => c.trim());
+  const obj = {};
+
+  header.forEach((key, i) => {
+    let value = cols[i] || '';
+    if (value.startsWith('"') && value.endsWith('"')) {
+      value = value.slice(1, -1);
+    }
+    obj[key] = value;
+  });
+
+  return obj;
+});
+
+fs.writeFileSync(outputPath, JSON.stringify(songs, null, 2));
+console.log(`✔ Wrote ${songs.length} songs to ${outputPath}`);
