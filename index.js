@@ -47,7 +47,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
 
   // 1) User asking how Nyx is doing
   const isAskingHowNyxIs =
-    /\b(how are you|how are you doing|how are you feeling|how's it going|hows it going)\b/i.test(
+    /\b(how are you(?: doing| feeling)?|how's it going|hows it going)\b/i.test(
       userMessage
     );
 
@@ -63,6 +63,24 @@ app.post("/api/sandblast-gpt", (req, res) => {
     userMessage.trim()
   );
 
+  // 4) User saying thank you
+  const isThankYou =
+    /\b(thank you|thanks a lot|thanks|appreciate it|really appreciate)\b/i.test(
+      userMessage
+    );
+
+  // 5) User expressing fatigue / stress
+  const isFeelingLow =
+    /\b(tired|exhausted|burnt out|burned out|stressed|overwhelmed|frustrated|drained|worn out|stuck)\b/i.test(
+      userMessage
+    );
+
+  // 6) User talking about goals / trying to do something
+  const isGoalStatement =
+    /\b(my goal is|i want to|i'm trying to|im trying to|i am trying to|i'm planning to|im planning to|i plan to|i'm working on|im working on)\b/i.test(
+      normalized
+    );
+
   // Nyx greeting variations with personality
   const greetingVariants = [
     "Hello! I’m Nyx, your Sandblast guide. I’m glad you dropped by—how are you doing today?",
@@ -70,7 +88,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
     "Hey, I’m Nyx from Sandblast. I’m here to help you move things forward—how are you feeling today?"
   ];
 
-  // ---- Ordering matters: answer “how are you” first if present ----
+  // ---- Conversational ordering (most specific first) ----
 
   if (isAskingHowNyxIs) {
     console.log("[GPT] Nyx is being asked how she is.");
@@ -104,6 +122,39 @@ app.post("/api/sandblast-gpt", (req, res) => {
       echo: userMessage,
       message:
         "I’m really glad to hear that. I’m Nyx, here to work alongside you. What would you like to tackle first—Sandblast TV, radio, streaming, News Canada, advertising, or AI consulting?"
+    });
+  }
+
+  if (isThankYou) {
+    console.log("[GPT] Nyx thank-you response triggered.");
+    return res.json({
+      intent: "nyx_thanks",
+      category: "small_talk",
+      echo: userMessage,
+      message:
+        "You’re very welcome. I’m glad I could help. If you want to keep building or tweak anything for Sandblast, I’m right here with you."
+    });
+  }
+
+  if (isFeelingLow) {
+    console.log("[GPT] Nyx support response triggered (feeling low).");
+    return res.json({
+      intent: "nyx_support",
+      category: "small_talk",
+      echo: userMessage,
+      message:
+        "Sounds like you’re carrying a lot. You’re not doing this alone—I’m here with you. Let’s break things into something manageable: what’s the next small step you’d like us to work on together?"
+    });
+  }
+
+  if (isGoalStatement) {
+    console.log("[GPT] Nyx goal/ambition response triggered.");
+    return res.json({
+      intent: "nyx_goal",
+      category: "small_talk",
+      echo: userMessage,
+      message:
+        "I like where your head is at—that’s a strong direction. Tell me a bit more about what you’re trying to build or improve, and I’ll help you map out the next steps with Sandblast."
     });
   }
 
