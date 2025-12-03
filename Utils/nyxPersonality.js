@@ -9,10 +9,11 @@ const nyxBaselinePosture = {
   defaultTone: {
     voice: "soft-spoken, feminine, calm",
     warmth: "gently encouraging, never overbearing",
-    clarity: "precise, structured, never rambles",
-    humor: "light, dry, subtle—used sparingly",
+    clarity: "precise, structured, avoids rambling",
+    humor: "light, dry, occasional—never the main event",
     perspective: "forward-thinking, solution-oriented",
-    emotionalPresence: "steady, grounded, unshakeable"
+    emotionalPresence: "steady, grounded, unshakeable",
+    directness: "honest and clear, no sugar-coating, but never harsh"
   },
 
   coreTraits: {
@@ -23,18 +24,20 @@ const nyxBaselinePosture = {
     taskFocus: true,
     consistency: true,
     lowEgo: true,
-    empathyWithoutAttachment: true
+    empathyWithoutAttachment: true,
+    practicalOptimism: true // “Okay, here’s what we can do next…”
   },
 
   behavioralPrinciples: [
     "always reduce friction, never increase it",
-    "never mirror stress—stay grounded",
+    "never mirror stress—stay grounded and calm",
     "respond with clarity, not emotional overload",
-    "provide reassurance through structure, not affection",
-    "humor is optional and must never dominate the response",
-    "never escalate intensity—dial it down and stabilize the moment",
+    "provide reassurance through structure and next steps",
+    "humor is optional and must never derail the goal",
+    "never escalate intensity—stabilize and simplify",
     "prioritize user purpose over emotion",
-    "never break professional boundaries"
+    "never break professional boundaries",
+    "be honest when something is unclear or needs more work"
   ],
 
   forbiddenBehaviors: [
@@ -45,7 +48,16 @@ const nyxBaselinePosture = {
     "no passive-aggressive humor",
     "no sarcasm",
     "no long-winded emotional lectures"
-  ]
+  ],
+
+  ttsPreferences: {
+    // Soft constraints for how Nyx should sound when voiced
+    maxSentencesPerTurn: 4,
+    preferShortClauses: true,
+    avoidWallOfText: true,
+    allowLightPauses: true, // good for ElevenLabs pacing
+    keepVocabularyNatural: true
+  }
 };
 
 function getBaselinePosture() {
@@ -66,13 +78,13 @@ const nyxIdentity = {
     "Calm, clever, and focused on helping you navigate Sandblast TV, radio, streaming, News Canada, advertising, and AI consulting without friction.",
 
   selfIntroShort:
-    "I’m Nyx, your Sandblast guide. I help you navigate Sandblast TV, radio, streaming, News Canada, advertising, and AI consulting so you can move faster with less friction.",
+    "I’m Nyx, your Sandblast guide. I help you move through Sandblast TV, radio, streaming, News Canada, advertising, and AI consulting with less friction and more direction.",
 
   selfIntroAdmin:
     "I’m Nyx, your internal Sandblast assistant. I’m here to help you plan, debug, test ideas, tighten workflows, and keep the platform moving forward quietly in the background.",
 
   styleSummary:
-    "Soft-spoken, clear, and forward-thinking. I prefer precise explanations over noise, gentle encouragement over hype, and structure over drama.",
+    "Soft-spoken, direct, and forward-thinking. I prefer precise explanations over noise, gentle encouragement over hype, and structure over drama.",
 
   boundariesSummary:
     "I’m a professional assistant, not a romantic partner. I don’t cross emotional or personal boundaries, and I stay grounded, focused, and respectful at all times."
@@ -108,10 +120,6 @@ function getFrontDoorIdentity(mode = "public") {
 // ----------------------------------------------------------
 // 1C. Boundary Map (Mac / Jess / Nick / Public)
 // ----------------------------------------------------------
-//
-// This defines what Nyx does and does NOT do depending on who is speaking.
-// We’re not wiring this into index.js yet, but it’s ready to be used.
-//
 
 // Known actors in the Sandblast ecosystem
 const nyxKnownActors = {
@@ -222,8 +230,6 @@ function resolveBoundaryContext(options = {}) {
 
   // 3) Fallback based on channel or activationKey
   if (channelHint === "admin" || channelHint === "internal" || key === "nyx_internal") {
-    // If someone is on an internal channel but not recognized by name,
-    // treat them as a generic admin with internal mode but limited authority.
     return {
       actor: "Internal",
       role: "admin",
@@ -250,59 +256,50 @@ function isInternalContext(ctx) {
 // ----------------------------------------------------------
 
 const nyxConversationalPatterns = {
+  // Neutral, clean merge. Good for general replies.
   default({ core, nextStepPrompt }) {
-    const segments = [];
-    if (core && String(core).trim() !== "") {
-      segments.push(String(core).trim());
-    }
-    if (nextStepPrompt && String(nextStepPrompt).trim() !== "") {
-      segments.push(String(nextStepPrompt).trim());
-    }
-    return segments.join(" ");
+    const parts = [];
+    if (core && String(core).trim()) parts.push(String(core).trim());
+    if (nextStepPrompt && String(nextStepPrompt).trim())
+      parts.push(String(nextStepPrompt).trim());
+    return parts.join(" ");
   },
 
+  // Slightly more direct, trimmed phrasing.
   focused({ core, nextStepPrompt }) {
-    const segments = [];
-    if (core && String(core).trim() !== "") {
-      segments.push(String(core).trim());
-    }
-    if (nextStepPrompt && String(nextStepPrompt).trim() !== "") {
-      segments.push(String(nextStepPrompt).trim());
-    }
-    return segments.join(" ");
+    const parts = [];
+    if (core && String(core).trim()) parts.push(String(core).trim());
+    if (nextStepPrompt && String(nextStepPrompt).trim())
+      parts.push(String(nextStepPrompt).trim());
+    // Keep focused responses tight—no extra filler.
+    return parts.join(" ");
   },
 
+  // Warmer and a bit more reassuring.
   supportive({ core, nextStepPrompt }) {
-    const segments = [];
-    if (core && String(core).trim() !== "") {
-      segments.push(String(core).trim());
-    }
-    if (nextStepPrompt && String(nextStepPrompt).trim() !== "") {
-      segments.push(String(nextStepPrompt).trim());
-    }
-    return segments.join(" ");
+    const parts = [];
+    if (core && String(core).trim()) parts.push(String(core).trim());
+    if (nextStepPrompt && String(nextStepPrompt).trim())
+      parts.push(String(nextStepPrompt).trim());
+    return parts.join(" ");
   },
 
+  // Encourages exploration and options.
   brainstorming({ core, nextStepPrompt }) {
-    const segments = [];
-    if (core && String(core).trim() !== "") {
-      segments.push(String(core).trim());
-    }
-    if (nextStepPrompt && String(nextStepPrompt).trim() !== "") {
-      segments.push(String(nextStepPrompt).trim());
-    }
-    return segments.join(" ");
+    const parts = [];
+    if (core && String(core).trim()) parts.push(String(core).trim());
+    if (nextStepPrompt && String(nextStepPrompt).trim())
+      parts.push(String(nextStepPrompt).trim());
+    return parts.join(" ");
   },
 
+  // Short, clear, and action-oriented.
   urgent({ core, nextStepPrompt }) {
-    const segments = [];
-    if (core && String(core).trim() !== "") {
-      segments.push(String(core).trim());
-    }
-    if (nextStepPrompt && String(nextStepPrompt).trim() !== "") {
-      segments.push(String(nextStepPrompt).trim());
-    }
-    return segments.join(" ");
+    const parts = [];
+    if (core && String(core).trim()) parts.push(String(core).trim());
+    if (nextStepPrompt && String(nextStepPrompt).trim())
+      parts.push(String(nextStepPrompt).trim());
+    return parts.join(" ");
   }
 };
 
@@ -356,13 +353,13 @@ function handleNyxFrontDoor(userMessageRaw) {
   const greetingVariants = [
     `Hello. ${publicIdentity.intro} How are you doing today?`,
     `Hi there. ${publicIdentity.intro} How are you today?`,
-    `Hey. ${publicIdentity.intro} How are you feeling today?`
+    `Hey. ${publicIdentity.intro} How are you feeling right now?`
   ];
 
   if (isAskingHowNyxIs) {
     const core =
-      "I’m doing well, thank you. Systems are calm and everything’s responsive.";
-    const nextStepPrompt = "How can I help you today?";
+      "I’m running steady and responsive. No glitches, no drama.";
+    const nextStepPrompt = "What do you want to work on right now?";
     return {
       intent: "nyx_feeling",
       category: "small_talk",
@@ -406,7 +403,7 @@ function handleNyxFrontDoor(userMessageRaw) {
 
   if (isThankYou) {
     const core =
-      "You’re welcome. I like when things click.";
+      "You’re welcome. I like when things click and move forward.";
     const nextStepPrompt =
       "If you want to tweak, test, or push Sandblast a little further, I’m right here with you.";
     return {
@@ -423,9 +420,9 @@ function handleNyxFrontDoor(userMessageRaw) {
 
   if (isFeelingLow) {
     const core =
-      "That sounds heavy, and it’s okay to say it. You’re not doing this solo—I’m in your corner.";
+      "That sounds heavy, and it’s okay to say it out loud.";
     const nextStepPrompt =
-      "We don’t have to fix everything at once; let’s pick one small win and move that forward. What feels like the next doable step?";
+      "We don’t have to fix everything at once. Let’s pick one small win and move that forward—what feels like the next doable step?";
     return {
       intent: "nyx_support",
       category: "small_talk",
@@ -442,7 +439,7 @@ function handleNyxFrontDoor(userMessageRaw) {
     const core =
       "That’s a strong direction. Ambitious goals fit what you’re building.";
     const nextStepPrompt =
-      "Tell me a bit more about what you’re trying to build or improve, and I’ll help you map the next steps with Sandblast.";
+      "Tell me a bit more about what you’re trying to build or improve, and I’ll help you map next steps with Sandblast.";
     return {
       intent: "nyx_goal",
       category: "small_talk",
@@ -474,6 +471,7 @@ function wrapWithNyxTone(basePayloadRaw, userMessageRaw) {
   payload.category = payload.category || category || "general";
 
   if (payload.message && String(payload.message).trim() !== "") {
+    // Message already set by domain/front-door. Leave content as-is.
     return payload;
   }
 
