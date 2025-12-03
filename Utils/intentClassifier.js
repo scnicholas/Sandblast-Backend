@@ -1,151 +1,159 @@
-// utils/intentClassifier.js
+// Utils/intentClassifier.js
+// Simple rule-based intent classifier for Sandblast / Nyx
+// Returns: { intent, domain, confidence }
 
-// 1. Normalize text: lowercase, trim, safe fallback
-function normalize(text) {
-  if (!text) return "";
-  return String(text).toLowerCase().trim();
+function safeString(value, fallback = "") {
+  if (typeof value === "string") return value;
+  if (value === null || value === undefined) return fallback;
+  return String(value);
 }
 
-// 2. Helper: does the text match ANY of these patterns?
-function matchesAny(text, patterns) {
-  return patterns.some((pattern) => {
-    if (pattern instanceof RegExp) {
-      return pattern.test(text);
-    }
-    // treat string patterns as "includes"
-    return text.includes(pattern.toLowerCase());
-  });
+function normalize(text) {
+  return safeString(text)
+    .trim()
+    .toLowerCase();
 }
 
 /**
- * classifyIntent
- * --------------
- * Takes a raw user message and returns ONE of:
- * - "tv_video"
- * - "music_radio"
- * - "news_canada"
- * - "advertising"
- * - "ai_consulting"
- * - "general" (fallback)
+ * classifyIntent(text)
+ *
+ * @param {string} text - user message
+ * @returns {Promise<{ intent: string, domain: string, confidence: number }>}
  */
-function classifyIntent(rawMessage) {
-  const text = normalize(rawMessage);
+async function classifyIntent(text) {
+  const t = normalize(text);
 
-  if (!text) {
-    return "general";
+  if (!t) {
+    return {
+      intent: "general",
+      domain: "general",
+      confidence: 0.2
+    };
   }
 
-  // --- 1. TV & Video ---------------------------------
+  // --------------------------------------------------
+  // High-confidence patterns (direct signals)
+  // --------------------------------------------------
+
+  // TV / Roku / channel structure
   if (
-    matchesAny(text, [
-      "tv",
-      "television",
-      "tv channel",
-      "channel",
-      "retro tv",
-      "watch something",
-      "watch tv",
-      "movie",
-      "movies",
-      "film",
-      "episode",
-      "show me something to watch",
-      /watch .*sandblast/,
-      /sandblast tv/
-    ])
+    /\b(tv|television|roku|ott|linear channel|channel lineup|epg)\b/.test(t)
   ) {
-    return "tv_video";
+    return {
+      intent: "sandblast_tv",
+      domain: "tv",
+      confidence: 0.9
+    };
   }
 
-  // --- 2. Radio & Music ------------------------------
+  // Radio / audio stream
   if (
-    matchesAny(text, [
-      "radio",
-      "live radio",
-      "listen live",
-      "audio stream",
-      "music",
-      "songs",
-      "playlist",
-      "dj nova",
-      "nova mix",
-      "gospel sunday",
-      "gospel show",
-      "play gospel",
-      "play music",
-      "what can i listen to",
-      /sandblast radio/,
-      /listen .*sandblast/
-    ])
+    /\b(radio|audio stream|live audio|sandblast radio|shoutcast)\b/.test(t)
   ) {
-    return "music_radio";
+    return {
+      intent: "sandblast_radio",
+      domain: "radio",
+      confidence: 0.9
+    };
   }
 
-  // --- 3. News Canada & Press ------------------------
+  // News Canada content
+  if (/\b(news canada|news content|content feed|editorial spots)\b/.test(t)) {
+    return {
+      intent: "news_canada",
+      domain: "news_canada",
+      confidence: 0.9
+    };
+  }
+
+  // AI consulting / strategy / prompts
   if (
-    matchesAny(text, [
-      "news canada",
-      "news section",
-      "latest news",
-      "articles",
-      "press release",
-      "press releases",
-      "news feature",
-      "news content",
-      /news .*sandblast/
-    ])
+    /\b(ai consulting|consulting offer|ai strategy|prompt engineering|ai package|ai workshop)\b/.test(
+      t
+    )
   ) {
-    return "news_canada";
+    return {
+      intent: "ai_consulting",
+      domain: "consulting",
+      confidence: 0.9
+    };
   }
 
-  // --- 4. Advertising / Promotions -------------------
+  // Public domain / Archive.org / PD Kit
   if (
-    matchesAny(text, [
-      "advertise",
-      "advertising",
-      "promotion",
-      "promotions",
-      "sponsor",
-      "sponsorship",
-      "rate card",
-      "ad rates",
-      "media kit",
-      "run an ad",
-      "promote my business",
-      "place an ad",
-      "commercial spot",
-      /partner .*sandblast/,
-      /campaign .*sandblast/
-    ])
+    /\b(public domain|archive\.org|pd check|pd kit|copyright status)\b/.test(t)
   ) {
-    return "advertising";
+    return {
+      intent: "pd_verification",
+      domain: "public_domain",
+      confidence: 0.9
+    };
   }
 
-  // --- 5. AI Consulting & AI Help --------------------
+  // Internal ops / backend / admin
   if (
-    matchesAny(text, [
-      "ai consulting",
-      "ai help",
-      "help with ai",
-      "ai strategy",
-      "automation",
-      "agentic ai",
-      "ai brain",
-      "sandblast ai consulting",
-      "prompt engineering",
-      "chatgpt help",
-      "build an ai",
-      "ai workshop",
-      "ai training",
-      /work with you on ai/,
-      /ai services/
-    ])
+    /\b(backend|frontend|render\.com|webflow|widget|deployment|debug|logs|admin panel|internal only)\b/.test(
+      t
+    )
   ) {
-    return "ai_consulting";
+    return {
+      intent: "internal_ops",
+      domain: "internal",
+      confidence: 0.85
+    };
   }
 
-  // --- 6. Fallback -----------------------------------
-  return "general";
+  // --------------------------------------------------
+  // Medium-confidence patterns (softer signals)
+  // --------------------------------------------------
+
+  // Advertising / monetization around TV/radio
+  if (
+    /\b(ad slots|ad inventory|advertising|sponsorship|monetize|monetization)\b/.test(
+      t
+    )
+  ) {
+    // Let index.js map this via mapIntentToDomain if needed
+    return {
+      intent: "monetization",
+      domain: "general",
+      confidence: 0.6
+    };
+  }
+
+  // General streaming/platform questions
+  if (
+    /\b(streaming|vod|on demand|playlist|programming|schedule)\b/.test(t)
+  ) {
+    return {
+      intent: "platform_programming",
+      domain: "general",
+      confidence: 0.55
+    };
+  }
+
+  // General “how does Sandblast work” questions
+  if (
+    /\b(sandblast|sandblast channel|how it works|what is this platform|explain sandblast)\b/.test(
+      t
+    )
+  ) {
+    return {
+      intent: "sandblast_overview",
+      domain: "general",
+      confidence: 0.6
+    };
+  }
+
+  // --------------------------------------------------
+  // Default / fallback
+  // --------------------------------------------------
+
+  return {
+    intent: "general",
+    domain: "general",
+    confidence: 0.4
+  };
 }
 
 module.exports = {
