@@ -47,7 +47,9 @@ function getNewsResponse(userMessage) {
         id: n.id,
         label: n.title,
         url: n.page_url
-      }))
+      })),
+      primary: null,
+      alternatives: []
     };
   }
 
@@ -55,7 +57,7 @@ function getNewsResponse(userMessage) {
 
   const response = {
     category: "news_canada",
-    primaryTopic: {
+    primary: {
       id: primary.id,
       title: primary.title,
       description: primary.description,
@@ -67,16 +69,13 @@ function getNewsResponse(userMessage) {
 
   response.message = message;
 
-  // Provide 2 alternative sections
   const alternatives = matches.slice(1, 3).map((item) => ({
     id: item.id,
     title: item.title,
     url: item.page_url
   }));
 
-  if (alternatives.length) {
-    response.alternatives = alternatives;
-  }
+  response.alternatives = alternatives;
 
   return response;
 }
