@@ -8,7 +8,6 @@ const cors = require("cors");
 const axios = require("axios");
 
 const { classifyIntent } = require("./Utils/intentClassifier");
-const nyxPersonality = require("./Utils/nyxPersonality");
 
 // Import response modules
 const musicModule = require("./responseModules/musicModule");
