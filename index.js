@@ -43,16 +43,22 @@ app.post("/api/sandblast-gpt", (req, res) => {
 
   console.log("[GPT] Incoming message:", userMessage);
 
-  // ---- Nyx greeting logic (front-door conversational layer) ----
+  // ---- Nyx conversational front-door layer ----
 
-  // Initial greeting or empty message
+  // 1) User asking how Nyx is doing
+  const isAskingHowNyxIs =
+    /\b(how are you|how are you doing|how are you feeling|how's it going|hows it going)\b/i.test(
+      userMessage
+    );
+
+  // 2) Initial greeting or empty message
   const isInitialGreeting =
     normalized === "" ||
     /^(hello|hi|hey|greetings|good morning|good afternoon|good evening)\b/.test(
       normalized
     );
 
-  // User replying to "How are you?" (short acknowledgement dialogue)
+  // 3) User replying to "How are you?"
   const isGreetingResponse = /^(i'm fine|im fine|i am fine|doing well|doing good|i'm good|im good|pretty good|not bad|okay|ok|fine, thanks|fine thank you)/i.test(
     userMessage.trim()
   );
@@ -63,6 +69,18 @@ app.post("/api/sandblast-gpt", (req, res) => {
     "Hi there, I’m Nyx with Sandblast. It’s great to have you here—how are you today?",
     "Hey, I’m Nyx from Sandblast. Before we dive in, how are you feeling today?"
   ];
+
+  // ---- Ordering matters: answer “how are you” first if present ----
+
+  if (isAskingHowNyxIs) {
+    console.log("[GPT] Nyx is being asked how she is.");
+    return res.json({
+      intent: "nyx_feeling",
+      category: "welcome_response",
+      echo: userMessage,
+      message: "I’m doing well, thank you. How can I help you today?"
+    });
+  }
 
   if (isInitialGreeting) {
     const message =
@@ -169,7 +187,7 @@ app.post("/api/tts", async (req, res) => {
       error: "missing_text",
       message: "Request body must include a non-empty 'text' field."
     });
-    }
+  }
 
   const elevenApiKey = process.env.ELEVENLABS_API_KEY;
   const voiceId =
