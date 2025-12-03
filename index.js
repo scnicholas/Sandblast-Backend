@@ -77,14 +77,14 @@ app.post("/api/sandblast-gpt", (req, res) => {
 
   // 6) User talking about goals / trying to do something
   const isGoalStatement =
-    /\b(my goal is|i want to|i'm trying to|im trying to|i am trying to|i'm planning to|im planning to|i plan to|i'm working on|im working on)\b/i.test(
+    /\b(my goal is|i want to|i'm trying to|im trying to|i am trying to|i'm planning to|im planning to|i plan to|i'm working on|im working on)\b/.test(
       normalized
     );
 
-  // Nyx greeting variations with personality
+  // Nyx greeting variations with more personality
   const greetingVariants = [
     "Hello! I’m Nyx, your Sandblast guide. I’m glad you dropped by—how are you doing today?",
-    "Hi there, I’m Nyx with Sandblast. You’re in the right place; let’s make things easier together. How are you today?",
+    "Hi there, I’m Nyx with Sandblast. You’re in the right place; let’s make things easier (and a little smarter) together. How are you today?",
     "Hey, I’m Nyx from Sandblast. I’m here to help you move things forward—how are you feeling today?"
   ];
 
@@ -94,10 +94,10 @@ app.post("/api/sandblast-gpt", (req, res) => {
     console.log("[GPT] Nyx is being asked how she is.");
     return res.json({
       intent: "nyx_feeling",
-      category: "welcome_response",
+      category: "small_talk",
       echo: userMessage,
       message:
-        "I’m doing well, thank you. I’m here to make things smoother for you, so how can I help you today?"
+        "I’m doing well, thank you. Systems are calm, signal is clear. How can I help you today?"
     });
   }
 
@@ -121,7 +121,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
       category: "welcome_response",
       echo: userMessage,
       message:
-        "I’m really glad to hear that. I’m Nyx, here to work alongside you. What would you like to tackle first—Sandblast TV, radio, streaming, News Canada, advertising, or AI consulting?"
+        "Love hearing that. I’m Nyx, here to work alongside you—not just talk at you. What do you want to tackle first—Sandblast TV, radio, streaming, News Canada, advertising, or AI consulting?"
     });
   }
 
@@ -132,7 +132,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
       category: "small_talk",
       echo: userMessage,
       message:
-        "You’re very welcome. I’m glad I could help. If you want to keep building or tweak anything for Sandblast, I’m right here with you."
+        "You’re very welcome. I like when things click. If you want to tweak, test, or push Sandblast a little further, I’m right here with you."
     });
   }
 
@@ -143,7 +143,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
       category: "small_talk",
       echo: userMessage,
       message:
-        "Sounds like you’re carrying a lot. You’re not doing this alone—I’m here with you. Let’s break things into something manageable: what’s the next small step you’d like us to work on together?"
+        "That sounds heavy, and it’s okay to say it. You’re not doing this solo—I’m here in your corner. We don’t have to fix everything at once; let’s pick one small win and move that forward. What feels like the next doable step?"
     });
   }
 
@@ -154,7 +154,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
       category: "small_talk",
       echo: userMessage,
       message:
-        "I like where your head is at—that’s a strong direction. Tell me a bit more about what you’re trying to build or improve, and I’ll help you map out the next steps with Sandblast."
+        "That’s a strong direction. Ambitious looks good on you. Tell me a bit more about what you’re trying to build or improve, and I’ll help you map the next steps with Sandblast."
     });
   }
 
@@ -196,7 +196,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
 
       default:
         payload.message =
-          "I’m Nyx. I didn’t quite catch that, but I’ve got you. Try asking about Sandblast TV, radio, streaming, News Canada, advertising, or AI consulting and we’ll move forward together.";
+          "I’m Nyx. I didn’t fully catch that, but my brain is listening. Try asking about Sandblast TV, radio, streaming, News Canada, advertising, or AI consulting—and we’ll move forward together.";
         payload.category = "general";
         break;
     }
@@ -208,7 +208,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
 
     if (!payload.message) {
       payload.message =
-        "I’m Nyx. Here’s where I can help you move things forward on Sandblast—TV, radio, streaming, News Canada, advertising, and AI consulting. Tell me what you’re curious about and we’ll dig in together.";
+        "I’m Nyx. Here’s where I can help you move things forward on Sandblast—TV, radio, streaming, News Canada, advertising, and AI consulting. Tell me what you’re curious about, and we’ll dig in together.";
     }
 
     console.log("[GPT] Final payload category:", payload.category);
@@ -219,7 +219,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
     return res.status(500).json({
       error: "routing_error",
       message:
-        "There was a problem handling your request. Nyx is on it—try again in a moment or adjust your question slightly.",
+        "Something glitched on my side there. Nyx is still here—give it another try or nudge the question slightly and we’ll get it working.",
       details: err.message
     });
   }
