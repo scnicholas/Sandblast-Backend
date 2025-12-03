@@ -1,5 +1,5 @@
 // index.js
-// Sandblast Backend – Core Server + Intent Routing + Nyx Personality Engine + TTS
+// Sandblast Backend – Core Server + Intent Routing + Nyx Personality Engine (inlined) + TTS
 
 require("dotenv").config();
 
@@ -9,7 +9,172 @@ const axios = require("axios");
 
 const { classifyIntent } = require("./Utils/intentClassifier");
 
+// --------------------------------------------
+// Nyx Personality Engine (INLINED)
+// --------------------------------------------
+
+function getFrontDoorResponse(userMessage) {
+  const text = String(userMessage || "");
+  const normalized = text.trim().toLowerCase();
+
+  if (text === undefined || text === null) {
+    return null;
+  }
+
+  const isAskingHowNyxIs =
+    /\b(how are you(?: doing| feeling)?|how's it going|hows it going)\b/i.test(
+      text
+    );
+
+  const isInitialGreeting =
+    normalized === "" ||
+    /^(hello|hi|hey|greetings|good morning|good afternoon|good evening)\b/.test(
+      normalized
+    );
+
+  const isGreetingResponse =
+    /^(i'm fine|im fine|i am fine|doing well|doing good|i'm good|im good|pretty good|not bad|okay|ok|fine, thanks|fine thank you)/i.test(
+      text.trim()
+    );
+
+  const isThankYou =
+    /\b(thank you|thanks a lot|thanks|appreciate it|really appreciate)\b/i.test(
+      text
+    );
+
+  const isFeelingLow =
+    /\b(tired|exhausted|burnt out|burned out|stressed|overwhelmed|frustrated|drained|worn out|stuck)\b/i.test(
+      text
+    );
+
+  const isGoalStatement =
+    /\b(my goal is|i want to|i'm trying to|im trying to|i am trying to|i'm planning to|im planning to|i plan to|i'm working on|im working on)\b/i.test(
+      normalized
+    );
+
+  const greetingVariants = [
+    "Hello! I’m Nyx, your Sandblast guide. I’m glad you dropped by—how are you doing today?",
+    "Hi there, I’m Nyx with Sandblast. You’re in the right place; let’s make things easier (and a little smarter) together. How are you today?",
+    "Hey, I’m Nyx from Sandblast. I’m here to help you move things forward—how are you feeling today?"
+  ];
+
+  if (isAskingHowNyxIs) {
+    return {
+      intent: "nyx_feeling",
+      category: "small_talk",
+      echo: text,
+      message:
+        "I’m doing well, thank you. Systems are calm, signal is clear. How can I help you today?"
+    };
+  }
+
+  if (isInitialGreeting) {
+    const message =
+      greetingVariants[Math.floor(Math.random() * greetingVariants.length)];
+    return {
+      intent: "welcome",
+      category: "welcome",
+      echo: text,
+      message
+    };
+  }
+
+  if (isGreetingResponse) {
+    return {
+      intent: "welcome_response",
+      category: "welcome_response",
+      echo: text,
+      message:
+        "Love hearing that. I’m Nyx, here to work alongside you—not just talk at you. What do you want to tackle first—Sandblast TV, radio, streaming, News Canada, advertising, or AI consulting?"
+    };
+  }
+
+  if (isThankYou) {
+    return {
+      intent: "nyx_thanks",
+      category: "small_talk",
+      echo: text,
+      message:
+        "You’re very welcome. I like when things click. If you want to tweak, test, or push Sandblast a little further, I’m right here with you."
+    };
+  }
+
+  if (isFeelingLow) {
+    return {
+      intent: "nyx_support",
+      category: "small_talk",
+      echo: text,
+      message:
+        "That sounds heavy, and it’s okay to say it. You’re not doing this solo—I’m here in your corner. We don’t have to fix everything at once; let’s pick one small win and move that forward. What feels like the next doable step?"
+    };
+  }
+
+  if (isGoalStatement) {
+    return {
+      intent: "nyx_goal",
+      category: "small_talk",
+      echo: text,
+      message:
+        "That’s a strong direction. Ambitious looks good on you. Tell me a bit more about what you’re trying to build or improve, and I’ll help you map the next steps with Sandblast."
+    };
+  }
+
+  return null;
+}
+
+function enrichDomainResponse(userMessage, payload) {
+  if (!payload || typeof payload !== "object") {
+    return payload;
+  }
+
+  const key = String(
+    (payload.intent || payload.category || "general").toLowerCase()
+  );
+
+  let message = payload.message || "";
+  const spacer = message ? "\n\n" : "";
+
+  if (key.includes("music") || key.includes("radio")) {
+    message =
+      message +
+      spacer +
+      "If you’d like, I can help you tune into more shows or segments that match the energy you’re going for.";
+  } else if (key.includes("tv") || key.includes("video")) {
+    message =
+      message +
+      spacer +
+      "If you tell me what kind of viewer you’re trying to attract, I can help shape a smarter Sandblast TV experience around that.";
+  } else if (key.includes("news")) {
+    message =
+      message +
+      spacer +
+      "If you want, we can also connect this News Canada angle back to your wider Sandblast programming or sponsors.";
+  } else if (key.includes("advertising") || key.includes("ad")) {
+    message =
+      message +
+      spacer +
+      "If you share your budget and target audience, I can help outline a clear, no-fluff Sandblast ad play that actually makes sense.";
+  } else if (key.includes("ai_consulting") || key.includes("consulting")) {
+    message =
+      message +
+      spacer +
+      "If you walk me through where you are right now—tools, team, bottlenecks—I’ll help you design a lean, realistic AI play instead of hype.";
+  } else if (!key || key === "general") {
+    message =
+      message +
+      spacer +
+      "If you’re not sure where to start, tell me what you’re trying to move forward—audience, revenue, or operations—and we’ll pick a smart first move.";
+  }
+
+  return {
+    ...payload,
+    message
+  };
+}
+
+// --------------------------------------------
 // Import response modules
+// --------------------------------------------
 const musicModule = require("./responseModules/musicModule");
 const tvModule = require("./responseModules/tvModule");
 const newsModule = require("./responseModules/newsModule");
@@ -43,8 +208,8 @@ app.post("/api/sandblast-gpt", (req, res) => {
 
   console.log("[GPT] Incoming message:", userMessage);
 
-  // 1) Let Nyx Personality Engine handle greetings / small talk / support / goals
-  const frontDoor = nyxPersonality.getFrontDoorResponse(userMessage);
+  // 1) Nyx Personality Engine handles greetings / small talk / support / goals
+  const frontDoor = getFrontDoorResponse(userMessage);
   if (frontDoor) {
     console.log("[GPT] Nyx Personality Engine front-door intent:", frontDoor.intent);
     return res.json(frontDoor);
@@ -90,13 +255,11 @@ app.post("/api/sandblast-gpt", (req, res) => {
         break;
     }
 
-    // Normalize core fields
     payload.intent = payload.intent || intent || "general";
     payload.category = payload.category || intent || "general";
     payload.echo = payload.echo || userMessage;
 
-    // 3) Let Nyx Personality Engine enrich the response per domain
-    payload = nyxPersonality.enrichDomainResponse(userMessage, payload);
+    payload = enrichDomainResponse(userMessage, payload);
 
     if (!payload.message) {
       payload.message =
@@ -136,7 +299,7 @@ app.post("/api/tts", async (req, res) => {
 
   const elevenApiKey = process.env.ELEVENLABS_API_KEY;
   const voiceId =
-    process.env.ELEVENLABS_VOICE_ID || "EXAVITQu4vr4xnSDxMaL"; // fallback voice ID
+    process.env.ELEVENLABS_VOICE_ID || "EXAVITQu4vr4xnSDxMaL";
 
   if (!elevenApiKey) {
     console.error("[TTS] ELEVENLABS_API_KEY is not set.");
