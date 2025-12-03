@@ -48,6 +48,20 @@ function safeString(value, fallback = "") {
   return String(value);
 }
 
+// Lightweight logging helper (keeps content minimal but useful)
+function logRouteEvent(route, details = {}) {
+  try {
+    const payload = {
+      route,
+      ts: new Date().toISOString(),
+      ...details,
+    };
+    console.log("[Sandblast]", JSON.stringify(payload));
+  } catch (e) {
+    console.log("[Sandblast] logRouteEvent error:", e.message);
+  }
+}
+
 // ---------------------------------------------
 // CORE BRAIN: Intent + Domain Routing
 // ---------------------------------------------
@@ -80,31 +94,32 @@ async function runCoreLogic(userMessage, boundaryContext, meta = {}) {
   let domain = "general";
 
   let classified = null;
+  let confidence = null;
 
   try {
     classified = await intentClassifier.classifyIntent(text);
 
-    if (classified) {
-      if (classified.intent) {
-        intent = safeString(classified.intent, "general");
-      }
-      if (classified.domain) {
-        domain = safeString(classified.domain, "general");
-      } else {
-        domain = mapIntentToDomain(intent);
-      }
+    if (classified && typeof classified.intent === "string") {
+      intent = safeString(classified.intent, "general");
+    }
+
+    if (classified && typeof classified.domain === "string") {
+      domain = safeString(classified.domain, "general");
+    } else {
+      domain = mapIntentToDomain(intent);
+    }
+
+    if (classified && typeof classified.confidence === "number") {
+      confidence = classified.confidence;
     }
   } catch (err) {
     console.error("Intent classifier error:", err);
     // If classifier fails, we fall back to heuristics below.
   }
 
-  const confidence =
-    classified && typeof classified.confidence === "number"
-      ? classified.confidence
-      : null;
-
-  const classifierStrongEnough = confidence === null || confidence >= 0.6;
+  // If the classifier didn’t provide a meaningful confidence, treat it as weak
+  const classifierStrongEnough =
+    typeof confidence === "number" ? confidence >= 0.6 : false;
 
   // ------------------------------------------------------------------
   // STEP 2: Fallback heuristics if classifier is weak/unsure
@@ -156,64 +171,89 @@ async function runCoreLogic(userMessage, boundaryContext, meta = {}) {
     }
   }
 
+  logRouteEvent("coreLogic", {
+    actor: boundaryContext.actor,
+    role: boundaryContext.role,
+    domain,
+    intent,
+    confidence,
+    isInternal,
+  });
+
   // ------------------------------------------------------------------
   // STEP 3: Route to Domain Handlers
   // ------------------------------------------------------------------
 
   let corePayload;
 
-  switch (domain) {
-    case "tv":
-      corePayload = await handleTvDomain(userMessage, boundaryContext, meta);
-      break;
+  try {
+    switch (domain) {
+      case "tv":
+        corePayload = await handleTvDomain(userMessage, boundaryContext, meta);
+        break;
 
-    case "radio":
-      corePayload = await handleRadioDomain(userMessage, boundaryContext, meta);
-      break;
+      case "radio":
+        corePayload = await handleRadioDomain(userMessage, boundaryContext, meta);
+        break;
 
-    case "news_canada":
-      corePayload = await handleNewsCanadaDomain(
-        userMessage,
-        boundaryContext,
-        meta
-      );
-      break;
+      case "news_canada":
+        corePayload = await handleNewsCanadaDomain(
+          userMessage,
+          boundaryContext,
+          meta
+        );
+        break;
 
-    case "consulting":
-      corePayload = await handleConsultingDomain(
-        userMessage,
-        boundaryContext,
-        meta
-      );
-      break;
+      case "consulting":
+        corePayload = await handleConsultingDomain(
+          userMessage,
+          boundaryContext,
+          meta
+        );
+        break;
 
-    case "public_domain":
-      corePayload = await handlePublicDomain(userMessage, boundaryContext, meta);
-      break;
+      case "public_domain":
+        corePayload = await handlePublicDomain(userMessage, boundaryContext, meta);
+        break;
 
-    case "internal":
-      corePayload = await handleInternalDomain(
-        userMessage,
-        boundaryContext,
-        meta
-      );
-      break;
+      case "internal":
+        corePayload = await handleInternalDomain(
+          userMessage,
+          boundaryContext,
+          meta
+        );
+        break;
 
-    default:
-      corePayload = {
-        intent,
-        category: isInternal ? "internal" : "public",
-        message:
-          `I’ve registered your request, but it didn’t map cleanly to a specific Sandblast area yet. ` +
-          `You can ask about Sandblast TV, radio, streaming, News Canada, advertising, AI consulting, or public-domain verification.`,
-      };
-      break;
+      default:
+        corePayload = {
+          intent,
+          category: isInternal ? "internal" : "public",
+          message:
+            "I’ve registered your request, but it didn’t map cleanly to a specific Sandblast area yet. " +
+            "You can ask about Sandblast TV, radio, streaming, News Canada, advertising, AI consulting, or public-domain verification.",
+        };
+        break;
+    }
+  } catch (err) {
+    console.error("Domain handler error:", err);
+    corePayload = {
+      intent: "handler_error",
+      category: isInternal ? "internal" : "public",
+      message:
+        "I hit an internal error while routing that request. The backend is still running, but that specific branch needs a check.",
+    };
   }
 
   corePayload = corePayload || {};
   corePayload.intent = corePayload.intent || intent || "general";
   corePayload.category =
     corePayload.category || (isInternal ? "internal" : "public");
+
+  // Ensure we never return a payload without a message
+  if (!corePayload.message || !String(corePayload.message).trim()) {
+    corePayload.message =
+      "I received your request but didn’t generate a clear response. Try asking about Sandblast TV, radio, streaming, News Canada, advertising, AI consulting, or public-domain checks.";
+  }
 
   return corePayload;
 }
@@ -230,20 +270,19 @@ async function handleTvDomain(userMessage, boundaryContext, meta) {
     lower.includes("ttdash") || lower.includes("tt dash") || lower.includes("tt-dash");
   const mentionsRoku = lower.includes("roku");
 
-  // ---------------- INTERNAL MODE (Mac / Jess / Nick) ----------------
   if (isInternal) {
     let message =
       "You’re asking about Sandblast TV. Internally, I can help you align the TV layer with the rest of the Sandblast stack: content blocks, channel flow, ad windows, and how it all connects back to your core offers.";
 
     if (mentionsTtDash || mentionsRoku) {
       message =
-        "You’re asking about the Sandblast TV layer in relation to TT Dash and Roku. " +
-        "Here’s how I can support you internally:\n\n" +
-        "1) **Platform mapping** – Clarify how TT Dash acts as the distribution / OTT backbone and how the Roku channel sits on top of it as the viewer-facing endpoint.\n" +
-        "2) **Channel structure** – Outline a clean structure for Sandblast TV on Roku: flagship blocks, classic content, News Canada segments, and ad windows.\n" +
-        "3) **Ad + inventory logic** – Help you think through where ad breaks naturally fit inside TT Dash streams and how that translates into sellable inventory on Roku.\n" +
-        "4) **Meeting prep** – Draft talking points and questions for TT Dash / Roku discussions so you can speak clearly about what Sandblast needs: stability, discoverability, monetization, and long-term scaling.\n\n" +
-        "Tell me what you want to focus on first: platform architecture, programming layout, ad strategy, or meeting prep for TT Dash / Roku.";
+        "You’re asking about the Sandblast TV layer in relation to TT Dash and Roku.\n\n" +
+        "Here’s how I can support you internally:\n" +
+        "1) Platform mapping – how TT Dash acts as the OTT backbone and how the Roku channel sits on top as the viewer-facing endpoint.\n" +
+        "2) Channel structure – defining Sandblast TV layout: flagship blocks, classic content, News Canada segments, and ad windows.\n" +
+        "3) Ad + inventory logic – where ad breaks fit inside TT Dash streams and how that turns into sellable inventory on Roku.\n" +
+        "4) Meeting prep – talking points and questions for TT Dash / Roku so you can speak clearly about stability, discoverability, monetization, and scaling.\n\n" +
+        "Tell me what you want to focus on first: platform architecture, programming layout, ad strategy, or meeting prep.";
     }
 
     return {
@@ -253,18 +292,16 @@ async function handleTvDomain(userMessage, boundaryContext, meta) {
     };
   }
 
-  // ---------------- PUBLIC MODE (General viewers) ----------------
-
+  // Public mode
   let publicMessage =
-    "You’re asking about Sandblast TV. It’s the television side of the Sandblast ecosystem—where curated programming, classic content, and feature blocks are delivered as a streaming channel.";
+    "You’re asking about Sandblast TV. It’s the television side of the Sandblast ecosystem—curated programming, classic content, and feature blocks delivered as a streaming channel.";
 
   if (mentionsRoku || mentionsTtDash) {
     publicMessage +=
-      " You’ll be able to access Sandblast TV through supported streaming platforms like Roku, with the underlying delivery handled by our OTT infrastructure behind the scenes. " +
-      "If you’d like, I can explain how to watch, what kind of shows to expect, or how this connects to the rest of Sandblast (radio, News Canada, and AI-powered tools).";
+      " You’ll be able to access Sandblast TV through supported streaming platforms like Roku, with OTT delivery handled behind the scenes. I can walk you through how to watch, what to expect, and how it connects to Sandblast radio, News Canada, and our AI tools.";
   } else {
     publicMessage +=
-      " If you’d like, I can walk you through what’s on the channel, how to watch it, and how it connects with Sandblast Radio, News Canada content, and our AI-powered tools.";
+      " If you’d like, I can walk you through what’s on the channel, how to watch it, and how it ties into Sandblast Radio, News Canada content, and AI-powered tools.";
   }
 
   return {
@@ -290,7 +327,7 @@ async function handleRadioDomain(userMessage, boundaryContext, meta) {
     intent: "sandblast_radio_public",
     category: "public",
     message:
-      "You’re asking about Sandblast Radio. I can help explain what shows are available, how to listen, and how it connects to the rest of Sandblast.",
+      "You’re asking about Sandblast Radio. I can explain what shows are available, how to listen, and how it connects to the rest of Sandblast.",
   };
 }
 
@@ -359,7 +396,7 @@ async function handleInternalDomain(userMessage, boundaryContext, meta) {
     intent: "internal_ops",
     category: "internal",
     message:
-      "You’re in internal mode. I can help you with platform planning, debugging, workflow mapping, or content decisions. Tell me whether you’re working on TV, radio, News Canada, consulting, or backend/frontend issues.",
+      "You’re in internal mode. I can help with platform planning, debugging, workflow mapping, or content decisions. Tell me whether you’re working on TV, radio, News Canada, consulting, or backend/frontend issues.",
   };
 }
 
@@ -367,8 +404,7 @@ async function handleInternalDomain(userMessage, boundaryContext, meta) {
 // Core API: Sandblast GPT / Nyx endpoint
 // ---------------------------------------------
 //
-// Expected POST body shape:
-//
+// Expected POST body:
 // {
 //   "message": "user message",
 //   "actorName": "Mac" | "Jess" | "Nick",
@@ -384,7 +420,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     const body = req.body || {};
 
     const userMessage = safeString(body.message).trim();
-    const actorName = safeString(body.actorName).trim(); // e.g. "Mac", "Jess", "Nick"
+    const actorName = safeString(body.actorName).trim();
     const channel = safeString(body.channel || "public").trim().toLowerCase();
     const meta = body.meta || {};
 
@@ -395,10 +431,16 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       });
     }
 
-    // 1) Resolve boundary context (who is speaking?)
     const boundaryContext = nyxPersonality.resolveBoundaryContext({
       actorName,
       channel,
+    });
+
+    logRouteEvent("sandblast-gpt", {
+      actor: boundaryContext.actor,
+      role: boundaryContext.role,
+      channel,
+      messagePreview: userMessage.slice(0, 80),
     });
 
     // 2) Front-door conversational handling (greetings, small talk, quick support)
@@ -446,10 +488,6 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     return res.status(500).json({
       ok: false,
       error: "Internal server error in Sandblast backend.",
-      details:
-        process.env.NODE_ENV === "production"
-          ? undefined
-          : safeString(err && err.message, "Unknown error"),
     });
   }
 });
@@ -491,14 +529,14 @@ app.post("/api/tts", async (req, res) => {
 
     const ELEVEN_API_KEY = process.env.ELEVENLABS_API_KEY;
     if (!ELEVEN_API_KEY) {
+      console.error("ELEVENLABS_API_KEY is not set on the server.");
       return res.status(500).json({
         ok: false,
         error: "ELEVENLABS_API_KEY is not set on the server.",
       });
     }
 
-    // 1) Determine which voice to use
-    const voiceProfile = safeString(body.voiceProfile).toLowerCase(); // "nyx", "vera", "nova", etc.
+    const voiceProfile = safeString(body.voiceProfile).toLowerCase();
 
     // Persona-based defaults (set these in your env when ready)
     const nyxDefaultVoice = process.env.NYX_VOICE_ID || "";
@@ -517,12 +555,13 @@ app.post("/api/tts", async (req, res) => {
       }
     }
 
-    // Final fallback: Nyx as the default persona if nothing else is set
+    // Final fallback: Nyx as default persona if nothing else is set
     if (!resolvedVoiceId) {
       resolvedVoiceId = nyxDefaultVoice || "YOUR_DEFAULT_VOICE_ID_HERE";
     }
 
     if (!resolvedVoiceId || resolvedVoiceId === "YOUR_DEFAULT_VOICE_ID_HERE") {
+      console.error("No valid ElevenLabs voiceId resolved.");
       return res.status(500).json({
         ok: false,
         error:
@@ -530,7 +569,6 @@ app.post("/api/tts", async (req, res) => {
       });
     }
 
-    // 2) Model and voice settings
     const modelId = safeString(body.modelId, "eleven_monolingual_v1");
 
     const stability =
@@ -540,7 +578,6 @@ app.post("/api/tts", async (req, res) => {
         ? body.similarityBoost
         : 0.75;
 
-    // 3) Text length safety
     const defaultMaxChars = 800;
     const maxChars =
       typeof body.maxChars === "number" && body.maxChars > 0
@@ -552,6 +589,14 @@ app.post("/api/tts", async (req, res) => {
       text = text.slice(0, maxChars);
       truncated = true;
     }
+
+    logRouteEvent("tts_request", {
+      voiceProfile: voiceProfile || null,
+      voiceId: resolvedVoiceId,
+      modelId,
+      textLength: text.length,
+      truncated,
+    });
 
     const url = `https://api.elevenlabs.io/v1/text-to-speech/${resolvedVoiceId}`;
 
@@ -572,14 +617,18 @@ app.post("/api/tts", async (req, res) => {
       }),
     });
 
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => "");
-      console.error("ElevenLabs TTS error:", response.status, errorText);
+    if (!response || !response.ok) {
+      const status = response ? response.status : "no_response";
+      const errorText = response
+        ? await response.text().catch(() => "")
+        : "No response from ElevenLabs.";
+
+      console.error("ElevenLabs TTS error:", status, errorText);
 
       return res.status(502).json({
         ok: false,
         error: "TTS provider returned an error.",
-        status: response.status,
+        status,
         details: errorText,
       });
     }
