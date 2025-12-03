@@ -4,6 +4,11 @@
 const express = require("express");
 const cors = require("cors");
 
+// If your Node environment doesn't have global fetch (e.g. Node < 18),
+// you'll need node-fetch installed: npm install node-fetch
+const fetch = (...args) =>
+  import("node-fetch").then(({ default: f }) => f(...args));
+
 // Nyx personality + boundaries + tone
 const nyxPersonality = require("./Utils/nyxPersonality");
 
@@ -82,7 +87,6 @@ async function runCoreLogic(userMessage, boundaryContext, meta = {}) {
   let classified = null;
 
   try {
-    // If your classifier is synchronous, remove "await" and "async" here and on function definition.
     classified = await intentClassifier.classifyIntent(text);
 
     if (classified) {
@@ -233,11 +237,9 @@ async function handleTvDomain(userMessage, boundaryContext, meta) {
 
   // ---------------- INTERNAL MODE (Mac / Jess / Nick) ----------------
   if (isInternal) {
-    // Base internal framing
     let message =
       "You’re asking about Sandblast TV. Internally, I can help you align the TV layer with the rest of the Sandblast stack: content blocks, channel flow, ad windows, and how it all connects back to your core offers.";
 
-    // If TT Dash / Roku are explicitly mentioned, go deeper
     if (mentionsTtDash || mentionsRoku) {
       message =
         "You’re asking about the Sandblast TV layer in relation to TT Dash and Roku. " +
@@ -453,6 +455,98 @@ app.post("/api/sandblast-gpt", async (req, res) => {
         process.env.NODE_ENV === "production"
           ? undefined
           : safeString(err && err.message, "Unknown error"),
+    });
+  }
+});
+
+// ---------------------------------------------
+// Text-to-Speech (TTS) endpoint for Nyx / Sandblast
+// ---------------------------------------------
+//
+// Expected POST body:
+// {
+//   "text": "string",            // required
+//   "voiceId": "string",         // optional, defaults to a configured voice
+//   "modelId": "string",         // optional, default ElevenLabs model
+//   "stability": number,         // optional
+//   "similarityBoost": number    // optional
+// }
+//
+// Returns:
+// { ok: true, audioBase64: "..." } on success
+//
+
+app.post("/api/tts", async (req, res) => {
+  try {
+    const body = req.body || {};
+    const text = safeString(body.text).trim();
+
+    if (!text) {
+      return res.status(400).json({
+        ok: false,
+        error: "Missing 'text' in request body for /api/tts.",
+      });
+    }
+
+    const ELEVEN_API_KEY = process.env.ELEVENLABS_API_KEY;
+    if (!ELEVEN_API_KEY) {
+      return res.status(500).json({
+        ok: false,
+        error: "ELEVENLABS_API_KEY is not set on the server.",
+      });
+    }
+
+    const voiceId = safeString(body.voiceId, "YOUR_DEFAULT_VOICE_ID_HERE");
+    const modelId = safeString(body.modelId, "eleven_monolingual_v1");
+
+    const stability =
+      typeof body.stability === "number" ? body.stability : 0.5;
+    const similarityBoost =
+      typeof body.similarityBoost === "number" ? body.similarityBoost : 0.75;
+
+    const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "xi-api-key": ELEVEN_API_KEY,
+        "Content-Type": "application/json",
+        Accept: "audio/mpeg",
+      },
+      body: JSON.stringify({
+        text,
+        model_id: modelId,
+        voice_settings: {
+          stability,
+          similarity_boost: similarityBoost,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "");
+      console.error("ElevenLabs TTS error:", response.status, errorText);
+
+      return res.status(502).json({
+        ok: false,
+        error: "TTS provider returned an error.",
+        status: response.status,
+        details: errorText,
+      });
+    }
+
+    const audioBuffer = await response.arrayBuffer();
+    const audioBase64 = Buffer.from(audioBuffer).toString("base64");
+
+    return res.json({
+      ok: true,
+      audioBase64,
+    });
+  } catch (err) {
+    console.error("Error in /api/tts:", err);
+    return res.status(500).json({
+      ok: false,
+      error: "Internal server error in /api/tts.",
     });
   }
 });
