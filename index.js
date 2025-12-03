@@ -1,12 +1,14 @@
 // index.js
-// Sandblast Backend – Core Server + Intent Routing + Nyx Personality + TTS
+// Sandblast Backend – Core Server + Intent Routing + Nyx Personality Engine + TTS
 
 require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
 const axios = require("axios");
+
 const { classifyIntent } = require("./Utils/intentClassifier");
+const nyxPersonality = require("./Utils/nyxPersonality");
 
 // Import response modules
 const musicModule = require("./responseModules/musicModule");
@@ -39,132 +41,20 @@ app.get("/", (req, res) => {
 app.post("/api/sandblast-gpt", (req, res) => {
   const rawMessage = (req.body && req.body.message) || "";
   const userMessage = String(rawMessage || "");
-  const normalized = userMessage.trim().toLowerCase();
 
   console.log("[GPT] Incoming message:", userMessage);
 
-  // ---- Nyx conversational front-door layer ----
-
-  // 1) User asking how Nyx is doing
-  const isAskingHowNyxIs =
-    /\b(how are you(?: doing| feeling)?|how's it going|hows it going)\b/i.test(
-      userMessage
-    );
-
-  // 2) Initial greeting or empty message
-  const isInitialGreeting =
-    normalized === "" ||
-    /^(hello|hi|hey|greetings|good morning|good afternoon|good evening)\b/.test(
-      normalized
-    );
-
-  // 3) User replying to "How are you?"
-  const isGreetingResponse = /^(i'm fine|im fine|i am fine|doing well|doing good|i'm good|im good|pretty good|not bad|okay|ok|fine, thanks|fine thank you)/i.test(
-    userMessage.trim()
-  );
-
-  // 4) User saying thank you
-  const isThankYou =
-    /\b(thank you|thanks a lot|thanks|appreciate it|really appreciate)\b/i.test(
-      userMessage
-    );
-
-  // 5) User expressing fatigue / stress
-  const isFeelingLow =
-    /\b(tired|exhausted|burnt out|burned out|stressed|overwhelmed|frustrated|drained|worn out|stuck)\b/i.test(
-      userMessage
-    );
-
-  // 6) User talking about goals / trying to do something
-  const isGoalStatement =
-    /\b(my goal is|i want to|i'm trying to|im trying to|i am trying to|i'm planning to|im planning to|i plan to|i'm working on|im working on)\b/.test(
-      normalized
-    );
-
-  // Nyx greeting variations with more personality
-  const greetingVariants = [
-    "Hello! I’m Nyx, your Sandblast guide. I’m glad you dropped by—how are you doing today?",
-    "Hi there, I’m Nyx with Sandblast. You’re in the right place; let’s make things easier (and a little smarter) together. How are you today?",
-    "Hey, I’m Nyx from Sandblast. I’m here to help you move things forward—how are you feeling today?"
-  ];
-
-  // ---- Conversational ordering (most specific first) ----
-
-  if (isAskingHowNyxIs) {
-    console.log("[GPT] Nyx is being asked how she is.");
-    return res.json({
-      intent: "nyx_feeling",
-      category: "small_talk",
-      echo: userMessage,
-      message:
-        "I’m doing well, thank you. Systems are calm, signal is clear. How can I help you today?"
-    });
+  // 1) Let Nyx Personality Engine handle greetings / small talk / support / goals
+  const frontDoor = nyxPersonality.getFrontDoorResponse(userMessage);
+  if (frontDoor) {
+    console.log("[GPT] Nyx Personality Engine front-door intent:", frontDoor.intent);
+    return res.json(frontDoor);
   }
 
-  if (isInitialGreeting) {
-    const message =
-      greetingVariants[Math.floor(Math.random() * greetingVariants.length)];
-
-    console.log("[GPT] Nyx initial greeting triggered.");
-    return res.json({
-      intent: "welcome",
-      category: "welcome",
-      echo: userMessage,
-      message
-    });
-  }
-
-  if (isGreetingResponse) {
-    console.log("[GPT] Nyx follow-up greeting triggered.");
-    return res.json({
-      intent: "welcome_response",
-      category: "welcome_response",
-      echo: userMessage,
-      message:
-        "Love hearing that. I’m Nyx, here to work alongside you—not just talk at you. What do you want to tackle first—Sandblast TV, radio, streaming, News Canada, advertising, or AI consulting?"
-    });
-  }
-
-  if (isThankYou) {
-    console.log("[GPT] Nyx thank-you response triggered.");
-    return res.json({
-      intent: "nyx_thanks",
-      category: "small_talk",
-      echo: userMessage,
-      message:
-        "You’re very welcome. I like when things click. If you want to tweak, test, or push Sandblast a little further, I’m right here with you."
-    });
-  }
-
-  if (isFeelingLow) {
-    console.log("[GPT] Nyx support response triggered (feeling low).");
-    return res.json({
-      intent: "nyx_support",
-      category: "small_talk",
-      echo: userMessage,
-      message:
-        "That sounds heavy, and it’s okay to say it. You’re not doing this solo—I’m here in your corner. We don’t have to fix everything at once; let’s pick one small win and move that forward. What feels like the next doable step?"
-    });
-  }
-
-  if (isGoalStatement) {
-    console.log("[GPT] Nyx goal/ambition response triggered.");
-    return res.json({
-      intent: "nyx_goal",
-      category: "small_talk",
-      echo: userMessage,
-      message:
-        "That’s a strong direction. Ambitious looks good on you. Tell me a bit more about what you’re trying to build or improve, and I’ll help you map the next steps with Sandblast."
-    });
-  }
-
-  // ---- Normal intent classification + routing ----
-
-  // 1. Classify the user's intent
+  // 2) Normal intent classification + routing
   const intent = classifyIntent(userMessage);
   console.log("[GPT] Classified intent:", intent);
 
-  // 2. Build the response based on the intent
   let payload = {
     intent,
     echo: userMessage,
@@ -201,17 +91,20 @@ app.post("/api/sandblast-gpt", (req, res) => {
         break;
     }
 
-    // Ensure required fields exist for the frontend contract
+    // Normalize core fields
     payload.intent = payload.intent || intent || "general";
     payload.category = payload.category || intent || "general";
     payload.echo = payload.echo || userMessage;
+
+    // 3) Let Nyx Personality Engine enrich the response per domain
+    payload = nyxPersonality.enrichDomainResponse(userMessage, payload);
 
     if (!payload.message) {
       payload.message =
         "I’m Nyx. Here’s where I can help you move things forward on Sandblast—TV, radio, streaming, News Canada, advertising, and AI consulting. Tell me what you’re curious about, and we’ll dig in together.";
     }
 
-    console.log("[GPT] Final payload category:", payload.category);
+    console.log("[GPT] Final payload intent/category:", payload.intent, "/", payload.category);
 
     return res.json(payload);
   } catch (err) {
