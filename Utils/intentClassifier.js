@@ -1,5 +1,5 @@
 // Utils/intentClassifier.js
-// Simple rule-based intent classifier for Sandblast / Nyx
+// Rule-based intent classifier for Sandblast / Nyx
 // Returns: { intent, domain, confidence }
 
 function safeString(value, fallback = "") {
@@ -13,6 +13,19 @@ function normalize(text) {
     .trim()
     .toLowerCase();
 }
+
+// Precompiled regex patterns for different signal clusters
+const PATTERNS = {
+  tv: /\b(tv|television|roku|ott|linear channel|channel lineup|epg)\b/,
+  radio: /\b(radio|audio stream|live audio|sandblast radio|shoutcast)\b/,
+  newsCanada: /\b(news canada|news content|content feed|editorial spots)\b/,
+  consulting: /\b(ai consulting|consulting offer|ai strategy|prompt engineering|ai package|ai workshop|ai bootcamp|ai training)\b/,
+  publicDomain: /\b(public domain|archive\.org|pd check|pd kit|copyright status|public\-domain)\b/,
+  internalOps: /\b(backend|frontend|render\.com|webflow|widget|deployment|deploy|debug|logs|admin panel|internal only|server error|api endpoint|cors)\b/,
+  monetization: /\b(ad slots?|ad inventory|advertis(?:ing|er|ers)|sponsorships?|sponsor\b|monetiz(?:e|ation)|pre\-roll|mid\-roll|post\-roll|ad break)\b/,
+  streaming: /\b(streaming|stream|vod|on demand|on-demand|playlist|programming|schedule|lineup|grid)\b/,
+  overview: /\b(sandblast|sandblast channel|how it works|what is this platform|explain sandblast|what is sandblast)\b/
+};
 
 /**
  * classifyIntent(text)
@@ -32,13 +45,52 @@ async function classifyIntent(text) {
   }
 
   // --------------------------------------------------
+  // Signal extraction
+  // --------------------------------------------------
+  const hasTv = PATTERNS.tv.test(t);
+  const hasRadio = PATTERNS.radio.test(t);
+  const hasNews = PATTERNS.newsCanada.test(t);
+  const hasConsulting = PATTERNS.consulting.test(t);
+  const hasPublicDomain = PATTERNS.publicDomain.test(t);
+  const hasInternalOps = PATTERNS.internalOps.test(t);
+  const hasMonetization = PATTERNS.monetization.test(t);
+  const hasStreaming = PATTERNS.streaming.test(t);
+  const hasOverview = PATTERNS.overview.test(t);
+
+  // --------------------------------------------------
+  // Highest-priority: combined monetization + channel
+  // --------------------------------------------------
+
+  if (hasMonetization && hasTv) {
+    return {
+      intent: "tv_monetization",
+      domain: "tv",
+      confidence: 0.92
+    };
+  }
+
+  if (hasMonetization && hasRadio) {
+    return {
+      intent: "radio_monetization",
+      domain: "radio",
+      confidence: 0.92
+    };
+  }
+
+  if (hasMonetization && (hasStreaming || hasOverview)) {
+    // General platform monetization (Sandblast as a whole)
+    return {
+      intent: "sandblast_monetization",
+      domain: "general",
+      confidence: 0.8
+    };
+  }
+
+  // --------------------------------------------------
   // High-confidence patterns (direct signals)
   // --------------------------------------------------
 
-  // TV / Roku / channel structure
-  if (
-    /\b(tv|television|roku|ott|linear channel|channel lineup|epg)\b/.test(t)
-  ) {
+  if (hasTv) {
     return {
       intent: "sandblast_tv",
       domain: "tv",
@@ -46,10 +98,7 @@ async function classifyIntent(text) {
     };
   }
 
-  // Radio / audio stream
-  if (
-    /\b(radio|audio stream|live audio|sandblast radio|shoutcast)\b/.test(t)
-  ) {
+  if (hasRadio) {
     return {
       intent: "sandblast_radio",
       domain: "radio",
@@ -57,8 +106,7 @@ async function classifyIntent(text) {
     };
   }
 
-  // News Canada content
-  if (/\b(news canada|news content|content feed|editorial spots)\b/.test(t)) {
+  if (hasNews) {
     return {
       intent: "news_canada",
       domain: "news_canada",
@@ -66,12 +114,7 @@ async function classifyIntent(text) {
     };
   }
 
-  // AI consulting / strategy / prompts
-  if (
-    /\b(ai consulting|consulting offer|ai strategy|prompt engineering|ai package|ai workshop)\b/.test(
-      t
-    )
-  ) {
+  if (hasConsulting) {
     return {
       intent: "ai_consulting",
       domain: "consulting",
@@ -79,10 +122,7 @@ async function classifyIntent(text) {
     };
   }
 
-  // Public domain / Archive.org / PD Kit
-  if (
-    /\b(public domain|archive\.org|pd check|pd kit|copyright status)\b/.test(t)
-  ) {
+  if (hasPublicDomain) {
     return {
       intent: "pd_verification",
       domain: "public_domain",
@@ -90,12 +130,9 @@ async function classifyIntent(text) {
     };
   }
 
-  // Internal ops / backend / admin
-  if (
-    /\b(backend|frontend|render\.com|webflow|widget|deployment|debug|logs|admin panel|internal only)\b/.test(
-      t
-    )
-  ) {
+  if (hasInternalOps) {
+    // NOTE: Nyx boundary logic (owner/admin/public) lives in nyxPersonality/resolveBoundaryContext.
+    // We only label it as internal_ops here; index.js + Nyx will decide how much to expose.
     return {
       intent: "internal_ops",
       domain: "internal",
@@ -107,37 +144,24 @@ async function classifyIntent(text) {
   // Medium-confidence patterns (softer signals)
   // --------------------------------------------------
 
-  // Advertising / monetization around TV/radio
-  if (
-    /\b(ad slots|ad inventory|advertising|sponsorship|monetize|monetization)\b/.test(
-      t
-    )
-  ) {
-    // Let index.js map this via mapIntentToDomain if needed
+  if (hasMonetization) {
+    // Monetization but no clear TV/Radio/streaming combo; let index.js heuristics refine domain.
     return {
       intent: "monetization",
+      domain: "general",
+      confidence: 0.65
+    };
+  }
+
+  if (hasStreaming) {
+    return {
+      intent: "platform_programming",
       domain: "general",
       confidence: 0.6
     };
   }
 
-  // General streaming/platform questions
-  if (
-    /\b(streaming|vod|on demand|playlist|programming|schedule)\b/.test(t)
-  ) {
-    return {
-      intent: "platform_programming",
-      domain: "general",
-      confidence: 0.55
-    };
-  }
-
-  // General “how does Sandblast work” questions
-  if (
-    /\b(sandblast|sandblast channel|how it works|what is this platform|explain sandblast)\b/.test(
-      t
-    )
-  ) {
+  if (hasOverview) {
     return {
       intent: "sandblast_overview",
       domain: "general",
