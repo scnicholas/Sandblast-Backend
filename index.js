@@ -1,5 +1,5 @@
 // index.js
-// Sandblast Backend – Core Server + Intent Routing + TTS
+// Sandblast Backend – Core Server + Intent Routing + Nyx + TTS
 
 require("dotenv").config();
 
@@ -34,12 +34,61 @@ app.get("/", (req, res) => {
 });
 
 // --------------------------------------------
-// Main AI Brain Endpoint
+// Main AI Brain Endpoint (Nyx + Intent Routing)
 // --------------------------------------------
 app.post("/api/sandblast-gpt", (req, res) => {
-  const userMessage = (req.body && req.body.message) || "";
+  const rawMessage = (req.body && req.body.message) || "";
+  const userMessage = String(rawMessage || "");
+  const normalized = userMessage.trim().toLowerCase();
 
   console.log("[GPT] Incoming message:", userMessage);
+
+  // ---- Nyx greeting logic (front-door conversational layer) ----
+
+  // Initial greeting or empty message
+  const isInitialGreeting =
+    normalized === "" ||
+    /^(hello|hi|hey|greetings|good morning|good afternoon|good evening)\b/.test(
+      normalized
+    );
+
+  // User replying to "How are you?" (short acknowledgement dialogue)
+  const isGreetingResponse = /^(i'm fine|im fine|i am fine|doing well|doing good|i'm good|im good|pretty good|not bad|okay|ok|fine, thanks|fine thank you)/i.test(
+    userMessage.trim()
+  );
+
+  // Nyx greeting variations
+  const greetingVariants = [
+    "Hello! I’m Nyx, your Sandblast guide. How are you doing today?",
+    "Hi there, I’m Nyx with Sandblast. It’s great to have you here—how are you today?",
+    "Hey, I’m Nyx from Sandblast. Before we dive in, how are you feeling today?"
+  ];
+
+  if (isInitialGreeting) {
+    const message =
+      greetingVariants[Math.floor(Math.random() * greetingVariants.length)];
+
+    console.log("[GPT] Nyx initial greeting triggered.");
+    return res.json({
+      intent: "welcome",
+      category: "welcome",
+      echo: userMessage,
+      message
+    });
+  }
+
+  if (isGreetingResponse) {
+    console.log("[GPT] Nyx follow-up greeting triggered.");
+    return res.json({
+      intent: "welcome_response",
+      category: "welcome_response",
+      echo: userMessage,
+      message:
+        "I’m glad to hear that. I’m Nyx, here to help. How can I support you today? You can ask about Sandblast TV, radio, streaming, News Canada, advertising, or AI consulting."
+    });
+  }
+
+  // ---- Normal intent classification + routing ----
 
   // 1. Classify the user's intent
   const intent = classifyIntent(userMessage);
@@ -77,7 +126,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
 
       default:
         payload.message =
-          "I’m not sure what you meant. Please try asking about Sandblast TV, radio, streaming, News Canada, advertising, or AI consulting.";
+          "I’m Nyx. I didn’t quite catch that. Try asking about Sandblast TV, radio, streaming, News Canada, advertising, or AI consulting.";
         payload.category = "general";
         break;
     }
@@ -89,7 +138,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
 
     if (!payload.message) {
       payload.message =
-        "Here’s what I can help you with on Sandblast. Try asking about TV, radio, streaming, News Canada, advertising, or AI consulting.";
+        "I’m Nyx. Here’s what I can help you with on Sandblast—TV, radio, streaming, News Canada, advertising, and AI consulting. What would you like to explore?";
     }
 
     console.log("[GPT] Final payload category:", payload.category);
@@ -106,7 +155,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
 });
 
 // --------------------------------------------
-// TTS Endpoint – uses ElevenLabs-style API
+// TTS Endpoint – ElevenLabs-style API with logging
 // --------------------------------------------
 app.post("/api/tts", async (req, res) => {
   const body = req.body || {};
@@ -120,7 +169,7 @@ app.post("/api/tts", async (req, res) => {
       error: "missing_text",
       message: "Request body must include a non-empty 'text' field."
     });
-  }
+    }
 
   const elevenApiKey = process.env.ELEVENLABS_API_KEY;
   const voiceId =
@@ -152,7 +201,6 @@ app.post("/api/tts", async (req, res) => {
       data: {
         text,
         model_id: "eleven_monolingual_v1",
-        // You can tune these voice settings in the future if you want:
         voice_settings: {
           stability: 0.5,
           similarity_boost: 0.75,
