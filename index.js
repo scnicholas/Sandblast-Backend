@@ -1,8 +1,11 @@
 // index.js
-// Sandblast Backend – Core Server + Intent Routing
+// Sandblast Backend – Core Server + Intent Routing + TTS
+
+require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
+const axios = require("axios");
 const { classifyIntent } = require("./Utils/intentClassifier");
 
 // Import response modules
@@ -14,8 +17,10 @@ const aiConsultingModule = require("./responseModules/aiConsultingModule");
 
 const app = express();
 
+// --------------------------------------------
 // Middlewares
-app.use(express.json());
+// --------------------------------------------
+app.use(express.json({ limit: "1mb" }));
 app.use(cors());
 
 // Use Render's port or default to 3000 locally
@@ -32,41 +37,161 @@ app.get("/", (req, res) => {
 // Main AI Brain Endpoint
 // --------------------------------------------
 app.post("/api/sandblast-gpt", (req, res) => {
-  const userMessage = req.body.message || "";
+  const userMessage = (req.body && req.body.message) || "";
+
+  console.log("[GPT] Incoming message:", userMessage);
 
   // 1. Classify the user's intent
   const intent = classifyIntent(userMessage);
+  console.log("[GPT] Classified intent:", intent);
 
   // 2. Build the response based on the intent
-  let payload = { intent, echo: userMessage };
+  let payload = {
+    intent,
+    echo: userMessage,
+    message: "",
+    category: intent || "general"
+  };
 
-  switch (intent) {
-    case "music_radio":
-      payload = musicModule.getMusicResponse(userMessage);
-      break;
+  try {
+    switch (intent) {
+      case "music_radio":
+        payload = musicModule.getMusicResponse(userMessage);
+        break;
 
-    case "tv_video":
-      payload = tvModule.getTvResponse(userMessage);
-      break;
+      case "tv_video":
+        payload = tvModule.getTvResponse(userMessage);
+        break;
 
-    case "news_canada":
-      payload = newsModule.getNewsResponse(userMessage);
-      break;
+      case "news_canada":
+        payload = newsModule.getNewsResponse(userMessage);
+        break;
 
-    case "advertising":
-      payload = advertisingModule.getAdvertisingResponse(userMessage);
-      break;
+      case "advertising":
+        payload = advertisingModule.getAdvertisingResponse(userMessage);
+        break;
 
-    case "ai_consulting":
-      payload = aiConsultingModule.getAiConsultingResponse(userMessage);
-      break;
+      case "ai_consulting":
+        payload = aiConsultingModule.getAiConsultingResponse(userMessage);
+        break;
 
-    default:
-      payload.message = "I’m not sure what you meant. Please try asking in a different way.";
-      break;
+      default:
+        payload.message =
+          "I’m not sure what you meant. Please try asking about Sandblast TV, radio, streaming, News Canada, advertising, or AI consulting.";
+        payload.category = "general";
+        break;
+    }
+
+    // Ensure required fields exist for the frontend contract
+    payload.intent = payload.intent || intent || "general";
+    payload.category = payload.category || intent || "general";
+    payload.echo = payload.echo || userMessage;
+
+    if (!payload.message) {
+      payload.message =
+        "Here’s what I can help you with on Sandblast. Try asking about TV, radio, streaming, News Canada, advertising, or AI consulting.";
+    }
+
+    console.log("[GPT] Final payload category:", payload.category);
+
+    return res.json(payload);
+  } catch (err) {
+    console.error("[GPT] Error while building response:", err);
+    return res.status(500).json({
+      error: "routing_error",
+      message: "There was a problem handling your request.",
+      details: err.message
+    });
+  }
+});
+
+// --------------------------------------------
+// TTS Endpoint – uses ElevenLabs-style API
+// --------------------------------------------
+app.post("/api/tts", async (req, res) => {
+  const body = req.body || {};
+  const text = (body.text || "").trim();
+
+  console.log("[TTS] Request body:", body);
+
+  if (!text) {
+    console.warn("[TTS] Missing or empty 'text' in request.");
+    return res.status(400).json({
+      error: "missing_text",
+      message: "Request body must include a non-empty 'text' field."
+    });
   }
 
-  return res.json(payload);
+  const elevenApiKey = process.env.ELEVENLABS_API_KEY;
+  const voiceId =
+    process.env.ELEVENLABS_VOICE_ID || "EXAVITQu4vr4xnSDxMaL"; // fallback voice ID
+
+  if (!elevenApiKey) {
+    console.error("[TTS] ELEVENLABS_API_KEY is not set.");
+    return res.status(500).json({
+      error: "missing_api_key",
+      message:
+        "TTS is not configured correctly on the server (missing ELEVENLABS_API_KEY)."
+    });
+  }
+
+  const preview = text.slice(0, 80) + (text.length > 80 ? "..." : "");
+  console.log("[TTS] Generating audio. Voice:", voiceId, "| Text preview:", preview);
+
+  try {
+    const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
+
+    const response = await axios({
+      method: "POST",
+      url,
+      headers: {
+        "xi-api-key": elevenApiKey,
+        "Content-Type": "application/json",
+        Accept: "audio/mpeg"
+      },
+      data: {
+        text,
+        model_id: "eleven_monolingual_v1",
+        // You can tune these voice settings in the future if you want:
+        voice_settings: {
+          stability: 0.5,
+          similarity_boost: 0.75,
+          style: 0.0,
+          use_speaker_boost: true
+        }
+      },
+      responseType: "arraybuffer",
+      timeout: 30000
+    });
+
+    console.log("[TTS] ElevenLabs status:", response.status);
+
+    if (!response.data || !response.data.byteLength) {
+      console.warn("[TTS] ElevenLabs returned empty audio data.");
+      return res.status(502).json({
+        error: "tts_empty_audio",
+        message: "The TTS provider returned empty audio data."
+      });
+    }
+
+    res.set("Content-Type", "audio/mpeg");
+    res.send(Buffer.from(response.data));
+  } catch (err) {
+    const statusFromProvider =
+      (err.response && err.response.status) || "no-status";
+    const providerBody = err.response && err.response.data;
+
+    console.error("[TTS] Error during TTS call.");
+    console.error("[TTS] Status from provider:", statusFromProvider);
+    console.error("[TTS] Provider body:", providerBody || err.message);
+
+    return res.status(500).json({
+      error: "tts_failed",
+      message: "Text-to-speech generation failed.",
+      statusFromProvider,
+      providerBody
+    });
+  }
 });
 
 // --------------------------------------------
@@ -75,7 +200,8 @@ app.post("/api/sandblast-gpt", (req, res) => {
 app.post("/api/sandblast-gpt-test", (req, res) => {
   res.json({
     ok: true,
-    message: 'Backend test successful. Use "/api/sandblast-gpt" with { "message": "Hello" } to test routing.'
+    message:
+      'Backend test successful. Use "/api/sandblast-gpt" with { "message": "Hello" } to test routing.'
   });
 });
 
