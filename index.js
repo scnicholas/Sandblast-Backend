@@ -220,26 +220,60 @@ async function runCoreLogic(userMessage, boundaryContext, meta = {}) {
 }
 
 // ------------------------------------------------------------------
-// DOMAIN HANDLERS (stubs to be upgraded with real logic)
+// DOMAIN HANDLERS (TV / Radio / News / Consulting / PD / Internal)
 // ------------------------------------------------------------------
 
 async function handleTvDomain(userMessage, boundaryContext, meta) {
   const isInternal = nyxPersonality.isInternalContext(boundaryContext);
+  const lower = safeString(userMessage).toLowerCase();
 
+  const mentionsTtDash =
+    lower.includes("ttdash") || lower.includes("tt dash") || lower.includes("tt-dash");
+  const mentionsRoku = lower.includes("roku");
+
+  // ---------------- INTERNAL MODE (Mac / Jess / Nick) ----------------
   if (isInternal) {
+    // Base internal framing
+    let message =
+      "You’re asking about Sandblast TV. Internally, I can help you align the TV layer with the rest of the Sandblast stack: content blocks, channel flow, ad windows, and how it all connects back to your core offers.";
+
+    // If TT Dash / Roku are explicitly mentioned, go deeper
+    if (mentionsTtDash || mentionsRoku) {
+      message =
+        "You’re asking about the Sandblast TV layer in relation to TT Dash and Roku. " +
+        "Here’s how I can support you internally:\n\n" +
+        "1) **Platform mapping** – Clarify how TT Dash acts as the distribution / OTT backbone and how the Roku channel sits on top of it as the viewer-facing endpoint.\n" +
+        "2) **Channel structure** – Outline a clean structure for Sandblast TV on Roku: flagship blocks, classic content, News Canada segments, and ad windows.\n" +
+        "3) **Ad + inventory logic** – Help you think through where ad breaks naturally fit inside TT Dash streams and how that translates into sellable inventory on Roku.\n" +
+        "4) **Meeting prep** – Draft talking points and questions for TT Dash / Roku discussions so you can speak clearly about what Sandblast needs: stability, discoverability, monetization, and long-term scaling.\n\n" +
+        "Tell me what you want to focus on first: platform architecture, programming layout, ad strategy, or meeting prep for TT Dash / Roku.";
+    }
+
     return {
       intent: "sandblast_tv_internal",
       category: "internal",
-      message:
-        "You’re asking about Sandblast TV / Roku / OTT. Internally, I can help you outline channel structure, scheduling, ad slots, and platform positioning. Tell me whether you want strategy, tech integration, or programming planning.",
+      message,
     };
+  }
+
+  // ---------------- PUBLIC MODE (General viewers) ----------------
+
+  let publicMessage =
+    "You’re asking about Sandblast TV. It’s the television side of the Sandblast ecosystem—where curated programming, classic content, and feature blocks are delivered as a streaming channel.";
+
+  if (mentionsRoku || mentionsTtDash) {
+    publicMessage +=
+      " You’ll be able to access Sandblast TV through supported streaming platforms like Roku, with the underlying delivery handled by our OTT infrastructure behind the scenes. " +
+      "If you’d like, I can explain how to watch, what kind of shows to expect, or how this connects to the rest of Sandblast (radio, News Canada, and AI-powered tools).";
+  } else {
+    publicMessage +=
+      " If you’d like, I can walk you through what’s on the channel, how to watch it, and how it connects with Sandblast Radio, News Canada content, and our AI-powered tools.";
   }
 
   return {
     intent: "sandblast_tv_public",
     category: "public",
-    message:
-      "You’re asking about Sandblast TV. I can walk you through what’s available on the channel, how Roku fits in, and how viewers can access the platform.",
+    message: publicMessage,
   };
 }
 
