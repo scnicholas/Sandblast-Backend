@@ -4,11 +4,6 @@
 const express = require("express");
 const cors = require("cors");
 
-// If your Node environment doesn't have global fetch (e.g. Node < 18),
-// you'll need node-fetch installed: npm install node-fetch
-const fetch = (...args) =>
-  import("node-fetch").then(({ default: f }) => f(...args));
-
 // Nyx personality + boundaries + tone
 const nyxPersonality = require("./Utils/nyxPersonality");
 
@@ -465,21 +460,27 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 //
 // Expected POST body:
 // {
-//   "text": "string",            // required
-//   "voiceId": "string",         // optional, defaults to a configured voice
-//   "modelId": "string",         // optional, default ElevenLabs model
-//   "stability": number,         // optional
-//   "similarityBoost": number    // optional
+//   "text": "string",             // required
+//   "voiceId": "string",          // optional, overrides everything else
+//   "voiceProfile": "nyx" | "vera" | "nova", // optional persona selector
+//   "modelId": "string",          // optional, default ElevenLabs model
+//   "stability": number,          // optional (0–1)
+//   "similarityBoost": number,    // optional (0–1)
+//   "maxChars": number            // optional, soft cap override
 // }
 //
-// Returns:
-// { ok: true, audioBase64: "..." } on success
+// Returns JSON:
+// {
+//   ok: true,
+//   audioBase64: "...",
+//   meta: { ... }
+// }
 //
 
 app.post("/api/tts", async (req, res) => {
   try {
     const body = req.body || {};
-    const text = safeString(body.text).trim();
+    let text = safeString(body.text).trim();
 
     if (!text) {
       return res.status(400).json({
@@ -496,15 +497,63 @@ app.post("/api/tts", async (req, res) => {
       });
     }
 
-    const voiceId = safeString(body.voiceId, "YOUR_DEFAULT_VOICE_ID_HERE");
+    // 1) Determine which voice to use
+    const voiceProfile = safeString(body.voiceProfile).toLowerCase(); // "nyx", "vera", "nova", etc.
+
+    // Persona-based defaults (set these in your env when ready)
+    const nyxDefaultVoice = process.env.NYX_VOICE_ID || "";
+    const veraDefaultVoice = process.env.VERA_VOICE_ID || "";
+    const novaDefaultVoice = process.env.NOVA_VOICE_ID || "";
+
+    let resolvedVoiceId = safeString(body.voiceId); // explicit override wins
+
+    if (!resolvedVoiceId) {
+      if (voiceProfile === "nyx") {
+        resolvedVoiceId = nyxDefaultVoice;
+      } else if (voiceProfile === "vera") {
+        resolvedVoiceId = veraDefaultVoice;
+      } else if (voiceProfile === "nova") {
+        resolvedVoiceId = novaDefaultVoice;
+      }
+    }
+
+    // Final fallback: Nyx as the default persona if nothing else is set
+    if (!resolvedVoiceId) {
+      resolvedVoiceId = nyxDefaultVoice || "YOUR_DEFAULT_VOICE_ID_HERE";
+    }
+
+    if (!resolvedVoiceId || resolvedVoiceId === "YOUR_DEFAULT_VOICE_ID_HERE") {
+      return res.status(500).json({
+        ok: false,
+        error:
+          "No valid ElevenLabs voiceId resolved. Set NYX_VOICE_ID / VERA_VOICE_ID / NOVA_VOICE_ID env vars or pass 'voiceId' explicitly.",
+      });
+    }
+
+    // 2) Model and voice settings
     const modelId = safeString(body.modelId, "eleven_monolingual_v1");
 
     const stability =
       typeof body.stability === "number" ? body.stability : 0.5;
     const similarityBoost =
-      typeof body.similarityBoost === "number" ? body.similarityBoost : 0.75;
+      typeof body.similarityBoost === "number"
+        ? body.similarityBoost
+        : 0.75;
 
-    const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
+    // 3) Text length safety
+    const defaultMaxChars = 800;
+    const maxChars =
+      typeof body.maxChars === "number" && body.maxChars > 0
+        ? body.maxChars
+        : defaultMaxChars;
+
+    let truncated = false;
+    if (text.length > maxChars) {
+      text = text.slice(0, maxChars);
+      truncated = true;
+    }
+
+    const url = `https://api.elevenlabs.io/v1/text-to-speech/${resolvedVoiceId}`;
 
     const response = await fetch(url, {
       method: "POST",
@@ -541,6 +590,15 @@ app.post("/api/tts", async (req, res) => {
     return res.json({
       ok: true,
       audioBase64,
+      meta: {
+        textLength: text.length,
+        truncated,
+        voiceId: resolvedVoiceId,
+        modelId,
+        stability,
+        similarityBoost,
+        voiceProfile: voiceProfile || null,
+      },
     });
   } catch (err) {
     console.error("Error in /api/tts:", err);
