@@ -81,10 +81,67 @@ function mapIntentToDomain(intent) {
   return "general";
 }
 
+/**
+ * NEW: map topicHint (from the front-end widget) to domain + intent.
+ * This lets the Webflow widget chips (tv_streaming, radio_live, ai_consulting, overview)
+ * drive which domain handler we use.
+ */
+function mapTopicHintToDomainIntent(topicHintRaw, isInternal) {
+  const topic = safeString(topicHintRaw).toLowerCase();
+  if (!topic) return null;
+
+  // We treat this as a strong hint (confidence ~ 0.99)
+  const strong = 0.99;
+
+  if (topic === "tv_streaming") {
+    return {
+      domain: "tv",
+      intent: isInternal ? "sandblast_tv_internal" : "sandblast_tv_public",
+      confidence: strong,
+    };
+  }
+
+  if (topic === "radio_live") {
+    return {
+      domain: "radio",
+      intent: isInternal ? "sandblast_radio_internal" : "sandblast_radio_public",
+      confidence: strong,
+    };
+  }
+
+  if (topic === "ai_consulting") {
+    return {
+      domain: "consulting",
+      intent: isInternal ? "ai_consulting_internal" : "ai_consulting_public",
+      confidence: strong,
+    };
+  }
+
+  if (topic === "overview") {
+    return {
+      domain: "general",
+      intent: "welcome",
+      confidence: strong,
+    };
+  }
+
+  // Fallback: treat as general if we don't recognize the hint
+  return {
+    domain: "general",
+    intent: "general",
+    confidence: 0.7,
+  };
+}
+
 async function runCoreLogic(userMessage, boundaryContext, meta = {}) {
   const text = safeString(userMessage);
   const lower = text.toLowerCase();
   const isInternal = nyxPersonality.isInternalContext(boundaryContext);
+
+  // Pull topicHint/persona from meta if provided
+  const topicHintRaw =
+    meta && meta.topicHint ? safeString(meta.topicHint).toLowerCase() : "";
+  const hasTopicHint = !!topicHintRaw;
 
   // ------------------------------------------------------------------
   // STEP 1: Classifier-based intent / domain detection
@@ -117,7 +174,17 @@ async function runCoreLogic(userMessage, boundaryContext, meta = {}) {
     // If classifier fails, we fall back to heuristics below.
   }
 
-  // If the classifier didn’t provide a meaningful confidence, treat it as weak
+  // If the front-end passed a topicHint, let that overwrite domain/intent
+  if (hasTopicHint) {
+    const mapped = mapTopicHintToDomainIntent(topicHintRaw, isInternal);
+    if (mapped) {
+      domain = mapped.domain;
+      intent = mapped.intent;
+      confidence = mapped.confidence; // treat as strong, so heuristics won't override
+    }
+  }
+
+  // If the classifier (or topicHint) didn’t provide a meaningful confidence, treat it as weak
   const classifierStrongEnough =
     typeof confidence === "number" ? confidence >= 0.6 : false;
 
@@ -178,6 +245,7 @@ async function runCoreLogic(userMessage, boundaryContext, meta = {}) {
     intent,
     confidence,
     isInternal,
+    topicHint: topicHintRaw || null,
   });
 
   // ------------------------------------------------------------------
@@ -404,11 +472,13 @@ async function handleInternalDomain(userMessage, boundaryContext, meta) {
 // Core API: Sandblast GPT / Nyx endpoint
 // ---------------------------------------------
 //
-// Expected POST body:
+// Expected POST body (from Webflow widget now):
 // {
-//   "message": "user message",
-//   "actorName": "Mac" | "Jess" | "Nick",
+//   "message": "user message",        // required
+//   "actorName": "Mac" | "Jess" | "Nick", // optional
 //   "channel": "public" | "admin" | "internal",
+//   "persona": "nyx",                 // from widget
+//   "topicHint": "tv_streaming" | "radio_live" | "ai_consulting" | "overview" | "general",
 //   "meta": {...}
 // }
 //
@@ -422,7 +492,18 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     const userMessage = safeString(body.message).trim();
     const actorName = safeString(body.actorName).trim();
     const channel = safeString(body.channel || "public").trim().toLowerCase();
-    const meta = body.meta || {};
+
+    // NEW: persona + topicHint from front-end
+    const persona = safeString(body.persona || "nyx").trim().toLowerCase();
+    const topicHint = safeString(body.topicHint).trim().toLowerCase();
+
+    // Meta: keep whatever was passed, then add widget metadata
+    const meta =
+      body.meta && typeof body.meta === "object" ? { ...body.meta } : {};
+
+    if (topicHint) meta.topicHint = topicHint;
+    if (persona) meta.persona = persona;
+    if (channel) meta.channel = channel;
 
     if (!userMessage) {
       return res.status(400).json({
@@ -434,12 +515,16 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     const boundaryContext = nyxPersonality.resolveBoundaryContext({
       actorName,
       channel,
+      // persona is here if you ever want to use it inside nyxPersonality
+      persona,
     });
 
     logRouteEvent("sandblast-gpt", {
       actor: boundaryContext.actor,
       role: boundaryContext.role,
       channel,
+      persona,
+      topicHint: topicHint || null,
       messagePreview: userMessage.slice(0, 80),
     });
 
@@ -463,7 +548,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       });
     }
 
-    // 3) Core brain: classifier + domain routing
+    // 3) Core brain: classifier + domain routing (now topicHint-aware)
     const corePayload = await runCoreLogic(userMessage, boundaryContext, meta);
 
     // 4) Wrap final payload with Nyx tone & patterns
