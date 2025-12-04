@@ -1,151 +1,183 @@
-// utils/intentClassifier.js
+// Utils/intentClassifier.js
+// Rule-based intent classifier for Sandblast / Nyx
+// Returns: { intent, domain, confidence }
 
-// 1. Normalize text: lowercase, trim, safe fallback
+function safeString(value, fallback = "") {
+  if (typeof value === "string") return value;
+  if (value === null || value === undefined) return fallback;
+  return String(value);
+}
+
 function normalize(text) {
-  if (!text) return "";
-  return String(text).toLowerCase().trim();
+  return safeString(text)
+    .trim()
+    .toLowerCase();
 }
 
-// 2. Helper: does the text match ANY of these patterns?
-function matchesAny(text, patterns) {
-  return patterns.some((pattern) => {
-    if (pattern instanceof RegExp) {
-      return pattern.test(text);
-    }
-    // treat string patterns as "includes"
-    return text.includes(pattern.toLowerCase());
-  });
-}
+// Precompiled regex patterns for different signal clusters
+const PATTERNS = {
+  tv: /\b(tv|television|roku|ott|linear channel|channel lineup|epg)\b/,
+  radio: /\b(radio|audio stream|live audio|sandblast radio|shoutcast)\b/,
+  newsCanada: /\b(news canada|news content|content feed|editorial spots)\b/,
+  consulting: /\b(ai consulting|consulting offer|ai strategy|prompt engineering|ai package|ai workshop|ai bootcamp|ai training)\b/,
+  publicDomain: /\b(public domain|archive\.org|pd check|pd kit|copyright status|public\-domain)\b/,
+  internalOps: /\b(backend|frontend|render\.com|webflow|widget|deployment|deploy|debug|logs|admin panel|internal only|server error|api endpoint|cors)\b/,
+  monetization: /\b(ad slots?|ad inventory|advertis(?:ing|er|ers)|sponsorships?|sponsor\b|monetiz(?:e|ation)|pre\-roll|mid\-roll|post\-roll|ad break)\b/,
+  streaming: /\b(streaming|stream|vod|on demand|on-demand|playlist|programming|schedule|lineup|grid)\b/,
+  overview: /\b(sandblast|sandblast channel|how it works|what is this platform|explain sandblast|what is sandblast)\b/
+};
 
 /**
- * classifyIntent
- * --------------
- * Takes a raw user message and returns ONE of:
- * - "tv_video"
- * - "music_radio"
- * - "news_canada"
- * - "advertising"
- * - "ai_consulting"
- * - "general" (fallback)
+ * classifyIntent(text)
+ *
+ * @param {string} text - user message
+ * @returns {Promise<{ intent: string, domain: string, confidence: number }>}
  */
-function classifyIntent(rawMessage) {
-  const text = normalize(rawMessage);
+async function classifyIntent(text) {
+  const t = normalize(text);
 
-  if (!text) {
-    return "general";
+  if (!t) {
+    return {
+      intent: "general",
+      domain: "general",
+      confidence: 0.2
+    };
   }
 
-  // --- 1. TV & Video ---------------------------------
-  if (
-    matchesAny(text, [
-      "tv",
-      "television",
-      "tv channel",
-      "channel",
-      "retro tv",
-      "watch something",
-      "watch tv",
-      "movie",
-      "movies",
-      "film",
-      "episode",
-      "show me something to watch",
-      /watch .*sandblast/,
-      /sandblast tv/
-    ])
-  ) {
-    return "tv_video";
+  // --------------------------------------------------
+  // Signal extraction
+  // --------------------------------------------------
+  const hasTv = PATTERNS.tv.test(t);
+  const hasRadio = PATTERNS.radio.test(t);
+  const hasNews = PATTERNS.newsCanada.test(t);
+  const hasConsulting = PATTERNS.consulting.test(t);
+  const hasPublicDomain = PATTERNS.publicDomain.test(t);
+  const hasInternalOps = PATTERNS.internalOps.test(t);
+  const hasMonetization = PATTERNS.monetization.test(t);
+  const hasStreaming = PATTERNS.streaming.test(t);
+  const hasOverview = PATTERNS.overview.test(t);
+
+  // --------------------------------------------------
+  // Highest-priority: combined monetization + channel
+  // --------------------------------------------------
+
+  if (hasMonetization && hasTv) {
+    return {
+      intent: "tv_monetization",
+      domain: "tv",
+      confidence: 0.92
+    };
   }
 
-  // --- 2. Radio & Music ------------------------------
-  if (
-    matchesAny(text, [
-      "radio",
-      "live radio",
-      "listen live",
-      "audio stream",
-      "music",
-      "songs",
-      "playlist",
-      "dj nova",
-      "nova mix",
-      "gospel sunday",
-      "gospel show",
-      "play gospel",
-      "play music",
-      "what can i listen to",
-      /sandblast radio/,
-      /listen .*sandblast/
-    ])
-  ) {
-    return "music_radio";
+  if (hasMonetization && hasRadio) {
+    return {
+      intent: "radio_monetization",
+      domain: "radio",
+      confidence: 0.92
+    };
   }
 
-  // --- 3. News Canada & Press ------------------------
-  if (
-    matchesAny(text, [
-      "news canada",
-      "news section",
-      "latest news",
-      "articles",
-      "press release",
-      "press releases",
-      "news feature",
-      "news content",
-      /news .*sandblast/
-    ])
-  ) {
-    return "news_canada";
+  if (hasMonetization && (hasStreaming || hasOverview)) {
+    // General platform monetization (Sandblast as a whole)
+    return {
+      intent: "sandblast_monetization",
+      domain: "general",
+      confidence: 0.8
+    };
   }
 
-  // --- 4. Advertising / Promotions -------------------
-  if (
-    matchesAny(text, [
-      "advertise",
-      "advertising",
-      "promotion",
-      "promotions",
-      "sponsor",
-      "sponsorship",
-      "rate card",
-      "ad rates",
-      "media kit",
-      "run an ad",
-      "promote my business",
-      "place an ad",
-      "commercial spot",
-      /partner .*sandblast/,
-      /campaign .*sandblast/
-    ])
-  ) {
-    return "advertising";
+  // --------------------------------------------------
+  // High-confidence patterns (direct signals)
+  // --------------------------------------------------
+
+  if (hasTv) {
+    return {
+      intent: "sandblast_tv",
+      domain: "tv",
+      confidence: 0.9
+    };
   }
 
-  // --- 5. AI Consulting & AI Help --------------------
-  if (
-    matchesAny(text, [
-      "ai consulting",
-      "ai help",
-      "help with ai",
-      "ai strategy",
-      "automation",
-      "agentic ai",
-      "ai brain",
-      "sandblast ai consulting",
-      "prompt engineering",
-      "chatgpt help",
-      "build an ai",
-      "ai workshop",
-      "ai training",
-      /work with you on ai/,
-      /ai services/
-    ])
-  ) {
-    return "ai_consulting";
+  if (hasRadio) {
+    return {
+      intent: "sandblast_radio",
+      domain: "radio",
+      confidence: 0.9
+    };
   }
 
-  // --- 6. Fallback -----------------------------------
-  return "general";
+  if (hasNews) {
+    return {
+      intent: "news_canada",
+      domain: "news_canada",
+      confidence: 0.9
+    };
+  }
+
+  if (hasConsulting) {
+    return {
+      intent: "ai_consulting",
+      domain: "consulting",
+      confidence: 0.9
+    };
+  }
+
+  if (hasPublicDomain) {
+    return {
+      intent: "pd_verification",
+      domain: "public_domain",
+      confidence: 0.9
+    };
+  }
+
+  if (hasInternalOps) {
+    // NOTE: Nyx boundary logic (owner/admin/public) lives in nyxPersonality/resolveBoundaryContext.
+    // We only label it as internal_ops here; index.js + Nyx will decide how much to expose.
+    return {
+      intent: "internal_ops",
+      domain: "internal",
+      confidence: 0.85
+    };
+  }
+
+  // --------------------------------------------------
+  // Medium-confidence patterns (softer signals)
+  // --------------------------------------------------
+
+  if (hasMonetization) {
+    // Monetization but no clear TV/Radio/streaming combo; let index.js heuristics refine domain.
+    return {
+      intent: "monetization",
+      domain: "general",
+      confidence: 0.65
+    };
+  }
+
+  if (hasStreaming) {
+    return {
+      intent: "platform_programming",
+      domain: "general",
+      confidence: 0.6
+    };
+  }
+
+  if (hasOverview) {
+    return {
+      intent: "sandblast_overview",
+      domain: "general",
+      confidence: 0.6
+    };
+  }
+
+  // --------------------------------------------------
+  // Default / fallback
+  // --------------------------------------------------
+
+  return {
+    intent: "general",
+    domain: "general",
+    confidence: 0.4
+  };
 }
 
 module.exports = {

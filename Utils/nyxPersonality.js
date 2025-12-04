@@ -1,153 +1,264 @@
-// nyxPersonality.js
-// Centralized personality + small-talk handling for Nyx
+// Utils/nyxPersonality.js
+// Nyx boundaries, front-door handling, and tone wrapping
 
-function handleNyxFrontDoor(userMessageRaw) {
-  const userMessage = String(userMessageRaw || "");
-  const normalized = userMessage.trim().toLowerCase();
+// ---------------------------------------------
+// Utility: safe string
+// ---------------------------------------------
+function safeString(value, fallback = "") {
+  if (typeof value === "string") return value;
+  if (value === null || value === undefined) return fallback;
+  return String(value);
+}
 
-  // 1) User asking how Nyx is doing
-  const isAskingHowNyxIs =
-    /\b(how are you(?: doing| feeling)?|how's it going|hows it going)\b/i.test(
-      userMessage
-    );
+// ---------------------------------------------
+// Boundary / Role Resolution
+// ---------------------------------------------
+//
+// We keep this simple but expandable:
+// - channel: "public" | "admin" | "internal"
+// - actorName: lets you treat Mac/admin differently later if you want
+//
 
-  // 2) Initial greeting or empty message
-  const isInitialGreeting =
-    normalized === "" ||
-    /^(hello|hi|hey|greetings|good morning|good afternoon|good evening)\b/.test(
-      normalized
-    );
+function resolveBoundaryContext({ actorName, channel, persona } = {}) {
+  const cleanActor = safeString(actorName || "Guest").trim() || "Guest";
+  const cleanChannel = safeString(channel || "public").toLowerCase();
+  const cleanPersona = safeString(persona || "nyx").toLowerCase();
 
-  // 3) User replying to "How are you?"
-  const isGreetingResponse =
-    /^(i'm fine|im fine|i am fine|doing well|doing good|i'm good|im good|pretty good|not bad|okay|ok|fine, thanks|fine thank you)/i.test(
-      userMessage.trim()
-    );
+  let role = "public";
+  let boundaryKey = "public";
 
-  // 4) User saying thank you
-  const isThankYou =
-    /\b(thank you|thanks a lot|thanks|appreciate it|really appreciate)\b/i.test(
-      userMessage
-    );
+  if (cleanChannel === "internal") {
+    role = "internal";
+    boundaryKey = "internal";
+  } else if (cleanChannel === "admin") {
+    role = "admin";
+    boundaryKey = "internal"; // admin is allowed internal-style answers
+  } else {
+    role = "public";
+    boundaryKey = "public";
+  }
 
-  // 5) User expressing fatigue / stress
-  const isFeelingLow =
-    /\b(tired|exhausted|burnt out|burned out|stressed|overwhelmed|frustrated|drained|worn out|stuck)\b/i.test(
-      userMessage
-    );
+  const boundary = buildBoundaryDescription(boundaryKey, cleanPersona);
 
-  // 6) User talking about goals / trying to do something
-  const isGoalStatement =
-    /\b(my goal is|i want to|i'm trying to|im trying to|i am trying to|i'm planning to|im planning to|i plan to|i'm working on|im working on)\b/.test(
-      normalized
-    );
+  return {
+    actor: cleanActor,
+    role,
+    persona: cleanPersona,
+    boundary,
+  };
+}
 
-  // Nyx greeting variations with personality
-  const greetingVariants = [
-    "Hello! I’m Nyx, your Sandblast guide. I’m glad you dropped by—how are you doing today?",
-    "Hi there, I’m Nyx with Sandblast. You’re in the right place; let’s make things easier (and a little smarter) together. How are you today?",
-    "Hey, I’m Nyx from Sandblast. I’m here to help you move things forward—how are you feeling today?"
-  ];
+function buildBoundaryDescription(boundaryKey, persona) {
+  const isNyx = persona === "nyx";
 
-  // ---- Conversational ordering (most specific first) ----
-
-  if (isAskingHowNyxIs) {
+  if (boundaryKey === "internal") {
     return {
-      intent: "nyx_feeling",
-      category: "small_talk",
-      echo: userMessage,
-      message:
-        "I’m doing well, thank you. Systems are calm, signal is clear. How can I help you today?"
+      key: "internal",
+      description: isNyx
+        ? "Internal mode. Nyx can speak candidly about operations, planning, debugging, and strategy, but still avoids exposing secrets like API keys or passwords."
+        : "Internal mode. This assistant speaks more directly about operations and strategy.",
     };
   }
 
-  if (isInitialGreeting) {
-    const message =
-      greetingVariants[Math.floor(Math.random() * greetingVariants.length)];
+  return {
+    key: "public",
+    description: isNyx
+      ? "General visitors. Nyx responds with public-facing guidance about Sandblast TV, radio, streaming, News Canada, advertising, and AI consulting. No internal details or admin capabilities."
+      : "General visitors. This assistant responds with public-facing guidance only.",
+  };
+}
 
+function isInternalContext(boundaryContext) {
+  if (!boundaryContext) return false;
+  const role = safeString(boundaryContext.role).toLowerCase();
+  return role === "internal" || role === "admin";
+}
+
+// ---------------------------------------------
+// Front Door: greetings, “who are you”, etc.
+// ---------------------------------------------
+//
+// If this returns a payload, index.js sends it immediately as source: "front_door"
+// If it returns null, the request falls through to the core logic.
+// ---------------------------------------------
+
+function handleNyxFrontDoor(userMessage) {
+  const text = safeString(userMessage).trim();
+  if (!text) return null;
+
+  const lower = text.toLowerCase();
+
+  const isGreeting =
+    lower === "hi" ||
+    lower === "hello" ||
+    lower === "hey" ||
+    lower.startsWith("hi ") ||
+    lower.startsWith("hello ") ||
+    lower.startsWith("hey ");
+
+  const asksWhoNyxIs =
+    lower.includes("who are you") ||
+    lower.includes("what are you") ||
+    lower.includes("what is nyx") ||
+    lower.includes("who is nyx");
+
+  const asksWhatCanYouDo =
+    lower.includes("what can you do") ||
+    lower.includes("how can you help") ||
+    lower.includes("what do you do");
+
+  // Simple greeting
+  if (isGreeting && !asksWhoNyxIs && !asksWhatCanYouDo) {
     return {
       intent: "welcome",
       category: "welcome",
-      echo: userMessage,
-      message
-    };
-  }
-
-  if (isGreetingResponse) {
-    return {
-      intent: "welcome_response",
-      category: "welcome_response",
-      echo: userMessage,
+      echo: text,
       message:
-        "Love hearing that. I’m Nyx, here to work alongside you—not just talk at you. What do you want to tackle first—Sandblast TV, radio, streaming, News Canada, advertising, or AI consulting?"
+        "Hi there. I’m Nyx, your Sandblast guide. Ask me about TV, radio, streaming, News Canada, advertising, or how we use AI to help businesses grow.",
     };
   }
 
-  if (isThankYou) {
+  // Who/what is Nyx?
+  if (asksWhoNyxIs) {
     return {
-      intent: "nyx_thanks",
-      category: "small_talk",
-      echo: userMessage,
+      intent: "about_nyx",
+      category: "welcome",
+      echo: text,
       message:
-        "You’re very welcome. I like when things click. If you want to tweak, test, or push Sandblast a little further, I’m right here with you."
+        "I’m Nyx, the AI brain for Sandblast. My job is to help you move through Sandblast TV, radio, streaming, News Canada, advertising, and AI consulting without friction. I translate the complex parts into straight, usable answers.",
     };
   }
 
-  if (isFeelingLow) {
+  // What can you do?
+  if (asksWhatCanYouDo) {
     return {
-      intent: "nyx_support",
-      category: "small_talk",
-      echo: userMessage,
+      intent: "capabilities",
+      category: "welcome",
+      echo: text,
       message:
-        "That sounds heavy, and it’s okay to say it. You’re not doing this solo—I’m here in your corner. We don’t have to fix everything at once; let’s pick one small win and move that forward. What feels like the next doable step?"
+        "I can explain what’s happening across Sandblast TV, radio, and streaming, walk you through News Canada content, outline advertising options, and show you where AI fits into your business. Ask me something specific and I’ll keep it clear and practical.",
     };
   }
 
-  if (isGoalStatement) {
-    return {
-      intent: "nyx_goal",
-      category: "small_talk",
-      echo: userMessage,
-      message:
-        "That’s a strong direction. Ambitious looks good on you. Tell me a bit more about what you’re trying to build or improve, and I’ll help you map the next steps with Sandblast."
-    };
-  }
-
-  // If nothing matched, Nyx stays quiet here and lets routing handle it.
+  // No front-door shortcut
   return null;
 }
 
-/**
- * Light personality wrapper for routed payloads.
- * We don’t overwrite module messages; we only:
- * - ensure fields exist
- * - give a stronger fallback for general/unknown cases
- */
-function wrapWithNyxTone(basePayloadRaw, userMessageRaw) {
-  const userMessage = String(userMessageRaw || "");
-  const payload = { ...(basePayloadRaw || {}) };
+// ---------------------------------------------
+// Tone Wrapper: Nyx voice by domain + category
+// ---------------------------------------------
+//
+// Input: payload from core logic,
+//   e.g. { intent, category, message, domain? }
+// Output: same shape, but message is wrapped
+// in a consistent Nyx voice.
+// ---------------------------------------------
 
-  const intent = (payload.intent || "").toLowerCase();
-  const category = (payload.category || "").toLowerCase();
+function inferDomainFromIntent(intentRaw) {
+  const intent = safeString(intentRaw).toLowerCase();
 
-  // Ensure echo + intent/category defaults
-  payload.echo = payload.echo || userMessage || "";
-  payload.intent = payload.intent || intent || "general";
-  payload.category = payload.category || category || "general";
+  if (intent.includes("tv")) return "tv";
+  if (intent.includes("radio")) return "radio";
+  if (intent.includes("news")) return "news_canada";
+  if (intent.includes("consult")) return "consulting";
+  if (intent.includes("pd")) return "public_domain";
+  if (intent.includes("internal")) return "internal";
 
-  // If module already provided a message, respect it.
-  if (payload.message && String(payload.message).trim() !== "") {
-    return payload;
+  return "general";
+}
+
+function wrapWithNyxTone(corePayload, userMessage) {
+  if (!corePayload || typeof corePayload !== "object") {
+    return {
+      intent: "general",
+      category: "public",
+      message:
+        "I’m online, but I received an empty response from the logic layer. Try asking about TV, radio, streaming, News Canada, advertising, or AI consulting.",
+    };
   }
 
-  // Nyx fallback tone, when nothing else is provided
-  payload.message =
-    "I’m Nyx. I didn’t fully catch that, but my brain is listening. Try asking about Sandblast TV, radio, streaming, News Canada, advertising, or AI consulting—and we’ll move forward together.";
+  const originalMessage = safeString(corePayload.message);
+  const category = safeString(corePayload.category || "public").toLowerCase();
+  const intent = safeString(corePayload.intent || "general");
+  const domain =
+    safeString(corePayload.domain) || inferDomainFromIntent(intent);
 
-  return payload;
+  // If the core already returned a strongly Nyx-shaped welcome, don’t over-wrap it.
+  if (intent === "welcome" && category === "welcome") {
+    return {
+      ...corePayload,
+      message: originalMessage,
+    };
+  }
+
+  let prefix = "";
+  let suffix = "";
+
+  const isInternal = category === "internal";
+
+  // Domain-specific framing
+  switch (domain) {
+    case "tv":
+      prefix = isInternal
+        ? "Let’s look at this from the Sandblast TV side, internally."
+        : "Let me walk you through this from the Sandblast TV side.";
+      break;
+
+    case "radio":
+      prefix = isInternal
+        ? "This sits on the radio / live audio side of Sandblast, behind the scenes."
+        : "This touches the Sandblast radio and live audio side.";
+      break;
+
+    case "news_canada":
+      prefix = isInternal
+        ? "This is tied to News Canada content inside the Sandblast ecosystem."
+        : "This connects into the News Canada content you’ll see across Sandblast.";
+      break;
+
+    case "consulting":
+      prefix = isInternal
+        ? "This is in the AI consulting lane, where we shape offers, systems, and messaging."
+        : "This is in the AI consulting lane—how we use AI to support real businesses.";
+      break;
+
+    case "public_domain":
+      prefix = isInternal
+        ? "This is a public-domain / rights-check question from the Sandblast PD Watchdog angle."
+        : "This is about public-domain content and how Sandblast keeps things clean and compliant.";
+      break;
+
+    case "internal":
+      prefix =
+        "You’re in internal mode, so I’ll keep this direct and practical.";
+      break;
+
+    default:
+      prefix = isInternal
+        ? "I’ll give you a clean, internal view of this."
+        : "I’ll keep this simple and focused so it’s easy to act on.";
+      break;
+  }
+
+  // Subtle suffix for clarity (only in public mode so we don’t clutter internal)
+  if (!isInternal) {
+    suffix =
+      "\n\nIf you want to zoom in further—TV, radio, News Canada, ads, or AI consulting—just say which lane you care about and I’ll narrow it down.";
+  }
+
+  const wrappedMessage = [prefix, originalMessage, suffix]
+    .filter((part) => part && part.trim())
+    .join("\n\n");
+
+  return {
+    ...corePayload,
+    message: wrappedMessage,
+  };
 }
 
 module.exports = {
+  resolveBoundaryContext,
+  isInternalContext,
   handleNyxFrontDoor,
-  wrapWithNyxTone
+  wrapWithNyxTone,
 };
