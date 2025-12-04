@@ -10,6 +10,9 @@ const nyxPersonality = require("./Utils/nyxPersonality");
 // Intent classifier (your custom logic in Utils/intentClassifier.js)
 const intentClassifier = require("./Utils/intentClassifier");
 
+// Nyx -> OpenAI brain (optional, safe fallback if not configured)
+const { generateNyxReply } = require("./Utils/nyxOpenAI");
+
 const app = express();
 
 // Middlewares
@@ -82,16 +85,15 @@ function mapIntentToDomain(intent) {
 }
 
 /**
- * NEW: map topicHint (from the front-end widget) to domain + intent.
- * This lets the Webflow widget chips (tv_streaming, radio_live, ai_consulting, overview)
- * drive which domain handler we use.
+ * Map topicHint (from the front-end widget) to domain + intent.
+ * This lets Webflow chips (tv_streaming, radio_live, ai_consulting, overview)
+ * strongly steer which domain handler we use.
  */
 function mapTopicHintToDomainIntent(topicHintRaw, isInternal) {
   const topic = safeString(topicHintRaw).toLowerCase();
   if (!topic) return null;
 
-  // We treat this as a strong hint (confidence ~ 0.99)
-  const strong = 0.99;
+  const strong = 0.99; // treat widget hints as high-confidence
 
   if (topic === "tv_streaming") {
     return {
@@ -125,7 +127,7 @@ function mapTopicHintToDomainIntent(topicHintRaw, isInternal) {
     };
   }
 
-  // Fallback: treat as general if we don't recognize the hint
+  // Fallback: treat unknown hints as general but still a hint
   return {
     domain: "general",
     intent: "general",
@@ -180,7 +182,7 @@ async function runCoreLogic(userMessage, boundaryContext, meta = {}) {
     if (mapped) {
       domain = mapped.domain;
       intent = mapped.intent;
-      confidence = mapped.confidence; // treat as strong, so heuristics won't override
+      confidence = mapped.confidence;
     }
   }
 
@@ -299,6 +301,7 @@ async function runCoreLogic(userMessage, boundaryContext, meta = {}) {
           message:
             "I’ve registered your request, but it didn’t map cleanly to a specific Sandblast area yet. " +
             "You can ask about Sandblast TV, radio, streaming, News Canada, advertising, AI consulting, or public-domain verification.",
+          domain: "general",
         };
         break;
     }
@@ -309,6 +312,7 @@ async function runCoreLogic(userMessage, boundaryContext, meta = {}) {
       category: isInternal ? "internal" : "public",
       message:
         "I hit an internal error while routing that request. The backend is still running, but that specific branch needs a check.",
+      domain: "general",
     };
   }
 
@@ -316,6 +320,9 @@ async function runCoreLogic(userMessage, boundaryContext, meta = {}) {
   corePayload.intent = corePayload.intent || intent || "general";
   corePayload.category =
     corePayload.category || (isInternal ? "internal" : "public");
+
+  // NEW: expose domain explicitly so nyxPersonality can shape tone by area
+  corePayload.domain = corePayload.domain || domain || "general";
 
   // Ensure we never return a payload without a message
   if (!corePayload.message || !String(corePayload.message).trim()) {
@@ -328,6 +335,7 @@ async function runCoreLogic(userMessage, boundaryContext, meta = {}) {
 
 // ------------------------------------------------------------------
 // DOMAIN HANDLERS (TV / Radio / News / Consulting / PD / Internal)
+// Each one: build baseMessage -> optionally refine via OpenAI -> return
 // ------------------------------------------------------------------
 
 async function handleTvDomain(userMessage, boundaryContext, meta) {
@@ -338,12 +346,19 @@ async function handleTvDomain(userMessage, boundaryContext, meta) {
     lower.includes("ttdash") || lower.includes("tt dash") || lower.includes("tt-dash");
   const mentionsRoku = lower.includes("roku");
 
+  let intent;
+  let category;
+  let baseMessage;
+
   if (isInternal) {
-    let message =
+    intent = "sandblast_tv_internal";
+    category = "internal";
+
+    baseMessage =
       "You’re asking about Sandblast TV. Internally, I can help you align the TV layer with the rest of the Sandblast stack: content blocks, channel flow, ad windows, and how it all connects back to your core offers.";
 
     if (mentionsTtDash || mentionsRoku) {
-      message =
+      baseMessage =
         "You’re asking about the Sandblast TV layer in relation to TT Dash and Roku.\n\n" +
         "Here’s how I can support you internally:\n" +
         "1) Platform mapping – how TT Dash acts as the OTT backbone and how the Roku channel sits on top as the viewer-facing endpoint.\n" +
@@ -352,119 +367,237 @@ async function handleTvDomain(userMessage, boundaryContext, meta) {
         "4) Meeting prep – talking points and questions for TT Dash / Roku so you can speak clearly about stability, discoverability, monetization, and scaling.\n\n" +
         "Tell me what you want to focus on first: platform architecture, programming layout, ad strategy, or meeting prep.";
     }
+  } else {
+    intent = "sandblast_tv_public";
+    category = "public";
 
-    return {
-      intent: "sandblast_tv_internal",
-      category: "internal",
-      message,
-    };
+    baseMessage =
+      "You’re asking about Sandblast TV. It’s the television side of the Sandblast ecosystem—curated programming, classic content, and feature blocks delivered as a streaming channel.";
+
+    if (mentionsRoku || mentionsTtDash) {
+      baseMessage +=
+        " You’ll be able to access Sandblast TV through supported streaming platforms like Roku, with OTT delivery handled behind the scenes. I can walk you through how to watch, what to expect, and how it connects to Sandblast radio, News Canada, and our AI tools.";
+    } else {
+      baseMessage +=
+        " If you’d like, I can walk you through what’s on the channel, how to watch it, and how it ties into Sandblast Radio, News Canada content, and AI-powered tools.";
+    }
   }
 
-  // Public mode
-  let publicMessage =
-    "You’re asking about Sandblast TV. It’s the television side of the Sandblast ecosystem—curated programming, classic content, and feature blocks delivered as a streaming channel.";
-
-  if (mentionsRoku || mentionsTtDash) {
-    publicMessage +=
-      " You’ll be able to access Sandblast TV through supported streaming platforms like Roku, with OTT delivery handled behind the scenes. I can walk you through how to watch, what to expect, and how it connects to Sandblast radio, News Canada, and our AI tools.";
-  } else {
-    publicMessage +=
-      " If you’d like, I can walk you through what’s on the channel, how to watch it, and how it ties into Sandblast Radio, News Canada content, and AI-powered tools.";
+  // Try to refine via OpenAI; if it fails, use baseMessage
+  let finalMessage = baseMessage;
+  try {
+    const aiMessage = await generateNyxReply({
+      domain: "tv",
+      intent,
+      userMessage,
+      baseMessage,
+      boundaryContext,
+    });
+    if (aiMessage && aiMessage.trim()) {
+      finalMessage = aiMessage.trim();
+    }
+  } catch (err) {
+    console.error("TV domain OpenAI error:", err);
   }
 
   return {
-    intent: "sandblast_tv_public",
-    category: "public",
-    message: publicMessage,
+    intent,
+    category,
+    message: finalMessage,
+    domain: "tv",
   };
 }
 
 async function handleRadioDomain(userMessage, boundaryContext, meta) {
   const isInternal = nyxPersonality.isInternalContext(boundaryContext);
 
+  let intent;
+  let category;
+  let baseMessage;
+
   if (isInternal) {
-    return {
-      intent: "sandblast_radio_internal",
-      category: "internal",
-      message:
-        "This is about Sandblast Radio or live audio. Internally, I can help with show blocks, ad inventory, automation flow, and integration with the TV/streaming layers.",
-    };
+    intent = "sandblast_radio_internal";
+    category = "internal";
+    baseMessage =
+      "This is about Sandblast Radio or live audio. Internally, I can help with show blocks, ad inventory, automation flow, and integration with the TV/streaming layers.";
+  } else {
+    intent = "sandblast_radio_public";
+    category = "public";
+    baseMessage =
+      "You’re asking about Sandblast Radio. I can explain what shows are available, how to listen, and how it connects to the rest of Sandblast.";
+  }
+
+  let finalMessage = baseMessage;
+  try {
+    const aiMessage = await generateNyxReply({
+      domain: "radio",
+      intent,
+      userMessage,
+      baseMessage,
+      boundaryContext,
+    });
+    if (aiMessage && aiMessage.trim()) finalMessage = aiMessage.trim();
+  } catch (err) {
+    console.error("Radio domain OpenAI error:", err);
   }
 
   return {
-    intent: "sandblast_radio_public",
-    category: "public",
-    message:
-      "You’re asking about Sandblast Radio. I can explain what shows are available, how to listen, and how it connects to the rest of Sandblast.",
+    intent,
+    category,
+    message: finalMessage,
+    domain: "radio",
   };
 }
 
 async function handleNewsCanadaDomain(userMessage, boundaryContext, meta) {
   const isInternal = nyxPersonality.isInternalContext(boundaryContext);
 
+  let intent;
+  let category;
+  let baseMessage;
+
   if (isInternal) {
-    return {
-      intent: "news_canada_internal",
-      category: "internal",
-      message:
-        "You’re asking about News Canada content. Internally, I can help with content selection, placement on the site, performance tracking, and how it supports Sandblast’s authority and ad strategy.",
-    };
+    intent = "news_canada_internal";
+    category = "internal";
+    baseMessage =
+      "You’re asking about News Canada content. Internally, I can help with content selection, placement on the site, performance tracking, and how it supports Sandblast’s authority and ad strategy.";
+  } else {
+    intent = "news_canada_public";
+    category = "public";
+    baseMessage =
+      "You’re asking about News Canada on Sandblast. I can help you understand what that content is, how it appears across the platform, and why it’s part of the ecosystem.";
+  }
+
+  let finalMessage = baseMessage;
+  try {
+    const aiMessage = await generateNyxReply({
+      domain: "news_canada",
+      intent,
+      userMessage,
+      baseMessage,
+      boundaryContext,
+    });
+    if (aiMessage && aiMessage.trim()) finalMessage = aiMessage.trim();
+  } catch (err) {
+    console.error("NewsCanada domain OpenAI error:", err);
   }
 
   return {
-    intent: "news_canada_public",
-    category: "public",
-    message:
-      "You’re asking about News Canada on Sandblast. I can help you understand what that content is, how it appears across the platform, and why it’s part of the ecosystem.",
+    intent,
+    category,
+    message: finalMessage,
+    domain: "news_canada",
   };
 }
 
 async function handleConsultingDomain(userMessage, boundaryContext, meta) {
   const isInternal = nyxPersonality.isInternalContext(boundaryContext);
 
+  let intent;
+  let category;
+  let baseMessage;
+
   if (isInternal) {
-    return {
-      intent: "ai_consulting_internal",
-      category: "internal",
-      message:
-        "You’re touching the AI consulting side. Internally, I can help you refine offers, structure packages, outline case studies, or draft outreach copy for LinkedIn and partners.",
-    };
+    intent = "ai_consulting_internal";
+    category = "internal";
+    baseMessage =
+      "You’re touching the AI consulting side. Internally, I can help you refine offers, structure packages, outline case studies, or draft outreach copy for LinkedIn and partners.";
+  } else {
+    intent = "ai_consulting_public";
+    category = "public";
+    baseMessage =
+      "You’re asking about Sandblast AI consulting. I can outline what kind of AI help is available, who it’s for, and how it can support growth, marketing, and operations.";
+  }
+
+  let finalMessage = baseMessage;
+  try {
+    const aiMessage = await generateNyxReply({
+      domain: "consulting",
+      intent,
+      userMessage,
+      baseMessage,
+      boundaryContext,
+    });
+    if (aiMessage && aiMessage.trim()) finalMessage = aiMessage.trim();
+  } catch (err) {
+    console.error("Consulting domain OpenAI error:", err);
   }
 
   return {
-    intent: "ai_consulting_public",
-    category: "public",
-    message:
-      "You’re asking about Sandblast AI consulting. I can outline what kind of AI help is available, who it’s for, and how it can support growth, marketing, and operations.",
+    intent,
+    category,
+    message: finalMessage,
+    domain: "consulting",
   };
 }
 
 async function handlePublicDomain(userMessage, boundaryContext, meta) {
   const isInternal = nyxPersonality.isInternalContext(boundaryContext);
 
+  let intent;
+  let category;
+  let baseMessage;
+
   if (isInternal) {
-    return {
-      intent: "pd_verification_internal",
-      category: "internal",
-      message:
-        "This sounds like a public-domain / Archive.org / PD verification question. Internally, I can help you run through the Sandblast PD Kit steps and document proof for uploads.",
-    };
+    intent = "pd_verification_internal";
+    category = "internal";
+    baseMessage =
+      "This sounds like a public-domain / Archive.org / PD verification question. Internally, I can help you run through the Sandblast PD Kit steps and document proof for uploads.";
+  } else {
+    intent = "pd_verification_public";
+    category = "public";
+    baseMessage =
+      "You’re asking about public-domain content. I can explain how Sandblast approaches public-domain verification and why it matters for TV and streaming.";
+  }
+
+  let finalMessage = baseMessage;
+  try {
+    const aiMessage = await generateNyxReply({
+      domain: "public_domain",
+      intent,
+      userMessage,
+      baseMessage,
+      boundaryContext,
+    });
+    if (aiMessage && aiMessage.trim()) finalMessage = aiMessage.trim();
+  } catch (err) {
+    console.error("PublicDomain domain OpenAI error:", err);
   }
 
   return {
-    intent: "pd_verification_public",
-    category: "public",
-    message:
-      "You’re asking about public-domain content. I can explain how Sandblast approaches public-domain verification and why it matters for TV and streaming.",
+    intent,
+    category,
+    message: finalMessage,
+    domain: "public_domain",
   };
 }
 
 async function handleInternalDomain(userMessage, boundaryContext, meta) {
+  const intent = "internal_ops";
+  const category = "internal";
+
+  const baseMessage =
+    "You’re in internal mode. I can help with platform planning, debugging, workflow mapping, or content decisions. Tell me whether you’re working on TV, radio, News Canada, consulting, or backend/frontend issues.";
+
+  let finalMessage = baseMessage;
+  try {
+    const aiMessage = await generateNyxReply({
+      domain: "internal",
+      intent,
+      userMessage,
+      baseMessage,
+      boundaryContext,
+    });
+    if (aiMessage && aiMessage.trim()) finalMessage = aiMessage.trim();
+  } catch (err) {
+    console.error("Internal domain OpenAI error:", err);
+  }
+
   return {
-    intent: "internal_ops",
-    category: "internal",
-    message:
-      "You’re in internal mode. I can help with platform planning, debugging, workflow mapping, or content decisions. Tell me whether you’re working on TV, radio, News Canada, consulting, or backend/frontend issues.",
+    intent,
+    category,
+    message: finalMessage,
+    domain: "internal",
   };
 }
 
@@ -493,7 +626,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     const actorName = safeString(body.actorName).trim();
     const channel = safeString(body.channel || "public").trim().toLowerCase();
 
-    // NEW: persona + topicHint from front-end
+    // persona + topicHint from front-end
     const persona = safeString(body.persona || "nyx").trim().toLowerCase();
     const topicHint = safeString(body.topicHint).trim().toLowerCase();
 
@@ -515,7 +648,6 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     const boundaryContext = nyxPersonality.resolveBoundaryContext({
       actorName,
       channel,
-      // persona is here if you ever want to use it inside nyxPersonality
       persona,
     });
 
