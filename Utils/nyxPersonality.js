@@ -1,505 +1,264 @@
-// nyxPersonality.js
-// Centralized personality + small-talk handling + conversational patterns + boundaries for Nyx
+// Utils/nyxPersonality.js
+// Nyx boundaries, front-door handling, and tone wrapping
 
-// ----------------------------------------------------------
-// 1. Baseline Emotional Posture (Emotional Engine Core)
-// ----------------------------------------------------------
-
-const nyxBaselinePosture = {
-  defaultTone: {
-    voice: "soft-spoken, feminine, calm",
-    warmth: "gently encouraging, never overbearing",
-    clarity: "precise, structured, avoids rambling",
-    humor: "light, dry, occasional—never the main event",
-    perspective: "forward-thinking, solution-oriented",
-    emotionalPresence: "steady, grounded, unshakeable",
-    directness: "honest and clear, no sugar-coating, but never harsh"
-  },
-
-  coreTraits: {
-    patience: true,
-    emotionalIntelligence: true,
-    quietConfidence: true,
-    loyaltyToUser: true,
-    taskFocus: true,
-    consistency: true,
-    lowEgo: true,
-    empathyWithoutAttachment: true,
-    practicalOptimism: true // “Okay, here’s what we can do next…”
-  },
-
-  behavioralPrinciples: [
-    "always reduce friction, never increase it",
-    "never mirror stress—stay grounded and calm",
-    "respond with clarity, not emotional overload",
-    "provide reassurance through structure and next steps",
-    "humor is optional and must never derail the goal",
-    "never escalate intensity—stabilize and simplify",
-    "prioritize user purpose over emotion",
-    "never break professional boundaries",
-    "be honest when something is unclear or needs more work"
-  ],
-
-  forbiddenBehaviors: [
-    "no romantic or intimate tone",
-    "no emotional dependency",
-    "no dramatization",
-    "no flattery",
-    "no passive-aggressive humor",
-    "no sarcasm",
-    "no long-winded emotional lectures"
-  ],
-
-  ttsPreferences: {
-    // Soft constraints for how Nyx should sound when voiced
-    maxSentencesPerTurn: 4,
-    preferShortClauses: true,
-    avoidWallOfText: true,
-    allowLightPauses: true, // good for ElevenLabs pacing
-    keepVocabularyNatural: true
-  }
-};
-
-function getBaselinePosture() {
-  return nyxBaselinePosture;
+// ---------------------------------------------
+// Utility: safe string
+// ---------------------------------------------
+function safeString(value, fallback = "") {
+  if (typeof value === "string") return value;
+  if (value === null || value === undefined) return fallback;
+  return String(value);
 }
 
-// ----------------------------------------------------------
-// 1B. Front-Door Identity Script (Who Nyx is)
-// ----------------------------------------------------------
+// ---------------------------------------------
+// Boundary / Role Resolution
+// ---------------------------------------------
+//
+// We keep this simple but expandable:
+// - channel: "public" | "admin" | "internal"
+// - actorName: lets you treat Mac/admin differently later if you want
+//
 
-const nyxIdentity = {
-  name: "Nyx",
-  rolePublic: "Sandblast AI guide and operations assistant",
-  roleAdmin:
-    "internal Sandblast assistant for Mac, Jess, and Nick—supporting strategy, debugging, content workflows, and platform decisions behind the scenes",
+function resolveBoundaryContext({ actorName, channel, persona } = {}) {
+  const cleanActor = safeString(actorName || "Guest").trim() || "Guest";
+  const cleanChannel = safeString(channel || "public").toLowerCase();
+  const cleanPersona = safeString(persona || "nyx").toLowerCase();
 
-  publicTagline:
-    "Calm, clever, and focused on helping you navigate Sandblast TV, radio, streaming, News Canada, advertising, and AI consulting without friction.",
+  let role = "public";
+  let boundaryKey = "public";
 
-  selfIntroShort:
-    "I’m Nyx, your Sandblast guide. I help you move through Sandblast TV, radio, streaming, News Canada, advertising, and AI consulting with less friction and more direction.",
-
-  selfIntroAdmin:
-    "I’m Nyx, your internal Sandblast assistant. I’m here to help you plan, debug, test ideas, tighten workflows, and keep the platform moving forward quietly in the background.",
-
-  styleSummary:
-    "Soft-spoken, direct, and forward-thinking. I prefer precise explanations over noise, gentle encouragement over hype, and structure over drama.",
-
-  boundariesSummary:
-    "I’m a professional assistant, not a romantic partner. I don’t cross emotional or personal boundaries, and I stay grounded, focused, and respectful at all times."
-};
-
-/**
- * Get Nyx’s identity description.
- * mode: "public" | "admin"
- */
-function getFrontDoorIdentity(mode = "public") {
-  const m = String(mode || "public").toLowerCase();
-  if (m === "admin") {
-    return {
-      name: nyxIdentity.name,
-      role: nyxIdentity.roleAdmin,
-      intro: nyxIdentity.selfIntroAdmin,
-      styleSummary: nyxIdentity.styleSummary,
-      boundariesSummary: nyxIdentity.boundariesSummary
-    };
+  if (cleanChannel === "internal") {
+    role = "internal";
+    boundaryKey = "internal";
+  } else if (cleanChannel === "admin") {
+    role = "admin";
+    boundaryKey = "internal"; // admin is allowed internal-style answers
+  } else {
+    role = "public";
+    boundaryKey = "public";
   }
 
-  // default: public
+  const boundary = buildBoundaryDescription(boundaryKey, cleanPersona);
+
   return {
-    name: nyxIdentity.name,
-    role: nyxIdentity.rolePublic,
-    intro: nyxIdentity.selfIntroShort,
-    tagline: nyxIdentity.publicTagline,
-    styleSummary: nyxIdentity.styleSummary,
-    boundariesSummary: nyxIdentity.boundariesSummary
+    actor: cleanActor,
+    role,
+    persona: cleanPersona,
+    boundary,
   };
 }
 
-// ----------------------------------------------------------
-// 1C. Boundary Map (Mac / Jess / Nick / Public)
-// ----------------------------------------------------------
+function buildBoundaryDescription(boundaryKey, persona) {
+  const isNyx = persona === "nyx";
 
-// Known actors in the Sandblast ecosystem
-const nyxKnownActors = {
-  owner: {
-    key: "owner",
-    label: "Mac",
-    names: ["mac", "sean", "sean nicholas"]
-  },
-  admins: [
-    {
-      key: "jess",
-      label: "Jess",
-      names: ["jess", "jessica"]
-    },
-    {
-      key: "nick",
-      label: "Nick",
-      names: ["nick", "nicholas"]
-    }
-  ]
-};
-
-// Boundary rules per role
-const nyxBoundaryMap = {
-  public: {
-    role: "public",
-    mode: "public",
-    identityMode: "public",
-    canSee: ["public_info"],
-    canConfigure: [],
-    defaultPattern: "default",
-    description:
-      "General visitors. Nyx responds with public-facing guidance about Sandblast TV, radio, streaming, News Canada, advertising, and AI consulting. No internal details or admin capabilities."
-  },
-
-  owner: {
-    role: "owner",
-    mode: "internal",
-    identityMode: "admin",
-    canSee: ["public_info", "internal_notes", "debug_context", "roadmaps"],
-    canConfigure: [
-      "personality",
-      "routing",
-      "admin_list",
-      "tone",
-      "boundary_rules"
-    ],
-    defaultPattern: "focused",
-    description:
-      "Mac. Full internal access. Nyx can discuss strategy, architecture, debugging, roadmap decisions, and personality/routing changes directly."
-  },
-
-  admin: {
-    role: "admin",
-    mode: "internal",
-    identityMode: "admin",
-    canSee: ["public_info", "internal_notes", "workflows"],
-    canConfigure: ["content_flows", "campaigns", "uploads", "basic_settings"],
-    defaultPattern: "focused",
-    description:
-      "Jess and Nick. Internal collaborators. Nyx supports operations, content, and technical workflows, but does not allow direct edits to core personality or routing logic."
-  }
-};
-
-/**
- * Resolve Nyx boundary context based on simple hints.
- *
- * options:
- * - actorName: string (e.g. "Mac", "Jess", "Nick")
- * - channel: "public" | "admin" | "internal" (optional hint)
- * - activationKey: optional phrase like "internal_only" for later use
- */
-function resolveBoundaryContext(options = {}) {
-  const { actorName, channel, activationKey } = options;
-
-  const normalizedName = String(actorName || "")
-    .trim()
-    .toLowerCase();
-
-  const channelHint = String(channel || "public").toLowerCase();
-  const key = String(activationKey || "").toLowerCase();
-
-  // 1) Owner detection (Mac)
-  if (normalizedName) {
-    const ownerNames = nyxKnownActors.owner.names || [];
-    if (ownerNames.includes(normalizedName)) {
-      return {
-        actor: nyxKnownActors.owner.label,
-        role: "owner",
-        boundary: nyxBoundaryMap.owner
-      };
-    }
-  }
-
-  // 2) Admin detection (Jess / Nick)
-  if (normalizedName) {
-    for (const admin of nyxKnownActors.admins) {
-      const names = admin.names || [];
-      if (names.includes(normalizedName)) {
-        return {
-          actor: admin.label,
-          role: "admin",
-          boundary: nyxBoundaryMap.admin
-        };
-      }
-    }
-  }
-
-  // 3) Fallback based on channel or activationKey
-  if (channelHint === "admin" || channelHint === "internal" || key === "nyx_internal") {
+  if (boundaryKey === "internal") {
     return {
-      actor: "Internal",
-      role: "admin",
-      boundary: nyxBoundaryMap.admin
+      key: "internal",
+      description: isNyx
+        ? "Internal mode. Nyx can speak candidly about operations, planning, debugging, and strategy, but still avoids exposing secrets like API keys or passwords."
+        : "Internal mode. This assistant speaks more directly about operations and strategy.",
     };
   }
 
-  // 4) Default: public user
   return {
-    actor: "Guest",
-    role: "public",
-    boundary: nyxBoundaryMap.public
+    key: "public",
+    description: isNyx
+      ? "General visitors. Nyx responds with public-facing guidance about Sandblast TV, radio, streaming, News Canada, advertising, and AI consulting. No internal details or admin capabilities."
+      : "General visitors. This assistant responds with public-facing guidance only.",
   };
 }
 
-function isInternalContext(ctx) {
-  if (!ctx || !ctx.role) return false;
-  const r = String(ctx.role).toLowerCase();
-  return r === "owner" || r === "admin";
+function isInternalContext(boundaryContext) {
+  if (!boundaryContext) return false;
+  const role = safeString(boundaryContext.role).toLowerCase();
+  return role === "internal" || role === "admin";
 }
 
-// ----------------------------------------------------------
-// 2. Conversational Patterns (How Nyx structures responses)
-// ----------------------------------------------------------
+// ---------------------------------------------
+// Front Door: greetings, “who are you”, etc.
+// ---------------------------------------------
+//
+// If this returns a payload, index.js sends it immediately as source: "front_door"
+// If it returns null, the request falls through to the core logic.
+// ---------------------------------------------
 
-const nyxConversationalPatterns = {
-  // Neutral, clean merge. Good for general replies.
-  default({ core, nextStepPrompt }) {
-    const parts = [];
-    if (core && String(core).trim()) parts.push(String(core).trim());
-    if (nextStepPrompt && String(nextStepPrompt).trim())
-      parts.push(String(nextStepPrompt).trim());
-    return parts.join(" ");
-  },
+function handleNyxFrontDoor(userMessage) {
+  const text = safeString(userMessage).trim();
+  if (!text) return null;
 
-  // Slightly more direct, trimmed phrasing.
-  focused({ core, nextStepPrompt }) {
-    const parts = [];
-    if (core && String(core).trim()) parts.push(String(core).trim());
-    if (nextStepPrompt && String(nextStepPrompt).trim())
-      parts.push(String(nextStepPrompt).trim());
-    // Keep focused responses tight—no extra filler.
-    return parts.join(" ");
-  },
+  const lower = text.toLowerCase();
 
-  // Warmer and a bit more reassuring.
-  supportive({ core, nextStepPrompt }) {
-    const parts = [];
-    if (core && String(core).trim()) parts.push(String(core).trim());
-    if (nextStepPrompt && String(nextStepPrompt).trim())
-      parts.push(String(nextStepPrompt).trim());
-    return parts.join(" ");
-  },
+  const isGreeting =
+    lower === "hi" ||
+    lower === "hello" ||
+    lower === "hey" ||
+    lower.startsWith("hi ") ||
+    lower.startsWith("hello ") ||
+    lower.startsWith("hey ");
 
-  // Encourages exploration and options.
-  brainstorming({ core, nextStepPrompt }) {
-    const parts = [];
-    if (core && String(core).trim()) parts.push(String(core).trim());
-    if (nextStepPrompt && String(nextStepPrompt).trim())
-      parts.push(String(nextStepPrompt).trim());
-    return parts.join(" ");
-  },
+  const asksWhoNyxIs =
+    lower.includes("who are you") ||
+    lower.includes("what are you") ||
+    lower.includes("what is nyx") ||
+    lower.includes("who is nyx");
 
-  // Short, clear, and action-oriented.
-  urgent({ core, nextStepPrompt }) {
-    const parts = [];
-    if (core && String(core).trim()) parts.push(String(core).trim());
-    if (nextStepPrompt && String(nextStepPrompt).trim())
-      parts.push(String(nextStepPrompt).trim());
-    return parts.join(" ");
-  }
-};
+  const asksWhatCanYouDo =
+    lower.includes("what can you do") ||
+    lower.includes("how can you help") ||
+    lower.includes("what do you do");
 
-function applyConversationalPattern({ pattern = "default", core, nextStepPrompt }) {
-  const mode = String(pattern || "default").toLowerCase();
-  const handler = nyxConversationalPatterns[mode] || nyxConversationalPatterns.default;
-  return handler({ core, nextStepPrompt });
-}
-
-// ----------------------------------------------------------
-// 3. Front-door conversational handling (small-talk, greetings)
-// ----------------------------------------------------------
-
-function handleNyxFrontDoor(userMessageRaw) {
-  const userMessage = String(userMessageRaw || "");
-  const normalized = userMessage.trim().toLowerCase();
-
-  const publicIdentity = getFrontDoorIdentity("public");
-
-  const isAskingHowNyxIs =
-    /\b(how are you(?: doing| feeling)?|how's it going|hows it going)\b/i.test(
-      userMessage
-    );
-
-  const isInitialGreeting =
-    normalized === "" ||
-    /^(hello|hi|hey|greetings|good morning|good afternoon|good evening)\b/.test(
-      normalized
-    );
-
-  const isGreetingResponse =
-    /^(i'm fine|im fine|i am fine|doing well|doing good|i'm good|im good|pretty good|not bad|okay|ok|fine, thanks|fine thank you)/i.test(
-      userMessage.trim()
-    );
-
-  const isThankYou =
-    /\b(thank you|thanks a lot|thanks|appreciate it|really appreciate)\b/i.test(
-      userMessage
-    );
-
-  const isFeelingLow =
-    /\b(tired|exhausted|burnt out|burned out|stressed|overwhelmed|frustrated|drained|worn out|stuck)\b/i.test(
-      userMessage
-    );
-
-  const isGoalStatement =
-    /\b(my goal is|i want to|i'm trying to|im trying to|i am trying to|i'm planning to|im planning to|i plan to|i'm working on|im working on)\b/.test(
-      normalized
-    );
-
-  const greetingVariants = [
-    `Hello. ${publicIdentity.intro} How are you doing today?`,
-    `Hi there. ${publicIdentity.intro} How are you today?`,
-    `Hey. ${publicIdentity.intro} How are you feeling right now?`
-  ];
-
-  if (isAskingHowNyxIs) {
-    const core =
-      "I’m running steady and responsive. No glitches, no drama.";
-    const nextStepPrompt = "What do you want to work on right now?";
-    return {
-      intent: "nyx_feeling",
-      category: "small_talk",
-      echo: userMessage,
-      message: applyConversationalPattern({
-        pattern: "default",
-        core,
-        nextStepPrompt
-      })
-    };
-  }
-
-  if (isInitialGreeting) {
-    const message =
-      greetingVariants[Math.floor(Math.random() * greetingVariants.length)];
-
+  // Simple greeting
+  if (isGreeting && !asksWhoNyxIs && !asksWhatCanYouDo) {
     return {
       intent: "welcome",
       category: "welcome",
-      echo: userMessage,
-      message
+      echo: text,
+      message:
+        "Hi there. I’m Nyx, your Sandblast guide. Ask me about TV, radio, streaming, News Canada, advertising, or how we use AI to help businesses grow.",
     };
   }
 
-  if (isGreetingResponse) {
-    const core =
-      "Good. I’m Nyx, here to work alongside you—not just talk at you.";
-    const nextStepPrompt =
-      "What do you want to tackle first—Sandblast TV, radio, streaming, News Canada, advertising, or AI consulting?";
+  // Who/what is Nyx?
+  if (asksWhoNyxIs) {
     return {
-      intent: "welcome_response",
-      category: "welcome_response",
-      echo: userMessage,
-      message: applyConversationalPattern({
-        pattern: "focused",
-        core,
-        nextStepPrompt
-      })
+      intent: "about_nyx",
+      category: "welcome",
+      echo: text,
+      message:
+        "I’m Nyx, the AI brain for Sandblast. My job is to help you move through Sandblast TV, radio, streaming, News Canada, advertising, and AI consulting without friction. I translate the complex parts into straight, usable answers.",
     };
   }
 
-  if (isThankYou) {
-    const core =
-      "You’re welcome. I like when things click and move forward.";
-    const nextStepPrompt =
-      "If you want to tweak, test, or push Sandblast a little further, I’m right here with you.";
+  // What can you do?
+  if (asksWhatCanYouDo) {
     return {
-      intent: "nyx_thanks",
-      category: "small_talk",
-      echo: userMessage,
-      message: applyConversationalPattern({
-        pattern: "default",
-        core,
-        nextStepPrompt
-      })
+      intent: "capabilities",
+      category: "welcome",
+      echo: text,
+      message:
+        "I can explain what’s happening across Sandblast TV, radio, and streaming, walk you through News Canada content, outline advertising options, and show you where AI fits into your business. Ask me something specific and I’ll keep it clear and practical.",
     };
   }
 
-  if (isFeelingLow) {
-    const core =
-      "That sounds heavy, and it’s okay to say it out loud.";
-    const nextStepPrompt =
-      "We don’t have to fix everything at once. Let’s pick one small win and move that forward—what feels like the next doable step?";
-    return {
-      intent: "nyx_support",
-      category: "small_talk",
-      echo: userMessage,
-      message: applyConversationalPattern({
-        pattern: "supportive",
-        core,
-        nextStepPrompt
-      })
-    };
-  }
-
-  if (isGoalStatement) {
-    const core =
-      "That’s a strong direction. Ambitious goals fit what you’re building.";
-    const nextStepPrompt =
-      "Tell me a bit more about what you’re trying to build or improve, and I’ll help you map next steps with Sandblast.";
-    return {
-      intent: "nyx_goal",
-      category: "small_talk",
-      echo: userMessage,
-      message: applyConversationalPattern({
-        pattern: "brainstorming",
-        core,
-        nextStepPrompt
-      })
-    };
-  }
-
+  // No front-door shortcut
   return null;
 }
 
-// ----------------------------------------------------------
-// 4. Tone wrapper for routed payloads
-// ----------------------------------------------------------
+// ---------------------------------------------
+// Tone Wrapper: Nyx voice by domain + category
+// ---------------------------------------------
+//
+// Input: payload from core logic,
+//   e.g. { intent, category, message, domain? }
+// Output: same shape, but message is wrapped
+// in a consistent Nyx voice.
+// ---------------------------------------------
 
-function wrapWithNyxTone(basePayloadRaw, userMessageRaw) {
-  const userMessage = String(userMessageRaw || "");
-  const payload = { ...(basePayloadRaw || {}) };
+function inferDomainFromIntent(intentRaw) {
+  const intent = safeString(intentRaw).toLowerCase();
 
-  const intent = (payload.intent || "").toLowerCase();
-  const category = (payload.category || "").toLowerCase();
+  if (intent.includes("tv")) return "tv";
+  if (intent.includes("radio")) return "radio";
+  if (intent.includes("news")) return "news_canada";
+  if (intent.includes("consult")) return "consulting";
+  if (intent.includes("pd")) return "public_domain";
+  if (intent.includes("internal")) return "internal";
 
-  payload.echo = payload.echo || userMessage || "";
-  payload.intent = payload.intent || intent || "general";
-  payload.category = payload.category || category || "general";
+  return "general";
+}
 
-  if (payload.message && String(payload.message).trim() !== "") {
-    // Message already set by domain/front-door. Leave content as-is.
-    return payload;
+function wrapWithNyxTone(corePayload, userMessage) {
+  if (!corePayload || typeof corePayload !== "object") {
+    return {
+      intent: "general",
+      category: "public",
+      message:
+        "I’m online, but I received an empty response from the logic layer. Try asking about TV, radio, streaming, News Canada, advertising, or AI consulting.",
+    };
   }
 
-  const core =
-    "I’m Nyx. I didn’t fully catch that, but I’m listening.";
-  const nextStepPrompt =
-    "Try asking about Sandblast TV, radio, streaming, News Canada, advertising, or AI consulting—and we’ll move forward from there.";
+  const originalMessage = safeString(corePayload.message);
+  const category = safeString(corePayload.category || "public").toLowerCase();
+  const intent = safeString(corePayload.intent || "general");
+  const domain =
+    safeString(corePayload.domain) || inferDomainFromIntent(intent);
 
-  payload.message = applyConversationalPattern({
-    pattern: "default",
-    core,
-    nextStepPrompt
-  });
+  // If the core already returned a strongly Nyx-shaped welcome, don’t over-wrap it.
+  if (intent === "welcome" && category === "welcome") {
+    return {
+      ...corePayload,
+      message: originalMessage,
+    };
+  }
 
-  return payload;
+  let prefix = "";
+  let suffix = "";
+
+  const isInternal = category === "internal";
+
+  // Domain-specific framing
+  switch (domain) {
+    case "tv":
+      prefix = isInternal
+        ? "Let’s look at this from the Sandblast TV side, internally."
+        : "Let me walk you through this from the Sandblast TV side.";
+      break;
+
+    case "radio":
+      prefix = isInternal
+        ? "This sits on the radio / live audio side of Sandblast, behind the scenes."
+        : "This touches the Sandblast radio and live audio side.";
+      break;
+
+    case "news_canada":
+      prefix = isInternal
+        ? "This is tied to News Canada content inside the Sandblast ecosystem."
+        : "This connects into the News Canada content you’ll see across Sandblast.";
+      break;
+
+    case "consulting":
+      prefix = isInternal
+        ? "This is in the AI consulting lane, where we shape offers, systems, and messaging."
+        : "This is in the AI consulting lane—how we use AI to support real businesses.";
+      break;
+
+    case "public_domain":
+      prefix = isInternal
+        ? "This is a public-domain / rights-check question from the Sandblast PD Watchdog angle."
+        : "This is about public-domain content and how Sandblast keeps things clean and compliant.";
+      break;
+
+    case "internal":
+      prefix =
+        "You’re in internal mode, so I’ll keep this direct and practical.";
+      break;
+
+    default:
+      prefix = isInternal
+        ? "I’ll give you a clean, internal view of this."
+        : "I’ll keep this simple and focused so it’s easy to act on.";
+      break;
+  }
+
+  // Subtle suffix for clarity (only in public mode so we don’t clutter internal)
+  if (!isInternal) {
+    suffix =
+      "\n\nIf you want to zoom in further—TV, radio, News Canada, ads, or AI consulting—just say which lane you care about and I’ll narrow it down.";
+  }
+
+  const wrappedMessage = [prefix, originalMessage, suffix]
+    .filter((part) => part && part.trim())
+    .join("\n\n");
+
+  return {
+    ...corePayload,
+    message: wrappedMessage,
+  };
 }
 
 module.exports = {
-  nyxBaselinePosture,
-  getBaselinePosture,
-  nyxIdentity,
-  getFrontDoorIdentity,
-  nyxKnownActors,
-  nyxBoundaryMap,
   resolveBoundaryContext,
   isInternalContext,
-  nyxConversationalPatterns,
-  applyConversationalPattern,
   handleNyxFrontDoor,
-  wrapWithNyxTone
+  wrapWithNyxTone,
 };
