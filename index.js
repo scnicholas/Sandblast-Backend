@@ -757,7 +757,7 @@ app.post("/api/tts", async (req, res) => {
 
     // Persona-based defaults (set these in your env when ready)
     const nyxDefaultVoice = process.env.NYX_VOICE_ID || "";
-    the veraDefaultVoice = process.env.VERA_VOICE_ID || "";
+    const veraDefaultVoice = process.env.VERA_VOICE_ID || "";
     const novaDefaultVoice = process.env.NOVA_VOICE_ID || "";
 
     let resolvedVoiceId = safeString(body.voiceId); // explicit override wins
