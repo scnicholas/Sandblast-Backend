@@ -321,7 +321,7 @@ async function runCoreLogic(userMessage, boundaryContext, meta = {}) {
   corePayload.category =
     corePayload.category || (isInternal ? "internal" : "public");
 
-  // NEW: expose domain explicitly so nyxPersonality can shape tone by area
+  // Expose domain explicitly so nyxPersonality can shape tone by area
   corePayload.domain = corePayload.domain || domain || "general";
 
   // Ensure we never return a payload without a message
@@ -757,7 +757,7 @@ app.post("/api/tts", async (req, res) => {
 
     // Persona-based defaults (set these in your env when ready)
     const nyxDefaultVoice = process.env.NYX_VOICE_ID || "";
-    const veraDefaultVoice = process.env.VERA_VOICE_ID || "";
+    the veraDefaultVoice = process.env.VERA_VOICE_ID || "";
     const novaDefaultVoice = process.env.NOVA_VOICE_ID || "";
 
     let resolvedVoiceId = safeString(body.voiceId); // explicit override wins
