@@ -1,6 +1,6 @@
 // index.js
 // Main backend entry point for Sandblast GPT / Nyx
-// Version: key-free (no external TTS/OpenAI required)
+// Key-free version: no external TTS/OpenAI required, safe for current Webflow widget.
 
 const express = require("express");
 const cors = require("cors");
@@ -85,8 +85,12 @@ function mapIntentToDomain(intent) {
 
 /**
  * Map topicHint (from the front-end widget) to domain + intent.
- * This lets Webflow chips (tv_streaming, radio_live, ai_consulting, overview)
- * strongly steer which domain handler we use.
+ * Expected topicHint values from Webflow:
+ *   - "tv_streaming"
+ *   - "radio_live"
+ *   - "ai_consulting"
+ *   - "overview"
+ *   - "general"
  */
 function mapTopicHintToDomainIntent(topicHintRaw, isInternal) {
   const topic = safeString(topicHintRaw).toLowerCase();
@@ -250,8 +254,8 @@ async function runCoreLogic(userMessage, boundaryContext, meta = {}) {
   });
 
   // ------------------------------------------------------------------
-  // STEP 3: Route to Domain Handlers
-  // ------------------------------------------------------------------
+  // STEP 3: Route to Domain Handlers (pure logic, no external APIs)
+// ------------------------------------------------------------------
 
   let corePayload;
 
