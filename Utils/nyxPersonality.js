@@ -1,8 +1,9 @@
 // Utils/nyxPersonality.js
-// Nyx boundaries, front-door handling, and tone wrapping
+// Nyx Personality Engine v1.0
+// Sleek Professional Navigator for Sandblast
 
 // ---------------------------------------------
-// Utility: safe string
+// Helpers
 // ---------------------------------------------
 function safeString(value, fallback = "") {
   if (typeof value === "string") return value;
@@ -11,251 +12,284 @@ function safeString(value, fallback = "") {
 }
 
 // ---------------------------------------------
-// Boundary / Role Resolution
+// Boundary / Context Resolution
 // ---------------------------------------------
 //
-// We keep this simple but expandable:
-// - channel: "public" | "admin" | "internal"
-// - actorName: lets you treat Mac/admin differently later if you want
+// resolveBoundaryContext determines how Nyx should behave
+// based on who is speaking and which channel they are using.
 //
-
 function resolveBoundaryContext({ actorName, channel, persona } = {}) {
-  const cleanActor = safeString(actorName || "Guest").trim() || "Guest";
-  const cleanChannel = safeString(channel || "public").toLowerCase();
-  const cleanPersona = safeString(persona || "nyx").toLowerCase();
+  const actor = safeString(actorName || "Guest").trim() || "Guest";
+  const normalizedChannel = safeString(channel || "public")
+    .trim()
+    .toLowerCase();
+
+  const personaId = safeString(persona || "nyx").trim().toLowerCase();
 
   let role = "public";
-  let boundaryKey = "public";
-
-  if (cleanChannel === "internal") {
+  if (normalizedChannel === "internal") {
     role = "internal";
-    boundaryKey = "internal";
-  } else if (cleanChannel === "admin") {
+  } else if (normalizedChannel === "admin") {
     role = "admin";
-    boundaryKey = "internal"; // admin is allowed internal-style answers
   } else {
     role = "public";
-    boundaryKey = "public";
   }
 
-  const boundary = buildBoundaryDescription(boundaryKey, cleanPersona);
+  let boundaryDescription;
+
+  if (role === "public") {
+    boundaryDescription =
+      "General visitors. Nyx responds with public-facing guidance about Sandblast TV, radio, streaming, News Canada, advertising, and AI consulting. No internal details or admin capabilities.";
+  } else if (role === "internal") {
+    boundaryDescription =
+      "Internal builder mode. Nyx speaks as a strategic + technical partner, helping design, debug, and align Sandblast systems across TV, radio, streaming, News Canada, consulting, and the AI brain.";
+  } else {
+    boundaryDescription =
+      "Admin operations mode. Nyx focuses on precise, operational guidance for Sandblast infrastructure, content flow, and monetization.";
+  }
 
   return {
-    actor: cleanActor,
+    actor,
     role,
-    persona: cleanPersona,
-    boundary,
-  };
-}
-
-function buildBoundaryDescription(boundaryKey, persona) {
-  const isNyx = persona === "nyx";
-
-  if (boundaryKey === "internal") {
-    return {
-      key: "internal",
-      description: isNyx
-        ? "Internal mode. Nyx can speak candidly about operations, planning, debugging, and strategy, but still avoids exposing secrets like API keys or passwords."
-        : "Internal mode. This assistant speaks more directly about operations and strategy.",
-    };
-  }
-
-  return {
-    key: "public",
-    description: isNyx
-      ? "General visitors. Nyx responds with public-facing guidance about Sandblast TV, radio, streaming, News Canada, advertising, and AI consulting. No internal details or admin capabilities."
-      : "General visitors. This assistant responds with public-facing guidance only.",
+    persona: personaId,
+    boundary: {
+      role,
+      description: boundaryDescription,
+    },
   };
 }
 
 function isInternalContext(boundaryContext) {
   if (!boundaryContext) return false;
-  const role = safeString(boundaryContext.role).toLowerCase();
-  return role === "internal" || role === "admin";
+  return boundaryContext.role === "internal" || boundaryContext.role === "admin";
 }
 
 // ---------------------------------------------
-// Front Door: greetings, “who are you”, etc.
+// Front-door: Greetings / Quick Small-talk
 // ---------------------------------------------
 //
-// If this returns a payload, index.js sends it immediately as source: "front_door"
-// If it returns null, the request falls through to the core logic.
-// ---------------------------------------------
-
+// If this returns a payload, index.js will use it directly.
+// If it returns null, the core brain handles the message.
+//
 function handleNyxFrontDoor(userMessage) {
-  const text = safeString(userMessage).trim();
-  if (!text) return null;
+  const raw = safeString(userMessage).trim();
+  const lower = raw.toLowerCase();
 
-  const lower = text.toLowerCase();
-
-  const isGreeting =
-    lower === "hi" ||
-    lower === "hello" ||
-    lower === "hey" ||
-    lower.startsWith("hi ") ||
-    lower.startsWith("hello ") ||
-    lower.startsWith("hey ");
-
-  const asksWhoNyxIs =
-    lower.includes("who are you") ||
-    lower.includes("what are you") ||
-    lower.includes("what is nyx") ||
-    lower.includes("who is nyx");
-
-  const asksWhatCanYouDo =
-    lower.includes("what can you do") ||
-    lower.includes("how can you help") ||
-    lower.includes("what do you do");
-
-  // Simple greeting
-  if (isGreeting && !asksWhoNyxIs && !asksWhatCanYouDo) {
+  if (!raw) {
+    // Empty or whitespace → treat as an invitation for greeting
     return {
       intent: "welcome",
       category: "welcome",
-      echo: text,
+      domain: "general",
       message:
-        "Hi there. I’m Nyx, your Sandblast guide. Ask me about TV, radio, streaming, News Canada, advertising, or how we use AI to help businesses grow.",
+        "Hello. I’m Nyx. I’ll guide you through anything on Sandblast—TV, radio, streaming, News Canada, advertising, and AI consulting. What would you like to explore?",
     };
   }
 
-  // Who/what is Nyx?
-  if (asksWhoNyxIs) {
+  const isGreeting =
+    /^(hi|hello|hey|yo|good (morning|afternoon|evening)|greetings)\b/.test(
+      lower
+    ) ||
+    lower === "nyx" ||
+    lower === "hello nyx" ||
+    lower === "hi nyx";
+
+  const asksWhoAreYou =
+    lower.includes("who are you") ||
+    lower.includes("what are you") ||
+    lower.includes("what is nyx") ||
+    lower.includes("what do you do");
+
+  const isThanks =
+    lower.includes("thank you") ||
+    lower.includes("thanks") ||
+    lower === "thank you" ||
+    lower === "thanks nyx";
+
+  const asksHelp =
+    lower === "help" ||
+    lower === "help nyx" ||
+    lower.includes("how do i use this") ||
+    lower.includes("how does this work");
+
+  if (isGreeting || asksWhoAreYou) {
+    // Primary Nyx signature greeting
     return {
-      intent: "about_nyx",
+      intent: "welcome",
       category: "welcome",
-      echo: text,
+      domain: "general",
       message:
-        "I’m Nyx, the AI brain for Sandblast. My job is to help you move through Sandblast TV, radio, streaming, News Canada, advertising, and AI consulting without friction. I translate the complex parts into straight, usable answers.",
+        "Hello. I’m Nyx. I’ll guide you through anything on Sandblast—TV, radio, streaming, News Canada, advertising, and AI consulting. What would you like to explore?",
     };
   }
 
-  // What can you do?
-  if (asksWhatCanYouDo) {
+  if (isThanks) {
     return {
-      intent: "capabilities",
-      category: "welcome",
-      echo: text,
+      intent: "polite_closure",
+      category: "public",
+      domain: "general",
       message:
-        "I can explain what’s happening across Sandblast TV, radio, and streaming, walk you through News Canada content, outline advertising options, and show you where AI fits into your business. Ask me something specific and I’ll keep it clear and practical.",
+        "You’re welcome. If you’d like, I can guide you through the next part of what you’re working on.",
     };
   }
 
-  // No front-door shortcut
+  if (asksHelp) {
+    return {
+      intent: "usage_help",
+      category: "public",
+      domain: "general",
+      message:
+        "You can ask me about Sandblast TV, radio, streaming, News Canada content, advertising options, or AI consulting. Tell me the area you care about, and I’ll map out a clear next step.",
+    };
+  }
+
+  // No special front-door handling → let the core brain route it.
   return null;
 }
 
 // ---------------------------------------------
-// Tone Wrapper: Nyx voice by domain + category
+// Tone Wrapper: Nyx's Sleek Professional Voice
 // ---------------------------------------------
 //
-// Input: payload from core logic,
-//   e.g. { intent, category, message, domain? }
-// Output: same shape, but message is wrapped
-// in a consistent Nyx voice.
-// ---------------------------------------------
-
-function inferDomainFromIntent(intentRaw) {
-  const intent = safeString(intentRaw).toLowerCase();
-
-  if (intent.includes("tv")) return "tv";
-  if (intent.includes("radio")) return "radio";
-  if (intent.includes("news")) return "news_canada";
-  if (intent.includes("consult")) return "consulting";
-  if (intent.includes("pd")) return "public_domain";
-  if (intent.includes("internal")) return "internal";
-
-  return "general";
-}
-
-function wrapWithNyxTone(corePayload, userMessage) {
-  if (!corePayload || typeof corePayload !== "object") {
-    return {
-      intent: "general",
-      category: "public",
-      message:
-        "I’m online, but I received an empty response from the logic layer. Try asking about TV, radio, streaming, News Canada, advertising, or AI consulting.",
-    };
+// This adjusts the payload message to match Nyx's personality.
+// It can shape intros and optionally add “next logical step” guidance.
+//
+function wrapWithNyxTone(payload, userMessage) {
+  if (!payload || typeof payload !== "object") {
+    payload = {};
   }
 
-  const originalMessage = safeString(corePayload.message);
-  const category = safeString(corePayload.category || "public").toLowerCase();
-  const intent = safeString(corePayload.intent || "general");
-  const domain =
-    safeString(corePayload.domain) || inferDomainFromIntent(intent);
+  const domain = safeString(payload.domain || "general").toLowerCase();
+  const category = safeString(payload.category || "public").toLowerCase();
+  const intent = safeString(payload.intent || "general").toLowerCase();
 
-  // If the core already returned a strongly Nyx-shaped welcome, don’t over-wrap it.
-  if (intent === "welcome" && category === "welcome") {
-    return {
-      ...corePayload,
-      message: originalMessage,
-    };
+  const rawMessage = safeString(payload.message).trim();
+  const userRaw = safeString(userMessage).trim();
+  const userLower = userRaw.toLowerCase();
+
+  if (!rawMessage) {
+    // Failsafe – don't attempt to decorate an empty message.
+    return payload;
   }
 
-  let prefix = "";
-  let suffix = "";
+  let intro = "";
+  let outro = "";
 
   const isInternal = category === "internal";
+  const isErrorLike =
+    intent.includes("error") || category === "error" || rawMessage.toLowerCase().includes("error");
 
-  // Domain-specific framing
-  switch (domain) {
-    case "tv":
-      prefix = isInternal
-        ? "Let’s look at this from the Sandblast TV side, internally."
-        : "Let me walk you through this from the Sandblast TV side.";
-      break;
-
-    case "radio":
-      prefix = isInternal
-        ? "This sits on the radio / live audio side of Sandblast, behind the scenes."
-        : "This touches the Sandblast radio and live audio side.";
-      break;
-
-    case "news_canada":
-      prefix = isInternal
-        ? "This is tied to News Canada content inside the Sandblast ecosystem."
-        : "This connects into the News Canada content you’ll see across Sandblast.";
-      break;
-
-    case "consulting":
-      prefix = isInternal
-        ? "This is in the AI consulting lane, where we shape offers, systems, and messaging."
-        : "This is in the AI consulting lane—how we use AI to support real businesses.";
-      break;
-
-    case "public_domain":
-      prefix = isInternal
-        ? "This is a public-domain / rights-check question from the Sandblast PD Watchdog angle."
-        : "This is about public-domain content and how Sandblast keeps things clean and compliant.";
-      break;
-
-    case "internal":
-      prefix =
-        "You’re in internal mode, so I’ll keep this direct and practical.";
-      break;
-
-    default:
-      prefix = isInternal
-        ? "I’ll give you a clean, internal view of this."
-        : "I’ll keep this simple and focused so it’s easy to act on.";
-      break;
+  // -------------------------------
+  // Domain-aware intros
+  // -------------------------------
+  if (isInternal) {
+    // Internal mode: hybrid strategic + technical
+    switch (domain) {
+      case "tv":
+        intro =
+          "Internally, this sits on the Sandblast TV layer. Let’s frame it clearly. ";
+        break;
+      case "radio":
+        intro =
+          "Internally, this touches the radio/live audio layer. Here’s the clean view. ";
+        break;
+      case "news_canada":
+        intro =
+          "From an internal News Canada perspective, here’s the structure. ";
+        break;
+      case "consulting":
+        intro =
+          "Looking at this through your AI consulting and strategy lane, here’s the outline. ";
+        break;
+      case "public_domain":
+        intro =
+          "From a public-domain and safety standpoint inside Sandblast, this is the picture. ";
+        break;
+      case "internal":
+        intro = "Internal builder mode. Let’s keep this sharp and structured. ";
+        break;
+      default:
+        intro = "Internally, here’s the clean breakdown. ";
+        break;
+    }
+  } else {
+    // Public / welcome mode: sleek, calm, professional
+    if (category === "welcome" || intent === "welcome") {
+      intro = ""; // Greeting already carries the right tone
+    } else {
+      switch (domain) {
+        case "tv":
+          intro = "Let’s anchor this on Sandblast TV. ";
+          break;
+        case "radio":
+          intro = "Looking at the radio/live audio side, here’s how it lines up. ";
+          break;
+        case "news_canada":
+          intro =
+            "From the News Canada content layer, here’s what matters. ";
+          break;
+        case "consulting":
+          intro =
+            "From the AI consulting side of Sandblast, here’s the clear view. ";
+          break;
+        case "public_domain":
+          intro =
+            "From a public-domain perspective, here’s the steady path. ";
+          break;
+        default:
+          intro = "";
+          break;
+      }
+    }
   }
 
-  // Subtle suffix for clarity (only in public mode so we don’t clutter internal)
-  if (!isInternal) {
-    suffix =
-      "\n\nIf you want to zoom in further—TV, radio, News Canada, ads, or AI consulting—just say which lane you care about and I’ll narrow it down.";
+  // -------------------------------
+  // Optional “next logical step” guidance (Option B)
+  // Only when actually helpful, not always.
+// -------------------------------
+  const trimmed = rawMessage.trim();
+  const endsWithQuestion = /[?？！]$/.test(trimmed);
+  const isShortEnough = trimmed.length > 0 && trimmed.length < 700;
+
+  let shouldAddNextStep = false;
+
+  if (!isErrorLike && !endsWithQuestion && isShortEnough) {
+    // Avoid adding guidance when user is clearly just saying thanks / goodbye
+    const isClosure =
+      userLower.includes("thank") ||
+      userLower.includes("thanks") ||
+      userLower.includes("goodnight") ||
+      userLower.includes("good night") ||
+      userLower.includes("bye");
+
+    if (!isClosure) {
+      shouldAddNextStep = true;
+    }
   }
 
-  const wrappedMessage = [prefix, originalMessage, suffix]
-    .filter((part) => part && part.trim())
-    .join("\n\n");
+  if (shouldAddNextStep) {
+    if (isInternal) {
+      // Internal guidance: talk like a partner to Mac
+      outro =
+        "\n\nYour next logical step is this: tell me which layer you want to refine next—TV, radio, streaming, News Canada, consulting, or the backend/frontend systems—so I can tighten the architecture around it.";
+    } else {
+      // Public guidance: guide visitors through the ecosystem
+      outro =
+        "\n\nYour next logical step is this: tell me whether you’re focused on Sandblast TV, radio, streaming, News Canada, advertising, or AI consulting so I can guide you more precisely.";
+    }
+  }
+
+  const finalMessage = `${intro}${trimmed}${outro}`.trim();
 
   return {
-    ...corePayload,
-    message: wrappedMessage,
+    ...payload,
+    message: finalMessage,
   };
 }
 
+// ---------------------------------------------
+// Exports
+// ---------------------------------------------
 module.exports = {
   resolveBoundaryContext,
   isInternalContext,
