@@ -1,6 +1,6 @@
 // index.js
 // Main backend entry point for Sandblast GPT / Nyx
-// Key-free version: no external TTS/OpenAI required, safe for current Webflow widget.
+// B4-ready: session-aware meta, no external TTS/OpenAI dependencies
 
 const express = require("express");
 const cors = require("cors");
@@ -11,6 +11,8 @@ const nyxPersonality = require("./Utils/nyxPersonality");
 // Intent classifier (your custom logic in Utils/intentClassifier.js)
 const intentClassifier = require("./Utils/intentClassifier");
 
+const { detectEmotionalState } = nyxPersonality;
+
 const app = express();
 
 // Middlewares
@@ -19,6 +21,29 @@ app.use(cors());
 
 // Use Render's port or default to 3000 locally
 const PORT = process.env.PORT || 3000;
+
+// ---------------------------------------------
+// Utility: safe string extraction
+// ---------------------------------------------
+function safeString(value, fallback = "") {
+  if (typeof value === "string") return value;
+  if (value === null || value === undefined) return fallback;
+  return String(value);
+}
+
+// Lightweight logging helper (keeps content minimal but useful)
+function logRouteEvent(route, details = {}) {
+  try {
+    const payload = {
+      route,
+      ts: new Date().toISOString(),
+      ...details,
+    };
+    console.log("[Sandblast]", JSON.stringify(payload));
+  } catch (e) {
+    console.log("[Sandblast] logRouteEvent error:", e.message);
+  }
+}
 
 // ---------------------------------------------
 // Health check routes
@@ -41,33 +66,8 @@ app.get("/health", (req, res) => {
 });
 
 // ---------------------------------------------
-// Utility helpers
+// Intent → Domain mapping
 // ---------------------------------------------
-
-function safeString(value, fallback = "") {
-  if (typeof value === "string") return value;
-  if (value === null || value === undefined) return fallback;
-  return String(value);
-}
-
-// Lightweight logging helper
-function logRouteEvent(route, details = {}) {
-  try {
-    const payload = {
-      route,
-      ts: new Date().toISOString(),
-      ...details,
-    };
-    console.log("[Sandblast]", JSON.stringify(payload));
-  } catch (e) {
-    console.log("[Sandblast] logRouteEvent error:", e.message);
-  }
-}
-
-// ---------------------------------------------
-// CORE BRAIN: Intent + Domain Routing
-// ---------------------------------------------
-
 function mapIntentToDomain(intent) {
   const label = safeString(intent).toLowerCase();
 
@@ -77,8 +77,7 @@ function mapIntentToDomain(intent) {
   if (label.includes("radio")) return "radio";
   if (label.includes("news")) return "news_canada";
   if (label.includes("consult")) return "consulting";
-  if (label.includes("pd") || label.includes("public_domain"))
-    return "public_domain";
+  if (label.includes("pd") || label.includes("public_domain")) return "public_domain";
   if (label.includes("internal")) return "internal";
 
   return "general";
@@ -86,12 +85,8 @@ function mapIntentToDomain(intent) {
 
 /**
  * Map topicHint (from the front-end widget) to domain + intent.
- * Expected topicHint values from Webflow:
- *   - "tv_streaming"
- *   - "radio_live"
- *   - "ai_consulting"
- *   - "overview"
- *   - "general"
+ * This lets Webflow chips (tv_streaming, radio_live, ai_consulting, overview)
+ * strongly steer which domain handler we use.
  */
 function mapTopicHintToDomainIntent(topicHintRaw, isInternal) {
   const topic = safeString(topicHintRaw).toLowerCase();
@@ -139,6 +134,56 @@ function mapTopicHintToDomainIntent(topicHintRaw, isInternal) {
   };
 }
 
+// ---------------------------------------------
+// B4: Session Meta Builder
+// ---------------------------------------------
+//
+// Keeps Nyx lightly aware of where we are in this conversation.
+// No DB, purely request/response.
+//
+function buildUpdatedMeta(prevMeta, context = {}) {
+  const {
+    domain,
+    intent,
+    userMessage,
+    emotion,
+    summary,
+  } = context;
+
+  const safePrev =
+    prevMeta && typeof prevMeta === "object" ? prevMeta : {};
+
+  const next = { ...safePrev };
+
+  if (!next.sessionId) {
+    next.sessionId = safePrev.sessionId || `nyx-${Date.now()}`;
+  }
+
+  // Step index (how many exchanges we've had in this session)
+  const prevStep =
+    typeof safePrev.stepIndex === "number" ? safePrev.stepIndex : 0;
+  next.stepIndex = prevStep + 1;
+
+  // Domain + intent continuity
+  next.lastDomain = domain || safePrev.lastDomain || "general";
+  next.lastIntent = intent || safePrev.lastIntent || "general";
+
+  // Emotional continuity
+  next.lastEmotion = emotion || safePrev.lastEmotion || "neutral";
+
+  // Simple short summary (optional)
+  if (summary && summary.trim()) {
+    next.lastSummary = summary.trim();
+  } else if (userMessage) {
+    next.lastSummary = safeString(userMessage).slice(0, 140);
+  }
+
+  return next;
+}
+
+// ---------------------------------------------
+// CORE BRAIN: Intent + Domain Routing
+// ---------------------------------------------
 async function runCoreLogic(userMessage, boundaryContext, meta = {}) {
   const text = safeString(userMessage);
   const lower = text.toLowerCase();
@@ -255,7 +300,7 @@ async function runCoreLogic(userMessage, boundaryContext, meta = {}) {
   });
 
   // ------------------------------------------------------------------
-  // STEP 3: Route to Domain Handlers (pure logic, no external APIs)
+  // STEP 3: Route to Domain Handlers
   // ------------------------------------------------------------------
 
   let corePayload;
@@ -267,11 +312,7 @@ async function runCoreLogic(userMessage, boundaryContext, meta = {}) {
         break;
 
       case "radio":
-        corePayload = await handleRadioDomain(
-          userMessage,
-          boundaryContext,
-          meta
-        );
+        corePayload = await handleRadioDomain(userMessage, boundaryContext, meta);
         break;
 
       case "news_canada":
@@ -291,11 +332,7 @@ async function runCoreLogic(userMessage, boundaryContext, meta = {}) {
         break;
 
       case "public_domain":
-        corePayload = await handlePublicDomain(
-          userMessage,
-          boundaryContext,
-          meta
-        );
+        corePayload = await handlePublicDomain(userMessage, boundaryContext, meta);
         break;
 
       case "internal":
@@ -310,10 +347,10 @@ async function runCoreLogic(userMessage, boundaryContext, meta = {}) {
         corePayload = {
           intent,
           category: isInternal ? "internal" : "public",
+          domain: "general",
           message:
             "I’ve registered your request, but it didn’t map cleanly to a specific Sandblast area yet. " +
             "You can ask about Sandblast TV, radio, streaming, News Canada, advertising, AI consulting, or public-domain verification.",
-          domain: "general",
         };
         break;
     }
@@ -322,9 +359,9 @@ async function runCoreLogic(userMessage, boundaryContext, meta = {}) {
     corePayload = {
       intent: "handler_error",
       category: isInternal ? "internal" : "public",
+      domain: "general",
       message:
         "I hit an internal error while routing that request. The backend is still running, but that specific branch needs a check.",
-      domain: "general",
     };
   }
 
@@ -333,7 +370,7 @@ async function runCoreLogic(userMessage, boundaryContext, meta = {}) {
   corePayload.category =
     corePayload.category || (isInternal ? "internal" : "public");
 
-  // Expose domain explicitly so nyxPersonality can shape tone by area
+  // Expose domain explicitly
   corePayload.domain = corePayload.domain || domain || "general";
 
   // Ensure we never return a payload without a message
@@ -345,19 +382,16 @@ async function runCoreLogic(userMessage, boundaryContext, meta = {}) {
   return corePayload;
 }
 
-// ---------------------------------------------
+// ------------------------------------------------------------------
 // DOMAIN HANDLERS (TV / Radio / News / Consulting / PD / Internal)
-// Pure logic – no external APIs
-// ---------------------------------------------
+// ------------------------------------------------------------------
 
 async function handleTvDomain(userMessage, boundaryContext, meta) {
   const isInternal = nyxPersonality.isInternalContext(boundaryContext);
   const lower = safeString(userMessage).toLowerCase();
 
   const mentionsTtDash =
-    lower.includes("ttdash") ||
-    lower.includes("tt dash") ||
-    lower.includes("tt-dash");
+    lower.includes("ttdash") || lower.includes("tt dash") || lower.includes("tt-dash");
   const mentionsRoku = lower.includes("roku");
 
   let intent;
@@ -400,8 +434,8 @@ async function handleTvDomain(userMessage, boundaryContext, meta) {
   return {
     intent,
     category,
-    message,
     domain: "tv",
+    message,
   };
 }
 
@@ -427,8 +461,8 @@ async function handleRadioDomain(userMessage, boundaryContext, meta) {
   return {
     intent,
     category,
-    message,
     domain: "radio",
+    message,
   };
 }
 
@@ -454,8 +488,8 @@ async function handleNewsCanadaDomain(userMessage, boundaryContext, meta) {
   return {
     intent,
     category,
-    message,
     domain: "news_canada",
+    message,
   };
 }
 
@@ -481,8 +515,8 @@ async function handleConsultingDomain(userMessage, boundaryContext, meta) {
   return {
     intent,
     category,
-    message,
     domain: "consulting",
+    message,
   };
 }
 
@@ -508,8 +542,8 @@ async function handlePublicDomain(userMessage, boundaryContext, meta) {
   return {
     intent,
     category,
-    message,
     domain: "public_domain",
+    message,
   };
 }
 
@@ -523,8 +557,8 @@ async function handleInternalDomain(userMessage, boundaryContext, meta) {
   return {
     intent,
     category,
-    message,
     domain: "internal",
+    message,
   };
 }
 
@@ -532,14 +566,14 @@ async function handleInternalDomain(userMessage, boundaryContext, meta) {
 // Core API: Sandblast GPT / Nyx endpoint
 // ---------------------------------------------
 //
-// Expected POST body (from Webflow widget):
+// Expected POST body (from Webflow widget now):
 // {
-//   "message": "user message",           // required
-//   "actorName": "Mac" | "Jess" | "Nick",// optional
+//   "message": "user message",        // required
+//   "actorName": "Mac" | "Jess" | "Nick", // optional
 //   "channel": "public" | "admin" | "internal",
-//   "persona": "nyx",
+//   "persona": "nyx",                 // from widget
 //   "topicHint": "tv_streaming" | "radio_live" | "ai_consulting" | "overview" | "general",
-//   "meta": {...}
+//   "meta": { ...session state... }
 // }
 //
 
@@ -557,13 +591,13 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     const persona = safeString(body.persona || "nyx").trim().toLowerCase();
     const topicHint = safeString(body.topicHint).trim().toLowerCase();
 
-    // Meta: keep whatever was passed, then add widget metadata
-    const meta =
+    // Meta: incoming session state
+    const incomingMeta =
       body.meta && typeof body.meta === "object" ? { ...body.meta } : {};
 
-    if (topicHint) meta.topicHint = topicHint;
-    if (persona) meta.persona = persona;
-    if (channel) meta.channel = channel;
+    if (topicHint) incomingMeta.topicHint = topicHint;
+    if (persona) incomingMeta.persona = persona;
+    if (channel) incomingMeta.channel = channel;
 
     if (!userMessage) {
       return res.status(400).json({
@@ -587,14 +621,25 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       messagePreview: userMessage.slice(0, 80),
     });
 
+    // 1) Detect emotion up-front for meta + tone
+    const currentEmotion = detectEmotionalState(userMessage);
+
     // 2) Front-door conversational handling (greetings, small talk, quick support)
     const frontDoorPayload = nyxPersonality.handleNyxFrontDoor(userMessage);
 
     if (frontDoorPayload) {
       const wrapped = nyxPersonality.wrapWithNyxTone(
         frontDoorPayload,
-        userMessage
+        userMessage,
+        incomingMeta
       );
+
+      const updatedMeta = buildUpdatedMeta(incomingMeta, {
+        domain: wrapped.domain || "general",
+        intent: wrapped.intent || "welcome",
+        userMessage,
+        emotion: currentEmotion,
+      });
 
       return res.json({
         ok: true,
@@ -603,18 +648,32 @@ app.post("/api/sandblast-gpt", async (req, res) => {
         actor: boundaryContext.actor,
         boundaryDescription: boundaryContext.boundary.description,
         response: wrapped,
+        meta: updatedMeta,
         durationMs: Date.now() - startTime,
       });
     }
 
-    // 3) Core brain: classifier + domain routing
-    const corePayload = await runCoreLogic(userMessage, boundaryContext, meta);
+    // 3) Core brain: classifier + domain routing (now topicHint-aware)
+    const corePayload = await runCoreLogic(
+      userMessage,
+      boundaryContext,
+      incomingMeta
+    );
 
-    // 4) Wrap final payload with Nyx tone & patterns
+    // 4) Wrap final payload with Nyx tone & patterns (meta-aware)
     const finalPayload = nyxPersonality.wrapWithNyxTone(
       corePayload,
-      userMessage
+      userMessage,
+      incomingMeta
     );
+
+    // 5) Build updated meta and return
+    const updatedMeta = buildUpdatedMeta(incomingMeta, {
+      domain: finalPayload.domain || corePayload.domain || "general",
+      intent: finalPayload.intent || corePayload.intent || "general",
+      userMessage,
+      emotion: currentEmotion,
+    });
 
     return res.json({
       ok: true,
@@ -623,7 +682,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       actor: boundaryContext.actor,
       boundaryDescription: boundaryContext.boundary.description,
       response: finalPayload,
-      meta,
+      meta: updatedMeta,
       durationMs: Date.now() - startTime,
     });
   } catch (err) {
@@ -637,60 +696,23 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 });
 
 // ---------------------------------------------
-// Text-to-Speech (TTS) endpoint for Nyx / Sandblast
+// Text-to-Speech stub (no external provider)
 // ---------------------------------------------
 //
-// NO external TTS provider here.
-// This endpoint simply confirms TTS is "disabled" on backend.
-// Front-end (Webflow) should use browser TTS (speechSynthesis) or other client-side voice.
-// ---------------------------------------------
-
+// Kept only so old front-ends don’t 500. It intentionally
+// returns a clear "not implemented" response.
+//
 app.post("/api/tts", async (req, res) => {
-  try {
-    const body = req.body || {};
-    const text = safeString(body.text).trim();
-
-    if (!text) {
-      return res.status(400).json({
-        ok: false,
-        error: "Missing 'text' in request body for /api/tts.",
-      });
-    }
-
-    logRouteEvent("tts_request_disabled", {
-      textLength: text.length,
-      note: "Backend TTS disabled; use browser/client-side TTS.",
-    });
-
-    return res.json({
-      ok: true,
-      audioBase64: null,
-      meta: {
-        mode: "disabled",
-        reason:
-          "Backend TTS not configured. Use browser TTS (speechSynthesis) or another client-side voice system.",
-        textLength: text.length,
-      },
-    });
-  } catch (err) {
-    console.error("Error in /api/tts:", err);
-    // Even on error, do NOT explode – still report disabled
-    return res.json({
-      ok: true,
-      audioBase64: null,
-      meta: {
-        mode: "disabled",
-        reason:
-          "Backend TTS hit an internal error but remains in 'disabled' mode. Use client-side TTS.",
-      },
-    });
-  }
+  return res.status(501).json({
+    ok: false,
+    error:
+      "Server-side TTS is not implemented. Nyx currently uses browser-based speech or pre-rendered audio.",
+  });
 });
 
 // ---------------------------------------------
 // Start server
 // ---------------------------------------------
-
 app.listen(PORT, () => {
   console.log(`Sandblast backend listening on port ${PORT}`);
 });
