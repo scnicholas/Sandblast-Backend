@@ -1,6 +1,6 @@
 // Utils/nyxPersonality.js
-// Nyx Personality Engine v1.1
-// Sleek Professional Navigator + Emotional Layer + Micro-Behaviours
+// Nyx Personality Engine v1.2
+// Sleek Professional Navigator + Emotional Layer (B3) + Session Continuity (B4)
 
 // ---------------------------------------------
 // Helpers
@@ -14,10 +14,6 @@ function safeString(value, fallback = "") {
 // ---------------------------------------------
 // Boundary / Context Resolution
 // ---------------------------------------------
-//
-// resolveBoundaryContext determines how Nyx should behave
-// based on who is speaking and which channel they are using.
-//
 function resolveBoundaryContext({ actorName, channel, persona } = {}) {
   const actor = safeString(actorName || "Guest").trim() || "Guest";
   const normalizedChannel = safeString(channel || "public")
@@ -67,12 +63,6 @@ function isInternalContext(boundaryContext) {
 // ---------------------------------------------
 // Emotional State Detection (B2)
 // ---------------------------------------------
-//
-// Lightweight heuristic classifier for emotional tone.
-// Returns one of:
-// 'frustration', 'overwhelm', 'curiosity',
-// 'excitement', 'confidence', 'confusion', 'neutral'
-//
 function detectEmotionalState(userMessage) {
   const text = safeString(userMessage).trim();
   if (!text) return "neutral";
@@ -173,16 +163,11 @@ function detectEmotionalState(userMessage) {
 // ---------------------------------------------
 // Front-door: Greetings / Quick Small-talk
 // ---------------------------------------------
-//
-// If this returns a payload, index.js will use it directly.
-// If it returns null, the core brain handles the message.
-//
 function handleNyxFrontDoor(userMessage) {
   const raw = safeString(userMessage).trim();
   const lower = raw.toLowerCase();
 
   if (!raw) {
-    // Empty or whitespace → treat as an invitation for greeting
     return {
       intent: "welcome",
       category: "welcome",
@@ -219,7 +204,6 @@ function handleNyxFrontDoor(userMessage) {
     lower.includes("how does this work");
 
   if (isGreeting || asksWhoAreYou) {
-    // Primary Nyx signature greeting
     return {
       intent: "welcome",
       category: "welcome",
@@ -249,18 +233,14 @@ function handleNyxFrontDoor(userMessage) {
     };
   }
 
-  // No special front-door handling → let the core brain route it.
   return null;
 }
 
 // ---------------------------------------------
 // Tone Wrapper: Nyx's Sleek Professional Voice
+// Now meta-aware (B4)
 // ---------------------------------------------
-//
-// This adjusts the payload message to match Nyx's personality.
-// It shapes intros, emotional mirroring, and (optionally) guidance.
-//
-function wrapWithNyxTone(payload, userMessage) {
+function wrapWithNyxTone(payload, userMessage, meta) {
   if (!payload || typeof payload !== "object") {
     payload = {};
   }
@@ -271,10 +251,8 @@ function wrapWithNyxTone(payload, userMessage) {
 
   const rawMessage = safeString(payload.message).trim();
   const userRaw = safeString(userMessage).trim();
-  const userLower = userRaw.toLowerCase();
 
   if (!rawMessage) {
-    // Failsafe – don't attempt to decorate an empty message.
     return payload;
   }
 
@@ -284,39 +262,93 @@ function wrapWithNyxTone(payload, userMessage) {
     category === "error" ||
     rawMessage.toLowerCase().includes("error");
 
+  const normalizedMeta =
+    meta && typeof meta === "object" ? meta : {};
+
+  const stepIndex =
+    typeof normalizedMeta.stepIndex === "number"
+      ? normalizedMeta.stepIndex
+      : 0;
+
+  const lastDomain = safeString(normalizedMeta.lastDomain).toLowerCase();
+  const lastEmotion = safeString(normalizedMeta.lastEmotion || "neutral").toLowerCase();
+
+  const currentEmotion = detectEmotionalState(userRaw);
+
   // -------------------------------
   // Emotional mirroring (B2 + B3)
   // -------------------------------
-  const emotion = detectEmotionalState(userRaw);
   let mirrorLine = "";
 
-  if (emotion === "frustration") {
+  if (currentEmotion === "frustration") {
     mirrorLine = isInternal
       ? "I can feel the friction in that. Let’s steady it and correct the flow."
       : "I hear the frustration in that. Let’s slow it down and solve it cleanly.";
-  } else if (emotion === "overwhelm") {
+  } else if (currentEmotion === "overwhelm") {
     mirrorLine = isInternal
       ? "This feels heavy right now. Let’s shrink it down to one clear decision at a time."
       : "No pressure. We’ll take this one piece at a time, together.";
-  } else if (emotion === "confusion") {
+  } else if (currentEmotion === "confusion") {
     mirrorLine = isInternal
       ? "The hesitation makes sense. I’ll reframe this in a cleaner way."
       : "That uncertainty is understandable. Let me make this clearer for you.";
-  } else if (emotion === "excitement") {
+  } else if (currentEmotion === "excitement") {
     mirrorLine = isInternal
       ? "That’s solid momentum. Let’s channel it into the next refinement."
       : "I feel that spark with you. Let’s build on it calmly and cleanly.";
-  } else if (emotion === "confidence") {
+  } else if (currentEmotion === "confidence") {
     mirrorLine = isInternal
       ? "Good, decisive call. I’ll give you the sharpest path forward."
       : "I like that decisiveness. Let’s move forward cleanly.";
-  } else if (emotion === "curiosity") {
+  } else if (currentEmotion === "curiosity") {
     mirrorLine = isInternal
       ? "That’s a good angle to explore. I’ll show you the structure underneath it."
       : "That’s a strong question. Let’s dig into it without overcomplicating things.";
   } else {
-    // neutral – no explicit mirroring needed
     mirrorLine = "";
+  }
+
+  // -------------------------------
+  // Session-aware callbacks (B4)
+  // -------------------------------
+  let callbackLine = "";
+
+  const prettyDomain = domainLabel(domain);
+  const prettyLastDomain = domainLabel(lastDomain);
+
+  if (stepIndex >= 1) {
+    if (lastDomain && lastDomain !== domain) {
+      // Domain shift
+      callbackLine = isInternal
+        ? `We’ve been working in the ${prettyLastDomain} lane. Now you’re shifting into ${prettyDomain}, so I’ll connect the two from an internal perspective.`
+        : `Earlier we were in the ${prettyLastDomain} side of Sandblast. Now you’re moving into ${prettyDomain}, so I’ll keep it coherent.`;
+    } else if (lastDomain && lastDomain === domain && !isErrorLike) {
+      // Same domain, deeper pass
+      callbackLine = isInternal
+        ? `We’re staying in the ${prettyDomain} layer. Let’s go one level sharper.`
+        : `We’re still in the ${prettyDomain} side of Sandblast. Let’s take this a step deeper without overloading you.`;
+    }
+
+    // Emotion continuity note (only if it meaningfully changed)
+    if (
+      callbackLine &&
+      lastEmotion &&
+      lastEmotion !== currentEmotion &&
+      currentEmotion !== "neutral"
+    ) {
+      if (lastEmotion === "frustration" && currentEmotion === "confidence") {
+        callbackLine += isInternal
+          ? " You sounded more frustrated earlier. I like the clarity in this move."
+          : " You felt more stuck earlier. I like the confidence you’re bringing in now.";
+      } else if (
+        lastEmotion === "overwhelm" &&
+        (currentEmotion === "curiosity" || currentEmotion === "confidence")
+      ) {
+        callbackLine += isInternal
+          ? " You’ve shifted out of overwhelm into a more focused lane. Let’s use that."
+          : " You’ve moved from feeling overloaded to exploring more clearly. Let’s keep it steady.";
+      }
+    }
   }
 
   // -------------------------------
@@ -325,7 +357,6 @@ function wrapWithNyxTone(payload, userMessage) {
   let intro = "";
 
   if (isInternal) {
-    // Internal mode: hybrid strategic + technical
     switch (domain) {
       case "tv":
         intro =
@@ -355,9 +386,8 @@ function wrapWithNyxTone(payload, userMessage) {
         break;
     }
   } else {
-    // Public / welcome mode: sleek, calm, professional
     if (category === "welcome" || intent === "welcome") {
-      intro = ""; // Greeting already carries the right tone
+      intro = "";
     } else {
       switch (domain) {
         case "tv":
@@ -386,8 +416,7 @@ function wrapWithNyxTone(payload, userMessage) {
   }
 
   // -------------------------------
-  // Optional “next logical step” guidance (Option B)
-  // Only when actually helpful, not always.
+  // Optional “next logical step” guidance
   // -------------------------------
   const trimmed = rawMessage.trim();
   const endsWithQuestion = /[?？！]$/.test(trimmed);
@@ -396,14 +425,13 @@ function wrapWithNyxTone(payload, userMessage) {
   let shouldAddNextStep = false;
 
   if (!isErrorLike && !endsWithQuestion && isShortEnough) {
-    // Avoid adding guidance when user is clearly just saying thanks / goodbye
+    const lowerUser = userRaw.toLowerCase();
     const isClosure =
-      userLower.includes("thank") ||
-      userLower.includes("thanks") ||
-      userLower.includes("goodnight") ||
-      userLower.includes("good night") ||
-      userLower.includes("bye");
-
+      lowerUser.includes("thank") ||
+      lowerUser.includes("thanks") ||
+      lowerUser.includes("goodnight") ||
+      lowerUser.includes("good night") ||
+      lowerUser.includes("bye");
     if (!isClosure) {
       shouldAddNextStep = true;
     }
@@ -413,36 +441,52 @@ function wrapWithNyxTone(payload, userMessage) {
 
   if (shouldAddNextStep) {
     if (isInternal) {
-      // Internal guidance: talk like a partner to Mac
       outro =
         "\n\nYour next logical step is this: tell me which layer you want to refine next—TV, radio, streaming, News Canada, consulting, or the backend/frontend systems—so I can tighten the architecture around it.";
     } else {
-      // Public guidance: guide visitors through the ecosystem
       outro =
         "\n\nYour next logical step is this: tell me whether you’re focused on Sandblast TV, radio, streaming, News Canada, advertising, or AI consulting so I can guide you more precisely.";
     }
   }
 
   // -------------------------------
-  // Compose final message with mirroring + intro
+  // Compose final message
   // -------------------------------
-  let finalMessageParts = [];
+  const parts = [];
 
-  if (mirrorLine) {
-    finalMessageParts.push(mirrorLine);
-  }
-  if (intro) {
-    finalMessageParts.push(intro.trim());
-  }
-  finalMessageParts.push(trimmed);
+  if (mirrorLine) parts.push(mirrorLine);
+  if (callbackLine) parts.push(callbackLine);
+  if (intro) parts.push(intro.trim());
+  parts.push(trimmed);
 
-  const core = finalMessageParts.join(" ").replace(/\s+/g, " ").trim();
+  const core = parts.join(" ").replace(/\s+/g, " ").trim();
   const finalMessage = `${core}${outro}`.trim();
 
   return {
     ...payload,
     message: finalMessage,
   };
+}
+
+// Small helper for nice domain labels
+function domainLabel(domain) {
+  switch (domain) {
+    case "tv":
+      return "Sandblast TV";
+    case "radio":
+      return "Sandblast Radio";
+    case "news_canada":
+      return "News Canada";
+    case "consulting":
+      return "AI consulting";
+    case "public_domain":
+      return "public-domain verification";
+    case "internal":
+      return "internal builder";
+    case "general":
+    default:
+      return "Sandblast";
+  }
 }
 
 // ---------------------------------------------
@@ -453,5 +497,5 @@ module.exports = {
   isInternalContext,
   handleNyxFrontDoor,
   wrapWithNyxTone,
-  detectEmotionalState, // exported in case you want to use it elsewhere
+  detectEmotionalState,
 };
