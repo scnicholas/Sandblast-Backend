@@ -10,8 +10,21 @@ const nyxPersonality = require("./Utils/nyxPersonality");
 // Intent classifier (your custom logic in Utils/intentClassifier.js)
 const intentClassifier = require("./Utils/intentClassifier");
 
-// Nyx -> OpenAI brain (optional, safe fallback if not configured)
-const { generateNyxReply } = require("./Utils/nyxOpenAI");
+// Optional: Nyx -> OpenAI refinement layer
+// This is loaded defensively so the backend still works even if nyxOpenAI
+// or its API key is not configured.
+let generateNyxReply = null;
+try {
+  const nyxOpenAI = require("./Utils/nyxOpenAI");
+  if (nyxOpenAI && typeof nyxOpenAI.generateNyxReply === "function") {
+    generateNyxReply = nyxOpenAI.generateNyxReply;
+  }
+} catch (err) {
+  console.warn(
+    "[Sandblast] nyxOpenAI module not loaded; domain answers will use base messages only.",
+    err.message
+  );
+}
 
 const app = express();
 
@@ -43,7 +56,7 @@ app.get("/health", (req, res) => {
 });
 
 // ---------------------------------------------
-// Utility: safe string extraction
+// Utility helpers
 // ---------------------------------------------
 function safeString(value, fallback = "") {
   if (typeof value === "string") return value;
@@ -51,7 +64,7 @@ function safeString(value, fallback = "") {
   return String(value);
 }
 
-// Lightweight logging helper (keeps content minimal but useful)
+// Lightweight logging helper
 function logRouteEvent(route, details = {}) {
   try {
     const payload = {
@@ -263,7 +276,11 @@ async function runCoreLogic(userMessage, boundaryContext, meta = {}) {
         break;
 
       case "radio":
-        corePayload = await handleRadioDomain(userMessage, boundaryContext, meta);
+        corePayload = await handleRadioDomain(
+          userMessage,
+          boundaryContext,
+          meta
+        );
         break;
 
       case "news_canada":
@@ -283,7 +300,11 @@ async function runCoreLogic(userMessage, boundaryContext, meta = {}) {
         break;
 
       case "public_domain":
-        corePayload = await handlePublicDomain(userMessage, boundaryContext, meta);
+        corePayload = await handlePublicDomain(
+          userMessage,
+          boundaryContext,
+          meta
+        );
         break;
 
       case "internal":
@@ -333,17 +354,36 @@ async function runCoreLogic(userMessage, boundaryContext, meta = {}) {
   return corePayload;
 }
 
-// ------------------------------------------------------------------
+// ---------------------------------------------
 // DOMAIN HANDLERS (TV / Radio / News / Consulting / PD / Internal)
 // Each one: build baseMessage -> optionally refine via OpenAI -> return
-// ------------------------------------------------------------------
+// ---------------------------------------------
+
+async function maybeRefineWithOpenAI(context) {
+  if (!generateNyxReply || typeof generateNyxReply !== "function") {
+    return context.baseMessage;
+  }
+  try {
+    const aiMessage = await generateNyxReply(context);
+    if (aiMessage && aiMessage.trim) {
+      const trimmed = aiMessage.trim();
+      return trimmed.length ? trimmed : context.baseMessage;
+    }
+    return context.baseMessage;
+  } catch (err) {
+    console.error("OpenAI refinement error:", err);
+    return context.baseMessage;
+  }
+}
 
 async function handleTvDomain(userMessage, boundaryContext, meta) {
   const isInternal = nyxPersonality.isInternalContext(boundaryContext);
   const lower = safeString(userMessage).toLowerCase();
 
   const mentionsTtDash =
-    lower.includes("ttdash") || lower.includes("tt dash") || lower.includes("tt-dash");
+    lower.includes("ttdash") ||
+    lower.includes("tt dash") ||
+    lower.includes("tt-dash");
   const mentionsRoku = lower.includes("roku");
 
   let intent;
@@ -383,22 +423,14 @@ async function handleTvDomain(userMessage, boundaryContext, meta) {
     }
   }
 
-  // Try to refine via OpenAI; if it fails, use baseMessage
-  let finalMessage = baseMessage;
-  try {
-    const aiMessage = await generateNyxReply({
-      domain: "tv",
-      intent,
-      userMessage,
-      baseMessage,
-      boundaryContext,
-    });
-    if (aiMessage && aiMessage.trim()) {
-      finalMessage = aiMessage.trim();
-    }
-  } catch (err) {
-    console.error("TV domain OpenAI error:", err);
-  }
+  const finalMessage = await maybeRefineWithOpenAI({
+    domain: "tv",
+    intent,
+    userMessage,
+    baseMessage,
+    boundaryContext,
+    meta,
+  });
 
   return {
     intent,
@@ -427,19 +459,14 @@ async function handleRadioDomain(userMessage, boundaryContext, meta) {
       "You’re asking about Sandblast Radio. I can explain what shows are available, how to listen, and how it connects to the rest of Sandblast.";
   }
 
-  let finalMessage = baseMessage;
-  try {
-    const aiMessage = await generateNyxReply({
-      domain: "radio",
-      intent,
-      userMessage,
-      baseMessage,
-      boundaryContext,
-    });
-    if (aiMessage && aiMessage.trim()) finalMessage = aiMessage.trim();
-  } catch (err) {
-    console.error("Radio domain OpenAI error:", err);
-  }
+  const finalMessage = await maybeRefineWithOpenAI({
+    domain: "radio",
+    intent,
+    userMessage,
+    baseMessage,
+    boundaryContext,
+    meta,
+  });
 
   return {
     intent,
@@ -468,19 +495,14 @@ async function handleNewsCanadaDomain(userMessage, boundaryContext, meta) {
       "You’re asking about News Canada on Sandblast. I can help you understand what that content is, how it appears across the platform, and why it’s part of the ecosystem.";
   }
 
-  let finalMessage = baseMessage;
-  try {
-    const aiMessage = await generateNyxReply({
-      domain: "news_canada",
-      intent,
-      userMessage,
-      baseMessage,
-      boundaryContext,
-    });
-    if (aiMessage && aiMessage.trim()) finalMessage = aiMessage.trim();
-  } catch (err) {
-    console.error("NewsCanada domain OpenAI error:", err);
-  }
+  const finalMessage = await maybeRefineWithOpenAI({
+    domain: "news_canada",
+    intent,
+    userMessage,
+    baseMessage,
+    boundaryContext,
+    meta,
+  });
 
   return {
     intent,
@@ -509,19 +531,14 @@ async function handleConsultingDomain(userMessage, boundaryContext, meta) {
       "You’re asking about Sandblast AI consulting. I can outline what kind of AI help is available, who it’s for, and how it can support growth, marketing, and operations.";
   }
 
-  let finalMessage = baseMessage;
-  try {
-    const aiMessage = await generateNyxReply({
-      domain: "consulting",
-      intent,
-      userMessage,
-      baseMessage,
-      boundaryContext,
-    });
-    if (aiMessage && aiMessage.trim()) finalMessage = aiMessage.trim();
-  } catch (err) {
-    console.error("Consulting domain OpenAI error:", err);
-  }
+  const finalMessage = await maybeRefineWithOpenAI({
+    domain: "consulting",
+    intent,
+    userMessage,
+    baseMessage,
+    boundaryContext,
+    meta,
+  });
 
   return {
     intent,
@@ -550,19 +567,14 @@ async function handlePublicDomain(userMessage, boundaryContext, meta) {
       "You’re asking about public-domain content. I can explain how Sandblast approaches public-domain verification and why it matters for TV and streaming.";
   }
 
-  let finalMessage = baseMessage;
-  try {
-    const aiMessage = await generateNyxReply({
-      domain: "public_domain",
-      intent,
-      userMessage,
-      baseMessage,
-      boundaryContext,
-    });
-    if (aiMessage && aiMessage.trim()) finalMessage = aiMessage.trim();
-  } catch (err) {
-    console.error("PublicDomain domain OpenAI error:", err);
-  }
+  const finalMessage = await maybeRefineWithOpenAI({
+    domain: "public_domain",
+    intent,
+    userMessage,
+    baseMessage,
+    boundaryContext,
+    meta,
+  });
 
   return {
     intent,
@@ -579,19 +591,14 @@ async function handleInternalDomain(userMessage, boundaryContext, meta) {
   const baseMessage =
     "You’re in internal mode. I can help with platform planning, debugging, workflow mapping, or content decisions. Tell me whether you’re working on TV, radio, News Canada, consulting, or backend/frontend issues.";
 
-  let finalMessage = baseMessage;
-  try {
-    const aiMessage = await generateNyxReply({
-      domain: "internal",
-      intent,
-      userMessage,
-      baseMessage,
-      boundaryContext,
-    });
-    if (aiMessage && aiMessage.trim()) finalMessage = aiMessage.trim();
-  } catch (err) {
-    console.error("Internal domain OpenAI error:", err);
-  }
+  const finalMessage = await maybeRefineWithOpenAI({
+    domain: "internal",
+    intent,
+    userMessage,
+    baseMessage,
+    boundaryContext,
+    meta,
+  });
 
   return {
     intent,
@@ -605,12 +612,12 @@ async function handleInternalDomain(userMessage, boundaryContext, meta) {
 // Core API: Sandblast GPT / Nyx endpoint
 // ---------------------------------------------
 //
-// Expected POST body (from Webflow widget now):
+// Expected POST body (from Webflow widget):
 // {
 //   "message": "user message",        // required
 //   "actorName": "Mac" | "Jess" | "Nick", // optional
 //   "channel": "public" | "admin" | "internal",
-//   "persona": "nyx",                 // from widget
+//   "persona": "nyx",
 //   "topicHint": "tv_streaming" | "radio_live" | "ai_consulting" | "overview" | "general",
 //   "meta": {...}
 // }
@@ -680,7 +687,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       });
     }
 
-    // 3) Core brain: classifier + domain routing (now topicHint-aware)
+    // 3) Core brain: classifier + domain routing
     const corePayload = await runCoreLogic(userMessage, boundaryContext, meta);
 
     // 4) Wrap final payload with Nyx tone & patterns
@@ -713,24 +720,14 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 // Text-to-Speech (TTS) endpoint for Nyx / Sandblast
 // ---------------------------------------------
 //
-// Expected POST body:
-// {
-//   "text": "string",             // required
-//   "voiceId": "string",          // optional, overrides everything else
-//   "voiceProfile": "nyx" | "vera" | "nova", // optional persona selector
-//   "modelId": "string",          // optional, default ElevenLabs model
-//   "stability": number,          // optional (0–1)
-//   "similarityBoost": number,    // optional (0–1)
-//   "maxChars": number            // optional, soft cap override
-// }
+// This is now SAFE to run with NO API KEYS:
+// - If ELEVENLABS_API_KEY is NOT set, it returns ok:true with mode "disabled"
+//   and leaves audio generation to the front-end (e.g., browser TTS).
 //
-// Returns JSON:
-// {
-//   ok: true,
-//   audioBase64: "...",
-//   meta: { ... }
-// }
-//
+// If you want ElevenLabs, set:
+//   ELEVENLABS_API_KEY
+//   NYX_VOICE_ID / VERA_VOICE_ID / NOVA_VOICE_ID (optional)
+// ---------------------------------------------
 
 app.post("/api/tts", async (req, res) => {
   try {
@@ -745,11 +742,23 @@ app.post("/api/tts", async (req, res) => {
     }
 
     const ELEVEN_API_KEY = process.env.ELEVENLABS_API_KEY;
+
+    // If no key, do NOT error. Just report TTS disabled.
     if (!ELEVEN_API_KEY) {
-      console.error("ELEVENLABS_API_KEY is not set on the server.");
-      return res.status(500).json({
-        ok: false,
-        error: "ELEVENLABS_API_KEY is not set on the server.",
+      logRouteEvent("tts_request_disabled", {
+        reason: "ELEVENLABS_API_KEY not set",
+        textLength: text.length,
+      });
+
+      return res.json({
+        ok: true,
+        audioBase64: null,
+        meta: {
+          mode: "disabled",
+          reason:
+            "TTS backend not configured (no ELEVENLABS_API_KEY). Use client-side TTS or configure ElevenLabs.",
+          textLength: text.length,
+        },
       });
     }
 
@@ -772,17 +781,15 @@ app.post("/api/tts", async (req, res) => {
       }
     }
 
-    // Final fallback: Nyx as default persona if nothing else is set
+    // Final fallback: if we STILL have no voice, return a clear error
     if (!resolvedVoiceId) {
-      resolvedVoiceId = nyxDefaultVoice || "YOUR_DEFAULT_VOICE_ID_HERE";
-    }
-
-    if (!resolvedVoiceId || resolvedVoiceId === "YOUR_DEFAULT_VOICE_ID_HERE") {
-      console.error("No valid ElevenLabs voiceId resolved.");
+      console.error(
+        "No ElevenLabs voiceId resolved; TTS provider configured but no voice IDs found."
+      );
       return res.status(500).json({
         ok: false,
         error:
-          "No valid ElevenLabs voiceId resolved. Set NYX_VOICE_ID / VERA_VOICE_ID / NOVA_VOICE_ID env vars or pass 'voiceId' explicitly.",
+          "ElevenLabs TTS is configured but no voiceId was resolved. Set NYX_VOICE_ID / VERA_VOICE_ID / NOVA_VOICE_ID env vars or pass 'voiceId' explicitly.",
       });
     }
 
@@ -791,9 +798,7 @@ app.post("/api/tts", async (req, res) => {
     const stability =
       typeof body.stability === "number" ? body.stability : 0.5;
     const similarityBoost =
-      typeof body.similarityBoost === "number"
-        ? body.similarityBoost
-        : 0.75;
+      typeof body.similarityBoost === "number" ? body.similarityBoost : 0.75;
 
     const defaultMaxChars = 800;
     const maxChars =
