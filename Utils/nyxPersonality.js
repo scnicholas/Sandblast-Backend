@@ -1,6 +1,6 @@
 // Utils/nyxPersonality.js
-// Nyx Personality Engine v1.0
-// Sleek Professional Navigator for Sandblast
+// Nyx Personality Engine v1.1
+// Sleek Professional Navigator + Emotional Layer + Micro-Behaviours
 
 // ---------------------------------------------
 // Helpers
@@ -62,6 +62,112 @@ function resolveBoundaryContext({ actorName, channel, persona } = {}) {
 function isInternalContext(boundaryContext) {
   if (!boundaryContext) return false;
   return boundaryContext.role === "internal" || boundaryContext.role === "admin";
+}
+
+// ---------------------------------------------
+// Emotional State Detection (B2)
+// ---------------------------------------------
+//
+// Lightweight heuristic classifier for emotional tone.
+// Returns one of:
+// 'frustration', 'overwhelm', 'curiosity',
+// 'excitement', 'confidence', 'confusion', 'neutral'
+//
+function detectEmotionalState(userMessage) {
+  const text = safeString(userMessage).trim();
+  if (!text) return "neutral";
+
+  const lower = text.toLowerCase();
+
+  // Frustration signals
+  if (
+    lower.includes("not working") ||
+    lower.includes("doesn't work") ||
+    lower.includes("doesnt work") ||
+    lower.includes("still no") ||
+    lower.includes("error") ||
+    lower.includes("broken") ||
+    lower.includes("stressing") ||
+    lower.includes("annoying") ||
+    /!!!+$/.test(text)
+  ) {
+    return "frustration";
+  }
+
+  // Overwhelm signals
+  if (
+    lower.includes("too much") ||
+    lower.includes("overwhelmed") ||
+    lower.includes("overwhelm") ||
+    lower.includes("i don't know where to start") ||
+    lower.includes("dont know where to start") ||
+    lower.includes("no idea where to start") ||
+    lower.includes("i can't handle") ||
+    lower.includes("i cant handle") ||
+    lower.includes("lost with this")
+  ) {
+    return "overwhelm";
+  }
+
+  // Confusion signals
+  if (
+    lower.includes("i'm not sure") ||
+    lower.includes("im not sure") ||
+    lower.includes("i dont understand") ||
+    lower.includes("i don't understand") ||
+    lower.includes("what does this mean") ||
+    lower.includes("confused") ||
+    lower === "huh" ||
+    lower === "huh?" ||
+    lower.includes("makes no sense")
+  ) {
+    return "confusion";
+  }
+
+  // Excitement signals
+  if (
+    lower.includes("it's working") ||
+    lower.includes("its working") ||
+    lower.includes("finally") ||
+    lower.includes("yes!") ||
+    lower.includes("this is great") ||
+    lower.includes("love this") ||
+    lower.includes("awesome") ||
+    lower.includes("amazing")
+  ) {
+    return "excitement";
+  }
+
+  // Confidence signals
+  if (
+    lower.includes("move to the next layer") ||
+    lower.includes("next layer") ||
+    lower.includes("next step") ||
+    lower.includes("let's do it") ||
+    lower.includes("lets do it") ||
+    lower.includes("go ahead") ||
+    lower.includes("proceed") ||
+    lower.startsWith("move to ") ||
+    lower.startsWith("let's move") ||
+    lower.startsWith("lets move")
+  ) {
+    return "confidence";
+  }
+
+  // Curiosity signals
+  if (
+    lower.startsWith("how ") ||
+    lower.startsWith("what ") ||
+    lower.startsWith("why ") ||
+    lower.includes("how do i") ||
+    lower.includes("how can i") ||
+    lower.includes("can you explain") ||
+    lower.includes("what if")
+  ) {
+    return "curiosity";
+  }
+
+  return "neutral";
 }
 
 // ---------------------------------------------
@@ -152,7 +258,7 @@ function handleNyxFrontDoor(userMessage) {
 // ---------------------------------------------
 //
 // This adjusts the payload message to match Nyx's personality.
-// It can shape intros and optionally add “next logical step” guidance.
+// It shapes intros, emotional mirroring, and (optionally) guidance.
 //
 function wrapWithNyxTone(payload, userMessage) {
   if (!payload || typeof payload !== "object") {
@@ -172,16 +278,52 @@ function wrapWithNyxTone(payload, userMessage) {
     return payload;
   }
 
-  let intro = "";
-  let outro = "";
-
   const isInternal = category === "internal";
   const isErrorLike =
-    intent.includes("error") || category === "error" || rawMessage.toLowerCase().includes("error");
+    intent.includes("error") ||
+    category === "error" ||
+    rawMessage.toLowerCase().includes("error");
+
+  // -------------------------------
+  // Emotional mirroring (B2 + B3)
+  // -------------------------------
+  const emotion = detectEmotionalState(userRaw);
+  let mirrorLine = "";
+
+  if (emotion === "frustration") {
+    mirrorLine = isInternal
+      ? "I can feel the friction in that. Let’s steady it and correct the flow."
+      : "I hear the frustration in that. Let’s slow it down and solve it cleanly.";
+  } else if (emotion === "overwhelm") {
+    mirrorLine = isInternal
+      ? "This feels heavy right now. Let’s shrink it down to one clear decision at a time."
+      : "No pressure. We’ll take this one piece at a time, together.";
+  } else if (emotion === "confusion") {
+    mirrorLine = isInternal
+      ? "The hesitation makes sense. I’ll reframe this in a cleaner way."
+      : "That uncertainty is understandable. Let me make this clearer for you.";
+  } else if (emotion === "excitement") {
+    mirrorLine = isInternal
+      ? "That’s solid momentum. Let’s channel it into the next refinement."
+      : "I feel that spark with you. Let’s build on it calmly and cleanly.";
+  } else if (emotion === "confidence") {
+    mirrorLine = isInternal
+      ? "Good, decisive call. I’ll give you the sharpest path forward."
+      : "I like that decisiveness. Let’s move forward cleanly.";
+  } else if (emotion === "curiosity") {
+    mirrorLine = isInternal
+      ? "That’s a good angle to explore. I’ll show you the structure underneath it."
+      : "That’s a strong question. Let’s dig into it without overcomplicating things.";
+  } else {
+    // neutral – no explicit mirroring needed
+    mirrorLine = "";
+  }
 
   // -------------------------------
   // Domain-aware intros
   // -------------------------------
+  let intro = "";
+
   if (isInternal) {
     // Internal mode: hybrid strategic + technical
     switch (domain) {
@@ -246,7 +388,7 @@ function wrapWithNyxTone(payload, userMessage) {
   // -------------------------------
   // Optional “next logical step” guidance (Option B)
   // Only when actually helpful, not always.
-// -------------------------------
+  // -------------------------------
   const trimmed = rawMessage.trim();
   const endsWithQuestion = /[?？！]$/.test(trimmed);
   const isShortEnough = trimmed.length > 0 && trimmed.length < 700;
@@ -267,6 +409,8 @@ function wrapWithNyxTone(payload, userMessage) {
     }
   }
 
+  let outro = "";
+
   if (shouldAddNextStep) {
     if (isInternal) {
       // Internal guidance: talk like a partner to Mac
@@ -279,7 +423,21 @@ function wrapWithNyxTone(payload, userMessage) {
     }
   }
 
-  const finalMessage = `${intro}${trimmed}${outro}`.trim();
+  // -------------------------------
+  // Compose final message with mirroring + intro
+  // -------------------------------
+  let finalMessageParts = [];
+
+  if (mirrorLine) {
+    finalMessageParts.push(mirrorLine);
+  }
+  if (intro) {
+    finalMessageParts.push(intro.trim());
+  }
+  finalMessageParts.push(trimmed);
+
+  const core = finalMessageParts.join(" ").replace(/\s+/g, " ").trim();
+  const finalMessage = `${core}${outro}`.trim();
 
   return {
     ...payload,
@@ -295,4 +453,5 @@ module.exports = {
   isInternalContext,
   handleNyxFrontDoor,
   wrapWithNyxTone,
+  detectEmotionalState, // exported in case you want to use it elsewhere
 };
