@@ -1,5 +1,6 @@
 // index.js
 // Main backend entry point for Sandblast GPT / Nyx
+// Version: key-free (no external TTS/OpenAI required)
 
 const express = require("express");
 const cors = require("cors");
@@ -9,22 +10,6 @@ const nyxPersonality = require("./Utils/nyxPersonality");
 
 // Intent classifier (your custom logic in Utils/intentClassifier.js)
 const intentClassifier = require("./Utils/intentClassifier");
-
-// Optional: Nyx -> OpenAI refinement layer
-// This is loaded defensively so the backend still works even if nyxOpenAI
-// or its API key is not configured.
-let generateNyxReply = null;
-try {
-  const nyxOpenAI = require("./Utils/nyxOpenAI");
-  if (nyxOpenAI && typeof nyxOpenAI.generateNyxReply === "function") {
-    generateNyxReply = nyxOpenAI.generateNyxReply;
-  }
-} catch (err) {
-  console.warn(
-    "[Sandblast] nyxOpenAI module not loaded; domain answers will use base messages only.",
-    err.message
-  );
-}
 
 const app = express();
 
@@ -58,6 +43,7 @@ app.get("/health", (req, res) => {
 // ---------------------------------------------
 // Utility helpers
 // ---------------------------------------------
+
 function safeString(value, fallback = "") {
   if (typeof value === "string") return value;
   if (value === null || value === undefined) return fallback;
@@ -356,25 +342,8 @@ async function runCoreLogic(userMessage, boundaryContext, meta = {}) {
 
 // ---------------------------------------------
 // DOMAIN HANDLERS (TV / Radio / News / Consulting / PD / Internal)
-// Each one: build baseMessage -> optionally refine via OpenAI -> return
+// Pure logic – no external APIs
 // ---------------------------------------------
-
-async function maybeRefineWithOpenAI(context) {
-  if (!generateNyxReply || typeof generateNyxReply !== "function") {
-    return context.baseMessage;
-  }
-  try {
-    const aiMessage = await generateNyxReply(context);
-    if (aiMessage && aiMessage.trim) {
-      const trimmed = aiMessage.trim();
-      return trimmed.length ? trimmed : context.baseMessage;
-    }
-    return context.baseMessage;
-  } catch (err) {
-    console.error("OpenAI refinement error:", err);
-    return context.baseMessage;
-  }
-}
 
 async function handleTvDomain(userMessage, boundaryContext, meta) {
   const isInternal = nyxPersonality.isInternalContext(boundaryContext);
@@ -388,17 +357,17 @@ async function handleTvDomain(userMessage, boundaryContext, meta) {
 
   let intent;
   let category;
-  let baseMessage;
+  let message;
 
   if (isInternal) {
     intent = "sandblast_tv_internal";
     category = "internal";
 
-    baseMessage =
+    message =
       "You’re asking about Sandblast TV. Internally, I can help you align the TV layer with the rest of the Sandblast stack: content blocks, channel flow, ad windows, and how it all connects back to your core offers.";
 
     if (mentionsTtDash || mentionsRoku) {
-      baseMessage =
+      message =
         "You’re asking about the Sandblast TV layer in relation to TT Dash and Roku.\n\n" +
         "Here’s how I can support you internally:\n" +
         "1) Platform mapping – how TT Dash acts as the OTT backbone and how the Roku channel sits on top as the viewer-facing endpoint.\n" +
@@ -411,31 +380,22 @@ async function handleTvDomain(userMessage, boundaryContext, meta) {
     intent = "sandblast_tv_public";
     category = "public";
 
-    baseMessage =
+    message =
       "You’re asking about Sandblast TV. It’s the television side of the Sandblast ecosystem—curated programming, classic content, and feature blocks delivered as a streaming channel.";
 
     if (mentionsRoku || mentionsTtDash) {
-      baseMessage +=
+      message +=
         " You’ll be able to access Sandblast TV through supported streaming platforms like Roku, with OTT delivery handled behind the scenes. I can walk you through how to watch, what to expect, and how it connects to Sandblast radio, News Canada, and our AI tools.";
     } else {
-      baseMessage +=
+      message +=
         " If you’d like, I can walk you through what’s on the channel, how to watch it, and how it ties into Sandblast Radio, News Canada content, and AI-powered tools.";
     }
   }
 
-  const finalMessage = await maybeRefineWithOpenAI({
-    domain: "tv",
-    intent,
-    userMessage,
-    baseMessage,
-    boundaryContext,
-    meta,
-  });
-
   return {
     intent,
     category,
-    message: finalMessage,
+    message,
     domain: "tv",
   };
 }
@@ -445,33 +405,24 @@ async function handleRadioDomain(userMessage, boundaryContext, meta) {
 
   let intent;
   let category;
-  let baseMessage;
+  let message;
 
   if (isInternal) {
     intent = "sandblast_radio_internal";
     category = "internal";
-    baseMessage =
+    message =
       "This is about Sandblast Radio or live audio. Internally, I can help with show blocks, ad inventory, automation flow, and integration with the TV/streaming layers.";
   } else {
     intent = "sandblast_radio_public";
     category = "public";
-    baseMessage =
+    message =
       "You’re asking about Sandblast Radio. I can explain what shows are available, how to listen, and how it connects to the rest of Sandblast.";
   }
-
-  const finalMessage = await maybeRefineWithOpenAI({
-    domain: "radio",
-    intent,
-    userMessage,
-    baseMessage,
-    boundaryContext,
-    meta,
-  });
 
   return {
     intent,
     category,
-    message: finalMessage,
+    message,
     domain: "radio",
   };
 }
@@ -481,33 +432,24 @@ async function handleNewsCanadaDomain(userMessage, boundaryContext, meta) {
 
   let intent;
   let category;
-  let baseMessage;
+  let message;
 
   if (isInternal) {
     intent = "news_canada_internal";
     category = "internal";
-    baseMessage =
+    message =
       "You’re asking about News Canada content. Internally, I can help with content selection, placement on the site, performance tracking, and how it supports Sandblast’s authority and ad strategy.";
   } else {
     intent = "news_canada_public";
     category = "public";
-    baseMessage =
+    message =
       "You’re asking about News Canada on Sandblast. I can help you understand what that content is, how it appears across the platform, and why it’s part of the ecosystem.";
   }
-
-  const finalMessage = await maybeRefineWithOpenAI({
-    domain: "news_canada",
-    intent,
-    userMessage,
-    baseMessage,
-    boundaryContext,
-    meta,
-  });
 
   return {
     intent,
     category,
-    message: finalMessage,
+    message,
     domain: "news_canada",
   };
 }
@@ -517,33 +459,24 @@ async function handleConsultingDomain(userMessage, boundaryContext, meta) {
 
   let intent;
   let category;
-  let baseMessage;
+  let message;
 
   if (isInternal) {
     intent = "ai_consulting_internal";
     category = "internal";
-    baseMessage =
+    message =
       "You’re touching the AI consulting side. Internally, I can help you refine offers, structure packages, outline case studies, or draft outreach copy for LinkedIn and partners.";
   } else {
     intent = "ai_consulting_public";
     category = "public";
-    baseMessage =
+    message =
       "You’re asking about Sandblast AI consulting. I can outline what kind of AI help is available, who it’s for, and how it can support growth, marketing, and operations.";
   }
-
-  const finalMessage = await maybeRefineWithOpenAI({
-    domain: "consulting",
-    intent,
-    userMessage,
-    baseMessage,
-    boundaryContext,
-    meta,
-  });
 
   return {
     intent,
     category,
-    message: finalMessage,
+    message,
     domain: "consulting",
   };
 }
@@ -553,33 +486,24 @@ async function handlePublicDomain(userMessage, boundaryContext, meta) {
 
   let intent;
   let category;
-  let baseMessage;
+  let message;
 
   if (isInternal) {
     intent = "pd_verification_internal";
     category = "internal";
-    baseMessage =
+    message =
       "This sounds like a public-domain / Archive.org / PD verification question. Internally, I can help you run through the Sandblast PD Kit steps and document proof for uploads.";
   } else {
     intent = "pd_verification_public";
     category = "public";
-    baseMessage =
+    message =
       "You’re asking about public-domain content. I can explain how Sandblast approaches public-domain verification and why it matters for TV and streaming.";
   }
-
-  const finalMessage = await maybeRefineWithOpenAI({
-    domain: "public_domain",
-    intent,
-    userMessage,
-    baseMessage,
-    boundaryContext,
-    meta,
-  });
 
   return {
     intent,
     category,
-    message: finalMessage,
+    message,
     domain: "public_domain",
   };
 }
@@ -588,22 +512,13 @@ async function handleInternalDomain(userMessage, boundaryContext, meta) {
   const intent = "internal_ops";
   const category = "internal";
 
-  const baseMessage =
+  const message =
     "You’re in internal mode. I can help with platform planning, debugging, workflow mapping, or content decisions. Tell me whether you’re working on TV, radio, News Canada, consulting, or backend/frontend issues.";
-
-  const finalMessage = await maybeRefineWithOpenAI({
-    domain: "internal",
-    intent,
-    userMessage,
-    baseMessage,
-    boundaryContext,
-    meta,
-  });
 
   return {
     intent,
     category,
-    message: finalMessage,
+    message,
     domain: "internal",
   };
 }
@@ -614,8 +529,8 @@ async function handleInternalDomain(userMessage, boundaryContext, meta) {
 //
 // Expected POST body (from Webflow widget):
 // {
-//   "message": "user message",        // required
-//   "actorName": "Mac" | "Jess" | "Nick", // optional
+//   "message": "user message",           // required
+//   "actorName": "Mac" | "Jess" | "Nick",// optional
 //   "channel": "public" | "admin" | "internal",
 //   "persona": "nyx",
 //   "topicHint": "tv_streaming" | "radio_live" | "ai_consulting" | "overview" | "general",
@@ -720,19 +635,15 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 // Text-to-Speech (TTS) endpoint for Nyx / Sandblast
 // ---------------------------------------------
 //
-// This is now SAFE to run with NO API KEYS:
-// - If ELEVENLABS_API_KEY is NOT set, it returns ok:true with mode "disabled"
-//   and leaves audio generation to the front-end (e.g., browser TTS).
-//
-// If you want ElevenLabs, set:
-//   ELEVENLABS_API_KEY
-//   NYX_VOICE_ID / VERA_VOICE_ID / NOVA_VOICE_ID (optional)
+// NO external TTS provider here.
+// This endpoint simply confirms TTS is "disabled" on backend.
+// Front-end (Webflow) should use browser TTS (speechSynthesis) or other client-side voice.
 // ---------------------------------------------
 
 app.post("/api/tts", async (req, res) => {
   try {
     const body = req.body || {};
-    let text = safeString(body.text).trim();
+    const text = safeString(body.text).trim();
 
     if (!text) {
       return res.status(400).json({
@@ -741,141 +652,32 @@ app.post("/api/tts", async (req, res) => {
       });
     }
 
-    const ELEVEN_API_KEY = process.env.ELEVENLABS_API_KEY;
-
-    // If no key, do NOT error. Just report TTS disabled.
-    if (!ELEVEN_API_KEY) {
-      logRouteEvent("tts_request_disabled", {
-        reason: "ELEVENLABS_API_KEY not set",
-        textLength: text.length,
-      });
-
-      return res.json({
-        ok: true,
-        audioBase64: null,
-        meta: {
-          mode: "disabled",
-          reason:
-            "TTS backend not configured (no ELEVENLABS_API_KEY). Use client-side TTS or configure ElevenLabs.",
-          textLength: text.length,
-        },
-      });
-    }
-
-    const voiceProfile = safeString(body.voiceProfile).toLowerCase();
-
-    // Persona-based defaults (set these in your env when ready)
-    const nyxDefaultVoice = process.env.NYX_VOICE_ID || "";
-    const veraDefaultVoice = process.env.VERA_VOICE_ID || "";
-    const novaDefaultVoice = process.env.NOVA_VOICE_ID || "";
-
-    let resolvedVoiceId = safeString(body.voiceId); // explicit override wins
-
-    if (!resolvedVoiceId) {
-      if (voiceProfile === "nyx") {
-        resolvedVoiceId = nyxDefaultVoice;
-      } else if (voiceProfile === "vera") {
-        resolvedVoiceId = veraDefaultVoice;
-      } else if (voiceProfile === "nova") {
-        resolvedVoiceId = novaDefaultVoice;
-      }
-    }
-
-    // Final fallback: if we STILL have no voice, return a clear error
-    if (!resolvedVoiceId) {
-      console.error(
-        "No ElevenLabs voiceId resolved; TTS provider configured but no voice IDs found."
-      );
-      return res.status(500).json({
-        ok: false,
-        error:
-          "ElevenLabs TTS is configured but no voiceId was resolved. Set NYX_VOICE_ID / VERA_VOICE_ID / NOVA_VOICE_ID env vars or pass 'voiceId' explicitly.",
-      });
-    }
-
-    const modelId = safeString(body.modelId, "eleven_monolingual_v1");
-
-    const stability =
-      typeof body.stability === "number" ? body.stability : 0.5;
-    const similarityBoost =
-      typeof body.similarityBoost === "number" ? body.similarityBoost : 0.75;
-
-    const defaultMaxChars = 800;
-    const maxChars =
-      typeof body.maxChars === "number" && body.maxChars > 0
-        ? body.maxChars
-        : defaultMaxChars;
-
-    let truncated = false;
-    if (text.length > maxChars) {
-      text = text.slice(0, maxChars);
-      truncated = true;
-    }
-
-    logRouteEvent("tts_request", {
-      voiceProfile: voiceProfile || null,
-      voiceId: resolvedVoiceId,
-      modelId,
+    logRouteEvent("tts_request_disabled", {
       textLength: text.length,
-      truncated,
+      note: "Backend TTS disabled; use browser/client-side TTS.",
     });
-
-    const url = `https://api.elevenlabs.io/v1/text-to-speech/${resolvedVoiceId}`;
-
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "xi-api-key": ELEVEN_API_KEY,
-        "Content-Type": "application/json",
-        Accept: "audio/mpeg",
-      },
-      body: JSON.stringify({
-        text,
-        model_id: modelId,
-        voice_settings: {
-          stability,
-          similarity_boost: similarityBoost,
-        },
-      }),
-    });
-
-    if (!response || !response.ok) {
-      const status = response ? response.status : "no_response";
-      const errorText = response
-        ? await response.text().catch(() => "")
-        : "No response from ElevenLabs.";
-
-      console.error("ElevenLabs TTS error:", status, errorText);
-
-      return res.status(502).json({
-        ok: false,
-        error: "TTS provider returned an error.",
-        status,
-        details: errorText,
-      });
-    }
-
-    const audioBuffer = await response.arrayBuffer();
-    const audioBase64 = Buffer.from(audioBuffer).toString("base64");
 
     return res.json({
       ok: true,
-      audioBase64,
+      audioBase64: null,
       meta: {
+        mode: "disabled",
+        reason:
+          "Backend TTS not configured. Use browser TTS (speechSynthesis) or another client-side voice system.",
         textLength: text.length,
-        truncated,
-        voiceId: resolvedVoiceId,
-        modelId,
-        stability,
-        similarityBoost,
-        voiceProfile: voiceProfile || null,
       },
     });
   } catch (err) {
     console.error("Error in /api/tts:", err);
-    return res.status(500).json({
-      ok: false,
-      error: "Internal server error in /api/tts.",
+    // Even on error, do NOT explode – still report disabled
+    return res.json({
+      ok: true,
+      audioBase64: null,
+      meta: {
+        mode: "disabled",
+        reason:
+          "Backend TTS hit an internal error but remains in 'disabled' mode. Use client-side TTS.",
+      },
     });
   }
 });
