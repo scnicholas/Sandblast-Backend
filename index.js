@@ -77,7 +77,8 @@ function mapIntentToDomain(intent) {
   if (label.includes("radio")) return "radio";
   if (label.includes("news")) return "news_canada";
   if (label.includes("consult")) return "consulting";
-  if (label.includes("pd") || label.includes("public_domain")) return "public_domain";
+  if (label.includes("pd") || label.includes("public_domain"))
+    return "public_domain";
   if (label.includes("internal")) return "internal";
 
   return "general";
@@ -255,7 +256,7 @@ async function runCoreLogic(userMessage, boundaryContext, meta = {}) {
 
   // ------------------------------------------------------------------
   // STEP 3: Route to Domain Handlers (pure logic, no external APIs)
-// ------------------------------------------------------------------
+  // ------------------------------------------------------------------
 
   let corePayload;
 
