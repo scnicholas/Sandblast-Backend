@@ -19,11 +19,15 @@ const PORT = process.env.PORT || 3000;
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || '';
 const NYX_VOICE_ID = process.env.NYX_VOICE_ID || '';
 
+// Log basic config state (without exposing secrets)
+console.log('[CONFIG] ELEVENLABS_API_KEY set:', !!ELEVENLABS_API_KEY);
+console.log('[CONFIG] NYX_VOICE_ID set:', !!NYX_VOICE_ID);
+
 // --- ROOT / HEALTH CHECK ROUTES ---
 
 // Simple root route so you can test quickly
 app.get('/', (req, res) => {
-  res.send('Sandblast backend is alive. 🧠 Nyx is standing by.');
+  res.send('Sandblast backend is alive. Nyx is standing by.');
 });
 
 // Optional health endpoint
@@ -81,6 +85,7 @@ app.post('/api/sandblast-gpt', async (req, res) => {
 // --- TTS ENDPOINT: /api/tts ---
 // Frontend sends: { text: "some text" }
 // Optional: { text, voiceId }
+// This version returns raw audio/mpeg (not base64 JSON).
 
 app.post('/api/tts', async (req, res) => {
   try {
@@ -88,7 +93,8 @@ app.post('/api/tts', async (req, res) => {
 
     console.log('[/api/tts] Incoming TTS request with text:', text);
 
-    if (!text || !text.toString().trim()) {
+    const cleanText = (text || '').toString().trim();
+    if (!cleanText) {
       return res.status(400).json({ error: 'TEXT_REQUIRED' });
     }
 
@@ -103,7 +109,7 @@ app.post('/api/tts', async (req, res) => {
       return res.status(500).json({ error: 'MISSING_NYX_VOICE_ID' });
     }
 
-    const elevenUrl = `https://api.elevenlabs.io/v1/text-to-speech/${selectedVoiceId}`;
+    const elevenUrl = `https://api.elevenlabs.io/v1/text-to-speech/${selectedVoiceId}/stream`;
 
     const elevenResponse = await axios({
       method: 'POST',
@@ -115,8 +121,8 @@ app.post('/api/tts', async (req, res) => {
         'Accept': 'audio/mpeg',
       },
       data: {
-        text,
-        model_id: 'eleven_monolingual_v1',
+        text: cleanText,
+        model_id: 'eleven_multilingual_v2',
         voice_settings: {
           stability: 0.4,
           similarity_boost: 0.8,
@@ -124,29 +130,37 @@ app.post('/api/tts', async (req, res) => {
       },
     });
 
-    const audioBase64 = Buffer.from(elevenResponse.data, 'binary').toString('base64');
+    console.log('[/api/tts] TTS generation successful. Sending audio buffer to client.');
 
-    console.log('[/api/tts] TTS generation successful.');
-
-    return res.json({
-      success: true,
-      contentType: 'audio/mpeg',
-      audioBase64,
-    });
+    // Return raw audio back to the widget
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.send(Buffer.from(elevenResponse.data, 'binary'));
   } catch (err) {
+    const status = err.response?.status;
+    let dataText;
+
+    try {
+      if (err.response?.data) {
+        if (Buffer.isBuffer(err.response.data)) {
+          dataText = err.response.data.toString('utf8');
+        } else if (typeof err.response.data === 'string') {
+          dataText = err.response.data;
+        }
+      }
+    } catch (parseErr) {
+      dataText = undefined;
+    }
+
     console.error('[/api/tts] TTS error:', {
       message: err.message,
-      status: err.response?.status,
-      data: err.response?.data?.toString?.() || err.response?.data,
+      status,
+      data: dataText,
     });
 
     return res.status(500).json({
       error: 'TTS_FAILED',
-      status: err.response?.status || 500,
-      details:
-        typeof err.response?.data === 'string'
-          ? err.response.data
-          : undefined,
+      status: status || 500,
+      details: dataText,
     });
   }
 });
