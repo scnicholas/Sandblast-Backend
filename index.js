@@ -8,8 +8,12 @@ const axios = require('axios');
 
 const app = express();
 
-// Middleware
+// ---- Middleware ----
+// Parse JSON bodies
 app.use(express.json({ limit: '2mb' }));
+// Safety net: treat incoming "application/json" as text if it slips past JSON parser
+app.use(express.text({ type: 'application/json' }));
+// Allow CORS
 app.use(cors());
 
 // Port (Render will inject PORT)
@@ -83,18 +87,31 @@ app.post('/api/sandblast-gpt', async (req, res) => {
 });
 
 // --- TTS ENDPOINT: /api/tts ---
-// Frontend sends: { text: "some text" }
+// Frontend or tools send: { text: "some text" }
 // Optional: { text, voiceId }
-// This version returns raw audio/mpeg (not base64 JSON).
+// This version is defensive about body format and returns raw audio/mpeg.
 
 app.post('/api/tts', async (req, res) => {
   try {
-    const { text, voiceId } = req.body || {};
+    let rawBody = req.body;
+    let payload = rawBody;
+
+    // Handle both already-parsed JSON objects and raw string JSON
+    if (typeof rawBody === 'string') {
+      try {
+        payload = JSON.parse(rawBody);
+      } catch (e) {
+        console.warn('[/api/tts] Could not parse raw string body as JSON:', rawBody);
+        payload = {};
+      }
+    }
+
+    const text = (payload && payload.text ? String(payload.text) : '').trim();
+    const voiceId = payload && payload.voiceId ? String(payload.voiceId) : undefined;
 
     console.log('[/api/tts] Incoming TTS request with text:', text);
 
-    const cleanText = (text || '').toString().trim();
-    if (!cleanText) {
+    if (!text) {
       return res.status(400).json({ error: 'TEXT_REQUIRED' });
     }
 
@@ -121,7 +138,7 @@ app.post('/api/tts', async (req, res) => {
         'Accept': 'audio/mpeg',
       },
       data: {
-        text: cleanText,
+        text,
         model_id: 'eleven_multilingual_v2',
         voice_settings: {
           stability: 0.4,
@@ -132,7 +149,6 @@ app.post('/api/tts', async (req, res) => {
 
     console.log('[/api/tts] TTS generation successful. Sending audio buffer to client.');
 
-    // Return raw audio back to the widget
     res.setHeader('Content-Type', 'audio/mpeg');
     res.send(Buffer.from(elevenResponse.data, 'binary'));
   } catch (err) {
