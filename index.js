@@ -293,7 +293,7 @@ function maybeHandleFrontDoor(message, meta) {
     return { handled: false };
   }
 
-  // If meta signals "firstVisit", you can use that:
+  // If meta signals "firstVisit", use the first-visit greeting set
   const isFirstVisit = meta && meta.firstVisit === true;
 
   if (isFirstVisit && isSimpleGreeting(userText)) {
