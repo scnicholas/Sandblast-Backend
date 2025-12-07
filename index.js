@@ -115,7 +115,7 @@ When “sponsors” is the lane:
      - Example placements (“pre-roll on retro TV block”, “mid-roll radio tag before Gospel Sunday segment”).
   - 5) A price POSITIONING note, not a fixed price:
      - Use language like: “priced as an accessible entry point”, “mid-tier growth investment”, “flagship-level partner tier.”
-     - Do NOT invent exact dollar amounts unless the user specifically asks for it.
+     - Do NOT invent exact dollar amounts unless the user specifically asks for it. Use ranges or posture instead (e.g., “entry-level”, “mid-range”, “premium tier”).
 
 - Also:
   - Suggest 1–2 simple proof points the user can offer:
@@ -146,12 +146,192 @@ Be the clear, calm, Sandblast-branded voice in the control room — especially w
 `.trim();
 
 // ----------------------
-// FRONT-DOOR GREETINGS & MOOD
-// (same as we wired earlier — omitted here for brevity if you like,
-// but you can keep your existing maybeHandleFrontDoor() code)
+// FRONT-DOOR: GREETINGS + MOOD
 // ----------------------
 
-// Simple domain detector
+// Short, Sandblast-branded greetings & mood-aware responses
+const nyxGreetings = {
+  firstVisit: [
+    "Hey, I’m Nyx. What are we tuning today — TV, radio, or AI help?",
+    "Hi, I’m Nyx on Sandblast. Tell me what you’re working on, and we’ll dial it in.",
+    "Welcome to Sandblast. I’m Nyx — what do you want to fix, build, or explore first?"
+  ],
+  onHello: [
+    "Hey there. What are you trying to get done today?",
+    "Hi. What do you want to work on — watching, promoting, or planning?",
+    "Hello. Tell me what you’re here for, and I’ll help you tune it."
+  ],
+  howAreYou: [
+    "I’m running clean today — thanks for asking. How’s your day going on your side?",
+    "Systems are stable, signal’s clear. How are you holding up today?",
+    "I’m all good and tuned in. What kind of day is it for you — calm, busy, or chaotic?"
+  ],
+  howIsYourDay: [
+    "My day’s all bandwidth and no sleep — perfect for you. What kind of day are you having?",
+    "Day’s smooth on my end, lots of signals to sort. What’s the headline of your day so far?",
+    "Pretty good — plenty of questions, zero coffee. How’s your day treating you?"
+  ]
+};
+
+const nyxMoodResponses = {
+  positive: [
+    "Love that. Let’s put that energy to work — what do you want to tackle first?",
+    "That’s the kind of signal I like. TV, radio, AI, or business — where are we pointing it?",
+    "Nice. Want to build something, fix something, or brainstorm something today?"
+  ],
+  neutral: [
+    "Got it, steady signal. Want to keep it simple today or push into something new?",
+    "Okay, we can work with that. What’s the one thing that would make today feel productive?",
+    "Cool. Let’s quietly make your day better — what do you need help with right now?"
+  ],
+  tired: [
+    "Understood. Let’s not overcomplicate it — what’s the smallest thing I can take off your mind?",
+    "Got you. Pick one: do you want to think less, organize something, or have me handle the planning?",
+    "You sound drained. Tell me the task, and I’ll do the heavy thinking for you."
+  ],
+  stressed: [
+    "Okay, I hear the stress. Tell me what’s breaking, and we’ll fix one piece at a time.",
+    "Got it — rough signal. What’s the main problem: tech, time, or people?",
+    "You’re overloaded. Drop the mess on me in a sentence, and we’ll unpack it together."
+  ],
+  low: [
+    "I’m sorry you’re having a rough one. You don’t have to carry it alone — what’s the part you want help with?",
+    "That’s heavy, and I hear you. Do you want distraction (work stuff) or support (talk it out a bit)?",
+    "I’m here with you. Start with a small piece of what’s going on, and we’ll move gently."
+  ]
+};
+
+function pickRandom(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function detectMood(userText) {
+  const text = (userText || "").toLowerCase();
+
+  if (/(tired|exhausted|drained|wiped|burnt out|burned out)/.test(text)) return 'tired';
+  if (/(stressed|overwhelmed|under pressure|nothing is working|annoyed|frustrated)/.test(text)) return 'stressed';
+  if (/(sad|low|down|rough day|not good|terrible|awful|bad)/.test(text)) return 'low';
+  if (/(great|good|awesome|fine|okay|ok|not bad|pretty good|energized|pumped)/.test(text)) return 'positive';
+  if (/(okay|ok|same as usual|normal)/.test(text)) return 'neutral';
+
+  return 'neutral';
+}
+
+function isSimpleGreeting(message) {
+  const text = (message || "").toLowerCase().trim();
+  if (!text) return false;
+
+  const core = text.replace(/[!.,?]+$/g, '').trim();
+
+  const pureGreetings = [
+    "hi", "hey", "hello",
+    "hi nyx", "hey nyx", "hello nyx",
+    "good morning", "good afternoon", "good evening"
+  ];
+
+  return pureGreetings.includes(core);
+}
+
+function isHowAreYou(message) {
+  const text = (message || "").toLowerCase();
+  return /how\s+are\s+you/.test(text) || /how'?s\s+it\s+going/.test(text);
+}
+
+function isHowIsYourDay(message) {
+  const text = (message || "").toLowerCase();
+  return /how\s+is\s+your\s+day/.test(text) ||
+         /how'?s\s+your\s+day/.test(text) ||
+         /how'?s\s+your\s+day\s+going/.test(text);
+}
+
+// Rough detector: user is describing how they are, not asking a question
+function looksLikeMoodReply(message) {
+  const text = (message || "").toLowerCase().trim();
+  if (!text) return false;
+
+  if (text.includes('?')) return false;
+
+  if (text.length <= 80) {
+    if (/(tired|exhausted|drained|wiped|burnt out|burned out)/.test(text)) return true;
+    if (/(stressed|overwhelmed|under pressure|annoyed|frustrated|nothing is working)/.test(text)) return true;
+    if (/(sad|low|down|rough day|not good|bad|terrible|awful)/.test(text)) return true;
+    if (/(great|good|awesome|fine|okay|ok|not bad|pretty good|energized|pumped)/.test(text)) return true;
+  }
+
+  return false;
+}
+
+/**
+ * Front-door handler for Nyx:
+ * - Short greetings (“hi”, “hello”, etc.)
+ * - “How are you?”
+ * - “How is your day?”
+ * - Short mood replies (“I’m tired”, “I’m good”, etc.)
+ *
+ * If it handles the message, we skip the OpenAI call and return a local reply.
+ */
+function maybeHandleFrontDoor(message, meta) {
+  const userText = (message || "").trim();
+  if (!userText) {
+    return { handled: false };
+  }
+
+  const isFirstVisit = meta && meta.firstVisit === true;
+
+  if (isFirstVisit && isSimpleGreeting(userText)) {
+    return {
+      handled: true,
+      reply: pickRandom(nyxGreetings.firstVisit),
+      domain: "general",
+      mode: "front-door:first-visit"
+    };
+  }
+
+  if (isSimpleGreeting(userText)) {
+    return {
+      handled: true,
+      reply: pickRandom(nyxGreetings.onHello),
+      domain: "general",
+      mode: "front-door:greeting"
+    };
+  }
+
+  if (isHowAreYou(userText)) {
+    return {
+      handled: true,
+      reply: pickRandom(nyxGreetings.howAreYou),
+      domain: "general",
+      mode: "front-door:how-are-you"
+    };
+  }
+
+  if (isHowIsYourDay(userText)) {
+    return {
+      handled: true,
+      reply: pickRandom(nyxGreetings.howIsYourDay),
+      domain: "general",
+      mode: "front-door:how-is-your-day"
+    };
+  }
+
+  if (looksLikeMoodReply(userText)) {
+    const mood = detectMood(userText);
+    const options = nyxMoodResponses[mood] || nyxMoodResponses.neutral;
+    return {
+      handled: true,
+      reply: pickRandom(options),
+      domain: "general",
+      mode: "front-door:mood",
+      mood
+    };
+  }
+
+  return { handled: false };
+}
+
+// ----------------------
+// DOMAIN DETECTOR
+// ----------------------
 function detectDomain(message) {
   const lower = (message || "").toLowerCase();
   if (lower.includes("tv") || lower.includes("lineup") || lower.includes("grid")) return "tv";
@@ -161,12 +341,6 @@ function detectDomain(message) {
   if (lower.includes("news canada") || (lower.includes("news") && lower.includes("sandblast"))) return "news";
   if (lower.includes("ai") || lower.includes("automation") || lower.includes("agent") || lower.includes("consult")) return "ai";
   return "general";
-}
-
-// If you have your full maybeHandleFrontDoor from earlier, require/import it here.
-// For now, this stub just passes everything through to OpenAI.
-function maybeHandleFrontDoor(message, meta) {
-  return { handled: false };
 }
 
 // ----------------------
@@ -181,7 +355,7 @@ app.get('/api/health', (req, res) => {
     ok: true,
     openAIConfigured: Boolean(OPENAI_API_KEY),
     elevenLabsConfigured: Boolean(ELEVENLABS_API_KEY),
-    voiceConfigured: Boolean(NYX_VOICE_ID),
+    voiceConfigured: Boolean(NYX_VOICE_ID)
   });
 });
 
@@ -196,7 +370,15 @@ app.post('/api/sandblast-gpt', async (req, res) => {
     if (!userMessage) {
       return res.status(400).json({
         error: "MESSAGE_REQUIRED",
-        reply: "I’m here, but I need something to respond to.",
+        reply: "I’m here, but I need something to respond to."
+      });
+    }
+
+    if (!OPENAI_API_KEY) {
+      console.error("[/api/sandblast-gpt] Missing OPENAI_API_KEY");
+      return res.status(500).json({
+        error: "MISSING_OPENAI_API_KEY",
+        message: "Nyx can't think clearly without her OpenAI key configured."
       });
     }
 
@@ -207,7 +389,7 @@ app.post('/api/sandblast-gpt', async (req, res) => {
         reply: frontDoor.reply,
         domain: frontDoor.domain || "general",
         frontDoorMode: frontDoor.mode || null,
-        mood: frontDoor.mood || null,
+        mood: frontDoor.mood || null
       });
     }
 
@@ -216,7 +398,7 @@ app.post('/api/sandblast-gpt', async (req, res) => {
     const payload = {
       message: userMessage,
       meta: meta || null,
-      domainHint,
+      domainHint
     };
 
     const messages = [
@@ -229,27 +411,33 @@ app.post('/api/sandblast-gpt', async (req, res) => {
       {
         model: "gpt-4o-mini",
         messages,
-        temperature: 0.7,
+        temperature: 0.7
       },
       {
-        headers: { Authorization: `Bearer ${OPENAI_API_KEY}` }
+        headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
+        timeout: 15000
       }
     );
 
-    const reply = completion.data.choices?.[0]?.message?.content ||
-      "Nyx is here, but that came through a little fuzzy. Try asking again another way.";
+    const reply =
+      completion.data &&
+      completion.data.choices &&
+      completion.data.choices[0] &&
+      completion.data.choices[0].message &&
+      completion.data.choices[0].message.content
+        ? completion.data.choices[0].message.content
+        : "Nyx is here, but that came through a little fuzzy. Try asking again another way.";
 
     return res.json({
       ok: true,
       reply,
-      domain: domainHint,
+      domain: domainHint
     });
-
   } catch (err) {
     console.error("[/api/sandblast-gpt] Error:", err?.response?.data || err);
     return res.status(500).json({
       error: "SANDBLAST_GPT_FAILED",
-      message: "Nyx hit a backend snag.",
+      message: "Nyx hit a backend snag."
     });
   }
 });
@@ -266,11 +454,13 @@ app.post('/api/tts', async (req, res) => {
       return res.status(400).json({ error: "TEXT_REQUIRED" });
     }
     if (!ELEVENLABS_API_KEY) {
+      console.error("[/api/tts] Missing ELEVENLABS_API_KEY");
       return res.status(500).json({ error: "MISSING_ELEVENLABS_API_KEY" });
     }
 
     const selectedVoice = voiceId || NYX_VOICE_ID;
     if (!selectedVoice) {
+      console.error("[/api/tts] Missing NYX_VOICE_ID");
       return res.status(500).json({ error: "MISSING_NYX_VOICE_ID" });
     }
 
@@ -283,16 +473,17 @@ app.post('/api/tts', async (req, res) => {
       headers: {
         "xi-api-key": ELEVENLABS_API_KEY,
         "Content-Type": "application/json",
-        "Accept": "audio/mpeg",
+        "Accept": "audio/mpeg"
       },
       data: {
         text: trimmed,
         model_id: "eleven_monolingual_v1",
         voice_settings: {
           stability: 0.4,
-          similarity_boost: 0.8,
-        },
+          similarity_boost: 0.8
+        }
       },
+      timeout: 20000
     });
 
     const audioBase64 = Buffer.from(response.data).toString("base64");
@@ -300,14 +491,13 @@ app.post('/api/tts', async (req, res) => {
     return res.json({
       success: true,
       contentType: "audio/mpeg",
-      audioBase64,
+      audioBase64
     });
-
   } catch (err) {
     console.error("[/api/tts] TTS error:", err?.response?.data || err);
     return res.status(500).json({
       error: "TTS_FAILED",
-      details: err?.response?.data || null,
+      details: err?.response?.data || null
     });
   }
 });
@@ -318,3 +508,6 @@ app.post('/api/tts', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Sandblast backend running on port ${PORT}`);
 });
+
+// Optional export for testing
+module.exports = app;
