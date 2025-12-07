@@ -387,7 +387,11 @@ function wrapWithNyxTone(payload, userMessage, meta) {
   }
 
   // For front-door / greetings: keep it light, no callbacks, no domain commentary, no next-step block
-  if (isFrontDoorIntent) {
+  const frontDoorLike =
+    isFrontDoorIntent ||
+    intent === "model_reply_frontdoor"; // safety valve if you ever tag front-door replies in the future
+
+  if (frontDoorLike) {
     const trimmedFront = rawMessage.trim();
     const partsFront = [];
 
