@@ -18,13 +18,17 @@ function handleNyxFrontDoor(userMessage) {
   const isGreeting =
     /^(hi|hello|hey|yo|good (morning|afternoon|evening)|greetings)\b/.test(lower) ||
     lower === "nyx" ||
+    lower === "nix" ||              // accept the common misspelling
     lower === "hello nyx" ||
-    lower === "hi nyx";
+    lower === "hello nix" ||        // and this
+    lower === "hi nyx" ||
+    lower === "hi nix";
 
   const asksWhoAreYou =
     lower.includes("who are you") ||
     lower.includes("what are you") ||
     lower.includes("what is nyx") ||
+    lower.includes("what is nix") ||
     lower.includes("what do you do");
 
   const asksHowNyxIs =
@@ -42,11 +46,13 @@ function handleNyxFrontDoor(userMessage) {
     lower.includes("thank you") ||
     lower.includes("thanks") ||
     lower === "thank you" ||
-    lower === "thanks nyx";
+    lower === "thanks nyx" ||
+    lower === "thanks nix";
 
   const asksHelp =
     lower === "help" ||
     lower === "help nyx" ||
+    lower === "help nix" ||
     lower.includes("how do i use this") ||
     lower.includes("how does this work");
 
