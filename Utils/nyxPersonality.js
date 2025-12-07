@@ -50,6 +50,17 @@ function handleNyxFrontDoor(userMessage) {
     lower.includes("how do i use this") ||
     lower.includes("how does this work");
 
+  // Direct "who are you / what is Nyx" → short persona intro
+  if (asksWhoAreYou) {
+    return {
+      intent: "welcome",
+      category: "welcome",
+      domain: "general",
+      message:
+        "I’m Nyx, Sandblast’s AI guide. I help you make sense of the TV lineup, radio, streaming, News Canada, advertising, and AI consulting so you always know the next clear step to take."
+    };
+  }
+
   // Greeting + "how are you" → short, fluid small-talk
   if (isGreeting && asksHowNyxIs) {
     return {
@@ -57,7 +68,7 @@ function handleNyxFrontDoor(userMessage) {
       category: "public",
       domain: "general",
       message:
-        "I’m good, steady and online. How are you doing today, and what do you want to tune in on—TV, radio, streaming, News Canada, advertising, or AI consulting?"
+        "I’m good—steady and online. How are you doing today, and what do you want to tune in on—TV, radio, streaming, News Canada, advertising, or AI consulting?"
     };
   }
 
