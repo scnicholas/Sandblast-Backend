@@ -1,9 +1,8 @@
 // index.js
-// Sandblast / Nyx Backend v2.0
+// Sandblast / Nyx Backend
 // - Nyx personality + tone wrapper integration
-// - TV Micro-Script Engine Routing
 // - /api/sandblast-gpt for chat
-// - /api/tts using GPT-4o TTS
+// - /api/tts using OpenAI GPT-4o TTS
 // -----------------------------------------------------
 
 require("dotenv").config();
@@ -50,6 +49,7 @@ app.get("/", (req, res) => {
 function buildNyxSystemMessages(boundaryContext, emotion) {
   const systemMessages = [];
 
+  // Nyx persona definition
   if (nyxPersonality.NYX_SYSTEM_PERSONA) {
     systemMessages.push({
       role: "system",
@@ -57,6 +57,7 @@ function buildNyxSystemMessages(boundaryContext, emotion) {
     });
   }
 
+  // Boundary / role information
   if (boundaryContext) {
     const { actor, role, boundary } = boundaryContext;
     systemMessages.push({
@@ -69,6 +70,7 @@ function buildNyxSystemMessages(boundaryContext, emotion) {
     });
   }
 
+  // Emotional state
   if (emotion) {
     systemMessages.push({
       role: "system",
@@ -79,9 +81,9 @@ function buildNyxSystemMessages(boundaryContext, emotion) {
   return systemMessages;
 }
 
-// ------------------------------------------------------
-// Primary: /api/sandblast-gpt
-// ------------------------------------------------------
+// ---------------------------------------------
+// /api/sandblast-gpt — Nyx primary brain
+// ---------------------------------------------
 app.post("/api/sandblast-gpt", async (req, res) => {
   try {
     const {
@@ -93,32 +95,35 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       lastDomain = "general",
       lastEmotion = "neutral",
       actorName = "Visitor",
-      showName,
-      episode,
     } = req.body || {};
 
     const userMessage = (message || "").toString().trim();
     if (!userMessage) {
-      return res.status(400).json({ error: "Missing 'message' in request body." });
+      return res
+        .status(400)
+        .json({ error: "Missing 'message' in request body." });
     }
 
     if (!OPENAI_API_KEY) {
-      return res.status(500).json({ error: "OPENAI_API_KEY missing." });
+      return res
+        .status(500)
+        .json({ error: "OPENAI_API_KEY not configured." });
     }
 
-    // Boundary context (public/internal/admin)
+    // Boundary / role
     const boundaryContext = nyxPersonality.resolveBoundaryContext({
       actorName,
       channel,
       persona,
     });
 
-    const internalMode = boundaryContext.role !== "public";
+    // Emotion detection
+    const currentEmotion =
+      nyxPersonality.detectEmotionalState(userMessage);
 
-    // Emotional detection
-    const currentEmotion = nyxPersonality.detectEmotionalState(userMessage);
+    // Quick greeting/intro logic
+    const frontDoor = nyxPersonality.handleNyxFrontDoor(userMessage);
 
-    // Metadata for tone wrapper + continuity
     const meta = {
       stepIndex: Number(stepIndex) || 0,
       lastDomain: lastDomain || topic || "general",
@@ -127,18 +132,19 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       topic: topic || "general",
     };
 
-    // -----------------------------------------
-    // 1. Front-door logic (small talk, greeting)
-    // -----------------------------------------
-    const frontDoor = nyxPersonality.handleNyxFrontDoor(userMessage);
+    // Use front-door without calling GPT if appropriate
     if (frontDoor && boundaryContext.role === "public") {
-      const wrapped = nyxPersonality.wrapWithNyxTone(frontDoor, userMessage, meta);
+      const wrapped = nyxPersonality.wrapWithNyxTone(
+        frontDoor,
+        userMessage,
+        meta
+      );
 
       return res.json({
         reply: wrapped.message,
         meta: {
-          stepIndex: meta.stepIndex + 1,
-          lastDomain: wrapped.domain || "general",
+          stepIndex: (meta.stepIndex || 0) + 1,
+          lastDomain: wrapped.domain || frontDoor.domain || "general",
           lastEmotion: currentEmotion,
           role: boundaryContext.role,
           topic,
@@ -146,48 +152,9 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       });
     }
 
-    // -----------------------------------------
-    // 2. TV-SHOW MICRO-SCRIPT ROUTING
-    // -----------------------------------------
-    const tvIntent = nyxPersonality.detectTvShowIntent(userMessage);
-    if (tvIntent || topic === "tv-show") {
-      const extractedShow =
-        showName ||
-        (userMessage.split("for")[1] || "").trim() ||
-        "This Show";
-
-      const extractedEp = episode || null;
-
-      const microScript = nyxPersonality.buildTvShowMicroScript(
-        extractedShow,
-        extractedEp,
-        internalMode
-      );
-
-      const payload = {
-        intent: "tv_show_micro",
-        category: internalMode ? "internal" : "public",
-        domain: "tv-show",
-        message: microScript,
-      };
-
-      const wrapped = nyxPersonality.wrapWithNyxTone(payload, userMessage, meta);
-
-      return res.json({
-        reply: wrapped.message,
-        meta: {
-          stepIndex: meta.stepIndex + 1,
-          lastDomain: "tv-show",
-          lastEmotion: currentEmotion,
-          role: boundaryContext.role,
-          topic: "tv-show",
-        },
-      });
-    }
-
-    // -----------------------------------------
-    // 3. Default → GPT Completion
-    // -----------------------------------------
+    // -------------------------
+    // GPT CALL
+    // -------------------------
     const systemMessages = buildNyxSystemMessages(
       boundaryContext,
       currentEmotion
@@ -209,11 +176,13 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 
     const basePayload = {
       intent: "model_reply",
-      category: internalMode ? "internal" : "public",
+      category:
+        boundaryContext.role === "public" ? "public" : "internal",
       domain: topic || "general",
-      message: modelText.trim(),
+      message: modelText.toString().trim(),
     };
 
+    // Wrap with Nyx tone + realism
     const wrapped = nyxPersonality.wrapWithNyxTone(
       basePayload,
       userMessage,
@@ -223,62 +192,98 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     res.json({
       reply: wrapped.message,
       meta: {
-        stepIndex: meta.stepIndex + 1,
-        lastDomain: basePayload.domain,
+        stepIndex: (Number(stepIndex) || 0) + 1,
+        lastDomain:
+          wrapped.domain || basePayload.domain || "general",
         lastEmotion: currentEmotion,
         role: boundaryContext.role,
         topic,
       },
     });
-
   } catch (err) {
     console.error("[Nyx] /api/sandblast-gpt error:", err);
+
+    let details = "Unknown error";
+    if (err) {
+      if (err.message) {
+        details = err.message;
+      } else {
+        try {
+          details = JSON.stringify(err);
+        } catch (_) {
+          details = String(err);
+        }
+      }
+    }
+
     res.status(500).json({
       error: "Nyx encountered an error while processing your request.",
+      details,
     });
   }
 });
 
-// ------------------------------------------------------
-// /api/tts — GPT-4o Mini TTS
-// ------------------------------------------------------
+// ---------------------------------------------
+// /api/tts — GPT-4o TTS
+// ---------------------------------------------
 app.post("/api/tts", async (req, res) => {
   try {
     const { text } = req.body || {};
     const trimmed = (text || "").toString().trim();
 
     if (!trimmed) {
-      return res.status(400).json({ error: "Missing 'text' in request body." });
+      return res
+        .status(400)
+        .json({ error: "Missing 'text' in request body." });
     }
 
     if (!OPENAI_API_KEY) {
-      return res
-        .status(500)
-        .json({ error: "TTS not configured: OPENAI_API_KEY missing." });
+      return res.status(500).json({
+        error: "TTS not configured: OPENAI_API_KEY missing.",
+      });
     }
 
+    // GPT-4o TTS call
     const audioResponse = await openai.audio.speech.create({
       model: "gpt-4o-mini-tts",
-      voice: "alloy",
+      voice: "alloy", // Options: alloy, verse, nova
       input: trimmed,
     });
 
-    const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
+    const audioBuffer = Buffer.from(
+      await audioResponse.arrayBuffer()
+    );
 
     res.set("Content-Type", "audio/mpeg");
     res.send(audioBuffer);
   } catch (err) {
     console.error("[Nyx] /api/tts error:", err);
+
+    let details = "Unknown error";
+    if (err) {
+      if (err.message) {
+        details = err.message;
+      } else {
+        try {
+          details = JSON.stringify(err);
+        } catch (_) {
+          details = String(err);
+        }
+      }
+    }
+
     res.status(500).json({
       error: "Nyx encountered an error while generating audio.",
-      details: String(err),
+      details,
     });
   }
 });
 
-// ------------------------------------------------------
+// ---------------------------------------------
 // Start server
-// ------------------------------------------------------
+// ---------------------------------------------
 app.listen(PORT, () => {
-  console.log(`Nyx backend listening on port ${PORT} — GPT + TTS active`);
+  console.log(
+    `Nyx backend listening on port ${PORT} — GPT + TTS active`
+  );
 });
