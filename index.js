@@ -1,7 +1,8 @@
 // index.js
-// Sandblast / Nyx Backend v2.0
+// Sandblast / Nyx Backend v2.1
 // - Nyx personality + tone wrapper integration
 // - TV Micro-Script Engine Routing
+// - Sponsor-lane routing (advertising / revenue)
 // - /api/sandblast-gpt for chat
 // - /api/tts using GPT-4o TTS
 // -----------------------------------------------------
@@ -99,11 +100,15 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 
     const userMessage = (message || "").toString().trim();
     if (!userMessage) {
-      return res.status(400).json({ error: "Missing 'message' in request body." });
+      return res
+        .status(400)
+        .json({ error: "Missing 'message' in request body." });
     }
 
     if (!OPENAI_API_KEY) {
-      return res.status(500).json({ error: "OPENAI_API_KEY missing." });
+      return res
+        .status(500)
+        .json({ error: "OPENAI_API_KEY missing." });
     }
 
     // Boundary context (public/internal/admin)
@@ -132,7 +137,11 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     // -----------------------------------------
     const frontDoor = nyxPersonality.handleNyxFrontDoor(userMessage);
     if (frontDoor && boundaryContext.role === "public") {
-      const wrapped = nyxPersonality.wrapWithNyxTone(frontDoor, userMessage, meta);
+      const wrapped = nyxPersonality.wrapWithNyxTone(
+        frontDoor,
+        userMessage,
+        meta
+      );
 
       return res.json({
         reply: wrapped.message,
@@ -171,7 +180,11 @@ app.post("/api/sandblast-gpt", async (req, res) => {
         message: microScript,
       };
 
-      const wrapped = nyxPersonality.wrapWithNyxTone(payload, userMessage, meta);
+      const wrapped = nyxPersonality.wrapWithNyxTone(
+        payload,
+        userMessage,
+        meta
+      );
 
       return res.json({
         reply: wrapped.message,
@@ -186,7 +199,43 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     }
 
     // -----------------------------------------
-    // 3. Default → GPT Completion
+    // 3. SPONSOR / ADVERTISING LANE ROUTING
+    // -----------------------------------------
+    const sponsorIntent = nyxPersonality.detectSponsorIntent(userMessage);
+    if (sponsorIntent || topic === "advertising") {
+      const sponsorMessage = nyxPersonality.buildSponsorLaneResponse(
+        userMessage,
+        topic,
+        internalMode
+      );
+
+      const payload = {
+        intent: "sponsor_lane",
+        category: internalMode ? "internal" : "public",
+        domain: "advertising",
+        message: sponsorMessage,
+      };
+
+      const wrapped = nyxPersonality.wrapWithNyxTone(
+        payload,
+        userMessage,
+        meta
+      );
+
+      return res.json({
+        reply: wrapped.message,
+        meta: {
+          stepIndex: meta.stepIndex + 1,
+          lastDomain: "advertising",
+          lastEmotion: currentEmotion,
+          role: boundaryContext.role,
+          topic: "advertising",
+        },
+      });
+    }
+
+    // -----------------------------------------
+    // 4. Default → GPT Completion
     // -----------------------------------------
     const systemMessages = buildNyxSystemMessages(
       boundaryContext,
@@ -195,10 +244,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 
     const completion = await openai.chat.completions.create({
       model: OPENAI_MODEL,
-      messages: [
-        ...systemMessages,
-        { role: "user", content: userMessage },
-      ],
+      messages: [...systemMessages, { role: "user", content: userMessage }],
       temperature: 0.4,
       max_tokens: 700,
     });
@@ -230,7 +276,6 @@ app.post("/api/sandblast-gpt", async (req, res) => {
         topic,
       },
     });
-
   } catch (err) {
     console.error("[Nyx] /api/sandblast-gpt error:", err);
     res.status(500).json({
@@ -252,9 +297,9 @@ app.post("/api/tts", async (req, res) => {
     }
 
     if (!OPENAI_API_KEY) {
-      return res
-        .status(500)
-        .json({ error: "TTS not configured: OPENAI_API_KEY missing." });
+      return res.status(500).json({
+        error: "TTS not configured: OPENAI_API_KEY missing.",
+      });
     }
 
     const audioResponse = await openai.audio.speech.create({
