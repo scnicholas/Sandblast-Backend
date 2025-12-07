@@ -8,17 +8,46 @@ const axios = require('axios');
 
 const app = express();
 
-// Middleware
+// ----------------------
+// MIDDLEWARE
+// ----------------------
 app.use(express.json({ limit: '2mb' }));
-app.use(cors());
+
+// Strict CORS: allow Sandblast + localhost for testing
+const allowedOrigins = [
+  'https://www.sandblast.channel',
+  'https://sandblast.channel',
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://localhost:8080'
+];
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // Allow non-browser tools (no origin) and allowed frontends
+      if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        console.warn('[CORS] Blocked origin:', origin);
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+  })
+);
+
+// Preflight support
+app.options('*', cors());
 
 // Server Port
 const PORT = process.env.PORT || 3000;
 
 // --- CONFIGURATION (ENV VARS) ---
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
-const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || "";
-const NYX_VOICE_ID = process.env.NYX_VOICE_ID || "";
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || '';
+const NYX_VOICE_ID = process.env.NYX_VOICE_ID || '';
 
 // ----------------------
 // SYSTEM PROMPT FOR NYX
@@ -148,8 +177,6 @@ Be the clear, calm, Sandblast-branded voice in the control room — especially w
 // ----------------------
 // FRONT-DOOR: GREETINGS + MOOD
 // ----------------------
-
-// Short, Sandblast-branded greetings & mood-aware responses
 const nyxGreetings = {
   firstVisit: [
     "Hey, I’m Nyx. What are we tuning today — TV, radio, or AI help?",
@@ -206,7 +233,7 @@ function pickRandom(arr) {
 }
 
 function detectMood(userText) {
-  const text = (userText || "").toLowerCase();
+  const text = (userText || '').toLowerCase();
 
   if (/(tired|exhausted|drained|wiped|burnt out|burned out)/.test(text)) return 'tired';
   if (/(stressed|overwhelmed|under pressure|nothing is working|annoyed|frustrated)/.test(text)) return 'stressed';
@@ -218,35 +245,34 @@ function detectMood(userText) {
 }
 
 function isSimpleGreeting(message) {
-  const text = (message || "").toLowerCase().trim();
+  const text = (message || '').toLowerCase().trim();
   if (!text) return false;
 
   const core = text.replace(/[!.,?]+$/g, '').trim();
 
   const pureGreetings = [
-    "hi", "hey", "hello",
-    "hi nyx", "hey nyx", "hello nyx",
-    "good morning", "good afternoon", "good evening"
+    'hi', 'hey', 'hello',
+    'hi nyx', 'hey nyx', 'hello nyx',
+    'good morning', 'good afternoon', 'good evening'
   ];
 
   return pureGreetings.includes(core);
 }
 
 function isHowAreYou(message) {
-  const text = (message || "").toLowerCase();
+  const text = (message || '').toLowerCase();
   return /how\s+are\s+you/.test(text) || /how'?s\s+it\s+going/.test(text);
 }
 
 function isHowIsYourDay(message) {
-  const text = (message || "").toLowerCase();
+  const text = (message || '').toLowerCase();
   return /how\s+is\s+your\s+day/.test(text) ||
          /how'?s\s+your\s+day/.test(text) ||
          /how'?s\s+your\s+day\s+going/.test(text);
 }
 
-// Rough detector: user is describing how they are, not asking a question
 function looksLikeMoodReply(message) {
-  const text = (message || "").toLowerCase().trim();
+  const text = (message || '').toLowerCase().trim();
   if (!text) return false;
 
   if (text.includes('?')) return false;
@@ -261,17 +287,8 @@ function looksLikeMoodReply(message) {
   return false;
 }
 
-/**
- * Front-door handler for Nyx:
- * - Short greetings (“hi”, “hello”, etc.)
- * - “How are you?”
- * - “How is your day?”
- * - Short mood replies (“I’m tired”, “I’m good”, etc.)
- *
- * If it handles the message, we skip the OpenAI call and return a local reply.
- */
 function maybeHandleFrontDoor(message, meta) {
-  const userText = (message || "").trim();
+  const userText = (message || '').trim();
   if (!userText) {
     return { handled: false };
   }
@@ -282,8 +299,8 @@ function maybeHandleFrontDoor(message, meta) {
     return {
       handled: true,
       reply: pickRandom(nyxGreetings.firstVisit),
-      domain: "general",
-      mode: "front-door:first-visit"
+      domain: 'general',
+      mode: 'front-door:first-visit'
     };
   }
 
@@ -291,8 +308,8 @@ function maybeHandleFrontDoor(message, meta) {
     return {
       handled: true,
       reply: pickRandom(nyxGreetings.onHello),
-      domain: "general",
-      mode: "front-door:greeting"
+      domain: 'general',
+      mode: 'front-door:greeting'
     };
   }
 
@@ -300,8 +317,8 @@ function maybeHandleFrontDoor(message, meta) {
     return {
       handled: true,
       reply: pickRandom(nyxGreetings.howAreYou),
-      domain: "general",
-      mode: "front-door:how-are-you"
+      domain: 'general',
+      mode: 'front-door:how-are-you'
     };
   }
 
@@ -309,8 +326,8 @@ function maybeHandleFrontDoor(message, meta) {
     return {
       handled: true,
       reply: pickRandom(nyxGreetings.howIsYourDay),
-      domain: "general",
-      mode: "front-door:how-is-your-day"
+      domain: 'general',
+      mode: 'front-door:how-is-your-day'
     };
   }
 
@@ -320,8 +337,8 @@ function maybeHandleFrontDoor(message, meta) {
     return {
       handled: true,
       reply: pickRandom(options),
-      domain: "general",
-      mode: "front-door:mood",
+      domain: 'general',
+      mode: 'front-door:mood',
       mood
     };
   }
@@ -333,21 +350,21 @@ function maybeHandleFrontDoor(message, meta) {
 // DOMAIN DETECTOR
 // ----------------------
 function detectDomain(message) {
-  const lower = (message || "").toLowerCase();
-  if (lower.includes("tv") || lower.includes("lineup") || lower.includes("grid")) return "tv";
-  if (lower.includes("radio") || lower.includes("listener")) return "radio";
-  if (lower.includes("stream") || lower.includes("ott") || lower.includes("roku") || lower.includes("app")) return "streaming";
-  if (lower.includes("sponsor") || lower.includes("advertis") || lower.includes("ad ") || lower.includes("ads ") || lower.includes("brand")) return "sponsors";
-  if (lower.includes("news canada") || (lower.includes("news") && lower.includes("sandblast"))) return "news";
-  if (lower.includes("ai") || lower.includes("automation") || lower.includes("agent") || lower.includes("consult")) return "ai";
-  return "general";
+  const lower = (message || '').toLowerCase();
+  if (lower.includes('tv') || lower.includes('lineup') || lower.includes('grid')) return 'tv';
+  if (lower.includes('radio') || lower.includes('listener')) return 'radio';
+  if (lower.includes('stream') || lower.includes('ott') || lower.includes('roku') || lower.includes('app')) return 'streaming';
+  if (lower.includes('sponsor') || lower.includes('advertis') || lower.includes('ad ') || lower.includes('ads ') || lower.includes('brand')) return 'sponsors';
+  if (lower.includes('news canada') || (lower.includes('news') && lower.includes('sandblast'))) return 'news';
+  if (lower.includes('ai') || lower.includes('automation') || lower.includes('agent') || lower.includes('consult')) return 'ai';
+  return 'general';
 }
 
 // ----------------------
 // ROOT + HEALTH
 // ----------------------
 app.get('/', (req, res) => {
-  res.send("Sandblast backend is alive. Nyx is standing by.");
+  res.send('Sandblast backend is alive. Nyx is standing by.');
 });
 
 app.get('/api/health', (req, res) => {
@@ -365,19 +382,19 @@ app.get('/api/health', (req, res) => {
 app.post('/api/sandblast-gpt', async (req, res) => {
   try {
     const { message, meta } = req.body || {};
-    const userMessage = (message || "").trim();
+    const userMessage = (message || '').trim();
 
     if (!userMessage) {
       return res.status(400).json({
-        error: "MESSAGE_REQUIRED",
-        reply: "I’m here, but I need something to respond to."
+        error: 'MESSAGE_REQUIRED',
+        reply: 'I’m here, but I need something to respond to.'
       });
     }
 
     if (!OPENAI_API_KEY) {
-      console.error("[/api/sandblast-gpt] Missing OPENAI_API_KEY");
+      console.error('[/api/sandblast-gpt] Missing OPENAI_API_KEY');
       return res.status(500).json({
-        error: "MISSING_OPENAI_API_KEY",
+        error: 'MISSING_OPENAI_API_KEY',
         message: "Nyx can't think clearly without her OpenAI key configured."
       });
     }
@@ -387,7 +404,7 @@ app.post('/api/sandblast-gpt', async (req, res) => {
       return res.json({
         ok: true,
         reply: frontDoor.reply,
-        domain: frontDoor.domain || "general",
+        domain: frontDoor.domain || 'general',
         frontDoorMode: frontDoor.mode || null,
         mood: frontDoor.mood || null
       });
@@ -402,14 +419,14 @@ app.post('/api/sandblast-gpt', async (req, res) => {
     };
 
     const messages = [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: JSON.stringify(payload) }
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: JSON.stringify(payload) }
     ];
 
     const completion = await axios.post(
-      "https://api.openai.com/v1/chat/completions",
+      'https://api.openai.com/v1/chat/completions',
       {
-        model: "gpt-4o-mini",
+        model: 'gpt-4o-mini',
         messages,
         temperature: 0.7
       },
@@ -426,7 +443,7 @@ app.post('/api/sandblast-gpt', async (req, res) => {
       completion.data.choices[0].message &&
       completion.data.choices[0].message.content
         ? completion.data.choices[0].message.content
-        : "Nyx is here, but that came through a little fuzzy. Try asking again another way.";
+        : 'Nyx is here, but that came through a little fuzzy. Try asking again another way.';
 
     return res.json({
       ok: true,
@@ -434,10 +451,10 @@ app.post('/api/sandblast-gpt', async (req, res) => {
       domain: domainHint
     });
   } catch (err) {
-    console.error("[/api/sandblast-gpt] Error:", err?.response?.data || err);
+    console.error('[/api/sandblast-gpt] Error:', err?.response?.data || err);
     return res.status(500).json({
-      error: "SANDBLAST_GPT_FAILED",
-      message: "Nyx hit a backend snag."
+      error: 'SANDBLAST_GPT_FAILED',
+      message: 'Nyx hit a backend snag.'
     });
   }
 });
@@ -448,36 +465,36 @@ app.post('/api/sandblast-gpt', async (req, res) => {
 app.post('/api/tts', async (req, res) => {
   try {
     const { text, voiceId } = req.body || {};
-    const trimmed = (text || "").trim();
+    const trimmed = (text || '').trim();
 
     if (!trimmed) {
-      return res.status(400).json({ error: "TEXT_REQUIRED" });
+      return res.status(400).json({ error: 'TEXT_REQUIRED' });
     }
     if (!ELEVENLABS_API_KEY) {
-      console.error("[/api/tts] Missing ELEVENLABS_API_KEY");
-      return res.status(500).json({ error: "MISSING_ELEVENLABS_API_KEY" });
+      console.error('[/api/tts] Missing ELEVENLABS_API_KEY');
+      return res.status(500).json({ error: 'MISSING_ELEVENLABS_API_KEY' });
     }
 
     const selectedVoice = voiceId || NYX_VOICE_ID;
     if (!selectedVoice) {
-      console.error("[/api/tts] Missing NYX_VOICE_ID");
-      return res.status(500).json({ error: "MISSING_NYX_VOICE_ID" });
+      console.error('[/api/tts] Missing NYX_VOICE_ID');
+      return res.status(500).json({ error: 'MISSING_NYX_VOICE_ID' });
     }
 
     const url = `https://api.elevenlabs.io/v1/text-to-speech/${selectedVoice}`;
 
     const response = await axios({
-      method: "POST",
+      method: 'POST',
       url,
-      responseType: "arraybuffer",
+      responseType: 'arraybuffer',
       headers: {
-        "xi-api-key": ELEVENLABS_API_KEY,
-        "Content-Type": "application/json",
-        "Accept": "audio/mpeg"
+        'xi-api-key': ELEVENLABS_API_KEY,
+        'Content-Type': 'application/json',
+        Accept: 'audio/mpeg'
       },
       data: {
         text: trimmed,
-        model_id: "eleven_monolingual_v1",
+        model_id: 'eleven_monolingual_v1',
         voice_settings: {
           stability: 0.4,
           similarity_boost: 0.8
@@ -486,17 +503,17 @@ app.post('/api/tts', async (req, res) => {
       timeout: 20000
     });
 
-    const audioBase64 = Buffer.from(response.data).toString("base64");
+    const audioBase64 = Buffer.from(response.data).toString('base64');
 
     return res.json({
       success: true,
-      contentType: "audio/mpeg",
+      contentType: 'audio/mpeg',
       audioBase64
     });
   } catch (err) {
-    console.error("[/api/tts] TTS error:", err?.response?.data || err);
+    console.error('[/api/tts] TTS error:', err?.response?.data || err);
     return res.status(500).json({
-      error: "TTS_FAILED",
+      error: 'TTS_FAILED',
       details: err?.response?.data || null
     });
   }
@@ -509,5 +526,4 @@ app.listen(PORT, () => {
   console.log(`Sandblast backend running on port ${PORT}`);
 });
 
-// Optional export for testing
 module.exports = app;
