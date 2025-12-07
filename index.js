@@ -1,7 +1,7 @@
 // index.js
 // Sandblast / Nyx Backend
 // - Nyx personality + tone wrapper integration
-// - /api/sandblast-gpt for chat
+// - /api/sandblast-gpt for chat (online + offline mode)
 // - /api/tts using OpenAI GPT-4o TTS
 // -----------------------------------------------------
 
@@ -28,6 +28,9 @@ const PORT = process.env.PORT || 3000;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
 
+// Offline toggle: set NYX_OFFLINE_MODE=true in Render env vars
+const NYX_OFFLINE_MODE = process.env.NYX_OFFLINE_MODE === "true";
+
 if (!OPENAI_API_KEY) {
   console.warn("[Nyx] Warning: OPENAI_API_KEY is not set. GPT will not work.");
 }
@@ -40,7 +43,7 @@ const openai = new OpenAI({
 // Root route
 // ---------------------------------------------
 app.get("/", (req, res) => {
-  res.send("Sandblast Nyx backend is live. GPT + TTS active. ✅");
+  res.send("Sandblast Nyx backend is live. GPT + TTS / Offline mode ready. ✅");
 });
 
 // ---------------------------------------------
@@ -82,6 +85,89 @@ function buildNyxSystemMessages(boundaryContext, emotion) {
 }
 
 // ---------------------------------------------
+// Helper: Offline Nyx brain (no OpenAI calls)
+// ---------------------------------------------
+function handleOfflineNyx(userMessage, boundaryContext, meta) {
+  const role = boundaryContext?.role || "public";
+
+  // 1) Front door: greetings / "who are you / how are you"
+  const frontDoor =
+    typeof nyxPersonality.handleNyxFrontDoor === "function"
+      ? nyxPersonality.handleNyxFrontDoor(userMessage)
+      : null;
+
+  if (frontDoor && role === "public") {
+    return nyxPersonality.wrapWithNyxTone(
+      frontDoor,
+      userMessage,
+      meta
+    );
+  }
+
+  // 2) TV micro-scripts (rule-based)
+  const tvIntent =
+    typeof nyxPersonality.detectTvShowIntent === "function"
+      ? nyxPersonality.detectTvShowIntent(userMessage, meta)
+      : null;
+
+  if (
+    tvIntent &&
+    typeof nyxPersonality.buildTvShowMicroScript === "function"
+  ) {
+    const tvPayload = nyxPersonality.buildTvShowMicroScript(
+      tvIntent,
+      boundaryContext,
+      meta
+    );
+    return nyxPersonality.wrapWithNyxTone(
+      tvPayload,
+      userMessage,
+      meta
+    );
+  }
+
+  // 3) Sponsor lane (4-week tests, rule-based)
+  const sponsorIntent =
+    typeof nyxPersonality.detectSponsorIntent === "function"
+      ? nyxPersonality.detectSponsorIntent(userMessage, meta)
+      : null;
+
+  if (
+    sponsorIntent &&
+    typeof nyxPersonality.buildSponsorLaneResponse === "function"
+  ) {
+    const sponsorPayload =
+      nyxPersonality.buildSponsorLaneResponse(
+        sponsorIntent,
+        boundaryContext,
+        meta
+      );
+    return nyxPersonality.wrapWithNyxTone(
+      sponsorPayload,
+      userMessage,
+      meta
+    );
+  }
+
+  // 4) Fallback: offline explainer
+  const fallbackPayload = {
+    intent: "offline_fallback",
+    category: role === "public" ? "public" : "internal",
+    domain: "general",
+    message:
+      role === "public"
+        ? "Nyx’s online model is in offline mode right now, but I can still help you think through Sandblast TV blocks or sponsor tests. Tell me the show, night, or sponsor idea you’re working on."
+        : "Nyx’s external model is offline for now, but the builder lane is still live. Tell me the block you’re tuning—patrol night, westerns, or a sponsor concept—and I’ll help you structure it in a clean, realistic way.",
+  };
+
+  return nyxPersonality.wrapWithNyxTone(
+    fallbackPayload,
+    userMessage,
+    meta
+  );
+}
+
+// ---------------------------------------------
 // /api/sandblast-gpt — Nyx primary brain
 // ---------------------------------------------
 app.post("/api/sandblast-gpt", async (req, res) => {
@@ -104,12 +190,6 @@ app.post("/api/sandblast-gpt", async (req, res) => {
         .json({ error: "Missing 'message' in request body." });
     }
 
-    if (!OPENAI_API_KEY) {
-      return res
-        .status(500)
-        .json({ error: "OPENAI_API_KEY not configured." });
-    }
-
     // Boundary / role
     const boundaryContext = nyxPersonality.resolveBoundaryContext({
       actorName,
@@ -121,9 +201,6 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     const currentEmotion =
       nyxPersonality.detectEmotionalState(userMessage);
 
-    // Quick greeting/intro logic
-    const frontDoor = nyxPersonality.handleNyxFrontDoor(userMessage);
-
     const meta = {
       stepIndex: Number(stepIndex) || 0,
       lastDomain: lastDomain || topic || "general",
@@ -132,7 +209,35 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       topic: topic || "general",
     };
 
-    // Use front-door without calling GPT if appropriate
+    // -----------------------------------------
+    // OFFLINE MODE (no OpenAI calls)
+    // -----------------------------------------
+    if (NYX_OFFLINE_MODE || !OPENAI_API_KEY) {
+      const offline = handleOfflineNyx(
+        userMessage,
+        boundaryContext,
+        meta
+      );
+
+      return res.json({
+        reply: offline.message,
+        meta: {
+          stepIndex: (meta.stepIndex || 0) + 1,
+          lastDomain: offline.domain || "general",
+          lastEmotion: currentEmotion,
+          role: boundaryContext.role,
+          topic,
+        },
+      });
+    }
+
+    // -----------------------------------------
+    // ONLINE MODE (OpenAI GPT)
+    // -----------------------------------------
+
+    // Quick greeting/intro logic when online (public only)
+    const frontDoor =
+      nyxPersonality.handleNyxFrontDoor(userMessage);
     if (frontDoor && boundaryContext.role === "public") {
       const wrapped = nyxPersonality.wrapWithNyxTone(
         frontDoor,
@@ -152,9 +257,13 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       });
     }
 
-    // -------------------------
+    if (!OPENAI_API_KEY) {
+      return res
+        .status(500)
+        .json({ error: "OPENAI_API_KEY not configured." });
+    }
+
     // GPT CALL
-    // -------------------------
     const systemMessages = buildNyxSystemMessages(
       boundaryContext,
       currentEmotion
@@ -224,7 +333,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 });
 
 // ---------------------------------------------
-// /api/tts — GPT-4o TTS
+// /api/tts — GPT-4o TTS (still online-only)
 // ---------------------------------------------
 app.post("/api/tts", async (req, res) => {
   try {
@@ -284,6 +393,6 @@ app.post("/api/tts", async (req, res) => {
 // ---------------------------------------------
 app.listen(PORT, () => {
   console.log(
-    `Nyx backend listening on port ${PORT} — GPT + TTS active`
+    `Nyx backend listening on port ${PORT} — GPT + TTS + Offline mode`
   );
 });
