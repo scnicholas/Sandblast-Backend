@@ -1,10 +1,10 @@
 // Utils/nyxPersonality.js
-// Nyx Personality Engine v2.0
+// Nyx Personality Engine v2.1
 // Includes:
 // - Front-door greetings
 // - Emotional detection
 // - Builder-mode logic
-// - TV Show Micro-Script Engine (Phase 3)
+// - TV Show Micro-Script Engine (generic + specific library)
 // - Domain routing expansion
 // - B3 tone wrapper + B4 session continuity
 
@@ -79,19 +79,23 @@ function detectEmotionalState(text) {
     t.includes("overwhelmed") ||
     t.includes("too much") ||
     t.includes("i don't know") ||
+    t.includes("i dont know") ||
     t.includes("lost")
   )
     return "overwhelm";
 
   if (
     t.includes("i'm not sure") ||
+    t.includes("im not sure") ||
     t.includes("i dont understand") ||
+    t.includes("i don't understand") ||
     t.includes("confused")
   )
     return "confusion";
 
   if (
     t.includes("it's working") ||
+    t.includes("its working") ||
     t.includes("awesome") ||
     t.includes("amazing") ||
     t.includes("finally")
@@ -100,6 +104,7 @@ function detectEmotionalState(text) {
 
   if (
     t.includes("let's do it") ||
+    t.includes("lets do it") ||
     t.includes("move to") ||
     t.includes("next step")
   )
@@ -152,7 +157,9 @@ function handleNyxFrontDoor(userMessage) {
   const asksHow =
     lower.includes("how are you") ||
     lower.includes("how's your day") ||
-    lower.includes("how you doing");
+    lower.includes("hows your day") ||
+    lower.includes("how you doing") ||
+    lower.includes("how are you doing");
 
   const isThanks =
     lower.includes("thank") ||
@@ -191,7 +198,7 @@ function handleNyxFrontDoor(userMessage) {
       category: "welcome",
       domain: "general",
       message:
-        "Hi there, I’m Nyx. Tell me what you’re curious about—TV, radio, streaming, News Canada, advertising, or AI consulting—and I’ll line up the next step.",
+        "Hi there, I’m Nyx. Tell me what you’re curious about—Sandblast TV, radio, streaming, News Canada, advertising, or AI consulting—and I’ll line up the next step.",
     };
   }
 
@@ -221,7 +228,7 @@ function handleNyxFrontDoor(userMessage) {
       category: "public",
       domain: "general",
       message:
-        "You can ask me about TV, radio, streaming, News Canada content, advertising, or AI consulting. Tell me the area you care about and I’ll map out a simple next move.",
+        "You can ask me about Sandblast TV, radio, streaming, News Canada content, advertising options, or AI consulting. Tell me the area you care about, and I’ll map out a simple next move.",
     };
   }
 
@@ -236,6 +243,7 @@ function detectTvShowIntent(text) {
 
   const keywords = [
     "micro-script",
+    "micro script",
     "episode breakdown",
     "tv breakdown",
     "prepare episode",
@@ -249,14 +257,194 @@ function detectTvShowIntent(text) {
 }
 
 // ------------------------------------------------------
-// TV MICRO-SCRIPT GENERATOR (GENERAL TEMPLATE)
+// TV SHOW LIBRARY (SPECIFIC SHOW PROFILES)
 // ------------------------------------------------------
-function buildTvShowMicroScript(showName, episode, internalMode) {
+const TV_SHOW_LIBRARY = {
+  "highway patrol": {
+    displayName: "Highway Patrol",
+    shortTagline: "roadside justice and tight procedural pacing.",
+    category: "law-enforcement procedural",
+    keyThemes: [
+      "fast, clipped scenes",
+      "clear problem–response structure",
+      "authoritative narration vibe",
+    ],
+    transitions: [
+      "Back on the highway…",
+      "Hold that thought — here comes the next call…",
+      "Let’s roll back into the patrol car…",
+    ],
+    sponsorHint:
+      "local auto shops, tire services, towing companies, insurance, road safety campaigns",
+    triviaHint:
+      "Use simple patrol-era trivia — equipment, cars, or communication methods — without going too deep.",
+    cta:
+      "More classic patrol stories every night on Sandblast TV — always curated, always intentional.",
+  },
+
+  dragnet: {
+    displayName: "Dragnet",
+    shortTagline: "no-nonsense, methodical police work and clipped dialogue.",
+    category: "police procedural",
+    keyThemes: [
+      "matter-of-fact narration",
+      "step-by-step investigation",
+      "‘just the facts’ tone",
+    ],
+    transitions: [
+      "Back to the case at hand…",
+      "Here’s where the trail tightens…",
+      "Let’s go right back into the investigation…",
+    ],
+    sponsorHint:
+      "security services, legal support, community organizations, neighborhood watch programs",
+    triviaHint:
+      "Keep it to simple behind-the-scenes or era-appropriate policing trivia — nothing heavy or sensational.",
+    cta:
+      "Classic cases, clear stakes — Dragnet on Sandblast TV keeps the story sharp and focused.",
+  },
+
+  "green hornet": {
+    displayName: "The Green Hornet",
+    shortTagline:
+      "masked vigilante justice with a pulpy, fast-moving action feel.",
+    category: "masked vigilante / action",
+    keyThemes: [
+      "duality of public vs secret identity",
+      "fast fights and escapes",
+      "pulp-serial pacing",
+    ],
+    transitions: [
+      "Back into the shadows…",
+      "Stay with it — the sting’s not over…",
+      "Let’s drop straight back into the action…",
+    ],
+    sponsorHint:
+      "tech shops, gadgets, comics and collectibles, events with a retro-hero angle",
+    triviaHint:
+      "Focus on radio origins, stunt work, or the hero/sidekick dynamic — fun, not heavy.",
+    cta:
+      "Classic masked-hero energy, curated for a new era — only on Sandblast TV.",
+  },
+
+  bonanza: {
+    displayName: "Bonanza",
+    shortTagline:
+      "family-centered Western storytelling with wide-open landscapes.",
+    category: "Western / family drama",
+    keyThemes: [
+      "family loyalty and conflict",
+      "frontier justice",
+      "big landscapes and slower, scenic pacing",
+    ],
+    transitions: [
+      "Back on the Ponderosa…",
+      "Let’s ride back into the story…",
+      "Stay in the saddle — here comes the next turn…",
+    ],
+    sponsorHint:
+      "family businesses, community events, outdoor gear, local restaurants with comfort-food vibes",
+    triviaHint:
+      "Use light trivia about cast members, location shooting, or broadcast history.",
+    cta:
+      "Classic frontier stories you can settle into — Bonanza on Sandblast TV.",
+  },
+
+  tarzan: {
+    displayName: "Tarzan",
+    shortTagline:
+      "adventure-driven jungle stories with simple, high-energy plots.",
+    category: "adventure / serial",
+    keyThemes: [
+      "nature vs civilization",
+      "physical stunts and daring rescues",
+      "simple, clear good-versus-danger structure",
+    ],
+    transitions: [
+      "Back into the jungle canopy…",
+      "Hold on — the next swing is coming…",
+      "Let’s dive straight back into the adventure…",
+    ],
+    sponsorHint:
+      "outdoor gear, sports shops, youth programs, active-lifestyle brands",
+    triviaHint:
+      "Stick to stunt work, filming locations, or serial-era storytelling conventions.",
+    cta:
+      "Retro adventure with a clear pulse — Tarzan returns on Sandblast TV.",
+  },
+
+  gangbusters: {
+    displayName: "Gangbusters",
+    shortTagline:
+      "crime-chasing action delivered in bold, punchy segments.",
+    category: "crime / action",
+    keyThemes: [
+      "cops vs crooks tension",
+      "snappy pacing with rapid developments",
+      "strong ‘crime doesn’t pay’ framing",
+    ],
+    transitions: [
+      "Back to the chase…",
+      "Hold tight — the next break in the case is here…",
+      "Let’s jump right back into the operation…",
+    ],
+    sponsorHint:
+      "home security, financial services, community safety campaigns, local business alliances",
+    triviaHint:
+      "Touch lightly on its roots in radio or early TV crime dramatizations.",
+    cta:
+      "High-energy retro crime stories with a clean moral line — Gangbusters on Sandblast TV.",
+  },
+};
+
+// ------------------------------------------------------
+// TV MICRO-SCRIPT GENERATOR (GENERIC + LIBRARY)
+// ------------------------------------------------------
+function buildTvShowMicroScript(showNameRaw, episode, internalMode) {
+  const rawName = safeString(showNameRaw).trim();
+  const key = rawName.toLowerCase();
+  const profile = TV_SHOW_LIBRARY[key] || null;
+
+  const showLabel = profile?.displayName || (rawName || "this show");
   const epLabel = episode ? `Episode ${episode}` : "This story";
 
-  const publicScript = `
+  // ---------- PUBLIC-FACING MICRO-SCRIPT ----------
+  let publicScript;
+
+  if (profile) {
+    const themesLines = (profile.keyThemes || [])
+      .map((t) => `• ${t}`)
+      .join("  \n");
+
+    const transitionsLines = (profile.transitions || [])
+      .map((t) => `• "${t}"`)
+      .join("  \n");
+
+    publicScript = `
 [Episode Overview]
-${epLabel} from ${showName} brings a clean retro pace—tight scenes, clear stakes, and classic storytelling.
+${epLabel} from ${showLabel} leans into ${profile.shortTagline} It’s paced in a way that feels retro, clear, and easy to follow for a modern viewer.
+
+[Why Sandblast Is Airing This Episode]
+It fits Sandblast’s growing-channel identity: recognizable retro energy, steady pacing, and a story you can drop into without needing a full season recap.
+
+[Key Themes / Tone]
+${themesLines || "• Clean, classic retro storytelling."}
+
+[Segment Transition Lines]
+${transitionsLines || "• \"Back into the story…\""}
+
+[Trivia]
+${profile.triviaHint || "A light piece of retro-era trivia keeps it fun without overwhelming the viewer."}
+
+[CTA]
+${profile.cta ||
+  "More classic stories every night on Sandblast TV — always curated, always intentional."}
+`.trim();
+  } else {
+    // Generic fallback
+    publicScript = `
+[Episode Overview]
+${epLabel} from ${showLabel} brings a clean retro pace—tight scenes, clear stakes, and classic storytelling.
 
 [Why Sandblast Is Airing This Episode]
 It fits the growing-channel identity: recognizable retro energy, simple pacing, and audience comfort. Easy to place in a nightly block without major production demands.
@@ -266,7 +454,7 @@ It fits the growing-channel identity: recognizable retro energy, simple pacing, 
 • Straightforward pacing  
 • Clean moral arc  
 
-[Transition Lines]
+[Segment Transition Lines]
 • "Back on the trail…"  
 • "Hold that thought — here comes the turn…"  
 • "Let’s roll back into the action…"  
@@ -277,29 +465,34 @@ A small slice of retro culture that keeps these shows fun without overwhelming t
 [CTA]
 "More classic stories every night on Sandblast TV — always curated, always intentional."
 `.trim();
+  }
 
   if (!internalMode) return publicScript;
 
-  // BUILDER MODE VERSION
+  // ---------- BUILDER-MODE EXTENSION ----------
+  const sponsorHint = profile?.sponsorHint
+    ? profile.sponsorHint
+    : "local small businesses, community organizations, and services that want steady, repeated visibility in a retro block.";
+
   return `
 Builder-view: this sits on the Sandblast TV layer. Let’s frame it clearly.
 
 ${publicScript}
 
 [Programming Logic]
-This episode fits an evening retro block because it has clean pacing and requires minimal prep time. Works well for consistent nightly scheduling.
+This episode works well in a retro block because its pacing is predictable and the story resolves cleanly. That reduces friction for nightly scheduling and keeps the channel consistent.
 
 [Audience Expectation]
-Light, nostalgia-driven viewers who respond to comfort pacing and predictable structure.
+Viewers are looking for comfort pacing, simple stakes, and a familiar vibe. This episode delivers that without needing heavy emotional investment.
 
 [Sponsor Tie-in Suggestion]
-Great for local businesses, auto shops, community services, or organizations comfortable with retro Americana themes.
+Best aligned with: ${sponsorHint} Tie the sponsor to the stability and dependability of this style of storytelling.
 
 [Proof Point]
-Channels using retro programming blocks see strong viewer retention due to predictable pacing and nostalgic appeal.
+Retro TV blocks often retain viewers because they feel familiar and low-pressure, making them ideal for sponsors who value repeated exposure over hype-heavy campaigns.
 
 [Next Action]
-Test this episode or block for one night this week and measure viewer engagement or comments across your channels.
+Test this episode or a small run of similar episodes in the same slot for one week, track basic engagement signals, then adjust the surrounding promos or sponsor mentions based on what you see.
 `.trim();
 }
 
@@ -343,8 +536,11 @@ function wrapWithNyxTone(payload, userMessage, meta) {
   if (isInternal) {
     intro = `Builder-view: this sits on the ${domainLabel(domain)} layer. `;
   } else {
-    if (domain === "tv-show") intro = "Let’s anchor this on the Sandblast TV experience. ";
-    else if (domain === "tv") intro = "Looking at this through the TV lens. ";
+    if (domain === "tv-show") {
+      intro = "Let’s anchor this on the Sandblast TV experience. ";
+    } else if (domain === "tv") {
+      intro = "Looking at this through the TV lens. ";
+    }
   }
 
   const combined = `${mirrorLine} ${intro} ${raw}`.trim();
