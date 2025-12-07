@@ -1,6 +1,7 @@
 // Utils/nyxPersonality.js
-// Nyx Personality Engine v1.2
+// Nyx Personality Engine v1.3
 // Sleek Professional Navigator + Emotional Layer (B3) + Session Continuity (B4)
+// + Growing-channel realism + proof point + next action
 
 // ---------------------------------------------
 // Helpers
@@ -9,6 +10,64 @@ function safeString(value, fallback = "") {
   if (typeof value === "string") return value;
   if (value === null || value === undefined) return fallback;
   return String(value);
+}
+
+// ---------------------------------------------
+// Core Nyx Persona (system prompt text)
+// ---------------------------------------------
+const NYX_SYSTEM_PERSONA = `
+You are Nyx, the AI brain of Sandblast Channel.
+
+You are:
+- Female-presenting, personable, and straight-talking, but never harsh.
+- Encouraging, forward-thinking, and practical. You look for realistic next moves, not fantasies.
+- Warm but concise. You avoid long-winded speeches unless the user clearly wants detail.
+- Lightly humorous when it fits, but never clownish or mocking.
+- Brand-aware: you reference Sandblast’s world (TV, radio, streaming, News Canada, sponsors, public-domain content, and AI consulting) in a simple, relatable way.
+
+Your default communication style:
+- Sound like a calm, experienced broadcast woman: clear, steady, and confident.
+- Use simple, human language, even when explaining technical or strategic ideas.
+- Acknowledge how the user feels when they share stress, confusion, or excitement.
+- Never overpromise. You help a growing channel, not a giant network with infinite budget.
+
+Very important behavior rules:
+1. Always keep things realistic for a growing Sandblast Channel, not a giant network.
+2. For any recommendation more than 1–2 sentences long, include:
+   - Exactly one proof point (a short concrete reason, example, or tiny data point).
+   - Exactly one next action the user can test in the real world (for example: “test this with one sponsor for 4 weeks”).
+3. When the user is unsure or overwhelmed, slow down, simplify, and suggest the smallest possible next step.
+4. You never undercut Mac or his team. You speak as if you are part of the Sandblast crew.
+5. You keep responses focused. If the user asks for one thing, do not explode into five strategies unless they ask for that.
+`;
+
+// ---------------------------------------------
+// Greetings / Small-talk Library
+// ---------------------------------------------
+const nyxGreetings = {
+  basicOpeners: [
+    "Hey, I’m here. How’s your day going so far?",
+    "Hi, I’m tuned in. What’s on your mind right now?",
+    "You found me. What do you want to tune or refine today?",
+    "I’m here and online. Where do you want to start?"
+  ],
+  responsesToHowAreYou: [
+    "I’m steady in the background, keeping the signal clean. How are you feeling today?",
+    "All systems are calm on my end. What’s the vibe on yours?",
+    "I’m good — just here to help you clear the static. What are you working on?",
+    "Running smooth. What do you need tuned or simplified first?"
+  ],
+  snowyDayVariants: [
+    "Snow outside, signal inside. Good day to focus. What should we tackle first?",
+    "If the snow has you indoors, we might as well upgrade something. Where do you want to start?",
+    "Snow days are build days. TV, radio, sponsors, or the AI brain — what’s calling you?"
+  ]
+};
+
+function pickRandom(arr, fallback) {
+  if (!Array.isArray(arr) || arr.length === 0) return fallback || "";
+  const idx = Math.floor(Math.random() * arr.length);
+  return arr[idx];
 }
 
 // ---------------------------------------------
@@ -50,8 +109,8 @@ function resolveBoundaryContext({ actorName, channel, persona } = {}) {
     persona: personaId,
     boundary: {
       role,
-      description: boundaryDescription,
-    },
+      description: boundaryDescription
+    }
   };
 }
 
@@ -167,13 +226,14 @@ function handleNyxFrontDoor(userMessage) {
   const raw = safeString(userMessage).trim();
   const lower = raw.toLowerCase();
 
+  // No input: default welcome
   if (!raw) {
     return {
       intent: "welcome",
       category: "welcome",
       domain: "general",
       message:
-        "Hello. I’m Nyx. I’ll guide you through anything on Sandblast—TV, radio, streaming, News Canada, advertising, and AI consulting. What would you like to explore?",
+        "Hello. I’m Nyx. I’ll guide you through anything on Sandblast—TV, radio, streaming, News Canada, advertising, and AI consulting. What would you like to explore?"
     };
   }
 
@@ -203,13 +263,45 @@ function handleNyxFrontDoor(userMessage) {
     lower.includes("how do i use this") ||
     lower.includes("how does this work");
 
+  const asksHowAreYou =
+    lower.includes("how are you") ||
+    lower.includes("how r u") ||
+    lower.includes("how's your day") ||
+    lower.includes("hows your day") ||
+    lower.includes("how is your day");
+
+  const mentionsSnow =
+    lower.includes("snow") || lower.includes("snowy");
+
   if (isGreeting || asksWhoAreYou) {
+    const opener = mentionsSnow
+      ? pickRandom(
+          nyxGreetings.snowyDayVariants,
+          "Snow outside, signal inside. Good day to focus. What should we tackle first?"
+        )
+      : pickRandom(
+          nyxGreetings.basicOpeners,
+          "Hi, I’m Nyx. What do you want to tune or refine today?"
+        );
+
     return {
       intent: "welcome",
       category: "welcome",
       domain: "general",
-      message:
-        "Hello. I’m Nyx. I’ll guide you through anything on Sandblast—TV, radio, streaming, News Canada, advertising, and AI consulting. What would you like to explore?",
+      message: opener
+    };
+  }
+
+  if (asksHowAreYou) {
+    const reply = pickRandom(
+      nyxGreetings.responsesToHowAreYou,
+      "I’m steady in the background, keeping the signal clean. How are you feeling today?"
+    );
+    return {
+      intent: "small_talk",
+      category: "public",
+      domain: "general",
+      message: reply
     };
   }
 
@@ -219,7 +311,7 @@ function handleNyxFrontDoor(userMessage) {
       category: "public",
       domain: "general",
       message:
-        "You’re welcome. If you’d like, I can guide you through the next part of what you’re working on.",
+        "You’re welcome. If you’d like, I can guide you through the next part of what you’re working on."
     };
   }
 
@@ -229,7 +321,7 @@ function handleNyxFrontDoor(userMessage) {
       category: "public",
       domain: "general",
       message:
-        "You can ask me about Sandblast TV, radio, streaming, News Canada content, advertising options, or AI consulting. Tell me the area you care about, and I’ll map out a clear next step.",
+        "You can ask me about Sandblast TV, radio, streaming, News Canada content, advertising options, or AI consulting. Tell me the area you care about, and I’ll map out a clear next step."
     };
   }
 
@@ -238,7 +330,7 @@ function handleNyxFrontDoor(userMessage) {
 
 // ---------------------------------------------
 // Tone Wrapper: Nyx's Sleek Professional Voice
-// Now meta-aware (B4)
+// Meta-aware (B4) + growing-channel realism + proof point + next action
 // ---------------------------------------------
 function wrapWithNyxTone(payload, userMessage, meta) {
   if (!payload || typeof payload !== "object") {
@@ -416,8 +508,15 @@ function wrapWithNyxTone(payload, userMessage, meta) {
   }
 
   // -------------------------------
-  // Optional “next logical step” guidance
+  // Growing-channel realism reminder
   // -------------------------------
+  const realismReminder =
+    "Remember: we’re building for a growing Sandblast Channel, not a giant network, so we’ll keep this lean and realistic.";
+
+  // -------------------------------
+  // Optional “next logical step” guidance
+  // (this is separate from the explicit 'Next action' we enforce later)
+// -------------------------------
   const trimmed = rawMessage.trim();
   const endsWithQuestion = /[?？！]$/.test(trimmed);
   const isShortEnough = trimmed.length > 0 && trimmed.length < 700;
@@ -450,21 +549,52 @@ function wrapWithNyxTone(payload, userMessage, meta) {
   }
 
   // -------------------------------
-  // Compose final message
-  // -------------------------------
+  // Compose core message (before proof point/next action enforcement)
+// -------------------------------
   const parts = [];
 
   if (mirrorLine) parts.push(mirrorLine);
   if (callbackLine) parts.push(callbackLine);
+  parts.push(realismReminder);
   if (intro) parts.push(intro.trim());
   parts.push(trimmed);
 
-  const core = parts.join(" ").replace(/\s+/g, " ").trim();
-  const finalMessage = `${core}${outro}`.trim();
+  let core = parts.join(" ").replace(/\s+/g, " ").trim();
+  core = `${core}${outro}`.trim();
+
+  // -------------------------------
+  // Enforce one proof point + one next action
+  // -------------------------------
+  let finalMessage = core;
+
+  const hasProofPoint =
+    /proof point:/i.test(finalMessage) ||
+    /for example/i.test(finalMessage) ||
+    /for instance/i.test(finalMessage) ||
+    /one example/i.test(finalMessage);
+
+  const hasNextAction =
+    /next action:/i.test(finalMessage) ||
+    /try this:/i.test(finalMessage) ||
+    /test this/i.test(finalMessage) ||
+    /first step:/i.test(finalMessage) ||
+    /here's what to do/i.test(finalMessage);
+
+  if (!hasProofPoint) {
+    finalMessage +=
+      "\n\nProof point: This kind of move can work at a growing-channel level because it relies on consistent small tests, not a big team or huge budget.";
+  }
+
+  if (!hasNextAction) {
+    const nextActionLine = isInternal
+      ? "Next action: Ship a minimal version of this idea into one real slot — one show, one sponsor, or one page — for 4 weeks and then review what actually moved the needle."
+      : "Next action: Test a stripped-down version of this idea with one sponsor, show, or segment for 4 weeks, then review what actually moved the needle.";
+    finalMessage += `\n\n${nextActionLine}`;
+  }
 
   return {
     ...payload,
-    message: finalMessage,
+    message: finalMessage
   };
 }
 
@@ -498,4 +628,6 @@ module.exports = {
   handleNyxFrontDoor,
   wrapWithNyxTone,
   detectEmotionalState,
+  nyxGreetings,
+  NYX_SYSTEM_PERSONA
 };
