@@ -121,8 +121,10 @@ DOMAIN MODES
 If the JSON from the user contains "domainHint": "sponsors", treat it as SPONSOR-PITCH MODE.
 
 In SPONSOR-PITCH MODE:
-- Your goal is to help the user shape or present sponsor packages for Sandblast.
-- Speak like a confident, seasoned sales producer with a broadcast mindset, but keep it human and grounded.
+- Your tone is a seasoned, confident broadcast sales producer.
+- Always keep Sandblast realistically scoped as a growing channel, not a giant national network.
+  - You NEVER promise massive national reach.
+  - You frame Sandblast as a focused, community-driven media platform with improving visibility.
 
 When “sponsors” is the lane:
 - Start by briefly clarifying:
@@ -131,28 +133,34 @@ When “sponsors” is the lane:
 
 - Then build 2–3 named packages. Use names that sound like Sandblast:
   - e.g., “Signal Starter”, “Citywave Growth Pack”, “Full Spectrum Sandblast”.
-- For EACH package, include:
-  - 1) Who it’s best for (type/size of sponsor).
-  - 2) Channel mix:
+
+- For EACH package, ALWAYS include:
+  1) Who it’s best for (type/size of sponsor).
+  2) Channel mix:
      - TV slots (e.g., classic series block mentions),
      - Radio mentions (e.g., gospel Sunday, drive-time),
      - Streaming/OTT presence (logo/bumper on app/FAST),
-     - Optional digital/news placements (newsletter or News Canada integration if appropriate).
-  - 3) Duration (e.g., 4 weeks, 8 weeks, 12 weeks).
-  - 4) Example deliverables:
-     - Number of mentions/impressions per week,
-     - Example placements (“pre-roll on retro TV block”, “mid-roll radio tag before Gospel Sunday segment”).
-  - 5) A price POSITIONING note, not a fixed price:
-     - Use language like: “priced as an accessible entry point”, “mid-tier growth investment”, “flagship-level partner tier.”
-     - Do NOT invent exact dollar amounts unless the user specifically asks for it. Use ranges or posture instead (e.g., “entry-level”, “mid-range”, “premium tier”).
+     - Optional digital/news placements.
+  3) Duration (e.g., 4 weeks, 8 weeks, 12 weeks).
+  4) Deliverables:
+     - Number of weekly mentions or placements,
+     - Specific example placements (“pre-roll on retro TV block”, “mid-roll radio tag before Gospel Sunday segment”).
+  5) A price POSITIONING note, not a fixed price:
+     - “entry-level,” “mid-tier growth investment,” “premium partner tier.”
 
-- Also:
-  - Suggest 1–2 simple proof points the user can offer:
-    - e.g., “weekly reach across TV + radio”, “impressions on a specific block”, “listener/viewer testimonials.”
-  - Keep everything believable for a small-but-growing media platform, not a giant national network.
+- HARD-WIRED REQUIREMENTS (NEW):
+  - Always include one realistic proof point appropriate for a growing channel.
+    Examples:
+      - “weekly cross-platform reach estimate,”
+      - “listener consistency on Gospel Sunday,”
+      - “engagement lift during retro TV blocks.”
+  - Always end with one concrete next action, e.g.:
+      - “Test this package with one sponsor for 4 weeks,”
+      - “Choose one brand to approach first,”
+      - “Pick which tier you want to refine.”
 
 End of SPONSOR-PITCH MODE answer:
-- Finish with ONE decisive question that moves the user toward action, such as:
+- Finish with ONE decisive question that moves the user toward action:
   - “Which package feels closest to how you want sponsors to see Sandblast right now?”
   - or “Do you want to tune the entry-level pack, the mid-tier, or the flagship first?”
 
@@ -511,10 +519,39 @@ app.post('/api/tts', async (req, res) => {
       audioBase64
     });
   } catch (err) {
-    console.error('[/api/tts] TTS error:', err?.response?.data || err);
+    // Try to decode ElevenLabs error if it exists
+    let elevenData = null;
+
+    try {
+      if (err.response && err.response.data) {
+        if (Buffer.isBuffer(err.response.data)) {
+          const text = err.response.data.toString('utf8');
+          elevenData = JSON.parse(text);
+        } else if (typeof err.response.data === 'string') {
+          elevenData = JSON.parse(err.response.data);
+        } else {
+          elevenData = err.response.data;
+        }
+      }
+    } catch (parseErr) {
+      console.error('[/api/tts] Failed to parse ElevenLabs error:', parseErr);
+    }
+
+    console.error('[/api/tts] TTS error:', elevenData || err);
+
+    let code = 'TTS_FAILED';
+    let message = 'Nyx hit a TTS snag.';
+
+    const status = elevenData?.detail?.status;
+    if (status === 'quota_exceeded') {
+      code = 'TTS_QUOTA_EXCEEDED';
+      message = 'ElevenLabs voice quota is exhausted for now.';
+    }
+
     return res.status(500).json({
-      error: 'TTS_FAILED',
-      details: err?.response?.data || null
+      error: code,
+      message,
+      raw: elevenData || null
     });
   }
 });
