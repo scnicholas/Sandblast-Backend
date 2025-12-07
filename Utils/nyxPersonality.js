@@ -5,6 +5,7 @@ function handleNyxFrontDoor(userMessage) {
   const raw = safeString(userMessage).trim();
   const lower = raw.toLowerCase();
 
+  // Empty input → simple welcome
   if (!raw) {
     return {
       intent: "welcome",
@@ -15,15 +16,17 @@ function handleNyxFrontDoor(userMessage) {
     };
   }
 
+  // Greeting detection (including 'Nix' misspelling)
   const isGreeting =
     /^(hi|hello|hey|yo|good (morning|afternoon|evening)|greetings)\b/.test(lower) ||
     lower === "nyx" ||
-    lower === "nix" ||              // accept the common misspelling
+    lower === "nix" ||
     lower === "hello nyx" ||
-    lower === "hello nix" ||        // and this
+    lower === "hello nix" ||
     lower === "hi nyx" ||
     lower === "hi nix";
 
+  // "Who are you" detection
   const asksWhoAreYou =
     lower.includes("who are you") ||
     lower.includes("what are you") ||
@@ -31,6 +34,7 @@ function handleNyxFrontDoor(userMessage) {
     lower.includes("what is nix") ||
     lower.includes("what do you do");
 
+  // "How are you" / small talk
   const asksHowNyxIs =
     lower.includes("how are you") ||
     lower.includes("how's your day") ||
@@ -42,6 +46,7 @@ function handleNyxFrontDoor(userMessage) {
     lower.includes("how you going") ||
     lower.includes("how you doing");
 
+  // Thanks / closure
   const isThanks =
     lower.includes("thank you") ||
     lower.includes("thanks") ||
@@ -49,6 +54,7 @@ function handleNyxFrontDoor(userMessage) {
     lower === "thanks nyx" ||
     lower === "thanks nix";
 
+  // Help / usage guidance
   const asksHelp =
     lower === "help" ||
     lower === "help nyx" ||
@@ -56,7 +62,11 @@ function handleNyxFrontDoor(userMessage) {
     lower.includes("how do i use this") ||
     lower.includes("how does this work");
 
-  // Direct "who are you / what is Nyx" → short persona intro
+  // ---------------------------------------------
+  // RESPONSES
+  // ---------------------------------------------
+
+  // Direct "who are you" → short persona intro
   if (asksWhoAreYou) {
     return {
       intent: "welcome",
@@ -67,7 +77,7 @@ function handleNyxFrontDoor(userMessage) {
     };
   }
 
-  // Greeting + "how are you" → short, fluid small-talk
+  // Greeting + "how are you"
   if (isGreeting && asksHowNyxIs) {
     return {
       intent: "small_talk",
@@ -78,7 +88,7 @@ function handleNyxFrontDoor(userMessage) {
     };
   }
 
-  // Just greeting
+  // Simple greeting
   if (isGreeting) {
     return {
       intent: "welcome",
@@ -89,7 +99,7 @@ function handleNyxFrontDoor(userMessage) {
     };
   }
 
-  // “How are you?” without an explicit greeting
+  // Small-talk without greeting
   if (asksHowNyxIs) {
     return {
       intent: "small_talk",
@@ -111,7 +121,7 @@ function handleNyxFrontDoor(userMessage) {
     };
   }
 
-  // “How do I use this?” help
+  // Help / usage
   if (asksHelp) {
     return {
       intent: "usage_help",
@@ -122,6 +132,6 @@ function handleNyxFrontDoor(userMessage) {
     };
   }
 
-  // If none of the above match, let the main brain handle it.
+  // Default: continue to the main brain
   return null;
 }
