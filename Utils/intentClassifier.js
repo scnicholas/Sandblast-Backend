@@ -1,185 +1,107 @@
 // Utils/intentClassifier.js
-// Rule-based intent classifier for Sandblast / Nyx
-// Returns: { intent, domain, confidence }
+// Simple keyword-based intent classifier for Nyx
+// Returns: { intent, confidence, toneHint }
 
-function safeString(value, fallback = "") {
-  if (typeof value === "string") return value;
-  if (value === null || value === undefined) return fallback;
-  return String(value);
-}
-
-function normalize(text) {
-  return safeString(text)
-    .trim()
-    .toLowerCase();
-}
-
-// Precompiled regex patterns for different signal clusters
-const PATTERNS = {
-  tv: /\b(tv|television|roku|ott|linear channel|channel lineup|epg)\b/,
-  radio: /\b(radio|audio stream|live audio|sandblast radio|shoutcast)\b/,
-  newsCanada: /\b(news canada|news content|content feed|editorial spots)\b/,
-  consulting: /\b(ai consulting|consulting offer|ai strategy|prompt engineering|ai package|ai workshop|ai bootcamp|ai training)\b/,
-  publicDomain: /\b(public domain|archive\.org|pd check|pd kit|copyright status|public\-domain)\b/,
-  internalOps: /\b(backend|frontend|render\.com|webflow|widget|deployment|deploy|debug|logs|admin panel|internal only|server error|api endpoint|cors)\b/,
-  monetization: /\b(ad slots?|ad inventory|advertis(?:ing|er|ers)|sponsorships?|sponsor\b|monetiz(?:e|ation)|pre\-roll|mid\-roll|post\-roll|ad break)\b/,
-  streaming: /\b(streaming|stream|vod|on demand|on-demand|playlist|programming|schedule|lineup|grid)\b/,
-  overview: /\b(sandblast|sandblast channel|how it works|what is this platform|explain sandblast|what is sandblast)\b/
+const INTENTS = {
+  TV: 'tv',
+  RADIO: 'radio',
+  SPONSORS: 'sponsors',
+  STREAMING: 'streaming',
+  NEWS_CANADA: 'news_canada',
+  AI_CONSULTING: 'ai_consulting',
+  GENERIC: 'generic'
 };
 
-/**
- * classifyIntent(text)
- *
- * @param {string} text - user message
- * @returns {Promise<{ intent: string, domain: string, confidence: number }>}
- */
-async function classifyIntent(text) {
-  const t = normalize(text);
+function normalize(text) {
+  return (text || '').toLowerCase();
+}
 
-  if (!t) {
-    return {
-      intent: "general",
-      domain: "general",
-      confidence: 0.2
-    };
-  }
+function detectToneHint(text) {
+  const msg = normalize(text);
 
-  // --------------------------------------------------
-  // Signal extraction
-  // --------------------------------------------------
-  const hasTv = PATTERNS.tv.test(t);
-  const hasRadio = PATTERNS.radio.test(t);
-  const hasNews = PATTERNS.newsCanada.test(t);
-  const hasConsulting = PATTERNS.consulting.test(t);
-  const hasPublicDomain = PATTERNS.publicDomain.test(t);
-  const hasInternalOps = PATTERNS.internalOps.test(t);
-  const hasMonetization = PATTERNS.monetization.test(t);
-  const hasStreaming = PATTERNS.streaming.test(t);
-  const hasOverview = PATTERNS.overview.test(t);
+  const lowKeywords = ['tired', 'overwhelmed', 'stressed', 'frustrated', 'hard', 'burned out', 'burnt out'];
+  const excitedKeywords = ['excited', 'pumped', 'hyped', 'let\'s go', 'so ready', 'can\'t wait'];
+  const confusedKeywords = ['confused', 'lost', 'don\'t get', 'not sure', 'stuck'];
 
-  // --------------------------------------------------
-  // Highest-priority: combined monetization + channel
-  // --------------------------------------------------
+  if (lowKeywords.some(k => msg.includes(k))) return 'low';
+  if (excitedKeywords.some(k => msg.includes(k))) return 'excited';
+  if (confusedKeywords.some(k => msg.includes(k))) return 'confused';
 
-  if (hasMonetization && hasTv) {
-    return {
-      intent: "tv_monetization",
-      domain: "tv",
-      confidence: 0.92
-    };
-  }
+  // generic “help” hint
+  if (msg.includes('help') || msg.includes('can you')) return 'help_seeking';
 
-  if (hasMonetization && hasRadio) {
-    return {
-      intent: "radio_monetization",
-      domain: "radio",
-      confidence: 0.92
-    };
-  }
+  return 'neutral';
+}
 
-  if (hasMonetization && (hasStreaming || hasOverview)) {
-    // General platform monetization (Sandblast as a whole)
-    return {
-      intent: "sandblast_monetization",
-      domain: "general",
-      confidence: 0.8
-    };
-  }
+function classifyIntent(message) {
+  const msg = normalize(message);
 
-  // --------------------------------------------------
-  // High-confidence patterns (direct signals)
-  // --------------------------------------------------
+  let scores = {
+    [INTENTS.TV]: 0,
+    [INTENTS.RADIO]: 0,
+    [INTENTS.SPONSORS]: 0,
+    [INTENTS.STREAMING]: 0,
+    [INTENTS.NEWS_CANADA]: 0,
+    [INTENTS.AI_CONSULTING]: 0
+  };
 
-  if (hasTv) {
-    return {
-      intent: "sandblast_tv",
-      domain: "tv",
-      confidence: 0.9
-    };
-  }
+  // TV
+  [
+    'tv', 'television', 'channel lineup', 'shows', 'programming grid',
+    'schedule tv', 'broadcast schedule', 'retro tv'
+  ].forEach(k => { if (msg.includes(k)) scores[INTENTS.TV] += 2; });
 
-  if (hasRadio) {
-    return {
-      intent: "sandblast_radio",
-      domain: "radio",
-      confidence: 0.9
-    };
-  }
+  // Radio
+  [
+    'radio', 'audio stream', 'dj', 'on air', 'radio show',
+    'gospel sunday', 'sandblast radio'
+  ].forEach(k => { if (msg.includes(k)) scores[INTENTS.RADIO] += 2; });
 
-  if (hasNews) {
-    return {
-      intent: "news_canada",
-      domain: "news_canada",
-      confidence: 0.9
-    };
-  }
+  // Sponsors
+  [
+    'sponsor', 'sponsorship', 'ad package', 'advertiser', 'ad client',
+    'campaign', 'brand partner', 'media kit'
+  ].forEach(k => { if (msg.includes(k)) scores[INTENTS.SPONSORS] += 3; });
 
-  if (hasConsulting) {
-    return {
-      intent: "ai_consulting",
-      domain: "consulting",
-      confidence: 0.9
-    };
-  }
+  // Streaming
+  [
+    'streaming', 'ott', 'roku', 'online platform', 'vod',
+    'watch online', 'binge', 'playlist'
+  ].forEach(k => { if (msg.includes(k)) scores[INTENTS.STREAMING] += 2; });
 
-  if (hasPublicDomain) {
-    return {
-      intent: "pd_verification",
-      domain: "public_domain",
-      confidence: 0.9
-    };
-  }
+  // News Canada
+  [
+    'news canada', 'news article', 'news feed', 'press release', 'feature story'
+  ].forEach(k => { if (msg.includes(k)) scores[INTENTS.NEWS_CANADA] += 3; });
 
-  if (hasInternalOps) {
-    // NOTE: Nyx boundary logic (owner/admin/public) lives in nyxPersonality/resolveBoundaryContext.
-    // We only label it as internal_ops here; index.js + Nyx will decide how much to expose.
-    return {
-      intent: "internal_ops",
-      domain: "internal",
-      confidence: 0.85
-    };
-  }
+  // AI Consulting
+  [
+    'ai consulting', 'ai strategy', 'prompt engineering', 'automation',
+    'ai project', 'chatgpt', 'ai brain', 'nyx', 'sandblastgpt'
+  ].forEach(k => { if (msg.includes(k)) scores[INTENTS.AI_CONSULTING] += 2; });
 
-  // --------------------------------------------------
-  // Medium-confidence patterns (softer signals)
-  // --------------------------------------------------
+  // Compute best intent
+  let bestIntent = INTENTS.GENERIC;
+  let bestScore = 0;
 
-  if (hasMonetization) {
-    // Monetization but no clear TV/Radio/streaming combo; let index.js heuristics refine domain.
-    return {
-      intent: "monetization",
-      domain: "general",
-      confidence: 0.65
-    };
-  }
+  Object.entries(scores).forEach(([intent, score]) => {
+    if (score > bestScore) {
+      bestScore = score;
+      bestIntent = intent;
+    }
+  });
 
-  if (hasStreaming) {
-    return {
-      intent: "platform_programming",
-      domain: "general",
-      confidence: 0.6
-    };
-  }
-
-  if (hasOverview) {
-    return {
-      intent: "sandblast_overview",
-      domain: "general",
-      confidence: 0.6
-    };
-  }
-
-  // --------------------------------------------------
-  // Default / fallback
-  // --------------------------------------------------
+  const confidence = bestScore === 0 ? 0.1 : Math.min(1, bestScore / 5);
+  const toneHint = detectToneHint(message);
 
   return {
-    intent: "general",
-    domain: "general",
-    confidence: 0.4
+    intent: bestScore === 0 ? INTENTS.GENERIC : bestIntent,
+    confidence,
+    toneHint
   };
 }
 
 module.exports = {
+  INTENTS,
   classifyIntent
 };
