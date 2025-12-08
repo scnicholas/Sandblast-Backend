@@ -128,10 +128,7 @@ function handleOfflineNyx(userMessage, boundaryContext, meta) {
       ? nyxPersonality.detectTvShowIntent(userMessage, meta, intentData)
       : null;
 
-  if (
-    tvIntent &&
-    typeof nyxPersonality.buildTvShowMicroScript === "function"
-  ) {
+  if (tvIntent && typeof nyxPersonality.buildTvShowMicroScript === "function") {
     const tvPayload = nyxPersonality.buildTvShowMicroScript(
       tvIntent,
       boundaryContext,
@@ -237,13 +234,9 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 
     // -----------------------------------------
     // OFFLINE MODE (no OpenAI calls)
-// -----------------------------------------
+    // -----------------------------------------
     if (NYX_OFFLINE_MODE || !OPENAI_API_KEY) {
-      const offline = handleOfflineNyx(
-        userMessage,
-        boundaryContext,
-        meta
-      );
+      const offline = handleOfflineNyx(userMessage, boundaryContext, meta);
 
       return res.json({
         reply: offline.message,
@@ -262,7 +255,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 
     // -----------------------------------------
     // ONLINE MODE (OpenAI GPT)
-// -----------------------------------------
+    // -----------------------------------------
 
     // Quick greeting/intro logic when online (public only)
     const frontDoor =
@@ -306,10 +299,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 
     const completion = await openai.chat.completions.create({
       model: OPENAI_MODEL,
-      messages: [
-        ...systemMessages,
-        { role: "user", content: userMessage },
-      ],
+      messages: [...systemMessages, { role: "user", content: userMessage }],
       temperature: 0.4,
       max_tokens: 700,
     });
@@ -320,8 +310,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 
     const basePayload = {
       intent: intent || "model_reply",
-      category:
-        boundaryContext.role === "public" ? "public" : "internal",
+      category: boundaryContext.role === "public" ? "public" : "internal",
       domain: topic || "general",
       message: modelText.toString().trim(),
     };
@@ -337,8 +326,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       reply: wrapped.message,
       meta: {
         stepIndex: (Number(stepIndex) || 0) + 1,
-        lastDomain:
-          wrapped.domain || basePayload.domain || "general",
+        lastDomain: wrapped.domain || basePayload.domain || "general",
         lastEmotion: currentEmotion,
         role: boundaryContext.role,
         topic,
@@ -397,9 +385,7 @@ app.post("/api/tts", async (req, res) => {
       input: trimmed,
     });
 
-    const audioBuffer = Buffer.from(
-      await audioResponse.arrayBuffer()
-    );
+    const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
 
     res.set("Content-Type", "audio/mpeg");
     res.send(audioBuffer);
