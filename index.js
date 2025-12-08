@@ -42,6 +42,30 @@ const openai = new OpenAI({
 });
 
 // ---------------------------------------------
+// Helper: Map topic (mode chip) -> domain
+// ---------------------------------------------
+function mapTopicToDomain(topic) {
+  const t = (topic || "general").toString().toLowerCase();
+  switch (t) {
+    case "tv":
+      return "tv";
+    case "radio":
+      return "radio";
+    case "streaming":
+      // treat streaming as TV-side for now
+      return "tv";
+    case "sponsors":
+      return "advertising";
+    case "news_canada":
+      return "news_canada";
+    case "consulting":
+      return "consulting";
+    default:
+      return "general";
+  }
+}
+
+// ---------------------------------------------
 // Root route
 // ---------------------------------------------
 app.get("/", (req, res) => {
@@ -169,7 +193,7 @@ function handleOfflineNyx(userMessage, boundaryContext, meta) {
   const fallbackPayload = {
     intent: "offline_fallback",
     category: role === "public" ? "public" : "internal",
-    domain: "general",
+    domain: mapTopicToDomain(meta.topic || "general"),
     message:
       role === "public"
         ? "Nyx’s online model is in offline mode right now, but I can still help you think through Sandblast TV blocks or sponsor tests. Tell me the show, night, or sponsor idea you’re working on."
@@ -207,6 +231,9 @@ app.post("/api/sandblast-gpt", async (req, res) => {
         .json({ error: "Missing 'message' in request body." });
     }
 
+    const normalizedTopic = (topic || "general").toString().toLowerCase();
+    const domainFromTopic = mapTopicToDomain(normalizedTopic);
+
     // Boundary / role
     const boundaryContext = nyxPersonality.resolveBoundaryContext({
       actorName,
@@ -223,10 +250,10 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 
     const meta = {
       stepIndex: Number(stepIndex) || 0,
-      lastDomain: lastDomain || topic || "general",
+      lastDomain: lastDomain || domainFromTopic || "general",
       lastEmotion: lastEmotion || "neutral",
       userEmotion: currentEmotion,
-      topic: topic || "general",
+      topic: normalizedTopic,
       intent,
       toneHint,
       intentConfidence: confidence,
@@ -242,10 +269,10 @@ app.post("/api/sandblast-gpt", async (req, res) => {
         reply: offline.message,
         meta: {
           stepIndex: (meta.stepIndex || 0) + 1,
-          lastDomain: offline.domain || "general",
+          lastDomain: offline.domain || domainFromTopic || "general",
           lastEmotion: currentEmotion,
           role: boundaryContext.role,
-          topic,
+          topic: normalizedTopic,
           intent,
           toneHint,
           intentConfidence: confidence,
@@ -274,10 +301,14 @@ app.post("/api/sandblast-gpt", async (req, res) => {
         reply: wrapped.message,
         meta: {
           stepIndex: (meta.stepIndex || 0) + 1,
-          lastDomain: wrapped.domain || frontDoor.domain || "general",
+          lastDomain:
+            wrapped.domain ||
+            frontDoor.domain ||
+            domainFromTopic ||
+            "general",
           lastEmotion: currentEmotion,
           role: boundaryContext.role,
-          topic,
+          topic: normalizedTopic,
           intent,
           toneHint,
           intentConfidence: confidence,
@@ -311,7 +342,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     const basePayload = {
       intent: intent || "model_reply",
       category: boundaryContext.role === "public" ? "public" : "internal",
-      domain: topic || "general",
+      domain: domainFromTopic,
       message: modelText.toString().trim(),
     };
 
@@ -326,10 +357,11 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       reply: wrapped.message,
       meta: {
         stepIndex: (Number(stepIndex) || 0) + 1,
-        lastDomain: wrapped.domain || basePayload.domain || "general",
+        lastDomain:
+          wrapped.domain || basePayload.domain || domainFromTopic || "general",
         lastEmotion: currentEmotion,
         role: boundaryContext.role,
-        topic,
+        topic: normalizedTopic,
         intent,
         toneHint,
         intentConfidence: confidence,
