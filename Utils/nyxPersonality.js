@@ -43,6 +43,12 @@ function safeString(value, fallback = "") {
   return String(value);
 }
 
+// Simple utility for rotating variants
+function pick(arr) {
+  if (!Array.isArray(arr) || arr.length === 0) return "";
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
 // ---------------------------------------------
 // Boundary / Context Resolution
 // ---------------------------------------------
@@ -89,7 +95,9 @@ function resolveBoundaryContext({ actorName, channel, persona } = {}) {
 
 function isInternalContext(boundaryContext) {
   if (!boundaryContext) return false;
-  return boundaryContext.role === "internal" || boundaryContext.role === "admin";
+  return (
+    boundaryContext.role === "internal" || boundaryContext.role === "admin"
+  );
 }
 
 // ---------------------------------------------
@@ -193,12 +201,12 @@ function detectEmotionalState(userMessage) {
 }
 
 // ---------------------------------------------
-// Front-door: Greetings / Quick Small-talk
-// (updated for short, fluid greetings)
+// Front-door: Natural, rotating greetings for Nyx
 // ---------------------------------------------
-function handleNyxFrontDoor(userMessage /*, intentData */) {
+function handleNyxFrontDoor(userMessage, intentData = {}) {
   const raw = safeString(userMessage).trim();
   const lower = raw.toLowerCase();
+  const intent = intentData.intent || "generic";
 
   // Empty / first-touch
   if (!raw) {
@@ -206,40 +214,42 @@ function handleNyxFrontDoor(userMessage /*, intentData */) {
       intent: "welcome",
       category: "welcome",
       domain: "general",
-      message:
-        "Hey, I’m Nyx. What are you working on today—TV, radio, streaming, sponsors, or something else?",
+      message: pick([
+        "Hey, I’m Nyx. What do you want to check in on — TV, radio, streaming, News Canada, or something else?",
+        "Hi there — Nyx here. What part of Sandblast are you looking at today?",
+        "Welcome in. I’m Nyx. Tell me what lane you want to tune — TV, radio, sponsors, or consulting.",
+      ]),
     };
   }
 
-  const isGreeting =
-    /^(hi|hello|hey|yo|good (morning|afternoon|evening)|greetings)\b/.test(
-      lower
-    ) ||
+  const saysHello =
+    /^(hi|hello|hey|yo|good (morning|afternoon|evening))\b/.test(lower) ||
     lower === "nyx" ||
-    lower === "nix" || // accept the common misspelling
-    lower === "hello nyx" ||
-    lower === "hello nix" ||
+    lower === "nix" ||
     lower === "hi nyx" ||
-    lower === "hi nix";
+    lower === "hello nyx" ||
+    lower === "hi nix" ||
+    lower === "hello nix";
 
-  const asksWhoAreYou =
+  const asksWho =
     lower.includes("who are you") ||
     lower.includes("what are you") ||
     lower.includes("what is nyx") ||
     lower.includes("what is nix") ||
-    lower.includes("what do you do");
+    lower.includes("what do you do") ||
+    lower.includes("what can you do");
 
-  const asksHowNyxIs =
+  const asksHow =
     lower.includes("how are you") ||
+    lower.includes("how are you doing") ||
     lower.includes("how's your day") ||
     lower.includes("hows your day") ||
     lower.includes("how is your day") ||
     lower.includes("how is your day going") ||
     lower.includes("how's your day going") ||
     lower.includes("hows your day going") ||
-    lower.includes("how are you doing") ||
-    lower.includes("how is it going") ||
     lower.includes("how's it going") ||
+    lower.includes("how is it going") ||
     lower.includes("how you going") ||
     lower.includes("how you doing");
 
@@ -257,47 +267,47 @@ function handleNyxFrontDoor(userMessage /*, intentData */) {
     lower.includes("how do i use this") ||
     lower.includes("how does this work");
 
-  // Direct "who are you / what is Nyx"
-  if (asksWhoAreYou) {
+  // Greeting only
+  if (saysHello && !asksHow && !asksWho) {
     return {
-      intent: "welcome",
+      intent,
       category: "welcome",
       domain: "general",
-      message:
-        "I’m Nyx, Sandblast’s AI guide. I help you make sense of the TV lineup, radio, streaming, News Canada, advertising, and AI consulting so you always know the next clear step.",
+      message: pick([
+        "Hey there — glad you dropped in. What are you working on today?",
+        "Hi — good to see you here. What do you want to tune in on: TV, radio, sponsors, or something else?",
+        "Hello — I’m Nyx. What’s the focus right now?",
+        "Hey — I’m here and tuned in. What part of Sandblast are you shaping today?",
+        "Hi there — what’s the lane you want to work on?",
+      ]),
     };
   }
 
-  // Greeting + "how are you / how's your day?"
-  if (isGreeting && asksHowNyxIs) {
+  // “How are you / how’s your day?”
+  if (asksHow) {
     return {
       intent: "small_talk",
       category: "public",
       domain: "general",
-      message:
-        "I’m tuned in and running steady on my side. How’s your day going for you?",
+      message: pick([
+        "I’m steady and online on my side. How’s your day going?",
+        "Running clean here — no static. How are you feeling today?",
+        "All good here, tuned in and ready. How’s it looking on your end?",
+      ]),
     };
   }
 
-  // Just greeting
-  if (isGreeting) {
+  // “Who are you / what is Nyx?”
+  if (asksWho) {
     return {
       intent: "welcome",
       category: "welcome",
       domain: "general",
-      message:
-        "Hey there—glad you dropped in. What are you working on today: TV, radio, sponsors, or something else?",
-    };
-  }
-
-  // “How are you / how is your day?” without explicit greeting
-  if (asksHowNyxIs) {
-    return {
-      intent: "small_talk",
-      category: "public",
-      domain: "general",
-      message:
-        "I’m tuned in and running steady on my side. How’s your day going for you?",
+      message: pick([
+        "I’m Nyx — your guide through Sandblast TV, radio, streaming, News Canada, advertising, and AI consulting.",
+        "I’m Nyx. I help you navigate everything Sandblast: TV grids, radio flow, streaming, News Canada, and sponsor planning.",
+        "I’m Nyx, the AI voice of Sandblast. Think of me as the one who keeps the signal clean and the next step clear.",
+      ]),
     };
   }
 
@@ -308,7 +318,7 @@ function handleNyxFrontDoor(userMessage /*, intentData */) {
       category: "public",
       domain: "general",
       message:
-        "You’re welcome. If there’s a next piece—TV, radio, streaming, News Canada, or a sponsor idea—I can walk you through it.",
+        "You’re welcome. If there’s a next piece—TV, radio, streaming, News Canada, or a business idea—I can walk you through it.",
     };
   }
 
@@ -562,7 +572,7 @@ function detectBlockFromText(lower) {
 }
 
 // Public API: detect TV show / block intent from a user message
-function detectTvShowIntent(userMessage, meta = {}) {
+function detectTvShowIntent(userMessage, meta = {}, intentData = {}) {
   const raw = safeString(userMessage).trim();
   if (!raw) return null;
 
@@ -575,7 +585,9 @@ function detectTvShowIntent(userMessage, meta = {}) {
 
   // Optional time-slot hint
   let timeSlot = null;
-  const timeMatch = lower.match(/\b(7|8|9|10|11)\s*(:\s*\d{2})?\s*(pm|p\.m\.)\b/);
+  const timeMatch = lower.match(
+    /\b(7|8|9|10|11)\s*(:\s*\d{2})?\s*(pm|p\.m\.)\b/
+  );
   if (timeMatch) {
     timeSlot = timeMatch[0]
       .replace(/\s+/g, " ")
@@ -604,6 +616,7 @@ function detectTvShowIntent(userMessage, meta = {}) {
     timeSlot,
     raw,
     meta,
+    intentData,
   };
 }
 
@@ -698,7 +711,7 @@ function buildTvShowMicroScript(tvIntent, boundaryContext, meta = {}) {
 // ---------------------------------------------
 // Sponsor Lane (simple detection + response)
 // ---------------------------------------------
-function detectSponsorIntent(userMessage, meta = {}) {
+function detectSponsorIntent(userMessage, meta = {}, intentData = {}) {
   const raw = safeString(userMessage).trim().toLowerCase();
   if (!raw) return null;
 
@@ -721,6 +734,7 @@ function detectSponsorIntent(userMessage, meta = {}) {
     blockId: blockId || null,
     raw,
     meta,
+    intentData,
   };
 }
 
