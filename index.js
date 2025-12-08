@@ -11,6 +11,8 @@ const cors = require("cors");
 const OpenAI = require("openai");
 
 const nyxPersonality = require("./Utils/nyxPersonality");
+// NEW: intent classifier (TV / Radio / Sponsors / Streaming / News Canada / AI Consulting)
+const { classifyIntent } = require("./Utils/intentClassifier");
 
 const app = express();
 
@@ -60,6 +62,16 @@ function buildNyxSystemMessages(boundaryContext, emotion) {
     });
   }
 
+  // Core Sandblast realism + sponsor guidance
+  systemMessages.push({
+    role: "system",
+    content:
+      "You are Nyx, the AI brain for Sandblast Channel — a growing, resource-aware media platform, not a giant global network. " +
+      "Keep all recommendations realistic for a small but expanding channel. " +
+      "When the user is asking about sponsors, advertisers, or campaigns, always include exactly one proof point (e.g., engagement, audience fit, or realistic expected outcome) " +
+      "and one concrete next action (for example, 'test this with a four-week sponsor block on one show' or 'run a small pilot campaign first').",
+  });
+
   // Boundary / role information
   if (boundaryContext) {
     const { actor, role, boundary } = boundaryContext;
@@ -90,24 +102,30 @@ function buildNyxSystemMessages(boundaryContext, emotion) {
 function handleOfflineNyx(userMessage, boundaryContext, meta) {
   const role = boundaryContext?.role || "public";
 
+  // Intent + toneHint from classifier (TV / Radio / Sponsors / etc.)
+  const intentData = classifyIntent(userMessage || "");
+  meta.intent = intentData.intent;
+  meta.toneHint = intentData.toneHint;
+
   // 1) Front door: greetings / "who are you / how are you"
   const frontDoor =
     typeof nyxPersonality.handleNyxFrontDoor === "function"
-      ? nyxPersonality.handleNyxFrontDoor(userMessage)
+      ? nyxPersonality.handleNyxFrontDoor(userMessage, intentData)
       : null;
 
   if (frontDoor && role === "public") {
-    return nyxPersonality.wrapWithNyxTone(
+    const wrappedFront = nyxPersonality.wrapWithNyxTone(
       frontDoor,
       userMessage,
       meta
     );
+    return wrappedFront;
   }
 
   // 2) TV micro-scripts (rule-based)
   const tvIntent =
     typeof nyxPersonality.detectTvShowIntent === "function"
-      ? nyxPersonality.detectTvShowIntent(userMessage, meta)
+      ? nyxPersonality.detectTvShowIntent(userMessage, meta, intentData)
       : null;
 
   if (
@@ -119,34 +137,35 @@ function handleOfflineNyx(userMessage, boundaryContext, meta) {
       boundaryContext,
       meta
     );
-    return nyxPersonality.wrapWithNyxTone(
+    const wrappedTv = nyxPersonality.wrapWithNyxTone(
       tvPayload,
       userMessage,
       meta
     );
+    return wrappedTv;
   }
 
   // 3) Sponsor lane (4-week tests, rule-based)
   const sponsorIntent =
     typeof nyxPersonality.detectSponsorIntent === "function"
-      ? nyxPersonality.detectSponsorIntent(userMessage, meta)
+      ? nyxPersonality.detectSponsorIntent(userMessage, meta, intentData)
       : null;
 
   if (
     sponsorIntent &&
     typeof nyxPersonality.buildSponsorLaneResponse === "function"
   ) {
-    const sponsorPayload =
-      nyxPersonality.buildSponsorLaneResponse(
-        sponsorIntent,
-        boundaryContext,
-        meta
-      );
-    return nyxPersonality.wrapWithNyxTone(
+    const sponsorPayload = nyxPersonality.buildSponsorLaneResponse(
+      sponsorIntent,
+      boundaryContext,
+      meta
+    );
+    const wrappedSponsor = nyxPersonality.wrapWithNyxTone(
       sponsorPayload,
       userMessage,
       meta
     );
+    return wrappedSponsor;
   }
 
   // 4) Fallback: offline explainer
@@ -160,11 +179,12 @@ function handleOfflineNyx(userMessage, boundaryContext, meta) {
         : "Nyx’s external model is offline for now, but the builder lane is still live. Tell me the block you’re tuning—patrol night, westerns, or a sponsor concept—and I’ll help you structure it in a clean, realistic way.",
   };
 
-  return nyxPersonality.wrapWithNyxTone(
+  const wrappedFallback = nyxPersonality.wrapWithNyxTone(
     fallbackPayload,
     userMessage,
     meta
   );
+  return wrappedFallback;
 }
 
 // ---------------------------------------------
@@ -198,8 +218,11 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     });
 
     // Emotion detection
-    const currentEmotion =
-      nyxPersonality.detectEmotionalState(userMessage);
+    const currentEmotion = nyxPersonality.detectEmotionalState(userMessage);
+
+    // Intent + tone from classifier (used for persona shaping)
+    const intentData = classifyIntent(userMessage);
+    const { intent, toneHint, confidence } = intentData;
 
     const meta = {
       stepIndex: Number(stepIndex) || 0,
@@ -207,11 +230,14 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       lastEmotion: lastEmotion || "neutral",
       userEmotion: currentEmotion,
       topic: topic || "general",
+      intent,
+      toneHint,
+      intentConfidence: confidence,
     };
 
     // -----------------------------------------
     // OFFLINE MODE (no OpenAI calls)
-    // -----------------------------------------
+// -----------------------------------------
     if (NYX_OFFLINE_MODE || !OPENAI_API_KEY) {
       const offline = handleOfflineNyx(
         userMessage,
@@ -227,17 +253,23 @@ app.post("/api/sandblast-gpt", async (req, res) => {
           lastEmotion: currentEmotion,
           role: boundaryContext.role,
           topic,
+          intent,
+          toneHint,
+          intentConfidence: confidence,
         },
       });
     }
 
     // -----------------------------------------
     // ONLINE MODE (OpenAI GPT)
-    // -----------------------------------------
+// -----------------------------------------
 
     // Quick greeting/intro logic when online (public only)
     const frontDoor =
-      nyxPersonality.handleNyxFrontDoor(userMessage);
+      typeof nyxPersonality.handleNyxFrontDoor === "function"
+        ? nyxPersonality.handleNyxFrontDoor(userMessage, intentData)
+        : null;
+
     if (frontDoor && boundaryContext.role === "public") {
       const wrapped = nyxPersonality.wrapWithNyxTone(
         frontDoor,
@@ -253,6 +285,9 @@ app.post("/api/sandblast-gpt", async (req, res) => {
           lastEmotion: currentEmotion,
           role: boundaryContext.role,
           topic,
+          intent,
+          toneHint,
+          intentConfidence: confidence,
         },
       });
     }
@@ -284,7 +319,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       "Nyx here. I didn’t quite catch that — could you phrase it another way?";
 
     const basePayload = {
-      intent: "model_reply",
+      intent: intent || "model_reply",
       category:
         boundaryContext.role === "public" ? "public" : "internal",
       domain: topic || "general",
@@ -307,6 +342,9 @@ app.post("/api/sandblast-gpt", async (req, res) => {
         lastEmotion: currentEmotion,
         role: boundaryContext.role,
         topic,
+        intent,
+        toneHint,
+        intentConfidence: confidence,
       },
     });
   } catch (err) {
