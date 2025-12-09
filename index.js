@@ -11,7 +11,6 @@ const cors = require("cors");
 const OpenAI = require("openai");
 
 const nyxPersonality = require("./Utils/nyxPersonality");
-// NEW: intent classifier (TV / Radio / Sponsors / Streaming / News Canada / AI Consulting)
 const { classifyIntent } = require("./Utils/intentClassifier");
 
 const app = express();
@@ -30,16 +29,13 @@ const PORT = process.env.PORT || 3000;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
 
-// Offline toggle: set NYX_OFFLINE_MODE=true in Render env vars
 const NYX_OFFLINE_MODE = process.env.NYX_OFFLINE_MODE === "true";
 
 if (!OPENAI_API_KEY) {
   console.warn("[Nyx] Warning: OPENAI_API_KEY is not set. GPT will not work.");
 }
 
-const openai = new OpenAI({
-  apiKey: OPENAI_API_KEY,
-});
+const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
 // ---------------------------------------------
 // Helper: Map topic (mode chip) -> domain
@@ -52,8 +48,7 @@ function mapTopicToDomain(topic) {
     case "radio":
       return "radio";
     case "streaming":
-      // treat streaming as TV-side for now
-      return "tv";
+      return "tv"; // treat streaming as TV-side for now
     case "sponsors":
       return "advertising";
     case "news_canada":
@@ -103,7 +98,6 @@ app.get("/", (req, res) => {
 function buildNyxSystemMessages(boundaryContext, emotion, topic) {
   const systemMessages = [];
 
-  // Nyx persona definition
   if (nyxPersonality.NYX_SYSTEM_PERSONA) {
     systemMessages.push({
       role: "system",
@@ -111,17 +105,15 @@ function buildNyxSystemMessages(boundaryContext, emotion, topic) {
     });
   }
 
-  // Core Sandblast realism + sponsor guidance
   systemMessages.push({
     role: "system",
     content:
       "You are Nyx, the AI brain for Sandblast Channel — a growing, resource-aware media platform, not a giant global network. " +
       "Keep all recommendations realistic for a small but expanding channel. " +
-      "When the user is asking about sponsors, advertisers, or campaigns, always include exactly one proof point (e.g., engagement, audience fit, or realistic expected outcome) " +
+      "When the user is asking about sponsors, advertisers, or campaigns, always include exactly one proof point " +
       "and one concrete next action (for example, 'test this with a four-week sponsor block on one show' or 'run a small pilot campaign first').",
   });
 
-  // Boundary / role information
   if (boundaryContext) {
     const { actor, role, boundary } = boundaryContext;
     systemMessages.push({
@@ -134,7 +126,6 @@ function buildNyxSystemMessages(boundaryContext, emotion, topic) {
     });
   }
 
-  // Emotional state
   if (emotion) {
     systemMessages.push({
       role: "system",
@@ -142,7 +133,6 @@ function buildNyxSystemMessages(boundaryContext, emotion, topic) {
     });
   }
 
-  // Current UI mode (chip) context
   if (topic) {
     systemMessages.push({
       role: "system",
@@ -162,20 +152,15 @@ function buildNyxSystemMessages(boundaryContext, emotion, topic) {
 function handleOfflineNyx(userMessage, boundaryContext, meta) {
   const role = boundaryContext?.role || "public";
 
-  // Intent + toneHint from classifier (TV / Radio / Sponsors / etc.)
   const intentData = classifyIntent(userMessage || "");
   meta.intent = intentData.intent;
   meta.toneHint = intentData.toneHint;
 
   const laneGreeting = buildLaneGreeting(meta.topic || "general");
+  const isFirstTurn = !meta.stepIndex || Number(meta.stepIndex) === 0;
 
-  // Front door greeting (public only)
-  const isGreeting =
-    typeof nyxPersonality.isFrontDoorGreeting === "function"
-      ? nyxPersonality.isFrontDoorGreeting(userMessage)
-      : /^(hi|hello|hey)\b/i.test(userMessage || "");
-
-  if (isGreeting && role === "public") {
+  // Force lane greeting on first turn (public)
+  if (isFirstTurn && role === "public") {
     const frontPayload = {
       intent: "front_door",
       category: "public",
@@ -278,18 +263,16 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 
     const normalizedTopic = (topic || "general").toString().toLowerCase();
     const domainFromTopic = mapTopicToDomain(normalizedTopic);
+    const isFirstTurn = !stepIndex || Number(stepIndex) === 0;
 
-    // Boundary / role
     const boundaryContext = nyxPersonality.resolveBoundaryContext({
       actorName,
       channel,
       persona,
     });
 
-    // Emotion detection
     const currentEmotion = nyxPersonality.detectEmotionalState(userMessage);
 
-    // Intent + tone from classifier (used for persona shaping)
     const intentData = classifyIntent(userMessage);
     const { intent, toneHint, confidence } = intentData;
 
@@ -305,8 +288,8 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     };
 
     // -----------------------------------------
-    // OFFLINE MODE (no OpenAI calls)
-// -----------------------------------------
+    // OFFLINE MODE
+    // -----------------------------------------
     if (NYX_OFFLINE_MODE || !OPENAI_API_KEY) {
       const offline = handleOfflineNyx(userMessage, boundaryContext, meta);
 
@@ -326,18 +309,12 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     }
 
     // -----------------------------------------
-    // ONLINE MODE (OpenAI GPT)
-// -----------------------------------------
+    // ONLINE MODE
+    // -----------------------------------------
 
-    const laneGreeting = buildLaneGreeting(normalizedTopic);
-
-    // Quick greeting/intro logic when online (public only)
-    const isGreeting =
-      typeof nyxPersonality.isFrontDoorGreeting === "function"
-        ? nyxPersonality.isFrontDoorGreeting(userMessage)
-        : /^(hi|hello|hey)\b/i.test(userMessage || "");
-
-    if (isGreeting && boundaryContext.role === "public") {
+    // Force lane-specific greeting on first turn (public)
+    if (isFirstTurn && boundaryContext.role === "public") {
+      const laneGreeting = buildLaneGreeting(normalizedTopic);
       const frontPayload = {
         intent: "front_door",
         category: "public",
@@ -370,13 +347,6 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       });
     }
 
-    if (!OPENAI_API_KEY) {
-      return res
-        .status(500)
-        .json({ error: "OPENAI_API_KEY not configured." });
-    }
-
-    // GPT CALL
     const systemMessages = buildNyxSystemMessages(
       boundaryContext,
       currentEmotion,
@@ -401,7 +371,6 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       message: modelText.toString().trim(),
     };
 
-    // Wrap with Nyx tone + realism
     const wrapped = nyxPersonality.wrapWithNyxTone(
       basePayload,
       userMessage,
@@ -465,10 +434,9 @@ app.post("/api/tts", async (req, res) => {
       });
     }
 
-    // GPT-4o TTS call
     const audioResponse = await openai.audio.speech.create({
       model: "gpt-4o-mini-tts",
-      voice: "alloy", // Options: alloy, verse, nova
+      voice: "alloy",
       input: trimmed,
     });
 
