@@ -77,6 +77,21 @@ function buildBaseReply(intent, message, meta) {
   const words = lower.split(/\s+/).filter(Boolean);
   const wordCount = words.length;
 
+  // 0) Check-in phrases like "Everything okay?" – override ANY intent.
+  if (
+    lower === 'everything okay' ||
+    lower === 'everything ok' ||
+    lower === 'are you okay' ||
+    lower === 'are you ok' ||
+    lower === 'you okay' ||
+    lower === 'you ok'
+  ) {
+    return (
+      `I’m running fine and fully online — thanks for checking in.\n\n` +
+      `What would you like to work on or explore right now — TV, radio, streaming, sponsors, News Canada, AI, or something else on your mind?`
+    );
+  }
+
   // 1) Pure greeting – Nyx greets first, then asks about you.
   if (intent === INTENTS.GREETING) {
     return (
@@ -89,7 +104,98 @@ function buildBaseReply(intent, message, meta) {
   if (intent === INTENTS.GENERIC) {
     const tone = meta.toneHint || 'neutral';
 
-    // 2a) Positive / neutral status replies
+    // 2a) Smart overrides: "what about you" / "how are you doing"
+    const whatAboutYouKeywords = [
+      'what about you',
+      'how about you',
+      'how are you doing',
+      'how you doing',
+      'how are things with you',
+      'how is it going with you',
+      'how s it going with you'
+    ];
+    const looksLikeWhatAboutYou =
+      whatAboutYouKeywords.some(k => lower.includes(k));
+
+    if (looksLikeWhatAboutYou) {
+      return (
+        `I’m running smoothly on my side.\n\n` +
+        `What would you like to work on or explore right now — TV, radio, streaming, sponsors, News Canada, AI, or something else on your mind?`
+      );
+    }
+
+    // 2b) Smart overrides: "where do we start" / "what's next"
+    const whereStartKeywords = [
+      'where do we start',
+      'where should we start',
+      'where do i start',
+      'where should i start',
+      'what do we do next',
+      'what should we do next',
+      'what s next',
+      'whats next',
+      'next step',
+      'next steps'
+    ];
+    const looksLikeWhereToStart =
+      whereStartKeywords.some(k => lower.includes(k));
+
+    if (looksLikeWhereToStart) {
+      return (
+        `Let’s keep this simple.\n\n` +
+        `Tell me the *one thing* you’re trying to move forward right now — TV, radio, streaming, sponsors, News Canada, or an AI goal — ` +
+        `and I’ll lay out your next few steps.`
+      );
+    }
+
+    // 2c) Smart overrides: "I'm here" / "I'm back"
+    const reengageKeywords = [
+      'i m here',
+      'im here',
+      'i am here',
+      'okay i m back',
+      'ok i m back',
+      'okay im back',
+      'ok im back',
+      'i m back',
+      'im back',
+      'i am back',
+      'back now',
+      'i am ready',
+      'i m ready',
+      'im ready'
+    ];
+    const looksLikeReengage =
+      reengageKeywords.some(k => lower.includes(k));
+
+    if (looksLikeReengage) {
+      return (
+        `Good — I’m right here with you.\n\n` +
+        `What do you want to pick up from where we left off — TV, radio, streaming, sponsors, News Canada, AI, or something else entirely?`
+      );
+    }
+
+    // 2d) Smart overrides: filler phrases like "alright then", "okay then", "sounds good"
+    const fillerKeywords = [
+      'alright then',
+      'all right then',
+      'okay then',
+      'ok then',
+      'sounds good',
+      'that works',
+      'fine then'
+    ];
+    const looksLikeFiller =
+      fillerKeywords.some(k => lower.includes(k));
+
+    if (looksLikeFiller) {
+      return (
+        `Alright — you steer, I’ll support.\n\n` +
+        `What’s the next thing you want to look at or fix — TV, radio, streaming, sponsors, News Canada, or an AI piece?`
+      );
+    }
+
+    // 2e) Positive / neutral status replies
     const positiveStatusKeywords = [
       "i'm good", "im good", "i am good",
       "i'm fine", "im fine", "i am fine",
@@ -113,7 +219,7 @@ function buildBaseReply(intent, message, meta) {
       );
     }
 
-    // 2b) Low / negative status replies (or low tone)
+    // 2f) Low / negative status replies (or low tone)
     const negativeStatusKeywords = [
       "tired", "drained", "exhausted",
       "stressed", "overwhelmed", "burned out", "burnt out",
@@ -136,7 +242,7 @@ function buildBaseReply(intent, message, meta) {
       );
     }
 
-    // 2c) Thanks / appreciation
+    // 2g) Thanks / appreciation
     const thanksKeywords = [
       "thank you", "thanks", "thanks a lot", "appreciate it", "appreciated"
     ];
@@ -151,7 +257,7 @@ function buildBaseReply(intent, message, meta) {
       );
     }
 
-    // 2d) Confused / stuck – tone or wording
+    // 2h) Confused / stuck – tone or wording
     const confusionKeywords = [
       "confused", "lost", "don’t get", "dont get",
       "not sure", "no idea", "don’t understand", "dont understand",
@@ -170,7 +276,7 @@ function buildBaseReply(intent, message, meta) {
       );
     }
 
-    // 2e) Excited / pumped
+    // 2i) Excited / pumped
     const excitedKeywords = [
       "excited", "pumped", "hyped", "let's go", "lets go",
       "so ready", "can’t wait", "cant wait", "fired up", "energized"
@@ -187,7 +293,7 @@ function buildBaseReply(intent, message, meta) {
       );
     }
 
-    // 2f) GOAL / “I want to…” / “I’m trying to…”
+    // 2j) GOAL / “I want to…” / “I’m trying to…”
     const goalKeywords = [
       "i want to ",
       "i want ",
@@ -199,7 +305,7 @@ function buildBaseReply(intent, message, meta) {
     ];
 
     const looksLikeGoal =
-      wordCount >= 4 && // avoid tiny noise
+      wordCount >= 4 &&
       goalKeywords.some(k => lower.includes(k));
 
     if (looksLikeGoal) {
@@ -214,7 +320,7 @@ function buildBaseReply(intent, message, meta) {
       );
     }
 
-    // 2g) Generic “what can you do / show me around” front door
+    // 2k) Generic “what can you do / show me around” front door
     return (
       `You’re tuned into Sandblast’s AI brain.\n\n` +
       `I can help you with:\n` +
@@ -275,7 +381,7 @@ function buildBaseReply(intent, message, meta) {
     default:
       return (
         `Got you. I’m treating this as a general question for now.\n\n` +
-        `Proof point: The Sandblast AI brain is designed to route people between TV, radio, sponsors, streaming, news, and AI consulting.\n` +
+        `Proof point: The Sandblast AI brain is designed to route people between TV, radio, sponsors, streaming, News Canada, and AI consulting.\n` +
         `Next action: Give me one clear goal in a sentence (for example: “I want to promote my show” or “I want to learn AI for my team”).`
       );
   }
