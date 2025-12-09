@@ -36,6 +36,8 @@ function mapIntentToDomain(intent) {
       return 'news_canada';
     case INTENTS.AI_CONSULTING:
       return 'ai_consulting';
+    // GREETING & GENERIC both treated as general domain
+    case INTENTS.GREETING:
     case INTENTS.GENERIC:
     default:
       return 'general';
@@ -74,6 +76,14 @@ function isNonEmptyString(value) {
 // -------------------------------------------
 function buildBaseReply(intent, message, meta) {
   const domain = meta.domain || 'general';
+
+  // Simple, human greeting
+  if (intent === INTENTS.GREETING) {
+    return (
+      `Hi, I’m Nyx. I’m running fine today and tuned into Sandblast for you.\n\n` +
+      `How can I help you right now — TV, radio, streaming, sponsors, News Canada, AI, or just general questions?`
+    );
+  }
 
   if (intent === INTENTS.GENERIC) {
     // Front-door / small talk / “what can you do?”
@@ -152,8 +162,8 @@ function buildNyxReply(intent, message, meta) {
   // 1) Start with a solid base reply
   let baseReply = buildBaseReply(intent, message, meta);
 
-  // 2) Try personality helpers, but ONLY keep them if they return a non-empty string
-  if (nyxPersonality) {
+  // 2) For GREETING we keep it simple: no heavy personality/domain overrides
+  if (intent !== INTENTS.GREETING && nyxPersonality) {
     try {
       if (intent === INTENTS.GENERIC && typeof nyxPersonality.getFrontDoorResponse === 'function') {
         const raw = nyxPersonality.getFrontDoorResponse(message, meta);
@@ -218,7 +228,8 @@ app.post('/api/sandblast-gpt', async (req, res) => {
     };
 
     const rawReply = buildNyxReply(intent, userMessage, meta);
-    const reply = ensureStringFromAnyReply(rawReply) || 'Nyx is online, but that last reply came back empty. Try asking again in a slightly different way.';
+    const reply = ensureStringFromAnyReply(rawReply) ||
+      'Nyx is online, but that last reply came back empty. Try asking again in a slightly different way.';
 
     res.json({
       reply,
