@@ -334,50 +334,341 @@ function buildBaseReply(intent, message, meta) {
     );
   }
 
-  // 3) Domain-specific lanes
+  // 3) Domain-specific lanes with smarter overrides
   switch (domain) {
-    case 'tv':
+    // ---------------- TV ----------------
+    case 'tv': {
+      const wantsPromo =
+        lower.includes('promote my show') ||
+        lower.includes('promote a show') ||
+        (lower.includes('promote') && (lower.includes('show') || lower.includes('series') || lower.includes('episode')));
+
+      if (wantsPromo) {
+        return (
+          `You want to promote a TV show — good.\n\n` +
+          `Think in three moves:\n` +
+          `1) A simple hook line that tells viewers *why* this show matters.\n` +
+          `2) On-screen reminders (lower thirds, bumpers, quick IDs) around related content.\n` +
+          `3) A few focused posts on social that repeat the same hook and air time.\n\n` +
+          `Tell me the show name, the core hook, and when it airs, and I’ll help you shape that into a simple promo plan.`
+        );
+      }
+
+      const wantsSchedule =
+        lower.includes('schedule') ||
+        lower.includes('grid') ||
+        lower.includes('lineup') ||
+        lower.includes('line-up') ||
+        lower.includes('time slot') ||
+        lower.includes('time-slot') ||
+        lower.includes('what time');
+
+      if (wantsSchedule) {
+        return (
+          `You’re thinking about the TV schedule — perfect.\n\n` +
+          `Treat it like a grid of *blocks*, not random shows. For example:\n` +
+          `- A detective hour\n` +
+          `- A western block\n` +
+          `- A classic comedy strip\n\n` +
+          `Tell me one block you want to build (like “weekday detective hour” or “Sunday westerns”), and I’ll help you decide where it fits and how to structure it.`
+        );
+      }
+
+      const wantsPlacement =
+        (lower.includes('where') && (lower.includes('put this') || lower.includes('place this') || lower.includes('fit this') || lower.includes('slot this')));
+
+      if (wantsPlacement) {
+        return (
+          `You’re asking where a show should live in the grid.\n\n` +
+          `We usually match:\n` +
+          `- Tone of the show (light, serious, family)\n` +
+          `- Expected audience energy (after work, late night, weekend)\n` +
+          `- Any sponsor or partner expectations\n\n` +
+          `Tell me the show vibe (for example: “serious crime drama” or “light family comedy”) and whether it has a sponsor attached. I’ll recommend one or two time slots.`
+        );
+      }
+
       return (
         `You’re asking about TV/programming.\n\n` +
         `Proof point: Sandblast builds around retro, nostalgia-driven programming with clear blocks and grids.\n` +
-        `Next action: Tell me if you’re trying to *watch* a show, *schedule* a show, or *upload* one, and I’ll guide you.`
+        `Next action: Tell me if you’re trying to *watch* a show, *schedule* a show, or *promote/upload* one, and I’ll guide you.`
       );
+    }
 
-    case 'radio':
+    // ---------------- RADIO ----------------
+    case 'radio': {
+      const wantsAudienceGrowth =
+        (lower.includes('grow') || lower.includes('increase') || lower.includes('more listeners') || lower.includes('bigger audience')) &&
+        (lower.includes('radio') || lower.includes('show') || lower.includes('program'));
+
+      if (wantsAudienceGrowth) {
+        return (
+          `You want to grow your radio audience — solid goal.\n\n` +
+          `You can pull three main levers:\n` +
+          `1) Consistent time slots so people know when to find you.\n` +
+          `2) A recognizable sound or theme for the show.\n` +
+          `3) Simple, repeated mentions on-air and on social about when/where to listen.\n\n` +
+          `Tell me the show name, how often it airs, and who it’s for, and I’ll suggest a simple growth plan you can actually use.`
+        );
+      }
+
+      const wantsRadioPromo =
+        lower.includes('promote') &&
+        (lower.includes('radio') || lower.includes('show') || lower.includes('program'));
+
+      if (wantsRadioPromo) {
+        return (
+          `Let’s promote your radio show properly.\n\n` +
+          `A clean promo flow looks like:\n` +
+          `- Short on-air promos teasing what’s coming up.\n` +
+          `- A consistent tag line for the show.\n` +
+          `- A few simple visual posts (if possible) that repeat the same tag.\n\n` +
+          `Tell me your show’s name, format (talk, music, mix), and air time, and I’ll outline a basic promo script and structure.`
+        );
+      }
+
+      const playlistOrMix =
+        lower.includes('playlist') ||
+        lower.includes('mix') ||
+        lower.includes('set list') ||
+        lower.includes('setlist');
+
+      if (playlistOrMix) {
+        return (
+          `You’re thinking about your playlist/mix — good.\n\n` +
+          `Treat each block like a story: open strong, hold a groove, land on something memorable.\n\n` +
+          `Tell me the mood you want (for example: “Sunday morning calm” or “Friday night energy”) and the length of the block, and I’ll help you shape the arc.`
+        );
+      }
+
       return (
         `You’re in the Sandblast Radio lane.\n\n` +
         `Proof point: The channel uses themed blocks (like Gospel Sunday) and curated mixes to keep listeners engaged.\n` +
         `Next action: Tell me if you want to *promote a show*, *shape a playlist*, or *understand the radio schedule*.`
       );
+    }
 
-    case 'sponsors':
+    // ---------------- SPONSORS ----------------
+    case 'sponsors': {
+      const lowBudget =
+        lower.includes('small budget') ||
+        lower.includes('low budget') ||
+        lower.includes('not much money') ||
+        lower.includes('limited budget');
+
+      if (lowBudget) {
+        return (
+          `You’re working with a smaller budget — that’s fine.\n\n` +
+          `For a growing channel, we keep it lean:\n` +
+          `- One or two key placements instead of a big, scattered campaign.\n` +
+          `- Very clear expectations (what they get, for how long).\n` +
+          `- A short test window (4–6 weeks) to measure impact.\n\n` +
+          `Tell me the sponsor type (local shop, nonprofit, service business, etc.) and your rough monthly range, and I’ll suggest a starter package layout.`
+        );
+      }
+
+      const wantsMediaKit =
+        lower.includes('media kit') ||
+        lower.includes('rate card') ||
+        lower.includes('ad rates') ||
+        lower.includes('pricing');
+
+      if (wantsMediaKit) {
+        return (
+          `You’re thinking about your media kit / rate card.\n\n` +
+          `A simple structure that fits a growing channel is:\n` +
+          `- Starter: basic on-air mentions or lower-thirds.\n` +
+          `- Growth: more frequent placements + one feature spot.\n` +
+          `- Flagship: prime-time or premium block association.\n\n` +
+          `Tell me your typical show lengths (30 or 60 minutes) and how often you want sponsors mentioned, and I’ll help you rough out the three tiers.`
+        );
+      }
+
+      const wantsHowToAdvertise =
+        lower.includes('how do i advertise') ||
+        lower.includes('how to advertise') ||
+        lower.includes('place an ad') ||
+        lower.includes('run my ad') ||
+        lower.includes('book ad space') ||
+        lower.includes('book a spot');
+
+      if (wantsHowToAdvertise) {
+        return (
+          `To advertise on Sandblast, the flow stays straightforward:\n\n` +
+          `1) Clarify the goal: awareness, traffic, or direct response.\n` +
+          `2) Match that to TV, radio, streaming, or a mix.\n` +
+          `3) Pick one test package and a short time window (4–6 weeks) to measure.\n\n` +
+          `Tell me your business type and your primary goal, and I’ll sketch a simple test campaign format.`
+        );
+      }
+
       return (
         `You’re asking about sponsors and advertising.\n\n` +
         `Proof point: Sandblast focuses on realistic sponsor packages sized for a growing channel, not a giant network.\n` +
         `Next action: Tell me your business type and your rough budget, and I’ll outline a starter package idea.`
       );
+    }
 
-    case 'streaming':
+    // ---------------- STREAMING ----------------
+    case 'streaming': {
+      const technicalIssues =
+        lower.includes('buffering') ||
+        lower.includes('lags') ||
+        lower.includes('lagging') ||
+        lower.includes('freezing') ||
+        lower.includes('not playing') ||
+        lower.includes('doesn t play') ||
+        lower.includes('doesnt play') ||
+        lower.includes('won t play') ||
+        lower.includes('wont play');
+
+      if (technicalIssues) {
+        return (
+          `You’re dealing with streaming issues — let’s keep the triage simple.\n\n` +
+          `Start by checking three things:\n` +
+          `1) Source file: is it encoded in a web-friendly format (like H.264 MP4)?\n` +
+          `2) Hosting / player: is the platform known to handle your file size and bitrate?\n` +
+          `3) Network: is this happening on all connections or just one?\n\n` +
+          `Tell me where the file lives now (local, cloud, a specific platform) and what the exact symptom is, and I’ll suggest the next move.`
+        );
+      }
+
+      const wantsStreamingStart =
+        (lower.includes('start') || lower.includes('first step') || lower.includes('where do i begin')) &&
+        (lower.includes('streaming') || lower.includes('online channel') || lower.includes('ott') || lower.includes('roku'));
+
+      if (wantsStreamingStart) {
+        return (
+          `You want to start streaming without overcomplicating the stack.\n\n` +
+          `The first practical step is to choose *one* reliable path from your content folder to a player your audience can actually reach.\n\n` +
+          `Tell me what you have now — just files, an existing site, or a specific platform in mind — and I’ll help you decide the next concrete move.`
+        );
+      }
+
+      const uploadOrOnDemand =
+        lower.includes('upload') ||
+        lower.includes('on demand') ||
+        lower.includes('on-demand') ||
+        lower.includes('watch online') ||
+        lower.includes('watch on line');
+
+      if (uploadOrOnDemand) {
+        return (
+          `You’re thinking about on-demand viewing.\n\n` +
+          `Grouping content into collections works well: westerns, detective shows, gospel music, kids’ content, etc.\n\n` +
+          `Tell me which category you want to prioritize first, and I’ll help you think through how to present it so people actually click and watch.`
+        );
+      }
+
       return (
         `You’re talking streaming / online channel logistics.\n\n` +
         `Proof point: Sandblast is built to move content from “old TV feel” into modern OTT/online viewing without overcomplicating the stack.\n` +
         `Next action: Tell me if your priority is *uploading content*, *viewing on different devices*, or *planning an OTT channel*.`
       );
+    }
 
-    case 'news_canada':
+    // ---------------- NEWS CANADA ----------------
+    case 'news_canada': {
+      const whereToRun =
+        (lower.includes('where') && lower.includes('run')) ||
+        lower.includes('where should this go') ||
+        lower.includes('where do i place this') ||
+        lower.includes('best slot');
+
+      if (whereToRun) {
+        return (
+          `You’re figuring out where to run a News Canada piece.\n\n` +
+          `Think about:\n` +
+          `- Topic (health, finance, lifestyle, etc.)\n` +
+          `- Tone (serious, light, family)\n` +
+          `- Existing blocks it can support\n\n` +
+          `Tell me the topic and whether you want it on TV, radio, or streaming, and I’ll suggest how to slot it in without breaking your flow.`
+        );
+      }
+
+      const sponsorTieIn =
+        lower.includes('sponsor') ||
+        lower.includes('tie in') ||
+        lower.includes('tie-in') ||
+        lower.includes('align with') ||
+        lower.includes('brand fit');
+
+      if (sponsorTieIn) {
+        return (
+          `You want to align a sponsor with a News Canada piece.\n\n` +
+          `Match them on theme: money brands with financial content, health brands with wellness features, etc.\n\n` +
+          `Tell me the sponsor type and the News Canada topic, and I’ll outline one or two clean ways to bring them together.`
+        );
+      }
+
       return (
         `You’re asking about News Canada content.\n\n` +
         `Proof point: News Canada pieces can slot into Sandblast as value-add editorial segments for viewers.\n` +
         `Next action: Tell me if you want to *run a specific piece*, *understand placement options*, or *align it with a sponsor*.`
       );
+    }
 
-    case 'ai_consulting':
+    // ---------------- AI CONSULTING ----------------
+    case 'ai_consulting': {
+      const trainingWorkshop =
+        lower.includes('training') ||
+        lower.includes('workshop') ||
+        lower.includes('session') ||
+        lower.includes('course') ||
+        lower.includes('bootcamp');
+
+      if (trainingWorkshop) {
+        return (
+          `You’re in AI training / workshop territory.\n\n` +
+          `A strong session usually has three parts:\n` +
+          `1) Clarity — what AI is and isn’t, in plain language.\n` +
+          `2) Safety — what to avoid (confidential data, overtrusting outputs).\n` +
+          `3) Hands-on — people actually using AI on their own tasks.\n\n` +
+          `Tell me your audience (staff, leaders, job seekers, small businesses) and the session length, and I’ll sketch a simple structure with 3–4 clear outcomes.`
+        );
+      }
+
+      const strategyRoadmap =
+        lower.includes('strategy') ||
+        lower.includes('roadmap') ||
+        lower.includes('road map') ||
+        lower.includes('plan for ai');
+
+      if (strategyRoadmap) {
+        return (
+          `You’re thinking about AI strategy.\n\n` +
+          `We don’t need a huge document — we need a short, usable roadmap that answers:\n` +
+          `1) What problems are we trying to solve?\n` +
+          `2) What tools are realistic at our size and budget?\n` +
+          `3) How do we train people and keep it safe?\n\n` +
+          `Tell me the type of organization (public, nonprofit, small business, etc.) and one problem you want AI to help with, and I’ll outline a simple path.`
+        );
+      }
+
+      const jobSearchUse =
+        lower.includes('resume') ||
+        lower.includes('cover letter') ||
+        lower.includes('job search') ||
+        lower.includes('job applications') ||
+        lower.includes('interview prep') ||
+        lower.includes('interview preparation');
+
+      if (jobSearchUse) {
+        return (
+          `You’re looking at AI to support job search tasks.\n\n` +
+          `AI can help draft resumes and cover letters, prepare interview answers, and organize job applications — as long as people stay honest and double-check the outputs.\n\n` +
+          `Tell me whether you’re helping *yourself* or *other people* (like clients or students), and I’ll suggest a simple, safe workflow for using AI in that context.`
+        );
+      }
+
       return (
         `You’re in the AI consulting lane.\n\n` +
         `Proof point: Sandblast’s AI brain is built around practical use cases: routing, media workflows, training, and realistic outcomes.\n` +
         `Next action: Tell me if you’re looking for *training*, *strategy for your organization*, or *help building an AI-powered workflow*.`
       );
+    }
 
+    // ---------------- DEFAULT ----------------
     default:
       return (
         `Got you. I’m treating this as a general question for now.\n\n` +
