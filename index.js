@@ -183,11 +183,38 @@ function buildBaseReply(intent, message, meta) {
     if (looksExcited || toneIsExcited) {
       return (
         `Love that energy — let’s point it at something that actually moves you forward.\n\n` +
-        `What’s the main thing you want to push right now — your show, a sponsor idea, your streaming setup, or an AI goal (like Employment Ontario prep)?`
+        `What’s the main thing you want to push right now — your show, a sponsor idea, your streaming setup, or an AI goal?`
       );
     }
 
-    // 2f) Generic “what can you do / show me around” front door
+    // 2f) GOAL / “I want to…” / “I’m trying to…”
+    const goalKeywords = [
+      "i want to ",
+      "i want ",
+      "i'm trying to ",
+      "im trying to ",
+      "i am trying to ",
+      "my goal is",
+      "my main goal is"
+    ];
+
+    const looksLikeGoal =
+      wordCount >= 4 && // avoid tiny noise
+      goalKeywords.some(k => lower.includes(k));
+
+    if (looksLikeGoal) {
+      return (
+        `Okay, I hear your goal:\n` +
+        `“${message}”\n\n` +
+        `Let’s keep it practical:\n` +
+        `1) Clarify the first version of this goal — what does “done” look like in simple terms?\n` +
+        `2) Pick one concrete move you can take in the next 24–48 hours.\n` +
+        `3) Choose a small signal you’ll watch to see if it’s working (views, listener feedback, one good conversation, etc.).\n\n` +
+        `Tell me your *first* move for this goal, and I’ll help you sharpen it.`
+      );
+    }
+
+    // 2g) Generic “what can you do / show me around” front door
     return (
       `You’re tuned into Sandblast’s AI brain.\n\n` +
       `I can help you with:\n` +
@@ -317,6 +344,13 @@ app.post('/api/sandblast-gpt', async (req, res) => {
     const contextLabel = (req.body && req.body.contextLabel) || 'web_widget';
 
     const { intent, confidence, toneHint } = classifyIntent(userMessage);
+
+    console.log('[Nyx] Message + intent', {
+      message: userMessage,
+      intent,
+      confidence,
+      toneHint
+    });
 
     const meta = {
       intent,
