@@ -43,6 +43,32 @@ function mapIntentToDomain(intent) {
 }
 
 // -------------------------------------------
+// Utilities to harden replies
+// -------------------------------------------
+function ensureStringFromAnyReply(value) {
+  if (typeof value === 'string') return value;
+
+  if (value && typeof value === 'object') {
+    if (typeof value.reply === 'string') return value.reply;
+    if (typeof value.text === 'string') return value.text;
+
+    const firstString = Object.values(value).find(v => typeof v === 'string');
+    if (firstString) return firstString;
+
+    // If it's an object with no useful string, treat as empty
+    return '';
+  }
+
+  if (value === null || value === undefined) return '';
+
+  return String(value);
+}
+
+function isNonEmptyString(value) {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+// -------------------------------------------
 // Fallback base replies (if personality file
 // doesn’t provide a custom generator)
 // -------------------------------------------
@@ -118,55 +144,51 @@ function buildBaseReply(intent, message, meta) {
 
 // -------------------------------------------
 // Nyx brain: build reply with personality
-// ALWAYS return a string
 // -------------------------------------------
-function ensureStringFromAnyReply(value) {
-  if (typeof value === 'string') return value;
-
-  if (value && typeof value === 'object') {
-    if (typeof value.reply === 'string') return value.reply;
-    if (typeof value.text === 'string') return value.text;
-
-    // If we don’t know the exact key, grab the first string value
-    const firstString = Object.values(value).find(v => typeof v === 'string');
-    if (firstString) return firstString;
-
-    return JSON.stringify(value);
-  }
-
-  if (value === null || value === undefined) {
-    return 'Nyx is online, but that last reply came back empty. Try asking again in a slightly different way.';
-  }
-
-  return String(value);
-}
-
 function buildNyxReply(intent, message, meta) {
   const domain = mapIntentToDomain(intent);
   meta.domain = domain;
 
-  let baseReply;
+  // 1) Start with a solid base reply
+  let baseReply = buildBaseReply(intent, message, meta);
 
-  if (nyxPersonality && typeof nyxPersonality.getFrontDoorResponse === 'function' && intent === INTENTS.GENERIC) {
-    baseReply = nyxPersonality.getFrontDoorResponse(message, meta);
-  } else if (nyxPersonality && typeof nyxPersonality.getDomainResponse === 'function' && intent !== INTENTS.GENERIC) {
-    baseReply = nyxPersonality.getDomainResponse(domain, message, meta);
-  } else if (nyxPersonality && typeof nyxPersonality.enrichDomainResponse === 'function' && intent !== INTENTS.GENERIC) {
-    let payload = { reply: buildBaseReply(intent, message, meta), meta: { ...meta } };
-    payload = nyxPersonality.enrichDomainResponse(message, payload) || payload;
-    baseReply = payload.reply || payload;
-  } else {
-    baseReply = buildBaseReply(intent, message, meta);
+  // 2) Try personality helpers, but ONLY keep them if they return a non-empty string
+  if (nyxPersonality) {
+    try {
+      if (intent === INTENTS.GENERIC && typeof nyxPersonality.getFrontDoorResponse === 'function') {
+        const raw = nyxPersonality.getFrontDoorResponse(message, meta);
+        const asString = ensureStringFromAnyReply(raw);
+        if (isNonEmptyString(asString)) baseReply = asString;
+      } else if (intent !== INTENTS.GENERIC && typeof nyxPersonality.getDomainResponse === 'function') {
+        const raw = nyxPersonality.getDomainResponse(domain, message, meta);
+        const asString = ensureStringFromAnyReply(raw);
+        if (isNonEmptyString(asString)) baseReply = asString;
+      } else if (intent !== INTENTS.GENERIC && typeof nyxPersonality.enrichDomainResponse === 'function') {
+        let payload = { reply: baseReply, meta: { ...meta } };
+        const rawPayload = nyxPersonality.enrichDomainResponse(message, payload) || payload;
+        const replyCandidate = ensureStringFromAnyReply(rawPayload.reply ?? rawPayload);
+        if (isNonEmptyString(replyCandidate)) baseReply = replyCandidate;
+      }
+    } catch (e) {
+      console.warn('[Nyx] Personality helper threw an error, using base reply:', e.message);
+    }
   }
 
-  // Wrap with tone if available
-  let wrapped = baseReply;
+  // 3) Wrap with tone if available, but ignore bad/empty output
+  let finalReply = baseReply;
   if (nyxPersonality && typeof nyxPersonality.wrapWithNyxTone === 'function') {
-    wrapped = nyxPersonality.wrapWithNyxTone(baseReply, meta) ?? baseReply;
+    try {
+      const wrapped = nyxPersonality.wrapWithNyxTone(baseReply, meta);
+      const wrappedString = ensureStringFromAnyReply(wrapped);
+      if (isNonEmptyString(wrappedString)) {
+        finalReply = wrappedString;
+      }
+    } catch (e) {
+      console.warn('[Nyx] wrapWithNyxTone failed, falling back to base reply:', e.message);
+    }
   }
 
-  // ENSURE we always return a string
-  return ensureStringFromAnyReply(wrapped);
+  return finalReply;
 }
 
 // -----------------------------
@@ -195,11 +217,8 @@ app.post('/api/sandblast-gpt', async (req, res) => {
       timestamp: new Date().toISOString()
     };
 
-    // Get raw reply from Nyx brain
     const rawReply = buildNyxReply(intent, userMessage, meta);
-
-    // Final hardening: guarantee string
-    const reply = ensureStringFromAnyReply(rawReply);
+    const reply = ensureStringFromAnyReply(rawReply) || 'Nyx is online, but that last reply came back empty. Try asking again in a slightly different way.';
 
     res.json({
       reply,
@@ -216,11 +235,9 @@ app.post('/api/sandblast-gpt', async (req, res) => {
 
 // -----------------------------
 // (Optional) TTS endpoint stub
-// Keep this if your widget calls /api/tts
 // -----------------------------
 app.post('/api/tts', async (req, res) => {
   try {
-    // Placeholder for ElevenLabs or other TTS wiring
     res.status(501).json({
       error: 'TTS_NOT_IMPLEMENTED',
       message: 'TTS is not fully wired on this backend version.'
