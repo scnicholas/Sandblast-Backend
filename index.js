@@ -75,7 +75,7 @@ app.get("/", (req, res) => {
 // ---------------------------------------------
 // Helper: Build system messages for GPT
 // ---------------------------------------------
-function buildNyxSystemMessages(boundaryContext, emotion) {
+function buildNyxSystemMessages(boundaryContext, emotion, topic) {
   const systemMessages = [];
 
   // Nyx persona definition
@@ -114,6 +114,17 @@ function buildNyxSystemMessages(boundaryContext, emotion) {
     systemMessages.push({
       role: "system",
       content: `User emotional state: ${emotion}. Adjust tone accordingly.`,
+    });
+  }
+
+  // Current UI mode (chip) context
+  if (topic) {
+    systemMessages.push({
+      role: "system",
+      content:
+        `Current interaction mode (from UI chips): ${topic}. ` +
+        "Bias your framing towards this lane (TV, Radio, Streaming, Sponsors, News Canada, AI Consulting), " +
+        "while still answering the user’s actual question.",
     });
   }
 
@@ -325,7 +336,8 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     // GPT CALL
     const systemMessages = buildNyxSystemMessages(
       boundaryContext,
-      currentEmotion
+      currentEmotion,
+      normalizedTopic
     );
 
     const completion = await openai.chat.completions.create({
