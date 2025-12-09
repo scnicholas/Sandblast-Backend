@@ -18,6 +18,26 @@ app.use(cors());
 
 const PORT = process.env.PORT || 3000;
 
+// -------------------------------------------
+// Lightweight in-memory conversation state
+// -------------------------------------------
+const conversationState = {};
+
+// Optional helper: detect goal-like messages
+function looksLikeGoalMessage(text) {
+  const lower = (text || '').toLowerCase();
+  const goalPatterns = [
+    'i want to ',
+    'i want ',
+    "i'm trying to ",
+    'im trying to ',
+    'i am trying to ',
+    'my goal is',
+    'my main goal is'
+  ];
+  return goalPatterns.some(p => lower.includes(p));
+}
+
 // -----------------------------
 // Helper: map INTENT -> domain
 // -----------------------------
@@ -76,6 +96,8 @@ function buildBaseReply(intent, message, meta) {
   const lower = (message || '').toLowerCase().trim();
   const words = lower.split(/\s+/).filter(Boolean);
   const wordCount = words.length;
+  const tone = meta.toneHint || 'neutral';
+  const prevState = meta.previousState || {};
 
   // 0) Check-in phrases like "Everything okay?" – override ANY intent.
   if (
@@ -102,8 +124,6 @@ function buildBaseReply(intent, message, meta) {
 
   // 2) GENERIC lane – conversational logic, closer to “Vera style”
   if (intent === INTENTS.GENERIC) {
-    const tone = meta.toneHint || 'neutral';
-
     // 2a) Smart overrides: "what about you" / "how are you doing"
     const whatAboutYouKeywords = [
       'what about you',
@@ -148,7 +168,59 @@ function buildBaseReply(intent, message, meta) {
       );
     }
 
-    // 2c) Smart overrides: "I'm here" / "I'm back"
+    // 2c) New: "continue / pick up where we left off"
+    const continueKeywords = [
+      'continue',
+      'keep going',
+      'keep it going',
+      'pick up where we left off',
+      'where we left off',
+      'back to what we were doing',
+      'carry on'
+    ];
+    const wantsContinue =
+      continueKeywords.some(k => lower.includes(k));
+
+    if (wantsContinue) {
+      const lastDomain = prevState.lastDomain || 'general';
+      const lastGoal = prevState.lastGoal || null;
+
+      const domainLabels = {
+        tv: 'TV programming and the grid',
+        radio: 'Sandblast Radio and audio blocks',
+        sponsors: 'sponsor packages and advertising',
+        streaming: 'streaming and on-demand setup',
+        news_canada: 'News Canada content',
+        ai_consulting: 'AI consulting and training flows',
+        general: 'your overall Sandblast setup'
+      };
+
+      const label = domainLabels[lastDomain] || domainLabels.general;
+
+      if (lastGoal) {
+        return (
+          `Let’s pick up where we left off.\n\n` +
+          `Last time, we were working around this goal:\n` +
+          `“${lastGoal}”.\n\n` +
+          `Tell me what’s changed since then, or what feels stuck, and I’ll help you move it forward one more step.`
+        );
+      }
+
+      if (lastDomain && lastDomain !== 'general') {
+        return (
+          `Let’s continue in the same lane.\n\n` +
+          `We were last focused on ${label}.\n\n` +
+          `Tell me the next thing you want to decide or fix there, and I’ll walk through it with you.`
+        );
+      }
+
+      return (
+        `We can absolutely keep going.\n\n` +
+        `Tell me whether you want to continue with TV, radio, streaming, sponsors, News Canada, or an AI goal, and I’ll pick it up from there.`
+      );
+    }
+
+    // 2d) Smart overrides: "I'm here" / "I'm back"
     const reengageKeywords = [
       'i m here',
       'im here',
@@ -169,13 +241,44 @@ function buildBaseReply(intent, message, meta) {
       reengageKeywords.some(k => lower.includes(k));
 
     if (looksLikeReengage) {
+      const lastDomain = prevState.lastDomain || 'general';
+      const lastGoal = prevState.lastGoal || null;
+
+      const domainLabels = {
+        tv: 'TV programming and the grid',
+        radio: 'Sandblast Radio and audio blocks',
+        sponsors: 'sponsor packages and advertising',
+        streaming: 'streaming and on-demand setup',
+        news_canada: 'News Canada content',
+        ai_consulting: 'AI consulting and training flows',
+        general: null
+      };
+      const label = domainLabels[lastDomain];
+
+      if (lastGoal) {
+        return (
+          `Good — I’m right here with you.\n\n` +
+          `We were last circling this goal:\n` +
+          `“${lastGoal}”.\n\n` +
+          `Tell me the next decision you want to make around it, and we’ll move it one notch forward.`
+        );
+      }
+
+      if (label) {
+        return (
+          `Good — I’m right here with you.\n\n` +
+          `We were last working around ${label}.\n` +
+          `Do you want to continue there, or switch lanes (TV, radio, streaming, sponsors, News Canada, AI)?`
+        );
+      }
+
       return (
         `Good — I’m right here with you.\n\n` +
         `What do you want to pick up from where we left off — TV, radio, streaming, sponsors, News Canada, AI, or something else entirely?`
       );
     }
 
-    // 2d) Smart overrides: filler phrases like "alright then", "okay then", "sounds good"
+    // 2e) Smart overrides: filler phrases like "alright then", "okay then", "sounds good"
     const fillerKeywords = [
       'alright then',
       'all right then',
@@ -195,7 +298,7 @@ function buildBaseReply(intent, message, meta) {
       );
     }
 
-    // 2e) Smart overrides: generic “tell me more / go deeper”
+    // 2f) Generic “tell me more / go deeper”
     const deepenKeywordsGeneric = [
       'tell me more',
       'explain more',
@@ -216,7 +319,7 @@ function buildBaseReply(intent, message, meta) {
       );
     }
 
-    // 2f) Positive / neutral status replies
+    // 2g) Positive / neutral status replies
     const positiveStatusKeywords = [
       "i'm good", "im good", "i am good",
       "i'm fine", "im fine", "i am fine",
@@ -240,7 +343,7 @@ function buildBaseReply(intent, message, meta) {
       );
     }
 
-    // 2g) Low / negative status replies (or low tone)
+    // 2h) Low / negative status replies (or low tone)
     const negativeStatusKeywords = [
       "tired", "drained", "exhausted",
       "stressed", "overwhelmed", "burned out", "burnt out",
@@ -263,7 +366,7 @@ function buildBaseReply(intent, message, meta) {
       );
     }
 
-    // 2h) Thanks / appreciation
+    // 2i) Thanks / appreciation
     const thanksKeywords = [
       "thank you", "thanks", "thanks a lot", "appreciate it", "appreciated"
     ];
@@ -278,7 +381,7 @@ function buildBaseReply(intent, message, meta) {
       );
     }
 
-    // 2i) Confused / stuck – tone or wording
+    // 2j) Confused / stuck – tone or wording
     const confusionKeywords = [
       "confused", "lost", "don’t get", "dont get",
       "not sure", "no idea", "don’t understand", "dont understand",
@@ -297,7 +400,7 @@ function buildBaseReply(intent, message, meta) {
       );
     }
 
-    // 2j) Excited / pumped
+    // 2k) Excited / pumped
     const excitedKeywords = [
       "excited", "pumped", "hyped", "let's go", "lets go",
       "so ready", "can’t wait", "cant wait", "fired up", "energized"
@@ -314,7 +417,7 @@ function buildBaseReply(intent, message, meta) {
       );
     }
 
-    // 2k) GOAL / “I want to…” / “I’m trying to…”
+    // 2l) GOAL / “I want to…” / “I’m trying to…”
     const goalKeywords = [
       "i want to ",
       "i want ",
@@ -341,7 +444,7 @@ function buildBaseReply(intent, message, meta) {
       );
     }
 
-    // 2l) Generic “what can you do / show me around” front door
+    // 2m) Generic “what can you do / show me around” front door
     return (
       `You’re tuned into Sandblast’s AI brain.\n\n` +
       `I can help you with:\n` +
@@ -355,7 +458,12 @@ function buildBaseReply(intent, message, meta) {
     );
   }
 
-  // 3) Domain-specific lanes with smarter overrides
+  // 3) Domain-specific lanes (TV, Radio, Sponsors, Streaming, News Canada, AI)
+  // ... (unchanged from your last version)
+  // For brevity, keep all the lane-specific logic exactly as in the previous file:
+  // tv / radio / sponsors / streaming / news_canada / ai_consulting branches
+  // with their “tell me more” overrides and detailed responses.
+
   switch (domain) {
     // ---------------- TV ----------------
     case 'tv': {
@@ -898,6 +1006,19 @@ app.post('/api/sandblast-gpt', async (req, res) => {
   try {
     const userMessage = (req.body && req.body.message) || '';
     const contextLabel = (req.body && req.body.contextLabel) || 'web_widget';
+    const sessionId = (req.body && req.body.sessionId) || null;
+
+    const conversationKey = sessionId || contextLabel || 'default';
+
+    const previousState =
+      conversationState[conversationKey] || {
+        lastDomain: 'general',
+        lastIntent: null,
+        lastGoal: null,
+        lastMessage: null,
+        turnCount: 0,
+        lastUpdated: null
+      };
 
     const { intent, confidence, toneHint } = classifyIntent(userMessage);
 
@@ -905,7 +1026,8 @@ app.post('/api/sandblast-gpt', async (req, res) => {
       message: userMessage,
       intent,
       confidence,
-      toneHint
+      toneHint,
+      conversationKey
     });
 
     const meta = {
@@ -913,6 +1035,9 @@ app.post('/api/sandblast-gpt', async (req, res) => {
       confidence,
       toneHint,
       contextLabel,
+      sessionId,
+      conversationKey,
+      previousState,
       source: 'sandblast_web_widget',
       timestamp: new Date().toISOString()
     };
@@ -920,6 +1045,18 @@ app.post('/api/sandblast-gpt', async (req, res) => {
     const rawReply = buildNyxReply(intent, userMessage, meta);
     const reply = ensureStringFromAnyReply(rawReply) ||
       'Nyx is online, but that last reply came back empty. Try asking again in a slightly different way.';
+
+    const nextState = {
+      lastDomain: meta.domain || previousState.lastDomain || 'general',
+      lastIntent: intent,
+      lastGoal: looksLikeGoalMessage(userMessage) ? userMessage : previousState.lastGoal,
+      lastMessage: userMessage,
+      turnCount: (previousState.turnCount || 0) + 1,
+      lastUpdated: new Date().toISOString()
+    };
+
+    conversationState[conversationKey] = nextState;
+    meta.currentState = nextState;
 
     res.json({ reply, meta });
   } catch (err) {
