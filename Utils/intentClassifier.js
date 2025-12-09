@@ -9,6 +9,7 @@ const INTENTS = {
   STREAMING: 'streaming',
   NEWS_CANADA: 'news_canada',
   AI_CONSULTING: 'ai_consulting',
+  GREETING: 'greeting',   // NEW: explicit greeting intent
   GENERIC: 'generic'
 };
 
@@ -60,6 +61,28 @@ function classifyIntent(message) {
     [INTENTS.NEWS_CANADA]: 0,
     [INTENTS.AI_CONSULTING]: 0
   };
+
+  // ============================
+  // Early GREETING detection
+  // Short, simple greetings should NOT be treated as AI consulting
+  // ============================
+  const greetingKeywords = [
+    'hi', 'hello', 'hey', 'good morning', 'good afternoon', 'good evening',
+    'what s up', 'whats up', 'how are you', 'how s your day', 'how is your day'
+  ];
+
+  const isGreeting = greetingKeywords.some(k => msg.includes(k));
+  const wordCount = msg ? msg.split(' ').length : 0;
+
+  // If it looks like a pure greeting (short message), treat as GREETING and exit
+  if (isGreeting && wordCount <= 6) {
+    const toneHint = detectToneHint(message);
+    return {
+      intent: INTENTS.GREETING,
+      confidence: 1.0,
+      toneHint
+    };
+  }
 
   // ============================
   // TV
@@ -262,12 +285,6 @@ function classifyIntent(message) {
   // so GENERIC can still have confidence > 0.1
   // ============================
   let genericScore = 0;
-
-  const greetingKeywords = [
-    'hi', 'hello', 'hey', 'good morning', 'good afternoon', 'good evening',
-    'what s up', 'whats up', 'how are you', 'how s your day', 'how is your day'
-  ];
-  if (greetingKeywords.some(k => msg.includes(k))) genericScore += 2;
 
   const smallTalkKeywords = [
     'just checking things out',
