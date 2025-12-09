@@ -80,8 +80,8 @@ function buildBaseReply(intent, message, meta) {
   // Simple, human greeting
   if (intent === INTENTS.GREETING) {
     return (
-      `Hi, I’m Nyx. I’m running fine today and tuned into Sandblast for you.\n\n` +
-      `How can I help you right now — TV, radio, streaming, sponsors, News Canada, AI, or just general questions?`
+      `I’m doing well and fully online. Thanks for checking in.\n\n` +
+      `How can I help you today? You can ask about TV, radio, streaming, sponsors, News Canada, AI, or anything general you’re curious about.`
     );
   }
 
