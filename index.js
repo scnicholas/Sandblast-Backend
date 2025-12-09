@@ -118,12 +118,33 @@ function buildBaseReply(intent, message, meta) {
 
 // -------------------------------------------
 // Nyx brain: build reply with personality
+// ALWAYS return a string
 // -------------------------------------------
+function ensureStringFromAnyReply(value) {
+  if (typeof value === 'string') return value;
+
+  if (value && typeof value === 'object') {
+    if (typeof value.reply === 'string') return value.reply;
+    if (typeof value.text === 'string') return value.text;
+
+    // If we don’t know the exact key, grab the first string value
+    const firstString = Object.values(value).find(v => typeof v === 'string');
+    if (firstString) return firstString;
+
+    return JSON.stringify(value);
+  }
+
+  if (value === null || value === undefined) {
+    return 'Nyx is online, but that last reply came back empty. Try asking again in a slightly different way.';
+  }
+
+  return String(value);
+}
+
 function buildNyxReply(intent, message, meta) {
   const domain = mapIntentToDomain(intent);
   meta.domain = domain;
 
-  // If nyxPersonality provides its own domain/front-door logic, use that first
   let baseReply;
 
   if (nyxPersonality && typeof nyxPersonality.getFrontDoorResponse === 'function' && intent === INTENTS.GENERIC) {
@@ -131,21 +152,21 @@ function buildNyxReply(intent, message, meta) {
   } else if (nyxPersonality && typeof nyxPersonality.getDomainResponse === 'function' && intent !== INTENTS.GENERIC) {
     baseReply = nyxPersonality.getDomainResponse(domain, message, meta);
   } else if (nyxPersonality && typeof nyxPersonality.enrichDomainResponse === 'function' && intent !== INTENTS.GENERIC) {
-    // For older versions where enrichDomainResponse expects a payload
     let payload = { reply: buildBaseReply(intent, message, meta), meta: { ...meta } };
-    payload = nyxPersonality.enrichDomainResponse(message, payload);
-    baseReply = payload.reply || buildBaseReply(intent, message, meta);
+    payload = nyxPersonality.enrichDomainResponse(message, payload) || payload;
+    baseReply = payload.reply || payload;
   } else {
-    // Fallback text if no personality helpers exist
     baseReply = buildBaseReply(intent, message, meta);
   }
 
-  // Always wrap with tone if available
+  // Wrap with tone if available
+  let wrapped = baseReply;
   if (nyxPersonality && typeof nyxPersonality.wrapWithNyxTone === 'function') {
-    return nyxPersonality.wrapWithNyxTone(baseReply, meta);
+    wrapped = nyxPersonality.wrapWithNyxTone(baseReply, meta) ?? baseReply;
   }
 
-  return baseReply;
+  // ENSURE we always return a string
+  return ensureStringFromAnyReply(wrapped);
 }
 
 // -----------------------------
@@ -177,21 +198,8 @@ app.post('/api/sandblast-gpt', async (req, res) => {
     // Get raw reply from Nyx brain
     const rawReply = buildNyxReply(intent, userMessage, meta);
 
-    // HARDENING: always force this to a string so widget never shows [object Object]
-    let reply;
-    if (typeof rawReply === 'string') {
-      reply = rawReply;
-    } else if (rawReply && typeof rawReply === 'object') {
-      if (typeof rawReply.reply === 'string') {
-        reply = rawReply.reply;
-      } else if (typeof rawReply.text === 'string') {
-        reply = rawReply.text;
-      } else {
-        reply = JSON.stringify(rawReply);
-      }
-    } else {
-      reply = 'Nyx is online, but something about that last reply looked strange. Try asking again in a slightly different way.';
-    }
+    // Final hardening: guarantee string
+    const reply = ensureStringFromAnyReply(rawReply);
 
     res.json({
       reply,
@@ -212,8 +220,7 @@ app.post('/api/sandblast-gpt', async (req, res) => {
 // -----------------------------
 app.post('/api/tts', async (req, res) => {
   try {
-    // This is just a placeholder. Your existing ElevenLabs logic can live here.
-    // Keep the route so the widget doesn’t break while you refine TTS.
+    // Placeholder for ElevenLabs or other TTS wiring
     res.status(501).json({
       error: 'TTS_NOT_IMPLEMENTED',
       message: 'TTS is not fully wired on this backend version.'
