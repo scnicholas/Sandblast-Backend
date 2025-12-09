@@ -9,7 +9,7 @@ const INTENTS = {
   STREAMING: 'streaming',
   NEWS_CANADA: 'news_canada',
   AI_CONSULTING: 'ai_consulting',
-  GREETING: 'greeting',   // NEW: explicit greeting intent
+  GREETING: 'greeting',
   GENERIC: 'generic'
 };
 
@@ -17,7 +17,7 @@ function normalize(text) {
   return (text || '')
     .toLowerCase()
     .replace(/[\n\r]+/g, ' ')
-    .replace(/[^a-z0-9\s]/g, ' ') // strip punctuation for more reliable includes()
+    .replace(/[^a-z0-9\s]/g, ' ') // strip punctuation
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -42,7 +42,6 @@ function detectToneHint(text) {
   if (excitedKeywords.some(k => msg.includes(k))) return 'excited';
   if (confusedKeywords.some(k => msg.includes(k))) return 'confused';
 
-  // generic “help” hint
   if (msg.includes('help') || msg.includes('can you') || msg.includes('could you')) {
     return 'help_seeking';
   }
@@ -52,7 +51,54 @@ function detectToneHint(text) {
 
 function classifyIntent(message) {
   const msg = normalize(message);
+  const words = msg.split(' ').filter(Boolean);
+  const wordCount = words.length;
 
+  // ============================
+  // HARD GREETING DETECTION
+  // (only very short, clear greetings)
+  // ============================
+  const simpleGreetingPhrases = [
+    'hi',
+    'hi nyx',
+    'hello',
+    'hello nyx',
+    'hey',
+    'hey nyx',
+    'good morning',
+    'good afternoon',
+    'good evening'
+  ];
+
+  const questionGreetingPhrases = [
+    'how are you',
+    'how s your day',
+    'how is your day',
+    'how are you nyx'
+  ];
+
+  const isSimpleGreeting =
+    wordCount > 0 &&
+    wordCount <= 5 &&
+    simpleGreetingPhrases.some(p => msg === p || msg.startsWith(p + ' '));
+
+  const isQuestionGreeting =
+    wordCount > 0 &&
+    wordCount <= 7 &&
+    questionGreetingPhrases.some(p => msg.includes(p));
+
+  if (isSimpleGreeting || isQuestionGreeting) {
+    const toneHint = detectToneHint(message);
+    return {
+      intent: INTENTS.GREETING,
+      confidence: 0.99,
+      toneHint
+    };
+  }
+
+  // ============================
+  // MAIN INTENT SCORING
+  // ============================
   let scores = {
     [INTENTS.TV]: 0,
     [INTENTS.RADIO]: 0,
@@ -62,31 +108,7 @@ function classifyIntent(message) {
     [INTENTS.AI_CONSULTING]: 0
   };
 
-  // ============================
-  // Early GREETING detection
-  // Short, simple greetings should NOT be treated as AI consulting
-  // ============================
-  const greetingKeywords = [
-    'hi', 'hello', 'hey', 'good morning', 'good afternoon', 'good evening',
-    'what s up', 'whats up', 'how are you', 'how s your day', 'how is your day'
-  ];
-
-  const isGreeting = greetingKeywords.some(k => msg.includes(k));
-  const wordCount = msg ? msg.split(' ').length : 0;
-
-  // If it looks like a pure greeting (short message), treat as GREETING and exit
-  if (isGreeting && wordCount <= 6) {
-    const toneHint = detectToneHint(message);
-    return {
-      intent: INTENTS.GREETING,
-      confidence: 1.0,
-      toneHint
-    };
-  }
-
-  // ============================
-  // TV
-  // ============================
+  // -------- TV --------
   [
     'tv',
     'television',
@@ -116,23 +138,20 @@ function classifyIntent(message) {
     'prime time'
   ].forEach(k => { if (msg.includes(k)) scores[INTENTS.TV] += 2; });
 
-  // Stronger TV cues
   [
     'sandblast tv',
     'tv block',
     'tv feed'
   ].forEach(k => { if (msg.includes(k)) scores[INTENTS.TV] += 3; });
 
-  // ============================
-  // Radio
-  // ============================
+  // -------- Radio --------
   [
     'radio',
     'audio stream',
     'audio only',
     'dj',
     'on air',
-    'on-air',
+    'on air ',
     'radio show',
     'radio host',
     'radio segment',
@@ -149,9 +168,7 @@ function classifyIntent(message) {
     'dj nova'
   ].forEach(k => { if (msg.includes(k)) scores[INTENTS.RADIO] += 3; });
 
-  // ============================
-  // Sponsors / Advertising
-  // ============================
+  // -------- Sponsors / Advertising --------
   [
     'sponsor',
     'sponsorship',
@@ -186,9 +203,7 @@ function classifyIntent(message) {
     'sponsor my show'
   ].forEach(k => { if (msg.includes(k)) scores[INTENTS.SPONSORS] += 4; });
 
-  // ============================
-  // Streaming / OTT / VOD
-  // ============================
+  // -------- Streaming / OTT / VOD --------
   [
     'streaming',
     'ott',
@@ -218,9 +233,7 @@ function classifyIntent(message) {
     'sandblast streaming'
   ].forEach(k => { if (msg.includes(k)) scores[INTENTS.STREAMING] += 3; });
 
-  // ============================
-  // News Canada
-  // ============================
+  // -------- News Canada --------
   [
     'news canada',
     'news article',
@@ -238,9 +251,7 @@ function classifyIntent(message) {
     'news canada distribution'
   ].forEach(k => { if (msg.includes(k)) scores[INTENTS.NEWS_CANADA] += 4; });
 
-  // ============================
-  // AI Consulting / Brain / Training
-  // ============================
+  // -------- AI Consulting / Brain / Training --------
   [
     'ai consulting',
     'ai strategy',
@@ -279,25 +290,8 @@ function classifyIntent(message) {
     'cover letter with ai'
   ].forEach(k => { if (msg.includes(k)) scores[INTENTS.AI_CONSULTING] += 3; });
 
-  // ============================
-  // GENERIC / Small-talk / About Sandblast / About Nyx
-  // This stays mapped to INTENTS.GENERIC but with its own score
-  // so GENERIC can still have confidence > 0.1
-  // ============================
+  // -------- GENERIC / about Nyx / about Sandblast --------
   let genericScore = 0;
-
-  const smallTalkKeywords = [
-    'just checking things out',
-    'testing this',
-    'try this out',
-    'play around',
-    'get to know you',
-    'chat with you',
-    'talk to you',
-    'hang out',
-    'small talk'
-  ];
-  if (smallTalkKeywords.some(k => msg.includes(k))) genericScore += 2;
 
   const aboutNyxOrSandblast = [
     'what can you do',
@@ -335,7 +329,7 @@ function classifyIntent(message) {
   // Compute best intent
   // ============================
   let bestIntent = INTENTS.GENERIC;
-  let bestScore = 0;
+  let bestScore = genericScore; // let generic start with its own score
 
   Object.entries(scores).forEach(([intent, score]) => {
     if (score > bestScore) {
@@ -344,17 +338,11 @@ function classifyIntent(message) {
     }
   });
 
-  // Let GENERIC "win" when it actually matches more strongly
-  if (genericScore > bestScore) {
-    bestIntent = INTENTS.GENERIC;
-    bestScore = genericScore;
-  }
-
   const confidence = bestScore === 0 ? 0.1 : Math.min(1, bestScore / 5);
   const toneHint = detectToneHint(message);
 
   return {
-    intent: bestScore === 0 ? INTENTS.GENERIC : bestIntent,
+    intent: bestIntent,
     confidence,
     toneHint
   };
