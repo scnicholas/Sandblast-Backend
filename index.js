@@ -1,605 +1,218 @@
 // index.js
-// Sandblast / Nyx Backend
-// - Nyx personality + tone wrapper integration
-// - /api/sandblast-gpt for chat (online + offline mode)
-// - /api/tts using OpenAI GPT-4o TTS
-// -----------------------------------------------------
+// Core Nyx brain routing for Sandblast backend
 
-require("dotenv").config();
-const express = require("express");
-const cors = require("cors");
-const OpenAI = require("openai");
+const express = require('express');
+const cors = require('cors');
 
-const nyxPersonality = require("./Utils/nyxPersonality");
-// NEW: intent classifier (TV / Radio / Sponsors / Streaming / News Canada / AI Consulting)
-const { classifyIntent } = require("./Utils/intentClassifier");
+const { INTENTS, classifyIntent } = require('./Utils/intentClassifier');
+let nyxPersonality = null;
+try {
+  nyxPersonality = require('./Utils/nyxPersonality');
+} catch (e) {
+  console.warn('[Nyx] nyxPersonality module not found or failed to load. Using fallback replies only.');
+}
 
 const app = express();
-
-// ---------------------------------------------
-// Middleware
-// ---------------------------------------------
-app.use(cors());
 app.use(express.json());
+app.use(cors());
 
-// ---------------------------------------------
-// Config
-// ---------------------------------------------
+// Use Render's port or default to 3000 locally
 const PORT = process.env.PORT || 3000;
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
-
-// Offline toggle: set NYX_OFFLINE_MODE=true in Render env vars
-const NYX_OFFLINE_MODE = process.env.NYX_OFFLINE_MODE === "true";
-
-if (!OPENAI_API_KEY) {
-  console.warn("[Nyx] Warning: OPENAI_API_KEY is not set. GPT will not work.");
-}
-
-const openai = new OpenAI({
-  apiKey: OPENAI_API_KEY,
-});
-
-// ---------------------------------------------
-// Helper: Map topic (mode chip) -> domain
-// ---------------------------------------------
-function mapTopicToDomain(topic) {
-  const t = (topic || "general").toString().toLowerCase();
-  switch (t) {
-    case "tv":
-      return "tv";
-    case "radio":
-      return "radio";
-    case "streaming":
-      // treat streaming as TV-side for now
-      return "tv";
-    case "sponsors":
-      return "advertising";
-    case "news_canada":
-      return "news_canada";
-    case "consulting":
-      return "consulting";
+// -----------------------------
+// Helper: map INTENT -> domain
+// -----------------------------
+function mapIntentToDomain(intent) {
+  switch (intent) {
+    case INTENTS.TV:
+      return 'tv';
+    case INTENTS.RADIO:
+      return 'radio';
+    case INTENTS.SPONSORS:
+      return 'sponsors';
+    case INTENTS.STREAMING:
+      return 'streaming';
+    case INTENTS.NEWS_CANADA:
+      return 'news_canada';
+    case INTENTS.AI_CONSULTING:
+      return 'ai_consulting';
+    case INTENTS.GENERIC:
     default:
-      return "general";
+      return 'general';
   }
 }
 
-// ---------------------------------------------
-// Lightweight conversation memory (per actor)
-// ---------------------------------------------
-const conversationMemory = Object.create(null);
+// -------------------------------------------
+// Fallback base replies (if personality file
+// doesn’t provide a custom generator)
+// -------------------------------------------
+function buildBaseReply(intent, message, meta) {
+  const domain = meta.domain || 'general';
 
-function getMemoryKey(actorName) {
-  const key = (actorName || "Visitor").toString().trim();
-  return key || "Visitor";
-}
-
-function getConversationMemory(actorName) {
-  const key = getMemoryKey(actorName);
-  if (!conversationMemory[key]) {
-    conversationMemory[key] = {
-      lastTvShow: null,
-      lastTvNote: null,
-      lastRadioTopic: null,
-      lastStreamingNote: null,
-      lastSponsorIdea: null,
-      lastSponsorProof: null,
-      lastConsultingQuestion: null,
-      lastFreeformSummary: null,
-      lastUpdatedAt: null,
-    };
-  }
-  return conversationMemory[key];
-}
-
-function buildMemorySystemMessage(actorName) {
-  const mem = getConversationMemory(actorName);
-  const chunks = [];
-
-  if (mem.lastTvShow) {
-    chunks.push(`Last TV focus: ${mem.lastTvShow}`);
-  }
-  if (mem.lastRadioTopic) {
-    chunks.push(`Last radio topic: ${mem.lastRadioTopic}`);
-  }
-  if (mem.lastStreamingNote) {
-    chunks.push(`Last streaming focus: ${mem.lastStreamingNote}`);
-  }
-  if (mem.lastSponsorIdea) {
-    chunks.push(`Last sponsor idea: ${mem.lastSponsorIdea}`);
-  }
-  if (mem.lastConsultingQuestion) {
-    chunks.push(`Last consulting question: ${mem.lastConsultingQuestion}`);
-  }
-  if (mem.lastFreeformSummary) {
-    chunks.push(`Last general focus: ${mem.lastFreeformSummary}`);
-  }
-
-  if (!chunks.length) {
-    return null;
-  }
-
-  return {
-    role: "system",
-    content:
-      "Short memory for this visitor (from previous turns): " +
-      chunks.join(" | ") +
-      ". Use this for continuity, but do not invent extra history or claim perfect recall.",
-  };
-}
-
-function updateMemoryFromTurn({ actorName, topic, intent, userMessage, modelText }) {
-  try {
-    const mem = getConversationMemory(actorName);
-    const t = (topic || "general").toString().toLowerCase();
-    const i = (intent || "").toString().toLowerCase();
-    const userSnippet = (userMessage || "").toString().slice(0, 220);
-    const replySnippet = (modelText || "").toString().slice(0, 220);
-
-    // TV lane
-    if (t === "tv") {
-      mem.lastTvShow = userSnippet || mem.lastTvShow;
-      mem.lastTvNote = replySnippet || mem.lastTvNote;
-    }
-    // Radio lane
-    else if (t === "radio") {
-      mem.lastRadioTopic = userSnippet || mem.lastRadioTopic;
-    }
-    // Streaming lane (treated as TV-side but separate note)
-    else if (t === "streaming") {
-      mem.lastStreamingNote = userSnippet || mem.lastStreamingNote;
-    }
-    // Sponsors lane
-    else if (t === "sponsors" || i.includes("sponsor") || i.includes("advertiser")) {
-      mem.lastSponsorIdea = userSnippet || mem.lastSponsorIdea;
-      mem.lastSponsorProof = replySnippet || mem.lastSponsorProof;
-    }
-    // Consulting lane
-    else if (t === "consulting") {
-      mem.lastConsultingQuestion = userSnippet || mem.lastConsultingQuestion;
-    }
-    // General
-    else {
-      mem.lastFreeformSummary = userSnippet || mem.lastFreeformSummary;
-    }
-
-    mem.lastUpdatedAt = new Date().toISOString();
-  } catch (err) {
-    console.warn("[Nyx] updateMemoryFromTurn failed:", err);
-  }
-}
-
-// ---------------------------------------------
-// Root route
-// ---------------------------------------------
-app.get("/", (req, res) => {
-  res.send("Sandblast Nyx backend is live. GPT + TTS / Offline mode ready. ✅");
-});
-
-// ---------------------------------------------
-// Helper: Build system messages for GPT
-// ---------------------------------------------
-function buildNyxSystemMessages(boundaryContext, emotion, topic) {
-  const systemMessages = [];
-
-  // Nyx persona definition
-  if (nyxPersonality.NYX_SYSTEM_PERSONA) {
-    systemMessages.push({
-      role: "system",
-      content: nyxPersonality.NYX_SYSTEM_PERSONA.trim(),
-    });
-  }
-
-  // Core Sandblast realism + sponsor guidance
-  systemMessages.push({
-    role: "system",
-    content:
-      "You are Nyx, the AI brain for Sandblast Channel — a growing, resource-aware media platform, not a giant global network. " +
-      "Keep all recommendations realistic for a small but expanding channel. " +
-      "When the user is asking about sponsors, advertisers, or campaigns, always include exactly one proof point (e.g., engagement, audience fit, or realistic expected outcome) " +
-      "and one concrete next action (for example, 'test this with a four-week sponsor block on one show' or 'run a small pilot campaign first').",
-  });
-
-  // Boundary / role information
-  if (boundaryContext) {
-    const { actor, role, boundary } = boundaryContext;
-    systemMessages.push({
-      role: "system",
-      content:
-        `Context: You are responding as Nyx.\n` +
-        `Actor: ${actor}\n` +
-        `Role: ${role}\n` +
-        `Boundary: ${boundary.description}`,
-    });
-  }
-
-  // Emotional state
-  if (emotion) {
-    systemMessages.push({
-      role: "system",
-      content: `User emotional state: ${emotion}. Adjust tone accordingly.`,
-    });
-  }
-
-  // Current UI mode (chip) context
-  if (topic) {
-    systemMessages.push({
-      role: "system",
-      content:
-        `Current interaction mode (from UI chips): ${topic}. ` +
-        "Bias your framing towards this lane (TV, Radio, Streaming, Sponsors, News Canada, AI Consulting), " +
-        "while still answering the user’s actual question.",
-    });
-  }
-
-  return systemMessages;
-}
-
-// ---------------------------------------------
-// Helper: Offline Nyx brain (no OpenAI calls)
-// ---------------------------------------------
-function handleOfflineNyx(userMessage, boundaryContext, meta) {
-  const role = boundaryContext?.role || "public";
-
-  // Intent + toneHint from classifier (TV / Radio / Sponsors / etc.)
-  const intentData = classifyIntent(userMessage || "");
-  meta.intent = intentData.intent;
-  meta.toneHint = intentData.toneHint;
-
-  // 1) Front door: greetings / "who are you / how are you"
-  const frontDoor =
-    typeof nyxPersonality.handleNyxFrontDoor === "function"
-      ? nyxPersonality.handleNyxFrontDoor(userMessage, intentData)
-      : null;
-
-  if (frontDoor && role === "public") {
-    const wrappedFront = nyxPersonality.wrapWithNyxTone(
-      frontDoor,
-      userMessage,
-      meta
+  if (intent === INTENTS.GENERIC) {
+    // Front-door / small talk / “what can you do?”
+    return (
+      `You’re tuned into Sandblast’s AI brain.\n\n` +
+      `I can help you with:\n` +
+      `- TV programming and schedule questions\n` +
+      `- Sandblast Radio and audio blocks\n` +
+      `- Sponsor / advertising ideas and packages\n` +
+      `- Streaming / online channel logistics\n` +
+      `- News Canada content and placement\n` +
+      `- AI consulting, training, and workshops\n\n` +
+      `Tell me what you’re trying to do, and I’ll walk you through the next step.`
     );
-    return wrappedFront;
   }
 
-  // 2) TV micro-scripts (rule-based)
-  const tvIntent =
-    typeof nyxPersonality.detectTvShowIntent === "function"
-      ? nyxPersonality.detectTvShowIntent(userMessage, meta, intentData)
-      : null;
-
-  if (tvIntent && typeof nyxPersonality.buildTvShowMicroScript === "function") {
-    const tvPayload = nyxPersonality.buildTvShowMicroScript(
-      tvIntent,
-      boundaryContext,
-      meta
-    );
-    const wrappedTv = nyxPersonality.wrapWithNyxTone(
-      tvPayload,
-      userMessage,
-      meta
-    );
-    return wrappedTv;
-  }
-
-  // 3) Sponsor lane (4-week tests, rule-based)
-  const sponsorIntent =
-    typeof nyxPersonality.detectSponsorIntent === "function"
-      ? nyxPersonality.detectSponsorIntent(userMessage, meta, intentData)
-      : null;
-
-  if (
-    sponsorIntent &&
-    typeof nyxPersonality.buildSponsorLaneResponse === "function"
-  ) {
-    const sponsorPayload = nyxPersonality.buildSponsorLaneResponse(
-      sponsorIntent,
-      boundaryContext,
-      meta
-    );
-    const wrappedSponsor = nyxPersonality.wrapWithNyxTone(
-      sponsorPayload,
-      userMessage,
-      meta
-    );
-    return wrappedSponsor;
-  }
-
-  // 4) Fallback: offline explainer
-  const fallbackPayload = {
-    intent: "offline_fallback",
-    category: role === "public" ? "public" : "internal",
-    domain: mapTopicToDomain(meta.topic || "general"),
-    message:
-      role === "public"
-        ? "Nyx’s online model is in offline mode right now, but I can still help you think through Sandblast TV blocks or sponsor tests. Tell me the show, night, or sponsor idea you’re working on."
-        : "Nyx’s external model is offline for now, but the builder lane is still live. Tell me the block you’re tuning—patrol night, westerns, or a sponsor concept—and I’ll help you structure it in a clean, realistic way.",
-  };
-
-  const wrappedFallback = nyxPersonality.wrapWithNyxTone(
-    fallbackPayload,
-    userMessage,
-    meta
-  );
-  return wrappedFallback;
-}
-
-// ---------------------------------------------
-// /api/sandblast-gpt — Nyx primary brain
-// ---------------------------------------------
-app.post("/api/sandblast-gpt", async (req, res) => {
-  try {
-    const {
-      message,
-      channel = "public",
-      persona = "nyx",
-      topic = "general",
-      stepIndex = 0,
-      lastDomain = "general",
-      lastEmotion = "neutral",
-      actorName = "Visitor",
-    } = req.body || {};
-
-    const userMessage = (message || "").toString().trim();
-    if (!userMessage) {
-      return res
-        .status(400)
-        .json({ error: "Missing 'message' in request body." });
-    }
-
-    const normalizedTopic = (topic || "general").toString().toLowerCase();
-    const domainFromTopic = mapTopicToDomain(normalizedTopic);
-
-    // Boundary / role
-    const boundaryContext = nyxPersonality.resolveBoundaryContext({
-      actorName,
-      channel,
-      persona,
-    });
-
-    // Emotion detection
-    const currentEmotion = nyxPersonality.detectEmotionalState(userMessage);
-
-    // Intent + tone from classifier (used for persona shaping)
-    const intentData = classifyIntent(userMessage);
-    const { intent, toneHint, confidence } = intentData;
-
-    const meta = {
-      stepIndex: Number(stepIndex) || 0,
-      lastDomain: lastDomain || domainFromTopic || "general",
-      lastEmotion: lastEmotion || "neutral",
-      userEmotion: currentEmotion,
-      topic: normalizedTopic,
-      intent,
-      toneHint,
-      intentConfidence: confidence,
-    };
-
-    // -----------------------------------------
-    // OFFLINE MODE (no OpenAI calls)
-    // -----------------------------------------
-    if (NYX_OFFLINE_MODE || !OPENAI_API_KEY) {
-      const offline = handleOfflineNyx(userMessage, boundaryContext, meta);
-
-      // Update memory using offline reply
-      updateMemoryFromTurn({
-        actorName,
-        topic: normalizedTopic,
-        intent,
-        userMessage,
-        modelText: offline.message,
-      });
-
-      return res.json({
-        reply: offline.message,
-        meta: {
-          stepIndex: (meta.stepIndex || 0) + 1,
-          lastDomain: offline.domain || domainFromTopic || "general",
-          lastEmotion: currentEmotion,
-          role: boundaryContext.role,
-          topic: normalizedTopic,
-          intent,
-          toneHint,
-          intentConfidence: confidence,
-        },
-      });
-    }
-
-    // -----------------------------------------
-    // ONLINE MODE (OpenAI GPT)
-    // -----------------------------------------
-
-    // Quick greeting/intro logic when online (public only)
-    const frontDoor =
-      typeof nyxPersonality.handleNyxFrontDoor === "function"
-        ? nyxPersonality.handleNyxFrontDoor(userMessage, intentData)
-        : null;
-
-    if (frontDoor && boundaryContext.role === "public") {
-      const wrapped = nyxPersonality.wrapWithNyxTone(
-        frontDoor,
-        userMessage,
-        meta
+  switch (domain) {
+    case 'tv':
+      return (
+        `You’re asking about TV/programming.\n\n` +
+        `Proof point: Sandblast builds around retro, nostalgia-driven programming with clear blocks and grids.\n` +
+        `Next action: Tell me if you’re trying to *watch* a show, *schedule* a show, or *upload* one, and I’ll guide you.`
       );
 
-      // Update memory using greeting reply as well (keeps continuity)
-      updateMemoryFromTurn({
-        actorName,
-        topic: normalizedTopic,
-        intent,
-        userMessage,
-        modelText: wrapped.message,
-      });
+    case 'radio':
+      return (
+        `You’re in the Sandblast Radio lane.\n\n` +
+        `Proof point: The channel uses themed blocks (like Gospel Sunday) and curated mixes to keep listeners engaged.\n` +
+        `Next action: Tell me if you want to *promote a show*, *shape a playlist*, or *understand the radio schedule*.`
+      );
 
-      return res.json({
-        reply: wrapped.message,
-        meta: {
-          stepIndex: (meta.stepIndex || 0) + 1,
-          lastDomain:
-            wrapped.domain ||
-            frontDoor.domain ||
-            domainFromTopic ||
-            "general",
-          lastEmotion: currentEmotion,
-          role: boundaryContext.role,
-          topic: normalizedTopic,
-          intent,
-          toneHint,
-          intentConfidence: confidence,
-        },
-      });
-    }
+    case 'sponsors':
+      return (
+        `You’re asking about sponsors and advertising.\n\n` +
+        `Proof point: Sandblast focuses on realistic sponsor packages sized for a growing channel, not a giant network.\n` +
+        `Next action: Tell me your business type and your rough budget, and I’ll outline a starter package idea.`
+      );
 
-    if (!OPENAI_API_KEY) {
-      return res
-        .status(500)
-        .json({ error: "OPENAI_API_KEY not configured." });
-    }
+    case 'streaming':
+      return (
+        `You’re talking streaming / online channel logistics.\n\n` +
+        `Proof point: Sandblast is built to move content from “old TV feel” into modern OTT/online viewing without overcomplicating the stack.\n` +
+        `Next action: Tell me if your priority is *uploading content*, *viewing on different devices*, or *planning an OTT channel*.`
+      );
 
-    // Build system messages (persona, realism, boundary, emotion, UI mode)
-    const systemMessages = buildNyxSystemMessages(
-      boundaryContext,
-      currentEmotion,
-      normalizedTopic
-    );
+    case 'news_canada':
+      return (
+        `You’re asking about News Canada content.\n\n` +
+        `Proof point: News Canada pieces can slot into Sandblast as value-add editorial segments for viewers.\n` +
+        `Next action: Tell me if you want to *run a specific piece*, *understand placement options*, or *align it with a sponsor*.`
+      );
 
-    // Add memory system message if we have anything stored
-    const memorySystem = buildMemorySystemMessage(actorName);
-    if (memorySystem) {
-      systemMessages.push(memorySystem);
-    }
+    case 'ai_consulting':
+      return (
+        `You’re in the AI consulting lane.\n\n` +
+        `Proof point: Sandblast’s AI brain is built around practical use cases: routing, media workflows, training, and realistic outcomes.\n` +
+        `Next action: Tell me if you’re looking for *training*, *strategy for your organization*, or *help building an AI-powered workflow*.`
+      );
 
-    // GPT CALL
-    const completion = await openai.chat.completions.create({
-      model: OPENAI_MODEL,
-      messages: [...systemMessages, { role: "user", content: userMessage }],
-      temperature: 0.4,
-      max_tokens: 700,
-    });
+    default:
+      return (
+        `Got you. I’m treating this as a general question for now.\n\n` +
+        `Proof point: The Sandblast AI brain is designed to route people between TV, radio, sponsors, streaming, news, and AI consulting.\n` +
+        `Next action: Give me one clear goal in a sentence (for example: “I want to promote my show” or “I want to learn AI for my team”).`
+      );
+  }
+}
 
-    const modelText =
-      completion?.choices?.[0]?.message?.content ||
-      "Nyx here. I didn’t quite catch that — could you phrase it another way?";
+// -------------------------------------------
+// Nyx brain: build reply with personality
+// -------------------------------------------
+function buildNyxReply(intent, message, meta) {
+  const domain = mapIntentToDomain(intent);
+  meta.domain = domain;
 
-    const basePayload = {
-      intent: intent || "model_reply",
-      category: boundaryContext.role === "public" ? "public" : "internal",
-      domain: domainFromTopic,
-      message: modelText.toString().trim(),
+  // If nyxPersonality provides its own domain/front-door logic, use that first
+  let baseReply;
+
+  if (nyxPersonality && typeof nyxPersonality.getFrontDoorResponse === 'function' && intent === INTENTS.GENERIC) {
+    baseReply = nyxPersonality.getFrontDoorResponse(message, meta);
+  } else if (nyxPersonality && typeof nyxPersonality.getDomainResponse === 'function' && intent !== INTENTS.GENERIC) {
+    baseReply = nyxPersonality.getDomainResponse(domain, message, meta);
+  } else if (nyxPersonality && typeof nyxPersonality.enrichDomainResponse === 'function' && intent !== INTENTS.GENERIC) {
+    // For older versions where enrichDomainResponse expects a payload
+    let payload = { reply: buildBaseReply(intent, message, meta), meta: { ...meta } };
+    payload = nyxPersonality.enrichDomainResponse(message, payload);
+    baseReply = payload.reply || buildBaseReply(intent, message, meta);
+  } else {
+    // Fallback text if no personality helpers exist
+    baseReply = buildBaseReply(intent, message, meta);
+  }
+
+  // Always wrap with tone if available
+  if (nyxPersonality && typeof nyxPersonality.wrapWithNyxTone === 'function') {
+    return nyxPersonality.wrapWithNyxTone(baseReply, meta);
+  }
+
+  return baseReply;
+}
+
+// -----------------------------
+// Health check
+// -----------------------------
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', message: 'Sandblast Nyx brain is running.' });
+});
+
+// -----------------------------
+// Main brain endpoint
+// -----------------------------
+app.post('/api/sandblast-gpt', async (req, res) => {
+  try {
+    const userMessage = (req.body && req.body.message) || '';
+    const contextLabel = (req.body && req.body.contextLabel) || 'web_widget';
+
+    const { intent, confidence, toneHint } = classifyIntent(userMessage);
+
+    const meta = {
+      intent,
+      confidence,
+      toneHint,
+      contextLabel,
+      source: 'sandblast_web_widget',
+      timestamp: new Date().toISOString()
     };
 
-    // Wrap with Nyx tone + realism
-    const wrapped = nyxPersonality.wrapWithNyxTone(
-      basePayload,
-      userMessage,
-      meta
-    );
-
-    // Update memory using model reply
-    updateMemoryFromTurn({
-      actorName,
-      topic: normalizedTopic,
-      intent,
-      userMessage,
-      modelText: wrapped.message,
-    });
+    const reply = buildNyxReply(intent, userMessage, meta);
 
     res.json({
-      reply: wrapped.message,
-      meta: {
-        stepIndex: (Number(stepIndex) || 0) + 1,
-        lastDomain:
-          wrapped.domain || basePayload.domain || domainFromTopic || "general",
-        lastEmotion: currentEmotion,
-        role: boundaryContext.role,
-        topic: normalizedTopic,
-        intent,
-        toneHint,
-        intentConfidence: confidence,
-      },
+      reply,
+      meta
     });
   } catch (err) {
-    console.error("[Nyx] /api/sandblast-gpt error:", err);
-
-    let details = "Unknown error";
-    if (err) {
-      if (err.message) {
-        details = err.message;
-      } else {
-        try {
-          details = JSON.stringify(err);
-        } catch (_) {
-          details = String(err);
-        }
-      }
-    }
-
+    console.error('[Nyx] /api/sandblast-gpt error:', err);
     res.status(500).json({
-      error: "Nyx encountered an error while processing your request.",
-      details,
+      error: 'NYX_BRAIN_ERROR',
+      message: 'Something glitched while Nyx was thinking. Try again in a moment.',
     });
   }
 });
 
-// ---------------------------------------------
-// /api/tts — GPT-4o TTS (still online-only)
-// ---------------------------------------------
-app.post("/api/tts", async (req, res) => {
+// -----------------------------
+// (Optional) TTS endpoint stub
+// Keep this if your widget calls /api/tts
+// -----------------------------
+app.post('/api/tts', async (req, res) => {
   try {
-    const { text } = req.body || {};
-    const trimmed = (text || "").toString().trim();
-
-    if (!trimmed) {
-      return res
-        .status(400)
-        .json({ error: "Missing 'text' in request body." });
-    }
-
-    if (!OPENAI_API_KEY) {
-      return res.status(500).json({
-        error: "TTS not configured: OPENAI_API_KEY missing.",
-      });
-    }
-
-    // GPT-4o TTS call
-    const audioResponse = await openai.audio.speech.create({
-      model: "gpt-4o-mini-tts",
-      voice: "alloy", // Options: alloy, verse, nova
-      input: trimmed,
+    // This is just a placeholder. Your existing ElevenLabs logic can live here.
+    // Keep the route so the widget doesn’t break while you refine TTS.
+    res.status(501).json({
+      error: 'TTS_NOT_IMPLEMENTED',
+      message: 'TTS is not fully wired on this backend version.'
     });
-
-    const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
-
-    res.set("Content-Type", "audio/mpeg");
-    res.send(audioBuffer);
   } catch (err) {
-    console.error("[Nyx] /api/tts error:", err);
-
-    let details = "Unknown error";
-    if (err) {
-      if (err.message) {
-        details = err.message;
-      } else {
-        try {
-          details = JSON.stringify(err);
-        } catch (_) {
-          details = String(err);
-        }
-      }
-    }
-
+    console.error('[Nyx] /api/tts error:', err);
     res.status(500).json({
-      error: "Nyx encountered an error while generating audio.",
-      details,
+      error: 'TTS_ERROR',
+      message: 'Nyx had trouble speaking that out loud.'
     });
   }
 });
 
-// ---------------------------------------------
+// -----------------------------
 // Start server
-// ---------------------------------------------
+// -----------------------------
 app.listen(PORT, () => {
-  console.log(
-    `Nyx backend listening on port ${PORT} — GPT + TTS + Offline mode`
-  );
+  console.log(`[Nyx] Sandblast backend listening on port ${PORT}`);
 });
