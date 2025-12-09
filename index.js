@@ -73,6 +73,9 @@ function isNonEmptyString(value) {
 // -------------------------------------------
 function buildBaseReply(intent, message, meta) {
   const domain = meta.domain || 'general';
+  const lower = (message || '').toLowerCase().trim();
+  const words = lower.split(/\s+/).filter(Boolean);
+  const wordCount = words.length;
 
   // 1) Pure greeting – Nyx greets first, then asks about you.
   if (intent === INTENTS.GREETING) {
@@ -82,34 +85,70 @@ function buildBaseReply(intent, message, meta) {
     );
   }
 
-  // 2) Short “I’m fine / I’m doing well” type responses → acknowledge + invite focus
+  // 2) Generic lane – we branch by conversational pattern
   if (intent === INTENTS.GENERIC) {
-    const lower = (message || '').toLowerCase();
-    const words = lower.trim().split(/\s+/).filter(Boolean);
-    const wordCount = words.length;
-
-    const statusKeywords = [
+    // 2a) Positive / neutral status replies
+    const positiveStatusKeywords = [
       "i'm good", "im good", "i am good",
       "i'm fine", "im fine", "i am fine",
       "i'm okay", "im okay", "i am okay",
       "i'm ok", "im ok", "i am ok",
       "doing well", "i'm well", "im well", "i am well",
-      "not bad", "pretty good", "all right", "alright"
+      "not bad", "pretty good", "all right", "alright",
+      "i'm great", "im great", "i am great"
     ];
 
-    const looksLikeStatusReply =
+    const looksLikePositiveStatusReply =
       wordCount > 0 &&
-      wordCount <= 10 &&
-      statusKeywords.some(k => lower.includes(k));
+      wordCount <= 12 &&
+      positiveStatusKeywords.some(k => lower.includes(k));
 
-    if (looksLikeStatusReply) {
+    if (looksLikePositiveStatusReply) {
       return (
         `Glad to hear you’re doing okay.\n\n` +
-        `What would you like to work on or explore today — TV, radio, streaming, sponsors, News Canada, AI, or something else?`
+        `What would you like to work on or explore today — TV, radio, streaming, sponsors, News Canada, AI, or something else on your mind?`
       );
     }
 
-    // Generic “what can you do / show me around” front door
+    // 2b) Low / negative status replies – lean on toneHint and keywords
+    const negativeStatusKeywords = [
+      "tired", "drained", "exhausted",
+      "stressed", "overwhelmed", "burned out", "burnt out",
+      "not great", "not so good", "could be better",
+      "rough day", "hard day", "bad day",
+      "feeling low", "feeling down"
+    ];
+
+    const toneIsLow = meta.toneHint === 'low';
+    const looksLikeNegativeStatusReply =
+      wordCount > 0 &&
+      wordCount <= 15 &&
+      negativeStatusKeywords.some(k => lower.includes(k));
+
+    if (looksLikeNegativeStatusReply || toneIsLow) {
+      return (
+        `Thanks for being honest with me — that sounds like a lot.\n\n` +
+        `Let’s keep this simple and helpful: what would make things easier right now? ` +
+        `We can organize your thoughts for the day, prep for a meeting, or keep it light and just focus on one small win together.`
+      );
+    }
+
+    // 2c) Thanks / appreciation
+    const thanksKeywords = [
+      "thank you", "thanks", "thanks a lot", "appreciate it", "appreciated"
+    ];
+
+    const looksLikeThanks =
+      thanksKeywords.some(k => lower.includes(k));
+
+    if (looksLikeThanks && wordCount <= 15) {
+      return (
+        `You’re welcome — I’ve got you.\n\n` +
+        `If there’s anything else you want to tune, fix, or explore — TV, radio, sponsors, streaming, News Canada, AI, or even just planning your next step — I’m here for it.`
+      );
+    }
+
+    // 2d) Generic “what can you do / show me around” front door
     return (
       `You’re tuned into Sandblast’s AI brain.\n\n` +
       `I can help you with:\n` +
@@ -183,10 +222,9 @@ function buildNyxReply(intent, message, meta) {
   const domain = mapIntentToDomain(intent);
   meta.domain = domain;
 
-  // 1) Start with a solid base reply
   let baseReply = buildBaseReply(intent, message, meta);
 
-  // 2) For GREETING we keep it simple: no heavy personality/domain overrides
+  // For GREETING we keep it simple: no heavy personality/domain overrides
   if (intent !== INTENTS.GREETING && nyxPersonality) {
     try {
       if (intent === INTENTS.GENERIC && typeof nyxPersonality.getFrontDoorResponse === 'function') {
@@ -208,7 +246,6 @@ function buildNyxReply(intent, message, meta) {
     }
   }
 
-  // 3) Optional tone wrapping
   let finalReply = baseReply;
   if (nyxPersonality && typeof nyxPersonality.wrapWithNyxTone === 'function') {
     try {
