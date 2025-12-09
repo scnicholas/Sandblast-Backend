@@ -69,7 +69,7 @@ function isNonEmptyString(value) {
 }
 
 // -------------------------------------------
-// Fallback base replies
+// Fallback base replies (core brain)
 // -------------------------------------------
 function buildBaseReply(intent, message, meta) {
   const domain = meta.domain || 'general';
@@ -85,8 +85,10 @@ function buildBaseReply(intent, message, meta) {
     );
   }
 
-  // 2) Generic lane – we branch by conversational pattern
+  // 2) GENERIC lane – conversational logic, closer to “Vera style”
   if (intent === INTENTS.GENERIC) {
+    const tone = meta.toneHint || 'neutral';
+
     // 2a) Positive / neutral status replies
     const positiveStatusKeywords = [
       "i'm good", "im good", "i am good",
@@ -95,7 +97,8 @@ function buildBaseReply(intent, message, meta) {
       "i'm ok", "im ok", "i am ok",
       "doing well", "i'm well", "im well", "i am well",
       "not bad", "pretty good", "all right", "alright",
-      "i'm great", "im great", "i am great"
+      "i'm great", "im great", "i am great",
+      "i'm doing good", "im doing good", "doing good"
     ];
 
     const looksLikePositiveStatusReply =
@@ -110,7 +113,7 @@ function buildBaseReply(intent, message, meta) {
       );
     }
 
-    // 2b) Low / negative status replies – lean on toneHint and keywords
+    // 2b) Low / negative status replies (or low tone)
     const negativeStatusKeywords = [
       "tired", "drained", "exhausted",
       "stressed", "overwhelmed", "burned out", "burnt out",
@@ -119,7 +122,7 @@ function buildBaseReply(intent, message, meta) {
       "feeling low", "feeling down"
     ];
 
-    const toneIsLow = meta.toneHint === 'low';
+    const toneIsLow = tone === 'low';
     const looksLikeNegativeStatusReply =
       wordCount > 0 &&
       wordCount <= 15 &&
@@ -128,8 +131,8 @@ function buildBaseReply(intent, message, meta) {
     if (looksLikeNegativeStatusReply || toneIsLow) {
       return (
         `Thanks for being honest with me — that sounds like a lot.\n\n` +
-        `Let’s keep this simple and helpful: what would make things easier right now? ` +
-        `We can organize your thoughts for the day, prep for a meeting, or keep it light and just focus on one small win together.`
+        `Let’s keep this simple and useful: what would help most right now? ` +
+        `We can prep you for a meeting, untangle one problem, or just lock in one small win so the rest of the day feels lighter.`
       );
     }
 
@@ -144,11 +147,47 @@ function buildBaseReply(intent, message, meta) {
     if (looksLikeThanks && wordCount <= 15) {
       return (
         `You’re welcome — I’ve got you.\n\n` +
-        `If there’s anything else you want to tune, fix, or explore — TV, radio, sponsors, streaming, News Canada, AI, or even just planning your next step — I’m here for it.`
+        `If there’s anything else you want to tune, fix, or explore — TV, radio, sponsors, streaming, News Canada, AI, or even just planning your next step — I’m here.`
       );
     }
 
-    // 2d) Generic “what can you do / show me around” front door
+    // 2d) Confused / stuck – tone or wording
+    const confusionKeywords = [
+      "confused", "lost", "don’t get", "dont get",
+      "not sure", "no idea", "don’t understand", "dont understand",
+      "stuck", "don t get"
+    ];
+
+    const toneIsConfused = tone === 'confused';
+    const looksConfused =
+      confusionKeywords.some(k => lower.includes(k));
+
+    if (looksConfused || toneIsConfused) {
+      return (
+        `Okay, let’s slow this down and make it clearer.\n\n` +
+        `Tell me in one sentence what you’re trying to figure out — TV, radio, streaming, sponsors, News Canada, AI, or something else — ` +
+        `and I’ll break it into simple steps we can handle together.`
+      );
+    }
+
+    // 2e) Excited / pumped
+    const excitedKeywords = [
+      "excited", "pumped", "hyped", "let's go", "lets go",
+      "so ready", "can’t wait", "cant wait", "fired up", "energized"
+    ];
+
+    const toneIsExcited = tone === 'excited';
+    const looksExcited =
+      excitedKeywords.some(k => lower.includes(k));
+
+    if (looksExcited || toneIsExcited) {
+      return (
+        `Love that energy — let’s point it at something that actually moves you forward.\n\n` +
+        `What’s the main thing you want to push right now — your show, a sponsor idea, your streaming setup, or an AI goal (like Employment Ontario prep)?`
+      );
+    }
+
+    // 2f) Generic “what can you do / show me around” front door
     return (
       `You’re tuned into Sandblast’s AI brain.\n\n` +
       `I can help you with:\n` +
