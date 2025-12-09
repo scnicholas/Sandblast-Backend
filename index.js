@@ -145,7 +145,11 @@ function handleOfflineNyx(userMessage, boundaryContext, meta) {
   // 1) Front door: greetings / "who are you / how are you"
   const frontDoor =
     typeof nyxPersonality.handleNyxFrontDoor === "function"
-      ? nyxPersonality.handleNyxFrontDoor(userMessage, intentData)
+      ? nyxPersonality.handleNyxFrontDoor(
+          userMessage,
+          intentData,
+          meta.topic || "general"
+        )
       : null;
 
   if (frontDoor && role === "public") {
@@ -298,7 +302,11 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     // Quick greeting/intro logic when online (public only)
     const frontDoor =
       typeof nyxPersonality.handleNyxFrontDoor === "function"
-        ? nyxPersonality.handleNyxFrontDoor(userMessage, intentData)
+        ? nyxPersonality.handleNyxFrontDoor(
+            userMessage,
+            intentData,
+            normalizedTopic
+          )
         : null;
 
     if (frontDoor && boundaryContext.role === "public") {
