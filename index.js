@@ -16,7 +16,6 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// Use Render's port or default to 3000 locally
 const PORT = process.env.PORT || 3000;
 
 // -----------------------------
@@ -57,7 +56,6 @@ function ensureStringFromAnyReply(value) {
     const firstString = Object.values(value).find(v => typeof v === 'string');
     if (firstString) return firstString;
 
-    // If it's an object with no useful string, treat as empty
     return '';
   }
 
@@ -71,22 +69,21 @@ function isNonEmptyString(value) {
 }
 
 // -------------------------------------------
-// Fallback base replies (if personality file
-// doesn’t provide a custom generator)
+// Fallback base replies
 // -------------------------------------------
 function buildBaseReply(intent, message, meta) {
   const domain = meta.domain || 'general';
 
-  // Simple, human greeting
+  // Ultra-simple, human greeting
   if (intent === INTENTS.GREETING) {
     return (
-      `I’m doing well and fully online. Thanks for checking in.\n\n` +
-      `How can I help you today? You can ask about TV, radio, streaming, sponsors, News Canada, AI, or anything general you’re curious about.`
+      `Hi, I’m Nyx. I’m doing well and everything’s running smoothly on my side.\n\n` +
+      `How are you doing, and what would you like to work on together?`
     );
   }
 
   if (intent === INTENTS.GENERIC) {
-    // Front-door / small talk / “what can you do?”
+    // Front-door / “what can you do?”
     return (
       `You’re tuned into Sandblast’s AI brain.\n\n` +
       `I can help you with:\n` +
@@ -159,10 +156,9 @@ function buildNyxReply(intent, message, meta) {
   const domain = mapIntentToDomain(intent);
   meta.domain = domain;
 
-  // 1) Start with a solid base reply
   let baseReply = buildBaseReply(intent, message, meta);
 
-  // 2) For GREETING we keep it simple: no heavy personality/domain overrides
+  // For GREETING we keep it simple: no heavy personality/domain overrides
   if (intent !== INTENTS.GREETING && nyxPersonality) {
     try {
       if (intent === INTENTS.GENERIC && typeof nyxPersonality.getFrontDoorResponse === 'function') {
@@ -184,7 +180,6 @@ function buildNyxReply(intent, message, meta) {
     }
   }
 
-  // 3) Wrap with tone if available, but ignore bad/empty output
   let finalReply = baseReply;
   if (nyxPersonality && typeof nyxPersonality.wrapWithNyxTone === 'function') {
     try {
@@ -231,10 +226,7 @@ app.post('/api/sandblast-gpt', async (req, res) => {
     const reply = ensureStringFromAnyReply(rawReply) ||
       'Nyx is online, but that last reply came back empty. Try asking again in a slightly different way.';
 
-    res.json({
-      reply,
-      meta
-    });
+    res.json({ reply, meta });
   } catch (err) {
     console.error('[Nyx] /api/sandblast-gpt error:', err);
     res.status(500).json({
