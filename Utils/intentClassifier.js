@@ -56,9 +56,10 @@ function classifyIntent(message) {
 
   // ============================
   // HARD GREETING DETECTION
-  // (only very short, clear greetings)
+  // ONLY these exact phrases are greetings.
+  // Nothing else. No “everything okay” nonsense.
   // ============================
-  const simpleGreetingPhrases = [
+  const GREETING_EXACT = new Set([
     'hi',
     'hi nyx',
     'hello',
@@ -67,27 +68,12 @@ function classifyIntent(message) {
     'hey nyx',
     'good morning',
     'good afternoon',
-    'good evening'
-  ];
-
-  const questionGreetingPhrases = [
+    'good evening',
     'how are you',
-    'how s your day',
-    'how is your day',
     'how are you nyx'
-  ];
+  ]);
 
-  const isSimpleGreeting =
-    wordCount > 0 &&
-    wordCount <= 5 &&
-    simpleGreetingPhrases.some(p => msg === p || msg.startsWith(p + ' '));
-
-  const isQuestionGreeting =
-    wordCount > 0 &&
-    wordCount <= 7 &&
-    questionGreetingPhrases.some(p => msg.includes(p));
-
-  if (isSimpleGreeting || isQuestionGreeting) {
+  if (GREETING_EXACT.has(msg)) {
     const toneHint = detectToneHint(message);
     return {
       intent: INTENTS.GREETING,
@@ -151,7 +137,6 @@ function classifyIntent(message) {
     'audio only',
     'dj',
     'on air',
-    'on air ',
     'radio show',
     'radio host',
     'radio segment',
@@ -316,7 +301,9 @@ function classifyIntent(message) {
     'where do i start',
     'how do i start',
     'show me around',
-    'give me an overview'
+    'give me an overview',
+    'everything okay',
+    'everything ok'
   ];
   if (genericHelpKeywords.some(k => msg.includes(k))) genericScore += 3;
 
@@ -329,7 +316,7 @@ function classifyIntent(message) {
   // Compute best intent
   // ============================
   let bestIntent = INTENTS.GENERIC;
-  let bestScore = genericScore; // let generic start with its own score
+  let bestScore = genericScore; // GENERIC starts with its own score
 
   Object.entries(scores).forEach(([intent, score]) => {
     if (score > bestScore) {
