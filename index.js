@@ -74,16 +74,42 @@ function isNonEmptyString(value) {
 function buildBaseReply(intent, message, meta) {
   const domain = meta.domain || 'general';
 
-  // Ultra-simple, human greeting
+  // 1) Pure greeting – Nyx greets first, then asks about you.
   if (intent === INTENTS.GREETING) {
     return (
-      `Hi, I’m Nyx. I’m doing well and everything’s running smoothly on my side.\n\n` +
-      `How are you doing, and what would you like to work on together?`
+      `Hi, I’m Nyx. It’s good to see you.\n\n` +
+      `How are you today?`
     );
   }
 
+  // 2) Short “I’m fine / I’m doing well” type responses → acknowledge + invite focus
   if (intent === INTENTS.GENERIC) {
-    // Front-door / “what can you do?”
+    const lower = (message || '').toLowerCase();
+    const words = lower.trim().split(/\s+/).filter(Boolean);
+    const wordCount = words.length;
+
+    const statusKeywords = [
+      "i'm good", "im good", "i am good",
+      "i'm fine", "im fine", "i am fine",
+      "i'm okay", "im okay", "i am okay",
+      "i'm ok", "im ok", "i am ok",
+      "doing well", "i'm well", "im well", "i am well",
+      "not bad", "pretty good", "all right", "alright"
+    ];
+
+    const looksLikeStatusReply =
+      wordCount > 0 &&
+      wordCount <= 10 &&
+      statusKeywords.some(k => lower.includes(k));
+
+    if (looksLikeStatusReply) {
+      return (
+        `Glad to hear you’re doing okay.\n\n` +
+        `What would you like to work on or explore today — TV, radio, streaming, sponsors, News Canada, AI, or something else?`
+      );
+    }
+
+    // Generic “what can you do / show me around” front door
     return (
       `You’re tuned into Sandblast’s AI brain.\n\n` +
       `I can help you with:\n` +
@@ -97,6 +123,7 @@ function buildBaseReply(intent, message, meta) {
     );
   }
 
+  // 3) Domain-specific lanes
   switch (domain) {
     case 'tv':
       return (
@@ -156,9 +183,10 @@ function buildNyxReply(intent, message, meta) {
   const domain = mapIntentToDomain(intent);
   meta.domain = domain;
 
+  // 1) Start with a solid base reply
   let baseReply = buildBaseReply(intent, message, meta);
 
-  // For GREETING we keep it simple: no heavy personality/domain overrides
+  // 2) For GREETING we keep it simple: no heavy personality/domain overrides
   if (intent !== INTENTS.GREETING && nyxPersonality) {
     try {
       if (intent === INTENTS.GENERIC && typeof nyxPersonality.getFrontDoorResponse === 'function') {
@@ -180,6 +208,7 @@ function buildNyxReply(intent, message, meta) {
     }
   }
 
+  // 3) Optional tone wrapping
   let finalReply = baseReply;
   if (nyxPersonality && typeof nyxPersonality.wrapWithNyxTone === 'function') {
     try {
