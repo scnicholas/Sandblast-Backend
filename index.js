@@ -174,7 +174,24 @@ app.post('/api/sandblast-gpt', async (req, res) => {
       timestamp: new Date().toISOString()
     };
 
-    const reply = buildNyxReply(intent, userMessage, meta);
+    // Get raw reply from Nyx brain
+    const rawReply = buildNyxReply(intent, userMessage, meta);
+
+    // HARDENING: always force this to a string so widget never shows [object Object]
+    let reply;
+    if (typeof rawReply === 'string') {
+      reply = rawReply;
+    } else if (rawReply && typeof rawReply === 'object') {
+      if (typeof rawReply.reply === 'string') {
+        reply = rawReply.reply;
+      } else if (typeof rawReply.text === 'string') {
+        reply = rawReply.text;
+      } else {
+        reply = JSON.stringify(rawReply);
+      }
+    } else {
+      reply = 'Nyx is online, but something about that last reply looked strange. Try asking again in a slightly different way.';
+    }
 
     res.json({
       reply,
