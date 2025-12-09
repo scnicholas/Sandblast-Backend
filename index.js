@@ -66,6 +66,31 @@ function mapTopicToDomain(topic) {
 }
 
 // ---------------------------------------------
+// Helper: lane-specific greeting text
+// ---------------------------------------------
+function buildLaneGreeting(topic) {
+  const lane = (topic || "general").toLowerCase();
+
+  switch (lane) {
+    case "tv":
+      return "Hi — you’re on the TV lane. Want to tune a nightly block, pick shows for a slot, or test a new lineup?";
+    case "radio":
+      return "Hi — we’re in the radio lane. Do you want to shape a show, build a segment, or plan a sponsor block on air?";
+    case "streaming":
+      return "Hi — you’re in the streaming lane. Want to talk binge-night themes, on-demand picks, or how this fits with Sandblast TV?";
+    case "sponsors":
+      return "Hi — this is the sponsors lane. Are you thinking about a 4-week test, a specific brand, or where to place them in the schedule?";
+    case "news_canada":
+      return "Hi — you’re in the News Canada lane. Want to plug in specific stories, match them to shows, or plan where they sit in the grid?";
+    case "consulting":
+      return "Hi — this is the AI consulting lane. Do you want help with strategy, workflows, or a concrete AI pilot you can run first?";
+    case "general":
+    default:
+      return "Hi — good to see you here. What do you want to tune in on: TV, radio, streaming, sponsors, or something else?";
+  }
+}
+
+// ---------------------------------------------
 // Root route
 // ---------------------------------------------
 app.get("/", (req, res) => {
@@ -142,19 +167,24 @@ function handleOfflineNyx(userMessage, boundaryContext, meta) {
   meta.intent = intentData.intent;
   meta.toneHint = intentData.toneHint;
 
-  // 1) Front door: greetings / "who are you / how are you"
-  const frontDoor =
-    typeof nyxPersonality.handleNyxFrontDoor === "function"
-      ? nyxPersonality.handleNyxFrontDoor(
-          userMessage,
-          intentData,
-          meta.topic || "general"
-        )
-      : null;
+  const laneGreeting = buildLaneGreeting(meta.topic || "general");
 
-  if (frontDoor && role === "public") {
+  // Front door greeting (public only)
+  const isGreeting =
+    typeof nyxPersonality.isFrontDoorGreeting === "function"
+      ? nyxPersonality.isFrontDoorGreeting(userMessage)
+      : /^(hi|hello|hey)\b/i.test(userMessage || "");
+
+  if (isGreeting && role === "public") {
+    const frontPayload = {
+      intent: "front_door",
+      category: "public",
+      domain: mapTopicToDomain(meta.topic || "general"),
+      message: laneGreeting,
+    };
+
     const wrappedFront = nyxPersonality.wrapWithNyxTone(
-      frontDoor,
+      frontPayload,
       userMessage,
       meta
     );
@@ -276,7 +306,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 
     // -----------------------------------------
     // OFFLINE MODE (no OpenAI calls)
-    // -----------------------------------------
+// -----------------------------------------
     if (NYX_OFFLINE_MODE || !OPENAI_API_KEY) {
       const offline = handleOfflineNyx(userMessage, boundaryContext, meta);
 
@@ -297,21 +327,26 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 
     // -----------------------------------------
     // ONLINE MODE (OpenAI GPT)
-    // -----------------------------------------
+// -----------------------------------------
+
+    const laneGreeting = buildLaneGreeting(normalizedTopic);
 
     // Quick greeting/intro logic when online (public only)
-    const frontDoor =
-      typeof nyxPersonality.handleNyxFrontDoor === "function"
-        ? nyxPersonality.handleNyxFrontDoor(
-            userMessage,
-            intentData,
-            normalizedTopic
-          )
-        : null;
+    const isGreeting =
+      typeof nyxPersonality.isFrontDoorGreeting === "function"
+        ? nyxPersonality.isFrontDoorGreeting(userMessage)
+        : /^(hi|hello|hey)\b/i.test(userMessage || "");
 
-    if (frontDoor && boundaryContext.role === "public") {
+    if (isGreeting && boundaryContext.role === "public") {
+      const frontPayload = {
+        intent: "front_door",
+        category: "public",
+        domain: domainFromTopic,
+        message: laneGreeting,
+      };
+
       const wrapped = nyxPersonality.wrapWithNyxTone(
-        frontDoor,
+        frontPayload,
         userMessage,
         meta
       );
@@ -322,7 +357,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
           stepIndex: (meta.stepIndex || 0) + 1,
           lastDomain:
             wrapped.domain ||
-            frontDoor.domain ||
+            frontPayload.domain ||
             domainFromTopic ||
             "general",
           lastEmotion: currentEmotion,
