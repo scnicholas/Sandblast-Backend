@@ -195,7 +195,28 @@ function buildBaseReply(intent, message, meta) {
       );
     }
 
-    // 2e) Positive / neutral status replies
+    // 2e) Smart overrides: generic “tell me more / go deeper”
+    const deepenKeywordsGeneric = [
+      'tell me more',
+      'explain more',
+      'go deeper',
+      'more detail',
+      'more details',
+      'go into detail',
+      'go into more detail'
+    ];
+    const wantsMoreDetailGeneric =
+      deepenKeywordsGeneric.some(k => lower.includes(k));
+
+    if (wantsMoreDetailGeneric && wordCount <= 8) {
+      return (
+        `Alright, let’s go a little deeper.\n\n` +
+        `Tell me which area you want more detail on — TV, radio, streaming, sponsors, News Canada, AI, or something else — ` +
+        `and I’ll break it down in clearer steps.`
+      );
+    }
+
+    // 2f) Positive / neutral status replies
     const positiveStatusKeywords = [
       "i'm good", "im good", "i am good",
       "i'm fine", "im fine", "i am fine",
@@ -219,7 +240,7 @@ function buildBaseReply(intent, message, meta) {
       );
     }
 
-    // 2f) Low / negative status replies (or low tone)
+    // 2g) Low / negative status replies (or low tone)
     const negativeStatusKeywords = [
       "tired", "drained", "exhausted",
       "stressed", "overwhelmed", "burned out", "burnt out",
@@ -242,7 +263,7 @@ function buildBaseReply(intent, message, meta) {
       );
     }
 
-    // 2g) Thanks / appreciation
+    // 2h) Thanks / appreciation
     const thanksKeywords = [
       "thank you", "thanks", "thanks a lot", "appreciate it", "appreciated"
     ];
@@ -257,7 +278,7 @@ function buildBaseReply(intent, message, meta) {
       );
     }
 
-    // 2h) Confused / stuck – tone or wording
+    // 2i) Confused / stuck – tone or wording
     const confusionKeywords = [
       "confused", "lost", "don’t get", "dont get",
       "not sure", "no idea", "don’t understand", "dont understand",
@@ -276,7 +297,7 @@ function buildBaseReply(intent, message, meta) {
       );
     }
 
-    // 2i) Excited / pumped
+    // 2j) Excited / pumped
     const excitedKeywords = [
       "excited", "pumped", "hyped", "let's go", "lets go",
       "so ready", "can’t wait", "cant wait", "fired up", "energized"
@@ -293,7 +314,7 @@ function buildBaseReply(intent, message, meta) {
       );
     }
 
-    // 2j) GOAL / “I want to…” / “I’m trying to…”
+    // 2k) GOAL / “I want to…” / “I’m trying to…”
     const goalKeywords = [
       "i want to ",
       "i want ",
@@ -320,7 +341,7 @@ function buildBaseReply(intent, message, meta) {
       );
     }
 
-    // 2k) Generic “what can you do / show me around” front door
+    // 2l) Generic “what can you do / show me around” front door
     return (
       `You’re tuned into Sandblast’s AI brain.\n\n` +
       `I can help you with:\n` +
@@ -338,6 +359,29 @@ function buildBaseReply(intent, message, meta) {
   switch (domain) {
     // ---------------- TV ----------------
     case 'tv': {
+      const deepenKeywords = [
+        'tell me more',
+        'explain more',
+        'go deeper',
+        'more detail',
+        'more details',
+        'go into detail',
+        'go into more detail'
+      ];
+      const wantsMoreDetail =
+        deepenKeywords.some(k => lower.includes(k));
+
+      if (wantsMoreDetail && wordCount <= 8) {
+        return (
+          `Let’s go a layer deeper on TV.\n\n` +
+          `Think of your grid as:\n` +
+          `- Anchor blocks (the “always there” shows people can rely on)\n` +
+          `- Experiment blocks (testing new or niche content)\n` +
+          `- Sponsor-friendly blocks (where you’re comfortable adding brand messages)\n\n` +
+          `Tell me which one you want to focus on — anchors, experiments, or sponsor-friendly blocks — and I’ll help you tune it.`
+        );
+      }
+
       const wantsPromo =
         lower.includes('promote my show') ||
         lower.includes('promote a show') ||
@@ -397,6 +441,29 @@ function buildBaseReply(intent, message, meta) {
 
     // ---------------- RADIO ----------------
     case 'radio': {
+      const deepenKeywords = [
+        'tell me more',
+        'explain more',
+        'go deeper',
+        'more detail',
+        'more details',
+        'go into detail',
+        'go into more detail'
+      ];
+      const wantsMoreDetail =
+        deepenKeywords.some(k => lower.includes(k));
+
+      if (wantsMoreDetail && wordCount <= 8) {
+        return (
+          `Let’s go a bit deeper on radio.\n\n` +
+          `Think of each show as a mix of:\n` +
+          `- Spine: the consistent elements every episode (opening, closing, key segments)\n` +
+          `- Flavor: music choices or topics that shift with the day\n` +
+          `- Signals: audio cues and tags that tell listeners “you’re in the right place”\n\n` +
+          `Tell me which you want to tune — the spine, the flavor, or the signals — and I’ll help you shape it.`
+        );
+      }
+
       const wantsAudienceGrowth =
         (lower.includes('grow') || lower.includes('increase') || lower.includes('more listeners') || lower.includes('bigger audience')) &&
         (lower.includes('radio') || lower.includes('show') || lower.includes('program'));
@@ -450,6 +517,29 @@ function buildBaseReply(intent, message, meta) {
 
     // ---------------- SPONSORS ----------------
     case 'sponsors': {
+      const deepenKeywords = [
+        'tell me more',
+        'explain more',
+        'go deeper',
+        'more detail',
+        'more details',
+        'go into detail',
+        'go into more detail'
+      ];
+      const wantsMoreDetail =
+        deepenKeywords.some(k => lower.includes(k));
+
+      if (wantsMoreDetail && wordCount <= 8) {
+        return (
+          `Let’s go deeper on sponsor packages.\n\n` +
+          `Think of each package as:\n` +
+          `- Placement: where they appear (TV, radio, streaming, specific blocks)\n` +
+          `- Frequency: how often they show up\n` +
+          `- Framing: how clearly you explain what they’re supporting\n\n` +
+          `Tell me which you want to tune first — placement, frequency, or framing — and I’ll help you shape it.`
+        );
+      }
+
       const lowBudget =
         lower.includes('small budget') ||
         lower.includes('low budget') ||
@@ -511,6 +601,29 @@ function buildBaseReply(intent, message, meta) {
 
     // ---------------- STREAMING ----------------
     case 'streaming': {
+      const deepenKeywords = [
+        'tell me more',
+        'explain more',
+        'go deeper',
+        'more detail',
+        'more details',
+        'go into detail',
+        'go into more detail'
+      ];
+      const wantsMoreDetail =
+        deepenKeywords.some(k => lower.includes(k));
+
+      if (wantsMoreDetail && wordCount <= 8) {
+        return (
+          `Let’s go deeper on streaming.\n\n` +
+          `You can think in three layers:\n` +
+          `- Files: formats, bitrates, and how clean your source is.\n` +
+          `- Delivery: the player or platform that actually serves the video/audio.\n` +
+          `- Experience: how easy it is for viewers to find, play, and keep watching.\n\n` +
+          `Tell me which layer you want to focus on — files, delivery, or experience — and I’ll walk through it with you.`
+        );
+      }
+
       const technicalIssues =
         lower.includes('buffering') ||
         lower.includes('lags') ||
@@ -569,6 +682,29 @@ function buildBaseReply(intent, message, meta) {
 
     // ---------------- NEWS CANADA ----------------
     case 'news_canada': {
+      const deepenKeywords = [
+        'tell me more',
+        'explain more',
+        'go deeper',
+        'more detail',
+        'more details',
+        'go into detail',
+        'go into more detail'
+      ];
+      const wantsMoreDetail =
+        deepenKeywords.some(k => lower.includes(k));
+
+      if (wantsMoreDetail && wordCount <= 8) {
+        return (
+          `Let’s go deeper on News Canada integration.\n\n` +
+          `Think of each piece as:\n` +
+          `- Topic: what it’s about (health, finance, lifestyle, etc.)\n` +
+          `- Tone: serious, neutral, or light\n` +
+          `- Placement: where it supports your existing blocks instead of feeling random\n\n` +
+          `Tell me the topic and whether you see it on TV, radio, or streaming, and I’ll help you place it cleanly.`
+        );
+      }
+
       const whereToRun =
         (lower.includes('where') && lower.includes('run')) ||
         lower.includes('where should this go') ||
@@ -610,6 +746,29 @@ function buildBaseReply(intent, message, meta) {
 
     // ---------------- AI CONSULTING ----------------
     case 'ai_consulting': {
+      const deepenKeywords = [
+        'tell me more',
+        'explain more',
+        'go deeper',
+        'more detail',
+        'more details',
+        'go into detail',
+        'go into more detail'
+      ];
+      const wantsMoreDetail =
+        deepenKeywords.some(k => lower.includes(k));
+
+      if (wantsMoreDetail && wordCount <= 8) {
+        return (
+          `Let’s go deeper on the AI side.\n\n` +
+          `I usually break it into:\n` +
+          `- People: who needs to understand and use AI safely.\n` +
+          `- Processes: where AI can reduce friction or save time.\n` +
+          `- Guardrails: what should *never* go into the system.\n\n` +
+          `Tell me whether you’re more worried about people, processes, or guardrails, and I’ll walk through that layer with you.`
+        );
+      }
+
       const trainingWorkshop =
         lower.includes('training') ||
         lower.includes('workshop') ||
