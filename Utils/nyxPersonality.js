@@ -4,264 +4,387 @@
 
 // Small helper
 function toLower(str) {
-  return (str || '').toLowerCase();
+  return (str || "").toLowerCase();
 }
 
 // -----------------------------
 // 1. Front-door response (optional override)
 // -----------------------------
-function getFrontDoorResponse(message, meta) {
-  const msg = toLower(message || '');
+//
+// This runs BEFORE the core OpenAI reply and can provide
+// a short, conversational orientation when users ask
+// "what can you do" / "what is Sandblast" / etc.
+//
+function getFrontDoorResponse(message, meta, classification) {
+  const msg = toLower(message || "");
+  const domain = classification?.domain || "general";
+  const intent = classification?.intent || "statement";
 
-  // If user is clearly asking "what can you do" / about Sandblast,
-  // give a slightly more conversational overview than the base reply.
   const aboutKeywords = [
-    'what can you do',
-    'how can you help',
-    'what do you do',
-    'who are you',
-    'what is sandblast',
-    'tell me about sandblast',
-    'explain sandblast',
-    'what is this channel'
+    "what can you do",
+    "how can you help",
+    "what do you do",
+    "who are you",
+    "what is sandblast",
+    "tell me about sandblast",
+    "explain sandblast",
+    "what is this channel",
+    "what is sandblast channel",
+    "what is sandblastgpt",
+    "what is nyx"
   ];
 
-  const isAboutNyxOrSandblast = aboutKeywords.some(k => msg.includes(k));
+  const isAboutNyxOrSandblast = aboutKeywords.some((k) => msg.includes(k));
+
+  // Light greeting / orientation if they open with a greeting + no clear task
+  const isGreetingOnly =
+    ["greeting", "smalltalk"].includes(intent) &&
+    !isAboutNyxOrSandblast &&
+    msg.split(" ").length <= 8;
+
+  if (isGreetingOnly) {
+    return (
+      `You’re tuned into Nyx, the AI brain behind Sandblast.\n\n` +
+      `I’m here to help you shape TV blocks, radio shows, sponsor ideas, streaming plans, ` +
+      `and even AI strategy and training for real-world organizations.\n\n` +
+      `Tell me where you want to start: your content, your sponsors, or your AI questions.`
+    );
+  }
 
   if (!isAboutNyxOrSandblast) {
-    // Let index.js handle generic cases normally
+    // Let index.js + the model handle generic cases
     return null;
   }
 
+  // Explicit “what are you / what is this” questions
   return (
-    `You’re talking to Nyx — the AI brain wired into Sandblast.\n\n` +
-    `I can help you shape TV blocks, radio shows, sponsorship ideas, streaming plans, ` +
-    `and even AI strategy and training for real-world organizations.\n\n` +
-    `Tell me where you want to start: your content, your sponsors, or your AI questions.`
+    `You’re talking to Nyx — the AI broadcast brain wired into Sandblast.\n\n` +
+    `Sandblast blends retro TV, radio, and streaming with practical AI so a growing channel can feel like a full broadcast operation without needing a giant network budget.\n\n` +
+    `I can help you with programming ideas, sponsor packages, AI workshops, public-domain content, and day-to-day decisions.\n` +
+    `Tell me what you’re working on right now — TV, radio, sponsors, or AI — and we’ll build from there.`
   );
 }
 
 // -----------------------------
-// 2. Domain responses
+// 2. Domain payloads / helpers
 // -----------------------------
-function getDomainResponse(domain, message, meta) {
-  const msg = toLower(message || '');
-
-  switch (domain) {
-    case 'tv':
-      return handleTvDomain(msg, meta);
-    case 'radio':
-      return handleRadioDomain(msg, meta);
-    case 'sponsors':
-      return handleSponsorsDomain(msg, meta);
-    case 'streaming':
-      return handleStreamingDomain(msg, meta);
-    case 'news_canada':
-      return handleNewsCanadaDomain(msg, meta);
-    case 'ai_consulting':
-      return handleAiConsultingDomain(msg, meta);
-    default:
-      return null; // fall back to base reply from index.js
-  }
-}
+//
+// These are NOT the main text replies; the model in index.js
+// still handles the primary answer.
+//
+// Here we build structured “payloads” for the front-end and
+// domain hints that can be used later for chips, side-panels, etc.
+//
 
 // ---- TV ----
-function handleTvDomain(msg, meta) {
-  if (msg.includes('schedule') || msg.includes('grid') || msg.includes('lineup')) {
-    return (
-      `Let’s tune the TV schedule.\n\n` +
-      `Think in blocks, not random shows: retro dramas, westerns, detective hours, themed nights, etc.\n\n` +
-      `Give me one block you want to build — for example “Weeknight detective hour” or “Sunday afternoon westerns” — ` +
-      `and I’ll help you shape the time slot and flow.`
-    );
+function buildTvPayload(msg, meta) {
+  const lower = toLower(msg || "");
+  const payload = {
+    type: "tv",
+    suggestionChips: [
+      "Plan a block",
+      "Tune tonight’s lineup",
+      "Promote a show"
+    ],
+    helperText: null
+  };
+
+  if (
+    lower.includes("schedule") ||
+    lower.includes("grid") ||
+    lower.includes("lineup")
+  ) {
+    payload.helperText =
+      `Think in blocks, not random shows: retro dramas, westerns, detective hours, themed nights.\n` +
+      `Pick one block (e.g., “Weeknight detective hour”) and we’ll tune the time slot and flow.`;
+  } else if (lower.includes("show") && lower.includes("promote")) {
+    payload.helperText =
+      `Combine on-air mentions, simple graphics, and 1–2 social posts with the same hook.\n` +
+      `Have the show name, why someone should care, and when it airs — that’s enough to shape a promo.`;
   }
 
-  if (msg.includes('show') && msg.includes('promote')) {
-    return (
-      `You want to promote a TV show — good.\n\n` +
-      `We can combine on-air mentions, lower-third graphics, and social media posts that echo the same hook.\n\n` +
-      `Tell me the show name, the core hook (why someone should care), and when it airs, and I’ll outline a simple promo plan.`
-    );
-  }
-
-  return null;
+  return payload;
 }
 
-// ---- Radio ----
-function handleRadioDomain(msg, meta) {
-  if (msg.includes('gospel sunday') || msg.includes('gospel')) {
-    return (
-      `Gospel Sunday is a strong anchor for Sandblast Radio.\n\n` +
-      `You can treat it as a weekly “appointment” block: recurring time, clear sound, and a consistent emotional feel.\n\n` +
-      `Tell me if you want help with: playlist flow, segment ideas, or sponsor tie-ins for Gospel Sunday, and I’ll build around that.`
-    );
+// ---- Radio / Nova ----
+function buildRadioPayload(msg, meta) {
+  const lower = toLower(msg || "");
+  const payload = {
+    type: "radio",
+    mode: "standard",
+    suggestionChips: ["Build a playlist", "Shape a block", "Use DJ Nova"],
+    helperText: null
+  };
+
+  if (lower.includes("dj nova") || lower.includes("nova")) {
+    payload.mode = "nova";
+    payload.helperText =
+      `DJ Nova works best when the block has a clear mood and purpose.\n` +
+      `Decide the feeling (e.g., “late-night smooth”, “Sunday uplift”) and the rough length of the block — we can shape intros and flow from there.`;
+  } else if (
+    lower.includes("gospel sunday") ||
+    lower.includes("gospel")
+  ) {
+    payload.helperText =
+      `Treat Gospel Sunday as a weekly “appointment” block with a consistent emotional arc.\n` +
+      `You can add sponsor mentions or short reflections between songs without breaking the flow.`;
+  } else if (lower.includes("playlist") || lower.includes("mix")) {
+    payload.helperText =
+      `Think of the hour in arcs: strong open, steady groove, memorable landing.\n` +
+      `Tell Nyx the mood and duration, and we can draft a simple structure.`;
   }
 
-  if (msg.includes('playlist') || msg.includes('mix')) {
-    return (
-      `Let’s shape the radio sound.\n\n` +
-      `Think about your playlist in arcs: open strong, keep a groove, then land the block with something memorable.\n\n` +
-      `Tell me the mood (energizing, reflective, Sunday morning calm, etc.) and the length of the block, and I’ll suggest a simple structure.`
-    );
-  }
-
-  return null;
+  return payload;
 }
 
-// ---- Sponsors ----
-function handleSponsorsDomain(msg, meta) {
-  if (msg.includes('package') || msg.includes('media kit') || msg.includes('rate card')) {
-    return (
-      `Let’s keep sponsor packages realistic for a growing channel.\n\n` +
-      `Instead of huge network bundles, think in simple tiers: starter, growth, and flagship.\n\n` +
-      `Tell me your ideal sponsor type (local business, regional brand, nonprofit, etc.) and your rough monthly value target, ` +
-      `and I’ll outline a 2–3 tier package structure you can refine.`
-    );
+// ---- Sponsors / Advertising ----
+function buildSponsorsPayload(msg, meta) {
+  const lower = toLower(msg || "");
+  const payload = {
+    type: "sponsors",
+    proofPoint:
+      "Sandblast reaches nostalgia-driven viewers and listeners who actively choose retro content across TV, radio, and streaming.",
+    nextAction:
+      "Start with a 4-week test: combine a small TV presence with a few on-air mentions from DJ Nova.",
+    suggestionChips: [
+      "Draft a starter package",
+      "Plan a 4-week test",
+      "Design a sponsor pitch"
+    ],
+    helperText: null
+  };
+
+  if (
+    lower.includes("package") ||
+    lower.includes("media kit") ||
+    lower.includes("rate card")
+  ) {
+    payload.helperText =
+      `Keep packages in 2–3 tiers: starter, growth, flagship.\n` +
+      `Each tier should state: number of spots, where they run (TV/radio/streaming), and the simple outcome you’re targeting.`;
+  } else if (
+    lower.includes("how do i advertise") ||
+    lower.includes("place an ad") ||
+    lower.includes("run my ad")
+  ) {
+    payload.helperText =
+      `Flow: clarify the goal, match it to placements, and test for 4–6 weeks.\n` +
+      `Local/regional sponsors respond well to clear, honest expectations — no fake “network” promises.`;
   }
 
-  if (msg.includes('how do i advertise') || msg.includes('place an ad') || msg.includes('run my ad')) {
-    return (
-      `To advertise on Sandblast, the flow is simple:\n\n` +
-      `1) Clarify your goal (brand awareness, traffic, or direct response).\n` +
-      `2) Match that goal to TV, radio, or streaming placements.\n` +
-      `3) Pick a realistic starting budget and a short test period (4–6 weeks).\n\n` +
-      `Tell me your business type and your primary goal, and I’ll suggest a simple test campaign layout.`
-    );
-  }
-
-  return null;
+  return payload;
 }
 
-// ---- Streaming ----
-function handleStreamingDomain(msg, meta) {
-  if (msg.includes('roku') || msg.includes('ott') || msg.includes('app')) {
-    return (
-      `For streaming and OTT, keep the stack lean at this stage.\n\n` +
-      `You want a reliable pipeline from your content library into one or two key destinations (like an app or a web player), ` +
-      `instead of trying to be everywhere at once.\n\n` +
-      `Tell me what you have now — files on a drive, a web player, a Roku idea — and I’ll help you think about the next practical step.`
-    );
+// ---- Streaming / OTT ----
+function buildStreamingPayload(msg, meta) {
+  const lower = toLower(msg || "");
+  const payload = {
+    type: "streaming",
+    suggestionChips: [
+      "Plan OTT next step",
+      "Group shows into collections",
+      "Think about Roku / app later"
+    ],
+    helperText: null
+  };
+
+  if (lower.includes("roku") || lower.includes("ott") || lower.includes("app")) {
+    payload.helperText =
+      `At this stage, keep the stack lean: one or two reliable destinations are better than trying to be everywhere at once.\n` +
+      `Make sure your content pipeline is stable before chasing more platforms.`;
+  } else if (
+    lower.includes("upload") ||
+    lower.includes("watch online") ||
+    lower.includes("on demand")
+  ) {
+    payload.helperText =
+      `Group content into simple collections (westerns, detective, gospel, family) so people can browse by mood.\n` +
+      `You can add more polish later once the basics work smoothly.`;
   }
 
-  if (msg.includes('upload') || msg.includes('watch online') || msg.includes('on demand')) {
-    return (
-      `On-demand viewing is where a lot of your audience will actually discover you.\n\n` +
-      `We can group content into collections (westerns, detective shows, gospel music, etc.) so people can browse by mood or theme.\n\n` +
-      `Tell me which category you want to prioritize first, and I’ll help you think through how to present it.`
-    );
-  }
-
-  return null;
+  return payload;
 }
 
 // ---- News Canada ----
-function handleNewsCanadaDomain(msg, meta) {
-  if (msg.includes('where') && msg.includes('run')) {
-    return (
-      `News Canada pieces work best when they feel like a natural editorial fit, not just an add-on.\n\n` +
-      `You can use them as short segments between shows, or as part of a themed block that matches the topic (health, finance, lifestyle, etc.).\n\n` +
-      `Tell me the topic of the News Canada piece, and I’ll suggest where it fits best in TV, radio, or streaming.`
-    );
+function buildNewsCanadaPayload(msg, meta) {
+  const lower = toLower(msg || "");
+  const payload = {
+    type: "news_canada",
+    suggestionChips: [
+      "Place it between shows",
+      "Match it to a sponsor",
+      "Turn it into a themed block"
+    ],
+    helperText: null
+  };
+
+  if (lower.includes("where") && lower.includes("run")) {
+    payload.helperText =
+      `Use News Canada pieces as short editorial breaks between shows or inside a themed block.\n` +
+      `Match topic to slot: health with wellness content, finance with business blocks, etc.`;
+  } else if (
+    lower.includes("sponsor") ||
+    lower.includes("tie in") ||
+    lower.includes("align")
+  ) {
+    payload.helperText =
+      `Align sponsor type with the story theme.\n` +
+      `Example: a bank or credit union with money pieces, a clinic or wellness brand with health clips.`;
   }
 
-  if (msg.includes('sponsor') || msg.includes('tie in') || msg.includes('align')) {
-    return (
-      `You can align a sponsor with a News Canada piece by matching their brand to the story’s theme.\n\n` +
-      `For example: a financial institution with a money-management feature, or a health brand with a wellness clip.\n\n` +
-      `Tell me the sponsor type and the News Canada theme, and I’ll outline one or two ways to connect them.`
-    );
-  }
-
-  return null;
+  return payload;
 }
 
-// ---- AI Consulting (with Employment Ontario focus) ----
-function handleAiConsultingDomain(msg, meta) {
+// ---- AI Consulting (including Employment Ontario) ----
+function buildAiConsultingPayload(msg, meta) {
+  const lower = toLower(msg || "");
   const mentionsEmploymentOntario =
-    msg.includes('employment ontario') ||
-    msg.includes('employment center') ||
-    msg.includes('employment centre') ||
-    msg.includes('job seekers') ||
-    msg.includes('job-seekers') ||
-    msg.includes('workforce') ||
-    msg.includes('career centre') ||
-    msg.includes('career center');
+    lower.includes("employment ontario") ||
+    lower.includes("employment center") ||
+    lower.includes("employment centre") ||
+    lower.includes("job seekers") ||
+    lower.includes("job-seekers") ||
+    lower.includes("workforce") ||
+    lower.includes("career centre") ||
+    lower.includes("career center");
+
+  const payload = {
+    type: "ai_consulting",
+    suggestionChips: [
+      "Outline a workshop",
+      "Draft a short demo",
+      "Plan a simple roadmap"
+    ],
+    helperText: null,
+    focus: mentionsEmploymentOntario ? "employment_ontario" : "general"
+  };
 
   if (mentionsEmploymentOntario) {
-    return (
-      `You’re talking about AI in an Employment Ontario context — that’s a strong use case.\n\n` +
-      `Here’s a clean way to frame it:\n` +
-      `- Focus: Use AI to help job seekers with resumes, cover letters, interview prep, and basic digital skills.\n` +
-      `- Safety: Keep it practical, transparent, and focused on *supporting* staff, not replacing them.\n` +
-      `- Outcome: Faster, better-quality applications and more confident clients walking into interviews.\n\n` +
-      `Next action: Tell me how long your session or meeting is and who will be in the room (front-line staff, managers, or partners). ` +
-      `I’ll help you outline 3–5 talking points and one simple demo you can walk them through.`
-    );
+    payload.helperText =
+      `For Employment Ontario, keep AI grounded: resumes, cover letters, interview prep, and basic digital skills.\n` +
+      `Frame it as support for staff and clients, not a replacement for humans.`;
+  } else if (
+    lower.includes("training") ||
+    lower.includes("workshop") ||
+    lower.includes("course") ||
+    lower.includes("bootcamp")
+  ) {
+    payload.helperText =
+      `A strong AI training flow: clarity (what AI is), safety (what to avoid), and hands-on practice (how to actually use it).\n` +
+      `Session length and audience type decide how deep you go.`;
+  } else if (
+    lower.includes("strategy") ||
+    lower.includes("roadmap") ||
+    lower.includes("road map")
+  ) {
+    payload.helperText =
+      `AI strategy doesn’t need a 60-page deck.\n` +
+      `You need 3–5 prioritized use cases, realistic tools, and a training plan people can actually follow.`;
   }
 
-  // General AI consulting, not specifically Employment Ontario
-  if (msg.includes('training') || msg.includes('workshop') || msg.includes('course') || msg.includes('bootcamp')) {
-    return (
-      `You’re in AI training territory — good.\n\n` +
-      `A strong session usually has three parts: clarity (what AI is and isn’t), safety (what to avoid), and hands-on practice (how to actually use it).\n\n` +
-      `Tell me your audience (staff, leaders, job seekers, small businesses) and your session length, and I’ll suggest a simple structure with 3–4 outcomes.`
-    );
-  }
-
-  if (msg.includes('strategy') || msg.includes('roadmap') || msg.includes('road map')) {
-    return (
-      `You’re thinking about AI strategy.\n\n` +
-      `We don’t need a 60-page document. We need a short roadmap that answers:\n` +
-      `1) What problems are we solving?\n` +
-      `2) What tools are realistic at our size?\n` +
-      `3) How do we train people to use them safely?\n\n` +
-      `Tell me the type of organization (public, nonprofit, small business, etc.) and one problem you want AI to help with, and I’ll sketch a simple path.`
-    );
-  }
-
-  return null;
-}
-
-// -----------------------------
-// 3. Enricher (older payload style) – optional
-// -----------------------------
-function enrichDomainResponse(message, payload) {
-  // For now, just pass through; index.js already has strong copy.
-  // You could add light add-ons here later if needed.
   return payload;
 }
 
 // -----------------------------
-// 4. Tone wrapper – keep it aligned with Nyx’s broadcast feel
+// 3. Enricher – structured payload for index.js
 // -----------------------------
-function wrapWithNyxTone(baseReply, meta) {
-  const tone = meta?.toneHint || 'neutral';
-  let opener = '';
+//
+// index.js calls this and expects a domainPayload-style object.
+// The main reply still comes from the model; this is “extra context”
+// for the UI or for future expansion.
+//
+function enrichDomainResponse(message, meta, classification, mode) {
+  const domain = classification?.domain || "general";
+  const msg = message || "";
 
-  switch (tone) {
-    case 'low':
-      opener = `Let’s take this one step at a time.\n\n`;
+  let payload = {};
+
+  switch (domain) {
+    case "tv":
+      payload = { tv: buildTvPayload(msg, meta) };
       break;
-    case 'excited':
-      opener = `Okay, I like the energy here.\n\n`;
+    case "radio":
+      payload = { radio: buildRadioPayload(msg, meta) };
       break;
-    case 'confused':
-      opener = `No problem — we can make this clearer.\n\n`;
+    case "sponsors":
+      payload = { sponsors: buildSponsorsPayload(msg, meta) };
       break;
-    case 'help_seeking':
-      opener = `You’re not bothering me — this is exactly what I’m here for.\n\n`;
+    case "streaming":
+      payload = { streaming: buildStreamingPayload(msg, meta) };
+      break;
+    case "news_canada":
+      payload = { news_canada: buildNewsCanadaPayload(msg, meta) };
+      break;
+    case "ai_help":
+    case "ai_consulting":
+      payload = { ai_consulting: buildAiConsultingPayload(msg, meta) };
       break;
     default:
-      opener = '';
+      payload = {};
   }
 
-  if (!opener) return baseReply;
-  return `${opener}${baseReply}`;
+  return payload;
+}
+
+// -----------------------------
+// 4. Tone wrapper – Nyx’s broadcast feel
+// -----------------------------
+//
+// This runs AFTER the model reply and lets us gently steer tone,
+// add sponsor proof point / next action, etc.
+//
+function wrapWithNyxTone(message, meta, classification, baseReply) {
+  const domain = classification?.domain || "general";
+  const intent = classification?.intent || "statement";
+  const toneHint = meta?.toneHint || null;
+
+  let opener = "";
+  let closer = "";
+
+  // Baseline emotional framing
+  if (toneHint === "low") {
+    opener = `Let’s take this one step at a time.\n\n`;
+  } else if (toneHint === "excited") {
+    opener = `Okay, I like the energy here.\n\n`;
+  } else if (toneHint === "confused") {
+    opener = `No problem — we’ll clear the static together.\n\n`;
+  } else if (toneHint === "help_seeking") {
+    opener = `You’re not bothering me — this is exactly what I’m here for.\n\n`;
+  }
+
+  // Domain-aware nudges
+  if (domain === "tv") {
+    closer =
+      `\n\nRemember: you’re programming for real people with limited time. ` +
+      `One solid block that runs consistently is worth more than a dozen half-formed ideas.`;
+  } else if (domain === "radio") {
+    closer =
+      `\n\nTreat each block like a story with a beginning, middle, and end — ` +
+      `it’ll make Nova and the music feel more intentional.`;
+  } else if (domain === "streaming") {
+    closer =
+      `\n\nKeep the tech stack lean. A smooth, simple way to watch beats a messy attempt to be everywhere.`;
+  } else if (domain === "ai_help" || domain === "ai_consulting") {
+    closer =
+      `\n\nStay practical: focus on a few repeatable use cases you can actually maintain, instead of chasing every AI trend.`;
+  }
+
+  // Sponsors: hard-wire proof point + next action
+  if (domain === "sponsors") {
+    const proofPoint =
+      `Proof point: Sandblast can offer focused reach into nostalgia-driven viewers and listeners who deliberately choose retro content — they’re paying attention, not just scrolling past.`;
+    const nextAction =
+      `Next action: design a 4-week test with one clear outcome (awareness, traffic, or sign-ups) instead of promising “everything at once.”`;
+
+    closer += `\n\n${proofPoint}\n${nextAction}`;
+  }
+
+  const replyWithTone = `${opener || ""}${baseReply}${closer || ""}`.trim();
+  return replyWithTone;
 }
 
 module.exports = {
   getFrontDoorResponse,
-  getDomainResponse,
   enrichDomainResponse,
   wrapWithNyxTone
 };
