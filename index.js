@@ -53,8 +53,6 @@ function mapIntentToDomain(intent) {
       return 'streaming';
     case INTENTS.NEWS_CANADA:
       return 'news_canada';
-    case INTENTS.AI_CONSULTING:
-      return 'ai_consulting';
     // GREETING & GENERIC both treated as general domain
     case INTENTS.GREETING:
     case INTENTS.GENERIC:
@@ -474,6 +472,40 @@ function buildBaseReply(intent, message, meta) {
       const wantsMoreDetail =
         deepenKeywords.some(k => lower.includes(k));
 
+      // SECOND STEP: user gives explicit show details
+      const hasShowDetails =
+        lower.includes('show name:') &&
+        lower.includes('hook:') &&
+        (lower.includes('air time:') || lower.includes('airs '));
+
+      if (hasShowDetails) {
+        // Very simple parse – just to reflect back clearly
+        const showMatch = message.match(/show name:\s*([^|\n]+)/i);
+        const hookMatch = message.match(/hook:\s*([^|\n]+)/i);
+        const timeMatch = message.match(/(air time|airs):\s*([^|\n]+)/i);
+
+        const showName = showMatch ? showMatch[1].trim() : 'your show';
+        const hook = hookMatch ? hookMatch[1].trim() : 'a clear viewer benefit';
+        const airTime = timeMatch ? timeMatch[2].trim() : 'your main time slot';
+
+        return (
+          `Alright, here’s a simple promo plan for:\n` +
+          `Show: ${showName}\n` +
+          `Hook: ${hook}\n` +
+          `Air time: ${airTime}\n\n` +
+          `1) On-air mentions\n` +
+          `   • Short line that hits the hook: “${hook} – catch ${showName} ${airTime}.”\n` +
+          `   • Run it a few times inside related blocks (similar genre / mood).\n\n` +
+          `2) Lower-third graphics\n` +
+          `   • Clean text bar: “${showName} • ${airTime}” with a small hook underneath.\n` +
+          `   • Use it during compatible shows so it feels like part of the channel, not a random ad.\n\n` +
+          `3) Social posts\n` +
+          `   • One simple post that repeats the same hook and time, no jargon.\n` +
+          `   • Optional: a short clip or still image from the show.\n\n` +
+          `If you want, tell me your *target viewer* in one line (who this is really for), and I’ll tighten this plan even more around that person.`
+        );
+      }
+
       if (wantsMoreDetail && wordCount <= 8) {
         return (
           `Let’s go a layer deeper on TV.\n\n` +
@@ -485,6 +517,7 @@ function buildBaseReply(intent, message, meta) {
         );
       }
 
+      // FIRST STEP: “I want to promote my show” style questions
       const wantsPromo =
         lower.includes('promote my show') ||
         lower.includes('promote a show') ||
@@ -493,11 +526,12 @@ function buildBaseReply(intent, message, meta) {
       if (wantsPromo) {
         return (
           `You want to promote a TV show — good.\n\n` +
-          `Think in three moves:\n` +
-          `1) A simple hook line that tells viewers *why* this show matters.\n` +
-          `2) On-screen reminders (lower thirds, bumpers, quick IDs) around related content.\n` +
-          `3) A few focused posts on social that repeat the same hook and air time.\n\n` +
-          `Tell me the show name, the core hook, and when it airs, and I’ll help you shape that into a simple promo plan.`
+          `We can combine on-air mentions, lower-third graphics, and social media posts that echo the same hook.\n\n` +
+          `Use this format so I can build a clean plan for you:\n` +
+          `• Show name: ...\n` +
+          `• Hook: ... (why someone should care)\n` +
+          `• Air time: ... (day + time)\n\n` +
+          `Once you give me that, I’ll outline a simple promo plan you can act on.`
         );
       }
 
@@ -1059,7 +1093,7 @@ app.post('/api/sandblast-gpt', async (req, res) => {
 
     // ------------------------------------
     // Normal flow (no reset)
-// ------------------------------------
+    // ------------------------------------
     const { intent, confidence, toneHint } = classifyIntent(userMessage);
 
     console.log('[Nyx] Message + intent', {
