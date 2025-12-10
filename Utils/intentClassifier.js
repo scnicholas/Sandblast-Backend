@@ -17,7 +17,7 @@ function normalize(text) {
   return (text || '')
     .toLowerCase()
     .replace(/[\n\r]+/g, ' ')
-    .replace(/[^a-z0-9\s]/g, ' ') // strip punctuation
+    .replace(/[^a-z0-9\s]/g, ' ') // strip punctuation for more reliable includes()
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -42,6 +42,7 @@ function detectToneHint(text) {
   if (excitedKeywords.some(k => msg.includes(k))) return 'excited';
   if (confusedKeywords.some(k => msg.includes(k))) return 'confused';
 
+  // generic “help” hint
   if (msg.includes('help') || msg.includes('can you') || msg.includes('could you')) {
     return 'help_seeking';
   }
@@ -51,40 +52,7 @@ function detectToneHint(text) {
 
 function classifyIntent(message) {
   const msg = normalize(message);
-  const words = msg.split(' ').filter(Boolean);
-  const wordCount = words.length;
 
-  // ============================
-  // HARD GREETING DETECTION
-  // ONLY these exact phrases are greetings.
-  // Nothing else. No “everything okay” nonsense.
-  // ============================
-  const GREETING_EXACT = new Set([
-    'hi',
-    'hi nyx',
-    'hello',
-    'hello nyx',
-    'hey',
-    'hey nyx',
-    'good morning',
-    'good afternoon',
-    'good evening',
-    'how are you',
-    'how are you nyx'
-  ]);
-
-  if (GREETING_EXACT.has(msg)) {
-    const toneHint = detectToneHint(message);
-    return {
-      intent: INTENTS.GREETING,
-      confidence: 0.99,
-      toneHint
-    };
-  }
-
-  // ============================
-  // MAIN INTENT SCORING
-  // ============================
   let scores = {
     [INTENTS.TV]: 0,
     [INTENTS.RADIO]: 0,
@@ -94,7 +62,9 @@ function classifyIntent(message) {
     [INTENTS.AI_CONSULTING]: 0
   };
 
-  // -------- TV --------
+  // ============================
+  // TV
+  // ============================
   [
     'tv',
     'television',
@@ -124,19 +94,24 @@ function classifyIntent(message) {
     'prime time'
   ].forEach(k => { if (msg.includes(k)) scores[INTENTS.TV] += 2; });
 
+  // Stronger TV cues
   [
     'sandblast tv',
     'tv block',
     'tv feed'
   ].forEach(k => { if (msg.includes(k)) scores[INTENTS.TV] += 3; });
 
-  // -------- Radio --------
+  // ============================
+  // Radio
+  // ============================
   [
     'radio',
     'audio stream',
     'audio only',
     'dj',
     'on air',
+    'on air ',
+    'on-air',
     'radio show',
     'radio host',
     'radio segment',
@@ -153,7 +128,9 @@ function classifyIntent(message) {
     'dj nova'
   ].forEach(k => { if (msg.includes(k)) scores[INTENTS.RADIO] += 3; });
 
-  // -------- Sponsors / Advertising --------
+  // ============================
+  // Sponsors / Advertising
+  // ============================
   [
     'sponsor',
     'sponsorship',
@@ -188,7 +165,9 @@ function classifyIntent(message) {
     'sponsor my show'
   ].forEach(k => { if (msg.includes(k)) scores[INTENTS.SPONSORS] += 4; });
 
-  // -------- Streaming / OTT / VOD --------
+  // ============================
+  // Streaming / OTT / VOD
+  // ============================
   [
     'streaming',
     'ott',
@@ -218,7 +197,9 @@ function classifyIntent(message) {
     'sandblast streaming'
   ].forEach(k => { if (msg.includes(k)) scores[INTENTS.STREAMING] += 3; });
 
-  // -------- News Canada --------
+  // ============================
+  // News Canada
+  // ============================
   [
     'news canada',
     'news article',
@@ -236,7 +217,9 @@ function classifyIntent(message) {
     'news canada distribution'
   ].forEach(k => { if (msg.includes(k)) scores[INTENTS.NEWS_CANADA] += 4; });
 
-  // -------- AI Consulting / Brain / Training --------
+  // ============================
+  // AI Consulting / Brain / Training
+  // ============================
   [
     'ai consulting',
     'ai strategy',
@@ -275,8 +258,41 @@ function classifyIntent(message) {
     'cover letter with ai'
   ].forEach(k => { if (msg.includes(k)) scores[INTENTS.AI_CONSULTING] += 3; });
 
-  // -------- GENERIC / about Nyx / about Sandblast --------
+  // ============================
+  // GREETING + GENERIC / small talk
+  // ============================
+
+  let greetingScore = 0;
   let genericScore = 0;
+
+  const greetingKeywords = [
+    'hi',
+    'hello',
+    'hey',
+    'good morning',
+    'good afternoon',
+    'good evening',
+    'what s up',
+    'whats up'
+  ];
+  if (greetingKeywords.some(k => msg.startsWith(k) || msg === k)) {
+    greetingScore += 3; // pure greeting gets a strong weight
+  } else if (greetingKeywords.some(k => msg.includes(k))) {
+    greetingScore += 2;
+  }
+
+  const smallTalkKeywords = [
+    'just checking things out',
+    'testing this',
+    'try this out',
+    'play around',
+    'get to know you',
+    'chat with you',
+    'talk to you',
+    'hang out',
+    'small talk'
+  ];
+  if (smallTalkKeywords.some(k => msg.includes(k))) genericScore += 2;
 
   const aboutNyxOrSandblast = [
     'what can you do',
@@ -301,9 +317,7 @@ function classifyIntent(message) {
     'where do i start',
     'how do i start',
     'show me around',
-    'give me an overview',
-    'everything okay',
-    'everything ok'
+    'give me an overview'
   ];
   if (genericHelpKeywords.some(k => msg.includes(k))) genericScore += 3;
 
@@ -316,8 +330,9 @@ function classifyIntent(message) {
   // Compute best intent
   // ============================
   let bestIntent = INTENTS.GENERIC;
-  let bestScore = genericScore; // GENERIC starts with its own score
+  let bestScore = 0;
 
+  // First, see which lane wins
   Object.entries(scores).forEach(([intent, score]) => {
     if (score > bestScore) {
       bestScore = score;
@@ -325,11 +340,24 @@ function classifyIntent(message) {
     }
   });
 
+  // Let GENERIC override lanes if it's clearly stronger
+  if (genericScore > bestScore) {
+    bestIntent = INTENTS.GENERIC;
+    bestScore = genericScore;
+  }
+
+  // Let GREETING override when it clearly looks like just a greeting
+  // (and not a strong TV/radio/etc. request)
+  if (greetingScore > bestScore) {
+    bestIntent = INTENTS.GREETING;
+    bestScore = greetingScore;
+  }
+
   const confidence = bestScore === 0 ? 0.1 : Math.min(1, bestScore / 5);
   const toneHint = detectToneHint(message);
 
   return {
-    intent: bestIntent,
+    intent: bestScore === 0 ? INTENTS.GENERIC : bestIntent,
     confidence,
     toneHint
   };
