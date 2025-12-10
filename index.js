@@ -1,6 +1,7 @@
 //----------------------------------------------------------
 // Sandblast Nyx Backend — Hybrid Brain (OpenAI + Local Fallback)
-// With Tiered Greeting / Small-talk Layer and Short, Collaborative Tone
+// With Tiered Greeting / Small-talk Layer, Lane Memory,
+// and Short, Collaborative Tone
 //----------------------------------------------------------
 
 const express = require("express");
@@ -30,7 +31,9 @@ function cleanMeta(meta) {
       lastDomain: "general",
       lastIntent: "statement",
       lastGoal: null,
-      sessionId: "nyx-" + Date.now()
+      sessionId: "nyx-" + Date.now(),
+      currentLane: null,      // tv, radio, sponsors, ai_help, tech_support, etc.
+      laneDetail: {}          // reserved for mood, business type, etc.
     };
   }
 
@@ -39,7 +42,9 @@ function cleanMeta(meta) {
     lastDomain: meta.lastDomain || "general",
     lastIntent: meta.lastIntent || "statement",
     lastGoal: meta.lastGoal || null,
-    sessionId: meta.sessionId || "nyx-" + Date.now()
+    sessionId: meta.sessionId || "nyx-" + Date.now(),
+    currentLane: typeof meta.currentLane === "string" ? meta.currentLane : null,
+    laneDetail: typeof meta.laneDetail === "object" && meta.laneDetail !== null ? meta.laneDetail : {}
   };
 }
 
@@ -49,6 +54,61 @@ function isAdminMessage(body) {
   if (adminToken && adminToken === process.env.ADMIN_SECRET) return true;
   if (typeof message === "string" && message.trim().startsWith("::admin")) return true;
   return false;
+}
+
+//----------------------------------------------------------
+// LANE RESOLUTION
+// - Uses classifier.domain + meta.currentLane
+// - Keeps the lane until user drifts clearly into a new one
+//----------------------------------------------------------
+function resolveLaneDomain(classification, meta, message) {
+  const text = (message || "").trim().toLowerCase();
+  let domain = classification?.domain || "general";
+
+  // If classifier clearly sees a specific domain, we treat that as the lane.
+  const laneDomains = [
+    "tv",
+    "radio",
+    "nova",
+    "sponsors",
+    "ai_help",
+    "ai_consulting",
+    "tech_support",
+    "business_support"
+  ];
+
+  const isLaneDomain = laneDomains.includes(domain);
+
+  // Explicit "switch" language can force a lane change.
+  const wantsSwitch =
+    text.includes("switch to tv") ||
+    text.includes("switch to radio") ||
+    text.includes("switch to nova") ||
+    text.includes("switch to sponsor") ||
+    text.includes("switch to sponsors") ||
+    text.includes("switch to ai") ||
+    text.includes("switch to tech") ||
+    text.includes("switch to technical") ||
+    text.includes("now tv") ||
+    text.includes("now radio") ||
+    text.includes("now nova") ||
+    text.includes("now sponsors") ||
+    text.includes("now ai") ||
+    text.includes("now tech");
+
+  // If classifier sees a clear lane or user asks to switch, we follow that.
+  if (isLaneDomain || wantsSwitch) {
+    return domain;
+  }
+
+  // If classifier says "general" but we have a currentLane, stay in that lane
+  // until user clearly changes to something else.
+  if (domain === "general" && meta.currentLane && meta.currentLane !== "general") {
+    return meta.currentLane;
+  }
+
+  // Otherwise, stay as classified.
+  return domain;
 }
 
 //----------------------------------------------------------
@@ -116,6 +176,7 @@ function localBrainReply(message, classification, meta) {
       );
 
     default:
+      // Ground-state behaviour: steady & grounding, lane-neutral
       return (
         `I’m with you.\n\n` +
         `Tell me whether you’re thinking about TV, radio, streaming, sponsors, News Canada, or AI, and we’ll take the next step there.`
@@ -143,12 +204,12 @@ async function callBrain({ message, classification, meta }) {
 
   const systemPrompt =
     `You are Nyx — the AI broadcast brain for Sandblast Channel.\n` +
-    `Tone: warm, supportive, concise, collaborative, and forward-moving.\n` +
+    `Tone: warm, supportive, concise, collaborative, steady, and forward-moving.\n` +
     `You help with TV, radio, streaming, sponsors, News Canada, AI consulting, and tech troubleshooting.\n` +
     `Sandblast is a growing channel, not a giant network — keep advice realistic.\n` +
-    `Avoid lectures; keep responses short and focused on next steps.\n\n` +
+    `Avoid lectures; keep responses short and focused on the next step.\n\n` +
     `Classification: domain=${classification.domain}, intent=${classification.intent}, confidence=${classification.confidence}.\n` +
-    `Meta: stepIndex=${meta.stepIndex}, lastDomain=${meta.lastDomain}, lastGoal=${meta.lastGoal}\n`;
+    `Meta: stepIndex=${meta.stepIndex}, lastDomain=${meta.lastDomain}, currentLane=${meta.currentLane}, lastGoal=${meta.lastGoal}\n`;
 
   const userPrompt =
     `User message: "${message}".\n` +
@@ -214,9 +275,16 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     }
 
     // 1) Classify
-    const classification = classifyIntent(clean);
+    const rawClassification = classifyIntent(clean);
 
-    // 2) Front-door response (optional)
+    // 2) Resolve effective lane-aware domain
+    const effectiveDomain = resolveLaneDomain(rawClassification, meta, clean);
+    const classification = {
+      ...rawClassification,
+      domain: effectiveDomain
+    };
+
+    // 3) Front-door response (optional)
     let frontDoor = null;
     if (nyxPersonality.getFrontDoorResponse) {
       frontDoor = nyxPersonality.getFrontDoorResponse(
@@ -226,7 +294,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       );
     }
 
-    // 3) Domain payload
+    // 4) Domain payload
     let domainPayload = {};
     if (nyxPersonality.enrichDomainResponse) {
       domainPayload = nyxPersonality.enrichDomainResponse(
@@ -237,14 +305,14 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       );
     }
 
-    // 4) Brain (OpenAI + fallback, with greeting guard)
+    // 5) Brain (OpenAI + fallback, with greeting guard + lane awareness)
     const rawReply = await callBrain({
       message: clean,
       classification,
       meta
     });
 
-    // 5) Tone wrapper
+    // 6) Tone wrapper
     let finalReply = rawReply;
     if (nyxPersonality.wrapWithNyxTone) {
       finalReply = nyxPersonality.wrapWithNyxTone(
@@ -255,15 +323,20 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       );
     }
 
-    // 6) Update meta
+    // 7) Update meta (including current lane)
     const updatedMeta = {
       ...meta,
       stepIndex: meta.stepIndex + 1,
       lastDomain: classification.domain,
-      lastIntent: classification.intent
+      lastIntent: classification.intent,
+      currentLane:
+        classification.domain && classification.domain !== "general"
+          ? classification.domain
+          : meta.currentLane,
+      laneDetail: meta.laneDetail // reserved for future use (mood, business type, etc.)
     };
 
-    // 7) Respond
+    // 8) Respond
     res.json({
       ok: true,
       reply: finalReply,
