@@ -1,9 +1,10 @@
 //----------------------------------------------------------
-// Sandblast Nyx Backend — Local Brain Version (No OpenAI)
+// Sandblast Nyx Backend — Hybrid Brain (OpenAI + Local Fallback)
 //----------------------------------------------------------
 
 const express = require("express");
 const cors = require("cors");
+const axios = require("axios");
 
 const { classifyIntent } = require("./Utils/intentClassifier");
 const nyxPersonality = require("./Utils/nyxPersonality");
@@ -13,6 +14,10 @@ app.use(express.json());
 app.use(cors());
 
 const PORT = process.env.PORT || 3000;
+
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
+const NYX_VOICE_ID = process.env.NYX_VOICE_ID;
 
 //----------------------------------------------------------
 // META HELPERS
@@ -46,14 +51,12 @@ function isAdminMessage(body) {
 }
 
 //----------------------------------------------------------
-// LOCAL BRAIN – DOMAIN RULES
+// LOCAL BRAIN – DOMAIN RULES (NO OPENAI)
 //----------------------------------------------------------
 function localBrainReply(message, classification, meta) {
   const domain = classification?.domain || "general";
   const intent = classification?.intent || "statement";
-  const text = (message || "").trim().toLowerCase();
 
-  // You can tune these any time; no deploy changes to the widget needed.
   switch (domain) {
     case "tv":
       return (
@@ -80,7 +83,7 @@ function localBrainReply(message, classification, meta) {
         `• 2 TV spots per week around a key block\n` +
         `• 2–3 on-air mentions from DJ Nova\n` +
         `• One clear call to action (visit, call, or follow).\n\n` +
-        `Proof point: Sandblast reaches people who deliberately choose nostalgia content, so they’re paying more attention than social scrollers.\n` +
+        `Proof point: Sandblast reaches people who deliberately choose nostalgia content, so they’re paying more attention than random scrollers.\n` +
         `Next action: pick ONE real sponsor prospect and sketch a small 4-week “awareness only” package for them.`
       );
 
@@ -115,7 +118,6 @@ function localBrainReply(message, classification, meta) {
         `Tell me which project you want to prioritize and I’ll help you set that 90-day focus.`
       );
 
-    case "radio_nova":
     case "nova":
       return (
         `Nova works best when the block has a clear mood and purpose.\n\n` +
@@ -141,10 +143,62 @@ function localBrainReply(message, classification, meta) {
 }
 
 //----------------------------------------------------------
+// HYBRID BRAIN – TRY OPENAI, FALL BACK TO LOCAL
+//----------------------------------------------------------
+async function callBrain({ message, classification, meta }) {
+  // If no key, always use local
+  if (!OPENAI_API_KEY) {
+    console.warn("[Nyx] No OPENAI_API_KEY set — using local brain.");
+    return localBrainReply(message, classification, meta);
+  }
+
+  const systemPrompt =
+    `You are Nyx — the AI broadcast brain for Sandblast Channel.\n` +
+    `Tone: warm, encouraging, slightly witty, grounded in reality.\n` +
+    `You help with TV, radio, streaming, sponsors, News Canada, AI consulting, and tech troubleshooting.\n` +
+    `Sandblast is a growing channel, not a giant network — keep advice realistic.\n` +
+    `For sponsor conversations, include 1 proof point and 1 next action.\n\n` +
+    `Classification: domain=${classification.domain}, intent=${classification.intent}, confidence=${classification.confidence}.\n` +
+    `Meta: stepIndex=${meta.stepIndex}, lastDomain=${meta.lastDomain}, lastGoal=${meta.lastGoal}\n`;
+
+  const userPrompt =
+    `User message: "${message}".\n` +
+    `Give a clear, useful answer in no more than about four short paragraphs.`;
+
+  try {
+    const apiRes = await axios.post(
+      "https://api.openai.com/v1/chat/completions",
+      {
+        model: "gpt-4.1-mini",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ]
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${OPENAI_API_KEY}`,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+
+    const reply =
+      apiRes.data?.choices?.[0]?.message?.content ||
+      localBrainReply(message, classification, meta);
+
+    return reply;
+  } catch (err) {
+    console.error("[Nyx] OpenAI error, using local brain:", err?.response?.data || err.message);
+    return localBrainReply(message, classification, meta);
+  }
+}
+
+//----------------------------------------------------------
 // HEALTH
 //----------------------------------------------------------
 app.get("/health", (req, res) => {
-  res.json({ status: "ok", service: "sandblast-nyx-backend-local" });
+  res.json({ status: "ok", service: "sandblast-nyx-backend" });
 });
 
 //----------------------------------------------------------
@@ -183,7 +237,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       );
     }
 
-    // 3) Domain payload (for UI / future)
+    // 3) Domain payload
     let domainPayload = {};
     if (nyxPersonality.enrichDomainResponse) {
       domainPayload = nyxPersonality.enrichDomainResponse(
@@ -194,8 +248,12 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       );
     }
 
-    // 4) Local brain reply
-    const rawReply = localBrainReply(clean, classification, meta);
+    // 4) Brain (OpenAI + fallback)
+    const rawReply = await callBrain({
+      message: clean,
+      classification,
+      meta
+    });
 
     // 5) Tone wrapper
     let finalReply = rawReply;
@@ -239,19 +297,57 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 });
 
 //----------------------------------------------------------
-// TTS STUB (OPTIONAL)
+// TTS ENDPOINT (OPTIONAL – ELEVENLABS)
 //----------------------------------------------------------
 app.post("/api/tts", async (req, res) => {
-  // For now, voice is disabled in local brain mode.
-  return res.status(501).json({
-    error: "TTS_DISABLED",
-    message: "TTS is disabled in this local brain build."
-  });
+  try {
+    const { text } = req.body || {};
+    if (!text || !text.trim()) {
+      return res.status(400).json({ error: "EMPTY_TEXT" });
+    }
+
+    if (!ELEVENLABS_API_KEY || !NYX_VOICE_ID) {
+      return res.status(500).json({
+        error: "TTS_NOT_CONFIGURED",
+        message: "Missing ELEVENLABS_API_KEY or NYX_VOICE_ID."
+      });
+    }
+
+    const ttsRes = await axios.post(
+      `https://api.elevenlabs.io/v1/text-to-speech/${NYX_VOICE_ID}`,
+      {
+        text,
+        model_id: "eleven_monolingual_v1",
+        voice_settings: {
+          stability: 0.45,
+          similarity_boost: 0.85
+        }
+      },
+      {
+        headers: {
+          "xi-api-key": ELEVENLABS_API_KEY,
+          "Content-Type": "application/json",
+          Accept: "audio/mpeg"
+        },
+        responseType: "arraybuffer"
+      }
+    );
+
+    res.set("Content-Type", "audio/mpeg");
+    res.send(Buffer.from(ttsRes.data));
+  } catch (err) {
+    console.error("[Nyx] TTS error:", err?.response?.data || err.message);
+    res.status(500).json({
+      ok: false,
+      error: "TTS_FAILED",
+      details: err?.response?.data || err.message
+    });
+  }
 });
 
 //----------------------------------------------------------
 // START SERVER
 //----------------------------------------------------------
 app.listen(PORT, () => {
-  console.log(`Nyx local backend listening on port ${PORT}`);
+  console.log(`Nyx hybrid backend listening on port ${PORT}`);
 });
