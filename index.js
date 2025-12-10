@@ -459,11 +459,6 @@ function buildBaseReply(intent, message, meta) {
   }
 
   // 3) Domain-specific lanes (TV, Radio, Sponsors, Streaming, News Canada, AI)
-  // ... (unchanged from your last version)
-  // For brevity, keep all the lane-specific logic exactly as in the previous file:
-  // tv / radio / sponsors / streaming / news_canada / ai_consulting branches
-  // with their “tell me more” overrides and detailed responses.
-
   switch (domain) {
     // ---------------- TV ----------------
     case 'tv': {
@@ -1000,7 +995,7 @@ app.get('/health', (req, res) => {
 });
 
 // -----------------------------
-// Main brain endpoint
+// Main brain endpoint (with reset phrases)
 // -----------------------------
 app.post('/api/sandblast-gpt', async (req, res) => {
   try {
@@ -1020,6 +1015,51 @@ app.post('/api/sandblast-gpt', async (req, res) => {
         lastUpdated: null
       };
 
+    // ------------------------------------
+    // RESET PHRASES: clear this session
+    // ------------------------------------
+    const lowerMsg = (userMessage || '').toLowerCase().trim();
+    const resetTriggers = [
+      'reset this chat',
+      'reset chat',
+      'reset the chat',
+      'clear this chat',
+      'clear chat',
+      'clear the chat',
+      'reset this conversation',
+      'clear this conversation',
+      'start over',
+      'start again',
+      'new session',
+      'reset nyx',
+      'wipe this chat'
+    ];
+
+    const shouldReset = resetTriggers.some(phrase => lowerMsg.includes(phrase));
+
+    if (shouldReset) {
+      delete conversationState[conversationKey];
+
+      const reply =
+        "Alright, I’ve cleared this conversation on my side.\n\n" +
+        "We’re starting fresh. What would you like to work on now — TV, radio, streaming, sponsors, News Canada, or an AI goal?";
+
+      return res.json({
+        reply,
+        meta: {
+          reset: true,
+          conversationKey,
+          contextLabel,
+          sessionId,
+          source: 'sandblast_web_widget',
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+
+    // ------------------------------------
+    // Normal flow (no reset)
+// ------------------------------------
     const { intent, confidence, toneHint } = classifyIntent(userMessage);
 
     console.log('[Nyx] Message + intent', {
