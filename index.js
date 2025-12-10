@@ -1,6 +1,6 @@
 //----------------------------------------------------------
 // Sandblast Nyx Backend — Hybrid Brain (OpenAI + Local Fallback)
-// With Tiered Greeting / Small-talk Layer
+// With Tiered Greeting / Small-talk Layer and Short, Collaborative Tone
 //----------------------------------------------------------
 
 const express = require("express");
@@ -53,6 +53,7 @@ function isAdminMessage(body) {
 
 //----------------------------------------------------------
 // LOCAL BRAIN – GREETING / SMALL-TALK + DOMAIN RULES
+// Tone: warm, supportive, short, collaborative, forward-moving
 //----------------------------------------------------------
 function localBrainReply(message, classification, meta) {
   const domain = classification?.domain || "general";
@@ -61,92 +62,63 @@ function localBrainReply(message, classification, meta) {
 
   // --- Tier 1: Initial greeting ---
   if (intent === "greeting") {
-    return (
-      `Hey, I’m here. How’s your day going? What do you want to dive into — TV, radio, sponsors, or AI?`
-    );
+    return `Hey, I’m here. How’s your day going? What do you want to dive into — TV, radio, sponsors, or AI?`;
   }
 
   // --- Tier 2: Follow-up small-talk, with gentle redirect ---
   if (intent === "smalltalk") {
-    return (
-      `I’m good on my end. What’s on your mind? If you want, we can tune TV, radio, sponsors, or AI — just tell me the lane.`
-    );
+    return `I’m good on my end. What’s on your mind? If you want, we can tune TV, radio, sponsors, or AI — just tell me the lane.`;
   }
 
   // --- Domain behaviours ---
   switch (domain) {
     case "tv":
       return (
-        `Let’s keep TV simple and realistic.\n\n` +
-        `Pick ONE block to focus on, like “weeknight detective hour” or “Saturday westerns.” Decide:\n` +
-        `• Start time and duration\n` +
-        `• 2–3 shows that fit that mood\n` +
-        `• One clear reason you’d promote it (nostalgia, family time, comfort viewing).\n\n` +
-        `Tell me which block you want to shape and I’ll help you tune it.`
+        `Let’s shape one TV block together.\n\n` +
+        `Pick a lane like weeknight detectives, Saturday westerns, or a family night. Tell me the vibe and rough time slot, and we’ll build a simple block around it.`
       );
 
     case "radio":
       return (
-        `For radio, think in mood blocks, not random tracks.\n\n` +
-        `Choose the vibe (late-night smooth, Gospel Sunday uplift, retro party) and how long the block should run. ` +
-        `DJ Nova can carry short intros, lifestyle lines, and sponsor mentions without overloading the mix.\n\n` +
-        `Tell me the mood and length you’re thinking about and we’ll sketch a simple flow.`
+        `Let’s build a clean radio mood block.\n\n` +
+        `Choose the feeling — late-night smooth, Gospel Sunday, or retro party. Tell me the mood and how long you want it to run, and we’ll map a light flow for Nova to carry.`
       );
 
     case "sponsors":
       return (
-        `Let’s treat sponsors the way a growing channel should.\n\n` +
-        `Start with a 4-week test package instead of a giant promise. For example:\n` +
-        `• 2 TV spots per week around a key block\n` +
-        `• 2–3 on-air mentions from DJ Nova\n` +
-        `• One clear call to action (visit, call, or follow).\n\n` +
-        `Proof point: Sandblast reaches people who deliberately choose nostalgia content, so they’re paying more attention than random scrollers.\n` +
-        `Next action: pick ONE real sponsor prospect and sketch a small 4-week “awareness only” package for them.`
+        `We can keep sponsor offers simple.\n\n` +
+        `Think in terms of a short test run — a few TV spots plus a couple of on-air mentions around one strong block. Tell me which sponsor you have in mind and we’ll sketch a small, clear package for them.`
       );
 
     case "ai_help":
     case "ai_consulting":
       return (
-        `Here’s how to keep AI practical and not overwhelming.\n\n` +
-        `Start with 3–5 repeatable use cases instead of “AI everything.” Examples:\n` +
-        `• Drafting outreach emails and proposals\n` +
-        `• Summarizing long documents or meetings\n` +
-        `• Writing show descriptions and social captions\n` +
-        `• Helping job-seekers tune resumes and cover letters.\n\n` +
-        `Tell me who you want to help first (job-seekers, small businesses, sponsors, or your own team) and I’ll map a short, realistic AI plan for them.`
+        `Let’s pick a few AI tasks that actually help you.\n\n` +
+        `For example, drafting outreach, summarizing content, or writing show and social copy. Tell me who you want to help first — yourself, job-seekers, or a sponsor — and we’ll choose two or three practical use cases.`
       );
 
     case "tech_support":
       return (
-        `For tech, keep it to one clean path end-to-end.\n\n` +
-        `Step 1: Make sure the backend responds at /health and /api/sandblast-gpt.\n` +
-        `Step 2: Point the widget to that exact URL.\n` +
-        `Step 3: Add more features only AFTER that path is stable.\n\n` +
-        `Tell me where it’s failing right now — Webflow, Render, or the code — and I’ll walk you through it.`
+        `We can tackle the tech one step at a time.\n\n` +
+        `Tell me whether the issue is on Webflow, Render, or inside the code, and I’ll walk with you through the next small fix.`
       );
 
     case "business_support":
       return (
-        `Let’s ground the business side.\n\n` +
-        `Pick ONE project (Sandblast, consulting, a grant, or a store concept) and define:\n` +
-        `• A 90-day goal\n` +
-        `• One metric to track (viewers, leads, sign-ups, or revenue)\n` +
-        `• A small weekly action you can repeat.\n\n` +
-        `Tell me which project you want to prioritize and I’ll help you set that 90-day focus.`
+        `Let’s give one project a clear push.\n\n` +
+        `Tell me which project you want to focus on and what you’d like to see in the next 90 days, and we’ll set a simple direction you can move on each week.`
       );
 
     case "nova":
       return (
-        `Nova works best when the block has a clear mood and purpose.\n\n` +
-        `Decide the feeling (for example, “late-night city lights,” “Sunday uplift,” or “90s R&B nostalgia”) and how long you want her on air.\n` +
-        `From there, we can shape her intros, transitions, and any sponsor mentions so it sounds intentional, not random.`
+        `Let’s tune a block for Nova.\n\n` +
+        `Tell me the mood you want her to carry and how long the block should run, and we’ll sketch her intros and transitions to match.`
       );
 
     default:
       return (
-        `I’ve got you.\n\n` +
-        `Give me a bit more context: are you working on TV, radio, streaming, sponsors, News Canada, or AI right now? ` +
-        `Once I know the lane, I’ll give you a clear next step instead of just theory.`
+        `I’m with you.\n\n` +
+        `Tell me whether you’re thinking about TV, radio, streaming, sponsors, News Canada, or AI, and we’ll take the next step there.`
       );
   }
 }
@@ -171,16 +143,16 @@ async function callBrain({ message, classification, meta }) {
 
   const systemPrompt =
     `You are Nyx — the AI broadcast brain for Sandblast Channel.\n` +
-    `Tone: warm, encouraging, slightly witty, grounded in reality.\n` +
+    `Tone: warm, supportive, concise, collaborative, and forward-moving.\n` +
     `You help with TV, radio, streaming, sponsors, News Canada, AI consulting, and tech troubleshooting.\n` +
     `Sandblast is a growing channel, not a giant network — keep advice realistic.\n` +
-    `For sponsor conversations, include 1 proof point and 1 next action.\n\n` +
+    `Avoid lectures; keep responses short and focused on next steps.\n\n` +
     `Classification: domain=${classification.domain}, intent=${classification.intent}, confidence=${classification.confidence}.\n` +
     `Meta: stepIndex=${meta.stepIndex}, lastDomain=${meta.lastDomain}, lastGoal=${meta.lastGoal}\n`;
 
   const userPrompt =
     `User message: "${message}".\n` +
-    `Give a clear, useful answer in no more than about four short paragraphs.`;
+    `Give a clear, useful answer in no more than about four short paragraphs, and keep the tone warm, supportive, and collaborative.`;
 
   try {
     const apiRes = await axios.post(
