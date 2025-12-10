@@ -1,6 +1,6 @@
 //----------------------------------------------------------
 // Sandblast Nyx Backend — Hybrid Brain (OpenAI + Local Fallback)
-// With Warm Greeting / Small-talk Layer
+// With Tiered Greeting / Small-talk Layer
 //----------------------------------------------------------
 
 const express = require("express");
@@ -59,20 +59,17 @@ function localBrainReply(message, classification, meta) {
   const intent = classification?.intent || "statement";
   const text = (message || "").trim().toLowerCase();
 
-  // --- Pure greeting / small-talk comes FIRST ---
+  // --- Tier 1: Initial greeting ---
   if (intent === "greeting") {
     return (
-      `Hey, I’m right here on the Sandblast board with you.\n\n` +
-      `I’m tuned in and steady – ready to help you shape TV blocks, radio moments, sponsors, or AI ideas whenever you are.\n\n` +
-      `How’s your day going, and what do you feel like working on first?`
+      `Hey, I’m here. How’s your day going? What do you want to dive into — TV, radio, sponsors, or AI?`
     );
   }
 
+  // --- Tier 2: Follow-up small-talk, with gentle redirect ---
   if (intent === "smalltalk") {
-    // “How are you?”, “How’s your day?”, etc.
     return (
-      `I’m good – signal is clear on my side, just waiting for your next move.\n\n` +
-      `More important question: how are *you* holding up today? Once you tell me that, we can decide whether we tune TV, radio, sponsors, or AI next.`
+      `I’m good on my end. What’s on your mind? If you want, we can tune TV, radio, sponsors, or AI — just tell me the lane.`
     );
   }
 
@@ -158,7 +155,7 @@ function localBrainReply(message, classification, meta) {
 // HYBRID BRAIN – TRY OPENAI, FALL BACK TO LOCAL
 //----------------------------------------------------------
 async function callBrain({ message, classification, meta }) {
-  // For short, chatty messages we stay local so greetings feel consistent.
+  // For greeting/small-talk we deliberately keep it local
   if (
     classification.intent === "greeting" ||
     classification.intent === "smalltalk"
@@ -268,7 +265,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       );
     }
 
-    // 4) Brain (OpenAI + fallback, with special greetings)
+    // 4) Brain (OpenAI + fallback, with greeting guard)
     const rawReply = await callBrain({
       message: clean,
       classification,
