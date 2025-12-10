@@ -1,5 +1,6 @@
 //----------------------------------------------------------
 // Sandblast Nyx Backend — Hybrid Brain (OpenAI + Local Fallback)
+// With Warm Greeting / Small-talk Layer
 //----------------------------------------------------------
 
 const express = require("express");
@@ -51,12 +52,31 @@ function isAdminMessage(body) {
 }
 
 //----------------------------------------------------------
-// LOCAL BRAIN – DOMAIN RULES (NO OPENAI)
+// LOCAL BRAIN – GREETING / SMALL-TALK + DOMAIN RULES
 //----------------------------------------------------------
 function localBrainReply(message, classification, meta) {
   const domain = classification?.domain || "general";
   const intent = classification?.intent || "statement";
+  const text = (message || "").trim().toLowerCase();
 
+  // --- Pure greeting / small-talk comes FIRST ---
+  if (intent === "greeting") {
+    return (
+      `Hey, I’m right here on the Sandblast board with you.\n\n` +
+      `I’m tuned in and steady – ready to help you shape TV blocks, radio moments, sponsors, or AI ideas whenever you are.\n\n` +
+      `How’s your day going, and what do you feel like working on first?`
+    );
+  }
+
+  if (intent === "smalltalk") {
+    // “How are you?”, “How’s your day?”, etc.
+    return (
+      `I’m good – signal is clear on my side, just waiting for your next move.\n\n` +
+      `More important question: how are *you* holding up today? Once you tell me that, we can decide whether we tune TV, radio, sponsors, or AI next.`
+    );
+  }
+
+  // --- Domain behaviours ---
   switch (domain) {
     case "tv":
       return (
@@ -126,14 +146,6 @@ function localBrainReply(message, classification, meta) {
       );
 
     default:
-      if (intent === "greeting") {
-        return (
-          `You’re tuned into Nyx, the AI brain behind Sandblast.\n\n` +
-          `I can help you shape TV blocks, radio shows, sponsor packages, News Canada placement, and practical AI ideas for a growing channel.\n` +
-          `Tell me what lane you want to start with: TV, radio, streaming, sponsors, or AI?`
-        );
-      }
-
       return (
         `I’ve got you.\n\n` +
         `Give me a bit more context: are you working on TV, radio, streaming, sponsors, News Canada, or AI right now? ` +
@@ -146,6 +158,14 @@ function localBrainReply(message, classification, meta) {
 // HYBRID BRAIN – TRY OPENAI, FALL BACK TO LOCAL
 //----------------------------------------------------------
 async function callBrain({ message, classification, meta }) {
+  // For short, chatty messages we stay local so greetings feel consistent.
+  if (
+    classification.intent === "greeting" ||
+    classification.intent === "smalltalk"
+  ) {
+    return localBrainReply(message, classification, meta);
+  }
+
   // If no key, always use local
   if (!OPENAI_API_KEY) {
     console.warn("[Nyx] No OPENAI_API_KEY set — using local brain.");
@@ -248,7 +268,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       );
     }
 
-    // 4) Brain (OpenAI + fallback)
+    // 4) Brain (OpenAI + fallback, with special greetings)
     const rawReply = await callBrain({
       message: clean,
       classification,
