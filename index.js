@@ -1,7 +1,7 @@
 //----------------------------------------------------------
-// Sandblast Nyx Backend — Hybrid Hybrid Brain
+// Sandblast Nyx Backend — Hybrid Brain
 // OpenAI + Local Fallback + Lane Memory + Dynamic Detail
-// Suggestive Intelligence + Emotional Layer + Profiles
+// Suggestive Intelligence + Emotional Layer + Site Links
 //----------------------------------------------------------
 
 const express = require("express");
@@ -96,13 +96,16 @@ function detectMoodState(message) {
     "too much",
     "too many",
     "i can't keep up",
+    "i cant keep up",
     "i can't handle",
+    "i cant handle",
     "this is a lot"
   ];
   const excitedWords = [
     "excited",
     "hyped",
     "let's go",
+    "lets go",
     "this is great",
     "this is amazing",
     "love this"
@@ -139,7 +142,9 @@ function resolveLaneDomain(classification, meta, message) {
     "ai_help",
     "ai_consulting",
     "tech_support",
-    "business_support"
+    "business_support",
+    "news",
+    "news_canada"
   ];
 
   const isLaneDomain = laneDomains.includes(domain);
@@ -169,6 +174,9 @@ function resolveLaneDomain(classification, meta, message) {
   }
   if (text.includes("ai for job seekers") || text.includes("ai for job-seekers")) {
     return "ai_help";
+  }
+  if (text.includes("news canada")) {
+    return "news_canada";
   }
 
   if (isLaneDomain || wantsSwitch) {
@@ -244,9 +252,9 @@ function extractLaneDetail(domain, text, prevDetail = {}) {
     matchMap(decadeMap, "decade");
 
     const ageMap = {
-      "kids": ["kids", "children"],
-      "family": ["family"],
-      "adults": ["adults", "grown-ups", "grown ups"]
+      kids: ["kids", "children"],
+      family: ["family"],
+      adults: ["adults", "grown-ups", "grown ups"]
     };
     matchMap(ageMap, "targetAge");
   }
@@ -276,7 +284,7 @@ function extractLaneDetail(domain, text, prevDetail = {}) {
 
     const talkMap = {
       "more-music": ["mostly music", "more music", "just music"],
-      "balanced": ["mix of talk", "some talk", "bit of talk"],
+      balanced: ["mix of talk", "some talk", "bit of talk"],
       "talk-heavy": ["more talk", "mostly talk", "talk show"]
     };
     matchMap(talkMap, "talkRatio");
@@ -302,16 +310,16 @@ function extractLaneDetail(domain, text, prevDetail = {}) {
     matchMap(bizMap, "businessType");
 
     const budgetMap = {
-      "low": ["small budget", "low budget", "starter", "test budget"],
-      "medium": ["mid budget", "medium budget"],
-      "high": ["big budget", "large budget", "premium"]
+      low: ["small budget", "low budget", "starter", "test budget"],
+      medium: ["mid budget", "medium budget"],
+      high: ["big budget", "large budget", "premium"]
     };
     matchMap(budgetMap, "budgetTier");
 
     const toneMap = {
-      "serious": ["serious", "professional", "formal"],
-      "playful": ["fun", "playful", "light"],
-      "community": ["community", "local roots"]
+      serious: ["serious", "professional", "formal"],
+      playful: ["fun", "playful", "light"],
+      community: ["community", "local roots"]
     };
     matchMap(toneMap, "brandTone");
   }
@@ -481,6 +489,76 @@ function computeStepPhase(domain, laneDetail) {
 }
 
 //----------------------------------------------------------
+// UI LINK BUILDER — connects lanes to .channel + .com
+//----------------------------------------------------------
+function buildUiLinks(domain, laneDetail) {
+  const links = [];
+  const detail = laneDetail || {};
+
+  // TV lane
+  if (domain === "tv") {
+    links.push({
+      label: "TV overview (sandblast.channel)",
+      url: "https://www.sandblast.channel#tv"
+    });
+    links.push({
+      label: "TV portal (sandblastchannel.com)",
+      url: "https://www.sandblastchannel.com"
+    });
+  }
+
+  // Radio / Nova lane
+  if (domain === "radio" || domain === "nova") {
+    links.push({
+      label: "Radio on sandblast.channel",
+      url: "https://www.sandblast.channel#radio"
+    });
+    links.push({
+      label: "Live radio / stream portal",
+      url: "https://www.sandblastchannel.com"
+    });
+  }
+
+  // News / News Canada
+  if (domain === "news" || domain === "news_canada") {
+    links.push({
+      label: "News Canada hub",
+      url: "https://www.sandblastchannel.com"
+    });
+    links.push({
+      label: "News Canada on sandblast.channel",
+      url: "https://www.sandblast.channel#news-canada"
+    });
+  }
+
+  // Sponsors / Ad Space / Business support
+  if (domain === "sponsors" || domain === "business_support") {
+    links.push({
+      label: "Ad Space overview (sandblast.channel)",
+      url: "https://www.sandblast.channel#ad-space"
+    });
+    links.push({
+      label: "Sandblast portal (sandblastchannel.com)",
+      url: "https://www.sandblastchannel.com"
+    });
+  }
+
+  // Generic default if nothing else fired and we still want hooks
+  if (!links.length) {
+    links.push({
+      label: "Main site (sandblast.channel)",
+      url: "https://www.sandblast.channel"
+    });
+    links.push({
+      label: "Broadcast portal (sandblastchannel.com)",
+      url: "https://www.sandblastchannel.com"
+    });
+  }
+
+  return links;
+}
+
+//----------------------------------------------------------
 // LOCAL BRAIN – GREETING / SMALL-TALK + DOMAIN RULES
 //----------------------------------------------------------
 function localBrainReply(message, classification, meta) {
@@ -605,6 +683,16 @@ function localBrainReply(message, classification, meta) {
         intro +
         `Tell me which project you want to focus on and what you’d like to see in the next 90 days, ` +
         `and we’ll set a simple direction you can move on each week.`
+      );
+    }
+
+    case "news":
+    case "news_canada": {
+      let intro = moodPrefix + "Let’s keep News Canada simple and useful.\n\n";
+      return (
+        intro +
+        `I can help you decide how to use News Canada stories inside Sandblast — for segments, promos, or social cutdowns. ` +
+        `Tell me whether you want to focus on TV blocks, radio mentions, or online highlights.`
       );
     }
 
@@ -776,7 +864,8 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     } else if (stepPhase === "radio:length") {
       transitionPrefix = "We’ve set the mood. Now let’s set the length.\n\n";
     } else if (stepPhase === "radio:refine") {
-      transitionPrefix = "The mood and length are there. Now we can polish the flow.\n\n";
+      transitionPrefix =
+        "The mood and length are there. Now we can polish the flow.\n\n";
     } else if (stepPhase === "sponsors:budget") {
       transitionPrefix = "We know the sponsor type. Now we can size the budget.\n\n";
     } else if (stepPhase === "sponsors:offer") {
@@ -860,8 +949,13 @@ app.post("/api/sandblast-gpt", async (req, res) => {
           ? "Ask about sponsor type, budget, or offer."
           : classification.domain === "ai_help" || classification.domain === "ai_consulting"
           ? "Ask about tasks, audience, or use cases."
+          : classification.domain === "news" || classification.domain === "news_canada"
+          ? "Ask how to use News Canada inside Sandblast."
           : "Ask about TV, radio, sponsors, News Canada, or AI."
     };
+
+    // Links to real Sandblast properties
+    const uiLinks = buildUiLinks(classification.domain, newLaneDetail);
 
     res.json({
       ok: true,
@@ -872,7 +966,8 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       confidence: classification.confidence,
       domainPayload,
       meta: updatedMeta,
-      uiHints
+      uiHints,
+      uiLinks
     });
   } catch (err) {
     console.error("[Nyx] /api/sandblast-gpt error:", err.message);
