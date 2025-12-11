@@ -577,7 +577,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       );
     }
 
-    // Suggestive Intelligence
+    // Suggestive Intelligence (non-pushy, avoids repetition)
     let newSuggestionStep = meta.lastSuggestionStep || 0;
     if (isHesitationMessage(clean)) {
       const suggestion = buildLaneSuggestion(
@@ -586,11 +586,13 @@ app.post("/api/sandblast-gpt", async (req, res) => {
         newSuggestionStep
       );
       if (suggestion) {
-        finalReply = `${finalReply}\n\n${suggestion}`;
+        // Replace long reply with focused nudge
+        finalReply = suggestion;
         newSuggestionStep = Math.min(newSuggestionStep + 1, 2);
       }
     } else {
-      newSuggestionStep = 0; // reset when user moves with intent
+      // User gave clear direction → reset suggestion state
+      newSuggestionStep = 0;
     }
 
     const updatedMeta = {
