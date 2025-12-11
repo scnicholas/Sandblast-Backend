@@ -1,7 +1,7 @@
 //----------------------------------------------------------
-// Sandblast Nyx Backend — Hybrid Brain (OpenAI + Local Fallback)
-// Tiered Greeting, Lane Memory, Dynamic Lane Detail,
-// and Suggestive Intelligence (soft 2-step guidance)
+// Sandblast Nyx Backend — Hybrid Hybrid Brain
+// OpenAI + Local Fallback + Lane Memory + Dynamic Detail
+// Suggestive Intelligence + Emotional Layer + Profiles
 //----------------------------------------------------------
 
 const express = require("express");
@@ -34,7 +34,12 @@ function cleanMeta(meta) {
       sessionId: "nyx-" + Date.now(),
       currentLane: null,      // tv, radio, sponsors, ai_help, tech_support, etc.
       laneDetail: {},         // mood, businessType, audience, etc.
-      lastSuggestionStep: 0   // 0, 1, or 2 (suggestive intelligence state)
+      lastSuggestionStep: 0,  // 0, 1, or 2 (suggestive intelligence state)
+      moodState: "steady",    // steady, overwhelmed, frustrated, excited, tired
+      laneAge: 0,             // how many turns in the current lane
+      presetMode: null,       // e.g. sponsor_pitch, tv_grid, ai_jobseekers
+      stepPhase: null,        // high-level stage label, per-lane
+      saveHintShown: false    // to avoid repeating "save this" hook
     };
   }
 
@@ -50,7 +55,12 @@ function cleanMeta(meta) {
         ? meta.laneDetail
         : {},
     lastSuggestionStep:
-      typeof meta.lastSuggestionStep === "number" ? meta.lastSuggestionStep : 0
+      typeof meta.lastSuggestionStep === "number" ? meta.lastSuggestionStep : 0,
+    moodState: meta.moodState || "steady",
+    laneAge: typeof meta.laneAge === "number" ? meta.laneAge : 0,
+    presetMode: meta.presetMode || null,
+    stepPhase: meta.stepPhase || null,
+    saveHintShown: !!meta.saveHintShown
   };
 }
 
@@ -60,6 +70,58 @@ function isAdminMessage(body) {
   if (adminToken && adminToken === process.env.ADMIN_SECRET) return true;
   if (typeof message === "string" && message.trim().startsWith("::admin")) return true;
   return false;
+}
+
+//----------------------------------------------------------
+// EMOTIONAL / MOOD DETECTION
+//----------------------------------------------------------
+function detectMoodState(message) {
+  const text = (message || "").trim().toLowerCase();
+  if (!text) return "steady";
+
+  const frustratedWords = [
+    "annoyed",
+    "upset",
+    "angry",
+    "pissed",
+    "fed up",
+    "this is not working",
+    "why is this",
+    "frustrated",
+    "bug",
+    "broken"
+  ];
+  const overwhelmedWords = [
+    "overwhelmed",
+    "too much",
+    "too many",
+    "i can't keep up",
+    "i can't handle",
+    "this is a lot"
+  ];
+  const excitedWords = [
+    "excited",
+    "hyped",
+    "let's go",
+    "this is great",
+    "this is amazing",
+    "love this"
+  ];
+  const tiredWords = [
+    "tired",
+    "exhausted",
+    "drained",
+    "worn out",
+    "need rest",
+    "need a break"
+  ];
+
+  if (frustratedWords.some((w) => text.includes(w))) return "frustrated";
+  if (overwhelmedWords.some((w) => text.includes(w))) return "overwhelmed";
+  if (excitedWords.some((w) => text.includes(w))) return "excited";
+  if (tiredWords.some((w) => text.includes(w))) return "tired";
+
+  return "steady";
 }
 
 //----------------------------------------------------------
@@ -98,6 +160,17 @@ function resolveLaneDomain(classification, meta, message) {
     text.includes("now ai") ||
     text.includes("now tech");
 
+  // High-value preset phrases
+  if (text.includes("sponsor pitch helper") || text.includes("sponsor pitch")) {
+    return "sponsors";
+  }
+  if (text.includes("tv grid tuner") || text.includes("tv grid")) {
+    return "tv";
+  }
+  if (text.includes("ai for job seekers") || text.includes("ai for job-seekers")) {
+    return "ai_help";
+  }
+
   if (isLaneDomain || wantsSwitch) {
     return domain;
   }
@@ -110,7 +183,7 @@ function resolveLaneDomain(classification, meta, message) {
 }
 
 //----------------------------------------------------------
-// LANE DETAIL EXTRACTION (dynamic memory)
+// LANE DETAIL EXTRACTION (dynamic memory + deeper profiles)
 //----------------------------------------------------------
 function extractLaneDetail(domain, text, prevDetail = {}) {
   const detail = { ...prevDetail };
@@ -154,6 +227,28 @@ function extractLaneDetail(domain, text, prevDetail = {}) {
     if (timeMatch) {
       detail.startTime = timeMatch[1];
     }
+
+    const paceMap = {
+      "slow-burn": ["slow burn", "slow-burn", "slow pace"],
+      "fast-cut": ["fast cut", "fast-cut", "high energy", "fast paced", "fast-paced"]
+    };
+    matchMap(paceMap, "pace");
+
+    const decadeMap = {
+      "50s": ["1950s", "50s", "50's"],
+      "60s": ["1960s", "60s", "60's"],
+      "70s": ["1970s", "70s", "70's"],
+      "80s": ["1980s", "80s", "80's"],
+      "90s": ["1990s", "90s", "90's"]
+    };
+    matchMap(decadeMap, "decade");
+
+    const ageMap = {
+      "kids": ["kids", "children"],
+      "family": ["family"],
+      "adults": ["adults", "grown-ups", "grown ups"]
+    };
+    matchMap(ageMap, "targetAge");
   }
 
   if (domain === "radio" || domain === "nova") {
@@ -178,6 +273,20 @@ function extractLaneDetail(domain, text, prevDetail = {}) {
     if (lower.includes("half hour") || lower.includes("half-hour")) {
       detail.length = "30 minutes";
     }
+
+    const talkMap = {
+      "more-music": ["mostly music", "more music", "just music"],
+      "balanced": ["mix of talk", "some talk", "bit of talk"],
+      "talk-heavy": ["more talk", "mostly talk", "talk show"]
+    };
+    matchMap(talkMap, "talkRatio");
+
+    const energyMap = {
+      "soft-curve": ["slow build", "start soft"],
+      "high-energy": ["high energy", "upbeat", "hype"],
+      "drop-then-rise": ["drop off", "wind down then up"]
+    };
+    matchMap(energyMap, "energyCurve");
   }
 
   if (domain === "sponsors") {
@@ -191,6 +300,20 @@ function extractLaneDetail(domain, text, prevDetail = {}) {
       auto: ["car dealer", "auto shop", "mechanic", "dealership"]
     };
     matchMap(bizMap, "businessType");
+
+    const budgetMap = {
+      "low": ["small budget", "low budget", "starter", "test budget"],
+      "medium": ["mid budget", "medium budget"],
+      "high": ["big budget", "large budget", "premium"]
+    };
+    matchMap(budgetMap, "budgetTier");
+
+    const toneMap = {
+      "serious": ["serious", "professional", "formal"],
+      "playful": ["fun", "playful", "light"],
+      "community": ["community", "local roots"]
+    };
+    matchMap(toneMap, "brandTone");
   }
 
   if (domain === "ai_help" || domain === "ai_consulting") {
@@ -267,7 +390,7 @@ function isHesitationMessage(message) {
 // BUILD LANE-AWARE SUGGESTION
 //----------------------------------------------------------
 function buildLaneSuggestion(domain, laneDetail, step) {
-  if (step >= 2) return null; // we only allow step 0 and step 1 suggestions
+  if (step >= 2) return null; // 0 and 1 only
 
   const detail = laneDetail || {};
 
@@ -333,28 +456,73 @@ function buildLaneSuggestion(domain, laneDetail, step) {
 }
 
 //----------------------------------------------------------
+// STEP PHASE HELPER (micro transitions)
+//----------------------------------------------------------
+function computeStepPhase(domain, laneDetail) {
+  if (domain === "tv") {
+    if (!laneDetail.mood) return "tv:vibe";
+    if (!laneDetail.startTime && !laneDetail.timeOfDay) return "tv:timing";
+    return "tv:refine";
+  }
+
+  if (domain === "radio" || domain === "nova") {
+    if (!laneDetail.mood) return "radio:vibe";
+    if (!laneDetail.length) return "radio:length";
+    return "radio:refine";
+  }
+
+  if (domain === "sponsors") {
+    if (!laneDetail.businessType) return "sponsors:type";
+    if (!laneDetail.budgetTier) return "sponsors:budget";
+    return "sponsors:offer";
+  }
+
+  return null;
+}
+
+//----------------------------------------------------------
 // LOCAL BRAIN – GREETING / SMALL-TALK + DOMAIN RULES
 //----------------------------------------------------------
 function localBrainReply(message, classification, meta) {
   const domain = classification?.domain || "general";
   const intent = classification?.intent || "statement";
   const detail = meta?.laneDetail || {};
+  const moodState = meta.moodState || "steady";
+
+  // Emotional shading on generic responses
+  const moodPrefix =
+    moodState === "frustrated"
+      ? "I hear you. Let’s keep this light and clear.\n\n"
+      : moodState === "overwhelmed"
+      ? "We’ll take this one small step at a time.\n\n"
+      : moodState === "tired"
+      ? "We can keep this simple so it doesn’t drain you.\n\n"
+      : moodState === "excited"
+      ? "I love that energy — let’s use it well.\n\n"
+      : "";
 
   if (intent === "greeting") {
-    return `Hey, I’m here. How’s your day going? What do you want to dive into — TV, radio, sponsors, or AI?`;
+    return (
+      moodPrefix +
+      `Hey, I’m here. How’s your day going? What do you want to dive into — TV, radio, sponsors, or AI?`
+    );
   }
 
   if (intent === "smalltalk") {
-    return `I’m good on my end. What’s on your mind? If you want, we can tune TV, radio, sponsors, or AI — just tell me the lane.`;
+    return (
+      moodPrefix +
+      `I’m good on my end. What’s on your mind? If you want, we can tune TV, radio, sponsors, or AI — just tell me the lane.`
+    );
   }
 
   switch (domain) {
     case "tv": {
       const mood = detail.mood;
       const timeOfDay = detail.timeOfDay;
-      let intro = "Let’s shape one TV block together.\n\n";
+      let intro = moodPrefix + "Let’s shape one TV block together.\n\n";
       if (mood || timeOfDay) {
         intro =
+          moodPrefix +
           `Alright… we’ll keep building around that ` +
           `${mood ? mood + " " : ""}${timeOfDay ? timeOfDay + " " : ""}block.\n\n`;
       }
@@ -369,9 +537,10 @@ function localBrainReply(message, classification, meta) {
     case "nova": {
       const mood = detail.mood;
       const length = detail.length;
-      let intro = "Let’s build a clean radio mood block.\n\n";
+      let intro = moodPrefix + "Let’s build a clean radio mood block.\n\n";
       if (mood || length) {
         intro =
+          moodPrefix +
           `Alright… we’ll keep tuning that ` +
           `${mood ? mood + " " : ""}${length ? "(" + length + ") " : ""}vibe.\n\n`;
       }
@@ -384,9 +553,10 @@ function localBrainReply(message, classification, meta) {
 
     case "sponsors": {
       const biz = detail.businessType;
-      let intro = "We can keep sponsor offers simple.\n\n";
+      let intro = moodPrefix + "We can keep sponsor offers simple.\n\n";
       if (biz) {
-        intro = `Alright… let’s shape something that fits a ${biz}.\n\n`;
+        intro =
+          moodPrefix + `Alright… let’s shape something that fits a ${biz}.\n\n`;
       }
       return (
         intro +
@@ -398,9 +568,10 @@ function localBrainReply(message, classification, meta) {
     case "ai_help":
     case "ai_consulting": {
       const audience = detail.audience;
-      let intro = "Let’s pick a few AI tasks that actually help you.\n\n";
+      let intro = moodPrefix + "Let’s pick a few AI tasks that actually help you.\n\n";
       if (audience) {
-        intro = `Alright… let’s keep this useful for ${audience}.\n\n`;
+        intro =
+          moodPrefix + `Alright… let’s keep this useful for ${audience}.\n\n`;
       }
       return (
         intro +
@@ -411,9 +582,10 @@ function localBrainReply(message, classification, meta) {
 
     case "tech_support": {
       const area = detail.area;
-      let intro = "We can tackle the tech one step at a time.\n\n";
+      let intro = moodPrefix + "We can tackle the tech one step at a time.\n\n";
       if (area) {
-        intro = `Alright… let’s work through the ${area} side first.\n\n`;
+        intro =
+          moodPrefix + `Alright… let’s work through the ${area} side first.\n\n`;
       }
       return (
         intro +
@@ -423,9 +595,11 @@ function localBrainReply(message, classification, meta) {
 
     case "business_support": {
       const projectType = detail.projectType;
-      let intro = "Let’s give one project a clear push.\n\n";
+      let intro = moodPrefix + "Let’s give one project a clear push.\n\n";
       if (projectType) {
-        intro = `Alright… let’s give this ${projectType} a cleaner direction.\n\n`;
+        intro =
+          moodPrefix +
+          `Alright… let’s give this ${projectType} a cleaner direction.\n\n`;
       }
       return (
         intro +
@@ -436,6 +610,7 @@ function localBrainReply(message, classification, meta) {
 
     default:
       return (
+        moodPrefix +
         `I’m with you.\n\n` +
         `Tell me whether you’re thinking about TV, radio, streaming, sponsors, News Canada, or AI, and we’ll take the next step there.`
       );
@@ -466,12 +641,16 @@ async function callBrain({ message, classification, meta }) {
     `Avoid lectures; keep responses short and focused on the next step.\n\n` +
     `Classification: domain=${classification.domain}, intent=${classification.intent}, confidence=${classification.confidence}.\n` +
     `Meta: stepIndex=${meta.stepIndex}, lastDomain=${meta.lastDomain}, currentLane=${meta.currentLane}, lastGoal=${meta.lastGoal}\n` +
-    `LaneDetail: ${JSON.stringify(meta.laneDetail || {})}\n`;
+    `MoodState: ${meta.moodState}\n` +
+    `LaneDetail: ${JSON.stringify(meta.laneDetail || {})}\n` +
+    `StepPhase: ${meta.stepPhase}\n` +
+    `PresetMode: ${meta.presetMode}\n`;
 
   const userPrompt =
     `User message: "${message}".\n` +
-    `Use the lane detail if it helps (mood, business type, audience, etc.). ` +
-    `Give a clear, useful answer in no more than about four short paragraphs, and keep the tone warm, supportive, and collaborative.`;
+    `Use the lane detail and mood state if it helps. ` +
+    `Give a clear, useful answer in no more than about four short paragraphs, and keep the tone warm, supportive, and collaborative. ` +
+    `Write in short, TTS-friendly sentences that sound natural when spoken out loud.`;
 
   try {
     const apiRes = await axios.post(
@@ -531,6 +710,9 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       });
     }
 
+    // Emotional state
+    const moodState = detectMoodState(clean);
+
     const rawClassification = classifyIntent(clean);
     const effectiveDomain = resolveLaneDomain(rawClassification, meta, clean);
     const classification = { ...rawClassification, domain: effectiveDomain };
@@ -540,6 +722,17 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       clean,
       meta.laneDetail
     );
+
+    // Step phase for micro-transitions
+    const stepPhase = computeStepPhase(classification.domain, newLaneDetail);
+
+    // Lane age for memory decay / recenter
+    let laneAge = meta.laneAge || 0;
+    if (classification.domain && classification.domain === meta.currentLane) {
+      laneAge = laneAge + 1;
+    } else {
+      laneAge = 1; // start at 1 for new lane
+    }
 
     let frontDoor = null;
     if (nyxPersonality.getFrontDoorResponse) {
@@ -560,20 +753,43 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       );
     }
 
-    const metaForBrain = { ...meta, laneDetail: newLaneDetail };
+    const metaForBrain = {
+      ...meta,
+      laneDetail: newLaneDetail,
+      moodState,
+      stepPhase,
+      laneAge
+    };
+
     const rawReply = await callBrain({
       message: clean,
       classification,
       meta: metaForBrain
     });
 
-    let finalReply = rawReply;
+    // Micro-transition wrapper (short step labels)
+    let transitionPrefix = "";
+    if (stepPhase === "tv:timing") {
+      transitionPrefix = "We’ve got the vibe. Now let’s narrow the timing.\n\n";
+    } else if (stepPhase === "tv:refine") {
+      transitionPrefix = "We’ve got the core block. Now we can refine it.\n\n";
+    } else if (stepPhase === "radio:length") {
+      transitionPrefix = "We’ve set the mood. Now let’s set the length.\n\n";
+    } else if (stepPhase === "radio:refine") {
+      transitionPrefix = "The mood and length are there. Now we can polish the flow.\n\n";
+    } else if (stepPhase === "sponsors:budget") {
+      transitionPrefix = "We know the sponsor type. Now we can size the budget.\n\n";
+    } else if (stepPhase === "sponsors:offer") {
+      transitionPrefix = "We know who they are. Now we can define one clear offer.\n\n";
+    }
+
+    let finalReply = transitionPrefix + rawReply;
     if (nyxPersonality.wrapWithNyxTone) {
       finalReply = nyxPersonality.wrapWithNyxTone(
         clean,
         metaForBrain,
         classification,
-        rawReply
+        finalReply
       );
     }
 
@@ -586,13 +802,32 @@ app.post("/api/sandblast-gpt", async (req, res) => {
         newSuggestionStep
       );
       if (suggestion) {
-        // Replace long reply with focused nudge
-        finalReply = suggestion;
+        finalReply = suggestion; // replace long reply with nudge
         newSuggestionStep = Math.min(newSuggestionStep + 1, 2);
       }
     } else {
-      // User gave clear direction → reset suggestion state
       newSuggestionStep = 0;
+    }
+
+    // Gentle recenter if laneAge is high
+    if (laneAge >= 7) {
+      finalReply +=
+        `\n\nIf you want, we can reset this lane or switch to another — TV, radio, sponsors, or AI.`;
+    }
+
+    // Smart "save this" hook
+    let saveHintShown = meta.saveHintShown || false;
+    if (
+      !saveHintShown &&
+      laneAge >= 4 &&
+      (classification.domain === "tv" ||
+        classification.domain === "radio" ||
+        classification.domain === "nova" ||
+        classification.domain === "sponsors")
+    ) {
+      finalReply +=
+        `\n\nIf this starts to feel right, we can treat it as a working template for Sandblast.`;
+      saveHintShown = true;
     }
 
     const updatedMeta = {
@@ -605,7 +840,27 @@ app.post("/api/sandblast-gpt", async (req, res) => {
           ? classification.domain
           : meta.currentLane,
       laneDetail: newLaneDetail,
-      lastSuggestionStep: newSuggestionStep
+      lastSuggestionStep: newSuggestionStep,
+      moodState,
+      laneAge,
+      stepPhase,
+      saveHintShown
+    };
+
+    // UI hints for the widget (optional for front-end)
+    const uiHints = {
+      laneLabel: classification.domain || "general",
+      moodLabel: moodState,
+      inputHint:
+        classification.domain === "tv"
+          ? "Ask about mood, shows, or timing."
+          : classification.domain === "radio" || classification.domain === "nova"
+          ? "Ask about mood, length, or transitions."
+          : classification.domain === "sponsors"
+          ? "Ask about sponsor type, budget, or offer."
+          : classification.domain === "ai_help" || classification.domain === "ai_consulting"
+          ? "Ask about tasks, audience, or use cases."
+          : "Ask about TV, radio, sponsors, News Canada, or AI."
     };
 
     res.json({
@@ -616,7 +871,8 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       intent: classification.intent,
       confidence: classification.confidence,
       domainPayload,
-      meta: updatedMeta
+      meta: updatedMeta,
+      uiHints
     });
   } catch (err) {
     console.error("[Nyx] /api/sandblast-gpt error:", err.message);
