@@ -1,6 +1,7 @@
 //----------------------------------------------------------
 // Sandblast Nyx Backend — Hybrid Brain (OpenAI + Local Fallback)
-// With Tiered Greeting, Lane Memory & Dynamic Lane Details
+// Tiered Greeting, Lane Memory, Dynamic Lane Detail,
+// and Suggestive Intelligence (soft 2-step guidance)
 //----------------------------------------------------------
 
 const express = require("express");
@@ -32,7 +33,8 @@ function cleanMeta(meta) {
       lastGoal: null,
       sessionId: "nyx-" + Date.now(),
       currentLane: null,      // tv, radio, sponsors, ai_help, tech_support, etc.
-      laneDetail: {}          // mood, businessType, etc.
+      laneDetail: {},         // mood, businessType, audience, etc.
+      lastSuggestionStep: 0   // 0, 1, or 2 (suggestive intelligence state)
     };
   }
 
@@ -46,7 +48,9 @@ function cleanMeta(meta) {
     laneDetail:
       typeof meta.laneDetail === "object" && meta.laneDetail !== null
         ? meta.laneDetail
-        : {}
+        : {},
+    lastSuggestionStep:
+      typeof meta.lastSuggestionStep === "number" ? meta.lastSuggestionStep : 0
   };
 }
 
@@ -112,7 +116,6 @@ function extractLaneDetail(domain, text, prevDetail = {}) {
   const detail = { ...prevDetail };
   const lower = (text || "").toLowerCase();
 
-  // Helper: keyword mapper
   function matchMap(map, field) {
     for (const key in map) {
       const patterns = map[key];
@@ -225,6 +228,111 @@ function extractLaneDetail(domain, text, prevDetail = {}) {
 }
 
 //----------------------------------------------------------
+// HESITATION DETECTION (for Suggestive Intelligence)
+//----------------------------------------------------------
+function isHesitationMessage(message) {
+  const text = (message || "").trim().toLowerCase();
+  if (!text) return true;
+
+  const veryShort = text.length <= 4;
+  const onlyPunct = /^[\.\?\!\s]+$/.test(text);
+
+  const patterns = [
+    "idk",
+    "i dont know",
+    "i don't know",
+    "not sure",
+    "you pick",
+    "you choose",
+    "up to you",
+    "whatever",
+    "any",
+    "continue",
+    "go on",
+    "what next",
+    "next?",
+    "hmm",
+    "hm",
+    "ok",
+    "okay"
+  ];
+
+  if (veryShort || onlyPunct) return true;
+  if (patterns.some((p) => text.includes(p))) return true;
+
+  return false;
+}
+
+//----------------------------------------------------------
+// BUILD LANE-AWARE SUGGESTION
+//----------------------------------------------------------
+function buildLaneSuggestion(domain, laneDetail, step) {
+  if (step >= 2) return null; // we only allow step 0 and step 1 suggestions
+
+  const detail = laneDetail || {};
+
+  if (step === 0) {
+    switch (domain) {
+      case "tv": {
+        const mood = detail.mood;
+        if (mood) {
+          return `If you want, we can choose one ${mood} show that fits the block and shape around it.`;
+        }
+        return `If you want, we can pick the next part — the mood, the shows, or the timing. One piece is enough.`;
+      }
+
+      case "radio":
+      case "nova": {
+        const mood = detail.mood;
+        if (mood) {
+          return `If you want, we can choose one anchor track or transition that holds that ${mood} vibe.`;
+        }
+        return `If you want, we can set one anchor track or transition to carry the mood for this block.`;
+      }
+
+      case "sponsors": {
+        const biz = detail.businessType;
+        if (biz) {
+          return `If you want, we can shape one simple offer for a ${biz} — like a short test run or a few on-air mentions.`;
+        }
+        return `If you want, we can define one simple sponsor offer around a block — nothing complicated.`;
+      }
+
+      case "ai_help":
+      case "ai_consulting": {
+        const audience = detail.audience;
+        if (audience) {
+          return `If you want, we can start with one small AI task that helps ${audience} — writing, summarizing, or outlining.`;
+        }
+        return `If you want, we can pick one small AI task — writing, summarizing, or outlining something you already have.`;
+      }
+
+      case "tech_support": {
+        const area = detail.area;
+        if (area) {
+          return `If you want, we can fix one small piece of the ${area} issue first — just pick where to start.`;
+        }
+        return `If you want, we can tackle one part of the tech first — backend, widget, or endpoint.`;
+      }
+
+      case "business_support": {
+        const projectType = detail.projectType;
+        if (projectType) {
+          return `If you want, we can set one clear next step for this ${projectType} so it feels less heavy.`;
+        }
+        return `If you want, we can choose one project and give it a single clear next step.`;
+      }
+
+      default:
+        return `If you want, we can take one small step — just tell me what you feel like shaping first.`;
+    }
+  }
+
+  // step === 1 → softer fallback
+  return `We can keep this simple… one small next step is enough when you’re ready.`;
+}
+
+//----------------------------------------------------------
 // LOCAL BRAIN – GREETING / SMALL-TALK + DOMAIN RULES
 //----------------------------------------------------------
 function localBrainReply(message, classification, meta) {
@@ -232,12 +340,10 @@ function localBrainReply(message, classification, meta) {
   const intent = classification?.intent || "statement";
   const detail = meta?.laneDetail || {};
 
-  // --- Tier 1: Initial greeting ---
   if (intent === "greeting") {
     return `Hey, I’m here. How’s your day going? What do you want to dive into — TV, radio, sponsors, or AI?`;
   }
 
-  // --- Tier 2: Follow-up small-talk, with gentle redirect ---
   if (intent === "smalltalk") {
     return `I’m good on my end. What’s on your mind? If you want, we can tune TV, radio, sponsors, or AI — just tell me the lane.`;
   }
@@ -414,7 +520,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     }
 
     const clean = message.trim();
-    const meta = cleanMeta(incomingMeta);
+    let meta = cleanMeta(incomingMeta);
 
     if (isAdminMessage(req.body)) {
       return res.json({
@@ -426,14 +532,9 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     }
 
     const rawClassification = classifyIntent(clean);
-
     const effectiveDomain = resolveLaneDomain(rawClassification, meta, clean);
-    const classification = {
-      ...rawClassification,
-      domain: effectiveDomain
-    };
+    const classification = { ...rawClassification, domain: effectiveDomain };
 
-    // Extract dynamic lane detail
     const newLaneDetail = extractLaneDetail(
       classification.domain,
       clean,
@@ -459,20 +560,37 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       );
     }
 
+    const metaForBrain = { ...meta, laneDetail: newLaneDetail };
     const rawReply = await callBrain({
       message: clean,
       classification,
-      meta: { ...meta, laneDetail: newLaneDetail }
+      meta: metaForBrain
     });
 
     let finalReply = rawReply;
     if (nyxPersonality.wrapWithNyxTone) {
       finalReply = nyxPersonality.wrapWithNyxTone(
         clean,
-        { ...meta, laneDetail: newLaneDetail },
+        metaForBrain,
         classification,
         rawReply
       );
+    }
+
+    // Suggestive Intelligence
+    let newSuggestionStep = meta.lastSuggestionStep || 0;
+    if (isHesitationMessage(clean)) {
+      const suggestion = buildLaneSuggestion(
+        classification.domain,
+        newLaneDetail,
+        newSuggestionStep
+      );
+      if (suggestion) {
+        finalReply = `${finalReply}\n\n${suggestion}`;
+        newSuggestionStep = Math.min(newSuggestionStep + 1, 2);
+      }
+    } else {
+      newSuggestionStep = 0; // reset when user moves with intent
     }
 
     const updatedMeta = {
@@ -484,7 +602,8 @@ app.post("/api/sandblast-gpt", async (req, res) => {
         classification.domain && classification.domain !== "general"
           ? classification.domain
           : meta.currentLane,
-      laneDetail: newLaneDetail
+      laneDetail: newLaneDetail,
+      lastSuggestionStep: newSuggestionStep
     };
 
     res.json({
