@@ -1,5 +1,5 @@
 // ----------------------------------------------------------
-// Sandblast Nyx Backend — Music Foundation Stabilized
+// Sandblast Nyx Backend — Music Foundation Stabilized (+ 429 fallback)
 // ----------------------------------------------------------
 
 require("dotenv").config();
@@ -9,10 +9,10 @@ const cors = require("cors");
 const OpenAI = require("openai");
 
 const { classifyIntent } = require("./Utils/intentClassifier");
-const nyxPersonality = require("./Utils/nyxPersonality");
+const nyxPersonality = require("./Utils/nyxPersonality"); // kept (even if not used in this minimal build)
 
 // BUILD TAG
-const BUILD_TAG = "nyx-music-foundation-stable-2025-12-14";
+const BUILD_TAG = "nyx-music-foundation-stable-2025-12-14d";
 
 // ---------------------------------------------------------
 // OPTIONAL MODULES (safe-degrade)
@@ -45,6 +45,7 @@ app.use(express.json({ limit: "1mb" }));
 app.use(cors({ origin: true }));
 
 const PORT = process.env.PORT || 3000;
+
 const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   : null;
@@ -76,6 +77,26 @@ function clearAwaiting(detail) {
   const d = { ...(detail || {}) };
   delete d.awaiting;
   return d;
+}
+
+// Local fallback for music history (when OpenAI is down / quota exceeded)
+function localMusicFallback(message, laneDetail) {
+  const year = laneDetail?.year;
+  const chart = laneDetail?.chart || "Billboard Hot 100";
+  const t = (message || "").toLowerCase();
+
+  // If user is clearly asking for Madonna and provided a year
+  if (t.includes("madonna") && year === "1984") {
+    return `In 1984, Madonna earned her first ${chart} #1 with “Like a Virgin.” Cultural note: it was a defining MTV-era breakout moment. Next step: want the exact #1 week (chart date) or her full list of #1s?`;
+  }
+
+  // Generic but useful fallback (broadcast-style)
+  if (year) {
+    return `For ${year}, I can anchor a chart moment on the ${chart}. Give me the artist + song (or say “#1 of the week”) and I’ll pin it down to a specific chart week. Next step: which artist/song are we tracking?`;
+  }
+
+  // If no year yet, the clarifier logic elsewhere should handle the first ask.
+  return `Tell me the year (or a specific week/date) and I’ll anchor the ${chart} chart moment with one chart fact, one cultural note, and one next action.`;
 }
 
 // ---------------------------------------------------------
@@ -168,31 +189,58 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     // BRAIN RESPONSE
     // -------------------------------------------------
     let reply = "";
+    let openaiUnavailableReason = "";
 
     if (openai) {
-      const response = await openai.responses.create({
-        model: "gpt-5.2",
-        input: [
-          {
-            role: "system",
-            content:
-              domain === "music_history"
-                ? "You are Nyx, a broadcast music historian. One chart fact, one cultural note, one next action."
-                : "You are Nyx, Sandblast’s AI brain."
-          },
-          ...(history || []),
-          { role: "user", content: clean }
-        ]
-      });
+      try {
+        const response = await openai.responses.create({
+          model: "gpt-5.2",
+          input: [
+            {
+              role: "system",
+              content:
+                domain === "music_history"
+                  ? "You are Nyx, a broadcast music historian. Provide exactly: one chart fact, one cultural note, one next action. If missing required info, ask one precise clarifying question."
+                  : "You are Nyx, Sandblast’s AI brain."
+            },
+            ...(Array.isArray(history) ? history : []),
+            { role: "user", content: clean }
+          ]
+        });
 
-      reply = response.output_text?.trim();
+        reply = response.output_text?.trim() || "";
+      } catch (e) {
+        // Handle OpenAI quota/rate limit cleanly
+        const msg = String(e?.message || "");
+        const status = e?.status || e?.response?.status;
+
+        if (status === 429 || msg.includes("429")) {
+          openaiUnavailableReason = "OPENAI_429_QUOTA";
+        } else {
+          openaiUnavailableReason = "OPENAI_ERROR";
+        }
+      }
+    } else {
+      openaiUnavailableReason = "OPENAI_NOT_CONFIGURED";
     }
 
+    // -------------------------------------------------
+    // FALLBACKS (keep Nyx useful even if OpenAI is down)
+    // -------------------------------------------------
     if (!reply) {
-      reply =
-        domain === "music_history"
-          ? `Chart records indicate that in ${laneDetail.year}, Madonna reached #1 on the Billboard Hot 100. Want the exact week or the full Top 10 from that chart run?`
-          : "Tell me how you’d like to proceed.";
+      if (domain === "music_history") {
+        reply = localMusicFallback(clean, laneDetail);
+        if (openaiUnavailableReason === "OPENAI_429_QUOTA") {
+          reply =
+            `I’m temporarily rate-limited on the AI brain, so I’m running in fallback mode.\n\n` +
+            reply;
+        }
+      } else {
+        reply =
+          openaiUnavailableReason === "OPENAI_429_QUOTA"
+            ? "Nyx is temporarily rate-limited on the AI brain. Try again shortly, or tell me your next action and I’ll guide you in fallback mode."
+            : "Tell me how you’d like to proceed.";
+      }
     }
 
     // -------------------------------------------------
@@ -230,5 +278,5 @@ app.get("/health", (_, res) =>
 );
 
 app.listen(PORT, () => {
-  console.log(`[Nyx] Music foundation stable on port ${PORT}`);
+  console.log(`[Nyx] Music foundation stable on port ${PORT} | build=${BUILD_TAG}`);
 });
