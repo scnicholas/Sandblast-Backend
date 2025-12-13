@@ -2,3 +2,7 @@ node_modules/
 npm-debug.log
 .env
 .DS_Store
+
+Data/
+index.nyx-stable.js
+index.nyx-stable.js.txt
