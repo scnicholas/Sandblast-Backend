@@ -1,5 +1,7 @@
 // ----------------------------------------------------------
-// Sandblast Nyx Backend — Music Foundation Stabilized (+ 429 fallback)
+// Sandblast Nyx Backend — Music Foundation Stabilized
+// + 429 fallback
+// + Music Knowledge Layer v1 (INLINE, offline-first, no extra files)
 // ----------------------------------------------------------
 
 require("dotenv").config();
@@ -9,10 +11,10 @@ const cors = require("cors");
 const OpenAI = require("openai");
 
 const { classifyIntent } = require("./Utils/intentClassifier");
-const nyxPersonality = require("./Utils/nyxPersonality"); // kept (even if not used in this minimal build)
+const nyxPersonality = require("./Utils/nyxPersonality"); // kept
 
 // BUILD TAG
-const BUILD_TAG = "nyx-music-foundation-stable-2025-12-14d";
+const BUILD_TAG = "nyx-music-foundation-stable-2025-12-14f";
 
 // ---------------------------------------------------------
 // OPTIONAL MODULES (safe-degrade)
@@ -65,7 +67,8 @@ function looksLikeChartName(text) {
     t.includes("uk") ||
     t.includes("top 40") ||
     t.includes("canada") ||
-    t.includes("rpm")
+    t.includes("rpm") ||
+    t.includes("official charts")
   );
 }
 
@@ -79,23 +82,188 @@ function clearAwaiting(detail) {
   return d;
 }
 
+// ---------------------------------------------------------
+// MUSIC KNOWLEDGE LAYER v1 (INLINE)
+// Offline-first: answers common moments without OpenAI.
+// Broadcast spec: one chart fact, one cultural note, one next action.
+// ---------------------------------------------------------
+const MUSIC_KNOWLEDGE_V1 = {
+  defaultChart: "Billboard Hot 100",
+  moments: [
+    {
+      key: "madonna_like_a_virgin_1984",
+      artist: "madonna",
+      title: "like a virgin",
+      year: 1984,
+      chart: "Billboard Hot 100",
+      fact: "In late 1984, Madonna hit #1 with “Like a Virgin.”",
+      culture: "It became a defining MTV-era breakthrough moment and reset the rules for pop stardom.",
+      next: "Want the exact chart week/date, or Madonna’s full #1 timeline?"
+    },
+    {
+      key: "mj_billie_jean_1983",
+      artist: "michael jackson",
+      title: "billie jean",
+      year: 1983,
+      chart: "Billboard Hot 100",
+      fact: "In 1983, “Billie Jean” reached #1 and helped cement Michael Jackson’s peak-era dominance.",
+      culture: "Music became visual-first at scale; MTV-era exposure amplified hits into cultural events.",
+      next: "Do you want the exact #1 chart date or the wider Thriller run context?"
+    },
+    {
+      key: "whitney_iwalu_1992",
+      artist: "whitney houston",
+      title: "i will always love you",
+      year: 1992,
+      chart: "Billboard Hot 100",
+      fact: "In 1992, Whitney Houston’s “I Will Always Love You” became a signature #1-era moment.",
+      culture: "Soundtracks turned into chart engines—film, radio, and retail moved in lockstep.",
+      next: "Want the chart date it hit #1, or other defining #1s from that year?"
+    },
+    {
+      key: "beatles_iwtthy_1964",
+      artist: "the beatles",
+      title: "i want to hold your hand",
+      year: 1964,
+      chart: "Billboard Hot 100",
+      fact: "In 1964, The Beatles’ Hot 100 surge marked the mainstream explosion of Beatlemania.",
+      culture: "Youth culture became a mass-market force—pop shifted into a global identity machine.",
+      next: "Want the exact chart week, or a quick timeline of their #1 run?"
+    }
+  ]
+};
+
+function norm(s) {
+  return String(s || "")
+    .toLowerCase()
+    .replace(/[^\w\s#]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractYear(text) {
+  const m = String(text || "").match(/\b(19\d{2}|20\d{2})\b/);
+  return m ? Number(m[1]) : null;
+}
+
+function looksMusicHistoryQuery(text) {
+  const t = norm(text);
+  return (
+    t.includes("billboard") ||
+    t.includes("hot 100") ||
+    t.includes("top 40") ||
+    t.includes("chart") ||
+    t.includes("charts") ||
+    t.includes("#1") ||
+    t.includes("# 1") ||
+    t.includes("no 1") ||
+    t.includes("no. 1") ||
+    t.includes("number 1") ||
+    t.includes("number one") ||
+    t.includes("weeks at") ||
+    t.includes("peak")
+  );
+}
+
+function findMoment({ text, laneDetail }) {
+  const t = norm(text);
+  const year = extractYear(text) || (laneDetail && laneDetail.year ? Number(laneDetail.year) : null);
+
+  // artist/title hints (v1 minimal)
+  const hasMadonna = t.includes("madonna");
+  const hasMJ = t.includes("michael jackson") || t.includes("mj");
+  const hasWhitney = t.includes("whitney");
+  const hasBeatles = t.includes("beatles");
+
+  const momentTitleHints = {
+    "like a virgin": t.includes("like a virgin"),
+    "billie jean": t.includes("billie jean"),
+    "i will always love you": t.includes("i will always love you"),
+    "i want to hold your hand": t.includes("i want to hold your hand")
+  };
+
+  // Exact-ish match pass
+  for (const m of MUSIC_KNOWLEDGE_V1.moments) {
+    const artistOk =
+      (hasMadonna && m.artist === "madonna") ||
+      (hasMJ && m.artist === "michael jackson") ||
+      (hasWhitney && m.artist === "whitney houston") ||
+      (hasBeatles && m.artist === "the beatles");
+
+    const titleOk = momentTitleHints[m.title] === true;
+
+    if (titleOk && (!year || Number(m.year) === year)) return m;
+    if (artistOk && year && Number(m.year) === year) return m;
+    if (titleOk) return m;
+  }
+
+  return null;
+}
+
+function formatMomentReply(moment, laneDetail) {
+  const chart = (laneDetail && laneDetail.chart) || moment.chart || MUSIC_KNOWLEDGE_V1.defaultChart;
+  // Keep it broadcast-tight
+  return `${moment.fact} (${chart})\nCultural note: ${moment.culture}\nNext step: ${moment.next}`;
+}
+
+/**
+ * Offline-first answerer for music_history.
+ * Returns { handled: true, reply, metaPatch } or { handled: false }
+ */
+function answerMusicHistoryOffline(message, laneDetail) {
+  const t = norm(message);
+
+  // If it doesn't look like music history at all, don't intercept.
+  if (!looksMusicHistoryQuery(message) && !t.includes("madonna") && !t.includes("beatles") && !t.includes("whitney") && !t.includes("michael jackson") && !t.includes("mj")) {
+    return { handled: false };
+  }
+
+  const year = extractYear(message) || (laneDetail && laneDetail.year ? Number(laneDetail.year) : null);
+
+  // If user asks "When was Madonna #1" without year/title, ask once (awaiting guard in laneDetail)
+  if (t.includes("madonna") && !year && !t.includes("like a virgin")) {
+    return {
+      handled: true,
+      reply:
+        "Quick check — which year (or song title) for Madonna’s #1 are you asking about? I can default to Billboard Hot 100.",
+      metaPatch: { chart: (laneDetail && laneDetail.chart) || MUSIC_KNOWLEDGE_V1.defaultChart, awaiting: "year_or_date" }
+    };
+  }
+
+  const moment = findMoment({ text: message, laneDetail });
+
+  if (!moment) {
+    return {
+      handled: true,
+      reply:
+        `I can anchor this, but I need one detail: a year OR a song title OR which chart (Billboard Hot 100 / UK Top 40 / Canada RPM).\nNext step: reply with a year (e.g., 1984) or a song title.`,
+      metaPatch: { chart: (laneDetail && laneDetail.chart) || MUSIC_KNOWLEDGE_V1.defaultChart }
+    };
+  }
+
+  return {
+    handled: true,
+    reply: formatMomentReply(moment, laneDetail),
+    metaPatch: { chart: moment.chart || MUSIC_KNOWLEDGE_V1.defaultChart }
+  };
+}
+
+// ---------------------------------------------------------
 // Local fallback for music history (when OpenAI is down / quota exceeded)
+// ---------------------------------------------------------
 function localMusicFallback(message, laneDetail) {
   const year = laneDetail?.year;
-  const chart = laneDetail?.chart || "Billboard Hot 100";
+  const chart = laneDetail?.chart || MUSIC_KNOWLEDGE_V1.defaultChart;
   const t = (message || "").toLowerCase();
 
-  // If user is clearly asking for Madonna and provided a year
   if (t.includes("madonna") && year === "1984") {
     return `In 1984, Madonna earned her first ${chart} #1 with “Like a Virgin.” Cultural note: it was a defining MTV-era breakout moment. Next step: want the exact #1 week (chart date) or her full list of #1s?`;
   }
 
-  // Generic but useful fallback (broadcast-style)
   if (year) {
     return `For ${year}, I can anchor a chart moment on the ${chart}. Give me the artist + song (or say “#1 of the week”) and I’ll pin it down to a specific chart week. Next step: which artist/song are we tracking?`;
   }
 
-  // If no year yet, the clarifier logic elsewhere should handle the first ask.
   return `Tell me the year (or a specific week/date) and I’ll anchor the ${chart} chart moment with one chart fact, one cultural note, and one next action.`;
 }
 
@@ -159,6 +327,41 @@ app.post("/api/sandblast-gpt", async (req, res) => {
         laneDetail = clearAwaiting(laneDetail);
       }
 
+      // ✅ OFFLINE-FIRST: Knowledge Layer v1
+      const kb = answerMusicHistoryOffline(clean, laneDetail);
+      if (kb && kb.handled) {
+        if (kb.metaPatch && typeof kb.metaPatch === "object") {
+          laneDetail = { ...(laneDetail || {}), ...kb.metaPatch };
+        }
+
+        // If we answered, we should not keep awaiting active
+        if (laneDetail.awaiting && (laneDetail.year || laneDetail.chart)) {
+          laneDetail = clearAwaiting(laneDetail);
+        }
+
+        const updatedMeta = {
+          ...meta,
+          stepIndex: meta.stepIndex + 1,
+          lastDomain: "music_history",
+          lastIntent: raw.intent,
+          currentLane: "music_history",
+          laneDetail,
+          laneAge: meta.laneAge + 1
+        };
+
+        appendTurn(meta.sessionId, { role: "user", content: clean });
+        appendTurn(meta.sessionId, { role: "assistant", content: kb.reply });
+        upsertSession(meta.sessionId, session);
+
+        return res.json({
+          ok: true,
+          reply: kb.reply,
+          domain: "music_history",
+          intent: raw.intent,
+          meta: updatedMeta
+        });
+      }
+
       // If we still lack year AND haven't asked yet, ask once
       if (!laneDetail.year && laneDetail.awaiting !== "year_or_date") {
         laneDetail = setAwaiting(laneDetail, "year_or_date");
@@ -181,7 +384,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       // If we already asked, DO NOT LOOP — proceed with defaults
       if (!laneDetail.year && laneDetail.awaiting === "year_or_date") {
         laneDetail = clearAwaiting(laneDetail);
-        laneDetail.chart = laneDetail.chart || "Billboard Hot 100";
+        laneDetail.chart = laneDetail.chart || MUSIC_KNOWLEDGE_V1.defaultChart;
       }
     }
 
@@ -210,7 +413,6 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 
         reply = response.output_text?.trim() || "";
       } catch (e) {
-        // Handle OpenAI quota/rate limit cleanly
         const msg = String(e?.message || "");
         const status = e?.status || e?.response?.status;
 
@@ -232,7 +434,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
         reply = localMusicFallback(clean, laneDetail);
         if (openaiUnavailableReason === "OPENAI_429_QUOTA") {
           reply =
-            `I’m temporarily rate-limited on the AI brain, so I’m running in fallback mode.\n\n` +
+            `I’m temporarily rate-limited on the AI brain, so I’m running in offline music mode.\n\n` +
             reply;
         }
       } else {
