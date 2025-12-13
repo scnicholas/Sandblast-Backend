@@ -2,8 +2,10 @@
 // Sandblast Nyx Backend — Hybrid Brain
 // OpenAI (Responses API) + Local Fallback + Lane Memory + Dynamic Detail
 // Suggestive Intelligence + Emotional Layer + Site Links
-// + New: history/clientContext/resolutionHint + public/admin + closing state
+// + Uses: history/clientContext/resolutionHint + public/admin + closing state
 //----------------------------------------------------------
+
+require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
@@ -14,8 +16,17 @@ const { classifyIntent } = require("./Utils/intentClassifier");
 const nyxPersonality = require("./Utils/nyxPersonality");
 
 const app = express();
-app.use(express.json());
-app.use(cors());
+
+// Body + CORS hardening
+app.use(express.json({ limit: "1mb" }));
+
+const corsOptions = {
+  origin: true, // reflect origin
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: false
+};
+app.use(cors(corsOptions));
 
 const PORT = process.env.PORT || 3000;
 
@@ -40,17 +51,17 @@ function cleanMeta(meta) {
       lastIntent: "statement",
       lastGoal: null,
       sessionId: "nyx-" + Date.now(),
-      currentLane: null,      // tv, radio, sponsors, ai_help, tech_support, etc.
-      laneDetail: {},         // mood, businessType, audience, etc.
-      lastSuggestionStep: 0,  // 0, 1, or 2 (suggestive intelligence state)
-      moodState: "steady",    // steady, overwhelmed, frustrated, excited, tired
-      laneAge: 0,             // how many turns in the current lane
-      presetMode: null,       // e.g. sponsor_pitch, tv_grid, ai_jobseekers
-      stepPhase: null,        // high-level stage label, per-lane
-      saveHintShown: false,   // to avoid repeating "save this" hook
+      currentLane: null,
+      laneDetail: {},
+      lastSuggestionStep: 0,
+      moodState: "steady",
+      laneAge: 0,
+      presetMode: null,
+      stepPhase: null,
+      saveHintShown: false,
 
-      // New fields from widget
-      access: "public",       // "public" | "admin" (admin is “tactical mode”, not secret auth)
+      // widget fields
+      access: "public", // "public" | "admin" (tactical mode, not secret auth)
       conversationState: "active" // "active" | "closing" | "closed"
     };
   }
@@ -74,9 +85,11 @@ function cleanMeta(meta) {
     stepPhase: meta.stepPhase || null,
     saveHintShown: !!meta.saveHintShown,
 
-    // New fields from widget
-    access: (meta.access === "admin") ? "admin" : "public",
-    conversationState: meta.conversationState || "active"
+    access: meta.access === "admin" ? "admin" : "public",
+    conversationState:
+      meta.conversationState === "closing" || meta.conversationState === "closed"
+        ? meta.conversationState
+        : "active"
   };
 }
 
@@ -181,23 +194,12 @@ function resolveLaneDomain(classification, meta, message) {
     text.includes("now ai") ||
     text.includes("now tech");
 
-  // High-value preset phrases
-  if (text.includes("sponsor pitch helper") || text.includes("sponsor pitch")) {
-    return "sponsors";
-  }
-  if (text.includes("tv grid tuner") || text.includes("tv grid")) {
-    return "tv";
-  }
-  if (text.includes("ai for job seekers") || text.includes("ai for job-seekers")) {
-    return "ai_help";
-  }
-  if (text.includes("news canada")) {
-    return "news_canada";
-  }
+  if (text.includes("sponsor pitch helper") || text.includes("sponsor pitch")) return "sponsors";
+  if (text.includes("tv grid tuner") || text.includes("tv grid")) return "tv";
+  if (text.includes("ai for job seekers") || text.includes("ai for job-seekers")) return "ai_help";
+  if (text.includes("news canada")) return "news_canada";
 
-  if (isLaneDomain || wantsSwitch) {
-    return domain;
-  }
+  if (isLaneDomain || wantsSwitch) return domain;
 
   if (domain === "general" && meta.currentLane && meta.currentLane !== "general") {
     return meta.currentLane;
@@ -207,7 +209,7 @@ function resolveLaneDomain(classification, meta, message) {
 }
 
 //----------------------------------------------------------
-// LANE DETAIL EXTRACTION (dynamic memory + deeper profiles)
+// LANE DETAIL EXTRACTION
 //----------------------------------------------------------
 function extractLaneDetail(domain, text, prevDetail = {}) {
   const detail = { ...prevDetail };
@@ -224,158 +226,172 @@ function extractLaneDetail(domain, text, prevDetail = {}) {
   }
 
   if (domain === "tv") {
-    const moodMap = {
-      detective: ["detective", "crime", "cop show", "police drama"],
-      western: ["western", "cowboy"],
-      family: ["family", "family night", "family-friendly", "family friendly"],
-      comedy: ["sitcom", "comedy"],
-      scifi: ["sci-fi", "science fiction", "space"],
-      horror: ["horror", "thriller"],
-      kids: ["kids", "cartoon", "children"]
-    };
-    matchMap(moodMap, "mood");
+    matchMap(
+      {
+        detective: ["detective", "crime", "cop show", "police drama"],
+        western: ["western", "cowboy"],
+        family: ["family", "family night", "family-friendly", "family friendly"],
+        comedy: ["sitcom", "comedy"],
+        scifi: ["sci-fi", "science fiction", "space"],
+        horror: ["horror", "thriller"],
+        kids: ["kids", "cartoon", "children"]
+      },
+      "mood"
+    );
 
-    const timeMap = {
-      "late-night": ["late-night", "late night"],
-      weeknight: ["weeknight"],
-      weekend: ["weekend"],
-      saturday: ["saturday"],
-      sunday: ["sunday"],
-      morning: ["morning"],
-      afternoon: ["afternoon"],
-      evening: ["evening", "prime time", "primetime"]
-    };
-    matchMap(timeMap, "timeOfDay");
+    matchMap(
+      {
+        "late-night": ["late-night", "late night"],
+        weeknight: ["weeknight"],
+        weekend: ["weekend"],
+        saturday: ["saturday"],
+        sunday: ["sunday"],
+        morning: ["morning"],
+        afternoon: ["afternoon"],
+        evening: ["evening", "prime time", "primetime"]
+      },
+      "timeOfDay"
+    );
 
     const timeMatch = lower.match(/(\b\d{1,2}\s?(am|pm)\b)/);
-    if (timeMatch) {
-      detail.startTime = timeMatch[1];
-    }
+    if (timeMatch) detail.startTime = timeMatch[1];
 
-    const paceMap = {
-      "slow-burn": ["slow burn", "slow-burn", "slow pace"],
-      "fast-cut": ["fast cut", "fast-cut", "high energy", "fast paced", "fast-paced"]
-    };
-    matchMap(paceMap, "pace");
+    matchMap(
+      {
+        "slow-burn": ["slow burn", "slow-burn", "slow pace"],
+        "fast-cut": ["fast cut", "fast-cut", "high energy", "fast paced", "fast-paced"]
+      },
+      "pace"
+    );
 
-    const decadeMap = {
-      "50s": ["1950s", "50s", "50's"],
-      "60s": ["1960s", "60s", "60's"],
-      "70s": ["1970s", "70s", "70's"],
-      "80s": ["1980s", "80s", "80's"],
-      "90s": ["1990s", "90s", "90's"]
-    };
-    matchMap(decadeMap, "decade");
+    matchMap(
+      {
+        "50s": ["1950s", "50s", "50's"],
+        "60s": ["1960s", "60s", "60's"],
+        "70s": ["1970s", "70s", "70's"],
+        "80s": ["1980s", "80s", "80's"],
+        "90s": ["1990s", "90s", "90's"]
+      },
+      "decade"
+    );
 
-    const ageMap = {
-      kids: ["kids", "children"],
-      family: ["family"],
-      adults: ["adults", "grown-ups", "grown ups"]
-    };
-    matchMap(ageMap, "targetAge");
+    matchMap(
+      { kids: ["kids", "children"], family: ["family"], adults: ["adults", "grown-ups", "grown ups"] },
+      "targetAge"
+    );
   }
 
   if (domain === "radio" || domain === "nova") {
-    const moodMap = {
-      "late-night": ["late-night", "late night"],
-      gospel: ["gospel"],
-      "retro party": ["retro party", "party set", "party vibe"],
-      chill: ["chill", "smooth", "laid back"],
-      "quiet storm": ["quiet storm", "slow jam", "slow jams"],
-      "90s": ["90s", "90's"],
-      "80s": ["80s", "80's"],
-      rnb: ["r&b", "rnb"],
-      jazz: ["jazz"],
-      soul: ["soul"]
-    };
-    matchMap(moodMap, "mood");
+    matchMap(
+      {
+        "late-night": ["late-night", "late night"],
+        gospel: ["gospel"],
+        "retro party": ["retro party", "party set", "party vibe"],
+        chill: ["chill", "smooth", "laid back"],
+        "quiet storm": ["quiet storm", "slow jam", "slow jams"],
+        "90s": ["90s", "90's"],
+        "80s": ["80s", "80's"],
+        rnb: ["r&b", "rnb"],
+        jazz: ["jazz"],
+        soul: ["soul"]
+      },
+      "mood"
+    );
 
     const lenMatch = lower.match(/(\d+)\s?(hour|hours|hr|hrs|minute|minutes|min)/);
-    if (lenMatch) {
-      detail.length = lenMatch[0];
-    }
-    if (lower.includes("half hour") || lower.includes("half-hour")) {
-      detail.length = "30 minutes";
-    }
+    if (lenMatch) detail.length = lenMatch[0];
+    if (lower.includes("half hour") || lower.includes("half-hour")) detail.length = "30 minutes";
 
-    const talkMap = {
-      "more-music": ["mostly music", "more music", "just music"],
-      balanced: ["mix of talk", "some talk", "bit of talk"],
-      "talk-heavy": ["more talk", "mostly talk", "talk show"]
-    };
-    matchMap(talkMap, "talkRatio");
+    matchMap(
+      {
+        "more-music": ["mostly music", "more music", "just music"],
+        balanced: ["mix of talk", "some talk", "bit of talk"],
+        "talk-heavy": ["more talk", "mostly talk", "talk show"]
+      },
+      "talkRatio"
+    );
 
-    const energyMap = {
-      "soft-curve": ["slow build", "start soft"],
-      "high-energy": ["high energy", "upbeat", "hype"],
-      "drop-then-rise": ["drop off", "wind down then up"]
-    };
-    matchMap(energyMap, "energyCurve");
+    matchMap(
+      {
+        "soft-curve": ["slow build", "start soft"],
+        "high-energy": ["high energy", "upbeat", "hype"],
+        "drop-then-rise": ["drop off", "wind down then up"]
+      },
+      "energyCurve"
+    );
   }
 
   if (domain === "sponsors") {
-    const bizMap = {
-      restaurant: ["restaurant", "diner", "cafe", "coffee shop", "eatery"],
-      gym: ["gym", "fitness", "training center"],
-      church: ["church", "ministry"],
-      grocery: ["grocery", "supermarket"],
-      salon: ["salon", "barbershop", "barber"],
-      clinic: ["clinic", "pharmacy", "medical"],
-      auto: ["car dealer", "auto shop", "mechanic", "dealership"]
-    };
-    matchMap(bizMap, "businessType");
+    matchMap(
+      {
+        restaurant: ["restaurant", "diner", "cafe", "coffee shop", "eatery"],
+        gym: ["gym", "fitness", "training center"],
+        church: ["church", "ministry"],
+        grocery: ["grocery", "supermarket"],
+        salon: ["salon", "barbershop", "barber"],
+        clinic: ["clinic", "pharmacy", "medical"],
+        auto: ["car dealer", "auto shop", "mechanic", "dealership"]
+      },
+      "businessType"
+    );
 
-    const budgetMap = {
-      low: ["small budget", "low budget", "starter", "test budget"],
-      medium: ["mid budget", "medium budget"],
-      high: ["big budget", "large budget", "premium"]
-    };
-    matchMap(budgetMap, "budgetTier");
+    matchMap(
+      {
+        low: ["small budget", "low budget", "starter", "test budget"],
+        medium: ["mid budget", "medium budget"],
+        high: ["big budget", "large budget", "premium"]
+      },
+      "budgetTier"
+    );
 
-    const toneMap = {
-      serious: ["serious", "professional", "formal"],
-      playful: ["fun", "playful", "light"],
-      community: ["community", "local roots"]
-    };
-    matchMap(toneMap, "brandTone");
+    matchMap(
+      { serious: ["serious", "professional", "formal"], playful: ["fun", "playful", "light"], community: ["community", "local roots"] },
+      "brandTone"
+    );
   }
 
   if (domain === "ai_help" || domain === "ai_consulting") {
-    const audienceMap = {
-      "job-seekers": ["job seeker", "job-seeker", "resume", "cv", "cover letter"],
-      "small-business": ["small business", "small-business", "local business"],
-      sponsors: ["sponsor", "sponsors", "advertiser", "client"],
-      students: ["student", "students", "school", "college", "university"]
-    };
-    matchMap(audienceMap, "audience");
+    matchMap(
+      {
+        "job-seekers": ["job seeker", "job-seeker", "resume", "cv", "cover letter"],
+        "small-business": ["small business", "small-business", "local business"],
+        sponsors: ["sponsor", "sponsors", "advertiser", "client"],
+        students: ["student", "students", "school", "college", "university"]
+      },
+      "audience"
+    );
   }
 
   if (domain === "tech_support") {
-    const areaMap = {
-      webflow: ["webflow"],
-      render: ["render", "onrender.com"],
-      backend: ["backend", "server", "index.js", "express"],
-      api: ["api", "endpoint", "cannot get", "404", "500"],
-      tts: ["tts", "elevenlabs", "voice", "audio"]
-    };
-    matchMap(areaMap, "area");
+    matchMap(
+      {
+        webflow: ["webflow"],
+        render: ["render", "onrender.com"],
+        backend: ["backend", "server", "index.js", "express"],
+        api: ["api", "endpoint", "cannot get", "404", "500"],
+        tts: ["tts", "elevenlabs", "voice", "audio"]
+      },
+      "area"
+    );
   }
 
   if (domain === "business_support") {
-    const projMap = {
-      grant: ["grant", "funding", "proposal"],
-      pitch: ["pitch", "deck", "presentation"],
-      store: ["store", "grocery", "retail"],
-      consulting: ["consulting", "client work", "service package"]
-    };
-    matchMap(projMap, "projectType");
+    matchMap(
+      {
+        grant: ["grant", "funding", "proposal"],
+        pitch: ["pitch", "deck", "presentation"],
+        store: ["store", "grocery", "retail"],
+        consulting: ["consulting", "client work", "service package"]
+      },
+      "projectType"
+    );
   }
 
   return detail;
 }
 
 //----------------------------------------------------------
-// HESITATION DETECTION (for Suggestive Intelligence)
+// HESITATION DETECTION
 //----------------------------------------------------------
 function isHesitationMessage(message) {
   const text = (message || "").trim().toLowerCase();
@@ -414,73 +430,54 @@ function isHesitationMessage(message) {
 // BUILD LANE-AWARE SUGGESTION
 //----------------------------------------------------------
 function buildLaneSuggestion(domain, laneDetail, step) {
-  if (step >= 2) return null; // 0 and 1 only
+  if (step >= 2) return null;
 
   const detail = laneDetail || {};
 
   if (step === 0) {
     switch (domain) {
-      case "tv": {
-        const mood = detail.mood;
-        if (mood) {
-          return `If you want, we can choose one ${mood} show that fits the block and shape around it.`;
-        }
-        return `If you want, we can pick the next part — the mood, the shows, or the timing. One piece is enough.`;
-      }
+      case "tv":
+        return detail.mood
+          ? `If you want, we can choose one ${detail.mood} show that fits the block and shape around it.`
+          : `If you want, we can pick the next part — the mood, the shows, or the timing. One piece is enough.`;
 
       case "radio":
-      case "nova": {
-        const mood = detail.mood;
-        if (mood) {
-          return `If you want, we can choose one anchor track or transition that holds that ${mood} vibe.`;
-        }
-        return `If you want, we can set one anchor track or transition to carry the mood for this block.`;
-      }
+      case "nova":
+        return detail.mood
+          ? `If you want, we can choose one anchor track or transition that holds that ${detail.mood} vibe.`
+          : `If you want, we can set one anchor track or transition to carry the mood for this block.`;
 
-      case "sponsors": {
-        const biz = detail.businessType;
-        if (biz) {
-          return `If you want, we can shape one simple offer for a ${biz} — like a short test run or a few on-air mentions.`;
-        }
-        return `If you want, we can define one simple sponsor offer around a block — nothing complicated.`;
-      }
+      case "sponsors":
+        return detail.businessType
+          ? `If you want, we can shape one simple offer for a ${detail.businessType} — like a short test run or a few on-air mentions.`
+          : `If you want, we can define one simple sponsor offer around a block — nothing complicated.`;
 
       case "ai_help":
-      case "ai_consulting": {
-        const audience = detail.audience;
-        if (audience) {
-          return `If you want, we can start with one small AI task that helps ${audience} — writing, summarizing, or outlining.`;
-        }
-        return `If you want, we can pick one small AI task — writing, summarizing, or outlining something you already have.`;
-      }
+      case "ai_consulting":
+        return detail.audience
+          ? `If you want, we can start with one small AI task that helps ${detail.audience} — writing, summarizing, or outlining.`
+          : `If you want, we can pick one small AI task — writing, summarizing, or outlining something you already have.`;
 
-      case "tech_support": {
-        const area = detail.area;
-        if (area) {
-          return `If you want, we can fix one small piece of the ${area} issue first — just pick where to start.`;
-        }
-        return `If you want, we can tackle one part of the tech first — backend, widget, or endpoint.`;
-      }
+      case "tech_support":
+        return detail.area
+          ? `If you want, we can fix one small piece of the ${detail.area} issue first — just pick where to start.`
+          : `If you want, we can tackle one part of the tech first — backend, widget, or endpoint.`;
 
-      case "business_support": {
-        const projectType = detail.projectType;
-        if (projectType) {
-          return `If you want, we can set one clear next step for this ${projectType} so it feels less heavy.`;
-        }
-        return `If you want, we can choose one project and give it a single clear next step.`;
-      }
+      case "business_support":
+        return detail.projectType
+          ? `If you want, we can set one clear next step for this ${detail.projectType} so it feels less heavy.`
+          : `If you want, we can choose one project and give it a single clear next step.`;
 
       default:
         return `If you want, we can take one small step — just tell me what you feel like shaping first.`;
     }
   }
 
-  // step === 1 → softer fallback
   return `We can keep this simple… one small next step is enough when you’re ready.`;
 }
 
 //----------------------------------------------------------
-// STEP PHASE HELPER (micro transitions)
+// STEP PHASE HELPER
 //----------------------------------------------------------
 function computeStepPhase(domain, laneDetail) {
   if (domain === "tv") {
@@ -505,33 +502,24 @@ function computeStepPhase(domain, laneDetail) {
 }
 
 //----------------------------------------------------------
-// UI LINK BUILDER — connects lanes to .channel + .com
+// UI LINK BUILDER
 //----------------------------------------------------------
-function buildUiLinks(domain, laneDetail) {
+function buildUiLinks(domain) {
   const links = [];
-  const detail = laneDetail || {};
 
   if (domain === "tv") {
     links.push({ label: "TV overview (sandblast.channel)", url: "https://www.sandblast.channel#tv" });
     links.push({ label: "TV portal (sandblastchannel.com)", url: "https://www.sandblastchannel.com" });
-  }
-
-  if (domain === "radio" || domain === "nova") {
+  } else if (domain === "radio" || domain === "nova") {
     links.push({ label: "Radio on sandblast.channel", url: "https://www.sandblast.channel#radio" });
     links.push({ label: "Live radio / stream portal", url: "https://www.sandblastchannel.com" });
-  }
-
-  if (domain === "news" || domain === "news_canada") {
+  } else if (domain === "news" || domain === "news_canada") {
     links.push({ label: "News Canada hub", url: "https://www.sandblastchannel.com" });
     links.push({ label: "News Canada on sandblast.channel", url: "https://www.sandblast.channel#news-canada" });
-  }
-
-  if (domain === "sponsors" || domain === "business_support") {
+  } else if (domain === "sponsors" || domain === "business_support") {
     links.push({ label: "Ad Space overview (sandblast.channel)", url: "https://www.sandblast.channel#ad-space" });
     links.push({ label: "Sandblast portal (sandblastchannel.com)", url: "https://www.sandblastchannel.com" });
-  }
-
-  if (!links.length) {
+  } else {
     links.push({ label: "Main site (sandblast.channel)", url: "https://www.sandblast.channel" });
     links.push({ label: "Broadcast portal (sandblastchannel.com)", url: "https://www.sandblastchannel.com" });
   }
@@ -540,7 +528,7 @@ function buildUiLinks(domain, laneDetail) {
 }
 
 //----------------------------------------------------------
-// LOCAL BRAIN – GREETING / SMALL-TALK + DOMAIN RULES
+// LOCAL BRAIN
 //----------------------------------------------------------
 function localBrainReply(message, classification, meta) {
   const domain = classification?.domain || "general";
@@ -560,132 +548,59 @@ function localBrainReply(message, classification, meta) {
       : "";
 
   if (intent === "greeting") {
-    return (
-      moodPrefix +
-      `Hey, I’m here. How’s your day going? What do you want to dive into — TV, radio, sponsors, or AI?`
-    );
+    return moodPrefix + "Hey, I’m here. How’s your day going? TV, radio, sponsors, News Canada, or AI?";
   }
 
   if (intent === "smalltalk") {
+    return moodPrefix + "I’m good. What do you want to tune — TV, radio, sponsors, News Canada, or AI?";
+  }
+
+  if (domain === "tv") {
     return (
       moodPrefix +
-      `I’m good on my end. What’s on your mind? If you want, we can tune TV, radio, sponsors, or AI — just tell me the lane.`
+      `Let’s shape one TV block.\n\n` +
+      `Tell me the vibe (detective, western, family, etc.) and the rough time slot, and we’ll build around it.`
     );
   }
 
-  switch (domain) {
-    case "tv": {
-      const mood = detail.mood;
-      const timeOfDay = detail.timeOfDay;
-      let intro = moodPrefix + "Let’s shape one TV block together.\n\n";
-      if (mood || timeOfDay) {
-        intro =
-          moodPrefix +
-          `Alright… we’ll keep building around that ` +
-          `${mood ? mood + " " : ""}${timeOfDay ? timeOfDay + " " : ""}block.\n\n`;
-      }
-      return (
-        intro +
-        `Pick a lane like weeknight detectives, Saturday westerns, or a family night. ` +
-        `Tell me the vibe and rough time slot, and we’ll build a simple block around it.`
-      );
-    }
-
-    case "radio":
-    case "nova": {
-      const mood = detail.mood;
-      const length = detail.length;
-      let intro = moodPrefix + "Let’s build a clean radio mood block.\n\n";
-      if (mood || length) {
-        intro =
-          moodPrefix +
-          `Alright… we’ll keep tuning that ` +
-          `${mood ? mood + " " : ""}${length ? "(" + length + ") " : ""}vibe.\n\n`;
-      }
-      return (
-        intro +
-        `Choose the feeling — late-night smooth, Gospel Sunday, or retro party. ` +
-        `Tell me the mood and how long you want it to run, and we’ll map a light flow for Nova to carry.`
-      );
-    }
-
-    case "sponsors": {
-      const biz = detail.businessType;
-      let intro = moodPrefix + "We can keep sponsor offers simple.\n\n";
-      if (biz) {
-        intro = moodPrefix + `Alright… let’s shape something that fits a ${biz}.\n\n`;
-      }
-      return (
-        intro +
-        `Think in terms of a short test run — a few TV spots plus a couple of on-air mentions ` +
-        `around one strong block. Tell me which sponsor you have in mind and we’ll sketch a small, clear package for them.`
-      );
-    }
-
-    case "ai_help":
-    case "ai_consulting": {
-      const audience = detail.audience;
-      let intro = moodPrefix + "Let’s pick a few AI tasks that actually help you.\n\n";
-      if (audience) {
-        intro = moodPrefix + `Alright… let’s keep this useful for ${audience}.\n\n`;
-      }
-      return (
-        intro +
-        `For example, drafting outreach, summarizing content, or writing show and social copy. ` +
-        `Tell me who you want to help first — yourself, job-seekers, or a sponsor — and we’ll choose two or three practical use cases.`
-      );
-    }
-
-    case "tech_support": {
-      const area = detail.area;
-      let intro = moodPrefix + "We can tackle the tech one step at a time.\n\n";
-      if (area) {
-        intro = moodPrefix + `Alright… let’s work through the ${area} side first.\n\n`;
-      }
-      return (
-        intro +
-        `Tell me whether the issue is on Webflow, Render, or inside the code, and I’ll walk with you through the next small fix.`
-      );
-    }
-
-    case "business_support": {
-      const projectType = detail.projectType;
-      let intro = moodPrefix + "Let’s give one project a clear push.\n\n";
-      if (projectType) {
-        intro = moodPrefix + `Alright… let’s give this ${projectType} a cleaner direction.\n\n`;
-      }
-      return (
-        intro +
-        `Tell me which project you want to focus on and what you’d like to see in the next 90 days, ` +
-        `and we’ll set a simple direction you can move on each week.`
-      );
-    }
-
-    case "news":
-    case "news_canada": {
-      return (
-        moodPrefix +
-        "Let’s keep News Canada simple and useful.\n\n" +
-        `I can help you decide how to use News Canada stories inside Sandblast — for segments, promos, or social cutdowns. ` +
-        `Tell me whether you want to focus on TV blocks, radio mentions, or online highlights.`
-      );
-    }
-
-    default:
-      return (
-        moodPrefix +
-        `I’m with you.\n\n` +
-        `Tell me whether you’re thinking about TV, radio, streaming, sponsors, News Canada, or AI, and we’ll take the next step there.`
-      );
+  if (domain === "radio" || domain === "nova") {
+    return (
+      moodPrefix +
+      `Let’s build a clean radio block.\n\n` +
+      `Tell me the mood (late-night, Gospel Sunday, retro party) and the length, and I’ll map a light flow.`
+    );
   }
+
+  if (domain === "sponsors") {
+    const biz = detail.businessType;
+    return (
+      moodPrefix +
+      `We can keep sponsor offers simple.\n\n` +
+      (biz ? `Tell me the sponsor (${biz}) and we’ll sketch a small test package.\n` : `Tell me the sponsor type and budget tier.\n`) +
+      `Next action: pick one block to sponsor and run a 4-week test.`
+    );
+  }
+
+  if (domain === "news" || domain === "news_canada") {
+    return (
+      moodPrefix +
+      `Let’s make News Canada useful inside Sandblast.\n\n` +
+      `Tell me: do you want it to feed TV blocks, radio mentions, or web highlights?`
+    );
+  }
+
+  return (
+    moodPrefix +
+    `I’m with you.\n\n` +
+    `Tell me whether you’re thinking TV, radio, sponsors, News Canada, or AI — and what “done” looks like.`
+  );
 }
 
 //----------------------------------------------------------
-// OPENAI BRAIN (Responses API) – USES history + clientContext + resolutionHint
+// OPENAI BRAIN (Responses API)
 //----------------------------------------------------------
 function normalizeHistoryItems(history) {
   if (!Array.isArray(history)) return [];
-  // Expect: [{role:"user"|"assistant", content:"..."}]
   return history
     .slice(-12)
     .map((h) => {
@@ -720,32 +635,28 @@ function buildDeveloperContext(meta, classification, clientContext, resolutionHi
   );
 }
 
-function buildSystemPrompt(classification) {
+function buildSystemPrompt() {
   return (
     `You are Nyx — the AI broadcast brain for Sandblast.\n` +
     `Tone: warm, supportive, concise, collaborative, steady, and forward-moving.\n` +
     `Sandblast is a growing channel, not a giant network — keep advice realistic.\n` +
-    `Avoid lectures; keep responses short and focused on the next step.\n\n` +
+    `Avoid lectures; focus on the next step.\n\n` +
     `Required behavior:\n` +
     `1) Answer directly with practical steps.\n` +
     `2) Resolution pattern: answer → confirm resolved (or ask ONE tight follow-up) → ONE next action.\n` +
-    `3) If conversationState is "closing": keep it short, summarize what was achieved in 1 line, and end with a clean farewell.\n\n` +
+    `3) If conversationState is "closing": DO NOT include a farewell line (the widget appends it). Just give a 1-line wrap-up.\n\n` +
     `Routing by domain:\n` +
     `- tv: programming blocks, timing, show flow, catalog framing.\n` +
     `- radio/nova: music blocks, talk ratio, transitions, DJ Nova scripting.\n` +
     `- sponsors: packages, proof points, test runs, next actions.\n` +
     `- news_canada/news: story placement, segmenting, integration on Sandblast sites.\n` +
-    `- ai_help/ai_consulting: Nyx/SandblastGPT, workflows, practical AI use.\n` +
+    `- ai_help/ai_consulting: workflows, practical AI use.\n` +
     `- tech_support: Webflow/Render/backend/API/TTS troubleshooting.\n\n` +
     `Be TTS-friendly: short sentences. Natural cadence.`
   );
 }
 
-//----------------------------------------------------------
-// HYBRID BRAIN – TRY OPENAI, FALL BACK TO LOCAL
-//----------------------------------------------------------
 async function callBrain({ message, classification, meta, history, clientContext, resolutionHint }) {
-  // Keep your local fast-paths
   if (classification.intent === "greeting" || classification.intent === "smalltalk") {
     return localBrainReply(message, classification, meta);
   }
@@ -755,16 +666,11 @@ async function callBrain({ message, classification, meta, history, clientContext
     return localBrainReply(message, classification, meta);
   }
 
-  // Build prompts using new intelligence signals
-  const systemPrompt = buildSystemPrompt(classification);
+  const systemPrompt = buildSystemPrompt();
   const developerContext = buildDeveloperContext(meta, classification, clientContext, resolutionHint);
-
-  // Use incoming history from widget (stateless server; smarter via client history)
   const historyItems = normalizeHistoryItems(history);
 
-  const userPrompt =
-    `User message: "${message}".\n` +
-    `Use lane detail + mood state if helpful. Keep it concise.\n`;
+  const userPrompt = `User message: "${message}".\nUse lane detail + mood state if helpful. Keep it concise.`;
 
   try {
     const response = await openai.responses.create({
@@ -786,15 +692,17 @@ async function callBrain({ message, classification, meta, history, clientContext
 }
 
 //----------------------------------------------------------
-// HEALTH
+// ROUTES
 //----------------------------------------------------------
+app.get("/", (req, res) => {
+  res.send("Sandblast Nyx backend is running.");
+});
+
 app.get("/health", (req, res) => {
   res.json({ status: "ok", service: "sandblast-nyx-backend" });
 });
 
-//----------------------------------------------------------
 // MAIN BRAIN ENDPOINT
-//----------------------------------------------------------
 app.post("/api/sandblast-gpt", async (req, res) => {
   try {
     const {
@@ -813,7 +721,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     const clean = message.trim();
     let meta = cleanMeta(incomingMeta);
 
-    // Admin backdoor (secure token or ::admin prefix) remains intact
+    // Admin backdoor remains intact
     if (isAdminMessage(req.body)) {
       meta.access = "admin";
       return res.json({
@@ -846,7 +754,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       laneAge = 1;
     }
 
-    // Personality hooks (unchanged)
+    // Personality hooks (kept)
     let frontDoor = null;
     if (nyxPersonality.getFrontDoorResponse) {
       frontDoor = nyxPersonality.getFrontDoorResponse(clean, meta, classification);
@@ -857,19 +765,16 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       domainPayload = nyxPersonality.enrichDomainResponse(clean, meta, classification, mode);
     }
 
-    // Build meta for brain (includes new access + conversationState)
     const metaForBrain = {
       ...meta,
       laneDetail: newLaneDetail,
       moodState,
       stepPhase,
       laneAge,
-      // normalize/lock fields we expect
       access: meta.access === "admin" ? "admin" : "public",
       conversationState: meta.conversationState || "active"
     };
 
-    // Call brain with new payload signals
     const rawReply = await callBrain({
       message: clean,
       classification,
@@ -879,21 +784,14 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       resolutionHint
     });
 
-    // Micro-transition wrapper (unchanged)
+    // Micro-transition wrapper (kept)
     let transitionPrefix = "";
-    if (stepPhase === "tv:timing") {
-      transitionPrefix = "We’ve got the vibe. Now let’s narrow the timing.\n\n";
-    } else if (stepPhase === "tv:refine") {
-      transitionPrefix = "We’ve got the core block. Now we can refine it.\n\n";
-    } else if (stepPhase === "radio:length") {
-      transitionPrefix = "We’ve set the mood. Now let’s set the length.\n\n";
-    } else if (stepPhase === "radio:refine") {
-      transitionPrefix = "The mood and length are there. Now we can polish the flow.\n\n";
-    } else if (stepPhase === "sponsors:budget") {
-      transitionPrefix = "We know the sponsor type. Now we can size the budget.\n\n";
-    } else if (stepPhase === "sponsors:offer") {
-      transitionPrefix = "We know who they are. Now we can define one clear offer.\n\n";
-    }
+    if (stepPhase === "tv:timing") transitionPrefix = "We’ve got the vibe. Now let’s narrow the timing.\n\n";
+    else if (stepPhase === "tv:refine") transitionPrefix = "We’ve got the core block. Now we can refine it.\n\n";
+    else if (stepPhase === "radio:length") transitionPrefix = "We’ve set the mood. Now let’s set the length.\n\n";
+    else if (stepPhase === "radio:refine") transitionPrefix = "The mood and length are there. Now we can polish the flow.\n\n";
+    else if (stepPhase === "sponsors:budget") transitionPrefix = "We know the sponsor type. Now we can size the budget.\n\n";
+    else if (stepPhase === "sponsors:offer") transitionPrefix = "We know who they are. Now we can define one clear offer.\n\n";
 
     let finalReply = transitionPrefix + rawReply;
 
@@ -901,7 +799,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       finalReply = nyxPersonality.wrapWithNyxTone(clean, metaForBrain, classification, finalReply);
     }
 
-    // Suggestive Intelligence (unchanged)
+    // Suggestive Intelligence (kept)
     let newSuggestionStep = meta.lastSuggestionStep || 0;
     if (isHesitationMessage(clean)) {
       const suggestion = buildLaneSuggestion(classification.domain, newLaneDetail, newSuggestionStep);
@@ -913,21 +811,12 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       newSuggestionStep = 0;
     }
 
-    // Gentle recenter if laneAge is high
     if (laneAge >= 7) {
-      finalReply += `\n\nIf you want, we can reset this lane or switch to another — TV, radio, sponsors, or AI.`;
+      finalReply += `\n\nIf you want, we can reset this lane or switch to another — TV, radio, sponsors, News Canada, or AI.`;
     }
 
-    // Smart "save this" hook
     let saveHintShown = meta.saveHintShown || false;
-    if (
-      !saveHintShown &&
-      laneAge >= 4 &&
-      (classification.domain === "tv" ||
-        classification.domain === "radio" ||
-        classification.domain === "nova" ||
-        classification.domain === "sponsors")
-    ) {
+    if (!saveHintShown && laneAge >= 4 && ["tv", "radio", "nova", "sponsors"].includes(classification.domain)) {
       finalReply += `\n\nIf this starts to feel right, we can treat it as a working template for Sandblast.`;
       saveHintShown = true;
     }
@@ -937,23 +826,17 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       stepIndex: meta.stepIndex + 1,
       lastDomain: classification.domain,
       lastIntent: classification.intent,
-      currentLane:
-        classification.domain && classification.domain !== "general"
-          ? classification.domain
-          : meta.currentLane,
+      currentLane: classification.domain && classification.domain !== "general" ? classification.domain : meta.currentLane,
       laneDetail: newLaneDetail,
       lastSuggestionStep: newSuggestionStep,
       moodState,
       laneAge,
       stepPhase,
       saveHintShown,
-
-      // Keep new fields flowing back to the widget
       access: metaForBrain.access,
       conversationState: metaForBrain.conversationState
     };
 
-    // UI hints
     const uiHints = {
       laneLabel: classification.domain || "general",
       moodLabel: moodState,
@@ -971,9 +854,8 @@ app.post("/api/sandblast-gpt", async (req, res) => {
           : "Ask about TV, radio, sponsors, News Canada, or AI."
     };
 
-    const uiLinks = buildUiLinks(classification.domain, newLaneDetail);
+    const uiLinks = buildUiLinks(classification.domain);
 
-    // IMPORTANT: return both uiLinks and links for widget compatibility
     res.json({
       ok: true,
       reply: finalReply,
@@ -985,7 +867,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       meta: updatedMeta,
       uiHints,
       uiLinks,
-      links: uiLinks
+      links: uiLinks // alias for widget compatibility
     });
   } catch (err) {
     console.error("[Nyx] /api/sandblast-gpt error:", err.message);
@@ -999,7 +881,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 });
 
 //----------------------------------------------------------
-// TTS ENDPOINT (OPTIONAL – ELEVENLABS)
+// TTS ENDPOINT (ELEVENLABS)
 //----------------------------------------------------------
 app.post("/api/tts", async (req, res) => {
   try {
@@ -1020,10 +902,7 @@ app.post("/api/tts", async (req, res) => {
       {
         text,
         model_id: "eleven_monolingual_v1",
-        voice_settings: {
-          stability: 0.45,
-          similarity_boost: 0.85
-        }
+        voice_settings: { stability: 0.45, similarity_boost: 0.85 }
       },
       {
         headers: {
