@@ -250,7 +250,14 @@ function detectMoodState(message) {
     "this is amazing",
     "love this"
   ];
-  const tiredWords = ["tired", "exhausted", "drained", "worn out", "need rest", "need a break"];
+  const tiredWords = [
+    "tired",
+    "exhausted",
+    "drained",
+    "worn out",
+    "need rest",
+    "need a break"
+  ];
 
   if (frustratedWords.some((w) => text.includes(w))) return "frustrated";
   if (overwhelmedWords.some((w) => text.includes(w))) return "overwhelmed";
@@ -272,6 +279,7 @@ function resolveLaneDomain(classification, meta, message) {
     "radio",
     "nova",
     "sponsors",
+    "music_history", // NEW
     "ai_help",
     "ai_consulting",
     "tech_support",
@@ -288,6 +296,9 @@ function resolveLaneDomain(classification, meta, message) {
     text.includes("switch to nova") ||
     text.includes("switch to sponsor") ||
     text.includes("switch to sponsors") ||
+    text.includes("switch to music") ||
+    text.includes("switch to music history") ||
+    text.includes("switch to charts") ||
     text.includes("switch to ai") ||
     text.includes("switch to tech") ||
     text.includes("switch to technical") ||
@@ -295,17 +306,30 @@ function resolveLaneDomain(classification, meta, message) {
     text.includes("now radio") ||
     text.includes("now nova") ||
     text.includes("now sponsors") ||
+    text.includes("now music") ||
+    text.includes("now music history") ||
+    text.includes("now charts") ||
     text.includes("now ai") ||
     text.includes("now tech");
 
-  if (text.includes("sponsor pitch helper") || text.includes("sponsor pitch")) return "sponsors";
+  if (text.includes("sponsor pitch helper") || text.includes("sponsor pitch"))
+    return "sponsors";
   if (text.includes("tv grid tuner") || text.includes("tv grid")) return "tv";
-  if (text.includes("ai for job seekers") || text.includes("ai for job-seekers")) return "ai_help";
+  if (text.includes("ai for job seekers") || text.includes("ai for job-seekers"))
+    return "ai_help";
   if (text.includes("news canada")) return "news_canada";
+
+  // explicit music lane hints
+  if (text.includes("music history") || text.includes("billboard hot 100") || text.includes("hot 100"))
+    return "music_history";
 
   if (isLaneDomain || wantsSwitch) return domain;
 
-  if (domain === "general" && meta.currentLane && meta.currentLane !== "general") {
+  if (
+    domain === "general" &&
+    meta.currentLane &&
+    meta.currentLane !== "general"
+  ) {
     return meta.currentLane;
   }
 
@@ -321,8 +345,19 @@ function extractLaneDetail(domain, text, prevDetail = {}) {
   const detail = { ...prevDetail };
   const lower = (text || "").toLowerCase();
 
-  if (domain === "news_canada" && lower.includes("news canada")) detail.source = "news_canada";
-  if (domain === "tech_support" && (lower.includes("webflow") || lower.includes("render"))) detail.area = "platform";
+  if (domain === "news_canada" && lower.includes("news canada"))
+    detail.source = "news_canada";
+  if (
+    domain === "tech_support" &&
+    (lower.includes("webflow") || lower.includes("render"))
+  )
+    detail.area = "platform";
+
+  // Music history: try to capture year if present
+  if (domain === "music_history") {
+    const yearMatch = lower.match(/\b(19\d{2}|20\d{2})\b/);
+    if (yearMatch) detail.year = yearMatch[1];
+  }
 
   return detail;
 }
@@ -383,6 +418,8 @@ function buildLaneSuggestion(domain, laneDetail, step) {
       case "news_canada":
       case "news":
         return `If you want, tell me: TV blocks, radio mentions, or web highlights — and I’ll format it cleanly.`;
+      case "music_history":
+        return `If you want, give me a year (or a specific week/date) and I’ll tell you what was #1 — plus one quick cultural note.`;
       default:
         return `If you want, tell me what “done” looks like, and we’ll take one small step.`;
     }
@@ -395,6 +432,7 @@ function buildLaneSuggestion(domain, laneDetail, step) {
 // STEP PHASE HELPER (minimal safe)
 //----------------------------------------------------------
 function computeStepPhase(domain, laneDetail) {
+  if (domain === "music_history") return "music_history:context";
   if (domain === "tv") return "tv:refine";
   if (domain === "radio" || domain === "nova") return "radio:refine";
   if (domain === "sponsors") return "sponsors:offer";
@@ -407,20 +445,59 @@ function computeStepPhase(domain, laneDetail) {
 function buildUiLinks(domain) {
   const links = [];
   if (domain === "tv") {
-    links.push({ label: "TV overview (sandblast.channel)", url: "https://www.sandblast.channel#tv" });
-    links.push({ label: "TV portal (sandblastchannel.com)", url: "https://www.sandblastchannel.com" });
+    links.push({
+      label: "TV overview (sandblast.channel)",
+      url: "https://www.sandblast.channel#tv"
+    });
+    links.push({
+      label: "TV portal (sandblastchannel.com)",
+      url: "https://www.sandblastchannel.com"
+    });
   } else if (domain === "radio" || domain === "nova") {
-    links.push({ label: "Radio on sandblast.channel", url: "https://www.sandblast.channel#radio" });
-    links.push({ label: "Live radio / stream portal", url: "https://www.sandblastchannel.com" });
+    links.push({
+      label: "Radio on sandblast.channel",
+      url: "https://www.sandblast.channel#radio"
+    });
+    links.push({
+      label: "Live radio / stream portal",
+      url: "https://www.sandblastchannel.com"
+    });
+  } else if (domain === "music_history") {
+    links.push({
+      label: "Radio on sandblast.channel",
+      url: "https://www.sandblast.channel#radio"
+    });
+    links.push({
+      label: "Sandblast portal (sandblastchannel.com)",
+      url: "https://www.sandblastchannel.com"
+    });
   } else if (domain === "news" || domain === "news_canada") {
-    links.push({ label: "News Canada hub", url: "https://www.sandblastchannel.com" });
-    links.push({ label: "News Canada on sandblast.channel", url: "https://www.sandblast.channel#news-canada" });
+    links.push({
+      label: "News Canada hub",
+      url: "https://www.sandblastchannel.com"
+    });
+    links.push({
+      label: "News Canada on sandblast.channel",
+      url: "https://www.sandblast.channel#news-canada"
+    });
   } else if (domain === "sponsors" || domain === "business_support") {
-    links.push({ label: "Ad Space overview (sandblast.channel)", url: "https://www.sandblast.channel#ad-space" });
-    links.push({ label: "Sandblast portal (sandblastchannel.com)", url: "https://www.sandblastchannel.com" });
+    links.push({
+      label: "Ad Space overview (sandblast.channel)",
+      url: "https://www.sandblast.channel#ad-space"
+    });
+    links.push({
+      label: "Sandblast portal (sandblastchannel.com)",
+      url: "https://www.sandblastchannel.com"
+    });
   } else {
-    links.push({ label: "Main site (sandblast.channel)", url: "https://www.sandblast.channel" });
-    links.push({ label: "Broadcast portal (sandblastchannel.com)", url: "https://www.sandblastchannel.com" });
+    links.push({
+      label: "Main site (sandblast.channel)",
+      url: "https://www.sandblast.channel"
+    });
+    links.push({
+      label: "Broadcast portal (sandblastchannel.com)",
+      url: "https://www.sandblastchannel.com"
+    });
   }
   return links;
 }
@@ -444,15 +521,23 @@ function localBrainReply(message, classification, meta) {
       ? "Good energy — let’s use it well.\n\n"
       : "";
 
-  if (intent === "greeting") return moodPrefix + "Hey, I’m here. TV, radio, sponsors, News Canada, or AI?";
-  if (intent === "smalltalk") return moodPrefix + "I’m good. What do you want to tune — TV, radio, sponsors, News Canada, or AI?";
+  if (intent === "greeting")
+    return moodPrefix + "Hey, I’m here. TV, radio, music history, sponsors, News Canada, or AI?";
+  if (intent === "smalltalk")
+    return moodPrefix + "I’m good. What do you want to tune — TV, radio, music history, sponsors, News Canada, or AI?";
+
+  if (domain === "music_history")
+    return (
+      moodPrefix +
+      "Give me a year (or a week/date) and I’ll tell you what was #1 — plus one quick cultural note and a next step."
+    );
 
   if (domain === "tv") return moodPrefix + "Tell me the vibe + time slot, and I’ll shape a TV block.";
   if (domain === "radio" || domain === "nova") return moodPrefix + "Tell me the mood + length, and I’ll map a clean radio flow.";
   if (domain === "sponsors") return moodPrefix + "Tell me sponsor type + budget tier, and I’ll sketch a simple package.";
   if (domain === "news" || domain === "news_canada") return moodPrefix + "Tell me: TV blocks, radio mentions, or web highlights?";
 
-  return moodPrefix + "Tell me whether you’re thinking TV, radio, sponsors, News Canada, or AI — and what “done” looks like.";
+  return moodPrefix + "Tell me whether you’re thinking TV, radio, music history, sponsors, News Canada, or AI — and what “done” looks like.";
 }
 
 //----------------------------------------------------------
@@ -471,7 +556,27 @@ function normalizeHistoryItems(history) {
 }
 
 function buildSystemPrompt(meta) {
-  return meta && meta.access === "admin" ? ADMIN_SYSTEM_PROMPT : PUBLIC_SYSTEM_PROMPT;
+  let base =
+    meta && meta.access === "admin" ? ADMIN_SYSTEM_PROMPT : PUBLIC_SYSTEM_PROMPT;
+
+  // Inject music historian rules when in music_history lane
+  if (meta && meta.currentLane === "music_history") {
+    base += `
+
+Additional Role — Music History Mode:
+You are Nyx, Sandblast’s broadcast music historian.
+
+Rules:
+- Anchor every answer in a specific week, date, or year.
+- Provide exactly ONE chart fact (rank, peak, weeks, debut, etc.).
+- Provide exactly ONE cultural or industry insight.
+- Close with ONE listener-friendly next action.
+- Keep responses concise, broadcast-ready, and conversational.
+- If uncertain, say "Chart records indicate…" and avoid absolutes.
+`;
+  }
+
+  return base.trim();
 }
 
 function buildDeveloperContext(meta, classification, clientContext, resolutionHint, session) {
@@ -514,11 +619,20 @@ async function embedQuery(text) {
 
 function shouldUseTool(domain, message) {
   const t = (message || "").toLowerCase();
-  if (domain === "sponsors" && (t.includes("package") || t.includes("offer") || t.includes("pricing") || t.includes("rate")))
+  if (
+    domain === "sponsors" &&
+    (t.includes("package") || t.includes("offer") || t.includes("pricing") || t.includes("rate"))
+  )
     return "sponsor_package";
-  if (domain === "tv" && (t.includes("block") || t.includes("grid") || t.includes("schedule") || t.includes("time slot")))
+  if (
+    domain === "tv" &&
+    (t.includes("block") || t.includes("grid") || t.includes("schedule") || t.includes("time slot"))
+  )
     return "tv_block";
-  if ((domain === "news" || domain === "news_canada") && (t.includes("format") || t.includes("post") || t.includes("segment") || t.includes("placement")))
+  if (
+    (domain === "news" || domain === "news_canada") &&
+    (t.includes("format") || t.includes("post") || t.includes("segment") || t.includes("placement"))
+  )
     return "news_format";
   return null;
 }
@@ -527,8 +641,10 @@ async function callBrain({ message, classification, meta, history, clientContext
   // Tool-first deterministic outputs
   const tool = shouldUseTool(classification.domain, message);
   if (tool) {
-    if (tool === "sponsor_package") return buildSponsorPackage(meta.laneDetail?.businessType, meta.laneDetail?.budgetTier);
-    if (tool === "tv_block") return buildTvBlock(meta.laneDetail?.mood, meta.laneDetail?.timeOfDay, meta.laneDetail?.decade);
+    if (tool === "sponsor_package")
+      return buildSponsorPackage(meta.laneDetail?.businessType, meta.laneDetail?.budgetTier);
+    if (tool === "tv_block")
+      return buildTvBlock(meta.laneDetail?.mood, meta.laneDetail?.timeOfDay, meta.laneDetail?.decade);
     if (tool === "news_format") return formatNewsCanada(message, meta.access);
   }
 
@@ -645,8 +761,15 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       domainPayload = nyxPersonality.enrichDomainResponse(clean, meta, classification, mode);
     }
 
+    // IMPORTANT: set currentLane BEFORE brain call so buildSystemPrompt() can inject lane rules
+    const effectiveLane =
+      classification.domain && classification.domain !== "general"
+        ? classification.domain
+        : meta.currentLane;
+
     const metaForBrain = {
       ...meta,
+      currentLane: effectiveLane,
       laneDetail: newLaneDetail,
       moodState,
       stepPhase,
@@ -684,11 +807,15 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     }
 
     if (laneAge >= 7) {
-      finalReply += `\n\nIf you want, we can reset this lane or switch to another — TV, radio, sponsors, News Canada, or AI.`;
+      finalReply += `\n\nIf you want, we can reset this lane or switch to another — TV, radio, music history, sponsors, News Canada, or AI.`;
     }
 
     let saveHintShown = meta.saveHintShown || false;
-    if (!saveHintShown && laneAge >= 4 && ["tv", "radio", "nova", "sponsors"].includes(classification.domain)) {
+    if (
+      !saveHintShown &&
+      laneAge >= 4 &&
+      ["tv", "radio", "nova", "sponsors", "music_history"].includes(classification.domain)
+    ) {
       finalReply += `\n\nIf this starts to feel right, we can treat it as a working template for Sandblast.`;
       saveHintShown = true;
     }
@@ -698,7 +825,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       stepIndex: meta.stepIndex + 1,
       lastDomain: classification.domain,
       lastIntent: classification.intent,
-      currentLane: classification.domain && classification.domain !== "general" ? classification.domain : meta.currentLane,
+      currentLane: effectiveLane,
       laneDetail: newLaneDetail,
       lastSuggestionStep: newSuggestionStep,
       moodState,
@@ -751,7 +878,10 @@ app.post("/api/tts", async (req, res) => {
     if (!text || !text.trim()) return res.status(400).json({ error: "EMPTY_TEXT" });
 
     if (!ELEVENLABS_API_KEY || !NYX_VOICE_ID) {
-      return res.status(500).json({ error: "TTS_NOT_CONFIGURED", message: "Missing ELEVENLABS_API_KEY or NYX_VOICE_ID" });
+      return res.status(500).json({
+        error: "TTS_NOT_CONFIGURED",
+        message: "Missing ELEVENLABS_API_KEY or NYX_VOICE_ID"
+      });
     }
 
     // (Keep your existing ElevenLabs call here if you already have it.
