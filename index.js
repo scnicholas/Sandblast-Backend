@@ -1,9 +1,10 @@
 //----------------------------------------------------------
 // Sandblast Nyx Backend — Hybrid Brain
 // OpenAI (Responses API) + Local Fallback + Lane Memory + Dynamic Detail
-// Suggestive Intelligence + Emotional Layer + Site Links
-// + Uses: history/clientContext/resolutionHint + public/admin + closing state
-// + New: PUBLIC_SYSTEM_PROMPT vs ADMIN_SYSTEM_PROMPT (same brain, different allowances)
+// + PUBLIC vs ADMIN system prompts
+// + RAG retrieval (public/admin partitions)
+// + Session memory (summary + open loops + recent turns; in-memory for now)
+// + Tools scaffolding (deterministic builders) + routing hooks
 //----------------------------------------------------------
 
 require("dotenv").config();
@@ -16,13 +17,18 @@ const OpenAI = require("openai");
 const { classifyIntent } = require("./Utils/intentClassifier");
 const nyxPersonality = require("./Utils/nyxPersonality");
 
+// NEW
+const { searchIndex } = require("./Utils/ragStore");
+const { getSession, upsertSession, appendTurn } = require("./Utils/sessionStore");
+const { buildSponsorPackage, buildTvBlock, formatNewsCanada } = require("./Utils/tools");
+
 const app = express();
 
 // Body + CORS hardening
 app.use(express.json({ limit: "1mb" }));
 
 const corsOptions = {
-  origin: true, // reflect origin
+  origin: true,
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
   credentials: false
@@ -37,6 +43,9 @@ const NYX_VOICE_ID = process.env.NYX_VOICE_ID;
 
 // Model selection (override in Render if you want)
 const NYX_MODEL = process.env.NYX_MODEL || "gpt-5.2";
+
+// Embeddings model (override if you want)
+const NYX_EMBED_MODEL = process.env.NYX_EMBED_MODEL || "text-embedding-3-large";
 
 // OpenAI client (Responses API)
 const openai = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
@@ -117,9 +126,8 @@ function cleanMeta(meta) {
       stepPhase: null,
       saveHintShown: false,
 
-      // widget fields
-      access: "public", // "public" | "admin" (tactical mode, not secret auth)
-      conversationState: "active" // "active" | "closing" | "closed"
+      access: "public",
+      conversationState: "active"
     };
   }
 
@@ -165,45 +173,10 @@ function detectMoodState(message) {
   const text = (message || "").trim().toLowerCase();
   if (!text) return "steady";
 
-  const frustratedWords = [
-    "annoyed",
-    "upset",
-    "angry",
-    "pissed",
-    "fed up",
-    "this is not working",
-    "why is this",
-    "frustrated",
-    "bug",
-    "broken"
-  ];
-  const overwhelmedWords = [
-    "overwhelmed",
-    "too much",
-    "too many",
-    "i can't keep up",
-    "i cant keep up",
-    "i can't handle",
-    "i cant handle",
-    "this is a lot"
-  ];
-  const excitedWords = [
-    "excited",
-    "hyped",
-    "let's go",
-    "lets go",
-    "this is great",
-    "this is amazing",
-    "love this"
-  ];
-  const tiredWords = [
-    "tired",
-    "exhausted",
-    "drained",
-    "worn out",
-    "need rest",
-    "need a break"
-  ];
+  const frustratedWords = ["annoyed", "upset", "angry", "pissed", "fed up", "this is not working", "frustrated", "bug", "broken"];
+  const overwhelmedWords = ["overwhelmed", "too much", "too many", "i can't keep up", "i cant keep up", "i can't handle", "i cant handle", "this is a lot"];
+  const excitedWords = ["excited", "hyped", "let's go", "lets go", "this is great", "this is amazing", "love this"];
+  const tiredWords = ["tired", "exhausted", "drained", "worn out", "need rest", "need a break"];
 
   if (frustratedWords.some((w) => text.includes(w))) return "frustrated";
   if (overwhelmedWords.some((w) => text.includes(w))) return "overwhelmed";
@@ -266,7 +239,7 @@ function resolveLaneDomain(classification, meta, message) {
 }
 
 //----------------------------------------------------------
-// LANE DETAIL EXTRACTION
+// LANE DETAIL EXTRACTION (unchanged from your current file)
 //----------------------------------------------------------
 function extractLaneDetail(domain, text, prevDetail = {}) {
   const detail = { ...prevDetail };
@@ -457,25 +430,7 @@ function isHesitationMessage(message) {
   const veryShort = text.length <= 4;
   const onlyPunct = /^[\.\?\!\s]+$/.test(text);
 
-  const patterns = [
-    "idk",
-    "i dont know",
-    "i don't know",
-    "not sure",
-    "you pick",
-    "you choose",
-    "up to you",
-    "whatever",
-    "any",
-    "continue",
-    "go on",
-    "what next",
-    "next?",
-    "hmm",
-    "hm",
-    "ok",
-    "okay"
-  ];
+  const patterns = ["idk", "i dont know", "i don't know", "not sure", "you pick", "you choose", "up to you", "whatever", "any", "continue", "go on", "what next", "next?", "hmm", "hm", "ok", "okay"];
 
   if (veryShort || onlyPunct) return true;
   if (patterns.some((p) => text.includes(p))) return true;
@@ -488,7 +443,6 @@ function isHesitationMessage(message) {
 //----------------------------------------------------------
 function buildLaneSuggestion(domain, laneDetail, step) {
   if (step >= 2) return null;
-
   const detail = laneDetail || {};
 
   if (step === 0) {
@@ -497,34 +451,28 @@ function buildLaneSuggestion(domain, laneDetail, step) {
         return detail.mood
           ? `If you want, we can choose one ${detail.mood} show that fits the block and shape around it.`
           : `If you want, we can pick the next part — the mood, the shows, or the timing. One piece is enough.`;
-
       case "radio":
       case "nova":
         return detail.mood
           ? `If you want, we can choose one anchor track or transition that holds that ${detail.mood} vibe.`
           : `If you want, we can set one anchor track or transition to carry the mood for this block.`;
-
       case "sponsors":
         return detail.businessType
           ? `If you want, we can shape one simple offer for a ${detail.businessType} — like a short test run or a few on-air mentions.`
           : `If you want, we can define one simple sponsor offer around a block — nothing complicated.`;
-
       case "ai_help":
       case "ai_consulting":
         return detail.audience
           ? `If you want, we can start with one small AI task that helps ${detail.audience} — writing, summarizing, or outlining.`
           : `If you want, we can pick one small AI task — writing, summarizing, or outlining something you already have.`;
-
       case "tech_support":
         return detail.area
           ? `If you want, we can fix one small piece of the ${detail.area} issue first — just pick where to start.`
           : `If you want, we can tackle one part of the tech first — backend, widget, or endpoint.`;
-
       case "business_support":
         return detail.projectType
           ? `If you want, we can set one clear next step for this ${detail.projectType} so it feels less heavy.`
           : `If you want, we can choose one project and give it a single clear next step.`;
-
       default:
         return `If you want, we can take one small step — just tell me what you feel like shaping first.`;
     }
@@ -542,19 +490,16 @@ function computeStepPhase(domain, laneDetail) {
     if (!laneDetail.startTime && !laneDetail.timeOfDay) return "tv:timing";
     return "tv:refine";
   }
-
   if (domain === "radio" || domain === "nova") {
     if (!laneDetail.mood) return "radio:vibe";
     if (!laneDetail.length) return "radio:length";
     return "radio:refine";
   }
-
   if (domain === "sponsors") {
     if (!laneDetail.businessType) return "sponsors:type";
     if (!laneDetail.budgetTier) return "sponsors:budget";
     return "sponsors:offer";
   }
-
   return null;
 }
 
@@ -563,7 +508,6 @@ function computeStepPhase(domain, laneDetail) {
 //----------------------------------------------------------
 function buildUiLinks(domain) {
   const links = [];
-
   if (domain === "tv") {
     links.push({ label: "TV overview (sandblast.channel)", url: "https://www.sandblast.channel#tv" });
     links.push({ label: "TV portal (sandblastchannel.com)", url: "https://www.sandblastchannel.com" });
@@ -580,7 +524,6 @@ function buildUiLinks(domain) {
     links.push({ label: "Main site (sandblast.channel)", url: "https://www.sandblast.channel" });
     links.push({ label: "Broadcast portal (sandblastchannel.com)", url: "https://www.sandblastchannel.com" });
   }
-
   return links;
 }
 
@@ -590,7 +533,6 @@ function buildUiLinks(domain) {
 function localBrainReply(message, classification, meta) {
   const domain = classification?.domain || "general";
   const intent = classification?.intent || "statement";
-  const detail = meta?.laneDetail || {};
   const moodState = meta.moodState || "steady";
 
   const moodPrefix =
@@ -604,62 +546,24 @@ function localBrainReply(message, classification, meta) {
       ? "I love that energy — let’s use it well.\n\n"
       : "";
 
-  if (intent === "greeting") {
-    return moodPrefix + "Hey, I’m here. How’s your day going? TV, radio, sponsors, News Canada, or AI?";
-  }
+  if (intent === "greeting") return moodPrefix + "Hey, I’m here. How’s your day going? TV, radio, sponsors, News Canada, or AI?";
+  if (intent === "smalltalk") return moodPrefix + "I’m good. What do you want to tune — TV, radio, sponsors, News Canada, or AI?";
 
-  if (intent === "smalltalk") {
-    return moodPrefix + "I’m good. What do you want to tune — TV, radio, sponsors, News Canada, or AI?";
-  }
+  if (domain === "tv") return moodPrefix + "Tell me the vibe + time slot, and I’ll shape a TV block.";
+  if (domain === "radio" || domain === "nova") return moodPrefix + "Tell me the mood + length, and I’ll map a clean radio flow.";
+  if (domain === "sponsors") return moodPrefix + "Tell me sponsor type + budget tier, and I’ll sketch a simple package.";
+  if (domain === "news" || domain === "news_canada") return moodPrefix + "Tell me: TV blocks, radio mentions, or web highlights?";
 
-  if (domain === "tv") {
-    return (
-      moodPrefix +
-      `Let’s shape one TV block.\n\n` +
-      `Tell me the vibe (detective, western, family, etc.) and the rough time slot, and we’ll build around it.`
-    );
-  }
-
-  if (domain === "radio" || domain === "nova") {
-    return (
-      moodPrefix +
-      `Let’s build a clean radio block.\n\n` +
-      `Tell me the mood (late-night, Gospel Sunday, retro party) and the length, and I’ll map a light flow.`
-    );
-  }
-
-  if (domain === "sponsors") {
-    const biz = detail.businessType;
-    return (
-      moodPrefix +
-      `We can keep sponsor offers simple.\n\n` +
-      (biz ? `Tell me the sponsor (${biz}) and we’ll sketch a small test package.\n` : `Tell me the sponsor type and budget tier.\n`) +
-      `Next action: pick one block to sponsor and run a 4-week test.`
-    );
-  }
-
-  if (domain === "news" || domain === "news_canada") {
-    return (
-      moodPrefix +
-      `Let’s make News Canada useful inside Sandblast.\n\n` +
-      `Tell me: do you want it to feed TV blocks, radio mentions, or web highlights?`
-    );
-  }
-
-  return (
-    moodPrefix +
-    `I’m with you.\n\n` +
-    `Tell me whether you’re thinking TV, radio, sponsors, News Canada, or AI — and what “done” looks like.`
-  );
+  return moodPrefix + "Tell me whether you’re thinking TV, radio, sponsors, News Canada, or AI — and what “done” looks like.";
 }
 
 //----------------------------------------------------------
-// OPENAI BRAIN (Responses API)
+// OPENAI BRAIN (Responses API) + RAG + Session Memory
 //----------------------------------------------------------
 function normalizeHistoryItems(history) {
   if (!Array.isArray(history)) return [];
   return history
-    .slice(-12)
+    .slice(-10)
     .map((h) => {
       const role = h && h.role === "assistant" ? "assistant" : "user";
       const content = String(h && h.content ? h.content : "").slice(0, 2400);
@@ -668,9 +572,16 @@ function normalizeHistoryItems(history) {
     .filter(Boolean);
 }
 
-function buildDeveloperContext(meta, classification, clientContext, resolutionHint) {
+function buildSystemPrompt(meta) {
+  return meta && meta.access === "admin" ? ADMIN_SYSTEM_PROMPT : PUBLIC_SYSTEM_PROMPT;
+}
+
+function buildDeveloperContext(meta, classification, clientContext, resolutionHint, session) {
   const access = meta.access || "public";
   const state = meta.conversationState || "active";
+
+  const sessionSummary = session?.summary ? String(session.summary).slice(0, 1200) : "";
+  const openLoops = Array.isArray(session?.openLoops) ? session.openLoops.slice(0, 8) : [];
 
   return (
     `Context:\n` +
@@ -688,15 +599,48 @@ function buildDeveloperContext(meta, classification, clientContext, resolutionHi
     `- pageUrl: ${String(clientContext?.pageUrl || "")}\n` +
     `- referrer: ${String(clientContext?.referrer || "")}\n` +
     `- timestamp: ${String(clientContext?.timestamp || "")}\n` +
-    `- resolutionStyle: ${String(resolutionHint?.resolutionStyle || "Answer clearly. Confirm resolved. One next action.")}\n`
+    `- resolutionStyle: ${String(resolutionHint?.resolutionStyle || "Answer clearly. Confirm resolved. One next action.")}\n` +
+    (sessionSummary ? `- sessionSummary: ${sessionSummary}\n` : "") +
+    (openLoops.length ? `- openLoops: ${JSON.stringify(openLoops)}\n` : "")
   );
 }
 
-function buildSystemPrompt(meta) {
-  return meta && meta.access === "admin" ? ADMIN_SYSTEM_PROMPT : PUBLIC_SYSTEM_PROMPT;
+async function embedQuery(text) {
+  if (!openai) throw new Error("OPENAI_NOT_CONFIGURED");
+  const r = await openai.embeddings.create({
+    model: NYX_EMBED_MODEL,
+    input: text
+  });
+  return r.data[0].embedding;
 }
 
-async function callBrain({ message, classification, meta, history, clientContext, resolutionHint }) {
+function shouldUseTool(domain, message) {
+  const t = (message || "").toLowerCase();
+  if (domain === "sponsors" && (t.includes("package") || t.includes("offer") || t.includes("pricing") || t.includes("rate"))) return "sponsor_package";
+  if (domain === "tv" && (t.includes("block") || t.includes("grid") || t.includes("schedule") || t.includes("time slot"))) return "tv_block";
+  if ((domain === "news" || domain === "news_canada") && (t.includes("format") || t.includes("post") || t.includes("segment") || t.includes("placement"))) return "news_format";
+  return null;
+}
+
+async function callBrain({ message, classification, meta, history, clientContext, resolutionHint, session }) {
+  // Tool-first deterministic outputs for “operator-grade” consistency
+  const tool = shouldUseTool(classification.domain, message);
+  if (tool) {
+    if (tool === "sponsor_package") {
+      const out = buildSponsorPackage(meta.laneDetail?.businessType, meta.laneDetail?.budgetTier);
+      return out;
+    }
+    if (tool === "tv_block") {
+      const out = buildTvBlock(meta.laneDetail?.mood, meta.laneDetail?.timeOfDay, meta.laneDetail?.decade);
+      return out;
+    }
+    if (tool === "news_format") {
+      const out = formatNewsCanada(message, meta.access);
+      return out;
+    }
+  }
+
+  // greetings stay fast
   if (classification.intent === "greeting" || classification.intent === "smalltalk") {
     return localBrainReply(message, classification, meta);
   }
@@ -707,10 +651,33 @@ async function callBrain({ message, classification, meta, history, clientContext
   }
 
   const systemPrompt = buildSystemPrompt(meta);
-  const developerContext = buildDeveloperContext(meta, classification, clientContext, resolutionHint);
+
+  // RAG retrieval (public/admin partitions)
+  let ragContext = "";
+  try {
+    const qEmb = await embedQuery(message);
+    const access = meta.access === "admin" ? "admin" : "public";
+    const hits = searchIndex(qEmb, access, 5);
+
+    if (hits && hits.length) {
+      ragContext =
+        "Sandblast Knowledge (retrieved):\n" +
+        hits
+          .map((h) => `- [${h.access}:${h.source}#${h.chunkIndex}] ${String(h.text).slice(0, 900)}`)
+          .join("\n\n");
+    }
+  } catch (e) {
+    // Safe degrade if rag_index is missing
+    console.warn("[RAG] skipped:", e?.message || e);
+  }
+
+  const developerContext = buildDeveloperContext(meta, classification, clientContext, resolutionHint, session);
   const historyItems = normalizeHistoryItems(history);
 
-  const userPrompt = `User message: "${message}".\nUse lane detail + mood state if helpful. Keep it concise.`;
+  const userPrompt =
+    `User message: "${message}".\n` +
+    `Use lane detail + mood state if helpful. Keep it concise.\n` +
+    `If conversationState is "closing", do NOT output a farewell.`;
 
   try {
     const response = await openai.responses.create({
@@ -718,6 +685,7 @@ async function callBrain({ message, classification, meta, history, clientContext
       input: [
         { role: "system", content: systemPrompt },
         { role: "developer", content: developerContext },
+        ...(ragContext ? [{ role: "developer", content: ragContext }] : []),
         ...historyItems,
         { role: "user", content: userPrompt }
       ]
@@ -734,29 +702,14 @@ async function callBrain({ message, classification, meta, history, clientContext
 //----------------------------------------------------------
 // ROUTES
 //----------------------------------------------------------
-app.get("/", (req, res) => {
-  res.send("Sandblast Nyx backend is running.");
-});
-
-app.get("/health", (req, res) => {
-  res.json({ status: "ok", service: "sandblast-nyx-backend" });
-});
+app.get("/", (req, res) => res.send("Sandblast Nyx backend is running."));
+app.get("/health", (req, res) => res.json({ status: "ok", service: "sandblast-nyx-backend" }));
 
 // MAIN BRAIN ENDPOINT
 app.post("/api/sandblast-gpt", async (req, res) => {
   try {
-    const {
-      message,
-      meta: incomingMeta,
-      mode,
-      history,
-      clientContext,
-      resolutionHint
-    } = req.body || {};
-
-    if (!message || !message.trim()) {
-      return res.status(400).json({ error: "EMPTY_MESSAGE" });
-    }
+    const { message, meta: incomingMeta, mode, history, clientContext, resolutionHint } = req.body || {};
+    if (!message || !message.trim()) return res.status(400).json({ error: "EMPTY_MESSAGE" });
 
     const clean = message.trim();
     let meta = cleanMeta(incomingMeta);
@@ -764,13 +717,12 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     // Admin backdoor remains intact
     if (isAdminMessage(req.body)) {
       meta.access = "admin";
-      return res.json({
-        ok: true,
-        admin: true,
-        message: "Admin backdoor reached. Debug hooks can live here later.",
-        meta
-      });
+      return res.json({ ok: true, admin: true, message: "Admin backdoor reached. Debug hooks can live here later.", meta });
     }
+
+    // Session memory
+    const sessionId = meta.sessionId;
+    const session = getSession(sessionId);
 
     // Mood
     const moodState = detectMoodState(clean);
@@ -788,11 +740,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 
     // Lane age
     let laneAge = meta.laneAge || 0;
-    if (classification.domain && classification.domain === meta.currentLane) {
-      laneAge = laneAge + 1;
-    } else {
-      laneAge = 1;
-    }
+    laneAge = classification.domain && classification.domain === meta.currentLane ? laneAge + 1 : 1;
 
     // Personality hooks (kept)
     let frontDoor = null;
@@ -821,7 +769,8 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       meta: metaForBrain,
       history,
       clientContext,
-      resolutionHint
+      resolutionHint,
+      session
     });
 
     // Micro-transition wrapper (kept)
@@ -896,6 +845,15 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 
     const uiLinks = buildUiLinks(classification.domain);
 
+    // Update session memory (lightweight + safe)
+    appendTurn(sessionId, { role: "user", content: clean });
+    appendTurn(sessionId, { role: "assistant", content: finalReply });
+
+    upsertSession(sessionId, {
+      summary: session?.summary || "",
+      openLoops: session?.openLoops || []
+    });
+
     res.json({
       ok: true,
       reply: finalReply,
@@ -907,7 +865,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       meta: updatedMeta,
       uiHints,
       uiLinks,
-      links: uiLinks // alias for widget compatibility
+      links: uiLinks
     });
   } catch (err) {
     console.error("[Nyx] /api/sandblast-gpt error:", err.message);
@@ -926,30 +884,17 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 app.post("/api/tts", async (req, res) => {
   try {
     const { text } = req.body || {};
-    if (!text || !text.trim()) {
-      return res.status(400).json({ error: "EMPTY_TEXT" });
-    }
+    if (!text || !text.trim()) return res.status(400).json({ error: "EMPTY_TEXT" });
 
     if (!ELEVENLABS_API_KEY || !NYX_VOICE_ID) {
-      return res.status(500).json({
-        error: "TTS_NOT_CONFIGURED",
-        message: "Missing ELEVENLABS_API_KEY or NYX_VOICE_ID."
-      });
+      return res.status(500).json({ error: "TTS_NOT_CONFIGURED", message: "Missing ELEVENLABS_API_KEY or NYX_VOICE_ID." });
     }
 
     const ttsRes = await axios.post(
       `https://api.elevenlabs.io/v1/text-to-speech/${NYX_VOICE_ID}`,
+      { text, model_id: "eleven_monolingual_v1", voice_settings: { stability: 0.45, similarity_boost: 0.85 } },
       {
-        text,
-        model_id: "eleven_monolingual_v1",
-        voice_settings: { stability: 0.45, similarity_boost: 0.85 }
-      },
-      {
-        headers: {
-          "xi-api-key": ELEVENLABS_API_KEY,
-          "Content-Type": "application/json",
-          Accept: "audio/mpeg"
-        },
+        headers: { "xi-api-key": ELEVENLABS_API_KEY, "Content-Type": "application/json", Accept: "audio/mpeg" },
         responseType: "arraybuffer"
       }
     );
@@ -958,17 +903,11 @@ app.post("/api/tts", async (req, res) => {
     res.send(Buffer.from(ttsRes.data));
   } catch (err) {
     console.error("[Nyx] TTS error:", err?.response?.data || err.message);
-    res.status(500).json({
-      ok: false,
-      error: "TTS_FAILED",
-      details: err?.response?.data || err.message
-    });
+    res.status(500).json({ ok: false, error: "TTS_FAILED", details: err?.response?.data || err.message });
   }
 });
 
 //----------------------------------------------------------
 // START SERVER
 //----------------------------------------------------------
-app.listen(PORT, () => {
-  console.log(`Nyx hybrid backend listening on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`Nyx hybrid backend listening on port ${PORT}`));
