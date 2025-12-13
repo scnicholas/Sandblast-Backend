@@ -17,6 +17,9 @@ const OpenAI = require("openai");
 const { classifyIntent } = require("./Utils/intentClassifier");
 const nyxPersonality = require("./Utils/nyxPersonality");
 
+// ✅ BUILD STAMP (lets you confirm you’re hitting the correct Render deploy)
+const BUILD_TAG = "nyx-music-history-fix-2025-12-13b";
+
 // ---------------------------------------------------------
 // OPTIONAL MODULES (do NOT crash if missing)
 // ---------------------------------------------------------
@@ -342,10 +345,8 @@ function resolveLaneDomain(classification, meta, message) {
 
 //----------------------------------------------------------
 // LANE DETAIL EXTRACTION (placeholder-safe)
-// If your full version is already in your file, keep yours.
 //----------------------------------------------------------
 function extractLaneDetail(domain, text, prevDetail = {}) {
-  // Minimal safe version (won’t break). You can paste your full extractor over this.
   const detail = { ...prevDetail };
   const lower = (text || "").toLowerCase();
 
@@ -369,7 +370,6 @@ function extractLaneDetail(domain, text, prevDetail = {}) {
 //----------------------------------------------------------
 // HESITATION DETECTION
 //----------------------------------------------------------
-// FIX: make hesitation lane-aware so music_history questions don't get overridden
 function isHesitationMessage(message, classification) {
   // Never treat valid music history queries as hesitation
   if (classification?.domain === "music_history") return false;
@@ -619,6 +619,7 @@ function buildDeveloperContext(
 
   return (
     `Context:\n` +
+    `- build: ${BUILD_TAG}\n` +
     `- access: ${access}\n` +
     `- conversationState: ${state}\n` +
     `- domain: ${classification.domain}\n` +
@@ -784,7 +785,7 @@ async function callBrain({
 //----------------------------------------------------------
 app.get("/", (req, res) => res.send("Sandblast Nyx backend is running."));
 app.get("/health", (req, res) =>
-  res.json({ status: "ok", service: "sandblast-nyx-backend" })
+  res.json({ status: "ok", service: "sandblast-nyx-backend", build: BUILD_TAG })
 );
 
 // MAIN BRAIN ENDPOINT
@@ -813,6 +814,12 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     const rawClassification = classifyIntent(clean);
     const effectiveDomain = resolveLaneDomain(rawClassification, meta, clean);
     const classification = { ...rawClassification, domain: effectiveDomain };
+
+    // ✅ HARD OVERRIDE: if classifier thinks music history, it wins (chips/mode can’t pull it away)
+    if (rawClassification?.domain === "music_history" || rawClassification?.intent === "music_history") {
+      classification.domain = "music_history";
+      classification.intent = "music_history";
+    }
 
     // Lane detail
     const newLaneDetail = extractLaneDetail(
@@ -947,6 +954,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 
     res.json({
       ok: true,
+      build: BUILD_TAG,
       reply: finalReply,
       frontDoor,
       domain: classification.domain,
@@ -994,5 +1002,5 @@ app.post("/api/tts", async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`[Nyx] Server running on port ${PORT}`);
+  console.log(`[Nyx] Server running on port ${PORT} (build ${BUILD_TAG})`);
 });
