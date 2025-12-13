@@ -239,7 +239,7 @@ function resolveLaneDomain(classification, meta, message) {
 }
 
 //----------------------------------------------------------
-// LANE DETAIL EXTRACTION (unchanged from your current file)
+// LANE DETAIL EXTRACTION
 //----------------------------------------------------------
 function extractLaneDetail(domain, text, prevDetail = {}) {
   const detail = { ...prevDetail };
@@ -652,12 +652,24 @@ async function callBrain({ message, classification, meta, history, clientContext
 
   const systemPrompt = buildSystemPrompt(meta);
 
-  // RAG retrieval (public/admin partitions)
+  // RAG retrieval (public/admin partitions) — OFFLINE SAFE
   let ragContext = "";
   try {
-    const qEmb = await embedQuery(message);
     const access = meta.access === "admin" ? "admin" : "public";
-    const hits = searchIndex(qEmb, access, 5);
+    let hits = [];
+
+    // Try embeddings first (best), fall back to offline text search if quota/rate-limited
+    if (openai) {
+      try {
+        const qEmb = await embedQuery(message);
+        hits = searchIndex(qEmb, access, 5);
+      } catch (e) {
+        hits = searchIndex(message, access, 5);
+        console.warn("[RAG] retrieval fallback:", e?.message || e);
+      }
+    } else {
+      hits = searchIndex(message, access, 5);
+    }
 
     if (hits && hits.length) {
       ragContext =
@@ -667,8 +679,7 @@ async function callBrain({ message, classification, meta, history, clientContext
           .join("\n\n");
     }
   } catch (e) {
-    // Safe degrade if rag_index is missing
-    console.warn("[RAG] skipped:", e?.message || e);
+    console.warn("[RAG] retrieval skipped:", e?.message || e);
   }
 
   const developerContext = buildDeveloperContext(meta, classification, clientContext, resolutionHint, session);
