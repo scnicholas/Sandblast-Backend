@@ -1,7 +1,8 @@
 // ----------------------------------------------------------
 // Sandblast Nyx Backend — Music Foundation Stabilized
 // + 429 fallback
-// + Music Knowledge Layer v1 (INLINE, offline-first, no extra files)
+// + Music Knowledge Layer v1 (INLINE, offline-first)
+// + AUTO-PROMOTION: route chart/history queries into music_history when OpenAI is unavailable
 // ----------------------------------------------------------
 
 require("dotenv").config();
@@ -14,7 +15,7 @@ const { classifyIntent } = require("./Utils/intentClassifier");
 const nyxPersonality = require("./Utils/nyxPersonality"); // kept
 
 // BUILD TAG
-const BUILD_TAG = "nyx-music-foundation-stable-2025-12-14f";
+const BUILD_TAG = "nyx-music-foundation-stable-2025-12-14g";
 
 // ---------------------------------------------------------
 // OPTIONAL MODULES (safe-degrade)
@@ -161,7 +162,13 @@ function looksMusicHistoryQuery(text) {
     t.includes("number 1") ||
     t.includes("number one") ||
     t.includes("weeks at") ||
-    t.includes("peak")
+    t.includes("peak") ||
+    // artist anchors (v1)
+    t.includes("madonna") ||
+    t.includes("michael jackson") ||
+    t.includes("mj") ||
+    t.includes("whitney") ||
+    t.includes("beatles")
   );
 }
 
@@ -169,7 +176,6 @@ function findMoment({ text, laneDetail }) {
   const t = norm(text);
   const year = extractYear(text) || (laneDetail && laneDetail.year ? Number(laneDetail.year) : null);
 
-  // artist/title hints (v1 minimal)
   const hasMadonna = t.includes("madonna");
   const hasMJ = t.includes("michael jackson") || t.includes("mj");
   const hasWhitney = t.includes("whitney");
@@ -182,7 +188,6 @@ function findMoment({ text, laneDetail }) {
     "i want to hold your hand": t.includes("i want to hold your hand")
   };
 
-  // Exact-ish match pass
   for (const m of MUSIC_KNOWLEDGE_V1.moments) {
     const artistOk =
       (hasMadonna && m.artist === "madonna") ||
@@ -202,7 +207,6 @@ function findMoment({ text, laneDetail }) {
 
 function formatMomentReply(moment, laneDetail) {
   const chart = (laneDetail && laneDetail.chart) || moment.chart || MUSIC_KNOWLEDGE_V1.defaultChart;
-  // Keep it broadcast-tight
   return `${moment.fact} (${chart})\nCultural note: ${moment.culture}\nNext step: ${moment.next}`;
 }
 
@@ -213,14 +217,13 @@ function formatMomentReply(moment, laneDetail) {
 function answerMusicHistoryOffline(message, laneDetail) {
   const t = norm(message);
 
-  // If it doesn't look like music history at all, don't intercept.
-  if (!looksMusicHistoryQuery(message) && !t.includes("madonna") && !t.includes("beatles") && !t.includes("whitney") && !t.includes("michael jackson") && !t.includes("mj")) {
+  if (!looksMusicHistoryQuery(message)) {
     return { handled: false };
   }
 
   const year = extractYear(message) || (laneDetail && laneDetail.year ? Number(laneDetail.year) : null);
 
-  // If user asks "When was Madonna #1" without year/title, ask once (awaiting guard in laneDetail)
+  // "When was Madonna #1" with no year/title → ask once (awaiting guard handled in laneDetail)
   if (t.includes("madonna") && !year && !t.includes("like a virgin")) {
     return {
       handled: true,
@@ -307,7 +310,23 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     const session = getSession(meta.sessionId);
 
     const raw = classifyIntent(clean);
-    const domain = resolveLaneDomain(raw, meta);
+
+    // ✅ initial domain from classifier
+    let domain = resolveLaneDomain(raw, meta);
+
+    // ------------------------------
+    // AUTO-PROMOTION FIX (THE POINT)
+    // If OpenAI is not usable (missing key OR quota/rate-limited), and message looks like chart/music history,
+    // force domain to music_history so offline layer answers instead of "lane: general" fallback.
+    // ------------------------------
+    const openaiPresent = !!openai;
+    const messageLooksLikeMusic = looksMusicHistoryQuery(clean);
+
+    // We don't yet know 429 on this request, but we DO know "OpenAI not configured" right away.
+    // Also: if you're already hitting quota, this promotion ensures offline layer answers even when classifier says general.
+    if ((!openaiPresent) && messageLooksLikeMusic) {
+      domain = "music_history";
+    }
 
     // ------------------------------
     // MUSIC HISTORY DETAIL HANDLING
@@ -315,26 +334,24 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     let laneDetail = { ...(meta.laneDetail || {}) };
 
     if (domain === "music_history") {
-      // Capture year-only replies
       if (isYearOnlyMessage(clean)) {
         laneDetail.year = clean.trim();
         laneDetail = clearAwaiting(laneDetail);
       }
 
-      // Capture chart names
       if (looksLikeChartName(clean)) {
         laneDetail.chart = clean.trim();
         laneDetail = clearAwaiting(laneDetail);
       }
 
-      // ✅ OFFLINE-FIRST: Knowledge Layer v1
+      // ✅ OFFLINE-FIRST: Knowledge Layer v1 (handles even when OpenAI is down)
       const kb = answerMusicHistoryOffline(clean, laneDetail);
       if (kb && kb.handled) {
         if (kb.metaPatch && typeof kb.metaPatch === "object") {
           laneDetail = { ...(laneDetail || {}), ...kb.metaPatch };
         }
 
-        // If we answered, we should not keep awaiting active
+        // If we answered and have enough context, clear awaiting
         if (laneDetail.awaiting && (laneDetail.year || laneDetail.chart)) {
           laneDetail = clearAwaiting(laneDetail);
         }
@@ -362,7 +379,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
         });
       }
 
-      // If we still lack year AND haven't asked yet, ask once
+      // One-time clarifier (still kept)
       if (!laneDetail.year && laneDetail.awaiting !== "year_or_date") {
         laneDetail = setAwaiting(laneDetail, "year_or_date");
 
@@ -381,7 +398,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
         });
       }
 
-      // If we already asked, DO NOT LOOP — proceed with defaults
+      // No loop
       if (!laneDetail.year && laneDetail.awaiting === "year_or_date") {
         laneDetail = clearAwaiting(laneDetail);
         laneDetail.chart = laneDetail.chart || MUSIC_KNOWLEDGE_V1.defaultChart;
@@ -426,8 +443,48 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       openaiUnavailableReason = "OPENAI_NOT_CONFIGURED";
     }
 
+    // ✅ SECOND STAGE AUTO-PROMOTION:
+    // If OpenAI failed this request with 429 and message looks like music, route to offline music immediately.
+    if (!reply && openaiUnavailableReason === "OPENAI_429_QUOTA" && looksMusicHistoryQuery(clean)) {
+      domain = "music_history";
+
+      // Run offline layer now (even though classifier said general)
+      const kb = answerMusicHistoryOffline(clean, laneDetail);
+      if (kb && kb.handled) {
+        if (kb.metaPatch && typeof kb.metaPatch === "object") {
+          laneDetail = { ...(laneDetail || {}), ...kb.metaPatch };
+        }
+
+        const updatedMeta = {
+          ...meta,
+          stepIndex: meta.stepIndex + 1,
+          lastDomain: "music_history",
+          lastIntent: raw.intent,
+          currentLane: "music_history",
+          laneDetail,
+          laneAge: meta.laneAge + 1
+        };
+
+        appendTurn(meta.sessionId, { role: "user", content: clean });
+        appendTurn(meta.sessionId, { role: "assistant", content: kb.reply });
+        upsertSession(meta.sessionId, session);
+
+        return res.json({
+          ok: true,
+          reply: kb.reply,
+          domain: "music_history",
+          intent: raw.intent,
+          meta: updatedMeta
+        });
+      }
+
+      // Fallback if KB didn’t match
+      reply = localMusicFallback(clean, laneDetail);
+      reply = `I’m temporarily rate-limited on the AI brain, so I’m running in offline music mode.\n\n${reply}`;
+    }
+
     // -------------------------------------------------
-    // FALLBACKS (keep Nyx useful even if OpenAI is down)
+    // FALLBACKS
     // -------------------------------------------------
     if (!reply) {
       if (domain === "music_history") {
