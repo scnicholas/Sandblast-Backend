@@ -13,27 +13,23 @@ function classifyIntent(message) {
   const text = message.trim().toLowerCase();
 
   // -------------------------
-  // MUSIC HISTORY DETECTOR (NEW)
+  // MUSIC HISTORY DETECTOR (UPDATED)
   // -------------------------
   function detectMusicHistoryIntent(t) {
-    // Chart-specific signals
+    // Chart-specific signals (expanded)
     const hasChartSignals =
-      /\b(hot\s*100|billboard|top\s*40|top40|chart|charts|charting|#\s*1|number\s*one|no\.\s*1|peak|peaked|weeks?\s+at|debut|top\s*10|year[-\s]*end)\b/.test(
+      /\b(hot\s*100|billboard|top\s*40|top40|chart|charts|charting|hit\s*parade|weekly\s*chart|year[-\s]*end|top\s*10)\b/.test(
         t
-      );
+      ) ||
+      /\b(#\s*1|#1|number\s*one|number\s*1|no\.\s*1|no\s*1|no1)\b/.test(t) ||
+      /\b(weeks?\s+at\s+(#\s*1|#1|number\s*one|number\s*1|no\.\s*1|no\s*1))\b/.test(
+        t
+      ) ||
+      /\b(peak|peaked|debut)\b/.test(t);
 
-    // Time/date signals
-    const hasDateSignals =
-      /\b(19\d{2}|20\d{2})\b/.test(t) ||
-      /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)\b/.test(t) ||
-      /\b(this\s*week|week\s*of|on\s+this\s+date|in\s+\d{4})\b/.test(t);
-
-    // Music entity language (helps classify artist/song questions that still reference charts)
-    const hasMusicEntitySignals =
-      /\b(song|single|track|artist|band|album|hit|radio\s+hit)\b/.test(t);
-
-    // Avoid grabbing general "radio" conversations unless chart language is present
-    return hasChartSignals && (hasDateSignals || hasMusicEntitySignals);
+    // If it smells like chart talk, treat it as music history.
+    // Nyx can ask ONE clarifying question (which chart / which year / which country) if needed.
+    return hasChartSignals;
   }
 
   // -------------------------
@@ -65,7 +61,7 @@ function classifyIntent(message) {
     "how's it going"
   ];
 
-  // NEW: Music history intent gets priority before generic question handling
+  // Music history intent gets priority before generic question handling
   if (detectMusicHistoryIntent(text)) {
     intent = "music_history";
     confidence = 0.92;
@@ -200,7 +196,7 @@ function classifyIntent(message) {
 
   const novaHits = hitCount(["nova", "dj nova", "nova intro", "nova voice"]);
 
-  // NEW: Music history domain hits (chart language)
+  // Music history domain hits (expanded)
   const musicHistoryHits = hitCount([
     "billboard",
     "hot 100",
@@ -209,25 +205,30 @@ function classifyIntent(message) {
     "chart",
     "charts",
     "#1",
+    "# 1",
     "number one",
+    "number 1",
     "no. 1",
+    "no 1",
+    "no1",
     "peak",
     "debut",
     "weeks at",
-    "year-end"
+    "year-end",
+    "weekly chart",
+    "hit parade"
   ]);
 
   // Priority ordering: tech > ai > music_history > sponsors > radio/nova > tv > business
-  // Note: tech stays highest so debugging never gets misrouted.
   if (techHits > 0) {
     domain = "tech_support";
     domainConfidence = 0.85;
   } else if (aiHits > 0) {
     domain = "ai_help";
     domainConfidence = 0.8;
-  } else if (musicHistoryHits > 0 && detectMusicHistoryIntent(text)) {
+  } else if (intent === "music_history" || (musicHistoryHits > 0 && detectMusicHistoryIntent(text))) {
     domain = "music_history";
-    domainConfidence = 0.85;
+    domainConfidence = 0.88;
   } else if (sponsorHits > 0) {
     domain = "sponsors";
     domainConfidence = 0.8;
