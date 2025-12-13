@@ -512,4 +512,487 @@ function buildUiLinks(domain) {
 
 //----------------------------------------------------------
 // LOCAL BRAIN (fallback)
-//-------------------------------------------
+//----------------------------------------------------------
+function localBrainReply(message, classification, meta) {
+  const domain = classification?.domain || "general";
+  const intent = classification?.intent || "statement";
+  const moodState = meta.moodState || "steady";
+
+  const moodPrefix =
+    moodState === "frustrated"
+      ? "I hear you. Let’s keep this light and clear.\n\n"
+      : moodState === "overwhelmed"
+      ? "We’ll take this one small step at a time.\n\n"
+      : moodState === "tired"
+      ? "We can keep this simple so it doesn’t drain you.\n\n"
+      : moodState === "excited"
+      ? "Good energy — let’s use it well.\n\n"
+      : "";
+
+  if (intent === "greeting")
+    return (
+      moodPrefix +
+      "Hey, I’m here. TV, radio, music history, sponsors, News Canada, or AI?"
+    );
+  if (intent === "smalltalk")
+    return (
+      moodPrefix +
+      "I’m good. What do you want to tune — TV, radio, music history, sponsors, News Canada, or AI?"
+    );
+
+  if (domain === "music_history")
+    return (
+      moodPrefix +
+      "Give me a year (or a week/date) and I’ll tell you what was #1 — plus one quick cultural note and a next step."
+    );
+
+  if (domain === "tv")
+    return moodPrefix + "Tell me the vibe + time slot, and I’ll shape a TV block.";
+  if (domain === "radio" || domain === "nova")
+    return moodPrefix + "Tell me the mood + length, and I’ll map a clean radio flow.";
+  if (domain === "sponsors")
+    return moodPrefix + "Tell me sponsor type + budget tier, and I’ll sketch a simple package.";
+  if (domain === "news" || domain === "news_canada")
+    return moodPrefix + "Tell me: TV blocks, radio mentions, or web highlights?";
+
+  return (
+    moodPrefix +
+    "Tell me whether you’re thinking TV, radio, music history, sponsors, News Canada, or AI — and what “done” looks like."
+  );
+}
+
+//----------------------------------------------------------
+// OPENAI BRAIN (Responses API) + optional RAG + Session Memory
+//----------------------------------------------------------
+function normalizeHistoryItems(history) {
+  if (!Array.isArray(history)) return [];
+  return history
+    .slice(-10)
+    .map((h) => {
+      const role = h && h.role === "assistant" ? "assistant" : "user";
+      const content = String(h && h.content ? h.content : "").slice(0, 2400);
+      return content ? { role, content } : null;
+    })
+    .filter(Boolean);
+}
+
+function buildSystemPrompt(meta) {
+  let base =
+    meta && meta.access === "admin" ? ADMIN_SYSTEM_PROMPT : PUBLIC_SYSTEM_PROMPT;
+
+  // Inject music historian rules when in music_history lane
+  if (meta && meta.currentLane === "music_history") {
+    base += `
+
+Additional Role — Music History Mode:
+You are Nyx, Sandblast’s broadcast music historian.
+
+Rules:
+- Anchor every answer in a specific week, date, or year.
+- Provide exactly ONE chart fact (rank, peak, weeks, debut, etc.).
+- Provide exactly ONE cultural or industry insight.
+- Close with ONE listener-friendly next action.
+- Keep responses concise, broadcast-ready, and conversational.
+- If uncertain, say "Chart records indicate…" and avoid absolutes.
+`;
+  }
+
+  return base.trim();
+}
+
+function buildDeveloperContext(
+  meta,
+  classification,
+  clientContext,
+  resolutionHint,
+  session
+) {
+  const access = meta.access || "public";
+  const state = meta.conversationState || "active";
+
+  const sessionSummary = session?.summary
+    ? String(session.summary).slice(0, 1200)
+    : "";
+  const openLoops = Array.isArray(session?.openLoops)
+    ? session.openLoops.slice(0, 8)
+    : [];
+
+  return (
+    `Context:\n` +
+    `- access: ${access}\n` +
+    `- conversationState: ${state}\n` +
+    `- domain: ${classification.domain}\n` +
+    `- intent: ${classification.intent}\n` +
+    `- confidence: ${classification.confidence}\n` +
+    `- sessionId: ${meta.sessionId}\n` +
+    `- moodState: ${meta.moodState}\n` +
+    `- laneAge: ${meta.laneAge}\n` +
+    `- laneDetail: ${JSON.stringify(meta.laneDetail || {})}\n` +
+    `- stepPhase: ${meta.stepPhase}\n` +
+    `- presetMode: ${meta.presetMode}\n` +
+    `- pageUrl: ${String(clientContext?.pageUrl || "")}\n` +
+    `- referrer: ${String(clientContext?.referrer || "")}\n` +
+    `- timestamp: ${String(clientContext?.timestamp || "")}\n` +
+    `- resolutionStyle: ${String(
+      resolutionHint?.resolutionStyle ||
+        "Answer clearly. Confirm resolved. One next action."
+    )}\n` +
+    (sessionSummary ? `- sessionSummary: ${sessionSummary}\n` : "") +
+    (openLoops.length ? `- openLoops: ${JSON.stringify(openLoops)}\n` : "")
+  );
+}
+
+async function embedQuery(text) {
+  if (!openai) throw new Error("OPENAI_NOT_CONFIGURED");
+  const r = await openai.embeddings.create({
+    model: NYX_EMBED_MODEL,
+    input: text
+  });
+  return r.data[0].embedding;
+}
+
+function shouldUseTool(domain, message) {
+  const t = (message || "").toLowerCase();
+  if (
+    domain === "sponsors" &&
+    (t.includes("package") ||
+      t.includes("offer") ||
+      t.includes("pricing") ||
+      t.includes("rate"))
+  )
+    return "sponsor_package";
+  if (
+    domain === "tv" &&
+    (t.includes("block") ||
+      t.includes("grid") ||
+      t.includes("schedule") ||
+      t.includes("time slot"))
+  )
+    return "tv_block";
+  if (
+    (domain === "news" || domain === "news_canada") &&
+    (t.includes("format") ||
+      t.includes("post") ||
+      t.includes("segment") ||
+      t.includes("placement"))
+  )
+    return "news_format";
+  return null;
+}
+
+async function callBrain({
+  message,
+  classification,
+  meta,
+  history,
+  clientContext,
+  resolutionHint,
+  session
+}) {
+  // Tool-first deterministic outputs
+  const tool = shouldUseTool(classification.domain, message);
+  if (tool) {
+    if (tool === "sponsor_package")
+      return buildSponsorPackage(
+        meta.laneDetail?.businessType,
+        meta.laneDetail?.budgetTier
+      );
+    if (tool === "tv_block")
+      return buildTvBlock(
+        meta.laneDetail?.mood,
+        meta.laneDetail?.timeOfDay,
+        meta.laneDetail?.decade
+      );
+    if (tool === "news_format") return formatNewsCanada(message, meta.access);
+  }
+
+  // greetings stay fast
+  if (classification.intent === "greeting" || classification.intent === "smalltalk") {
+    return localBrainReply(message, classification, meta);
+  }
+
+  if (!openai) {
+    console.warn("[Nyx] No OPENAI_API_KEY set — using local brain.");
+    return localBrainReply(message, classification, meta);
+  }
+
+  const systemPrompt = buildSystemPrompt(meta);
+
+  // RAG retrieval (public/admin partitions)
+  let ragContext = "";
+  if (!DISABLE_RAG) {
+    try {
+      const qEmb = await embedQuery(message);
+      const access = meta.access === "admin" ? "admin" : "public";
+      const hits = searchIndex(qEmb, access, 5);
+
+      if (hits && hits.length) {
+        ragContext =
+          "Sandblast Knowledge (retrieved):\n" +
+          hits
+            .map(
+              (h) =>
+                `- [${h.access}:${h.source}#${h.chunkIndex}] ${String(h.text).slice(
+                  0,
+                  900
+                )}`
+            )
+            .join("\n\n");
+      }
+    } catch (e) {
+      // Quota / missing index => safe degrade
+      console.warn("[RAG] skipped:", e?.message || e);
+    }
+  }
+
+  const developerContext = buildDeveloperContext(
+    meta,
+    classification,
+    clientContext,
+    resolutionHint,
+    session
+  );
+  const historyItems = normalizeHistoryItems(history);
+
+  const userPrompt =
+    `User message: "${message}".\n` +
+    `Use lane detail + mood state if helpful. Keep it concise.\n` +
+    `If conversationState is "closing", do NOT output a farewell.`;
+
+  try {
+    const response = await openai.responses.create({
+      model: NYX_MODEL,
+      input: [
+        { role: "system", content: systemPrompt },
+        { role: "developer", content: developerContext },
+        ...(ragContext ? [{ role: "developer", content: ragContext }] : []),
+        ...historyItems,
+        { role: "user", content: userPrompt }
+      ]
+    });
+
+    const reply = (response.output_text || "").trim();
+    return reply || localBrainReply(message, classification, meta);
+  } catch (err) {
+    console.error("[Nyx] OpenAI error, using local brain:", err?.message || err);
+    return localBrainReply(message, classification, meta);
+  }
+}
+
+//----------------------------------------------------------
+// ROUTES
+//----------------------------------------------------------
+app.get("/", (req, res) => res.send("Sandblast Nyx backend is running."));
+app.get("/health", (req, res) =>
+  res.json({ status: "ok", service: "sandblast-nyx-backend" })
+);
+
+// MAIN BRAIN ENDPOINT
+app.post("/api/sandblast-gpt", async (req, res) => {
+  try {
+    const { message, meta: incomingMeta, mode, history, clientContext, resolutionHint } =
+      req.body || {};
+    if (!message || !message.trim())
+      return res.status(400).json({ error: "EMPTY_MESSAGE" });
+
+    const clean = message.trim();
+    let meta = cleanMeta(incomingMeta);
+
+    // PUBLIC vs ADMIN split (same brain, different allowances)
+    if (isAdminMessage(req.body)) meta.access = "admin";
+    else meta.access = meta.access === "admin" ? "admin" : "public";
+
+    // Session memory (server-side)
+    const sessionId = meta.sessionId;
+    const session = getSession(sessionId);
+
+    // Mood
+    const moodState = detectMoodState(clean);
+
+    // Classification
+    const rawClassification = classifyIntent(clean);
+    const effectiveDomain = resolveLaneDomain(rawClassification, meta, clean);
+    const classification = { ...rawClassification, domain: effectiveDomain };
+
+    // Lane detail
+    const newLaneDetail = extractLaneDetail(
+      classification.domain,
+      clean,
+      meta.laneDetail
+    );
+
+    // Step phase
+    const stepPhase = computeStepPhase(classification.domain, newLaneDetail);
+
+    // Lane age
+    let laneAge = meta.laneAge || 0;
+    laneAge =
+      classification.domain && classification.domain === meta.currentLane
+        ? laneAge + 1
+        : 1;
+
+    // Personality hooks (kept)
+    let frontDoor = null;
+    if (nyxPersonality.getFrontDoorResponse) {
+      frontDoor = nyxPersonality.getFrontDoorResponse(clean, meta, classification);
+    }
+
+    let domainPayload = {};
+    if (nyxPersonality.enrichDomainResponse) {
+      domainPayload = nyxPersonality.enrichDomainResponse(
+        clean,
+        meta,
+        classification,
+        mode
+      );
+    }
+
+    // IMPORTANT: set currentLane BEFORE brain call so buildSystemPrompt() can inject lane rules
+    const effectiveLane =
+      classification.domain && classification.domain !== "general"
+        ? classification.domain
+        : meta.currentLane;
+
+    const metaForBrain = {
+      ...meta,
+      currentLane: effectiveLane,
+      laneDetail: newLaneDetail,
+      moodState,
+      stepPhase,
+      laneAge,
+      access: meta.access,
+      conversationState: meta.conversationState || "active"
+    };
+
+    const rawReply = await callBrain({
+      message: clean,
+      classification,
+      meta: metaForBrain,
+      history,
+      clientContext,
+      resolutionHint,
+      session
+    });
+
+    let finalReply = rawReply;
+
+    if (nyxPersonality.wrapWithNyxTone) {
+      finalReply = nyxPersonality.wrapWithNyxTone(
+        clean,
+        metaForBrain,
+        classification,
+        finalReply
+      );
+    }
+
+    // Suggestive Intelligence
+    let newSuggestionStep = meta.lastSuggestionStep || 0;
+
+    // FIX: pass classification so hesitation can be lane-aware
+    if (isHesitationMessage(clean, classification)) {
+      const suggestion = buildLaneSuggestion(
+        classification.domain,
+        newLaneDetail,
+        newSuggestionStep
+      );
+      if (suggestion) {
+        finalReply = suggestion;
+        newSuggestionStep = Math.min(newSuggestionStep + 1, 2);
+      }
+    } else {
+      newSuggestionStep = 0;
+    }
+
+    if (laneAge >= 7) {
+      finalReply += `\n\nIf you want, we can reset this lane or switch to another — TV, radio, music history, sponsors, News Canada, or AI.`;
+    }
+
+    let saveHintShown = meta.saveHintShown || false;
+    if (
+      !saveHintShown &&
+      laneAge >= 4 &&
+      ["tv", "radio", "nova", "sponsors", "music_history"].includes(
+        classification.domain
+      )
+    ) {
+      finalReply += `\n\nIf this starts to feel right, we can treat it as a working template for Sandblast.`;
+      saveHintShown = true;
+    }
+
+    const updatedMeta = {
+      ...meta,
+      stepIndex: meta.stepIndex + 1,
+      lastDomain: classification.domain,
+      lastIntent: classification.intent,
+      currentLane: effectiveLane,
+      laneDetail: newLaneDetail,
+      lastSuggestionStep: newSuggestionStep,
+      moodState,
+      laneAge,
+      stepPhase,
+      saveHintShown,
+      access: metaForBrain.access,
+      conversationState: metaForBrain.conversationState
+    };
+
+    const uiLinks = buildUiLinks(classification.domain);
+
+    // Update session memory (safe + lightweight)
+    appendTurn(sessionId, { role: "user", content: clean });
+    appendTurn(sessionId, { role: "assistant", content: finalReply });
+    upsertSession(sessionId, {
+      summary: session?.summary || "",
+      openLoops: session?.openLoops || []
+    });
+
+    res.json({
+      ok: true,
+      reply: finalReply,
+      frontDoor,
+      domain: classification.domain,
+      intent: classification.intent,
+      confidence: classification.confidence,
+      domainPayload,
+      meta: updatedMeta,
+      uiLinks,
+      links: uiLinks
+    });
+  } catch (err) {
+    console.error("[Nyx] /api/sandblast-gpt error:", err.message);
+    res.status(500).json({
+      ok: false,
+      error: "SERVER_FAILURE",
+      message: "Nyx hit static inside the server.",
+      details: err.message
+    });
+  }
+});
+
+//----------------------------------------------------------
+// TTS ENDPOINT (ELEVENLABS) — unchanged pattern
+//----------------------------------------------------------
+app.post("/api/tts", async (req, res) => {
+  try {
+    const { text } = req.body || {};
+    if (!text || !text.trim())
+      return res.status(400).json({ error: "EMPTY_TEXT" });
+
+    if (!ELEVENLABS_API_KEY || !NYX_VOICE_ID) {
+      return res.status(500).json({
+        error: "TTS_NOT_CONFIGURED",
+        message: "Missing ELEVENLABS_API_KEY or NYX_VOICE_ID"
+      });
+    }
+
+    // (Keep your existing ElevenLabs call here if you already have it.
+    // This placeholder prevents crashes.)
+    return res.status(501).json({ error: "TTS_NOT_IMPLEMENTED_IN_THIS_PATCH" });
+  } catch (err) {
+    console.error("[Nyx] /api/tts error:", err.message);
+    res.status(500).json({ ok: false, error: "TTS_FAILURE", details: err.message });
+  }
+});
+
+app.listen(PORT, () => {
+  console.log(`[Nyx] Server running on port ${PORT}`);
+});
