@@ -2,7 +2,8 @@
 // Sandblast Nyx Backend — Music Foundation Stabilized
 // + 429 fallback
 // + Music Knowledge Layer v1 (INLINE, offline-first)
-// + AUTO-PROMOTION: route chart/history queries into music_history when OpenAI is unavailable
+// + AUTO-PROMOTION: route chart/history queries into music_history when OpenAI is unavailable / rate-limited
+// + AUTO-MAPPING: artist + year → best moment (no clarification) when unambiguous
 // ----------------------------------------------------------
 
 require("dotenv").config();
@@ -15,7 +16,7 @@ const { classifyIntent } = require("./Utils/intentClassifier");
 const nyxPersonality = require("./Utils/nyxPersonality"); // kept
 
 // BUILD TAG
-const BUILD_TAG = "nyx-music-foundation-stable-2025-12-14g";
+const BUILD_TAG = "nyx-music-foundation-stable-2025-12-14h";
 
 // ---------------------------------------------------------
 // OPTIONAL MODULES (safe-degrade)
@@ -69,7 +70,9 @@ function looksLikeChartName(text) {
     t.includes("top 40") ||
     t.includes("canada") ||
     t.includes("rpm") ||
-    t.includes("official charts")
+    t.includes("official charts") ||
+    t.includes("top40weekly") ||
+    t.includes("top 40 weekly")
   );
 }
 
@@ -91,6 +94,7 @@ function clearAwaiting(detail) {
 const MUSIC_KNOWLEDGE_V1 = {
   defaultChart: "Billboard Hot 100",
   moments: [
+    // --- Original 4 moments ---
     {
       key: "madonna_like_a_virgin_1984",
       artist: "madonna",
@@ -130,6 +134,158 @@ const MUSIC_KNOWLEDGE_V1 = {
       fact: "In 1964, The Beatles’ Hot 100 surge marked the mainstream explosion of Beatlemania.",
       culture: "Youth culture became a mass-market force—pop shifted into a global identity machine.",
       next: "Want the exact chart week, or a quick timeline of their #1 run?"
+    },
+
+    // --- Added 15 moments (v1 expansion) ---
+    {
+      key: "prince_when_doves_cry_1984",
+      artist: "prince",
+      title: "when doves cry",
+      year: 1984,
+      chart: "Billboard Hot 100",
+      fact: "In 1984, Prince hit #1 with “When Doves Cry.”",
+      culture: "It pushed pop into a sharper, more experimental lane—minimalist, bold, and unmistakably Prince.",
+      next: "Want the chart week/date, or the top pop rivals around that same week?"
+    },
+    {
+      key: "aha_take_on_me_1985",
+      artist: "a-ha",
+      title: "take on me",
+      year: 1985,
+      chart: "Billboard Hot 100",
+      fact: "In 1985, a-ha reached #1 with “Take On Me.”",
+      culture: "The video era turned catchy hooks into global events—visual identity became part of the hit formula.",
+      next: "Want the exact week/date or a quick list of other major 1985 #1s?"
+    },
+    {
+      key: "rick_astley_never_gonna_1987",
+      artist: "rick astley",
+      title: "never gonna give you up",
+      year: 1987,
+      chart: "Billboard Hot 100",
+      fact: "In 1987, Rick Astley hit #1 with “Never Gonna Give You Up.”",
+      culture: "A perfect example of polished late-’80s pop—studio sheen, big choruses, and mass-radio appeal.",
+      next: "Want the chart date it hit #1 or other standout #1s from 1987?"
+    },
+    {
+      key: "mj_beat_it_1983",
+      artist: "michael jackson",
+      title: "beat it",
+      year: 1983,
+      chart: "Billboard Hot 100",
+      fact: "In 1983, Michael Jackson reached #1 with “Beat It.”",
+      culture: "Pop + rock crossover went mainstream—genre borders got softer, audiences got bigger.",
+      next: "Want the chart-week/date or the Thriller-era chart timeline?"
+    },
+    {
+      key: "queen_another_one_bites_1980",
+      artist: "queen",
+      title: "another one bites the dust",
+      year: 1980,
+      chart: "Billboard Hot 100",
+      fact: "In 1980, Queen hit #1 with “Another One Bites the Dust.”",
+      culture: "A rock band leaning into groove/funk showed how flexible chart dominance could be.",
+      next: "Want the exact #1 week or a quick comparison to Queen’s other U.S. peaks?"
+    },
+    {
+      key: "eagles_hotel_california_1977",
+      artist: "eagles",
+      title: "hotel california",
+      year: 1977,
+      chart: "Billboard Hot 100",
+      fact: "In 1977, the Eagles reached #1 with “Hotel California.”",
+      culture: "Storytelling rock hit its peak—lyrics became cinematic, and radio loved the drama.",
+      next: "Want the chart date it hit #1 or the top rock crossovers from that year?"
+    },
+    {
+      key: "bee_gees_night_fever_1978",
+      artist: "bee gees",
+      title: "night fever",
+      year: 1978,
+      chart: "Billboard Hot 100",
+      fact: "In 1978, the Bee Gees hit #1 with “Night Fever.”",
+      culture: "Disco wasn’t a trend—it was an engine. Clubs, radio, and fashion moved together.",
+      next: "Want the exact week/date or the 1978 disco-dominant #1 run highlights?"
+    },
+    {
+      key: "bon_jovi_livin_on_a_prayer_1987",
+      artist: "bon jovi",
+      title: "livin on a prayer",
+      year: 1987,
+      chart: "Billboard Hot 100",
+      fact: "In 1987, Bon Jovi hit #1 with “Livin on a Prayer.”",
+      culture: "Arena rock became pop’s best friend—mass singalongs were basically a business model.",
+      next: "Want the chart date it peaked, or other 1987 rock-pop crossovers?"
+    },
+    {
+      key: "gnr_sweet_child_1988",
+      artist: "guns n roses",
+      title: "sweet child o mine",
+      year: 1988,
+      chart: "Billboard Hot 100",
+      fact: "In 1988, Guns N’ Roses reached #1 with “Sweet Child o Mine.”",
+      culture: "Hard rock broke through to the mainstream—rawer edges still sold big on pop radio.",
+      next: "Want the exact week/date or the late-’80s rock takeover timeline?"
+    },
+    {
+      key: "los_del_rio_macarena_1996",
+      artist: "los del rio",
+      title: "macarena",
+      year: 1996,
+      chart: "Billboard Hot 100",
+      fact: "In 1996, “Macarena” became a defining #1-era chart moment.",
+      culture: "Dance crazes proved music could be participatory—hits became social rituals, not just songs.",
+      next: "Want the chart date it hit #1 or the other biggest crossover hits of 1996?"
+    },
+    {
+      key: "mariah_fantasy_1995",
+      artist: "mariah carey",
+      title: "fantasy",
+      year: 1995,
+      chart: "Billboard Hot 100",
+      fact: "In 1995, Mariah Carey hit #1 with “Fantasy.”",
+      culture: "Pop and hip-hop hooks started blending into a single mainstream language.",
+      next: "Want the chart-week/date or Mariah’s #1 streak highlights in the ’90s?"
+    },
+    {
+      key: "spice_girls_wannabe_1997",
+      artist: "spice girls",
+      title: "wannabe",
+      year: 1997,
+      chart: "Billboard Hot 100",
+      fact: "In 1997, the Spice Girls hit #1 with “Wannabe.”",
+      culture: "Pop became personality-forward—branding and attitude were part of the chart formula.",
+      next: "Want the exact chart week/date or the biggest teen-pop waves that followed?"
+    },
+    {
+      key: "celine_my_heart_1998",
+      artist: "celine dion",
+      title: "my heart will go on",
+      year: 1998,
+      chart: "Billboard Hot 100",
+      fact: "In 1998, Celine Dion reached #1 with “My Heart Will Go On.”",
+      culture: "Movie soundtracks could launch global mega-hits—cinema + radio became a superhighway.",
+      next: "Want the exact chart date or other soundtrack-driven #1 moments?"
+    },
+    {
+      key: "adele_rolling_in_the_deep_2011",
+      artist: "adele",
+      title: "rolling in the deep",
+      year: 2011,
+      chart: "Billboard Hot 100",
+      fact: "In 2011, Adele hit #1 with “Rolling in the Deep.”",
+      culture: "Big-voice soul-pop re-centered emotion on the charts—less gloss, more punch.",
+      next: "Want the chart-week/date or Adele’s album-era timeline on the Hot 100?"
+    },
+    {
+      key: "adele_hello_2015",
+      artist: "adele",
+      title: "hello",
+      year: 2015,
+      chart: "Billboard Hot 100",
+      fact: "In 2015, Adele hit #1 with “Hello.”",
+      culture: "The streaming era still made room for massive appointment-listening moments.",
+      next: "Want the exact #1 week/date or the biggest #1 debuts from the 2010s?"
     }
   ]
 };
@@ -153,6 +309,8 @@ function looksMusicHistoryQuery(text) {
     t.includes("billboard") ||
     t.includes("hot 100") ||
     t.includes("top 40") ||
+    t.includes("top40weekly") ||
+    t.includes("top 40 weekly") ||
     t.includes("chart") ||
     t.includes("charts") ||
     t.includes("#1") ||
@@ -162,13 +320,7 @@ function looksMusicHistoryQuery(text) {
     t.includes("number 1") ||
     t.includes("number one") ||
     t.includes("weeks at") ||
-    t.includes("peak") ||
-    // artist anchors (v1)
-    t.includes("madonna") ||
-    t.includes("michael jackson") ||
-    t.includes("mj") ||
-    t.includes("whitney") ||
-    t.includes("beatles")
+    t.includes("peak")
   );
 }
 
@@ -176,33 +328,45 @@ function findMoment({ text, laneDetail }) {
   const t = norm(text);
   const year = extractYear(text) || (laneDetail && laneDetail.year ? Number(laneDetail.year) : null);
 
-  const hasMadonna = t.includes("madonna");
-  const hasMJ = t.includes("michael jackson") || t.includes("mj");
-  const hasWhitney = t.includes("whitney");
-  const hasBeatles = t.includes("beatles");
-
-  const momentTitleHints = {
-    "like a virgin": t.includes("like a virgin"),
-    "billie jean": t.includes("billie jean"),
-    "i will always love you": t.includes("i will always love you"),
-    "i want to hold your hand": t.includes("i want to hold your hand")
-  };
-
+  // Try direct title match against known moments (normalized)
   for (const m of MUSIC_KNOWLEDGE_V1.moments) {
-    const artistOk =
-      (hasMadonna && m.artist === "madonna") ||
-      (hasMJ && m.artist === "michael jackson") ||
-      (hasWhitney && m.artist === "whitney houston") ||
-      (hasBeatles && m.artist === "the beatles");
+    if (m.title && t.includes(norm(m.title))) {
+      if (!year || Number(m.year) === year) return m;
+    }
+  }
 
-    const titleOk = momentTitleHints[m.title] === true;
-
-    if (titleOk && (!year || Number(m.year) === year)) return m;
-    if (artistOk && year && Number(m.year) === year) return m;
-    if (titleOk) return m;
+  // Try artist + year match (requires artist mention in the message)
+  for (const m of MUSIC_KNOWLEDGE_V1.moments) {
+    const artistMentioned = m.artist && t.includes(norm(m.artist));
+    const yearMatch = !year || Number(m.year) === year;
+    if (artistMentioned && yearMatch) return m;
   }
 
   return null;
+}
+
+// ✅ NEW: unambiguous artist+year inference (auto-map without clarification)
+function inferMomentByArtistAndYear({ text, laneDetail }) {
+  const t = norm(text);
+  const year = extractYear(text) || Number(laneDetail?.year);
+  if (!year) return null;
+
+  // Determine which artists are explicitly mentioned (scan the known artist set)
+  const mentionedArtists = new Set();
+  for (const m of MUSIC_KNOWLEDGE_V1.moments) {
+    const a = norm(m.artist);
+    if (a && t.includes(a)) mentionedArtists.add(a);
+  }
+
+  if (mentionedArtists.size === 0) return null;
+
+  const possible = MUSIC_KNOWLEDGE_V1.moments.filter(m => {
+    const a = norm(m.artist);
+    return mentionedArtists.has(a) && Number(m.year) === year;
+  });
+
+  // Only auto-map if there is ONE clear answer
+  return possible.length === 1 ? possible[0] : null;
 }
 
 function formatMomentReply(moment, laneDetail) {
@@ -217,18 +381,32 @@ function formatMomentReply(moment, laneDetail) {
 function answerMusicHistoryOffline(message, laneDetail) {
   const t = norm(message);
 
-  if (!looksMusicHistoryQuery(message)) {
+  // If it doesn't look like music-history at all, don't intercept
+  // (artist mentions can still be music, but we keep this strict to avoid false positives)
+  const looksLikeMusic = looksMusicHistoryQuery(message);
+  const mentionsKnownArtist = MUSIC_KNOWLEDGE_V1.moments.some(m => t.includes(norm(m.artist)));
+
+  if (!looksLikeMusic && !mentionsKnownArtist) {
     return { handled: false };
   }
 
   const year = extractYear(message) || (laneDetail && laneDetail.year ? Number(laneDetail.year) : null);
 
-  // "When was Madonna #1" with no year/title → ask once (awaiting guard handled in laneDetail)
-  if (t.includes("madonna") && !year && !t.includes("like a virgin")) {
+  // ✅ Auto-map: artist + year -> moment (if unambiguous)
+  const inferred = inferMomentByArtistAndYear({ text: message, laneDetail });
+  if (inferred) {
     return {
       handled: true,
-      reply:
-        "Quick check — which year (or song title) for Madonna’s #1 are you asking about? I can default to Billboard Hot 100.",
+      reply: formatMomentReply(inferred, laneDetail),
+      metaPatch: { chart: inferred.chart || MUSIC_KNOWLEDGE_V1.defaultChart }
+    };
+  }
+
+  // If user mentions Madonna but no year, ask once (still protected by awaiting guard in laneDetail)
+  if (t.includes("madonna") && !year) {
+    return {
+      handled: true,
+      reply: "Quick check — which year are you asking about for Madonna’s #1? I can default to Billboard Hot 100.",
       metaPatch: { chart: (laneDetail && laneDetail.chart) || MUSIC_KNOWLEDGE_V1.defaultChart, awaiting: "year_or_date" }
     };
   }
@@ -239,7 +417,7 @@ function answerMusicHistoryOffline(message, laneDetail) {
     return {
       handled: true,
       reply:
-        `I can anchor this, but I need one detail: a year OR a song title OR which chart (Billboard Hot 100 / UK Top 40 / Canada RPM).\nNext step: reply with a year (e.g., 1984) or a song title.`,
+        "I can anchor this, but I need one detail: a year OR a song title OR which chart (Billboard Hot 100 / UK Top 40 / Canada RPM).\nNext step: reply with a year (e.g., 1984) or a song title.",
       metaPatch: { chart: (laneDetail && laneDetail.chart) || MUSIC_KNOWLEDGE_V1.defaultChart }
     };
   }
@@ -311,20 +489,19 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 
     const raw = classifyIntent(clean);
 
-    // ✅ initial domain from classifier
+    // initial domain from classifier
     let domain = resolveLaneDomain(raw, meta);
 
-    // ------------------------------
-    // AUTO-PROMOTION FIX (THE POINT)
-    // If OpenAI is not usable (missing key OR quota/rate-limited), and message looks like chart/music history,
-    // force domain to music_history so offline layer answers instead of "lane: general" fallback.
-    // ------------------------------
+    // -------------------------------------------------
+    // AUTO-PROMOTION (pre-OpenAI)
+    // If message looks like music history OR mentions a known artist, and OpenAI is missing,
+    // force music_history so offline layer can answer.
+    // -------------------------------------------------
     const openaiPresent = !!openai;
     const messageLooksLikeMusic = looksMusicHistoryQuery(clean);
+    const mentionsKnownArtist = MUSIC_KNOWLEDGE_V1.moments.some(m => norm(clean).includes(norm(m.artist)));
 
-    // We don't yet know 429 on this request, but we DO know "OpenAI not configured" right away.
-    // Also: if you're already hitting quota, this promotion ensures offline layer answers even when classifier says general.
-    if ((!openaiPresent) && messageLooksLikeMusic) {
+    if (!openaiPresent && (messageLooksLikeMusic || mentionsKnownArtist)) {
       domain = "music_history";
     }
 
@@ -334,17 +511,19 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     let laneDetail = { ...(meta.laneDetail || {}) };
 
     if (domain === "music_history") {
+      // Capture year-only replies
       if (isYearOnlyMessage(clean)) {
         laneDetail.year = clean.trim();
         laneDetail = clearAwaiting(laneDetail);
       }
 
+      // Capture chart names
       if (looksLikeChartName(clean)) {
         laneDetail.chart = clean.trim();
         laneDetail = clearAwaiting(laneDetail);
       }
 
-      // ✅ OFFLINE-FIRST: Knowledge Layer v1 (handles even when OpenAI is down)
+      // OFFLINE-FIRST: Knowledge Layer v1
       const kb = answerMusicHistoryOffline(clean, laneDetail);
       if (kb && kb.handled) {
         if (kb.metaPatch && typeof kb.metaPatch === "object") {
@@ -385,8 +564,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 
         return res.json({
           ok: true,
-          reply:
-            "Quick check — what year (or week/date) are we talking, and should I default to the Billboard Hot 100?",
+          reply: "Quick check — what year (or week/date) are we talking, and should I default to the Billboard Hot 100?",
           domain,
           intent: "music_history",
           meta: {
@@ -406,7 +584,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     }
 
     // -------------------------------------------------
-    // BRAIN RESPONSE
+    // BRAIN RESPONSE (OpenAI)
     // -------------------------------------------------
     let reply = "";
     let openaiUnavailableReason = "";
@@ -443,12 +621,17 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       openaiUnavailableReason = "OPENAI_NOT_CONFIGURED";
     }
 
-    // ✅ SECOND STAGE AUTO-PROMOTION:
-    // If OpenAI failed this request with 429 and message looks like music, route to offline music immediately.
-    if (!reply && openaiUnavailableReason === "OPENAI_429_QUOTA" && looksMusicHistoryQuery(clean)) {
+    // -------------------------------------------------
+    // AUTO-PROMOTION (post-OpenAI)
+    // If OpenAI failed with 429 and message looks like music/artist, route to offline music immediately.
+    // -------------------------------------------------
+    if (
+      !reply &&
+      openaiUnavailableReason === "OPENAI_429_QUOTA" &&
+      (messageLooksLikeMusic || mentionsKnownArtist)
+    ) {
       domain = "music_history";
 
-      // Run offline layer now (even though classifier said general)
       const kb = answerMusicHistoryOffline(clean, laneDetail);
       if (kb && kb.handled) {
         if (kb.metaPatch && typeof kb.metaPatch === "object") {
@@ -490,9 +673,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       if (domain === "music_history") {
         reply = localMusicFallback(clean, laneDetail);
         if (openaiUnavailableReason === "OPENAI_429_QUOTA") {
-          reply =
-            `I’m temporarily rate-limited on the AI brain, so I’m running in offline music mode.\n\n` +
-            reply;
+          reply = `I’m temporarily rate-limited on the AI brain, so I’m running in offline music mode.\n\n${reply}`;
         }
       } else {
         reply =
