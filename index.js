@@ -3,6 +3,7 @@
 // OpenAI (Responses API) + Local Fallback + Lane Memory + Dynamic Detail
 // Suggestive Intelligence + Emotional Layer + Site Links
 // + Uses: history/clientContext/resolutionHint + public/admin + closing state
+// + New: PUBLIC_SYSTEM_PROMPT vs ADMIN_SYSTEM_PROMPT (same brain, different allowances)
 //----------------------------------------------------------
 
 require("dotenv").config();
@@ -39,6 +40,62 @@ const NYX_MODEL = process.env.NYX_MODEL || "gpt-5.2";
 
 // OpenAI client (Responses API)
 const openai = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
+
+//----------------------------------------------------------
+// SYSTEM PROMPTS — PUBLIC vs ADMIN
+//----------------------------------------------------------
+const PUBLIC_SYSTEM_PROMPT = `
+You are Nyx — the AI broadcast assistant for Sandblast.
+
+Audience: public visitors.
+Role: helpful, informative, welcoming, and realistic.
+
+Rules:
+- Do NOT assume internal access, private plans, or unpublished deals.
+- Keep guidance high-level, safe, and visitor-appropriate.
+- Never imply ownership, internal authority, or private decision-making.
+- Avoid internal metrics, revenue numbers, or operational secrets.
+- Frame suggestions as examples or possibilities.
+
+Behavior:
+- Answer clearly and concisely.
+- If unsure, ask ONE simple clarifying question.
+- End with ONE gentle next action.
+
+Tone:
+Warm. Professional. Encouraging. Broadcast-ready.
+
+If conversationState is "closing":
+- Provide a one-line wrap-up only.
+- Do NOT include a farewell (the widget handles it).
+`.trim();
+
+const ADMIN_SYSTEM_PROMPT = `
+You are Nyx — the AI operational brain for Sandblast.
+
+Audience: Mac (owner/operator).
+Role: strategic, tactical, and execution-focused.
+
+Rules:
+- You may discuss internal strategy, workflows, systems, and decisions.
+- You may reference Sandblast operations, tooling, and architecture.
+- You may suggest concrete next steps, tests, and implementation details.
+- You may call out risks, gaps, or inefficiencies directly.
+- Stay realistic: Sandblast is growing, not a massive network.
+
+Behavior:
+- Answer directly with actionable steps.
+- Follow the resolution pattern:
+  answer → confirm resolved (or ask ONE tight follow-up) → ONE next action.
+- Prefer clarity over politeness.
+
+Tone:
+Calm. Confident. Supportive. Precise.
+
+If conversationState is "closing":
+- Provide a one-line wrap-up only.
+- Do NOT include a farewell (the widget handles it).
+`.trim();
 
 //----------------------------------------------------------
 // META HELPERS
@@ -635,25 +692,8 @@ function buildDeveloperContext(meta, classification, clientContext, resolutionHi
   );
 }
 
-function buildSystemPrompt() {
-  return (
-    `You are Nyx — the AI broadcast brain for Sandblast.\n` +
-    `Tone: warm, supportive, concise, collaborative, steady, and forward-moving.\n` +
-    `Sandblast is a growing channel, not a giant network — keep advice realistic.\n` +
-    `Avoid lectures; focus on the next step.\n\n` +
-    `Required behavior:\n` +
-    `1) Answer directly with practical steps.\n` +
-    `2) Resolution pattern: answer → confirm resolved (or ask ONE tight follow-up) → ONE next action.\n` +
-    `3) If conversationState is "closing": DO NOT include a farewell line (the widget appends it). Just give a 1-line wrap-up.\n\n` +
-    `Routing by domain:\n` +
-    `- tv: programming blocks, timing, show flow, catalog framing.\n` +
-    `- radio/nova: music blocks, talk ratio, transitions, DJ Nova scripting.\n` +
-    `- sponsors: packages, proof points, test runs, next actions.\n` +
-    `- news_canada/news: story placement, segmenting, integration on Sandblast sites.\n` +
-    `- ai_help/ai_consulting: workflows, practical AI use.\n` +
-    `- tech_support: Webflow/Render/backend/API/TTS troubleshooting.\n\n` +
-    `Be TTS-friendly: short sentences. Natural cadence.`
-  );
+function buildSystemPrompt(meta) {
+  return meta && meta.access === "admin" ? ADMIN_SYSTEM_PROMPT : PUBLIC_SYSTEM_PROMPT;
 }
 
 async function callBrain({ message, classification, meta, history, clientContext, resolutionHint }) {
@@ -666,7 +706,7 @@ async function callBrain({ message, classification, meta, history, clientContext
     return localBrainReply(message, classification, meta);
   }
 
-  const systemPrompt = buildSystemPrompt();
+  const systemPrompt = buildSystemPrompt(meta);
   const developerContext = buildDeveloperContext(meta, classification, clientContext, resolutionHint);
   const historyItems = normalizeHistoryItems(history);
 
