@@ -1,12 +1,14 @@
 //----------------------------------------------------------
 // Sandblast Nyx Backend — Hybrid Brain
-// OpenAI + Local Fallback + Lane Memory + Dynamic Detail
+// OpenAI (Responses API) + Local Fallback + Lane Memory + Dynamic Detail
 // Suggestive Intelligence + Emotional Layer + Site Links
+// + New: history/clientContext/resolutionHint + public/admin + closing state
 //----------------------------------------------------------
 
 const express = require("express");
 const cors = require("cors");
 const axios = require("axios");
+const OpenAI = require("openai");
 
 const { classifyIntent } = require("./Utils/intentClassifier");
 const nyxPersonality = require("./Utils/nyxPersonality");
@@ -20,6 +22,12 @@ const PORT = process.env.PORT || 3000;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 const NYX_VOICE_ID = process.env.NYX_VOICE_ID;
+
+// Model selection (override in Render if you want)
+const NYX_MODEL = process.env.NYX_MODEL || "gpt-5.2";
+
+// OpenAI client (Responses API)
+const openai = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
 
 //----------------------------------------------------------
 // META HELPERS
@@ -39,7 +47,11 @@ function cleanMeta(meta) {
       laneAge: 0,             // how many turns in the current lane
       presetMode: null,       // e.g. sponsor_pitch, tv_grid, ai_jobseekers
       stepPhase: null,        // high-level stage label, per-lane
-      saveHintShown: false    // to avoid repeating "save this" hook
+      saveHintShown: false,   // to avoid repeating "save this" hook
+
+      // New fields from widget
+      access: "public",       // "public" | "admin" (admin is “tactical mode”, not secret auth)
+      conversationState: "active" // "active" | "closing" | "closed"
     };
   }
 
@@ -60,14 +72,18 @@ function cleanMeta(meta) {
     laneAge: typeof meta.laneAge === "number" ? meta.laneAge : 0,
     presetMode: meta.presetMode || null,
     stepPhase: meta.stepPhase || null,
-    saveHintShown: !!meta.saveHintShown
+    saveHintShown: !!meta.saveHintShown,
+
+    // New fields from widget
+    access: (meta.access === "admin") ? "admin" : "public",
+    conversationState: meta.conversationState || "active"
   };
 }
 
 function isAdminMessage(body) {
   if (!body || typeof body !== "object") return false;
   const { adminToken, message } = body;
-  if (adminToken && adminToken === process.env.ADMIN_SECRET) return true;
+  if (adminToken && process.env.ADMIN_SECRET && adminToken === process.env.ADMIN_SECRET) return true;
   if (typeof message === "string" && message.trim().startsWith("::admin")) return true;
   return false;
 }
@@ -495,64 +511,29 @@ function buildUiLinks(domain, laneDetail) {
   const links = [];
   const detail = laneDetail || {};
 
-  // TV lane
   if (domain === "tv") {
-    links.push({
-      label: "TV overview (sandblast.channel)",
-      url: "https://www.sandblast.channel#tv"
-    });
-    links.push({
-      label: "TV portal (sandblastchannel.com)",
-      url: "https://www.sandblastchannel.com"
-    });
+    links.push({ label: "TV overview (sandblast.channel)", url: "https://www.sandblast.channel#tv" });
+    links.push({ label: "TV portal (sandblastchannel.com)", url: "https://www.sandblastchannel.com" });
   }
 
-  // Radio / Nova lane
   if (domain === "radio" || domain === "nova") {
-    links.push({
-      label: "Radio on sandblast.channel",
-      url: "https://www.sandblast.channel#radio"
-    });
-    links.push({
-      label: "Live radio / stream portal",
-      url: "https://www.sandblastchannel.com"
-    });
+    links.push({ label: "Radio on sandblast.channel", url: "https://www.sandblast.channel#radio" });
+    links.push({ label: "Live radio / stream portal", url: "https://www.sandblastchannel.com" });
   }
 
-  // News / News Canada
   if (domain === "news" || domain === "news_canada") {
-    links.push({
-      label: "News Canada hub",
-      url: "https://www.sandblastchannel.com"
-    });
-    links.push({
-      label: "News Canada on sandblast.channel",
-      url: "https://www.sandblast.channel#news-canada"
-    });
+    links.push({ label: "News Canada hub", url: "https://www.sandblastchannel.com" });
+    links.push({ label: "News Canada on sandblast.channel", url: "https://www.sandblast.channel#news-canada" });
   }
 
-  // Sponsors / Ad Space / Business support
   if (domain === "sponsors" || domain === "business_support") {
-    links.push({
-      label: "Ad Space overview (sandblast.channel)",
-      url: "https://www.sandblast.channel#ad-space"
-    });
-    links.push({
-      label: "Sandblast portal (sandblastchannel.com)",
-      url: "https://www.sandblastchannel.com"
-    });
+    links.push({ label: "Ad Space overview (sandblast.channel)", url: "https://www.sandblast.channel#ad-space" });
+    links.push({ label: "Sandblast portal (sandblastchannel.com)", url: "https://www.sandblastchannel.com" });
   }
 
-  // Generic default if nothing else fired and we still want hooks
   if (!links.length) {
-    links.push({
-      label: "Main site (sandblast.channel)",
-      url: "https://www.sandblast.channel"
-    });
-    links.push({
-      label: "Broadcast portal (sandblastchannel.com)",
-      url: "https://www.sandblastchannel.com"
-    });
+    links.push({ label: "Main site (sandblast.channel)", url: "https://www.sandblast.channel" });
+    links.push({ label: "Broadcast portal (sandblastchannel.com)", url: "https://www.sandblastchannel.com" });
   }
 
   return links;
@@ -567,7 +548,6 @@ function localBrainReply(message, classification, meta) {
   const detail = meta?.laneDetail || {};
   const moodState = meta.moodState || "steady";
 
-  // Emotional shading on generic responses
   const moodPrefix =
     moodState === "frustrated"
       ? "I hear you. Let’s keep this light and clear.\n\n"
@@ -633,8 +613,7 @@ function localBrainReply(message, classification, meta) {
       const biz = detail.businessType;
       let intro = moodPrefix + "We can keep sponsor offers simple.\n\n";
       if (biz) {
-        intro =
-          moodPrefix + `Alright… let’s shape something that fits a ${biz}.\n\n`;
+        intro = moodPrefix + `Alright… let’s shape something that fits a ${biz}.\n\n`;
       }
       return (
         intro +
@@ -648,8 +627,7 @@ function localBrainReply(message, classification, meta) {
       const audience = detail.audience;
       let intro = moodPrefix + "Let’s pick a few AI tasks that actually help you.\n\n";
       if (audience) {
-        intro =
-          moodPrefix + `Alright… let’s keep this useful for ${audience}.\n\n`;
+        intro = moodPrefix + `Alright… let’s keep this useful for ${audience}.\n\n`;
       }
       return (
         intro +
@@ -662,8 +640,7 @@ function localBrainReply(message, classification, meta) {
       const area = detail.area;
       let intro = moodPrefix + "We can tackle the tech one step at a time.\n\n";
       if (area) {
-        intro =
-          moodPrefix + `Alright… let’s work through the ${area} side first.\n\n`;
+        intro = moodPrefix + `Alright… let’s work through the ${area} side first.\n\n`;
       }
       return (
         intro +
@@ -675,9 +652,7 @@ function localBrainReply(message, classification, meta) {
       const projectType = detail.projectType;
       let intro = moodPrefix + "Let’s give one project a clear push.\n\n";
       if (projectType) {
-        intro =
-          moodPrefix +
-          `Alright… let’s give this ${projectType} a cleaner direction.\n\n`;
+        intro = moodPrefix + `Alright… let’s give this ${projectType} a cleaner direction.\n\n`;
       }
       return (
         intro +
@@ -688,9 +663,9 @@ function localBrainReply(message, classification, meta) {
 
     case "news":
     case "news_canada": {
-      let intro = moodPrefix + "Let’s keep News Canada simple and useful.\n\n";
       return (
-        intro +
+        moodPrefix +
+        "Let’s keep News Canada simple and useful.\n\n" +
         `I can help you decide how to use News Canada stories inside Sandblast — for segments, promos, or social cutdowns. ` +
         `Tell me whether you want to focus on TV blocks, radio mentions, or online highlights.`
       );
@@ -706,65 +681,106 @@ function localBrainReply(message, classification, meta) {
 }
 
 //----------------------------------------------------------
+// OPENAI BRAIN (Responses API) – USES history + clientContext + resolutionHint
+//----------------------------------------------------------
+function normalizeHistoryItems(history) {
+  if (!Array.isArray(history)) return [];
+  // Expect: [{role:"user"|"assistant", content:"..."}]
+  return history
+    .slice(-12)
+    .map((h) => {
+      const role = h && h.role === "assistant" ? "assistant" : "user";
+      const content = String(h && h.content ? h.content : "").slice(0, 2400);
+      return content ? { role, content } : null;
+    })
+    .filter(Boolean);
+}
+
+function buildDeveloperContext(meta, classification, clientContext, resolutionHint) {
+  const access = meta.access || "public";
+  const state = meta.conversationState || "active";
+
+  return (
+    `Context:\n` +
+    `- access: ${access}\n` +
+    `- conversationState: ${state}\n` +
+    `- domain: ${classification.domain}\n` +
+    `- intent: ${classification.intent}\n` +
+    `- confidence: ${classification.confidence}\n` +
+    `- sessionId: ${meta.sessionId}\n` +
+    `- moodState: ${meta.moodState}\n` +
+    `- laneAge: ${meta.laneAge}\n` +
+    `- laneDetail: ${JSON.stringify(meta.laneDetail || {})}\n` +
+    `- stepPhase: ${meta.stepPhase}\n` +
+    `- presetMode: ${meta.presetMode}\n` +
+    `- pageUrl: ${String(clientContext?.pageUrl || "")}\n` +
+    `- referrer: ${String(clientContext?.referrer || "")}\n` +
+    `- timestamp: ${String(clientContext?.timestamp || "")}\n` +
+    `- resolutionStyle: ${String(resolutionHint?.resolutionStyle || "Answer clearly. Confirm resolved. One next action.")}\n`
+  );
+}
+
+function buildSystemPrompt(classification) {
+  return (
+    `You are Nyx — the AI broadcast brain for Sandblast.\n` +
+    `Tone: warm, supportive, concise, collaborative, steady, and forward-moving.\n` +
+    `Sandblast is a growing channel, not a giant network — keep advice realistic.\n` +
+    `Avoid lectures; keep responses short and focused on the next step.\n\n` +
+    `Required behavior:\n` +
+    `1) Answer directly with practical steps.\n` +
+    `2) Resolution pattern: answer → confirm resolved (or ask ONE tight follow-up) → ONE next action.\n` +
+    `3) If conversationState is "closing": keep it short, summarize what was achieved in 1 line, and end with a clean farewell.\n\n` +
+    `Routing by domain:\n` +
+    `- tv: programming blocks, timing, show flow, catalog framing.\n` +
+    `- radio/nova: music blocks, talk ratio, transitions, DJ Nova scripting.\n` +
+    `- sponsors: packages, proof points, test runs, next actions.\n` +
+    `- news_canada/news: story placement, segmenting, integration on Sandblast sites.\n` +
+    `- ai_help/ai_consulting: Nyx/SandblastGPT, workflows, practical AI use.\n` +
+    `- tech_support: Webflow/Render/backend/API/TTS troubleshooting.\n\n` +
+    `Be TTS-friendly: short sentences. Natural cadence.`
+  );
+}
+
+//----------------------------------------------------------
 // HYBRID BRAIN – TRY OPENAI, FALL BACK TO LOCAL
 //----------------------------------------------------------
-async function callBrain({ message, classification, meta }) {
-  if (
-    classification.intent === "greeting" ||
-    classification.intent === "smalltalk"
-  ) {
+async function callBrain({ message, classification, meta, history, clientContext, resolutionHint }) {
+  // Keep your local fast-paths
+  if (classification.intent === "greeting" || classification.intent === "smalltalk") {
     return localBrainReply(message, classification, meta);
   }
 
-  if (!OPENAI_API_KEY) {
+  if (!openai) {
     console.warn("[Nyx] No OPENAI_API_KEY set — using local brain.");
     return localBrainReply(message, classification, meta);
   }
 
-  const systemPrompt =
-    `You are Nyx — the AI broadcast brain for Sandblast Channel.\n` +
-    `Tone: warm, supportive, concise, collaborative, steady, and forward-moving.\n` +
-    `You help with TV, radio, streaming, sponsors, News Canada, AI consulting, and tech troubleshooting.\n` +
-    `Sandblast is a growing channel, not a giant network — keep advice realistic.\n` +
-    `Avoid lectures; keep responses short and focused on the next step.\n\n` +
-    `Classification: domain=${classification.domain}, intent=${classification.intent}, confidence=${classification.confidence}.\n` +
-    `Meta: stepIndex=${meta.stepIndex}, lastDomain=${meta.lastDomain}, currentLane=${meta.currentLane}, lastGoal=${meta.lastGoal}\n` +
-    `MoodState: ${meta.moodState}\n` +
-    `LaneDetail: ${JSON.stringify(meta.laneDetail || {})}\n` +
-    `StepPhase: ${meta.stepPhase}\n` +
-    `PresetMode: ${meta.presetMode}\n`;
+  // Build prompts using new intelligence signals
+  const systemPrompt = buildSystemPrompt(classification);
+  const developerContext = buildDeveloperContext(meta, classification, clientContext, resolutionHint);
+
+  // Use incoming history from widget (stateless server; smarter via client history)
+  const historyItems = normalizeHistoryItems(history);
 
   const userPrompt =
     `User message: "${message}".\n` +
-    `Use the lane detail and mood state if it helps. ` +
-    `Give a clear, useful answer in no more than about four short paragraphs, and keep the tone warm, supportive, and collaborative. ` +
-    `Write in short, TTS-friendly sentences that sound natural when spoken out loud.`;
+    `Use lane detail + mood state if helpful. Keep it concise.\n`;
 
   try {
-    const apiRes = await axios.post(
-      "https://api.openai.com/v1/chat/completions",
-      {
-        model: "gpt-4.1-mini",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt }
-        ]
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${OPENAI_API_KEY}`,
-          "Content-Type": "application/json"
-        }
-      }
-    );
+    const response = await openai.responses.create({
+      model: NYX_MODEL,
+      input: [
+        { role: "system", content: systemPrompt },
+        { role: "developer", content: developerContext },
+        ...historyItems,
+        { role: "user", content: userPrompt }
+      ]
+    });
 
-    const reply =
-      apiRes.data?.choices?.[0]?.message?.content ||
-      localBrainReply(message, classification, meta);
-
-    return reply;
+    const reply = (response.output_text || "").trim();
+    return reply || localBrainReply(message, classification, meta);
   } catch (err) {
-    console.error("[Nyx] OpenAI error, using local brain:", err?.response?.data || err.message);
+    console.error("[Nyx] OpenAI error, using local brain:", err?.message || err);
     return localBrainReply(message, classification, meta);
   }
 }
@@ -781,7 +797,15 @@ app.get("/health", (req, res) => {
 //----------------------------------------------------------
 app.post("/api/sandblast-gpt", async (req, res) => {
   try {
-    const { message, meta: incomingMeta, mode } = req.body || {};
+    const {
+      message,
+      meta: incomingMeta,
+      mode,
+      history,
+      clientContext,
+      resolutionHint
+    } = req.body || {};
+
     if (!message || !message.trim()) {
       return res.status(400).json({ error: "EMPTY_MESSAGE" });
     }
@@ -789,7 +813,9 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     const clean = message.trim();
     let meta = cleanMeta(incomingMeta);
 
+    // Admin backdoor (secure token or ::admin prefix) remains intact
     if (isAdminMessage(req.body)) {
+      meta.access = "admin";
       return res.json({
         ok: true,
         admin: true,
@@ -798,64 +824,62 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       });
     }
 
-    // Emotional state
+    // Mood
     const moodState = detectMoodState(clean);
 
+    // Classification
     const rawClassification = classifyIntent(clean);
     const effectiveDomain = resolveLaneDomain(rawClassification, meta, clean);
     const classification = { ...rawClassification, domain: effectiveDomain };
 
-    const newLaneDetail = extractLaneDetail(
-      classification.domain,
-      clean,
-      meta.laneDetail
-    );
+    // Lane detail
+    const newLaneDetail = extractLaneDetail(classification.domain, clean, meta.laneDetail);
 
-    // Step phase for micro-transitions
+    // Step phase
     const stepPhase = computeStepPhase(classification.domain, newLaneDetail);
 
-    // Lane age for memory decay / recenter
+    // Lane age
     let laneAge = meta.laneAge || 0;
     if (classification.domain && classification.domain === meta.currentLane) {
       laneAge = laneAge + 1;
     } else {
-      laneAge = 1; // start at 1 for new lane
+      laneAge = 1;
     }
 
+    // Personality hooks (unchanged)
     let frontDoor = null;
     if (nyxPersonality.getFrontDoorResponse) {
-      frontDoor = nyxPersonality.getFrontDoorResponse(
-        clean,
-        meta,
-        classification
-      );
+      frontDoor = nyxPersonality.getFrontDoorResponse(clean, meta, classification);
     }
 
     let domainPayload = {};
     if (nyxPersonality.enrichDomainResponse) {
-      domainPayload = nyxPersonality.enrichDomainResponse(
-        clean,
-        meta,
-        classification,
-        mode
-      );
+      domainPayload = nyxPersonality.enrichDomainResponse(clean, meta, classification, mode);
     }
 
+    // Build meta for brain (includes new access + conversationState)
     const metaForBrain = {
       ...meta,
       laneDetail: newLaneDetail,
       moodState,
       stepPhase,
-      laneAge
+      laneAge,
+      // normalize/lock fields we expect
+      access: meta.access === "admin" ? "admin" : "public",
+      conversationState: meta.conversationState || "active"
     };
 
+    // Call brain with new payload signals
     const rawReply = await callBrain({
       message: clean,
       classification,
-      meta: metaForBrain
+      meta: metaForBrain,
+      history,
+      clientContext,
+      resolutionHint
     });
 
-    // Micro-transition wrapper (short step labels)
+    // Micro-transition wrapper (unchanged)
     let transitionPrefix = "";
     if (stepPhase === "tv:timing") {
       transitionPrefix = "We’ve got the vibe. Now let’s narrow the timing.\n\n";
@@ -864,8 +888,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     } else if (stepPhase === "radio:length") {
       transitionPrefix = "We’ve set the mood. Now let’s set the length.\n\n";
     } else if (stepPhase === "radio:refine") {
-      transitionPrefix =
-        "The mood and length are there. Now we can polish the flow.\n\n";
+      transitionPrefix = "The mood and length are there. Now we can polish the flow.\n\n";
     } else if (stepPhase === "sponsors:budget") {
       transitionPrefix = "We know the sponsor type. Now we can size the budget.\n\n";
     } else if (stepPhase === "sponsors:offer") {
@@ -873,25 +896,17 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     }
 
     let finalReply = transitionPrefix + rawReply;
+
     if (nyxPersonality.wrapWithNyxTone) {
-      finalReply = nyxPersonality.wrapWithNyxTone(
-        clean,
-        metaForBrain,
-        classification,
-        finalReply
-      );
+      finalReply = nyxPersonality.wrapWithNyxTone(clean, metaForBrain, classification, finalReply);
     }
 
-    // Suggestive Intelligence (non-pushy, avoids repetition)
+    // Suggestive Intelligence (unchanged)
     let newSuggestionStep = meta.lastSuggestionStep || 0;
     if (isHesitationMessage(clean)) {
-      const suggestion = buildLaneSuggestion(
-        classification.domain,
-        newLaneDetail,
-        newSuggestionStep
-      );
+      const suggestion = buildLaneSuggestion(classification.domain, newLaneDetail, newSuggestionStep);
       if (suggestion) {
-        finalReply = suggestion; // replace long reply with nudge
+        finalReply = suggestion;
         newSuggestionStep = Math.min(newSuggestionStep + 1, 2);
       }
     } else {
@@ -900,8 +915,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 
     // Gentle recenter if laneAge is high
     if (laneAge >= 7) {
-      finalReply +=
-        `\n\nIf you want, we can reset this lane or switch to another — TV, radio, sponsors, or AI.`;
+      finalReply += `\n\nIf you want, we can reset this lane or switch to another — TV, radio, sponsors, or AI.`;
     }
 
     // Smart "save this" hook
@@ -914,8 +928,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
         classification.domain === "nova" ||
         classification.domain === "sponsors")
     ) {
-      finalReply +=
-        `\n\nIf this starts to feel right, we can treat it as a working template for Sandblast.`;
+      finalReply += `\n\nIf this starts to feel right, we can treat it as a working template for Sandblast.`;
       saveHintShown = true;
     }
 
@@ -933,10 +946,14 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       moodState,
       laneAge,
       stepPhase,
-      saveHintShown
+      saveHintShown,
+
+      // Keep new fields flowing back to the widget
+      access: metaForBrain.access,
+      conversationState: metaForBrain.conversationState
     };
 
-    // UI hints for the widget (optional for front-end)
+    // UI hints
     const uiHints = {
       laneLabel: classification.domain || "general",
       moodLabel: moodState,
@@ -954,9 +971,9 @@ app.post("/api/sandblast-gpt", async (req, res) => {
           : "Ask about TV, radio, sponsors, News Canada, or AI."
     };
 
-    // Links to real Sandblast properties
     const uiLinks = buildUiLinks(classification.domain, newLaneDetail);
 
+    // IMPORTANT: return both uiLinks and links for widget compatibility
     res.json({
       ok: true,
       reply: finalReply,
@@ -967,7 +984,8 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       domainPayload,
       meta: updatedMeta,
       uiHints,
-      uiLinks
+      uiLinks,
+      links: uiLinks
     });
   } catch (err) {
     console.error("[Nyx] /api/sandblast-gpt error:", err.message);
