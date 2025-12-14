@@ -1,13 +1,10 @@
 // ----------------------------------------------------------
-// Sandblast Nyx Backend — Music Foundation v1.4
-// - Music Knowledge Layer v1 (INLINE, offline-first)
-// - Auto-promotion into music_history (pre/post OpenAI)
-// - v1.1 Fix: year-only follow-up auto-promotion when awaiting year
-// - v1.2 Polish: suppress scary 429 banner (quiet offline mode)
-// - v1.2 Fix: persist artist context across turns so "1984" resolves correctly
-// - v1.3 Fix: artist-only input ("Lionel Richie") auto-promotes (no loop)
-// - v1.4 Fix: single-word artist ("Madonna") auto-promotes + "Hello" in music lane
-//            produces a guided follow-up instead of looping
+// Sandblast Nyx Backend — Broadcast-Ready v1.5
+// - Adds explicit modes: OFFLINE / ONLINE / AUTO
+// - Adds admin access: safe debug fields for you only
+// - Enforces "always advance the conversation" for every reply
+// - Keeps quiet 429 behavior (no scary banners) but makes it consistent
+// - Preserves Music Knowledge Layer v1 (offline-first)
 // ----------------------------------------------------------
 
 require("dotenv").config();
@@ -41,10 +38,85 @@ const PORT = process.env.PORT || 3000;
 
 // Make model configurable to avoid hard failures
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
-
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
-const BUILD_TAG = "nyx-music-foundation-v1.4-2025-12-13";
+const BUILD_TAG = "nyx-broadcast-ready-v1.5-2025-12-14";
+
+// ---------------------------------------------------------
+// MODE + ACCESS NORMALIZATION
+// ---------------------------------------------------------
+function cleanMeta(incoming) {
+  const m = incoming || {};
+  const modeRaw = String(m.mode || "auto").toLowerCase();
+  const accessRaw = String(m.access || "public").toLowerCase();
+
+  const mode = modeRaw === "offline" || modeRaw === "online" ? modeRaw : "auto";
+  const access = accessRaw === "admin" ? "admin" : "public";
+
+  return {
+    sessionId: m.sessionId || "public",
+    stepIndex: Number(m.stepIndex || 0),
+    lastDomain: m.lastDomain || "general",
+    lastIntent: m.lastIntent || "statement",
+    currentLane: m.currentLane || "general",
+    laneDetail: m.laneDetail || {},
+    laneAge: Number(m.laneAge || 0),
+    mode,      // auto | offline | online
+    access     // public | admin
+  };
+}
+
+function shouldUseOpenAI(meta) {
+  if (meta.mode === "offline") return false;
+  if (meta.mode === "online") return !!openai;
+  // auto
+  return !!openai;
+}
+
+// ---------------------------------------------------------
+// UNIVERSAL "ALWAYS ADVANCE" ENFORCEMENT
+// ---------------------------------------------------------
+function hasNextStep(reply) {
+  const t = String(reply || "").toLowerCase();
+  return (
+    t.includes("next step:") ||
+    t.includes("next steps:") ||
+    t.includes("pick one:") ||
+    t.includes("tell me") ||
+    t.includes("do you want") ||
+    t.includes("would you like") ||
+    t.includes("reply with") ||
+    t.includes("?")
+  );
+}
+
+function appendNextStep(reply, domain, laneDetail) {
+  const base = String(reply || "").trim();
+  const chart = laneDetail?.chart || "Billboard Hot 100";
+
+  // If it's already got a question or next step, do nothing.
+  if (hasNextStep(base)) return base;
+
+  // Deterministic, domain-aware next action (broadcast-professional)
+  if (domain === "music_history") {
+    const artist = laneDetail?.artist ? String(laneDetail.artist).toUpperCase() : null;
+    const year = laneDetail?.year ? String(laneDetail.year) : null;
+
+    if (artist && year) {
+      return (
+        base +
+        `\nNext step: tell me the song title for ${artist} in ${year}, or ask “what was #1 that week?” (default chart: ${chart}).`
+      );
+    }
+    if (artist && !year) {
+      return base + `\nNext step: give me a year (e.g., 1984) or a song title and I’ll anchor one ${chart} moment.`;
+    }
+    return base + `\nNext step: give me an artist + year (or a specific week/date) and I’ll anchor the ${chart} moment.`;
+  }
+
+  // General lane
+  return base + "\nNext step: tell me what outcome you want here (and I’ll give you the cleanest next move).";
+}
 
 // ---------------------------------------------------------
 // MUSIC KNOWLEDGE LAYER v1 (INLINE)
@@ -54,7 +126,6 @@ const BUILD_TAG = "nyx-music-foundation-v1.4-2025-12-13";
 const MUSIC_KNOWLEDGE_V1 = {
   defaultChart: "Billboard Hot 100",
   moments: [
-    // --- Original 4 moments ---
     {
       key: "madonna_like_a_virgin_1984",
       artist: "madonna",
@@ -95,8 +166,6 @@ const MUSIC_KNOWLEDGE_V1 = {
       culture: "Youth culture became a mass-market force—pop shifted into a global identity machine.",
       next: "Want the exact chart week, or a quick timeline of their #1 run?"
     },
-
-    // --- Expanded moments ---
     {
       key: "prince_when_doves_cry_1984",
       artist: "prince",
@@ -126,16 +195,6 @@ const MUSIC_KNOWLEDGE_V1 = {
       fact: "In 1987, Rick Astley hit #1 with “Never Gonna Give You Up.”",
       culture: "A perfect example of polished late-’80s pop—studio sheen, big choruses, and mass-radio appeal.",
       next: "Want the chart date it hit #1 or other standout #1s from 1987?"
-    },
-    {
-      key: "mj_beat_it_1983",
-      artist: "michael jackson",
-      title: "beat it",
-      year: 1983,
-      chart: "Billboard Hot 100",
-      fact: "In 1983, Michael Jackson reached #1 with “Beat It.”",
-      culture: "Pop + rock crossover went mainstream—genre borders got softer, audiences got bigger.",
-      next: "Want the chart-week/date or the Thriller-era chart timeline?"
     },
     {
       key: "queen_another_one_bites_1980",
@@ -331,9 +390,7 @@ function isGreetingOrFiller(text) {
   return fillers.has(t) || t.length <= 2;
 }
 
-// v1.4: artist-only heuristic
-// - supports multi-word ("Lionel Richie")
-// - supports single-word artists ("Madonna", "Adele") when it's a clean token
+// Artist-only heuristic
 function looksLikeArtistOnly(text) {
   const raw = String(text || "").trim();
   if (!raw) return false;
@@ -347,18 +404,13 @@ function looksLikeArtistOnly(text) {
   if (looksLikeChartName(t)) return false;
   if (isGreetingOrFiller(t)) return false;
 
-  // Avoid catching generic words
   const banned = ["music", "radio", "chart", "charts", "billboard", "top", "song", "songs", "album", "albums"];
   if (banned.some((w) => t === w || t.includes(w + " "))) return false;
 
-  // Allow 1-word or 2+ word names; 1-word is common for artists
   const tokens = t.split(" ").filter(Boolean);
   if (tokens.length === 1) {
-    // single word artist name: allow if it's not purely generic and is letters only
     return /^[a-z]{3,}$/.test(tokens[0]) && !banned.includes(tokens[0]);
   }
-
-  // multi-word (e.g., Lionel Richie)
   return true;
 }
 
@@ -415,24 +467,20 @@ function findMoment({ text, laneDetail }) {
   return null;
 }
 
-// Unambiguous artist+year inference (auto-map without clarification)
 function inferMomentByArtistAndYear({ text, laneDetail }) {
   const t = norm(text);
   const year = extractYear(text) || Number(laneDetail?.year);
   if (!year) return null;
 
-  // Determine which artists are explicitly mentioned
   const mentionedArtists = new Set();
   for (const m of MUSIC_KNOWLEDGE_V1.moments) {
     const a = norm(m.artist);
     if (a && t.includes(a)) mentionedArtists.add(a);
   }
 
-  // If no artist mentioned, use persisted laneDetail.artist
   if (mentionedArtists.size === 0 && laneDetail?.artist) {
     mentionedArtists.add(norm(laneDetail.artist));
   }
-
   if (mentionedArtists.size === 0) return null;
 
   const possible = MUSIC_KNOWLEDGE_V1.moments.filter((m) => {
@@ -482,7 +530,6 @@ function formatMusicLaneFollowupPrompt(laneDetail) {
 function answerMusicHistoryOffline(message, laneDetail) {
   const t = norm(message);
 
-  // v1.4: if user greets inside music lane, don’t loop; guide cleanly
   if (isGreetingOrFiller(message)) {
     return {
       handled: true,
@@ -498,7 +545,6 @@ function answerMusicHistoryOffline(message, laneDetail) {
   const mentionsKnownArtist =
     MUSIC_KNOWLEDGE_V1.moments.some((m) => t.includes(norm(m.artist))) || !!laneDetail?.artist;
 
-  // v1.4: artist-only input (including single-word artists)
   if (looksLikeArtistOnly(message)) {
     const artist = String(message || "").trim();
     return {
@@ -518,7 +564,6 @@ function answerMusicHistoryOffline(message, laneDetail) {
 
   const year = extractYear(message) || (laneDetail?.year ? Number(laneDetail.year) : null);
 
-  // Auto-map: artist + year -> moment (if unambiguous)
   const inferred = inferMomentByArtistAndYear({ text: message, laneDetail });
   if (inferred) {
     return {
@@ -528,7 +573,6 @@ function answerMusicHistoryOffline(message, laneDetail) {
     };
   }
 
-  // Madonna: ask once if missing year (persist artist)
   if ((t.includes("madonna") || laneDetail?.artist === "madonna") && !year) {
     return {
       handled: true,
@@ -544,7 +588,6 @@ function answerMusicHistoryOffline(message, laneDetail) {
   const moment = findMoment({ text: message, laneDetail });
 
   if (!moment) {
-    // If we have an artist stored but no match, ask for one detail (no loop)
     if (laneDetail?.artist && !year) {
       return {
         handled: true,
@@ -570,7 +613,6 @@ function answerMusicHistoryOffline(message, laneDetail) {
   };
 }
 
-// Quiet offline fallback (no scary banner)
 function localMusicFallback(message, laneDetail) {
   if (isGreetingOrFiller(message)) return formatMusicLaneFollowupPrompt(laneDetail);
 
@@ -578,39 +620,21 @@ function localMusicFallback(message, laneDetail) {
   const chart = laneDetail?.chart || MUSIC_KNOWLEDGE_V1.defaultChart;
   const artist = laneDetail?.artist;
 
-  // If we have artist+year but no KB moment, keep it professional and actionable
   if (artist && year) {
     return `For ${artist.toUpperCase()} in ${year}, I can anchor the ${chart} moment — I just need the song title (or say “the #1 of that week”).\nNext step: tell me the song title, or ask “what was #1 on [date]?”`;
   }
-
   if (artist && !year) {
-    return `Got it — ${artist.toUpperCase()}. Give me a year (e.g., 1984) or a song title and I’ll anchor one ${chart} moment.`;
+    return `Got it — ${artist.toUpperCase()}. Give me a year (e.g., 1984) or a song title and I’ll anchor one ${chart} moment.\nNext step: which year or song are we tracking?`;
   }
-
   if (year) {
     return `For ${year}, I can anchor a chart moment on the ${chart}. Give me the artist + song (or say “#1 of the week”) and I’ll pin it down.\nNext step: which artist/song are we tracking?`;
   }
-
-  return `Tell me the year (or a specific week/date) and I’ll anchor the ${chart} chart moment with one chart fact, one cultural note, and one next action.`;
+  return `Tell me the year (or a specific week/date) and I’ll anchor the ${chart} chart moment with one chart fact, one cultural note, and one next action.\nNext step: artist + year, or a week/date.`;
 }
 
 // ---------------------------------------------------------
-// META NORMALIZATION
+// LANE RESOLUTION
 // ---------------------------------------------------------
-function cleanMeta(incoming) {
-  const m = incoming || {};
-  return {
-    sessionId: m.sessionId || "public",
-    stepIndex: Number(m.stepIndex || 0),
-    lastDomain: m.lastDomain || "general",
-    lastIntent: m.lastIntent || "statement",
-    currentLane: m.currentLane || "general",
-    laneDetail: m.laneDetail || {},
-    laneAge: Number(m.laneAge || 0),
-    access: "public"
-  };
-}
-
 function resolveLaneDomain(raw, meta) {
   if (raw.domain === "music_history" || raw.intent === "music_history") return "music_history";
   return raw.domain || meta.currentLane || "general";
@@ -630,11 +654,9 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 
     const raw = classifyIntent(clean);
 
-    // initial domain from classifier
     let domain = resolveLaneDomain(raw, meta);
 
     // Common detectors
-    const openaiPresent = !!openai;
     const messageLooksLikeMusic = looksMusicHistoryQuery(clean);
     const mentionsKnownArtist = !!detectArtistFromText(clean);
     const isYearOnly = isYearOnlyMessage(clean);
@@ -644,18 +666,22 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     const wasAwaitingYear =
       meta.currentLane === "music_history" && meta.laneDetail?.awaiting === "year_or_date";
 
-    // Force lane for year-only follow-up in music flow
     if (isYearOnly && wasAwaitingYear) domain = "music_history";
 
-    // Pre-OpenAI auto-promotion
+    // -------------------------------------------------
+    // MODE: OFFLINE / ONLINE / AUTO
+    // -------------------------------------------------
+    const useOpenAI = shouldUseOpenAI(meta);
+
+    // Pre-OpenAI auto-promotion (still applies in offline mode)
     if (
-      !openaiPresent &&
       (messageLooksLikeMusic ||
         mentionsKnownArtist ||
         artistOnly ||
         (isYearOnly && wasAwaitingYear) ||
         meta.currentLane === "music_history")
     ) {
+      // If it looks like music, treat as music lane.
       domain = "music_history";
     }
 
@@ -665,34 +691,33 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     let laneDetail = { ...(meta.laneDetail || {}) };
 
     if (domain === "music_history") {
-      // Persist known artist hint if present
       const detectedArtist = detectArtistFromText(clean);
       if (detectedArtist) laneDetail.artist = detectedArtist;
 
-      // Persist artist even if not in moments (artist-only input)
       if (artistOnly) {
         laneDetail.artist = norm(clean);
         laneDetail = setAwaiting(laneDetail, laneDetail.awaiting || "year_or_title");
       }
 
-      // Capture year-only replies (do NOT wipe artist)
       if (isYearOnly) {
         laneDetail.year = clean.trim();
         laneDetail = clearAwaiting(laneDetail);
       }
 
-      // Capture chart names
       if (looksLikeChartName(clean)) {
         laneDetail.chart = clean.trim();
         laneDetail = clearAwaiting(laneDetail);
       }
 
-      // OFFLINE-FIRST
+      // OFFLINE-FIRST (always try)
       const kb = answerMusicHistoryOffline(clean, laneDetail);
       if (kb?.handled) {
         if (kb.metaPatch && typeof kb.metaPatch === "object") {
           laneDetail = { ...(laneDetail || {}), ...kb.metaPatch };
         }
+
+        let reply = kb.reply;
+        reply = appendNextStep(reply, "music_history", laneDetail);
 
         const updatedMeta = {
           ...meta,
@@ -705,31 +730,83 @@ app.post("/api/sandblast-gpt", async (req, res) => {
         };
 
         appendTurn(meta.sessionId, { role: "user", content: clean });
-        appendTurn(meta.sessionId, { role: "assistant", content: kb.reply });
+        appendTurn(meta.sessionId, { role: "assistant", content: reply });
         upsertSession(meta.sessionId, session);
 
-        return res.json({
+        const payload = {
           ok: true,
-          reply: kb.reply,
+          reply,
           domain: "music_history",
           intent: raw.intent,
           meta: updatedMeta
-        });
+        };
+
+        // Admin: add safe debug fields
+        if (meta.access === "admin") {
+          payload.debug = {
+            build: BUILD_TAG,
+            mode: meta.mode,
+            useOpenAI,
+            classifier: raw
+          };
+        }
+
+        return res.json(payload);
+      }
+
+      // If OFFLINE mode and KB didn't handle it, fall back quietly in lane
+      if (!useOpenAI) {
+        let reply = localMusicFallback(clean, laneDetail);
+        reply = appendNextStep(reply, "music_history", laneDetail);
+
+        const updatedMeta = {
+          ...meta,
+          stepIndex: meta.stepIndex + 1,
+          lastDomain: "music_history",
+          lastIntent: raw.intent,
+          currentLane: "music_history",
+          laneDetail,
+          laneAge: meta.laneAge + 1
+        };
+
+        appendTurn(meta.sessionId, { role: "user", content: clean });
+        appendTurn(meta.sessionId, { role: "assistant", content: reply });
+        upsertSession(meta.sessionId, session);
+
+        const payload = {
+          ok: true,
+          reply,
+          domain: "music_history",
+          intent: raw.intent,
+          meta: updatedMeta
+        };
+
+        if (meta.access === "admin") {
+          payload.debug = {
+            build: BUILD_TAG,
+            mode: meta.mode,
+            useOpenAI,
+            classifier: raw,
+            fallback: "music_offline_fallback"
+          };
+        }
+
+        return res.json(payload);
       }
     }
 
     // -------------------------------------------------
-    // BRAIN RESPONSE (OpenAI)
+    // BRAIN RESPONSE (OpenAI) — with quiet failure
     // -------------------------------------------------
     let reply = "";
     let openaiUnavailableReason = "";
 
-    if (openai) {
+    if (useOpenAI) {
       try {
         const systemPrompt =
           domain === "music_history"
             ? "You are Nyx, a broadcast music historian. Provide exactly: one chart fact, one cultural note, one next action. If missing required info, ask one precise clarifying question."
-            : "You are Nyx, Sandblast’s AI brain.";
+            : "You are Nyx, Sandblast’s AI brain. Be broadcast-professional: concise, useful, and always end with a next step.";
 
         const response = await openai.responses.create({
           model: OPENAI_MODEL,
@@ -748,13 +825,14 @@ app.post("/api/sandblast-gpt", async (req, res) => {
         else openaiUnavailableReason = "OPENAI_ERROR";
       }
     } else {
-      openaiUnavailableReason = "OPENAI_NOT_CONFIGURED";
+      openaiUnavailableReason = "OPENAI_SKIPPED_BY_MODE";
     }
 
     // -------------------------------------------------
-    // QUIET OFFLINE MODE ON 429 (no banners)
+    // QUIET OFFLINE MODE ON 429 / ERRORS (no banners)
     // -------------------------------------------------
-    if (!reply && openaiUnavailableReason === "OPENAI_429_QUOTA") {
+    if (!reply) {
+      // If it’s music-ish, use music fallback logic
       const shouldTreatAsMusic =
         domain === "music_history" ||
         messageLooksLikeMusic ||
@@ -766,6 +844,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       if (shouldTreatAsMusic) {
         domain = "music_history";
 
+        // Ensure we preserve lane detail
         const detectedArtist = detectArtistFromText(clean);
         if (detectedArtist) laneDetail.artist = detectedArtist;
 
@@ -778,56 +857,24 @@ app.post("/api/sandblast-gpt", async (req, res) => {
           laneDetail.year = clean.trim();
           laneDetail = clearAwaiting(laneDetail);
         }
+
         if (looksLikeChartName(clean)) {
           laneDetail.chart = clean.trim();
           laneDetail = clearAwaiting(laneDetail);
         }
 
         const kb = answerMusicHistoryOffline(clean, laneDetail);
-        if (kb?.handled) {
-          if (kb.metaPatch && typeof kb.metaPatch === "object") {
-            laneDetail = { ...(laneDetail || {}), ...kb.metaPatch };
-          }
+        reply = kb?.handled ? kb.reply : localMusicFallback(clean, laneDetail);
 
-          const updatedMeta = {
-            ...meta,
-            stepIndex: meta.stepIndex + 1,
-            lastDomain: "music_history",
-            lastIntent: raw.intent,
-            currentLane: "music_history",
-            laneDetail,
-            laneAge: meta.laneAge + 1
-          };
-
-          appendTurn(meta.sessionId, { role: "user", content: clean });
-          appendTurn(meta.sessionId, { role: "assistant", content: kb.reply });
-          upsertSession(meta.sessionId, session);
-
-          return res.json({
-            ok: true,
-            reply: kb.reply,
-            domain: "music_history",
-            intent: raw.intent,
-            meta: updatedMeta
-          });
-        }
-
-        reply = localMusicFallback(clean, laneDetail);
-      }
-    }
-
-    // -------------------------------------------------
-    // FINAL FALLBACKS (quiet + professional)
-    // -------------------------------------------------
-    if (!reply) {
-      if (domain === "music_history") {
-        reply = localMusicFallback(clean, laneDetail);
-      } else if (openaiUnavailableReason === "OPENAI_429_QUOTA") {
-        reply = "I’m here — tell me what you want to do next and I’ll guide you.";
       } else {
-        reply = "Tell me how you’d like to proceed.";
+        // General lane fallback (quiet, professional)
+        reply =
+          "I’m here. Give me the goal in one line and I’ll guide the cleanest next move.";
       }
     }
+
+    // Enforce follow-up on everything (including OpenAI and fallbacks)
+    reply = appendNextStep(reply, domain, laneDetail);
 
     // -------------------------------------------------
     // FINAL META
@@ -846,15 +893,33 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     appendTurn(meta.sessionId, { role: "assistant", content: reply });
     upsertSession(meta.sessionId, session);
 
-    res.json({
+    const payload = {
       ok: true,
       reply,
       domain,
       intent: raw.intent,
       meta: updatedMeta
-    });
+    };
+
+    // Admin: add safe debug fields only for you
+    if (meta.access === "admin") {
+      payload.debug = {
+        build: BUILD_TAG,
+        mode: meta.mode,
+        useOpenAI,
+        openaiUnavailableReason,
+        classifier: raw
+      };
+    }
+
+    return res.json(payload);
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+    // Quiet error posture: still professional, still actionable
+    return res.status(500).json({
+      ok: false,
+      error: "SERVER_ERROR",
+      message: "Nyx hit a backend error, but we can continue. Try again with a shorter message."
+    });
   }
 });
 
@@ -862,5 +927,5 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 app.get("/health", (_, res) => res.json({ status: "ok", build: BUILD_TAG }));
 
 app.listen(PORT, () => {
-  console.log(`[Nyx] Music foundation v1.4 on port ${PORT} | build=${BUILD_TAG}`);
+  console.log(`[Nyx] Broadcast-ready v1.5 on port ${PORT} | build=${BUILD_TAG}`);
 });
