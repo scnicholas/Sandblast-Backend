@@ -1,8 +1,9 @@
 // ----------------------------------------------------------
-// Sandblast Nyx Backend — Broadcast-Ready v1.8
+// Sandblast Nyx Backend — Broadcast-Ready v1.9
 // Adds:
 // - Farewell/closing detection with rotating sign-offs
 // - MATURITY patch v1 (calm, decisive phrasing + greeting discipline)
+// - PERSONALITY patch v1 (host polish + subtle Sandblast flavor)
 // - Skips "always advance" enforcement on true farewells
 // Keeps:
 // - Modes: OFFLINE / ONLINE / AUTO
@@ -37,7 +38,7 @@ const PORT = process.env.PORT || 3000;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
-const BUILD_TAG = "nyx-broadcast-ready-v1.8-2025-12-14";
+const BUILD_TAG = "nyx-broadcast-ready-v1.9-2025-12-14";
 
 // Micro-tuned offline fallback (calm, confident, no apology)
 const OFFLINE_FALLBACK = "I’m here. What’s the goal?";
@@ -163,7 +164,7 @@ function isPureGreeting(text) {
   return starters.some(s => t === s || t.startsWith(s + " "));
 }
 
-// Farewell / closing detection (this is the new piece)
+// Farewell / closing detection
 function detectClosingIntent(text) {
   const t = norm(text);
 
@@ -180,8 +181,6 @@ function detectClosingIntent(text) {
   const isHard = hardFarewells.some((p) => t === p || t.includes(p));
   const isThanks = gratitude.some((p) => t === p || t.includes(p));
 
-  // If message is ONLY thanks (no new question), treat as “soft close”
-  // If message includes bye/goodnight/etc, treat as “hard close”
   if (isHard) return { type: "hard" };
   if (isThanks && !looksMusicHistoryQuery(text) && !t.includes("?")) return { type: "soft" };
   return { type: "none" };
@@ -209,7 +208,6 @@ function farewellReply(meta, closingType) {
 
 // ---------------------------------------------------------
 // UNIVERSAL "ALWAYS ADVANCE" ENFORCEMENT (Micro-tuned)
-// - Skips for hard farewells
 // ---------------------------------------------------------
 function hasNextStepOrQuestion(reply) {
   const t = String(reply || "").toLowerCase();
@@ -232,14 +230,19 @@ function pickNaturalFollowup(seed) {
   return hashPick(seed, variants);
 }
 
-function appendNextStep(reply, domain, laneDetail, closing) {
+function pickNextLabel(seed) {
+  const labels = ["Next step", "Quick move", "To lock it in", "Your call"];
+  return hashPick(seed, labels);
+}
+
+function appendNextStep(reply, domain, laneDetail, closing, seed) {
   const base = String(reply || "").trim();
   if (!base) return base;
 
-  // NEW: do not force follow-up if this is a hard farewell
   if (closing?.type === "hard") return base;
-
   if (hasNextStepOrQuestion(base)) return base;
+
+  const label = pickNextLabel(seed || base);
 
   if (domain === "music_history") {
     const chart = laneDetail?.chart || "Billboard Hot 100";
@@ -247,34 +250,92 @@ function appendNextStep(reply, domain, laneDetail, closing) {
     const year = laneDetail?.year ? String(laneDetail.year) : null;
 
     if (artist && year) {
-      return base + `\n\nNext step: tell me the song title for ${artist} in ${year}, or ask “what was #1 that week?” (default chart: ${chart}).`;
+      return base + `\n\n${label}: tell me the song title for ${artist} in ${year}, or ask “what was #1 that week?” (default chart: ${chart}).`;
     }
     if (artist && !year) {
-      return base + `\n\nNext step: give me a year (e.g., 1984) or a song title and I’ll anchor one ${chart} moment.`;
+      return base + `\n\n${label}: give me a year (e.g., 1984) or a song title and I’ll anchor one ${chart} moment.`;
     }
-    return base + `\n\nNext step: give me an artist + year (or a specific week/date) and I’ll anchor the ${chart} moment.`;
+    return base + `\n\n${label}: give me an artist + year (or a specific week/date) and I’ll anchor the ${chart} moment.`;
   }
 
-  return base + "\n\nNext step: " + pickNaturalFollowup(base);
+  return base + `\n\n${label}: ` + pickNaturalFollowup(seed || base);
 }
 
 // ---------------------------------------------------------
 // MATURITY PATCH (v1)
-// - Removes "needy" phrasing
-// - Keeps replies short, calm, and forward-moving
 // ---------------------------------------------------------
 function matureTone(reply) {
   let r = String(reply || "");
 
-  // Replace common "needy" patterns with calm, decisive language
   r = r.replace(/I can anchor this, but I need one detail:/gi, "To lock this in, pick one detail:");
   r = r.replace(/I need one detail:/gi, "To lock this in, pick one detail:");
   r = r.replace(/I need a year OR a song title/gi, "Pick one: a year or a song title");
   r = r.replace(/reply with a year \(e\.g\.,\s*1984\) or a song title/gi, "reply with a year or a song title");
 
-  // Keep broadcast-professional punctuation
   r = r.replace(/!!+/g, "!");
   return r.trim();
+}
+
+// ---------------------------------------------------------
+// PERSONALITY PATCH (v1)
+// ---------------------------------------------------------
+function detectUserSignal(message) {
+  const t = norm(message);
+
+  const frustrated = [
+    "not working", "broken", "stuck", "again", "why", "issue", "error",
+    "problem", "doesnt work", "doesn't work", "cant", "can't", "reset", "fix"
+  ];
+  const excited = ["great", "love", "perfect", "awesome", "amazing", "nice", "looking good"];
+  const tired = ["goodnight", "gn", "tomorrow", "later", "tired", "sleep", "rest"];
+
+  if (tired.some(w => t.includes(w))) return "tired";
+  if (frustrated.some(w => t.includes(w))) return "frustrated";
+  if (excited.some(w => t.includes(w))) return "excited";
+  return "neutral";
+}
+
+function shouldAddBrandLine(meta) {
+  const seed = `${meta.sessionId}|${meta.stepIndex}|brand`;
+  const pick = hashPick(seed, ["0","1","2","3"]);
+  return pick === "0";
+}
+
+function pickBrandLine(meta) {
+  const lines = [
+    "Let’s tune the signal and lock this in.",
+    "No static — just the next clean move.",
+    "Clean, crisp, and forward.",
+    "We’ll keep it broadcast-ready."
+  ];
+  return hashPick(`${meta.sessionId}|${meta.stepIndex}|brandline`, lines);
+}
+
+function applyNyxPersonality(reply, meta, userMessage, closing) {
+  let r = String(reply || "").trim();
+  if (!r) return r;
+  if (closing?.type === "hard") return r;
+
+  const signal = detectUserSignal(userMessage);
+
+  if (signal === "frustrated") {
+    if (!/^got it\b/i.test(r)) r = "Got it — let’s simplify this and get a clean win.\n" + r;
+  } else if (signal === "excited") {
+    if (!/^love that\b/i.test(r)) r = "Love that energy — let’s build it properly.\n" + r;
+  } else if (signal === "tired") {
+    if (!/^all good\b/i.test(r)) r = "All good — we’ll keep it smooth.\n" + r;
+  }
+
+  if (shouldAddBrandLine(meta)) {
+    r = r + "\n\n" + pickBrandLine(meta);
+  }
+
+  const lines = r.split("\n").filter(Boolean);
+  if (lines.length > 14) {
+    r = lines.slice(0, 14).join("\n").trim();
+  }
+
+  return r;
 }
 
 // ---------------------------------------------------------
@@ -293,7 +354,6 @@ const MUSIC_KNOWLEDGE_V1 = {
       culture: "It became a defining MTV-era breakthrough moment and reset the rules for pop stardom.",
       next: "Want the exact chart week/date, or Madonna’s full #1 timeline?"
     }
-    // (Keep the rest of your moments list as-is; omitted here for brevity if you already have it.)
   ]
 };
 
@@ -356,7 +416,6 @@ function formatMusicLaneFollowupPrompt(laneDetail) {
 
 function answerMusicHistoryOffline(message, laneDetail) {
   if (isGreetingOrFiller(message)) {
-    // If the user is just greeting / filler and we have no music context yet, keep it light.
     const hasContext = !!(laneDetail?.artist || laneDetail?.year || laneDetail?.chart);
     return {
       handled: true,
@@ -377,7 +436,6 @@ function answerMusicHistoryOffline(message, laneDetail) {
 
   if (!looksLikeMusic && !mentionsKnownArtist) return { handled: false };
 
-  // Minimal example: Madonna prompt
   if ((t.includes("madonna") || laneDetail?.artist === "madonna") && !year) {
     return {
       handled: true,
@@ -386,7 +444,6 @@ function answerMusicHistoryOffline(message, laneDetail) {
     };
   }
 
-  // Try known moment match
   const m = MUSIC_KNOWLEDGE_V1.moments.find(x => t.includes(norm(x.artist)) && (!year || x.year === year));
   if (!m) {
     return {
@@ -417,10 +474,12 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     let meta = cleanMeta(incomingMeta);
     const session = getSession(meta.sessionId);
 
-    // MATURITY: greetings stay in GENERAL lane (never force music prompts)
+    // Greetings stay in GENERAL lane
     if (isPureGreeting(clean)) {
       const replyRaw = "Hi — I’m Nyx. What would you like to explore today? (Music history, Sandblast TV, News Canada, or Sponsors)";
-      const reply = matureTone(replyRaw);
+      let reply = matureTone(replyRaw);
+      reply = applyNyxPersonality(reply, meta, clean, null);
+      reply = matureTone(reply);
 
       const updatedMeta = {
         ...meta,
@@ -442,7 +501,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       return res.json(payload);
     }
 
-    // NEW: closing intent check first (so we can end cleanly)
+    // Closing intent check first
     const closing = detectClosingIntent(clean);
     if (closing.type !== "none") {
       const reply = farewellReply(meta, closing.type);
@@ -487,9 +546,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 
     let laneDetail = { ...(meta.laneDetail || {}) };
 
-    // ------------------------------
     // MUSIC LANE (offline-first)
-    // ------------------------------
     if (domain === "music_history") {
       const detectedArtist = detectArtistFromText(clean);
       if (detectedArtist) laneDetail.artist = detectedArtist;
@@ -514,7 +571,8 @@ app.post("/api/sandblast-gpt", async (req, res) => {
         if (kb.metaPatch && typeof kb.metaPatch === "object") laneDetail = { ...laneDetail, ...kb.metaPatch };
 
         let reply = matureTone(kb.reply);
-        reply = appendNextStep(reply, "music_history", laneDetail, closing);
+        reply = applyNyxPersonality(reply, meta, clean, closing);
+        reply = appendNextStep(reply, "music_history", laneDetail, closing, `${meta.sessionId}|${meta.stepIndex}|music_history`);
         reply = matureTone(reply);
 
         const updatedMeta = {
@@ -538,7 +596,8 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 
       if (!useOpenAI) {
         let reply = matureTone(localMusicFallback(clean, laneDetail));
-        reply = appendNextStep(reply, "music_history", laneDetail, closing);
+        reply = applyNyxPersonality(reply, meta, clean, closing);
+        reply = appendNextStep(reply, "music_history", laneDetail, closing, `${meta.sessionId}|${meta.stepIndex}|music_history`);
         reply = matureTone(reply);
 
         const updatedMeta = {
@@ -561,9 +620,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       }
     }
 
-    // ------------------------------
     // OpenAI path (quiet failure)
-    // ------------------------------
     let reply = "";
     let openaiUnavailableReason = "";
 
@@ -605,8 +662,9 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     }
 
     reply = matureTone(reply);
+    reply = applyNyxPersonality(reply, meta, clean, closing);
 
-    reply = appendNextStep(reply, domain, laneDetail, closing);
+    reply = appendNextStep(reply, domain, laneDetail, closing, `${meta.sessionId}|${meta.stepIndex}|${domain}`);
     reply = matureTone(reply);
 
     const updatedMeta = {
@@ -639,5 +697,5 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 app.get("/health", (_, res) => res.json({ status: "ok", build: BUILD_TAG }));
 
 app.listen(PORT, () => {
-  console.log(`[Nyx] Broadcast-ready v1.8 on port ${PORT} | build=${BUILD_TAG}`);
+  console.log(`[Nyx] Broadcast-ready v1.9 on port ${PORT} | build=${BUILD_TAG}`);
 });
