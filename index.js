@@ -1,11 +1,13 @@
 // ----------------------------------------------------------
-// Sandblast Nyx Backend — Music Foundation v1.3
+// Sandblast Nyx Backend — Music Foundation v1.4
 // - Music Knowledge Layer v1 (INLINE, offline-first)
 // - Auto-promotion into music_history (pre/post OpenAI)
 // - v1.1 Fix: year-only follow-up auto-promotion when awaiting year
 // - v1.2 Polish: suppress scary 429 banner (quiet offline mode)
 // - v1.2 Fix: persist artist context across turns so "1984" resolves correctly
-// - v1.3 Fix: artist-only input ("Lionel Richie") auto-promotes (no loop / no "tell me what to do next")
+// - v1.3 Fix: artist-only input ("Lionel Richie") auto-promotes (no loop)
+// - v1.4 Fix: single-word artist ("Madonna") auto-promotes + "Hello" in music lane
+//            produces a guided follow-up instead of looping
 // ----------------------------------------------------------
 
 require("dotenv").config();
@@ -25,11 +27,7 @@ function optionalRequire(path, fallback) {
   }
 }
 
-const {
-  getSession,
-  upsertSession,
-  appendTurn
-} = optionalRequire("./Utils/sessionStore", {
+const { getSession, upsertSession, appendTurn } = optionalRequire("./Utils/sessionStore", {
   getSession: () => ({ summary: "", openLoops: [], turns: [] }),
   upsertSession: () => {},
   appendTurn: () => {}
@@ -44,11 +42,9 @@ const PORT = process.env.PORT || 3000;
 // Make model configurable to avoid hard failures
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
-const openai = process.env.OPENAI_API_KEY
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-  : null;
+const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
-const BUILD_TAG = "nyx-music-foundation-v1.3-2025-12-13";
+const BUILD_TAG = "nyx-music-foundation-v1.4-2025-12-13";
 
 // ---------------------------------------------------------
 // MUSIC KNOWLEDGE LAYER v1 (INLINE)
@@ -100,7 +96,7 @@ const MUSIC_KNOWLEDGE_V1 = {
       next: "Want the exact chart week, or a quick timeline of their #1 run?"
     },
 
-    // --- Expanded moments (keep as-is from v1.2) ---
+    // --- Expanded moments ---
     {
       key: "prince_when_doves_cry_1984",
       artist: "prince",
@@ -310,26 +306,60 @@ function looksLikeChartName(text) {
   );
 }
 
-// v1.3: artist-only heuristic (works even if artist isn't in moments yet)
+function isGreetingOrFiller(text) {
+  const t = norm(text);
+  if (!t) return true;
+  const fillers = new Set([
+    "hi",
+    "hello",
+    "hey",
+    "yo",
+    "ok",
+    "okay",
+    "k",
+    "thanks",
+    "thank you",
+    "thx",
+    "cool",
+    "nice",
+    "great",
+    "good",
+    "sounds good",
+    "test",
+    "testing"
+  ]);
+  return fillers.has(t) || t.length <= 2;
+}
+
+// v1.4: artist-only heuristic
+// - supports multi-word ("Lionel Richie")
+// - supports single-word artists ("Madonna", "Adele") when it's a clean token
 function looksLikeArtistOnly(text) {
   const raw = String(text || "").trim();
   if (!raw) return false;
   if (isYearOnlyMessage(raw)) return false;
 
-  // Only letters/spaces (allow apostrophes & hyphens lightly)
   const ok = /^[a-zA-Z\s'\-\.]{3,50}$/.test(raw);
   if (!ok) return false;
 
   const t = norm(raw);
   if (looksMusicHistoryQuery(t)) return false;
   if (looksLikeChartName(t)) return false;
+  if (isGreetingOrFiller(t)) return false;
 
   // Avoid catching generic words
   const banned = ["music", "radio", "chart", "charts", "billboard", "top", "song", "songs", "album", "albums"];
   if (banned.some((w) => t === w || t.includes(w + " "))) return false;
 
-  // At least one space suggests a name (Lionel Richie / Taylor Swift)
-  return t.includes(" ");
+  // Allow 1-word or 2+ word names; 1-word is common for artists
+  const tokens = t.split(" ").filter(Boolean);
+  if (tokens.length === 1) {
+    // single word artist name: allow if it's not purely generic and is letters only
+    return /^[a-z]{3,}$/.test(tokens[0]) && !banned.includes(tokens[0]);
+  }
+
+  // multi-word (e.g., Lionel Richie)
+  return true;
 }
 
 function setAwaiting(detail, value) {
@@ -418,12 +448,11 @@ function formatMomentReply(moment, laneDetail) {
   return `${moment.fact} (${chart})\nCultural note: ${moment.culture}\nNext step: ${moment.next}`;
 }
 
-// v1.3: broadcaster-style prompt for artist-only (no loop)
 function formatArtistLookupReply(artistName, laneDetail) {
   const chart = laneDetail?.chart || MUSIC_KNOWLEDGE_V1.defaultChart;
   const pretty = String(artistName || "").trim();
   return (
-    `Got it — ${pretty}. I can anchor this on the ${chart}.\n` +
+    `Locked in — ${pretty}. I’ll anchor this on the ${chart}.\n` +
     `Pick one:\n` +
     `1) “${pretty} #1 hits”\n` +
     `2) “${pretty} 1984” (year focus)\n` +
@@ -433,6 +462,19 @@ function formatArtistLookupReply(artistName, laneDetail) {
   );
 }
 
+function formatMusicLaneFollowupPrompt(laneDetail) {
+  const chart = laneDetail?.chart || MUSIC_KNOWLEDGE_V1.defaultChart;
+  const artist = laneDetail?.artist ? laneDetail.artist.toUpperCase() : null;
+
+  if (artist && laneDetail?.year) {
+    return `Got it — ${artist}, ${laneDetail.year}. Tell me the song title (or ask “what was #1 that week?”) and I’ll anchor the ${chart} moment.`;
+  }
+  if (artist && !laneDetail?.year) {
+    return `Got it — ${artist}. Give me a year (e.g., 1984) or a song title and I’ll anchor one ${chart} moment.`;
+  }
+  return `Tell me an artist + year (or a specific week/date) and I’ll anchor the ${chart} chart moment with one chart fact, one cultural note, and one next action.`;
+}
+
 /**
  * Offline-first answerer for music_history.
  * Returns { handled: true, reply, metaPatch } or { handled: false }
@@ -440,11 +482,23 @@ function formatArtistLookupReply(artistName, laneDetail) {
 function answerMusicHistoryOffline(message, laneDetail) {
   const t = norm(message);
 
+  // v1.4: if user greets inside music lane, don’t loop; guide cleanly
+  if (isGreetingOrFiller(message)) {
+    return {
+      handled: true,
+      reply: formatMusicLaneFollowupPrompt(laneDetail),
+      metaPatch: {
+        chart: laneDetail?.chart || MUSIC_KNOWLEDGE_V1.defaultChart,
+        awaiting: laneDetail?.awaiting || (laneDetail?.artist ? "year_or_title" : "artist_year_or_title")
+      }
+    };
+  }
+
   const looksLikeMusic = looksMusicHistoryQuery(message);
   const mentionsKnownArtist =
     MUSIC_KNOWLEDGE_V1.moments.some((m) => t.includes(norm(m.artist))) || !!laneDetail?.artist;
 
-  // v1.3: if user typed only an artist name in music lane, handle it immediately
+  // v1.4: artist-only input (including single-word artists)
   if (looksLikeArtistOnly(message)) {
     const artist = String(message || "").trim();
     return {
@@ -474,7 +528,7 @@ function answerMusicHistoryOffline(message, laneDetail) {
     };
   }
 
-  // If we have Madonna context but no year, ask once (and persist artist)
+  // Madonna: ask once if missing year (persist artist)
   if ((t.includes("madonna") || laneDetail?.artist === "madonna") && !year) {
     return {
       handled: true,
@@ -490,13 +544,12 @@ function answerMusicHistoryOffline(message, laneDetail) {
   const moment = findMoment({ text: message, laneDetail });
 
   if (!moment) {
-    // v1.3: if we have an artist stored but no match, stay professional and ask for one detail
+    // If we have an artist stored but no match, ask for one detail (no loop)
     if (laneDetail?.artist && !year) {
-      const pretty = String(laneDetail.artist || "").toUpperCase();
       return {
         handled: true,
         reply:
-          `I’ve got ${pretty} in focus. Give me a year OR a song title and I’ll anchor one chart moment on the ${laneDetail?.chart || MUSIC_KNOWLEDGE_V1.defaultChart}.\n` +
+          `I can anchor this. I just need one detail: a year OR a song title (default chart: ${laneDetail?.chart || MUSIC_KNOWLEDGE_V1.defaultChart}).\n` +
           `Next step: reply with a year (e.g., 1984) or a song title.`,
         metaPatch: { chart: laneDetail?.chart || MUSIC_KNOWLEDGE_V1.defaultChart, awaiting: "year_or_title" }
       };
@@ -506,7 +559,7 @@ function answerMusicHistoryOffline(message, laneDetail) {
       handled: true,
       reply:
         "I can anchor this, but I need one detail: a year OR a song title OR which chart (Billboard Hot 100 / UK Top 40 / Canada RPM).\nNext step: reply with a year (e.g., 1984) or a song title.",
-      metaPatch: { chart: laneDetail?.chart || MUSIC_KNOWLEDGE_V1.defaultChart }
+      metaPatch: { chart: laneDetail?.chart || MUSIC_KNOWLEDGE_V1.defaultChart, awaiting: "artist_year_or_title" }
     };
   }
 
@@ -519,19 +572,19 @@ function answerMusicHistoryOffline(message, laneDetail) {
 
 // Quiet offline fallback (no scary banner)
 function localMusicFallback(message, laneDetail) {
+  if (isGreetingOrFiller(message)) return formatMusicLaneFollowupPrompt(laneDetail);
+
   const year = laneDetail?.year;
   const chart = laneDetail?.chart || MUSIC_KNOWLEDGE_V1.defaultChart;
   const artist = laneDetail?.artist;
-  const t = norm(message);
-
-  // If we have artist but not enough detail, prompt cleanly
-  if (artist && !year && looksLikeArtistOnly(message)) {
-    return formatArtistLookupReply(String(message || "").trim(), laneDetail);
-  }
 
   // If we have artist+year but no KB moment, keep it professional and actionable
   if (artist && year) {
     return `For ${artist.toUpperCase()} in ${year}, I can anchor the ${chart} moment — I just need the song title (or say “the #1 of that week”).\nNext step: tell me the song title, or ask “what was #1 on [date]?”`;
+  }
+
+  if (artist && !year) {
+    return `Got it — ${artist.toUpperCase()}. Give me a year (e.g., 1984) or a song title and I’ll anchor one ${chart} moment.`;
   }
 
   if (year) {
@@ -587,24 +640,21 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     const isYearOnly = isYearOnlyMessage(clean);
     const artistOnly = looksLikeArtistOnly(clean);
 
-    // v1.1/v1.2: if we were awaiting year in music_history, treat year-only reply as music_history
+    // If we were awaiting year in music_history, treat year-only reply as music_history
     const wasAwaitingYear =
-      meta.currentLane === "music_history" &&
-      meta.laneDetail?.awaiting === "year_or_date";
+      meta.currentLane === "music_history" && meta.laneDetail?.awaiting === "year_or_date";
 
     // Force lane for year-only follow-up in music flow
-    if (isYearOnly && wasAwaitingYear) {
-      domain = "music_history";
-    }
+    if (isYearOnly && wasAwaitingYear) domain = "music_history";
 
-    // -------------------------------------------------
-    // AUTO-PROMOTION (pre-OpenAI)
-    // If OpenAI missing and message indicates music history OR artist-only in music flow,
-    // force music_history so offline layer can answer.
-    // -------------------------------------------------
+    // Pre-OpenAI auto-promotion
     if (
       !openaiPresent &&
-      (messageLooksLikeMusic || mentionsKnownArtist || artistOnly || (isYearOnly && wasAwaitingYear) || meta.currentLane === "music_history")
+      (messageLooksLikeMusic ||
+        mentionsKnownArtist ||
+        artistOnly ||
+        (isYearOnly && wasAwaitingYear) ||
+        meta.currentLane === "music_history")
     ) {
       domain = "music_history";
     }
@@ -615,17 +665,17 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     let laneDetail = { ...(meta.laneDetail || {}) };
 
     if (domain === "music_history") {
-      // Persist artist hint if present in this message (known artists)
+      // Persist known artist hint if present
       const detectedArtist = detectArtistFromText(clean);
       if (detectedArtist) laneDetail.artist = detectedArtist;
 
-      // v1.3: persist artist even if not in moments (artist-only input)
+      // Persist artist even if not in moments (artist-only input)
       if (artistOnly) {
         laneDetail.artist = norm(clean);
         laneDetail = setAwaiting(laneDetail, laneDetail.awaiting || "year_or_title");
       }
 
-      // Capture year-only replies
+      // Capture year-only replies (do NOT wipe artist)
       if (isYearOnly) {
         laneDetail.year = clean.trim();
         laneDetail = clearAwaiting(laneDetail);
@@ -637,15 +687,11 @@ app.post("/api/sandblast-gpt", async (req, res) => {
         laneDetail = clearAwaiting(laneDetail);
       }
 
-      // OFFLINE-FIRST: Knowledge Layer v1
+      // OFFLINE-FIRST
       const kb = answerMusicHistoryOffline(clean, laneDetail);
       if (kb?.handled) {
         if (kb.metaPatch && typeof kb.metaPatch === "object") {
           laneDetail = { ...(laneDetail || {}), ...kb.metaPatch };
-        }
-
-        if (laneDetail.awaiting && (laneDetail.year || laneDetail.chart)) {
-          laneDetail = clearAwaiting(laneDetail);
         }
 
         const updatedMeta = {
@@ -669,30 +715,6 @@ app.post("/api/sandblast-gpt", async (req, res) => {
           intent: raw.intent,
           meta: updatedMeta
         });
-      }
-
-      // One-time clarifier (only if we truly have nothing)
-      if (!laneDetail.year && laneDetail.awaiting !== "year_or_date" && !laneDetail.artist) {
-        laneDetail = setAwaiting(laneDetail, "year_or_date");
-
-        return res.json({
-          ok: true,
-          reply: "Quick check — what year (or week/date) are we talking, and should I default to the Billboard Hot 100?",
-          domain: "music_history",
-          intent: "music_history",
-          meta: {
-            ...meta,
-            currentLane: "music_history",
-            laneDetail,
-            laneAge: meta.laneAge + 1
-          }
-        });
-      }
-
-      // No loop
-      if (!laneDetail.year && laneDetail.awaiting === "year_or_date") {
-        laneDetail = clearAwaiting(laneDetail);
-        laneDetail.chart = laneDetail.chart || MUSIC_KNOWLEDGE_V1.defaultChart;
       }
     }
 
@@ -722,20 +744,15 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       } catch (e) {
         const msg = String(e?.message || "");
         const status = e?.status || e?.response?.status;
-
-        if (status === 429 || msg.includes("429")) {
-          openaiUnavailableReason = "OPENAI_429_QUOTA";
-        } else {
-          openaiUnavailableReason = "OPENAI_ERROR";
-        }
+        if (status === 429 || msg.includes("429")) openaiUnavailableReason = "OPENAI_429_QUOTA";
+        else openaiUnavailableReason = "OPENAI_ERROR";
       }
     } else {
       openaiUnavailableReason = "OPENAI_NOT_CONFIGURED";
     }
 
     // -------------------------------------------------
-    // AUTO-PROMOTION (post-OpenAI)
-    // If OpenAI 429 and this is music flow, answer quietly offline.
+    // QUIET OFFLINE MODE ON 429 (no banners)
     // -------------------------------------------------
     if (!reply && openaiUnavailableReason === "OPENAI_429_QUOTA") {
       const shouldTreatAsMusic =
@@ -749,7 +766,6 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       if (shouldTreatAsMusic) {
         domain = "music_history";
 
-        // Refresh laneDetail and persist artist/year/chart if detected
         const detectedArtist = detectArtistFromText(clean);
         if (detectedArtist) laneDetail.artist = detectedArtist;
 
@@ -789,14 +805,13 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 
           return res.json({
             ok: true,
-            reply: kb.reply, // ✅ quiet offline mode (no banner)
+            reply: kb.reply,
             domain: "music_history",
             intent: raw.intent,
             meta: updatedMeta
           });
         }
 
-        // Quiet fallback if KB didn’t match
         reply = localMusicFallback(clean, laneDetail);
       }
     }
@@ -806,7 +821,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     // -------------------------------------------------
     if (!reply) {
       if (domain === "music_history") {
-        reply = localMusicFallback(clean, laneDetail); // ✅ no scary banner
+        reply = localMusicFallback(clean, laneDetail);
       } else if (openaiUnavailableReason === "OPENAI_429_QUOTA") {
         reply = "I’m here — tell me what you want to do next and I’ll guide you.";
       } else {
@@ -847,5 +862,5 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 app.get("/health", (_, res) => res.json({ status: "ok", build: BUILD_TAG }));
 
 app.listen(PORT, () => {
-  console.log(`[Nyx] Music foundation v1.3 on port ${PORT} | build=${BUILD_TAG}`);
+  console.log(`[Nyx] Music foundation v1.4 on port ${PORT} | build=${BUILD_TAG}`);
 });
