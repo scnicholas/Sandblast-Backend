@@ -1,9 +1,9 @@
 // ----------------------------------------------------------
-// Sandblast Nyx Backend — Broadcast-Ready v1.5
-// - Adds explicit modes: OFFLINE / ONLINE / AUTO
-// - Adds admin access: safe debug fields for you only
-// - Enforces "always advance the conversation" for every reply
-// - Keeps quiet 429 behavior (no scary banners) but makes it consistent
+// Sandblast Nyx Backend — Broadcast-Ready v1.6 (Micro-tuned)
+// - Modes: OFFLINE / ONLINE / AUTO
+// - Admin access: safe debug fields for you only
+// - Enforces "always advance" but with more natural cadence
+// - Quiet 429 behavior (no scary banners)
 // - Preserves Music Knowledge Layer v1 (offline-first)
 // ----------------------------------------------------------
 
@@ -40,7 +40,10 @@ const PORT = process.env.PORT || 3000;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
-const BUILD_TAG = "nyx-broadcast-ready-v1.5-2025-12-14";
+const BUILD_TAG = "nyx-broadcast-ready-v1.6-2025-12-14";
+
+// Micro-tuned offline fallback (calm, confident, no apology)
+const OFFLINE_FALLBACK = "I’m here. What’s the goal?";
 
 // ---------------------------------------------------------
 // MODE + ACCESS NORMALIZATION
@@ -74,48 +77,61 @@ function shouldUseOpenAI(meta) {
 }
 
 // ---------------------------------------------------------
-// UNIVERSAL "ALWAYS ADVANCE" ENFORCEMENT
+// UNIVERSAL "ALWAYS ADVANCE" ENFORCEMENT (Micro-tuned)
+// - Keeps deterministic Next step in music_history when required
+// - Uses natural follow-up rotation elsewhere to avoid robotic repetition
 // ---------------------------------------------------------
-function hasNextStep(reply) {
+function hasNextStepOrQuestion(reply) {
   const t = String(reply || "").toLowerCase();
   return (
     t.includes("next step:") ||
     t.includes("next steps:") ||
     t.includes("pick one:") ||
-    t.includes("tell me") ||
-    t.includes("do you want") ||
-    t.includes("would you like") ||
     t.includes("reply with") ||
+    t.includes("quick check") ||
     t.includes("?")
   );
 }
 
+function pickNaturalFollowup(seed) {
+  const variants = [
+    "Where would you like to take this next?",
+    "What should we look at next?",
+    "Tell me how you’d like to continue."
+  ];
+  const s = String(seed || "");
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return variants[h % variants.length];
+}
+
 function appendNextStep(reply, domain, laneDetail) {
   const base = String(reply || "").trim();
-  const chart = laneDetail?.chart || "Billboard Hot 100";
+  if (!base) return base;
 
   // If it's already got a question or next step, do nothing.
-  if (hasNextStep(base)) return base;
+  if (hasNextStepOrQuestion(base)) return base;
 
-  // Deterministic, domain-aware next action (broadcast-professional)
+  // Domain-aware: music_history stays explicit when needed (prevents ambiguity loops)
   if (domain === "music_history") {
+    const chart = laneDetail?.chart || "Billboard Hot 100";
     const artist = laneDetail?.artist ? String(laneDetail.artist).toUpperCase() : null;
     const year = laneDetail?.year ? String(laneDetail.year) : null;
 
     if (artist && year) {
       return (
         base +
-        `\nNext step: tell me the song title for ${artist} in ${year}, or ask “what was #1 that week?” (default chart: ${chart}).`
+        `\n\nNext step: tell me the song title for ${artist} in ${year}, or ask “what was #1 that week?” (default chart: ${chart}).`
       );
     }
     if (artist && !year) {
-      return base + `\nNext step: give me a year (e.g., 1984) or a song title and I’ll anchor one ${chart} moment.`;
+      return base + `\n\nNext step: give me a year (e.g., 1984) or a song title and I’ll anchor one ${chart} moment.`;
     }
-    return base + `\nNext step: give me an artist + year (or a specific week/date) and I’ll anchor the ${chart} moment.`;
+    return base + `\n\nNext step: give me an artist + year (or a specific week/date) and I’ll anchor the ${chart} moment.`;
   }
 
-  // General lane
-  return base + "\nNext step: tell me what outcome you want here (and I’ll give you the cleanest next move).";
+  // General lane: natural follow-up (micro-tuned)
+  return base + "\n\n" + pickNaturalFollowup(base);
 }
 
 // ---------------------------------------------------------
@@ -369,23 +385,12 @@ function isGreetingOrFiller(text) {
   const t = norm(text);
   if (!t) return true;
   const fillers = new Set([
-    "hi",
-    "hello",
-    "hey",
-    "yo",
-    "ok",
-    "okay",
-    "k",
-    "thanks",
-    "thank you",
-    "thx",
-    "cool",
-    "nice",
-    "great",
-    "good",
+    "hi", "hello", "hey", "yo",
+    "ok", "okay", "k",
+    "thanks", "thank you", "thx",
+    "cool", "nice", "great", "good",
     "sounds good",
-    "test",
-    "testing"
+    "test", "testing"
   ]);
   return fillers.has(t) || t.length <= 2;
 }
@@ -805,8 +810,8 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       try {
         const systemPrompt =
           domain === "music_history"
-            ? "You are Nyx, a broadcast music historian. Provide exactly: one chart fact, one cultural note, one next action. If missing required info, ask one precise clarifying question."
-            : "You are Nyx, Sandblast’s AI brain. Be broadcast-professional: concise, useful, and always end with a next step.";
+            ? "You are Nyx — calm, concise, and broadcast-professional. Provide: one chart fact, one cultural note, and one natural follow-up. If missing required info, ask one precise clarifying question."
+            : "You are Nyx — calm, concise, and broadcast-professional. Answer clearly, then guide the conversation forward with one natural follow-up. Avoid listing options unless necessary.";
 
         const response = await openai.responses.create({
           model: OPENAI_MODEL,
@@ -832,7 +837,6 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     // QUIET OFFLINE MODE ON 429 / ERRORS (no banners)
     // -------------------------------------------------
     if (!reply) {
-      // If it’s music-ish, use music fallback logic
       const shouldTreatAsMusic =
         domain === "music_history" ||
         messageLooksLikeMusic ||
@@ -844,7 +848,6 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       if (shouldTreatAsMusic) {
         domain = "music_history";
 
-        // Ensure we preserve lane detail
         const detectedArtist = detectArtistFromText(clean);
         if (detectedArtist) laneDetail.artist = detectedArtist;
 
@@ -867,9 +870,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
         reply = kb?.handled ? kb.reply : localMusicFallback(clean, laneDetail);
 
       } else {
-        // General lane fallback (quiet, professional)
-        reply =
-          "I’m here. Give me the goal in one line and I’ll guide the cleanest next move.";
+        reply = OFFLINE_FALLBACK;
       }
     }
 
@@ -901,7 +902,6 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       meta: updatedMeta
     };
 
-    // Admin: add safe debug fields only for you
     if (meta.access === "admin") {
       payload.debug = {
         build: BUILD_TAG,
@@ -914,7 +914,6 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 
     return res.json(payload);
   } catch (err) {
-    // Quiet error posture: still professional, still actionable
     return res.status(500).json({
       ok: false,
       error: "SERVER_ERROR",
@@ -927,5 +926,5 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 app.get("/health", (_, res) => res.json({ status: "ok", build: BUILD_TAG }));
 
 app.listen(PORT, () => {
-  console.log(`[Nyx] Broadcast-ready v1.5 on port ${PORT} | build=${BUILD_TAG}`);
+  console.log(`[Nyx] Broadcast-ready v1.6 on port ${PORT} | build=${BUILD_TAG}`);
 });
