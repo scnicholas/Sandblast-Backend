@@ -1,7 +1,8 @@
 // ----------------------------------------------------------
-// Sandblast Nyx Backend — Broadcast-Ready v1.7
+// Sandblast Nyx Backend — Broadcast-Ready v1.8
 // Adds:
 // - Farewell/closing detection with rotating sign-offs
+// - MATURITY patch v1 (calm, decisive phrasing + greeting discipline)
 // - Skips "always advance" enforcement on true farewells
 // Keeps:
 // - Modes: OFFLINE / ONLINE / AUTO
@@ -36,7 +37,7 @@ const PORT = process.env.PORT || 3000;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
-const BUILD_TAG = "nyx-broadcast-ready-v1.7-2025-12-14";
+const BUILD_TAG = "nyx-broadcast-ready-v1.8-2025-12-14";
 
 // Micro-tuned offline fallback (calm, confident, no apology)
 const OFFLINE_FALLBACK = "I’m here. What’s the goal?";
@@ -148,6 +149,20 @@ function isGreetingOrFiller(text) {
   return fillers.has(t) || t.length <= 2;
 }
 
+// Strict greeting detector (used to keep greetings out of domain logic)
+function isPureGreeting(text) {
+  const t = norm(text);
+  if (!t) return false;
+  const starters = ["hi", "hello", "hey", "yo"];
+  const full = new Set([
+    "hi", "hello", "hey", "yo",
+    "hi nyx", "hello nyx", "hey nyx",
+    "good morning", "good afternoon", "good evening"
+  ]);
+  if (full.has(t)) return true;
+  return starters.some(s => t === s || t.startsWith(s + " "));
+}
+
 // Farewell / closing detection (this is the new piece)
 function detectClosingIntent(text) {
   const t = norm(text);
@@ -210,9 +225,9 @@ function hasNextStepOrQuestion(reply) {
 
 function pickNaturalFollowup(seed) {
   const variants = [
-    "Where would you like to take this next?",
-    "What should we look at next?",
-    "Tell me how you’d like to continue."
+    "Tell me what you want to do next.",
+    "What should we tackle next?",
+    "How would you like to continue?"
   ];
   return hashPick(seed, variants);
 }
@@ -240,7 +255,26 @@ function appendNextStep(reply, domain, laneDetail, closing) {
     return base + `\n\nNext step: give me an artist + year (or a specific week/date) and I’ll anchor the ${chart} moment.`;
   }
 
-  return base + "\n\n" + pickNaturalFollowup(base);
+  return base + "\n\nNext step: " + pickNaturalFollowup(base);
+}
+
+// ---------------------------------------------------------
+// MATURITY PATCH (v1)
+// - Removes "needy" phrasing
+// - Keeps replies short, calm, and forward-moving
+// ---------------------------------------------------------
+function matureTone(reply) {
+  let r = String(reply || "");
+
+  // Replace common "needy" patterns with calm, decisive language
+  r = r.replace(/I can anchor this, but I need one detail:/gi, "To lock this in, pick one detail:");
+  r = r.replace(/I need one detail:/gi, "To lock this in, pick one detail:");
+  r = r.replace(/I need a year OR a song title/gi, "Pick one: a year or a song title");
+  r = r.replace(/reply with a year \(e\.g\.,\s*1984\) or a song title/gi, "reply with a year or a song title");
+
+  // Keep broadcast-professional punctuation
+  r = r.replace(/!!+/g, "!");
+  return r.trim();
 }
 
 // ---------------------------------------------------------
@@ -322,9 +356,13 @@ function formatMusicLaneFollowupPrompt(laneDetail) {
 
 function answerMusicHistoryOffline(message, laneDetail) {
   if (isGreetingOrFiller(message)) {
+    // If the user is just greeting / filler and we have no music context yet, keep it light.
+    const hasContext = !!(laneDetail?.artist || laneDetail?.year || laneDetail?.chart);
     return {
       handled: true,
-      reply: formatMusicLaneFollowupPrompt(laneDetail),
+      reply: hasContext
+        ? formatMusicLaneFollowupPrompt(laneDetail)
+        : "Hi — I’m Nyx. If you want music history, give me an artist + year (or a song title) and I’ll anchor a chart moment.",
       metaPatch: {
         chart: laneDetail?.chart || MUSIC_KNOWLEDGE_V1.defaultChart,
         awaiting: laneDetail?.awaiting || (laneDetail?.artist ? "year_or_title" : "artist_year_or_title")
@@ -353,7 +391,7 @@ function answerMusicHistoryOffline(message, laneDetail) {
   if (!m) {
     return {
       handled: true,
-      reply: "I can anchor this, but I need one detail: a year OR a song title.\nNext step: reply with a year (e.g., 1984) or a song title.",
+      reply: "To lock this in, pick one detail: a year (e.g., 1984) or a song title.\nNext step: reply with a year or a song title.",
       metaPatch: { chart: laneDetail?.chart || MUSIC_KNOWLEDGE_V1.defaultChart, awaiting: "artist_year_or_title" }
     };
   }
@@ -378,6 +416,31 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     const clean = String(message).trim();
     let meta = cleanMeta(incomingMeta);
     const session = getSession(meta.sessionId);
+
+    // MATURITY: greetings stay in GENERAL lane (never force music prompts)
+    if (isPureGreeting(clean)) {
+      const replyRaw = "Hi — I’m Nyx. What would you like to explore today? (Music history, Sandblast TV, News Canada, or Sponsors)";
+      const reply = matureTone(replyRaw);
+
+      const updatedMeta = {
+        ...meta,
+        stepIndex: meta.stepIndex + 1,
+        lastDomain: "general",
+        lastIntent: "greeting",
+        currentLane: "general",
+        laneDetail: {},
+        laneAge: 0,
+        conversationState: "active"
+      };
+
+      appendTurn(meta.sessionId, { role: "user", content: clean });
+      appendTurn(meta.sessionId, { role: "assistant", content: reply });
+      upsertSession(meta.sessionId, session);
+
+      const payload = { ok: true, reply, domain: "general", intent: "greeting", meta: updatedMeta };
+      if (meta.access === "admin") payload.debug = { build: BUILD_TAG, mode: meta.mode, greeting: true };
+      return res.json(payload);
+    }
 
     // NEW: closing intent check first (so we can end cleanly)
     const closing = detectClosingIntent(clean);
@@ -450,8 +513,9 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       if (kb?.handled) {
         if (kb.metaPatch && typeof kb.metaPatch === "object") laneDetail = { ...laneDetail, ...kb.metaPatch };
 
-        let reply = kb.reply;
+        let reply = matureTone(kb.reply);
         reply = appendNextStep(reply, "music_history", laneDetail, closing);
+        reply = matureTone(reply);
 
         const updatedMeta = {
           ...meta,
@@ -473,8 +537,9 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       }
 
       if (!useOpenAI) {
-        let reply = localMusicFallback(clean, laneDetail);
+        let reply = matureTone(localMusicFallback(clean, laneDetail));
         reply = appendNextStep(reply, "music_history", laneDetail, closing);
+        reply = matureTone(reply);
 
         const updatedMeta = {
           ...meta,
@@ -539,7 +604,10 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       }
     }
 
+    reply = matureTone(reply);
+
     reply = appendNextStep(reply, domain, laneDetail, closing);
+    reply = matureTone(reply);
 
     const updatedMeta = {
       ...meta,
@@ -571,5 +639,5 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 app.get("/health", (_, res) => res.json({ status: "ok", build: BUILD_TAG }));
 
 app.listen(PORT, () => {
-  console.log(`[Nyx] Broadcast-ready v1.7 on port ${PORT} | build=${BUILD_TAG}`);
+  console.log(`[Nyx] Broadcast-ready v1.8 on port ${PORT} | build=${BUILD_TAG}`);
 });
