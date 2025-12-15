@@ -1,5 +1,5 @@
 // ----------------------------------------------------------
-// Sandblast Nyx Backend — Broadcast-Ready v1.14
+// Sandblast Nyx Backend — Broadcast-Ready v1.14.1
 // Adds:
 // - Farewell/closing detection with rotating sign-offs
 // - MATURITY patch v1 (calm, decisive phrasing + greeting discipline)
@@ -37,7 +37,7 @@ const PORT = process.env.PORT || 3000;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
-const BUILD_TAG = "nyx-broadcast-ready-v1.14-2025-12-15";
+const BUILD_TAG = "nyx-broadcast-ready-v1.14.1-2025-12-15";
 
 // Micro-tuned offline fallback (calm, confident, no apology)
 const OFFLINE_FALLBACK = "Understood. What’s the goal?";
@@ -793,7 +793,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       }
 
       if (isYearOnly) {
-        laneDetail.year = clean.trim();
+        laneDetail.year = extractYear(clean);
         laneDetail = clearAwaiting(laneDetail);
         if (laneDetail.artist && laneDetail.year) laneDetail.awaiting = "title_or_week";
       }
@@ -905,7 +905,6 @@ app.post("/api/sandblast-gpt", async (req, res) => {
         reply = isFirstTurn ? OFFLINE_FALLBACK : offlineDomainFallback(domain, laneDetail, clean);
       }
     }
-    }
 
     reply = matureTone(reply);
 
@@ -950,5 +949,5 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 app.get("/health", (_, res) => res.json({ status: "ok", build: BUILD_TAG }));
 
 app.listen(PORT, () => {
-  console.log(`[Nyx] Broadcast-ready v1.14 on port ${PORT} | build=${BUILD_TAG}`);
+  console.log(`[Nyx] Broadcast-ready v1.14.1 on port ${PORT} | build=${BUILD_TAG}`);
 });
