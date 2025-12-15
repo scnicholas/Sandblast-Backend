@@ -1,5 +1,5 @@
 // ----------------------------------------------------------
-// Sandblast Nyx Backend — Broadcast-Ready v1.12
+// Sandblast Nyx Backend — Broadcast-Ready v1.13
 // Adds:
 // - Farewell/closing detection with rotating sign-offs
 // - MATURITY patch v1 (calm, decisive phrasing + greeting discipline)
@@ -37,7 +37,7 @@ const PORT = process.env.PORT || 3000;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
-const BUILD_TAG = "nyx-broadcast-ready-v1.12-2025-12-15";
+const BUILD_TAG = "nyx-broadcast-ready-v1.13-2025-12-14";
 
 // Micro-tuned offline fallback (calm, confident, no apology)
 const OFFLINE_FALLBACK = "I’m here. What’s the goal?";
@@ -223,56 +223,20 @@ function hasNextStepOrQuestion(reply) {
   );
 }
 
-function pickNaturalFollowup(seed, domain) {
-  const d = String(domain || "general").toLowerCase();
-
-  const domainVariants = {
-    general: [
-      "Tell me the goal in one sentence.",
-      "What should we tackle next?",
-      "Do you want a quick plan, or a quick fix?"
-    ],
-    tv: [
-      "Do you want to tune the programming grid or the show lineup next?",
-      "What’s the target audience for this block?",
-      "Should we build a 60-minute pilot schedule?"
-    ],
-    radio: [
-      "Which era or vibe are we building right now?",
-      "Do you want a tight 30-minute block or a full hour?",
-      "Pick a decade and I’ll anchor a set."
-    ],
-    sponsors: [
-      "Do you want to package this as a sponsor pitch or a rate card next?",
-      "Who’s the ideal sponsor for this slot?",
-      "Should we draft a 4-week test offer?"
-    ],
-    news: [
-      "Do you want a headline-first version or a story-first version?",
-      "Should we align this to Sandblast’s audience angle?",
-      "Want me to propose the next 3 stories to post?"
-    ],
-    ai: [
-      "Do you want a practical example or a lightweight implementation plan?",
-      "Should we turn this into a repeatable workflow?",
-      "What’s the business outcome you want from this?"
-    ],
-    streaming: [
-      "Do you want a platform plan or a content plan next?",
-      "Which device/platform are we targeting first?",
-      "Should we map the next 3 rollout steps?"
-    ]
-  };
-
-  const variants = domainVariants[d] || domainVariants.general;
-  return hashPick(String(seed || "") + "|" + d, variants);
+function pickNaturalFollowup(seed) {
+  const variants = [
+    "Tell me what you want to do next.",
+    "What should we tackle next?",
+    "How would you like to continue?"
+  ];
+  return hashPick(seed, variants);
 }
 
 function appendNextStep(reply, domain, laneDetail, closing) {
   const base = String(reply || "").trim();
   if (!base) return base;
 
-  // Do not force follow-up if this is a hard farewell
+  // NEW: do not force follow-up if this is a hard farewell
   if (closing?.type === "hard") return base;
 
   if (hasNextStepOrQuestion(base)) return base;
@@ -283,23 +247,15 @@ function appendNextStep(reply, domain, laneDetail, closing) {
     const year = laneDetail?.year ? String(laneDetail.year) : null;
 
     if (artist && year) {
-      return base + `
-
-Next step: tell me the song title for ${artist} in ${year}, or ask “what was #1 that week?” (default chart: ${chart}).`;
+      return base + `\n\nNext step: tell me the song title for ${artist} in ${year}, or ask “what was #1 that week?” (default chart: ${chart}).`;
     }
     if (artist && !year) {
-      return base + `
-
-Next step: give me a year (e.g., 1984) or a song title and I’ll anchor one ${chart} moment.`;
+      return base + `\n\nNext step: give me a year (e.g., 1984) or a song title and I’ll anchor one ${chart} moment.`;
     }
-    return base + `
-
-Next step: give me an artist + year (or a specific week/date) and I’ll anchor the ${chart} moment.`;
+    return base + `\n\nNext step: give me an artist + year (or a specific week/date) and I’ll anchor the ${chart} moment.`;
   }
 
-  return base + "
-
-Next step: " + pickNaturalFollowup(base, domain);
+  return base + "\n\nNext step: " + pickNaturalFollowup(base);
 }
 
 // ---------------------------------------------------------
@@ -439,6 +395,28 @@ function detectTitleFromText(text) {
   return null;
 }
 
+function detectChartFromText(text) {
+  const t = norm(text || "");
+  if (!t) return null;
+
+  // Common chart intents
+  if (t.includes("hot 100") || (t.includes("billboard") && t.includes("hot"))) return "Billboard Hot 100";
+  if (t.includes("billboard")) return "Billboard Hot 100";
+  if (t.includes("uk") && (t.includes("singles") || t.includes("chart") || t.includes("top"))) return "UK Singles Chart";
+  if (t.includes("dance club") || (t.includes("dance") && t.includes("club"))) return "Billboard Dance Club Songs";
+  if (t.includes("dance")) return "Billboard Dance/Electronic Songs";
+  if (t.includes("r&b") || t.includes("rnb")) return "Billboard Hot R&B/Hip-Hop Songs";
+  if (t.includes("rock")) return "Billboard Mainstream Rock";
+  if (t.includes("country")) return "Billboard Hot Country Songs";
+  if (t.includes("top 40") || t.includes("pop")) return "Billboard Pop Airplay";
+
+  // If user explicitly says "default", keep current/default
+  if (t.includes("default") || t.includes("whatever you use") || t.includes("your default")) return MUSIC_KNOWLEDGE_V1.defaultChart;
+
+  return null;
+}
+
+
 
 function looksLikeArtistOnly(text) {
   const raw = String(text || "").trim();
@@ -480,98 +458,179 @@ function formatMusicLaneFollowupPrompt(laneDetail) {
 }
 
 function answerMusicHistoryOffline(message, laneDetail) {
+  // laneDetail is persisted meta.music across turns.
+  const detail = laneDetail || {};
+
+  // 1) Handle greetings/filler without losing continuity
   if (isGreetingOrFiller(message)) {
-    // If the user is just greeting / filler and we have no music context yet, keep it light.
-    const hasContext = !!(laneDetail?.artist || laneDetail?.year || laneDetail?.chart);
+    const hasContext = !!(detail.artist || detail.year || detail.title || detail.chart);
+    const chart = detail.chart || MUSIC_KNOWLEDGE_V1.defaultChart;
+
+    // If we already have artist+year but no explicit chart selection, prompt chart step first.
+    if (detail.artist && detail.year && !detail.chartExplicit) {
+      return {
+        handled: true,
+        reply: `Got it — ${detail.artist.toUpperCase()}, ${detail.year}. Which chart should I anchor this to? (Default: ${chart})`,
+        metaPatch: { chart, awaiting: "chart", chartExplicit: false }
+      };
+    }
+
     return {
       handled: true,
       reply: hasContext
-        ? formatMusicLaneFollowupPrompt(laneDetail)
-        : "Hi — I’m Nyx. If you want music history, give me an artist + year (or a song title) and I’ll anchor a chart moment.",
+        ? formatMusicLaneFollowupPrompt(detail)
+        : "Hi — I’m Nyx. For music history, give me an artist + year (or a song title) and I’ll anchor a chart moment.",
       metaPatch: {
-        chart: laneDetail?.chart || MUSIC_KNOWLEDGE_V1.defaultChart,
-        awaiting: laneDetail?.awaiting || (laneDetail?.artist ? "year_or_title" : "artist_year_or_title")
+        chart,
+        awaiting: detail.awaiting || (detail.artist ? "year_or_title" : "artist_year_or_title"),
+        chartExplicit: !!detail.chartExplicit
       }
     };
   }
 
   const t = norm(message);
-  const looksLikeMusic = looksMusicHistoryQuery(message);
-  const mentionsKnownArtist = !!detectArtistFromText(message) || !!laneDetail?.artist;
-  const year = extractYear(message) || (laneDetail?.year ? Number(laneDetail.year) : null);
 
-  if (!looksLikeMusic && !mentionsKnownArtist) return { handled: false };
-
-  // Minimal example: Madonna prompt
-  if ((t.includes("madonna") || laneDetail?.artist === "madonna") && !year) {
+  // 2) Capture chart choice at any time
+  const maybeChart = detectChartFromText(message);
+  if (maybeChart) {
+    const nextDetail = { ...detail, chart: maybeChart, chartExplicit: true };
+    // If we were waiting for chart, clear awaiting and continue to moment resolution.
+    if (detail.awaiting === "chart") {
+      nextDetail.awaiting = null;
+    }
     return {
       handled: true,
-      reply: "Quick check — which year are you asking about for Madonna’s #1? I can default to Billboard Hot 100.",
-      metaPatch: { chart: laneDetail?.chart || MUSIC_KNOWLEDGE_V1.defaultChart, awaiting: "year_or_date", artist: "madonna" }
+      reply: (detail.awaiting === "chart")
+        ? `Perfect — I’ll use ${maybeChart}. Now give me the moment: a song title, a week/date, or just say “#1”.`
+        : `Noted — chart set to ${maybeChart}. What artist/year or song title should we anchor?`,
+      metaPatch: { chart: maybeChart, chartExplicit: true, awaiting: nextDetail.awaiting || detail.awaiting || "artist_year_or_title" }
     };
   }
 
-  // Try known moment match
-    // Continuity-aware moment match:
-  // - If the user replies with only a year or only a title, use remembered laneDetail.artist/title.
-  const rememberedArtist = laneDetail?.artist ? norm(laneDetail.artist) : null;
-  const rememberedTitle = laneDetail?.title ? norm(laneDetail.title) : null;
+  // 3) Year-only reply (continuation)
+  const year = parseYear(message);
+  if (year) {
+    const next = { ...detail, year };
+    // If we have artist already, next step is chart (if not explicit), otherwise moment.
+    if (next.artist && !next.chartExplicit) {
+      const chart = next.chart || MUSIC_KNOWLEDGE_V1.defaultChart;
+      return {
+        handled: true,
+        reply: `Got it — ${next.artist.toUpperCase()}, ${year}. Which chart should I use? (Default: ${chart})`,
+        metaPatch: { ...next, chart, awaiting: "chart", chartExplicit: false }
+      };
+    }
+    return {
+      handled: true,
+      reply: next.artist
+        ? `Locked: ${next.artist.toUpperCase()} in ${year}. Tell me the moment (song title / week-date / “#1”) and I’ll anchor it.`
+        : `Noted: ${year}. Which artist are we talking about?`,
+      metaPatch: { ...next, chart: next.chart || MUSIC_KNOWLEDGE_V1.defaultChart, awaiting: next.artist ? "moment" : "artist_year_or_title" }
+    };
+  }
+
+  // 4) Artist-only reply
+  if (looksLikeArtistOnly(message)) {
+    const artist = norm(message);
+    const next = { ...detail, artist };
+    return {
+      handled: true,
+      reply: `Got it — ${artist.toUpperCase()}. What year should I anchor, or do you want to give me a song title?`,
+      metaPatch: { ...next, chart: next.chart || MUSIC_KNOWLEDGE_V1.defaultChart, awaiting: "year_or_title" }
+    };
+  }
+
+  // 5) Special case: Madonna #1 question without a year (kept from your v1.13 behavior)
+  if (t.includes("madonna") && (t.includes("#1") || t.includes("number one") || t.includes("no. 1")) && !year) {
+    const chart = detail.chart || MUSIC_KNOWLEDGE_V1.defaultChart;
+    return {
+      handled: true,
+      reply: `Quick check — which year are you asking about for Madonna’s #1? After that I’ll confirm the chart (default: ${chart}) and anchor the moment.`,
+      metaPatch: { chart, awaiting: "year_or_date", artist: "madonna", chartExplicit: !!detail.chartExplicit }
+    };
+  }
+
+  // 6) Continuity-aware moment match
+  // - If the user replies with only a title, use remembered artist/year where possible.
+  const rememberedArtist = detail.artist ? norm(detail.artist) : null;
+  const rememberedTitle = detail.title ? norm(detail.title) : null;
+
   const detectedTitle = detectTitleFromText(message);
   const title = detectedTitle || rememberedTitle;
 
-  // 1) Prefer matching by remembered artist (+ optional year)
+  // If we have artist+year but chart not explicitly chosen, enforce chart step before resolving moment.
+  if (detail.artist && detail.year && !detail.chartExplicit) {
+    const chart = detail.chart || MUSIC_KNOWLEDGE_V1.defaultChart;
+    return {
+      handled: true,
+      reply: `Before I anchor the moment, which chart should I use? (Default: ${chart})`,
+      metaPatch: { ...detail, chart, awaiting: "chart", chartExplicit: false }
+    };
+  }
+
+  // Prefer matching by artist (+ optional year and/or title)
   let m = MUSIC_KNOWLEDGE_V1.moments.find(x => {
     const ax = norm(x.artist);
     const tx = norm(x.title);
     const artistMatch = rememberedArtist ? (ax === rememberedArtist) : t.includes(ax);
-    const yearMatch = !year || x.year === year;
+    const yearMatch = !detail.year || x.year === detail.year;
     const titleMatch = title ? (tx === title || t.includes(tx)) : true;
     return artistMatch && yearMatch && titleMatch;
   });
 
-  // 2) If no artist match but we do have a title, match by title (+ optional year) and infer artist
+  // If no artist match but we do have a title, match by title (+ optional year) and infer artist
   if (!m && title) {
     m = MUSIC_KNOWLEDGE_V1.moments.find(x => {
       const tx = norm(x.title);
-      const yearMatch = !year || x.year === year;
+      const yearMatch = !detail.year || x.year === detail.year;
       return (tx === title || t.includes(tx)) && yearMatch;
     });
-    if (m && !laneDetail?.artist) {
-      // infer remembered artist for downstream continuity
-      laneDetail.artist = norm(m.artist);
-    }
+    if (m && !detail.artist) detail.artist = norm(m.artist);
   }
 
+  // If we still don't have enough, ask for the missing piece in the flow.
   if (!m) {
-    // If we already have artist + year, do NOT ask for year again. Ask for title/week intent.
-    if (rememberedArtist && year) {
+    // If we have artist but not year/title
+    if (detail.artist && !detail.year && !title) {
       return {
         handled: true,
-        reply: `Got it — ${rememberedArtist.toUpperCase()}, ${year}. Which song title — or do you mean her first #1 vs any #1?`,
-        metaPatch: { chart: laneDetail?.chart || MUSIC_KNOWLEDGE_V1.defaultChart, awaiting: "title_or_first_vs_any" }
+        reply: `I’ve got ${detail.artist.toUpperCase()}. Next: give me a year or a song title so I can anchor the chart moment.`,
+        metaPatch: { chart: detail.chart || MUSIC_KNOWLEDGE_V1.defaultChart, awaiting: "year_or_title", artist: detail.artist, chartExplicit: !!detail.chartExplicit }
       };
     }
 
-    // If we have artist but no year, ask only for year/title.
-    if (rememberedArtist && !year) {
+    // If we have year but no artist/title
+    if (detail.year && !detail.artist && !title) {
       return {
         handled: true,
-        reply: `Got it — ${rememberedArtist.toUpperCase()}. Pick one: a year (e.g., 1984) or a song title.`,
-        metaPatch: { chart: laneDetail?.chart || MUSIC_KNOWLEDGE_V1.defaultChart, awaiting: "year_or_title" }
+        reply: `I’ve got ${detail.year}. Next: which artist (or song title) are we anchoring?`,
+        metaPatch: { chart: detail.chart || MUSIC_KNOWLEDGE_V1.defaultChart, awaiting: "artist_year_or_title", year: detail.year, chartExplicit: !!detail.chartExplicit }
       };
     }
 
+    // Otherwise ask for a moment cue
     return {
       handled: true,
-      reply: "To lock this in, pick one detail: a year (e.g., 1984) or a song title.",
-      metaPatch: { chart: laneDetail?.chart || MUSIC_KNOWLEDGE_V1.defaultChart, awaiting: "artist_year_or_title" }
+      reply: "To anchor the moment, tell me one of these: a song title, a week/date, or just say “#1”.",
+      metaPatch: { chart: detail.chart || MUSIC_KNOWLEDGE_V1.defaultChart, awaiting: "moment", chartExplicit: !!detail.chartExplicit, artist: detail.artist, year: detail.year, title }
     };
   }
 
-  // If we matched via title, persist it for continuity
-  if (title) laneDetail.title = title;
+  // Persist title for continuity
+  if (title) detail.title = title;
 
-  return { handled: true, reply: formatMomentReply(m, laneDetail), metaPatch: { chart: m.chart || MUSIC_KNOWLEDGE_V1.defaultChart } };
+  return {
+    handled: true,
+    reply: formatMomentReply(m, detail),
+    metaPatch: {
+      chart: (detail.chartExplicit ? (detail.chart || m.chart) : (m.chart || detail.chart)) || MUSIC_KNOWLEDGE_V1.defaultChart,
+      chartExplicit: !!detail.chartExplicit,
+      artist: detail.artist || m.artist,
+      year: detail.year || m.year,
+      title: detail.title || m.title,
+      awaiting: null
+    }
+  };
 }
 
 function localMusicFallback(message, laneDetail) {
@@ -838,5 +897,5 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 app.get("/health", (_, res) => res.json({ status: "ok", build: BUILD_TAG }));
 
 app.listen(PORT, () => {
-  console.log(`[Nyx] Broadcast-ready v1.12 on port ${PORT} | build=${BUILD_TAG}`);
+  console.log(`[Nyx] Broadcast-ready v1.13 on port ${PORT} | build=${BUILD_TAG}`);
 });
