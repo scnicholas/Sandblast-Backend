@@ -1,5 +1,5 @@
 // ----------------------------------------------------------
-// Sandblast Nyx Backend — Broadcast-Ready v1.13
+// Sandblast Nyx Backend — Broadcast-Ready v1.14
 // Adds:
 // - Farewell/closing detection with rotating sign-offs
 // - MATURITY patch v1 (calm, decisive phrasing + greeting discipline)
@@ -37,10 +37,10 @@ const PORT = process.env.PORT || 3000;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
-const BUILD_TAG = "nyx-broadcast-ready-v1.13-2025-12-14";
+const BUILD_TAG = "nyx-broadcast-ready-v1.14-2025-12-15";
 
 // Micro-tuned offline fallback (calm, confident, no apology)
-const OFFLINE_FALLBACK = "I’m here. What’s the goal?";
+const OFFLINE_FALLBACK = "Understood. What’s the goal?";
 
 // ---------------------------------------------------------
 // MODE + ACCESS NORMALIZATION
@@ -56,6 +56,7 @@ function cleanMeta(incoming) {
   return {
     sessionId: m.sessionId || "public",
     stepIndex: Number(m.stepIndex || 0),
+    hasEntered: m.hasEntered === true,
     lastDomain: m.lastDomain || "general",
     lastIntent: m.lastIntent || "statement",
     currentLane: m.currentLane || "general",
@@ -71,6 +72,51 @@ function shouldUseOpenAI(meta) {
   if (meta.mode === "offline") return false;
   if (meta.mode === "online") return !!openai;
   return !!openai; // auto
+}
+
+
+// ---------------------------------------------------------
+// OFFLINE DOMAIN FALLBACKS (Broadcast-safe)
+// - Prevents "front door" repetition when OpenAI is unavailable
+// ---------------------------------------------------------
+function offlineDomainFallback(domain, laneDetail, userMessage) {
+  const d = String(domain || "general").toLowerCase();
+  const seed = `${d}|${norm(userMessage || "")}|${laneDetail?.chart || ""}`;
+
+  const variants = {
+    sponsors: [
+      "Sponsor package — got it. Quick check: is this for Sandblast TV, Radio, Web, or a bundle? And what budget range should I build around?",
+      "Understood. For the sponsor package: what category (food, telecom, retail, etc.) and do you want on‑air spots, web placement, or both?",
+      "Got it. Sponsor package next: do you want a one‑pager offer or a full deck, and who’s the target sponsor?"
+    ],
+    tv: [
+      "Sandblast TV — got it. Are we tuning the program grid, selecting shows for a block, or tightening the on‑screen positioning?",
+      "Understood. For TV: are we optimizing the schedule for retention, or building a themed block (retro night, comedy, action, etc.)?"
+    ],
+    radio: [
+      "Sandblast Radio — got it. Are we building a show block, tightening DJ Nova’s flow, or picking a specific era/genre?",
+      "Understood. For radio: do you want a themed hour, a daypart strategy, or a quick set list?"
+    ],
+    news: [
+      "News Canada — understood. Do you want a tighter story selection, stronger headlines, or a layout/placement upgrade on the site?",
+      "Got it. For News Canada Stories: should we prioritize local relevance, speed, or deeper features?"
+    ],
+    streaming: [
+      "Streaming — got it. Are we talking distribution (Roku/OTT), packaging, or the on‑site user journey?",
+      "Understood. For streaming: do you want platform expansion strategy or immediate on‑site tuning?"
+    ],
+    ai: [
+      "AI — understood. Are we solving a backend reliability issue, improving Nyx’s behavior, or building a new capability module?",
+      "Got it. AI next: what outcome do you want today — stability, speed, or smarter answers?"
+    ],
+    general: [
+      "Understood. What’s the goal — and what does success look like in one sentence?",
+      "Got it. What are we trying to accomplish right now?"
+    ]
+  };
+
+  const pickFrom = variants[d] || variants.general;
+  return hashPick(seed, pickFrom);
 }
 
 // ---------------------------------------------------------
@@ -508,7 +554,7 @@ function answerMusicHistoryOffline(message, laneDetail) {
   }
 
   // 3) Year-only reply (continuation)
-  const year = parseYear(message);
+  const year = extractYear(message);
   if (year) {
     const next = { ...detail, year };
     // If we have artist already, next step is chart (if not explicit), otherwise moment.
@@ -651,6 +697,10 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     let meta = cleanMeta(incomingMeta);
     const session = getSession(meta.sessionId);
 
+    const isFirstTurn = !meta.hasEntered && meta.stepIndex === 0;
+    // Once we receive any message, mark the session as entered to prevent repeated front-door behavior.
+    if (!meta.hasEntered) meta.hasEntered = true;
+
     // MATURITY: greetings stay in GENERAL lane (never force music prompts)
     if (isPureGreeting(clean)) {
       const replyRaw = "Hi — I’m Nyx. What would you like to explore today? (Music history, Sandblast TV, News Canada, or Sponsors)";
@@ -664,7 +714,8 @@ app.post("/api/sandblast-gpt", async (req, res) => {
         currentLane: "general",
         laneDetail: {},
         laneAge: 0,
-        conversationState: "active"
+        conversationState: "active",
+        hasEntered: true
       };
 
       appendTurn(meta.sessionId, { role: "user", content: clean });
@@ -686,7 +737,8 @@ app.post("/api/sandblast-gpt", async (req, res) => {
         stepIndex: meta.stepIndex + 1,
         lastDomain: meta.currentLane || "general",
         lastIntent: "closing",
-        conversationState: (closing.type === "hard") ? "ended" : "active"
+        conversationState: (closing.type === "hard") ? "ended" : "active",
+        hasEntered: true
       };
 
       appendTurn(meta.sessionId, { role: "user", content: clean });
@@ -843,15 +895,16 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     } else {
       openaiUnavailableReason = "OPENAI_SKIPPED_BY_MODE";
     }
-
     // Quiet fallback
     if (!reply) {
       if (domain === "music_history" || messageLooksLikeMusic || mentionsKnownArtist || artistOnly || (isYearOnly && wasAwaitingYear) || meta.currentLane === "music_history") {
         domain = "music_history";
         reply = localMusicFallback(clean, laneDetail);
       } else {
-        reply = OFFLINE_FALLBACK;
+        // Broadcast-safe offline guidance (avoid repeating the "front door" line mid-session)
+        reply = isFirstTurn ? OFFLINE_FALLBACK : offlineDomainFallback(domain, laneDetail, clean);
       }
+    }
     }
 
     reply = matureTone(reply);
@@ -897,5 +950,5 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 app.get("/health", (_, res) => res.json({ status: "ok", build: BUILD_TAG }));
 
 app.listen(PORT, () => {
-  console.log(`[Nyx] Broadcast-ready v1.13 on port ${PORT} | build=${BUILD_TAG}`);
+  console.log(`[Nyx] Broadcast-ready v1.14 on port ${PORT} | build=${BUILD_TAG}`);
 });
