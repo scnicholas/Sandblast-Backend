@@ -1,5 +1,5 @@
 // ----------------------------------------------------------
-// Sandblast Nyx Backend — Broadcast-Ready v1.14.1
+// Sandblast Nyx Backend — Broadcast-Ready v1.15
 // Adds:
 // - Farewell/closing detection with rotating sign-offs
 // - MATURITY patch v1 (calm, decisive phrasing + greeting discipline)
@@ -37,7 +37,7 @@ const PORT = process.env.PORT || 3000;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
-const BUILD_TAG = "nyx-broadcast-ready-v1.14.1-2025-12-15";
+const BUILD_TAG = "nyx-broadcast-ready-v1.15-2025-12-15";
 
 // Micro-tuned offline fallback (calm, confident, no apology)
 const OFFLINE_FALLBACK = "Understood. What’s the goal?";
@@ -117,6 +117,62 @@ function offlineDomainFallback(domain, laneDetail, userMessage) {
 
   const pickFrom = variants[d] || variants.general;
   return hashPick(seed, pickFrom);
+}
+
+
+// ---------------------------------------------------------
+// SPONSOR PACKAGE MODE v1 (Canada-wide | Website + Radio + TV blocks)
+// Budget tiers: Starter ($100–$300), Growth ($500–$1,500), Premium ($2,000+)
+// ---------------------------------------------------------
+function buildSponsorPackageV1() {
+  return `**Sandblast Sponsor Package (Canada-Wide) — v1**
+
+**Positioning**
+Sandblast Channel blends culture, music, news, and community storytelling across **website + radio + TV-style blocks**. Sponsors don’t just place ads — they join the cultural conversation.
+
+**Tiers**
+**Starter — $100–$300**
+• Website sponsor placement (logo + short blurb)
+• 1 sponsored mention on Sandblast Radio
+• 1 community highlight (when applicable)
+
+**Growth — $500–$1,500**
+• Priority website sponsor placement
+• Multiple Sandblast Radio mentions
+• Sponsored segment/feature placement
+• Optional short branded message read by host
+
+**Premium — $2,000+**
+• Featured website placement (hero/featured sponsor)
+• Recurring radio sponsorship block
+• TV-style block integration or branded segment
+• Custom campaign alignment with Sandblast programming
+
+**Proof point**
+Sandblast is actively building a multi-platform broadcast ecosystem designed for brands that want cultural relevance, not just impressions.
+
+**Next action**
+Which tier are you aiming for — Starter, Growth, or Premium — and what industry is the sponsor in?`;
+}
+
+function looksLikeSponsorPackageAsk(text = "") {
+  const t = norm(String(text || ""));
+  return (
+    t.includes("sponsor package") ||
+    t.includes("sponsorship package") ||
+    t.includes("media kit") ||
+    t.includes("rate card") ||
+    t.includes("rates") ||
+    t.includes("pricing") ||
+    t.includes("advertise") ||
+    t.includes("advertising") ||
+    t.includes("sponsor") ||
+    t.includes("sponsorship") ||
+    t.includes("partner") ||
+    t.includes("partnership")
+  );
+}
+
 }
 
 // ---------------------------------------------------------
@@ -750,6 +806,36 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       return res.json(payload);
     }
 
+
+    // -------------------------------------------------------
+    // Sponsor Package Mode v1 (fast-path, predictable output)
+    // - Fires on sponsor domain OR explicit sponsor/package phrasing
+    // - Avoids OpenAI dependency for revenue-critical requests
+    // -------------------------------------------------------
+    if (meta.conversationState !== "ended" && (meta.currentLane === "sponsors" || looksLikeSponsorPackageAsk(clean))) {
+      const reply = matureTone(buildSponsorPackageV1());
+
+      const updatedMeta = {
+        ...meta,
+        stepIndex: meta.stepIndex + 1,
+        lastDomain: "sponsors",
+        lastIntent: "sponsors",
+        currentLane: "sponsors",
+        laneDetail: meta.laneDetail || {},
+        laneAge: meta.laneAge + 1,
+        conversationState: "active",
+        hasEntered: true
+      };
+
+      appendTurn(meta.sessionId, { role: "user", content: clean });
+      appendTurn(meta.sessionId, { role: "assistant", content: reply });
+      upsertSession(meta.sessionId, session);
+
+      const payload = { ok: true, reply, domain: "sponsors", intent: "sponsors", meta: updatedMeta };
+      if (meta.access === "admin") payload.debug = { build: BUILD_TAG, mode: meta.mode, sponsorFastPath: true };
+      return res.json(payload);
+    }
+
     const raw = classifyIntent(clean);
 
     let domain = (raw.domain === "music_history" || raw.intent === "music_history") ? "music_history"
@@ -793,7 +879,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       }
 
       if (isYearOnly) {
-        laneDetail.year = extractYear(clean);
+        laneDetail.year = clean.trim();
         laneDetail = clearAwaiting(laneDetail);
         if (laneDetail.artist && laneDetail.year) laneDetail.awaiting = "title_or_week";
       }
@@ -905,6 +991,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
         reply = isFirstTurn ? OFFLINE_FALLBACK : offlineDomainFallback(domain, laneDetail, clean);
       }
     }
+    }
 
     reply = matureTone(reply);
 
@@ -949,5 +1036,5 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 app.get("/health", (_, res) => res.json({ status: "ok", build: BUILD_TAG }));
 
 app.listen(PORT, () => {
-  console.log(`[Nyx] Broadcast-ready v1.14.1 on port ${PORT} | build=${BUILD_TAG}`);
+  console.log(`[Nyx] Broadcast-ready v1.15 on port ${PORT} | build=${BUILD_TAG}`);
 });
