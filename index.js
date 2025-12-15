@@ -1,5 +1,5 @@
 // ----------------------------------------------------------
-// Sandblast Nyx Backend — Broadcast-Ready v1.10
+// Sandblast Nyx Backend — Broadcast-Ready v1.11
 // Adds:
 // - Farewell/closing detection with rotating sign-offs
 // - MATURITY patch v1 (calm, decisive phrasing + greeting discipline)
@@ -37,7 +37,7 @@ const PORT = process.env.PORT || 3000;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
-const BUILD_TAG = "nyx-broadcast-ready-v1.10-2025-12-14";
+const BUILD_TAG = "nyx-broadcast-ready-v1.11-2025-12-14";
 
 // Micro-tuned offline fallback (calm, confident, no apology)
 const OFFLINE_FALLBACK = "I’m here. What’s the goal?";
@@ -275,6 +275,76 @@ function matureTone(reply) {
   // Keep broadcast-professional punctuation
   r = r.replace(/!!+/g, "!");
   return r.trim();
+}
+
+
+// ---------------------------------------------------------
+// SIGNATURE MOMENT (v1) — "The Cultural Thread" (Balanced)
+// - Triggers only on completed music answers (artist + (year or title))
+// - Fires ~1 in 5 completions (deterministic via hashPick)
+// - When fired, we intentionally DO NOT stack a "Next step" on the same turn.
+// ---------------------------------------------------------
+function isExitish(text) {
+  const t = norm(text);
+  return (
+    t.includes("bye") || t.includes("goodnight") || t.includes("good night") ||
+    t.includes("later") || t.includes("talk soon") || t.includes("thanks") || t.includes("thank you")
+  );
+}
+
+function stripTrailingNextStep(reply) {
+  // Remove a trailing "Next step: ..." block so the signature line can land cleanly.
+  // This expects the last paragraph to start with "Next step:".
+  return String(reply || "").replace(/\n\nNext step:[\s\S]*$/i, "").trim();
+}
+
+function shouldTriggerSignature(meta, domain, laneDetail, userMessage, reply, closing) {
+  if (closing?.type && closing.type !== "none") return false;
+  if (domain !== "music_history") return false;
+
+  const artist = laneDetail?.artist;
+  const year = laneDetail?.year;
+  const title = laneDetail?.title;
+
+  // Must be a "completed" answer: artist + (year or title)
+  if (!artist) return false;
+  if (!year && !title) return false;
+
+  // Do not fire if we're still awaiting details or if the reply is a clarifier/question.
+  if (laneDetail?.awaiting) return false;
+  if (String(reply || "").includes("?")) return false;
+  if (/quick check\b/i.test(reply)) return false;
+
+  // Do not fire on obvious exit/closing tones.
+  if (isExitish(userMessage)) return false;
+
+  // Do not fire on greetings/filler.
+  if (isGreetingOrFiller(userMessage)) return false;
+
+  // Frequency control: ~1 in 5 completions, deterministic per session/step/moment.
+  const seed = `${meta.sessionId}|${meta.stepIndex}|sig|${norm(artist)}|${year || ""}|${title || ""}`;
+  return hashPick(seed, ["0","1","2","3","4"]) === "0";
+}
+
+function pickSignatureLine(meta, laneDetail) {
+  const lines = [
+    "That moment didn’t just top the charts — it helped define how the era sounded.",
+    "Songs like that become cultural timestamps, not just hits.",
+    "That was one of those moments where pop culture quietly shifted.",
+    "For a lot of listeners, that track marks a specific time and place.",
+    "Moments like that are why chart history still matters."
+  ];
+  const seed = `${meta.sessionId}|${meta.stepIndex}|sigline|${norm(laneDetail?.artist || "")}|${laneDetail?.year || ""}|${laneDetail?.title || ""}`;
+  return hashPick(seed, lines);
+}
+
+function maybeApplySignatureMoment(meta, domain, laneDetail, userMessage, reply, closing) {
+  if (!shouldTriggerSignature(meta, domain, laneDetail, userMessage, reply, closing)) {
+    return { fired: false, reply: String(reply || "").trim() };
+  }
+  const base = stripTrailingNextStep(reply);
+  const sig = pickSignatureLine(meta, laneDetail);
+  return { fired: true, reply: (base + "\n\n" + sig).trim() };
 }
 
 // ---------------------------------------------------------
@@ -583,7 +653,11 @@ app.post("/api/sandblast-gpt", async (req, res) => {
         if (kb.metaPatch && typeof kb.metaPatch === "object") laneDetail = { ...laneDetail, ...kb.metaPatch };
 
         let reply = matureTone(kb.reply);
-        reply = appendNextStep(reply, "music_history", laneDetail, closing);
+        const sig = maybeApplySignatureMoment(meta, "music_history", laneDetail, clean, reply, closing);
+        reply = sig.reply;
+        if (!sig.fired) {
+          reply = appendNextStep(reply, "music_history", laneDetail, closing);
+        }
         reply = matureTone(reply);
 
         const updatedMeta = {
@@ -607,7 +681,11 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 
       if (!useOpenAI) {
         let reply = matureTone(localMusicFallback(clean, laneDetail));
-        reply = appendNextStep(reply, "music_history", laneDetail, closing);
+        const sig = maybeApplySignatureMoment(meta, "music_history", laneDetail, clean, reply, closing);
+        reply = sig.reply;
+        if (!sig.fired) {
+          reply = appendNextStep(reply, "music_history", laneDetail, closing);
+        }
         reply = matureTone(reply);
 
         const updatedMeta = {
@@ -675,7 +753,15 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 
     reply = matureTone(reply);
 
-    reply = appendNextStep(reply, domain, laneDetail, closing);
+    if (domain === "music_history") {
+      const sig = maybeApplySignatureMoment(meta, "music_history", laneDetail, clean, reply, closing);
+      reply = sig.reply;
+      if (!sig.fired) {
+        reply = appendNextStep(reply, domain, laneDetail, closing);
+      }
+    } else {
+      reply = appendNextStep(reply, domain, laneDetail, closing);
+    }
     reply = matureTone(reply);
 
     const updatedMeta = {
