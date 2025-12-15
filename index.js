@@ -1,13 +1,15 @@
 // ----------------------------------------------------------
-// Sandblast Nyx Backend — Broadcast-Ready v1.15.1
+// Sandblast Nyx Backend — Broadcast-Ready v1.15.2
 // Adds:
-// - Sponsor Package Mode v1 (Canada-wide | Web + Radio + TV blocks) as deterministic fast-path
-// Keeps:
 // - Farewell/closing detection with rotating sign-offs
 // - MATURITY patch v1 (calm, decisive phrasing + greeting discipline)
 // - Skips "always advance" enforcement on true farewells
+// Keeps:
+// - Modes: OFFLINE / ONLINE / AUTO
+// - Admin access: safe debug fields
 // - Quiet 429 behavior (no scary banners)
 // - Music Knowledge Layer v1 (offline-first)
+// - Sponsor Package Mode v1.1 (Canada-wide packages + pitch deliverables)
 // ----------------------------------------------------------
 
 require("dotenv").config();
@@ -36,7 +38,7 @@ const PORT = process.env.PORT || 3000;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
-const BUILD_TAG = "nyx-broadcast-ready-v1.15.1-2025-12-15";
+const BUILD_TAG = "nyx-broadcast-ready-v1.15.2-2025-12-15";
 
 // Micro-tuned offline fallback (calm, confident, no apology)
 const OFFLINE_FALLBACK = "Understood. What’s the goal?";
@@ -73,6 +75,7 @@ function shouldUseOpenAI(meta) {
   return !!openai; // auto
 }
 
+
 // ---------------------------------------------------------
 // OFFLINE DOMAIN FALLBACKS (Broadcast-safe)
 // - Prevents "front door" repetition when OpenAI is unavailable
@@ -84,11 +87,11 @@ function offlineDomainFallback(domain, laneDetail, userMessage) {
   const variants = {
     sponsors: [
       "Sponsor package — got it. Quick check: is this for Sandblast TV, Radio, Web, or a bundle? And what budget range should I build around?",
-      "Understood. For the sponsor package: what category (food, telecom, retail, etc.) and do you want on-air spots, web placement, or both?",
-      "Got it. Sponsor package next: do you want a one-pager offer or a full deck, and who’s the target sponsor?"
+      "Understood. For the sponsor package: what category (food, telecom, retail, etc.) and do you want on‑air spots, web placement, or both?",
+      "Got it. Sponsor package next: do you want a one‑pager offer or a full deck, and who’s the target sponsor?"
     ],
     tv: [
-      "Sandblast TV — got it. Are we tuning the program grid, selecting shows for a block, or tightening the on-screen positioning?",
+      "Sandblast TV — got it. Are we tuning the program grid, selecting shows for a block, or tightening the on‑screen positioning?",
       "Understood. For TV: are we optimizing the schedule for retention, or building a themed block (retro night, comedy, action, etc.)?"
     ],
     radio: [
@@ -100,8 +103,8 @@ function offlineDomainFallback(domain, laneDetail, userMessage) {
       "Got it. For News Canada Stories: should we prioritize local relevance, speed, or deeper features?"
     ],
     streaming: [
-      "Streaming — got it. Are we talking distribution (Roku/OTT), packaging, or the on-site user journey?",
-      "Understood. For streaming: do you want platform expansion strategy or immediate on-site tuning?"
+      "Streaming — got it. Are we talking distribution (Roku/OTT), packaging, or the on‑site user journey?",
+      "Understood. For streaming: do you want platform expansion strategy or immediate on‑site tuning?"
     ],
     ai: [
       "AI — understood. Are we solving a backend reliability issue, improving Nyx’s behavior, or building a new capability module?",
@@ -207,7 +210,7 @@ function isPureGreeting(text) {
   return starters.some(s => t === s || t.startsWith(s + " "));
 }
 
-// Farewell / closing detection
+// Farewell / closing detection (this is the new piece)
 function detectClosingIntent(text) {
   const t = norm(text);
 
@@ -224,6 +227,8 @@ function detectClosingIntent(text) {
   const isHard = hardFarewells.some((p) => t === p || t.includes(p));
   const isThanks = gratitude.some((p) => t === p || t.includes(p));
 
+  // If message is ONLY thanks (no new question), treat as “soft close”
+  // If message includes bye/goodnight/etc, treat as “hard close”
   if (isHard) return { type: "hard" };
   if (isThanks && !looksMusicHistoryQuery(text) && !t.includes("?")) return { type: "soft" };
   return { type: "none" };
@@ -278,7 +283,9 @@ function appendNextStep(reply, domain, laneDetail, closing) {
   const base = String(reply || "").trim();
   if (!base) return base;
 
+  // NEW: do not force follow-up if this is a hard farewell
   if (closing?.type === "hard") return base;
+
   if (hasNextStepOrQuestion(base)) return base;
 
   if (domain === "music_history") {
@@ -300,19 +307,97 @@ function appendNextStep(reply, domain, laneDetail, closing) {
 
 // ---------------------------------------------------------
 // MATURITY PATCH (v1)
+// - Removes "needy" phrasing
+// - Keeps replies short, calm, and forward-moving
 // ---------------------------------------------------------
 function matureTone(reply) {
   let r = String(reply || "");
+
+  // Replace common "needy" patterns with calm, decisive language
   r = r.replace(/I can anchor this, but I need one detail:/gi, "To lock this in, pick one detail:");
   r = r.replace(/I need one detail:/gi, "To lock this in, pick one detail:");
   r = r.replace(/I need a year OR a song title/gi, "Pick one: a year or a song title");
   r = r.replace(/reply with a year \(e\.g\.,\s*1984\) or a song title/gi, "reply with a year or a song title");
+
+  // Keep broadcast-professional punctuation
   r = r.replace(/!!+/g, "!");
   return r.trim();
 }
 
+
 // ---------------------------------------------------------
-// SPONSOR PACKAGE MODE v1 (deterministic fast-path)
+// SIGNATURE MOMENT (v1) — "The Cultural Thread" (Balanced)
+// - Triggers only on completed music answers (artist + (year or title))
+// - Fires ~1 in 5 completions (deterministic via hashPick)
+// - When fired, we intentionally DO NOT stack a "Next step" on the same turn.
+// ---------------------------------------------------------
+function isExitish(text) {
+  const t = norm(text);
+  return (
+    t.includes("bye") || t.includes("goodnight") || t.includes("good night") ||
+    t.includes("later") || t.includes("talk soon") || t.includes("thanks") || t.includes("thank you")
+  );
+}
+
+function stripTrailingNextStep(reply) {
+  // Remove a trailing "Next step: ..." block so the signature line can land cleanly.
+  // This expects the last paragraph to start with "Next step:".
+  return String(reply || "").replace(/\n\nNext step:[\s\S]*$/i, "").trim();
+}
+
+function shouldTriggerSignature(meta, domain, laneDetail, userMessage, reply, closing) {
+  if (closing?.type && closing.type !== "none") return false;
+  if (domain !== "music_history") return false;
+
+  const artist = laneDetail?.artist;
+  const year = laneDetail?.year;
+  const title = laneDetail?.title;
+
+  // Must be a "completed" answer: artist + (year or title)
+  if (!artist) return false;
+  if (!year && !title) return false;
+
+  // Do not fire if we're still awaiting details or if the reply is a clarifier/question.
+  if (laneDetail?.awaiting) return false;
+  if (String(reply || "").includes("?")) return false;
+  if (/quick check\b/i.test(reply)) return false;
+
+  // Do not fire on obvious exit/closing tones.
+  if (isExitish(userMessage)) return false;
+
+  // Do not fire on greetings/filler.
+  if (isGreetingOrFiller(userMessage)) return false;
+
+  // Frequency control: ~1 in 5 completions, deterministic per session/step/moment.
+  const seed = `${meta.sessionId}|${meta.stepIndex}|sig|${norm(artist)}|${year || ""}|${title || ""}`;
+  return hashPick(seed, ["0","1","2","3","4"]) === "0";
+}
+
+function pickSignatureLine(meta, laneDetail) {
+  const lines = [
+    "That moment didn’t just top the charts — it helped define how the era sounded.",
+    "Songs like that become cultural timestamps, not just hits.",
+    "That was one of those moments where pop culture quietly shifted.",
+    "For a lot of listeners, that track marks a specific time and place.",
+    "Moments like that are why chart history still matters."
+  ];
+  const seed = `${meta.sessionId}|${meta.stepIndex}|sigline|${norm(laneDetail?.artist || "")}|${laneDetail?.year || ""}|${laneDetail?.title || ""}`;
+  return hashPick(seed, lines);
+}
+
+function maybeApplySignatureMoment(meta, domain, laneDetail, userMessage, reply, closing) {
+  if (!shouldTriggerSignature(meta, domain, laneDetail, userMessage, reply, closing)) {
+    return { fired: false, reply: String(reply || "").trim() };
+  }
+  const base = stripTrailingNextStep(reply);
+  const sig = pickSignatureLine(meta, laneDetail);
+  return { fired: true, reply: (base + "\n\n" + sig).trim() };
+}
+
+
+// ---------------------------------------------------------
+// SPONSOR PACKAGE MODE v1.1 (deterministic fast-path)
+// - Base package + optional "tier + brand" deliverables
 // ---------------------------------------------------------
 function buildSponsorPackageV1() {
   return (
@@ -357,6 +442,7 @@ function looksLikeSponsorPackageAsk(text = "") {
     t.includes("advertise") ||
     t.includes("advertising") ||
     t.includes("sponsor") ||
+    t.includes("sponsorship") ||
     t.includes("partnership") ||
     t.includes("partner") ||
     t.includes("pricing") ||
@@ -364,63 +450,153 @@ function looksLikeSponsorPackageAsk(text = "") {
   );
 }
 
-// ---------------------------------------------------------
-// SIGNATURE MOMENT (v1) — "The Cultural Thread" (Balanced)
-// ---------------------------------------------------------
-function isExitish(text) {
-  const t = norm(text);
+function extractSponsorTier(text = "") {
+  const m = String(text).match(/\b(starter|growth|premium)\b/i);
+  return m ? m[1].toLowerCase() : null;
+}
+
+function extractSponsorBrand(text = "", tier = null) {
+  let s = String(text || "").trim();
+  if (!s) return null;
+
+  if (tier) {
+    const re = new RegExp(`\\b${tier}\\b`, "i");
+    s = s.replace(re, " ");
+  }
+
+  // Remove common filler words while keeping domains and multi-word brands
+  s = s
+    .replace(/\b(tier|package|sponsor|sponsorship|media\s*kit|rate\s*card|for|with|please|want|need|build|create)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!s) return null;
+
+  // If user typed "starter displayto.com" keep the remainder; else keep full phrase
+  return s;
+}
+
+function buildSponsorDeliverables(tier, brand) {
+  const t = String(tier || "").toLowerCase();
+  const b = String(brand || "").trim();
+
+  const header = `**Email Pitch (${t.charAt(0).toUpperCase() + t.slice(1)} — ${b})**`;
+  const subject = `Subject: ${b} x Sandblast ${t.charAt(0).toUpperCase() + t.slice(1)} Sponsorship Opportunity`;
+
+  if (t === "starter") {
+    return (
+`${header}
+
+${subject}
+
+Hi [Contact Name],
+
+I’m reaching out from Sandblast Channel — a culturally driven, Canada-wide platform blending music, news, and community storytelling across **website, radio, and TV-style blocks**.
+
+We’d love to feature **${b}** as a Starter Tier sponsor:
+• Website logo placement + short blurb  
+• 1 sponsored mention on Sandblast Radio  
+• Community highlight (when applicable)
+
+If this fits your goals, I can tailor the exact placements and start date.
+
+Best,  
+[Your Name]  
+Sandblast Channel
+
+---
+
+**One-Page Proposal — Starter (${b})**
+
+**Sponsor:** ${b}  
+**Tier:** Starter ($100–$300)
+
+**Objective**
+Increase brand visibility with culturally aligned audiences across Sandblast.
+
+**Deliverables**
+• Website sponsor placement  
+• 1 radio sponsor mention  
+• Community highlight (as available)
+
+**Next steps**
+• Confirm start date  
+• Share logo + tagline + preferred link  
+• Confirm approval contact
+
+**Close**
+Who should this be addressed to (name + email), or should I keep it generic?`
+    );
+  }
+
+  if (t === "growth") {
+    return (
+`${header}
+
+${subject}
+
+Hi [Contact Name],
+
+Sandblast Channel offers culturally aligned visibility across **website, radio, and TV-style blocks**. I’d like to propose a **Growth Tier** sponsorship for **${b}**.
+
+Growth includes:
+• Priority website sponsor placement  
+• Multiple radio mentions  
+• Sponsored segment/feature placement  
+• Optional short branded message read by host
+
+If you tell me your target audience (Canada-wide or regional) and your campaign window, I’ll tailor the placements.
+
+Best,  
+[Your Name]  
+Sandblast Channel
+
+---
+
+**One-Page Proposal — Growth (${b})**
+• Priority web placement  
+• Multiple radio mentions  
+• Sponsored segment/feature  
+• Optional host-read branded message
+
+Who should this be addressed to (name + email), or should I keep it generic?`
+    );
+  }
+
+  // premium (default)
   return (
-    t.includes("bye") || t.includes("goodnight") || t.includes("good night") ||
-    t.includes("later") || t.includes("talk soon") || t.includes("thanks") || t.includes("thank you")
+`${header}
+
+${subject}
+
+Hi [Contact Name],
+
+I’d like to explore a **Premium** sponsorship with **${b}** across Sandblast’s Canada-wide ecosystem (website + radio + TV-style blocks).
+
+Premium includes:
+• Featured website placement (hero/featured sponsor)  
+• Recurring radio sponsorship block  
+• TV-style block integration or branded segment  
+• Custom campaign alignment with Sandblast programming
+
+Share your campaign goal (awareness, traffic, leads) and timing, and I’ll tailor a premium placement plan.
+
+Best,  
+[Your Name]  
+Sandblast Channel
+
+---
+
+**One-Page Proposal — Premium (${b})**
+• Hero/featured sponsor placement  
+• Recurring radio sponsor block  
+• TV-style branded integration  
+• Custom campaign alignment
+
+Who should this be addressed to (name + email), or should I keep it generic?`
   );
 }
 
-function stripTrailingNextStep(reply) {
-  return String(reply || "").replace(/\n\nNext step:[\s\S]*$/i, "").trim();
-}
-
-function shouldTriggerSignature(meta, domain, laneDetail, userMessage, reply, closing) {
-  if (closing?.type && closing.type !== "none") return false;
-  if (domain !== "music_history") return false;
-
-  const artist = laneDetail?.artist;
-  const year = laneDetail?.year;
-  const title = laneDetail?.title;
-
-  if (!artist) return false;
-  if (!year && !title) return false;
-
-  if (laneDetail?.awaiting) return false;
-  if (String(reply || "").includes("?")) return false;
-  if (/quick check\b/i.test(reply)) return false;
-
-  if (isExitish(userMessage)) return false;
-  if (isGreetingOrFiller(userMessage)) return false;
-
-  const seed = `${meta.sessionId}|${meta.stepIndex}|sig|${norm(artist)}|${year || ""}|${title || ""}`;
-  return hashPick(seed, ["0","1","2","3","4"]) === "0";
-}
-
-function pickSignatureLine(meta, laneDetail) {
-  const lines = [
-    "That moment didn’t just top the charts — it helped define how the era sounded.",
-    "Songs like that become cultural timestamps, not just hits.",
-    "That was one of those moments where pop culture quietly shifted.",
-    "For a lot of listeners, that track marks a specific time and place.",
-    "Moments like that are why chart history still matters."
-  ];
-  const seed = `${meta.sessionId}|${meta.stepIndex}|sigline|${norm(laneDetail?.artist || "")}|${laneDetail?.year || ""}|${laneDetail?.title || ""}`;
-  return hashPick(seed, lines);
-}
-
-function maybeApplySignatureMoment(meta, domain, laneDetail, userMessage, reply, closing) {
-  if (!shouldTriggerSignature(meta, domain, laneDetail, userMessage, reply, closing)) {
-    return { fired: false, reply: String(reply || "").trim() };
-  }
-  const base = stripTrailingNextStep(reply);
-  const sig = pickSignatureLine(meta, laneDetail);
-  return { fired: true, reply: (base + "\n\n" + sig).trim() };
-}
 
 // ---------------------------------------------------------
 // MUSIC KNOWLEDGE LAYER v1 (INLINE, offline-first)
@@ -438,7 +614,7 @@ const MUSIC_KNOWLEDGE_V1 = {
       culture: "It became a defining MTV-era breakthrough moment and reset the rules for pop stardom.",
       next: "Want the exact chart week/date, or Madonna’s full #1 timeline?"
     }
-    // Keep the rest of your moments list as-is.
+    // (Keep the rest of your moments list as-is; omitted here for brevity if you already have it.)
   ]
 };
 
@@ -460,6 +636,7 @@ function detectArtistFromText(text) {
   return null;
 }
 
+// Try to detect a song title by matching known moments (lets title-only replies advance)
 function detectTitleFromText(text) {
   const t = norm(text);
   for (const m of MUSIC_KNOWLEDGE_V1.moments) {
@@ -473,6 +650,7 @@ function detectChartFromText(text) {
   const t = norm(text || "");
   if (!t) return null;
 
+  // Common chart intents
   if (t.includes("hot 100") || (t.includes("billboard") && t.includes("hot"))) return "Billboard Hot 100";
   if (t.includes("billboard")) return "Billboard Hot 100";
   if (t.includes("uk") && (t.includes("singles") || t.includes("chart") || t.includes("top"))) return "UK Singles Chart";
@@ -483,10 +661,13 @@ function detectChartFromText(text) {
   if (t.includes("country")) return "Billboard Hot Country Songs";
   if (t.includes("top 40") || t.includes("pop")) return "Billboard Pop Airplay";
 
+  // If user explicitly says "default", keep current/default
   if (t.includes("default") || t.includes("whatever you use") || t.includes("your default")) return MUSIC_KNOWLEDGE_V1.defaultChart;
 
   return null;
 }
+
+
 
 function looksLikeArtistOnly(text) {
   const raw = String(text || "").trim();
@@ -528,12 +709,15 @@ function formatMusicLaneFollowupPrompt(laneDetail) {
 }
 
 function answerMusicHistoryOffline(message, laneDetail) {
+  // laneDetail is persisted meta.music across turns.
   const detail = laneDetail || {};
 
+  // 1) Handle greetings/filler without losing continuity
   if (isGreetingOrFiller(message)) {
     const hasContext = !!(detail.artist || detail.year || detail.title || detail.chart);
     const chart = detail.chart || MUSIC_KNOWLEDGE_V1.defaultChart;
 
+    // If we already have artist+year but no explicit chart selection, prompt chart step first.
     if (detail.artist && detail.year && !detail.chartExplicit) {
       return {
         handled: true,
@@ -557,9 +741,11 @@ function answerMusicHistoryOffline(message, laneDetail) {
 
   const t = norm(message);
 
+  // 2) Capture chart choice at any time
   const maybeChart = detectChartFromText(message);
   if (maybeChart) {
     const nextDetail = { ...detail, chart: maybeChart, chartExplicit: true };
+    // If we were waiting for chart, clear awaiting and continue to moment resolution.
     if (detail.awaiting === "chart") {
       nextDetail.awaiting = null;
     }
@@ -572,9 +758,11 @@ function answerMusicHistoryOffline(message, laneDetail) {
     };
   }
 
+  // 3) Year-only reply (continuation)
   const year = extractYear(message);
   if (year) {
     const next = { ...detail, year };
+    // If we have artist already, next step is chart (if not explicit), otherwise moment.
     if (next.artist && !next.chartExplicit) {
       const chart = next.chart || MUSIC_KNOWLEDGE_V1.defaultChart;
       return {
@@ -592,6 +780,7 @@ function answerMusicHistoryOffline(message, laneDetail) {
     };
   }
 
+  // 4) Artist-only reply
   if (looksLikeArtistOnly(message)) {
     const artist = norm(message);
     const next = { ...detail, artist };
@@ -602,6 +791,7 @@ function answerMusicHistoryOffline(message, laneDetail) {
     };
   }
 
+  // 5) Special case: Madonna #1 question without a year (kept from your v1.13 behavior)
   if (t.includes("madonna") && (t.includes("#1") || t.includes("number one") || t.includes("no. 1")) && !year) {
     const chart = detail.chart || MUSIC_KNOWLEDGE_V1.defaultChart;
     return {
@@ -611,12 +801,15 @@ function answerMusicHistoryOffline(message, laneDetail) {
     };
   }
 
+  // 6) Continuity-aware moment match
+  // - If the user replies with only a title, use remembered artist/year where possible.
   const rememberedArtist = detail.artist ? norm(detail.artist) : null;
   const rememberedTitle = detail.title ? norm(detail.title) : null;
 
   const detectedTitle = detectTitleFromText(message);
   const title = detectedTitle || rememberedTitle;
 
+  // If we have artist+year but chart not explicitly chosen, enforce chart step before resolving moment.
   if (detail.artist && detail.year && !detail.chartExplicit) {
     const chart = detail.chart || MUSIC_KNOWLEDGE_V1.defaultChart;
     return {
@@ -626,6 +819,7 @@ function answerMusicHistoryOffline(message, laneDetail) {
     };
   }
 
+  // Prefer matching by artist (+ optional year and/or title)
   let m = MUSIC_KNOWLEDGE_V1.moments.find(x => {
     const ax = norm(x.artist);
     const tx = norm(x.title);
@@ -635,6 +829,7 @@ function answerMusicHistoryOffline(message, laneDetail) {
     return artistMatch && yearMatch && titleMatch;
   });
 
+  // If no artist match but we do have a title, match by title (+ optional year) and infer artist
   if (!m && title) {
     m = MUSIC_KNOWLEDGE_V1.moments.find(x => {
       const tx = norm(x.title);
@@ -644,7 +839,9 @@ function answerMusicHistoryOffline(message, laneDetail) {
     if (m && !detail.artist) detail.artist = norm(m.artist);
   }
 
+  // If we still don't have enough, ask for the missing piece in the flow.
   if (!m) {
+    // If we have artist but not year/title
     if (detail.artist && !detail.year && !title) {
       return {
         handled: true,
@@ -653,6 +850,7 @@ function answerMusicHistoryOffline(message, laneDetail) {
       };
     }
 
+    // If we have year but no artist/title
     if (detail.year && !detail.artist && !title) {
       return {
         handled: true,
@@ -661,6 +859,7 @@ function answerMusicHistoryOffline(message, laneDetail) {
       };
     }
 
+    // Otherwise ask for a moment cue
     return {
       handled: true,
       reply: "To anchor the moment, tell me one of these: a song title, a week/date, or just say “#1”.",
@@ -668,6 +867,7 @@ function answerMusicHistoryOffline(message, laneDetail) {
     };
   }
 
+  // Persist title for continuity
   if (title) detail.title = title;
 
   return {
@@ -703,9 +903,10 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     const session = getSession(meta.sessionId);
 
     const isFirstTurn = !meta.hasEntered && meta.stepIndex === 0;
+    // Once we receive any message, mark the session as entered to prevent repeated front-door behavior.
     if (!meta.hasEntered) meta.hasEntered = true;
 
-    // Greetings stay in GENERAL lane
+    // MATURITY: greetings stay in GENERAL lane (never force music prompts)
     if (isPureGreeting(clean)) {
       const replyRaw = "Hi — I’m Nyx. What would you like to explore today? (Music history, Sandblast TV, News Canada, or Sponsors)";
       const reply = matureTone(replyRaw);
@@ -731,7 +932,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       return res.json(payload);
     }
 
-    // Closing intent first
+    // NEW: closing intent check first (so we can end cleanly)
     const closing = detectClosingIntent(clean);
     if (closing.type !== "none") {
       const reply = farewellReply(meta, closing.type);
@@ -756,9 +957,8 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 
     const raw = classifyIntent(clean);
 
-    let domain =
-      (raw.domain === "music_history" || raw.intent === "music_history") ? "music_history"
-      : (raw.domain || meta.currentLane || "general");
+    let domain = (raw.domain === "music_history" || raw.intent === "music_history") ? "music_history"
+               : (raw.domain || meta.currentLane || "general");
 
     const messageLooksLikeMusic = looksMusicHistoryQuery(clean);
     const mentionsKnownArtist = !!detectArtistFromText(clean);
@@ -779,11 +979,17 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     let laneDetail = { ...(meta.laneDetail || {}) };
 
     // ---------------------------------------------------------
-    // SPONSOR PACKAGE MODE v1 (fast-path, deterministic)
-    // - Runs before OpenAI and before music lane
+    // SPONSOR PACKAGE MODE v1.1 (fast-path, deterministic)
+    // - Runs before OpenAI and before music lane logic
+    // - If user supplies "tier + brand", auto-generate pitch + one-pager
     // ---------------------------------------------------------
     if (domain === "sponsors" || meta.currentLane === "sponsors" || looksLikeSponsorPackageAsk(clean)) {
-      const reply = matureTone(buildSponsorPackageV1());
+      const tier = extractSponsorTier(clean);
+      const brand = extractSponsorBrand(clean, tier);
+
+      let reply = "";
+      if (tier && brand) reply = matureTone(buildSponsorDeliverables(tier, brand));
+      else reply = matureTone(buildSponsorPackageV1());
 
       const updatedMeta = {
         ...meta,
@@ -791,7 +997,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
         lastDomain: "sponsors",
         lastIntent: raw.intent || "sponsors",
         currentLane: "sponsors",
-        laneDetail: laneDetail || {},
+        laneDetail: { tier, brand },
         laneAge: meta.laneAge + 1,
         hasEntered: true
       };
@@ -801,9 +1007,11 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       upsertSession(meta.sessionId, session);
 
       const payload = { ok: true, reply, domain: "sponsors", intent: raw.intent || "sponsors", meta: updatedMeta };
-      if (meta.access === "admin") payload.debug = { build: BUILD_TAG, mode: meta.mode, sponsorFastPath: true, classifier: raw };
+      if (meta.access === "admin") payload.debug = { build: BUILD_TAG, mode: meta.mode, sponsorFastPath: true, classifier: raw, tier, brand };
       return res.json(payload);
     }
+
+
 
     // ------------------------------
     // MUSIC LANE (offline-first)
@@ -817,6 +1025,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
         laneDetail.title = detectedTitle;
         laneDetail = clearAwaiting(laneDetail);
       }
+
 
       if (artistOnly) {
         laneDetail.artist = norm(clean);
@@ -926,13 +1135,13 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     } else {
       openaiUnavailableReason = "OPENAI_SKIPPED_BY_MODE";
     }
-
     // Quiet fallback
     if (!reply) {
       if (domain === "music_history" || messageLooksLikeMusic || mentionsKnownArtist || artistOnly || (isYearOnly && wasAwaitingYear) || meta.currentLane === "music_history") {
         domain = "music_history";
         reply = localMusicFallback(clean, laneDetail);
       } else {
+        // Broadcast-safe offline guidance (avoid repeating the "front door" line mid-session)
         reply = isFirstTurn ? OFFLINE_FALLBACK : offlineDomainFallback(domain, laneDetail, clean);
       }
     }
@@ -980,5 +1189,5 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 app.get("/health", (_, res) => res.json({ status: "ok", build: BUILD_TAG }));
 
 app.listen(PORT, () => {
-  console.log(`[Nyx] Broadcast-ready v1.15.1 on port ${PORT} | build=${BUILD_TAG}`);
+  console.log(`[Nyx] Broadcast-ready on port ${PORT} | build=${BUILD_TAG}`);
 });
