@@ -1,5 +1,5 @@
 // ----------------------------------------------------------
-// Sandblast Nyx Backend — Broadcast-Ready v1.11
+// Sandblast Nyx Backend — Broadcast-Ready v1.12
 // Adds:
 // - Farewell/closing detection with rotating sign-offs
 // - MATURITY patch v1 (calm, decisive phrasing + greeting discipline)
@@ -37,7 +37,7 @@ const PORT = process.env.PORT || 3000;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
-const BUILD_TAG = "nyx-broadcast-ready-v1.11-2025-12-14";
+const BUILD_TAG = "nyx-broadcast-ready-v1.12-2025-12-15";
 
 // Micro-tuned offline fallback (calm, confident, no apology)
 const OFFLINE_FALLBACK = "I’m here. What’s the goal?";
@@ -223,20 +223,56 @@ function hasNextStepOrQuestion(reply) {
   );
 }
 
-function pickNaturalFollowup(seed) {
-  const variants = [
-    "Tell me what you want to do next.",
-    "What should we tackle next?",
-    "How would you like to continue?"
-  ];
-  return hashPick(seed, variants);
+function pickNaturalFollowup(seed, domain) {
+  const d = String(domain || "general").toLowerCase();
+
+  const domainVariants = {
+    general: [
+      "Tell me the goal in one sentence.",
+      "What should we tackle next?",
+      "Do you want a quick plan, or a quick fix?"
+    ],
+    tv: [
+      "Do you want to tune the programming grid or the show lineup next?",
+      "What’s the target audience for this block?",
+      "Should we build a 60-minute pilot schedule?"
+    ],
+    radio: [
+      "Which era or vibe are we building right now?",
+      "Do you want a tight 30-minute block or a full hour?",
+      "Pick a decade and I’ll anchor a set."
+    ],
+    sponsors: [
+      "Do you want to package this as a sponsor pitch or a rate card next?",
+      "Who’s the ideal sponsor for this slot?",
+      "Should we draft a 4-week test offer?"
+    ],
+    news: [
+      "Do you want a headline-first version or a story-first version?",
+      "Should we align this to Sandblast’s audience angle?",
+      "Want me to propose the next 3 stories to post?"
+    ],
+    ai: [
+      "Do you want a practical example or a lightweight implementation plan?",
+      "Should we turn this into a repeatable workflow?",
+      "What’s the business outcome you want from this?"
+    ],
+    streaming: [
+      "Do you want a platform plan or a content plan next?",
+      "Which device/platform are we targeting first?",
+      "Should we map the next 3 rollout steps?"
+    ]
+  };
+
+  const variants = domainVariants[d] || domainVariants.general;
+  return hashPick(String(seed || "") + "|" + d, variants);
 }
 
 function appendNextStep(reply, domain, laneDetail, closing) {
   const base = String(reply || "").trim();
   if (!base) return base;
 
-  // NEW: do not force follow-up if this is a hard farewell
+  // Do not force follow-up if this is a hard farewell
   if (closing?.type === "hard") return base;
 
   if (hasNextStepOrQuestion(base)) return base;
@@ -247,15 +283,23 @@ function appendNextStep(reply, domain, laneDetail, closing) {
     const year = laneDetail?.year ? String(laneDetail.year) : null;
 
     if (artist && year) {
-      return base + `\n\nNext step: tell me the song title for ${artist} in ${year}, or ask “what was #1 that week?” (default chart: ${chart}).`;
+      return base + `
+
+Next step: tell me the song title for ${artist} in ${year}, or ask “what was #1 that week?” (default chart: ${chart}).`;
     }
     if (artist && !year) {
-      return base + `\n\nNext step: give me a year (e.g., 1984) or a song title and I’ll anchor one ${chart} moment.`;
+      return base + `
+
+Next step: give me a year (e.g., 1984) or a song title and I’ll anchor one ${chart} moment.`;
     }
-    return base + `\n\nNext step: give me an artist + year (or a specific week/date) and I’ll anchor the ${chart} moment.`;
+    return base + `
+
+Next step: give me an artist + year (or a specific week/date) and I’ll anchor the ${chart} moment.`;
   }
 
-  return base + "\n\nNext step: " + pickNaturalFollowup(base);
+  return base + "
+
+Next step: " + pickNaturalFollowup(base, domain);
 }
 
 // ---------------------------------------------------------
@@ -794,5 +838,5 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 app.get("/health", (_, res) => res.json({ status: "ok", build: BUILD_TAG }));
 
 app.listen(PORT, () => {
-  console.log(`[Nyx] Broadcast-ready v1.10 on port ${PORT} | build=${BUILD_TAG}`);
+  console.log(`[Nyx] Broadcast-ready v1.12 on port ${PORT} | build=${BUILD_TAG}`);
 });
