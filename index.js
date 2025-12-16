@@ -1,10 +1,10 @@
 // ----------------------------------------------------------
-// Sandblast Nyx Backend — Broadcast-Ready v1.15.4 (Consolidated)
+// Sandblast Nyx Backend — Broadcast-Ready v1.16 (Music Flow Lock)
 // Includes:
 // - Quiet 429/offline behavior (no scary banners)
 // - Greeting discipline (robust “Hi Nyx” handling)
 // - Small-talk / check-in handler (How are you? -> human reply, then pivot)
-// - Music Knowledge Layer (offline-first) + follow-up guarantee
+// - Music Knowledge Layer v1 LOCK (year → chart → moment → next step)
 // - Signature Moment v1 (“The Cultural Thread”) guarded to avoid interruptions
 // - Sponsor Package Mode v1 (deterministic fast-path)
 // - Sponsor Mode v1.1: tier + brand -> pitch email + one-page proposal + close question
@@ -36,7 +36,7 @@ const PORT = process.env.PORT || 3000;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
-const BUILD_TAG = "nyx-broadcast-ready-v1.15.4-2025-12-15";
+const BUILD_TAG = "nyx-broadcast-ready-v1.16-2025-12-15";
 
 // Micro-tuned offline fallback (calm, confident, no apology)
 const OFFLINE_FALLBACK = "I’m here. What’s the goal?";
@@ -179,6 +179,26 @@ function looksLikeChartName(text) {
   );
 }
 
+// MUSIC FLOW LOCK: resolve chart explicitly from text
+function resolveChartFromText(text) {
+  const t = norm(text);
+  if (t.includes("uk") || t.includes("official charts")) return "UK Singles Chart";
+  if (t.includes("canada") || t.includes("rpm")) return "Canada RPM";
+  if (t.includes("top40weekly") || t.includes("top 40 weekly") || t.includes("top 40")) return "Top40Weekly";
+  if (t.includes("hot 100") || t.includes("billboard")) return "Billboard Hot 100";
+  return null;
+}
+
+// MUSIC FLOW LOCK: detect question type (#1 / peak / weeks / when / anchor)
+function detectMusicQuestionType(text) {
+  const t = norm(text);
+  if (t.includes("#1") || t.includes("number 1") || t.includes("no 1") || t.includes("no. 1")) return "number_one";
+  if (t.includes("peak")) return "peak";
+  if (t.includes("weeks at") || /\bweeks\b/.test(t)) return "weeks";
+  if (t.includes("when was") || t.includes("what year")) return "when";
+  return "anchor";
+}
+
 // ---------------------------------------------------------
 // SMALL TALK / CHECK-IN (keeps dialog natural; does not hijack real asks)
 // ---------------------------------------------------------
@@ -290,12 +310,12 @@ function appendNextStep(reply, domain, laneDetail, closing) {
     const year = laneDetail?.year ? String(laneDetail.year) : null;
 
     if (artist && year) {
-      return base + `\n\nNext step: tell me the song title for ${artist} in ${year}, or ask “what was #1 that week?” (default chart: ${chart}).`;
+      return base + `\n\nNext step: tell me the song title for ${artist} in ${year}, or ask “was it #1?” If you want a different chart, say: Billboard Hot 100, UK Singles, Canada RPM, or Top40Weekly. (Current: ${chart}).`;
     }
     if (artist && !year) {
-      return base + `\n\nNext step: give me a year (e.g., 1984) or a song title and I’ll anchor one ${chart} moment.`;
+      return base + `\n\nNext step: give me a year (e.g., 1984) or a song title. If you want a different chart, say: Billboard Hot 100, UK Singles, Canada RPM, or Top40Weekly. (Current: ${chart}).`;
     }
-    return base + `\n\nNext step: give me an artist + year (or a specific week/date) and I’ll anchor the ${chart} moment.`;
+    return base + `\n\nNext step: give me an artist + year (or a song title). If you want a different chart, say: Billboard Hot 100, UK Singles, Canada RPM, or Top40Weekly. (Current: ${chart}).`;
   }
 
   return base + "\n\nNext step: " + pickNaturalFollowup(base);
@@ -597,14 +617,22 @@ function answerMusicHistoryOffline(message, laneDetail) {
   const year = extractYear(message);
   if (year) {
     if (detail.artist) {
-      return { handled: true, reply: `Locked: ${detail.artist.toUpperCase()} in ${year}. Tell me the song title (or ask “#1”) and I’ll anchor it.` , metaPatch: { ...detail, year } };
+      return {
+        handled: true,
+        reply: `Locked: ${String(detail.artist).toUpperCase()} in ${year}. Give me a song title, or ask “Was it #1?” and I’ll anchor the chart moment.`,
+        metaPatch: { ...detail, year }
+      };
     }
-    return { handled: true, reply: `Noted: ${year}. Which artist are we talking about?`, metaPatch: { ...detail, year } };
+    return { handled: true, reply: `Noted: ${year}. Which artist are we anchoring?`, metaPatch: { ...detail, year } };
   }
 
   if (looksLikeArtistOnly(message)) {
     const artist = norm(message);
-    return { handled: true, reply: `Got it — ${artist.toUpperCase()}. What year should I anchor, or do you want to give me a song title?`, metaPatch: { ...detail, artist } };
+    return {
+      handled: true,
+      reply: `Got it — ${artist.toUpperCase()}. Pick a year (e.g., 1984) or give me a song title and I’ll anchor the chart moment.`,
+      metaPatch: { ...detail, artist }
+    };
   }
 
   const artist = detail.artist || detectArtistFromText(message);
@@ -623,9 +651,14 @@ function answerMusicHistoryOffline(message, laneDetail) {
     return { handled: true, reply: "To anchor the moment, give me an artist + year (or a song title).", metaPatch: detail };
   }
 
+  // Locked response format: Chart fact + Cultural thread + Next step
+  const chartName = detail.chart || m.chart || MUSIC_KNOWLEDGE_V1.defaultChart;
   return {
     handled: true,
-    reply: `${m.fact} (${detail.chart || m.chart || MUSIC_KNOWLEDGE_V1.defaultChart})\nCultural note: ${m.culture}\nNext step: ${m.next}`,
+    reply:
+      `Chart fact: ${m.fact} (${chartName})` +
+      `\nCultural thread: ${m.culture}` +
+      `\nNext step: ${m.next}`,
     metaPatch: { ...detail, artist: m.artist, title: m.title, year: m.year }
   };
 }
@@ -760,9 +793,15 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       return res.json({ ok: true, reply, domain: "sponsors", intent: raw.intent || "sponsors", meta: updatedMeta });
     }
 
-    // Music lane (offline-first)
+    // Music lane (offline-first; LOCKED FLOW)
     if (domain === "music_history") {
+      // Chart resolution (explicit from message wins)
+      const inferredChart = resolveChartFromText(clean);
+      if (inferredChart) laneDetail.chart = inferredChart;
       if (!laneDetail.chart) laneDetail.chart = MUSIC_KNOWLEDGE_V1.defaultChart;
+
+      // Question type (stored for future expansion)
+      laneDetail.questionType = detectMusicQuestionType(clean);
 
       const detectedArtist = detectArtistFromText(clean);
       if (detectedArtist) laneDetail.artist = detectedArtist;
@@ -865,5 +904,5 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 app.get("/health", (_, res) => res.json({ status: "ok", build: BUILD_TAG }));
 
 app.listen(PORT, () => {
-  console.log(`[Nyx] Broadcast-ready v1.15.4 on port ${PORT} | build=${BUILD_TAG}`);
+  console.log(`[Nyx] Broadcast-ready v1.16 on port ${PORT} | build=${BUILD_TAG}`);
 });
