@@ -1,12 +1,12 @@
 // ----------------------------------------------------------
-// Sandblast Nyx Backend — Broadcast-Ready v1.17 (Music Flow Lock + Slot-Filling Fix)
+// Sandblast Nyx Backend — Broadcast-Ready v1.18 (Alias Resolution + Music Slot-Fill Pass)
 // Includes:
 // - Quiet 429/offline behavior (no scary banners)
 // - Greeting discipline (robust “Hi Nyx” handling)
 // - Small-talk / check-in handler (How are you? -> human reply, then pivot)
 // - Music Knowledge Layer LOCK (year → chart → moment → next step) using Utils/musicKnowledge (v2)
 // - Slot-filling follow-up fix: Artist + #1 intent -> ask ONLY for missing (year or title)
-// - Signature Moment v1 (“The Cultural Thread”) guarded to avoid interruptions
+// - NEW: Artist alias resolution (e.g., "Whitney" -> "Whitney Houston") so shorthand works on-air
 // - Sponsor Package Mode v1 (deterministic fast-path)
 // - Sponsor Mode v1.1: tier + brand -> pitch email + one-page proposal + close question
 // ----------------------------------------------------------
@@ -63,7 +63,7 @@ const PORT = process.env.PORT || 3000;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
-const BUILD_TAG = "nyx-broadcast-ready-v1.17-2025-12-16";
+const BUILD_TAG = "nyx-broadcast-ready-v1.18-2025-12-16";
 
 // Micro-tuned offline fallback (calm, confident, no apology)
 const OFFLINE_FALLBACK = "I’m here. What’s the goal?";
@@ -235,6 +235,21 @@ function hasNumberOneIntent(text) {
     t.includes("no 1") || t.includes("no. 1") ||
     t.includes("number 1") || t.includes("number one")
   );
+}
+
+// NEW: conservative artist alias resolver (shorthand -> canonical artist)
+// Designed to avoid fuzzy guessing; only expands known broadcast-safe aliases.
+function resolveArtistAlias(text) {
+  const t = norm(text);
+
+  // IMPORTANT: use word-boundary checks so "whitney #1" and "whitney" both match
+  if (/\bwhitney\b/.test(t)) return "Whitney Houston";
+  if (/\bmadonna\b/.test(t)) return "Madonna";
+  if (/\bprince\b/.test(t)) return "Prince";
+  if (/\bmj\b/.test(t)) return "Michael Jackson";
+  if (/\bmichael jackson\b/.test(t)) return "Michael Jackson";
+
+  return null;
 }
 
 // ---------------------------------------------------------
@@ -670,7 +685,7 @@ function answerMusicHistoryOffline(message, laneDetail) {
 
   // Artist-only anchoring
   if (looksLikeArtistOnly(message)) {
-    const artistGuess = detectArtistFromDb(message) || message.trim();
+    const artistGuess = detail.artist || detectArtistFromDb(message) || resolveArtistAlias(message) || message.trim();
     return {
       handled: true,
       reply: `Got it — ${String(artistGuess).toUpperCase()}. Pick a year (e.g., 1992) or give me a song title and I’ll anchor the chart moment.`,
@@ -679,7 +694,7 @@ function answerMusicHistoryOffline(message, laneDetail) {
   }
 
   // Best moment selection from DB
-  const artist = detail.artist || detectArtistFromDb(message);
+  const artist = detail.artist || detectArtistFromDb(message) || resolveArtistAlias(message);
   const title = detail.title || detectTitleFromDb(message);
   const chart = detail.chart || MUSIC_DEFAULT_CHART;
 
@@ -850,6 +865,10 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       // Question type (stored for future expansion)
       laneDetail.questionType = detectMusicQuestionType(clean);
 
+      // NEW: Alias resolution BEFORE slot filling
+      const aliasArtist = resolveArtistAlias(clean);
+      if (aliasArtist && !laneDetail.artist) laneDetail.artist = aliasArtist;
+
       // Save detected artist/title when present
       if (detectedArtist) laneDetail.artist = detectedArtist;
       if (detectedTitle) laneDetail.title = detectedTitle;
@@ -975,5 +994,5 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 app.get("/health", (_, res) => res.json({ status: "ok", build: BUILD_TAG }));
 
 app.listen(PORT, () => {
-  console.log(`[Nyx] Broadcast-ready v1.17 on port ${PORT} | build=${BUILD_TAG}`);
+  console.log(`[Nyx] Broadcast-ready v1.18 on port ${PORT} | build=${BUILD_TAG}`);
 });
