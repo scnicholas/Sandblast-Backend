@@ -9,7 +9,7 @@ function loadDb() {
 
   const all = [...(db1.moments || []), ...(db2.moments || [])];
 
-  // de-dupe by artist+title+year+chart
+  // De-dupe by artist+title+year+chart
   const seen = new Set();
   const merged = [];
   for (const m of all) {
