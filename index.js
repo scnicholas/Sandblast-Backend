@@ -1,8 +1,9 @@
 // ----------------------------------------------------------
-// Sandblast Nyx Backend — Broadcast-Ready v1.15.3 (Consolidated)
+// Sandblast Nyx Backend — Broadcast-Ready v1.15.4 (Consolidated)
 // Includes:
 // - Quiet 429/offline behavior (no scary banners)
 // - Greeting discipline (robust “Hi Nyx” handling)
+// - Small-talk / check-in handler (How are you? -> human reply, then pivot)
 // - Music Knowledge Layer (offline-first) + follow-up guarantee
 // - Signature Moment v1 (“The Cultural Thread”) guarded to avoid interruptions
 // - Sponsor Package Mode v1 (deterministic fast-path)
@@ -35,7 +36,7 @@ const PORT = process.env.PORT || 3000;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
-const BUILD_TAG = "nyx-broadcast-ready-v1.15.3-2025-12-15";
+const BUILD_TAG = "nyx-broadcast-ready-v1.15.4-2025-12-15";
 
 // Micro-tuned offline fallback (calm, confident, no apology)
 const OFFLINE_FALLBACK = "I’m here. What’s the goal?";
@@ -176,6 +177,43 @@ function looksLikeChartName(text) {
     t.includes("top40weekly") ||
     t.includes("top 40 weekly")
   );
+}
+
+// ---------------------------------------------------------
+// SMALL TALK / CHECK-IN (keeps dialog natural; does not hijack real asks)
+// ---------------------------------------------------------
+function isSmallTalkCheckIn(text) {
+  const t = norm(text);
+  if (!t) return false;
+
+  // Avoid hijacking real asks (sponsors, music, news, tv, etc.)
+  if (
+    looksMusicHistoryQuery(t) ||
+    looksLikeSponsorPackageAsk(t) ||
+    t.includes("news") ||
+    t.includes("tv") ||
+    t.includes("radio") ||
+    t.includes("sponsor") ||
+    t.includes("package") ||
+    t.includes("billboard") ||
+    t.includes("chart")
+  ) return false;
+
+  const patterns = [
+    /^how are you\b/,
+    /^how r u\b/,
+    /^how you doing\b/,
+    /^how's it going\b/,
+    /^hows it going\b/,
+    /^what's up\b/,
+    /^whats up\b/,
+    /^how are things\b/,
+    /^how is your day\b/,
+    /^how's your day\b/,
+    /^hows your day\b/
+  ];
+
+  return patterns.some((p) => p.test(t));
 }
 
 // ---------------------------------------------------------
@@ -651,6 +689,33 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       return res.json({ ok: true, reply, domain: updatedMeta.lastDomain, intent: "closing", meta: updatedMeta });
     }
 
+    // 2.5) Small-talk / check-in handler (human beat, then pivot)
+    if (isSmallTalkCheckIn(clean)) {
+      const replyRaw =
+        "I’m doing well — thanks for asking. What would you like to explore today? (Music history, Sandblast TV, News Canada, or Sponsors)";
+      const reply = matureTone(replyRaw);
+
+      const updatedMeta = {
+        ...meta,
+        stepIndex: meta.stepIndex + 1,
+        lastDomain: "general",
+        lastIntent: "smalltalk",
+        currentLane: "general",
+        laneDetail: meta.laneDetail || {},
+        laneAge: meta.laneAge || 0,
+        conversationState: "active",
+        hasEntered: true
+      };
+
+      appendTurn(meta.sessionId, { role: "user", content: clean });
+      appendTurn(meta.sessionId, { role: "assistant", content: reply });
+      upsertSession(meta.sessionId, session);
+
+      const payload = { ok: true, reply, domain: "general", intent: "smalltalk", meta: updatedMeta };
+      if (meta.access === "admin") payload.debug = { build: BUILD_TAG, mode: meta.mode, smalltalk: true };
+      return res.json(payload);
+    }
+
     const raw = classifyIntent(clean);
 
     let domain =
@@ -800,5 +865,5 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 app.get("/health", (_, res) => res.json({ status: "ok", build: BUILD_TAG }));
 
 app.listen(PORT, () => {
-  console.log(`[Nyx] Broadcast-ready v1.15.3 on port ${PORT} | build=${BUILD_TAG}`);
+  console.log(`[Nyx] Broadcast-ready v1.15.4 on port ${PORT} | build=${BUILD_TAG}`);
 });
