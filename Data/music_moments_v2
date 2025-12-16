@@ -1,0 +1,908 @@
+{
+  "version": "music_moments_v2",
+  "source": "top100_songs.csv",
+  "generatedAt": "2025-12-16T05:20:31.473Z",
+  "moments": [
+    {
+      "artist": "Whitney Houston",
+      "title": "I Will Always Love You",
+      "year": 1992,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1992 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A soundtrack-driven ballad that became a global emotional reference point.",
+      "next_step": "Want the exact chart week/date, or ask “Was it #1?” (Billboard Hot 100, UK Singles, Canada RPM, or Top40Weekly)."
+    },
+    {
+      "artist": "Etta James",
+      "title": "At Last",
+      "year": 1960,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1960 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A wedding and slow-dance standard with deep cross-generation staying power.",
+      "next_step": "Want to anchor this by year again for a chart run, or ask “Was it #1?” on a specific chart?"
+    },
+    {
+      "artist": "Nat King Cole & Natalie Cole",
+      "title": "Unforgettable",
+      "year": 1991,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1991 duet era (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A rare cross-era collaboration that made an older classic feel current again.",
+      "next_step": "Want the original Nat King Cole era anchor too, or focus on the 1991 chart run?"
+    },
+    {
+      "artist": "Percy Sledge",
+      "title": "When a Man Loves a Woman",
+      "year": 1966,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1966 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A definitive soul ballad that set the template for emotional slow-burn vocals.",
+      "next_step": "Want another 1966 love-song moment, or ask “Was it #1?” (pick the chart)."
+    },
+    {
+      "artist": "The Righteous Brothers",
+      "title": "Unchained Melody",
+      "year": 1965,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1965 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A vocal-performance showcase that kept resurfacing through films and reissues.",
+      "next_step": "Want the chart details, or another 60s classic love-ballad?"
+    },
+    {
+      "artist": "Elvis Presley",
+      "title": "Love Me Tender",
+      "year": 1956,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1956 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "Early Elvis ballad era—where pop stardom and film tie-ins started to fuse.",
+      "next_step": "Want another Elvis love-song anchor, or switch decades?"
+    },
+    {
+      "artist": "Celine Dion",
+      "title": "My Heart Will Go On",
+      "year": 1998,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1998 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A blockbuster theme that defined late-90s radio’s emotional peak moments.",
+      "next_step": "Want the exact chart week/date, or another 1998 soundtrack-era moment?"
+    },
+    {
+      "artist": "Heatwave",
+      "title": "Always and Forever",
+      "year": 1977,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1977 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A quiet-storm staple that stayed in rotation for decades.",
+      "next_step": "Want another late-70s slow-jam, or ask “Was it #1?” on a specific chart?"
+    },
+    {
+      "artist": "Bryan Adams",
+      "title": "(Everything I Do) I Do It for You",
+      "year": 1991,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1991 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A film-linked power ballad that dominated early-90s pop radio mood.",
+      "next_step": "Want the chart run details, or another 1991 love-song moment?"
+    },
+    {
+      "artist": "Roberta Flack",
+      "title": "The First Time Ever I Saw Your Face",
+      "year": 1972,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1972 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A slow, intimate performance that proved quiet songs could own mainstream radio.",
+      "next_step": "Want another early-70s love-ballad, or the exact chart week/date?"
+    },
+    {
+      "artist": "Olivia Newton-John",
+      "title": "I Honestly Love You",
+      "year": 1974,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1974 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A soft-pop crossover moment that broadened her audience beyond one lane.",
+      "next_step": "Want another 1974 anchor, or ask “Was it #1?” (pick the chart)."
+    },
+    {
+      "artist": "The Flamingos",
+      "title": "I Only Have Eyes for You",
+      "year": 1959,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1959 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "Dreamy doo-wop atmosphere that became a time-capsule sound for romance.",
+      "next_step": "Want another late-50s love standard, or chart specifics?"
+    },
+    {
+      "artist": "Elvis Presley",
+      "title": "Can't Help Falling in Love",
+      "year": 1961,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1961 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A gentle classic that kept returning through covers and pop culture.",
+      "next_step": "Want another Elvis anchor, or switch to 70s/80s love songs?"
+    },
+    {
+      "artist": "Sam Cooke",
+      "title": "You Send Me",
+      "year": 1957,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1957 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A clean, melodic blueprint for modern soul-pop vocal phrasing.",
+      "next_step": "Want another Sam Cooke moment, or another 1957 chart anchor?"
+    },
+    {
+      "artist": "Otis Redding",
+      "title": "I've Been Loving You Too Long (To Stop Now)",
+      "year": 1965,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1965 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A raw soul performance that influenced the ‘slow-burn confession’ style.",
+      "next_step": "Want another mid-60s soul love song, or the exact chart peak/week?"
+    },
+
+    {
+      "artist": "Lionel Richie & Diana Ross",
+      "title": "Endless Love",
+      "year": 1981,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1981 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A duet template that later pop couples and features kept borrowing from.",
+      "next_step": "Want another early-80s duet moment, or ask “Was it #1?” (choose chart)."
+    },
+    {
+      "artist": "Billy Stewart",
+      "title": "I Do Love You",
+      "year": 1965,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1965 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "Classic vocal-era soul-pop romance with a bright, direct hook.",
+      "next_step": "Want another 1965 love-song anchor, or jump decades?"
+    },
+    {
+      "artist": "The Beatles",
+      "title": "Something",
+      "year": 1969,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1969 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A mature romantic tone that signaled the band’s late-era songwriting shift.",
+      "next_step": "Want another Beatles love track, or the exact chart run?"
+    },
+    {
+      "artist": "Carly Simon",
+      "title": "Nobody Does It Better",
+      "year": 1977,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1977 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A film-theme ballad that became a long-running soft-rock favorite.",
+      "next_step": "Want another film-theme love song, or the chart details?"
+    },
+    {
+      "artist": "Boyz II Men",
+      "title": "I'll Make Love to You",
+      "year": 1994,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1994 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A 90s R&B slow-jam moment that defined radio romance programming.",
+      "next_step": "Want another 1994 R&B love song, or the exact chart week/date?"
+    },
+    {
+      "artist": "Luther Vandross",
+      "title": "Here and Now",
+      "year": 1989,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1989 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A formal-occasion staple that anchored late-80s adult R&B romance.",
+      "next_step": "Want another late-80s slow-jam, or chart specifics?"
+    },
+    {
+      "artist": "Aretha Franklin",
+      "title": "(You Make Me Feel Like) A Natural Woman",
+      "year": 1967,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1967 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A vocal standard that turned personal emotion into universal language.",
+      "next_step": "Want another 1967 soul moment, or the chart run?"
+    },
+    {
+      "artist": "Eric Clapton",
+      "title": "Wonderful Tonight",
+      "year": 1977,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1977 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A slow, intimate rock ballad that stayed evergreen on adult radio.",
+      "next_step": "Want another 1977 love-song anchor, or chart specifics?"
+    },
+    {
+      "artist": "Jerry Butler & The Impressions",
+      "title": "For Your Precious Love",
+      "year": 1958,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1958 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "Early soul romance that influenced later slow-dance vocal styling.",
+      "next_step": "Want another late-50s love song, or the chart details?"
+    },
+
+    {
+      "artist": "The Platters",
+      "title": "Only You",
+      "year": 1955,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1955 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A foundational doo-wop/pop love standard with lasting cover versions.",
+      "next_step": "Want another 1950s classic, or the chart run?"
+    },
+    {
+      "artist": "The Temptations",
+      "title": "My Girl",
+      "year": 1964,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1964 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A Motown-era love-song blueprint that stayed in rotation for decades.",
+      "next_step": "Want another Motown love moment, or chart specifics?"
+    },
+    {
+      "artist": "The Shirelles",
+      "title": "Dedicated to the One I Love",
+      "year": 1959,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1959 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A sweet early-pop devotion song that became a long-term oldies staple.",
+      "next_step": "Want another 1959 love-song anchor, or the chart details?"
+    },
+    {
+      "artist": "The Pretenders",
+      "title": "I'll Stand by You",
+      "year": 1994,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1994 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A loyalty anthem that kept reappearing through covers and media use.",
+      "next_step": "Want another 1994 romantic track, or chart specifics?"
+    },
+    {
+      "artist": "Edwin McCain",
+      "title": "I'll Be",
+      "year": 1998,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1998 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A late-90s wedding/slow-dance favorite with long-term radio legs.",
+      "next_step": "Want another 1998 love-song moment, or the chart run?"
+    },
+
+    {
+      "artist": "Joe Cocker",
+      "title": "You Are So Beautiful",
+      "year": 1974,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1974 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A slow, direct love declaration that remained a timeless dedication track.",
+      "next_step": "Want another 1974 romance song, or chart specifics?"
+    },
+    {
+      "artist": "Barry White",
+      "title": "Can't Get Enough of Your Love, Babe",
+      "year": 1974,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1974 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A signature deep-voice soul-pop sound that defined ‘romance radio’ moods.",
+      "next_step": "Want another Barry White moment, or another 1974 anchor?"
+    },
+    {
+      "artist": "Bee Gees",
+      "title": "How Deep Is Your Love",
+      "year": 1977,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1977 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A soft disco-era love ballad that stayed culturally present through covers.",
+      "next_step": "Want another Bee Gees love song, or chart specifics?"
+    },
+    {
+      "artist": "Bread",
+      "title": "If",
+      "year": 1971,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1971 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A soft-rock devotion song that became a classic dedication staple.",
+      "next_step": "Want another early-70s soft-rock love song, or chart specifics?"
+    },
+    {
+      "artist": "Styx",
+      "title": "Babe",
+      "year": 1979,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1979 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A radio ballad that showed arena rock could pivot into romance successfully.",
+      "next_step": "Want another 1979 love-song moment, or chart details?"
+    },
+
+    {
+      "artist": "The Five Satins",
+      "title": "In the Still of the Nite",
+      "year": 1956,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1956 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A doo-wop slow-dance staple that became shorthand for classic romance.",
+      "next_step": "Want another 1950s slow-dance classic, or chart specifics?"
+    },
+    {
+      "artist": "Kenny Rogers",
+      "title": "Lady",
+      "year": 1980,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1980 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A crossover ballad that lived comfortably on pop and adult radio formats.",
+      "next_step": "Want another 1980 love-song moment, or ask “Was it #1?” (pick chart)."
+    },
+    {
+      "artist": "The Association",
+      "title": "Never My Love",
+      "year": 1967,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1967 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A gentle harmony-pop love song with long-term oldies rotation.",
+      "next_step": "Want another 1967 romantic classic, or chart specifics?"
+    },
+    {
+      "artist": "Cutting Crew",
+      "title": "(I Just) Died in Your Arms",
+      "year": 1986,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1986 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "An 80s pop-rock ballad that stayed recognizable through decade-themed radio.",
+      "next_step": "Want another 1986 love song, or chart specifics?"
+    },
+
+    {
+      "artist": "John Lennon",
+      "title": "Woman",
+      "year": 1981,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1981 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A tender late-era single that’s often remembered for its direct affection and tone.",
+      "next_step": "Want another 1981 ballad moment, or chart specifics?"
+    },
+    {
+      "artist": "REO Speedwagon",
+      "title": "Keep on Loving You",
+      "year": 1980,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1980 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A power-ballad-era cornerstone that helped define early-80s radio romance.",
+      "next_step": "Want another 1980 power ballad, or chart details?"
+    },
+    {
+      "artist": "Aerosmith",
+      "title": "I Don't Want to Miss a Thing",
+      "year": 1998,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1998 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A film-tied rock ballad that crossed hard into mainstream pop radio.",
+      "next_step": "Want another 1998 love-song moment, or chart specifics?"
+    },
+    {
+      "artist": "Al Green",
+      "title": "Let's Stay Together",
+      "year": 1972,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1972 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A smooth soul commitment anthem that remains a go-to dedication track.",
+      "next_step": "Want another early-70s soul love song, or chart specifics?"
+    },
+
+    {
+      "artist": "The Righteous Brothers",
+      "title": "(You're My) Soul and Inspiration",
+      "year": 1966,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1966 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A classic ‘big vocal’ love ballad that stayed present through oldies programming.",
+      "next_step": "Want another 1966 romance song, or chart details?"
+    },
+    {
+      "artist": "Bee Gees",
+      "title": "To Love Somebody",
+      "year": 1967,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1967 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A soulful early Bee Gees ballad that later artists kept revisiting.",
+      "next_step": "Want another 1967 love-ballad anchor, or chart specifics?"
+    },
+    {
+      "artist": "The Bangles",
+      "title": "Eternal Flame",
+      "year": 1989,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1989 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A late-80s soft-pop ballad that became a long-term romance radio staple.",
+      "next_step": "Want another 1989 love song, or chart specifics?"
+    },
+    {
+      "artist": "Foreigner",
+      "title": "I Want to Know What Love Is",
+      "year": 1984,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1984 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A power-ballad-plus-choir moment that defined mid-80s dramatic radio.",
+      "next_step": "Want another 1984 love-song moment, or chart details?"
+    },
+
+    {
+      "artist": "Van Morrison",
+      "title": "Have I Told You Lately",
+      "year": 1989,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1989 (Van Morrison original; Rod Stewart later popularized a cover—verify peaks if needed).",
+      "cultural_moment": "A tender adult-contemporary love song with strong cover-life across eras.",
+      "next_step": "Want the Rod Stewart cover anchor too (1993), or the original chart specifics?"
+    },
+    {
+      "artist": "Bread",
+      "title": "Make It with You",
+      "year": 1970,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1970 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "Soft-rock romance that became a template for mellow radio ballads.",
+      "next_step": "Want another 1970 love song, or chart details?"
+    },
+    {
+      "artist": "The Beatles",
+      "title": "And I Love Her",
+      "year": 1964,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1964 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A gentle early-era Beatles love song that stayed evergreen through covers.",
+      "next_step": "Want another 1964 Beatles moment, or chart specifics?"
+    },
+    {
+      "artist": "Elton John",
+      "title": "Your Song",
+      "year": 1970,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1970 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A singer-songwriter love declaration that became a long-term standard.",
+      "next_step": "Want another 1970 soft-rock love song, or chart details?"
+    },
+
+    {
+      "artist": "Linda Ronstadt & Aaron Neville",
+      "title": "Don't Know Much",
+      "year": 1989,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1989 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A duet that fit perfectly into late-80s adult-contemporary romance radio.",
+      "next_step": "Want another late-80s duet moment, or chart details?"
+    },
+    {
+      "artist": "Paul McCartney",
+      "title": "Maybe I'm Amazed",
+      "year": 1970,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1970 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A solo-era love song often treated as a core McCartney romantic statement.",
+      "next_step": "Want another 1970 anchor, or chart specifics?"
+    },
+    {
+      "artist": "Chris de Burgh",
+      "title": "The Lady in Red",
+      "year": 1986,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1986 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A mid-80s slow-dance ballad that stayed a dedication staple.",
+      "next_step": "Want another 1986 love song, or chart details?"
+    },
+    {
+      "artist": "Journey",
+      "title": "Open Arms",
+      "year": 1982,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1982 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A power-ballad standard that became a long-running radio romance favorite.",
+      "next_step": "Want another early-80s power ballad, or chart specifics?"
+    },
+
+    {
+      "artist": "Johnny Ace",
+      "title": "Pledging My Love",
+      "year": 1955,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1955 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A classic devotion track with deep oldies-era resonance.",
+      "next_step": "Want another 1950s love standard, or chart specifics?"
+    },
+    {
+      "artist": "Bryan Hyland",
+      "title": "Sealed with a Kiss",
+      "year": 1962,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1962 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A sweet pop devotion song that stayed culturally familiar across generations.",
+      "next_step": "Want another early-60s love song, or chart details?"
+    },
+    {
+      "artist": "Marvin Gaye & Tammi Terrell",
+      "title": "Ain't Nothin' Like the Real Thing",
+      "year": 1968,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1968 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A duet chemistry benchmark for classic soul love records.",
+      "next_step": "Want another 1968 soul duet moment, or chart specifics?"
+    },
+    {
+      "artist": "Chicago",
+      "title": "You're the Inspiration",
+      "year": 1984,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1984 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A soft-rock devotion anthem that became a long-term dedication staple.",
+      "next_step": "Want another 1984 love song, or chart specifics?"
+    },
+
+    {
+      "artist": "Stevie Wonder",
+      "title": "You Are the Sunshine of My Life",
+      "year": 1973,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1973 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A bright, melodic love song that stayed evergreen on radio and playlists.",
+      "next_step": "Want another 1973 love-song moment, or chart specifics?"
+    },
+    {
+      "artist": "Lionel Richie",
+      "title": "Truly",
+      "year": 1982,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1982 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A signature early-80s adult-contemporary romance standard.",
+      "next_step": "Want another Lionel Richie love song, or chart specifics?"
+    },
+    {
+      "artist": "Ambrosia",
+      "title": "How Much I Feel",
+      "year": 1978,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1978 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A soft-rock confession track that fit perfectly into late-70s radio mood.",
+      "next_step": "Want another 1978 love song, or chart specifics?"
+    },
+    {
+      "artist": "Dusty Springfield",
+      "title": "The Look of Love",
+      "year": 1967,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1967 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A cinematic pop-romance style that tied radio directly to film atmosphere.",
+      "next_step": "Want another 1967 romantic classic, or chart specifics?"
+    },
+
+    {
+      "artist": "The Association",
+      "title": "Cherish",
+      "year": 1966,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1966 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A harmony-pop devotion record that stayed a longtime slow-dance staple.",
+      "next_step": "Want another 1966 love song, or chart details?"
+    },
+    {
+      "artist": "Marvin Gaye",
+      "title": "Let's Get It On",
+      "year": 1973,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1973 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A defining sensual-soul record that shaped later R&B romance conventions.",
+      "next_step": "Want another 1973 R&B love moment, or chart specifics?"
+    },
+    {
+      "artist": "Sinéad O'Connor",
+      "title": "Nothing Compares 2 U",
+      "year": 1990,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1990 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A minimal, emotional performance that became an early-90s global heartbreak reference.",
+      "next_step": "Want another 1990 love-song moment, or chart details?"
+    },
+    {
+      "artist": "Atlantic Starr",
+      "title": "Always",
+      "year": 1987,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1987 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A slow-jam classic that anchored late-80s romance programming.",
+      "next_step": "Want another 1987 love song, or chart specifics?"
+    },
+
+    {
+      "artist": "Peter Cetera",
+      "title": "Glory of Love",
+      "year": 1986,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1986 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A film-theme power ballad that lived on radio well past its release year.",
+      "next_step": "Want another 1986 love-song moment, or chart specifics?"
+    },
+    {
+      "artist": "Billy Joel",
+      "title": "Just the Way You Are",
+      "year": 1977,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1977 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A direct, reassuring love song that became a long-running soft-rock staple.",
+      "next_step": "Want another 1977 love song, or chart specifics?"
+    },
+    {
+      "artist": "Dan Hill",
+      "title": "Sometimes When We Touch",
+      "year": 1977,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1977 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A confessional ballad that stayed culturally recognizable as a slow-dance standard.",
+      "next_step": "Want another 1977 romance moment, or chart specifics?"
+    },
+    {
+      "artist": "Roberta Flack & Peabo Bryson",
+      "title": "Tonight I Celebrate My Love",
+      "year": 1983,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1983 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A duet centerpiece that fit perfectly into early-80s adult R&B romance radio.",
+      "next_step": "Want another 1983 duet moment, or chart specifics?"
+    },
+
+    {
+      "artist": "Barry White",
+      "title": "You're the First, the Last, My Everything",
+      "year": 1974,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1974 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A confident, romantic groove that stayed a defining Barry White signature.",
+      "next_step": "Want another Barry White love moment, or chart specifics?"
+    },
+    {
+      "artist": "Cyndi Lauper",
+      "title": "Time After Time",
+      "year": 1984,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1984 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A tender pop ballad that became a durable dedication song across eras.",
+      "next_step": "Want another 1984 love-song moment, or chart specifics?"
+    },
+    {
+      "artist": "Four Tops",
+      "title": "Baby, I Need Your Lovin'",
+      "year": 1964,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1964 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A Motown-era plea that helped define the label’s romantic storytelling style.",
+      "next_step": "Want another 1964 Motown love song, or chart specifics?"
+    },
+    {
+      "artist": "Bette Midler",
+      "title": "The Rose",
+      "year": 1980,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1980 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A film-tied ballad that became a long-term emotional staple.",
+      "next_step": "Want another 1980 love-song moment, or chart specifics?"
+    },
+
+    {
+      "artist": "The Drifters",
+      "title": "This Magic Moment",
+      "year": 1960,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1960 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A classic ‘moment-in-time’ love song that stayed familiar through decades of radio.",
+      "next_step": "Want another 1960 love standard, or chart specifics?"
+    },
+    {
+      "artist": "The Stylistics",
+      "title": "Betcha by Golly, Wow",
+      "year": 1972,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1972 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A smooth, romantic vocal-group style that shaped 70s love-song radio.",
+      "next_step": "Want another 1972 slow-jam, or chart specifics?"
+    },
+    {
+      "artist": "The Shirelles",
+      "title": "Will You Love Me Tomorrow",
+      "year": 1960,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1960 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A pop romance standard that opened doors for more direct, personal lyrical themes.",
+      "next_step": "Want another early-60s romantic classic, or chart specifics?"
+    },
+    {
+      "artist": "The Commodores",
+      "title": "Three Times a Lady",
+      "year": 1978,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1978 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A formal-occasion standard that became a core slow-dance staple.",
+      "next_step": "Want another 1978 love-song moment, or chart specifics?"
+    },
+
+    {
+      "artist": "Paul Stookey",
+      "title": "Wedding Song (There Is Love)",
+      "year": 1971,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1971 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A ceremony-focused love song that remained a niche-but-steady wedding staple.",
+      "next_step": "Want another wedding-standard moment, or chart specifics?"
+    },
+    {
+      "artist": "The Beach Boys",
+      "title": "God Only Knows",
+      "year": 1966,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1966 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A sophisticated pop love song that expanded what ‘romantic’ could sound like on radio.",
+      "next_step": "Want another 1966 love-song moment, or chart specifics?"
+    },
+    {
+      "artist": "John Lennon",
+      "title": "Love",
+      "year": 1970,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1970 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A simple, direct love statement that stayed culturally visible through covers and tributes.",
+      "next_step": "Want another 1970 romantic track, or chart specifics?"
+    },
+    {
+      "artist": "The Delfonics",
+      "title": "La-La (Means I Love You)",
+      "year": 1968,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1968 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A sweet soul-pop love track with a hook that stayed instantly recognizable.",
+      "next_step": "Want another 1968 love song, or chart specifics?"
+    },
+
+    {
+      "artist": "Ambrosia",
+      "title": "You're the Only Woman (You & I)",
+      "year": 1980,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1980 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A soft-rock devotion song that fit the early-80s radio transition into ballads.",
+      "next_step": "Want another 1980 romantic track, or chart specifics?"
+    },
+    {
+      "artist": "The Dave Clark Five",
+      "title": "Because",
+      "year": 1964,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1964 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A British Invasion-era love song that stayed culturally familiar through oldies radio.",
+      "next_step": "Want another 1964 love song, or chart specifics?"
+    },
+    {
+      "artist": "All-4-One",
+      "title": "I Swear",
+      "year": 1994,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1994 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A 90s vow-style ballad that became a go-to wedding dedication track.",
+      "next_step": "Want another 1994 romantic hit, or chart specifics?"
+    },
+    {
+      "artist": "Berlin",
+      "title": "Take My Breath Away",
+      "year": 1986,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1986 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A film-tied ballad that became a defining mid-80s slow-dance mood.",
+      "next_step": "Want another 1986 love song, or chart specifics?"
+    },
+
+    {
+      "artist": "Paul McCartney",
+      "title": "My Love",
+      "year": 1973,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1973 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A soft romantic statement from McCartney’s early solo era that stayed widely familiar.",
+      "next_step": "Want another 1973 love-song moment, or chart specifics?"
+    },
+    {
+      "artist": "Bryan Adams",
+      "title": "Have You Ever Really Loved a Woman?",
+      "year": 1995,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1995 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A film-associated ballad that fit mid-90s adult pop radio perfectly.",
+      "next_step": "Want another 1995 love song, or chart specifics?"
+    },
+    {
+      "artist": "The Jackson 5",
+      "title": "I'll Be There",
+      "year": 1970,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1970 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A warm reassurance anthem that stayed a multi-decade family-and-love standard.",
+      "next_step": "Want another 1970 romantic classic, or chart specifics?"
+    },
+    {
+      "artist": "Vanessa Williams",
+      "title": "Save the Best for Last",
+      "year": 1992,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1992 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A polished early-90s adult pop ballad that became a radio romance staple.",
+      "next_step": "Want another 1992 love-song moment, or chart specifics?"
+    },
+
+    {
+      "artist": "Roberta Flack & Donny Hathaway",
+      "title": "The Closer I Get to You",
+      "year": 1978,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1978 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A duet chemistry benchmark that stayed influential in R&B love-song structure.",
+      "next_step": "Want another 1978 duet moment, or chart specifics?"
+    },
+    {
+      "artist": "Climax Blues Band",
+      "title": "I Love You",
+      "year": 1981,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1981 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A soft-rock love declaration that sat comfortably in early-80s adult radio.",
+      "next_step": "Want another 1981 love song, or chart specifics?"
+    },
+    {
+      "artist": "Bette Midler",
+      "title": "Wind Beneath My Wings",
+      "year": 1989,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1989 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A gratitude-and-love anthem that became a major dedication standard.",
+      "next_step": "Want another 1989 emotional ballad, or chart specifics?"
+    },
+    {
+      "artist": "REO Speedwagon",
+      "title": "Can't Fight This Feeling",
+      "year": 1985,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1985 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A mid-80s power ballad that locked into the decade’s romance-radio identity.",
+      "next_step": "Want another 1985 love song, or chart specifics?"
+    },
+
+    {
+      "artist": "Rod Stewart",
+      "title": "You're in My Heart (The Final Acclaim)",
+      "year": 1977,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1977 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A warm, personal love song that stayed familiar through classic-rock radio.",
+      "next_step": "Want another 1977 romantic track, or chart specifics?"
+    },
+    {
+      "artist": "Loggins & Messina",
+      "title": "A Love Song",
+      "year": 1973,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1973 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A soft-rock relationship song that fit early-70s radio’s mellow storytelling style.",
+      "next_step": "Want another 1973 love song, or chart specifics?"
+    },
+    {
+      "artist": "Dan Fogelberg",
+      "title": "Longer",
+      "year": 1979,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1979 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A gentle acoustic romance staple that stayed evergreen on adult formats.",
+      "next_step": "Want another 1979 love-song moment, or chart specifics?"
+    },
+    {
+      "artist": "The Troggs",
+      "title": "Love Is All Around",
+      "year": 1967,
+      "chart": "Billboard Hot 100",
+      "chart_fact": "Anchor: 1967 (verify peak/week if you want exact chart details).",
+      "cultural_moment": "A simple, direct love hook that kept resurfacing through later pop culture.",
+      "next_step": "Want another 1967 love-song moment, or chart specifics?"
+    }
+  ]
+}
