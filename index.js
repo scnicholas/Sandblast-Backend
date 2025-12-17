@@ -1,8 +1,9 @@
 // ----------------------------------------------------------
-// Sandblast Nyx Backend — Broadcast-Ready v1.22 (2025-12-16)
+// Sandblast Nyx Backend — Broadcast-Ready v1.23 (2025-12-16)
 // Updates:
 // - Lane lock precedence: meta.currentLane/meta.lastDomain overrides classifier
-// - Fix: artist-only follow-up inherits locked year (1964 Motown → Marvin Gaye)
+// - FIX (critical): artist-only follow-up inherits locked year reliably
+//   (1964 Motown → Marvin Gaye now advances immediately)
 // - Chart switching: Billboard / UK Singles / Canada RPM / Top40Weekly
 // - /api/health alias added (supports both /health and /api/health)
 // - #1 slot-fill asks only missing year/title
@@ -21,7 +22,7 @@ app.use(express.json({ limit: "1mb" }));
 app.use(cors({ origin: true }));
 
 const PORT = process.env.PORT || 3000;
-const BUILD_TAG = "nyx-broadcast-ready-v1.22-2025-12-16";
+const BUILD_TAG = "nyx-broadcast-ready-v1.23-2025-12-16";
 const MUSIC_DEFAULT_CHART = "Billboard Hot 100";
 
 // -------------------------
@@ -73,7 +74,10 @@ const isGreeting = t => {
 
 const isSmallTalk = t => {
   const x = norm(t);
-  return /^how (are|r) you\b/.test(x) || /^how('?s|s) it going\b/.test(x) || /^what('?s|s) up\b/.test(x) || /^how('?s|s) your day\b/.test(x);
+  return /^how (are|r) you\b/.test(x) ||
+    /^how('?s|s) it going\b/.test(x) ||
+    /^what('?s|s) up\b/.test(x) ||
+    /^how('?s|s) your day\b/.test(x);
 };
 
 const resolveLaneSelect = text => {
@@ -97,7 +101,6 @@ const resolveArtistAlias = t => {
 const detectArtist = text => {
   const t = norm(text);
   if (!t) return null;
-  // Prefer exact-ish match first
   for (const a of MUSIC_ARTISTS) {
     const na = norm(a);
     if (na && (t === na || t.includes(na))) return a;
@@ -151,7 +154,7 @@ function safePickBestMoment(db, fields) {
       return musicKB.pickBestMoment(db, fields);
     }
   } catch {}
-  // fallback: first match
+
   const moments = (db && db.moments) || [];
   const na = fields.artist ? norm(fields.artist) : null;
   const nt = fields.title ? norm(fields.title) : null;
@@ -177,7 +180,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
   const stepIndex = Number(meta.stepIndex || 0);
   let laneDetail = { ...(meta.laneDetail || {}) };
 
-  // Greetings / small talk (restored)
+  // Greetings / small talk
   if (isGreeting(clean) || isSmallTalk(clean)) {
     return res.json({
       ok: true,
@@ -209,12 +212,11 @@ app.post("/api/sandblast-gpt", (req, res) => {
     });
   }
 
-  // 🔒 Lane lock precedence: meta wins; classifier is advisory only when general
+  // Lane lock precedence: meta wins; classifier only used if general
   let domain = meta.currentLane || meta.lastDomain || "general";
   if (domain === "general") {
     const raw = classifyIntent(clean);
     domain = raw?.domain || "general";
-    // If it looks like music and no lane is locked, infer music_history
     if (domain === "general" && looksMusicHistory(clean)) domain = "music_history";
   }
 
@@ -230,7 +232,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
     const yearInMsg = extractYear(clean);
     if (yearInMsg) laneDetail.year = yearInMsg;
 
-    // Era cue: lock year + reset context cleanly, but keep chart
+    // Era cue: lock year + reset context cleanly (keep chart)
     if (containsEraCue(clean) && yearInMsg && !laneDetail.artist) {
       return res.json({
         ok: true,
@@ -250,13 +252,13 @@ app.post("/api/sandblast-gpt", (req, res) => {
     const detectedArtist = resolveArtistAlias(clean) || detectArtist(clean);
     const detectedTitle = detectTitle(clean);
 
+    // Assign slots immediately
     if (detectedArtist && !laneDetail.artist) laneDetail.artist = detectedArtist;
     if (detectedTitle && !laneDetail.title) laneDetail.title = detectedTitle;
 
-    // ✅ CRITICAL FIX: Artist-only follow-up AFTER year lock (your screenshot case)
-    // If we already have year (e.g., 1964) and user provides artist (e.g., Marvin Gaye),
-    // advance immediately instead of asking artist+year again.
-    if (laneDetail.artist && laneDetail.year && !laneDetail.title && !yearInMsg && norm(clean) === norm(laneDetail.artist)) {
+    // ✅ FIX (reliable): Artist-only follow-up AFTER year is already locked
+    // This fires for: "1964 Motown" (locks year) → "Marvin Gaye" (artist-only)
+    if (detectedArtist && laneDetail.year && !laneDetail.title && !yearInMsg) {
       return res.json({
         ok: true,
         reply:
