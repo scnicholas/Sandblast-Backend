@@ -1,14 +1,18 @@
 // ----------------------------------------------------------
-// Sandblast Nyx Backend — Broadcast-Ready v1.20 (2025-12-16)
-// Includes:
+// Sandblast Nyx Backend — Broadcast-Ready v1.21 (2025-12-16)
+// Fixes (NEW):
+// - LANE LOCK PRECEDENCE: meta.currentLane/meta.lastDomain overrides classifier
+// - Explicit lane-select phrases: "Music history", "TV", "News Canada", "Sponsors"
+// - Prevents "Understood..." generic fallback when lane is locked to music
+// Includes (from v1.20):
 // - Calm broadcast tone + always-advance follow-up logic
 // - Robust greeting + small-talk handling
 // - Sponsors: package + tier/brand deliverables
 // - Music Knowledge Layer LOCK (year → chart → moment → next step)
 // - Slot filling: artist + #1 -> ask only missing (year or title)
-// - Artist alias resolution: Whitney -> Whitney Houston, etc.
-// - ERA/GENRE reset guard: “1964 Motown” resets old title/artist context
-// - Artist-only follow-up: after “1964 Motown” -> “Marvin Gaye” advances correctly
+// - Artist alias resolution
+// - ERA/GENRE reset guard
+// - Artist-only follow-up advances correctly
 // ----------------------------------------------------------
 
 require("dotenv").config();
@@ -28,7 +32,7 @@ const PORT = process.env.PORT || 3000;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
-const BUILD_TAG = "nyx-broadcast-ready-v1.20-2025-12-16";
+const BUILD_TAG = "nyx-broadcast-ready-v1.21-2025-12-16";
 const MUSIC_DEFAULT_CHART = "Billboard Hot 100";
 
 // -------------------------
@@ -247,6 +251,18 @@ function appendNextStep(reply, laneDetail) {
 }
 
 // -------------------------
+// Lane select phrases (NEW)
+// -------------------------
+function resolveLaneSelect(text) {
+  const t = norm(text);
+  if (t === "music" || t === "music history" || t === "music_history") return "music_history";
+  if (t === "tv" || t === "sandblast tv" || t === "sandblasttv") return "tv";
+  if (t === "news" || t === "news canada" || t === "news_canada") return "news_canada";
+  if (t === "sponsors" || t === "sponsor" || t === "sponsorship") return "sponsors";
+  return null;
+}
+
+// -------------------------
 // Sponsors
 // -------------------------
 function looksLikeSponsorPackageAsk(text = "") {
@@ -340,10 +356,9 @@ function answerMusicHistoryOffline(message, laneDetail) {
   const artist = detail.artist || detectArtistFromDb(msg) || resolveArtistAlias(msg);
   const title = detail.title || detectTitleFromDb(msg);
   const year = detail.year || yr || null;
-  const chart = detail.chart || MUSIC_DEFAULT_CHART;
 
   const best = musicKB?.pickBestMoment
-    ? musicKB.pickBestMoment(MUSIC_DB, { artist, title, year, chart })
+    ? musicKB.pickBestMoment(MUSIC_DB, { artist, title, year })
     : null;
 
   if (!best) {
@@ -351,7 +366,7 @@ function answerMusicHistoryOffline(message, laneDetail) {
   }
 
   const f = momentFields(best);
-  const chartName = chart || best.chart || MUSIC_DEFAULT_CHART;
+  const chartName = detail.chart || best.chart || MUSIC_DEFAULT_CHART;
 
   return {
     handled: true,
@@ -372,7 +387,6 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     const clean = String(message || "").trim();
     if (!clean) return res.status(400).json({ ok: false, error: "EMPTY_MESSAGE" });
 
-    // meta normalization
     const meta = incomingMeta || {};
     let laneDetail = { ...(meta.laneDetail || {}) };
     const stepIndex = Number(meta.stepIndex || 0);
@@ -385,7 +399,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
         reply,
         domain: "general",
         intent: "greeting",
-        meta: { ...meta, stepIndex: stepIndex + 1, lastDomain: "general", laneDetail: {} }
+        meta: { ...meta, stepIndex: stepIndex + 1, lastDomain: "general", laneDetail: meta.laneDetail || {} }
       });
     }
 
@@ -398,6 +412,33 @@ app.post("/api/sandblast-gpt", async (req, res) => {
         domain: "general",
         intent: "smalltalk",
         meta: { ...meta, stepIndex: stepIndex + 1, lastDomain: "general", laneDetail: meta.laneDetail || {} }
+      });
+    }
+
+    // ---- Explicit lane select (NEW)
+    const laneSelect = resolveLaneSelect(clean);
+    if (laneSelect) {
+      const reply =
+        laneSelect === "music_history"
+          ? "Music history locked. Give me an artist + year (or a song title)."
+          : laneSelect === "tv"
+          ? "Sandblast TV locked. What are we tuning: grid, shows, or a specific program?"
+          : laneSelect === "news_canada"
+          ? "News Canada locked. What topic or story angle are we building?"
+          : "Sponsors locked. Say “sponsor package” or tell me brand + tier.";
+
+      // Seed chart default if music
+      if (laneSelect === "music_history") {
+        laneDetail = laneDetail || {};
+        if (!laneDetail.chart) laneDetail.chart = MUSIC_DEFAULT_CHART;
+      }
+
+      return res.json({
+        ok: true,
+        reply: matureTone(reply),
+        domain: laneSelect,
+        intent: "lane_select",
+        meta: { ...meta, stepIndex: stepIndex + 1, currentLane: laneSelect, lastDomain: laneSelect, laneDetail }
       });
     }
 
@@ -420,17 +461,21 @@ app.post("/api/sandblast-gpt", async (req, res) => {
         reply,
         domain: "sponsors",
         intent: "sponsors",
-        meta: { ...meta, stepIndex: stepIndex + 1, lastDomain: "sponsors", laneDetail: { tier, brand } }
+        meta: { ...meta, stepIndex: stepIndex + 1, currentLane: "sponsors", lastDomain: "sponsors", laneDetail: { tier, brand } }
       });
     }
 
-    // ---- Intent classify
+    // ---- Intent classify (classifier is advisory; lane lock wins) (NEW)
     const raw = classifyIntent(clean);
-    let domain =
-      (raw.domain === "music_history" || raw.intent === "music_history") ? "music_history"
-      : (raw.domain || meta.lastDomain || "general");
 
-    // ---- Music lane activation
+    let domain = (meta.currentLane || meta.lastDomain || "general");
+    if (domain === "general") {
+      if (raw?.domain) domain = raw.domain;
+      else if (raw?.intent && typeof raw.intent === "string") domain = raw.intent;
+      else domain = "general";
+    }
+
+    // ---- Music lane activation (still useful when no lane lock)
     const messageLooksMusic = looksMusicHistoryQuery(clean);
     const detectedArtist = detectArtistFromDb(clean);
     const detectedTitle = detectTitleFromDb(clean);
@@ -438,25 +483,20 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     const year = extractYear(clean);
     const inferredChart = resolveChartFromText(clean);
 
-    if (messageLooksMusic || detectedArtist || detectedTitle || artistOnly || domain === "music_history") {
+    if (domain === "general" && (messageLooksMusic || detectedArtist || detectedTitle || artistOnly)) {
       domain = "music_history";
     }
 
-    // ---- Music lane logic
+    // ---- Music lane logic (locked or inferred)
     if (domain === "music_history") {
-      // chart switching
       if (inferredChart) laneDetail.chart = inferredChart;
       if (!laneDetail.chart) laneDetail.chart = MUSIC_DEFAULT_CHART;
 
-      // ERA/GENRE reset guard (prevents context bleed)
       if (containsEraOrGenreCue(clean)) {
-        // reset everything except chart
         laneDetail = { chart: laneDetail.chart || MUSIC_DEFAULT_CHART };
-        // store era intent (optional, but helps follow-ups)
-        laneDetail.era = containsEraOrGenreCue(clean) ? "era_genre" : undefined;
+        laneDetail.era = "era_genre";
       }
 
-      // alias / detection
       const alias = resolveArtistAlias(clean);
       if (alias && !laneDetail.artist) laneDetail.artist = alias;
 
@@ -465,7 +505,6 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       if (artistOnly && !laneDetail.artist) laneDetail.artist = clean.trim();
       if (year) laneDetail.year = year;
 
-      // Motown-style cue: year present + era cue but no artist yet -> ask for artist AND keep year
       if (containsEraOrGenreCue(clean) && year && !laneDetail.artist) {
         const reply = matureTone(
           `${year} Motown is a defining era. Pick an artist (The Supremes, Marvin Gaye, The Temptations) and I’ll anchor the chart moment.`
@@ -475,11 +514,10 @@ app.post("/api/sandblast-gpt", async (req, res) => {
           reply,
           domain: "music_history",
           intent: raw.intent,
-          meta: { ...meta, stepIndex: stepIndex + 1, lastDomain: "music_history", laneDetail }
+          meta: { ...meta, stepIndex: stepIndex + 1, currentLane: "music_history", lastDomain: "music_history", laneDetail }
         });
       }
 
-      // Slot-fill: artist + #1 but missing year/title -> ask only missing
       if (laneDetail.artist && hasNumberOneIntent(clean) && !laneDetail.year && !laneDetail.title) {
         const reply = matureTone(
           `Got it — ${String(laneDetail.artist).toUpperCase()} #1. Give me a year (e.g., 1992) or a song title and I’ll anchor the chart moment.`
@@ -489,25 +527,10 @@ app.post("/api/sandblast-gpt", async (req, res) => {
           reply,
           domain: "music_history",
           intent: raw.intent,
-          meta: { ...meta, stepIndex: stepIndex + 1, lastDomain: "music_history", laneDetail }
+          meta: { ...meta, stepIndex: stepIndex + 1, currentLane: "music_history", lastDomain: "music_history", laneDetail }
         });
       }
 
-      // If we already have year from a prior turn and user now gives artist-only, advance cleanly
-      if (laneDetail.year && !detectedTitle && looksLikeArtistOnly(clean) && laneDetail.artist) {
-        const reply = matureTone(
-          `Got it — ${String(laneDetail.artist).toUpperCase()} in ${laneDetail.year}. Give me a song title, or ask “Was it #1?” and I’ll anchor the chart moment.`
-        );
-        return res.json({
-          ok: true,
-          reply,
-          domain: "music_history",
-          intent: raw.intent,
-          meta: { ...meta, stepIndex: stepIndex + 1, lastDomain: "music_history", laneDetail }
-        });
-      }
-
-      // Knowledge-layer answer
       const kb = answerMusicHistoryOffline(clean, laneDetail);
       if (kb?.handled) {
         if (kb.patch && typeof kb.patch === "object") {
@@ -522,12 +545,12 @@ app.post("/api/sandblast-gpt", async (req, res) => {
           reply,
           domain: "music_history",
           intent: raw.intent,
-          meta: { ...meta, stepIndex: stepIndex + 1, lastDomain: "music_history", laneDetail }
+          meta: { ...meta, stepIndex: stepIndex + 1, currentLane: "music_history", lastDomain: "music_history", laneDetail }
         });
       }
     }
 
-    // ---- Optional OpenAI path (kept calm; quiet fallback if unavailable)
+    // ---- Optional OpenAI path
     let reply = "";
     if (openai) {
       try {
@@ -551,8 +574,11 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       }
     }
 
+    // Calm fallback, but only if we're truly general
     if (!reply) {
-      reply = "Understood. What would you like to do next?";
+      reply = (domain === "general")
+        ? "Understood. What would you like to do next?"
+        : "To anchor the moment, give me an artist + year (or a song title).";
     }
 
     reply = matureTone(reply);
