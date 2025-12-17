@@ -1,9 +1,10 @@
 // ----------------------------------------------------------
-// Sandblast Nyx Backend — Broadcast-Ready v1.23 (2025-12-16)
+// Sandblast Nyx Backend — Broadcast-Ready v1.24 (2025-12-16)
 // Updates:
 // - Lane lock precedence: meta.currentLane/meta.lastDomain overrides classifier
 // - FIX (critical): artist-only follow-up inherits locked year reliably
-//   (1964 Motown → Marvin Gaye now advances immediately)
+// - NEW (hard guard): if artist detected + year known (laneDetail OR mem) + no title => ALWAYS advance
+// - NEW (sticky year): persist year in meta.mem.musicYear; restore if laneDetail.year is missing
 // - Chart switching: Billboard / UK Singles / Canada RPM / Top40Weekly
 // - /api/health alias added (supports both /health and /api/health)
 // - #1 slot-fill asks only missing year/title
@@ -22,7 +23,7 @@ app.use(express.json({ limit: "1mb" }));
 app.use(cors({ origin: true }));
 
 const PORT = process.env.PORT || 3000;
-const BUILD_TAG = "nyx-broadcast-ready-v1.23-2025-12-16";
+const BUILD_TAG = "nyx-broadcast-ready-v1.24-2025-12-16";
 const MUSIC_DEFAULT_CHART = "Billboard Hot 100";
 
 // -------------------------
@@ -34,9 +35,10 @@ let MUSIC_TITLES = [];
 
 (function loadMusicDbOnce() {
   try {
-    MUSIC_DB = (musicKB && typeof musicKB.loadDb === "function")
-      ? musicKB.loadDb()
-      : { moments: [] };
+    MUSIC_DB =
+      (musicKB && typeof musicKB.loadDb === "function")
+        ? musicKB.loadDb()
+        : { moments: [] };
 
     const m = (MUSIC_DB && MUSIC_DB.moments) || [];
     MUSIC_ARTISTS = [...new Set(m.map(x => x.artist).filter(Boolean))];
@@ -68,16 +70,22 @@ const extractYear = text => {
 
 const isGreeting = t => {
   const x = norm(t);
-  return ["hi", "hello", "hey", "yo", "hi nyx", "hello nyx", "hey nyx", "nyx"].includes(x) ||
-    x.startsWith("good morning") || x.startsWith("good afternoon") || x.startsWith("good evening");
+  return (
+    ["hi", "hello", "hey", "yo", "hi nyx", "hello nyx", "hey nyx", "nyx"].includes(x) ||
+    x.startsWith("good morning") ||
+    x.startsWith("good afternoon") ||
+    x.startsWith("good evening")
+  );
 };
 
 const isSmallTalk = t => {
   const x = norm(t);
-  return /^how (are|r) you\b/.test(x) ||
+  return (
+    /^how (are|r) you\b/.test(x) ||
     /^how('?s|s) it going\b/.test(x) ||
     /^what('?s|s) up\b/.test(x) ||
-    /^how('?s|s) your day\b/.test(x);
+    /^how('?s|s) your day\b/.test(x)
+  );
 };
 
 const resolveLaneSelect = text => {
@@ -132,9 +140,18 @@ const looksMusicHistory = text => {
     }
   } catch {}
   return (
-    t.includes("billboard") || t.includes("hot 100") || t.includes("chart") || t.includes("charts") ||
-    t.includes("#1") || t.includes("number one") || t.includes("no. 1") || t.includes("peak") ||
-    t.includes("weeks at") || t.includes("top40weekly") || t.includes("top 40") || t.includes("uk singles") ||
+    t.includes("billboard") ||
+    t.includes("hot 100") ||
+    t.includes("chart") ||
+    t.includes("charts") ||
+    t.includes("#1") ||
+    t.includes("number one") ||
+    t.includes("no. 1") ||
+    t.includes("peak") ||
+    t.includes("weeks at") ||
+    t.includes("top40weekly") ||
+    t.includes("top 40") ||
+    t.includes("uk singles") ||
     t.includes("rpm")
   );
 };
@@ -180,6 +197,9 @@ app.post("/api/sandblast-gpt", (req, res) => {
   const stepIndex = Number(meta.stepIndex || 0);
   let laneDetail = { ...(meta.laneDetail || {}) };
 
+  // Sticky memory bucket (survives even if laneDetail drops fields)
+  let mem = { ...(meta.mem || {}) };
+
   // Greetings / small talk
   if (isGreeting(clean) || isSmallTalk(clean)) {
     return res.json({
@@ -207,7 +227,8 @@ app.post("/api/sandblast-gpt", (req, res) => {
         stepIndex: stepIndex + 1,
         currentLane: lane,
         lastDomain: lane,
-        laneDetail
+        laneDetail,
+        mem
       }
     });
   }
@@ -229,8 +250,18 @@ app.post("/api/sandblast-gpt", (req, res) => {
     if (chart) laneDetail.chart = chart;
     if (!laneDetail.chart) laneDetail.chart = MUSIC_DEFAULT_CHART;
 
+    // Restore sticky year if laneDetail lost it
+    if (!laneDetail.year && mem.musicYear) {
+      laneDetail.year = Number(mem.musicYear) || laneDetail.year;
+    }
+
     const yearInMsg = extractYear(clean);
-    if (yearInMsg) laneDetail.year = yearInMsg;
+    if (yearInMsg) {
+      laneDetail.year = yearInMsg;
+      mem.musicYear = yearInMsg; // persist
+    } else if (laneDetail.year) {
+      mem.musicYear = laneDetail.year; // keep fresh
+    }
 
     // Era cue: lock year + reset context cleanly (keep chart)
     if (containsEraCue(clean) && yearInMsg && !laneDetail.artist) {
@@ -243,7 +274,8 @@ app.post("/api/sandblast-gpt", (req, res) => {
           stepIndex: stepIndex + 1,
           currentLane: "music_history",
           lastDomain: "music_history",
-          laneDetail: { chart: laneDetail.chart, year: yearInMsg }
+          laneDetail: { chart: laneDetail.chart, year: yearInMsg },
+          mem: { ...mem, musicYear: yearInMsg }
         }
       });
     }
@@ -256,9 +288,9 @@ app.post("/api/sandblast-gpt", (req, res) => {
     if (detectedArtist && !laneDetail.artist) laneDetail.artist = detectedArtist;
     if (detectedTitle && !laneDetail.title) laneDetail.title = detectedTitle;
 
-    // ✅ FIX (reliable): Artist-only follow-up AFTER year is already locked
-    // This fires for: "1964 Motown" (locks year) → "Marvin Gaye" (artist-only)
-    if (detectedArtist && laneDetail.year && !laneDetail.title && !yearInMsg) {
+    // ✅ HARD GUARD (final): if artist detected AND year known (laneDetail OR mem) AND no title => ALWAYS advance
+    // This blocks the generic fallback from ever firing in the "1964 Motown → Marvin Gaye" scenario.
+    if (detectedArtist && laneDetail.year && !laneDetail.title) {
       return res.json({
         ok: true,
         reply:
@@ -269,7 +301,8 @@ app.post("/api/sandblast-gpt", (req, res) => {
           stepIndex: stepIndex + 1,
           currentLane: "music_history",
           lastDomain: "music_history",
-          laneDetail
+          laneDetail,
+          mem
         }
       });
     }
@@ -285,7 +318,8 @@ app.post("/api/sandblast-gpt", (req, res) => {
           stepIndex: stepIndex + 1,
           currentLane: "music_history",
           lastDomain: "music_history",
-          laneDetail
+          laneDetail,
+          mem
         }
       });
     }
@@ -301,7 +335,8 @@ app.post("/api/sandblast-gpt", (req, res) => {
           stepIndex: stepIndex + 1,
           currentLane: "music_history",
           lastDomain: "music_history",
-          laneDetail
+          laneDetail,
+          mem
         }
       });
     }
@@ -334,7 +369,8 @@ app.post("/api/sandblast-gpt", (req, res) => {
             title: best.title || laneDetail.title,
             year: best.year || laneDetail.year,
             chart: best.chart || laneDetail.chart
-          }
+          },
+          mem
         }
       });
     }
@@ -351,7 +387,8 @@ app.post("/api/sandblast-gpt", (req, res) => {
           stepIndex: stepIndex + 1,
           currentLane: "music_history",
           lastDomain: "music_history",
-          laneDetail
+          laneDetail,
+          mem
         }
       });
     }
@@ -367,7 +404,8 @@ app.post("/api/sandblast-gpt", (req, res) => {
         stepIndex: stepIndex + 1,
         currentLane: "music_history",
         lastDomain: "music_history",
-        laneDetail
+        laneDetail,
+        mem
       }
     });
   }
@@ -379,7 +417,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
     return res.json({
       ok: true,
       reply: "Sandblast TV locked. What are we tuning: the grid, a specific show, or a programming block?",
-      meta: { ...meta, stepIndex: stepIndex + 1, currentLane: "tv", lastDomain: "tv", laneDetail }
+      meta: { ...meta, stepIndex: stepIndex + 1, currentLane: "tv", lastDomain: "tv", laneDetail, mem }
     });
   }
 
@@ -387,7 +425,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
     return res.json({
       ok: true,
       reply: "News Canada locked. What’s the story topic and who is the target audience?",
-      meta: { ...meta, stepIndex: stepIndex + 1, currentLane: "news_canada", lastDomain: "news_canada", laneDetail }
+      meta: { ...meta, stepIndex: stepIndex + 1, currentLane: "news_canada", lastDomain: "news_canada", laneDetail, mem }
     });
   }
 
@@ -395,15 +433,15 @@ app.post("/api/sandblast-gpt", (req, res) => {
     return res.json({
       ok: true,
       reply: "Sponsors locked. Say “sponsor package” or tell me the brand + tier (Starter/Growth/Premium) and I’ll generate deliverables.",
-      meta: { ...meta, stepIndex: stepIndex + 1, currentLane: "sponsors", lastDomain: "sponsors", laneDetail }
+      meta: { ...meta, stepIndex: stepIndex + 1, currentLane: "sponsors", lastDomain: "sponsors", laneDetail, mem }
     });
   }
 
-  // General fallback (only when truly general)
+  // General fallback
   return res.json({
     ok: true,
     reply: "Understood. What would you like to do next?",
-    meta: { ...meta, stepIndex: stepIndex + 1, lastDomain: "general" }
+    meta: { ...meta, stepIndex: stepIndex + 1, lastDomain: "general", mem }
   });
 });
 
