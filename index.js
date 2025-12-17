@@ -1,16 +1,14 @@
 // ----------------------------------------------------------
-// Sandblast Nyx Backend — Broadcast-Ready v1.27 (2025-12-17)
-// Goals:
-// - Stop music flow loops even if widget fails to round-trip meta
-// - Add debug routes to verify what the widget is sending
+// Sandblast Nyx Backend — Broadcast-Ready v1.28 (2025-12-17)
+// Patch goals (Option B):
+// - Add explicit conversation "state" to every reply (mode/step/slots/advance)
+// - Slot locking (artist/year/title) and no re-asking once filled
+// - Server-side loop guard: prevent repeating same step/prompt
+// - Keep backward compatibility with existing widget meta handling
 //
-// Key Fixes:
-// - SERVER-SIDE SESSION MEMORY (Map keyed by meta.sessionId; fallback if missing)
-// - ERA/YEAR LOCK: "1964 Motown" locks year immediately into session
-// - HARD GUARD: if artist + year known => ALWAYS advance (never ask artist+year again)
-// - Supports chart switching: Billboard / UK Singles / Canada RPM / Top40Weekly
-// - Adds /health and /api/health
-// - Adds /api/debug/echo and /api/debug/last
+// Notes:
+// - Widget can ignore "state" and still work.
+// - When widget adopts "state", it will feel dramatically more consistent.
 // ----------------------------------------------------------
 
 require("dotenv").config();
@@ -26,7 +24,7 @@ app.use(express.json({ limit: "1mb" }));
 app.use(cors({ origin: true }));
 
 const PORT = process.env.PORT || 3000;
-const BUILD_TAG = "nyx-broadcast-ready-v1.27-2025-12-17";
+const BUILD_TAG = "nyx-broadcast-ready-v1.28-2025-12-17";
 const MUSIC_DEFAULT_CHART = "Billboard Hot 100";
 
 // -------------------------
@@ -42,7 +40,6 @@ app.post("/api/debug/echo", (req, res) => {
       "x-forwarded-for": req.headers["x-forwarded-for"],
       "user-agent": req.headers["user-agent"]
     },
-    // Keep it small
     received: {
       message: body.message,
       meta: body.meta
@@ -62,13 +59,20 @@ app.get("/api/health", (_, res) => res.json({ status: "ok", build: BUILD_TAG }))
 // -------------------------
 // SERVER SESSION MEMORY
 // -------------------------
-const SESS = new Map(); // key -> { laneDetail, mem, currentLane, lastDomain, stepIndex, lastReply, updatedAt }
+/**
+ * Session shape (stored server-side):
+ * {
+ *   laneDetail, mem, currentLane, lastDomain,
+ *   stepIndex, lastReply, updatedAt,
+ *   lastStepName, lastPromptSig
+ * }
+ */
+const SESS = new Map();
 const SESS_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 function nowMs() {
   return Date.now();
 }
-
 function cleanupSessions() {
   const cutoff = nowMs() - SESS_TTL_MS;
   for (const [k, v] of SESS.entries()) {
@@ -238,12 +242,38 @@ function safePickBestMoment(db, fields) {
   return c[0] || null;
 }
 
-// Reply helper (stamps lastReply always)
-function send(res, meta, reply, extra = {}) {
+// -------------------------
+// Conversation "state" helpers
+// -------------------------
+function makeState(meta, laneDetail, stepName, advance) {
+  const slots = {
+    artist: laneDetail?.artist || null,
+    year: laneDetail?.year || null,
+    title: laneDetail?.title || null,
+    chart: laneDetail?.chart || null
+  };
+  return {
+    mode: meta?.currentLane || meta?.lastDomain || "general",
+    step: stepName || "general",
+    slots,
+    advance: !!advance
+  };
+}
+
+function promptSig(stepName, reply) {
+  // Tiny signature to detect loops reliably without storing huge content
+  const s = `${stepName || ""}::${String(reply || "").slice(0, 120)}`;
+  return norm(s).slice(0, 180);
+}
+
+// Reply helper (adds state + stamps lastReply always)
+function send(res, meta, laneDetail, stepName, reply, extraMeta = {}, advance = false) {
+  const state = makeState(meta, laneDetail, stepName, advance);
   return res.json({
     ok: true,
     reply,
-    meta: { ...(meta || {}), ...(extra || {}), lastReply: reply }
+    state,
+    meta: { ...(meta || {}), ...(extraMeta || {}), lastReply: reply }
   });
 }
 
@@ -251,11 +281,9 @@ function send(res, meta, reply, extra = {}) {
 // Session key logic
 // -------------------------
 function sessionKey(req, meta) {
-  // Prefer explicit meta.sessionId (this MUST be stable across turns)
   const sid = meta && meta.sessionId ? String(meta.sessionId).trim() : "";
   if (sid) return sid;
 
-  // Fallback (not ideal, but better than nothing)
   const ua = String(req.headers["user-agent"] || "");
   const ip = String(req.headers["x-forwarded-for"] || req.ip || "");
   return `fallback:${ip}|${ua}`.slice(0, 220);
@@ -271,10 +299,14 @@ function mergeFromSession(reqMeta, sess) {
   meta.stepIndex = Number(meta.stepIndex || sess?.stepIndex || 0);
   meta.lastReply = meta.lastReply || sess?.lastReply || "";
 
+  // New (safe): last step/prompt loop guard
+  meta._lastStepName = meta._lastStepName || sess?.lastStepName || "";
+  meta._lastPromptSig = meta._lastPromptSig || sess?.lastPromptSig || "";
+
   return meta;
 }
 
-function writeSession(k, meta) {
+function writeSession(k, meta, lastStepName, lastPromptSig) {
   SESS.set(k, {
     laneDetail: { ...(meta.laneDetail || {}) },
     mem: { ...(meta.mem || {}) },
@@ -282,8 +314,22 @@ function writeSession(k, meta) {
     lastDomain: meta.lastDomain || meta.currentLane || "general",
     stepIndex: Number(meta.stepIndex || 0),
     lastReply: meta.lastReply || "",
+    lastStepName: String(lastStepName || ""),
+    lastPromptSig: String(lastPromptSig || ""),
     updatedAt: nowMs()
   });
+}
+
+// Loop guard: if we are about to repeat same step+prompt, force a safer alternative step
+function applyLoopGuard(meta, intendedStep, intendedReply) {
+  const lastStep = String(meta._lastStepName || "");
+  const lastSig = String(meta._lastPromptSig || "");
+  const sig = promptSig(intendedStep, intendedReply);
+
+  if (intendedStep && lastStep && intendedStep === lastStep && sig && lastSig && sig === lastSig) {
+    return { looped: true, sig };
+  }
+  return { looped: false, sig };
 }
 
 // -------------------------
@@ -303,17 +349,25 @@ app.post("/api/sandblast-gpt", (req, res) => {
 
   // Greetings / small talk
   if (isGreeting(clean) || isSmallTalk(clean)) {
+    const stepName = "choose_lane";
+    const reply =
+      "I’m doing well — thanks for asking. What would you like to explore today? (Music history, Sandblast TV, News Canada, or Sponsors)";
+
+    const guard = applyLoopGuard(meta, stepName, reply);
+    const finalReply = guard.looped
+      ? "Quick reset: pick a lane — Music history, Sandblast TV, News Canada, or Sponsors."
+      : reply;
+
     meta.stepIndex = stepIndex + 1;
     meta.mem = mem;
     meta.laneDetail = laneDetail;
     meta.lastDomain = meta.lastDomain || "general";
-    writeSession(skey, meta);
 
-    return send(
-      res,
-      meta,
-      "I’m doing well — thanks for asking. What would you like to explore today? (Music history, Sandblast TV, News Canada, or Sponsors)"
-    );
+    meta._lastStepName = stepName;
+    meta._lastPromptSig = guard.sig;
+    writeSession(skey, meta, stepName, guard.sig);
+
+    return send(res, meta, laneDetail, stepName, finalReply, {}, true);
   }
 
   // Explicit lane select
@@ -321,10 +375,17 @@ app.post("/api/sandblast-gpt", (req, res) => {
   if (lane) {
     if (lane === "music_history" && !laneDetail.chart) laneDetail.chart = MUSIC_DEFAULT_CHART;
 
-    const reply =
+    let stepName = "lane_locked";
+    let reply =
       lane === "music_history"
         ? "Music history locked. Give me an artist + year (or a song title)."
         : `Locked. What would you like to do in ${lane.replace("_", " ")}?`;
+
+    const guard = applyLoopGuard(meta, stepName, reply);
+    if (guard.looped && lane === "music_history") {
+      stepName = "awaiting_anchor";
+      reply = "Music history is on. Give me an artist + year, or just the song title.";
+    }
 
     meta.stepIndex = stepIndex + 1;
     meta.currentLane = lane;
@@ -332,8 +393,11 @@ app.post("/api/sandblast-gpt", (req, res) => {
     meta.laneDetail = laneDetail;
     meta.mem = mem;
 
-    writeSession(skey, meta);
-    return send(res, meta, reply);
+    meta._lastStepName = stepName;
+    meta._lastPromptSig = promptSig(stepName, reply);
+    writeSession(skey, meta, stepName, meta._lastPromptSig);
+
+    return send(res, meta, laneDetail, stepName, reply, {}, true);
   }
 
   // Lane lock precedence: meta wins; classifier only if general
@@ -345,7 +409,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
   }
 
   // -------------------------
-  // Music lane
+  // Music lane (stateful, no loops)
   // -------------------------
   if (domain === "music_history") {
     meta.currentLane = "music_history";
@@ -368,60 +432,85 @@ app.post("/api/sandblast-gpt", (req, res) => {
       mem.musicYear = laneDetail.year;
     }
 
-    // Era cue: lock year immediately and ask for artist
-    if (containsEraCue(clean) && (yearInMsg || laneDetail.year) && !laneDetail.artist) {
-      const y = yearInMsg || laneDetail.year;
-      laneDetail.year = y;
-      mem.musicYear = y;
-
-      meta.stepIndex = stepIndex + 1;
-      meta.laneDetail = laneDetail;
-      meta.mem = mem;
-
-      writeSession(skey, meta);
-      return send(
-        res,
-        meta,
-        `${y} Motown is a defining era. Pick an artist (The Supremes, Marvin Gaye, The Temptations) and I’ll anchor the chart moment.`
-      );
-    }
-
-    // Detect artist/title
+    // Artist/title detection (slot lock: only fill if empty)
     const detectedArtist = resolveArtistAlias(clean) || detectArtist(clean);
     const detectedTitle = detectTitle(clean);
 
     if (detectedArtist && !laneDetail.artist) laneDetail.artist = detectedArtist;
     if (detectedTitle && !laneDetail.title) laneDetail.title = detectedTitle;
 
-    // HARD GUARD: if artist + year known => ALWAYS advance (never loop)
+    // Era cue: if year locked and artist missing, ask for artist (and never re-ask year)
+    if (containsEraCue(clean) && (yearInMsg || laneDetail.year) && !laneDetail.artist) {
+      const y = yearInMsg || laneDetail.year;
+      laneDetail.year = y;
+      mem.musicYear = y;
+
+      const stepName = "awaiting_artist";
+      let reply = `${y} is a defining era cue. Pick an artist (The Supremes, Marvin Gaye, The Temptations) and I’ll anchor the chart moment.`;
+
+      const guard = applyLoopGuard(meta, stepName, reply);
+      if (guard.looped) reply = `Year ${y} is locked. Now give me the artist name so I can anchor the chart moment.`;
+
+      meta.stepIndex = stepIndex + 1;
+      meta.laneDetail = laneDetail;
+      meta.mem = mem;
+
+      meta._lastStepName = stepName;
+      meta._lastPromptSig = promptSig(stepName, reply);
+      writeSession(skey, meta, stepName, meta._lastPromptSig);
+
+      return send(res, meta, laneDetail, stepName, reply, {}, true);
+    }
+
+    // HARD GUARD A: If artist + year known and title missing => DO NOT ask for artist/year again
     if (laneDetail.artist && laneDetail.year && !laneDetail.title) {
+      const stepName = "awaiting_title_or_intent";
+      let reply =
+        `Locked: ${String(laneDetail.artist).toUpperCase()} in ${laneDetail.year}. ` +
+        `Give me a song title, or ask “Was it #1?” and I’ll anchor the chart moment. ` +
+        `(Current chart: ${laneDetail.chart})`;
+
+      const guard = applyLoopGuard(meta, stepName, reply);
+      if (guard.looped) {
+        reply =
+          `We already have ${String(laneDetail.artist).toUpperCase()} + ${laneDetail.year}. ` +
+          `Next step is the song title (or ask “Was it #1?”).`;
+      }
+
       meta.stepIndex = stepIndex + 1;
       meta.laneDetail = laneDetail;
       meta.mem = mem;
 
-      writeSession(skey, meta);
-      return send(
-        res,
-        meta,
-        `Got it — ${String(laneDetail.artist).toUpperCase()} in ${laneDetail.year}. Give me a song title, or ask “Was it #1?” and I’ll anchor the chart moment.`
-      );
+      meta._lastStepName = stepName;
+      meta._lastPromptSig = promptSig(stepName, reply);
+      writeSession(skey, meta, stepName, meta._lastPromptSig);
+
+      return send(res, meta, laneDetail, stepName, reply, {}, true);
     }
 
-    // #1 slot-fill: ask only what's missing
+    // HARD GUARD B: #1 intent + artist known but missing year/title => ask only missing fields
     if (laneDetail.artist && hasNumberOneIntent(clean) && !laneDetail.year && !laneDetail.title) {
+      const stepName = "awaiting_year_or_title";
+      let reply =
+        `Got it — ${String(laneDetail.artist).toUpperCase()} and “#1”. ` +
+        `Give me a year (e.g., 1992) or a song title and I’ll anchor the chart moment. ` +
+        `(Current chart: ${laneDetail.chart})`;
+
+      const guard = applyLoopGuard(meta, stepName, reply);
+      if (guard.looped) reply = `Next step: year or song title. (We’re already on ${String(laneDetail.chart)}.)`;
+
       meta.stepIndex = stepIndex + 1;
       meta.laneDetail = laneDetail;
       meta.mem = mem;
 
-      writeSession(skey, meta);
-      return send(
-        res,
-        meta,
-        `Got it — ${String(laneDetail.artist).toUpperCase()} #1. Give me a year (e.g., 1992) or a song title and I’ll anchor the chart moment.`
-      );
+      meta._lastStepName = stepName;
+      meta._lastPromptSig = promptSig(stepName, reply);
+      writeSession(skey, meta, stepName, meta._lastPromptSig);
+
+      return send(res, meta, laneDetail, stepName, reply, {}, true);
     }
 
-    // Attempt to pick best moment
+    // Attempt to pick best moment if we have enough info
     const best = safePickBestMoment(MUSIC_DB, {
       artist: laneDetail.artist,
       title: laneDetail.title,
@@ -429,99 +518,174 @@ app.post("/api/sandblast-gpt", (req, res) => {
     });
 
     if (best) {
+      const stepName = "moment_anchored";
       const fact = best.fact || best.chart_fact || "Anchor found.";
       const culture = best.culture || best.cultural_moment || "This was a defining radio-era moment for its sound and reach.";
       const next = best.next || best.next_step || "Want the exact chart week/date, or the full #1 timeline?";
 
+      // Lock in best fields (slot lock: only overwrite if best provides)
       laneDetail.artist = best.artist || laneDetail.artist;
       laneDetail.title = best.title || laneDetail.title;
       laneDetail.year = best.year || laneDetail.year;
       laneDetail.chart = best.chart || laneDetail.chart;
+
       if (laneDetail.year) mem.musicYear = laneDetail.year;
 
+      let reply =
+        `Chart fact: ${fact} (${laneDetail.chart})\n` +
+        `Cultural thread: ${culture}\n` +
+        `Next step: ${next}`;
+
+      const guard = applyLoopGuard(meta, stepName, reply);
+      if (guard.looped) reply = `Anchor confirmed. Next step: do you want the exact chart week/date, or the full #1 timeline?`;
+
       meta.stepIndex = stepIndex + 1;
       meta.laneDetail = laneDetail;
       meta.mem = mem;
 
-      writeSession(skey, meta);
-      return send(
-        res,
-        meta,
-        `Chart fact: ${fact} (${laneDetail.chart})\nCultural thread: ${culture}\nNext step: ${next}`
-      );
+      meta._lastStepName = stepName;
+      meta._lastPromptSig = promptSig(stepName, reply);
+      writeSession(skey, meta, stepName, meta._lastPromptSig);
+
+      return send(res, meta, laneDetail, stepName, reply, {}, true);
     }
 
-    // If we have artist but missing year/title, advance cleanly
+    // If we have artist only, ask year or title (never re-ask artist)
     if (laneDetail.artist && !laneDetail.year && !laneDetail.title) {
+      const stepName = "awaiting_year_or_title";
+      let reply =
+        `Locked: ${String(laneDetail.artist).toUpperCase()}. ` +
+        `Pick a year (e.g., 1992) or give me a song title and I’ll anchor the chart moment. ` +
+        `(Current chart: ${laneDetail.chart})`;
+
+      const guard = applyLoopGuard(meta, stepName, reply);
+      if (guard.looped) reply = `Next step: year or song title. That’s all I need.`;
+
       meta.stepIndex = stepIndex + 1;
       meta.laneDetail = laneDetail;
       meta.mem = mem;
 
-      writeSession(skey, meta);
-      return send(
-        res,
-        meta,
-        `Got it — ${String(laneDetail.artist).toUpperCase()}. Pick a year (e.g., 1992) or give me a song title and I’ll anchor the chart moment.\n\nNext step: give me a year (e.g., 1992) or a song title. (Current: ${laneDetail.chart}).`
-      );
+      meta._lastStepName = stepName;
+      meta._lastPromptSig = promptSig(stepName, reply);
+      writeSession(skey, meta, stepName, meta._lastPromptSig);
+
+      return send(res, meta, laneDetail, stepName, reply, {}, true);
     }
 
-    // Default music prompt
-    meta.stepIndex = stepIndex + 1;
-    meta.laneDetail = laneDetail;
-    meta.mem = mem;
+    // If we have year only, ask artist or title (never re-ask year)
+    if (laneDetail.year && !laneDetail.artist && !laneDetail.title) {
+      const stepName = "awaiting_artist_or_title";
+      let reply =
+        `Year locked: ${laneDetail.year}. Now give me the artist name or the song title to anchor the chart moment. ` +
+        `(Current chart: ${laneDetail.chart})`;
 
-    writeSession(skey, meta);
-    return send(
-      res,
-      meta,
-      `To anchor the moment, give me an artist + year (or a song title).\n\nNext step: give me an artist + year (or a song title). If you want a different chart, say: Billboard Hot 100, UK Singles, Canada RPM, or Top40Weekly. (Current: ${laneDetail.chart}).`
-    );
+      const guard = applyLoopGuard(meta, stepName, reply);
+      if (guard.looped) reply = `Next step: artist or song title. We already have the year.`;
+
+      meta.stepIndex = stepIndex + 1;
+      meta.laneDetail = laneDetail;
+      meta.mem = mem;
+
+      meta._lastStepName = stepName;
+      meta._lastPromptSig = promptSig(stepName, reply);
+      writeSession(skey, meta, stepName, meta._lastPromptSig);
+
+      return send(res, meta, laneDetail, stepName, reply, {}, true);
+    }
+
+    // Default music prompt (only when nothing is known yet)
+    {
+      const stepName = "awaiting_anchor";
+      let reply =
+        `To anchor the moment, give me an artist + year (or a song title).\n\n` +
+        `If you want a different chart, say: Billboard Hot 100, UK Singles, Canada RPM, or Top40Weekly. ` +
+        `(Current: ${laneDetail.chart}).`;
+
+      const guard = applyLoopGuard(meta, stepName, reply);
+      if (guard.looped) reply = `Give me either: (1) Artist + year, or (2) Song title. That’s it.`;
+
+      meta.stepIndex = stepIndex + 1;
+      meta.laneDetail = laneDetail;
+      meta.mem = mem;
+
+      meta._lastStepName = stepName;
+      meta._lastPromptSig = promptSig(stepName, reply);
+      writeSession(skey, meta, stepName, meta._lastPromptSig);
+
+      return send(res, meta, laneDetail, stepName, reply, {}, false);
+    }
   }
 
   // -------------------------
   // Other lanes (calm v1 prompts)
   // -------------------------
   if (domain === "tv") {
+    const stepName = "tv_prompt";
+    const reply = "Sandblast TV locked. What are we tuning: the grid, a specific show, or a programming block?";
+
     meta.stepIndex = stepIndex + 1;
     meta.currentLane = "tv";
     meta.lastDomain = "tv";
     meta.laneDetail = laneDetail;
     meta.mem = mem;
 
-    writeSession(skey, meta);
-    return send(res, meta, "Sandblast TV locked. What are we tuning: the grid, a specific show, or a programming block?");
+    meta._lastStepName = stepName;
+    meta._lastPromptSig = promptSig(stepName, reply);
+    writeSession(skey, meta, stepName, meta._lastPromptSig);
+
+    return send(res, meta, laneDetail, stepName, reply, {}, true);
   }
 
   if (domain === "news_canada") {
+    const stepName = "news_prompt";
+    const reply = "News Canada locked. What’s the story topic and who is the target audience?";
+
     meta.stepIndex = stepIndex + 1;
     meta.currentLane = "news_canada";
     meta.lastDomain = "news_canada";
     meta.laneDetail = laneDetail;
     meta.mem = mem;
 
-    writeSession(skey, meta);
-    return send(res, meta, "News Canada locked. What’s the story topic and who is the target audience?");
+    meta._lastStepName = stepName;
+    meta._lastPromptSig = promptSig(stepName, reply);
+    writeSession(skey, meta, stepName, meta._lastPromptSig);
+
+    return send(res, meta, laneDetail, stepName, reply, {}, true);
   }
 
   if (domain === "sponsors") {
+    const stepName = "sponsors_prompt";
+    const reply = "Sponsors locked. Say “sponsor package” or tell me the brand + tier (Starter/Growth/Premium) and I’ll generate deliverables.";
+
     meta.stepIndex = stepIndex + 1;
     meta.currentLane = "sponsors";
     meta.lastDomain = "sponsors";
     meta.laneDetail = laneDetail;
     meta.mem = mem;
 
-    writeSession(skey, meta);
-    return send(res, meta, "Sponsors locked. Say “sponsor package” or tell me the brand + tier (Starter/Growth/Premium) and I’ll generate deliverables.");
+    meta._lastStepName = stepName;
+    meta._lastPromptSig = promptSig(stepName, reply);
+    writeSession(skey, meta, stepName, meta._lastPromptSig);
+
+    return send(res, meta, laneDetail, stepName, reply, {}, true);
   }
 
   // General fallback
-  meta.stepIndex = stepIndex + 1;
-  meta.lastDomain = meta.lastDomain || "general";
-  meta.laneDetail = laneDetail;
-  meta.mem = mem;
+  {
+    const stepName = "general_fallback";
+    const reply = "Understood. What would you like to do next?";
 
-  writeSession(skey, meta);
-  return send(res, meta, "Understood. What would you like to do next?");
+    meta.stepIndex = stepIndex + 1;
+    meta.lastDomain = meta.lastDomain || "general";
+    meta.laneDetail = laneDetail;
+    meta.mem = mem;
+
+    meta._lastStepName = stepName;
+    meta._lastPromptSig = promptSig(stepName, reply);
+    writeSession(skey, meta, stepName, meta._lastPromptSig);
+
+    return send(res, meta, laneDetail, stepName, reply, {}, false);
+  }
 });
 
 app.listen(PORT, () => {
