@@ -212,9 +212,12 @@ app.post("/api/sandblast-gpt", (req, res) => {
 
   // Greetings / small talk
   if (isGreeting(clean) || isSmallTalk(clean)) {
-    return send(res, meta, "I’m doing well — thanks for asking. What would you like to explore today? (Music history, Sandblast TV, News Canada, or Sponsors)", {
-      stepIndex: stepIndex + 1
-    });
+    return send(
+      res,
+      meta,
+      "I’m doing well — thanks for asking. What would you like to explore today? (Music history, Sandblast TV, News Canada, or Sponsors)",
+      { stepIndex: stepIndex + 1 }
+    );
   }
 
   // Explicit lane select
@@ -258,6 +261,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
       laneDetail.year = Number(mem.musicYear) || laneDetail.year;
     }
 
+    // YEAR LOCK (critical)
     const yearInMsg = extractYear(clean);
     if (yearInMsg) {
       laneDetail.year = yearInMsg;
