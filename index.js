@@ -1,15 +1,16 @@
 // ----------------------------------------------------------
-// Sandblast Nyx Backend — Broadcast-Ready v1.26 (2025-12-16)
-// Fixes / Upgrades:
-// - SERVER-SIDE SESSION MEMORY (in-memory Map keyed by meta.sessionId)
-//   => Eliminates loops even if widget meta doesn't round-trip correctly.
-// - Lane lock precedence: meta.currentLane/meta.lastDomain overrides classifier
-// - Chart switching: Billboard / UK Singles / Canada RPM / Top40Weekly
-// - Slot-fill: ask only missing year/title (esp. #1 queries)
-// - HARD GUARD: artist detected + year known => ALWAYS advance
-// - Sticky memory: year stored in BOTH laneDetail.year and mem.musicYear
-// - meta.lastReply stamped on EVERY response
-// - /health and /api/health both supported
+// Sandblast Nyx Backend — Broadcast-Ready v1.27 (2025-12-17)
+// Goals:
+// - Stop music flow loops even if widget fails to round-trip meta
+// - Add debug routes to verify what the widget is sending
+//
+// Key Fixes:
+// - SERVER-SIDE SESSION MEMORY (Map keyed by meta.sessionId; fallback if missing)
+// - ERA/YEAR LOCK: "1964 Motown" locks year immediately into session
+// - HARD GUARD: if artist + year known => ALWAYS advance (never ask artist+year again)
+// - Supports chart switching: Billboard / UK Singles / Canada RPM / Top40Weekly
+// - Adds /health and /api/health
+// - Adds /api/debug/echo and /api/debug/last
 // ----------------------------------------------------------
 
 require("dotenv").config();
@@ -25,8 +26,38 @@ app.use(express.json({ limit: "1mb" }));
 app.use(cors({ origin: true }));
 
 const PORT = process.env.PORT || 3000;
-const BUILD_TAG = "nyx-broadcast-ready-v1.26-2025-12-16";
+const BUILD_TAG = "nyx-broadcast-ready-v1.27-2025-12-17";
 const MUSIC_DEFAULT_CHART = "Billboard Hot 100";
+
+// -------------------------
+// Debug (temporary, safe)
+// -------------------------
+let LAST_DEBUG = null;
+
+app.post("/api/debug/echo", (req, res) => {
+  const body = req.body || {};
+  LAST_DEBUG = {
+    at: new Date().toISOString(),
+    headers: {
+      "x-forwarded-for": req.headers["x-forwarded-for"],
+      "user-agent": req.headers["user-agent"]
+    },
+    // Keep it small
+    received: {
+      message: body.message,
+      meta: body.meta
+    }
+  };
+  return res.json({ ok: true, build: BUILD_TAG, received: LAST_DEBUG.received });
+});
+
+app.get("/api/debug/last", (req, res) => {
+  return res.json({ ok: true, build: BUILD_TAG, last: LAST_DEBUG });
+});
+
+// Health (support both to avoid "Cannot GET /api/health")
+app.get("/health", (_, res) => res.json({ status: "ok", build: BUILD_TAG }));
+app.get("/api/health", (_, res) => res.json({ status: "ok", build: BUILD_TAG }));
 
 // -------------------------
 // SERVER SESSION MEMORY
@@ -34,10 +65,12 @@ const MUSIC_DEFAULT_CHART = "Billboard Hot 100";
 const SESS = new Map(); // key -> { laneDetail, mem, currentLane, lastDomain, stepIndex, lastReply, updatedAt }
 const SESS_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
-function now() { return Date.now(); }
+function nowMs() {
+  return Date.now();
+}
 
 function cleanupSessions() {
-  const cutoff = now() - SESS_TTL_MS;
+  const cutoff = nowMs() - SESS_TTL_MS;
   for (const [k, v] of SESS.entries()) {
     if (!v || !v.updatedAt || v.updatedAt < cutoff) SESS.delete(k);
   }
@@ -214,17 +247,21 @@ function send(res, meta, reply, extra = {}) {
   });
 }
 
-// Session key fallback (if widget fails to send sessionId)
+// -------------------------
+// Session key logic
+// -------------------------
 function sessionKey(req, meta) {
-  const sid = meta && meta.sessionId ? String(meta.sessionId) : "";
+  // Prefer explicit meta.sessionId (this MUST be stable across turns)
+  const sid = meta && meta.sessionId ? String(meta.sessionId).trim() : "";
   if (sid) return sid;
+
+  // Fallback (not ideal, but better than nothing)
   const ua = String(req.headers["user-agent"] || "");
   const ip = String(req.headers["x-forwarded-for"] || req.ip || "");
   return `fallback:${ip}|${ua}`.slice(0, 220);
 }
 
 function mergeFromSession(reqMeta, sess) {
-  // Server-side truth fills gaps; client meta can override "access/mode/sessionId" only.
   const meta = { ...(reqMeta || {}) };
   meta.laneDetail = { ...(sess?.laneDetail || {}), ...(meta.laneDetail || {}) };
   meta.mem = { ...(sess?.mem || {}), ...(meta.mem || {}) };
@@ -245,7 +282,7 @@ function writeSession(k, meta) {
     lastDomain: meta.lastDomain || meta.currentLane || "general",
     stepIndex: Number(meta.stepIndex || 0),
     lastReply: meta.lastReply || "",
-    updatedAt: now()
+    updatedAt: nowMs()
   });
 }
 
@@ -299,7 +336,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
     return send(res, meta, reply);
   }
 
-  // Lane lock precedence: meta wins; classifier only used if general
+  // Lane lock precedence: meta wins; classifier only if general
   let domain = meta.currentLane || meta.lastDomain || "general";
   if (domain === "general") {
     const raw = classifyIntent(clean);
@@ -356,7 +393,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
     if (detectedArtist && !laneDetail.artist) laneDetail.artist = detectedArtist;
     if (detectedTitle && !laneDetail.title) laneDetail.title = detectedTitle;
 
-    // HARD GUARD: if artist is known + year is known, ALWAYS advance
+    // HARD GUARD: if artist + year known => ALWAYS advance (never loop)
     if (laneDetail.artist && laneDetail.year && !laneDetail.title) {
       meta.stepIndex = stepIndex + 1;
       meta.laneDetail = laneDetail;
@@ -486,10 +523,6 @@ app.post("/api/sandblast-gpt", (req, res) => {
   writeSession(skey, meta);
   return send(res, meta, "Understood. What would you like to do next?");
 });
-
-// Health (both endpoints)
-app.get("/health", (_, res) => res.json({ status: "ok", build: BUILD_TAG }));
-app.get("/api/health", (_, res) => res.json({ status: "ok", build: BUILD_TAG }));
 
 app.listen(PORT, () => {
   console.log(`[Nyx] ${BUILD_TAG} running on port ${PORT}`);
