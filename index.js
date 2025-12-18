@@ -1,15 +1,12 @@
 /**
  * index.js — Nyx Broadcast Backend (Bulletproof)
- * Build: nyx-bulletproof-v1.52-2025-12-18
+ * Build: nyx-bulletproof-v1.53-2025-12-18
  *
- * Fixes in v1.52:
- * - Eliminates “music_not_found loop” by adding:
- *   (a) artist+year miss -> artist-only fallback list (top 5)
- *   (b) artist available years list to quickly correct year mismatch
- *   (c) numeric pick (1–5) works for both artist+year lists and artist-only lists
- * - Honors “keep year” command (prevents repeated year prompts)
- * - Stronger escalation when prompt repeats
+ * Fixes in v1.53:
+ * - Loop-killer: prevents "artist repeated" from being inferred as a title
+ *   (stops music_not_found loop and "try Artist - Title" repeating)
  * - Keeps lane lock: never bounces out of music_history once locked
+ * - Preserves v1.52 improvements (artist+year fallback lists, keep-year, numeric pick)
  */
 
 "use strict";
@@ -56,7 +53,7 @@ try {
 // Config
 // ------------------------------
 const PORT = process.env.PORT || 3000;
-const BUILD_TAG = "nyx-bulletproof-v1.52-2025-12-18";
+const BUILD_TAG = "nyx-bulletproof-v1.53-2025-12-18";
 const DEFAULT_CHART = "Billboard Hot 100";
 const DEBUG_ENABLED = String(process.env.DEBUG || "").toLowerCase() === "true";
 
@@ -689,8 +686,32 @@ app.post("/api/sandblast-gpt", (req, res) => {
     const chartFromText = resolveChartFromText(userText);
     if (chartFromText) sess.laneDetail.chart = chartFromText;
 
-    let a = detectArtist(userText) || inferArtistFallback(userText);
-    let ti = detectTitle(userText) || inferTitleFallback(userText);
+    // ---- LOOP KILLER PATCH (backend-side) ----
+    // If artist is already locked and user repeats the artist name
+    // (no dash/title and no year), do NOT infer title from that input.
+    const lockedArtistNorm = sess.laneDetail.artist ? norm(sess.laneDetail.artist) : "";
+    const incomingNorm = norm(userText);
+    const hasDash = /[-:]/.test(String(userText || ""));
+    const hasYearInText = /\b(19\d{2}|20\d{2})\b/.test(String(userText || ""));
+
+    const repeatingLockedArtistOnly =
+      !!lockedArtistNorm &&
+      incomingNorm &&
+      incomingNorm === lockedArtistNorm &&
+      !hasDash &&
+      !hasYearInText;
+
+    let a = null;
+    let ti = null;
+
+    if (!repeatingLockedArtistOnly) {
+      a = detectArtist(userText) || inferArtistFallback(userText);
+      ti = detectTitle(userText) || inferTitleFallback(userText);
+    } else {
+      // reaffirm artist; avoid polluting title
+      a = null;
+      ti = null;
+    }
 
     // If user typed "Artist - Title", capture both
     const dash = String(userText || "").match(/^(.{2,40})\s*[-:]\s*(.{2,80})$/);
@@ -715,6 +736,16 @@ app.post("/api/sandblast-gpt", (req, res) => {
     // Anchor gating: allow title-only OR artist+year
     const canAnchor = haveTitle || (haveArtist && haveYear);
 
+    // If user is repeating locked artist-only, respond with a clean next step (no loop)
+    if (repeatingLockedArtistOnly) {
+      let reply = `Artist confirmed: ${sess.laneDetail.artist}. Next action: give me the year (example: 1986) or the song title.`;
+      if (userChoseKeepYear) reply = `Artist confirmed: ${sess.laneDetail.artist}. Next action: give me the song title.`;
+      const esc = shouldEscalate(sess, "music_need_slot", reply);
+      if (esc) reply += `\nFastest format: ${sess.laneDetail.artist} - Song Title 1986`;
+      saveSession(sid, sess);
+      return send(res, sid, sess, "music_need_slot", reply, requestId);
+    }
+
     // Artist + year discovery mode
     if (haveArtist && haveYear && !haveTitle) {
       const aKey = norm(sess.laneDetail.artist);
@@ -734,7 +765,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
         return send(res, sid, sess, "choose_title_from_artist_year", reply, requestId);
       }
 
-      // NEW: if artist exists but that year doesn’t, fall back to artist-only list + available years
+      // If artist exists but that year doesn’t, fall back to artist-only list + available years
       const allForArtist = MUSIC_INDEX.byArtist.get(aKey) || [];
       if (allForArtist.length) {
         const yrs = yearsForArtist(sess.laneDetail.artist).slice(0, 20);
