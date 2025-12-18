@@ -1,14 +1,12 @@
 // ----------------------------------------------------------
-// Sandblast Nyx Backend — Broadcast-Ready v1.28 (2025-12-17)
-// Patch goals (Option B):
-// - Add explicit conversation "state" to every reply (mode/step/slots/advance)
-// - Slot locking (artist/year/title) and no re-asking once filled
-// - Server-side loop guard: prevent repeating same step/prompt
-// - Keep backward compatibility with existing widget meta handling
+// Sandblast Nyx Backend — Broadcast-Ready v1.29 (2025-12-17)
+// Option B + Loop-Stop Hardening
 //
-// Notes:
-// - Widget can ignore "state" and still work.
-// - When widget adopts "state", it will feel dramatically more consistent.
+// Additions vs v1.28:
+// - HARD LOOP-BREAKER: if artist+year locked and title requested once already,
+//   Nyx advances with "forced_anchor_without_title" instead of repeating.
+// - MUSIC_DB_PATH env var support (switch DB without code edits).
+// - CORS hardening (common headers, methods).
 // ----------------------------------------------------------
 
 require("dotenv").config();
@@ -21,10 +19,19 @@ const musicKB = require("./Utils/musicKnowledge");
 
 const app = express();
 app.use(express.json({ limit: "1mb" }));
-app.use(cors({ origin: true }));
+
+// CORS: permissive but stable
+app.use(
+  cors({
+    origin: true,
+    methods: ["GET", "POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: false
+  })
+);
 
 const PORT = process.env.PORT || 3000;
-const BUILD_TAG = "nyx-broadcast-ready-v1.28-2025-12-17";
+const BUILD_TAG = "nyx-broadcast-ready-v1.29-2025-12-17";
 const MUSIC_DEFAULT_CHART = "Billboard Hot 100";
 
 // -------------------------
@@ -90,6 +97,12 @@ let MUSIC_TITLES = [];
 
 (function loadMusicDbOnce() {
   try {
+    // Allow DB path override without code changes
+    // e.g. MUSIC_DB_PATH=Data/music_moments_v2_layer2.json
+    if (process.env.MUSIC_DB_PATH && musicKB && typeof musicKB.setDbPath === "function") {
+      musicKB.setDbPath(process.env.MUSIC_DB_PATH);
+    }
+
     MUSIC_DB =
       (musicKB && typeof musicKB.loadDb === "function")
         ? musicKB.loadDb()
@@ -261,12 +274,10 @@ function makeState(meta, laneDetail, stepName, advance) {
 }
 
 function promptSig(stepName, reply) {
-  // Tiny signature to detect loops reliably without storing huge content
   const s = `${stepName || ""}::${String(reply || "").slice(0, 120)}`;
   return norm(s).slice(0, 180);
 }
 
-// Reply helper (adds state + stamps lastReply always)
 function send(res, meta, laneDetail, stepName, reply, extraMeta = {}, advance = false) {
   const state = makeState(meta, laneDetail, stepName, advance);
   return res.json({
@@ -299,7 +310,6 @@ function mergeFromSession(reqMeta, sess) {
   meta.stepIndex = Number(meta.stepIndex || sess?.stepIndex || 0);
   meta.lastReply = meta.lastReply || sess?.lastReply || "";
 
-  // New (safe): last step/prompt loop guard
   meta._lastStepName = meta._lastStepName || sess?.lastStepName || "";
   meta._lastPromptSig = meta._lastPromptSig || sess?.lastPromptSig || "";
 
@@ -320,7 +330,6 @@ function writeSession(k, meta, lastStepName, lastPromptSig) {
   });
 }
 
-// Loop guard: if we are about to repeat same step+prompt, force a safer alternative step
 function applyLoopGuard(meta, intendedStep, intendedReply) {
   const lastStep = String(meta._lastStepName || "");
   const lastSig = String(meta._lastPromptSig || "");
@@ -462,8 +471,48 @@ app.post("/api/sandblast-gpt", (req, res) => {
       return send(res, meta, laneDetail, stepName, reply, {}, true);
     }
 
-    // HARD GUARD A: If artist + year known and title missing => DO NOT ask for artist/year again
+    // ✅ HARD LOOP-BREAKER:
+    // If artist + year known and title missing AND we already asked for title once,
+    // do NOT repeat. Advance with a forced anchor path.
     if (laneDetail.artist && laneDetail.year && !laneDetail.title) {
+      const askedTitleBefore = String(meta._lastStepName || "") === "awaiting_title_or_intent";
+
+      if (askedTitleBefore) {
+        const stepName = "forced_anchor_without_title";
+
+        const bestByArtistYear = safePickBestMoment(MUSIC_DB, {
+          artist: laneDetail.artist,
+          year: laneDetail.year
+        });
+
+        const fact =
+          (bestByArtistYear && (bestByArtistYear.fact || bestByArtistYear.chart_fact)) ||
+          `Locked: ${laneDetail.artist} (${laneDetail.year}). I can still anchor the era even without the exact title.`;
+
+        const culture =
+          (bestByArtistYear && (bestByArtistYear.culture || bestByArtistYear.cultural_moment)) ||
+          `Cultural thread: this was a defining radio-era pocket for ${laneDetail.artist}.`;
+
+        const next =
+          `Next step: choose one — (1) give me the song title, (2) ask “biggest hit that year?”, or (3) switch chart (Billboard / UK / RPM / Top40Weekly).`;
+
+        const reply =
+          `Chart fact: ${fact} (${laneDetail.chart})\n` +
+          `Cultural thread: ${culture}\n` +
+          `Next step: ${next}`;
+
+        meta.stepIndex = stepIndex + 1;
+        meta.laneDetail = laneDetail;
+        meta.mem = mem;
+
+        meta._lastStepName = stepName;
+        meta._lastPromptSig = promptSig(stepName, reply);
+        writeSession(skey, meta, stepName, meta._lastPromptSig);
+
+        return send(res, meta, laneDetail, stepName, reply, { loopGuard: true }, true);
+      }
+
+      // First time asking for title is acceptable
       const stepName = "awaiting_title_or_intent";
       let reply =
         `Locked: ${String(laneDetail.artist).toUpperCase()} in ${laneDetail.year}. ` +
@@ -523,7 +572,6 @@ app.post("/api/sandblast-gpt", (req, res) => {
       const culture = best.culture || best.cultural_moment || "This was a defining radio-era moment for its sound and reach.";
       const next = best.next || best.next_step || "Want the exact chart week/date, or the full #1 timeline?";
 
-      // Lock in best fields (slot lock: only overwrite if best provides)
       laneDetail.artist = best.artist || laneDetail.artist;
       laneDetail.title = best.title || laneDetail.title;
       laneDetail.year = best.year || laneDetail.year;
