@@ -1,18 +1,13 @@
 /**
  * index.js — Nyx Broadcast Backend (Bulletproof)
- * Build: nyx-bulletproof-v1.54-2025-12-18
+ * Build: nyx-bulletproof-v1.60-2025-12-18
  *
- * Goals:
- * - Stop lane/session drops from causing “choose a lane” loops
- * - Deterministic music lane: never re-asks the same thing forever
- * - Artist/year/title search across the full card dump (not Madonna-specific)
- *
- * Fixes in v1.53:
- * - Loop-killer: prevents "artist repeated" from being inferred as a title
- *
- * Patches in v1.54:
- * - Lane repair: if incoming meta has music_history but server session is general, lock lane immediately
- * - Music candidate routing: treat plain artist/title inputs as music_history using loaded card indexes
+ * Key upgrades vs v1.53:
+ * - Adds a real greeting step (human convo starts correctly)
+ * - Prevents lane re-routing on short/greeting inputs
+ * - Hard "stay in music_history" guard (no bouncing to general)
+ * - Works with musicKnowledge.getDb() or loadDb()
+ * - Adds DEBUG-gated /api/music/reload to rebuild indexes after card updates
  */
 
 "use strict";
@@ -23,32 +18,13 @@ const express = require("express");
 const cors = require("cors");
 const crypto = require("crypto");
 
-// ------------------------------
-// Optional modules (safe load)
-// ------------------------------
-let classifyIntent = null;
-try {
-  ({ classifyIntent } = require("./Utils/intentClassifier"));
-} catch (_) {
-  // Safe fallback: heuristics only
-}
-
-let musicKB = null;
-try {
-  musicKB = require("./Utils/musicKnowledge");
-} catch (_) {
-  musicKB = null;
-}
-
 const app = express();
-
-// Render/Proxy correctness
 app.set("trust proxy", true);
+app.use(express.json({ limit: "2mb" }));
 
-// Body parsing
-app.use(express.json({ limit: "1mb" }));
-
-// CORS
+// ------------------------------
+// CORS (Webflow embeds)
+// ------------------------------
 app.use(
   cors({
     origin: true,
@@ -57,36 +33,37 @@ app.use(
     credentials: false
   })
 );
-
 app.options("*", cors({ origin: true }));
 
+// ------------------------------
+// Optional modules (safe load)
+// ------------------------------
+let classifyIntent = null;
+try {
+  ({ classifyIntent } = require("./Utils/intentClassifier"));
+} catch (_) {}
+
+let musicKB = null;
+try {
+  musicKB = require("./Utils/musicKnowledge");
+} catch (_) {
+  musicKB = null;
+}
+
+// ------------------------------
+// Config
+// ------------------------------
 const PORT = process.env.PORT || 3000;
-const BUILD_TAG = "nyx-bulletproof-v1.54-2025-12-18";
+const BUILD_TAG = "nyx-bulletproof-v1.60-2025-12-18";
 const DEFAULT_CHART = "Billboard Hot 100";
+const DEBUG_ENABLED = String(process.env.DEBUG || "").toLowerCase() === "true";
 
-const ALLOWED_LANES = new Set(["general", "music_history", "tv", "news_canada", "sponsors"]);
-
-function cleanLane(v) {
-  const s = String(v || "").trim();
-  if (!s) return null;
-  const n = s.toLowerCase();
-  if (ALLOWED_LANES.has(n)) return n;
-  if (n === "music" || n === "music history") return "music_history";
-  if (n === "news" || n === "news canada") return "news_canada";
-  return null;
-}
-
-// ------------------------------
-// Request safety / normalization
-// ------------------------------
 const MAX_MSG_CHARS = Number(process.env.MAX_MESSAGE_CHARS || 2500);
+const RATE_LIMIT_PER_MIN = Number(process.env.RATE_LIMIT_PER_MIN || 120);
 
-function safeMessage(raw) {
-  const s = String(raw ?? "").trim();
-  if (!s) return "";
-  return s.length > MAX_MSG_CHARS ? s.slice(0, MAX_MSG_CHARS) : s;
-}
-
+// ------------------------------
+// Helpers
+// ------------------------------
 function nowMs() {
   return Date.now();
 }
@@ -99,12 +76,84 @@ function tryUUID() {
   }
 }
 
+function safeMessage(raw) {
+  const s = String(raw ?? "").trim();
+  if (!s) return "";
+  return s.length > MAX_MSG_CHARS ? s.slice(0, MAX_MSG_CHARS) : s;
+}
+
+const norm = (s) =>
+  String(s || "")
+    .toLowerCase()
+    .replace(/[^\w\s#]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+function promptSig(stepName, reply) {
+  const s = `${stepName || ""}::${String(reply || "").slice(0, 160)}`;
+  return norm(s).slice(0, 220);
+}
+
+function stripLeadingLabel(text, label) {
+  const s = String(text || "").trim();
+  if (!s) return "";
+  const r = new RegExp("^" + label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*:?\\s*", "i");
+  return s.replace(r, "").trim();
+}
+
+function sanitizeFact(f) {
+  let s = String(f || "").trim();
+  s = stripLeadingLabel(s, "chart fact");
+  s = stripLeadingLabel(s, "chart anchor");
+  s = stripLeadingLabel(s, "fact");
+  return s.trim();
+}
+
+function sanitizeCulture(c) {
+  let s = String(c || "").trim();
+  s = stripLeadingLabel(s, "cultural thread");
+  s = stripLeadingLabel(s, "culture");
+  return s.trim();
+}
+
+function extractYear(text) {
+  if (musicKB && typeof musicKB.extractYear === "function") {
+    try {
+      return musicKB.extractYear(text);
+    } catch {}
+  }
+  const m = String(text || "").match(/\b(19\d{2}|20\d{2})\b/);
+  return m ? Number(m[1]) : null;
+}
+
+function resolveChartFromText(text) {
+  const t = norm(text);
+  if (t.includes("uk") || t.includes("uk singles") || t.includes("official charts")) return "UK Singles Chart";
+  if (t.includes("canada") || t.includes("rpm")) return "Canada RPM";
+  if (t.includes("top40weekly") || t.includes("top 40")) return "Top40Weekly";
+  if (t.includes("billboard") || t.includes("hot 100")) return "Billboard Hot 100";
+  return null;
+}
+
+function hasNumberOneIntent(text) {
+  return /#1|# 1|number one|no\.?\s?1|no 1/.test(norm(text));
+}
+
+function isGreetingOrTiny(text) {
+  const t = norm(text);
+  if (!t) return true;
+  const greetings = new Set(["hi", "hello", "hey", "yo", "good morning", "good afternoon", "good evening"]);
+  if (greetings.has(t)) return true;
+  // tiny inputs that should NOT trigger re-routing
+  if (t.length <= 2) return true;
+  return false;
+}
+
 // ------------------------------
-// Minimal rate limiting (no deps)
+// Minimal rate limit
 // ------------------------------
-const RL = new Map(); // key -> {count, resetAt}
+const RL = new Map(); // ip -> {count, resetAt}
 const RL_WINDOW_MS = 60_000;
-const RL_MAX = Number(process.env.RATE_LIMIT_PER_MIN || 120);
 
 function rateKey(req) {
   const xff = String(req.headers["x-forwarded-for"] || "");
@@ -125,7 +174,7 @@ function rateLimit(req, res) {
   cur.count++;
   RL.set(key, cur);
 
-  if (cur.count > RL_MAX) {
+  if (cur.count > RATE_LIMIT_PER_MIN) {
     res.status(429).json({
       ok: false,
       error: "RATE_LIMITED",
@@ -145,12 +194,12 @@ setInterval(() => {
 }, 30_000).unref?.();
 
 // ------------------------------
-// Sessions: Self-healing continuity
+// Sessions (self-healing)
 // ------------------------------
 const SESS = new Map(); // sid -> session
 const FP = new Map(); // fingerprint -> { sid, expiresAt }
-const SESS_TTL_MS = 6 * 60 * 60 * 1000; // 6h
-const FP_TTL_MS = 45 * 60 * 1000; // 45m
+const SESS_TTL_MS = 6 * 60 * 60 * 1000;
+const FP_TTL_MS = 45 * 60 * 1000;
 
 const MAX_SESSIONS = Number(process.env.MAX_SESSIONS || 5000);
 const MAX_FINGERPRINTS = Number(process.env.MAX_FINGERPRINTS || 8000);
@@ -230,25 +279,26 @@ setInterval(cleanupSessions, 15 * 60 * 1000).unref?.();
 // Music DB load + indexes
 // ------------------------------
 let MUSIC_DB = { moments: [] };
-try {
-  if (musicKB && typeof musicKB.loadDb === "function") MUSIC_DB = musicKB.loadDb();
-} catch (_) {
-  MUSIC_DB = { moments: [] };
+
+function loadMusicDbCompat() {
+  // Prefer loadDb(), else getDb(), else empty
+  try {
+    if (musicKB && typeof musicKB.loadDb === "function") return musicKB.loadDb();
+  } catch {}
+  try {
+    if (musicKB && typeof musicKB.getDb === "function") return musicKB.getDb();
+  } catch {}
+  return { moments: [] };
 }
 
-const MUSIC_INDEX = {
-  byArtist: new Map(), // norm(artist) -> [moment]
-  byTitle: new Map(), // norm(title)  -> [moment]
-  byArtistYear: new Map(), // norm(artist)+"|"+year -> [moment]
-  byYear: new Map() // year -> [moment]
-};
+MUSIC_DB = loadMusicDbCompat();
 
-const norm = (s) =>
-  String(s || "")
-    .toLowerCase()
-    .replace(/[^\w\s#]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+const MUSIC_INDEX = {
+  byArtist: new Map(),     // norm(artist) -> [moment]
+  byTitle: new Map(),      // norm(title)  -> [moment]
+  byArtistYear: new Map(), // norm(artist)+"|"+year -> [moment]
+  byYear: new Map()        // year -> [moment]
+};
 
 function idxPush(map, key, val) {
   if (!key) return;
@@ -278,23 +328,6 @@ function buildMusicIndexes() {
 
 buildMusicIndexes();
 
-function isMusicCandidate(text) {
-  const raw = String(text || "").trim();
-  if (!raw) return false;
-  const t = norm(raw);
-  if (!t) return false;
-
-  if (t === "music" || t === "music history" || t === "tv" || t === "news" || t === "news canada" || t === "sponsors") return false;
-
-  if (MUSIC_INDEX.byArtist.has(t)) return true;
-  if (MUSIC_INDEX.byTitle.has(t)) return true;
-
-  const dash = raw.match(/^(.{2,60})\s*[-:—]\s*(.{2,90})$/);
-  if (dash) return true;
-
-  return false;
-}
-
 function yearsForArtist(artistName) {
   const aKey = norm(artistName);
   const arr = MUSIC_INDEX.byArtist.get(aKey) || [];
@@ -306,42 +339,19 @@ function yearsForArtist(artistName) {
   return Array.from(ys).sort((a, b) => a - b);
 }
 
-function extractYear(text) {
-  if (musicKB && typeof musicKB.extractYear === "function") {
-    try {
-      return musicKB.extractYear(text);
-    } catch {}
-  }
-  const m = String(text || "").match(/\b(19\d{2}|20\d{2})\b/);
-  return m ? Number(m[1]) : null;
-}
-
-function resolveChartFromText(text) {
-  const t = norm(text);
-  if (t.includes("uk") || t.includes("uk singles") || t.includes("official charts")) return "UK Singles Chart";
-  if (t.includes("canada") || t.includes("rpm")) return "Canada RPM";
-  if (t.includes("top40weekly") || t.includes("top 40")) return "Top40Weekly";
-  if (t.includes("billboard") || t.includes("hot 100")) return "Billboard Hot 100";
-  return null;
-}
-
 // ------------------------------
-// Slot inference (prevents loops)
+// Slot inference
 // ------------------------------
 function detectArtist(text) {
   if (musicKB && typeof musicKB.detectArtist === "function") {
-    try {
-      return musicKB.detectArtist(text);
-    } catch {}
+    try { return musicKB.detectArtist(text); } catch {}
   }
   return null;
 }
 
 function detectTitle(text) {
   if (musicKB && typeof musicKB.detectTitle === "function") {
-    try {
-      return musicKB.detectTitle(text);
-    } catch {}
+    try { return musicKB.detectTitle(text); } catch {}
   }
   return null;
 }
@@ -358,7 +368,7 @@ function inferTitleFallback(text) {
 
   if (/\b(19\d{2}|20\d{2})\b/.test(raw)) return null;
 
-  const m = raw.match(/^(.{2,60})\s*[-:—]\s*(.{2,90})$/);
+  const m = raw.match(/^(.{2,40})\s*[-:]\s*(.{2,80})$/);
   if (m) return String(m[2]).trim();
 
   if (raw.length >= 2 && raw.length <= 60) return raw;
@@ -368,13 +378,14 @@ function inferTitleFallback(text) {
 function inferArtistFallback(text) {
   const raw = String(text || "").trim();
   if (!raw) return null;
-
   if (/\b(19\d{2}|20\d{2})\b/.test(raw)) return null;
 
-  const m = raw.match(/^(.{2,60})\s*[-:—]\s*(.{2,90})$/);
+  const m = raw.match(/^(.{2,40})\s*[-:]\s*(.{2,80})$/);
   if (m) return String(m[1]).trim();
 
-  if (raw.length >= 2 && raw.length <= 60) return raw;
+  const words = raw.split(/\s+/).filter(Boolean);
+  if (words.length >= 1 && words.length <= 4 && !/[#@/\\]/.test(raw)) return raw;
+
   return null;
 }
 
@@ -383,71 +394,117 @@ function inferArtistFallback(text) {
 // ------------------------------
 function parseCommand(text) {
   const t = norm(text);
+  if (t === "clear title" || t === "reset title") return { cmd: "clear_title" };
+  if (t === "clear year" || t === "reset year") return { cmd: "clear_year" };
+  if (t === "clear artist" || t === "reset artist") return { cmd: "clear_artist" };
+  if (t === "keep year" || t === "keep the year") return { cmd: "keep_year" };
 
-  const m1 = t.match(/^set lane\s+(music|music history|music_history|tv|news|news canada|news_canada|sponsors)$/);
-  if (m1) {
-    const lane = cleanLane(m1[1]);
-    return { cmd: "set_lane", lane: lane || "general" };
+  const setYear = t.match(/^(switch year to|set year to|use year)\s+(19\d{2}|20\d{2})$/);
+  if (setYear) return { cmd: "set_year", year: Number(setYear[2]) };
+
+  const setLane = t.match(/^(switch lane to|set lane to|use lane)\s+(music|music history|tv|news|news canada|sponsors)$/);
+  if (setLane) {
+    const laneRaw = setLane[2];
+    const lane =
+      laneRaw.includes("music") ? "music_history" :
+      laneRaw.includes("tv") ? "tv" :
+      laneRaw.includes("news") ? "news_canada" :
+      laneRaw.includes("sponsor") ? "sponsors" : "general";
+    return { cmd: "set_lane", lane };
   }
-
-  const m2 = t.match(/^reset lane$/);
-  if (m2) return { cmd: "reset_lane" };
-
-  const m3 = t.match(/^clear music$/);
-  if (m3) return { cmd: "clear_music" };
 
   return { cmd: null };
 }
 
 // ------------------------------
-// Reply formatting
+// Music search
 // ------------------------------
-function formatMusicReply(best, slots) {
-  const artist = best.artist || slots.artist || "Unknown artist";
-  const title = best.title || slots.title || "Unknown title";
-  const year = best.year || slots.year || "Unknown year";
-  const chart = best.chart || slots.chart || DEFAULT_CHART;
-
-  const aka = Array.isArray(best.aka) && best.aka.length ? `\nAKA: ${best.aka.join(", ")}` : "";
-  const tags = Array.isArray(best.tags) && best.tags.length ? `\nTags: ${best.tags.join(", ")}` : "";
-
-  const fact = best.fact ? `\n\nChart fact: ${best.fact}` : "";
-  const culture = best.culture ? `\nCultural thread: ${best.culture}` : "";
-
-  return (
-    `${artist} — "${title}" (${year})\n` +
-    `Chart: ${chart}` +
-    aka +
-    tags +
-    fact +
-    culture +
-    `\n\nNext action: give me another artist+year, or ask “When was this #1?”`
-  );
-}
-
 function pickBestMoment(fields) {
-  if (musicKB && typeof musicKB.pickBestMoment === "function") {
-    try {
+  try {
+    if (musicKB && typeof musicKB.pickBestMoment === "function") {
       return musicKB.pickBestMoment(MUSIC_DB, fields);
-    } catch {}
-  }
+    }
+  } catch {}
 
-  const moments = (MUSIC_DB && MUSIC_DB.moments) || [];
-  const na = fields.artist ? norm(fields.artist) : null;
-  const nt = fields.title ? norm(fields.title) : null;
+  const a = fields.artist ? norm(fields.artist) : null;
+  const t = fields.title ? norm(fields.title) : null;
   const y = fields.year ? Number(fields.year) : null;
 
-  if (na && nt && y) return moments.find((m) => norm(m.artist) === na && norm(m.title) === nt && Number(m.year) === y) || null;
-  if (na && nt) return moments.find((m) => norm(m.artist) === na && norm(m.title) === nt) || null;
-  if (na && y) return moments.find((m) => norm(m.artist) === na && Number(m.year) === y) || null;
-  if (nt) return moments.find((m) => norm(m.title) === nt) || null;
-  if (na) return moments.find((m) => norm(m.artist) === na) || null;
+  if (a && y) {
+    const arr = MUSIC_INDEX.byArtistYear.get(`${a}|${y}`);
+    if (arr && arr.length) {
+      if (t) {
+        const hit = arr.find((m) => norm(m.title) === t);
+        if (hit) return hit;
+      }
+      return arr[0];
+    }
+  }
+
+  if (t) {
+    const arr = MUSIC_INDEX.byTitle.get(t);
+    if (arr && arr.length) {
+      if (a) {
+        const hit = arr.find((m) => norm(m.artist) === a);
+        if (hit) return hit;
+      }
+      if (y) {
+        const hit = arr.find((m) => Number(m.year) === y);
+        if (hit) return hit;
+      }
+      return arr[0];
+    }
+  }
+
+  if (a) {
+    const arr = MUSIC_INDEX.byArtist.get(a);
+    if (arr && arr.length) {
+      if (y) {
+        const hit = arr.find((m) => Number(m.year) === y);
+        if (hit) return hit;
+      }
+      return arr[0];
+    }
+  }
+
+  if (y) {
+    const arr = MUSIC_INDEX.byYear.get(String(y));
+    if (arr && arr.length) return arr[0];
+  }
+
   return null;
 }
 
+function formatMusicReply(m, fields) {
+  const artist = m.artist || fields.artist || "Unknown artist";
+  const title  = m.title  || fields.title  || "Unknown title";
+  const year   = m.year   || fields.year   || "Unknown year";
+  const chart  = fields.chart || DEFAULT_CHART;
+
+  const fact = sanitizeFact(m.fact || m.chartFact || m.anchorFact || "");
+  const culture = sanitizeCulture(m.culture || m.culturalThread || "");
+
+  const lines = [];
+  lines.push(`${artist} — "${title}" (${year})`);
+  lines.push(`Chart: ${chart}`);
+  if (fact) lines.push(`Proof point: ${fact}`);
+  if (culture) lines.push(`Cultural thread: ${culture}`);
+
+  if (hasNumberOneIntent(fields.rawUserText || "")) {
+    lines.push(`Next action: Want #1 weeks + peak date, or should I pull 3 neighboring hits from ${year}?`);
+  } else {
+    lines.push(`Next action: Ask “Was this #1?” or give me another artist/title/year.`);
+  }
+
+  return lines.join("\n");
+}
+
+// ------------------------------
+// Anti-loop escalation
+// ------------------------------
 function shouldEscalate(sess, stepName, reply) {
-  const sig = `${stepName}:${norm(reply).slice(0, 220)}`;
-  if (sess._lastPromptSig === sig) {
+  const sig = promptSig(stepName, reply);
+  if (sess._lastPromptSig && sess._lastPromptSig === sig) {
     sess._repeatCount = (sess._repeatCount || 0) + 1;
   } else {
     sess._repeatCount = 0;
@@ -457,27 +514,10 @@ function shouldEscalate(sess, stepName, reply) {
 }
 
 // ------------------------------
-// Debug (optional)
+// Reply sender
 // ------------------------------
-const DEBUG_ENABLED = String(process.env.DEBUG || "").toLowerCase() === "true";
 let LAST_DEBUG = null;
 
-// ------------------------------
-// Health / Debug
-// ------------------------------
-app.get("/health", (_, res) => res.json({ ok: true, build: BUILD_TAG }));
-app.get("/api/health", (_, res) => res.json({ ok: true, build: BUILD_TAG }));
-
-app.get("/api/debug/last", (_, res) => {
-  if (!DEBUG_ENABLED) {
-    return res.status(403).json({ ok: false, error: "DEBUG_DISABLED", build: BUILD_TAG });
-  }
-  res.json({ ok: true, build: BUILD_TAG, last: LAST_DEBUG });
-});
-
-// ------------------------------
-// Response helper
-// ------------------------------
 function send(res, sid, sess, stepName, reply, requestId) {
   const outMeta = {
     sessionId: sid,
@@ -514,11 +554,28 @@ function send(res, sid, sess, stepName, reply, requestId) {
 }
 
 // ------------------------------
+// Health / Debug / Reload
+// ------------------------------
+app.get("/health", (_, res) => res.json({ ok: true, build: BUILD_TAG }));
+app.get("/api/health", (_, res) => res.json({ ok: true, build: BUILD_TAG }));
+
+app.get("/api/debug/last", (_, res) => {
+  if (!DEBUG_ENABLED) return res.status(403).json({ ok: false, error: "DEBUG_DISABLED", build: BUILD_TAG });
+  res.json({ ok: true, build: BUILD_TAG, last: LAST_DEBUG });
+});
+
+app.post("/api/music/reload", (req, res) => {
+  if (!DEBUG_ENABLED) return res.status(403).json({ ok: false, error: "DEBUG_DISABLED", build: BUILD_TAG });
+  MUSIC_DB = loadMusicDbCompat();
+  buildMusicIndexes();
+  res.json({ ok: true, build: BUILD_TAG, moments: (MUSIC_DB.moments || []).length });
+});
+
+// ------------------------------
 // Main endpoint
 // ------------------------------
 app.post("/api/sandblast-gpt", (req, res) => {
   const requestId = tryUUID();
-
   if (rateLimit(req, res)) return;
 
   const userText = safeMessage(req.body?.message || req.body?.text || "");
@@ -530,6 +587,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
     sess = {
       createdAt: nowMs(),
       updatedAt: nowMs(),
+      greeted: false,
       currentLane: String(incomingMeta.currentLane || "general"),
       lastDomain: String(incomingMeta.lastDomain || "general"),
       laneDetail: incomingMeta.laneDetail || { chart: DEFAULT_CHART },
@@ -539,23 +597,6 @@ app.post("/api/sandblast-gpt", (req, res) => {
     };
   }
 
-  // PATCH v1.54: repair lane from meta if session is general/empty
-  {
-    const inLane = cleanLane(incomingMeta.currentLane);
-    const inLast = cleanLane(incomingMeta.lastDomain);
-
-    if (!cleanLane(sess.currentLane)) sess.currentLane = "general";
-    if (!cleanLane(sess.lastDomain)) sess.lastDomain = "general";
-
-    if ((sess.currentLane === "general" || sess.currentLane === "") && inLane && inLane !== "general") {
-      sess.currentLane = inLane;
-    }
-    if ((sess.lastDomain === "general" || sess.lastDomain === "") && inLast && inLast !== "general") {
-      sess.lastDomain = inLast;
-    }
-  }
-
-  // Keep chart stable
   sess.laneDetail = sess.laneDetail || {};
   sess.laneDetail.chart = sess.laneDetail.chart || DEFAULT_CHART;
 
@@ -570,8 +611,21 @@ app.post("/api/sandblast-gpt", (req, res) => {
     };
   }
 
+  // ------------------------------
+  // Greeting step (human conversation)
+  // ------------------------------
+  if (!sess.greeted && isGreetingOrTiny(userText)) {
+    sess.greeted = true;
+    saveSession(sid, sess);
+    const reply =
+      `Hi — I’m Nyx. I can do Music, TV, News Canada, or Sponsors.\n` +
+      `Next action: pick a lane (or just say an artist + year, or a song title).`;
+    return send(res, sid, sess, "greet", reply, requestId);
+  }
+
   // Commands
   const cmd = parseCommand(userText);
+
   if (cmd.cmd === "set_lane") {
     sess.currentLane = cmd.lane;
     sess.lastDomain = cmd.lane;
@@ -581,22 +635,19 @@ app.post("/api/sandblast-gpt", (req, res) => {
     saveSession(sid, sess);
     return send(res, sid, sess, "lane_set", `Locked. Lane is now: ${sess.currentLane}. What do you want to do next?`, requestId);
   }
-  if (cmd.cmd === "reset_lane") {
-    sess.currentLane = "general";
-    sess.lastDomain = "general";
-    saveSession(sid, sess);
-    return send(res, sid, sess, "lane_reset", `Reset. Pick a lane: Music, TV, News Canada, or Sponsors.`, requestId);
-  }
-  if (cmd.cmd === "clear_music") {
-    sess.laneDetail = { chart: sess.laneDetail.chart || DEFAULT_CHART };
-    saveSession(sid, sess);
-    return send(res, sid, sess, "music_cleared", `Cleared music slots. Give me an artist + year (or a song title).`, requestId);
-  }
 
-  // Lane decision (only if lane not already locked)
+  if (cmd.cmd === "clear_title") sess.laneDetail.title = null;
+  if (cmd.cmd === "clear_year") sess.laneDetail.year = null;
+  if (cmd.cmd === "clear_artist") sess.laneDetail.artist = null;
+  if (cmd.cmd === "set_year") sess.laneDetail.year = cmd.year;
+
+  const userChoseKeepYear = cmd.cmd === "keep_year";
+
+  // HARD RULE: if music_history is active, DO NOT bounce to general routing
   const laneAlreadyLocked = sess.currentLane === "music_history";
 
-  if (!laneAlreadyLocked) {
+  // If NOT locked, attempt to decide lane — but NEVER reroute on greetings/tiny inputs
+  if (!laneAlreadyLocked && !isGreetingOrTiny(userText)) {
     const chartFromText = resolveChartFromText(userText);
     if (chartFromText) sess.laneDetail.chart = chartFromText;
 
@@ -611,24 +662,52 @@ app.post("/api/sandblast-gpt", (req, res) => {
 
     const t = norm(userText);
     if (!decidedLane) {
-      // PATCH v1.54: plain artist/title should still land in music
-      if (isMusicCandidate(userText)) decidedLane = "music_history";
-      else if (t.includes("music") || t.includes("chart") || t.includes("hot 100") || t.includes("billboard")) decidedLane = "music_history";
+      if (t.includes("music") || t.includes("chart") || t.includes("#1") || t.includes("hot 100") || t.includes("billboard")) decidedLane = "music_history";
       else if (t.includes("tv")) decidedLane = "tv";
       else if (t.includes("news")) decidedLane = "news_canada";
       else if (t.includes("sponsor")) decidedLane = "sponsors";
     }
 
-    if (decidedLane && cleanLane(decidedLane)) {
-      sess.currentLane = cleanLane(decidedLane) || "general";
+    if (decidedLane) {
+      sess.currentLane = decidedLane;
+      sess.lastDomain = decidedLane;
+      if (decidedLane === "music_history") {
+        sess.laneDetail.chart = sess.laneDetail.chart || DEFAULT_CHART;
+      }
     }
   }
 
   // ------------------------------
-  // MUSIC LANE
+  // Music lane flow
   // ------------------------------
   if (sess.currentLane === "music_history") {
     sess.lastDomain = "music_history";
+    sess.laneDetail = sess.laneDetail || {};
+    sess.laneDetail.chart = sess.laneDetail.chart || DEFAULT_CHART;
+    sess.laneDetail.rawUserText = userText;
+
+    // Numeric choice support (1–5) for prior lists
+    const numericPick = norm(userText).match(/^([1-5])$/);
+    if (numericPick && sess.laneDetail._lastList && Array.isArray(sess.laneDetail._lastList)) {
+      const idx = Number(numericPick[1]) - 1;
+      const arr = sess.laneDetail._lastList;
+      if (arr[idx]) {
+        const chosen = arr[idx];
+        sess.laneDetail.artist = sess.laneDetail.artist || chosen.artist || null;
+        sess.laneDetail.year = sess.laneDetail.year || chosen.year || null;
+        sess.laneDetail.title = chosen.title || sess.laneDetail.title || null;
+
+        const reply = formatMusicReply(chosen, {
+          artist: sess.laneDetail.artist,
+          title: sess.laneDetail.title,
+          year: sess.laneDetail.year,
+          chart: sess.laneDetail.chart,
+          rawUserText: userText
+        });
+        saveSession(sid, sess);
+        return send(res, sid, sess, "music_answer", reply, requestId);
+      }
+    }
 
     // slot fill
     const year = extractYear(userText);
@@ -636,24 +715,39 @@ app.post("/api/sandblast-gpt", (req, res) => {
 
     const chartFromText = resolveChartFromText(userText);
     if (chartFromText) sess.laneDetail.chart = chartFromText;
-    sess.laneDetail.chart ||= DEFAULT_CHART;
 
-    let a = detectArtist(userText) || inferArtistFallback(userText);
-    let ti = detectTitle(userText) || inferTitleFallback(userText);
+    // LOOP KILLER: if artist is locked and user repeats artist-only, do not infer title
+    const lockedArtistNorm = sess.laneDetail.artist ? norm(sess.laneDetail.artist) : "";
+    const incomingNorm = norm(userText);
+    const hasDash = /[-:]/.test(String(userText || ""));
+    const hasYearInText = /\b(19\d{2}|20\d{2})\b/.test(String(userText || ""));
+
+    const repeatingLockedArtistOnly =
+      !!lockedArtistNorm &&
+      incomingNorm &&
+      incomingNorm === lockedArtistNorm &&
+      !hasDash &&
+      !hasYearInText;
+
+    let a = null;
+    let ti = null;
+
+    if (!repeatingLockedArtistOnly) {
+      a = detectArtist(userText) || inferArtistFallback(userText);
+      ti = detectTitle(userText) || inferTitleFallback(userText);
+    }
 
     // If user typed "Artist - Title", capture both
-    const dash = String(userText || "").match(/^(.{2,60})\s*[-:—]\s*(.{2,90})$/);
+    const dash = String(userText || "").match(/^(.{2,40})\s*[-:]\s*(.{2,80})$/);
     if (dash) {
       a = a || String(dash[1]).trim();
       ti = ti || String(dash[2]).trim();
     }
 
     // Prevent artist being mis-stored as title
-    if (a && ti && norm(a) === norm(ti)) {
-      ti = null;
-    }
+    if (a && ti && norm(a) === norm(ti)) ti = null;
 
-    // Apply slots (non-destructive)
+    // Apply slots (do not overwrite existing)
     if (a && !sess.laneDetail.artist) sess.laneDetail.artist = a;
     if (ti && !sess.laneDetail.title) sess.laneDetail.title = ti;
 
@@ -661,36 +755,15 @@ app.post("/api/sandblast-gpt", (req, res) => {
     const haveYear = !!sess.laneDetail.year;
     const haveTitle = !!sess.laneDetail.title;
 
-    // numeric pick resolution
-    const msgN = norm(userText);
-    const pick = msgN.match(/^\b([1-5])\b$/);
-    if (pick && Array.isArray(sess.laneDetail._lastList) && sess.laneDetail._lastList.length) {
-      const idx = Number(pick[1]) - 1;
-      const chosen = sess.laneDetail._lastList[idx];
-      if (chosen) {
-        sess.laneDetail.artist = chosen.artist || sess.laneDetail.artist;
-        sess.laneDetail.title = chosen.title || sess.laneDetail.title;
-        sess.laneDetail.year = chosen.year || sess.laneDetail.year;
-
-        const best = pickBestMoment({
-          artist: sess.laneDetail.artist,
-          title: sess.laneDetail.title,
-          year: sess.laneDetail.year,
-          chart: sess.laneDetail.chart,
-          rawUserText: userText
-        });
-
-        const reply = best
-          ? formatMusicReply(best, sess.laneDetail)
-          : `Locked: ${sess.laneDetail.artist} — "${sess.laneDetail.title}" (${sess.laneDetail.year || "year unknown"}). Next action: ask for #1 date or try another song.`;
-
-        saveSession(sid, sess);
-        return send(res, sid, sess, "music_answer", reply, requestId);
-      }
+    // If user repeats locked artist-only, give a clean next step (no loop)
+    if (repeatingLockedArtistOnly) {
+      let reply = `Artist confirmed: ${sess.laneDetail.artist}. Next action: give me the year (example: 1986) or the song title.`;
+      if (userChoseKeepYear) reply = `Artist confirmed: ${sess.laneDetail.artist}. Next action: give me the song title.`;
+      const esc = shouldEscalate(sess, "music_need_slot", reply);
+      if (esc) reply += `\nFastest format: ${sess.laneDetail.artist} - Song Title 1986`;
+      saveSession(sid, sess);
+      return send(res, sid, sess, "music_need_slot", reply, requestId);
     }
-
-    // Anchor gating: allow title-only OR artist+year
-    const canAnchor = haveTitle || (haveArtist && haveYear);
 
     // Artist + year discovery mode
     if (haveArtist && haveYear && !haveTitle) {
@@ -700,7 +773,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
 
       if (arr.length) {
         const top = arr.slice(0, 5);
-        sess.laneDetail._lastList = top;
+        sess.laneDetail._lastList = top; // numeric picks
         const titles = top.map((m, i) => `${i + 1}) ${m.title}`).join("\n");
         const reply =
           `I found ${arr.length} matches for ${sess.laneDetail.artist} in ${yVal}.\n` +
@@ -711,7 +784,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
         return send(res, sid, sess, "choose_title_from_artist_year", reply, requestId);
       }
 
-      // if artist exists but year doesn't
+      // If artist exists but year doesn’t, fall back to artist-only list + available years
       const allForArtist = MUSIC_INDEX.byArtist.get(aKey) || [];
       if (allForArtist.length) {
         const yrs = yearsForArtist(sess.laneDetail.artist).slice(0, 20);
@@ -735,6 +808,9 @@ app.post("/api/sandblast-gpt", (req, res) => {
       }
     }
 
+    // Anchor gating: allow title-only OR artist+year
+    const canAnchor = haveTitle || (haveArtist && haveYear);
+
     if (canAnchor) {
       const best = pickBestMoment({
         artist: sess.laneDetail.artist || null,
@@ -745,15 +821,22 @@ app.post("/api/sandblast-gpt", (req, res) => {
       });
 
       if (best) {
-        const reply = formatMusicReply(best, sess.laneDetail);
+        const reply = formatMusicReply(best, {
+          artist: sess.laneDetail.artist,
+          title: sess.laneDetail.title,
+          year: sess.laneDetail.year,
+          chart: sess.laneDetail.chart,
+          rawUserText: userText
+        });
         saveSession(sid, sess);
         return send(res, sid, sess, "music_answer", reply, requestId);
       }
 
+      // Not found: precise next step
       let reply = `I didn’t find that exact match in the current card dump yet.`;
       const escalate = shouldEscalate(sess, "music_not_found", reply);
 
-      if (!sess.laneDetail.year) {
+      if (!sess.laneDetail.year && !userChoseKeepYear && haveArtist && haveTitle) {
         reply += ` Give me the year (or say “keep year” if you don’t care).`;
       } else if (!sess.laneDetail.title && sess.laneDetail.artist) {
         reply += ` Give me the song title for ${sess.laneDetail.artist}.`;
@@ -771,22 +854,36 @@ app.post("/api/sandblast-gpt", (req, res) => {
       return send(res, sid, sess, "music_not_found", reply, requestId);
     }
 
-    // If we cannot anchor yet, ask for missing slots (non-loop)
-    let reply = `To anchor the moment, give me an artist + year (or a song title).\nCurrent chart: ${sess.laneDetail.chart || DEFAULT_CHART}.`;
-    const esc = shouldEscalate(sess, "awaiting_anchor", reply);
-    if (esc) reply = `Give me either: artist + year, or a song title.`;
+    // If we cannot anchor yet, ask for missing slots (single next step)
+    let reply = "";
+
+    if (!haveArtist && !haveTitle) {
+      reply = `Give me either the artist name or the song title.`;
+    } else if (haveArtist && !haveYear && !haveTitle) {
+      reply = `Locked: ${sess.laneDetail.artist}. Next action: give me the year (example: 1986) or the song title.`;
+      if (userChoseKeepYear) reply = `Locked: ${sess.laneDetail.artist}. Next action: give me the song title.`;
+    } else if (!haveArtist && haveTitle) {
+      reply = `Locked: "${sess.laneDetail.title}". Next action: give me the artist (or the year).`;
+    } else if (!haveTitle && haveYear && !haveArtist) {
+      reply = `Year locked: ${sess.laneDetail.year}. Next action: give me the artist or the song title.`;
+    } else {
+      reply = `To anchor the moment, give me an artist + year (or a song title).`;
+    }
+
+    const escalate = shouldEscalate(sess, "music_need_slot", reply);
+    if (escalate) reply += `\nExample: Madonna - Like a Virgin 1984`;
 
     saveSession(sid, sess);
-    return send(res, sid, sess, "awaiting_anchor", reply, requestId);
+    return send(res, sid, sess, "music_need_slot", reply, requestId);
   }
 
   // ------------------------------
-  // Other lanes (stubs)
+  // Non-music lanes (basic)
   // ------------------------------
   if (sess.currentLane === "tv") {
     sess.lastDomain = "tv";
     saveSession(sid, sess);
-    return send(res, sid, sess, "tv_stub", `TV lane is live. Tell me the show and what you need (schedule, synopsis, sponsors, or a pitch).`, requestId);
+    return send(res, sid, sess, "tv_stub", `TV lane is live. Tell me the show name (or “schedule” / “recommend”).`, requestId);
   }
 
   if (sess.currentLane === "news_canada") {
@@ -801,6 +898,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
     return send(res, sid, sess, "sponsors_stub", `Sponsors lane is live. Tell me the business type and goal (awareness/leads/foot traffic).`, requestId);
   }
 
+  // Default
   sess.currentLane = sess.currentLane || "general";
   sess.lastDomain = "general";
   saveSession(sid, sess);
