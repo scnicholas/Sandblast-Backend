@@ -1,12 +1,11 @@
 /**
  * index.js — Nyx Broadcast Backend (Bulletproof)
- * Build: nyx-bulletproof-v1.53-2025-12-18
+ * Build: nyx-bulletproof-v1.54-2025-12-18
  *
- * Fixes in v1.53:
- * - Loop-killer: prevents "artist repeated" from being inferred as a title
- *   (stops music_not_found loop and "try Artist - Title" repeating)
- * - Keeps lane lock: never bounces out of music_history once locked
- * - Preserves v1.52 improvements (artist+year fallback lists, keep-year, numeric pick)
+ * Fixes in v1.54:
+ * - Artist-missing guard: if artist is not in current dump, stop "Try Artist - Title" loops and say it plainly.
+ * - Uses musicKnowledge.getDb() when available (stable loader)
+ * - Keeps v1.53 loop-killer + lane lock + artist/year fallback lists
  */
 
 "use strict";
@@ -53,7 +52,7 @@ try {
 // Config
 // ------------------------------
 const PORT = process.env.PORT || 3000;
-const BUILD_TAG = "nyx-bulletproof-v1.53-2025-12-18";
+const BUILD_TAG = "nyx-bulletproof-v1.54-2025-12-18";
 const DEFAULT_CHART = "Billboard Hot 100";
 const DEBUG_ENABLED = String(process.env.DEBUG || "").toLowerCase() === "true";
 
@@ -269,7 +268,12 @@ setInterval(cleanupSessions, 15 * 60 * 1000).unref?.();
 // ------------------------------
 let MUSIC_DB = { moments: [] };
 try {
-  if (musicKB && typeof musicKB.loadDb === "function") MUSIC_DB = musicKB.loadDb();
+  if (musicKB) {
+    if (typeof musicKB.getDb === "function") MUSIC_DB = musicKB.getDb();
+    else if (typeof musicKB.loadDb === "function") MUSIC_DB = musicKB.loadDb();
+    else if (typeof musicKB.loadDB === "function") MUSIC_DB = musicKB.loadDB();
+    else if (typeof musicKB.db === "function") MUSIC_DB = musicKB.db();
+  }
 } catch (_) {
   MUSIC_DB = { moments: [] };
 }
@@ -318,6 +322,14 @@ function yearsForArtist(artistName) {
     if (y) ys.add(y);
   }
   return Array.from(ys).sort((a, b) => a - b);
+}
+
+// NEW: determine if artist exists in dump (prevents "try artist-title" loop feel)
+function artistExistsInDump(artistName) {
+  const aKey = norm(artistName);
+  if (!aKey) return false;
+  const arr = MUSIC_INDEX.byArtist.get(aKey) || [];
+  return arr.length > 0;
 }
 
 // ------------------------------
@@ -610,7 +622,6 @@ app.post("/api/sandblast-gpt", (req, res) => {
   if (cmd.cmd === "clear_artist") sess.laneDetail.artist = null;
   if (cmd.cmd === "set_year") sess.laneDetail.year = cmd.year;
 
-  // “keep year” means: stop demanding a year; don’t clear it if present, just proceed.
   const userChoseKeepYear = cmd.cmd === "keep_year";
 
   // HARD RULE: if music_history is active, DO NOT bounce to general routing
@@ -687,8 +698,6 @@ app.post("/api/sandblast-gpt", (req, res) => {
     if (chartFromText) sess.laneDetail.chart = chartFromText;
 
     // ---- LOOP KILLER PATCH (backend-side) ----
-    // If artist is already locked and user repeats the artist name
-    // (no dash/title and no year), do NOT infer title from that input.
     const lockedArtistNorm = sess.laneDetail.artist ? norm(sess.laneDetail.artist) : "";
     const incomingNorm = norm(userText);
     const hasDash = /[-:]/.test(String(userText || ""));
@@ -708,7 +717,6 @@ app.post("/api/sandblast-gpt", (req, res) => {
       a = detectArtist(userText) || inferArtistFallback(userText);
       ti = detectTitle(userText) || inferTitleFallback(userText);
     } else {
-      // reaffirm artist; avoid polluting title
       a = null;
       ti = null;
     }
@@ -733,6 +741,15 @@ app.post("/api/sandblast-gpt", (req, res) => {
     const haveYear = !!sess.laneDetail.year;
     const haveTitle = !!sess.laneDetail.title;
 
+    // NEW: if artist is locked but not in dump, stop the "try artist-title" pattern immediately.
+    if (haveArtist && !artistExistsInDump(sess.laneDetail.artist)) {
+      const reply =
+        `I don’t have ${sess.laneDetail.artist} in the current ${((MUSIC_DB && MUSIC_DB.moments) || []).length}-card dump yet.\n` +
+        `Next action: either (1) try a different artist/title, or (2) add the next batch of cards and I’ll recognize them immediately.`;
+      saveSession(sid, sess);
+      return send(res, sid, sess, "music_artist_missing", reply, requestId);
+    }
+
     // Anchor gating: allow title-only OR artist+year
     const canAnchor = haveTitle || (haveArtist && haveYear);
 
@@ -754,7 +771,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
 
       if (arr.length) {
         const top = arr.slice(0, 5);
-        sess.laneDetail._lastList = top; // numeric picks
+        sess.laneDetail._lastList = top;
         const titles = top.map((m, i) => `${i + 1}) ${m.title}`).join("\n");
         const reply =
           `I found ${arr.length} matches for ${sess.laneDetail.artist} in ${yVal}.\n` +
@@ -765,7 +782,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
         return send(res, sid, sess, "choose_title_from_artist_year", reply, requestId);
       }
 
-      // If artist exists but that year doesn’t, fall back to artist-only list + available years
+      // Fall back to artist-only list + available years
       const allForArtist = MUSIC_INDEX.byArtist.get(aKey) || [];
       if (allForArtist.length) {
         const yrs = yearsForArtist(sess.laneDetail.artist).slice(0, 20);
@@ -775,7 +792,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
           .sort((x, y) => (Number(x.year || 0) - Number(y.year || 0)) || norm(x.title).localeCompare(norm(y.title)))
           .slice(0, 5);
 
-        sess.laneDetail._lastList = top; // numeric picks
+        sess.laneDetail._lastList = top;
         const list = top.map((m, i) => `${i + 1}) ${m.title} (${m.year || "year unknown"})`).join("\n");
 
         const reply =
@@ -787,7 +804,6 @@ app.post("/api/sandblast-gpt", (req, res) => {
         saveSession(sid, sess);
         return send(res, sid, sess, "choose_title_artist_fallback", reply, requestId);
       }
-      // If artist truly not in dump, fall through to not_found below
     }
 
     if (canAnchor) {
@@ -811,7 +827,6 @@ app.post("/api/sandblast-gpt", (req, res) => {
         return send(res, sid, sess, "music_answer", reply, requestId);
       }
 
-      // Not found: stronger next step to avoid “loop feel”
       let reply = `I didn’t find that exact match in the current card dump yet.`;
       const escalate = shouldEscalate(sess, "music_not_found", reply);
 
@@ -833,7 +848,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
       return send(res, sid, sess, "music_not_found", reply, requestId);
     }
 
-    // If we cannot anchor yet, ask for missing slots (non-loop)
+    // Missing slots
     let reply = "";
 
     if (!haveArtist && !haveTitle) {
