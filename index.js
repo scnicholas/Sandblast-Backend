@@ -9,7 +9,7 @@
  * - Deterministic state machine + escalation (never repeats the same ask)
  * - Memory safety (caps) + stable error handling
  *
- * Build: nyx-bulletproof-v1.41-2025-12-18
+ * Build: nyx-bulletproof-v1.42-2025-12-18
  */
 
 "use strict";
@@ -59,7 +59,7 @@ app.use(
 app.options("*", cors({ origin: true }));
 
 const PORT = process.env.PORT || 3000;
-const BUILD_TAG = "nyx-bulletproof-v1.41-2025-12-18";
+const BUILD_TAG = "nyx-bulletproof-v1.42-2025-12-18";
 const DEFAULT_CHART = "Billboard Hot 100";
 
 // ------------------------------
@@ -133,12 +133,6 @@ setInterval(() => {
 // ------------------------------
 // Sessions: Self-healing continuity
 // ------------------------------
-//
-// Continuity levels:
-// 1) meta.sessionId (preferred)
-// 2) Fingerprint -> sessionId mapping if widget drops sessionId
-// 3) Hard fallback fingerprint session
-//
 const SESS = new Map(); // sid -> session
 const FP = new Map(); // fingerprint -> { sid, expiresAt }
 const SESS_TTL_MS = 6 * 60 * 60 * 1000; // 6h
@@ -157,7 +151,6 @@ function genSessionId() {
 }
 
 function fingerprint(req) {
-  // Stable but not overly unique: good enough to recover continuity when widget drops meta
   const xff = String(req.headers["x-forwarded-for"] || "");
   const ip = (xff.split(",")[0].trim() || req.ip || "unknown").toString();
   const ua = String(req.headers["user-agent"] || "").slice(0, 180);
@@ -190,7 +183,6 @@ function saveSession(sid, sess) {
 
 function capMapSize(map, max) {
   if (map.size <= max) return;
-  // Remove oldest entries (simple O(n) scan; fine at these sizes)
   let oldestKey = null;
   let oldestTs = Infinity;
   for (const [k, v] of map.entries()) {
@@ -215,7 +207,6 @@ function cleanupSessions() {
     if (!v || !v.expiresAt || v.expiresAt <= now) FP.delete(fp);
   }
 
-  // Enforce caps (defensive)
   while (SESS.size > MAX_SESSIONS) capMapSize(SESS, MAX_SESSIONS);
   while (FP.size > MAX_FINGERPRINTS) capMapSize(FP, MAX_FINGERPRINTS);
 }
@@ -325,7 +316,7 @@ function safePickBest(fields) {
       return musicKB.pickBestMoment(MUSIC_DB, fields);
     }
   } catch {}
-  // fallback minimal search if KB isn’t available
+
   const moments = (MUSIC_DB && MUSIC_DB.moments) || [];
   const na = fields.artist ? norm(fields.artist) : null;
   const nt = fields.title ? norm(fields.title) : null;
@@ -354,6 +345,56 @@ function detectTitle(text) {
       return musicKB.detectTitle(text);
     } catch {}
   }
+  return null;
+}
+
+/**
+ * LOOP FIX:
+ * If KB title detection fails (common), treat a short, clean phrase as a title.
+ * This is what prevents “Like a Virgin” → “I need title/artist” loops.
+ */
+function inferTitleFallback(text) {
+  const raw = String(text || "").trim();
+  const t = norm(raw);
+
+  if (!raw) return null;
+
+  // ignore lane/commands
+  if (t === "music history" || t === "music" || t === "tv" || t === "news" || t === "sponsors") return null;
+  if (t.startsWith("switch year") || t.startsWith("set year") || t.startsWith("use year")) return null;
+  if (t === "clear title" || t === "reset title") return null;
+  if (t === "clear year" || t === "reset year") return null;
+  if (t === "clear artist" || t === "reset artist") return null;
+  if (t === "keep year" || t === "keep the year") return null;
+
+  // If user included a year, don't treat as pure title
+  if (/\b(19\d{2}|20\d{2})\b/.test(raw)) return null;
+
+  // "Artist - Title" or "Artist: Title" -> take title
+  const m = raw.match(/^(.{2,40})\s*[-:]\s*(.{2,80})$/);
+  if (m) return String(m[2]).trim();
+
+  // Short human phrase -> title
+  if (raw.length >= 2 && raw.length <= 60) return raw;
+
+  return null;
+}
+
+function inferArtistFallback(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return null;
+
+  // If includes a year, don't treat as pure artist
+  if (/\b(19\d{2}|20\d{2})\b/.test(raw)) return null;
+
+  // "Artist - Title" -> take artist
+  const m = raw.match(/^(.{2,40})\s*[-:]\s*(.{2,80})$/);
+  if (m) return String(m[1]).trim();
+
+  // 1–4 word phrase is often an artist (basic heuristic)
+  const words = raw.split(/\s+/).filter(Boolean);
+  if (words.length >= 1 && words.length <= 4 && !/[#@/\\]/.test(raw)) return raw;
+
   return null;
 }
 
@@ -439,7 +480,6 @@ app.post("/api/sandblast-gpt", (req, res) => {
         laneDetail: { chart: DEFAULT_CHART },
         mem: {},
         stepIndex: 0,
-        // anti-loop
         _lastStepName: "",
         _lastPromptSig: "",
         _repeatCount: 0,
@@ -447,20 +487,18 @@ app.post("/api/sandblast-gpt", (req, res) => {
         updatedAt: nowMs()
       };
 
-    // Merge in meta.laneDetail/mem if provided (non-destructive; server is authoritative)
+    // Merge client meta (non-destructive; server is authoritative)
     const inLane = incomingMeta.laneDetail || {};
     const inMem = incomingMeta.mem || {};
 
     sess.laneDetail = sess.laneDetail || {};
     sess.mem = sess.mem || {};
 
-    // Only fill empty slots from client meta (never overwrite server truth with null/empty)
     for (const k of ["artist", "title", "chart"]) {
       if (!sess.laneDetail[k] && inLane[k]) sess.laneDetail[k] = inLane[k];
     }
     if (!sess.laneDetail.year && inLane.year) sess.laneDetail.year = Number(inLane.year) || sess.laneDetail.year;
 
-    // Mem fill (non-destructive)
     if (!sess.mem.musicYear && inMem.musicYear) sess.mem.musicYear = Number(inMem.musicYear) || sess.mem.musicYear;
 
     const msgN = norm(userMessage);
@@ -543,7 +581,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
       if (chart) sess.laneDetail.chart = chart;
       sess.laneDetail.chart ||= DEFAULT_CHART;
 
-      // executable commands (resolve dead-ends)
+      // executable commands
       const cmd = parseCommand(userMessage);
       if (cmd.cmd === "clear_title") {
         sess.laneDetail.title = null;
@@ -573,17 +611,16 @@ app.post("/api/sandblast-gpt", (req, res) => {
         sess.laneDetail.year = Number(sess.mem.musicYear) || sess.laneDetail.year;
       }
 
-      // lock artist/title (only fill if missing)
+      // lock artist/title (only fill if missing) — WITH FALLBACKS
       if (!sess.laneDetail.artist) {
         const n = msgN;
-        if (n.includes("peobo bryson")) sess.laneDetail.artist = "Peabo Bryson";
-        else if (n.includes("peabo bryson")) sess.laneDetail.artist = "Peabo Bryson";
+        if (n.includes("peobo bryson") || n.includes("peabo bryson")) sess.laneDetail.artist = "Peabo Bryson";
         else if (n.includes("roberta flack")) sess.laneDetail.artist = "Roberta Flack";
         else if (n.includes("peter cetera")) sess.laneDetail.artist = "Peter Cetera";
-        else sess.laneDetail.artist = detectArtist(userMessage) || null;
+        else sess.laneDetail.artist = detectArtist(userMessage) || inferArtistFallback(userMessage) || null;
       }
       if (!sess.laneDetail.title) {
-        sess.laneDetail.title = detectTitle(userMessage) || null;
+        sess.laneDetail.title = detectTitle(userMessage) || inferTitleFallback(userMessage) || null;
       }
 
       const slots = sess.laneDetail;
@@ -621,14 +658,13 @@ app.post("/api/sandblast-gpt", (req, res) => {
         return send(res, sid, sess, stepName, reply, true, requestId);
       }
 
-      // Title/year mismatch handler (no “suggest-only” loop)
+      // Title/year mismatch handler
       if (slots.artist && slots.year && slots.title && !bestFull) {
         sess._mismatchCount = Number(sess._mismatchCount || 0) + 1;
 
         const byTitle = safePickBest({ title: slots.title });
         const suggestedYear = byTitle?.year ? Number(byTitle.year) : null;
 
-        // If mismatch repeats, force-progress and give executable commands
         if (sess._mismatchCount >= 2) {
           const bestAY = safePickBest({ artist: slots.artist, year: slots.year });
 
@@ -684,7 +720,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
         return send(res, sid, sess, stepName, reply, true, requestId);
       }
 
-      // Artist+year locked but no title: anti-loop escalation
+      // Artist+year locked but no title: escalation
       if (slots.artist && slots.year && !slots.title) {
         const askStep = "awaiting_title_or_intent";
         const askReply = `Locked: ${String(slots.artist).toUpperCase()} (${slots.year}). Next step: give the song title (or ask “Was it #1?”).`;
@@ -717,7 +753,6 @@ app.post("/api/sandblast-gpt", (req, res) => {
           return send(res, sid, sess, stepName, reply, true, requestId);
         }
 
-        // Ask once
         sess._lastStepName = askStep;
         sess._lastPromptSig = askSig;
         saveSession(sid, sess);
@@ -750,7 +785,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
         return send(res, sid, sess, stepName, finalReply, true, requestId);
       }
 
-      // Year only
+      // Year only — strengthened escalation (prevents repeats)
       if (slots.year && !slots.artist && !slots.title) {
         const stepName = "awaiting_artist_or_title";
         const reply = `Year locked: ${slots.year}. Next step: give the artist name or the song title.`;
@@ -758,7 +793,10 @@ app.post("/api/sandblast-gpt", (req, res) => {
         const sig = promptSig(stepName, reply);
         sess._repeatCount = sig === lastSig && stepName === lastStep ? sess._repeatCount + 1 : 0;
 
-        const finalReply = sess._repeatCount >= 1 ? `We already have the year. Now I need either the artist or the title.` : reply;
+        const finalReply =
+          sess._repeatCount >= 1
+            ? `We already have the year. Give me ONE thing only: the artist or the title (example: “Madonna” or “Like a Virgin”).`
+            : reply;
 
         sess._lastStepName = stepName;
         sess._lastPromptSig = promptSig(stepName, finalReply);
@@ -793,9 +831,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
       return send(res, sid, sess, stepName, finalReply, false, requestId);
     }
 
-    // ----------------------------------------------------------
-    // Non-music lanes (stable placeholders)
-    // ----------------------------------------------------------
+    // Non-music lanes (placeholder)
     sess.lastDomain = domain || "general";
     sess.currentLane = sess.currentLane || "general";
     sess.stepIndex++;
@@ -813,7 +849,6 @@ app.post("/api/sandblast-gpt", (req, res) => {
 
     return send(res, sid, sess, stepName, reply, true, requestId);
   } catch (err) {
-    // Never crash; always return a controlled payload
     return res.status(500).json({
       ok: false,
       error: "SERVER_ERROR",
@@ -824,8 +859,8 @@ app.post("/api/sandblast-gpt", (req, res) => {
 });
 
 // ------------------------------
-// 404 (clean)
-–------------------------------
+// 404 (clean) — FIXED (no en-dash)
+// ------------------------------
 app.use((req, res) => {
   res.status(404).json({
     ok: false,
