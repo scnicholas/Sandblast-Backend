@@ -1,15 +1,17 @@
 /**
- * musicKnowledge.js — Bulletproof V2 Loader (Layer2-ready)
+ * musicKnowledge.js — Bulletproof V2.1 Loader (Layer2-ready)
  * Sandblast / Nyx
- * Authoritative, scalable, loop-proof
  *
- * Key upgrades:
- * - DB path selection via env + auto-fallbacks (no more code edits)
- * - V2 + Layer2 schema normalization (peak/weeks/#1/anchor_week/top10)
- * - Fast indexes (no per-call Map scans)
- * - Artist/title alias support + defensive matching
- * - Optional hot-reload by mtime (safe for Render)
+ * Updates in v2.1:
+ * - Backwards-compatible exports: loadDb, loadDB, getDb, db
+ * - Accepts DB as { moments: [...] } OR raw array [...]
+ * - BOM-safe JSON parsing
+ * - Safe "load once" getter (getDb)
+ * - More robust path resolution across Windows/Render
+ * - Hot reload only if enabled (MUSIC_DB_HOT_RELOAD=1)
  */
+
+"use strict";
 
 const fs = require("fs");
 const path = require("path");
@@ -53,13 +55,14 @@ const HOT_RELOAD = String(process.env.MUSIC_DB_HOT_RELOAD || "") === "1";
 // =============================
 // INTERNAL STATE
 // =============================
-let DB = { moments: [] };
+let DB = null; // will become { moments: [...] }
 let DB_PATH_RESOLVED = null;
 let DB_MTIME_MS = 0;
+let LOADED = false;
 
 let MOMENT_INDEX = []; // normalized moments
 let ARTIST_EXACT = new Map(); // normArtist -> canonical artist
-let TITLE_EXACT = new Map();  // normTitle -> canonical title
+let TITLE_EXACT = new Map();  // normTitle  -> canonical title
 
 // Fast contains match: use token maps
 let ARTIST_TOKEN_MAP = new Map(); // token -> Set(normArtist)
@@ -94,7 +97,7 @@ function fileExists(p) {
 }
 
 function resolveDbPath() {
-  // If ENV is set, honor it (relative to project root)
+  // If ENV is set, honor it (absolute or relative to project root)
   if (ENV_DB_PATH) {
     const abs = path.isAbsolute(ENV_DB_PATH)
       ? ENV_DB_PATH
@@ -109,9 +112,9 @@ function resolveDbPath() {
     if (fileExists(abs)) return abs;
   }
 
-  // As final attempt, try relative to this file
+  // Try candidates relative to this module (in case cwd differs)
   for (const rel of DB_CANDIDATES) {
-    const abs = path.join(__dirname, "..", rel.replace(/^Data\//, "Data/"));
+    const abs = path.resolve(__dirname, "..", rel);
     if (fileExists(abs)) return abs;
   }
 
@@ -130,11 +133,11 @@ function normalizeChart(chart) {
   const n = norm(c);
   if (CHART_ALIASES.has(n)) return CHART_ALIASES.get(n);
 
-  // If already one of our canonical values, keep it
+  // If already canonical, keep it
   if (c === "Billboard Hot 100" || c === "UK Singles Chart" || c === "Canada RPM" || c === "Top40Weekly") {
     return c;
   }
-  // Otherwise keep as-is (lets you add future charts without edits)
+  // Otherwise keep as-is (future charts without edits)
   return c;
 }
 
@@ -156,12 +159,17 @@ function addToken(map, token, value) {
   set.add(value);
 }
 
+function stripBom(s) {
+  // handles UTF-8 BOM
+  if (!s) return s;
+  return s.charCodeAt(0) === 0xfeff ? s.slice(1) : s;
+}
+
 function buildTokenMaps() {
   ARTIST_TOKEN_MAP.clear();
   TITLE_TOKEN_MAP.clear();
 
   for (const m of MOMENT_INDEX) {
-    // Tokens for artist/title to enable fast "contains" resolution
     const at = tokenize(m.artist);
     const tt = tokenize(m.title);
 
@@ -174,8 +182,6 @@ function buildDefaultAliases() {
   ARTIST_ALIASES.clear();
   TITLE_ALIASES.clear();
 
-  // Common short forms / typos / surname-only conveniences
-  // You can extend this anytime without breaking callers.
   const artistPairs = [
     ["mj", "Michael Jackson"],
     ["peter cetera", "Peter Cetera"],
@@ -183,8 +189,7 @@ function buildDefaultAliases() {
     ["roberta flack", "Roberta Flack"],
     ["flack", "Roberta Flack"],
     ["peabo bryson", "Peabo Bryson"],
-    // handle user typo
-    ["peobo bryson", "Peabo Bryson"],
+    ["peobo bryson", "Peabo Bryson"], // common typo
     ["bryson", "Peabo Bryson"]
   ];
 
@@ -192,14 +197,10 @@ function buildDefaultAliases() {
     ARTIST_ALIASES.set(norm(a), canon);
   }
 
-  // Title aliases can be populated later (Layer2 will provide real titles)
+  // Title aliases can be populated later.
 }
 
 function validateDb(moments) {
-  // Hard requirements for Layer1/Layer2:
-  // - artist + year must exist for anchor coverage
-  // - chart optional (default will be applied)
-  // - title optional (Layer1 may be blank)
   let missing = 0;
   let dupes = 0;
 
@@ -225,15 +226,14 @@ function validateDb(moments) {
 // NORMALIZE + INDEX
 // =============================
 function normalizeMoment(raw) {
-  // V2 + Layer2 normalization
   const artist = String(raw.artist || "").trim();
   const title = String(raw.title || "").trim();
   const year = toInt(raw.year);
   const chart = normalizeChart(raw.chart);
 
-  // Layer2 fields (optional)
   const peak = toInt(raw.peak);
   const weeks_on_chart = toInt(raw.weeks_on_chart);
+
   const is_number_one =
     typeof raw.is_number_one === "boolean" ? raw.is_number_one :
     raw.is_number_one != null ? isTruthy(raw.is_number_one) : false;
@@ -243,7 +243,6 @@ function normalizeMoment(raw) {
 
   const top10 = Array.isArray(raw.top10) ? raw.top10 : null;
 
-  // V1/V2 text fields
   const fact = String(raw.chart_fact || raw.fact || "").trim();
   const culture = String(raw.cultural_moment || raw.culture || "").trim();
   const next = String(raw.next_step || raw.next || "").trim();
@@ -254,7 +253,6 @@ function normalizeMoment(raw) {
     year,
     chart,
 
-    // Layer2 numeric/meta
     peak,
     weeks_on_chart,
     is_number_one: !!is_number_one,
@@ -262,12 +260,10 @@ function normalizeMoment(raw) {
     anchor_week,
     top10,
 
-    // Text
     fact,
     culture,
     next,
 
-    // Norm keys
     _na: norm(artist),
     _nt: norm(title)
   };
@@ -305,7 +301,8 @@ function loadDb() {
   const stat = fs.statSync(DB_PATH_RESOLVED);
   DB_MTIME_MS = stat.mtimeMs;
 
-  const raw = fs.readFileSync(DB_PATH_RESOLVED, "utf8");
+  const raw = stripBom(fs.readFileSync(DB_PATH_RESOLVED, "utf8"));
+
   let json;
   try {
     json = JSON.parse(raw);
@@ -313,14 +310,27 @@ function loadDb() {
     failHard(`Music DB JSON is invalid at ${DB_PATH_RESOLVED}`);
   }
 
-  if (!json || !Array.isArray(json.moments)) {
-    failHard(`Music DB missing moments[] array at ${DB_PATH_RESOLVED}`);
+  // Accept either { moments: [...] } OR raw array
+  let moments = null;
+  if (Array.isArray(json)) moments = json;
+  else if (json && Array.isArray(json.moments)) moments = json.moments;
+
+  if (!moments) {
+    failHard(`Music DB must be { moments: [...] } or a raw array at ${DB_PATH_RESOLVED}`);
   }
 
-  validateDb(json.moments);
+  validateDb(moments);
 
-  DB = json;
-  buildIndexes(json.moments);
+  DB = { moments };
+  buildIndexes(moments);
+
+  LOADED = true;
+  return DB;
+}
+
+// Public getter: ensures DB is loaded once
+function getDb() {
+  if (!LOADED || !DB) return loadDb();
   return DB;
 }
 
@@ -346,15 +356,12 @@ function detectArtist(text) {
   const t = norm(text);
   if (!t) return null;
 
-  // Alias exact
   const alias = ARTIST_ALIASES.get(t);
   if (alias) return alias;
 
-  // Exact artist match
   const exact = ARTIST_EXACT.get(t);
   if (exact) return exact;
 
-  // Token-assisted contains: find candidate normArtists sharing tokens with input
   const toks = tokenize(t);
   const candidateNorms = new Set();
   for (const tok of toks) {
@@ -362,7 +369,6 @@ function detectArtist(text) {
     if (set) for (const na of set) candidateNorms.add(na);
   }
 
-  // Prefer longest-matching artist name inside input (reduces false matches)
   let best = null;
   let bestLen = 0;
   for (const na of candidateNorms) {
@@ -379,11 +385,9 @@ function detectTitle(text) {
   const t = norm(text);
   if (!t) return null;
 
-  // Title aliases if you add them later
   const alias = TITLE_ALIASES.get(t);
   if (alias) return alias;
 
-  // Exact title match
   const exact = TITLE_EXACT.get(t);
   if (exact) return exact;
 
@@ -411,26 +415,23 @@ function extractYear(text) {
 }
 
 // =============================
-// CORE MATCHER (NO LOOPS)
+// CORE MATCHER (DETERMINISTIC)
 // =============================
-//
-// Matching strategy (stable + deterministic):
-// 1) artist + title (+ chart if provided) (+ year if provided)
-// 2) artist + year (+ chart if provided)
-// 3) title only (+ chart if provided)
-// 4) artist only (best available, chart if provided)
-//
 function pickBestMoment(_db, fields = {}) {
   maybeReload();
+
+  const db = getDb();
+  const moments = (db && db.moments) || [];
 
   const na = fields.artist ? norm(fields.artist) : null;
   const nt = fields.title ? norm(fields.title) : null;
   const y = fields.year ? Number(fields.year) : null;
   const chart = fields.chart ? normalizeChart(fields.chart) : null;
 
-  if (!MOMENT_INDEX.length) return null;
+  if (!moments.length) return null;
 
-  // Helper: filter with minimal passes
+  const chartNorm = chart ? norm(chart) : null;
+
   const match = (fn) => {
     for (const m of MOMENT_INDEX) {
       if (fn(m)) return m;
@@ -443,7 +444,7 @@ function pickBestMoment(_db, fields = {}) {
     const hit = match(m =>
       m._na === na &&
       m._nt === nt &&
-      (!chart || norm(m.chart) === norm(chart)) &&
+      (!chartNorm || norm(m.chart) === chartNorm) &&
       (!y || m.year === y)
     );
     if (hit) return hit;
@@ -454,7 +455,7 @@ function pickBestMoment(_db, fields = {}) {
     const hit = match(m =>
       m._na === na &&
       m.year === y &&
-      (!chart || norm(m.chart) === norm(chart))
+      (!chartNorm || norm(m.chart) === chartNorm)
     );
     if (hit) return hit;
   }
@@ -463,21 +464,20 @@ function pickBestMoment(_db, fields = {}) {
   if (nt) {
     const hit = match(m =>
       m._nt === nt &&
-      (!chart || norm(m.chart) === norm(chart)) &&
+      (!chartNorm || norm(m.chart) === chartNorm) &&
       (!y || m.year === y)
     );
     if (hit) return hit;
   }
 
-  // 4) artist only (+ chart) — pick “closest” by year if provided
+  // 4) artist only (+ chart) — choose closest year if year is provided
   if (na) {
     if (y) {
-      // choose the artist record with minimal year distance
       let best = null;
       let bestDist = Infinity;
       for (const m of MOMENT_INDEX) {
         if (m._na !== na) continue;
-        if (chart && norm(m.chart) !== norm(chart)) continue;
+        if (chartNorm && norm(m.chart) !== chartNorm) continue;
         if (!m.year) continue;
         const d = Math.abs(m.year - y);
         if (d < bestDist) { best = m; bestDist = d; }
@@ -486,7 +486,7 @@ function pickBestMoment(_db, fields = {}) {
     } else {
       const hit = match(m =>
         m._na === na &&
-        (!chart || norm(m.chart) === norm(chart))
+        (!chartNorm || norm(m.chart) === chartNorm)
       );
       if (hit) return hit;
     }
@@ -496,10 +496,20 @@ function pickBestMoment(_db, fields = {}) {
 }
 
 // =============================
-// EXPORTS
+// EXPORTS (Backwards compatible)
 // =============================
 module.exports = {
+  // Preferred
   loadDb,
+  getDb,
+
+  // Backwards-compatible aliases
+  loadDB: loadDb,
+
+  // Allow one-liners: kb.db().moments.length
+  db: () => getDb(),
+
+  // Core capabilities
   pickBestMoment,
   detectArtist,
   detectTitle,
