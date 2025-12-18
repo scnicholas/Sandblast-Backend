@@ -1,3 +1,14 @@
+/**
+ * index.js — Nyx Broadcast Backend (Bulletproof)
+ * Build: nyx-bulletproof-v1.50-2025-12-18
+ *
+ * Key guarantees:
+ * - Lane lock: never bounces back to general when music_history is active
+ * - Slot-filling precedence: artist/title/year captured even without keywords
+ * - Anti-repeat escalation: won’t ask the same question endlessly
+ * - Scales to ~1500+ music moments with indexes
+ */
+
 "use strict";
 
 require("dotenv").config();
@@ -6,20 +17,13 @@ const express = require("express");
 const cors = require("cors");
 const crypto = require("crypto");
 
-let classifyIntent = null;
-try {
-  ({ classifyIntent } = require("./Utils/intentClassifier"));
-} catch (_) {}
-
-let musicKB = null;
-try {
-  musicKB = require("./Utils/musicKnowledge");
-} catch (_) {}
-
 const app = express();
 app.set("trust proxy", true);
+app.use(express.json({ limit: "1mb" }));
 
-app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || "2mb" }));
+// ------------------------------
+// CORS (Webflow embeds)
+// ------------------------------
 app.use(
   cors({
     origin: true,
@@ -30,42 +34,39 @@ app.use(
 );
 app.options("*", cors({ origin: true }));
 
+// ------------------------------
+// Optional modules (safe load)
+// ------------------------------
+let classifyIntent = null;
+try {
+  ({ classifyIntent } = require("./Utils/intentClassifier"));
+} catch (_) {}
+
+let musicKB = null;
+try {
+  musicKB = require("./Utils/musicKnowledge");
+} catch (_) {
+  musicKB = null;
+}
+
+// ------------------------------
+// Config
+// ------------------------------
 const PORT = process.env.PORT || 3000;
-const BUILD_TAG = "nyx-bulletproof-v1.44-2025-12-18";
-
+const BUILD_TAG = "nyx-bulletproof-v1.50-2025-12-18";
 const DEFAULT_CHART = "Billboard Hot 100";
-const MAX_MSG_CHARS = Number(process.env.MAX_MESSAGE_CHARS || 2500);
-
-// In-memory caps
-const SESS_TTL_MS = 6 * 60 * 60 * 1000;
-const FP_TTL_MS = 45 * 60 * 1000;
-const MAX_SESSIONS = Number(process.env.MAX_SESSIONS || 5000);
-const MAX_FINGERPRINTS = Number(process.env.MAX_FINGERPRINTS || 8000);
-
-// Music DB capacity (target 1500+ cards safely)
-const MAX_MUSIC_MOMENTS = Number(process.env.MAX_MUSIC_MOMENTS || 2500);
-
 const DEBUG_ENABLED = String(process.env.DEBUG || "").toLowerCase() === "true";
-let LAST_DEBUG = null;
+
+const MAX_MSG_CHARS = Number(process.env.MAX_MESSAGE_CHARS || 2500);
+const RATE_LIMIT_PER_MIN = Number(process.env.RATE_LIMIT_PER_MIN || 120);
 
 // ------------------------------
 // Helpers
 // ------------------------------
-const norm = (s) =>
-  String(s || "")
-    .toLowerCase()
-    .replace(/[^\w\s#]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-function safeMessage(raw) {
-  const s = String(raw ?? "").trim();
-  if (!s) return "";
-  return s.length > MAX_MSG_CHARS ? s.slice(0, MAX_MSG_CHARS) : s;
-}
 function nowMs() {
   return Date.now();
 }
+
 function tryUUID() {
   try {
     return crypto.randomUUID();
@@ -73,23 +74,45 @@ function tryUUID() {
     return `rid_${Date.now()}_${Math.random().toString(16).slice(2)}`;
   }
 }
-function genSessionId() {
-  try {
-    return crypto.randomUUID();
-  } catch {
-    return `sid_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-  }
+
+function safeMessage(raw) {
+  const s = String(raw ?? "").trim();
+  if (!s) return "";
+  return s.length > MAX_MSG_CHARS ? s.slice(0, MAX_MSG_CHARS) : s;
 }
 
-function normalizeDomain(d) {
-  const t = norm(d);
-  if (!t) return "general";
-  if (t === "music" || t === "music history" || t === "musichistory" || t === "music-history" || t === "music_history")
-    return "music_history";
-  if (t === "tv" || t === "sandblast tv" || t === "sandblasttv") return "tv";
-  if (t === "news" || t === "news canada" || t === "newscanada" || t === "news_canada") return "news_canada";
-  if (t === "sponsor" || t === "sponsors" || t === "sponsorship") return "sponsors";
-  return "general";
+const norm = (s) =>
+  String(s || "")
+    .toLowerCase()
+    .replace(/[^\w\s#]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+function promptSig(stepName, reply) {
+  const s = `${stepName || ""}::${String(reply || "").slice(0, 160)}`;
+  return norm(s).slice(0, 220);
+}
+
+function stripLeadingLabel(text, label) {
+  const s = String(text || "").trim();
+  if (!s) return "";
+  const r = new RegExp("^" + label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*:?\\s*", "i");
+  return s.replace(r, "").trim();
+}
+
+function sanitizeFact(f) {
+  let s = String(f || "").trim();
+  s = stripLeadingLabel(s, "chart fact");
+  s = stripLeadingLabel(s, "chart anchor");
+  s = stripLeadingLabel(s, "fact");
+  return s.trim();
+}
+
+function sanitizeCulture(c) {
+  let s = String(c || "").trim();
+  s = stripLeadingLabel(s, "cultural thread");
+  s = stripLeadingLabel(s, "culture");
+  return s.trim();
 }
 
 function extractYear(text) {
@@ -102,21 +125,6 @@ function extractYear(text) {
   return m ? Number(m[1]) : null;
 }
 
-function looksMusicHistory(text) {
-  const t = norm(text);
-  return (
-    t.includes("music") ||
-    t.includes("chart") ||
-    t.includes("billboard") ||
-    t.includes("hot 100") ||
-    t.includes("#1") ||
-    t.includes("number one") ||
-    t.includes("top40weekly") ||
-    t.includes("uk singles") ||
-    t.includes("rpm")
-  );
-}
-
 function resolveChartFromText(text) {
   const t = norm(text);
   if (t.includes("uk") || t.includes("uk singles") || t.includes("official charts")) return "UK Singles Chart";
@@ -126,100 +134,22 @@ function resolveChartFromText(text) {
   return null;
 }
 
-function sanitizeFact(f) {
-  let s = String(f || "").trim();
-  s = s.replace(/^chart fact\s*:\s*/i, "").replace(/^fact\s*:\s*/i, "").trim();
-  return s;
-}
-function sanitizeCulture(c) {
-  let s = String(c || "").trim();
-  s = s.replace(/^cultural thread\s*:\s*/i, "").replace(/^culture\s*:\s*/i, "").trim();
-  return s;
-}
-
-function detectArtist(text) {
-  if (musicKB && typeof musicKB.detectArtist === "function") {
-    try {
-      return musicKB.detectArtist(text);
-    } catch {}
-  }
-  return null;
-}
-function detectTitle(text) {
-  if (musicKB && typeof musicKB.detectTitle === "function") {
-    try {
-      return musicKB.detectTitle(text);
-    } catch {}
-  }
-  return null;
-}
-
-// Fallback: treat short phrase as title (prevents “title never captured” loop)
-function inferTitleFallback(text) {
-  const raw = String(text || "").trim();
-  const t = norm(raw);
-  if (!raw) return null;
-  if (t === "music" || t === "music history" || t === "tv" || t === "news" || t === "sponsors") return null;
-  if (t.startsWith("switch year") || t.startsWith("set year") || t.startsWith("use year")) return null;
-  if (t === "clear title" || t === "reset title") return null;
-  if (t === "clear year" || t === "reset year") return null;
-  if (t === "clear artist" || t === "reset artist") return null;
-  if (/\b(19\d{2}|20\d{2})\b/.test(raw)) return null;
-
-  const m = raw.match(/^(.{2,60})\s*[-:]\s*(.{2,80})$/);
-  if (m) return String(m[2]).trim();
-
-  if (raw.length >= 2 && raw.length <= 60) return raw;
-  return null;
-}
-
-// Fallback: treat short phrase as artist
-function inferArtistFallback(text) {
-  const raw = String(text || "").trim();
-  if (!raw) return null;
-  if (/\b(19\d{2}|20\d{2})\b/.test(raw)) return null;
-
-  const m = raw.match(/^(.{2,60})\s*[-:]\s*(.{2,80})$/);
-  if (m) return String(m[1]).trim();
-
-  const words = raw.split(/\s+/).filter(Boolean);
-  if (words.length >= 1 && words.length <= 5 && raw.length <= 40) return raw;
-  return null;
-}
-
 function hasNumberOneIntent(text) {
   return /#1|# 1|number one|no\.?\s?1|no 1/.test(norm(text));
 }
 
-function promptSig(stepName, reply) {
-  return norm(`${stepName || ""}::${String(reply || "").slice(0, 180)}`).slice(0, 240);
-}
-
-function parseCommand(text) {
-  const t = norm(text);
-  if (t === "clear title" || t === "reset title") return { cmd: "clear_title" };
-  if (t === "clear year" || t === "reset year") return { cmd: "clear_year" };
-  if (t === "clear artist" || t === "reset artist") return { cmd: "clear_artist" };
-  if (t === "keep year" || t === "keep the year") return { cmd: "keep_year" };
-
-  const setYear = t.match(/^(switch year to|set year to|use year)\s+(19\d{2}|20\d{2})$/);
-  if (setYear) return { cmd: "set_year", year: Number(setYear[2]) };
-
-  return { cmd: null };
-}
-
 // ------------------------------
-// Rate limit (simple)
+// Minimal rate limit
 // ------------------------------
-const RL = new Map();
+const RL = new Map(); // ip -> {count, resetAt}
 const RL_WINDOW_MS = 60_000;
-const RL_MAX = Number(process.env.RATE_LIMIT_PER_MIN || 120);
 
 function rateKey(req) {
   const xff = String(req.headers["x-forwarded-for"] || "");
   const ip = (xff.split(",")[0].trim() || req.ip || "unknown").toString();
   return ip;
 }
+
 function rateLimit(req, res) {
   const key = rateKey(req);
   const now = nowMs();
@@ -233,7 +163,7 @@ function rateLimit(req, res) {
   cur.count++;
   RL.set(key, cur);
 
-  if (cur.count > RL_MAX) {
+  if (cur.count > RATE_LIMIT_PER_MIN) {
     res.status(429).json({
       ok: false,
       error: "RATE_LIMITED",
@@ -244,9 +174,12 @@ function rateLimit(req, res) {
   }
   return false;
 }
+
 setInterval(() => {
   const now = nowMs();
-  for (const [k, v] of RL.entries()) if (!v || v.resetAt <= now) RL.delete(k);
+  for (const [k, v] of RL.entries()) {
+    if (!v || v.resetAt <= now) RL.delete(k);
+  }
 }, 30_000).unref?.();
 
 // ------------------------------
@@ -254,6 +187,19 @@ setInterval(() => {
 // ------------------------------
 const SESS = new Map(); // sid -> session
 const FP = new Map(); // fingerprint -> { sid, expiresAt }
+const SESS_TTL_MS = 6 * 60 * 60 * 1000;
+const FP_TTL_MS = 45 * 60 * 1000;
+
+const MAX_SESSIONS = Number(process.env.MAX_SESSIONS || 5000);
+const MAX_FINGERPRINTS = Number(process.env.MAX_FINGERPRINTS || 8000);
+
+function genSessionId() {
+  try {
+    return crypto.randomUUID();
+  } catch {
+    return `sid_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  }
+}
 
 function fingerprint(req) {
   const xff = String(req.headers["x-forwarded-for"] || "");
@@ -277,6 +223,15 @@ function resolveSessionId(req, incomingMeta) {
   return newSid;
 }
 
+function getSession(sid) {
+  return SESS.get(sid) || null;
+}
+
+function saveSession(sid, sess) {
+  sess.updatedAt = nowMs();
+  SESS.set(sid, sess);
+}
+
 function capMapSize(map, max) {
   if (map.size <= max) return;
   let oldestKey = null;
@@ -293,97 +248,260 @@ function capMapSize(map, max) {
 
 function cleanupSessions() {
   const cutoff = nowMs() - SESS_TTL_MS;
+
   for (const [sid, sess] of SESS.entries()) {
     if (!sess || !sess.updatedAt || sess.updatedAt < cutoff) SESS.delete(sid);
   }
+
   const now = nowMs();
-  for (const [fp, v] of FP.entries()) if (!v || !v.expiresAt || v.expiresAt <= now) FP.delete(fp);
+  for (const [fp, v] of FP.entries()) {
+    if (!v || !v.expiresAt || v.expiresAt <= now) FP.delete(fp);
+  }
 
   while (SESS.size > MAX_SESSIONS) capMapSize(SESS, MAX_SESSIONS);
   while (FP.size > MAX_FINGERPRINTS) capMapSize(FP, MAX_FINGERPRINTS);
 }
+
 setInterval(cleanupSessions, 15 * 60 * 1000).unref?.();
 
 // ------------------------------
-// Music DB
+// Music DB load + indexes
 // ------------------------------
 let MUSIC_DB = { moments: [] };
-
-function loadMusicDbSafe() {
-  let db = { moments: [] };
-  try {
-    if (musicKB && typeof musicKB.loadDb === "function") db = musicKB.loadDb();
-  } catch (_) {
-    db = { moments: [] };
-  }
-  if (!db || typeof db !== "object") db = { moments: [] };
-  if (!Array.isArray(db.moments)) db.moments = [];
-  if (db.moments.length > MAX_MUSIC_MOMENTS) db.moments = db.moments.slice(0, MAX_MUSIC_MOMENTS);
-  return db;
+try {
+  if (musicKB && typeof musicKB.loadDb === "function") MUSIC_DB = musicKB.loadDb();
+} catch (_) {
+  MUSIC_DB = { moments: [] };
 }
 
-MUSIC_DB = loadMusicDbSafe();
+const MUSIC_INDEX = {
+  byArtist: new Map(),      // norm(artist) -> [moment]
+  byTitle: new Map(),       // norm(title)  -> [moment]
+  byArtistYear: new Map(),  // norm(artist)+"|"+year -> [moment]
+  byYear: new Map()         // year -> [moment]
+};
 
-function findMoments({ artist, year, title }) {
+function idxPush(map, key, val) {
+  if (!key) return;
+  const arr = map.get(key);
+  if (arr) arr.push(val);
+  else map.set(key, [val]);
+}
+
+function buildMusicIndexes() {
+  // idempotent rebuild
+  MUSIC_INDEX.byArtist.clear();
+  MUSIC_INDEX.byTitle.clear();
+  MUSIC_INDEX.byArtistYear.clear();
+  MUSIC_INDEX.byYear.clear();
+
   const moments = (MUSIC_DB && MUSIC_DB.moments) || [];
-  const a = artist ? norm(artist) : null;
-  const t = title ? norm(title) : null;
-  const y = year ? Number(year) : null;
-
-  // Full match
-  if (a && t && y) {
-    return moments.filter((m) => norm(m.artist) === a && norm(m.title) === t && Number(m.year) === y);
-  }
-  // Artist + year (returns list)
-  if (a && y && !t) {
-    return moments.filter((m) => norm(m.artist) === a && Number(m.year) === y);
-  }
-  // Title only
-  if (t && !a && !y) {
-    return moments.filter((m) => norm(m.title) === t);
-  }
-  // Artist only (list across years)
-  if (a && !y && !t) {
-    return moments.filter((m) => norm(m.artist) === a);
-  }
-  // Year only
-  if (y && !a && !t) {
-    return moments.filter((m) => Number(m.year) === y);
-  }
-  // Artist + title (any year)
-  if (a && t && !y) {
-    return moments.filter((m) => norm(m.artist) === a && norm(m.title) === t);
-  }
-  return [];
-}
-
-function uniqueYears(moments) {
-  const s = new Set();
-  for (const m of moments) if (m && m.year) s.add(Number(m.year));
-  return Array.from(s).filter((n) => Number.isFinite(n)).sort((x, y) => x - y);
-}
-
-function pickBestMoment(moments) {
-  // Prefer one with fact/culture/next filled, otherwise first
-  let best = null;
-  let bestScore = -1;
   for (const m of moments) {
-    const score =
-      (m?.fact || m?.chart_fact ? 2 : 0) +
-      (m?.culture || m?.cultural_moment ? 2 : 0) +
-      (m?.next || m?.next_step ? 1 : 0);
-    if (score > bestScore) {
-      best = m;
-      bestScore = score;
+    const a = norm(m.artist || "");
+    const t = norm(m.title || "");
+    const y = Number(m.year || 0) || null;
+
+    if (a) idxPush(MUSIC_INDEX.byArtist, a, m);
+    if (t) idxPush(MUSIC_INDEX.byTitle, t, m);
+    if (a && y) idxPush(MUSIC_INDEX.byArtistYear, `${a}|${y}`, m);
+    if (y) idxPush(MUSIC_INDEX.byYear, String(y), m);
+  }
+}
+
+buildMusicIndexes();
+
+// ------------------------------
+// Slot inference (prevents loops)
+// ------------------------------
+function detectArtist(text) {
+  if (musicKB && typeof musicKB.detectArtist === "function") {
+    try {
+      return musicKB.detectArtist(text);
+    } catch {}
+  }
+  return null;
+}
+
+function detectTitle(text) {
+  if (musicKB && typeof musicKB.detectTitle === "function") {
+    try {
+      return musicKB.detectTitle(text);
+    } catch {}
+  }
+  return null;
+}
+
+function inferTitleFallback(text) {
+  const raw = String(text || "").trim();
+  const t = norm(raw);
+  if (!raw) return null;
+
+  if (t === "music history" || t === "music" || t === "tv" || t === "news" || t === "sponsors") return null;
+  if (t.startsWith("switch lane") || t.startsWith("set lane")) return null;
+  if (t.startsWith("switch year") || t.startsWith("set year") || t.startsWith("use year")) return null;
+  if (t === "clear title" || t === "reset title") return null;
+
+  if (/\b(19\d{2}|20\d{2})\b/.test(raw)) return null;
+
+  const m = raw.match(/^(.{2,40})\s*[-:]\s*(.{2,80})$/);
+  if (m) return String(m[2]).trim();
+
+  if (raw.length >= 2 && raw.length <= 60) return raw;
+  return null;
+}
+
+function inferArtistFallback(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return null;
+  if (/\b(19\d{2}|20\d{2})\b/.test(raw)) return null;
+
+  const m = raw.match(/^(.{2,40})\s*[-:]\s*(.{2,80})$/);
+  if (m) return String(m[1]).trim();
+
+  const words = raw.split(/\s+/).filter(Boolean);
+  if (words.length >= 1 && words.length <= 4 && !/[#@/\\]/.test(raw)) return raw;
+
+  return null;
+}
+
+// ------------------------------
+// Commands
+// ------------------------------
+function parseCommand(text) {
+  const t = norm(text);
+  if (t === "clear title" || t === "reset title") return { cmd: "clear_title" };
+  if (t === "clear year" || t === "reset year") return { cmd: "clear_year" };
+  if (t === "clear artist" || t === "reset artist") return { cmd: "clear_artist" };
+  if (t === "keep year" || t === "keep the year") return { cmd: "keep_year" };
+
+  const setYear = t.match(/^(switch year to|set year to|use year)\s+(19\d{2}|20\d{2})$/);
+  if (setYear) return { cmd: "set_year", year: Number(setYear[2]) };
+
+  const setLane = t.match(/^(switch lane to|set lane to|use lane)\s+(music|music history|tv|news|news canada|sponsors)$/);
+  if (setLane) {
+    const laneRaw = setLane[2];
+    const lane =
+      laneRaw.includes("music") ? "music_history" :
+      laneRaw.includes("tv") ? "tv" :
+      laneRaw.includes("news") ? "news_canada" :
+      laneRaw.includes("sponsor") ? "sponsors" : "general";
+    return { cmd: "set_lane", lane };
+  }
+
+  return { cmd: null };
+}
+
+// ------------------------------
+// Music search
+// ------------------------------
+function pickBestMoment(fields) {
+  // Prefer KB picker if available
+  try {
+    if (musicKB && typeof musicKB.pickBestMoment === "function") {
+      return musicKB.pickBestMoment(MUSIC_DB, fields);
+    }
+  } catch {}
+
+  const a = fields.artist ? norm(fields.artist) : null;
+  const t = fields.title ? norm(fields.title) : null;
+  const y = fields.year ? Number(fields.year) : null;
+
+  // fastest: artist+year
+  if (a && y) {
+    const arr = MUSIC_INDEX.byArtistYear.get(`${a}|${y}`);
+    if (arr && arr.length) {
+      if (t) {
+        const hit = arr.find((m) => norm(m.title) === t);
+        if (hit) return hit;
+      }
+      return arr[0];
     }
   }
-  return best || (moments[0] || null);
+
+  // title only
+  if (t) {
+    const arr = MUSIC_INDEX.byTitle.get(t);
+    if (arr && arr.length) {
+      if (a) {
+        const hit = arr.find((m) => norm(m.artist) === a);
+        if (hit) return hit;
+      }
+      if (y) {
+        const hit = arr.find((m) => Number(m.year) === y);
+        if (hit) return hit;
+      }
+      return arr[0];
+    }
+  }
+
+  // artist only
+  if (a) {
+    const arr = MUSIC_INDEX.byArtist.get(a);
+    if (arr && arr.length) {
+      if (y) {
+        const hit = arr.find((m) => Number(m.year) === y);
+        if (hit) return hit;
+      }
+      return arr[0];
+    }
+  }
+
+  // year only
+  if (y) {
+    const arr = MUSIC_INDEX.byYear.get(String(y));
+    if (arr && arr.length) return arr[0];
+  }
+
+  return null;
+}
+
+function formatMusicReply(m, fields) {
+  // Keep it short, forward-moving, and “broadcast-ready”
+  const artist = m.artist || fields.artist || "Unknown artist";
+  const title = m.title || fields.title || "Unknown title";
+  const year = m.year || fields.year || "Unknown year";
+  const chart = fields.chart || DEFAULT_CHART;
+
+  const fact = sanitizeFact(m.fact || m.chartFact || m.anchorFact || "");
+  const culture = sanitizeCulture(m.culture || m.culturalThread || "");
+
+  const lines = [];
+  lines.push(`${artist} — "${title}" (${year})`);
+  lines.push(`Chart: ${chart}`);
+
+  if (fact) lines.push(`Proof point: ${fact}`);
+  if (culture) lines.push(`Cultural thread: ${culture}`);
+
+  // next action always
+  if (hasNumberOneIntent(fields.rawUserText || "")) {
+    lines.push(`Next action: Want #1 weeks and peak date, or should I pull 3 neighboring hits from ${year}?`);
+  } else {
+    lines.push(`Next action: If you want #1s, say “Was this #1?” or give me another artist/title.`);
+  }
+
+  return lines.join("\n");
 }
 
 // ------------------------------
-// Responses
+// Anti-loop escalation
 // ------------------------------
-function send(res, sid, sess, stepName, reply, advance, requestId) {
+function shouldEscalate(sess, stepName, reply) {
+  const sig = promptSig(stepName, reply);
+  if (sess._lastPromptSig && sess._lastPromptSig === sig) {
+    sess._repeatCount = (sess._repeatCount || 0) + 1;
+  } else {
+    sess._repeatCount = 0;
+  }
+  sess._lastPromptSig = sig;
+  return sess._repeatCount >= 1; // escalate on 2nd time
+}
+
+// ------------------------------
+// Reply sender
+// ------------------------------
+let LAST_DEBUG = null;
+
+function send(res, sid, sess, stepName, reply, requestId) {
   const outMeta = {
     sessionId: sid,
     requestId,
@@ -406,7 +524,7 @@ function send(res, sid, sess, stepName, reply, advance, requestId) {
     state: {
       mode: outMeta.currentLane,
       step: stepName,
-      advance: !!advance,
+      advance: true,
       slots: {
         artist: outMeta.laneDetail.artist || null,
         year: outMeta.laneDetail.year || null,
@@ -419,449 +537,246 @@ function send(res, sid, sess, stepName, reply, advance, requestId) {
 }
 
 // ------------------------------
-// Ops
+// Health / Debug
 // ------------------------------
 app.get("/health", (_, res) => res.json({ ok: true, build: BUILD_TAG }));
 app.get("/api/health", (_, res) => res.json({ ok: true, build: BUILD_TAG }));
 
 app.get("/api/debug/last", (_, res) => {
-  if (!DEBUG_ENABLED) return res.status(403).json({ ok: false, error: "DEBUG_DISABLED", build: BUILD_TAG });
+  if (!DEBUG_ENABLED) {
+    return res.status(403).json({ ok: false, error: "DEBUG_DISABLED", build: BUILD_TAG });
+  }
   res.json({ ok: true, build: BUILD_TAG, last: LAST_DEBUG });
 });
 
-app.get("/api/music/stats", (_, res) => {
-  res.json({
-    ok: true,
-    build: BUILD_TAG,
-    moments: Array.isArray(MUSIC_DB.moments) ? MUSIC_DB.moments.length : 0,
-    max: MAX_MUSIC_MOMENTS
-  });
-});
-
 // ------------------------------
-// Main
+// Main endpoint
 // ------------------------------
 app.post("/api/sandblast-gpt", (req, res) => {
   const requestId = tryUUID();
 
-  try {
-    if (rateLimit(req, res)) return;
-
-    const body = req.body || {};
-    const userMessage = safeMessage(body.message);
-    const incomingMeta = body.meta || {};
-    const msgN = norm(userMessage);
-
-    const sid = resolveSessionId(req, incomingMeta);
-    const prev = SESS.get(sid) || null;
-
-    const sess =
-      prev || {
-        currentLane: "general",
-        lastDomain: "general",
-        laneDetail: { chart: DEFAULT_CHART, artist: null, year: null, title: null },
-        mem: {},
-        stepIndex: 0,
-        _lastStepName: "",
-        _lastPromptSig: "",
-        _repeatCount: 0,
-        _mismatchCount: 0,
-        updatedAt: nowMs()
-      };
-
-    // Adopt lane from client meta if new session or server still general
-    const inCL = normalizeDomain(incomingMeta?.currentLane || "");
-    const inLD = normalizeDomain(incomingMeta?.lastDomain || "");
-    if (!prev) {
-      if (inCL !== "general") sess.currentLane = inCL;
-      if (inLD !== "general") sess.lastDomain = inLD;
-    }
-    if ((sess.currentLane === "general" || !sess.currentLane) && inCL !== "general") sess.currentLane = inCL;
-    if ((sess.lastDomain === "general" || !sess.lastDomain) && inLD !== "general") sess.lastDomain = inLD;
-
-    // Non-destructive merge of laneDetail + mem
-    sess.laneDetail ||= {};
-    sess.mem ||= {};
-    const inLane = incomingMeta.laneDetail || {};
-    const inMem = incomingMeta.mem || {};
-    for (const k of ["artist", "title", "chart"]) {
-      if (!sess.laneDetail[k] && inLane[k]) sess.laneDetail[k] = inLane[k];
-    }
-    if (!sess.laneDetail.year && inLane.year) sess.laneDetail.year = Number(inLane.year) || sess.laneDetail.year;
-    if (!sess.mem.musicYear && inMem.musicYear) sess.mem.musicYear = Number(inMem.musicYear) || sess.mem.musicYear;
-
-    // Greetings (always advances to lane choice)
-    const isGreeting =
-      ["hi", "hello", "hey", "yo", "hi nyx", "hello nyx", "hey nyx", "nyx"].includes(msgN) ||
-      msgN.startsWith("good morning") ||
-      msgN.startsWith("good afternoon") ||
-      msgN.startsWith("good evening");
-
-    if (isGreeting) {
-      sess.stepIndex++;
-      const stepName = "choose_lane";
-      const reply = "Good to have you. Choose a lane: Music history, Sandblast TV, News Canada, or Sponsors.";
-      sess._lastStepName = stepName;
-      sess._lastPromptSig = promptSig(stepName, reply);
-      sess._repeatCount = 0;
-      sess.updatedAt = nowMs();
-      SESS.set(sid, sess);
-      return send(res, sid, sess, stepName, reply, true, requestId);
-    }
-
-    // Explicit lane selection
-    if (["music", "music history", "music_history"].includes(msgN)) {
-      sess.currentLane = "music_history";
-      sess.lastDomain = "music_history";
-      sess.laneDetail.chart ||= DEFAULT_CHART;
-      sess.stepIndex++;
-      const stepName = "lane_locked";
-      const reply = "Music history locked. Give me an artist + year (or a song title).";
-      sess._lastStepName = stepName;
-      sess._lastPromptSig = promptSig(stepName, reply);
-      sess._repeatCount = 0;
-      sess.updatedAt = nowMs();
-      SESS.set(sid, sess);
-      return send(res, sid, sess, stepName, reply, true, requestId);
-    }
-
-    // Domain routing (normalized + hard force lane lock)
-    let domain = normalizeDomain(sess.currentLane || sess.lastDomain || "general");
-
-    if (domain === "general") {
-      if (looksMusicHistory(userMessage)) domain = "music_history";
-      else if (classifyIntent) {
-        try {
-          const raw = classifyIntent(userMessage);
-          domain = normalizeDomain(raw?.domain || "general");
-        } catch {
-          domain = "general";
-        }
-      }
-    }
-
-    // HARD FORCE: if lane is locked to music anywhere, stay in music
-    if (
-      normalizeDomain(sess.currentLane) === "music_history" ||
-      normalizeDomain(sess.lastDomain) === "music_history" ||
-      inCL === "music_history" ||
-      inLD === "music_history"
-    ) {
-      domain = "music_history";
-    }
-
-    // --------------------------
-    // MUSIC LANE
-    // --------------------------
-    if (domain === "music_history") {
-      sess.currentLane = "music_history";
-      sess.lastDomain = "music_history";
-      sess.stepIndex++;
-
-      // Chart switching
-      const chart = resolveChartFromText(userMessage);
-      if (chart) sess.laneDetail.chart = chart;
-      sess.laneDetail.chart ||= DEFAULT_CHART;
-
-      // Commands
-      const cmd = parseCommand(userMessage);
-      if (cmd.cmd === "clear_title") {
-        sess.laneDetail.title = null;
-        sess._mismatchCount = 0;
-      } else if (cmd.cmd === "clear_year") {
-        sess.laneDetail.year = null;
-        sess.mem.musicYear = null;
-        sess._mismatchCount = 0;
-      } else if (cmd.cmd === "clear_artist") {
-        sess.laneDetail.artist = null;
-        sess._mismatchCount = 0;
-      } else if (cmd.cmd === "keep_year") {
-        sess.laneDetail.title = null;
-        sess._mismatchCount = 0;
-      } else if (cmd.cmd === "set_year" && cmd.year) {
-        sess.laneDetail.year = cmd.year;
-        sess.mem.musicYear = cmd.year;
-        sess._mismatchCount = 0;
-      }
-
-      // Slot extraction
-      const y = extractYear(userMessage);
-      if (y) {
-        sess.laneDetail.year = y;
-        sess.mem.musicYear = y;
-      } else if (!sess.laneDetail.year && sess.mem.musicYear) {
-        sess.laneDetail.year = Number(sess.mem.musicYear) || sess.laneDetail.year;
-      }
-
-      const inferredArtist = detectArtist(userMessage) || inferArtistFallback(userMessage);
-      const inferredTitle = detectTitle(userMessage) || inferTitleFallback(userMessage);
-
-      // ARTIST CHANGE DETECTION (fixes “stuck on Madonna”)
-      // If the user appears to provide a new artist name, overwrite the old one and clear conflicting slots.
-      if (inferredArtist) {
-        const oldA = sess.laneDetail.artist ? norm(sess.laneDetail.artist) : "";
-        const newA = norm(inferredArtist);
-        const isArtistLikeInput = !y && !inferredTitle && userMessage.length <= 40; // strong signal it's an artist entry
-        const different = newA && newA !== oldA;
-
-        if (!sess.laneDetail.artist || (different && isArtistLikeInput)) {
-          sess.laneDetail.artist = inferredArtist;
-          // Clear title when artist changes to avoid mismatch loops
-          if (different) sess.laneDetail.title = null;
-          sess._mismatchCount = 0;
-        }
-      }
-
-      // Title (only set if empty OR user input is clearly a title)
-      if (inferredTitle) {
-        const oldT = sess.laneDetail.title ? norm(sess.laneDetail.title) : "";
-        const newT = norm(inferredTitle);
-        const titleLikeInput = !y && userMessage.length <= 60 && !/^\w+\s+\w+\s+\w+\s+\w+\s+\w+\s+\w+/.test(userMessage); // avoid long sentences
-        if (!sess.laneDetail.title || (titleLikeInput && newT && newT !== oldT)) {
-          sess.laneDetail.title = inferredTitle;
-          sess._mismatchCount = 0;
-        }
-      }
-
-      const slots = sess.laneDetail;
-      const lastStep = String(sess._lastStepName || "");
-      const lastSig = String(sess._lastPromptSig || "");
-
-      // Lookup strategy:
-      // 1) If artist+year -> list matches, ask to pick title (unless title provided)
-      // 2) If artist only -> show years available
-      // 3) If title only -> show best match + confirm
-      // 4) If artist+title -> best match (possibly ask year)
-
-      // Full match if we have all 3
-      let matches = [];
-      if (slots.artist || slots.year || slots.title) {
-        matches = findMoments({ artist: slots.artist, year: slots.year, title: slots.title });
-      }
-
-      // If no matches on full triple, fall back to artist+year list (if available)
-      if (matches.length === 0 && slots.artist && slots.year) {
-        matches = findMoments({ artist: slots.artist, year: slots.year, title: null });
-      }
-
-      // If we have a usable match
-      if (matches.length === 1 && slots.title) {
-        const m = matches[0];
-        const fact = sanitizeFact(m.fact || m.chart_fact || "Anchor found.");
-        const culture = sanitizeCulture(m.culture || m.cultural_moment || "This was a defining radio-era moment.");
-        const next = String(m.next || m.next_step || "Next step: want the #1 run, peak position, or the exact chart week?").trim();
-
-        const stepName = "moment_anchored";
-        const reply = `Chart fact: ${fact} (${slots.chart})\nCultural thread: ${culture}\nNext step: ${next}`;
-
-        const sig = promptSig(stepName, reply);
-        sess._repeatCount = sig === lastSig && stepName === lastStep ? sess._repeatCount + 1 : 0;
-
-        sess._lastStepName = stepName;
-        sess._lastPromptSig = sig;
-        sess._mismatchCount = 0;
-
-        sess.updatedAt = nowMs();
-        SESS.set(sid, sess);
-
-        if (DEBUG_ENABLED) {
-          LAST_DEBUG = { at: new Date().toISOString(), sid, requestId, domain, slots, matchCount: matches.length };
-        }
-
-        return send(res, sid, sess, stepName, reply, true, requestId);
-      }
-
-      // Artist+year with multiple songs -> present choices
-      if (slots.artist && slots.year && matches.length >= 2 && !slots.title) {
-        const top = matches.slice(0, 5);
-        const titles = top.map((m, i) => `${i + 1}) ${m.title}`).join("\n");
-
-        const stepName = "choose_title_from_artist_year";
-        const reply =
-          `I found multiple matches for ${String(slots.artist).toUpperCase()} in ${slots.year} (${slots.chart}).\n` +
-          `Pick one by number or type the title:\n${titles}\n\n` +
-          `Next step: reply “1”, “2”, etc., or type the exact song title.`;
-
-        const sig = promptSig(stepName, reply);
-        sess._repeatCount = sig === lastSig && stepName === lastStep ? sess._repeatCount + 1 : 0;
-        sess._lastStepName = stepName;
-        sess._lastPromptSig = sig;
-
-        sess.updatedAt = nowMs();
-        SESS.set(sid, sess);
-
-        if (DEBUG_ENABLED) {
-          LAST_DEBUG = { at: new Date().toISOString(), sid, requestId, domain, slots, matchCount: matches.length, sample: top.map((m) => m.title) };
-        }
-
-        return send(res, sid, sess, stepName, reply, true, requestId);
-      }
-
-      // User replies with a number after choice list
-      const choice = msgN.match(/^\s*([1-5])\s*$/);
-      if (choice && slots.artist && slots.year) {
-        const list = findMoments({ artist: slots.artist, year: slots.year, title: null });
-        const idx = Number(choice[1]) - 1;
-        if (list[idx]) {
-          slots.title = list[idx].title;
-          // Re-run anchor on next request naturally; but we can anchor immediately:
-          const m = list[idx];
-          const fact = sanitizeFact(m.fact || m.chart_fact || "Anchor found.");
-          const culture = sanitizeCulture(m.culture || m.cultural_moment || "This was a defining radio-era moment.");
-          const next = String(m.next || m.next_step || "Next step: want the #1 run, peak position, or the exact chart week?").trim();
-
-          const stepName = "moment_anchored";
-          const reply = `Chart fact: ${fact} (${slots.chart})\nCultural thread: ${culture}\nNext step: ${next}`;
-
-          sess._lastStepName = stepName;
-          sess._lastPromptSig = promptSig(stepName, reply);
-          sess._mismatchCount = 0;
-
-          sess.updatedAt = nowMs();
-          SESS.set(sid, sess);
-
-          if (DEBUG_ENABLED) {
-            LAST_DEBUG = { at: new Date().toISOString(), sid, requestId, domain, slots, picked: m.title };
-          }
-
-          return send(res, sid, sess, stepName, reply, true, requestId);
-        }
-      }
-
-      // Title provided but multiple title matches across years -> ask year
-      if (slots.title && matches.length >= 2 && !slots.year) {
-        const years = uniqueYears(matches);
-        const sampleYears = years.slice(0, 8).join(", ");
-        const stepName = "need_year_for_title";
-        const reply =
-          `I found multiple chart moments for “${slots.title}”.\n` +
-          `Available years include: ${sampleYears}${years.length > 8 ? ", …" : ""}\n\n` +
-          `Next step: give me the year (example: 1984).`;
-
-        sess._lastStepName = stepName;
-        sess._lastPromptSig = promptSig(stepName, reply);
-
-        sess.updatedAt = nowMs();
-        SESS.set(sid, sess);
-
-        return send(res, sid, sess, stepName, reply, true, requestId);
-      }
-
-      // Artist only -> show years available and ask for year
-      if (slots.artist && !slots.year && !slots.title) {
-        const list = findMoments({ artist: slots.artist, year: null, title: null });
-        const years = uniqueYears(list);
-        const sampleYears = years.slice(0, 10).join(", ");
-        const stepName = "need_year_for_artist";
-        const reply =
-          `Locked: ${String(slots.artist).toUpperCase()}.\n` +
-          (years.length
-            ? `I have chart moments in years like: ${sampleYears}${years.length > 10 ? ", …" : ""}\n\n`
-            : `I don’t see that artist in the current dump.\n\n`) +
-          `Next step: give me a year (example: 1984) or a song title to pinpoint it.`;
-
-        sess._lastStepName = stepName;
-        sess._lastPromptSig = promptSig(stepName, reply);
-        sess.updatedAt = nowMs();
-        SESS.set(sid, sess);
-
-        return send(res, sid, sess, stepName, reply, true, requestId);
-      }
-
-      // Year only -> ask for artist or title (escalating, loop-proof)
-      if (slots.year && !slots.artist && !slots.title) {
-        const stepName = "need_artist_or_title";
-        const reply = `Year locked: ${slots.year}. Next step: give the artist name or the song title.`;
-        const sig = promptSig(stepName, reply);
-        sess._repeatCount = sig === lastSig && stepName === lastStep ? sess._repeatCount + 1 : 0;
-
-        const finalReply =
-          sess._repeatCount >= 1
-            ? `We already have the year. Give me ONE thing only: the artist OR the title.`
-            : reply;
-
-        sess._lastStepName = stepName;
-        sess._lastPromptSig = promptSig(stepName, finalReply);
-
-        sess.updatedAt = nowMs();
-        SESS.set(sid, sess);
-        return send(res, sid, sess, stepName, finalReply, true, requestId);
-      }
-
-      // Artist+year but no matches -> don’t loop; ask to correct title or year
-      if (slots.artist && slots.year && matches.length === 0) {
-        const stepName = "no_match_artist_year";
-        const reply =
-          `I don’t see a chart moment for ${String(slots.artist).toUpperCase()} in ${slots.year} in this dump.\n` +
-          `Next step: try a different year (say: “switch year to 1983”) or give me the song title.`;
-
-        sess._lastStepName = stepName;
-        sess._lastPromptSig = promptSig(stepName, reply);
-
-        sess.updatedAt = nowMs();
-        SESS.set(sid, sess);
-        return send(res, sid, sess, stepName, reply, true, requestId);
-      }
-
-      // Default music prompt
-      {
-        const stepName = "awaiting_anchor";
-        const reply =
-          `To anchor the moment, give me an artist + year (or a song title).\n` +
-          `Charts supported: Billboard Hot 100, UK Singles, Canada RPM, Top40Weekly. (Current: ${slots.chart || DEFAULT_CHART}).`;
-
-        const sig = promptSig(stepName, reply);
-        sess._repeatCount = sig === lastSig && stepName === lastStep ? sess._repeatCount + 1 : 0;
-        const finalReply = sess._repeatCount >= 1 ? `Give me either: artist + year, or a song title.` : reply;
-
-        sess._lastStepName = stepName;
-        sess._lastPromptSig = promptSig(stepName, finalReply);
-
-        sess.updatedAt = nowMs();
-        SESS.set(sid, sess);
-
-        if (DEBUG_ENABLED) {
-          LAST_DEBUG = { at: new Date().toISOString(), sid, requestId, domain, slots };
-        }
-
-        return send(res, sid, sess, stepName, finalReply, true, requestId);
-      }
-    }
-
-    // --------------------------
-    // Non-music lanes (placeholder)
-    // --------------------------
-    sess.lastDomain = normalizeDomain(domain || "general");
-    sess.currentLane = normalizeDomain(sess.currentLane || "general");
-    sess.stepIndex++;
-
-    const stepName = "general_fallback";
-    const reply = "Understood. Choose a lane: Music history, Sandblast TV, News Canada, or Sponsors.";
-    sess._lastStepName = stepName;
-    sess._lastPromptSig = promptSig(stepName, reply);
-    sess.updatedAt = nowMs();
-    SESS.set(sid, sess);
-
-    if (DEBUG_ENABLED) {
-      LAST_DEBUG = { at: new Date().toISOString(), sid, requestId, domain, stepName, lane: sess.currentLane, message: userMessage };
-    }
-
-    return send(res, sid, sess, stepName, reply, true, requestId);
-  } catch (err) {
-    return res.status(500).json({
-      ok: false,
-      error: "SERVER_ERROR",
-      message: "Nyx hit a backend error. Enable DEBUG=true and check /api/debug/last if it repeats.",
-      build: BUILD_TAG
-    });
+  if (rateLimit(req, res)) return;
+
+  const userText = safeMessage(req.body?.message || req.body?.text || "");
+  const incomingMeta = req.body?.meta || {};
+  const sid = resolveSessionId(req, incomingMeta);
+
+  let sess = getSession(sid);
+  if (!sess) {
+    sess = {
+      createdAt: nowMs(),
+      updatedAt: nowMs(),
+      currentLane: String(incomingMeta.currentLane || "general"),
+      lastDomain: String(incomingMeta.lastDomain || "general"),
+      laneDetail: incomingMeta.laneDetail || { chart: DEFAULT_CHART },
+      mem: incomingMeta.mem || {},
+      _lastPromptSig: "",
+      _repeatCount: 0
+    };
   }
+
+  // Keep chart stable
+  sess.laneDetail = sess.laneDetail || {};
+  sess.laneDetail.chart = sess.laneDetail.chart || DEFAULT_CHART;
+
+  // Basic debug snapshot
+  if (DEBUG_ENABLED) {
+    LAST_DEBUG = {
+      requestId,
+      sid,
+      userText,
+      lane: sess.currentLane,
+      laneDetail: sess.laneDetail,
+      time: new Date().toISOString()
+    };
+  }
+
+  // Commands (lane/year resets, etc.)
+  const cmd = parseCommand(userText);
+  if (cmd.cmd === "set_lane") {
+    sess.currentLane = cmd.lane;
+    sess.lastDomain = cmd.lane;
+    if (cmd.lane === "music_history") {
+      sess.laneDetail = { chart: sess.laneDetail.chart || DEFAULT_CHART };
+    }
+    saveSession(sid, sess);
+    return send(res, sid, sess, "lane_set", `Locked. Lane is now: ${sess.currentLane}. What do you want to do next?`, requestId);
+  }
+
+  if (cmd.cmd === "clear_title") sess.laneDetail.title = null;
+  if (cmd.cmd === "clear_year") sess.laneDetail.year = null;
+  if (cmd.cmd === "clear_artist") sess.laneDetail.artist = null;
+  if (cmd.cmd === "set_year") sess.laneDetail.year = cmd.year;
+
+  // ---------
+  // HARD RULE: if music_history is active, DO NOT bounce to general routing
+  // ---------
+  const laneAlreadyLocked = sess.currentLane === "music_history";
+
+  // If lane not locked, attempt routing
+  if (!laneAlreadyLocked) {
+    const chartFromText = resolveChartFromText(userText);
+    if (chartFromText) sess.laneDetail.chart = chartFromText;
+
+    let decidedLane = null;
+
+    // classifier first (if present)
+    if (classifyIntent) {
+      try {
+        const c = classifyIntent(userText);
+        // accept only explicit lanes; otherwise ignore
+        if (c && typeof c === "string") decidedLane = c;
+      } catch {}
+    }
+
+    // heuristic lane decisions
+    const t = norm(userText);
+    if (!decidedLane) {
+      if (t.includes("music") || t.includes("chart") || t.includes("#1") || t.includes("hot 100") || t.includes("billboard")) decidedLane = "music_history";
+      else if (t.includes("tv")) decidedLane = "tv";
+      else if (t.includes("news")) decidedLane = "news_canada";
+      else if (t.includes("sponsor")) decidedLane = "sponsors";
+    }
+
+    if (decidedLane) {
+      sess.currentLane = decidedLane;
+      sess.lastDomain = decidedLane;
+      if (decidedLane === "music_history") {
+        sess.laneDetail = sess.laneDetail || {};
+        sess.laneDetail.chart = sess.laneDetail.chart || DEFAULT_CHART;
+      }
+    }
+  }
+
+  // ------------------------------
+  // Music lane flow
+  // ------------------------------
+  if (sess.currentLane === "music_history") {
+    sess.lastDomain = "music_history";
+    sess.laneDetail = sess.laneDetail || {};
+    sess.laneDetail.chart = sess.laneDetail.chart || DEFAULT_CHART;
+    sess.laneDetail.rawUserText = userText;
+
+    // slot fill
+    const year = extractYear(userText);
+    if (year) sess.laneDetail.year = year;
+
+    const chartFromText = resolveChartFromText(userText);
+    if (chartFromText) sess.laneDetail.chart = chartFromText;
+
+    let a = detectArtist(userText) || inferArtistFallback(userText);
+    let ti = detectTitle(userText) || inferTitleFallback(userText);
+
+    // If user typed "Artist - Title", we capture both
+    const dash = String(userText || "").match(/^(.{2,40})\s*[-:]\s*(.{2,80})$/);
+    if (dash) {
+      a = a || String(dash[1]).trim();
+      ti = ti || String(dash[2]).trim();
+    }
+
+    if (a && !sess.laneDetail.artist) sess.laneDetail.artist = a;
+    if (ti && !sess.laneDetail.title) sess.laneDetail.title = ti;
+
+    // Decide next ask
+    const needArtist = !sess.laneDetail.artist;
+    const needTitle = !sess.laneDetail.title;
+
+    // If we have enough, answer
+    if (!needArtist || !needTitle) {
+      const best = pickBestMoment({
+        artist: sess.laneDetail.artist || null,
+        title: sess.laneDetail.title || null,
+        year: sess.laneDetail.year || null,
+        chart: sess.laneDetail.chart || DEFAULT_CHART,
+        rawUserText: userText
+      });
+
+      if (best) {
+        const reply = formatMusicReply(best, {
+          artist: sess.laneDetail.artist,
+          title: sess.laneDetail.title,
+          year: sess.laneDetail.year,
+          chart: sess.laneDetail.chart,
+          rawUserText: userText
+        });
+        saveSession(sid, sess);
+        return send(res, sid, sess, "music_answer", reply, requestId);
+      }
+
+      // Not found: ask for one more constraint, but DON’T reset the lane
+      let reply = `I didn’t find that exact match in the current card dump yet.`;
+      const escalate = shouldEscalate(sess, "music_not_found", reply);
+
+      if (!sess.laneDetail.year) {
+        reply += ` Give me the year (or say “keep year” if you don’t care).`;
+      } else if (!sess.laneDetail.title && sess.laneDetail.artist) {
+        reply += ` Give me the song title for ${sess.laneDetail.artist}.`;
+      } else if (!sess.laneDetail.artist && sess.laneDetail.title) {
+        reply += ` Give me the artist for "${sess.laneDetail.title}".`;
+      } else {
+        reply += ` Try: Artist - Title (and optional year).`;
+      }
+
+      if (escalate) {
+        reply += `\nExample: Peter Cetera - Glory of Love 1986`;
+      }
+
+      saveSession(sid, sess);
+      return send(res, sid, sess, "music_not_found", reply, requestId);
+    }
+
+    // Ask for missing slots (anti-loop phrasing)
+    let reply = "";
+    if (needArtist && needTitle) reply = `Give me either the artist name or the song title.`;
+    else if (needArtist) reply = `Give me the artist name.`;
+    else reply = `Give me the song title.`;
+
+    const escalate = shouldEscalate(sess, "music_need_slot", reply);
+    if (escalate) {
+      reply += `\nFastest format: Artist - Title (optional year). Example: Madonna - Like a Virgin 1984`;
+    }
+
+    saveSession(sid, sess);
+    return send(res, sid, sess, "music_need_slot", reply, requestId);
+  }
+
+  // ------------------------------
+  // Non-music lanes (basic for now)
+  // ------------------------------
+  if (sess.currentLane === "tv") {
+    sess.lastDomain = "tv";
+    saveSession(sid, sess);
+    return send(res, sid, sess, "tv_stub", `TV lane is live. Tell me the show name (or “schedule” / “recommend”).`, requestId);
+  }
+
+  if (sess.currentLane === "news_canada") {
+    sess.lastDomain = "news_canada";
+    saveSession(sid, sess);
+    return send(res, sid, sess, "news_stub", `News lane is live. Tell me a topic or headline to track.`, requestId);
+  }
+
+  if (sess.currentLane === "sponsors") {
+    sess.lastDomain = "sponsors";
+    saveSession(sid, sess);
+    return send(res, sid, sess, "sponsors_stub", `Sponsors lane is live. Tell me the business type and goal (awareness/leads/foot traffic).`, requestId);
+  }
+
+  // General fallback (only when lane truly isn’t set)
+  sess.currentLane = sess.currentLane || "general";
+  sess.lastDomain = "general";
+  saveSession(sid, sess);
+  return send(
+    res,
+    sid,
+    sess,
+    "general_fallback",
+    `Pick a lane: Music, TV, News Canada, or Sponsors.`,
+    requestId
+  );
 });
 
-// 404
-app.use((req, res) => {
-  res.status(404).json({ ok: false, error: "NOT_FOUND", path: req.path, build: BUILD_TAG });
-});
-
+// ------------------------------
 app.listen(PORT, () => {
-  console.log(`[Nyx] ${BUILD_TAG} running on port ${PORT}`);
+  // eslint-disable-next-line no-console
+  console.log(`[Nyx] Backend up on :${PORT} build=${BUILD_TAG} debug=${DEBUG_ENABLED ? "true" : "false"}`);
 });
