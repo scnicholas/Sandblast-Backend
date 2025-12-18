@@ -5,11 +5,11 @@
  * Goals:
  * - Zero-loop conversational control-flow (music lane)
  * - Session continuity even if the widget drops meta/sessionId
- * - Handles ~250 concurrent users comfortably (in-memory, TTL, low overhead)
  * - Deterministic state machine + escalation (never repeats the same ask)
  * - Memory safety (caps) + stable error handling
+ * - Music DB capacity: designed for 1,500+ moments in memory safely
  *
- * Build: nyx-bulletproof-v1.42-2025-12-18
+ * Build: nyx-bulletproof-v1.43-2025-12-18
  */
 
 "use strict";
@@ -42,8 +42,8 @@ const app = express();
 // Render/Proxy correctness (critical for IP-based rate limiting)
 app.set("trust proxy", true);
 
-// Body parsing
-app.use(express.json({ limit: "1mb" }));
+// Body parsing (music cards will not be POSTed; still keep safe ceiling)
+app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || "2mb" }));
 
 // CORS: permissive for Webflow embeds, but stable headers
 app.use(
@@ -59,7 +59,7 @@ app.use(
 app.options("*", cors({ origin: true }));
 
 const PORT = process.env.PORT || 3000;
-const BUILD_TAG = "nyx-bulletproof-v1.42-2025-12-18";
+const BUILD_TAG = "nyx-bulletproof-v1.43-2025-12-18";
 const DEFAULT_CHART = "Billboard Hot 100";
 
 // ------------------------------
@@ -214,14 +214,25 @@ function cleanupSessions() {
 setInterval(cleanupSessions, 15 * 60 * 1000).unref?.();
 
 // ------------------------------
-// Music DB (safe load)
+// Music DB (safe load) + capacity
 // ------------------------------
+const MAX_MUSIC_MOMENTS = Number(process.env.MAX_MUSIC_MOMENTS || 2500); // plenty for your 1500 target
 let MUSIC_DB = { moments: [] };
-try {
-  if (musicKB && typeof musicKB.loadDb === "function") MUSIC_DB = musicKB.loadDb();
-} catch (_) {
-  MUSIC_DB = { moments: [] };
+
+function loadMusicDbSafe() {
+  let db = { moments: [] };
+  try {
+    if (musicKB && typeof musicKB.loadDb === "function") db = musicKB.loadDb();
+  } catch (_) {
+    db = { moments: [] };
+  }
+  if (!db || typeof db !== "object") db = { moments: [] };
+  if (!Array.isArray(db.moments)) db.moments = [];
+  if (db.moments.length > MAX_MUSIC_MOMENTS) db.moments = db.moments.slice(0, MAX_MUSIC_MOMENTS);
+  return db;
 }
+
+MUSIC_DB = loadMusicDbSafe();
 
 // ------------------------------
 // Debug (optional)
@@ -242,6 +253,16 @@ app.get("/api/debug/last", (_, res) => {
   res.json({ ok: true, build: BUILD_TAG, last: LAST_DEBUG });
 });
 
+// Useful when expanding music cards (verifies 1500+ is loaded)
+app.get("/api/music/stats", (_, res) => {
+  res.json({
+    ok: true,
+    build: BUILD_TAG,
+    moments: Array.isArray(MUSIC_DB.moments) ? MUSIC_DB.moments.length : 0,
+    max: MAX_MUSIC_MOMENTS
+  });
+});
+
 // ------------------------------
 // Utilities
 // ------------------------------
@@ -251,6 +272,28 @@ const norm = (s) =>
     .replace(/[^\w\s#]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+
+function normalizeDomain(d) {
+  const t = norm(d);
+  if (!t) return "general";
+
+  if (
+    t === "music" ||
+    t === "music history" ||
+    t === "music-history" ||
+    t === "musichistory" ||
+    t === "music_history"
+  )
+    return "music_history";
+
+  if (t === "tv" || t === "sandblast tv" || t === "sandblasttv") return "tv";
+
+  if (t === "news" || t === "news canada" || t === "newscanada" || t === "news_canada") return "news_canada";
+
+  if (t === "sponsor" || t === "sponsors" || t === "sponsorship") return "sponsors";
+
+  return "general";
+}
 
 function extractYear(text) {
   if (musicKB && typeof musicKB.extractYear === "function") {
@@ -351,7 +394,6 @@ function detectTitle(text) {
 /**
  * LOOP FIX:
  * If KB title detection fails (common), treat a short, clean phrase as a title.
- * This is what prevents “Like a Virgin” → “I need title/artist” loops.
  */
 function inferTitleFallback(text) {
   const raw = String(text || "").trim();
@@ -487,6 +529,21 @@ app.post("/api/sandblast-gpt", (req, res) => {
         updatedAt: nowMs()
       };
 
+    // ------------------------------------------------------------
+    // CRITICAL PATCH #1:
+    // Adopt lane from client meta when server session is new/missing.
+    // This kills the "music_history locked but general_fallback" loop.
+    // ------------------------------------------------------------
+    const inCL = normalizeDomain(incomingMeta?.currentLane || "");
+    const inLD = normalizeDomain(incomingMeta?.lastDomain || "");
+    if (!prev) {
+      if (inCL && inCL !== "general") sess.currentLane = inCL;
+      if (inLD && inLD !== "general") sess.lastDomain = inLD;
+    }
+    // If server still says general but client says music, respect it.
+    if ((sess.currentLane === "general" || !sess.currentLane) && inCL !== "general") sess.currentLane = inCL;
+    if ((sess.lastDomain === "general" || !sess.lastDomain) && inLD !== "general") sess.lastDomain = inLD;
+
     // Merge client meta (non-destructive; server is authoritative)
     const inLane = incomingMeta.laneDetail || {};
     const inMem = incomingMeta.mem || {};
@@ -503,7 +560,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
 
     const msgN = norm(userMessage);
 
-    // Quick greetings
+    // Quick greetings (friendly, but still advances)
     const isGreeting =
       ["hi", "hello", "hey", "yo", "hi nyx", "hello nyx", "hey nyx", "nyx"].includes(msgN) ||
       msgN.startsWith("good morning") ||
@@ -511,8 +568,8 @@ app.post("/api/sandblast-gpt", (req, res) => {
       msgN.startsWith("good evening");
 
     if (isGreeting) {
-      sess.currentLane = sess.currentLane || "general";
-      sess.lastDomain = sess.lastDomain || "general";
+      sess.currentLane = normalizeDomain(sess.currentLane || "general");
+      sess.lastDomain = normalizeDomain(sess.lastDomain || "general");
       sess.stepIndex++;
 
       const stepName = "choose_lane";
@@ -554,18 +611,43 @@ app.post("/api/sandblast-gpt", (req, res) => {
       return send(res, sid, sess, stepName, reply, true, requestId);
     }
 
-    // Domain: lane wins; otherwise classify/heuristic
-    let domain = sess.currentLane || sess.lastDomain || "general";
+    // ------------------------------------------------------------
+    // CRITICAL PATCH #2:
+    // Normalize domain strings + HARD FORCE lane-lock behavior.
+    // Once music is locked, we never drop to general on "1984" inputs.
+    // ------------------------------------------------------------
+    let domain = normalizeDomain(sess.currentLane || sess.lastDomain || "general");
+
     if (domain === "general") {
       if (looksMusicHistory(userMessage)) domain = "music_history";
       else if (classifyIntent) {
         try {
           const raw = classifyIntent(userMessage);
-          domain = raw?.domain || "general";
+          domain = normalizeDomain(raw?.domain || "general");
         } catch {
           domain = "general";
         }
       }
+    }
+
+    // Hard force: lane lock wins over weak classifier output.
+    if (
+      normalizeDomain(sess.currentLane) === "music_history" ||
+      normalizeDomain(sess.lastDomain) === "music_history" ||
+      inCL === "music_history" ||
+      inLD === "music_history"
+    ) {
+      domain = "music_history";
+    }
+
+    if (DEBUG_ENABLED) {
+      LAST_DEBUG = {
+        at: new Date().toISOString(),
+        sid,
+        requestId,
+        message: userMessage,
+        resolved: { domain, sessLane: sess.currentLane, sessLast: sess.lastDomain, inCL, inLD }
+      };
     }
 
     // ----------------------------------------------------------
@@ -650,11 +732,6 @@ app.post("/api/sandblast-gpt", (req, res) => {
         sess._mismatchCount = 0;
 
         saveSession(sid, sess);
-
-        if (DEBUG_ENABLED) {
-          LAST_DEBUG = { at: new Date().toISOString(), sid, requestId, stepName, slots, message: userMessage };
-        }
-
         return send(res, sid, sess, stepName, reply, true, requestId);
       }
 
@@ -688,11 +765,6 @@ app.post("/api/sandblast-gpt", (req, res) => {
           sess._lastPromptSig = sig;
 
           saveSession(sid, sess);
-
-          if (DEBUG_ENABLED) {
-            LAST_DEBUG = { at: new Date().toISOString(), sid, requestId, stepName, slots, message: userMessage };
-          }
-
           return send(res, sid, sess, stepName, reply, true, requestId);
         }
 
@@ -712,11 +784,6 @@ app.post("/api/sandblast-gpt", (req, res) => {
         sess._lastPromptSig = sig;
 
         saveSession(sid, sess);
-
-        if (DEBUG_ENABLED) {
-          LAST_DEBUG = { at: new Date().toISOString(), sid, requestId, stepName, slots, message: userMessage };
-        }
-
         return send(res, sid, sess, stepName, reply, true, requestId);
       }
 
@@ -745,22 +812,12 @@ app.post("/api/sandblast-gpt", (req, res) => {
           sess._lastPromptSig = sig;
 
           saveSession(sid, sess);
-
-          if (DEBUG_ENABLED) {
-            LAST_DEBUG = { at: new Date().toISOString(), sid, requestId, stepName, slots, message: userMessage };
-          }
-
           return send(res, sid, sess, stepName, reply, true, requestId);
         }
 
         sess._lastStepName = askStep;
         sess._lastPromptSig = askSig;
         saveSession(sid, sess);
-
-        if (DEBUG_ENABLED) {
-          LAST_DEBUG = { at: new Date().toISOString(), sid, requestId, step: askStep, slots, message: userMessage };
-        }
-
         return send(res, sid, sess, askStep, askReply, true, requestId);
       }
 
@@ -777,11 +834,6 @@ app.post("/api/sandblast-gpt", (req, res) => {
         sess._lastStepName = stepName;
         sess._lastPromptSig = promptSig(stepName, finalReply);
         saveSession(sid, sess);
-
-        if (DEBUG_ENABLED) {
-          LAST_DEBUG = { at: new Date().toISOString(), sid, requestId, stepName, slots, message: userMessage };
-        }
-
         return send(res, sid, sess, stepName, finalReply, true, requestId);
       }
 
@@ -801,11 +853,6 @@ app.post("/api/sandblast-gpt", (req, res) => {
         sess._lastStepName = stepName;
         sess._lastPromptSig = promptSig(stepName, finalReply);
         saveSession(sid, sess);
-
-        if (DEBUG_ENABLED) {
-          LAST_DEBUG = { at: new Date().toISOString(), sid, requestId, stepName, slots, message: userMessage };
-        }
-
         return send(res, sid, sess, stepName, finalReply, true, requestId);
       }
 
@@ -823,17 +870,14 @@ app.post("/api/sandblast-gpt", (req, res) => {
       sess._lastStepName = stepName;
       sess._lastPromptSig = promptSig(stepName, finalReply);
       saveSession(sid, sess);
-
-      if (DEBUG_ENABLED) {
-        LAST_DEBUG = { at: new Date().toISOString(), sid, requestId, stepName, slots, message: userMessage };
-      }
-
       return send(res, sid, sess, stepName, finalReply, false, requestId);
     }
 
-    // Non-music lanes (placeholder)
-    sess.lastDomain = domain || "general";
-    sess.currentLane = sess.currentLane || "general";
+    // ----------------------------------------------------------
+    // Non-music lanes (stable placeholders)
+    // ----------------------------------------------------------
+    sess.lastDomain = normalizeDomain(domain || "general");
+    sess.currentLane = normalizeDomain(sess.currentLane || "general");
     sess.stepIndex++;
 
     const stepName = "general_fallback";
@@ -842,10 +886,6 @@ app.post("/api/sandblast-gpt", (req, res) => {
     sess._lastStepName = stepName;
     sess._lastPromptSig = promptSig(stepName, reply);
     saveSession(sid, sess);
-
-    if (DEBUG_ENABLED) {
-      LAST_DEBUG = { at: new Date().toISOString(), sid, requestId, stepName, lane: sess.currentLane, message: userMessage };
-    }
 
     return send(res, sid, sess, stepName, reply, true, requestId);
   } catch (err) {
@@ -859,7 +899,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
 });
 
 // ------------------------------
-// 404 (clean) — FIXED (no en-dash)
+// 404 (clean)
 // ------------------------------
 app.use((req, res) => {
   res.status(404).json({
