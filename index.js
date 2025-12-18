@@ -1,11 +1,13 @@
 /**
  * index.js — Nyx Broadcast Backend (Bulletproof)
- * Build: nyx-bulletproof-v1.50-2025-12-18
+ * Build: nyx-bulletproof-v1.51-2025-12-18
  *
  * Key guarantees:
  * - Lane lock: never bounces back to general when music_history is active
  * - Slot-filling precedence: artist/title/year captured even without keywords
- * - Anti-repeat escalation: won’t ask the same question endlessly
+ * - Slot hygiene: prevents artist being mis-stored as title (fixes “sticky” loops)
+ * - Anchor gating: only answers when we have title OR artist+year (prevents random jumps)
+ * - Artist+year discovery: lists matches and supports numeric pick (1–5)
  * - Scales to ~1500+ music moments with indexes
  */
 
@@ -53,7 +55,7 @@ try {
 // Config
 // ------------------------------
 const PORT = process.env.PORT || 3000;
-const BUILD_TAG = "nyx-bulletproof-v1.50-2025-12-18";
+const BUILD_TAG = "nyx-bulletproof-v1.51-2025-12-18";
 const DEFAULT_CHART = "Billboard Hot 100";
 const DEBUG_ENABLED = String(process.env.DEBUG || "").toLowerCase() === "true";
 
@@ -275,10 +277,10 @@ try {
 }
 
 const MUSIC_INDEX = {
-  byArtist: new Map(),      // norm(artist) -> [moment]
-  byTitle: new Map(),       // norm(title)  -> [moment]
-  byArtistYear: new Map(),  // norm(artist)+"|"+year -> [moment]
-  byYear: new Map()         // year -> [moment]
+  byArtist: new Map(), // norm(artist) -> [moment]
+  byTitle: new Map(), // norm(title)  -> [moment]
+  byArtistYear: new Map(), // norm(artist)+"|"+year -> [moment]
+  byYear: new Map() // year -> [moment]
 };
 
 function idxPush(map, key, val) {
@@ -289,7 +291,6 @@ function idxPush(map, key, val) {
 }
 
 function buildMusicIndexes() {
-  // idempotent rebuild
   MUSIC_INDEX.byArtist.clear();
   MUSIC_INDEX.byTitle.clear();
   MUSIC_INDEX.byArtistYear.clear();
@@ -395,7 +396,6 @@ function parseCommand(text) {
 // Music search
 // ------------------------------
 function pickBestMoment(fields) {
-  // Prefer KB picker if available
   try {
     if (musicKB && typeof musicKB.pickBestMoment === "function") {
       return musicKB.pickBestMoment(MUSIC_DB, fields);
@@ -406,7 +406,6 @@ function pickBestMoment(fields) {
   const t = fields.title ? norm(fields.title) : null;
   const y = fields.year ? Number(fields.year) : null;
 
-  // fastest: artist+year
   if (a && y) {
     const arr = MUSIC_INDEX.byArtistYear.get(`${a}|${y}`);
     if (arr && arr.length) {
@@ -418,7 +417,6 @@ function pickBestMoment(fields) {
     }
   }
 
-  // title only
   if (t) {
     const arr = MUSIC_INDEX.byTitle.get(t);
     if (arr && arr.length) {
@@ -434,7 +432,6 @@ function pickBestMoment(fields) {
     }
   }
 
-  // artist only
   if (a) {
     const arr = MUSIC_INDEX.byArtist.get(a);
     if (arr && arr.length) {
@@ -446,7 +443,6 @@ function pickBestMoment(fields) {
     }
   }
 
-  // year only
   if (y) {
     const arr = MUSIC_INDEX.byYear.get(String(y));
     if (arr && arr.length) return arr[0];
@@ -456,7 +452,6 @@ function pickBestMoment(fields) {
 }
 
 function formatMusicReply(m, fields) {
-  // Keep it short, forward-moving, and “broadcast-ready”
   const artist = m.artist || fields.artist || "Unknown artist";
   const title = m.title || fields.title || "Unknown title";
   const year = m.year || fields.year || "Unknown year";
@@ -472,7 +467,6 @@ function formatMusicReply(m, fields) {
   if (fact) lines.push(`Proof point: ${fact}`);
   if (culture) lines.push(`Cultural thread: ${culture}`);
 
-  // next action always
   if (hasNumberOneIntent(fields.rawUserText || "")) {
     lines.push(`Next action: Want #1 weeks and peak date, or should I pull 3 neighboring hits from ${year}?`);
   } else {
@@ -493,7 +487,7 @@ function shouldEscalate(sess, stepName, reply) {
     sess._repeatCount = 0;
   }
   sess._lastPromptSig = sig;
-  return sess._repeatCount >= 1; // escalate on 2nd time
+  return sess._repeatCount >= 1;
 }
 
 // ------------------------------
@@ -575,11 +569,9 @@ app.post("/api/sandblast-gpt", (req, res) => {
     };
   }
 
-  // Keep chart stable
   sess.laneDetail = sess.laneDetail || {};
   sess.laneDetail.chart = sess.laneDetail.chart || DEFAULT_CHART;
 
-  // Basic debug snapshot
   if (DEBUG_ENABLED) {
     LAST_DEBUG = {
       requestId,
@@ -591,7 +583,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
     };
   }
 
-  // Commands (lane/year resets, etc.)
+  // Commands
   const cmd = parseCommand(userText);
   if (cmd.cmd === "set_lane") {
     sess.currentLane = cmd.lane;
@@ -608,28 +600,22 @@ app.post("/api/sandblast-gpt", (req, res) => {
   if (cmd.cmd === "clear_artist") sess.laneDetail.artist = null;
   if (cmd.cmd === "set_year") sess.laneDetail.year = cmd.year;
 
-  // ---------
   // HARD RULE: if music_history is active, DO NOT bounce to general routing
-  // ---------
   const laneAlreadyLocked = sess.currentLane === "music_history";
 
-  // If lane not locked, attempt routing
   if (!laneAlreadyLocked) {
     const chartFromText = resolveChartFromText(userText);
     if (chartFromText) sess.laneDetail.chart = chartFromText;
 
     let decidedLane = null;
 
-    // classifier first (if present)
     if (classifyIntent) {
       try {
         const c = classifyIntent(userText);
-        // accept only explicit lanes; otherwise ignore
         if (c && typeof c === "string") decidedLane = c;
       } catch {}
     }
 
-    // heuristic lane decisions
     const t = norm(userText);
     if (!decidedLane) {
       if (t.includes("music") || t.includes("chart") || t.includes("#1") || t.includes("hot 100") || t.includes("billboard")) decidedLane = "music_history";
@@ -657,6 +643,27 @@ app.post("/api/sandblast-gpt", (req, res) => {
     sess.laneDetail.chart = sess.laneDetail.chart || DEFAULT_CHART;
     sess.laneDetail.rawUserText = userText;
 
+    // Numeric choice support (1–5) for prior artist+year list
+    const numericPick = norm(userText).match(/^([1-5])$/);
+    if (numericPick && sess.laneDetail.artist && sess.laneDetail.year) {
+      const aKey = norm(sess.laneDetail.artist);
+      const yVal = Number(sess.laneDetail.year);
+      const arr = MUSIC_INDEX.byArtistYear.get(`${aKey}|${yVal}`) || [];
+      const idx = Number(numericPick[1]) - 1;
+      if (arr[idx]) {
+        sess.laneDetail.title = arr[idx].title;
+        const reply = formatMusicReply(arr[idx], {
+          artist: sess.laneDetail.artist,
+          title: sess.laneDetail.title,
+          year: sess.laneDetail.year,
+          chart: sess.laneDetail.chart,
+          rawUserText: userText
+        });
+        saveSession(sid, sess);
+        return send(res, sid, sess, "music_answer", reply, requestId);
+      }
+    }
+
     // slot fill
     const year = extractYear(userText);
     if (year) sess.laneDetail.year = year;
@@ -667,22 +674,51 @@ app.post("/api/sandblast-gpt", (req, res) => {
     let a = detectArtist(userText) || inferArtistFallback(userText);
     let ti = detectTitle(userText) || inferTitleFallback(userText);
 
-    // If user typed "Artist - Title", we capture both
+    // If user typed "Artist - Title", capture both
     const dash = String(userText || "").match(/^(.{2,40})\s*[-:]\s*(.{2,80})$/);
     if (dash) {
       a = a || String(dash[1]).trim();
       ti = ti || String(dash[2]).trim();
     }
 
+    // PATCH: prevent artist being mis-stored as title (critical loop fix)
+    if (a && ti && norm(a) === norm(ti)) {
+      ti = null;
+    }
+
+    // Apply slots
     if (a && !sess.laneDetail.artist) sess.laneDetail.artist = a;
     if (ti && !sess.laneDetail.title) sess.laneDetail.title = ti;
 
-    // Decide next ask
-    const needArtist = !sess.laneDetail.artist;
-    const needTitle = !sess.laneDetail.title;
+    // Anchor gating (prevents random “artist-only” answers)
+    const haveArtist = !!sess.laneDetail.artist;
+    const haveYear = !!sess.laneDetail.year;
+    const haveTitle = !!sess.laneDetail.title;
 
-    // If we have enough, answer
-    if (!needArtist || !needTitle) {
+    const canAnchor = haveTitle || (haveArtist && haveYear);
+
+    // If artist+year but no title, list options (discovery mode)
+    if (haveArtist && haveYear && !haveTitle) {
+      const aKey = norm(sess.laneDetail.artist);
+      const yVal = Number(sess.laneDetail.year);
+      const arr = MUSIC_INDEX.byArtistYear.get(`${aKey}|${yVal}`) || [];
+
+      if (arr.length) {
+        const top = arr.slice(0, 5);
+        const titles = top.map((m, i) => `${i + 1}) ${m.title}`).join("\n");
+        const reply =
+          `I found ${arr.length} matches for ${sess.laneDetail.artist} in ${yVal}.\n` +
+          `Pick one by number or type the title:\n${titles}\n\n` +
+          `Next action: reply “1–5” or type the exact title.`;
+
+        saveSession(sid, sess);
+        return send(res, sid, sess, "choose_title_from_artist_year", reply, requestId);
+      }
+      // If none notice: we will fall through to not-found handling below
+    }
+
+    // If we can anchor, attempt best match
+    if (canAnchor) {
       const best = pickBestMoment({
         artist: sess.laneDetail.artist || null,
         title: sess.laneDetail.title || null,
@@ -725,11 +761,20 @@ app.post("/api/sandblast-gpt", (req, res) => {
       return send(res, sid, sess, "music_not_found", reply, requestId);
     }
 
-    // Ask for missing slots (anti-loop phrasing)
+    // If we cannot anchor yet, ask for missing slots (fluid, non-loop)
     let reply = "";
-    if (needArtist && needTitle) reply = `Give me either the artist name or the song title.`;
-    else if (needArtist) reply = `Give me the artist name.`;
-    else reply = `Give me the song title.`;
+
+    if (!haveArtist && !haveTitle) {
+      reply = `Give me either the artist name or the song title.`;
+    } else if (haveArtist && !haveYear && !haveTitle) {
+      reply = `Locked: ${sess.laneDetail.artist}. Next action: give me the year (example: 1986) or the song title.`;
+    } else if (!haveArtist && haveTitle) {
+      reply = `Locked: "${sess.laneDetail.title}". Next action: give me the artist (or the year).`;
+    } else if (!haveTitle && haveYear && !haveArtist) {
+      reply = `Year locked: ${sess.laneDetail.year}. Next action: give me the artist or the song title.`;
+    } else {
+      reply = `To anchor the moment, give me an artist + year (or a song title).`;
+    }
 
     const escalate = shouldEscalate(sess, "music_need_slot", reply);
     if (escalate) {
@@ -761,18 +806,10 @@ app.post("/api/sandblast-gpt", (req, res) => {
     return send(res, sid, sess, "sponsors_stub", `Sponsors lane is live. Tell me the business type and goal (awareness/leads/foot traffic).`, requestId);
   }
 
-  // General fallback (only when lane truly isn’t set)
   sess.currentLane = sess.currentLane || "general";
   sess.lastDomain = "general";
   saveSession(sid, sess);
-  return send(
-    res,
-    sid,
-    sess,
-    "general_fallback",
-    `Pick a lane: Music, TV, News Canada, or Sponsors.`,
-    requestId
-  );
+  return send(res, sid, sess, "general_fallback", `Pick a lane: Music, TV, News Canada, or Sponsors.`, requestId);
 });
 
 // ------------------------------
