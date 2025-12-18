@@ -1,14 +1,15 @@
 /**
  * index.js — Nyx Broadcast Backend (Bulletproof)
- * Build: nyx-bulletproof-v1.51-2025-12-18
+ * Build: nyx-bulletproof-v1.52-2025-12-18
  *
- * Key guarantees:
- * - Lane lock: never bounces back to general when music_history is active
- * - Slot-filling precedence: artist/title/year captured even without keywords
- * - Slot hygiene: prevents artist being mis-stored as title (fixes “sticky” loops)
- * - Anchor gating: only answers when we have title OR artist+year (prevents random jumps)
- * - Artist+year discovery: lists matches and supports numeric pick (1–5)
- * - Scales to ~1500+ music moments with indexes
+ * Fixes in v1.52:
+ * - Eliminates “music_not_found loop” by adding:
+ *   (a) artist+year miss -> artist-only fallback list (top 5)
+ *   (b) artist available years list to quickly correct year mismatch
+ *   (c) numeric pick (1–5) works for both artist+year lists and artist-only lists
+ * - Honors “keep year” command (prevents repeated year prompts)
+ * - Stronger escalation when prompt repeats
+ * - Keeps lane lock: never bounces out of music_history once locked
  */
 
 "use strict";
@@ -55,7 +56,7 @@ try {
 // Config
 // ------------------------------
 const PORT = process.env.PORT || 3000;
-const BUILD_TAG = "nyx-bulletproof-v1.51-2025-12-18";
+const BUILD_TAG = "nyx-bulletproof-v1.52-2025-12-18";
 const DEFAULT_CHART = "Billboard Hot 100";
 const DEBUG_ENABLED = String(process.env.DEBUG || "").toLowerCase() === "true";
 
@@ -311,8 +312,19 @@ function buildMusicIndexes() {
 
 buildMusicIndexes();
 
+function yearsForArtist(artistName) {
+  const aKey = norm(artistName);
+  const arr = MUSIC_INDEX.byArtist.get(aKey) || [];
+  const ys = new Set();
+  for (const m of arr) {
+    const y = Number(m.year || 0) || null;
+    if (y) ys.add(y);
+  }
+  return Array.from(ys).sort((a, b) => a - b);
+}
+
 // ------------------------------
-// Slot inference (prevents loops)
+// Slot inference
 // ------------------------------
 function detectArtist(text) {
   if (musicKB && typeof musicKB.detectArtist === "function") {
@@ -585,6 +597,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
 
   // Commands
   const cmd = parseCommand(userText);
+
   if (cmd.cmd === "set_lane") {
     sess.currentLane = cmd.lane;
     sess.lastDomain = cmd.lane;
@@ -599,6 +612,9 @@ app.post("/api/sandblast-gpt", (req, res) => {
   if (cmd.cmd === "clear_year") sess.laneDetail.year = null;
   if (cmd.cmd === "clear_artist") sess.laneDetail.artist = null;
   if (cmd.cmd === "set_year") sess.laneDetail.year = cmd.year;
+
+  // “keep year” means: stop demanding a year; don’t clear it if present, just proceed.
+  const userChoseKeepYear = cmd.cmd === "keep_year";
 
   // HARD RULE: if music_history is active, DO NOT bounce to general routing
   const laneAlreadyLocked = sess.currentLane === "music_history";
@@ -643,16 +659,18 @@ app.post("/api/sandblast-gpt", (req, res) => {
     sess.laneDetail.chart = sess.laneDetail.chart || DEFAULT_CHART;
     sess.laneDetail.rawUserText = userText;
 
-    // Numeric choice support (1–5) for prior artist+year list
+    // Numeric choice support (1–5) for prior lists
     const numericPick = norm(userText).match(/^([1-5])$/);
-    if (numericPick && sess.laneDetail.artist && sess.laneDetail.year) {
-      const aKey = norm(sess.laneDetail.artist);
-      const yVal = Number(sess.laneDetail.year);
-      const arr = MUSIC_INDEX.byArtistYear.get(`${aKey}|${yVal}`) || [];
+    if (numericPick && sess.laneDetail._lastList && Array.isArray(sess.laneDetail._lastList)) {
       const idx = Number(numericPick[1]) - 1;
+      const arr = sess.laneDetail._lastList;
       if (arr[idx]) {
-        sess.laneDetail.title = arr[idx].title;
-        const reply = formatMusicReply(arr[idx], {
+        const chosen = arr[idx];
+        sess.laneDetail.artist = sess.laneDetail.artist || chosen.artist || null;
+        sess.laneDetail.year = sess.laneDetail.year || chosen.year || null;
+        sess.laneDetail.title = chosen.title || sess.laneDetail.title || null;
+
+        const reply = formatMusicReply(chosen, {
           artist: sess.laneDetail.artist,
           title: sess.laneDetail.title,
           year: sess.laneDetail.year,
@@ -681,7 +699,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
       ti = ti || String(dash[2]).trim();
     }
 
-    // PATCH: prevent artist being mis-stored as title (critical loop fix)
+    // Prevent artist being mis-stored as title
     if (a && ti && norm(a) === norm(ti)) {
       ti = null;
     }
@@ -690,14 +708,14 @@ app.post("/api/sandblast-gpt", (req, res) => {
     if (a && !sess.laneDetail.artist) sess.laneDetail.artist = a;
     if (ti && !sess.laneDetail.title) sess.laneDetail.title = ti;
 
-    // Anchor gating (prevents random “artist-only” answers)
     const haveArtist = !!sess.laneDetail.artist;
     const haveYear = !!sess.laneDetail.year;
     const haveTitle = !!sess.laneDetail.title;
 
+    // Anchor gating: allow title-only OR artist+year
     const canAnchor = haveTitle || (haveArtist && haveYear);
 
-    // If artist+year but no title, list options (discovery mode)
+    // Artist + year discovery mode
     if (haveArtist && haveYear && !haveTitle) {
       const aKey = norm(sess.laneDetail.artist);
       const yVal = Number(sess.laneDetail.year);
@@ -705,6 +723,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
 
       if (arr.length) {
         const top = arr.slice(0, 5);
+        sess.laneDetail._lastList = top; // numeric picks
         const titles = top.map((m, i) => `${i + 1}) ${m.title}`).join("\n");
         const reply =
           `I found ${arr.length} matches for ${sess.laneDetail.artist} in ${yVal}.\n` +
@@ -714,10 +733,32 @@ app.post("/api/sandblast-gpt", (req, res) => {
         saveSession(sid, sess);
         return send(res, sid, sess, "choose_title_from_artist_year", reply, requestId);
       }
-      // If none notice: we will fall through to not-found handling below
+
+      // NEW: if artist exists but that year doesn’t, fall back to artist-only list + available years
+      const allForArtist = MUSIC_INDEX.byArtist.get(aKey) || [];
+      if (allForArtist.length) {
+        const yrs = yearsForArtist(sess.laneDetail.artist).slice(0, 20);
+        const yrsLine = yrs.length ? `Years I have for ${sess.laneDetail.artist}: ${yrs.join(", ")}` : "";
+        const top = allForArtist
+          .slice()
+          .sort((x, y) => (Number(x.year || 0) - Number(y.year || 0)) || norm(x.title).localeCompare(norm(y.title)))
+          .slice(0, 5);
+
+        sess.laneDetail._lastList = top; // numeric picks
+        const list = top.map((m, i) => `${i + 1}) ${m.title} (${m.year || "year unknown"})`).join("\n");
+
+        const reply =
+          `I don’t have a match for ${sess.laneDetail.artist} in ${yVal}, but I *do* have these for that artist:\n` +
+          `${list}\n` +
+          (yrsLine ? `\n${yrsLine}\n` : "\n") +
+          `Next action: reply “1–5”, or give me a different year.`;
+
+        saveSession(sid, sess);
+        return send(res, sid, sess, "choose_title_artist_fallback", reply, requestId);
+      }
+      // If artist truly not in dump, fall through to not_found below
     }
 
-    // If we can anchor, attempt best match
     if (canAnchor) {
       const best = pickBestMoment({
         artist: sess.laneDetail.artist || null,
@@ -739,11 +780,11 @@ app.post("/api/sandblast-gpt", (req, res) => {
         return send(res, sid, sess, "music_answer", reply, requestId);
       }
 
-      // Not found: ask for one more constraint, but DON’T reset the lane
+      // Not found: stronger next step to avoid “loop feel”
       let reply = `I didn’t find that exact match in the current card dump yet.`;
       const escalate = shouldEscalate(sess, "music_not_found", reply);
 
-      if (!sess.laneDetail.year) {
+      if (!sess.laneDetail.year && !userChoseKeepYear) {
         reply += ` Give me the year (or say “keep year” if you don’t care).`;
       } else if (!sess.laneDetail.title && sess.laneDetail.artist) {
         reply += ` Give me the song title for ${sess.laneDetail.artist}.`;
@@ -754,20 +795,21 @@ app.post("/api/sandblast-gpt", (req, res) => {
       }
 
       if (escalate) {
-        reply += `\nExample: Peter Cetera - Glory of Love 1986`;
+        reply += `\nFastest format: Artist - Title 1986 (example: Peter Cetera - Glory of Love 1986).`;
       }
 
       saveSession(sid, sess);
       return send(res, sid, sess, "music_not_found", reply, requestId);
     }
 
-    // If we cannot anchor yet, ask for missing slots (fluid, non-loop)
+    // If we cannot anchor yet, ask for missing slots (non-loop)
     let reply = "";
 
     if (!haveArtist && !haveTitle) {
       reply = `Give me either the artist name or the song title.`;
     } else if (haveArtist && !haveYear && !haveTitle) {
       reply = `Locked: ${sess.laneDetail.artist}. Next action: give me the year (example: 1986) or the song title.`;
+      if (userChoseKeepYear) reply = `Locked: ${sess.laneDetail.artist}. Next action: give me the song title.`;
     } else if (!haveArtist && haveTitle) {
       reply = `Locked: "${sess.laneDetail.title}". Next action: give me the artist (or the year).`;
     } else if (!haveTitle && haveYear && !haveArtist) {
@@ -778,7 +820,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
 
     const escalate = shouldEscalate(sess, "music_need_slot", reply);
     if (escalate) {
-      reply += `\nFastest format: Artist - Title (optional year). Example: Madonna - Like a Virgin 1984`;
+      reply += `\nExample: Madonna - Like a Virgin 1984`;
     }
 
     saveSession(sid, sess);
@@ -786,7 +828,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
   }
 
   // ------------------------------
-  // Non-music lanes (basic for now)
+  // Non-music lanes (basic)
   // ------------------------------
   if (sess.currentLane === "tv") {
     sess.lastDomain = "tv";
