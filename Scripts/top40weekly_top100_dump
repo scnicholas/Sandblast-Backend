@@ -4,6 +4,12 @@
  * Recommended (writes UTF-8 file directly; avoids PowerShell piping issues):
  *   node scripts/top40weekly_top100_dump.js 1980 1980 Data\top40weekly_top100_1980.csv
  *
+ * Full run:
+ *   node scripts/top40weekly_top100_dump.js 1960 2019 Data\top40weekly_top100_1960_2019.csv
+ *
+ * Quiet mode (hide [OK] lines, keep [WARN] and final [DONE]):
+ *   node scripts/top40weekly_top100_dump.js 1960 2019 Data\top40weekly_top100_1960_2019.csv --quiet
+ *
  * Or stdout:
  *   node scripts/top40weekly_top100_dump.js 1960 2019
  */
@@ -17,9 +23,10 @@ const cheerio = require("cheerio");
 const startYear = parseInt(process.argv[2], 10);
 const endYear = parseInt(process.argv[3], 10);
 const outPath = process.argv[4]; // optional
+const quiet = process.argv.includes("--quiet");
 
 if (!startYear || !endYear || endYear < startYear) {
-  console.error("Usage: node scripts/top40weekly_top100_dump.js <startYear> <endYear> [out.csv]");
+  console.error("Usage: node scripts/top40weekly_top100_dump.js <startYear> <endYear> [out.csv] [--quiet]");
   process.exit(1);
 }
 
@@ -147,6 +154,10 @@ function extractTop100FromPage($) {
   const csvLines = [];
   csvLines.push("year,artist,title");
 
+  let totalRows = 0;
+  let okYears = 0;
+  let warnYears = 0;
+
   for (let y = startYear; y <= endYear; y++) {
     const url = `https://top40weekly.com/top-100-songs-of-${y}/`;
 
@@ -156,23 +167,23 @@ function extractTop100FromPage($) {
 
       const rows = extractTop100FromPage($);
 
-      if (y === 1980) {
-        console.error(`[DEBUG] 1980 rows=${rows.length} sample=${JSON.stringify(rows.slice(0, 5))}`);
-      }
-
       if (rows.length < 50) {
+        warnYears++;
         console.error(`[WARN] ${y}: parsed only ${rows.length} rows (${url})`);
         continue;
       }
 
-      console.error(`[OK] ${y}: ${rows.length} rows (${url})`);
+      okYears++;
+      if (!quiet) console.error(`[OK] ${y}: ${rows.length} rows (${url})`);
 
       for (const r of rows) {
         const a = `"${String(r.artist).replace(/"/g, '""')}"`;
         const t = `"${String(r.title).replace(/"/g, '""')}"`;
         csvLines.push(`${y},${a},${t}`);
       }
+      totalRows += rows.length;
     } catch (e) {
+      warnYears++;
       console.error(`[WARN] ${y}: ${e.message} (${url})`);
     }
   }
@@ -183,7 +194,7 @@ function extractTop100FromPage($) {
     const full = path.resolve(process.cwd(), outPath);
     fs.mkdirSync(path.dirname(full), { recursive: true });
     fs.writeFileSync(full, csv, "utf8");
-    console.error(`[DONE] wrote ${csvLines.length - 1} rows to ${full}`);
+    console.error(`[DONE] wrote ${totalRows} rows to ${full} (okYears=${okYears}, warnYears=${warnYears})`);
   } else {
     process.stdout.write(csv);
   }
