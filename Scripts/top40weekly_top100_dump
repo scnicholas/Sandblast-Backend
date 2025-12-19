@@ -1,0 +1,145 @@
+/**
+ * Dump Top40Weekly "Top 100 Songs Of YEAR" pages into CSV: year,artist,title
+ *
+ * Usage (UTF-8 CSV):
+ *   npm i cheerio
+ *   node scripts/top40weekly_top100_dump.js 1960 2019 | Out-File -Encoding utf8 Data\top40weekly_top100_1960_2019.csv
+ */
+
+"use strict";
+
+const cheerio = require("cheerio");
+
+const startYear = parseInt(process.argv[2], 10);
+const endYear = parseInt(process.argv[3], 10);
+
+if (!startYear || !endYear || endYear < startYear) {
+  console.error("Usage: node scripts/top40weekly_top100_dump.js <startYear> <endYear>");
+  process.exit(1);
+}
+
+function normLine(s) {
+  return String(s || "")
+    .replace(/\u00A0/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function fetchHtml(url) {
+  const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
+  if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+  return await res.text();
+}
+
+/**
+ * Newline-preserving parser for Top40Weekly "Top 100 Songs of YEAR" pages
+ * Format on page:
+ *   1  Call Me
+ *   Blondie
+ *   2  Another Brick in the Wall, Part II
+ *   Pink Floyd
+ */
+function extractTop100FromPage($) {
+  // Prefer the article body (this is where Top40Weekly places the list)
+  let entry = $(".entry-content").first();
+
+  // Fallbacks in case the theme changes
+  if (!entry.length) entry = $("article .entry-content").first();
+  if (!entry.length) entry = $("article").first();
+  if (!entry.length) entry = $("main").first();
+  if (!entry.length) return [];
+
+  // Clone so we can mutate DOM safely
+  const clone = entry.clone();
+
+  // Convert <br> into actual newline characters
+  clone.find("br").replaceWith("\n");
+
+  // Ensure block-level elements contribute line breaks
+  clone.find("p, li, h1, h2, h3, h4, h5, h6").each((_, el) => {
+    $(el).append("\n");
+  });
+
+  const rawText = clone.text();
+
+  // Split into lines
+  const lines = rawText
+    .split("\n")
+    .map(normLine)
+    .filter(Boolean);
+
+  // Find header marker if present
+  const startIdx = lines.findIndex(l => /^top songs of \d{4}$/i.test(l));
+  const parseFrom = startIdx >= 0 ? startIdx + 1 : 0;
+
+  const out = [];
+
+  for (let i = parseFrom; i < lines.length - 1; i++) {
+    // Expect: "1 Call Me"
+    const m = lines[i].match(/^(\d{1,3})\s+(.+)$/);
+    if (!m) continue;
+
+    const rank = parseInt(m[1], 10);
+    const title = normLine(m[2]);
+    const artist = normLine(lines[i + 1]);
+
+    if (!rank || !title || !artist) continue;
+
+    // Skip obvious non-data lines
+    const tLower = title.toLowerCase();
+    if (tLower.includes("top songs of")) continue;
+    if (tLower.startsWith("these are the top")) continue;
+    if (tLower.startsWith("there are")) continue;
+
+    // Guard: next line should not be another rank/title line
+    if (/^\d{1,3}\s+/.test(artist)) continue;
+
+    // Sanity limits
+    if (title.length > 160 || artist.length > 120) continue;
+
+    out.push({ rank, title, artist });
+    i++; // consume artist line
+  }
+
+  // De-dupe
+  const seen = new Set();
+  const deduped = [];
+  for (const r of out) {
+    const key = `${r.rank}|${r.title.toLowerCase()}|${r.artist.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(r);
+  }
+
+  return deduped;
+}
+
+(async () => {
+  console.log("year,artist,title");
+
+  for (let y = startYear; y <= endYear; y++) {
+    const url = `https://top40weekly.com/top-100-songs-of-${y}/`;
+
+    try {
+      const html = await fetchHtml(url);
+      const $ = cheerio.load(html);
+
+      const rows = extractTop100FromPage($);
+
+      if (rows.length < 50) {
+        console.error(`[WARN] ${y}: parsed only ${rows.length} rows (${url})`);
+        continue;
+      }
+
+      console.error(`[OK] ${y}: ${rows.length} rows (${url})`);
+
+      for (const r of rows) {
+        const a = `"${String(r.artist).replace(/"/g, '""')}"`;
+        const t = `"${String(r.title).replace(/"/g, '""')}"`;
+        console.log(`${y},${a},${t}`);
+      }
+    } catch (e) {
+      console.error(`[WARN] ${y}: ${e.message} (${url})`);
+    }
+  }
+})();
