@@ -37,26 +37,24 @@ async function fetchHtml(url) {
 }
 
 /**
- * DOM-ordered parser:
- * - Reads text nodes in .entry-content in document order
- * - Pairs: "N Title" then next meaningful line "Artist"
- * - Does not rely on newline behavior of .text()
+ * DOM-ordered parser (supports two layouts):
+ * A) "1 Call Me" then next token "Blondie"
+ * B) "1" then next token "Call Me" then next token "Blondie"
+ *
+ * This does NOT rely on newline behavior. It walks text nodes in document order.
  */
 function extractTop100FromPage($) {
   const entry = $(".entry-content").first();
   if (!entry.length) return [];
 
+  // Collect text nodes in reading order
   const chunks = [];
-
-  // Walk text nodes inside entry content in reading order
   entry.find("*").contents().each((_, node) => {
     if (node.type === "text") {
       const t = normLine(node.data);
       if (t) chunks.push(t);
     }
   });
-
-  // Also include direct text under entry itself
   entry.contents().each((_, node) => {
     if (node.type === "text") {
       const t = normLine(node.data);
@@ -64,53 +62,83 @@ function extractTop100FromPage($) {
     }
   });
 
+  // Clean + filter junk
   const clean = chunks
     .map(normLine)
     .filter(Boolean)
     .filter(s => s.length < 220)
     .filter(s => !/^share|^posted|^leave a reply/i.test(s));
 
-  const out = [];
+  // Helper: get the next meaningful token (skips page copy)
+  function nextToken(startIdx) {
+    for (let k = startIdx; k < clean.length; k++) {
+      const v = normLine(clean[k]);
+      if (!v) continue;
 
-  for (let i = 0; i < clean.length - 1; i++) {
-    const m = clean[i].match(/^(\d{1,3})\s+(.+)$/);
-    if (!m) continue;
-
-    const rank = parseInt(m[1], 10);
-    const title = normLine(m[2]);
-    if (!rank || !title) continue;
-
-    let artist = "";
-    for (let j = i + 1; j < clean.length; j++) {
-      const cand = normLine(clean[j]);
-      if (!cand) continue;
-
-      // if we hit another rank/title line before artist, bail
-      if (/^\d{1,3}\s+/.test(cand)) {
-        artist = "";
-        break;
-      }
-
-      const lc = cand.toLowerCase();
+      const lc = v.toLowerCase();
       if (lc.includes("top songs of")) continue;
       if (lc.startsWith("these are the top")) continue;
       if (lc.startsWith("there are")) continue;
 
-      artist = cand;
-      i = j; // advance outer loop past artist
-      break;
+      return { value: v, idx: k };
     }
-
-    if (!artist) continue;
-
-    if (title.length > 180 || artist.length > 140) continue;
-
-    out.push({ rank, title, artist });
+    return null;
   }
 
-  // De-dupe by rank
   const byRank = new Map();
-  for (const r of out) if (!byRank.has(r.rank)) byRank.set(r.rank, r);
+
+  for (let i = 0; i < clean.length; i++) {
+    const cur = clean[i];
+
+    // ----------------------------
+    // CASE A: combined "1 Call Me"
+    // ----------------------------
+    let m = cur.match(/^(\d{1,3})\s+(.+)$/);
+    if (m) {
+      const rank = parseInt(m[1], 10);
+      const title = normLine(m[2]);
+      if (!rank || !title) continue;
+
+      const aTok = nextToken(i + 1);
+      if (!aTok) continue;
+
+      const artist = aTok.value;
+
+      // Guard: artist shouldn't be another rank/title or a bare rank
+      if (/^\d{1,3}$/.test(artist)) continue;
+      if (/^\d{1,3}\s+/.test(artist)) continue;
+
+      if (title.length > 180 || artist.length > 140) continue;
+
+      if (!byRank.has(rank)) byRank.set(rank, { rank, title, artist });
+      continue;
+    }
+
+    // ----------------------------
+    // CASE B: split nodes "1" "Call Me" "Blondie"
+    // ----------------------------
+    if (/^\d{1,3}$/.test(cur)) {
+      const rank = parseInt(cur, 10);
+      if (!rank) continue;
+
+      const tTok = nextToken(i + 1);
+      if (!tTok) continue;
+      const title = tTok.value;
+
+      const aTok = nextToken(tTok.idx + 1);
+      if (!aTok) continue;
+      const artist = aTok.value;
+
+      // Guards: title/artist should not be rank-ish
+      if (/^\d{1,3}$/.test(title) || /^\d{1,3}\s+/.test(title)) continue;
+      if (/^\d{1,3}$/.test(artist) || /^\d{1,3}\s+/.test(artist)) continue;
+
+      if (title.length > 180 || artist.length > 140) continue;
+
+      if (!byRank.has(rank)) byRank.set(rank, { rank, title, artist });
+      continue;
+    }
+  }
 
   return Array.from(byRank.values()).sort((a, b) => a.rank - b.rank);
 }
@@ -128,7 +156,6 @@ function extractTop100FromPage($) {
 
       const rows = extractTop100FromPage($);
 
-      // quick proof for the exact year we care about
       if (y === 1980) {
         console.error(`[DEBUG] 1980 rows=${rows.length} sample=${JSON.stringify(rows.slice(0, 5))}`);
       }
