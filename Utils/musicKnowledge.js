@@ -1,14 +1,11 @@
 /**
- * musicKnowledge.js — Bulletproof V2.1 Loader (Layer2-ready)
+ * musicKnowledge.js — Bulletproof V2.2 Loader (Layer2-ready)
  * Sandblast / Nyx
  *
- * Updates in v2.1:
- * - Backwards-compatible exports: loadDb, loadDB, getDb, db
- * - Accepts DB as { moments: [...] } OR raw array [...]
- * - BOM-safe JSON parsing
- * - Safe "load once" getter (getDb)
- * - More robust path resolution across Windows/Render
- * - Hot reload only if enabled (MUSIC_DB_HOT_RELOAD=1)
+ * Updates in v2.2:
+ * - Adds Data/music_moments_v2_layer2_plus500.json as top fallback
+ * - Optional MUSIC_DB_CANDIDATES env var (comma-separated) to control fallback order
+ * - Keeps all v2.1 guarantees (back-compat exports, BOM-safe parsing, path robustness, hot reload)
  */
 
 "use strict";
@@ -21,16 +18,32 @@ const path = require("path");
 // =============================
 
 // Preferred: set in Render env vars (no more edits)
-// e.g. MUSIC_DB_PATH=Data/music_moments_v2_layer2.json
+// e.g. MUSIC_DB_PATH=Data/music_moments_v2_layer2_plus500.json
 const ENV_DB_PATH = process.env.MUSIC_DB_PATH;
 
+// Optional: override candidates list via env var (comma-separated)
+// e.g. MUSIC_DB_CANDIDATES=Data/music_moments_v2_layer2_plus500.json,Data/music_moments_v2_layer2.json
+const ENV_DB_CANDIDATES = process.env.MUSIC_DB_CANDIDATES;
+
 // Fallback candidates (first existing one is used)
-const DB_CANDIDATES = [
+const DEFAULT_DB_CANDIDATES = [
+  // NEW: prioritize your expanded file if present
+  "Data/music_moments_v2_layer2_plus500.json",
+
+  // existing defaults
   "Data/music_moments_v2_layer2.json",
   "Data/music_moments_v2.json",
   "Data/music_moments.json",
   "Data/music_moments_layer1.json"
 ];
+
+function getCandidateList() {
+  if (!ENV_DB_CANDIDATES) return DEFAULT_DB_CANDIDATES;
+  return String(ENV_DB_CANDIDATES)
+    .split(",")
+    .map(s => s.trim())
+    .filter(Boolean);
+}
 
 // Charts
 const DEFAULT_CHART = "Billboard Hot 100";
@@ -105,6 +118,8 @@ function resolveDbPath() {
     if (fileExists(abs)) return abs;
     warn(`MUSIC_DB_PATH is set but file not found: ${abs}`);
   }
+
+  const DB_CANDIDATES = getCandidateList();
 
   // Try candidates relative to project root
   for (const rel of DB_CANDIDATES) {
