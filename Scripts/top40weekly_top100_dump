@@ -3,7 +3,7 @@
  *
  * Usage (UTF-8 CSV):
  *   npm i cheerio
- *   node scripts/top40weekly_top100_dump.js 1960 2019 | Out-File -Encoding utf8 Data\top40weekly_top100_1960_2019.csv
+ *   node scripts/top40weekly_top100_dump.js 1980 1980 | Out-File -Encoding utf8 Data\top40weekly_top100_1980.csv
  */
 
 "use strict";
@@ -32,50 +32,45 @@ async function fetchHtml(url) {
 }
 
 /**
- * Newline-preserving parser for Top40Weekly "Top 100 Songs of YEAR" pages
- * Format on page:
- *   1  Call Me
- *   Blondie
- *   2  Another Brick in the Wall, Part II
- *   Pink Floyd
+ * Extract chart rows from the .entry-content HTML by forcing line breaks
+ * and then parsing "rank title" followed by "artist".
  */
-function extractTop100FromPage($) {
-  // Prefer the article body (this is where Top40Weekly places the list)
-  let entry = $(".entry-content").first();
+function extractTop100FromHtml(html) {
+  const $ = cheerio.load(html);
+  const entry = $(".entry-content").first();
 
-  // Fallbacks in case the theme changes
-  if (!entry.length) entry = $("article .entry-content").first();
-  if (!entry.length) entry = $("article").first();
-  if (!entry.length) entry = $("main").first();
   if (!entry.length) return [];
 
-  // Clone so we can mutate DOM safely
-  const clone = entry.clone();
+  // Work from HTML, not text, so we can preserve structural breaks.
+  let s = entry.html() || "";
 
-  // Convert <br> into actual newline characters
-  clone.find("br").replaceWith("\n");
+  // Force line breaks where the page visually breaks lines.
+  s = s
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|li|div|tr|td|h1|h2|h3|h4|h5|h6)>/gi, "\n")
+    .replace(/<(p|li|div|tr|td|h1|h2|h3|h4|h5|h6)[^>]*>/gi, "\n");
 
-  // Ensure block-level elements contribute line breaks
-  clone.find("p, li, h1, h2, h3, h4, h5, h6").each((_, el) => {
-    $(el).append("\n");
-  });
+  // Strip remaining tags
+  s = s.replace(/<[^>]+>/g, " ");
 
-  const rawText = clone.text();
+  // Decode a few common entities (good enough for titles/artists)
+  s = s
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&#8217;|&rsquo;/gi, "'")
+    .replace(/&#8220;|&#8221;|&quot;/gi, '"')
+    .replace(/&amp;/gi, "&");
 
-  // Split into lines
-  const lines = rawText
+  const lines = s
     .split("\n")
     .map(normLine)
     .filter(Boolean);
 
-  // Find header marker if present
+  // Optional: find "Top Songs Of 1980" header and start after it
   const startIdx = lines.findIndex(l => /^top songs of \d{4}$/i.test(l));
   const parseFrom = startIdx >= 0 ? startIdx + 1 : 0;
 
   const out = [];
-
   for (let i = parseFrom; i < lines.length - 1; i++) {
-    // Expect: "1 Call Me"
     const m = lines[i].match(/^(\d{1,3})\s+(.+)$/);
     if (!m) continue;
 
@@ -85,23 +80,23 @@ function extractTop100FromPage($) {
 
     if (!rank || !title || !artist) continue;
 
-    // Skip obvious non-data lines
+    // Skip obvious page copy
     const tLower = title.toLowerCase();
     if (tLower.includes("top songs of")) continue;
     if (tLower.startsWith("these are the top")) continue;
     if (tLower.startsWith("there are")) continue;
 
-    // Guard: next line should not be another rank/title line
+    // Artist line must not be another "N Title"
     if (/^\d{1,3}\s+/.test(artist)) continue;
 
     // Sanity limits
-    if (title.length > 160 || artist.length > 120) continue;
+    if (title.length > 180 || artist.length > 140) continue;
 
     out.push({ rank, title, artist });
     i++; // consume artist line
   }
 
-  // De-dupe
+  // De-dupe by rank+title+artist
   const seen = new Set();
   const deduped = [];
   for (const r of out) {
@@ -122,9 +117,7 @@ function extractTop100FromPage($) {
 
     try {
       const html = await fetchHtml(url);
-      const $ = cheerio.load(html);
-
-      const rows = extractTop100FromPage($);
+      const rows = extractTop100FromHtml(html);
 
       if (rows.length < 50) {
         console.error(`[WARN] ${y}: parsed only ${rows.length} rows (${url})`);
