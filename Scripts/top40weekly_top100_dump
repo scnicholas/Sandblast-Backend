@@ -1,20 +1,25 @@
 /**
  * Dump Top40Weekly "Top 100 Songs Of YEAR" pages into CSV: year,artist,title
  *
- * Usage (UTF-8 CSV):
- *   npm i cheerio
- *   node scripts/top40weekly_top100_dump.js 1980 1980 | Out-File -Encoding utf8 Data\top40weekly_top100_1980.csv
+ * Recommended (writes UTF-8 file directly; avoids PowerShell piping issues):
+ *   node scripts/top40weekly_top100_dump.js 1980 1980 Data\top40weekly_top100_1980.csv
+ *
+ * Or stdout:
+ *   node scripts/top40weekly_top100_dump.js 1960 2019
  */
 
 "use strict";
 
+const fs = require("fs");
+const path = require("path");
 const cheerio = require("cheerio");
 
 const startYear = parseInt(process.argv[2], 10);
 const endYear = parseInt(process.argv[3], 10);
+const outPath = process.argv[4]; // optional
 
 if (!startYear || !endYear || endYear < startYear) {
-  console.error("Usage: node scripts/top40weekly_top100_dump.js <startYear> <endYear>");
+  console.error("Usage: node scripts/top40weekly_top100_dump.js <startYear> <endYear> [out.csv]");
   process.exit(1);
 }
 
@@ -32,92 +37,101 @@ async function fetchHtml(url) {
 }
 
 /**
- * Extract chart rows from the .entry-content HTML by forcing line breaks
- * and then parsing "rank title" followed by "artist".
+ * DOM-ordered parser:
+ * - Reads text nodes in .entry-content in document order
+ * - Pairs: "N Title" then next meaningful line "Artist"
+ * - Does not rely on newline behavior of .text()
  */
-function extractTop100FromHtml(html) {
-  const $ = cheerio.load(html);
+function extractTop100FromPage($) {
   const entry = $(".entry-content").first();
-
   if (!entry.length) return [];
 
-  // Work from HTML, not text, so we can preserve structural breaks.
-  let s = entry.html() || "";
+  const chunks = [];
 
-  // Force line breaks where the page visually breaks lines.
-  s = s
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/(p|li|div|tr|td|h1|h2|h3|h4|h5|h6)>/gi, "\n")
-    .replace(/<(p|li|div|tr|td|h1|h2|h3|h4|h5|h6)[^>]*>/gi, "\n");
+  // Walk text nodes inside entry content in reading order
+  entry.find("*").contents().each((_, node) => {
+    if (node.type === "text") {
+      const t = normLine(node.data);
+      if (t) chunks.push(t);
+    }
+  });
 
-  // Strip remaining tags
-  s = s.replace(/<[^>]+>/g, " ");
+  // Also include direct text under entry itself
+  entry.contents().each((_, node) => {
+    if (node.type === "text") {
+      const t = normLine(node.data);
+      if (t) chunks.push(t);
+    }
+  });
 
-  // Decode a few common entities (good enough for titles/artists)
-  s = s
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&#8217;|&rsquo;/gi, "'")
-    .replace(/&#8220;|&#8221;|&quot;/gi, '"')
-    .replace(/&amp;/gi, "&");
-
-  const lines = s
-    .split("\n")
+  const clean = chunks
     .map(normLine)
-    .filter(Boolean);
-
-  // Optional: find "Top Songs Of 1980" header and start after it
-  const startIdx = lines.findIndex(l => /^top songs of \d{4}$/i.test(l));
-  const parseFrom = startIdx >= 0 ? startIdx + 1 : 0;
+    .filter(Boolean)
+    .filter(s => s.length < 220)
+    .filter(s => !/^share|^posted|^leave a reply/i.test(s));
 
   const out = [];
-  for (let i = parseFrom; i < lines.length - 1; i++) {
-    const m = lines[i].match(/^(\d{1,3})\s+(.+)$/);
+
+  for (let i = 0; i < clean.length - 1; i++) {
+    const m = clean[i].match(/^(\d{1,3})\s+(.+)$/);
     if (!m) continue;
 
     const rank = parseInt(m[1], 10);
     const title = normLine(m[2]);
-    const artist = normLine(lines[i + 1]);
+    if (!rank || !title) continue;
 
-    if (!rank || !title || !artist) continue;
+    let artist = "";
+    for (let j = i + 1; j < clean.length; j++) {
+      const cand = normLine(clean[j]);
+      if (!cand) continue;
 
-    // Skip obvious page copy
-    const tLower = title.toLowerCase();
-    if (tLower.includes("top songs of")) continue;
-    if (tLower.startsWith("these are the top")) continue;
-    if (tLower.startsWith("there are")) continue;
+      // if we hit another rank/title line before artist, bail
+      if (/^\d{1,3}\s+/.test(cand)) {
+        artist = "";
+        break;
+      }
 
-    // Artist line must not be another "N Title"
-    if (/^\d{1,3}\s+/.test(artist)) continue;
+      const lc = cand.toLowerCase();
+      if (lc.includes("top songs of")) continue;
+      if (lc.startsWith("these are the top")) continue;
+      if (lc.startsWith("there are")) continue;
 
-    // Sanity limits
+      artist = cand;
+      i = j; // advance outer loop past artist
+      break;
+    }
+
+    if (!artist) continue;
+
     if (title.length > 180 || artist.length > 140) continue;
 
     out.push({ rank, title, artist });
-    i++; // consume artist line
   }
 
-  // De-dupe by rank+title+artist
-  const seen = new Set();
-  const deduped = [];
-  for (const r of out) {
-    const key = `${r.rank}|${r.title.toLowerCase()}|${r.artist.toLowerCase()}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    deduped.push(r);
-  }
+  // De-dupe by rank
+  const byRank = new Map();
+  for (const r of out) if (!byRank.has(r.rank)) byRank.set(r.rank, r);
 
-  return deduped;
+  return Array.from(byRank.values()).sort((a, b) => a.rank - b.rank);
 }
 
 (async () => {
-  console.log("year,artist,title");
+  const csvLines = [];
+  csvLines.push("year,artist,title");
 
   for (let y = startYear; y <= endYear; y++) {
     const url = `https://top40weekly.com/top-100-songs-of-${y}/`;
 
     try {
       const html = await fetchHtml(url);
-      const rows = extractTop100FromHtml(html);
+      const $ = cheerio.load(html);
+
+      const rows = extractTop100FromPage($);
+
+      // quick proof for the exact year we care about
+      if (y === 1980) {
+        console.error(`[DEBUG] 1980 rows=${rows.length} sample=${JSON.stringify(rows.slice(0, 5))}`);
+      }
 
       if (rows.length < 50) {
         console.error(`[WARN] ${y}: parsed only ${rows.length} rows (${url})`);
@@ -129,10 +143,21 @@ function extractTop100FromHtml(html) {
       for (const r of rows) {
         const a = `"${String(r.artist).replace(/"/g, '""')}"`;
         const t = `"${String(r.title).replace(/"/g, '""')}"`;
-        console.log(`${y},${a},${t}`);
+        csvLines.push(`${y},${a},${t}`);
       }
     } catch (e) {
       console.error(`[WARN] ${y}: ${e.message} (${url})`);
     }
+  }
+
+  const csv = csvLines.join("\n") + "\n";
+
+  if (outPath) {
+    const full = path.resolve(process.cwd(), outPath);
+    fs.mkdirSync(path.dirname(full), { recursive: true });
+    fs.writeFileSync(full, csv, "utf8");
+    console.error(`[DONE] wrote ${csvLines.length - 1} rows to ${full}`);
+  } else {
+    process.stdout.write(csv);
   }
 })();
