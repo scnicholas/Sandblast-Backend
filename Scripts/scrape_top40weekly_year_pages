@@ -15,7 +15,7 @@ async function fetchText(url, tries = 3) {
       return await res.text();
     } catch (e) {
       lastErr = e;
-      await new Promise(r => setTimeout(r, 800 + i * 800));
+      await new Promise(r => setTimeout(r, 900 + i * 800));
     }
   }
   throw lastErr;
@@ -42,44 +42,69 @@ function yearFromUrl(url) {
   return m ? Number(m[1]) : null;
 }
 
+function findStartIndex(lines, year) {
+  const patterns = [
+    new RegExp(`^top\\s*100\\s*songs\\s*of\\s*${year}$`, "i"),
+    new RegExp(`^top\\s*songs\\s*of\\s*${year}$`, "i"),
+    new RegExp(`^top\\s*songs\\s*from\\s*${year}$`, "i"),
+  ];
+
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i].trim();
+    if (patterns.some(rx => rx.test(l))) return i;
+  }
+  return -1;
+}
+
 function parseTop100YearPage(text, year) {
-  // We’re going to find the section starting at "Top Songs of YYYY"
   const lines = stripHtml(text)
     .split("\n")
     .map(s => s.trim())
     .filter(Boolean);
 
-  const startIdx = lines.findIndex(l => l.toLowerCase() === `top songs of ${year}`.toLowerCase());
+  const startIdx = findStartIndex(lines, year);
   if (startIdx === -1) {
-    return { year, items: [], warn: `Could not find section header: Top Songs of ${year}` };
+    return { year, items: [], warn: `Could not find header block for year ${year}` };
   }
 
-  // Parse “rank title” lines followed by an artist line
   const items = [];
   for (let i = startIdx + 1; i < lines.length; i++) {
     const l = lines[i];
 
-    // stop if we hit another major header or navigation-like block
-    if (/^top\s+100\s+songs/i.test(l) && i > startIdx + 3) break;
-    if (/^top\s+songs\s+of\s+\d{4}$/i.test(l) && i > startIdx + 3) break;
+    // Stop when we hit the "More XX’s Content" section or navigation blocks
+    if (/^more\s+\d{2}['’]s\s+content$/i.test(l)) break;
 
+    // Primary record line: "1 Joy to the World"
     const m = l.match(/^(\d{1,3})\s+(.*)$/);
     if (!m) continue;
 
     const rank = Number(m[1]);
-    const title = m[2].trim();
+    let title = m[2].trim();
 
-    // find next non-rank line as artist
+    // Some titles contain trailing extra spacing; keep as-is otherwise.
+    if (!title) continue;
+
+    // Next non-rank line is artist (as per page description)
     let artist = "";
     for (let j = i + 1; j < lines.length; j++) {
       const nl = lines[j];
-      if (/^\d{1,3}\s+/.test(nl)) break; // next entry started
-      // ignore obvious boilerplate
-      if (/^this blog post/i.test(nl)) continue;
-      if (/^displayed with the song titles/i.test(nl)) continue;
+
+      // If next entry starts, stop
+      if (/^\d{1,3}\s+/.test(nl)) break;
+
+      // Skip obvious boilerplate
+      if (/^page contents$/i.test(nl)) continue;
+      if (/^songs\s+\d+\s*[–-]\s*\d+$/i.test(nl)) continue;
+      if (/^these are the top 100 songs/i.test(nl)) continue;
+      if (/^the song title is at the top/i.test(nl)) continue;
+      if (/^you can find links to/i.test(nl)) continue;
+      if (/^we welcome you to join/i.test(nl)) continue;
+
       artist = nl.trim();
-      i = j; // advance outer loop
-      break;
+      if (artist) {
+        i = j; // advance outer loop to after artist
+        break;
+      }
     }
 
     if (artist) {
