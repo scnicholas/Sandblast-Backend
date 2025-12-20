@@ -1,13 +1,11 @@
 /**
  * index.js — Nyx Broadcast Backend (Bulletproof LOCKED)
- * Build: nyx-bulletproof-v1.67-2025-12-20
+ * Build: nyx-bulletproof-v1.68-2025-12-20
  *
- * Additions vs v1.66:
- * - Follow-up loop fuse (no infinite "need year" loops)
- * - Request dedupe via requestId (stops double-send loops)
- * - Stronger sessionId intake (meta.sessionId OR sessionId OR x-session-id)
- * - Greeting fallback (server-side welcome on first hello)
- * - /api/debug/last endpoint (inspect most recent session quickly)
+ * Additions vs v1.67:
+ * - Honor meta.clientGreeted from widget to prevent double-greeting "loops"
+ *   - If clientGreeted is true, session is marked greeted
+ *   - Server greeting will not fire when clientGreeted is true
  */
 
 "use strict";
@@ -88,7 +86,7 @@ app.use(cors({ origin: true }));
 app.options("*", cors());
 
 const PORT = process.env.PORT || 3000;
-const BUILD_TAG = "nyx-bulletproof-v1.67-2025-12-20";
+const BUILD_TAG = "nyx-bulletproof-v1.68-2025-12-20";
 const DEFAULT_CHART = "Billboard Hot 100";
 
 // Keep this reasonable. With the persistent worker, 900–1500ms is fine.
@@ -379,7 +377,15 @@ app.post("/api/sandblast-gpt", async (req, res) => {
   const text = safeStr(req.body?.message);
   const requestId = safeStr(req.body?.meta?.requestId || req.body?.requestId);
 
+  // ✅ NEW: widget can tell server "I already greeted the user"
+  const clientGreeted = !!req.body?.meta?.clientGreeted;
+
   const { key, sess } = resolveSession(req);
+
+  // ✅ NEW: if client already greeted, mark session greeted to prevent server greeting
+  if (clientGreeted && !sess.greeted) {
+    sess.greeted = true;
+  }
 
   // ---------------- DEDUPE (prevents double-send loops) ----------------
   if (requestId && sess.lastRequestId === requestId && sess.lastReply) {
@@ -388,8 +394,12 @@ app.post("/api/sandblast-gpt", async (req, res) => {
   }
   if (requestId) sess.lastRequestId = requestId;
 
-  // ---------------- Greeting fallback ----------------
-  if (!sess.greeted && isGreeting(text)) {
+  // ---------------- Greeting fallback (server-side) ----------------
+  // Only greet if:
+  // - session not greeted
+  // - client did NOT already greet
+  // - input is a greeting
+  if (!sess.greeted && !clientGreeted && isGreeting(text)) {
     sess.greeted = true;
     touch(sess);
     return send(
@@ -402,11 +412,12 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     );
   }
 
-  // Empty input: stable prompt (and if not greeted yet, greet)
+  // Empty input: stable prompt
+  // If not greeted AND client did NOT greet, server can greet.
   if (!text) {
     touch(sess);
 
-    if (!sess.greeted) {
+    if (!sess.greeted && !clientGreeted) {
       sess.greeted = true;
       return send(
         res,
@@ -418,6 +429,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       );
     }
 
+    // If client greeted (or session already greeted), do NOT greet again.
     return send(
       res,
       key,
