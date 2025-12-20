@@ -1,18 +1,17 @@
 /**
  * index.js — Nyx Broadcast Backend (Bulletproof LOCKED)
- * Build: nyx-bulletproof-v1.69-2025-12-20
+ * Build: nyx-bulletproof-v1.70-2025-12-20
  *
- * Updates vs v1.68:
- * - Stop repetitiveness:
- *   - Slot-aware followups (ask for missing artist/year/title)
- *   - Fuse prompts so repeated steps vary and then present a menu
- *   - Avoid repeating the same generic "not found" line
- * - Fix out-of-order inputs:
- *   - If slots change (e.g., year then artist), re-attempt resolution immediately
- * - Keep v1.68 improvements:
+ * Updates vs v1.69:
+ * - Title-only inference:
+ *   - If user sends a song title (no artist yet), re-query KB using slots to infer artist/year
+ *   - Prevents repetitive menu prompts for inputs like: "When Doves Cry"
+ * - Keeps:
+ *   - Slot-aware followups + fuse anti-repetition
+ *   - Out-of-order slot reconciliation (year -> artist, artist -> year)
  *   - clientGreeted support (no double greeting)
  *   - requestId dedupe
- *   - persistent KB worker + timeout restart
+ *   - Persistent KB worker with timeout restart
  */
 
 "use strict";
@@ -94,7 +93,7 @@ app.use(cors({ origin: true }));
 app.options("*", cors());
 
 const PORT = process.env.PORT || 3000;
-const BUILD_TAG = "nyx-bulletproof-v1.69-2025-12-20";
+const BUILD_TAG = "nyx-bulletproof-v1.70-2025-12-20";
 const DEFAULT_CHART = "Billboard Hot 100";
 
 // Keep this reasonable. With the persistent worker, 900–1500ms is fine.
@@ -188,7 +187,6 @@ function slotSummary(slots) {
 
 // ---------------- SEND (CANON) ----------------
 function send(res, sessionId, sess, step, reply, advance = false) {
-  // Persist last response for dedupe safety
   sess.lastReply = reply;
   sess.lastReplyStep = step;
 
@@ -477,18 +475,18 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 
   // Merge slot updates with change tracking
   let slotChanged = false;
-  const prevArtist = safeStr(sess.laneDetail.artist);
-  const prevTitle = safeStr(sess.laneDetail.title);
-  const prevYear = sess.laneDetail.year;
 
+  const prevYear = sess.laneDetail.year;
   if (out.year && prevYear !== out.year) {
     sess.laneDetail.year = out.year;
     slotChanged = true;
   }
+
   if (!sess.laneDetail.artist && out.artist) {
     sess.laneDetail.artist = out.artist;
     slotChanged = true;
   }
+
   if (!sess.laneDetail.title && out.title) {
     sess.laneDetail.title = out.title;
     slotChanged = true;
@@ -500,7 +498,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
   let best = out.best || null;
 
   // 🔁 Reconciliation: if slots changed, re-attempt resolution immediately
-  // This fixes "year first then artist" and stops repetitive fallback.
+  // Fixes "year first then artist" and reduces perceived looping.
   if (!best && slotChanged) {
     const retry = await kbQuery("", sess.laneDetail, KB_TIMEOUT_MS);
     best = retry?.ok ? retry?.out?.best || null : null;
@@ -529,6 +527,38 @@ app.post("/api/sandblast-gpt", async (req, res) => {
   }
 
   // ---------------- Slot-aware follow-ups (anti-repetition) ----------------
+
+  // ✅ NEW: Title-only inference
+  // If we have a title but no artist yet, try resolving via KB before asking again.
+  if (sess.laneDetail.title && !sess.laneDetail.artist) {
+    const retry = await kbQuery("", sess.laneDetail, KB_TIMEOUT_MS);
+    const inferred = retry?.ok ? retry?.out?.best || null : null;
+
+    if (inferred && inferred.artist) {
+      sess.laneDetail.artist = inferred.artist;
+      if (inferred.year && !sess.laneDetail.year) {
+        sess.laneDetail.year = inferred.year;
+      }
+
+      touch(sess);
+      sess.lastPromptStep = "";
+      sess.promptRepeatCount = 0;
+
+      const chart = inferred.chart || sess.laneDetail.chart || DEFAULT_CHART;
+      const fact = inferred.fact ? `\nFact: ${inferred.fact}` : "";
+      const culture = inferred.culture ? `\n\n${inferred.culture}` : "";
+      const next = inferred.next ? `\nNext: ${inferred.next}` : "";
+
+      return send(
+        res,
+        key,
+        sess,
+        "music_title_inferred",
+        `${inferred.artist} — "${inferred.title}" (${inferred.year})\nChart: ${chart}${fact}${culture}${next}`,
+        true
+      );
+    }
+  }
 
   // Missing artist
   if (!sess.laneDetail.artist) {
