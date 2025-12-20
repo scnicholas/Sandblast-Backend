@@ -1,13 +1,13 @@
 /**
  * index.js — Nyx Broadcast Backend (Bulletproof LOCKED)
- * Build: nyx-bulletproof-v1.66-2025-12-20
+ * Build: nyx-bulletproof-v1.67-2025-12-20
  *
- * Fixes:
- * - Persistent KB Worker (loads musicKnowledge ONCE, stays warm)
- * - Hard timeout per request (never stalls widget)
- * - If worker hangs: terminate + auto-restart
- * - Loop-proof timeout messaging (no "repeat same input" bait)
- * - Stable response shape on errors
+ * Additions vs v1.66:
+ * - Follow-up loop fuse (no infinite "need year" loops)
+ * - Request dedupe via requestId (stops double-send loops)
+ * - Stronger sessionId intake (meta.sessionId OR sessionId OR x-session-id)
+ * - Greeting fallback (server-side welcome on first hello)
+ * - /api/debug/last endpoint (inspect most recent session quickly)
  */
 
 "use strict";
@@ -26,13 +26,18 @@ if (!isMainThread) {
   let musicKB = null;
 
   function safe(fn, fallback = null) {
-    try { return fn(); } catch { return fallback; }
+    try {
+      return fn();
+    } catch {
+      return fallback;
+    }
   }
 
   function handleJob(msg) {
     const id = msg && msg.id;
     const text = String(msg && msg.text ? msg.text : "").trim();
-    const laneDetail = (msg && msg.laneDetail && typeof msg.laneDetail === "object") ? msg.laneDetail : {};
+    const laneDetail =
+      msg && msg.laneDetail && typeof msg.laneDetail === "object" ? msg.laneDetail : {};
 
     if (!id) return;
 
@@ -46,7 +51,7 @@ if (!isMainThread) {
         year: safe(() => musicKB.extractYear?.(text), null),
         artist: safe(() => musicKB.detectArtist?.(text), null),
         title: safe(() => musicKB.extractTitle?.(text), null),
-        best: null
+        best: null,
       };
 
       const slots = { ...laneDetail };
@@ -58,7 +63,11 @@ if (!isMainThread) {
 
       parentPort.postMessage({ id, ok: true, out });
     } catch (e) {
-      parentPort.postMessage({ id, ok: false, error: String(e && e.message ? e.message : e) });
+      parentPort.postMessage({
+        id,
+        ok: false,
+        error: String(e && e.message ? e.message : e),
+      });
     }
   }
 
@@ -79,7 +88,7 @@ app.use(cors({ origin: true }));
 app.options("*", cors());
 
 const PORT = process.env.PORT || 3000;
-const BUILD_TAG = "nyx-bulletproof-v1.66-2025-12-20";
+const BUILD_TAG = "nyx-bulletproof-v1.67-2025-12-20";
 const DEFAULT_CHART = "Billboard Hot 100";
 
 // Keep this reasonable. With the persistent worker, 900–1500ms is fine.
@@ -88,11 +97,14 @@ const KB_TIMEOUT_MS = Number(process.env.KB_TIMEOUT_MS || 1200);
 // ---------------- SESSION ----------------
 const SESS = new Map();
 const SESSION_TTL_MS = 1000 * 60 * 60 * 6; // 6 hours
-const CLEANUP_EVERY_MS = 1000 * 60 * 10;   // 10 minutes
+const CLEANUP_EVERY_MS = 1000 * 60 * 10; // 10 minutes
 
 function sid() {
-  try { return crypto.randomUUID(); }
-  catch { return "sid_" + Date.now() + "_" + Math.random().toString(36).slice(2); }
+  try {
+    return crypto.randomUUID();
+  } catch {
+    return "sid_" + Date.now() + "_" + Math.random().toString(36).slice(2);
+  }
 }
 
 function nowIso() {
@@ -119,8 +131,45 @@ setInterval(() => {
   }
 }, CLEANUP_EVERY_MS).unref?.();
 
+// ---------------- HELPERS ----------------
+function isGreeting(text) {
+  const t = safeStr(text).toLowerCase();
+  if (!t) return false;
+  // Keep conservative: avoid false positives
+  return (
+    t === "hi" ||
+    t === "hello" ||
+    t === "hey" ||
+    t === "yo" ||
+    t.startsWith("hi ") ||
+    t.startsWith("hello ") ||
+    t.startsWith("hey ")
+  );
+}
+
+function clampInt(n, min, max, fallback) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return fallback;
+  return Math.min(max, Math.max(min, Math.trunc(x)));
+}
+
+function bumpPromptFuse(sess, step) {
+  const prev = safeStr(sess.lastPromptStep);
+  if (prev === step) {
+    sess.promptRepeatCount = clampInt(sess.promptRepeatCount, 0, 9999, 0) + 1;
+  } else {
+    sess.lastPromptStep = step;
+    sess.promptRepeatCount = 1;
+  }
+  return sess.promptRepeatCount;
+}
+
 // ---------------- SEND (CANON) ----------------
 function send(res, sessionId, sess, step, reply, advance = false) {
+  // Persist last response for dedupe safety
+  sess.lastReply = reply;
+  sess.lastReplyStep = step;
+
   res.status(200).json({
     ok: true,
     reply,
@@ -128,17 +177,22 @@ function send(res, sessionId, sess, step, reply, advance = false) {
       mode: sess.currentLane,
       step,
       advance,
-      slots: sess.laneDetail || {}
+      slots: sess.laneDetail || {},
     },
     meta: {
       sessionId,
       build: BUILD_TAG,
-      serverTime: nowIso()
-    }
+      serverTime: nowIso(),
+    },
   });
 }
 
 function sendStableError(res, sessionId, sess, step, reply) {
+  if (sess) {
+    sess.lastReply = reply;
+    sess.lastReplyStep = step;
+  }
+
   res.status(200).json({
     ok: true,
     reply,
@@ -146,19 +200,27 @@ function sendStableError(res, sessionId, sess, step, reply) {
       mode: sess?.currentLane || "music_history",
       step,
       advance: false,
-      slots: sess?.laneDetail || {}
+      slots: sess?.laneDetail || {},
     },
     meta: {
       sessionId: sessionId || null,
       build: BUILD_TAG,
-      serverTime: nowIso()
-    }
+      serverTime: nowIso(),
+    },
   });
 }
 
 // ---------------- SESSION RESOLUTION ----------------
 function resolveSession(req) {
-  const clientSid = safeStr(req.body?.meta?.sessionId);
+  // Accept sessionId from:
+  // - req.body.meta.sessionId (preferred)
+  // - req.body.sessionId (fallback)
+  // - x-session-id header (fallback)
+  const headerSid = safeStr(req.headers["x-session-id"]);
+  const bodySid = safeStr(req.body?.sessionId);
+  const metaSid = safeStr(req.body?.meta?.sessionId);
+
+  const clientSid = metaSid || bodySid || headerSid;
   const key = clientSid || sid();
 
   let sess = SESS.get(key);
@@ -167,7 +229,18 @@ function resolveSession(req) {
       id: key,
       currentLane: "music_history",
       laneDetail: { chart: DEFAULT_CHART },
-      lastSeen: Date.now()
+
+      // loop/fuse controls
+      greeted: false,
+      lastPromptStep: "",
+      promptRepeatCount: 0,
+
+      // dedupe controls
+      lastRequestId: "",
+      lastReply: "",
+      lastReplyStep: "",
+
+      lastSeen: Date.now(),
     };
     SESS.set(key, sess);
   } else {
@@ -177,6 +250,14 @@ function resolveSession(req) {
   sess.laneDetail = safeObj(sess.laneDetail);
   sess.laneDetail.chart = safeStr(sess.laneDetail.chart) || DEFAULT_CHART;
   sess.currentLane = safeStr(sess.currentLane) || "music_history";
+
+  // Ensure fuse fields exist
+  sess.greeted = !!sess.greeted;
+  sess.lastPromptStep = safeStr(sess.lastPromptStep);
+  sess.promptRepeatCount = clampInt(sess.promptRepeatCount, 0, 9999, 0);
+  sess.lastRequestId = safeStr(sess.lastRequestId);
+  sess.lastReply = safeStr(sess.lastReply);
+  sess.lastReplyStep = safeStr(sess.lastReplyStep);
 
   return { key, sess };
 }
@@ -296,11 +377,47 @@ function kbQuery(text, laneDetail, timeoutMs) {
 
 app.post("/api/sandblast-gpt", async (req, res) => {
   const text = safeStr(req.body?.message);
+  const requestId = safeStr(req.body?.meta?.requestId || req.body?.requestId);
+
   const { key, sess } = resolveSession(req);
 
-  // Empty input: stable prompt
+  // ---------------- DEDUPE (prevents double-send loops) ----------------
+  if (requestId && sess.lastRequestId === requestId && sess.lastReply) {
+    touch(sess);
+    return send(res, key, sess, sess.lastReplyStep || "dedupe", sess.lastReply, false);
+  }
+  if (requestId) sess.lastRequestId = requestId;
+
+  // ---------------- Greeting fallback ----------------
+  if (!sess.greeted && isGreeting(text)) {
+    sess.greeted = true;
+    touch(sess);
+    return send(
+      res,
+      key,
+      sess,
+      "greet",
+      "Hi — I’m Nyx. Welcome to Sandblast. Tell me what you’re tuning today: TV, Radio, Sponsors, or Music.",
+      false
+    );
+  }
+
+  // Empty input: stable prompt (and if not greeted yet, greet)
   if (!text) {
     touch(sess);
+
+    if (!sess.greeted) {
+      sess.greeted = true;
+      return send(
+        res,
+        key,
+        sess,
+        "greet_empty",
+        "Welcome to Sandblast — I’m Nyx. Say hi, or tell me what you want: TV, Radio, Sponsors, or Music.",
+        false
+      );
+    }
+
     return send(
       res,
       key,
@@ -336,13 +453,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       );
     }
 
-    return sendStableError(
-      res,
-      key,
-      sess,
-      "kb_error",
-      "Backend hiccup (music library). Try again in a moment."
-    );
+    return sendStableError(res, key, sess, "kb_error", "Backend hiccup (music library). Try again in a moment.");
   }
 
   // Worker result
@@ -359,6 +470,10 @@ app.post("/api/sandblast-gpt", async (req, res) => {
   if (best) {
     touch(sess);
 
+    // Reset prompt fuse when we successfully answer
+    sess.lastPromptStep = "";
+    sess.promptRepeatCount = 0;
+
     const chart = best.chart || sess.laneDetail.chart || DEFAULT_CHART;
     const fact = best.fact ? `\nFact: ${best.fact}` : "";
     const culture = best.culture ? `\n\n${best.culture}` : "";
@@ -374,15 +489,43 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     );
   }
 
-  // Slot prompting
+  // Slot prompting with FOLLOW-UP FUSE (prevents infinite loops)
   if (!sess.laneDetail.year) {
     touch(sess);
+
+    const repeats = bumpPromptFuse(sess, "music_need_year");
+
+    // 1st ask: normal follow-up
+    if (repeats === 1) {
+      return send(
+        res,
+        key,
+        sess,
+        "music_need_year",
+        `What year should I check for ${sess.laneDetail.artist || "that artist"}?`,
+        false
+      );
+    }
+
+    // 2nd ask: reframe with examples
+    if (repeats === 2) {
+      return send(
+        res,
+        key,
+        sess,
+        "music_need_year_reframe",
+        `Quick anchor: drop a year (example: 1996) — or send a song title and I’ll infer the year.`,
+        false
+      );
+    }
+
+    // 3rd+ ask: stop looping; offer menu and proceed with an assumption path
     return send(
       res,
       key,
       sess,
-      "music_need_year",
-      `What year should I check for ${sess.laneDetail.artist || "that artist"}?`,
+      "music_need_year_fused",
+      "No worries — I won’t loop on this. Pick one:\n1) Send a year (1990–2000)\n2) Send a song title\n3) Say “random 90s” and I’ll pull a strong moment.",
       false
     );
   }
@@ -405,11 +548,11 @@ app.get("/api/health", (_, res) =>
     build: BUILD_TAG,
     serverTime: nowIso(),
     kbTimeoutMs: KB_TIMEOUT_MS,
-    kbWorkerReady: KB_READY
+    kbWorkerReady: KB_READY,
   })
 );
 
-// Debug session
+// Debug session by id
 app.get("/api/debug/session/:id", (req, res) => {
   const id = safeStr(req.params.id);
   const sess = SESS.get(id);
@@ -421,28 +564,60 @@ app.get("/api/debug/session/:id", (req, res) => {
     state: {
       mode: sess.currentLane,
       lastSeen: sess.lastSeen,
-      slots: sess.laneDetail || {}
+      slots: sess.laneDetail || {},
+      greeted: !!sess.greeted,
+      lastPromptStep: safeStr(sess.lastPromptStep),
+      promptRepeatCount: clampInt(sess.promptRepeatCount, 0, 9999, 0),
+      lastRequestId: safeStr(sess.lastRequestId),
+      lastReplyStep: safeStr(sess.lastReplyStep),
+    },
+  });
+});
+
+// Debug last active session (no guessing)
+app.get("/api/debug/last", (_req, res) => {
+  let bestKey = null;
+  let bestSess = null;
+
+  for (const [k, s] of SESS.entries()) {
+    if (!s || !s.lastSeen) continue;
+    if (!bestSess || s.lastSeen > bestSess.lastSeen) {
+      bestSess = s;
+      bestKey = k;
     }
+  }
+
+  if (!bestSess) return res.status(404).json({ ok: false, error: "NO_SESSIONS" });
+
+  res.json({
+    ok: true,
+    meta: { sessionId: bestKey, build: BUILD_TAG, serverTime: nowIso() },
+    state: {
+      mode: bestSess.currentLane,
+      lastSeen: bestSess.lastSeen,
+      slots: bestSess.laneDetail || {},
+      greeted: !!bestSess.greeted,
+      lastPromptStep: safeStr(bestSess.lastPromptStep),
+      promptRepeatCount: clampInt(bestSess.promptRepeatCount, 0, 9999, 0),
+      lastRequestId: safeStr(bestSess.lastRequestId),
+      lastReplyStep: safeStr(bestSess.lastReplyStep),
+      lastReply: safeStr(bestSess.lastReply).slice(0, 500),
+    },
   });
 });
 
 // Global error shield
 app.use((err, req, res, _next) => {
-  const clientSid = safeStr(req.body?.meta?.sessionId);
+  const headerSid = safeStr(req.headers["x-session-id"]);
+  const bodySid = safeStr(req.body?.sessionId);
+  const clientSid = safeStr(req.body?.meta?.sessionId) || bodySid || headerSid;
+
   const key = clientSid || null;
-  const sess = key
-    ? SESS.get(key)
-    : { currentLane: "music_history", laneDetail: { chart: DEFAULT_CHART } };
+  const sess = key ? SESS.get(key) : { currentLane: "music_history", laneDetail: { chart: DEFAULT_CHART } };
 
   console.error("[Nyx][ERR]", err && err.stack ? err.stack : err);
 
-  return sendStableError(
-    res,
-    key,
-    sess,
-    "server_error",
-    "Backend hiccup (HTTP 500). Try again in a moment."
-  );
+  return sendStableError(res, key, sess, "server_error", "Backend hiccup (HTTP 500). Try again in a moment.");
 });
 
 // Start server + start KB worker immediately (warm it up)
