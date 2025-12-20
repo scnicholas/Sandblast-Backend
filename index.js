@@ -1,16 +1,16 @@
 /**
  * index.js — Nyx Broadcast Backend (Bulletproof LOCKED)
- * Build: nyx-bulletproof-v1.70-2025-12-20
+ * Build: nyx-bulletproof-v1.71-2025-12-20
  *
- * Updates vs v1.69:
- * - Title-only inference:
- *   - If user sends a song title (no artist yet), re-query KB using slots to infer artist/year
- *   - Prevents repetitive menu prompts for inputs like: "When Doves Cry"
+ * Updates vs v1.70:
+ * - FIX: Robust "Artist - Title" parsing in index.js (hyphen/en-dash/em-dash)
+ *   so inputs like "Prince - When Doves Cry" correctly set slots.
+ * - UX: If artist+title present but year missing, ask for YEAR (no menu loop).
  * - Keeps:
- *   - Slot-aware followups + fuse anti-repetition
- *   - Out-of-order slot reconciliation (year -> artist, artist -> year)
- *   - clientGreeted support (no double greeting)
- *   - requestId dedupe
+ *   - Title-only inference
+ *   - Slot reconciliation
+ *   - Anti-repetition fuse
+ *   - clientGreeted + requestId dedupe
  *   - Persistent KB worker with timeout restart
  */
 
@@ -47,7 +47,6 @@ if (!isMainThread) {
 
     try {
       if (!musicKB) {
-        // Load ONCE per worker lifetime
         musicKB = require("./Utils/musicKnowledge");
       }
 
@@ -63,7 +62,6 @@ if (!isMainThread) {
       if (out.artist && !slots.artist) slots.artist = out.artist;
       if (out.title && !slots.title) slots.title = out.title;
 
-      // pickBestMoment should be able to resolve purely from slots
       out.best = safe(() => musicKB.pickBestMoment?.(null, slots), null);
 
       parentPort.postMessage({ id, ok: true, out });
@@ -93,16 +91,14 @@ app.use(cors({ origin: true }));
 app.options("*", cors());
 
 const PORT = process.env.PORT || 3000;
-const BUILD_TAG = "nyx-bulletproof-v1.70-2025-12-20";
+const BUILD_TAG = "nyx-bulletproof-v1.71-2025-12-20";
 const DEFAULT_CHART = "Billboard Hot 100";
-
-// Keep this reasonable. With the persistent worker, 900–1500ms is fine.
 const KB_TIMEOUT_MS = Number(process.env.KB_TIMEOUT_MS || 1200);
 
 // ---------------- SESSION ----------------
 const SESS = new Map();
-const SESSION_TTL_MS = 1000 * 60 * 60 * 6; // 6 hours
-const CLEANUP_EVERY_MS = 1000 * 60 * 10; // 10 minutes
+const SESSION_TTL_MS = 1000 * 60 * 60 * 6;
+const CLEANUP_EVERY_MS = 1000 * 60 * 10;
 
 function sid() {
   try {
@@ -168,7 +164,6 @@ function bumpPromptFuse(sess, step) {
   return sess.promptRepeatCount;
 }
 
-// Provide a rotated message sequence for a given step
 function pickVariant(repeatCount, variants) {
   if (!Array.isArray(variants) || variants.length === 0) return "";
   const idx = Math.min(variants.length - 1, Math.max(0, repeatCount - 1));
@@ -183,6 +178,33 @@ function slotSummary(slots) {
   if (s.year) parts.push(`year=${s.year}`);
   if (s.chart) parts.push(`chart=${s.chart}`);
   return parts.length ? parts.join(", ") : "none";
+}
+
+/**
+ * ✅ Robust parser for "Artist - Title"
+ * Handles: "-", "–" (en dash), "—" (em dash), extra spaces.
+ * Returns { artist, title } or null.
+ */
+function parseArtistTitle(text) {
+  const t = safeStr(text);
+  if (!t) return null;
+
+  // Normalize unicode dashes to a simple hyphen
+  const normalized = t.replace(/[–—]/g, "-");
+
+  // Split on first hyphen with optional spaces around it
+  const m = normalized.match(/^(.{2,}?)\s*-\s*(.{2,}?)$/);
+  if (!m) return null;
+
+  const artist = safeStr(m[1]);
+  const title = safeStr(m[2]);
+
+  // Basic sanity: don't accept if either side is just a number/year
+  if (!artist || !title) return null;
+  if (/^\d{4}$/.test(artist)) return null;
+  if (/^\d{4}$/.test(title)) return null;
+
+  return { artist, title };
 }
 
 // ---------------- SEND (CANON) ----------------
@@ -246,12 +268,10 @@ function resolveSession(req) {
       currentLane: "music_history",
       laneDetail: { chart: DEFAULT_CHART },
 
-      // loop/fuse controls
       greeted: false,
       lastPromptStep: "",
       promptRepeatCount: 0,
 
-      // dedupe controls
       lastRequestId: "",
       lastReply: "",
       lastReplyStep: "",
@@ -283,7 +303,7 @@ function resolveSession(req) {
 
 let KB_WORKER = null;
 let KB_READY = false;
-const PENDING = new Map(); // id -> { resolve, timer }
+const PENDING = new Map();
 
 function startKbWorker() {
   KB_READY = false;
@@ -371,7 +391,7 @@ function kbQuery(text, laneDetail, timeoutMs) {
 
     try {
       KB_WORKER.postMessage({ id, text, laneDetail });
-    } catch (e) {
+    } catch {
       clearTimeout(timer);
       PENDING.delete(id);
       resolve({ ok: false, error: "KB_POST_FAILED" });
@@ -386,16 +406,11 @@ function kbQuery(text, laneDetail, timeoutMs) {
 app.post("/api/sandblast-gpt", async (req, res) => {
   const text = safeStr(req.body?.message);
   const requestId = safeStr(req.body?.meta?.requestId || req.body?.requestId);
-
-  // Widget can tell server "I already greeted the user"
   const clientGreeted = !!req.body?.meta?.clientGreeted;
 
   const { key, sess } = resolveSession(req);
 
-  // If client already greeted, mark session greeted to prevent server greeting
-  if (clientGreeted && !sess.greeted) {
-    sess.greeted = true;
-  }
+  if (clientGreeted && !sess.greeted) sess.greeted = true;
 
   // ---------------- DEDUPE ----------------
   if (requestId && sess.lastRequestId === requestId && sess.lastReply) {
@@ -404,7 +419,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
   }
   if (requestId) sess.lastRequestId = requestId;
 
-  // ---------------- Greeting (server-side, only if needed) ----------------
+  // ---------------- Greeting ----------------
   if (!sess.greeted && !clientGreeted && isGreeting(text)) {
     sess.greeted = true;
     touch(sess);
@@ -418,7 +433,6 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     );
   }
 
-  // Empty input
   if (!text) {
     touch(sess);
 
@@ -434,20 +448,23 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       );
     }
 
-    return send(
-      res,
-      key,
-      sess,
-      "empty",
-      "Give me an artist + year (or a song title) and I’ll anchor the moment.",
-      false
-    );
+    return send(res, key, sess, "empty", "Give me an artist + year (or a song title) and I’ll anchor the moment.", false);
   }
 
   // MUSIC LOCK (for now)
   sess.currentLane = "music_history";
+  sess.laneDetail = safeObj(sess.laneDetail);
+  sess.laneDetail.chart = safeStr(sess.laneDetail.chart) || DEFAULT_CHART;
 
-  // Query worker with current text
+  // ✅ NEW: Server-side Artist - Title parsing BEFORE worker
+  // This ensures "Prince - When Doves Cry" always sets slots.
+  const at = parseArtistTitle(text);
+  if (at) {
+    if (!sess.laneDetail.artist) sess.laneDetail.artist = at.artist;
+    if (!sess.laneDetail.title) sess.laneDetail.title = at.title;
+  }
+
+  // Query worker
   const kbResult = await kbQuery(text, sess.laneDetail, KB_TIMEOUT_MS);
 
   if (!kbResult.ok) {
@@ -470,23 +487,19 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     return sendStableError(res, key, sess, "kb_error", "Backend hiccup (music library). Try again in a moment.");
   }
 
-  // Worker result
   const out = kbResult.out || {};
 
-  // Merge slot updates with change tracking
+  // Merge slots + track change
   let slotChanged = false;
 
-  const prevYear = sess.laneDetail.year;
-  if (out.year && prevYear !== out.year) {
+  if (out.year && sess.laneDetail.year !== out.year) {
     sess.laneDetail.year = out.year;
     slotChanged = true;
   }
-
   if (!sess.laneDetail.artist && out.artist) {
     sess.laneDetail.artist = out.artist;
     slotChanged = true;
   }
-
   if (!sess.laneDetail.title && out.title) {
     sess.laneDetail.title = out.title;
     slotChanged = true;
@@ -494,11 +507,9 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 
   sess.laneDetail.chart = safeStr(sess.laneDetail.chart) || DEFAULT_CHART;
 
-  // Best result from initial query
   let best = out.best || null;
 
-  // 🔁 Reconciliation: if slots changed, re-attempt resolution immediately
-  // Fixes "year first then artist" and reduces perceived looping.
+  // Reconciliation
   if (!best && slotChanged) {
     const retry = await kbQuery("", sess.laneDetail, KB_TIMEOUT_MS);
     best = retry?.ok ? retry?.out?.best || null : null;
@@ -506,8 +517,6 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 
   if (best) {
     touch(sess);
-
-    // Reset prompt fuse when we successfully answer
     sess.lastPromptStep = "";
     sess.promptRepeatCount = 0;
 
@@ -526,19 +535,14 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     );
   }
 
-  // ---------------- Slot-aware follow-ups (anti-repetition) ----------------
-
-  // ✅ NEW: Title-only inference
-  // If we have a title but no artist yet, try resolving via KB before asking again.
+  // ✅ Title-only inference
   if (sess.laneDetail.title && !sess.laneDetail.artist) {
     const retry = await kbQuery("", sess.laneDetail, KB_TIMEOUT_MS);
     const inferred = retry?.ok ? retry?.out?.best || null : null;
 
     if (inferred && inferred.artist) {
       sess.laneDetail.artist = inferred.artist;
-      if (inferred.year && !sess.laneDetail.year) {
-        sess.laneDetail.year = inferred.year;
-      }
+      if (inferred.year && !sess.laneDetail.year) sess.laneDetail.year = inferred.year;
 
       touch(sess);
       sess.lastPromptStep = "";
@@ -560,6 +564,19 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     }
   }
 
+  // ✅ IMPORTANT UX CHANGE:
+  // If we have artist+title but still no match, ask for YEAR (not the menu).
+  if (sess.laneDetail.artist && sess.laneDetail.title && !sess.laneDetail.year) {
+    touch(sess);
+    const repeats = bumpPromptFuse(sess, "music_need_year_for_artist_title");
+    const msg = pickVariant(repeats, [
+      `Got it: ${sess.laneDetail.artist} — "${sess.laneDetail.title}". What year should I anchor? (Example: 1996)`,
+      `One more thing — give me the year for ${sess.laneDetail.artist} — "${sess.laneDetail.title}" and I’ll lock the moment.`,
+      `Quick anchor: send the year for that track — or say “random 90s” and I’ll pick a strong moment for you.`,
+    ]);
+    return send(res, key, sess, "music_need_year_for_artist_title", msg, false);
+  }
+
   // Missing artist
   if (!sess.laneDetail.artist) {
     touch(sess);
@@ -575,36 +592,34 @@ app.post("/api/sandblast-gpt", async (req, res) => {
   // Missing year
   if (!sess.laneDetail.year) {
     touch(sess);
-
     const repeats = bumpPromptFuse(sess, "music_need_year");
     const msg = pickVariant(repeats, [
       `What year should I check for ${sess.laneDetail.artist}?`,
       "Quick anchor: drop a year (example: 1996) — or send a song title and I’ll infer the year.",
-      "No worries — I won’t loop on this. Pick one:\n1) Send a year (1990–2000)\n2) Send a song title\n3) Say “random 90s” and I’ll pull a strong moment.",
+      "No worries — pick one:\n1) Send a year (1990–2000)\n2) Send a song title\n3) Say “random 90s”",
     ]);
     return send(res, key, sess, repeats >= 3 ? "music_need_year_fused" : "music_need_year", msg, false);
   }
 
-  // Have artist + year but still no best:
-  // Ask for title to disambiguate instead of repeating "not found".
+  // Have artist + year but no title
   if (sess.laneDetail.artist && sess.laneDetail.year && !sess.laneDetail.title) {
     touch(sess);
     const repeats = bumpPromptFuse(sess, "music_need_title");
     const msg = pickVariant(repeats, [
       `Got it: ${sess.laneDetail.artist} in ${sess.laneDetail.year}. What song title should I check?`,
       `If you’re not sure, send any title you remember — or type “random ${sess.laneDetail.year}” and I’ll pick a strong moment.`,
-      "Pick one:\n1) Send the song title\n2) Send Artist - Title\n3) Say “random 90s” for a curated pull.",
+      "Pick one:\n1) Send the song title\n2) Send Artist - Title\n3) Say “random 90s”",
     ]);
     return send(res, key, sess, repeats >= 3 ? "music_need_title_fused" : "music_need_title", msg, false);
   }
 
-  // True not-found case: vary response and show what Nyx currently has
+  // Not found case
   touch(sess);
   const repeats = bumpPromptFuse(sess, "music_not_found");
   const msg = pickVariant(repeats, [
     "I didn’t find that exact match yet. Try: Artist - Title (optional year).",
     `Still not an exact hit. What I have so far: ${slotSummary(sess.laneDetail)}.\nTry: Artist - Title, or change the year.`,
-    "Let’s stop the spin. Pick one:\n1) Artist - Title\n2) Change year\n3) Say “random 90s” and I’ll pull a strong moment.",
+    "Let’s stop the spin. Pick one:\n1) Artist - Title\n2) Change year\n3) Say “random 90s”",
   ]);
   return send(res, key, sess, repeats >= 3 ? "music_not_found_fused" : "music_not_found", msg, false);
 });
@@ -681,16 +696,13 @@ app.use((err, req, res, _next) => {
   const clientSid = safeStr(req.body?.meta?.sessionId) || bodySid || headerSid;
 
   const key = clientSid || null;
-  const sess = key
-    ? SESS.get(key)
-    : { currentLane: "music_history", laneDetail: { chart: DEFAULT_CHART } };
+  const sess = key ? SESS.get(key) : { currentLane: "music_history", laneDetail: { chart: DEFAULT_CHART } };
 
   console.error("[Nyx][ERR]", err && err.stack ? err.stack : err);
 
   return sendStableError(res, key, sess, "server_error", "Backend hiccup (HTTP 500). Try again in a moment.");
 });
 
-// Start server + start KB worker immediately (warm it up)
 app.listen(PORT, () => {
   console.log(`[Nyx] up on ${PORT} (${BUILD_TAG}) timeout=${KB_TIMEOUT_MS}ms`);
   startKbWorker();
