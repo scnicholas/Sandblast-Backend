@@ -1,102 +1,89 @@
 /**
  * index.js — Nyx Broadcast Backend (Bulletproof LOCKED)
- * Build: nyx-bulletproof-v1.65-2025-12-20
+ * Build: nyx-bulletproof-v1.66-2025-12-20
  *
- * Adds:
- * - /api/sandblast-gpt HARD timeout guard via Worker Thread
- *   (prevents slow/sync KB calls from stalling the widget)
- * - Loop-proof timeout behavior (clears volatile slots on timeout)
- * - NO greeting (Nyx responds only to user messages)
- * - Session cohesion fixed (store/retrieve by the same sessionId)
- * - TTL cleanup
- * - Stable response shape even on backend errors
+ * Fixes:
+ * - Persistent KB Worker (loads musicKnowledge ONCE, stays warm)
+ * - Hard timeout per request (never stalls widget)
+ * - If worker hangs: terminate + auto-restart
+ * - Loop-proof timeout messaging (no "repeat same input" bait)
+ * - Stable response shape on errors
  */
 
 "use strict";
 
 require("dotenv").config();
+
 const express = require("express");
 const cors = require("cors");
 const crypto = require("crypto");
-const path = require("path");
-const { Worker, isMainThread, parentPort, workerData } = require("worker_threads");
+const { Worker, isMainThread, parentPort } = require("worker_threads");
 
 // =======================================================
-// WORKER MODE
+// WORKER MODE (persistent KB engine)
 // =======================================================
 if (!isMainThread) {
-  // Worker does ONLY the KB work so it can be killed on timeout.
-  (async () => {
+  let musicKB = null;
+
+  function safe(fn, fallback = null) {
+    try { return fn(); } catch { return fallback; }
+  }
+
+  function handleJob(msg) {
+    const id = msg && msg.id;
+    const text = String(msg && msg.text ? msg.text : "").trim();
+    const laneDetail = (msg && msg.laneDetail && typeof msg.laneDetail === "object") ? msg.laneDetail : {};
+
+    if (!id) return;
+
     try {
-      const musicKB = require("./Utils/musicKnowledge");
-
-      const text = String(workerData?.text || "").trim();
-      const laneDetail =
-        workerData?.laneDetail && typeof workerData.laneDetail === "object"
-          ? workerData.laneDetail
-          : {};
-
-      // Safe wrappers (do not throw back to parent)
-      const extractYear = () => {
-        try { return musicKB.extractYear?.(text) || null; } catch { return null; }
-      };
-      const detectArtist = () => {
-        try { return musicKB.detectArtist?.(text) || null; } catch { return null; }
-      };
-      const extractTitle = () => {
-        try { return musicKB.extractTitle?.(text) || null; } catch { return null; }
-      };
-      const pickBestMoment = (ctx, slots) => {
-        try { return musicKB.pickBestMoment?.(ctx, slots) || null; } catch { return null; }
-      };
+      if (!musicKB) {
+        // Load ONCE per worker lifetime
+        musicKB = require("./Utils/musicKnowledge");
+      }
 
       const out = {
-        year: extractYear(),
-        artist: detectArtist(),
-        title: extractTitle(),
+        year: safe(() => musicKB.extractYear?.(text), null),
+        artist: safe(() => musicKB.detectArtist?.(text), null),
+        title: safe(() => musicKB.extractTitle?.(text), null),
         best: null
       };
 
-      // Only pick if we have enough to try (artist or title or year)
       const slots = { ...laneDetail };
       if (out.year) slots.year = out.year;
       if (out.artist && !slots.artist) slots.artist = out.artist;
       if (out.title && !slots.title) slots.title = out.title;
 
-      out.best = pickBestMoment(null, slots);
+      out.best = safe(() => musicKB.pickBestMoment?.(null, slots), null);
 
-      parentPort.postMessage({ ok: true, out });
+      parentPort.postMessage({ id, ok: true, out });
     } catch (e) {
-      parentPort.postMessage({
-        ok: false,
-        error: String(e && e.message ? e.message : e)
-      });
+      parentPort.postMessage({ id, ok: false, error: String(e && e.message ? e.message : e) });
     }
-  })();
+  }
 
-  return; // IMPORTANT: do not run Express server in worker
+  parentPort.on("message", handleJob);
+  parentPort.postMessage({ ok: true, ready: true });
+
+  return;
 }
 
 // =======================================================
-// MAIN THREAD (SERVER)
+// MAIN THREAD (Express server)
 // =======================================================
 
 const app = express();
 app.set("trust proxy", true);
-
-// ---------------- CONFIG ----------------
-const PORT = process.env.PORT || 3000;
-const BUILD_TAG = "nyx-bulletproof-v1.65-2025-12-20";
-const DEFAULT_CHART = "Billboard Hot 100";
-
-// Hard timeout for the KB work (ms).
-// Keep this low to protect UX under load.
-const KB_TIMEOUT_MS = Number(process.env.KB_TIMEOUT_MS || 1200);
-
-// CORS + JSON
 app.use(express.json({ limit: "2mb" }));
 app.use(cors({ origin: true }));
 app.options("*", cors());
+
+const PORT = process.env.PORT || 3000;
+const BUILD_TAG = "nyx-bulletproof-v1.66-2025-12-20";
+const DEFAULT_CHART = "Billboard Hot 100";
+
+// Keep this reasonable. With the persistent worker, 900–1500ms is fine.
+const KB_TIMEOUT_MS = Number(process.env.KB_TIMEOUT_MS || 1200);
 
 // ---------------- SESSION ----------------
 const SESS = new Map();
@@ -104,11 +91,8 @@ const SESSION_TTL_MS = 1000 * 60 * 60 * 6; // 6 hours
 const CLEANUP_EVERY_MS = 1000 * 60 * 10;   // 10 minutes
 
 function sid() {
-  try {
-    return crypto.randomUUID();
-  } catch {
-    return "sid_" + Date.now() + "_" + Math.random().toString(36).slice(2);
-  }
+  try { return crypto.randomUUID(); }
+  catch { return "sid_" + Date.now() + "_" + Math.random().toString(36).slice(2); }
 }
 
 function nowIso() {
@@ -137,7 +121,7 @@ setInterval(() => {
 
 // ---------------- SEND (CANON) ----------------
 function send(res, sessionId, sess, step, reply, advance = false) {
-  res.json({
+  res.status(200).json({
     ok: true,
     reply,
     state: {
@@ -155,7 +139,6 @@ function send(res, sessionId, sess, step, reply, advance = false) {
 }
 
 function sendStableError(res, sessionId, sess, step, reply) {
-  // Always return 200 with stable JSON to keep the widget calm.
   res.status(200).json({
     ok: true,
     reply,
@@ -181,7 +164,7 @@ function resolveSession(req) {
   let sess = SESS.get(key);
   if (!sess) {
     sess = {
-      id: key, // IMPORTANT: id == key
+      id: key,
       currentLane: "music_history",
       laneDetail: { chart: DEFAULT_CHART },
       lastSeen: Date.now()
@@ -191,7 +174,6 @@ function resolveSession(req) {
     touch(sess);
   }
 
-  // Normalize
   sess.laneDetail = safeObj(sess.laneDetail);
   sess.laneDetail.chart = safeStr(sess.laneDetail.chart) || DEFAULT_CHART;
   sess.currentLane = safeStr(sess.currentLane) || "music_history";
@@ -199,56 +181,124 @@ function resolveSession(req) {
   return { key, sess };
 }
 
-// ---------------- HARD TIMEOUT GUARD ----------------
-function runKbInWorkerWithTimeout(payload, timeoutMs) {
-  return new Promise((resolve) => {
-    let settled = false;
+// =======================================================
+// PERSISTENT KB WORKER (singleton)
+// =======================================================
 
-    const worker = new Worker(__filename, {
-      workerData: payload
-    });
+let KB_WORKER = null;
+let KB_READY = false;
+const PENDING = new Map(); // id -> { resolve, timer }
 
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      // Kill worker to stop any CPU runaway
-      worker.terminate().catch(() => {});
-      resolve({ ok: false, timedOut: true });
-    }, timeoutMs);
+function startKbWorker() {
+  KB_READY = false;
 
-    worker.on("message", (msg) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      // Clean exit
-      worker.terminate().catch(() => {});
-      resolve({ ok: true, msg });
-    });
+  try {
+    KB_WORKER = new Worker(__filename);
+  } catch (e) {
+    console.error("[Nyx][KB] Failed to start worker:", e);
+    KB_WORKER = null;
+    return;
+  }
 
-    worker.on("error", (err) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      worker.terminate().catch(() => {});
-      resolve({ ok: false, error: String(err && err.message ? err.message : err) });
-    });
+  KB_WORKER.on("message", (msg) => {
+    // Ready signal
+    if (msg && msg.ready) {
+      KB_READY = true;
+      return;
+    }
 
-    worker.on("exit", () => {
-      // If it exits before sending message, treat as failure
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve({ ok: false, error: "WORKER_EXITED" });
-    });
+    const id = msg && msg.id;
+    if (!id) return;
+
+    const pending = PENDING.get(id);
+    if (!pending) return;
+
+    clearTimeout(pending.timer);
+    PENDING.delete(id);
+    pending.resolve(msg);
+  });
+
+  KB_WORKER.on("error", (err) => {
+    console.error("[Nyx][KB] Worker error:", err);
+    KB_READY = false;
+    // Fail all pending quickly
+    for (const [id, p] of PENDING.entries()) {
+      clearTimeout(p.timer);
+      p.resolve({ id, ok: false, error: "KB_WORKER_ERROR" });
+    }
+    PENDING.clear();
+  });
+
+  KB_WORKER.on("exit", (code) => {
+    console.error("[Nyx][KB] Worker exited:", code);
+    KB_READY = false;
+    KB_WORKER = null;
+
+    // Fail all pending
+    for (const [id, p] of PENDING.entries()) {
+      clearTimeout(p.timer);
+      p.resolve({ id, ok: false, error: "KB_WORKER_EXIT" });
+    }
+    PENDING.clear();
+
+    // Auto-restart
+    setTimeout(() => startKbWorker(), 250).unref?.();
   });
 }
 
-// ---------------- MAIN ----------------
+function ensureKbWorker() {
+  if (!KB_WORKER) startKbWorker();
+  return !!KB_WORKER;
+}
+
+function restartKbWorker() {
+  try {
+    if (KB_WORKER) KB_WORKER.terminate().catch(() => {});
+  } catch {}
+  KB_WORKER = null;
+  KB_READY = false;
+  startKbWorker();
+}
+
+function kbQuery(text, laneDetail, timeoutMs) {
+  return new Promise((resolve) => {
+    if (!ensureKbWorker()) {
+      return resolve({ ok: false, error: "KB_WORKER_NOT_AVAILABLE" });
+    }
+
+    const id = "q_" + Date.now() + "_" + Math.random().toString(36).slice(2);
+
+    const timer = setTimeout(() => {
+      // Hard timeout: prevent widget stall
+      PENDING.delete(id);
+
+      // If the worker is hanging, restart it (this is the bulletproof part)
+      restartKbWorker();
+
+      resolve({ ok: false, timedOut: true });
+    }, timeoutMs);
+
+    PENDING.set(id, { resolve, timer });
+
+    try {
+      KB_WORKER.postMessage({ id, text, laneDetail });
+    } catch (e) {
+      clearTimeout(timer);
+      PENDING.delete(id);
+      resolve({ ok: false, error: "KB_POST_FAILED" });
+    }
+  });
+}
+
+// =======================================================
+// ROUTES
+// =======================================================
+
 app.post("/api/sandblast-gpt", async (req, res) => {
   const text = safeStr(req.body?.message);
   const { key, sess } = resolveSession(req);
 
-  // Empty input: stable prompt, no advance
+  // Empty input: stable prompt
   if (!text) {
     touch(sess);
     return send(
@@ -261,49 +311,44 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     );
   }
 
-  // MUSIC LOCK (as requested in your current phase)
-  // Keep lane stable unless you intentionally change it later.
+  // MUSIC LOCK
   sess.currentLane = "music_history";
 
-  // Run KB work in worker with hard timeout
-  const kbResult = await runKbInWorkerWithTimeout(
-    { text, laneDetail: sess.laneDetail },
-    KB_TIMEOUT_MS
-  );
+  // Query persistent worker
+  const kbResult = await kbQuery(text, sess.laneDetail, KB_TIMEOUT_MS);
 
   if (!kbResult.ok) {
     touch(sess);
 
     if (kbResult.timedOut) {
-      // LOOP-PROOF: clear volatile slots so the next message can progress
-      // Keep only chart (and other long-lived preferences if you add later)
+      // Loop-proof: clear volatile slots, keep chart
       const keepChart = safeStr(sess.laneDetail?.chart) || DEFAULT_CHART;
       sess.laneDetail = { chart: keepChart };
 
+      // IMPORTANT: do NOT ask user to repeat the same input immediately
       return send(
         res,
         key,
         sess,
         "kb_timeout",
-        "Quick reset on my end. Give me **Artist + Year** again (example: “Styx 1979”) and I’ll lock it in.",
+        "I’m loading the music library. Try again in a few seconds, or send just a year (example: 1979) and I’ll narrow it down.",
         false
       );
     }
 
-    // Other worker errors
     return sendStableError(
       res,
       key,
       sess,
-      "kb_worker_error",
-      "Backend hiccup (KB). Try again in a moment."
+      "kb_error",
+      "Backend hiccup (music library). Try again in a moment."
     );
   }
 
-  const msg = kbResult.msg || {};
-  const out = msg.out || {};
+  // Worker result
+  const out = kbResult.out || {};
 
-  // Merge safe slot updates from worker
+  // Merge slot updates
   if (out.year) sess.laneDetail.year = out.year;
   if (!sess.laneDetail.artist && out.artist) sess.laneDetail.artist = out.artist;
   if (!sess.laneDetail.title && out.title) sess.laneDetail.title = out.title;
@@ -345,20 +390,26 @@ app.post("/api/sandblast-gpt", async (req, res) => {
   touch(sess);
   return send(
     res,
-      key,
-      sess,
-      "music_not_found",
-      `I didn’t find that exact match yet. Try:\nArtist - Title (optional year)`,
-      false
+    key,
+    sess,
+    "music_not_found",
+    "I didn’t find that exact match yet. Try: Artist - Title (optional year).",
+    false
   );
 });
 
-// ---------------- HEALTH ----------------
+// Health
 app.get("/api/health", (_, res) =>
-  res.json({ ok: true, build: BUILD_TAG, serverTime: nowIso(), kbTimeoutMs: KB_TIMEOUT_MS })
+  res.json({
+    ok: true,
+    build: BUILD_TAG,
+    serverTime: nowIso(),
+    kbTimeoutMs: KB_TIMEOUT_MS,
+    kbWorkerReady: KB_READY
+  })
 );
 
-// ---------------- DEBUG (SAFE) ----------------
+// Debug session
 app.get("/api/debug/session/:id", (req, res) => {
   const id = safeStr(req.params.id);
   const sess = SESS.get(id);
@@ -375,7 +426,7 @@ app.get("/api/debug/session/:id", (req, res) => {
   });
 });
 
-// ---------------- GLOBAL ERROR SHIELD ----------------
+// Global error shield
 app.use((err, req, res, _next) => {
   const clientSid = safeStr(req.body?.meta?.sessionId);
   const key = clientSid || null;
@@ -394,7 +445,8 @@ app.use((err, req, res, _next) => {
   );
 });
 
-// ---------------- START ----------------
-app.listen(PORT, () =>
-  console.log(`[Nyx] up on ${PORT} (${BUILD_TAG}) timeout=${KB_TIMEOUT_MS}ms`)
-);
+// Start server + start KB worker immediately (warm it up)
+app.listen(PORT, () => {
+  console.log(`[Nyx] up on ${PORT} (${BUILD_TAG}) timeout=${KB_TIMEOUT_MS}ms`);
+  startKbWorker();
+});
