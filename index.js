@@ -1,10 +1,11 @@
 /**
  * index.js — Nyx Broadcast Backend (Bulletproof LOCKED)
- * Build: nyx-bulletproof-v1.64-2025-12-20
+ * Build: nyx-bulletproof-v1.65-2025-12-20
  *
  * Adds:
  * - /api/sandblast-gpt HARD timeout guard via Worker Thread
  *   (prevents slow/sync KB calls from stalling the widget)
+ * - Loop-proof timeout behavior (clears volatile slots on timeout)
  * - NO greeting (Nyx responds only to user messages)
  * - Session cohesion fixed (store/retrieve by the same sessionId)
  * - TTL cleanup
@@ -30,9 +31,10 @@ if (!isMainThread) {
       const musicKB = require("./Utils/musicKnowledge");
 
       const text = String(workerData?.text || "").trim();
-      const laneDetail = workerData?.laneDetail && typeof workerData.laneDetail === "object"
-        ? workerData.laneDetail
-        : {};
+      const laneDetail =
+        workerData?.laneDetail && typeof workerData.laneDetail === "object"
+          ? workerData.laneDetail
+          : {};
 
       // Safe wrappers (do not throw back to parent)
       const extractYear = () => {
@@ -65,7 +67,10 @@ if (!isMainThread) {
 
       parentPort.postMessage({ ok: true, out });
     } catch (e) {
-      parentPort.postMessage({ ok: false, error: String(e && e.message ? e.message : e) });
+      parentPort.postMessage({
+        ok: false,
+        error: String(e && e.message ? e.message : e)
+      });
     }
   })();
 
@@ -81,7 +86,7 @@ app.set("trust proxy", true);
 
 // ---------------- CONFIG ----------------
 const PORT = process.env.PORT || 3000;
-const BUILD_TAG = "nyx-bulletproof-v1.64-2025-12-20";
+const BUILD_TAG = "nyx-bulletproof-v1.65-2025-12-20";
 const DEFAULT_CHART = "Billboard Hot 100";
 
 // Hard timeout for the KB work (ms).
@@ -270,13 +275,17 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     touch(sess);
 
     if (kbResult.timedOut) {
-      // Fast fail: never stall widget
+      // LOOP-PROOF: clear volatile slots so the next message can progress
+      // Keep only chart (and other long-lived preferences if you add later)
+      const keepChart = safeStr(sess.laneDetail?.chart) || DEFAULT_CHART;
+      sess.laneDetail = { chart: keepChart };
+
       return send(
         res,
         key,
         sess,
         "kb_timeout",
-        "I’m running a little hot right now. Try: Artist + Year (example: “Styx 1979”) and I’ll lock it in.",
+        "Quick reset on my end. Give me **Artist + Year** again (example: “Styx 1979”) and I’ll lock it in.",
         false
       );
     }
@@ -336,11 +345,11 @@ app.post("/api/sandblast-gpt", async (req, res) => {
   touch(sess);
   return send(
     res,
-    key,
-    sess,
-    "music_not_found",
-    `I didn’t find that exact match yet. Try:\nArtist - Title (optional year)`,
-    false
+      key,
+      sess,
+      "music_not_found",
+      `I didn’t find that exact match yet. Try:\nArtist - Title (optional year)`,
+      false
   );
 });
 
@@ -370,7 +379,9 @@ app.get("/api/debug/session/:id", (req, res) => {
 app.use((err, req, res, _next) => {
   const clientSid = safeStr(req.body?.meta?.sessionId);
   const key = clientSid || null;
-  const sess = key ? SESS.get(key) : { currentLane: "music_history", laneDetail: { chart: DEFAULT_CHART } };
+  const sess = key
+    ? SESS.get(key)
+    : { currentLane: "music_history", laneDetail: { chart: DEFAULT_CHART } };
 
   console.error("[Nyx][ERR]", err && err.stack ? err.stack : err);
 
