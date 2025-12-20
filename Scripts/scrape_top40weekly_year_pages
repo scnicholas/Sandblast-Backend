@@ -7,12 +7,12 @@ async function fetchText(url, tries = 3) {
   let lastErr = null;
   for (let i = 0; i < tries; i++) {
     try {
-      const res = await fetch(url, { headers: { "User-Agent": "SandblastMomentsBot/3.0" } });
+      const res = await fetch(url, { headers: { "User-Agent": "SandblastMomentsBot/3.3" } });
       if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
       return await res.text();
     } catch (e) {
       lastErr = e;
-      await new Promise(r => setTimeout(r, 900 + i * 800));
+      await new Promise((r) => setTimeout(r, 900 + i * 800));
     }
   }
   throw lastErr;
@@ -27,82 +27,259 @@ function htmlDecode(s) {
   return String(s || "")
     .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, "\"")
+    .replace(/&quot;/g, '"')
     .replace(/&#8217;|&rsquo;/g, "'")
     .replace(/&#8211;|&ndash;/g, "–")
+    .replace(/&#8212;|&mdash;/g, "—")
     .replace(/&#8220;|&ldquo;/g, "“")
     .replace(/&#8221;|&rdquo;/g, "”");
 }
 
-function extractEntryContent(html) {
-  // Try common WP container patterns first
-  const m =
-    html.match(/<div[^>]+class="[^"]*entry-content[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/(article|div)>/i) ||
-    html.match(/<div[^>]+class="[^"]*the_content[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
+function stripTags(s) {
+  return htmlDecode(String(s || ""))
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
+function extractEntryContent(html) {
+  // WordPress content containers vary; keep it permissive.
+  const m =
+    html.match(/<div[^>]+class="[^"]*\bentry-content\b[^"]*"[^>]*>([\s\S]*?)<\/div>/i) ||
+    html.match(/<div[^>]+class="[^"]*\bthe_content\b[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
   return m ? m[1] : html;
 }
 
 function toLines(html) {
-  const h = html
+  const h = String(html || "")
     .replace(/\r/g, "")
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/p>/gi, "\n")
     .replace(/<\/li>/gi, "\n")
+    .replace(/<\/tr>/gi, "\n")
     .replace(/<\/h\d>/gi, "\n");
 
   const text = htmlDecode(h.replace(/<[^>]*>/g, " "));
   return text
     .split("\n")
-    .map(s => s.replace(/\s+/g, " ").trim())
+    .map((s) => s.replace(/\s+/g, " ").trim())
     .filter(Boolean);
 }
 
-function parseRankTitleArtist(lines, year) {
+function parseFromHtml(contentHtml, year) {
+  // Goal: pull 100 entries even if text flattening fails.
   const items = [];
-  for (let i = 0; i < lines.length; i++) {
-    const m = lines[i].match(/^(\d{1,3})\s+(.+)$/);
-    if (!m) continue;
-    const rank = Number(m[1]);
+  const h = String(contentHtml || "").replace(/\r/g, "").replace(/\n/g, " ");
+
+  // 1) TABLE-BASED: <tr><td>rank</td><td>title</td><td>artist</td>...
+  const trRe = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+  let tr;
+  while ((tr = trRe.exec(h)) !== null) {
+    const row = tr[1];
+    const tds = [...row.matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((x) => x[1]);
+    if (tds.length < 2) continue;
+
+    const cols = tds.map((x) => stripTags(x));
+    const rankM = String(cols[0] || "").match(/\b(\d{1,3})\b/);
+    if (!rankM) continue;
+
+    const rank = Number(rankM[1]);
     if (!(rank >= 1 && rank <= 100)) continue;
 
-    const title = m[2].trim();
-    if (!title) continue;
+    let title = (cols[1] || "").trim();
+    let artist = (cols[2] || "").trim();
 
-    // Find next non-rank line as artist
-    let artist = "";
-    for (let j = i + 1; j < lines.length; j++) {
-      if (/^\d{1,3}\s+/.test(lines[j])) break;
-      const cand = lines[j].trim();
-      // skip boilerplate-ish lines
-      if (/^page contents$/i.test(cand)) continue;
-      if (/^songs\s+\d+/i.test(cand)) continue;
-      if (/^more\s+\d{2}/i.test(cand)) break;
-      artist = cand;
-      i = j;
-      break;
+    // Sometimes title/artist are in same cell: "Title — Artist"
+    if (!artist && title) {
+      const parts = title.split(/[-–—]/).map((s) => s.trim()).filter(Boolean);
+      if (parts.length >= 2) {
+        title = parts[0];
+        artist = parts.slice(1).join(" — ");
+      }
     }
 
-    if (artist) items.push({ year, rank, artist, title, chart: "Top40Weekly Top 100" });
+    if (title && artist) {
+      items.push({ year, rank, artist, title, chart: "Top40Weekly Top 100" });
+    }
   }
-  // Dedup and sort
+
+  // 2) LIST-BASED: <li>1 Title - Artist</li> or similar
+  if (items.length < 50) {
+    const liRe = /<li[^>]*>([\s\S]*?)<\/li>/gi;
+    let li;
+    while ((li = liRe.exec(h)) !== null) {
+      const txt = stripTags(li[1]);
+      if (!txt) continue;
+
+      // Patterns we accept:
+      // "1. Title — Artist"
+      // "1) Title - Artist"
+      // "1 Title – Artist"
+      // "1 Title by Artist"
+      const m =
+        txt.match(/^(\d{1,3})\s*[\.\)\-–:]?\s*(.+?)\s+(?:by)\s+(.+)$/i) ||
+        txt.match(/^(\d{1,3})\s*[\.\)\-–:]?\s*(.+?)\s*[-–—]\s*(.+)$/i);
+
+      if (!m) continue;
+
+      const rank = Number(m[1]);
+      if (!(rank >= 1 && rank <= 100)) continue;
+
+      const title = String(m[2] || "").trim();
+      const artist = String(m[3] || "").trim();
+      if (!title || !artist) continue;
+
+      items.push({ year, rank, artist, title, chart: "Top40Weekly Top 100" });
+    }
+  }
+
+  // 3) STRONG/SPAN-STYLE: <strong>1 Title</strong> ... next "artist-ish" text
+  // Useful when WP uses bold title lines.
+  if (items.length < 50) {
+    const strongRe = /<strong[^>]*>\s*(\d{1,3})\s*[\.\)\-–:]?\s*([^<]+?)\s*<\/strong>/gi;
+    let sm;
+    while ((sm = strongRe.exec(h)) !== null) {
+      const rank = Number(sm[1]);
+      if (!(rank >= 1 && rank <= 100)) continue;
+
+      const title = stripTags(sm[2]);
+      if (!title) continue;
+
+      // Look ahead until next <strong> for an artist candidate (first non-empty stripped text chunk)
+      const start = strongRe.lastIndex;
+      const nextStrongIdx = h.slice(start).search(/<strong[^>]*>\s*\d{1,3}/i);
+      const window = nextStrongIdx === -1 ? h.slice(start) : h.slice(start, start + nextStrongIdx);
+
+      // Prefer a colored span if present, else first plain text chunk
+      const spanArtist =
+        window.match(/<span[^>]*color\s*:\s*#ff0000[^>]*>([\s\S]*?)<\/span>/i) ||
+        window.match(/<span[^>]*style=['"][^'"]*#ff0000[^'"]*['"][^>]*>([\s\S]*?)<\/span>/i);
+
+      let artist = "";
+      if (spanArtist) {
+        artist = stripTags(spanArtist[1]);
+      } else {
+        const txt = stripTags(window);
+        // Take first “line-like” chunk (split by common separators we introduced by stripping)
+        const cand = txt.split(/\s{2,}|\s\|\s|·/).map((s) => s.trim()).filter(Boolean)[0];
+        if (cand) artist = cand;
+      }
+
+      if (artist && title) {
+        items.push({ year, rank, artist, title, chart: "Top40Weekly Top 100" });
+      }
+    }
+  }
+
+  // Dedup + sort
   const seen = new Set();
   const out = [];
   for (const it of items) {
-    const k = `${it.year}||${it.rank}||${it.artist.toLowerCase()}||${it.title.toLowerCase()}`;
+    const k = `${it.year}||${it.rank}||${String(it.artist).toLowerCase()}||${String(it.title).toLowerCase()}`;
     if (seen.has(k)) continue;
     seen.add(k);
     out.push(it);
   }
-  out.sort((a,b)=>a.rank-b.rank);
+  out.sort((a, b) => a.rank - b.rank);
+  return out;
+}
+
+function parseFromLines(lines, year) {
+  // Keep your existing line-based logic as a fallback.
+  const items = [];
+
+  function isBoilerplate(s) {
+    return (
+      /^page contents$/i.test(s) ||
+      /^songs\s+\d+/i.test(s) ||
+      /^top\s+100\s+songs/i.test(s) ||
+      /^these are the top/i.test(s) ||
+      /^the song title/i.test(s) ||
+      /^you can find/i.test(s) ||
+      /^we welcome/i.test(s) ||
+      /^more\s+\d{2}/i.test(s)
+    );
+  }
+
+  function isRankStart(s) {
+    return /^\d{1,3}(\s*[\.\)\-–:]|\s*$)/.test(s);
+  }
+
+  function parseRankLine(s) {
+    const m = s.match(/^(\d{1,3})\s*[\.\)\-–:]?\s*(.*)$/);
+    if (!m) return null;
+    return { rank: Number(m[1]), rest: (m[2] || "").trim() };
+  }
+
+  function nextNonEmpty(idx) {
+    for (let k = idx; k < lines.length; k++) {
+      const s = (lines[k] || "").trim();
+      if (!s) continue;
+      if (isBoilerplate(s)) continue;
+      return { k, s };
+    }
+    return null;
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = (lines[i] || "").trim();
+    if (!isRankStart(line)) continue;
+
+    const pr = parseRankLine(line);
+    if (!pr) continue;
+
+    const rank = pr.rank;
+    if (!(rank >= 1 && rank <= 100)) continue;
+
+    let title = pr.rest;
+    if (!title) {
+      const n1 = nextNonEmpty(i + 1);
+      if (!n1) continue;
+      title = n1.s;
+      i = n1.k;
+    }
+
+    const n2 = nextNonEmpty(i + 1);
+    if (!n2) continue;
+    if (isRankStart(n2.s)) continue;
+
+    let artist = n2.s;
+    i = n2.k;
+
+    if (title && /(\s[-–—]\s)/.test(title)) {
+      const parts = title.split(/[-–—]/).map((x) => x.trim()).filter(Boolean);
+      if (parts.length >= 2) {
+        title = parts[0];
+        if (artist.length > 60 || /top\s+100/i.test(artist)) {
+          artist = parts.slice(1).join(" — ");
+        }
+      }
+    }
+
+    if (title && artist && !isBoilerplate(artist)) {
+      items.push({ year, rank, artist, title, chart: "Top40Weekly Top 100" });
+    }
+  }
+
+  const seen = new Set();
+  const out = [];
+  for (const it of items) {
+    const k = `${it.year}||${it.rank}||${String(it.artist).toLowerCase()}||${String(it.title).toLowerCase()}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(it);
+  }
+  out.sort((a, b) => a.rank - b.rank);
   return out;
 }
 
 function toCsv(rows) {
-  const header = ["year","rank","artist","title","chart"];
+  const header = ["year", "rank", "artist", "title", "chart"];
   const esc = (v) => {
     const s = String(v ?? "");
-    if (/[",\n]/.test(s)) return `"${s.replace(/"/g,'""')}"`;
+    if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
     return s;
   };
   const out = [header.join(",")];
@@ -128,28 +305,50 @@ function toCsv(rows) {
       console.error("[WARN] Skipping (could not extract year):", url);
       continue;
     }
+
     console.error("[GET]", url);
     const html = await fetchText(url);
     const content = extractEntryContent(html);
-    const lines = toLines(content);
-    const items = parseRankTitleArtist(lines, year);
-    console.error("[OK]", year, "items=", items.length);
 
-    // Debug hint if still low: write a tiny sample lines file
+    // Primary: HTML parsing
+    const itemsHtml = parseFromHtml(content, year);
+
+    // Fallback: text-line parsing
+    let items = itemsHtml;
     if (items.length < 50) {
-      const debugPath = `./Data/_debug_lines_${year}.txt`;
-      fs.writeFileSync(debugPath, lines.slice(0,400).join("\n") + "\n", "utf8");
-      console.error("[DBG] wrote", debugPath, "(first 400 lines)");
+      const lines = toLines(content);
+      const itemsLines = parseFromLines(lines, year);
+      // Use whichever is better
+      items = itemsLines.length > itemsHtml.length ? itemsLines : itemsHtml;
+
+      // Debug outputs if still low
+      if (items.length < 50) {
+        const debugHtmlPath = `./Data/_debug_entry_content_${year}.html`;
+        fs.writeFileSync(debugHtmlPath, String(content).slice(0, 250000) + "\n", "utf8");
+        console.error("[DBG] wrote", debugHtmlPath, "(entry-content html excerpt)");
+
+        const debugLinesPath = `./Data/_debug_lines_${year}.txt`;
+        fs.writeFileSync(debugLinesPath, lines.slice(0, 600).join("\n") + "\n", "utf8");
+        console.error("[DBG] wrote", debugLinesPath, "(first 600 lines)");
+
+        const rankCand = lines
+          .filter((s) => /^\d{1,3}(\s*[\.\)\-–:]|\s*$)/.test(s))
+          .slice(0, 400);
+        const debugRankPath = `./Data/_debug_rank_candidates_${year}.txt`;
+        fs.writeFileSync(debugRankPath, rankCand.join("\n") + "\n", "utf8");
+        console.error("[DBG] wrote", debugRankPath, "(rank-like candidates)");
+      }
     }
 
+    console.error("[OK]", year, "items=", items.length);
     all = all.concat(items);
-    await new Promise(r => setTimeout(r, 900));
+    await new Promise((r) => setTimeout(r, 900));
   }
 
   fs.writeFileSync(absOut, toCsv(all), "utf8");
   console.error("[DONE] wrote rows=", all.length);
   console.error("[OUT]", absOut);
-})().catch(e => {
+})().catch((e) => {
   console.error("[ERR]", e && e.stack ? e.stack : e);
   process.exit(1);
 });
