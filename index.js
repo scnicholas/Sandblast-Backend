@@ -1,13 +1,14 @@
 /**
  * index.js — Nyx Broadcast Backend (Bulletproof LOCKED)
- * Build: nyx-bulletproof-v1.63-2025-12-20
+ * Build: nyx-bulletproof-v1.64-2025-12-20
  *
- * Key updates:
+ * Adds:
+ * - /api/sandblast-gpt HARD timeout guard via Worker Thread
+ *   (prevents slow/sync KB calls from stalling the widget)
  * - NO greeting (Nyx responds only to user messages)
- * - Session cohesion: store/retrieve by SAME sessionId
- * - TTL cleanup to prevent memory growth
- * - Hard 500-shield: try/catch around KB calls + safe fallbacks
- * - Consistent response shape for widget cohesion
+ * - Session cohesion fixed (store/retrieve by the same sessionId)
+ * - TTL cleanup
+ * - Stable response shape even on backend errors
  */
 
 "use strict";
@@ -16,26 +17,83 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const crypto = require("crypto");
+const path = require("path");
+const { Worker, isMainThread, parentPort, workerData } = require("worker_threads");
+
+// =======================================================
+// WORKER MODE
+// =======================================================
+if (!isMainThread) {
+  // Worker does ONLY the KB work so it can be killed on timeout.
+  (async () => {
+    try {
+      const musicKB = require("./Utils/musicKnowledge");
+
+      const text = String(workerData?.text || "").trim();
+      const laneDetail = workerData?.laneDetail && typeof workerData.laneDetail === "object"
+        ? workerData.laneDetail
+        : {};
+
+      // Safe wrappers (do not throw back to parent)
+      const extractYear = () => {
+        try { return musicKB.extractYear?.(text) || null; } catch { return null; }
+      };
+      const detectArtist = () => {
+        try { return musicKB.detectArtist?.(text) || null; } catch { return null; }
+      };
+      const extractTitle = () => {
+        try { return musicKB.extractTitle?.(text) || null; } catch { return null; }
+      };
+      const pickBestMoment = (ctx, slots) => {
+        try { return musicKB.pickBestMoment?.(ctx, slots) || null; } catch { return null; }
+      };
+
+      const out = {
+        year: extractYear(),
+        artist: detectArtist(),
+        title: extractTitle(),
+        best: null
+      };
+
+      // Only pick if we have enough to try (artist or title or year)
+      const slots = { ...laneDetail };
+      if (out.year) slots.year = out.year;
+      if (out.artist && !slots.artist) slots.artist = out.artist;
+      if (out.title && !slots.title) slots.title = out.title;
+
+      out.best = pickBestMoment(null, slots);
+
+      parentPort.postMessage({ ok: true, out });
+    } catch (e) {
+      parentPort.postMessage({ ok: false, error: String(e && e.message ? e.message : e) });
+    }
+  })();
+
+  return; // IMPORTANT: do not run Express server in worker
+}
+
+// =======================================================
+// MAIN THREAD (SERVER)
+// =======================================================
 
 const app = express();
 app.set("trust proxy", true);
 
 // ---------------- CONFIG ----------------
 const PORT = process.env.PORT || 3000;
-const BUILD_TAG = "nyx-bulletproof-v1.63-2025-12-20";
+const BUILD_TAG = "nyx-bulletproof-v1.64-2025-12-20";
 const DEFAULT_CHART = "Billboard Hot 100";
+
+// Hard timeout for the KB work (ms).
+// Keep this low to protect UX under load.
+const KB_TIMEOUT_MS = Number(process.env.KB_TIMEOUT_MS || 1200);
 
 // CORS + JSON
 app.use(express.json({ limit: "2mb" }));
 app.use(cors({ origin: true }));
 app.options("*", cors());
 
-// ---------------- KB ----------------
-const musicKB = require("./Utils/musicKnowledge");
-
 // ---------------- SESSION ----------------
-// In-memory session store (Render dyno memory).
-// Add TTL cleanup to prevent growth.
 const SESS = new Map();
 const SESSION_TTL_MS = 1000 * 60 * 60 * 6; // 6 hours
 const CLEANUP_EVERY_MS = 1000 * 60 * 10;   // 10 minutes
@@ -52,10 +110,6 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function touch(sess) {
-  sess.lastSeen = Date.now();
-}
-
 function safeStr(x) {
   return String(x == null ? "" : x).trim();
 }
@@ -64,7 +118,10 @@ function safeObj(x) {
   return x && typeof x === "object" ? x : {};
 }
 
-// Periodic cleanup: prevents unbounded memory growth
+function touch(sess) {
+  sess.lastSeen = Date.now();
+}
+
 setInterval(() => {
   const now = Date.now();
   for (const [k, s] of SESS.entries()) {
@@ -92,10 +149,9 @@ function send(res, sessionId, sess, step, reply, advance = false) {
   });
 }
 
-function sendErr(res, sessionId, sess, step, reply, httpCode = 200) {
-  // Keep widget stable: still return {ok:true,...} unless truly necessary.
-  // If you want strict error codes, set httpCode=500 etc.
-  res.status(httpCode).json({
+function sendStableError(res, sessionId, sess, step, reply) {
+  // Always return 200 with stable JSON to keep the widget calm.
+  res.status(200).json({
     ok: true,
     reply,
     state: {
@@ -112,8 +168,7 @@ function sendErr(res, sessionId, sess, step, reply, httpCode = 200) {
   });
 }
 
-// ---------------- SESSION RESOLUTION (FIXED) ----------------
-// Store and retrieve sessions by the SAME sessionId (client or server).
+// ---------------- SESSION RESOLUTION ----------------
 function resolveSession(req) {
   const clientSid = safeStr(req.body?.meta?.sessionId);
   const key = clientSid || sid();
@@ -131,55 +186,64 @@ function resolveSession(req) {
     touch(sess);
   }
 
-  // Normalize laneDetail always
+  // Normalize
   sess.laneDetail = safeObj(sess.laneDetail);
   sess.laneDetail.chart = safeStr(sess.laneDetail.chart) || DEFAULT_CHART;
-
-  // Normalize lane
   sess.currentLane = safeStr(sess.currentLane) || "music_history";
 
   return { key, sess };
 }
 
-// ---------------- SAFE KB WRAPPERS ----------------
-function kbExtractYear(text) {
-  try {
-    return musicKB.extractYear?.(text) || null;
-  } catch {
-    return null;
-  }
-}
+// ---------------- HARD TIMEOUT GUARD ----------------
+function runKbInWorkerWithTimeout(payload, timeoutMs) {
+  return new Promise((resolve) => {
+    let settled = false;
 
-function kbDetectArtist(text) {
-  try {
-    return musicKB.detectArtist?.(text) || null;
-  } catch {
-    return null;
-  }
-}
+    const worker = new Worker(__filename, {
+      workerData: payload
+    });
 
-function kbExtractTitle(text) {
-  try {
-    return musicKB.extractTitle?.(text) || null;
-  } catch {
-    return null;
-  }
-}
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      // Kill worker to stop any CPU runaway
+      worker.terminate().catch(() => {});
+      resolve({ ok: false, timedOut: true });
+    }, timeoutMs);
 
-function kbPickBestMoment(context, laneDetail) {
-  try {
-    return musicKB.pickBestMoment?.(context, laneDetail) || null;
-  } catch {
-    return null;
-  }
+    worker.on("message", (msg) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      // Clean exit
+      worker.terminate().catch(() => {});
+      resolve({ ok: true, msg });
+    });
+
+    worker.on("error", (err) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      worker.terminate().catch(() => {});
+      resolve({ ok: false, error: String(err && err.message ? err.message : err) });
+    });
+
+    worker.on("exit", () => {
+      // If it exits before sending message, treat as failure
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve({ ok: false, error: "WORKER_EXITED" });
+    });
+  });
 }
 
 // ---------------- MAIN ----------------
-app.post("/api/sandblast-gpt", (req, res) => {
+app.post("/api/sandblast-gpt", async (req, res) => {
   const text = safeStr(req.body?.message);
   const { key, sess } = resolveSession(req);
 
-  // If empty input, prompt without advancing
+  // Empty input: stable prompt, no advance
   if (!text) {
     touch(sess);
     return send(
@@ -192,34 +256,55 @@ app.post("/api/sandblast-gpt", (req, res) => {
     );
   }
 
-  // ---- MUSIC ONLY (hard lock) ----
-  // Update slots from text
-  const year = kbExtractYear(text);
-  if (year) sess.laneDetail.year = year;
+  // MUSIC LOCK (as requested in your current phase)
+  // Keep lane stable unless you intentionally change it later.
+  sess.currentLane = "music_history";
 
-  // Prefer explicit artist detection
-  const detectedArtist = kbDetectArtist(text);
+  // Run KB work in worker with hard timeout
+  const kbResult = await runKbInWorkerWithTimeout(
+    { text, laneDetail: sess.laneDetail },
+    KB_TIMEOUT_MS
+  );
 
-  // Only set artist if empty — do not overwrite
-  if (!sess.laneDetail.artist && detectedArtist) {
-    sess.laneDetail.artist = detectedArtist;
-  } else if (!sess.laneDetail.artist && !year) {
-    // If user typed something and we didn't extract a year,
-    // treat it as an artist/title seed without overwriting later.
-    sess.laneDetail.artist = text;
+  if (!kbResult.ok) {
+    touch(sess);
+
+    if (kbResult.timedOut) {
+      // Fast fail: never stall widget
+      return send(
+        res,
+        key,
+        sess,
+        "kb_timeout",
+        "I’m running a little hot right now. Try: Artist + Year (example: “Styx 1979”) and I’ll lock it in.",
+        false
+      );
+    }
+
+    // Other worker errors
+    return sendStableError(
+      res,
+      key,
+      sess,
+      "kb_worker_error",
+      "Backend hiccup (KB). Try again in a moment."
+    );
   }
 
-  // Optional title extraction (safe no-op if missing)
-  const detectedTitle = kbExtractTitle(text);
-  if (detectedTitle && !sess.laneDetail.title) sess.laneDetail.title = detectedTitle;
+  const msg = kbResult.msg || {};
+  const out = msg.out || {};
 
-  // Pick best moment (shielded)
-  const best = kbPickBestMoment(null, sess.laneDetail);
+  // Merge safe slot updates from worker
+  if (out.year) sess.laneDetail.year = out.year;
+  if (!sess.laneDetail.artist && out.artist) sess.laneDetail.artist = out.artist;
+  if (!sess.laneDetail.title && out.title) sess.laneDetail.title = out.title;
+  sess.laneDetail.chart = safeStr(sess.laneDetail.chart) || DEFAULT_CHART;
+
+  const best = out.best;
 
   if (best) {
     touch(sess);
 
-    // Include richer fields if present
     const chart = best.chart || sess.laneDetail.chart || DEFAULT_CHART;
     const fact = best.fact ? `\nFact: ${best.fact}` : "";
     const culture = best.culture ? `\n\n${best.culture}` : "";
@@ -235,7 +320,7 @@ app.post("/api/sandblast-gpt", (req, res) => {
     );
   }
 
-  // If KB failed silently or no match, keep slot-filling prompts stable
+  // Slot prompting
   if (!sess.laneDetail.year) {
     touch(sess);
     return send(
@@ -243,12 +328,11 @@ app.post("/api/sandblast-gpt", (req, res) => {
       key,
       sess,
       "music_need_year",
-      `I have ${sess.laneDetail.artist || "that artist/title"}. What year should I check?`,
+      `What year should I check for ${sess.laneDetail.artist || "that artist"}?`,
       false
     );
   }
 
-  // If we have year but no match, suggest format
   touch(sess);
   return send(
     res,
@@ -262,12 +346,10 @@ app.post("/api/sandblast-gpt", (req, res) => {
 
 // ---------------- HEALTH ----------------
 app.get("/api/health", (_, res) =>
-  res.json({ ok: true, build: BUILD_TAG, serverTime: nowIso() })
+  res.json({ ok: true, build: BUILD_TAG, serverTime: nowIso(), kbTimeoutMs: KB_TIMEOUT_MS })
 );
 
 // ---------------- DEBUG (SAFE) ----------------
-// Useful for confirming session cohesion during widget testing.
-// Does not expose user content beyond slots.
 app.get("/api/debug/session/:id", (req, res) => {
   const id = safeStr(req.params.id);
   const sess = SESS.get(id);
@@ -285,26 +367,23 @@ app.get("/api/debug/session/:id", (req, res) => {
 });
 
 // ---------------- GLOBAL ERROR SHIELD ----------------
-// Prevent Express from sending raw 500 HTML that confuses the widget.
 app.use((err, req, res, _next) => {
   const clientSid = safeStr(req.body?.meta?.sessionId);
   const key = clientSid || null;
-  const sess = key ? SESS.get(key) : null;
+  const sess = key ? SESS.get(key) : { currentLane: "music_history", laneDetail: { chart: DEFAULT_CHART } };
 
   console.error("[Nyx][ERR]", err && err.stack ? err.stack : err);
 
-  // Keep response shape stable for the widget
-  return sendErr(
+  return sendStableError(
     res,
     key,
-    sess || { currentLane: "music_history", laneDetail: { chart: DEFAULT_CHART } },
+    sess,
     "server_error",
-    "Backend hiccup (HTTP 500). Try again in a moment.",
-    200
+    "Backend hiccup (HTTP 500). Try again in a moment."
   );
 });
 
 // ---------------- START ----------------
 app.listen(PORT, () =>
-  console.log(`[Nyx] up on ${PORT} (${BUILD_TAG})`)
+  console.log(`[Nyx] up on ${PORT} (${BUILD_TAG}) timeout=${KB_TIMEOUT_MS}ms`)
 );
