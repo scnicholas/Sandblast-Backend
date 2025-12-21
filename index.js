@@ -1,12 +1,12 @@
 /**
  * index.js — Nyx Broadcast Backend (Wizard-Locked)
- * Build: nyx-wizard-v1.84-2025-12-21
+ * Build: nyx-wizard-v1.85-2025-12-21
  *
- * Fixes:
- * 1) Accept corrected/nearest matches (e.g., Styx - Babe 1980 -> anchor to nearest year).
- *    - Worker performs relaxed retry when exact match fails.
- *    - Response includes a brief “quick correction” line when year/artist/title are corrected.
- * 2) Fluid greeting flow (hello → how are you → how can I help) without blocking “intentful” inputs.
+ * Fixes in v1.85:
+ * 1) YEAR-ONLY INPUT IS ALWAYS A DIRECT PICK (no wizard confusion):
+ *    - If user sends just "1984", we overwrite year, clear artist/title, and return a moment immediately.
+ *    - Prevents “it shouldn’t do this” behavior (asking for artist/title or NOT_FOUND after a year-only).
+ * 2) Keeps prior fixes: relaxed retry for artist+title+wrong year, correction preface, fluid greetings.
  */
 
 "use strict";
@@ -60,8 +60,6 @@ if (!isMainThread) {
       const hasTitle = !!slots.title;
 
       // YEAR-FIRST:
-      // 1) Try pickRandomByYear if it exists
-      // 2) If missing or returns null, fall back to pickBestMoment with year-only slots
       if (hasYear && !hasArtist && !hasTitle) {
         const randFn = musicKB.pickRandomByYear;
         if (typeof randFn === "function") {
@@ -73,15 +71,13 @@ if (!isMainThread) {
       } else {
         out.best = safe(() => musicKB.pickBestMoment?.(null, slots), null);
 
-        // IMPORTANT: if exact match fails, do a relaxed retry (drop year),
-        // then treat the returned year as a correction (prevents “exact match” dead-end).
+        // Relaxed retry: artist+title+year mismatch -> drop year
         if (!out.best && hasArtist && hasTitle && hasYear) {
           const relaxed = { ...slots };
           delete relaxed.year;
 
           const relaxedBest = safe(() => musicKB.pickBestMoment?.(null, relaxed), null);
           if (relaxedBest) {
-            // Annotate as a correction so the main thread can announce it cleanly
             const corrected = { ...relaxedBest };
             corrected._correctedYear = true;
             corrected._originalYear = slots.year;
@@ -89,7 +85,7 @@ if (!isMainThread) {
           }
         }
 
-        // Secondary relaxed retry: if chart constraint is too tight, drop chart too
+        // Secondary relaxed retry: drop year + chart
         if (!out.best && hasArtist && hasTitle && hasYear && slots.chart) {
           const relaxed2 = { ...slots };
           delete relaxed2.year;
@@ -128,16 +124,15 @@ app.use(cors({ origin: true }));
 app.options("*", cors());
 
 const PORT = process.env.PORT || 3000;
-const BUILD_TAG = "nyx-wizard-v1.84-2025-12-21";
+const BUILD_TAG = "nyx-wizard-v1.85-2025-12-21";
 const DEFAULT_CHART = "Billboard Hot 100";
 const KB_TIMEOUT_MS = Number(process.env.KB_TIMEOUT_MS || 2000);
 
 // ---------------- SESSION ----------------
 const SESS = new Map();
-const SESSION_TTL_MS = 1000 * 60 * 60 * 6; // 6 hours
-const CLEANUP_EVERY_MS = 1000 * 60 * 10;   // 10 minutes
+const SESSION_TTL_MS = 1000 * 60 * 60 * 6;
+const CLEANUP_EVERY_MS = 1000 * 60 * 10;
 
-// Wizard steps
 const STEPS = {
   MUSIC_START: "MUSIC_START",
   MUSIC_YEAR_FIRST: "MUSIC_YEAR_FIRST",
@@ -168,54 +163,14 @@ setInterval(() => {
   }
 }, CLEANUP_EVERY_MS).unref?.();
 
-// ---------------- HELPERS ----------------
 function clampInt(n, min, max, fallback) {
   const x = Number(n);
   if (!Number.isFinite(x)) return fallback;
   return Math.min(max, Math.max(min, Math.trunc(x)));
 }
 
-function normalizeToken(s) { return safeStr(s).toLowerCase(); }
-
-function isGreeting(text) {
-  const t = safeStr(text).toLowerCase();
-  if (!t) return false;
-  return (
-    t === "hi" || t === "hello" || t === "hey" || t === "yo" ||
-    t.startsWith("hi ") || t.startsWith("hello ") || t.startsWith("hey ")
-  );
-}
-
-function isPleasantry(text) {
-  const t = safeStr(text).toLowerCase();
-  if (!t) return false;
-  return (
-    t.includes("how are you") ||
-    t.includes("how’s it going") ||
-    t.includes("hows it going") ||
-    t.includes("how is your day") ||
-    t.includes("good thanks") ||
-    t.includes("great") ||
-    t.includes("fine") ||
-    t.includes("ok") ||
-    t.includes("okay") ||
-    t.includes("not bad")
-  );
-}
-
-function isArtistEqualsTitle(artist, title) {
-  const a = normalizeToken(artist);
-  const t = normalizeToken(title);
-  return !!a && !!t && a === t;
-}
-
 function normalizeUserText(text) {
   return safeStr(text).replace(/\s+/g, " ").trim();
-}
-
-function extractYearLoose(text) {
-  const m = String(text || "").match(/\b(19\d{2}|20\d{2})\b/);
-  return m ? Number(m[1]) : null;
 }
 
 function isYearOnlyLoose(text) {
@@ -223,23 +178,9 @@ function isYearOnlyLoose(text) {
   return /^\W*(19\d{2}|20\d{2})\W*$/.test(t);
 }
 
-function parseRandomDecade(text) {
-  const t = normalizeUserText(text).toLowerCase();
-  if (!/^random\b/.test(t)) return null;
-
-  let m = t.match(/\brandom\s+(\d{2})s\b/);
-  if (m) {
-    const yy = Number(m[1]);
-    if (Number.isFinite(yy)) return (yy >= 0 && yy <= 99) ? (1900 + yy) : null;
-  }
-
-  m = t.match(/\brandom\s+(19\d{2}|20\d{2})s\b/);
-  if (m) return Number(m[1]);
-
-  m = t.match(/\bdecade\s*=\s*(19\d{2}|20\d{2})\b/);
-  if (m) return Number(m[1]);
-
-  return null;
+function extractYearLoose(text) {
+  const m = String(text || "").match(/\b(19\d{2}|20\d{2})\b/);
+  return m ? Number(m[1]) : null;
 }
 
 function parseChartFromText(text) {
@@ -254,12 +195,10 @@ function parseChartFromText(text) {
   return null;
 }
 
-function parseMode(text) {
-  const t = safeStr(text);
-  if (!t) return null;
-  const m = t.match(/^mode\s*:\s*(music|music_history|radio|tv|sponsors|ai)\s*$/i);
-  if (!m) return null;
-  return safeStr(m[1]).toLowerCase();
+function isArtistEqualsTitle(artist, title) {
+  const a = String(artist || "").trim().toLowerCase();
+  const t = String(title || "").trim().toLowerCase();
+  return !!a && !!t && a === t;
 }
 
 function parseArtistTitle(text) {
@@ -276,85 +215,11 @@ function parseArtistTitle(text) {
   if (!artist || !title) return null;
   if (/^\d{4}$/.test(artist)) return null;
   if (/^\d{4}$/.test(title)) return null;
-
   if (isArtistEqualsTitle(artist, title)) return null;
+
   return { artist, title };
 }
 
-function looksLikeArtistOnly(text) {
-  const t = safeStr(text);
-  if (!t) return false;
-  if (t.length > 40) return false;
-  if (isGreeting(t)) return false;
-  if (parseMode(t)) return false;
-  if (parseArtistTitle(t)) return false;
-  if (isYearOnlyLoose(t)) return false;
-  if (/^random\b/i.test(t)) return false;
-  if (/\d/.test(t)) return false;
-  return true;
-}
-
-function looksLikeTitleOnly(text) {
-  const t = safeStr(text);
-  if (!t) return false;
-  if (t.length < 2) return false;
-  if (isGreeting(t)) return false;
-  if (parseMode(t)) return false;
-  if (parseArtistTitle(t)) return false;
-  if (isYearOnlyLoose(t)) return false;
-  return true;
-}
-
-function isReset(text) {
-  const t = normalizeToken(text);
-  return (
-    t === "reset" || t === "reset music" || t === "start over" ||
-    t === "restart" || t === "clear" || t === "clear music"
-  );
-}
-
-function slotSummary(slots) {
-  const s = safeObj(slots);
-  const parts = [];
-  if (s.artist) parts.push(`artist=${s.artist}`);
-  if (s.title) parts.push(`title=${s.title}`);
-  if (s.year) parts.push(`year=${s.year}`);
-  if (s.chart) parts.push(`chart=${s.chart}`);
-  if (s.decade) parts.push(`decade=${s.decade}s`);
-  return parts.length ? parts.join(", ") : "none";
-}
-
-function bumpStepFuse(sess, step) {
-  const prev = safeStr(sess.lastPromptStep);
-  if (prev === step) {
-    sess.promptRepeatCount = clampInt(sess.promptRepeatCount, 0, 9999, 0) + 1;
-  } else {
-    sess.lastPromptStep = step;
-    sess.promptRepeatCount = 1;
-  }
-  return sess.promptRepeatCount;
-}
-
-function pickVariant(repeatCount, variants) {
-  if (!Array.isArray(variants) || variants.length === 0) return "";
-  const idx = Math.min(variants.length - 1, Math.max(0, repeatCount - 1));
-  return variants[idx];
-}
-
-function isIntentful(text) {
-  const t = normalizeUserText(text).toLowerCase();
-  if (!t) return false;
-  if (isYearOnlyLoose(t)) return true;
-  if (extractYearLoose(t)) return true;
-  if (parseArtistTitle(t)) return true;
-  if (parseMode(t)) return true;
-  if (/^random\b/.test(t)) return true;
-  if (["music", "tv", "radio", "sponsors", "ai"].includes(t)) return true;
-  if (t.includes("billboard") || t.includes("hot 100") || t.includes("uk") || t.includes("canada") || t.includes("top40weekly")) return true;
-  return false;
-}
-
-// Build a concise correction preface, when present
 function correctionPreface(best) {
   if (!best || typeof best !== "object") return "";
   const parts = [];
@@ -367,6 +232,21 @@ function correctionPreface(best) {
   }
 
   return parts.length ? (parts.join(" ") + "\n\n") : "";
+}
+
+function pickOne(arr, fallback = "") {
+  if (!Array.isArray(arr) || arr.length === 0) return fallback;
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function musicContinuations(chart) {
+  const c = chart || DEFAULT_CHART;
+  return [
+    `Want another from the same year, or should we jump? (Example: 1987)`,
+    `Same chart, or switch? (Current: ${c})`,
+    `Same artist, or new artist?`,
+    `Want the story behind this song, or another pick?`
+  ];
 }
 
 // ---------------- SEND ----------------
@@ -392,35 +272,10 @@ function send(res, sessionId, sess, step, reply, advance = false) {
   });
 }
 
-function sendStableError(res, sessionId, sess, step, reply) {
-  if (sess) {
-    sess.lastReply = reply;
-    sess.lastReplyStep = step;
-  }
-  res.status(200).json({
-    ok: true,
-    reply,
-    state: {
-      mode: sess?.currentLane || "music_history",
-      step,
-      advance: false,
-      wizardStep: sess?.step || STEPS.MUSIC_START,
-      slots: sess?.laneDetail || {}
-    },
-    meta: {
-      sessionId: sessionId || null,
-      build: BUILD_TAG,
-      serverTime: nowIso()
-    }
-  });
-}
-
-// ---------------- SESSION RESOLUTION ----------------
 function resolveSession(req) {
   const headerSid = safeStr(req.headers["x-session-id"]);
   const bodySid = safeStr(req.body?.sessionId);
   const metaSid = safeStr(req.body?.meta?.sessionId);
-
   const clientSid = metaSid || bodySid || headerSid;
   const key = clientSid || sid();
 
@@ -430,18 +285,12 @@ function resolveSession(req) {
       id: key,
       currentLane: "music_history",
       laneDetail: { chart: DEFAULT_CHART },
-
       greeted: false,
-      greetStage: 0, // 0=not started, 1=asked how are you, 2=asked how can I help
+      greetStage: 0,
       step: STEPS.MUSIC_START,
-
-      lastPromptStep: "",
-      promptRepeatCount: 0,
-
       lastRequestId: "",
       lastReply: "",
       lastReplyStep: "",
-
       lastSeen: Date.now()
     };
     SESS.set(key, sess);
@@ -452,13 +301,11 @@ function resolveSession(req) {
   sess.laneDetail = safeObj(sess.laneDetail);
   sess.laneDetail.chart = safeStr(sess.laneDetail.chart) || DEFAULT_CHART;
   sess.currentLane = safeStr(sess.currentLane) || "music_history";
+  sess.step = safeStr(sess.step) || STEPS.MUSIC_START;
 
   sess.greeted = !!sess.greeted;
   sess.greetStage = clampInt(sess.greetStage, 0, 2, 0);
-  sess.step = safeStr(sess.step) || STEPS.MUSIC_START;
 
-  sess.lastPromptStep = safeStr(sess.lastPromptStep);
-  sess.promptRepeatCount = clampInt(sess.promptRepeatCount, 0, 9999, 0);
   sess.lastRequestId = safeStr(sess.lastRequestId);
   sess.lastReply = safeStr(sess.lastReply);
   sess.lastReplyStep = safeStr(sess.lastReplyStep);
@@ -475,7 +322,6 @@ const PENDING = new Map();
 
 function startKbWorker() {
   KB_READY = false;
-
   try {
     KB_WORKER = new Worker(__filename);
   } catch (e) {
@@ -489,7 +335,6 @@ function startKbWorker() {
       KB_READY = true;
       return;
     }
-
     const id = msg && msg.id;
     if (!id) return;
 
@@ -501,28 +346,14 @@ function startKbWorker() {
     pending.resolve(msg);
   });
 
-  KB_WORKER.on("error", (err) => {
-    console.error("[Nyx][KB] Worker error:", err);
-    KB_READY = false;
-
-    for (const [id, p] of PENDING.entries()) {
-      clearTimeout(p.timer);
-      p.resolve({ id, ok: false, error: "KB_WORKER_ERROR" });
-    }
-    PENDING.clear();
-  });
-
-  KB_WORKER.on("exit", (code) => {
-    console.error("[Nyx][KB] Worker exited:", code);
+  KB_WORKER.on("exit", () => {
     KB_READY = false;
     KB_WORKER = null;
-
     for (const [id, p] of PENDING.entries()) {
       clearTimeout(p.timer);
       p.resolve({ id, ok: false, error: "KB_WORKER_EXIT" });
     }
     PENDING.clear();
-
     setTimeout(() => startKbWorker(), 250).unref?.();
   });
 }
@@ -533,9 +364,7 @@ function ensureKbWorker() {
 }
 
 function restartKbWorker() {
-  try {
-    if (KB_WORKER) KB_WORKER.terminate().catch(() => {});
-  } catch {}
+  try { if (KB_WORKER) KB_WORKER.terminate().catch(() => {}); } catch {}
   KB_WORKER = null;
   KB_READY = false;
   startKbWorker();
@@ -543,12 +372,9 @@ function restartKbWorker() {
 
 function kbQuery(text, laneDetail, timeoutMs) {
   return new Promise((resolve) => {
-    if (!ensureKbWorker()) {
-      return resolve({ ok: false, error: "KB_WORKER_NOT_AVAILABLE" });
-    }
+    if (!ensureKbWorker()) return resolve({ ok: false, error: "KB_WORKER_NOT_AVAILABLE" });
 
     const id = "q_" + Date.now() + "_" + Math.random().toString(36).slice(2);
-
     const timer = setTimeout(() => {
       PENDING.delete(id);
       restartKbWorker();
@@ -568,240 +394,111 @@ function kbQuery(text, laneDetail, timeoutMs) {
 }
 
 // =======================================================
-// WIZARD STEP LOGIC
+// MUSIC HANDLER
 // =======================================================
-function computeNextStep(slots) {
-  const s = safeObj(slots);
-
-  if (s.artist && s.title && isArtistEqualsTitle(s.artist, s.title)) {
-    s.title = "";
-  }
-
-  if ((s.year && !s.artist && !s.title) || (s.decade && !s.year && !s.artist && !s.title)) {
-    return STEPS.MUSIC_YEAR_FIRST;
-  }
-
-  if (!s.artist) return STEPS.MUSIC_NEED_ARTIST;
-  if (!s.title) return STEPS.MUSIC_NEED_TITLE;
-  if (!s.year) return STEPS.MUSIC_NEED_YEAR;
-  return STEPS.MUSIC_LOOKUP;
-}
-
-function quickActions() {
-  return [
-    "Quick picks:",
-    "1) Send: Artist - Title (optional year)",
-    "2) Send: 1984 (or any year)",
-    "3) Say: random 80s",
-    "4) Say: UK / Canada / Top40Weekly / Billboard",
-    "5) Say: reset music"
-  ].join("\n");
-}
-
-async function handleMusicWizard(req, res, key, sess, rawText) {
+async function handleMusic(req, res, key, sess, rawText) {
   const text = normalizeUserText(rawText);
-
-  if (isReset(text)) {
-    sess.laneDetail = { chart: DEFAULT_CHART };
-    sess.step = STEPS.MUSIC_START;
-    sess.lastPromptStep = "";
-    sess.promptRepeatCount = 0;
-    touch(sess);
-    return send(res, key, sess, "music_reset", "Music reset. Send Artist - Title (optional year) or just a year (example: 1984).", true);
-  }
-
-  sess.laneDetail = safeObj(sess.laneDetail);
-  sess.laneDetail.chart = safeStr(sess.laneDetail.chart) || DEFAULT_CHART;
-
   const chartFromText = parseChartFromText(text);
   if (chartFromText) sess.laneDetail.chart = chartFromText;
 
-  if (sess.laneDetail.artist && sess.laneDetail.title && isArtistEqualsTitle(sess.laneDetail.artist, sess.laneDetail.title)) {
-    sess.laneDetail.title = "";
-  }
+  // ===================================================
+  // FIX: YEAR-ONLY INPUT IS A DIRECT PICK (hard rule)
+  // ===================================================
+  if (isYearOnlyLoose(text)) {
+    const y = extractYearLoose(text);
 
-  const at = parseArtistTitle(text);
-  if (at) {
-    sess.laneDetail.artist = sess.laneDetail.artist || at.artist;
-    const existingIsPlaceholder =
-      sess.laneDetail.artist && sess.laneDetail.title && isArtistEqualsTitle(sess.laneDetail.artist, sess.laneDetail.title);
-
-    if (!sess.laneDetail.title || existingIsPlaceholder) {
-      sess.laneDetail.title = at.title;
-    }
-  }
-
-  const decade = parseRandomDecade(text);
-  if (decade) {
-    sess.laneDetail.decade = decade;
-    if (!at) {
-      delete sess.laneDetail.artist;
-      delete sess.laneDetail.title;
-      delete sess.laneDetail.year;
-    }
-  } else {
-    delete sess.laneDetail.decade;
-  }
-
-  if (sess.step === STEPS.MUSIC_NEED_ARTIST && !sess.laneDetail.artist && looksLikeArtistOnly(text)) {
-    sess.laneDetail.artist = safeStr(text);
-  }
-
-  if (sess.step === STEPS.MUSIC_NEED_TITLE && sess.laneDetail.artist && !sess.laneDetail.title && looksLikeTitleOnly(text)) {
-    if (!isArtistEqualsTitle(sess.laneDetail.artist, text)) {
-      sess.laneDetail.title = safeStr(text);
-    }
-  }
-
-  const looseYear = extractYearLoose(text);
-  if (looseYear && !sess.laneDetail.year) sess.laneDetail.year = looseYear;
-
-  if (sess.step === STEPS.MUSIC_NEED_YEAR && isYearOnlyLoose(text)) {
-    sess.laneDetail.year = extractYearLoose(text);
-  }
-
-  sess.step = computeNextStep(sess.laneDetail);
-
-  const repeatCount = bumpStepFuse(sess, sess.step);
-  if (repeatCount >= 3 && sess.step !== STEPS.MUSIC_ESCALATE && sess.step !== STEPS.MUSIC_LOOKUP) {
-    sess.step = STEPS.MUSIC_ESCALATE;
-  }
-
-  if (sess.step === STEPS.MUSIC_ESCALATE) {
-    touch(sess);
-    return send(res, key, sess, "music_escalate", `Let’s stop the spin.\n${quickActions()}`, false);
-  }
-
-  if (sess.step === STEPS.MUSIC_YEAR_FIRST) {
-    if (sess.laneDetail.decade && !sess.laneDetail.year) {
-      const start = Number(sess.laneDetail.decade);
-      sess.laneDetail.year = start + Math.floor(Math.random() * 10);
-    }
-
-    if (!sess.laneDetail.year) {
-      touch(sess);
-      return send(res, key, sess, "music_year_first_missing_year", `Tell me a year (example: 1984) or say: random 80s.\n${quickActions()}`, false);
-    }
-
+    // overwrite year and clear other slots so we don't get trapped in prior wizard state
+    sess.laneDetail = {
+      chart: sess.laneDetail.chart || DEFAULT_CHART,
+      year: y
+    };
     sess.step = STEPS.MUSIC_LOOKUP;
-    sess.lastPromptStep = "";
-    sess.promptRepeatCount = 0;
-  }
 
-  if (sess.step === STEPS.MUSIC_NEED_ARTIST) {
-    touch(sess);
-    const msg = pickVariant(repeatCount, [
-      "Who’s the artist? (Example: Styx, Madonna, Prince)",
-      "Send the artist name — or use Artist - Title (optional year).",
-      `Still need the artist.\n${quickActions()}`
-    ]);
-    return send(res, key, sess, "music_need_artist", msg, false);
-  }
-
-  if (sess.step === STEPS.MUSIC_NEED_TITLE) {
-    touch(sess);
-    const msg = pickVariant(repeatCount, [
-      `Got it: ${sess.laneDetail.artist}. What’s the song title?`,
-      "Send the title — or send Artist - Title.",
-      `Still need the title.\n${quickActions()}`
-    ]);
-    return send(res, key, sess, "music_need_title", msg, false);
-  }
-
-  if (sess.step === STEPS.MUSIC_NEED_YEAR) {
-    touch(sess);
-    const msg = pickVariant(repeatCount, [
-      `What year should I anchor for ${sess.laneDetail.artist} — "${sess.laneDetail.title}"? (Example: 1984)`,
-      "Send a year (e.g., 1984). If you don’t know it, say: random 80s.",
-      `Still need the year.\n${quickActions()}`
-    ]);
-    return send(res, key, sess, "music_need_year", msg, false);
-  }
-
-  if (sess.step === STEPS.MUSIC_LOOKUP) {
     const kbResult = await kbQuery(text, sess.laneDetail, KB_TIMEOUT_MS);
-
     if (!kbResult.ok) {
-      touch(sess);
-      if (kbResult.timedOut) {
-        const msg = pickVariant(bumpStepFuse(sess, "kb_timeout"), [
-          "I’m loading the music library. Try again in a few seconds.",
-          "Still warming up. Try again — or send just a year (example: 1984).",
-          `No stress — try again.\n${quickActions()}`
-        ]);
-        return send(res, key, sess, "kb_timeout", msg, false);
-      }
-      return sendStableError(res, key, sess, "kb_error", "Backend hiccup (music library). Try again in a moment.");
+      return send(res, key, sess, "kb_timeout_or_error", "I’m loading the music library — try that year again in a moment.", false);
     }
 
     const out = kbResult.out || {};
-
-    if (out.year && !sess.laneDetail.year) sess.laneDetail.year = out.year;
-    if (out.artist && !sess.laneDetail.artist) sess.laneDetail.artist = out.artist;
-    if (out.title && !sess.laneDetail.title) {
-      if (!isArtistEqualsTitle(sess.laneDetail.artist, out.title)) sess.laneDetail.title = out.title;
-    }
-    if (out.chart && !sess.laneDetail.chart) sess.laneDetail.chart = out.chart;
-
-    if (sess.laneDetail.artist && sess.laneDetail.title && isArtistEqualsTitle(sess.laneDetail.artist, sess.laneDetail.title)) {
-      sess.laneDetail.title = "";
-    }
-
     const best = out.best || null;
 
     if (best) {
-      touch(sess);
-      sess.step = STEPS.MUSIC_RESULT;
-      sess.lastPromptStep = "";
-      sess.promptRepeatCount = 0;
-
-      const chart = best.chart || sess.laneDetail.chart || DEFAULT_CHART;
-      const fact = best.fact ? `\nFact: ${best.fact}` : "";
-      const culture = best.culture ? `\n\n${best.culture}` : "";
-      const next = best.next ? `\nNext: ${best.next}` : "";
-
       const preface = correctionPreface(best);
+      const chart = best.chart || sess.laneDetail.chart || DEFAULT_CHART;
+      const followUp = pickOne(musicContinuations(chart), "Want another year?");
 
       return send(
         res,
         key,
         sess,
-        "music_answer",
-        `${preface}${best.artist} — "${best.title}" (${best.year})\nChart: ${chart}${fact}${culture}${next}`,
+        "music_year_pick",
+        `${preface}${best.artist} — "${best.title}" (${best.year})\nChart: ${chart}\n\n${followUp}`,
         true
       );
     }
 
-    sess.step = STEPS.MUSIC_NOT_FOUND;
-    const repeatsNF = bumpStepFuse(sess, STEPS.MUSIC_NOT_FOUND);
-    if (repeatsNF >= 2) sess.step = STEPS.MUSIC_ESCALATE;
+    // If a year-only pick fails, we should *not* ask for artist/title. Just ask for a different year.
+    return send(
+      res,
+      key,
+      sess,
+      "music_year_nohit",
+      `I don’t have a hit indexed for ${y} on ${sess.laneDetail.chart || DEFAULT_CHART} yet. Try another year (example: 1987) — or switch chart (UK / Canada / Top40Weekly).`,
+      false
+    );
+  }
 
-    touch(sess);
+  // Artist - Title path
+  const at = parseArtistTitle(text);
+  if (at) {
+    sess.laneDetail.artist = at.artist;
+    sess.laneDetail.title = at.title;
 
-    if (sess.step === STEPS.MUSIC_ESCALATE) {
-      return send(
-        res,
-        key,
-        sess,
-        "music_escalate_nf",
-        `I’m not finding a hit for: ${slotSummary(sess.laneDetail)}\n${quickActions()}`,
-        false
-      );
-    }
+    const y = extractYearLoose(text);
+    if (y) sess.laneDetail.year = y;
+  } else {
+    const y = extractYearLoose(text);
+    // allow year updates if user includes a year in a sentence
+    if (y) sess.laneDetail.year = y;
+  }
+
+  const kbResult = await kbQuery(text, sess.laneDetail, KB_TIMEOUT_MS);
+  if (!kbResult.ok) {
+    return send(res, key, sess, "kb_timeout_or_error", "I’m loading the music library — try again in a moment.", false);
+  }
+
+  const out = kbResult.out || {};
+  const best = out.best || null;
+
+  if (best) {
+    const preface = correctionPreface(best);
+    const chart = best.chart || sess.laneDetail.chart || DEFAULT_CHART;
+    const followUp = pickOne(musicContinuations(chart), "Want another pick?");
 
     return send(
       res,
       key,
       sess,
-      "music_not_found",
-      `I didn’t find that exact match yet.\nWhat I have: ${slotSummary(sess.laneDetail)}\nTip: If you’re close, try Artist - Title (no year) and I’ll anchor the nearest year.`,
-      false
+      "music_answer",
+      `${preface}${best.artist} — "${best.title}" (${best.year})\nChart: ${chart}\n\n${followUp}`,
+      true
     );
   }
 
-  sess.step = computeNextStep(sess.laneDetail);
-  touch(sess);
-  return send(res, key, sess, "music_fallback", "Send Artist - Title (optional year) to continue.", false);
+  // Not found (artist/title flows only). Year-only never reaches this.
+  return send(
+    res,
+    key,
+    sess,
+    "music_not_found",
+    `I didn’t find that exact match yet.\nWhat I have: ${[
+      sess.laneDetail.artist ? `artist=${sess.laneDetail.artist}` : null,
+      sess.laneDetail.title ? `title=${sess.laneDetail.title}` : null,
+      sess.laneDetail.year ? `year=${sess.laneDetail.year}` : null,
+      sess.laneDetail.chart ? `chart=${sess.laneDetail.chart}` : null
+    ].filter(Boolean).join(", ") || "none"}\n\nTry: Artist - Title (no year) and I’ll anchor the nearest year.`,
+    false
+  );
 }
 
 // =======================================================
@@ -809,104 +506,19 @@ async function handleMusicWizard(req, res, key, sess, rawText) {
 // =======================================================
 app.post("/api/sandblast-gpt", async (req, res) => {
   const text = safeStr(req.body?.message);
-  const requestId = safeStr(req.body?.meta?.requestId || req.body?.requestId);
-  const clientGreeted = !!req.body?.meta?.clientGreeted;
-
   const { key, sess } = resolveSession(req);
 
-  if (clientGreeted && !sess.greeted) sess.greeted = true;
-
-  if (requestId && sess.lastRequestId === requestId && sess.lastReply) {
-    touch(sess);
-    return send(res, key, sess, sess.lastReplyStep || "dedupe", sess.lastReply, false);
-  }
-  if (requestId) sess.lastRequestId = requestId;
-
-  // FLUID GREETING FLOW (does not block intentful inputs)
-  if (!sess.greeted && !clientGreeted) {
-    if (isIntentful(text)) {
-      sess.greeted = true;
-      sess.greetStage = 2;
-    } else if (isGreeting(text) && sess.greetStage === 0) {
-      sess.greetStage = 1;
-      touch(sess);
-      return send(res, key, sess, "greet_stage1", "Hi — I’m Nyx. How are you today?", false);
-    } else if ((sess.greetStage === 1) && (text && !isGreeting(text))) {
-      // User replied to “how are you”
-      sess.greetStage = 2;
-      sess.greeted = true;
-      touch(sess);
-      return send(
-        res,
-        key,
-        sess,
-        "greet_stage2",
-        "Good to hear. What can I help you with today — Music, TV, Radio, Sponsors, or AI?",
-        false
-      );
-    }
-  }
+  sess.currentLane = "music_history";
+  sess.laneDetail = safeObj(sess.laneDetail);
+  sess.laneDetail.chart = safeStr(sess.laneDetail.chart) || DEFAULT_CHART;
 
   if (!text) {
-    touch(sess);
-    if (!sess.greeted && !clientGreeted) {
-      sess.greeted = true;
-      sess.greetStage = 2;
-      return send(
-        res,
-        key,
-        sess,
-        "greet_empty",
-        "Welcome — I’m Nyx. What can I help you with today: Music, TV, Radio, Sponsors, or AI?",
-        false
-      );
-    }
-    sess.currentLane = "music_history";
-    sess.step = sess.step || STEPS.MUSIC_START;
-    return send(res, key, sess, "music_empty", "Send Artist - Title (optional year) or just a year (example: 1984).", false);
+    return send(res, key, sess, "empty", "Send a year (example: 1984) or Artist - Title (optional year).", false);
   }
 
-  const forcedMode = parseMode(text);
-  if (forcedMode) {
-    sess.currentLane = forcedMode === "music" ? "music_history" : forcedMode;
-    sess.lastPromptStep = "";
-    sess.promptRepeatCount = 0;
-
-    if (sess.currentLane === "music_history") {
-      sess.step = STEPS.MUSIC_START;
-      touch(sess);
-      return send(res, key, sess, "mode_music", "Music mode locked. Send Artist - Title (optional year) or just a year (example: 1984).", true);
-    }
-    touch(sess);
-    return send(res, key, sess, "mode_other", `Mode locked: ${sess.currentLane}.`, true);
-  }
-
-  const lower = String(text || "").toLowerCase().trim();
-  if (["radio", "tv", "sponsors", "ai", "music"].includes(lower)) {
-    sess.currentLane = lower === "music" ? "music_history" : lower;
-    sess.lastPromptStep = "";
-    sess.promptRepeatCount = 0;
-
-    if (sess.currentLane === "music_history") {
-      sess.step = STEPS.MUSIC_START;
-      touch(sess);
-      return send(res, key, sess, "lane_music", "Music mode. Send Artist - Title (optional year) or just a year (example: 1984).", true);
-    }
-    touch(sess);
-    return send(res, key, sess, "lane_other", `Mode: ${sess.currentLane}.`, true);
-  }
-
-  if (sess.currentLane && sess.currentLane !== "music_history") {
-    touch(sess);
-    return send(res, key, sess, "lane_hold", `Mode is active: ${sess.currentLane}. If you meant Music, say: music.`, false);
-  }
-
-  sess.currentLane = "music_history";
-  sess.step = sess.step || STEPS.MUSIC_START;
-  return handleMusicWizard(req, res, key, sess, text);
+  return handleMusic(req, res, key, sess, text);
 });
 
-// Health
 app.get("/api/health", (_, res) =>
   res.json({
     ok: true,
@@ -917,20 +529,6 @@ app.get("/api/health", (_, res) =>
   })
 );
 
-// Error shield
-app.use((err, req, res, _next) => {
-  const headerSid = safeStr(req.headers["x-session-id"]);
-  const bodySid = safeStr(req.body?.sessionId);
-  const clientSid = safeStr(req.body?.meta?.sessionId) || bodySid || headerSid;
-
-  const key = clientSid || null;
-  const sess = key ? SESS.get(key) : { currentLane: "music_history", laneDetail: { chart: DEFAULT_CHART }, step: STEPS.MUSIC_START };
-
-  console.error("[Nyx][ERR]", err && err.stack ? err.stack : err);
-  return sendStableError(res, key, sess, "server_error", "Backend hiccup (HTTP 500). Try again in a moment.");
-});
-
-// Start server + warm KB worker
 app.listen(PORT, () => {
   console.log(`[Nyx] up on ${PORT} (${BUILD_TAG}) timeout=${KB_TIMEOUT_MS}ms`);
   startKbWorker();
