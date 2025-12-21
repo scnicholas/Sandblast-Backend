@@ -1,5 +1,10 @@
 /**
- * musicKnowledge.js — Bulletproof V2.5 (Year-first fallback helper)
+ * musicKnowledge.js — Bulletproof V2.6 (Year-only support + stronger fallback)
+ *
+ * FIX:
+ * - pickBestMoment() now supports year-only queries:
+ *   fields={year, chart} with no artist/title will return a random moment for that year.
+ *   It prefers the requested chart, but falls back to ANY chart in that year if needed.
  */
 
 "use strict";
@@ -26,7 +31,7 @@ function getCandidateList() {
   if (!ENV_DB_CANDIDATES) return DEFAULT_DB_CANDIDATES;
   return String(ENV_DB_CANDIDATES)
     .split(",")
-    .map(s => s.trim())
+    .map((s) => s.trim())
     .filter(Boolean);
 }
 
@@ -87,7 +92,11 @@ function warn(msg) {
 }
 
 function fileExists(p) {
-  try { return fs.existsSync(p); } catch (_) { return false; }
+  try {
+    return fs.existsSync(p);
+  } catch (_) {
+    return false;
+  }
 }
 
 function resolveDbPath() {
@@ -126,7 +135,13 @@ function normalizeChart(chart) {
   const n = norm(c);
   if (CHART_ALIASES.has(n)) return CHART_ALIASES.get(n);
 
-  if (c === "Billboard Hot 100" || c === "UK Singles Chart" || c === "Canada RPM" || c === "Top40Weekly") {
+  // pass-through known canon
+  if (
+    c === "Billboard Hot 100" ||
+    c === "UK Singles Chart" ||
+    c === "Canada RPM" ||
+    c === "Top40Weekly"
+  ) {
     return c;
   }
   return c;
@@ -146,7 +161,10 @@ function tokenize(s) {
 function addToken(map, token, value) {
   if (!token) return;
   let set = map.get(token);
-  if (!set) { set = new Set(); map.set(token, set); }
+  if (!set) {
+    set = new Set();
+    map.set(token, set);
+  }
   set.add(value);
 }
 
@@ -169,9 +187,10 @@ function findTop40WeeklyFiles() {
   for (const dir of candidates) {
     try {
       if (fileExists(dir) && fs.statSync(dir).isDirectory()) {
-        const files = fs.readdirSync(dir)
-          .filter(f => /^top100_\d{4}\.json$/i.test(f))
-          .map(f => path.join(dir, f));
+        const files = fs
+          .readdirSync(dir)
+          .filter((f) => /^top100_\d{4}\.json$/i.test(f))
+          .map((f) => path.join(dir, f));
         if (files.length) return files;
       }
     } catch (_) {}
@@ -184,7 +203,9 @@ function loadTop40WeeklyMoments() {
 
   const files = findTop40WeeklyFiles();
   if (!files.length) {
-    warn("Top40Weekly merge enabled but no top100_YYYY.json files found in data/top40weekly");
+    warn(
+      "Top40Weekly merge enabled but no top100_YYYY.json files found in data/top40weekly"
+    );
     return [];
   }
 
@@ -203,7 +224,10 @@ function loadTop40WeeklyMoments() {
         const artist = String(row.artist || "").trim();
         const title = String(row.title || "").trim();
 
-        if (!year || !artist || !title) { skipped++; continue; }
+        if (!year || !artist || !title) {
+          skipped++;
+          continue;
+        }
 
         out.push({
           artist,
@@ -224,11 +248,18 @@ function loadTop40WeeklyMoments() {
         });
       }
     } catch (e) {
-      warn("Failed reading Top40Weekly file: " + fp + " :: " + (e.message || e));
+      warn(
+        "Failed reading Top40Weekly file: " +
+          fp +
+          " :: " +
+          (e.message || e)
+      );
     }
   }
 
-  console.log(`[musicKnowledge] Top40Weekly merge: loaded ${out.length} rows from ${files.length} files (skipped=${skipped})`);
+  console.log(
+    `[musicKnowledge] Top40Weekly merge: loaded ${out.length} rows from ${files.length} files (skipped=${skipped})`
+  );
   return out;
 }
 
@@ -281,7 +312,9 @@ function validateDb(moments) {
 
     if (!artist || !year) missing++;
 
-    const key = `${norm(artist)}|${year}|${norm(chart)}|${norm(raw.title || "")}`;
+    const key = `${norm(artist)}|${year}|${norm(chart)}|${norm(
+      raw.title || ""
+    )}`;
     if (seen.has(key)) dupes++;
     seen.add(key);
   }
@@ -300,8 +333,11 @@ function normalizeMoment(raw) {
   const weeks_on_chart = toInt(raw.weeks_on_chart);
 
   const is_number_one =
-    typeof raw.is_number_one === "boolean" ? raw.is_number_one :
-    raw.is_number_one != null ? isTruthy(raw.is_number_one) : false;
+    typeof raw.is_number_one === "boolean"
+      ? raw.is_number_one
+      : raw.is_number_one != null
+      ? isTruthy(raw.is_number_one)
+      : false;
 
   const number_one_weeks = toInt(raw.number_one_weeks);
   const anchor_week = raw.anchor_week ? String(raw.anchor_week).trim() : null;
@@ -357,7 +393,9 @@ function buildIndexes(moments) {
   buildDefaultAliases();
   buildTokenMaps();
 
-  console.log(`[musicKnowledge] Loaded ${MOMENT_INDEX.length} moments from ${DB_PATH_RESOLVED} (+Top40Weekly merge=${MERGE_TOP40WEEKLY})`);
+  console.log(
+    `[musicKnowledge] Loaded ${MOMENT_INDEX.length} moments from ${DB_PATH_RESOLVED} (+Top40Weekly merge=${MERGE_TOP40WEEKLY})`
+  );
 }
 
 // =============================
@@ -375,8 +413,11 @@ function loadDb() {
   const raw = stripBom(fs.readFileSync(DB_PATH_RESOLVED, "utf8"));
 
   let json;
-  try { json = JSON.parse(raw); }
-  catch { failHard(`Music DB JSON is invalid at ${DB_PATH_RESOLVED}`); }
+  try {
+    json = JSON.parse(raw);
+  } catch {
+    failHard(`Music DB JSON is invalid at ${DB_PATH_RESOLVED}`);
+  }
 
   let moments = null;
   if (Array.isArray(json)) moments = json;
@@ -438,7 +479,10 @@ function detectArtist(text) {
   let best = null;
   let bestLen = 0;
   for (const na of candidateNorms) {
-    if (t.includes(na) && na.length > bestLen) { best = na; bestLen = na.length; }
+    if (t.includes(na) && na.length > bestLen) {
+      best = na;
+      bestLen = na.length;
+    }
   }
 
   return best ? ARTIST_EXACT.get(best) : null;
@@ -465,99 +509,23 @@ function detectTitle(text) {
   let best = null;
   let bestLen = 0;
   for (const nt of candidateNorms) {
-    if (nt && t.includes(nt) && nt.length > bestLen) { best = nt; bestLen = nt.length; }
+    if (nt && t.includes(nt) && nt.length > bestLen) {
+      best = nt;
+      bestLen = nt.length;
+    }
   }
 
   return best ? TITLE_EXACT.get(best) : null;
 }
 
 function extractYear(text) {
-  // already tolerant of punctuation via word boundaries
   const m = String(text || "").match(/\b(19\d{2}|20\d{2})\b/);
   return m ? Number(m[1]) : null;
 }
 
 // =============================
-// CORE MATCHER
-// =============================
-function pickBestMoment(_db, fields = {}) {
-  maybeReload();
-
-  const db = getDb();
-  const moments = (db && db.moments) || [];
-  if (!moments.length) return null;
-
-  const na = fields.artist ? norm(fields.artist) : null;
-  const nt = fields.title ? norm(fields.title) : null;
-  const y = fields.year ? Number(fields.year) : null;
-  const chart = fields.chart ? normalizeChart(fields.chart) : null;
-  const chartNorm = chart ? norm(chart) : null;
-
-  const match = (fn) => {
-    for (const m of MOMENT_INDEX) if (fn(m)) return m;
-    return null;
-  };
-
-  if (na && nt) {
-    const hit = match(m =>
-      m._na === na &&
-      m._nt === nt &&
-      (!chartNorm || norm(m.chart) === chartNorm) &&
-      (!y || m.year === y)
-    );
-    if (hit) return hit;
-  }
-
-  if (na && y) {
-    const hit = match(m =>
-      m._na === na &&
-      m.year === y &&
-      (!chartNorm || norm(m.chart) === chartNorm)
-    );
-    if (hit) return hit;
-  }
-
-  if (nt) {
-    const hit = match(m =>
-      m._nt === nt &&
-      (!chartNorm || norm(m.chart) === chartNorm) &&
-      (!y || m.year === y)
-    );
-    if (hit) return hit;
-  }
-
-  if (na) {
-    if (y) {
-      let best = null;
-      let bestDist = Infinity;
-      for (const m of MOMENT_INDEX) {
-        if (m._na !== na) continue;
-        if (chartNorm && norm(m.chart) !== chartNorm) continue;
-        if (!m.year) continue;
-        const d = Math.abs(m.year - y);
-        if (d < bestDist) { best = m; bestDist = d; }
-      }
-      if (best) return best;
-    } else {
-      const hit = match(m =>
-        m._na === na &&
-        (!chartNorm || norm(m.chart) === chartNorm)
-      );
-      if (hit) return hit;
-    }
-  }
-
-  return null;
-}
-
-// =============================
 // EXPANSION HELPERS
 // =============================
-function getAllMoments() {
-  getDb();
-  return MOMENT_INDEX.slice();
-}
-
 function pickRandom(arr) {
   if (!arr || !arr.length) return null;
   return arr[Math.floor(Math.random() * arr.length)];
@@ -567,9 +535,10 @@ function pickRandomByYear(year, chart = null) {
   getDb();
   const y = Number(year);
   if (!Number.isFinite(y)) return null;
+
   const c = chart ? norm(normalizeChart(chart)) : null;
 
-  const pool = MOMENT_INDEX.filter(m => {
+  const pool = MOMENT_INDEX.filter((m) => {
     if (m.year !== y) return false;
     if (c && norm(m.chart) !== c) return false;
     return true;
@@ -578,7 +547,7 @@ function pickRandomByYear(year, chart = null) {
   return pickRandom(pool);
 }
 
-// NEW: if chart is sparse, fall back to any chart in that year
+// Prefer chart, but if that chart is sparse, fall back to any chart for that year
 function pickRandomByYearFallback(year, chart = null) {
   const first = pickRandomByYear(year, chart);
   if (first) return first;
@@ -594,7 +563,7 @@ function pickRandomByDecade(decade, chart = null) {
   const end = d + 9;
   const c = chart ? norm(normalizeChart(chart)) : null;
 
-  const pool = MOMENT_INDEX.filter(m => {
+  const pool = MOMENT_INDEX.filter((m) => {
     if (!m.year) return false;
     if (m.year < start || m.year > end) return false;
     if (c && norm(m.chart) !== c) return false;
@@ -610,18 +579,120 @@ function getTopByYear(year, n = 10) {
   const limit = Math.max(1, Math.min(100, Number(n) || 10));
 
   const top40 = MOMENT_INDEX
-    .filter(m => m.year === y && norm(m.chart) === norm("Top40Weekly") && m.peak != null)
+    .filter((m) => m.year === y && norm(m.chart) === norm("Top40Weekly") && m.peak != null)
     .sort((a, b) => (a.peak || 999) - (b.peak || 999))
     .slice(0, limit);
 
   if (top40.length) return top40;
 
   const any = MOMENT_INDEX
-    .filter(m => m.year === y && m.peak != null)
+    .filter((m) => m.year === y && m.peak != null)
     .sort((a, b) => (a.peak || 999) - (b.peak || 999))
     .slice(0, limit);
 
   return any;
+}
+
+// =============================
+// CORE MATCHER
+// =============================
+function pickBestMoment(_db, fields = {}) {
+  maybeReload();
+
+  const db = getDb();
+  const moments = (db && db.moments) || [];
+  if (!moments.length) return null;
+
+  const na = fields.artist ? norm(fields.artist) : null;
+  const nt = fields.title ? norm(fields.title) : null;
+  const y = fields.year ? Number(fields.year) : null;
+
+  const chart = fields.chart ? normalizeChart(fields.chart) : null;
+  const chartNorm = chart ? norm(chart) : null;
+
+  const match = (fn) => {
+    for (const m of MOMENT_INDEX) if (fn(m)) return m;
+    return null;
+  };
+
+  // -------------------------------------------------
+  // NEW: YEAR-ONLY SUPPORT (this fixes "1984" requests)
+  // -------------------------------------------------
+  if (y && !na && !nt) {
+    // Prefer the requested chart, but fall back to any chart in that year.
+    const hit = pickRandomByYearFallback(y, chartNorm ? chart : null);
+    if (hit) return hit;
+
+    // Absolute last resort: return any moment that has that year (even if chart label mismatch)
+    const fallbackPool = MOMENT_INDEX.filter((m) => m.year === y);
+    return pickRandom(fallbackPool);
+  }
+
+  // Exact artist+title (optional year/chart)
+  if (na && nt) {
+    const hit = match((m) =>
+      m._na === na &&
+      m._nt === nt &&
+      (!chartNorm || norm(m.chart) === chartNorm) &&
+      (!y || m.year === y)
+    );
+    if (hit) return hit;
+  }
+
+  // Artist + year (optional chart)
+  if (na && y) {
+    const hit = match((m) =>
+      m._na === na &&
+      m.year === y &&
+      (!chartNorm || norm(m.chart) === chartNorm)
+    );
+    if (hit) return hit;
+  }
+
+  // Title (optional year/chart)
+  if (nt) {
+    const hit = match((m) =>
+      m._nt === nt &&
+      (!chartNorm || norm(m.chart) === chartNorm) &&
+      (!y || m.year === y)
+    );
+    if (hit) return hit;
+  }
+
+  // Artist only: nearest year if provided, else first match
+  if (na) {
+    if (y) {
+      let best = null;
+      let bestDist = Infinity;
+      for (const m of MOMENT_INDEX) {
+        if (m._na !== na) continue;
+        if (chartNorm && norm(m.chart) !== chartNorm) continue;
+        if (!m.year) continue;
+        const d = Math.abs(m.year - y);
+        if (d < bestDist) {
+          best = m;
+          bestDist = d;
+        }
+      }
+      if (best) return best;
+    } else {
+      const hit = match((m) =>
+        m._na === na &&
+        (!chartNorm || norm(m.chart) === chartNorm)
+      );
+      if (hit) return hit;
+    }
+  }
+
+  return null;
+}
+
+// =============================
+// PUBLIC HELPERS
+// =============================
+function getAllMoments() {
+  getDb();
+  return MOMENT_INDEX.slice();
 }
 
 // =============================
