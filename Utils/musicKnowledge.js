@@ -1,11 +1,14 @@
 /**
- * musicKnowledge.js — Bulletproof V2.2 Loader (Layer2-ready)
+ * musicKnowledge.js — Bulletproof V2.3 Loader (Top40Weekly merge)
  * Sandblast / Nyx
  *
- * Updates in v2.2:
- * - Adds Data/music_moments_v2_layer2_plus500.json as top fallback
- * - Optional MUSIC_DB_CANDIDATES env var (comma-separated) to control fallback order
- * - Keeps all v2.1 guarantees (back-compat exports, BOM-safe parsing, path robustness, hot reload)
+ * Updates in v2.3:
+ * - NEW: Automatically merges Top40Weekly yearly JSON files from:
+ *   - data/top40weekly/top100_*.json
+ *   - Data/top40weekly/top100_*.json
+ * - Adds chart="Top40Weekly" and peak=rank for those rows
+ * - Dedupes merged rows by (artist|title|year|chart)
+ * - Keeps all v2.2 guarantees: env candidates, BOM-safe parsing, path robustness, hot reload
  */
 
 "use strict";
@@ -25,12 +28,12 @@ const ENV_DB_PATH = process.env.MUSIC_DB_PATH;
 // e.g. MUSIC_DB_CANDIDATES=Data/music_moments_v2_layer2_plus500.json,Data/music_moments_v2_layer2.json
 const ENV_DB_CANDIDATES = process.env.MUSIC_DB_CANDIDATES;
 
+// NEW: Toggle Top40Weekly merge
+const MERGE_TOP40WEEKLY = String(process.env.MERGE_TOP40WEEKLY || "1") !== "0";
+
 // Fallback candidates (first existing one is used)
 const DEFAULT_DB_CANDIDATES = [
-  // NEW: prioritize your expanded file if present
   "Data/music_moments_v2_layer2_plus500.json",
-
-  // existing defaults
   "Data/music_moments_v2_layer2.json",
   "Data/music_moments_v2.json",
   "Data/music_moments.json",
@@ -68,22 +71,20 @@ const HOT_RELOAD = String(process.env.MUSIC_DB_HOT_RELOAD || "") === "1";
 // =============================
 // INTERNAL STATE
 // =============================
-let DB = null; // will become { moments: [...] }
+let DB = null; // { moments: [...] }
 let DB_PATH_RESOLVED = null;
 let DB_MTIME_MS = 0;
 let LOADED = false;
 
-let MOMENT_INDEX = []; // normalized moments
-let ARTIST_EXACT = new Map(); // normArtist -> canonical artist
-let TITLE_EXACT = new Map();  // normTitle  -> canonical title
+let MOMENT_INDEX = [];
+let ARTIST_EXACT = new Map();
+let TITLE_EXACT = new Map();
 
-// Fast contains match: use token maps
-let ARTIST_TOKEN_MAP = new Map(); // token -> Set(normArtist)
-let TITLE_TOKEN_MAP = new Map();  // token -> Set(normTitle)
+let ARTIST_TOKEN_MAP = new Map();
+let TITLE_TOKEN_MAP = new Map();
 
-// Alias maps (expand anytime without breaking callers)
-let ARTIST_ALIASES = new Map(); // normAlias -> canonical artist
-let TITLE_ALIASES = new Map();  // normAlias -> canonical title
+let ARTIST_ALIASES = new Map();
+let TITLE_ALIASES = new Map();
 
 // =============================
 // UTILITIES
@@ -110,7 +111,6 @@ function fileExists(p) {
 }
 
 function resolveDbPath() {
-  // If ENV is set, honor it (absolute or relative to project root)
   if (ENV_DB_PATH) {
     const abs = path.isAbsolute(ENV_DB_PATH)
       ? ENV_DB_PATH
@@ -121,13 +121,11 @@ function resolveDbPath() {
 
   const DB_CANDIDATES = getCandidateList();
 
-  // Try candidates relative to project root
   for (const rel of DB_CANDIDATES) {
     const abs = path.join(process.cwd(), rel);
     if (fileExists(abs)) return abs;
   }
 
-  // Try candidates relative to this module (in case cwd differs)
   for (const rel of DB_CANDIDATES) {
     const abs = path.resolve(__dirname, "..", rel);
     if (fileExists(abs)) return abs;
@@ -148,11 +146,9 @@ function normalizeChart(chart) {
   const n = norm(c);
   if (CHART_ALIASES.has(n)) return CHART_ALIASES.get(n);
 
-  // If already canonical, keep it
   if (c === "Billboard Hot 100" || c === "UK Singles Chart" || c === "Canada RPM" || c === "Top40Weekly") {
     return c;
   }
-  // Otherwise keep as-is (future charts without edits)
   return c;
 }
 
@@ -175,11 +171,85 @@ function addToken(map, token, value) {
 }
 
 function stripBom(s) {
-  // handles UTF-8 BOM
   if (!s) return s;
   return s.charCodeAt(0) === 0xfeff ? s.slice(1) : s;
 }
 
+// =============================
+// TOP40WEEKLY MERGE
+// =============================
+function findTop40WeeklyFiles() {
+  const candidates = [
+    path.join(process.cwd(), "data", "top40weekly"),
+    path.join(process.cwd(), "Data", "top40weekly"),
+    path.resolve(__dirname, "..", "data", "top40weekly"),
+    path.resolve(__dirname, "..", "Data", "top40weekly")
+  ];
+
+  for (const dir of candidates) {
+    if (fileExists(dir) && fs.statSync(dir).isDirectory()) {
+      const files = fs.readdirSync(dir)
+        .filter(f => /^top100_\d{4}\.json$/i.test(f))
+        .map(f => path.join(dir, f));
+      if (files.length) return files;
+    }
+  }
+  return [];
+}
+
+function loadTop40WeeklyMoments() {
+  if (!MERGE_TOP40WEEKLY) return [];
+
+  const files = findTop40WeeklyFiles();
+  if (!files.length) {
+    warn("Top40Weekly merge enabled but no top100_YYYY.json files found in data/top40weekly");
+    return [];
+  }
+
+  const out = [];
+  for (const fp of files) {
+    try {
+      const raw = stripBom(fs.readFileSync(fp, "utf8"));
+      const json = JSON.parse(raw);
+      if (!Array.isArray(json)) continue;
+
+      for (const row of json) {
+        const year = toInt(row.year);
+        const rank = toInt(row.rank);
+        const artist = String(row.artist || "").trim();
+        const title = String(row.title || "").trim();
+        if (!year || !artist || !title) continue;
+
+        out.push({
+          artist,
+          title,
+          year,
+          chart: "Top40Weekly",
+          peak: rank || null,
+          weeks_on_chart: null,
+          is_number_one: rank === 1,
+          number_one_weeks: null,
+          anchor_week: null,
+          top10: null,
+          fact: "",
+          culture: "",
+          next: "",
+          source: row.source || "top40weekly",
+          url: row.url || ""
+        });
+      }
+    } catch (e) {
+      warn("Failed reading Top40Weekly file: " + fp + " :: " + (e.message || e));
+    }
+  }
+
+  console.log(`[musicKnowledge] Top40Weekly merge: loaded ${out.length} rows from ${files.length} files`);
+  return out;
+}
+
+// =============================
+// INDEX MAPS
+// =============================
 function buildTokenMaps() {
   ARTIST_TOKEN_MAP.clear();
   TITLE_TOKEN_MAP.clear();
@@ -204,21 +274,19 @@ function buildDefaultAliases() {
     ["roberta flack", "Roberta Flack"],
     ["flack", "Roberta Flack"],
     ["peabo bryson", "Peabo Bryson"],
-    ["peobo bryson", "Peabo Bryson"], // common typo
+    ["peobo bryson", "Peabo Bryson"],
     ["bryson", "Peabo Bryson"]
   ];
 
-  for (const [a, canon] of artistPairs) {
-    ARTIST_ALIASES.set(norm(a), canon);
-  }
-
-  // Title aliases can be populated later.
+  for (const [a, canon] of artistPairs) ARTIST_ALIASES.set(norm(a), canon);
 }
 
+// =============================
+// VALIDATE
+// =============================
 function validateDb(moments) {
   let missing = 0;
   let dupes = 0;
-
   const seen = new Set();
 
   for (const raw of moments) {
@@ -233,8 +301,8 @@ function validateDb(moments) {
     seen.add(key);
   }
 
-  if (missing) warn(`DB validation: ${missing} records missing required (artist/year). They will be indexed but may reduce matching quality.`);
-  if (dupes) warn(`DB validation: ${dupes} possible duplicates (artist/year/chart/title). Consider de-duping for cleaner results.`);
+  if (missing) warn(`DB validation: ${missing} records missing required (artist/year).`);
+  if (dupes) warn(`DB validation: ${dupes} possible duplicates (artist/year/chart/title).`);
 }
 
 // =============================
@@ -289,8 +357,16 @@ function buildIndexes(moments) {
   TITLE_EXACT.clear();
   MOMENT_INDEX = [];
 
+  // Deduplicate on ingest
+  const seen = new Set();
+
   for (const raw of moments) {
     const m = normalizeMoment(raw);
+    if (!m.artist || !m.year) continue;
+
+    const key = `${m._na}|${m.year}|${norm(m.chart)}|${m._nt}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
 
     if (m.artist) ARTIST_EXACT.set(m._na, m.artist);
     if (m.title) TITLE_EXACT.set(m._nt, m.title);
@@ -301,11 +377,11 @@ function buildIndexes(moments) {
   buildDefaultAliases();
   buildTokenMaps();
 
-  console.log(`[musicKnowledge] Loaded ${MOMENT_INDEX.length} moments from ${DB_PATH_RESOLVED}`);
+  console.log(`[musicKnowledge] Loaded ${MOMENT_INDEX.length} moments from ${DB_PATH_RESOLVED} (+Top40Weekly merge=${MERGE_TOP40WEEKLY})`);
 }
 
 // =============================
-// LOAD + VALIDATE DB
+// LOAD DB + MERGE TOP40WEEKLY
 // =============================
 function loadDb() {
   const resolved = resolveDbPath();
@@ -319,37 +395,33 @@ function loadDb() {
   const raw = stripBom(fs.readFileSync(DB_PATH_RESOLVED, "utf8"));
 
   let json;
-  try {
-    json = JSON.parse(raw);
-  } catch (e) {
-    failHard(`Music DB JSON is invalid at ${DB_PATH_RESOLVED}`);
-  }
+  try { json = JSON.parse(raw); }
+  catch { failHard(`Music DB JSON is invalid at ${DB_PATH_RESOLVED}`); }
 
-  // Accept either { moments: [...] } OR raw array
   let moments = null;
   if (Array.isArray(json)) moments = json;
   else if (json && Array.isArray(json.moments)) moments = json.moments;
 
-  if (!moments) {
-    failHard(`Music DB must be { moments: [...] } or a raw array at ${DB_PATH_RESOLVED}`);
-  }
+  if (!moments) failHard(`Music DB must be { moments: [...] } or a raw array at ${DB_PATH_RESOLVED}`);
 
-  validateDb(moments);
+  // Merge Top40Weekly
+  const top40 = loadTop40WeeklyMoments();
+  const merged = moments.concat(top40);
 
-  DB = { moments };
-  buildIndexes(moments);
+  validateDb(merged);
+
+  DB = { moments: merged };
+  buildIndexes(merged);
 
   LOADED = true;
   return DB;
 }
 
-// Public getter: ensures DB is loaded once
 function getDb() {
   if (!LOADED || !DB) return loadDb();
   return DB;
 }
 
-// Hot reload (safe): reload if file changed
 function maybeReload() {
   if (!HOT_RELOAD || !DB_PATH_RESOLVED) return;
   try {
@@ -364,7 +436,7 @@ function maybeReload() {
 }
 
 // =============================
-// DETECTION HELPERS (FAST)
+// DETECTION
 // =============================
 function detectArtist(text) {
   maybeReload();
@@ -387,9 +459,7 @@ function detectArtist(text) {
   let best = null;
   let bestLen = 0;
   for (const na of candidateNorms) {
-    if (t.includes(na) && na.length > bestLen) {
-      best = na; bestLen = na.length;
-    }
+    if (t.includes(na) && na.length > bestLen) { best = na; bestLen = na.length; }
   }
 
   return best ? ARTIST_EXACT.get(best) : null;
@@ -416,9 +486,7 @@ function detectTitle(text) {
   let best = null;
   let bestLen = 0;
   for (const nt of candidateNorms) {
-    if (nt && t.includes(nt) && nt.length > bestLen) {
-      best = nt; bestLen = nt.length;
-    }
+    if (nt && t.includes(nt) && nt.length > bestLen) { best = nt; bestLen = nt.length; }
   }
 
   return best ? TITLE_EXACT.get(best) : null;
@@ -430,7 +498,7 @@ function extractYear(text) {
 }
 
 // =============================
-// CORE MATCHER (DETERMINISTIC)
+// CORE MATCHER
 // =============================
 function pickBestMoment(_db, fields = {}) {
   maybeReload();
@@ -448,13 +516,10 @@ function pickBestMoment(_db, fields = {}) {
   const chartNorm = chart ? norm(chart) : null;
 
   const match = (fn) => {
-    for (const m of MOMENT_INDEX) {
-      if (fn(m)) return m;
-    }
+    for (const m of MOMENT_INDEX) if (fn(m)) return m;
     return null;
   };
 
-  // 1) artist + title (+ chart) (+ year)
   if (na && nt) {
     const hit = match(m =>
       m._na === na &&
@@ -465,7 +530,6 @@ function pickBestMoment(_db, fields = {}) {
     if (hit) return hit;
   }
 
-  // 2) artist + year (+ chart)
   if (na && y) {
     const hit = match(m =>
       m._na === na &&
@@ -475,7 +539,6 @@ function pickBestMoment(_db, fields = {}) {
     if (hit) return hit;
   }
 
-  // 3) title only (+ chart) (+ year)
   if (nt) {
     const hit = match(m =>
       m._nt === nt &&
@@ -485,7 +548,6 @@ function pickBestMoment(_db, fields = {}) {
     if (hit) return hit;
   }
 
-  // 4) artist only (+ chart) — choose closest year if year is provided
   if (na) {
     if (y) {
       let best = null;
@@ -511,20 +573,13 @@ function pickBestMoment(_db, fields = {}) {
 }
 
 // =============================
-// EXPORTS (Backwards compatible)
+// EXPORTS
 // =============================
 module.exports = {
-  // Preferred
   loadDb,
   getDb,
-
-  // Backwards-compatible aliases
   loadDB: loadDb,
-
-  // Allow one-liners: kb.db().moments.length
   db: () => getDb(),
-
-  // Core capabilities
   pickBestMoment,
   detectArtist,
   detectTitle,
