@@ -1,14 +1,12 @@
 /**
- * musicKnowledge.js — Bulletproof V2.3 Loader (Top40Weekly merge)
- * Sandblast / Nyx
+ * musicKnowledge.js — Bulletproof V2.4 (Top40Weekly merge + helper APIs)
+ * Based on your V2.3 :contentReference[oaicite:5]{index=5}
  *
- * Updates in v2.3:
- * - NEW: Automatically merges Top40Weekly yearly JSON files from:
- *   - data/top40weekly/top100_*.json
- *   - Data/top40weekly/top100_*.json
- * - Adds chart="Top40Weekly" and peak=rank for those rows
- * - Dedupes merged rows by (artist|title|year|chart)
- * - Keeps V2.2 guarantees (env candidates, BOM-safe parsing, path robustness, hot reload)
+ * Additions:
+ * - Helper functions for expansion:
+ *   - pickRandomByYear(year)
+ *   - pickRandomByDecade(decade)
+ *   - getTopByYear(year, n)
  */
 
 "use strict";
@@ -19,19 +17,10 @@ const path = require("path");
 // =============================
 // CONFIG
 // =============================
-
-// Preferred: set in Render env vars (no more edits)
-// e.g. MUSIC_DB_PATH=Data/music_moments_v2_layer2_plus500.json
 const ENV_DB_PATH = process.env.MUSIC_DB_PATH;
-
-// Optional: override candidates list via env var (comma-separated)
-// e.g. MUSIC_DB_CANDIDATES=Data/music_moments_v2_layer2_plus500.json,Data/music_moments_v2_layer2.json
 const ENV_DB_CANDIDATES = process.env.MUSIC_DB_CANDIDATES;
-
-// Toggle Top40Weekly merge (default ON)
 const MERGE_TOP40WEEKLY = String(process.env.MERGE_TOP40WEEKLY || "1") !== "0";
 
-// Fallback candidates (first existing one is used)
 const DEFAULT_DB_CANDIDATES = [
   "Data/music_moments_v2_layer2_plus500.json",
   "Data/music_moments_v2_layer2.json",
@@ -48,7 +37,6 @@ function getCandidateList() {
     .filter(Boolean);
 }
 
-// Charts
 const DEFAULT_CHART = "Billboard Hot 100";
 const CHART_ALIASES = new Map([
   ["billboard", "Billboard Hot 100"],
@@ -65,7 +53,6 @@ const CHART_ALIASES = new Map([
   ["top 40", "Top40Weekly"]
 ]);
 
-// Hot reload: set MUSIC_DB_HOT_RELOAD=1 in Render if desired
 const HOT_RELOAD = String(process.env.MUSIC_DB_HOT_RELOAD || "") === "1";
 
 // =============================
@@ -76,15 +63,15 @@ let DB_PATH_RESOLVED = null;
 let DB_MTIME_MS = 0;
 let LOADED = false;
 
-let MOMENT_INDEX = []; // normalized moments
-let ARTIST_EXACT = new Map(); // normArtist -> canonical artist
-let TITLE_EXACT = new Map();  // normTitle  -> canonical title
+let MOMENT_INDEX = [];
+let ARTIST_EXACT = new Map();
+let TITLE_EXACT = new Map();
 
-let ARTIST_TOKEN_MAP = new Map(); // token -> Set(normArtist)
-let TITLE_TOKEN_MAP = new Map();  // token -> Set(normTitle)
+let ARTIST_TOKEN_MAP = new Map();
+let TITLE_TOKEN_MAP = new Map();
 
-let ARTIST_ALIASES = new Map(); // normAlias -> canonical artist
-let TITLE_ALIASES = new Map();  // normAlias -> canonical title
+let ARTIST_ALIASES = new Map();
+let TITLE_ALIASES = new Map();
 
 // =============================
 // UTILITIES
@@ -111,7 +98,6 @@ function fileExists(p) {
 }
 
 function resolveDbPath() {
-  // If ENV is set, honor it (absolute or relative to project root)
   if (ENV_DB_PATH) {
     const abs = path.isAbsolute(ENV_DB_PATH)
       ? ENV_DB_PATH
@@ -122,13 +108,11 @@ function resolveDbPath() {
 
   const DB_CANDIDATES = getCandidateList();
 
-  // Try candidates relative to project root
   for (const rel of DB_CANDIDATES) {
     const abs = path.join(process.cwd(), rel);
     if (fileExists(abs)) return abs;
   }
 
-  // Try candidates relative to this module (in case cwd differs)
   for (const rel of DB_CANDIDATES) {
     const abs = path.resolve(__dirname, "..", rel);
     if (fileExists(abs)) return abs;
@@ -149,12 +133,9 @@ function normalizeChart(chart) {
   const n = norm(c);
   if (CHART_ALIASES.has(n)) return CHART_ALIASES.get(n);
 
-  // If already canonical, keep it
   if (c === "Billboard Hot 100" || c === "UK Singles Chart" || c === "Canada RPM" || c === "Top40Weekly") {
     return c;
   }
-
-  // Otherwise keep as-is (future charts without edits)
   return c;
 }
 
@@ -177,7 +158,6 @@ function addToken(map, token, value) {
 }
 
 function stripBom(s) {
-  // handles UTF-8 BOM
   if (!s) return s;
   return s.charCodeAt(0) === 0xfeff ? s.slice(1) : s;
 }
@@ -286,19 +266,15 @@ function buildDefaultAliases() {
     ["roberta flack", "Roberta Flack"],
     ["flack", "Roberta Flack"],
     ["peabo bryson", "Peabo Bryson"],
-    ["peobo bryson", "Peabo Bryson"], // common typo
+    ["peobo bryson", "Peabo Bryson"],
     ["bryson", "Peabo Bryson"]
   ];
 
-  for (const [a, canon] of artistPairs) {
-    ARTIST_ALIASES.set(norm(a), canon);
-  }
-
-  // Title aliases can be populated later.
+  for (const [a, canon] of artistPairs) ARTIST_ALIASES.set(norm(a), canon);
 }
 
 // =============================
-// VALIDATE
+// VALIDATE + NORMALIZE
 // =============================
 function validateDb(moments) {
   let missing = 0;
@@ -321,9 +297,6 @@ function validateDb(moments) {
   if (dupes) warn(`DB validation: ${dupes} possible duplicates (artist/year/chart/title).`);
 }
 
-// =============================
-// NORMALIZE + INDEX
-// =============================
 function normalizeMoment(raw) {
   const artist = String(raw.artist || "").trim();
   const title = String(raw.title || "").trim();
@@ -339,7 +312,6 @@ function normalizeMoment(raw) {
 
   const number_one_weeks = toInt(raw.number_one_weeks);
   const anchor_week = raw.anchor_week ? String(raw.anchor_week).trim() : null;
-
   const top10 = Array.isArray(raw.top10) ? raw.top10 : null;
 
   const fact = String(raw.chart_fact || raw.fact || "").trim();
@@ -373,7 +345,6 @@ function buildIndexes(moments) {
   TITLE_EXACT.clear();
   MOMENT_INDEX = [];
 
-  // Deduplicate on ingest
   const seen = new Set();
 
   for (const raw of moments) {
@@ -384,8 +355,8 @@ function buildIndexes(moments) {
     if (seen.has(key)) continue;
     seen.add(key);
 
-    if (m.artist) ARTIST_EXACT.set(m._na, m.artist);
-    if (m.title) TITLE_EXACT.set(m._nt, m.title);
+    ARTIST_EXACT.set(m._na, m.artist);
+    TITLE_EXACT.set(m._nt, m.title);
 
     MOMENT_INDEX.push(m);
   }
@@ -397,7 +368,7 @@ function buildIndexes(moments) {
 }
 
 // =============================
-// LOAD DB + MERGE TOP40WEEKLY
+// LOAD DB
 // =============================
 function loadDb() {
   const resolved = resolveDbPath();
@@ -411,22 +382,15 @@ function loadDb() {
   const raw = stripBom(fs.readFileSync(DB_PATH_RESOLVED, "utf8"));
 
   let json;
-  try {
-    json = JSON.parse(raw);
-  } catch (e) {
-    failHard(`Music DB JSON is invalid at ${DB_PATH_RESOLVED}`);
-  }
+  try { json = JSON.parse(raw); }
+  catch { failHard(`Music DB JSON is invalid at ${DB_PATH_RESOLVED}`); }
 
-  // Accept either { moments: [...] } OR raw array
   let moments = null;
   if (Array.isArray(json)) moments = json;
   else if (json && Array.isArray(json.moments)) moments = json.moments;
 
-  if (!moments) {
-    failHard(`Music DB must be { moments: [...] } or a raw array at ${DB_PATH_RESOLVED}`);
-  }
+  if (!moments) failHard(`Music DB must be { moments: [...] } or a raw array at ${DB_PATH_RESOLVED}`);
 
-  // Merge Top40Weekly
   const top40 = loadTop40WeeklyMoments();
   const merged = moments.concat(top40);
 
@@ -439,13 +403,11 @@ function loadDb() {
   return DB;
 }
 
-// Public getter: ensures DB is loaded once
 function getDb() {
   if (!LOADED || !DB) return loadDb();
   return DB;
 }
 
-// Hot reload (safe): reload if file changed
 function maybeReload() {
   if (!HOT_RELOAD || !DB_PATH_RESOLVED) return;
   try {
@@ -460,7 +422,7 @@ function maybeReload() {
 }
 
 // =============================
-// DETECTION HELPERS (FAST)
+// DETECTION HELPERS
 // =============================
 function detectArtist(text) {
   maybeReload();
@@ -483,9 +445,7 @@ function detectArtist(text) {
   let best = null;
   let bestLen = 0;
   for (const na of candidateNorms) {
-    if (t.includes(na) && na.length > bestLen) {
-      best = na; bestLen = na.length;
-    }
+    if (t.includes(na) && na.length > bestLen) { best = na; bestLen = na.length; }
   }
 
   return best ? ARTIST_EXACT.get(best) : null;
@@ -512,9 +472,7 @@ function detectTitle(text) {
   let best = null;
   let bestLen = 0;
   for (const nt of candidateNorms) {
-    if (nt && t.includes(nt) && nt.length > bestLen) {
-      best = nt; bestLen = nt.length;
-    }
+    if (nt && t.includes(nt) && nt.length > bestLen) { best = nt; bestLen = nt.length; }
   }
 
   return best ? TITLE_EXACT.get(best) : null;
@@ -526,7 +484,7 @@ function extractYear(text) {
 }
 
 // =============================
-// CORE MATCHER (DETERMINISTIC)
+// CORE MATCHER
 // =============================
 function pickBestMoment(_db, fields = {}) {
   maybeReload();
@@ -542,13 +500,10 @@ function pickBestMoment(_db, fields = {}) {
   const chartNorm = chart ? norm(chart) : null;
 
   const match = (fn) => {
-    for (const m of MOMENT_INDEX) {
-      if (fn(m)) return m;
-    }
+    for (const m of MOMENT_INDEX) if (fn(m)) return m;
     return null;
   };
 
-  // 1) artist + title (+ chart) (+ year)
   if (na && nt) {
     const hit = match(m =>
       m._na === na &&
@@ -559,7 +514,6 @@ function pickBestMoment(_db, fields = {}) {
     if (hit) return hit;
   }
 
-  // 2) artist + year (+ chart)
   if (na && y) {
     const hit = match(m =>
       m._na === na &&
@@ -569,7 +523,6 @@ function pickBestMoment(_db, fields = {}) {
     if (hit) return hit;
   }
 
-  // 3) title only (+ chart) (+ year)
   if (nt) {
     const hit = match(m =>
       m._nt === nt &&
@@ -579,7 +532,6 @@ function pickBestMoment(_db, fields = {}) {
     if (hit) return hit;
   }
 
-  // 4) artist only (+ chart) — choose closest year if year provided
   if (na) {
     if (y) {
       let best = null;
@@ -605,22 +557,92 @@ function pickBestMoment(_db, fields = {}) {
 }
 
 // =============================
-// EXPORTS (Backwards compatible)
+// EXPANSION HELPERS
+// =============================
+function getAllMoments() {
+  getDb();
+  return MOMENT_INDEX.slice();
+}
+
+function pickRandom(arr) {
+  if (!arr || !arr.length) return null;
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function pickRandomByYear(year, chart = null) {
+  getDb();
+  const y = Number(year);
+  if (!Number.isFinite(y)) return null;
+  const c = chart ? norm(normalizeChart(chart)) : null;
+
+  const pool = MOMENT_INDEX.filter(m => {
+    if (m.year !== y) return false;
+    if (c && norm(m.chart) !== c) return false;
+    return true;
+  });
+
+  return pickRandom(pool);
+}
+
+function pickRandomByDecade(decade, chart = null) {
+  getDb();
+  const d = Number(decade);
+  if (!Number.isFinite(d)) return null;
+
+  const start = d;
+  const end = d + 9;
+  const c = chart ? norm(normalizeChart(chart)) : null;
+
+  const pool = MOMENT_INDEX.filter(m => {
+    if (!m.year) return false;
+    if (m.year < start || m.year > end) return false;
+    if (c && norm(m.chart) !== c) return false;
+    return true;
+  });
+
+  return pickRandom(pool);
+}
+
+function getTopByYear(year, n = 10) {
+  getDb();
+  const y = Number(year);
+  const limit = Math.max(1, Math.min(100, Number(n) || 10));
+
+  // Prefer Top40Weekly for ranked lists if present
+  const top40 = MOMENT_INDEX
+    .filter(m => m.year === y && norm(m.chart) === norm("Top40Weekly") && m.peak != null)
+    .sort((a, b) => (a.peak || 999) - (b.peak || 999))
+    .slice(0, limit);
+
+  if (top40.length) return top40;
+
+  // Otherwise fall back to any chart (if peak exists)
+  const any = MOMENT_INDEX
+    .filter(m => m.year === y && m.peak != null)
+    .sort((a, b) => (a.peak || 999) - (b.peak || 999))
+    .slice(0, limit);
+
+  return any;
+}
+
+// =============================
+// EXPORTS
 // =============================
 module.exports = {
   loadDb,
   getDb,
-
-  // Backwards-compatible aliases
   loadDB: loadDb,
-
-  // Allow one-liners: kb.db().moments.length
   db: () => getDb(),
 
-  // Core capabilities
   pickBestMoment,
   detectArtist,
   detectTitle,
   extractYear,
-  normalizeChart
+  normalizeChart,
+
+  // Expansion helpers
+  getAllMoments,
+  pickRandomByYear,
+  pickRandomByDecade,
+  getTopByYear
 };
