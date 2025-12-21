@@ -1,12 +1,13 @@
 /**
  * index.js — Nyx Broadcast Backend (Wizard-Locked)
- * Build: nyx-wizard-v1.81-2025-12-21
+ * Build: nyx-wizard-v1.82-2025-12-21
  *
  * Key fixes:
- * - Year-first Music flow: if user sends a year (or "random 80s") with no artist/title, Nyx returns a moment instead of demanding artist/title.
+ * - TRUE Year-first Music flow: if user sends a year (or "random 80s") with no artist/title, Nyx immediately returns a moment
+ *   (no prompt dead-end).
  * - Chart parsing from user text (uk/canada/top40weekly/billboard).
  * - Robust year parsing for inputs like "1984)" and "1984."
- * - Decade random support: "random 80s", "random 1990s"
+ * - Decade random support: "random 80s", "random 1990s" (does NOT demand artist/title).
  */
 
 "use strict";
@@ -88,7 +89,7 @@ app.use(cors({ origin: true }));
 app.options("*", cors());
 
 const PORT = process.env.PORT || 3000;
-const BUILD_TAG = "nyx-wizard-v1.81-2025-12-21";
+const BUILD_TAG = "nyx-wizard-v1.82-2025-12-21";
 const DEFAULT_CHART = "Billboard Hot 100";
 const KB_TIMEOUT_MS = Number(process.env.KB_TIMEOUT_MS || 2000);
 
@@ -272,6 +273,7 @@ function slotSummary(slots) {
   if (s.title) parts.push(`title=${s.title}`);
   if (s.year) parts.push(`year=${s.year}`);
   if (s.chart) parts.push(`chart=${s.chart}`);
+  if (s.decade) parts.push(`decade=${s.decade}s`);
   return parts.length ? parts.join(", ") : "none";
 }
 
@@ -500,8 +502,12 @@ function computeNextStep(slots) {
     s.title = "";
   }
 
-  // YEAR-FIRST PATH: if year exists but artist/title don’t, we can still serve value
-  if (s.year && !s.artist && !s.title) return STEPS.MUSIC_YEAR_FIRST;
+  // YEAR-FIRST PATH:
+  // - if year exists but artist/title don’t, we can serve value immediately
+  // - if decade exists (random 80s) with no year/artist/title, we also serve value immediately
+  if ((s.year && !s.artist && !s.title) || (s.decade && !s.year && !s.artist && !s.title)) {
+    return STEPS.MUSIC_YEAR_FIRST;
+  }
 
   if (!s.artist) return STEPS.MUSIC_NEED_ARTIST;
   if (!s.title) return STEPS.MUSIC_NEED_TITLE;
@@ -522,6 +528,7 @@ function quickActions() {
 
 async function handleMusicWizard(req, res, key, sess, rawText) {
   const text = normalizeUserText(rawText);
+  const wantsRandom = /^random\b/i.test(text);
 
   // Reset command
   if (isReset(text)) {
@@ -562,6 +569,13 @@ async function handleMusicWizard(req, res, key, sess, rawText) {
   const decade = parseRandomDecade(text);
   if (decade) {
     sess.laneDetail.decade = decade; // store as 1980, 1990, etc.
+    // If user explicitly asked random decade, clear conflicting artist/title to avoid step drift
+    // (we want year-first behavior).
+    if (!at) {
+      delete sess.laneDetail.artist;
+      delete sess.laneDetail.title;
+      delete sess.laneDetail.year;
+    }
   } else {
     delete sess.laneDetail.decade;
   }
@@ -600,30 +614,30 @@ async function handleMusicWizard(req, res, key, sess, rawText) {
     return send(res, key, sess, "music_escalate", `Let’s stop the spin.\n${quickActions()}`, false);
   }
 
-  // YEAR-FIRST PROMPT (if we have a year only, we can serve immediately)
+  // =====================================================
+  // CRITICAL FIX: YEAR-FIRST MUST ADVANCE
+  // If we’re in YEAR_FIRST, we DO NOT prompt and stop.
+  // We normalize to a usable year (if decade is present),
+  // then fall through to LOOKUP and return a moment.
+  // =====================================================
   if (sess.step === STEPS.MUSIC_YEAR_FIRST) {
-    // If the user said "random 80s" we’ll handle it in LOOKUP (via laneDetail.decade)
+    // If decade random (e.g., 1980) but no year, pick a random year within decade.
     if (sess.laneDetail.decade && !sess.laneDetail.year) {
-      touch(sess);
-      return send(
-        res,
-        key,
-        sess,
-        "music_year_first_decade",
-        `Got it — random from the ${sess.laneDetail.decade}s. If you want a chart, say: Billboard, UK, Canada RPM, or Top40Weekly.\n(Or say a year like 1984.)`,
-        false
-      );
+      const start = Number(sess.laneDetail.decade);
+      const picked = start + Math.floor(Math.random() * 10);
+      sess.laneDetail.year = picked;
     }
 
-    touch(sess);
-    return send(
-      res,
-      key,
-      sess,
-      "music_year_first",
-      `Locked: ${sess.laneDetail.year}. If you want a specific chart, say: Billboard, UK, Canada RPM, or Top40Weekly.\nOr say “random” to pull a big moment from ${sess.laneDetail.year}.`,
-      false
-    );
+    // If we still don’t have a year, we can’t lookup; escalate gracefully.
+    if (!sess.laneDetail.year) {
+      touch(sess);
+      return send(res, key, sess, "music_year_first_missing_year", `Tell me a year (example: 1984) or say: random 80s.\n${quickActions()}`, false);
+    }
+
+    // Force lookup now (advance).
+    sess.step = STEPS.MUSIC_LOOKUP;
+    sess.lastPromptStep = "";      // avoid fuse counting this as a “prompt loop”
+    sess.promptRepeatCount = 0;
   }
 
   // Step prompts (classic wizard)
@@ -658,11 +672,7 @@ async function handleMusicWizard(req, res, key, sess, rawText) {
   }
 
   // Lookup step
-  if (sess.step === STEPS.MUSIC_LOOKUP || sess.step === STEPS.MUSIC_YEAR_FIRST) {
-    // If user says "random" while year-first is set, proceed with lookup
-    // If user says "random 80s", also proceed
-    const wantsRandom = /^random\b/i.test(text);
-
+  if (sess.step === STEPS.MUSIC_LOOKUP) {
     // Query KB
     const kbResult = await kbQuery(text, sess.laneDetail, KB_TIMEOUT_MS);
 
@@ -702,20 +712,17 @@ async function handleMusicWizard(req, res, key, sess, rawText) {
 
     let best = out.best || null;
 
-    // If decade-random requested, do a deterministic pull using KB helper via a second worker call fallback
-    // (We’ll do it without adding new worker opcodes: just reuse the KB via a “year-less” lookup by year range isn’t built-in,
-    // so we rely on existing helper in musicKnowledge by passing a "decade" field and handling it client-side here.)
-    if (!best && decade) {
-      // We can do a simple local retry by asking the worker to treat it as year-only for a random year within decade.
-      // But easiest: pick a random year and run again.
-      const start = decade;
+    // If decade-random requested and best still missing, do a deterministic retry:
+    // pick a year and query again.
+    if (!best && sess.laneDetail.decade && !sess.laneDetail.artist && !sess.laneDetail.title) {
+      const start = Number(sess.laneDetail.decade);
       const yearPick = start + Math.floor(Math.random() * 10);
       sess.laneDetail.year = yearPick;
-      const retryDec = await kbQuery(String(yearPick), sess.laneDetail, KB_TIMEOUT_MS);
-      best = retryDec?.ok ? retryDec?.out?.best || null : null;
+
+      const retry = await kbQuery(String(yearPick), sess.laneDetail, KB_TIMEOUT_MS);
+      best = retry?.ok ? retry?.out?.best || null : null;
     }
 
-    // If year-first and user typed "random" (or just sent the year), accept best
     if (best) {
       touch(sess);
       sess.step = STEPS.MUSIC_RESULT;
