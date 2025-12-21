@@ -1,0 +1,201 @@
+/**
+ * Dump Top40Weekly "Top 100 Songs Of YEAR" pages into CSV: year,artist,title
+ *
+ * Recommended (writes UTF-8 file directly; avoids PowerShell piping issues):
+ *   node scripts/top40weekly_top100_dump.js 1980 1980 Data\top40weekly_top100_1980.csv
+ *
+ * Full run:
+ *   node scripts/top40weekly_top100_dump.js 1960 2019 Data\top40weekly_top100_1960_2019.csv
+ *
+ * Quiet mode (hide [OK] lines, keep [WARN] and final [DONE]):
+ *   node scripts/top40weekly_top100_dump.js 1960 2019 Data\top40weekly_top100_1960_2019.csv --quiet
+ *
+ * Or stdout:
+ *   node scripts/top40weekly_top100_dump.js 1960 2019
+ */
+
+"use strict";
+
+const fs = require("fs");
+const path = require("path");
+const cheerio = require("cheerio");
+
+const startYear = parseInt(process.argv[2], 10);
+const endYear = parseInt(process.argv[3], 10);
+const outPath = process.argv[4]; // optional
+const quiet = process.argv.includes("--quiet");
+
+if (!startYear || !endYear || endYear < startYear) {
+  console.error("Usage: node scripts/top40weekly_top100_dump.js <startYear> <endYear> [out.csv] [--quiet]");
+  process.exit(1);
+}
+
+function normLine(s) {
+  return String(s || "")
+    .replace(/\u00A0/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function fetchHtml(url) {
+  const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
+  if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+  return await res.text();
+}
+
+/**
+ * DOM-ordered parser (supports two layouts):
+ * A) "1 Call Me" then next token "Blondie"
+ * B) "1" then next token "Call Me" then next token "Blondie"
+ *
+ * This does NOT rely on newline behavior. It walks text nodes in document order.
+ */
+function extractTop100FromPage($) {
+  const entry = $(".entry-content").first();
+  if (!entry.length) return [];
+
+  // Collect text nodes in reading order
+  const chunks = [];
+  entry.find("*").contents().each((_, node) => {
+    if (node.type === "text") {
+      const t = normLine(node.data);
+      if (t) chunks.push(t);
+    }
+  });
+  entry.contents().each((_, node) => {
+    if (node.type === "text") {
+      const t = normLine(node.data);
+      if (t) chunks.push(t);
+    }
+  });
+
+  // Clean + filter junk
+  const clean = chunks
+    .map(normLine)
+    .filter(Boolean)
+    .filter(s => s.length < 220)
+    .filter(s => !/^share|^posted|^leave a reply/i.test(s));
+
+  // Helper: get the next meaningful token (skips page copy)
+  function nextToken(startIdx) {
+    for (let k = startIdx; k < clean.length; k++) {
+      const v = normLine(clean[k]);
+      if (!v) continue;
+
+      const lc = v.toLowerCase();
+      if (lc.includes("top songs of")) continue;
+      if (lc.startsWith("these are the top")) continue;
+      if (lc.startsWith("there are")) continue;
+
+      return { value: v, idx: k };
+    }
+    return null;
+  }
+
+  const byRank = new Map();
+
+  for (let i = 0; i < clean.length; i++) {
+    const cur = clean[i];
+
+    // ----------------------------
+    // CASE A: combined "1 Call Me"
+    // ----------------------------
+    let m = cur.match(/^(\d{1,3})\s+(.+)$/);
+    if (m) {
+      const rank = parseInt(m[1], 10);
+      const title = normLine(m[2]);
+      if (!rank || !title) continue;
+
+      const aTok = nextToken(i + 1);
+      if (!aTok) continue;
+
+      const artist = aTok.value;
+
+      // Guard: artist shouldn't be another rank/title or a bare rank
+      if (/^\d{1,3}$/.test(artist)) continue;
+      if (/^\d{1,3}\s+/.test(artist)) continue;
+
+      if (title.length > 180 || artist.length > 140) continue;
+
+      if (!byRank.has(rank)) byRank.set(rank, { rank, title, artist });
+      continue;
+    }
+
+    // ----------------------------
+    // CASE B: split nodes "1" "Call Me" "Blondie"
+    // ----------------------------
+    if (/^\d{1,3}$/.test(cur)) {
+      const rank = parseInt(cur, 10);
+      if (!rank) continue;
+
+      const tTok = nextToken(i + 1);
+      if (!tTok) continue;
+      const title = tTok.value;
+
+      const aTok = nextToken(tTok.idx + 1);
+      if (!aTok) continue;
+      const artist = aTok.value;
+
+      // Guards: title/artist should not be rank-ish
+      if (/^\d{1,3}$/.test(title) || /^\d{1,3}\s+/.test(title)) continue;
+      if (/^\d{1,3}$/.test(artist) || /^\d{1,3}\s+/.test(artist)) continue;
+
+      if (title.length > 180 || artist.length > 140) continue;
+
+      if (!byRank.has(rank)) byRank.set(rank, { rank, title, artist });
+      continue;
+    }
+  }
+
+  return Array.from(byRank.values()).sort((a, b) => a.rank - b.rank);
+}
+
+(async () => {
+  const csvLines = [];
+  csvLines.push("year,artist,title");
+
+  let totalRows = 0;
+  let okYears = 0;
+  let warnYears = 0;
+
+  for (let y = startYear; y <= endYear; y++) {
+    const url = `https://top40weekly.com/top-100-songs-of-${y}/`;
+
+    try {
+      const html = await fetchHtml(url);
+      const $ = cheerio.load(html);
+
+      const rows = extractTop100FromPage($);
+
+      if (rows.length < 50) {
+        warnYears++;
+        console.error(`[WARN] ${y}: parsed only ${rows.length} rows (${url})`);
+        continue;
+      }
+
+      okYears++;
+      if (!quiet) console.error(`[OK] ${y}: ${rows.length} rows (${url})`);
+
+      for (const r of rows) {
+        const a = `"${String(r.artist).replace(/"/g, '""')}"`;
+        const t = `"${String(r.title).replace(/"/g, '""')}"`;
+        csvLines.push(`${y},${a},${t}`);
+      }
+      totalRows += rows.length;
+    } catch (e) {
+      warnYears++;
+      console.error(`[WARN] ${y}: ${e.message} (${url})`);
+    }
+  }
+
+  const csv = csvLines.join("\n") + "\n";
+
+  if (outPath) {
+    const full = path.resolve(process.cwd(), outPath);
+    fs.mkdirSync(path.dirname(full), { recursive: true });
+    fs.writeFileSync(full, csv, "utf8");
+    console.error(`[DONE] wrote ${totalRows} rows to ${full} (okYears=${okYears}, warnYears=${warnYears})`);
+  } else {
+    process.stdout.write(csv);
+  }
+})();
