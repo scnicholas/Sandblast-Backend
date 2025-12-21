@@ -1,12 +1,34 @@
+# =========================
+# Node / Runtime
+# =========================
 node_modules/
 npm-debug.log
 .env
+
+# =========================
+# OS / Editor Noise
+# =========================
 .DS_Store
+Thumbs.db
 
+# =========================
+# Runtime Data (Generated)
+# =========================
 Data/
+data/
+
+# =========================
+# Local Stable Backups
+# =========================
 index.nyx-stable.js
 index.nyx-stable.js.txt
 
-Data/
-index.nyx-stable.js
-index.nyx-stable.js.txt
+# =========================
+# Local Helper Scripts / Artifacts
+# (Generated, analysis, one-off tools)
+# =========================
+Scripts/*.json
+Scripts/*.txt
+
+cards_to_chart_dump.js
+fact_cards_verify_1000.txt
