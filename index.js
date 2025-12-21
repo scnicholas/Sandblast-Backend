@@ -1,14 +1,13 @@
 /**
  * index.js — Nyx Broadcast Backend (Bulletproof LOCKED)
- * Build: nyx-bulletproof-v1.71-2025-12-20
+ * Build: nyx-bulletproof-v1.72-2025-12-20
  *
- * Updates vs v1.70:
- * - FIX: Robust "Artist - Title" parsing in index.js (hyphen/en-dash/em-dash)
- *   so inputs like "Prince - When Doves Cry" correctly set slots.
- * - UX: If artist+title present but year missing, ask for YEAR (no menu loop).
+ * Updates vs v1.71:
+ * - FIX: Global "Artist == Title" placeholder trap (Prince/Prince issue) applies to ALL artists
+ * - FIX: "Artist - Title" parsing now overrides placeholder slots (artist==title) instead of ignoring
+ * - NEW: MODE:<lane> routing (music/radio/tv/sponsors/ai) to prevent "Radio -> music prompts"
+ * - IMPROVE: Title-only inference when artist exists (and input is not a year / greeting / mode)
  * - Keeps:
- *   - Title-only inference
- *   - Slot reconciliation
  *   - Anti-repetition fuse
  *   - clientGreeted + requestId dedupe
  *   - Persistent KB worker with timeout restart
@@ -91,7 +90,7 @@ app.use(cors({ origin: true }));
 app.options("*", cors());
 
 const PORT = process.env.PORT || 3000;
-const BUILD_TAG = "nyx-bulletproof-v1.71-2025-12-20";
+const BUILD_TAG = "nyx-bulletproof-v1.72-2025-12-20";
 const DEFAULT_CHART = "Billboard Hot 100";
 const KB_TIMEOUT_MS = Number(process.env.KB_TIMEOUT_MS || 1200);
 
@@ -180,6 +179,20 @@ function slotSummary(slots) {
   return parts.length ? parts.join(", ") : "none";
 }
 
+function normalizeToken(s) {
+  return safeStr(s).toLowerCase();
+}
+
+/**
+ * Global placeholder trap:
+ * If artist and title are identical (ignoring case/space), treat title as invalid placeholder.
+ */
+function isArtistEqualsTitle(artist, title) {
+  const a = normalizeToken(artist);
+  const t = normalizeToken(title);
+  return !!a && !!t && a === t;
+}
+
 /**
  * ✅ Robust parser for "Artist - Title"
  * Handles: "-", "–" (en dash), "—" (em dash), extra spaces.
@@ -189,22 +202,49 @@ function parseArtistTitle(text) {
   const t = safeStr(text);
   if (!t) return null;
 
-  // Normalize unicode dashes to a simple hyphen
   const normalized = t.replace(/[–—]/g, "-");
-
-  // Split on first hyphen with optional spaces around it
   const m = normalized.match(/^(.{2,}?)\s*-\s*(.{2,}?)$/);
   if (!m) return null;
 
   const artist = safeStr(m[1]);
   const title = safeStr(m[2]);
 
-  // Basic sanity: don't accept if either side is just a number/year
   if (!artist || !title) return null;
   if (/^\d{4}$/.test(artist)) return null;
   if (/^\d{4}$/.test(title)) return null;
 
+  // Reject obvious placeholder "same-same"
+  if (isArtistEqualsTitle(artist, title)) return null;
+
   return { artist, title };
+}
+
+/**
+ * MODE:<lane> support (widget can send this to force lane)
+ * Accepts: music, music_history, radio, tv, sponsors, ai
+ */
+function parseMode(text) {
+  const t = safeStr(text);
+  if (!t) return null;
+  const m = t.match(/^mode\s*:\s*(music|music_history|radio|tv|sponsors|ai)\s*$/i);
+  if (!m) return null;
+  return safeStr(m[1]).toLowerCase();
+}
+
+function isYearOnly(text) {
+  const t = safeStr(text);
+  return /^\d{4}$/.test(t);
+}
+
+function looksLikeNonEmptyTitleCandidate(text) {
+  const t = safeStr(text);
+  if (!t) return false;
+  if (t.length < 2) return false;
+  if (isGreeting(t)) return false;
+  if (parseMode(t)) return false;
+  if (parseArtistTitle(t)) return false;
+  if (isYearOnly(t)) return false;
+  return true;
 }
 
 // ---------------- SEND (CANON) ----------------
@@ -433,6 +473,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     );
   }
 
+  // ---------------- Empty ----------------
   if (!text) {
     touch(sess);
 
@@ -448,20 +489,99 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       );
     }
 
-    return send(res, key, sess, "empty", "Give me an artist + year (or a song title) and I’ll anchor the moment.", false);
+    // Lane-aware empty prompt
+    const lane = sess.currentLane || "music_history";
+    if (lane === "radio") return send(res, key, sess, "radio_empty", "Radio mode: tell me what you want to tune — station, show, schedule, or a segment idea.", false);
+    if (lane === "tv") return send(res, key, sess, "tv_empty", "TV mode: tell me the show, genre, or what you want on the grid and I’ll tune it.", false);
+    if (lane === "sponsors") return send(res, key, sess, "sponsors_empty", "Sponsors mode: tell me the business type + goal and I’ll draft a sponsor angle.", false);
+    if (lane === "ai") return send(res, key, sess, "ai_empty", "AI mode: tell me what you’re building and what you want Nyx to do.", false);
+
+    return send(res, key, sess, "music_empty", "Give me Artist - Title (optional year) and I’ll anchor the moment.", false);
   }
 
-  // MUSIC LOCK (for now)
+  // ---------------- MODE ROUTING ----------------
+  const forcedMode = parseMode(text);
+  if (forcedMode) {
+    sess.currentLane = forcedMode === "music" ? "music_history" : forcedMode;
+    touch(sess);
+
+    // Reset repetition fuse on lane switch
+    sess.lastPromptStep = "";
+    sess.promptRepeatCount = 0;
+
+    if (sess.currentLane === "radio") {
+      return send(res, key, sess, "mode_radio", "Radio mode locked. What are we tuning: station identity, a show segment, schedule, or a promo script?", true);
+    }
+    if (sess.currentLane === "tv") {
+      return send(res, key, sess, "mode_tv", "TV mode locked. What are we tuning: a show, the grid, or a channel identity direction?", true);
+    }
+    if (sess.currentLane === "sponsors") {
+      return send(res, key, sess, "mode_sponsors", "Sponsors mode locked. What’s the sponsor category and the outcome you want (leads, calls, store visits, brand lift)?", true);
+    }
+    if (sess.currentLane === "ai") {
+      return send(res, key, sess, "mode_ai", "AI mode locked. Tell me what you’re building and what ‘done’ looks like.", true);
+    }
+    // music_history
+    return send(res, key, sess, "mode_music", "Music mode locked. Send Artist - Title (optional year) and I’ll anchor a strong moment.", true);
+  }
+
+  // ---------------- Lane behavior ----------------
+  // If user explicitly types lane words, treat as soft lane switch (no need for MODE:)
+  const lower = text.toLowerCase();
+  if (["radio", "tv", "sponsors", "ai", "music"].includes(lower)) {
+    sess.currentLane = lower === "music" ? "music_history" : lower;
+    touch(sess);
+    sess.lastPromptStep = "";
+    sess.promptRepeatCount = 0;
+
+    if (sess.currentLane === "radio") return send(res, key, sess, "lane_radio", "Radio mode. What are we tuning: station identity, show segment, schedule, or promo copy?", true);
+    if (sess.currentLane === "tv") return send(res, key, sess, "lane_tv", "TV mode. What are we tuning: a show, the grid, or programming blocks?", true);
+    if (sess.currentLane === "sponsors") return send(res, key, sess, "lane_sponsors", "Sponsors mode. Tell me the sponsor category + goal and I’ll build the angle.", true);
+    if (sess.currentLane === "ai") return send(res, key, sess, "lane_ai", "AI mode. Tell me what you’re building and where it’s failing right now.", true);
+    return send(res, key, sess, "lane_music", "Music mode. Send Artist - Title (optional year).", true);
+  }
+
+  // For now: only MUSIC lane has a full engine.
+  // Other lanes respond clearly (and do NOT drift into music prompts).
+  if (sess.currentLane && sess.currentLane !== "music_history") {
+    touch(sess);
+    if (sess.currentLane === "radio") return send(res, key, sess, "radio_hold", "Radio mode is active. Tell me what you want to tune (station/show/segment/promo). If you meant Music, say: music.", false);
+    if (sess.currentLane === "tv") return send(res, key, sess, "tv_hold", "TV mode is active. Tell me the show/genre/grid goal. If you meant Music, say: music.", false);
+    if (sess.currentLane === "sponsors") return send(res, key, sess, "sponsors_hold", "Sponsors mode is active. Tell me the sponsor type + goal. If you meant Music, say: music.", false);
+    if (sess.currentLane === "ai") return send(res, key, sess, "ai_hold", "AI mode is active. Tell me what you’re building and what’s not working. If you meant Music, say: music.", false);
+  }
+
+  // ---------------- MUSIC FLOW ----------------
   sess.currentLane = "music_history";
   sess.laneDetail = safeObj(sess.laneDetail);
   sess.laneDetail.chart = safeStr(sess.laneDetail.chart) || DEFAULT_CHART;
 
-  // ✅ NEW: Server-side Artist - Title parsing BEFORE worker
-  // This ensures "Prince - When Doves Cry" always sets slots.
+  // 1) If we already have artist+title AND title is placeholder (artist==title), clear title.
+  if (sess.laneDetail.artist && sess.laneDetail.title && isArtistEqualsTitle(sess.laneDetail.artist, sess.laneDetail.title)) {
+    sess.laneDetail.title = "";
+  }
+
+  // 2) Parse Artist - Title and override placeholder slots
   const at = parseArtistTitle(text);
   if (at) {
+    // Always accept parsed artist if missing
     if (!sess.laneDetail.artist) sess.laneDetail.artist = at.artist;
-    if (!sess.laneDetail.title) sess.laneDetail.title = at.title;
+
+    // If title is missing OR was a placeholder OR obviously bad, override
+    const existingTitle = safeStr(sess.laneDetail.title);
+    const existingArtist = safeStr(sess.laneDetail.artist);
+    const existingIsPlaceholder = existingTitle && existingArtist && isArtistEqualsTitle(existingArtist, existingTitle);
+
+    if (!existingTitle || existingIsPlaceholder) {
+      sess.laneDetail.title = at.title;
+    }
+  }
+
+  // 3) If artist exists and title missing, and this input looks like a title, set it (unless equals artist)
+  if (sess.laneDetail.artist && !sess.laneDetail.title && looksLikeNonEmptyTitleCandidate(text)) {
+    if (!isArtistEqualsTitle(sess.laneDetail.artist, text)) {
+      sess.laneDetail.title = safeStr(text);
+    }
   }
 
   // Query worker
@@ -496,12 +616,23 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     sess.laneDetail.year = out.year;
     slotChanged = true;
   }
+
   if (!sess.laneDetail.artist && out.artist) {
     sess.laneDetail.artist = out.artist;
     slotChanged = true;
   }
+
+  // Title merge: never accept placeholder title (artist==title)
   if (!sess.laneDetail.title && out.title) {
-    sess.laneDetail.title = out.title;
+    if (!isArtistEqualsTitle(sess.laneDetail.artist, out.title)) {
+      sess.laneDetail.title = out.title;
+      slotChanged = true;
+    }
+  }
+
+  // If title became placeholder, clear it (global trap)
+  if (sess.laneDetail.artist && sess.laneDetail.title && isArtistEqualsTitle(sess.laneDetail.artist, sess.laneDetail.title)) {
+    sess.laneDetail.title = "";
     slotChanged = true;
   }
 
@@ -535,37 +666,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     );
   }
 
-  // ✅ Title-only inference
-  if (sess.laneDetail.title && !sess.laneDetail.artist) {
-    const retry = await kbQuery("", sess.laneDetail, KB_TIMEOUT_MS);
-    const inferred = retry?.ok ? retry?.out?.best || null : null;
-
-    if (inferred && inferred.artist) {
-      sess.laneDetail.artist = inferred.artist;
-      if (inferred.year && !sess.laneDetail.year) sess.laneDetail.year = inferred.year;
-
-      touch(sess);
-      sess.lastPromptStep = "";
-      sess.promptRepeatCount = 0;
-
-      const chart = inferred.chart || sess.laneDetail.chart || DEFAULT_CHART;
-      const fact = inferred.fact ? `\nFact: ${inferred.fact}` : "";
-      const culture = inferred.culture ? `\n\n${inferred.culture}` : "";
-      const next = inferred.next ? `\nNext: ${inferred.next}` : "";
-
-      return send(
-        res,
-        key,
-        sess,
-        "music_title_inferred",
-        `${inferred.artist} — "${inferred.title}" (${inferred.year})\nChart: ${chart}${fact}${culture}${next}`,
-        true
-      );
-    }
-  }
-
-  // ✅ IMPORTANT UX CHANGE:
-  // If we have artist+title but still no match, ask for YEAR (not the menu).
+  // If we have artist + title but no match and no year -> ask year (not menu loop)
   if (sess.laneDetail.artist && sess.laneDetail.title && !sess.laneDetail.year) {
     touch(sess);
     const repeats = bumpPromptFuse(sess, "music_need_year_for_artist_title");
@@ -589,6 +690,18 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     return send(res, key, sess, repeats >= 3 ? "music_need_artist_fused" : "music_need_artist", msg, false);
   }
 
+  // If title is missing (or cleared because it was a placeholder), ask for title directly
+  if (sess.laneDetail.artist && !sess.laneDetail.title) {
+    touch(sess);
+    const repeats = bumpPromptFuse(sess, "music_need_title_direct");
+    const msg = pickVariant(repeats, [
+      `Got it: ${sess.laneDetail.artist}. What song title should I check?`,
+      `Send the title — or send Artist - Title to lock it instantly.`,
+      "Pick one:\n1) Send the song title\n2) Send Artist - Title\n3) Say “random 90s”",
+    ]);
+    return send(res, key, sess, repeats >= 3 ? "music_need_title_direct_fused" : "music_need_title_direct", msg, false);
+  }
+
   // Missing year
   if (!sess.laneDetail.year) {
     touch(sess);
@@ -601,7 +714,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
     return send(res, key, sess, repeats >= 3 ? "music_need_year_fused" : "music_need_year", msg, false);
   }
 
-  // Have artist + year but no title
+  // Have artist + year but no title (fallback)
   if (sess.laneDetail.artist && sess.laneDetail.year && !sess.laneDetail.title) {
     touch(sess);
     const repeats = bumpPromptFuse(sess, "music_need_title");
