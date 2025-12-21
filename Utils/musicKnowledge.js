@@ -1,10 +1,19 @@
 /**
- * musicKnowledge.js — Bulletproof V2.6 (Year-only support + stronger fallback)
+ * musicKnowledge.js — Bulletproof V2.7
  *
- * FIX:
- * - pickBestMoment() now supports year-only queries:
- *   fields={year, chart} with no artist/title will return a random moment for that year.
- *   It prefers the requested chart, but falls back to ANY chart in that year if needed.
+ * Adds:
+ * - Year-only support (kept)
+ * - Nearest-year correction for:
+ *    1) artist + title + year mismatch
+ *    2) title + year mismatch
+ *    3) artist + year mismatch
+ *
+ * Emits correction flags for index.js:
+ *  - _correctedYear, _inputYear
+ *  - _correctedArtist, _inputArtist
+ *  - _correctedTitle, _inputTitle
+ *
+ * NOTE: We return shallow copies when adding flags so we don't mutate MOMENT_INDEX.
  */
 
 "use strict";
@@ -173,6 +182,11 @@ function stripBom(s) {
   return s.charCodeAt(0) === 0xfeff ? s.slice(1) : s;
 }
 
+function copyWithFlags(m, flags) {
+  if (!m) return null;
+  return Object.assign({}, m, flags || {});
+}
+
 // =============================
 // TOP40WEEKLY MERGE
 // =============================
@@ -312,9 +326,7 @@ function validateDb(moments) {
 
     if (!artist || !year) missing++;
 
-    const key = `${norm(artist)}|${year}|${norm(chart)}|${norm(
-      raw.title || ""
-    )}`;
+    const key = `${norm(artist)}|${year}|${norm(chart)}|${norm(raw.title || "")}`;
     if (seen.has(key)) dupes++;
     seen.add(key);
   }
@@ -594,6 +606,114 @@ function getTopByYear(year, n = 10) {
 }
 
 // =============================
+// NEAREST-MATCH HELPERS (for gentle correction)
+// =============================
+function nearestByArtistTitle(na, nt, y, chartNorm /* optional */) {
+  if (!na || !nt || !y) return null;
+
+  let best = null;
+  let bestDist = Infinity;
+
+  for (const m of MOMENT_INDEX) {
+    if (m._na !== na) continue;
+    if (m._nt !== nt) continue;
+    if (chartNorm && norm(m.chart) !== chartNorm) continue;
+    if (!m.year) continue;
+
+    const d = Math.abs(m.year - y);
+    if (d < bestDist) {
+      best = m;
+      bestDist = d;
+    }
+  }
+
+  // If chart-filtered search fails, try any chart for same artist+title
+  if (!best && chartNorm) {
+    for (const m of MOMENT_INDEX) {
+      if (m._na !== na) continue;
+      if (m._nt !== nt) continue;
+      if (!m.year) continue;
+
+      const d = Math.abs(m.year - y);
+      if (d < bestDist) {
+        best = m;
+        bestDist = d;
+      }
+    }
+  }
+
+  return best ? { best, bestDist } : null;
+}
+
+function nearestByTitle(nt, y, chartNorm /* optional */) {
+  if (!nt || !y) return null;
+
+  let best = null;
+  let bestDist = Infinity;
+
+  for (const m of MOMENT_INDEX) {
+    if (m._nt !== nt) continue;
+    if (chartNorm && norm(m.chart) !== chartNorm) continue;
+    if (!m.year) continue;
+
+    const d = Math.abs(m.year - y);
+    if (d < bestDist) {
+      best = m;
+      bestDist = d;
+    }
+  }
+
+  if (!best && chartNorm) {
+    for (const m of MOMENT_INDEX) {
+      if (m._nt !== nt) continue;
+      if (!m.year) continue;
+
+      const d = Math.abs(m.year - y);
+      if (d < bestDist) {
+        best = m;
+        bestDist = d;
+      }
+    }
+  }
+
+  return best ? { best, bestDist } : null;
+}
+
+function nearestByArtist(na, y, chartNorm /* optional */) {
+  if (!na || !y) return null;
+
+  let best = null;
+  let bestDist = Infinity;
+
+  for (const m of MOMENT_INDEX) {
+    if (m._na !== na) continue;
+    if (chartNorm && norm(m.chart) !== chartNorm) continue;
+    if (!m.year) continue;
+
+    const d = Math.abs(m.year - y);
+    if (d < bestDist) {
+      best = m;
+      bestDist = d;
+    }
+  }
+
+  if (!best && chartNorm) {
+    for (const m of MOMENT_INDEX) {
+      if (m._na !== na) continue;
+      if (!m.year) continue;
+
+      const d = Math.abs(m.year - y);
+      if (d < bestDist) {
+        best = m;
+        bestDist = d;
+      }
+    }
+  }
+
+  return best ? { best, bestDist } : null;
+}
+
+// =============================
 // CORE MATCHER
 // =============================
 function pickBestMoment(_db, fields = {}) {
@@ -616,19 +736,17 @@ function pickBestMoment(_db, fields = {}) {
   };
 
   // -------------------------------------------------
-  // NEW: YEAR-ONLY SUPPORT (this fixes "1984" requests)
+  // YEAR-ONLY SUPPORT (fixes "1984" requests)
   // -------------------------------------------------
   if (y && !na && !nt) {
-    // Prefer the requested chart, but fall back to any chart in that year.
     const hit = pickRandomByYearFallback(y, chartNorm ? chart : null);
     if (hit) return hit;
 
-    // Absolute last resort: return any moment that has that year (even if chart label mismatch)
     const fallbackPool = MOMENT_INDEX.filter((m) => m.year === y);
     return pickRandom(fallbackPool);
   }
 
-  // Exact artist+title (optional year/chart)
+  // 1) Exact artist+title (optional year/chart)
   if (na && nt) {
     const hit = match((m) =>
       m._na === na &&
@@ -637,9 +755,30 @@ function pickBestMoment(_db, fields = {}) {
       (!y || m.year === y)
     );
     if (hit) return hit;
+
+    // NEW: artist+title match exists but year is off → nearest-year correction
+    if (y) {
+      const near = nearestByArtistTitle(na, nt, y, chartNorm);
+      if (near && near.best && near.best.year != null && near.best.year !== y) {
+        return copyWithFlags(near.best, {
+          _correctedYear: true,
+          _inputYear: y,
+          _inputArtist: fields.artist || null,
+          _inputTitle: fields.title || null
+        });
+      }
+    }
+
+    // If user omitted year, allow artist+title ignoring year already handled above by exact without y condition
+    const hitNoYear = match((m) =>
+      m._na === na &&
+      m._nt === nt &&
+      (!chartNorm || norm(m.chart) === chartNorm)
+    );
+    if (hitNoYear) return hitNoYear;
   }
 
-  // Artist + year (optional chart)
+  // 2) Artist + year (optional chart)
   if (na && y) {
     const hit = match((m) =>
       m._na === na &&
@@ -647,9 +786,22 @@ function pickBestMoment(_db, fields = {}) {
       (!chartNorm || norm(m.chart) === chartNorm)
     );
     if (hit) return hit;
+
+    // NEW: nearest-year correction for artist+year
+    const near = nearestByArtist(na, y, chartNorm);
+    if (near && near.best) {
+      if (near.best.year != null && near.best.year !== y) {
+        return copyWithFlags(near.best, {
+          _correctedYear: true,
+          _inputYear: y,
+          _inputArtist: fields.artist || null
+        });
+      }
+      return near.best;
+    }
   }
 
-  // Title (optional year/chart)
+  // 3) Title (optional year/chart)
   if (nt) {
     const hit = match((m) =>
       m._nt === nt &&
@@ -657,24 +809,41 @@ function pickBestMoment(_db, fields = {}) {
       (!y || m.year === y)
     );
     if (hit) return hit;
+
+    // NEW: title match exists but year is off → nearest-year correction
+    if (y) {
+      const near = nearestByTitle(nt, y, chartNorm);
+      if (near && near.best && near.best.year != null && near.best.year !== y) {
+        return copyWithFlags(near.best, {
+          _correctedYear: true,
+          _inputYear: y,
+          _inputTitle: fields.title || null
+        });
+      }
+    }
+
+    // Title-only fallback
+    const hitNoYear = match((m) =>
+      m._nt === nt &&
+      (!chartNorm || norm(m.chart) === chartNorm)
+    );
+    if (hitNoYear) return hitNoYear;
   }
 
-  // Artist only: nearest year if provided, else first match
+  // 4) Artist only: nearest year if provided, else first match
   if (na) {
     if (y) {
-      let best = null;
-      let bestDist = Infinity;
-      for (const m of MOMENT_INDEX) {
-        if (m._na !== na) continue;
-        if (chartNorm && norm(m.chart) !== chartNorm) continue;
-        if (!m.year) continue;
-        const d = Math.abs(m.year - y);
-        if (d < bestDist) {
-          best = m;
-          bestDist = d;
+      const near = nearestByArtist(na, y, chartNorm);
+      if (near && near.best) {
+        if (near.best.year != null && near.best.year !== y) {
+          return copyWithFlags(near.best, {
+            _correctedYear: true,
+            _inputYear: y,
+            _inputArtist: fields.artist || null
+          });
         }
+        return near.best;
       }
-      if (best) return best;
     } else {
       const hit = match((m) =>
         m._na === na &&
