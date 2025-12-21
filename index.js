@@ -2,16 +2,11 @@
  * index.js — Nyx Broadcast Backend (Wizard-Locked)
  * Build: nyx-wizard-v1.84-2025-12-21
  *
- * Updates (backend-only):
- * 1) Continuous conversation: every music result ends with a natural follow-up question (no dead ends).
- * 2) Correction hook: if musicKnowledge flags corrected year/title/artist, Nyx acknowledges gently.
- * 3) Keeps widget locked: no client assumptions; all flow improvements are server-side.
- *
- * Note: Year/title/artist correction detection requires musicKnowledge to emit flags like:
- *  - best._correctedYear or best.correctedYear
- *  - best._correctedArtist or best.correctedArtist
- *  - best._correctedTitle or best.correctedTitle
- * This file is ready to speak those corrections whenever present.
+ * Fixes:
+ * 1) Accept corrected/nearest matches (e.g., Styx - Babe 1980 -> anchor to nearest year).
+ *    - Worker performs relaxed retry when exact match fails.
+ *    - Response includes a brief “quick correction” line when year/artist/title are corrected.
+ * 2) Fluid greeting flow (hello → how are you → how can I help) without blocking “intentful” inputs.
  */
 
 "use strict";
@@ -77,6 +72,39 @@ if (!isMainThread) {
         }
       } else {
         out.best = safe(() => musicKB.pickBestMoment?.(null, slots), null);
+
+        // IMPORTANT: if exact match fails, do a relaxed retry (drop year),
+        // then treat the returned year as a correction (prevents “exact match” dead-end).
+        if (!out.best && hasArtist && hasTitle && hasYear) {
+          const relaxed = { ...slots };
+          delete relaxed.year;
+
+          const relaxedBest = safe(() => musicKB.pickBestMoment?.(null, relaxed), null);
+          if (relaxedBest) {
+            // Annotate as a correction so the main thread can announce it cleanly
+            const corrected = { ...relaxedBest };
+            corrected._correctedYear = true;
+            corrected._originalYear = slots.year;
+            out.best = corrected;
+          }
+        }
+
+        // Secondary relaxed retry: if chart constraint is too tight, drop chart too
+        if (!out.best && hasArtist && hasTitle && hasYear && slots.chart) {
+          const relaxed2 = { ...slots };
+          delete relaxed2.year;
+          delete relaxed2.chart;
+
+          const relaxedBest2 = safe(() => musicKB.pickBestMoment?.(null, relaxed2), null);
+          if (relaxedBest2) {
+            const corrected2 = { ...relaxedBest2 };
+            corrected2._correctedYear = true;
+            corrected2._originalYear = slots.year;
+            corrected2._correctedChart = true;
+            corrected2._originalChart = slots.chart;
+            out.best = corrected2;
+          }
+        }
       }
 
       parentPort.postMessage({ id, ok: true, out });
@@ -93,7 +121,6 @@ if (!isMainThread) {
 // =======================================================
 // MAIN THREAD
 // =======================================================
-
 const app = express();
 app.set("trust proxy", true);
 app.use(express.json({ limit: "2mb" }));
@@ -156,6 +183,23 @@ function isGreeting(text) {
   return (
     t === "hi" || t === "hello" || t === "hey" || t === "yo" ||
     t.startsWith("hi ") || t.startsWith("hello ") || t.startsWith("hey ")
+  );
+}
+
+function isPleasantry(text) {
+  const t = safeStr(text).toLowerCase();
+  if (!t) return false;
+  return (
+    t.includes("how are you") ||
+    t.includes("how’s it going") ||
+    t.includes("hows it going") ||
+    t.includes("how is your day") ||
+    t.includes("good thanks") ||
+    t.includes("great") ||
+    t.includes("fine") ||
+    t.includes("ok") ||
+    t.includes("okay") ||
+    t.includes("not bad")
   );
 }
 
@@ -297,45 +341,32 @@ function pickVariant(repeatCount, variants) {
   return variants[idx];
 }
 
-function pickOne(arr, fallback = "") {
-  if (!Array.isArray(arr) || arr.length === 0) return fallback;
-  return arr[Math.floor(Math.random() * arr.length)];
+function isIntentful(text) {
+  const t = normalizeUserText(text).toLowerCase();
+  if (!t) return false;
+  if (isYearOnlyLoose(t)) return true;
+  if (extractYearLoose(t)) return true;
+  if (parseArtistTitle(t)) return true;
+  if (parseMode(t)) return true;
+  if (/^random\b/.test(t)) return true;
+  if (["music", "tv", "radio", "sponsors", "ai"].includes(t)) return true;
+  if (t.includes("billboard") || t.includes("hot 100") || t.includes("uk") || t.includes("canada") || t.includes("top40weekly")) return true;
+  return false;
 }
 
-// ---------------- CONTINUATION PROMPTS ----------------
-// Keep the conversation flowing after results (no dead ends)
-function musicContinuations(sess) {
-  const chart = safeStr(sess?.laneDetail?.chart) || DEFAULT_CHART;
-  return [
-    `Want another from the same year — or should we jump to a different year? (Example: 1984)`,
-    `Want another track from this era, or switch the chart? (Current: ${chart})`,
-    `Do you want the story behind this song, or should I pull another hit?`,
-    `Same artist, or new artist? If you want a new one, send: Artist - Title (optional year).`,
-    `If you want a quick pick: send just a year (example: 1979).`
-  ];
-}
-
-// Gentle correction line if KB flags corrections
+// Build a concise correction preface, when present
 function correctionPreface(best) {
-  const b = safeObj(best);
+  if (!best || typeof best !== "object") return "";
+  const parts = [];
 
-  const correctedYear = !!(b._correctedYear || b.correctedYear);
-  const correctedArtist = !!(b._correctedArtist || b.correctedArtist);
-  const correctedTitle = !!(b._correctedTitle || b.correctedTitle);
-
-  if (!correctedYear && !correctedArtist && !correctedTitle) return "";
-
-  // If KB provided original inputs, we can mention them; otherwise keep it general.
-  const origYear = b._inputYear || b.inputYear || null;
-  const origArtist = b._inputArtist || b.inputArtist || null;
-  const origTitle = b._inputTitle || b.inputTitle || null;
-
-  if (correctedYear && origYear && b.year) {
-    return `Quick correction — that track is usually dated to ${b.year} (not ${origYear}), but you’re on the right song.\n\n`;
+  if (best._correctedYear && best._originalYear && best.year && best._originalYear !== best.year) {
+    parts.push(`Quick correction — anchoring to ${best.year} (not ${best._originalYear}).`);
+  }
+  if (best._correctedChart && best._originalChart && best.chart && best._originalChart !== best.chart) {
+    parts.push(`Chart note — using ${best.chart} (not ${best._originalChart}).`);
   }
 
-  // Generic correction preface
-  return `Quick correction — I adjusted that to the closest match so we stay on the right track.\n\n`;
+  return parts.length ? (parts.join(" ") + "\n\n") : "";
 }
 
 // ---------------- SEND ----------------
@@ -401,6 +432,7 @@ function resolveSession(req) {
       laneDetail: { chart: DEFAULT_CHART },
 
       greeted: false,
+      greetStage: 0, // 0=not started, 1=asked how are you, 2=asked how can I help
       step: STEPS.MUSIC_START,
 
       lastPromptStep: "",
@@ -422,6 +454,7 @@ function resolveSession(req) {
   sess.currentLane = safeStr(sess.currentLane) || "music_history";
 
   sess.greeted = !!sess.greeted;
+  sess.greetStage = clampInt(sess.greetStage, 0, 2, 0);
   sess.step = safeStr(sess.step) || STEPS.MUSIC_START;
 
   sess.lastPromptStep = safeStr(sess.lastPromptStep);
@@ -574,11 +607,7 @@ async function handleMusicWizard(req, res, key, sess, rawText) {
     sess.lastPromptStep = "";
     sess.promptRepeatCount = 0;
     touch(sess);
-    return send(
-      res, key, sess, "music_reset",
-      "Music reset. Send Artist - Title (optional year) or just a year (example: 1984).",
-      true
-    );
+    return send(res, key, sess, "music_reset", "Music reset. Send Artist - Title (optional year) or just a year (example: 1984).", true);
   }
 
   sess.laneDetail = safeObj(sess.laneDetail);
@@ -731,15 +760,14 @@ async function handleMusicWizard(req, res, key, sess, rawText) {
       const culture = best.culture ? `\n\n${best.culture}` : "";
       const next = best.next ? `\nNext: ${best.next}` : "";
 
-      // NEW: gentle correction preface if KB flagged corrections
       const preface = correctionPreface(best);
 
-      // NEW: always append a continuation question to keep conversation flowing
-      const followUp = pickOne(musicContinuations(sess), "Want another pick — or a different year?");
-
       return send(
-        res, key, sess, "music_answer",
-        `${preface}${best.artist} — "${best.title}" (${best.year})\nChart: ${chart}${fact}${culture}${next}\n\n${followUp}`,
+        res,
+        key,
+        sess,
+        "music_answer",
+        `${preface}${best.artist} — "${best.title}" (${best.year})\nChart: ${chart}${fact}${culture}${next}`,
         true
       );
     }
@@ -752,22 +780,21 @@ async function handleMusicWizard(req, res, key, sess, rawText) {
 
     if (sess.step === STEPS.MUSIC_ESCALATE) {
       return send(
-        res, key, sess, "music_escalate_nf",
-        `I’m not finding an exact hit for: ${slotSummary(sess.laneDetail)}\n${quickActions()}`,
+        res,
+        key,
+        sess,
+        "music_escalate_nf",
+        `I’m not finding a hit for: ${slotSummary(sess.laneDetail)}\n${quickActions()}`,
         false
       );
     }
 
-    // NEW: softer NOT_FOUND that still moves forward conversationally
-    const nudge = pickOne([
-      "If you want, send just the artist (e.g., Styx) and I’ll guide you.",
-      "Try Artist - Title, and I’ll handle the year if it’s a little off.",
-      "Give me the title (or the year), and I’ll lock it in."
-    ]);
-
     return send(
-      res, key, sess, "music_not_found",
-      `I didn’t find that exact match yet.\nWhat I have: ${slotSummary(sess.laneDetail)}\n\n${nudge}`,
+      res,
+      key,
+      sess,
+      "music_not_found",
+      `I didn’t find that exact match yet.\nWhat I have: ${slotSummary(sess.laneDetail)}\nTip: If you’re close, try Artist - Title (no year) and I’ll anchor the nearest year.`,
       false
     );
   }
@@ -780,7 +807,6 @@ async function handleMusicWizard(req, res, key, sess, rawText) {
 // =======================================================
 // ROUTES
 // =======================================================
-
 app.post("/api/sandblast-gpt", async (req, res) => {
   const text = safeStr(req.body?.message);
   const requestId = safeStr(req.body?.meta?.requestId || req.body?.requestId);
@@ -796,23 +822,42 @@ app.post("/api/sandblast-gpt", async (req, res) => {
   }
   if (requestId) sess.lastRequestId = requestId;
 
-  if (!sess.greeted && !clientGreeted && isGreeting(text)) {
-    sess.greeted = true;
-    touch(sess);
-    return send(
-      res, key, sess, "greet",
-      "Good evening — I’m Nyx. Welcome to Sandblast. Choose: Music, TV, Radio, Sponsors, or AI.\nTip: For Music, use Artist - Title (optional year) or just a year (example: 1984).",
-      false
-    );
+  // FLUID GREETING FLOW (does not block intentful inputs)
+  if (!sess.greeted && !clientGreeted) {
+    if (isIntentful(text)) {
+      sess.greeted = true;
+      sess.greetStage = 2;
+    } else if (isGreeting(text) && sess.greetStage === 0) {
+      sess.greetStage = 1;
+      touch(sess);
+      return send(res, key, sess, "greet_stage1", "Hi — I’m Nyx. How are you today?", false);
+    } else if ((sess.greetStage === 1) && (text && !isGreeting(text))) {
+      // User replied to “how are you”
+      sess.greetStage = 2;
+      sess.greeted = true;
+      touch(sess);
+      return send(
+        res,
+        key,
+        sess,
+        "greet_stage2",
+        "Good to hear. What can I help you with today — Music, TV, Radio, Sponsors, or AI?",
+        false
+      );
+    }
   }
 
   if (!text) {
     touch(sess);
     if (!sess.greeted && !clientGreeted) {
       sess.greeted = true;
+      sess.greetStage = 2;
       return send(
-        res, key, sess, "greet_empty",
-        "Welcome to Sandblast — I’m Nyx. Choose: Music, TV, Radio, Sponsors, or AI.\nTip: For Music, use Artist - Title (optional year) or just a year (example: 1984).",
+        res,
+        key,
+        sess,
+        "greet_empty",
+        "Welcome — I’m Nyx. What can I help you with today: Music, TV, Radio, Sponsors, or AI?",
         false
       );
     }
@@ -861,6 +906,7 @@ app.post("/api/sandblast-gpt", async (req, res) => {
   return handleMusicWizard(req, res, key, sess, text);
 });
 
+// Health
 app.get("/api/health", (_, res) =>
   res.json({
     ok: true,
@@ -871,6 +917,7 @@ app.get("/api/health", (_, res) =>
   })
 );
 
+// Error shield
 app.use((err, req, res, _next) => {
   const headerSid = safeStr(req.headers["x-session-id"]);
   const bodySid = safeStr(req.body?.sessionId);
@@ -883,6 +930,7 @@ app.use((err, req, res, _next) => {
   return sendStableError(res, key, sess, "server_error", "Backend hiccup (HTTP 500). Try again in a moment.");
 });
 
+// Start server + warm KB worker
 app.listen(PORT, () => {
   console.log(`[Nyx] up on ${PORT} (${BUILD_TAG}) timeout=${KB_TIMEOUT_MS}ms`);
   startKbWorker();
