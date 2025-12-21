@@ -1,12 +1,5 @@
 /**
- * musicKnowledge.js — Bulletproof V2.4 (Top40Weekly merge + helper APIs)
- * Based on your V2.3 :contentReference[oaicite:5]{index=5}
- *
- * Additions:
- * - Helper functions for expansion:
- *   - pickRandomByYear(year)
- *   - pickRandomByDecade(decade)
- *   - getTopByYear(year, n)
+ * musicKnowledge.js — Bulletproof V2.5 (Year-first fallback helper)
  */
 
 "use strict";
@@ -479,6 +472,7 @@ function detectTitle(text) {
 }
 
 function extractYear(text) {
+  // already tolerant of punctuation via word boundaries
   const m = String(text || "").match(/\b(19\d{2}|20\d{2})\b/);
   return m ? Number(m[1]) : null;
 }
@@ -584,6 +578,13 @@ function pickRandomByYear(year, chart = null) {
   return pickRandom(pool);
 }
 
+// NEW: if chart is sparse, fall back to any chart in that year
+function pickRandomByYearFallback(year, chart = null) {
+  const first = pickRandomByYear(year, chart);
+  if (first) return first;
+  return pickRandomByYear(year, null);
+}
+
 function pickRandomByDecade(decade, chart = null) {
   getDb();
   const d = Number(decade);
@@ -608,7 +609,6 @@ function getTopByYear(year, n = 10) {
   const y = Number(year);
   const limit = Math.max(1, Math.min(100, Number(n) || 10));
 
-  // Prefer Top40Weekly for ranked lists if present
   const top40 = MOMENT_INDEX
     .filter(m => m.year === y && norm(m.chart) === norm("Top40Weekly") && m.peak != null)
     .sort((a, b) => (a.peak || 999) - (b.peak || 999))
@@ -616,7 +616,6 @@ function getTopByYear(year, n = 10) {
 
   if (top40.length) return top40;
 
-  // Otherwise fall back to any chart (if peak exists)
   const any = MOMENT_INDEX
     .filter(m => m.year === y && m.peak != null)
     .sort((a, b) => (a.peak || 999) - (b.peak || 999))
@@ -643,6 +642,7 @@ module.exports = {
   // Expansion helpers
   getAllMoments,
   pickRandomByYear,
+  pickRandomByYearFallback,
   pickRandomByDecade,
   getTopByYear
 };
