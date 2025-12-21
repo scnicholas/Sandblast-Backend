@@ -1,17 +1,15 @@
 /**
- * index.js — Nyx Broadcast Backend (Bulletproof LOCKED)
- * Build: nyx-bulletproof-v1.73-2025-12-20
+ * index.js — Nyx Broadcast Backend (Wizard-Locked)
+ * Build: nyx-wizard-v1.80-2025-12-20
  *
- * Updates vs v1.72 (conflict file):
- * - FIX: Do NOT wipe laneDetail on KB timeout (prevents looping regression)
- * - FIX: Artist-only capture rule when artist is missing (Styx/Prince/etc.)
- * - Keeps v1.72 features:
- *   - Global "Artist == Title" trap applies to ALL artists
- *   - "Artist - Title" parsing overrides placeholder slots
- *   - MODE:<lane> routing (music/radio/tv/sponsors/ai)
- *   - Anti-repetition prompt fuse
- *   - requestId + clientGreeted behavior
- *   - Persistent KB Worker with timeout + auto-restart
+ * Based on your v1.73 bulletproof backend :contentReference[oaicite:3]{index=3}
+ *
+ * Major upgrades:
+ * - Wizard-style state machine: sess.step
+ * - Deterministic step transitions with escalation (prevents looping)
+ * - Slots are preserved on timeout / KB errors
+ * - Artist==Title placeholder trap applies globally (Prince/Prince for all artists)
+ * - Still "smart wizard": accepts Artist-Title-Year in one message and jumps ahead
  */
 
 "use strict";
@@ -43,7 +41,6 @@ if (!isMainThread) {
 
     try {
       if (!musicKB) {
-        // Load once per worker lifetime
         musicKB = require("./Utils/musicKnowledge");
       }
 
@@ -73,7 +70,7 @@ if (!isMainThread) {
 }
 
 // =======================================================
-// MAIN THREAD (Express server)
+// MAIN THREAD
 // =======================================================
 
 const app = express();
@@ -83,10 +80,8 @@ app.use(cors({ origin: true }));
 app.options("*", cors());
 
 const PORT = process.env.PORT || 3000;
-const BUILD_TAG = "nyx-bulletproof-v1.73-2025-12-20";
+const BUILD_TAG = "nyx-wizard-v1.80-2025-12-20";
 const DEFAULT_CHART = "Billboard Hot 100";
-
-// If Render cold starts still happen, set KB_TIMEOUT_MS=3000 in env.
 const KB_TIMEOUT_MS = Number(process.env.KB_TIMEOUT_MS || 2000);
 
 // ---------------- SESSION ----------------
@@ -94,17 +89,26 @@ const SESS = new Map();
 const SESSION_TTL_MS = 1000 * 60 * 60 * 6; // 6 hours
 const CLEANUP_EVERY_MS = 1000 * 60 * 10;   // 10 minutes
 
+// Wizard steps
+const STEPS = {
+  MUSIC_START: "MUSIC_START",
+  MUSIC_NEED_ARTIST: "MUSIC_NEED_ARTIST",
+  MUSIC_NEED_TITLE: "MUSIC_NEED_TITLE",
+  MUSIC_NEED_YEAR: "MUSIC_NEED_YEAR",
+  MUSIC_LOOKUP: "MUSIC_LOOKUP",
+  MUSIC_RESULT: "MUSIC_RESULT",
+  MUSIC_NOT_FOUND: "MUSIC_NOT_FOUND",
+  MUSIC_ESCALATE: "MUSIC_ESCALATE"
+};
+
 function sid() {
   try { return crypto.randomUUID(); }
   catch { return "sid_" + Date.now() + "_" + Math.random().toString(36).slice(2); }
 }
 
 function nowIso() { return new Date().toISOString(); }
-
 function safeStr(x) { return String(x == null ? "" : x).trim(); }
-
 function safeObj(x) { return x && typeof x === "object" ? x : {}; }
-
 function touch(sess) { sess.lastSeen = Date.now(); }
 
 setInterval(() => {
@@ -116,6 +120,14 @@ setInterval(() => {
 }, CLEANUP_EVERY_MS).unref?.();
 
 // ---------------- HELPERS ----------------
+function clampInt(n, min, max, fallback) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return fallback;
+  return Math.min(max, Math.max(min, Math.trunc(x)));
+}
+
+function normalizeToken(s) { return safeStr(s).toLowerCase(); }
+
 function isGreeting(text) {
   const t = safeStr(text).toLowerCase();
   if (!t) return false;
@@ -125,55 +137,25 @@ function isGreeting(text) {
   );
 }
 
-function clampInt(n, min, max, fallback) {
-  const x = Number(n);
-  if (!Number.isFinite(x)) return fallback;
-  return Math.min(max, Math.max(min, Math.trunc(x)));
-}
-
-function bumpPromptFuse(sess, step) {
-  const prev = safeStr(sess.lastPromptStep);
-  if (prev === step) {
-    sess.promptRepeatCount = clampInt(sess.promptRepeatCount, 0, 9999, 0) + 1;
-  } else {
-    sess.lastPromptStep = step;
-    sess.promptRepeatCount = 1;
-  }
-  return sess.promptRepeatCount;
-}
-
-function pickVariant(repeatCount, variants) {
-  if (!Array.isArray(variants) || variants.length === 0) return "";
-  const idx = Math.min(variants.length - 1, Math.max(0, repeatCount - 1));
-  return variants[idx];
-}
-
-function slotSummary(slots) {
-  const s = safeObj(slots);
-  const parts = [];
-  if (s.artist) parts.push(`artist=${s.artist}`);
-  if (s.title) parts.push(`title=${s.title}`);
-  if (s.year) parts.push(`year=${s.year}`);
-  if (s.chart) parts.push(`chart=${s.chart}`);
-  return parts.length ? parts.join(", ") : "none";
-}
-
-function normalizeToken(s) { return safeStr(s).toLowerCase(); }
-
-/**
- * Global placeholder trap:
- * If artist and title are identical (ignoring case/space), treat title as invalid placeholder.
- */
 function isArtistEqualsTitle(artist, title) {
   const a = normalizeToken(artist);
   const t = normalizeToken(title);
   return !!a && !!t && a === t;
 }
 
-/**
- * Robust parser for "Artist - Title"
- * Handles: "-", "–", "—", extra spaces.
- */
+function isYearOnly(text) {
+  const t = safeStr(text);
+  return /^\d{4}$/.test(t);
+}
+
+function parseMode(text) {
+  const t = safeStr(text);
+  if (!t) return null;
+  const m = t.match(/^mode\s*:\s*(music|music_history|radio|tv|sponsors|ai)\s*$/i);
+  if (!m) return null;
+  return safeStr(m[1]).toLowerCase();
+}
+
 function parseArtistTitle(text) {
   const t = safeStr(text);
   if (!t) return null;
@@ -193,37 +175,6 @@ function parseArtistTitle(text) {
   return { artist, title };
 }
 
-/**
- * MODE:<lane> routing
- */
-function parseMode(text) {
-  const t = safeStr(text);
-  if (!t) return null;
-  const m = t.match(/^mode\s*:\s*(music|music_history|radio|tv|sponsors|ai)\s*$/i);
-  if (!m) return null;
-  return safeStr(m[1]).toLowerCase();
-}
-
-function isYearOnly(text) {
-  const t = safeStr(text);
-  return /^\d{4}$/.test(t);
-}
-
-function looksLikeNonEmptyTitleCandidate(text) {
-  const t = safeStr(text);
-  if (!t) return false;
-  if (t.length < 2) return false;
-  if (isGreeting(t)) return false;
-  if (parseMode(t)) return false;
-  if (parseArtistTitle(t)) return false;
-  if (isYearOnly(t)) return false;
-  return true;
-}
-
-/**
- * ✅ Artist-only capture rule:
- * If Nyx needs artist and user sends a short non-command token, treat as artist.
- */
 function looksLikeArtistOnly(text) {
   const t = safeStr(text);
   if (!t) return false;
@@ -237,7 +188,54 @@ function looksLikeArtistOnly(text) {
   return true;
 }
 
-// ---------------- SEND (CANON) ----------------
+function looksLikeTitleOnly(text) {
+  const t = safeStr(text);
+  if (!t) return false;
+  if (t.length < 2) return false;
+  if (isGreeting(t)) return false;
+  if (parseMode(t)) return false;
+  if (parseArtistTitle(t)) return false;
+  if (isYearOnly(t)) return false;
+  return true;
+}
+
+function isReset(text) {
+  const t = normalizeToken(text);
+  return (
+    t === "reset" || t === "reset music" || t === "start over" ||
+    t === "restart" || t === "clear" || t === "clear music"
+  );
+}
+
+function slotSummary(slots) {
+  const s = safeObj(slots);
+  const parts = [];
+  if (s.artist) parts.push(`artist=${s.artist}`);
+  if (s.title) parts.push(`title=${s.title}`);
+  if (s.year) parts.push(`year=${s.year}`);
+  if (s.chart) parts.push(`chart=${s.chart}`);
+  return parts.length ? parts.join(", ") : "none";
+}
+
+// Step repeat fuse (per step)
+function bumpStepFuse(sess, step) {
+  const prev = safeStr(sess.lastPromptStep);
+  if (prev === step) {
+    sess.promptRepeatCount = clampInt(sess.promptRepeatCount, 0, 9999, 0) + 1;
+  } else {
+    sess.lastPromptStep = step;
+    sess.promptRepeatCount = 1;
+  }
+  return sess.promptRepeatCount;
+}
+
+function pickVariant(repeatCount, variants) {
+  if (!Array.isArray(variants) || variants.length === 0) return "";
+  const idx = Math.min(variants.length - 1, Math.max(0, repeatCount - 1));
+  return variants[idx];
+}
+
+// ---------------- SEND ----------------
 function send(res, sessionId, sess, step, reply, advance = false) {
   sess.lastReply = reply;
   sess.lastReplyStep = step;
@@ -249,6 +247,7 @@ function send(res, sessionId, sess, step, reply, advance = false) {
       mode: sess.currentLane,
       step,
       advance,
+      wizardStep: sess.step,
       slots: sess.laneDetail || {}
     },
     meta: {
@@ -264,7 +263,6 @@ function sendStableError(res, sessionId, sess, step, reply) {
     sess.lastReply = reply;
     sess.lastReplyStep = step;
   }
-
   res.status(200).json({
     ok: true,
     reply,
@@ -272,6 +270,7 @@ function sendStableError(res, sessionId, sess, step, reply) {
       mode: sess?.currentLane || "music_history",
       step,
       advance: false,
+      wizardStep: sess?.step || STEPS.MUSIC_START,
       slots: sess?.laneDetail || {}
     },
     meta: {
@@ -299,6 +298,8 @@ function resolveSession(req) {
       laneDetail: { chart: DEFAULT_CHART },
 
       greeted: false,
+      step: STEPS.MUSIC_START,
+
       lastPromptStep: "",
       promptRepeatCount: 0,
 
@@ -318,6 +319,8 @@ function resolveSession(req) {
   sess.currentLane = safeStr(sess.currentLane) || "music_history";
 
   sess.greeted = !!sess.greeted;
+  sess.step = safeStr(sess.step) || STEPS.MUSIC_START;
+
   sess.lastPromptStep = safeStr(sess.lastPromptStep);
   sess.promptRepeatCount = clampInt(sess.promptRepeatCount, 0, 9999, 0);
   sess.lastRequestId = safeStr(sess.lastRequestId);
@@ -328,9 +331,8 @@ function resolveSession(req) {
 }
 
 // =======================================================
-// PERSISTENT KB WORKER (singleton)
+// KB WORKER (singleton)
 // =======================================================
-
 let KB_WORKER = null;
 let KB_READY = false;
 const PENDING = new Map();
@@ -430,6 +432,231 @@ function kbQuery(text, laneDetail, timeoutMs) {
 }
 
 // =======================================================
+// WIZARD STEP LOGIC
+// =======================================================
+function computeNextStep(slots) {
+  const s = safeObj(slots);
+
+  // Placeholder trap
+  if (s.artist && s.title && isArtistEqualsTitle(s.artist, s.title)) {
+    s.title = "";
+  }
+
+  if (!s.artist) return STEPS.MUSIC_NEED_ARTIST;
+  if (!s.title) return STEPS.MUSIC_NEED_TITLE;
+  if (!s.year) return STEPS.MUSIC_NEED_YEAR;
+  return STEPS.MUSIC_LOOKUP;
+}
+
+function quickActions() {
+  return [
+    "Quick picks:",
+    "1) Send: Artist - Title (optional year)",
+    "2) Send: 1984 (or any year)",
+    "3) Say: random 80s",
+    "4) Say: reset music"
+  ].join("\n");
+}
+
+async function handleMusicWizard(req, res, key, sess, text) {
+  // Reset command
+  if (isReset(text)) {
+    sess.laneDetail = { chart: DEFAULT_CHART };
+    sess.step = STEPS.MUSIC_START;
+    sess.lastPromptStep = "";
+    sess.promptRepeatCount = 0;
+    touch(sess);
+    return send(res, key, sess, "music_reset", "Music reset. Send Artist - Title (optional year) to begin.", true);
+  }
+
+  // Normalize chart
+  sess.laneDetail = safeObj(sess.laneDetail);
+  sess.laneDetail.chart = safeStr(sess.laneDetail.chart) || DEFAULT_CHART;
+
+  // Global placeholder trap
+  if (sess.laneDetail.artist && sess.laneDetail.title && isArtistEqualsTitle(sess.laneDetail.artist, sess.laneDetail.title)) {
+    sess.laneDetail.title = "";
+  }
+
+  // Smart wizard: parse Artist - Title anytime
+  const at = parseArtistTitle(text);
+  if (at) {
+    sess.laneDetail.artist = sess.laneDetail.artist || at.artist;
+    const existingIsPlaceholder =
+      sess.laneDetail.artist && sess.laneDetail.title && isArtistEqualsTitle(sess.laneDetail.artist, sess.laneDetail.title);
+
+    if (!sess.laneDetail.title || existingIsPlaceholder) {
+      sess.laneDetail.title = at.title;
+    }
+  }
+
+  // Wizard step-aware capture:
+  // If we need artist, accept artist-only tokens.
+  if (sess.step === STEPS.MUSIC_NEED_ARTIST && !sess.laneDetail.artist && looksLikeArtistOnly(text)) {
+    sess.laneDetail.artist = safeStr(text);
+  }
+
+  // If we need title, accept title-only tokens.
+  if (sess.step === STEPS.MUSIC_NEED_TITLE && sess.laneDetail.artist && !sess.laneDetail.title && looksLikeTitleOnly(text)) {
+    if (!isArtistEqualsTitle(sess.laneDetail.artist, text)) {
+      sess.laneDetail.title = safeStr(text);
+    }
+  }
+
+  // If we need year and user sends year only, capture it.
+  if (sess.step === STEPS.MUSIC_NEED_YEAR && isYearOnly(text)) {
+    sess.laneDetail.year = Number(text);
+  }
+
+  // Always allow year capture if present in text (smart wizard)
+  // We’ll rely on KB extraction too, but this covers simple inputs.
+  if (!sess.laneDetail.year) {
+    const m = safeStr(text).match(/\b(19\d{2}|20\d{2})\b/);
+    if (m) sess.laneDetail.year = Number(m[1]);
+  }
+
+  // Recompute step
+  sess.step = computeNextStep(sess.laneDetail);
+
+  // Escalation rule (no more looping)
+  const repeatCount = bumpStepFuse(sess, sess.step);
+  if (repeatCount >= 3 && sess.step !== STEPS.MUSIC_ESCALATE && sess.step !== STEPS.MUSIC_LOOKUP) {
+    sess.step = STEPS.MUSIC_ESCALATE;
+  }
+
+  // If escalated, provide deterministic choices
+  if (sess.step === STEPS.MUSIC_ESCALATE) {
+    touch(sess);
+    return send(res, key, sess, "music_escalate", `Let’s stop the spin.\n${quickActions()}`, false);
+  }
+
+  // Step prompts
+  if (sess.step === STEPS.MUSIC_NEED_ARTIST) {
+    touch(sess);
+    const msg = pickVariant(repeatCount, [
+      "Who’s the artist? (Example: Styx, Madonna, Prince)",
+      "Send the artist name — or use Artist - Title (optional year).",
+      `Still need the artist.\n${quickActions()}`
+    ]);
+    return send(res, key, sess, "music_need_artist", msg, false);
+  }
+
+  if (sess.step === STEPS.MUSIC_NEED_TITLE) {
+    touch(sess);
+    const msg = pickVariant(repeatCount, [
+      `Got it: ${sess.laneDetail.artist}. What’s the song title?`,
+      "Send the title — or send Artist - Title.",
+      `Still need the title.\n${quickActions()}`
+    ]);
+    return send(res, key, sess, "music_need_title", msg, false);
+  }
+
+  if (sess.step === STEPS.MUSIC_NEED_YEAR) {
+    touch(sess);
+    const msg = pickVariant(repeatCount, [
+      `What year should I anchor for ${sess.laneDetail.artist} — "${sess.laneDetail.title}"? (Example: 1984)`,
+      "Send a year (e.g., 1984). If you don’t know it, say: random 80s.",
+      `Still need the year.\n${quickActions()}`
+    ]);
+    return send(res, key, sess, "music_need_year", msg, false);
+  }
+
+  // Lookup step
+  if (sess.step === STEPS.MUSIC_LOOKUP) {
+    // Query KB
+    const kbResult = await kbQuery(text, sess.laneDetail, KB_TIMEOUT_MS);
+
+    if (!kbResult.ok) {
+      touch(sess);
+
+      if (kbResult.timedOut) {
+        // Preserve slots and step; do not wipe.
+        sess.laneDetail = safeObj(sess.laneDetail);
+        sess.laneDetail.chart = safeStr(sess.laneDetail.chart) || DEFAULT_CHART;
+
+        const msg = pickVariant(bumpStepFuse(sess, "kb_timeout"), [
+          "I’m loading the music library. Try again in a few seconds.",
+          "Still warming up. Try again — or send just a year (example: 1984).",
+          `No stress — try again.\n${quickActions()}`
+        ]);
+
+        return send(res, key, sess, "kb_timeout", msg, false);
+      }
+
+      return sendStableError(res, key, sess, "kb_error", "Backend hiccup (music library). Try again in a moment.");
+    }
+
+    const out = kbResult.out || {};
+
+    // Merge detected values (smart wizard)
+    if (out.year && !sess.laneDetail.year) sess.laneDetail.year = out.year;
+    if (out.artist && !sess.laneDetail.artist) sess.laneDetail.artist = out.artist;
+    if (out.title && !sess.laneDetail.title) {
+      if (!isArtistEqualsTitle(sess.laneDetail.artist, out.title)) sess.laneDetail.title = out.title;
+    }
+
+    // Clear placeholder again
+    if (sess.laneDetail.artist && sess.laneDetail.title && isArtistEqualsTitle(sess.laneDetail.artist, sess.laneDetail.title)) {
+      sess.laneDetail.title = "";
+    }
+
+    let best = out.best || null;
+
+    // If best missing after merge, retry once with cleaned slots
+    if (!best) {
+      const retry = await kbQuery("", sess.laneDetail, KB_TIMEOUT_MS);
+      best = retry?.ok ? retry?.out?.best || null : null;
+    }
+
+    if (best) {
+      touch(sess);
+      sess.step = STEPS.MUSIC_RESULT;
+      sess.lastPromptStep = "";
+      sess.promptRepeatCount = 0;
+
+      const chart = best.chart || sess.laneDetail.chart || DEFAULT_CHART;
+      const fact = best.fact ? `\nFact: ${best.fact}` : "";
+      const culture = best.culture ? `\n\n${best.culture}` : "";
+      const next = best.next ? `\nNext: ${best.next}` : "";
+
+      return send(
+        res,
+        key,
+        sess,
+        "music_answer",
+        `${best.artist} — "${best.title}" (${best.year})\nChart: ${chart}${fact}${culture}${next}`,
+        true
+      );
+    }
+
+    // Not found: escalate deterministically
+    sess.step = STEPS.MUSIC_NOT_FOUND;
+    const repeatsNF = bumpStepFuse(sess, STEPS.MUSIC_NOT_FOUND);
+    if (repeatsNF >= 2) sess.step = STEPS.MUSIC_ESCALATE;
+
+    touch(sess);
+
+    if (sess.step === STEPS.MUSIC_ESCALATE) {
+      return send(res, key, sess, "music_escalate_nf", `I’m not finding an exact hit for: ${slotSummary(sess.laneDetail)}\n${quickActions()}`, false);
+    }
+
+    return send(
+      res,
+      key,
+      sess,
+      "music_not_found",
+      `I didn’t find that exact match yet.\nWhat I have: ${slotSummary(sess.laneDetail)}\nTry Artist - Title (optional year), or change the year.`,
+      false
+    );
+  }
+
+  // Default safety
+  sess.step = computeNextStep(sess.laneDetail);
+  touch(sess);
+  return send(res, key, sess, "music_fallback", "Send Artist - Title (optional year) to continue.", false);
+}
+
+// =======================================================
 // ROUTES
 // =======================================================
 
@@ -442,14 +669,14 @@ app.post("/api/sandblast-gpt", async (req, res) => {
 
   if (clientGreeted && !sess.greeted) sess.greeted = true;
 
-  // ---------------- DEDUPE ----------------
+  // Dedupe
   if (requestId && sess.lastRequestId === requestId && sess.lastReply) {
     touch(sess);
     return send(res, key, sess, sess.lastReplyStep || "dedupe", sess.lastReply, false);
   }
   if (requestId) sess.lastRequestId = requestId;
 
-  // ---------------- Greeting ----------------
+  // Greeting
   if (!sess.greeted && !clientGreeted && isGreeting(text)) {
     sess.greeted = true;
     touch(sess);
@@ -458,12 +685,12 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       key,
       sess,
       "greet",
-      "Hi — I’m Nyx. Welcome to Sandblast. Tell me what you’re tuning today: TV, Radio, Sponsors, or Music.",
+      "Good evening — I’m Nyx. Welcome to Sandblast. Choose: Music, TV, Radio, Sponsors, or AI.\nTip: For Music, use Artist - Title (optional year).",
       false
     );
   }
 
-  // ---------------- Empty ----------------
+  // Empty
   if (!text) {
     touch(sess);
 
@@ -474,237 +701,80 @@ app.post("/api/sandblast-gpt", async (req, res) => {
         key,
         sess,
         "greet_empty",
-        "Welcome to Sandblast — I’m Nyx. Say hi, or tell me what you want: TV, Radio, Sponsors, or Music.",
+        "Welcome to Sandblast — I’m Nyx. Choose: Music, TV, Radio, Sponsors, or AI.\nTip: For Music, use Artist - Title (optional year).",
         false
       );
     }
 
-    const lane = sess.currentLane || "music_history";
-    if (lane === "radio") return send(res, key, sess, "radio_empty", "Radio mode: tell me what you want to tune — station, show, schedule, or a segment idea.", false);
-    if (lane === "tv") return send(res, key, sess, "tv_empty", "TV mode: tell me the show, genre, or what you want on the grid and I’ll tune it.", false);
-    if (lane === "sponsors") return send(res, key, sess, "sponsors_empty", "Sponsors mode: tell me the business type + goal and I’ll draft a sponsor angle.", false);
-    if (lane === "ai") return send(res, key, sess, "ai_empty", "AI mode: tell me what you’re building and what you want Nyx to do.", false);
+    // If music lane, wizard prompt
+    if (!sess.currentLane || sess.currentLane === "music_history") {
+      sess.currentLane = "music_history";
+      sess.step = sess.step || STEPS.MUSIC_START;
+      return send(res, key, sess, "music_empty", "Send Artist - Title (optional year) to begin.", false);
+    }
 
-    return send(res, key, sess, "music_empty", "Give me Artist - Title (optional year) and I’ll anchor the moment.", false);
+    // Non-music lanes
+    const lane = sess.currentLane;
+    if (lane === "radio") return send(res, key, sess, "radio_empty", "Radio mode: what are we tuning — station, show, schedule, or a segment idea?", false);
+    if (lane === "tv") return send(res, key, sess, "tv_empty", "TV mode: tell me the show/genre/grid goal and I’ll tune it.", false);
+    if (lane === "sponsors") return send(res, key, sess, "sponsors_empty", "Sponsors mode: tell me business type + goal and I’ll draft a sponsor angle.", false);
+    if (lane === "ai") return send(res, key, sess, "ai_empty", "AI mode: tell me what you’re building and what you want Nyx to do.", false);
   }
 
-  // ---------------- MODE ROUTING ----------------
+  // MODE routing
   const forcedMode = parseMode(text);
   if (forcedMode) {
     sess.currentLane = forcedMode === "music" ? "music_history" : forcedMode;
-    touch(sess);
     sess.lastPromptStep = "";
     sess.promptRepeatCount = 0;
 
-    if (sess.currentLane === "radio") return send(res, key, sess, "mode_radio", "Radio mode locked. What are we tuning: station identity, a show segment, schedule, or a promo script?", true);
-    if (sess.currentLane === "tv") return send(res, key, sess, "mode_tv", "TV mode locked. What are we tuning: a show, the grid, or a channel identity direction?", true);
-    if (sess.currentLane === "sponsors") return send(res, key, sess, "mode_sponsors", "Sponsors mode locked. What’s the sponsor category and the outcome you want (leads, calls, store visits, brand lift)?", true);
-    if (sess.currentLane === "ai") return send(res, key, sess, "mode_ai", "AI mode locked. Tell me what you’re building and what ‘done’ looks like.", true);
+    if (sess.currentLane === "music_history") {
+      sess.step = STEPS.MUSIC_START;
+      touch(sess);
+      return send(res, key, sess, "mode_music", "Music mode locked. Send Artist - Title (optional year).", true);
+    }
 
-    return send(res, key, sess, "mode_music", "Music mode locked. Send Artist - Title (optional year) and I’ll anchor a strong moment.", true);
+    touch(sess);
+    if (sess.currentLane === "radio") return send(res, key, sess, "mode_radio", "Radio mode locked. What are we tuning: station identity, show segment, schedule, or promo script?", true);
+    if (sess.currentLane === "tv") return send(res, key, sess, "mode_tv", "TV mode locked. What are we tuning: a show, the grid, or a channel identity direction?", true);
+    if (sess.currentLane === "sponsors") return send(res, key, sess, "mode_sponsors", "Sponsors mode locked. What’s the sponsor category and the outcome you want?", true);
+    if (sess.currentLane === "ai") return send(res, key, sess, "mode_ai", "AI mode locked. Tell me what you’re building and what done looks like.", true);
   }
 
-  // Soft lane switch by typing the lane word
+  // Soft lane switch
   const lower = text.toLowerCase();
   if (["radio", "tv", "sponsors", "ai", "music"].includes(lower)) {
     sess.currentLane = lower === "music" ? "music_history" : lower;
-    touch(sess);
     sess.lastPromptStep = "";
     sess.promptRepeatCount = 0;
 
+    if (sess.currentLane === "music_history") {
+      sess.step = STEPS.MUSIC_START;
+      touch(sess);
+      return send(res, key, sess, "lane_music", "Music mode. Send Artist - Title (optional year).", true);
+    }
+
+    touch(sess);
     if (sess.currentLane === "radio") return send(res, key, sess, "lane_radio", "Radio mode. What are we tuning: station identity, show segment, schedule, or promo copy?", true);
     if (sess.currentLane === "tv") return send(res, key, sess, "lane_tv", "TV mode. What are we tuning: a show, the grid, or programming blocks?", true);
-    if (sess.currentLane === "sponsors") return send(res, key, sess, "lane_sponsors", "Sponsors mode. Tell me the sponsor category + goal and I’ll build the angle.", true);
-    if (sess.currentLane === "ai") return send(res, key, sess, "lane_ai", "AI mode. Tell me what you’re building and where it’s failing right now.", true);
-
-    return send(res, key, sess, "lane_music", "Music mode. Send Artist - Title (optional year).", true);
+    if (sess.currentLane === "sponsors") return send(res, key, sess, "lane_sponsors", "Sponsors mode. Tell me sponsor category + goal and I’ll build the angle.", true);
+    if (sess.currentLane === "ai") return send(res, key, sess, "lane_ai", "AI mode. Tell me what you’re building and where it’s failing.", true);
   }
 
-  // Non-music lanes: do not drift into music prompts
+  // Non-music lanes: do not drift into music
   if (sess.currentLane && sess.currentLane !== "music_history") {
     touch(sess);
-    if (sess.currentLane === "radio") return send(res, key, sess, "radio_hold", "Radio mode is active. Tell me what you want to tune (station/show/segment/promo). If you meant Music, say: music.", false);
-    if (sess.currentLane === "tv") return send(res, key, sess, "tv_hold", "TV mode is active. Tell me the show/genre/grid goal. If you meant Music, say: music.", false);
-    if (sess.currentLane === "sponsors") return send(res, key, sess, "sponsors_hold", "Sponsors mode is active. Tell me the sponsor type + goal. If you meant Music, say: music.", false);
-    if (sess.currentLane === "ai") return send(res, key, sess, "ai_hold", "AI mode is active. Tell me what you’re building and what’s not working. If you meant Music, say: music.", false);
+    if (sess.currentLane === "radio") return send(res, key, sess, "radio_hold", "Radio mode is active. If you meant Music, say: music.", false);
+    if (sess.currentLane === "tv") return send(res, key, sess, "tv_hold", "TV mode is active. If you meant Music, say: music.", false);
+    if (sess.currentLane === "sponsors") return send(res, key, sess, "sponsors_hold", "Sponsors mode is active. If you meant Music, say: music.", false);
+    if (sess.currentLane === "ai") return send(res, key, sess, "ai_hold", "AI mode is active. If you meant Music, say: music.", false);
   }
 
-  // ---------------- MUSIC FLOW ----------------
+  // Music wizard
   sess.currentLane = "music_history";
-  sess.laneDetail = safeObj(sess.laneDetail);
-  sess.laneDetail.chart = safeStr(sess.laneDetail.chart) || DEFAULT_CHART;
+  sess.step = sess.step || STEPS.MUSIC_START;
 
-  // Global placeholder trap
-  if (sess.laneDetail.artist && sess.laneDetail.title && isArtistEqualsTitle(sess.laneDetail.artist, sess.laneDetail.title)) {
-    sess.laneDetail.title = "";
-  }
-
-  // Artist-only capture (pre-KB) to prevent loops when KB is slow
-  if (!sess.laneDetail.artist && looksLikeArtistOnly(text)) {
-    sess.laneDetail.artist = safeStr(text);
-  }
-
-  // Parse Artist - Title and override placeholder slots
-  const at = parseArtistTitle(text);
-  if (at) {
-    if (!sess.laneDetail.artist) sess.laneDetail.artist = at.artist;
-
-    const existingTitle = safeStr(sess.laneDetail.title);
-    const existingArtist = safeStr(sess.laneDetail.artist);
-    const existingIsPlaceholder = existingTitle && existingArtist && isArtistEqualsTitle(existingArtist, existingTitle);
-
-    if (!existingTitle || existingIsPlaceholder) {
-      sess.laneDetail.title = at.title;
-    }
-  }
-
-  // Title-only inference if artist exists
-  if (sess.laneDetail.artist && !sess.laneDetail.title && looksLikeNonEmptyTitleCandidate(text)) {
-    if (!isArtistEqualsTitle(sess.laneDetail.artist, text)) {
-      sess.laneDetail.title = safeStr(text);
-    }
-  }
-
-  // Query KB worker
-  const kbResult = await kbQuery(text, sess.laneDetail, KB_TIMEOUT_MS);
-
-  if (!kbResult.ok) {
-    touch(sess);
-
-    if (kbResult.timedOut) {
-      // ✅ IMPORTANT FIX: do NOT wipe laneDetail.
-      // Only ensure chart exists so we keep session progress.
-      sess.laneDetail = safeObj(sess.laneDetail);
-      sess.laneDetail.chart = safeStr(sess.laneDetail.chart) || DEFAULT_CHART;
-
-      const repeats = bumpPromptFuse(sess, "kb_timeout");
-      const msg = pickVariant(repeats, [
-        "I’m loading the music library. Try again in a few seconds — or send just a year (example: 1979).",
-        "Still warming up. Send a year (e.g., 1984) or Artist - Title and I’ll lock it in.",
-        "No stress — the library is catching up. Try: Artist - Title (optional year), or say “random 80s”."
-      ]);
-
-      return send(res, key, sess, "kb_timeout", msg, false);
-    }
-
-    return sendStableError(res, key, sess, "kb_error", "Backend hiccup (music library). Try again in a moment.");
-  }
-
-  const out = kbResult.out || {};
-
-  // Merge detected slots
-  let slotChanged = false;
-
-  if (out.year && sess.laneDetail.year !== out.year) {
-    sess.laneDetail.year = out.year;
-    slotChanged = true;
-  }
-
-  if (!sess.laneDetail.artist && out.artist) {
-    sess.laneDetail.artist = out.artist;
-    slotChanged = true;
-  }
-
-  if (!sess.laneDetail.title && out.title) {
-    if (!isArtistEqualsTitle(sess.laneDetail.artist, out.title)) {
-      sess.laneDetail.title = out.title;
-      slotChanged = true;
-    }
-  }
-
-  // Clear placeholder title again after merges
-  if (sess.laneDetail.artist && sess.laneDetail.title && isArtistEqualsTitle(sess.laneDetail.artist, sess.laneDetail.title)) {
-    sess.laneDetail.title = "";
-    slotChanged = true;
-  }
-
-  sess.laneDetail.chart = safeStr(sess.laneDetail.chart) || DEFAULT_CHART;
-
-  let best = out.best || null;
-
-  // If slots changed and best is null, retry once with the updated slots
-  if (!best && slotChanged) {
-    const retry = await kbQuery("", sess.laneDetail, KB_TIMEOUT_MS);
-    best = retry?.ok ? retry?.out?.best || null : null;
-  }
-
-  if (best) {
-    touch(sess);
-    sess.lastPromptStep = "";
-    sess.promptRepeatCount = 0;
-
-    const chart = best.chart || sess.laneDetail.chart || DEFAULT_CHART;
-    const fact = best.fact ? `\nFact: ${best.fact}` : "";
-    const culture = best.culture ? `\n\n${best.culture}` : "";
-    const next = best.next ? `\nNext: ${best.next}` : "";
-
-    return send(
-      res,
-      key,
-      sess,
-      "music_answer",
-      `${best.artist} — "${best.title}" (${best.year})\nChart: ${chart}${fact}${culture}${next}`,
-      true
-    );
-  }
-
-  // If we have artist + title but no year -> ask for year
-  if (sess.laneDetail.artist && sess.laneDetail.title && !sess.laneDetail.year) {
-    touch(sess);
-    const repeats = bumpPromptFuse(sess, "music_need_year_for_artist_title");
-    const msg = pickVariant(repeats, [
-      `Got it: ${sess.laneDetail.artist} — "${sess.laneDetail.title}". What year should I anchor? (Example: 1984)`,
-      `One more thing — give me the year for ${sess.laneDetail.artist} — "${sess.laneDetail.title}" and I’ll lock it.`,
-      `Quick anchor: send the year, or say “random 80s” and I’ll pull a strong moment.`
-    ]);
-    return send(res, key, sess, "music_need_year_for_artist_title", msg, false);
-  }
-
-  // Missing artist
-  if (!sess.laneDetail.artist) {
-    touch(sess);
-    const repeats = bumpPromptFuse(sess, "music_need_artist");
-    const msg = pickVariant(repeats, [
-      "Who’s the artist? (Example: Styx, Madonna, Prince)",
-      "Drop the artist name and I’ll do the rest. If you have it: Artist - Title is perfect.",
-      "Pick one:\n1) Send an artist\n2) Send Artist - Title\n3) Say “random 80s” and I’ll pull a strong moment."
-    ]);
-    return send(res, key, sess, repeats >= 3 ? "music_need_artist_fused" : "music_need_artist", msg, false);
-  }
-
-  // Missing title
-  if (sess.laneDetail.artist && !sess.laneDetail.title) {
-    touch(sess);
-    const repeats = bumpPromptFuse(sess, "music_need_title_direct");
-    const msg = pickVariant(repeats, [
-      `Got it: ${sess.laneDetail.artist}. What song title should I check?`,
-      `Send the title — or send Artist - Title to lock it instantly.`,
-      "Pick one:\n1) Send the song title\n2) Send Artist - Title\n3) Say “random 80s”"
-    ]);
-    return send(res, key, sess, repeats >= 3 ? "music_need_title_direct_fused" : "music_need_title_direct", msg, false);
-  }
-
-  // Missing year
-  if (!sess.laneDetail.year) {
-    touch(sess);
-    const repeats = bumpPromptFuse(sess, "music_need_year");
-    const msg = pickVariant(repeats, [
-      `What year should I check for ${sess.laneDetail.artist}?`,
-      "Quick anchor: drop a year (example: 1984) — or send Artist - Title and I’ll infer the year.",
-      "No worries — pick one:\n1) Send a year\n2) Send Artist - Title\n3) Say “random 80s”"
-    ]);
-    return send(res, key, sess, repeats >= 3 ? "music_need_year_fused" : "music_need_year", msg, false);
-  }
-
-  // Not found case
-  touch(sess);
-  const repeats = bumpPromptFuse(sess, "music_not_found");
-  const msg = pickVariant(repeats, [
-    "I didn’t find that exact match yet. Try: Artist - Title (optional year).",
-    `Still not an exact hit. What I have so far: ${slotSummary(sess.laneDetail)}.\nTry: Artist - Title, or change the year.`,
-    "Let’s stop the spin. Pick one:\n1) Artist - Title\n2) Change year\n3) Say “random 80s”"
-  ]);
-  return send(res, key, sess, repeats >= 3 ? "music_not_found_fused" : "music_not_found", msg, false);
+  return handleMusicWizard(req, res, key, sess, text);
 });
 
 // Health
@@ -718,7 +788,7 @@ app.get("/api/health", (_, res) =>
   })
 );
 
-// Debug session by id
+// Debug session
 app.get("/api/debug/session/:id", (req, res) => {
   const id = safeStr(req.params.id);
   const sess = SESS.get(id);
@@ -729,6 +799,7 @@ app.get("/api/debug/session/:id", (req, res) => {
     meta: { sessionId: id, build: BUILD_TAG, serverTime: nowIso() },
     state: {
       mode: sess.currentLane,
+      wizardStep: sess.step,
       lastSeen: sess.lastSeen,
       slots: sess.laneDetail || {},
       greeted: !!sess.greeted,
@@ -740,14 +811,14 @@ app.get("/api/debug/session/:id", (req, res) => {
   });
 });
 
-// Global error shield
+// Error shield
 app.use((err, req, res, _next) => {
   const headerSid = safeStr(req.headers["x-session-id"]);
   const bodySid = safeStr(req.body?.sessionId);
   const clientSid = safeStr(req.body?.meta?.sessionId) || bodySid || headerSid;
 
   const key = clientSid || null;
-  const sess = key ? SESS.get(key) : { currentLane: "music_history", laneDetail: { chart: DEFAULT_CHART } };
+  const sess = key ? SESS.get(key) : { currentLane: "music_history", laneDetail: { chart: DEFAULT_CHART }, step: STEPS.MUSIC_START };
 
   console.error("[Nyx][ERR]", err && err.stack ? err.stack : err);
   return sendStableError(res, key, sess, "server_error", "Backend hiccup (HTTP 500). Try again in a moment.");
