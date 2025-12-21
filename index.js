@@ -1,12 +1,20 @@
 /**
  * index.js — Nyx Broadcast Backend (Wizard-Locked)
- * Build: nyx-wizard-v1.85-2025-12-21
+ * Build: nyx-wizard-v1.86-2025-12-21
  *
- * Fixes in v1.85:
- * 1) YEAR-ONLY INPUT IS ALWAYS A DIRECT PICK (no wizard confusion):
- *    - If user sends just "1984", we overwrite year, clear artist/title, and return a moment immediately.
- *    - Prevents “it shouldn’t do this” behavior (asking for artist/title or NOT_FOUND after a year-only).
- * 2) Keeps prior fixes: relaxed retry for artist+title+wrong year, correction preface, fluid greetings.
+ * Updates in v1.86:
+ * 1) SMART YEAR-ONLY FALLBACK LADDER:
+ *    - If user sends just "1984", Nyx tries:
+ *      (a) current chart, then Top40Weekly, then Billboard, UK, Canada RPM, then any chart
+ *      (b) if still no hit: nearest years ±1, ±2, ±3 (same chart ladder)
+ *    - Prevents the “it should not do this” behavior by never asking for artist/title on year-only.
+ *
+ * 2) SESSION CONTEXT TIGHTENING:
+ *    - When a best hit is found, session is updated to the resolved year/chart.
+ *    - Keeps correction preface for year/chart adjustments.
+ *
+ * 3) SAFETY & STABILITY:
+ *    - Keeps worker-based KB engine, timeout restart behavior, and relaxed retries.
  */
 
 "use strict";
@@ -124,7 +132,7 @@ app.use(cors({ origin: true }));
 app.options("*", cors());
 
 const PORT = process.env.PORT || 3000;
-const BUILD_TAG = "nyx-wizard-v1.85-2025-12-21";
+const BUILD_TAG = "nyx-wizard-v1.86-2025-12-21";
 const DEFAULT_CHART = "Billboard Hot 100";
 const KB_TIMEOUT_MS = Number(process.env.KB_TIMEOUT_MS || 2000);
 
@@ -394,37 +402,112 @@ function kbQuery(text, laneDetail, timeoutMs) {
 }
 
 // =======================================================
+// SMART YEAR-ONLY FALLBACK LADDER (chart cascade + nearest year)
+// =======================================================
+function uniqueKeepOrder(arr) {
+  const out = [];
+  const seen = new Set();
+  for (const v of arr) {
+    const k = v == null ? "__NULL__" : String(v);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(v);
+  }
+  return out;
+}
+
+function chartFallbackOrder(baseChart) {
+  return uniqueKeepOrder([
+    baseChart || DEFAULT_CHART,
+    "Top40Weekly",
+    "Billboard Hot 100",
+    "UK Singles Chart",
+    "Canada RPM",
+    null // “any chart”
+  ]);
+}
+
+function yearOffsetOrder() {
+  // Keeps it feeling intentional (not random)
+  return [0, -1, +1, -2, +2, -3, +3];
+}
+
+async function smartYearPick(year, baseChart, timeoutMs) {
+  const charts = chartFallbackOrder(baseChart);
+  const offsets = yearOffsetOrder();
+
+  for (const dy of offsets) {
+    const y = year + dy;
+    if (!Number.isFinite(y) || y < 1900 || y > 2099) continue;
+
+    for (const c of charts) {
+      const laneDetail = {
+        chart: c || undefined,
+        year: y
+      };
+
+      const r = await kbQuery(String(year), laneDetail, timeoutMs);
+      if (!r || !r.ok) continue;
+
+      const best = r.out && r.out.best ? r.out.best : null;
+      if (!best) continue;
+
+      // attach correction flags for user-facing phrasing
+      const out = { ...best };
+
+      if (dy !== 0) {
+        out._correctedYear = true;
+        out._originalYear = year;
+      }
+
+      const baseNorm = baseChart || DEFAULT_CHART;
+      const usedChart = out.chart || c || baseNorm;
+
+      if (c && usedChart && usedChart !== baseNorm) {
+        out._correctedChart = true;
+        out._originalChart = baseNorm;
+      }
+
+      // ensure returned chart is consistent for display
+      out.chart = usedChart;
+      out.year = out.year || y;
+
+      return out;
+    }
+  }
+
+  return null;
+}
+
+// =======================================================
 // MUSIC HANDLER
 // =======================================================
 async function handleMusic(req, res, key, sess, rawText) {
   const text = normalizeUserText(rawText);
+
   const chartFromText = parseChartFromText(text);
   if (chartFromText) sess.laneDetail.chart = chartFromText;
 
   // ===================================================
-  // FIX: YEAR-ONLY INPUT IS A DIRECT PICK (hard rule)
+  // YEAR-ONLY INPUT: ALWAYS A DIRECT PICK + SMART FALLBACK
   // ===================================================
   if (isYearOnlyLoose(text)) {
     const y = extractYearLoose(text);
 
-    // overwrite year and clear other slots so we don't get trapped in prior wizard state
-    sess.laneDetail = {
-      chart: sess.laneDetail.chart || DEFAULT_CHART,
-      year: y
-    };
+    // Reset slots hard: no artist/title carryover
+    const baseChart = sess.laneDetail.chart || DEFAULT_CHART;
+    sess.laneDetail = { chart: baseChart, year: y };
     sess.step = STEPS.MUSIC_LOOKUP;
 
-    const kbResult = await kbQuery(text, sess.laneDetail, KB_TIMEOUT_MS);
-    if (!kbResult.ok) {
-      return send(res, key, sess, "kb_timeout_or_error", "I’m loading the music library — try that year again in a moment.", false);
-    }
-
-    const out = kbResult.out || {};
-    const best = out.best || null;
+    const best = await smartYearPick(y, baseChart, KB_TIMEOUT_MS);
 
     if (best) {
+      // persist what worked (this improves follow-ups)
+      sess.laneDetail.chart = best.chart || baseChart;
+      sess.laneDetail.year = best.year || y;
+
       const preface = correctionPreface(best);
-      const chart = best.chart || sess.laneDetail.chart || DEFAULT_CHART;
+      const chart = sess.laneDetail.chart || DEFAULT_CHART;
       const followUp = pickOne(musicContinuations(chart), "Want another year?");
 
       return send(
@@ -437,13 +520,13 @@ async function handleMusic(req, res, key, sess, rawText) {
       );
     }
 
-    // If a year-only pick fails, we should *not* ask for artist/title. Just ask for a different year.
+    // If the ladder fails, still do NOT request artist/title.
     return send(
       res,
       key,
       sess,
       "music_year_nohit",
-      `I don’t have a hit indexed for ${y} on ${sess.laneDetail.chart || DEFAULT_CHART} yet. Try another year (example: 1987) — or switch chart (UK / Canada / Top40Weekly).`,
+      `I don’t have a solid indexed pick for ${y} yet.\nTry a nearby year (like ${y - 1} or ${y + 1}), or switch chart (Top40Weekly / UK / Canada RPM / Billboard).`,
       false
     );
   }
@@ -458,7 +541,6 @@ async function handleMusic(req, res, key, sess, rawText) {
     if (y) sess.laneDetail.year = y;
   } else {
     const y = extractYearLoose(text);
-    // allow year updates if user includes a year in a sentence
     if (y) sess.laneDetail.year = y;
   }
 
@@ -471,6 +553,10 @@ async function handleMusic(req, res, key, sess, rawText) {
   const best = out.best || null;
 
   if (best) {
+    // persist resolved chart/year if KB gave them back
+    if (best.chart) sess.laneDetail.chart = best.chart;
+    if (best.year) sess.laneDetail.year = best.year;
+
     const preface = correctionPreface(best);
     const chart = best.chart || sess.laneDetail.chart || DEFAULT_CHART;
     const followUp = pickOne(musicContinuations(chart), "Want another pick?");
