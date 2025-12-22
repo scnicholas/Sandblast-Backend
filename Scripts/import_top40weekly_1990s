@@ -1,13 +1,16 @@
 /**
- * Scripts/import_top40weekly_1990s.js (V3 — OL/LI parser)
+ * Scripts/import_top40weekly_1990s.js (V4 — hybrid parser)
  *
- * Fixes the "[] / 2 bytes" issue by parsing the HTML list (<ol>/<ul><li>)
- * instead of flattening to plain text.
+ * Handles inconsistent markup across years on Top40Weekly 1990s page.
+ * Strategy per year section:
+ *  1) Parse <ol>/<ul><li> if present
+ *  2) Parse <table> if present
+ *  3) Fallback: parse ranked lines from TEXT extracted from the year section
  *
  * Emits:
  *   Data/top40weekly/top100_1990.json ... top100_1999.json
  *
- * Each row:
+ * Row:
  *   { year, rank, artist, title, source, url }
  */
 
@@ -37,16 +40,35 @@ function decodeEntities(s) {
     });
 }
 
-function stripTags(html) {
+function stripTagsToOneLine(html) {
   let s = String(html || "");
   s = s.replace(/<script[\s\S]*?<\/script>/gi, " ");
   s = s.replace(/<style[\s\S]*?<\/style>/gi, " ");
-  s = s.replace(/<br\s*\/?>/gi, "\n");
-  s = s.replace(/<\/(p|div|li|tr|h1|h2|h3|h4|h5|h6)>/gi, "\n");
   s = s.replace(/<[^>]+>/g, " ");
   s = decodeEntities(s);
   s = s.replace(/\s+/g, " ").trim();
   return s;
+}
+
+function htmlToTextWithNewlines(html) {
+  let s = String(html || "");
+  s = s.replace(/<script[\s\S]*?<\/script>/gi, " ");
+  s = s.replace(/<style[\s\S]*?<\/style>/gi, " ");
+
+  // preserve line breaks for common block tags
+  s = s.replace(/<br\s*\/?>/gi, "\n");
+  s = s.replace(/<\/(p|div|li|tr|h1|h2|h3|h4|h5|h6)>/gi, "\n");
+  s = s.replace(/<(p|div|li|tr|h1|h2|h3|h4|h5|h6)\b[^>]*>/gi, "\n");
+
+  // remove remaining tags
+  s = s.replace(/<[^>]+>/g, " ");
+
+  s = decodeEntities(s);
+  s = s.replace(/\u00a0/g, " ");
+  s = s.replace(/[ \t]+/g, " ");
+  s = s.replace(/\s*\n\s*/g, "\n");
+  s = s.replace(/\n{3,}/g, "\n\n");
+  return s.trim();
 }
 
 function findAnchorIndex(html, year) {
@@ -72,66 +94,101 @@ function sliceFromAnchorToNext(html, year) {
 }
 
 function extractFirstListHtml(sectionHtml) {
-  // Find first <ol>...</ol> or <ul>...</ul> after the anchor
   const ol = sectionHtml.match(/<ol\b[\s\S]*?<\/ol>/i);
   if (ol) return ol[0];
-
   const ul = sectionHtml.match(/<ul\b[\s\S]*?<\/ul>/i);
   if (ul) return ul[0];
-
   return null;
 }
 
 function extractLiItems(listHtml) {
-  // Extract li bodies
   const items = [];
   const re = /<li\b[^>]*>([\s\S]*?)<\/li>/gi;
   let m;
   while ((m = re.exec(listHtml)) !== null) {
-    const inner = m[1];
-    const text = stripTags(inner);
+    const text = stripTagsToOneLine(m[1]);
     if (text) items.push(text);
   }
   return items;
 }
 
-function parseItemToRow(text) {
-  // Common patterns:
-  // "1. Title by Artist"
-  // "1. Title – Artist"
-  // "Title by Artist" (rank implied by list ordering)
-  // We'll try to pull rank if present.
-  const t = String(text || "").trim();
-  if (!t) return null;
+function extractFirstTableHtml(sectionHtml) {
+  const t = sectionHtml.match(/<table\b[\s\S]*?<\/table>/i);
+  return t ? t[0] : null;
+}
 
-  let rank = null;
-  let rest = t;
-
-  const rm = t.match(/^(\d{1,3})\.\s*(.+)$/);
-  if (rm) {
-    rank = Number(rm[1]);
-    rest = String(rm[2]).trim();
+function extractTableRows(table triggeringRandomIssue ) {
+  const rows = [];
+  const trRe = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
+  let m;
+  while ((m = trRe.exec(tableHtml)) !== null) {
+    const trInner = m[1];
+    // pull cells
+    const cells = [];
+    const tdRe = /<(td|th)\b[^>]*>([\s\S]*?)<\/(td|th)>/gi;
+    let c;
+    while ((c = tdRe.exec(trInner)) !== null) {
+      cells.push(stripTagsToOneLine(c[2]));
+    }
+    if (cells.length) rows.push(cells);
   }
+  return rows;
+}
 
-  // "Title by Artist"
+function parseRankedTextLines(sectionHtml) {
+  // Extract text with newlines, then parse lines containing "1." etc.
+  const text = htmlToTextWithNewlines(sectionHtml);
+  const lines = text
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const candidates = [];
+  for (const line of lines) {
+    // Look for rank prefix anywhere in the line
+    const m = line.match(/^\s*(\d{1,3})\.\s*(.+)$/);
+    if (!m) continue;
+    candidates.push({ rank: Number(m[1]), rest: String(m[2]).trim() });
+  }
+  return candidates;
+}
+
+function parseRestToTitleArtist(rest) {
+  // Accept:
+  // Title by Artist
+  // Title – Artist
+  // Title - Artist
   let m = rest.match(/^(.+?)\s+by\s+(.+?)$/i);
-  if (m) {
-    const title = String(m[1]).trim().replace(/^["“]|["”]$/g, "").trim();
-    const artist = String(m[2]).trim();
-    if (!title || !artist) return null;
-    return { rank, title, artist };
-  }
+  if (m) return { title: m[1].trim(), artist: m[2].trim() };
 
-  // "Title – Artist" or hyphen
   m = rest.match(/^(.+?)\s*(?:–|-|—)\s*(.+?)$/);
-  if (m) {
-    const title = String(m[1]).trim().replace(/^["“]|["”]$/g, "").trim();
-    const artist = String(m[2]).trim();
-    if (!title || !artist) return null;
-    return { rank, title, artist };
-  }
+  if (m) return { title: m[1].trim(), artist: m[2].trim() };
 
   return null;
+}
+
+function buildRows(year, parsedPairs) {
+  const byRank = new Map();
+  for (const p of parsedPairs) {
+    const rank = Number(p.rank);
+    if (!Number.isFinite(rank) || rank < 1 || rank > 100) continue;
+
+    const ta = parseRestToTitleArtist(p.rest);
+    if (!ta || !ta.title || !ta.artist) continue;
+
+    if (!byRank.has(rank)) {
+      byRank.set(rank, {
+        year,
+        rank,
+        title: ta.title.replace(/^["“]|["”]$/g, "").trim(),
+        artist: ta.artist,
+        source: "top40weekly-1990s",
+        url: SOURCE_URL + `#${year}-topsongslist`
+      });
+    }
+  }
+
+  return Array.from(byRank.values()).sort((a, b) => a.rank - b.rank);
 }
 
 async function fetchHtml(url) {
@@ -140,7 +197,7 @@ async function fetchHtml(url) {
   try {
     const res = await fetch(url, {
       signal: controller.signal,
-      headers: { "User-Agent": "NyxImporter/3.0" }
+      headers: { "User-Agent": "NyxImporter/4.0" }
     });
     if (!res.ok) throw new Error(`Fetch failed: HTTP ${res.status}`);
     return await res.text();
@@ -171,48 +228,71 @@ async function main() {
       continue;
     }
 
+    // 1) OL/UL
     const listHtml = extractFirstListHtml(section);
-    if (!listHtml) {
-      console.warn(`[import] No <ol>/<ul> found for ${year}. Writing empty file.`);
-      writeYearFile(year, []);
-      continue;
+    if (listHtml) {
+      const items = extractLiItems(listHtml);
+      const parsed = [];
+
+      // In case rank isn't embedded in item text, infer from order.
+      let inferred = 1;
+      for (const it of items) {
+        const m = it.match(/^(\d{1,3})\.\s*(.+)$/);
+        if (m) {
+          parsed.push({ rank: Number(m[1]), rest: String(m[2]).trim() });
+        } else {
+          parsed.push({ rank: inferred, rest: it });
+        }
+        inferred++;
+      }
+
+      const rows = buildRows(year, parsed);
+      if (rows.length >= 90) {
+        writeYearFile(year, rows);
+        total += rows.length;
+        continue;
+      }
+      console.warn(`[import] ${year}: OL/UL found but only ${rows.length} rows parsed. Falling back...`);
     }
 
-    const items = extractLiItems(listHtml);
-    const out = [];
+    // 2) TABLE
+    const tableHtml = extractFirstTableHtml(section);
+    if (tableHtml) {
+      const tableRows = extractTableRows(tableHtml);
 
-    // If ranks are not embedded, infer by position
-    let inferredRank = 1;
+      // heuristic mapping:
+      // Common layouts:
+      // [Rank, Song, Artist] or [Rank, Song - Artist] or [Rank, Title, Artist]
+      const parsed = [];
+      for (const r of tableRows) {
+        if (!r || r.length < 2) continue;
+        const rank = Number(String(r[0]).replace(/[^\d]/g, ""));
+        if (!Number.isFinite(rank) || rank < 1 || rank > 100) continue;
 
-    for (const item of items) {
-      const parsed = parseItemToRow(item);
-      if (!parsed) continue;
+        if (r.length >= 3) {
+          // assume [rank, title, artist]
+          parsed.push({ rank, rest: `${r[1]} - ${r[2]}` });
+        } else {
+          // [rank, combined]
+          parsed.push({ rank, rest: r[1] });
+        }
+      }
 
-      const rank = parsed.rank != null ? parsed.rank : inferredRank;
-      inferredRank++;
-
-      if (rank < 1 || rank > 100) continue;
-
-      out.push({
-        year,
-        rank,
-        title: parsed.title,
-        artist: parsed.artist,
-        source: "top40weekly-1990s",
-        url: SOURCE_URL + `#${year}-topsongslist`
-      });
+      const rows = buildRows(year, parsed);
+      if (rows.length >= 90) {
+        writeYearFile(year, rows);
+        total += rows.length;
+        continue;
+      }
+      console.warn(`[import] ${year}: TABLE found but only ${rows.length} rows parsed. Falling back...`);
     }
 
-    // Deduplicate by rank, keep first
-    const byRank = new Map();
-    for (const r of out) {
-      if (!byRank.has(r.rank)) byRank.set(r.rank, r);
-    }
+    // 3) TEXT-LINE FALLBACK (within section)
+    const ranked = parseRankedTextLines(section);
+    const rows = buildRows(year, ranked);
 
-    const rows = Array.from(byRank.values()).sort((a, b) => a.rank - b.rank);
-
-    if (rows.length < 95) {
-      console.warn(`[import] Warning: ${year} parsed ${rows.length} rows (expected ~100).`);
+    if (rows.length < 80) {
+      console.warn(`[import] ${year}: fallback text parse produced ${rows.length} rows (expected ~100).`);
     }
 
     writeYearFile(year, rows);
