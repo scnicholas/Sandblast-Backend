@@ -1,18 +1,17 @@
 "use strict";
 
 /**
- * scrape_top40weekly_year_pages.js — URL-Resilient v1.3
+ * scrape_top40weekly_year_pages.js — URL-Resilient v1.4
  *
  * Fixes your current failure mode:
- * - Top40Weekly returns 404 pages with full HTML => your scraper downloads "something" but it's a WP 404 template.
+ * - Top40Weekly can return WP 404 templates with full HTML (even when fetch returns content).
  * - This script detects 404 templates AND tests alternative slugs automatically.
  * - It will NOT overwrite an existing year JSON with [] if it fails.
  *
  * Usage:
  *   node Scripts/scrape_top40weekly_year_pages.js Data/top40weekly/top100_1994.json 1994
- *   node Scripts/scrape_top40weekly_year_pages.js Data/top40weekly/top100_1990.json 1990
  *
- * Optional:
+ * Optional env:
  *   SCRAPE_DELAY_MS=900
  */
 
@@ -20,6 +19,11 @@ const fs = require("fs");
 const path = require("path");
 
 const BASE = "https://top40weekly.com/";
+const SCRAPE_DELAY_MS = Math.max(0, Number(process.env.SCRAPE_DELAY_MS || "250") || 250);
+
+async function sleep(ms) {
+  if (ms > 0) await new Promise((r) => setTimeout(r, ms));
+}
 
 async function fetchText(url, tries = 3) {
   let lastErr = null;
@@ -40,7 +44,7 @@ async function fetchText(url, tries = 3) {
       return { status: res.status, text, url };
     } catch (e) {
       lastErr = e;
-      await new Promise((r) => setTimeout(r, 900 + i * 700));
+      await sleep(900 + i * 700);
     }
   }
   throw lastErr;
@@ -70,6 +74,7 @@ function stripTags(s) {
 function extractEntryContent(html) {
   const m =
     html.match(/<div[^>]+class="[^"]*\bentry-content\b[^"]*"[^>]*>([\s\S]*?)<\/div>/i) ||
+    html.match(/<div[^>]+class="[^"]*\bthe_content\b[^"]*"[^>]*>([\s\S]*?)<\/div>/i) ||
     html.match(/<main[^>]*>([\s\S]*?)<\/main>/i);
   return m ? m[1] : html;
 }
@@ -91,26 +96,43 @@ function toLines(html) {
     .filter(Boolean);
 }
 
+function hasWp404BodyClass(html) {
+  const m = String(html || "").match(/<body[^>]*class="([^"]*)"/i);
+  if (!m) return false;
+  const cls = String(m[1] || "").toLowerCase();
+  return cls.includes("error404") || cls.includes("404");
+}
+
 function is404Template(status, html) {
   if (status === 404) return true;
 
+  if (hasWp404BodyClass(html)) return true;
+
   const t = stripTags(html).toLowerCase();
+
   // Common WP 404 markers
   if (t.includes("page not found")) return true;
   if (t.includes("oops! that page can’t be found")) return true;
+  if (t.includes("oops! that page can't be found")) return true;
   if (t.includes("nothing was found at this location")) return true;
+
+  // Sometimes WP serves a “soft 404” with status 200
+  // We treat “404” as a weak signal unless list tokens are absent.
   if (t.includes("404")) {
-    // weak signal; only treat as 404 if also no rank tokens
     const ranks = (t.match(/\b\d{1,3}[\.\)]\s+/g) || []).length;
     if (ranks < 10) return true;
   }
+
   return false;
 }
 
 function rankTokenCount(html) {
   const t = stripTags(html);
-  const ranks = (t.match(/\b\d{1,3}[\.\)]\s+/g) || []).length;
-  return ranks;
+  // Token patterns we’ll accept as “this page is a ranked list”
+  const a = (t.match(/\b\d{1,3}[\.\)]\s+/g) || []).length; // "12. "
+  const b = (t.match(/\b\d{1,3}\s*-\s+/g) || []).length;   // "12 - "
+  const c = (t.match(/\bno\.\s*\d{1,3}\b/gi) || []).length; // "No. 12"
+  return a + b + c;
 }
 
 function looksLikeTitle(s) {
@@ -196,8 +218,14 @@ function parseRankedPairsFromLines(lines) {
 }
 
 function buildRows(year, rankedPairs) {
-  const rows = rankedPairs
-    .filter((p) => p.rank >= 1 && p.rank <= 100 && looksLikeTitle(p.title) && looksLikeArtist(p.artist))
+  return rankedPairs
+    .filter(
+      (p) =>
+        p.rank >= 1 &&
+        p.rank <= 100 &&
+        looksLikeTitle(p.title) &&
+        looksLikeArtist(p.artist)
+    )
     .slice(0, 100)
     .map((p) => ({
       year,
@@ -206,15 +234,15 @@ function buildRows(year, rankedPairs) {
       title: String(p.title).trim(),
       chart: "Top40Weekly Top 100",
     }));
-
-  return rows;
 }
 
 function candidateUrlsForYear(year) {
-  // Try common slug patterns — Top40Weekly has changed these over time.
   const y = String(year);
 
+  // Top40Weekly has changed slug formats over time.
+  // Add broader coverage (including all-charts style pages).
   const slugs = [
+    // Common historical patterns
     `top-100-songs-of-${y}/`,
     `top-100-songs-${y}/`,
     `top-100-songs-in-${y}/`,
@@ -222,14 +250,28 @@ function candidateUrlsForYear(year) {
     `top-100-songs-${y}-2/`,
     `top100-songs-of-${y}/`,
     `top100-songs-${y}/`,
+
+    // Variants seen on some WP sites / older posts
+    `top-songs-of-${y}/`,
+    `top-songs-${y}/`,
+    `top-songs-${y}-2/`,
+    `top-songs-in-${y}/`,
+    `top-songs-from-${y}/`,
+
+    // “All charts” patterns (your 1994 result strongly suggests a slug shift here)
+    `${y}-all-charts-top-100-songs/`,
+    `${y}-all-charts-top-100-songs-of-the-year/`,
+    `${y}-all-charts-top-100-songs-of-${y}/`,
+    `top-100-songs-of-${y}-all-charts/`,
+    `top-100-songs-${y}-all-charts/`,
   ];
 
+  // Return absolute URLs
   return slugs.map((s) => BASE + s);
 }
 
 async function findWorkingYearPage(year) {
   const urls = candidateUrlsForYear(year);
-
   let best = null;
 
   for (const u of urls) {
@@ -239,15 +281,16 @@ async function findWorkingYearPage(year) {
 
     console.error("[TRY]", year, r.status, "rankTokens=", rankTokens, u);
 
+    // Accept if: not a 404 template AND has enough list structure
     if (!is404 && rankTokens >= 40) {
-      // likely a real Top100 page
       best = { ...r, rankTokens };
       break;
     }
 
-    // keep the "least-bad" candidate for debug
+    // keep the least-bad candidate for debug
     if (!best || rankTokens > (best.rankTokens || 0)) best = { ...r, rankTokens };
-    await new Promise((x) => setTimeout(x, 250));
+
+    await sleep(SCRAPE_DELAY_MS);
   }
 
   return best;
@@ -290,7 +333,16 @@ function safeWriteJson(absOut, rows) {
   console.error("[DBG] wrote", dbgHtml);
 
   if (is404Template(r.status, r.text) || r.rankTokens < 40) {
-    console.error("[FAIL]", year, "No valid Top100 page found. Best status=", r.status, "rankTokens=", r.rankTokens);
+    console.error(
+      "[FAIL]",
+      year,
+      "No valid Top100 page found. Best status=",
+      r.status,
+      "rankTokens=",
+      r.rankTokens,
+      "url=",
+      r.url
+    );
     process.exit(2);
   }
 
