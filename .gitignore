@@ -14,8 +14,14 @@ Thumbs.db
 # =========================
 # Runtime Data (Generated)
 # =========================
-Data/
+# Ignore generic runtime data
 data/
+
+# IMPORTANT:
+# Allow Nyx music knowledge data to be deployed
+!Data/
+!Data/**/
+!Data/**/*.json
 
 # =========================
 # Local Stable Backups
