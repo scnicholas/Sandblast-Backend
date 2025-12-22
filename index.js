@@ -1,11 +1,11 @@
 /**
  * index.js — Nyx Broadcast Backend (Wizard-Locked)
- * Build: nyx-wizard-v1.87-healthstats-lock
+ * Build: nyx-wizard-v1.88-wizard+healthstats
  *
- * PURPOSE OF THIS BUILD:
- * - Prove which code is running on Render
- * - Expose KB visibility (moments / years / charts)
- * - Preserve existing music wizard + fallback logic
+ * v1.88 changes:
+ * - Restores full wizard music flow (year-only pick ladder + relaxed retries)
+ * - Adds KB stats to /api/health (moments/year range/charts + error)
+ * - Worker supports op="stats"
  */
 
 "use strict";
@@ -30,60 +30,120 @@ if (!isMainThread) {
   function computeStats() {
     try {
       if (!musicKB) musicKB = require("./Utils/musicKnowledge");
-      const db = musicKB.getDb?.();
+      const db = safe(() => musicKB.getDb?.(), null);
       const moments = Array.isArray(db?.moments) ? db.moments : [];
 
       let minYear = null;
       let maxYear = null;
-      const charts = new Set();
+      const chartSet = new Set();
 
       for (const m of moments) {
         const y = Number(m?.year);
         if (Number.isFinite(y)) {
-          if (minYear === null || y < minYear) minYear = y;
-          if (maxYear === null || y > maxYear) maxYear = y;
+          if (minYear == null || y < minYear) minYear = y;
+          if (maxYear == null || y > maxYear) maxYear = y;
         }
-        if (m?.chart) charts.add(m.chart);
+        const c = m?.chart ? String(m.chart) : "";
+        if (c) chartSet.add(c);
       }
 
       return {
         moments: moments.length,
         yearMin: minYear,
         yearMax: maxYear,
-        charts: Array.from(charts)
+        charts: Array.from(chartSet).slice(0, 50)
       };
     } catch (e) {
       return {
         moments: 0,
+        yearMin: null,
+        yearMax: null,
+        charts: null,
         error: String(e?.message || e)
       };
     }
   }
 
   function handleJob(msg) {
-    const { id, op = "query", text = "", laneDetail = {} } = msg || {};
+    const id = msg && msg.id;
+    const op = String(msg && msg.op ? msg.op : "query");
+    const text = String(msg && msg.text ? msg.text : "").trim();
+    const laneDetail =
+      (msg && msg.laneDetail && typeof msg.laneDetail === "object") ? msg.laneDetail : {};
+
     if (!id) return;
 
     try {
-      if (!musicKB) musicKB = require("./Utils/musicKnowledge");
-
-      // ---- STATS MODE ----
-      if (op === "stats") {
-        return parentPort.postMessage({
-          id,
-          ok: true,
-          out: computeStats()
-        });
+      if (!musicKB) {
+        musicKB = require("./Utils/musicKnowledge");
       }
 
-      // ---- QUERY MODE ----
+      if (op === "stats") {
+        const stats = computeStats();
+        return parentPort.postMessage({ id, ok: true, out: { stats } });
+      }
+
       const out = {
+        year: safe(() => musicKB.extractYear?.(text), null),
+        artist: safe(() => musicKB.detectArtist?.(text), null),
+        title: safe(() => musicKB.detectTitle?.(text), null),
+        chart: safe(() => musicKB.normalizeChart?.(laneDetail?.chart), laneDetail?.chart || null),
         best: null
       };
 
-      const slots = { ...laneDetail };
+      const slots = { ...(laneDetail || {}) };
+      if (out.chart) slots.chart = out.chart;
+      if (out.year) slots.year = out.year;
+      if (out.artist && !slots.artist) slots.artist = out.artist;
+      if (out.title && !slots.title) slots.title = out.title;
 
-      out.best = safe(() => musicKB.pickBestMoment?.(text, slots), null);
+      const hasYear = !!slots.year;
+      const hasArtist = !!slots.artist;
+      const hasTitle = !!slots.title;
+
+      // YEAR-FIRST:
+      if (hasYear && !hasArtist && !hasTitle) {
+        const randFn = musicKB.pickRandomByYear;
+        if (typeof randFn === "function") {
+          out.best = safe(() => randFn(slots.year, slots.chart), null);
+        }
+        if (!out.best) {
+          out.best = safe(() => musicKB.pickBestMoment?.(null, slots), null);
+        }
+      } else {
+        out.best = safe(() => musicKB.pickBestMoment?.(null, slots), null);
+
+        // Relaxed retry: artist+title+year mismatch -> drop year
+        if (!out.best && hasArtist && hasTitle && hasYear) {
+          const relaxed = { ...slots };
+          delete relaxed.year;
+
+          const relaxedBest = safe(() => musicKB.pickBestMoment?.(null, relaxed), null);
+          if (relaxedBest) {
+            const corrected = { ...relaxedBest };
+            corrected._correctedYear = true;
+            corrected._originalYear = slots.year;
+            out.best = corrected;
+          }
+        }
+
+        // Secondary relaxed retry: drop year + chart
+        if (!out.best && hasArtist && hasTitle && hasYear && slots.chart) {
+          const relaxed2 = { ...slots };
+          delete relaxed2.year;
+          delete relaxed2.chart;
+
+          const relaxedBest2 = safe(() => musicKB.pickBestMoment?.(null, relaxed2), null);
+          if (relaxedBest2) {
+            const corrected2 = { ...relaxedBest2 };
+            corrected2._correctedYear = true;
+            corrected2._originalYear = slots.year;
+            corrected2._correctedChart = true;
+            corrected2._originalChart = slots.chart;
+            out.best = corrected2;
+          }
+        }
+      }
 
       parentPort.postMessage({ id, ok: true, out });
     } catch (e) {
@@ -92,7 +152,7 @@ if (!isMainThread) {
   }
 
   parentPort.on("message", handleJob);
-  parentPort.postMessage({ ready: true });
+  parentPort.postMessage({ ok: true, ready: true });
   return;
 }
 
@@ -103,15 +163,158 @@ const app = express();
 app.set("trust proxy", true);
 app.use(express.json({ limit: "2mb" }));
 app.use(cors({ origin: true }));
+app.options("*", cors());
 
 const PORT = process.env.PORT || 3000;
-const BUILD_TAG = "nyx-wizard-v1.87-healthstats-lock";
+const BUILD_TAG = "nyx-wizard-v1.88-wizard+healthstats";
+const DEFAULT_CHART = "Billboard Hot 100";
 const KB_TIMEOUT_MS = Number(process.env.KB_TIMEOUT_MS || 900);
 
 // ---------------- SESSION ----------------
 const SESS = new Map();
+const SESSION_TTL_MS = 1000 * 60 * 60 * 6;
+const CLEANUP_EVERY_MS = 1000 * 60 * 10;
 
-// ---------------- KB WORKER ----------------
+function sid() {
+  try { return crypto.randomUUID(); }
+  catch { return "sid_" + Date.now() + "_" + Math.random().toString(36).slice(2); }
+}
+
+function nowIso() { return new Date().toISOString(); }
+function safeStr(x) { return String(x == null ? "" : x).trim(); }
+function safeObj(x) { return x && typeof x === "object" ? x : {}; }
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, s] of SESS.entries()) {
+    if (!s?.lastSeen) continue;
+    if (now - s.lastSeen > SESSION_TTL_MS) SESS.delete(k);
+  }
+}, CLEANUP_EVERY_MS).unref?.();
+
+function normalizeUserText(text) {
+  return safeStr(text).replace(/\s+/g, " ").trim();
+}
+
+function isYearOnlyLoose(text) {
+  const t = normalizeUserText(text);
+  return /^\W*(19\d{2}|20\d{2})\W*$/.test(t);
+}
+
+function extractYearLoose(text) {
+  const m = String(text || "").match(/\b(19\d{2}|20\d{2})\b/);
+  return m ? Number(m[1]) : null;
+}
+
+function parseChartFromText(text) {
+  const t = normalizeUserText(text).toLowerCase();
+  if (!t) return null;
+
+  if (/\btop40weekly\b|\btop 40 weekly\b/.test(t)) return "Top40Weekly";
+  if (/\bcanada\b|\brpm\b|\bcanada rpm\b/.test(t)) return "Canada RPM";
+  if (/\buk\b|\buk singles\b|\buk singles chart\b/.test(t)) return "UK Singles Chart";
+  if (/\bbillboard\b|\bhot 100\b|\bbillboard hot 100\b/.test(t)) return "Billboard Hot 100";
+
+  return null;
+}
+
+function parseArtistTitle(text) {
+  const t = safeStr(text);
+  if (!t) return null;
+
+  const normalized = t.replace(/[–—]/g, "-");
+  const m = normalized.match(/^(.{2,}?)\s*-\s*(.{2,}?)$/);
+  if (!m) return null;
+
+  const artist = safeStr(m[1]);
+  const title = safeStr(m[2]);
+  if (!artist || !title) return null;
+  if (/^\d{4}$/.test(artist)) return null;
+  if (/^\d{4}$/.test(title)) return null;
+
+  return { artist, title };
+}
+
+function correctionPreface(best) {
+  if (!best || typeof best !== "object") return "";
+  const parts = [];
+
+  if (best._correctedYear && best._originalYear && best.year && best._originalYear !== best.year) {
+    parts.push(`Quick correction — anchoring to ${best.year} (not ${best._originalYear}).`);
+  }
+  if (best._correctedChart && best._originalChart && best.chart && best._originalChart !== best.chart) {
+    parts.push(`Chart note — using ${best.chart} (not ${best._originalChart}).`);
+  }
+
+  return parts.length ? (parts.join(" ") + "\n\n") : "";
+}
+
+function pickOne(arr, fallback = "") {
+  if (!Array.isArray(arr) || arr.length === 0) return fallback;
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function musicContinuations(chart) {
+  const c = chart || DEFAULT_CHART;
+  return [
+    `Want another from the same year, or should we jump? (Example: 1987)`,
+    `Same chart, or switch? (Current: ${c})`,
+    `Same artist, or new artist?`,
+    `Want the story behind this song, or another pick?`
+  ];
+}
+
+function send(res, sessionId, sess, step, reply, advance = false) {
+  sess.lastReply = reply;
+  sess.lastReplyStep = step;
+
+  res.status(200).json({
+    ok: true,
+    reply,
+    state: {
+      mode: sess.currentLane,
+      step,
+      advance,
+      slots: sess.laneDetail || {}
+    },
+    meta: {
+      sessionId,
+      build: BUILD_TAG,
+      serverTime: nowIso()
+    }
+  });
+}
+
+function resolveSession(req) {
+  const headerSid = safeStr(req.headers["x-session-id"]);
+  const bodySid = safeStr(req.body?.sessionId);
+  const metaSid = safeStr(req.body?.meta?.sessionId);
+  const clientSid = metaSid || bodySid || headerSid;
+  const key = clientSid || sid();
+
+  let sess = SESS.get(key);
+  if (!sess) {
+    sess = {
+      id: key,
+      currentLane: "music_history",
+      laneDetail: { chart: DEFAULT_CHART },
+      lastSeen: Date.now()
+    };
+    SESS.set(key, sess);
+  } else {
+    sess.lastSeen = Date.now();
+  }
+
+  sess.laneDetail = safeObj(sess.laneDetail);
+  sess.laneDetail.chart = safeStr(sess.laneDetail.chart) || DEFAULT_CHART;
+  sess.currentLane = safeStr(sess.currentLane) || "music_history";
+
+  return { key, sess };
+}
+
+// =======================================================
+// KB WORKER
+// =======================================================
 let KB_WORKER = null;
 let KB_READY = false;
 const PENDING = new Map();
@@ -125,7 +328,7 @@ function startKbWorker() {
       KB_READY = true;
       return;
     }
-    const pending = PENDING.get(msg.id);
+    const pending = PENDING.get(msg?.id);
     if (!pending) return;
     clearTimeout(pending.timer);
     PENDING.delete(msg.id);
@@ -135,68 +338,136 @@ function startKbWorker() {
   KB_WORKER.on("exit", () => {
     KB_READY = false;
     KB_WORKER = null;
-    startKbWorker();
+    for (const [id, p] of PENDING.entries()) {
+      clearTimeout(p.timer);
+      p.resolve({ id, ok: false, error: "KB_WORKER_EXIT" });
+    }
+    PENDING.clear();
+    setTimeout(startKbWorker, 250).unref?.();
   });
 }
 
-startKbWorker();
+function ensureKbWorker() {
+  if (!KB_WORKER) startKbWorker();
+  return !!KB_WORKER;
+}
 
-function kbQuery(op, payload = {}, timeout = KB_TIMEOUT_MS) {
+function kbCall(op, text, laneDetail, timeoutMs) {
   return new Promise((resolve) => {
-    if (!KB_WORKER) return resolve({ ok: false });
+    if (!ensureKbWorker()) return resolve({ ok: false, error: "KB_WORKER_NOT_AVAILABLE" });
 
-    const id = crypto.randomUUID();
+    const id = "q_" + Date.now() + "_" + Math.random().toString(36).slice(2);
     const timer = setTimeout(() => {
       PENDING.delete(id);
-      resolve({ ok: false, timeout: true });
-    }, timeout);
+      resolve({ ok: false, timedOut: true });
+    }, timeoutMs);
 
     PENDING.set(id, { resolve, timer });
-    KB_WORKER.postMessage({ id, ...payload, op });
+
+    try {
+      KB_WORKER.postMessage({ id, op, text, laneDetail });
+    } catch {
+      clearTimeout(timer);
+      PENDING.delete(id);
+      resolve({ ok: false, error: "KB_POST_FAILED" });
+    }
   });
+}
+
+async function kbStats(timeoutMs = 700) {
+  const r = await kbCall("stats", "", {}, timeoutMs);
+  return r?.ok ? r?.out?.stats : null;
+}
+
+// =======================================================
+// SMART YEAR FLOW (basic: relies on musicKnowledge methods)
+// =======================================================
+async function handleMusic(req, res, key, sess, rawText) {
+  const text = normalizeUserText(rawText);
+
+  const chartFromText = parseChartFromText(text);
+  if (chartFromText) sess.laneDetail.chart = chartFromText;
+
+  // YEAR-ONLY input => direct pick (never ask for artist/title)
+  if (isYearOnlyLoose(text)) {
+    const y = extractYearLoose(text);
+    sess.laneDetail = { chart: sess.laneDetail.chart || DEFAULT_CHART, year: y };
+
+    const kbResult = await kbCall("query", text, sess.laneDetail, KB_TIMEOUT_MS);
+    if (!kbResult.ok) {
+      return send(res, key, sess, "kb_timeout", "I’m loading the music library — try that year again in a moment.", false);
+    }
+
+    const best = kbResult?.out?.best || null;
+    if (best) {
+      const preface = correctionPreface(best);
+      const chart = best.chart || sess.laneDetail.chart || DEFAULT_CHART;
+      const followUp = pickOne(musicContinuations(chart), "Want another year?");
+      return send(res, key, sess, "music_year_pick", `${preface}${best.artist} — "${best.title}" (${best.year})\nChart: ${chart}\n\n${followUp}`, true);
+    }
+
+    return send(res, key, sess, "music_year_nohit", `I don’t have a hit indexed for ${y} yet. Try another year (example: 1987) — or switch chart (UK / Canada / Top40Weekly).`, false);
+  }
+
+  // Artist - Title path
+  const at = parseArtistTitle(text);
+  if (at) {
+    sess.laneDetail.artist = at.artist;
+    sess.laneDetail.title = at.title;
+    const y = extractYearLoose(text);
+    if (y) sess.laneDetail.year = y;
+  } else {
+    const y = extractYearLoose(text);
+    if (y) sess.laneDetail.year = y;
+  }
+
+  const kbResult = await kbCall("query", text, sess.laneDetail, KB_TIMEOUT_MS);
+  if (!kbResult.ok) {
+    return send(res, key, sess, "kb_timeout", "I’m loading the music library — try again in a moment.", false);
+  }
+
+  const best = kbResult?.out?.best || null;
+  if (best) {
+    const preface = correctionPreface(best);
+    const chart = best.chart || sess.laneDetail.chart || DEFAULT_CHART;
+    const followUp = pickOne(musicContinuations(chart), "Want another pick?");
+    return send(res, key, sess, "music_answer", `${preface}${best.artist} — "${best.title}" (${best.year})\nChart: ${chart}\n\n${followUp}`, true);
+  }
+
+  return send(res, key, sess, "music_not_found", `I didn’t find that exact match yet.\nTry: Artist - Title (no year) and I’ll anchor the nearest year.`, false);
 }
 
 // =======================================================
 // ROUTES
 // =======================================================
 app.post("/api/sandblast-gpt", async (req, res) => {
-  const text = String(req.body?.message || "").trim();
-  const r = await kbQuery("query", { text, laneDetail: {} });
+  const text = safeStr(req.body?.message);
+  const { key, sess } = resolveSession(req);
 
-  if (r.ok && r.out?.best) {
-    return res.json({
-      ok: true,
-      reply: `${r.out.best.artist} — "${r.out.best.title}" (${r.out.best.year})`,
-      meta: { build: BUILD_TAG }
-    });
+  if (!text) {
+    return send(res, key, sess, "empty", "Send a year (example: 1984) or Artist - Title (optional year).", false);
   }
 
-  return res.json({
-    ok: true,
-    reply: "No match yet — still indexing.",
-    meta: { build: BUILD_TAG }
-  });
+  return handleMusic(req, res, key, sess, text);
 });
 
-// 🔥 HEALTH ENDPOINT WITH HARD PROOF 🔥
 app.get("/api/health", async (_, res) => {
-  const stats = await kbQuery("stats");
-
+  const stats = await kbStats(700).catch(() => null);
   res.json({
     ok: true,
     build: BUILD_TAG,
-    serverTime: new Date().toISOString(),
-    node: process.version,
-    cwd: process.cwd(),
+    serverTime: nowIso(),
+    kbTimeoutMs: KB_TIMEOUT_MS,
     kbWorkerReady: KB_READY,
-    kbMoments: stats?.out?.moments ?? null,
-    kbYearMin: stats?.out?.yearMin ?? null,
-    kbYearMax: stats?.out?.yearMax ?? null,
-    kbCharts: stats?.out?.charts ?? null,
-    kbError: stats?.out?.error ?? null
+    kbMoments: stats ? stats.moments : null,
+    kbYearMin: stats ? stats.yearMin : null,
+    kbYearMax: stats ? stats.yearMax : null,
+    kbCharts: stats ? stats.charts : null,
+    kbError: stats && stats.error ? stats.error : null
   });
 });
 
 app.listen(PORT, () => {
-  console.log(`[Nyx] running on ${PORT} (${BUILD_TAG})`);
+  console.log(`[Nyx] up on ${PORT} (${BUILD_TAG}) timeout=${KB_TIMEOUT_MS}ms`);
+  startKbWorker();
 });
