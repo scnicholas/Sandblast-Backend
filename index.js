@@ -76,120 +76,53 @@ if (!isMainThread) {
     if (!Array.isArray(years) || years.length === 0) {
       years = safe(() => fn(artist, title, null), []);
     }
-    return Array.isArray(years) ? years.slice(0, 50) : [];
+    return Array.isArray(years) ? years : [];
   }
 
-  function preferYearTopPick(year) {
-    const fn = musicKB?.getTopByYear;
-    if (typeof fn !== "function") return null;
-    const top = safe(() => fn(year, 10), []);
-    if (!Array.isArray(top) || top.length === 0) return null;
-    // pick #1 if present (peak=1), else first entry
-    let best = top[0];
-    for (const m of top) {
-      if (Number(m?.peak) === 1) { best = m; break; }
+  function queryKB(text, fields) {
+    if (!musicKB) musicKB = require("./Utils/musicKnowledge");
+
+    const chart = fields?.chart || "Billboard Hot 100";
+    const artist = fields?.artist || null;
+    const title = fields?.title || null;
+    const year = fields?.year != null ? Number(fields.year) : null;
+
+    // v2.10 has pickBestMoment & getTopByYear, plus correction flags.
+    const best = safe(() => musicKB.pickBestMoment(text, { chart, artist, title, year }), null);
+
+    // If year-only and no best, try Top40Weekly Top 100 ranking (peak)
+    // (This is primarily handled in main thread by passing year-only text, but keep safe.)
+    let ranked = null;
+    if (!best && year != null && Number.isFinite(year)) {
+      ranked = safe(() => musicKB.getTopByYear(year, 1), null);
     }
-    return best || null;
+
+    // If artist/title provided with a year mismatch, return suggested years
+    let years = [];
+    if (artist && title) {
+      years = yearsForArtistTitle(artist, title, chart);
+    }
+
+    return {
+      best: best || (Array.isArray(ranked) && ranked[0] ? ranked[0] : null),
+      years
+    };
   }
 
-  function handleJob(msg) {
-    const id = msg && msg.id;
-    const op = String(msg && msg.op ? msg.op : "query");
-    const text = String(msg && msg.text ? msg.text : "").trim();
-    const laneDetail =
-      (msg && msg.laneDetail && typeof msg.laneDetail === "object") ? msg.laneDetail : {};
-
-    if (!id) return;
-
+  async function handleJob(job) {
+    const id = job?.id;
+    const op = job?.op;
     try {
-      if (!musicKB) {
-        musicKB = require("./Utils/musicKnowledge");
-      }
-
       if (op === "stats") {
-        const stats = computeStats();
-        return parentPort.postMessage({ id, ok: true, out: { stats } });
+        parentPort.postMessage({ id, ok: true, out: computeStats() });
+        return;
       }
-
-      const out = {
-        year: safe(() => musicKB.extractYear?.(text), null),
-        artist: safe(() => musicKB.detectArtist?.(text), null),
-        title: safe(() => musicKB.detectTitle?.(text), null),
-        chart: safe(() => musicKB.normalizeChart?.(laneDetail?.chart), laneDetail?.chart || null),
-        best: null,
-        years: null
-      };
-
-      const slots = { ...(laneDetail || {}) };
-      if (out.chart) slots.chart = out.chart;
-      if (out.year) slots.year = out.year;
-      if (out.artist && !slots.artist) slots.artist = out.artist;
-      if (out.title && !slots.title) slots.title = out.title;
-
-      const hasYear = !!slots.year;
-      const hasArtist = !!slots.artist;
-      const hasTitle = !!slots.title;
-
-      // YEAR-FIRST:
-      // If user gives only a year, prefer Top40Weekly Top 100 year-end pick first.
-      if (hasYear && !hasArtist && !hasTitle) {
-        out.best = preferYearTopPick(slots.year);
-
-        if (!out.best) {
-          const randFn = musicKB.pickRandomByYear;
-          if (typeof randFn === "function") {
-            out.best = safe(() => randFn(slots.year, slots.chart), null);
-          }
-        }
-        if (!out.best) {
-          out.best = safe(() => musicKB.pickBestMoment?.(null, slots), null);
-        }
-      } else {
-        out.best = safe(() => musicKB.pickBestMoment?.(null, slots), null);
-
-        // If we have artist+title and user supplied a year, provide year options when not found.
-        if (!out.best && hasArtist && hasTitle) {
-          out.years = yearsForArtistTitle(slots.artist, slots.title, slots.chart);
-        }
-
-        // Relaxed retry: artist+title+year mismatch -> drop year
-        if (!out.best && hasArtist && hasTitle && hasYear) {
-          const relaxed = { ...slots };
-          delete relaxed.year;
-
-          const relaxedBest = safe(() => musicKB.pickBestMoment?.(null, relaxed), null);
-          if (relaxedBest) {
-            const corrected = { ...relaxedBest };
-            corrected._correctedYear = true;
-            corrected._originalYear = slots.year;
-            out.best = corrected;
-          }
-        }
-
-        // Secondary relaxed retry: drop year + chart
-        if (!out.best && hasArtist && hasTitle && hasYear && slots.chart) {
-          const relaxed2 = { ...slots };
-          delete relaxed2.year;
-          delete relaxed2.chart;
-
-          const relaxedBest2 = safe(() => musicKB.pickBestMoment?.(null, relaxed2), null);
-          if (relaxedBest2) {
-            const corrected2 = { ...relaxedBest2 };
-            corrected2._correctedYear = true;
-            corrected2._originalYear = slots.year;
-            corrected2._correctedChart = true;
-            corrected2._originalChart = slots.chart;
-            out.best = corrected2;
-          }
-        }
-
-        // After relaxed retries, if still nothing, re-offer year options (chartless) if possible
-        if (!out.best && hasArtist && hasTitle && (!out.years || out.years.length === 0)) {
-          out.years = yearsForArtistTitle(slots.artist, slots.title, null);
-        }
+      if (op === "query") {
+        const out = queryKB(job?.text || "", job?.fields || {});
+        parentPort.postMessage({ id, ok: true, out });
+        return;
       }
-
-      parentPort.postMessage({ id, ok: true, out });
+      parentPort.postMessage({ id, ok: false, error: "Unknown op" });
     } catch (e) {
       parentPort.postMessage({ id, ok: false, error: String(e?.message || e) });
     }
@@ -375,120 +308,78 @@ function startKbWorker() {
       KB_READY = true;
       return;
     }
-    const pending = PENDING.get(msg?.id);
-    if (!pending) return;
-    clearTimeout(pending.timer);
-    PENDING.delete(msg.id);
-    pending.resolve(msg);
+    const id = msg?.id;
+    if (!id) return;
+    const p = PENDING.get(id);
+    if (!p) return;
+    PENDING.delete(id);
+    p.resolve(msg);
   });
 
-  KB_WORKER.on("exit", () => {
-    KB_READY = false;
-    KB_WORKER = null;
-    for (const [id, p] of PENDING.entries()) {
-      clearTimeout(p.timer);
-      p.resolve({ id, ok: false, error: "KB_WORKER_EXIT" });
-    }
-    PENDING.clear();
-    setTimeout(startKbWorker, 250).unref?.();
-  });
+  KB_WORKER.on("error", () => { KB_READY = false; });
+  KB_WORKER.on("exit", () => { KB_READY = false; });
+
+  return KB_WORKER;
 }
 
-function ensureKbWorker() {
-  if (!KB_WORKER) startKbWorker();
-  return !!KB_WORKER;
-}
+startKbWorker();
 
-function kbCall(op, text, laneDetail, timeoutMs) {
+function kbCall(op, text, fields, timeoutMs) {
   return new Promise((resolve) => {
-    if (!ensureKbWorker()) return resolve({ ok: false, error: "KB_WORKER_NOT_AVAILABLE" });
+    const id = "job_" + Date.now() + "_" + Math.random().toString(36).slice(2);
 
-    const id = "q_" + Date.now() + "_" + Math.random().toString(36).slice(2);
     const timer = setTimeout(() => {
       PENDING.delete(id);
-      resolve({ ok: false, timedOut: true });
+      resolve({ id, ok: false, error: "timeout" });
     }, timeoutMs);
 
-    PENDING.set(id, { resolve, timer });
+    PENDING.set(id, {
+      resolve: (msg) => {
+        clearTimeout(timer);
+        resolve(msg || { id, ok: false, error: "empty" });
+      }
+    });
 
     try {
-      KB_WORKER.postMessage({ id, op, text, laneDetail });
-    } catch {
+      KB_WORKER.postMessage({ id, op, text, fields });
+    } catch (e) {
       clearTimeout(timer);
       PENDING.delete(id);
-      resolve({ ok: false, error: "KB_POST_FAILED" });
+      resolve({ id, ok: false, error: String(e?.message || e) });
     }
   });
 }
 
-async function kbStats(timeoutMs = 700) {
-  const r = await kbCall("stats", "", {}, timeoutMs);
-  return r?.ok ? r?.out?.stats : null;
-}
-
 // =======================================================
-// COPY + CONTINUATIONS
+// COPY SAFE HELPERS
 // =======================================================
-function pickOne(arr, fallback = "") {
+function pickOne(arr, fallback) {
   if (!Array.isArray(arr) || arr.length === 0) return fallback;
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
 function correctionPreface(best) {
-  if (!best || typeof best !== "object") return "";
-
-  // compatible with both index.js relaxed flags and musicKnowledge v2.10 flags
-  const inputYear = best._originalYear || best._inputYear || best._input_year || null;
-  const inputChart = best._originalChart || best._inputChart || null;
-
-  const parts = [];
-
-  if (best._correctedYear && inputYear && best.year && Number(inputYear) !== Number(best.year)) {
-    parts.push(`Quick correction — anchoring to ${best.year} (not ${inputYear}).`);
+  if (!best) return "";
+  if (best._correctedYear && best._inputYear != null) {
+    return `Close — you said ${best._inputYear}, but this entry lands in ${best.year}. Here’s the closest match:\n\n`;
   }
-  if (best._correctedChart && inputChart && best.chart && String(inputChart) !== String(best.chart)) {
-    parts.push(`Chart note — using ${best.chart} (not ${inputChart}).`);
-  }
-
-  return parts.length ? (parts.join(" ") + "\n\n") : "";
+  return "";
 }
 
 function yearPickFollowups(chart) {
-  const c = chart || DEFAULT_CHART;
   return [
-    `Want the **Top 10** for that year, the **#1**, or a **surprise pick**?`,
-    `Stay on ${c}, or switch charts (UK / Canada / Top40Weekly)?`,
-    `Same artist, or new artist?`,
-    `Want the story behind it, or another pick?`
+    `Want another year? (Example: 1984, 1999, 2007)`,
+    `Give me a different year — I’ll pull another #1 for ${chart}.`,
+    `Pick a year and I’ll tune the dial.`
   ];
 }
 
 function musicContinuations(chart) {
-  const c = chart || DEFAULT_CHART;
   return [
-    `Want another from the same year, or should we jump? (Example: 1987)`,
-    `Same chart, or switch? (Current: ${c})`,
-    `Same artist, or new artist?`,
-    `Want the story behind this song, or another pick?`
+    `Want the next hit in that year — or a different year?`,
+    `Give me another artist + year, or just a year. (Chart: ${chart})`,
+    `Say “top 100 1990” if you want year-end rankings.`
   ];
-}
-
-function formatYearsForSuggestion(years, inputYear) {
-  if (!Array.isArray(years) || years.length === 0) return null;
-
-  const unique = Array.from(new Set(years.filter((y) => Number.isFinite(Number(y))).map((y) => Number(y)))).sort((a, b) => a - b);
-  if (unique.length === 0) return null;
-
-  const around = Number.isFinite(Number(inputYear)) ? Number(inputYear) : null;
-
-  // show up to 6 years, biased around inputYear if present
-  if (around != null) {
-    unique.sort((a, b) => Math.abs(a - around) - Math.abs(b - around));
-  }
-  const head = unique.slice(0, 6);
-  const closest = around != null ? head[0] : head[0];
-
-  return { closest, list: head.sort((a, b) => a - b), total: unique.length };
 }
 
 // =======================================================
@@ -567,27 +458,25 @@ async function handleMusic(req, res, key, sess, rawText) {
   const hasArtist = !!sess?.laneDetail?.artist;
   const hasTitle = !!sess?.laneDetail?.title;
 
-  if (hasArtist && hasTitle) {
-    const suggestion = formatYearsForSuggestion(years, inputYear);
-    if (suggestion) {
-      const listText = suggestion.list.join(", ");
-      return send(
-        res,
-        key,
-        sess,
-        "music_suggest_years",
-        `I might have you a year off.\nI do have **${sess.laneDetail.artist} — "${sess.laneDetail.title}"** in: ${listText}${suggestion.total > suggestion.list.length ? " …" : ""}\n\nIf you want, reply with just **${suggestion.closest}** and I’ll anchor it and keep rolling.`,
-        true
-      );
-    }
+  if (hasArtist && hasTitle && Array.isArray(years) && years.length) {
+    const head = years.slice(0, 6).join(", ");
+    const more = years.length > 6 ? ` (+${years.length - 6} more)` : "";
+    return send(
+      res,
+      key,
+      sess,
+      "music_suggest_years",
+      `I couldn’t match that entry for ${inputYear || "that year"}. I *do* see this song under: ${head}${more}.\n\nReply with one of those years — or say “Billboard Hot 100”, “UK Singles”, “Canada RPM”, or “Top40Weekly”.`,
+      false
+    );
   }
 
   return send(
     res,
     key,
     sess,
-    "music_not_found",
-    `I didn’t lock that in yet — but we can still get there.\nTry:\n• **1984** (year-only)\n• **Artist - Title** (example: Styx - Babe)\n• add “top 100” if you want the year-end list`,
+    "music_nohit",
+    `Give me an artist + year (or a song title). If you want a different chart, say: Billboard Hot 100, UK Singles, Canada RPM, or Top40Weekly. (Current: ${sess.laneDetail.chart || DEFAULT_CHART}).`,
     false
   );
 }
@@ -595,68 +484,47 @@ async function handleMusic(req, res, key, sess, rawText) {
 // =======================================================
 // ROUTES
 // =======================================================
-app.post("/api/sandblast-gpt", async (req, res) => {
-  const text = safeStr(req.body?.message);
-  const { key, sess } = resolveSession(req);
+app.get("/api/health", async (req, res) => {
+  let stats = null;
+  try {
+    const out = await kbCall("stats", "", {}, 500);
+    if (out && out.ok) stats = out.out || null;
+  } catch (_) {}
 
-  if (!text) {
-    return send(res, key, sess, "empty", "Send a year (example: 1984) or Artist - Title (optional year).", false);
-  }
-
-  // Fluid conversation layer (only when it's not clearly a music query)
-  const t = normalizeUserText(text);
-  const musicish = looksLikeMusicQuery(t);
-
-  if (!musicish) {
-    // stage 1: greeting
-    if (sess.dialogStage === "new" && isGreeting(t)) {
-      sess.dialogStage = "asked_how_are_you";
-      return send(res, key, sess, "greet_1", pickOne([
-        "Hey — good to see you. How are you doing today?",
-        "Hi there. How’s your day going so far?",
-        "Hey. How are you feeling today?"
-      ], "Hey — how are you today?"), true);
-    }
-
-    // stage 2: user replies about their day
-    if (sess.dialogStage === "asked_how_are_you" && (isPositiveOrStatusReply(t) || t.length <= 50)) {
-      sess.dialogStage = "ready";
-      return send(res, key, sess, "greet_2", pickOne([
-        "Love that. What can I help you with today? If it’s music, give me a year like **1984** or **Artist - Title**.",
-        "Good — let’s make progress. What do you want to do today? For music: **1984** or **Artist - Title**.",
-        "Alright. What are we working on? If you want music, hit me with **1984** or **Artist - Title**."
-      ], "Got it. What can I help you with?"), true);
-    }
-
-    // generic “how are you”
-    if (isHowAreYou(t) && sess.dialogStage !== "ready") {
-      sess.dialogStage = "ready";
-      return send(res, key, sess, "greet_howareyou", "I’m good — focused and ready to work. What do you want to do next? For music: **1984** or **Artist - Title**.", true);
-    }
-  }
-
-  // Once conversation stage is ready (or user gave a music query), handle music.
-  if (sess.dialogStage !== "ready") sess.dialogStage = "ready";
-  return handleMusic(req, res, key, sess, t);
+  res.status(200).json({
+    ok: true,
+    service: "nyx-backend",
+    build: BUILD_TAG,
+    kbReady: !!KB_READY,
+    kbStats: stats,
+    serverTime: nowIso()
+  });
 });
 
-app.get("/api/health", async (_, res) => {
-  const stats = await kbStats(700).catch(() => null);
-  res.json({
-    ok: true,
-    build: BUILD_TAG,
-    serverTime: nowIso(),
-    kbTimeoutMs: KB_TIMEOUT_MS,
-    kbWorkerReady: KB_READY,
-    kbMoments: stats ? stats.moments : null,
-    kbYearMin: stats ? stats.yearMin : null,
-    kbYearMax: stats ? stats.yearMax : null,
-    kbCharts: stats ? stats.charts : null,
-    kbError: stats && stats.error ? stats.error : null
-  });
+app.post("/api/nyx", async (req, res) => {
+  const { key, sess } = resolveSession(req);
+
+  const rawText =
+    safeStr(req.body?.message) ||
+    safeStr(req.body?.text) ||
+    safeStr(req.body?.input) ||
+    "";
+
+  // Fluid opening: greetings + "how are you" handled without stalling the flow
+  if (sess.dialogStage === "new" && isGreeting(rawText) && !looksLikeMusicQuery(rawText)) {
+    sess.dialogStage = "greeted";
+    return send(res, key, sess, "greeting", "Good to see you. How are you doing today?", true);
+  }
+
+  if (sess.dialogStage === "greeted" && (isHowAreYou(rawText) || isPositiveOrStatusReply(rawText)) && !looksLikeMusicQuery(rawText)) {
+    sess.dialogStage = "ready";
+    return send(res, key, sess, "pleasantry", "Nice. Now—give me an artist + year (or a song title) and I’ll pull the chart moment.", true);
+  }
+
+  // Default lane: Music history flow (Wizard path)
+  return handleMusic(req, res, key, sess, rawText);
 });
 
 app.listen(PORT, () => {
   console.log(`[Nyx] up on ${PORT} (${BUILD_TAG}) timeout=${KB_TIMEOUT_MS}ms`);
-  startKbWorker();
 });
