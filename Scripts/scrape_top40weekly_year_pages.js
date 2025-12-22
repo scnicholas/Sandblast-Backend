@@ -1,8 +1,29 @@
 "use strict";
 
+/**
+ * scrape_top40weekly_year_pages.js — Hardened v1.2
+ *
+ * Key upgrades:
+ * - Output JSON if outPath ends with .json (recommended for Data/top40weekly/top100_YYYY.json)
+ * - More robust parsing for varied Top40Weekly layouts:
+ *    - Table rows, list items
+ *    - Single-line ranked entries: "1. Title - Artist" / "1) Title by Artist"
+ *    - Two-line ranked entries: "1. Title" then next non-boilerplate line as Artist
+ * - Multi-pass parse: entry-content -> full HTML -> full text slice
+ * - Rank normalization/dedupe, better debug artifacts if <100 items
+ *
+ * Usage examples:
+ *   node Scripts/scrape_top40weekly_year_pages.js Data/top40weekly/top100_1975.json https://top40weekly.com/top-100-songs-of-1975/
+ *   node Scripts/scrape_top40weekly_year_pages.js Data/top40weekly/top100_1994.json https://top40weekly.com/top-100-songs-of-1994/
+ *
+ * Optional env:
+ *   SCRAPE_DELAY_MS=900
+ */
+
 const fs = require("fs");
 const path = require("path");
 
+// Node 18+ has global fetch; if not, user can polyfill.
 async function fetchText(url, tries = 3) {
   let lastErr = null;
   for (let i = 0; i < tries; i++) {
@@ -58,7 +79,7 @@ function extractEntryContent(html) {
   const m =
     html.match(/<div[^>]+class="[^"]*\bentry-content\b[^"]*"[^>]*>([\s\S]*?)<\/div>/i) ||
     html.match(/<div[^>]+class="[^"]*\bthe_content\b[^"]*"[^>]*>([\s\S]*?)<\/div>/i) ||
-    html.match(/<main[^>]*>([\s\S]*?)<\/main>/i); // extra fallback
+    html.match(/<main[^>]*>([\s\S]*?)<\/main>/i);
   return m ? m[1] : html;
 }
 
@@ -97,7 +118,7 @@ function looksLikeTitle(s) {
   const t = String(s || "").trim();
   if (!t) return false;
   if (t.length < 2) return false;
-  if (t.length > 160) return false;
+  if (t.length > 200) return false;
   if (isBoilerplate(t)) return false;
   if (/^https?:\/\//i.test(t)) return false;
   if (/^\d{1,3}\s*[-–—]\s*\d{1,3}$/.test(t)) return false;
@@ -108,13 +129,30 @@ function looksLikeArtist(s) {
   const t = String(s || "").trim();
   if (!t) return false;
   if (t.length < 2) return false;
-  if (t.length > 160) return false;
+  if (t.length > 200) return false;
   if (isBoilerplate(t)) return false;
   if (/^\d{1,3}\s*[-–—]\s*\d{1,3}$/.test(t)) return false;
   if (/^top\s+100\b/i.test(t)) return false;
   return true;
 }
 
+function stripLeadingRankLoose(s) {
+  return String(s || "")
+    .replace(/^\s*\(?\s*\d{1,3}\s*[\.\)\-–:]\s*/g, "")
+    .replace(/^\s*\d{1,3}\s+/, "")
+    .trim();
+}
+
+function normalizeDash(s) {
+  return String(s || "")
+    .replace(/[–—]/g, "-")
+    .replace(/\s*-\s*/g, " - ")
+    .trim();
+}
+
+// --------------------------
+// Parsing: tables + list items
+// --------------------------
 function parsePairsHtml(contentHtml) {
   const h = String(contentHtml || "").replace(/\r/g, "").replace(/\n/g, " ");
   const pairs = [];
@@ -130,8 +168,13 @@ function parsePairsHtml(contentHtml) {
     const cols = tds.map(stripTags).filter(Boolean);
     if (cols.length < 2) continue;
 
+    let rank = null;
     let title = "";
     let artist = "";
+
+    // try detect rank in first col if present
+    const maybeRank = Number(String(cols[0]).replace(/[^\d]/g, ""));
+    if (Number.isFinite(maybeRank) && maybeRank >= 1 && maybeRank <= 100) rank = maybeRank;
 
     if (cols.length >= 3) {
       title = cols[1];
@@ -139,18 +182,23 @@ function parsePairsHtml(contentHtml) {
     } else {
       title = cols[0];
       artist = cols[1];
+      // if first col was rank, then title/artist may be shifted; handle lightly
+      if (rank && cols.length === 2) {
+        // can't safely shift; leave as-is
+      }
     }
 
+    // Handle "Title - Artist" inside title
     if (title && !artist && /[-–—]/.test(title)) {
-      const parts = title.split(/[-–—]/).map((s) => s.trim()).filter(Boolean);
+      const parts = normalizeDash(title).split(" - ").map((s) => s.trim()).filter(Boolean);
       if (parts.length >= 2) {
         title = parts[0];
-        artist = parts.slice(1).join(" — ");
+        artist = parts.slice(1).join(" - ");
       }
     }
 
     if (looksLikeTitle(title) && looksLikeArtist(artist)) {
-      pairs.push({ title: title.trim(), artist: artist.trim() });
+      pairs.push({ rank, title: title.trim(), artist: artist.trim() });
     }
   }
 
@@ -161,81 +209,169 @@ function parsePairsHtml(contentHtml) {
     const txt = stripTags(li[1]);
     if (!txt) continue;
 
-    const cleaned = txt.replace(/^\s*\d{1,3}\s*[\.\)\-–:]?\s*/, "");
+    const cleaned0 = stripLeadingRankLoose(txt);
+    const cleaned = normalizeDash(cleaned0);
+
+    // "Title by Artist" OR "Title - Artist"
     const m =
       cleaned.match(/^(.+?)\s+(?:by)\s+(.+)$/i) ||
-      cleaned.match(/^(.+?)\s*[-–—]\s*(.+)$/);
+      cleaned.match(/^(.+?)\s*-\s*(.+)$/);
 
     if (!m) continue;
+
     const title = String(m[1] || "").trim();
     const artist = String(m[2] || "").trim();
     if (looksLikeTitle(title) && looksLikeArtist(artist)) {
-      pairs.push({ title, artist });
+      pairs.push({ rank: null, title, artist });
     }
   }
 
   return pairs;
 }
 
-function parsePairsFromLines(lines) {
+// --------------------------
+// Parsing: ranked lines (strong)
+// --------------------------
+function parseRankedPairsFromLines(lines) {
   const out = [];
 
-  function stripLeadingRank(s) {
-    return String(s || "").replace(/^\s*\d{1,3}\s*[\.\)\-–:]?\s*/, "").trim();
+  for (let i = 0; i < lines.length; i++) {
+    const raw = String(lines[i] || "").trim();
+    if (!raw) continue;
+    if (isBoilerplate(raw)) continue;
+
+    // Case A: "12. Title - Artist" / "12) Title by Artist"
+    const mInline = raw.match(/^(\d{1,3})\s*[\.\)\-–:]\s*(.+)$/);
+    if (mInline) {
+      const rank = Number(mInline[1]);
+      if (!(rank >= 1 && rank <= 100)) continue;
+
+      const rest0 = String(mInline[2] || "").trim();
+      const rest = normalizeDash(stripLeadingRankLoose(rest0));
+
+      let mm =
+        rest.match(/^(.+?)\s+(?:by)\s+(.+)$/i) ||
+        rest.match(/^(.+?)\s*-\s*(.+)$/);
+
+      if (mm) {
+        const title = String(mm[1] || "").trim();
+        const artist = String(mm[2] || "").trim();
+        if (looksLikeTitle(title) && looksLikeArtist(artist)) {
+          out.push({ rank, title, artist });
+          continue;
+        }
+      }
+
+      // Case B: "12. Title" then artist next line
+      const title = String(rest0).trim();
+      if (!looksLikeTitle(title)) continue;
+
+      let artist = "";
+      for (let j = i + 1; j <= i + 4 && j < lines.length; j++) {
+        const cand0 = String(lines[j] || "").trim();
+        if (!cand0) continue;
+        if (isBoilerplate(cand0)) continue;
+
+        // stop if next rank begins
+        if (/^\(?\s*\d{1,3}\s*[\.\)\-–:]/.test(cand0)) break;
+
+        const cand = stripLeadingRankLoose(cand0);
+        if (looksLikeArtist(cand)) {
+          artist = cand;
+          i = j;
+          break;
+        }
+      }
+
+      if (artist) {
+        out.push({ rank, title, artist });
+        continue;
+      }
+    }
+
+    // Case C: "12 Title - Artist" (rank separated by whitespace)
+    const mLoose = raw.match(/^(\d{1,3})\s+(.+)$/);
+    if (mLoose) {
+      const rank = Number(mLoose[1]);
+      if (!(rank >= 1 && rank <= 100)) continue;
+
+      const rest = normalizeDash(String(mLoose[2] || "").trim());
+      const mm =
+        rest.match(/^(.+?)\s+(?:by)\s+(.+)$/i) ||
+        rest.match(/^(.+?)\s*-\s*(.+)$/);
+
+      if (mm) {
+        const title = String(mm[1] || "").trim();
+        const artist = String(mm[2] || "").trim();
+        if (looksLikeTitle(title) && looksLikeArtist(artist)) {
+          out.push({ rank, title, artist });
+          continue;
+        }
+      }
+    }
   }
+
+  // Keep first occurrence per rank
+  const byRank = new Map();
+  for (const x of out) if (!byRank.has(x.rank)) byRank.set(x.rank, x);
+  return [...byRank.values()].sort((a, b) => a.rank - b.rank);
+}
+
+// --------------------------
+// Parsing: unranked title/artist pairs from lines
+// --------------------------
+function parsePairsFromLines(lines) {
+  const out = [];
 
   for (let i = 0; i < lines.length; i++) {
     let a = String(lines[i] || "").trim();
     if (!a) continue;
     if (isBoilerplate(a)) continue;
 
-    a = stripLeadingRank(a);
+    a = stripLeadingRankLoose(a);
     if (!a || isBoilerplate(a)) continue;
 
+    const aNorm = normalizeDash(a);
+
+    // single-line title/artist patterns
     let m =
-      a.match(/^(.+?)\s+(?:by)\s+(.+)$/i) ||
-      a.match(/^(.+?)\s*[-–—]\s*(.+)$/);
+      aNorm.match(/^(.+?)\s+(?:by)\s+(.+)$/i) ||
+      aNorm.match(/^(.+?)\s*-\s*(.+)$/);
 
     if (m) {
       const title = String(m[1] || "").trim();
       const artist = String(m[2] || "").trim();
-      if (looksLikeTitle(title) && looksLikeArtist(artist)) out.push({ title, artist });
+      if (looksLikeTitle(title) && looksLikeArtist(artist)) out.push({ title, artist, rank: null });
       continue;
     }
 
     if (!looksLikeTitle(a)) continue;
 
+    // next-line artist
     let j = i + 1;
     let b = "";
-    while (j < lines.length && j <= i + 3) {
+    while (j < lines.length && j <= i + 4) {
       const cand = String(lines[j] || "").trim();
-      if (!cand) {
-        j++;
-        continue;
-      }
-      if (isBoilerplate(cand)) {
-        j++;
-        continue;
-      }
-      if (/^\d{1,3}\s*[-–—]\s*\d{1,3}\b/.test(cand)) {
-        j++;
-        continue;
-      }
-      b = stripLeadingRank(cand);
+      if (!cand) { j++; continue; }
+      if (isBoilerplate(cand)) { j++; continue; }
+      if (/^\(?\s*\d{1,3}\s*[\.\)\-–:]/.test(cand)) break;
+
+      b = stripLeadingRankLoose(cand);
       break;
     }
 
     if (!b) continue;
     if (!looksLikeArtist(b)) continue;
 
-    out.push({ title: a, artist: b });
+    out.push({ title: a, artist: b, rank: null });
     i = j;
   }
 
+  // De-dupe consecutive duplicates
   const cleaned = [];
   let lastKey = "";
   for (const p of out) {
-    const key = `${p.title.toLowerCase()}||${p.artist.toLowerCase()}`;
+    const key = `${String(p.title).toLowerCase()}||${String(p.artist).toLowerCase()}`;
     if (key === lastKey) continue;
     lastKey = key;
     cleaned.push(p);
@@ -243,84 +379,107 @@ function parsePairsFromLines(lines) {
   return cleaned;
 }
 
-function parseRankedPairsFromLines(lines) {
-  const out = [];
-
-  function stripLeadingRankToken(s) {
-    return String(s || "").replace(/^\s*\(?\s*\d{1,3}\s*[\.\)\-–:]?\s*/, "").trim();
-  }
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = String(lines[i] || "").trim();
-    if (!line) continue;
-    if (isBoilerplate(line)) continue;
-
-    const m = line.match(/^(\d{1,3})\s*[\.\)\-–:]\s*(.+)$/);
-    if (!m) continue;
-
-    const rank = Number(m[1]);
-    if (!(rank >= 1 && rank <= 100)) continue;
-
-    const title = stripLeadingRankToken(line);
-    if (!looksLikeTitle(title)) continue;
-
-    let artist = "";
-    for (let j = i + 1; j <= i + 3 && j < lines.length; j++) {
-      const cand0 = String(lines[j] || "").trim();
-      if (!cand0) continue;
-      if (isBoilerplate(cand0)) continue;
-      if (/^\d{1,3}\s*[\.\)\-–:]/.test(cand0)) break;
-
-      const cand = stripLeadingRankToken(cand0);
-      if (!cand) continue;
-      if (!looksLikeArtist(cand)) continue;
-
-      artist = cand;
-      i = j;
-      break;
-    }
-
-    if (artist) out.push({ rank, title, artist });
-  }
-
-  const byRank = new Map();
-  for (const x of out) if (!byRank.has(x.rank)) byRank.set(x.rank, x);
-  return [...byRank.values()].sort((a, b) => a.rank - b.rank);
-}
-
+// --------------------------
+// Merge + Build
+// --------------------------
 function mergePairsKeepOrder(a, b) {
   const out = [];
-  let lastKey = "";
+  const seen = new Set();
 
-  function push(p) {
-    const key = `${p.title.toLowerCase()}||${p.artist.toLowerCase()}`;
-    if (key === lastKey) return;
-    lastKey = key;
-    out.push(p);
+  function keyOf(p) {
+    return `${String(p.title || "").toLowerCase()}||${String(p.artist || "").toLowerCase()}`;
   }
 
-  for (const p of a) push(p);
-  for (const p of b) push(p);
-
+  for (const p of a) {
+    const k = keyOf(p);
+    if (!k || seen.has(k)) continue;
+    seen.add(k);
+    out.push(p);
+  }
+  for (const p of b) {
+    const k = keyOf(p);
+    if (!k || seen.has(k)) continue;
+    seen.add(k);
+    out.push(p);
+  }
   return out;
 }
 
 function buildRows(year, pairs, preferRanked) {
-  let rows = pairs.slice(0, 100).map((p, idx) => ({
-    year,
-    rank: Number(p.rank) || (idx + 1),
-    artist: p.artist,
-    title: p.title,
-    chart: "Top40Weekly Top 100",
-  }));
+  // Build up to 100, prefer ranked if present
+  let rows = pairs
+    .filter((p) => looksLikeTitle(p.title) && looksLikeArtist(p.artist))
+    .slice(0, 200) // allow extra before trim/dedupe
+    .map((p, idx) => ({
+      year,
+      rank: Number(p.rank) || (idx + 1),
+      artist: String(p.artist).trim(),
+      title: String(p.title).trim(),
+      chart: "Top40Weekly Top 100",
+    }));
 
-  rows.sort((a, b) => a.rank - b.rank);
+  // Normalize ranks to 1..100 in order while preserving ranked where possible
+  rows.sort((a, b) => (a.rank || 999) - (b.rank || 999));
 
-  const useRanked = preferRanked && rows.length >= 50;
-  return { rows, useRanked };
+  // If ranked dataset is strong, trust it more
+  const useRanked = Boolean(preferRanked) && rows.filter((r) => r.rank >= 1 && r.rank <= 100).length >= 50;
+
+  // Deduplicate by (rank) first, then by (title/artist)
+  const byRank = new Map();
+  for (const r of rows) {
+    if (r.rank >= 1 && r.rank <= 100 && !byRank.has(r.rank)) byRank.set(r.rank, r);
+  }
+
+  let compact = [];
+  if (useRanked) {
+    compact = Array.from(byRank.values()).sort((a, b) => a.rank - b.rank);
+  } else {
+    // Fall back: dedupe by title/artist, then re-rank sequentially
+    const seen = new Set();
+    for (const r of rows) {
+      const k = `${r.title.toLowerCase()}||${r.artist.toLowerCase()}`;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      compact.push(r);
+      if (compact.length >= 100) break;
+    }
+    compact = compact.map((r, i) => ({ ...r, rank: i + 1 }));
+  }
+
+  // Ensure only 1..100
+  compact = compact.filter((r) => r.rank >= 1 && r.rank <= 100).slice(0, 100);
+
+  return { rows: compact, useRanked };
 }
 
-function toCsv(rows) {
+function parseFrom(htmlSlice) {
+  const htmlPairs = parsePairsHtml(htmlSlice);
+  const lines = toLines(htmlSlice);
+
+  const ranked = parseRankedPairsFromLines(lines);
+  const linePairs = parsePairsFromLines(lines);
+
+  let pairs = mergePairsKeepOrder(htmlPairs, linePairs);
+  let preferRanked = false;
+
+  if (ranked.length >= 30) {
+    pairs = ranked.map((x) => ({ title: x.title, artist: x.artist, rank: x.rank }));
+    preferRanked = true;
+  }
+
+  return {
+    pairs,
+    lines,
+    preferRanked,
+    counts: { html: htmlPairs.length, lines: linePairs.length, ranked: ranked.length },
+  };
+}
+
+function writeJson(absOut, rows) {
+  fs.writeFileSync(absOut, JSON.stringify(rows, null, 2) + "\n", "utf8");
+}
+
+function writeCsv(absOut, rows) {
   const header = ["year", "rank", "artist", "title", "chart"];
   const esc = (v) => {
     const s = String(v ?? "");
@@ -329,36 +488,21 @@ function toCsv(rows) {
   };
   const out = [header.join(",")];
   for (const r of rows) out.push([r.year, r.rank, r.artist, r.title, r.chart].map(esc).join(","));
-  return out.join("\n") + "\n";
-}
-
-function parseFrom(htmlOrSlice) {
-  const htmlPairs = parsePairsHtml(htmlOrSlice);
-  const lines = toLines(htmlOrSlice);
-  const linePairs = parsePairsFromLines(lines);
-  const ranked = parseRankedPairsFromLines(lines);
-
-  let pairs = mergePairsKeepOrder(htmlPairs, linePairs);
-  let preferRanked = false;
-
-  if (ranked.length >= 50) {
-    pairs = ranked.map((x) => ({ title: x.title, artist: x.artist, rank: x.rank }));
-    preferRanked = true;
-  }
-
-  return { pairs, lines, preferRanked, counts: { html: htmlPairs.length, lines: linePairs.length, ranked: ranked.length } };
+  fs.writeFileSync(absOut, out.join("\n") + "\n", "utf8");
 }
 
 (async function main() {
   const outPath = process.argv[2];
   const urls = process.argv.slice(3);
   if (!outPath || urls.length === 0) {
-    console.error("Usage: node scripts/scrape_top40weekly_year_pages.js <out.csv> <url1> <url2> ...");
+    console.error("Usage: node Scripts/scrape_top40weekly_year_pages.js <out.json|out.csv> <url1> <url2> ...");
     process.exit(1);
   }
 
   const absOut = path.resolve(process.cwd(), outPath);
   fs.mkdirSync(path.dirname(absOut), { recursive: true });
+
+  const delayMs = Number(process.env.SCRAPE_DELAY_MS || 900);
 
   let all = [];
   for (const url of urls) {
@@ -374,40 +518,64 @@ function parseFrom(htmlOrSlice) {
     const entry = extractEntryContent(html);
     const entryOk = entry && entry.length > 500 ? entry : "";
 
-    // Pass 1: try entry-content slice (works for 1971–1975)
-    let pass1 = parseFrom(entryOk || html);
-    let rowsObj = buildRows(year, pass1.pairs, pass1.preferRanked);
+    // Pass 1: entry-content slice
+    let pass = parseFrom(entryOk || html);
+    let rowsObj = buildRows(year, pass.pairs, pass.preferRanked);
 
-    // Pass 2: if too low, re-parse the FULL html (needed for 1970-type layouts)
-    if (rowsObj.rows.length < 20) {
+    // Pass 2: full HTML if too low
+    if (rowsObj.rows.length < 60) {
       const pass2 = parseFrom(html);
-      rowsObj = buildRows(year, pass2.pairs, pass2.preferRanked);
+      const rows2 = buildRows(year, pass2.pairs, pass2.preferRanked);
 
-      pass1 = pass2; // use pass2 for debug artifacts below
-      console.error("[DBG]", year, "full-html fallback activated",
-        `(html=${pass2.counts.html}, lines=${pass2.counts.lines}, ranked=${pass2.counts.ranked})`
-      );
+      if (rows2.rows.length > rowsObj.rows.length) {
+        pass = pass2;
+        rowsObj = rows2;
+        console.error(
+          "[DBG]",
+          year,
+          "full-html fallback improved",
+          `(html=${pass2.counts.html}, lines=${pass2.counts.lines}, ranked=${pass2.counts.ranked})`
+        );
+      }
+    }
+
+    // Pass 3: text slice fallback (strip tags fully and re-run)
+    if (rowsObj.rows.length < 80) {
+      const textOnly = stripTags(html);
+      const syntheticHtml = textOnly.replace(/\n/g, "<br/>");
+      const pass3 = parseFrom(syntheticHtml);
+      const rows3 = buildRows(year, pass3.pairs, pass3.preferRanked);
+
+      if (rows3.rows.length > rowsObj.rows.length) {
+        pass = pass3;
+        rowsObj = rows3;
+        console.error("[DBG]", year, "text-only fallback improved");
+      }
     }
 
     console.error("[OK]", year, "items=", rowsObj.rows.length);
 
     if (rowsObj.rows.length < 100) {
-      console.error("[WARN]", year, "only found", rowsObj.rows.length, "title/artist pairs (after fallback)");
+      console.error("[WARN]", year, "only found", rowsObj.rows.length, "items");
 
       const dbgLines = `./Data/_debug_lines_${year}.txt`;
-      fs.writeFileSync(dbgLines, pass1.lines.slice(0, 900).join("\n") + "\n", "utf8");
-      console.error("[DBG] wrote", dbgLines, "(first 900 lines)");
+      fs.writeFileSync(dbgLines, pass.lines.slice(0, 1400).join("\n") + "\n", "utf8");
+      console.error("[DBG] wrote", dbgLines, "(first 1400 lines)");
 
       const dbgHtml = `./Data/_debug_html_${year}.html`;
-      fs.writeFileSync(dbgHtml, html.slice(0, 250000) + "\n", "utf8");
-      console.error("[DBG] wrote", dbgHtml, "(first 250k chars of html)");
+      fs.writeFileSync(dbgHtml, html.slice(0, 350000) + "\n", "utf8");
+      console.error("[DBG] wrote", dbgHtml, "(first 350k chars of html)");
     }
 
     all = all.concat(rowsObj.rows);
-    await new Promise((r) => setTimeout(r, 900));
+    await new Promise((r) => setTimeout(r, delayMs));
   }
 
-  fs.writeFileSync(absOut, toCsv(all), "utf8");
+  // If outPath points to a single year file (recommended), urls should be a single year.
+  // But we also support multi-year output to one file.
+  if (absOut.toLowerCase().endsWith(".json")) writeJson(absOut, all);
+  else writeCsv(absOut, all);
+
   console.error("[DONE] wrote rows=", all.length);
   console.error("[OUT]", absOut);
 })().catch((e) => {
