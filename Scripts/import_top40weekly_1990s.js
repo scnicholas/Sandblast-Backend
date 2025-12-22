@@ -1,13 +1,21 @@
 /**
- * scripts/import_top40weekly_1990s.js
+ * Scripts/import_top40weekly_1990s.js
  *
- * Downloads Top40Weekly "Top 100 Songs of the 1990s" page and emits:
+ * Robust importer for Top40Weekly "Top 100 Songs of the 1990s" page.
+ * Emits:
  *   Data/top40weekly/top100_1990.json ... top100_1999.json
  *
- * Output rows per file:
+ * Output rows:
  *   { year, rank, artist, title, source, url }
  *
- * Designed to plug into your existing musicKnowledge Top40Weekly merge loader.
+ * Why this version works:
+ * - Parses by HTML anchors (#1990-topsongslist ... #1999-topsongslist),
+ *   instead of trying to locate years in flattened text.
+ * - Preserves line breaks from common HTML tags to stabilize row extraction.
+ * - Supports multiple row formats:
+ *   "1. Title by Artist"
+ *   "1. Title – Artist"  (en dash)
+ *   "1. Title - Artist"  (hyphen)
  */
 
 "use strict";
@@ -23,132 +31,195 @@ function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
 }
 
-function stripTags(html) {
-  return String(html)
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&#8217;|&rsquo;|&#39;/g, "'")
-    .replace(/&nbsp;/g, " ")
-    .replace(/\s+/g, " ")
+function normalizeWhitespace(s) {
+  return String(s || "")
+    .replace(/\u00a0/g, " ")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
 
-function normalizeTitleArtist(line) {
-  // Expected: "1. HOLD ON by Wilson Phillips"
-  // Titles may contain punctuation; artists may contain "featuring", "&", etc.
-  const m = line.match(/^\s*(\d{1,3})\.\s*(.+?)\s+by\s+(.+?)\s*$/i);
-  if (!m) return null;
+function decodeEntities(s) {
+  return String(s || "")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#8217;|&rsquo;|&#39;/g, "'")
+    .replace(/&#8211;|&ndash;/g, "–")
+    .replace(/&#8212;|&mdash;/g, "—")
+    .replace(/&nbsp;/g, " ");
+}
 
-  const rank = Number(m[1]);
-  const title = String(m[2]).trim();
-  const artist = String(m[3]).trim();
+function htmlToTextWithNewlines(html) {
+  // Preserve structure: convert common separators to \n before stripping tags
+  let s = String(html || "");
 
+  s = s.replace(/<script[\s\S]*?<\/script>/gi, " ");
+  s = s.replace(/<style[\s\S]*?<\/style>/gi, " ");
+
+  // Newlines for block-like tags and <br>
+  s = s.replace(/<br\s*\/?>/gi, "\n");
+  s = s.replace(/<\/(p|div|li|tr|h1|h2|h3|h4|h5|h6)>/gi, "\n");
+  s = s.replace(/<(p|div|li|tr|h1|h2|h3|h4|h5|h6)\b[^>]*>/gi, "\n");
+
+  // Strip remaining tags
+  s = s.replace(/<[^>]+>/g, " ");
+
+  s = decodeEntities(s);
+  s = normalizeWhitespace(s);
+
+  // Ensure reasonable line splitting
+  s = s.replace(/\s*\n\s*/g, "\n");
+  return s;
+}
+
+function findAnchorIndex(html, year) {
+  // Handles a variety of anchor patterns WordPress might generate:
+  // id="1990-topsongslist" or id='1990-topsongslist'
+  const id = `${year}-topsongslist`;
+  const re = new RegExp(`id\\s*=\\s*["']${id}["']`, "i");
+  const m = re.exec(html);
+  return m ? m.index : -1;
+}
+
+function sliceYearSection(html, year) {
+  const start = findAnchorIndex(html, year);
+  if (start < 0) return null;
+
+  let end = html.length;
+  for (let y = year + 1; y <= 1999; y++) {
+    const next = findAnchorIndex(html, y);
+    if (next > start) {
+      end = next;
+      break;
+    }
+  }
+
+  return html.slice(start, end);
+}
+
+function parseLineToRow(line) {
+  // Accept:
+  // 1. Title by Artist
+  // 1. Title – Artist
+  // 1. Title - Artist
+  const cleaned = String(line || "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!cleaned) return null;
+
+  // Strict rank prefix
+  const rm = cleaned.match(/^(\d{1,3})\.\s*(.+)$/);
+  if (!rm) return null;
+
+  const rank = Number(rm[1]);
   if (!Number.isFinite(rank) || rank < 1 || rank > 200) return null;
-  if (!title || !artist) return null;
 
-  return { rank, title, artist };
+  const rest = String(rm[2]).trim();
+
+  // Format A: "Title by Artist"
+  let m = rest.match(/^(.+?)\s+by\s+(.+?)$/i);
+  if (m) {
+    const title = String(m[1]).trim().replace(/^["“]|["”]$/g, "").trim();
+    const artist = String(m[2]).trim();
+    if (!title || !artist) return null;
+    return { rank, title, artist };
+  }
+
+  // Format B: "Title – Artist" or "Title - Artist"
+  m = rest.match(/^(.+?)\s*(?:–|-|—)\s*(.+?)$/);
+  if (m) {
+    const title = String(m[1]).trim().replace(/^["“]|["”]$/g, "").trim();
+    const artist = String(m[2]).trim();
+    if (!title || !artist) return null;
+    return { rank, title, artist };
+  }
+
+  return null;
 }
 
-function extractYearBlocks(plainText) {
-  // We rely on the rendered headings "## 1990" ... "## 1999"
-  // In plain text, these show up as "1990" on its own line in many cases.
-  // We’ll locate "1990".."1999" sections and capture lines that look like "1. ... by ..."
+function parseTop100FromSection(year, sectionHtml) {
+  const text = htmlToTextWithNewlines(sectionHtml);
 
-  const years = [];
-  for (let y = 1990; y <= 1999; y++) years.push(y);
-
-  // Create an index of where each year header appears
-  const idx = {};
-  for (const y of years) {
-    const re = new RegExp(`\\b${y}\\b`, "g");
-    const m = re.exec(plainText);
-    if (m) idx[y] = m.index;
-  }
-
-  // Only keep years we found
-  const foundYears = years.filter((y) => typeof idx[y] === "number");
-  if (!foundYears.length) {
-    throw new Error("Could not find year headers (1990..1999) in page text.");
-  }
-
-  // Slice each year block up to next year
-  const blocks = [];
-  for (let i = 0; i < foundYears.length; i++) {
-    const y = foundYears[i];
-    const start = idx[y];
-    const end = (i < foundYears.length - 1) ? idx[foundYears[i + 1]] : plainText.length;
-    blocks.push({ year: y, text: plainText.slice(start, end) });
-  }
-
-  return blocks;
-}
-
-function parseTop100FromBlock(year, blockText) {
-  const lines = blockText
-    .split(/\s(?=\d{1,3}\.\s)/g) // split before "1. "
+  const lines = text
+    .split("\n")
     .map((s) => s.trim())
     .filter(Boolean);
 
-  const rows = [];
-  for (const chunk of lines) {
-    const maybe = normalizeTitleArtist(chunk);
-    if (!maybe) continue;
+  const byRank = new Map();
 
-    rows.push({
+  for (const line of lines) {
+    const row = parseLineToRow(line);
+    if (!row) continue;
+
+    if (row.rank >= 1 && row.rank <= 100 && !byRank.has(row.rank)) {
+      byRank.set(row.rank, row);
+    }
+  }
+
+  const out = Array.from(byRank.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([rank, r]) => ({
       year,
-      rank: maybe.rank,
-      title: maybe.title,
-      artist: maybe.artist,
+      rank,
+      title: r.title,
+      artist: r.artist,
       source: "top40weekly-1990s",
       url: SOURCE_URL + `#${year}-topsongslist`
-    });
-  }
+    }));
 
-  // Keep only 1..100, unique by rank (first occurrence wins)
-  const byRank = new Map();
-  for (const r of rows) {
-    if (r.rank >= 1 && r.rank <= 100 && !byRank.has(r.rank)) byRank.set(r.rank, r);
-  }
-
-  const out = Array.from(byRank.values()).sort((a, b) => a.rank - b.rank);
-
-  if (out.length < 80) {
-    // Don’t fail hard; warn so you can check parsing changes.
-    console.warn(`[import] Warning: ${year} parsed only ${out.length} rows (expected ~100).`);
+  if (out.length < 95) {
+    console.warn(
+      `[import] Warning: ${year} parsed only ${out.length} rows (expected ~100). The page format may have changed.`
+    );
   }
 
   return out;
 }
 
+async function fetchHtml(url) {
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), 25000);
+
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: { "User-Agent": "NyxImporter/2.0" }
+    });
+
+    if (!res.ok) throw new Error(`Fetch failed: HTTP ${res.status}`);
+    return await res.text();
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 async function main() {
   console.log(`[import] Fetching: ${SOURCE_URL}`);
-  const res = await fetch(SOURCE_URL, { headers: { "User-Agent": "NyxImporter/1.0" } });
-  if (!res.ok) throw new Error(`Fetch failed: HTTP ${res.status}`);
-  const html = await res.text();
-
-  // Convert to plain text so we can parse robustly without extra libs
-  const plain = stripTags(html);
-
-  const blocks = extractYearBlocks(plain);
+  const html = await fetchHtml(SOURCE_URL);
 
   ensureDir(OUT_DIR);
 
   let total = 0;
-  for (const b of blocks) {
-    const rows = parseTop100FromBlock(b.year, b.text);
+  for (let year = 1990; year <= 1999; year++) {
+    const section = sliceYearSection(html, year);
+    if (!section) {
+      console.warn(`[import] Warning: could not locate anchor for ${year} (#${year}-topsongslist). Writing empty file.`);
+      const fp = path.join(OUT_DIR, `top100_${year}.json`);
+      fs.writeFileSync(fp, "[]\n", "utf8");
+      continue;
+    }
 
-    // Emit as the filename pattern your musicKnowledge merge already loads
-    const fp = path.join(OUT_DIR, `top100_${b.year}.json`);
+    const rows = parseTop100FromSection(year, section);
+    const fp = path.join(OUT_DIR, `top100_${year}.json`);
     fs.writeFileSync(fp, JSON.stringify(rows, null, 2), "utf8");
+
     console.log(`[import] Wrote ${rows.length} rows -> ${path.relative(process.cwd(), fp)}`);
     total += rows.length;
   }
 
   console.log(`[import] Done. Total rows written: ${total}`);
-  console.log(`[import] Next: run your existing verify: node -e "const kb=require('./Utils/musicKnowledge'); console.log(kb.getDb().moments.length)"`);
+  console.log(`[import] Quick check: dir Data\\top40weekly\\top100_1990.json`);
 }
 
 main().catch((e) => {
