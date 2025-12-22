@@ -16,20 +16,17 @@ function classifyIntent(message) {
   // MUSIC HISTORY DETECTOR (UPDATED)
   // -------------------------
   function detectMusicHistoryIntent(t) {
-    // Chart-specific signals (expanded)
     const hasChartSignals =
-      /\b(hot\s*100|billboard|top\s*40|top40|chart|charts|charting|hit\s*parade|weekly\s*chart|year[-\s]*end|top\s*10)\b/.test(
-        t
-      ) ||
+      /\b(hot\s*100|billboard|top\s*40|top40|chart|charts|charting|hit\s*parade|weekly\s*chart|year[-\s]*end|top\s*10)\b/.test(t) ||
       /\b(#\s*1|#1|number\s*one|number\s*1|no\.\s*1|no\s*1|no1)\b/.test(t) ||
-      /\b(weeks?\s+at\s+(#\s*1|#1|number\s*one|number\s*1|no\.\s*1|no\s*1))\b/.test(
-        t
-      ) ||
+      /\b(weeks?\s+at\s+(#\s*1|#1|number\s*one|number\s*1|no\.\s*1|no\s*1))\b/.test(t) ||
       /\b(peak|peaked|debut)\b/.test(t);
 
-    // If it smells like chart talk, treat it as music history.
-    // Nyx can ask ONE clarifying question (which chart / which year / which country) if needed.
-    return hasChartSignals;
+    // Follow-up continuation signals (NEW)
+    const hasFollowupSignals =
+      /\b(another|next|one more|more like this|surprise|random|story|tell me more|behind it)\b/.test(t);
+
+    return hasChartSignals || hasFollowupSignals;
   }
 
   // -------------------------
@@ -61,13 +58,10 @@ function classifyIntent(message) {
     "how's it going"
   ];
 
-  // Music history intent gets priority before generic question handling
   if (detectMusicHistoryIntent(text)) {
     intent = "music_history";
     confidence = 0.92;
-  }
-  // Greeting: short, simple, greeting-like
-  else if (
+  } else if (
     greetingWords.some((w) => text === w || text.startsWith(w + " ")) ||
     (text.length <= 30 && greetingWords.some((w) => text.includes(w)))
   ) {
@@ -88,7 +82,7 @@ function classifyIntent(message) {
   }
 
   // -------------------------
-  // DOMAIN
+  // DOMAIN (unchanged below)
   // -------------------------
   let domain = "general";
   let domainConfidence = 0.3;
@@ -196,7 +190,6 @@ function classifyIntent(message) {
 
   const novaHits = hitCount(["nova", "dj nova", "nova intro", "nova voice"]);
 
-  // Music history domain hits (expanded)
   const musicHistoryHits = hitCount([
     "billboard",
     "hot 100",
@@ -216,10 +209,12 @@ function classifyIntent(message) {
     "weeks at",
     "year-end",
     "weekly chart",
-    "hit parade"
+    "hit parade",
+    "another",
+    "surprise",
+    "story"
   ]);
 
-  // Priority ordering: tech > ai > music_history > sponsors > radio/nova > tv > business
   if (techHits > 0) {
     domain = "tech_support";
     domainConfidence = 0.85;
@@ -249,19 +244,10 @@ function classifyIntent(message) {
     domainConfidence = 0.6;
   } else {
     domain = "general";
-    domainConfidence = 0.4;
+    domainConfidence = 0.2;
   }
 
-  // Merge confidences into a single rough confidence
-  const combinedConfidence = Math.max(confidence, domainConfidence);
-
-  return {
-    domain,
-    intent,
-    confidence: combinedConfidence
-  };
+  return { domain, intent, confidence, domainConfidence };
 }
 
-module.exports = {
-  classifyIntent
-};
+module.exports = { classifyIntent };
