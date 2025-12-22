@@ -1,17 +1,21 @@
 /**
- * musicKnowledge.js — Bulletproof V2.7
+ * musicKnowledge.js — Bulletproof V2.8
  *
- * Adds:
- * - Year-only support (kept)
- * - Nearest-year correction for:
- *    1) artist + title + year mismatch
- *    2) title + year mismatch
- *    3) artist + year mismatch
+ * V2.8 Adds / Fixes:
+ * - Deterministic DB selection on Render:
+ *    1) MUSIC_DB_PATH (if valid)
+ *    2) preferred default: Data/music_moments_v2_layer2_plus500.json (must be non-empty)
+ *    3) fallback scan: pick largest music_moments*.json inside Data/ (must be non-empty)
+ * - Reject 0-byte DB candidates (common cause of "DB not found" / empty DB)
+ * - Top40Weekly merge: skip placeholder/empty JSON files (e.g., "[]")
  *
- * Emits correction flags for index.js:
- *  - _correctedYear, _inputYear
- *  - _correctedArtist, _inputArtist
- *  - _correctedTitle, _inputTitle
+ * Keeps:
+ * - Year-only support
+ * - Nearest-year correction for mismatch cases
+ * - Correction flags for index.js:
+ *    _correctedYear, _inputYear
+ *    _correctedArtist, _inputArtist
+ *    _correctedTitle, _inputTitle
  *
  * NOTE: We return shallow copies when adding flags so we don't mutate MOMENT_INDEX.
  */
@@ -30,11 +34,18 @@ const MERGE_TOP40WEEKLY = String(process.env.MERGE_TOP40WEEKLY || "1") !== "0";
 
 const DEFAULT_DB_CANDIDATES = [
   "Data/music_moments_v2_layer2_plus500.json",
+  "Data/music_moments_v2_layer2_plus1000.json",
+  "Data/music_moments_v2_layer2_plus2000.json",
+  "Data/music_moments_v2_layer2_enriched.json",
+  "Data/music_moments_v2_layer2_filled.json",
   "Data/music_moments_v2_layer2.json",
   "Data/music_moments_v2.json",
   "Data/music_moments.json",
   "Data/music_moments_layer1.json"
 ];
+
+// preferred default (stable + present in your repo)
+const PREFERRED_DEFAULT_DB = "Data/music_moments_v2_layer2_plus500.json";
 
 function getCandidateList() {
   if (!ENV_DB_CANDIDATES) return DEFAULT_DB_CANDIDATES;
@@ -108,26 +119,84 @@ function fileExists(p) {
   }
 }
 
-function resolveDbPath() {
-  if (ENV_DB_PATH) {
-    const abs = path.isAbsolute(ENV_DB_PATH)
-      ? ENV_DB_PATH
-      : path.join(process.cwd(), ENV_DB_PATH);
-    if (fileExists(abs)) return abs;
-    warn(`MUSIC_DB_PATH is set but file not found: ${abs}`);
+function fileSize(p) {
+  try {
+    if (!fileExists(p)) return 0;
+    const st = fs.statSync(p);
+    return st && Number.isFinite(st.size) ? st.size : 0;
+  } catch (_) {
+    return 0;
   }
+}
 
-  const DB_CANDIDATES = getCandidateList();
+function resolveAbs(relOrAbs) {
+  if (!relOrAbs) return "";
+  const s = String(relOrAbs).trim();
+  if (!s) return "";
+  return path.isAbsolute(s) ? s : path.join(process.cwd(), s);
+}
 
-  for (const rel of DB_CANDIDATES) {
+function resolveDbByCandidates(candidates) {
+  for (const rel of candidates) {
     const abs = path.join(process.cwd(), rel);
-    if (fileExists(abs)) return abs;
+    if (fileExists(abs) && fileSize(abs) > 2) return abs;
+  }
+  for (const rel of candidates) {
+    const abs = path.resolve(__dirname, "..", rel);
+    if (fileExists(abs) && fileSize(abs) > 2) return abs;
+  }
+  return null;
+}
+
+function resolveDbByScan() {
+  // Scan Data/ for largest non-empty music_moments*.json
+  const dirs = [
+    path.join(process.cwd(), "Data"),
+    path.resolve(__dirname, "..", "Data")
+  ];
+
+  for (const dir of dirs) {
+    try {
+      if (!fileExists(dir)) continue;
+      const st = fs.statSync(dir);
+      if (!st.isDirectory()) continue;
+
+      const files = fs
+        .readdirSync(dir)
+        .filter((f) => /^music_moments.*\.json$/i.test(f))
+        .map((f) => {
+          const full = path.join(dir, f);
+          return { full, size: fileSize(full) };
+        })
+        .filter((x) => x.size > 2)
+        .sort((a, b) => b.size - a.size);
+
+      if (files.length) return files[0].full;
+    } catch (_) {}
+  }
+  return null;
+}
+
+function resolveDbPath() {
+  // 1) explicit env path (absolute or relative)
+  if (ENV_DB_PATH) {
+    const abs = resolveAbs(ENV_DB_PATH);
+    if (fileExists(abs) && fileSize(abs) > 2) return abs;
+    warn(`MUSIC_DB_PATH is set but file not found/empty: ${abs}`);
   }
 
-  for (const rel of DB_CANDIDATES) {
-    const abs = path.resolve(__dirname, "..", rel);
-    if (fileExists(abs)) return abs;
-  }
+  // 2) preferred default if present
+  const preferredAbs = resolveAbs(PREFERRED_DEFAULT_DB);
+  if (fileExists(preferredAbs) && fileSize(preferredAbs) > 2) return preferredAbs;
+
+  // 3) candidate list
+  const DB_CANDIDATES = getCandidateList();
+  const byCandidates = resolveDbByCandidates(DB_CANDIDATES);
+  if (byCandidates) return byCandidates;
+
+  // 4) final fallback: scan Data/ and pick largest
+  const byScan = resolveDbByScan();
+  if (byScan) return byScan;
 
   return null;
 }
@@ -144,7 +213,6 @@ function normalizeChart(chart) {
   const n = norm(c);
   if (CHART_ALIASES.has(n)) return CHART_ALIASES.get(n);
 
-  // pass-through known canon
   if (
     c === "Billboard Hot 100" ||
     c === "UK Singles Chart" ||
@@ -212,25 +280,40 @@ function findTop40WeeklyFiles() {
   return [];
 }
 
+function isPlaceholderTop40WeeklyFile(fp) {
+  // Fast skip for tiny files (often "[]\n")
+  const sz = fileSize(fp);
+  return sz > 0 && sz <= 4;
+}
+
 function loadTop40WeeklyMoments() {
   if (!MERGE_TOP40WEEKLY) return [];
 
   const files = findTop40WeeklyFiles();
   if (!files.length) {
-    warn(
-      "Top40Weekly merge enabled but no top100_YYYY.json files found in data/top40weekly"
-    );
+    warn("Top40Weekly merge enabled but no top100_YYYY.json files found in data/top40weekly");
     return [];
   }
 
   const out = [];
   let skipped = 0;
+  let skippedEmpty = 0;
 
   for (const fp of files) {
     try {
+      if (isPlaceholderTop40WeeklyFile(fp)) {
+        skippedEmpty++;
+        continue;
+      }
+
       const raw = stripBom(fs.readFileSync(fp, "utf8"));
       const json = JSON.parse(raw);
+
       if (!Array.isArray(json)) continue;
+      if (json.length === 0) {
+        skippedEmpty++;
+        continue;
+      }
 
       for (const row of json) {
         const year = toInt(row.year);
@@ -262,17 +345,12 @@ function loadTop40WeeklyMoments() {
         });
       }
     } catch (e) {
-      warn(
-        "Failed reading Top40Weekly file: " +
-          fp +
-          " :: " +
-          (e.message || e)
-      );
+      warn("Failed reading Top40Weekly file: " + fp + " :: " + (e.message || e));
     }
   }
 
   console.log(
-    `[musicKnowledge] Top40Weekly merge: loaded ${out.length} rows from ${files.length} files (skipped=${skipped})`
+    `[musicKnowledge] Top40Weekly merge: loaded ${out.length} rows from ${files.length} files (skipped=${skipped}, emptySkipped=${skippedEmpty})`
   );
   return out;
 }
@@ -422,6 +500,13 @@ function loadDb() {
   const stat = fs.statSync(DB_PATH_RESOLVED);
   DB_MTIME_MS = stat.mtimeMs;
 
+  // Guard against empty files
+  if (stat.size <= 2) {
+    failHard(`Music DB file is empty/invalid: ${DB_PATH_RESOLVED}`);
+  }
+
+  console.log("[musicKnowledge] Using DB:", DB_PATH_RESOLVED);
+
   const raw = stripBom(fs.readFileSync(DB_PATH_RESOLVED, "utf8"));
 
   let json;
@@ -559,7 +644,6 @@ function pickRandomByYear(year, chart = null) {
   return pickRandom(pool);
 }
 
-// Prefer chart, but if that chart is sparse, fall back to any chart for that year
 function pickRandomByYearFallback(year, chart = null) {
   const first = pickRandomByYear(year, chart);
   if (first) return first;
@@ -608,7 +692,7 @@ function getTopByYear(year, n = 10) {
 // =============================
 // NEAREST-MATCH HELPERS (for gentle correction)
 // =============================
-function nearestByArtistTitle(na, nt, y, chartNorm /* optional */) {
+function nearestByArtistTitle(na, nt, y, chartNorm) {
   if (!na || !nt || !y) return null;
 
   let best = null;
@@ -627,7 +711,6 @@ function nearestByArtistTitle(na, nt, y, chartNorm /* optional */) {
     }
   }
 
-  // If chart-filtered search fails, try any chart for same artist+title
   if (!best && chartNorm) {
     for (const m of MOMENT_INDEX) {
       if (m._na !== na) continue;
@@ -645,7 +728,7 @@ function nearestByArtistTitle(na, nt, y, chartNorm /* optional */) {
   return best ? { best, bestDist } : null;
 }
 
-function nearestByTitle(nt, y, chartNorm /* optional */) {
+function nearestByTitle(nt, y, chartNorm) {
   if (!nt || !y) return null;
 
   let best = null;
@@ -679,7 +762,7 @@ function nearestByTitle(nt, y, chartNorm /* optional */) {
   return best ? { best, bestDist } : null;
 }
 
-function nearestByArtist(na, y, chartNorm /* optional */) {
+function nearestByArtist(na, y, chartNorm) {
   if (!na || !y) return null;
 
   let best = null;
@@ -735,9 +818,7 @@ function pickBestMoment(_db, fields = {}) {
     return null;
   };
 
-  // -------------------------------------------------
-  // YEAR-ONLY SUPPORT (fixes "1984" requests)
-  // -------------------------------------------------
+  // YEAR-ONLY SUPPORT
   if (y && !na && !nt) {
     const hit = pickRandomByYearFallback(y, chartNorm ? chart : null);
     if (hit) return hit;
@@ -756,7 +837,6 @@ function pickBestMoment(_db, fields = {}) {
     );
     if (hit) return hit;
 
-    // NEW: artist+title match exists but year is off → nearest-year correction
     if (y) {
       const near = nearestByArtistTitle(na, nt, y, chartNorm);
       if (near && near.best && near.best.year != null && near.best.year !== y) {
@@ -769,7 +849,6 @@ function pickBestMoment(_db, fields = {}) {
       }
     }
 
-    // If user omitted year, allow artist+title ignoring year already handled above by exact without y condition
     const hitNoYear = match((m) =>
       m._na === na &&
       m._nt === nt &&
@@ -787,7 +866,6 @@ function pickBestMoment(_db, fields = {}) {
     );
     if (hit) return hit;
 
-    // NEW: nearest-year correction for artist+year
     const near = nearestByArtist(na, y, chartNorm);
     if (near && near.best) {
       if (near.best.year != null && near.best.year !== y) {
@@ -810,7 +888,6 @@ function pickBestMoment(_db, fields = {}) {
     );
     if (hit) return hit;
 
-    // NEW: title match exists but year is off → nearest-year correction
     if (y) {
       const near = nearestByTitle(nt, y, chartNorm);
       if (near && near.best && near.best.year != null && near.best.year !== y) {
@@ -822,7 +899,6 @@ function pickBestMoment(_db, fields = {}) {
       }
     }
 
-    // Title-only fallback
     const hitNoYear = match((m) =>
       m._nt === nt &&
       (!chartNorm || norm(m.chart) === chartNorm)
@@ -830,7 +906,7 @@ function pickBestMoment(_db, fields = {}) {
     if (hitNoYear) return hitNoYear;
   }
 
-  // 4) Artist only: nearest year if provided, else first match
+  // 4) Artist only
   if (na) {
     if (y) {
       const near = nearestByArtist(na, y, chartNorm);
