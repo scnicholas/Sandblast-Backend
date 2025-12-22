@@ -1,0 +1,16 @@
+{
+  "items": [
+    {
+      "artist": "Simon & Garfunkel",
+      "title": "Bridge over Troubled Water",
+      "year": 1970,
+      "culture": "Broadcast moment: this track marks a recognizable snapshot of its year in pop culture.",
+      "fact": "Chart presence is one proof point; we can enrich this with a verified hook next.",
+      "next": "Want another moment from the same year, or should we follow this artist’s next big peak?",
+      "tags": [
+        "starter-enrich",
+        "broadcast"
+      ]
+    }
+  ]
+}

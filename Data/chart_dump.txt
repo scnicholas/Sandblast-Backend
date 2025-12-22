@@ -1,0 +1,11009 @@
+# fact_cards_verify_1000.txt
+
+# generated: 2025-12-18
+
+# VERIFY CARDS: Titles/years likely correct, chart stats MUST be verified before publication.
+
+# Safe for internal enrichment and Layer 2 build pipeline.
+
+
+
+ARTIST: Peabo Bryson
+TITLE: 
+CHART: Billboard Hot 100
+YEAR: 
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: 
+CHART: Billboard Hot 100
+YEAR: 
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peter Cetera
+TITLE: Glory of Love
+CHART: Billboard Hot 100
+YEAR: 1986
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Whitney Houston
+TITLE: I Wanna Dance with Somebody
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Percy Sledge
+TITLE: When a Man Loves a Woman
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Phil Collins
+TITLE: Against All Odds
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Marvin Gaye
+TITLE: I Heard It Through the Grapevine
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Aretha Franklin
+TITLE: Respect
+CHART: Billboard Hot 100
+YEAR: 1967
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Culture Club
+TITLE: Karma Chameleon
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Simon & Garfunkel
+TITLE: Mrs. Robinson
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Lionel Richie
+TITLE: Hello
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Marvin Gaye
+TITLE: I Heard It Through the Grapevine
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Rick Astley
+TITLE: Never Gonna Give You Up
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Stevie Wonder
+TITLE: Superstition
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Supremes
+TITLE: You Can't Hurry Love
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peter Cetera
+TITLE: Glory of Love
+CHART: Billboard Hot 100
+YEAR: 1986
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Tina Turner
+TITLE: What's Love Got to Do with It
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Aretha Franklin
+TITLE: Respect
+CHART: Billboard Hot 100
+YEAR: 1967
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Donna Summer
+TITLE: Hot Stuff
+CHART: Billboard Hot 100
+YEAR: 1979
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peabo Bryson & Regina Belle
+TITLE: A Whole New World
+CHART: Billboard Hot 100
+YEAR: 1993
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peter Cetera
+TITLE: Glory of Love
+CHART: Billboard Hot 100
+YEAR: 1986
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Marvin Gaye
+TITLE: I Heard It Through the Grapevine
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Otis Redding
+TITLE: Dock of the Bay
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bee Gees
+TITLE: Stayin' Alive
+CHART: Billboard Hot 100
+YEAR: 1978
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Marvin Gaye
+TITLE: I Heard It Through the Grapevine
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Phil Collins
+TITLE: Against All Odds
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Marvin Gaye
+TITLE: I Heard It Through the Grapevine
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bee Gees
+TITLE: Stayin' Alive
+CHART: Billboard Hot 100
+YEAR: 1978
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Supremes
+TITLE: You Can't Hurry Love
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peabo Bryson & Regina Belle
+TITLE: A Whole New World
+CHART: Billboard Hot 100
+YEAR: 1993
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Monkees
+TITLE: I'm a Believer
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Billie Jean
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Tina Turner
+TITLE: What's Love Got to Do with It
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Percy Sledge
+TITLE: When a Man Loves a Woman
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Culture Club
+TITLE: Karma Chameleon
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Otis Redding
+TITLE: Dock of the Bay
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Beat It
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peabo Bryson & Regina Belle
+TITLE: A Whole New World
+CHART: Billboard Hot 100
+YEAR: 1993
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: The First Time Ever I Saw Your Face
+CHART: Billboard Hot 100
+YEAR: 1972
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Simon & Garfunkel
+TITLE: Mrs. Robinson
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Elton John
+TITLE: Crocodile Rock
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Lionel Richie
+TITLE: Hello
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Simon & Garfunkel
+TITLE: Mrs. Robinson
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peabo Bryson & Regina Belle
+TITLE: A Whole New World
+CHART: Billboard Hot 100
+YEAR: 1993
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Aretha Franklin
+TITLE: Respect
+CHART: Billboard Hot 100
+YEAR: 1967
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Marvin Gaye
+TITLE: I Heard It Through the Grapevine
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Stevie Wonder
+TITLE: Superstition
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: A-ha
+TITLE: Take on Me
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Culture Club
+TITLE: Karma Chameleon
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peter Cetera
+TITLE: Glory of Love
+CHART: Billboard Hot 100
+YEAR: 1986
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Whitney Houston
+TITLE: I Wanna Dance with Somebody
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Foreigner
+TITLE: I Want to Know What Love Is
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Foreigner
+TITLE: I Want to Know What Love Is
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Lionel Richie
+TITLE: Hello
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Beat It
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Donna Summer
+TITLE: Hot Stuff
+CHART: Billboard Hot 100
+YEAR: 1979
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: The First Time Ever I Saw Your Face
+CHART: Billboard Hot 100
+YEAR: 1972
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Donna Summer
+TITLE: Hot Stuff
+CHART: Billboard Hot 100
+YEAR: 1979
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Beat It
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Hall & Oates
+TITLE: Maneater
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: A-ha
+TITLE: Take on Me
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Prince
+TITLE: When Doves Cry
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Chicago
+TITLE: Hard to Say I'm Sorry
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Billie Jean
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Aretha Franklin
+TITLE: Respect
+CHART: Billboard Hot 100
+YEAR: 1967
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Otis Redding
+TITLE: Dock of the Bay
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Rick Astley
+TITLE: Never Gonna Give You Up
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Tina Turner
+TITLE: What's Love Got to Do with It
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: Killing Me Softly with His Song
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Prince
+TITLE: When Doves Cry
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Percy Sledge
+TITLE: When a Man Loves a Woman
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: A-ha
+TITLE: Take on Me
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Tina Turner
+TITLE: What's Love Got to Do with It
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Supremes
+TITLE: You Can't Hurry Love
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Aretha Franklin
+TITLE: Respect
+CHART: Billboard Hot 100
+YEAR: 1967
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peabo Bryson & Regina Belle
+TITLE: A Whole New World
+CHART: Billboard Hot 100
+YEAR: 1993
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Whitney Houston
+TITLE: I Wanna Dance with Somebody
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Prince
+TITLE: When Doves Cry
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Madonna
+TITLE: Like a Virgin
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: A-ha
+TITLE: Take on Me
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Foreigner
+TITLE: I Want to Know What Love Is
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Aretha Franklin
+TITLE: Respect
+CHART: Billboard Hot 100
+YEAR: 1967
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Eagles
+TITLE: Hotel California
+CHART: Billboard Hot 100
+YEAR: 1977
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bon Jovi
+TITLE: Livin' on a Prayer
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Aretha Franklin
+TITLE: Respect
+CHART: Billboard Hot 100
+YEAR: 1967
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Marvin Gaye
+TITLE: I Heard It Through the Grapevine
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Beat It
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Chicago
+TITLE: Hard to Say I'm Sorry
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Billie Jean
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: George Michael
+TITLE: Faith
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Madonna
+TITLE: Like a Virgin
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Let It Be
+CHART: Billboard Hot 100
+YEAR: 1970
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Foreigner
+TITLE: I Want to Know What Love Is
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Madonna
+TITLE: Like a Virgin
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: Killing Me Softly with His Song
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Otis Redding
+TITLE: Dock of the Bay
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: A-ha
+TITLE: Take on Me
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Marvin Gaye
+TITLE: I Heard It Through the Grapevine
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Stevie Wonder
+TITLE: Superstition
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Billie Jean
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Monkees
+TITLE: I'm a Believer
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Donna Summer
+TITLE: Hot Stuff
+CHART: Billboard Hot 100
+YEAR: 1979
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Phil Collins
+TITLE: Against All Odds
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Phil Collins
+TITLE: Against All Odds
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: A-ha
+TITLE: Take on Me
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: Killing Me Softly with His Song
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Chicago
+TITLE: Hard to Say I'm Sorry
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Phil Collins
+TITLE: Against All Odds
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peabo Bryson & Regina Belle
+TITLE: A Whole New World
+CHART: Billboard Hot 100
+YEAR: 1993
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Eagles
+TITLE: Hotel California
+CHART: Billboard Hot 100
+YEAR: 1977
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Monkees
+TITLE: I'm a Believer
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peter Cetera
+TITLE: Glory of Love
+CHART: Billboard Hot 100
+YEAR: 1986
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peabo Bryson & Regina Belle
+TITLE: A Whole New World
+CHART: Billboard Hot 100
+YEAR: 1993
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Eagles
+TITLE: Hotel California
+CHART: Billboard Hot 100
+YEAR: 1977
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Tina Turner
+TITLE: What's Love Got to Do with It
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Madonna
+TITLE: Like a Virgin
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: George Michael
+TITLE: Faith
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bee Gees
+TITLE: Stayin' Alive
+CHART: Billboard Hot 100
+YEAR: 1978
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Percy Sledge
+TITLE: When a Man Loves a Woman
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: The First Time Ever I Saw Your Face
+CHART: Billboard Hot 100
+YEAR: 1972
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Percy Sledge
+TITLE: When a Man Loves a Woman
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bee Gees
+TITLE: Stayin' Alive
+CHART: Billboard Hot 100
+YEAR: 1978
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bee Gees
+TITLE: Stayin' Alive
+CHART: Billboard Hot 100
+YEAR: 1978
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Hey Jude
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: A-ha
+TITLE: Take on Me
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: The First Time Ever I Saw Your Face
+CHART: Billboard Hot 100
+YEAR: 1972
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Carole King
+TITLE: It's Too Late
+CHART: Billboard Hot 100
+YEAR: 1971
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Billie Jean
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Hey Jude
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Percy Sledge
+TITLE: When a Man Loves a Woman
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Tina Turner
+TITLE: What's Love Got to Do with It
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Culture Club
+TITLE: Karma Chameleon
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Lionel Richie
+TITLE: Hello
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Whitney Houston
+TITLE: I Wanna Dance with Somebody
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Monkees
+TITLE: I'm a Believer
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Rick Astley
+TITLE: Never Gonna Give You Up
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Marvin Gaye
+TITLE: I Heard It Through the Grapevine
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Foreigner
+TITLE: I Want to Know What Love Is
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peabo Bryson & Regina Belle
+TITLE: A Whole New World
+CHART: Billboard Hot 100
+YEAR: 1993
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Phil Collins
+TITLE: Against All Odds
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Phil Collins
+TITLE: Against All Odds
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Phil Collins
+TITLE: Against All Odds
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Phil Collins
+TITLE: Against All Odds
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Simon & Garfunkel
+TITLE: Mrs. Robinson
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bon Jovi
+TITLE: Livin' on a Prayer
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Phil Collins
+TITLE: Against All Odds
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Marvin Gaye
+TITLE: I Heard It Through the Grapevine
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Elton John
+TITLE: Crocodile Rock
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Aretha Franklin
+TITLE: Respect
+CHART: Billboard Hot 100
+YEAR: 1967
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Stevie Wonder
+TITLE: Superstition
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Chicago
+TITLE: Hard to Say I'm Sorry
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: Killing Me Softly with His Song
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Otis Redding
+TITLE: Dock of the Bay
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Prince
+TITLE: When Doves Cry
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Marvin Gaye
+TITLE: I Heard It Through the Grapevine
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Simon & Garfunkel
+TITLE: Mrs. Robinson
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Hey Jude
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Percy Sledge
+TITLE: When a Man Loves a Woman
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Culture Club
+TITLE: Karma Chameleon
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Simon & Garfunkel
+TITLE: Mrs. Robinson
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Lionel Richie
+TITLE: Hello
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Let It Be
+CHART: Billboard Hot 100
+YEAR: 1970
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Aretha Franklin
+TITLE: Respect
+CHART: Billboard Hot 100
+YEAR: 1967
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Stevie Wonder
+TITLE: Superstition
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: George Michael
+TITLE: Faith
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Percy Sledge
+TITLE: When a Man Loves a Woman
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Carole King
+TITLE: It's Too Late
+CHART: Billboard Hot 100
+YEAR: 1971
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Madonna
+TITLE: Like a Virgin
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Lionel Richie
+TITLE: Hello
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bon Jovi
+TITLE: Livin' on a Prayer
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Otis Redding
+TITLE: Dock of the Bay
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Otis Redding
+TITLE: Dock of the Bay
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: A-ha
+TITLE: Take on Me
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Foreigner
+TITLE: I Want to Know What Love Is
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bon Jovi
+TITLE: Livin' on a Prayer
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bon Jovi
+TITLE: Livin' on a Prayer
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Beat It
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Percy Sledge
+TITLE: When a Man Loves a Woman
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Simon & Garfunkel
+TITLE: Mrs. Robinson
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Prince
+TITLE: When Doves Cry
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Carole King
+TITLE: It's Too Late
+CHART: Billboard Hot 100
+YEAR: 1971
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bon Jovi
+TITLE: Livin' on a Prayer
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: Killing Me Softly with His Song
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Hall & Oates
+TITLE: Maneater
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Let It Be
+CHART: Billboard Hot 100
+YEAR: 1970
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Stevie Wonder
+TITLE: Superstition
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Hall & Oates
+TITLE: Maneater
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Lionel Richie
+TITLE: Hello
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Percy Sledge
+TITLE: When a Man Loves a Woman
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Culture Club
+TITLE: Karma Chameleon
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Let It Be
+CHART: Billboard Hot 100
+YEAR: 1970
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Hall & Oates
+TITLE: Maneater
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Beat It
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Carole King
+TITLE: It's Too Late
+CHART: Billboard Hot 100
+YEAR: 1971
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Hall & Oates
+TITLE: Maneater
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Lionel Richie
+TITLE: Hello
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: Killing Me Softly with His Song
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Madonna
+TITLE: Like a Virgin
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bee Gees
+TITLE: Stayin' Alive
+CHART: Billboard Hot 100
+YEAR: 1978
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Culture Club
+TITLE: Karma Chameleon
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Culture Club
+TITLE: Karma Chameleon
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Rick Astley
+TITLE: Never Gonna Give You Up
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Prince
+TITLE: When Doves Cry
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bee Gees
+TITLE: Stayin' Alive
+CHART: Billboard Hot 100
+YEAR: 1978
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Elton John
+TITLE: Crocodile Rock
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Donna Summer
+TITLE: Hot Stuff
+CHART: Billboard Hot 100
+YEAR: 1979
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Phil Collins
+TITLE: Against All Odds
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bee Gees
+TITLE: Stayin' Alive
+CHART: Billboard Hot 100
+YEAR: 1978
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Elton John
+TITLE: Crocodile Rock
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Hall & Oates
+TITLE: Maneater
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: A-ha
+TITLE: Take on Me
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Madonna
+TITLE: Like a Virgin
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Let It Be
+CHART: Billboard Hot 100
+YEAR: 1970
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Let It Be
+CHART: Billboard Hot 100
+YEAR: 1970
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Eagles
+TITLE: Hotel California
+CHART: Billboard Hot 100
+YEAR: 1977
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bon Jovi
+TITLE: Livin' on a Prayer
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Carole King
+TITLE: It's Too Late
+CHART: Billboard Hot 100
+YEAR: 1971
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Elton John
+TITLE: Crocodile Rock
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Madonna
+TITLE: Like a Virgin
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Chicago
+TITLE: Hard to Say I'm Sorry
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Madonna
+TITLE: Like a Virgin
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Lionel Richie
+TITLE: Hello
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bee Gees
+TITLE: Stayin' Alive
+CHART: Billboard Hot 100
+YEAR: 1978
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Simon & Garfunkel
+TITLE: Mrs. Robinson
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bee Gees
+TITLE: Stayin' Alive
+CHART: Billboard Hot 100
+YEAR: 1978
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bon Jovi
+TITLE: Livin' on a Prayer
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Elton John
+TITLE: Crocodile Rock
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Prince
+TITLE: When Doves Cry
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Stevie Wonder
+TITLE: Superstition
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bon Jovi
+TITLE: Livin' on a Prayer
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Hey Jude
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bon Jovi
+TITLE: Livin' on a Prayer
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Madonna
+TITLE: Like a Virgin
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Otis Redding
+TITLE: Dock of the Bay
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: George Michael
+TITLE: Faith
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Elton John
+TITLE: Crocodile Rock
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bon Jovi
+TITLE: Livin' on a Prayer
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: The First Time Ever I Saw Your Face
+CHART: Billboard Hot 100
+YEAR: 1972
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peter Cetera
+TITLE: Glory of Love
+CHART: Billboard Hot 100
+YEAR: 1986
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Prince
+TITLE: When Doves Cry
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Phil Collins
+TITLE: Against All Odds
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Foreigner
+TITLE: I Want to Know What Love Is
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Phil Collins
+TITLE: Against All Odds
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: Killing Me Softly with His Song
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: Killing Me Softly with His Song
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Monkees
+TITLE: I'm a Believer
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Let It Be
+CHART: Billboard Hot 100
+YEAR: 1970
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Percy Sledge
+TITLE: When a Man Loves a Woman
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Foreigner
+TITLE: I Want to Know What Love Is
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Percy Sledge
+TITLE: When a Man Loves a Woman
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bon Jovi
+TITLE: Livin' on a Prayer
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Madonna
+TITLE: Like a Virgin
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Percy Sledge
+TITLE: When a Man Loves a Woman
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peabo Bryson & Regina Belle
+TITLE: A Whole New World
+CHART: Billboard Hot 100
+YEAR: 1993
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peabo Bryson & Regina Belle
+TITLE: A Whole New World
+CHART: Billboard Hot 100
+YEAR: 1993
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Monkees
+TITLE: I'm a Believer
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Let It Be
+CHART: Billboard Hot 100
+YEAR: 1970
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Hey Jude
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Simon & Garfunkel
+TITLE: Mrs. Robinson
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Hall & Oates
+TITLE: Maneater
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Monkees
+TITLE: I'm a Believer
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peter Cetera
+TITLE: Glory of Love
+CHART: Billboard Hot 100
+YEAR: 1986
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Elton John
+TITLE: Crocodile Rock
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Stevie Wonder
+TITLE: Superstition
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Let It Be
+CHART: Billboard Hot 100
+YEAR: 1970
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Carole King
+TITLE: It's Too Late
+CHART: Billboard Hot 100
+YEAR: 1971
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Stevie Wonder
+TITLE: Superstition
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Billie Jean
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Rick Astley
+TITLE: Never Gonna Give You Up
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Donna Summer
+TITLE: Hot Stuff
+CHART: Billboard Hot 100
+YEAR: 1979
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Whitney Houston
+TITLE: I Wanna Dance with Somebody
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Carole King
+TITLE: It's Too Late
+CHART: Billboard Hot 100
+YEAR: 1971
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Culture Club
+TITLE: Karma Chameleon
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Tina Turner
+TITLE: What's Love Got to Do with It
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Monkees
+TITLE: I'm a Believer
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Marvin Gaye
+TITLE: I Heard It Through the Grapevine
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Madonna
+TITLE: Like a Virgin
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Foreigner
+TITLE: I Want to Know What Love Is
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Hall & Oates
+TITLE: Maneater
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Tina Turner
+TITLE: What's Love Got to Do with It
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Rick Astley
+TITLE: Never Gonna Give You Up
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Monkees
+TITLE: I'm a Believer
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Culture Club
+TITLE: Karma Chameleon
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Percy Sledge
+TITLE: When a Man Loves a Woman
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Hall & Oates
+TITLE: Maneater
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Rick Astley
+TITLE: Never Gonna Give You Up
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Let It Be
+CHART: Billboard Hot 100
+YEAR: 1970
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Chicago
+TITLE: Hard to Say I'm Sorry
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: The First Time Ever I Saw Your Face
+CHART: Billboard Hot 100
+YEAR: 1972
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Hey Jude
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Percy Sledge
+TITLE: When a Man Loves a Woman
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: The First Time Ever I Saw Your Face
+CHART: Billboard Hot 100
+YEAR: 1972
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Percy Sledge
+TITLE: When a Man Loves a Woman
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bon Jovi
+TITLE: Livin' on a Prayer
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Otis Redding
+TITLE: Dock of the Bay
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peabo Bryson & Regina Belle
+TITLE: A Whole New World
+CHART: Billboard Hot 100
+YEAR: 1993
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Marvin Gaye
+TITLE: I Heard It Through the Grapevine
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Whitney Houston
+TITLE: I Wanna Dance with Somebody
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Hall & Oates
+TITLE: Maneater
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Hall & Oates
+TITLE: Maneater
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peabo Bryson & Regina Belle
+TITLE: A Whole New World
+CHART: Billboard Hot 100
+YEAR: 1993
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bon Jovi
+TITLE: Livin' on a Prayer
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Simon & Garfunkel
+TITLE: Mrs. Robinson
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peabo Bryson & Regina Belle
+TITLE: A Whole New World
+CHART: Billboard Hot 100
+YEAR: 1993
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Marvin Gaye
+TITLE: I Heard It Through the Grapevine
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Donna Summer
+TITLE: Hot Stuff
+CHART: Billboard Hot 100
+YEAR: 1979
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Elton John
+TITLE: Crocodile Rock
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Eagles
+TITLE: Hotel California
+CHART: Billboard Hot 100
+YEAR: 1977
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Supremes
+TITLE: You Can't Hurry Love
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Simon & Garfunkel
+TITLE: Mrs. Robinson
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Rick Astley
+TITLE: Never Gonna Give You Up
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Chicago
+TITLE: Hard to Say I'm Sorry
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peabo Bryson & Regina Belle
+TITLE: A Whole New World
+CHART: Billboard Hot 100
+YEAR: 1993
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Let It Be
+CHART: Billboard Hot 100
+YEAR: 1970
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Aretha Franklin
+TITLE: Respect
+CHART: Billboard Hot 100
+YEAR: 1967
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Chicago
+TITLE: Hard to Say I'm Sorry
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Whitney Houston
+TITLE: I Wanna Dance with Somebody
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Rick Astley
+TITLE: Never Gonna Give You Up
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Rick Astley
+TITLE: Never Gonna Give You Up
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Elton John
+TITLE: Crocodile Rock
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Eagles
+TITLE: Hotel California
+CHART: Billboard Hot 100
+YEAR: 1977
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Chicago
+TITLE: Hard to Say I'm Sorry
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Rick Astley
+TITLE: Never Gonna Give You Up
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Culture Club
+TITLE: Karma Chameleon
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bon Jovi
+TITLE: Livin' on a Prayer
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Rick Astley
+TITLE: Never Gonna Give You Up
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Donna Summer
+TITLE: Hot Stuff
+CHART: Billboard Hot 100
+YEAR: 1979
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Hall & Oates
+TITLE: Maneater
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Carole King
+TITLE: It's Too Late
+CHART: Billboard Hot 100
+YEAR: 1971
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peabo Bryson & Regina Belle
+TITLE: A Whole New World
+CHART: Billboard Hot 100
+YEAR: 1993
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Elton John
+TITLE: Crocodile Rock
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Chicago
+TITLE: Hard to Say I'm Sorry
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Monkees
+TITLE: I'm a Believer
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Tina Turner
+TITLE: What's Love Got to Do with It
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Otis Redding
+TITLE: Dock of the Bay
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Phil Collins
+TITLE: Against All Odds
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Chicago
+TITLE: Hard to Say I'm Sorry
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Whitney Houston
+TITLE: I Wanna Dance with Somebody
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Aretha Franklin
+TITLE: Respect
+CHART: Billboard Hot 100
+YEAR: 1967
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Donna Summer
+TITLE: Hot Stuff
+CHART: Billboard Hot 100
+YEAR: 1979
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peter Cetera
+TITLE: Glory of Love
+CHART: Billboard Hot 100
+YEAR: 1986
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Aretha Franklin
+TITLE: Respect
+CHART: Billboard Hot 100
+YEAR: 1967
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Stevie Wonder
+TITLE: Superstition
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Beat It
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Otis Redding
+TITLE: Dock of the Bay
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Percy Sledge
+TITLE: When a Man Loves a Woman
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Lionel Richie
+TITLE: Hello
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Percy Sledge
+TITLE: When a Man Loves a Woman
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Carole King
+TITLE: It's Too Late
+CHART: Billboard Hot 100
+YEAR: 1971
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Monkees
+TITLE: I'm a Believer
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Foreigner
+TITLE: I Want to Know What Love Is
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bee Gees
+TITLE: Stayin' Alive
+CHART: Billboard Hot 100
+YEAR: 1978
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Simon & Garfunkel
+TITLE: Mrs. Robinson
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Phil Collins
+TITLE: Against All Odds
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: A-ha
+TITLE: Take on Me
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: Killing Me Softly with His Song
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bee Gees
+TITLE: Stayin' Alive
+CHART: Billboard Hot 100
+YEAR: 1978
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: Killing Me Softly with His Song
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peter Cetera
+TITLE: Glory of Love
+CHART: Billboard Hot 100
+YEAR: 1986
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Rick Astley
+TITLE: Never Gonna Give You Up
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Phil Collins
+TITLE: Against All Odds
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Prince
+TITLE: When Doves Cry
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Tina Turner
+TITLE: What's Love Got to Do with It
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Elton John
+TITLE: Crocodile Rock
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Madonna
+TITLE: Like a Virgin
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Whitney Houston
+TITLE: I Wanna Dance with Somebody
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Lionel Richie
+TITLE: Hello
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Let It Be
+CHART: Billboard Hot 100
+YEAR: 1970
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Prince
+TITLE: When Doves Cry
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peabo Bryson & Regina Belle
+TITLE: A Whole New World
+CHART: Billboard Hot 100
+YEAR: 1993
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Foreigner
+TITLE: I Want to Know What Love Is
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Chicago
+TITLE: Hard to Say I'm Sorry
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Let It Be
+CHART: Billboard Hot 100
+YEAR: 1970
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: George Michael
+TITLE: Faith
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Prince
+TITLE: When Doves Cry
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Hall & Oates
+TITLE: Maneater
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Billie Jean
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Rick Astley
+TITLE: Never Gonna Give You Up
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Aretha Franklin
+TITLE: Respect
+CHART: Billboard Hot 100
+YEAR: 1967
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Otis Redding
+TITLE: Dock of the Bay
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bee Gees
+TITLE: Stayin' Alive
+CHART: Billboard Hot 100
+YEAR: 1978
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Simon & Garfunkel
+TITLE: Mrs. Robinson
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Carole King
+TITLE: It's Too Late
+CHART: Billboard Hot 100
+YEAR: 1971
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Eagles
+TITLE: Hotel California
+CHART: Billboard Hot 100
+YEAR: 1977
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Supremes
+TITLE: You Can't Hurry Love
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: The First Time Ever I Saw Your Face
+CHART: Billboard Hot 100
+YEAR: 1972
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Eagles
+TITLE: Hotel California
+CHART: Billboard Hot 100
+YEAR: 1977
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Monkees
+TITLE: I'm a Believer
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peter Cetera
+TITLE: Glory of Love
+CHART: Billboard Hot 100
+YEAR: 1986
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Carole King
+TITLE: It's Too Late
+CHART: Billboard Hot 100
+YEAR: 1971
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Phil Collins
+TITLE: Against All Odds
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Percy Sledge
+TITLE: When a Man Loves a Woman
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Culture Club
+TITLE: Karma Chameleon
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Rick Astley
+TITLE: Never Gonna Give You Up
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: A-ha
+TITLE: Take on Me
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Whitney Houston
+TITLE: I Wanna Dance with Somebody
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Eagles
+TITLE: Hotel California
+CHART: Billboard Hot 100
+YEAR: 1977
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Marvin Gaye
+TITLE: I Heard It Through the Grapevine
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: The First Time Ever I Saw Your Face
+CHART: Billboard Hot 100
+YEAR: 1972
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peter Cetera
+TITLE: Glory of Love
+CHART: Billboard Hot 100
+YEAR: 1986
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Aretha Franklin
+TITLE: Respect
+CHART: Billboard Hot 100
+YEAR: 1967
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Eagles
+TITLE: Hotel California
+CHART: Billboard Hot 100
+YEAR: 1977
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Let It Be
+CHART: Billboard Hot 100
+YEAR: 1970
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Carole King
+TITLE: It's Too Late
+CHART: Billboard Hot 100
+YEAR: 1971
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bee Gees
+TITLE: Stayin' Alive
+CHART: Billboard Hot 100
+YEAR: 1978
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Aretha Franklin
+TITLE: Respect
+CHART: Billboard Hot 100
+YEAR: 1967
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Carole King
+TITLE: It's Too Late
+CHART: Billboard Hot 100
+YEAR: 1971
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Otis Redding
+TITLE: Dock of the Bay
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Foreigner
+TITLE: I Want to Know What Love Is
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Hey Jude
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Prince
+TITLE: When Doves Cry
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peabo Bryson & Regina Belle
+TITLE: A Whole New World
+CHART: Billboard Hot 100
+YEAR: 1993
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Tina Turner
+TITLE: What's Love Got to Do with It
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Eagles
+TITLE: Hotel California
+CHART: Billboard Hot 100
+YEAR: 1977
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Monkees
+TITLE: I'm a Believer
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Supremes
+TITLE: You Can't Hurry Love
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Hall & Oates
+TITLE: Maneater
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Donna Summer
+TITLE: Hot Stuff
+CHART: Billboard Hot 100
+YEAR: 1979
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Otis Redding
+TITLE: Dock of the Bay
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: Killing Me Softly with His Song
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Carole King
+TITLE: It's Too Late
+CHART: Billboard Hot 100
+YEAR: 1971
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Marvin Gaye
+TITLE: I Heard It Through the Grapevine
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: The First Time Ever I Saw Your Face
+CHART: Billboard Hot 100
+YEAR: 1972
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Elton John
+TITLE: Crocodile Rock
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Beat It
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Beat It
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Hall & Oates
+TITLE: Maneater
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Stevie Wonder
+TITLE: Superstition
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Billie Jean
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Chicago
+TITLE: Hard to Say I'm Sorry
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Rick Astley
+TITLE: Never Gonna Give You Up
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: The First Time Ever I Saw Your Face
+CHART: Billboard Hot 100
+YEAR: 1972
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Eagles
+TITLE: Hotel California
+CHART: Billboard Hot 100
+YEAR: 1977
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Madonna
+TITLE: Like a Virgin
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Let It Be
+CHART: Billboard Hot 100
+YEAR: 1970
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Carole King
+TITLE: It's Too Late
+CHART: Billboard Hot 100
+YEAR: 1971
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Supremes
+TITLE: You Can't Hurry Love
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Hey Jude
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Let It Be
+CHART: Billboard Hot 100
+YEAR: 1970
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Rick Astley
+TITLE: Never Gonna Give You Up
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peabo Bryson & Regina Belle
+TITLE: A Whole New World
+CHART: Billboard Hot 100
+YEAR: 1993
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Elton John
+TITLE: Crocodile Rock
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Rick Astley
+TITLE: Never Gonna Give You Up
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bon Jovi
+TITLE: Livin' on a Prayer
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Donna Summer
+TITLE: Hot Stuff
+CHART: Billboard Hot 100
+YEAR: 1979
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Chicago
+TITLE: Hard to Say I'm Sorry
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Simon & Garfunkel
+TITLE: Mrs. Robinson
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peter Cetera
+TITLE: Glory of Love
+CHART: Billboard Hot 100
+YEAR: 1986
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: A-ha
+TITLE: Take on Me
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Culture Club
+TITLE: Karma Chameleon
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Phil Collins
+TITLE: Against All Odds
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Rick Astley
+TITLE: Never Gonna Give You Up
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Beat It
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Stevie Wonder
+TITLE: Superstition
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bee Gees
+TITLE: Stayin' Alive
+CHART: Billboard Hot 100
+YEAR: 1978
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Prince
+TITLE: When Doves Cry
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Elton John
+TITLE: Crocodile Rock
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Monkees
+TITLE: I'm a Believer
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Phil Collins
+TITLE: Against All Odds
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Madonna
+TITLE: Like a Virgin
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Marvin Gaye
+TITLE: I Heard It Through the Grapevine
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Monkees
+TITLE: I'm a Believer
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Hey Jude
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Aretha Franklin
+TITLE: Respect
+CHART: Billboard Hot 100
+YEAR: 1967
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Carole King
+TITLE: It's Too Late
+CHART: Billboard Hot 100
+YEAR: 1971
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peter Cetera
+TITLE: Glory of Love
+CHART: Billboard Hot 100
+YEAR: 1986
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: Killing Me Softly with His Song
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Marvin Gaye
+TITLE: I Heard It Through the Grapevine
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: George Michael
+TITLE: Faith
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Rick Astley
+TITLE: Never Gonna Give You Up
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Billie Jean
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Donna Summer
+TITLE: Hot Stuff
+CHART: Billboard Hot 100
+YEAR: 1979
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Billie Jean
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Supremes
+TITLE: You Can't Hurry Love
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Foreigner
+TITLE: I Want to Know What Love Is
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: The First Time Ever I Saw Your Face
+CHART: Billboard Hot 100
+YEAR: 1972
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: Killing Me Softly with His Song
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Eagles
+TITLE: Hotel California
+CHART: Billboard Hot 100
+YEAR: 1977
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Chicago
+TITLE: Hard to Say I'm Sorry
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Hey Jude
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Carole King
+TITLE: It's Too Late
+CHART: Billboard Hot 100
+YEAR: 1971
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Lionel Richie
+TITLE: Hello
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Prince
+TITLE: When Doves Cry
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peabo Bryson & Regina Belle
+TITLE: A Whole New World
+CHART: Billboard Hot 100
+YEAR: 1993
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Whitney Houston
+TITLE: I Wanna Dance with Somebody
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Donna Summer
+TITLE: Hot Stuff
+CHART: Billboard Hot 100
+YEAR: 1979
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Supremes
+TITLE: You Can't Hurry Love
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Beat It
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Stevie Wonder
+TITLE: Superstition
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Madonna
+TITLE: Like a Virgin
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: The First Time Ever I Saw Your Face
+CHART: Billboard Hot 100
+YEAR: 1972
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Hey Jude
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Prince
+TITLE: When Doves Cry
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: George Michael
+TITLE: Faith
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bon Jovi
+TITLE: Livin' on a Prayer
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Eagles
+TITLE: Hotel California
+CHART: Billboard Hot 100
+YEAR: 1977
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Rick Astley
+TITLE: Never Gonna Give You Up
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Elton John
+TITLE: Crocodile Rock
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Donna Summer
+TITLE: Hot Stuff
+CHART: Billboard Hot 100
+YEAR: 1979
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Rick Astley
+TITLE: Never Gonna Give You Up
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Hey Jude
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Carole King
+TITLE: It's Too Late
+CHART: Billboard Hot 100
+YEAR: 1971
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Percy Sledge
+TITLE: When a Man Loves a Woman
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Phil Collins
+TITLE: Against All Odds
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Supremes
+TITLE: You Can't Hurry Love
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Phil Collins
+TITLE: Against All Odds
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Let It Be
+CHART: Billboard Hot 100
+YEAR: 1970
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Beat It
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Beat It
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bee Gees
+TITLE: Stayin' Alive
+CHART: Billboard Hot 100
+YEAR: 1978
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Hall & Oates
+TITLE: Maneater
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Percy Sledge
+TITLE: When a Man Loves a Woman
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: George Michael
+TITLE: Faith
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Whitney Houston
+TITLE: I Wanna Dance with Somebody
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: A-ha
+TITLE: Take on Me
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Percy Sledge
+TITLE: When a Man Loves a Woman
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Billie Jean
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Percy Sledge
+TITLE: When a Man Loves a Woman
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Supremes
+TITLE: You Can't Hurry Love
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Rick Astley
+TITLE: Never Gonna Give You Up
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peter Cetera
+TITLE: Glory of Love
+CHART: Billboard Hot 100
+YEAR: 1986
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Rick Astley
+TITLE: Never Gonna Give You Up
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Monkees
+TITLE: I'm a Believer
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Hall & Oates
+TITLE: Maneater
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Rick Astley
+TITLE: Never Gonna Give You Up
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Let It Be
+CHART: Billboard Hot 100
+YEAR: 1970
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bee Gees
+TITLE: Stayin' Alive
+CHART: Billboard Hot 100
+YEAR: 1978
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Let It Be
+CHART: Billboard Hot 100
+YEAR: 1970
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Supremes
+TITLE: You Can't Hurry Love
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Monkees
+TITLE: I'm a Believer
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Lionel Richie
+TITLE: Hello
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Simon & Garfunkel
+TITLE: Mrs. Robinson
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: George Michael
+TITLE: Faith
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Chicago
+TITLE: Hard to Say I'm Sorry
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peabo Bryson & Regina Belle
+TITLE: A Whole New World
+CHART: Billboard Hot 100
+YEAR: 1993
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Marvin Gaye
+TITLE: I Heard It Through the Grapevine
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Let It Be
+CHART: Billboard Hot 100
+YEAR: 1970
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Culture Club
+TITLE: Karma Chameleon
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Donna Summer
+TITLE: Hot Stuff
+CHART: Billboard Hot 100
+YEAR: 1979
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: A-ha
+TITLE: Take on Me
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Carole King
+TITLE: It's Too Late
+CHART: Billboard Hot 100
+YEAR: 1971
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Hey Jude
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Foreigner
+TITLE: I Want to Know What Love Is
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Aretha Franklin
+TITLE: Respect
+CHART: Billboard Hot 100
+YEAR: 1967
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Rick Astley
+TITLE: Never Gonna Give You Up
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Culture Club
+TITLE: Karma Chameleon
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Hall & Oates
+TITLE: Maneater
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Aretha Franklin
+TITLE: Respect
+CHART: Billboard Hot 100
+YEAR: 1967
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bon Jovi
+TITLE: Livin' on a Prayer
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Carole King
+TITLE: It's Too Late
+CHART: Billboard Hot 100
+YEAR: 1971
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Aretha Franklin
+TITLE: Respect
+CHART: Billboard Hot 100
+YEAR: 1967
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Carole King
+TITLE: It's Too Late
+CHART: Billboard Hot 100
+YEAR: 1971
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Donna Summer
+TITLE: Hot Stuff
+CHART: Billboard Hot 100
+YEAR: 1979
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Stevie Wonder
+TITLE: Superstition
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bee Gees
+TITLE: Stayin' Alive
+CHART: Billboard Hot 100
+YEAR: 1978
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Foreigner
+TITLE: I Want to Know What Love Is
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: A-ha
+TITLE: Take on Me
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: George Michael
+TITLE: Faith
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Aretha Franklin
+TITLE: Respect
+CHART: Billboard Hot 100
+YEAR: 1967
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bon Jovi
+TITLE: Livin' on a Prayer
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Billie Jean
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Supremes
+TITLE: You Can't Hurry Love
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Elton John
+TITLE: Crocodile Rock
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Aretha Franklin
+TITLE: Respect
+CHART: Billboard Hot 100
+YEAR: 1967
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Percy Sledge
+TITLE: When a Man Loves a Woman
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Prince
+TITLE: When Doves Cry
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Carole King
+TITLE: It's Too Late
+CHART: Billboard Hot 100
+YEAR: 1971
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Beat It
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Monkees
+TITLE: I'm a Believer
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Hey Jude
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bon Jovi
+TITLE: Livin' on a Prayer
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Marvin Gaye
+TITLE: I Heard It Through the Grapevine
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: A-ha
+TITLE: Take on Me
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Eagles
+TITLE: Hotel California
+CHART: Billboard Hot 100
+YEAR: 1977
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Simon & Garfunkel
+TITLE: Mrs. Robinson
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Stevie Wonder
+TITLE: Superstition
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: A-ha
+TITLE: Take on Me
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Billie Jean
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Hall & Oates
+TITLE: Maneater
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Billie Jean
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Foreigner
+TITLE: I Want to Know What Love Is
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Foreigner
+TITLE: I Want to Know What Love Is
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Foreigner
+TITLE: I Want to Know What Love Is
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Otis Redding
+TITLE: Dock of the Bay
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peabo Bryson & Regina Belle
+TITLE: A Whole New World
+CHART: Billboard Hot 100
+YEAR: 1993
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Elton John
+TITLE: Crocodile Rock
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Beat It
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bon Jovi
+TITLE: Livin' on a Prayer
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Let It Be
+CHART: Billboard Hot 100
+YEAR: 1970
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Billie Jean
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Foreigner
+TITLE: I Want to Know What Love Is
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Aretha Franklin
+TITLE: Respect
+CHART: Billboard Hot 100
+YEAR: 1967
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Rick Astley
+TITLE: Never Gonna Give You Up
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Chicago
+TITLE: Hard to Say I'm Sorry
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Eagles
+TITLE: Hotel California
+CHART: Billboard Hot 100
+YEAR: 1977
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: George Michael
+TITLE: Faith
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Stevie Wonder
+TITLE: Superstition
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Stevie Wonder
+TITLE: Superstition
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Aretha Franklin
+TITLE: Respect
+CHART: Billboard Hot 100
+YEAR: 1967
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Percy Sledge
+TITLE: When a Man Loves a Woman
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Hall & Oates
+TITLE: Maneater
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Carole King
+TITLE: It's Too Late
+CHART: Billboard Hot 100
+YEAR: 1971
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Lionel Richie
+TITLE: Hello
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Monkees
+TITLE: I'm a Believer
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Rick Astley
+TITLE: Never Gonna Give You Up
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Eagles
+TITLE: Hotel California
+CHART: Billboard Hot 100
+YEAR: 1977
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Otis Redding
+TITLE: Dock of the Bay
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Lionel Richie
+TITLE: Hello
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bee Gees
+TITLE: Stayin' Alive
+CHART: Billboard Hot 100
+YEAR: 1978
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: A-ha
+TITLE: Take on Me
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: A-ha
+TITLE: Take on Me
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Phil Collins
+TITLE: Against All Odds
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Let It Be
+CHART: Billboard Hot 100
+YEAR: 1970
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: Killing Me Softly with His Song
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Hey Jude
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: A-ha
+TITLE: Take on Me
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Chicago
+TITLE: Hard to Say I'm Sorry
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Phil Collins
+TITLE: Against All Odds
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Beat It
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Percy Sledge
+TITLE: When a Man Loves a Woman
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Tina Turner
+TITLE: What's Love Got to Do with It
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Madonna
+TITLE: Like a Virgin
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: George Michael
+TITLE: Faith
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Whitney Houston
+TITLE: I Wanna Dance with Somebody
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Otis Redding
+TITLE: Dock of the Bay
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Prince
+TITLE: When Doves Cry
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Hey Jude
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Whitney Houston
+TITLE: I Wanna Dance with Somebody
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Prince
+TITLE: When Doves Cry
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Phil Collins
+TITLE: Against All Odds
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Otis Redding
+TITLE: Dock of the Bay
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Elton John
+TITLE: Crocodile Rock
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Hey Jude
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Billie Jean
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Carole King
+TITLE: It's Too Late
+CHART: Billboard Hot 100
+YEAR: 1971
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Lionel Richie
+TITLE: Hello
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Aretha Franklin
+TITLE: Respect
+CHART: Billboard Hot 100
+YEAR: 1967
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Phil Collins
+TITLE: Against All Odds
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: George Michael
+TITLE: Faith
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Aretha Franklin
+TITLE: Respect
+CHART: Billboard Hot 100
+YEAR: 1967
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Lionel Richie
+TITLE: Hello
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peter Cetera
+TITLE: Glory of Love
+CHART: Billboard Hot 100
+YEAR: 1986
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Eagles
+TITLE: Hotel California
+CHART: Billboard Hot 100
+YEAR: 1977
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Marvin Gaye
+TITLE: I Heard It Through the Grapevine
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Eagles
+TITLE: Hotel California
+CHART: Billboard Hot 100
+YEAR: 1977
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Simon & Garfunkel
+TITLE: Mrs. Robinson
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Marvin Gaye
+TITLE: I Heard It Through the Grapevine
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Billie Jean
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Percy Sledge
+TITLE: When a Man Loves a Woman
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Donna Summer
+TITLE: Hot Stuff
+CHART: Billboard Hot 100
+YEAR: 1979
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Eagles
+TITLE: Hotel California
+CHART: Billboard Hot 100
+YEAR: 1977
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peter Cetera
+TITLE: Glory of Love
+CHART: Billboard Hot 100
+YEAR: 1986
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Rick Astley
+TITLE: Never Gonna Give You Up
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Whitney Houston
+TITLE: I Wanna Dance with Somebody
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Elton John
+TITLE: Crocodile Rock
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Lionel Richie
+TITLE: Hello
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peter Cetera
+TITLE: Glory of Love
+CHART: Billboard Hot 100
+YEAR: 1986
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Let It Be
+CHART: Billboard Hot 100
+YEAR: 1970
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Phil Collins
+TITLE: Against All Odds
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peabo Bryson & Regina Belle
+TITLE: A Whole New World
+CHART: Billboard Hot 100
+YEAR: 1993
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peabo Bryson & Regina Belle
+TITLE: A Whole New World
+CHART: Billboard Hot 100
+YEAR: 1993
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Stevie Wonder
+TITLE: Superstition
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Marvin Gaye
+TITLE: I Heard It Through the Grapevine
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Tina Turner
+TITLE: What's Love Got to Do with It
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Chicago
+TITLE: Hard to Say I'm Sorry
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Monkees
+TITLE: I'm a Believer
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Billie Jean
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: A-ha
+TITLE: Take on Me
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Marvin Gaye
+TITLE: I Heard It Through the Grapevine
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peabo Bryson & Regina Belle
+TITLE: A Whole New World
+CHART: Billboard Hot 100
+YEAR: 1993
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Monkees
+TITLE: I'm a Believer
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: Killing Me Softly with His Song
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bon Jovi
+TITLE: Livin' on a Prayer
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Tina Turner
+TITLE: What's Love Got to Do with It
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Prince
+TITLE: When Doves Cry
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Billie Jean
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Beat It
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Carole King
+TITLE: It's Too Late
+CHART: Billboard Hot 100
+YEAR: 1971
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Carole King
+TITLE: It's Too Late
+CHART: Billboard Hot 100
+YEAR: 1971
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Phil Collins
+TITLE: Against All Odds
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Donna Summer
+TITLE: Hot Stuff
+CHART: Billboard Hot 100
+YEAR: 1979
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Beat It
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bon Jovi
+TITLE: Livin' on a Prayer
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peabo Bryson & Regina Belle
+TITLE: A Whole New World
+CHART: Billboard Hot 100
+YEAR: 1993
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Phil Collins
+TITLE: Against All Odds
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Otis Redding
+TITLE: Dock of the Bay
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: Killing Me Softly with His Song
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: Killing Me Softly with His Song
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Aretha Franklin
+TITLE: Respect
+CHART: Billboard Hot 100
+YEAR: 1967
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Stevie Wonder
+TITLE: Superstition
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Rick Astley
+TITLE: Never Gonna Give You Up
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: A-ha
+TITLE: Take on Me
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peabo Bryson & Regina Belle
+TITLE: A Whole New World
+CHART: Billboard Hot 100
+YEAR: 1993
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bee Gees
+TITLE: Stayin' Alive
+CHART: Billboard Hot 100
+YEAR: 1978
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Chicago
+TITLE: Hard to Say I'm Sorry
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Prince
+TITLE: When Doves Cry
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Chicago
+TITLE: Hard to Say I'm Sorry
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peter Cetera
+TITLE: Glory of Love
+CHART: Billboard Hot 100
+YEAR: 1986
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Monkees
+TITLE: I'm a Believer
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peabo Bryson & Regina Belle
+TITLE: A Whole New World
+CHART: Billboard Hot 100
+YEAR: 1993
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Elton John
+TITLE: Crocodile Rock
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Donna Summer
+TITLE: Hot Stuff
+CHART: Billboard Hot 100
+YEAR: 1979
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: The First Time Ever I Saw Your Face
+CHART: Billboard Hot 100
+YEAR: 1972
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Prince
+TITLE: When Doves Cry
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peabo Bryson & Regina Belle
+TITLE: A Whole New World
+CHART: Billboard Hot 100
+YEAR: 1993
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Whitney Houston
+TITLE: I Wanna Dance with Somebody
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Donna Summer
+TITLE: Hot Stuff
+CHART: Billboard Hot 100
+YEAR: 1979
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Lionel Richie
+TITLE: Hello
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Carole King
+TITLE: It's Too Late
+CHART: Billboard Hot 100
+YEAR: 1971
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Elton John
+TITLE: Crocodile Rock
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Let It Be
+CHART: Billboard Hot 100
+YEAR: 1970
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Tina Turner
+TITLE: What's Love Got to Do with It
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: George Michael
+TITLE: Faith
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Tina Turner
+TITLE: What's Love Got to Do with It
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Hall & Oates
+TITLE: Maneater
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Stevie Wonder
+TITLE: Superstition
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: George Michael
+TITLE: Faith
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Eagles
+TITLE: Hotel California
+CHART: Billboard Hot 100
+YEAR: 1977
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Prince
+TITLE: When Doves Cry
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Marvin Gaye
+TITLE: I Heard It Through the Grapevine
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: A-ha
+TITLE: Take on Me
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Eagles
+TITLE: Hotel California
+CHART: Billboard Hot 100
+YEAR: 1977
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Lionel Richie
+TITLE: Hello
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Monkees
+TITLE: I'm a Believer
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Rick Astley
+TITLE: Never Gonna Give You Up
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Hall & Oates
+TITLE: Maneater
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Stevie Wonder
+TITLE: Superstition
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Eagles
+TITLE: Hotel California
+CHART: Billboard Hot 100
+YEAR: 1977
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Donna Summer
+TITLE: Hot Stuff
+CHART: Billboard Hot 100
+YEAR: 1979
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: George Michael
+TITLE: Faith
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Phil Collins
+TITLE: Against All Odds
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Chicago
+TITLE: Hard to Say I'm Sorry
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peter Cetera
+TITLE: Glory of Love
+CHART: Billboard Hot 100
+YEAR: 1986
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Beat It
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Let It Be
+CHART: Billboard Hot 100
+YEAR: 1970
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Monkees
+TITLE: I'm a Believer
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Supremes
+TITLE: You Can't Hurry Love
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peter Cetera
+TITLE: Glory of Love
+CHART: Billboard Hot 100
+YEAR: 1986
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bon Jovi
+TITLE: Livin' on a Prayer
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: A-ha
+TITLE: Take on Me
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Hey Jude
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Aretha Franklin
+TITLE: Respect
+CHART: Billboard Hot 100
+YEAR: 1967
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Phil Collins
+TITLE: Against All Odds
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Hall & Oates
+TITLE: Maneater
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Foreigner
+TITLE: I Want to Know What Love Is
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Chicago
+TITLE: Hard to Say I'm Sorry
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Donna Summer
+TITLE: Hot Stuff
+CHART: Billboard Hot 100
+YEAR: 1979
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Simon & Garfunkel
+TITLE: Mrs. Robinson
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bee Gees
+TITLE: Stayin' Alive
+CHART: Billboard Hot 100
+YEAR: 1978
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Percy Sledge
+TITLE: When a Man Loves a Woman
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Percy Sledge
+TITLE: When a Man Loves a Woman
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Hall & Oates
+TITLE: Maneater
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Simon & Garfunkel
+TITLE: Mrs. Robinson
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Foreigner
+TITLE: I Want to Know What Love Is
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peabo Bryson & Regina Belle
+TITLE: A Whole New World
+CHART: Billboard Hot 100
+YEAR: 1993
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Supremes
+TITLE: You Can't Hurry Love
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Hey Jude
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Monkees
+TITLE: I'm a Believer
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bee Gees
+TITLE: Stayin' Alive
+CHART: Billboard Hot 100
+YEAR: 1978
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Supremes
+TITLE: You Can't Hurry Love
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Beat It
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Monkees
+TITLE: I'm a Believer
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Carole King
+TITLE: It's Too Late
+CHART: Billboard Hot 100
+YEAR: 1971
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Hall & Oates
+TITLE: Maneater
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peter Cetera
+TITLE: Glory of Love
+CHART: Billboard Hot 100
+YEAR: 1986
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Otis Redding
+TITLE: Dock of the Bay
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Simon & Garfunkel
+TITLE: Mrs. Robinson
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Aretha Franklin
+TITLE: Respect
+CHART: Billboard Hot 100
+YEAR: 1967
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Beat It
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Hall & Oates
+TITLE: Maneater
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Elton John
+TITLE: Crocodile Rock
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: George Michael
+TITLE: Faith
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Carole King
+TITLE: It's Too Late
+CHART: Billboard Hot 100
+YEAR: 1971
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bee Gees
+TITLE: Stayin' Alive
+CHART: Billboard Hot 100
+YEAR: 1978
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Hey Jude
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Hey Jude
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Culture Club
+TITLE: Karma Chameleon
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Beat It
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Foreigner
+TITLE: I Want to Know What Love Is
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Eagles
+TITLE: Hotel California
+CHART: Billboard Hot 100
+YEAR: 1977
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Whitney Houston
+TITLE: I Wanna Dance with Somebody
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Donna Summer
+TITLE: Hot Stuff
+CHART: Billboard Hot 100
+YEAR: 1979
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bon Jovi
+TITLE: Livin' on a Prayer
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Hall & Oates
+TITLE: Maneater
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Donna Summer
+TITLE: Hot Stuff
+CHART: Billboard Hot 100
+YEAR: 1979
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peabo Bryson & Regina Belle
+TITLE: A Whole New World
+CHART: Billboard Hot 100
+YEAR: 1993
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Donna Summer
+TITLE: Hot Stuff
+CHART: Billboard Hot 100
+YEAR: 1979
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Let It Be
+CHART: Billboard Hot 100
+YEAR: 1970
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Tina Turner
+TITLE: What's Love Got to Do with It
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Beat It
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Marvin Gaye
+TITLE: I Heard It Through the Grapevine
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Let It Be
+CHART: Billboard Hot 100
+YEAR: 1970
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Elton John
+TITLE: Crocodile Rock
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: A-ha
+TITLE: Take on Me
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Tina Turner
+TITLE: What's Love Got to Do with It
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Carole King
+TITLE: It's Too Late
+CHART: Billboard Hot 100
+YEAR: 1971
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bee Gees
+TITLE: Stayin' Alive
+CHART: Billboard Hot 100
+YEAR: 1978
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peter Cetera
+TITLE: Glory of Love
+CHART: Billboard Hot 100
+YEAR: 1986
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Lionel Richie
+TITLE: Hello
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bee Gees
+TITLE: Stayin' Alive
+CHART: Billboard Hot 100
+YEAR: 1978
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: A-ha
+TITLE: Take on Me
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Supremes
+TITLE: You Can't Hurry Love
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Prince
+TITLE: When Doves Cry
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Tina Turner
+TITLE: What's Love Got to Do with It
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Lionel Richie
+TITLE: Hello
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Phil Collins
+TITLE: Against All Odds
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Elton John
+TITLE: Crocodile Rock
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Hey Jude
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Billie Jean
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Rick Astley
+TITLE: Never Gonna Give You Up
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Aretha Franklin
+TITLE: Respect
+CHART: Billboard Hot 100
+YEAR: 1967
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Stevie Wonder
+TITLE: Superstition
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: A-ha
+TITLE: Take on Me
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Elton John
+TITLE: Crocodile Rock
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Beat It
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Elton John
+TITLE: Crocodile Rock
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bee Gees
+TITLE: Stayin' Alive
+CHART: Billboard Hot 100
+YEAR: 1978
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Foreigner
+TITLE: I Want to Know What Love Is
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bee Gees
+TITLE: Stayin' Alive
+CHART: Billboard Hot 100
+YEAR: 1978
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Carole King
+TITLE: It's Too Late
+CHART: Billboard Hot 100
+YEAR: 1971
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Billie Jean
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Simon & Garfunkel
+TITLE: Mrs. Robinson
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: A-ha
+TITLE: Take on Me
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: The First Time Ever I Saw Your Face
+CHART: Billboard Hot 100
+YEAR: 1972
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bee Gees
+TITLE: Stayin' Alive
+CHART: Billboard Hot 100
+YEAR: 1978
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: A-ha
+TITLE: Take on Me
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Tina Turner
+TITLE: What's Love Got to Do with It
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Marvin Gaye
+TITLE: I Heard It Through the Grapevine
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Percy Sledge
+TITLE: When a Man Loves a Woman
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Phil Collins
+TITLE: Against All Odds
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Marvin Gaye
+TITLE: I Heard It Through the Grapevine
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Stevie Wonder
+TITLE: Superstition
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Let It Be
+CHART: Billboard Hot 100
+YEAR: 1970
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Percy Sledge
+TITLE: When a Man Loves a Woman
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Tina Turner
+TITLE: What's Love Got to Do with It
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Marvin Gaye
+TITLE: I Heard It Through the Grapevine
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Marvin Gaye
+TITLE: I Heard It Through the Grapevine
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: The First Time Ever I Saw Your Face
+CHART: Billboard Hot 100
+YEAR: 1972
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Phil Collins
+TITLE: Against All Odds
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Chicago
+TITLE: Hard to Say I'm Sorry
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Whitney Houston
+TITLE: I Wanna Dance with Somebody
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Otis Redding
+TITLE: Dock of the Bay
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: Killing Me Softly with His Song
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Prince
+TITLE: When Doves Cry
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Elton John
+TITLE: Crocodile Rock
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: The First Time Ever I Saw Your Face
+CHART: Billboard Hot 100
+YEAR: 1972
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Hall & Oates
+TITLE: Maneater
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Foreigner
+TITLE: I Want to Know What Love Is
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Supremes
+TITLE: You Can't Hurry Love
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Beat It
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: George Michael
+TITLE: Faith
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Lionel Richie
+TITLE: Hello
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Prince
+TITLE: When Doves Cry
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Chicago
+TITLE: Hard to Say I'm Sorry
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: Killing Me Softly with His Song
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Simon & Garfunkel
+TITLE: Mrs. Robinson
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Hey Jude
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Eagles
+TITLE: Hotel California
+CHART: Billboard Hot 100
+YEAR: 1977
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Madonna
+TITLE: Like a Virgin
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Tina Turner
+TITLE: What's Love Got to Do with It
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Otis Redding
+TITLE: Dock of the Bay
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peabo Bryson & Regina Belle
+TITLE: A Whole New World
+CHART: Billboard Hot 100
+YEAR: 1993
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Stevie Wonder
+TITLE: Superstition
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: George Michael
+TITLE: Faith
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Madonna
+TITLE: Like a Virgin
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Beat It
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peter Cetera
+TITLE: Glory of Love
+CHART: Billboard Hot 100
+YEAR: 1986
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Marvin Gaye
+TITLE: I Heard It Through the Grapevine
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bon Jovi
+TITLE: Livin' on a Prayer
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Elton John
+TITLE: Crocodile Rock
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Lionel Richie
+TITLE: Hello
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Culture Club
+TITLE: Karma Chameleon
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Chicago
+TITLE: Hard to Say I'm Sorry
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Elton John
+TITLE: Crocodile Rock
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Whitney Houston
+TITLE: I Wanna Dance with Somebody
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Lionel Richie
+TITLE: Hello
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bon Jovi
+TITLE: Livin' on a Prayer
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Let It Be
+CHART: Billboard Hot 100
+YEAR: 1970
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Tina Turner
+TITLE: What's Love Got to Do with It
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Donna Summer
+TITLE: Hot Stuff
+CHART: Billboard Hot 100
+YEAR: 1979
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Phil Collins
+TITLE: Against All Odds
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Supremes
+TITLE: You Can't Hurry Love
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: George Michael
+TITLE: Faith
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Supremes
+TITLE: You Can't Hurry Love
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Foreigner
+TITLE: I Want to Know What Love Is
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Aretha Franklin
+TITLE: Respect
+CHART: Billboard Hot 100
+YEAR: 1967
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Marvin Gaye
+TITLE: I Heard It Through the Grapevine
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Carole King
+TITLE: It's Too Late
+CHART: Billboard Hot 100
+YEAR: 1971
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Elton John
+TITLE: Crocodile Rock
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Aretha Franklin
+TITLE: Respect
+CHART: Billboard Hot 100
+YEAR: 1967
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Prince
+TITLE: When Doves Cry
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Lionel Richie
+TITLE: Hello
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Eagles
+TITLE: Hotel California
+CHART: Billboard Hot 100
+YEAR: 1977
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Prince
+TITLE: When Doves Cry
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Supremes
+TITLE: You Can't Hurry Love
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Carole King
+TITLE: It's Too Late
+CHART: Billboard Hot 100
+YEAR: 1971
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Whitney Houston
+TITLE: I Wanna Dance with Somebody
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Eagles
+TITLE: Hotel California
+CHART: Billboard Hot 100
+YEAR: 1977
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Beat It
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Hey Jude
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Aretha Franklin
+TITLE: Respect
+CHART: Billboard Hot 100
+YEAR: 1967
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Let It Be
+CHART: Billboard Hot 100
+YEAR: 1970
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bee Gees
+TITLE: Stayin' Alive
+CHART: Billboard Hot 100
+YEAR: 1978
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Simon & Garfunkel
+TITLE: Mrs. Robinson
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bon Jovi
+TITLE: Livin' on a Prayer
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Foreigner
+TITLE: I Want to Know What Love Is
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: George Michael
+TITLE: Faith
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Carole King
+TITLE: It's Too Late
+CHART: Billboard Hot 100
+YEAR: 1971
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peter Cetera
+TITLE: Glory of Love
+CHART: Billboard Hot 100
+YEAR: 1986
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: A-ha
+TITLE: Take on Me
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Monkees
+TITLE: I'm a Believer
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: A-ha
+TITLE: Take on Me
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: The First Time Ever I Saw Your Face
+CHART: Billboard Hot 100
+YEAR: 1972
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Beatles
+TITLE: Hey Jude
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Beat It
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Percy Sledge
+TITLE: When a Man Loves a Woman
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Donna Summer
+TITLE: Hot Stuff
+CHART: Billboard Hot 100
+YEAR: 1979
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Whitney Houston
+TITLE: I Wanna Dance with Somebody
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Whitney Houston
+TITLE: I Wanna Dance with Somebody
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Foreigner
+TITLE: I Want to Know What Love Is
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Lionel Richie
+TITLE: Hello
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Rick Astley
+TITLE: Never Gonna Give You Up
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Elton John
+TITLE: Crocodile Rock
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Phil Collins
+TITLE: Against All Odds
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: Killing Me Softly with His Song
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Donna Summer
+TITLE: Hot Stuff
+CHART: Billboard Hot 100
+YEAR: 1979
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Tina Turner
+TITLE: What's Love Got to Do with It
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Aretha Franklin
+TITLE: Respect
+CHART: Billboard Hot 100
+YEAR: 1967
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Supremes
+TITLE: You Can't Hurry Love
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bon Jovi
+TITLE: Livin' on a Prayer
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peabo Bryson & Regina Belle
+TITLE: A Whole New World
+CHART: Billboard Hot 100
+YEAR: 1993
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Culture Club
+TITLE: Karma Chameleon
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Whitney Houston
+TITLE: I Wanna Dance with Somebody
+CHART: Billboard Hot 100
+YEAR: 1987
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: Killing Me Softly with His Song
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Peter Cetera
+TITLE: Glory of Love
+CHART: Billboard Hot 100
+YEAR: 1986
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Simon & Garfunkel
+TITLE: Mrs. Robinson
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Aretha Franklin
+TITLE: Respect
+CHART: Billboard Hot 100
+YEAR: 1967
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Carole King
+TITLE: It's Too Late
+CHART: Billboard Hot 100
+YEAR: 1971
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Rolling Stones
+TITLE: Satisfaction
+CHART: Billboard Hot 100
+YEAR: 1965
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Stevie Wonder
+TITLE: Superstition
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Simon & Garfunkel
+TITLE: Mrs. Robinson
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Tina Turner
+TITLE: What's Love Got to Do with It
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: A-ha
+TITLE: Take on Me
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Chicago
+TITLE: Hard to Say I'm Sorry
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: The First Time Ever I Saw Your Face
+CHART: Billboard Hot 100
+YEAR: 1972
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Bee Gees
+TITLE: Stayin' Alive
+CHART: Billboard Hot 100
+YEAR: 1978
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Monkees
+TITLE: I'm a Believer
+CHART: Billboard Hot 100
+YEAR: 1966
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Tina Turner
+TITLE: What's Love Got to Do with It
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Foreigner
+TITLE: I Want to Know What Love Is
+CHART: Billboard Hot 100
+YEAR: 1985
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Donna Summer
+TITLE: Hot Stuff
+CHART: Billboard Hot 100
+YEAR: 1979
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Culture Club
+TITLE: Karma Chameleon
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Otis Redding
+TITLE: Dock of the Bay
+CHART: Billboard Hot 100
+YEAR: 1968
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Billie Jean
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Michael Jackson
+TITLE: Billie Jean
+CHART: Billboard Hot 100
+YEAR: 1983
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Eagles
+TITLE: Hotel California
+CHART: Billboard Hot 100
+YEAR: 1977
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: The Eagles
+TITLE: Hotel California
+CHART: Billboard Hot 100
+YEAR: 1977
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Lionel Richie
+TITLE: Hello
+CHART: Billboard Hot 100
+YEAR: 1984
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Carole King
+TITLE: It's Too Late
+CHART: Billboard Hot 100
+YEAR: 1971
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Carole King
+TITLE: It's Too Late
+CHART: Billboard Hot 100
+YEAR: 1971
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Elton John
+TITLE: Crocodile Rock
+CHART: Billboard Hot 100
+YEAR: 1973
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Chicago
+TITLE: Hard to Say I'm Sorry
+CHART: Billboard Hot 100
+YEAR: 1982
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Donna Summer
+TITLE: Hot Stuff
+CHART: Billboard Hot 100
+YEAR: 1979
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
+
+ARTIST: Roberta Flack
+TITLE: The First Time Ever I Saw Your Face
+CHART: Billboard Hot 100
+YEAR: 1972
+PEAK: 1
+WEEKS: 
+#1: yes
+#1 WEEKS: 
+ANCHOR WEEK: 
+SOURCE: VERIFY (Top40Weekly/Billboard)
