@@ -1,26 +1,19 @@
 /**
- * musicKnowledge.js — Bulletproof V2.9
+ * musicKnowledge.js — Bulletproof V2.10
  *
- * V2.9 Adds / Fixes:
+ * V2.10 Adds / Fixes:
+ * - DB consistency: DB.moments is now de-duped to match MOMENT_INDEX
+ *   (eliminates db.moments.length != Loaded moments mismatch)
+ * - Adds findYearsForArtistTitle(artist, title, chart?) helper for smarter fallback/corrections
+ *
+ * V2.9 (kept):
  * - Top40Weekly Year-End Top 100 is now a distinct chart:
  *      chart: "Top40Weekly Top 100"
- *   (prevents confusion with weekly Top40Weekly streams)
  * - normalizeChart() recognizes Top40Weekly Top 100 aliases ("top100", "top 100", etc.)
  * - getTopByYear() prefers Top40Weekly Top 100 first, then falls back
- *
- * Keeps:
- * - Deterministic DB selection on Render:
- *    1) MUSIC_DB_PATH (if valid)
- *    2) preferred default: Data/music_moments_v2_layer2_plus500.json (must be non-empty)
- *    3) fallback scan: pick largest music_moments*.json inside Data/ (must be non-empty)
- * - Reject 0-byte DB candidates
- * - Top40Weekly merge: skip placeholder/empty JSON files (e.g., "[]")
- * - Year-only support
- * - Nearest-year correction for mismatch cases
- * - Correction flags for index.js:
- *    _correctedYear, _inputYear
- *    _correctedArtist, _inputArtist
- *    _correctedTitle, _inputTitle
+ * - Deterministic DB selection (Render-safe)
+ * - Skip placeholder/empty Top40Weekly JSON files (e.g., "[]")
+ * - Year-only support + nearest-year correction flags
  *
  * NOTE: We return shallow copies when adding flags so we don't mutate MOMENT_INDEX.
  */
@@ -78,7 +71,7 @@ const CHART_ALIASES = new Map([
   ["top 40 weekly", "Top40Weekly"],
   ["top 40", "Top40Weekly"],
 
-  // Year-end top100 aliases (NEW)
+  // Year-end top100 aliases
   ["top40weekly top 100", "Top40Weekly Top 100"],
   ["top40weekly top100", "Top40Weekly Top 100"],
   ["top40weekly year end", "Top40Weekly Top 100"],
@@ -557,6 +550,9 @@ function loadDb() {
   DB = { moments: merged };
   buildIndexes(merged);
 
+  // V2.10: keep DB.moments consistent with indexed, de-duped moments
+  DB.moments = MOMENT_INDEX.slice();
+
   LOADED = true;
   return DB;
 }
@@ -701,7 +697,7 @@ function getTopByYear(year, n = 10) {
   const y = Number(year);
   const limit = Math.max(1, Math.min(100, Number(n) || 10));
 
-  // Prefer Top40Weekly Year-End Top 100 first (NEW)
+  // Prefer Top40Weekly Year-End Top 100 first
   const yearEnd = MOMENT_INDEX
     .filter((m) => m.year === y && norm(m.chart) === norm("Top40Weekly Top 100") && m.peak != null)
     .sort((a, b) => (a.peak || 999) - (b.peak || 999))
@@ -724,6 +720,26 @@ function getTopByYear(year, n = 10) {
     .slice(0, limit);
 
   return any;
+}
+
+// =============================
+// SMART FALLBACK HELPERS (NEW)
+// =============================
+function findYearsForArtistTitle(artist, title, chart = null) {
+  getDb();
+  const na = norm(artist);
+  const nt = norm(title);
+  const chartNorm = chart ? norm(normalizeChart(chart)) : null;
+
+  const years = new Set();
+  for (const m of MOMENT_INDEX) {
+    if (m._na !== na) continue;
+    if (m._nt !== nt) continue;
+    if (chartNorm && norm(m.chart) !== chartNorm) continue;
+    if (m.year) years.add(m.year);
+  }
+
+  return Array.from(years).sort((a, b) => a - b);
 }
 
 // =============================
@@ -991,6 +1007,9 @@ module.exports = {
   detectTitle,
   extractYear,
   normalizeChart,
+
+  // smarter fallback helper (NEW)
+  findYearsForArtistTitle,
 
   // Expansion helpers
   getAllMoments,
