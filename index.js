@@ -1,11 +1,13 @@
 /**
  * index.js — Nyx Broadcast Backend (Wizard-Locked)
- * Build: nyx-wizard-v1.88-wizard+healthstats
+ * Build: nyx-wizard-v1.89-smartfallback
  *
- * v1.88 changes:
- * - Restores full wizard music flow (year-only pick ladder + relaxed retries)
- * - Adds KB stats to /api/health (moments/year range/charts + error)
- * - Worker supports op="stats"
+ * v1.89 changes:
+ * - Smarter music fallback:
+ *    - If artist+title+year mismatch: propose nearest available year(s) instead of blunt "not found"
+ *    - If artist+title provided (no exact match): suggest available years
+ * - Adds Top40Weekly Top 100 chart parsing + normalization support
+ * - Keeps /api/health KB stats + worker stats op
  */
 
 "use strict";
@@ -64,6 +66,24 @@ if (!isMainThread) {
     }
   }
 
+  function nearestYearFromList(years, targetYear) {
+    const y = Number(targetYear);
+    if (!Array.isArray(years) || years.length === 0 || !Number.isFinite(y)) return null;
+
+    let best = null;
+    let bestDist = Infinity;
+    for (const yr of years) {
+      const n = Number(yr);
+      if (!Number.isFinite(n)) continue;
+      const d = Math.abs(n - y);
+      if (d < bestDist) {
+        bestDist = d;
+        best = n;
+      }
+    }
+    return best;
+  }
+
   function handleJob(msg) {
     const id = msg && msg.id;
     const op = String(msg && msg.op ? msg.op : "query");
@@ -88,7 +108,11 @@ if (!isMainThread) {
         artist: safe(() => musicKB.detectArtist?.(text), null),
         title: safe(() => musicKB.detectTitle?.(text), null),
         chart: safe(() => musicKB.normalizeChart?.(laneDetail?.chart), laneDetail?.chart || null),
-        best: null
+        best: null,
+
+        // NEW: fallback intelligence signals
+        candidateYears: null,
+        nearestYear: null
       };
 
       const slots = { ...(laneDetail || {}) };
@@ -145,6 +169,15 @@ if (!isMainThread) {
         }
       }
 
+      // NEW: if still no match, compute candidate years for artist+title
+      if (!out.best && hasArtist && hasTitle && typeof musicKB.findYearsForArtistTitle === "function") {
+        const years = safe(() => musicKB.findYearsForArtistTitle(slots.artist, slots.title, slots.chart), []);
+        out.candidateYears = Array.isArray(years) ? years.slice(0, 20) : null;
+        if (hasYear && Array.isArray(out.candidateYears) && out.candidateYears.length) {
+          out.nearestYear = nearestYearFromList(out.candidateYears, slots.year);
+        }
+      }
+
       parentPort.postMessage({ id, ok: true, out });
     } catch (e) {
       parentPort.postMessage({ id, ok: false, error: String(e?.message || e) });
@@ -166,7 +199,7 @@ app.use(cors({ origin: true }));
 app.options("*", cors());
 
 const PORT = process.env.PORT || 3000;
-const BUILD_TAG = "nyx-wizard-v1.88-wizard+healthstats";
+const BUILD_TAG = "nyx-wizard-v1.89-smartfallback";
 const DEFAULT_CHART = "Billboard Hot 100";
 const KB_TIMEOUT_MS = Number(process.env.KB_TIMEOUT_MS || 900);
 
@@ -210,6 +243,10 @@ function parseChartFromText(text) {
   const t = normalizeUserText(text).toLowerCase();
   if (!t) return null;
 
+  // Explicit year-end Top100
+  if (/\btop40weekly\b.*\b(top\s*100|top100|year[- ]?end)\b/.test(t)) return "Top40Weekly Top 100";
+  if (/\b(top\s*100|top100|year[- ]?end)\b.*\btop40weekly\b/.test(t)) return "Top40Weekly Top 100";
+
   if (/\btop40weekly\b|\btop 40 weekly\b/.test(t)) return "Top40Weekly";
   if (/\bcanada\b|\brpm\b|\bcanada rpm\b/.test(t)) return "Canada RPM";
   if (/\buk\b|\buk singles\b|\buk singles chart\b/.test(t)) return "UK Singles Chart";
@@ -239,8 +276,9 @@ function correctionPreface(best) {
   if (!best || typeof best !== "object") return "";
   const parts = [];
 
-  if (best._correctedYear && best._originalYear && best.year && best._originalYear !== best.year) {
-    parts.push(`Quick correction — anchoring to ${best.year} (not ${best._originalYear}).`);
+  const originalYear = best._inputYear || best._originalYear || null;
+  if (best._correctedYear && originalYear && best.year && originalYear !== best.year) {
+    parts.push(`Quick correction — anchoring to ${best.year} (not ${originalYear}).`);
   }
   if (best._correctedChart && best._originalChart && best.chart && best._originalChart !== best.chart) {
     parts.push(`Chart note — using ${best.chart} (not ${best._originalChart}).`);
@@ -382,6 +420,17 @@ async function kbStats(timeoutMs = 700) {
 // =======================================================
 // SMART YEAR FLOW (basic: relies on musicKnowledge methods)
 // =======================================================
+function formatYearSuggestions(candidateYears, nearestYear) {
+  const years = Array.isArray(candidateYears) ? candidateYears.filter((y) => Number.isFinite(Number(y))) : [];
+  if (!years.length) return null;
+
+  const show = years.slice(0, 6).join(", ");
+  if (nearestYear != null) {
+    return `Closest match year: ${nearestYear}. Other available years: ${show}.`;
+  }
+  return `Available years I can anchor for that track: ${show}.`;
+}
+
 async function handleMusic(req, res, key, sess, rawText) {
   const text = normalizeUserText(rawText);
 
@@ -403,10 +452,24 @@ async function handleMusic(req, res, key, sess, rawText) {
       const preface = correctionPreface(best);
       const chart = best.chart || sess.laneDetail.chart || DEFAULT_CHART;
       const followUp = pickOne(musicContinuations(chart), "Want another year?");
-      return send(res, key, sess, "music_year_pick", `${preface}${best.artist} — "${best.title}" (${best.year})\nChart: ${chart}\n\n${followUp}`, true);
+      return send(
+        res,
+        key,
+        sess,
+        "music_year_pick",
+        `${preface}${best.artist} — "${best.title}" (${best.year})\nChart: ${chart}\n\n${followUp}`,
+        true
+      );
     }
 
-    return send(res, key, sess, "music_year_nohit", `I don’t have a hit indexed for ${y} yet. Try another year (example: 1987) — or switch chart (UK / Canada / Top40Weekly).`, false);
+    return send(
+      res,
+      key,
+      sess,
+      "music_year_nohit",
+      `I don’t have a hit indexed for ${y} yet on this chart. Try another year (example: 1987) — or switch chart (UK / Canada / Top40Weekly / Top40Weekly Top 100).`,
+      false
+    );
   }
 
   // Artist - Title path
@@ -434,7 +497,30 @@ async function handleMusic(req, res, key, sess, rawText) {
     return send(res, key, sess, "music_answer", `${preface}${best.artist} — "${best.title}" (${best.year})\nChart: ${chart}\n\n${followUp}`, true);
   }
 
-  return send(res, key, sess, "music_not_found", `I didn’t find that exact match yet.\nTry: Artist - Title (no year) and I’ll anchor the nearest year.`, false);
+  // NEW: smart fallback if we have candidate years for artist+title
+  const candidateYears = kbResult?.out?.candidateYears || null;
+  const nearestYear = kbResult?.out?.nearestYear ?? null;
+
+  if (sess.laneDetail?.artist && sess.laneDetail?.title && Array.isArray(candidateYears) && candidateYears.length) {
+    const sug = formatYearSuggestions(candidateYears, nearestYear);
+    const userYear = sess.laneDetail?.year ? Number(sess.laneDetail.year) : null;
+
+    const prompt = userYear && Number.isFinite(userYear) && nearestYear != null
+      ? `I don’t have ${sess.laneDetail.artist} — "${sess.laneDetail.title}" for ${userYear}. ${sug}\n\nReply with the year you want (or say “use ${nearestYear}”).`
+      : `I can’t lock the exact match yet, but I can anchor it cleanly. ${sug}\n\nReply with the year you want.`;
+
+    return send(res, key, sess, "music_smart_fallback", prompt, false);
+  }
+
+  // Final fallback (still softer, and gives a clear next step)
+  return send(
+    res,
+    key,
+    sess,
+    "music_not_found",
+    `I’m not seeing a clean match yet.\nTry: Artist - Title (example: Styx - Babe) or just a year (example: 1984).`,
+    false
+  );
 }
 
 // =======================================================
