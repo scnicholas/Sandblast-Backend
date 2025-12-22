@@ -1,11 +1,8 @@
 /**
- * Scripts/import_top40weekly_1990s.js (V4 — hybrid parser, FIXED & CLEAN)
+ * Scripts/import_top40weekly_1990s.js (V5 — heading slicer)
  *
- * Handles inconsistent markup across years on Top40Weekly 1990s page.
- * Strategy per year section:
- *  1) Parse <ol>/<ul><li>
- *  2) Parse <table>
- *  3) Fallback: parse ranked text lines inside the year section
+ * Fixes empty 1990–1998 by slicing the HTML by <h2>YEAR</h2> sections
+ * instead of the TOC anchor IDs, which appear before the list content.
  *
  * Emits:
  *   Data/top40weekly/top100_1990.json ... top100_1999.json
@@ -37,7 +34,7 @@ function decodeEntities(s) {
 
 function stripTagsOneLine(html) {
   return decodeEntities(
-    String(html)
+    String(html || "")
       .replace(/<script[\s\S]*?<\/script>/gi, " ")
       .replace(/<style[\s\S]*?<\/style>/gi, " ")
       .replace(/<[^>]+>/g, " ")
@@ -46,32 +43,20 @@ function stripTagsOneLine(html) {
   );
 }
 
-function htmlToText(html) {
-  return decodeEntities(
-    String(html)
-      .replace(/<script[\s\S]*?<\/script>/gi, " ")
-      .replace(/<style[\s\S]*?<\/style>/gi, " ")
-      .replace(/<\/(p|div|li|tr|h\d)>/gi, "\n")
-      .replace(/<br\s*\/?>/gi, "\n")
-      .replace(/<[^>]+>/g, " ")
-      .replace(/\s*\n\s*/g, "\n")
-      .trim()
-  );
-}
-
-function findAnchor(html, year) {
-  const re = new RegExp(`id=["']${year}-topsongslist["']`, "i");
+function findYearHeadingIndex(html, year) {
+  // Match: <h2 ...>1990</h2> (allow whitespace and attributes)
+  const re = new RegExp(`<h2\\b[^>]*>\\s*${year}\\s*<\\/h2>`, "i");
   const m = re.exec(html);
   return m ? m.index : -1;
 }
 
-function sliceYear(html, year) {
-  const start = findAnchor(html, year);
+function sliceYearByHeading(html, year) {
+  const start = findYearHeadingIndex(html, year);
   if (start < 0) return null;
 
   let end = html.length;
   for (let y = year + 1; y <= 1999; y++) {
-    const next = findAnchor(html, y);
+    const next = findYearHeadingIndex(html, y);
     if (next > start) {
       end = next;
       break;
@@ -80,123 +65,95 @@ function sliceYear(html, year) {
   return html.slice(start, end);
 }
 
-function extractList(section) {
-  const m = section.match(/<(ol|ul)[\s\S]*?<\/\1>/i);
-  if (!m) return null;
+function extractFirstListHtml(sectionHtml) {
+  const ol = sectionHtml.match(/<ol\b[\s\S]*?<\/ol>/i);
+  if (ol) return ol[0];
+  const ul = sectionHtml.match(/<ul\b[\s\S]*?<\/ul>/i);
+  if (ul) return ul[0];
+  return null;
+}
 
+function extractLiItems(listHtml) {
   const items = [];
-  const li = /<li[^>]*>([\s\S]*?)<\/li>/gi;
-  let x;
-  while ((x = li.exec(m[0]))) {
-    items.push(stripTagsOneLine(x[1]));
+  const liRe = /<li\b[^>]*>([\s\S]*?)<\/li>/gi;
+  let m;
+  while ((m = liRe.exec(listHtml)) !== null) {
+    const text = stripTagsOneLine(m[1]);
+    if (text) items.push(text);
   }
   return items;
 }
 
-function extractTableRows(tableHtml) {
-  const rows = [];
-  const tr = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
-  let m;
-  while ((m = tr.exec(tableHtml))) {
-    const cells = [];
-    const td = /<(td|th)[^>]*>([\s\S]*?)<\/\1>/gi;
-    let c;
-    while ((c = td.exec(m[1]))) {
-      cells.push(stripTagsOneLine(c[2]));
-    }
-    if (cells.length) rows.push(cells);
-  }
-  return rows;
-}
-
-function extractTable(section) {
-  const m = section.match(/<table[\s\S]*?<\/table>/i);
-  return m ? extractTableRows(m[0]) : null;
-}
-
-function parseRankLines(section) {
-  const lines = htmlToText(section).split("\n");
-  return lines
-    .map(l => l.match(/^(\d{1,3})\.\s*(.+)$/))
-    .filter(Boolean)
-    .map(m => ({ rank: Number(m[1]), rest: m[2] }));
-}
-
 function splitTitleArtist(rest) {
-  let m = rest.match(/^(.+?)\s+by\s+(.+)$/i);
-  if (m) return { title: m[1], artist: m[2] };
-
-  m = rest.match(/^(.+?)\s*[-–—]\s*(.+)$/);
-  if (m) return { title: m[1], artist: m[2] };
-
-  return null;
+  // expected: "HOLD ON by Wilson Phillips"
+  // sometimes: "BLAZE OF GLORY by Jon Bon Jovi" (artist may include extra words)
+  const m = String(rest || "").match(/^(.+?)\s+by\s+(.+?)$/i);
+  if (!m) return null;
+  return { title: m[1].trim(), artist: m[2].trim() };
 }
 
-function buildRows(year, parsed) {
-  const out = new Map();
+function buildRows(year, items) {
+  const rows = [];
+  let rank = 1;
 
-  for (const p of parsed) {
-    if (!p.rank || p.rank < 1 || p.rank > 100) continue;
-    const ta = splitTitleArtist(p.rest);
+  for (const it of items) {
+    const ta = splitTitleArtist(it);
     if (!ta) continue;
 
-    out.set(p.rank, {
+    rows.push({
       year,
-      rank: p.rank,
-      title: ta.title.trim(),
-      artist: ta.artist.trim(),
+      rank,
+      title: ta.title,
+      artist: ta.artist,
       source: "top40weekly-1990s",
       url: `${SOURCE_URL}#${year}-topsongslist`
     });
+
+    rank++;
+    if (rank > 100) break;
   }
-  return [...out.values()].sort((a, b) => a.rank - b.rank);
+
+  return rows;
 }
 
 async function main() {
   console.log("[import] Fetching:", SOURCE_URL);
-  const html = await fetch(SOURCE_URL).then(r => r.text());
+  const html = await fetch(SOURCE_URL, {
+    headers: { "User-Agent": "NyxImporter/5.0" }
+  }).then((r) => r.text());
 
   ensureDir(OUT_DIR);
+
   let total = 0;
 
   for (let year = 1990; year <= 1999; year++) {
-    const section = sliceYear(html, year);
+    const section = sliceYearByHeading(html, year);
     if (!section) {
-      fs.writeFileSync(`${OUT_DIR}/top100_${year}.json`, "[]");
+      console.warn(`[import] ${year}: missing <h2>${year}</h2> heading. Writing empty.`);
+      fs.writeFileSync(path.join(OUT_DIR, `top100_${year}.json`), "[]", "utf8");
       continue;
     }
 
-    let rows = [];
-
-    const list = extractList(section);
-    if (list?.length) {
-      rows = buildRows(
-        year,
-        list.map((t, i) => ({ rank: i + 1, rest: t }))
-      );
+    const listHtml = extractFirstListHtml(section);
+    if (!listHtml) {
+      console.warn(`[import] ${year}: no <ol>/<ul> found after heading. Writing empty.`);
+      fs.writeFileSync(path.join(OUT_DIR, `top100_${year}.json`), "[]", "utf8");
+      continue;
     }
 
-    if (rows.length < 80) {
-      const table = extractTable(section);
-      if (table) {
-        rows = buildRows(
-          year,
-          table.map(r => ({
-            rank: Number(r[0]),
-            rest: r.slice(1).join(" - ")
-          }))
-        );
-      }
-    }
+    const items = extractLiItems(listHtml);
+    const rows = buildRows(year, items);
 
     if (rows.length < 80) {
-      rows = buildRows(year, parseRankLines(section));
+      console.warn(`[import] ${year}: parsed only ${rows.length} rows (expected ~100).`);
     }
 
     fs.writeFileSync(
-      `${OUT_DIR}/top100_${year}.json`,
-      JSON.stringify(rows, null, 2)
+      path.join(OUT_DIR, `top100_${year}.json`),
+      JSON.stringify(rows, null, 2),
+      "utf8"
     );
+
     console.log(`[import] ${year}: ${rows.length} rows`);
     total += rows.length;
   }
@@ -204,7 +161,7 @@ async function main() {
   console.log("[import] Done. Total rows:", total);
 }
 
-main().catch(err => {
-  console.error("[import] FAILED:", err.message);
+main().catch((err) => {
+  console.error("[import] FAILED:", err && err.message ? err.message : err);
   process.exit(1);
 });
