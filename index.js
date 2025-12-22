@@ -1,12 +1,12 @@
 /**
  * index.js — Nyx Broadcast Backend (Wizard-Locked)
- * Build: nyx-wizard-v1.90-followup-intelligence
+ * Build: nyx-wizard-v1.91-fluid-year-guarantee
  *
- * v1.90 changes:
- * - Follow-up intelligence: understands "top 10", "#1", "another", "surprise", "story", "switch chart"
- * - Prevents greeting layer from hijacking music follow-ups
- * - Adds KB worker ops: topByYear, randomByYear
- * - Tracks last pick to reduce repeats
+ * v1.91 changes:
+ * - Render build truth: build includes RENDER_GIT_COMMIT short hash when available
+ * - Year-only guarantee: attempts chart -> Top40Weekly Top 100 -> closest available year fallback
+ * - Follow-up intelligence resilient: "another/top 10/#1/story" works off lastPick.year even if ctxYear missing
+ * - KB stats cache: keeps year range available for fast closest-year fallback
  */
 
 "use strict";
@@ -228,7 +228,14 @@ app.use(cors({ origin: true }));
 app.options("*", cors());
 
 const PORT = process.env.PORT || 3000;
-const BUILD_TAG = "nyx-wizard-v1.90-followup-intelligence";
+
+// Build truth: Render sets RENDER_GIT_COMMIT
+const COMMIT_FULL = process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "";
+const COMMIT_SHORT = COMMIT_FULL ? String(COMMIT_FULL).slice(0, 7) : "";
+const BUILD_TAG = COMMIT_SHORT
+  ? `nyx-wizard-v1.91-${COMMIT_SHORT}`
+  : "nyx-wizard-v1.91-fluid-year-guarantee";
+
 const DEFAULT_CHART = "Billboard Hot 100";
 const KB_TIMEOUT_MS = Number(process.env.KB_TIMEOUT_MS || 900);
 
@@ -266,6 +273,16 @@ function isYearOnlyLoose(text) {
 function extractYearLoose(text) {
   const m = String(text || "").match(/\b(19\d{2}|20\d{2})\b/);
   return m ? Number(m[1]) : null;
+}
+
+function clampYearToStats(year, stats) {
+  const y = Number(year);
+  const min = stats && Number.isFinite(Number(stats.yearMin)) ? Number(stats.yearMin) : null;
+  const max = stats && Number.isFinite(Number(stats.yearMax)) ? Number(stats.yearMax) : null;
+  if (!Number.isFinite(y) || min == null || max == null) return null;
+  if (y < min) return min;
+  if (y > max) return max;
+  return y;
 }
 
 function parseChartFromText(text) {
@@ -358,8 +375,9 @@ function looksLikeMusicQuery(text, sess) {
   if (parseArtistTitle(t)) return true;
   if (parseChartFromText(t)) return true;
 
-  // follow-up cues: ONLY treat as music if session already has a year/artist/title
-  const hasMusicContext = !!sess?.laneDetail?.year || !!sess?.laneDetail?.artist || !!sess?.laneDetail?.title;
+  // follow-up cues: ONLY treat as music if session already has a year/artist/title OR lastPick exists
+  const hasMusicContext =
+    !!sess?.laneDetail?.year || !!sess?.laneDetail?.artist || !!sess?.laneDetail?.title || !!sess?.lastPick;
   if (hasMusicContext && isFollowupCommand(t)) return true;
 
   return false;
@@ -398,6 +416,7 @@ function send(res, sessionId, sess, step, reply, advance = false) {
     meta: {
       sessionId,
       build: BUILD_TAG,
+      commit: COMMIT_SHORT || null,
       serverTime: nowIso()
     }
   });
@@ -501,6 +520,22 @@ async function kbStats(timeoutMs = 700) {
   return r?.ok ? r?.out?.stats : null;
 }
 
+// Cache stats for fast year-range fallback
+let KB_STATS_CACHE = null;
+let KB_STATS_LAST = 0;
+const KB_STATS_REFRESH_MS = 1000 * 60 * 5;
+
+async function ensureKbStatsFresh() {
+  const now = Date.now();
+  if (KB_STATS_CACHE && (now - KB_STATS_LAST) < KB_STATS_REFRESH_MS) return KB_STATS_CACHE;
+  const stats = await kbStats(700).catch(() => null);
+  if (stats) {
+    KB_STATS_CACHE = stats;
+    KB_STATS_LAST = now;
+  }
+  return KB_STATS_CACHE;
+}
+
 // =======================================================
 // COPY + CONTINUATIONS
 // =======================================================
@@ -512,7 +547,6 @@ function pickOne(arr, fallback = "") {
 function correctionPreface(best) {
   if (!best || typeof best !== "object") return "";
 
-  // compatible with both index.js relaxed flags and musicKnowledge v2.10 flags
   const inputYear = best._originalYear || best._inputYear || best._input_year || null;
   const inputChart = best._originalChart || best._inputChart || null;
 
@@ -556,7 +590,6 @@ function formatYearsForSuggestion(years, inputYear) {
 
   const around = Number.isFinite(Number(inputYear)) ? Number(inputYear) : null;
 
-  // show up to 6 years, biased around inputYear if present
   if (around != null) {
     unique.sort((a, b) => Math.abs(a - around) - Math.abs(b - around));
   }
@@ -567,7 +600,7 @@ function formatYearsForSuggestion(years, inputYear) {
 }
 
 // =======================================================
-// SMART MUSIC FLOW (with follow-up intelligence)
+// SMART MUSIC FLOW (with follow-up intelligence + year guarantee)
 // =======================================================
 async function handleMusic(req, res, key, sess, rawText) {
   const text = normalizeUserText(rawText);
@@ -576,14 +609,14 @@ async function handleMusic(req, res, key, sess, rawText) {
   if (chartFromText) sess.laneDetail.chart = chartFromText;
 
   // --- FOLLOW-UP COMMANDS (no year typed, but we have context) ---
-  // If user says "top 10" / "#1" / "another" / "surprise" / "story" and we already have a year,
-  // we handle immediately instead of falling through to "not found" prompts.
-  const ctxYear = sess?.laneDetail?.year ? Number(sess.laneDetail.year) : null;
+  // Use ctxYear from laneDetail, else fallback to lastPick.year
+  const ctxYearFromSlots = sess?.laneDetail?.year ? Number(sess.laneDetail.year) : null;
+  const ctxYearFromLastPick = sess?.lastPick?.year ? Number(sess.lastPick.year) : null;
+  const ctxYear = Number.isFinite(ctxYearFromSlots) ? ctxYearFromSlots : (Number.isFinite(ctxYearFromLastPick) ? ctxYearFromLastPick : null);
+
   const ctxChart = sess?.laneDetail?.chart || DEFAULT_CHART;
 
   if (!isYearOnlyLoose(text) && !parseArtistTitle(text) && ctxYear && isFollowupCommand(text)) {
-    // chart switches are handled by parseChartFromText already
-
     const n = wantsTopN(text);
     const wants1 = wantsNumberOne(text);
     const wantsMore = wantsAnother(text) || wantsSurprise(text);
@@ -598,7 +631,29 @@ async function handleMusic(req, res, key, sess, rawText) {
       }
       const list = Array.isArray(kbTop?.out?.top) ? kbTop.out.top : [];
       if (!list.length) {
-        return send(res, key, sess, "music_top_nohit", `I don’t have a Top list indexed for ${ctxYear} yet. Try another year (example: 1987).`, false);
+        // fallback to Top40Weekly Top 100 for the same year
+        const kbTop2 = await kbCall("topByYear", "", { year: ctxYear, n: wantedN, chart: "Top40Weekly Top 100" }, KB_TIMEOUT_MS);
+        const list2 = Array.isArray(kbTop2?.out?.top) ? kbTop2.out.top : [];
+        if (!list2.length) {
+          return send(res, key, sess, "music_top_nohit", `I don’t have a Top list indexed for ${ctxYear} yet. Try another year (example: 1987).`, false);
+        }
+
+        if (wantedN === 1) {
+          const best2 = list2[0];
+          sess.lastPick = { artist: best2.artist, title: best2.title, year: best2.year, chart: best2.chart };
+          return send(
+            res, key, sess, "music_number_one",
+            `${best2.artist} — "${best2.title}" (${best2.year})\nChart: ${best2.chart || "Top40Weekly Top 100"}\n\nWant the **Top 10**, another pick, or switch charts?`,
+            true
+          );
+        }
+
+        const lines2 = list2.map((m, i) => `${i + 1}. ${m.artist} — "${m.title}"`);
+        return send(
+          res, key, sess, "music_top_list",
+          `Top ${wantedN} for ${ctxYear} (Top40Weekly Top 100):\n${lines2.join("\n")}\n\nWant **#1**, a **surprise pick**, or jump to a new year?`,
+          true
+        );
       }
 
       if (wantedN === 1) {
@@ -631,7 +686,7 @@ async function handleMusic(req, res, key, sess, rawText) {
       let tries = 0;
       let best = null;
 
-      while (tries < 4 && !best) {
+      while (tries < 5 && !best) {
         const kbRand = await kbCall("randomByYear", "", { year: ctxYear, chart: ctxChart }, KB_TIMEOUT_MS);
         if (!kbRand.ok) break;
         const candidate = kbRand?.out?.best || null;
@@ -644,6 +699,24 @@ async function handleMusic(req, res, key, sess, rawText) {
           continue;
         }
         best = candidate;
+      }
+
+      // If chart-specific failed, fallback to Top40Weekly Top 100 for same year
+      if (!best) {
+        tries = 0;
+        while (tries < 5 && !best) {
+          const kbRand2 = await kbCall("randomByYear", "", { year: ctxYear, chart: "Top40Weekly Top 100" }, KB_TIMEOUT_MS);
+          if (!kbRand2.ok) break;
+          const candidate2 = kbRand2?.out?.best || null;
+          if (!candidate2) break;
+
+          const last2 = sess.lastPick;
+          if (last2 && candidate2.artist === last2.artist && candidate2.title === last2.title && Number(candidate2.year) === Number(last2.year)) {
+            tries++;
+            continue;
+          }
+          best = candidate2;
+        }
       }
 
       if (!best) {
@@ -662,7 +735,7 @@ async function handleMusic(req, res, key, sess, rawText) {
       );
     }
 
-    // Story / context (lightweight for now; deeper story comes when we add LLM layer)
+    // Story / context (lightweight)
     if (wantsWhy && sess.lastPick) {
       const lp = sess.lastPick;
       return send(
@@ -675,13 +748,12 @@ async function handleMusic(req, res, key, sess, rawText) {
       );
     }
 
-    // Default follow-up fallback
     return send(
       res,
       key,
       sess,
       "music_followup_help",
-      `Got you. For ${ctxYear}, say **top 10**, **#1**, **another**, or switch charts (UK / Canada / Top40Weekly).`,
+      `For ${ctxYear}, say **top 10**, **#1**, **another**, or switch charts (UK / Canada / Top40Weekly).`,
       true
     );
   }
@@ -691,12 +763,42 @@ async function handleMusic(req, res, key, sess, rawText) {
     const y = extractYearLoose(text);
     sess.laneDetail = { chart: sess.laneDetail.chart || DEFAULT_CHART, year: y };
 
+    // 1) Try normal query
     const kbResult = await kbCall("query", text, sess.laneDetail, KB_TIMEOUT_MS);
     if (!kbResult.ok) {
       return send(res, key, sess, "kb_timeout", "I’m loading the music library — try that year again in a moment.", false);
     }
 
-    const best = kbResult?.out?.best || null;
+    let best = kbResult?.out?.best || null;
+
+    // 2) If no hit: fallback to Top40Weekly Top 100 (same year)
+    if (!best) {
+      const kbRandTop100 = await kbCall("randomByYear", "", { year: y, chart: "Top40Weekly Top 100" }, KB_TIMEOUT_MS);
+      if (kbRandTop100?.ok) best = kbRandTop100?.out?.best || null;
+      if (best) {
+        best._correctedChart = true;
+        best._originalChart = sess.laneDetail.chart;
+      }
+    }
+
+    // 3) If still no hit: clamp to closest available year and pick from Top40Weekly Top 100
+    if (!best) {
+      const stats = await ensureKbStatsFresh();
+      const closest = clampYearToStats(y, stats);
+      if (closest != null && closest !== y) {
+        const kbClosest = await kbCall("randomByYear", "", { year: closest, chart: "Top40Weekly Top 100" }, KB_TIMEOUT_MS);
+        if (kbClosest?.ok) {
+          best = kbClosest?.out?.best || null;
+          if (best) {
+            best._correctedYear = true;
+            best._originalYear = y;
+            best._correctedChart = true;
+            best._originalChart = sess.laneDetail.chart;
+          }
+        }
+      }
+    }
+
     if (best) {
       sess.lastPick = { artist: best.artist, title: best.title, year: best.year, chart: best.chart };
       const preface = correctionPreface(best);
@@ -712,12 +814,20 @@ async function handleMusic(req, res, key, sess, rawText) {
       );
     }
 
+    // If we truly have no data, be explicit and guide into range
+    const stats2 = await ensureKbStatsFresh();
+    const min = stats2?.yearMin;
+    const max = stats2?.yearMax;
+    const rangeNote = (Number.isFinite(min) && Number.isFinite(max))
+      ? ` I currently have coverage from about ${min} to ${max}.`
+      : "";
+
     return send(
       res,
       key,
       sess,
       "music_year_nohit",
-      `I don’t have a hit indexed for ${y} yet. Try another year (example: 1987) — or say “top 100” to use the Top40Weekly year-end list.`,
+      `I don’t have a hit indexed for ${y} yet.${rangeNote} Try another year — or say “top 100” to use the Top40Weekly year-end list.`,
       false
     );
   }
@@ -764,7 +874,7 @@ async function handleMusic(req, res, key, sess, rawText) {
         key,
         sess,
         "music_suggest_years",
-        `I might have you a year off.\nI do have **${sess.laneDetail.artist} — "${sess.laneDetail.title}"** in: ${listText}${suggestion.total > suggestion.list.length ? " …" : ""}\n\nIf you want, reply with just **${suggestion.closest}** and I’ll anchor it and keep rolling.`,
+        `I might have you a year off.\nI do have **${sess.laneDetail.artist} — "${sess.laneDetail.title}"** in: ${listText}${suggestion.total > suggestion.list.length ? " …" : ""}\n\nReply with just **${suggestion.closest}** and I’ll anchor it and keep rolling.`,
         true
       );
     }
@@ -829,6 +939,7 @@ app.get("/api/health", async (_, res) => {
   res.json({
     ok: true,
     build: BUILD_TAG,
+    commit: COMMIT_SHORT || null,
     serverTime: nowIso(),
     kbTimeoutMs: KB_TIMEOUT_MS,
     kbWorkerReady: KB_READY,
@@ -843,4 +954,7 @@ app.get("/api/health", async (_, res) => {
 app.listen(PORT, () => {
   console.log(`[Nyx] up on ${PORT} (${BUILD_TAG}) timeout=${KB_TIMEOUT_MS}ms`);
   startKbWorker();
+
+  // warm stats cache (best-effort)
+  ensureKbStatsFresh().catch(() => {});
 });
