@@ -1,15 +1,20 @@
 /**
- * musicKnowledge.js — Bulletproof V2.8
+ * musicKnowledge.js — Bulletproof V2.9
  *
- * V2.8 Adds / Fixes:
+ * V2.9 Adds / Fixes:
+ * - Top40Weekly Year-End Top 100 is now a distinct chart:
+ *      chart: "Top40Weekly Top 100"
+ *   (prevents confusion with weekly Top40Weekly streams)
+ * - normalizeChart() recognizes Top40Weekly Top 100 aliases ("top100", "top 100", etc.)
+ * - getTopByYear() prefers Top40Weekly Top 100 first, then falls back
+ *
+ * Keeps:
  * - Deterministic DB selection on Render:
  *    1) MUSIC_DB_PATH (if valid)
  *    2) preferred default: Data/music_moments_v2_layer2_plus500.json (must be non-empty)
  *    3) fallback scan: pick largest music_moments*.json inside Data/ (must be non-empty)
- * - Reject 0-byte DB candidates (common cause of "DB not found" / empty DB)
+ * - Reject 0-byte DB candidates
  * - Top40Weekly merge: skip placeholder/empty JSON files (e.g., "[]")
- *
- * Keeps:
  * - Year-only support
  * - Nearest-year correction for mismatch cases
  * - Correction flags for index.js:
@@ -60,15 +65,28 @@ const CHART_ALIASES = new Map([
   ["billboard", "Billboard Hot 100"],
   ["hot 100", "Billboard Hot 100"],
   ["billboard hot 100", "Billboard Hot 100"],
+
   ["uk", "UK Singles Chart"],
   ["uk singles", "UK Singles Chart"],
   ["uk singles chart", "UK Singles Chart"],
+
   ["canada", "Canada RPM"],
   ["rpm", "Canada RPM"],
   ["canada rpm", "Canada RPM"],
+
   ["top40weekly", "Top40Weekly"],
   ["top 40 weekly", "Top40Weekly"],
-  ["top 40", "Top40Weekly"]
+  ["top 40", "Top40Weekly"],
+
+  // Year-end top100 aliases (NEW)
+  ["top40weekly top 100", "Top40Weekly Top 100"],
+  ["top40weekly top100", "Top40Weekly Top 100"],
+  ["top40weekly year end", "Top40Weekly Top 100"],
+  ["top40weekly year-end", "Top40Weekly Top 100"],
+  ["top 100", "Top40Weekly Top 100"],
+  ["top100", "Top40Weekly Top 100"],
+  ["year end top 100", "Top40Weekly Top 100"],
+  ["year-end top 100", "Top40Weekly Top 100"]
 ]);
 
 const HOT_RELOAD = String(process.env.MUSIC_DB_HOT_RELOAD || "") === "1";
@@ -213,14 +231,17 @@ function normalizeChart(chart) {
   const n = norm(c);
   if (CHART_ALIASES.has(n)) return CHART_ALIASES.get(n);
 
+  // Allow known canonical charts through unchanged
   if (
     c === "Billboard Hot 100" ||
     c === "UK Singles Chart" ||
     c === "Canada RPM" ||
-    c === "Top40Weekly"
+    c === "Top40Weekly" ||
+    c === "Top40Weekly Top 100"
   ) {
     return c;
   }
+
   return c;
 }
 
@@ -256,7 +277,7 @@ function copyWithFlags(m, flags) {
 }
 
 // =============================
-// TOP40WEEKLY MERGE
+// TOP40WEEKLY MERGE (Year-End Top 100 JSONs)
 // =============================
 function findTop40WeeklyFiles() {
   const candidates = [
@@ -330,16 +351,22 @@ function loadTop40WeeklyMoments() {
           artist,
           title,
           year,
-          chart: "Top40Weekly",
+
+          // IMPORTANT: treat year-end Top 100 as its own chart
+          chart: "Top40Weekly Top 100",
+
+          // Use rank as peak for "top list" semantics
           peak: rank || null,
           weeks_on_chart: null,
           is_number_one: rank === 1,
           number_one_weeks: null,
           anchor_week: null,
           top10: null,
+
           fact: "",
           culture: "",
           next: "",
+
           source: row.source || "top40weekly",
           url: row.url || ""
         });
@@ -350,7 +377,7 @@ function loadTop40WeeklyMoments() {
   }
 
   console.log(
-    `[musicKnowledge] Top40Weekly merge: loaded ${out.length} rows from ${files.length} files (skipped=${skipped}, emptySkipped=${skippedEmpty})`
+    `[musicKnowledge] Top40Weekly Top 100 merge: loaded ${out.length} rows from ${files.length} files (skipped=${skipped}, emptySkipped=${skippedEmpty})`
   );
   return out;
 }
@@ -674,6 +701,15 @@ function getTopByYear(year, n = 10) {
   const y = Number(year);
   const limit = Math.max(1, Math.min(100, Number(n) || 10));
 
+  // Prefer Top40Weekly Year-End Top 100 first (NEW)
+  const yearEnd = MOMENT_INDEX
+    .filter((m) => m.year === y && norm(m.chart) === norm("Top40Weekly Top 100") && m.peak != null)
+    .sort((a, b) => (a.peak || 999) - (b.peak || 999))
+    .slice(0, limit);
+
+  if (yearEnd.length) return yearEnd;
+
+  // Then fall back to any Top40Weekly (if you ever add weekly data)
   const top40 = MOMENT_INDEX
     .filter((m) => m.year === y && norm(m.chart) === norm("Top40Weekly") && m.peak != null)
     .sort((a, b) => (a.peak || 999) - (b.peak || 999))
@@ -681,6 +717,7 @@ function getTopByYear(year, n = 10) {
 
   if (top40.length) return top40;
 
+  // Then anything else with peak
   const any = MOMENT_INDEX
     .filter((m) => m.year === y && m.peak != null)
     .sort((a, b) => (a.peak || 999) - (b.peak || 999))
