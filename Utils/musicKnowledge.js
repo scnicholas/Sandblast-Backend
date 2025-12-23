@@ -842,4 +842,30 @@ module.exports = {
   loadDB: loadDb,
   db: () => getDb(),
 
-  //
+  // Proof for /api/health or logs
+  DB_PATH: () => DB_PATH_RESOLVED,
+  STATS: () => ({ ...STATS }),
+
+  // Core
+  pickBestMoment,
+
+  // Extraction
+  detectArtist,
+  detectTitle,
+  extractYear,
+  normalizeChart,
+
+  // Query helpers
+  findYearsForArtistTitle,
+  getAllMoments,
+  getYearChartCount,
+  hasYearChart,
+  top40Coverage, // NEW
+
+  // Pickers
+  pickRandomByYear,
+  pickRandomByYearFallback,
+  pickRandomByYearWithMeta,
+  pickRandomByDecade,
+  getTopByYear
+};
