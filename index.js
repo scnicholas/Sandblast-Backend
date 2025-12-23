@@ -2,10 +2,6 @@
  * index.js — Nyx Broadcast Backend (Wizard-Locked)
  * Build: nyx-wizard-v1.93-drivers-confidence
  *
- * v1.93 changes:
- * - Adds Conversation Drivers: Nyx always ends with a clear next step (question/action/choices) unless one is already present
- * - Adds Confidence + Fallback Policy: when confidence is low, Nyx refuses to guess and requests the missing detail with safe options
- *
  * v1.92 changes:
  * - Integrates musicKnowledge.pickRandomByYearWithMeta() when available (meta-aware fallback)
  * - getTopByYear(year, n, chart) now passes chart through (worker fix)
@@ -438,6 +434,7 @@ function isPositiveOrStatusReply(text) {
   return /\b(good|great|fine|ok|okay|not bad|doing well|all good|awesome)\b/.test(t);
 }
 
+
 // =======================================================
 // CONVERSATION DRIVERS + CONFIDENCE (flow control)
 // - Ensures Nyx always advances the conversation.
@@ -699,6 +696,53 @@ function pickOne(arr, fallback = "") {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+
+function normalizeTopListEntry(artist, title) {
+  let a = String(artist || "").trim();
+  let t = String(title || "").trim();
+
+  if (!a || !t) return { artist: a, title: t };
+
+  // Clean trailing punctuation quirks
+  t = t.replace(/\s+[,]+$/, "").trim();
+
+  // If title ends with a dangling capitalized name chunk, move it to artist.
+  // Example: artist="Richie", title="Hello Lionel" => "Lionel Richie" / "Hello"
+  // We try moving 1..6 trailing words from title to the FRONT of artist.
+  const words = t.split(/\s+/).filter(Boolean);
+  if (words.length >= 2) {
+    for (let k = 1; k <= 6 && k < words.length; k++) {
+      const tail = words.slice(words.length - k);
+      const head = words.slice(0, words.length - k);
+
+      // Heuristic: tail looks like a name chunk (mostly Capitalized or connectors)
+      const looksNamey = tail.every(w =>
+        /^[A-Z]/.test(w) ||
+        ["and", "&", "of", "the", "mc", "jr.", "jr"].includes(w.toLowerCase()) ||
+        /,$/.test(w)
+      );
+
+      // Don’t wreck legit titles by stripping too much
+      if (!looksNamey) continue;
+      if (head.join(" ").length < 3) continue;
+
+      // Special case: "Jr." should come after the name, not before
+      // Example: artist="Jr.", tail="Ray Parker," => "Ray Parker, Jr."
+      if (/^jr\.?$/i.test(a)) {
+        const fixedArtist = `${tail.join(" ").replace(/\s+[,]+$/, "")}, Jr.`.replace(/\s+/g, " ").trim();
+        return { artist: fixedArtist, title: head.join(" ").trim() };
+      }
+
+      const candidateArtist = `${tail.join(" ")} ${a}`.replace(/\s+/g, " ").trim();
+      const candidateTitle = head.join(" ").trim();
+      return { artist: candidateArtist, title: candidateTitle };
+    }
+  }
+
+  return { artist: a, title: t };
+}
+
+
 function correctionPreface(best, bestMeta) {
   if (!best || typeof best !== "object") return "";
 
@@ -803,16 +847,20 @@ async function handleMusic(req, res, key, sess, rawText) {
 
         if (wantedN === 1) {
           const best2 = list2[0];
-          sess.lastPick = { artist: best2.artist, title: best2.title, year: best2.year, chart: best2.chart };
+          const nrm2 = normalizeTopListEntry(best2.artist, best2.title);
+          sess.lastPick = { artist: nrm2.artist || best2.artist, title: nrm2.title || best2.title, year: best2.year, chart: best2.chart };
           return send(
             res, key, sess, "music_number_one",
-            `${best2.artist} — "${best2.title}" (${best2.year})\nChart: ${best2.chart || "Top40Weekly Top 100"}\n\nWant the **Top 10**, another pick, or switch charts?`,
+            `${nrm2.artist || best2.artist} — "${nrm2.title || best2.title}" (${best2.year})\nChart: ${best2.chart || "Top40Weekly Top 100"}\n\nWant the **Top 10**, another pick, or switch charts?`,
             true,
             text
           );
         }
 
-        const lines2 = list2.map((m, i) => `${i + 1}. ${m.artist} — "${m.title}"`);
+        const lines2 = list2.map((m, i) => {
+        const nrm = normalizeTopListEntry(m.artist, m.title);
+        return `${i + 1}. ${nrm.artist} — "${nrm.title}"`;
+      });
         return send(
           res, key, sess, "music_top_list",
           `Top ${wantedN} for ${ctxYear} (Top40Weekly Top 100):\n${lines2.join("\n")}\n\nWant **#1**, a **surprise pick**, or jump to a new year?`,
@@ -823,20 +871,24 @@ async function handleMusic(req, res, key, sess, rawText) {
 
       if (wantedN === 1) {
         const best = list[0];
-        sess.lastPick = { artist: best.artist, title: best.title, year: best.year, chart: best.chart };
+        const nrm1 = normalizeTopListEntry(best.artist, best.title);
+        sess.lastPick = { artist: nrm1.artist || best.artist, title: nrm1.title || best.title, year: best.year, chart: best.chart };
         const chart = best.chart || ctxChart;
         return send(
           res,
           key,
           sess,
           "music_number_one",
-          `${best.artist} — "${best.title}" (${best.year})\nChart: ${chart}\n\nWant the **Top 10**, another pick, or switch charts?`,
+          `${nrm1.artist || best.artist} — "${nrm1.title || best.title}" (${best.year})\nChart: ${chart}\n\nWant the **Top 10**, another pick, or switch charts?`,
           true,
           text
         );
       }
 
-      const lines = list.map((m, i) => `${i + 1}. ${m.artist} — "${m.title}"`);
+      const lines = list.map((m, i) => {
+    const nrm = normalizeTopListEntry(m.artist, m.title);
+    return `${i + 1}. ${nrm.artist} — "${nrm.title}"`;
+  });
       return send(
         res,
         key,
