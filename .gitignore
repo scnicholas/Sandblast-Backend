@@ -24,6 +24,13 @@ data/
 !Data/**/*.json
 
 # =========================
+# Debug / Scrape Artifacts (DO NOT DEPLOY)
+# =========================
+Data/_debug_*.html
+Scripts/*_raw.html
+Scripts/debug_*.js
+
+# =========================
 # Local Stable Backups
 # =========================
 index.nyx-stable.js
