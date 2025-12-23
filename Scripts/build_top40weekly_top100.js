@@ -1,33 +1,26 @@
 "use strict";
 
 /**
- * build_top40weekly_top100.js — Year-End Top 100 Builder (from weekly Top 40 pages)
+ * build_top40weekly_top100.js — v1.6
+ * Builds Top40Weekly year-end Top 100 by computing points from weekly Top 40 posts.
  *
- * Why this exists:
- * - Year pages like https://top40weekly.com/1994-all-charts/ are NOT a ranked 1–100 list.
- * - They are link hubs to weekly Top 40 pages.
- * - We compute a year-end Top 100 via points from weekly ranks.
- *
- * Points model (simple + stable):
- * - Rank 1 => 40 pts, Rank 2 => 39 pts, ... Rank 40 => 1 pt
- * - Sum points across all weekly charts in that year
- *
- * Output:
- * - JSON array of 100 rows:
- *   { year, rank, title, artist, points, weeks, chart:"Top40Weekly Top 100", source:"Top40Weekly weekly charts" }
+ * Key upgrade:
+ * - If the year hub page contains zero weekly links, use WordPress REST API fallback:
+ *   https://top40weekly.com/wp-json/wp/v2/posts?per_page=100&page=1&after=YYYY-01-01T00:00:00&before=YYYY-12-31T23:59:59&search=week%20ending
  *
  * Usage:
  *   node Scripts/build_top40weekly_top100.js 1994 Data/top40weekly/top100_1994.json
  *
- * Optional env:
- *   T40W_DELAY_MS=250          // politeness delay between requests
- *   T40W_MAX_WEEKS=0           // 0 = no cap, else limit number of weekly pages fetched
+ * Env:
+ *   T40W_DELAY_MS=250
+ *   T40W_MAX_WEEKS=0
  */
 
 const fs = require("fs");
 const path = require("path");
 
 const BASE = "https://top40weekly.com/";
+const WP_API = `${BASE}wp-json/wp/v2/posts`;
 const DELAY_MS = Math.max(0, Number(process.env.T40W_DELAY_MS || "250") || 250);
 const MAX_WEEKS = Math.max(0, Number(process.env.T40W_MAX_WEEKS || "0") || 0);
 
@@ -35,7 +28,7 @@ async function sleep(ms) {
   if (ms > 0) await new Promise((r) => setTimeout(r, ms));
 }
 
-async function fetchHtml(url, tries = 3) {
+async function fetchText(url, tries = 3) {
   let lastErr = null;
   for (let i = 0; i < tries; i++) {
     try {
@@ -51,13 +44,21 @@ async function fetchHtml(url, tries = 3) {
         },
       });
       const text = await res.text();
-      return { status: res.status, text, url };
+      return { status: res.status, text, url, headers: res.headers };
     } catch (e) {
       lastErr = e;
       await sleep(900 + i * 700);
     }
   }
   throw lastErr;
+}
+
+async function fetchJson(url) {
+  const r = await fetchText(url);
+  if (r.status < 200 || r.status >= 300) {
+    throw new Error(`HTTP ${r.status} for ${url}`);
+  }
+  return JSON.parse(r.text);
 }
 
 function htmlDecode(s) {
@@ -93,42 +94,44 @@ function isWp404(status, html) {
   return false;
 }
 
-/**
- * Year hub: extract weekly page links.
- * Example weekly pages:
- *  https://top40weekly.com/us-top-40-singles-for-the-week-ending-september-10-1994/
- */
-function extractWeeklyLinksFromYearHub(html, year) {
-  const links = [];
-  const re = /href="(https?:\/\/top40weekly\.com\/[^"]+)"/gi;
+function extractWeeklyLinksFromYearHub(html) {
+  const urls = [];
+  const re = /href="([^"]+)"/gi;
   let m;
+
   while ((m = re.exec(html))) {
-    const url = m[1];
-    if (!url.includes("us-top-40-singles-for-the-week-ending")) continue;
-    if (!url.includes(String(year))) continue;
-    links.push(url);
+    let href = m[1];
+    if (!href) continue;
+
+    if (href.startsWith("/")) href = BASE.replace(/\/$/, "") + href;
+    if (!href.startsWith("http")) continue;
+    if (!href.includes("top40weekly.com/")) continue;
+
+    // broad weekly patterns
+    const isWeekly =
+      href.includes("week-ending") ||
+      href.includes("week ending") ||
+      href.includes("us-top-40-singles");
+
+    if (!isWeekly) continue;
+    urls.push(href);
   }
 
-  // de-dupe, stable
-  return Array.from(new Set(links));
+  return Array.from(new Set(urls));
 }
 
-/**
- * Weekly page parsing:
- * We parse lines like:
- * "1 1 I’LL MAKE LOVE TO YOU –•– Boyz II Men – 5 (1)"
- * from the content. :contentReference[oaicite:3]{index=3}
- */
+function yearFromWeeklyUrl(url) {
+  const m = String(url).match(/(\d{4})\/?$/);
+  return m ? Number(m[1]) : null;
+}
+
 function parseWeeklyTop40(html) {
   const text = stripTags(html)
-    // normalize separators to make regex easier
     .replace(/[–—]/g, "-")
     .replace(/-•-/g, "-")
     .replace(/\s+/g, " ");
 
   const out = [];
-  // Pattern: TW LW TITLE - Artist - Weeks (Peak)
-  // We only need TW (this week rank), title, artist
   const re = /\b(\d{1,2})\s+(\d{1,2})\s+(.+?)\s+-\s+(.+?)\s+-\s+(\d+)\s*\((\d+)\)/g;
 
   let m;
@@ -138,14 +141,11 @@ function parseWeeklyTop40(html) {
     const artist = String(m[4] || "").trim();
     if (!(tw >= 1 && tw <= 40)) continue;
     if (!title || !artist) continue;
-
     out.push({ tw, title, artist });
   }
 
-  // De-dupe per week by TW rank
   const byRank = new Map();
   for (const r of out) if (!byRank.has(r.tw)) byRank.set(r.tw, r);
-
   return Array.from(byRank.values()).sort((a, b) => a.tw - b.tw);
 }
 
@@ -169,53 +169,112 @@ function safeWriteJson(absOut, rows) {
   return true;
 }
 
+async function getWeeklyLinksViaWpJson(year) {
+  const after = `${year}-01-01T00:00:00`;
+  const before = `${year}-12-31T23:59:59`;
+
+  const links = [];
+  const seen = new Set();
+
+  // Two searches: "week ending" and "week-ending" (slugged)
+  const searches = ["week%20ending", "week-ending", "us%20top%2040%20singles"];
+
+  for (const q of searches) {
+    for (let page = 1; page <= 30; page++) {
+      const url =
+        `${WP_API}?per_page=100&page=${page}` +
+        `&after=${encodeURIComponent(after)}` +
+        `&before=${encodeURIComponent(before)}` +
+        `&search=${q}`;
+
+      let arr = [];
+      try {
+        arr = await fetchJson(url);
+      } catch (e) {
+        // Most common: page overflow => stop
+        break;
+      }
+
+      if (!Array.isArray(arr) || arr.length === 0) break;
+
+      for (const post of arr) {
+        const link = post && post.link ? String(post.link) : "";
+        if (!link || !link.includes("top40weekly.com/")) continue;
+        // keep only likely weekly chart posts
+        if (!(link.includes("week-ending") || link.includes("us-top-40-singles"))) continue;
+
+        const y = yearFromWeeklyUrl(link);
+        if (y && y !== year) continue;
+
+        if (!seen.has(link)) {
+          seen.add(link);
+          links.push(link);
+        }
+      }
+
+      await sleep(DELAY_MS);
+    }
+  }
+
+  return links;
+}
+
 async function main() {
   const yearArg = process.argv[2];
   const outPath = process.argv[3];
 
   if (!yearArg || !outPath) {
     console.error("Usage: node Scripts/build_top40weekly_top100.js <year> <out.json>");
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
 
   const year = Number(yearArg);
   if (!Number.isFinite(year) || year < 1950 || year > 2100) {
     console.error("Invalid year:", yearArg);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
 
   const absOut = path.resolve(process.cwd(), outPath);
   fs.mkdirSync(path.dirname(absOut), { recursive: true });
 
+  // 1) Hub attempt
   const hubUrl = `${BASE}${year}-all-charts/`;
   console.error("[HUB]", hubUrl);
 
-  const hub = await fetchHtml(hubUrl);
+  const hub = await fetchText(hubUrl);
   fs.writeFileSync(`./Data/_debug_t40w_${year}_hub.html`, hub.text, "utf8");
 
   if (isWp404(hub.status, hub.text)) {
-    console.error("[FAIL] Year hub 404:", hubUrl, "status=", hub.status);
-    process.exit(2);
+    console.error("[WARN] hub looks like 404 template, switching to WP JSON fallback");
   }
 
-  const weeklyLinks = extractWeeklyLinksFromYearHub(hub.text, year);
-  console.error("[WEEKS] found", weeklyLinks.length, "weekly pages");
+  let weeklyLinks = extractWeeklyLinksFromYearHub(hub.text);
+  console.error("[WEEKS] hub extracted", weeklyLinks.length);
+
+  // 2) WP JSON fallback if hub has nothing
+  if (!weeklyLinks.length) {
+    console.error("[FALLBACK] Using WP REST API to locate weekly posts for", year);
+    weeklyLinks = await getWeeklyLinksViaWpJson(year);
+    console.error("[WEEKS] wp-json found", weeklyLinks.length);
+  }
 
   if (!weeklyLinks.length) {
-    console.error("[FAIL] No weekly links found on hub. Check hub HTML debug.");
-    process.exit(3);
+    console.error("[FAIL] No weekly links found by hub or wp-json. Check debug hub HTML.");
+    process.exitCode = 3;
+    return;
   }
 
   const cap = MAX_WEEKS > 0 ? Math.min(MAX_WEEKS, weeklyLinks.length) : weeklyLinks.length;
   const linksToFetch = weeklyLinks.slice(0, cap);
 
-  // Aggregate
-  const agg = new Map(); // key -> { title, artist, points, weeks }
+  const agg = new Map();
   let parsedWeeks = 0;
 
   for (let i = 0; i < linksToFetch.length; i++) {
     const url = linksToFetch[i];
-    const r = await fetchHtml(url);
+    const r = await fetchText(url);
     await sleep(DELAY_MS);
 
     if (isWp404(r.status, r.text)) {
@@ -225,9 +284,8 @@ async function main() {
 
     const weekRows = parseWeeklyTop40(r.text);
     if (weekRows.length < 20) {
-      // write a debug snapshot for the first few bad weeks
       if (parsedWeeks < 2) {
-        fs.writeFileSync(`./Data/_debug_t40w_${year}_week_${parsedWeeks + 1}.html`, r.text, "utf8");
+        fs.writeFileSync(`./Data/_debug_t40w_${year}_week_bad_${parsedWeeks + 1}.html`, r.text, "utf8");
       }
       console.error("[WARN] low parse rows", weekRows.length, "url=", url);
       continue;
@@ -251,7 +309,12 @@ async function main() {
 
   console.error("[DONE] weeks parsed:", parsedWeeks, "songs tracked:", agg.size);
 
-  // Build Top 100
+  if (parsedWeeks === 0) {
+    console.error("[FAIL] Parsed 0 weeks. Weekly pages exist but parsing pattern needs adjustment.");
+    process.exitCode = 5;
+    return;
+  }
+
   const top = Array.from(agg.values())
     .sort((a, b) => b.points - a.points || b.weeks - a.weeks || a.artist.localeCompare(b.artist) || a.title.localeCompare(b.title))
     .slice(0, 100)
@@ -266,14 +329,17 @@ async function main() {
       source: "Top40Weekly weekly charts (computed)",
     }));
 
-  // Safety: refuse to overwrite with empty
   const ok = safeWriteJson(absOut, top);
-  if (!ok) process.exit(4);
+  if (!ok) {
+    process.exitCode = 6;
+    return;
+  }
 
   console.error("[WRITE]", absOut, "rows=", top.length);
+  process.exitCode = 0;
 }
 
 main().catch((e) => {
   console.error("[ERR]", e && e.stack ? e.stack : e);
-  process.exit(1);
+  process.exitCode = 99;
 });
