@@ -1,4 +1,3 @@
-@'
 "use strict";
 
 /**
@@ -371,4 +370,3 @@ main().catch((e) => {
   console.error("[ERR]", e && e.stack ? e.stack : e);
   process.exitCode = 99;
 });
-'@ | Set-Content -Encoding UTF8 .\Scripts\build_top40weekly_top100.js
