@@ -1,6 +1,10 @@
 /**
  * index.js — Nyx Broadcast Backend (Wizard-Locked)
- * Build: nyx-wizard-v1.92-meta-fallback-debug
+ * Build: nyx-wizard-v1.93-drivers-confidence
+ *
+ * v1.93 changes:
+ * - Adds Conversation Drivers: Nyx always ends with a clear next step (question/action/choices) unless one is already present
+ * - Adds Confidence + Fallback Policy: when confidence is low, Nyx refuses to guess and requests the missing detail with safe options
  *
  * v1.92 changes:
  * - Integrates musicKnowledge.pickRandomByYearWithMeta() when available (meta-aware fallback)
@@ -260,8 +264,8 @@ const PORT = process.env.PORT || 3000;
 const COMMIT_FULL = process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "";
 const COMMIT_SHORT = COMMIT_FULL ? String(COMMIT_FULL).slice(0, 7) : "";
 const BUILD_TAG = COMMIT_SHORT
-  ? `nyx-wizard-v1.92-${COMMIT_SHORT}`
-  : "nyx-wizard-v1.92-meta-fallback-debug";
+  ? `nyx-wizard-v1.93-${COMMIT_SHORT}`
+  : "nyx-wizard-v1.93-drivers-confidence";
 
 const DEFAULT_CHART = "Billboard Hot 100";
 const KB_TIMEOUT_MS = Number(process.env.KB_TIMEOUT_MS || 900);
@@ -434,8 +438,114 @@ function isPositiveOrStatusReply(text) {
   return /\b(good|great|fine|ok|okay|not bad|doing well|all good|awesome)\b/.test(t);
 }
 
+// =======================================================
+// CONVERSATION DRIVERS + CONFIDENCE (flow control)
+// - Ensures Nyx always advances the conversation.
+// - If confidence is low, Nyx will not guess; it will ask for one missing detail with safe options.
+// =======================================================
+function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
+
+function hasNextStepAlready(reply) {
+  const r = safeStr(reply);
+  if (!r) return false;
+
+  // If caller already included an explicit follow-up, don't stack another.
+  if (/\*\*next step\*\*/i.test(r)) return true;
+
+  // Common follow-up patterns already present in this codebase
+  const tail = r.slice(-260).toLowerCase();
+  if (tail.includes("want the") || tail.includes("want another") || tail.includes("want **") || tail.includes("reply with just")) return true;
+  if (tail.includes("try:") || tail.includes("try another year") || tail.includes("switch charts")) return true;
+
+  // Heuristic: ends with a question (often already a driver)
+  if (/[?]\s*$/.test(tail.trim())) return true;
+
+  return false;
+}
+
+function scoreConfidence({ step, sess, userText }) {
+  const text = normalizeUserText(userText || "").toLowerCase();
+
+  // Slot completeness (music-centric)
+  const year = Number(sess?.laneDetail?.year);
+  const hasYear = Number.isFinite(year);
+  const hasArtist = !!safeStr(sess?.laneDetail?.artist);
+  const hasTitle = !!safeStr(sess?.laneDetail?.title);
+
+  let slotScore = 1;
+  if (!hasYear && !(hasArtist && hasTitle)) slotScore = 0.25;
+  else if (hasYear && !(hasArtist && hasTitle)) slotScore = 0.8;
+  else if (!hasYear && (hasArtist && hasTitle)) slotScore = 0.75;
+
+  // Step-based priors (low-confidence states)
+  const lowSteps = new Set(["empty", "kb_timeout", "music_year_nohit", "music_not_found", "music_more_nohit"]);
+  const midSteps = new Set(["music_suggest_years", "music_followup_help", "music_top_nohit"]);
+
+  let base = 0.78;
+  if (lowSteps.has(step)) base = 0.35;
+  else if (midSteps.has(step)) base = 0.55;
+
+  // Ambiguity penalty
+  const ambiguousSignals = ["not sure", "maybe", "something", "it doesn't work", "doesnt work", "broken", "issue", "problem", "can't", "cannot", "won't", "wont"];
+  const ambiguityPenalty = ambiguousSignals.some(s => text.includes(s)) ? 0.12 : 0;
+
+  const raw = (0.55 * base) + (0.45 * slotScore) - ambiguityPenalty;
+  return clamp(raw, 0, 1);
+}
+
+function pickDriver({ step, sess, confidence }) {
+  const chart = safeStr(sess?.laneDetail?.chart) || DEFAULT_CHART;
+
+  // Low-confidence fallback (refuse to guess)
+  if (confidence < 0.45) {
+    // Keep this tight: one request + safe options.
+    return {
+      type: "fallback",
+      text: "I can help, but I need one detail so I don’t guess. Choose one:",
+      choices: [
+        "Reply with a year (example: 1984)",
+        "Reply with Artist - Title (example: Styx - Babe)",
+        `Say “top 10 ${chart}” if you want a list`
+      ]
+    };
+  }
+
+  // Music flow driver (keep users moving)
+  const ctxYearFromSlots = sess?.laneDetail?.year ? Number(sess.laneDetail.year) : null;
+  const ctxYearFromLastPick = sess?.lastPick?.year ? Number(sess.lastPick.year) : null;
+  const ctxYear = Number.isFinite(ctxYearFromSlots) ? ctxYearFromSlots : (Number.isFinite(ctxYearFromLastPick) ? ctxYearFromLastPick : null);
+
+  if (ctxYear) {
+    return {
+      type: "choice",
+      text: `For ${ctxYear} on ${chart}, what do you want next?`,
+      choices: ["Top 10", "#1", "Another pick", "Switch chart"]
+    };
+  }
+
+  // Generic driver
+  return {
+    type: "question",
+    text: "What do you want to anchor—give me a year (example: 1984) or Artist - Title."
+  };
+}
+
+function formatDriver(driver) {
+  if (!driver) return "";
+  if (driver.type === "choice" || driver.type === "fallback") {
+    const list = (driver.choices || []).map(c => `- ${c}`).join("\n");
+    return `\n\n**Next step**\n${driver.text}\n${list}`;
+  }
+  return `\n\n**Next step**\n${driver.text}`;
+}
+
 function send(res, sessionId, sess, step, reply, advance = false, debugText = null) {
-  sess.lastReply = reply;
+  // Driver injection (unless a follow-up is already present)
+  const confidence = scoreConfidence({ step, sess, userText: debugText || "" });
+  const driver = (!hasNextStepAlready(reply)) ? pickDriver({ step, sess, confidence }) : null;
+  const finalReply = driver ? (String(reply) + formatDriver(driver)) : reply;
+
+  sess.lastReply = finalReply;
   sess.lastReplyStep = step;
 
   // Update debug snapshot (safe)
@@ -451,7 +561,7 @@ function send(res, sessionId, sess, step, reply, advance = false, debugText = nu
 
   res.status(200).json({
     ok: true,
-    reply,
+    reply: finalReply,
     state: {
       mode: sess.currentLane,
       step,
