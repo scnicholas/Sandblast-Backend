@@ -38,12 +38,26 @@ function extractYearSection(html, year) {
 
 function parseListItems(sectionHtml) {
   const items = [];
-  const liRegex = /<li[^>]*>(.*?)<\/li>/gis;
-  let match;
   let rank = 1;
+  const blocks = [];
 
-  while ((match = liRegex.exec(sectionHtml)) !== null) {
-    let text = decode(match[1].replace(/<[^>]+>/g, " "));
+  // 1999 uses <li>
+  const liRegex = /<li[^>]*>(.*?)<\/li>/gis;
+  let m;
+  while ((m = liRegex.exec(sectionHtml)) !== null) {
+    blocks.push(m[1]);
+  }
+
+  // 1990–1998 mostly use <p>
+  const pRegex = /<p[^>]*>(.*?)<\/p>/gis;
+  while ((m = pRegex.exec(sectionHtml)) !== null) {
+    blocks.push(m[1]);
+  }
+
+  for (const block of blocks) {
+    if (rank > 100) break;
+
+    let text = decode(block.replace(/<[^>]+>/g, " "));
     if (!text.toLowerCase().includes(" by ")) continue;
 
     const parts = text.split(/\s+by\s+/i);
@@ -61,7 +75,6 @@ function parseListItems(sectionHtml) {
     });
 
     rank++;
-    if (rank > 100) break;
   }
 
   return items;
@@ -89,7 +102,6 @@ function parseListItems(sectionHtml) {
     }
 
     const rows = parseListItems(section);
-
     console.log(`[build_top40weekly_1990s] ${year}: parsed ${rows.length} rows`);
 
     const payload = rows.map(r => ({
