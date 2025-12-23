@@ -1,17 +1,17 @@
 "use strict";
 
 /**
- * musicKnowledge.js — Bulletproof V2.12 (Render-safe DB loading + Full exports)
+ * musicKnowledge.js — Bulletproof V2.13
  *
- * Goals:
- * - Always load the correct DB on Render/Linux (repo-relative, not CWD-dependent)
- * - Merge Top40Weekly year-end Top 100 files when enabled
- * - Provide stable APIs used by index.js worker + follow-up intelligence:
- *   loadDb/getDb/loadDB/db
- *   pickBestMoment, pickRandomByYear, pickRandomByYearFallback, pickRandomByDecade
- *   detectArtist, detectTitle, extractYear, normalizeChart
- *   findYearsForArtistTitle, getAllMoments, getTopByYear
- * - Avoid duplicates using (artist/year/chart/title) key
+ * Based on your V2.12 (Render-safe DB loading + Full exports).
+ * Key upgrade in V2.13:
+ * - Chart fallback intelligence:
+ *   If Top40Weekly Top 100 has 0 rows for a requested year, fallback to Billboard Hot 100 (same year).
+ *   This prevents "Try another year" dead-ends when Top40Weekly source coverage is missing (e.g., 1990–1998 gaps).
+ *
+ * Env:
+ * - MUSIC_ENABLE_CHART_FALLBACK=1 (default)  -> enable smart fallback
+ * - MUSIC_FALLBACK_CHART=Billboard Hot 100   -> fallback chart (default Billboard Hot 100)
  */
 
 const fs = require("fs");
@@ -25,6 +25,9 @@ const ENV_DB_CANDIDATES = String(process.env.MUSIC_DB_CANDIDATES || "").trim();
 
 const MERGE_TOP40WEEKLY = String(process.env.MERGE_TOP40WEEKLY || "1") !== "0";
 const HOT_RELOAD = String(process.env.MUSIC_DB_HOT_RELOAD || "") === "1";
+
+const ENABLE_CHART_FALLBACK = String(process.env.MUSIC_ENABLE_CHART_FALLBACK || "1") !== "0";
+const FALLBACK_CHART = String(process.env.MUSIC_FALLBACK_CHART || "Billboard Hot 100").trim() || "Billboard Hot 100";
 
 // Repo defaults
 const DEFAULT_DB_CANDIDATES = [
@@ -53,7 +56,6 @@ const REPO_ROOT = path.resolve(__dirname, ".."); // repo root (where Data/ lives
 
 function resolveRepoPath(p) {
   if (!p) return null;
-  // absolute path stays absolute
   if (path.isAbsolute(p)) return p;
   return path.resolve(REPO_ROOT, p);
 }
@@ -106,19 +108,22 @@ function normalizeChart(chart) {
 
   const lc = c.toLowerCase();
 
-  // Explicit Top40Weekly year-end Top 100
   if (lc.includes("top40weekly") && (lc.includes("top 100") || lc.includes("top100") || lc.includes("year"))) {
     return "Top40Weekly Top 100";
   }
 
-  // Common aliases
   if (lc.includes("billboard") || lc.includes("hot 100") || lc.includes("hot100")) return "Billboard Hot 100";
   if (lc.includes("uk") && lc.includes("single")) return "UK Singles Chart";
   if (lc.includes("canada") || lc.includes("rpm")) return "Canada RPM";
   if (lc.includes("top40weekly")) return "Top40Weekly";
 
-  // Default: keep original canonical casing if already known
-  if (c === "Top40Weekly Top 100" || c === "Top40Weekly" || c === "Billboard Hot 100" || c === "UK Singles Chart" || c === "Canada RPM") {
+  if (
+    c === "Top40Weekly Top 100" ||
+    c === "Top40Weekly" ||
+    c === "Billboard Hot 100" ||
+    c === "UK Singles Chart" ||
+    c === "Canada RPM"
+  ) {
     return c;
   }
 
@@ -131,23 +136,10 @@ function normalizeChart(chart) {
 function normalizeMoment(raw, forcedYear = null, forcedChart = null) {
   if (!raw || typeof raw !== "object") return null;
 
-  const artist = String(
-    raw.artist ??
-      raw.artist_name ??
-      raw.performer ??
-      raw.band ??
-      raw.act ??
-      ""
-  ).trim();
+  const artist = String(raw.artist ?? raw.artist_name ?? raw.performer ?? raw.band ?? raw.act ?? "").trim();
 
   const title = String(
-    raw.title ??
-      raw.song_title ??
-      raw.song ??
-      raw.track ??
-      raw.track_title ??
-      raw.name ??
-      ""
+    raw.title ?? raw.song_title ?? raw.song ?? raw.track ?? raw.track_title ?? raw.name ?? ""
   ).trim();
 
   const year = toInt(raw.year) ?? (forcedYear != null ? toInt(forcedYear) : null);
@@ -155,9 +147,7 @@ function normalizeMoment(raw, forcedYear = null, forcedChart = null) {
 
   if (!artist || !title || !year) return null;
 
-  // rank/peak: Top40Weekly year-end often has "rank"
   const peak = toInt(raw.peak) ?? toInt(raw.rank) ?? null;
-
   const weeks = toInt(raw.weeks_on_chart) ?? toInt(raw.weeks) ?? null;
 
   return {
@@ -188,10 +178,8 @@ let DB_PATH_RESOLVED = null;
 let DB_MTIME_MS = 0;
 let LOADED = false;
 
-// Flat list
 let MOMENTS = [];
 
-// Indexes for speed + follow-up intelligence
 let BY_YEAR = new Map(); // year -> moments[]
 let BY_YEAR_CHART = new Map(); // `${year}|${chart}` -> moments[]
 let BY_ARTIST_TITLE = new Map(); // `${_na}|${_nt}` -> years Set
@@ -216,23 +204,19 @@ function parseCandidatesEnv(s) {
 }
 
 function resolveDbPath() {
-  // 1) explicit absolute/relative path
   if (ENV_DB_PATH) {
     const abs = resolveRepoPath(ENV_DB_PATH);
     if (fileExists(abs)) return abs;
   }
 
-  // 2) env candidates list
   const envCands = parseCandidatesEnv(ENV_DB_CANDIDATES).map(resolveRepoPath);
   for (const abs of envCands) {
     if (fileExists(abs)) return abs;
   }
 
-  // 3) preferred default first
   const preferred = resolveRepoPath(PREFERRED_DEFAULT_DB);
   if (fileExists(preferred)) return preferred;
 
-  // 4) fallback defaults
   for (const rel of DEFAULT_DB_CANDIDATES) {
     const abs = resolveRepoPath(rel);
     if (fileExists(abs)) return abs;
@@ -351,9 +335,7 @@ function rebuildIndexes() {
 function loadDb() {
   const resolved = resolveDbPath();
   if (!resolved) {
-    throw new Error(
-      `Music DB not found. Checked MUSIC_DB_PATH, MUSIC_DB_CANDIDATES, and defaults under ${REPO_ROOT}`
-    );
+    throw new Error(`Music DB not found. Checked MUSIC_DB_PATH, MUSIC_DB_CANDIDATES, and defaults under ${REPO_ROOT}`);
   }
 
   DB_PATH_RESOLVED = resolved;
@@ -376,24 +358,19 @@ function loadDb() {
     normalized.push(m);
   }
 
-  // Optional merge
   if (MERGE_TOP40WEEKLY) mergeTop40Weekly(normalized, seen);
 
   MOMENTS = normalized;
   rebuildIndexes();
 
-  // Duplicate smell test
-  // (We’re already deduping; this just logs if the source data had collisions)
-  const possibleDupes = 0; // kept for parity; we dedupe by key above
+  const possibleDupes = 0;
   console.log(`[musicKnowledge] DB validation: ${possibleDupes} possible duplicates (artist/year/chart/title).`);
 
   DB = { moments: MOMENTS };
   LOADED = true;
 
   console.log(`[musicKnowledge] Using DB: ${DB_PATH_RESOLVED}`);
-  console.log(
-    `[musicKnowledge] Loaded ${MOMENTS.length} moments (years ${STATS.yearMin}–${STATS.yearMax}) charts=${STATS.charts.length}`
-  );
+  console.log(`[musicKnowledge] Loaded ${MOMENTS.length} moments (years ${STATS.yearMin}–${STATS.yearMax}) charts=${STATS.charts.length}`);
 
   return DB;
 }
@@ -421,7 +398,7 @@ function getDb() {
 }
 
 // =============================
-// EXTRACTION HELPERS (used by index.js worker)
+// EXTRACTION HELPERS
 // =============================
 function extractYear(text) {
   const m = String(text || "").match(/\b(19\d{2}|20\d{2})\b/);
@@ -432,7 +409,6 @@ function detectArtist(text) {
   const t = String(text || "").trim();
   if (!t) return null;
 
-  // Artist - Title pattern
   const normalized = t.replace(/[–—]/g, "-");
   const m = normalized.match(/^(.{2,}?)\s*-\s*(.{2,}?)$/);
   if (!m) return null;
@@ -475,7 +451,6 @@ function findYearsForArtistTitle(artist, title, chart = null) {
 
   let years = Array.from(set);
 
-  // If chart is provided, filter to years where that artist/title exists on that chart
   if (chart) {
     const c = normalizeChart(chart);
     years = years.filter((y) => {
@@ -509,7 +484,19 @@ function pickRandom(arr) {
 }
 
 // =============================
-// PICKERS (used by index.js follow-up intelligence)
+// CHART FALLBACK (V2.13)
+// =============================
+function getFallbackChartForRequest(requestedChart) {
+  if (!ENABLE_CHART_FALLBACK) return null;
+
+  const req = normalizeChart(requestedChart || "");
+  // Only auto-fallback when the request was explicitly Top40Weekly year-end Top 100 (the coverage gap case)
+  if (req === "Top40Weekly Top 100") return normalizeChart(FALLBACK_CHART);
+  return null;
+}
+
+// =============================
+// PICKERS
 // =============================
 function pickRandomByYear(year, chart = null) {
   const pool = poolForYear(year, chart);
@@ -517,13 +504,22 @@ function pickRandomByYear(year, chart = null) {
 }
 
 function pickRandomByYearFallback(year, chart = null) {
-  // First try requested chart; then Top40Weekly Top 100; then any chart.
+  // 1) requested chart
   let best = pickRandomByYear(year, chart);
   if (best) return best;
 
+  // 2) if requested chart was Top40Weekly Top 100 and empty for that year, fallback to Billboard (or configured)
+  const fb = getFallbackChartForRequest(chart);
+  if (fb) {
+    best = pickRandomByYear(year, fb);
+    if (best) return best;
+  }
+
+  // 3) then Top40Weekly Top 100 (if not already tried)
   best = pickRandomByYear(year, "Top40Weekly Top 100");
   if (best) return best;
 
+  // 4) finally any chart
   best = pickRandomByYear(year, null);
   return best || null;
 }
@@ -542,14 +538,32 @@ function pickRandomByDecade(decade, chart = null) {
     if (bucket.length) pool.push(...bucket);
   }
 
+  // If decade pool is empty AND request was Top40Weekly Top 100, try fallback chart decade
+  if (!pool.length) {
+    const fb = getFallbackChartForRequest(chart);
+    if (fb) {
+      for (let y = start; y <= end; y++) {
+        const bucket = poolForYear(y, fb);
+        if (bucket.length) pool.push(...bucket);
+      }
+    }
+  }
+
   return pool.length ? pickRandom(pool) : null;
 }
 
 function getTopByYear(year, n = 10, chart = null) {
-  const pool = poolForYear(year, chart);
+  // Primary pool
+  let pool = poolForYear(year, chart);
+
+  // If empty and request was Top40Weekly Top 100, try fallback chart (Billboard by default)
+  if (!pool.length) {
+    const fb = getFallbackChartForRequest(chart);
+    if (fb) pool = poolForYear(year, fb);
+  }
+
   if (!pool.length) return [];
 
-  // Prefer rank/peak if available; fall back to stable order
   const sorted = pool
     .slice()
     .sort((a, b) => {
@@ -565,7 +579,6 @@ function getTopByYear(year, n = 10, chart = null) {
       const bw = Number.isFinite(b.weeks_on_chart) ? b.weeks_on_chart : -1;
       if (aw !== bw) return bw - aw;
 
-      // deterministic tie-breaker
       const at = a._nt.localeCompare(b._nt);
       if (at !== 0) return at;
       return a._na.localeCompare(b._na);
@@ -592,14 +605,20 @@ function pickBestMoment(_unused, slots = {}) {
     const a = norm(artist);
     const t = norm(title);
 
-    // If year specified, search within that year bucket first
     if (year != null) {
       const bucket = poolForYear(year, chart);
       const exact = bucket.find((m) => m._na === a && m._nt === t);
       if (exact) return exact;
+
+      // If Top40 requested and empty, try fallback chart for exact match
+      const fb = getFallbackChartForRequest(chart);
+      if (fb) {
+        const fbBucket = poolForYear(year, fb);
+        const fbExact = fbBucket.find((m) => m._na === a && m._nt === t);
+        if (fbExact) return fbExact;
+      }
     }
 
-    // If chart specified, scan that chart across years (limited)
     if (chart) {
       const years = findYearsForArtistTitle(artist, title, chart);
       if (years.length) {
@@ -608,9 +627,20 @@ function pickBestMoment(_unused, slots = {}) {
         const exact = bucket.find((m) => m._na === a && m._nt === t);
         if (exact) return exact;
       }
+
+      // If Top40 requested, attempt fallback chart years
+      const fb = getFallbackChartForRequest(chart);
+      if (fb) {
+        const yearsFb = findYearsForArtistTitle(artist, title, fb);
+        if (yearsFb.length) {
+          const y = year != null ? year : yearsFb[0];
+          const bucket = poolForYear(y, fb);
+          const exact = bucket.find((m) => m._na === a && m._nt === t);
+          if (exact) return exact;
+        }
+      }
     }
 
-    // Any chart / any year
     const yearsAny = findYearsForArtistTitle(artist, title, null);
     if (yearsAny.length) {
       const y = year != null ? year : yearsAny[0];
@@ -622,25 +652,23 @@ function pickBestMoment(_unused, slots = {}) {
     return null;
   }
 
-  // 2) Year-only: prefer Top by year if possible
+  // 2) Year-only: prefer top-of-year for chart, then fallback
   if (year != null) {
     const top = getTopByYear(year, 10, chart);
     if (top.length) {
-      // pick #1 if present
       const num1 = top.find((m) => Number(m.peak) === 1 || Number(m.rank) === 1 || m.is_number_one === true);
       return num1 || top[0];
     }
-    // fallback random
     return pickRandomByYearFallback(year, chart);
   }
 
-  // 3) Nothing anchored: pick random from entire DB
+  // 3) Nothing anchored: random from DB
   if (MOMENTS.length) return pickRandom(MOMENTS);
   return null;
 }
 
 // =============================
-// EXPORTS (match your current backend expectations)
+// EXPORTS
 // =============================
 module.exports = {
   // Loader
