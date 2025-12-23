@@ -1,17 +1,21 @@
 "use strict";
 
 /**
- * musicKnowledge.js — Bulletproof V2.13
+ * musicKnowledge.js — Bulletproof V2.14
  *
- * Based on your V2.12 (Render-safe DB loading + Full exports).
- * Key upgrade in V2.13:
- * - Chart fallback intelligence:
- *   If Top40Weekly Top 100 has 0 rows for a requested year, fallback to Billboard Hot 100 (same year).
- *   This prevents "Try another year" dead-ends when Top40Weekly source coverage is missing (e.g., 1990–1998 gaps).
+ * Based on V2.13.
+ * V2.14 upgrades:
+ * - Adds pickRandomByYearWithMeta(year, chart) to match your runtime calls/logs.
+ * - Adds getYearChartCount(year, chart) + hasYearChart(year, chart) for quick diagnostics.
+ * - Meta reports which chart was actually used (requested vs fallback vs any), and pool sizes.
  *
  * Env:
  * - MUSIC_ENABLE_CHART_FALLBACK=1 (default)  -> enable smart fallback
  * - MUSIC_FALLBACK_CHART=Billboard Hot 100   -> fallback chart (default Billboard Hot 100)
+ * - MERGE_TOP40WEEKLY=1 (default)            -> merge Top40Weekly Top 100 data files
+ * - MUSIC_DB_HOT_RELOAD=1                    -> reload db when file changes (dev)
+ * - MUSIC_DB_PATH=/abs/or/relative/path.json -> explicit DB path
+ * - MUSIC_DB_CANDIDATES=path1,path2,...      -> candidate list
  */
 
 const fs = require("fs");
@@ -370,7 +374,9 @@ function loadDb() {
   LOADED = true;
 
   console.log(`[musicKnowledge] Using DB: ${DB_PATH_RESOLVED}`);
-  console.log(`[musicKnowledge] Loaded ${MOMENTS.length} moments (years ${STATS.yearMin}–${STATS.yearMax}) charts=${STATS.charts.length}`);
+  console.log(
+    `[musicKnowledge] Loaded ${MOMENTS.length} moments (years ${STATS.yearMin}–${STATS.yearMax}) charts=${STATS.charts.length}`
+  );
 
   return DB;
 }
@@ -479,18 +485,32 @@ function poolForYear(year, chart = null) {
   return Array.isArray(bucket) ? bucket : [];
 }
 
+function getYearChartCount(year, chart) {
+  const y = Number(year);
+  if (!Number.isFinite(y)) return 0;
+  const c = chart ? normalizeChart(chart) : null;
+  if (!c) return poolForYear(y, null).length;
+
+  const bucket = BY_YEAR_CHART.get(`${y}|${c}`);
+  return Array.isArray(bucket) ? bucket.length : 0;
+}
+
+function hasYearChart(year, chart) {
+  return getYearChartCount(year, chart) > 0;
+}
+
 function pickRandom(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
 // =============================
-// CHART FALLBACK (V2.13)
+// CHART FALLBACK (V2.13+)
 // =============================
 function getFallbackChartForRequest(requestedChart) {
   if (!ENABLE_CHART_FALLBACK) return null;
 
   const req = normalizeChart(requestedChart || "");
-  // Only auto-fallback when the request was explicitly Top40Weekly year-end Top 100 (the coverage gap case)
+  // Only auto-fallback when the request was explicitly Top40Weekly year-end Top 100 (coverage gap case)
   if (req === "Top40Weekly Top 100") return normalizeChart(FALLBACK_CHART);
   return null;
 }
@@ -522,6 +542,92 @@ function pickRandomByYearFallback(year, chart = null) {
   // 4) finally any chart
   best = pickRandomByYear(year, null);
   return best || null;
+}
+
+/**
+ * V2.14 — returns { moment, meta }
+ * meta fields are designed to help your logs + UI decide what to say when fallback occurs.
+ */
+function pickRandomByYearWithMeta(year, chart = null) {
+  getDb();
+
+  const requestedChart = chart ? normalizeChart(chart) : null;
+
+  const requestedPool = poolForYear(year, requestedChart);
+  if (requestedChart && requestedPool.length) {
+    return {
+      moment: pickRandom(requestedPool),
+      meta: {
+        year: Number(year),
+        requestedChart,
+        usedChart: requestedChart,
+        usedFallback: false,
+        strategy: "requested",
+        poolSize: requestedPool.length
+      }
+    };
+  }
+
+  const fb = getFallbackChartForRequest(requestedChart);
+  if (fb) {
+    const fbPool = poolForYear(year, fb);
+    if (fbPool.length) {
+      return {
+        moment: pickRandom(fbPool),
+        meta: {
+          year: Number(year),
+          requestedChart,
+          usedChart: fb,
+          usedFallback: true,
+          strategy: "fallbackChart",
+          poolSize: fbPool.length
+        }
+      };
+    }
+  }
+
+  const top40Pool = poolForYear(year, "Top40Weekly Top 100");
+  if (top40Pool.length) {
+    return {
+      moment: pickRandom(top40Pool),
+      meta: {
+        year: Number(year),
+        requestedChart,
+        usedChart: "Top40Weekly Top 100",
+        usedFallback: requestedChart !== "Top40Weekly Top 100",
+        strategy: "top40Backup",
+        poolSize: top40Pool.length
+      }
+    };
+  }
+
+  const anyPool = poolForYear(year, null);
+  if (anyPool.length) {
+    const usedChart = anyPool[0]?.chart || null;
+    return {
+      moment: pickRandom(anyPool),
+      meta: {
+        year: Number(year),
+        requestedChart,
+        usedChart,
+        usedFallback: true,
+        strategy: "anyChart",
+        poolSize: anyPool.length
+      }
+    };
+  }
+
+  return {
+    moment: null,
+    meta: {
+      year: Number(year),
+      requestedChart,
+      usedChart: null,
+      usedFallback: false,
+      strategy: "none",
+      poolSize: 0
+    }
+  };
 }
 
 function pickRandomByDecade(decade, chart = null) {
@@ -693,10 +799,13 @@ module.exports = {
   // Query helpers
   findYearsForArtistTitle,
   getAllMoments,
+  getYearChartCount,
+  hasYearChart,
 
   // Pickers
   pickRandomByYear,
   pickRandomByYearFallback,
+  pickRandomByYearWithMeta,
   pickRandomByDecade,
   getTopByYear
 };
