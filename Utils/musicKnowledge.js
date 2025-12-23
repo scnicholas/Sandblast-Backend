@@ -1,9 +1,13 @@
 "use strict";
 
 /**
- * musicKnowledge.js — Bulletproof V2.15
+ * musicKnowledge.js — Bulletproof V2.16
  *
- * Based on V2.14. :contentReference[oaicite:1]{index=1}
+ * Based on V2.15. :contentReference[oaicite:1]{index=1}
+ *
+ * V2.16 upgrades (Top40Weekly integrity fix):
+ * - Fixes Top40Weekly Top 100 rows where artist surname is separated and first name (or artist remainder) is appended to title.
+ * - Normalizes 'Jr.' cases (e.g., Ray Parker, Jr.).
  *
  * V2.15 upgrades (content/merge hardening):
  * - Case-sensitive-safe Top40Weekly folder discovery (Render/Linux).
@@ -130,6 +134,108 @@ function normalizeChart(chart) {
   return c;
 }
 
+
+// =============================
+// TOP40WEEKLY ROW FIXUP
+// =============================
+// Some Top40Weekly Top 100 source files store artist as a trailing surname token
+// and append the remaining artist name to the end of the title (e.g. artist="Turner", title="What's Love... Tina").
+// We fix this at ingest-time so downstream pickers/lists are correct.
+function _isNameyToken(w) {
+  const s = String(w || "").trim();
+  if (!s) return false;
+  const lc = s.toLowerCase().replace(/[,]+$/g, "");
+
+  // connectors or common artist-name particles
+  if (["and", "&", "of", "the", "mc", "jr", "jr."].includes(lc)) return true;
+
+  // looks like a capitalized word or initial
+  if (/^[A-Z][a-z]+[,]?$/.test(s)) return true;
+  if (/^[A-Z]\.?$/.test(s)) return true; // initial
+  if (/^Mc[A-Z][a-z]+[,]?$/.test(s)) return true; // McCartney style
+  return false;
+}
+
+function _looksNameChunk(tokens) {
+  if (!Array.isArray(tokens) || !tokens.length) return false;
+  // allow commas on last token
+  return tokens.every(_isNameyToken);
+}
+
+function fixTop40ArtistTitle(artist, title) {
+  let a = normalizeArtistPunctuation(String(artist || "").trim());
+  let t = String(title || "").trim();
+  if (!a || !t) return { artist: a, title: t };
+
+  // Clean trailing punctuation
+  t = t.replace(/\s+[,]+$/g, "").trim();
+
+  const aParts = a.split(/\s+/).filter(Boolean);
+  const aLast = (aParts[aParts.length - 1] || "").replace(/[^A-Za-z0-9'.-]/g, "").toLowerCase();
+  const aSingle = aParts.length === 1;
+
+  // Decide whether this row is eligible for repair:
+  // - Single-token artist that looks like a surname (appears as last token of multiword artists)
+  // - Or "Jr." placeholder artist
+  // - Or titles that clearly end with an "artist continuation" (e.g., end with "and")
+  const tLower = t.toLowerCase();
+  const titleEndsWithAnd = /\band\s*$/i.test(t);
+  const artistIsJrOnly = /^jr\.?$/i.test(a);
+
+  const surnameSet = TOP40_SURNAME_SET instanceof Set ? TOP40_SURNAME_SET : new Set();
+
+  const eligible =
+    artistIsJrOnly ||
+    (aSingle && aLast && surnameSet.has(aLast)) ||
+    (titleEndsWithAnd && aLast && surnameSet.has(aLast));
+
+  if (!eligible) return { artist: a, title: t };
+
+  const words = t.split(/\s+/).filter(Boolean);
+  if (words.length < 2) return { artist: a, title: t };
+
+  const badTitleEnd = new Set(["a", "an", "the", "of", "to", "with", "and", "or", "but", "in", "on", "at", "for", "from"]);
+
+  // Try moving 1..10 trailing words from title into artist (front)
+  for (let k = 1; k <= 10 && k < words.length; k++) {
+    const tail = words.slice(words.length - k);
+    const head = words.slice(0, words.length - k);
+
+    const candidateTitle = head.join(" ").trim();
+    if (candidateTitle.length < 3) continue;
+
+    const lastWord = (head[head.length - 1] || "").toLowerCase();
+    if (badTitleEnd.has(lastWord)) continue;
+
+    // Heuristic: tail looks like a name chunk (Capitalized tokens or connectors)
+    const looksNamey = tail.every((w) => {
+      const wl = w.toLowerCase().replace(/[,]+$/g, "");
+      return (
+        /^[A-Z]/.test(w) ||
+        ["and", "&", "mc", "mccartney", "jr.", "jr"].includes(wl)
+      );
+    });
+    if (!looksNamey) continue;
+
+    // Avoid corrupting legit one-word acts by not moving single trailing word unless artist looks truncated
+    if (k === 1 && !artistIsJrOnly && !(aSingle && surnameSet.has(aLast))) continue;
+
+    // Special case: artist is only "Jr." — keep Jr. at end
+    if (artistIsJrOnly) {
+      const fixedArtist = normalizeArtistPunctuation(`${tail.join(" ").replace(/\s+[,]+$/g, "")}, Jr.`);
+      return { artist: fixedArtist, title: candidateTitle };
+    }
+
+    const candidateArtist = normalizeArtistPunctuation(`${tail.join(" ")} ${a}`.replace(/\s+/g, " ").trim());
+
+    return { artist: candidateArtist, title: candidateTitle };
+  }
+
+  return { artist: a, title: t };
+}
+
+
+
 // =============================
 // NORMALIZATION (moment)
 // =============================
@@ -142,14 +248,23 @@ function normalizeMoment(raw, forcedYear = null, forcedChart = null) {
   const year = toInt(raw.year) ?? (forcedYear != null ? toInt(forcedYear) : null);
   const chart = normalizeChart(forcedChart ?? raw.chart ?? DEFAULT_CHART);
 
-  if (!artist || !title || !year) return null;
+  // Top40Weekly Top 100 fix-up (repair surname/first-name split from source rows)
+  let _artist = artist;
+  let _title = title;
+  if (chart === TOP40_CHART) {
+    const fixed = fixTop40ArtistTitle(_artist, _title);
+    _artist = fixed.artist;
+    _title = fixed.title;
+  }
+
+  if (!_artist || !_title || !year) return null;
 
   const peak = toInt(raw.peak) ?? toInt(raw.rank) ?? null;
   const weeks = toInt(raw.weeks_on_chart) ?? toInt(raw.weeks) ?? null;
 
   return {
-    artist,
-    title,
+    artist: _artist,
+    title: _title,
     year,
     chart,
 
@@ -162,10 +277,50 @@ function normalizeMoment(raw, forcedYear = null, forcedChart = null) {
     culture: String(raw.culture || "").trim(),
     next: String(raw.next || "").trim(),
 
-    _na: norm(artist),
-    _nt: norm(title)
+    _na: norm(_artist),
+    _nt: norm(_title)
   };
 }
+
+
+// =============================
+// TOP40WEEKLY REPAIR SUPPORT
+// =============================
+// Build a surname/last-token set from the base DB so we only "repair" rows where the artist
+// clearly looks truncated (e.g., Turner -> Tina Turner). This avoids corrupting one-word acts
+// like Prince, Yes, Heart, etc.
+let TOP40_SURNAME_SET = null;
+
+function buildSurnameSet(moments) {
+  const set = new Set();
+  if (!Array.isArray(moments)) return set;
+
+  for (const m of moments) {
+    const a = String(m?.artist || "").trim();
+    if (!a) continue;
+    const parts = a.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      const last = parts[parts.length - 1].replace(/[^A-Za-z0-9'.-]/g, "").toLowerCase();
+      if (last) set.add(last);
+    }
+  }
+  return set;
+}
+
+function normalizeArtistPunctuation(a) {
+  let s = String(a || "").trim();
+  if (!s) return s;
+  // Collapse multiple commas/spaces (e.g., Parker,, Jr.)
+  s = s.replace(/\s*,\s*,+/g, ", ").replace(/,{2,}/g, ",").replace(/\s{2,}/g, " ").trim();
+  // Normalize "Jr" variants
+  s = s.replace(/\bJr\b(?!\.)/g, "Jr.").replace(/\bJR\b\.?/g, "Jr.");
+  // Fix " , " spacing
+  s = s.replace(/\s*,\s*/g, ", ").replace(/\s{2,}/g, " ").trim();
+  // Remove accidental double ", "
+  s = s.replace(/,\s*,/g, ", ");
+  return s;
+}
+
 
 // =============================
 // INTERNAL STATE + INDEXES
@@ -399,6 +554,8 @@ function loadDb() {
 
     normalized.push(m);
   }
+
+  TOP40_SURNAME_SET = buildSurnameSet(normalized);
 
   const mergeInfo = MERGE_TOP40WEEKLY ? mergeTop40Weekly(normalized, seen) : null;
 
