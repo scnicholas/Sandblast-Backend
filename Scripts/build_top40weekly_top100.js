@@ -1,12 +1,14 @@
+@'
 "use strict";
 
 /**
- * build_top40weekly_top100.js — v1.6
- * Builds Top40Weekly year-end Top 100 by computing points from weekly Top 40 posts.
+ * build_top40weekly_top100.js — v1.7
+ * Build year-end Top40Weekly Top 100 by computing points from weekly Top 40 pages.
  *
- * Key upgrade:
- * - If the year hub page contains zero weekly links, use WordPress REST API fallback:
- *   https://top40weekly.com/wp-json/wp/v2/posts?per_page=100&page=1&after=YYYY-01-01T00:00:00&before=YYYY-12-31T23:59:59&search=week%20ending
+ * v1.7 Improvements:
+ * - Hub extraction: broader weekly patterns + collects many Top40Weekly links.
+ * - If hub yields too few weekly pages, fallback to WP REST (posts + pages) within year bounds.
+ * - Clean exit (no process.exit).
  *
  * Usage:
  *   node Scripts/build_top40weekly_top100.js 1994 Data/top40weekly/top100_1994.json
@@ -20,9 +22,14 @@ const fs = require("fs");
 const path = require("path");
 
 const BASE = "https://top40weekly.com/";
-const WP_API = `${BASE}wp-json/wp/v2/posts`;
+const WP_POSTS = `${BASE}wp-json/wp/v2/posts`;
+const WP_PAGES = `${BASE}wp-json/wp/v2/pages`;
+
 const DELAY_MS = Math.max(0, Number(process.env.T40W_DELAY_MS || "250") || 250);
 const MAX_WEEKS = Math.max(0, Number(process.env.T40W_MAX_WEEKS || "0") || 0);
+
+// If hub extraction yields fewer than this, we auto-fallback to WP REST discovery
+const MIN_WEEKLY_TARGET = 30;
 
 async function sleep(ms) {
   if (ms > 0) await new Promise((r) => setTimeout(r, ms));
@@ -44,7 +51,7 @@ async function fetchText(url, tries = 3) {
         },
       });
       const text = await res.text();
-      return { status: res.status, text, url, headers: res.headers };
+      return { status: res.status, text, url };
     } catch (e) {
       lastErr = e;
       await sleep(900 + i * 700);
@@ -55,9 +62,7 @@ async function fetchText(url, tries = 3) {
 
 async function fetchJson(url) {
   const r = await fetchText(url);
-  if (r.status < 200 || r.status >= 300) {
-    throw new Error(`HTTP ${r.status} for ${url}`);
-  }
+  if (r.status < 200 || r.status >= 300) throw new Error(`HTTP ${r.status} for ${url}`);
   return JSON.parse(r.text);
 }
 
@@ -94,35 +99,49 @@ function isWp404(status, html) {
   return false;
 }
 
-function extractWeeklyLinksFromYearHub(html) {
-  const urls = [];
-  const re = /href="([^"]+)"/gi;
-  let m;
-
-  while ((m = re.exec(html))) {
-    let href = m[1];
-    if (!href) continue;
-
-    if (href.startsWith("/")) href = BASE.replace(/\/$/, "") + href;
-    if (!href.startsWith("http")) continue;
-    if (!href.includes("top40weekly.com/")) continue;
-
-    // broad weekly patterns
-    const isWeekly =
-      href.includes("week-ending") ||
-      href.includes("week ending") ||
-      href.includes("us-top-40-singles");
-
-    if (!isWeekly) continue;
-    urls.push(href);
-  }
-
-  return Array.from(new Set(urls));
+function normalizeUrl(u) {
+  let url = String(u || "").trim();
+  if (!url) return "";
+  if (url.startsWith("//")) url = "https:" + url;
+  if (url.startsWith("/")) url = BASE.replace(/\/$/, "") + url;
+  url = url.replace(/#.*$/, "");
+  return url;
 }
 
 function yearFromWeeklyUrl(url) {
   const m = String(url).match(/(\d{4})\/?$/);
   return m ? Number(m[1]) : null;
+}
+
+// Broad weekly slug detection
+function looksWeeklyUrl(url) {
+  const u = String(url || "").toLowerCase();
+  return (
+    u.includes("week-ending") ||
+    u.includes("us-top-40-singles") ||
+    u.includes("top-40-singles")
+  );
+}
+
+function extractLinks(html) {
+  const out = [];
+  const re = /href="([^"]+)"/gi;
+  let m;
+  while ((m = re.exec(html))) {
+    const u = normalizeUrl(m[1]);
+    if (u && u.includes("top40weekly.com/")) out.push(u);
+  }
+  return Array.from(new Set(out));
+}
+
+function extractWeeklyLinksFromYearHub(html, year) {
+  const links = extractLinks(html);
+  const weekly = links.filter((u) => looksWeeklyUrl(u));
+  const filtered = weekly.filter((u) => {
+    const y = yearFromWeeklyUrl(u);
+    return !y || y === year;
+  });
+  return Array.from(new Set(filtered));
 }
 
 function parseWeeklyTop40(html) {
@@ -169,54 +188,62 @@ function safeWriteJson(absOut, rows) {
   return true;
 }
 
-async function getWeeklyLinksViaWpJson(year) {
+async function discoverWeeklyViaWpRest(year) {
   const after = `${year}-01-01T00:00:00`;
   const before = `${year}-12-31T23:59:59`;
 
-  const links = [];
-  const seen = new Set();
+  const searches = [
+    "week%20ending",
+    "week-ending",
+    "us%20top%2040%20singles",
+    "top%2040%20singles"
+  ];
 
-  // Two searches: "week ending" and "week-ending" (slugged)
-  const searches = ["week%20ending", "week-ending", "us%20top%2040%20singles"];
+  async function crawl(endpoint) {
+    const found = [];
+    const seen = new Set();
 
-  for (const q of searches) {
-    for (let page = 1; page <= 30; page++) {
-      const url =
-        `${WP_API}?per_page=100&page=${page}` +
-        `&after=${encodeURIComponent(after)}` +
-        `&before=${encodeURIComponent(before)}` +
-        `&search=${q}`;
+    for (const q of searches) {
+      for (let page = 1; page <= 50; page++) {
+        const url =
+          `${endpoint}?per_page=100&page=${page}` +
+          `&after=${encodeURIComponent(after)}` +
+          `&before=${encodeURIComponent(before)}` +
+          `&search=${q}`;
 
-      let arr = [];
-      try {
-        arr = await fetchJson(url);
-      } catch (e) {
-        // Most common: page overflow => stop
-        break;
-      }
-
-      if (!Array.isArray(arr) || arr.length === 0) break;
-
-      for (const post of arr) {
-        const link = post && post.link ? String(post.link) : "";
-        if (!link || !link.includes("top40weekly.com/")) continue;
-        // keep only likely weekly chart posts
-        if (!(link.includes("week-ending") || link.includes("us-top-40-singles"))) continue;
-
-        const y = yearFromWeeklyUrl(link);
-        if (y && y !== year) continue;
-
-        if (!seen.has(link)) {
-          seen.add(link);
-          links.push(link);
+        let arr = [];
+        try {
+          arr = await fetchJson(url);
+        } catch (e) {
+          break;
         }
-      }
 
-      await sleep(DELAY_MS);
+        if (!Array.isArray(arr) || arr.length === 0) break;
+
+        for (const item of arr) {
+          const link = item && item.link ? String(item.link) : "";
+          if (!link || !link.includes("top40weekly.com/")) continue;
+          if (!looksWeeklyUrl(link)) continue;
+
+          const y = yearFromWeeklyUrl(link);
+          if (y && y !== year) continue;
+
+          if (!seen.has(link)) {
+            seen.add(link);
+            found.push(link);
+          }
+        }
+
+        await sleep(DELAY_MS);
+      }
     }
+
+    return found;
   }
 
-  return links;
+  const a = await crawl(WP_POSTS);
+  const b = await crawl(WP_PAGES);
+  return Array.from(new Set([...a, ...b]));
 }
 
 async function main() {
@@ -239,7 +266,6 @@ async function main() {
   const absOut = path.resolve(process.cwd(), outPath);
   fs.mkdirSync(path.dirname(absOut), { recursive: true });
 
-  // 1) Hub attempt
   const hubUrl = `${BASE}${year}-all-charts/`;
   console.error("[HUB]", hubUrl);
 
@@ -247,21 +273,23 @@ async function main() {
   fs.writeFileSync(`./Data/_debug_t40w_${year}_hub.html`, hub.text, "utf8");
 
   if (isWp404(hub.status, hub.text)) {
-    console.error("[WARN] hub looks like 404 template, switching to WP JSON fallback");
+    console.error("[WARN] hub looks like 404 template (soft/real). Continuing with fallback discovery.");
   }
 
-  let weeklyLinks = extractWeeklyLinksFromYearHub(hub.text);
+  let weeklyLinks = extractWeeklyLinksFromYearHub(hub.text, year);
   console.error("[WEEKS] hub extracted", weeklyLinks.length);
 
-  // 2) WP JSON fallback if hub has nothing
-  if (!weeklyLinks.length) {
-    console.error("[FALLBACK] Using WP REST API to locate weekly posts for", year);
-    weeklyLinks = await getWeeklyLinksViaWpJson(year);
-    console.error("[WEEKS] wp-json found", weeklyLinks.length);
+  if (weeklyLinks.length < MIN_WEEKLY_TARGET) {
+    console.error("[FALLBACK] weekly links too low; using WP REST discovery...");
+    const more = await discoverWeeklyViaWpRest(year);
+    console.error("[WEEKS] wp-rest discovered", more.length);
+
+    weeklyLinks = Array.from(new Set([...weeklyLinks, ...more]));
+    console.error("[WEEKS] total merged", weeklyLinks.length);
   }
 
   if (!weeklyLinks.length) {
-    console.error("[FAIL] No weekly links found by hub or wp-json. Check debug hub HTML.");
+    console.error("[FAIL] No weekly links found by hub or WP REST.");
     process.exitCode = 3;
     return;
   }
@@ -282,18 +310,18 @@ async function main() {
       continue;
     }
 
-    const weekRows = parseWeeklyTop40(r.text);
-    if (weekRows.length < 20) {
+    const rows = parseWeeklyTop40(r.text);
+    if (rows.length < 20) {
       if (parsedWeeks < 2) {
         fs.writeFileSync(`./Data/_debug_t40w_${year}_week_bad_${parsedWeeks + 1}.html`, r.text, "utf8");
       }
-      console.error("[WARN] low parse rows", weekRows.length, "url=", url);
+      console.error("[WARN] low parse rows", rows.length, "url=", url);
       continue;
     }
 
     parsedWeeks++;
 
-    for (const row of weekRows) {
+    for (const row of rows) {
       const pts = 41 - row.tw; // 40..1
       const k = keySong(row.title, row.artist);
       const cur = agg.get(k) || { title: row.title, artist: row.artist, points: 0, weeks: 0 };
@@ -343,3 +371,4 @@ main().catch((e) => {
   console.error("[ERR]", e && e.stack ? e.stack : e);
   process.exitCode = 99;
 });
+'@ | Set-Content -Encoding UTF8 .\Scripts\build_top40weekly_top100.js
