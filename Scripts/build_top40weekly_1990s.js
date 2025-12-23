@@ -3,62 +3,62 @@
 const fs = require("fs");
 const path = require("path");
 
-const SOURCE_URL = "https://top40weekly.com/top-100-songs-of-the-1990s/";
 const OUT_DIR = path.resolve(__dirname, "..", "Data", "top40weekly");
 
-const YEARS = [1990,1991,1992,1993,1994,1995,1996,1997,1998,1999];
+const YEARS = [1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999];
 const CHART_NAME = "Top40Weekly Top 100";
+
+// Source strategy:
+// - 1990–1998: each year is on its own page
+// - 1999: list is embedded on the decade page (as you confirmed)
+function getSourceUrl(year) {
+  if (year === 1999) return "https://top40weekly.com/top-100-songs-of-the-1990s/";
+  return `https://top40weekly.com/top-100-songs-of-${year}/`;
+}
 
 function ensureDir(p) {
   fs.mkdirSync(p, { recursive: true });
 }
 
 function decode(html) {
-  return html
+  return String(html || "")
     .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&")
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
     .replace(/&#8217;/g, "’")
+    .replace(/&#8216;/g, "‘")
+    .replace(/&#8220;/g, "“")
+    .replace(/&#8221;/g, "”")
     .replace(/<br\s*\/?>/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
-function extractYearSection(html, year) {
-  const start = html.indexOf(`id="${year}-topsongslist"`);
-  if (start === -1) return null;
+// Parse list items from a full page HTML
+// Handles common patterns on Top40Weekly year pages:
+// - <li>...</li>
+// - <p>...</p>
+// Looks for " by " delimiter.
+// Rank is assigned sequentially as encountered.
+function parseTop100FromHtml(pageHtml) {
+  const blocks = [];
+  let m;
 
-  const nextYear = YEARS.find(y => y > year);
-  if (!nextYear) return html.slice(start);
+  const liRegex = /<li[^>]*>(.*?)<\/li>/gis;
+  while ((m = liRegex.exec(pageHtml)) !== null) blocks.push(m[1]);
 
-  const end = html.indexOf(`id="${nextYear}-topsongslist"`, start + 1);
-  return end === -1 ? html.slice(start) : html.slice(start, end);
-}
+  const pRegex = /<p[^>]*>(.*?)<\/p>/gis;
+  while ((m = pRegex.exec(pageHtml)) !== null) blocks.push(m[1]);
 
-function parseListItems(sectionHtml) {
   const items = [];
   let rank = 1;
-  const blocks = [];
-
-  // 1999 uses <li>
-  const liRegex = /<li[^>]*>(.*?)<\/li>/gis;
-  let m;
-  while ((m = liRegex.exec(sectionHtml)) !== null) {
-    blocks.push(m[1]);
-  }
-
-  // 1990–1998 mostly use <p>
-  const pRegex = /<p[^>]*>(.*?)<\/p>/gis;
-  while ((m = pRegex.exec(sectionHtml)) !== null) {
-    blocks.push(m[1]);
-  }
 
   for (const block of blocks) {
     if (rank > 100) break;
 
-    let text = decode(block.replace(/<[^>]+>/g, " "));
-    if (!text.toLowerCase().includes(" by ")) continue;
+    const text = decode(block.replace(/<[^>]+>/g, " "));
+    if (!text || !text.toLowerCase().includes(" by ")) continue;
 
     const parts = text.split(/\s+by\s+/i);
     if (parts.length < 2) continue;
@@ -68,16 +68,19 @@ function parseListItems(sectionHtml) {
 
     if (!title || !artist) continue;
 
-    items.push({
-      rank,
-      title,
-      artist
-    });
-
+    items.push({ rank, title, artist });
     rank++;
   }
 
   return items;
+}
+
+async function fetchHtml(url) {
+  const res = await fetch(url, { redirect: "follow" });
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status} ${res.statusText} for ${url}`);
+  }
+  return await res.text();
 }
 
 (async function main() {
@@ -86,25 +89,29 @@ function parseListItems(sectionHtml) {
     process.exit(1);
   }
 
-  console.log(`[build_top40weekly_1990s] Fetching ${SOURCE_URL}`);
-  const res = await fetch(SOURCE_URL);
-  const html = await res.text();
-
   ensureDir(OUT_DIR);
 
   let total = 0;
 
   for (const year of YEARS) {
-    const section = extractYearSection(html, year);
-    if (!section) {
-      console.warn(`[build_top40weekly_1990s] ${year}: section not found`);
+    const url = getSourceUrl(year);
+    console.log(`[build_top40weekly_1990s] Fetching ${url}`);
+
+    let html;
+    try {
+      html = await fetchHtml(url);
+    } catch (e) {
+      console.log(`[build_top40weekly_1990s] ${year}: fetch failed: ${String(e?.message || e)}`);
+      // Write empty file so you see the gap immediately
+      const outPath = path.join(OUT_DIR, `top100_${year}.json`);
+      fs.writeFileSync(outPath, JSON.stringify([], null, 2), "utf8");
       continue;
     }
 
-    const rows = parseListItems(section);
+    const rows = parseTop100FromHtml(html);
     console.log(`[build_top40weekly_1990s] ${year}: parsed ${rows.length} rows`);
 
-    const payload = rows.map(r => ({
+    const payload = rows.map((r) => ({
       year,
       chart: CHART_NAME,
       rank: r.rank,
@@ -112,14 +119,14 @@ function parseListItems(sectionHtml) {
       artist: r.artist
     }));
 
-    fs.writeFileSync(
-      path.join(OUT_DIR, `top100_${year}.json`),
-      JSON.stringify(payload, null, 2),
-      "utf8"
-    );
+    const outPath = path.join(OUT_DIR, `top100_${year}.json`);
+    fs.writeFileSync(outPath, JSON.stringify(payload, null, 2), "utf8");
 
     total += payload.length;
   }
 
   console.log(`[build_top40weekly_1990s] Done. Total rows written: ${total}`);
-})();
+})().catch((e) => {
+  console.error(`[build_top40weekly_1990s] ERROR: ${String(e?.message || e)}`);
+  process.exit(1);
+});
