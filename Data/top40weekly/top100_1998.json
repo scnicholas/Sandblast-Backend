@@ -1,1 +1,702 @@
-[]
+[
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 1,
+    "title": "TRULY MADLY DEEPLY",
+    "artist": "Savage Garden"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 2,
+    "title": "TOO CLOSE",
+    "artist": "Next"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 3,
+    "title": "YOU’RE STILL THE ONE",
+    "artist": "Shania Twain"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 4,
+    "title": "THE BOY IS MINE",
+    "artist": "Brandy and Monica"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 5,
+    "title": "ALL MY LIFE",
+    "artist": "K-Ci & JoJo"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 6,
+    "title": "TOGETHER AGAIN",
+    "artist": "Janet"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 7,
+    "title": "HOW DO I LIVE",
+    "artist": "LeAnn Rimes"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 8,
+    "title": "MY WAY",
+    "artist": "Usher"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 9,
+    "title": "ADIA / ANGEL",
+    "artist": "Sarah McLachlan"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 10,
+    "title": "NO, NO, NO",
+    "artist": "Destiny’s Child"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 11,
+    "title": "NICE AND SLOW",
+    "artist": "Usher"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 12,
+    "title": "CRUSH",
+    "artist": "Jennifer Paige"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 13,
+    "title": "HOW’S IT GOING TO BE",
+    "artist": "Third Eye Blind"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 14,
+    "title": "THE FIRST NIGHT",
+    "artist": "Monica"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 15,
+    "title": "GETTIN’ JIGGY WIT IT",
+    "artist": "Will Smith"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 16,
+    "title": "I DON’T WANT TO WAIT",
+    "artist": "Paula Cole"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 17,
+    "title": "THIS KISS",
+    "artist": "Faith Hill"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 18,
+    "title": "EVERYBODY (BACKSTREET’S BACK)",
+    "artist": "Backstreet Boys"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 19,
+    "title": "MY ALL",
+    "artist": "Mariah Carey"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 20,
+    "title": "NEVER EVER",
+    "artist": "All Saints"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 21,
+    "title": "SEX AND CANDY",
+    "artist": "Marcy Playground"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 22,
+    "title": "WHEN THE LIGHTS GO OUT",
+    "artist": "Five"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 23,
+    "title": "BEEN AROUND THE WORLD / IT’S ALL ABOUT THE BENJAMINS",
+    "artist": "Puff Daddy featuring Lil’ Kim, The Lox and The Notorious B.I.G."
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 24,
+    "title": "I DON’T WANT TO MISS A THING",
+    "artist": "Aerosmith"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 25,
+    "title": "BODY BUMPIN’ (YIPPIE-YI-YO)",
+    "artist": "Public Announcement"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 26,
+    "title": "YOU MAKE ME WANNA",
+    "artist": "Usher"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 27,
+    "title": "MAKE IT HOT",
+    "artist": "Nicole featuring Missy Elliott and Mocha"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 28,
+    "title": "FROZEN",
+    "artist": "Madonna"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 29,
+    "title": "LET’S RIDE",
+    "artist": "Montell Jordan featuring Master P and Silkk the Shocker"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 30,
+    "title": "SOMETHING ABOUT THE WAY YOU LOOK TONIGHT / CANDLE IN THE WIND 1997",
+    "artist": "Elton John"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 31,
+    "title": "MY HEART WILL GO ON",
+    "artist": "Celine Dion"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 32,
+    "title": "I DON’T EVER WANT TO SEE YOU AGAIN",
+    "artist": "Uncle Sam"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 33,
+    "title": "COME WITH ME",
+    "artist": "Puff Daddy featuring Jimmy Page"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 34,
+    "title": "I WANT YOU BACK",
+    "artist": "‘N Sync"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 35,
+    "title": "A SONG FOR MAMA",
+    "artist": "Boyz II Men"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 36,
+    "title": "GONE TILL NOVEMBER",
+    "artist": "Wyclef Jean"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 37,
+    "title": "SAY IT",
+    "artist": "Voices of Theory"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 38,
+    "title": "WHAT YOU WANT",
+    "artist": "Mase featuring Total"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 39,
+    "title": "DAYDREAMIN’",
+    "artist": "Tatyana Ali"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 40,
+    "title": "SHOW ME LOVE",
+    "artist": "Robyn"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 41,
+    "title": "TUBTHUMPING",
+    "artist": "Chumbawamba"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 42,
+    "title": "ONE WEEK",
+    "artist": "Barenaked Ladies"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 43,
+    "title": "TIME AFTER TIME",
+    "artist": "INOJ"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 44,
+    "title": "MY BODY",
+    "artist": "LSG"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 45,
+    "title": "I’LL BE",
+    "artist": "Edwin McCain"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 46,
+    "title": "I GET LONELY",
+    "artist": "Janet Jackson featuring Blackstreet"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 47,
+    "title": "I STILL LOVE YOU",
+    "artist": "Next"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 48,
+    "title": "THE ARMS OF THE ONE WHO LOVES YOU",
+    "artist": "Xscape"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 49,
+    "title": "DEJA VU (UPTOWN BABY)",
+    "artist": "Lord Tariq and Peter Gunz"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 50,
+    "title": "LATELY",
+    "artist": "Divine"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 51,
+    "title": "LOOKIN’ AT ME",
+    "artist": "Mase featuring Puff Daddy"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 52,
+    "title": "ARE U STILL DOWN / THEY DON’T KNOW",
+    "artist": "Jon B."
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 53,
+    "title": "HOW DEEP IS YOUR LOVE",
+    "artist": "Dru Hill featuring Redman"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 54,
+    "title": "MAKE ‘EM SAY UHH!",
+    "artist": "Master P featuring Fiend, Silkk the Shocker, Mia X and Mystikal"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 55,
+    "title": "FEEL SO GOOD",
+    "artist": "Mase featuring Kelly Price"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 56,
+    "title": "GHETTO SUPASTAR (THAT IS WHAT YOU ARE)",
+    "artist": "Pras Michel featuring Ol’ Dirty Bastard and Mýa"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 57,
+    "title": "FRIEND OF MINE",
+    "artist": "Kelly Price featuring R. Kelly and Ron Isley"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 58,
+    "title": "IT’S ALL ABOUT ME",
+    "artist": "Mýa and Sisqo"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 59,
+    "title": "CRUEL SUMMER",
+    "artist": "Ace of Base"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 60,
+    "title": "BECAUSE OF YOU",
+    "artist": "98 Degrees"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 61,
+    "title": "TOUCH IT",
+    "artist": "Monifah"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 62,
+    "title": "LOOKING THROUGH YOUR EYES",
+    "artist": "LeAnn Rimes"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 63,
+    "title": "TURN IT UP (REMIX)/FIRE IT UP",
+    "artist": "Busta Rhymes"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 64,
+    "title": "ROMEO AND JULIET",
+    "artist": "Sylk-E. Fyne featuring Chill"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 65,
+    "title": "MY LOVE IS THE SHHH!",
+    "artist": "Somethin’ for the People featuring Trina & Tamara"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 66,
+    "title": "KISS THE RAIN",
+    "artist": "Billie Myers"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 67,
+    "title": "WE’RE NOT MAKING LOVE NO MORE",
+    "artist": "Dru Hill"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 68,
+    "title": "RAY OF LIGHT",
+    "artist": "Madonna"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 69,
+    "title": "I GOT THE HOOK UP",
+    "artist": "Master P featuring Sons of Funk"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 70,
+    "title": "WESTSIDE",
+    "artist": "TQ"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 71,
+    "title": "SWING MY WAY",
+    "artist": "K. P. & Envyi"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 72,
+    "title": "I WILL COME TO YOU",
+    "artist": "Hanson"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 73,
+    "title": "I DO",
+    "artist": "Lisa Loeb"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 74,
+    "title": "ARE YOU JIMMY RAY?",
+    "artist": "Jimmy Ray"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 75,
+    "title": "THINKIN’ BOUT IT",
+    "artist": "Gerald Levert"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 76,
+    "title": "THE POWER OF GOOD-BYE",
+    "artist": "Madonna"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 77,
+    "title": "TOO MUCH",
+    "artist": "Spice Girls"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 78,
+    "title": "MY LITTLE SECRET",
+    "artist": "Xscape"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 79,
+    "title": "ALL CRIED OUT",
+    "artist": "Allure featuring 112"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 80,
+    "title": "COME AND GET WITH ME",
+    "artist": "Keith Sweat Featuring Snoop Dogg"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 81,
+    "title": "NOBODY’S SUPPOSED TO BE HERE",
+    "artist": "Deborah Cox"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 82,
+    "title": "DANGEROUS",
+    "artist": "Busta Rhymes"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 83,
+    "title": "SEMI-CHARMED LIFE",
+    "artist": "Third Eye Blind"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 84,
+    "title": "SPICE UP YOUR LIFE",
+    "artist": "Spice Girls"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 85,
+    "title": "STILL NOT A PLAYER",
+    "artist": "Big Pun featuring Joe"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 86,
+    "title": "THE ONE I GAVE MY HEART TO",
+    "artist": "Aaliyah"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 87,
+    "title": "VICTORY",
+    "artist": "Puff Daddy featuring The Notorious B.I.G. and Busta Rhymes"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 88,
+    "title": "STOP",
+    "artist": "Spice Girls"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 89,
+    "title": "MONEY, POWER & RESPECT",
+    "artist": "The LOX featuring DMX and Lil’ Kim"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 90,
+    "title": "DOO WOP (THAT THING)",
+    "artist": "Lauryn Hill"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 91,
+    "title": "BITTER SWEET SYMPHONY",
+    "artist": "The Verve"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 92,
+    "title": "BUTTA LOVE",
+    "artist": "Next"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 93,
+    "title": "I CAN DO THAT",
+    "artist": "Montell Jordan"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 94,
+    "title": "FOOLISH GAMES / YOU WERE MEANT FOR ME",
+    "artist": "Jewel"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 95,
+    "title": "STILL A G THANG",
+    "artist": "Snoop Dogg"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 96,
+    "title": "QUIT PLAYING GAMES (WITH MY HEART)",
+    "artist": "Backstreet Boys"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 97,
+    "title": "FATHER",
+    "artist": "LL Cool J"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 98,
+    "title": "NOBODY DOES IT BETTER",
+    "artist": "Nate Dogg Featuring Warren G"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 99,
+    "title": "THE MUMMERS’ DANCE",
+    "artist": "Loreena McKennitt"
+  },
+  {
+    "year": 1998,
+    "chart": "Top40Weekly Top 100",
+    "rank": 100,
+    "title": "JUST THE TWO OF US",
+    "artist": "Will Smith"
+  }
+]
