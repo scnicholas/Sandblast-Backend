@@ -6,119 +6,93 @@ const path = require("path");
 const SOURCE_URL = "https://top40weekly.com/top-100-songs-of-the-1990s/";
 const OUT_DIR = path.resolve(__dirname, "..", "Data", "top40weekly");
 
-const YEARS = [1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999];
+const YEARS = [1990,1991,1992,1993,1994,1995,1996,1997,1998,1999];
 const CHART_NAME = "Top40Weekly Top 100";
 
 function ensureDir(p) {
   fs.mkdirSync(p, { recursive: true });
 }
 
-function decodeHtmlEntities(s) {
-  return String(s || "")
+function decode(html) {
+  return html
     .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&")
     .replace(/&quot;/g, '"')
-    .replace(/&#34;/g, '"')
-    .replace(/&apos;/g, "'")
     .replace(/&#39;/g, "'")
     .replace(/&#8217;/g, "’")
-    .replace(/&#8216;/g, "‘")
-    .replace(/&#8220;/g, "“")
-    .replace(/&#8221;/g, "”")
-    .replace(/&#8211;/g, "–")
-    .replace(/&#8212;/g, "—")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)));
-}
-
-function stripTags(html) {
-  return html
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/(p|div|li|h1|h2|h3|h4|h5|h6|tr|td)>/gi, "\n")
-    .replace(/<[^>]+>/g, " ");
-}
-
-function cleanText(s) {
-  return decodeHtmlEntities(s)
-    .replace(/\r/g, "")
-    .replace(/[ \t]+\n/g, "\n")
-    .replace(/\n[ \t]+/g, "\n")
-    .replace(/[ \t]+/g, " ")
-    .replace(/\n{2,}/g, "\n")
+    .replace(/<br\s*\/?>/gi, " ")
+    .replace(/\s+/g, " ")
     .trim();
 }
 
-function findSection(html, year) {
-  const id = `${year}-topsongslist`;
-  const idx = html.indexOf(`id="${id}"`);
-  if (idx < 0) return null;
+function extractYearSection(html, year) {
+  const start = html.indexOf(`id="${year}-topsongslist"`);
+  if (start === -1) return null;
 
-  const nextYear = YEARS.find((y) => y > year);
-  if (!nextYear) return html.slice(idx);
+  const nextYear = YEARS.find(y => y > year);
+  if (!nextYear) return html.slice(start);
 
-  const nextId = `id="${nextYear}-topsongslist"`;
-  const nextIdx = html.indexOf(nextId, idx + 1);
-  return nextIdx > idx ? html.slice(idx, nextIdx) : html.slice(idx);
+  const end = html.indexOf(`id="${nextYear}-topsongslist"`, start + 1);
+  return end === -1 ? html.slice(start) : html.slice(start, end);
 }
 
-function parseRankLines(sectionText) {
-  const lines = sectionText.split("\n").map((l) => l.trim()).filter(Boolean);
-  const out = [];
+function parseListItems(sectionHtml) {
+  const items = [];
+  const liRegex = /<li[^>]*>(.*?)<\/li>/gis;
+  let match;
+  let rank = 1;
 
-  for (const line of lines) {
-    // match: "1. TITLE by ARTIST"
-    const m = line.match(/^(\d{1,3})\.\s+(.+?)\s+by\s+(.+)$/i);
-    if (!m) continue;
+  while ((match = liRegex.exec(sectionHtml)) !== null) {
+    let text = decode(match[1].replace(/<[^>]+>/g, " "));
+    if (!text.toLowerCase().includes(" by ")) continue;
 
-    const rank = Number(m[1]);
-    const title = String(m[2] || "").trim();
-    const artist = String(m[3] || "").trim();
+    const parts = text.split(/\s+by\s+/i);
+    if (parts.length < 2) continue;
 
-    if (!Number.isFinite(rank) || rank < 1 || rank > 100) continue;
+    const title = parts[0].trim();
+    const artist = parts.slice(1).join(" by ").trim();
+
     if (!title || !artist) continue;
 
-    out.push({ rank, title, artist });
+    items.push({
+      rank,
+      title,
+      artist
+    });
+
+    rank++;
+    if (rank > 100) break;
   }
 
-  // de-dupe by rank
-  const byRank = new Map();
-  for (const r of out) if (!byRank.has(r.rank)) byRank.set(r.rank, r);
-  return Array.from(byRank.values()).sort((a, b) => a.rank - b.rank);
+  return items;
 }
 
 (async function main() {
   if (typeof fetch !== "function") {
-    console.error("This script requires Node 18+ (fetch).");
+    console.error("Node 18+ required (fetch missing)");
     process.exit(1);
   }
 
-  console.log(`[build_top40weekly_1990s] Fetching: ${SOURCE_URL}`);
-  const resp = await fetch(SOURCE_URL, { redirect: "follow" });
+  console.log(`[build_top40weekly_1990s] Fetching ${SOURCE_URL}`);
+  const res = await fetch(SOURCE_URL);
+  const html = await res.text();
 
-  if (!resp.ok) {
-    console.error(`[build_top40weekly_1990s] HTTP ${resp.status} ${resp.statusText}`);
-    process.exit(1);
-  }
-
-  const html = await resp.text();
   ensureDir(OUT_DIR);
 
   let total = 0;
 
   for (const year of YEARS) {
-    const sectionHtml = findSection(html, year);
-    if (!sectionHtml) {
-      console.warn(`[build_top40weekly_1990s] WARNING: section not found for ${year}`);
+    const section = extractYearSection(html, year);
+    if (!section) {
+      console.warn(`[build_top40weekly_1990s] ${year}: section not found`);
       continue;
     }
 
-    const text = cleanText(stripTags(sectionHtml));
-    const rows = parseRankLines(text);
+    const rows = parseListItems(section);
 
     console.log(`[build_top40weekly_1990s] ${year}: parsed ${rows.length} rows`);
 
-    const payload = rows.map((r) => ({
+    const payload = rows.map(r => ({
       year,
       chart: CHART_NAME,
       rank: r.rank,
@@ -136,8 +110,4 @@ function parseRankLines(sectionText) {
   }
 
   console.log(`[build_top40weekly_1990s] Done. Total rows written: ${total}`);
-  console.log(`[build_top40weekly_1990s] Output: ${OUT_DIR}`);
-})().catch((e) => {
-  console.error(`[build_top40weekly_1990s] ERROR: ${String(e?.message || e)}`);
-  process.exit(1);
-});
+})();
