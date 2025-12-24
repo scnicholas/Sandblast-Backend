@@ -1,10 +1,6 @@
 /**
  * index.js — Nyx Broadcast Backend (Wizard-Locked)
- * Build: nyx-wizard-v1.94-top40guard-selfcheck
- *
- * v1.94 additions:
- * - Guard: do NOT run normalizeTopListEntry() on Top40Weekly Top 100 (prevents re-breaking repaired rows)
- * - Expand Top40 self-check to cover title-tail drift (Look Away / Straight Up / Miss You Much etc.)
+ * Build: nyx-wizard-v1.93-drivers-confidence
  *
  * v1.93 additions:
  * - Conversation Drivers + Confidence policy (flow control)
@@ -217,6 +213,7 @@ if (!isMainThread) {
             corrected._correctedYear = true;
             corrected._originalYear = slots.year;
             out.best = corrected;
+            console.log("[Nyx][Fallback] dropYear");
           }
         }
 
@@ -234,6 +231,7 @@ if (!isMainThread) {
             corrected2._correctedChart = true;
             corrected2._originalChart = slots.chart;
             out.best = corrected2;
+            console.log("[Nyx][Fallback] dropYear+dropChart");
           }
         }
 
@@ -268,8 +266,8 @@ const PORT = process.env.PORT || 3000;
 const COMMIT_FULL = process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "";
 const COMMIT_SHORT = COMMIT_FULL ? String(COMMIT_FULL).slice(0, 7) : "";
 const BUILD_TAG = COMMIT_SHORT
-  ? `nyx-wizard-v1.94-${COMMIT_SHORT}`
-  : "nyx-wizard-v1.94-top40guard-selfcheck";
+  ? `nyx-wizard-v1.93-${COMMIT_SHORT}`
+  : "nyx-wizard-v1.93-drivers-confidence";
 
 const DEFAULT_CHART = "Billboard Hot 100";
 const KB_TIMEOUT_MS = Number(process.env.KB_TIMEOUT_MS || 900);
@@ -494,7 +492,10 @@ function scoreConfidence({ step, sess, userText }) {
   const ambiguousSignals = ["not sure", "maybe", "something", "it doesn't work", "doesnt work", "broken", "issue", "problem", "can't", "cannot", "won't", "wont"];
   const ambiguityPenalty = ambiguousSignals.some(s => text.includes(s)) ? 0.12 : 0;
 
-  const raw = (0.55 * base) + (0.45 * slotScore) - ambiguityPenalty;
+  // Loop penalty: if user repeats the same request, confidence drops (forces a safer ask)
+  const loopPenalty = (typeof sess?.repeatCount === "number" && sess.repeatCount >= 2) ? 0.18 : 0;
+
+  const raw = (0.55 * base) + (0.45 * slotScore) - ambiguityPenalty - loopPenalty;
   return clamp(raw, 0, 1);
 }
 
@@ -503,14 +504,41 @@ function pickDriver({ step, sess, confidence }) {
 
   // Low-confidence fallback (refuse to guess)
   if (confidence < 0.45) {
-    // Keep this tight: one request + safe options.
+    const hasYear = Number.isFinite(Number(sess?.laneDetail?.year)) || Number.isFinite(Number(sess?.anchor?.year)) || Number.isFinite(Number(sess?.lastGood?.year));
+    const hasArtistTitle = !!safeStr(sess?.laneDetail?.artist) && !!safeStr(sess?.laneDetail?.title);
+
+    // Ask for ONE missing detail (highest value) to avoid interrogations.
+    if (!hasYear && !hasArtistTitle) {
+      return {
+        type: "fallback",
+        text: "I can help, but I need one anchor so I don’t guess. Pick one:",
+        choices: [
+          "Reply with a year (example: 1989)",
+          "Reply with Artist - Title (example: Paula Abdul - Straight Up)",
+          `Say “top 10 ${chart}” if you want a list`
+        ]
+      };
+    }
+
+    if (!hasYear && hasArtistTitle) {
+      return {
+        type: "fallback",
+        text: "I’ve got the song — what year should I anchor it to?",
+        choices: [
+          "Reply with a year (example: 1989)",
+          `Or say “top 10 ${chart}” for a list`
+        ]
+      };
+    }
+
+    // Has year but missing artist/title
     return {
       type: "fallback",
-      text: "I can help, but I need one detail so I don’t guess. Choose one:",
+      text: "I’ve got the year — do you want a list or a pick?",
       choices: [
-        "Reply with a year (example: 1984)",
-        "Reply with Artist - Title (example: Styx - Babe)",
-        `Say “top 10 ${chart}” if you want a list`
+        "Say “top 10”",
+        "Say “#1”",
+        "Say “surprise pick”"
       ]
     };
   }
@@ -597,7 +625,13 @@ function resolveSession(req) {
       laneDetail: { chart: DEFAULT_CHART },
       dialogStage: "new",
       lastSeen: Date.now(),
-      lastPick: null
+      lastPick: null,
+
+      // Intelligence upgrades (v1.95)
+      anchor: { year: null, chart: DEFAULT_CHART, artist: null, title: null },
+      lastGood: { year: null, chart: DEFAULT_CHART, artist: null, title: null },
+      lastUserHash: null,
+      repeatCount: 0
     };
     SESS.set(key, sess);
   } else {
@@ -609,6 +643,16 @@ function resolveSession(req) {
   sess.currentLane = safeStr(sess.currentLane) || "music_history";
   sess.dialogStage = safeStr(sess.dialogStage) || "new";
   sess.lastPick = sess.lastPick && typeof sess.lastPick === "object" ? sess.lastPick : null;
+
+  // Intelligence upgrades (v1.95): anchor + lastGood + loop-break tracking
+  sess.anchor = safeObj(sess.anchor);
+  sess.lastGood = safeObj(sess.lastGood);
+  if (typeof sess.lastUserHash !== "string" && sess.lastUserHash != null) sess.lastUserHash = String(sess.lastUserHash);
+  if (typeof sess.repeatCount !== "number") sess.repeatCount = 0;
+
+  // Ensure charts are always sane
+  sess.anchor.chart = safeStr(sess.anchor.chart) || sess.laneDetail.chart || DEFAULT_CHART;
+  sess.lastGood.chart = safeStr(sess.lastGood.chart) || sess.laneDetail.chart || DEFAULT_CHART;
 
   return { key, sess };
 }
@@ -704,6 +748,71 @@ function pickOne(arr, fallback = "") {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+
+function hashText(text) {
+  try {
+    return crypto.createHash("sha1").update(String(text || "")).digest("hex");
+  } catch {
+    return String(text || "");
+  }
+}
+
+function setAnchor(sess, patch) {
+  sess.anchor = safeObj(sess.anchor);
+  Object.assign(sess.anchor, patch || {});
+  sess.anchor.chart = safeStr(sess.anchor.chart) || sess.laneDetail?.chart || DEFAULT_CHART;
+}
+
+function setLastGood(sess, pick) {
+  if (!pick || typeof pick !== "object") return;
+  sess.lastGood = safeObj(sess.lastGood);
+  if (pick.year != null) sess.lastGood.year = pick.year;
+  if (pick.chart) sess.lastGood.chart = pick.chart;
+  if (pick.artist) sess.lastGood.artist = pick.artist;
+  if (pick.title) sess.lastGood.title = pick.title;
+  sess.lastGood.chart = safeStr(sess.lastGood.chart) || sess.laneDetail?.chart || DEFAULT_CHART;
+}
+
+function setLastPick(sess, pick) {
+  if (!pick || typeof pick !== "object") return;
+  const clean = {
+    artist: safeStr(pick.artist),
+    title: safeStr(pick.title),
+    year: Number.isFinite(Number(pick.year)) ? Number(pick.year) : null,
+    chart: safeStr(pick.chart) || sess?.laneDetail?.chart || DEFAULT_CHART
+  };
+
+  sess.lastPick = clean;
+
+  // Anchor always updates to the latest surfaced context
+  setAnchor(sess, {
+    year: clean.year,
+    chart: clean.chart,
+    artist: clean.artist || null,
+    title: clean.title || null
+  });
+
+  // Only mark lastGood when we have a well-formed pick
+  const ok = !!clean.artist && !!clean.title && Number.isFinite(clean.year);
+  if (ok) setLastGood(sess, clean);
+}
+
+function getContextYear(sess) {
+  const y1 = Number(sess?.laneDetail?.year);
+  const y2 = Number(sess?.anchor?.year);
+  const y3 = Number(sess?.lastGood?.year);
+  const y4 = Number(sess?.lastPick?.year);
+  if (Number.isFinite(y1)) return y1;
+  if (Number.isFinite(y2)) return y2;
+  if (Number.isFinite(y3)) return y3;
+  if (Number.isFinite(y4)) return y4;
+  return null;
+}
+
+function getContextChart(sess) {
+  return safeStr(sess?.laneDetail?.chart) || safeStr(sess?.anchor?.chart) || safeStr(sess?.lastGood?.chart) || DEFAULT_CHART;
+}
+
 /**
  * normalizeTopListEntry()
  * Primary normalization (legacy) — keep as-is.
@@ -768,50 +877,6 @@ function selfCheckRepairTop40(artist, title) {
   if (SELFCHK_PROTECTED_ONEWORD.has(aLower)) {
     return { artist: a0, title: t0, changed: false };
   }
-
-// -------------------------------------------------------
-// Title-tail drift (Top40Weekly Year-End): sometimes a few
-// words that belong at the END of the title get prepended
-// onto the artist (e.g., "Away Chicago" / "Up Paula Abdul").
-// We repair by moving a short, known title-tail prefix from
-// artist -> end of title, conservatively.
-// -------------------------------------------------------
-const TITLE_TAIL_TOKENS = new Set([
-  "away","up","much","hearted","wings","true","got","its","thorn"
-]);
-
-const aWords = a0.split(/\s+/).filter(Boolean);
-const tWords0 = t0.split(/\s+/).filter(Boolean);
-
-// Move 1–3 leading title-tail tokens off the artist if the remaining artist looks real.
-if (aWords.length >= 2 && tWords0.length >= 1 && tWords0.length <= 7) {
-  let k = 0;
-  for (let i = 0; i < Math.min(3, aWords.length - 1); i++) {
-    const tok = aWords[i].toLowerCase().replace(/[^a-z']/g, "");
-    if (!TITLE_TAIL_TOKENS.has(tok)) break;
-    k++;
-  }
-
-  if (k >= 1) {
-    const prefix = aWords.slice(0, k).join(" ").trim();
-    const remainingArtist = aWords.slice(k).join(" ").trim();
-
-    // Require remaining artist to be at least 2 characters and not purely numeric.
-    if (remainingArtist.length >= 2 && !/^\d+$/.test(remainingArtist)) {
-      const fixedTitle = (t0 + " " + prefix).replace(/\s+/g, " ").trim();
-      return { artist: remainingArtist, title: fixedTitle, changed: true };
-    }
-  }
-}
-
-// -------------------------------------------------------
-// Artist-prefix drift: "Will to Power" sometimes becomes
-// artist="Power" and title ends with "Will to".
-// -------------------------------------------------------
-if (/^power$/i.test(a0) && /\bwill\s+to\b\s*$/i.test(t0)) {
-  const fixedTitle = t0.replace(/\bwill\s+to\b\s*$/i, "").trim();
-  return { artist: "Will to Power", title: fixedTitle, changed: true };
-}
 
   // Work on token boundaries
   const tWords = t0.split(/\s+/).filter(Boolean);
@@ -994,19 +1059,10 @@ async function handleMusic(req, res, key, sess, rawText) {
 
       if (wantedN === 1) {
         const best = list[0];
-
-        // IMPORTANT: For Top40Weekly Top 100, do NOT run normalizeTopListEntry().
-        // That heuristic can re-break repaired rows (e.g., "Look Away" -> "Away Chicago").
-        const isTop40YearEnd = String(listChart) === "Top40Weekly Top 100";
-        const nrm = isTop40YearEnd ? { artist: best.artist, title: best.title } : normalizeTopListEntry(best.artist, best.title);
-
-        sess.lastPick = {
-          artist: nrm.artist || best.artist,
-          title: nrm.title || best.title,
-          year: best.year,
-          chart: best.chart || listChart
-        };
-
+        const nrm = normalizeTopListEntry(best.artist, best.title);
+        setLastPick(sess, {
+artist: nrm.artist || best.artist, title: nrm.title || best.title, year: best.year, chart: best.chart || listChart
+});
         return send(
           res, key, sess, "music_number_one",
           `${nrm.artist || best.artist} — "${nrm.title || best.title}" (${best.year})\nChart: ${best.chart || listChart}\n\nWant the **Top 10**, another pick, or switch charts?`,
@@ -1015,14 +1071,14 @@ async function handleMusic(req, res, key, sess, rawText) {
         );
       }
 
-      const isTop40YearEnd = String(listChart) === "Top40Weekly Top 100";
-
       const lines = list.map((m, i) => {
-        const nrm = isTop40YearEnd ? { artist: m.artist, title: m.title } : normalizeTopListEntry(m.artist, m.title);
+        const nrm = normalizeTopListEntry(m.artist, m.title);
         return `${i + 1}. ${nrm.artist} — "${nrm.title}"`;
       });
 
       const headerChart = (listChart === "Top40Weekly Top 100") ? "Top40Weekly Top 100" : `${ctxChart} preference`;
+      // Anchor the year+chart when we show a list
+      setAnchor(sess, { year: ctxYear || null, chart: listChart });
       return send(
         res,
         key,
@@ -1069,7 +1125,9 @@ async function handleMusic(req, res, key, sess, rawText) {
         }
       }
 
-      sess.lastPick = { artist: bestArtist, title: bestTitle, year: best.year, chart: best.chart };
+      setLastPick(sess, {
+artist: bestArtist, title: bestTitle, year: best.year, chart: best.chart
+});
       const chart = best.chart || ctxChart;
       return send(
         res,
@@ -1111,6 +1169,7 @@ async function handleMusic(req, res, key, sess, rawText) {
   if (isYearOnlyLoose(text)) {
     const y = extractYearLoose(text);
     sess.laneDetail = { chart: sess.laneDetail.chart || DEFAULT_CHART, year: y };
+    setAnchor(sess, { year: y, chart: sess.laneDetail.chart });
 
     // 1) Query path (worker will do year-first + meta-aware random)
     const kbResult = await kbCall("query", text, sess.laneDetail, KB_TIMEOUT_MS);
@@ -1160,7 +1219,9 @@ async function handleMusic(req, res, key, sess, rawText) {
         }
       }
 
-      sess.lastPick = { artist: bestArtist, title: bestTitle, year: best.year, chart: best.chart };
+      setLastPick(sess, {
+artist: bestArtist, title: bestTitle, year: best.year, chart: best.chart
+});
       const preface = correctionPreface(best, bestMeta);
       const chart = best.chart || (bestMeta?.usedChart) || sess.laneDetail.chart || DEFAULT_CHART;
       const followUp = pickOne(yearPickFollowups(chart), "Want another year?");
@@ -1226,7 +1287,9 @@ async function handleMusic(req, res, key, sess, rawText) {
       }
     }
 
-    sess.lastPick = { artist: bestArtist, title: bestTitle, year: best.year, chart: best.chart };
+    setLastPick(sess, {
+artist: bestArtist, title: bestTitle, year: best.year, chart: best.chart
+});
     const preface = correctionPreface(best, null);
     const chart = best.chart || sess.laneDetail.chart || DEFAULT_CHART;
     const followUp = pickOne(musicContinuations(chart), "Want another pick?");
@@ -1277,6 +1340,12 @@ app.post("/api/sandblast-gpt", async (req, res) => {
   }
 
   const t = normalizeUserText(text);
+
+  // Loop-break tracking (v1.95)
+  const h = hashText(t.toLowerCase());
+  if (sess.lastUserHash && sess.lastUserHash === h) sess.repeatCount = (sess.repeatCount || 0) + 1;
+  else { sess.repeatCount = 0; sess.lastUserHash = h; }
+
   const musicish = looksLikeMusicQuery(t, sess);
 
   // Fluid conversation layer (only when it's not clearly a music query)
@@ -1303,6 +1372,29 @@ app.post("/api/sandblast-gpt", async (req, res) => {
       sess.dialogStage = "ready";
       return send(res, key, sess, "greet_howareyou", "I’m good — focused and ready to work. What do you want to do next? For music: **1984** or **Artist - Title**.", true, t);
     }
+  }
+
+  // Loop-breaker: if the same user text repeats, switch tactics instead of re-running the same path.
+  if (musicish && typeof sess.repeatCount === "number" && sess.repeatCount >= 2) {
+    const y = getContextYear(sess);
+    const c = getContextChart(sess);
+
+    // Reset after we intervene to avoid permanent “stuck” state.
+    sess.repeatCount = 0;
+
+    const options = y
+      ? `Try one of these for ${y} (${c}):\n• **top 10**\n• **#1**\n• **surprise pick**\n• **switch chart** (UK / Canada / Top40Weekly)`
+      : `Try one of these:\n• Reply with a **year** (example: 1989)\n• Reply with **Artist - Title** (example: Paula Abdul - Straight Up)\n• Say **top 10** for a list`;
+
+    return send(
+      res,
+      key,
+      sess,
+      "loop_break",
+      `I’m repeating the same path, so I’m switching tactics.\n\n${options}`,
+      true,
+      t
+    );
   }
 
   if (sess.dialogStage !== "ready") sess.dialogStage = "ready";
