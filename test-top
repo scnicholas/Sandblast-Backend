@@ -1,6 +1,6 @@
 const kb = require("./Utils/musicKnowledge");
 
-const top = kb.getTopByYear(1984, 10, "Top40Weekly Top 100");
+const top = kb.getTopByYear(1989, 10, "Top40Weekly Top 100");
 
 top.forEach((m, i) => {
   console.log(
