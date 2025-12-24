@@ -187,13 +187,23 @@ function fixTop40ArtistTitle(artist, title) {
   const artistIsJrOnly = /^jr\.?$/i.test(a);
 
   const surnameSet = TOP40_SURNAME_SET instanceof Set ? TOP40_SURNAME_SET : new Set();
+  const oneWordSet = TOP40_ONEWORD_ARTIST_SET instanceof Set ? TOP40_ONEWORD_ARTIST_SET : new Set();
 
-  
-  const artistSet = TOP40_ARTIST_SET instanceof Set ? TOP40_ARTIST_SET : new Set();
-const eligible =
-    artistIsJrOnly ||
-    (aSingle && aLast && surnameSet.has(aLast)) ||
-    (titleEndsWithAnd && aLast && surnameSet.has(aLast));
+  // Eligibility gate:
+  // - never "repair" known one-word artists/bands (Prince, Yes, Heart, etc.)
+  // - allow single-token surname-like artists (Turner, Loggins, Halen, Richie, Club, etc.)
+  // - allow special patterns: "..., Jr." and multi-artist "and" cases
+  const oneWordArtist = oneWordSet.has(norm(a));
+  const artistEndsJr = /,\s*jr\.?$/i.test(a);
+
+  const eligible =
+    !oneWordArtist && (
+      artistIsJrOnly ||
+      (aSingle && aLast && surnameSet.has(aLast)) ||
+      (titleEndsWithAnd && aLast && surnameSet.has(aLast)) ||
+      artistEndsJr ||
+      (/\sand\s/i.test(a) && /\b(mc|mccartney|and)\b/i.test(t))
+    );
 
   if (!eligible) return { artist: a, title: t };
 
@@ -234,14 +244,14 @@ const eligible =
 
     const candidateArtist = normalizeArtistPunctuation(`${tail.join(" ")} ${a}`.replace(/\s+/g, " ").trim());
 
-    // Final safety gate: only accept if the rebuilt artist is known, OR it is a multi-artist 'and' pattern.
-    const candNorm = norm(candidateArtist);
-    const looksLikeMultiArtist = /\sand\s/i.test(candidateArtist) && candidateArtist.split(/\sand\s/i).every(p => String(p || "").trim().length >= 2);
-    if (!artistSet.has(candNorm) && !looksLikeMultiArtist) {
-      continue;
-    }
+    // Accept if it looks like a real person/band name chunk and does not blow away the title.
+    // Additional guard: keep at least 2 words in artist after repair unless we are in the Jr-only path.
+    const candParts = candidateArtist.split(/\s+/).filter(Boolean);
+    if (candParts.length < 2 && !artistIsJrOnly) continue;
 
-    return { artist: candidateArtist, title: candidateTitle };
+    // Special cleanup: fix accidental double commas like "Parker,, Jr."
+    const cleanedArtist = normalizeArtistPunctuation(candidateArtist);
+    return { artist: cleanedArtist, title: candidateTitle };
   }
 
   return { artist: a, title: t };
@@ -304,6 +314,7 @@ function normalizeMoment(raw, forcedYear = null, forcedChart = null) {
 // like Prince, Yes, Heart, etc.
 let TOP40_SURNAME_SET = null;
 let TOP40_ARTIST_SET = null;
+let TOP40_ONEWORD_ARTIST_SET = null;
 function buildSurnameSet(moments) {
   const set = new Set();
   if (!Array.isArray(moments)) return set;
@@ -330,6 +341,19 @@ function buildArtistSet(moments) {
   }
   return set;
 }
+
+function buildOneWordArtistSet(moments) {
+  const set = new Set();
+  if (!Array.isArray(moments)) return set;
+  for (const m of moments) {
+    const a = normalizeArtistPunctuation(String(m?.artist || "").trim());
+    if (!a) continue;
+    const parts = a.split(/\s+/).filter(Boolean);
+    if (parts.length === 1) set.add(norm(a));
+  }
+  return set;
+}
+
 
 function normalizeArtistPunctuation(a) {
   let s = String(a || "").trim();
@@ -583,6 +607,7 @@ function loadDb() {
 
   
   TOP40_ARTIST_SET = buildArtistSet(normalized);
+  TOP40_ONEWORD_ARTIST_SET = buildOneWordArtistSet(normalized);
 const mergeInfo = MERGE_TOP40WEEKLY ? mergeTop40Weekly(normalized, seen) : null;
 
   MOMENTS = normalized;
