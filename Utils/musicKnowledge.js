@@ -1115,7 +1115,19 @@ function getTopByYear(year, n = 10, chart = null) {
       return a._na.localeCompare(b._na);
     });
 
-  return sorted.slice(0, Math.max(1, Math.min(100, Number(n) || 10)));
+    const out = sorted.slice(0, Math.max(1, Math.min(100, Number(n) || 10)));
+  // Ensure Top40Weekly Top 100 rows are repaired at read-time as well (defensive).
+  return out.map((m) => {
+    try {
+      if (String(m?.chart || "") === "Top40Weekly Top 100") {
+        const fx = fixTop40ArtistTitle(m.artist, m.title);
+        if (fx && (fx.artist !== m.artist || fx.title !== m.title)) {
+          return { ...m, artist: fx.artist, title: fx.title };
+        }
+      }
+    } catch (e) {}
+    return m;
+  });
 }
 
 // =============================
@@ -1197,7 +1209,7 @@ function pickBestMoment(_unused, slots = {}) {
 // EXPORTS
 // =============================
 module.exports = {
-  __top40FixVersion: "top40-fix-v8-paul-ray-final",
+  __top40FixVersion: "top40-fix-v9-getTopByYear-map",
   // Loader
   loadDb,
   getDb,
