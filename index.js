@@ -2,15 +2,13 @@
  * Sandblast Backend — Nyx Intelligence Layer
  * Hardened + Orchestrator + Music Flow V1 (with stickiness + chart integrity)
  *
- * PATCHES INCLUDED:
- * - Choice option rewrite: "Top 10" -> "Another moment" (until true Top 10 list exists)
- * - Chart disclosure: if usedFallback + usedChart != requestedChart, disclose and offer switch
- * - Reply text sanitizer: legacy phrasing cleanup (SAFE: does NOT corrupt "Top 100")
- * - Auto-lock fallback chart after user accepts it ("Continue with <chart>")
- * - Robust "Switch chart" / "Switch to <chart>" handling
- * - Suppress repeat chart disclosure after fallback acceptance in-session
- * - NEW: Dedicated "#1 only" path (prevents looping + returns #1 result or asks for anchor)
- * - NEW: Moment-line drift fixer (repairs cases like "Love Whitesnake — Is This" -> "Whitesnake — Is This Love")
+ * CRITICAL PATCHES (2025-12-24):
+ * - Fix looping: explicit handlers for "another moment", "#1 only", "top 10 <year>", "yes"
+ * - Keep music flow sticky when session lastFlow === 'music'
+ * - "Top 10" gracefully degraded (until true Top 10 list exists): respond + offer next action
+ * - Moment-line drift fix strengthened + targeted fix for known Whitesnake row drift
+ * - Chart disclosure once-per-session after fallback accepted
+ * - Robust chart switching / continue-with behavior
  */
 
 'use strict';
@@ -187,14 +185,16 @@ function getSession(sessionId) {
         artist: null,
         title: null,
         step: 'need_anchor',
-        lastMomentSig: null
+        lastMomentSig: null,
+        disclosedFallbackForChart: null // suppress repeated disclosure after acceptance
       }
     };
     SESS.set(sid, s);
   } else {
     s.lastUpdatedAt = now;
-    if (!s.music) s.music = { chart: null, acceptedChart: null, year: null, artist: null, title: null, step: 'need_anchor', lastMomentSig: null };
+    if (!s.music) s.music = { chart: null, acceptedChart: null, year: null, artist: null, title: null, step: 'need_anchor', lastMomentSig: null, disclosedFallbackForChart: null };
     if (!('acceptedChart' in s.music)) s.music.acceptedChart = null;
+    if (!('disclosedFallbackForChart' in s.music)) s.music.disclosedFallbackForChart = null;
   }
   return s;
 }
@@ -232,6 +232,19 @@ function isNumberOneOnly(text) {
   return t === '#1 only' || t === '#1' || t === 'number 1' || t === 'number one' || t === 'no. 1 only' || t === 'no 1 only';
 }
 
+function isAnotherMoment(text) {
+  const t = asText(text).toLowerCase();
+  return t === 'another' || t === 'another moment' || /^another moment\s*\(\s*\d{4}\s*\)$/i.test(asText(text));
+}
+
+function parseTopTenRequest(text) {
+  const t = asText(text).toLowerCase();
+  const m = t.match(/\btop\s*10\b(?:\s*(?:for)?\s*(19\d{2}|20\d{2}))?/i);
+  if (!m) return null;
+  const year = m[1] ? Number(m[1]) : null;
+  return { year: Number.isFinite(year) ? year : null };
+}
+
 /**
  * SAFE sanitizer (must NOT corrupt "Top 100")
  */
@@ -239,7 +252,7 @@ function sanitizeMusicReplyText(reply) {
   if (!reply) return reply;
   let text = String(reply);
 
-  text = text.replace(/\bTop\s*10\b(\s*for\s*\d{4})?/gi, 'another moment');
+  // Normalize “another moment” language (do not touch Top 100)
   text = text.replace(/\banother\s+random\s+moment\b/gi, 'another moment');
   text = text.replace(/\bthe\s+another\s+moment\b/gi, 'another moment');
   text = text.replace(/\banother\s+moment\s*,\s*another\s+moment\b/gi, 'another moment');
@@ -248,18 +261,21 @@ function sanitizeMusicReplyText(reply) {
 }
 
 /**
- * Fixes observed field drift in Moment line:
- * Example: "Moment: Love Whitesnake — Is This (1988, Top40Weekly Top 100)."
- * becomes: "Moment: Whitesnake — Is This Love (1988, Top40Weekly Top 100)."
- *
- * This is a UI-safe patch (presentation layer). Root fix still belongs in musicKnowledge ingest/normalizer.
+ * Fixes observed drift in Moment line (presentation layer).
+ * Adds a targeted hard-fix for known Whitesnake drift:
+ *   "Love Whitesnake — Is This (1988, ...)" -> "Whitesnake — Is This Love (1988, ...)"
  */
 function fixMomentLineDrift(reply) {
   if (!reply) return reply;
-  const text = String(reply);
+  let text = String(reply);
 
-  // Match first "Moment:" line in the reply (do not try to rewrite everything)
-  // Moment: <artist> — <title> (1988, ...
+  // Targeted hard-fix (known bad record)
+  text = text.replace(
+    /(Moment:\s*)Love\s+Whitesnake\s*—\s*Is\s+This(\s*\(\s*1988\s*,)/i,
+    '$1Whitesnake — Is This Love$2'
+  );
+
+  // Generic heuristic for common “spill word” drift
   const re = /(Moment:\s*)([^—\n]+?)\s*—\s*([^( \n][^(\n]*?)\s*(\(\s*\d{4}\s*,)/i;
   const m = text.match(re);
   if (!m) return text;
@@ -269,23 +285,29 @@ function fixMomentLineDrift(reply) {
   let title = m[3].trim();
   const tail = m[4];
 
-  // Spill words that often drift from title -> artist in your Top40Weekly dataset
   const spill = new Set(['Love', 'The', 'A', 'An', 'My', 'Your', 'Our', 'This', 'That', 'One', 'No', 'Yes']);
 
   const artistParts = artist.split(/\s+/).filter(Boolean);
   const titleParts = title.split(/\s+/).filter(Boolean);
 
-  // Heuristic: if artist starts with spill-word AND title is short-ish, move it to end of title
-  if (artistParts.length >= 2 && titleParts.length <= 3 && spill.has(artistParts[0])) {
+  // If artist starts with a spill-word, shift it into the title
+  if (artistParts.length >= 2 && spill.has(artistParts[0])) {
     const moved = artistParts.shift();
     artist = artistParts.join(' ');
     title = (title + ' ' + moved).trim();
   }
 
   const fixedSegment = `${prefix}${artist} — ${title} ${tail}`;
-  return text.replace(re, fixedSegment);
+  text = text.replace(re, fixedSegment);
+
+  return text;
 }
 
+/**
+ * Rewrite choice options for V1:
+ * - Replace any "Top 10" option with "Another moment"
+ * - Preserve "#1 only"
+ */
 function rewriteChoiceOptionsForV1(followUp, meta) {
   if (!followUp || followUp.kind !== 'choice' || !Array.isArray(followUp.options)) return followUp;
 
@@ -297,12 +319,8 @@ function rewriteChoiceOptionsForV1(followUp, meta) {
   next.options = followUp.options.map((opt) => {
     const s = String(opt || '').trim();
 
-    if (/^Top\s*10\s*\(\d{4}\)$/i.test(s)) {
-      const y = (s.match(/\b(19\d{2}|20\d{2})\b/) || [])[1];
-      return y ? `Another moment (${y})` : 'Another moment';
-    }
-
-    if (/^Top\s*10$/i.test(s)) return 'Another moment';
+    if (/^Top\s*10\s*\(\d{4}\)$/i.test(s)) return 'Another moment';
+    if (/^Top\s*10\b/i.test(s)) return 'Another moment';
 
     return s;
   });
@@ -320,6 +338,10 @@ function applyChartDisclosure(out, sessionMusic) {
   const requested = asText(out?.meta?.requestedChart || sessionMusic?.chart);
   const used = asText(out?.meta?.usedChart);
   const usedFallback = !!out?.meta?.usedFallback;
+
+  // suppress repeat disclosures after user has accepted the fallback chart in this session
+  const disclosed = asText(sessionMusic?.disclosedFallbackForChart);
+  if (disclosed && used && disclosed === used) return out;
 
   const accepted = asText(sessionMusic?.acceptedChart);
   if (accepted && used && accepted === used) return out;
@@ -343,9 +365,7 @@ function applyChartDisclosure(out, sessionMusic) {
     };
   }
 
-  // Ensure any Moment-line still renders cleanly post-prefix
   next.reply = fixMomentLineDrift(next.reply);
-
   return next;
 }
 
@@ -382,11 +402,11 @@ function enforceAdvance(out, { userText, sessionId, intent }) {
     base.followUp = {
       kind: 'choice',
       options: [
-        'Give artist + year',
-        'Give a song title',
-        'Switch chart (Billboard / UK / Canada RPM / Top40Weekly)'
+        'Another moment',
+        '#1 only',
+        'Switch chart'
       ],
-      prompt: 'Quick choice: how do you want to continue?'
+      prompt: 'Quick choice: want another moment, #1 only, or switch chart?'
     };
   }
 
@@ -404,16 +424,14 @@ function enforceAdvance(out, { userText, sessionId, intent }) {
 
   const looksMusic =
     intent?.domain === 'music_history' ||
-    /#1|number\s*one|billboard|hot\s*100|uk\s*singles|canada\s*rpm|top40weekly|top\s*40|song|artist|19\d{2}|20\d{2}/i
+    /#1|number\s*one|billboard|hot\s*100|uk\s*singles|canada\s*rpm|top40weekly|top\s*40|song|artist|moment|19\d{2}|20\d{2}/i
       .test(userText || '');
 
   if (looksMusic && base.followUp?.kind === 'choice') {
     base.followUp.prompt = base.followUp.prompt || 'Pick one to keep the music flow going.';
   }
 
-  // Final pass: keep Moment-line stable in any output path
   base.reply = fixMomentLineDrift(base.reply);
-
   return base;
 }
 
@@ -458,9 +476,13 @@ function parseAnchor(message) {
 }
 
 function detectMusicIntent(intent, message, session) {
+  // Strong stickiness: if lastFlow is music, treat it as music unless clearly non-music.
+  if (session?.lastFlow === 'music') return true;
+
   if (session?.music?.step && session.music.step !== 'need_anchor' && session.lastFlow === 'music') return true;
   if (intent?.domain === 'music_history') return true;
-  return /#1|number\s*one|billboard|hot\s*100|uk\s*singles|canada\s*rpm|top40weekly|top\s*40|song|artist|19\d{2}|20\d{2}/i
+
+  return /#1|number\s*one|billboard|hot\s*100|uk\s*singles|canada\s*rpm|top40weekly|top\s*40|song|artist|moment|19\d{2}|20\d{2}/i
     .test(message || '');
 }
 
@@ -468,10 +490,59 @@ async function runMusicFlowV1({ message, sessionId, context, intent, signal }) {
   const s = getSession(sessionId);
   const ms = s.music;
 
+  // Normalize quick button texts that should advance the flow
+  const tRaw = asText(message);
+
+  // If user clicked "Another moment (1984)" or typed "another"
+  if (isAnotherMoment(tRaw)) {
+    const y = parseYear(tRaw);
+    if (y) ms.year = y;
+
+    // Clear title/artist filters so we truly get a new moment (unless you want it sticky later)
+    ms.title = null;
+    ms.artist = null;
+
+    // Keep chart sticky
+    ms.step = 'serve_moment';
+
+    // Re-route into the normal serve_moment path by setting a targeted query
+    message = ms.year ? String(ms.year) : 'another moment';
+  }
+
+  // Handle "Top 10 <year>" requests without looping
+  const topTenReq = parseTopTenRequest(tRaw);
+  if (topTenReq) {
+    if (topTenReq.year) ms.year = topTenReq.year;
+
+    const y = ms.year || topTenReq.year;
+    ms.step = 'next_step';
+
+    return {
+      ok: true,
+      mode: 'music',
+      reply:
+        `I don’t have a true **Top 10 list** endpoint wired yet.\n\n` +
+        `But I *can* do either of these right now:\n` +
+        `• pull a strong **music moment** for ${y ? `**${y}**` : 'a year you choose'}\n` +
+        `• or do **#1 only** (needs a year + chart)\n\n` +
+        `Which do you want?`,
+      followUp: {
+        kind: 'choice',
+        options: [
+          y ? `Another moment (${y})` : 'Another moment',
+          '#1 only',
+          'Switch chart'
+        ],
+        prompt: 'Pick one.'
+      },
+      meta: { flow: 'music_v1', step: ms.step, intent: 'top10_not_ready', year: y || null, chart: ms.chart || null }
+    };
+  }
+
   // -----------------------------
   // "#1 only" path — prevents loop
   // -----------------------------
-  if (isNumberOneOnly(message)) {
+  if (isNumberOneOnly(tRaw)) {
     if (!ms.year) {
       ms.step = 'need_anchor';
       return {
@@ -487,7 +558,6 @@ async function runMusicFlowV1({ message, sessionId, context, intent, signal }) {
 
     let outN1 = null;
     if (musicKnowledge?.handleMessage) {
-      // Force a clear #1 intent string
       const query = `${ms.year} #1`;
       outN1 = await musicKnowledge.handleMessage(query, {
         sessionId,
@@ -501,28 +571,27 @@ async function runMusicFlowV1({ message, sessionId, context, intent, signal }) {
     safeN1.reply = sanitizeMusicReplyText(safeN1.reply);
     safeN1.reply = fixMomentLineDrift(safeN1.reply);
 
-    // If engine still returned a generic "Moment:" result, stop the loop and ask for better anchor.
-    if (/^moment:/i.test(safeN1.reply)) {
-      ms.step = 'need_anchor';
+    // If engine still returned a generic "Moment:" result, stop the loop and ask for chart support.
+    if (/^moment:/i.test(asText(safeN1.reply))) {
+      ms.step = 'need_chart';
       return {
         ok: true,
         mode: 'music',
         reply:
-          `I’m not getting a clean **#1-only** result from the data source yet.\n\n` +
-          `Give me one of these and I’ll lock it:\n` +
-          `• a specific chart (Billboard Hot 100 / UK Singles / Canada RPM / Top40Weekly)\n` +
-          `• or a song title for ${ms.year}`,
+          `I’m not getting a clean **#1-only** result from the source yet.\n\n` +
+          `Pick a chart and I’ll try again for **${ms.year}**:\n` +
+          `• Billboard Hot 100\n• UK Singles\n• Canada RPM\n• Top40Weekly Top 100`,
         followUp: {
           kind: 'choice',
-          options: ['Switch chart', `Keep year ${ms.year} and give a song title`, 'Another moment'],
-          prompt: 'Pick one.'
+          options: ['Switch to Billboard Hot 100', 'Switch to UK Singles', 'Switch to Canada RPM', 'Switch to Top40Weekly Top 100'],
+          prompt: 'Pick a chart.'
         },
-        meta: { flow: 'music_v1', step: ms.step, intent: 'number_one_needs_support', year: ms.year, chart: chartForN1 }
+        meta: { flow: 'music_v1', step: ms.step, intent: 'number_one_needs_chart', year: ms.year, chart: chartForN1 }
       };
     }
 
     ms.step = 'next_step';
-    return {
+    return applyChartDisclosure({
       ok: true,
       mode: 'music',
       reply: safeN1.reply,
@@ -532,13 +601,13 @@ async function runMusicFlowV1({ message, sessionId, context, intent, signal }) {
         prompt: 'Want another moment, #1 only, or switch chart?'
       },
       meta: { ...(safeN1.meta || {}), flow: 'music_v1', step: ms.step, intent: 'number_one', year: ms.year, chart: chartForN1 }
-    };
+    }, ms);
   }
 
   // -----------------------------
   // Chart control commands
   // -----------------------------
-  const ctl = parseChartControl(message);
+  const ctl = parseChartControl(tRaw);
   if (ctl) {
     if (ctl.action === 'switch_picker') {
       ms.step = 'need_chart';
@@ -556,8 +625,9 @@ async function runMusicFlowV1({ message, sessionId, context, intent, signal }) {
       if (chosen) {
         ms.chart = chosen;
         ms.acceptedChart = chosen;
+        ms.disclosedFallbackForChart = chosen; // lock suppression of repeating disclosure
       }
-      message = '';
+      message = ''; // fall through to normal path
     }
 
     if (ctl.action === 'switch_to') {
@@ -565,18 +635,19 @@ async function runMusicFlowV1({ message, sessionId, context, intent, signal }) {
       if (chosen) {
         ms.chart = chosen;
         ms.acceptedChart = null;
+        ms.disclosedFallbackForChart = null; // allow disclosure again if needed
       }
-      message = '';
+      message = ''; // fall through
     }
   }
 
   // Chart selection priority: text > context > session > default
-  const textChart = normalizeChart(parseChartFromText(message));
+  const textChart = normalizeChart(parseChartFromText(tRaw));
   const ctxChart = normalizeChart(context?.chart);
   const chosenChart = normalizeChart(textChart || ctxChart || ms.chart || DEFAULT_CHART);
 
-  const year = parseYear(message);
-  const anchor = parseAnchor(message);
+  const year = parseYear(tRaw);
+  const anchor = parseAnchor(tRaw);
 
   if (year) ms.year = year;
   if (anchor.artist) ms.artist = anchor.artist;
@@ -610,13 +681,14 @@ async function runMusicFlowV1({ message, sessionId, context, intent, signal }) {
     };
   }
 
+  // Build targeted query
   const targeted = (() => {
     const parts = [];
     if (ms.title) parts.push(`"${ms.title}"`);
     if (ms.artist) parts.push(`by ${ms.artist}`);
     if (ms.year) parts.push(String(ms.year));
     return parts.join(' ').trim();
-  })() || message;
+  })() || tRaw;
 
   let out = null;
   if (musicKnowledge?.handleMessage) {
@@ -656,8 +728,10 @@ async function runMusicFlowV1({ message, sessionId, context, intent, signal }) {
   const usedChart = asText(safeOut?.meta?.usedChart) || null;
   const usedFallback = !!safeOut?.meta?.usedFallback;
 
+  // If user has accepted fallback chart, suppress further disclosure
   if (usedFallback && usedChart && ms.acceptedChart && ms.acceptedChart === usedChart) {
     ms.chart = usedChart;
+    ms.disclosedFallbackForChart = usedChart;
   } else if (usedFallback && usedChart && requestedChart && usedChart !== requestedChart) {
     ms.step = 'need_chart';
     return {
@@ -681,10 +755,10 @@ async function runMusicFlowV1({ message, sessionId, context, intent, signal }) {
     };
   }
 
-  const momentSig = [requestedChart || '', ms.year || '', ms.artist || '', ms.title || '', asText(safeOut.reply).slice(0, 80)].join('|');
-  ms.lastMomentSig = momentSig;
+  ms.lastMomentSig = [requestedChart || '', ms.year || '', ms.artist || '', ms.title || '', asText(safeOut.reply).slice(0, 80)].join('|');
   ms.step = 'next_step';
 
+  // Guarantee a follow-up that advances (prevents user feeling “stuck”)
   if (!safeOut.followUp) {
     safeOut.followUp = {
       kind: 'choice',
@@ -692,6 +766,8 @@ async function runMusicFlowV1({ message, sessionId, context, intent, signal }) {
       prompt: 'Want another moment, #1 only, or switch chart?'
     };
   }
+
+  safeOut.followUp = rewriteChoiceOptionsForV1(safeOut.followUp, safeOut.meta);
 
   safeOut.mode = safeOut.mode || 'music';
   safeOut.meta = { ...(safeOut.meta || {}), flow: 'music_v1', step: ms.step, chart: requestedChart, year: ms.year || null };
@@ -705,8 +781,14 @@ async function runMusicFlowV1({ message, sessionId, context, intent, signal }) {
 async function orchestrateChat({ message, sessionId, context, intent, signal }) {
   const s = getSession(sessionId);
 
+  // Make "yes" actually advance the music flow (not the first option blindly)
   if (isAffirmation(message) && s.lastFollowUpKind === 'choice' && Array.isArray(s.lastFollowUpOptions) && s.lastFollowUpOptions.length) {
-    message = String(s.lastFollowUpOptions[0]);
+    // Prefer "Another moment" if present (prevents “yes” mapping to deprecated Top 10 option)
+    const preferred =
+      s.lastFollowUpOptions.find(o => /^another\b/i.test(String(o))) ||
+      s.lastFollowUpOptions[0];
+
+    message = String(preferred);
   }
 
   const looksMusic = detectMusicIntent(intent, message, s);
