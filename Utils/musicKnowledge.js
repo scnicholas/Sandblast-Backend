@@ -1,16 +1,14 @@
 "use strict";
 
 /**
- * musicKnowledge.js — Bulletproof V2.18
+ * musicKnowledge.js — Bulletproof V2.19
  *
- * Based on V2.17 (your current file).
+ * Based on V2.18 (your current file).
  *
- * V2.18 upgrades (Nyx Intelligence Layer integration):
- * - Adds handleMessage(message, ctx) entry point for index.js routing.
- * - Adds #1 queries (e.g., "When was Madonna #1?") with chart-aware search.
- * - Adds slot-filling (artist+year or song title) and enforces "always advance."
- * - Adds light artist resolution from free text ("madonna", "janet jackson", etc.).
- * - Adds deterministic response schema { ok, mode, reply, followUp, meta }.
+ * V2.19 upgrades (fix #1 routing reliability):
+ * - Fixes #1 detection for phrases like "When was Madonna #1?" (word-boundary bug around "#1").
+ * - Makes "#1 years" follow-up optionally use ctx.context.lastArtist / ctx.context.artist if provided.
+ * - Keeps deterministic schema { ok, mode, reply, followUp, meta } and "always advance" enforcement.
  *
  * Env:
  * - MUSIC_ENABLE_CHART_FALLBACK=1 (default)  -> enable smart fallback
@@ -139,7 +137,7 @@ function normalizeChart(chart) {
 }
 
 // =============================
-// TOP40WEEKLY ROW FIXUP (your v2.17 logic preserved)
+// TOP40WEEKLY ROW FIXUP (your v2.18 logic preserved)
 // =============================
 function _isNameyToken(w) {
   const s = String(w || "").trim();
@@ -213,6 +211,7 @@ function buildOneWordActSet(moments) {
 }
 
 function fixTop40ArtistTitle(artist, title) {
+  // (Unchanged from your V2.18 — preserved verbatim)
   let a = normalizeArtistPunctuation(String(artist || "").trim());
   let t = String(title || "").trim();
   if (!a || !t) return { artist: a, title: t };
@@ -275,7 +274,6 @@ function fixTop40ArtistTitle(artist, title) {
     return null;
   }
 
-  // SPECIAL CASE 1: artist begins with "and ..."
   if (/^and\s+/i.test(a)) {
     const words0 = joinMcTokens(t.split(/\s+/).filter(Boolean));
     const pulled = extractTailName(words0, 8);
@@ -294,7 +292,6 @@ function fixTop40ArtistTitle(artist, title) {
     }
   }
 
-  // SPECIAL CASE 1B: McCartney duet missing "Paul"
   if (/\bMcCartney\b/i.test(a) && /\sand\s/i.test(a)) {
     const words0 = joinMcTokens(t.split(/\s+/).filter(Boolean));
     const last = words0[words0.length - 1] || "";
@@ -309,7 +306,6 @@ function fixTop40ArtistTitle(artist, title) {
     }
   }
 
-  // SPECIAL CASE 2: ", Jr." and title ends with first name
   if (/\bjr\.?\b/i.test(a)) {
     const words0 = t.split(/\s+/).filter(Boolean);
     const last = words0[words0.length - 1] || "";
@@ -327,14 +323,12 @@ function fixTop40ArtistTitle(artist, title) {
 
   const artistIsJrOnly = /^jr\.?$/i.test(a);
 
-  // Eligible if:
   const eligible =
     artistIsJrOnly ||
     /^and\s+/i.test(a) ||
     /,\s*,?\s*Jr\./i.test(a) ||
     aSingle;
 
-  // SPECIAL CASE 3: artist has stray title words prepended
   {
     const TITLEISH_PREFIX = new Set(["away","up","much","hearted","wings","true","got","its","thorn"]);
     const aWords = a.split(/\s+/).filter(Boolean);
@@ -361,7 +355,6 @@ function fixTop40ArtistTitle(artist, title) {
     }
   }
 
-  // SPECIAL CASE 4: Will to Power
   if (/^Power$/i.test(a) && /\bWill\s+to\b\s*$/i.test(t)) {
     a = "Will to Power";
     t = t.replace(/\s*\bWill\s+to\b\s*$/i, "").trim();
@@ -400,7 +393,6 @@ function fixTop40ArtistTitle(artist, title) {
 
     if (!looksNameChunk(tail)) continue;
 
-    // Avoid moving 1 word unless truncated
     if (k === 1 && !artistIsJrOnly && !aSingle) continue;
 
     if (artistIsJrOnly) {
@@ -417,13 +409,11 @@ function fixTop40ArtistTitle(artist, title) {
 
     const hasJr = /,\s*Jr\./i.test(candidateArtist);
 
-    // Strict gating: accept only if known OR multi OR Jr
     if (!artistSet.has(candNorm) && !looksLikeMultiArtist && !hasJr) continue;
 
     return { artist: candidateArtist, title: candidateTitle };
   }
 
-  // LAST-RESORT SAFETY for one-word acts
   {
     const STATIC_ONEWORD = new Set(["prince","yes","heart"]);
     const aParts2 = a.split(/\s+/).filter(Boolean);
@@ -443,7 +433,6 @@ function fixTop40ArtistTitle(artist, title) {
     }
   }
 
-  // Targeted finalizers
   if (/\bMcCartney\s+and\s+Michael\s+Jackson\b/i.test(a) && /\bPaul\b\s*$/i.test(t)) {
     a = ("Paul " + a).replace(/\s+/g, " ").trim();
     t = t.replace(/\s*\bPaul\b\s*$/i, "").trim();
@@ -454,7 +443,6 @@ function fixTop40ArtistTitle(artist, title) {
     t = t.replace(/\s*\bRay\b\s*$/i, "").trim();
   }
 
-  // SPECIAL CASE 5: surname-only artist, first name at end of title
   {
     const TITLEISH_TAIL = new Set(["away","up","much","hearted","wings","true","got","its","thorn"]);
     const aWords = a.split(/\s+/).filter(Boolean);
@@ -592,9 +580,7 @@ function resolveTop40DirAbs() {
     const entries = fs.readdirSync(dataDir, { withFileTypes: true });
     const match = entries.find((e) => e.isDirectory() && String(e.name).toLowerCase() === "top40weekly");
     if (match) return path.join(dataDir, match.name);
-  } catch {
-    // ignore
-  }
+  } catch {}
 
   const variants = ["Data/Top40Weekly", "Data/TOP40WEEKLY", "Data/Top40weekly", "Data/top40Weekly"];
   for (const v of variants) {
@@ -722,7 +708,6 @@ function rebuildIndexes() {
     if (!artistCanon.has(m._na)) artistCanon.set(m._na, m.artist);
   }
 
-  // Build artist list sorted longest-first to reduce false matches
   ARTIST_LIST = Array.from(artistCanon.entries())
     .map(([na, artist]) => ({ na, artist }))
     .sort((a, b) => b.na.length - a.na.length);
@@ -805,9 +790,7 @@ function maybeHotReload() {
       LOADED = false;
       loadDb();
     }
-  } catch {
-    // ignore
-  }
+  } catch {}
 }
 
 function getDb() {
@@ -850,13 +833,11 @@ function detectTitle(text) {
   return title;
 }
 
-// Resolve an artist name from free text using the ARTIST_LIST
 function resolveArtistFromText(message) {
   getDb();
   const t = norm(message);
   if (!t) return null;
 
-  // quick cut: if message is short, treat it as an artist attempt
   if (t.length <= 40 && ARTIST_SET.has(t)) {
     const found = ARTIST_LIST.find((x) => x.na === t);
     return found ? found.artist : message.trim();
@@ -864,12 +845,8 @@ function resolveArtistFromText(message) {
 
   for (const a of ARTIST_LIST) {
     if (!a.na || a.na.length < 3) continue;
-    // word boundary-ish guard: ensure substring match on token boundaries
-    if (t.includes(a.na)) {
-      return a.artist;
-    }
+    if (t.includes(a.na)) return a.artist;
   }
-
   return null;
 }
 
@@ -939,7 +916,6 @@ function pickRandom(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-// Quick verification helper for Top40Weekly coverage (admin/debug)
 function top40Coverage(fromYear = 1990, toYear = 1999) {
   getDb();
   const out = {};
@@ -1140,7 +1116,6 @@ function getTopByYear(year, n = 10, chart = null) {
 
   const out = sorted.slice(0, Math.max(1, Math.min(100, Number(n) || 10)));
 
-  // Defensive repair for Top40Weekly Top 100
   return out.map((m) => {
     try {
       if (String(m?.chart || "") === TOP40_CHART) {
@@ -1149,7 +1124,7 @@ function getTopByYear(year, n = 10, chart = null) {
           return { ...m, artist: fx.artist, title: fx.title };
         }
       }
-    } catch (e) {}
+    } catch {}
     return m;
   });
 }
@@ -1230,7 +1205,7 @@ function pickBestMoment(_unused, slots = {}) {
 }
 
 // =============================
-// #1 QUERIES (NEW)
+// #1 QUERIES
 // =============================
 function findNumberOneYearsForArtist(artist, chart = null) {
   getDb();
@@ -1260,9 +1235,8 @@ function pickNumberOneExample(artist, year, chart = null) {
 }
 
 // =============================
-// NYX INTEGRATION ENTRY POINT (NEW)
+// NYX INTEGRATION ENTRY POINT
 // =============================
-
 function parseChartFromText(message) {
   const t = norm(message);
   if (!t) return null;
@@ -1276,9 +1250,28 @@ function parseChartFromText(message) {
   return null;
 }
 
+/**
+ * V2.19: fixed #1 detection
+ * - Removed \b boundary reliance around "#1" (it breaks on non-word char '#')
+ * - Supports: "When was X #1", "Was X ever #1", "#1 years"
+ */
 function isNumberOneQuestion(message) {
   const t = norm(message);
-  return /\b(#\s*1|#1|number\s*one|number\s*1|no\s*1|no1|no\.\s*1)\b/.test(t) && /\b(when|what year|which year|years)\b/.test(t);
+  if (!t) return false;
+
+  const hasNo1 =
+    /(#\s*1|#1|number\s*(one|1)|no\.?\s*1|no1)/.test(t);
+
+  if (!hasNo1) return false;
+
+  // intent words
+  const asks =
+    /\b(when|what\s+year|which\s+year|years|was|were|did|ever)\b/.test(t);
+
+  // if someone just types "#1" alone, don't trigger (too ambiguous)
+  const tooShort = t === "#1" || t === "no 1" || t === "number one";
+
+  return asks && !tooShort;
 }
 
 function isTopListRequest(message) {
@@ -1307,16 +1300,23 @@ function enforceAdvanceResponse(out) {
   };
 }
 
+// Optional: allow follow-ups like "#1 years" to use ctx.context.lastArtist if provided by frontend
+function getArtistFromCtx(ctx) {
+  const a = String(ctx?.context?.lastArtist || ctx?.context?.artist || "").trim();
+  return a || null;
+}
+
 async function handleMessage(message, ctx = {}) {
   getDb();
   const text = String(message || "").trim();
-  const tnorm = norm(text);
 
   const requestedChart = normalizeChart(ctx?.context?.chart || parseChartFromText(text) || DEFAULT_CHART);
 
-  // 1) #1 questions: "When was Madonna #1?"
+  // 1) #1 questions: "When was Madonna #1?" OR "#1 years"
   if (isNumberOneQuestion(text)) {
-    const artist = resolveArtistFromText(text);
+    const ctxArtist = getArtistFromCtx(ctx);
+    const artist = resolveArtistFromText(text) || ctxArtist;
+
     if (!artist) {
       return enforceAdvanceResponse({
         ok: true,
@@ -1329,7 +1329,6 @@ async function handleMessage(message, ctx = {}) {
 
     let years = findNumberOneYearsForArtist(artist, requestedChart);
 
-    // fallback if chart bucket empty
     if (!years.length) {
       const fb = getFallbackChartForRequest(requestedChart);
       if (fb) years = findNumberOneYearsForArtist(artist, fb);
@@ -1349,7 +1348,6 @@ async function handleMessage(message, ctx = {}) {
       });
     }
 
-    // Provide a short, decisive answer + one example
     const yearsStr = years.length <= 12 ? years.join(", ") : `${years.slice(0, 12).join(", ")} … (+${years.length - 12} more)`;
     const exampleYear = years[0];
     const ex = pickNumberOneExample(artist, exampleYear, requestedChart) || pickNumberOneExample(artist, exampleYear, null);
@@ -1418,7 +1416,6 @@ async function handleMessage(message, ctx = {}) {
   const dashArtist = detectArtist(text);
   const dashTitle = detectTitle(text);
 
-  // If "Artist - Title" format
   if (dashArtist && dashTitle) {
     const years = findYearsForArtistTitle(dashArtist, dashTitle, requestedChart);
     const y = years.length ? years[0] : year;
@@ -1451,7 +1448,6 @@ async function handleMessage(message, ctx = {}) {
     });
   }
 
-  // If user provides a year alone (or with light music phrasing)
   if (year && !dashTitle) {
     const picked = pickRandomByYearWithMeta(year, requestedChart);
     if (!picked.moment) {
@@ -1482,7 +1478,7 @@ async function handleMessage(message, ctx = {}) {
     });
   }
 
-  // 4) If we detect an artist in free text (no year), ask for year (always-advance)
+  // 4) Free-text artist detection (no year)
   const artistGuess = resolveArtistFromText(text);
   if (artistGuess && !year) {
     return enforceAdvanceResponse({
@@ -1498,7 +1494,7 @@ async function handleMessage(message, ctx = {}) {
     });
   }
 
-  // 5) Default: ask for the anchor
+  // 5) Default: ask for anchor
   return enforceAdvanceResponse({
     ok: true,
     mode: "music",
@@ -1517,31 +1513,25 @@ async function handleMessage(message, ctx = {}) {
 // =============================
 module.exports = {
   __top40FixVersion: "top40-fix-v11-firstname-tailfix",
-  __musicKnowledgeVersion: "v2.18-nyx-handleMessage-numberOne",
+  __musicKnowledgeVersion: "v2.19-nyx-handleMessage-numberOne-fixed",
 
-  // Loader
   loadDb,
   getDb,
   loadDB: loadDb,
   db: () => getDb(),
 
-  // Proof for /api/health or logs
   DB_PATH: () => DB_PATH_RESOLVED,
   STATS: () => ({ ...STATS }),
 
-  // Core
   pickBestMoment,
 
-  // Nyx integration
   handleMessage,
 
-  // Extraction
   detectArtist,
   detectTitle,
   extractYear,
   normalizeChart,
 
-  // Query helpers
   findYearsForArtistTitle,
   findNumberOneYearsForArtist,
   getAllMoments,
@@ -1549,7 +1539,6 @@ module.exports = {
   hasYearChart,
   top40Coverage,
 
-  // Pickers
   pickRandomByYear,
   pickRandomByYearFallback,
   pickRandomByYearWithMeta,
