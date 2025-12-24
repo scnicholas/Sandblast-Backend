@@ -1,6 +1,10 @@
 /**
  * index.js — Nyx Broadcast Backend (Wizard-Locked)
- * Build: nyx-wizard-v1.93-drivers-confidence
+ * Build: nyx-wizard-v1.94-top40guard-selfcheck
+ *
+ * v1.94 additions:
+ * - Guard: do NOT run normalizeTopListEntry() on Top40Weekly Top 100 (prevents re-breaking repaired rows)
+ * - Expand Top40 self-check to cover title-tail drift (Look Away / Straight Up / Miss You Much etc.)
  *
  * v1.93 additions:
  * - Conversation Drivers + Confidence policy (flow control)
@@ -264,8 +268,8 @@ const PORT = process.env.PORT || 3000;
 const COMMIT_FULL = process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "";
 const COMMIT_SHORT = COMMIT_FULL ? String(COMMIT_FULL).slice(0, 7) : "";
 const BUILD_TAG = COMMIT_SHORT
-  ? `nyx-wizard-v1.93-${COMMIT_SHORT}`
-  : "nyx-wizard-v1.93-drivers-confidence";
+  ? `nyx-wizard-v1.94-${COMMIT_SHORT}`
+  : "nyx-wizard-v1.94-top40guard-selfcheck";
 
 const DEFAULT_CHART = "Billboard Hot 100";
 const KB_TIMEOUT_MS = Number(process.env.KB_TIMEOUT_MS || 900);
@@ -765,6 +769,50 @@ function selfCheckRepairTop40(artist, title) {
     return { artist: a0, title: t0, changed: false };
   }
 
+// -------------------------------------------------------
+// Title-tail drift (Top40Weekly Year-End): sometimes a few
+// words that belong at the END of the title get prepended
+// onto the artist (e.g., "Away Chicago" / "Up Paula Abdul").
+// We repair by moving a short, known title-tail prefix from
+// artist -> end of title, conservatively.
+// -------------------------------------------------------
+const TITLE_TAIL_TOKENS = new Set([
+  "away","up","much","hearted","wings","true","got","its","thorn"
+]);
+
+const aWords = a0.split(/\s+/).filter(Boolean);
+const tWords0 = t0.split(/\s+/).filter(Boolean);
+
+// Move 1–3 leading title-tail tokens off the artist if the remaining artist looks real.
+if (aWords.length >= 2 && tWords0.length >= 1 && tWords0.length <= 7) {
+  let k = 0;
+  for (let i = 0; i < Math.min(3, aWords.length - 1); i++) {
+    const tok = aWords[i].toLowerCase().replace(/[^a-z']/g, "");
+    if (!TITLE_TAIL_TOKENS.has(tok)) break;
+    k++;
+  }
+
+  if (k >= 1) {
+    const prefix = aWords.slice(0, k).join(" ").trim();
+    const remainingArtist = aWords.slice(k).join(" ").trim();
+
+    // Require remaining artist to be at least 2 characters and not purely numeric.
+    if (remainingArtist.length >= 2 && !/^\d+$/.test(remainingArtist)) {
+      const fixedTitle = (t0 + " " + prefix).replace(/\s+/g, " ").trim();
+      return { artist: remainingArtist, title: fixedTitle, changed: true };
+    }
+  }
+}
+
+// -------------------------------------------------------
+// Artist-prefix drift: "Will to Power" sometimes becomes
+// artist="Power" and title ends with "Will to".
+// -------------------------------------------------------
+if (/^power$/i.test(a0) && /\bwill\s+to\b\s*$/i.test(t0)) {
+  const fixedTitle = t0.replace(/\bwill\s+to\b\s*$/i, "").trim();
+  return { artist: "Will to Power", title: fixedTitle, changed: true };
+}
+
   // Work on token boundaries
   const tWords = t0.split(/\s+/).filter(Boolean);
   const lastWord = tWords.length ? tWords[tWords.length - 1] : "";
@@ -946,8 +994,19 @@ async function handleMusic(req, res, key, sess, rawText) {
 
       if (wantedN === 1) {
         const best = list[0];
-        const nrm = normalizeTopListEntry(best.artist, best.title);
-        sess.lastPick = { artist: nrm.artist || best.artist, title: nrm.title || best.title, year: best.year, chart: best.chart || listChart };
+
+        // IMPORTANT: For Top40Weekly Top 100, do NOT run normalizeTopListEntry().
+        // That heuristic can re-break repaired rows (e.g., "Look Away" -> "Away Chicago").
+        const isTop40YearEnd = String(listChart) === "Top40Weekly Top 100";
+        const nrm = isTop40YearEnd ? { artist: best.artist, title: best.title } : normalizeTopListEntry(best.artist, best.title);
+
+        sess.lastPick = {
+          artist: nrm.artist || best.artist,
+          title: nrm.title || best.title,
+          year: best.year,
+          chart: best.chart || listChart
+        };
+
         return send(
           res, key, sess, "music_number_one",
           `${nrm.artist || best.artist} — "${nrm.title || best.title}" (${best.year})\nChart: ${best.chart || listChart}\n\nWant the **Top 10**, another pick, or switch charts?`,
@@ -956,8 +1015,10 @@ async function handleMusic(req, res, key, sess, rawText) {
         );
       }
 
+      const isTop40YearEnd = String(listChart) === "Top40Weekly Top 100";
+
       const lines = list.map((m, i) => {
-        const nrm = normalizeTopListEntry(m.artist, m.title);
+        const nrm = isTop40YearEnd ? { artist: m.artist, title: m.title } : normalizeTopListEntry(m.artist, m.title);
         return `${i + 1}. ${nrm.artist} — "${nrm.title}"`;
       });
 
