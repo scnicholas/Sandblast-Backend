@@ -174,43 +174,116 @@ function fixTop40ArtistTitle(artist, title) {
   // Clean trailing punctuation
   t = t.replace(/\s+[,]+$/g, "").trim();
 
+  const surnameSet = TOP40_SURNAME_SET instanceof Set ? TOP40_SURNAME_SET : new Set();
+  const artistSet = TOP40_ARTIST_SET instanceof Set ? TOP40_ARTIST_SET : new Set();
+  const oneWordSet = TOP40_ONEWORD_SET instanceof Set ? TOP40_ONEWORD_SET : new Set();
+
+  // Never touch legit one-word acts (Prince, Yes, Heart, etc.)
+  if (oneWordSet.has(norm(a))) return { artist: a, title: t };
+
+  const badTitleEnd = new Set(["a","an","the","of","to","with","and","or","but","in","on","at","for","from"]);
+
+  function joinMcTokens(words) {
+    const out = [];
+    for (let i = 0; i < words.length; i++) {
+      const w = String(words[i] || "").trim();
+      const wl = w.toLowerCase();
+      const nxt = i + 1 < words.length ? String(words[i + 1] || "").trim() : "";
+      if (wl === "mc" && nxt && /^[A-Z][a-z]+/.test(nxt)) {
+        out.push("Mc" + nxt);
+        i++;
+        continue;
+      }
+      out.push(w);
+    }
+    return out.filter(Boolean);
+  }
+
+  function looksNameyToken(w) {
+    const s = String(w || "").trim();
+    if (!s) return false;
+    const lc = s.toLowerCase().replace(/[,]+$/g, "");
+    if (["and","&","of","the","jr","jr.","van","von","de","da","di","del"].includes(lc)) return true;
+    if (/^[A-Z][a-z]+[,]?$/.test(s)) return true;
+    if (/^[A-Z]\.?$/.test(s)) return true;
+    if (/^Mc[A-Z][a-z]+[,]?$/.test(s)) return true;
+    return false;
+  }
+
+  function looksNameChunk(tokens) {
+    if (!Array.isArray(tokens) || !tokens.length) return false;
+    return tokens.every(looksNameyToken);
+  }
+
+  function extractTailName(words, maxTail = 10) {
+    for (let k = 1; k <= maxTail && k < words.length; k++) {
+      const tail = words.slice(words.length - k);
+      const head = words.slice(0, words.length - k);
+      const candidateTitle = head.join(" ").trim();
+      if (candidateTitle.length < 3) continue;
+      const lastWord = (head[head.length - 1] || "").toLowerCase();
+      if (badTitleEnd.has(lastWord)) continue;
+      if (!looksNameChunk(tail)) continue;
+      return { k, tail, head, candidateTitle };
+    }
+    return null;
+  }
+
+  // -------------------------------------------------------
+  // SPECIAL CASE 1: artist begins with "and ..." (missing lead artist in title tail)
+  // Example: artist="and Michael Jackson", title="Say Say Say Paul McCartney"
+  // -------------------------------------------------------
+  if (/^and\s+/i.test(a)) {
+    const words0 = joinMcTokens(t.split(/\s+/).filter(Boolean));
+    const pulled = extractTailName(words0, 8);
+    if (pulled) {
+      const candidateArtist = normalizeArtistPunctuation(
+        (pulled.tail.join(" ") + " " + a).replace(/\s+/g, " ").trim()
+      );
+      const candidateTitle = pulled.candidateTitle;
+      // Accept if multi-artist looks plausible (contains "and") and title is non-empty.
+      if (/\sand\s/i.test(candidateArtist) && candidateTitle.length >= 3) {
+        return { artist: candidateArtist, title: candidateTitle };
+      }
+    }
+    // fall through
+  }
+
+  // -------------------------------------------------------
+  // SPECIAL CASE 2: artist has ", Jr." and title ends with first name (Ray Parker, Jr.)
+  // -------------------------------------------------------
+  if (/,\s*Jr\./i.test(a)) {
+    const words0 = t.split(/\s+/).filter(Boolean);
+    const last = words0[words0.length - 1] || "";
+    if (looksNameyToken(last)) {
+      const head = words0.slice(0, -1).join(" ").trim();
+      if (head.length >= 3 && !badTitleEnd.has(String(head.split(/\s+/).pop() || "").toLowerCase())) {
+        const candArtist = normalizeArtistPunctuation((last + " " + a).trim());
+        return { artist: candArtist, title: head };
+      }
+    }
+  }
+
   const aParts = a.split(/\s+/).filter(Boolean);
   const aLast = (aParts[aParts.length - 1] || "").replace(/[^A-Za-z0-9'.-]/g, "").toLowerCase();
   const aSingle = aParts.length === 1;
 
-  // Decide whether this row is eligible for repair:
-  // - Single-token artist that looks like a surname (appears as last token of multiword artists)
-  // - Or "Jr." placeholder artist
-  // - Or titles that clearly end with an "artist continuation" (e.g., end with "and")
-  const tLower = t.toLowerCase();
   const titleEndsWithAnd = /\band\s*$/i.test(t);
   const artistIsJrOnly = /^jr\.?$/i.test(a);
 
-  const surnameSet = TOP40_SURNAME_SET instanceof Set ? TOP40_SURNAME_SET : new Set();
-  const oneWordSet = TOP40_ONEWORD_ARTIST_SET instanceof Set ? TOP40_ONEWORD_ARTIST_SET : new Set();
-
-  // Eligibility gate:
-  // - never "repair" known one-word artists/bands (Prince, Yes, Heart, etc.)
-  // - allow single-token surname-like artists (Turner, Loggins, Halen, Richie, Club, etc.)
-  // - allow special patterns: "..., Jr." and multi-artist "and" cases
-  const oneWordArtist = oneWordSet.has(norm(a));
-  const artistEndsJr = /,\s*jr\.?$/i.test(a);
-
+  // Eligible if:
+  // - Jr placeholder OR
+  // - single-token artist that appears as a surname in the base DB OR
+  // - title ends with "and" and artist looks like a surname
   const eligible =
-    !oneWordArtist && (
-      artistIsJrOnly ||
-      (aSingle && aLast && surnameSet.has(aLast)) ||
-      (titleEndsWithAnd && aLast && surnameSet.has(aLast)) ||
-      artistEndsJr ||
-      (/\sand\s/i.test(a) && /\b(mc|mccartney|and)\b/i.test(t))
-    );
+    artistIsJrOnly ||
+    (aSingle && aLast && surnameSet.has(aLast)) ||
+    (titleEndsWithAnd && aLast && surnameSet.has(aLast));
 
   if (!eligible) return { artist: a, title: t };
 
-  const words = t.split(/\s+/).filter(Boolean);
+  const words = joinMcTokens(t.split(/\s+/).filter(Boolean));
   if (words.length < 2) return { artist: a, title: t };
-
-  const badTitleEnd = new Set(["a", "an", "the", "of", "to", "with", "and", "or", "but", "in", "on", "at", "for", "from"]);
 
   // Try moving 1..10 trailing words from title into artist (front)
   for (let k = 1; k <= 10 && k < words.length; k++) {
@@ -224,39 +297,49 @@ function fixTop40ArtistTitle(artist, title) {
     if (badTitleEnd.has(lastWord)) continue;
 
     // Heuristic: tail looks like a name chunk (Capitalized tokens or connectors)
-    const looksNamey = tail.every((w) => {
-      const wl = w.toLowerCase().replace(/[,]+$/g, "");
-      return (
-        /^[A-Z]/.test(w) ||
-        ["and", "&", "mc", "mccartney", "jr.", "jr"].includes(wl)
-      );
-    });
-    if (!looksNamey) continue;
+    if (!looksNameChunk(tail)) continue;
 
-    // Avoid corrupting legit one-word acts by not moving single trailing word unless artist looks truncated
+    // Avoid corrupting legit acts by not moving a single trailing word unless artist looks truncated
     if (k === 1 && !artistIsJrOnly && !(aSingle && surnameSet.has(aLast))) continue;
 
     // Special case: artist is only "Jr." — keep Jr. at end
     if (artistIsJrOnly) {
-      const fixedArtist = normalizeArtistPunctuation(`${tail.join(" ").replace(/\s+[,]+$/g, "")}, Jr.`);
+      const fixedArtist = normalizeArtistPunctuation(
+        `${tail.join(" ").replace(/\s+[,]+$/g, "")}, Jr.`
+      );
       return { artist: fixedArtist, title: candidateTitle };
     }
 
-    const candidateArtist = normalizeArtistPunctuation(`${tail.join(" ")} ${a}`.replace(/\s+/g, " ").trim());
+    const candidateArtist = normalizeArtistPunctuation(
+      `${tail.join(" ")} ${a}`.replace(/\s+/g, " ").trim()
+    );
 
-    // Accept if it looks like a real person/band name chunk and does not blow away the title.
-    // Additional guard: keep at least 2 words in artist after repair unless we are in the Jr-only path.
-    const candParts = candidateArtist.split(/\s+/).filter(Boolean);
-    if (candParts.length < 2 && !artistIsJrOnly) continue;
+    // Accept if:
+    // - known artist, OR
+    // - multi-artist "and" pattern, OR
+    // - Jr. pattern, OR
+    // - plausible 2+ token proper-name (e.g., Van Halen, Lionel Richie, Culture Club)
+    const candNorm = norm(candidateArtist);
+    const looksLikeMultiArtist =
+      /\sand\s/i.test(candidateArtist) &&
+      candidateArtist.split(/\sand\s/i).every((p) => String(p || "").trim().length >= 2);
 
-    // Special cleanup: fix accidental double commas like "Parker,, Jr."
-    const cleanedArtist = normalizeArtistPunctuation(candidateArtist);
-    return { artist: cleanedArtist, title: candidateTitle };
+    const hasJr = /,\s*Jr\./i.test(candidateArtist);
+    const parts = candidateArtist.split(/\s+/).filter(Boolean);
+    const plausibleProperName =
+      parts.length >= 2 &&
+      parts.slice(0, 2).every((p) => /^[A-Z]/.test(p)) &&
+      surnameSet.has(String(parts[parts.length - 1] || "").replace(/[^A-Za-z0-9'.-]/g, "").toLowerCase());
+
+    if (!artistSet.has(candNorm) && !looksLikeMultiArtist && !hasJr && !plausibleProperName) {
+      continue;
+    }
+
+    return { artist: candidateArtist, title: candidateTitle };
   }
 
   return { artist: a, title: t };
 }
-
 
 
 // =============================
@@ -314,7 +397,7 @@ function normalizeMoment(raw, forcedYear = null, forcedChart = null) {
 // like Prince, Yes, Heart, etc.
 let TOP40_SURNAME_SET = null;
 let TOP40_ARTIST_SET = null;
-let TOP40_ONEWORD_ARTIST_SET = null;
+let TOP40_ONEWORD_SET = null;
 function buildSurnameSet(moments) {
   const set = new Set();
   if (!Array.isArray(moments)) return set;
@@ -341,15 +424,16 @@ function buildArtistSet(moments) {
   }
   return set;
 }
-
-function buildOneWordArtistSet(moments) {
+function buildOneWordActSet(moments) {
   const set = new Set();
   if (!Array.isArray(moments)) return set;
   for (const m of moments) {
-    const a = normalizeArtistPunctuation(String(m?.artist || "").trim());
+    const a = String(m?.artist || "").trim();
     if (!a) continue;
     const parts = a.split(/\s+/).filter(Boolean);
-    if (parts.length === 1) set.add(norm(a));
+    if (parts.length === 1) {
+      set.add(norm(a));
+    }
   }
   return set;
 }
@@ -607,7 +691,7 @@ function loadDb() {
 
   
   TOP40_ARTIST_SET = buildArtistSet(normalized);
-  TOP40_ONEWORD_ARTIST_SET = buildOneWordArtistSet(normalized);
+  TOP40_ONEWORD_SET = buildOneWordActSet(normalized);
 const mergeInfo = MERGE_TOP40WEEKLY ? mergeTop40Weekly(normalized, seen) : null;
 
   MOMENTS = normalized;
@@ -1044,7 +1128,7 @@ function pickBestMoment(_unused, slots = {}) {
 // EXPORTS
 // =============================
 module.exports = {
-  __top40FixVersion: "top40-fix-v3-safe-gated",
+  __top40FixVersion: "top40-fix-v5-mccartney-and-propernames",
   // Loader
   loadDb,
   getDb,
