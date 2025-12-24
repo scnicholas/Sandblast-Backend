@@ -219,7 +219,7 @@ app.post('/api/chat', async (req, res) => {
     }
 
     // Intent classification (optional module)
-    let intent = { primary: 'general', confidence: 0.5 };
+    let intent = { primary: 'general', confidence: 0.5, domain: 'general' };
     if (intentClassifier && typeof intentClassifier.classify === 'function') {
       try {
         intent = intentClassifier.classify(message, context) || intent;
@@ -228,29 +228,26 @@ app.post('/api/chat', async (req, res) => {
       }
     }
 
-    // Music flow (optional module)
-    // If user asks for music/chart/moment, route to musicKnowledge first.
+    // Music routing signals:
+    // - domain says music_history, OR
+    // - strong music regex
+    // This captures "When was Madonna #1?" reliably.
     const looksMusic =
-      /billboard|hot 100|top40|top 40|song|artist|chart|#1|number one|music|199\d|198\d|197\d/i.test(message);
+      (intent && (intent.domain === 'music_history' || intent.primary === 'music_history')) ||
+      /billboard|hot\s*100|top40|top\s*40|top40weekly|chart|charts|#1|number\s*one|no\.?\s*1|music|song|artist|199\d|198\d|197\d|200\d/i.test(message);
 
     let out = null;
 
+    // Music flow (preferred)
     if (looksMusic && musicKnowledge) {
       try {
-        // Prefer a single entry point; support multiple possible function names
-        const fn =
-          musicKnowledge.handleMessage ||
-          musicKnowledge.reply ||
-          musicKnowledge.route ||
-          null;
-
+        const fn = musicKnowledge.handleMessage || null;
         if (typeof fn === 'function') {
+          // Pass context through so chart selection persists.
           out = await fn(message, { sessionId, context, intent, signal: controller.signal });
-        } else if (typeof musicKnowledge.pickFlow === 'function') {
-          out = await musicKnowledge.pickFlow(message, { sessionId, context, intent, signal: controller.signal });
         }
       } catch (e) {
-        // fall through to generic offline-style reply
+        // fall through to generic fallback
       }
     }
 
@@ -276,7 +273,7 @@ app.post('/api/chat', async (req, res) => {
       rid,
       request: req.body,
       response: out,
-      meta: { sessionId, intent },
+      meta: { sessionId, intent, looksMusic, chart: context?.chart || null },
       error: null
     });
 
