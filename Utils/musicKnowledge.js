@@ -1,18 +1,23 @@
 "use strict";
 
 /**
- * musicKnowledge.js — Bulletproof V2.21
+ * musicKnowledge.js — Bulletproof V2.22
  *
- * Based on V2.20 (your current file).
+ * Based on V2.21 (your current file).
  *
- * V2.21 upgrades:
+ * V2.22 upgrades (Fluidity + follow-up reliability):
+ * - "another / again / more / next / yes" stays inside Music flow:
+ *   uses ctx.context.lastYear + ctx.context.lastChart when available.
+ * - Adds year-based "#1 only" command:
+ *   resolves to #1 track for ctx.context.lastYear (or year in message).
+ * - "Top 10" without a year uses ctx.context.lastYear.
+ * - Standardizes followUp option labels:
+ *   ["Top 10","Another moment","#1 only"] (stable for UI)
+ * - Adds meta.contextHints {lastYear,lastChart,lastArtist} so index.js can persist.
+ *
+ * V2.21 retained:
  * - ROOT FIX (merge-safe) for Top40Weekly "spill" bug:
  *   Example: "Love Whitesnake — Is This"  => "Whitesnake — Is This Love"
- *   We move a leading spill-word (Love/The/A/An/My/Your/This/That/One/etc.)
- *   off the artist and onto the end of the title using a tight heuristic,
- *   NOT relying on the pre-merge artist index (Top40Weekly is merged after base load).
- *
- * - Keeps V2.20/#1 routing reliability intact.
  *
  * Env:
  * - MUSIC_ENABLE_CHART_FALLBACK=1 (default)  -> enable smart fallback
@@ -107,6 +112,92 @@ function norm(s) {
     .replace(/[^\w\s#]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+// =============================
+// FLUIDITY HELPERS (V2.22)
+// =============================
+function asLower(x) {
+  return String(x || "").trim().toLowerCase();
+}
+
+function getLastYearFromCtx(ctx) {
+  const c = ctx && ctx.context ? ctx.context : {};
+  const y = c.lastYear ?? c.year ?? c.musicYear ?? c.metaYear ?? null;
+  const n = Number(y);
+  return Number.isFinite(n) ? n : null;
+}
+
+function getLastChartFromCtx(ctx) {
+  const c = ctx && ctx.context ? ctx.context : {};
+  const ch = c.lastChart ?? c.chart ?? c.requestedChart ?? null;
+  return ch ? String(ch) : null;
+}
+
+function getLastArtistFromCtx(ctx) {
+  const c = ctx && ctx.context ? ctx.context : {};
+  const a = c.lastArtist ?? c.artist ?? null;
+  return a ? String(a).trim() : null;
+}
+
+function looksAffirmative(text) {
+  const t = asLower(text);
+  return /^(y|yes|yeah|yep|sure|ok|okay|k|alright|sounds good|do it|go|go ahead)$/i.test(t);
+}
+
+function looksAnother(text) {
+  const t = asLower(text);
+  return /^(another|again|more|next|keep going|continue|random|surprise me|one more)$/i.test(t);
+}
+
+function looksTop10(text) {
+  const t = asLower(text);
+  return /^(top\s*10|top ten)(\b|$)/i.test(t);
+}
+
+function looksNumberOneOnly(text) {
+  const t = asLower(text);
+  // year-based #1 command users click/type
+  return /^(#\s*1\s*only|#1\s*only|number\s*one\s*only|no\.?\s*1\s*only)$/i.test(t) || t === "#1 only";
+}
+
+function looksBareNumberOne(text) {
+  const t = asLower(text);
+  return /^(#\s*1|#1|number\s*one|no\.?\s*1|no\s*1)$/i.test(t);
+}
+
+/**
+ * Rewrites ultra-short follow-ups into explicit commands,
+ * anchored by ctx (lastYear/lastChart) when possible.
+ */
+function rewriteFluidFollowUp(text, ctx) {
+  const raw = String(text || "").trim();
+  const tl = asLower(raw);
+
+  const lastYear = getLastYearFromCtx(ctx);
+  const lastChart = getLastChartFromCtx(ctx);
+
+  if (looksAffirmative(tl)) {
+    if (lastYear) return `another moment ${lastYear}${lastChart ? ` ${lastChart}` : ""}`;
+    return "another moment";
+  }
+
+  if (looksAnother(tl)) {
+    if (lastYear) return `another moment ${lastYear}${lastChart ? ` ${lastChart}` : ""}`;
+    return "another moment";
+  }
+
+  // Stable "Top 10" follow-up with no year uses ctx.lastYear
+  if (looksTop10(tl) && !extractYear(tl) && lastYear) {
+    return `top 10 ${lastYear}${lastChart ? ` ${lastChart}` : ""}`;
+  }
+
+  // Stable "#1 only" follow-up with no year uses ctx.lastYear
+  if ((looksNumberOneOnly(tl) || looksBareNumberOne(tl)) && !extractYear(tl) && lastYear) {
+    return `#1 only ${lastYear}${lastChart ? ` ${lastChart}` : ""}`;
+  }
+
+  return raw;
 }
 
 // =============================
@@ -324,7 +415,7 @@ function fixTop40ArtistTitle(artist, title) {
       const candNorm = norm(candidateArtist);
       const candIsMulti = /\sand\s/i.test(candidateArtist);
       const candIsJr = /\bjr\.?\b/i.test(candidateArtist);
-      const candKnown = artistSet.has(candNorm);
+      const candKnown = (TOP40_ARTIST_SET instanceof Set ? TOP40_ARTIST_SET : new Set()).has(candNorm);
       if ((candIsMulti && candidateTitle.length >= 3) || candIsJr || candKnown) {
         return { artist: candidateArtist, title: candidateTitle };
       }
@@ -381,8 +472,8 @@ function fixTop40ArtistTitle(artist, title) {
         if (!allTitleish) continue;
 
         const restNorm = norm(rest);
-        const STATIC_ONEWORD = new Set(["prince","yes","heart"]);
-        if (!artistSet.has(restNorm) && !STATIC_ONEWORD.has(restNorm)) continue;
+        const STATIC_ONEWORD2 = new Set(["prince","yes","heart"]);
+        if (!(TOP40_ARTIST_SET instanceof Set ? TOP40_ARTIST_SET : new Set()).has(restNorm) && !STATIC_ONEWORD2.has(restNorm)) continue;
 
         const newTitle = (t + " " + prefix.join(" ")).replace(/\s+/g, " ").trim();
         if (newTitle.length < 3) continue;
@@ -448,18 +539,20 @@ function fixTop40ArtistTitle(artist, title) {
 
     const hasJr = /,\s*Jr\./i.test(candidateArtist);
 
-    if (!artistSet.has(candNorm) && !looksLikeMultiArtist && !hasJr) continue;
+    const artistSet2 = TOP40_ARTIST_SET instanceof Set ? TOP40_ARTIST_SET : new Set();
+    if (!artistSet2.has(candNorm) && !looksLikeMultiArtist && !hasJr) continue;
 
     return { artist: candidateArtist, title: candidateTitle };
   }
 
   {
-    const STATIC_ONEWORD = new Set(["prince","yes","heart"]);
+    const STATIC_ONEWORD3 = new Set(["prince","yes","heart"]);
     const aParts2 = a.split(/\s+/).filter(Boolean);
     if (aParts2.length === 2) {
       const maybeAct = norm(aParts2[1]);
       const maybePrefix = aParts2[0];
-      if (STATIC_ONEWORD.has(maybeAct) && !artistSet.has(norm(a))) {
+      const artistSet3 = TOP40_ARTIST_SET instanceof Set ? TOP40_ARTIST_SET : new Set();
+      if (STATIC_ONEWORD3.has(maybeAct) && !artistSet3.has(norm(a))) {
         const tParts = t.split(/\s+/).filter(Boolean);
         if (tParts.length >= 2) {
           const restoredTitle = (t + " " + maybePrefix).replace(/\s+/g, " ").trim();
@@ -486,7 +579,7 @@ function fixTop40ArtistTitle(artist, title) {
     const TITLEISH_TAIL = new Set(["away","up","much","hearted","wings","true","got","its","thorn"]);
     const aWords = a.split(/\s+/).filter(Boolean);
     const tWords = t.split(/\s+/).filter(Boolean);
-    if (aWords.length === 1 && !oneWordSet.has(norm(a)) && tWords.length >= 2) {
+    if (aWords.length === 1 && !(TOP40_ONEWORD_SET instanceof Set ? TOP40_ONEWORD_SET : new Set()).has(norm(a)) && tWords.length >= 2) {
       const tail = tWords[tWords.length - 1];
       const tailNorm = norm(tail);
       if (_isNameyToken(tail) && !TITLEISH_TAIL.has(tailNorm)) {
@@ -1244,7 +1337,7 @@ function pickBestMoment(_unused, slots = {}) {
 }
 
 // =============================
-// #1 QUERIES
+// #1 QUERIES (artist-year lists)
 // =============================
 function findNumberOneYearsForArtist(artist, chart = null) {
   getDb();
@@ -1290,9 +1383,8 @@ function parseChartFromText(message) {
 }
 
 /**
- * V2.19+: fixed #1 detection
- * - Removed \b boundary reliance around "#1" (it breaks on non-word char '#')
- * - Supports: "When was X #1", "Was X ever #1", "#1 years"
+ * Fixed #1 detection (artist-year list intent).
+ * NOTE: year-based "#1 only" is handled separately in V2.22.
  */
 function isNumberOneQuestion(message) {
   const t = norm(message);
@@ -1321,6 +1413,16 @@ function parseTopN(message) {
   return m ? Number(m[1]) : 10;
 }
 
+function isAnotherMomentRequest(message) {
+  const t = norm(message);
+  return t === "another moment" || t.startsWith("another moment ") || /^(another|again|more|next)\b/.test(t);
+}
+
+function isYearNumberOneOnlyRequest(message) {
+  const t = norm(message);
+  return t === "#1 only" || t.startsWith("#1 only ") || t === "number one only" || t.startsWith("number one only ");
+}
+
 function enforceAdvanceResponse(out) {
   const reply = String(out?.reply || "").trim();
   if (reply && out.followUp) return out;
@@ -1337,7 +1439,6 @@ function enforceAdvanceResponse(out) {
   };
 }
 
-// Optional: allow follow-ups like "#1 years" to use ctx.context.lastArtist if provided by frontend
 function getArtistFromCtx(ctx) {
   const a = String(ctx?.context?.lastArtist || ctx?.context?.artist || "").trim();
   return a || null;
@@ -1345,11 +1446,99 @@ function getArtistFromCtx(ctx) {
 
 async function handleMessage(message, ctx = {}) {
   getDb();
-  const text = String(message || "").trim();
+
+  // V2.22: rewrite short follow-ups into explicit commands (fluidity patch)
+  let text = rewriteFluidFollowUp(String(message || "").trim(), ctx);
 
   const requestedChart = normalizeChart(ctx?.context?.chart || parseChartFromText(text) || DEFAULT_CHART);
 
-  // 1) #1 questions: "When was Madonna #1?" OR "#1 years"
+  // Keep context hints for index.js orchestrator
+  const lastYear = getLastYearFromCtx(ctx);
+  const lastChart = normalizeChart(getLastChartFromCtx(ctx) || requestedChart || DEFAULT_CHART);
+  const lastArtist = getLastArtistFromCtx(ctx);
+
+  // 0) Year-based "#1 only" (this is what your UI offers after Top 10 / Moment)
+  if (isYearNumberOneOnlyRequest(text) || looksNumberOneOnly(text)) {
+    const y = extractYear(text) || lastYear;
+    if (!y) {
+      return enforceAdvanceResponse({
+        ok: true,
+        mode: "music",
+        reply: "Which year do you want #1 for?",
+        followUp: { kind: "slotfill", required: ["year"], prompt: "Give me a year (e.g., 1984)." },
+        meta: { requestedChart, contextHints: { lastChart } }
+      });
+    }
+
+    // Find #1 for that year in requested chart (with fallback behavior)
+    const top = getTopByYear(y, 20, requestedChart);
+    const num1 = top.find((m) => Number(m.peak) === 1 || Number(m.rank) === 1 || m.is_number_one === true) || top[0];
+
+    if (!num1) {
+      return enforceAdvanceResponse({
+        ok: true,
+        mode: "music",
+        reply: `I don’t have entries for ${y} on ${requestedChart}. Want me to fallback to ${FALLBACK_CHART} or switch charts?`,
+        followUp: { kind: "choice", options: [FALLBACK_CHART, "Switch chart"], prompt: "Pick one." },
+        meta: { year: y, requestedChart, contextHints: { lastYear: y, lastChart } }
+      });
+    }
+
+    return enforceAdvanceResponse({
+      ok: true,
+      mode: "music",
+      reply: `#1 for ${y} (${num1.chart}): ${num1.artist} — ${num1.title}.`,
+      followUp: { kind: "choice", options: ["Top 10", "Another moment", "Different year"], prompt: "Pick one." },
+      meta: { year: y, usedChart: num1.chart, requestedChart, contextHints: { lastYear: y, lastChart: num1.chart } }
+    });
+  }
+
+  // 1) "another moment" anchored by lastYear if available
+  if (isAnotherMomentRequest(text)) {
+    const y = extractYear(text) || lastYear;
+    if (y) {
+      const picked = pickRandomByYearWithMeta(y, requestedChart);
+      if (picked.moment) {
+        const m = picked.moment;
+        return enforceAdvanceResponse({
+          ok: true,
+          mode: "music",
+          reply: `Moment: ${m.artist} — ${m.title} (${m.year}, ${m.chart}).\n\nWant Top 10, another moment, or #1 only?`,
+          followUp: { kind: "choice", options: ["Top 10", "Another moment", "#1 only"], prompt: "Pick one." },
+          meta: { ...picked.meta, contextHints: { lastYear: m.year, lastChart: m.chart } }
+        });
+      }
+      return enforceAdvanceResponse({
+        ok: true,
+        mode: "music",
+        reply: `I don’t have entries for ${y} on ${requestedChart}. Give me another year or switch charts.`,
+        followUp: { kind: "choice", options: ["Different year", "Switch chart"], prompt: "Pick one." },
+        meta: { year: y, requestedChart, contextHints: { lastYear: y, lastChart } }
+      });
+    }
+
+    // No year anchor → pick truly random
+    const any = MOMENTS.length ? pickRandom(MOMENTS) : null;
+    if (!any) {
+      return enforceAdvanceResponse({
+        ok: true,
+        mode: "music",
+        reply: "I’m not seeing any music moments loaded. Check your DB path and reload.",
+        followUp: { kind: "slotfill", required: ["year"], prompt: "Give me a year to test (e.g., 1984)." },
+        meta: { requestedChart }
+      });
+    }
+
+    return enforceAdvanceResponse({
+      ok: true,
+      mode: "music",
+      reply: `Moment: ${any.artist} — ${any.title} (${any.year}, ${any.chart}).\n\nWant Top 10, another moment, or #1 only?`,
+      followUp: { kind: "choice", options: ["Top 10", "Another moment", "#1 only"], prompt: "Pick one." },
+      meta: { year: any.year, usedChart: any.chart, requestedChart, contextHints: { lastYear: any.year, lastChart: any.chart } }
+    });
+  }
+
+  // 2) #1 questions: "When was Madonna #1?" OR "#1 years"
   if (isNumberOneQuestion(text)) {
     const ctxArtist = getArtistFromCtx(ctx);
     const artist = resolveArtistFromText(text) || ctxArtist;
@@ -1360,7 +1549,7 @@ async function handleMessage(message, ctx = {}) {
         mode: "music",
         reply: "Which artist are we talking about for #1?",
         followUp: { kind: "slotfill", required: ["artist"], prompt: "Tell me the artist name (e.g., Madonna)." },
-        meta: { requestedChart }
+        meta: { requestedChart, contextHints: { lastChart } }
       });
     }
 
@@ -1381,7 +1570,7 @@ async function handleMessage(message, ctx = {}) {
           options: ["Billboard Hot 100", "UK Singles Chart", "Canada RPM", TOP40_CHART],
           prompt: "Pick a chart to check."
         },
-        meta: { artist, requestedChart }
+        meta: { artist, requestedChart, contextHints: { lastArtist: artist, lastChart } }
       });
     }
 
@@ -1398,22 +1587,22 @@ async function handleMessage(message, ctx = {}) {
       followUp: {
         kind: "choice",
         options: ["Pick a year", "Random #1 moment", "Switch chart"],
-        prompt: "Pick one: Pick a year, Random #1 moment, or Switch chart."
+        prompt: "Pick one."
       },
-      meta: { artist, yearsCount: years.length, requestedChart }
+      meta: { artist, yearsCount: years.length, requestedChart, contextHints: { lastArtist: artist, lastChart } }
     });
   }
 
-  // 2) “Top N of year” requests
+  // 3) “Top N of year” requests
   if (isTopListRequest(text)) {
-    const year = extractYear(text);
+    const year = extractYear(text) || lastYear;
     if (!year) {
       return enforceAdvanceResponse({
         ok: true,
         mode: "music",
         reply: "Which year should I pull the Top list for?",
         followUp: { kind: "slotfill", required: ["year"], prompt: "Give me a year (e.g., 1994)." },
-        meta: { requestedChart }
+        meta: { requestedChart, contextHints: { lastChart } }
       });
     }
 
@@ -1428,9 +1617,9 @@ async function handleMessage(message, ctx = {}) {
         followUp: {
           kind: "choice",
           options: [FALLBACK_CHART, "Switch chart"],
-          prompt: "Pick one: fallback chart or switch chart."
+          prompt: "Pick one."
         },
-        meta: { year, requestedChart }
+        meta: { year, requestedChart, contextHints: { lastYear: year, lastChart } }
       });
     }
 
@@ -1438,17 +1627,17 @@ async function handleMessage(message, ctx = {}) {
     return enforceAdvanceResponse({
       ok: true,
       mode: "music",
-      reply: `Top ${Math.min(n, 20)} for ${year} (${requestedChart}):\n${lines.join("\n")}\n\nWant #1 only, a random “moment”, or another year?`,
+      reply: `Top ${Math.min(n, 20)} for ${year} (${requestedChart}):\n${lines.join("\n")}\n\nWant #1 only, another moment, or another year?`,
       followUp: {
         kind: "choice",
-        options: ["#1 only", "Random moment", "Another year"],
-        prompt: "Pick one: #1 only, Random moment, or Another year."
+        options: ["#1 only", "Another moment", "Another year"],
+        prompt: "Pick one."
       },
-      meta: { year, requestedChart, n }
+      meta: { year, requestedChart, n, contextHints: { lastYear: year, lastChart } }
     });
   }
 
-  // 3) Slot-fill: artist+year OR song title
+  // 4) Slot-fill: artist+year OR song title
   const year = extractYear(text);
   const dashArtist = detectArtist(text);
   const dashTitle = detectTitle(text);
@@ -1468,20 +1657,20 @@ async function handleMessage(message, ctx = {}) {
           required: ["corrected title OR year"],
           prompt: "Give me a corrected title (or just a year)."
         },
-        meta: { requestedChart, artist: dashArtist, title: dashTitle }
+        meta: { requestedChart, artist: dashArtist, title: dashTitle, contextHints: { lastChart } }
       });
     }
 
     return enforceAdvanceResponse({
       ok: true,
       mode: "music",
-      reply: `Moment locked: ${m.artist} — ${m.title} (${m.year}, ${m.chart}).\n\nWant another moment from ${m.year}, or switch charts?`,
+      reply: `Moment locked: ${m.artist} — ${m.title} (${m.year}, ${m.chart}).\n\nWant Top 10, another moment, or #1 only?`,
       followUp: {
         kind: "choice",
-        options: [`Another from ${m.year}`, "Switch chart", "Different year"],
-        prompt: "Pick one: Another from the same year, Switch chart, or Different year."
+        options: ["Top 10", "Another moment", "#1 only"],
+        prompt: "Pick one."
       },
-      meta: { usedChart: m.chart, requestedChart, year: m.year }
+      meta: { usedChart: m.chart, requestedChart, year: m.year, contextHints: { lastYear: m.year, lastChart: m.chart } }
     });
   }
 
@@ -1495,9 +1684,9 @@ async function handleMessage(message, ctx = {}) {
         followUp: {
           kind: "choice",
           options: [FALLBACK_CHART, "Any chart"],
-          prompt: "Pick one: fallback chart or any chart."
+          prompt: "Pick one."
         },
-        meta: { year, requestedChart, ...picked.meta }
+        meta: { year, requestedChart, ...picked.meta, contextHints: { lastYear: year, lastChart } }
       });
     }
 
@@ -1505,17 +1694,17 @@ async function handleMessage(message, ctx = {}) {
     return enforceAdvanceResponse({
       ok: true,
       mode: "music",
-      reply: `Moment: ${m.artist} — ${m.title} (${m.year}, ${m.chart}).\n\nWant the Top 10 for ${m.year}, another random moment, or #1 only?`,
+      reply: `Moment: ${m.artist} — ${m.title} (${m.year}, ${m.chart}).\n\nWant Top 10, another moment, or #1 only?`,
       followUp: {
         kind: "choice",
-        options: [`Top 10 (${m.year})`, "Another moment", "#1 only"],
-        prompt: "Pick one: Top 10, Another moment, or #1 only."
+        options: ["Top 10", "Another moment", "#1 only"],
+        prompt: "Pick one."
       },
-      meta: picked.meta
+      meta: { ...picked.meta, contextHints: { lastYear: m.year, lastChart: m.chart } }
     });
   }
 
-  // 4) Free-text artist detection (no year)
+  // 5) Free-text artist detection (no year)
   const artistGuess = resolveArtistFromText(text);
   if (artistGuess && !year) {
     return enforceAdvanceResponse({
@@ -1524,14 +1713,14 @@ async function handleMessage(message, ctx = {}) {
       reply: `Got ${artistGuess}. What year should I anchor to (or do you want “#1 years”)?`,
       followUp: {
         kind: "choice",
-        options: ["Give a year", "#1 years", "Random moment"],
-        prompt: "Pick one: Give a year, #1 years, or Random moment."
+        options: ["Give a year", "#1 years", "Another moment"],
+        prompt: "Pick one."
       },
-      meta: { artist: artistGuess, requestedChart }
+      meta: { artist: artistGuess, requestedChart, contextHints: { lastArtist: artistGuess, lastChart } }
     });
   }
 
-  // 5) Default: ask for anchor
+  // 6) Default: ask for anchor
   return enforceAdvanceResponse({
     ok: true,
     mode: "music",
@@ -1541,7 +1730,7 @@ async function handleMessage(message, ctx = {}) {
       required: ["artist+year OR song title"],
       prompt: "Give me an artist + year (or a song title)."
     },
-    meta: { requestedChart }
+    meta: { requestedChart, contextHints: { lastChart } }
   });
 }
 
@@ -1550,7 +1739,7 @@ async function handleMessage(message, ctx = {}) {
 // =============================
 module.exports = {
   __top40FixVersion: "top40-fix-v13-spillword-merge-safe",
-  __musicKnowledgeVersion: "v2.21-nyx-top40-spillword-merge-safe",
+  __musicKnowledgeVersion: "v2.22-nyx-fluidity-followups",
 
   loadDb,
   getDb,
