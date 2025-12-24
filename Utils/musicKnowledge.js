@@ -1,14 +1,20 @@
 "use strict";
 
 /**
- * musicKnowledge.js — Bulletproof V2.19
+ * musicKnowledge.js — Bulletproof V2.20
  *
- * Based on V2.18 (your current file).
+ * Based on V2.19 (your current file).
  *
- * V2.19 upgrades (fix #1 routing reliability):
- * - Fixes #1 detection for phrases like "When was Madonna #1?" (word-boundary bug around "#1").
- * - Makes "#1 years" follow-up optionally use ctx.context.lastArtist / ctx.context.artist if provided.
- * - Keeps deterministic schema { ok, mode, reply, followUp, meta } and "always advance" enforcement.
+ * V2.20 upgrades:
+ * - ROOT FIX for Top40Weekly "spill" bug:
+ *   Example: "Love Whitesnake — Is This"  => "Whitesnake — Is This Love"
+ *   We move a leading spill-word (Love/The/A/An/My/Your/This/That/One/etc.)
+ *   off the artist and onto the end of the title ONLY when the remaining artist
+ *   is recognized in the artist index (prevents false positives).
+ *
+ * - Keeps V2.19 #1 routing reliability:
+ *   - Fixes #1 detection for phrases like "When was Madonna #1?"
+ *   - "#1 years" can use ctx.context.lastArtist / ctx.context.artist if provided.
  *
  * Env:
  * - MUSIC_ENABLE_CHART_FALLBACK=1 (default)  -> enable smart fallback
@@ -137,7 +143,7 @@ function normalizeChart(chart) {
 }
 
 // =============================
-// TOP40WEEKLY ROW FIXUP (your v2.18 logic preserved)
+// TOP40WEEKLY ROW FIXUP (your v2.19 logic preserved + V2.20 spill fix)
 // =============================
 function _isNameyToken(w) {
   const s = String(w || "").trim();
@@ -211,7 +217,7 @@ function buildOneWordActSet(moments) {
 }
 
 function fixTop40ArtistTitle(artist, title) {
-  // (Unchanged from your V2.18 — preserved verbatim)
+  // (Mostly unchanged from your V2.19 — V2.20 adds a safe "spill-word" fix)
   let a = normalizeArtistPunctuation(String(artist || "").trim());
   let t = String(title || "").trim();
   if (!a || !t) return { artist: a, title: t };
@@ -227,6 +233,33 @@ function fixTop40ArtistTitle(artist, title) {
   if (oneWordSet.has(norm(a))) return { artist: a, title: t };
 
   const badTitleEnd = new Set(["a","an","the","of","to","with","and","or","but","in","on","at","for","from"]);
+
+  // -----------------------------
+  // V2.20: spill-word fix (ROOT FIX)
+  // If artist begins with a spill-word and the remaining artist is recognized,
+  // move the spill-word to the end of the title.
+  // Example: "Love Whitesnake" + "Is This" -> "Whitesnake" + "Is This Love"
+  // -----------------------------
+  {
+    const SPILL = new Set(["love","the","a","an","my","your","our","this","that","one","no","yes"]);
+    const aWords = a.split(/\s+/).filter(Boolean);
+    if (aWords.length >= 2) {
+      const first = norm(aWords[0]);
+      const rest = aWords.slice(1).join(" ").trim();
+      const restNorm = norm(rest);
+
+      // Apply ONLY when remaining artist is a known act (prevents false positives).
+      const restIsKnown = artistSet.has(restNorm) || STATIC_ONEWORD.has(restNorm);
+      if (SPILL.has(first) && restIsKnown) {
+        // Avoid making a worse title (e.g., if title already ends with that word)
+        const tNorm = norm(t);
+        if (!tNorm.endsWith(` ${first}`) && tNorm !== first) {
+          a = rest;
+          t = (t + " " + aWords[0]).replace(/\s+/g, " ").trim();
+        }
+      }
+    }
+  }
 
   function joinMcTokens(words) {
     const out = [];
@@ -1264,11 +1297,9 @@ function isNumberOneQuestion(message) {
 
   if (!hasNo1) return false;
 
-  // intent words
   const asks =
     /\b(when|what\s+year|which\s+year|years|was|were|did|ever)\b/.test(t);
 
-  // if someone just types "#1" alone, don't trigger (too ambiguous)
   const tooShort = t === "#1" || t === "no 1" || t === "number one";
 
   return asks && !tooShort;
@@ -1512,8 +1543,8 @@ async function handleMessage(message, ctx = {}) {
 // EXPORTS
 // =============================
 module.exports = {
-  __top40FixVersion: "top40-fix-v11-firstname-tailfix",
-  __musicKnowledgeVersion: "v2.19-nyx-handleMessage-numberOne-fixed",
+  __top40FixVersion: "top40-fix-v12-spillword-rootfix",
+  __musicKnowledgeVersion: "v2.20-nyx-top40-spillword-rootfix",
 
   loadDb,
   getDb,
