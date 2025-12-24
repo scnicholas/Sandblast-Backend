@@ -2,6 +2,10 @@
  * index.js — Nyx Broadcast Backend (Wizard-Locked)
  * Build: nyx-wizard-v1.93-drivers-confidence
  *
+ * v1.93 additions:
+ * - Conversation Drivers + Confidence policy (flow control)
+ * - Lightweight Top40Weekly Top 100 self-check (render-time repair for known drift patterns)
+ *
  * v1.92 changes:
  * - Integrates musicKnowledge.pickRandomByYearWithMeta() when available (meta-aware fallback)
  * - getTopByYear(year, n, chart) now passes chart through (worker fix)
@@ -696,7 +700,10 @@ function pickOne(arr, fallback = "") {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-
+/**
+ * normalizeTopListEntry()
+ * Primary normalization (legacy) — keep as-is.
+ */
 function normalizeTopListEntry(artist, title) {
   let a = String(artist || "").trim();
   let t = String(title || "").trim();
@@ -708,26 +715,22 @@ function normalizeTopListEntry(artist, title) {
 
   // If title ends with a dangling capitalized name chunk, move it to artist.
   // Example: artist="Richie", title="Hello Lionel" => "Lionel Richie" / "Hello"
-  // We try moving 1..6 trailing words from title to the FRONT of artist.
+  // NOTE: This is broad; we keep it but add a safer, chart-scoped self-check below.
   const words = t.split(/\s+/).filter(Boolean);
   if (words.length >= 2) {
     for (let k = 1; k <= 6 && k < words.length; k++) {
       const tail = words.slice(words.length - k);
       const head = words.slice(0, words.length - k);
 
-      // Heuristic: tail looks like a name chunk (mostly Capitalized or connectors)
       const looksNamey = tail.every(w =>
         /^[A-Z]/.test(w) ||
         ["and", "&", "of", "the", "mc", "jr.", "jr"].includes(w.toLowerCase()) ||
         /,$/.test(w)
       );
 
-      // Don’t wreck legit titles by stripping too much
       if (!looksNamey) continue;
       if (head.join(" ").length < 3) continue;
 
-      // Special case: "Jr." should come after the name, not before
-      // Example: artist="Jr.", tail="Ray Parker," => "Ray Parker, Jr."
       if (/^jr\.?$/i.test(a)) {
         const fixedArtist = `${tail.join(" ").replace(/\s+[,]+$/, "")}, Jr.`.replace(/\s+/g, " ").trim();
         return { artist: fixedArtist, title: head.join(" ").trim() };
@@ -742,7 +745,94 @@ function normalizeTopListEntry(artist, title) {
   return { artist: a, title: t };
 }
 
+// =======================================================
+// LIGHTWEIGHT TOP-LIST SELF-CHECK (render-time, conservative)
+// =======================================================
+const TOPLIST_SELF_CHECK_ENABLED = String(process.env.TOPLIST_SELF_CHECK || "1") !== "0";
 
+// Protect 1-word legacy acts from accidental “title-word stealing” regressions.
+const SELFCHK_PROTECTED_ONEWORD = new Set(["prince", "yes", "heart"]);
+
+// Known Top40 drift repair patterns (safe, specific)
+function selfCheckRepairTop40(artist, title) {
+  const a0 = String(artist || "").trim();
+  const t0 = String(title || "").trim();
+
+  if (!a0 || !t0) return { artist: a0, title: t0, changed: false };
+
+  const aLower = a0.toLowerCase();
+  if (SELFCHK_PROTECTED_ONEWORD.has(aLower)) {
+    return { artist: a0, title: t0, changed: false };
+  }
+
+  // Work on token boundaries
+  const tWords = t0.split(/\s+/).filter(Boolean);
+  const lastWord = tWords.length ? tWords[tWords.length - 1] : "";
+
+  function dropLastWord() {
+    if (tWords.length <= 1) return t0;
+    return tWords.slice(0, -1).join(" ").trim();
+  }
+
+  // 1) Paul McCartney & MJ duet (missing lead “Paul”)
+  // artist: "McCartney and Michael Jackson" | title ends with "Paul"
+  if (/^mccartney\s+and\s+mic\w*\s+jackson$/i.test(a0) && /^Paul$/i.test(lastWord)) {
+    return { artist: `Paul ${a0}`.replace(/\s+/g, " ").trim(), title: dropLastWord(), changed: true };
+  }
+
+  // 2) Ray Parker, Jr. (missing lead “Ray”)
+  // artist: "Parker, Jr." | title ends with "Ray"
+  if (/^parker,\s*j r\.?$|^parker,\s*jr\.?$/i.test(a0.replace(/\s+/g, " ")) && /^Ray$/i.test(lastWord)) {
+    return { artist: `Ray ${a0}`.replace(/\s+/g, " ").trim(), title: dropLastWord(), changed: true };
+  }
+  if (/^parker,\s*jr\.?$/i.test(a0) && /^Ray$/i.test(lastWord)) {
+    return { artist: `Ray ${a0}`.replace(/\s+/g, " ").trim(), title: dropLastWord(), changed: true };
+  }
+
+  // 3) Van Halen particle
+  if (/^halen$/i.test(a0) && /^Van$/i.test(lastWord)) {
+    return { artist: "Van Halen", title: dropLastWord(), changed: true };
+  }
+
+  // 4) Lionel Richie
+  if (/^richie$/i.test(a0) && /^Lionel$/i.test(lastWord)) {
+    return { artist: "Lionel Richie", title: dropLastWord(), changed: true };
+  }
+
+  // 5) Culture Club
+  if (/^club$/i.test(a0) && /^Culture$/i.test(lastWord)) {
+    return { artist: "Culture Club", title: dropLastWord(), changed: true };
+  }
+
+  return { artist: a0, title: t0, changed: false };
+}
+
+function applyToplistSelfCheck(entries, chart, logKey = "") {
+  if (!TOPLIST_SELF_CHECK_ENABLED) return { entries, changed: false };
+  if (String(chart || "") !== "Top40Weekly Top 100") return { entries, changed: false };
+  if (!Array.isArray(entries) || entries.length === 0) return { entries: Array.isArray(entries) ? entries : [], changed: false };
+
+  let changed = false;
+  const out = entries.map((m) => {
+    const a = m?.artist;
+    const t = m?.title;
+    const fixed = selfCheckRepairTop40(a, t);
+    if (fixed.changed) changed = true;
+
+    if (!fixed.changed) return m;
+    return { ...m, artist: fixed.artist, title: fixed.title, _selfcheck: true };
+  });
+
+  if (changed) {
+    console.log(`[Nyx][SelfCheck] Top40 list repaired at render-time (k=${logKey || "n/a"})`);
+  }
+
+  return { entries: out, changed };
+}
+
+// =======================================================
+// COPY HELPERS
+// =======================================================
 function correctionPreface(best, bestMeta) {
   if (!best || typeof best !== "object") return "";
 
@@ -836,65 +926,48 @@ async function handleMusic(req, res, key, sess, rawText) {
       if (!kbTop.ok) {
         return send(res, key, sess, "kb_timeout", "I’m loading the charts — try that again in a moment.", false, text);
       }
-      const list = Array.isArray(kbTop?.out?.top) ? kbTop.out.top : [];
+      let list = Array.isArray(kbTop?.out?.top) ? kbTop.out.top : [];
+      let listChart = ctxChart;
+
       if (!list.length) {
         // fallback to Top40Weekly Top 100 for the same year
         const kbTop2 = await kbCall("topByYear", "", { year: ctxYear, n: wantedN, chart: "Top40Weekly Top 100" }, KB_TIMEOUT_MS);
-        const list2 = Array.isArray(kbTop2?.out?.top) ? kbTop2.out.top : [];
-        if (!list2.length) {
+        list = Array.isArray(kbTop2?.out?.top) ? kbTop2.out.top : [];
+        listChart = "Top40Weekly Top 100";
+
+        if (!list.length) {
           return send(res, key, sess, "music_top_nohit", `I don’t have a Top list indexed for ${ctxYear} yet. Try another year (example: 1987).`, false, text);
         }
-
-        if (wantedN === 1) {
-          const best2 = list2[0];
-          const nrm2 = normalizeTopListEntry(best2.artist, best2.title);
-          sess.lastPick = { artist: nrm2.artist || best2.artist, title: nrm2.title || best2.title, year: best2.year, chart: best2.chart };
-          return send(
-            res, key, sess, "music_number_one",
-            `${nrm2.artist || best2.artist} — "${nrm2.title || best2.title}" (${best2.year})\nChart: ${best2.chart || "Top40Weekly Top 100"}\n\nWant the **Top 10**, another pick, or switch charts?`,
-            true,
-            text
-          );
-        }
-
-        const lines2 = list2.map((m, i) => {
-        const nrm = normalizeTopListEntry(m.artist, m.title);
-        return `${i + 1}. ${nrm.artist} — "${nrm.title}"`;
-      });
-        return send(
-          res, key, sess, "music_top_list",
-          `Top ${wantedN} for ${ctxYear} (Top40Weekly Top 100):\n${lines2.join("\n")}\n\nWant **#1**, a **surprise pick**, or jump to a new year?`,
-          true,
-          text
-        );
       }
+
+      // Apply conservative self-check only for Top40Weekly Top 100
+      const checked = applyToplistSelfCheck(list, listChart, `sid=${key}|y=${ctxYear}|n=${wantedN}`);
+      list = checked.entries;
 
       if (wantedN === 1) {
         const best = list[0];
-        const nrm1 = normalizeTopListEntry(best.artist, best.title);
-        sess.lastPick = { artist: nrm1.artist || best.artist, title: nrm1.title || best.title, year: best.year, chart: best.chart };
-        const chart = best.chart || ctxChart;
+        const nrm = normalizeTopListEntry(best.artist, best.title);
+        sess.lastPick = { artist: nrm.artist || best.artist, title: nrm.title || best.title, year: best.year, chart: best.chart || listChart };
         return send(
-          res,
-          key,
-          sess,
-          "music_number_one",
-          `${nrm1.artist || best.artist} — "${nrm1.title || best.title}" (${best.year})\nChart: ${chart}\n\nWant the **Top 10**, another pick, or switch charts?`,
+          res, key, sess, "music_number_one",
+          `${nrm.artist || best.artist} — "${nrm.title || best.title}" (${best.year})\nChart: ${best.chart || listChart}\n\nWant the **Top 10**, another pick, or switch charts?`,
           true,
           text
         );
       }
 
       const lines = list.map((m, i) => {
-    const nrm = normalizeTopListEntry(m.artist, m.title);
-    return `${i + 1}. ${nrm.artist} — "${nrm.title}"`;
-  });
+        const nrm = normalizeTopListEntry(m.artist, m.title);
+        return `${i + 1}. ${nrm.artist} — "${nrm.title}"`;
+      });
+
+      const headerChart = (listChart === "Top40Weekly Top 100") ? "Top40Weekly Top 100" : `${ctxChart} preference`;
       return send(
         res,
         key,
         sess,
         "music_top_list",
-        `Top ${wantedN} for ${ctxYear} (${ctxChart} preference):\n${lines.join("\n")}\n\nWant **#1**, a **surprise pick**, or jump to a new year?`,
+        `Top ${wantedN} for ${ctxYear} (${headerChart}):\n${lines.join("\n")}\n\nWant **#1**, a **surprise pick**, or jump to a new year?`,
         true,
         text
       );
@@ -923,14 +996,26 @@ async function handleMusic(req, res, key, sess, rawText) {
         return send(res, key, sess, "music_more_nohit", `I couldn’t pull another pick for ${ctxYear} just yet. Try “top 10” or switch year (example: 1987).`, false, text);
       }
 
-      sess.lastPick = { artist: best.artist, title: best.title, year: best.year, chart: best.chart };
+      // Self-check (only if the returned pick is Top40Weekly Top 100)
+      let bestArtist = best.artist;
+      let bestTitle = best.title;
+      if (TOPLIST_SELF_CHECK_ENABLED && String(best.chart || ctxChart) === "Top40Weekly Top 100") {
+        const fixed = selfCheckRepairTop40(bestArtist, bestTitle);
+        if (fixed.changed) {
+          console.log(`[Nyx][SelfCheck] Top40 pick repaired at render-time (sid=${key}|y=${ctxYear})`);
+          bestArtist = fixed.artist;
+          bestTitle = fixed.title;
+        }
+      }
+
+      sess.lastPick = { artist: bestArtist, title: bestTitle, year: best.year, chart: best.chart };
       const chart = best.chart || ctxChart;
       return send(
         res,
         key,
         sess,
         "music_another_pick",
-        `${best.artist} — "${best.title}" (${best.year})\nChart: ${chart}\n\nWant **top 10**, **#1**, or another surprise?`,
+        `${bestArtist} — "${bestTitle}" (${best.year})\nChart: ${chart}\n\nWant **top 10**, **#1**, or another surprise?`,
         true,
         text
       );
@@ -1002,7 +1087,19 @@ async function handleMusic(req, res, key, sess, rawText) {
     }
 
     if (best) {
-      sess.lastPick = { artist: best.artist, title: best.title, year: best.year, chart: best.chart };
+      // Self-check only if Top40Weekly Top 100
+      let bestArtist = best.artist;
+      let bestTitle = best.title;
+      if (TOPLIST_SELF_CHECK_ENABLED && String(best.chart || bestMeta?.usedChart || sess.laneDetail.chart) === "Top40Weekly Top 100") {
+        const fixed = selfCheckRepairTop40(bestArtist, bestTitle);
+        if (fixed.changed) {
+          console.log(`[Nyx][SelfCheck] Top40 year-pick repaired at render-time (sid=${key}|y=${y})`);
+          bestArtist = fixed.artist;
+          bestTitle = fixed.title;
+        }
+      }
+
+      sess.lastPick = { artist: bestArtist, title: bestTitle, year: best.year, chart: best.chart };
       const preface = correctionPreface(best, bestMeta);
       const chart = best.chart || (bestMeta?.usedChart) || sess.laneDetail.chart || DEFAULT_CHART;
       const followUp = pickOne(yearPickFollowups(chart), "Want another year?");
@@ -1011,7 +1108,7 @@ async function handleMusic(req, res, key, sess, rawText) {
         key,
         sess,
         "music_year_pick",
-        `${preface}${best.artist} — "${best.title}" (${best.year})\nChart: ${chart}\n\n${followUp}`,
+        `${preface}${bestArtist} — "${bestTitle}" (${best.year})\nChart: ${chart}\n\n${followUp}`,
         true,
         text
       );
@@ -1056,11 +1153,23 @@ async function handleMusic(req, res, key, sess, rawText) {
   const years = kbResult?.out?.years || null;
 
   if (best) {
-    sess.lastPick = { artist: best.artist, title: best.title, year: best.year, chart: best.chart };
+    // Self-check only if Top40Weekly Top 100
+    let bestArtist = best.artist;
+    let bestTitle = best.title;
+    if (TOPLIST_SELF_CHECK_ENABLED && String(best.chart || sess.laneDetail.chart) === "Top40Weekly Top 100") {
+      const fixed = selfCheckRepairTop40(bestArtist, bestTitle);
+      if (fixed.changed) {
+        console.log(`[Nyx][SelfCheck] Top40 answer repaired at render-time (sid=${key})`);
+        bestArtist = fixed.artist;
+        bestTitle = fixed.title;
+      }
+    }
+
+    sess.lastPick = { artist: bestArtist, title: bestTitle, year: best.year, chart: best.chart };
     const preface = correctionPreface(best, null);
     const chart = best.chart || sess.laneDetail.chart || DEFAULT_CHART;
     const followUp = pickOne(musicContinuations(chart), "Want another pick?");
-    return send(res, key, sess, "music_answer", `${preface}${best.artist} — "${best.title}" (${best.year})\nChart: ${chart}\n\n${followUp}`, true, text);
+    return send(res, key, sess, "music_answer", `${preface}${bestArtist} — "${bestTitle}" (${best.year})\nChart: ${chart}\n\n${followUp}`, true, text);
   }
 
   // Smarter fallback: suggest nearest available year for artist+title
@@ -1152,7 +1261,8 @@ app.get("/api/health", async (_, res) => {
     kbYearMin: stats ? stats.yearMin : null,
     kbYearMax: stats ? stats.yearMax : null,
     kbCharts: stats ? stats.charts : null,
-    kbError: stats && stats.error ? stats.error : null
+    kbError: stats && stats.error ? stats.error : null,
+    toplistSelfCheck: TOPLIST_SELF_CHECK_ENABLED ? "on" : "off"
   });
 });
 
