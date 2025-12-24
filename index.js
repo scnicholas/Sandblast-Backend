@@ -1,6 +1,10 @@
 /**
  * Sandblast Backend — Nyx Intelligence Layer
  * Hardened + Orchestrator + Music Flow V1 (with stickiness + chart integrity)
+ *
+ * PATCHES INCLUDED:
+ * - Choice option rewrite: "Top 10" -> "Another moment" (until true Top 10 list exists)
+ * - Chart disclosure: if usedFallback + usedChart != requestedChart, disclose and offer switch
  */
 
 'use strict';
@@ -222,6 +226,74 @@ function isAffirmation(text) {
   return /^(y|yes|yeah|yep|sure|ok|okay|alright|sounds good)$/i.test(asText(text));
 }
 
+/**
+ * PATCH: rewrite misleading choice labels for V1.
+ * We currently return a single "moment", not a ranked Top 10 list.
+ */
+function rewriteChoiceOptionsForV1(followUp, meta) {
+  if (!followUp || followUp.kind !== 'choice' || !Array.isArray(followUp.options)) return followUp;
+
+  const usedFallback = !!meta?.usedFallback;
+  const usedChart = asText(meta?.usedChart);
+  const requestedChart = asText(meta?.requestedChart);
+
+  const next = { ...followUp };
+  next.options = followUp.options.map((opt) => {
+    const s = String(opt || '').trim();
+
+    // "Top 10 (1984)" -> "Another moment (1984)"
+    if (/^Top\s*10\s*\(\d{4}\)$/i.test(s)) {
+      const y = (s.match(/\b(19\d{2}|20\d{2})\b/) || [])[1];
+      return y ? `Another moment (${y})` : 'Another moment';
+    }
+
+    // "Top 10" -> "Another moment"
+    if (/^Top\s*10$/i.test(s)) return 'Another moment';
+
+    return s;
+  });
+
+  // If a fallback happened, ensure switching is always possible
+  if (usedFallback && usedChart && requestedChart && usedChart !== requestedChart) {
+    if (!next.options.some(o => /switch\s+chart/i.test(String(o)))) next.options.push('Switch chart');
+  }
+
+  return next;
+}
+
+/**
+ * PATCH: chart disclosure if engine fell back to a different chart.
+ * Adds a short note and ensures "Switch chart" is available.
+ */
+function applyChartDisclosure(out, sessionMusic) {
+  if (!out || typeof out !== 'object') return out;
+
+  const requested = asText(out?.meta?.requestedChart || sessionMusic?.chart);
+  const used = asText(out?.meta?.usedChart);
+  const usedFallback = !!out?.meta?.usedFallback;
+
+  if (!usedFallback || !requested || !used || used === requested) return out;
+
+  const note = `Note: I couldn’t access **${requested}** for that lookup, so I’m using **${used}** instead.\n\n`;
+
+  const next = { ...out };
+  next.reply = note + asText(out.reply);
+
+  if (next.followUp && typeof next.followUp === 'object' && next.followUp.kind === 'choice' && Array.isArray(next.followUp.options)) {
+    const opts = next.followUp.options.map(String);
+    if (!opts.some(o => /switch/i.test(o))) opts.push('Switch chart');
+    next.followUp = { ...next.followUp, options: opts };
+  } else if (!next.followUp) {
+    next.followUp = {
+      kind: 'choice',
+      options: [`Continue with ${used}`, 'Switch chart'],
+      prompt: 'Do you want to continue with the fallback chart, or switch?'
+    };
+  }
+
+  return next;
+}
+
 function enforceAdvance(out, { userText, sessionId, intent }) {
   const base = toOutputSafe(out);
   const s = getSession(sessionId);
@@ -236,17 +308,9 @@ function enforceAdvance(out, { userText, sessionId, intent }) {
     };
   }
 
-  // Store last follow-up options for "yes" resolution later
-  if (base.followUp.kind === 'choice' && Array.isArray(base.followUp.options)) {
-    s.lastFollowUpOptions = base.followUp.options.map(String);
-  } else {
-    s.lastFollowUpOptions = null;
-  }
-
-  const sig = followUpSignature(base.followUp);
-
   // Anti-loop: if same follow-up repeats, switch to a fork
-  if (sig && sig === s.lastFollowUpSig) {
+  const sigPre = followUpSignature(base.followUp);
+  if (sigPre && sigPre === s.lastFollowUpSig) {
     base.followUp = {
       kind: 'choice',
       options: [
@@ -256,7 +320,16 @@ function enforceAdvance(out, { userText, sessionId, intent }) {
       ],
       prompt: 'Quick choice: how do you want to continue?'
     };
-    s.lastFollowUpOptions = base.followUp.options.slice();
+  }
+
+  // PATCH: rewrite misleading choice labels (Top 10 -> Another moment)
+  base.followUp = rewriteChoiceOptionsForV1(base.followUp, base.meta);
+
+  // Store last follow-up options for "yes" resolution later
+  if (base.followUp.kind === 'choice' && Array.isArray(base.followUp.options)) {
+    s.lastFollowUpOptions = base.followUp.options.map(String);
+  } else {
+    s.lastFollowUpOptions = null;
   }
 
   s.lastFollowUpSig = followUpSignature(base.followUp);
@@ -408,18 +481,13 @@ async function runMusicFlowV1({ message, sessionId, context, intent, signal }) {
 
   const safeOut = toOutputSafe(out);
 
-  // -----------------------------
-  // CHART INTEGRITY GUARD
-  // If engine silently fell back to a different chart, disclose and force a chart decision.
-  // -----------------------------
-  const requestedChart = ms.chart; // what we asked the engine to use
+  // CHART INTEGRITY GUARD (hard stop if silent chart swap)
+  const requestedChart = ms.chart;
   const usedChart = asText(safeOut?.meta?.usedChart) || null;
   const usedFallback = !!safeOut?.meta?.usedFallback;
 
   if (usedFallback && usedChart && requestedChart && usedChart !== requestedChart) {
-    // Do NOT pretend the chart is Billboard. We disclose and ask user to choose.
     ms.step = 'need_chart';
-
     return {
       ok: true,
       mode: 'music',
@@ -457,7 +525,8 @@ async function runMusicFlowV1({ message, sessionId, context, intent, signal }) {
   safeOut.mode = safeOut.mode || 'music';
   safeOut.meta = { ...(safeOut.meta || {}), flow: 'music_v1', step: ms.step, chart: requestedChart, year: ms.year || null };
 
-  return safeOut;
+  // PATCH: if fallback metadata exists (even in “normal path”), prepend disclosure and add Switch chart
+  return applyChartDisclosure(safeOut, ms);
 }
 
 // -----------------------------
