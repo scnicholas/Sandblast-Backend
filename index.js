@@ -1,6 +1,6 @@
 /**
  * index.js — Nyx Broadcast Backend (Wizard-Locked)
- * Build: nyx-wizard-v1.93-drivers-confidence
+ * Build: nyx-wizard-v1.96-intel-top10-priority
  *
  * v1.93 additions:
  * - Conversation Drivers + Confidence policy (flow control)
@@ -266,8 +266,8 @@ const PORT = process.env.PORT || 3000;
 const COMMIT_FULL = process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "";
 const COMMIT_SHORT = COMMIT_FULL ? String(COMMIT_FULL).slice(0, 7) : "";
 const BUILD_TAG = COMMIT_SHORT
-  ? `nyx-wizard-v1.93-${COMMIT_SHORT}`
-  : "nyx-wizard-v1.93-drivers-confidence";
+  ? `nyx-wizard-v1.96-${COMMIT_SHORT}`
+  : "nyx-wizard-v1.96-intel-top10-priority";
 
 const DEFAULT_CHART = "Billboard Hot 100";
 const KB_TIMEOUT_MS = Number(process.env.KB_TIMEOUT_MS || 900);
@@ -858,6 +858,20 @@ function normalizeTopListEntry(artist, title) {
   return { artist: a, title: t };
 }
 
+/**
+ * safeRenderArtistTitle()
+ * IMPORTANT: For Top40Weekly Top 100, the KB already returns clean artist/title.
+ * Do NOT run broad heuristics (normalizeTopListEntry) that can re-break names.
+ */
+function safeRenderArtistTitle(artist, title, chart) {
+  const c = String(chart || "");
+  const a = String(artist || "").trim();
+  const t = String(title || "").trim();
+  if (c === "Top40Weekly Top 100") return { artist: a, title: t };
+  return normalizeTopListEntry(a, t);
+}
+
+
 // =======================================================
 // LIGHTWEIGHT TOP-LIST SELF-CHECK (render-time, conservative)
 // =======================================================
@@ -1019,6 +1033,79 @@ async function handleMusic(req, res, key, sess, rawText) {
   const chartFromText = parseChartFromText(text);
   if (chartFromText) sess.laneDetail.chart = chartFromText;
 
+  // ===== Direct "Top N for YEAR" driver (must win over year-only pick) =====
+  const directYear = extractYearLoose(text);
+  const directTopN = wantsTopN(text);
+  const directWants1 = wantsNumberOne(text);
+
+  if (Number.isFinite(Number(directYear)) && (directTopN || directWants1)) {
+    const wantedN = directWants1 ? 1 : directTopN;
+    const desiredChart = sess.laneDetail.chart || DEFAULT_CHART;
+
+    const kbTop = await kbCall("topByYear", "", { year: Number(directYear), n: wantedN, chart: desiredChart }, KB_TIMEOUT_MS);
+    if (!kbTop.ok) {
+      return send(res, key, sess, "kb_timeout", "I’m loading the charts — try that again in a moment.", false, text);
+    }
+
+    let list = Array.isArray(kbTop?.out?.top) ? kbTop.out.top : [];
+    let listChart = desiredChart;
+
+    if (!list.length) {
+      // deterministic fallback: Top40Weekly Top 100 for the same year
+      console.log("[Nyx][Fallback] topByYear->Top40Weekly Top 100");
+      const kbTop2 = await kbCall("topByYear", "", { year: Number(directYear), n: wantedN, chart: "Top40Weekly Top 100" }, KB_TIMEOUT_MS);
+      list = Array.isArray(kbTop2?.out?.top) ? kbTop2.out.top : [];
+      listChart = "Top40Weekly Top 100";
+      if (!list.length) {
+        return send(res, key, sess, "music_top_nohit", `I don’t have a Top list indexed for ${directYear} yet. Try another year (example: 1987).`, false, text);
+      }
+    }
+
+    // Apply conservative self-check only for Top40Weekly Top 100
+    const checked = applyToplistSelfCheck(list, listChart, `sid=${key}|y=${directYear}|n=${wantedN}`);
+    list = checked.entries;
+
+    // Anchor session context when we show a list
+    setAnchor(sess, { year: Number(directYear), chart: listChart });
+    sess.laneDetail.year = Number(directYear);
+    sess.laneDetail.chart = listChart;
+
+    if (wantedN === 1) {
+      const best = list[0];
+      const nrm = safeRenderArtistTitle(best.artist, best.title, best.chart || listChart);
+      setLastPick(sess, { artist: nrm.artist, title: nrm.title, year: best.year, chart: best.chart || listChart });
+
+      return send(
+        res, key, sess, "music_number_one",
+        `${nrm.artist} — "${nrm.title}" (${best.year})
+Chart: ${best.chart || listChart}
+
+Want the **Top 10**, another pick, or switch charts?`,
+        true,
+        text
+      );
+    }
+
+    const lines = list.map((m, i) => {
+      const nrm = safeRenderArtistTitle(m.artist, m.title, m.chart || listChart);
+      return `${i + 1}. ${nrm.artist} — "${nrm.title}"`;
+    });
+
+    return send(
+      res,
+      key,
+      sess,
+      "music_top_list",
+      `Top ${wantedN} for ${directYear} (${listChart}):
+${lines.join("\n")}
+
+Want **#1**, a **surprise pick**, or jump to a new year?`,
+      true,
+      text
+    );
+  }
+
+
   // --- FOLLOW-UP COMMANDS (no year typed, but we have context) ---
   const ctxYearFromSlots = sess?.laneDetail?.year ? Number(sess.laneDetail.year) : null;
   const ctxYearFromLastPick = sess?.lastPick?.year ? Number(sess.lastPick.year) : null;
@@ -1059,9 +1146,9 @@ async function handleMusic(req, res, key, sess, rawText) {
 
       if (wantedN === 1) {
         const best = list[0];
-        const nrm = normalizeTopListEntry(best.artist, best.title);
+        const nrm = safeRenderArtistTitle(best.artist, best.title, best.chart || listChart);
         setLastPick(sess, {
-artist: nrm.artist || best.artist, title: nrm.title || best.title, year: best.year, chart: best.chart || listChart
+artist: nrm.artist, title: nrm.title, year: best.year, chart: best.chart || listChart
 });
         return send(
           res, key, sess, "music_number_one",
@@ -1072,7 +1159,7 @@ artist: nrm.artist || best.artist, title: nrm.title || best.title, year: best.ye
       }
 
       const lines = list.map((m, i) => {
-        const nrm = normalizeTopListEntry(m.artist, m.title);
+        const nrm = safeRenderArtistTitle(m.artist, m.title, m.chart || listChart);
         return `${i + 1}. ${nrm.artist} — "${nrm.title}"`;
       });
 
