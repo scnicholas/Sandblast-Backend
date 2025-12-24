@@ -324,7 +324,7 @@ function buildArtistSet(moments) {
   const set = new Set();
   if (!Array.isArray(moments)) return set;
   for (const m of moments) {
-    const a = String(m?.artist || \"\").trim();
+    const a = String(m?.artist || "").trim();
     if (!a) continue;
     set.add(norm(a));
   }
@@ -1019,6 +1019,7 @@ function pickBestMoment(_unused, slots = {}) {
 // EXPORTS
 // =============================
 module.exports = {
+  __top40FixVersion: "top40-fix-v3-safe-gated",
   // Loader
   loadDb,
   getDb,
