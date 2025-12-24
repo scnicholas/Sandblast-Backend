@@ -9,6 +9,7 @@
  * - Auto-lock fallback chart after user accepts it ("Continue with <chart>")
  * - Robust "Switch chart" / "Switch to <chart>" handling
  * - Suppress repeat chart disclosure after fallback acceptance in-session
+ * - NEW: Dedicated "#1 only" path (prevents looping + returns #1 result or asks for anchor)
  */
 
 'use strict';
@@ -166,14 +167,6 @@ const setLast = (o) => Object.assign(LAST, { at: new Date().toISOString(), ...(o
 // -----------------------------
 const SESS = new Map();
 
-/**
- * Session schema (expanded):
- * - lastFollowUpSig / lastFollowUpKind
- * - lastFollowUpOptions: string[] (for interpreting "yes")
- * - lastFlow: 'music'|'general'|null
- * - music state:
- *   - acceptedChart: once user accepts a fallback chart, we persist it to suppress repeat disclosures
- */
 function getSession(sessionId) {
   const sid = String(sessionId || 'anon');
   const now = Date.now();
@@ -233,32 +226,26 @@ function isAffirmation(text) {
   return /^(y|yes|yeah|yep|sure|ok|okay|alright|sounds good)$/i.test(asText(text));
 }
 
+function isNumberOneOnly(text) {
+  const t = asText(text).toLowerCase();
+  return t === '#1 only' || t === '#1' || t === 'number 1' || t === 'number one' || t === 'no. 1 only' || t === 'no 1 only';
+}
+
 /**
- * PATCH (copy-only): sanitize legacy phrasing in music replies.
- * IMPORTANT: Must NOT corrupt "Top 100" by matching "Top 10" inside it.
+ * SAFE sanitizer (must NOT corrupt "Top 100")
  */
 function sanitizeMusicReplyText(reply) {
   if (!reply) return reply;
   let text = String(reply);
 
-  // Replace ONLY a real "Top 10" token (not "Top 100")
   text = text.replace(/\bTop\s*10\b(\s*for\s*\d{4})?/gi, 'another moment');
-
-  // Normalize "another random moment" -> "another moment"
   text = text.replace(/\banother\s+random\s+moment\b/gi, 'another moment');
-
-  // Fix awkward article created by replacement
   text = text.replace(/\bthe\s+another\s+moment\b/gi, 'another moment');
-
-  // Collapse duplication ("another moment, another moment")
   text = text.replace(/\banother\s+moment\s*,\s*another\s+moment\b/gi, 'another moment');
 
   return text;
 }
 
-/**
- * PATCH: rewrite misleading choice labels for V1.
- */
 function rewriteChoiceOptionsForV1(followUp, meta) {
   if (!followUp || followUp.kind !== 'choice' || !Array.isArray(followUp.options)) return followUp;
 
@@ -287,10 +274,6 @@ function rewriteChoiceOptionsForV1(followUp, meta) {
   return next;
 }
 
-/**
- * PATCH: chart disclosure if engine fell back to a different chart.
- * If session has acceptedChart matching used chart, suppress repeated disclosures.
- */
 function applyChartDisclosure(out, sessionMusic) {
   if (!out || typeof out !== 'object') return out;
 
@@ -323,9 +306,6 @@ function applyChartDisclosure(out, sessionMusic) {
   return next;
 }
 
-/**
- * Parse chart control commands from the user's message.
- */
 function parseChartControl(message) {
   const t = asText(message);
 
@@ -442,6 +422,76 @@ async function runMusicFlowV1({ message, sessionId, context, intent, signal }) {
   const s = getSession(sessionId);
   const ms = s.music;
 
+  // -----------------------------
+  // NEW: "#1 only" path — prevents loop
+  // -----------------------------
+  if (isNumberOneOnly(message)) {
+    if (!ms.year) {
+      ms.step = 'need_anchor';
+      return {
+        ok: true,
+        mode: 'music',
+        reply: 'For **#1 only**, I need a year. What year should I use?',
+        followUp: { kind: 'slotfill', required: ['year'], prompt: 'Type a year (e.g., 1987).' },
+        meta: { flow: 'music_v1', step: ms.step, intent: 'number_one', chart: ms.chart || null }
+      };
+    }
+
+    const chartForN1 = normalizeChart(ms.chart || DEFAULT_CHART);
+
+    let outN1 = null;
+    if (musicKnowledge?.handleMessage) {
+      // Force a clear #1 intent string
+      const query = `${ms.year} #1`;
+      outN1 = await musicKnowledge.handleMessage(query, {
+        sessionId,
+        context: { ...(context || {}), chart: chartForN1, numberOneOnly: true },
+        intent: { ...(intent || {}), domain: 'music_history', force: 'number_one' },
+        signal
+      });
+    }
+
+    const safeN1 = toOutputSafe(outN1 || {});
+    safeN1.reply = sanitizeMusicReplyText(safeN1.reply);
+
+    // If engine still returned a generic "Moment:" result, stop the loop and ask for better anchor.
+    // (This means musicKnowledge doesn't yet support #1-only deterministically.)
+    if (/^moment:/i.test(safeN1.reply)) {
+      ms.step = 'need_anchor';
+      return {
+        ok: true,
+        mode: 'music',
+        reply:
+          `I’m not getting a clean **#1-only** result from the data source yet.\n\n` +
+          `Give me one of these and I’ll lock it:\n` +
+          `• a specific chart (Billboard Hot 100 / UK Singles / Canada RPM / Top40Weekly)\n` +
+          `• or a song title for ${ms.year}`,
+        followUp: {
+          kind: 'choice',
+          options: ['Switch chart', `Keep year ${ms.year} and give a song title`, 'Another moment'],
+          prompt: 'Pick one.'
+        },
+        meta: { flow: 'music_v1', step: ms.step, intent: 'number_one_needs_support', year: ms.year, chart: chartForN1 }
+      };
+    }
+
+    ms.step = 'next_step';
+    return {
+      ok: true,
+      mode: 'music',
+      reply: safeN1.reply,
+      followUp: {
+        kind: 'choice',
+        options: ['Another moment', '#1 only', 'Switch chart'],
+        prompt: 'Want another moment, #1 only, or switch chart?'
+      },
+      meta: { ...(safeN1.meta || {}), flow: 'music_v1', step: ms.step, intent: 'number_one', year: ms.year, chart: chartForN1 }
+    };
+  }
+
+  // -----------------------------
+  // Chart control commands
+  // -----------------------------
   const ctl = parseChartControl(message);
   if (ctl) {
     if (ctl.action === 'switch_picker') {
@@ -474,6 +524,7 @@ async function runMusicFlowV1({ message, sessionId, context, intent, signal }) {
     }
   }
 
+  // Chart selection priority: text > context > session > default
   const textChart = normalizeChart(parseChartFromText(message));
   const ctxChart = normalizeChart(context?.chart);
   const chosenChart = normalizeChart(textChart || ctxChart || ms.chart || DEFAULT_CHART);
@@ -552,8 +603,6 @@ async function runMusicFlowV1({ message, sessionId, context, intent, signal }) {
   }
 
   const safeOut = toOutputSafe(out);
-
-  // SAFE sanitizer (does not corrupt "Top 100")
   safeOut.reply = sanitizeMusicReplyText(safeOut.reply);
 
   const requestedChart = ms.chart;
@@ -592,8 +641,8 @@ async function runMusicFlowV1({ message, sessionId, context, intent, signal }) {
   if (!safeOut.followUp) {
     safeOut.followUp = {
       kind: 'choice',
-      options: ['Next moment (same year)', 'Switch chart', 'Jump to another year', 'Ask about a specific artist/song'],
-      prompt: 'Where do you want to go next?'
+      options: ['Another moment', '#1 only', 'Switch chart'],
+      prompt: 'Want another moment, #1 only, or switch chart?'
     };
   }
 
