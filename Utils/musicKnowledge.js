@@ -249,10 +249,29 @@ function fixTop40ArtistTitle(artist, title) {
     // fall through
   }
 
+  
   // -------------------------------------------------------
+  // SPECIAL CASE 1B: McCartney duet missing "Paul" in artist, appended to title tail
+  // Example: artist="McCartney and Michael Jackson", title="Say Say Say Paul"
+  // -------------------------------------------------------
+  if (/\bMcCartney\b/i.test(a) && /\sand\s/i.test(a)) {
+    const words0 = joinMcTokens(t.split(/\s+/).filter(Boolean));
+    const last = words0[words0.length - 1] || "";
+    if (/^Paul[,]?$/i.test(String(last || ""))) {
+      const head = words0.slice(0, -1).join(" ").trim();
+      if (head.length >= 3 && !badTitleEnd.has(String(head.split(/\s+/).pop() || "").toLowerCase())) {
+        const candArtist = normalizeArtistPunctuation((last + " " + a).trim());
+        if (/^Paul\s+/i.test(candArtist) && /\sand\s/i.test(candArtist)) {
+          return { artist: candArtist, title: head };
+        }
+      }
+    }
+  }
+
+// -------------------------------------------------------
   // SPECIAL CASE 2: artist has ", Jr." and title ends with first name (Ray Parker, Jr.)
   // -------------------------------------------------------
-  if (/,\s*Jr\./i.test(a)) {
+  if (/,\s*,?\s*Jr\./i.test(a)) {
     const words0 = t.split(/\s+/).filter(Boolean);
     const last = words0[words0.length - 1] || "";
     if (looksNameyToken(last)) {
@@ -272,15 +291,20 @@ function fixTop40ArtistTitle(artist, title) {
   const artistIsJrOnly = /^jr\.?$/i.test(a);
 
   // Eligible if:
-  // - Jr placeholder OR
-  // - single-token artist that appears as a surname in the base DB OR
-  // - title ends with "and" and artist looks like a surname
-  const eligible =
-    artistIsJrOnly ||
-    (aSingle && aLast && surnameSet.has(aLast)) ||
-    (titleEndsWithAnd && aLast && surnameSet.has(aLast));
+// - Jr placeholder
+// - artist starts with "and " (missing lead artist)
+// - artist ends with ", Jr." (first name may be in title tail)
+// - OR single-token artist (surname-only) that is not a protected one-word act
+//
+// We intentionally do NOT require presence in surnameSet because Top40Weekly can include artists
+// that are not in the base DB.
+const eligible =
+  artistIsJrOnly ||
+  /^and\s+/i.test(a) ||
+  /,\s*,?\s*Jr\./i.test(a) ||
+  aSingle;
 
-  if (!eligible) return { artist: a, title: t };
+if (!eligible) return { artist: a, title: t };
 
   const words = joinMcTokens(t.split(/\s+/).filter(Boolean));
   if (words.length < 2) return { artist: a, title: t };
@@ -300,7 +324,7 @@ function fixTop40ArtistTitle(artist, title) {
     if (!looksNameChunk(tail)) continue;
 
     // Avoid corrupting legit acts by not moving a single trailing word unless artist looks truncated
-    if (k === 1 && !artistIsJrOnly && !(aSingle && surnameSet.has(aLast))) continue;
+    if (k === 1 && !artistIsJrOnly && !aSingle) continue;
 
     // Special case: artist is only "Jr." — keep Jr. at end
     if (artistIsJrOnly) {
@@ -328,8 +352,7 @@ function fixTop40ArtistTitle(artist, title) {
     const parts = candidateArtist.split(/\s+/).filter(Boolean);
     const plausibleProperName =
       parts.length >= 2 &&
-      parts.slice(0, 2).every((p) => /^[A-Z]/.test(p)) &&
-      surnameSet.has(String(parts[parts.length - 1] || "").replace(/[^A-Za-z0-9'.-]/g, "").toLowerCase());
+      parts.slice(0, 2).every((p) => /^[A-Z]/.test(p));
 
     if (!artistSet.has(candNorm) && !looksLikeMultiArtist && !hasJr && !plausibleProperName) {
       continue;
@@ -1128,7 +1151,7 @@ function pickBestMoment(_unused, slots = {}) {
 // EXPORTS
 // =============================
 module.exports = {
-  __top40FixVersion: "top40-fix-v5-mccartney-and-propernames",
+  __top40FixVersion: "top40-fix-v6-top40-heuristics",
   // Loader
   loadDb,
   getDb,
