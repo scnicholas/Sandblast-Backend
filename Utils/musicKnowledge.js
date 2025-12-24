@@ -452,6 +452,45 @@ if (!eligible) return { artist: a, title: t };
     t = t.replace(/\s*\bRay\b\s*$/i, "").trim();
   }
 
+
+  // -------------------------------------------------------
+  // SPECIAL CASE 5: single-token artist is a surname-only fragment and the missing first name
+  // is sitting at the *end* of the title.
+  // Examples:
+  // - "Brown" + "My Prerogative Bobby" => "Bobby Brown" / "My Prerogative"
+  // - "Abdul" + "Straight Up Paula" => "Paula Abdul" / "Straight Up"
+  // - "Jackson" + "Miss You Much Janet" => "Janet Jackson" / "Miss You Much"
+  // - "Vanilli" + "Girl You Know It’s True Milli" => "Milli Vanilli" / "Girl You Know It’s True"
+  // - "Baker" + "Giving You the Best That I Got Anita" => "Anita Baker" / "Giving You the Best That I Got"
+  //
+  // Guardrails:
+  // - Only triggers when artist is a single token AND not a protected one-word act.
+  // - Only moves a *single* trailing token from title to artist, and only if it's namey and
+  //   not one of our known title-words (Away/Up/Much/etc).
+  // -------------------------------------------------------
+  {
+    const TITLEISH_TAIL = new Set(["away","up","much","hearted","wings","true","got","its","thorn"]);
+    const aWords = a.split(/\s+/).filter(Boolean);
+    const tWords = t.split(/\s+/).filter(Boolean);
+
+    const aSingleLocal = (aWords.length === 1);
+    if (aSingleLocal && !oneWordSet.has(norm(a))) {
+      if (tWords.length >= 2) {
+        const tail = tWords[tWords.length - 1];
+        const tailNorm = norm(tail);
+
+        if (_isNameyToken(tail) && !TITLEISH_TAIL.has(tailNorm)) {
+          // Move tail token into artist as the first name, but only if the remaining title stays non-trivial
+          const newTitle = tWords.slice(0, -1).join(" ").trim();
+          if (newTitle.length >= 3) {
+            a = (tail + " " + a).replace(/\s+/g, " ").trim();
+            t = newTitle;
+          }
+        }
+      }
+    }
+  }
+
   return { artist: a, title: t };
 
 }
@@ -1255,7 +1294,7 @@ function pickBestMoment(_unused, slots = {}) {
 // EXPORTS
 // =============================
 module.exports = {
-  __top40FixVersion: "top40-fix-v10-decade-normalize",
+  __top40FixVersion: "top40-fix-v11-firstname-tailfix",
   // Loader
   loadDb,
   getDb,
