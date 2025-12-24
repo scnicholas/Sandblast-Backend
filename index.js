@@ -2,22 +2,40 @@
  * Sandblast Backend — Nyx Intelligence Layer (Hardened + Orchestrator + Music Flow V1)
  * index.js
  *
- * Adds:
- * - Conversation Orchestrator (central response control)
- * - Session music state (chart/year/artist/title/step/lastMomentSig)
- * - Music Flow V1: year → chart → moment → next step
+ * Adds necessary runtime safety:
+ * - uncaughtException / unhandledRejection logging
+ * - server.listen() error handling (EADDRINUSE etc.)
+ * - logs actual bound address + port
+ * - optional heartbeat so the process can’t “die silently” without evidence
  *
- * Keeps:
- * - Deterministic CORS + preflight
- * - JSON parse guard
- * - In-memory rate limit
- * - /api/health
- * - /api/debug/last gated
- * - Timeout abort → 504
- * - enforceAdvance anti-loop follow-up
+ * NOTE: This file is based on your current orchestrator version. :contentReference[oaicite:1]{index=1}
  */
 
 'use strict';
+
+// -----------------------------
+// CRASH VISIBILITY (MANDATORY FOR “SILENT EXIT”)
+// -----------------------------
+process.on('uncaughtException', (err) => {
+  console.error('[FATAL] UNCAUGHT EXCEPTION:', err);
+  // Do not keep running in unknown state
+  process.exitCode = 1;
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[FATAL] UNHANDLED REJECTION:', reason);
+  process.exitCode = 1;
+});
+
+// Helpful shutdown logs (so you know if something is killing the process)
+process.on('SIGINT', () => {
+  console.log('[Nyx] SIGINT received. Shutting down.');
+  process.exit(0);
+});
+process.on('SIGTERM', () => {
+  console.log('[Nyx] SIGTERM received. Shutting down.');
+  process.exit(0);
+});
 
 const express = require('express');
 const cors = require('cors');
@@ -26,8 +44,18 @@ const crypto = require('crypto');
 let intentClassifier = null;
 let musicKnowledge = null;
 
-try { intentClassifier = require('./Utils/intentClassifier'); } catch (_) {}
-try { musicKnowledge = require('./Utils/musicKnowledge'); } catch (_) {}
+// Safer module loading: do not swallow load errors silently.
+try {
+  intentClassifier = require('./Utils/intentClassifier');
+} catch (e) {
+  console.error('[WARN] Failed to load ./Utils/intentClassifier:', e?.message || e);
+}
+
+try {
+  musicKnowledge = require('./Utils/musicKnowledge');
+} catch (e) {
+  console.error('[WARN] Failed to load ./Utils/musicKnowledge:', e?.message || e);
+}
 
 // -----------------------------
 // CONFIG
@@ -53,6 +81,9 @@ const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX || 120); // per IP per 
 // Session TTL (in-memory)
 const SESS_TTL_MS = Number(process.env.SESS_TTL_MS || 30 * 60_000); // 30 min
 
+// Heartbeat: set HEARTBEAT_MS=0 to disable
+const HEARTBEAT_MS = Number(process.env.HEARTBEAT_MS || 15000);
+
 // Music Flow V1 defaults
 const DEFAULT_CHART = 'Billboard Hot 100';
 const SUPPORTED_CHARTS = new Set([
@@ -60,7 +91,7 @@ const SUPPORTED_CHARTS = new Set([
   'UK Singles',
   'Canada RPM',
   'Top40Weekly Top 100',
-  'Top40Weekly' // allow shorthand; normalized later
+  'Top40Weekly'
 ]);
 
 const ALLOWED_ORIGINS = new Set([
@@ -70,6 +101,7 @@ const ALLOWED_ORIGINS = new Set([
   'https://www.sandblastchannel.com',
   'https://sandblast-channel-e69060.design.webflow.com',
   'http://localhost:3000',
+  'http://localhost:3001',
   'http://localhost:5500',
   'http://127.0.0.1:5500'
 ]);
@@ -258,13 +290,6 @@ function toOutputSafe(out) {
   return normalized;
 }
 
-/**
- * Final guardrail:
- * - ensures reply exists
- * - ensures followUp exists unless explicitly null
- * - preserves ok/error fields (no “ok:true” on failures)
- * - anti-loop follow-up: if same followUp repeats, switch to a fork
- */
 function enforceAdvance(out, { userText, sessionId, intent }) {
   const base = toOutputSafe(out);
 
@@ -317,13 +342,11 @@ function normalizeChart(raw) {
   const t = asText(raw);
   if (!t) return null;
 
-  // Normalize shorthand
   if (/top40weekly/i.test(t)) return 'Top40Weekly Top 100';
   if (/billboard|hot\s*100/i.test(t)) return 'Billboard Hot 100';
   if (/uk\s*singles|official\s*charts/i.test(t)) return 'UK Singles';
   if (/canada\s*rpm|rpm/i.test(t)) return 'Canada RPM';
 
-  // If it matches one of the supported charts exactly
   if (SUPPORTED_CHARTS.has(t)) return t;
 
   return t;
@@ -349,20 +372,12 @@ function parseChartFromText(message) {
   return null;
 }
 
-/**
- * Very light “anchor” extraction:
- * - If quoted text exists, treat as title
- * - If user says "by <artist>", capture artist
- * This is intentionally conservative to avoid false positives.
- */
 function parseAnchor(message) {
   const text = asText(message);
 
-  // "Song Title" in quotes
   const q = text.match(/"([^"]{2,120})"/);
   if (q && q[1]) return { title: q[1].trim() };
 
-  // by ARTIST
   const by = text.match(/\bby\s+([A-Za-z0-9&'.\- ]{2,80})\b/i);
   if (by && by[1]) return { artist: by[1].trim() };
 
@@ -375,22 +390,14 @@ function detectMusicIntent(intent, message) {
     .test(message || '');
 }
 
-/**
- * Music Flow V1:
- * year → chart → moment → next step
- *
- * Uses session.music state to avoid repeating questions and to progress deterministically.
- */
 async function runMusicFlowV1({ message, sessionId, context, intent, signal }) {
   const s = getSession(sessionId);
   const ms = s.music;
 
-  // Pull chart from context first (if present), then message text, then session, then default.
   const ctxChart = normalizeChart(context?.chart);
   const textChart = parseChartFromText(message);
   const chosenChart = normalizeChart(textChart || ctxChart || ms.chart || DEFAULT_CHART);
 
-  // Parse year + anchors
   const year = parseYear(message);
   const anchor = parseAnchor(message);
 
@@ -402,16 +409,10 @@ async function runMusicFlowV1({ message, sessionId, context, intent, signal }) {
 
   const hasAnyAnchor = !!(ms.year || ms.artist || ms.title);
 
-  // Step resolution
-  if (!hasAnyAnchor) {
-    ms.step = 'need_anchor';
-  } else if (!ms.chart) {
-    ms.step = 'need_chart';
-  } else {
-    ms.step = 'serve_moment';
-  }
+  if (!hasAnyAnchor) ms.step = 'need_anchor';
+  else if (!ms.chart) ms.step = 'need_chart';
+  else ms.step = 'serve_moment';
 
-  // 1) Need anchor
   if (ms.step === 'need_anchor') {
     return {
       ok: true,
@@ -425,11 +426,10 @@ async function runMusicFlowV1({ message, sessionId, context, intent, signal }) {
     };
   }
 
-  // 2) Need chart (rare because we default)
   if (ms.step === 'need_chart') {
     return {
       ok: true,
-      reply: `Got it. Which chart do you want for this moment?`,
+      reply: 'Got it. Which chart do you want for this moment?',
       followUp: {
         kind: 'choice',
         options: ['Billboard Hot 100', 'UK Singles', 'Canada RPM', 'Top40Weekly Top 100'],
@@ -439,8 +439,6 @@ async function runMusicFlowV1({ message, sessionId, context, intent, signal }) {
     };
   }
 
-  // 3) Serve moment via musicKnowledge (primary)
-  // Build a “targeted” prompt for the music engine using known slots.
   const targeted = (() => {
     const parts = [];
     if (ms.title) parts.push(`"${ms.title}"`);
@@ -460,7 +458,6 @@ async function runMusicFlowV1({ message, sessionId, context, intent, signal }) {
     });
   }
 
-  // If musicKnowledge didn’t return anything useful, degrade gracefully (still on rails)
   if (!out || typeof out !== 'object') {
     ms.step = 'next_step';
     return {
@@ -480,7 +477,6 @@ async function runMusicFlowV1({ message, sessionId, context, intent, signal }) {
     };
   }
 
-  // Tag moment signature (for “next moment” logic later)
   const momentSig = [
     ms.chart || '',
     ms.year || '',
@@ -488,11 +484,10 @@ async function runMusicFlowV1({ message, sessionId, context, intent, signal }) {
     ms.title || '',
     asText(out.reply).slice(0, 80)
   ].join('|');
+
   ms.lastMomentSig = momentSig;
   ms.step = 'next_step';
 
-  // Ensure we always end with a next-step fork (even if musicKnowledge already provided one)
-  // We do NOT overwrite musicKnowledge followUp if it exists—unless it’s missing.
   const safeOut = toOutputSafe(out);
   if (!safeOut.followUp) {
     safeOut.followUp = {
@@ -507,24 +502,20 @@ async function runMusicFlowV1({ message, sessionId, context, intent, signal }) {
     };
   }
 
-  // Add a small structured meta (non-breaking for widget)
   safeOut.meta = { ...(safeOut.meta || {}), flow: 'music_v1', step: ms.step, chart: ms.chart, year: ms.year || null };
-
   return safeOut;
 }
 
 // -----------------------------
-// CONVERSATION ORCHESTRATOR (central intelligence layer)
+// CONVERSATION ORCHESTRATOR
 // -----------------------------
 async function orchestrateChat({ message, sessionId, context, intent, signal }) {
   const looksMusic = detectMusicIntent(intent, message);
 
-  // MUSIC FLOW V1
   if (looksMusic) {
     return await runMusicFlowV1({ message, sessionId, context, intent, signal });
   }
 
-  // GENERAL FLOW (keep it simple and safe; do not break existing behavior)
   return {
     ok: true,
     reply: 'What would you like to explore next?',
@@ -568,11 +559,7 @@ app.post('/api/chat', async (req, res) => {
 
   try {
     if (!req.body || typeof req.body !== 'object') {
-      return res.status(400).json({
-        ok: false,
-        error: 'EMPTY_BODY',
-        message: 'JSON body is required.'
-      });
+      return res.status(400).json({ ok: false, error: 'EMPTY_BODY', message: 'JSON body is required.' });
     }
 
     const message = asText(req.body.message);
@@ -588,17 +575,16 @@ app.post('/api/chat', async (req, res) => {
       return res.status(200).json(out0);
     }
 
-    // Intent classification
     let intent = { primary: 'general', domain: 'general' };
     if (intentClassifier?.classify) {
       try {
         intent = intentClassifier.classify(message, context) || intent;
       } catch (e) {
+        console.error('[WARN] intentClassifier.classify failed:', e?.message || e);
         intent = { primary: 'general', domain: 'general', classifierError: true };
       }
     }
 
-    // Orchestrate (single control point)
     let out = await orchestrateChat({
       message,
       sessionId,
@@ -607,21 +593,15 @@ app.post('/api/chat', async (req, res) => {
       signal: controller.signal
     });
 
-    // Timeout/abort handling (return 504)
     if (controller.signal.aborted) {
       const outAbort = enforceAdvance(
-        {
-          ok: false,
-          error: 'TIMEOUT',
-          reply: 'That request took too long. Please resend, or simplify your query (artist + year works best).'
-        },
+        { ok: false, error: 'TIMEOUT', reply: 'That request took too long. Please resend, or simplify your query (artist + year works best).' },
         { userText: message, sessionId, intent }
       );
       setLast({ rid: req.rid, request: req.body, response: outAbort, meta: { intent }, error: 'aborted' });
       return res.status(504).json(outAbort);
     }
 
-    // Final normalization + anti-loop follow-up enforcement
     out = enforceAdvance(out, { userText: message, sessionId, intent });
 
     setLast({
@@ -638,21 +618,11 @@ app.post('/api/chat', async (req, res) => {
     return res.status(200).json(out);
   } catch (err) {
     const out = enforceAdvance(
-      {
-        ok: false,
-        error: 'SERVER_ERROR',
-        reply: 'Something went wrong. Please resend your last message.'
-      },
+      { ok: false, error: 'SERVER_ERROR', reply: 'Something went wrong. Please resend your last message.' },
       { userText: asText(req?.body?.message), sessionId: asText(req?.body?.sessionId) || 'anon', intent: { domain: 'general' } }
     );
 
-    setLast({
-      rid: req.rid,
-      request: req.body,
-      response: out,
-      error: String(err?.message || err)
-    });
-
+    setLast({ rid: req.rid, request: req.body, response: out, error: String(err?.message || err) });
     return res.status(500).json(out);
   } finally {
     clearTimeout(timer);
@@ -660,21 +630,43 @@ app.post('/api/chat', async (req, res) => {
 });
 
 // 404
-app.use((req, res) => {
-  res.status(404).json({ ok: false, error: 'NOT_FOUND' });
-});
+app.use((req, res) => res.status(404).json({ ok: false, error: 'NOT_FOUND' }));
 
 // Last-resort error middleware (keeps errors JSON)
 app.use((err, req, res, next) => {
   console.error(`[ERROR] rid=${req?.rid || 'n/a'}`, err);
   if (res.headersSent) return next(err);
-  return res.status(500).json({
-    ok: false,
-    error: 'UNHANDLED_ERROR',
-    message: 'Unexpected server error.'
-  });
+  return res.status(500).json({ ok: false, error: 'UNHANDLED_ERROR', message: 'Unexpected server error.' });
 });
 
-app.listen(PORT, () => {
-  console.log(`[Nyx] up on ${PORT} — intel-layer orchestrator env=${NODE_ENV} timeout=${REQUEST_TIMEOUT_MS}ms`);
-});
+// -----------------------------
+// LISTEN (with explicit error handling + actual bound address)
+// -----------------------------
+let server = null;
+
+try {
+  server = app.listen(PORT, () => {
+    const addr = server.address();
+    const host = addr && typeof addr === 'object' ? addr.address : '0.0.0.0';
+    const port = addr && typeof addr === 'object' ? addr.port : PORT;
+
+    console.log(`[Nyx] listening on ${host}:${port} — env=${NODE_ENV} timeout=${REQUEST_TIMEOUT_MS}ms`);
+
+    // Heartbeat: proves the process is alive and not silently exiting.
+    if (HEARTBEAT_MS > 0) {
+      setInterval(() => {
+        console.log(`[Nyx] heartbeat ok — ${new Date().toISOString()} (port=${port})`);
+      }, HEARTBEAT_MS).unref?.(); // unref if available; keeps logs without blocking clean exit on SIGTERM
+    }
+  });
+
+  server.on('error', (e) => {
+    // This is the most important part for your “up but no connect” issue.
+    console.error('[FATAL] server.listen error:', e?.code || '', e?.message || e);
+    console.error('[FATAL] If code is EADDRINUSE, the port is already in use. If EACCES, permission denied.');
+    process.exit(1);
+  });
+} catch (e) {
+  console.error('[FATAL] listen() threw:', e?.message || e);
+  process.exit(1);
+}
