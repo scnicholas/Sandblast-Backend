@@ -10,6 +10,7 @@
  * - Robust "Switch chart" / "Switch to <chart>" handling
  * - Suppress repeat chart disclosure after fallback acceptance in-session
  * - NEW: Dedicated "#1 only" path (prevents looping + returns #1 result or asks for anchor)
+ * - NEW: Moment-line drift fixer (repairs cases like "Love Whitesnake — Is This" -> "Whitesnake — Is This Love")
  */
 
 'use strict';
@@ -246,6 +247,45 @@ function sanitizeMusicReplyText(reply) {
   return text;
 }
 
+/**
+ * Fixes observed field drift in Moment line:
+ * Example: "Moment: Love Whitesnake — Is This (1988, Top40Weekly Top 100)."
+ * becomes: "Moment: Whitesnake — Is This Love (1988, Top40Weekly Top 100)."
+ *
+ * This is a UI-safe patch (presentation layer). Root fix still belongs in musicKnowledge ingest/normalizer.
+ */
+function fixMomentLineDrift(reply) {
+  if (!reply) return reply;
+  const text = String(reply);
+
+  // Match first "Moment:" line in the reply (do not try to rewrite everything)
+  // Moment: <artist> — <title> (1988, ...
+  const re = /(Moment:\s*)([^—\n]+?)\s*—\s*([^( \n][^(\n]*?)\s*(\(\s*\d{4}\s*,)/i;
+  const m = text.match(re);
+  if (!m) return text;
+
+  const prefix = m[1];
+  let artist = m[2].trim();
+  let title = m[3].trim();
+  const tail = m[4];
+
+  // Spill words that often drift from title -> artist in your Top40Weekly dataset
+  const spill = new Set(['Love', 'The', 'A', 'An', 'My', 'Your', 'Our', 'This', 'That', 'One', 'No', 'Yes']);
+
+  const artistParts = artist.split(/\s+/).filter(Boolean);
+  const titleParts = title.split(/\s+/).filter(Boolean);
+
+  // Heuristic: if artist starts with spill-word AND title is short-ish, move it to end of title
+  if (artistParts.length >= 2 && titleParts.length <= 3 && spill.has(artistParts[0])) {
+    const moved = artistParts.shift();
+    artist = artistParts.join(' ');
+    title = (title + ' ' + moved).trim();
+  }
+
+  const fixedSegment = `${prefix}${artist} — ${title} ${tail}`;
+  return text.replace(re, fixedSegment);
+}
+
 function rewriteChoiceOptionsForV1(followUp, meta) {
   if (!followUp || followUp.kind !== 'choice' || !Array.isArray(followUp.options)) return followUp;
 
@@ -302,6 +342,9 @@ function applyChartDisclosure(out, sessionMusic) {
       prompt: 'Do you want to continue with the fallback chart, or switch?'
     };
   }
+
+  // Ensure any Moment-line still renders cleanly post-prefix
+  next.reply = fixMomentLineDrift(next.reply);
 
   return next;
 }
@@ -368,6 +411,9 @@ function enforceAdvance(out, { userText, sessionId, intent }) {
     base.followUp.prompt = base.followUp.prompt || 'Pick one to keep the music flow going.';
   }
 
+  // Final pass: keep Moment-line stable in any output path
+  base.reply = fixMomentLineDrift(base.reply);
+
   return base;
 }
 
@@ -423,7 +469,7 @@ async function runMusicFlowV1({ message, sessionId, context, intent, signal }) {
   const ms = s.music;
 
   // -----------------------------
-  // NEW: "#1 only" path — prevents loop
+  // "#1 only" path — prevents loop
   // -----------------------------
   if (isNumberOneOnly(message)) {
     if (!ms.year) {
@@ -453,9 +499,9 @@ async function runMusicFlowV1({ message, sessionId, context, intent, signal }) {
 
     const safeN1 = toOutputSafe(outN1 || {});
     safeN1.reply = sanitizeMusicReplyText(safeN1.reply);
+    safeN1.reply = fixMomentLineDrift(safeN1.reply);
 
     // If engine still returned a generic "Moment:" result, stop the loop and ask for better anchor.
-    // (This means musicKnowledge doesn't yet support #1-only deterministically.)
     if (/^moment:/i.test(safeN1.reply)) {
       ms.step = 'need_anchor';
       return {
@@ -604,6 +650,7 @@ async function runMusicFlowV1({ message, sessionId, context, intent, signal }) {
 
   const safeOut = toOutputSafe(out);
   safeOut.reply = sanitizeMusicReplyText(safeOut.reply);
+  safeOut.reply = fixMomentLineDrift(safeOut.reply);
 
   const requestedChart = ms.chart;
   const usedChart = asText(safeOut?.meta?.usedChart) || null;
