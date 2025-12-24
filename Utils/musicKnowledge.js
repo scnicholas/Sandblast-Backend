@@ -1,9 +1,13 @@
 "use strict";
 
 /**
- * musicKnowledge.js — Bulletproof V2.16
+ * musicKnowledge.js — Bulletproof V2.17
  *
  * Based on V2.15. :contentReference[oaicite:1]{index=1}
+ *
+ * V2.17 upgrades (Top40Weekly integrity fix v3):
+ * - Adds strict gating using a known-artist set to prevent stealing real title words (fixes Prince/Yes/Heart corruption).
+ * - Adds __top40FixVersion export for runtime verification.
  *
  * V2.16 upgrades (Top40Weekly integrity fix):
  * - Fixes Top40Weekly Top 100 rows where artist surname is separated and first name (or artist remainder) is appended to title.
@@ -184,7 +188,9 @@ function fixTop40ArtistTitle(artist, title) {
 
   const surnameSet = TOP40_SURNAME_SET instanceof Set ? TOP40_SURNAME_SET : new Set();
 
-  const eligible =
+  
+  const artistSet = TOP40_ARTIST_SET instanceof Set ? TOP40_ARTIST_SET : new Set();
+const eligible =
     artistIsJrOnly ||
     (aSingle && aLast && surnameSet.has(aLast)) ||
     (titleEndsWithAnd && aLast && surnameSet.has(aLast));
@@ -227,6 +233,13 @@ function fixTop40ArtistTitle(artist, title) {
     }
 
     const candidateArtist = normalizeArtistPunctuation(`${tail.join(" ")} ${a}`.replace(/\s+/g, " ").trim());
+
+    // Final safety gate: only accept if the rebuilt artist is known, OR it is a multi-artist 'and' pattern.
+    const candNorm = norm(candidateArtist);
+    const looksLikeMultiArtist = /\sand\s/i.test(candidateArtist) && candidateArtist.split(/\sand\s/i).every(p => String(p || "").trim().length >= 2);
+    if (!artistSet.has(candNorm) && !looksLikeMultiArtist) {
+      continue;
+    }
 
     return { artist: candidateArtist, title: candidateTitle };
   }
@@ -290,7 +303,7 @@ function normalizeMoment(raw, forcedYear = null, forcedChart = null) {
 // clearly looks truncated (e.g., Turner -> Tina Turner). This avoids corrupting one-word acts
 // like Prince, Yes, Heart, etc.
 let TOP40_SURNAME_SET = null;
-
+let TOP40_ARTIST_SET = null;
 function buildSurnameSet(moments) {
   const set = new Set();
   if (!Array.isArray(moments)) return set;
@@ -303,6 +316,17 @@ function buildSurnameSet(moments) {
       const last = parts[parts.length - 1].replace(/[^A-Za-z0-9'.-]/g, "").toLowerCase();
       if (last) set.add(last);
     }
+  }
+  return set;
+}
+
+function buildArtistSet(moments) {
+  const set = new Set();
+  if (!Array.isArray(moments)) return set;
+  for (const m of moments) {
+    const a = String(m?.artist || \"\").trim();
+    if (!a) continue;
+    set.add(norm(a));
   }
   return set;
 }
@@ -557,7 +581,9 @@ function loadDb() {
 
   TOP40_SURNAME_SET = buildSurnameSet(normalized);
 
-  const mergeInfo = MERGE_TOP40WEEKLY ? mergeTop40Weekly(normalized, seen) : null;
+  
+  TOP40_ARTIST_SET = buildArtistSet(normalized);
+const mergeInfo = MERGE_TOP40WEEKLY ? mergeTop40Weekly(normalized, seen) : null;
 
   MOMENTS = normalized;
   rebuildIndexes();
