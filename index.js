@@ -1,6 +1,20 @@
 /**
- * Sandblast Backend — Nyx Intelligence Layer (Hardened)
- * index.js (BULLETPROOF – JSON-safe, anti-loop follow-up, guarded debug)
+ * Sandblast Backend — Nyx Intelligence Layer (Hardened + Orchestrator + Music Flow V1)
+ * index.js
+ *
+ * Adds:
+ * - Conversation Orchestrator (central response control)
+ * - Session music state (chart/year/artist/title/step/lastMomentSig)
+ * - Music Flow V1: year → chart → moment → next step
+ *
+ * Keeps:
+ * - Deterministic CORS + preflight
+ * - JSON parse guard
+ * - In-memory rate limit
+ * - /api/health
+ * - /api/debug/last gated
+ * - Timeout abort → 504
+ * - enforceAdvance anti-loop follow-up
  */
 
 'use strict';
@@ -36,6 +50,19 @@ const DEBUG_TOKEN = String(process.env.DEBUG_TOKEN || '').trim();
 const RATE_LIMIT_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS || 60_000);
 const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX || 120); // per IP per window
 
+// Session TTL (in-memory)
+const SESS_TTL_MS = Number(process.env.SESS_TTL_MS || 30 * 60_000); // 30 min
+
+// Music Flow V1 defaults
+const DEFAULT_CHART = 'Billboard Hot 100';
+const SUPPORTED_CHARTS = new Set([
+  'Billboard Hot 100',
+  'UK Singles',
+  'Canada RPM',
+  'Top40Weekly Top 100',
+  'Top40Weekly' // allow shorthand; normalized later
+]);
+
 const ALLOWED_ORIGINS = new Set([
   'https://sandblast.channel',
   'https://www.sandblast.channel',
@@ -54,7 +81,6 @@ const app = express();
 app.disable('x-powered-by');
 
 // Trust proxy (Render/Cloudflare/etc.) so req.ip is meaningful.
-// Safe default for typical reverse proxy setups.
 app.set('trust proxy', 1);
 
 app.use(express.json({ limit: '1mb' }));
@@ -76,13 +102,11 @@ app.use((err, req, res, next) => {
 // -----------------------------
 const corsOptions = {
   origin(origin, cb) {
-    // allow non-browser requests
-    if (!origin) return cb(null, true);
+    if (!origin) return cb(null, true); // allow non-browser
 
     if (ALLOWED_ORIGINS.has(origin)) return cb(null, true);
     if (/^https:\/\/.*\.webflow\.com$/.test(origin)) return cb(null, true);
 
-    // Block deterministically (we will translate this into 403 JSON)
     const e = new Error('CORS blocked');
     e.code = 'CORS_BLOCKED';
     return cb(e);
@@ -105,7 +129,6 @@ app.use((req, res, next) => {
   });
 });
 
-// Explicit preflight support (prevents intermittent Webflow/CORS oddities)
 app.options('*', cors(corsOptions));
 
 // -----------------------------
@@ -160,28 +183,61 @@ app.use((req, res, next) => {
 // DEBUG STATE
 // -----------------------------
 const LAST = { at: null, rid: null, request: null, response: null, meta: null, error: null };
-
-// FIX: proper spread (your current file has a syntax crash here) :contentReference[oaicite:2]{index=2}
 const setLast = (o) => Object.assign(LAST, { at: new Date().toISOString(), ...(o || {}) });
 
 // -----------------------------
-// SESSION FOLLOW-UP MEMORY (anti-loop)
+// SESSION STATE (anti-loop + music state)
 // -----------------------------
-const SESS = new Map(); // sessionId -> { lastFollowUpSig, lastFollowUpKind, lastUpdatedAt }
-const SESS_TTL_MS = Number(process.env.SESS_TTL_MS || 30 * 60_000); // 30 min
+const SESS = new Map();
 
+/**
+ * Session schema:
+ * {
+ *   lastFollowUpSig: string|null,
+ *   lastFollowUpKind: string|null,
+ *   lastUpdatedAt: number,
+ *   music: {
+ *     chart: string|null,
+ *     year: number|null,
+ *     artist: string|null,
+ *     title: string|null,
+ *     step: 'need_anchor'|'need_chart'|'serve_moment'|'next_step',
+ *     lastMomentSig: string|null
+ *   }
+ * }
+ */
 function getSession(sessionId) {
   const sid = String(sessionId || 'anon');
   const now = Date.now();
   let s = SESS.get(sid);
   if (!s || (now - s.lastUpdatedAt) > SESS_TTL_MS) {
-    s = { lastFollowUpSig: null, lastFollowUpKind: null, lastUpdatedAt: now };
+    s = {
+      lastFollowUpSig: null,
+      lastFollowUpKind: null,
+      lastUpdatedAt: now,
+      music: {
+        chart: null,
+        year: null,
+        artist: null,
+        title: null,
+        step: 'need_anchor',
+        lastMomentSig: null
+      }
+    };
     SESS.set(sid, s);
   } else {
     s.lastUpdatedAt = now;
+    if (!s.music) {
+      s.music = { chart: null, year: null, artist: null, title: null, step: 'need_anchor', lastMomentSig: null };
+    }
   }
   return s;
 }
+
+// -----------------------------
+// HELPERS
+// -----------------------------
+const asText = (x) => (x == null ? '' : String(x).trim());
 
 function followUpSignature(fu) {
   if (!fu || typeof fu !== 'object') return '';
@@ -192,45 +248,30 @@ function followUpSignature(fu) {
   return `${kind}::${prompt}::${req}::${opts}`.trim();
 }
 
-// -----------------------------
-// HELPERS
-// -----------------------------
-const asText = (x) => (x == null ? '' : String(x).trim());
-
 function toOutputSafe(out) {
-  // Ensure we always return a JSON-safe shape with reply string.
   const safe = (out && typeof out === 'object') ? out : {};
   const reply = asText(safe.reply) || 'Okay.';
   const ok = (typeof safe.ok === 'boolean') ? safe.ok : true;
 
   const normalized = { ...safe, ok, reply };
-  if (normalized.followUp != null && typeof normalized.followUp !== 'object') {
-    delete normalized.followUp;
-  }
+  if (normalized.followUp != null && typeof normalized.followUp !== 'object') delete normalized.followUp;
   return normalized;
 }
 
 /**
- * enforceAdvance
- * - ensures reply always exists
- * - ensures followUp exists (unless explicitly disabled)
- * - preserves ok/error fields (does NOT overwrite ok=true on failures)
- * - anti-loop: if the same followUp repeats, switch to a choice fork
+ * Final guardrail:
+ * - ensures reply exists
+ * - ensures followUp exists unless explicitly null
+ * - preserves ok/error fields (no “ok:true” on failures)
+ * - anti-loop follow-up: if same followUp repeats, switch to a fork
  */
 function enforceAdvance(out, { userText, sessionId, intent }) {
   const base = toOutputSafe(out);
 
-  // If caller intentionally disables follow-up, respect it
   if (base.followUp === null) return base;
 
-  const hasReply = !!asText(base.reply);
   const hasFollowUp = !!(base.followUp && typeof base.followUp === 'object');
-
-  // Provide defaults if missing
-  if (!hasReply) base.reply = 'Okay.';
-
   if (!hasFollowUp) {
-    // Slotfill default is fine, but we must avoid loop on repeat.
     base.followUp = {
       kind: 'slotfill',
       required: ['artist+year OR song title'],
@@ -238,12 +279,10 @@ function enforceAdvance(out, { userText, sessionId, intent }) {
     };
   }
 
-  // Anti-loop behavior: don’t repeat the same exact follow-up endlessly
   const s = getSession(sessionId);
   const sig = followUpSignature(base.followUp);
 
   if (sig && sig === s.lastFollowUpSig) {
-    // If we’re repeating, switch to a fork that helps the user progress.
     base.followUp = {
       kind: 'choice',
       options: [
@@ -255,22 +294,247 @@ function enforceAdvance(out, { userText, sessionId, intent }) {
     };
   }
 
-  // Store follow-up memory for next turn
   s.lastFollowUpSig = followUpSignature(base.followUp);
   s.lastFollowUpKind = String(base.followUp?.kind || '');
   s.lastUpdatedAt = Date.now();
 
-  // Optional: light hinting for music intent if the fallback is too generic
   const looksMusic =
     intent?.domain === 'music_history' ||
-    /#1|number\s*one|billboard|hot\s*100|top\s*40|song|artist|19\d{2}|20\d{2}/i.test(userText || '');
+    /#1|number\s*one|billboard|hot\s*100|uk\s*singles|canada\s*rpm|top40weekly|top\s*40|song|artist|19\d{2}|20\d{2}/i
+      .test(userText || '');
 
   if (looksMusic && base.followUp?.kind === 'choice') {
-    // Keep it music-relevant
     base.followUp.prompt = base.followUp.prompt || 'Pick one to keep the music flow going.';
   }
 
   return base;
+}
+
+// -----------------------------
+// MUSIC FLOW V1 — parsing + orchestration
+// -----------------------------
+function normalizeChart(raw) {
+  const t = asText(raw);
+  if (!t) return null;
+
+  // Normalize shorthand
+  if (/top40weekly/i.test(t)) return 'Top40Weekly Top 100';
+  if (/billboard|hot\s*100/i.test(t)) return 'Billboard Hot 100';
+  if (/uk\s*singles|official\s*charts/i.test(t)) return 'UK Singles';
+  if (/canada\s*rpm|rpm/i.test(t)) return 'Canada RPM';
+
+  // If it matches one of the supported charts exactly
+  if (SUPPORTED_CHARTS.has(t)) return t;
+
+  return t;
+}
+
+function parseYear(message) {
+  const m = asText(message).match(/\b(19\d{2}|20\d{2})\b/);
+  if (!m) return null;
+  const y = Number(m[1]);
+  if (Number.isFinite(y) && y >= 1900 && y <= 2099) return y;
+  return null;
+}
+
+function parseChartFromText(message) {
+  const t = asText(message).toLowerCase();
+  if (!t) return null;
+
+  if (t.includes('top40weekly') || t.includes('top 40 weekly') || t.includes('top40 weekly')) return 'Top40Weekly Top 100';
+  if (t.includes('hot 100') || t.includes('billboard')) return 'Billboard Hot 100';
+  if (t.includes('uk singles') || t.includes('official charts')) return 'UK Singles';
+  if (t.includes('canada rpm') || (t.includes('rpm') && t.includes('canada'))) return 'Canada RPM';
+
+  return null;
+}
+
+/**
+ * Very light “anchor” extraction:
+ * - If quoted text exists, treat as title
+ * - If user says "by <artist>", capture artist
+ * This is intentionally conservative to avoid false positives.
+ */
+function parseAnchor(message) {
+  const text = asText(message);
+
+  // "Song Title" in quotes
+  const q = text.match(/"([^"]{2,120})"/);
+  if (q && q[1]) return { title: q[1].trim() };
+
+  // by ARTIST
+  const by = text.match(/\bby\s+([A-Za-z0-9&'.\- ]{2,80})\b/i);
+  if (by && by[1]) return { artist: by[1].trim() };
+
+  return {};
+}
+
+function detectMusicIntent(intent, message) {
+  if (intent?.domain === 'music_history') return true;
+  return /#1|number\s*one|billboard|hot\s*100|uk\s*singles|canada\s*rpm|top40weekly|top\s*40|song|artist|19\d{2}|20\d{2}/i
+    .test(message || '');
+}
+
+/**
+ * Music Flow V1:
+ * year → chart → moment → next step
+ *
+ * Uses session.music state to avoid repeating questions and to progress deterministically.
+ */
+async function runMusicFlowV1({ message, sessionId, context, intent, signal }) {
+  const s = getSession(sessionId);
+  const ms = s.music;
+
+  // Pull chart from context first (if present), then message text, then session, then default.
+  const ctxChart = normalizeChart(context?.chart);
+  const textChart = parseChartFromText(message);
+  const chosenChart = normalizeChart(textChart || ctxChart || ms.chart || DEFAULT_CHART);
+
+  // Parse year + anchors
+  const year = parseYear(message);
+  const anchor = parseAnchor(message);
+
+  if (year) ms.year = year;
+  if (anchor.artist) ms.artist = anchor.artist;
+  if (anchor.title) ms.title = anchor.title;
+
+  ms.chart = chosenChart;
+
+  const hasAnyAnchor = !!(ms.year || ms.artist || ms.title);
+
+  // Step resolution
+  if (!hasAnyAnchor) {
+    ms.step = 'need_anchor';
+  } else if (!ms.chart) {
+    ms.step = 'need_chart';
+  } else {
+    ms.step = 'serve_moment';
+  }
+
+  // 1) Need anchor
+  if (ms.step === 'need_anchor') {
+    return {
+      ok: true,
+      reply: 'Let’s lock in one anchor so I can pull the right music moment.',
+      followUp: {
+        kind: 'slotfill',
+        required: ['artist+year OR song title'],
+        prompt: 'Give me an artist + year (or a song title).'
+      },
+      meta: { flow: 'music_v1', step: ms.step, chart: ms.chart || null }
+    };
+  }
+
+  // 2) Need chart (rare because we default)
+  if (ms.step === 'need_chart') {
+    return {
+      ok: true,
+      reply: `Got it. Which chart do you want for this moment?`,
+      followUp: {
+        kind: 'choice',
+        options: ['Billboard Hot 100', 'UK Singles', 'Canada RPM', 'Top40Weekly Top 100'],
+        prompt: 'Pick a chart.'
+      },
+      meta: { flow: 'music_v1', step: ms.step }
+    };
+  }
+
+  // 3) Serve moment via musicKnowledge (primary)
+  // Build a “targeted” prompt for the music engine using known slots.
+  const targeted = (() => {
+    const parts = [];
+    if (ms.title) parts.push(`"${ms.title}"`);
+    if (ms.artist) parts.push(`by ${ms.artist}`);
+    if (ms.year) parts.push(String(ms.year));
+    return parts.join(' ').trim();
+  })() || message;
+
+  let out = null;
+
+  if (musicKnowledge?.handleMessage) {
+    out = await musicKnowledge.handleMessage(targeted, {
+      sessionId,
+      context: { ...(context || {}), chart: ms.chart },
+      intent,
+      signal
+    });
+  }
+
+  // If musicKnowledge didn’t return anything useful, degrade gracefully (still on rails)
+  if (!out || typeof out !== 'object') {
+    ms.step = 'next_step';
+    return {
+      ok: true,
+      reply: `I’m ready—here’s what I need to pull the cleanest moment for **${ms.chart}**.`,
+      followUp: {
+        kind: 'choice',
+        options: [
+          ms.year ? `Use year ${ms.year}` : 'Give a year',
+          ms.artist ? `Use artist ${ms.artist}` : 'Give an artist',
+          ms.title ? `Use title "${ms.title}"` : 'Give a song title',
+          'Switch chart'
+        ],
+        prompt: 'Pick one.'
+      },
+      meta: { flow: 'music_v1', step: ms.step, chart: ms.chart }
+    };
+  }
+
+  // Tag moment signature (for “next moment” logic later)
+  const momentSig = [
+    ms.chart || '',
+    ms.year || '',
+    ms.artist || '',
+    ms.title || '',
+    asText(out.reply).slice(0, 80)
+  ].join('|');
+  ms.lastMomentSig = momentSig;
+  ms.step = 'next_step';
+
+  // Ensure we always end with a next-step fork (even if musicKnowledge already provided one)
+  // We do NOT overwrite musicKnowledge followUp if it exists—unless it’s missing.
+  const safeOut = toOutputSafe(out);
+  if (!safeOut.followUp) {
+    safeOut.followUp = {
+      kind: 'choice',
+      options: [
+        'Next moment (same year)',
+        'Switch chart',
+        'Jump to another year',
+        'Ask about a specific artist/song'
+      ],
+      prompt: 'Where do you want to go next?'
+    };
+  }
+
+  // Add a small structured meta (non-breaking for widget)
+  safeOut.meta = { ...(safeOut.meta || {}), flow: 'music_v1', step: ms.step, chart: ms.chart, year: ms.year || null };
+
+  return safeOut;
+}
+
+// -----------------------------
+// CONVERSATION ORCHESTRATOR (central intelligence layer)
+// -----------------------------
+async function orchestrateChat({ message, sessionId, context, intent, signal }) {
+  const looksMusic = detectMusicIntent(intent, message);
+
+  // MUSIC FLOW V1
+  if (looksMusic) {
+    return await runMusicFlowV1({ message, sessionId, context, intent, signal });
+  }
+
+  // GENERAL FLOW (keep it simple and safe; do not break existing behavior)
+  return {
+    ok: true,
+    reply: 'What would you like to explore next?',
+    followUp: {
+      kind: 'choice',
+      options: ['Music moment', 'Sandblast info', 'Sponsors', 'Site help'],
+      prompt: 'Pick one.'
+    },
+    meta: { flow: 'general_v1' }
+  };
 }
 
 // -----------------------------
@@ -316,12 +580,12 @@ app.post('/api/chat', async (req, res) => {
     const context = (req.body.context && typeof req.body.context === 'object') ? req.body.context : {};
 
     if (!message) {
-      const out = enforceAdvance(
+      const out0 = enforceAdvance(
         { ok: true, reply: 'I didn’t receive a message.' },
         { userText: message, sessionId, intent: { domain: 'general' } }
       );
-      setLast({ rid: req.rid, request: req.body, response: out });
-      return res.status(200).json(out);
+      setLast({ rid: req.rid, request: req.body, response: out0 });
+      return res.status(200).json(out0);
     }
 
     // Intent classification
@@ -330,35 +594,18 @@ app.post('/api/chat', async (req, res) => {
       try {
         intent = intentClassifier.classify(message, context) || intent;
       } catch (e) {
-        // Don’t fail request if classifier fails
         intent = { primary: 'general', domain: 'general', classifierError: true };
       }
     }
 
-    const looksMusic =
-      intent.domain === 'music_history' ||
-      /#1|number\s*one|billboard|hot\s*100|top\s*40|song|artist|19\d{2}|20\d{2}/i.test(message);
-
-    let out = null;
-
-    // Primary music route
-    if (looksMusic && musicKnowledge?.handleMessage) {
-      try {
-        out = await musicKnowledge.handleMessage(message, {
-          sessionId,
-          context,
-          intent,
-          signal: controller.signal
-        });
-      } catch (e) {
-        // If we were aborted due to timeout, handle below.
-        out = {
-          ok: false,
-          error: 'MUSIC_KNOWLEDGE_ERROR',
-          reply: 'I hit a snag pulling that music moment. Try again, or give me a song title and year to narrow it.'
-        };
-      }
-    }
+    // Orchestrate (single control point)
+    let out = await orchestrateChat({
+      message,
+      sessionId,
+      context,
+      intent,
+      signal: controller.signal
+    });
 
     // Timeout/abort handling (return 504)
     if (controller.signal.aborted) {
@@ -374,27 +621,6 @@ app.post('/api/chat', async (req, res) => {
       return res.status(504).json(outAbort);
     }
 
-    // Fallback route
-    if (!out) {
-      out = {
-        ok: true,
-        reply: looksMusic
-          ? 'I can do that—let’s anchor it first.'
-          : 'What would you like to explore next?',
-        followUp: looksMusic
-          ? {
-              kind: 'slotfill',
-              required: ['artist+year OR song title'],
-              prompt: 'Give me an artist + year (or a song title).'
-            }
-          : {
-              kind: 'choice',
-              options: ['Music moment', 'Sandblast info', 'Sponsors', 'Site help'],
-              prompt: 'Pick one.'
-            }
-      };
-    }
-
     // Final normalization + anti-loop follow-up enforcement
     out = enforceAdvance(out, { userText: message, sessionId, intent });
 
@@ -402,12 +628,15 @@ app.post('/api/chat', async (req, res) => {
       rid: req.rid,
       request: req.body,
       response: out,
-      meta: { intent, looksMusic }
+      meta: {
+        intent,
+        looksMusic: detectMusicIntent(intent, message),
+        sessionMusic: getSession(sessionId)?.music || null
+      }
     });
 
     return res.status(200).json(out);
   } catch (err) {
-    // Preserve ok=false (do NOT overwrite to ok=true like your current enforceAdvance did) :contentReference[oaicite:3]{index=3}
     const out = enforceAdvance(
       {
         ok: false,
@@ -447,5 +676,5 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`[Nyx] up on ${PORT} — intel-layer hardened env=${NODE_ENV} timeout=${REQUEST_TIMEOUT_MS}ms`);
+  console.log(`[Nyx] up on ${PORT} — intel-layer orchestrator env=${NODE_ENV} timeout=${REQUEST_TIMEOUT_MS}ms`);
 });
