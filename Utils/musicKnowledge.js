@@ -312,6 +312,54 @@ const eligible =
   /,\s*,?\s*Jr\./i.test(a) ||
   aSingle;
 
+  // -------------------------------------------------------
+  // SPECIAL CASE 3: artist has stray title words prepended (common Top40Weekly parser drift)
+  // Examples:
+  // - "Away Chicago" + "Look" => Chicago / "Look Away"
+  // - "Up Paula Abdul" + "Straight" => Paula Abdul / "Straight Up"
+  // - "Its Thorn Poison" + "Every Rose Has" => Poison / "Every Rose Has Its Thorn"
+  // - "Got Anita Baker" + "Giving You the Best That I" => Anita Baker / "Giving You the Best That I Got"
+  // -------------------------------------------------------
+  {
+    const TITLEISH_PREFIX = new Set([
+      "away","up","much","hearted","wings","true","got","its","thorn"
+    ]);
+
+    const aWords = a.split(/\s+/).filter(Boolean);
+    if (aWords.length >= 2) {
+      for (let k = 1; k <= 3 && k < aWords.length; k++) {
+        const prefix = aWords.slice(0, k);
+        const rest = aWords.slice(k).join(" ").trim();
+        if (!rest || rest.length < 2) continue;
+
+        const allTitleish = prefix.every(w => TITLEISH_PREFIX.has(norm(w)));
+        if (!allTitleish) continue;
+
+        // Only apply if the remaining artist looks real (known artist OR protected one-word act)
+        const restNorm = norm(rest);
+        if (!artistSet.has(restNorm) && !STATIC_ONEWORD.has(restNorm)) continue;
+
+        const newTitle = (t + " " + prefix.join(" ")).replace(/\s+/g, " ").trim();
+        if (newTitle.length < 3) continue;
+
+        a = rest;
+        t = newTitle;
+        break;
+      }
+    }
+  }
+
+  // -------------------------------------------------------
+  // SPECIAL CASE 4: title ends with an artist prefix that belongs with the artist (e.g., "Will to" + "Power")
+  // Example: "Power" + "Baby, I Love Your Way/Freebird Medley Will to" => Will to Power / "Baby, I Love Your Way/Freebird Medley"
+  // -------------------------------------------------------
+  if (/^Power$/i.test(a) && /\bWill\s+to\b\s*$/i.test(t)) {
+    a = "Will to Power";
+    t = t.replace(/\s*\bWill\s+to\b\s*$/i, "").trim();
+  }
+
+
+
 if (!eligible) return { artist: a, title: t };
 
   const words = joinMcTokens(t.split(/\s+/).filter(Boolean));
@@ -362,9 +410,7 @@ if (!eligible) return { artist: a, title: t };
       parts.length >= 2 &&
       parts.slice(0, 2).every((p) => /^[A-Z]/.test(p));
 
-    if (!artistSet.has(candNorm) && !looksLikeMultiArtist && !hasJr && !plausibleProperName) {
-      continue;
-    }
+    if (!artistSet.has(candNorm) && !looksLikeMultiArtist && !hasJr) { continue; }
 
     return { artist: candidateArtist, title: candidateTitle };
   }
@@ -1209,7 +1255,7 @@ function pickBestMoment(_unused, slots = {}) {
 // EXPORTS
 // =============================
 module.exports = {
-  __top40FixVersion: "top40-fix-v9-getTopByYear-map",
+  __top40FixVersion: "top40-fix-v10-decade-normalize",
   // Loader
   loadDb,
   getDb,
