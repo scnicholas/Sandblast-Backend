@@ -1,20 +1,18 @@
 "use strict";
 
 /**
- * musicKnowledge.js — Bulletproof V2.20
+ * musicKnowledge.js — Bulletproof V2.21
  *
- * Based on V2.19 (your current file).
+ * Based on V2.20 (your current file).
  *
- * V2.20 upgrades:
- * - ROOT FIX for Top40Weekly "spill" bug:
+ * V2.21 upgrades:
+ * - ROOT FIX (merge-safe) for Top40Weekly "spill" bug:
  *   Example: "Love Whitesnake — Is This"  => "Whitesnake — Is This Love"
  *   We move a leading spill-word (Love/The/A/An/My/Your/This/That/One/etc.)
- *   off the artist and onto the end of the title ONLY when the remaining artist
- *   is recognized in the artist index (prevents false positives).
+ *   off the artist and onto the end of the title using a tight heuristic,
+ *   NOT relying on the pre-merge artist index (Top40Weekly is merged after base load).
  *
- * - Keeps V2.19 #1 routing reliability:
- *   - Fixes #1 detection for phrases like "When was Madonna #1?"
- *   - "#1 years" can use ctx.context.lastArtist / ctx.context.artist if provided.
+ * - Keeps V2.20/#1 routing reliability intact.
  *
  * Env:
  * - MUSIC_ENABLE_CHART_FALLBACK=1 (default)  -> enable smart fallback
@@ -143,7 +141,7 @@ function normalizeChart(chart) {
 }
 
 // =============================
-// TOP40WEEKLY ROW FIXUP (your v2.19 logic preserved + V2.20 spill fix)
+// TOP40WEEKLY ROW FIXUP (your v2.20 logic preserved + V2.21 spill fix)
 // =============================
 function _isNameyToken(w) {
   const s = String(w || "").trim();
@@ -217,7 +215,7 @@ function buildOneWordActSet(moments) {
 }
 
 function fixTop40ArtistTitle(artist, title) {
-  // (Mostly unchanged from your V2.19 — V2.20 adds a safe "spill-word" fix)
+  // (Mostly unchanged from your V2.20 — V2.21 replaces the spill-word fix with merge-safe logic)
   let a = normalizeArtistPunctuation(String(artist || "").trim());
   let t = String(title || "").trim();
   if (!a || !t) return { artist: a, title: t };
@@ -235,24 +233,32 @@ function fixTop40ArtistTitle(artist, title) {
   const badTitleEnd = new Set(["a","an","the","of","to","with","and","or","but","in","on","at","for","from"]);
 
   // -----------------------------
-  // V2.20: spill-word fix (ROOT FIX)
-  // If artist begins with a spill-word and the remaining artist is recognized,
-  // move the spill-word to the end of the title.
+  // V2.21: spill-word fix (ROOT FIX, merge-safe)
+  // If artist begins with a spill-word and title is short, move spill-word onto end of title.
   // Example: "Love Whitesnake" + "Is This" -> "Whitesnake" + "Is This Love"
+  // Does NOT rely on pre-merge artist index membership.
   // -----------------------------
   {
     const SPILL = new Set(["love","the","a","an","my","your","our","this","that","one","no","yes"]);
+    const STOP = new Set(["and","or","but","of","to","in","on","at","for","from","with","by"]);
+
     const aWords = a.split(/\s+/).filter(Boolean);
-    if (aWords.length >= 2) {
+    const tWords = t.split(/\s+/).filter(Boolean);
+
+    if (aWords.length >= 2 && tWords.length >= 1 && tWords.length <= 3) {
       const first = norm(aWords[0]);
       const rest = aWords.slice(1).join(" ").trim();
       const restNorm = norm(rest);
 
-      // Apply ONLY when remaining artist is a known act (prevents false positives).
-      const restIsKnown = artistSet.has(restNorm) || STATIC_ONEWORD.has(restNorm);
-      if (SPILL.has(first) && restIsKnown) {
-        // Avoid making a worse title (e.g., if title already ends with that word)
+      // "rest" must look like an act name, not a filler word
+      const restLooksAct =
+        rest.length >= 3 &&
+        !STOP.has(restNorm) &&
+        /^[A-Za-z0-9][A-Za-z0-9&'.\- ]{1,80}$/.test(rest);
+
+      if (SPILL.has(first) && restLooksAct) {
         const tNorm = norm(t);
+        // Don't double-append if title already ends with the spill word
         if (!tNorm.endsWith(` ${first}`) && tNorm !== first) {
           a = rest;
           t = (t + " " + aWords[0]).replace(/\s+/g, " ").trim();
@@ -1284,7 +1290,7 @@ function parseChartFromText(message) {
 }
 
 /**
- * V2.19: fixed #1 detection
+ * V2.19+: fixed #1 detection
  * - Removed \b boundary reliance around "#1" (it breaks on non-word char '#')
  * - Supports: "When was X #1", "Was X ever #1", "#1 years"
  */
@@ -1543,8 +1549,8 @@ async function handleMessage(message, ctx = {}) {
 // EXPORTS
 // =============================
 module.exports = {
-  __top40FixVersion: "top40-fix-v12-spillword-rootfix",
-  __musicKnowledgeVersion: "v2.20-nyx-top40-spillword-rootfix",
+  __top40FixVersion: "top40-fix-v13-spillword-merge-safe",
+  __musicKnowledgeVersion: "v2.21-nyx-top40-spillword-merge-safe",
 
   loadDb,
   getDb,
