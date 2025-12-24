@@ -177,6 +177,10 @@ function fixTop40ArtistTitle(artist, title) {
   const surnameSet = TOP40_SURNAME_SET instanceof Set ? TOP40_SURNAME_SET : new Set();
   const artistSet = TOP40_ARTIST_SET instanceof Set ? TOP40_ARTIST_SET : new Set();
   const oneWordSet = TOP40_ONEWORD_SET instanceof Set ? TOP40_ONEWORD_SET : new Set();
+  // Hard-seed known one-word acts that may not exist in base DB but do appear in Top40Weekly
+  const STATIC_ONEWORD = new Set(["prince","yes","heart"]);
+  for (const s of STATIC_ONEWORD) oneWordSet.add(s);
+
 
   // Never touch legit one-word acts (Prince, Yes, Heart, etc.)
   if (oneWordSet.has(norm(a))) return { artist: a, title: t };
@@ -241,8 +245,12 @@ function fixTop40ArtistTitle(artist, title) {
         (pulled.tail.join(" ") + " " + a).replace(/\s+/g, " ").trim()
       );
       const candidateTitle = pulled.candidateTitle;
-      // Accept if multi-artist looks plausible (contains "and") and title is non-empty.
-      if (/\sand\s/i.test(candidateArtist) && candidateTitle.length >= 3) {
+      // Accept if candidate is known/plausible and title is non-empty.
+      const candNorm = norm(candidateArtist);
+      const candIsMulti = /\sand\s/i.test(candidateArtist);
+      const candIsJr = /\bjr\.?\b/i.test(candidateArtist);
+      const candKnown = artistSet.has(candNorm);
+      if ((candIsMulti && candidateTitle.length >= 3) || candIsJr || candKnown) {
         return { artist: candidateArtist, title: candidateTitle };
       }
     }
@@ -259,7 +267,7 @@ function fixTop40ArtistTitle(artist, title) {
     const last = words0[words0.length - 1] || "";
     if (/^Paul[,]?$/i.test(String(last || ""))) {
       const head = words0.slice(0, -1).join(" ").trim();
-      if (head.length >= 3 && !badTitleEnd.has(String(head.split(/\s+/).pop() || "").toLowerCase())) {
+      if (head.length >= 3) {
         const candArtist = normalizeArtistPunctuation((last + " " + a).trim());
         if (/^Paul\s+/i.test(candArtist) && /\sand\s/i.test(candArtist)) {
           return { artist: candArtist, title: head };
@@ -271,12 +279,12 @@ function fixTop40ArtistTitle(artist, title) {
 // -------------------------------------------------------
   // SPECIAL CASE 2: artist has ", Jr." and title ends with first name (Ray Parker, Jr.)
   // -------------------------------------------------------
-  if (/,\s*,?\s*Jr\./i.test(a)) {
+  if (/\bjr\.?\b/i.test(a)) {
     const words0 = t.split(/\s+/).filter(Boolean);
     const last = words0[words0.length - 1] || "";
     if (looksNameyToken(last)) {
       const head = words0.slice(0, -1).join(" ").trim();
-      if (head.length >= 3 && !badTitleEnd.has(String(head.split(/\s+/).pop() || "").toLowerCase())) {
+      if (head.length >= 3) {
         const candArtist = normalizeArtistPunctuation((last + " " + a).trim());
         return { artist: candArtist, title: head };
       }
@@ -361,6 +369,28 @@ if (!eligible) return { artist: a, title: t };
     return { artist: candidateArtist, title: candidateTitle };
   }
 
+  
+  // -------------------------------------------------------
+  // LAST-RESORT SAFETY: Undo accidental corruption of protected one-word acts
+  // Example: artist="Cry Prince", title="When Doves"  =>  Prince / "When Doves Cry"
+  // -------------------------------------------------------
+  {
+    const aParts = a.split(/\s+/).filter(Boolean);
+    if (aParts.length === 2) {
+      const maybeAct = norm(aParts[1]);
+      const maybePrefix = aParts[0];
+      if (STATIC_ONEWORD.has(maybeAct) && !artistSet.has(norm(a))) {
+        const tParts = t.split(/\s+/).filter(Boolean);
+        if (tParts.length >= 2) {
+          const restoredTitle = (t + " " + maybePrefix).replace(/\s+/g, " ").trim();
+          const restoredArtist = aParts[1];
+          if (!badTitleEnd.has(norm(maybePrefix))) {
+            return { artist: restoredArtist, title: restoredTitle };
+          }
+        }
+      }
+    }
+  }
   return { artist: a, title: t };
 }
 
@@ -1151,7 +1181,7 @@ function pickBestMoment(_unused, slots = {}) {
 // EXPORTS
 // =============================
 module.exports = {
-  __top40FixVersion: "top40-fix-v6-top40-heuristics",
+  __top40FixVersion: "top40-fix-v7-safe-known",
   // Loader
   loadDb,
   getDb,
