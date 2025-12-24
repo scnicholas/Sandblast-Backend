@@ -391,7 +391,23 @@ if (!eligible) return { artist: a, title: t };
       }
     }
   }
+  // -------------------------------------------------------
+  // Targeted finalizers (Top40Weekly edge cases)
+  // -------------------------------------------------------
+  // Case: artist missing leading "Paul" (McCartney duet)
+  if (/\bMcCartney\s+and\s+Michael\s+Jackson\b/i.test(a) && /\bPaul\b\s*$/i.test(t)) {
+    a = ("Paul " + a).replace(/\s+/g, " ").trim();
+    t = t.replace(/\s*\bPaul\b\s*$/i, "").trim();
+  }
+
+  // Case: Ray Parker, Jr. missing leading "Ray"
+  if (/\bParker\s*,\s*Jr\.?\b/i.test(a) && /\bRay\b\s*$/i.test(t)) {
+    a = ("Ray " + a).replace(/\s+/g, " ").trim();
+    t = t.replace(/\s*\bRay\b\s*$/i, "").trim();
+  }
+
   return { artist: a, title: t };
+
 }
 
 
@@ -1181,7 +1197,7 @@ function pickBestMoment(_unused, slots = {}) {
 // EXPORTS
 // =============================
 module.exports = {
-  __top40FixVersion: "top40-fix-v7-safe-known",
+  __top40FixVersion: "top40-fix-v8-paul-ray-final",
   // Loader
   loadDb,
   getDb,
