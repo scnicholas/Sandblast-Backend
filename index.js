@@ -6,6 +6,9 @@
  * - Choice option rewrite: "Top 10" -> "Another moment" (until true Top 10 list exists)
  * - Chart disclosure: if usedFallback + usedChart != requestedChart, disclose and offer switch
  * - Reply text sanitizer: removes legacy "Top 10" / "another random moment" phrasing from engine replies
+ * - NEW: Auto-lock fallback chart after user accepts it ("Continue with <chart>")
+ * - NEW: Robust "Switch chart" / "Switch to <chart>" handling
+ * - NEW: Suppress repeat chart disclosure after fallback acceptance in-session
  */
 
 'use strict';
@@ -168,7 +171,8 @@ const SESS = new Map();
  * - lastFollowUpSig / lastFollowUpKind
  * - lastFollowUpOptions: string[] (for interpreting "yes")
  * - lastFlow: 'music'|'general'|null
- * - music state
+ * - music state:
+ *   - acceptedChart: once user accepts a fallback chart, we persist it to suppress repeat disclosures
  */
 function getSession(sessionId) {
   const sid = String(sessionId || 'anon');
@@ -184,6 +188,7 @@ function getSession(sessionId) {
       lastUpdatedAt: now,
       music: {
         chart: null,
+        acceptedChart: null,   // NEW: set when user chooses "Continue with <chart>"
         year: null,
         artist: null,
         title: null,
@@ -194,7 +199,8 @@ function getSession(sessionId) {
     SESS.set(sid, s);
   } else {
     s.lastUpdatedAt = now;
-    if (!s.music) s.music = { chart: null, year: null, artist: null, title: null, step: 'need_anchor', lastMomentSig: null };
+    if (!s.music) s.music = { chart: null, acceptedChart: null, year: null, artist: null, title: null, step: 'need_anchor', lastMomentSig: null };
+    if (!('acceptedChart' in s.music)) s.music.acceptedChart = null;
   }
   return s;
 }
@@ -229,16 +235,12 @@ function isAffirmation(text) {
 
 /**
  * PATCH (copy-only): sanitize legacy phrasing in music replies.
- * This prevents the UI from showing "Top 10" or "another random moment" when we aren't returning a ranked list.
  */
 function sanitizeMusicReplyText(reply) {
   if (!reply) return reply;
   let text = String(reply);
 
-  // Replace "Top 10" language (incl. "Top 10 for 1984") with "another moment"
   text = text.replace(/Top\s*10(\s*for\s*\d{4})?/gi, 'another moment');
-
-  // Normalize "another random moment" -> "another moment"
   text = text.replace(/another\s+random\s+moment/gi, 'another moment');
 
   return text;
@@ -246,7 +248,6 @@ function sanitizeMusicReplyText(reply) {
 
 /**
  * PATCH: rewrite misleading choice labels for V1.
- * We currently return a single "moment", not a ranked Top 10 list.
  */
 function rewriteChoiceOptionsForV1(followUp, meta) {
   if (!followUp || followUp.kind !== 'choice' || !Array.isArray(followUp.options)) return followUp;
@@ -259,19 +260,16 @@ function rewriteChoiceOptionsForV1(followUp, meta) {
   next.options = followUp.options.map((opt) => {
     const s = String(opt || '').trim();
 
-    // "Top 10 (1984)" -> "Another moment (1984)"
     if (/^Top\s*10\s*\(\d{4}\)$/i.test(s)) {
       const y = (s.match(/\b(19\d{2}|20\d{2})\b/) || [])[1];
       return y ? `Another moment (${y})` : 'Another moment';
     }
 
-    // "Top 10" -> "Another moment"
     if (/^Top\s*10$/i.test(s)) return 'Another moment';
 
     return s;
   });
 
-  // If a fallback happened, ensure switching is always possible
   if (usedFallback && usedChart && requestedChart && usedChart !== requestedChart) {
     if (!next.options.some(o => /switch\s+chart/i.test(String(o)))) next.options.push('Switch chart');
   }
@@ -281,7 +279,7 @@ function rewriteChoiceOptionsForV1(followUp, meta) {
 
 /**
  * PATCH: chart disclosure if engine fell back to a different chart.
- * Adds a short note and ensures "Switch chart" is available.
+ * NEW: If session has acceptedChart matching used chart, suppress repeated disclosures.
  */
 function applyChartDisclosure(out, sessionMusic) {
   if (!out || typeof out !== 'object') return out;
@@ -289,6 +287,10 @@ function applyChartDisclosure(out, sessionMusic) {
   const requested = asText(out?.meta?.requestedChart || sessionMusic?.chart);
   const used = asText(out?.meta?.usedChart);
   const usedFallback = !!out?.meta?.usedFallback;
+
+  // NEW: if user already accepted this fallback chart, don't keep nagging
+  const accepted = asText(sessionMusic?.acceptedChart);
+  if (accepted && used && accepted === used) return out;
 
   if (!usedFallback || !requested || !used || used === requested) return out;
 
@@ -312,6 +314,27 @@ function applyChartDisclosure(out, sessionMusic) {
   return next;
 }
 
+/**
+ * NEW: Parse chart control commands from the user's message.
+ * Supports:
+ *  - "Continue with <chart>"  => locks chart in session (acceptedChart)
+ *  - "Switch to <chart>"      => switches chart immediately
+ *  - "Switch chart"           => open chart picker
+ */
+function parseChartControl(message) {
+  const t = asText(message);
+
+  const mContinue = t.match(/^continue\s+with\s+(.+)$/i);
+  if (mContinue && mContinue[1]) return { action: 'continue_with', chart: mContinue[1].trim() };
+
+  const mSwitchTo = t.match(/^switch\s+to\s+(.+)$/i);
+  if (mSwitchTo && mSwitchTo[1]) return { action: 'switch_to', chart: mSwitchTo[1].trim() };
+
+  if (/^switch\s+chart$/i.test(t) || /switch\s+chart/i.test(t)) return { action: 'switch_picker' };
+
+  return null;
+}
+
 function enforceAdvance(out, { userText, sessionId, intent }) {
   const base = toOutputSafe(out);
   const s = getSession(sessionId);
@@ -326,7 +349,6 @@ function enforceAdvance(out, { userText, sessionId, intent }) {
     };
   }
 
-  // Anti-loop: if same follow-up repeats, switch to a fork
   const sigPre = followUpSignature(base.followUp);
   if (sigPre && sigPre === s.lastFollowUpSig) {
     base.followUp = {
@@ -340,10 +362,8 @@ function enforceAdvance(out, { userText, sessionId, intent }) {
     };
   }
 
-  // PATCH: rewrite misleading choice labels (Top 10 -> Another moment)
   base.followUp = rewriteChoiceOptionsForV1(base.followUp, base.meta);
 
-  // Store last follow-up options for "yes" resolution later
   if (base.followUp.kind === 'choice' && Array.isArray(base.followUp.options)) {
     s.lastFollowUpOptions = base.followUp.options.map(String);
   } else {
@@ -407,7 +427,6 @@ function parseAnchor(message) {
 }
 
 function detectMusicIntent(intent, message, session) {
-  // Stickiness: if we are mid-music flow, treat short replies as music too
   if (session?.music?.step && session.music.step !== 'need_anchor' && session.lastFlow === 'music') return true;
   if (intent?.domain === 'music_history') return true;
   return /#1|number\s*one|billboard|hot\s*100|uk\s*singles|canada\s*rpm|top40weekly|top\s*40|song|artist|19\d{2}|20\d{2}/i
@@ -417,6 +436,40 @@ function detectMusicIntent(intent, message, session) {
 async function runMusicFlowV1({ message, sessionId, context, intent, signal }) {
   const s = getSession(sessionId);
   const ms = s.music;
+
+  // NEW: handle chart control commands first (from choice buttons or typed)
+  const ctl = parseChartControl(message);
+  if (ctl) {
+    if (ctl.action === 'switch_picker') {
+      ms.step = 'need_chart';
+      return {
+        ok: true,
+        mode: 'music',
+        reply: 'Sure — which chart do you want to use?',
+        followUp: { kind: 'choice', options: ['Billboard Hot 100', 'UK Singles', 'Canada RPM', 'Top40Weekly Top 100'], prompt: 'Pick a chart.' },
+        meta: { flow: 'music_v1', step: ms.step, chart: ms.chart || null }
+      };
+    }
+
+    if (ctl.action === 'continue_with') {
+      const chosen = normalizeChart(ctl.chart);
+      if (chosen) {
+        ms.chart = chosen;
+        ms.acceptedChart = chosen; // NEW: lock accepted fallback chart
+      }
+      // Continue flow normally (do not early return)
+      message = ''; // keep anchors; we only changed chart
+    }
+
+    if (ctl.action === 'switch_to') {
+      const chosen = normalizeChart(ctl.chart);
+      if (chosen) {
+        ms.chart = chosen;
+        ms.acceptedChart = null; // switching resets acceptance lock
+      }
+      message = ''; // keep anchors; we only changed chart
+    }
+  }
 
   // Apply chart selection priority: text > context > session > default
   const textChart = normalizeChart(parseChartFromText(message));
@@ -476,7 +529,6 @@ async function runMusicFlowV1({ message, sessionId, context, intent, signal }) {
     });
   }
 
-  // If musicKnowledge returns nothing, keep rails
   if (!out || typeof out !== 'object') {
     ms.step = 'next_step';
     return {
@@ -499,7 +551,7 @@ async function runMusicFlowV1({ message, sessionId, context, intent, signal }) {
 
   const safeOut = toOutputSafe(out);
 
-  // PATCH (copy-only): sanitize legacy reply text
+  // sanitize legacy reply text (copy-only)
   safeOut.reply = sanitizeMusicReplyText(safeOut.reply);
 
   // CHART INTEGRITY GUARD (hard stop if silent chart swap)
@@ -507,7 +559,10 @@ async function runMusicFlowV1({ message, sessionId, context, intent, signal }) {
   const usedChart = asText(safeOut?.meta?.usedChart) || null;
   const usedFallback = !!safeOut?.meta?.usedFallback;
 
-  if (usedFallback && usedChart && requestedChart && usedChart !== requestedChart) {
+  // If user already accepted this usedChart, lock it and proceed without nagging
+  if (usedFallback && usedChart && ms.acceptedChart && ms.acceptedChart === usedChart) {
+    ms.chart = usedChart;
+  } else if (usedFallback && usedChart && requestedChart && usedChart !== requestedChart) {
     ms.step = 'need_chart';
     return {
       ok: true,
@@ -546,7 +601,7 @@ async function runMusicFlowV1({ message, sessionId, context, intent, signal }) {
   safeOut.mode = safeOut.mode || 'music';
   safeOut.meta = { ...(safeOut.meta || {}), flow: 'music_v1', step: ms.step, chart: requestedChart, year: ms.year || null };
 
-  // PATCH: if fallback metadata exists (even in “normal path”), prepend disclosure and add Switch chart
+  // add disclosure only if not accepted already
   return applyChartDisclosure(safeOut, ms);
 }
 
