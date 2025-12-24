@@ -5,6 +5,7 @@
  * PATCHES INCLUDED:
  * - Choice option rewrite: "Top 10" -> "Another moment" (until true Top 10 list exists)
  * - Chart disclosure: if usedFallback + usedChart != requestedChart, disclose and offer switch
+ * - Reply text sanitizer: removes legacy "Top 10" / "another random moment" phrasing from engine replies
  */
 
 'use strict';
@@ -224,6 +225,23 @@ function toOutputSafe(out) {
 
 function isAffirmation(text) {
   return /^(y|yes|yeah|yep|sure|ok|okay|alright|sounds good)$/i.test(asText(text));
+}
+
+/**
+ * PATCH (copy-only): sanitize legacy phrasing in music replies.
+ * This prevents the UI from showing "Top 10" or "another random moment" when we aren't returning a ranked list.
+ */
+function sanitizeMusicReplyText(reply) {
+  if (!reply) return reply;
+  let text = String(reply);
+
+  // Replace "Top 10" language (incl. "Top 10 for 1984") with "another moment"
+  text = text.replace(/Top\s*10(\s*for\s*\d{4})?/gi, 'another moment');
+
+  // Normalize "another random moment" -> "another moment"
+  text = text.replace(/another\s+random\s+moment/gi, 'another moment');
+
+  return text;
 }
 
 /**
@@ -480,6 +498,9 @@ async function runMusicFlowV1({ message, sessionId, context, intent, signal }) {
   }
 
   const safeOut = toOutputSafe(out);
+
+  // PATCH (copy-only): sanitize legacy reply text
+  safeOut.reply = sanitizeMusicReplyText(safeOut.reply);
 
   // CHART INTEGRITY GUARD (hard stop if silent chart swap)
   const requestedChart = ms.chart;
