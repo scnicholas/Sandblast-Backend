@@ -1,18 +1,21 @@
 "use strict";
 
 /**
- * musicKnowledge.js — Bulletproof V2.25 (Music Flow V1 Ready)
+ * musicKnowledge.js — Bulletproof V2.26 (Music Flow V1 Ready)
  *
- * V2.25 hotfix (critical):
- * - Top40Weekly merge year detection is now schema-proof:
- *   - Reads year from multiple object paths (year/Year/meta/header/info/etc.)
- *   - Extracts year from filename patterns:
- *       top100_1989.json, top100-1989.json, ...1989...
- *       top100_89.json -> 1989 (80–99 => 19xx)
- *   - If year still missing: logs basename + top-level keys (no silent skipping)
+ * V2.26 micro-patches (data correctness + fluidity):
+ * - Adds robust Top40Weekly "artist/title tail drift" repair:
+ *   Fixes cases like:
+ *     artist="Turner", title="What’s Love Got to Do with It Tina"
+ *     artist="Halen",  title="Jump Van"
+ *     artist="Jr.",    title="Ghostbusters Ray Parker,"
+ *     artist="Club",   title="Karma Chameleon Culture"
+ *   => artist="Tina Turner", "Van Halen", "Ray Parker, Jr.", "Culture Club"
+ *      and title trimmed back to real song title.
  *
  * Keeps:
- * - Drift repair normalizeMomentFields()
+ * - V2.25 schema-proof year detection for Top40Weekly merge
+ * - Deterministic drift repair normalizeMomentFields()
  * - Rank-aware Top 10 (rank 1–10)
  * - #1 only (rank === 1)
  * - Chart routing resolveChart()
@@ -88,8 +91,36 @@ function normalizeChart(chart) {
   return c;
 }
 
+function _asText(x) { return (x == null ? "" : String(x)).trim(); }
+function _tokens(s) { return _asText(s).split(/\s+/).filter(Boolean); }
+
+// “Name-like” tokens: Tina, Kenny, Van, Lionel, Culture, Ray, Parker, McCartney, etc.
+function _isNamey(tok) {
+  if (!tok) return false;
+  const t = String(tok).trim().replace(/[^\w'.-]/g, "");
+  if (!t) return false;
+  if (/^\d+$/.test(t)) return false;
+  return /^[A-Z]/.test(t) || /^Mc[A-Z]/.test(t) || /^O'?[A-Z]/.test(t);
+}
+
+function _cleanJoinTokens(arr) {
+  return arr
+    .join(" ")
+    .replace(/\s+,/g, ",")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function _cleanTitleTokens(arr) {
+  return arr
+    .join(" ")
+    .replace(/\s+,/g, ",")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 // =============================
-// DRIFT REPAIR (deterministic)
+// DRIFT REPAIR (deterministic + heuristics)
 // =============================
 const KNOWN_ARTISTS_SECOND_TOKEN = new Set([
   "Madonna",
@@ -97,7 +128,55 @@ const KNOWN_ARTISTS_SECOND_TOKEN = new Set([
   "Whitesnake",
 ]);
 
-function _asText(x) { return (x == null ? "" : String(x)).trim(); }
+const _TITLE_TAIL_JOINERS = new Set(["and", "&", "feat.", "ft.", "with"]);
+const _ARTIST_SUFFIXES = new Set(["jr.", "sr.", "ii", "iii", "iv"]);
+
+function repairArtistTitleTailDrift(m) {
+  // Only apply to Top40Weekly rows (where we observed the issue)
+  if (!m || m.chart !== TOP40_CHART) return m;
+
+  let artist = _asText(m.artist);
+  let title  = _asText(m.title);
+
+  const aParts = _tokens(artist);
+  const tParts = _tokens(title);
+
+  // Primary pattern: artist is 1 token and title has enough tokens to steal from tail
+  if (aParts.length !== 1 || tParts.length < 3) return m;
+
+  // Try moving 1..6 tokens from title tail -> artist head
+  // Choose smallest move that looks like "names/joiners/suffix"
+  for (let k = 1; k <= 6 && k < tParts.length - 1; k++) {
+    const tail = tParts.slice(-k);
+    const head = tParts.slice(0, -k);
+
+    if (head.length < 2) continue;
+
+    // tail must be mostly name-ish (allow joiners and suffixes)
+    let ok = true;
+    for (const tok of tail) {
+      const lower = String(tok).toLowerCase().replace(/[^\w'.-]/g, "");
+      if (_TITLE_TAIL_JOINERS.has(lower) || _ARTIST_SUFFIXES.has(lower)) continue;
+      if (!_isNamey(tok)) { ok = false; break; }
+    }
+    if (!ok) continue;
+
+    // Special case: artist is "Jr." (needs at least 2 tokens of tail, e.g., "Ray Parker,")
+    if (/^(jr\.?|sr\.?)$/i.test(artist) && k < 2) continue;
+
+    const newArtist = _cleanJoinTokens([...tail, artist]);
+    const newTitle  = _cleanTitleTokens(head);
+
+    // Sanity: avoid making artist absurdly long
+    if (_tokens(newArtist).length > 8) continue;
+
+    m.artist = newArtist;
+    m.title  = newTitle;
+    return m;
+  }
+
+  return m;
+}
 
 function normalizeMomentFields(m) {
   if (!m || typeof m !== "object") return m;
@@ -106,7 +185,7 @@ function normalizeMomentFields(m) {
   let title  = _asText(m.title);
   const year = Number(m.year);
 
-  // Hard deterministic fixes
+  // 1) Hard deterministic fixes
   if (year === 1989 && /^Prayer Madonna$/i.test(artist) && /^Like a$/i.test(title)) {
     artist = "Madonna";
     title  = "Like a Prayer";
@@ -124,7 +203,9 @@ function normalizeMomentFields(m) {
     title  = "Is This Love";
   }
 
-  // Generic 2-token drift repair
+  // 2) Generic “two-token artist drift” repair:
+  // Example: "Prayer Madonna" + "Like a" -> "Madonna" + "Like a Prayer"
+  // Safe rule: ONLY if artist is exactly 2 tokens and token2 is a known artist.
   const parts = artist.split(/\s+/).filter(Boolean);
   if (parts.length === 2 && KNOWN_ARTISTS_SECOND_TOKEN.has(parts[1])) {
     const spill = parts[0];
@@ -141,8 +222,17 @@ function normalizeMomentFields(m) {
     }
   }
 
+  // Write back before tail-drift repair
   m.artist = artist;
   m.title  = title;
+
+  // 3) NEW: Title tail drift repair (Top40Weekly)
+  repairArtistTitleTailDrift(m);
+
+  // Final trim
+  m.artist = _asText(m.artist);
+  m.title  = _asText(m.title);
+
   return m;
 }
 
@@ -191,15 +281,12 @@ function safeJsonParseTop40(raw, file) {
 function yearFromFilename(file) {
   const base = path.basename(String(file || ""));
 
-  // Strong patterns first
   let m = base.match(/top100[_-](19\d{2}|20\d{2})/i);
   if (m) return toInt(m[1]);
 
-  // Any 4-digit year in basename
   m = base.match(/\b(19\d{2}|20\d{2})\b/);
   if (m) return toInt(m[1]);
 
-  // 2-digit year pattern: top100_89.json => 1989 (only map 80–99 to 1980–1999)
   m = base.match(/top100[_-](\d{2})\b/i);
   if (m) {
     const yy = toInt(m[1]);
@@ -212,12 +299,10 @@ function yearFromFilename(file) {
 function yearFromObject(data) {
   if (!data || typeof data !== "object") return null;
 
-  // Direct keys
   const direct =
     toInt(data.year) ?? toInt(data.Year) ?? toInt(data.Y) ?? toInt(data.chartYear) ?? toInt(data.chart_year);
   if (direct) return direct;
 
-  // Common nested keys
   const nested =
     toInt(data.meta?.year) ??
     toInt(data.metadata?.year) ??
@@ -227,7 +312,6 @@ function yearFromObject(data) {
     toInt(data.payload?.year);
   if (nested) return nested;
 
-  // Date-like keys: "1989-06-10" etc.
   const dateLike = String(data.date ?? data.week ?? data.weekOf ?? data.chartDate ?? data.chart_date ?? "");
   const m = dateLike.match(/\b(19\d{2}|20\d{2})\b/);
   if (m) return toInt(m[1]);
@@ -319,6 +403,11 @@ function normalizeMoment(raw, forcedYear = null, forcedChart = null, forcedRank 
   };
 
   normalizeMomentFields(m);
+
+  // Refresh normalized keys after any repairs
+  m._na = norm(m.artist);
+  m._nt = norm(m.title);
+
   return m;
 }
 
@@ -355,7 +444,6 @@ function mergeTop40Weekly(existingMoments, seenKeys) {
       continue;
     }
 
-    // Year detection (V2.25)
     const year =
       yearFromObject(data) ??
       yearFromFilename(f);
@@ -373,10 +461,6 @@ function mergeTop40Weekly(existingMoments, seenKeys) {
     if (yearMin == null || year < yearMin) yearMin = year;
     if (yearMax == null || year > yearMax) yearMax = year;
 
-    // Accept shapes:
-    // A) { rows: [...] }
-    // B) array directly
-    // C) { data: [...] }
     const rows =
       Array.isArray(data.rows) ? data.rows :
       Array.isArray(data) ? data :
@@ -514,6 +598,10 @@ function getDb() {
 
   const mergeInfo = MERGE_TOP40WEEKLY ? mergeTop40Weekly(normalized, seen) : null;
 
+  // Rebuild sets after merge (now includes merged acts/tokens)
+  TOP40_ARTIST_SET = buildArtistSet(normalized);
+  TOP40_ONEWORD_SET = buildOneWordActSet(normalized);
+
   MOMENTS = normalized;
   rebuildIndexes();
 
@@ -560,7 +648,9 @@ function pickRandomFrom(arr) {
 // =============================
 function pickRandomByYear(year, chart = DEFAULT_CHART) {
   const bucket = poolForYear(year, chart);
-  return pickRandomFrom(bucket);
+  const m = pickRandomFrom(bucket);
+  if (m) normalizeMomentFields(m);
+  return m;
 }
 
 function pickRandomByYearWithMeta(year, preferredChart = DEFAULT_CHART) {
@@ -598,13 +688,18 @@ function getTopByYear(year, chart = DEFAULT_CHART, limit = 10) {
   const ranked = bucket.filter(m => toRank(m.rank) != null).slice();
   if (!ranked.length) return [];
   ranked.sort(sortByRank);
-  return ranked.slice(0, Math.max(1, limit));
+  const out = ranked.slice(0, Math.max(1, limit));
+  // Ensure repaired fields on output
+  for (const m of out) normalizeMomentFields(m);
+  return out;
 }
 
 function getNumberOneByYear(year, chart = DEFAULT_CHART) {
   const bucket = poolForYear(year, chart);
   if (!bucket.length) return null;
-  return bucket.find(m => toRank(m.rank) === 1) || null;
+  const m = bucket.find(m => toRank(m.rank) === 1) || null;
+  if (m) normalizeMomentFields(m);
+  return m;
 }
 
 function hasChart(chart) {
