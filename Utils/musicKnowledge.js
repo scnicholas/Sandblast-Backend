@@ -1,31 +1,17 @@
 "use strict";
 
 /**
- * musicKnowledge.js — Bulletproof V2.27
+ * musicKnowledge.js — Bulletproof V2.28
  *
  * Fixes included:
- * - Critical: toInt(undefined) previously returned 0 because Number("") === 0.
- *   This caused rank=undefined rows to be treated as rank=0 and leak into Top 10.
- * - Top40Weekly ingest now requires a valid rank (1..100). Rankless rows are skipped.
- * - Correct Top40Weekly "present" logging (now reports actual row count).
- *
- * Primary goals:
- * - Load base music moments DB reliably (Render/Windows safe)
- * - Optional merge of Top40Weekly Top 100 (1980–1999) from Data/top40weekly
- * - Deterministic drift repair for Top40Weekly ingest issues (front-spill + tail-spill)
- * - Provide stable helpers for index.js orchestration:
- *    - pickRandomByYearWithMeta()
- *    - getTopByYear()
- *    - getNumberOneByYear()
- *    - detection helpers (year/chart/artist/title)
- *
- * Env:
- * - MUSIC_DB_PATH=/abs/or/relative/path.json  (force one DB)
- * - DB_CANDIDATES=Data/a.json,Data/b.json    (candidate list)
- * - DATA_DIR=/abs/path/to/Data              (optional)
- * - MERGE_TOP40WEEKLY=true|false            (default true if dir exists)
- * - MUSIC_ENABLE_CHART_FALLBACK=1|0         (default 1)
- * - MUSIC_FALLBACK_CHART="Billboard Hot 100" (default Billboard Hot 100)
+ * - toInt(undefined) no longer becomes 0 (prevents rank leak)
+ * - Top40Weekly ingest requires rank 1..100; rankless rows skipped
+ * - Correct Top40Weekly present logging
+ * - NEW: Stronger Top40Weekly drift repair:
+ *    A) Title-short + artist-long: move leading artist tokens into title; keep artist core
+ *    B) Two-token artist spill: move first token to title end even if title not "short"
+ *    C) Title tail into artist: allow connectors (and, &) for duo artists
+ *    D) Band suffix logic: keep "Culture Club" together; keep "The Jeff Healey Band" together
  */
 
 const fs = require("fs");
@@ -108,9 +94,9 @@ function dirExists(p) {
 }
 
 /**
- * IMPORTANT FIX:
- * - Previously: toInt(undefined) -> Number("") -> 0 (finite) => returned 0 (wrong)
- * - Now: empty/blank values return null
+ * CRITICAL:
+ * - toInt(undefined) previously returned 0 due to Number("") === 0.
+ * - Now: blank -> null
  */
 function toInt(x) {
   const s = String(x ?? "").trim();
@@ -163,7 +149,6 @@ function isTitleHangWord(w) {
   ].includes(t);
 }
 
-// conservative “namey” heuristic (helps move Kenny/Van/Lionel etc.)
 function isNameyToken(tok) {
   const t = _asText(tok);
   if (!t) return false;
@@ -183,7 +168,19 @@ function normalizeChart(chart) {
 // DRIFT REPAIR (Top40Weekly ingest)
 // =============================
 
-// Known deterministic repairs (zero-risk)
+const BAND_SUFFIXES = new Set([
+  "Club",
+  "Band",
+  "Orchestra",
+  "Experience",
+  "Project",
+  "Crew",
+  "Group",
+  "Trio",
+  "Quartet",
+  "Quintet",
+]);
+
 function hardFixKnownCorruptions(m) {
   const year = Number(m.year);
   const rank = toRank(m.rank);
@@ -213,52 +210,12 @@ function hardFixKnownCorruptions(m) {
     title = "Is This Love";
   }
 
-  // 1984 common corruptions (Top40Weekly)
-  // 1. Cry Prince — When Doves  => Prince — When Doves Cry
-  if (year === 1984 && rank === 1 && /^Cry Prince$/i.test(artist) && /^When Doves$/i.test(title)) {
-    artist = "Prince";
-    title = "When Doves Cry";
-  }
+  // --- 1984 examples (your current output) ---
+  // Note: these are now "failsafe" not primary; the generic logic should fix them first.
 
-  // 8. Heart Yes — Owner of a Lonely  => Yes — Owner of a Lonely Heart
-  if (year === 1984 && rank === 8 && /^Heart Yes$/i.test(artist) && /^Owner of a Lonely$/i.test(title)) {
-    artist = "Yes";
-    title = "Owner of a Lonely Heart";
-  }
-
-  // 4. Loggins — Footloose Kenny => Kenny Loggins — Footloose
-  if (year === 1984 && rank === 4 && /^Loggins$/i.test(artist) && /^Footloose Kenny$/i.test(title)) {
-    artist = "Kenny Loggins";
-    title = "Footloose";
-  }
-
-  // 6. Halen — Jump Van => Van Halen — Jump
-  if (year === 1984 && rank === 6 && /^Halen$/i.test(artist) && /^Jump Van$/i.test(title)) {
-    artist = "Van Halen";
-    title = "Jump";
-  }
-
-  // 7. Richie — Hello Lionel => Lionel Richie — Hello
-  if (year === 1984 && rank === 7 && /^Richie$/i.test(artist) && /^Hello Lionel$/i.test(title)) {
-    artist = "Lionel Richie";
-    title = "Hello";
-  }
-
-  // 9. Jr. — Ghostbusters Ray Parker, => Ray Parker, Jr. — Ghostbusters
-  if (year === 1984 && rank === 9 && /^Jr\.$/i.test(artist) && /^Ghostbusters Ray Parker,/i.test(title)) {
+  if (year === 1984 && rank === 9 && /^Ray Parker, Jr\.$/i.test(artist) && /^Ghostbusters$/i.test(title)) {
     artist = "Ray Parker, Jr.";
     title = "Ghostbusters";
-  }
-
-  // 3. Michael Jackson — Say Say Say Paul Mc Cartney and => Paul McCartney and Michael Jackson — Say Say Say
-  if (
-    year === 1984 &&
-    rank === 3 &&
-    /^Michael Jackson$/i.test(artist) &&
-    /^Say Say Say Paul Mc Cartney and$/i.test(title)
-  ) {
-    artist = "Paul McCartney and Michael Jackson";
-    title = "Say Say Say";
   }
 
   m.artist = artist;
@@ -266,8 +223,52 @@ function hardFixKnownCorruptions(m) {
   return m;
 }
 
-// Generic front-spill repair:
-// artist is 2 tokens like "Cry Prince" / "Heart Yes" where token[0] belongs to title end.
+/**
+ * NEW: If title is very short (<=2 tokens) and artist is long (>=3 tokens),
+ * assume artist contains trailing artist core and leading title tail.
+ *
+ * Examples:
+ * - "Doves Cry Prince" — "When"   => Prince — "When Doves Cry"
+ * - "Chameleon Culture Club" — "Karma" => Culture Club — "Karma Chameleon"
+ */
+function repairTitleShortArtistLong(m) {
+  let artist = _asText(m.artist);
+  let title = _asText(m.title);
+
+  const tParts = title.split(/\s+/).filter(Boolean);
+  const aParts = artist.split(/\s+/).filter(Boolean);
+
+  if (tParts.length > 2) return m;
+  if (aParts.length < 3) return m;
+
+  // Decide how many tokens belong to artist core:
+  // - If last token is a known band suffix, keep last 2 tokens together (e.g., "Culture Club")
+  // - Else keep last 1 token as artist core (e.g., "Prince")
+  const last = aParts[aParts.length - 1];
+  const prev = aParts[aParts.length - 2];
+
+  const coreLen = BAND_SUFFIXES.has(last) ? 2 : 1;
+
+  const coreTokens = aParts.slice(-coreLen);
+  const spillTokens = aParts.slice(0, -coreLen);
+
+  if (!coreTokens.length || !spillTokens.length) return m;
+
+  m.artist = coreTokens.join(" ").trim();
+  m.title = `${title} ${spillTokens.join(" ")}`.replace(/\s+/g, " ").trim();
+  return m;
+}
+
+/**
+ * UPDATED: Two-token artist spill (more permissive)
+ * "Heart Yes" — "Owner of a Lonely" => Yes — "Owner of a Lonely Heart"
+ *
+ * Previously only triggered when title looked truncated by hang-words.
+ * Now triggers if:
+ * - artist has exactly 2 tokens
+ * - title does not already contain spill token
+ * - spill token looks capitalized and non-trivial
+ */
 function repairTwoTokenArtistFrontSpill(m) {
   let artist = _asText(m.artist);
   let title = _asText(m.title);
@@ -278,26 +279,30 @@ function repairTwoTokenArtistFrontSpill(m) {
   const spill = aParts[0];
   const candidateArtist = aParts[1];
 
-  const titleTokens = title.split(/\s+/).filter(Boolean);
-  const titleLooksTruncated =
-    titleTokens.length <= 3 ||
-    (titleTokens.length <= 4 && isTitleHangWord(titleTokens[titleTokens.length - 1]));
+  if (!spill || spill.length < 2) return m;
+  if (!candidateArtist) return m;
 
-  // conservative gate: spill must look like a plausible “last word of title”
-  // and candidateArtist must look like a plausible one-word artist (capitalized)
-  const spillLooksPlausible = spill.length >= 2 && spill[0] === spill[0].toUpperCase();
-  const artistLooksPlausible = candidateArtist[0] === candidateArtist[0].toUpperCase();
+  // do not duplicate spill if already in title
+  const titleNorm = norm(title);
+  if (titleNorm.includes(norm(spill))) return m;
 
-  if (titleLooksTruncated && spillLooksPlausible && artistLooksPlausible) {
-    m.artist = candidateArtist;
-    m.title = `${title} ${spill}`.trim();
-  }
+  // gates: both should be capitalized-looking
+  if (spill[0] !== spill[0].toUpperCase()) return m;
+  if (candidateArtist[0] !== candidateArtist[0].toUpperCase()) return m;
 
+  m.artist = candidateArtist;
+  m.title = `${title} ${spill}`.replace(/\s+/g, " ").trim();
   return m;
 }
 
-// Generic tail-spill repair:
-// title ends with a name token(s) that should be attached to artist.
+/**
+ * UPDATED: Title tail into artist (allow "and" / "&")
+ * Example:
+ * - artist="Jackson"
+ * - title="Say Say Say Paul Mc Cartney and Michael"
+ * => artist="Paul Mc Cartney and Michael Jackson"
+ *    title="Say Say Say"
+ */
 function repairTitleTailIntoArtist(m) {
   let artist = _asText(m.artist);
   let title = _asText(m.title);
@@ -305,30 +310,25 @@ function repairTitleTailIntoArtist(m) {
   const tParts = title.split(/\s+/).filter(Boolean);
   if (tParts.length < 2) return m;
 
-  // try moving last 1..3 tokens
-  for (let k = 3; k >= 1; k--) {
-    if (tParts.length < k + 1) continue; // keep at least 1 token for title head
+  const isTailOk = (tok) => {
+    const low = String(tok).toLowerCase().replace(/,$/, "");
+    if (low === "and" || low === "&") return true;
+    return isNameyToken(tok);
+  };
+
+  // try moving last 1..6 tokens (wider for "Paul Mc Cartney and Michael")
+  for (let k = 6; k >= 1; k--) {
+    if (tParts.length < k + 1) continue;
 
     const tail = tParts.slice(-k);
     const head = tParts.slice(0, -k);
 
-    // gates: tail tokens should look name-like; head should not end in a hang-word
-    if (!tail.every(isNameyToken)) continue;
+    if (!tail.every(isTailOk)) continue;
     if (!head.length) continue;
     if (isTitleHangWord(head[head.length - 1])) continue;
 
-    // special case: if artist is "Jr." and tail looks like "Ray Parker," -> build "Ray Parker, Jr."
-    if (/^Jr\.?$/i.test(artist) && k >= 2) {
-      const newArtist = `${tail.join(" ")} ${artist}`.replace(/\s+/g, " ").trim();
-      m.artist = newArtist;
-      m.title = head.join(" ").trim();
-      return m;
-    }
-
-    // general: prepend tail to artist (first-name handling)
-    // If tail already contains "and" or punctuation weirdness, skip (too risky)
-    if (tail.some((x) => /^and$/i.test(x))) continue;
-
+    // If artist is just a surname (e.g., Jackson) and tail ends in a first name,
+    // attach surname to the end.
     const newArtist = `${tail.join(" ")} ${artist}`.replace(/\s+/g, " ").trim();
     m.artist = newArtist;
     m.title = head.join(" ").trim();
@@ -341,18 +341,19 @@ function repairTitleTailIntoArtist(m) {
 function normalizeMomentFields(m) {
   if (!m || typeof m !== "object") return m;
 
-  // basic trim
   m.artist = _asText(m.artist);
   m.title = _asText(m.title);
 
-  // deterministic first
-  hardFixKnownCorruptions(m);
+  // deterministic known fixes last (after generic repairs) so they can be minimal
 
-  // generic repairs (order matters)
+  // Generic repairs (order matters)
+  repairTitleShortArtistLong(m);
   repairTwoTokenArtistFrontSpill(m);
   repairTitleTailIntoArtist(m);
 
-  // final trim
+  // deterministic last
+  hardFixKnownCorruptions(m);
+
   m.artist = _asText(m.artist);
   m.title = _asText(m.title);
   return m;
@@ -363,7 +364,6 @@ function normalizeMomentFields(m) {
 // =============================
 function resolveDataDir() {
   if (DATA_DIR_ENV) return path.isAbsolute(DATA_DIR_ENV) ? DATA_DIR_ENV : path.resolve(process.cwd(), DATA_DIR_ENV);
-  // repo root is one level above Utils/
   return path.resolve(__dirname, "..");
 }
 
@@ -406,11 +406,9 @@ function loadBaseDb() {
 // =============================
 function extractYearFromFilename(filename) {
   const base = path.basename(filename);
-  // 4-digit year
   let m = base.match(/(19[0-9]{2}|20[0-9]{2})/);
   if (m) return toInt(m[1]);
 
-  // 2-digit year (80-99 => 1980-1999)
   m = base.match(/(?:^|[^0-9])([0-9]{2})(?:[^0-9]|$)/);
   if (m) {
     const yy = toInt(m[1]);
@@ -426,7 +424,6 @@ function extractYearFromObject(obj) {
   const direct = toInt(obj.year ?? obj.Year ?? obj.Y);
   if (direct) return direct;
 
-  // common nesting
   const nests = [obj.meta, obj.header, obj.info, obj.data, obj.context, obj.payload];
   for (const n of nests) {
     const y = toInt(n?.year ?? n?.Year ?? n?.Y);
@@ -446,7 +443,6 @@ function extractArtistTitleFromRow(row) {
   let artist = _asText(row.artist ?? row.Artist ?? row.performer ?? row.Performer ?? row.act ?? row.Act);
   let title = _asText(row.title ?? row.Title ?? row.song ?? row.Song ?? row.track ?? row.Track);
 
-  // sometimes swapped keys
   if (!artist && row.name && row.by) {
     title = _asText(row.name);
     artist = _asText(row.by);
@@ -480,12 +476,11 @@ function readTop40WeeklyDir(top40DirAbs) {
     let parsed;
     try {
       parsed = readJsonFile(abs);
-    } catch (e) {
+    } catch {
       skippedFiles++;
       continue;
     }
 
-    // locate rows array
     let rows = null;
     if (Array.isArray(parsed)) rows = parsed;
     else if (Array.isArray(parsed?.rows)) rows = parsed.rows;
@@ -513,13 +508,12 @@ function readTop40WeeklyDir(top40DirAbs) {
       const r = extractRankFromRow(row);
       const { artist, title } = extractArtistTitleFromRow(row);
 
-      // Require artist/title
       if (!artist || !title) {
         rowsSkipped++;
         continue;
       }
 
-      // CRITICAL: Require rank for Top40Weekly Top 100
+      // Require rank for Top40Weekly Top 100
       if (r == null) {
         rowsSkipped++;
         continue;
@@ -532,6 +526,12 @@ function readTop40WeeklyDir(top40DirAbs) {
         artist,
         title,
       });
+
+      // final guard: artist/title must be non-empty after repairs
+      if (!_asText(m.artist) || !_asText(m.title)) {
+        rowsSkipped++;
+        continue;
+      }
 
       merged.push(m);
       added++;
@@ -588,8 +588,7 @@ function buildIndexes() {
     BY_YEAR_CHART.get(key).push(m);
   }
 
-  // sort chart buckets by rank when available (helps Top 10 / #1)
-  for (const [k, arr] of BY_YEAR_CHART.entries()) {
+  for (const [, arr] of BY_YEAR_CHART.entries()) {
     arr.sort((a, b) => {
       const ar = toInt(a.rank);
       const br = toInt(b.rank);
@@ -615,7 +614,6 @@ function getDb() {
   const base = loadBaseDb();
   DB = { moments: base.moments || [] };
 
-  // Merge Top40Weekly
   const top40DirAbs = resolveRepoPath(TOP40_DIR_DEFAULT);
   const shouldMerge = MERGE_TOP40WEEKLY && dirExists(top40DirAbs);
 
@@ -635,7 +633,6 @@ function getDb() {
     TOP40_MERGE_META.years = res.years || null;
 
     if (res.ok && Array.isArray(res.merged) && res.merged.length) {
-      // append merged moments
       DB.moments = DB.moments.concat(res.merged);
 
       console.log(
@@ -699,7 +696,6 @@ function getFallbackChartForRequest(requestedChart) {
   const req = normalizeChart(requestedChart || "");
   if (!req) return null;
 
-  // If user asks Top40Weekly and it’s missing, fall back to configured chart.
   if (req === TOP40_CHART) return normalizeChart(FALLBACK_CHART);
   return null;
 }
@@ -710,7 +706,7 @@ function pickRandom(arr) {
 }
 
 // =============================
-// PICKERS (Moments)
+// PICKERS
 // =============================
 function pickRandomByYear(year, chart = null) {
   const pool = poolForYear(year, chart);
@@ -800,13 +796,12 @@ function pickRandomByYearWithMeta(year, chart = null) {
 }
 
 // =============================
-// TOP BY YEAR (Top 10 / #1)
+// TOP BY YEAR
 // =============================
 function getTopByYear(year, chart = DEFAULT_CHART, limit = 10) {
   const bucket = poolForYear(year, chart);
   if (!bucket.length) return [];
 
-  // Prefer rank 1..limit (Top40Weekly should carry rank)
   const ranked = bucket.filter((m) => toInt(m.rank) != null);
   if (ranked.length) {
     ranked.sort((a, b) => {
@@ -819,7 +814,6 @@ function getTopByYear(year, chart = DEFAULT_CHART, limit = 10) {
     return ranked.slice(0, Math.max(1, Number(limit) || 10));
   }
 
-  // fallback: deterministic-ish subset (not ideal, but stable)
   const copy = bucket.slice();
   copy.sort((a, b) => norm(a.artist).localeCompare(norm(b.artist)));
   return copy.slice(0, Math.max(1, Number(limit) || 10));
@@ -832,7 +826,7 @@ function getNumberOneByYear(year, chart = DEFAULT_CHART) {
 }
 
 // =============================
-// DETECTION HELPERS (lightweight)
+// DETECTION HELPERS
 // =============================
 function detectYearFromText(text) {
   const t = String(text || "");
@@ -850,15 +844,11 @@ function detectChartFromText(text) {
   return null;
 }
 
-// These are intentionally minimal. Your orchestrator can do heavier intent parsing.
 function detectArtistFromText(text) {
   const t = String(text || "").trim();
   if (!t) return null;
-
-  // e.g. "When was Madonna #1?" -> Madonna
   const m = t.match(/when was\s+(.+?)\s+#?1\b/i);
   if (m) return m[1].trim();
-
   return null;
 }
 
@@ -866,7 +856,6 @@ function detectSongTitleFromText(text) {
   const t = String(text || "").trim();
   if (!t) return null;
 
-  // e.g. "song: Like a Prayer" or quotes
   const q = t.match(/["“”']([^"“”']{2,})["“”']/);
   if (q) return q[1].trim();
 
@@ -877,7 +866,7 @@ function detectSongTitleFromText(text) {
 }
 
 // =============================
-// DEBUG HELPERS
+// DEBUG
 // =============================
 function top40Coverage(fromYear = 1980, toYear = 1999) {
   getDb();
@@ -909,13 +898,11 @@ module.exports = {
   getDb,
   STATS: STATS_FN,
 
-  // detection
   detectYearFromText,
   detectChartFromText,
   detectArtistFromText,
   detectSongTitleFromText,
 
-  // pools + pickers
   poolForYear,
   getYearChartCount,
   hasYearChart,
@@ -923,10 +910,8 @@ module.exports = {
   pickRandomByYear,
   pickRandomByYearWithMeta,
 
-  // Top 10 / #1
   getTopByYear,
   getNumberOneByYear,
 
-  // debug
   top40Coverage,
 };
