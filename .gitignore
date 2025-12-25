@@ -50,3 +50,9 @@ Thumbs.db
 *.bak
 *.old
 *.swp
+
+# Local debug artifacts
+Data/_debug_*.html
+Scripts/*_raw.html
+Scripts/debug_*.js
+
