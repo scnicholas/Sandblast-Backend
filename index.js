@@ -2,13 +2,11 @@
  * Sandblast Backend — Nyx Intelligence Layer
  * Hardened Orchestrator + Music Flow V1 (KB-backed)
  *
- * Fixes:
- * - Stops "Top 10" text from being rewritten into "another moment"
- * - Adds session-based Conversation Orchestrator (no looping)
- * - Implements Top 10 (V1) using musicKnowledge.getTopByYear()
- * - Makes follow-up choices actionable (Another moment / #1 only / Top 10)
- * - Treats "yes/ok" after a choice as selecting the first option
- * - Removes dependency on musicKnowledge.handleMessage (not present in current KB)
+ * Connectivity hardening:
+ * - Explicit HOST bind (default 0.0.0.0)
+ * - Startup logs include host:port + PID
+ * - Clean ASCII banner (avoids ΓÇö encoding artifacts)
+ * - Handles common listen errors (EADDRINUSE, etc.)
  */
 
 'use strict';
@@ -29,6 +27,7 @@ const app = express();
 // CONFIG
 // -----------------------------
 const PORT = Number(process.env.PORT || 3000);
+const HOST = String(process.env.HOST || '0.0.0.0'); // important on Windows + containers
 const ENV = String(process.env.NODE_ENV || process.env.ENV || 'production').toLowerCase();
 const DEFAULT_TIMEOUT_MS = Number(process.env.NYX_TIMEOUT_MS || 20000);
 const DEFAULT_CHART = 'Billboard Hot 100';
@@ -169,17 +168,12 @@ function toOutputSafe(out) {
   return normalized;
 }
 
-/**
- * Presentation cleanup only. Do NOT rewrite user meaning.
- */
 function sanitizeMusicReplyText(reply) {
   if (!reply) return reply;
   let text = String(reply);
-
   text = text.replace(/\banother\s+moment\s*,\s*another\s+moment\b/gi, 'another moment');
   text = text.replace(/\bthe\s+another\s+moment\b/gi, 'another moment');
   text = text.replace(/another moment\s*0\b/gi, 'another moment');
-
   return text;
 }
 
@@ -200,17 +194,11 @@ function formatMomentLine(m) {
   return `Moment: ${artist} — ${title} (${year}, ${chart}).`;
 }
 
-function momentSig(m) {
-  if (!m) return '';
-  return `${asText(m.artist).toLowerCase()}|${asText(m.title).toLowerCase()}|${Number(m.year)}|${asText(m.chart).toLowerCase()}`.trim();
-}
-
 function pickMomentByYearWithFallback(year, requestedChart) {
   if (!kbAvailable()) return { moment: null, usedFallback: false, usedChart: requestedChart, poolSize: 0 };
 
   const chart = normalizeChart(requestedChart || DEFAULT_CHART);
 
-  // Preferred: use KB helper if available
   if (typeof musicKnowledge.pickRandomByYearWithMeta === 'function') {
     const meta = musicKnowledge.pickRandomByYearWithMeta(year, chart);
     if (meta && meta.moment) {
@@ -225,7 +213,6 @@ function pickMomentByYearWithFallback(year, requestedChart) {
     }
   }
 
-  // Fallback path if helper missing: try requested chart then Top40
   if (typeof musicKnowledge.pickRandomByYear === 'function') {
     const m1 = musicKnowledge.pickRandomByYear(year, chart);
     if (m1) return { moment: m1, usedFallback: false, usedChart: chart, requestedChart: chart, poolSize: 0, strategy: 'primary' };
@@ -243,24 +230,11 @@ function getTopNByYear(year, chart, n) {
   if (typeof musicKnowledge.getTopByYear === 'function') {
     return musicKnowledge.getTopByYear(year, c, n) || [];
   }
-
-  // If getTopByYear missing, degrade gracefully: sample unique randoms.
-  const picks = [];
-  const seen = new Set();
-  for (let i = 0; i < 50 && picks.length < n; i++) {
-    const { moment } = pickMomentByYearWithFallback(year, c);
-    const sig = momentSig(moment);
-    if (moment && sig && !seen.has(sig)) {
-      seen.add(sig);
-      picks.push(moment);
-    }
-  }
-  return picks;
+  return [];
 }
 
 function buildMomentReply(year, requestedChart, session, picked) {
-  const s = session;
-  const ms = s.music;
+  const ms = session.music;
 
   if (!picked || !picked.moment) {
     ms.step = 'need_anchor';
@@ -309,7 +283,9 @@ function buildMomentReply(year, requestedChart, session, picked) {
 
 function buildTop10Reply(year, chart, list) {
   const c = normalizeChart(chart);
-  const lines = (list || []).slice(0, 10).map((m, i) => `${i + 1}. ${asText(m.artist)} — ${asText(m.title)} (${Number(m.year)}, ${asText(m.chart) || c}).`);
+  const lines = (list || []).slice(0, 10).map((m, i) =>
+    `${i + 1}. ${asText(m.artist)} — ${asText(m.title)} (${Number(m.year)}, ${asText(m.chart) || c}).`
+  );
 
   const reply = [
     `Top 10 (V1) — **${year}** (${c}).`,
@@ -426,7 +402,6 @@ async function handleMusic(message, sessionId, context, timeoutMs) {
         meta: { flow: 'music_v1', step: ms.step, intent: 'another_moment', chart: reqChart }
       };
     }
-
     const picked = pickMomentByYearWithFallback(ms.year, reqChart);
     return buildMomentReply(ms.year, reqChart, s, picked);
   }
@@ -443,7 +418,6 @@ async function handleMusic(message, sessionId, context, timeoutMs) {
         meta: { flow: 'music_v1', step: ms.step, intent: 'number_one', chart: reqChart }
       };
     }
-
     const top1 = getTopNByYear(ms.year, reqChart, 1)[0] || null;
     return buildNumberOneReply(ms.year, reqChart, top1);
   }
@@ -453,24 +427,22 @@ async function handleMusic(message, sessionId, context, timeoutMs) {
   if (y) {
     ms.year = y;
     ms.step = 'anchored';
-
     const picked = pickMomentByYearWithFallback(y, reqChart);
     return buildMomentReply(y, reqChart, s, picked);
   }
 
-  // Change year intent (simple)
+  // Change year intent
   if (/^change year$/i.test(asText(message))) {
     ms.step = 'need_anchor';
     return {
       ok: true,
       mode: 'music',
-      reply: 'Sure — what year do you want?',
+      reply: 'Sure - what year do you want?',
       followUp: { kind: 'slotfill', required: ['year'], prompt: 'Type a year (e.g., 1994).' },
       meta: { flow: 'music_v1', step: ms.step, intent: 'change_year', chart: reqChart }
     };
   }
 
-  // If nothing matched, keep user in music lane with a clear next step
   return {
     ok: true,
     mode: 'music',
@@ -486,7 +458,6 @@ async function handleMusic(message, sessionId, context, timeoutMs) {
 async function routeMessage(message, sessionId, context, timeoutMs) {
   const s = getSession(sessionId);
 
-  // If UI mode says music, stay music
   const uiMode = asText(context && context.mode);
   if (uiMode && uiMode.toLowerCase() === 'music') {
     const out = await handleMusic(message, sessionId, context, timeoutMs);
@@ -497,7 +468,6 @@ async function routeMessage(message, sessionId, context, timeoutMs) {
     return out;
   }
 
-  // Heuristic routing for music
   const t = asText(message).toLowerCase();
   const looksMusic =
     /top\s*10|top10|#1\s*only|number\s*one|hot\s*100|billboard|uk\s*singles|canada\s*rpm|top40weekly|\b(19\d{2})\b/.test(t);
@@ -511,7 +481,6 @@ async function routeMessage(message, sessionId, context, timeoutMs) {
     return out;
   }
 
-  // Default: general response
   const out = {
     ok: true,
     mode: 'general',
@@ -535,6 +504,9 @@ app.get('/api/health', (req, res) => {
     ok: true,
     service: 'sandblast-backend',
     env: ENV,
+    host: HOST,
+    port: PORT,
+    pid: process.pid,
     time: new Date().toISOString()
   });
 });
@@ -564,6 +536,22 @@ app.post('/api/chat', async (req, res) => {
 // -----------------------------
 // START
 // -----------------------------
-app.listen(PORT, () => {
-  console.log(`[Nyx] up on ${PORT} — intel-layer orchestrator env=${ENV} timeout=${DEFAULT_TIMEOUT_MS}ms`);
+const server = app.listen(PORT, HOST, () => {
+  console.log(`[Nyx] up on ${HOST}:${PORT} - intel-layer orchestrator env=${ENV} timeout=${DEFAULT_TIMEOUT_MS}ms pid=${process.pid}`);
+});
+
+server.on('error', (err) => {
+  const code = err && err.code ? String(err.code) : 'UNKNOWN';
+  console.error(`[Nyx] listen error (${code}):`, err && err.message ? err.message : err);
+  process.exit(1);
+});
+
+// Hard crash visibility
+process.on('uncaughtException', (err) => {
+  console.error('[Nyx] uncaughtException:', err);
+  process.exit(1);
+});
+process.on('unhandledRejection', (err) => {
+  console.error('[Nyx] unhandledRejection:', err);
+  process.exit(1);
 });
