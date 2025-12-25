@@ -1,17 +1,15 @@
 "use strict";
 
 /**
- * musicKnowledge.js — Bulletproof V2.22...
- * Based on V2.20 (your current file).
+ * musicKnowledge.js — Bulletproof V2.23 (Music Flow V1 Ready)
+ * Based on your V2.22 file.
  *
- * V2.21 upgrades:
- * - Hardened DB loading and normalization
- * - Top40Weekly Top 100 optional merge support (1980–1999)
- * - Deterministic follow-up metadata helpers
- *
- * V2.22 upgrades:
- * - Moment drift/normalization repairs for Top40Weekly ingest
- *   (fixes cases like "Prayer Madonna — Like a", "Love Whitesnake — Is This", etc.)
+ * V2.23 upgrades (Music Flow V1):
+ * - Rank-aware Top 10 correctness (uses rank 1–10 where available)
+ * - #1 only support (rank === 1)
+ * - Explicit chart routing (resolveChart + hasChart + controlled fallback)
+ * - Top40Weekly merge now injects rank deterministically when missing (index+1)
+ * - Keeps your deterministic drift repairs (Prayer Madonna, Elevator Aerosmith, etc.)
  */
 
 const fs = require("fs");
@@ -61,6 +59,13 @@ function toInt(x) {
   return Number.isFinite(n) ? n : null;
 }
 
+function toRank(x) {
+  const n = Number(String(x ?? "").trim());
+  if (!Number.isFinite(n)) return null;
+  if (n < 1 || n > 100) return null;
+  return n;
+}
+
 function norm(s) {
   return String(s || "")
     .toLowerCase()
@@ -79,16 +84,16 @@ function normalizeChart(chart) {
     c === "UK Singles Chart" ||
     c === "Canada RPM"
   ) {
-    return c;
+    return c === "Top40Weekly" ? TOP40_CHART : c;
   }
+  // pass-through for unknown charts
   return c;
 }
 
 // -----------------------------
 // Moment normalization / drift repair (Top40Weekly ingest fixes)
 // -----------------------------
-// NOTE: We do *not* attempt aggressive NLP cleanup here—only deterministic, low-risk repairs.
-// This prevents odd splits like "Prayer Madonna" + "Like a" showing up in UI.
+// NOTE: deterministic, low-risk repairs only.
 
 const KNOWN_ARTISTS_SECOND_TOKEN = new Set([
   "Madonna",
@@ -129,9 +134,6 @@ function normalizeMomentFields(m) {
   }
 
   // 2) Generic “two-token artist drift” repair:
-  // Example: "Prayer Madonna" + "Like a" -> "Madonna" + "Like a Prayer"
-  // Example: "Elevator Aerosmith" + "Love in an" -> "Aerosmith" + "Love in an Elevator"
-  // Safe rule: ONLY if artist is exactly 2 tokens and token2 is a known artist.
   const parts = artist.split(/\s+/).filter(Boolean);
   if (parts.length === 2 && KNOWN_ARTISTS_SECOND_TOKEN.has(parts[1])) {
     const spill = parts[0]; // e.g., "Prayer", "Elevator"
@@ -158,22 +160,18 @@ function normalizeMomentFields(m) {
 // =============================
 function resolveDataDir() {
   if (DATA_DIR_ENV) return path.resolve(DATA_DIR_ENV);
-  // If running from repo root, Data is usually ./Data
   return path.resolve(process.cwd(), "Data");
 }
 
 function resolveTop40WeeklyDir() {
   const dataDir = resolveDataDir();
 
-  // Known layout: Data/top40weekly
   const candidate = path.join(dataDir, "top40weekly");
   if (fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) return candidate;
 
-  // Some users store it as Data/Top40Weekly
   const candidate2 = path.join(dataDir, "Top40Weekly");
   if (fs.existsSync(candidate2) && fs.statSync(candidate2).isDirectory()) return candidate2;
 
-  // Try any case-insensitive match directory under Data
   try {
     const entries = fs.readdirSync(dataDir, { withFileTypes: true });
     const match = entries.find((e) => e.isDirectory() && String(e.name).toLowerCase() === "top40weekly");
@@ -189,7 +187,6 @@ function resolveTop40WeeklyDir() {
 }
 
 function listTop40Files(dir) {
-  // expecting files like top100_1980.json ... top100_1999.json
   const out = [];
   const entries = fs.readdirSync(dir, { withFileTypes: true });
   for (const e of entries) {
@@ -263,8 +260,11 @@ function mergeTop40Weekly(existingMoments, seenKeys) {
       continue;
     }
 
-    for (const r of rows) {
-      const m = normalizeMoment(r, year, TOP40_CHART);
+    // IMPORTANT: inject rank if missing (index+1) because Top40Weekly is a Top 100 list
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      const forcedRank = toRank(r.rank ?? r.position ?? r.pos ?? r.place) ?? (i + 1);
+      const m = normalizeMoment(r, year, TOP40_CHART, forcedRank);
       if (!m) continue;
 
       const key = `${m._na}|${m._nt}|${m.year}|${m.chart}`;
@@ -284,23 +284,10 @@ function mergeTop40Weekly(existingMoments, seenKeys) {
 }
 
 // =============================
-// TOP40WEEKLY ARTIST/TITLE FIXUPS
+// TOP40WEEKLY ARTIST/TITLE FIXUPS (light heuristic)
 // =============================
-let TOP40_SURNAME_SET = new Set();
 let TOP40_ARTIST_SET = new Set();
 let TOP40_ONEWORD_SET = new Set();
-
-function buildSurnameSet(moments) {
-  const set = new Set();
-  for (const m of moments) {
-    if (!m || m.chart !== TOP40_CHART) continue;
-    const parts = String(m.artist || "").trim().split(/\s+/).filter(Boolean);
-    if (parts.length >= 2) {
-      set.add(parts[parts.length - 1].toLowerCase());
-    }
-  }
-  return set;
-}
 
 function buildArtistSet(moments) {
   const set = new Set();
@@ -332,14 +319,11 @@ function fixTop40ArtistTitle(artist, title) {
 
   const parts = a.split(/\s+/).filter(Boolean);
   if (parts.length === 2) {
-    // If second token is a known full artist act in our dataset, and first token seems to belong to title:
     const [spill, candidateArtist] = parts;
     const candidateArtistLc = candidateArtist.toLowerCase();
 
-    // Candidate if we have that artist as a standalone act somewhere
     const seenAsArtist = TOP40_ONEWORD_SET.has(candidateArtistLc) || TOP40_ARTIST_SET.has(candidateArtistLc);
     if (seenAsArtist) {
-      // only apply if title looks truncated
       const tWords = t.split(/\s+/).filter(Boolean);
       const looksTruncated = tWords.length <= 4 || /\b(a|an|the|this|that|to|in|on|of|for|with)\b$/i.test(t);
       if (looksTruncated) {
@@ -350,27 +334,10 @@ function fixTop40ArtistTitle(artist, title) {
   return { artist: a, title: t };
 }
 
-function applyTop40FixesMaybe(moments) {
-  if (!Array.isArray(moments) || !moments.length) return moments;
-
-  return moments.map((m) => {
-    if (!m || m.chart !== TOP40_CHART) return m;
-    try {
-      if (m.artist && m.title) {
-        const fx = fixTop40ArtistTitle(m.artist, m.title);
-        if (fx && (fx.artist !== m.artist || fx.title !== m.title)) {
-          return { ...m, artist: fx.artist, title: fx.title };
-        }
-      }
-    } catch {}
-    return m;
-  });
-}
-
 // =============================
 // NORMALIZATION (moment)
 // =============================
-function normalizeMoment(raw, forcedYear = null, forcedChart = null) {
+function normalizeMoment(raw, forcedYear = null, forcedChart = null, forcedRank = null) {
   if (!raw || typeof raw !== "object") return null;
 
   const artist = String(raw.artist ?? raw.artist_name ?? raw.performer ?? raw.band ?? raw.act ?? "").trim();
@@ -381,6 +348,7 @@ function normalizeMoment(raw, forcedYear = null, forcedChart = null) {
 
   let _artist = artist;
   let _title = title;
+
   if (chart === TOP40_CHART) {
     const fixed = fixTop40ArtistTitle(_artist, _title);
     _artist = fixed.artist;
@@ -392,18 +360,23 @@ function normalizeMoment(raw, forcedYear = null, forcedChart = null) {
   const peak = toInt(raw.peak) ?? toInt(raw.rank) ?? null;
   const weeks = toInt(raw.weeks_on_chart) ?? toInt(raw.weeks) ?? null;
 
+  // Rank resolution (Music Flow V1)
+  const rank =
+    toRank(raw.rank ?? raw.position ?? raw.pos ?? raw.place) ??
+    (forcedRank != null ? toRank(forcedRank) : null);
+
   const m = {
     artist: _artist,
     title: _title,
     year,
     chart,
 
-    rank: toInt(raw.rank),
+    // rank is critical for Top 10 and #1
+    rank: rank,
     peak: peak,
     weeks_on_chart: weeks,
     is_new: Boolean(raw.is_new ?? raw.isNew ?? raw.new ?? false),
 
-    // normalized keys for indexing
     _na: norm(_artist),
     _nt: norm(_title)
   };
@@ -413,13 +386,13 @@ function normalizeMoment(raw, forcedYear = null, forcedChart = null) {
 }
 
 // =============================
-// "BEST MOMENT" (slot-based)
+// INDEXES
 // =============================
-const BY_YEAR_CHART = new Map(); // key: "year|chart" -> moments[]
-const BY_ARTIST_TITLE = new Map(); // key: "na|nt" -> Set(year)
-const ARTIST_TITLE = new Set(); // quick check for existence
-let ARTIST_SET = new Set(); // unique norm artists
-let ARTIST_LIST = []; // {na, artist} sorted by length for better matching
+const BY_YEAR_CHART = new Map();      // key: "year|chart" -> moments[]
+const BY_ARTIST_TITLE = new Map();    // key: "na|nt" -> Set(year)
+const ARTIST_TITLE = new Set();       // quick check for existence
+let ARTIST_SET = new Set();           // unique norm artists
+let ARTIST_LIST = [];                 // {na, artist} sorted by length for better matching
 let MOMENTS = [];
 let STATS = {
   moments: 0,
@@ -548,7 +521,7 @@ function getDb() {
   const seen = new Set();
 
   for (const r of momentsRaw) {
-    const m = normalizeMoment(r, null, null);
+    const m = normalizeMoment(r, null, null, null);
     if (!m) continue;
 
     const key = `${m._na}|${m._nt}|${m.year}|${m.chart}`;
@@ -557,7 +530,7 @@ function getDb() {
     normalized.push(m);
   }
 
-  TOP40_SURNAME_SET = buildSurnameSet(normalized);
+  // Build heuristic sets before merge (helps Top40 fixups)
   TOP40_ARTIST_SET = buildArtistSet(normalized);
   TOP40_ONEWORD_SET = buildOneWordActSet(normalized);
 
@@ -579,13 +552,9 @@ function getDb() {
   if (MERGE_TOP40WEEKLY) {
     const top40Count = MOMENTS.filter((m) => m.chart === TOP40_CHART).length;
     if (!top40Count) {
-      console.log(
-        "[musicKnowledge] WARNING: Top40Weekly Top 100 count is 0 after load. This will break Top40 flows."
-      );
+      console.log("[musicKnowledge] WARNING: Top40Weekly Top 100 count is 0 after load. This will break Top40 flows.");
     } else {
-      console.log(
-        `[musicKnowledge] Top40Weekly Top 100 present: ${top40Count} rows (dir=${mergeInfo?.dir || "?"})`
-      );
+      console.log(`[musicKnowledge] Top40Weekly Top 100 present: ${top40Count} rows (dir=${mergeInfo?.dir || "?"})`);
     }
   }
 
@@ -620,7 +589,6 @@ function detectArtistFromText(text) {
   const t = norm(text);
   if (!t) return null;
 
-  // prefer longest matches
   for (const a of ARTIST_LIST) {
     if (!a?.na) continue;
     if (t.includes(a.na)) return a.artist;
@@ -629,13 +597,12 @@ function detectArtistFromText(text) {
 }
 
 function detectSongTitleFromText(text) {
-  // This is intentionally conservative.
-  // We rely more on year+chart flows for v1.
+  // intentionally conservative for v1
   return null;
 }
 
 // =============================
-// RANDOM PICKS
+// POOLS / RANDOM
 // =============================
 function poolForYear(year, chart = null) {
   getDb();
@@ -655,7 +622,7 @@ function pickRandomFrom(arr) {
 }
 
 // =============================
-// PUBLIC API — MUSIC FLOW HELPERS
+// PUBLIC API — RANDOM PICKS
 // =============================
 function pickRandomByYear(year, chart = DEFAULT_CHART) {
   const bucket = poolForYear(year, chart);
@@ -663,16 +630,30 @@ function pickRandomByYear(year, chart = DEFAULT_CHART) {
 }
 
 function pickRandomByYearFallback(year, preferredChart = DEFAULT_CHART) {
-  // try preferred chart first, then fall back to Top40Weekly if present
   const y = Number(year);
   if (!Number.isFinite(y)) return null;
 
   const try1 = pickRandomByYear(y, preferredChart);
-  if (try1) return { moment: try1, usedChart: normalizeChart(preferredChart), usedFallback: false, poolSize: poolForYear(y, preferredChart).length };
+  if (try1) {
+    return {
+      moment: try1,
+      usedChart: normalizeChart(preferredChart),
+      usedFallback: false,
+      poolSize: poolForYear(y, preferredChart).length,
+      strategy: "primary"
+    };
+  }
 
   const try2 = pickRandomByYear(y, TOP40_CHART);
-  if (try2)
-    return { moment: try2, usedChart: TOP40_CHART, usedFallback: true, poolSize: poolForYear(y, TOP40_CHART).length };
+  if (try2) {
+    return {
+      moment: try2,
+      usedChart: TOP40_CHART,
+      usedFallback: true,
+      poolSize: poolForYear(y, TOP40_CHART).length,
+      strategy: "top40Backup"
+    };
+  }
 
   return null;
 }
@@ -706,15 +687,17 @@ function pickRandomByDecade(decadeStart, chart = DEFAULT_CHART) {
 }
 
 // =============================
-// TOP BY YEAR (Top 10 / #1)
+// MUSIC FLOW V1 — TOP / #1 / ROUTING
 // =============================
 function sortByRankThenPeak(a, b) {
-  const ar = toInt(a.rank);
-  const br = toInt(b.rank);
+  const ar = toRank(a.rank);
+  const br = toRank(b.rank);
   if (ar != null && br != null && ar !== br) return ar - br;
+
   const ap = toInt(a.peak);
   const bp = toInt(b.peak);
   if (ap != null && bp != null && ap !== bp) return ap - bp;
+
   return 0;
 }
 
@@ -722,10 +705,9 @@ function getTopByYear(year, chart = DEFAULT_CHART, limit = 10) {
   const bucket = poolForYear(year, chart);
   if (!bucket.length) return [];
 
-  // We only trust rank if present; otherwise we fallback to random selection.
-  const ranked = bucket.filter((m) => toInt(m.rank) != null);
+  const ranked = bucket.filter((m) => toRank(m.rank) != null);
   if (!ranked.length) {
-    // fallback: sample deterministic-ish
+    // fallback deterministic selection (still stable, but NOT true "Top 10" without rank)
     const copy = bucket.slice();
     copy.sort((a, b) => norm(a.artist).localeCompare(norm(b.artist)));
     return copy.slice(0, Math.max(1, limit));
@@ -735,6 +717,43 @@ function getTopByYear(year, chart = DEFAULT_CHART, limit = 10) {
   return ranked.slice(0, Math.max(1, limit));
 }
 
+function getNumberOneByYear(year, chart = DEFAULT_CHART) {
+  const bucket = poolForYear(year, chart);
+  if (!bucket.length) return null;
+
+  const one = bucket.find((m) => toRank(m.rank) === 1);
+  if (one) return one;
+
+  // If rank is missing in that chart/year, we cannot claim a true #1.
+  return null;
+}
+
+function hasChart(chart) {
+  getDb();
+  const c = normalizeChart(chart || DEFAULT_CHART);
+  if (Array.isArray(STATS.charts) && STATS.charts.includes(c)) return true;
+  return MOMENTS.some((m) => String(m.chart) === c);
+}
+
+function resolveChart(requestedChart, opts = {}) {
+  getDb();
+  const requested = normalizeChart(requestedChart || DEFAULT_CHART);
+  const allowFallback = opts && opts.allowFallback !== false;
+
+  if (hasChart(requested)) {
+    return { requestedChart: requested, usedChart: requested, usedFallback: false, strategy: "primary" };
+  }
+
+  if (allowFallback && hasChart(TOP40_CHART)) {
+    return { requestedChart: requested, usedChart: TOP40_CHART, usedFallback: true, strategy: "top40Backup" };
+  }
+
+  return { requestedChart: requested, usedChart: requested, usedFallback: false, strategy: "none" };
+}
+
+// =============================
+// EXPORTS
+// =============================
 module.exports = {
   getDb,
   STATS: STATS_FN,
@@ -748,5 +767,13 @@ module.exports = {
   pickRandomByYearFallback,
   pickRandomByYearWithMeta,
   pickRandomByDecade,
-  getTopByYear
+
+  // Music Flow V1
+  getTopByYear,
+  getNumberOneByYear,
+  hasChart,
+  resolveChart,
+
+  // Advanced (optional) — keep available for debugging
+  normalizeMomentFields
 };
