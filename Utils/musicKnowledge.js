@@ -1,24 +1,27 @@
-﻿"use strict";
+"use strict";
 
 /**
- * musicKnowledge.js ΓÇö Bulletproof V2.32
+ * Utils/musicKnowledge.js — v2.33
  *
- * Key improvements vs v2.31:
- * 1) Output-guaranteed normalization:
- *    - Any function that returns moments (poolForYear / pickers / getTopByYear)
- *      returns normalized copies so Nyx never prints raw/dirty Top40Weekly fields.
- *
- * 2) Stronger Top40Weekly repairs:
- *    - Move title-word(s) embedded ANYWHERE in artist (not only front)
- *    - Expand ΓÇ£title short + artist longΓÇ¥ extraction robustness (keeps 2-token names)
- *    - Canonicalize Hall & Oates / Kool & The Gang ordering after cleanup
+ * Goals:
+ * - Load your master DB (layer2_plus500 etc.)
+ * - Merge Top40Weekly Top 100 yearly dumps (Data/top40weekly/*.json)
+ * - Provide deterministic helpers for Nyx: getTopByYear, getNumberOneByYear, pickRandomByYearWithMeta
+ * - Normalize Top40Weekly drift globally (ALL years), not year-by-year:
+ *   - Protect real "&" collabs (Diana Ross & Lionel Richie)
+ *   - Fix short-title/artist-long flips (Kim Carnes, REO Speedwagon)
+ *   - Fix embedded title-words stuck in artist (Kiss on My List → Hall & Oates)
+ *   - Canonicalize key ampersand acts (Kool & The Gang, Hall & Oates), strip stray "List "
  */
 
 const fs = require("fs");
 const path = require("path");
 
+// =============================
+// VERSION
+// =============================
 const MK_VERSION =
-  "musicKnowledge v2.32 (output-guaranteed normalization + embedded-title extraction anywhere + ampersand act canonicalization)";
+  "musicKnowledge v2.33 (Top40Weekly global drift repairs: ampersand-act protection + stronger short-title extraction + Hall&Oates/Kool fixes)";
 
 // =============================
 // CONFIG
@@ -96,7 +99,7 @@ function dirExists(p) {
 }
 
 /**
- * CRITICAL: blank -> null (prevents toInt(undefined) => 0)
+ * CRITICAL: blank -> null (prevents Number(undefined) => NaN, but also prevents "0" mistakes)
  */
 function toInt(x) {
   const s = String(x ?? "").trim();
@@ -117,7 +120,7 @@ function toRank(x) {
 function norm(s) {
   return String(s || "")
     .toLowerCase()
-    .replace(/[ΓÇÖΓÇÿ]/g, "'")
+    .replace(/[’‘]/g, "'")
     .replace(/[^a-z0-9]+/g, " ")
     .trim()
     .replace(/\s+/g, " ");
@@ -152,12 +155,9 @@ function isTitleHangWord(w) {
 function isNameyToken(tok) {
   const t = _asText(tok);
   if (!t) return false;
-  // allow commas (e.g., "Parker,")
   if (!/^[A-Za-z][A-Za-z'.-]*,?$/.test(t)) return false;
   const low = t.toLowerCase().replace(/,$/, "");
-  if (
-    ["and", "of", "the", "a", "an", "to", "in", "on", "with"].includes(low)
-  )
+  if (["and", "of", "the", "a", "an", "to", "in", "on", "with"].includes(low))
     return false;
   return t[0] === t[0].toUpperCase();
 }
@@ -165,6 +165,16 @@ function isNameyToken(tok) {
 function looksLikeTwoTokenPersonName(a, b) {
   if (!a || !b) return false;
   return isNameyToken(a) && isNameyToken(b);
+}
+
+function looksLikeAmpersandAct(tokens) {
+  // e.g. ["Diana","Ross","&","Lionel","Richie"] or ["Hall","&","Oates"]
+  if (!Array.isArray(tokens) || tokens.length < 3) return false;
+  const idx = tokens.indexOf("&");
+  if (idx <= 0 || idx >= tokens.length - 1) return false;
+  const left = tokens.slice(0, idx).filter(isNameyToken);
+  const right = tokens.slice(idx + 1).filter(isNameyToken);
+  return left.length >= 1 && right.length >= 1;
 }
 
 function normalizeChart(chart) {
@@ -185,7 +195,6 @@ function decodeHtmlEntities(s) {
 }
 
 function shallowCloneMoment(m) {
-  // Ensure we never leak mutated originals
   return m && typeof m === "object" ? { ...m } : m;
 }
 
@@ -206,12 +215,6 @@ const BAND_SUFFIXES = new Set([
   "Gang",
 ]);
 
-/**
- * Words that frequently belong to song titles and commonly drift into artist fields
- * in older Top40Weekly dumps.
- *
- * Note: We only move them when doing so improves plausibility.
- */
 const TITLE_PREFIX_CANDIDATES = new Set([
   "You",
   "I",
@@ -235,10 +238,10 @@ const TITLE_PREFIX_CANDIDATES = new Set([
   "Kiss",
   "Rainy",
   "Davis",
+  "Over",
+  "Like",
+  "Just",
 ]);
-
-// Back-compat name
-const TITLE_LEADING_WORDS = TITLE_PREFIX_CANDIDATES;
 
 function hardFixKnownCorruptions(m) {
   const year = Number(m.year);
@@ -248,7 +251,12 @@ function hardFixKnownCorruptions(m) {
   let title = _asText(m.title);
 
   // 1984 Top40Weekly failsafes
-  if (year === 1984 && rank === 1 && /^Doves Cry Prince$/i.test(artist) && /^When$/i.test(title)) {
+  if (
+    year === 1984 &&
+    rank === 1 &&
+    /^Doves Cry Prince$/i.test(artist) &&
+    /^When$/i.test(title)
+  ) {
     artist = "Prince";
     title = "When Doves Cry";
   }
@@ -261,11 +269,21 @@ function hardFixKnownCorruptions(m) {
     artist = "Paul Mc Cartney and Michael Jackson";
     title = "Say Say Say";
   }
-  if (year === 1984 && rank === 8 && /^Heart Yes$/i.test(artist) && /^Owner of a Lonely$/i.test(title)) {
+  if (
+    year === 1984 &&
+    rank === 8 &&
+    /^Heart Yes$/i.test(artist) &&
+    /^Owner of a Lonely$/i.test(title)
+  ) {
     artist = "Yes";
     title = "Owner of a Lonely Heart";
   }
-  if (year === 1984 && rank === 10 && /^Chameleon Culture Club$/i.test(artist) && /^Karma$/i.test(title)) {
+  if (
+    year === 1984 &&
+    rank === 10 &&
+    /^Chameleon Culture Club$/i.test(artist) &&
+    /^Karma$/i.test(title)
+  ) {
     artist = "Culture Club";
     title = "Karma Chameleon";
   }
@@ -276,8 +294,9 @@ function hardFixKnownCorruptions(m) {
 }
 
 /**
- * Repair: title very short (<=2 tokens) and artist long (>=3 tokens)
- * Extract artist core from end of artist tokens, append spill to title.
+ * Global repair: title short (<=3 tokens) and artist long (>=3 tokens)
+ * - Protect real ampersand acts (Diana Ross & Lionel Richie)
+ * - Otherwise assume act core is at end (Kim Carnes, REO Speedwagon)
  */
 function repairTitleShortArtistLong(m) {
   let artist = _asText(m.artist);
@@ -286,16 +305,39 @@ function repairTitleShortArtistLong(m) {
   const tParts = title.split(/\s+/).filter(Boolean);
   const aParts = artist.split(/\s+/).filter(Boolean);
 
-  if (tParts.length > 2) return m;
+  if (tParts.length > 3) return m;
   if (aParts.length < 3) return m;
 
+  // Ampersand-act protection: move title-ish tokens out but keep act intact
+  if (aParts.includes("&") && looksLikeAmpersandAct(aParts)) {
+    const kept = [];
+    const moved = [];
+
+    for (const tok of aParts) {
+      const low = tok.toLowerCase().replace(/,$/, "");
+      if (low === "&" || low === "and" || low === "the") {
+        kept.push(tok);
+        continue;
+      }
+      if (TITLE_PREFIX_CANDIDATES.has(tok) && tParts.length <= 3) moved.push(tok);
+      else kept.push(tok);
+    }
+
+    if (moved.length && looksLikeAmpersandAct(kept)) {
+      m.artist = kept.join(" ").replace(/\s+/g, " ").trim();
+      m.title = `${title} ${moved.join(" ")}`.replace(/\s+/g, " ").trim();
+    }
+    return m;
+  }
+
+  // Core-from-end extraction
+  let coreLen = 1;
   const last = aParts[aParts.length - 1];
   const prev = aParts[aParts.length - 2];
 
-  let coreLen = 1;
-
   if (BAND_SUFFIXES.has(last)) coreLen = 2;
   else if (looksLikeTwoTokenPersonName(prev, last)) coreLen = 2;
+  else if (isNameyToken(prev) && isNameyToken(last)) coreLen = 2;
 
   const coreTokens = aParts.slice(-coreLen);
   const spillTokens = aParts.slice(0, -coreLen);
@@ -309,8 +351,7 @@ function repairTitleShortArtistLong(m) {
 
 /**
  * Repair: leading title-word stuck in artist
- * Example:
- * - "You REO Speedwagon" + "Keep on Loving" => "REO Speedwagon" ΓÇö "Keep on Loving You"
+ * Example: "You REO Speedwagon" + "Keep on Loving" => "REO Speedwagon" — "Keep on Loving You"
  */
 function repairLeadingTitleWordInArtist(m) {
   let artist = _asText(m.artist);
@@ -334,8 +375,7 @@ function repairLeadingTitleWordInArtist(m) {
 }
 
 /**
- * Repair: two-token artist spill
- * "Heart Yes" ΓÇö "Owner of a Lonely" => "Yes" ΓÇö "Owner of a Lonely Heart"
+ * Repair: two-token artist spill (rare but seen)
  */
 function repairTwoTokenArtistFrontSpill(m) {
   let artist = _asText(m.artist);
@@ -350,8 +390,7 @@ function repairTwoTokenArtistFrontSpill(m) {
   if (!spill || spill.length < 2) return m;
   if (!candidateArtist) return m;
 
-  const titleNorm = norm(title);
-  if (titleNorm.includes(norm(spill))) return m;
+  if (norm(title).includes(norm(spill))) return m;
 
   if (spill[0] !== spill[0].toUpperCase()) return m;
   if (candidateArtist[0] !== candidateArtist[0].toUpperCase()) return m;
@@ -362,7 +401,7 @@ function repairTwoTokenArtistFrontSpill(m) {
 }
 
 /**
- * Repair: move tail tokens from title into artist (supports bands/duos/collabs)
+ * Repair: move tail tokens from title into artist (handles "Say Paul Mc Cartney and Michael" variants)
  */
 function repairTitleTailIntoArtist(m) {
   let artist = _asText(m.artist);
@@ -409,12 +448,7 @@ function repairTitleTailIntoArtist(m) {
 }
 
 /**
- * NEW: Move title-like tokens embedded ANYWHERE in artist into title,
- * if title is short and artist remains plausible after removal.
- *
- * This fixes:
- * - "Love Diana Ross & Lionel Richie" + title "Endless"
- * - "Oates & List Hall" + title "Kiss on My"
+ * Repair: move title-like tokens embedded ANYWHERE in artist into title (only when title is short)
  */
 function repairEmbeddedTitleWordsInArtistAnywhere(m) {
   let artist = _asText(m.artist);
@@ -424,20 +458,21 @@ function repairEmbeddedTitleWordsInArtistAnywhere(m) {
   const tParts = title.split(/\s+/).filter(Boolean);
 
   if (aParts.length < 2) return m;
-  if (tParts.length > 5) return m;
+  if (tParts.length > 3) return m;
 
   const moved = [];
   const kept = [];
 
   for (const tok of aParts) {
     const low = tok.toLowerCase().replace(/,$/, "");
+
     // Never move connectors/articles
     if (low === "&" || low === "and" || low === "the") {
       kept.push(tok);
       continue;
     }
 
-    if (TITLE_PREFIX_CANDIDATES.has(tok)) {
+    if (TITLE_PREFIX_CANDIDATES.has(tok) && tParts.length <= 3) {
       moved.push(tok);
       continue;
     }
@@ -445,9 +480,6 @@ function repairEmbeddedTitleWordsInArtistAnywhere(m) {
     kept.push(tok);
   }
 
-  // Only apply if:
-  // - we moved something
-  // - artist still has >= 2 meaningful tokens (or has '&' structure)
   if (!moved.length) return m;
 
   const keptMeaningful = kept.filter((x) => {
@@ -457,15 +489,13 @@ function repairEmbeddedTitleWordsInArtistAnywhere(m) {
 
   if (keptMeaningful.length < 2 && !kept.includes("&")) return m;
 
-  // Move moved tokens to the END of title (keeps title word order stable for cases like "Endless" + "Love")
   m.artist = kept.join(" ").replace(/\s+/g, " ").trim();
   m.title = `${title} ${moved.join(" ")}`.replace(/\s+/g, " ").trim();
-
   return m;
 }
 
 /**
- * Canonicalize a few high-frequency band/duo patterns after repairs.
+ * Canonicalize high-frequency ampersand acts; strip leading "List " before matching
  */
 function canonicalizeAmpersandActs(m) {
   let artist = _asText(m.artist);
@@ -476,27 +506,30 @@ function canonicalizeAmpersandActs(m) {
     .replace(/\s*&\s*/g, " & ")
     .trim();
 
+  const cleaned = a.replace(/^\bList\b\s+/i, "").trim();
+
   // Kool & The Gang variants
-  if (/^the gang & kool$/i.test(a) || /^the gang & kool,?$/i.test(a)) {
-    m.artist = "Kool & The Gang";
-    return m;
-  }
-  if (/^kool & the gang$/i.test(a) || /^kool & the gang,?$/i.test(a)) {
+  if (
+    /^the gang & kool$/i.test(cleaned) ||
+    /^the gang & kool,?$/i.test(cleaned) ||
+    /^kool & the gang$/i.test(cleaned) ||
+    /^kool & the gang,?$/i.test(cleaned)
+  ) {
     m.artist = "Kool & The Gang";
     return m;
   }
 
   // Hall & Oates variants
-  if (/^oates & hall$/i.test(a) || /^oates & hall,?$/i.test(a)) {
+  if (/^oates & hall$/i.test(cleaned) || /^oates & hall,?$/i.test(cleaned)) {
     m.artist = "Hall & Oates";
     return m;
   }
-  if (/^hall & oates$/i.test(a) || /^hall & oates,?$/i.test(a)) {
+  if (/^hall & oates$/i.test(cleaned) || /^hall & oates,?$/i.test(cleaned)) {
     m.artist = "Hall & Oates";
     return m;
   }
 
-  m.artist = a;
+  m.artist = cleaned;
   return m;
 }
 
@@ -506,11 +539,10 @@ function canonicalizeAmpersandActs(m) {
 function normalizeMomentFields(m) {
   if (!m || typeof m !== "object") return m;
 
-  // Decode HTML entities and trim
   m.artist = decodeHtmlEntities(_asText(m.artist));
   m.title = decodeHtmlEntities(_asText(m.title));
 
-  // Global repairs (order matters)
+  // Order matters
   repairTitleShortArtistLong(m);
   repairLeadingTitleWordInArtist(m);
   repairEmbeddedTitleWordsInArtistAnywhere(m);
@@ -525,8 +557,7 @@ function normalizeMomentFields(m) {
 }
 
 /**
- * Output-guaranteed normalization:
- * Always return a normalized COPY of a moment.
+ * Output-guaranteed normalization: always return a normalized COPY
  */
 function normalizedCopy(m) {
   const c = shallowCloneMoment(m);
@@ -615,13 +646,17 @@ function extractYearFromObject(obj) {
 
 function extractRankFromRow(row) {
   if (!row || typeof row !== "object") return null;
-  return toRank(row.rank ?? row.Rank ?? row.position ?? row.pos ?? row.number ?? row.no);
+  return toRank(
+    row.rank ?? row.Rank ?? row.position ?? row.pos ?? row.number ?? row.no
+  );
 }
 
 function extractArtistTitleFromRow(row) {
   if (!row || typeof row !== "object") return { artist: "", title: "" };
 
-  let artist = _asText(row.artist ?? row.Artist ?? row.performer ?? row.Performer ?? row.act ?? row.Act);
+  let artist = _asText(
+    row.artist ?? row.Artist ?? row.performer ?? row.Performer ?? row.act ?? row.Act
+  );
   let title = _asText(row.title ?? row.Title ?? row.song ?? row.Song ?? row.track ?? row.Track);
 
   if (!artist && row.name && row.by) {
@@ -634,7 +669,16 @@ function extractArtistTitleFromRow(row) {
 
 function readTop40WeeklyDir(top40DirAbs) {
   if (!dirExists(top40DirAbs)) {
-    return { ok: false, added: 0, skippedFiles: 0, emptyFiles: 0, rowsSkipped: 0, years: null };
+    return {
+      ok: false,
+      merged: [],
+      added: 0,
+      skippedFiles: 0,
+      emptyFiles: 0,
+      rowsSkipped: 0,
+      years: null,
+      filesCount: 0,
+    };
   }
 
   const files = fs
@@ -723,7 +767,7 @@ function readTop40WeeklyDir(top40DirAbs) {
     skippedFiles,
     emptyFiles,
     rowsSkipped,
-    years: yearMin != null && yearMax != null ? `${yearMin}ΓÇô${yearMax}` : null,
+    years: yearMin != null && yearMax != null ? `${yearMin}–${yearMax}` : null,
     filesCount: files.length,
   };
 }
@@ -745,7 +789,7 @@ function buildIndexes() {
   let maxY = null;
 
   for (const raw of DB.moments) {
-    const m = normalizeMomentFields(raw); // mutate base DB objects (ok)
+    const m = normalizeMomentFields(raw);
 
     const y = toInt(m.year);
     if (!y) continue;
@@ -814,11 +858,11 @@ function getDb() {
       DB.moments = DB.moments.concat(res.merged);
 
       console.log(
-        `[musicKnowledge] Top40Weekly Top 100 merge: dir=${top40DirAbs} files=${TOP40_MERGE_META.files} added=${res.added} (skippedFiles=${res.skippedFiles}, emptyFiles=${res.emptyFiles}, rowsSkipped=${res.rowsSkipped}) years=${res.years || "?ΓÇô?"}`
+        `[musicKnowledge] Top40Weekly Top 100 merge: dir=${top40DirAbs} files=${TOP40_MERGE_META.files} added=${res.added} (skippedFiles=${res.skippedFiles}, emptyFiles=${res.emptyFiles}, rowsSkipped=${res.rowsSkipped}) years=${res.years || "?–?"}`
       );
     } else {
       console.log(
-        `[musicKnowledge] Top40Weekly Top 100 merge: dir=${top40DirAbs} added=0 (skippedFiles=${res.skippedFiles}, emptyFiles=${res.emptyFiles}, rowsSkipped=${res.rowsSkipped}) years=${res.years || "?ΓÇô?"}`
+        `[musicKnowledge] Top40Weekly Top 100 merge: dir=${top40DirAbs} added=0 (skippedFiles=${res.skippedFiles}, emptyFiles=${res.emptyFiles}, rowsSkipped=${res.rowsSkipped}) years=${res.years || "?–?"}`
       );
     }
   }
@@ -826,7 +870,7 @@ function getDb() {
   buildIndexes();
 
   console.log(
-    `[musicKnowledge] Loaded ${STATS.moments} moments (years ${STATS.yearMin ?? "?"}ΓÇô${STATS.yearMax ?? "?"}) charts=${STATS.charts.length}`
+    `[musicKnowledge] Loaded ${STATS.moments} moments (years ${STATS.yearMin ?? "?"}–${STATS.yearMax ?? "?"}) charts=${STATS.charts.length}`
   );
 
   if (STATS.charts.includes(TOP40_CHART)) {
@@ -854,9 +898,10 @@ function poolForYear(year, chart = null) {
   if (!Number.isFinite(y)) return [];
   const c = chart ? normalizeChart(chart) : null;
 
-  const base = !c ? (BY_YEAR.get(y) || []) : (BY_YEAR_CHART.get(`${y}|${c}`) || []);
+  const base = !c
+    ? BY_YEAR.get(y) || []
+    : BY_YEAR_CHART.get(`${y}|${c}`) || [];
 
-  // Always return normalized copies
   return base.map(normalizedCopy);
 }
 
@@ -981,7 +1026,7 @@ function pickRandomByYearWithMeta(year, chart = null) {
 // TOP BY YEAR
 // =============================
 function getTopByYear(year, chart = DEFAULT_CHART, limit = 10) {
-  const bucket = poolForYear(year, chart); // already normalized copies
+  const bucket = poolForYear(year, chart);
   if (!bucket.length) return [];
 
   const ranked = bucket.filter((m) => toInt(m.rank) != null);
@@ -1038,7 +1083,7 @@ function detectSongTitleFromText(text) {
   const t = String(text || "").trim();
   if (!t) return null;
 
-  const q = t.match(/["ΓÇ£ΓÇ¥']([^"ΓÇ£ΓÇ¥']{2,})["ΓÇ£ΓÇ¥']/);
+  const q = t.match(/["“”']([^"“”']{2,})["“”']/);
   if (q) return q[1].trim();
 
   const m = t.match(/song\s*:\s*(.+)$/i);
