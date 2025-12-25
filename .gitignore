@@ -25,6 +25,17 @@ nyx-fatal.log
 payload.json
 
 # =========================
+# Local scratch / one-off utilities
+# (keeps repo clean; do not commit these)
+# =========================
+Scripts/*.txt
+Scripts/*.json
+cards_to_chart_dump.js
+Scripts/cards_to_chart_dump.js
+fact_cards_verify_1000.txt
+index.nyx-stable.js
+
+# =========================
 # OS / Editor noise
 # =========================
 .DS_Store
