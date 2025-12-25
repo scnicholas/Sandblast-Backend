@@ -15,13 +15,76 @@
  * - Top 10 correctness: display real rank, not list index
  * - #1 only correctness: uses getNumberOneByYear (true #1)
  * - Chart routing: uses resolveChart() when available and tracks requested vs used chart
+ *
+ * NEW (critical stability):
+ * - Persistent crash log to nyx-fatal.log (captures "silent exits")
+ * - Logs: BOOT, BEFORE_EXIT, EXIT, signals, uncaughtException, unhandledRejection
+ * - Self-probe TCP check after listen (verifies external reachability)
+ * - process.stdin.resume() to prevent edge-case early exits in detached shells
  */
 
 'use strict';
 
+// -----------------------------
+// CRASH LOG (must be first)
+// -----------------------------
+const fs = require('fs');
+const path = require('path');
+
+function _safeJson(x) {
+  try { return JSON.stringify(x); } catch { return String(x); }
+}
+
+function _crashLog(...args) {
+  try {
+    const line = `[${new Date().toISOString()}] ` + args.map(a => {
+      if (typeof a === 'string') return a;
+      return _safeJson(a);
+    }).join(' ') + '\n';
+    fs.appendFileSync(path.join(process.cwd(), 'nyx-fatal.log'), line, 'utf8');
+  } catch (_) {}
+}
+
+_crashLog('BOOT', {
+  pid: process.pid,
+  node: process.version,
+  cwd: process.cwd(),
+  HOST: process.env.HOST,
+  PORT: process.env.PORT,
+  NODE_ENV: process.env.NODE_ENV,
+  ENV: process.env.ENV
+});
+
+process.on('beforeExit', (code) => _crashLog('BEFORE_EXIT', { code }));
+process.on('exit', (code) => _crashLog('PROCESS_EXIT', { code }));
+
+['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGBREAK'].forEach(sig => {
+  try {
+    process.on(sig, () => {
+      _crashLog('SIGNAL', { sig });
+      process.exit(0);
+    });
+  } catch (_) {}
+});
+
+process.on('uncaughtException', (err) => {
+  _crashLog('UNCAUGHT_EXCEPTION', { message: err?.message, stack: err?.stack });
+  try { console.error('[Nyx] uncaughtException:', err); } catch (_) {}
+  process.exit(1);
+});
+process.on('unhandledRejection', (err) => {
+  _crashLog('UNHANDLED_REJECTION', { message: err?.message, stack: err?.stack });
+  try { console.error('[Nyx] unhandledRejection:', err); } catch (_) {}
+  process.exit(1);
+});
+
+// -----------------------------
+// NORMAL REQUIRES
+// -----------------------------
 const express = require('express');
 const crypto = require('crypto');
 const cors = require('cors');
+const net = require('net');
 
 let intentClassifier = null;
 let musicKnowledge = null;
@@ -41,6 +104,9 @@ const ENV = String(process.env.NODE_ENV || process.env.ENV || 'production').toLo
 const DEFAULT_TIMEOUT_MS = Number(process.env.NYX_TIMEOUT_MS || 20000);
 const DEFAULT_CHART = 'Billboard Hot 100';
 const TOP40_CHART = 'Top40Weekly Top 100';
+
+console.log('[Nyx] startup env:', { HOST, PORT, ENV, pid: process.pid });
+_crashLog('STARTUP_ENV', { HOST, PORT, ENV, pid: process.pid });
 
 // If behind proxy (Render/Vercel/etc.), this avoids some edge-case header oddities.
 app.set('trust proxy', 1);
@@ -208,13 +274,11 @@ function coerceChoice(message, followUp) {
   if (isAffirmation(t)) return opts[0];
   if (isNegation(t)) return opts[1] || opts[0];
 
-  // numeric selection
   if (/^\d+$/.test(t)) {
     const n = Number(t);
     if (Number.isFinite(n) && n >= 1 && n <= opts.length) return opts[n - 1];
   }
 
-  // direct match (case-insensitive)
   const hit = opts.find(o => asText(o).toLowerCase() === t);
   if (hit) return hit;
 
@@ -235,7 +299,6 @@ function resolveChartForMusic(requestedChart) {
     };
   }
 
-  // Fallback if resolveChart() not present
   return { requestedChart: req, usedChart: req, usedFallback: false, strategy: 'primary' };
 }
 
@@ -280,7 +343,6 @@ function pickMomentByYearWithFallback(year, requestedChart) {
     const m1 = musicKnowledge.pickRandomByYear(year, usedChart);
     if (m1) return { moment: m1, usedFallback: resolved.usedFallback, usedChart, requestedChart: resolved.requestedChart, poolSize: 0, strategy: resolved.strategy };
 
-    // last-resort: top40 chart
     const m2 = musicKnowledge.pickRandomByYear(year, TOP40_CHART);
     if (m2) return { moment: m2, usedFallback: true, usedChart: TOP40_CHART, requestedChart: resolved.requestedChart, poolSize: 0, strategy: 'top40Backup' };
   }
@@ -303,7 +365,6 @@ function getNumberOneByYear(year, chart) {
   if (typeof musicKnowledge.getNumberOneByYear === 'function') {
     return musicKnowledge.getNumberOneByYear(year, c) || null;
   }
-  // fallback: take top-by-year rank list if needed
   const top = getTopNByYear(year, c, 1);
   return (top && top[0]) ? top[0] : null;
 }
@@ -331,11 +392,7 @@ function buildMomentReply(year, requestedChart, session, picked) {
   ms.step = 'anchored';
 
   const line = formatMomentLine(picked.moment);
-  const reply = [
-    line,
-    '',
-    'Want **Top 10**, **another moment**, or **#1 only**?'
-  ].join('\n');
+  const reply = [line, '', 'Want **Top 10**, **another moment**, or **#1 only**?'].join('\n');
 
   return {
     ok: true,
@@ -362,7 +419,6 @@ function buildMomentReply(year, requestedChart, session, picked) {
 
 function buildTop10Reply(year, chart, list) {
   const c = normalizeChart(chart);
-  // display REAL rank where available; fallback to index if missing
   const lines = (list || []).slice(0, 10).map((m, i) => {
     const rank = (m && m.rank != null) ? String(m.rank) : String(i + 1);
     return `${rank}. ${asText(m.artist)} — ${asText(m.title)} (${Number(m.year)}, ${asText(m.chart) || c}).`;
@@ -402,11 +458,7 @@ function buildNumberOneReply(year, chart, top1) {
   }
 
   const line = (formatMomentLine(top1) || '').replace(/^Moment:\s*/i, '#1: ');
-  const reply = [
-    line,
-    '',
-    'Want **another moment**, **Top 10**, or **change year**?'
-  ].join('\n');
+  const reply = [line, '', 'Want **another moment**, **Top 10**, or **change year**?'].join('\n');
 
   return {
     ok: true,
@@ -424,7 +476,6 @@ async function handleMusic(message, sessionId, context, timeoutMs) {
   const s = getSession(sessionId);
   const ms = s.music;
 
-  // Chart routing (requested vs used)
   const requestedChartRaw = (context && context.chart) ? context.chart : (ms.chart || DEFAULT_CHART);
   const resolvedChart = resolveChartForMusic(requestedChartRaw);
   const reqChart = resolvedChart.requestedChart;
@@ -434,13 +485,11 @@ async function handleMusic(message, sessionId, context, timeoutMs) {
   ms.acceptedChart = usedChart;
   ms.usedFallback = Boolean(resolvedChart.usedFallback);
 
-  // If user is answering a follow-up choice, coerce "yes/no/1/2/3" into an option
   if (s.last.followUp && s.last.followUp.kind === 'choice') {
     const coerced = coerceChoice(message, s.last.followUp);
     if (coerced) message = coerced;
   }
 
-  // Top 10 request (direct "Top 10 1989")
   const topReq = parseTop10Request(message);
   if (topReq) {
     const y = topReq.year || ms.year || extractYear(message);
@@ -462,7 +511,6 @@ async function handleMusic(message, sessionId, context, timeoutMs) {
     return buildTop10Reply(y, usedChart, top10);
   }
 
-  // If user typed "Top 10" without year, use last anchored year
   if (/^top\s*10$/i.test(asText(message))) {
     if (!ms.year) {
       ms.step = 'need_anchor';
@@ -478,7 +526,6 @@ async function handleMusic(message, sessionId, context, timeoutMs) {
     return buildTop10Reply(ms.year, usedChart, top10);
   }
 
-  // Another moment
   if (isAnotherMoment(message)) {
     if (!ms.year) {
       ms.step = 'need_anchor';
@@ -494,13 +541,12 @@ async function handleMusic(message, sessionId, context, timeoutMs) {
     return buildMomentReply(ms.year, usedChart, s, picked);
   }
 
-  // "#1 only" (true #1)
   if (isNumberOneOnly(message)) {
     if (!ms.year) {
       ms.step = 'need_anchor';
       return {
         ok: true,
-        mode: 'music',
+       mode: 'music',
         reply: 'For **#1 only**, I need a year. What year should I use?',
         followUp: { kind: 'slotfill', required: ['year'], prompt: 'Type a year (e.g., 1987).' },
         meta: { flow: 'music_v1', step: ms.step, intent: 'number_one', chart: reqChart, usedChart }
@@ -510,7 +556,6 @@ async function handleMusic(message, sessionId, context, timeoutMs) {
     return buildNumberOneReply(ms.year, usedChart, top1);
   }
 
-  // Slotfill year from user input
   const y = extractYear(message);
   if (y) {
     ms.year = y;
@@ -519,7 +564,6 @@ async function handleMusic(message, sessionId, context, timeoutMs) {
     return buildMomentReply(y, usedChart, s, picked);
   }
 
-  // Change year intent
   if (/^change year$/i.test(asText(message))) {
     ms.step = 'need_anchor';
     return {
@@ -546,7 +590,6 @@ async function handleMusic(message, sessionId, context, timeoutMs) {
 async function routeMessage(message, sessionId, context, timeoutMs) {
   const s = getSession(sessionId);
 
-  // 1) Hard lock: if last domain was music and we are mid-followup, keep routing through music
   if (s.last && s.last.domain === 'music' && s.last.followUp && s.last.followUp.kind === 'choice') {
     const coerced = coerceChoice(message, s.last.followUp);
     const msgNorm = asText(message).toLowerCase();
@@ -562,7 +605,6 @@ async function routeMessage(message, sessionId, context, timeoutMs) {
     }
   }
 
-  // UI explicitly says music
   const uiMode = asText(context && context.mode);
   if (uiMode && uiMode.toLowerCase() === 'music') {
     const out = await handleMusic(message, sessionId, context, timeoutMs);
@@ -573,7 +615,6 @@ async function routeMessage(message, sessionId, context, timeoutMs) {
     return out;
   }
 
-  // Heuristic: looks like music content
   const t = asText(message).toLowerCase();
   const looksMusic =
     /top\s*10|top10|#1\s*only|number\s*one|hot\s*100|billboard|uk\s*singles|canada\s*rpm|top40weekly|\b(19\d{2})\b/.test(t);
@@ -617,7 +658,6 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Listener truth endpoint (tiny + safe)
 let _serverRef = null;
 app.get('/api/debug/listen', (req, res) => {
   const addr = _serverRef && typeof _serverRef.address === 'function' ? _serverRef.address() : null;
@@ -647,32 +687,66 @@ app.post('/api/chat', async (req, res) => {
 });
 
 // -----------------------------
-// START (listener truth)
+// START (listener truth + self-probe)
 // -----------------------------
+function selfProbe(host, port) {
+  return new Promise((resolve) => {
+    const sock = new net.Socket();
+    let done = false;
+    sock.setTimeout(900);
+
+    sock.once('connect', () => {
+      done = true;
+      sock.destroy();
+      resolve(true);
+    });
+    sock.once('timeout', () => {
+      if (!done) {
+        done = true;
+        try { sock.destroy(); } catch (_) {}
+        resolve(false);
+      }
+    });
+    sock.once('error', () => {
+      if (!done) {
+        done = true;
+        resolve(false);
+      }
+    });
+
+    sock.connect(port, host);
+  });
+}
+
 const server = app.listen(PORT, HOST);
 _serverRef = server;
 
-server.on('listening', () => {
+server.on('listening', async () => {
   const addr = server.address();
   console.log('[Nyx] listening confirmed:', addr);
   console.log(`[Nyx] up on ${HOST}:${PORT} - intel-layer orchestrator env=${ENV} timeout=${DEFAULT_TIMEOUT_MS}ms pid=${process.pid}`);
+  _crashLog('LISTENING', { addr, HOST, PORT, pid: process.pid });
+
+  // Probe using a reachable address
+  const probeHost = (HOST === '0.0.0.0') ? '127.0.0.1' : HOST;
+  const ok = await selfProbe(probeHost, PORT);
+  console.log('[Nyx] self-probe tcp:', ok ? 'OK' : 'FAILED');
+  _crashLog('SELF_PROBE', { probeHost, PORT, ok });
+});
+
+server.on('close', () => {
+  _crashLog('SERVER_CLOSE');
 });
 
 server.on('error', (err) => {
   const code = err && err.code ? String(err.code) : 'UNKNOWN';
   console.error(`[Nyx] listen error (${code}):`, err && err.message ? err.message : err);
+  _crashLog('LISTEN_ERROR', { code, message: err?.message, stack: err?.stack });
   process.exit(1);
 });
 
-// Hard crash visibility
-process.on('uncaughtException', (err) => {
-  console.error('[Nyx] uncaughtException:', err);
-  process.exit(1);
-});
-process.on('unhandledRejection', (err) => {
-  console.error('[Nyx] unhandledRejection:', err);
-  process.exit(1);
-});
+// Keep the process alive in detached shells (Start-Process)
+try { process.stdin.resume(); } catch (_) {}
 
-// Keep-alive to prevent odd shell/host termination edge cases.
+// Keep-alive timer (do NOT unref)
 setInterval(() => {}, 60_000);
