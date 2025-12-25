@@ -2,46 +2,40 @@
 # Node / Runtime
 # =========================
 node_modules/
-npm-debug.log
-.env
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # =========================
-# OS / Editor Noise
+# Local runtime output
+# =========================
+node-err.txt
+node-out.txt
+
+# =========================
+# Nyx / Sandblast runtime logs
+# =========================
+nyx-boot.log
+nyx-crash.txt
+nyx-fatal.log
+
+# =========================
+# Local test payloads
+# =========================
+payload.json
+
+# =========================
+# OS / Editor noise
 # =========================
 .DS_Store
 Thumbs.db
+.vscode/
+.idea/
 
 # =========================
-# Runtime Data (Generated)
+# Temporary / backup files
 # =========================
-# Ignore generic runtime data
-data/
-
-# IMPORTANT:
-# Allow Nyx music knowledge data to be deployed
-!Data/
-!Data/**/
-!Data/**/*.json
-
-# =========================
-# Debug / Scrape Artifacts (DO NOT DEPLOY)
-# =========================
-Data/_debug_*.html
-Scripts/*_raw.html
-Scripts/debug_*.js
-
-# =========================
-# Local Stable Backups
-# =========================
-index.nyx-stable.js
-index.nyx-stable.js.txt
-
-# =========================
-# Local Helper Scripts / Artifacts
-# (Generated, analysis, one-off tools)
-# =========================
-Scripts/*.json
-Scripts/*.txt
-
-cards_to_chart_dump.js
-fact_cards_verify_1000.txt
+*.tmp
+*.bak
+*.old
+*.swp
