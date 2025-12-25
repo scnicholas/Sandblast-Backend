@@ -1,7 +1,7 @@
 "use strict";
 
 /**
- * musicKnowledge.js — Bulletproof V2.30
+ * musicKnowledge.js — Bulletproof V2.31
  *
  * Goals:
  * - Load base music moments DB reliably
@@ -19,13 +19,15 @@
  *    * Move title-tail into artist (supports "Kool & The Gang", "Hall & Oates", collaborations)
  *    * Two-token artist spill ("Heart Yes" -> "Yes", title + "Heart")
  *    * Leading title-word stuck in artist ("You REO Speedwagon" -> move "You" to title end)
- * - Deterministic failsafes for known 1984 Top40Weekly corrupt patterns (#1/#3/#8/#10)
+ *    * Title-word(s) embedded in artist ("Love Diana Ross & Lionel Richie" -> move "Love" to title)
+ *    * Canonicalize common ampersand acts (Kool & The Gang, Hall & Oates) post-repair
+ * - Deterministic failsafes for known corrupt patterns (kept)
  */
 
 const fs = require("fs");
 const path = require("path");
 
-const MK_VERSION = "musicKnowledge v2.30 (global Top40Weekly normalization + version banner)";
+const MK_VERSION = "musicKnowledge v2.31 (global Top40Weekly normalization + title-word extraction + ampersand canonicalization)";
 
 // =============================
 // CONFIG
@@ -204,7 +206,12 @@ const BAND_SUFFIXES = new Set([
   "Gang",
 ]);
 
-const TITLE_LEADING_WORDS = new Set([
+/**
+ * Words that frequently belong to song titles and commonly drift into artist fields
+ * in older Top40Weekly dumps. We only move them when the move makes the artist
+ * more plausible and the title longer/more plausible.
+ */
+const TITLE_PREFIX_CANDIDATES = new Set([
   "You",
   "I",
   "Me",
@@ -220,7 +227,18 @@ const TITLE_LEADING_WORDS = new Set([
   "Eyes",
   "Girl",
   "Night",
+  "List",
+  "Endless",
+  "Celebration",
+  "Starting",
+  "Keep",
+  "Kiss",
+  "Rainy",
+  "Davis",
 ]);
+
+// (kept for backwards compatibility with older helper logic)
+const TITLE_LEADING_WORDS = TITLE_PREFIX_CANDIDATES;
 
 function hardFixKnownCorruptions(m) {
   const year = Number(m.year);
@@ -416,7 +434,7 @@ function repairLeadingTitleWordInArtist(m) {
   if (aParts.length < 2) return m;
 
   const first = aParts[0];
-  if (!TITLE_LEADING_WORDS.has(first)) return m;
+  if (!TITLE_PREFIX_CANDIDATES.has(first)) return m;
 
   // Remaining looks like artist (starts capitalized)
   const rest = aParts.slice(1);
@@ -428,6 +446,102 @@ function repairLeadingTitleWordInArtist(m) {
 
   m.artist = rest.join(" ").trim();
   m.title = `${title} ${first}`.replace(/\s+/g, " ").trim();
+  return m;
+}
+
+/**
+ * Repair: title-word(s) embedded in artist (common in early Top40Weekly years)
+ * Examples:
+ * - "Love Diana Ross & Lionel Richie" + title "Endless" => "Diana Ross & Lionel Richie" — "Endless Love"
+ * - "Oates & List Hall" + title "Kiss on My" => "Hall & Oates" — "Kiss on My List"
+ *
+ * This runs conservatively:
+ * - only moves prefix-like tokens from the artist into the title
+ * - only while the title is short-ish and the artist still retains >= 2 tokens
+ */
+function repairTitleWordsEmbeddedInArtist(m) {
+  let artist = _asText(m.artist);
+  let title = _asText(m.title);
+  if (!artist) return m;
+
+  let aParts = artist.split(/\s+/).filter(Boolean);
+  let tParts = title.split(/\s+/).filter(Boolean);
+
+  if (aParts.length < 2) return m;
+  if (tParts.length > 5) return m;
+
+  const moved = [];
+
+  // Iteratively move plausible title tokens from the FRONT of artist into the title
+  while (aParts.length >= 2 && tParts.length <= 5) {
+    const first = aParts[0];
+    const low = first.toLowerCase().replace(/,$/, "");
+
+    // Never move connectors/articles
+    if (low === "&" || low === "and" || low === "the") break;
+
+    // Only move if it's a known title-candidate
+    if (!TITLE_PREFIX_CANDIDATES.has(first) && !TITLE_PREFIX_CANDIDATES.has(first[0]?.toUpperCase() + first.slice(1))) {
+      break;
+    }
+
+    moved.push(first);
+    aParts = aParts.slice(1);
+    tParts.push(first);
+  }
+
+  if (moved.length) {
+    m.artist = aParts.join(" ").replace(/\s+/g, " ").trim();
+    m.title = tParts.join(" ").replace(/\s+/g, " ").trim();
+  }
+
+  return m;
+}
+
+/**
+ * Canonicalize a few high-frequency band/duo patterns after repairs.
+ * This is schema normalization (not year patching).
+ */
+function canonicalizeAmpersandActs(m) {
+  let artist = _asText(m.artist);
+  if (!artist) return m;
+
+  const a = artist
+    .replace(/\s+/g, " ")
+    .replace(/\s*&\s*/g, " & ")
+    .trim();
+
+  // Kool & The Gang variants
+  if (/^the gang & kool$/i.test(a) || /^the gang & kool,?$/i.test(a)) {
+    m.artist = "Kool & The Gang";
+    return m;
+  }
+  if (/^kool & the gang$/i.test(a) || /^kool & the gang,?$/i.test(a)) {
+    m.artist = "Kool & The Gang";
+    return m;
+  }
+  if (/^the gang & the kool$/i.test(a)) {
+    m.artist = "Kool & The Gang";
+    return m;
+  }
+
+  // Hall & Oates variants
+  if (/^oates & hall$/i.test(a) || /^oates & hall,?$/i.test(a)) {
+    m.artist = "Hall & Oates";
+    return m;
+  }
+  if (/^hall & oates$/i.test(a) || /^hall & oates,?$/i.test(a)) {
+    m.artist = "Hall & Oates";
+    return m;
+  }
+
+  // Lightweight cleanup: "the Gang & Kool" often emerges as "the Gang & Kool"
+  if (/^the gang & kool$/i.test(a)) {
+    m.artist = "Kool & The Gang";
+    return m;
+  }
+
+  m.artist = a;
   return m;
 }
 
@@ -444,8 +558,15 @@ function normalizeMomentFields(m) {
   // Global repairs (order matters)
   repairTitleShortArtistLong(m);
   repairLeadingTitleWordInArtist(m);
+
+  // NEW: pull leaked title-words out of artist BEFORE we do tail/duo shaping
+  repairTitleWordsEmbeddedInArtist(m);
+
   repairTwoTokenArtistFrontSpill(m);
   repairTitleTailIntoArtist(m);
+
+  // NEW: canonicalize common &/The acts post-repair
+  canonicalizeAmpersandActs(m);
 
   // Deterministic final pass
   hardFixKnownCorruptions(m);
