@@ -1,26 +1,31 @@
 "use strict";
 
 /**
- * musicKnowledge.js — Bulletproof V2.29
+ * musicKnowledge.js — Bulletproof V2.30
  *
- * Fixes included:
- * - toInt(undefined) no longer becomes 0 (prevents rank leak)
- * - Top40Weekly ingest requires rank 1..100; rankless rows skipped
- * - Correct Top40Weekly present logging
- * - Stronger Top40Weekly drift repair:
- *    A) Title-short + artist-long: move leading artist tokens into title; keep artist core
- *    B) Two-token artist spill: move first token to title end even if title not "short"
- *    C) Title tail into artist: allow connectors (and, &) for duo artists
- *    D) Band suffix logic: keep "Culture Club" together; keep "The Jeff Healey Band" together
- * - NEW:
- *    E) Version banner log so we can confirm the correct file is executing
- *    F) Deterministic failsafe fixes for Top40Weekly 1984 rank drift patterns (#1/#3/#8/#10)
+ * Goals:
+ * - Load base music moments DB reliably
+ * - Merge Top40Weekly Top 100 from Data/top40weekly
+ * - Normalize Top40Weekly artist/title drift across ALL years (not year-by-year patches)
+ *
+ * Key fixes:
+ * - toInt(undefined) no longer becomes 0
+ * - Top40Weekly ingest requires rank 1..100 (rankless rows skipped)
+ * - Accurate Top40Weekly present logging
+ * - Version banner for verification
+ * - Global Top40Weekly normalization:
+ *    * Decode HTML entities (&amp; -> &)
+ *    * Title-short + Artist-long: extract artist core (supports 2-token names like "Kim Carnes")
+ *    * Move title-tail into artist (supports "Kool & The Gang", "Hall & Oates", collaborations)
+ *    * Two-token artist spill ("Heart Yes" -> "Yes", title + "Heart")
+ *    * Leading title-word stuck in artist ("You REO Speedwagon" -> move "You" to title end)
+ * - Deterministic failsafes for known 1984 Top40Weekly corrupt patterns (#1/#3/#8/#10)
  */
 
 const fs = require("fs");
 const path = require("path");
 
-const MK_VERSION = "musicKnowledge v2.29 (version banner + 1984 Top40Weekly failsafes)";
+const MK_VERSION = "musicKnowledge v2.30 (global Top40Weekly normalization + version banner)";
 
 // =============================
 // CONFIG
@@ -60,7 +65,6 @@ const BY_YEAR = new Map(); // year -> moments[]
 const BY_YEAR_CHART = new Map(); // `${year}|${chart}` -> moments[]
 const STATS = { moments: 0, yearMin: null, yearMax: null, charts: [] };
 
-// Track Top40 merge stats for accurate logging
 let TOP40_MERGE_META = {
   didMerge: false,
   dir: null,
@@ -99,9 +103,7 @@ function dirExists(p) {
 }
 
 /**
- * CRITICAL:
- * - toInt(undefined) previously returned 0 due to Number("") === 0.
- * - Now: blank -> null
+ * CRITICAL: blank -> null (prevents toInt(undefined) => 0)
  */
 function toInt(x) {
   const s = String(x ?? "").trim();
@@ -163,16 +165,31 @@ function isNameyToken(tok) {
   return t[0] === t[0].toUpperCase();
 }
 
+function looksLikeTwoTokenPersonName(a, b) {
+  if (!a || !b) return false;
+  return isNameyToken(a) && isNameyToken(b);
+}
+
 function normalizeChart(chart) {
   const c = String(chart || DEFAULT_CHART).trim();
   if (c === "Top40Weekly") return TOP40_CHART;
   return c || DEFAULT_CHART;
 }
 
+function decodeHtmlEntities(s) {
+  const t = String(s || "");
+  return t
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+}
+
 // =============================
 // DRIFT REPAIR (Top40Weekly ingest)
 // =============================
-
 const BAND_SUFFIXES = new Set([
   "Club",
   "Band",
@@ -184,6 +201,25 @@ const BAND_SUFFIXES = new Set([
   "Trio",
   "Quartet",
   "Quintet",
+  "Gang",
+]);
+
+const TITLE_LEADING_WORDS = new Set([
+  "You",
+  "I",
+  "Me",
+  "My",
+  "Mine",
+  "Your",
+  "Yours",
+  "Us",
+  "We",
+  "Love",
+  "Loving",
+  "Heart",
+  "Eyes",
+  "Girl",
+  "Night",
 ]);
 
 function hardFixKnownCorruptions(m) {
@@ -193,7 +229,7 @@ function hardFixKnownCorruptions(m) {
   let artist = _asText(m.artist);
   let title = _asText(m.title);
 
-  // 1989 corruptions you saw
+  // 1989 examples
   if (year === 1989 && /^Prayer Madonna$/i.test(artist) && /^Like a$/i.test(title)) {
     artist = "Madonna";
     title = "Like a Prayer";
@@ -215,14 +251,12 @@ function hardFixKnownCorruptions(m) {
     title = "Is This Love";
   }
 
-  // --- 1984 Top40Weekly failsafe repairs (matches your current corrupt output) ---
-  // 1. Doves Cry Prince — When  => Prince — When Doves Cry
+  // 1984 Top40Weekly failsafes (matches previously observed corrupt output)
   if (year === 1984 && rank === 1 && /^Doves Cry Prince$/i.test(artist) && /^When$/i.test(title)) {
     artist = "Prince";
     title = "When Doves Cry";
   }
 
-  // 3. Say Paul Mc Cartney and Michael Jackson — Say Say => Paul Mc Cartney and Michael Jackson — Say Say Say
   if (
     year === 1984 &&
     rank === 3 &&
@@ -233,32 +267,14 @@ function hardFixKnownCorruptions(m) {
     title = "Say Say Say";
   }
 
-  // 8. Heart Yes — Owner of a Lonely => Yes — Owner of a Lonely Heart
-  if (
-    year === 1984 &&
-    rank === 8 &&
-    /^Heart Yes$/i.test(artist) &&
-    /^Owner of a Lonely$/i.test(title)
-  ) {
+  if (year === 1984 && rank === 8 && /^Heart Yes$/i.test(artist) && /^Owner of a Lonely$/i.test(title)) {
     artist = "Yes";
     title = "Owner of a Lonely Heart";
   }
 
-  // 10. Chameleon Culture Club — Karma => Culture Club — Karma Chameleon
-  if (
-    year === 1984 &&
-    rank === 10 &&
-    /^Chameleon Culture Club$/i.test(artist) &&
-    /^Karma$/i.test(title)
-  ) {
+  if (year === 1984 && rank === 10 && /^Chameleon Culture Club$/i.test(artist) && /^Karma$/i.test(title)) {
     artist = "Culture Club";
     title = "Karma Chameleon";
-  }
-
-  // Keep this simple correction as well
-  if (year === 1984 && rank === 9 && /^Ray Parker, Jr\.$/i.test(artist) && /^Ghostbusters$/i.test(title)) {
-    artist = "Ray Parker, Jr.";
-    title = "Ghostbusters";
   }
 
   m.artist = artist;
@@ -267,12 +283,11 @@ function hardFixKnownCorruptions(m) {
 }
 
 /**
- * If title is very short (<=2 tokens) and artist is long (>=3 tokens),
- * assume artist contains trailing artist core and leading title tail.
- *
- * Examples:
- * - "Doves Cry Prince" — "When"   => Prince — "When Doves Cry"
- * - "Chameleon Culture Club" — "Karma" => Culture Club — "Karma Chameleon"
+ * Repair: title very short (<=2 tokens) and artist long (>=3 tokens)
+ * Extract artist core from the END of artist tokens:
+ * - If last token is a known band suffix (e.g. Club/Band/Gang), keep last 2 tokens.
+ * - Else if last two tokens look like a person name (e.g. "Kim Carnes", "John Lennon"), keep last 2 tokens.
+ * - Else keep last 1 token (e.g. "Prince").
  */
 function repairTitleShortArtistLong(m) {
   let artist = _asText(m.artist);
@@ -285,7 +300,12 @@ function repairTitleShortArtistLong(m) {
   if (aParts.length < 3) return m;
 
   const last = aParts[aParts.length - 1];
-  const coreLen = BAND_SUFFIXES.has(last) ? 2 : 1;
+  const prev = aParts[aParts.length - 2];
+
+  let coreLen = 1;
+
+  if (BAND_SUFFIXES.has(last)) coreLen = 2;
+  else if (looksLikeTwoTokenPersonName(prev, last)) coreLen = 2;
 
   const coreTokens = aParts.slice(-coreLen);
   const spillTokens = aParts.slice(0, -coreLen);
@@ -298,8 +318,8 @@ function repairTitleShortArtistLong(m) {
 }
 
 /**
- * Two-token artist spill (more permissive)
- * "Heart Yes" — "Owner of a Lonely" => Yes — "Owner of a Lonely Heart"
+ * Repair: two-token artist spill
+ * "Heart Yes" — "Owner of a Lonely" => "Yes" — "Owner of a Lonely Heart"
  */
 function repairTwoTokenArtistFrontSpill(m) {
   let artist = _asText(m.artist);
@@ -326,12 +346,15 @@ function repairTwoTokenArtistFrontSpill(m) {
 }
 
 /**
- * Title tail into artist (allow "and" / "&")
- * Example:
- * - artist="Jackson"
- * - title="Say Say Say Paul Mc Cartney and Michael"
- * => artist="Paul Mc Cartney and Michael Jackson"
- *    title="Say Say Say"
+ * Repair: move tail tokens from title into artist (supports bands/duos/collabs)
+ * Examples:
+ * - "Celebration Kool & the" + artist "Gang" => "Kool & the Gang" — "Celebration"
+ * - "Kiss on My List Hall &" + artist "Oates" => "Hall & Oates" — "Kiss on My List"
+ * - "Endless Love Diana Ross &" + artist "Lionel Richie" => "Lionel Richie & Diana Ross" — "Endless Love"
+ *
+ * Notes:
+ * - Allows tokens: Namey, '&', 'and', and 'the'
+ * - Special handling if tail ends with '&' or 'and' (connector trailing)
  */
 function repairTitleTailIntoArtist(m) {
   let artist = _asText(m.artist);
@@ -343,9 +366,11 @@ function repairTitleTailIntoArtist(m) {
   const isTailOk = (tok) => {
     const low = String(tok).toLowerCase().replace(/,$/, "");
     if (low === "and" || low === "&") return true;
+    if (low === "the") return true;
     return isNameyToken(tok);
   };
 
+  // try moving last 1..6 tokens
   for (let k = 6; k >= 1; k--) {
     if (tParts.length < k + 1) continue;
 
@@ -356,8 +381,21 @@ function repairTitleTailIntoArtist(m) {
     if (!head.length) continue;
     if (isTitleHangWord(head[head.length - 1])) continue;
 
-    const newArtist = `${tail.join(" ")} ${artist}`.replace(/\s+/g, " ").trim();
-    m.artist = newArtist;
+    const tailLast = String(tail[tail.length - 1]).toLowerCase();
+
+    // If tail ends with connector, interpret as "ARTIST <conn> <tailWithoutConn>"
+    if (tailLast === "&" || tailLast === "and") {
+      const conn = tail[tail.length - 1];
+      const who = tail.slice(0, -1).join(" ").trim();
+      if (who) {
+        m.artist = `${artist} ${conn} ${who}`.replace(/\s+/g, " ").trim();
+        m.title = head.join(" ").trim();
+        return m;
+      }
+    }
+
+    // Default: prepend tail to artist (for "Kool & the" + "Gang")
+    m.artist = `${tail.join(" ")} ${artist}`.replace(/\s+/g, " ").trim();
     m.title = head.join(" ").trim();
     return m;
   }
@@ -365,18 +403,51 @@ function repairTitleTailIntoArtist(m) {
   return m;
 }
 
+/**
+ * Repair: leading title-word stuck in artist
+ * Example:
+ * - artist "You REO Speedwagon" + title "Keep on Loving" => "REO Speedwagon" — "Keep on Loving You"
+ */
+function repairLeadingTitleWordInArtist(m) {
+  let artist = _asText(m.artist);
+  let title = _asText(m.title);
+
+  const aParts = artist.split(/\s+/).filter(Boolean);
+  if (aParts.length < 2) return m;
+
+  const first = aParts[0];
+  if (!TITLE_LEADING_WORDS.has(first)) return m;
+
+  // Remaining looks like artist (starts capitalized)
+  const rest = aParts.slice(1);
+  if (!rest.length) return m;
+  if (rest[0][0] !== rest[0][0].toUpperCase()) return m;
+
+  // Avoid duplication
+  if (norm(title).includes(norm(first))) return m;
+
+  m.artist = rest.join(" ").trim();
+  m.title = `${title} ${first}`.replace(/\s+/g, " ").trim();
+  return m;
+}
+
+/**
+ * Normalize artist/title fields for Top40Weekly and any downstream use.
+ */
 function normalizeMomentFields(m) {
   if (!m || typeof m !== "object") return m;
 
-  m.artist = _asText(m.artist);
-  m.title = _asText(m.title);
+  // Decode HTML entities and trim
+  m.artist = decodeHtmlEntities(_asText(m.artist));
+  m.title = decodeHtmlEntities(_asText(m.title));
 
-  // Generic repairs (order matters)
+  // Global repairs (order matters)
   repairTitleShortArtistLong(m);
+  repairLeadingTitleWordInArtist(m);
   repairTwoTokenArtistFrontSpill(m);
   repairTitleTailIntoArtist(m);
 
-  // deterministic last
+  // Deterministic final pass
   hardFixKnownCorruptions(m);
 
   m.artist = _asText(m.artist);
@@ -552,7 +623,6 @@ function readTop40WeeklyDir(top40DirAbs) {
         title,
       });
 
-      // final guard: artist/title must be non-empty after repairs
       if (!_asText(m.artist) || !_asText(m.title)) {
         rowsSkipped++;
         continue;
@@ -682,7 +752,6 @@ function getDb() {
     );
   }
 
-  // Version banner — confirms the correct file is executing.
   console.log(`[musicKnowledge] ${MK_VERSION}`);
 
   return DB;
@@ -854,7 +923,7 @@ function getNumberOneByYear(year, chart = DEFAULT_CHART) {
 }
 
 // =============================
-// DETECTION HELPERS
+// DETECTION HELPERS (minimal)
 // =============================
 function detectYearFromText(text) {
   const t = String(text || "");
