@@ -1,7 +1,13 @@
 "use strict";
 
 /**
- * musicKnowledge.js — Bulletproof V2.26 (Music Flow V1: Top 10 correctness + #1 only + chart routing)
+ * musicKnowledge.js — Bulletproof V2.27
+ *
+ * Fixes included:
+ * - Critical: toInt(undefined) previously returned 0 because Number("") === 0.
+ *   This caused rank=undefined rows to be treated as rank=0 and leak into Top 10.
+ * - Top40Weekly ingest now requires a valid rank (1..100). Rankless rows are skipped.
+ * - Correct Top40Weekly "present" logging (now reports actual row count).
  *
  * Primary goals:
  * - Load base music moments DB reliably (Render/Windows safe)
@@ -63,6 +69,15 @@ const BY_YEAR = new Map(); // year -> moments[]
 const BY_YEAR_CHART = new Map(); // `${year}|${chart}` -> moments[]
 const STATS = { moments: 0, yearMin: null, yearMax: null, charts: [] };
 
+// Track Top40 merge stats for accurate logging
+let TOP40_MERGE_META = {
+  didMerge: false,
+  dir: null,
+  rows: 0,
+  files: 0,
+  years: null,
+};
+
 // =============================
 // HELPERS
 // =============================
@@ -92,13 +107,22 @@ function dirExists(p) {
   }
 }
 
+/**
+ * IMPORTANT FIX:
+ * - Previously: toInt(undefined) -> Number("") -> 0 (finite) => returned 0 (wrong)
+ * - Now: empty/blank values return null
+ */
 function toInt(x) {
-  const n = Number(String(x ?? "").trim());
+  const s = String(x ?? "").trim();
+  if (!s) return null;
+  const n = Number(s);
   return Number.isFinite(n) ? n : null;
 }
 
 function toRank(x) {
-  const n = Number(String(x ?? "").trim());
+  const s = String(x ?? "").trim();
+  if (!s) return null;
+  const n = Number(s);
   if (!Number.isFinite(n)) return null;
   if (n < 1 || n > 100) return null;
   return n;
@@ -274,11 +298,6 @@ function repairTwoTokenArtistFrontSpill(m) {
 
 // Generic tail-spill repair:
 // title ends with a name token(s) that should be attached to artist.
-// Examples:
-//  - "Loggins" + "Footloose Kenny" -> "Kenny Loggins" + "Footloose"
-//  - "Richie" + "Hello Lionel" -> "Lionel Richie" + "Hello"
-//  - "Halen" + "Jump Van" -> "Van Halen" + "Jump"
-//  - "Jr." + "Ghostbusters Ray Parker," -> "Ray Parker, Jr." + "Ghostbusters"
 function repairTitleTailIntoArtist(m) {
   let artist = _asText(m.artist);
   let title = _asText(m.title);
@@ -494,7 +513,14 @@ function readTop40WeeklyDir(top40DirAbs) {
       const r = extractRankFromRow(row);
       const { artist, title } = extractArtistTitleFromRow(row);
 
+      // Require artist/title
       if (!artist || !title) {
+        rowsSkipped++;
+        continue;
+      }
+
+      // CRITICAL: Require rank for Top40Weekly Top 100
+      if (r == null) {
         rowsSkipped++;
         continue;
       }
@@ -520,6 +546,7 @@ function readTop40WeeklyDir(top40DirAbs) {
     emptyFiles,
     rowsSkipped,
     years: yearMin != null && yearMax != null ? `${yearMin}–${yearMax}` : null,
+    filesCount: files.length,
   };
 }
 
@@ -592,16 +619,27 @@ function getDb() {
   const top40DirAbs = resolveRepoPath(TOP40_DIR_DEFAULT);
   const shouldMerge = MERGE_TOP40WEEKLY && dirExists(top40DirAbs);
 
+  TOP40_MERGE_META = {
+    didMerge: false,
+    dir: top40DirAbs,
+    rows: 0,
+    files: 0,
+    years: null,
+  };
+
   if (shouldMerge) {
     const res = readTop40WeeklyDir(top40DirAbs);
+    TOP40_MERGE_META.didMerge = true;
+    TOP40_MERGE_META.rows = Array.isArray(res.merged) ? res.merged.length : 0;
+    TOP40_MERGE_META.files = res.filesCount || 0;
+    TOP40_MERGE_META.years = res.years || null;
+
     if (res.ok && Array.isArray(res.merged) && res.merged.length) {
       // append merged moments
       DB.moments = DB.moments.concat(res.merged);
 
       console.log(
-        `[musicKnowledge] Top40Weekly Top 100 merge: dir=${top40DirAbs} files=${fs
-          .readdirSync(top40DirAbs)
-          .filter((x) => /\.json$/i.test(x)).length} added=${res.added} (skippedFiles=${res.skippedFiles}, emptyFiles=${res.emptyFiles}, rowsSkipped=${res.rowsSkipped}) years=${res.years || "?–?"}`
+        `[musicKnowledge] Top40Weekly Top 100 merge: dir=${top40DirAbs} files=${TOP40_MERGE_META.files} added=${res.added} (skippedFiles=${res.skippedFiles}, emptyFiles=${res.emptyFiles}, rowsSkipped=${res.rowsSkipped}) years=${res.years || "?–?"}`
       );
     } else {
       console.log(
@@ -615,9 +653,10 @@ function getDb() {
   console.log(
     `[musicKnowledge] Loaded ${STATS.moments} moments (years ${STATS.yearMin ?? "?"}–${STATS.yearMax ?? "?"}) charts=${STATS.charts.length}`
   );
+
   if (STATS.charts.includes(TOP40_CHART)) {
     console.log(
-      `[musicKnowledge] Top40Weekly Top 100 present: ${getYearChartCount(STATS.yearMin || 0, TOP40_CHART) !== null ? BY_YEAR_CHART.size : 0} rows (dir=${top40DirAbs})`
+      `[musicKnowledge] Top40Weekly Top 100 present: ${TOP40_MERGE_META.rows} rows (dir=${TOP40_MERGE_META.dir})`
     );
   }
 
@@ -777,7 +816,6 @@ function getTopByYear(year, chart = DEFAULT_CHART, limit = 10) {
       return 0;
     });
 
-    // If ranks are fully present (1..100), slice the first N
     return ranked.slice(0, Math.max(1, Number(limit) || 10));
   }
 
