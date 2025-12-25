@@ -1,21 +1,26 @@
 "use strict";
 
 /**
- * musicKnowledge.js — Bulletproof V2.28
+ * musicKnowledge.js — Bulletproof V2.29
  *
  * Fixes included:
  * - toInt(undefined) no longer becomes 0 (prevents rank leak)
  * - Top40Weekly ingest requires rank 1..100; rankless rows skipped
  * - Correct Top40Weekly present logging
- * - NEW: Stronger Top40Weekly drift repair:
+ * - Stronger Top40Weekly drift repair:
  *    A) Title-short + artist-long: move leading artist tokens into title; keep artist core
  *    B) Two-token artist spill: move first token to title end even if title not "short"
  *    C) Title tail into artist: allow connectors (and, &) for duo artists
  *    D) Band suffix logic: keep "Culture Club" together; keep "The Jeff Healey Band" together
+ * - NEW:
+ *    E) Version banner log so we can confirm the correct file is executing
+ *    F) Deterministic failsafe fixes for Top40Weekly 1984 rank drift patterns (#1/#3/#8/#10)
  */
 
 const fs = require("fs");
 const path = require("path");
+
+const MK_VERSION = "musicKnowledge v2.29 (version banner + 1984 Top40Weekly failsafes)";
 
 // =============================
 // CONFIG
@@ -210,9 +215,47 @@ function hardFixKnownCorruptions(m) {
     title = "Is This Love";
   }
 
-  // --- 1984 examples (your current output) ---
-  // Note: these are now "failsafe" not primary; the generic logic should fix them first.
+  // --- 1984 Top40Weekly failsafe repairs (matches your current corrupt output) ---
+  // 1. Doves Cry Prince — When  => Prince — When Doves Cry
+  if (year === 1984 && rank === 1 && /^Doves Cry Prince$/i.test(artist) && /^When$/i.test(title)) {
+    artist = "Prince";
+    title = "When Doves Cry";
+  }
 
+  // 3. Say Paul Mc Cartney and Michael Jackson — Say Say => Paul Mc Cartney and Michael Jackson — Say Say Say
+  if (
+    year === 1984 &&
+    rank === 3 &&
+    /^Say Paul Mc Cartney and Michael Jackson$/i.test(artist) &&
+    /^Say Say$/i.test(title)
+  ) {
+    artist = "Paul Mc Cartney and Michael Jackson";
+    title = "Say Say Say";
+  }
+
+  // 8. Heart Yes — Owner of a Lonely => Yes — Owner of a Lonely Heart
+  if (
+    year === 1984 &&
+    rank === 8 &&
+    /^Heart Yes$/i.test(artist) &&
+    /^Owner of a Lonely$/i.test(title)
+  ) {
+    artist = "Yes";
+    title = "Owner of a Lonely Heart";
+  }
+
+  // 10. Chameleon Culture Club — Karma => Culture Club — Karma Chameleon
+  if (
+    year === 1984 &&
+    rank === 10 &&
+    /^Chameleon Culture Club$/i.test(artist) &&
+    /^Karma$/i.test(title)
+  ) {
+    artist = "Culture Club";
+    title = "Karma Chameleon";
+  }
+
+  // Keep this simple correction as well
   if (year === 1984 && rank === 9 && /^Ray Parker, Jr\.$/i.test(artist) && /^Ghostbusters$/i.test(title)) {
     artist = "Ray Parker, Jr.";
     title = "Ghostbusters";
@@ -224,7 +267,7 @@ function hardFixKnownCorruptions(m) {
 }
 
 /**
- * NEW: If title is very short (<=2 tokens) and artist is long (>=3 tokens),
+ * If title is very short (<=2 tokens) and artist is long (>=3 tokens),
  * assume artist contains trailing artist core and leading title tail.
  *
  * Examples:
@@ -241,12 +284,7 @@ function repairTitleShortArtistLong(m) {
   if (tParts.length > 2) return m;
   if (aParts.length < 3) return m;
 
-  // Decide how many tokens belong to artist core:
-  // - If last token is a known band suffix, keep last 2 tokens together (e.g., "Culture Club")
-  // - Else keep last 1 token as artist core (e.g., "Prince")
   const last = aParts[aParts.length - 1];
-  const prev = aParts[aParts.length - 2];
-
   const coreLen = BAND_SUFFIXES.has(last) ? 2 : 1;
 
   const coreTokens = aParts.slice(-coreLen);
@@ -260,14 +298,8 @@ function repairTitleShortArtistLong(m) {
 }
 
 /**
- * UPDATED: Two-token artist spill (more permissive)
+ * Two-token artist spill (more permissive)
  * "Heart Yes" — "Owner of a Lonely" => Yes — "Owner of a Lonely Heart"
- *
- * Previously only triggered when title looked truncated by hang-words.
- * Now triggers if:
- * - artist has exactly 2 tokens
- * - title does not already contain spill token
- * - spill token looks capitalized and non-trivial
  */
 function repairTwoTokenArtistFrontSpill(m) {
   let artist = _asText(m.artist);
@@ -282,11 +314,9 @@ function repairTwoTokenArtistFrontSpill(m) {
   if (!spill || spill.length < 2) return m;
   if (!candidateArtist) return m;
 
-  // do not duplicate spill if already in title
   const titleNorm = norm(title);
   if (titleNorm.includes(norm(spill))) return m;
 
-  // gates: both should be capitalized-looking
   if (spill[0] !== spill[0].toUpperCase()) return m;
   if (candidateArtist[0] !== candidateArtist[0].toUpperCase()) return m;
 
@@ -296,7 +326,7 @@ function repairTwoTokenArtistFrontSpill(m) {
 }
 
 /**
- * UPDATED: Title tail into artist (allow "and" / "&")
+ * Title tail into artist (allow "and" / "&")
  * Example:
  * - artist="Jackson"
  * - title="Say Say Say Paul Mc Cartney and Michael"
@@ -316,7 +346,6 @@ function repairTitleTailIntoArtist(m) {
     return isNameyToken(tok);
   };
 
-  // try moving last 1..6 tokens (wider for "Paul Mc Cartney and Michael")
   for (let k = 6; k >= 1; k--) {
     if (tParts.length < k + 1) continue;
 
@@ -327,8 +356,6 @@ function repairTitleTailIntoArtist(m) {
     if (!head.length) continue;
     if (isTitleHangWord(head[head.length - 1])) continue;
 
-    // If artist is just a surname (e.g., Jackson) and tail ends in a first name,
-    // attach surname to the end.
     const newArtist = `${tail.join(" ")} ${artist}`.replace(/\s+/g, " ").trim();
     m.artist = newArtist;
     m.title = head.join(" ").trim();
@@ -343,8 +370,6 @@ function normalizeMomentFields(m) {
 
   m.artist = _asText(m.artist);
   m.title = _asText(m.title);
-
-  // deterministic known fixes last (after generic repairs) so they can be minimal
 
   // Generic repairs (order matters)
   repairTitleShortArtistLong(m);
@@ -656,6 +681,9 @@ function getDb() {
       `[musicKnowledge] Top40Weekly Top 100 present: ${TOP40_MERGE_META.rows} rows (dir=${TOP40_MERGE_META.dir})`
     );
   }
+
+  // Version banner — confirms the correct file is executing.
+  console.log(`[musicKnowledge] ${MK_VERSION}`);
 
   return DB;
 }
