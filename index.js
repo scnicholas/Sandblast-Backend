@@ -4,9 +4,10 @@
  *
  * Connectivity hardening:
  * - Explicit HOST bind (default 0.0.0.0)
- * - Startup logs include host:port + PID
+ * - Listener-truth startup logging via server.address()
  * - Clean ASCII banner (avoids ΓÇö encoding artifacts)
  * - Handles common listen errors (EADDRINUSE, etc.)
+ * - Optional /api/debug/listen to confirm bind at runtime
  */
 
 'use strict';
@@ -22,16 +23,20 @@ try { intentClassifier = require('./Utils/intentClassifier'); } catch (_) {}
 try { musicKnowledge = require('./Utils/musicKnowledge'); } catch (_) {}
 
 const app = express();
+app.disable('x-powered-by');
 
 // -----------------------------
 // CONFIG
 // -----------------------------
 const PORT = Number(process.env.PORT || 3000);
-const HOST = String(process.env.HOST || '0.0.0.0'); // important on Windows + containers
+const HOST = String(process.env.HOST || '0.0.0.0'); // set HOST=127.0.0.1 for strict loopback
 const ENV = String(process.env.NODE_ENV || process.env.ENV || 'production').toLowerCase();
 const DEFAULT_TIMEOUT_MS = Number(process.env.NYX_TIMEOUT_MS || 20000);
 const DEFAULT_CHART = 'Billboard Hot 100';
 const TOP40_CHART = 'Top40Weekly Top 100';
+
+// If behind proxy (Render/Vercel/etc.), this avoids some edge-case header oddities.
+app.set('trust proxy', 1);
 
 // -----------------------------
 // MIDDLEWARE (CORS + JSON safety)
@@ -511,6 +516,13 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Listener truth endpoint (tiny + safe)
+let _serverRef = null;
+app.get('/api/debug/listen', (req, res) => {
+  const addr = _serverRef && typeof _serverRef.address === 'function' ? _serverRef.address() : null;
+  res.status(200).json({ ok: true, addr, host: HOST, port: PORT, pid: process.pid });
+});
+
 app.post('/api/chat', async (req, res) => {
   const body = (req && req.body && typeof req.body === 'object') ? req.body : null;
 
@@ -534,9 +546,14 @@ app.post('/api/chat', async (req, res) => {
 });
 
 // -----------------------------
-// START
+// START (listener truth)
 // -----------------------------
-const server = app.listen(PORT, HOST, () => {
+const server = app.listen(PORT, HOST);
+_serverRef = server;
+
+server.on('listening', () => {
+  const addr = server.address();
+  console.log('[Nyx] listening confirmed:', addr);
   console.log(`[Nyx] up on ${HOST}:${PORT} - intel-layer orchestrator env=${ENV} timeout=${DEFAULT_TIMEOUT_MS}ms pid=${process.pid}`);
 });
 
@@ -555,3 +572,6 @@ process.on('unhandledRejection', (err) => {
   console.error('[Nyx] unhandledRejection:', err);
   process.exit(1);
 });
+
+// Keep-alive to prevent odd shell/host termination edge cases.
+setInterval(() => {}, 60_000);
