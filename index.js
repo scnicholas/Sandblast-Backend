@@ -1,13 +1,14 @@
 /**
  * Sandblast Backend — Nyx Intelligence Layer
- * Hardened Orchestrator + Music Flow V1
+ * Hardened Orchestrator + Music Flow V1 (KB-backed)
  *
  * Fixes:
  * - Stops "Top 10" text from being rewritten into "another moment"
  * - Adds session-based Conversation Orchestrator (no looping)
- * - Implements Top 10 (V1) using 10 unique moments for the requested year
+ * - Implements Top 10 (V1) using musicKnowledge.getTopByYear()
  * - Makes follow-up choices actionable (Another moment / #1 only / Top 10)
  * - Treats "yes/ok" after a choice as selecting the first option
+ * - Removes dependency on musicKnowledge.handleMessage (not present in current KB)
  */
 
 'use strict';
@@ -31,9 +32,10 @@ const PORT = Number(process.env.PORT || 3000);
 const ENV = String(process.env.NODE_ENV || process.env.ENV || 'production').toLowerCase();
 const DEFAULT_TIMEOUT_MS = Number(process.env.NYX_TIMEOUT_MS || 20000);
 const DEFAULT_CHART = 'Billboard Hot 100';
+const TOP40_CHART = 'Top40Weekly Top 100';
 
 // -----------------------------
-// MIDDLEWARE (JSON + safety)
+// MIDDLEWARE (CORS + JSON safety)
 // -----------------------------
 app.use(cors({
   origin: true,
@@ -42,7 +44,6 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Robust JSON parsing. If body is invalid, we return a clean BAD_JSON.
 app.use(express.json({
   limit: '1mb',
   strict: true,
@@ -84,18 +85,17 @@ function getSession(sessionId) {
       createdAt: Date.now(),
       last: {
         domain: 'general',
-        followUp: null,     // last followUp object
-        followSig: '',      // signature for the followUp
+        followUp: null,
+        followSig: '',
         meta: null
       },
       music: {
         chart: null,
         acceptedChart: null,
         year: null,
-        artist: null,
-        title: null,
-        step: 'need_anchor',     // need_anchor | anchored
-        lastMomentSig: null
+        step: 'need_anchor', // need_anchor | anchored
+        lastMomentSig: null,
+        lastTop10Year: null
       }
     };
     SESSIONS.set(sid, s);
@@ -109,25 +109,26 @@ function getSession(sessionId) {
 const asText = (x) => (x == null ? '' : String(x).trim());
 
 function normalizeChart(chart) {
-  const t = asText(chart).toLowerCase();
+  const raw = asText(chart);
+  const t = raw.toLowerCase();
   if (!t) return DEFAULT_CHART;
-  if (t.includes('top40weekly') || t.includes('top 40 weekly') || t.includes('top40 weekly')) return 'Top40Weekly Top 100';
+  if (t.includes('top40weekly') || t.includes('top 40 weekly') || t.includes('top40 weekly')) return TOP40_CHART;
   if (t.includes('hot 100') || t.includes('billboard')) return 'Billboard Hot 100';
-  if (t.includes('uk singles') || t.includes('official charts')) return 'UK Singles';
-  if (t.includes('canada rpm') || (t.includes('rpm') && t.includes('canada'))) return 'Canada RPM';
-  return chart;
+  if (t.includes('uk') && t.includes('singles')) return 'UK Singles Chart';
+  if (t.includes('canada') && (t.includes('rpm') || t.includes('chart'))) return 'Canada RPM';
+  return raw;
 }
 
 function extractYear(text) {
   const m = asText(text).match(/\b(19\d{2}|20\d{2})\b/);
   if (!m) return null;
   const y = Number(m[1]);
-  if (Number.isFinite(y) && y >= 1900 && y <= 2099) return y;
+  if (Number.isFinite(y) && y >= 1970 && y <= 1999) return y;
   return null;
 }
 
 function isAffirmation(text) {
-  return /^(y|yes|yeah|yep|sure|ok|okay|alright|sounds good)$/i.test(asText(text));
+  return /^(y|yes|yeah|yep|sure|ok|okay|alright|sounds good|go ahead)$/i.test(asText(text));
 }
 
 function isNumberOneOnly(text) {
@@ -142,7 +143,6 @@ function isAnotherMoment(text) {
 
 function parseTop10Request(text) {
   const t = asText(text).toLowerCase();
-  // supports: "top 10 1989", "top10 1989", "top 10 for 1989", "top 10 (1989)"
   if (!t.includes('top')) return null;
   if (!/top\s*10|top10/.test(t)) return null;
   const y = extractYear(t);
@@ -170,106 +170,149 @@ function toOutputSafe(out) {
 }
 
 /**
- * DO NOT rewrite user meaning. Only fix obvious duplication / punctuation issues.
- * (This function used to rewrite "Top 10" into "another moment" — removed.)
+ * Presentation cleanup only. Do NOT rewrite user meaning.
  */
 function sanitizeMusicReplyText(reply) {
   if (!reply) return reply;
   let text = String(reply);
 
-  // normalize duplicated commas or repeated “another moment”
   text = text.replace(/\banother\s+moment\s*,\s*another\s+moment\b/gi, 'another moment');
   text = text.replace(/\bthe\s+another\s+moment\b/gi, 'another moment');
-
-  // clean weird trailing tokens like "another moment0"
   text = text.replace(/another moment\s*0\b/gi, 'another moment');
 
   return text;
 }
 
-/**
- * Fixes observed field drift in Moment line:
- * Example: "Moment: Love Whitesnake — Is This (1988, ...)"
- * -> "Moment: Whitesnake — Is This Love (1988, ...)"
- *
- * Presentation layer only; ingest should still be fixed later.
- */
-function fixMomentLineDrift(reply) {
-  if (!reply) return reply;
-  const text = String(reply);
-
-  const re = /(Moment:\s*)([^—\n]+?)\s*—\s*([^( \n][^(\n]*?)\s*(\(\s*\d{4}\s*,)/i;
-  const m = text.match(re);
-  if (!m) return text;
-
-  const prefix = m[1];
-  let artist = m[2].trim();
-  let title = m[3].trim();
-  const tail = m[4];
-
-  const spill = new Set(['Love', 'The', 'A', 'An', 'My', 'Your', 'Our', 'This', 'That', 'One', 'No', 'Yes']);
-
-  const artistParts = artist.split(/\s+/).filter(Boolean);
-  const titleParts = title.split(/\s+/).filter(Boolean);
-
-  if (artistParts.length >= 2 && titleParts.length <= 3 && spill.has(artistParts[0])) {
-    const moved = artistParts.shift();
-    artist = artistParts.join(' ');
-    title = (title + ' ' + moved).trim();
-  }
-
-  const fixedSegment = `${prefix}${artist} — ${title} ${tail}`;
-  return text.replace(re, fixedSegment);
+// -----------------------------
+// KB-BASED MUSIC ENGINE
+// -----------------------------
+function kbAvailable() {
+  return musicKnowledge && typeof musicKnowledge.getDb === 'function';
 }
 
-async function callMusicEngine(query, sessionId, context, timeoutMs) {
-  if (!musicKnowledge || typeof musicKnowledge.handleMessage !== 'function') {
-    return { ok: true, mode: 'music', reply: 'Music engine is not available yet.' };
-  }
-
-  const signal = AbortSignal && AbortSignal.timeout ? AbortSignal.timeout(timeoutMs) : undefined;
-
-  try {
-    return await musicKnowledge.handleMessage(query, {
-      sessionId,
-      context: context || {},
-      signal
-    });
-  } catch (e) {
-    return {
-      ok: false,
-      mode: 'music',
-      error: 'MUSIC_ENGINE_ERROR',
-      message: asText(e?.message) || 'Music engine error.'
-    };
-  }
+function formatMomentLine(m) {
+  if (!m) return null;
+  const artist = asText(m.artist);
+  const title = asText(m.title);
+  const year = Number(m.year);
+  const chart = asText(m.chart) || DEFAULT_CHART;
+  if (!artist || !title || !year) return null;
+  return `Moment: ${artist} — ${title} (${year}, ${chart}).`;
 }
 
-async function getTop10V1(year, chart, sessionId, baseContext, timeoutMs) {
-  // V1: return 10 unique moments for the year (fast, deterministic-enough, works now)
-  const picks = [];
-  const seen = new Set();
+function momentSig(m) {
+  if (!m) return '';
+  return `${asText(m.artist).toLowerCase()}|${asText(m.title).toLowerCase()}|${Number(m.year)}|${asText(m.chart).toLowerCase()}`.trim();
+}
 
-  for (let i = 0; i < 30 && picks.length < 10; i++) {
-    const out = await callMusicEngine(String(year), sessionId, { ...(baseContext || {}), chart }, timeoutMs);
-    const safe = toOutputSafe(out || {});
-    const rep = asText(safe.reply);
-    const sig = rep.slice(0, 220).toLowerCase();
-    if (rep && !seen.has(sig)) {
-      seen.add(sig);
-      picks.push(rep);
+function pickMomentByYearWithFallback(year, requestedChart) {
+  if (!kbAvailable()) return { moment: null, usedFallback: false, usedChart: requestedChart, poolSize: 0 };
+
+  const chart = normalizeChart(requestedChart || DEFAULT_CHART);
+
+  // Preferred: use KB helper if available
+  if (typeof musicKnowledge.pickRandomByYearWithMeta === 'function') {
+    const meta = musicKnowledge.pickRandomByYearWithMeta(year, chart);
+    if (meta && meta.moment) {
+      return {
+        moment: meta.moment,
+        usedFallback: Boolean(meta.usedFallback),
+        usedChart: meta.usedChart || chart,
+        requestedChart: meta.requestedChart || chart,
+        poolSize: Number(meta.poolSize || 0),
+        strategy: meta.strategy || (meta.usedFallback ? 'top40Backup' : 'primary')
+      };
     }
   }
 
-  const lines = picks.slice(0, 10).map((r, idx) => {
-    // extract "Moment: X — Y (YEAR, CHART)." if present; else use full line
-    const m = r.match(/Moment:\s*([^\n]+)/i);
-    const core = m ? m[1].trim() : r.trim();
-    return `${idx + 1}. ${core}`;
-  });
+  // Fallback path if helper missing: try requested chart then Top40
+  if (typeof musicKnowledge.pickRandomByYear === 'function') {
+    const m1 = musicKnowledge.pickRandomByYear(year, chart);
+    if (m1) return { moment: m1, usedFallback: false, usedChart: chart, requestedChart: chart, poolSize: 0, strategy: 'primary' };
+
+    const m2 = musicKnowledge.pickRandomByYear(year, TOP40_CHART);
+    if (m2) return { moment: m2, usedFallback: true, usedChart: TOP40_CHART, requestedChart: chart, poolSize: 0, strategy: 'top40Backup' };
+  }
+
+  return { moment: null, usedFallback: false, usedChart: chart, requestedChart: chart, poolSize: 0, strategy: 'none' };
+}
+
+function getTopNByYear(year, chart, n) {
+  if (!kbAvailable()) return [];
+  const c = normalizeChart(chart || DEFAULT_CHART);
+  if (typeof musicKnowledge.getTopByYear === 'function') {
+    return musicKnowledge.getTopByYear(year, c, n) || [];
+  }
+
+  // If getTopByYear missing, degrade gracefully: sample unique randoms.
+  const picks = [];
+  const seen = new Set();
+  for (let i = 0; i < 50 && picks.length < n; i++) {
+    const { moment } = pickMomentByYearWithFallback(year, c);
+    const sig = momentSig(moment);
+    if (moment && sig && !seen.has(sig)) {
+      seen.add(sig);
+      picks.push(moment);
+    }
+  }
+  return picks;
+}
+
+function buildMomentReply(year, requestedChart, session, picked) {
+  const s = session;
+  const ms = s.music;
+
+  if (!picked || !picked.moment) {
+    ms.step = 'need_anchor';
+    return {
+      ok: true,
+      mode: 'music',
+      reply: `I couldn’t find a moment for **${year}** on **${normalizeChart(requestedChart)}** yet. Try a different year (1970–1999) or switch chart to **Top40Weekly**.`,
+      followUp: { kind: 'slotfill', required: ['year'], prompt: 'Type a year (e.g., 1984).' },
+      meta: { flow: 'music_v1', step: ms.step, year, requestedChart: normalizeChart(requestedChart), usedChart: null, usedFallback: false, strategy: 'none' }
+    };
+  }
+
+  ms.year = Number(year);
+  ms.step = 'anchored';
+  ms.acceptedChart = picked.usedChart || normalizeChart(requestedChart);
+
+  const line = formatMomentLine(picked.moment);
+  const reply = [
+    line,
+    '',
+    'Want **Top 10**, **another moment**, or **#1 only**?'
+  ].join('\n');
+
+  return {
+    ok: true,
+    mode: 'music',
+    reply: sanitizeMusicReplyText(reply),
+    followUp: {
+      kind: 'choice',
+      options: ['Top 10', 'another moment', '#1 only'],
+      prompt: 'Pick one: Top 10, another moment, or #1 only.'
+    },
+    meta: {
+      flow: 'music_v1',
+      step: 'next_step',
+      year: Number(year),
+      requestedChart: normalizeChart(requestedChart),
+      usedChart: ms.acceptedChart,
+      usedFallback: Boolean(picked.usedFallback),
+      strategy: picked.strategy || (picked.usedFallback ? 'top40Backup' : 'primary'),
+      poolSize: Number(picked.poolSize || 0),
+      chart: normalizeChart(requestedChart)
+    }
+  };
+}
+
+function buildTop10Reply(year, chart, list) {
+  const c = normalizeChart(chart);
+  const lines = (list || []).slice(0, 10).map((m, i) => `${i + 1}. ${asText(m.artist)} — ${asText(m.title)} (${Number(m.year)}, ${asText(m.chart) || c}).`);
 
   const reply = [
-    `Top 10 (V1) — **${year}** (${chart}).`,
+    `Top 10 (V1) — **${year}** (${c}).`,
     '',
     ...(lines.length ? lines : ['I couldn’t assemble a Top 10 list right now. Try “another moment” or “#1 only”.']),
     '',
@@ -279,13 +322,41 @@ async function getTop10V1(year, chart, sessionId, baseContext, timeoutMs) {
   return {
     ok: true,
     mode: 'music',
-    reply,
+    reply: sanitizeMusicReplyText(reply),
     followUp: {
       kind: 'choice',
       options: ['another moment', '#1 only', 'Top 10 (another year)'],
       prompt: 'Pick one: another moment, #1 only, or Top 10 (another year).'
     },
-    meta: { flow: 'music_v1', step: 'top10', year, chart, top10v1: true }
+    meta: { flow: 'music_v1', step: 'top10', year: Number(year), chart: c, top10v1: true }
+  };
+}
+
+function buildNumberOneReply(year, chart, top1) {
+  const c = normalizeChart(chart);
+  if (!top1) {
+    return {
+      ok: true,
+      mode: 'music',
+      reply: `I don’t have a reliable **#1** result for **${year}** on **${c}** yet (rank data may be missing). Want **another moment** or **Top 10** instead?`,
+      followUp: { kind: 'choice', options: ['another moment', 'Top 10', 'change year'], prompt: 'Pick one: another moment, Top 10, or change year.' },
+      meta: { flow: 'music_v1', step: 'number_one', year: Number(year), chart: c, numberOneOnly: true, available: false }
+    };
+  }
+
+  const line = formatMomentLine(top1).replace(/^Moment:\s*/i, '#1: ');
+  const reply = [
+    line,
+    '',
+    'Want **another moment**, **Top 10**, or **change year**?'
+  ].join('\n');
+
+  return {
+    ok: true,
+    mode: 'music',
+    reply: sanitizeMusicReplyText(reply),
+    followUp: { kind: 'choice', options: ['another moment', 'Top 10', 'change year'], prompt: 'Pick one: another moment, Top 10, or change year.' },
+    meta: { flow: 'music_v1', step: 'number_one', year: Number(year), chart: c, numberOneOnly: true, available: true }
   };
 }
 
@@ -296,7 +367,6 @@ async function handleMusic(message, sessionId, context, timeoutMs) {
   const s = getSession(sessionId);
   const ms = s.music;
 
-  // chart preference
   const reqChart = normalizeChart((context && context.chart) ? context.chart : (ms.chart || DEFAULT_CHART));
   ms.chart = reqChart;
 
@@ -322,7 +392,26 @@ async function handleMusic(message, sessionId, context, timeoutMs) {
     }
     ms.year = y;
     ms.step = 'anchored';
-    return await getTop10V1(y, reqChart, sessionId, context, timeoutMs);
+    ms.lastTop10Year = y;
+
+    const top10 = getTopNByYear(y, reqChart, 10);
+    return buildTop10Reply(y, reqChart, top10);
+  }
+
+  // If user typed "Top 10" without year, use last anchored year
+  if (/^top\s*10$/i.test(asText(message))) {
+    if (!ms.year) {
+      ms.step = 'need_anchor';
+      return {
+        ok: true,
+        mode: 'music',
+        reply: 'For **Top 10**, I need a year. What year?',
+        followUp: { kind: 'slotfill', required: ['year'], prompt: 'Type a year (e.g., 1989).' },
+        meta: { flow: 'music_v1', step: ms.step, intent: 'top10', chart: reqChart }
+      };
+    }
+    const top10 = getTopNByYear(ms.year, reqChart, 10);
+    return buildTop10Reply(ms.year, reqChart, top10);
   }
 
   // Another moment
@@ -338,19 +427,8 @@ async function handleMusic(message, sessionId, context, timeoutMs) {
       };
     }
 
-    const out = await callMusicEngine(String(ms.year), sessionId, { ...(context || {}), chart: reqChart }, timeoutMs);
-    const safe = toOutputSafe(out || {});
-    safe.reply = fixMomentLineDrift(sanitizeMusicReplyText(safe.reply));
-
-    // Keep anchored and present consistent follow-up
-    safe.mode = 'music';
-    safe.followUp = {
-      kind: 'choice',
-      options: ['Top 10', 'another moment', '#1 only'],
-      prompt: 'Pick one: Top 10, another moment, or #1 only.'
-    };
-    safe.meta = { ...(safe.meta || {}), flow: 'music_v1', step: 'next_step', year: ms.year, chart: reqChart };
-    return safe;
+    const picked = pickMomentByYearWithFallback(ms.year, reqChart);
+    return buildMomentReply(ms.year, reqChart, s, picked);
   }
 
   // "#1 only"
@@ -366,19 +444,8 @@ async function handleMusic(message, sessionId, context, timeoutMs) {
       };
     }
 
-    const out = await callMusicEngine(`${ms.year} #1`, sessionId, { ...(context || {}), chart: reqChart, numberOneOnly: true }, timeoutMs);
-    const safe = toOutputSafe(out || {});
-    safe.reply = fixMomentLineDrift(sanitizeMusicReplyText(safe.reply));
-
-    // prevent loop: always return next action
-    safe.mode = 'music';
-    safe.followUp = {
-      kind: 'choice',
-      options: ['another moment', 'Top 10', 'change year'],
-      prompt: 'Pick one: another moment, Top 10, or change year.'
-    };
-    safe.meta = { ...(safe.meta || {}), flow: 'music_v1', step: 'number_one', year: ms.year, chart: reqChart };
-    return safe;
+    const top1 = getTopNByYear(ms.year, reqChart, 1)[0] || null;
+    return buildNumberOneReply(ms.year, reqChart, top1);
   }
 
   // Slotfill year from user input
@@ -387,48 +454,30 @@ async function handleMusic(message, sessionId, context, timeoutMs) {
     ms.year = y;
     ms.step = 'anchored';
 
-    const out = await callMusicEngine(String(y), sessionId, { ...(context || {}), chart: reqChart }, timeoutMs);
-    const safe = toOutputSafe(out || {});
-    safe.reply = fixMomentLineDrift(sanitizeMusicReplyText(safe.reply));
+    const picked = pickMomentByYearWithFallback(y, reqChart);
+    return buildMomentReply(y, reqChart, s, picked);
+  }
 
-    safe.mode = 'music';
-    safe.followUp = {
-      kind: 'choice',
-      options: ['Top 10', 'another moment', '#1 only'],
-      prompt: 'Pick one: Top 10, another moment, or #1 only.'
+  // Change year intent (simple)
+  if (/^change year$/i.test(asText(message))) {
+    ms.step = 'need_anchor';
+    return {
+      ok: true,
+      mode: 'music',
+      reply: 'Sure — what year do you want?',
+      followUp: { kind: 'slotfill', required: ['year'], prompt: 'Type a year (e.g., 1994).' },
+      meta: { flow: 'music_v1', step: ms.step, intent: 'change_year', chart: reqChart }
     };
-    safe.meta = { ...(safe.meta || {}), flow: 'music_v1', step: 'next_step', year: y, chart: reqChart };
-    return safe;
   }
 
-  // If user typed "Top 10" without year, treat as top10 using last year
-  if (/^top\s*10$/i.test(asText(message))) {
-    if (!ms.year) {
-      ms.step = 'need_anchor';
-      return {
-        ok: true,
-        mode: 'music',
-        reply: 'For **Top 10**, I need a year. What year?',
-        followUp: { kind: 'slotfill', required: ['year'], prompt: 'Type a year (e.g., 1989).' },
-        meta: { flow: 'music_v1', step: ms.step, intent: 'top10', chart: reqChart }
-      };
-    }
-    return await getTop10V1(ms.year, reqChart, sessionId, context, timeoutMs);
-  }
-
-  // Fallback: try engine as-is, but keep convo sticky and guided
-  const out = await callMusicEngine(message, sessionId, { ...(context || {}), chart: reqChart }, timeoutMs);
-  const safe = toOutputSafe(out || {});
-  safe.reply = fixMomentLineDrift(sanitizeMusicReplyText(safe.reply));
-
-  safe.mode = 'music';
-  safe.followUp = safe.followUp || {
-    kind: 'choice',
-    options: ['Top 10', 'another moment', '#1 only'],
-    prompt: 'Pick one: Top 10, another moment, or #1 only.'
+  // If nothing matched, keep user in music lane with a clear next step
+  return {
+    ok: true,
+    mode: 'music',
+    reply: 'Give me a **year** (1970–1999), or type **Top 10 1989**, **another moment**, or **#1 only**.',
+    followUp: { kind: 'choice', options: ['Top 10', 'another moment', '#1 only'], prompt: 'Pick one: Top 10, another moment, or #1 only.' },
+    meta: { flow: 'music_v1', step: ms.step, chart: reqChart }
   };
-  safe.meta = { ...(safe.meta || {}), flow: 'music_v1', step: 'next_step', year: ms.year || null, chart: reqChart };
-  return safe;
 }
 
 // -----------------------------
@@ -450,7 +499,8 @@ async function routeMessage(message, sessionId, context, timeoutMs) {
 
   // Heuristic routing for music
   const t = asText(message).toLowerCase();
-  const looksMusic = /top\s*10|top10|#1\s*only|number\s*one|hot\s*100|billboard|uk\s*singles|canada\s*rpm|top40weekly|\b(19\d{2}|20\d{2})\b/.test(t);
+  const looksMusic =
+    /top\s*10|top10|#1\s*only|number\s*one|hot\s*100|billboard|uk\s*singles|canada\s*rpm|top40weekly|\b(19\d{2})\b/.test(t);
 
   if (looksMusic) {
     const out = await handleMusic(message, sessionId, context, timeoutMs);
@@ -515,6 +565,5 @@ app.post('/api/chat', async (req, res) => {
 // START
 // -----------------------------
 app.listen(PORT, () => {
-  // eslint-disable-next-line no-console
   console.log(`[Nyx] up on ${PORT} — intel-layer orchestrator env=${ENV} timeout=${DEFAULT_TIMEOUT_MS}ms`);
 });
