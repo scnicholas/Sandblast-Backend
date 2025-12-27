@@ -173,7 +173,6 @@ function getSession(sessionId) {
       createdAt: Date.now(),
       last: { domain: 'general', followUp: null, followSig: '', meta: null },
       music: {
-        // multi-step lane
         year: null,
         chart: null,
         step: 'need_anchor', // need_anchor -> need_chart -> need_action -> anchored
@@ -255,7 +254,9 @@ function toOutputSafe(out) {
   const reply = asText(safe.reply) || 'Okay.';
   const ok = (typeof safe.ok === 'boolean') ? safe.ok : true;
   const normalized = { ...safe, ok, reply };
-  if (normalized.followUp != null && typeof normalized.followUp !== 'object') delete normalized.followUp;
+  if (normalized.followUp != null && typeof normalized.followUp !== 'object' && !Array.isArray(normalized.followUp)) {
+    delete normalized.followUp;
+  }
   return normalized;
 }
 
@@ -333,14 +334,12 @@ function getNumberOneByYear(year, chart) {
     try { return musicKnowledge.getNumberOneByYear(Number(year), normalizeChart(chart)) || null; }
     catch { return null; }
   }
-  // fallback: top 1
   const top = getTopByYear(year, chart, 1);
   return top && top[0] ? top[0] : null;
 }
 
 function pickStoryMoment(year, chart) {
   if (!kbAvailable()) return null;
-  // Prefer meta-aware picker if available
   if (typeof musicKnowledge.pickRandomByYearWithMeta === 'function') {
     try {
       const r = musicKnowledge.pickRandomByYearWithMeta(Number(year), normalizeChart(chart));
@@ -371,7 +370,7 @@ function listChartsForYear(year) {
     const cnt = getYearChartCount(y, c);
     if (cnt > 0) out.push(c);
   }
-  // Keep stable ordering for UI
+
   const preferred = [TOP40_CHART, DEFAULT_CHART, YEAR_END_CHART, 'Canada RPM', 'UK Singles Chart'];
   out.sort((a, b) => {
     const ia = preferred.indexOf(a);
@@ -391,7 +390,6 @@ async function handleMusic(message, sessionId) {
   const s = getSession(sessionId);
   const ms = s.music;
 
-  // Step 0: entry
   if (/^music$/i.test(asText(message))) {
     ms.step = 'need_anchor';
     ms.year = null;
@@ -403,21 +401,15 @@ async function handleMusic(message, sessionId) {
     };
   }
 
-  // Coerce choice if we offered choice
   if (s.last.followUp && s.last.followUp.kind === 'choice') {
     const coerced = coerceChoice(message, s.last.followUp);
     if (coerced) message = coerced;
   }
 
-  // Step 1: year
   if (!ms.year) {
     const y = extractYear(message);
     if (!y) {
-      return {
-        ok: true,
-        reply: `Give me a year between ${MUSIC_RANGE_START} and ${MUSIC_RANGE_END}.`,
-        followUp: null,
-      };
+      return { ok: true, reply: `Give me a year between ${MUSIC_RANGE_START} and ${MUSIC_RANGE_END}.`, followUp: null };
     }
     ms.year = y;
 
@@ -434,28 +426,19 @@ async function handleMusic(message, sessionId) {
     ms.step = 'need_chart';
     return {
       ok: true,
-      reply:
-        `Great. For ${y}, I can pull from:\n` +
-        charts.map(c => `• ${c}`).join('\n') +
-        `\n\nPick one.`,
+      reply: `Great. For ${y}, I can pull from:\n` + charts.map(c => `• ${c}`).join('\n') + `\n\nPick one.`,
       followUp: charts,
     };
   }
 
-  // Step 2: chart
   if (!ms.chart) {
     const chosen = normalizeChart(message);
 
-    // Must exist for that year
     const charts = listChartsForYear(ms.year);
     const hit = charts.find(c => normalizeChart(c) === chosen) || charts.find(c => c === message) || null;
 
     if (!hit) {
-      return {
-        ok: true,
-        reply: `Pick another chart:`,
-        followUp: charts,
-      };
+      return { ok: true, reply: `Pick another chart:`, followUp: charts };
     }
 
     ms.chart = normalizeChart(hit);
@@ -467,7 +450,6 @@ async function handleMusic(message, sessionId) {
     };
   }
 
-  // Step 3: action
   const t = asText(message).toLowerCase();
 
   if (t === 'top 10' || t === 'top10') {
@@ -496,7 +478,6 @@ async function handleMusic(message, sessionId) {
         followUp: ['Top 10', 'Story moment', 'Another year'],
       };
     }
-    const line = fmtLine(top1, ms.chart);
     return {
       ok: true,
       reply: `#1 for ${ms.chart} (${ms.year}):\n1. ${asText(top1.artist)} — ${asText(top1.title)}\n\nWant a story moment from ${ms.year}, Top 10 (if available), or another year?`,
@@ -525,19 +506,10 @@ async function handleMusic(message, sessionId) {
     ms.year = null;
     ms.chart = null;
     ms.step = 'need_anchor';
-    return {
-      ok: true,
-      reply: `Sure. Give me a year between ${MUSIC_RANGE_START} and ${MUSIC_RANGE_END}.`,
-      followUp: null,
-    };
+    return { ok: true, reply: `Sure. Give me a year between ${MUSIC_RANGE_START} and ${MUSIC_RANGE_END}.`, followUp: null };
   }
 
-  // Default: remind action menu
-  return {
-    ok: true,
-    reply: `Now tell me one of these:\n• Top 10\n• #1\n• Story moment`,
-    followUp: ['Top 10', '#1', 'Story moment'],
-  };
+  return { ok: true, reply: `Now tell me one of these:\n• Top 10\n• #1\n• Story moment`, followUp: ['Top 10', '#1', 'Story moment'] };
 }
 
 // -----------------------------
@@ -545,8 +517,6 @@ async function handleMusic(message, sessionId) {
 // -----------------------------
 async function routeMessage(message, sessionId, context) {
   const s = getSession(sessionId);
-
-  // If last domain was music, continue in music unless user clearly switches away
   const msg = asText(message);
   const msgLower = msg.toLowerCase();
 
@@ -563,7 +533,6 @@ async function routeMessage(message, sessionId, context) {
     return out;
   }
 
-  // Lightweight fallback (intent classifier if available)
   if (intentClassifier && typeof intentClassifier.classify === 'function') {
     try {
       const intent = intentClassifier.classify(msg);
@@ -636,34 +605,20 @@ app.get('/api/health', (req, res) => {
     music: {
       coverageBuiltAt: MUSIC_COVERAGE.builtAt,
       coverageRange: MUSIC_COVERAGE.range,
-      charts: [
-        TOP40_CHART,
-        DEFAULT_CHART,
-        YEAR_END_CHART,
-        'Canada RPM',
-        'UK Singles Chart'
-      ],
+      charts: Array.isArray(MUSIC_COVERAGE.charts) ? MUSIC_COVERAGE.charts : [],
     },
   });
 });
 
-// Rebuild coverage on demand (matches your prod usage)
 app.post('/api/debug/reload-music-coverage', (req, res) => {
   const rebuilt = rebuildMusicCoverage();
   res.status(200).json({
     ok: true,
     rebuiltAt: rebuilt.builtAt,
-    charts: [
-      TOP40_CHART,
-      DEFAULT_CHART,
-      YEAR_END_CHART,
-      'Canada RPM',
-      'UK Singles Chart'
-    ],
+    charts: rebuilt.charts,
   });
 });
 
-// Safe snapshot
 app.get('/api/debug/last', (req, res) => {
   const token = asText(req.query?.token);
   const expected = asText(process.env.DEBUG_TOKEN);
@@ -674,7 +629,6 @@ app.get('/api/debug/last', (req, res) => {
   res.status(200).json({ ok: true, ...LAST_DEBUG });
 });
 
-// Main chat endpoint (what your widget/curl uses)
 app.post('/api/chat', async (req, res) => {
   const body = (req && req.body && typeof req.body === 'object') ? req.body : null;
 
@@ -737,6 +691,30 @@ server.on('error', (err) => {
   process.exit(1);
 });
 
-// Keep alive in detached shells
-try { process.stdin.resume(); } catch (_) {}
-setInterval(() => {}, 60_000);
+// -----------------------------
+// HARD KEEP-ALIVE (Windows / PowerShell / piped output safe)
+// -----------------------------
+(function hardKeepAlive() {
+  // Hold stdin open when available; harmless when not.
+  try {
+    if (process.stdin) {
+      process.stdin.resume();
+    }
+  } catch (_) {}
+
+  // Ensure server keeps the event loop alive (belt & suspenders)
+  try {
+    if (server && typeof server.ref === 'function') server.ref();
+  } catch (_) {}
+
+  // Keep an explicit timer handle that cannot be optimized away
+  let ticks = 0;
+  const ka = setInterval(() => {
+    ticks++;
+    // Intentionally no logging (avoid spam). Existence of ticks prevents "empty callback" edge cases.
+    global.__NYX_TICKS__ = ticks;
+  }, 60_000);
+
+  // Retain handle explicitly
+  global.__NYX_KEEPALIVE__ = ka;
+})();
