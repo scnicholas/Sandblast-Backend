@@ -89,7 +89,6 @@ Data/*.html
 Data/billboard_yearend_hot100_1970_2010.json.txt
 
 # Wikipedia scrape outputs that are NOT the canonical shipped dataset
-# (keeps the repo lean; the canonical Year-End file lives in wikipedia_billboard_yearend/)
 Data/wikipedia/
 Data/wikipedia/**
 
