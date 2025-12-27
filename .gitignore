@@ -23,6 +23,11 @@ nyx-fatal.log
 # Local test payloads
 # =========================
 payload.json
+chat_payload.json
+tts_payload.json
+
+# temp test scripts (local only)
+_tmp_test_*.js
 
 # =========================
 # Local scratch / one-off utilities
@@ -51,8 +56,16 @@ Thumbs.db
 *.old
 *.swp
 
+# =========================
 # Local debug artifacts
+# =========================
 Data/_debug_*.html
 Scripts/*_raw.html
 Scripts/debug_*.js
 
+# =========================
+# PRODUCTION DATASET ALLOWLIST
+# Ensure Year-End dataset is committed + available to Render
+# =========================
+!Data/wikipedia_billboard_yearend/
+!Data/wikipedia_billboard_yearend/bb_yearend_hot100_1970_2010.json
