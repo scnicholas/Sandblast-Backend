@@ -30,6 +30,8 @@ tts_headers.txt
 nyx-boot.log
 nyx-crash.txt
 nyx-fatal.log
+_nyx_*.log
+_nyx_*.txt
 _nyx_boot.txt
 nyx_test.out
 
@@ -86,11 +88,20 @@ Scripts/_debug_*.json
 audit_*.json
 Data/*.txt
 Data/*.html
-Data/billboard_yearend_hot100_1970_2010.json.txt
+
+# Block stray “converted” or wrong-path year-end files explicitly
+Data/billboard_yearend_hot100_1970_2010.json*
+Data/**/bb_yearend_hot100_1970_2010.json.txt
 
 # Wikipedia scrape outputs that are NOT the canonical shipped dataset
 Data/wikipedia/
 Data/wikipedia/**
+
+# If you ever dump alternate wiki captures, keep them out too
+Data/wikipedia_billboard_yearend/_debug_*
+Data/wikipedia_billboard_yearend/*.html
+Data/wikipedia_billboard_yearend/*.txt
+Data/wikipedia_billboard_yearend/*.log
 
 # =========================
 # IMPORTANT: PRODUCTION DATASET ALLOWLIST
