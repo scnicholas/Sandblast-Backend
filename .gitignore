@@ -16,7 +16,7 @@ pnpm-debug.log*
 !.env.example
 
 # =========================
-# Local runtime output
+# Local runtime output / curl dumps
 # =========================
 node-err.txt
 node-out.txt
@@ -34,7 +34,7 @@ _nyx_boot.txt
 nyx_test.out
 
 # =========================
-# Local test payloads
+# Local test payloads (do not commit)
 # =========================
 payload.json
 chat_payload.json
@@ -42,8 +42,7 @@ tts_payload.json
 payload_*.json
 
 # =========================
-# Local scratch / one-off utilities
-# (keeps repo clean; do not commit these)
+# Local scratch / one-off utilities (do not commit)
 # =========================
 _tmp_*.js
 tmp_*.js
@@ -80,6 +79,19 @@ Data/_debug_*.json
 Scripts/*_raw.html
 Scripts/_debug_*.html
 Scripts/_debug_*.json
+
+# =========================
+# Generated / audit artifacts (local only)
+# =========================
+audit_*.json
+Data/*.txt
+Data/*.html
+Data/billboard_yearend_hot100_1970_2010.json.txt
+
+# Wikipedia scrape outputs that are NOT the canonical shipped dataset
+# (keeps the repo lean; the canonical Year-End file lives in wikipedia_billboard_yearend/)
+Data/wikipedia/
+Data/wikipedia/**
 
 # =========================
 # IMPORTANT: PRODUCTION DATASET ALLOWLIST
