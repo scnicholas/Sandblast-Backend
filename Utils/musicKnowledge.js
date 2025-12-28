@@ -1,27 +1,26 @@
 "use strict";
 
 /**
- * Utils/musicKnowledge.js — v2.41
+ * Utils/musicKnowledge.js — v2.42
  *
- * CRITICAL FIXES (v2.41):
- *  1) Wikipedia Year-End merge:
- *     - If Data/wikipedia/billboard_yearend_hot100_1970_2010.json exists,
- *       merge its `moments` into DB at startup so Year-End queries have real titles.
- *     - Also supports per-year files if present (optional).
+ * CRITICAL FIXES (v2.42):
+ *  - Title-tail → artist repair:
+ *      Color Me Badd case: "Badd — I Wanna Sex You Up Color Me" => "Color Me Badd — I Wanna Sex You Up"
+ *  - Unknown-title swap repair:
+ *      EMF case: "Unbelievable EMF — Unknown Title" => "EMF — Unbelievable"
  *
- *  2) Retains v2.40 safety net:
- *     - Top list coercion: prevents "undefined." and blank fields in Top lists
- *     - Name-fragment repair: fixes obvious "Jay — Z", "Mars — Bruno" patterns
- *     - Year-End quality fallback: if Year-End titles are mostly missing, fallback to Hot 100 / Top40Weekly
- *
- *  3) Retains v2.39+ Top40Weekly drift locks and canonicalizers.
+ * Retains:
+ *  - Wikipedia Year-End merge if present
+ *  - Year-End quality guard fallback
+ *  - Top list coercion (prevents "undefined.")
+ *  - Top40Weekly drift locks + canonicalizers
  */
 
 const fs = require("fs");
 const path = require("path");
 
 const MK_VERSION =
-  "musicKnowledge v2.41 (Wikipedia Year-End merge + Year-End quality guard + name-fragment repairs + Top list coercion + Top40Weekly locks)";
+  "musicKnowledge v2.42 (title-tail artist repair + unknown-title swap + Wikipedia Year-End merge + Year-End quality guard + Top list coercion + Top40Weekly locks)";
 
 const DEFAULT_CHART = "Billboard Hot 100";
 const TOP40_CHART = "Top40Weekly Top 100";
@@ -60,7 +59,7 @@ const TOP40_DIR_CANON = "Data/top40weekly";
 // Wikipedia Year-End (built by your script)
 const WIKI_YEAREND_COMBINED =
   "Data/wikipedia/billboard_yearend_hot100_1970_2010.json";
-const WIKI_YEAREND_DIR = "Data/wikipedia"; // where per-year could live
+const WIKI_YEAREND_DIR = "Data/wikipedia";
 
 let DB = null;
 let INDEX_BUILT = false;
@@ -333,14 +332,12 @@ function repairArtistTitleNameFragments(m) {
 
   if (!a || !t) return m;
 
-  // Jay — Z => Jay-Z
   if (/^jay$/i.test(a) && /^z$/i.test(t)) {
     m.artist = "Jay-Z";
     m.title = "Unknown Title";
     return m;
   }
 
-  // Mars — Bruno => Bruno Mars (artist split across fields)
   const aTok = a.split(/\s+/).filter(Boolean);
   const tTok = t.split(/\s+/).filter(Boolean);
 
@@ -354,21 +351,11 @@ function repairArtistTitleNameFragments(m) {
 }
 
 /* =========================
-   TOP40WEEKLY + DRIFT LOCKS (retained)
+   TOP40WEEKLY + DRIFT LOCKS
 ========================= */
 
 const BAND_SUFFIXES = new Set([
-  "Club",
-  "Band",
-  "Orchestra",
-  "Experience",
-  "Project",
-  "Crew",
-  "Group",
-  "Trio",
-  "Quartet",
-  "Quintet",
-  "Gang",
+  "Club","Band","Orchestra","Experience","Project","Crew","Group","Trio","Quartet","Quintet","Gang",
 ]);
 
 const TITLE_PREFIX_CANDIDATES_LC = new Set([
@@ -380,9 +367,7 @@ const TITLE_PREFIX_CANDIDATES_LC = new Set([
 
 function isTitleHangWord(w) {
   const t = norm(w);
-  return [
-    "a","an","the","this","that","to","in","on","of","for","with","at","from","by","and","or",
-  ].includes(t);
+  return ["a","an","the","this","that","to","in","on","of","for","with","at","from","by","and","or"].includes(t);
 }
 
 function isNameyToken(tok) {
@@ -394,8 +379,7 @@ function isNameyToken(tok) {
   if (!re.test(clean)) return false;
 
   const low = clean.toLowerCase();
-  if (["and","of","the","a","an","to","in","on","with","featuring","feat","ft"].includes(low))
-    return false;
+  if (["and","of","the","a","an","to","in","on","with","featuring","feat","ft"].includes(low)) return false;
 
   const first = clean[0];
   return first.toUpperCase() === first;
@@ -415,6 +399,116 @@ function looksLikeAmpersandAct(tokens) {
   return left.length >= 1 && right.length >= 1;
 }
 
+/**
+ * NEW (v2.42):
+ * If title ends with a short tail that looks like it belongs to the artist name,
+ * move it into the artist field.
+ *
+ * Example:
+ *  artist="Badd", title="I Wanna Sex You Up Color Me"
+ *  => artist="Color Me Badd", title="I Wanna Sex You Up"
+ */
+function repairTitleTailIsArtist(m) {
+  let artist = _asText(m.artist);
+  let title = _asText(m.title);
+  if (!artist || !title) return m;
+
+  // Only attempt if artist is short and title is multi-word
+  const aParts = artist.split(/\s+/).filter(Boolean);
+  const tParts = title.split(/\s+/).filter(Boolean);
+  if (aParts.length > 2) return m;
+  if (tParts.length < 4) return m;
+
+  // If title is unknown, don't do this repair
+  if (isUnknownTitle(title)) return m;
+
+  // Consider 1–3 token tail
+  for (let k = 3; k >= 1; k--) {
+    if (tParts.length <= k + 1) continue;
+
+    const tail = tParts.slice(-k);
+    const head = tParts.slice(0, -k);
+
+    // Tail should be "namey" (capitalized / acronym) tokens
+    const tailNamey = tail.every((tok) => {
+      const s = String(tok);
+      if (/^[A-Z]{2,}$/.test(s)) return true;        // acronyms
+      return isNameyToken(s);
+    });
+
+    if (!tailNamey) continue;
+
+    // Avoid moving if head ends with a hanging word
+    if (isTitleHangWord(head[head.length - 1])) continue;
+
+    // Combined artist candidate
+    const combined = `${tail.join(" ")} ${artist}`.replace(/\s+/g, " ").trim();
+
+    // Sanity: combined should be at least 2 words and look act-like
+    const cParts = combined.split(/\s+/).filter(Boolean);
+    if (cParts.length < 2 || cParts.length > 5) continue;
+
+    // If the combined starts with an obvious title-word, skip
+    const firstLc = String(cParts[0]).toLowerCase();
+    if (TITLE_PREFIX_CANDIDATES_LC.has(firstLc)) continue;
+
+    // Accept repair
+    m.artist = combined;
+    m.title = head.join(" ").trim();
+    return m;
+  }
+
+  return m;
+}
+
+/**
+ * NEW (v2.42):
+ * If title is Unknown and artist looks like "TitleWords ACT",
+ * swap to "ACT — TitleWords"
+ *
+ * Example: artist="Unbelievable EMF", title="Unknown Title" => artist="EMF", title="Unbelievable"
+ */
+function repairUnknownTitleSwap(m) {
+  let artist = _asText(m.artist);
+  let title = _asText(m.title);
+
+  if (!artist) return m;
+  if (!isUnknownTitle(title)) return m;
+
+  const aParts = artist.split(/\s+/).filter(Boolean);
+  if (aParts.length < 2 || aParts.length > 5) return m;
+
+  // Candidate act is last token(s) if acronym/all-caps or strong name token
+  const last = aParts[aParts.length - 1];
+  const prev = aParts[aParts.length - 2];
+
+  const lastLooksAct = /^[A-Z]{2,}$/.test(last) || isNameyToken(last);
+  if (!lastLooksAct) return m;
+
+  // Prefer acronyms as act (EMF)
+  if (/^[A-Z]{2,}$/.test(last)) {
+    const newTitle = aParts.slice(0, -1).join(" ").trim();
+    if (newTitle && !TITLE_PREFIX_CANDIDATES_LC.has(newTitle.toLowerCase())) {
+      m.artist = last;
+      m.title = newTitle;
+      return m;
+    }
+  }
+
+  // Also allow two-token act at end (e.g., "Color Me", but be conservative)
+  if (aParts.length >= 3 && isNameyToken(prev) && isNameyToken(last)) {
+    const act = `${prev} ${last}`;
+    const newTitle = aParts.slice(0, -2).join(" ").trim();
+    if (newTitle && act.split(/\s+/).length === 2) {
+      m.artist = act;
+      m.title = newTitle;
+      return m;
+    }
+  }
+
+  return m;
+}
+
 function hardFixKnownCorruptions(m) {
   const year = Number(m.year);
   const rank = toRank(m.rank);
@@ -429,8 +523,7 @@ function hardFixKnownCorruptions(m) {
   if (
     year === 1984 &&
     rank === 3 &&
-    /^Say Paul Mc Cartney and Michael Jackson$/i.test(artist) &&
-    /^Say Say$/i.test(title)
+    /^Jackson — Say Say Say Paul Mc Cartney and Michael$/i.test(`${artist} — ${title}`) // defensive
   ) {
     artist = "Paul Mc Cartney and Michael Jackson";
     title = "Say Say Say";
@@ -802,14 +895,19 @@ function normalizeMomentFields(m) {
   repairFeaturingTailInTitle(m);
   repairTitleTailIntoArtist(m);
   repairAceOfBaseOrder(m);
+
+  // Existing Top40Weekly lock
   repairTop40WeeklyRankedDrift(m);
+
+  // NEW v2.42 repairs
+  repairTitleTailIsArtist(m);
+  repairUnknownTitleSwap(m);
 
   repairTitleShortArtistLong(m);
   repairLeadingTitleWordInArtist(m);
   repairEmbeddedTitleWordsInArtistAnywhere(m);
   canonicalizeAmpersandActs(m);
 
-  // Repair obvious fragment drift
   repairArtistTitleNameFragments(m);
 
   hardFixKnownCorruptions(m);
@@ -861,13 +959,6 @@ function loadBaseDb() {
   return { absPath: null, moments: [] };
 }
 
-/**
- * Merge Wikipedia Year-End file produced by your builder.
- * Builder output shape (combined):
- *  {
- *    ok, chart, range, totalRows, failures, moments: [{year,rank,title,artist,chart}, ...]
- *  }
- */
 function mergeWikipediaYearEndIfPresent(dbMoments) {
   const combinedAbs = resolveRepoPath(WIKI_YEAREND_COMBINED);
   const wikiDirAbs = resolveRepoPath(WIKI_YEAREND_DIR);
@@ -876,7 +967,6 @@ function mergeWikipediaYearEndIfPresent(dbMoments) {
   let failures = 0;
   let yearMin = null, yearMax = null;
 
-  // Combined file first
   if (fileExists(combinedAbs)) {
     try {
       const doc = readJsonFile(combinedAbs);
@@ -917,11 +1007,9 @@ function mergeWikipediaYearEndIfPresent(dbMoments) {
       return dbMoments.concat(merged);
     } catch (e) {
       console.log(`[musicKnowledge] Wikipedia Year-End merge: failed to read combined file (${e.message})`);
-      // fall through to per-year scanning
     }
   }
 
-  // Optional: per-year files fallback (if someone only wrote per-year)
   if (dirExists(wikiDirAbs)) {
     const files = fs.readdirSync(wikiDirAbs).filter(f =>
       /^billboard_yearend_hot100_\d{4}\.json$/i.test(f)
@@ -968,7 +1056,7 @@ function mergeWikipediaYearEndIfPresent(dbMoments) {
 }
 
 /* =========================
-   TOP40WEEKLY INGEST (existing)
+   TOP40WEEKLY INGEST
 ========================= */
 
 function extractYearFromFilename(filename) {
@@ -1181,10 +1269,8 @@ function getDb() {
   const base = loadBaseDb();
   DB = { moments: base.moments || [] };
 
-  // CRITICAL: Merge Wikipedia Year-End if available
   DB.moments = mergeWikipediaYearEndIfPresent(DB.moments);
 
-  // Top40Weekly merge
   const top40DirAbs = resolveTop40DirAbs();
   const shouldMerge = MERGE_TOP40WEEKLY && !!top40DirAbs && dirExists(top40DirAbs);
 
@@ -1201,7 +1287,7 @@ function getDb() {
     if (res.ok && Array.isArray(res.merged) && res.merged.length) {
       DB.moments = DB.moments.concat(res.merged);
       console.log(
-        `[musicKnowledge] Top40Weekly Top 100 merge: dir=${top40DirAbs} files=${TOP40_MERGE_META.files} added=${res.added} (skippedFiles=${res.skippedFiles}, emptyFiles=${res.emptyFiles}, rowsSkipped=${res.rowsSkipped}) years=${res.years || "?–?"}` // eslint-disable-line
+        `[musicKnowledge] Top40Weekly Top 100 merge: dir=${top40DirAbs} files=${TOP40_MERGE_META.files} added=${res.added} (skippedFiles=${res.skippedFiles}, emptyFiles=${res.emptyFiles}, rowsSkipped=${res.rowsSkipped}) years=${res.years || "?–?"}`
       );
     }
   } else if (MERGE_TOP40WEEKLY) {
@@ -1396,7 +1482,6 @@ function getTopByYear(year, chart = DEFAULT_CHART, limit = 10) {
   const usedChart = normalizeChart(chart || DEFAULT_CHART);
   const out = _getTopByYearRaw(year, usedChart, limit);
 
-  // Year-End quality guard: if titles are mostly missing, fallback to clean charts.
   if (out.length && isYearEndChartName(usedChart)) {
     const missing = out.filter((x) => isUnknownTitle(x.title)).length;
     if (missing >= Math.ceil(out.length * 0.5)) {
@@ -1406,7 +1491,7 @@ function getTopByYear(year, chart = DEFAULT_CHART, limit = 10) {
       const alt2 = _getTopByYearRaw(year, TOP40_CHART, limit);
       if (alt2 && alt2.length) return alt2;
 
-      return out; // still safe, just incomplete
+      return out;
     }
   }
 
@@ -1420,7 +1505,7 @@ function getNumberOneByYear(year, chart = DEFAULT_CHART) {
 }
 
 /* =========================
-   DETECTORS
+   DETECTORS + EXPORTS
 ========================= */
 
 function detectYearFromText(text) {
