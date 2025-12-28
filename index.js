@@ -2,7 +2,14 @@
 
 /**
  * Sandblast Backend (Nyx)
- * index.js — hardened routes + always-on TTS endpoints
+ * index.js — hardened routes + always-on TTS endpoints + safer music rendering + intro-first UX
+ *
+ * Key critical fixes:
+ *  - Always-on /api/tts AND /api/voice (alias) to prevent widget 404s
+ *  - Intro-first behavior: empty message returns Nyx intro (not lane picker prompt)
+ *  - Top-10/#1 rendering safety: never prints "undefined." or blank artist/title
+ *  - fetch() compatibility: works on Node 16+ (dynamic import fallback) instead of assuming global fetch
+ *  - Adds GET / so Render/edge probes don’t show "Cannot GET /"
  */
 
 const express = require('express');
@@ -51,6 +58,7 @@ app.options('/api/tts', cors());
 app.options('/api/voice', cors());
 app.options('/api/chat', cors());
 app.options('/api/health', cors());
+app.options('/api/debug/last', cors());
 
 /* =========================
    DEBUG STATE
@@ -104,12 +112,17 @@ function isGreeting(s) {
 
 function normalizeLanePick(raw) {
   const s = clean(raw).toLowerCase();
+
+  // tolerate common variants
+  if (!s) return null;
   const cleaned = s.replace(/[^a-z]/g, '');
+
   if (cleaned === 'music') return 'music';
-  if (cleaned === 'tv') return 'tv';
+  if (cleaned === 'tv' || cleaned === 'tvs' || cleaned === 'television') return 'tv';
   if (cleaned === 'sponsors' || cleaned === 'sponsor') return 'sponsors';
   if (cleaned === 'ai') return 'ai';
   if (cleaned === 'general') return 'general';
+
   return null;
 }
 
@@ -127,6 +140,17 @@ function nyxGreeting() {
   };
 }
 
+function formatTopItem(item, idx) {
+  const rank = Number.isFinite(Number(item?.rank)) ? Number(item.rank) : (idx + 1);
+  const artist = clean(item?.artist) || 'Unknown Artist';
+  const title = clean(item?.title) || 'Unknown Title';
+  return `${rank}. ${artist} — ${title}`;
+}
+
+function safeArray(x) {
+  return Array.isArray(x) ? x : [];
+}
+
 /* =========================
    SESSIONS
 ========================= */
@@ -141,12 +165,13 @@ function getSession(sessionId) {
       lane: 'general',
       createdAt: Date.now(),
 
+      // intro + small talk
+      greeted: false,
+      checkInPending: false,
+
       // anti-loop
       lastSig: null,
       lastSigAt: 0,
-
-      // small talk
-      checkInPending: false,
 
       // music state
       musicState: 'start',
@@ -163,11 +188,15 @@ function getSession(sessionId) {
 ========================= */
 
 function rebuildMusicCoverage() {
-  // Your musicKnowledge already prints merge stats on load; we keep a lightweight coverage object.
-  // If you have a dedicated coverage builder, call it here.
-  const charts = ['Top40Weekly Top 100', 'Billboard Hot 100', 'Billboard Year-End Hot 100', 'Canada RPM', 'UK Singles Chart'];
+  // Keep this lightweight. If you later expose a precision coverage map from musicKnowledge, wire it here.
+  const charts = [
+    'Top40Weekly Top 100',
+    'Billboard Hot 100',
+    'Billboard Year-End Hot 100',
+    'Canada RPM',
+    'UK Singles Chart',
+  ];
 
-  // If musicKnowledge exposes a stats helper, use it; otherwise ship safe defaults.
   const builtAt = new Date().toISOString();
   const range = { start: 1970, end: 2010 };
 
@@ -177,7 +206,7 @@ function rebuildMusicCoverage() {
 let MUSIC_COVERAGE = rebuildMusicCoverage();
 
 /* =========================
-   MUSIC HANDLERS (hook into your Utils/musicKnowledge)
+   MUSIC HANDLERS
 ========================= */
 
 function enterMusic(session) {
@@ -201,12 +230,11 @@ function isYear(s) {
   return n;
 }
 
-function chartsForYear(year) {
-  // For now, we just present what coverage claims; your musicKnowledge can be more precise.
+function chartsForYear(/* year */) {
   return (MUSIC_COVERAGE.charts || []).map((c) => ({ chart: c }));
 }
 
-function handleMusic(message, session /*, sessionId*/) {
+function handleMusic(message, session) {
   const text = clean(message);
 
   // Year selection
@@ -227,20 +255,19 @@ function handleMusic(message, session /*, sessionId*/) {
 
   // Chart selection
   if (session.musicState === 'need_chart') {
-    const picked = chartsForYear(session.musicYear)
-      .map((o) => o.chart)
-      .find((c) => clean(c).toLowerCase() === clean(text).toLowerCase());
+    const year = session.musicYear;
+    const opts = chartsForYear(year).map((o) => o.chart).slice(0, 5);
 
+    const picked = opts.find((c) => clean(c).toLowerCase() === clean(text).toLowerCase());
     if (!picked) {
-      const opts = chartsForYear(session.musicYear).map((o) => o.chart).slice(0, 5);
-      return { reply: `Pick a chart for ${session.musicYear}:\n• ${opts.join('\n• ')}`, followUp: opts };
+      return { reply: `Pick a chart for ${year}:\n• ${opts.join('\n• ')}`, followUp: opts };
     }
 
     session.musicChart = picked;
     session.musicState = 'ready';
 
     return {
-      reply: `Locked in: ${picked}, ${session.musicYear}.\nNow tell me one of these:\n• Top 10\n• #1\n• Story moment`,
+      reply: `Locked in: ${picked}, ${year}.\nNow tell me one of these:\n• Top 10\n• #1\n• Story moment`,
       followUp: ['Top 10', '#1', 'Story moment'],
     };
   }
@@ -248,22 +275,23 @@ function handleMusic(message, session /*, sessionId*/) {
   // Delivery mode
   if (session.musicState === 'ready') {
     const mode = clean(text).toLowerCase();
+    const year = session.musicYear;
+    const chart = session.musicChart;
 
     if (mode === '#1' || mode === '1' || mode === 'number 1' || mode === 'no. 1' || mode === 'no 1') {
-      // Use your musicKnowledge to fetch #1
-      const year = session.musicYear;
-      const chart = session.musicChart;
-
       try {
-        const top = musicKnowledge.getTopByYear(year, chart, 1);
-        const row = Array.isArray(top) && top[0] ? top[0] : null;
+        const top = safeArray(musicKnowledge.getTopByYear(year, chart, 1));
+        const row = top[0] || null;
 
         if (!row) {
-          return { reply: `I couldn’t find #1 for ${chart} (${year}). Want Top 10, Story moment, or another chart?`, followUp: ['Top 10', 'Story moment', 'Another chart'] };
+          return {
+            reply: `I couldn’t find #1 for ${chart} (${year}). Want Top 10, Story moment, or another chart?`,
+            followUp: ['Top 10', 'Story moment', 'Another chart'],
+          };
         }
 
         return {
-          reply: `#1 for ${chart} (${year}):\n1. ${row.artist} — ${row.title}\n\nWant a story moment from ${year}, Top 10 (if available), or another year?`,
+          reply: `#1 for ${chart} (${year}):\n${formatTopItem(row, 0)}\n\nWant a story moment, Top 10, or another year?`,
           followUp: ['Story moment', 'Top 10', 'Another year'],
         };
       } catch (e) {
@@ -272,16 +300,13 @@ function handleMusic(message, session /*, sessionId*/) {
     }
 
     if (mode === 'top 10' || mode === 'top10') {
-      const year = session.musicYear;
-      const chart = session.musicChart;
-
       try {
-        const top10 = musicKnowledge.getTopByYear(year, chart, 10) || [];
+        const top10 = safeArray(musicKnowledge.getTopByYear(year, chart, 10));
         if (!top10.length) {
           return { reply: `Top 10 isn’t available for ${chart} (${year}) in the current dataset.\nWant #1 or a story moment?`, followUp: ['#1', 'Story moment'] };
         }
 
-        const lines = top10.map((r) => `${r.rank}. ${r.artist} — ${r.title}`);
+        const lines = top10.map((r, i) => formatTopItem(r, i));
         return {
           reply: `Top 10 — ${chart} (${year}):\n${lines.join('\n')}\n\nWant #1, a story moment, or another year?`,
           followUp: ['#1', 'Story moment', 'Another year'],
@@ -292,9 +317,8 @@ function handleMusic(message, session /*, sessionId*/) {
     }
 
     if (mode === 'story moment' || mode === 'story') {
-      // You can wire this to your story engine if you have it. For now: simple stub.
       return {
-        reply: `Story moment (${session.musicYear}, ${session.musicChart}):\nThat year had a real “radio glue” vibe — the kind of hooks that stay in your head for days.\n\nWant #1, Top 10, or another year?`,
+        reply: `Story moment (${year}, ${chart}):\nThat year had a real “radio glue” vibe — the kind of hooks that stay in your head for days.\n\nWant #1, Top 10, or another year?`,
         followUp: ['#1', 'Top 10', 'Another year'],
       };
     }
@@ -306,18 +330,38 @@ function handleMusic(message, session /*, sessionId*/) {
 
     if (mode === 'another chart' || mode === 'chart') {
       session.musicState = 'need_chart';
-      const opts = chartsForYear(session.musicYear).map((o) => o.chart).slice(0, 5);
-      return { reply: `Pick a chart for ${session.musicYear}:\n• ${opts.join('\n• ')}`, followUp: opts };
+      const opts = chartsForYear(year).map((o) => o.chart).slice(0, 5);
+      return { reply: `Pick a chart for ${year}:\n• ${opts.join('\n• ')}`, followUp: opts };
     }
 
     return {
-      reply: `Got it. For ${session.musicChart} (${session.musicYear}), do you want the #1, a story moment, or Top 10 (if available)?`,
+      reply: `For ${chart} (${year}), do you want the #1, a story moment, or Top 10 (if available)?`,
       followUp: ['#1', 'Story moment', 'Top 10'],
     };
   }
 
   // Fallback: re-enter
   return enterMusic(session);
+}
+
+/* =========================
+   FETCH (Node compatibility)
+========================= */
+
+async function getFetch() {
+  if (typeof globalThis.fetch === 'function') return globalThis.fetch;
+
+  // Node 16 compatibility: fall back to node-fetch if present
+  // (Render can run older Node depending on your service config)
+  try {
+    // eslint-disable-next-line import/no-extraneous-dependencies
+    const mod = await import('node-fetch');
+    return mod.default || mod;
+  } catch (e) {
+    const err = new Error('NO_FETCH_AVAILABLE');
+    err.status = 500;
+    throw err;
+  }
 }
 
 /* =========================
@@ -347,6 +391,7 @@ async function synthElevenLabsMp3(text) {
   if (!apiKey) throw Object.assign(new Error('NO_ELEVENLABS_API_KEY'), { status: 500 });
   if (!voiceId) throw Object.assign(new Error('NO_ELEVENLABS_VOICE_ID'), { status: 500 });
 
+  const fetch = await getFetch();
   const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`;
 
   const r = await fetch(url, {
@@ -431,7 +476,6 @@ app.post('/api/tts', async (req, res) => {
 
 // Alias route (back-compat): fixes widget builds that call /api/voice
 app.post('/api/voice', async (req, res) => {
-  // Delegate to /api/tts handler logic by calling the same synth path
   const route = '/api/voice';
   try {
     const text = String(req.body?.text || '').trim();
@@ -449,6 +493,7 @@ app.post('/api/voice', async (req, res) => {
     }
 
     const audioBuf = await synthElevenLabsMp3(text);
+
     res.setHeader('Content-Type', 'audio/mpeg');
     res.setHeader('Cache-Control', 'no-store');
 
@@ -475,8 +520,13 @@ app.post('/api/voice', async (req, res) => {
 });
 
 /* =========================
-   HEALTH + DEBUG
+   HEALTH + DEBUG + ROOT
 ========================= */
+
+app.get('/', (_, res) => {
+  // Prevent "Cannot GET /" and help quick sanity checks
+  res.status(200).send('Sandblast backend OK. Try /api/health');
+});
 
 app.get('/api/health', (_, res) => {
   const tts = getTtsStatus();
@@ -487,6 +537,7 @@ app.get('/api/health', (_, res) => {
     host: HOST,
     port: Number(PORT),
     time: new Date().toISOString(),
+    build: BUILD_TAG,
     tts,
     music: {
       coverageBuiltAt: MUSIC_COVERAGE.builtAt,
@@ -519,15 +570,17 @@ app.post('/api/chat', (req, res) => {
   const route = '/api/chat';
   const body = req && typeof req.body === 'object' ? req.body : {};
   const message = clean(body?.message);
+
+  // honor provided sessionId; otherwise generate and return it
   const sessionId = asText(body?.sessionId) || crypto.randomUUID();
   const session = getSession(sessionId);
 
-  // Anti-loop / double-send guard
+  // Anti-loop / double-send guard (keep, but never emit confusing UI text)
   const now = Date.now();
   const sig = sigOf(message);
 
   if (sig && sig === session.lastSig && now - session.lastSigAt < 900) {
-    const response = { ok: true, reply: '', followUp: null, noop: true, sessionId };
+    const response = { ok: true, reply: '', followUp: null, noop: true, suppressed: true, sessionId };
     setLast({ route, request: body, response, error: null });
     return res.status(200).json(response);
   }
@@ -537,9 +590,18 @@ app.post('/api/chat', (req, res) => {
   try {
     let response;
 
+    // CRITICAL: Empty message should produce intro (not "tap a chip" prompt).
     if (!message) {
-      response = lanePickerReply();
+      if (!session.greeted) {
+        session.greeted = true;
+        session.checkInPending = true;
+        response = nyxGreeting();
+      } else {
+        // After intro, empty message can show lanes
+        response = lanePickerReply();
+      }
     } else if (isGreeting(message)) {
+      session.greeted = true;
       session.checkInPending = true;
       response = nyxGreeting();
     } else if (session.checkInPending) {
@@ -563,7 +625,7 @@ app.post('/api/chat', (req, res) => {
           response = { reply: 'AI mode.\nAre we talking features, implementation, or a demo?', followUp: ['Features', 'Implementation', 'Demo'] };
         else response = lanePickerReply();
       } else {
-        if (session.lane === 'music') response = handleMusic(message, session, sessionId);
+        if (session.lane === 'music') response = handleMusic(message, session);
         else response = lanePickerReply();
       }
     }
