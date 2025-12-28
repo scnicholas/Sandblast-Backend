@@ -1,23 +1,27 @@
 "use strict";
 
 /**
- * Utils/musicKnowledge.js — v2.40
+ * Utils/musicKnowledge.js — v2.41
  *
- * Critical fixes added:
- *  - YEAR-END TITLE QUALITY FIX: If a Year-End chart top list is missing >=50% titles,
- *    auto-fallback to Billboard Hot 100 (then Top40Weekly Top 100) for clean output.
- *  - NAME-FRAGMENT REPAIR: Repairs obvious artist/title fragment drift (e.g., "Jay — Z", "Mars — Bruno").
+ * CRITICAL FIXES (v2.41):
+ *  1) Wikipedia Year-End merge:
+ *     - If Data/wikipedia/billboard_yearend_hot100_1970_2010.json exists,
+ *       merge its `moments` into DB at startup so Year-End queries have real titles.
+ *     - Also supports per-year files if present (optional).
  *
- * Retains v2.39 fixes:
- *  - Top list safety coercion (prevents "undefined." and blank artist/title in top lists)
- *  - Top40Weekly drift repairs locked + 1994 hard locks + canonicalizers
+ *  2) Retains v2.40 safety net:
+ *     - Top list coercion: prevents "undefined." and blank fields in Top lists
+ *     - Name-fragment repair: fixes obvious "Jay — Z", "Mars — Bruno" patterns
+ *     - Year-End quality fallback: if Year-End titles are mostly missing, fallback to Hot 100 / Top40Weekly
+ *
+ *  3) Retains v2.39+ Top40Weekly drift locks and canonicalizers.
  */
 
 const fs = require("fs");
 const path = require("path");
 
 const MK_VERSION =
-  "musicKnowledge v2.40 (Year-End title fallback + name-fragment repairs; retains Top list coercion + Top40Weekly locks)";
+  "musicKnowledge v2.41 (Wikipedia Year-End merge + Year-End quality guard + name-fragment repairs + Top list coercion + Top40Weekly locks)";
 
 const DEFAULT_CHART = "Billboard Hot 100";
 const TOP40_CHART = "Top40Weekly Top 100";
@@ -53,11 +57,17 @@ const DB_CANDIDATES_DEFAULT = [
 
 const TOP40_DIR_CANON = "Data/top40weekly";
 
+// Wikipedia Year-End (built by your script)
+const WIKI_YEAREND_COMBINED =
+  "Data/wikipedia/billboard_yearend_hot100_1970_2010.json";
+const WIKI_YEAREND_DIR = "Data/wikipedia"; // where per-year could live
+
 let DB = null;
 let INDEX_BUILT = false;
 
 const BY_YEAR = new Map();
 const BY_YEAR_CHART = new Map();
+
 const STATS = { moments: 0, yearMin: null, yearMax: null, charts: [] };
 
 let TOP40_MERGE_META = {
@@ -66,6 +76,14 @@ let TOP40_MERGE_META = {
   rows: 0,
   files: 0,
   years: null,
+};
+
+let WIKI_YEAREND_META = {
+  didMerge: false,
+  source: null,
+  rows: 0,
+  years: null,
+  failures: 0,
 };
 
 function stripBom(s) {
@@ -182,6 +200,10 @@ function resolveTop40DirAbs() {
   return null;
 }
 
+/* =========================
+   CHART NORMALIZATION
+========================= */
+
 function normalizeChart(chart) {
   const c = String(chart || DEFAULT_CHART).trim();
   if (!c) return DEFAULT_CHART;
@@ -192,9 +214,11 @@ function normalizeChart(chart) {
 
   if (lc.includes("top40weekly") && (lc.includes("top 100") || lc.includes("top100")))
     return TOP40_CHART;
+
+  if (lc.includes("year") && lc.includes("end")) return "Billboard Year-End Hot 100";
   if (lc.includes("billboard") || lc.includes("hot 100") || lc.includes("hot100"))
     return "Billboard Hot 100";
-  if (lc.includes("year") && lc.includes("end")) return "Billboard Year-End Hot 100";
+
   if (lc.includes("uk") && lc.includes("single")) return "UK Singles Chart";
   if (lc.includes("canada") || lc.includes("rpm")) return "Canada RPM";
   if (lc.includes("top40weekly")) return "Top40Weekly";
@@ -234,9 +258,9 @@ function resolveChart(requestedChart, opts = {}) {
   };
 }
 
-/* ==========================================
+/* =========================
    YEAR-END DETECTION + QUALITY
-========================================== */
+========================= */
 
 function isYearEndChartName(chart) {
   const c = String(chart || "").toLowerCase();
@@ -248,22 +272,20 @@ function isUnknownTitle(t) {
   return !x || x === "unknown title";
 }
 
-/* ==========================================
-   TOP LIST SAFETY (v2.39 retained)
-========================================== */
+/* =========================
+   TOP LIST SAFETY COERCION
+========================= */
+
 function coerceTopListMoment(m, indexFallback) {
   const safe = shallowCloneMoment(m) || {};
 
-  // rank fallback: rank/position/no/pos -> number else (index+1)
   const rawRank = safe.rank ?? safe.position ?? safe.no ?? safe.pos ?? safe.number;
   const parsed = Number.parseInt(String(rawRank ?? ""), 10);
   safe.rank = Number.isFinite(parsed) ? parsed : (Number(indexFallback) + 1);
 
-  // normalize strings
   safe.artist = _asText(safe.artist ?? safe.performer ?? safe.act ?? safe.by);
   safe.title = _asText(safe.title ?? safe.song ?? safe.track ?? safe.name);
 
-  // If one field is collapsed like "Artist — Title", split it.
   const splitDash = (s) => {
     const t = _asText(s);
     if (!t) return null;
@@ -293,10 +315,9 @@ function coerceTopListMoment(m, indexFallback) {
   return safe;
 }
 
-/* ==========================================
-   NAME-FRAGMENT REPAIR (NEW)
-   Fixes: Jay — Z => Jay-Z; Mars — Bruno => Bruno Mars; etc.
-========================================== */
+/* =========================
+   NAME-FRAGMENT REPAIR
+========================= */
 
 function looksNameToken(s) {
   const t = String(s || "").trim();
@@ -312,15 +333,14 @@ function repairArtistTitleNameFragments(m) {
 
   if (!a || !t) return m;
 
-  // Jay — Z => Jay-Z (hard special case)
+  // Jay — Z => Jay-Z
   if (/^jay$/i.test(a) && /^z$/i.test(t)) {
     m.artist = "Jay-Z";
     m.title = "Unknown Title";
     return m;
   }
 
-  // If both are single name tokens and the "title" doesn't look like a song title,
-  // assume the artist split across fields: "Mars — Bruno" => "Bruno Mars"
+  // Mars — Bruno => Bruno Mars (artist split across fields)
   const aTok = a.split(/\s+/).filter(Boolean);
   const tTok = t.split(/\s+/).filter(Boolean);
 
@@ -333,9 +353,10 @@ function repairArtistTitleNameFragments(m) {
   return m;
 }
 
-// =============================
-// DRIFT REPAIR (existing)
-// =============================
+/* =========================
+   TOP40WEEKLY + DRIFT LOCKS (retained)
+========================= */
+
 const BAND_SUFFIXES = new Set([
   "Club",
   "Band",
@@ -351,58 +372,16 @@ const BAND_SUFFIXES = new Set([
 ]);
 
 const TITLE_PREFIX_CANDIDATES_LC = new Set([
-  "you",
-  "i",
-  "me",
-  "my",
-  "mine",
-  "your",
-  "yours",
-  "us",
-  "we",
-  "love",
-  "loving",
-  "heart",
-  "eyes",
-  "girl",
-  "night",
-  "list",
-  "endless",
-  "starting",
-  "keep",
-  "kiss",
-  "rainy",
-  "davis",
-  "over",
-  "like",
-  "just",
-  "again",
-  "remember",
-  "sign",
-  "power",
-  "breathe",
-  "swear",
+  "you","i","me","my","mine","your","yours","us","we",
+  "love","loving","heart","eyes","girl","night","list","endless",
+  "starting","keep","kiss","rainy","davis","over","like","just",
+  "again","remember","sign","power","breathe","swear",
 ]);
 
 function isTitleHangWord(w) {
   const t = norm(w);
   return [
-    "a",
-    "an",
-    "the",
-    "this",
-    "that",
-    "to",
-    "in",
-    "on",
-    "of",
-    "for",
-    "with",
-    "at",
-    "from",
-    "by",
-    "and",
-    "or",
+    "a","an","the","this","that","to","in","on","of","for","with","at","from","by","and","or",
   ].includes(t);
 }
 
@@ -415,9 +394,7 @@ function isNameyToken(tok) {
   if (!re.test(clean)) return false;
 
   const low = clean.toLowerCase();
-  if (
-    ["and", "of", "the", "a", "an", "to", "in", "on", "with", "featuring", "feat", "ft"].includes(low)
-  )
+  if (["and","of","the","a","an","to","in","on","with","featuring","feat","ft"].includes(low))
     return false;
 
   const first = clean[0];
@@ -832,7 +809,7 @@ function normalizeMomentFields(m) {
   repairEmbeddedTitleWordsInArtistAnywhere(m);
   canonicalizeAmpersandActs(m);
 
-  // NEW: Repairs obvious artist/title fragment drift observed in Year-End outputs
+  // Repair obvious fragment drift
   repairArtistTitleNameFragments(m);
 
   hardFixKnownCorruptions(m);
@@ -848,9 +825,10 @@ function normalizedCopy(m) {
   return normalizeMomentFields(c);
 }
 
-// =============================
-// DB LOADING
-// =============================
+/* =========================
+   DB LOADING
+========================= */
+
 function getDbCandidates() {
   if (DB_PATH_ENV) return [DB_PATH_ENV];
   if (DB_CANDIDATES_ENV) {
@@ -875,13 +853,123 @@ function loadBaseDb() {
       : Array.isArray(data)
       ? data
       : [];
-    if (!moments.length) continue;
 
+    if (!moments.length) continue;
     return { absPath: abs, moments };
   }
 
   return { absPath: null, moments: [] };
 }
+
+/**
+ * Merge Wikipedia Year-End file produced by your builder.
+ * Builder output shape (combined):
+ *  {
+ *    ok, chart, range, totalRows, failures, moments: [{year,rank,title,artist,chart}, ...]
+ *  }
+ */
+function mergeWikipediaYearEndIfPresent(dbMoments) {
+  const combinedAbs = resolveRepoPath(WIKI_YEAREND_COMBINED);
+  const wikiDirAbs = resolveRepoPath(WIKI_YEAREND_DIR);
+
+  let merged = [];
+  let failures = 0;
+  let yearMin = null, yearMax = null;
+
+  // Combined file first
+  if (fileExists(combinedAbs)) {
+    try {
+      const doc = readJsonFile(combinedAbs);
+      const arr = Array.isArray(doc?.moments) ? doc.moments : [];
+      failures = Array.isArray(doc?.failures) ? doc.failures.length : 0;
+
+      for (const row of arr) {
+        const y = toInt(row?.year);
+        const r = toRank(row?.rank);
+        const title = _asText(row?.title);
+        const artist = _asText(row?.artist);
+        const chart = normalizeChart(row?.chart || "Billboard Year-End Hot 100");
+        if (!y || !r || !title || !artist) continue;
+
+        yearMin = yearMin == null ? y : Math.min(yearMin, y);
+        yearMax = yearMax == null ? y : Math.max(yearMax, y);
+
+        merged.push(normalizeMomentFields({
+          year: y,
+          rank: r,
+          title,
+          artist,
+          chart,
+        }));
+      }
+
+      WIKI_YEAREND_META.didMerge = merged.length > 0;
+      WIKI_YEAREND_META.source = combinedAbs;
+      WIKI_YEAREND_META.rows = merged.length;
+      WIKI_YEAREND_META.years = (yearMin != null && yearMax != null) ? `${yearMin}–${yearMax}` : null;
+      WIKI_YEAREND_META.failures = failures;
+
+      if (merged.length) {
+        console.log(
+          `[musicKnowledge] Wikipedia Year-End merge: source=${combinedAbs} rows=${merged.length} years=${WIKI_YEAREND_META.years || "?–?"} failures=${failures}`
+        );
+      }
+      return dbMoments.concat(merged);
+    } catch (e) {
+      console.log(`[musicKnowledge] Wikipedia Year-End merge: failed to read combined file (${e.message})`);
+      // fall through to per-year scanning
+    }
+  }
+
+  // Optional: per-year files fallback (if someone only wrote per-year)
+  if (dirExists(wikiDirAbs)) {
+    const files = fs.readdirSync(wikiDirAbs).filter(f =>
+      /^billboard_yearend_hot100_\d{4}\.json$/i.test(f)
+    );
+
+    if (files.length) {
+      for (const f of files) {
+        try {
+          const abs = path.join(wikiDirAbs, f);
+          const arr = readJsonFile(abs);
+          if (!Array.isArray(arr) || !arr.length) continue;
+          for (const row of arr) {
+            const y = toInt(row?.year);
+            const r = toRank(row?.rank);
+            const title = _asText(row?.title);
+            const artist = _asText(row?.artist);
+            const chart = normalizeChart(row?.chart || "Billboard Year-End Hot 100");
+            if (!y || !r || !title || !artist) continue;
+
+            yearMin = yearMin == null ? y : Math.min(yearMin, y);
+            yearMax = yearMax == null ? y : Math.max(yearMax, y);
+
+            merged.push(normalizeMomentFields({ year: y, rank: r, title, artist, chart }));
+          }
+        } catch {}
+      }
+
+      WIKI_YEAREND_META.didMerge = merged.length > 0;
+      WIKI_YEAREND_META.source = wikiDirAbs;
+      WIKI_YEAREND_META.rows = merged.length;
+      WIKI_YEAREND_META.years = (yearMin != null && yearMax != null) ? `${yearMin}–${yearMax}` : null;
+      WIKI_YEAREND_META.failures = 0;
+
+      if (merged.length) {
+        console.log(
+          `[musicKnowledge] Wikipedia Year-End merge: source=${wikiDirAbs} perYearFiles=${files.length} rows=${merged.length} years=${WIKI_YEAREND_META.years || "?–?"}`
+        );
+        return dbMoments.concat(merged);
+      }
+    }
+  }
+
+  return dbMoments;
+}
+
+/* =========================
+   TOP40WEEKLY INGEST (existing)
+========================= */
 
 function extractYearFromFilename(filename) {
   const base = path.basename(filename);
@@ -898,10 +986,8 @@ function extractYearFromFilename(filename) {
 
 function extractYearFromObject(obj) {
   if (!obj || typeof obj !== "object") return null;
-
   const direct = toInt(obj.year ?? obj.Year ?? obj.Y);
   if (direct) return direct;
-
   const nests = [obj.meta, obj.header, obj.info, obj.data, obj.context, obj.payload];
   for (const n of nests) {
     const y = toInt(n?.year ?? n?.Year ?? n?.Y);
@@ -1031,6 +1117,10 @@ function readTop40WeeklyDir(top40DirAbs) {
   };
 }
 
+/* =========================
+   INDEX BUILD
+========================= */
+
 function buildIndexes() {
   if (!DB || !Array.isArray(DB.moments)) {
     INDEX_BUILT = false;
@@ -1081,12 +1171,20 @@ function buildIndexes() {
   INDEX_BUILT = true;
 }
 
+/* =========================
+   PUBLIC DB ACCESS
+========================= */
+
 function getDb() {
   if (DB && INDEX_BUILT) return DB;
 
   const base = loadBaseDb();
   DB = { moments: base.moments || [] };
 
+  // CRITICAL: Merge Wikipedia Year-End if available
+  DB.moments = mergeWikipediaYearEndIfPresent(DB.moments);
+
+  // Top40Weekly merge
   const top40DirAbs = resolveTop40DirAbs();
   const shouldMerge = MERGE_TOP40WEEKLY && !!top40DirAbs && dirExists(top40DirAbs);
 
@@ -1120,6 +1218,16 @@ function getDb() {
     `[musicKnowledge] Loaded ${STATS.moments} moments (years ${STATS.yearMin ?? "?"}–${STATS.yearMax ?? "?"}) charts=${STATS.charts.length}`
   );
 
+  if (WIKI_YEAREND_META.didMerge) {
+    console.log(
+      `[musicKnowledge] Wikipedia Year-End present: ${WIKI_YEAREND_META.rows} rows (source=${WIKI_YEAREND_META.source}) failures=${WIKI_YEAREND_META.failures}`
+    );
+  } else {
+    console.log(
+      `[musicKnowledge] Wikipedia Year-End not merged (missing file): expected ${resolveRepoPath(WIKI_YEAREND_COMBINED)}`
+    );
+  }
+
   if (STATS.charts.includes(TOP40_CHART)) {
     console.log(
       `[musicKnowledge] Top40Weekly Top 100 present: ${TOP40_MERGE_META.rows} rows (dir=${TOP40_MERGE_META.dir})`
@@ -1130,6 +1238,10 @@ function getDb() {
 
   return DB;
 }
+
+/* =========================
+   QUERY HELPERS
+========================= */
 
 function poolForYear(year, chart = null) {
   getDb();
@@ -1253,11 +1365,9 @@ function pickRandomByYearWithMeta(year, chart = null) {
   };
 }
 
-/* ==========================================
-   TOP LIST RETRIEVAL (UPDATED)
-   - raw getter (no year-end fallback)
-   - public getter with year-end quality fallback
-========================================== */
+/* =========================
+   TOP LIST RETRIEVAL
+========================= */
 
 function _getTopByYearRaw(year, chart = DEFAULT_CHART, limit = 10) {
   const bucket = poolForYear(year, chart);
@@ -1286,7 +1396,7 @@ function getTopByYear(year, chart = DEFAULT_CHART, limit = 10) {
   const usedChart = normalizeChart(chart || DEFAULT_CHART);
   const out = _getTopByYearRaw(year, usedChart, limit);
 
-  // If a Year-End list is mostly missing titles, auto-fallback for clean UX.
+  // Year-End quality guard: if titles are mostly missing, fallback to clean charts.
   if (out.length && isYearEndChartName(usedChart)) {
     const missing = out.filter((x) => isUnknownTitle(x.title)).length;
     if (missing >= Math.ceil(out.length * 0.5)) {
@@ -1296,8 +1406,7 @@ function getTopByYear(year, chart = DEFAULT_CHART, limit = 10) {
       const alt2 = _getTopByYearRaw(year, TOP40_CHART, limit);
       if (alt2 && alt2.length) return alt2;
 
-      // If no alternates exist, return the coerced Year-End output as-is (still safe, just incomplete).
-      return out;
+      return out; // still safe, just incomplete
     }
   }
 
@@ -1309,6 +1418,10 @@ function getNumberOneByYear(year, chart = DEFAULT_CHART) {
   if (top && top.length) return coerceTopListMoment(top[0], 0);
   return null;
 }
+
+/* =========================
+   DETECTORS
+========================= */
 
 function detectYearFromText(text) {
   const t = String(text || "");
