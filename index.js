@@ -1,622 +1,504 @@
 'use strict';
 
-/* ============================
-   NYX BOOT CRASH LOG (MUST BE FIRST)
-   ============================ */
-const fs = require('fs');
-const path = require('path');
-
-const NYX_LOG_PATH = path.join(__dirname, 'nyx-fatal.log');
-
-function _safeString(x) {
-  try {
-    if (typeof x === 'string') return x;
-    return JSON.stringify(x);
-  } catch {
-    return String(x);
-  }
-}
-
-function _crashLog(...args) {
-  try {
-    const line =
-      `[${new Date().toISOString()}] ` +
-      args.map(_safeString).join(' ') +
-      '\n';
-    fs.appendFileSync(NYX_LOG_PATH, line, 'utf8');
-  } catch (_) {
-    // last resort: do nothing
-  }
-}
-
-_crashLog('BOOT', {
-  pid: process.pid,
-  node: process.version,
-  cwd: process.cwd(),
-  __dirname,
-  HOST: process.env.HOST,
-  PORT: process.env.PORT,
-  NODE_ENV: process.env.NODE_ENV,
-  ENV: process.env.ENV
-});
-
-process.on('beforeExit', (code) => _crashLog('BEFORE_EXIT', { code }));
-process.on('exit', (code) => _crashLog('PROCESS_EXIT', { code }));
-
-['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGBREAK'].forEach((sig) => {
-  try {
-    process.on(sig, () => {
-      _crashLog('SIGNAL', { sig });
-      process.exit(0);
-    });
-  } catch (_) {}
-});
-
-process.on('uncaughtException', (err) => {
-  _crashLog('UNCAUGHT_EXCEPTION', { message: err?.message, stack: err?.stack });
-  try { console.error('[Nyx] uncaughtException:', err); } catch (_) {}
-  process.exit(1);
-});
-
-process.on('unhandledRejection', (err) => {
-  _crashLog('UNHANDLED_REJECTION', { message: err?.message, stack: err?.stack });
-  try { console.error('[Nyx] unhandledRejection:', err); } catch (_) {}
-  process.exit(1);
-});
-
 /**
- * Sandblast Backend — Nyx Intelligence Layer
- * Hardened Orchestrator + Music Flow (KB-backed)
+ * Sandblast Backend (Nyx)
+ * index.js — hardened routes + always-on TTS endpoints
  */
 
 const express = require('express');
-const crypto = require('crypto');
 const cors = require('cors');
+const crypto = require('crypto');
 const net = require('net');
 
-// Optional modules (don’t crash boot if missing)
-let intentClassifier = null;
-let musicKnowledge = null;
+const musicKnowledge = require('./Utils/musicKnowledge'); // must exist in your repo
 
-try { intentClassifier = require('./Utils/intentClassifier'); }
-catch (e) { _crashLog('REQUIRE_FAIL intentClassifier', { message: e?.message }); }
+/* =========================
+   ENV + BUILD
+========================= */
 
-try { musicKnowledge = require('./Utils/musicKnowledge'); }
-catch (e) { _crashLog('REQUIRE_FAIL musicKnowledge', { message: e?.message }); }
-
-// -----------------------------
-// APP
-// -----------------------------
-const app = express();
-app.disable('x-powered-by');
-app.set('trust proxy', 1);
-
-// -----------------------------
-// CONFIG
-// -----------------------------
-const PORT = Number(process.env.PORT || 3000);
+const ENV = String(process.env.NODE_ENV || 'production');
 const HOST = String(process.env.HOST || '0.0.0.0');
-const ENV = String(process.env.NODE_ENV || process.env.ENV || 'production').toLowerCase();
+const PORT = Number(process.env.PORT || 3000);
+
+const BUILD_TAG =
+  String(process.env.BUILD_TAG || process.env.RENDER_GIT_COMMIT || 'nyx-wizard-local').slice(0, 32);
 
 const DEFAULT_TIMEOUT_MS = Number(process.env.NYX_TIMEOUT_MS || 20000);
 
-// Music prompt range (this is what you’re using in prod tests)
-const MUSIC_RANGE_START = Number(process.env.MUSIC_RANGE_START || 1970);
-const MUSIC_RANGE_END = Number(process.env.MUSIC_RANGE_END || 2010);
+/* =========================
+   APP + MIDDLEWARE
+========================= */
 
-const DEFAULT_CHART = 'Billboard Hot 100';
-const TOP40_CHART = 'Top40Weekly Top 100';
-const YEAR_END_CHART = 'Billboard Year-End Hot 100';
+const app = express();
 
-// Build tag (Render sets RENDER_GIT_COMMIT)
-const COMMIT_FULL = process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || '';
-const COMMIT_SHORT = COMMIT_FULL ? String(COMMIT_FULL).slice(0, 7) : '';
-const BUILD_TAG = COMMIT_SHORT ? `nyx-wizard-${COMMIT_SHORT}` : 'nyx-wizard-local';
+// Trust proxy is important on Render
+app.set('trust proxy', 1);
 
-// -----------------------------
-// MIDDLEWARE
-// -----------------------------
-app.use(cors({
-  origin: true,
-  credentials: true,
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}));
+// JSON body parsing (TTS + chat)
+app.use(express.json({ limit: '1mb' }));
 
-app.use(express.json({
-  limit: '1mb',
-  strict: true,
-  type: ['application/json', 'application/*+json'],
-}));
+// CORS: keep permissive for widget embeds
+app.use(
+  cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+);
 
-app.use((err, req, res, next) => {
-  if (err && (err.type === 'entity.parse.failed' || err instanceof SyntaxError)) {
-    _crashLog('BAD_JSON', { rid: req?._rid, message: err?.message });
-    return res.status(200).json({
-      ok: false,
-      error: 'BAD_JSON',
-      message: 'Request body is empty or invalid JSON.',
-    });
-  }
-  next(err);
-});
+// Explicit OPTIONS to avoid random 404/405 behavior across platforms/proxies
+app.options('/api/tts', cors());
+app.options('/api/voice', cors());
+app.options('/api/chat', cors());
+app.options('/api/health', cors());
 
-function reqId() {
-  try {
-    return crypto.randomUUID();
-  } catch {
-    return crypto.randomBytes(16).toString('hex');
-  }
-}
+/* =========================
+   DEBUG STATE
+========================= */
 
-app.use((req, res, next) => {
-  const id = reqId();
-  res.setHeader('X-Request-Id', id);
-  req._rid = id;
-  next();
-});
-
-// -----------------------------
-// SESSION STORE (in-memory)
-// -----------------------------
-const SESSIONS = new Map();
-
-function asText(x) {
-  return x == null ? '' : String(x).trim();
-}
-
-function getSession(sessionId) {
-  const sid = asText(sessionId) || 'anon';
-  let s = SESSIONS.get(sid);
-  if (!s) {
-    s = {
-      createdAt: Date.now(),
-      last: { domain: 'general', followUp: null, followSig: '', meta: null },
-      music: {
-        year: null,
-        chart: null,
-        step: 'need_anchor', // need_anchor -> need_chart -> need_action -> anchored
-      },
-    };
-    SESSIONS.set(sid, s);
-  }
-  return s;
-}
-
-// -----------------------------
-// MUSIC: chart normalization (critical)
-// -----------------------------
-function normalizeChart(chart) {
-  const raw = asText(chart);
-  const t = raw.toLowerCase();
-  if (!t) return DEFAULT_CHART;
-
-  // IMPORTANT: Year-End must win BEFORE generic "hot 100"/"billboard"
-  if (
-    t.includes('year end') ||
-    t.includes('year-end') ||
-    t.includes('yearend') ||
-    (t.includes('billboard') && t.includes('year') && t.includes('end'))
-  ) return YEAR_END_CHART;
-
-  if (t.includes('top40weekly') || t.includes('top 40 weekly') || t.includes('top40 weekly')) return TOP40_CHART;
-  if (t.includes('uk') && t.includes('singles')) return 'UK Singles Chart';
-  if (t.includes('canada') && (t.includes('rpm') || t.includes('chart'))) return 'Canada RPM';
-  if (t.includes('hot 100') || t.includes('billboard')) return 'Billboard Hot 100';
-
-  return raw;
-}
-
-function extractYear(text) {
-  const m = asText(text).match(/\b(19\d{2}|20\d{2})\b/);
-  if (!m) return null;
-  const y = Number(m[1]);
-  if (!Number.isFinite(y)) return null;
-  if (y < MUSIC_RANGE_START || y > MUSIC_RANGE_END) return null;
-  return y;
-}
-
-// -----------------------------
-// FOLLOW-UP helpers
-// -----------------------------
-function isAffirmation(text) {
-  return /^(y|yes|yeah|yep|sure|ok|okay|alright|sounds good|go ahead)$/i.test(asText(text));
-}
-function isNegation(text) {
-  return /^(n|no|nope|nah|not really)$/i.test(asText(text));
-}
-
-function followUpSignature(fu) {
-  if (!fu || typeof fu !== 'object') return '';
-  const kind = String(fu.kind || '');
-  const prompt = String(fu.prompt || '');
-  const req = Array.isArray(fu.required) ? fu.required.join(',') : '';
-  const opts = Array.isArray(fu.options) ? fu.options.join('|') : '';
-  return `${kind}::${prompt}::${req}::${opts}`.trim();
-}
-
-function coerceChoice(message, followUp) {
-  if (!followUp || followUp.kind !== 'choice' || !Array.isArray(followUp.options) || !followUp.options.length) return null;
-  const opts = followUp.options;
-  const t = asText(message).toLowerCase();
-  if (isAffirmation(t)) return opts[0];
-  if (isNegation(t)) return opts[1] || opts[0];
-  if (/^\d+$/.test(t)) {
-    const n = Number(t);
-    if (Number.isFinite(n) && n >= 1 && n <= opts.length) return opts[n - 1];
-  }
-  const hit = opts.find(o => asText(o).toLowerCase() === t);
-  return hit || null;
-}
-
-function toOutputSafe(out) {
-  const safe = (out && typeof out === 'object') ? out : {};
-  const reply = asText(safe.reply) || 'Okay.';
-  const ok = (typeof safe.ok === 'boolean') ? safe.ok : true;
-  const normalized = { ...safe, ok, reply };
-  if (normalized.followUp != null && typeof normalized.followUp !== 'object' && !Array.isArray(normalized.followUp)) {
-    delete normalized.followUp;
-  }
-  return normalized;
-}
-
-// -----------------------------
-// MUSIC: coverage cache + rebuild
-// -----------------------------
-let MUSIC_COVERAGE = {
-  builtAt: null,
-  range: { start: MUSIC_RANGE_START, end: MUSIC_RANGE_END },
-  charts: [TOP40_CHART, DEFAULT_CHART, YEAR_END_CHART, 'Canada RPM', 'UK Singles Chart'],
+const LAST_DEBUG = {
+  route: null,
+  request: null,
+  response: null,
+  error: null,
+  at: null,
 };
 
-function kbAvailable() {
-  return musicKnowledge && typeof musicKnowledge.getDb === 'function';
+function setLast({ route, request, response, error }) {
+  LAST_DEBUG.route = route;
+  LAST_DEBUG.request = request;
+  LAST_DEBUG.response = response;
+  LAST_DEBUG.error = error;
+  LAST_DEBUG.at = new Date().toISOString();
 }
 
-function rebuildMusicCoverage() {
-  const builtAt = new Date().toISOString();
+/* =========================
+   UTILS
+========================= */
 
-  // Default to your known list (safe even if KB is unavailable)
-  const charts = new Set([TOP40_CHART, DEFAULT_CHART, YEAR_END_CHART, 'Canada RPM', 'UK Singles Chart']);
-
-  if (kbAvailable()) {
-    try {
-      const db = musicKnowledge.getDb();
-      const moments = Array.isArray(db?.moments) ? db.moments : [];
-      for (const m of moments) {
-        const c = asText(m?.chart);
-        if (c) charts.add(c);
-      }
-    } catch (e) {
-      _crashLog('COVERAGE_REBUILD_FAIL', { message: e?.message });
-    }
-  }
-
-  MUSIC_COVERAGE = {
-    builtAt,
-    range: { start: MUSIC_RANGE_START, end: MUSIC_RANGE_END },
-    charts: Array.from(charts),
-  };
-
-  return MUSIC_COVERAGE;
+function asText(v) {
+  if (v === null || v === undefined) return '';
+  return String(v).trim();
 }
 
-// Build once at boot (best-effort)
-rebuildMusicCoverage();
-
-// -----------------------------
-// MUSIC: core calls
-// -----------------------------
-function getYearChartCount(year, chart) {
-  if (!kbAvailable()) return 0;
-  if (typeof musicKnowledge.getYearChartCount !== 'function') return 0;
-  try {
-    return Number(musicKnowledge.getYearChartCount(Number(year), normalizeChart(chart))) || 0;
-  } catch {
-    return 0;
-  }
+function clean(v) {
+  return asText(v).replace(/\s+/g, ' ').trim();
 }
 
-function getTopByYear(year, chart, n) {
-  if (!kbAvailable()) return [];
-  if (typeof musicKnowledge.getTopByYear !== 'function') return [];
-  try {
-    const out = musicKnowledge.getTopByYear(Number(year), normalizeChart(chart), Number(n));
-    return Array.isArray(out) ? out : [];
-  } catch {
-    return [];
-  }
+function sigOf(message) {
+  const s = clean(message).toLowerCase();
+  return s ? s : '';
 }
 
-function getNumberOneByYear(year, chart) {
-  if (!kbAvailable()) return null;
-  if (typeof musicKnowledge.getNumberOneByYear === 'function') {
-    try { return musicKnowledge.getNumberOneByYear(Number(year), normalizeChart(chart)) || null; }
-    catch { return null; }
-  }
-  const top = getTopByYear(year, chart, 1);
-  return top && top[0] ? top[0] : null;
+function isGreeting(s) {
+  const t = clean(s).toLowerCase();
+  return (
+    t === 'hi' ||
+    t === 'hello' ||
+    t === 'hey' ||
+    t === 'good morning' ||
+    t === 'good afternoon' ||
+    t === 'good evening'
+  );
 }
 
-function pickStoryMoment(year, chart) {
-  if (!kbAvailable()) return null;
-  if (typeof musicKnowledge.pickRandomByYearWithMeta === 'function') {
-    try {
-      const r = musicKnowledge.pickRandomByYearWithMeta(Number(year), normalizeChart(chart));
-      if (r && r.moment) return r.moment;
-    } catch {}
-  }
-  if (typeof musicKnowledge.pickRandomByYear === 'function') {
-    try { return musicKnowledge.pickRandomByYear(Number(year), normalizeChart(chart)) || null; }
-    catch { return null; }
-  }
+function normalizeLanePick(raw) {
+  const s = clean(raw).toLowerCase();
+  const cleaned = s.replace(/[^a-z]/g, '');
+  if (cleaned === 'music') return 'music';
+  if (cleaned === 'tv') return 'tv';
+  if (cleaned === 'sponsors' || cleaned === 'sponsor') return 'sponsors';
+  if (cleaned === 'ai') return 'ai';
+  if (cleaned === 'general') return 'general';
   return null;
 }
 
-function fmtLine(m, fallbackChart) {
-  if (!m) return '';
-  const artist = asText(m.artist);
-  const title = asText(m.title);
-  const y = Number(m.year);
-  const c = asText(m.chart) || asText(fallbackChart) || DEFAULT_CHART;
-  if (!artist || !title || !Number.isFinite(y)) return '';
-  return `${artist} — ${title} (${y})`;
+function lanePickerReply() {
+  return {
+    reply: 'What would you like to explore next?',
+    followUp: ['Music', 'TV', 'Sponsors', 'AI'],
+  };
 }
 
-function listChartsForYear(year) {
-  const y = Number(year);
-  const out = [];
-  for (const c of (MUSIC_COVERAGE.charts || [])) {
-    const cnt = getYearChartCount(y, c);
-    if (cnt > 0) out.push(c);
+function nyxGreeting() {
+  return {
+    reply: "Welcome to Sandblast. I’m Nyx.\nHow are you today?",
+    followUp: null,
+  };
+}
+
+/* =========================
+   SESSIONS
+========================= */
+
+const SESSIONS = new Map();
+
+function getSession(sessionId) {
+  const id = asText(sessionId) || 'anon';
+  if (!SESSIONS.has(id)) {
+    SESSIONS.set(id, {
+      id,
+      lane: 'general',
+      createdAt: Date.now(),
+
+      // anti-loop
+      lastSig: null,
+      lastSigAt: 0,
+
+      // small talk
+      checkInPending: false,
+
+      // music state
+      musicState: 'start',
+      musicYear: null,
+      musicChart: null,
+      musicDeliveryMode: null,
+    });
   }
-
-  const preferred = [TOP40_CHART, DEFAULT_CHART, YEAR_END_CHART, 'Canada RPM', 'UK Singles Chart'];
-  out.sort((a, b) => {
-    const ia = preferred.indexOf(a);
-    const ib = preferred.indexOf(b);
-    if (ia === -1 && ib === -1) return a.localeCompare(b);
-    if (ia === -1) return 1;
-    if (ib === -1) return -1;
-    return ia - ib;
-  });
-  return out;
+  return SESSIONS.get(id);
 }
 
-// -----------------------------
-// MUSIC ORCHESTRATOR (matches your curl flow)
-// -----------------------------
-async function handleMusic(message, sessionId) {
-  const s = getSession(sessionId);
-  const ms = s.music;
+/* =========================
+   MUSIC COVERAGE
+========================= */
 
-  if (/^music$/i.test(asText(message))) {
-    ms.step = 'need_anchor';
-    ms.year = null;
-    ms.chart = null;
+function rebuildMusicCoverage() {
+  // Your musicKnowledge already prints merge stats on load; we keep a lightweight coverage object.
+  // If you have a dedicated coverage builder, call it here.
+  const charts = ['Top40Weekly Top 100', 'Billboard Hot 100', 'Billboard Year-End Hot 100', 'Canada RPM', 'UK Singles Chart'];
+
+  // If musicKnowledge exposes a stats helper, use it; otherwise ship safe defaults.
+  const builtAt = new Date().toISOString();
+  const range = { start: 1970, end: 2010 };
+
+  return { builtAt, range, charts };
+}
+
+let MUSIC_COVERAGE = rebuildMusicCoverage();
+
+/* =========================
+   MUSIC HANDLERS (hook into your Utils/musicKnowledge)
+========================= */
+
+function enterMusic(session) {
+  session.lane = 'music';
+  session.musicState = 'need_year';
+  session.musicYear = null;
+  session.musicChart = null;
+  session.musicDeliveryMode = null;
+
+  return {
+    reply: 'Music it is.\nGive me a year between 1970 and 2010.',
+    followUp: null,
+  };
+}
+
+function isYear(s) {
+  const t = clean(s);
+  if (!/^\d{4}$/.test(t)) return null;
+  const n = Number(t);
+  if (n < 1950 || n > 2100) return null;
+  return n;
+}
+
+function chartsForYear(year) {
+  // For now, we just present what coverage claims; your musicKnowledge can be more precise.
+  return (MUSIC_COVERAGE.charts || []).map((c) => ({ chart: c }));
+}
+
+function handleMusic(message, session /*, sessionId*/) {
+  const text = clean(message);
+
+  // Year selection
+  if (session.musicState === 'need_year') {
+    const y = isYear(text);
+    if (!y || y < 1970 || y > 2010) {
+      return { reply: 'Give me a year between 1970 and 2010.', followUp: null };
+    }
+    session.musicYear = y;
+    session.musicState = 'need_chart';
+
+    const opts = chartsForYear(y).map((o) => o.chart).slice(0, 5);
     return {
-      ok: true,
-      reply: `Music it is.\nGive me a year between ${MUSIC_RANGE_START} and ${MUSIC_RANGE_END}.`,
-      followUp: null,
+      reply: `Great. For ${y}, I can pull from:\n• ${opts.join('\n• ')}\n\nPick one.`,
+      followUp: opts,
     };
   }
 
-  if (s.last.followUp && s.last.followUp.kind === 'choice') {
-    const coerced = coerceChoice(message, s.last.followUp);
-    if (coerced) message = coerced;
-  }
+  // Chart selection
+  if (session.musicState === 'need_chart') {
+    const picked = chartsForYear(session.musicYear)
+      .map((o) => o.chart)
+      .find((c) => clean(c).toLowerCase() === clean(text).toLowerCase());
 
-  if (!ms.year) {
-    const y = extractYear(message);
-    if (!y) {
-      return { ok: true, reply: `Give me a year between ${MUSIC_RANGE_START} and ${MUSIC_RANGE_END}.`, followUp: null };
-    }
-    ms.year = y;
-
-    const charts = listChartsForYear(y);
-    if (!charts.length) {
-      ms.year = null;
-      return {
-        ok: true,
-        reply: `I don’t have chart entries for ${y} in my coverage right now.\nTry another year between ${MUSIC_RANGE_START} and ${MUSIC_RANGE_END}.`,
-        followUp: null,
-      };
+    if (!picked) {
+      const opts = chartsForYear(session.musicYear).map((o) => o.chart).slice(0, 5);
+      return { reply: `Pick a chart for ${session.musicYear}:\n• ${opts.join('\n• ')}`, followUp: opts };
     }
 
-    ms.step = 'need_chart';
+    session.musicChart = picked;
+    session.musicState = 'ready';
+
     return {
-      ok: true,
-      reply: `Great. For ${y}, I can pull from:\n` + charts.map(c => `• ${c}`).join('\n') + `\n\nPick one.`,
-      followUp: charts,
-    };
-  }
-
-  if (!ms.chart) {
-    const chosen = normalizeChart(message);
-
-    const charts = listChartsForYear(ms.year);
-    const hit = charts.find(c => normalizeChart(c) === chosen) || charts.find(c => c === message) || null;
-
-    if (!hit) {
-      return { ok: true, reply: `Pick another chart:`, followUp: charts };
-    }
-
-    ms.chart = normalizeChart(hit);
-    ms.step = 'need_action';
-    return {
-      ok: true,
-      reply: `Locked in: ${ms.chart}, ${ms.year}.\nNow tell me one of these:\n• Top 10\n• #1\n• Story moment`,
+      reply: `Locked in: ${picked}, ${session.musicYear}.\nNow tell me one of these:\n• Top 10\n• #1\n• Story moment`,
       followUp: ['Top 10', '#1', 'Story moment'],
     };
   }
 
-  const t = asText(message).toLowerCase();
+  // Delivery mode
+  if (session.musicState === 'ready') {
+    const mode = clean(text).toLowerCase();
 
-  if (t === 'top 10' || t === 'top10') {
-    const list = getTopByYear(ms.year, ms.chart, 10);
-    if (!list.length) {
-      return {
-        ok: true,
-        reply: `I couldn’t assemble Top 10 for ${ms.chart} (${ms.year}).\nWant #1 or a Story moment instead?`,
-        followUp: ['#1', 'Story moment', 'Another year'],
-      };
+    if (mode === '#1' || mode === '1' || mode === 'number 1' || mode === 'no. 1' || mode === 'no 1') {
+      // Use your musicKnowledge to fetch #1
+      const year = session.musicYear;
+      const chart = session.musicChart;
+
+      try {
+        const top = musicKnowledge.getTopByYear(year, chart, 1);
+        const row = Array.isArray(top) && top[0] ? top[0] : null;
+
+        if (!row) {
+          return { reply: `I couldn’t find #1 for ${chart} (${year}). Want Top 10, Story moment, or another chart?`, followUp: ['Top 10', 'Story moment', 'Another chart'] };
+        }
+
+        return {
+          reply: `#1 for ${chart} (${year}):\n1. ${row.artist} — ${row.title}\n\nWant a story moment from ${year}, Top 10 (if available), or another year?`,
+          followUp: ['Story moment', 'Top 10', 'Another year'],
+        };
+      } catch (e) {
+        return { reply: 'Music engine hiccuped while pulling #1. Try “Top 10” or pick another year.', followUp: ['Top 10', 'Another year'] };
+      }
     }
-    const lines = list.slice(0, 10).map((m, i) => `${i + 1}. ${asText(m.artist)} — ${asText(m.title)}`);
-    return {
-      ok: true,
-      reply: `Top 10 for ${ms.chart} (${ms.year}):\n${lines.join('\n')}\n\nWant #1, a Story moment, or another year?`,
-      followUp: ['#1', 'Story moment', 'Another year'],
-    };
-  }
 
-  if (t === '#1' || t === 'number 1' || t === 'number one' || t === 'no. 1' || t === 'no 1') {
-    const top1 = getNumberOneByYear(ms.year, ms.chart);
-    if (!top1) {
-      return {
-        ok: true,
-        reply: `I don’t have a #1 for ${ms.chart} (${ms.year}).\nWant Top 10 or a Story moment?`,
-        followUp: ['Top 10', 'Story moment', 'Another year'],
-      };
+    if (mode === 'top 10' || mode === 'top10') {
+      const year = session.musicYear;
+      const chart = session.musicChart;
+
+      try {
+        const top10 = musicKnowledge.getTopByYear(year, chart, 10) || [];
+        if (!top10.length) {
+          return { reply: `Top 10 isn’t available for ${chart} (${year}) in the current dataset.\nWant #1 or a story moment?`, followUp: ['#1', 'Story moment'] };
+        }
+
+        const lines = top10.map((r) => `${r.rank}. ${r.artist} — ${r.title}`);
+        return {
+          reply: `Top 10 — ${chart} (${year}):\n${lines.join('\n')}\n\nWant #1, a story moment, or another year?`,
+          followUp: ['#1', 'Story moment', 'Another year'],
+        };
+      } catch (e) {
+        return { reply: 'Top 10 lookup failed. Try “#1” or “Another year”.', followUp: ['#1', 'Another year'] };
+      }
     }
-    return {
-      ok: true,
-      reply: `#1 for ${ms.chart} (${ms.year}):\n1. ${asText(top1.artist)} — ${asText(top1.title)}\n\nWant a story moment from ${ms.year}, Top 10 (if available), or another year?`,
-      followUp: ['Story moment', 'Top 10', 'Another year'],
-    };
-  }
 
-  if (t === 'story moment' || t === 'story' || t === 'moment') {
-    const m = pickStoryMoment(ms.year, ms.chart);
-    if (!m) {
+    if (mode === 'story moment' || mode === 'story') {
+      // You can wire this to your story engine if you have it. For now: simple stub.
       return {
-        ok: true,
-        reply: `I couldn’t pull a story moment for ${ms.chart} (${ms.year}).\nWant #1 or Top 10 instead?`,
+        reply: `Story moment (${session.musicYear}, ${session.musicChart}):\nThat year had a real “radio glue” vibe — the kind of hooks that stay in your head for days.\n\nWant #1, Top 10, or another year?`,
         followUp: ['#1', 'Top 10', 'Another year'],
       };
     }
-    const line = fmtLine(m, ms.chart);
+
+    if (mode === 'another year' || mode === 'year') {
+      session.musicState = 'need_year';
+      return { reply: 'Perfect. Give me a year between 1970 and 2010.', followUp: null };
+    }
+
+    if (mode === 'another chart' || mode === 'chart') {
+      session.musicState = 'need_chart';
+      const opts = chartsForYear(session.musicYear).map((o) => o.chart).slice(0, 5);
+      return { reply: `Pick a chart for ${session.musicYear}:\n• ${opts.join('\n• ')}`, followUp: opts };
+    }
+
     return {
-      ok: true,
-      reply: `Story moment (${ms.year}, ${ms.chart}):\n${line}\n\nWant #1, Top 10, or another year?`,
-      followUp: ['#1', 'Top 10', 'Another year'],
+      reply: `Got it. For ${session.musicChart} (${session.musicYear}), do you want the #1, a story moment, or Top 10 (if available)?`,
+      followUp: ['#1', 'Story moment', 'Top 10'],
     };
   }
 
-  if (t === 'another year' || t === 'change year' || t === 'year') {
-    ms.year = null;
-    ms.chart = null;
-    ms.step = 'need_anchor';
-    return { ok: true, reply: `Sure. Give me a year between ${MUSIC_RANGE_START} and ${MUSIC_RANGE_END}.`, followUp: null };
-  }
-
-  return { ok: true, reply: `Now tell me one of these:\n• Top 10\n• #1\n• Story moment`, followUp: ['Top 10', '#1', 'Story moment'] };
+  // Fallback: re-enter
+  return enterMusic(session);
 }
 
-// -----------------------------
-// GENERAL ROUTER
-// -----------------------------
-async function routeMessage(message, sessionId, context) {
-  const s = getSession(sessionId);
-  const msg = asText(message);
-  const msgLower = msg.toLowerCase();
+/* =========================
+   TTS (ELEVENLABS) — ALWAYS REGISTERED
+========================= */
 
-  const explicitMusic =
-    msgLower === 'music' ||
-    /\b(top\s*10|#1|year-end|year end|yearend|hot 100|top40weekly|rpm|uk singles)\b/i.test(msgLower) ||
-    !!extractYear(msg);
+function getTtsStatus() {
+  const provider = String(process.env.TTS_PROVIDER || 'elevenlabs').toLowerCase();
+  const apiKey = String(process.env.ELEVENLABS_API_KEY || '').trim();
+  const voiceId = String(process.env.ELEVENLABS_VOICE_ID || '').trim();
+  const modelId = String(process.env.ELEVENLABS_MODEL_ID || '').trim();
 
-  if (explicitMusic) {
-    const out = await handleMusic(msg, sessionId);
-    s.last.domain = 'music';
-    s.last.followUp = out.followUp ? { kind: 'choice', options: out.followUp, prompt: 'Pick one.' } : null;
-    s.last.followSig = followUpSignature(s.last.followUp);
-    return out;
-  }
-
-  if (intentClassifier && typeof intentClassifier.classify === 'function') {
-    try {
-      const intent = intentClassifier.classify(msg);
-      if (intent === 'music') {
-        const out = await handleMusic('music', sessionId);
-        s.last.domain = 'music';
-        s.last.followUp = out.followUp ? { kind: 'choice', options: out.followUp, prompt: 'Pick one.' } : null;
-        s.last.followSig = followUpSignature(s.last.followUp);
-        return out;
-      }
-    } catch (_) {}
-  }
-
-  const out = {
-    ok: true,
-    mode: 'general',
-    reply: 'What would you like to explore next?',
-    followUp: { kind: 'choice', options: ['Music', 'Sandblast info', 'Sponsors', 'Site help'], prompt: 'Pick one.' },
-    meta: { flow: 'general_v1' },
-  };
-
-  s.last.domain = 'general';
-  s.last.followUp = out.followUp;
-  s.last.followSig = followUpSignature(out.followUp);
-  s.last.meta = out.meta;
-  return out;
-}
-
-// -----------------------------
-// DEBUG SNAPSHOT (safe)
-// -----------------------------
-let LAST_DEBUG = {
-  at: null,
-  sessionId: null,
-  route: null,
-  message: null,
-  build: BUILD_TAG
-};
-
-function setLastDebug(sessionId, route, message) {
-  LAST_DEBUG = {
-    at: new Date().toISOString(),
-    sessionId: asText(sessionId) || 'anon',
-    route,
-    message: asText(message),
-    build: BUILD_TAG
+  return {
+    provider,
+    configured: provider === 'elevenlabs',
+    hasApiKey: Boolean(apiKey),
+    hasVoiceId: Boolean(voiceId),
+    hasModelId: Boolean(modelId),
   };
 }
 
-// -----------------------------
-// ROUTES
-// -----------------------------
-app.get('/api/health', (req, res) => {
-  const tts = {
-    provider: asText(process.env.TTS_PROVIDER || 'elevenlabs') || 'elevenlabs',
-    configured: true,
-    hasApiKey: Boolean(process.env.ELEVENLABS_API_KEY || process.env.OPENAI_API_KEY),
-    hasVoiceId: Boolean(process.env.ELEVENLABS_VOICE_ID || process.env.OPENAI_TTS_VOICE),
-    hasModelId: Boolean(process.env.ELEVENLABS_MODEL_ID || process.env.OPENAI_TTS_MODEL),
-  };
+async function synthElevenLabsMp3(text) {
+  const apiKey = String(process.env.ELEVENLABS_API_KEY || '').trim();
+  const voiceId = String(process.env.ELEVENLABS_VOICE_ID || '').trim();
+  const modelId = String(process.env.ELEVENLABS_MODEL_ID || '').trim() || 'eleven_turbo_v2_5';
 
-  res.status(200).json({
+  if (!apiKey) throw Object.assign(new Error('NO_ELEVENLABS_API_KEY'), { status: 500 });
+  if (!voiceId) throw Object.assign(new Error('NO_ELEVENLABS_VOICE_ID'), { status: 500 });
+
+  const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`;
+
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'xi-api-key': apiKey,
+      'Content-Type': 'application/json',
+      Accept: 'audio/mpeg',
+    },
+    body: JSON.stringify({
+      text,
+      model_id: modelId,
+      voice_settings: {
+        stability: 0.35,
+        similarity_boost: 0.85,
+      },
+    }),
+  });
+
+  if (!r.ok) {
+    const detail = await r.text().catch(() => '');
+    const err = new Error('ELEVENLABS_ERROR');
+    err.status = 502;
+    err.detail = detail.slice(0, 800);
+    err.remoteStatus = r.status;
+    throw err;
+  }
+
+  const buf = Buffer.from(await r.arrayBuffer());
+  if (!buf || buf.length < 800) {
+    const err = new Error('TTS_AUDIO_TOO_SMALL');
+    err.status = 502;
+    throw err;
+  }
+  return buf;
+}
+
+// Primary route
+app.post('/api/tts', async (req, res) => {
+  const route = '/api/tts';
+  try {
+    const text = String(req.body?.text || '').trim();
+    if (!text) {
+      const payload = { ok: false, error: 'NO_TEXT' };
+      setLast({ route, request: req.body, response: payload, error: null });
+      return res.status(400).json(payload);
+    }
+
+    const provider = String(process.env.TTS_PROVIDER || 'elevenlabs').toLowerCase();
+    if (provider !== 'elevenlabs') {
+      const payload = { ok: false, error: 'UNSUPPORTED_TTS_PROVIDER' };
+      setLast({ route, request: req.body, response: payload, error: null });
+      return res.status(400).json(payload);
+    }
+
+    const audioBuf = await synthElevenLabsMp3(text);
+
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Cache-Control', 'no-store');
+
+    setLast({
+      route,
+      request: { textPreview: text.slice(0, 140) },
+      response: { ok: true, bytes: audioBuf.length },
+      error: null,
+    });
+
+    return res.status(200).send(audioBuf);
+  } catch (err) {
+    const status = Number(err?.status || 500);
+    const payload = {
+      ok: false,
+      error: String(err?.message || 'TTS_ERROR'),
+      status,
+      remoteStatus: err?.remoteStatus,
+      detail: err?.detail ? String(err.detail).slice(0, 800) : undefined,
+    };
+    setLast({ route, request: req.body, response: payload, error: String(err?.stack || err?.message || err) });
+    return res.status(status).json(payload);
+  }
+});
+
+// Alias route (back-compat): fixes widget builds that call /api/voice
+app.post('/api/voice', async (req, res) => {
+  // Delegate to /api/tts handler logic by calling the same synth path
+  const route = '/api/voice';
+  try {
+    const text = String(req.body?.text || '').trim();
+    if (!text) {
+      const payload = { ok: false, error: 'NO_TEXT' };
+      setLast({ route, request: req.body, response: payload, error: null });
+      return res.status(400).json(payload);
+    }
+
+    const provider = String(process.env.TTS_PROVIDER || 'elevenlabs').toLowerCase();
+    if (provider !== 'elevenlabs') {
+      const payload = { ok: false, error: 'UNSUPPORTED_TTS_PROVIDER' };
+      setLast({ route, request: req.body, response: payload, error: null });
+      return res.status(400).json(payload);
+    }
+
+    const audioBuf = await synthElevenLabsMp3(text);
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Cache-Control', 'no-store');
+
+    setLast({
+      route,
+      request: { textPreview: text.slice(0, 140) },
+      response: { ok: true, bytes: audioBuf.length },
+      error: null,
+    });
+
+    return res.status(200).send(audioBuf);
+  } catch (err) {
+    const status = Number(err?.status || 500);
+    const payload = {
+      ok: false,
+      error: String(err?.message || 'TTS_ERROR'),
+      status,
+      remoteStatus: err?.remoteStatus,
+      detail: err?.detail ? String(err.detail).slice(0, 800) : undefined,
+    };
+    setLast({ route, request: req.body, response: payload, error: String(err?.stack || err?.message || err) });
+    return res.status(status).json(payload);
+  }
+});
+
+/* =========================
+   HEALTH + DEBUG
+========================= */
+
+app.get('/api/health', (_, res) => {
+  const tts = getTtsStatus();
+  res.json({
     ok: true,
     service: 'sandblast-backend',
     env: ENV,
     host: HOST,
-    port: PORT,
+    port: Number(PORT),
     time: new Date().toISOString(),
     tts,
     music: {
       coverageBuiltAt: MUSIC_COVERAGE.builtAt,
       coverageRange: MUSIC_COVERAGE.range,
-      charts: Array.isArray(MUSIC_COVERAGE.charts) ? MUSIC_COVERAGE.charts : [],
+      charts: MUSIC_COVERAGE.charts,
     },
   });
 });
 
-app.post('/api/debug/reload-music-coverage', (req, res) => {
-  const rebuilt = rebuildMusicCoverage();
-  res.status(200).json({
-    ok: true,
-    rebuiltAt: rebuilt.builtAt,
-    charts: rebuilt.charts,
-  });
+app.post('/api/debug/reload-music-coverage', (_, res) => {
+  MUSIC_COVERAGE = rebuildMusicCoverage();
+  res.status(200).json({ ok: true, rebuiltAt: MUSIC_COVERAGE.builtAt, charts: MUSIC_COVERAGE.charts });
 });
 
 app.get('/api/debug/last', (req, res) => {
@@ -629,40 +511,107 @@ app.get('/api/debug/last', (req, res) => {
   res.status(200).json({ ok: true, ...LAST_DEBUG });
 });
 
-app.post('/api/chat', async (req, res) => {
-  const body = (req && req.body && typeof req.body === 'object') ? req.body : null;
+/* =========================
+   CHAT ROUTE
+========================= */
 
-  const message = asText(body && body.message);
-  const sessionId = asText(body && body.sessionId) || 'anon';
-  const context = (body && body.context && typeof body.context === 'object') ? body.context : {};
+app.post('/api/chat', (req, res) => {
+  const route = '/api/chat';
+  const body = req && typeof req.body === 'object' ? req.body : {};
+  const message = clean(body?.message);
+  const sessionId = asText(body?.sessionId) || crypto.randomUUID();
+  const session = getSession(sessionId);
 
-  setLastDebug(sessionId, '/api/chat', message);
+  // Anti-loop / double-send guard
+  const now = Date.now();
+  const sig = sigOf(message);
 
-  if (!message) {
-    return res.status(200).json({ ok: false, error: 'NO_MESSAGE', message: 'Missing "message" in request.' });
+  if (sig && sig === session.lastSig && now - session.lastSigAt < 900) {
+    const response = { ok: true, reply: '', followUp: null, noop: true, sessionId };
+    setLast({ route, request: body, response, error: null });
+    return res.status(200).json(response);
   }
+  session.lastSig = sig;
+  session.lastSigAt = now;
 
   try {
-    const out = await routeMessage(message, sessionId, context);
-    return res.status(200).json(toOutputSafe(out || {}));
-  } catch (e) {
-    _crashLog('CHAT_HANDLER_FAIL', { rid: req?._rid, message: e?.message, stack: e?.stack });
-    return res.status(200).json({ ok: false, error: 'SERVER_ERROR', message: 'Nyx hit an internal error.' });
+    let response;
+
+    if (!message) {
+      response = lanePickerReply();
+    } else if (isGreeting(message)) {
+      session.checkInPending = true;
+      response = nyxGreeting();
+    } else if (session.checkInPending) {
+      // simple check-in completion, then offer lanes
+      session.checkInPending = false;
+      response = lanePickerReply();
+    } else {
+      const lanePick = normalizeLanePick(message);
+
+      if (lanePick) {
+        session.lane = lanePick;
+
+        if (lanePick === 'music') response = enterMusic(session);
+        else if (lanePick === 'tv') response = { reply: 'TV it is.\nTell me a show, a genre, or the vibe you want.', followUp: null };
+        else if (lanePick === 'sponsors')
+          response = {
+            reply: 'Sponsors mode.\nWhat’s the business name and the goal—calls, walk-ins, or awareness?',
+            followUp: ['Calls', 'Walk-ins', 'Awareness'],
+          };
+        else if (lanePick === 'ai')
+          response = { reply: 'AI mode.\nAre we talking features, implementation, or a demo?', followUp: ['Features', 'Implementation', 'Demo'] };
+        else response = lanePickerReply();
+      } else {
+        if (session.lane === 'music') response = handleMusic(message, session, sessionId);
+        else response = lanePickerReply();
+      }
+    }
+
+    const payload = {
+      ok: true,
+      reply: response?.reply ?? '',
+      followUp: response?.followUp ?? null,
+      sessionId,
+    };
+
+    setLast({ route, request: body, response: payload, error: null });
+    return res.status(200).json(payload);
+  } catch (err) {
+    const payload = { ok: false, error: 'SERVER_ERROR', message: 'Nyx hit an internal error.' };
+    setLast({ route, request: body, response: null, error: String(err?.stack || err?.message || err) });
+    return res.status(500).json(payload);
   }
 });
 
-// -----------------------------
-// START (listener truth + self-probe)
-// -----------------------------
+/* =========================
+   START (listener truth + self-probe)
+========================= */
+
 function selfProbe(host, port) {
   return new Promise((resolve) => {
     const sock = new net.Socket();
     let done = false;
     sock.setTimeout(900);
 
-    sock.once('connect', () => { done = true; sock.destroy(); resolve(true); });
-    sock.once('timeout', () => { if (!done) { done = true; try { sock.destroy(); } catch (_) {} resolve(false); } });
-    sock.once('error', () => { if (!done) { done = true; resolve(false); } });
+    sock.once('connect', () => {
+      done = true;
+      try { sock.destroy(); } catch (_) {}
+      resolve(true);
+    });
+    sock.once('timeout', () => {
+      if (!done) {
+        done = true;
+        try { sock.destroy(); } catch (_) {}
+        resolve(false);
+      }
+    });
+    sock.once('error', () => {
+      if (!done) {
+        done = true;
+        resolve(false);
+      }
+    });
 
     sock.connect(port, host);
   });
@@ -674,47 +623,12 @@ server.on('listening', async () => {
   const addr = server.address();
   console.log('[Nyx] listening confirmed:', addr);
   console.log(`[Nyx] up on ${HOST}:${PORT} env=${ENV} timeout=${DEFAULT_TIMEOUT_MS}ms build=${BUILD_TAG}`);
-  _crashLog('LISTENING', { addr, HOST, PORT, pid: process.pid, build: BUILD_TAG });
 
-  const probeHost = (HOST === '0.0.0.0') ? '127.0.0.1' : HOST;
+  const probeHost = HOST === '0.0.0.0' ? '127.0.0.1' : HOST;
   const ok = await selfProbe(probeHost, PORT);
   console.log('[Nyx] self-probe tcp:', ok ? 'OK' : 'FAILED');
-  _crashLog('SELF_PROBE', { probeHost, PORT, ok });
 });
-
-server.on('close', () => _crashLog('SERVER_CLOSE'));
 
 server.on('error', (err) => {
-  const code = err && err.code ? String(err.code) : 'UNKNOWN';
-  console.error(`[Nyx] listen error (${code}):`, err && err.message ? err.message : err);
-  _crashLog('LISTEN_ERROR', { code, message: err?.message, stack: err?.stack });
-  process.exit(1);
+  console.error('[Nyx] SERVER_ERROR', err?.code || '', err?.message || err);
 });
-
-// -----------------------------
-// HARD KEEP-ALIVE (Windows / PowerShell / piped output safe)
-// -----------------------------
-(function hardKeepAlive() {
-  // Hold stdin open when available; harmless when not.
-  try {
-    if (process.stdin) {
-      process.stdin.resume();
-    }
-  } catch (_) {}
-
-  // Ensure server keeps the event loop alive (belt & suspenders)
-  try {
-    if (server && typeof server.ref === 'function') server.ref();
-  } catch (_) {}
-
-  // Keep an explicit timer handle that cannot be optimized away
-  let ticks = 0;
-  const ka = setInterval(() => {
-    ticks++;
-    // Intentionally no logging (avoid spam). Existence of ticks prevents "empty callback" edge cases.
-    global.__NYX_TICKS__ = ticks;
-  }, 60_000);
-
-  // Retain handle explicitly
-  global.__NYX_KEEPALIVE__ = ka;
-})();
