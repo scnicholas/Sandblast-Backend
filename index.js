@@ -16,12 +16,21 @@
  *  - Year override while musicState=ready (typing a year switches year instead of reverting)
  *  - Top 10 quality guard (prevents dumping mostly-Unknown Title lists)
  *  - Safer formatTopItem (repairs Jay—Z fragments + basic split heuristics)
+ *
+ * NEW (critical for #6 on your intelligence list):
+ *  - Lightweight "memory continuity across visits" (NOT creepy)
+ *    - Client supplies visitorId (random UUID stored in localStorage)
+ *    - Backend stores only lane + last music year/chart + last seen timestamp
+ *    - TTL expiry (default 30 days)
+ *    - Optional persistence to ./Data/nyx_profiles.json (best effort; env-gated)
  */
 
 const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
 const net = require('net');
+const fs = require('fs');
+const path = require('path');
 
 const musicKnowledge = require('./Utils/musicKnowledge'); // must exist in your repo
 
@@ -38,6 +47,163 @@ const BUILD_TAG = String(
 ).slice(0, 32);
 
 const DEFAULT_TIMEOUT_MS = Number(process.env.NYX_TIMEOUT_MS || 20000);
+
+/* =========================
+   LIGHTWEIGHT MEMORY (PROFILES)
+========================= */
+
+/**
+ * Privacy stance:
+ * - We do NOT create visitor IDs server-side.
+ * - We do NOT fingerprint.
+ * - We only store preferences if the client supplies visitorId (random UUID stored locally).
+ */
+
+const PROFILE_TTL_MS = Number(process.env.NYX_PROFILE_TTL_DAYS || 30) * 24 * 60 * 60 * 1000;
+const PROFILE_PERSIST = String(process.env.NYX_PROFILE_PERSIST || '').toLowerCase() === '1';
+const PROFILE_PATH =
+  process.env.NYX_PROFILE_PATH ||
+  path.join(process.cwd(), 'Data', 'nyx_profiles.json');
+
+const PROFILES = new Map(); // visitorId -> { lastSeenAt, lastLane, musicYear, musicChart }
+
+let _profileSaveTimer = null;
+
+function nowMs() {
+  return Date.now();
+}
+
+function safeJsonParse(s) {
+  try {
+    return JSON.parse(s);
+  } catch (_) {
+    return null;
+  }
+}
+
+function readProfilesFromDiskBestEffort() {
+  if (!PROFILE_PERSIST) return;
+  try {
+    if (!fs.existsSync(PROFILE_PATH)) return;
+    const raw = fs.readFileSync(PROFILE_PATH, 'utf8');
+    const obj = safeJsonParse(raw);
+    if (!obj || typeof obj !== 'object') return;
+
+    const entries = Object.entries(obj);
+    for (const [visitorId, p] of entries) {
+      if (!visitorId || typeof p !== 'object' || !p) continue;
+
+      // Basic validation
+      const lastSeenAt = Number(p.lastSeenAt || 0);
+      if (!Number.isFinite(lastSeenAt) || lastSeenAt <= 0) continue;
+
+      PROFILES.set(visitorId, {
+        lastSeenAt,
+        lastLane: String(p.lastLane || 'general'),
+        musicYear: Number.isFinite(Number(p.musicYear)) ? Number(p.musicYear) : null,
+        musicChart: String(p.musicChart || '') || null,
+      });
+    }
+  } catch (e) {
+    // Best-effort: do not crash service
+    console.warn('[Nyx] profile load failed:', e?.message || e);
+  }
+}
+
+function scheduleProfilesSaveBestEffort() {
+  if (!PROFILE_PERSIST) return;
+  if (_profileSaveTimer) return;
+
+  _profileSaveTimer = setTimeout(() => {
+    _profileSaveTimer = null;
+    try {
+      const dir = path.dirname(PROFILE_PATH);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+      // Write as plain object
+      const out = {};
+      for (const [k, v] of PROFILES.entries()) out[k] = v;
+
+      fs.writeFileSync(PROFILE_PATH, JSON.stringify(out, null, 2), 'utf8');
+    } catch (e) {
+      console.warn('[Nyx] profile save failed:', e?.message || e);
+    }
+  }, 650);
+}
+
+function cleanupExpiredProfiles() {
+  const cutoff = nowMs() - PROFILE_TTL_MS;
+  let removed = 0;
+
+  for (const [visitorId, p] of PROFILES.entries()) {
+    if (!p || !Number.isFinite(Number(p.lastSeenAt)) || p.lastSeenAt < cutoff) {
+      PROFILES.delete(visitorId);
+      removed++;
+    }
+  }
+
+  if (removed > 0) scheduleProfilesSaveBestEffort();
+}
+
+function asVisitorId(v) {
+  const s = String(v || '').trim();
+  // Accept only UUID-ish shapes to avoid people accidentally passing emails/names
+  if (!s) return '';
+  if (!/^[a-f0-9-]{16,64}$/i.test(s)) return '';
+  return s;
+}
+
+function getProfile(visitorId) {
+  const id = asVisitorId(visitorId);
+  if (!id) return null;
+
+  cleanupExpiredProfiles();
+  return PROFILES.get(id) || null;
+}
+
+function touchProfile(visitorId, patch) {
+  const id = asVisitorId(visitorId);
+  if (!id) return null;
+
+  cleanupExpiredProfiles();
+
+  const prev = PROFILES.get(id) || {
+    lastSeenAt: 0,
+    lastLane: 'general',
+    musicYear: null,
+    musicChart: null,
+  };
+
+  const next = {
+    ...prev,
+    ...patch,
+    lastSeenAt: nowMs(),
+  };
+
+  // Clamp lane
+  if (!['general', 'music', 'tv', 'sponsors', 'ai'].includes(String(next.lastLane))) {
+    next.lastLane = 'general';
+  }
+
+  // Clamp year range if present
+  if (next.musicYear !== null) {
+    const y = Number(next.musicYear);
+    if (!Number.isFinite(y) || y < 1970 || y > 2010) next.musicYear = null;
+  }
+
+  // Normalize chart
+  if (next.musicChart !== null && typeof next.musicChart !== 'string') next.musicChart = null;
+  if (typeof next.musicChart === 'string' && !next.musicChart.trim()) next.musicChart = null;
+
+  PROFILES.set(id, next);
+  scheduleProfilesSaveBestEffort();
+  return next;
+}
+
+// Load profiles on startup (best-effort)
+readProfilesFromDiskBestEffort();
+// Periodic cleanup
+setInterval(cleanupExpiredProfiles, 60 * 60 * 1000).unref?.();
 
 /* =========================
    APP + MIDDLEWARE
@@ -127,7 +293,29 @@ function normalizeLanePick(raw) {
   return null;
 }
 
-function lanePickerReply() {
+function lanePickerReply(session) {
+  // If we have a profile-backed "last lane", gently offer a resume option.
+  const lastLane = session?.profile?.lastLane;
+  const isResumeCandidate = lastLane && lastLane !== 'general';
+
+  if (isResumeCandidate && lastLane === 'music') {
+    const y = session?.profile?.musicYear;
+    const c = session?.profile?.musicChart;
+    const label = y && c ? `Resume Music (${y}, ${c})` : y ? `Resume Music (${y})` : 'Resume Music';
+
+    return {
+      reply: 'Want to pick up where we left off, or switch lanes?',
+      followUp: [label, 'Music', 'TV', 'Sponsors', 'AI'],
+    };
+  }
+
+  if (isResumeCandidate) {
+    return {
+      reply: 'Want to pick up where we left off, or switch lanes?',
+      followUp: ['Resume', 'Music', 'TV', 'Sponsors', 'AI'],
+    };
+  }
+
   return {
     reply: 'What would you like to explore next?',
     followUp: ['Music', 'TV', 'Sponsors', 'AI'],
@@ -252,12 +440,18 @@ function nyxVoiceNaturalize(raw) {
 
 const SESSIONS = new Map();
 
-function getSession(sessionId) {
+function getSession(sessionId, visitorId) {
   const id = asText(sessionId) || 'anon';
+
   if (!SESSIONS.has(id)) {
-    SESSIONS.set(id, {
+    const profile = getProfile(visitorId);
+
+    const s = {
       id,
-      lane: 'general',
+      visitorId: asVisitorId(visitorId) || null,
+      profile: profile || null,
+
+      lane: (profile?.lastLane && String(profile.lastLane)) || 'general',
       createdAt: Date.now(),
 
       // intro + small talk
@@ -270,10 +464,18 @@ function getSession(sessionId) {
 
       // music state
       musicState: 'start',
-      musicYear: null,
-      musicChart: null,
-    });
+      musicYear: profile?.musicYear ?? null,
+      musicChart: profile?.musicChart ?? null,
+    };
+
+    // If profile has music info, set a sensible state so "resume" is possible.
+    if (s.lane === 'music' && s.musicYear && s.musicChart) s.musicState = 'ready';
+    else if (s.lane === 'music' && s.musicYear && !s.musicChart) s.musicState = 'need_chart';
+    else if (s.lane === 'music' && !s.musicYear) s.musicState = 'need_year';
+
+    SESSIONS.set(id, s);
   }
+
   return SESSIONS.get(id);
 }
 
@@ -668,6 +870,12 @@ app.get('/api/health', (_, res) => {
       coverageRange: MUSIC_COVERAGE.range,
       charts: MUSIC_COVERAGE.charts,
     },
+    profiles: {
+      enabled: true,
+      persist: PROFILE_PERSIST,
+      ttlDays: Number(process.env.NYX_PROFILE_TTL_DAYS || 30),
+      count: PROFILES.size,
+    },
   });
 });
 
@@ -696,7 +904,14 @@ app.post('/api/chat', (req, res) => {
   const message = clean(body?.message);
 
   const sessionId = asText(body?.sessionId) || crypto.randomUUID();
-  const session = getSession(sessionId);
+  const visitorId = asVisitorId(body?.visitorId);
+  const session = getSession(sessionId, visitorId);
+
+  // Keep session linked to profile if visitorId is present (even if session existed)
+  if (visitorId) {
+    session.visitorId = visitorId;
+    session.profile = getProfile(visitorId) || session.profile || null;
+  }
 
   const now = Date.now();
   const sig = sigOf(message);
@@ -719,7 +934,7 @@ app.post('/api/chat', (req, res) => {
         session.checkInPending = true;
         response = nyxGreeting();
       } else {
-        response = lanePickerReply();
+        response = lanePickerReply(session);
       }
     } else if (isGreeting(message)) {
       session.greeted = true;
@@ -727,27 +942,94 @@ app.post('/api/chat', (req, res) => {
       response = nyxGreeting();
     } else if (session.checkInPending) {
       session.checkInPending = false;
-      response = lanePickerReply();
+      response = lanePickerReply(session);
     } else {
-      const lanePick = normalizeLanePick(message);
+      // Handle "Resume" semantics (profile-based)
+      const t = clean(message).toLowerCase();
+      const wantsResume =
+        t === 'resume' ||
+        t.startsWith('resume music') ||
+        t === 'resume music' ||
+        t === 'continue' ||
+        t === 'pick up';
 
-      if (lanePick) {
-        session.lane = lanePick;
+      if (wantsResume && session.profile?.lastLane) {
+        const lastLane = session.profile.lastLane;
 
-        if (lanePick === 'music') response = enterMusic(session);
-        else if (lanePick === 'tv') response = { reply: 'TV it is.\nTell me a show, a genre, or the vibe you want.', followUp: null };
-        else if (lanePick === 'sponsors')
+        session.lane = lastLane;
+
+        if (lastLane === 'music') {
+          // Restore best-known state
+          session.musicYear = session.profile.musicYear || session.musicYear || null;
+          session.musicChart = session.profile.musicChart || session.musicChart || null;
+
+          if (session.musicYear && session.musicChart) session.musicState = 'ready';
+          else if (session.musicYear && !session.musicChart) session.musicState = 'need_chart';
+          else session.musicState = 'need_year';
+
+          if (session.musicState === 'ready') {
+            response = {
+              reply: `Welcome back.\nWe’re set to ${session.musicChart}, ${session.musicYear}.\nDo you want Top 10, #1, or a story moment?`,
+              followUp: ['Top 10', '#1', 'Story moment'],
+            };
+          } else if (session.musicState === 'need_chart') {
+            const opts = chartsForYear(session.musicYear).map((o) => o.chart).slice(0, 5);
+            response = {
+              reply: `Welcome back.\nFor ${session.musicYear}, pick a chart:\n• ${opts.join('\n• ')}`,
+              followUp: opts,
+            };
+          } else {
+            response = { reply: 'Welcome back.\nGive me a year between 1970 and 2010.', followUp: null };
+          }
+        } else if (lastLane === 'tv') {
+          response = { reply: 'Welcome back.\nTV mode.\nTell me a show, a genre, or the vibe you want.', followUp: null };
+        } else if (lastLane === 'sponsors') {
           response = {
-            reply: 'Sponsors mode.\nWhat’s the business name and the goal—calls, walk-ins, or awareness?',
+            reply: 'Welcome back.\nSponsors mode.\nWhat’s the business name and the goal—calls, walk-ins, or awareness?',
             followUp: ['Calls', 'Walk-ins', 'Awareness'],
           };
-        else if (lanePick === 'ai')
-          response = { reply: 'AI mode.\nAre we talking features, implementation, or a demo?', followUp: ['Features', 'Implementation', 'Demo'] };
-        else response = lanePickerReply();
+        } else if (lastLane === 'ai') {
+          response = { reply: 'Welcome back.\nAI mode.\nAre we talking features, implementation, or a demo?', followUp: ['Features', 'Implementation', 'Demo'] };
+        } else {
+          response = lanePickerReply(session);
+        }
       } else {
-        if (session.lane === 'music') response = handleMusic(message, session);
-        else response = lanePickerReply();
+        const lanePick = normalizeLanePick(message);
+
+        if (lanePick) {
+          session.lane = lanePick;
+
+          if (lanePick === 'music') response = enterMusic(session);
+          else if (lanePick === 'tv') response = { reply: 'TV it is.\nTell me a show, a genre, or the vibe you want.', followUp: null };
+          else if (lanePick === 'sponsors')
+            response = {
+              reply: 'Sponsors mode.\nWhat’s the business name and the goal—calls, walk-ins, or awareness?',
+              followUp: ['Calls', 'Walk-ins', 'Awareness'],
+            };
+          else if (lanePick === 'ai')
+            response = { reply: 'AI mode.\nAre we talking features, implementation, or a demo?', followUp: ['Features', 'Implementation', 'Demo'] };
+          else response = lanePickerReply(session);
+        } else {
+          if (session.lane === 'music') response = handleMusic(message, session);
+          else response = lanePickerReply(session);
+        }
       }
+    }
+
+    // Persist lightweight preference memory (only if visitorId supplied)
+    if (session.visitorId) {
+      const patch = {
+        lastLane: session.lane,
+      };
+
+      // Only store non-creepy music prefs (year + chart)
+      if (session.lane === 'music') {
+        if (session.musicYear) patch.musicYear = session.musicYear;
+        if (session.musicChart) patch.musicChart = session.musicChart;
+      }
+
+      const updated = touchProfile(session.visitorId, patch);
+      session.profile = updated || session.profile || null;
     }
 
     const payload = {
@@ -813,6 +1095,12 @@ server.on('listening', async () => {
   const probeHost = HOST === '0.0.0.0' ? '127.0.0.1' : HOST;
   const ok = await selfProbe(probeHost, PORT);
   console.log('[Nyx] self-probe tcp:', ok ? 'OK' : 'FAILED');
+
+  if (PROFILE_PERSIST) {
+    console.log('[Nyx] profiles persist: ON path=' + PROFILE_PATH);
+  } else {
+    console.log('[Nyx] profiles persist: OFF (env NYX_PROFILE_PERSIST=1 to enable)');
+  }
 });
 
 server.on('error', (err) => {
