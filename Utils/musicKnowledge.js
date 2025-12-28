@@ -1,13 +1,16 @@
 "use strict";
 
 /**
- * Utils/musicKnowledge.js — v2.42
+ * Utils/musicKnowledge.js — v2.43
  *
- * CRITICAL FIXES (v2.42):
- *  - Title-tail → artist repair:
- *      Color Me Badd case: "Badd — I Wanna Sex You Up Color Me" => "Color Me Badd — I Wanna Sex You Up"
- *  - Unknown-title swap repair:
- *      EMF case: "Unbelievable EMF — Unknown Title" => "EMF — Unbelievable"
+ * CRITICAL FIXES (v2.43):
+ *  - Deterministic Top40Weekly corruption repairs (systemic across years):
+ *      "Badd — I WANNA SEX YOU UP Color Me" => "Color Me Badd — I WANNA SEX YOU UP"
+ *      "UNBELIEVABLE EMF — Unknown Title" => "EMF — UNBELIEVABLE"
+ *      "TIME Surface — THE FIRST" => "Surface — THE FIRST TIME"
+ *      "WORDS Extreme — MORE THAN" => "Extreme — MORE THAN WORDS"
+ *      "II Men — MOTOWNPHILLY Boyz" => "Boyz II Men — MOTOWNPHILLY"
+ *  - Final-pass normalization in coerceTopListMoment() so TOP outputs are always repaired
  *
  * Retains:
  *  - Wikipedia Year-End merge if present
@@ -20,7 +23,7 @@ const fs = require("fs");
 const path = require("path");
 
 const MK_VERSION =
-  "musicKnowledge v2.42 (title-tail artist repair + unknown-title swap + Wikipedia Year-End merge + Year-End quality guard + Top list coercion + Top40Weekly locks)";
+  "musicKnowledge v2.43 (systemic Top40Weekly corruption repairs + final top-list normalization + Wikipedia Year-End merge + Year-End quality guard + Top list coercion + Top40Weekly locks)";
 
 const DEFAULT_CHART = "Billboard Hot 100";
 const TOP40_CHART = "Top40Weekly Top 100";
@@ -311,6 +314,12 @@ function coerceTopListMoment(m, indexFallback) {
   if (!safe.artist) safe.artist = "Unknown Artist";
   if (!safe.title) safe.title = "Unknown Title";
 
+  // v2.43: FINAL PASS — guarantee repairs apply to anything going out in TOP lists
+  normalizeMomentFields(safe);
+
+  if (!_asText(safe.artist)) safe.artist = "Unknown Artist";
+  if (!_asText(safe.title)) safe.title = "Unknown Title";
+
   return safe;
 }
 
@@ -400,7 +409,6 @@ function looksLikeAmpersandAct(tokens) {
 }
 
 /**
- * NEW (v2.42):
  * If title ends with a short tail that looks like it belongs to the artist name,
  * move it into the artist field.
  *
@@ -413,46 +421,35 @@ function repairTitleTailIsArtist(m) {
   let title = _asText(m.title);
   if (!artist || !title) return m;
 
-  // Only attempt if artist is short and title is multi-word
   const aParts = artist.split(/\s+/).filter(Boolean);
   const tParts = title.split(/\s+/).filter(Boolean);
   if (aParts.length > 2) return m;
   if (tParts.length < 4) return m;
 
-  // If title is unknown, don't do this repair
   if (isUnknownTitle(title)) return m;
 
-  // Consider 1–3 token tail
   for (let k = 3; k >= 1; k--) {
     if (tParts.length <= k + 1) continue;
 
     const tail = tParts.slice(-k);
     const head = tParts.slice(0, -k);
 
-    // Tail should be "namey" (capitalized / acronym) tokens
     const tailNamey = tail.every((tok) => {
       const s = String(tok);
-      if (/^[A-Z]{2,}$/.test(s)) return true;        // acronyms
+      if (/^[A-Z]{2,}$/.test(s)) return true;
       return isNameyToken(s);
     });
 
     if (!tailNamey) continue;
-
-    // Avoid moving if head ends with a hanging word
     if (isTitleHangWord(head[head.length - 1])) continue;
 
-    // Combined artist candidate
     const combined = `${tail.join(" ")} ${artist}`.replace(/\s+/g, " ").trim();
-
-    // Sanity: combined should be at least 2 words and look act-like
     const cParts = combined.split(/\s+/).filter(Boolean);
     if (cParts.length < 2 || cParts.length > 5) continue;
 
-    // If the combined starts with an obvious title-word, skip
     const firstLc = String(cParts[0]).toLowerCase();
     if (TITLE_PREFIX_CANDIDATES_LC.has(firstLc)) continue;
 
-    // Accept repair
     m.artist = combined;
     m.title = head.join(" ").trim();
     return m;
@@ -462,7 +459,6 @@ function repairTitleTailIsArtist(m) {
 }
 
 /**
- * NEW (v2.42):
  * If title is Unknown and artist looks like "TitleWords ACT",
  * swap to "ACT — TitleWords"
  *
@@ -478,14 +474,12 @@ function repairUnknownTitleSwap(m) {
   const aParts = artist.split(/\s+/).filter(Boolean);
   if (aParts.length < 2 || aParts.length > 5) return m;
 
-  // Candidate act is last token(s) if acronym/all-caps or strong name token
   const last = aParts[aParts.length - 1];
   const prev = aParts[aParts.length - 2];
 
   const lastLooksAct = /^[A-Z]{2,}$/.test(last) || isNameyToken(last);
   if (!lastLooksAct) return m;
 
-  // Prefer acronyms as act (EMF)
   if (/^[A-Z]{2,}$/.test(last)) {
     const newTitle = aParts.slice(0, -1).join(" ").trim();
     if (newTitle && !TITLE_PREFIX_CANDIDATES_LC.has(newTitle.toLowerCase())) {
@@ -495,7 +489,6 @@ function repairUnknownTitleSwap(m) {
     }
   }
 
-  // Also allow two-token act at end (e.g., "Color Me", but be conservative)
   if (aParts.length >= 3 && isNameyToken(prev) && isNameyToken(last)) {
     const act = `${prev} ${last}`;
     const newTitle = aParts.slice(0, -2).join(" ").trim();
@@ -516,6 +509,7 @@ function hardFixKnownCorruptions(m) {
   let artist = _asText(m.artist);
   let title = _asText(m.title);
 
+  // ---- Known one-offs kept from previous versions ----
   if (year === 1984 && rank === 1 && /^Doves Cry Prince$/i.test(artist) && /^When$/i.test(title)) {
     artist = "Prince";
     title = "When Doves Cry";
@@ -523,7 +517,7 @@ function hardFixKnownCorruptions(m) {
   if (
     year === 1984 &&
     rank === 3 &&
-    /^Jackson — Say Say Say Paul Mc Cartney and Michael$/i.test(`${artist} — ${title}`) // defensive
+    /^Jackson — Say Say Say Paul Mc Cartney and Michael$/i.test(`${artist} — ${title}`)
   ) {
     artist = "Paul Mc Cartney and Michael Jackson";
     title = "Say Say Say";
@@ -542,17 +536,54 @@ function hardFixKnownCorruptions(m) {
     title = "Karma Chameleon";
   }
 
-  if (year === 1994 && rank === 1) {
-    artist = "Ace of Base";
-    title = "THE SIGN";
-  }
-  if (year === 1994 && rank === 5) {
-    artist = "Ace of Base";
-    title = "DON’T TURN AROUND";
-  }
+  if (year === 1994 && rank === 1) { artist = "Ace of Base"; title = "THE SIGN"; }
+  if (year === 1994 && rank === 5) { artist = "Ace of Base"; title = "DON’T TURN AROUND"; }
   if (year === 1994 && rank === 7) {
     artist = "John Mellencamp featuring Me’shell Ndegeocello";
     title = "WILD NIGHT";
+  }
+
+  // ---- Systemic Top40Weekly corruption repairs (cross-year) ----
+
+  // "Badd — I WANNA SEX YOU UP Color Me" => "Color Me Badd — I WANNA SEX YOU UP"
+  if (/^badd$/i.test(artist) && /\bcolor\s+me\s*$/i.test(title)) {
+    title = title.replace(/\s*color\s+me\s*$/i, "").trim();
+    artist = "Color Me Badd";
+  }
+
+  // "UNBELIEVABLE EMF — Unknown Title" => "EMF — UNBELIEVABLE"
+  if (/^unbelievable\s+emf$/i.test(artist) && isUnknownTitle(title)) {
+    artist = "EMF";
+    title = "UNBELIEVABLE";
+  }
+
+  // "TIME Surface — THE FIRST" => "Surface — THE FIRST TIME"
+  if (/^time\s+surface$/i.test(artist) && /^the\s+first$/i.test(title)) {
+    artist = "Surface";
+    title = "THE FIRST TIME";
+  }
+
+  // "WORDS Extreme — MORE THAN" => "Extreme — MORE THAN WORDS"
+  if (/^words\s+extreme$/i.test(artist) && /^more\s+than$/i.test(title)) {
+    artist = "Extreme";
+    title = "MORE THAN WORDS";
+  }
+
+  // "II Men — MOTOWNPHILLY Boyz" => "Boyz II Men — MOTOWNPHILLY"
+  if (/^ii\s+men$/i.test(artist) && /\bboyz\s*$/i.test(title)) {
+    artist = "Boyz II Men";
+    title = title.replace(/\s*boyz\s*$/i, "").trim() || "MOTOWNPHILLY";
+  }
+
+  // Conservative fallback: if title unknown but artist looks like "TITLE ACT", swap.
+  if (isUnknownTitle(title) && /\s+[A-Z]{2,}\s*$/.test(artist)) {
+    const parts = artist.trim().split(/\s+/);
+    const act = parts[parts.length - 1];
+    const maybeTitle = parts.slice(0, -1).join(" ").trim();
+    if (maybeTitle && act) {
+      artist = act;
+      title = maybeTitle;
+    }
   }
 
   m.artist = artist;
@@ -899,7 +930,7 @@ function normalizeMomentFields(m) {
   // Existing Top40Weekly lock
   repairTop40WeeklyRankedDrift(m);
 
-  // NEW v2.42 repairs
+  // Repairs
   repairTitleTailIsArtist(m);
   repairUnknownTitleSwap(m);
 
