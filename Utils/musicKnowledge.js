@@ -1,29 +1,20 @@
 "use strict";
 
 /**
- * Utils/musicKnowledge.js — v2.38 (Top40Weekly drift repairs locked: final canonicalizer + 1994 top10 hard locks)
+ * Utils/musicKnowledge.js — v2.39
  *
- * Fixes Top40Weekly corruption patterns:
- *  - "SWEAR All-4-One — I"               -> "All-4-One — I SWEAR"
- *  - "AGAIN Toni Braxton — BREATHE"      -> "Toni Braxton — BREATHE AGAIN"
- *  - "REMEMBER Madonna — I’LL"           -> "Madonna — I’LL REMEMBER"
- *  - "Dion — THE POWER OF LOVE Céline"   -> "Céline Dion — THE POWER OF LOVE"
- *  - "Base — DON’T TURN AROUND Ace of"   -> "Ace of Base — DON’T TURN AROUND"
+ * Adds TOP LIST SAFETY COERCION (prevents "undefined." and blank artist/title in top lists):
+ *  - getTopByYear() and getNumberOneByYear() now coerce rank/artist/title deterministically
  *
- * New in v2.37:
- *  - Stabilize "Ace of Base" order when tail-moving produces "of Base" + title trailing "Ace"
- *  - Move stranded "featuring/feat/ft" at end of title back to artist (prevents "… featuring" hanging)
- *
- * New in v2.38:
- *  - Final canonicalizer pass for "Ace of Base" (runs at the end; prevents re-corruption by later repairs)
- *  - Hard-lock known-bad 1994 Top40Weekly Top 100 ranks #1, #5, #7 (deterministic, no regression risk)
+ * Retains v2.38 fixes:
+ *  - Top40Weekly drift repairs locked: final canonicalizer + 1994 top10 hard locks
  */
 
 const fs = require("fs");
 const path = require("path");
 
 const MK_VERSION =
-  "musicKnowledge v2.38 (Top40Weekly locks: final Ace-of-Base canonicalizer + 1994 top10 hard locks; merge-safe)";
+  "musicKnowledge v2.39 (Top list coercion: never undefined rank/title/artist; retains Top40Weekly locks + canonicalizers)";
 
 const DEFAULT_CHART = "Billboard Hot 100";
 const TOP40_CHART = "Top40Weekly Top 100";
@@ -240,7 +231,52 @@ function resolveChart(requestedChart, opts = {}) {
 }
 
 // =============================
-// DRIFT REPAIR
+// TOP LIST SAFETY (NEW)
+// =============================
+function coerceTopListMoment(m, indexFallback) {
+  const safe = shallowCloneMoment(m) || {};
+
+  // rank fallback: rank/position/no/pos -> number else (index+1)
+  const rawRank = safe.rank ?? safe.position ?? safe.no ?? safe.pos ?? safe.number;
+  const parsed = Number.parseInt(String(rawRank ?? ""), 10);
+  safe.rank = Number.isFinite(parsed) ? parsed : (Number(indexFallback) + 1);
+
+  // normalize strings
+  safe.artist = _asText(safe.artist ?? safe.performer ?? safe.act ?? safe.by);
+  safe.title = _asText(safe.title ?? safe.song ?? safe.track ?? safe.name);
+
+  // If one field is collapsed like "Artist — Title", split it.
+  const splitDash = (s) => {
+    const t = _asText(s);
+    if (!t) return null;
+    const parts = t.split(/\s*[—–-]\s*/).map(x => x.trim()).filter(Boolean);
+    return parts.length >= 2 ? parts : null;
+  };
+
+  if ((!safe.artist || !safe.title) && safe.artist) {
+    const parts = splitDash(safe.artist);
+    if (parts) {
+      safe.artist = parts[0];
+      safe.title = safe.title || parts.slice(1).join(" — ");
+    }
+  }
+
+  if ((!safe.artist || !safe.title) && safe.title) {
+    const parts = splitDash(safe.title);
+    if (parts) {
+      safe.title = parts[0];
+      safe.artist = safe.artist || parts.slice(1).join(" — ");
+    }
+  }
+
+  if (!safe.artist) safe.artist = "Unknown Artist";
+  if (!safe.title) safe.title = "Unknown Title";
+
+  return safe;
+}
+
+// =============================
+// DRIFT REPAIR (existing)
 // =============================
 const BAND_SUFFIXES = new Set([
   "Club",
@@ -256,7 +292,6 @@ const BAND_SUFFIXES = new Set([
   "Gang",
 ]);
 
-// store lowercase for case-insensitive matching
 const TITLE_PREFIX_CANDIDATES_LC = new Set([
   "you",
   "i",
@@ -313,16 +348,11 @@ function isTitleHangWord(w) {
   ].includes(t);
 }
 
-/**
- * UNICODE-SAFE name token:
- * allows accented letters (Céline), curly apostrophes (Me’shell), hyphens.
- */
 function isNameyToken(tok) {
   const t = _asText(tok);
   if (!t) return false;
 
   const clean = t.replace(/,$/, "");
-
   const re = /^\p{L}[\p{L}\p{M}'’.\-]*$/u;
   if (!re.test(clean)) return false;
 
@@ -357,7 +387,6 @@ function hardFixKnownCorruptions(m) {
   let artist = _asText(m.artist);
   let title = _asText(m.title);
 
-  // --- Known hard fixes (Billboard etc.) ---
   if (year === 1984 && rank === 1 && /^Doves Cry Prince$/i.test(artist) && /^When$/i.test(title)) {
     artist = "Prince";
     title = "When Doves Cry";
@@ -385,7 +414,6 @@ function hardFixKnownCorruptions(m) {
     title = "Karma Chameleon";
   }
 
-  // --- Top40Weekly 1994: deterministic locks for known-bad corruptions ---
   if (year === 1994 && rank === 1) {
     artist = "Ace of Base";
     title = "THE SIGN";
@@ -404,10 +432,6 @@ function hardFixKnownCorruptions(m) {
   return m;
 }
 
-/**
- * Two-token artist where first token belongs to title:
- * "SWEAR All-4-One" + title "I" => artist "All-4-One", title "I SWEAR"
- */
 function repairTwoTokenArtistFrontSpill(m) {
   let artist = _asText(m.artist);
   let title = _asText(m.title);
@@ -437,10 +461,6 @@ function repairTwoTokenArtistFrontSpill(m) {
   return m;
 }
 
-/**
- * If title ends with "featuring/feat/ft" (stranded), move it to artist.
- * This prevents: "… WILD NIGHT John Mellencamp featuring"
- */
 function repairFeaturingTailInTitle(m) {
   let artist = _asText(m.artist);
   let title = _asText(m.title);
@@ -463,10 +483,6 @@ function repairFeaturingTailInTitle(m) {
   return m;
 }
 
-/**
- * Move title tail into artist.
- * Enhanced: allow "of" inside a tail for artist constructs like "Ace of Base".
- */
 function repairTitleTailIntoArtist(m) {
   let artist = _asText(m.artist);
   let title = _asText(m.title);
@@ -498,7 +514,7 @@ function repairTitleTailIntoArtist(m) {
     if (tailLastLc === "of") {
       if (tail.length < 2) continue;
       const prev = tail[tail.length - 2];
-      if (!isNameyToken(prev)) continue; // "Ace of" qualifies
+      if (!isNameyToken(prev)) continue;
     }
 
     if (tailLastLc === "&" || tailLastLc === "and") {
@@ -519,9 +535,6 @@ function repairTitleTailIntoArtist(m) {
   return m;
 }
 
-/**
- * Stabilize Ace of Base ordering (attempt; may be overridden by later repairs).
- */
 function repairAceOfBaseOrder(m) {
   let artist = _asText(m.artist);
   let title = _asText(m.title);
@@ -558,9 +571,6 @@ function repairAceOfBaseOrder(m) {
   return m;
 }
 
-/**
- * FINAL canonicalizer: runs at end; nothing after it can re-corrupt.
- */
 function canonicalizeAceOfBase(m) {
   const artist = _asText(m.artist);
   const title = _asText(m.title);
@@ -580,9 +590,6 @@ function canonicalizeAceOfBase(m) {
   return m;
 }
 
-/**
- * Long artist / short title repair
- */
 function repairTop40WeeklyRankedDrift(m) {
   const chart = normalizeChart(m.chart);
   const rank = toRank(m.rank);
@@ -756,7 +763,6 @@ function normalizeMomentFields(m) {
   m.artist = decodeHtmlEntities(_asText(m.artist));
   m.title = decodeHtmlEntities(_asText(m.title));
 
-  // ORDER MATTERS:
   repairTwoTokenArtistFrontSpill(m);
   repairFeaturingTailInTitle(m);
   repairTitleTailIntoArtist(m);
@@ -768,10 +774,7 @@ function normalizeMomentFields(m) {
   repairEmbeddedTitleWordsInArtistAnywhere(m);
   canonicalizeAmpersandActs(m);
 
-  // deterministic hard locks (includes Top40Weekly 1994 #1/#5/#7)
   hardFixKnownCorruptions(m);
-
-  // final canonical safety pass (prevents any re-corruption)
   canonicalizeAceOfBase(m);
 
   m.artist = _asText(m.artist);
@@ -1065,11 +1068,6 @@ function getDb() {
   return DB;
 }
 
-function STATS_FN() {
-  getDb();
-  return { ...STATS };
-}
-
 function poolForYear(year, chart = null) {
   getDb();
   const y = Number(year);
@@ -1197,6 +1195,8 @@ function getTopByYear(year, chart = DEFAULT_CHART, limit = 10) {
   if (!bucket.length) return [];
 
   const ranked = bucket.filter((m) => toInt(m.rank) != null);
+  const lim = Math.max(1, Number(limit) || 10);
+
   if (ranked.length) {
     ranked.sort((a, b) => {
       const ar = toInt(a.rank);
@@ -1204,17 +1204,21 @@ function getTopByYear(year, chart = DEFAULT_CHART, limit = 10) {
       if (ar != null && br != null && ar !== br) return ar - br;
       return 0;
     });
-    return ranked.slice(0, Math.max(1, Number(limit) || 10));
+
+    // NEW: Coerce output so consumers never see undefined fields.
+    return ranked.slice(0, lim).map((m, i) => coerceTopListMoment(m, i));
   }
 
   const copy = bucket.slice();
   copy.sort((a, b) => norm(a.artist).localeCompare(norm(b.artist)));
-  return copy.slice(0, Math.max(1, Number(limit) || 10));
+
+  // NEW: Coerce output so consumers never see undefined fields.
+  return copy.slice(0, lim).map((m, i) => coerceTopListMoment(m, i));
 }
 
 function getNumberOneByYear(year, chart = DEFAULT_CHART) {
   const top = getTopByYear(year, chart, 1);
-  if (top && top.length) return top[0];
+  if (top && top.length) return coerceTopListMoment(top[0], 0);
   return null;
 }
 
