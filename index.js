@@ -20,14 +20,24 @@
  * NEW (critical for #6 on your intelligence list):
  *  - Lightweight "memory continuity across visits" (NOT creepy)
  *    - Client supplies visitorId (random UUID stored in localStorage)
- *    - Backend stores only lane + last music year/chart + last seen timestamp
+ *    - Backend stores only lane + last music year/chart + last seen timestamp + preferred chart (optional)
  *    - TTL expiry (default 30 days)
  *    - Optional persistence to ./Data/nyx_profiles.json (best effort; env-gated)
  *
- * NEW (this pass):
+ * NEW:
  *  - SESSION_TTL cleanup: prevents SESSIONS Map from growing forever on Render
  *    - TTL default 6 hours, cap default 1500 sessions
  *    - Tracks lastActiveAt; cleanup runs every 20 minutes
+ *
+ * NEW (No.4):
+ *  - Anticipatory follow-ups (“Most people ask this next…”)
+ *    - Backend-only: automatically populates followUp when absent
+ *    - Avoids repeating the same follow-up set back-to-back per session
+ *
+ * NEW (micro-upgrade):
+ *  - Lane-transition aware follow-ups:
+ *    - If user mentions another lane while in current lane, chips surface a "Switch to X"
+ *    - Optional micro-step: normalizeLanePick understands "Switch to TV", "Go to Sponsors", "TV mode", etc.
  */
 
 const express = require('express');
@@ -63,7 +73,10 @@ const PROFILE_PATH =
   process.env.NYX_PROFILE_PATH ||
   path.join(process.cwd(), 'Data', 'nyx_profiles.json');
 
-const PROFILES = new Map(); // visitorId -> { lastSeenAt, lastLane, musicYear, musicChart }
+/**
+ * visitorId -> { lastSeenAt, lastLane, musicYear, musicChart, musicPrefChart }
+ */
+const PROFILES = new Map();
 
 let _profileSaveTimer = null;
 
@@ -94,11 +107,17 @@ function readProfilesFromDiskBestEffort() {
       const lastSeenAt = Number(p.lastSeenAt || 0);
       if (!Number.isFinite(lastSeenAt) || lastSeenAt <= 0) continue;
 
+      const musicYear = Number.isFinite(Number(p.musicYear)) ? Number(p.musicYear) : null;
+      const musicChart = typeof p.musicChart === 'string' && p.musicChart.trim() ? String(p.musicChart) : null;
+      const musicPrefChart =
+        typeof p.musicPrefChart === 'string' && p.musicPrefChart.trim() ? String(p.musicPrefChart) : null;
+
       PROFILES.set(visitorId, {
         lastSeenAt,
         lastLane: String(p.lastLane || 'general'),
-        musicYear: Number.isFinite(Number(p.musicYear)) ? Number(p.musicYear) : null,
-        musicChart: String(p.musicChart || '') || null,
+        musicYear,
+        musicChart,
+        musicPrefChart,
       });
     }
   } catch (e) {
@@ -166,6 +185,7 @@ function touchProfile(visitorId, patch) {
     lastLane: 'general',
     musicYear: null,
     musicChart: null,
+    musicPrefChart: null,
   };
 
   const next = {
@@ -185,6 +205,9 @@ function touchProfile(visitorId, patch) {
 
   if (next.musicChart !== null && typeof next.musicChart !== 'string') next.musicChart = null;
   if (typeof next.musicChart === 'string' && !next.musicChart.trim()) next.musicChart = null;
+
+  if (next.musicPrefChart !== null && typeof next.musicPrefChart !== 'string') next.musicPrefChart = null;
+  if (typeof next.musicPrefChart === 'string' && !next.musicPrefChart.trim()) next.musicPrefChart = null;
 
   PROFILES.set(id, next);
   scheduleProfilesSaveBestEffort();
@@ -269,15 +292,31 @@ function isGreeting(s) {
   );
 }
 
+/**
+ * Optional micro-step:
+ * Allow friendly lane-switch phrases:
+ * - "switch to tv", "go to sponsors", "tv mode", etc
+ * - chips like "Switch to TV" are now parsed correctly
+ */
 function normalizeLanePick(raw) {
-  const s = clean(raw).toLowerCase();
-  if (!s) return null;
+  const s0 = clean(raw).toLowerCase();
+  if (!s0) return null;
 
+  // Common “switch” / “go to” / “mode” wrappers
+  const s = s0
+    .replace(/\b(switch|go|goto|move|take)\s+(to|into)\s+/g, '')
+    .replace(/\b(switch|go|goto|move|take)\s+/g, '')
+    .replace(/\bmode\b/g, '')
+    .replace(/\blane\b/g, '')
+    .trim();
+
+  // Also support "Switch to TV" -> "switchtotv" -> remove non-letters
   const cleaned = s.replace(/[^a-z]/g, '');
 
   if (cleaned === 'music') return 'music';
   if (cleaned === 'tv' || cleaned === 'tvs' || cleaned === 'television') return 'tv';
-  if (cleaned === 'sponsors' || cleaned === 'sponsor') return 'sponsors';
+  if (cleaned === 'sponsors' || cleaned === 'sponsor' || cleaned === 'ads' || cleaned === 'advertising')
+    return 'sponsors';
   if (cleaned === 'ai') return 'ai';
   if (cleaned === 'general') return 'general';
 
@@ -361,6 +400,338 @@ function safeArray(x) {
 }
 
 /* =========================
+   LANE-TRANSITION AWARENESS (micro-upgrade)
+========================= */
+
+function laneMentionInText(userText) {
+  const u = clean(userText).toLowerCase();
+  if (!u) return null;
+
+  const has = (re) => re.test(u);
+
+  // Conservative lane signals (avoid accidental switches)
+  if (has(/\b(tv|television|shows?|series|episode)\b/)) return 'tv';
+  if (has(/\b(music|song|songs|artist|billboard|hot\s*100|top\s*10|top\s*ten|#1|number\s+one)\b/))
+    return 'music';
+  if (has(/\b(sponsor|sponsors|advertiser|advertising|ads|packages|pricing)\b/)) return 'sponsors';
+  if (has(/\b(ai|artificial\s+intelligence|automation|agent|chatbot|llm)\b/)) return 'ai';
+
+  return null;
+}
+
+function capLane(lane) {
+  if (lane === 'tv') return 'TV';
+  if (lane === 'ai') return 'AI';
+  if (!lane) return '';
+  return lane.charAt(0).toUpperCase() + lane.slice(1);
+}
+
+/**
+ * Adds a "Switch to X" chip if user mentions another lane
+ * and keeps chip labels parseable by normalizeLanePick().
+ */
+function applyLaneTransitionFollowUps(session, baseList, userText) {
+  const laneNow = session?.lane || 'general';
+  const mentioned = laneMentionInText(userText);
+
+  if (mentioned && mentioned !== laneNow) {
+    const list = Array.isArray(baseList) ? [...baseList] : [];
+
+    const switchChip = `Switch to ${capLane(mentioned)}`;
+    const stayChip = laneNow !== 'general' ? capLane(laneNow) : null;
+
+    if (!list.some((x) => clean(x).toLowerCase() === clean(switchChip).toLowerCase())) {
+      list.unshift(switchChip);
+    }
+
+    // Optional "stay" affordance (only if it’s not already represented)
+    if (stayChip && !list.some((x) => clean(x).toLowerCase() === clean(stayChip).toLowerCase())) {
+      list.push(stayChip);
+    }
+
+    // Keep chips tight
+    return list.slice(0, 5);
+  }
+
+  return baseList;
+}
+
+/* =========================
+   ANTICIPATORY FOLLOW-UP ENGINE (No.4)
+========================= */
+
+function normFU(s) {
+  return clean(s).toLowerCase();
+}
+
+function followSig(list) {
+  const a = (Array.isArray(list) ? list : []).map(normFU).filter(Boolean);
+  return a.join('|');
+}
+
+/**
+ * Prevent repeating the same followUp set back-to-back.
+ * Stores lastFollowSig on session.
+ */
+function setFollowUp(session, proposed) {
+  const list = Array.isArray(proposed) ? proposed.filter(Boolean) : null;
+  if (!list || list.length === 0) return null;
+
+  const sig = followSig(list);
+  if (sig && session.lastFollowSig && sig === session.lastFollowSig) return null;
+
+  session.lastFollowSig = sig || null;
+  return list;
+}
+
+function wantsSurprise(userText) {
+  const t = clean(userText).toLowerCase();
+  return (
+    t === 'surprise me' ||
+    t === 'surprise' ||
+    t === 'random' ||
+    t === "dealer's choice" ||
+    t === 'dealer’s choice'
+  );
+}
+
+function looksLikeTopRequest(userText) {
+  const t = clean(userText).toLowerCase();
+  return t === 'top 10' || t === 'top10' || t.includes('top 10') || t.includes('top ten');
+}
+
+function looksLikeNo1Request(userText) {
+  const t = clean(userText).toLowerCase();
+  return (
+    t === '#1' ||
+    t === '1' ||
+    t === 'number 1' ||
+    t === 'no. 1' ||
+    t === 'no 1' ||
+    t.includes(' #1')
+  );
+}
+
+function looksLikeStoryRequest(userText) {
+  const t = clean(userText).toLowerCase();
+  return t === 'story' || t === 'story moment' || t.includes('story moment') || t.includes('story');
+}
+
+function tryExtractYearFromUser(userText) {
+  const t = clean(userText);
+  if (!/^\d{4}$/.test(t)) return null;
+  const n = Number(t);
+  if (!Number.isFinite(n)) return null;
+  if (n < 1970 || n > 2010) return null;
+  return n;
+}
+
+function preferredMusicCharts(session) {
+  const pref = clean(session?.profile?.musicPrefChart || '');
+  const base = ['Billboard Year-End Hot 100', 'Top40Weekly Top 100', 'Billboard Hot 100'];
+
+  if (pref && base.includes(pref)) {
+    return [pref, ...base.filter((x) => x !== pref)];
+  }
+  return base;
+}
+
+/**
+ * Lane-aware + user-text-aware anticipatory follow-ups:
+ * - Reacts to what user just said (not only replyText)
+ * - Adds lane-transition chips when user hints at another lane
+ */
+function getAnticipatoryFollowUp(session, replyText, explicitFollowUp, userText) {
+  const existing = setFollowUp(session, explicitFollowUp);
+  if (existing) return existing;
+
+  const lane = session?.lane || 'general';
+  const r = clean(replyText).toLowerCase();
+  const u = clean(userText).toLowerCase();
+
+  if (lane === 'music') {
+    const st = session.musicState;
+
+    if (wantsSurprise(u)) {
+      if (st === 'need_year')
+        return (
+          setFollowUp(
+            session,
+            applyLaneTransitionFollowUps(session, ['1984', '1988', '1990', '1999'], userText)
+          ) || null
+        );
+
+      if (st === 'need_chart')
+        return (
+          setFollowUp(
+            session,
+            applyLaneTransitionFollowUps(session, preferredMusicCharts(session), userText)
+          ) || null
+        );
+
+      return (
+        setFollowUp(
+          session,
+          applyLaneTransitionFollowUps(session, ['Top 10', '#1', 'Story moment'], userText)
+        ) || null
+      );
+    }
+
+    const y = tryExtractYearFromUser(u);
+    if (y && st === 'ready') {
+      return (
+        setFollowUp(
+          session,
+          applyLaneTransitionFollowUps(session, preferredMusicCharts(session), userText)
+        ) || null
+      );
+    }
+
+    if (looksLikeTopRequest(u))
+      return (
+        setFollowUp(
+          session,
+          applyLaneTransitionFollowUps(session, ['#1', 'Story moment', 'Another year'], userText)
+        ) || null
+      );
+
+    if (looksLikeNo1Request(u))
+      return (
+        setFollowUp(
+          session,
+          applyLaneTransitionFollowUps(session, ['Story moment', 'Top 10', 'Another year'], userText)
+        ) || null
+      );
+
+    if (looksLikeStoryRequest(u))
+      return (
+        setFollowUp(
+          session,
+          applyLaneTransitionFollowUps(session, ['#1', 'Top 10', 'Another year'], userText)
+        ) || null
+      );
+
+    if (st === 'need_year') {
+      return (
+        setFollowUp(
+          session,
+          applyLaneTransitionFollowUps(session, ['1984', '1988', '1990', '1999'], userText)
+        ) || null
+      );
+    }
+
+    if (st === 'need_chart') {
+      return (
+        setFollowUp(
+          session,
+          applyLaneTransitionFollowUps(session, preferredMusicCharts(session), userText)
+        ) || null
+      );
+    }
+
+    if (st === 'ready') {
+      if (r.includes('top 10') || r.includes('top ten')) {
+        return (
+          setFollowUp(
+            session,
+            applyLaneTransitionFollowUps(session, ['#1', 'Story moment', 'Another year'], userText)
+          ) || null
+        );
+      }
+
+      if (r.includes('#1') || r.includes('number one') || r.includes('no. 1')) {
+        return (
+          setFollowUp(
+            session,
+            applyLaneTransitionFollowUps(session, ['Story moment', 'Top 10', 'Another year'], userText)
+          ) || null
+        );
+      }
+
+      return (
+        setFollowUp(
+          session,
+          applyLaneTransitionFollowUps(session, ['Top 10', '#1', 'Story moment'], userText)
+        ) || null
+      );
+    }
+
+    return (
+      setFollowUp(
+        session,
+        applyLaneTransitionFollowUps(session, ['Top 10', '#1', 'Another year'], userText)
+      ) || null
+    );
+  }
+
+  if (lane === 'tv') {
+    if (u.includes('western'))
+      return (
+        setFollowUp(
+          session,
+          applyLaneTransitionFollowUps(session, ['Wagon Train', 'Gunsmoke', 'Have a classic pick'], userText)
+        ) || null
+      );
+
+    if (u.includes('detective') || u.includes('crime'))
+      return (
+        setFollowUp(
+          session,
+          applyLaneTransitionFollowUps(session, ['Detective picks', 'Classic noir vibe', 'One hidden gem'], userText)
+        ) || null
+      );
+
+    if (r.includes('tell me a show') || r.includes('genre') || r.includes('vibe'))
+      return (
+        setFollowUp(
+          session,
+          applyLaneTransitionFollowUps(session, ['Classic Western', 'Detective', 'Comedy', 'Surprise me'], userText)
+        ) || null
+      );
+
+    return (
+      setFollowUp(
+        session,
+        applyLaneTransitionFollowUps(session, ['Suggest a show', 'Tonight’s vibe', 'Top picks'], userText)
+      ) || null
+    );
+  }
+
+  if (lane === 'sponsors') {
+    if (r.includes('business name') || r.includes('goal'))
+      return (
+        setFollowUp(
+          session,
+          applyLaneTransitionFollowUps(session, ['Calls', 'Walk-ins', 'Awareness', 'Lead form'], userText)
+        ) || null
+      );
+
+    return (
+      setFollowUp(
+        session,
+        applyLaneTransitionFollowUps(session, ['Offer packages', 'Ad script', 'Targeting'], userText)
+      ) || null
+    );
+  }
+
+  if (lane === 'ai') {
+    return (
+      setFollowUp(
+        session,
+        applyLaneTransitionFollowUps(session, ['Feature idea', 'Implementation plan', 'Demo script'], userText)
+      ) || null
+    );
+  }
+
+  return (
+    setFollowUp(
+      session,
+      applyLaneTransitionFollowUps(session, ['Music', 'TV', 'Sponsors', 'AI'], userText)
+    ) || null
+  );
+}
+
+/* =========================
    NYX VOICE NATURALIZER
 ========================= */
 
@@ -427,7 +798,11 @@ function cleanupExpiredSessions() {
   }
 
   if (removed > 0) {
-    console.log(`[Nyx] session cleanup: removed=${removed} size=${SESSIONS.size} ttlMin=${Math.round(SESSION_TTL_MS/60000)} cap=${MAX_SESSIONS}`);
+    console.log(
+      `[Nyx] session cleanup: removed=${removed} size=${SESSIONS.size} ttlMin=${Math.round(
+        SESSION_TTL_MS / 60000
+      )} cap=${MAX_SESSIONS}`
+    );
   }
 }
 
@@ -447,7 +822,7 @@ function getSession(sessionId, visitorId) {
 
       lane: (profile?.lastLane && String(profile.lastLane)) || 'general',
       createdAt: Date.now(),
-      lastActiveAt: Date.now(), // NEW
+      lastActiveAt: Date.now(),
 
       // intro + small talk
       greeted: false,
@@ -456,6 +831,13 @@ function getSession(sessionId, visitorId) {
       // anti-loop
       lastSig: null,
       lastSigAt: 0,
+
+      // user input memory (for follow-ups)
+      lastUserText: '',
+      lastUserSig: '',
+
+      // follow-up de-dupe
+      lastFollowSig: null,
 
       // music state
       musicState: 'start',
@@ -471,7 +853,7 @@ function getSession(sessionId, visitorId) {
   }
 
   const session = SESSIONS.get(id);
-  if (session) session.lastActiveAt = Date.now(); // NEW: touch on access
+  if (session) session.lastActiveAt = Date.now();
   return session;
 }
 
@@ -551,6 +933,14 @@ function handleMusic(message, session) {
 
     session.musicChart = picked;
     session.musicState = 'ready';
+
+    // preference bias: remember last chosen chart as "preferred"
+    if (session.profile) {
+      session.profile.musicPrefChart = picked;
+    }
+    if (session.visitorId) {
+      touchProfile(session.visitorId, { musicPrefChart: picked });
+    }
 
     return {
       reply: `Locked in: ${picked}, ${year}.\nNow tell me one of these:\n• Top 10\n• #1\n• Story moment`,
@@ -897,7 +1287,7 @@ app.post('/api/chat', (req, res) => {
   const visitorId = asVisitorId(body?.visitorId);
   const session = getSession(sessionId, visitorId);
 
-  // touch active (already touched in getSession, but keep explicit)
+  // touch active
   session.lastActiveAt = Date.now();
 
   if (visitorId) {
@@ -907,6 +1297,10 @@ app.post('/api/chat', (req, res) => {
 
   const now = Date.now();
   const sig = sigOf(message);
+
+  // store last user input for lane-aware follow-ups
+  session.lastUserText = message || '';
+  session.lastUserSig = sig || '';
 
   if (sig && sig === session.lastSig && now - session.lastSigAt < 900) {
     const response = { ok: true, reply: '', followUp: null, noop: true, suppressed: true, sessionId };
@@ -1008,21 +1402,32 @@ app.post('/api/chat', (req, res) => {
       }
     }
 
+    // profile update
     if (session.visitorId) {
       const patch = { lastLane: session.lane };
       if (session.lane === 'music') {
         if (session.musicYear) patch.musicYear = session.musicYear;
         if (session.musicChart) patch.musicChart = session.musicChart;
+        if (session.profile?.musicPrefChart) patch.musicPrefChart = session.profile.musicPrefChart;
       }
 
       const updated = touchProfile(session.visitorId, patch);
       session.profile = updated || session.profile || null;
     }
 
+    // Anticipatory follow-ups (No.4) + lane-transition aware + de-dupe
+    const replyText = response?.reply ?? '';
+    const followUpFinal = getAnticipatoryFollowUp(
+      session,
+      replyText,
+      response?.followUp ?? null,
+      session.lastUserText || ''
+    );
+
     const payload = {
       ok: true,
-      reply: response?.reply ?? '',
-      followUp: response?.followUp ?? null,
+      reply: replyText,
+      followUp: followUpFinal,
       sessionId,
     };
 
