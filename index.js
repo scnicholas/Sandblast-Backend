@@ -12,7 +12,7 @@
  *  - Adds GET / so Render/edge probes don’t show "Cannot GET /"
  *  - Nyx Voice Naturalizer to make ElevenLabs output more human-like
  *
- * CRITICAL UPDATES (this pass):
+ * CRITICAL UPDATES:
  *  - Year override while musicState=ready (typing a year switches year instead of reverting)
  *  - Top 10 quality guard (prevents dumping mostly-Unknown Title lists)
  *  - Safer formatTopItem (repairs Jay—Z fragments + basic split heuristics)
@@ -23,6 +23,11 @@
  *    - Backend stores only lane + last music year/chart + last seen timestamp
  *    - TTL expiry (default 30 days)
  *    - Optional persistence to ./Data/nyx_profiles.json (best effort; env-gated)
+ *
+ * NEW (this pass):
+ *  - SESSION_TTL cleanup: prevents SESSIONS Map from growing forever on Render
+ *    - TTL default 6 hours, cap default 1500 sessions
+ *    - Tracks lastActiveAt; cleanup runs every 20 minutes
  */
 
 const express = require('express');
@@ -51,13 +56,6 @@ const DEFAULT_TIMEOUT_MS = Number(process.env.NYX_TIMEOUT_MS || 20000);
 /* =========================
    LIGHTWEIGHT MEMORY (PROFILES)
 ========================= */
-
-/**
- * Privacy stance:
- * - We do NOT create visitor IDs server-side.
- * - We do NOT fingerprint.
- * - We only store preferences if the client supplies visitorId (random UUID stored locally).
- */
 
 const PROFILE_TTL_MS = Number(process.env.NYX_PROFILE_TTL_DAYS || 30) * 24 * 60 * 60 * 1000;
 const PROFILE_PERSIST = String(process.env.NYX_PROFILE_PERSIST || '').toLowerCase() === '1';
@@ -93,7 +91,6 @@ function readProfilesFromDiskBestEffort() {
     for (const [visitorId, p] of entries) {
       if (!visitorId || typeof p !== 'object' || !p) continue;
 
-      // Basic validation
       const lastSeenAt = Number(p.lastSeenAt || 0);
       if (!Number.isFinite(lastSeenAt) || lastSeenAt <= 0) continue;
 
@@ -105,7 +102,6 @@ function readProfilesFromDiskBestEffort() {
       });
     }
   } catch (e) {
-    // Best-effort: do not crash service
     console.warn('[Nyx] profile load failed:', e?.message || e);
   }
 }
@@ -120,7 +116,6 @@ function scheduleProfilesSaveBestEffort() {
       const dir = path.dirname(PROFILE_PATH);
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
-      // Write as plain object
       const out = {};
       for (const [k, v] of PROFILES.entries()) out[k] = v;
 
@@ -147,7 +142,6 @@ function cleanupExpiredProfiles() {
 
 function asVisitorId(v) {
   const s = String(v || '').trim();
-  // Accept only UUID-ish shapes to avoid people accidentally passing emails/names
   if (!s) return '';
   if (!/^[a-f0-9-]{16,64}$/i.test(s)) return '';
   return s;
@@ -180,18 +174,15 @@ function touchProfile(visitorId, patch) {
     lastSeenAt: nowMs(),
   };
 
-  // Clamp lane
   if (!['general', 'music', 'tv', 'sponsors', 'ai'].includes(String(next.lastLane))) {
     next.lastLane = 'general';
   }
 
-  // Clamp year range if present
   if (next.musicYear !== null) {
     const y = Number(next.musicYear);
     if (!Number.isFinite(y) || y < 1970 || y > 2010) next.musicYear = null;
   }
 
-  // Normalize chart
   if (next.musicChart !== null && typeof next.musicChart !== 'string') next.musicChart = null;
   if (typeof next.musicChart === 'string' && !next.musicChart.trim()) next.musicChart = null;
 
@@ -294,7 +285,6 @@ function normalizeLanePick(raw) {
 }
 
 function lanePickerReply(session) {
-  // If we have a profile-backed "last lane", gently offer a resume option.
   const lastLane = session?.profile?.lastLane;
   const isResumeCandidate = lastLane && lastLane !== 'general';
 
@@ -329,19 +319,12 @@ function nyxGreeting() {
   };
 }
 
-/**
- * CRITICAL: safer top-line formatting.
- * - Never prints undefined rank/artist/title
- * - Repairs common fragment issues (Jay — Z)
- * - If artist accidentally contains "Artist — Title", attempt split
- */
 function formatTopItem(item, idx) {
   const rank = Number.isFinite(Number(item?.rank)) ? Number(item.rank) : idx + 1;
 
   let artist = clean(item?.artist);
   let title = clean(item?.title);
 
-  // Fix Jay—Z / Jay , Z / Jay - Z
   if (artist) {
     artist = artist
       .replace(/\bJay\s*[—–-]\s*Z\b/gi, 'Jay-Z')
@@ -349,23 +332,19 @@ function formatTopItem(item, idx) {
       .replace(/\bJay\s+Z\b/gi, 'Jay-Z');
   }
 
-  // If title is missing/unknown but artist contains a separator, try splitting
   const sep = /\s[—–-]\s/;
   if ((!title || /unknown title/i.test(title)) && artist && sep.test(artist)) {
     const parts = artist.split(sep).map(clean).filter(Boolean);
 
     if (parts.length === 2) {
-      // Handle "Jay — Z" specifically
       if (/^jay$/i.test(parts[0]) && /^z$/i.test(parts[1])) {
         artist = 'Jay-Z';
         title = title || 'Unknown Title';
       } else {
-        // Common case: artist field actually holds "Artist — Title"
         artist = parts[0];
         title = parts[1];
       }
     } else if (parts.length > 2) {
-      // Best-effort: first segment as artist, remainder as title
       artist = parts[0];
       title = parts.slice(1).join(' ');
     }
@@ -385,60 +364,75 @@ function safeArray(x) {
    NYX VOICE NATURALIZER
 ========================= */
 
-/**
- * Make the TTS text sound human:
- * - Replace symbols (#1 -> "number one")
- * - Convert list formatting into spoken cadence
- * - Replace em-dash with phrasing pauses
- * - Reduce "UI-ish" artifacts
- */
 function nyxVoiceNaturalize(raw) {
   let s = asText(raw);
   if (!s) return s;
 
-  // Normalize line endings
   s = s.replace(/\r\n/g, '\n');
-
-  // Replace typical UI glyph bullets with simple speech cues
   s = s.replace(/[•●◦▪︎]+/g, '-');
-
-  // Make "#1" speakable
   s = s.replace(/#\s*1\b/g, 'number one');
-
-  // Replace em/en dashes with pauses
   s = s.replace(/[—–]/g, ', ');
-
-  // Replace "X — Y" patterns that show up in music lists
   s = s.replace(/\s*,\s*,/g, ', ');
-
-  // Make "Top 10 — Chart (2010):" more spoken
   s = s.replace(/\bTop\s*10\b/gi, 'Top ten');
   s = s.replace(/\bTop\s*100\b/gi, 'Top one hundred');
-
-  // Convert "1. Artist — Title" into "Number 1: Artist, Title."
   s = s.replace(/(^|\n)\s*(\d{1,2})\.\s+/g, (m, p1, n) => `${p1}Number ${n}: `);
-
-  // Convert "Artist - Title" into "Artist, Title"
   s = s.replace(/\s-\s/g, ', ');
   s = s.replace(/\bJay\s*,\s*Z\b/gi, 'Jay-Z');
-
-  // Encourage pauses between sections
   s = s.replace(/\n{3,}/g, '\n\n');
-
-  // Gentle pauses between items
   s = s.replace(/\nNumber\s/g, '.\nNumber ');
-
-  // Remove double periods
   s = s.replace(/\.\./g, '.');
 
   return s.trim();
 }
 
 /* =========================
-   SESSIONS
+   SESSIONS + SESSION_TTL CLEANUP
 ========================= */
 
 const SESSIONS = new Map();
+
+// TTL + cap (Render safety)
+const SESSION_TTL_MS = Number(process.env.NYX_SESSION_TTL_MINUTES || 360) * 60 * 1000; // default 6 hours
+const SESSION_CLEANUP_INTERVAL_MS = Number(process.env.NYX_SESSION_CLEANUP_MINUTES || 20) * 60 * 1000; // default 20 min
+const MAX_SESSIONS = Number(process.env.NYX_MAX_SESSIONS || 1500);
+
+function cleanupExpiredSessions() {
+  const cutoff = nowMs() - SESSION_TTL_MS;
+  let removed = 0;
+
+  // 1) Remove idle sessions by lastActiveAt
+  for (const [id, s] of SESSIONS.entries()) {
+    const lastActiveAt = Number(s?.lastActiveAt || 0);
+    if (!Number.isFinite(lastActiveAt) || lastActiveAt < cutoff) {
+      SESSIONS.delete(id);
+      removed++;
+    }
+  }
+
+  // 2) Hard cap: if still too many, drop oldest by lastActiveAt
+  const over = SESSIONS.size - MAX_SESSIONS;
+  if (over > 0) {
+    const arr = [];
+    for (const [id, s] of SESSIONS.entries()) {
+      arr.push([id, Number(s?.lastActiveAt || 0)]);
+    }
+    arr.sort((a, b) => (a[1] || 0) - (b[1] || 0)); // oldest first
+    for (let i = 0; i < over; i++) {
+      const id = arr[i]?.[0];
+      if (id) {
+        SESSIONS.delete(id);
+        removed++;
+      }
+    }
+  }
+
+  if (removed > 0) {
+    console.log(`[Nyx] session cleanup: removed=${removed} size=${SESSIONS.size} ttlMin=${Math.round(SESSION_TTL_MS/60000)} cap=${MAX_SESSIONS}`);
+  }
+}
+
+// background cleanup (Render-safe)
+setInterval(cleanupExpiredSessions, SESSION_CLEANUP_INTERVAL_MS).unref?.();
 
 function getSession(sessionId, visitorId) {
   const id = asText(sessionId) || 'anon';
@@ -453,6 +447,7 @@ function getSession(sessionId, visitorId) {
 
       lane: (profile?.lastLane && String(profile.lastLane)) || 'general',
       createdAt: Date.now(),
+      lastActiveAt: Date.now(), // NEW
 
       // intro + small talk
       greeted: false,
@@ -468,7 +463,6 @@ function getSession(sessionId, visitorId) {
       musicChart: profile?.musicChart ?? null,
     };
 
-    // If profile has music info, set a sensible state so "resume" is possible.
     if (s.lane === 'music' && s.musicYear && s.musicChart) s.musicState = 'ready';
     else if (s.lane === 'music' && s.musicYear && !s.musicChart) s.musicState = 'need_chart';
     else if (s.lane === 'music' && !s.musicYear) s.musicState = 'need_year';
@@ -476,7 +470,9 @@ function getSession(sessionId, visitorId) {
     SESSIONS.set(id, s);
   }
 
-  return SESSIONS.get(id);
+  const session = SESSIONS.get(id);
+  if (session) session.lastActiveAt = Date.now(); // NEW: touch on access
+  return session;
 }
 
 /* =========================
@@ -522,7 +518,7 @@ function isYear(s) {
   return n;
 }
 
-function chartsForYear(/* year */) {
+function chartsForYear() {
   return (MUSIC_COVERAGE.charts || []).map((c) => ({ chart: c }));
 }
 
@@ -563,7 +559,6 @@ function handleMusic(message, session) {
   }
 
   if (session.musicState === 'ready') {
-    // CRITICAL FIX: if user types a year here, treat it as a new-year request
     const maybeYear = isYear(text);
     if (maybeYear && maybeYear >= 1970 && maybeYear <= 2010) {
       session.musicYear = maybeYear;
@@ -615,7 +610,6 @@ function handleMusic(message, session) {
           };
         }
 
-        // CRITICAL FIX: Quality guard—don’t print mostly-Unknown Title lists
         const unknownCount = top10.filter(
           (r) => !clean(r?.title) || /unknown title/i.test(String(r?.title || ''))
         ).length;
@@ -676,7 +670,6 @@ async function getFetch() {
   if (typeof globalThis.fetch === 'function') return globalThis.fetch;
 
   try {
-    // eslint-disable-next-line import/no-extraneous-dependencies
     const mod = await import('node-fetch');
     return mod.default || mod;
   } catch (e) {
@@ -720,7 +713,6 @@ function getTtsStatus() {
 }
 
 function getElevenVoiceSettings() {
-  // Human-ish defaults (tunable via env without code changes)
   const stability = readNumberEnv('NYX_VOICE_STABILITY', 0.28);
   const similarity_boost = readNumberEnv('NYX_VOICE_SIMILARITY', 0.88);
   const style = readNumberEnv('NYX_VOICE_STYLE', 0.22);
@@ -740,9 +732,7 @@ async function synthElevenLabsMp3(rawText) {
   const fetch = await getFetch();
   const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`;
 
-  // IMPORTANT: feed naturalized text to TTS
   const text = nyxVoiceNaturalize(rawText);
-
   const voice_settings = getElevenVoiceSettings();
 
   const r = await fetch(url, {
@@ -778,15 +768,12 @@ async function synthElevenLabsMp3(rawText) {
 }
 
 function readTextFromBody(req) {
-  // Support multiple client payload shapes
   const t1 = asText(req.body?.text);
   if (t1) return t1;
 
-  // Some callers use "message"
   const t2 = asText(req.body?.message);
   if (t2) return t2;
 
-  // Some callers send { reply: "..." } by mistake
   const t3 = asText(req.body?.reply);
   if (t3) return t3;
 
@@ -840,10 +827,7 @@ async function ttsHandler(req, res, route) {
   }
 }
 
-// Primary route
 app.post('/api/tts', async (req, res) => ttsHandler(req, res, '/api/tts'));
-
-// Alias route (back-compat): fixes widget builds that call /api/voice
 app.post('/api/voice', async (req, res) => ttsHandler(req, res, '/api/voice'));
 
 /* =========================
@@ -876,6 +860,12 @@ app.get('/api/health', (_, res) => {
       ttlDays: Number(process.env.NYX_PROFILE_TTL_DAYS || 30),
       count: PROFILES.size,
     },
+    sessions: {
+      count: SESSIONS.size,
+      ttlMinutes: Math.round(SESSION_TTL_MS / 60000),
+      cleanupMinutes: Math.round(SESSION_CLEANUP_INTERVAL_MS / 60000),
+      cap: MAX_SESSIONS,
+    },
   });
 });
 
@@ -907,7 +897,9 @@ app.post('/api/chat', (req, res) => {
   const visitorId = asVisitorId(body?.visitorId);
   const session = getSession(sessionId, visitorId);
 
-  // Keep session linked to profile if visitorId is present (even if session existed)
+  // touch active (already touched in getSession, but keep explicit)
+  session.lastActiveAt = Date.now();
+
   if (visitorId) {
     session.visitorId = visitorId;
     session.profile = getProfile(visitorId) || session.profile || null;
@@ -927,7 +919,6 @@ app.post('/api/chat', (req, res) => {
   try {
     let response;
 
-    // Empty message => intro first (once), then lane picker
     if (!message) {
       if (!session.greeted) {
         session.greeted = true;
@@ -944,7 +935,6 @@ app.post('/api/chat', (req, res) => {
       session.checkInPending = false;
       response = lanePickerReply(session);
     } else {
-      // Handle "Resume" semantics (profile-based)
       const t = clean(message).toLowerCase();
       const wantsResume =
         t === 'resume' ||
@@ -959,7 +949,6 @@ app.post('/api/chat', (req, res) => {
         session.lane = lastLane;
 
         if (lastLane === 'music') {
-          // Restore best-known state
           session.musicYear = session.profile.musicYear || session.musicYear || null;
           session.musicChart = session.profile.musicChart || session.musicChart || null;
 
@@ -989,7 +978,10 @@ app.post('/api/chat', (req, res) => {
             followUp: ['Calls', 'Walk-ins', 'Awareness'],
           };
         } else if (lastLane === 'ai') {
-          response = { reply: 'Welcome back.\nAI mode.\nAre we talking features, implementation, or a demo?', followUp: ['Features', 'Implementation', 'Demo'] };
+          response = {
+            reply: 'Welcome back.\nAI mode.\nAre we talking features, implementation, or a demo?',
+            followUp: ['Features', 'Implementation', 'Demo'],
+          };
         } else {
           response = lanePickerReply(session);
         }
@@ -1016,13 +1008,8 @@ app.post('/api/chat', (req, res) => {
       }
     }
 
-    // Persist lightweight preference memory (only if visitorId supplied)
     if (session.visitorId) {
-      const patch = {
-        lastLane: session.lane,
-      };
-
-      // Only store non-creepy music prefs (year + chart)
+      const patch = { lastLane: session.lane };
       if (session.lane === 'music') {
         if (session.musicYear) patch.musicYear = session.musicYear;
         if (session.musicChart) patch.musicChart = session.musicChart;
@@ -1060,17 +1047,13 @@ function selfProbe(host, port) {
 
     sock.once('connect', () => {
       done = true;
-      try {
-        sock.destroy();
-      } catch (_) {}
+      try { sock.destroy(); } catch (_) {}
       resolve(true);
     });
     sock.once('timeout', () => {
       if (!done) {
         done = true;
-        try {
-          sock.destroy();
-        } catch (_) {}
+        try { sock.destroy(); } catch (_) {}
         resolve(false);
       }
     });
@@ -1101,6 +1084,12 @@ server.on('listening', async () => {
   } else {
     console.log('[Nyx] profiles persist: OFF (env NYX_PROFILE_PERSIST=1 to enable)');
   }
+
+  console.log(
+    `[Nyx] sessions ttlMin=${Math.round(SESSION_TTL_MS / 60000)} cleanupMin=${Math.round(
+      SESSION_CLEANUP_INTERVAL_MS / 60000
+    )} cap=${MAX_SESSIONS}`
+  );
 });
 
 server.on('error', (err) => {
