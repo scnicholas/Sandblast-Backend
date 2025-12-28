@@ -89,13 +89,20 @@ Data/*.txt
 Data/*.html
 Data/billboard_yearend_hot100_1970_2010.json.txt
 
-# Wikipedia scrape outputs that are NOT the canonical shipped dataset
-Data/wikipedia/
+# =========================
+# Wikipedia scrape outputs (IGNORE BY DEFAULT)
+# =========================
 Data/wikipedia/**
 
 # =========================
 # IMPORTANT: PRODUCTION DATASET ALLOWLIST
-# Ensure Year-End dataset is committed + available to Render
+# This file MUST be committed for Year-End charts to work
 # =========================
-!Data/wikipedia_billboard_yearend/
-!Data/wikipedia_billboard_yearend/bb_yearend_hot100_1970_2010.json
+!Data/wikipedia/
+!Data/wikipedia/billboard_yearend_hot100_1970_2010.json
+
+# =========================
+# Local audio artifacts (never commit)
+# =========================
+*.mp3
+nyx_*.mp3
