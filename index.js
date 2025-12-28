@@ -10,6 +10,7 @@
  *  - Top-10/#1 rendering safety: never prints "undefined." or blank artist/title
  *  - fetch() compatibility: works on Node 16+ (dynamic import fallback) instead of assuming global fetch
  *  - Adds GET / so Render/edge probes don’t show "Cannot GET /"
+ *  - NEW: Nyx Voice Naturalizer to make ElevenLabs output more human-like
  */
 
 const express = require('express');
@@ -27,8 +28,9 @@ const ENV = String(process.env.NODE_ENV || 'production');
 const HOST = String(process.env.HOST || '0.0.0.0');
 const PORT = Number(process.env.PORT || 3000);
 
-const BUILD_TAG =
-  String(process.env.BUILD_TAG || process.env.RENDER_GIT_COMMIT || 'nyx-wizard-local').slice(0, 32);
+const BUILD_TAG = String(
+  process.env.BUILD_TAG || process.env.RENDER_GIT_COMMIT || 'nyx-wizard-local'
+).slice(0, 32);
 
 const DEFAULT_TIMEOUT_MS = Number(process.env.NYX_TIMEOUT_MS || 20000);
 
@@ -38,13 +40,9 @@ const DEFAULT_TIMEOUT_MS = Number(process.env.NYX_TIMEOUT_MS || 20000);
 
 const app = express();
 
-// Trust proxy is important on Render
 app.set('trust proxy', 1);
-
-// JSON body parsing (TTS + chat)
 app.use(express.json({ limit: '1mb' }));
 
-// CORS: keep permissive for widget embeds
 app.use(
   cors({
     origin: '*',
@@ -53,7 +51,6 @@ app.use(
   })
 );
 
-// Explicit OPTIONS to avoid random 404/405 behavior across platforms/proxies
 app.options('/api/tts', cors());
 app.options('/api/voice', cors());
 app.options('/api/chat', cors());
@@ -112,9 +109,8 @@ function isGreeting(s) {
 
 function normalizeLanePick(raw) {
   const s = clean(raw).toLowerCase();
-
-  // tolerate common variants
   if (!s) return null;
+
   const cleaned = s.replace(/[^a-z]/g, '');
 
   if (cleaned === 'music') return 'music';
@@ -141,7 +137,7 @@ function nyxGreeting() {
 }
 
 function formatTopItem(item, idx) {
-  const rank = Number.isFinite(Number(item?.rank)) ? Number(item.rank) : (idx + 1);
+  const rank = Number.isFinite(Number(item?.rank)) ? Number(item.rank) : idx + 1;
   const artist = clean(item?.artist) || 'Unknown Artist';
   const title = clean(item?.title) || 'Unknown Title';
   return `${rank}. ${artist} — ${title}`;
@@ -149,6 +145,62 @@ function formatTopItem(item, idx) {
 
 function safeArray(x) {
   return Array.isArray(x) ? x : [];
+}
+
+/* =========================
+   NYX VOICE NATURALIZER (NEW)
+========================= */
+
+/**
+ * Make the TTS text sound human:
+ * - Replace symbols (#1 -> "number one")
+ * - Convert list formatting into spoken cadence
+ * - Replace em-dash with phrasing pauses
+ * - Reduce "UI-ish" artifacts
+ */
+function nyxVoiceNaturalize(raw) {
+  let s = asText(raw);
+  if (!s) return s;
+
+  // Normalize line endings
+  s = s.replace(/\r\n/g, '\n');
+
+  // Replace typical UI glyph bullets with simple speech cues
+  s = s.replace(/[•●◦▪︎]+/g, '-');
+
+  // Make "#1" speakable
+  s = s.replace(/#\s*1\b/g, 'number one');
+
+  // Replace em/en dashes with pauses
+  s = s.replace(/[—–]/g, ', ');
+
+  // Replace "X — Y" patterns that show up in music lists
+  // Keep it light; avoid over-parsing.
+  s = s.replace(/\s*,\s*,/g, ', ');
+
+  // Make "Top 10 — Chart (2010):" more spoken
+  s = s.replace(/\bTop\s*10\b/gi, 'Top ten');
+  s = s.replace(/\bTop\s*100\b/gi, 'Top one hundred');
+
+  // Convert "1. Artist — Title" into "Number 1: Artist, Title."
+  s = s.replace(/(^|\n)\s*(\d{1,2})\.\s+/g, (m, p1, n) => `${p1}Number ${n}: `);
+
+  // Convert "Artist — Title" into "Artist, Title"
+  s = s.replace(/\s-\s/g, ', ');
+  s = s.replace(/\s*,\s*Z\b/g, ', Z'); // keep "Jay Z" from becoming weird
+  s = s.replace(/\bJay\s*,\s*Z\b/gi, 'Jay-Z');
+
+  // Encourage pauses between sections
+  s = s.replace(/\n{3,}/g, '\n\n');
+
+  // If we have a big list, add gentle pauses between items
+  // (Small pause is basically a period + newline)
+  s = s.replace(/\nNumber\s/g, '.\nNumber ');
+
+  // Remove double periods that can happen after replacements
+  s = s.replace(/\.\./g, '.');
+
+  return s.trim();
 }
 
 /* =========================
@@ -177,7 +229,6 @@ function getSession(sessionId) {
       musicState: 'start',
       musicYear: null,
       musicChart: null,
-      musicDeliveryMode: null,
     });
   }
   return SESSIONS.get(id);
@@ -188,7 +239,6 @@ function getSession(sessionId) {
 ========================= */
 
 function rebuildMusicCoverage() {
-  // Keep this lightweight. If you later expose a precision coverage map from musicKnowledge, wire it here.
   const charts = [
     'Top40Weekly Top 100',
     'Billboard Hot 100',
@@ -196,10 +246,8 @@ function rebuildMusicCoverage() {
     'Canada RPM',
     'UK Singles Chart',
   ];
-
   const builtAt = new Date().toISOString();
   const range = { start: 1970, end: 2010 };
-
   return { builtAt, range, charts };
 }
 
@@ -214,7 +262,6 @@ function enterMusic(session) {
   session.musicState = 'need_year';
   session.musicYear = null;
   session.musicChart = null;
-  session.musicDeliveryMode = null;
 
   return {
     reply: 'Music it is.\nGive me a year between 1970 and 2010.',
@@ -237,7 +284,6 @@ function chartsForYear(/* year */) {
 function handleMusic(message, session) {
   const text = clean(message);
 
-  // Year selection
   if (session.musicState === 'need_year') {
     const y = isYear(text);
     if (!y || y < 1970 || y > 2010) {
@@ -253,7 +299,6 @@ function handleMusic(message, session) {
     };
   }
 
-  // Chart selection
   if (session.musicState === 'need_chart') {
     const year = session.musicYear;
     const opts = chartsForYear(year).map((o) => o.chart).slice(0, 5);
@@ -272,7 +317,6 @@ function handleMusic(message, session) {
     };
   }
 
-  // Delivery mode
   if (session.musicState === 'ready') {
     const mode = clean(text).toLowerCase();
     const year = session.musicYear;
@@ -295,7 +339,10 @@ function handleMusic(message, session) {
           followUp: ['Story moment', 'Top 10', 'Another year'],
         };
       } catch (e) {
-        return { reply: 'Music engine hiccuped while pulling #1. Try “Top 10” or pick another year.', followUp: ['Top 10', 'Another year'] };
+        return {
+          reply: 'Music engine hiccuped while pulling #1. Try “Top 10” or pick another year.',
+          followUp: ['Top 10', 'Another year'],
+        };
       }
     }
 
@@ -303,7 +350,10 @@ function handleMusic(message, session) {
       try {
         const top10 = safeArray(musicKnowledge.getTopByYear(year, chart, 10));
         if (!top10.length) {
-          return { reply: `Top 10 isn’t available for ${chart} (${year}) in the current dataset.\nWant #1 or a story moment?`, followUp: ['#1', 'Story moment'] };
+          return {
+            reply: `Top 10 isn’t available for ${chart} (${year}) in the current dataset.\nWant #1 or a story moment?`,
+            followUp: ['#1', 'Story moment'],
+          };
         }
 
         const lines = top10.map((r, i) => formatTopItem(r, i));
@@ -340,7 +390,6 @@ function handleMusic(message, session) {
     };
   }
 
-  // Fallback: re-enter
   return enterMusic(session);
 }
 
@@ -351,8 +400,6 @@ function handleMusic(message, session) {
 async function getFetch() {
   if (typeof globalThis.fetch === 'function') return globalThis.fetch;
 
-  // Node 16 compatibility: fall back to node-fetch if present
-  // (Render can run older Node depending on your service config)
   try {
     // eslint-disable-next-line import/no-extraneous-dependencies
     const mod = await import('node-fetch');
@@ -367,6 +414,20 @@ async function getFetch() {
 /* =========================
    TTS (ELEVENLABS) — ALWAYS REGISTERED
 ========================= */
+
+function readNumberEnv(name, fallback) {
+  const raw = asText(process.env[name]);
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function readBoolEnv(name, fallback) {
+  const raw = asText(process.env[name]).toLowerCase();
+  if (!raw) return fallback;
+  if (['1', 'true', 'yes', 'on'].includes(raw)) return true;
+  if (['0', 'false', 'no', 'off'].includes(raw)) return false;
+  return fallback;
+}
 
 function getTtsStatus() {
   const provider = String(process.env.TTS_PROVIDER || 'elevenlabs').toLowerCase();
@@ -383,7 +444,17 @@ function getTtsStatus() {
   };
 }
 
-async function synthElevenLabsMp3(text) {
+function getElevenVoiceSettings() {
+  // Human-ish defaults (tunable via env without code changes)
+  const stability = readNumberEnv('NYX_VOICE_STABILITY', 0.28);
+  const similarity_boost = readNumberEnv('NYX_VOICE_SIMILARITY', 0.88);
+  const style = readNumberEnv('NYX_VOICE_STYLE', 0.22);
+  const use_speaker_boost = readBoolEnv('NYX_VOICE_SPEAKER_BOOST', true);
+
+  return { stability, similarity_boost, style, use_speaker_boost };
+}
+
+async function synthElevenLabsMp3(rawText) {
   const apiKey = String(process.env.ELEVENLABS_API_KEY || '').trim();
   const voiceId = String(process.env.ELEVENLABS_VOICE_ID || '').trim();
   const modelId = String(process.env.ELEVENLABS_MODEL_ID || '').trim() || 'eleven_turbo_v2_5';
@@ -393,6 +464,11 @@ async function synthElevenLabsMp3(text) {
 
   const fetch = await getFetch();
   const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`;
+
+  // IMPORTANT: feed naturalized text to TTS
+  const text = nyxVoiceNaturalize(rawText);
+
+  const voice_settings = getElevenVoiceSettings();
 
   const r = await fetch(url, {
     method: 'POST',
@@ -404,10 +480,7 @@ async function synthElevenLabsMp3(text) {
     body: JSON.stringify({
       text,
       model_id: modelId,
-      voice_settings: {
-        stability: 0.35,
-        similarity_boost: 0.85,
-      },
+      voice_settings,
     }),
   });
 
@@ -429,11 +502,25 @@ async function synthElevenLabsMp3(text) {
   return buf;
 }
 
-// Primary route
-app.post('/api/tts', async (req, res) => {
-  const route = '/api/tts';
+function readTextFromBody(req) {
+  // Support multiple client payload shapes
+  const t1 = asText(req.body?.text);
+  if (t1) return t1;
+
+  // Some callers use "message"
+  const t2 = asText(req.body?.message);
+  if (t2) return t2;
+
+  // Some callers send { reply: "..." } by mistake
+  const t3 = asText(req.body?.reply);
+  if (t3) return t3;
+
+  return '';
+}
+
+async function ttsHandler(req, res, route) {
   try {
-    const text = String(req.body?.text || '').trim();
+    const text = readTextFromBody(req);
     if (!text) {
       const payload = { ok: false, error: 'NO_TEXT' };
       setLast({ route, request: req.body, response: payload, error: null });
@@ -451,10 +538,14 @@ app.post('/api/tts', async (req, res) => {
 
     res.setHeader('Content-Type', 'audio/mpeg');
     res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Content-Length', String(audioBuf.length));
 
     setLast({
       route,
-      request: { textPreview: text.slice(0, 140) },
+      request: {
+        textPreview: nyxVoiceNaturalize(text).slice(0, 160),
+        voice_settings: getElevenVoiceSettings(),
+      },
       response: { ok: true, bytes: audioBuf.length },
       error: null,
     });
@@ -472,59 +563,19 @@ app.post('/api/tts', async (req, res) => {
     setLast({ route, request: req.body, response: payload, error: String(err?.stack || err?.message || err) });
     return res.status(status).json(payload);
   }
-});
+}
+
+// Primary route
+app.post('/api/tts', async (req, res) => ttsHandler(req, res, '/api/tts'));
 
 // Alias route (back-compat): fixes widget builds that call /api/voice
-app.post('/api/voice', async (req, res) => {
-  const route = '/api/voice';
-  try {
-    const text = String(req.body?.text || '').trim();
-    if (!text) {
-      const payload = { ok: false, error: 'NO_TEXT' };
-      setLast({ route, request: req.body, response: payload, error: null });
-      return res.status(400).json(payload);
-    }
-
-    const provider = String(process.env.TTS_PROVIDER || 'elevenlabs').toLowerCase();
-    if (provider !== 'elevenlabs') {
-      const payload = { ok: false, error: 'UNSUPPORTED_TTS_PROVIDER' };
-      setLast({ route, request: req.body, response: payload, error: null });
-      return res.status(400).json(payload);
-    }
-
-    const audioBuf = await synthElevenLabsMp3(text);
-
-    res.setHeader('Content-Type', 'audio/mpeg');
-    res.setHeader('Cache-Control', 'no-store');
-
-    setLast({
-      route,
-      request: { textPreview: text.slice(0, 140) },
-      response: { ok: true, bytes: audioBuf.length },
-      error: null,
-    });
-
-    return res.status(200).send(audioBuf);
-  } catch (err) {
-    const status = Number(err?.status || 500);
-    const payload = {
-      ok: false,
-      error: String(err?.message || 'TTS_ERROR'),
-      status,
-      remoteStatus: err?.remoteStatus,
-      detail: err?.detail ? String(err.detail).slice(0, 800) : undefined,
-    };
-    setLast({ route, request: req.body, response: payload, error: String(err?.stack || err?.message || err) });
-    return res.status(status).json(payload);
-  }
-});
+app.post('/api/voice', async (req, res) => ttsHandler(req, res, '/api/voice'));
 
 /* =========================
    HEALTH + DEBUG + ROOT
 ========================= */
 
 app.get('/', (_, res) => {
-  // Prevent "Cannot GET /" and help quick sanity checks
   res.status(200).send('Sandblast backend OK. Try /api/health');
 });
 
@@ -559,7 +610,7 @@ app.get('/api/debug/last', (req, res) => {
   if (expected && token !== expected) {
     return res.status(403).json({ ok: false, error: 'FORBIDDEN' });
   }
-  res.status(200).json({ ok: true, ...LAST_DEBUG });
+  return res.status(200).json({ ok: true, ...LAST_DEBUG });
 });
 
 /* =========================
@@ -571,11 +622,9 @@ app.post('/api/chat', (req, res) => {
   const body = req && typeof req.body === 'object' ? req.body : {};
   const message = clean(body?.message);
 
-  // honor provided sessionId; otherwise generate and return it
   const sessionId = asText(body?.sessionId) || crypto.randomUUID();
   const session = getSession(sessionId);
 
-  // Anti-loop / double-send guard (keep, but never emit confusing UI text)
   const now = Date.now();
   const sig = sigOf(message);
 
@@ -590,14 +639,13 @@ app.post('/api/chat', (req, res) => {
   try {
     let response;
 
-    // CRITICAL: Empty message should produce intro (not "tap a chip" prompt).
+    // Empty message => intro first (once), then lane picker
     if (!message) {
       if (!session.greeted) {
         session.greeted = true;
         session.checkInPending = true;
         response = nyxGreeting();
       } else {
-        // After intro, empty message can show lanes
         response = lanePickerReply();
       }
     } else if (isGreeting(message)) {
@@ -605,7 +653,6 @@ app.post('/api/chat', (req, res) => {
       session.checkInPending = true;
       response = nyxGreeting();
     } else if (session.checkInPending) {
-      // simple check-in completion, then offer lanes
       session.checkInPending = false;
       response = lanePickerReply();
     } else {
@@ -658,13 +705,17 @@ function selfProbe(host, port) {
 
     sock.once('connect', () => {
       done = true;
-      try { sock.destroy(); } catch (_) {}
+      try {
+        sock.destroy();
+      } catch (_) {}
       resolve(true);
     });
     sock.once('timeout', () => {
       if (!done) {
         done = true;
-        try { sock.destroy(); } catch (_) {}
+        try {
+          sock.destroy();
+        } catch (_) {}
         resolve(false);
       }
     });
