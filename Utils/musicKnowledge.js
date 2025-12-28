@@ -1,15 +1,22 @@
 "use strict";
 
 /**
- * Utils/musicKnowledge.js — v2.43
+ * Utils/musicKnowledge.js — v2.44
  *
- * CRITICAL FIXES (v2.43):
+ * CRITICAL FIXES (v2.44):
  *  - Deterministic Top40Weekly corruption repairs (systemic across years):
- *      "Badd — I WANNA SEX YOU UP Color Me" => "Color Me Badd — I WANNA SEX YOU UP"
- *      "UNBELIEVABLE EMF — Unknown Title" => "EMF — UNBELIEVABLE"
- *      "TIME Surface — THE FIRST" => "Surface — THE FIRST TIME"
- *      "WORDS Extreme — MORE THAN" => "Extreme — MORE THAN WORDS"
- *      "II Men — MOTOWNPHILLY Boyz" => "Boyz II Men — MOTOWNPHILLY"
+ *      1984: "Cry Prince — When Doves" => "Prince — When Doves Cry"
+ *            "Mc Cartney — Say Michael Jackson and Say Say Paul" => "Paul Mc Cartney and Michael Jackson — Say Say Say"
+ *            "Parker, Jr. — Ghostbusters Ray" => "Ray Parker Jr. — Ghostbusters"
+ *      1988: "Tonight INXS — Need You" => "INXS — Need You Tonight"
+ *            "Been Tiffany — Could’ve" => "Tiffany — Could’ve Been"
+ *      1990: "Phillips — HOLD ON Wilson" => "Wilson Phillips — HOLD ON"
+ *            "Biv DeVoe — POISON Bell" => "Bell Biv DeVoe — POISON"
+ *            "VOGUE Madonna — Unknown Title" => "Madonna — VOGUE"
+ *            "Vogue — HOLD ON En" => "En Vogue — HOLD ON"
+ *      1997: Puff Daddy/Faith Evans/112, Puff Daddy/Mase, Monica, Third Eye Blind patterns repaired
+ *      1999: Goo Goo Dolls, TLC, Sixpence None the Richer, Cher patterns repaired
+ *
  *  - Final-pass normalization in coerceTopListMoment() so TOP outputs are always repaired
  *
  * Retains:
@@ -23,7 +30,7 @@ const fs = require("fs");
 const path = require("path");
 
 const MK_VERSION =
-  "musicKnowledge v2.43 (systemic Top40Weekly corruption repairs + final top-list normalization + Wikipedia Year-End merge + Year-End quality guard + Top list coercion + Top40Weekly locks)";
+  "musicKnowledge v2.44 (expanded Top40Weekly corruption repairs across years + final top-list normalization + Wikipedia Year-End merge + Year-End quality guard + Top list coercion + Top40Weekly locks)";
 
 const DEFAULT_CHART = "Billboard Hot 100";
 const TOP40_CHART = "Top40Weekly Top 100";
@@ -314,7 +321,7 @@ function coerceTopListMoment(m, indexFallback) {
   if (!safe.artist) safe.artist = "Unknown Artist";
   if (!safe.title) safe.title = "Unknown Title";
 
-  // v2.43: FINAL PASS — guarantee repairs apply to anything going out in TOP lists
+  // v2.43+: FINAL PASS — guarantee repairs apply to anything going out in TOP lists
   normalizeMomentFields(safe);
 
   if (!_asText(safe.artist)) safe.artist = "Unknown Artist";
@@ -509,16 +516,33 @@ function hardFixKnownCorruptions(m) {
   let artist = _asText(m.artist);
   let title = _asText(m.title);
 
-  // ---- Known one-offs kept from previous versions ----
-  if (year === 1984 && rank === 1 && /^Doves Cry Prince$/i.test(artist) && /^When$/i.test(title)) {
+  // =====================
+  // 1984 — systemic bad splits
+  // =====================
+  // "Cry Prince — When Doves" => "Prince — When Doves Cry"
+  if (year === 1984 && rank === 1 && /^cry\s+prince$/i.test(artist) && /^when\s+doves$/i.test(title)) {
     artist = "Prince";
     title = "When Doves Cry";
   }
-  if (
-    year === 1984 &&
-    rank === 3 &&
-    /^Jackson — Say Say Say Paul Mc Cartney and Michael$/i.test(`${artist} — ${title}`)
-  ) {
+
+  // "Mc Cartney — Say Michael Jackson and Say Say Paul" => "Paul Mc Cartney and Michael Jackson — Say Say Say"
+  if (year === 1984 && rank === 3 && /^mc\s+cartney$/i.test(artist) && /\bsay\s+say\b/i.test(title) && /\bmichael\s+jackson\b/i.test(title)) {
+    artist = "Paul Mc Cartney and Michael Jackson";
+    title = "Say Say Say";
+  }
+
+  // "Parker, Jr. — Ghostbusters Ray" => "Ray Parker Jr. — Ghostbusters"
+  if (year === 1984 && rank === 9 && /^parker,?\s+jr\.?$/i.test(artist) && /\bghostbusters\b/i.test(title) && /\bray\b/i.test(title)) {
+    artist = "Ray Parker Jr.";
+    title = "Ghostbusters";
+  }
+
+  // Keep your older 1984 one-offs (still seen in some dumps)
+  if (year === 1984 && rank === 1 && /^doves\s+cry\s+prince$/i.test(artist) && /^when$/i.test(title)) {
+    artist = "Prince";
+    title = "When Doves Cry";
+  }
+  if (year === 1984 && rank === 3 && /^Jackson — Say Say Say Paul Mc Cartney and Michael$/i.test(`${artist} — ${title}`)) {
     artist = "Paul Mc Cartney and Michael Jackson";
     title = "Say Say Say";
   }
@@ -526,16 +550,62 @@ function hardFixKnownCorruptions(m) {
     artist = "Yes";
     title = "Owner of a Lonely Heart";
   }
-  if (
-    year === 1984 &&
-    rank === 10 &&
-    /^Chameleon Culture Club$/i.test(artist) &&
-    /^Karma$/i.test(title)
-  ) {
+  if (year === 1984 && rank === 10 && /^Chameleon Culture Club$/i.test(artist) && /^Karma$/i.test(title)) {
     artist = "Culture Club";
     title = "Karma Chameleon";
   }
 
+  // =====================
+  // 1988 — recurring “title token in artist / artist token in title”
+  // =====================
+  // "Tonight INXS — Need You" => "INXS — Need You Tonight"
+  if (/^tonight\s+inxs$/i.test(artist) && /^need\s+you$/i.test(title)) {
+    artist = "INXS";
+    title = "Need You Tonight";
+  }
+
+  // "Been Tiffany — Could’ve" => "Tiffany — Could’ve Been"
+  if (/^been\s+tiffany$/i.test(artist) && /^could(?:'|’)ve$/i.test(title)) {
+    artist = "Tiffany";
+    title = "Could’ve Been";
+  }
+
+  // =====================
+  // 1990 — recurring “tail act token” / “unknown-title swap”
+  // =====================
+  // "Phillips — HOLD ON Wilson" => "Wilson Phillips — HOLD ON"
+  if (/^phillips$/i.test(artist) && /\bhold\s+on\b/i.test(title) && /\bwilson\b/i.test(title)) {
+    artist = "Wilson Phillips";
+    title = title.replace(/\s*\bwilson\b\s*$/i, "").trim() || "HOLD ON";
+  }
+
+  // "Biv DeVoe — POISON Bell" => "Bell Biv DeVoe — POISON"
+  if (/^biv\s+devoe$/i.test(artist) && /\bbell\b/i.test(title) && /\bpoison\b/i.test(title)) {
+    artist = "Bell Biv DeVoe";
+    title = title.replace(/\s*\bbell\b\s*$/i, "").trim() || "POISON";
+  }
+
+  // "Biv DeVoe — DO ME! Bell" => "Bell Biv DeVoe — DO ME!"
+  if (/^biv\s+devoe$/i.test(artist) && /\bbell\b/i.test(title) && /\bdo\s+me\b/i.test(title)) {
+    artist = "Bell Biv DeVoe";
+    title = title.replace(/\s*\bbell\b\s*$/i, "").trim() || "DO ME!";
+  }
+
+  // "VOGUE Madonna — Unknown Title" => "Madonna — VOGUE"
+  if (/^vogue\s+madonna$/i.test(artist) && isUnknownTitle(title)) {
+    artist = "Madonna";
+    title = "VOGUE";
+  }
+
+  // "Vogue — HOLD ON En" => "En Vogue — HOLD ON"
+  if (/^vogue$/i.test(artist) && /\bhold\s+on\b/i.test(title) && /\ben\b/i.test(title)) {
+    artist = "En Vogue";
+    title = title.replace(/\s*\ben\b\s*$/i, "").trim() || "HOLD ON";
+  }
+
+  // =====================
+  // 1994 — keep your known good fixes
+  // =====================
   if (year === 1994 && rank === 1) { artist = "Ace of Base"; title = "THE SIGN"; }
   if (year === 1994 && rank === 5) { artist = "Ace of Base"; title = "DON’T TURN AROUND"; }
   if (year === 1994 && rank === 7) {
@@ -543,7 +613,76 @@ function hardFixKnownCorruptions(m) {
     title = "WILD NIGHT";
   }
 
-  // ---- Systemic Top40Weekly corruption repairs (cross-year) ----
+  // =====================
+  // 1997 — Puff Daddy / Monica / Third Eye Blind corruption family
+  // =====================
+  // "and Faith Evans featuring — I’LL BE MISSING YOU Puff Daddy 112" => "Puff Daddy & Faith Evans featuring 112 — I’LL BE MISSING YOU"
+  if (
+    /^and\s+faith\s+evans\s+featuring$/i.test(artist) &&
+    /\bmissing\s+you\b/i.test(title) &&
+    /\bpuff\s+daddy\b/i.test(title) &&
+    /\b112\b/i.test(title)
+  ) {
+    artist = "Puff Daddy & Faith Evans featuring 112";
+    title = "I’LL BE MISSING YOU";
+  }
+
+  // "featuring — CAN’T NOBODY HOLD ME DOWN Puff Daddy Mase" => "Puff Daddy featuring Mase — CAN’T NOBODY HOLD ME DOWN"
+  if (
+    /^featuring$/i.test(artist) &&
+    /\bcan[’']?t\s+nobody\s+hold\s+me\s+down\b/i.test(title) &&
+    /\bpuff\s+daddy\b/i.test(title) &&
+    /\bmase\b/i.test(title)
+  ) {
+    artist = "Puff Daddy featuring Mase";
+    title = "CAN’T NOBODY HOLD ME DOWN";
+  }
+
+  // "WILL Monica — FOR YOU I" => "Monica — FOR YOU I WILL"
+  if (/^will\s+monica$/i.test(artist) && /^for\s+you\s+i$/i.test(title)) {
+    artist = "Monica";
+    title = "FOR YOU I WILL";
+  }
+
+  // "Eye Blind — SEMI-CHARMED LIFE Third" => "Third Eye Blind — SEMI-CHARMED LIFE"
+  if (/^eye\s+blind$/i.test(artist) && /\bsemi-charmed\s+life\b/i.test(title) && /\bthird\b/i.test(title)) {
+    artist = "Third Eye Blind";
+    title = title.replace(/\s*\bthird\b\s*$/i, "").trim() || "SEMI-CHARMED LIFE";
+  }
+
+  // =====================
+  // 1999 — Goo Goo Dolls / TLC / Sixpence / Cher corruption family
+  // =====================
+  // "Goo Dolls — SLIDE Goo" => "Goo Goo Dolls — SLIDE"
+  if (/^goo\s+dolls$/i.test(artist) && /\bslide\b/i.test(title) && /\bgoo\b/i.test(title)) {
+    artist = "Goo Goo Dolls";
+    title = title.replace(/\s*\bgoo\b\s*$/i, "").trim() || "SLIDE";
+  }
+
+  // "SCRUBS TLC — NO" => "TLC — NO SCRUBS"
+  if (/^scrubs\s+tlc$/i.test(artist) && /^no$/i.test(title)) {
+    artist = "TLC";
+    title = "NO SCRUBS";
+  }
+
+  // "Richer — KISS ME Sixpence None the" => "Sixpence None the Richer — KISS ME"
+  if (
+    /^richer$/i.test(artist) &&
+    /\bkiss\s+me\b/i.test(title) &&
+    /\bsixpence\b/i.test(title) &&
+    /\bnone\b/i.test(title)
+  ) {
+    artist = "Sixpence None the Richer";
+    title = "KISS ME";
+  }
+
+  // "BELIEVE Cher — Unknown Title" => "Cher — BELIEVE"
+  if (/^believe\s+cher$/i.test(artist) && isUnknownTitle(title)) {
+    artist = "Cher";
+    title = "BELIEVE";
+  }
+
+  // ---- Systemic Top40Weekly corruption repairs (cross-year) retained ----
 
   // "Badd — I WANNA SEX YOU UP Color Me" => "Color Me Badd — I WANNA SEX YOU UP"
   if (/^badd$/i.test(artist) && /\bcolor\s+me\s*$/i.test(title)) {
