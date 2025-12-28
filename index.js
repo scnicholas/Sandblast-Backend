@@ -10,7 +10,12 @@
  *  - Top-10/#1 rendering safety: never prints "undefined." or blank artist/title
  *  - fetch() compatibility: works on Node 16+ (dynamic import fallback) instead of assuming global fetch
  *  - Adds GET / so Render/edge probes don’t show "Cannot GET /"
- *  - NEW: Nyx Voice Naturalizer to make ElevenLabs output more human-like
+ *  - Nyx Voice Naturalizer to make ElevenLabs output more human-like
+ *
+ * CRITICAL UPDATES (this pass):
+ *  - Year override while musicState=ready (typing a year switches year instead of reverting)
+ *  - Top 10 quality guard (prevents dumping mostly-Unknown Title lists)
+ *  - Safer formatTopItem (repairs Jay—Z fragments + basic split heuristics)
  */
 
 const express = require('express');
@@ -136,10 +141,51 @@ function nyxGreeting() {
   };
 }
 
+/**
+ * CRITICAL: safer top-line formatting.
+ * - Never prints undefined rank/artist/title
+ * - Repairs common fragment issues (Jay — Z)
+ * - If artist accidentally contains "Artist — Title", attempt split
+ */
 function formatTopItem(item, idx) {
   const rank = Number.isFinite(Number(item?.rank)) ? Number(item.rank) : idx + 1;
-  const artist = clean(item?.artist) || 'Unknown Artist';
-  const title = clean(item?.title) || 'Unknown Title';
+
+  let artist = clean(item?.artist);
+  let title = clean(item?.title);
+
+  // Fix Jay—Z / Jay , Z / Jay - Z
+  if (artist) {
+    artist = artist
+      .replace(/\bJay\s*[—–-]\s*Z\b/gi, 'Jay-Z')
+      .replace(/\bJay\s*,\s*Z\b/gi, 'Jay-Z')
+      .replace(/\bJay\s+Z\b/gi, 'Jay-Z');
+  }
+
+  // If title is missing/unknown but artist contains a separator, try splitting
+  const sep = /\s[—–-]\s/;
+  if ((!title || /unknown title/i.test(title)) && artist && sep.test(artist)) {
+    const parts = artist.split(sep).map(clean).filter(Boolean);
+
+    if (parts.length === 2) {
+      // Handle "Jay — Z" specifically
+      if (/^jay$/i.test(parts[0]) && /^z$/i.test(parts[1])) {
+        artist = 'Jay-Z';
+        title = title || 'Unknown Title';
+      } else {
+        // Common case: artist field actually holds "Artist — Title"
+        artist = parts[0];
+        title = parts[1];
+      }
+    } else if (parts.length > 2) {
+      // Best-effort: first segment as artist, remainder as title
+      artist = parts[0];
+      title = parts.slice(1).join(' ');
+    }
+  }
+
+  if (!artist) artist = 'Unknown Artist';
+  if (!title) title = 'Unknown Title';
+
   return `${rank}. ${artist} — ${title}`;
 }
 
@@ -148,7 +194,7 @@ function safeArray(x) {
 }
 
 /* =========================
-   NYX VOICE NATURALIZER (NEW)
+   NYX VOICE NATURALIZER
 ========================= */
 
 /**
@@ -175,7 +221,6 @@ function nyxVoiceNaturalize(raw) {
   s = s.replace(/[—–]/g, ', ');
 
   // Replace "X — Y" patterns that show up in music lists
-  // Keep it light; avoid over-parsing.
   s = s.replace(/\s*,\s*,/g, ', ');
 
   // Make "Top 10 — Chart (2010):" more spoken
@@ -185,19 +230,17 @@ function nyxVoiceNaturalize(raw) {
   // Convert "1. Artist — Title" into "Number 1: Artist, Title."
   s = s.replace(/(^|\n)\s*(\d{1,2})\.\s+/g, (m, p1, n) => `${p1}Number ${n}: `);
 
-  // Convert "Artist — Title" into "Artist, Title"
+  // Convert "Artist - Title" into "Artist, Title"
   s = s.replace(/\s-\s/g, ', ');
-  s = s.replace(/\s*,\s*Z\b/g, ', Z'); // keep "Jay Z" from becoming weird
   s = s.replace(/\bJay\s*,\s*Z\b/gi, 'Jay-Z');
 
   // Encourage pauses between sections
   s = s.replace(/\n{3,}/g, '\n\n');
 
-  // If we have a big list, add gentle pauses between items
-  // (Small pause is basically a period + newline)
+  // Gentle pauses between items
   s = s.replace(/\nNumber\s/g, '.\nNumber ');
 
-  // Remove double periods that can happen after replacements
+  // Remove double periods
   s = s.replace(/\.\./g, '.');
 
   return s.trim();
@@ -318,6 +361,20 @@ function handleMusic(message, session) {
   }
 
   if (session.musicState === 'ready') {
+    // CRITICAL FIX: if user types a year here, treat it as a new-year request
+    const maybeYear = isYear(text);
+    if (maybeYear && maybeYear >= 1970 && maybeYear <= 2010) {
+      session.musicYear = maybeYear;
+      session.musicState = 'need_chart';
+      session.musicChart = null;
+
+      const opts = chartsForYear(maybeYear).map((o) => o.chart).slice(0, 5);
+      return {
+        reply: `Got it — ${maybeYear}.\nPick a chart:\n• ${opts.join('\n• ')}`,
+        followUp: opts,
+      };
+    }
+
     const mode = clean(text).toLowerCase();
     const year = session.musicYear;
     const chart = session.musicChart;
@@ -353,6 +410,22 @@ function handleMusic(message, session) {
           return {
             reply: `Top 10 isn’t available for ${chart} (${year}) in the current dataset.\nWant #1 or a story moment?`,
             followUp: ['#1', 'Story moment'],
+          };
+        }
+
+        // CRITICAL FIX: Quality guard—don’t print mostly-Unknown Title lists
+        const unknownCount = top10.filter(
+          (r) => !clean(r?.title) || /unknown title/i.test(String(r?.title || ''))
+        ).length;
+
+        if (unknownCount >= Math.ceil(top10.length * 0.6)) {
+          const preferred = ['Billboard Year-End Hot 100', 'Top40Weekly Top 100'];
+          const fallbacks = ['UK Singles Chart', 'Canada RPM'].filter((c) => c !== chart);
+          return {
+            reply:
+              `I can see entries for ${chart} (${year}), but titles are missing in the current dataset.\n` +
+              `For clean titles, pick Year-End (best) or Top40Weekly, or choose another year.`,
+            followUp: [...preferred, 'Another year', ...fallbacks.slice(0, 2)],
           };
         }
 
