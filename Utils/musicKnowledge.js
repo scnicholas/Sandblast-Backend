@@ -1,20 +1,23 @@
 "use strict";
 
 /**
- * Utils/musicKnowledge.js — v2.39
+ * Utils/musicKnowledge.js — v2.40
  *
- * Adds TOP LIST SAFETY COERCION (prevents "undefined." and blank artist/title in top lists):
- *  - getTopByYear() and getNumberOneByYear() now coerce rank/artist/title deterministically
+ * Critical fixes added:
+ *  - YEAR-END TITLE QUALITY FIX: If a Year-End chart top list is missing >=50% titles,
+ *    auto-fallback to Billboard Hot 100 (then Top40Weekly Top 100) for clean output.
+ *  - NAME-FRAGMENT REPAIR: Repairs obvious artist/title fragment drift (e.g., "Jay — Z", "Mars — Bruno").
  *
- * Retains v2.38 fixes:
- *  - Top40Weekly drift repairs locked: final canonicalizer + 1994 top10 hard locks
+ * Retains v2.39 fixes:
+ *  - Top list safety coercion (prevents "undefined." and blank artist/title in top lists)
+ *  - Top40Weekly drift repairs locked + 1994 hard locks + canonicalizers
  */
 
 const fs = require("fs");
 const path = require("path");
 
 const MK_VERSION =
-  "musicKnowledge v2.39 (Top list coercion: never undefined rank/title/artist; retains Top40Weekly locks + canonicalizers)";
+  "musicKnowledge v2.40 (Year-End title fallback + name-fragment repairs; retains Top list coercion + Top40Weekly locks)";
 
 const DEFAULT_CHART = "Billboard Hot 100";
 const TOP40_CHART = "Top40Weekly Top 100";
@@ -191,6 +194,7 @@ function normalizeChart(chart) {
     return TOP40_CHART;
   if (lc.includes("billboard") || lc.includes("hot 100") || lc.includes("hot100"))
     return "Billboard Hot 100";
+  if (lc.includes("year") && lc.includes("end")) return "Billboard Year-End Hot 100";
   if (lc.includes("uk") && lc.includes("single")) return "UK Singles Chart";
   if (lc.includes("canada") || lc.includes("rpm")) return "Canada RPM";
   if (lc.includes("top40weekly")) return "Top40Weekly";
@@ -230,9 +234,23 @@ function resolveChart(requestedChart, opts = {}) {
   };
 }
 
-// =============================
-// TOP LIST SAFETY (NEW)
-// =============================
+/* ==========================================
+   YEAR-END DETECTION + QUALITY
+========================================== */
+
+function isYearEndChartName(chart) {
+  const c = String(chart || "").toLowerCase();
+  return c.includes("year-end") || (c.includes("year") && c.includes("end"));
+}
+
+function isUnknownTitle(t) {
+  const x = String(t || "").trim().toLowerCase();
+  return !x || x === "unknown title";
+}
+
+/* ==========================================
+   TOP LIST SAFETY (v2.39 retained)
+========================================== */
 function coerceTopListMoment(m, indexFallback) {
   const safe = shallowCloneMoment(m) || {};
 
@@ -273,6 +291,46 @@ function coerceTopListMoment(m, indexFallback) {
   if (!safe.title) safe.title = "Unknown Title";
 
   return safe;
+}
+
+/* ==========================================
+   NAME-FRAGMENT REPAIR (NEW)
+   Fixes: Jay — Z => Jay-Z; Mars — Bruno => Bruno Mars; etc.
+========================================== */
+
+function looksNameToken(s) {
+  const t = String(s || "").trim();
+  if (!t) return false;
+  return /^[A-Za-z][A-Za-z'.-]*$/.test(t);
+}
+
+function repairArtistTitleNameFragments(m) {
+  if (!m || typeof m !== "object") return m;
+
+  let a = String(m.artist || "").trim();
+  let t = String(m.title || "").trim();
+
+  if (!a || !t) return m;
+
+  // Jay — Z => Jay-Z (hard special case)
+  if (/^jay$/i.test(a) && /^z$/i.test(t)) {
+    m.artist = "Jay-Z";
+    m.title = "Unknown Title";
+    return m;
+  }
+
+  // If both are single name tokens and the "title" doesn't look like a song title,
+  // assume the artist split across fields: "Mars — Bruno" => "Bruno Mars"
+  const aTok = a.split(/\s+/).filter(Boolean);
+  const tTok = t.split(/\s+/).filter(Boolean);
+
+  if (aTok.length === 1 && tTok.length === 1 && looksNameToken(aTok[0]) && looksNameToken(tTok[0])) {
+    m.artist = `${tTok[0]} ${aTok[0]}`.replace(/\s+/g, " ").trim();
+    m.title = "Unknown Title";
+    return m;
+  }
+
+  return m;
 }
 
 // =============================
@@ -774,6 +832,9 @@ function normalizeMomentFields(m) {
   repairEmbeddedTitleWordsInArtistAnywhere(m);
   canonicalizeAmpersandActs(m);
 
+  // NEW: Repairs obvious artist/title fragment drift observed in Year-End outputs
+  repairArtistTitleNameFragments(m);
+
   hardFixKnownCorruptions(m);
   canonicalizeAceOfBase(m);
 
@@ -860,7 +921,9 @@ function extractArtistTitleFromRow(row) {
   let artist = _asText(
     row.artist ?? row.Artist ?? row.performer ?? row.Performer ?? row.act ?? row.Act ?? row.by
   );
-  let title = _asText(row.title ?? row.Title ?? row.song ?? row.Song ?? row.track ?? row.Track ?? row.name);
+  let title = _asText(
+    row.title ?? row.Title ?? row.song ?? row.Song ?? row.track ?? row.Track ?? row.name
+  );
 
   if (!artist && row.name && row.by) {
     title = _asText(row.name);
@@ -1190,7 +1253,13 @@ function pickRandomByYearWithMeta(year, chart = null) {
   };
 }
 
-function getTopByYear(year, chart = DEFAULT_CHART, limit = 10) {
+/* ==========================================
+   TOP LIST RETRIEVAL (UPDATED)
+   - raw getter (no year-end fallback)
+   - public getter with year-end quality fallback
+========================================== */
+
+function _getTopByYearRaw(year, chart = DEFAULT_CHART, limit = 10) {
   const bucket = poolForYear(year, chart);
   if (!bucket.length) return [];
 
@@ -1205,15 +1274,34 @@ function getTopByYear(year, chart = DEFAULT_CHART, limit = 10) {
       return 0;
     });
 
-    // NEW: Coerce output so consumers never see undefined fields.
     return ranked.slice(0, lim).map((m, i) => coerceTopListMoment(m, i));
   }
 
   const copy = bucket.slice();
   copy.sort((a, b) => norm(a.artist).localeCompare(norm(b.artist)));
-
-  // NEW: Coerce output so consumers never see undefined fields.
   return copy.slice(0, lim).map((m, i) => coerceTopListMoment(m, i));
+}
+
+function getTopByYear(year, chart = DEFAULT_CHART, limit = 10) {
+  const usedChart = normalizeChart(chart || DEFAULT_CHART);
+  const out = _getTopByYearRaw(year, usedChart, limit);
+
+  // If a Year-End list is mostly missing titles, auto-fallback for clean UX.
+  if (out.length && isYearEndChartName(usedChart)) {
+    const missing = out.filter((x) => isUnknownTitle(x.title)).length;
+    if (missing >= Math.ceil(out.length * 0.5)) {
+      const alt1 = _getTopByYearRaw(year, "Billboard Hot 100", limit);
+      if (alt1 && alt1.length) return alt1;
+
+      const alt2 = _getTopByYearRaw(year, TOP40_CHART, limit);
+      if (alt2 && alt2.length) return alt2;
+
+      // If no alternates exist, return the coerced Year-End output as-is (still safe, just incomplete).
+      return out;
+    }
+  }
+
+  return out;
 }
 
 function getNumberOneByYear(year, chart = DEFAULT_CHART) {
@@ -1232,6 +1320,7 @@ function detectYearFromText(text) {
 function detectChartFromText(text) {
   const t = String(text || "").toLowerCase();
   if (t.includes("top40weekly")) return TOP40_CHART;
+  if (t.includes("year") && t.includes("end")) return "Billboard Year-End Hot 100";
   if (t.includes("billboard")) return "Billboard Hot 100";
   if (t.includes("uk")) return "UK Singles Chart";
   if (t.includes("rpm") || t.includes("canada")) return "Canada RPM";
