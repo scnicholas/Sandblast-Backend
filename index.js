@@ -72,6 +72,11 @@ const PROFILES_TTL_DAYS = Number(process.env.PROFILES_TTL_DAYS || 30);
 // Upload limits (tune later)
 const AUDIO_MAX_BYTES = Number(process.env.AUDIO_MAX_BYTES || 12 * 1024 * 1024); // 12MB default
 
+// Anti-loop / forward-motion (critical)
+const ANTI_LOOP_WINDOW_MS = Number(process.env.NYX_ANTI_LOOP_WINDOW_MS || 1200);
+const REPEAT_REPLY_WINDOW_MS = Number(process.env.NYX_REPEAT_REPLY_WINDOW_MS || 120000); // 2 min
+const MAX_REPEAT_REPLY = Number(process.env.NYX_MAX_REPEAT_REPLY || 2);
+
 /* =========================
    HELPERS
 ========================= */
@@ -100,17 +105,8 @@ function asVisitorId(v) {
   return t.slice(0, 128);
 }
 
-function isGreeting(msg) {
-  const m = asText(msg).toLowerCase();
-  return (
-    m === 'hi' ||
-    m === 'hello' ||
-    m === 'hey' ||
-    m === 'yo' ||
-    m.startsWith('hi ') ||
-    m.startsWith('hello ') ||
-    m.startsWith('hey ')
-  );
+function normText(x) {
+  return asText(x).toLowerCase().replace(/\s+/g, ' ').trim();
 }
 
 function clamp(n, lo, hi) {
@@ -122,6 +118,29 @@ function clamp(n, lo, hi) {
 function boolish(x) {
   const t = String(x || '').toLowerCase().trim();
   return t === 'true' || t === '1' || t === 'yes' || t === 'y';
+}
+
+function isGreeting(msg) {
+  const m = normText(msg);
+  return (
+    m === 'hi' ||
+    m === 'hello' ||
+    m === 'hey' ||
+    m === 'yo' ||
+    m.startsWith('hi ') ||
+    m.startsWith('hello ') ||
+    m.startsWith('hey ')
+  );
+}
+
+function isNearEmpty(msg) {
+  const m = normText(msg);
+  if (!m) return true;
+  // mic-capture junk / fillers (common)
+  if (m === '.' || m === '-' || m === '…') return true;
+  if (m === 'uh' || m === 'um' || m === 'hmm') return true;
+  if (m.length <= 1) return true;
+  return false;
 }
 
 /**
@@ -141,6 +160,48 @@ function normalizeTranscriptForNyx(t) {
   s = s.replace(/^\s*on air,?\s*/i, '');
 
   return s.trim();
+}
+
+function pickTopicFromUser(msg) {
+  const m = asText(msg);
+  if (!m) return '';
+  // Keep it simple and safe: first ~10 words, no punctuation noise
+  const words = m
+    .replace(/[^\w\s'#-]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 10);
+  return words.join(' ').trim();
+}
+
+function laneFromMessage(mLower) {
+  // deterministic lane intents (chips or typed)
+  if (mLower === 'music') return 'music';
+  if (mLower === 'tv') return 'tv';
+  if (mLower === 'sponsors' || mLower === 'sponsor') return 'sponsors';
+  if (mLower === 'ai') return 'ai';
+  if (mLower === 'general') return 'general';
+  return null;
+}
+
+function isResumeCommand(mLower) {
+  if (!mLower) return false;
+  return (
+    mLower === 'resume' ||
+    mLower === 'resume music' ||
+    mLower === 'resume tv' ||
+    mLower === 'resume sponsors' ||
+    mLower === 'resume ai' ||
+    mLower === 'pick up' ||
+    mLower.includes('pick up where') ||
+    mLower.includes('continue') ||
+    mLower.includes('resume')
+  );
+}
+
+function isSwitchLanes(mLower) {
+  if (!mLower) return false;
+  return mLower === 'switch' || mLower.includes('switch lane') || mLower.includes('switch lanes') || mLower.includes('change lanes');
 }
 
 /* =========================
@@ -187,12 +248,22 @@ function getSession(sessionId, visitorId) {
       turnCount: 0,
       userTurnCount: 0,
 
-      // anti-loop
+      // anti-loop signature (request-level)
       lastSig: null,
       lastSigAt: 0,
 
+      // reply repeat detection (assistant-level)
+      lastAssistantReply: null,
+      lastAssistantAt: 0,
+      repeatReplyCount: 0,
+
       // follow-up de-dupe
       lastFollowSig: null,
+
+      // lightweight topic memory (for depth)
+      topic: (profile?.topic && String(profile.topic)) || '',
+      lastUserText: '',
+      lastUserAt: 0,
 
       // music state
       musicState: 'start',
@@ -283,10 +354,27 @@ function rebuildMusicCoverage() {
 }
 rebuildMusicCoverage();
 
-function lanePickerReply(session) {
+function lanePickerReply(session, reason) {
   const isResumeCandidate = !!(session?.profile?.lastLane || session?.musicYear || session?.musicChart);
+  const lane = session?.lane || 'general';
 
-  if (session?.lane === 'music') {
+  // Avoid repeating the same lane-picker line endlessly
+  const hasRecentRepeat =
+    session?.lastAssistantReply &&
+    session.lastAssistantReply.includes('pick up where we left off') &&
+    Date.now() - (session.lastAssistantAt || 0) < REPEAT_REPLY_WINDOW_MS &&
+    (session.repeatReplyCount || 0) >= 1;
+
+  // If we already asked the lane-picker recently, be more direct and forward-moving
+  if (hasRecentRepeat) {
+    return {
+      reply:
+        "Let’s keep it moving.\nPick one: Music, TV, Sponsors, or AI — or tell me what you want in one sentence and I’ll drive.",
+      followUp: ['Music', 'TV', 'Sponsors', 'AI'],
+    };
+  }
+
+  if (lane === 'music') {
     const y = session?.musicYear;
     const c = session?.profile?.musicChart;
     const label = y && c ? `Resume Music (${y}, ${c})` : y ? `Resume Music (${y})` : 'Resume Music';
@@ -304,9 +392,10 @@ function lanePickerReply(session) {
     };
   }
 
+  // “First-time” lane prompt—short and clean
   return {
-    reply: 'What would you like to explore next?',
-    followUp: ['General', 'Music', 'TV', 'Sponsors', 'AI'],
+    reply: 'Where do you want to go — Music, TV, Sponsors, or AI?',
+    followUp: ['Music', 'TV', 'Sponsors', 'AI'],
   };
 }
 
@@ -315,6 +404,13 @@ function nyxGreeting() {
     reply: "Welcome to Sandblast. I’m Nyx.\nHow are you today?",
     followUp: null,
   };
+}
+
+function nyxCheckInAck(userText) {
+  const t = normText(userText);
+  if (!t) return "Got you.\nWhere do you want to go — Music, TV, Sponsors, or AI?";
+  // gentle, non-cringe acknowledgment
+  return `Got it.\nWhere do you want to go next — Music, TV, Sponsors, or AI?`;
 }
 
 function formatTopItem(item, idx) {
@@ -449,6 +545,36 @@ function handleMusic(message, session) {
   }
 
   return lanePickerReply(session);
+}
+
+/* =========================
+   GENERAL LANE (DEPTH WITHOUT LLM)
+========================= */
+
+function handleGeneral(message, session) {
+  const msg = asText(message);
+  const mLower = normText(msg);
+
+  // Update topic memory
+  const topic = pickTopicFromUser(msg);
+  if (topic) session.topic = topic;
+
+  // If user asks a question, we steer into a clarifying, forward-moving flow
+  const isQuestion = msg.includes('?') || mLower.startsWith('how ') || mLower.startsWith('what ') || mLower.startsWith('why ');
+
+  if (isQuestion) {
+    return {
+      reply:
+        `I hear you.\nTo give you a strong answer, tell me what “good” looks like here — speed, accuracy, or user experience?`,
+      followUp: ['Speed', 'Accuracy', 'User experience'],
+    };
+  }
+
+  // Otherwise, reflect + advance
+  return {
+    reply: `Got it.\nDo you want me to help you plan the next steps, diagnose an issue, or write something for the audience?`,
+    followUp: ['Next steps', 'Diagnose', 'Write a post'],
+  };
 }
 
 /* =========================
@@ -597,9 +723,38 @@ async function elevenSTT({ audioBuffer, filename, contentType, opts }) {
    CHAT CORE (shared by /api/chat and /api/s2s)
 ========================= */
 
+function applyReplyRepeatTracking(session, replyText) {
+  const now = Date.now();
+  const replyNorm = normText(replyText);
+
+  if (!replyNorm) return;
+
+  const last = normText(session.lastAssistantReply || '');
+  const within = now - (session.lastAssistantAt || 0) < REPEAT_REPLY_WINDOW_MS;
+
+  if (within && last && replyNorm === last) {
+    session.repeatReplyCount = (session.repeatReplyCount || 0) + 1;
+  } else {
+    session.repeatReplyCount = 0;
+  }
+
+  session.lastAssistantReply = replyText;
+  session.lastAssistantAt = now;
+}
+
+function loopBreakerReply(session) {
+  // Hard steer: never stall; never re-ask the same prompt
+  return {
+    reply:
+      "Okay — I’m going to steer so we don’t loop.\nPick one:\n• Music (give me a year)\n• TV (what mood?)\n• Sponsors (sell ads or review spots?)\n• AI (strategy, build, or troubleshooting?)",
+    followUp: ['Music', 'TV', 'Sponsors', 'AI'],
+  };
+}
+
 function runNyxChat(body) {
   const route = '/api/chat_core';
-  const message = clean(body?.message);
+  const rawMessage = body?.message;
+  const message = clean(rawMessage);
 
   const sessionId = asText(body?.sessionId) || crypto.randomUUID();
   const visitorId = asVisitorId(body?.visitorId);
@@ -612,12 +767,16 @@ function runNyxChat(body) {
     session.profile = getProfile(visitorId) || session.profile || null;
   }
 
-  // anti-loop signature
+  // record last user text (for depth + debugging)
+  if (message) {
+    session.lastUserText = message;
+    session.lastUserAt = Date.now();
+  }
+
+  // request-level anti-loop signature (fast duplicate suppression)
   const now = Date.now();
   const sig = `${session.lane}|${session.musicState}|${session.musicYear || ''}|${session.musicChart || ''}|${message || ''}`;
-  const antiLoopWindowMs = 1200;
-
-  if (session.lastSig && sig === session.lastSig && now - (session.lastSigAt || 0) < antiLoopWindowMs) {
+  if (session.lastSig && sig === session.lastSig && now - (session.lastSigAt || 0) < ANTI_LOOP_WINDOW_MS) {
     const response = { ok: true, reply: '', followUp: null, noop: true, suppressed: true, sessionId };
     setLast({ route, request: body, response, error: null });
     return response;
@@ -627,48 +786,112 @@ function runNyxChat(body) {
 
   let response;
 
-  if (!message) {
+  // 1) Empty/near-empty input: do NOT bounce to lane picker spam
+  if (!message || isNearEmpty(message)) {
     const isFirstOpen = !session.turnCount || session.turnCount < 1;
+
     if (isFirstOpen) {
       session.greeted = true;
       session.checkInPending = true;
       response = nyxGreeting();
     } else {
-      response = lanePickerReply(session);
+      response = {
+        reply: "I didn’t catch that.\nTry again — or tap a lane and I’ll take it from there.",
+        followUp: ['Music', 'TV', 'Sponsors', 'AI'],
+      };
     }
-  } else if (isGreeting(message)) {
+  }
+  // 2) Greetings
+  else if (isGreeting(message)) {
     session.greeted = true;
     session.checkInPending = true;
     response = nyxGreeting();
-  } else if (session.checkInPending) {
+  }
+  // 3) Check-in: acknowledge, then advance (no loop)
+  else if (session.checkInPending) {
     session.checkInPending = false;
-    response = lanePickerReply(session);
-  } else {
-    const mLower = asText(message).toLowerCase();
+    response = {
+      reply: nyxCheckInAck(message),
+      followUp: ['Music', 'TV', 'Sponsors', 'AI'],
+    };
+  }
+  // 4) Normal turns
+  else {
+    const mLower = normText(message);
 
-    if (mLower === 'general') {
-      session.lane = 'general';
-      response = { reply: 'General it is. What are you in the mood for?', followUp: null };
-    } else if (mLower === 'tv') {
-      session.lane = 'tv';
-      response = { reply: 'TV lane is warming up. What should we explore — classics, schedules, or recommendations?', followUp: null };
-    } else if (mLower === 'sponsors') {
-      session.lane = 'sponsors';
-      response = { reply: 'Sponsors lane. Are you looking to advertise, or explore current sponsor spots?', followUp: null };
-    } else if (mLower === 'ai') {
-      session.lane = 'ai';
-      response = { reply: 'AI lane. Want consulting, a strategy plan, or a quick diagnostic?', followUp: null };
-    } else {
-      if (session.lane === 'music' || mLower === 'music' || session.musicState !== 'start') {
-        response = handleMusic(message, session);
+    // Resume / Switch lanes controls
+    if (isSwitchLanes(mLower)) {
+      response = lanePickerReply(session, 'switch');
+    } else if (isResumeCommand(mLower)) {
+      // “Resume Music (…)” chip handling
+      if (mLower.startsWith('resume music')) {
+        session.lane = 'music';
+        // if year/chart already known, move to ready prompt
+        if (session.musicYear && (session.musicChart || session.profile?.musicChart)) {
+          session.musicChart = session.musicChart || session.profile?.musicChart || null;
+          session.musicState = 'ready';
+          response = {
+            reply: `Resuming Music.\nWant Top 10, #1, or a story moment?`,
+            followUp: ['Top 10', '#1', 'Story moment'],
+          };
+        } else {
+          session.musicState = 'need_year';
+          response = handleMusic('music', session);
+        }
+      } else if (session.profile?.lastLane) {
+        session.lane = String(session.profile.lastLane);
+        response = {
+          reply: `Resuming ${session.lane.toUpperCase()}.\nWhat do you want to do next?`,
+          followUp: session.lane === 'music' ? ['Top 10', '#1', 'Story moment'] : ['Next steps', 'Diagnose', 'Write a post'],
+        };
       } else {
-        response = lanePickerReply(session);
+        response = lanePickerReply(session, 'resume');
+      }
+    } else {
+      // Lane chips / direct lane commands
+      const lanePick = laneFromMessage(mLower);
+      if (lanePick) {
+        session.lane = lanePick;
+
+        if (lanePick === 'music') {
+          response = handleMusic('music', session);
+        } else if (lanePick === 'tv') {
+          response = { reply: 'TV lane. What mood are we going for — nostalgic, action, mystery, or comfort?', followUp: ['Nostalgic', 'Action', 'Mystery', 'Comfort'] };
+        } else if (lanePick === 'sponsors') {
+          response = { reply: 'Sponsors lane. Are you selling ad slots, or reviewing existing sponsor spots?', followUp: ['Sell ad slots', 'Review spots'] };
+        } else if (lanePick === 'ai') {
+          response = { reply: 'AI lane. Do you want strategy, implementation, or troubleshooting right now?', followUp: ['Strategy', 'Implementation', 'Troubleshooting'] };
+        } else {
+          response = handleGeneral(message, session);
+        }
+      } else {
+        // Continuity routing
+        if (session.lane === 'music' || mLower === 'music' || session.musicState !== 'start') {
+          response = handleMusic(message, session);
+        } else if (session.lane === 'general') {
+          response = handleGeneral(message, session);
+        } else {
+          // For non-general lanes, if user types something unrelated, we don’t bounce to lane picker.
+          // We ask a forward-moving clarifier within the lane.
+          if (session.lane === 'tv') {
+            response = { reply: 'Got it. For TV — are you looking for a recommendation, a schedule idea, or classic series picks?', followUp: ['Recommendation', 'Schedule', 'Classic picks'] };
+          } else if (session.lane === 'sponsors') {
+            response = { reply: 'For Sponsors — do you want a sponsorship pitch, a rate card outline, or a campaign idea?', followUp: ['Pitch', 'Rate card', 'Campaign idea'] };
+          } else if (session.lane === 'ai') {
+            response = { reply: 'For AI — are we refining Nyx behavior, fixing an endpoint, or planning the next module?', followUp: ['Refine behavior', 'Fix endpoint', 'Next module'] };
+          } else {
+            response = lanePickerReply(session, 'fallback');
+          }
+        }
       }
     }
   }
 
+  // Profile persistence (lightweight continuity)
   if (session.visitorId) {
     const patch = { lastLane: session.lane };
+    if (session.topic) patch.topic = session.topic;
+
     if (session.lane === 'music') {
       if (session.musicYear) patch.musicYear = session.musicYear;
       if (session.musicChart) patch.musicChart = session.musicChart;
@@ -681,13 +904,21 @@ function runNyxChat(body) {
   const replyText = response?.reply ?? '';
   const followUpFinal = getAnticipatoryFollowUp(session, replyText, response?.followUp ?? null);
 
+  // Assistant reply repeat tracking (critical)
+  applyReplyRepeatTracking(session, replyText);
+
+  // Loop breaker (if the assistant repeats itself)
+  if ((session.repeatReplyCount || 0) >= MAX_REPEAT_REPLY) {
+    response = loopBreakerReply(session);
+  }
+
   session.turnCount = (session.turnCount || 0) + 1;
   if (message) session.userTurnCount = (session.userTurnCount || 0) + 1;
 
   const payload = {
     ok: true,
-    reply: replyText,
-    followUp: followUpFinal,
+    reply: response?.reply ?? replyText,
+    followUp: getAnticipatoryFollowUp(session, response?.reply ?? replyText, response?.followUp ?? followUpFinal),
     sessionId,
   };
 
@@ -755,6 +986,11 @@ app.get('/api/health', (req, res) => {
       ttlMinutes: SESSION_TTL_MINUTES,
       cleanupMinutes: SESSION_CLEANUP_MINUTES,
       cap: SESSION_CAP,
+    },
+    nyx: {
+      antiLoopWindowMs: ANTI_LOOP_WINDOW_MS,
+      repeatReplyWindowMs: REPEAT_REPLY_WINDOW_MS,
+      maxRepeatReply: MAX_REPEAT_REPLY,
     },
   });
 });
