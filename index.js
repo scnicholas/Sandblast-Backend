@@ -14,12 +14,17 @@
  *  - POST /api/voice (alias)
  *
  * CRITICAL CONVERSATION PATCH (THIS RESEND):
- *  - Nyx conversation is now broadcast-led and forward-moving:
+ *  - Nyx conversation is broadcast-led and forward-moving:
  *      Signal → Moment → Choice → Momentum
  *  - Removes “support-bot router” replies in General lane
  *  - Handles greetings / “how are you” / name-intros without disjoint menus
  *  - Enforces: value-first, max one question, two-choice control in text
  *  - Keeps Music safety logic (Story moment safe fallback) and loop guards
+ *
+ * FIXES ADDED (vNext):
+ *  - Anti-loop suppression no longer returns blank reply (returns last assistant reply instead)
+ *  - Year parsing accepts embedded years: “1987 please”, “try 1994”, “year 1988”
+ *  - Chart parsing accepts fuzzy matches (not only exact chip string)
  */
 
 const express = require('express');
@@ -221,6 +226,74 @@ function isSwitchLanes(mLower) {
 
 function isStoryMomentCommand(mLower) {
   return mLower === 'story moment' || mLower.includes('story moment') || (mLower.includes('story') && mLower.length <= 20);
+}
+
+/**
+ * Extract a valid year even when embedded in text:
+ * - “1987 please”
+ * - “try 1994”
+ * - “year 1988”
+ */
+function extractYearInRange(message, start, end) {
+  const s = asText(message);
+  if (!s) return null;
+
+  // Prefer a standalone 4-digit year
+  const m = s.match(/\b(19[0-9]{2}|20[0-9]{2})\b/);
+  if (!m) return null;
+
+  const y = Number(m[1]);
+  if (!Number.isFinite(y)) return null;
+  if (y < start || y > end) return null;
+  return y;
+}
+
+/**
+ * Fuzzy chart matching. Accepts:
+ * - exact chip match
+ * - loose variants: “billboard year end”, “uk singles”, “canada rpm”
+ */
+function normalizeChartKey(s) {
+  return asText(s)
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function fuzzyPickChart(message, charts) {
+  const key = normalizeChartKey(message);
+  if (!key) return null;
+
+  // Exact normalized match
+  for (const c of charts) {
+    if (normalizeChartKey(c) === key) return c;
+  }
+
+  // Includes match (user partial)
+  for (const c of charts) {
+    const ck = normalizeChartKey(c);
+    if (ck.includes(key) || key.includes(ck)) return c;
+  }
+
+  // Heuristic aliases
+  const alias = [
+    { pat: /\buk\b.*singles|\bsingles\b.*\buk\b|\buk singles\b/, hit: 'UK Singles Chart' },
+    { pat: /\bcanada\b.*\brpm\b|\brpm\b/, hit: 'Canada RPM' },
+    { pat: /\byear\s*end\b|\byear-end\b|\byearend\b/, hit: 'Billboard Year-End Hot 100' },
+    { pat: /\bhot\s*100\b|\bhot100\b/, hit: 'Billboard Hot 100' },
+    { pat: /\btop40\b|\btop 40\b/, hit: 'Top40Weekly Top 100' },
+  ];
+
+  for (const a of alias) {
+    if (a.pat.test(key)) {
+      const found = charts.find((c) => normalizeChartKey(c) === normalizeChartKey(a.hit));
+      if (found) return found;
+    }
+  }
+
+  return null;
 }
 
 /* =========================
@@ -520,7 +593,9 @@ function handleMusic(message, session) {
   const msg = asText(message);
   const mLower = msg.toLowerCase();
 
-  const year = Number(msg);
+  // Robust embedded year support (prevents “revert” / “ignored year” feelings)
+  const embeddedYear = extractYearInRange(msg, MUSIC_COVERAGE.start, MUSIC_COVERAGE.end);
+  const year = embeddedYear != null ? embeddedYear : Number(msg);
   const isYear = Number.isFinite(year) && year >= MUSIC_COVERAGE.start && year <= MUSIC_COVERAGE.end;
 
   if (isYear) {
@@ -538,7 +613,9 @@ function handleMusic(message, session) {
   }
 
   const charts = MUSIC_COVERAGE.charts;
-  const chartPick = charts.find((c) => c.toLowerCase() === mLower);
+
+  // Fuzzy chart match (more forgiving than exact match)
+  const chartPick = fuzzyPickChart(msg, charts);
   if (chartPick) {
     session.lane = 'music';
     session.musicChart = chartPick;
@@ -693,10 +770,7 @@ function handleGeneral(message, session) {
   const topic = pickTopicFromUser(msg);
   if (topic) session.topic = topic;
 
-  // If the user is vague, Nyx still offers value + one tight choice.
-  // Keep 2-choice control to prevent disjoint menus.
-
-  // “Fun / Build-Fix” macro-routing (matches your desired behavior)
+  // “Fun / Build-Fix” macro-routing (matches desired behavior)
   if (mLower === 'fun') {
     return nyxCompose({
       signal: 'Good. Fun it is.',
@@ -715,7 +789,6 @@ function handleGeneral(message, session) {
     });
   }
 
-  // If it reads like a question, answer with a “definition” prompt (one question max).
   const isQuestion =
     msg.includes('?') ||
     mLower.startsWith('how ') ||
@@ -733,7 +806,6 @@ function handleGeneral(message, session) {
     });
   }
 
-  // Default: forward motion without the “support-bot” triage.
   return nyxCompose({
     signal: 'Copy.',
     moment: 'If you give me one sentence on what you want, I’ll drive the next move.',
@@ -884,6 +956,11 @@ async function elevenSTT({ audioBuffer, filename, contentType, opts }) {
    CHAT CORE
 ========================= */
 
+let LAST = null;
+function setLast(obj) {
+  LAST = { ...obj, at: new Date().toISOString() };
+}
+
 function applyReplyRepeatTracking(session, replyText) {
   const now = Date.now();
   const replyNorm = normText(replyText);
@@ -938,8 +1015,17 @@ function runNyxChat(body) {
 
   const now = Date.now();
   const sig = `${session.lane}|${session.musicState}|${session.musicYear || ''}|${session.musicChart || ''}|${message || ''}`;
+
+  // Anti-loop suppression: NEVER return blank reply; return last assistant reply instead.
   if (session.lastSig && sig === session.lastSig && now - (session.lastSigAt || 0) < ANTI_LOOP_WINDOW_MS) {
-    const response = { ok: true, reply: '', followUp: null, noop: true, suppressed: true, sessionId };
+    const response = {
+      ok: true,
+      reply: clean(session.lastAssistantReply) || 'Copy that. Tap again if you meant to resend — I’m with you.',
+      followUp: null,
+      noop: true,
+      suppressed: true,
+      sessionId,
+    };
     setLast({ route, request: body, response, error: null });
     return response;
   }
@@ -974,7 +1060,6 @@ function runNyxChat(body) {
     if (isSwitchLanes(mLower)) {
       response = lanePickerReply(session);
     } else if (isResumeCommand(mLower)) {
-      // Resume should feel natural, not like a system prompt.
       if (mLower.startsWith('resume music')) {
         session.lane = 'music';
         if (session.musicYear && (session.musicChart || session.profile?.musicChart)) {
