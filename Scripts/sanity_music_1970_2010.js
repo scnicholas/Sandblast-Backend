@@ -17,9 +17,10 @@
  *   - Unknown Title/Artist thresholds (especially Year-End)
  *   - Detects "rotated spill" signature (STRICT, whitelist-based)
  *
- * Notes:
- *   - This is a regression tool. Keep it strict, but not stupid.
- *   - We do systemic repairs in Utils/musicKnowledge.js; this script tells us where to focus next.
+ * Updates (latest):
+ *   - Skip Top40 chart runs if Top40 is present in STATS but effectively empty (0 rows loaded).
+ *   - Year-End "poisoned top10" collapses into one actionable issue instead of noisy repeats.
+ *   - Adds a per-year compact summary so you can see which years fail fast.
  */
 
 const fs = require("fs");
@@ -38,16 +39,11 @@ const OUT_PATH = path.resolve(
 const START_YEAR = 1970;
 const END_YEAR = 2010;
 
-/**
- * IMPORTANT:
- * Do NOT include "Billboard Hot 100" here unless you have a ranked Hot 100 dataset.
- * Your base DB is "moments" and won't reliably support "Top 10 by year" semantics for Hot 100.
- */
 const CHARTS = [
   { name: "Billboard Year-End Hot 100", start: START_YEAR, end: END_YEAR },
 ];
 
-// Optional chart (only if present)
+// Optional chart (only if present AND has data)
 const TOP40 = { name: "Top40Weekly Top 100", start: 1980, end: 1999 };
 
 function asText(x) {
@@ -79,17 +75,8 @@ function isHangWord(w) {
 }
 
 /**
- * STRICT rotated-spill detector (whitelist-based):
- *
- * We ONLY flag the corruption signature actually seen in your dataset:
- *   artist="Away Chicago", title="Look"  -> should be "Chicago — Look Away"
- *   artist="Thorn Poison", title="Every Rose Has Its" -> should be "Poison — Every Rose Has Its Thorn"
- *
- * To avoid false positives (e.g., "Elton John — Crocodile Rock"):
- *  - artist MUST be exactly 2 tokens
- *  - title must be short (<=2 words) OR end with a hang word
- *  - moved token (artist[0]) must be in KNOWN_SPILLS
- *  - moved token must NOT already exist in title
+ * STRICT rotated-spill detector (whitelist-based).
+ * Kept for regression safety, but should be near-zero now.
  */
 function looksLikeRotatedSpill(item) {
   const artist = asText(item?.artist);
@@ -113,18 +100,15 @@ function looksLikeRotatedSpill(item) {
   // If moved token already exists in title, not a spill
   if (titleLc.includes(movedLc)) return false;
 
-  // Only flag if the title is clearly incomplete/short in a way consistent with the corruption
   const endsHang = isHangWord(tTokens[tTokens.length - 1]);
   const titleShort = tTokens.length <= 2;
   if (!(endsHang || titleShort)) return false;
 
-  // Exclude obvious junk / connectors
   if (["the", "and", "feat", "ft"].includes(movedLc)) return false;
   if (moved.length < 3) return false;
   if (!candidateArtist || candidateArtist.length < 2) return false;
   if (["the", "and", "feat", "ft"].includes(norm(candidateArtist))) return false;
 
-  // STRICT whitelist of known spill tokens observed in your corruption families
   const KNOWN_SPILLS = new Set([
     "away",
     "thorn",
@@ -138,8 +122,8 @@ function looksLikeRotatedSpill(item) {
     "tonight",
     "richer",
     "heart",
-    "owner", // (Owner of a Lonely...)
-    "karma", // (Karma Chameleon)
+    "owner",
+    "karma",
   ]);
 
   if (!KNOWN_SPILLS.has(movedLc)) return false;
@@ -150,6 +134,15 @@ function looksLikeRotatedSpill(item) {
 function rankOk(r) {
   const n = Number(r);
   return Number.isFinite(n) && n >= 1 && n <= 100;
+}
+
+/**
+ * If Year-End top 10 is "poisoned" (clustered unknown titles),
+ * collapse noisy UNKNOWN_TITLE spam into one actionable issue.
+ */
+function yearEndPoisoned(top) {
+  const unknownTitles = top.filter((x) => isUnknownTitle(x?.title)).length;
+  return unknownTitles >= 3;
 }
 
 function top10Checks(list, chartName, year) {
@@ -188,7 +181,35 @@ function top10Checks(list, chartName, year) {
     }
   });
 
-  // Field presence + corruption signatures
+  const isYearEnd = chartName.toLowerCase().includes("year-end");
+
+  // If Year-End top is poisoned, record one actionable issue and stop the spam.
+  if (isYearEnd && yearEndPoisoned(top)) {
+    issues.push({
+      type: "YEAREND_UNKNOWN_TITLE_CLUSTER",
+      msg: `Year-End top10 has clustered Unknown Titles (>=3). Recommend fallback-to-Hot100/Top40 or fix Year-End ingest for this year.`,
+      chart: chartName,
+      year,
+      sample: top.slice(0, 5),
+    });
+
+    // Still keep ROTATED_SPILL detection because it’s structurally different.
+    top.forEach((it, i) => {
+      if (looksLikeRotatedSpill(it)) {
+        issues.push({
+          type: "ROTATED_SPILL",
+          msg: `Rotated spill signature @${i}`,
+          chart: chartName,
+          year,
+          sample: it,
+        });
+      }
+    });
+
+    return issues;
+  }
+
+  // Normal field checks (non-poisoned path)
   top.forEach((it, i) => {
     const artist = asText(it?.artist);
     const title = asText(it?.title);
@@ -242,19 +263,6 @@ function top10Checks(list, chartName, year) {
     }
   });
 
-  // Year-End threshold checks
-  if (chartName.toLowerCase().includes("year-end")) {
-    const unknownTitles = top.filter((x) => isUnknownTitle(x?.title)).length;
-    if (unknownTitles >= 3) {
-      issues.push({
-        type: "YEAREND_UNKNOWN_TITLE_CLUSTER",
-        msg: `Too many Unknown Titles in Top 10: ${unknownTitles}`,
-        chart: chartName,
-        year,
-      });
-    }
-  }
-
   return issues;
 }
 
@@ -267,11 +275,25 @@ function safeGetTop10(year, chart) {
   }
 }
 
-function detectTop40Presence() {
+/**
+ * Top40 presence check needs to be stronger than "chart appears in STATS".
+ * We also verify we can pull at least 1 row from a known year.
+ */
+function detectTop40Usable() {
   try {
     const stats = kb.STATS ? kb.STATS() : null;
     const charts = stats?.charts || [];
-    return charts.some((c) => norm(c) === norm(TOP40.name));
+    const hasName = charts.some((c) => norm(c) === norm(TOP40.name));
+    if (!hasName) return false;
+
+    // Probe a few years to see if the dataset is actually populated
+    const probeYears = [1984, 1990, 1994, 1999];
+    for (const y of probeYears) {
+      const probe = kb.getTopByYear(y, TOP40.name, 1);
+      if (Array.isArray(probe) && probe.length && !isUnknownTitle(probe[0]?.title)) return true;
+      if (Array.isArray(probe) && probe.length) return true; // any row is better than zero
+    }
+    return false;
   } catch {
     return false;
   }
@@ -285,9 +307,10 @@ function ensureOutDir() {
 function main() {
   kb.getDb();
 
-  const hasTop40 = detectTop40Presence();
+  const top40Usable = detectTop40Usable();
+
   const chartsToRun = CHARTS.slice();
-  if (hasTop40) chartsToRun.push(TOP40);
+  if (top40Usable) chartsToRun.push(TOP40);
 
   const report = {
     ok: true,
@@ -300,6 +323,8 @@ function main() {
       fails: 0,
       byChart: {},
       byIssueType: {},
+      yearCompact: {}, // NEW: { [year]: { pass: n, fail: n, charts: {...} } }
+      top40Usable,
     },
     failures: [],
   };
@@ -312,6 +337,23 @@ function main() {
     report.summary.byIssueType[type] = (report.summary.byIssueType[type] || 0) + 1;
   };
 
+  const bumpYearCompact = (year, chart, ok) => {
+    const y = String(year);
+    if (!report.summary.yearCompact[y]) {
+      report.summary.yearCompact[y] = { pass: 0, fail: 0, charts: {} };
+    }
+    if (!report.summary.yearCompact[y].charts[chart]) {
+      report.summary.yearCompact[y].charts[chart] = { pass: 0, fail: 0 };
+    }
+    if (ok) {
+      report.summary.yearCompact[y].pass++;
+      report.summary.yearCompact[y].charts[chart].pass++;
+    } else {
+      report.summary.yearCompact[y].fail++;
+      report.summary.yearCompact[y].charts[chart].fail++;
+    }
+  };
+
   for (const c of chartsToRun) {
     for (let y = c.start; y <= c.end; y++) {
       report.summary.totalRuns++;
@@ -322,9 +364,15 @@ function main() {
       if (!res.ok) {
         report.summary.fails++;
         report.summary.byChart[c.name].fails++;
-        const entry = { year: y, chart: c.name, issues: [], error: res.error };
         bumpIssueType("EXCEPTION");
-        report.failures.push(entry);
+        bumpYearCompact(y, c.name, false);
+
+        report.failures.push({
+          year: y,
+          chart: c.name,
+          issues: [],
+          error: res.error,
+        });
         continue;
       }
 
@@ -333,9 +381,12 @@ function main() {
       if (!issues.length) {
         report.summary.passes++;
         report.summary.byChart[c.name].passes++;
+        bumpYearCompact(y, c.name, true);
       } else {
         report.summary.fails++;
         report.summary.byChart[c.name].fails++;
+        bumpYearCompact(y, c.name, false);
+
         issues.forEach((i) => bumpIssueType(i.type));
         report.failures.push({ year: y, chart: c.name, issues });
       }
@@ -351,6 +402,7 @@ function main() {
   console.log(`Total runs: ${report.summary.totalRuns}`);
   console.log(`Passes: ${report.summary.passes}`);
   console.log(`Fails: ${report.summary.fails}`);
+  console.log(`Top40 usable: ${report.summary.top40Usable}`);
   console.log("");
 
   for (const [chart, stats] of Object.entries(report.summary.byChart)) {
