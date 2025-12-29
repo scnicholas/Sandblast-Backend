@@ -15,7 +15,7 @@
  *   - Ranks are 1..10 and non-decreasing
  *   - No undefined/empty artist/title
  *   - Unknown Title/Artist thresholds (especially Year-End)
- *   - Detects "rotated spill" signature (strict)
+ *   - Detects "rotated spill" signature (STRICT, whitelist-based)
  *
  * Notes:
  *   - This is a regression tool. Keep it strict, but not stupid.
@@ -43,13 +43,15 @@ const END_YEAR = 2010;
  * Do NOT include "Billboard Hot 100" here unless you have a ranked Hot 100 dataset.
  * Your base DB is "moments" and won't reliably support "Top 10 by year" semantics for Hot 100.
  */
-const CHARTS = [{ name: "Billboard Year-End Hot 100", start: START_YEAR, end: END_YEAR }];
+const CHARTS = [
+  { name: "Billboard Year-End Hot 100", start: START_YEAR, end: END_YEAR },
+];
 
 // Optional chart (only if present)
 const TOP40 = { name: "Top40Weekly Top 100", start: 1980, end: 1999 };
 
 function asText(x) {
-  return (x == null ? "" : String(x)).trim();
+  return x == null ? "" : String(x).trim();
 }
 
 function norm(x) {
@@ -60,6 +62,7 @@ function isUnknownTitle(s) {
   const t = norm(s);
   return !t || t === "unknown title";
 }
+
 function isUnknownArtist(s) {
   const t = norm(s);
   return !t || t === "unknown artist";
@@ -68,47 +71,25 @@ function isUnknownArtist(s) {
 function isHangWord(w) {
   const t = norm(w);
   return [
-    "a",
-    "an",
-    "the",
-    "this",
-    "that",
-    "to",
-    "in",
-    "on",
-    "of",
-    "for",
-    "with",
-    "at",
-    "from",
-    "by",
-    "and",
-    "or",
-    "its",
-    "my",
-    "your",
-    "me",
-    "you",
-    "her",
-    "his",
-    "our",
-    "their",
+    "a", "an", "the", "this", "that",
+    "to", "in", "on", "of", "for", "with", "at", "from", "by",
+    "and", "or",
+    "its", "my", "your", "me", "you", "her", "his", "our", "their",
   ].includes(t);
 }
 
 /**
- * Strict rotated-spill detector:
- * We ONLY flag the high-confidence corruption family you actually saw:
+ * STRICT rotated-spill detector (whitelist-based):
  *
- *   artist="Away Chicago", title="Look" => should be "Chicago — Look Away"
- *   artist="Thorn Poison", title="Every Rose Has Its" => should be "Poison — Every Rose Has Its Thorn"
+ * We ONLY flag the corruption signature actually seen in your dataset:
+ *   artist="Away Chicago", title="Look"  -> should be "Chicago — Look Away"
+ *   artist="Thorn Poison", title="Every Rose Has Its" -> should be "Poison — Every Rose Has Its Thorn"
  *
- * Rules:
- *  - artist MUST be exactly two tokens
- *  - title must be short (<=2 words) OR end with hang word (its/the/my/etc.)
- *  - moved (artist[0]) is NOT already in title
- *
- * This avoids false positives for legit short titles and normal artist names.
+ * To avoid false positives (e.g., "Elton John — Crocodile Rock"):
+ *  - artist MUST be exactly 2 tokens
+ *  - title must be short (<=2 words) OR end with a hang word
+ *  - moved token (artist[0]) must be in KNOWN_SPILLS
+ *  - moved token must NOT already exist in title
  */
 function looksLikeRotatedSpill(item) {
   const artist = asText(item?.artist);
@@ -127,17 +108,41 @@ function looksLikeRotatedSpill(item) {
   const movedLc = norm(moved);
   const titleLc = norm(title);
 
-  // If already present in title, not this corruption class
-  if (movedLc && titleLc.includes(movedLc)) return false;
+  if (!movedLc) return false;
 
+  // If moved token already exists in title, not a spill
+  if (titleLc.includes(movedLc)) return false;
+
+  // Only flag if the title is clearly incomplete/short in a way consistent with the corruption
   const endsHang = isHangWord(tTokens[tTokens.length - 1]);
   const titleShort = tTokens.length <= 2;
   if (!(endsHang || titleShort)) return false;
 
-  // Exclude obvious junk
+  // Exclude obvious junk / connectors
   if (["the", "and", "feat", "ft"].includes(movedLc)) return false;
   if (moved.length < 3) return false;
   if (!candidateArtist || candidateArtist.length < 2) return false;
+  if (["the", "and", "feat", "ft"].includes(norm(candidateArtist))) return false;
+
+  // STRICT whitelist of known spill tokens observed in your corruption families
+  const KNOWN_SPILLS = new Set([
+    "away",
+    "thorn",
+    "time",
+    "words",
+    "believe",
+    "scrubs",
+    "vogue",
+    "unbelievable",
+    "chameleon",
+    "tonight",
+    "richer",
+    "heart",
+    "owner", // (Owner of a Lonely...)
+    "karma", // (Karma Chameleon)
+  ]);
+
+  if (!KNOWN_SPILLS.has(movedLc)) return false;
 
   return true;
 }
@@ -155,10 +160,9 @@ function top10Checks(list, chartName, year) {
     return issues;
   }
 
-  // Only check first 10 items returned
   const top = list.slice(0, 10);
 
-  // Ranks
+  // Rank checks
   let prev = 0;
   top.forEach((it, i) => {
     const r = it?.rank ?? i + 1;
@@ -184,12 +188,12 @@ function top10Checks(list, chartName, year) {
     }
   });
 
-  // Artist/title presence
+  // Field presence + corruption signatures
   top.forEach((it, i) => {
     const artist = asText(it?.artist);
     const title = asText(it?.title);
 
-    if (!artist)
+    if (!artist) {
       issues.push({
         type: "EMPTY_ARTIST",
         msg: `Empty artist @${i}`,
@@ -197,7 +201,8 @@ function top10Checks(list, chartName, year) {
         year,
         sample: it,
       });
-    if (!title)
+    }
+    if (!title) {
       issues.push({
         type: "EMPTY_TITLE",
         msg: `Empty title @${i}`,
@@ -205,8 +210,9 @@ function top10Checks(list, chartName, year) {
         year,
         sample: it,
       });
+    }
 
-    if (isUnknownArtist(artist))
+    if (isUnknownArtist(artist)) {
       issues.push({
         type: "UNKNOWN_ARTIST",
         msg: `Unknown artist @${i}`,
@@ -214,7 +220,8 @@ function top10Checks(list, chartName, year) {
         year,
         sample: it,
       });
-    if (isUnknownTitle(title))
+    }
+    if (isUnknownTitle(title)) {
       issues.push({
         type: "UNKNOWN_TITLE",
         msg: `Unknown title @${i}`,
@@ -222,6 +229,7 @@ function top10Checks(list, chartName, year) {
         year,
         sample: it,
       });
+    }
 
     if (looksLikeRotatedSpill(it)) {
       issues.push({
@@ -234,7 +242,7 @@ function top10Checks(list, chartName, year) {
     }
   });
 
-  // Chart-specific threshold checks
+  // Year-End threshold checks
   if (chartName.toLowerCase().includes("year-end")) {
     const unknownTitles = top.filter((x) => isUnknownTitle(x?.title)).length;
     if (unknownTitles >= 3) {
@@ -275,7 +283,6 @@ function ensureOutDir() {
 }
 
 function main() {
-  // Force DB load
   kb.getDb();
 
   const hasTop40 = detectTop40Presence();
@@ -294,7 +301,7 @@ function main() {
       byChart: {},
       byIssueType: {},
     },
-    failures: [], // array of {year, chart, issues, error?}
+    failures: [],
   };
 
   for (const c of chartsToRun) {
@@ -338,7 +345,6 @@ function main() {
   ensureOutDir();
   fs.writeFileSync(OUT_PATH, JSON.stringify(report, null, 2), "utf8");
 
-  // Console summary
   console.log("=== MUSIC SANITY REPORT ===");
   console.log(`Range: ${START_YEAR}–${END_YEAR}`);
   console.log(`Output: ${OUT_PATH}`);
@@ -357,7 +363,6 @@ function main() {
   const sortedTypes = Object.entries(report.summary.byIssueType).sort((a, b) => b[1] - a[1]);
   sortedTypes.slice(0, 12).forEach(([t, n]) => console.log(`  ${t}: ${n}`));
 
-  // Print a few sample failures for quick eyeballing
   if (report.failures.length) {
     console.log("\nSample failures (first 10):");
     report.failures.slice(0, 10).forEach((f) => {
