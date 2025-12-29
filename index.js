@@ -18,7 +18,7 @@ const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
 
-const axios = require('axios'); // <-- critical for STT multipart reliability
+const axios = require('axios'); // critical for STT multipart reliability
 const multer = require('multer');
 const FormData = require('form-data');
 
@@ -66,7 +66,7 @@ const SESSION_CLEANUP_MINUTES = Number(process.env.SESSION_CLEANUP_MINUTES || 20
 const SESSION_CAP = Number(process.env.SESSION_CAP || 1500);
 
 const PROFILES_ENABLED = (process.env.PROFILES_ENABLED || 'true').toLowerCase() === 'true';
-const PROFILES_PERSIST = (process.env.PROFILES_PERSIST || 'false').toLowerCase() === 'false' ? false : true; // preserve your prior behavior
+const PROFILES_PERSIST = (process.env.PROFILES_PERSIST || 'false').toLowerCase() === 'false' ? false : true;
 const PROFILES_TTL_DAYS = Number(process.env.PROFILES_TTL_DAYS || 30);
 
 // Upload limits (tune later)
@@ -122,6 +122,25 @@ function clamp(n, lo, hi) {
 function boolish(x) {
   const t = String(x || '').toLowerCase().trim();
   return t === 'true' || t === '1' || t === 'yes' || t === 'y';
+}
+
+/**
+ * CRITICAL: Normalize STT transcript for S2S (broadcast-smart, but surgical).
+ * - Fix common Nyx name slips ("Nix" -> "Nyx")
+ * - Fix Sandblast spacing
+ * - Remove filler prefix "On air,"
+ */
+function normalizeTranscriptForNyx(t) {
+  let s = String(t || '');
+
+  // Common STT slips
+  s = s.replace(/\bNix\b/g, 'Nyx');
+  s = s.replace(/\bSand\s*blast\b/gi, 'Sandblast');
+
+  // Optional: strip broadcast filler lead-in
+  s = s.replace(/^\s*on air,?\s*/i, '');
+
+  return s.trim();
 }
 
 /* =========================
@@ -456,13 +475,8 @@ function getAnticipatoryFollowUp(session, replyText, proposedFollowUp) {
   const base = Array.isArray(proposedFollowUp) ? proposedFollowUp : null;
   const reply = asText(replyText).toLowerCase();
 
-  if (session?.lane && reply.includes('pick a chart')) {
-    return setFollowUp(session, base);
-  }
-
-  if (session?.lane === 'music' && reply.includes('want') && reply.includes('another year')) {
-    return setFollowUp(session, base);
-  }
+  if (session?.lane && reply.includes('pick a chart')) return setFollowUp(session, base);
+  if (session?.lane === 'music' && reply.includes('want') && reply.includes('another year')) return setFollowUp(session, base);
 
   return setFollowUp(session, base);
 }
@@ -476,8 +490,7 @@ function elevenVoiceSettings() {
   if (NYX_VOICE_STABILITY !== '') vs.stability = clamp(NYX_VOICE_STABILITY, 0, 1);
   if (NYX_VOICE_SIMILARITY !== '') vs.similarity_boost = clamp(NYX_VOICE_SIMILARITY, 0, 1);
   if (NYX_VOICE_STYLE !== '') vs.style = clamp(NYX_VOICE_STYLE, 0, 1);
-  if (NYX_VOICE_SPEAKER_BOOST !== '')
-    vs.use_speaker_boost = String(NYX_VOICE_SPEAKER_BOOST).toLowerCase() === 'true';
+  if (NYX_VOICE_SPEAKER_BOOST !== '') vs.use_speaker_boost = String(NYX_VOICE_SPEAKER_BOOST).toLowerCase() === 'true';
   return vs;
 }
 
@@ -524,7 +537,6 @@ function resolveTtsText(body) {
 
 /* =========================
    STT (ELEVENLABS)
-   Critical fix:
    - Use axios + form-data to avoid Undici(fetch) multipart serialization issues.
 ========================= */
 
@@ -722,7 +734,7 @@ app.get('/api/health', (req, res) => {
       provider: 'elevenlabs',
       configured: !!ELEVENLABS_API_KEY,
       modelId: ELEVENLABS_STT_MODEL_ID,
-      languageCode: ELEVENLABS_STT_LANGUAGE_CODE || null,
+      languageCode: clean(ELEVENLABS_STT_LANGUAGE_CODE) || null,
       diarize: ELEVENLABS_STT_DIARIZE,
       tagAudioEvents: ELEVENLABS_STT_TAG_AUDIO_EVENTS,
       useMultiChannel: ELEVENLABS_STT_USE_MULTI_CHANNEL,
@@ -795,8 +807,6 @@ app.post('/api/voice', (req, res) => handleTts(req, res, '/api/voice'));
 
 /* =========================
    STT ROUTE
-   - multipart form-data
-   - file field name: "file"
 ========================= */
 
 app.post('/api/stt', upload.single('file'), async (req, res) => {
@@ -816,7 +826,8 @@ app.post('/api/stt', upload.single('file'), async (req, res) => {
 
     const opts = {
       model_id: clean(req.body?.model_id) || ELEVENLABS_STT_MODEL_ID,
-      language_code: clean(req.body?.language_code) || ELEVENLABS_STT_LANGUAGE_CODE || '',
+      // Prefer request language_code if present; else env; else blank (auto)
+      language_code: clean(req.body?.language_code) || clean(ELEVENLABS_STT_LANGUAGE_CODE) || '',
       diarize: req.body?.diarize != null ? boolish(req.body.diarize) : ELEVENLABS_STT_DIARIZE,
       tag_audio_events:
         req.body?.tag_audio_events != null ? boolish(req.body.tag_audio_events) : ELEVENLABS_STT_TAG_AUDIO_EVENTS,
@@ -851,9 +862,7 @@ app.post('/api/stt', upload.single('file'), async (req, res) => {
 
 /* =========================
    S2S ROUTE
-   - multipart form-data
-   - file field name: "file"
-   - supports extra fields: sessionId, visitorId, diarize, language_code, tag_audio_events, use_multi_channel
+   - Adds transcript normalization (critical UX fix).
 ========================= */
 
 app.post('/api/s2s', upload.single('file'), async (req, res) => {
@@ -877,7 +886,8 @@ app.post('/api/s2s', upload.single('file'), async (req, res) => {
 
     const sttOpts = {
       model_id: clean(req.body?.model_id) || ELEVENLABS_STT_MODEL_ID,
-      language_code: clean(req.body?.language_code) || ELEVENLABS_STT_LANGUAGE_CODE || '',
+      // Prefer request language_code if present; else env; else blank (auto)
+      language_code: clean(req.body?.language_code) || clean(ELEVENLABS_STT_LANGUAGE_CODE) || '',
       diarize: req.body?.diarize != null ? boolish(req.body.diarize) : ELEVENLABS_STT_DIARIZE,
       tag_audio_events:
         req.body?.tag_audio_events != null ? boolish(req.body.tag_audio_events) : ELEVENLABS_STT_TAG_AUDIO_EVENTS,
@@ -892,14 +902,16 @@ app.post('/api/s2s', upload.single('file'), async (req, res) => {
       opts: sttOpts,
     });
 
-    const transcript = clean(stt?.text);
+    // CRITICAL: normalize transcript for better user experience
+    const transcriptRaw = clean(stt?.text);
+    const transcript = normalizeTranscriptForNyx(transcriptRaw);
+
     if (!transcript) {
       const payloadEmpty = { ok: false, error: 'EMPTY_TRANSCRIPT' };
       setLast({ route, request: { bytes: f.size, mimetype: f.mimetype }, response: payloadEmpty, error: 'EMPTY_TRANSCRIPT' });
       return res.status(422).json(payloadEmpty);
     }
 
-    // Run Nyx chat with transcript as the message
     const chatBody = {
       message: transcript,
       sessionId: asText(req.body?.sessionId) || crypto.randomUUID(),
@@ -909,13 +921,13 @@ app.post('/api/s2s', upload.single('file'), async (req, res) => {
     const chat = runNyxChat(chatBody);
     const replyText = clean(chat?.reply);
 
-    // TTS the reply
     const audioBuf = replyText ? await elevenTTS(replyText) : Buffer.alloc(0);
     const audioBase64 = audioBuf && audioBuf.length ? audioBuf.toString('base64') : '';
 
     const payload = {
       ok: true,
       transcript,
+      transcript_raw: transcriptRaw || '', // kept for debugging; remove later if you want
       reply: replyText,
       followUp: chat?.followUp ?? null,
       sessionId: chat?.sessionId || chatBody.sessionId,
