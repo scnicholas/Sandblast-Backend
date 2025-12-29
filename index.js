@@ -2,16 +2,24 @@
 
 /**
  * Sandblast Backend (Nyx)
- * index.js — Works on Node 16+ (dynamic import fallback) instead of assuming global fetch.
+ * index.js — Node 16+ friendly (dynamic import fallback for fetch).
  *
- * NOTE: Updated with continuity counters + transcript-aware first-open greeting.
- * NOTE: TTS hardened: /api/tts + /api/voice alias, NO_TEXT compatibility, safer audio headers,
- *       and tunable ElevenLabs voice settings via env vars.
+ * Adds:
+ *  - ElevenLabs STT: POST /api/stt  (multipart form-data, field name: "file")
+ *  - Speech-to-Speech: POST /api/s2s (STT -> chat -> TTS, returns JSON w/ audioBase64)
+ *
+ * Keeps:
+ *  - POST /api/chat
+ *  - POST /api/tts
+ *  - POST /api/voice (alias)
  */
 
 const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
+
+const multer = require('multer');
+const FormData = require('form-data');
 
 let fetchFn = null;
 try {
@@ -35,8 +43,15 @@ const PORT = process.env.PORT || 3000;
 
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || '';
 const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || '';
-const ELEVENLABS_MODEL_ID = process.env.ELEVENLABS_MODEL_ID || ''; // optional
+const ELEVENLABS_MODEL_ID = process.env.ELEVENLABS_MODEL_ID || ''; // optional TTS model
 const ELEVENLABS_BASE_URL = process.env.ELEVENLABS_BASE_URL || 'https://api.elevenlabs.io';
+
+// STT defaults (Scribe)
+const ELEVENLABS_STT_MODEL_ID = process.env.ELEVENLABS_STT_MODEL_ID || 'scribe_v1';
+const ELEVENLABS_STT_LANGUAGE_CODE = process.env.ELEVENLABS_STT_LANGUAGE_CODE || ''; // e.g. "eng" or blank for auto
+const ELEVENLABS_STT_DIARIZE = (process.env.ELEVENLABS_STT_DIARIZE || 'false').toLowerCase() === 'true';
+const ELEVENLABS_STT_TAG_AUDIO_EVENTS = (process.env.ELEVENLABS_STT_TAG_AUDIO_EVENTS || 'false').toLowerCase() === 'true';
+const ELEVENLABS_STT_USE_MULTI_CHANNEL = (process.env.ELEVENLABS_STT_USE_MULTI_CHANNEL || 'false').toLowerCase() === 'true';
 
 const NYX_VOICE_STABILITY = process.env.NYX_VOICE_STABILITY || '';
 const NYX_VOICE_SIMILARITY = process.env.NYX_VOICE_SIMILARITY || '';
@@ -50,16 +65,15 @@ const SESSION_CLEANUP_MINUTES = Number(process.env.SESSION_CLEANUP_MINUTES || 20
 const SESSION_CAP = Number(process.env.SESSION_CAP || 1500);
 
 const PROFILES_ENABLED = (process.env.PROFILES_ENABLED || 'true').toLowerCase() === 'true';
-const PROFILES_PERSIST = (process.env.PROFILES_PERSIST || 'false').toLowerCase() === 'true';
+const PROFILES_PERSIST = (process.env.PROFILES_PERSIST || 'false').toLowerCase() === 'false' ? false : true; // preserve your prior behavior
 const PROFILES_TTL_DAYS = Number(process.env.PROFILES_TTL_DAYS || 30);
+
+// Upload limits (tune later)
+const AUDIO_MAX_BYTES = Number(process.env.AUDIO_MAX_BYTES || 12 * 1024 * 1024); // 12MB default
 
 /* =========================
    HELPERS
 ========================= */
-
-function nowMs() {
-  return Date.now();
-}
 
 function cleanCellText(s) {
   if (s == null) return '';
@@ -104,6 +118,11 @@ function clamp(n, lo, hi) {
   return Math.max(lo, Math.min(hi, x));
 }
 
+function boolish(x) {
+  const t = String(x || '').toLowerCase().trim();
+  return t === 'true' || t === '1' || t === 'yes' || t === 'y';
+}
+
 /* =========================
    DEBUG SNAPSHOT
 ========================= */
@@ -144,9 +163,9 @@ function getSession(sessionId, visitorId) {
       greeted: false,
       checkInPending: false,
 
-      // conversation continuity (lightweight)
-      turnCount: 0, // total assistant replies emitted in this session
-      userTurnCount: 0, // total non-empty user messages received
+      // conversation continuity
+      turnCount: 0,
+      userTurnCount: 0,
 
       // anti-loop
       lastSig: null,
@@ -171,9 +190,7 @@ function cleanupSessions() {
   const ttlMs = SESSION_TTL_MINUTES * 60 * 1000;
   const cutoff = Date.now() - ttlMs;
 
-  // soft cap guard
   if (SESSIONS.size > SESSION_CAP) {
-    // purge oldest by lastActiveAt
     const entries = Array.from(SESSIONS.entries());
     entries.sort((a, b) => (a[1]?.lastActiveAt || 0) - (b[1]?.lastActiveAt || 0));
     const over = SESSIONS.size - SESSION_CAP;
@@ -224,7 +241,6 @@ function touchProfile(visitorId, patch) {
   const entry = { data, updatedAt: Date.now() };
   PROFILES.set(k, entry);
 
-  // persist hook (optional; off by default)
   if (PROFILES_PERSIST) {
     // no-op placeholder
   }
@@ -250,7 +266,6 @@ rebuildMusicCoverage();
 function lanePickerReply(session) {
   const isResumeCandidate = !!(session?.profile?.lastLane || session?.musicYear || session?.musicChart);
 
-  // lane-transition aware follow-ups (micro-upgrade)
   if (session?.lane === 'music') {
     const y = session?.musicYear;
     const c = session?.profile?.musicChart;
@@ -295,7 +310,6 @@ function formatTopItem(item, idx) {
     title = title.replace(/\s{2,}/g, ' ').trim();
   }
 
-  // Guard against swapped fields
   if (!artist && title) artist = title;
   if (!title && artist) title = artist;
 
@@ -306,7 +320,6 @@ function handleMusic(message, session) {
   const msg = asText(message);
   const mLower = msg.toLowerCase();
 
-  // Year override anytime
   const year = Number(msg);
   const isYear = Number.isFinite(year) && year >= MUSIC_COVERAGE.start && year <= MUSIC_COVERAGE.end;
 
@@ -322,7 +335,6 @@ function handleMusic(message, session) {
     };
   }
 
-  // Chart pick
   const charts = MUSIC_COVERAGE.charts;
   const chartPick = charts.find((c) => c.toLowerCase() === mLower);
   if (chartPick) {
@@ -337,7 +349,6 @@ function handleMusic(message, session) {
     };
   }
 
-  // Start / lane entry
   if (mLower === 'music') {
     session.lane = 'music';
     session.musicState = 'need_year';
@@ -347,7 +358,6 @@ function handleMusic(message, session) {
     };
   }
 
-  // Need year
   if (session.musicState === 'need_year' || session.musicState === 'start') {
     return {
       reply: `Give me a year between ${MUSIC_COVERAGE.start} and ${MUSIC_COVERAGE.end}.`,
@@ -355,7 +365,6 @@ function handleMusic(message, session) {
     };
   }
 
-  // Need chart
   if (session.musicState === 'need_chart') {
     const y = session.musicYear || 1988;
     return {
@@ -364,7 +373,6 @@ function handleMusic(message, session) {
     };
   }
 
-  // Ready commands
   if (session.musicState === 'ready') {
     const y = session.musicYear || 1988;
     const c = session.musicChart || 'Billboard Year-End Hot 100';
@@ -447,9 +455,7 @@ function getAnticipatoryFollowUp(session, replyText, proposedFollowUp) {
   const base = Array.isArray(proposedFollowUp) ? proposedFollowUp : null;
   const reply = asText(replyText).toLowerCase();
 
-  // Lane-aware micro-upgrade: if reply suggests a different lane, include a "Switch to X"
   if (session?.lane && reply.includes('pick a chart')) {
-    // already context-appropriate; leave as-is
     return setFollowUp(session, base);
   }
 
@@ -457,7 +463,6 @@ function getAnticipatoryFollowUp(session, replyText, proposedFollowUp) {
     return setFollowUp(session, base);
   }
 
-  // Default: return proposed with de-dupe
   return setFollowUp(session, base);
 }
 
@@ -470,14 +475,13 @@ function elevenVoiceSettings() {
   if (NYX_VOICE_STABILITY !== '') vs.stability = clamp(NYX_VOICE_STABILITY, 0, 1);
   if (NYX_VOICE_SIMILARITY !== '') vs.similarity_boost = clamp(NYX_VOICE_SIMILARITY, 0, 1);
   if (NYX_VOICE_STYLE !== '') vs.style = clamp(NYX_VOICE_STYLE, 0, 1);
-  if (NYX_VOICE_SPEAKER_BOOST !== '') vs.use_speaker_boost = String(NYX_VOICE_SPEAKER_BOOST).toLowerCase() === 'true';
+  if (NYX_VOICE_SPEAKER_BOOST !== '')
+    vs.use_speaker_boost = String(NYX_VOICE_SPEAKER_BOOST).toLowerCase() === 'true';
   return vs;
 }
 
 async function elevenTTS(text) {
   const fetch = await getFetch();
-
-  // Keep URL simple + stable. Model is sent in payload if present.
   const url = `${ELEVENLABS_BASE_URL}/v1/text-to-speech/${ELEVENLABS_VOICE_ID}?output_format=mp3_44100_128`;
 
   const payload = {
@@ -498,14 +502,12 @@ async function elevenTTS(text) {
 
   if (!r.ok) {
     const txt = await r.text().catch(() => '');
-    const err = new Error(`ELEVENLABS_ERROR: ${r.status} ${txt}`);
+    const err = new Error(`ELEVENLABS_TTS_ERROR: ${r.status} ${txt}`);
     err.status = r.status;
     throw err;
   }
 
   const buf = Buffer.from(await r.arrayBuffer());
-
-  // Safety: reject suspiciously tiny audio
   if (!buf || buf.length < 800) {
     const err = new Error(`ELEVENLABS_AUDIO_TOO_SMALL: ${buf ? buf.length : 0}`);
     err.status = 502;
@@ -515,13 +517,165 @@ async function elevenTTS(text) {
 }
 
 function resolveTtsText(body) {
-  // Compatibility: accept multiple payload shapes used in your past tests + widget variants
-  // - { text }
-  // - { message }
-  // - { reply }
-  // - { NO_TEXT: "..." } or legacy { payload: { text } } is not used here, but easy to add later if needed
   if (!body || typeof body !== 'object') return '';
   return clean(body.text) || clean(body.message) || clean(body.reply) || '';
+}
+
+/* =========================
+   STT (ELEVENLABS)
+========================= */
+
+async function elevenSTT({ audioBuffer, filename, contentType, opts }) {
+  const fetch = await getFetch();
+  const url = `${ELEVENLABS_BASE_URL}/v1/speech-to-text`;
+
+  const fd = new FormData();
+  // ElevenLabs expects "file" (multipart) or cloud_storage_url; we use file. :contentReference[oaicite:1]{index=1}
+  fd.append('file', audioBuffer, {
+    filename: filename || 'audio.webm',
+    contentType: contentType || 'audio/webm',
+    knownLength: audioBuffer.length,
+  });
+
+  fd.append('model_id', (opts && opts.model_id) || ELEVENLABS_STT_MODEL_ID);
+
+  const tagAudioEvents = opts?.tag_audio_events ?? ELEVENLABS_STT_TAG_AUDIO_EVENTS;
+  const diarize = opts?.diarize ?? ELEVENLABS_STT_DIARIZE;
+  const useMultiChannel = opts?.use_multi_channel ?? ELEVENLABS_STT_USE_MULTI_CHANNEL;
+
+  fd.append('tag_audio_events', String(!!tagAudioEvents));
+  fd.append('diarize', String(!!diarize));
+  fd.append('use_multi_channel', String(!!useMultiChannel));
+
+  const lang = clean(opts?.language_code) || clean(ELEVENLABS_STT_LANGUAGE_CODE);
+  if (lang) fd.append('language_code', lang);
+
+  const headers = {
+    ...fd.getHeaders(),
+    'xi-api-key': ELEVENLABS_API_KEY,
+    Accept: 'application/json',
+  };
+
+  const r = await fetch(url, { method: 'POST', headers, body: fd });
+
+  if (!r.ok) {
+    const txt = await r.text().catch(() => '');
+    const err = new Error(`ELEVENLABS_STT_ERROR: ${r.status} ${txt}`);
+    err.status = r.status;
+    throw err;
+  }
+
+  const json = await r.json().catch(() => null);
+  if (!json || typeof json !== 'object') {
+    const err = new Error('ELEVENLABS_STT_BAD_RESPONSE');
+    err.status = 502;
+    throw err;
+  }
+
+  // Typical response includes text + optional language_code/prob + words. :contentReference[oaicite:2]{index=2}
+  return json;
+}
+
+/* =========================
+   CHAT CORE (shared by /api/chat and /api/s2s)
+========================= */
+
+function runNyxChat(body) {
+  const route = '/api/chat_core';
+  const message = clean(body?.message);
+
+  const sessionId = asText(body?.sessionId) || crypto.randomUUID();
+  const visitorId = asVisitorId(body?.visitorId);
+  const session = getSession(sessionId, visitorId);
+
+  session.lastActiveAt = Date.now();
+
+  if (visitorId) {
+    session.visitorId = visitorId;
+    session.profile = getProfile(visitorId) || session.profile || null;
+  }
+
+  // anti-loop signature
+  const now = Date.now();
+  const sig = `${session.lane}|${session.musicState}|${session.musicYear || ''}|${session.musicChart || ''}|${message || ''}`;
+  const antiLoopWindowMs = 1200;
+
+  if (session.lastSig && sig === session.lastSig && now - (session.lastSigAt || 0) < antiLoopWindowMs) {
+    const response = { ok: true, reply: '', followUp: null, noop: true, suppressed: true, sessionId };
+    setLast({ route, request: body, response, error: null });
+    return response;
+  }
+  session.lastSig = sig;
+  session.lastSigAt = now;
+
+  let response;
+
+  if (!message) {
+    const isFirstOpen = !session.turnCount || session.turnCount < 1;
+    if (isFirstOpen) {
+      session.greeted = true;
+      session.checkInPending = true;
+      response = nyxGreeting();
+    } else {
+      response = lanePickerReply(session);
+    }
+  } else if (isGreeting(message)) {
+    session.greeted = true;
+    session.checkInPending = true;
+    response = nyxGreeting();
+  } else if (session.checkInPending) {
+    session.checkInPending = false;
+    response = lanePickerReply(session);
+  } else {
+    const mLower = asText(message).toLowerCase();
+
+    if (mLower === 'general') {
+      session.lane = 'general';
+      response = { reply: 'General it is. What are you in the mood for?', followUp: null };
+    } else if (mLower === 'tv') {
+      session.lane = 'tv';
+      response = { reply: 'TV lane is warming up. What should we explore — classics, schedules, or recommendations?', followUp: null };
+    } else if (mLower === 'sponsors') {
+      session.lane = 'sponsors';
+      response = { reply: 'Sponsors lane. Are you looking to advertise, or explore current sponsor spots?', followUp: null };
+    } else if (mLower === 'ai') {
+      session.lane = 'ai';
+      response = { reply: 'AI lane. Want consulting, a strategy plan, or a quick diagnostic?', followUp: null };
+    } else {
+      if (session.lane === 'music' || mLower === 'music' || session.musicState !== 'start') {
+        response = handleMusic(message, session);
+      } else {
+        response = lanePickerReply(session);
+      }
+    }
+  }
+
+  if (session.visitorId) {
+    const patch = { lastLane: session.lane };
+    if (session.lane === 'music') {
+      if (session.musicYear) patch.musicYear = session.musicYear;
+      if (session.musicChart) patch.musicChart = session.musicChart;
+    }
+
+    const updated = touchProfile(session.visitorId, patch);
+    session.profile = updated || session.profile || null;
+  }
+
+  const replyText = response?.reply ?? '';
+  const followUpFinal = getAnticipatoryFollowUp(session, replyText, response?.followUp ?? null);
+
+  session.turnCount = (session.turnCount || 0) + 1;
+  if (message) session.userTurnCount = (session.userTurnCount || 0) + 1;
+
+  const payload = {
+    ok: true,
+    reply: replyText,
+    followUp: followUpFinal,
+    sessionId,
+  };
+
+  setLast({ route, request: body, response: payload, error: null });
+  return payload;
 }
 
 /* =========================
@@ -529,10 +683,14 @@ function resolveTtsText(body) {
 ========================= */
 
 const app = express();
-
-// Keep it permissive for now (you can lock to your domains later)
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
+
+// Multer for audio uploads (memory; sized)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: AUDIO_MAX_BYTES },
+});
 
 app.get('/', (req, res) => {
   res.status(200).send('Sandblast backend OK. Try /api/health');
@@ -554,6 +712,15 @@ app.get('/api/health', (req, res) => {
       hasVoiceId: !!ELEVENLABS_VOICE_ID,
       hasModelId: !!ELEVENLABS_MODEL_ID,
       voiceSettings: elevenVoiceSettings(),
+    },
+    stt: {
+      provider: 'elevenlabs',
+      configured: !!ELEVENLABS_API_KEY,
+      modelId: ELEVENLABS_STT_MODEL_ID,
+      languageCode: ELEVENLABS_STT_LANGUAGE_CODE || null,
+      diarize: ELEVENLABS_STT_DIARIZE,
+      tagAudioEvents: ELEVENLABS_STT_TAG_AUDIO_EVENTS,
+      useMultiChannel: ELEVENLABS_STT_USE_MULTI_CHANNEL,
     },
     music: {
       coverageBuiltAt: MUSIC_COVERAGE.builtAt,
@@ -601,7 +768,6 @@ async function handleTts(req, res, routeName) {
 
     const audio = await elevenTTS(text);
 
-    // Safer audio headers for browser playback
     res.status(200);
     res.setHeader('Content-Type', 'audio/mpeg');
     res.setHeader('Content-Length', String(audio.length));
@@ -620,117 +786,166 @@ async function handleTts(req, res, routeName) {
 }
 
 app.post('/api/tts', (req, res) => handleTts(req, res, '/api/tts'));
-
-// Alias: keep /api/voice stable for the widget (and any future speech layer)
 app.post('/api/voice', (req, res) => handleTts(req, res, '/api/voice'));
 
 /* =========================
-   CHAT ROUTE
+   STT ROUTE
+   - multipart form-data
+   - file field name: "file"
+========================= */
+
+app.post('/api/stt', upload.single('file'), async (req, res) => {
+  const route = '/api/stt';
+
+  try {
+    if (!ELEVENLABS_API_KEY) {
+      setLast({ route, request: { hasFile: !!req.file }, response: null, error: 'STT_NOT_CONFIGURED' });
+      return res.status(500).json({ ok: false, error: 'STT_NOT_CONFIGURED' });
+    }
+
+    const f = req.file;
+    if (!f || !f.buffer || !f.size) {
+      setLast({ route, request: { hasFile: !!f }, response: null, error: 'NO_FILE' });
+      return res.status(400).json({ ok: false, error: 'NO_FILE' });
+    }
+
+    const opts = {
+      model_id: clean(req.body?.model_id) || ELEVENLABS_STT_MODEL_ID,
+      language_code: clean(req.body?.language_code) || ELEVENLABS_STT_LANGUAGE_CODE || '',
+      diarize: req.body?.diarize != null ? boolish(req.body.diarize) : ELEVENLABS_STT_DIARIZE,
+      tag_audio_events:
+        req.body?.tag_audio_events != null ? boolish(req.body.tag_audio_events) : ELEVENLABS_STT_TAG_AUDIO_EVENTS,
+      use_multi_channel:
+        req.body?.use_multi_channel != null ? boolish(req.body.use_multi_channel) : ELEVENLABS_STT_USE_MULTI_CHANNEL,
+    };
+
+    const stt = await elevenSTT({
+      audioBuffer: f.buffer,
+      filename: f.originalname || 'audio.webm',
+      contentType: f.mimetype || 'audio/webm',
+      opts,
+    });
+
+    const text = clean(stt?.text);
+    const payload = {
+      ok: true,
+      text: text || '',
+      language_code: stt?.language_code || null,
+      language_probability: stt?.language_probability ?? null,
+      words: Array.isArray(stt?.words) ? stt.words : null,
+    };
+
+    setLast({ route, request: { hasFile: true, bytes: f.size, mimetype: f.mimetype, opts }, response: payload, error: null });
+    return res.status(200).json(payload);
+  } catch (err) {
+    const msg = (err && err.message) || 'STT_FAILED';
+    setLast({ route, request: { hasFile: !!req.file }, response: null, error: msg });
+    return res.status(502).json({ ok: false, error: 'STT_FAILED', message: msg });
+  }
+});
+
+/* =========================
+   S2S ROUTE
+   - multipart form-data
+   - file field name: "file"
+   - supports extra fields: sessionId, visitorId, diarize, language_code, tag_audio_events, use_multi_channel
+========================= */
+
+app.post('/api/s2s', upload.single('file'), async (req, res) => {
+  const route = '/api/s2s';
+
+  try {
+    if (!ELEVENLABS_API_KEY) {
+      setLast({ route, request: { hasFile: !!req.file }, response: null, error: 'STT_NOT_CONFIGURED' });
+      return res.status(500).json({ ok: false, error: 'STT_NOT_CONFIGURED' });
+    }
+    if (!ELEVENLABS_VOICE_ID) {
+      setLast({ route, request: { hasFile: !!req.file }, response: null, error: 'TTS_NOT_CONFIGURED' });
+      return res.status(500).json({ ok: false, error: 'TTS_NOT_CONFIGURED' });
+    }
+
+    const f = req.file;
+    if (!f || !f.buffer || !f.size) {
+      setLast({ route, request: { hasFile: !!f }, response: null, error: 'NO_FILE' });
+      return res.status(400).json({ ok: false, error: 'NO_FILE' });
+    }
+
+    const sttOpts = {
+      model_id: clean(req.body?.model_id) || ELEVENLABS_STT_MODEL_ID,
+      language_code: clean(req.body?.language_code) || ELEVENLABS_STT_LANGUAGE_CODE || '',
+      diarize: req.body?.diarize != null ? boolish(req.body.diarize) : ELEVENLABS_STT_DIARIZE,
+      tag_audio_events:
+        req.body?.tag_audio_events != null ? boolish(req.body.tag_audio_events) : ELEVENLABS_STT_TAG_AUDIO_EVENTS,
+      use_multi_channel:
+        req.body?.use_multi_channel != null ? boolish(req.body.use_multi_channel) : ELEVENLABS_STT_USE_MULTI_CHANNEL,
+    };
+
+    const stt = await elevenSTT({
+      audioBuffer: f.buffer,
+      filename: f.originalname || 'audio.webm',
+      contentType: f.mimetype || 'audio/webm',
+      opts: sttOpts,
+    });
+
+    const transcript = clean(stt?.text);
+    if (!transcript) {
+      const payloadEmpty = { ok: false, error: 'EMPTY_TRANSCRIPT' };
+      setLast({ route, request: { bytes: f.size, mimetype: f.mimetype }, response: payloadEmpty, error: 'EMPTY_TRANSCRIPT' });
+      return res.status(422).json(payloadEmpty);
+    }
+
+    // Run Nyx chat with transcript as the message
+    const chatBody = {
+      message: transcript,
+      sessionId: asText(req.body?.sessionId) || crypto.randomUUID(),
+      visitorId: asVisitorId(req.body?.visitorId),
+    };
+
+    const chat = runNyxChat(chatBody);
+    const replyText = clean(chat?.reply);
+
+    // TTS the reply
+    const audioBuf = replyText ? await elevenTTS(replyText) : Buffer.alloc(0);
+    const audioBase64 = audioBuf && audioBuf.length ? audioBuf.toString('base64') : '';
+
+    const payload = {
+      ok: true,
+      transcript,
+      reply: replyText,
+      followUp: chat?.followUp ?? null,
+      sessionId: chat?.sessionId || chatBody.sessionId,
+      audioBase64,
+      audioBytes: audioBuf.length,
+      audioMime: 'audio/mpeg',
+    };
+
+    setLast(
+      {
+        route,
+        request: { bytes: f.size, mimetype: f.mimetype, sttOpts, hasSessionId: !!req.body?.sessionId, hasVisitorId: !!req.body?.visitorId },
+        response: { ok: true, audioBytes: audioBuf.length, transcriptChars: transcript.length, replyChars: replyText.length },
+        error: null
+      }
+    );
+
+    return res.status(200).json(payload);
+  } catch (err) {
+    const msg = (err && err.message) || 'S2S_FAILED';
+    setLast({ route, request: { hasFile: !!req.file }, response: null, error: msg });
+    return res.status(502).json({ ok: false, error: 'S2S_FAILED', message: msg });
+  }
+});
+
+/* =========================
+   CHAT ROUTE (existing)
 ========================= */
 
 app.post('/api/chat', (req, res) => {
   const route = '/api/chat';
   const body = req && typeof req.body === 'object' ? req.body : {};
-  const message = clean(body?.message);
-
-  const sessionId = asText(body?.sessionId) || crypto.randomUUID();
-  const visitorId = asVisitorId(body?.visitorId);
-  const session = getSession(sessionId, visitorId);
-
-  // touch active
-  session.lastActiveAt = Date.now();
-
-  if (visitorId) {
-    session.visitorId = visitorId;
-    session.profile = getProfile(visitorId) || session.profile || null;
-  }
-
-  // anti-loop signature
-  const now = Date.now();
-  const sig = `${session.lane}|${session.musicState}|${session.musicYear || ''}|${session.musicChart || ''}|${message || ''}`;
-  const antiLoopWindowMs = 1200;
-
-  if (session.lastSig && sig === session.lastSig && now - (session.lastSigAt || 0) < antiLoopWindowMs) {
-    const response = { ok: true, reply: '', followUp: null, noop: true, suppressed: true, sessionId };
-    setLast({ route, request: body, response, error: null });
-    return res.status(200).json(response);
-  }
-  session.lastSig = sig;
-  session.lastSigAt = now;
 
   try {
-    let response;
-
-    if (!message) {
-      // First-open behavior: if transcript is effectively empty, greet even if flags drift.
-      const isFirstOpen = !session.turnCount || session.turnCount < 1;
-      if (isFirstOpen) {
-        session.greeted = true;
-        session.checkInPending = true;
-        response = nyxGreeting();
-      } else {
-        response = lanePickerReply(session);
-      }
-    } else if (isGreeting(message)) {
-      session.greeted = true;
-      session.checkInPending = true;
-      response = nyxGreeting();
-    } else if (session.checkInPending) {
-      session.checkInPending = false;
-      response = lanePickerReply(session);
-    } else {
-      const mLower = asText(message).toLowerCase();
-
-      // Lane picks
-      if (mLower === 'general') {
-        session.lane = 'general';
-        response = { reply: 'General it is. What are you in the mood for?', followUp: null };
-      } else if (mLower === 'tv') {
-        session.lane = 'tv';
-        response = { reply: 'TV lane is warming up. What should we explore — classics, schedules, or recommendations?', followUp: null };
-      } else if (mLower === 'sponsors') {
-        session.lane = 'sponsors';
-        response = { reply: 'Sponsors lane. Are you looking to advertise, or explore current sponsor spots?', followUp: null };
-      } else if (mLower === 'ai') {
-        session.lane = 'ai';
-        response = { reply: 'AI lane. Want consulting, a strategy plan, or a quick diagnostic?', followUp: null };
-      } else {
-        // Music handling
-        if (session.lane === 'music' || mLower === 'music' || session.musicState !== 'start') {
-          response = handleMusic(message, session);
-        } else {
-          // default lane picker
-          response = lanePickerReply(session);
-        }
-      }
-    }
-
-    if (session.visitorId) {
-      const patch = { lastLane: session.lane };
-      if (session.lane === 'music') {
-        if (session.musicYear) patch.musicYear = session.musicYear;
-        if (session.musicChart) patch.musicChart = session.musicChart;
-      }
-
-      const updated = touchProfile(session.visitorId, patch);
-      session.profile = updated || session.profile || null;
-    }
-
-    // Anticipatory follow-ups + de-dupe
-    const replyText = response?.reply ?? '';
-    const followUpFinal = getAnticipatoryFollowUp(session, replyText, response?.followUp ?? null);
-
-    // Continuity counters: used to detect first-open vs returning sessions.
-    session.turnCount = (session.turnCount || 0) + 1;
-    if (message) session.userTurnCount = (session.userTurnCount || 0) + 1;
-
-    const payload = {
-      ok: true,
-      reply: replyText,
-      followUp: followUpFinal,
-      sessionId,
-    };
-
+    const payload = runNyxChat(body);
     setLast({ route, request: body, response: payload, error: null });
     return res.status(200).json(payload);
   } catch (err) {
@@ -739,6 +954,10 @@ app.post('/api/chat', (req, res) => {
     return res.status(500).json(payload);
   }
 });
+
+/* =========================
+   START
+========================= */
 
 app.listen(PORT, () => {
   console.log(`[Nyx] up on ${PORT} (build=${process.env.RENDER_GIT_COMMIT || 'local'})`);
