@@ -2,9 +2,11 @@
 
 /**
  * Sandblast Backend (Nyx)
- * index.js...orks on Node 16+ (dynamic import fallback) instead of assuming 
- * 
+ * index.js — Works on Node 16+ (dynamic import fallback) instead of assuming global fetch.
+ *
  * NOTE: Updated with continuity counters + transcript-aware first-open greeting.
+ * NOTE: TTS hardened: /api/tts + /api/voice alias, NO_TEXT compatibility, safer audio headers,
+ *       and tunable ElevenLabs voice settings via env vars.
  */
 
 const express = require('express');
@@ -143,8 +145,8 @@ function getSession(sessionId, visitorId) {
       checkInPending: false,
 
       // conversation continuity (lightweight)
-      turnCount: 0,      // total assistant replies emitted in this session
-      userTurnCount: 0,  // total non-empty user messages received
+      turnCount: 0, // total assistant replies emitted in this session
+      userTurnCount: 0, // total non-empty user messages received
 
       // anti-loop
       lastSig: null,
@@ -239,13 +241,7 @@ const musicKnowledge = require('./Utils/musicKnowledge');
 let MUSIC_COVERAGE = { builtAt: null, start: 1970, end: 2010, charts: [] };
 
 function rebuildMusicCoverage() {
-  const charts = [
-    'Top40Weekly Top 100',
-    'Billboard Hot 100',
-    'Billboard Year-End Hot 100',
-    'Canada RPM',
-    'UK Singles Chart',
-  ];
+  const charts = ['Top40Weekly Top 100', 'Billboard Hot 100', 'Billboard Year-End Hot 100', 'Canada RPM', 'UK Singles Chart'];
   const builtAt = new Date().toISOString();
   MUSIC_COVERAGE = { builtAt, start: 1970, end: 2010, charts };
 }
@@ -293,10 +289,7 @@ function formatTopItem(item, idx) {
   let title = clean(item?.title);
 
   if (artist) {
-    artist = artist
-      .replace(/\bJay\s*[—–-]\s*Z\b/gi, 'Jay-Z')
-      .replace(/\s{2,}/g, ' ')
-      .trim();
+    artist = artist.replace(/\bJay\s*[—–-]\s*Z\b/gi, 'Jay-Z').replace(/\s{2,}/g, ' ').trim();
   }
   if (title) {
     title = title.replace(/\s{2,}/g, ' ').trim();
@@ -324,9 +317,7 @@ function handleMusic(message, session) {
     session.musicState = 'need_chart';
 
     return {
-      reply:
-        `Got it — ${year}.\nPick a chart:\n` +
-        MUSIC_COVERAGE.charts.map((c) => `• ${c}`).join('\n'),
+      reply: `Got it — ${year}.\nPick a chart:\n` + MUSIC_COVERAGE.charts.map((c) => `• ${c}`).join('\n'),
       followUp: MUSIC_COVERAGE.charts,
     };
   }
@@ -368,10 +359,7 @@ function handleMusic(message, session) {
   if (session.musicState === 'need_chart') {
     const y = session.musicYear || 1988;
     return {
-      reply:
-        `Great. For ${y}, I can pull from:\n` +
-        charts.map((c) => `• ${c}`).join('\n') +
-        `\n\nPick one.`,
+      reply: `Great. For ${y}, I can pull from:\n` + charts.map((c) => `• ${c}`).join('\n') + `\n\nPick one.`,
       followUp: charts,
     };
   }
@@ -489,14 +477,12 @@ function elevenVoiceSettings() {
 async function elevenTTS(text) {
   const fetch = await getFetch();
 
-  const url =
-    ELEVENLABS_MODEL_ID
-      ? `${ELEVENLABS_BASE_URL}/v1/text-to-speech/${ELEVENLABS_VOICE_ID}?output_format=mp3_44100_128`
-      : `${ELEVENLABS_BASE_URL}/v1/text-to-speech/${ELEVENLABS_VOICE_ID}?output_format=mp3_44100_128`;
+  // Keep URL simple + stable. Model is sent in payload if present.
+  const url = `${ELEVENLABS_BASE_URL}/v1/text-to-speech/${ELEVENLABS_VOICE_ID}?output_format=mp3_44100_128`;
 
   const payload = {
     text,
-    model_id: ELEVENLABS_MODEL_ID || undefined,
+    ...(ELEVENLABS_MODEL_ID ? { model_id: ELEVENLABS_MODEL_ID } : {}),
     voice_settings: elevenVoiceSettings(),
   };
 
@@ -518,6 +504,7 @@ async function elevenTTS(text) {
   }
 
   const buf = Buffer.from(await r.arrayBuffer());
+
   // Safety: reject suspiciously tiny audio
   if (!buf || buf.length < 800) {
     const err = new Error(`ELEVENLABS_AUDIO_TOO_SMALL: ${buf ? buf.length : 0}`);
@@ -527,11 +514,23 @@ async function elevenTTS(text) {
   return buf;
 }
 
+function resolveTtsText(body) {
+  // Compatibility: accept multiple payload shapes used in your past tests + widget variants
+  // - { text }
+  // - { message }
+  // - { reply }
+  // - { NO_TEXT: "..." } or legacy { payload: { text } } is not used here, but easy to add later if needed
+  if (!body || typeof body !== 'object') return '';
+  return clean(body.text) || clean(body.message) || clean(body.reply) || '';
+}
+
 /* =========================
    EXPRESS APP
 ========================= */
 
 const app = express();
+
+// Keep it permissive for now (you can lock to your domains later)
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
 
@@ -554,6 +553,7 @@ app.get('/api/health', (req, res) => {
       hasApiKey: !!ELEVENLABS_API_KEY,
       hasVoiceId: !!ELEVENLABS_VOICE_ID,
       hasModelId: !!ELEVENLABS_MODEL_ID,
+      voiceSettings: elevenVoiceSettings(),
     },
     music: {
       coverageBuiltAt: MUSIC_COVERAGE.builtAt,
@@ -580,10 +580,14 @@ app.get('/api/debug/last', (req, res) => {
   res.status(200).json({ ok: true, ...(LAST || { route: null, request: null, response: null, error: null }) });
 });
 
-app.post('/api/tts', async (req, res) => {
-  const route = '/api/tts';
+/* =========================
+   TTS ROUTES
+========================= */
+
+async function handleTts(req, res, routeName) {
+  const route = routeName || '/api/tts';
   const body = req && typeof req.body === 'object' ? req.body : {};
-  const text = clean(body?.text) || clean(body?.message) || clean(body?.reply);
+  const text = resolveTtsText(body);
 
   try {
     if (!text) {
@@ -597,22 +601,32 @@ app.post('/api/tts', async (req, res) => {
 
     const audio = await elevenTTS(text);
 
+    // Safer audio headers for browser playback
+    res.status(200);
     res.setHeader('Content-Type', 'audio/mpeg');
-    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Content-Length', String(audio.length));
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Accept-Ranges', 'bytes');
+
     setLast({ route, request: body, response: { ok: true, bytes: audio.length }, error: null });
-    return res.status(200).send(audio);
+    return res.send(audio);
   } catch (err) {
     const msg = (err && err.message) || 'TTS_FAILED';
     setLast({ route, request: body, response: null, error: msg });
     return res.status(502).json({ ok: false, error: 'TTS_FAILED', message: msg });
   }
-});
+}
 
-// Alias
-app.post('/api/voice', async (req, res) => {
-  req.url = '/api/tts';
-  return app._router.handle(req, res, () => {});
-});
+app.post('/api/tts', (req, res) => handleTts(req, res, '/api/tts'));
+
+// Alias: keep /api/voice stable for the widget (and any future speech layer)
+app.post('/api/voice', (req, res) => handleTts(req, res, '/api/voice'));
+
+/* =========================
+   CHAT ROUTE
+========================= */
 
 app.post('/api/chat', (req, res) => {
   const route = '/api/chat';
@@ -702,7 +716,7 @@ app.post('/api/chat', (req, res) => {
       session.profile = updated || session.profile || null;
     }
 
-    // Anticipatory follow-ups (No.4) + de-dupe
+    // Anticipatory follow-ups + de-dupe
     const replyText = response?.reply ?? '';
     const followUpFinal = getAnticipatoryFollowUp(session, replyText, response?.followUp ?? null);
 
