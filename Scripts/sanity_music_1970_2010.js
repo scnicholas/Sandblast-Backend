@@ -15,8 +15,7 @@
  *   - Ranks are 1..10 and non-decreasing
  *   - No undefined/empty artist/title
  *   - Unknown Title/Artist thresholds (especially Year-End)
- *   - Detects "rotated spill" signature:
- *       artist starts with a moved title word, title ends with a hang word (its/the/my/...)
+ *   - Detects "rotated spill" signature (strict)
  *
  * Notes:
  *   - This is a regression tool. Keep it strict, but not stupid.
@@ -28,17 +27,23 @@ const path = require("path");
 
 const kb = require("../Utils/musicKnowledge");
 
-const OUT_PATH = path.resolve(__dirname, "..", "Data", "_sanity_music_report_1970_2010.json");
+const OUT_PATH = path.resolve(
+  __dirname,
+  "..",
+  "Data",
+  "_sanity_music_report_1970_2010.json"
+);
 
 // Primary sweep range
 const START_YEAR = 1970;
 const END_YEAR = 2010;
 
-// Charts to test
-const CHARTS = [
-  { name: "Billboard Hot 100", start: START_YEAR, end: END_YEAR },
-  { name: "Billboard Year-End Hot 100", start: START_YEAR, end: END_YEAR },
-];
+/**
+ * IMPORTANT:
+ * Do NOT include "Billboard Hot 100" here unless you have a ranked Hot 100 dataset.
+ * Your base DB is "moments" and won't reliably support "Top 10 by year" semantics for Hot 100.
+ */
+const CHARTS = [{ name: "Billboard Year-End Hot 100", start: START_YEAR, end: END_YEAR }];
 
 // Optional chart (only if present)
 const TOP40 = { name: "Top40Weekly Top 100", start: 1980, end: 1999 };
@@ -63,49 +68,76 @@ function isUnknownArtist(s) {
 function isHangWord(w) {
   const t = norm(w);
   return [
-    "a","an","the","this","that","to","in","on","of","for","with","at","from","by","and","or",
-    "its","my","your","me","you","her","his","our","their"
+    "a",
+    "an",
+    "the",
+    "this",
+    "that",
+    "to",
+    "in",
+    "on",
+    "of",
+    "for",
+    "with",
+    "at",
+    "from",
+    "by",
+    "and",
+    "or",
+    "its",
+    "my",
+    "your",
+    "me",
+    "you",
+    "her",
+    "his",
+    "our",
+    "their",
   ].includes(t);
 }
 
 /**
- * Rotated-spill signature detector:
- *  - artist has >=2 tokens and first token is not present in title
- *  - title ends with hang word OR title is very short
- *  - title doesn't already include that first token
+ * Strict rotated-spill detector:
+ * We ONLY flag the high-confidence corruption family you actually saw:
  *
- * This catches the exact family:
- *  "Away Chicago — Look"
- *  "Thorn Poison — Every Rose Has Its"
+ *   artist="Away Chicago", title="Look" => should be "Chicago — Look Away"
+ *   artist="Thorn Poison", title="Every Rose Has Its" => should be "Poison — Every Rose Has Its Thorn"
+ *
+ * Rules:
+ *  - artist MUST be exactly two tokens
+ *  - title must be short (<=2 words) OR end with hang word (its/the/my/etc.)
+ *  - moved (artist[0]) is NOT already in title
+ *
+ * This avoids false positives for legit short titles and normal artist names.
  */
 function looksLikeRotatedSpill(item) {
   const artist = asText(item?.artist);
   const title = asText(item?.title);
-
   if (!artist || !title) return false;
 
   const aTokens = artist.split(/\s+/).filter(Boolean);
   const tTokens = title.split(/\s+/).filter(Boolean);
 
-  if (aTokens.length < 2) return false;
+  if (aTokens.length !== 2) return false;
   if (tTokens.length < 1) return false;
 
   const moved = aTokens[0];
+  const candidateArtist = aTokens[1];
+
   const movedLc = norm(moved);
   const titleLc = norm(title);
 
-  // If already present, not a spill signature
+  // If already present in title, not this corruption class
   if (movedLc && titleLc.includes(movedLc)) return false;
 
   const endsHang = isHangWord(tTokens[tTokens.length - 1]);
   const titleShort = tTokens.length <= 2;
-
-  // Stronger signal if title is "hanging"
   if (!(endsHang || titleShort)) return false;
 
-  // Exclude obvious false positives
-  if (["the","and","feat","ft"].includes(movedLc)) return false;
+  // Exclude obvious junk
+  if (["the", "and", "feat", "ft"].includes(movedLc)) return false;
   if (moved.length < 3) return false;
+  if (!candidateArtist || candidateArtist.length < 2) return false;
 
   return true;
 }
@@ -129,9 +161,15 @@ function top10Checks(list, chartName, year) {
   // Ranks
   let prev = 0;
   top.forEach((it, i) => {
-    const r = it?.rank ?? (i + 1);
+    const r = it?.rank ?? i + 1;
     if (!rankOk(r)) {
-      issues.push({ type: "BAD_RANK", msg: `Bad rank: ${r}`, chart: chartName, year, sample: it });
+      issues.push({
+        type: "BAD_RANK",
+        msg: `Bad rank: ${r}`,
+        chart: chartName,
+        year,
+        sample: it,
+      });
     } else {
       const rn = Number(r);
       if (rn < prev) {
@@ -151,11 +189,39 @@ function top10Checks(list, chartName, year) {
     const artist = asText(it?.artist);
     const title = asText(it?.title);
 
-    if (!artist) issues.push({ type: "EMPTY_ARTIST", msg: `Empty artist @${i}`, chart: chartName, year, sample: it });
-    if (!title) issues.push({ type: "EMPTY_TITLE", msg: `Empty title @${i}`, chart: chartName, year, sample: it });
+    if (!artist)
+      issues.push({
+        type: "EMPTY_ARTIST",
+        msg: `Empty artist @${i}`,
+        chart: chartName,
+        year,
+        sample: it,
+      });
+    if (!title)
+      issues.push({
+        type: "EMPTY_TITLE",
+        msg: `Empty title @${i}`,
+        chart: chartName,
+        year,
+        sample: it,
+      });
 
-    if (isUnknownArtist(artist)) issues.push({ type: "UNKNOWN_ARTIST", msg: `Unknown artist @${i}`, chart: chartName, year, sample: it });
-    if (isUnknownTitle(title)) issues.push({ type: "UNKNOWN_TITLE", msg: `Unknown title @${i}`, chart: chartName, year, sample: it });
+    if (isUnknownArtist(artist))
+      issues.push({
+        type: "UNKNOWN_ARTIST",
+        msg: `Unknown artist @${i}`,
+        chart: chartName,
+        year,
+        sample: it,
+      });
+    if (isUnknownTitle(title))
+      issues.push({
+        type: "UNKNOWN_TITLE",
+        msg: `Unknown title @${i}`,
+        chart: chartName,
+        year,
+        sample: it,
+      });
 
     if (looksLikeRotatedSpill(it)) {
       issues.push({
@@ -170,7 +236,7 @@ function top10Checks(list, chartName, year) {
 
   // Chart-specific threshold checks
   if (chartName.toLowerCase().includes("year-end")) {
-    const unknownTitles = top.filter(x => isUnknownTitle(x?.title)).length;
+    const unknownTitles = top.filter((x) => isUnknownTitle(x?.title)).length;
     if (unknownTitles >= 3) {
       issues.push({
         type: "YEAREND_UNKNOWN_TITLE_CLUSTER",
@@ -197,7 +263,7 @@ function detectTop40Presence() {
   try {
     const stats = kb.STATS ? kb.STATS() : null;
     const charts = stats?.charts || [];
-    return charts.some(c => norm(c) === norm(TOP40.name));
+    return charts.some((c) => norm(c) === norm(TOP40.name));
   } catch {
     return false;
   }
@@ -220,7 +286,7 @@ function main() {
     ok: true,
     ranAt: new Date().toISOString(),
     range: { start: START_YEAR, end: END_YEAR },
-    charts: chartsToRun.map(c => ({ name: c.name, start: c.start, end: c.end })),
+    charts: chartsToRun.map((c) => ({ name: c.name, start: c.start, end: c.end })),
     summary: {
       totalRuns: 0,
       passes: 0,
@@ -263,7 +329,7 @@ function main() {
       } else {
         report.summary.fails++;
         report.summary.byChart[c.name].fails++;
-        issues.forEach(i => bumpIssueType(i.type));
+        issues.forEach((i) => bumpIssueType(i.type));
         report.failures.push({ year: y, chart: c.name, issues });
       }
     }
@@ -290,6 +356,17 @@ function main() {
   console.log("Top issue types:");
   const sortedTypes = Object.entries(report.summary.byIssueType).sort((a, b) => b[1] - a[1]);
   sortedTypes.slice(0, 12).forEach(([t, n]) => console.log(`  ${t}: ${n}`));
+
+  // Print a few sample failures for quick eyeballing
+  if (report.failures.length) {
+    console.log("\nSample failures (first 10):");
+    report.failures.slice(0, 10).forEach((f) => {
+      const types = (f.issues || []).map((i) => i.type);
+      console.log(
+        `  ${f.chart} ${f.year}: ${types.join(", ") || "EXCEPTION"}${f.error ? " | " + f.error : ""}`
+      );
+    });
+  }
 
   console.log("");
   console.log("Done.");
