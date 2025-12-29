@@ -413,12 +413,17 @@ function nyxCheckInAck(userText) {
   return `Got it.\nWhere do you want to go next — Music, TV, Sponsors, or AI?`;
 }
 
+/**
+ * Render helper: returns "rank. Artist — Title" with a guard against the
+ * rotated-word bug (e.g., "Away Chicago — Look" -> "Chicago — Look Away").
+ */
 function formatTopItem(item, idx) {
   const rank = Number.isFinite(Number(item?.rank)) ? Number(item.rank) : idx + 1;
 
   let artist = clean(item?.artist);
   let title = clean(item?.title);
 
+  // Basic cleanup
   if (artist) {
     artist = artist.replace(/\bJay\s*[—–-]\s*Z\b/gi, 'Jay-Z').replace(/\s{2,}/g, ' ').trim();
   }
@@ -426,6 +431,43 @@ function formatTopItem(item, idx) {
     title = title.replace(/\s{2,}/g, ' ').trim();
   }
 
+  // ----------------------------------------------------------
+  // FIX: rotated-word alignment bug seen in UI
+  // Pattern:
+  //   artist = "<LastTitleWord> <Artist>"
+  //   title  = "<TitleWithoutLastWord>"
+  // Repair:
+  //   artist = "<Artist>"
+  //   title  = "<TitleWithoutLastWord> <LastTitleWord>"
+  // ----------------------------------------------------------
+  if (artist && title) {
+    const aTokens = artist.split(/\s+/).filter(Boolean);
+    const tTokens = title.split(/\s+/).filter(Boolean);
+
+    if (aTokens.length >= 2 && tTokens.length >= 1) {
+      const movedWord = aTokens[0];
+      const restArtist = aTokens.slice(1).join(' ').trim();
+
+      const movedWordLower = movedWord.toLowerCase();
+      const titleLower = title.toLowerCase();
+
+      const endsHanging = /(\bits\b|\bthe\b|\bmy\b|\byour\b|\bme\b|\bto\b|\bof\b|\bin\b)$/i.test(title);
+
+      const isLikelyMovedWord =
+        movedWord.length >= 3 &&
+        !['the', 'and', 'feat', 'ft'].includes(movedWordLower) &&
+        !titleLower.includes(movedWordLower) &&
+        restArtist.length >= 2;
+
+      // Conservative trigger: short titles or “hanging” endings strongly indicate the shift
+      if (isLikelyMovedWord && (tTokens.length <= 4 || endsHanging)) {
+        artist = restArtist;
+        title = `${title} ${movedWord}`.replace(/\s{2,}/g, ' ').trim();
+      }
+    }
+  }
+
+  // Fallbacks
   if (!artist && title) artist = title;
   if (!title && artist) title = artist;
 
