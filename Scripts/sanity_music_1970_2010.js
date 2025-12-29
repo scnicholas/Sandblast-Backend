@@ -1,28 +1,5 @@
 "use strict";
 
-/**
- * Scripts/sanity_music_1970_2010.js
- *
- * Run:
- *   node Scripts/sanity_music_1970_2010.js
- *
- * Output:
- *   - Console summary (PASS/FAIL counts)
- *   - Data/_sanity_music_report_1970_2010.json (detailed findings)
- *
- * What it checks (per year, per chart):
- *   - Can fetch Top 10 without crashing
- *   - Ranks are 1..10 and non-decreasing
- *   - No undefined/empty artist/title
- *   - Unknown Title/Artist thresholds (especially Year-End)
- *   - Detects "rotated spill" signature (STRICT, whitelist-based)
- *
- * Updates (critical):
- *   - Top40 usability is now REAL: if dataset returns empty arrays for multiple probe years,
- *     we do NOT run Top40 checks (prevents polluting report when merge rows=0).
- *   - Year-End unknown-title cluster is already compressed (>=3 in top 10).
- */
-
 const fs = require("fs");
 const path = require("path");
 
@@ -35,20 +12,13 @@ const OUT_PATH = path.resolve(
   "_sanity_music_report_1970_2010.json"
 );
 
-// Primary sweep range
 const START_YEAR = 1970;
 const END_YEAR = 2010;
 
-/**
- * IMPORTANT:
- * Do NOT include "Billboard Hot 100" here unless you have a ranked Hot 100 dataset.
- * Your base DB is "moments" and won't reliably support "Top 10 by year" semantics for Hot 100.
- */
 const CHARTS = [
   { name: "Billboard Year-End Hot 100", start: START_YEAR, end: END_YEAR },
 ];
 
-// Optional chart (only if usable)
 const TOP40 = { name: "Top40Weekly Top 100", start: 1980, end: 1999 };
 
 function asText(x) {
@@ -79,19 +49,6 @@ function isHangWord(w) {
   ].includes(t);
 }
 
-/**
- * STRICT rotated-spill detector (whitelist-based):
- *
- * We ONLY flag corruption signature actually seen in your dataset:
- *   artist="Away Chicago", title="Look"  -> should be "Chicago — Look Away"
- *   artist="Thorn Poison", title="Every Rose Has Its" -> should be "Poison — Every Rose Has Its Thorn"
- *
- * To avoid false positives:
- *  - artist MUST be exactly 2 tokens
- *  - title must be short (<=2 words) OR end with a hang word
- *  - moved token (artist[0]) must be in KNOWN_SPILLS
- *  - moved token must NOT already exist in title
- */
 function looksLikeRotatedSpill(item) {
   const artist = asText(item?.artist);
   const title = asText(item?.title);
@@ -110,16 +67,12 @@ function looksLikeRotatedSpill(item) {
   const titleLc = norm(title);
 
   if (!movedLc) return false;
-
-  // If moved token already exists in title, not a spill
   if (titleLc.includes(movedLc)) return false;
 
-  // Only flag if title is clearly incomplete/short in a way consistent with corruption
   const endsHang = isHangWord(tTokens[tTokens.length - 1]);
   const titleShort = tTokens.length <= 2;
   if (!(endsHang || titleShort)) return false;
 
-  // Exclude junk/connectors
   if (["the", "and", "feat", "ft"].includes(movedLc)) return false;
   if (moved.length < 3) return false;
   if (!candidateArtist || candidateArtist.length < 2) return false;
@@ -138,12 +91,11 @@ function looksLikeRotatedSpill(item) {
     "tonight",
     "richer",
     "heart",
-    "owner", // Owner of a Lonely...
-    "karma", // Karma Chameleon
+    "owner",
+    "karma",
   ]);
 
-  if (!KNOWN_SPILLS.has(movedLc)) return false;
-  return true;
+  return KNOWN_SPILLS.has(movedLc);
 }
 
 function rankOk(r) {
@@ -151,6 +103,48 @@ function rankOk(r) {
   return Number.isFinite(n) && n >= 1 && n <= 100;
 }
 
+function safeGetTop10(year, chart) {
+  try {
+    const list = kb.getTopByYear(year, chart, 10);
+    return { ok: true, list };
+  } catch (e) {
+    return { ok: false, error: e?.message || String(e) };
+  }
+}
+
+/**
+ * Ground-truth Top40 checks:
+ * - present: chart is named in STATS (optional)
+ * - usable: DB actually contains rows for that chart
+ */
+function detectTop40Present() {
+  try {
+    const stats = kb.STATS ? kb.STATS() : null;
+    const charts = stats?.charts || [];
+    return charts.some((c) => norm(c) === norm(TOP40.name));
+  } catch {
+    return false;
+  }
+}
+
+function detectTop40Usable(db) {
+  try {
+    const rows = (db?.moments || []).filter((m) => norm(m.chart) === norm(TOP40.name)).length;
+    return rows > 0;
+  } catch {
+    return false;
+  }
+}
+
+function ensureOutDir() {
+  const dir = path.dirname(OUT_PATH);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
+
+/**
+ * Year-End: if Unknown Titles are clustered (>=3 in top 10),
+ * record ONE cluster issue and stop spamming UNKNOWN_TITLE entries.
+ */
 function top10Checks(list, chartName, year) {
   const issues = [];
 
@@ -166,153 +160,62 @@ function top10Checks(list, chartName, year) {
   top.forEach((it, i) => {
     const r = it?.rank ?? i + 1;
     if (!rankOk(r)) {
-      issues.push({
-        type: "BAD_RANK",
-        msg: `Bad rank: ${r}`,
-        chart: chartName,
-        year,
-        sample: it,
-      });
+      issues.push({ type: "BAD_RANK", msg: `Bad rank: ${r}`, chart: chartName, year, sample: it });
     } else {
       const rn = Number(r);
-      if (rn < prev) {
-        issues.push({
-          type: "RANK_ORDER",
-          msg: `Rank decreased at index ${i}: ${prev} -> ${rn}`,
-          chart: chartName,
-          year,
-        });
-      }
+      if (rn < prev) issues.push({ type: "RANK_ORDER", msg: `Rank decreased @${i}`, chart: chartName, year });
       prev = rn;
     }
   });
 
-  // Field presence + corruption signatures
-  top.forEach((it, i) => {
-    const artist = asText(it?.artist);
-    const title = asText(it?.title);
-
-    if (!artist) {
-      issues.push({
-        type: "EMPTY_ARTIST",
-        msg: `Empty artist @${i}`,
-        chart: chartName,
-        year,
-        sample: it,
-      });
-    }
-    if (!title) {
-      issues.push({
-        type: "EMPTY_TITLE",
-        msg: `Empty title @${i}`,
-        chart: chartName,
-        year,
-        sample: it,
-      });
-    }
-
-    if (isUnknownArtist(artist)) {
-      issues.push({
-        type: "UNKNOWN_ARTIST",
-        msg: `Unknown artist @${i}`,
-        chart: chartName,
-        year,
-        sample: it,
-      });
-    }
-    if (isUnknownTitle(title)) {
-      issues.push({
-        type: "UNKNOWN_TITLE",
-        msg: `Unknown title @${i}`,
-        chart: chartName,
-        year,
-        sample: it,
-      });
-    }
-
-    if (looksLikeRotatedSpill(it)) {
-      issues.push({
-        type: "ROTATED_SPILL",
-        msg: `Rotated spill signature @${i}`,
-        chart: chartName,
-        year,
-        sample: it,
-      });
-    }
-  });
-
-  // Year-End cluster flag
-  if (chartName.toLowerCase().includes("year-end")) {
+  const isYearEnd = chartName.toLowerCase().includes("year-end");
+  if (isYearEnd) {
     const unknownTitles = top.filter((x) => isUnknownTitle(x?.title)).length;
     if (unknownTitles >= 3) {
       issues.push({
         type: "YEAREND_UNKNOWN_TITLE_CLUSTER",
-        msg: `Too many Unknown Titles in Top 10: ${unknownTitles}`,
+        msg: `Year-End Top10 has ${unknownTitles} Unknown Titles (clustered).`,
         chart: chartName,
         year,
+        sample: top.slice(0, 5),
       });
+
+      // Still record rotated spill if it exists (different root cause)
+      top.forEach((it, i) => {
+        if (looksLikeRotatedSpill(it)) {
+          issues.push({ type: "ROTATED_SPILL", msg: `Rotated spill @${i}`, chart: chartName, year, sample: it });
+        }
+      });
+
+      return issues;
     }
   }
+
+  // Normal checks (non-clustered)
+  top.forEach((it, i) => {
+    const artist = asText(it?.artist);
+    const title = asText(it?.title);
+
+    if (!artist) issues.push({ type: "EMPTY_ARTIST", msg: `Empty artist @${i}`, chart: chartName, year, sample: it });
+    if (!title) issues.push({ type: "EMPTY_TITLE", msg: `Empty title @${i}`, chart: chartName, year, sample: it });
+
+    if (isUnknownArtist(artist)) issues.push({ type: "UNKNOWN_ARTIST", msg: `Unknown artist @${i}`, chart: chartName, year, sample: it });
+    if (isUnknownTitle(title)) issues.push({ type: "UNKNOWN_TITLE", msg: `Unknown title @${i}`, chart: chartName, year, sample: it });
+
+    if (looksLikeRotatedSpill(it)) issues.push({ type: "ROTATED_SPILL", msg: `Rotated spill @${i}`, chart: chartName, year, sample: it });
+  });
 
   return issues;
 }
 
-function safeGetTop10(year, chart) {
-  try {
-    const list = kb.getTopByYear(year, chart, 10);
-    return { ok: true, list };
-  } catch (e) {
-    return { ok: false, error: e?.message || String(e) };
-  }
-}
-
-function detectTop40Presence() {
-  try {
-    const stats = kb.STATS ? kb.STATS() : null;
-    const charts = stats?.charts || [];
-    return charts.some((c) => norm(c) === norm(TOP40.name));
-  } catch {
-    return false;
-  }
-}
-
-/**
- * CRITICAL FIX:
- * "Presence" is not "usable".
- * If Top40 merge has 0 rows, getTopByYear(...) will return [] for probe years.
- * We require at least 1 non-empty result across multiple probes to mark usable.
- */
-function detectTop40Usable() {
-  if (!detectTop40Presence()) return false;
-
-  const probeYears = [1984, 1990, 1994, 1999];
-  let nonEmpty = 0;
-
-  for (const y of probeYears) {
-    const res = safeGetTop10(y, TOP40.name);
-    if (res.ok && Array.isArray(res.list) && res.list.length > 0) {
-      nonEmpty++;
-    }
-  }
-
-  // Require at least 2 probe years to return data.
-  // This avoids false positives when a single year is weird.
-  return nonEmpty >= 2;
-}
-
-function ensureOutDir() {
-  const dir = path.dirname(OUT_PATH);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-}
-
 function main() {
-  kb.getDb();
+  const db = kb.getDb();
 
-  const hasTop40 = detectTop40Presence();
-  const top40Usable = detectTop40Usable();
+  const top40Present = detectTop40Present();
+  const top40Usable = detectTop40Usable(db);
 
   const chartsToRun = CHARTS.slice();
-  if (hasTop40 && top40Usable) chartsToRun.push(TOP40);
+  if (top40Present && top40Usable) chartsToRun.push(TOP40);
 
   const report = {
     ok: true,
@@ -325,15 +228,14 @@ function main() {
       fails: 0,
       byChart: {},
       byIssueType: {},
-      top40Present: hasTop40,
+      top40Present,
       top40Usable,
+      top40Rows: (db?.moments || []).filter((m) => norm(m.chart) === norm(TOP40.name)).length,
     },
     failures: [],
   };
 
-  for (const c of chartsToRun) {
-    report.summary.byChart[c.name] = { runs: 0, passes: 0, fails: 0 };
-  }
+  for (const c of chartsToRun) report.summary.byChart[c.name] = { runs: 0, passes: 0, fails: 0 };
 
   const bumpIssueType = (type) => {
     report.summary.byIssueType[type] = (report.summary.byIssueType[type] || 0) + 1;
@@ -345,7 +247,6 @@ function main() {
       report.summary.byChart[c.name].runs++;
 
       const res = safeGetTop10(y, c.name);
-
       if (!res.ok) {
         report.summary.fails++;
         report.summary.byChart[c.name].fails++;
@@ -355,7 +256,6 @@ function main() {
       }
 
       const issues = top10Checks(res.list, c.name, y);
-
       if (!issues.length) {
         report.summary.passes++;
         report.summary.byChart[c.name].passes++;
@@ -379,6 +279,7 @@ function main() {
   console.log(`Fails: ${report.summary.fails}`);
   console.log(`Top40 present: ${report.summary.top40Present}`);
   console.log(`Top40 usable: ${report.summary.top40Usable}`);
+  console.log(`Top40 rows (DB): ${report.summary.top40Rows}`);
   console.log("");
 
   for (const [chart, stats] of Object.entries(report.summary.byChart)) {
@@ -395,14 +296,11 @@ function main() {
     console.log("\nSample failures (first 10):");
     report.failures.slice(0, 10).forEach((f) => {
       const types = (f.issues || []).map((i) => i.type);
-      console.log(
-        `  ${f.chart} ${f.year}: ${types.join(", ") || "EXCEPTION"}${f.error ? " | " + f.error : ""}`
-      );
+      console.log(`  ${f.chart} ${f.year}: ${types.join(", ") || "EXCEPTION"}${f.error ? " | " + f.error : ""}`);
     });
   }
 
-  console.log("");
-  console.log("Done.");
+  console.log("\nDone.");
 }
 
 main();
