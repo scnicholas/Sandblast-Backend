@@ -13,12 +13,13 @@
  *  - POST /api/tts
  *  - POST /api/voice (alias)
  *
- * PATCHES (THIS RESEND):
- *  - Music "Story moment" is now SAFE with musicKnowledge v2.48:
- *      - Uses pickRandomByYearWithMeta IF it exists
- *      - Otherwise generates a story moment from #1 using getTopByYear
- *  - Resume Music label uses session music state consistently
- *  - Minor de-dupe of followUp computation (reduces loopiness)
+ * CRITICAL CONVERSATION PATCH (THIS RESEND):
+ *  - Nyx conversation is now broadcast-led and forward-moving:
+ *      Signal → Moment → Choice → Momentum
+ *  - Removes “support-bot router” replies in General lane
+ *  - Handles greetings / “how are you” / name-intros without disjoint menus
+ *  - Enforces: value-first, max one question, two-choice control in text
+ *  - Keeps Music safety logic (Story moment safe fallback) and loop guards
  */
 
 const express = require('express');
@@ -31,13 +32,11 @@ const FormData = require('form-data');
 
 let fetchFn = null;
 try {
-  // Node 18+
   fetchFn = global.fetch ? global.fetch.bind(global) : null;
 } catch (_) {}
 
 async function getFetch() {
   if (fetchFn) return fetchFn;
-  // Node 16 fallback (kept for compatibility)
   const mod = await import('node-fetch');
   fetchFn = mod.default;
   return fetchFn;
@@ -51,12 +50,12 @@ const PORT = process.env.PORT || 3000;
 
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || '';
 const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || '';
-const ELEVENLABS_MODEL_ID = process.env.ELEVENLABS_MODEL_ID || ''; // optional TTS model
+const ELEVENLABS_MODEL_ID = process.env.ELEVENLABS_MODEL_ID || '';
 const ELEVENLABS_BASE_URL = process.env.ELEVENLABS_BASE_URL || 'https://api.elevenlabs.io';
 
 // STT defaults (Scribe)
 const ELEVENLABS_STT_MODEL_ID = process.env.ELEVENLABS_STT_MODEL_ID || 'scribe_v1';
-const ELEVENLABS_STT_LANGUAGE_CODE = process.env.ELEVENLABS_STT_LANGUAGE_CODE || ''; // e.g. "eng" or blank for auto
+const ELEVENLABS_STT_LANGUAGE_CODE = process.env.ELEVENLABS_STT_LANGUAGE_CODE || '';
 const ELEVENLABS_STT_DIARIZE = (process.env.ELEVENLABS_STT_DIARIZE || 'false').toLowerCase() === 'true';
 const ELEVENLABS_STT_TAG_AUDIO_EVENTS = (process.env.ELEVENLABS_STT_TAG_AUDIO_EVENTS || 'false').toLowerCase() === 'true';
 const ELEVENLABS_STT_USE_MULTI_CHANNEL = (process.env.ELEVENLABS_STT_USE_MULTI_CHANNEL || 'false').toLowerCase() === 'true';
@@ -68,16 +67,15 @@ const NYX_VOICE_SPEAKER_BOOST = process.env.NYX_VOICE_SPEAKER_BOOST || '';
 
 const DEBUG_TOKEN = process.env.DEBUG_TOKEN || '';
 
-const SESSION_TTL_MINUTES = Number(process.env.SESSION_TTL_MINUTES || 360); // 6 hours
+const SESSION_TTL_MINUTES = Number(process.env.SESSION_TTL_MINUTES || 360);
 const SESSION_CLEANUP_MINUTES = Number(process.env.SESSION_CLEANUP_MINUTES || 20);
 const SESSION_CAP = Number(process.env.SESSION_CAP || 1500);
 
-// Upload limits (tune later)
-const AUDIO_MAX_BYTES = Number(process.env.AUDIO_MAX_BYTES || 12 * 1024 * 1024); // 12MB default
+const AUDIO_MAX_BYTES = Number(process.env.AUDIO_MAX_BYTES || 12 * 1024 * 1024);
 
 // Anti-loop / forward-motion (critical)
 const ANTI_LOOP_WINDOW_MS = Number(process.env.NYX_ANTI_LOOP_WINDOW_MS || 1200);
-const REPEAT_REPLY_WINDOW_MS = Number(process.env.NYX_REPEAT_REPLY_WINDOW_MS || 120000); // 2 min
+const REPEAT_REPLY_WINDOW_MS = Number(process.env.NYX_REPEAT_REPLY_WINDOW_MS || 120000);
 const MAX_REPEAT_REPLY = Number(process.env.NYX_MAX_REPEAT_REPLY || 2);
 
 /* =========================
@@ -131,29 +129,48 @@ function isGreeting(msg) {
 function isNearEmpty(msg) {
   const m = normText(msg);
   if (!m) return true;
-  // mic-capture junk / fillers (common)
   if (m === '.' || m === '-' || m === '…') return true;
   if (m === 'uh' || m === 'um' || m === 'hmm') return true;
   if (m.length <= 1) return true;
   return false;
 }
 
+function isHowAreYou(msg) {
+  const m = normText(msg);
+  return (
+    m === 'how are you' ||
+    m === 'how are you?' ||
+    m.includes('how are you doing') ||
+    m.includes('how r u') ||
+    m.includes('how are u')
+  );
+}
+
+function extractName(msg) {
+  const s = asText(msg);
+  if (!s) return null;
+
+  // Simple “my name is X” / “I am X” pattern; keep it lightweight (no creep).
+  const m1 = s.match(/\bmy name is\s+([A-Za-z][A-Za-z'\- ]{1,40})/i);
+  if (m1 && m1[1]) return m1[1].trim();
+
+  const m2 = s.match(/\bi am\s+([A-Za-z][A-Za-z'\- ]{1,40})\b/i);
+  if (m2 && m2[1]) {
+    const candidate = m2[1].trim();
+    // Avoid “I am great / fine / good”
+    if (!/^(good|great|fine|ok|okay|well|awesome)$/i.test(candidate)) return candidate;
+  }
+  return null;
+}
+
 /**
- * CRITICAL: Normalize STT transcript for S2S (broadcast-smart, but surgical).
- * - Fix common Nyx name slips ("Nix" -> "Nyx")
- * - Fix Sandblast spacing
- * - Remove filler prefix "On air,"
+ * Normalize STT transcript for S2S (broadcast-smart, but surgical).
  */
 function normalizeTranscriptForNyx(t) {
   let s = String(t || '');
-
-  // Common STT slips
   s = s.replace(/\bNix\b/g, 'Nyx');
   s = s.replace(/\bSand\s*blast\b/gi, 'Sandblast');
-
-  // Optional: strip broadcast filler lead-in
   s = s.replace(/^\s*on air,?\s*/i, '');
-
   return s.trim();
 }
 
@@ -194,7 +211,60 @@ function isResumeCommand(mLower) {
 
 function isSwitchLanes(mLower) {
   if (!mLower) return false;
-  return mLower === 'switch' || mLower.includes('switch lane') || mLower.includes('switch lanes') || mLower.includes('change lanes');
+  return (
+    mLower === 'switch' ||
+    mLower.includes('switch lane') ||
+    mLower.includes('switch lanes') ||
+    mLower.includes('change lanes')
+  );
+}
+
+function isStoryMomentCommand(mLower) {
+  return mLower === 'story moment' || mLower.includes('story moment') || (mLower.includes('story') && mLower.length <= 20);
+}
+
+/* =========================
+   NYX RESPONSE COMPOSER
+   Signal → Moment → Choice → Momentum
+========================= */
+
+function nyxCompose({ signal, moment, choice, chips }) {
+  const parts = [];
+  const s = clean(signal);
+  const m = clean(moment);
+  const c = clean(choice);
+
+  if (s) parts.push(s);
+  if (m) parts.push(m);
+  if (c) parts.push(c);
+
+  // Keep text tight and human; chips handle breadth.
+  const reply = parts.join('\n');
+
+  const followUp = Array.isArray(chips) ? chips.filter(Boolean).slice(0, 6) : null;
+
+  return { reply, followUp };
+}
+
+// Guard against “support-bot” / meta prompts leaking through
+function nyxDeMeta(reply, followUp, session) {
+  const r = asText(reply);
+
+  // If it contains these patterns, rewrite it through NyxCompose.
+  const bad =
+    r.includes('Do you want me to help you plan the next steps') ||
+    r.includes('Tap a lane') ||
+    r.includes('pick up where we left off') ||
+    r.startsWith('Got it.\nDo you want me to');
+
+  if (!bad) return { reply, followUp };
+
+  return nyxCompose({
+    signal: 'Copy that.',
+    moment: 'I can take you into Music, TV, Sponsors, or AI — and I’ll lead the flow so it stays smooth.',
+    choice: 'Do you want something fun, or are we building/fixing something?',
+    chips: ['Fun', 'Build/Fix', 'Music', 'TV', 'Sponsors', 'AI'],
+  });
 }
 
 /* =========================
@@ -251,6 +321,9 @@ function getSession(sessionId, visitorId) {
       topic: (profile?.topic && String(profile.topic)) || '',
       lastUserText: '',
       lastUserAt: 0,
+
+      // Lightweight memory (non-creepy)
+      displayName: profile?.displayName || null,
 
       musicState: 'start',
       musicYear: profile?.musicYear ?? null,
@@ -350,64 +423,30 @@ function rebuildMusicCoverage() {
 }
 rebuildMusicCoverage();
 
-function lanePickerReply(session) {
-  const isResumeCandidate = !!(session?.profile?.lastLane || session?.musicYear || session?.musicChart);
-  const lane = session?.lane || 'general';
-
-  const hasRecentRepeat =
-    session?.lastAssistantReply &&
-    session.lastAssistantReply.includes('pick up where we left off') &&
-    Date.now() - (session.lastAssistantAt || 0) < REPEAT_REPLY_WINDOW_MS &&
-    (session.repeatReplyCount || 0) >= 1;
-
-  if (hasRecentRepeat) {
-    return {
-      reply:
-        "Let’s keep it moving.\nPick one: Music, TV, Sponsors, or AI — or tell me what you want in one sentence and I’ll drive.",
-      followUp: ['Music', 'TV', 'Sponsors', 'AI'],
-    };
-  }
-
-  if (lane === 'music') {
-    const y = session?.musicYear;
-    const c = session?.musicChart || session?.profile?.musicChart;
-    const label = y && c ? `Resume Music (${y}, ${c})` : y ? `Resume Music (${y})` : 'Resume Music';
-
-    return {
-      reply: 'Want to pick up where we left off, or switch lanes?',
-      followUp: [label, 'Music', 'TV', 'Sponsors', 'AI'],
-    };
-  }
-
-  if (isResumeCandidate) {
-    return {
-      reply: 'Want to pick up where we left off, or switch lanes?',
-      followUp: ['Resume', 'Music', 'TV', 'Sponsors', 'AI'],
-    };
-  }
-
-  return {
-    reply: 'Where do you want to go — Music, TV, Sponsors, or AI?',
-    followUp: ['Music', 'TV', 'Sponsors', 'AI'],
-  };
+function nyxGreeting(session) {
+  const name = clean(session?.displayName);
+  const who = name ? `${name},` : '';
+  return nyxCompose({
+    signal: `Welcome to Sandblast. I’m Nyx. ${who}`.trim(),
+    moment: 'On air with you — I’ll keep this smooth and simple.',
+    choice: 'Do you want something fun, or are we building/fixing something?',
+    chips: ['Fun', 'Build/Fix', 'Music', 'TV', 'Sponsors', 'AI'],
+  });
 }
 
-function nyxGreeting() {
-  return {
-    reply: "Welcome to Sandblast. I’m Nyx.\nHow are you today?",
-    followUp: null,
-  };
-}
-
-function nyxCheckInAck(userText) {
-  const t = normText(userText);
-  if (!t) return "Got you.\nWhere do you want to go — Music, TV, Sponsors, or AI?";
-  return `Got it.\nWhere do you want to go next — Music, TV, Sponsors, or AI?`;
+function nyxSocialReply(message, session) {
+  const name = clean(session?.displayName);
+  const who = name ? `${name}, ` : '';
+  return nyxCompose({
+    signal: `I’m good — steady and switched on. ${who}`.trim(),
+    moment: 'Tell me your vibe and I’ll take the wheel.',
+    choice: 'Are we doing something fun, or building/fixing something?',
+    chips: ['Fun', 'Build/Fix', 'Music', 'TV', 'Sponsors', 'AI'],
+  });
 }
 
 /**
- * Render helper: returns "rank. Artist — Title" with a guard against the
- * rotated-word bug (e.g., "Away Chicago — Look" -> "Chicago — Look Away").
+ * Render helper: returns "rank. Artist — Title" with a guard against rotated-word bug.
  */
 function formatTopItem(item, idx) {
   const rank = Number.isFinite(Number(item?.rank)) ? Number(item.rank) : idx + 1;
@@ -456,9 +495,7 @@ function formatTopItem(item, idx) {
 }
 
 /**
- * SAFE story moment generator compatible with musicKnowledge v2.48.
- * - Uses pickRandomByYearWithMeta if present (older builds)
- * - Else: generates a short “broadcast moment” from #1 (always available if chart/year has data)
+ * SAFE story moment generator compatible with musicKnowledge v2.48+.
  */
 function safeStoryMoment(y, c) {
   if (musicKnowledge && typeof musicKnowledge.pickRandomByYearWithMeta === 'function') {
@@ -475,7 +512,7 @@ function safeStoryMoment(y, c) {
 
   return (
     `Quick moment: In ${y}, "${title}" by ${artist} was sitting at the top of ${chart}. ` +
-    `If you were around then, you probably remember where you first heard it — and if you weren’t, this is one of those tracks that explains the whole vibe of the year.`
+    `That year had a very specific swagger — the kind of radio that sticks to your memory.`
   );
 }
 
@@ -492,10 +529,12 @@ function handleMusic(message, session) {
     session.musicChart = null;
     session.musicState = 'need_chart';
 
-    return {
-      reply: `Got it — ${year}.\nPick a chart:\n` + MUSIC_COVERAGE.charts.map((c) => `• ${c}`).join('\n'),
-      followUp: MUSIC_COVERAGE.charts,
-    };
+    return nyxCompose({
+      signal: `Locked: ${year}.`,
+      moment: 'Pick a chart and I’ll pull clean results.',
+      choice: 'Which chart do you want?',
+      chips: MUSIC_COVERAGE.charts,
+    });
   }
 
   const charts = MUSIC_COVERAGE.charts;
@@ -506,34 +545,43 @@ function handleMusic(message, session) {
     session.musicState = 'ready';
 
     const y = session.musicYear || 1988;
-    return {
-      reply: `Locked in: ${chartPick}, ${y}.\nNow tell me one of these:\n• Top 10\n• #1\n• Story moment`,
-      followUp: ['Top 10', '#1', 'Story moment'],
-    };
+
+    return nyxCompose({
+      signal: `Locked in: ${chartPick} (${y}).`,
+      moment: 'I can give you Top 10, #1, or a quick story moment.',
+      choice: 'Which one do you want?',
+      chips: ['Top 10', '#1', 'Story moment', 'Another year'],
+    });
   }
 
   if (mLower === 'music') {
     session.lane = 'music';
     session.musicState = 'need_year';
-    return {
-      reply: `Music it is.\nGive me a year between ${MUSIC_COVERAGE.start} and ${MUSIC_COVERAGE.end}.`,
-      followUp: ['1984', '1988', '1990', '1999'],
-    };
+    return nyxCompose({
+      signal: 'Music — perfect.',
+      moment: `Give me a year between ${MUSIC_COVERAGE.start} and ${MUSIC_COVERAGE.end}.`,
+      choice: 'Pick one, or type your own year.',
+      chips: ['1984', '1988', '1990', '1999'],
+    });
   }
 
   if (session.musicState === 'need_year' || session.musicState === 'start') {
-    return {
-      reply: `Give me a year between ${MUSIC_COVERAGE.start} and ${MUSIC_COVERAGE.end}.`,
-      followUp: ['1984', '1988', '1990', '1999'],
-    };
+    return nyxCompose({
+      signal: 'Alright.',
+      moment: `Give me a year between ${MUSIC_COVERAGE.start} and ${MUSIC_COVERAGE.end}.`,
+      choice: 'Pick one.',
+      chips: ['1984', '1988', '1990', '1999'],
+    });
   }
 
   if (session.musicState === 'need_chart') {
     const y = session.musicYear || 1988;
-    return {
-      reply: `Great. For ${y}, I can pull from:\n` + charts.map((c) => `• ${c}`).join('\n') + `\n\nPick one.`,
-      followUp: charts,
-    };
+    return nyxCompose({
+      signal: `For ${y}, I can pull from these charts:`,
+      moment: charts.map((c) => `• ${c}`).join('\n'),
+      choice: 'Which chart?',
+      chips: charts,
+    });
   }
 
   if (session.musicState === 'ready') {
@@ -544,10 +592,12 @@ function handleMusic(message, session) {
       const list = musicKnowledge.getTopByYear(y, c, 10) || [];
       const lines = list.slice(0, 10).map((it, i) => formatTopItem(it, i)).join('\n');
 
-      return {
-        reply: `Top 10 — ${c} (${y}):\n${lines}\n\nWant #1, a story moment, or another year?`,
-        followUp: ['#1', 'Story moment', 'Another year'],
-      };
+      return nyxCompose({
+        signal: `Top 10 — ${c} (${y}):`,
+        moment: lines,
+        choice: 'Want #1, a story moment, or another year?',
+        chips: ['#1', 'Story moment', 'Another year'],
+      });
     }
 
     if (mLower === '#1' || mLower === '1' || mLower === 'number 1' || mLower === 'no. 1') {
@@ -555,47 +605,85 @@ function handleMusic(message, session) {
       const it = list[0];
       const line = it ? formatTopItem(it, 0) : `1. (not found) — (not found)`;
 
-      return {
-        reply: `#1 for ${c} (${y}):\n${line}\n\nWant a story moment, Top 10, or another year?`,
-        followUp: ['Story moment', 'Top 10', 'Another year'],
-      };
+      return nyxCompose({
+        signal: `#1 — ${c} (${y}):`,
+        moment: line,
+        choice: 'Want a story moment or Top 10?',
+        chips: ['Story moment', 'Top 10', 'Another year'],
+      });
     }
 
-    if (mLower.includes('story')) {
+    if (isStoryMomentCommand(mLower)) {
       const story = safeStoryMoment(y, c);
       if (story) {
-        return {
-          reply: `${story}\n\nWant Top 10, #1, or another year?`,
-          followUp: ['Top 10', '#1', 'Another year'],
-        };
+        return nyxCompose({
+          signal: story,
+          moment: '',
+          choice: 'Want Top 10, #1, or another year?',
+          chips: ['Top 10', '#1', 'Another year'],
+        });
       }
-      return {
-        reply: `I don’t have a story moment loaded for ${y} on ${c} yet.\nWant Top 10, #1, or another year?`,
-        followUp: ['Top 10', '#1', 'Another year'],
-      };
+      return nyxCompose({
+        signal: `I don’t have a story moment loaded for ${y} on ${c} yet.`,
+        moment: '',
+        choice: 'Want Top 10 or #1 instead?',
+        chips: ['Top 10', '#1', 'Another year'],
+      });
     }
 
     if (mLower.includes('another year') || mLower === 'year') {
       session.musicState = 'need_year';
       session.musicChart = null;
       session.musicYear = null;
-      return {
-        reply: `Sure — pick a year between ${MUSIC_COVERAGE.start} and ${MUSIC_COVERAGE.end}.`,
-        followUp: ['1984', '1988', '1990', '1999'],
-      };
+      return nyxCompose({
+        signal: 'Sure.',
+        moment: `Pick a year between ${MUSIC_COVERAGE.start} and ${MUSIC_COVERAGE.end}.`,
+        choice: 'Which year?',
+        chips: ['1984', '1988', '1990', '1999'],
+      });
     }
 
-    return {
-      reply: `Want Top 10, #1, or a story moment?`,
-      followUp: ['Top 10', '#1', 'Story moment'],
-    };
+    return nyxCompose({
+      signal: 'I’m with you.',
+      moment: 'Top 10, #1, or story moment?',
+      choice: 'Pick one.',
+      chips: ['Top 10', '#1', 'Story moment', 'Another year'],
+    });
   }
 
   return lanePickerReply(session);
 }
 
 /* =========================
-   GENERAL LANE (DEPTH WITHOUT LLM)
+   LANE PICKER (LESS META)
+========================= */
+
+function lanePickerReply(session) {
+  const lane = session?.lane || 'general';
+
+  // Keep it human: don’t “resume” too aggressively unless we have real state.
+  if (lane === 'music') {
+    const y = session?.musicYear;
+    const c = session?.musicChart || session?.profile?.musicChart;
+    const label = y && c ? `Resume Music (${y})` : y ? `Resume Music (${y})` : 'Music';
+    return nyxCompose({
+      signal: 'We can stay in Music or switch lanes.',
+      moment: 'I’ll keep the flow tight either way.',
+      choice: 'Do you want Music, TV, Sponsors, or AI?',
+      chips: [label, 'TV', 'Sponsors', 'AI'],
+    });
+  }
+
+  return nyxCompose({
+    signal: 'Alright.',
+    moment: 'Pick a lane and I’ll lead the flow.',
+    choice: 'Where are we going?',
+    chips: ['Music', 'TV', 'Sponsors', 'AI'],
+  });
+}
+
+/* =========================
+   GENERAL LANE (NYX-STYLE)
 ========================= */
 
 function handleGeneral(message, session) {
@@ -605,28 +693,57 @@ function handleGeneral(message, session) {
   const topic = pickTopicFromUser(msg);
   if (topic) session.topic = topic;
 
+  // If the user is vague, Nyx still offers value + one tight choice.
+  // Keep 2-choice control to prevent disjoint menus.
+
+  // “Fun / Build-Fix” macro-routing (matches your desired behavior)
+  if (mLower === 'fun') {
+    return nyxCompose({
+      signal: 'Good. Fun it is.',
+      moment: 'Do you want Music (quick hit) or TV (curated picks)?',
+      choice: 'Which one?',
+      chips: ['Music', 'TV'],
+    });
+  }
+
+  if (mLower === 'build/fix' || mLower === 'build' || mLower === 'fix') {
+    return nyxCompose({
+      signal: 'Perfect. Build/Fix mode.',
+      moment: 'Tell me what you’re working on and what “better” means — smoothness, speed, or accuracy.',
+      choice: 'Which matters most right now?',
+      chips: ['Smoothness', 'Speed', 'Accuracy', 'Widget', 'Backend'],
+    });
+  }
+
+  // If it reads like a question, answer with a “definition” prompt (one question max).
   const isQuestion =
     msg.includes('?') ||
     mLower.startsWith('how ') ||
     mLower.startsWith('what ') ||
-    mLower.startsWith('why ');
+    mLower.startsWith('why ') ||
+    mLower.startsWith('when ') ||
+    mLower.startsWith('where ');
 
   if (isQuestion) {
-    return {
-      reply:
-        `I hear you.\nTo give you a strong answer, tell me what “good” looks like here — speed, accuracy, or user experience?`,
-      followUp: ['Speed', 'Accuracy', 'User experience'],
-    };
+    return nyxCompose({
+      signal: 'I hear you.',
+      moment: 'Give me your target and your constraint, and I’ll give you a clean answer.',
+      choice: 'Is this about the widget experience or backend behavior?',
+      chips: ['Widget', 'Backend', 'Music', 'TV'],
+    });
   }
 
-  return {
-    reply: `Got it.\nDo you want me to help you plan the next steps, diagnose an issue, or write something for the audience?`,
-    followUp: ['Next steps', 'Diagnose', 'Write a post'],
-  };
+  // Default: forward motion without the “support-bot” triage.
+  return nyxCompose({
+    signal: 'Copy.',
+    moment: 'If you give me one sentence on what you want, I’ll drive the next move.',
+    choice: 'Are we going Music/TV, or Sponsors/AI?',
+    chips: ['Music', 'TV', 'Sponsors', 'AI'],
+  });
 }
 
 /* =========================
-   ANTICIPATORY FOLLOW-UPS
+   FOLLOW-UP DE-DUPE
 ========================= */
 
 function followSig(list) {
@@ -649,11 +766,6 @@ function setFollowUp(session, proposed) {
 
 function getAnticipatoryFollowUp(session, replyText, proposedFollowUp) {
   const base = Array.isArray(proposedFollowUp) ? proposedFollowUp : null;
-  const reply = asText(replyText).toLowerCase();
-
-  if (session?.lane && reply.includes('pick a chart')) return setFollowUp(session, base);
-  if (session?.lane === 'music' && reply.includes('want') && reply.includes('another year')) return setFollowUp(session, base);
-
   return setFollowUp(session, base);
 }
 
@@ -666,8 +778,7 @@ function elevenVoiceSettings() {
   if (NYX_VOICE_STABILITY !== '') vs.stability = clamp(NYX_VOICE_STABILITY, 0, 1);
   if (NYX_VOICE_SIMILARITY !== '') vs.similarity_boost = clamp(NYX_VOICE_SIMILARITY, 0, 1);
   if (NYX_VOICE_STYLE !== '') vs.style = clamp(NYX_VOICE_STYLE, 0, 1);
-  if (NYX_VOICE_SPEAKER_BOOST !== '')
-    vs.use_speaker_boost = String(NYX_VOICE_SPEAKER_BOOST).toLowerCase() === 'true';
+  if (NYX_VOICE_SPEAKER_BOOST !== '') vs.use_speaker_boost = String(NYX_VOICE_SPEAKER_BOOST).toLowerCase() === 'true';
   return vs;
 }
 
@@ -776,7 +887,6 @@ async function elevenSTT({ audioBuffer, filename, contentType, opts }) {
 function applyReplyRepeatTracking(session, replyText) {
   const now = Date.now();
   const replyNorm = normText(replyText);
-
   if (!replyNorm) return;
 
   const last = normText(session.lastAssistantReply || '');
@@ -793,11 +903,12 @@ function applyReplyRepeatTracking(session, replyText) {
 }
 
 function loopBreakerReply() {
-  return {
-    reply:
-      "Okay — I’m going to steer so we don’t loop.\nPick one:\n• Music (give me a year)\n• TV (what mood?)\n• Sponsors (sell ads or review spots?)\n• AI (strategy, build, or troubleshooting?)",
-    followUp: ['Music', 'TV', 'Sponsors', 'AI'],
-  };
+  return nyxCompose({
+    signal: 'Okay — I’m steering so we don’t loop.',
+    moment: 'Pick a lane and I’ll drive the next step.',
+    choice: 'Where are we going?',
+    chips: ['Music', 'TV', 'Sponsors', 'AI'],
+  });
 }
 
 function runNyxChat(body) {
@@ -815,6 +926,10 @@ function runNyxChat(body) {
     session.visitorId = visitorId;
     session.profile = getProfile(visitorId) || session.profile || null;
   }
+
+  // Lightweight name capture (explicit only)
+  const nm = extractName(message);
+  if (nm) session.displayName = nm;
 
   if (message) {
     session.lastUserText = message;
@@ -835,86 +950,94 @@ function runNyxChat(body) {
 
   if (!message || isNearEmpty(message)) {
     const isFirstOpen = !session.turnCount || session.turnCount < 1;
-
     if (isFirstOpen) {
       session.greeted = true;
-      session.checkInPending = true;
-      response = nyxGreeting();
+      session.checkInPending = false; // no awkward “pending” state
+      response = nyxGreeting(session);
     } else {
-      response = {
-        reply: "I didn’t catch that.\nTry again — or tap a lane and I’ll take it from there.",
-        followUp: ['Music', 'TV', 'Sponsors', 'AI'],
-      };
+      response = nyxCompose({
+        signal: "I didn’t catch that.",
+        moment: 'Try again — or pick a lane and I’ll take it from there.',
+        choice: 'Where do you want to go?',
+        chips: ['Music', 'TV', 'Sponsors', 'AI'],
+      });
     }
   } else if (isGreeting(message)) {
     session.greeted = true;
-    session.checkInPending = true;
-    response = nyxGreeting();
-  } else if (session.checkInPending) {
     session.checkInPending = false;
-    response = {
-      reply: nyxCheckInAck(message),
-      followUp: ['Music', 'TV', 'Sponsors', 'AI'],
-    };
+    response = nyxGreeting(session);
+  } else if (isHowAreYou(message)) {
+    response = nyxSocialReply(message, session);
   } else {
     const mLower = normText(message);
 
     if (isSwitchLanes(mLower)) {
       response = lanePickerReply(session);
     } else if (isResumeCommand(mLower)) {
+      // Resume should feel natural, not like a system prompt.
       if (mLower.startsWith('resume music')) {
         session.lane = 'music';
         if (session.musicYear && (session.musicChart || session.profile?.musicChart)) {
           session.musicChart = session.musicChart || session.profile?.musicChart || null;
           session.musicState = 'ready';
-          response = {
-            reply: `Resuming Music.\nWant Top 10, #1, or a story moment?`,
-            followUp: ['Top 10', '#1', 'Story moment'],
-          };
+          response = nyxCompose({
+            signal: 'Back in Music.',
+            moment: 'Top 10, #1, or story moment?',
+            choice: 'Pick one.',
+            chips: ['Top 10', '#1', 'Story moment', 'Another year'],
+          });
         } else {
           session.musicState = 'need_year';
           response = handleMusic('music', session);
         }
       } else if (session.profile?.lastLane) {
         session.lane = String(session.profile.lastLane);
-        response = {
-          reply: `Resuming ${session.lane.toUpperCase()}.\nWhat do you want to do next?`,
-          followUp: session.lane === 'music' ? ['Top 10', '#1', 'Story moment'] : ['Next steps', 'Diagnose', 'Write a post'],
-        };
+        response = lanePickerReply(session);
       } else {
         response = lanePickerReply(session);
       }
     } else {
       const lanePick = laneFromMessage(mLower);
+
       if (lanePick) {
         session.lane = lanePick;
 
         if (lanePick === 'music') {
           response = handleMusic('music', session);
         } else if (lanePick === 'tv') {
-          response = { reply: 'TV lane. What mood are we going for — nostalgic, action, mystery, or comfort?', followUp: ['Nostalgic', 'Action', 'Mystery', 'Comfort'] };
+          response = nyxCompose({
+            signal: 'TV — nice.',
+            moment: 'Give me a vibe and I’ll curate.',
+            choice: 'Comfort or mystery?',
+            chips: ['Comfort', 'Mystery', 'Action', 'Nostalgic'],
+          });
         } else if (lanePick === 'sponsors') {
-          response = { reply: 'Sponsors lane. Are you selling ad slots, or reviewing existing sponsor spots?', followUp: ['Sell ad slots', 'Review spots'] };
+          response = nyxCompose({
+            signal: 'Sponsors — copy.',
+            moment: 'I can help you package, price, or pitch.',
+            choice: 'Are we selling a package or answering an inquiry?',
+            chips: ['Sell package', 'Answer inquiry', 'Rate card', 'Pitch'],
+          });
         } else if (lanePick === 'ai') {
-          response = { reply: 'AI lane. Do you want strategy, implementation, or troubleshooting right now?', followUp: ['Strategy', 'Implementation', 'Troubleshooting'] };
+          response = nyxCompose({
+            signal: 'AI mode.',
+            moment: 'We can go strategy, implementation, or troubleshooting.',
+            choice: 'Which one?',
+            chips: ['Strategy', 'Implementation', 'Troubleshooting', 'Widget', 'Backend'],
+          });
         } else {
           response = handleGeneral(message, session);
         }
       } else {
-        if (session.lane === 'music' || mLower === 'music' || session.musicState !== 'start') {
+        // If user says “Story moment” while already in/near music, execute instead of punting.
+        if (isStoryMomentCommand(mLower) && (session.lane === 'music' || session.musicState === 'ready')) {
+          response = handleMusic('Story moment', session);
+        } else if (session.lane === 'music' || mLower === 'music' || session.musicState !== 'start') {
           response = handleMusic(message, session);
         } else if (session.lane === 'general') {
           response = handleGeneral(message, session);
         } else {
-          if (session.lane === 'tv') {
-            response = { reply: 'Got it. For TV — are you looking for a recommendation, a schedule idea, or classic series picks?', followUp: ['Recommendation', 'Schedule', 'Classic picks'] };
-          } else if (session.lane === 'sponsors') {
-            response = { reply: 'For Sponsors — do you want a sponsorship pitch, a rate card outline, or a campaign idea?', followUp: ['Pitch', 'Rate card', 'Campaign idea'] };
-          } else if (session.lane === 'ai') {
-            response = { reply: 'For AI — are we refining Nyx behavior, fixing an endpoint, or planning the next module?', followUp: ['Refine behavior', 'Fix endpoint', 'Next module'] };
-          } else {
-            response = lanePickerReply(session);
-          }
+          response = lanePickerReply(session);
         }
       }
     }
@@ -923,6 +1046,7 @@ function runNyxChat(body) {
   if (session.visitorId) {
     const patch = { lastLane: session.lane };
     if (session.topic) patch.topic = session.topic;
+    if (session.displayName) patch.displayName = session.displayName;
 
     if (session.lane === 'music') {
       if (session.musicYear) patch.musicYear = session.musicYear;
@@ -933,14 +1057,21 @@ function runNyxChat(body) {
     session.profile = updated || session.profile || null;
   }
 
-  // Compute follow-up ONCE (prevents subtle loopiness)
-  const replyText = response?.reply ?? '';
-  const followUpFinal = getAnticipatoryFollowUp(session, replyText, response?.followUp ?? null);
+  // Compute follow-up ONCE
+  let replyText = response?.reply ?? '';
+  let followUpFinal = getAnticipatoryFollowUp(session, replyText, response?.followUp ?? null);
+
+  // Final de-meta safeguard
+  const de = nyxDeMeta(replyText, followUpFinal, session);
+  replyText = de.reply;
+  followUpFinal = de.followUp;
 
   applyReplyRepeatTracking(session, replyText);
 
   if ((session.repeatReplyCount || 0) >= MAX_REPEAT_REPLY) {
-    response = loopBreakerReply(session);
+    const lb = loopBreakerReply(session);
+    replyText = lb.reply;
+    followUpFinal = lb.followUp;
   }
 
   session.turnCount = (session.turnCount || 0) + 1;
@@ -948,7 +1079,7 @@ function runNyxChat(body) {
 
   const payload = {
     ok: true,
-    reply: response?.reply ?? replyText,
+    reply: replyText,
     followUp: followUpFinal,
     sessionId,
   };
@@ -1094,10 +1225,8 @@ app.post('/api/stt', upload.single('file'), async (req, res) => {
       model_id: clean(req.body?.model_id) || ELEVENLABS_STT_MODEL_ID,
       language_code: clean(req.body?.language_code) || clean(ELEVENLABS_STT_LANGUAGE_CODE) || '',
       diarize: req.body?.diarize != null ? boolish(req.body.diarize) : ELEVENLABS_STT_DIARIZE,
-      tag_audio_events:
-        req.body?.tag_audio_events != null ? boolish(req.body.tag_audio_events) : ELEVENLABS_STT_TAG_AUDIO_EVENTS,
-      use_multi_channel:
-        req.body?.use_multi_channel != null ? boolish(req.body.use_multi_channel) : ELEVENLABS_STT_USE_MULTI_CHANNEL,
+      tag_audio_events: req.body?.tag_audio_events != null ? boolish(req.body.tag_audio_events) : ELEVENLABS_STT_TAG_AUDIO_EVENTS,
+      use_multi_channel: req.body?.use_multi_channel != null ? boolish(req.body.use_multi_channel) : ELEVENLABS_STT_USE_MULTI_CHANNEL,
     };
 
     const stt = await elevenSTT({
@@ -1152,10 +1281,8 @@ app.post('/api/s2s', upload.single('file'), async (req, res) => {
       model_id: clean(req.body?.model_id) || ELEVENLABS_STT_MODEL_ID,
       language_code: clean(req.body?.language_code) || clean(ELEVENLABS_STT_LANGUAGE_CODE) || '',
       diarize: req.body?.diarize != null ? boolish(req.body.diarize) : ELEVENLABS_STT_DIARIZE,
-      tag_audio_events:
-        req.body?.tag_audio_events != null ? boolish(req.body.tag_audio_events) : ELEVENLABS_STT_TAG_AUDIO_EVENTS,
-      use_multi_channel:
-        req.body?.use_multi_channel != null ? boolish(req.body.use_multi_channel) : ELEVENLABS_STT_USE_MULTI_CHANNEL,
+      tag_audio_events: req.body?.tag_audio_events != null ? boolish(req.body.tag_audio_events) : ELEVENLABS_STT_TAG_AUDIO_EVENTS,
+      use_multi_channel: req.body?.use_multi_channel != null ? boolish(req.body.use_multi_channel) : ELEVENLABS_STT_USE_MULTI_CHANNEL,
     };
 
     const stt = await elevenSTT({
