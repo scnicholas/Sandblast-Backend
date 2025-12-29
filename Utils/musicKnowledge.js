@@ -1,25 +1,19 @@
 "use strict";
 
 /**
- * Utils/musicKnowledge.js — v2.44
+ * Utils/musicKnowledge.js — v2.45
  *
- * CRITICAL FIXES (v2.44):
- *  - Deterministic Top40Weekly corruption repairs (systemic across years):
- *      1984: "Cry Prince — When Doves" => "Prince — When Doves Cry"
- *            "Mc Cartney — Say Michael Jackson and Say Say Paul" => "Paul Mc Cartney and Michael Jackson — Say Say Say"
- *            "Parker, Jr. — Ghostbusters Ray" => "Ray Parker Jr. — Ghostbusters"
- *      1988: "Tonight INXS — Need You" => "INXS — Need You Tonight"
- *            "Been Tiffany — Could’ve" => "Tiffany — Could’ve Been"
- *      1990: "Phillips — HOLD ON Wilson" => "Wilson Phillips — HOLD ON"
- *            "Biv DeVoe — POISON Bell" => "Bell Biv DeVoe — POISON"
- *            "VOGUE Madonna — Unknown Title" => "Madonna — VOGUE"
- *            "Vogue — HOLD ON En" => "En Vogue — HOLD ON"
- *      1997: Puff Daddy/Faith Evans/112, Puff Daddy/Mase, Monica, Third Eye Blind patterns repaired
- *      1999: Goo Goo Dolls, TLC, Sixpence None the Richer, Cher patterns repaired
- *
- *  - Final-pass normalization in coerceTopListMoment() so TOP outputs are always repaired
+ * CRITICAL FIXES (v2.45):
+ *  - Systemic “two-token artist front spill” repair now triggers when:
+ *      - title is short OR
+ *      - title ends with a “hang word” (its/my/your/me/you/etc.)
+ *    This fixes:
+ *      "Away Chicago — Look" => "Chicago — Look Away"
+ *      "Thorn Poison — Every Rose Has Its" => "Poison — Every Rose Has Its Thorn"
  *
  * Retains:
+ *  - v2.44 deterministic Top40Weekly corruption repairs
+ *  - Final-pass normalization in coerceTopListMoment()
  *  - Wikipedia Year-End merge if present
  *  - Year-End quality guard fallback
  *  - Top list coercion (prevents "undefined.")
@@ -30,7 +24,7 @@ const fs = require("fs");
 const path = require("path");
 
 const MK_VERSION =
-  "musicKnowledge v2.44 (expanded Top40Weekly corruption repairs across years + final top-list normalization + Wikipedia Year-End merge + Year-End quality guard + Top list coercion + Top40Weekly locks)";
+  "musicKnowledge v2.45 (systemic 2-token spill fix w/ hang-word detection + v2.44 repairs retained + final top-list normalization + Wikipedia Year-End merge + Year-End quality guard + Top list coercion + Top40Weekly locks)";
 
 const DEFAULT_CHART = "Billboard Hot 100";
 const TOP40_CHART = "Top40Weekly Top 100";
@@ -321,7 +315,7 @@ function coerceTopListMoment(m, indexFallback) {
   if (!safe.artist) safe.artist = "Unknown Artist";
   if (!safe.title) safe.title = "Unknown Title";
 
-  // v2.43+: FINAL PASS — guarantee repairs apply to anything going out in TOP lists
+  // FINAL PASS — guarantee repairs apply to anything going out in TOP lists
   normalizeMomentFields(safe);
 
   if (!_asText(safe.artist)) safe.artist = "Unknown Artist";
@@ -383,7 +377,11 @@ const TITLE_PREFIX_CANDIDATES_LC = new Set([
 
 function isTitleHangWord(w) {
   const t = norm(w);
-  return ["a","an","the","this","that","to","in","on","of","for","with","at","from","by","and","or"].includes(t);
+  // Expanded to catch “Every Rose Has Its” style hangs and other common tails.
+  return [
+    "a","an","the","this","that","to","in","on","of","for","with","at","from","by","and","or",
+    "its","my","your","me","you","her","his","our","their"
+  ].includes(t);
 }
 
 function isNameyToken(tok) {
@@ -519,25 +517,21 @@ function hardFixKnownCorruptions(m) {
   // =====================
   // 1984 — systemic bad splits
   // =====================
-  // "Cry Prince — When Doves" => "Prince — When Doves Cry"
   if (year === 1984 && rank === 1 && /^cry\s+prince$/i.test(artist) && /^when\s+doves$/i.test(title)) {
     artist = "Prince";
     title = "When Doves Cry";
   }
 
-  // "Mc Cartney — Say Michael Jackson and Say Say Paul" => "Paul Mc Cartney and Michael Jackson — Say Say Say"
   if (year === 1984 && rank === 3 && /^mc\s+cartney$/i.test(artist) && /\bsay\s+say\b/i.test(title) && /\bmichael\s+jackson\b/i.test(title)) {
     artist = "Paul Mc Cartney and Michael Jackson";
     title = "Say Say Say";
   }
 
-  // "Parker, Jr. — Ghostbusters Ray" => "Ray Parker Jr. — Ghostbusters"
   if (year === 1984 && rank === 9 && /^parker,?\s+jr\.?$/i.test(artist) && /\bghostbusters\b/i.test(title) && /\bray\b/i.test(title)) {
     artist = "Ray Parker Jr.";
     title = "Ghostbusters";
   }
 
-  // Keep your older 1984 one-offs (still seen in some dumps)
   if (year === 1984 && rank === 1 && /^doves\s+cry\s+prince$/i.test(artist) && /^when$/i.test(title)) {
     artist = "Prince";
     title = "When Doves Cry";
@@ -556,55 +550,48 @@ function hardFixKnownCorruptions(m) {
   }
 
   // =====================
-  // 1988 — recurring “title token in artist / artist token in title”
+  // 1988
   // =====================
-  // "Tonight INXS — Need You" => "INXS — Need You Tonight"
   if (/^tonight\s+inxs$/i.test(artist) && /^need\s+you$/i.test(title)) {
     artist = "INXS";
     title = "Need You Tonight";
   }
 
-  // "Been Tiffany — Could’ve" => "Tiffany — Could’ve Been"
   if (/^been\s+tiffany$/i.test(artist) && /^could(?:'|’)ve$/i.test(title)) {
     artist = "Tiffany";
     title = "Could’ve Been";
   }
 
   // =====================
-  // 1990 — recurring “tail act token” / “unknown-title swap”
+  // 1990
   // =====================
-  // "Phillips — HOLD ON Wilson" => "Wilson Phillips — HOLD ON"
   if (/^phillips$/i.test(artist) && /\bhold\s+on\b/i.test(title) && /\bwilson\b/i.test(title)) {
     artist = "Wilson Phillips";
     title = title.replace(/\s*\bwilson\b\s*$/i, "").trim() || "HOLD ON";
   }
 
-  // "Biv DeVoe — POISON Bell" => "Bell Biv DeVoe — POISON"
   if (/^biv\s+devoe$/i.test(artist) && /\bbell\b/i.test(title) && /\bpoison\b/i.test(title)) {
     artist = "Bell Biv DeVoe";
     title = title.replace(/\s*\bbell\b\s*$/i, "").trim() || "POISON";
   }
 
-  // "Biv DeVoe — DO ME! Bell" => "Bell Biv DeVoe — DO ME!"
   if (/^biv\s+devoe$/i.test(artist) && /\bbell\b/i.test(title) && /\bdo\s+me\b/i.test(title)) {
     artist = "Bell Biv DeVoe";
     title = title.replace(/\s*\bbell\b\s*$/i, "").trim() || "DO ME!";
   }
 
-  // "VOGUE Madonna — Unknown Title" => "Madonna — VOGUE"
   if (/^vogue\s+madonna$/i.test(artist) && isUnknownTitle(title)) {
     artist = "Madonna";
     title = "VOGUE";
   }
 
-  // "Vogue — HOLD ON En" => "En Vogue — HOLD ON"
   if (/^vogue$/i.test(artist) && /\bhold\s+on\b/i.test(title) && /\ben\b/i.test(title)) {
     artist = "En Vogue";
     title = title.replace(/\s*\ben\b\s*$/i, "").trim() || "HOLD ON";
   }
 
   // =====================
-  // 1994 — keep your known good fixes
+  // 1994 — known good fixes
   // =====================
   if (year === 1994 && rank === 1) { artist = "Ace of Base"; title = "THE SIGN"; }
   if (year === 1994 && rank === 5) { artist = "Ace of Base"; title = "DON’T TURN AROUND"; }
@@ -614,9 +601,8 @@ function hardFixKnownCorruptions(m) {
   }
 
   // =====================
-  // 1997 — Puff Daddy / Monica / Third Eye Blind corruption family
+  // 1997
   // =====================
-  // "and Faith Evans featuring — I’LL BE MISSING YOU Puff Daddy 112" => "Puff Daddy & Faith Evans featuring 112 — I’LL BE MISSING YOU"
   if (
     /^and\s+faith\s+evans\s+featuring$/i.test(artist) &&
     /\bmissing\s+you\b/i.test(title) &&
@@ -627,7 +613,6 @@ function hardFixKnownCorruptions(m) {
     title = "I’LL BE MISSING YOU";
   }
 
-  // "featuring — CAN’T NOBODY HOLD ME DOWN Puff Daddy Mase" => "Puff Daddy featuring Mase — CAN’T NOBODY HOLD ME DOWN"
   if (
     /^featuring$/i.test(artist) &&
     /\bcan[’']?t\s+nobody\s+hold\s+me\s+down\b/i.test(title) &&
@@ -638,34 +623,29 @@ function hardFixKnownCorruptions(m) {
     title = "CAN’T NOBODY HOLD ME DOWN";
   }
 
-  // "WILL Monica — FOR YOU I" => "Monica — FOR YOU I WILL"
   if (/^will\s+monica$/i.test(artist) && /^for\s+you\s+i$/i.test(title)) {
     artist = "Monica";
     title = "FOR YOU I WILL";
   }
 
-  // "Eye Blind — SEMI-CHARMED LIFE Third" => "Third Eye Blind — SEMI-CHARMED LIFE"
   if (/^eye\s+blind$/i.test(artist) && /\bsemi-charmed\s+life\b/i.test(title) && /\bthird\b/i.test(title)) {
     artist = "Third Eye Blind";
     title = title.replace(/\s*\bthird\b\s*$/i, "").trim() || "SEMI-CHARMED LIFE";
   }
 
   // =====================
-  // 1999 — Goo Goo Dolls / TLC / Sixpence / Cher corruption family
+  // 1999
   // =====================
-  // "Goo Dolls — SLIDE Goo" => "Goo Goo Dolls — SLIDE"
   if (/^goo\s+dolls$/i.test(artist) && /\bslide\b/i.test(title) && /\bgoo\b/i.test(title)) {
     artist = "Goo Goo Dolls";
     title = title.replace(/\s*\bgoo\b\s*$/i, "").trim() || "SLIDE";
   }
 
-  // "SCRUBS TLC — NO" => "TLC — NO SCRUBS"
   if (/^scrubs\s+tlc$/i.test(artist) && /^no$/i.test(title)) {
     artist = "TLC";
     title = "NO SCRUBS";
   }
 
-  // "Richer — KISS ME Sixpence None the" => "Sixpence None the Richer — KISS ME"
   if (
     /^richer$/i.test(artist) &&
     /\bkiss\s+me\b/i.test(title) &&
@@ -676,7 +656,6 @@ function hardFixKnownCorruptions(m) {
     title = "KISS ME";
   }
 
-  // "BELIEVE Cher — Unknown Title" => "Cher — BELIEVE"
   if (/^believe\s+cher$/i.test(artist) && isUnknownTitle(title)) {
     artist = "Cher";
     title = "BELIEVE";
@@ -684,37 +663,31 @@ function hardFixKnownCorruptions(m) {
 
   // ---- Systemic Top40Weekly corruption repairs (cross-year) retained ----
 
-  // "Badd — I WANNA SEX YOU UP Color Me" => "Color Me Badd — I WANNA SEX YOU UP"
   if (/^badd$/i.test(artist) && /\bcolor\s+me\s*$/i.test(title)) {
     title = title.replace(/\s*color\s+me\s*$/i, "").trim();
     artist = "Color Me Badd";
   }
 
-  // "UNBELIEVABLE EMF — Unknown Title" => "EMF — UNBELIEVABLE"
   if (/^unbelievable\s+emf$/i.test(artist) && isUnknownTitle(title)) {
     artist = "EMF";
     title = "UNBELIEVABLE";
   }
 
-  // "TIME Surface — THE FIRST" => "Surface — THE FIRST TIME"
   if (/^time\s+surface$/i.test(artist) && /^the\s+first$/i.test(title)) {
     artist = "Surface";
     title = "THE FIRST TIME";
   }
 
-  // "WORDS Extreme — MORE THAN" => "Extreme — MORE THAN WORDS"
   if (/^words\s+extreme$/i.test(artist) && /^more\s+than$/i.test(title)) {
     artist = "Extreme";
     title = "MORE THAN WORDS";
   }
 
-  // "II Men — MOTOWNPHILLY Boyz" => "Boyz II Men — MOTOWNPHILLY"
   if (/^ii\s+men$/i.test(artist) && /\bboyz\s*$/i.test(title)) {
     artist = "Boyz II Men";
     title = title.replace(/\s*boyz\s*$/i, "").trim() || "MOTOWNPHILLY";
   }
 
-  // Conservative fallback: if title unknown but artist looks like "TITLE ACT", swap.
   if (isUnknownTitle(title) && /\s+[A-Z]{2,}\s*$/.test(artist)) {
     const parts = artist.trim().split(/\s+/);
     const act = parts[parts.length - 1];
@@ -730,6 +703,12 @@ function hardFixKnownCorruptions(m) {
   return m;
 }
 
+/**
+ * v2.45: Enhanced to trigger on “hang-word titles” (its/my/your/etc.)
+ * so we fix rotated splits like:
+ *   artist="Away Chicago", title="Look" => "Chicago — Look Away"
+ *   artist="Thorn Poison", title="Every Rose Has Its" => "Poison — Every Rose Has Its Thorn"
+ */
 function repairTwoTokenArtistFrontSpill(m) {
   let artist = _asText(m.artist);
   let title = _asText(m.title);
@@ -744,14 +723,24 @@ function repairTwoTokenArtistFrontSpill(m) {
 
   const tParts = title.split(/\s+/).filter(Boolean);
   const titleShort = tParts.length <= 2;
+  const titleEndsHang = tParts.length >= 1 && isTitleHangWord(tParts[tParts.length - 1]);
 
   if (norm(title).includes(norm(spill))) return m;
 
   const spillLc = spill.toLowerCase();
+
+  // Existing logic + v2.45 hang-word boost
   const spillTitley =
-    TITLE_PREFIX_CANDIDATES_LC.has(spillLc) || /^[A-Z]{3,}$/.test(spill) || titleShort;
+    TITLE_PREFIX_CANDIDATES_LC.has(spillLc) ||
+    /^[A-Z]{3,}$/.test(spill) ||
+    titleShort ||
+    titleEndsHang;
+
+  // Candidate artist must look “artist-ish”
+  const candidateIsArtistish = isNameyToken(candidateArtist) || /^[A-Z]{2,}$/.test(candidateArtist);
 
   if (!spillTitley) return m;
+  if (!candidateIsArtistish) return m;
   if (TITLE_PREFIX_CANDIDATES_LC.has(candidateArtist.toLowerCase())) return m;
 
   m.artist = candidateArtist;
@@ -1066,10 +1055,8 @@ function normalizeMomentFields(m) {
   repairTitleTailIntoArtist(m);
   repairAceOfBaseOrder(m);
 
-  // Existing Top40Weekly lock
   repairTop40WeeklyRankedDrift(m);
 
-  // Repairs
   repairTitleTailIsArtist(m);
   repairUnknownTitleSwap(m);
 
