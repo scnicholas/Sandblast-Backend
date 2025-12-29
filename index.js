@@ -2,7 +2,7 @@
 
 /**
  * Sandblast Backend (Nyx)
- * index.js — Node 16+ friendly (dynamic import fallback for fetch).
+ * index.js — Node 18+ friendly.
  *
  * Adds:
  *  - ElevenLabs STT: POST /api/stt  (multipart form-data, field name: "file")
@@ -18,6 +18,7 @@ const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
 
+const axios = require('axios'); // <-- critical for STT multipart reliability
 const multer = require('multer');
 const FormData = require('form-data');
 
@@ -29,7 +30,7 @@ try {
 
 async function getFetch() {
   if (fetchFn) return fetchFn;
-  // Node 16 fallback
+  // Node 16 fallback (kept for compatibility)
   const mod = await import('node-fetch');
   fetchFn = mod.default;
   return fetchFn;
@@ -523,18 +524,17 @@ function resolveTtsText(body) {
 
 /* =========================
    STT (ELEVENLABS)
+   Critical fix:
+   - Use axios + form-data to avoid Undici(fetch) multipart serialization issues.
 ========================= */
 
 async function elevenSTT({ audioBuffer, filename, contentType, opts }) {
-  const fetch = await getFetch();
   const url = `${ELEVENLABS_BASE_URL}/v1/speech-to-text`;
 
   const fd = new FormData();
-  // ElevenLabs expects "file" (multipart) or cloud_storage_url; we use file. :contentReference[oaicite:1]{index=1}
   fd.append('file', audioBuffer, {
-    filename: filename || 'audio.webm',
-    contentType: contentType || 'audio/webm',
-    knownLength: audioBuffer.length,
+    filename: filename || 'audio.mp3',
+    contentType: contentType || 'audio/mpeg',
   });
 
   fd.append('model_id', (opts && opts.model_id) || ELEVENLABS_STT_MODEL_ID);
@@ -556,23 +556,28 @@ async function elevenSTT({ audioBuffer, filename, contentType, opts }) {
     Accept: 'application/json',
   };
 
-  const r = await fetch(url, { method: 'POST', headers, body: fd });
+  const resp = await axios.post(url, fd, {
+    headers,
+    maxBodyLength: Infinity,
+    maxContentLength: Infinity,
+    timeout: 120000,
+    validateStatus: () => true,
+  });
 
-  if (!r.ok) {
-    const txt = await r.text().catch(() => '');
-    const err = new Error(`ELEVENLABS_STT_ERROR: ${r.status} ${txt}`);
-    err.status = r.status;
+  if (resp.status < 200 || resp.status >= 300) {
+    const txt = typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data);
+    const err = new Error(`ELEVENLABS_STT_ERROR: ${resp.status} ${txt}`);
+    err.status = resp.status;
     throw err;
   }
 
-  const json = await r.json().catch(() => null);
+  const json = resp.data;
   if (!json || typeof json !== 'object') {
     const err = new Error('ELEVENLABS_STT_BAD_RESPONSE');
     err.status = 502;
     throw err;
   }
 
-  // Typical response includes text + optional language_code/prob + words. :contentReference[oaicite:2]{index=2}
   return json;
 }
 
@@ -821,8 +826,8 @@ app.post('/api/stt', upload.single('file'), async (req, res) => {
 
     const stt = await elevenSTT({
       audioBuffer: f.buffer,
-      filename: f.originalname || 'audio.webm',
-      contentType: f.mimetype || 'audio/webm',
+      filename: f.originalname || 'audio.bin',
+      contentType: f.mimetype || 'application/octet-stream',
       opts,
     });
 
@@ -882,8 +887,8 @@ app.post('/api/s2s', upload.single('file'), async (req, res) => {
 
     const stt = await elevenSTT({
       audioBuffer: f.buffer,
-      filename: f.originalname || 'audio.webm',
-      contentType: f.mimetype || 'audio/webm',
+      filename: f.originalname || 'audio.bin',
+      contentType: f.mimetype || 'application/octet-stream',
       opts: sttOpts,
     });
 
@@ -919,14 +924,18 @@ app.post('/api/s2s', upload.single('file'), async (req, res) => {
       audioMime: 'audio/mpeg',
     };
 
-    setLast(
-      {
-        route,
-        request: { bytes: f.size, mimetype: f.mimetype, sttOpts, hasSessionId: !!req.body?.sessionId, hasVisitorId: !!req.body?.visitorId },
-        response: { ok: true, audioBytes: audioBuf.length, transcriptChars: transcript.length, replyChars: replyText.length },
-        error: null
-      }
-    );
+    setLast({
+      route,
+      request: {
+        bytes: f.size,
+        mimetype: f.mimetype,
+        sttOpts,
+        hasSessionId: !!req.body?.sessionId,
+        hasVisitorId: !!req.body?.visitorId,
+      },
+      response: { ok: true, audioBytes: audioBuf.length, transcriptChars: transcript.length, replyChars: replyText.length },
+      error: null,
+    });
 
     return res.status(200).json(payload);
   } catch (err) {
