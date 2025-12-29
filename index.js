@@ -12,6 +12,13 @@
  *  - POST /api/chat
  *  - POST /api/tts
  *  - POST /api/voice (alias)
+ *
+ * PATCHES (THIS RESEND):
+ *  - Music "Story moment" is now SAFE with musicKnowledge v2.48:
+ *      - Uses pickRandomByYearWithMeta IF it exists
+ *      - Otherwise generates a story moment from #1 using getTopByYear
+ *  - Resume Music label uses session music state consistently
+ *  - Minor de-dupe of followUp computation (reduces loopiness)
  */
 
 const express = require('express');
@@ -65,10 +72,6 @@ const SESSION_TTL_MINUTES = Number(process.env.SESSION_TTL_MINUTES || 360); // 6
 const SESSION_CLEANUP_MINUTES = Number(process.env.SESSION_CLEANUP_MINUTES || 20);
 const SESSION_CAP = Number(process.env.SESSION_CAP || 1500);
 
-const PROFILES_ENABLED = (process.env.PROFILES_ENABLED || 'true').toLowerCase() === 'true';
-const PROFILES_PERSIST = (process.env.PROFILES_PERSIST || 'false').toLowerCase() === 'false' ? false : true;
-const PROFILES_TTL_DAYS = Number(process.env.PROFILES_TTL_DAYS || 30);
-
 // Upload limits (tune later)
 const AUDIO_MAX_BYTES = Number(process.env.AUDIO_MAX_BYTES || 12 * 1024 * 1024); // 12MB default
 
@@ -80,14 +83,6 @@ const MAX_REPEAT_REPLY = Number(process.env.NYX_MAX_REPEAT_REPLY || 2);
 /* =========================
    HELPERS
 ========================= */
-
-function cleanCellText(s) {
-  if (s == null) return '';
-  return String(s)
-    .replace(/\[[^\]]*\]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
 
 function asText(x) {
   if (x == null) return '';
@@ -165,7 +160,6 @@ function normalizeTranscriptForNyx(t) {
 function pickTopicFromUser(msg) {
   const m = asText(msg);
   if (!m) return '';
-  // Keep it simple and safe: first ~10 words, no punctuation noise
   const words = m
     .replace(/[^\w\s'#-]/g, ' ')
     .split(/\s+/)
@@ -175,7 +169,6 @@ function pickTopicFromUser(msg) {
 }
 
 function laneFromMessage(mLower) {
-  // deterministic lane intents (chips or typed)
   if (mLower === 'music') return 'music';
   if (mLower === 'tv') return 'tv';
   if (mLower === 'sponsors' || mLower === 'sponsor') return 'sponsors';
@@ -240,32 +233,25 @@ function getSession(sessionId, visitorId) {
       createdAt: Date.now(),
       lastActiveAt: Date.now(),
 
-      // intro + small talk
       greeted: false,
       checkInPending: false,
 
-      // conversation continuity
       turnCount: 0,
       userTurnCount: 0,
 
-      // anti-loop signature (request-level)
       lastSig: null,
       lastSigAt: 0,
 
-      // reply repeat detection (assistant-level)
       lastAssistantReply: null,
       lastAssistantAt: 0,
       repeatReplyCount: 0,
 
-      // follow-up de-dupe
       lastFollowSig: null,
 
-      // lightweight topic memory (for depth)
       topic: (profile?.topic && String(profile.topic)) || '',
       lastUserText: '',
       lastUserAt: 0,
 
-      // music state
       musicState: 'start',
       musicYear: profile?.musicYear ?? null,
       musicChart: profile?.musicChart ?? null,
@@ -297,6 +283,10 @@ setInterval(cleanupSessions, Math.max(1, SESSION_CLEANUP_MINUTES) * 60 * 1000);
 /* =========================
    PROFILES (LIGHTWEIGHT)
 ========================= */
+
+const PROFILES_ENABLED = (process.env.PROFILES_ENABLED || 'true').toLowerCase() === 'true';
+const PROFILES_PERSIST = (process.env.PROFILES_PERSIST || 'false').toLowerCase() === 'false' ? false : true;
+const PROFILES_TTL_DAYS = Number(process.env.PROFILES_TTL_DAYS || 30);
 
 const PROFILES = new Map();
 
@@ -348,24 +338,28 @@ const musicKnowledge = require('./Utils/musicKnowledge');
 let MUSIC_COVERAGE = { builtAt: null, start: 1970, end: 2010, charts: [] };
 
 function rebuildMusicCoverage() {
-  const charts = ['Top40Weekly Top 100', 'Billboard Hot 100', 'Billboard Year-End Hot 100', 'Canada RPM', 'UK Singles Chart'];
+  const charts = [
+    'Top40Weekly Top 100',
+    'Billboard Hot 100',
+    'Billboard Year-End Hot 100',
+    'Canada RPM',
+    'UK Singles Chart',
+  ];
   const builtAt = new Date().toISOString();
   MUSIC_COVERAGE = { builtAt, start: 1970, end: 2010, charts };
 }
 rebuildMusicCoverage();
 
-function lanePickerReply(session, reason) {
+function lanePickerReply(session) {
   const isResumeCandidate = !!(session?.profile?.lastLane || session?.musicYear || session?.musicChart);
   const lane = session?.lane || 'general';
 
-  // Avoid repeating the same lane-picker line endlessly
   const hasRecentRepeat =
     session?.lastAssistantReply &&
     session.lastAssistantReply.includes('pick up where we left off') &&
     Date.now() - (session.lastAssistantAt || 0) < REPEAT_REPLY_WINDOW_MS &&
     (session.repeatReplyCount || 0) >= 1;
 
-  // If we already asked the lane-picker recently, be more direct and forward-moving
   if (hasRecentRepeat) {
     return {
       reply:
@@ -376,7 +370,7 @@ function lanePickerReply(session, reason) {
 
   if (lane === 'music') {
     const y = session?.musicYear;
-    const c = session?.profile?.musicChart;
+    const c = session?.musicChart || session?.profile?.musicChart;
     const label = y && c ? `Resume Music (${y}, ${c})` : y ? `Resume Music (${y})` : 'Resume Music';
 
     return {
@@ -392,7 +386,6 @@ function lanePickerReply(session, reason) {
     };
   }
 
-  // “First-time” lane prompt—short and clean
   return {
     reply: 'Where do you want to go — Music, TV, Sponsors, or AI?',
     followUp: ['Music', 'TV', 'Sponsors', 'AI'],
@@ -409,7 +402,6 @@ function nyxGreeting() {
 function nyxCheckInAck(userText) {
   const t = normText(userText);
   if (!t) return "Got you.\nWhere do you want to go — Music, TV, Sponsors, or AI?";
-  // gentle, non-cringe acknowledgment
   return `Got it.\nWhere do you want to go next — Music, TV, Sponsors, or AI?`;
 }
 
@@ -423,7 +415,6 @@ function formatTopItem(item, idx) {
   let artist = clean(item?.artist);
   let title = clean(item?.title);
 
-  // Basic cleanup
   if (artist) {
     artist = artist.replace(/\bJay\s*[—–-]\s*Z\b/gi, 'Jay-Z').replace(/\s{2,}/g, ' ').trim();
   }
@@ -431,15 +422,7 @@ function formatTopItem(item, idx) {
     title = title.replace(/\s{2,}/g, ' ').trim();
   }
 
-  // ----------------------------------------------------------
-  // FIX: rotated-word alignment bug seen in UI
-  // Pattern:
-  //   artist = "<LastTitleWord> <Artist>"
-  //   title  = "<TitleWithoutLastWord>"
-  // Repair:
-  //   artist = "<Artist>"
-  //   title  = "<TitleWithoutLastWord> <LastTitleWord>"
-  // ----------------------------------------------------------
+  // Rotated-word alignment bug guard
   if (artist && title) {
     const aTokens = artist.split(/\s+/).filter(Boolean);
     const tTokens = title.split(/\s+/).filter(Boolean);
@@ -459,7 +442,6 @@ function formatTopItem(item, idx) {
         !titleLower.includes(movedWordLower) &&
         restArtist.length >= 2;
 
-      // Conservative trigger: short titles or “hanging” endings strongly indicate the shift
       if (isLikelyMovedWord && (tTokens.length <= 4 || endsHanging)) {
         artist = restArtist;
         title = `${title} ${movedWord}`.replace(/\s{2,}/g, ' ').trim();
@@ -467,11 +449,34 @@ function formatTopItem(item, idx) {
     }
   }
 
-  // Fallbacks
   if (!artist && title) artist = title;
   if (!title && artist) title = artist;
 
   return `${rank}. ${artist} — ${title}`.replace(/\s+—\s+—/g, ' — ').trim();
+}
+
+/**
+ * SAFE story moment generator compatible with musicKnowledge v2.48.
+ * - Uses pickRandomByYearWithMeta if present (older builds)
+ * - Else: generates a short “broadcast moment” from #1 (always available if chart/year has data)
+ */
+function safeStoryMoment(y, c) {
+  if (musicKnowledge && typeof musicKnowledge.pickRandomByYearWithMeta === 'function') {
+    const m = musicKnowledge.pickRandomByYearWithMeta(y, c);
+    if (m && m.moment) return String(m.moment).trim();
+  }
+
+  const top = (musicKnowledge.getTopByYear(y, c, 1) || [])[0];
+  if (!top) return '';
+
+  const artist = clean(top.artist);
+  const title = clean(top.title);
+  const chart = clean(c);
+
+  return (
+    `Quick moment: In ${y}, "${title}" by ${artist} was sitting at the top of ${chart}. ` +
+    `If you were around then, you probably remember where you first heard it — and if you weren’t, this is one of those tracks that explains the whole vibe of the year.`
+  );
 }
 
 function handleMusic(message, session) {
@@ -533,7 +538,7 @@ function handleMusic(message, session) {
 
   if (session.musicState === 'ready') {
     const y = session.musicYear || 1988;
-    const c = session.musicChart || 'Billboard Year-End Hot 100';
+    const c = session.musicChart || session.profile?.musicChart || 'Billboard Year-End Hot 100';
 
     if (mLower === 'top 10' || mLower === 'top10') {
       const list = musicKnowledge.getTopByYear(y, c, 10) || [];
@@ -557,10 +562,10 @@ function handleMusic(message, session) {
     }
 
     if (mLower.includes('story')) {
-      const moment = musicKnowledge.pickRandomByYearWithMeta(y, c);
-      if (moment && moment.moment) {
+      const story = safeStoryMoment(y, c);
+      if (story) {
         return {
-          reply: `${moment.moment}\n\nWant Top 10, #1, or another year?`,
+          reply: `${story}\n\nWant Top 10, #1, or another year?`,
           followUp: ['Top 10', '#1', 'Another year'],
         };
       }
@@ -597,12 +602,14 @@ function handleGeneral(message, session) {
   const msg = asText(message);
   const mLower = normText(msg);
 
-  // Update topic memory
   const topic = pickTopicFromUser(msg);
   if (topic) session.topic = topic;
 
-  // If user asks a question, we steer into a clarifying, forward-moving flow
-  const isQuestion = msg.includes('?') || mLower.startsWith('how ') || mLower.startsWith('what ') || mLower.startsWith('why ');
+  const isQuestion =
+    msg.includes('?') ||
+    mLower.startsWith('how ') ||
+    mLower.startsWith('what ') ||
+    mLower.startsWith('why ');
 
   if (isQuestion) {
     return {
@@ -612,7 +619,6 @@ function handleGeneral(message, session) {
     };
   }
 
-  // Otherwise, reflect + advance
   return {
     reply: `Got it.\nDo you want me to help you plan the next steps, diagnose an issue, or write something for the audience?`,
     followUp: ['Next steps', 'Diagnose', 'Write a post'],
@@ -624,7 +630,9 @@ function handleGeneral(message, session) {
 ========================= */
 
 function followSig(list) {
-  const a = (Array.isArray(list) ? list : []).map((x) => asText(x).toLowerCase()).filter(Boolean);
+  const a = (Array.isArray(list) ? list : [])
+    .map((x) => asText(x).toLowerCase())
+    .filter(Boolean);
   return a.join('|');
 }
 
@@ -658,7 +666,8 @@ function elevenVoiceSettings() {
   if (NYX_VOICE_STABILITY !== '') vs.stability = clamp(NYX_VOICE_STABILITY, 0, 1);
   if (NYX_VOICE_SIMILARITY !== '') vs.similarity_boost = clamp(NYX_VOICE_SIMILARITY, 0, 1);
   if (NYX_VOICE_STYLE !== '') vs.style = clamp(NYX_VOICE_STYLE, 0, 1);
-  if (NYX_VOICE_SPEAKER_BOOST !== '') vs.use_speaker_boost = String(NYX_VOICE_SPEAKER_BOOST).toLowerCase() === 'true';
+  if (NYX_VOICE_SPEAKER_BOOST !== '')
+    vs.use_speaker_boost = String(NYX_VOICE_SPEAKER_BOOST).toLowerCase() === 'true';
   return vs;
 }
 
@@ -705,7 +714,6 @@ function resolveTtsText(body) {
 
 /* =========================
    STT (ELEVENLABS)
-   - Use axios + form-data to avoid Undici(fetch) multipart serialization issues.
 ========================= */
 
 async function elevenSTT({ audioBuffer, filename, contentType, opts }) {
@@ -762,7 +770,7 @@ async function elevenSTT({ audioBuffer, filename, contentType, opts }) {
 }
 
 /* =========================
-   CHAT CORE (shared by /api/chat and /api/s2s)
+   CHAT CORE
 ========================= */
 
 function applyReplyRepeatTracking(session, replyText) {
@@ -784,8 +792,7 @@ function applyReplyRepeatTracking(session, replyText) {
   session.lastAssistantAt = now;
 }
 
-function loopBreakerReply(session) {
-  // Hard steer: never stall; never re-ask the same prompt
+function loopBreakerReply() {
   return {
     reply:
       "Okay — I’m going to steer so we don’t loop.\nPick one:\n• Music (give me a year)\n• TV (what mood?)\n• Sponsors (sell ads or review spots?)\n• AI (strategy, build, or troubleshooting?)",
@@ -809,13 +816,11 @@ function runNyxChat(body) {
     session.profile = getProfile(visitorId) || session.profile || null;
   }
 
-  // record last user text (for depth + debugging)
   if (message) {
     session.lastUserText = message;
     session.lastUserAt = Date.now();
   }
 
-  // request-level anti-loop signature (fast duplicate suppression)
   const now = Date.now();
   const sig = `${session.lane}|${session.musicState}|${session.musicYear || ''}|${session.musicChart || ''}|${message || ''}`;
   if (session.lastSig && sig === session.lastSig && now - (session.lastSigAt || 0) < ANTI_LOOP_WINDOW_MS) {
@@ -828,7 +833,6 @@ function runNyxChat(body) {
 
   let response;
 
-  // 1) Empty/near-empty input: do NOT bounce to lane picker spam
   if (!message || isNearEmpty(message)) {
     const isFirstOpen = !session.turnCount || session.turnCount < 1;
 
@@ -842,33 +846,24 @@ function runNyxChat(body) {
         followUp: ['Music', 'TV', 'Sponsors', 'AI'],
       };
     }
-  }
-  // 2) Greetings
-  else if (isGreeting(message)) {
+  } else if (isGreeting(message)) {
     session.greeted = true;
     session.checkInPending = true;
     response = nyxGreeting();
-  }
-  // 3) Check-in: acknowledge, then advance (no loop)
-  else if (session.checkInPending) {
+  } else if (session.checkInPending) {
     session.checkInPending = false;
     response = {
       reply: nyxCheckInAck(message),
       followUp: ['Music', 'TV', 'Sponsors', 'AI'],
     };
-  }
-  // 4) Normal turns
-  else {
+  } else {
     const mLower = normText(message);
 
-    // Resume / Switch lanes controls
     if (isSwitchLanes(mLower)) {
-      response = lanePickerReply(session, 'switch');
+      response = lanePickerReply(session);
     } else if (isResumeCommand(mLower)) {
-      // “Resume Music (…)” chip handling
       if (mLower.startsWith('resume music')) {
         session.lane = 'music';
-        // if year/chart already known, move to ready prompt
         if (session.musicYear && (session.musicChart || session.profile?.musicChart)) {
           session.musicChart = session.musicChart || session.profile?.musicChart || null;
           session.musicState = 'ready';
@@ -887,10 +882,9 @@ function runNyxChat(body) {
           followUp: session.lane === 'music' ? ['Top 10', '#1', 'Story moment'] : ['Next steps', 'Diagnose', 'Write a post'],
         };
       } else {
-        response = lanePickerReply(session, 'resume');
+        response = lanePickerReply(session);
       }
     } else {
-      // Lane chips / direct lane commands
       const lanePick = laneFromMessage(mLower);
       if (lanePick) {
         session.lane = lanePick;
@@ -907,14 +901,11 @@ function runNyxChat(body) {
           response = handleGeneral(message, session);
         }
       } else {
-        // Continuity routing
         if (session.lane === 'music' || mLower === 'music' || session.musicState !== 'start') {
           response = handleMusic(message, session);
         } else if (session.lane === 'general') {
           response = handleGeneral(message, session);
         } else {
-          // For non-general lanes, if user types something unrelated, we don’t bounce to lane picker.
-          // We ask a forward-moving clarifier within the lane.
           if (session.lane === 'tv') {
             response = { reply: 'Got it. For TV — are you looking for a recommendation, a schedule idea, or classic series picks?', followUp: ['Recommendation', 'Schedule', 'Classic picks'] };
           } else if (session.lane === 'sponsors') {
@@ -922,14 +913,13 @@ function runNyxChat(body) {
           } else if (session.lane === 'ai') {
             response = { reply: 'For AI — are we refining Nyx behavior, fixing an endpoint, or planning the next module?', followUp: ['Refine behavior', 'Fix endpoint', 'Next module'] };
           } else {
-            response = lanePickerReply(session, 'fallback');
+            response = lanePickerReply(session);
           }
         }
       }
     }
   }
 
-  // Profile persistence (lightweight continuity)
   if (session.visitorId) {
     const patch = { lastLane: session.lane };
     if (session.topic) patch.topic = session.topic;
@@ -943,13 +933,12 @@ function runNyxChat(body) {
     session.profile = updated || session.profile || null;
   }
 
+  // Compute follow-up ONCE (prevents subtle loopiness)
   const replyText = response?.reply ?? '';
   const followUpFinal = getAnticipatoryFollowUp(session, replyText, response?.followUp ?? null);
 
-  // Assistant reply repeat tracking (critical)
   applyReplyRepeatTracking(session, replyText);
 
-  // Loop breaker (if the assistant repeats itself)
   if ((session.repeatReplyCount || 0) >= MAX_REPEAT_REPLY) {
     response = loopBreakerReply(session);
   }
@@ -960,7 +949,7 @@ function runNyxChat(body) {
   const payload = {
     ok: true,
     reply: response?.reply ?? replyText,
-    followUp: getAnticipatoryFollowUp(session, response?.reply ?? replyText, response?.followUp ?? followUpFinal),
+    followUp: followUpFinal,
     sessionId,
   };
 
@@ -976,7 +965,6 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
 
-// Multer for audio uploads (memory; sized)
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: AUDIO_MAX_BYTES },
@@ -1104,7 +1092,6 @@ app.post('/api/stt', upload.single('file'), async (req, res) => {
 
     const opts = {
       model_id: clean(req.body?.model_id) || ELEVENLABS_STT_MODEL_ID,
-      // Prefer request language_code if present; else env; else blank (auto)
       language_code: clean(req.body?.language_code) || clean(ELEVENLABS_STT_LANGUAGE_CODE) || '',
       diarize: req.body?.diarize != null ? boolish(req.body.diarize) : ELEVENLABS_STT_DIARIZE,
       tag_audio_events:
@@ -1140,7 +1127,6 @@ app.post('/api/stt', upload.single('file'), async (req, res) => {
 
 /* =========================
    S2S ROUTE
-   - Adds transcript normalization (critical UX fix).
 ========================= */
 
 app.post('/api/s2s', upload.single('file'), async (req, res) => {
@@ -1164,7 +1150,6 @@ app.post('/api/s2s', upload.single('file'), async (req, res) => {
 
     const sttOpts = {
       model_id: clean(req.body?.model_id) || ELEVENLABS_STT_MODEL_ID,
-      // Prefer request language_code if present; else env; else blank (auto)
       language_code: clean(req.body?.language_code) || clean(ELEVENLABS_STT_LANGUAGE_CODE) || '',
       diarize: req.body?.diarize != null ? boolish(req.body.diarize) : ELEVENLABS_STT_DIARIZE,
       tag_audio_events:
@@ -1180,7 +1165,6 @@ app.post('/api/s2s', upload.single('file'), async (req, res) => {
       opts: sttOpts,
     });
 
-    // CRITICAL: normalize transcript for better user experience
     const transcriptRaw = clean(stt?.text);
     const transcript = normalizeTranscriptForNyx(transcriptRaw);
 
@@ -1205,7 +1189,7 @@ app.post('/api/s2s', upload.single('file'), async (req, res) => {
     const payload = {
       ok: true,
       transcript,
-      transcript_raw: transcriptRaw || '', // kept for debugging; remove later if you want
+      transcript_raw: transcriptRaw || '',
       reply: replyText,
       followUp: chat?.followUp ?? null,
       sessionId: chat?.sessionId || chatBody.sessionId,
@@ -1236,7 +1220,7 @@ app.post('/api/s2s', upload.single('file'), async (req, res) => {
 });
 
 /* =========================
-   CHAT ROUTE (existing)
+   CHAT ROUTE
 ========================= */
 
 app.post('/api/chat', (req, res) => {
