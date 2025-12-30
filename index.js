@@ -1113,16 +1113,62 @@ function loopBreakerReply(session) {
   });
 }
 
+
+// Lane selector (resume-aware). Used only as a forward-motion nudge — does not touch the main conversational core.
+function lanePickerReply(session) {
+  const isResumeCandidate = !!(session?.profile?.lastLane || session?.musicYear || session?.musicChart);
+  const lane = session?.lane || 'general';
+
+  const hasRecentRepeat =
+    session?.lastAssistantReply &&
+    String(session.lastAssistantReply).toLowerCase().includes('pick up where we left off') &&
+    Date.now() - (session.lastAssistantAt || 0) < REPEAT_REPLY_WINDOW_MS &&
+    (session.repeatReplyCount || 0) >= 1;
+
+  if (hasRecentRepeat) {
+    return {
+      reply:
+        "Let’s keep it moving. Pick one: Music, TV, Sponsors, or AI — or tell me what you want in one sentence and I’ll drive.",
+      followUp: ['Music', 'TV', 'Sponsors', 'AI'],
+    };
+  }
+
+  if (lane === 'music') {
+    const y = session?.musicYear;
+    const c = session?.musicChart || session?.profile?.musicChart;
+    const label = y && c ? `Resume Music (${y}, ${c})` : y ? `Resume Music (${y})` : 'Resume Music';
+
+    return {
+      reply: 'Want to pick up where we left off, or switch lanes?',
+      followUp: [label, 'Music', 'TV', 'Sponsors', 'AI'],
+    };
+  }
+
+  if (isResumeCandidate) {
+    return {
+      reply: 'Want to pick up where we left off, or switch lanes?',
+      followUp: ['Resume', 'Music', 'TV', 'Sponsors', 'AI'],
+    };
+  }
+
+  return {
+    reply: 'Where do you want to go — Music, TV, Sponsors, or AI?',
+    followUp: ['Music', 'TV', 'Sponsors', 'AI'],
+  };
+}
+
 function forwardMotionNudge(session) {
+  // Prefer resuming music if that’s what we were doing.
   if (session?.lane === 'music' || session?.musicState !== 'start') {
     return handleMusic(session.musicState === 'ready' ? 'top 10' : 'music', session);
   }
-  return nyxCompose({
-    signal: 'I’m here.',
-    moment: 'Tell me what you want to do, and I’ll take it from there.',
-    choice: '',
-    chips: ['Music', 'TV', 'Sponsors', 'AI'],
-  });
+
+  // Otherwise, offer a clean lane choice (resume-aware) without changing the main chat core.
+  const pick = lanePickerReply(session);
+  return {
+    reply: pick.reply || '',
+    followUp: pick.followUp ?? null,
+  };
 }
 
 function runNyxChat(body) {
