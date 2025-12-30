@@ -343,10 +343,7 @@ function fuzzyPickChart(message, charts) {
   }
 
   const alias = [
-    { pat: /\buk\b.*singles|\bsingles\b.*\buk\b|\buk singles\b/, hit: 'UK Singles Chart' },
-    { pat: /\bcanada\b.*\brpm\b|\brpm\b/, hit: 'Canada RPM' },
     { pat: /\byear\s*end\b|\byear-end\b|\byearend\b/, hit: 'Billboard Year-End Hot 100' },
-    { pat: /\bhot\s*100\b|\bhot100\b/, hit: 'Billboard Hot 100' },
     { pat: /\btop40\b|\btop 40\b/, hit: 'Top40Weekly Top 100' },
   ];
 
@@ -543,10 +540,7 @@ let MUSIC_COVERAGE = { builtAt: null, start: 1970, end: 2010, charts: [] };
 function rebuildMusicCoverage() {
   const charts = [
     'Top40Weekly Top 100',
-    'Billboard Hot 100',
     'Billboard Year-End Hot 100',
-    'Canada RPM',
-    'UK Singles Chart',
   ];
   const builtAt = new Date().toISOString();
   MUSIC_COVERAGE = { builtAt, start: 1970, end: 2010, charts };
@@ -697,6 +691,7 @@ function normalizeTrackRow(row) {
   return { rank, artist, title, raw: row };
 }
 
+
 function formatTopItem(item, idx) {
   const r = normalizeTrackRow(item);
   const rank = Number.isFinite(Number(r?.rank)) ? Number(r.rank) : idx + 1;
@@ -717,7 +712,7 @@ function safeStoryMoment(y, c) {
   const top = (musicKnowledge.getTopByYear(y, c, 1) || [])[0];
   if (!top) return '';
 
-  const r = normalizeTrackRow(top);
+    const r = normalizeTrackRow(top);
   const artist = clean(r.artist);
   const title = clean(r.title);
   const chart = clean(c);
