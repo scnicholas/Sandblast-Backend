@@ -607,82 +607,32 @@ rebuildMusicCoverage();
    NYX: HUMAN OPENERS (CRITICAL)
 ========================= */
 
-// Time-aware, rotation-safe intro selector (does not touch conversational core)
-function nyxTimeZone() {
-  return clean(process.env.NYX_TIMEZONE) || 'America/Toronto';
-}
-
-function nyxLocalParts(date = new Date(), tz = nyxTimeZone()) {
-  // hour: 0–23, ymd: YYYY-MM-DD
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: tz,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    hour12: false,
-  }).formatToParts(date);
-
-  const get = (type) => parts.find((p) => p.type === type)?.value;
-  const y = get('year');
-  const mo = get('month');
-  const d = get('day');
-  const h = Number(get('hour') || '0');
-
-  return { hour: Number.isFinite(h) ? h : 0, ymd: `${y}-${mo}-${d}` };
-}
-
-function nyxDaypart(hour) {
-  // simple, stable dayparts for broadcast tone
-  if (hour >= 5 && hour <= 11) return 'morning';
-  if (hour >= 12 && hour <= 16) return 'afternoon';
-  return 'evening';
-}
-
-function nyxStablePickIndex(key, n) {
-  if (!n || n <= 1) return 0;
-  const hex = crypto.createHash('sha1').update(String(key || '')).digest('hex');
-  const num = parseInt(hex.slice(0, 8), 16);
-  return Number.isFinite(num) ? (num % n) : 0;
-}
-
-function nyxIntroText(session) {
-  // Rotation-safe per visitor per daypart per date (stable within a day; changes across days)
-  const tz = nyxTimeZone();
-  const { hour, ymd } = nyxLocalParts(new Date(), tz);
-  const dp = nyxDaypart(hour);
-
-  const base = "Welcome to Sandblast Channel — where classic TV, timeless music, and modern insight come together. I’m Nyx, and I’ll help you explore it all. How can I help you?";
-
-  const banks = {
-    morning: [
-      base,
-      "Good morning — welcome to Sandblast Channel, where classic TV, timeless music, and modern insight come together. I’m Nyx. How can I help you?",
-      "Morning, and welcome to Sandblast Channel — classic TV, timeless music, modern insight. I’m Nyx. How can I help you?",
-    ],
-    afternoon: [
-      base,
-      "Welcome to Sandblast Channel — classic TV, timeless music, and modern insight. I’m Nyx. How can I help you?",
-      "Glad you’re here. This is Sandblast Channel — classic TV, timeless music, modern insight. I’m Nyx. How can I help you?",
-    ],
-    evening: [
-      base,
-      "Good evening — welcome to Sandblast Channel, where classic TV, timeless music, and modern insight come together. I’m Nyx. How can I help you?",
-      "You’re on Sandblast Channel — classic TV, timeless music, and modern insight. I’m Nyx. How can I help you?",
-    ],
-  };
-
-  const list = banks[dp] || [base];
-  const idSeed = clean(session?.visitorId) || clean(session?.id) || 'anon';
-  const pickKey = `${idSeed}::${ymd}::${dp}`;
-  const idx = nyxStablePickIndex(pickKey, list.length);
-  return list[idx] || base;
-}
-
 // Single, clean intro line (no menus, no “tap chips”)
+
+function pickIntroLine(session) {
+  // Time-aware + rotation-safe: stable within a given hour for a given visitor/session.
+  const tz = TIMEZONE;
+  const now = new Date();
+  // Use local hour based on server TZ best-effort; keep deterministic even if TZ shifts.
+  const hourKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth()+1).padStart(2,'0')}-${String(now.getUTCDate()).padStart(2,'0')}-${now.getUTCHours()}`;
+  const seed = `${session?.visitorId || ''}|${session?.id || ''}|${hourKey}`;
+  const h = crypto.createHash('sha256').update(seed).digest('hex');
+  const idx = parseInt(h.slice(0, 8), 16);
+
+  const intros = [
+    "Welcome to Sandblast Channel — where classic TV, timeless music, and modern insight come together. I’m Nyx. How can I help you?",
+    "Welcome to Sandblast Channel — classic TV, timeless music, modern insight. I’m Nyx. How can I help you?",
+    "Welcome to Sandblast Channel — your home for classic TV, timeless music, and modern insight. I’m Nyx. How can I help you?"
+  ];
+
+  return intros[idx % intros.length];
+}
+
 function nyxHello(session) {
+  const name = clean(session?.displayName);
+  const who = name ? `, ${name}` : '';
   return nyxComposeNoChips({
-    signal: nyxIntroText(session),
+    signal: pickIntroLine(session),
     moment: '',
     choice: '',
   });
@@ -702,7 +652,7 @@ function nyxGreeting(session, rawUserMsg) {
   return nyxComposeNoChips({
     signal,
     moment: '',
-    choice: 'What are we doing today?',
+    choice: 'How can I help you?',
   });
 }
 
@@ -713,7 +663,7 @@ function nyxNameAcknowledge(session, name) {
   return nyxComposeNoChips({
     signal: `Nice to meet you, ${who}.`,
     moment: '',
-    choice: 'What should we do first?',
+    choice: 'How can I help you first?',
   });
 }
 
@@ -723,7 +673,7 @@ function nyxSocialReply(_message, session) {
   return nyxComposeNoChips({
     signal: `I’m good — steady and switched on. ${who}`.trim(),
     moment: '',
-    choice: 'What are we doing today?',
+    choice: 'How can I help you?',
   });
 }
 
@@ -1262,11 +1212,8 @@ function runNyxChat(body) {
     session.lastUserAt = now;
   }
 
-  // Stable signature for request-hash dedupe:
-  // - Use normalized message + lane hint from the message itself (so repeated "music" suppresses even if lane/state changes after first call)
-  const msgNorm = normText(message || '');
-  const laneHint = laneFromMessage(msgNorm) || inferLaneFromFreeText(message) || session.lane || 'general';
-  const sig = `${laneHint}|${msgNorm}`;
+  const lane = session.lane || 'general';
+  const sig = `${lane}|${session.musicState}|${session.musicYear || ''}|${session.musicChart || ''}|${message || ''}`;
 
   // HARD DEDUPE: suppress duplicate requests (retry bursts) even if other messages interleave.
   const reqHash = crypto.createHash('sha1').update(`${sessionId}::${sig}`).digest('hex');
@@ -1379,7 +1326,7 @@ function runNyxChat(body) {
       response = nyxComposeNoChips({
         signal: 'Sure.',
         moment: '',
-        choice: 'What are we doing today?',
+        choice: 'How can I help you?',
       });
     } else if (isResumeCommand(mLower)) {
       if (mLower.startsWith('resume music')) {
@@ -1389,7 +1336,7 @@ function runNyxChat(body) {
         response = nyxComposeNoChips({
           signal: 'Got it.',
           moment: '',
-          choice: 'How can I help you?',
+          choice: 'What are we picking up — music, TV, sponsors, or AI?',
         });
       }
     } else {
@@ -1423,7 +1370,7 @@ function runNyxChat(body) {
             response = nyxComposeNoChips({
               signal: who,
               moment: '',
-              choice: 'What are we doing today?',
+              choice: 'How can I help you?',
             });
           }
         }
