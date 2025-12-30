@@ -498,6 +498,10 @@ function getSession(sessionId, visitorId) {
       lastClientMsgId: null,
       lastClientMsgAt: 0,
 
+
+      // Robust dedupe caches (handles retries even if messages interleave)
+      clientMsgSeen: new Map(),   // clientMsgId -> ts
+      reqHashSeen: new Map(),     // reqHash     -> ts
       // monotonic server message id
       serverMsgId: 0,
 
@@ -1124,9 +1128,12 @@ function runNyxChat(body) {
 
   const now = Date.now();
 
-  // Client message dedupe (if widget sends IDs)
+  // Client message dedupe (robust): suppress duplicates even if other messages interleave.
   if (clientMsgId) {
-    if (session.lastClientMsgId === clientMsgId && now - (session.lastClientMsgAt || 0) < DUP_REQ_WINDOW_MS) {
+    if (!session.clientMsgSeen || typeof session.clientMsgSeen.get !== 'function') session.clientMsgSeen = new Map();
+
+    const seenAt = session.clientMsgSeen.get(clientMsgId) || 0;
+    if (seenAt && now - seenAt < DUP_REQ_WINDOW_MS) {
       session.recentSuppressCount = (session.recentSuppressCount || 0) + 1;
       session.lastSuppressAt = now;
 
@@ -1143,6 +1150,20 @@ function runNyxChat(body) {
       setLast({ route, request: body, response, error: null });
       return response;
     }
+
+    // Record + prune old entries (bounded memory)
+    session.clientMsgSeen.set(clientMsgId, now);
+    for (const [k, t] of session.clientMsgSeen.entries()) {
+      if (!t || now - t > DUP_REQ_WINDOW_MS) session.clientMsgSeen.delete(k);
+    }
+    // Cap to prevent unbounded growth on long sessions
+    if (session.clientMsgSeen.size > 250) {
+      const entries = Array.from(session.clientMsgSeen.entries()).sort((a, b) => a[1] - b[1]);
+      const over = session.clientMsgSeen.size - 250;
+      for (let i = 0; i < over; i++) session.clientMsgSeen.delete(entries[i][0]);
+    }
+
+    // Keep legacy fields for debugging/visibility
     session.lastClientMsgId = clientMsgId;
     session.lastClientMsgAt = now;
   }
@@ -1174,9 +1195,12 @@ function runNyxChat(body) {
   const lane = session.lane || 'general';
   const sig = `${lane}|${session.musicState}|${session.musicYear || ''}|${session.musicChart || ''}|${message || ''}`;
 
-  // HARD DEDUPE: if the widget retries the same request, do NOT emit a second visible bubble.
+  // HARD DEDUPE: suppress duplicate requests (retry bursts) even if other messages interleave.
   const reqHash = crypto.createHash('sha1').update(`${sessionId}::${sig}`).digest('hex');
-  if (session.lastReqHash && reqHash === session.lastReqHash && now - (session.lastReqAt || 0) < DUP_REQ_WINDOW_MS) {
+  if (!session.reqHashSeen || typeof session.reqHashSeen.get !== 'function') session.reqHashSeen = new Map();
+
+  const seenReqAt = session.reqHashSeen.get(reqHash) || 0;
+  if (seenReqAt && now - seenReqAt < DUP_REQ_WINDOW_MS) {
     session.recentSuppressCount = (session.recentSuppressCount || 0) + 1;
     session.lastSuppressAt = now;
 
@@ -1193,6 +1217,18 @@ function runNyxChat(body) {
     setLast({ route, request: body, response, error: null });
     return response;
   }
+
+  session.reqHashSeen.set(reqHash, now);
+  for (const [k, t] of session.reqHashSeen.entries()) {
+    if (!t || now - t > DUP_REQ_WINDOW_MS) session.reqHashSeen.delete(k);
+  }
+  if (session.reqHashSeen.size > 250) {
+    const entries = Array.from(session.reqHashSeen.entries()).sort((a, b) => a[1] - b[1]);
+    const over = session.reqHashSeen.size - 250;
+    for (let i = 0; i < over; i++) session.reqHashSeen.delete(entries[i][0]);
+  }
+
+  // Keep legacy fields for debugging/visibility
   session.lastReqHash = reqHash;
   session.lastReqAt = now;
 
@@ -1420,6 +1456,7 @@ app.get('/api/health', (req, res) => {
       repeatReplyWindowMs: REPEAT_REPLY_WINDOW_MS,
       maxRepeatReply: MAX_REPEAT_REPLY,
       dupReqWindowMs: DUP_REQ_WINDOW_MS,
+      // visibility: dedupe caches are per-session; counts shown via /api/debug/last
     },
   });
 });
