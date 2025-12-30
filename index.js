@@ -12,10 +12,11 @@
  *  - POST /api/s2s  (STT -> chat -> TTS, returns JSON w/ audioBase64)
  *
  * Fixes in this revision:
- *  - Eliminates rude/flat acknowledgements (e.g., “Got you.” for a name)
- *  - Deepens greeting + name flow (fast, polite, natural)
- *  - Hardens loop prevention + retry/double-send dedupe (longer window + optional clientMsgId)
- *  - Ensures music “Top 10 / #1 / Story moment” executes reliably (no re-prompt loops)
+ *  - Better name extraction (supports "I'm", "im", "name is", bare name)
+ *  - Polite name acknowledgement (no flat “Got you.”-style responses)
+ *  - Greeting tuned for fast, natural response
+ *  - Loop control adjusted to avoid “blank/no-response” chains
+ *  - Music commands recognize more variants (top ten, number one, # 1)
  */
 
 const express = require('express');
@@ -166,18 +167,61 @@ function isHowAreYou(msg) {
   );
 }
 
+/** Conservative: only accept letters + common name punctuation, and not obviously “commands” */
+function looksLikeBareName(msg) {
+  const s = clean(msg);
+  if (!s) return false;
+
+  // Too long or contains digits/symbols -> no
+  if (s.length > 40) return false;
+  if (/[0-9@#$/\\]/.test(s)) return false;
+
+  // 1–2 tokens max
+  const tokens = s.split(/\s+/).filter(Boolean);
+  if (tokens.length < 1 || tokens.length > 2) return false;
+
+  // Must be alphabetic-ish (allow apostrophe/hyphen)
+  if (!/^[A-Za-z][A-Za-z'\- ]{0,39}$/.test(s)) return false;
+
+  // Reject common non-names that show up in flows
+  const m = normText(s);
+  const banned = new Set([
+    'music','tv','sponsors','sponsor','ai','general','resume','switch','top 10','top10','#1','1','number 1','no. 1','story','story moment'
+  ]);
+  if (banned.has(m)) return false;
+
+  // Reject basic acknowledgements
+  if (['ok','okay','fine','great','good','yes','no','yeah','yep','nope'].includes(m)) return false;
+
+  return true;
+}
+
 function extractName(msg) {
   const s = asText(msg);
   if (!s) return null;
 
+  // my name is X
   const m1 = s.match(/\bmy name is\s+([A-Za-z][A-Za-z'\- ]{1,40})/i);
   if (m1 && m1[1]) return m1[1].trim();
 
+  // name is X
+  const mNameIs = s.match(/\bname is\s+([A-Za-z][A-Za-z'\- ]{1,40})/i);
+  if (mNameIs && mNameIs[1]) return mNameIs[1].trim();
+
+  // i am X
   const m2 = s.match(/\bi am\s+([A-Za-z][A-Za-z'\- ]{1,40})\b/i);
   if (m2 && m2[1]) {
     const candidate = m2[1].trim();
     if (!/^(good|great|fine|ok|okay|well|awesome)$/i.test(candidate)) return candidate;
   }
+
+  // i'm X / I’m X / im X
+  const m3 = s.match(/\b(i'?m|i’m|im)\s+([A-Za-z][A-Za-z'\- ]{1,40})\b/i);
+  if (m3 && m3[2]) {
+    const candidate = m3[2].trim();
+    if (!/^(good|great|fine|ok|okay|well|awesome)$/i.test(candidate)) return candidate;
+  }
+
   return null;
 }
 
@@ -185,8 +229,9 @@ function looksLikeNameOnlyStatement(msg) {
   const m = normText(msg);
   if (!m) return false;
   if (m.startsWith('my name is ')) return true;
+  if (m.startsWith('name is ')) return true;
   if (m.startsWith('i am ')) return true;
-  if (m.startsWith("i'm ")) return true;
+  if (m.startsWith("i'm ") || m.startsWith('im ') || m.startsWith('i’m ')) return true;
   return false;
 }
 
@@ -384,6 +429,10 @@ function getSession(sessionId, visitorId) {
 
       // monotonic server message id
       serverMsgId: 0,
+
+      // When we suppress a duplicate, count it so we don’t “blank” repeatedly
+      recentSuppressCount: 0,
+      lastSuppressAt: 0,
     };
 
     SESSIONS.set(id, s);
@@ -479,12 +528,17 @@ function rebuildMusicCoverage() {
 }
 rebuildMusicCoverage();
 
-function nyxGreeting(session) {
+function nyxGreeting(session, variant = 'default') {
   const name = clean(session?.displayName);
-  const who = name ? `${name}. ` : '';
+  const who = name ? `, ${name}` : '';
+  const open =
+    variant === 'short'
+      ? `Hi${who}. I’m Nyx.`
+      : `Welcome to Sandblast${who}. I’m Nyx.`;
+
   return nyxComposeNoChips({
-    signal: `Welcome to Sandblast. I’m Nyx. ${who}`.trim(),
-    moment: 'Tell me what you want to explore, and I’ll guide you.',
+    signal: open,
+    moment: 'Tell me what you want to explore.',
     choice: 'Music, TV, Sponsors, or AI?',
   });
 }
@@ -494,7 +548,7 @@ function nyxNameAcknowledge(session, name) {
   const who = nm ? `${nm}` : 'there';
   return nyxComposeNoChips({
     signal: `Nice to meet you, ${who}.`,
-    moment: 'What do you feel like doing right now?',
+    moment: 'What do you want to do first?',
     choice: 'Music, TV, Sponsors, or AI?',
   });
 }
@@ -543,6 +597,21 @@ function safeStoryMoment(y, c) {
   );
 }
 
+function isTop10Command(mLower) {
+  return mLower === 'top 10' || mLower === 'top10' || mLower === 'top ten';
+}
+function isNumber1Command(mLower) {
+  return (
+    mLower === '#1' ||
+    mLower === '# 1' ||
+    mLower === '1' ||
+    mLower === 'number 1' ||
+    mLower === 'number one' ||
+    mLower === 'no. 1' ||
+    mLower === 'no 1'
+  );
+}
+
 function handleMusic(message, session) {
   const msg = asText(message);
   const mLower = normText(msg);
@@ -556,7 +625,7 @@ function handleMusic(message, session) {
     const y = session.musicYear || 1988;
     const c = session.musicChart || session.profile?.musicChart || 'Billboard Year-End Hot 100';
 
-    if (mLower === 'top 10' || mLower === 'top10') {
+    if (isTop10Command(mLower)) {
       const list = musicKnowledge.getTopByYear(y, c, 10) || [];
       const lines = list.slice(0, 10).map((it, i) => formatTopItem(it, i)).join('\n');
 
@@ -568,7 +637,7 @@ function handleMusic(message, session) {
       });
     }
 
-    if (mLower === '#1' || mLower === '1' || mLower === 'number 1' || mLower === 'no. 1') {
+    if (isNumber1Command(mLower)) {
       const list = musicKnowledge.getTopByYear(y, c, 1) || [];
       const it = list[0];
       const line = it ? formatTopItem(it, 0) : `1. (not found) — (not found)`;
@@ -610,6 +679,7 @@ function handleMusic(message, session) {
         chips: ['1984', '1988', '1990', '1999'],
       });
     }
+
     // If user says a year while ready, treat as year-change
     if (isYear) {
       session.lane = 'music';
@@ -709,8 +779,6 @@ function elevenVoiceSettings() {
 
 async function elevenTTS(text) {
   const fetch = await getFetch();
-
-  // Keep your current format, but allow override via env if you want faster TTS later
   const outputFmt = clean(process.env.ELEVENLABS_OUTPUT_FORMAT) || 'mp3_44100_128';
   const url = `${ELEVENLABS_BASE_URL}/v1/text-to-speech/${ELEVENLABS_VOICE_ID}?output_format=${encodeURIComponent(outputFmt)}`;
 
@@ -841,6 +909,19 @@ function loopBreakerReply(session) {
   });
 }
 
+function forwardMotionNudge(session) {
+  // Used if dedupe suppression happens repeatedly and client appears “stuck”
+  if (session?.lane === 'music' || session?.musicState !== 'start') {
+    return handleMusic(session.musicState === 'ready' ? 'top 10' : 'music', session);
+  }
+  return nyxCompose({
+    signal: 'I’m here.',
+    moment: 'Pick a lane and I’ll move it forward.',
+    choice: 'Music, TV, Sponsors, or AI?',
+    chips: ['Music', 'TV', 'Sponsors', 'AI'],
+  });
+}
+
 function runNyxChat(body) {
   const route = '/api/chat_core';
   const rawMessage = body?.message;
@@ -862,10 +943,14 @@ function runNyxChat(body) {
   session.serverMsgId = (session.serverMsgId || 0) + 1;
   const serverMsgId = session.serverMsgId;
 
-  // Client message dedupe (if widget sends IDs)
   const now = Date.now();
+
+  // Client message dedupe (if widget sends IDs)
   if (clientMsgId) {
     if (session.lastClientMsgId === clientMsgId && now - (session.lastClientMsgAt || 0) < DUP_REQ_WINDOW_MS) {
+      session.recentSuppressCount = (session.recentSuppressCount || 0) + 1;
+      session.lastSuppressAt = now;
+
       const response = {
         ok: true,
         reply: '',
@@ -883,12 +968,14 @@ function runNyxChat(body) {
     session.lastClientMsgAt = now;
   }
 
+  // Extract/learn name early
   const nm = extractName(message);
   if (nm) session.displayName = nm;
+  else if (!session.displayName && looksLikeBareName(message)) session.displayName = clean(message);
 
   if (message) {
     session.lastUserText = message;
-    session.lastUserAt = Date.now();
+    session.lastUserAt = now;
   }
 
   const lane = session.lane || 'general';
@@ -897,6 +984,9 @@ function runNyxChat(body) {
   // HARD DEDUPE: if the widget retries the same request, do NOT emit a second visible bubble.
   const reqHash = crypto.createHash('sha1').update(`${sessionId}::${sig}`).digest('hex');
   if (session.lastReqHash && reqHash === session.lastReqHash && now - (session.lastReqAt || 0) < DUP_REQ_WINDOW_MS) {
+    session.recentSuppressCount = (session.recentSuppressCount || 0) + 1;
+    session.lastSuppressAt = now;
+
     const response = {
       ok: true,
       reply: '',
@@ -913,8 +1003,28 @@ function runNyxChat(body) {
   session.lastReqHash = reqHash;
   session.lastReqAt = now;
 
-  // Anti-loop suppression: same signature rapidly -> suppress visible output.
+  // Anti-loop suppression: same signature rapidly -> suppress visible output,
+  // BUT if we’ve suppressed recently multiple times, stop suppressing and push forward motion.
   if (session.lastSig && sig === session.lastSig && now - (session.lastSigAt || 0) < ANTI_LOOP_WINDOW_MS) {
+    const recent = now - (session.lastSuppressAt || 0) < 5000;
+    const tooMany = (session.recentSuppressCount || 0) >= 2 && recent;
+
+    if (tooMany) {
+      const fm = forwardMotionNudge(session);
+      const payload = {
+        ok: true,
+        reply: fm.reply || '',
+        followUp: fm.followUp ?? null,
+        sessionId,
+        serverMsgId,
+      };
+      setLast({ route, request: body, response: payload, error: null });
+      return payload;
+    }
+
+    session.recentSuppressCount = (session.recentSuppressCount || 0) + 1;
+    session.lastSuppressAt = now;
+
     const response = {
       ok: true,
       reply: '',
@@ -928,6 +1038,9 @@ function runNyxChat(body) {
     setLast({ route, request: body, response, error: null });
     return response;
   }
+
+  // Reset suppression counter on new sig
+  session.recentSuppressCount = 0;
   session.lastSig = sig;
   session.lastSigAt = now;
 
@@ -938,7 +1051,7 @@ function runNyxChat(body) {
     const isFirstOpen = !session.turnCount || session.turnCount < 1;
     if (isFirstOpen) {
       session.greeted = true;
-      response = nyxGreeting(session);
+      response = nyxGreeting(session, 'default');
     } else {
       response = nyxCompose({
         signal: "I didn’t catch that.",
@@ -947,12 +1060,16 @@ function runNyxChat(body) {
         chips: ['Music', 'TV', 'Sponsors', 'AI'],
       });
     }
-  } else if (nm && looksLikeNameOnlyStatement(message)) {
-    // Polite acknowledgement for names (fixes “Got you.”)
-    response = nyxNameAcknowledge(session, nm);
+  } else if (session.displayName && (nm && looksLikeNameOnlyStatement(message))) {
+    // Explicit "my name is / i'm / i am" type statement
+    response = nyxNameAcknowledge(session, session.displayName);
+  } else if (!nm && looksLikeBareName(message)) {
+    // Bare-name statement, e.g., "Mac"
+    response = nyxNameAcknowledge(session, session.displayName);
   } else if (isGreeting(message)) {
     session.greeted = true;
-    response = nyxGreeting(session);
+    // If they greet and we already have a name, keep it short
+    response = nyxGreeting(session, session.displayName ? 'short' : 'default');
   } else if (isHowAreYou(message)) {
     response = nyxSocialReply(message, session);
   } else {
