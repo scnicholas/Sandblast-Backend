@@ -12,11 +12,12 @@
  *  - POST /api/s2s  (STT -> chat -> TTS, returns JSON w/ audioBase64)
  *
  * Critical fixes in this revision:
- *  - FIX: Greeting flow no longer stitches awkward phrases (e.g., “Alright — Hi Nyx,”)
- *  - FIX: Prevents “Hi Nyx / Hello Nyx” from being mis-learned as the user’s name
- *  - ADD: Explicit __nyx_hello__ handler for widget open (human intro, stable)
- *  - TUNE: Greetings + name acknowledgement are short, natural, forward-moving
- *  - KEEP: Existing features (chips/lanes/music/tts/stt/dedupe) unchanged
+ *  - FIX: Intro is a single clean line (no menus, no chip instructions, no extra system text)
+ *  - FIX: Greetings + “Hi Nyx” are acknowledged naturally (no awkward stitching)
+ *  - FIX: Name capture is safe + immediate (Nyx uses the name right away; never mislearns “Hi Nyx”)
+ *  - FIX: Removed the “fast vs explore” pace prompt (was causing disjointed, non-human openings)
+ *  - TUNE: “Golden sequence” enforced: acknowledge → reflect → advance (one next step)
+ *  - KEEP: Existing features (music/tts/stt/s2s/dedupe) unchanged
  */
 
 const express = require('express');
@@ -170,6 +171,48 @@ function isHowAreYou(msg) {
   );
 }
 
+function inferLaneFromFreeText(msg) {
+  const m = normText(msg);
+  if (!m) return null;
+
+  // Music
+  if (/(song|track|artist|album|billboard|year[- ]end|top ?40|top40weekly|chart|hot ?100|rpm|uk singles)/i.test(m)) return 'music';
+
+  // TV / media programming
+  if (/(tv|show|series|episode|season|watch|program|schedule|channel|broadcast)/i.test(m)) return 'tv';
+
+  // Sponsors / ads
+  if (/(sponsor|advertis|ad rate|media kit|campaign|placement|brand partner)/i.test(m)) return 'sponsors';
+
+  // AI / tech help
+  if (/(api|backend|render|node|express|index\.js|widget|webflow|bug|error|500|cors|tts|stt|mic|deploy|github)/i.test(m)) return 'ai';
+
+  return null;
+}
+
+function isClearIntent(msg) {
+  const s = asText(msg);
+  if (!s) return false;
+
+  const m = normText(s);
+  if (!m) return false;
+
+  // Exclude greetings / lane shortcuts
+  if (isGreeting(s) || isNyxAddressedGreeting(s)) return false;
+  if (laneFromMessage(m)) return false;
+
+  // If it looks like a name-only statement, don't treat as intent
+  if (looksLikeBareName(s) || looksLikeNameOnlyStatement(s)) return false;
+
+  // Common intent phrasing, or a question, or simply enough words
+  if (/[?]/.test(s)) return true;
+  if (/(help|need|want|can you|could you|show me|tell me|find|give me|fix|update|how do i|what is|when was|where is)/i.test(s)) return true;
+
+  // Enough content to likely be a real request
+  const tokens = m.split(' ').filter(Boolean);
+  return tokens.length >= 4;
+}
+
 // Avoid learning “nyx” or greeting phrases as a user name
 function isNyxAddressedGreeting(msg) {
   const m = normText(msg);
@@ -224,6 +267,9 @@ function looksLikeBareName(msg) {
 function extractName(msg) {
   const s = asText(msg);
   if (!s) return null;
+
+  // Never accept “Hi Nyx” / “Hello Nyx” as a name
+  if (isNyxAddressedGreeting(s) || isGreeting(s)) return null;
 
   // my name is X
   const m1 = s.match(/\bmy name is\s+([A-Za-z][A-Za-z'\- ]{1,40})/i);
@@ -398,7 +444,7 @@ function nyxDeMeta(reply, followUp) {
   return nyxComposeNoChips({
     signal: 'Copy that.',
     moment: 'Tell me what you want to do, and I’ll take it from there.',
-    choice: 'Music, TV, Sponsors, or AI?',
+    choice: '',
   });
 }
 
@@ -557,39 +603,43 @@ rebuildMusicCoverage();
    NYX: HUMAN OPENERS (CRITICAL)
 ========================= */
 
+// Single, clean intro line (no menus, no “tap chips”)
 function nyxHello(session) {
   const name = clean(session?.displayName);
   const who = name ? `, ${name}` : '';
-  // Single, human opening line (no menus, no extra instructions)
   return nyxComposeNoChips({
-    signal: `Hey${who} — I’m Nyx. Tell me what you’re in the mood for, and I’ll take it from there.`,
+    signal: `Hey${who} — I’m Nyx. What are we doing today?`,
     moment: '',
     choice: '',
   });
 }
 
-function nyxGreeting(session, variant = 'default') {
-  // Natural greeting that immediately advances the conversation (soft branch).
+// Greeting acknowledgment + one forward step
+function nyxGreeting(session, rawUserMsg) {
   const name = clean(session?.displayName);
   const who = name ? `, ${name}` : '';
+  const m = normText(rawUserMsg);
 
-  // Keep it short; avoid menu-speak while still offering direction.
-  const opener = variant === 'short' ? `Hey${who}.` : `Hey${who}.`;
+  let signal = `Hey${who}.`;
+  if (m.startsWith('good morning')) signal = `Morning${who}.`;
+  else if (m.startsWith('good afternoon')) signal = `Afternoon${who}.`;
+  else if (m.startsWith('good evening')) signal = `Evening${who}.`;
 
   return nyxComposeNoChips({
-    signal: opener,
-    moment: 'What are you in the mood for — music, TV, sponsors, or something else?',
-    choice: '',
+    signal,
+    moment: '',
+    choice: 'What are we doing today?',
   });
 }
 
+// Name acknowledgment: use the name immediately + one next step
 function nyxNameAcknowledge(session, name) {
   const nm = clean(name) || clean(session?.displayName);
   const who = nm ? `${nm}` : 'there';
   return nyxComposeNoChips({
     signal: `Nice to meet you, ${who}.`,
     moment: '',
-    choice: 'What should we do first — music, TV, sponsors, or AI?',
+    choice: 'What should we do first?',
   });
 }
 
@@ -599,7 +649,7 @@ function nyxSocialReply(_message, session) {
   return nyxComposeNoChips({
     signal: `I’m good — steady and switched on. ${who}`.trim(),
     moment: '',
-    choice: 'What are you in the mood for today?',
+    choice: 'What are we doing today?',
   });
 }
 
@@ -696,7 +746,6 @@ function normalizeTrackRow(row) {
   return { rank, artist, title, raw: row };
 }
 
-
 function formatTopItem(item, idx) {
   const r = normalizeTrackRow(item);
   const rank = Number.isFinite(Number(r?.rank)) ? Number(r.rank) : idx + 1;
@@ -717,7 +766,7 @@ function safeStoryMoment(y, c) {
   const top = (musicKnowledge.getTopByYear(y, c, 1) || [])[0];
   if (!top) return '';
 
-    const r = normalizeTrackRow(top);
+  const r = normalizeTrackRow(top);
   const artist = clean(r.artist);
   const title = clean(r.title);
   const chart = clean(c);
@@ -1041,14 +1090,13 @@ function loopBreakerReply(session) {
 }
 
 function forwardMotionNudge(session) {
-  // Used if dedupe suppression happens repeatedly and client appears “stuck”
   if (session?.lane === 'music' || session?.musicState !== 'start') {
     return handleMusic(session.musicState === 'ready' ? 'top 10' : 'music', session);
   }
   return nyxCompose({
     signal: 'I’m here.',
-    moment: 'Pick a lane and I’ll move it forward.',
-    choice: 'Music, TV, Sponsors, or AI?',
+    moment: 'Tell me what you want to do, and I’ll take it from there.',
+    choice: '',
     chips: ['Music', 'TV', 'Sponsors', 'AI'],
   });
 }
@@ -1191,51 +1239,48 @@ function runNyxChat(body) {
 
   let response;
 
-  // First-open or blank message
+  // First turn / empty: intro line
   if (!message || isNearEmpty(message)) {
     const isFirstOpen = !session.turnCount || session.turnCount < 1;
     if (isFirstOpen) {
       session.greeted = true;
       response = nyxHello(session);
     } else {
-      response = nyxCompose({
+      response = nyxComposeNoChips({
         signal: "I didn’t catch that.",
-        moment: 'Try again — or pick a lane and I’ll take it from there.',
-        choice: 'Where do you want to go?',
-        chips: ['Music', 'TV', 'Sponsors', 'AI'],
+        moment: '',
+        choice: 'Say it again in one line.',
       });
     }
-  } else if (session.displayName && (nm && looksLikeNameOnlyStatement(message))) {
-    // Explicit "my name is / i'm / i am" type statement
+  } else if (nm && looksLikeNameOnlyStatement(message)) {
+    // Explicit name statement
     response = nyxNameAcknowledge(session, session.displayName);
   } else if (!nm && looksLikeBareName(message)) {
     // Bare-name statement, e.g., "Mac"
     response = nyxNameAcknowledge(session, session.displayName);
   } else if (isGreeting(message) || isNyxAddressedGreeting(message)) {
     session.greeted = true;
-    response = nyxGreeting(session, session.displayName ? 'short' : 'default');
+    response = nyxGreeting(session, message);
   } else if (isHowAreYou(message)) {
     response = nyxSocialReply(message, session);
   } else {
     const mLower = normText(message);
 
     if (isSwitchLanes(mLower)) {
-      response = nyxCompose({
+      response = nyxComposeNoChips({
         signal: 'Sure.',
-        moment: 'Pick a lane and I’ll drive.',
-        choice: 'Music, TV, Sponsors, or AI?',
-        chips: ['Music', 'TV', 'Sponsors', 'AI'],
+        moment: '',
+        choice: 'What are we doing today?',
       });
     } else if (isResumeCommand(mLower)) {
       if (mLower.startsWith('resume music')) {
         session.lane = 'music';
         response = handleMusic('music', session);
       } else {
-        response = nyxCompose({
-          signal: 'Resume or switch?',
-          moment: 'Tell me the lane.',
-          choice: 'Music, TV, Sponsors, or AI?',
-          chips: ['Music', 'TV', 'Sponsors', 'AI'],
+        response = nyxComposeNoChips({
+          signal: 'Got it.',
+          moment: '',
+          choice: 'What are we picking up — music, TV, sponsors, or AI?',
         });
       }
     } else {
@@ -1245,12 +1290,12 @@ function runNyxChat(body) {
         session.lane = lanePick;
         if (lanePick === 'music') response = handleMusic('music', session);
         else {
-          const nice = lanePick === 'ai' ? 'AI' : lanePick.toUpperCase();
-          response = nyxCompose({
-            signal: `${nice} mode.`,
-            moment: 'Tell me what you want, and I’ll guide the next step.',
-            choice: 'What’s the goal?',
-            chips: ['Build/Fix', 'Fun', 'Music', 'TV', 'Sponsors', 'AI'],
+          // Acknowledge lane, then ask for the goal (single step)
+          const nice = lanePick === 'ai' ? 'AI' : (lanePick === 'tv' ? 'TV' : 'Sponsors');
+          response = nyxComposeNoChips({
+            signal: `${nice} — got it.`,
+            moment: '',
+            choice: 'What’s the outcome you want?',
           });
         }
       } else {
@@ -1258,15 +1303,20 @@ function runNyxChat(body) {
         if (session.lane === 'music' || session.musicState !== 'start') {
           response = handleMusic(message, session);
         } else {
-          // CRITICAL: remove “Alright — …” (it reads robotic and creates collisions)
-          const name = clean(session.displayName);
-          const who = name ? `${name}.` : '';
-          response = nyxCompose({
-            signal: who ? `Got it, ${who}` : 'Got it.',
-            moment: '',
-            choice: 'What do you want to do — Music, TV, Sponsors, or AI?',
-            chips: ['Music', 'TV', 'Sponsors', 'AI'],
-          });
+          // General: acknowledge user content briefly, then advance with ONE next step.
+          const inferred = inferLaneFromFreeText(message);
+          if (inferred === 'music') {
+            session.lane = 'music';
+            response = handleMusic('music', session);
+          } else {
+            const name = clean(session.displayName);
+            const who = name ? `Got it, ${name}.` : 'Got it.';
+            response = nyxComposeNoChips({
+              signal: who,
+              moment: '',
+              choice: 'What are we doing today?',
+            });
+          }
         }
       }
     }
