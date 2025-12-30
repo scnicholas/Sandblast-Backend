@@ -4,18 +4,18 @@
  * Sandblast Backend (Nyx)
  * index.js — Node 18+ friendly (works on Node 25.x too).
  *
- * Adds / Keeps:
+ * Routes:
  *  - POST /api/chat
  *  - POST /api/tts
  *  - POST /api/voice (alias)
  *  - POST /api/stt  (multipart form-data, field name: "file")
  *  - POST /api/s2s  (STT -> chat -> TTS, returns JSON w/ audioBase64)
  *
- * HARDENING (this resend):
- *  - Fixes broken JS in pasted file: duplicate LAST, invalid object spread, malformed debug JSON
- *  - HARD DEDUPE for double-send/double-tap: returns reply:"" + suppressRender:true
- *  - Anti-loop suppression: reply:"" + suppressRender:true
- *  - Adds serverMsgId so the widget can ignore duplicates if needed
+ * Fixes in this revision:
+ *  - Eliminates rude/flat acknowledgements (e.g., “Got you.” for a name)
+ *  - Deepens greeting + name flow (fast, polite, natural)
+ *  - Hardens loop prevention + retry/double-send dedupe (longer window + optional clientMsgId)
+ *  - Ensures music “Top 10 / #1 / Story moment” executes reliably (no re-prompt loops)
  */
 
 const express = require('express');
@@ -74,8 +74,8 @@ const ANTI_LOOP_WINDOW_MS = Number(process.env.NYX_ANTI_LOOP_WINDOW_MS || 1600);
 const REPEAT_REPLY_WINDOW_MS = Number(process.env.NYX_REPEAT_REPLY_WINDOW_MS || 120000);
 const MAX_REPEAT_REPLY = Number(process.env.NYX_MAX_REPEAT_REPLY || 2);
 
-// HARD DEDUPE window (prevents double-send/double-tap from producing duplicate bubbles)
-const DUP_REQ_WINDOW_MS = Number(process.env.NYX_DUP_REQ_WINDOW_MS || 3000);
+// HARD DEDUPE window (prevents double-send/double-tap / retry bursts)
+const DUP_REQ_WINDOW_MS = Number(process.env.NYX_DUP_REQ_WINDOW_MS || 20000);
 
 /* =========================
    DEBUG SNAPSHOT (SINGLETON)
@@ -134,9 +134,15 @@ function isGreeting(msg) {
     m === 'hello' ||
     m === 'hey' ||
     m === 'yo' ||
+    m === 'good morning' ||
+    m === 'good afternoon' ||
+    m === 'good evening' ||
     m.startsWith('hi ') ||
     m.startsWith('hello ') ||
-    m.startsWith('hey ')
+    m.startsWith('hey ') ||
+    m.startsWith('good morning') ||
+    m.startsWith('good afternoon') ||
+    m.startsWith('good evening')
   );
 }
 
@@ -173,6 +179,15 @@ function extractName(msg) {
     if (!/^(good|great|fine|ok|okay|well|awesome)$/i.test(candidate)) return candidate;
   }
   return null;
+}
+
+function looksLikeNameOnlyStatement(msg) {
+  const m = normText(msg);
+  if (!m) return false;
+  if (m.startsWith('my name is ')) return true;
+  if (m.startsWith('i am ')) return true;
+  if (m.startsWith("i'm ")) return true;
+  return false;
 }
 
 function normalizeTranscriptForNyx(t) {
@@ -339,7 +354,6 @@ function getSession(sessionId, visitorId) {
       lastActiveAt: Date.now(),
 
       greeted: false,
-      checkInPending: false,
 
       turnCount: 0,
       userTurnCount: 0,
@@ -350,8 +364,6 @@ function getSession(sessionId, visitorId) {
       lastAssistantReply: null,
       lastAssistantAt: 0,
       repeatReplyCount: 0,
-
-      lastFollowSig: null,
 
       topic: (profile?.topic && String(profile.topic)) || '',
       lastUserText: '',
@@ -367,6 +379,8 @@ function getSession(sessionId, visitorId) {
       // HARD DEDUPE tracking
       lastReqHash: null,
       lastReqAt: 0,
+      lastClientMsgId: null,
+      lastClientMsgAt: 0,
 
       // monotonic server message id
       serverMsgId: 0,
@@ -467,10 +481,20 @@ rebuildMusicCoverage();
 
 function nyxGreeting(session) {
   const name = clean(session?.displayName);
-  const who = name ? `${name}, ` : '';
+  const who = name ? `${name}. ` : '';
   return nyxComposeNoChips({
     signal: `Welcome to Sandblast. I’m Nyx. ${who}`.trim(),
     moment: 'Tell me what you want to explore, and I’ll guide you.',
+    choice: 'Music, TV, Sponsors, or AI?',
+  });
+}
+
+function nyxNameAcknowledge(session, name) {
+  const nm = clean(name) || clean(session?.displayName);
+  const who = nm ? `${nm}` : 'there';
+  return nyxComposeNoChips({
+    signal: `Nice to meet you, ${who}.`,
+    moment: 'What do you feel like doing right now?',
     choice: 'Music, TV, Sponsors, or AI?',
   });
 }
@@ -521,11 +545,85 @@ function safeStoryMoment(y, c) {
 
 function handleMusic(message, session) {
   const msg = asText(message);
-  const mLower = msg.toLowerCase();
+  const mLower = normText(msg);
 
   const embeddedYear = extractYearInRange(msg, MUSIC_COVERAGE.start, MUSIC_COVERAGE.end);
   const year = embeddedYear != null ? embeddedYear : Number(msg);
   const isYear = Number.isFinite(year) && year >= MUSIC_COVERAGE.start && year <= MUSIC_COVERAGE.end;
+
+  // Priority: when already "ready", execute intent BEFORE trying to re-lock chart/year
+  if (session.musicState === 'ready') {
+    const y = session.musicYear || 1988;
+    const c = session.musicChart || session.profile?.musicChart || 'Billboard Year-End Hot 100';
+
+    if (mLower === 'top 10' || mLower === 'top10') {
+      const list = musicKnowledge.getTopByYear(y, c, 10) || [];
+      const lines = list.slice(0, 10).map((it, i) => formatTopItem(it, i)).join('\n');
+
+      return nyxCompose({
+        signal: `Top 10 — ${c} (${y}):`,
+        moment: lines,
+        choice: 'Want #1, a story moment, or another year?',
+        chips: ['#1', 'Story moment', 'Another year'],
+      });
+    }
+
+    if (mLower === '#1' || mLower === '1' || mLower === 'number 1' || mLower === 'no. 1') {
+      const list = musicKnowledge.getTopByYear(y, c, 1) || [];
+      const it = list[0];
+      const line = it ? formatTopItem(it, 0) : `1. (not found) — (not found)`;
+
+      return nyxCompose({
+        signal: `#1 — ${c} (${y}):`,
+        moment: line,
+        choice: 'Want a story moment or Top 10?',
+        chips: ['Story moment', 'Top 10', 'Another year'],
+      });
+    }
+
+    if (isStoryMomentCommand(mLower)) {
+      const story = safeStoryMoment(y, c);
+      if (story) {
+        return nyxCompose({
+          signal: story,
+          moment: '',
+          choice: 'Top 10, #1, or another year?',
+          chips: ['Top 10', '#1', 'Another year'],
+        });
+      }
+      return nyxCompose({
+        signal: `No story moment loaded for ${y} on ${c} yet.`,
+        moment: '',
+        choice: 'Top 10 or #1 instead?',
+        chips: ['Top 10', '#1', 'Another year'],
+      });
+    }
+
+    if (mLower.includes('another year') || mLower === 'year') {
+      session.musicState = 'need_year';
+      session.musicChart = null;
+      session.musicYear = null;
+      return nyxCompose({
+        signal: 'Sure.',
+        moment: `Pick a year between ${MUSIC_COVERAGE.start} and ${MUSIC_COVERAGE.end}.`,
+        choice: 'Which year?',
+        chips: ['1984', '1988', '1990', '1999'],
+      });
+    }
+    // If user says a year while ready, treat as year-change
+    if (isYear) {
+      session.lane = 'music';
+      session.musicYear = year;
+      session.musicChart = null;
+      session.musicState = 'need_chart';
+      return nyxCompose({
+        signal: `Locked: ${year}.`,
+        moment: 'Pick a chart and I’ll pull clean results.',
+        choice: 'Which chart do you want?',
+        chips: MUSIC_COVERAGE.charts,
+      });
+    }
+  }
 
   if (isYear) {
     session.lane = 'music';
@@ -588,74 +686,6 @@ function handleMusic(message, session) {
     });
   }
 
-  if (session.musicState === 'ready') {
-    const y = session.musicYear || 1988;
-    const c = session.musicChart || session.profile?.musicChart || 'Billboard Year-End Hot 100';
-
-    // Failsafe: if user hits Top 10 / #1 / story, always execute (never re-ask “Pick one”)
-    if (mLower === 'top 10' || mLower === 'top10') {
-      const list = musicKnowledge.getTopByYear(y, c, 10) || [];
-      const lines = list.slice(0, 10).map((it, i) => formatTopItem(it, i)).join('\n');
-
-      return nyxCompose({
-        signal: `Top 10 — ${c} (${y}):`,
-        moment: lines,
-        choice: 'Want #1, a story moment, or another year?',
-        chips: ['#1', 'Story moment', 'Another year'],
-      });
-    }
-
-    if (mLower === '#1' || mLower === '1' || mLower === 'number 1' || mLower === 'no. 1') {
-      const list = musicKnowledge.getTopByYear(y, c, 1) || [];
-      const it = list[0];
-      const line = it ? formatTopItem(it, 0) : `1. (not found) — (not found)`;
-
-      return nyxCompose({
-        signal: `#1 — ${c} (${y}):`,
-        moment: line,
-        choice: 'Want a story moment or Top 10?',
-        chips: ['Story moment', 'Top 10', 'Another year'],
-      });
-    }
-
-    if (isStoryMomentCommand(mLower)) {
-      const story = safeStoryMoment(y, c);
-      if (story) {
-        return nyxCompose({
-          signal: story,
-          moment: '',
-          choice: 'Top 10, #1, or another year?',
-          chips: ['Top 10', '#1', 'Another year'],
-        });
-      }
-      return nyxCompose({
-        signal: `No story moment loaded for ${y} on ${c} yet.`,
-        moment: '',
-        choice: 'Top 10 or #1 instead?',
-        chips: ['Top 10', '#1', 'Another year'],
-      });
-    }
-
-    if (mLower.includes('another year') || mLower === 'year') {
-      session.musicState = 'need_year';
-      session.musicChart = null;
-      session.musicYear = null;
-      return nyxCompose({
-        signal: 'Sure.',
-        moment: `Pick a year between ${MUSIC_COVERAGE.start} and ${MUSIC_COVERAGE.end}.`,
-        choice: 'Which year?',
-        chips: ['1984', '1988', '1990', '1999'],
-      });
-    }
-
-    return nyxCompose({
-      signal: 'I’m with you.',
-      moment: 'Top 10, #1, or story moment?',
-      choice: 'Pick one.',
-      chips: ['Top 10', '#1', 'Story moment', 'Another year'],
-    });
-  }
-
   return nyxCompose({
     signal: 'Music mode.',
     moment: `Give me a year (${MUSIC_COVERAGE.start}–${MUSIC_COVERAGE.end}).`,
@@ -679,7 +709,10 @@ function elevenVoiceSettings() {
 
 async function elevenTTS(text) {
   const fetch = await getFetch();
-  const url = `${ELEVENLABS_BASE_URL}/v1/text-to-speech/${ELEVENLABS_VOICE_ID}?output_format=mp3_44100_128`;
+
+  // Keep your current format, but allow override via env if you want faster TTS later
+  const outputFmt = clean(process.env.ELEVENLABS_OUTPUT_FORMAT) || 'mp3_44100_128';
+  const url = `${ELEVENLABS_BASE_URL}/v1/text-to-speech/${ELEVENLABS_VOICE_ID}?output_format=${encodeURIComponent(outputFmt)}`;
 
   const payload = {
     text,
@@ -797,11 +830,13 @@ function applyReplyRepeatTracking(session, replyText) {
   session.lastAssistantAt = now;
 }
 
-function loopBreakerReply() {
+function loopBreakerReply(session) {
+  const name = clean(session?.displayName);
+  const who = name ? `${name}, ` : '';
   return nyxCompose({
-    signal: 'Okay — I’m steering so we don’t loop.',
-    moment: 'Pick a lane and I’ll drive the next step.',
-    choice: 'Where are we going?',
+    signal: `Okay — I’m steering so we don’t loop. ${who}`.trim(),
+    moment: 'Give me one clear choice and I’ll execute it.',
+    choice: 'Music, TV, Sponsors, or AI?',
     chips: ['Music', 'TV', 'Sponsors', 'AI'],
   });
 }
@@ -813,13 +848,39 @@ function runNyxChat(body) {
 
   const sessionId = asText(body?.sessionId) || crypto.randomUUID();
   const visitorId = asVisitorId(body?.visitorId);
-  const session = getSession(sessionId, visitorId);
+  const clientMsgId = clean(body?.clientMsgId); // optional, from widget
 
+  const session = getSession(sessionId, visitorId);
   session.lastActiveAt = Date.now();
 
   if (visitorId) {
     session.visitorId = visitorId;
     session.profile = getProfile(visitorId) || session.profile || null;
+  }
+
+  // Monotonic server message id (for client-side dedupe if needed)
+  session.serverMsgId = (session.serverMsgId || 0) + 1;
+  const serverMsgId = session.serverMsgId;
+
+  // Client message dedupe (if widget sends IDs)
+  const now = Date.now();
+  if (clientMsgId) {
+    if (session.lastClientMsgId === clientMsgId && now - (session.lastClientMsgAt || 0) < DUP_REQ_WINDOW_MS) {
+      const response = {
+        ok: true,
+        reply: '',
+        followUp: null,
+        noop: true,
+        suppressed: true,
+        suppressRender: true,
+        sessionId,
+        serverMsgId,
+      };
+      setLast({ route, request: body, response, error: null });
+      return response;
+    }
+    session.lastClientMsgId = clientMsgId;
+    session.lastClientMsgAt = now;
   }
 
   const nm = extractName(message);
@@ -830,17 +891,11 @@ function runNyxChat(body) {
     session.lastUserAt = Date.now();
   }
 
-  const now = Date.now();
   const lane = session.lane || 'general';
   const sig = `${lane}|${session.musicState}|${session.musicYear || ''}|${session.musicChart || ''}|${message || ''}`;
 
-  // Monotonic server message id (for client-side dedupe if needed)
-  session.serverMsgId = (session.serverMsgId || 0) + 1;
-  const serverMsgId = session.serverMsgId;
-
-  // HARD DEDUPE: if the widget double-sends the same request, do NOT emit a second visible bubble.
+  // HARD DEDUPE: if the widget retries the same request, do NOT emit a second visible bubble.
   const reqHash = crypto.createHash('sha1').update(`${sessionId}::${sig}`).digest('hex');
-
   if (session.lastReqHash && reqHash === session.lastReqHash && now - (session.lastReqAt || 0) < DUP_REQ_WINDOW_MS) {
     const response = {
       ok: true,
@@ -878,11 +933,11 @@ function runNyxChat(body) {
 
   let response;
 
+  // First-open or blank message
   if (!message || isNearEmpty(message)) {
     const isFirstOpen = !session.turnCount || session.turnCount < 1;
     if (isFirstOpen) {
       session.greeted = true;
-      session.checkInPending = false;
       response = nyxGreeting(session);
     } else {
       response = nyxCompose({
@@ -892,9 +947,11 @@ function runNyxChat(body) {
         chips: ['Music', 'TV', 'Sponsors', 'AI'],
       });
     }
+  } else if (nm && looksLikeNameOnlyStatement(message)) {
+    // Polite acknowledgement for names (fixes “Got you.”)
+    response = nyxNameAcknowledge(session, nm);
   } else if (isGreeting(message)) {
     session.greeted = true;
-    session.checkInPending = false;
     response = nyxGreeting(session);
   } else if (isHowAreYou(message)) {
     response = nyxSocialReply(message, session);
@@ -927,20 +984,33 @@ function runNyxChat(body) {
         session.lane = lanePick;
         if (lanePick === 'music') response = handleMusic('music', session);
         else {
+          const nice = lanePick === 'ai' ? 'AI' : lanePick.toUpperCase();
           response = nyxCompose({
-            signal: `${lanePick.toUpperCase()} mode.`,
+            signal: `${nice} mode.`,
             moment: 'Tell me what you want, and I’ll guide the next step.',
             choice: 'What’s the goal?',
             chips: ['Build/Fix', 'Fun', 'Music', 'TV', 'Sponsors', 'AI'],
           });
         }
       } else {
-        if (session.lane === 'music' || session.musicState !== 'start') response = handleMusic(message, session);
-        else response = nyxCompose({ signal: 'Got you.', moment: 'Tell me what you want next.', choice: 'Music, TV, Sponsors, or AI?', chips: ['Music', 'TV', 'Sponsors', 'AI'] });
+        // Route by current lane
+        if (session.lane === 'music' || session.musicState !== 'start') {
+          response = handleMusic(message, session);
+        } else {
+          const name = clean(session.displayName);
+          const who = name ? `${name}, ` : '';
+          response = nyxCompose({
+            signal: `Alright — ${who}`.trim(),
+            moment: 'Tell me what you want, and I’ll take it from there.',
+            choice: 'Music, TV, Sponsors, or AI?',
+            chips: ['Music', 'TV', 'Sponsors', 'AI'],
+          });
+        }
       }
     }
   }
 
+  // Persist lightweight profile
   if (session.visitorId) {
     const patch = { lastLane: session.lane };
     if (session.displayName) patch.displayName = session.displayName;
@@ -960,8 +1030,9 @@ function runNyxChat(body) {
 
   applyReplyRepeatTracking(session, replyText);
 
+  // If repeating too much, break the pattern with a new directive (forward motion)
   if ((session.repeatReplyCount || 0) >= MAX_REPEAT_REPLY) {
-    const lb = loopBreakerReply();
+    const lb = loopBreakerReply(session);
     replyText = lb.reply;
     followUpFinal = lb.followUp;
   }
@@ -1014,6 +1085,7 @@ app.get('/api/health', (req, res) => {
       hasVoiceId: !!ELEVENLABS_VOICE_ID,
       hasModelId: !!ELEVENLABS_MODEL_ID,
       voiceSettings: elevenVoiceSettings(),
+      outputFormat: clean(process.env.ELEVENLABS_OUTPUT_FORMAT) || 'mp3_44100_128',
     },
     stt: {
       provider: 'elevenlabs',
@@ -1189,6 +1261,7 @@ app.post('/api/s2s', upload.single('file'), async (req, res) => {
       message: transcript,
       sessionId: asText(req.body?.sessionId) || crypto.randomUUID(),
       visitorId: asVisitorId(req.body?.visitorId),
+      clientMsgId: clean(req.body?.clientMsgId) || '',
     };
 
     const chat = runNyxChat(chatBody);
