@@ -1302,6 +1302,16 @@ function runNyxChat(body) {
   } else {
     const mLower = normText(message);
 
+    // Auto-route: if the user types a valid year in our music coverage window, treat it as Music intent.
+    // This prevents awkward "Got it. What are we doing today?" replies for inputs like "1987".
+    if (session.lane !== 'music' && session.musicState === 'start') {
+      const y = extractYearInRange(message, MUSIC_COVERAGE.start, MUSIC_COVERAGE.end);
+      if (y != null) {
+        session.lane = 'music';
+        return handleMusic(String(y), session);
+      }
+    }
+
     if (isSwitchLanes(mLower)) {
       response = nyxComposeNoChips({
         signal: 'Sure.',
