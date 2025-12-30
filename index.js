@@ -17,13 +17,17 @@
  *  - No blank replies on anti-loop suppression (returns last assistant reply)
  *  - Year parsing supports embedded years (“1987 please”)
  *  - Fuzzy chart matching supports loose variants
+ *
+ * UI CLEANUP PATCH (THIS RESEND):
+ *  - Greeting + “how are you” replies DO NOT return followUp chips (prevents duplicate chip rows)
+ *  - Greeting copy is shorter and more natural (less “menu”)
  */
 
 const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
 
-const axios = require('axios'); // critical for STT multipart reliability
+const axios = require('axios');
 const multer = require('multer');
 const FormData = require('form-data');
 
@@ -84,6 +88,11 @@ function setLast(obj) {
   LAST = { ...obj, at: new Date().toISOString() };
 }
 
+function asText(x) {
+  if (x == null) return '';
+  return String(x).trim();
+}
+
 function debugAllowed(req) {
   if (!DEBUG_TOKEN) return true;
   const q = asText(req?.query?.token);
@@ -93,11 +102,6 @@ function debugAllowed(req) {
 /* =========================
    HELPERS
 ========================= */
-
-function asText(x) {
-  if (x == null) return '';
-  return String(x).trim();
-}
 
 function clean(x) {
   const t = asText(x);
@@ -230,9 +234,6 @@ function isStoryMomentCommand(mLower) {
   return mLower === 'story moment' || mLower.includes('story moment') || (mLower.includes('story') && mLower.length <= 20);
 }
 
-/**
- * Extract a valid year even when embedded in text.
- */
 function extractYearInRange(message, start, end) {
   const s = asText(message);
   if (!s) return null;
@@ -246,9 +247,6 @@ function extractYearInRange(message, start, end) {
   return y;
 }
 
-/**
- * Fuzzy chart matching.
- */
 function normalizeChartKey(s) {
   return asText(s)
     .toLowerCase()
@@ -309,6 +307,11 @@ function nyxCompose({ signal, moment, choice, chips }) {
   return { reply, followUp };
 }
 
+function nyxComposeNoChips({ signal, moment, choice }) {
+  // This is used specifically for the first-touch experience to avoid duplicate chip rows in the UI.
+  return { reply: [clean(signal), clean(moment), clean(choice)].filter(Boolean).join('\n'), followUp: null };
+}
+
 function nyxDeMeta(reply, followUp) {
   const r = asText(reply);
 
@@ -320,11 +323,11 @@ function nyxDeMeta(reply, followUp) {
 
   if (!bad) return { reply, followUp };
 
-  return nyxCompose({
+  // Keep it clean; no extra chips here (the top lane chips exist already)
+  return nyxComposeNoChips({
     signal: 'Copy that.',
-    moment: 'We can go Music, TV, Sponsors, or AI — and I’ll keep the flow smooth.',
-    choice: 'Do you want something fun, or are we building/fixing something?',
-    chips: ['Fun', 'Build/Fix', 'Music', 'TV', 'Sponsors', 'AI'],
+    moment: 'Tell me what you want to do, and I’ll take it from there.',
+    choice: 'Music, TV, Sponsors, or AI?',
   });
 }
 
@@ -468,25 +471,30 @@ function rebuildMusicCoverage() {
 }
 rebuildMusicCoverage();
 
+/**
+ * IMPORTANT: Intro should be clean and not spawn a second chip row.
+ * So greeting returns followUp:null always.
+ */
 function nyxGreeting(session) {
   const name = clean(session?.displayName);
-  const who = name ? `${name},` : '';
-  return nyxCompose({
+  const who = name ? `${name}, ` : '';
+  return nyxComposeNoChips({
     signal: `Welcome to Sandblast. I’m Nyx. ${who}`.trim(),
-    moment: 'On air with you — I’ll keep this smooth and simple.',
-    choice: 'Do you want something fun, or are we building/fixing something?',
-    chips: ['Fun', 'Build/Fix', 'Music', 'TV', 'Sponsors', 'AI'],
+    moment: 'Tell me what you want to explore, and I’ll guide you.',
+    choice: 'Music, TV, Sponsors, or AI?',
   });
 }
 
-function nyxSocialReply(message, session) {
+/**
+ * Same principle: keep it warm, but no followUp chips here.
+ */
+function nyxSocialReply(_message, session) {
   const name = clean(session?.displayName);
   const who = name ? `${name}, ` : '';
-  return nyxCompose({
+  return nyxComposeNoChips({
     signal: `I’m good — steady and switched on. ${who}`.trim(),
-    moment: 'Tell me your vibe and I’ll take the wheel.',
-    choice: 'Are we doing something fun, or building/fixing something?',
-    chips: ['Fun', 'Build/Fix', 'Music', 'TV', 'Sponsors', 'AI'],
+    moment: 'What are we doing right now?',
+    choice: 'Music, TV, Sponsors, or AI?',
   });
 }
 
@@ -584,9 +592,10 @@ function handleGeneral(message, session) {
   const topic = pickTopicFromUser(msg);
   if (topic) session.topic = topic;
 
+  // We keep “Fun/Build-Fix” as optional user commands, but it won’t lead the greeting anymore.
   if (mLower === 'fun') {
     return nyxCompose({
-      signal: 'Good. Fun it is.',
+      signal: 'Alright — fun it is.',
       moment: 'Do you want Music (quick hit) or TV (curated picks)?',
       choice: 'Which one?',
       chips: ['Music', 'TV'],
@@ -595,10 +604,10 @@ function handleGeneral(message, session) {
 
   if (mLower === 'build/fix' || mLower === 'build' || mLower === 'fix') {
     return nyxCompose({
-      signal: 'Perfect. Build/Fix mode.',
-      moment: 'Tell me what you’re working on and what “better” means — smoothness, speed, or accuracy.',
-      choice: 'Which matters most right now?',
-      chips: ['Smoothness', 'Speed', 'Accuracy', 'Widget', 'Backend'],
+      signal: 'Good. Build/Fix mode.',
+      moment: 'Tell me what’s broken and what “better” looks like.',
+      choice: 'Is this the widget or the backend?',
+      chips: ['Widget', 'Backend', 'Smoothness', 'Accuracy', 'Speed'],
     });
   }
 
@@ -612,17 +621,17 @@ function handleGeneral(message, session) {
 
   if (isQuestion) {
     return nyxCompose({
-      signal: 'I hear you.',
-      moment: 'Give me your target and your constraint, and I’ll give you a clean answer.',
-      choice: 'Is this about the widget experience or backend behavior?',
-      chips: ['Widget', 'Backend', 'Music', 'TV'],
+      signal: 'Copy.',
+      moment: 'Give me your goal and your constraint, and I’ll answer cleanly.',
+      choice: 'Widget or backend?',
+      chips: ['Widget', 'Backend'],
     });
   }
 
   return nyxCompose({
-    signal: 'Copy.',
-    moment: 'Give me one sentence on what you want, and I’ll drive the next move.',
-    choice: 'Are we going Music/TV, or Sponsors/AI?',
+    signal: 'Got you.',
+    moment: 'Say what you want in one sentence and I’ll drive the next step.',
+    choice: 'Music, TV, Sponsors, or AI?',
     chips: ['Music', 'TV', 'Sponsors', 'AI'],
   });
 }
@@ -825,8 +834,8 @@ function handleMusic(message, session) {
 
     return nyxCompose({
       signal: `Locked in: ${chartPick} (${y}).`,
-      moment: 'I can give you Top 10, #1, or a quick story moment.',
-      choice: 'Which one do you want?',
+      moment: 'Top 10, #1, or a story moment?',
+      choice: 'Pick one.',
       chips: ['Top 10', '#1', 'Story moment', 'Another year'],
     });
   }
@@ -854,7 +863,7 @@ function handleMusic(message, session) {
   if (session.musicState === 'need_chart') {
     const y = session.musicYear || 1988;
     return nyxCompose({
-      signal: `For ${y}, I can pull from these charts:`,
+      signal: `For ${y}, pick a chart:`,
       moment: charts.map((c) => `• ${c}`).join('\n'),
       choice: 'Which chart?',
       chips: charts,
@@ -896,14 +905,14 @@ function handleMusic(message, session) {
         return nyxCompose({
           signal: story,
           moment: '',
-          choice: 'Want Top 10, #1, or another year?',
+          choice: 'Top 10, #1, or another year?',
           chips: ['Top 10', '#1', 'Another year'],
         });
       }
       return nyxCompose({
-        signal: `I don’t have a story moment loaded for ${y} on ${c} yet.`,
+        signal: `No story moment loaded for ${y} on ${c} yet.`,
         moment: '',
-        choice: 'Want Top 10 or #1 instead?',
+        choice: 'Top 10 or #1 instead?',
         chips: ['Top 10', '#1', 'Another year'],
       });
     }
@@ -958,7 +967,6 @@ function runNyxChat(body) {
   const now = Date.now();
   const sig = `${session.lane}|${session.musicState}|${session.musicYear || ''}|${session.musicChart || ''}|${message || ''}`;
 
-  // Anti-loop suppression: NEVER return blank reply
   if (session.lastSig && sig === session.lastSig && now - (session.lastSigAt || 0) < ANTI_LOOP_WINDOW_MS) {
     const response = {
       ok: true,
@@ -1048,7 +1056,7 @@ function runNyxChat(body) {
         } else if (lanePick === 'ai') {
           response = nyxCompose({
             signal: 'AI mode.',
-            moment: 'We can go strategy, implementation, or troubleshooting.',
+            moment: 'Strategy, implementation, or troubleshooting?',
             choice: 'Which one?',
             chips: ['Strategy', 'Implementation', 'Troubleshooting', 'Widget', 'Backend'],
           });
