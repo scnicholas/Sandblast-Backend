@@ -343,7 +343,10 @@ function fuzzyPickChart(message, charts) {
   }
 
   const alias = [
+    { pat: /\buk\b.*singles|\bsingles\b.*\buk\b|\buk singles\b/, hit: 'UK Singles Chart' },
+    { pat: /\bcanada\b.*\brpm\b|\brpm\b/, hit: 'Canada RPM' },
     { pat: /\byear\s*end\b|\byear-end\b|\byearend\b/, hit: 'Billboard Year-End Hot 100' },
+    { pat: /\bhot\s*100\b|\bhot100\b/, hit: 'Billboard Hot 100' },
     { pat: /\btop40\b|\btop 40\b/, hit: 'Top40Weekly Top 100' },
   ];
 
@@ -540,7 +543,10 @@ let MUSIC_COVERAGE = { builtAt: null, start: 1970, end: 2010, charts: [] };
 function rebuildMusicCoverage() {
   const charts = [
     'Top40Weekly Top 100',
+    'Billboard Hot 100',
     'Billboard Year-End Hot 100',
+    'Canada RPM',
+    'UK Singles Chart',
   ];
   const builtAt = new Date().toISOString();
   MUSIC_COVERAGE = { builtAt, start: 1970, end: 2010, charts };
@@ -554,27 +560,26 @@ rebuildMusicCoverage();
 function nyxHello(session) {
   const name = clean(session?.displayName);
   const who = name ? `, ${name}` : '';
+  // Single, human opening line (no menus, no extra instructions)
   return nyxComposeNoChips({
-    signal: `Hey${who} — I’m Nyx, Sandblast’s guide.`,
+    signal: `Hey${who} — I’m Nyx. Tell me what you’re in the mood for, and I’ll take it from there.`,
     moment: '',
-    choice: 'What can I help you with today — Music, TV, Sponsors, or AI?',
+    choice: '',
   });
 }
 
 function nyxGreeting(session, variant = 'default') {
-  // Kept for compatibility, but now aligned with nyxHello tone.
+  // Natural greeting that immediately advances the conversation (soft branch).
   const name = clean(session?.displayName);
   const who = name ? `, ${name}` : '';
 
-  const open =
-    variant === 'short'
-      ? `Hey${who}.`
-      : `Hey${who} — I’m Nyx, Sandblast’s guide.`;
+  // Keep it short; avoid menu-speak while still offering direction.
+  const opener = variant === 'short' ? `Hey${who}.` : `Hey${who}.`;
 
   return nyxComposeNoChips({
-    signal: open,
-    moment: '',
-    choice: 'What can I help you with today — Music, TV, Sponsors, or AI?',
+    signal: opener,
+    moment: 'What are you in the mood for — music, TV, sponsors, or something else?',
+    choice: '',
   });
 }
 
@@ -584,7 +589,7 @@ function nyxNameAcknowledge(session, name) {
   return nyxComposeNoChips({
     signal: `Nice to meet you, ${who}.`,
     moment: '',
-    choice: 'What are we doing today — Music, TV, Sponsors, or AI?',
+    choice: 'What should we do first — music, TV, sponsors, or AI?',
   });
 }
 
@@ -594,7 +599,7 @@ function nyxSocialReply(_message, session) {
   return nyxComposeNoChips({
     signal: `I’m good — steady and switched on. ${who}`.trim(),
     moment: '',
-    choice: 'What are we doing today — Music, TV, Sponsors, or AI?',
+    choice: 'What are you in the mood for today?',
   });
 }
 
