@@ -604,19 +604,108 @@ function nyxSocialReply(_message, session) {
   });
 }
 
+function _str(x) {
+  if (x === null || x === undefined) return '';
+  return String(x).trim();
+}
+
+function _pick(...vals) {
+  for (const v of vals) {
+    const s = _str(v);
+    if (s) return s;
+  }
+  return '';
+}
+
+function _isUnknown(s) {
+  const x = _str(s).toLowerCase();
+  return !x || x === 'unknown' || x.includes('unknown title') || x.includes('unknown artist');
+}
+
+function _splitArtistTitle(s) {
+  const t = _str(s);
+  if (!t) return { artist: '', title: '' };
+
+  const seps = [' — ', ' - ', ' – ', '—', ' / ', ' | '];
+  for (const sep of seps) {
+    if (t.includes(sep)) {
+      const parts = t.split(sep).map(p => p.trim()).filter(Boolean);
+      if (parts.length >= 2) {
+        return { artist: parts[0], title: parts.slice(1).join(' - ') };
+      }
+    }
+  }
+  return { artist: '', title: '' };
+}
+
+/**
+ * Normalize a track row coming from any chart source.
+ * Fixes:
+ *  - title missing (present under alternate keys like song/track/name)
+ *  - combined strings "Artist — Title"
+ *  - swapped artist/title fields
+ */
+function normalizeTrackRow(row) {
+  if (typeof row === 'string') {
+    const split = _splitArtistTitle(row);
+    return {
+      rank: null,
+      artist: split.artist || '',
+      title: split.title || (split.artist ? '' : row.trim()),
+      raw: row,
+    };
+  }
+
+  const rank = row?.rank ?? row?.position ?? row?.pos ?? row?.no ?? row?.['No.'] ?? row?.['#'] ?? null;
+
+  let artist = _pick(row?.artist, row?.Artist, row?.performer, row?.performers, row?.act, row?.by, row?.singer);
+  let title = _pick(row?.title, row?.Title, row?.song, row?.Song, row?.track, row?.Track, row?.single, row?.name);
+
+  // If either field is combined "Artist — Title", split it
+  if ((!title || _isUnknown(title)) && artist) {
+    const split = _splitArtistTitle(artist);
+    if (split.artist && split.title) {
+      artist = split.artist;
+      title = split.title;
+    }
+  }
+  if ((!artist || _isUnknown(artist)) && title) {
+    const split = _splitArtistTitle(title);
+    if (split.artist && split.title) {
+      artist = split.artist;
+      title = split.title;
+    }
+  }
+
+  // Fallback: other combined fields
+  const combined = _pick(row?.text, row?.raw, row?.line, row?.display);
+  if ((!title || _isUnknown(title)) || (!artist || _isUnknown(artist))) {
+    const split = _splitArtistTitle(combined);
+    if (split.artist && split.title) {
+      if (!artist || _isUnknown(artist)) artist = split.artist;
+      if (!title || _isUnknown(title)) title = split.title;
+    }
+  }
+
+  if (_isUnknown(artist)) artist = '';
+  if (_isUnknown(title)) title = '';
+
+  // Final tidy
+  artist = artist.replace(/\s{2,}/g, ' ').trim();
+  title = title.replace(/\s{2,}/g, ' ').trim();
+
+  return { rank, artist, title, raw: row };
+}
+
 function formatTopItem(item, idx) {
-  const rank = Number.isFinite(Number(item?.rank)) ? Number(item.rank) : idx + 1;
+  const r = normalizeTrackRow(item);
+  const rank = Number.isFinite(Number(r?.rank)) ? Number(r.rank) : idx + 1;
 
-  let artist = clean(item?.artist);
-  let title = clean(item?.title);
-
-  if (artist) artist = artist.replace(/\s{2,}/g, ' ').trim();
-  if (title) title = title.replace(/\s{2,}/g, ' ').trim();
-
-  if (!artist && title) artist = title;
-  if (!title && artist) title = artist;
-
-  return `${rank}. ${artist} — ${title}`.trim();
+  // Prefer full "Artist — Title". If one side is missing, show what we have.
+  if (r.artist && r.title) return `${rank}. ${r.artist} — ${r.title}`;
+  if (r.title && !r.artist) return `${rank}. ${r.title}`;
+  if (r.artist && !r.title) return `${rank}. ${r.artist}`;
+  return `${rank}. (track info unavailable)`;
 }
 
 function safeStoryMoment(y, c) {
@@ -628,8 +717,9 @@ function safeStoryMoment(y, c) {
   const top = (musicKnowledge.getTopByYear(y, c, 1) || [])[0];
   if (!top) return '';
 
-  const artist = clean(top.artist);
-  const title = clean(top.title);
+  const r = normalizeTrackRow(top);
+  const artist = clean(r.artist);
+  const title = clean(r.title);
   const chart = clean(c);
 
   return (
