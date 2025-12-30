@@ -4,26 +4,18 @@
  * Sandblast Backend (Nyx)
  * index.js — Node 18+ friendly (works on Node 25.x too).
  *
- * Adds:
- *  - ElevenLabs STT: POST /api/stt  (multipart form-data, field name: "file")
- *  - Speech-to-Speech: POST /api/s2s (STT -> chat -> TTS, returns JSON w/ audioBase64)
- *
- * Keeps:
+ * Adds / Keeps:
  *  - POST /api/chat
  *  - POST /api/tts
  *  - POST /api/voice (alias)
+ *  - POST /api/stt  (multipart form-data, field name: "file")
+ *  - POST /api/s2s  (STT -> chat -> TTS, returns JSON w/ audioBase64)
  *
- * CRITICAL CONVERSATION PATCH:
- *  - Year parsing supports embedded years (“1987 please”)
- *  - Fuzzy chart matching supports loose variants
- *
- * UI CLEANUP PATCH:
- *  - Greeting + “how are you” replies DO NOT return followUp chips (prevents duplicate chip rows)
- *  - Greeting copy is shorter and more natural (less “menu”)
- *
- * HARD LOOP/DOUBLE-SEND PATCH (THIS RESEND):
- *  - Detect duplicate requests (same session+state+message) within a short window and return reply:""
- *  - Anti-loop suppression returns reply:"" (no visible echo)
+ * HARDENING (this resend):
+ *  - Fixes broken JS in pasted file: duplicate LAST, invalid object spread, malformed debug JSON
+ *  - HARD DEDUPE for double-send/double-tap: returns reply:"" + suppressRender:true
+ *  - Anti-loop suppression: reply:"" + suppressRender:true
+ *  - Adds serverMsgId so the widget can ignore duplicates if needed
  */
 
 const express = require('express');
@@ -78,12 +70,12 @@ const SESSION_CAP = Number(process.env.SESSION_CAP || 1500);
 const AUDIO_MAX_BYTES = Number(process.env.AUDIO_MAX_BYTES || 12 * 1024 * 1024);
 
 // Anti-loop / forward-motion
-const ANTI_LOOP_WINDOW_MS = Number(process.env.NYX_ANTI_LOOP_WINDOW_MS || 1200);
+const ANTI_LOOP_WINDOW_MS = Number(process.env.NYX_ANTI_LOOP_WINDOW_MS || 1600);
 const REPEAT_REPLY_WINDOW_MS = Number(process.env.NYX_REPEAT_REPLY_WINDOW_MS || 120000);
 const MAX_REPEAT_REPLY = Number(process.env.NYX_MAX_REPEAT_REPLY || 2);
 
 // HARD DEDUPE window (prevents double-send/double-tap from producing duplicate bubbles)
-const DUP_REQ_WINDOW_MS = Number(process.env.NYX_DUP_REQ_WINDOW_MS || 900);
+const DUP_REQ_WINDOW_MS = Number(process.env.NYX_DUP_REQ_WINDOW_MS || 3000);
 
 /* =========================
    DEBUG SNAPSHOT (SINGLETON)
@@ -91,7 +83,7 @@ const DUP_REQ_WINDOW_MS = Number(process.env.NYX_DUP_REQ_WINDOW_MS || 900);
 
 let LAST = null;
 function setLast(obj) {
-  LAST = { ...obj, at: new Date().toISOString() };
+  LAST = { ...(obj || {}), at: new Date().toISOString() };
 }
 
 function asText(x) {
@@ -191,17 +183,6 @@ function normalizeTranscriptForNyx(t) {
   return s.trim();
 }
 
-function pickTopicFromUser(msg) {
-  const m = asText(msg);
-  if (!m) return '';
-  const words = m
-    .replace(/[^\w\s'#-]/g, ' ')
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 10);
-  return words.join(' ').trim();
-}
-
 function laneFromMessage(mLower) {
   if (mLower === 'music') return 'music';
   if (mLower === 'tv') return 'tv';
@@ -237,16 +218,18 @@ function isSwitchLanes(mLower) {
 }
 
 function isStoryMomentCommand(mLower) {
-  return mLower === 'story moment' || mLower.includes('story moment') || (mLower.includes('story') && mLower.length <= 20);
+  return (
+    mLower === 'story moment' ||
+    mLower.includes('story moment') ||
+    (mLower.includes('story') && mLower.length <= 20)
+  );
 }
 
 function extractYearInRange(message, start, end) {
   const s = asText(message);
   if (!s) return null;
-
   const m = s.match(/\b(19[0-9]{2}|20[0-9]{2})\b/);
   if (!m) return null;
-
   const y = Number(m[1]);
   if (!Number.isFinite(y)) return null;
   if (y < start || y > end) return null;
@@ -269,7 +252,6 @@ function fuzzyPickChart(message, charts) {
   for (const c of charts) {
     if (normalizeChartKey(c) === key) return c;
   }
-
   for (const c of charts) {
     const ck = normalizeChartKey(c);
     if (ck.includes(key) || key.includes(ck)) return c;
@@ -289,7 +271,6 @@ function fuzzyPickChart(message, charts) {
       if (found) return found;
     }
   }
-
   return null;
 }
 
@@ -317,13 +298,14 @@ function nyxComposeNoChips({ signal, moment, choice }) {
   return { reply: [clean(signal), clean(moment), clean(choice)].filter(Boolean).join('\n'), followUp: null };
 }
 
+// Guard against “support-bot” / meta prompts leaking through
 function nyxDeMeta(reply, followUp) {
   const r = asText(reply);
 
   const bad =
+    r.includes('Do you want me to help you plan the next steps') ||
     r.includes('Tap a lane') ||
     r.includes('pick up where we left off') ||
-    r.includes('Want to pick up where we left off') ||
     r.startsWith('Got it.\nDo you want me to');
 
   if (!bad) return { reply, followUp };
@@ -375,15 +357,19 @@ function getSession(sessionId, visitorId) {
       lastUserText: '',
       lastUserAt: 0,
 
+      // Lightweight memory (non-creepy)
       displayName: profile?.displayName || null,
 
       musicState: 'start',
       musicYear: profile?.musicYear ?? null,
       musicChart: profile?.musicChart ?? null,
 
-      // HARD DEDUPE (prevents duplicate UI bubbles from double-sends)
+      // HARD DEDUPE tracking
       lastReqHash: null,
       lastReqAt: 0,
+
+      // monotonic server message id
+      serverMsgId: 0,
     };
 
     SESSIONS.set(id, s);
@@ -505,43 +491,13 @@ function formatTopItem(item, idx) {
   let artist = clean(item?.artist);
   let title = clean(item?.title);
 
-  if (artist) {
-    artist = artist.replace(/\bJay\s*[—–-]\s*Z\b/gi, 'Jay-Z').replace(/\s{2,}/g, ' ').trim();
-  }
-  if (title) {
-    title = title.replace(/\s{2,}/g, ' ').trim();
-  }
-
-  if (artist && title) {
-    const aTokens = artist.split(/\s+/).filter(Boolean);
-    const tTokens = title.split(/\s+/).filter(Boolean);
-
-    if (aTokens.length >= 2 && tTokens.length >= 1) {
-      const movedWord = aTokens[0];
-      const restArtist = aTokens.slice(1).join(' ').trim();
-
-      const movedWordLower = movedWord.toLowerCase();
-      const titleLower = title.toLowerCase();
-
-      const endsHanging = /(\bits\b|\bthe\b|\bmy\b|\byour\b|\bme\b|\bto\b|\bof\b|\bin\b)$/i.test(title);
-
-      const isLikelyMovedWord =
-        movedWord.length >= 3 &&
-        !['the', 'and', 'feat', 'ft'].includes(movedWordLower) &&
-        !titleLower.includes(movedWordLower) &&
-        restArtist.length >= 2;
-
-      if (isLikelyMovedWord && (tTokens.length <= 4 || endsHanging)) {
-        artist = restArtist;
-        title = `${title} ${movedWord}`.replace(/\s{2,}/g, ' ').trim();
-      }
-    }
-  }
+  if (artist) artist = artist.replace(/\s{2,}/g, ' ').trim();
+  if (title) title = title.replace(/\s{2,}/g, ' ').trim();
 
   if (!artist && title) artist = title;
   if (!title && artist) title = artist;
 
-  return `${rank}. ${artist} — ${title}`.replace(/\s+—\s+—/g, ' — ').trim();
+  return `${rank}. ${artist} — ${title}`.trim();
 }
 
 function safeStoryMoment(y, c) {
@@ -563,100 +519,149 @@ function safeStoryMoment(y, c) {
   );
 }
 
-function lanePickerReply(session) {
-  const lane = session?.lane || 'general';
-
-  if (lane === 'music') {
-    const y = session?.musicYear;
-    const c = session?.musicChart || session?.profile?.musicChart;
-    const label = y && c ? `Resume Music (${y})` : y ? `Resume Music (${y})` : 'Music';
-    return nyxCompose({
-      signal: 'We can stay in Music or switch lanes.',
-      moment: 'I’ll keep the flow tight either way.',
-      choice: 'Do you want Music, TV, Sponsors, or AI?',
-      chips: [label, 'TV', 'Sponsors', 'AI'],
-    });
-  }
-
-  return nyxCompose({
-    signal: 'Alright.',
-    moment: 'Pick a lane and I’ll lead the flow.',
-    choice: 'Where are we going?',
-    chips: ['Music', 'TV', 'Sponsors', 'AI'],
-  });
-}
-
-function handleGeneral(message, session) {
+function handleMusic(message, session) {
   const msg = asText(message);
-  const mLower = normText(msg);
+  const mLower = msg.toLowerCase();
 
-  const topic = pickTopicFromUser(msg);
-  if (topic) session.topic = topic;
+  const embeddedYear = extractYearInRange(msg, MUSIC_COVERAGE.start, MUSIC_COVERAGE.end);
+  const year = embeddedYear != null ? embeddedYear : Number(msg);
+  const isYear = Number.isFinite(year) && year >= MUSIC_COVERAGE.start && year <= MUSIC_COVERAGE.end;
 
-  if (mLower === 'fun') {
+  if (isYear) {
+    session.lane = 'music';
+    session.musicYear = year;
+    session.musicChart = null;
+    session.musicState = 'need_chart';
+
     return nyxCompose({
-      signal: 'Alright — fun it is.',
-      moment: 'Do you want Music (quick hit) or TV (curated picks)?',
-      choice: 'Which one?',
-      chips: ['Music', 'TV'],
+      signal: `Locked: ${year}.`,
+      moment: 'Pick a chart and I’ll pull clean results.',
+      choice: 'Which chart do you want?',
+      chips: MUSIC_COVERAGE.charts,
     });
   }
 
-  if (mLower === 'build/fix' || mLower === 'build' || mLower === 'fix') {
+  const charts = MUSIC_COVERAGE.charts;
+  const chartPick = fuzzyPickChart(msg, charts);
+  if (chartPick) {
+    session.lane = 'music';
+    session.musicChart = chartPick;
+    session.musicState = 'ready';
+
+    const y = session.musicYear || 1988;
+
     return nyxCompose({
-      signal: 'Good. Build/Fix mode.',
-      moment: 'Tell me what’s broken and what “better” looks like.',
-      choice: 'Is this the widget or the backend?',
-      chips: ['Widget', 'Backend', 'Smoothness', 'Accuracy', 'Speed'],
+      signal: `Locked in: ${chartPick} (${y}).`,
+      moment: 'Top 10, #1, or a story moment?',
+      choice: 'Pick one.',
+      chips: ['Top 10', '#1', 'Story moment', 'Another year'],
     });
   }
 
-  const isQuestion =
-    msg.includes('?') ||
-    mLower.startsWith('how ') ||
-    mLower.startsWith('what ') ||
-    mLower.startsWith('why ') ||
-    mLower.startsWith('when ') ||
-    mLower.startsWith('where ');
-
-  if (isQuestion) {
+  if (mLower === 'music') {
+    session.lane = 'music';
+    session.musicState = 'need_year';
     return nyxCompose({
-      signal: 'Copy.',
-      moment: 'Give me your goal and your constraint, and I’ll answer cleanly.',
-      choice: 'Widget or backend?',
-      chips: ['Widget', 'Backend'],
+      signal: 'Music — perfect.',
+      moment: `Give me a year between ${MUSIC_COVERAGE.start} and ${MUSIC_COVERAGE.end}.`,
+      choice: 'Pick one, or type your own year.',
+      chips: ['1984', '1988', '1990', '1999'],
+    });
+  }
+
+  if (session.musicState === 'need_year' || session.musicState === 'start') {
+    return nyxCompose({
+      signal: 'Alright.',
+      moment: `Give me a year between ${MUSIC_COVERAGE.start} and ${MUSIC_COVERAGE.end}.`,
+      choice: 'Pick one.',
+      chips: ['1984', '1988', '1990', '1999'],
+    });
+  }
+
+  if (session.musicState === 'need_chart') {
+    const y = session.musicYear || 1988;
+    return nyxCompose({
+      signal: `For ${y}, pick a chart:`,
+      moment: charts.map((c) => `• ${c}`).join('\n'),
+      choice: 'Which chart?',
+      chips: charts,
+    });
+  }
+
+  if (session.musicState === 'ready') {
+    const y = session.musicYear || 1988;
+    const c = session.musicChart || session.profile?.musicChart || 'Billboard Year-End Hot 100';
+
+    // Failsafe: if user hits Top 10 / #1 / story, always execute (never re-ask “Pick one”)
+    if (mLower === 'top 10' || mLower === 'top10') {
+      const list = musicKnowledge.getTopByYear(y, c, 10) || [];
+      const lines = list.slice(0, 10).map((it, i) => formatTopItem(it, i)).join('\n');
+
+      return nyxCompose({
+        signal: `Top 10 — ${c} (${y}):`,
+        moment: lines,
+        choice: 'Want #1, a story moment, or another year?',
+        chips: ['#1', 'Story moment', 'Another year'],
+      });
+    }
+
+    if (mLower === '#1' || mLower === '1' || mLower === 'number 1' || mLower === 'no. 1') {
+      const list = musicKnowledge.getTopByYear(y, c, 1) || [];
+      const it = list[0];
+      const line = it ? formatTopItem(it, 0) : `1. (not found) — (not found)`;
+
+      return nyxCompose({
+        signal: `#1 — ${c} (${y}):`,
+        moment: line,
+        choice: 'Want a story moment or Top 10?',
+        chips: ['Story moment', 'Top 10', 'Another year'],
+      });
+    }
+
+    if (isStoryMomentCommand(mLower)) {
+      const story = safeStoryMoment(y, c);
+      if (story) {
+        return nyxCompose({
+          signal: story,
+          moment: '',
+          choice: 'Top 10, #1, or another year?',
+          chips: ['Top 10', '#1', 'Another year'],
+        });
+      }
+      return nyxCompose({
+        signal: `No story moment loaded for ${y} on ${c} yet.`,
+        moment: '',
+        choice: 'Top 10 or #1 instead?',
+        chips: ['Top 10', '#1', 'Another year'],
+      });
+    }
+
+    if (mLower.includes('another year') || mLower === 'year') {
+      session.musicState = 'need_year';
+      session.musicChart = null;
+      session.musicYear = null;
+      return nyxCompose({
+        signal: 'Sure.',
+        moment: `Pick a year between ${MUSIC_COVERAGE.start} and ${MUSIC_COVERAGE.end}.`,
+        choice: 'Which year?',
+        chips: ['1984', '1988', '1990', '1999'],
+      });
+    }
+
+    return nyxCompose({
+      signal: 'I’m with you.',
+      moment: 'Top 10, #1, or story moment?',
+      choice: 'Pick one.',
+      chips: ['Top 10', '#1', 'Story moment', 'Another year'],
     });
   }
 
   return nyxCompose({
-    signal: 'Got you.',
-    moment: 'Say what you want in one sentence and I’ll drive the next step.',
-    choice: 'Music, TV, Sponsors, or AI?',
-    chips: ['Music', 'TV', 'Sponsors', 'AI'],
+    signal: 'Music mode.',
+    moment: `Give me a year (${MUSIC_COVERAGE.start}–${MUSIC_COVERAGE.end}).`,
+    choice: 'Pick one.',
+    chips: ['1984', '1988', '1990', '1999'],
   });
-}
-
-function followSig(list) {
-  const a = (Array.isArray(list) ? list : [])
-    .map((x) => asText(x).toLowerCase())
-    .filter(Boolean);
-  return a.join('|');
-}
-
-function setFollowUp(session, proposed) {
-  const list = Array.isArray(proposed) ? proposed.filter(Boolean) : null;
-  if (!list || list.length === 0) return null;
-
-  const sig = followSig(list);
-  if (sig && session.lastFollowSig && sig === session.lastFollowSig) return null;
-
-  session.lastFollowSig = sig || null;
-  return list;
-}
-
-function getAnticipatoryFollowUp(session, _replyText, proposedFollowUp) {
-  const base = Array.isArray(proposedFollowUp) ? proposedFollowUp : null;
-  return setFollowUp(session, base);
 }
 
 /* =========================
@@ -801,145 +806,6 @@ function loopBreakerReply() {
   });
 }
 
-function handleMusic(message, session) {
-  const msg = asText(message);
-  const mLower = msg.toLowerCase();
-
-  const embeddedYear = extractYearInRange(msg, MUSIC_COVERAGE.start, MUSIC_COVERAGE.end);
-  const year = embeddedYear != null ? embeddedYear : Number(msg);
-  const isYear = Number.isFinite(year) && year >= MUSIC_COVERAGE.start && year <= MUSIC_COVERAGE.end;
-
-  if (isYear) {
-    session.lane = 'music';
-    session.musicYear = year;
-    session.musicChart = null;
-    session.musicState = 'need_chart';
-
-    return nyxCompose({
-      signal: `Locked: ${year}.`,
-      moment: 'Pick a chart and I’ll pull clean results.',
-      choice: 'Which chart do you want?',
-      chips: MUSIC_COVERAGE.charts,
-    });
-  }
-
-  const charts = MUSIC_COVERAGE.charts;
-  const chartPick = fuzzyPickChart(msg, charts);
-  if (chartPick) {
-    session.lane = 'music';
-    session.musicChart = chartPick;
-    session.musicState = 'ready';
-
-    const y = session.musicYear || 1988;
-
-    return nyxCompose({
-      signal: `Locked in: ${chartPick} (${y}).`,
-      moment: 'Top 10, #1, or a story moment?',
-      choice: 'Pick one.',
-      chips: ['Top 10', '#1', 'Story moment', 'Another year'],
-    });
-  }
-
-  if (mLower === 'music') {
-    session.lane = 'music';
-    session.musicState = 'need_year';
-    return nyxCompose({
-      signal: 'Music — perfect.',
-      moment: `Give me a year between ${MUSIC_COVERAGE.start} and ${MUSIC_COVERAGE.end}.`,
-      choice: 'Pick one, or type your own year.',
-      chips: ['1984', '1988', '1990', '1999'],
-    });
-  }
-
-  if (session.musicState === 'need_year' || session.musicState === 'start') {
-    return nyxCompose({
-      signal: 'Alright.',
-      moment: `Give me a year between ${MUSIC_COVERAGE.start} and ${MUSIC_COVERAGE.end}.`,
-      choice: 'Pick one.',
-      chips: ['1984', '1988', '1990', '1999'],
-    });
-  }
-
-  if (session.musicState === 'need_chart') {
-    const y = session.musicYear || 1988;
-    return nyxCompose({
-      signal: `For ${y}, pick a chart:`,
-      moment: charts.map((c) => `• ${c}`).join('\n'),
-      choice: 'Which chart?',
-      chips: charts,
-    });
-  }
-
-  if (session.musicState === 'ready') {
-    const y = session.musicYear || 1988;
-    const c = session.musicChart || session.profile?.musicChart || 'Billboard Year-End Hot 100';
-
-    if (mLower === 'top 10' || mLower === 'top10') {
-      const list = musicKnowledge.getTopByYear(y, c, 10) || [];
-      const lines = list.slice(0, 10).map((it, i) => formatTopItem(it, i)).join('\n');
-
-      return nyxCompose({
-        signal: `Top 10 — ${c} (${y}):`,
-        moment: lines,
-        choice: 'Want #1, a story moment, or another year?',
-        chips: ['#1', 'Story moment', 'Another year'],
-      });
-    }
-
-    if (mLower === '#1' || mLower === '1' || mLower === 'number 1' || mLower === 'no. 1') {
-      const list = musicKnowledge.getTopByYear(y, c, 1) || [];
-      const it = list[0];
-      const line = it ? formatTopItem(it, 0) : `1. (not found) — (not found)`;
-
-      return nyxCompose({
-        signal: `#1 — ${c} (${y}):`,
-        moment: line,
-        choice: 'Want a story moment or Top 10?',
-        chips: ['Story moment', 'Top 10', 'Another year'],
-      });
-    }
-
-    if (isStoryMomentCommand(mLower)) {
-      const story = safeStoryMoment(y, c);
-      if (story) {
-        return nyxCompose({
-          signal: story,
-          moment: '',
-          choice: 'Top 10, #1, or another year?',
-          chips: ['Top 10', '#1', 'Another year'],
-        });
-      }
-      return nyxCompose({
-        signal: `No story moment loaded for ${y} on ${c} yet.`,
-        moment: '',
-        choice: 'Top 10 or #1 instead?',
-        chips: ['Top 10', '#1', 'Another year'],
-      });
-    }
-
-    if (mLower.includes('another year') || mLower === 'year') {
-      session.musicState = 'need_year';
-      session.musicChart = null;
-      session.musicYear = null;
-      return nyxCompose({
-        signal: 'Sure.',
-        moment: `Pick a year between ${MUSIC_COVERAGE.start} and ${MUSIC_COVERAGE.end}.`,
-        choice: 'Which year?',
-        chips: ['1984', '1988', '1990', '1999'],
-      });
-    }
-
-    return nyxCompose({
-      signal: 'I’m with you.',
-      moment: 'Top 10, #1, or story moment?',
-      choice: 'Pick one.',
-      chips: ['Top 10', '#1', 'Story moment', 'Another year'],
-    });
-  }
-
-  return lanePickerReply(session);
-}
-
 function runNyxChat(body) {
   const route = '/api/chat_core';
   const rawMessage = body?.message;
@@ -965,43 +831,44 @@ function runNyxChat(body) {
   }
 
   const now = Date.now();
-  const sig = `${session.lane}|${session.musicState}|${session.musicYear || ''}|${session.musicChart || ''}|${message || ''}`;
+  const lane = session.lane || 'general';
+  const sig = `${lane}|${session.musicState}|${session.musicYear || ''}|${session.musicChart || ''}|${message || ''}`;
 
-  // HARD DEDUPE: kill duplicate requests (double-send/double-tap) BEFORE anti-loop logic runs.
-  const reqHash = crypto
-    .createHash('sha1')
-    .update(`${sessionId}::${sig}`)
-    .digest('hex');
+  // Monotonic server message id (for client-side dedupe if needed)
+  session.serverMsgId = (session.serverMsgId || 0) + 1;
+  const serverMsgId = session.serverMsgId;
 
-  if (
-    session.lastReqHash &&
-    reqHash === session.lastReqHash &&
-    now - (session.lastReqAt || 0) < DUP_REQ_WINDOW_MS
-  ) {
+  // HARD DEDUPE: if the widget double-sends the same request, do NOT emit a second visible bubble.
+  const reqHash = crypto.createHash('sha1').update(`${sessionId}::${sig}`).digest('hex');
+
+  if (session.lastReqHash && reqHash === session.lastReqHash && now - (session.lastReqAt || 0) < DUP_REQ_WINDOW_MS) {
     const response = {
       ok: true,
-      reply: '', // intentionally blank so UI does not render a duplicate bubble
+      reply: '',
       followUp: null,
       noop: true,
       suppressed: true,
+      suppressRender: true,
       sessionId,
+      serverMsgId,
     };
     setLast({ route, request: body, response, error: null });
     return response;
   }
-
   session.lastReqHash = reqHash;
   session.lastReqAt = now;
 
-  // Anti-loop: if the exact same signature repeats rapidly, suppress visible echo.
+  // Anti-loop suppression: same signature rapidly -> suppress visible output.
   if (session.lastSig && sig === session.lastSig && now - (session.lastSigAt || 0) < ANTI_LOOP_WINDOW_MS) {
     const response = {
       ok: true,
-      reply: '', // intentionally blank to prevent visible looping/echo
+      reply: '',
       followUp: null,
       noop: true,
       suppressed: true,
+      suppressRender: true,
       sessionId,
+      serverMsgId,
     };
     setLast({ route, request: body, response, error: null });
     return response;
@@ -1035,91 +902,57 @@ function runNyxChat(body) {
     const mLower = normText(message);
 
     if (isSwitchLanes(mLower)) {
-      response = lanePickerReply(session);
+      response = nyxCompose({
+        signal: 'Sure.',
+        moment: 'Pick a lane and I’ll drive.',
+        choice: 'Music, TV, Sponsors, or AI?',
+        chips: ['Music', 'TV', 'Sponsors', 'AI'],
+      });
     } else if (isResumeCommand(mLower)) {
       if (mLower.startsWith('resume music')) {
         session.lane = 'music';
-        if (session.musicYear && (session.musicChart || session.profile?.musicChart)) {
-          session.musicChart = session.musicChart || session.profile?.musicChart || null;
-          session.musicState = 'ready';
-          response = nyxCompose({
-            signal: 'Back in Music.',
-            moment: 'Top 10, #1, or story moment?',
-            choice: 'Pick one.',
-            chips: ['Top 10', '#1', 'Story moment', 'Another year'],
-          });
-        } else {
-          session.musicState = 'need_year';
-          response = handleMusic('music', session);
-        }
-      } else if (session.profile?.lastLane) {
-        session.lane = String(session.profile.lastLane);
-        response = lanePickerReply(session);
+        response = handleMusic('music', session);
       } else {
-        response = lanePickerReply(session);
+        response = nyxCompose({
+          signal: 'Resume or switch?',
+          moment: 'Tell me the lane.',
+          choice: 'Music, TV, Sponsors, or AI?',
+          chips: ['Music', 'TV', 'Sponsors', 'AI'],
+        });
       }
     } else {
       const lanePick = laneFromMessage(mLower);
 
       if (lanePick) {
         session.lane = lanePick;
-
-        if (lanePick === 'music') {
-          response = handleMusic('music', session);
-        } else if (lanePick === 'tv') {
+        if (lanePick === 'music') response = handleMusic('music', session);
+        else {
           response = nyxCompose({
-            signal: 'TV — nice.',
-            moment: 'Give me a vibe and I’ll curate.',
-            choice: 'Comfort or mystery?',
-            chips: ['Comfort', 'Mystery', 'Action', 'Nostalgic'],
+            signal: `${lanePick.toUpperCase()} mode.`,
+            moment: 'Tell me what you want, and I’ll guide the next step.',
+            choice: 'What’s the goal?',
+            chips: ['Build/Fix', 'Fun', 'Music', 'TV', 'Sponsors', 'AI'],
           });
-        } else if (lanePick === 'sponsors') {
-          response = nyxCompose({
-            signal: 'Sponsors — copy.',
-            moment: 'I can help you package, price, or pitch.',
-            choice: 'Are we selling a package or answering an inquiry?',
-            chips: ['Sell package', 'Answer inquiry', 'Rate card', 'Pitch'],
-          });
-        } else if (lanePick === 'ai') {
-          response = nyxCompose({
-            signal: 'AI mode.',
-            moment: 'Strategy, implementation, or troubleshooting?',
-            choice: 'Which one?',
-            chips: ['Strategy', 'Implementation', 'Troubleshooting', 'Widget', 'Backend'],
-          });
-        } else {
-          response = handleGeneral(message, session);
         }
       } else {
-        if (isStoryMomentCommand(mLower) && (session.lane === 'music' || session.musicState === 'ready')) {
-          response = handleMusic('Story moment', session);
-        } else if (session.lane === 'music' || mLower === 'music' || session.musicState !== 'start') {
-          response = handleMusic(message, session);
-        } else if (session.lane === 'general') {
-          response = handleGeneral(message, session);
-        } else {
-          response = lanePickerReply(session);
-        }
+        if (session.lane === 'music' || session.musicState !== 'start') response = handleMusic(message, session);
+        else response = nyxCompose({ signal: 'Got you.', moment: 'Tell me what you want next.', choice: 'Music, TV, Sponsors, or AI?', chips: ['Music', 'TV', 'Sponsors', 'AI'] });
       }
     }
   }
 
   if (session.visitorId) {
     const patch = { lastLane: session.lane };
-    if (session.topic) patch.topic = session.topic;
     if (session.displayName) patch.displayName = session.displayName;
-
     if (session.lane === 'music') {
       if (session.musicYear) patch.musicYear = session.musicYear;
       if (session.musicChart) patch.musicChart = session.musicChart;
     }
-
-    const updated = touchProfile(session.visitorId, patch);
-    session.profile = updated || session.profile || null;
+    session.profile = touchProfile(session.visitorId, patch) || session.profile || null;
   }
 
   let replyText = response?.reply ?? '';
-  let followUpFinal = getAnticipatoryFollowUp(session, replyText, response?.followUp ?? null);
+  let followUpFinal = response?.followUp ?? null;
 
   const de = nyxDeMeta(replyText, followUpFinal);
   replyText = de.reply;
@@ -1141,6 +974,7 @@ function runNyxChat(body) {
     reply: replyText,
     followUp: followUpFinal,
     sessionId,
+    serverMsgId,
   };
 
   setLast({ route, request: body, response: payload, error: null });
@@ -1195,18 +1029,8 @@ app.get('/api/health', (req, res) => {
       coverageRange: { start: MUSIC_COVERAGE.start, end: MUSIC_COVERAGE.end },
       charts: MUSIC_COVERAGE.charts,
     },
-    profiles: {
-      enabled: PROFILES_ENABLED,
-      persist: PROFILES_PERSIST,
-      ttlDays: PROFILES_TTL_DAYS,
-      count: PROFILES.size,
-    },
-    sessions: {
-      count: SESSIONS.size,
-      ttlMinutes: SESSION_TTL_MINUTES,
-      cleanupMinutes: SESSION_CLEANUP_MINUTES,
-      cap: SESSION_CAP,
-    },
+    profiles: { enabled: PROFILES_ENABLED, persist: PROFILES_PERSIST, ttlDays: PROFILES_TTL_DAYS, count: PROFILES.size },
+    sessions: { count: SESSIONS.size, ttlMinutes: SESSION_TTL_MINUTES, cleanupMinutes: SESSION_CLEANUP_MINUTES, cap: SESSION_CAP },
     nyx: {
       antiLoopWindowMs: ANTI_LOOP_WINDOW_MS,
       repeatReplyWindowMs: REPEAT_REPLY_WINDOW_MS,
@@ -1380,6 +1204,8 @@ app.post('/api/s2s', upload.single('file'), async (req, res) => {
       reply: replyText,
       followUp: chat?.followUp ?? null,
       sessionId: chat?.sessionId || chatBody.sessionId,
+      serverMsgId: chat?.serverMsgId ?? null,
+      suppressRender: chat?.suppressRender ?? false,
       audioBase64,
       audioBytes: audioBuf.length,
       audioMime: 'audio/mpeg',
@@ -1387,13 +1213,7 @@ app.post('/api/s2s', upload.single('file'), async (req, res) => {
 
     setLast({
       route,
-      request: {
-        bytes: f.size,
-        mimetype: f.mimetype,
-        sttOpts,
-        hasSessionId: !!req.body?.sessionId,
-        hasVisitorId: !!req.body?.visitorId,
-      },
+      request: { bytes: f.size, mimetype: f.mimetype, sttOpts, hasSessionId: !!req.body?.sessionId, hasVisitorId: !!req.body?.visitorId },
       response: { ok: true, audioBytes: audioBuf.length, transcriptChars: transcript.length, replyChars: replyText.length },
       error: null,
     });
@@ -1411,16 +1231,13 @@ app.post('/api/s2s', upload.single('file'), async (req, res) => {
 ========================= */
 
 app.post('/api/chat', (req, res) => {
-  const route = '/api/chat';
   const body = req && typeof req.body === 'object' ? req.body : {};
-
   try {
     const payload = runNyxChat(body);
-    setLast({ route, request: body, response: payload, error: null });
     return res.status(200).json(payload);
   } catch (err) {
     const payload = { ok: false, error: 'SERVER_ERROR', message: 'Nyx hit an internal error.' };
-    setLast({ route, request: body, response: null, error: (err && err.message) || 'SERVER_ERROR' });
+    setLast({ route: '/api/chat', request: body, response: null, error: (err && err.message) || 'SERVER_ERROR' });
     return res.status(500).json(payload);
   }
 });
