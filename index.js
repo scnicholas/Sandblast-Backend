@@ -14,13 +14,16 @@
  *  - POST /api/voice (alias)
  *
  * CRITICAL CONVERSATION PATCH:
- *  - No blank replies on anti-loop suppression (returns last assistant reply)
  *  - Year parsing supports embedded years (“1987 please”)
  *  - Fuzzy chart matching supports loose variants
  *
- * UI CLEANUP PATCH (THIS RESEND):
+ * UI CLEANUP PATCH:
  *  - Greeting + “how are you” replies DO NOT return followUp chips (prevents duplicate chip rows)
  *  - Greeting copy is shorter and more natural (less “menu”)
+ *
+ * HARD LOOP/DOUBLE-SEND PATCH (THIS RESEND):
+ *  - Detect duplicate requests (same session+state+message) within a short window and return reply:""
+ *  - Anti-loop suppression returns reply:"" (no visible echo)
  */
 
 const express = require('express');
@@ -78,6 +81,9 @@ const AUDIO_MAX_BYTES = Number(process.env.AUDIO_MAX_BYTES || 12 * 1024 * 1024);
 const ANTI_LOOP_WINDOW_MS = Number(process.env.NYX_ANTI_LOOP_WINDOW_MS || 1200);
 const REPEAT_REPLY_WINDOW_MS = Number(process.env.NYX_REPEAT_REPLY_WINDOW_MS || 120000);
 const MAX_REPEAT_REPLY = Number(process.env.NYX_MAX_REPEAT_REPLY || 2);
+
+// HARD DEDUPE window (prevents double-send/double-tap from producing duplicate bubbles)
+const DUP_REQ_WINDOW_MS = Number(process.env.NYX_DUP_REQ_WINDOW_MS || 900);
 
 /* =========================
    DEBUG SNAPSHOT (SINGLETON)
@@ -308,7 +314,6 @@ function nyxCompose({ signal, moment, choice, chips }) {
 }
 
 function nyxComposeNoChips({ signal, moment, choice }) {
-  // This is used specifically for the first-touch experience to avoid duplicate chip rows in the UI.
   return { reply: [clean(signal), clean(moment), clean(choice)].filter(Boolean).join('\n'), followUp: null };
 }
 
@@ -323,7 +328,6 @@ function nyxDeMeta(reply, followUp) {
 
   if (!bad) return { reply, followUp };
 
-  // Keep it clean; no extra chips here (the top lane chips exist already)
   return nyxComposeNoChips({
     signal: 'Copy that.',
     moment: 'Tell me what you want to do, and I’ll take it from there.',
@@ -376,6 +380,10 @@ function getSession(sessionId, visitorId) {
       musicState: 'start',
       musicYear: profile?.musicYear ?? null,
       musicChart: profile?.musicChart ?? null,
+
+      // HARD DEDUPE (prevents duplicate UI bubbles from double-sends)
+      lastReqHash: null,
+      lastReqAt: 0,
     };
 
     SESSIONS.set(id, s);
@@ -471,10 +479,6 @@ function rebuildMusicCoverage() {
 }
 rebuildMusicCoverage();
 
-/**
- * IMPORTANT: Intro should be clean and not spawn a second chip row.
- * So greeting returns followUp:null always.
- */
 function nyxGreeting(session) {
   const name = clean(session?.displayName);
   const who = name ? `${name}, ` : '';
@@ -485,9 +489,6 @@ function nyxGreeting(session) {
   });
 }
 
-/**
- * Same principle: keep it warm, but no followUp chips here.
- */
 function nyxSocialReply(_message, session) {
   const name = clean(session?.displayName);
   const who = name ? `${name}, ` : '';
@@ -592,7 +593,6 @@ function handleGeneral(message, session) {
   const topic = pickTopicFromUser(msg);
   if (topic) session.topic = topic;
 
-  // We keep “Fun/Build-Fix” as optional user commands, but it won’t lead the greeting anymore.
   if (mLower === 'fun') {
     return nyxCompose({
       signal: 'Alright — fun it is.',
@@ -654,7 +654,7 @@ function setFollowUp(session, proposed) {
   return list;
 }
 
-function getAnticipatoryFollowUp(session, replyText, proposedFollowUp) {
+function getAnticipatoryFollowUp(session, _replyText, proposedFollowUp) {
   const base = Array.isArray(proposedFollowUp) ? proposedFollowUp : null;
   return setFollowUp(session, base);
 }
@@ -967,10 +967,37 @@ function runNyxChat(body) {
   const now = Date.now();
   const sig = `${session.lane}|${session.musicState}|${session.musicYear || ''}|${session.musicChart || ''}|${message || ''}`;
 
+  // HARD DEDUPE: kill duplicate requests (double-send/double-tap) BEFORE anti-loop logic runs.
+  const reqHash = crypto
+    .createHash('sha1')
+    .update(`${sessionId}::${sig}`)
+    .digest('hex');
+
+  if (
+    session.lastReqHash &&
+    reqHash === session.lastReqHash &&
+    now - (session.lastReqAt || 0) < DUP_REQ_WINDOW_MS
+  ) {
+    const response = {
+      ok: true,
+      reply: '', // intentionally blank so UI does not render a duplicate bubble
+      followUp: null,
+      noop: true,
+      suppressed: true,
+      sessionId,
+    };
+    setLast({ route, request: body, response, error: null });
+    return response;
+  }
+
+  session.lastReqHash = reqHash;
+  session.lastReqAt = now;
+
+  // Anti-loop: if the exact same signature repeats rapidly, suppress visible echo.
   if (session.lastSig && sig === session.lastSig && now - (session.lastSigAt || 0) < ANTI_LOOP_WINDOW_MS) {
     const response = {
       ok: true,
-      reply: clean(session.lastAssistantReply) || 'Copy that. Tap again if you meant to resend — I’m with you.',
+      reply: '', // intentionally blank to prevent visible looping/echo
       followUp: null,
       noop: true,
       suppressed: true,
@@ -1184,6 +1211,7 @@ app.get('/api/health', (req, res) => {
       antiLoopWindowMs: ANTI_LOOP_WINDOW_MS,
       repeatReplyWindowMs: REPEAT_REPLY_WINDOW_MS,
       maxRepeatReply: MAX_REPEAT_REPLY,
+      dupReqWindowMs: DUP_REQ_WINDOW_MS,
     },
   });
 });
