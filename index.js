@@ -608,83 +608,11 @@ rebuildMusicCoverage();
 ========================= */
 
 // Single, clean intro line (no menus, no “tap chips”)
-// Nyx intro variants (time-aware + rotation-safe, deterministic per visitor/daypart/day)
-const NYX_TIMEZONE = process.env.NYX_TIMEZONE || 'America/Toronto';
-
-function nyxLocalParts(now = new Date(), tz = NYX_TIMEZONE) {
-  try {
-    const dtf = new Intl.DateTimeFormat('en-CA', {
-      timeZone: tz,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      hour12: false,
-    });
-    const parts = Object.fromEntries(dtf.formatToParts(now).map(p => [p.type, p.value]));
-    const ymd = `${parts.year}-${parts.month}-${parts.day}`;
-    const hour = Number(parts.hour);
-    return { ymd, hour: Number.isFinite(hour) ? hour : now.getHours() };
-  } catch {
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, '0');
-    const d = String(now.getDate()).padStart(2, '0');
-    return { ymd: `${y}-${m}-${d}`, hour: now.getHours() };
-  }
-}
-
-function nyxDaypart(hour) {
-  if (hour >= 5 && hour < 12) return 'morning';
-  if (hour >= 12 && hour < 17) return 'afternoon';
-  return 'evening';
-}
-
-function nyxPickIndex(seed, mod) {
-  if (!mod || mod <= 1) return 0;
-  try {
-    const h = crypto.createHash('sha1').update(String(seed)).digest('hex');
-    const n = parseInt(h.slice(0, 8), 16);
-    return Number.isFinite(n) ? (n % mod) : 0;
-  } catch {
-    return 0;
-  }
-}
-
-function nyxIntroLine(session) {
-  const { ymd, hour } = nyxLocalParts(new Date(), NYX_TIMEZONE);
-  const daypart = nyxDaypart(hour);
-
-  const introBank = {
-    morning: [
-      "Welcome to Sandblast Channel — where classic TV, timeless music, and modern insight come together. I’m Nyx, and I’ll help you explore it all—what are we doing today?",
-      "Good morning — welcome to Sandblast Channel, home of classic TV, timeless music, and sharp modern insight. I’m Nyx—where do you want to start?"
-    ],
-    afternoon: [
-      "Welcome to Sandblast Channel — where classic TV, timeless music, and modern insight come together. I’m Nyx, and I’ll help you explore it all—what are we doing today?",
-      "Welcome back to Sandblast Channel — classics on screen, legends on the speakers, and modern insight in the mix. I’m Nyx—what are we jumping into?"
-    ],
-    evening: [
-      "Welcome to Sandblast Channel — where classic TV, timeless music, and modern insight come together. I’m Nyx, and I’ll help you explore it all—what are we doing today?",
-      "Tonight on Sandblast Channel: classic TV, timeless music, and modern insight—served clean. I’m Nyx—what are we exploring?"
-    ],
-  };
-
-  const bank = introBank[daypart] || introBank.evening;
-  const key = clean(session?.visitorId) || clean(session?.sessionId) || 'anon';
-  const idx = nyxPickIndex(`${key}::${ymd}::${daypart}`, bank.length);
-  return bank[idx] || bank[0];
-}
-
 function nyxHello(session) {
   const name = clean(session?.displayName);
   const who = name ? `, ${name}` : '';
-  const intro = nyxIntroLine(session);
-
-  // If we know the user's name, weave it in without changing the meaning.
-  const signal = who ? intro.replace("I’m Nyx", `I’m Nyx${who}`) : intro;
-
   return nyxComposeNoChips({
-    signal,
+    signal: `Hey${who} — I’m Nyx. How can I help you?`,
     moment: '',
     choice: '',
   });
@@ -704,7 +632,7 @@ function nyxGreeting(session, rawUserMsg) {
   return nyxComposeNoChips({
     signal,
     moment: '',
-    choice: 'What are we doing today?',
+    choice: 'How can I help you?',
   });
 }
 
@@ -725,7 +653,7 @@ function nyxSocialReply(_message, session) {
   return nyxComposeNoChips({
     signal: `I’m good — steady and switched on. ${who}`.trim(),
     moment: '',
-    choice: 'What are we doing today?',
+    choice: 'How can I help you?',
   });
 }
 
@@ -1374,21 +1302,11 @@ function runNyxChat(body) {
   } else {
     const mLower = normText(message);
 
-    // Auto-route: if the user types a valid year in our music coverage window, treat it as Music intent.
-    // This prevents awkward "Got it. What are we doing today?" replies for inputs like "1987".
-    if (session.lane !== 'music' && session.musicState === 'start') {
-      const y = extractYearInRange(message, MUSIC_COVERAGE.start, MUSIC_COVERAGE.end);
-      if (y != null) {
-        session.lane = 'music';
-        return handleMusic(String(y), session);
-      }
-    }
-
     if (isSwitchLanes(mLower)) {
       response = nyxComposeNoChips({
         signal: 'Sure.',
         moment: '',
-        choice: 'What are we doing today?',
+        choice: 'How can I help you?',
       });
     } else if (isResumeCommand(mLower)) {
       if (mLower.startsWith('resume music')) {
@@ -1432,7 +1350,7 @@ function runNyxChat(body) {
             response = nyxComposeNoChips({
               signal: who,
               moment: '',
-              choice: 'What are we doing today?',
+              choice: 'How can I help you?',
             });
           }
         }
