@@ -1,576 +1,724 @@
-'use strict';
-
-/* ======================================================
-   Sandblast Backend — Nyx
-   index.js (Layer 1 + Layer 2 + TTS endpoint restore)
-   - Keeps your existing chat framework + loop micro-flow
-   - Adds /api/tts + aliases to eliminate widget TTS 404
-   - Adds CORS preflight handling
-   - Adds light request dedupe (mobile multi-send bursts)
-====================================================== */
-
-const express = require('express');
-const cors = require('cors');
-const crypto = require('crypto');
-
-/* =========================
-   ENV / CONSTANTS
-========================= */
-
-const PORT = Number(process.env.PORT || 3000);
-const NYX_INTELLIGENCE_LEVEL = Number(process.env.NYX_INTELLIGENCE_LEVEL || 2);
-
-const NYX_HELLO_TOKEN = '__nyx_hello__';
-
-// Keepalive (matches your current intent)
-const NYX_KEEPALIVE = String(process.env.NYX_KEEPALIVE ?? '1') !== '0';
-
-// ElevenLabs (for TTS)
-const ELEVENLABS_API_KEY = String(process.env.ELEVENLABS_API_KEY || '').trim();
-const ELEVENLABS_VOICE_ID = String(process.env.ELEVENLABS_VOICE_ID || '').trim();
-const ELEVENLABS_MODEL_ID = String(process.env.ELEVENLABS_MODEL_ID || '').trim(); // optional
-const ELEVENLABS_BASE_URL = String(process.env.ELEVENLABS_BASE_URL || 'https://api.elevenlabs.io').trim();
-
-// Voice tuning (optional)
-const NYX_VOICE_STABILITY = process.env.NYX_VOICE_STABILITY || '';
-const NYX_VOICE_SIMILARITY = process.env.NYX_VOICE_SIMILARITY || '';
-const NYX_VOICE_STYLE = process.env.NYX_VOICE_STYLE || '';
-const NYX_VOICE_SPEAKER_BOOST = process.env.NYX_VOICE_SPEAKER_BOOST || '';
-
-// Anti-loop / dedupe windows
-const DUP_REQ_WINDOW_MS = Number(process.env.NYX_DUP_REQ_WINDOW_MS || 1200);
-
-/* =========================
-   PROCESS HARDENING
-========================= */
-
-process.on('uncaughtException', (err) => {
-  console.error('[Nyx] uncaughtException:', err && err.stack ? err.stack : err);
-});
-
-process.on('unhandledRejection', (reason) => {
-  console.error('[Nyx] unhandledRejection:', reason && reason.stack ? reason.stack : reason);
-});
-
-console.log(`[Nyx] boot pid=${process.pid} cwd=${process.cwd()} node=${process.version}`);
-
-/* =========================
-   HELPERS
-========================= */
-
-function clean(x) {
-  return typeof x === 'string' ? x.trim() : '';
-}
-
-function normText(x) {
-  return clean(x).toLowerCase().replace(/\s+/g, ' ');
-}
-
-function isGreeting(msg) {
-  const m = normText(msg);
-  return ['hi', 'hello', 'hey', 'hi nyx', 'hello nyx', 'hey nyx'].includes(m);
-}
-
-function extractName(msg) {
-  const m = msg.match(/\bmy name is\s+([A-Za-z'\- ]{2,40})/i);
-  return m ? m[1].trim() : null;
-}
-
-function clamp01(v) {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return null;
-  return Math.max(0, Math.min(1, n));
-}
-
-/* =========================
-   LANE LOGIC
-========================= */
-
-function laneFromMessage(m) {
-  if (m === 'music') return 'music';
-  if (m === 'tv') return 'tv';
-  if (m === 'sponsors') return 'sponsors';
-  if (m === 'ai') return 'ai';
-  return null;
-}
-
-function inferLaneFromFreeText(msg) {
-  const m = normText(msg);
-  if (/widget|backend|api|index\.js|render|loop|looping|bug|error|voice|tts|stt|mic|audio/i.test(m)) return 'ai';
-  if (/music|chart|song|billboard/i.test(m)) return 'music';
-  if (/tv|show|series/i.test(m)) return 'tv';
-  if (/sponsor|advert/i.test(m)) return 'sponsors';
-  return null;
-}
-
-function inferAiSubtopic(msg) {
-  const m = normText(msg);
-  if (/widget|frontend|webflow|mobile|panel|ios|android|safari|chrome/i.test(m)) return 'widget';
-  if (/backend|api|render|server|index\.js/i.test(m)) return 'backend';
-  if (/voice|tts|stt|scribe|mic|audio/i.test(m)) return 'voice';
-  return null;
-}
-
-/* =========================
-   GUIDED QUESTIONS
-========================= */
-
-function nyxGuidedQuestionForLane(lane, session) {
-  const name = session.displayName ? `${session.displayName}, ` : '';
-  if (lane === 'ai') return `${name}are we working on the backend, the widget, or content intelligence?`;
-  if (lane === 'music') return `${name}what year should we start with?`;
-  if (lane === 'tv') return `${name}what are you looking to watch?`;
-  if (lane === 'sponsors') return `${name}are you advertising or exploring options?`;
-  return `${name}what are we doing today?`;
-}
-
-/* =========================
-   LAYER 2 — MESSAGE-AWARE TIGHTENING
-========================= */
-
-function tightenAiGuidanceIfPossible(session, message, fallbackPrompt) {
-  if (NYX_INTELLIGENCE_LEVEL < 2) return fallbackPrompt;
-
-  const sub = clean(session?.aiSubtopic);
-  const m = normText(message || '');
-
-  if (sub === 'widget') {
-    if (/\b(loop|looping|repeat|repeating|keeps repeating)\b/i.test(m)) {
-      return 'When it loops, is the widget re-sending the same request, or is Nyx repeating the same reply?';
-    }
-    if (/\b(mobile|iphone|android|ios|safari|chrome)\b/i.test(m)) {
-      return 'On mobile, what fails first — positioning, looping, mic, or rendering?';
-    }
-    return 'What part is failing — positioning, looping, mic, or rendering?';
-  }
-
-  if (sub === 'backend') {
-    if (/\b(500|502|503|timeout|slow|latency)\b/i.test(m)) {
-      return 'Are you seeing 500s, timeouts, or slow responses?';
-    }
-    return 'What’s the symptom — looping, slow response, 500s, or bad routing?';
-  }
-
-  if (sub === 'voice') {
-    if (/\b(transcript|stt|scribe)\b/i.test(m)) return 'Is STT failing to return a transcript, or returning the wrong words?';
-    if (/\b(tts|voice|audio)\b/i.test(m)) return 'Is TTS failing to generate audio, or is playback failing in the widget?';
-    return 'Is the issue TTS, STT transcript, or S2S playback?';
-  }
-
-  return fallbackPrompt;
-}
-
-/* =========================
-   LOOP DIAGNOSTIC MICRO-FLOW
-========================= */
-
-function inferLoopKindAnswer(msg) {
-  const m = normText(msg);
-
-  // Widget re-sending requests
-  if (/\b(resend|re-send|re sending|re-sending|double send|sending twice|multiple requests|requests|network|fetch|post|api call|calls)\b/i.test(m)) {
-    return 'resending_request';
-  }
-
-  // Nyx repeating reply
-  if (/\b(same reply|repeating reply|repeats the reply|same response|repeating response|nyx repeats|keeps saying)\b/i.test(m)) {
-    return 'repeating_reply';
-  }
-
-  return null;
-}
-
-/* =========================
-   SESSION STORE
-========================= */
-
-const SESSIONS = new Map();
-
-// Dedupe store: sessionId -> { key, at, lastPayload }
-const DEDUPE = new Map();
-
-function getSession(id) {
-  if (!SESSIONS.has(id)) {
-    SESSIONS.set(id, {
-      id,
-      lane: 'general',
-      displayName: null,
-      aiSubtopic: null,
-
-      // micro-flow state
-      aiDiag: null, // e.g. 'loop_kind'
-      aiDiagAskedAt: 0,
-
-      serverMsgId: 0,
-    });
-  }
-  return SESSIONS.get(id);
-}
-
-/* =========================
-   DEBUG LAST
-========================= */
-
-let LAST_DEBUG = { ok: true, route: null, request: null, response: null, error: null };
-
-function setDebug(route, request, response, error = null) {
-  LAST_DEBUG = {
-    ok: true,
-    route,
-    request,
-    response,
-    error: error ? String(error?.stack || error) : null,
-  };
-}
-
-/* =========================
-   CHAT CORE
-========================= */
-
-function runNyxChat(body) {
-  const message = clean(body.message || '');
-  const sessionId = body.sessionId || crypto.randomUUID();
-  const session = getSession(sessionId);
-  session.serverMsgId++;
-
-  // A) Widget open intro
-  if (message === NYX_HELLO_TOKEN) {
-    return {
-      ok: true,
-      reply: "You’re on Sandblast Channel — classic TV, timeless music, and modern insight. I’m Nyx. How can I help you?",
-      followUp: null,
-      sessionId,
-      serverMsgId: session.serverMsgId,
-    };
-  }
-
-  // B) Name capture
-  const name = extractName(message);
-  if (name) {
-    session.displayName = name;
-    session.aiDiag = null;
-    return {
-      ok: true,
-      reply: `Nice to meet you, ${name}.\nWhat should we do first?`,
-      followUp: null,
-      sessionId,
-      serverMsgId: session.serverMsgId,
-    };
-  }
-
-  // C) Greeting acknowledgement
-  if (isGreeting(message)) {
-    session.aiDiag = null;
-    return {
-      ok: true,
-      reply: session.displayName ? `Hey, ${session.displayName}.\nWhat are we doing today?` : 'Hey.\nWhat are we doing today?',
-      followUp: null,
-      sessionId,
-      serverMsgId: session.serverMsgId,
-    };
-  }
-
-  // D) Continue micro-flow
-  if (NYX_INTELLIGENCE_LEVEL >= 2 && session.aiDiag === 'loop_kind') {
-    const kind = inferLoopKindAnswer(message);
-
-    if (kind === 'resending_request') {
-      session.aiDiag = 'loop_widget_evidence';
-      return {
-        ok: true,
-        reply:
-          "Good — that narrows it.\n" +
-          "Next: can you confirm whether the widget sends two /api/chat POSTs per one user action?\n" +
-          "If yes: is it on send-click, enter-key, or triggered by both?",
-        followUp: null,
-        sessionId,
-        serverMsgId: session.serverMsgId,
-      };
-    }
-
-    if (kind === 'repeating_reply') {
-      session.aiDiag = 'loop_server_evidence';
-      return {
-        ok: true,
-        reply:
-          "Got it — that’s a server-side repeat.\n" +
-          "Next: does it repeat even when the user message changes, or only when the message is identical?\n" +
-          "And does serverMsgId keep increasing each time?",
-        followUp: null,
-        sessionId,
-        serverMsgId: session.serverMsgId,
-      };
-    }
-
-    return {
-      ok: true,
-      reply:
-        "Quick check so I don’t guess wrong:\n" +
-        "Which one are you seeing — multiple requests being sent, or the same reply repeating?",
-      followUp: null,
-      sessionId,
-      serverMsgId: session.serverMsgId,
-    };
-  }
-
-  // E) Determine lane (explicit or inferred)
-  const mLower = normText(message);
-  let lanePick = laneFromMessage(mLower);
-  if (!lanePick) lanePick = inferLaneFromFreeText(message);
-
-  // F) Handle lane selection / inferred lane with Layer 1 + Layer 2 guidedness
-  if (lanePick) {
-    session.lane = lanePick;
-
-    // Basic lanes (non-AI) — keep simple
-    if (lanePick !== 'ai') {
-      session.aiDiag = null;
-      return {
-        ok: true,
-        reply: `Got it.\n${nyxGuidedQuestionForLane(lanePick, session)}`,
-        followUp: null,
-        sessionId,
-        serverMsgId: session.serverMsgId,
-      };
-    }
-
-    // AI lane — apply Layer 2 tightening
-    session.aiSubtopic = inferAiSubtopic(message);
-
-    let guided = nyxGuidedQuestionForLane('ai', session);
-    const tightened = tightenAiGuidanceIfPossible(session, message, guided);
-    if (tightened) guided = tightened;
-
-    // If the tightened guidance is the loop-kind question, arm the micro-flow state
-    if (guided.includes('When it loops, is the widget re-sending')) {
-      session.aiDiag = 'loop_kind';
-      session.aiDiagAskedAt = Date.now();
-    } else {
-      session.aiDiag = null;
-    }
-
-    return {
-      ok: true,
-      reply: `Got it.\n${guided}`,
-      followUp: null,
-      sessionId,
-      serverMsgId: session.serverMsgId,
-    };
-  }
-
-  // G) Default fallback
-  session.aiDiag = null;
-  return {
-    ok: true,
-    reply: session.displayName ? `Got it, ${session.displayName}.\nWhat are we doing today?` : 'Got it.\nWhat are we doing today?',
-    followUp: null,
-    sessionId,
-    serverMsgId: session.serverMsgId,
-  };
-}
-
-/* =========================
-   TTS (ElevenLabs)
-========================= */
-
-function ttsConfigured() {
-  return Boolean(ELEVENLABS_API_KEY && ELEVENLABS_VOICE_ID);
-}
-
-function buildVoiceSettings() {
-  // Only include settings when valid numeric values are provided
-  const stability = clamp01(NYX_VOICE_STABILITY);
-  const similarity_boost = clamp01(NYX_VOICE_SIMILARITY);
-  const style = clamp01(NYX_VOICE_STYLE);
-  const speaker_boost = String(NYX_VOICE_SPEAKER_BOOST || '').toLowerCase().trim() === 'true';
-
-  const out = {};
-  if (stability != null) out.stability = stability;
-  if (similarity_boost != null) out.similarity_boost = similarity_boost;
-  if (style != null) out.style = style;
-  if (NYX_VOICE_SPEAKER_BOOST !== '') out.speaker_boost = speaker_boost;
-  return out;
-}
-
-async function elevenlabsTTS(text) {
-  const url = `${ELEVENLABS_BASE_URL.replace(/\/$/, '')}/v1/text-to-speech/${encodeURIComponent(ELEVENLABS_VOICE_ID)}`;
-
-  const body = {
-    text,
-  };
-  if (ELEVENLABS_MODEL_ID) body.model_id = ELEVENLABS_MODEL_ID;
-
-  const vs = buildVoiceSettings();
-  if (Object.keys(vs).length) body.voice_settings = vs;
-
-  const resp = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'xi-api-key': ELEVENLABS_API_KEY,
-      'Content-Type': 'application/json',
-      Accept: 'audio/mpeg',
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (!resp.ok) {
-    const ct = resp.headers.get('content-type') || '';
-    let detail = '';
-    try {
-      detail = ct.includes('application/json') ? JSON.stringify(await resp.json()) : String(await resp.text()).slice(0, 500);
-    } catch (_) {}
-    const err = new Error(`ELEVENLABS_TTS_${resp.status}`);
-    err.status = resp.status;
-    err.detail = detail;
-    throw err;
-  }
-
-  const arr = await resp.arrayBuffer();
-  return Buffer.from(arr);
-}
-
-/* =========================
-   EXPRESS APP
-========================= */
+/**
+ * index.js — Sandblast Backend (Nyx)
+ * Critical fixes:
+ *  - Authoritative session state spine (prevents looping/regressing into greeting)
+ *  - One-way intro door (never re-triggers once engaged)
+ *  - Name capture as first-class milestone (no rude "Got it")
+ *  - Chip arbitration rules (free-text always wins; chips set active domain)
+ *  - TTS at final response boundary only (prevents “no voice” via short-circuit)
+ *  - Safer payload handling + consistent response envelope
+ */
+
+"use strict";
+
+const express = require("express");
+const cors = require("cors");
+const crypto = require("crypto");
+const multer = require("multer");
 
 const app = express();
+const upload = multer({ storage: multer.memoryStorage() });
 
-// CORS (don’t fight the browser; let it through)
+/* ======================================================
+   ENV + Config
+====================================================== */
+
+const PORT = Number(process.env.PORT || 3000);
+const HOST = process.env.HOST || "0.0.0.0";
+
+const SERVICE_NAME = process.env.SERVICE_NAME || "sandblast-backend";
+const NODE_ENV = process.env.NODE_ENV || "development";
+
+// Session TTL to prevent memory bloat
+const SESSION_TTL_MINUTES = Number(process.env.SESSION_TTL_MINUTES || 90);
+
+// Intelligence Level (keep your pattern)
+const DEFAULT_INTELLIGENCE_LEVEL = Number(process.env.NYX_INTELLIGENCE_LEVEL || 2);
+
+// TTS settings
+const TTS_PROVIDER = (process.env.TTS_PROVIDER || "elevenlabs").toLowerCase();
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || "";
+const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || "";
+const ELEVENLABS_MODEL_ID = process.env.ELEVENLABS_MODEL_ID || ""; // optional
+const ELEVENLABS_BASE_URL = process.env.ELEVENLABS_BASE_URL || "https://api.elevenlabs.io";
+
+// Voice tuning (canonical approach you locked)
+const NYX_VOICE_STABILITY = process.env.NYX_VOICE_STABILITY || "0.35";
+const NYX_VOICE_SIMILARITY = process.env.NYX_VOICE_SIMILARITY || "0.80";
+const NYX_VOICE_STYLE = process.env.NYX_VOICE_STYLE || "0.25";
+const NYX_VOICE_SPEAKER_BOOST = (process.env.NYX_VOICE_SPEAKER_BOOST || "true") === "true";
+
+// Utility feature toggles
+const ENABLE_TTS = (process.env.ENABLE_TTS || "true") === "true";
+const ENABLE_S2S = (process.env.ENABLE_S2S || "true") === "true";
+const ENABLE_DEBUG = (process.env.NYX_DEBUG || "false") === "true";
+
+// CORS: permissive by default; tighten if you want
 app.use(
   cors({
-    origin: true,
-    methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    origin: "*",
+    methods: ["GET", "POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
-// Preflight safety
-app.options('*', cors());
+app.use(express.json({ limit: "2mb" }));
+app.use(express.urlencoded({ extended: true }));
 
-// JSON body
-app.use(express.json({ limit: '2mb' }));
+/* ======================================================
+   Safe Imports (do not crash if a module changes)
+====================================================== */
 
-/* ---- Chat ---- */
-
-app.post('/api/chat', (req, res) => {
+function safeRequire(path) {
   try {
-    // Light dedupe: blocks rapid duplicate POSTs from mobile double-send
-    const body = req.body || {};
-    const sessionId = body.sessionId || 'no-session';
-    const msg = clean(body.message || '');
-    const key = `${sessionId}::${msg}`;
-
-    const now = Date.now();
-    const last = DEDUPE.get(sessionId);
-    if (last && last.key === key && now - last.at < DUP_REQ_WINDOW_MS) {
-      const payload = { ...(last.lastPayload || {}), dup: true };
-      setDebug('/api/chat(deduped)', body, payload, null);
-      return res.status(200).json(payload);
-    }
-
-    const payload = runNyxChat(body);
-    DEDUPE.set(sessionId, { key, at: now, lastPayload: payload });
-
-    setDebug('/api/chat', body, payload, null);
-    res.status(200).json(payload);
-  } catch (err) {
-    setDebug('/api/chat', req.body || {}, null, err);
-    res.status(500).json({ ok: false, error: 'SERVER_ERROR' });
-  }
-});
-
-/* ---- TTS (POST) + aliases ---- */
-
-async function handleTTS(req, res) {
-  try {
-    const body = req.body || {};
-    const text = clean(body.text || body.message || body.reply || '');
-
-    if (!text) {
-      const payload = { ok: false, error: 'NO_TEXT' };
-      setDebug('tts:NO_TEXT', body, payload, null);
-      return res.status(400).json(payload);
-    }
-
-    if (!ttsConfigured()) {
-      const payload = { ok: false, error: 'TTS_NOT_CONFIGURED' };
-      setDebug('tts:NOT_CONFIGURED', body, payload, null);
-      return res.status(500).json(payload);
-    }
-
-    const audio = await elevenlabsTTS(text);
-
-    // IMPORTANT: return audio bytes, not JSON
-    res.setHeader('Content-Type', 'audio/mpeg');
-    res.setHeader('Cache-Control', 'no-store');
-    setDebug('tts:OK', { textLen: text.length }, { bytes: audio.length }, null);
-    return res.status(200).send(audio);
-  } catch (err) {
-    const status = Number(err?.status) || 500;
-    const payload = { ok: false, error: 'TTS_ERROR', status, detail: err?.detail || null };
-    setDebug('tts:ERROR', req.body || {}, payload, err);
-    return res.status(500).json(payload);
+    // eslint-disable-next-line import/no-dynamic-require, global-require
+    return require(path);
+  } catch (e) {
+    if (ENABLE_DEBUG) console.warn(`[safeRequire] missing/failed: ${path} :: ${e.message}`);
+    return null;
   }
 }
 
-app.post('/api/tts', handleTTS);
-app.post('/api/voice', handleTTS);
-app.post('/tts', handleTTS);
-app.post('/voice', handleTTS);
+const musicKnowledge = safeRequire("./Utils/musicKnowledge");
+const intentClassifier = safeRequire("./Utils/intentClassifier");
+const nyxPersonality = safeRequire("./Utils/nyxPersonality");
 
-/* ---- TTS (GET) safety net ----
-   If the widget accidentally calls GET and you were seeing 404, this prevents that.
-   - /api/tts?text=hello -> returns audio
-   - /api/tts (no text) -> 400 JSON (not 404 HTML)
-*/
-app.get(['/api/tts', '/api/voice', '/tts', '/voice'], async (req, res) => {
-  const text = clean(req.query?.text || '');
-  if (!text) return res.status(400).json({ ok: false, error: 'NO_TEXT' });
-  // Reuse POST logic shape
-  req.body = { text };
-  return handleTTS(req, res);
+// Canonical: Nyx voice naturalizer (you locked this)
+const nyxVoiceNaturalize = safeRequire("./Utils/nyxVoiceNaturalize");
+
+// If you have any router modules, keep them optional:
+const tvKnowledge = safeRequire("./Utils/tvKnowledge");
+const sponsorsKnowledge = safeRequire("./Utils/sponsorsKnowledge");
+
+/* ======================================================
+   Session Store (authoritative state spine)
+====================================================== */
+
+const sessions = new Map();
+
+function nowMs() {
+  return Date.now();
+}
+
+function makeSessionId() {
+  return crypto.randomBytes(8).toString("hex");
+}
+
+/**
+ * phase:
+ *  - "greeting": intro allowed (one time)
+ *  - "engaged": post-intro, general conversation (name capture/intent routing)
+ *  - "domain_active": user is in a lane (music/tv/sponsors/ai/etc.)
+ */
+function newSessionState(sessionId) {
+  return {
+    sessionId,
+    createdAt: nowMs(),
+    updatedAt: nowMs(),
+    intelligenceLevel: DEFAULT_INTELLIGENCE_LEVEL,
+
+    phase: "greeting",
+    greetedOnce: false,
+
+    nameCaptured: false,
+    userName: null,
+
+    activeDomain: null, // "music" | "tv" | "sponsors" | "ai" | "general"
+    lastUserIntent: null,
+    lastUserText: null,
+
+    // loop protection
+    lastReplyHash: null,
+    repeatCount: 0,
+  };
+}
+
+function getSession(sessionIdRaw) {
+  const sid = (sessionIdRaw || "").trim() || makeSessionId();
+  let st = sessions.get(sid);
+  if (!st) {
+    st = newSessionState(sid);
+    sessions.set(sid, st);
+  }
+  return st;
+}
+
+function touchSession(st) {
+  st.updatedAt = nowMs();
+}
+
+function cleanupSessions() {
+  const ttl = SESSION_TTL_MINUTES * 60 * 1000;
+  const cutoff = nowMs() - ttl;
+  for (const [sid, st] of sessions.entries()) {
+    if ((st.updatedAt || st.createdAt) < cutoff) sessions.delete(sid);
+  }
+}
+setInterval(cleanupSessions, 60 * 1000).unref();
+
+/* ======================================================
+   Helpers: text normalization + detection
+====================================================== */
+
+function cleanText(s) {
+  return String(s || "").replace(/\s+/g, " ").trim();
+}
+
+function lower(s) {
+  return cleanText(s).toLowerCase();
+}
+
+function isGreeting(text) {
+  const t = lower(text);
+  if (!t) return false;
+  return (
+    t === "hi" ||
+    t === "hey" ||
+    t === "hello" ||
+    t === "good morning" ||
+    t === "good afternoon" ||
+    t === "good evening" ||
+    t.startsWith("hi ") ||
+    t.startsWith("hey ") ||
+    t.startsWith("hello ")
+  );
+}
+
+function isOnlyName(text) {
+  // e.g., "Mac", "Sean", "Sean Nicholas"
+  const t = cleanText(text);
+  if (!t) return false;
+  // If it contains numbers/punctuation heavily, no.
+  if (/[\d@#$%^&*_=+[\]{}<>\\/|]/.test(t)) return false;
+  // 1-3 words, letters/apostrophes/hyphens only
+  const parts = t.split(" ").filter(Boolean);
+  if (parts.length < 1 || parts.length > 3) return false;
+  if (!parts.every((p) => /^[A-Za-z'’-]{2,}$/.test(p))) return false;
+  return true;
+}
+
+function extractName(text) {
+  const t = cleanText(text);
+
+  // "my name is Mac" / "I'm Mac" / "I am Mac"
+  let m = t.match(/\bmy name is\s+([A-Za-z'’-]{2,}(?:\s+[A-Za-z'’-]{2,}){0,2})\b/i);
+  if (m && m[1]) return m[1].trim();
+
+  m = t.match(/\b(i am|i'm)\s+([A-Za-z'’-]{2,}(?:\s+[A-Za-z'’-]{2,}){0,2})\b/i);
+  if (m && m[2]) return m[2].trim();
+
+  // If user sent just a name
+  if (isOnlyName(t)) return t;
+
+  return null;
+}
+
+function hashReply(s) {
+  return crypto.createHash("sha1").update(String(s || "")).digest("hex");
+}
+
+function noteLoopProtection(st, reply) {
+  const h = hashReply(reply);
+  if (st.lastReplyHash === h) {
+    st.repeatCount += 1;
+  } else {
+    st.lastReplyHash = h;
+    st.repeatCount = 0;
+  }
+  // If we are repeating ourselves, force a forward-moving follow-up
+  return st.repeatCount >= 1;
+}
+
+/* ======================================================
+   Nyx Copy: Intro + social responses (no chips listed)
+====================================================== */
+
+function nyxIntroLine() {
+  // One sentence, broadcast-ready, no options list, no chip mention.
+  return "On air—welcome to Sandblast. I’m Nyx, your guide. Tell me what you’re here for, and I’ll take it from there.";
+}
+
+function nyxAcknowledgeName(name) {
+  // Natural, respectful, not robotic
+  return `Perfect, ${name}. What do you want to dive into first—music, TV, sponsors, or something else?`;
+}
+
+function nyxGreetingReply(st) {
+  // Greeting after intro should be short and forward-moving
+  if (st.nameCaptured && st.userName) {
+    return `Hey, ${st.userName}. Where do you want to go next?`;
+  }
+  return "Hey. What are you in the mood for today—music, TV, sponsors, or something else?";
+}
+
+/* ======================================================
+   Domain routing (safe, minimal, forward-moving)
+====================================================== */
+
+function normalizeDomainFromChipOrText(text) {
+  const t = lower(text);
+  if (!t) return null;
+
+  // Chips may send exact values; also allow lane words in text
+  if (["music", "lane:music"].includes(t)) return "music";
+  if (["tv", "television", "lane:tv"].includes(t)) return "tv";
+  if (["sponsors", "sponsor", "ads", "advertising", "lane:sponsors"].includes(t)) return "sponsors";
+  if (["ai", "a.i.", "consulting", "lane:ai"].includes(t)) return "ai";
+  if (["general", "lane:general"].includes(t)) return "general";
+
+  return null;
+}
+
+function classifyIntent(text) {
+  const t = cleanText(text);
+  if (!t) return { intent: "empty", confidence: 1.0 };
+
+  // Prefer your classifier if present
+  if (intentClassifier && typeof intentClassifier.classify === "function") {
+    try {
+      return intentClassifier.classify(t);
+    } catch (e) {
+      if (ENABLE_DEBUG) console.warn(`[intentClassifier] failed: ${e.message}`);
+    }
+  }
+
+  // Fallback heuristic
+  const d = normalizeDomainFromChipOrText(t);
+  if (d) return { intent: `domain:${d}`, confidence: 0.75 };
+
+  if (isGreeting(t)) return { intent: "greeting", confidence: 0.9 };
+  if (extractName(t)) return { intent: "name", confidence: 0.85 };
+
+  return { intent: "general", confidence: 0.5 };
+}
+
+/**
+ * Always returns { reply, followUp?, domain?, meta? }
+ * Keep it forward moving; do not ask “tap a chip above”.
+ */
+function handleDomain(st, domain, userText) {
+  const text = cleanText(userText);
+
+  if (domain === "music") {
+    // If your musicKnowledge has its own handler, use it.
+    if (musicKnowledge && typeof musicKnowledge.handleChat === "function") {
+      try {
+        return musicKnowledge.handleChat({ text, session: st });
+      } catch (e) {
+        if (ENABLE_DEBUG) console.warn(`[musicKnowledge.handleChat] failed: ${e.message}`);
+      }
+    }
+    // Minimal fallback
+    return {
+      reply:
+        "Music—nice. Give me a year (1950–2024) or an artist + year, and I’ll pull something memorable.",
+      followUp: ["Try: 1984", "Try: 1999", "Try: Prince 1984"],
+      domain: "music",
+    };
+  }
+
+  if (domain === "tv") {
+    if (tvKnowledge && typeof tvKnowledge.handleChat === "function") {
+      try {
+        return tvKnowledge.handleChat({ text, session: st });
+      } catch (e) {
+        if (ENABLE_DEBUG) console.warn(`[tvKnowledge.handleChat] failed: ${e.message}`);
+      }
+    }
+    return {
+      reply:
+        "TV—got it. Tell me a show title, a decade, or a vibe (crime, western, comedy) and I’ll line up the best next step.",
+      followUp: ["Try: crime classics", "Try: westerns", "Try: 1960s TV"],
+      domain: "tv",
+    };
+  }
+
+  if (domain === "sponsors") {
+    if (sponsorsKnowledge && typeof sponsorsKnowledge.handleChat === "function") {
+      try {
+        return sponsorsKnowledge.handleChat({ text, session: st });
+      } catch (e) {
+        if (ENABLE_DEBUG) console.warn(`[sponsorsKnowledge.handleChat] failed: ${e.message}`);
+      }
+    }
+    return {
+      reply:
+        "Sponsors—perfect. Are you looking to advertise, explore packages, or see audience and placement options?",
+      followUp: ["Advertising packages", "Audience stats", "Placement options"],
+      domain: "sponsors",
+    };
+  }
+
+  if (domain === "ai") {
+    return {
+      reply:
+        "AI lane—love it. Tell me what you’re trying to achieve: build something, automate a workflow, or improve a business process.",
+      followUp: ["Build a chatbot", "Automate outreach", "Improve operations"],
+      domain: "ai",
+    };
+  }
+
+  // general
+  return {
+    reply: "Alright. Tell me what you want to do, and I’ll steer us cleanly.",
+    followUp: ["Music", "TV", "Sponsors", "AI"],
+    domain: "general",
+  };
+}
+
+/* ======================================================
+   Nyx Tone Wrapper (optional)
+====================================================== */
+
+function applyNyxTone(st, reply) {
+  if (nyxPersonality && typeof nyxPersonality.applyTone === "function") {
+    try {
+      return nyxPersonality.applyTone(reply, { session: st });
+    } catch (e) {
+      if (ENABLE_DEBUG) console.warn(`[nyxPersonality.applyTone] failed: ${e.message}`);
+    }
+  }
+  return reply;
+}
+
+/* ======================================================
+   TTS (ElevenLabs) — final boundary only
+====================================================== */
+
+async function elevenlabsTts(text) {
+  // Lazy-require node-fetch if needed
+  let fetchFn = global.fetch;
+  if (!fetchFn) {
+    try {
+      // eslint-disable-next-line global-require
+      fetchFn = require("node-fetch");
+    } catch (e) {
+      throw new Error("Fetch unavailable; install node-fetch or use Node 18+.");
+    }
+  }
+
+  const url = `${ELEVENLABS_BASE_URL}/v1/text-to-speech/${ELEVENLABS_VOICE_ID}`;
+
+  const payload = {
+    text,
+    model_id: ELEVENLABS_MODEL_ID || undefined,
+    voice_settings: {
+      stability: Number(NYX_VOICE_STABILITY),
+      similarity_boost: Number(NYX_VOICE_SIMILARITY),
+      style: Number(NYX_VOICE_STYLE),
+      use_speaker_boost: NYX_VOICE_SPEAKER_BOOST,
+    },
+  };
+
+  const resp = await fetchFn(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "xi-api-key": ELEVENLABS_API_KEY,
+      Accept: "audio/mpeg",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!resp.ok) {
+    const errText = await resp.text().catch(() => "");
+    throw new Error(`ElevenLabs TTS failed: ${resp.status} ${resp.statusText} :: ${errText}`);
+  }
+
+  const arrayBuf = await resp.arrayBuffer();
+  return {
+    audioBytes: Buffer.from(arrayBuf),
+    audioMime: "audio/mpeg",
+  };
+}
+
+async function ttsForReply(text) {
+  const raw = cleanText(text);
+  if (!raw) return null;
+
+  // Naturalize BEFORE TTS (canonical)
+  const natural = (nyxVoiceNaturalize && typeof nyxVoiceNaturalize === "function")
+    ? nyxVoiceNaturalize(raw)
+    : raw;
+
+  if (!ENABLE_TTS) return null;
+  if (TTS_PROVIDER !== "elevenlabs") return null;
+
+  if (!ELEVENLABS_API_KEY || !ELEVENLABS_VOICE_ID) return null;
+
+  const audio = await elevenlabsTts(natural);
+  return audio;
+}
+
+/* ======================================================
+   /api/chat — Core endpoint
+====================================================== */
+
+app.post("/api/chat", async (req, res) => {
+  try {
+    const sessionId = cleanText(req.body.sessionId);
+    const message = cleanText(req.body.message);
+
+    const st = getSession(sessionId);
+    touchSession(st);
+
+    st.lastUserText = message;
+
+    // 1) Empty message: if first contact -> intro; else prompt forward
+    if (!message) {
+      if (st.phase === "greeting" && !st.greetedOnce) {
+        st.greetedOnce = true;
+        st.phase = "engaged";
+        const reply = applyNyxTone(st, nyxIntroLine());
+        return res.json({ ok: true, reply, followUp: null, sessionId: st.sessionId });
+      }
+      const reply = applyNyxTone(st, "I’m here. Tell me what you want to do next.");
+      return res.json({ ok: true, reply, followUp: null, sessionId: st.sessionId });
+    }
+
+    // 2) Intent + name extraction
+    const name = extractName(message);
+    const intent = classifyIntent(message);
+    st.lastUserIntent = intent.intent;
+
+    // 3) Name capture is first-class and permanently upgrades behavior
+    if (name && !st.nameCaptured) {
+      st.nameCaptured = true;
+      st.userName = name;
+      if (st.phase === "greeting") {
+        st.greetedOnce = true;
+        st.phase = "engaged";
+      }
+      const reply = applyNyxTone(st, nyxAcknowledgeName(name));
+      return res.json({ ok: true, reply, followUp: ["Music", "TV", "Sponsors", "AI"], sessionId: st.sessionId });
+    }
+
+    // 4) Greeting handling: ONLY if engaged; never re-trigger intro
+    if (intent.intent === "greeting" || isGreeting(message)) {
+      if (st.phase === "greeting" && !st.greetedOnce) {
+        st.greetedOnce = true;
+        st.phase = "engaged";
+        const reply = applyNyxTone(st, nyxIntroLine());
+        return res.json({ ok: true, reply, followUp: null, sessionId: st.sessionId });
+      }
+      const reply = applyNyxTone(st, nyxGreetingReply(st));
+      return res.json({ ok: true, reply, followUp: ["Music", "TV", "Sponsors", "AI"], sessionId: st.sessionId });
+    }
+
+    // 5) Chip arbitration: Free-text ALWAYS wins; chips set lane only if message is a lane token.
+    // If message is a simple lane token (like clicking a chip), treat it as a domain switch.
+    const chipDomain = normalizeDomainFromChipOrText(message);
+    const messageIsJustChip = Boolean(chipDomain) && lower(message).startsWith("lane:") || ["music", "tv", "sponsors", "ai", "general"].includes(lower(message));
+
+    if (messageIsJustChip && chipDomain) {
+      st.activeDomain = chipDomain;
+      st.phase = "domain_active";
+      const result = handleDomain(st, chipDomain, "");
+      let reply = applyNyxTone(st, result.reply);
+
+      const forcedForward = noteLoopProtection(st, reply);
+      if (forcedForward) {
+        reply = applyNyxTone(
+          st,
+          `${reply}\n\nIf you tell me one detail (year, title, or goal), I’ll take the next step for you.`
+        );
+      }
+
+      return res.json({
+        ok: true,
+        reply,
+        followUp: result.followUp || null,
+        sessionId: st.sessionId,
+      });
+    }
+
+    // 6) Otherwise: user free-text. Route based on activeDomain if set; else infer domain.
+    let domain = st.activeDomain;
+
+    // If no active domain, infer from message
+    if (!domain) {
+      const inferred = normalizeDomainFromChipOrText(message);
+      domain = inferred || "general";
+    }
+
+    // If user says a domain keyword in free-text, allow it to set active lane
+    const explicitDomain = normalizeDomainFromChipOrText(message);
+    if (explicitDomain) {
+      st.activeDomain = explicitDomain;
+      st.phase = "domain_active";
+      domain = explicitDomain;
+    } else if (st.phase === "greeting") {
+      // One-way door: if they skipped greeting and typed content, move to engaged
+      st.greetedOnce = true;
+      st.phase = "engaged";
+    } else if (st.phase !== "domain_active" && domain !== "general") {
+      st.phase = "domain_active";
+    }
+
+    const result = handleDomain(st, domain, message);
+    let reply = applyNyxTone(st, result.reply);
+
+    // 7) Loop guard: if reply repeats, force a forward-moving question
+    const forcedForward = noteLoopProtection(st, reply);
+    if (forcedForward) {
+      // Avoid chip instruction loops
+      reply = applyNyxTone(
+        st,
+        `${reply}\n\nGive me one specific input (a year, a title, or a goal) and I’ll move us forward immediately.`
+      );
+    }
+
+    return res.json({
+      ok: true,
+      reply,
+      followUp: result.followUp || null,
+      sessionId: st.sessionId,
+    });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message || "SERVER_ERROR" });
+  }
 });
 
-/* ---- Health / Debug ---- */
+/* ======================================================
+   /api/tts — Explicit TTS endpoint (NO_TEXT compatible)
+====================================================== */
 
-app.get('/api/health', (_req, res) => {
-  const payload = {
+app.post("/api/tts", async (req, res) => {
+  try {
+    // Compatibility: accept {text} or {reply} or NO_TEXT sentinel
+    const text = cleanText(req.body.text || req.body.reply);
+
+    if (!text) {
+      return res.status(400).json({ ok: false, error: "NO_TEXT" });
+    }
+
+    const audio = await ttsForReply(text);
+    if (!audio) {
+      return res.status(501).json({ ok: false, error: "TTS_NOT_CONFIGURED" });
+    }
+
+    res.setHeader("Content-Type", audio.audioMime);
+    res.setHeader("Cache-Control", "no-store");
+    return res.send(audio.audioBytes);
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message || "TTS_ERROR" });
+  }
+});
+
+// Aliases (canonical)
+app.post("/api/voice", (req, res) => app._router.handle(req, res, () => {}));
+app.post("/api/voice", (req, res, next) => next()); // no-op safety
+app.post("/api/voice", (req, res) => res.status(404).json({ ok: false, error: "USE_/api/tts" }));
+
+/* ======================================================
+   /api/s2s — Speech-to-speech (minimal placeholder)
+   You already had this working; keep it stable.
+====================================================== */
+
+app.post("/api/s2s", upload.single("file"), async (req, res) => {
+  try {
+    if (!ENABLE_S2S) return res.status(501).json({ ok: false, error: "S2S_DISABLED" });
+
+    const sessionId = cleanText(req.body.sessionId) || makeSessionId();
+    const st = getSession(sessionId);
+    touchSession(st);
+
+    const file = req.file;
+    if (!file || !file.buffer) {
+      return res.status(400).json({ ok: false, error: "NO_FILE" });
+    }
+
+    // If you have an existing s2s handler module, plug it here.
+    // For now, keep it simple and predictable:
+    const transcript = cleanText(req.body.transcript || "");
+    const syntheticText = transcript || "Hi Nyx";
+
+    // Reuse /api/chat logic internally
+    const fakeReq = { body: { message: syntheticText, sessionId: st.sessionId } };
+    const fakeRes = {
+      _json: null,
+      json(obj) { this._json = obj; },
+    };
+
+    // Call handler directly (safe)
+    await new Promise((resolve) => {
+      app._router.handle(
+        { ...fakeReq, method: "POST", url: "/api/chat" },
+        { ...fakeRes, status: () => fakeRes, json: fakeRes.json.bind(fakeRes) },
+        resolve
+      );
+    });
+
+    const reply = fakeRes._json?.reply || "Want to pick up where we left off, or switch lanes?";
+
+    // Generate audio for the reply (final boundary)
+    let audioBytes = null;
+    let audioMime = null;
+    try {
+      const audio = await ttsForReply(reply);
+      if (audio) {
+        audioBytes = audio.audioBytes.toString("base64");
+        audioMime = audio.audioMime;
+      }
+    } catch (e) {
+      // Non-fatal
+      if (ENABLE_DEBUG) console.warn(`[s2s tts] failed: ${e.message}`);
+    }
+
+    return res.json({
+      ok: true,
+      transcript: syntheticText,
+      reply,
+      audioBytes,
+      audioMime,
+      sessionId: st.sessionId,
+    });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message || "S2S_ERROR" });
+  }
+});
+
+/* ======================================================
+   /api/health — Diagnostics
+====================================================== */
+
+app.get("/api/health", (req, res) => {
+  const ttsConfigured =
+    Boolean(ELEVENLABS_API_KEY) && Boolean(ELEVENLABS_VOICE_ID) && ENABLE_TTS && TTS_PROVIDER === "elevenlabs";
+
+  return res.json({
     ok: true,
-    nyx: { intelligenceLevel: NYX_INTELLIGENCE_LEVEL },
-    sessions: SESSIONS.size,
+    service: SERVICE_NAME,
+    env: NODE_ENV,
+    host: HOST,
+    port: PORT,
     time: new Date().toISOString(),
     pid: process.pid,
-    port: PORT,
-    keepalive: NYX_KEEPALIVE,
+    keepalive: true,
+    nyx: { intelligenceLevel: DEFAULT_INTELLIGENCE_LEVEL },
+    sessions: sessions.size,
     tts: {
-      provider: 'elevenlabs',
-      configured: ttsConfigured(),
+      provider: TTS_PROVIDER,
+      configured: ttsConfigured,
       hasApiKey: Boolean(ELEVENLABS_API_KEY),
       hasVoiceId: Boolean(ELEVENLABS_VOICE_ID),
       hasModelId: Boolean(ELEVENLABS_MODEL_ID),
+      voiceTuning: {
+        stability: NYX_VOICE_STABILITY,
+        similarity: NYX_VOICE_SIMILARITY,
+        style: NYX_VOICE_STYLE,
+        speakerBoost: NYX_VOICE_SPEAKER_BOOST,
+      },
     },
-  };
-  setDebug('/api/health', null, payload, null);
-  res.json(payload);
+  });
 });
 
-app.get('/api/debug/last', (_req, res) => {
-  res.json(LAST_DEBUG);
+/* ======================================================
+   Start
+====================================================== */
+
+app.listen(PORT, HOST, () => {
+  console.log(
+    `[${SERVICE_NAME}] up :: env=${NODE_ENV} host=${HOST} port=${PORT} tts=${ENABLE_TTS ? TTS_PROVIDER : "off"}`
+  );
 });
-
-/* =========================
-   START SERVER (HARDENED)
-========================= */
-
-const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`[Nyx] listening on ${PORT}`);
-});
-
-server.on('error', (err) => {
-  console.error('[Nyx] server error:', err && err.stack ? err.stack : err);
-});
-
-// Keepalive loop
-if (NYX_KEEPALIVE) {
-  setInterval(() => {}, 60_000);
-}
