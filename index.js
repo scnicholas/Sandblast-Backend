@@ -82,6 +82,9 @@ const DUP_REQ_WINDOW_MS = Number(process.env.NYX_DUP_REQ_WINDOW_MS || 20000);
 // Widget open “hello” token (panel open)
 const NYX_HELLO_TOKEN = '__nyx_hello__';
 
+// Intelligence layering (Layer 1 = attentiveness + guidedness; Layer 2 = anticipatory follow-ups + light preference memory)
+const NYX_INTELLIGENCE_LEVEL = Number(process.env.NYX_INTELLIGENCE_LEVEL || 2); // 1 or 2 (default 2)
+
 /* =========================
    DEBUG SNAPSHOT (SINGLETON)
 ========================= */
@@ -187,6 +190,29 @@ function inferLaneFromFreeText(msg) {
   // AI / tech help
   if (/(api|backend|render|node|express|index\.js|widget|webflow|bug|error|500|cors|tts|stt|mic|deploy|github)/i.test(m)) return 'ai';
 
+  return null;
+}
+
+
+function nyxGuidedQuestionForLane(lane, session) {
+  const name = clean(session?.displayName);
+  const who = name ? `${name}, ` : '';
+
+  if (lane === 'music') return `${who}What year are we starting with?`;
+  if (lane === 'tv') return `${who}Are you looking for a specific show, a schedule, or recommendations?`;
+  if (lane === 'sponsors') return `${who}Are you advertising on Sandblast, or looking for sponsor options?`;
+  if (lane === 'ai') return `${who}Are we working on the backend, the widget, or content intelligence?`;
+  return `${who}What are we doing today?`;
+}
+
+// Layer 2: infer a tighter AI sub-topic so we can ask a precise next question.
+function inferAiSubtopic(msg) {
+  const m = normText(msg);
+  if (!m) return null;
+  if (/(widget|webflow|frontend|panel|button|launcher|css|mobile)/i.test(m)) return 'widget';
+  if (/(backend|index\.js|express|render|deploy|env|cors|endpoint|api\/chat|500|502)/i.test(m)) return 'backend';
+  if (/(tts|voice|elevenlabs|audio|stt|s2s|microphone|mic|transcript)/i.test(m)) return 'voice';
+  if (/(music|chart|hot ?100|top ?10|year[- ]end|top40weekly)/i.test(m)) return 'music';
   return null;
 }
 
@@ -488,6 +514,9 @@ function getSession(sessionId, visitorId) {
       // Lightweight memory (non-creepy)
       displayName: profile?.displayName || null,
 
+      // Layer 2: lightweight preference hints
+      aiSubtopic: profile?.aiSubtopic || null,
+
       musicState: 'start',
       musicYear: profile?.musicYear ?? null,
       musicChart: profile?.musicChart ?? null,
@@ -607,12 +636,82 @@ rebuildMusicCoverage();
    NYX: HUMAN OPENERS (CRITICAL)
 ========================= */
 
+// Time-aware, rotation-safe intro selector (does not touch conversational core)
+function nyxTimeZone() {
+  return clean(process.env.NYX_TIMEZONE) || 'America/Toronto';
+}
+
+function nyxLocalParts(date = new Date(), tz = nyxTimeZone()) {
+  // hour: 0–23, ymd: YYYY-MM-DD
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    hour12: false,
+  }).formatToParts(date);
+
+  const get = (type) => parts.find((p) => p.type === type)?.value;
+  const y = get('year');
+  const mo = get('month');
+  const d = get('day');
+  const h = Number(get('hour') || '0');
+
+  return { hour: Number.isFinite(h) ? h : 0, ymd: `${y}-${mo}-${d}` };
+}
+
+function nyxDaypart(hour) {
+  // simple, stable dayparts for broadcast tone
+  if (hour >= 5 && hour <= 11) return 'morning';
+  if (hour >= 12 && hour <= 16) return 'afternoon';
+  return 'evening';
+}
+
+function nyxStablePickIndex(key, n) {
+  if (!n || n <= 1) return 0;
+  const hex = crypto.createHash('sha1').update(String(key || '')).digest('hex');
+  const num = parseInt(hex.slice(0, 8), 16);
+  return Number.isFinite(num) ? (num % n) : 0;
+}
+
+function nyxIntroText(session) {
+  // Rotation-safe per visitor per daypart per date (stable within a day; changes across days)
+  const tz = nyxTimeZone();
+  const { hour, ymd } = nyxLocalParts(new Date(), tz);
+  const dp = nyxDaypart(hour);
+
+  const base = "Welcome to Sandblast Channel — where classic TV, timeless music, and modern insight come together. I’m Nyx, and I’ll help you explore it all. How can I help you?";
+
+  const banks = {
+    morning: [
+      base,
+      "Good morning — welcome to Sandblast Channel, where classic TV, timeless music, and modern insight come together. I’m Nyx. How can I help you?",
+      "Morning, and welcome to Sandblast Channel — classic TV, timeless music, modern insight. I’m Nyx. How can I help you?",
+    ],
+    afternoon: [
+      base,
+      "Welcome to Sandblast Channel — classic TV, timeless music, and modern insight. I’m Nyx. How can I help you?",
+      "Glad you’re here. This is Sandblast Channel — classic TV, timeless music, modern insight. I’m Nyx. How can I help you?",
+    ],
+    evening: [
+      base,
+      "Good evening — welcome to Sandblast Channel, where classic TV, timeless music, and modern insight come together. I’m Nyx. How can I help you?",
+      "You’re on Sandblast Channel — classic TV, timeless music, and modern insight. I’m Nyx. How can I help you?",
+    ],
+  };
+
+  const list = banks[dp] || [base];
+  const idSeed = clean(session?.visitorId) || clean(session?.id) || 'anon';
+  const pickKey = `${idSeed}::${ymd}::${dp}`;
+  const idx = nyxStablePickIndex(pickKey, list.length);
+  return list[idx] || base;
+}
+
 // Single, clean intro line (no menus, no “tap chips”)
 function nyxHello(session) {
-  const name = clean(session?.displayName);
-  const who = name ? `, ${name}` : '';
   return nyxComposeNoChips({
-    signal: `Hey${who} — I’m Nyx. How can I help you?`,
+    signal: nyxIntroText(session),
     moment: '',
     choice: '',
   });
@@ -632,7 +731,7 @@ function nyxGreeting(session, rawUserMsg) {
   return nyxComposeNoChips({
     signal,
     moment: '',
-    choice: 'How can I help you?',
+    choice: 'What are we doing today?',
   });
 }
 
@@ -653,7 +752,7 @@ function nyxSocialReply(_message, session) {
   return nyxComposeNoChips({
     signal: `I’m good — steady and switched on. ${who}`.trim(),
     moment: '',
-    choice: 'How can I help you?',
+    choice: 'What are we doing today?',
   });
 }
 
@@ -1192,8 +1291,11 @@ function runNyxChat(body) {
     session.lastUserAt = now;
   }
 
-  const lane = session.lane || 'general';
-  const sig = `${lane}|${session.musicState}|${session.musicYear || ''}|${session.musicChart || ''}|${message || ''}`;
+  // Stable signature for request-hash dedupe:
+  // - Use normalized message + lane hint from the message itself (so repeated "music" suppresses even if lane/state changes after first call)
+  const msgNorm = normText(message || '');
+  const laneHint = laneFromMessage(msgNorm) || inferLaneFromFreeText(message) || session.lane || 'general';
+  const sig = `${laneHint}|${msgNorm}`;
 
   // HARD DEDUPE: suppress duplicate requests (retry bursts) even if other messages interleave.
   const reqHash = crypto.createHash('sha1').update(`${sessionId}::${sig}`).digest('hex');
@@ -1235,8 +1337,8 @@ function runNyxChat(body) {
   // Anti-loop suppression: same signature rapidly -> suppress visible output,
   // BUT if we’ve suppressed recently multiple times, stop suppressing and push forward motion.
   if (session.lastSig && sig === session.lastSig && now - (session.lastSigAt || 0) < ANTI_LOOP_WINDOW_MS) {
-    const recent = now - (session.lastSuppressAt || 0) < 5000;
-    const tooMany = (session.recentSuppressCount || 0) >= 2 && recent;
+    const recent = now - (session.lastSuppressAt || 0) < 3000;
+    const tooMany = (session.recentSuppressCount || 0) >= 1 && recent;
 
     if (tooMany) {
       const fm = forwardMotionNudge(session);
@@ -1264,7 +1366,7 @@ function runNyxChat(body) {
       sessionId,
       serverMsgId,
     };
-    setLast({ route, request: body, response, error: null });
+    setLast({ route, request: body, response: response, error: null });
     return response;
   }
 
@@ -1306,7 +1408,7 @@ function runNyxChat(body) {
       response = nyxComposeNoChips({
         signal: 'Sure.',
         moment: '',
-        choice: 'How can I help you?',
+        choice: 'What are we doing today?',
       });
     } else if (isResumeCommand(mLower)) {
       if (mLower.startsWith('resume music')) {
@@ -1316,7 +1418,7 @@ function runNyxChat(body) {
         response = nyxComposeNoChips({
           signal: 'Got it.',
           moment: '',
-          choice: 'What are we picking up — music, TV, sponsors, or AI?',
+          choice: 'How can I help you?',
         });
       }
     } else {
@@ -1326,12 +1428,26 @@ function runNyxChat(body) {
         session.lane = lanePick;
         if (lanePick === 'music') response = handleMusic('music', session);
         else {
-          // Acknowledge lane, then ask for the goal (single step)
+          // Acknowledge lane, then ask ONE guided next question (Layer 1), optionally tighter in AI (Layer 2)
           const nice = lanePick === 'ai' ? 'AI' : (lanePick === 'tv' ? 'TV' : 'Sponsors');
+
+          if (lanePick === 'ai' && NYX_INTELLIGENCE_LEVEL >= 2) {
+            const sub = inferAiSubtopic(message);
+            if (sub) session.aiSubtopic = sub;
+          }
+
+          let guided = nyxGuidedQuestionForLane(lanePick, session);
+          if (lanePick === 'ai' && NYX_INTELLIGENCE_LEVEL >= 2) {
+            const sub = clean(session.aiSubtopic);
+            if (sub === 'widget') guided = 'What part is failing — positioning, looping, mic, or rendering?';
+            else if (sub === 'backend') guided = 'What’s the symptom — looping, slow response, 500s, or bad routing?';
+            else if (sub === 'voice') guided = 'Is the issue TTS, STT transcript, or S2S playback?';
+          }
+
           response = nyxComposeNoChips({
             signal: `${nice} — got it.`,
             moment: '',
-            choice: 'What’s the outcome you want?',
+            choice: guided,
           });
         }
       } else {
@@ -1344,13 +1460,27 @@ function runNyxChat(body) {
           if (inferred === 'music') {
             session.lane = 'music';
             response = handleMusic('music', session);
+          } else if (inferred) {
+            session.lane = inferred;
+
+            if (inferred === 'ai' && NYX_INTELLIGENCE_LEVEL >= 2) {
+              const sub = inferAiSubtopic(message);
+              if (sub) session.aiSubtopic = sub;
+            }
+
+            const prompt = nyxGuidedQuestionForLane(inferred, session);
+            response = nyxComposeNoChips({
+              signal: 'Got it.',
+              moment: '',
+              choice: prompt,
+            });
           } else {
             const name = clean(session.displayName);
             const who = name ? `Got it, ${name}.` : 'Got it.';
             response = nyxComposeNoChips({
               signal: who,
               moment: '',
-              choice: 'How can I help you?',
+              choice: 'What are we doing today?',
             });
           }
         }
@@ -1362,6 +1492,7 @@ function runNyxChat(body) {
   if (session.visitorId) {
     const patch = { lastLane: session.lane };
     if (session.displayName) patch.displayName = session.displayName;
+    if (session.aiSubtopic) patch.aiSubtopic = session.aiSubtopic;
     if (session.lane === 'music') {
       if (session.musicYear) patch.musicYear = session.musicYear;
       if (session.musicChart) patch.musicChart = session.musicChart;
@@ -1452,6 +1583,7 @@ app.get('/api/health', (req, res) => {
     profiles: { enabled: PROFILES_ENABLED, persist: PROFILES_PERSIST, ttlDays: PROFILES_TTL_DAYS, count: PROFILES.size },
     sessions: { count: SESSIONS.size, ttlMinutes: SESSION_TTL_MINUTES, cleanupMinutes: SESSION_CLEANUP_MINUTES, cap: SESSION_CAP },
     nyx: {
+      intelligenceLevel: NYX_INTELLIGENCE_LEVEL,
       antiLoopWindowMs: ANTI_LOOP_WINDOW_MS,
       repeatReplyWindowMs: REPEAT_REPLY_WINDOW_MS,
       maxRepeatReply: MAX_REPEAT_REPLY,
