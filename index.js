@@ -6,6 +6,11 @@
  *  - Loop guard less aggressive + never pollutes the intro
  *  - /api/voice is a real alias of /api/tts
  *  - Keeps your state spine + safe imports + final-boundary TTS
+ *
+ * Additional critical updates (appended, non-destructive):
+ *  - If first message is a lane token/chip, intro still returns (single line),
+ *    BUT we store the selected lane so next user text continues in that lane
+ *    without requiring a second chip tap.
  */
 
 "use strict";
@@ -125,6 +130,11 @@ function newSessionState(sessionId) {
     activeDomain: null, // "music" | "tv" | "sponsors" | "ai" | "general"
     lastUserIntent: null,
     lastUserText: null,
+
+    // NEW: if the first message was a lane token/chip, we store it here
+    // so the intro can be returned cleanly (single line), but the lane is "armed"
+    // for the next user message without requiring another chip tap.
+    pendingDomainAfterIntro: null,
 
     // loop protection
     lastReplyHash: null,
@@ -469,8 +479,11 @@ app.post("/api/chat", async (req, res) => {
     }
 
     // 3) HARD RULE: Intro ALWAYS wins on first contact (even if widget sends a chip token)
-    // This is the key fix for your screenshot behavior.
+    // NEW behavior: if first message is a lane token/chip, we store it for the next user input.
     if (st.phase === "greeting" && !st.greetedOnce) {
+      if (messageIsJustChip && chipDomain) {
+        st.pendingDomainAfterIntro = chipDomain;
+      }
       st.greetedOnce = true;
       st.phase = "engaged";
       const reply = applyNyxTone(st, nyxIntroLine());
@@ -481,6 +494,14 @@ app.post("/api/chat", async (req, res) => {
     const intent = classifyIntent(message);
     st.lastUserIntent = intent.intent;
 
+    // 4.1) If we have a pending domain armed from a first-contact lane token,
+    // set it now and clear pending. This ensures the NEXT free text is routed properly.
+    if (st.pendingDomainAfterIntro && !st.activeDomain) {
+      st.activeDomain = st.pendingDomainAfterIntro;
+      st.phase = "domain_active";
+      st.pendingDomainAfterIntro = null;
+    }
+
     // 5) Greeting handling: post-intro social response
     if (intent.intent === "greeting" || isGreeting(message)) {
       const reply = applyNyxTone(st, nyxGreetingReply(st));
@@ -488,6 +509,7 @@ app.post("/api/chat", async (req, res) => {
     }
 
     // 6) Chip arbitration: chips switch lane only when message is a lane token
+    // (Post-intro behavior remains: a chip tap sets the lane and returns the lane prompt.)
     if (messageIsJustChip && chipDomain) {
       st.activeDomain = chipDomain;
       st.phase = "domain_active";
