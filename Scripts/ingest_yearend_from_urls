@@ -1,0 +1,340 @@
+"use strict";
+
+/**
+ * Scripts/ingest_top40weekly_1955_1969.js
+ *
+ * Builds bucket files for Top40Weekly year charts using your provided URLs:
+ * - 1955–1959: uses the "all charts" page to discover the "top-songs-of-YYYY" page,
+ *             then parses the ranked blocks (## 1, title line, artist line).
+ * - 1960–1969: parses the year sections from "Top 100 Songs of the 60s" page,
+ *             reading "N. TITLE by ARTIST" lines after each year header.
+ *
+ * Output:
+ *   Data/_buckets/music/top40weekly-top-100/<year>.json
+ *
+ * Safe:
+ * - Only writes bucket files
+ * - Does NOT modify your existing Data/music_moments*.json
+ *
+ * Requirements:
+ *   npm i cheerio
+ *   Node 18+ (has global fetch). If not, install node-fetch and swap in.
+ */
+
+const fs = require("fs");
+const path = require("path");
+const cheerio = require("cheerio");
+
+const CHART_NAME = "Top40Weekly Top 100"; // must match musicKnowledge constant
+const OUT_BASE = path.resolve(process.cwd(), "Data/_buckets/music");
+
+const URLS_1955_1959_ALL_CHARTS = [
+  { year: 1955, url: "https://top40weekly.com/1955-all-charts/" },
+  { year: 1956, url: "https://top40weekly.com/1956-all-charts/" },
+  { year: 1957, url: "https://top40weekly.com/1957-all-charts/" },
+  { year: 1958, url: "https://top40weekly.com/1958-all-charts/" },
+  { year: 1959, url: "https://top40weekly.com/1959-all-charts/" },
+];
+
+// One page contains multiple year sections (1960–1969)
+const URL_TOP_100_SONGS_60S = "https://top40weekly.com/top-100-songs-of-the-60s/";
+
+const YEARS_1960_1969 = [
+  1960, 1961, 1962, 1963, 1964, 1965, 1966, 1967, 1968, 1969,
+];
+
+// ===== helpers =====
+function ensureDir(p) {
+  fs.mkdirSync(p, { recursive: true });
+}
+
+function writeJson(p, obj) {
+  fs.writeFileSync(p, JSON.stringify(obj, null, 2), "utf8");
+}
+
+function cleanText(s) {
+  return String(s || "").replace(/\s+/g, " ").trim();
+}
+
+function toInt(x) {
+  const s = String(x ?? "").trim();
+  if (!s) return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+function slugifyChart(name) {
+  return String(name || "unknown")
+    .toLowerCase()
+    .replace(/[’‘]/g, "'")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function outPathForYear(chartName, year) {
+  const slug = slugifyChart(chartName);
+  return path.join(OUT_BASE, slug, `${year}.json`);
+}
+
+async function fetchHtml(url) {
+  const resp = await fetch(url, {
+    headers: {
+      "User-Agent": "Sandblast-Ingest/1.0 (Nyx)",
+      "Accept": "text/html,*/*",
+    },
+  });
+  if (!resp.ok) throw new Error(`Fetch failed: ${resp.status} ${resp.statusText}`);
+  return await resp.text();
+}
+
+// ===== 1955–1959 =====
+// all-charts pages contain a link to "top-songs-of-YYYY/"
+function discoverTopSongsUrlFromAllCharts(html, year) {
+  const $ = cheerio.load(html);
+  const re = new RegExp(`/top-songs-of-${year}/?$`, "i");
+
+  // Search all anchors for the first matching href
+  const links = $("a")
+    .map((_, a) => String($(a).attr("href") || "").trim())
+    .get()
+    .filter(Boolean);
+
+  // Prefer absolute, but accept relative
+  const hit = links.find((href) => re.test(href)) || null;
+  if (!hit) return null;
+
+  // Normalize to absolute
+  if (hit.startsWith("http")) return hit;
+  return new URL(hit, "https://top40weekly.com").toString();
+}
+
+// "top-songs-of-1955" structure:
+// h2 "## 1" then title line, then artist line.
+// We'll parse by scanning h2 elements whose text is an integer rank.
+function parseTopSongsPage195x(html, year, chartName) {
+  const $ = cheerio.load(html);
+
+  const out = [];
+  $("h2").each((_, h2) => {
+    const rank = toInt(cleanText($(h2).text()));
+    if (!rank) return;
+
+    // Collect next few non-empty text blocks after the h2
+    // Title usually appears as plain text node or inside <p> / <div>
+    const texts = [];
+    let cur = $(h2).next();
+
+    // walk forward until we have at least 2 meaningful lines or we hit next rank
+    for (let i = 0; i < 15 && cur.length; i++) {
+      const tag = (cur[0]?.tagName || "").toLowerCase();
+
+      // stop if we hit next rank header
+      if (tag === "h2") {
+        const maybeNextRank = toInt(cleanText(cur.text()));
+        if (maybeNextRank) break;
+      }
+
+      const t = cleanText(cur.text());
+      // Skip “Buy Music” noise
+      if (t && !/^buy music$/i.test(t)) texts.push(t);
+
+      if (texts.length >= 2) break;
+      cur = cur.next();
+    }
+
+    if (texts.length < 2) return;
+
+    const title = texts[0];
+    const artist = texts[1];
+
+    if (!title || !artist) return;
+
+    out.push({
+      year,
+      rank,
+      title,
+      artist,
+      chart: chartName,
+      source: "top40weekly",
+    });
+  });
+
+  // De-dup ranks just in case
+  const byRank = new Map();
+  for (const m of out) {
+    if (!byRank.has(m.rank)) byRank.set(m.rank, m);
+  }
+
+  return [...byRank.values()].sort((a, b) => a.rank - b.rank);
+}
+
+async function ingest195xFromAllCharts({ year, url }, chartName) {
+  console.log(`[195x] Discovering top-songs page for ${year} from ${url}`);
+  const allChartsHtml = await fetchHtml(url);
+
+  const topSongsUrl = discoverTopSongsUrlFromAllCharts(allChartsHtml, year);
+  if (!topSongsUrl) {
+    throw new Error(`Could not find /top-songs-of-${year}/ link on all-charts page.`);
+  }
+
+  console.log(`[195x] Fetching top-songs page: ${topSongsUrl}`);
+  const topSongsHtml = await fetchHtml(topSongsUrl);
+
+  const rows = parseTopSongsPage195x(topSongsHtml, year, chartName);
+  if (!rows.length) throw new Error(`Parsed 0 rows from top-songs page for ${year}.`);
+
+  const outPath = outPathForYear(chartName, year);
+  ensureDir(path.dirname(outPath));
+  writeJson(outPath, rows);
+
+  console.log(`[195x] wrote ${rows.length} rows -> ${outPath}`);
+  return { year, count: rows.length, outPath, src: topSongsUrl };
+}
+
+// ===== 1960–1969 =====
+// Format in HTML renders as plain text lines like:
+// "  1. YOU’VE LOST THAT LOVIN’ FEELIN’ by The Righteous Brothers"
+function parse60sPageForYear(html, year, chartName) {
+  const $ = cheerio.load(html);
+
+  // Strategy:
+  // - Find a header (h2) whose text is the year (e.g., "1966")
+  // - Take the subsequent text until next h2, extracting rank lines
+  let start = null;
+
+  $("h2").each((_, h2) => {
+    const t = cleanText($(h2).text());
+    if (t === String(year)) start = $(h2);
+  });
+
+  if (!start) {
+    // Some years might be in h3 on certain themes; fallback scan
+    $("h3").each((_, h3) => {
+      const t = cleanText($(h3).text());
+      if (t === String(year)) start = $(h3);
+    });
+  }
+
+  if (!start) return [];
+
+  const out = [];
+  let cur = start.next();
+
+  // Collect until next year header
+  for (let i = 0; i < 800 && cur.length; i++) {
+    const tag = (cur[0]?.tagName || "").toLowerCase();
+    if (tag === "h2" || tag === "h3") {
+      const t = cleanText(cur.text());
+      if (/^(19|20)\d{2}$/.test(t)) break;
+    }
+
+    // Extract candidate lines from this element's text.
+    // We keep line breaks by splitting on \n and also on multiple spaces.
+    const raw = String(cur.text() || "");
+    const lines = raw.split("\n").map(cleanText).filter(Boolean);
+
+    for (const line of lines) {
+      // Match: 1. TITLE by ARTIST
+      const m = line.match(/^(\d{1,3})\.\s+(.+?)\s+by\s+(.+)$/i);
+      if (!m) continue;
+
+      const rank = toInt(m[1]);
+      const title = cleanText(m[2]).replace(/\s+[#*].*$/, "").trim(); // strip (#3*) annotations
+      const artist = cleanText(m[3]);
+
+      if (!rank || !title || !artist) continue;
+
+      out.push({
+        year,
+        rank,
+        title,
+        artist,
+        chart: chartName,
+        source: "top40weekly",
+      });
+    }
+
+    cur = cur.next();
+  }
+
+  // De-dup ranks
+  const byRank = new Map();
+  for (const m of out) {
+    if (!byRank.has(m.rank)) byRank.set(m.rank, m);
+  }
+
+  return [...byRank.values()].sort((a, b) => a.rank - b.rank);
+}
+
+async function ingest60sYears(chartName) {
+  console.log(`[60s] Fetching: ${URL_TOP_100_SONGS_60S}`);
+  const html = await fetchHtml(URL_TOP_100_SONGS_60S);
+
+  const results = [];
+  for (const year of YEARS_1960_1969) {
+    const rows = parse60sPageForYear(html, year, chartName);
+    if (!rows.length) {
+      console.warn(`[60s] WARNING: parsed 0 rows for ${year}`);
+      results.push({ year, count: 0, error: "0 rows parsed" });
+      continue;
+    }
+
+    const outPath = outPathForYear(chartName, year);
+    ensureDir(path.dirname(outPath));
+    writeJson(outPath, rows);
+
+    console.log(`[60s] wrote ${rows.length} rows -> ${outPath}`);
+    results.push({ year, count: rows.length, outPath });
+  }
+
+  return results;
+}
+
+// ===== main =====
+async function main() {
+  const chartSlug = slugifyChart(CHART_NAME);
+  console.log(`[ingest] chart="${CHART_NAME}" slug="${chartSlug}"`);
+
+  const summary = {
+    generatedAt: new Date().toISOString(),
+    chart: CHART_NAME,
+    outputs: [],
+    warnings: [],
+  };
+
+  // 1955–1959 via all-charts -> discover top-songs-of-YYYY
+  for (const item of URLS_1955_1959_ALL_CHARTS) {
+    try {
+      const r = await ingest195xFromAllCharts(item, CHART_NAME);
+      summary.outputs.push(r);
+    } catch (e) {
+      console.error(`[195x] ERROR ${item.year}: ${e.message}`);
+      summary.outputs.push({ year: item.year, error: e.message, url: item.url });
+    }
+  }
+
+  // 1960–1969 from top-100-songs-of-the-60s page
+  const r60 = await ingest60sYears(CHART_NAME);
+  summary.outputs.push(...r60);
+
+  // Note: you asked for 1950–1969. We only have URLs for 1955–1969 right now.
+  const missing = [1950, 1951, 1952, 1953, 1954].filter((y) => true);
+  summary.warnings.push({
+    missingYears: missing,
+    note:
+      "No URLs provided for 1950–1954 in this run. Add them and re-run (script is designed to append/overwrite only those years’ bucket files).",
+  });
+
+  const summaryPath = path.join(OUT_BASE, chartSlug, "_ingest_summary.json");
+  ensureDir(path.dirname(summaryPath));
+  writeJson(summaryPath, summary);
+
+  console.log(`[ingest] done. summary -> ${summaryPath}`);
+  console.log(`[ingest] IMPORTANT: this writes buckets only; it does not change your main DB.`);
+}
+
+main().catch((e) => {
+  console.error("Fatal:", e);
+  process.exit(1);
+});
