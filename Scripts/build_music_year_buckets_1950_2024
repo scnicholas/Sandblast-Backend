@@ -1,0 +1,317 @@
+"use strict";
+
+/**
+ * build_music_year_buckets_1950_2024.js
+ *
+ * Creates year-bucket JSON files per chart/year for 1950–2024 without modifying existing datasets.
+ *
+ * Output:
+ *  Data/_buckets/music/<chart-slug>/<year>.json
+ *  Data/_buckets/music/index.json
+ *
+ * Usage:
+ *  node Scripts/build_music_year_buckets_1950_2024.js
+ *  node Scripts/build_music_year_buckets_1950_2024.js --min=1950 --max=2024 --out=Data/_buckets/music
+ *
+ * Safe:
+ *  - Reads existing data only
+ *  - Writes NEW files under Data/_buckets/music
+ */
+
+const fs = require("fs");
+const path = require("path");
+
+const args = process.argv.slice(2);
+function argVal(key, def) {
+  const hit = args.find((a) => a.startsWith(`--${key}=`));
+  if (!hit) return def;
+  return hit.split("=").slice(1).join("=").trim() || def;
+}
+
+const MIN_YEAR = Number(argVal("min", "1950"));
+const MAX_YEAR = Number(argVal("max", "2024"));
+const OUT_DIR_REL = argVal("out", "Data/_buckets/music");
+const DATA_DIR_ENV = String(process.env.DATA_DIR || "").trim();
+
+const DB_CANDIDATES = [
+  "Data/music_moments_v2_layer2_plus500.json",
+  "Data/music_moments_v2_layer2_plus1000.json",
+  "Data/music_moments_v2_layer2_plus2000.json",
+  "Data/music_moments_v2_layer2_enriched.json",
+  "Data/music_moments_v2_layer2_filled.json",
+  "Data/music_moments_v2_layer2.json",
+  "Data/music_moments_v2.json",
+  "Data/music_moments.json",
+];
+
+const WIKI_YEAREND_COMBINED = "Data/wikipedia/billboard_yearend_hot100_1970_2010.json";
+
+const DEFAULT_CHART = "Billboard Hot 100";
+const TOP40_CHART = "Top40Weekly Top 100";
+const YEAR_END_CHART = "Billboard Year-End Hot 100";
+
+function resolveRepoPath(rel) {
+  if (path.isAbsolute(rel)) return rel;
+  if (DATA_DIR_ENV) return path.resolve(DATA_DIR_ENV, rel);
+  return path.resolve(process.cwd(), rel);
+}
+
+function exists(p) {
+  try {
+    fs.accessSync(p, fs.constants.F_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function readJson(p) {
+  return JSON.parse(fs.readFileSync(p, "utf8"));
+}
+
+function ensureDir(p) {
+  fs.mkdirSync(p, { recursive: true });
+}
+
+function writeJson(p, obj) {
+  fs.writeFileSync(p, JSON.stringify(obj, null, 2), "utf8");
+}
+
+function toInt(x) {
+  const s = String(x ?? "").trim();
+  if (!s) return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+function cleanText(s) {
+  return String(s || "").replace(/\s+/g, " ").trim();
+}
+
+function normalizeChart(chart) {
+  const c = String(chart || DEFAULT_CHART).toLowerCase();
+  if (c.includes("year") && c.includes("end")) return YEAR_END_CHART;
+  if (c.includes("top40")) return TOP40_CHART;
+  if (c.includes("billboard") || c.includes("hot 100") || c.includes("hot100")) return DEFAULT_CHART;
+  return chart || DEFAULT_CHART;
+}
+
+function slugifyChart(name) {
+  return String(name || "unknown")
+    .toLowerCase()
+    .replace(/[’‘]/g, "'")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function coerceRank(m) {
+  const raw = m.rank ?? m.position ?? m.no ?? m.pos ?? m.number ?? m["no."] ?? m["#"];
+  const n = toInt(raw);
+  return n && n >= 1 && n <= 200 ? n : null;
+}
+
+function normalizeMoment(m) {
+  if (!m || typeof m !== "object") return null;
+
+  const year = toInt(m.year);
+  if (!year) return null;
+
+  const out = { ...m };
+  out.year = year;
+  out.chart = normalizeChart(out.chart);
+
+  const rk = coerceRank(out);
+  if (rk != null) out.rank = rk;
+
+  out.artist = cleanText(out.artist) || "Unknown Artist";
+  out.title = cleanText(out.title) || "Unknown Title";
+
+  // (Optional) preserve any flags already in your data
+  return out;
+}
+
+function loadMomentsDb() {
+  let found = null;
+  let arr = [];
+
+  for (const rel of DB_CANDIDATES) {
+    const abs = resolveRepoPath(rel);
+    if (!exists(abs)) continue;
+
+    const json = readJson(abs);
+    const a = Array.isArray(json?.moments) ? json.moments : json;
+    if (Array.isArray(a) && a.length) {
+      found = abs;
+      arr = a;
+      break;
+    }
+  }
+
+  return { found, moments: arr };
+}
+
+function mergeWikipediaYearEnd(moments) {
+  const abs = resolveRepoPath(WIKI_YEAREND_COMBINED);
+  if (!exists(abs)) return { merged: moments, yearEndRows: 0, wikiPath: null };
+
+  const doc = readJson(abs);
+  const rows = Array.isArray(doc?.moments) ? doc.moments : doc;
+
+  const mergedRows = [];
+  for (const r of rows) {
+    const y = toInt(r.year);
+    const rk = toInt(r.rank);
+    if (!y || !rk) continue;
+
+    mergedRows.push(
+      normalizeMoment({
+        year: y,
+        rank: rk,
+        artist: r.artist,
+        title: r.title,
+        chart: YEAR_END_CHART,
+        source: "wikipedia_yearend",
+      })
+    );
+  }
+
+  return {
+    merged: moments.concat(mergedRows.filter(Boolean)),
+    yearEndRows: mergedRows.length,
+    wikiPath: abs,
+  };
+}
+
+function buildBuckets(moments) {
+  // chart -> year -> moments[]
+  const buckets = new Map();
+
+  const chartsSeen = new Set();
+
+  for (const raw of moments) {
+    const m = normalizeMoment(raw);
+    if (!m) continue;
+
+    const y = m.year;
+    if (y < MIN_YEAR || y > MAX_YEAR) continue;
+
+    const chart = normalizeChart(m.chart);
+    chartsSeen.add(chart);
+
+    if (!buckets.has(chart)) buckets.set(chart, new Map());
+    const yMap = buckets.get(chart);
+    if (!yMap.has(y)) yMap.set(y, []);
+    yMap.get(y).push(m);
+  }
+
+  return { buckets, chartsSeen: Array.from(chartsSeen).sort() };
+}
+
+function ensureYearBucketsExist(buckets, charts, minYear, maxYear) {
+  for (const chart of charts) {
+    if (!buckets.has(chart)) buckets.set(chart, new Map());
+    const yMap = buckets.get(chart);
+    for (let y = minYear; y <= maxYear; y++) {
+      if (!yMap.has(y)) yMap.set(y, []);
+    }
+  }
+}
+
+function sortBucket(bucketArr) {
+  // Prefer rank if present; else stable by title/artist
+  return bucketArr.slice().sort((a, b) => {
+    const ar = a.rank ?? 9999;
+    const br = b.rank ?? 9999;
+    if (ar !== br) return ar - br;
+    const at = (a.title || "").localeCompare(b.title || "");
+    if (at !== 0) return at;
+    return (a.artist || "").localeCompare(b.artist || "");
+  });
+}
+
+function main() {
+  console.log(`[buckets] Building music year buckets ${MIN_YEAR}–${MAX_YEAR} ...`);
+
+  const outAbs = resolveRepoPath(OUT_DIR_REL);
+  ensureDir(outAbs);
+
+  const { found, moments } = loadMomentsDb();
+  if (!found) {
+    console.error("[buckets] ERROR: No music moments DB found in candidates.");
+    process.exit(1);
+  }
+
+  const mergedInfo = mergeWikipediaYearEnd(moments);
+  const allMoments = mergedInfo.merged;
+
+  console.log(`[buckets] Base DB: ${found}`);
+  if (mergedInfo.wikiPath) {
+    console.log(`[buckets] Merged Year-End rows: ${mergedInfo.yearEndRows} from ${mergedInfo.wikiPath}`);
+  } else {
+    console.log(`[buckets] Year-End file not found (optional): ${resolveRepoPath(WIKI_YEAREND_COMBINED)}`);
+  }
+
+  const { buckets, chartsSeen } = buildBuckets(allMoments);
+
+  // You can force these charts to always exist as bucket groups, even if empty:
+  const chartsToEnsure = Array.from(new Set([DEFAULT_CHART, YEAR_END_CHART, TOP40_CHART, ...chartsSeen]));
+  ensureYearBucketsExist(buckets, chartsToEnsure, MIN_YEAR, MAX_YEAR);
+
+  const index = {
+    generatedAt: new Date().toISOString(),
+    range: { min: MIN_YEAR, max: MAX_YEAR },
+    sourceDb: found,
+    wikiYearEnd: mergedInfo.wikiPath || null,
+    charts: {},
+  };
+
+  let totalFiles = 0;
+  let totalRowsWritten = 0;
+
+  for (const chart of chartsToEnsure) {
+    const slug = slugifyChart(chart);
+    const chartDir = path.join(outAbs, slug);
+    ensureDir(chartDir);
+
+    const yMap = buckets.get(chart) || new Map();
+
+    let chartRows = 0;
+    let yearsWithData = 0;
+
+    index.charts[chart] = {
+      slug,
+      years: {},
+      yearsWithData: 0,
+      totalRows: 0,
+    };
+
+    for (let y = MIN_YEAR; y <= MAX_YEAR; y++) {
+      const arr = sortBucket(yMap.get(y) || []);
+      const file = path.join(chartDir, `${y}.json`);
+      writeJson(file, arr);
+
+      totalFiles += 1;
+      totalRowsWritten += arr.length;
+
+      chartRows += arr.length;
+      if (arr.length) yearsWithData += 1;
+
+      index.charts[chart].years[y] = { count: arr.length, file: path.relative(resolveRepoPath("Data"), file) };
+    }
+
+    index.charts[chart].yearsWithData = yearsWithData;
+    index.charts[chart].totalRows = chartRows;
+  }
+
+  const indexPath = path.join(outAbs, "index.json");
+  writeJson(indexPath, index);
+
+  console.log(`[buckets] Done.`);
+  console.log(`[buckets] Output dir: ${outAbs}`);
+  console.log(`[buckets] Bucket files written: ${totalFiles}`);
+  console.log(`[buckets] Total rows written across all buckets: ${totalRowsWritten}`);
+  console.log(`[buckets] Index: ${indexPath}`);
+}
+
+main();
