@@ -3,6 +3,7 @@
 /* ======================================================
    Sandblast Backend — Nyx
    index.js (Layer 1 + Layer 2 locked + Loop Micro-Flow)
+   + HARDENING: keepalive + crash hooks + server error hooks + debug/last
 ====================================================== */
 
 const express = require('express');
@@ -13,10 +14,29 @@ const crypto = require('crypto');
    ENV / CONSTANTS
 ========================= */
 
-const PORT = process.env.PORT || 3000;
+const PORT = Number(process.env.PORT || 3000);
 const NYX_INTELLIGENCE_LEVEL = Number(process.env.NYX_INTELLIGENCE_LEVEL || 2);
 
 const NYX_HELLO_TOKEN = '__nyx_hello__';
+
+// Keepalive: prevents “prints listening then dies” issues in some Windows/pipeline scenarios.
+// Set NYX_KEEPALIVE=0 to disable (not recommended during debugging).
+const NYX_KEEPALIVE = String(process.env.NYX_KEEPALIVE ?? '1') !== '0';
+
+/* =========================
+   PROCESS HARDENING
+========================= */
+
+process.on('uncaughtException', (err) => {
+  console.error('[Nyx] uncaughtException:', err && err.stack ? err.stack : err);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[Nyx] unhandledRejection:', reason && reason.stack ? reason.stack : reason);
+});
+
+// Useful for sanity: confirm PID + cwd at boot
+console.log(`[Nyx] boot pid=${process.pid} cwd=${process.cwd()} node=${process.version}`);
 
 /* =========================
    HELPERS
@@ -120,18 +140,17 @@ function tightenAiGuidanceIfPossible(session, message, fallbackPrompt) {
 
 /* =========================
    LOOP DIAGNOSTIC MICRO-FLOW (Layer 2 continuation)
-   Purpose: after asking the loop question, Nyx must advance based on user answer.
 ========================= */
 
 function inferLoopKindAnswer(msg) {
   const m = normText(msg);
 
-  // User indicates the widget is re-sending requests
+  // Widget re-sending requests
   if (/\b(resend|re-send|re sending|re-sending|double send|sending twice|multiple requests|requests|network|fetch|post|api call|calls)\b/i.test(m)) {
     return 'resending_request';
   }
 
-  // User indicates Nyx repeats the same reply
+  // Nyx repeating reply
   if (/\b(same reply|repeating reply|repeats the reply|same response|repeating response|nyx repeats|keeps saying)\b/i.test(m)) {
     return 'repeating_reply';
   }
@@ -164,6 +183,22 @@ function getSession(id) {
 }
 
 /* =========================
+   DEBUG LAST (optional but extremely useful)
+========================= */
+
+let LAST_DEBUG = { ok: true, route: null, request: null, response: null, error: null };
+
+function setDebug(route, request, response, error = null) {
+  LAST_DEBUG = {
+    ok: true,
+    route,
+    request,
+    response,
+    error: error ? String(error?.stack || error) : null,
+  };
+}
+
+/* =========================
    CHAT CORE
 ========================= */
 
@@ -188,7 +223,6 @@ function runNyxChat(body) {
   const name = extractName(message);
   if (name) {
     session.displayName = name;
-    // clear any pending diag when name is set
     session.aiDiag = null;
     return {
       ok: true,
@@ -211,8 +245,7 @@ function runNyxChat(body) {
     };
   }
 
-  // D) CONTINUE MICRO-FLOW if one is active
-  // If Nyx previously asked the "loop kind" question, interpret the user's answer and advance.
+  // D) Continue micro-flow
   if (NYX_INTELLIGENCE_LEVEL >= 2 && session.aiDiag === 'loop_kind') {
     const kind = inferLoopKindAnswer(message);
 
@@ -222,8 +255,8 @@ function runNyxChat(body) {
         ok: true,
         reply:
           "Good — that narrows it.\n" +
-          "Next: can you confirm whether the widget sends *two* /api/chat POSTs per one user action?\n" +
-          "If yes, tell me: is it on *send click*, on *enter key*, or triggered by *both*?",
+          "Next: can you confirm whether the widget sends two /api/chat POSTs per one user action?\n" +
+          "If yes: is it on send-click, enter-key, or triggered by both?",
         followUp: null,
         sessionId,
         serverMsgId: session.serverMsgId,
@@ -237,35 +270,33 @@ function runNyxChat(body) {
         reply:
           "Got it — that’s a server-side repeat.\n" +
           "Next: does it repeat even when the user message changes, or only when the message is identical?\n" +
-          "And does the serverMsgId keep increasing each time?",
+          "And does serverMsgId keep increasing each time?",
         followUp: null,
         sessionId,
         serverMsgId: session.serverMsgId,
       };
     }
 
-    // If unclear, tighten the clarification to keep momentum
     return {
       ok: true,
       reply:
         "Quick check so I don’t guess wrong:\n" +
-        "Which one are you seeing — *multiple requests being sent*, or *the same reply repeating*?",
+        "Which one are you seeing — multiple requests being sent, or the same reply repeating?",
       followUp: null,
       sessionId,
       serverMsgId: session.serverMsgId,
     };
   }
 
-  // E) Determine lane (explicit or inferred)
+  // E) Determine lane
   const mLower = normText(message);
   let lanePick = laneFromMessage(mLower);
   if (!lanePick) lanePick = inferLaneFromFreeText(message);
 
-  // F) Handle lane selection / inferred lane with Layer 1 + Layer 2 guidedness
+  // F) Apply Layer 1 + Layer 2
   if (lanePick) {
     session.lane = lanePick;
 
-    // Basic lanes (non-AI) — keep simple
     if (lanePick !== 'ai') {
       session.aiDiag = null;
       return {
@@ -277,13 +308,11 @@ function runNyxChat(body) {
       };
     }
 
-    // AI lane — apply Layer 2 tightening
     session.aiSubtopic = inferAiSubtopic(message);
 
     let guided = nyxGuidedQuestionForLane('ai', session);
     guided = tightenAiGuidanceIfPossible(session, message, guided);
 
-    // If the tightened guidance is the loop-kind question, arm the micro-flow state
     if (guided.includes('When it loops, is the widget re-sending')) {
       session.aiDiag = 'loop_kind';
       session.aiDiagAskedAt = Date.now();
@@ -300,7 +329,7 @@ function runNyxChat(body) {
     };
   }
 
-  // G) Default fallback (Layer 1 calm, not robotic)
+  // G) Default fallback
   session.aiDiag = null;
   return {
     ok: true,
@@ -322,21 +351,47 @@ app.use(express.json({ limit: '1mb' }));
 app.post('/api/chat', (req, res) => {
   try {
     const payload = runNyxChat(req.body || {});
+    setDebug('/api/chat', req.body || {}, payload, null);
     res.status(200).json(payload);
   } catch (err) {
+    setDebug('/api/chat', req.body || {}, null, err);
     res.status(500).json({ ok: false, error: 'SERVER_ERROR' });
   }
 });
 
 app.get('/api/health', (_req, res) => {
-  res.json({
+  const payload = {
     ok: true,
     nyx: { intelligenceLevel: NYX_INTELLIGENCE_LEVEL },
     sessions: SESSIONS.size,
     time: new Date().toISOString(),
-  });
+    pid: process.pid,
+    port: PORT,
+    keepalive: NYX_KEEPALIVE,
+  };
+  setDebug('/api/health', null, payload, null);
+  res.json(payload);
 });
 
-app.listen(PORT, () => {
+app.get('/api/debug/last', (_req, res) => {
+  res.json(LAST_DEBUG);
+});
+
+/* =========================
+   START SERVER (HARDENED)
+========================= */
+
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`[Nyx] listening on ${PORT}`);
 });
+
+server.on('error', (err) => {
+  console.error('[Nyx] server error:', err && err.stack ? err.stack : err);
+});
+
+// Keep the process alive intentionally during local debugging / Windows pipeline weirdness.
+if (NYX_KEEPALIVE) {
+  setInterval(() => {
+    // noop - keep event loop alive
+  }, 60 * 60 * 1000);
+}
