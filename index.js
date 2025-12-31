@@ -1,12 +1,11 @@
 /**
  * index.js — Sandblast Backend (Nyx)
  * Critical fixes:
- *  - Authoritative session state spine (prevents looping/regressing into greeting)
- *  - One-way intro door (never re-triggers once engaged)
- *  - Name capture as first-class milestone (no rude "Got it")
- *  - Chip arbitration rules (free-text always wins; chips set active domain)
- *  - TTS at final response boundary only (prevents “no voice” via short-circuit)
- *  - Safer payload handling + consistent response envelope
+ *  - Intro ALWAYS wins on first contact (even if widget sends lane token)
+ *  - Fix chip arbitration boolean precedence bug
+ *  - Loop guard less aggressive + never pollutes the intro
+ *  - /api/voice is a real alias of /api/tts
+ *  - Keeps your state spine + safe imports + final-boundary TTS
  */
 
 "use strict";
@@ -86,7 +85,7 @@ const nyxPersonality = safeRequire("./Utils/nyxPersonality");
 // Canonical: Nyx voice naturalizer (you locked this)
 const nyxVoiceNaturalize = safeRequire("./Utils/nyxVoiceNaturalize");
 
-// If you have any router modules, keep them optional:
+// Optional routers
 const tvKnowledge = safeRequire("./Utils/tvKnowledge");
 const sponsorsKnowledge = safeRequire("./Utils/sponsorsKnowledge");
 
@@ -185,12 +184,9 @@ function isGreeting(text) {
 }
 
 function isOnlyName(text) {
-  // e.g., "Mac", "Sean", "Sean Nicholas"
   const t = cleanText(text);
   if (!t) return false;
-  // If it contains numbers/punctuation heavily, no.
   if (/[\d@#$%^&*_=+[\]{}<>\\/|]/.test(t)) return false;
-  // 1-3 words, letters/apostrophes/hyphens only
   const parts = t.split(" ").filter(Boolean);
   if (parts.length < 1 || parts.length > 3) return false;
   if (!parts.every((p) => /^[A-Za-z'’-]{2,}$/.test(p))) return false;
@@ -200,14 +196,12 @@ function isOnlyName(text) {
 function extractName(text) {
   const t = cleanText(text);
 
-  // "my name is Mac" / "I'm Mac" / "I am Mac"
   let m = t.match(/\bmy name is\s+([A-Za-z'’-]{2,}(?:\s+[A-Za-z'’-]{2,}){0,2})\b/i);
   if (m && m[1]) return m[1].trim();
 
   m = t.match(/\b(i am|i'm)\s+([A-Za-z'’-]{2,}(?:\s+[A-Za-z'’-]{2,}){0,2})\b/i);
   if (m && m[2]) return m[2].trim();
 
-  // If user sent just a name
   if (isOnlyName(t)) return t;
 
   return null;
@@ -225,8 +219,8 @@ function noteLoopProtection(st, reply) {
     st.lastReplyHash = h;
     st.repeatCount = 0;
   }
-  // If we are repeating ourselves, force a forward-moving follow-up
-  return st.repeatCount >= 1;
+  // Less aggressive: require 2 repeats (prevents "nagging" early)
+  return st.repeatCount >= 2;
 }
 
 /* ======================================================
@@ -234,17 +228,14 @@ function noteLoopProtection(st, reply) {
 ====================================================== */
 
 function nyxIntroLine() {
-  // One sentence, broadcast-ready, no options list, no chip mention.
   return "On air—welcome to Sandblast. I’m Nyx, your guide. Tell me what you’re here for, and I’ll take it from there.";
 }
 
 function nyxAcknowledgeName(name) {
-  // Natural, respectful, not robotic
   return `Perfect, ${name}. What do you want to dive into first—music, TV, sponsors, or something else?`;
 }
 
 function nyxGreetingReply(st) {
-  // Greeting after intro should be short and forward-moving
   if (st.nameCaptured && st.userName) {
     return `Hey, ${st.userName}. Where do you want to go next?`;
   }
@@ -259,7 +250,6 @@ function normalizeDomainFromChipOrText(text) {
   const t = lower(text);
   if (!t) return null;
 
-  // Chips may send exact values; also allow lane words in text
   if (["music", "lane:music"].includes(t)) return "music";
   if (["tv", "television", "lane:tv"].includes(t)) return "tv";
   if (["sponsors", "sponsor", "ads", "advertising", "lane:sponsors"].includes(t)) return "sponsors";
@@ -273,7 +263,6 @@ function classifyIntent(text) {
   const t = cleanText(text);
   if (!t) return { intent: "empty", confidence: 1.0 };
 
-  // Prefer your classifier if present
   if (intentClassifier && typeof intentClassifier.classify === "function") {
     try {
       return intentClassifier.classify(t);
@@ -282,7 +271,6 @@ function classifyIntent(text) {
     }
   }
 
-  // Fallback heuristic
   const d = normalizeDomainFromChipOrText(t);
   if (d) return { intent: `domain:${d}`, confidence: 0.75 };
 
@@ -292,15 +280,10 @@ function classifyIntent(text) {
   return { intent: "general", confidence: 0.5 };
 }
 
-/**
- * Always returns { reply, followUp?, domain?, meta? }
- * Keep it forward moving; do not ask “tap a chip above”.
- */
 function handleDomain(st, domain, userText) {
   const text = cleanText(userText);
 
   if (domain === "music") {
-    // If your musicKnowledge has its own handler, use it.
     if (musicKnowledge && typeof musicKnowledge.handleChat === "function") {
       try {
         return musicKnowledge.handleChat({ text, session: st });
@@ -308,10 +291,8 @@ function handleDomain(st, domain, userText) {
         if (ENABLE_DEBUG) console.warn(`[musicKnowledge.handleChat] failed: ${e.message}`);
       }
     }
-    // Minimal fallback
     return {
-      reply:
-        "Music—nice. Give me a year (1950–2024) or an artist + year, and I’ll pull something memorable.",
+      reply: "Music—nice. Give me a year (1950–2024) or an artist + year, and I’ll pull something memorable.",
       followUp: ["Try: 1984", "Try: 1999", "Try: Prince 1984"],
       domain: "music",
     };
@@ -326,8 +307,7 @@ function handleDomain(st, domain, userText) {
       }
     }
     return {
-      reply:
-        "TV—got it. Tell me a show title, a decade, or a vibe (crime, western, comedy) and I’ll line up the best next step.",
+      reply: "TV—got it. Tell me a show title, a decade, or a vibe (crime, western, comedy) and I’ll line up the best next step.",
       followUp: ["Try: crime classics", "Try: westerns", "Try: 1960s TV"],
       domain: "tv",
     };
@@ -342,8 +322,7 @@ function handleDomain(st, domain, userText) {
       }
     }
     return {
-      reply:
-        "Sponsors—perfect. Are you looking to advertise, explore packages, or see audience and placement options?",
+      reply: "Sponsors—perfect. Are you looking to advertise, explore packages, or see audience and placement options?",
       followUp: ["Advertising packages", "Audience stats", "Placement options"],
       domain: "sponsors",
     };
@@ -351,14 +330,12 @@ function handleDomain(st, domain, userText) {
 
   if (domain === "ai") {
     return {
-      reply:
-        "AI lane—love it. Tell me what you’re trying to achieve: build something, automate a workflow, or improve a business process.",
+      reply: "AI lane—love it. Tell me what you’re trying to achieve: build something, automate a workflow, or improve a business process.",
       followUp: ["Build a chatbot", "Automate outreach", "Improve operations"],
       domain: "ai",
     };
   }
 
-  // general
   return {
     reply: "Alright. Tell me what you want to do, and I’ll steer us cleanly.",
     followUp: ["Music", "TV", "Sponsors", "AI"],
@@ -386,7 +363,6 @@ function applyNyxTone(st, reply) {
 ====================================================== */
 
 async function elevenlabsTts(text) {
-  // Lazy-require node-fetch if needed
   let fetchFn = global.fetch;
   if (!fetchFn) {
     try {
@@ -436,18 +412,16 @@ async function ttsForReply(text) {
   const raw = cleanText(text);
   if (!raw) return null;
 
-  // Naturalize BEFORE TTS (canonical)
-  const natural = (nyxVoiceNaturalize && typeof nyxVoiceNaturalize === "function")
-    ? nyxVoiceNaturalize(raw)
-    : raw;
+  const natural =
+    nyxVoiceNaturalize && typeof nyxVoiceNaturalize === "function"
+      ? nyxVoiceNaturalize(raw)
+      : raw;
 
   if (!ENABLE_TTS) return null;
   if (TTS_PROVIDER !== "elevenlabs") return null;
-
   if (!ELEVENLABS_API_KEY || !ELEVENLABS_VOICE_ID) return null;
 
-  const audio = await elevenlabsTts(natural);
-  return audio;
+  return elevenlabsTts(natural);
 }
 
 /* ======================================================
@@ -461,8 +435,13 @@ app.post("/api/chat", async (req, res) => {
 
     const st = getSession(sessionId);
     touchSession(st);
-
     st.lastUserText = message;
+
+    // --- Precompute chip token safely (FIX precedence bug)
+    const chipDomain = normalizeDomainFromChipOrText(message);
+    const isLaneToken = lower(message).startsWith("lane:");
+    const isSimpleDomainWord = ["music", "tv", "sponsors", "ai", "general"].includes(lower(message));
+    const messageIsJustChip = Boolean(chipDomain) && (isLaneToken || isSimpleDomainWord);
 
     // 1) Empty message: if first contact -> intro; else prompt forward
     if (!message) {
@@ -476,12 +455,8 @@ app.post("/api/chat", async (req, res) => {
       return res.json({ ok: true, reply, followUp: null, sessionId: st.sessionId });
     }
 
-    // 2) Intent + name extraction
+    // 2) Name capture is first-class (handle before intro rule)
     const name = extractName(message);
-    const intent = classifyIntent(message);
-    st.lastUserIntent = intent.intent;
-
-    // 3) Name capture is first-class and permanently upgrades behavior
     if (name && !st.nameCaptured) {
       st.nameCaptured = true;
       st.userName = name;
@@ -493,34 +468,39 @@ app.post("/api/chat", async (req, res) => {
       return res.json({ ok: true, reply, followUp: ["Music", "TV", "Sponsors", "AI"], sessionId: st.sessionId });
     }
 
-    // 4) Greeting handling: ONLY if engaged; never re-trigger intro
+    // 3) HARD RULE: Intro ALWAYS wins on first contact (even if widget sends a chip token)
+    // This is the key fix for your screenshot behavior.
+    if (st.phase === "greeting" && !st.greetedOnce) {
+      st.greetedOnce = true;
+      st.phase = "engaged";
+      const reply = applyNyxTone(st, nyxIntroLine());
+      return res.json({ ok: true, reply, followUp: null, sessionId: st.sessionId });
+    }
+
+    // 4) Intent classification (post-intro)
+    const intent = classifyIntent(message);
+    st.lastUserIntent = intent.intent;
+
+    // 5) Greeting handling: post-intro social response
     if (intent.intent === "greeting" || isGreeting(message)) {
-      if (st.phase === "greeting" && !st.greetedOnce) {
-        st.greetedOnce = true;
-        st.phase = "engaged";
-        const reply = applyNyxTone(st, nyxIntroLine());
-        return res.json({ ok: true, reply, followUp: null, sessionId: st.sessionId });
-      }
       const reply = applyNyxTone(st, nyxGreetingReply(st));
       return res.json({ ok: true, reply, followUp: ["Music", "TV", "Sponsors", "AI"], sessionId: st.sessionId });
     }
 
-    // 5) Chip arbitration: Free-text ALWAYS wins; chips set lane only if message is a lane token.
-    // If message is a simple lane token (like clicking a chip), treat it as a domain switch.
-    const chipDomain = normalizeDomainFromChipOrText(message);
-    const messageIsJustChip = Boolean(chipDomain) && lower(message).startsWith("lane:") || ["music", "tv", "sponsors", "ai", "general"].includes(lower(message));
-
+    // 6) Chip arbitration: chips switch lane only when message is a lane token
     if (messageIsJustChip && chipDomain) {
       st.activeDomain = chipDomain;
       st.phase = "domain_active";
+
       const result = handleDomain(st, chipDomain, "");
       let reply = applyNyxTone(st, result.reply);
 
+      // Loop guard should not be annoying; only on real repeats
       const forcedForward = noteLoopProtection(st, reply);
       if (forcedForward) {
         reply = applyNyxTone(
           st,
-          `${reply}\n\nIf you tell me one detail (year, title, or goal), I’ll take the next step for you.`
+          `${reply}\n\nGive me one detail (year, title, or goal) and I’ll move us forward immediately.`
         );
       }
 
@@ -532,25 +512,19 @@ app.post("/api/chat", async (req, res) => {
       });
     }
 
-    // 6) Otherwise: user free-text. Route based on activeDomain if set; else infer domain.
+    // 7) Otherwise: user free-text. Route based on activeDomain if set; else infer domain.
     let domain = st.activeDomain;
 
-    // If no active domain, infer from message
     if (!domain) {
-      const inferred = normalizeDomainFromChipOrText(message);
-      domain = inferred || "general";
+      domain = chipDomain || "general";
     }
 
-    // If user says a domain keyword in free-text, allow it to set active lane
+    // If user explicitly says a domain keyword in free-text, allow it to set active lane
     const explicitDomain = normalizeDomainFromChipOrText(message);
     if (explicitDomain) {
       st.activeDomain = explicitDomain;
       st.phase = "domain_active";
       domain = explicitDomain;
-    } else if (st.phase === "greeting") {
-      // One-way door: if they skipped greeting and typed content, move to engaged
-      st.greetedOnce = true;
-      st.phase = "engaged";
     } else if (st.phase !== "domain_active" && domain !== "general") {
       st.phase = "domain_active";
     }
@@ -558,10 +532,8 @@ app.post("/api/chat", async (req, res) => {
     const result = handleDomain(st, domain, message);
     let reply = applyNyxTone(st, result.reply);
 
-    // 7) Loop guard: if reply repeats, force a forward-moving question
     const forcedForward = noteLoopProtection(st, reply);
     if (forcedForward) {
-      // Avoid chip instruction loops
       reply = applyNyxTone(
         st,
         `${reply}\n\nGive me one specific input (a year, a title, or a goal) and I’ll move us forward immediately.`
@@ -580,22 +552,16 @@ app.post("/api/chat", async (req, res) => {
 });
 
 /* ======================================================
-   /api/tts — Explicit TTS endpoint (NO_TEXT compatible)
+   /api/tts + /api/voice — Explicit TTS endpoint + alias
 ====================================================== */
 
-app.post("/api/tts", async (req, res) => {
+async function handleTts(req, res) {
   try {
-    // Compatibility: accept {text} or {reply} or NO_TEXT sentinel
     const text = cleanText(req.body.text || req.body.reply);
-
-    if (!text) {
-      return res.status(400).json({ ok: false, error: "NO_TEXT" });
-    }
+    if (!text) return res.status(400).json({ ok: false, error: "NO_TEXT" });
 
     const audio = await ttsForReply(text);
-    if (!audio) {
-      return res.status(501).json({ ok: false, error: "TTS_NOT_CONFIGURED" });
-    }
+    if (!audio) return res.status(501).json({ ok: false, error: "TTS_NOT_CONFIGURED" });
 
     res.setHeader("Content-Type", audio.audioMime);
     res.setHeader("Cache-Control", "no-store");
@@ -603,16 +569,13 @@ app.post("/api/tts", async (req, res) => {
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message || "TTS_ERROR" });
   }
-});
+}
 
-// Aliases (canonical)
-app.post("/api/voice", (req, res) => app._router.handle(req, res, () => {}));
-app.post("/api/voice", (req, res, next) => next()); // no-op safety
-app.post("/api/voice", (req, res) => res.status(404).json({ ok: false, error: "USE_/api/tts" }));
+app.post("/api/tts", handleTts);
+app.post("/api/voice", handleTts);
 
 /* ======================================================
    /api/s2s — Speech-to-speech (minimal placeholder)
-   You already had this working; keep it stable.
 ====================================================== */
 
 app.post("/api/s2s", upload.single("file"), async (req, res) => {
@@ -628,30 +591,31 @@ app.post("/api/s2s", upload.single("file"), async (req, res) => {
       return res.status(400).json({ ok: false, error: "NO_FILE" });
     }
 
-    // If you have an existing s2s handler module, plug it here.
-    // For now, keep it simple and predictable:
     const transcript = cleanText(req.body.transcript || "");
     const syntheticText = transcript || "Hi Nyx";
 
-    // Reuse /api/chat logic internally
+    // Reuse /api/chat logic internally (simple)
     const fakeReq = { body: { message: syntheticText, sessionId: st.sessionId } };
     const fakeRes = {
       _json: null,
-      json(obj) { this._json = obj; },
+      json(obj) {
+        this._json = obj;
+      },
+      status() {
+        return this;
+      },
     };
 
-    // Call handler directly (safe)
     await new Promise((resolve) => {
       app._router.handle(
         { ...fakeReq, method: "POST", url: "/api/chat" },
-        { ...fakeRes, status: () => fakeRes, json: fakeRes.json.bind(fakeRes) },
+        fakeRes,
         resolve
       );
     });
 
     const reply = fakeRes._json?.reply || "Want to pick up where we left off, or switch lanes?";
 
-    // Generate audio for the reply (final boundary)
     let audioBytes = null;
     let audioMime = null;
     try {
@@ -661,7 +625,6 @@ app.post("/api/s2s", upload.single("file"), async (req, res) => {
         audioMime = audio.audioMime;
       }
     } catch (e) {
-      // Non-fatal
       if (ENABLE_DEBUG) console.warn(`[s2s tts] failed: ${e.message}`);
     }
 
@@ -684,7 +647,10 @@ app.post("/api/s2s", upload.single("file"), async (req, res) => {
 
 app.get("/api/health", (req, res) => {
   const ttsConfigured =
-    Boolean(ELEVENLABS_API_KEY) && Boolean(ELEVENLABS_VOICE_ID) && ENABLE_TTS && TTS_PROVIDER === "elevenlabs";
+    Boolean(ELEVENLABS_API_KEY) &&
+    Boolean(ELEVENLABS_VOICE_ID) &&
+    ENABLE_TTS &&
+    TTS_PROVIDER === "elevenlabs";
 
   return res.json({
     ok: true,
