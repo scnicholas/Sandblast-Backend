@@ -18,6 +18,10 @@
  *  - FIX: Removed the “fast vs explore” pace prompt (was causing disjointed, non-human openings)
  *  - TUNE: “Golden sequence” enforced: acknowledge → reflect → advance (one next step)
  *  - KEEP: Existing features (music/tts/stt/s2s/dedupe) unchanged
+ *
+ * Layer 1/2 upgrades in THIS revision:
+ *  - FIX: Layer 2 AI tightening now applies both when user picks "ai" AND when AI is inferred from free-text
+ *  - FIX: Grammar polish: "Mac, are we..." (not "Mac, Are we...")
  */
 
 const express = require('express');
@@ -179,7 +183,8 @@ function inferLaneFromFreeText(msg) {
   if (!m) return null;
 
   // Music
-  if (/(song|track|artist|album|billboard|year[- ]end|top ?40|top40weekly|chart|hot ?100|rpm|uk singles)/i.test(m)) return 'music';
+  if (/(song|track|artist|album|billboard|year[- ]end|top ?40|top40weekly|chart|hot ?100|rpm|uk singles)/i.test(m))
+    return 'music';
 
   // TV / media programming
   if (/(tv|show|series|episode|season|watch|program|schedule|channel|broadcast)/i.test(m)) return 'tv';
@@ -188,11 +193,11 @@ function inferLaneFromFreeText(msg) {
   if (/(sponsor|advertis|ad rate|media kit|campaign|placement|brand partner)/i.test(m)) return 'sponsors';
 
   // AI / tech help
-  if (/(api|backend|render|node|express|index\.js|widget|webflow|bug|error|500|cors|tts|stt|mic|deploy|github)/i.test(m)) return 'ai';
+  if (/(api|backend|render|node|express|index\.js|widget|webflow|bug|error|500|cors|tts|stt|mic|deploy|github)/i.test(m))
+    return 'ai';
 
   return null;
 }
-
 
 function nyxGuidedQuestionForLane(lane, session) {
   const name = clean(session?.displayName);
@@ -201,7 +206,7 @@ function nyxGuidedQuestionForLane(lane, session) {
   if (lane === 'music') return `${who}What year are we starting with?`;
   if (lane === 'tv') return `${who}Are you looking for a specific show, a schedule, or recommendations?`;
   if (lane === 'sponsors') return `${who}Are you advertising on Sandblast, or looking for sponsor options?`;
-  if (lane === 'ai') return `${who}Are we working on the backend, the widget, or content intelligence?`;
+  if (lane === 'ai') return `${who}are we working on the backend, the widget, or content intelligence?`;
   return `${who}What are we doing today?`;
 }
 
@@ -214,6 +219,17 @@ function inferAiSubtopic(msg) {
   if (/(tts|voice|elevenlabs|audio|stt|s2s|microphone|mic|transcript)/i.test(m)) return 'voice';
   if (/(music|chart|hot ?100|top ?10|year[- ]end|top40weekly)/i.test(m)) return 'music';
   return null;
+}
+
+// Layer 2: apply subtopic tightening consistently
+function tightenAiGuidanceIfPossible(session, fallbackPrompt) {
+  if (NYX_INTELLIGENCE_LEVEL < 2) return fallbackPrompt;
+
+  const sub = clean(session?.aiSubtopic);
+  if (sub === 'widget') return 'What part is failing — positioning, looping, mic, or rendering?';
+  if (sub === 'backend') return 'What’s the symptom — looping, slow response, 500s, or bad routing?';
+  if (sub === 'voice') return 'Is the issue TTS, STT transcript, or S2S playback?';
+  return fallbackPrompt;
 }
 
 function isClearIntent(msg) {
@@ -232,7 +248,8 @@ function isClearIntent(msg) {
 
   // Common intent phrasing, or a question, or simply enough words
   if (/[?]/.test(s)) return true;
-  if (/(help|need|want|can you|could you|show me|tell me|find|give me|fix|update|how do i|what is|when was|where is)/i.test(s)) return true;
+  if (/(help|need|want|can you|could you|show me|tell me|find|give me|fix|update|how do i|what is|when was|where is)/i.test(s))
+    return true;
 
   // Enough content to likely be a real request
   const tokens = m.split(' ').filter(Boolean);
@@ -278,9 +295,23 @@ function looksLikeBareName(msg) {
   // Reject common non-names that show up in flows
   const m = normText(s);
   const banned = new Set([
-    'music', 'tv', 'sponsors', 'sponsor', 'ai', 'general',
-    'resume', 'switch', 'top 10', 'top10', '#1', '1', 'number 1', 'no. 1', 'story', 'story moment',
-    'nyx'
+    'music',
+    'tv',
+    'sponsors',
+    'sponsor',
+    'ai',
+    'general',
+    'resume',
+    'switch',
+    'top 10',
+    'top10',
+    '#1',
+    '1',
+    'number 1',
+    'no. 1',
+    'story',
+    'story moment',
+    'nyx',
   ]);
   if (banned.has(m)) return false;
 
@@ -375,11 +406,7 @@ function isSwitchLanes(mLower) {
 }
 
 function isStoryMomentCommand(mLower) {
-  return (
-    mLower === 'story moment' ||
-    mLower.includes('story moment') ||
-    (mLower.includes('story') && mLower.length <= 20)
-  );
+  return mLower === 'story moment' || mLower.includes('story moment') || (mLower.includes('story') && mLower.length <= 20);
 }
 
 function extractYearInRange(message, start, end) {
@@ -527,10 +554,9 @@ function getSession(sessionId, visitorId) {
       lastClientMsgId: null,
       lastClientMsgAt: 0,
 
-
       // Robust dedupe caches (handles retries even if messages interleave)
-      clientMsgSeen: new Map(),   // clientMsgId -> ts
-      reqHashSeen: new Map(),     // reqHash     -> ts
+      clientMsgSeen: new Map(), // clientMsgId -> ts
+      reqHashSeen: new Map(), // reqHash     -> ts
       // monotonic server message id
       serverMsgId: 0,
 
@@ -620,13 +646,7 @@ const musicKnowledge = require('./Utils/musicKnowledge');
 let MUSIC_COVERAGE = { builtAt: null, start: 1970, end: 2010, charts: [] };
 
 function rebuildMusicCoverage() {
-  const charts = [
-    'Top40Weekly Top 100',
-    'Billboard Hot 100',
-    'Billboard Year-End Hot 100',
-    'Canada RPM',
-    'UK Singles Chart',
-  ];
+  const charts = ['Top40Weekly Top 100', 'Billboard Hot 100', 'Billboard Year-End Hot 100', 'Canada RPM', 'UK Singles Chart'];
   const builtAt = new Date().toISOString();
   MUSIC_COVERAGE = { builtAt, start: 1970, end: 2010, charts };
 }
@@ -672,7 +692,7 @@ function nyxStablePickIndex(key, n) {
   if (!n || n <= 1) return 0;
   const hex = crypto.createHash('sha1').update(String(key || '')).digest('hex');
   const num = parseInt(hex.slice(0, 8), 16);
-  return Number.isFinite(num) ? (num % n) : 0;
+  return Number.isFinite(num) ? num % n : 0;
 }
 
 function nyxIntroText(session) {
@@ -681,7 +701,8 @@ function nyxIntroText(session) {
   const { hour, ymd } = nyxLocalParts(new Date(), tz);
   const dp = nyxDaypart(hour);
 
-  const base = "Welcome to Sandblast Channel — where classic TV, timeless music, and modern insight come together. I’m Nyx, and I’ll help you explore it all. How can I help you?";
+  const base =
+    "Welcome to Sandblast Channel — where classic TV, timeless music, and modern insight come together. I’m Nyx, and I’ll help you explore it all. How can I help you?";
 
   const banks = {
     morning: [
@@ -781,7 +802,7 @@ function _splitArtistTitle(s) {
   const seps = [' — ', ' - ', ' – ', '—', ' / ', ' | '];
   for (const sep of seps) {
     if (t.includes(sep)) {
-      const parts = t.split(sep).map(p => p.trim()).filter(Boolean);
+      const parts = t.split(sep).map((p) => p.trim()).filter(Boolean);
       if (parts.length >= 2) {
         return { artist: parts[0], title: parts.slice(1).join(' - ') };
       }
@@ -874,10 +895,7 @@ function safeStoryMoment(y, c) {
   const title = clean(r.title);
   const chart = clean(c);
 
-  return (
-    `Quick moment: In ${y}, "${title}" by ${artist} was sitting at the top of ${chart}. ` +
-    `That year had a very specific swagger — the kind of radio that sticks to your memory.`
-  );
+  return `Quick moment: In ${y}, "${title}" by ${artist} was sitting at the top of ${chart}. That year had a very specific swagger — the kind of radio that sticks to your memory.`;
 }
 
 function isTop10Command(mLower) {
@@ -910,7 +928,10 @@ function handleMusic(message, session) {
 
     if (isTop10Command(mLower)) {
       const list = musicKnowledge.getTopByYear(y, c, 10) || [];
-      const lines = list.slice(0, 10).map((it, i) => formatTopItem(it, i)).join('\n');
+      const lines = list
+        .slice(0, 10)
+        .map((it, i) => formatTopItem(it, i))
+        .join('\n');
 
       return nyxCompose({
         signal: `Top 10 — ${c} (${y}):`,
@@ -1056,7 +1077,8 @@ function elevenVoiceSettings() {
   if (NYX_VOICE_STABILITY !== '') vs.stability = clamp(NYX_VOICE_STABILITY, 0, 1);
   if (NYX_VOICE_SIMILARITY !== '') vs.similarity_boost = clamp(NYX_VOICE_SIMILARITY, 0, 1);
   if (NYX_VOICE_STYLE !== '') vs.style = clamp(NYX_VOICE_STYLE, 0, 1);
-  if (NYX_VOICE_SPEAKER_BOOST !== '') vs.use_speaker_boost = String(NYX_VOICE_SPEAKER_BOOST).toLowerCase() === 'true';
+  if (NYX_VOICE_SPEAKER_BOOST !== '')
+    vs.use_speaker_boost = String(NYX_VOICE_SPEAKER_BOOST).toLowerCase() === 'true';
   return vs;
 }
 
@@ -1429,7 +1451,7 @@ function runNyxChat(body) {
         if (lanePick === 'music') response = handleMusic('music', session);
         else {
           // Acknowledge lane, then ask ONE guided next question (Layer 1), optionally tighter in AI (Layer 2)
-          const nice = lanePick === 'ai' ? 'AI' : (lanePick === 'tv' ? 'TV' : 'Sponsors');
+          const nice = lanePick === 'ai' ? 'AI' : lanePick === 'tv' ? 'TV' : 'Sponsors';
 
           if (lanePick === 'ai' && NYX_INTELLIGENCE_LEVEL >= 2) {
             const sub = inferAiSubtopic(message);
@@ -1437,12 +1459,7 @@ function runNyxChat(body) {
           }
 
           let guided = nyxGuidedQuestionForLane(lanePick, session);
-          if (lanePick === 'ai' && NYX_INTELLIGENCE_LEVEL >= 2) {
-            const sub = clean(session.aiSubtopic);
-            if (sub === 'widget') guided = 'What part is failing — positioning, looping, mic, or rendering?';
-            else if (sub === 'backend') guided = 'What’s the symptom — looping, slow response, 500s, or bad routing?';
-            else if (sub === 'voice') guided = 'Is the issue TTS, STT transcript, or S2S playback?';
-          }
+          if (lanePick === 'ai') guided = tightenAiGuidanceIfPossible(session, guided);
 
           response = nyxComposeNoChips({
             signal: `${nice} — got it.`,
@@ -1468,7 +1485,9 @@ function runNyxChat(body) {
               if (sub) session.aiSubtopic = sub;
             }
 
-            const prompt = nyxGuidedQuestionForLane(inferred, session);
+            let prompt = nyxGuidedQuestionForLane(inferred, session);
+            if (inferred === 'ai') prompt = tightenAiGuidanceIfPossible(session, prompt);
+
             response = nyxComposeNoChips({
               signal: 'Got it.',
               moment: '',
