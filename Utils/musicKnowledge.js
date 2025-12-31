@@ -1,7 +1,7 @@
 "use strict";
 
 /**
- * Utils/musicKnowledge.js — v2.50
+ * Utils/musicKnowledge.js — v2.51
  *
  * GOAL (per Mac):
  *  - Public range is 1950–2024 (Nyx should say/accept this now).
@@ -13,6 +13,11 @@
  *    the module automatically routes to the broad/default chart source.
  *  - Provides handleChat() for index.js integration.
  *
+ * NEW IN v2.51:
+ *  - Optional bucket loader: Data/_buckets/music/<chart-slug>/<year>.json
+ *  - Deterministic year buckets for 1950–2024 once you run the ingestion script
+ *  - Bucket cache to avoid repeated disk reads
+ *
  * RETAINS:
  *  - 1988 #3 George Harrison hard-fix
  *  - rank-safe lists + rank aliases
@@ -23,7 +28,7 @@ const fs = require("fs");
 const path = require("path");
 
 const MK_VERSION =
-  "musicKnowledge v2.50 (PUBLIC 1950–2024 + chart-aware ranges + handleChat; retains v2.49/v2.48/v2.47/v2.46)";
+  "musicKnowledge v2.51 (PUBLIC 1950–2024 + buckets fallback + chart-aware ranges + handleChat; retains v2.50/v2.49/v2.48/v2.47/v2.46)";
 
 const DEFAULT_CHART = "Billboard Hot 100";
 const TOP40_CHART = "Top40Weekly Top 100";
@@ -53,6 +58,9 @@ const DB_CANDIDATES = [
 const WIKI_YEAREND_COMBINED =
   "Data/wikipedia/billboard_yearend_hot100_1970_2010.json";
 
+// Buckets (created by your ingestion script)
+const BUCKETS_BASE_DIR = "Data/_buckets/music";
+
 /* =========================
    INTERNAL STATE
 ========================= */
@@ -66,6 +74,9 @@ const BY_YEAR_CHART = new Map();
 
 const STATS = { moments: 0, yearMin: null, yearMax: null, charts: [] };
 
+// Buckets cache: key = `${chart}|${year}` => array
+const BUCKET_CACHE = new Map();
+
 /* =========================
    HELPERS
 ========================= */
@@ -78,13 +89,6 @@ const toInt = (x) => {
 };
 
 const _t = (x) => (x == null ? "" : String(x)).trim();
-
-const norm = (s) =>
-  String(s || "")
-    .toLowerCase()
-    .replace(/[’‘]/g, "'")
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
 
 function cleanText(s) {
   return String(s || "").replace(/\s+/g, " ").trim();
@@ -113,6 +117,15 @@ function normalizeChart(chart) {
 function isYearEndChart(chart) {
   const c = String(chart || "").toLowerCase();
   return c.includes("year") && c.includes("end");
+}
+
+function slugifyChart(name) {
+  return String(name || "unknown")
+    .toLowerCase()
+    .replace(/[’‘]/g, "'")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
 }
 
 /* =========================
@@ -251,6 +264,42 @@ function loadDb() {
 }
 
 /* =========================
+   BUCKET LOADER (optional)
+========================= */
+
+function bucketPathFor(chart, year) {
+  const c = normalizeChart(chart);
+  const slug = slugifyChart(c);
+  const y = toInt(year);
+  if (!y) return null;
+
+  const base = resolveRepoPath(BUCKETS_BASE_DIR);
+  return path.join(base, slug, `${y}.json`);
+}
+
+function readBucket(chart, year) {
+  const c = normalizeChart(chart);
+  const y = toInt(year);
+  if (!y) return null;
+
+  const key = `${c}|${y}`;
+  if (BUCKET_CACHE.has(key)) return BUCKET_CACHE.get(key);
+
+  const p = bucketPathFor(c, y);
+  if (!p || !fs.existsSync(p)) return null;
+
+  try {
+    const arr = JSON.parse(fs.readFileSync(p, "utf8"));
+    const out = Array.isArray(arr) ? arr.map(normalizeMoment) : [];
+    BUCKET_CACHE.set(key, out);
+    return out;
+  } catch (e) {
+    // Do not crash; treat as absent
+    return null;
+  }
+}
+
+/* =========================
    QUERIES
 ========================= */
 
@@ -260,12 +309,29 @@ function getTopByYear(year, chart = DEFAULT_CHART, limit = 10) {
   if (!y) return [];
 
   const c = normalizeChart(chart);
+
   let out = BY_YEAR_CHART.get(`${y}|${c}`) || [];
 
-  // For Year-End: if no entries, fall back to broad sources
+  // If missing in-memory, try deterministic bucket
+  if (!out.length) {
+    const b = readBucket(c, y);
+    if (Array.isArray(b) && b.length) out = b;
+  }
+
+  // For Year-End: if no entries, fall back to broad sources (including buckets)
   if (!out.length && isYearEndChart(c)) {
     out = BY_YEAR_CHART.get(`${y}|${DEFAULT_CHART}`) || [];
-    if (!out.length) out = BY_YEAR_CHART.get(`${y}|${TOP40_CHART}`) || [];
+    if (!out.length) {
+      const b1 = readBucket(DEFAULT_CHART, y);
+      if (Array.isArray(b1) && b1.length) out = b1;
+    }
+    if (!out.length) {
+      out = BY_YEAR_CHART.get(`${y}|${TOP40_CHART}`) || [];
+      if (!out.length) {
+        const b2 = readBucket(TOP40_CHART, y);
+        if (Array.isArray(b2) && b2.length) out = b2;
+      }
+    }
   }
 
   if (!out.length) return [];
@@ -403,7 +469,7 @@ function formatTopList(year, chart, limit = 10) {
 }
 
 function pickFollowUpYears() {
-  const cands = [1951, 1960, 1970, 1984, 1999, 2010, 2020];
+  const cands = [1950, 1951, 1960, 1970, 1984, 1999, 2010, 2020, 2024];
   const out = [];
   for (const y of cands) {
     if (y >= PUBLIC_MIN_YEAR && y <= PUBLIC_MAX_YEAR && !out.includes(y)) out.push(y);
@@ -415,7 +481,8 @@ function pickFollowUpYears() {
 /**
  * handleChat({ text, session })
  * - Public promise: 1950–2024
- * - Truthful behavior: if a year has no rows, it says so and moves forward.
+ * - Uses buckets if present
+ * - If bucket exists but empty, stays honest and guides forward
  */
 function handleChat({ text, session } = {}) {
   loadDb();
@@ -461,16 +528,18 @@ function handleChat({ text, session } = {}) {
       };
     }
 
-    // If we don't have rows, be honest + guide
-    if (year === 1950) {
+    // Deterministic: if bucket file exists but is empty, say "no rows yet"
+    const bucketArr = readBucket(chart, year);
+    if (Array.isArray(bucketArr) && bucketArr.length === 0) {
+      const yrs = pickFollowUpYears();
       return {
-        reply:
-          `I can go full-range ${publicRange}, but my earliest clean rows in the current dataset start at 1951 right now. Try 1951 (or any year after) and I’ll pull the list instantly.`,
-        followUp: ["Try: 1951", "Try: 1960", "Try: 1970"],
+        reply: `I’m set up for ${publicRange}, but I don’t have chart rows for ${year} on this source yet. Try another year and I’ll pull it instantly.`,
+        followUp: [`Try: ${yrs[0]}`, `Try: ${yrs[1]}`, `Try: ${yrs[2]}`],
         domain: "music",
       };
     }
 
+    // If we don't have rows and no bucket, be honest + guide
     const yrs = pickFollowUpYears();
     return {
       reply: `I don’t have a clean chart list for ${year} on this source yet. Try another year in ${publicRange}.`,
@@ -537,6 +606,12 @@ module.exports = {
     for (const [k, v] of CHART_RANGES.entries()) out[k] = { ...v };
     return out;
   },
+
+  // buckets (diagnostic)
+  BUCKETS: () => ({
+    baseDir: BUCKETS_BASE_DIR,
+    hasAnyCache: BUCKET_CACHE.size > 0,
+  }),
 
   // chat integration
   handleChat,
