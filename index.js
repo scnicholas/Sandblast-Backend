@@ -11,6 +11,10 @@
  *  - If first message is a lane token/chip, intro still returns (single line),
  *    BUT we store the selected lane so next user text continues in that lane
  *    without requiring a second chip tap.
+ *
+ * NEW (2026-01-01):
+ *  - Merge module-provided sessionPatch into session spine safely
+ *    (needed for musicKnowledge Moment Intelligence continuity: lastMusicYear/lastMusicChart)
  */
 
 "use strict";
@@ -234,6 +238,30 @@ function noteLoopProtection(st, reply) {
 }
 
 /* ======================================================
+   SAFE sessionPatch merge (module → session spine)
+====================================================== */
+
+function applySessionPatch(st, patch) {
+  if (!patch || typeof patch !== "object") return;
+
+  // Protect spine invariants + critical runtime fields
+  const BLOCK = new Set([
+    "sessionId",
+    "createdAt",
+    "updatedAt",
+    "repeatCount",
+    "lastReplyHash",
+    "phase",
+    "greetedOnce",
+  ]);
+
+  for (const [k, v] of Object.entries(patch)) {
+    if (BLOCK.has(k)) continue;
+    st[k] = v;
+  }
+}
+
+/* ======================================================
    Nyx Copy: Intro + social responses (no chips listed)
 ====================================================== */
 
@@ -302,7 +330,7 @@ function handleDomain(st, domain, userText) {
       }
     }
     return {
-      reply: "Music—nice. Give me a year (1950–2024) or an artist + year, and I’ll pull something memorable.",
+      reply: "Alright—music. Give me a year (1950–2024) or an artist + year, and I’ll pull something memorable.",
       followUp: ["Try: 1984", "Try: 1999", "Try: Prince 1984"],
       domain: "music",
     };
@@ -515,6 +543,10 @@ app.post("/api/chat", async (req, res) => {
       st.phase = "domain_active";
 
       const result = handleDomain(st, chipDomain, "");
+
+      // NEW: safely merge module sessionPatch into session spine
+      if (result && result.sessionPatch) applySessionPatch(st, result.sessionPatch);
+
       let reply = applyNyxTone(st, result.reply);
 
       // Loop guard should not be annoying; only on real repeats
@@ -552,6 +584,10 @@ app.post("/api/chat", async (req, res) => {
     }
 
     const result = handleDomain(st, domain, message);
+
+    // NEW: safely merge module sessionPatch into session spine
+    if (result && result.sessionPatch) applySessionPatch(st, result.sessionPatch);
+
     let reply = applyNyxTone(st, result.reply);
 
     const forcedForward = noteLoopProtection(st, reply);
