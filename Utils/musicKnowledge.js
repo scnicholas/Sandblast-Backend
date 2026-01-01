@@ -1,28 +1,22 @@
 "use strict";
 
 /**
- * Utils/musicKnowledge.js — v2.56
+ * Utils/musicKnowledge.js — v2.57
  *
- * FIXES IN v2.56:
- *  - Authoritative 1950–1959 Year-End Singles are served DIRECTLY from the Wikipedia file at query time.
- *    This bypasses DB placeholders and merge/index contamination entirely for that slice.
- *  - Builds an in-memory WIKI_SINGLES_50S_BY_YEAR cache (ranked, clean).
- *  - If the Wikipedia file is missing a year slice, we fall back gracefully (but will NOT prefer placeholders).
+ * FIXES IN v2.57:
+ *  - 1950–1959 Billboard Year-End Singles: Wikipedia is authoritative.
+ *  - If Wikipedia does NOT contain the requested year, DO NOT fall back to DB placeholders.
+ *    Instead return empty so UX can say "not available yet" rather than "Unknown Title".
+ *  - Adds warning if a 50s year is missing from the Wikipedia rows.
  *
- * RETAINS v2.55 BEHAVIOR:
- *  - Dedupe + priority merge
- *  - Year-end rankless passthrough drop
- *  - Buckets cache
- *  - Chart normalization hardening
- *  - 1988 George Harrison fix
- *  - Year-end routing logic (50s: Hot 100 -> Year-End Singles)
+ * Keeps v2.56 behavior elsewhere.
  */
 
 const fs = require("fs");
 const path = require("path");
 
 const MK_VERSION =
-  "musicKnowledge v2.56 (authoritative 50s singles served from Wikipedia; retains v2.55 behavior)";
+  "musicKnowledge v2.57 (no DB fallback for missing/unclean 50s singles year; retains v2.56 behavior)";
 
 const DEFAULT_CHART = "Billboard Hot 100";
 const TOP40_CHART = "Top40Weekly Top 100";
@@ -31,10 +25,6 @@ const YEAR_END_SINGLES_CHART = "Billboard Year-End Singles";
 
 const PUBLIC_MIN_YEAR = 1950;
 const PUBLIC_MAX_YEAR = 2024;
-
-/* =========================
-   ENV + PATHS
-========================= */
 
 const DATA_DIR_ENV = String(process.env.DATA_DIR || "").trim();
 
@@ -57,10 +47,6 @@ const WIKI_YEAREND_SINGLES_1950_1959 =
 
 const BUCKETS_BASE_DIR = "Data/_buckets/music";
 
-/* =========================
-   INTERNAL STATE
-========================= */
-
 let DB = null;
 let INDEX_BUILT = false;
 let LOADED_FROM = null;
@@ -71,14 +57,9 @@ const BY_YEAR_CHART = new Map();
 const STATS = { moments: 0, yearMin: null, yearMax: null, charts: [] };
 const BUCKET_CACHE = new Map();
 
-// v2.56: Authoritative cache for 1950–1959 Year-End Singles
-// Map<number year, Array<moment>>
+// Authoritative cache for 1950–1959 Year-End Singles
 const WIKI_SINGLES_50S_BY_YEAR = new Map();
 let WIKI_SINGLES_50S_LOADED = false;
-
-/* =========================
-   HELPERS
-========================= */
 
 const toInt = (x) => {
   const s = String(x ?? "").trim();
@@ -118,10 +99,6 @@ function slugifyChart(name) {
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "");
 }
-
-/* =========================
-   CHART NORMALIZATION
-========================= */
 
 function normalizeChart(chart) {
   const raw = chart || DEFAULT_CHART;
@@ -165,10 +142,6 @@ function isYearEndChart(chart) {
   return normalizeChart(chart) === YEAR_END_SINGLES_CHART;
 }
 
-/* =========================
-   NORMALIZATION + HARD FIX
-========================= */
-
 function normalizeMoment(m) {
   if (!m || typeof m !== "object") return m;
 
@@ -177,7 +150,7 @@ function normalizeMoment(m) {
   const year = toInt(m.year);
   const rank = coerceRank(m);
 
-  // 🔒 HARD FIX — 1988 #3 George Harrison
+  // Hard fix — 1988 #3 George Harrison
   if (
     year === 1988 &&
     rank === 3 &&
@@ -198,9 +171,16 @@ function normalizeMoment(m) {
   return m;
 }
 
-/* =========================
-   WIKI 50s SINGLES LOADER (v2.56)
-========================= */
+function isCleanMoment(m) {
+  return (
+    m &&
+    Number.isFinite(toInt(m.rank)) &&
+    _t(m.title) &&
+    m.title !== "Unknown Title" &&
+    _t(m.artist) &&
+    m.artist !== "Unknown Artist"
+  );
+}
 
 function loadWikiSingles50sOnce() {
   if (WIKI_SINGLES_50S_LOADED) return;
@@ -232,25 +212,20 @@ function loadWikiSingles50sOnce() {
       source: abs,
     });
 
-    // Only store clean authoritative rows
-    if (
-      m.rank == null ||
-      !_t(m.title) ||
-      m.title === "Unknown Title" ||
-      !_t(m.artist) ||
-      m.artist === "Unknown Artist"
-    ) {
-      continue;
-    }
+    if (!isCleanMoment(m)) continue;
 
     const arr = WIKI_SINGLES_50S_BY_YEAR.get(y) || [];
     arr.push(m);
     WIKI_SINGLES_50S_BY_YEAR.set(y, arr);
   }
 
-  // Sort each year by rank
-  for (const [y, arr] of WIKI_SINGLES_50S_BY_YEAR.entries()) {
+  // Sort and warn for missing years
+  for (let y = 1950; y <= 1959; y++) {
+    const arr = WIKI_SINGLES_50S_BY_YEAR.get(y) || [];
     arr.sort((a, b) => a.rank - b.rank);
+    if (!arr.length) {
+      console.warn(`[musicKnowledge] WARNING: Wikipedia 50s singles missing year ${y} in rows payload.`);
+    }
     WIKI_SINGLES_50S_BY_YEAR.set(y, arr);
   }
 }
@@ -270,13 +245,7 @@ function srcPriority(row) {
   }
 
   if (src.includes("wikipedia.org") || src.includes("wikipedia")) return 500;
-
-  const title = _t(row.title);
-  const artist = _t(row.artist);
-  const nonPlaceholder =
-    title && title !== "Unknown Title" && artist && artist !== "Unknown Artist";
-  if (nonPlaceholder) return 200;
-
+  if (isCleanMoment(row)) return 200;
   return 50;
 }
 
@@ -311,9 +280,7 @@ function dedupeMomentsByPriority(moments) {
       continue;
     }
 
-    if (srcPriority(m) > srcPriority(prev)) {
-      out.set(key, m);
-    }
+    if (srcPriority(m) > srcPriority(prev)) out.set(key, m);
   }
 
   return [...out.values(), ...passthrough];
@@ -394,7 +361,6 @@ function mergeWikipediaYearEndSingles50s(moments) {
 function loadDb() {
   if (DB && INDEX_BUILT) return DB;
 
-  // v2.56: preload authoritative 50s singles cache
   loadWikiSingles50sOnce();
 
   let moments = [];
@@ -411,7 +377,6 @@ function loadDb() {
     break;
   }
 
-  // Stamp DB source for priority decisions
   if (Array.isArray(moments) && LOADED_FROM) {
     for (const m of moments) {
       if (m && typeof m === "object" && !m.source) m.source = LOADED_FROM;
@@ -507,11 +472,11 @@ function getTopByYear(year, chart = DEFAULT_CHART, limit = 10) {
 
   const c = normalizeChart(chart);
 
-  // v2.56: authoritative 50s singles come straight from Wikipedia cache
+  // v2.57: if 50s singles requested and Wikipedia cache is missing/empty, return empty (no DB placeholders).
   if (c === YEAR_END_SINGLES_CHART && y >= 1950 && y <= 1959) {
     const arr = WIKI_SINGLES_50S_BY_YEAR.get(y) || [];
     if (arr.length) return arr.slice(0, Math.max(1, limit));
-    // If missing for some reason, do NOT default to placeholders; fall through to index
+    return []; // IMPORTANT: do not fall back to BY_YEAR_CHART (placeholders)
   }
 
   let out = BY_YEAR_CHART.get(`${y}|${c}`) || [];
@@ -550,74 +515,6 @@ function getNumberOneByYear(year, chart = DEFAULT_CHART) {
 }
 
 /* =========================
-   CHART RANGES
-========================= */
-
-const CHART_RANGES = new Map();
-
-function buildChartRanges() {
-  loadDb();
-  if (CHART_RANGES.size) return;
-
-  const perChart = new Map();
-  for (const k of BY_YEAR_CHART.keys()) {
-    const pipe = k.indexOf("|");
-    if (pipe < 0) continue;
-
-    const y = toInt(k.slice(0, pipe));
-    const chart = k.slice(pipe + 1);
-    if (!y || !chart) continue;
-
-    const c = normalizeChart(chart);
-    const cur = perChart.get(c) || { min: null, max: null, years: new Set() };
-    cur.min = cur.min == null ? y : Math.min(cur.min, y);
-    cur.max = cur.max == null ? y : Math.max(cur.max, y);
-    cur.years.add(y);
-    perChart.set(c, cur);
-  }
-
-  // v2.56: ensure 50s singles range exists even if BY_YEAR_CHART is polluted
-  for (const y of WIKI_SINGLES_50S_BY_YEAR.keys()) {
-    const cur = perChart.get(YEAR_END_SINGLES_CHART) || { min: null, max: null, years: new Set() };
-    cur.min = cur.min == null ? y : Math.min(cur.min, y);
-    cur.max = cur.max == null ? y : Math.max(cur.max, y);
-    cur.years.add(y);
-    perChart.set(YEAR_END_SINGLES_CHART, cur);
-  }
-
-  for (const [chart, v] of perChart.entries()) {
-    CHART_RANGES.set(chart, { min: v.min, max: v.max, countYears: v.years.size });
-  }
-}
-
-function getChartYearRange(chart) {
-  buildChartRanges();
-  const c = normalizeChart(chart || DEFAULT_CHART);
-  const r = CHART_RANGES.get(c);
-
-  if (r && r.min != null && r.max != null) return { chart: c, ...r };
-
-  loadDb();
-  return { chart: c, min: STATS.yearMin, max: STATS.yearMax, countYears: null };
-}
-
-function getAvailableCharts() {
-  loadDb();
-  return [...(STATS.charts || [])];
-}
-
-function getMusicRangeText(chart) {
-  const r = getChartYearRange(chart);
-  const min = r?.min ?? STATS.yearMin ?? 1950;
-  const max = r?.max ?? STATS.yearMax ?? 2024;
-  return `${min}–${max}`;
-}
-
-function getPublicRangeText() {
-  return `${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}`;
-}
-
-/* =========================
    CONVERSATIONAL ROUTING
 ========================= */
 
@@ -646,14 +543,6 @@ function parseYearFromText(text) {
   const t = String(text || "");
   const m = t.match(/\b(19\d{2}|20\d{2})\b/);
   return m ? toInt(m[1]) : null;
-}
-
-function parseArtistYear(text) {
-  const t = cleanText(text);
-  const y = parseYearFromText(t);
-  if (!y) return { artist: null, year: null };
-  const artist = cleanText(t.replace(String(y), "")).trim();
-  return { artist: artist || null, year: y };
 }
 
 function formatTopList(year, chart, limit = 10) {
@@ -686,11 +575,10 @@ function handleChat({ text, session } = {}) {
 
   const userText = cleanText(text);
   const st = session && typeof session === "object" ? session : {};
-
   const requestedChart =
     st.activeMusicChart || st.musicChart || st.activeChart || st.chart || null;
 
-  const publicRange = getPublicRangeText();
+  const publicRange = `${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}`;
 
   if (!userText) {
     const yrs = pickFollowUpYears();
@@ -713,12 +601,22 @@ function handleChat({ text, session } = {}) {
     }
 
     const finalChart = chooseChartForYear(requestedChart, year);
-    const formatted = formatTopList(year, finalChart, 10);
 
+    const formatted = formatTopList(year, finalChart, 10);
     if (formatted) {
       return {
         reply: `${formatted}\n\nWant #1, a story moment, or another year?`,
         followUp: ["#1", "Story moment", "Another year"],
+        domain: "music",
+      };
+    }
+
+    // v2.57: if 50s singles year is missing, say it plainly.
+    if (finalChart === YEAR_END_SINGLES_CHART && year >= 1950 && year <= 1959) {
+      const yrs = [1956, 1957, 1958].filter((x) => x !== year);
+      return {
+        reply: `I don’t have a clean Year-End Singles list for ${year} loaded yet. Once we rebuild the ${year} Wikipedia slice, I’ll serve it perfectly.`,
+        followUp: [`Try: ${yrs[0]}`, `Try: ${yrs[1]}`, "Try: 1956"],
         domain: "music",
       };
     }
@@ -731,28 +629,6 @@ function handleChat({ text, session } = {}) {
     };
   }
 
-  const ay = parseArtistYear(userText);
-  if (ay.year != null) {
-    if (ay.year < PUBLIC_MIN_YEAR || ay.year > PUBLIC_MAX_YEAR) {
-      const yrs = pickFollowUpYears();
-      return {
-        reply: `Keep it in ${publicRange}. Give me an artist + year and I’ll pull something strong.`,
-        followUp: [`Try: ${yrs[0]}`, `Try: ${yrs[1]}`, "Try: Prince 1984"],
-        domain: "music",
-      };
-    }
-
-    const finalChart = chooseChartForYear(requestedChart, ay.year);
-    const formatted = formatTopList(ay.year, finalChart, 10);
-    if (formatted) {
-      return {
-        reply: `${formatted}\n\nIf you tell me the exact song title by ${ay.artist || "that artist"}, I’ll give you a quick story moment.`,
-        followUp: ["Story moment", "Another year", "#1"],
-        domain: "music",
-      };
-    }
-  }
-
   const yrs = pickFollowUpYears();
   return {
     reply: `Give me a year (${publicRange}) or an artist + year (example: “Prince 1984”).`,
@@ -761,38 +637,14 @@ function handleChat({ text, session } = {}) {
   };
 }
 
-/* =========================
-   EXPORTS
-========================= */
-
 module.exports = {
   getTopByYear,
   getNumberOneByYear,
-
   STATS: () => {
     loadDb();
     return { ...STATS };
   },
   MK_VERSION: () => MK_VERSION,
-
-  getChartYearRange,
-  getMusicRangeText,
-  getPublicRangeText,
-  getAvailableCharts,
-
-  CHART_RANGES: () => {
-    buildChartRanges();
-    const out = {};
-    for (const [k, v] of CHART_RANGES.entries()) out[k] = { ...v };
-    return out;
-  },
-
-  BUCKETS: () => ({
-    baseDir: BUCKETS_BASE_DIR,
-    hasAnyCache: BUCKET_CACHE.size > 0,
-  }),
-
   handleChat,
-
   PUBLIC_RANGE: () => ({ min: PUBLIC_MIN_YEAR, max: PUBLIC_MAX_YEAR }),
 };
