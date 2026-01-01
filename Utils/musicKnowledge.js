@@ -1,14 +1,15 @@
 "use strict";
 
 /**
- * Utils/musicKnowledge.js — v2.54
+ * Utils/musicKnowledge.js — v2.55
  *
- * FIXES IN v2.54:
- *  - Deterministic dedupe + precedence merge (chart|year|rank), Wikipedia wins over DB placeholders.
- *  - Wikipedia merges now stamp `source` so precedence is reliable.
- *  - Hard validation for Billboard Year-End Singles (1950–1959) to prevent Unknown/undefined shipping.
+ * FIXES IN v2.55:
+ *  - Drop rankless rows for year-end charts during dedupe (prevents DB placeholders leaking in).
+ *  - Post-merge cleanup for Billboard Year-End Singles (1950–1959): keep only ranked, non-placeholder rows.
+ *  - Keeps v2.54 priority merge behavior (Wikipedia wins over DB for same chart/year/rank).
+ *  - Keeps v2.54 hard validation for 1950–1959 singles, now it should pass unless Wikipedia file is corrupt.
  *
- * RETAINS v2.53 BEHAVIOR:
+ * RETAINS v2.54 / v2.53 BEHAVIOR:
  *  - Public range 1950–2024
  *  - Canonical chart mapping hardening for "Billboard Year-End Singles"
  *  - Treat Year-End Singles as year-end for fallback logic
@@ -24,7 +25,7 @@ const fs = require("fs");
 const path = require("path");
 
 const MK_VERSION =
-  "musicKnowledge v2.54 (dedupe+priority merge + 50s singles validation; retains v2.53 behavior)";
+  "musicKnowledge v2.55 (drop rankless year-end passthrough + 50s singles cleanup; retains v2.54 behavior)";
 
 const DEFAULT_CHART = "Billboard Hot 100";
 const TOP40_CHART = "Top40Weekly Top 100";
@@ -202,7 +203,7 @@ function normalizeMoment(m) {
 }
 
 /* =========================
-   PRIORITY + DEDUPE (v2.54)
+   PRIORITY + DEDUPE (v2.55)
 ========================= */
 
 function srcPriority(row) {
@@ -218,7 +219,6 @@ function srcPriority(row) {
     y <= 1959
   ) {
     if (src.includes("wikipedia.org")) return 1000;
-    // Non-wiki: still allow, but lower
     return 100;
   }
 
@@ -228,11 +228,23 @@ function srcPriority(row) {
   // Prefer rows that are not placeholder-y
   const title = _t(row.title);
   const artist = _t(row.artist);
-  const nonPlaceholder = title && title !== "Unknown Title" && artist && artist !== "Unknown Artist";
+  const nonPlaceholder =
+    title && title !== "Unknown Title" && artist && artist !== "Unknown Artist";
   if (nonPlaceholder) return 200;
 
   // DB / unknown origins
   return 50;
+}
+
+// v2.55: year-end lists must be ranked; rankless year-end rows are dropped.
+function shouldDropNoKeyRow(m) {
+  const y = toInt(m.year);
+  const chart = normalizeChart(m.chart);
+
+  // If it’s a year-end list, a rankless row is not usable for Top 10 UX and is almost always noise.
+  if (isYearEndChart(chart) && y != null) return true;
+
+  return false;
 }
 
 function dedupeMomentsByPriority(moments) {
@@ -250,8 +262,8 @@ function dedupeMomentsByPriority(moments) {
     const key = chart && y != null && rk != null ? `${chart}|${y}|${rk}` : null;
 
     if (!key) {
-      // no safe dedupe identity: keep as-is
-      passthrough.push(m);
+      // v2.55: Drop rankless year-end rows instead of letting them pollute output.
+      if (!shouldDropNoKeyRow(m)) passthrough.push(m);
       continue;
     }
 
@@ -267,6 +279,24 @@ function dedupeMomentsByPriority(moments) {
   }
 
   return [...out.values(), ...passthrough];
+}
+
+// v2.55: hard cleanup for 50s Year-End Singles slice after merge/dedupe
+function cleanupSingles50s(moments) {
+  return moments.filter((m) => {
+    const c = normalizeChart(m.chart);
+    const y = toInt(m.year);
+    if (c === YEAR_END_SINGLES_CHART && y != null && y >= 1950 && y <= 1959) {
+      return (
+        Number.isFinite(toInt(m.rank)) &&
+        _t(m.title) &&
+        _t(m.title) !== "Unknown Title" &&
+        _t(m.artist) &&
+        _t(m.artist) !== "Unknown Artist"
+      );
+    }
+    return true;
+  });
 }
 
 function validateSingles50sOrThrow(moments) {
@@ -414,10 +444,13 @@ function loadDb() {
   moments = mergeWikipediaYearEnd(moments);
   moments = mergeWikipediaYearEndSingles50s(moments);
 
-  // v2.54: dedupe + priority merge to prevent placeholders from winning
+  // v2.55: dedupe + priority merge to prevent placeholders from winning
   moments = dedupeMomentsByPriority(moments);
 
-  // v2.54: hard validation for 50s singles
+  // v2.55: cleanup the authoritative slice (50s singles) to remove any residual DB noise
+  moments = cleanupSingles50s(moments);
+
+  // v2.55: hard validation for 50s singles
   validateSingles50sOrThrow(moments);
 
   DB = { moments };
