@@ -1,28 +1,26 @@
 "use strict";
 
 /**
- * Utils/musicKnowledge.js — v2.62
+ * Utils/musicKnowledge.js — v2.63
  *
- * FIXES IN v2.62:
- *  1) Never output "Unknown Title" / "Unknown Artist" in Top lists.
- *     - getTopByYear prefers clean moments; if none are clean, returns [] (forces a proper fallback message).
- *  2) Pre-Hot 100 sanity:
- *     - For years < 1958, DEFAULT_CHART ("Billboard Hot 100") is not valid.
- *       We route to 1950–1959 Year-End Singles ONLY if that year exists in cache;
- *       otherwise we return a clean "missing cache" message (no fake Hot 100 rows).
+ * FIXES IN v2.63:
+ *  1) Auto hot-reload for Wikipedia 1950–1959 Year-End Singles cache.
+ *     - Track file mtime; if the cache file changed, reload it on demand.
+ *     - Fixes "still missing 1951" after rebuild without requiring server restart.
+ *  2) If a 1950s year is requested and appears missing, attempt one forced reload,
+ *     then re-check before returning "missing cache" messaging.
  *
- * Keeps v2.61:
- *  - 50s singles existence gating
- *  - safer chart fallback + improved missing-year messaging
- *  - render-time rank repair
- *  - Wikipedia merges + priority dedupe
+ * Keeps v2.62 behavior:
+ *  - Never output Unknown Title/Artist in lists.
+ *  - Pre-1958 Hot 100 sanity (no fake Hot 100 rows).
+ *  - Wikipedia merges + priority dedupe.
  */
 
 const fs = require("fs");
 const path = require("path");
 
 const MK_VERSION =
-  "musicKnowledge v2.62 (no-UnknownTitle leakage + pre-1958 chart sanity + clean fallback)";
+  "musicKnowledge v2.63 (50s cache hot-reload + forced reload on missing-year + v2.62 safeguards)";
 
 const DEFAULT_CHART = "Billboard Hot 100";
 const TOP40_CHART = "Top40Weekly Top 100";
@@ -67,6 +65,9 @@ const BUCKET_CACHE = new Map();
 // Authoritative cache for 1950–1959 Year-End Singles
 const WIKI_SINGLES_50S_BY_YEAR = new Map();
 let WIKI_SINGLES_50S_LOADED = false;
+
+// v2.63: track mtime so we can hot-reload after rebuild
+let WIKI_SINGLES_50S_LAST_MTIME_MS = 0;
 
 const toInt = (x) => {
   const s = String(x ?? "").trim();
@@ -217,12 +218,45 @@ function isCleanMoment(m) {
   );
 }
 
-function loadWikiSingles50sOnce() {
+/* =========================
+   50s WIKIPEDIA CACHE (HOT-RELOAD)
+========================= */
+
+function getWikiSingles50sFileMtimeMs() {
+  const abs = resolveRepoPath(WIKI_YEAREND_SINGLES_1950_1959);
+  try {
+    const st = fs.statSync(abs);
+    return Number(st?.mtimeMs || 0) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function clearWikiSingles50sCache() {
+  WIKI_SINGLES_50S_BY_YEAR.clear();
+  WIKI_SINGLES_50S_LOADED = false;
+  WIKI_SINGLES_50S_LAST_MTIME_MS = 0;
+}
+
+// v2.63: load with optional force + mtime check
+function loadWikiSingles50sOnce({ force = false } = {}) {
+  const abs = resolveRepoPath(WIKI_YEAREND_SINGLES_1950_1959);
+
+  const mtimeMs = getWikiSingles50sFileMtimeMs();
+  const changedOnDisk =
+    mtimeMs && WIKI_SINGLES_50S_LAST_MTIME_MS && mtimeMs !== WIKI_SINGLES_50S_LAST_MTIME_MS;
+
+  if (force || changedOnDisk) {
+    WIKI_SINGLES_50S_BY_YEAR.clear();
+    WIKI_SINGLES_50S_LOADED = false;
+  }
+
   if (WIKI_SINGLES_50S_LOADED) return;
   WIKI_SINGLES_50S_LOADED = true;
 
-  const abs = resolveRepoPath(WIKI_YEAREND_SINGLES_1950_1959);
   if (!fs.existsSync(abs)) return;
+
+  WIKI_SINGLES_50S_LAST_MTIME_MS = mtimeMs || getWikiSingles50sFileMtimeMs();
 
   const doc = JSON.parse(fs.readFileSync(abs, "utf8"));
   const rows = Array.isArray(doc?.rows)
@@ -257,6 +291,7 @@ function loadWikiSingles50sOnce() {
   for (let y = 1950; y <= 1959; y++) {
     const arr = WIKI_SINGLES_50S_BY_YEAR.get(y) || [];
     arr.sort((a, b) => a.rank - b.rank);
+
     if (!arr.length) {
       console.warn(
         `[musicKnowledge] WARNING: Wikipedia 50s singles missing year ${y} in rows payload.`
@@ -269,6 +304,16 @@ function loadWikiSingles50sOnce() {
 function hasWikiSingles50sYear(y) {
   const arr = WIKI_SINGLES_50S_BY_YEAR.get(y);
   return Array.isArray(arr) && arr.length > 0;
+}
+
+// v2.63: attempt a forced reload once if a requested year is missing
+function ensureWikiSingles50sYear(y) {
+  loadWikiSingles50sOnce(); // normal load + mtime check
+  if (hasWikiSingles50sYear(y)) return true;
+
+  // One-shot forced reload (handles "rebuilt file exists, process never restarted")
+  loadWikiSingles50sOnce({ force: true });
+  return hasWikiSingles50sYear(y);
 }
 
 /* =========================
@@ -518,8 +563,9 @@ function getTopByYear(year, chart = DEFAULT_CHART, limit = 10) {
 
   const c = normalizeChart(chart);
 
-  // 1950–1959 authoritative cache
+  // 1950–1959 authoritative cache (ensure + hot-reload)
   if (c === YEAR_END_SINGLES_CHART && y >= 1950 && y <= 1959) {
+    ensureWikiSingles50sYear(y);
     const arr = WIKI_SINGLES_50S_BY_YEAR.get(y) || [];
     if (!arr.length) return [];
     return renumberSequentialByRank(arr, limit);
@@ -532,7 +578,6 @@ function getTopByYear(year, chart = DEFAULT_CHART, limit = 10) {
     if (Array.isArray(b) && b.length) out = b;
   }
 
-  // If a year-end chart is empty, try common fallbacks (kept from prior versions)
   if (!out.length && isYearEndChart(c)) {
     out = BY_YEAR_CHART.get(`${y}|${DEFAULT_CHART}`) || [];
     if (!out.length) {
@@ -550,7 +595,6 @@ function getTopByYear(year, chart = DEFAULT_CHART, limit = 10) {
 
   if (!out.length) return [];
 
-  // v2.62: Prefer clean moments; never output Unknown Title/Artist
   const clean = out.filter(isCleanMoment);
   if (!clean.length) return [];
 
@@ -569,7 +613,6 @@ function getNumberOneByYear(year, chart = DEFAULT_CHART) {
    CONVERSATIONAL ROUTING
 ========================= */
 
-// Hot 100 begins 1958; pre-1958 must not claim Hot 100
 function isHot100ValidForYear(year) {
   const y = toInt(year);
   return y != null && y >= 1958;
@@ -579,14 +622,12 @@ function chooseChartForYear(requestedChart, year) {
   const y = toInt(year);
   const requested = normalizeChart(requestedChart || DEFAULT_CHART);
 
-  // 1950–1959: use Year-End Singles ONLY if that year exists in cache.
+  // 1950–1959: use Year-End Singles ONLY if that year exists in cache (with hot-reload)
   if (y != null && y >= 1950 && y <= 1959) {
-    if (hasWikiSingles50sYear(y)) return YEAR_END_SINGLES_CHART;
-    // Do NOT fall back to Hot 100 for pre-1958
+    if (ensureWikiSingles50sYear(y)) return YEAR_END_SINGLES_CHART;
     return "MISSING_50S_SINGLE_YEAR";
   }
 
-  // If someone asks for Hot 100 pre-1958, don't pretend.
   if (requested === DEFAULT_CHART && y != null && !isHot100ValidForYear(y)) {
     return "PRE_HOT100_UNSUPPORTED";
   }
@@ -665,7 +706,6 @@ function handleChat({ text, session } = {}) {
     st.activeMusicChart || st.musicChart || st.activeChart || st.chart || null;
 
   const publicRange = `${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}`;
-
   const year = parseYearFromText(userText);
 
   if (NYX_DEBUG) {
@@ -677,6 +717,16 @@ function handleChat({ text, session } = {}) {
       musicChart: st.musicChart,
       activeDomain: st.activeDomain,
     });
+  }
+
+  // Optional debug command: "reload 50s"
+  if (NYX_DEBUG && /^reload\s+50s\b/i.test(userText)) {
+    loadWikiSingles50sOnce({ force: true });
+    return {
+      reply: `Done. I reloaded the 1950–1959 Year-End Singles cache from disk.`,
+      followUp: ["Try: 1951", "Try: 1959", "Try: 1956"],
+      domain: "music",
+    };
   }
 
   if (!userText) {
@@ -700,7 +750,6 @@ function handleChat({ text, session } = {}) {
 
     const chartChoice = chooseChartForYear(requestedChart, year);
 
-    // v2.62: explicit, honest pre-1958 behavior (no fake Hot 100 rows)
     if (chartChoice === "PRE_HOT100_UNSUPPORTED") {
       return {
         reply: `For ${year}, Billboard Hot 100 wasn’t running yet. I can use 1950s Year-End Singles when that year is in the Wikipedia cache — otherwise, pick another year.`,
@@ -712,7 +761,7 @@ function handleChat({ text, session } = {}) {
     if (chartChoice === "MISSING_50S_SINGLE_YEAR") {
       const yrs = [1950, 1952, 1956, 1959].filter((x) => x !== year).slice(0, 3);
       return {
-        reply: `I’m missing the ${year} Year-End Singles list in the current Wikipedia cache — so I won’t fake it. Try another 1950s year while we rebuild that slice.`,
+        reply: `I’m missing the ${year} Year-End Singles list in the current Wikipedia cache — so I won’t fake it. Try another 1950s year.`,
         followUp: [`Try: ${yrs[0]}`, `Try: ${yrs[1]}`, `Try: ${yrs[2]}`],
         domain: "music",
       };
@@ -727,7 +776,6 @@ function handleChat({ text, session } = {}) {
       };
     }
 
-    // If we couldn't produce a clean list, be explicit (no "Unknown Title" leakage)
     const yrs = pickFollowUpYears();
     return {
       reply: `I don’t have a clean chart list for ${year} in the current sources yet. Try another year in ${publicRange}.`,
@@ -754,4 +802,8 @@ module.exports = {
   MK_VERSION: () => MK_VERSION,
   handleChat,
   PUBLIC_RANGE: () => ({ min: PUBLIC_MIN_YEAR, max: PUBLIC_MAX_YEAR }),
+
+  // v2.63: export reload helper (useful for index.js debug routes if you want)
+  reloadWikiSingles50s: () => loadWikiSingles50sOnce({ force: true }),
+  clearWikiSingles50sCache,
 };
