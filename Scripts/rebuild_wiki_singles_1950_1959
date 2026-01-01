@@ -55,22 +55,28 @@ function norm(s) {
   return cleanText(s).toLowerCase();
 }
 
+// UPDATED: stronger rank header detection
 function isRankHeader(h) {
   const x = norm(h);
   return (
     x === "no" ||
     x === "no." ||
     x === "#" ||
-    x.includes("no.") ||
+    x === "rank" ||
+    x === "position" ||
+    x === "pos" ||
+    x.includes("no") || // catches "No", "No.", "No\n", etc
+    x.includes("#") ||
     x.includes("rank") ||
-    x.includes("position") ||
-    x.includes("pos")
+    x.includes("position")
   );
 }
+
 function isTitleHeader(h) {
   const x = norm(h);
   return x.includes("title") || x.includes("single");
 }
+
 function isArtistHeader(h) {
   const x = norm(h);
   return x.includes("artist");
@@ -95,7 +101,6 @@ function guessBestTable($) {
     const hasTitle = headers.some(isTitleHeader);
     const hasArtist = headers.some(isArtistHeader);
 
-    // Data row heuristic
     const trCount = $tbl.find("tr").length;
     const dataRowCount = Math.max(0, trCount - 1);
 
@@ -103,7 +108,7 @@ function guessBestTable($) {
     if (hasRank) score += 4;
     if (hasTitle) score += 4;
     if (hasArtist) score += 4;
-    score += Math.min(6, Math.floor(dataRowCount / 10)); // more rows = slightly better
+    score += Math.min(6, Math.floor(dataRowCount / 10));
 
     if (score > bestScore) {
       bestScore = score;
@@ -129,7 +134,6 @@ function parseRank(s) {
 
 function normalizeTitle(t) {
   let s = cleanText(t);
-  // Remove surrounding quotes if present
   s = s.replace(/^["“”]+/, "").replace(/["“”]+$/, "").trim();
   return s;
 }
@@ -139,7 +143,6 @@ function normalizeArtist(a) {
 }
 
 async function fetchHtml(url) {
-  // Node 18+ has global fetch. If your environment doesn’t, install node-fetch and swap here.
   const res = await fetch(url, {
     headers: { "User-Agent": "sandblast-musicKnowledge/1.0 (cache rebuild)" },
   });
@@ -169,22 +172,38 @@ async function scrapeYear(y) {
   const titleIdx = findColIndex(headers, isTitleHeader);
   const artistIdx = findColIndex(headers, isArtistHeader);
 
-  if (rankIdx < 0 || titleIdx < 0 || artistIdx < 0) {
+  // NEW: rank fallback (critical for 1959)
+  let resolvedRankIdx = rankIdx;
+  if (resolvedRankIdx < 0) {
+    const sample = [];
+    $tbl.find("tr").slice(1, 9).each((_, tr) => {
+      const $cells = $(tr).children("th,td");
+      if ($cells.length) sample.push(cleanText($cells.eq(0).text()));
+    });
+
+    const numericHits = sample.filter((t) => parseRank(t) != null).length;
+    if (numericHits >= Math.max(3, Math.floor(sample.length * 0.6))) {
+      resolvedRankIdx = 0;
+    }
+  }
+
+  if (resolvedRankIdx < 0 || titleIdx < 0 || artistIdx < 0) {
     throw new Error(
-      `Could not identify columns (rankIdx=${rankIdx}, titleIdx=${titleIdx}, artistIdx=${artistIdx})`
+      `Could not identify columns (rankIdx=${resolvedRankIdx}, titleIdx=${titleIdx}, artistIdx=${artistIdx})`
     );
   }
 
   const rows = [];
-  $tbl.find("tr").slice(1).each((_, tr) => {
-    const $cells = $(tr).find("td");
-    if ($cells.length < Math.max(rankIdx, titleIdx, artistIdx) + 1) return;
 
-    const rank = parseRank($cells.eq(rankIdx).text());
+  // UPDATED: read BOTH th + td cells (fixes missing rows in 1950/52/53/56)
+  $tbl.find("tr").slice(1).each((_, tr) => {
+    const $cells = $(tr).children("th,td");
+    if ($cells.length < Math.max(resolvedRankIdx, titleIdx, artistIdx) + 1) return;
+
+    const rank = parseRank($cells.eq(resolvedRankIdx).text());
     const titleText = normalizeTitle($cells.eq(titleIdx).text());
     const artistText = normalizeArtist($cells.eq(artistIdx).text());
 
-    // Strict quality gate: no missing title/artist, no unknown placeholders
     if (!rank) return;
     if (!titleText || !artistText) return;
 
@@ -199,7 +218,7 @@ async function scrapeYear(y) {
     });
   });
 
-  // Sanity: remove duplicates by rank (keep first)
+  // Dedupe by rank
   const seen = new Set();
   const clean = [];
   for (const r of rows.sort((a, b) => a.rank - b.rank)) {
@@ -234,7 +253,7 @@ async function main() {
       const count = got.rows.length;
       countsByYear[String(y)] = count;
 
-      // Hard check: if the year is short, treat as failure (don’t silently accept partial garbage)
+      // hard check: if too short, fail
       if (exp && count < Math.max(10, Math.floor(exp * 0.6))) {
         throw new Error(`Too few rows (${count}) expected ~${exp}`);
       }
@@ -251,7 +270,6 @@ async function main() {
     }
   }
 
-  // Final strict gate: do not write a broken file
   if (failures.length) {
     console.error("\n[rebuild] Failures detected. Not writing output file.");
     console.error(JSON.stringify(failures, null, 2));
@@ -259,7 +277,6 @@ async function main() {
     return;
   }
 
-  // Write output
   const out = {
     ok: true,
     generatedAt: new Date().toISOString(),
