@@ -1,17 +1,20 @@
 "use strict";
 
 /**
- * Utils/musicKnowledge.js — v2.61
+ * Utils/musicKnowledge.js — v2.62
  *
- * FIXES IN v2.61:
- *  - Do NOT force 1950–1959 -> Year-End Singles unless that year exists in the Wikipedia cache.
- *    (Prevents misleading "not loaded yet" responses when the cache is missing a year like 1951.)
- *  - chooseChartForYear now falls back to DEFAULT_CHART for missing 50s singles years.
- *  - Improved 50s missing-year message: "missing in current cache" + forward options.
+ * FIXES IN v2.62:
+ *  1) Never output "Unknown Title" / "Unknown Artist" in Top lists.
+ *     - getTopByYear prefers clean moments; if none are clean, returns [] (forces a proper fallback message).
+ *  2) Pre-Hot 100 sanity:
+ *     - For years < 1958, DEFAULT_CHART ("Billboard Hot 100") is not valid.
+ *       We route to 1950–1959 Year-End Singles ONLY if that year exists in cache;
+ *       otherwise we return a clean "missing cache" message (no fake Hot 100 rows).
  *
- * Keeps v2.60 behavior:
- *  - Bulletproof user-text normalization + robust year parsing
- *  - GLOBAL rank-gap repair at render-time (formatTopList)
+ * Keeps v2.61:
+ *  - 50s singles existence gating
+ *  - safer chart fallback + improved missing-year messaging
+ *  - render-time rank repair
  *  - Wikipedia merges + priority dedupe
  */
 
@@ -19,7 +22,7 @@ const fs = require("fs");
 const path = require("path");
 
 const MK_VERSION =
-  "musicKnowledge v2.61 (50s singles existence gating + safer chart fallback + improved missing-year messaging)";
+  "musicKnowledge v2.62 (no-UnknownTitle leakage + pre-1958 chart sanity + clean fallback)";
 
 const DEFAULT_CHART = "Billboard Hot 100";
 const TOP40_CHART = "Top40Weekly Top 100";
@@ -78,12 +81,6 @@ function cleanText(s) {
   return String(s || "").replace(/\s+/g, " ").trim();
 }
 
-/**
- * Normalize user input so we always parse years correctly.
- * - Strips "Try:" prefix (case-insensitive)
- * - Converts NBSP to normal spaces
- * - Collapses whitespace
- */
 function normalizeUserText(raw) {
   return String(raw || "")
     .replace(/\u00A0/g, " ")
@@ -92,14 +89,12 @@ function normalizeUserText(raw) {
     .trim();
 }
 
-// strip wrapping quotes and normalize whitespace for display safety
 function cleanField(s) {
   let t = cleanText(s);
   t = t.replace(/^"\s*/g, "").replace(/\s*"$/g, "");
   return cleanText(t);
 }
 
-// renumber a list sequentially by existing rank order
 function renumberSequentialByRank(rows, limit) {
   const ranked = (rows || []).filter((m) => m && m.rank != null);
   ranked.sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999));
@@ -108,7 +103,6 @@ function renumberSequentialByRank(rows, limit) {
   return out;
 }
 
-// render-time rank repair helper (preserve existing order; overwrite ranks 1..N)
 function renumberSequentialPreserveOrder(rows) {
   const out = (rows || []).slice();
   for (let i = 0; i < out.length; i++) out[i].rank = i + 1;
@@ -272,7 +266,6 @@ function loadWikiSingles50sOnce() {
   }
 }
 
-/** v2.61: existence gate for 50s singles by year */
 function hasWikiSingles50sYear(y) {
   const arr = WIKI_SINGLES_50S_BY_YEAR.get(y);
   return Array.isArray(arr) && arr.length > 0;
@@ -335,7 +328,7 @@ function dedupeMomentsByPriority(moments) {
 }
 
 /* =========================
-   WIKIPEDIA MERGES (logs retained)
+   WIKIPEDIA MERGES
 ========================= */
 
 function mergeWikipediaYearEnd(moments) {
@@ -525,10 +518,11 @@ function getTopByYear(year, chart = DEFAULT_CHART, limit = 10) {
 
   const c = normalizeChart(chart);
 
+  // 1950–1959 authoritative cache
   if (c === YEAR_END_SINGLES_CHART && y >= 1950 && y <= 1959) {
     const arr = WIKI_SINGLES_50S_BY_YEAR.get(y) || [];
-    if (arr.length) return renumberSequentialByRank(arr, limit);
-    return [];
+    if (!arr.length) return [];
+    return renumberSequentialByRank(arr, limit);
   }
 
   let out = BY_YEAR_CHART.get(`${y}|${c}`) || [];
@@ -538,6 +532,7 @@ function getTopByYear(year, chart = DEFAULT_CHART, limit = 10) {
     if (Array.isArray(b) && b.length) out = b;
   }
 
+  // If a year-end chart is empty, try common fallbacks (kept from prior versions)
   if (!out.length && isYearEndChart(c)) {
     out = BY_YEAR_CHART.get(`${y}|${DEFAULT_CHART}`) || [];
     if (!out.length) {
@@ -555,8 +550,12 @@ function getTopByYear(year, chart = DEFAULT_CHART, limit = 10) {
 
   if (!out.length) return [];
 
-  const ranked = out.filter((m) => m.rank != null);
-  const base = ranked.length ? ranked.sort((a, b) => a.rank - b.rank) : out;
+  // v2.62: Prefer clean moments; never output Unknown Title/Artist
+  const clean = out.filter(isCleanMoment);
+  if (!clean.length) return [];
+
+  const ranked = clean.filter((m) => m.rank != null);
+  const base = ranked.length ? ranked.sort((a, b) => a.rank - b.rank) : clean;
 
   return base.slice(0, Math.max(1, limit));
 }
@@ -570,15 +569,26 @@ function getNumberOneByYear(year, chart = DEFAULT_CHART) {
    CONVERSATIONAL ROUTING
 ========================= */
 
+// Hot 100 begins 1958; pre-1958 must not claim Hot 100
+function isHot100ValidForYear(year) {
+  const y = toInt(year);
+  return y != null && y >= 1958;
+}
+
 function chooseChartForYear(requestedChart, year) {
   const y = toInt(year);
   const requested = normalizeChart(requestedChart || DEFAULT_CHART);
 
-  // v2.61: only force 50s Year-End Singles if we actually have that year in the cache
+  // 1950–1959: use Year-End Singles ONLY if that year exists in cache.
   if (y != null && y >= 1950 && y <= 1959) {
     if (hasWikiSingles50sYear(y)) return YEAR_END_SINGLES_CHART;
-    // fallback: don't claim singles if we don't have them
-    return requested || DEFAULT_CHART;
+    // Do NOT fall back to Hot 100 for pre-1958
+    return "MISSING_50S_SINGLE_YEAR";
+  }
+
+  // If someone asks for Hot 100 pre-1958, don't pretend.
+  if (requested === DEFAULT_CHART && y != null && !isHot100ValidForYear(y)) {
+    return "PRE_HOT100_UNSUPPORTED";
   }
 
   if (requested === YEAR_END_SINGLES_CHART && y != null && (y < 1950 || y > 1959)) {
@@ -599,7 +609,6 @@ function parseYearFromText(text) {
   return m ? toInt(m[1]) : null;
 }
 
-// global rank-gap repair happens here (render-time only)
 function formatTopList(year, chart, limit = 10) {
   const finalChart = normalizeChart(chart);
   let list = getTopByYear(year, finalChart, limit);
@@ -673,7 +682,7 @@ function handleChat({ text, session } = {}) {
   if (!userText) {
     const yrs = pickFollowUpYears();
     return {
-      reply: `Music—nice. Give me a year (${publicRange}) or an artist + year, and I’ll pull something memorable.`,
+      reply: `Alright—music. Give me a year (${publicRange}) or an artist + year, and I’ll pull something memorable.`,
       followUp: [`Try: ${yrs[0]}`, `Try: ${yrs[1]}`, "Try: Prince 1984"],
       domain: "music",
     };
@@ -689,9 +698,27 @@ function handleChat({ text, session } = {}) {
       };
     }
 
-    const finalChart = chooseChartForYear(requestedChart, year);
+    const chartChoice = chooseChartForYear(requestedChart, year);
 
-    const formatted = formatTopList(year, finalChart, 10);
+    // v2.62: explicit, honest pre-1958 behavior (no fake Hot 100 rows)
+    if (chartChoice === "PRE_HOT100_UNSUPPORTED") {
+      return {
+        reply: `For ${year}, Billboard Hot 100 wasn’t running yet. I can use 1950s Year-End Singles when that year is in the Wikipedia cache — otherwise, pick another year.`,
+        followUp: ["Try: 1950", "Try: 1956", "Try: 1959"],
+        domain: "music",
+      };
+    }
+
+    if (chartChoice === "MISSING_50S_SINGLE_YEAR") {
+      const yrs = [1950, 1952, 1956, 1959].filter((x) => x !== year).slice(0, 3);
+      return {
+        reply: `I’m missing the ${year} Year-End Singles list in the current Wikipedia cache — so I won’t fake it. Try another 1950s year while we rebuild that slice.`,
+        followUp: [`Try: ${yrs[0]}`, `Try: ${yrs[1]}`, `Try: ${yrs[2]}`],
+        domain: "music",
+      };
+    }
+
+    const formatted = formatTopList(year, chartChoice, 10);
     if (formatted) {
       return {
         reply: `${formatted}\n\nWant #1, a story moment, or another year?`,
@@ -700,24 +727,10 @@ function handleChat({ text, session } = {}) {
       };
     }
 
-    // v2.61: if we tried Year-End Singles but the specific year is missing, say it accurately
-    if (
-      normalizeChart(finalChart) === YEAR_END_SINGLES_CHART &&
-      year >= 1950 &&
-      year <= 1959 &&
-      !hasWikiSingles50sYear(year)
-    ) {
-      const yrs = [1950, 1952, 1956, 1958].filter((x) => x !== year).slice(0, 3);
-      return {
-        reply: `I’m missing the ${year} Year-End Singles list in the current Wikipedia cache. Try another 1950s year while I rebuild that slice.`,
-        followUp: [`Try: ${yrs[0]}`, `Try: ${yrs[1]}`, `Try: ${yrs[2]}`],
-        domain: "music",
-      };
-    }
-
+    // If we couldn't produce a clean list, be explicit (no "Unknown Title" leakage)
     const yrs = pickFollowUpYears();
     return {
-      reply: `I don’t have a clean chart list for ${year} on this source yet. Try another year in ${publicRange}.`,
+      reply: `I don’t have a clean chart list for ${year} in the current sources yet. Try another year in ${publicRange}.`,
       followUp: [`Try: ${yrs[0]}`, `Try: ${yrs[1]}`, `Try: ${yrs[2]}`],
       domain: "music",
     };
