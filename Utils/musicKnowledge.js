@@ -1,38 +1,42 @@
 "use strict";
 
 /**
- * Utils/musicKnowledge.js — v2.51
+ * Utils/musicKnowledge.js — v2.52
  *
  * GOAL (per Mac):
  *  - Public range is 1950–2024 (Nyx should say/accept this now).
+ *  - Fill the missing 1950–1969 coverage; start with 1950–1959 using Wikipedia Year-End Singles pages.
  *
  * WHAT THIS DOES:
  *  - Maintains chart-aware indexing and chart-specific availability.
  *  - Sets a PUBLIC range (1950–2024) used in prompts + validation.
- *  - If user requests a year outside a chart’s real coverage (ex: Year-End 1955),
- *    the module automatically routes to the broad/default chart source.
+ *  - If user requests a year outside a chart’s real coverage, the module routes to a chart that can serve it.
  *  - Provides handleChat() for index.js integration.
  *
- * NEW IN v2.51:
- *  - Optional bucket loader: Data/_buckets/music/<chart-slug>/<year>.json
- *  - Deterministic year buckets for 1950–2024 once you run the ingestion script
- *  - Bucket cache to avoid repeated disk reads
+ * NEW IN v2.52:
+ *  - Adds Wikipedia merge for 1950–1959 “Year-End Singles” (Top 30/50/Hot100 of year pages).
+ *  - Adds YEAR_END_SINGLES_CHART and routing so 1950–1959 requests don’t break or return empty.
  *
  * RETAINS:
+ *  - v2.51 bucket loader + cache
  *  - 1988 #3 George Harrison hard-fix
  *  - rank-safe lists + rank aliases
- *  - Wikipedia Year-End merge (1970–2010 file)
+ *  - Wikipedia Year-End Hot 100 merge (1970–2010 file)
  */
 
 const fs = require("fs");
 const path = require("path");
 
 const MK_VERSION =
-  "musicKnowledge v2.51 (PUBLIC 1950–2024 + buckets fallback + chart-aware ranges + handleChat; retains v2.50/v2.49/v2.48/v2.47/v2.46)";
+  "musicKnowledge v2.52 (adds 1950–1959 Wikipedia Year-End Singles + smarter pre-Hot100 routing; retains v2.51 buckets + v2.50/v2.49/v2.48/v2.47/v2.46)";
 
 const DEFAULT_CHART = "Billboard Hot 100";
 const TOP40_CHART = "Top40Weekly Top 100";
 const YEAR_END_CHART = "Billboard Year-End Hot 100";
+const YEAR_END_SINGLES_CHART = "Billboard Year-End Singles";
+
+// Hot 100 started in 1958 (important for routing)
+const HOT100_START_YEAR = 1958;
 
 // PUBLIC (what Nyx says/accepts)
 const PUBLIC_MIN_YEAR = 1950;
@@ -55,10 +59,16 @@ const DB_CANDIDATES = [
   "Data/music_moments.json",
 ];
 
+// Existing Year-End merge (1970–2010)
 const WIKI_YEAREND_COMBINED =
   "Data/wikipedia/billboard_yearend_hot100_1970_2010.json";
 
-// Buckets (created by your ingestion script)
+// NEW: Year-End Singles merge (1950–1959) — you will generate this combined file
+// Expected shape: either an array of {year,rank,artist,title} or {moments:[...]}
+const WIKI_SINGLES_1950_1959 =
+  "Data/wikipedia/billboard_yearend_singles_1950_1959.json";
+
+// Buckets (created by your ingestion scripts)
 const BUCKETS_BASE_DIR = "Data/_buckets/music";
 
 /* =========================
@@ -107,16 +117,26 @@ function coerceRank(m) {
 
 function normalizeChart(chart) {
   const c = String(chart || DEFAULT_CHART).toLowerCase();
+
+  // Year-end singles (explicit)
+  if (c.includes("year") && c.includes("end") && c.includes("single")) {
+    return YEAR_END_SINGLES_CHART;
+  }
+
+  // Year-end hot100 (generic year-end)
   if (c.includes("year") && c.includes("end")) return YEAR_END_CHART;
+
   if (c.includes("top40")) return TOP40_CHART;
+
   if (c.includes("billboard") || c.includes("hot 100") || c.includes("hot100"))
     return DEFAULT_CHART;
+
   return chart || DEFAULT_CHART;
 }
 
 function isYearEndChart(chart) {
-  const c = String(chart || "").toLowerCase();
-  return c.includes("year") && c.includes("end");
+  const c = normalizeChart(chart);
+  return c === YEAR_END_CHART || c === YEAR_END_SINGLES_CHART;
 }
 
 function slugifyChart(name) {
@@ -160,10 +180,11 @@ function normalizeMoment(m) {
 }
 
 /* =========================
-   WIKIPEDIA YEAR-END MERGE
+   WIKIPEDIA MERGES
 ========================= */
 
-function mergeWikipediaYearEnd(moments) {
+// 1970–2010 year-end hot100 merge (existing)
+function mergeWikipediaYearEndHot100_1970_2010(moments) {
   const abs = path.resolve(__dirname, "..", WIKI_YEAREND_COMBINED);
   if (!fs.existsSync(abs)) return moments;
 
@@ -188,7 +209,41 @@ function mergeWikipediaYearEnd(moments) {
   }
 
   console.log(
-    `[musicKnowledge] Wikipedia Year-End merge: source=${abs} rows=${merged.length}`
+    `[musicKnowledge] Wikipedia Year-End Hot 100 merge: source=${abs} rows=${merged.length}`
+  );
+  return moments.concat(merged);
+}
+
+// NEW: 1950–1959 year-end singles merge (Top 30/50/Hot100 of year)
+function mergeWikipediaYearEndSingles_1950_1959(moments) {
+  const abs = path.resolve(__dirname, "..", WIKI_SINGLES_1950_1959);
+  if (!fs.existsSync(abs)) return moments;
+
+  const doc = JSON.parse(fs.readFileSync(abs, "utf8"));
+  const rows = Array.isArray(doc?.moments) ? doc.moments : doc;
+
+  const merged = [];
+  for (const r of rows) {
+    const y = toInt(r.year);
+    const rk = toInt(r.rank);
+    if (!y || !rk) continue;
+
+    // Guard: keep this merge strictly 1950–1959
+    if (y < 1950 || y > 1959) continue;
+
+    merged.push(
+      normalizeMoment({
+        year: y,
+        rank: rk,
+        artist: r.artist,
+        title: r.title,
+        chart: YEAR_END_SINGLES_CHART,
+      })
+    );
+  }
+
+  console.log(
+    `[musicKnowledge] Wikipedia Year-End Singles merge: source=${abs} rows=${merged.length}`
   );
   return moments.concat(merged);
 }
@@ -220,7 +275,9 @@ function loadDb() {
     break;
   }
 
-  moments = mergeWikipediaYearEnd(moments);
+  // Merge in deterministic Wikipedia sources (append-only)
+  moments = mergeWikipediaYearEndSingles_1950_1959(moments);
+  moments = mergeWikipediaYearEndHot100_1970_2010(moments);
 
   DB = { moments };
   BY_YEAR.clear();
@@ -318,7 +375,7 @@ function getTopByYear(year, chart = DEFAULT_CHART, limit = 10) {
     if (Array.isArray(b) && b.length) out = b;
   }
 
-  // For Year-End: if no entries, fall back to broad sources (including buckets)
+  // For year-end charts: if no entries, fall back to broad sources (including buckets)
   if (!out.length && isYearEndChart(c)) {
     out = BY_YEAR_CHART.get(`${y}|${DEFAULT_CHART}`) || [];
     if (!out.length) {
@@ -424,13 +481,31 @@ function getPublicRangeText() {
 
 /**
  * If a chart is requested that can't serve the requested year,
- * route to a chart that might (DEFAULT_CHART).
+ * route to a chart that can.
  */
 function chooseChartForYear(requestedChart, year) {
   const y = toInt(year);
   const c = normalizeChart(requestedChart || DEFAULT_CHART);
 
-  if (c === YEAR_END_CHART && y != null && (y < 1970 || y > 2010)) {
+  if (y == null) return c;
+
+  // 1950–1959: serve from Year-End Singles (not Hot 100)
+  if (y >= 1950 && y <= 1959) {
+    // If user asked for Hot100 or Year-End Hot100, route to Singles which we actually have.
+    if (c === DEFAULT_CHART || c === YEAR_END_CHART) return YEAR_END_SINGLES_CHART;
+    // If user explicitly asked for Singles already, keep it.
+    if (c === YEAR_END_SINGLES_CHART) return YEAR_END_SINGLES_CHART;
+  }
+
+  // Hot 100 chart: doesn’t exist before 1958; route to Singles if applicable
+  if (c === DEFAULT_CHART && y < HOT100_START_YEAR) {
+    if (y >= 1950 && y <= 1959) return YEAR_END_SINGLES_CHART;
+  }
+
+  // Year-End Hot 100 (your 1970–2010 Wikipedia file)
+  if (c === YEAR_END_CHART && (y < 1970 || y > 2010)) {
+    // Prefer Singles if it’s a 50s year; otherwise fall back to DEFAULT chart/buckets
+    if (y >= 1950 && y <= 1959) return YEAR_END_SINGLES_CHART;
     return DEFAULT_CHART;
   }
 
@@ -469,7 +544,7 @@ function formatTopList(year, chart, limit = 10) {
 }
 
 function pickFollowUpYears() {
-  const cands = [1950, 1951, 1960, 1970, 1984, 1999, 2010, 2020, 2024];
+  const cands = [1950, 1955, 1959, 1960, 1970, 1984, 1999, 2010, 2024];
   const out = [];
   for (const y of cands) {
     if (y >= PUBLIC_MIN_YEAR && y <= PUBLIC_MAX_YEAR && !out.includes(y)) out.push(y);
@@ -482,7 +557,7 @@ function pickFollowUpYears() {
  * handleChat({ text, session })
  * - Public promise: 1950–2024
  * - Uses buckets if present
- * - If bucket exists but empty, stays honest and guides forward
+ * - Routes 1950–1959 into Year-End Singles automatically
  */
 function handleChat({ text, session } = {}) {
   loadDb();
@@ -618,4 +693,12 @@ module.exports = {
 
   // public range
   PUBLIC_RANGE: () => ({ min: PUBLIC_MIN_YEAR, max: PUBLIC_MAX_YEAR }),
+
+  // chart constants (optional external use)
+  CHARTS: () => ({
+    DEFAULT_CHART,
+    TOP40_CHART,
+    YEAR_END_CHART,
+    YEAR_END_SINGLES_CHART,
+  }),
 };
