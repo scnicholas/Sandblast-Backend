@@ -1,0 +1,204 @@
+"use strict";
+
+/**
+ * Scripts/ingest_wikipedia_yearend_1950s.js
+ *
+ * Input: a map of year -> wikipedia URL for year-end singles list.
+ * Output: Data/wikipedia/billboard_yearend_singles_1950_1959.json
+ *
+ * This does NOT touch your existing 1970–2010 file.
+ */
+
+const fs = require("fs");
+const path = require("path");
+const cheerio = require("cheerio");
+
+const OUT_DIR = path.resolve(process.cwd(), "Data/wikipedia");
+fs.mkdirSync(OUT_DIR, { recursive: true });
+
+// Paste your URLs here (year -> url)
+const YEAR_URLS = {
+  // 1950: "https://en.wikipedia.org/wiki/....",
+  // ...
+  // 1959: "https://en.wikipedia.org/wiki/....",
+};
+
+const OUT_FILE = path.join(OUT_DIR, "billboard_yearend_singles_1950_1959.json");
+const CHART_NAME = "Billboard Year-End Singles";
+
+function clean(s) {
+  return String(s || "")
+    .replace(/\u00a0/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function toInt(x) {
+  const n = Number(String(x || "").replace(/[^\d]/g, ""));
+  return Number.isFinite(n) ? n : null;
+}
+
+// Prefer a wikitable that contains Rank/No + Title + Artist
+function pickBestWikitable($) {
+  const tables = $("table.wikitable");
+  let best = null;
+  let bestScore = -1;
+
+  tables.each((_, tbl) => {
+    const $tbl = $(tbl);
+    const headers = $tbl
+      .find("tr")
+      .first()
+      .find("th")
+      .map((i, th) => clean($(th).text()).toLowerCase())
+      .get();
+
+    if (!headers.length) return;
+
+    const hasRank =
+      headers.some((h) => h === "no." || h === "no" || h === "#" || h.includes("rank") || h.includes("position"));
+    const hasTitle = headers.some((h) => h.includes("title") || h.includes("song"));
+    const hasArtist = headers.some((h) => h.includes("artist") || h.includes("performer"));
+
+    // Score: prioritize explicit rank+title+artist
+    let score = 0;
+    if (hasRank) score += 50;
+    if (hasTitle) score += 40;
+    if (hasArtist) score += 40;
+
+    const rowCount = $tbl.find("tr").length;
+    score += Math.min(40, Math.floor(rowCount / 5));
+
+    if (score > bestScore) {
+      bestScore = score;
+      best = $tbl;
+    }
+  });
+
+  return best;
+}
+
+function getHeaderIndexMap($tbl) {
+  const headers = $tbl
+    .find("tr")
+    .first()
+    .find("th")
+    .map((i, th) => clean($(th).text()).toLowerCase())
+    .get();
+
+  const idxRank = headers.findIndex((h) => h === "no." || h === "no" || h === "#" || h.includes("rank") || h.includes("position"));
+  const idxTitle = headers.findIndex((h) => h.includes("title") || h.includes("song"));
+  const idxArtist = headers.findIndex((h) => h.includes("artist") || h.includes("performer"));
+
+  return { idxRank, idxTitle, idxArtist };
+}
+
+function parseTableRows($, $tbl, year, sourceUrl) {
+  const { idxRank, idxTitle, idxArtist } = getHeaderIndexMap($tbl);
+  if (idxRank < 0 || idxTitle < 0) return [];
+
+  const rows = [];
+
+  $tbl.find("tr").slice(1).each((_, tr) => {
+    const cells = $(tr)
+      .find("td,th")
+      .map((i, el) => clean($(el).text()))
+      .get();
+
+    if (!cells.length) return;
+
+    const rank = toInt(cells[idxRank]);
+    if (!rank) return;
+
+    let title = clean(cells[idxTitle] || "");
+    let artist = idxArtist >= 0 ? clean(cells[idxArtist] || "") : "";
+
+    // Wikipedia often wraps titles in quotes — keep it clean
+    title = title.replace(/^"|"$/g, "").trim();
+
+    if (!title) return;
+    if (!artist) artist = "Unknown Artist";
+
+    rows.push({
+      chart: CHART_NAME,
+      year,
+      rank,
+      title,
+      artist,
+      source: sourceUrl,
+    });
+  });
+
+  // De-dupe by rank
+  const byRank = new Map();
+  for (const r of rows) if (!byRank.has(r.rank)) byRank.set(r.rank, r);
+
+  return Array.from(byRank.values()).sort((a, b) => a.rank - b.rank);
+}
+
+async function fetchHtml(url) {
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123 Safari/537.36",
+      Accept: "text/html,application/xhtml+xml",
+      "Accept-Language": "en-US,en;q=0.9",
+    },
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+  return await res.text();
+}
+
+async function ingestYear(year, url) {
+  console.log(`[wiki-50s] Fetch ${year}: ${url}`);
+  const html = await fetchHtml(url);
+  const $ = cheerio.load(html);
+
+  const $tbl = pickBestWikitable($);
+  if (!$tbl) throw new Error(`No wikitable found for ${year}`);
+
+  const rows = parseTableRows($, $tbl, year, url);
+  if (rows.length < 20) throw new Error(`Parsed too few rows for ${year}: ${rows.length}`);
+
+  console.log(`[wiki-50s] ${year}: parsed ${rows.length} rows`);
+  return rows;
+}
+
+async function main() {
+  const years = Object.keys(YEAR_URLS).map(Number).sort((a, b) => a - b);
+  if (!years.length) {
+    console.error("[wiki-50s] No YEAR_URLS provided. Paste your URLs into YEAR_URLS and rerun.");
+    process.exit(1);
+  }
+
+  const all = [];
+  let ok = 0, fail = 0;
+
+  for (const y of years) {
+    try {
+      const rows = await ingestYear(y, YEAR_URLS[y]);
+      all.push(...rows);
+      ok++;
+    } catch (e) {
+      fail++;
+      console.error(`[wiki-50s] FAILED ${y}: ${e.message}`);
+    }
+  }
+
+  const payload = {
+    chart: CHART_NAME,
+    range: { start: Math.min(...years), end: Math.max(...years) },
+    rows: all,
+    generatedAt: new Date().toISOString(),
+  };
+
+  fs.writeFileSync(OUT_FILE, JSON.stringify(payload, null, 2), "utf8");
+  console.log(`[wiki-50s] Wrote ${all.length} rows → ${OUT_FILE}`);
+  console.log(`[wiki-50s] Done. ok=${ok} fail=${fail}`);
+  process.exit(fail ? 1 : 0);
+}
+
+main().catch((e) => {
+  console.error(`[wiki-50s] Fatal: ${e.message}`);
+  process.exit(1);
+});
