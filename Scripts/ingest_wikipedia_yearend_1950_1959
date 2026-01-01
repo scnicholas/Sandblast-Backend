@@ -1,0 +1,259 @@
+"use strict";
+
+/**
+ * Scripts/ingest_wikipedia_yearend_1950_1959.js
+ *
+ * Ingests Wikipedia "Billboard year-end singles" pages for 1950–1959 (Top 30/50/Hot 100).
+ * Outputs:
+ *   Data/wikipedia/billboard_yearend_singles_1950_1959.json
+ *
+ * Requires:
+ *   npm i cheerio
+ */
+
+const fs = require("fs");
+const path = require("path");
+const cheerio = require("cheerio");
+
+const OUT_DIR = path.resolve(process.cwd(), "Data/wikipedia");
+fs.mkdirSync(OUT_DIR, { recursive: true });
+
+const YEAR_URLS = {
+  1950: "https://en.wikipedia.org/wiki/Billboard_year-end_top_30_singles_of_1950",
+  1951: "https://en.wikipedia.org/wiki/Billboard_year-end_top_30_singles_of_1951",
+  1952: "https://en.wikipedia.org/wiki/Billboard_year-end_top_30_singles_of_1952",
+  1953: "https://en.wikipedia.org/wiki/Billboard_year-end_top_30_singles_of_1953",
+  1954: "https://en.wikipedia.org/wiki/Billboard_year-end_top_30_singles_of_1954",
+  1955: "https://en.wikipedia.org/wiki/Billboard_year-end_top_30_singles_of_1955",
+  1956: "https://en.wikipedia.org/wiki/Billboard_year-end_top_50_singles_of_1956",
+  1957: "https://en.wikipedia.org/wiki/Billboard_year-end_top_50_singles_of_1957",
+  1958: "https://en.wikipedia.org/wiki/Billboard_year-end_top_50_singles_of_1958",
+  1959: "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1959",
+};
+
+const OUT_FILE = path.join(OUT_DIR, "billboard_yearend_singles_1950_1959.json");
+
+// Canonical chart label we’ll expose inside musicKnowledge
+const CHART_NAME = "Billboard Year-End Singles";
+
+function clean(s) {
+  return String(s || "")
+    .replace(/\u00a0/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+function toInt(x) {
+  const n = Number(String(x || "").replace(/[^\d]/g, ""));
+  return Number.isFinite(n) ? n : null;
+}
+
+function normalizeHeader(h) {
+  return clean(h).toLowerCase();
+}
+
+// Identify column indices despite changing header wording across pages
+function headerIndex(headers, candidates) {
+  for (let i = 0; i < headers.length; i++) {
+    const h = headers[i];
+    for (const c of candidates) {
+      if (typeof c === "string") {
+        if (h === c) return i;
+        if (h.includes(c)) return i;
+      } else if (c instanceof RegExp) {
+        if (c.test(h)) return i;
+      }
+    }
+  }
+  return -1;
+}
+
+// Pick best wikitable by scoring for rank/title/artist-like columns
+function pickBestWikitable($) {
+  const tables = $("table.wikitable");
+  let best = null;
+  let bestScore = -1;
+
+  tables.each((_, tbl) => {
+    const $tbl = $(tbl);
+    const headers = $tbl
+      .find("tr")
+      .first()
+      .find("th")
+      .map((i, th) => normalizeHeader($(th).text()))
+      .get()
+      .filter(Boolean);
+
+    if (!headers.length) return;
+
+    const idxRank = headerIndex(headers, [
+      "no.",
+      "no",
+      "#",
+      "rank",
+      "position",
+      /^pos\b/,
+      /^#\b/,
+    ]);
+    const idxTitle = headerIndex(headers, [
+      "single",
+      "song",
+      "title",
+      /title/i,
+      /single/i,
+    ]);
+    const idxArtist = headerIndex(headers, [
+      "artist",
+      "artist(s)",
+      "artists",
+      "performer",
+      "performers",
+      "recording artist",
+      /artist/i,
+    ]);
+
+    // Score: rank + title are essential; artist is strongly preferred
+    let score = 0;
+    if (idxRank >= 0) score += 60;
+    if (idxTitle >= 0) score += 60;
+    if (idxArtist >= 0) score += 40;
+
+    // Larger tables should score higher (1959 Hot 100)
+    const rowCount = $tbl.find("tr").length;
+    score += Math.min(60, Math.floor(rowCount / 3));
+
+    if (score > bestScore) {
+      bestScore = score;
+      best = { $tbl, idxRank, idxTitle, idxArtist, headers };
+    }
+  });
+
+  return best;
+}
+
+function stripWikipediaCitations(s) {
+  // Remove bracketed footnote markers like [1], [a], etc.
+  return clean(s).replace(/\[[^\]]*]/g, "").trim();
+}
+
+function parseRows($, best, year, sourceUrl) {
+  const { $tbl, idxRank, idxTitle, idxArtist } = best;
+  if (idxRank < 0 || idxTitle < 0) return [];
+
+  const rows = [];
+  $tbl.find("tr").slice(1).each((_, tr) => {
+    const cells = $(tr)
+      .find("td,th")
+      .map((i, el) => stripWikipediaCitations($(el).text()))
+      .get();
+
+    if (!cells.length) return;
+
+    const rank = toInt(cells[idxRank]);
+    if (!rank) return;
+
+    let title = clean(cells[idxTitle] || "");
+    let artist = idxArtist >= 0 ? clean(cells[idxArtist] || "") : "";
+
+    // Remove surrounding quotes (Wikipedia often uses them)
+    title = title.replace(/^"+|"+$/g, "").trim();
+
+    // Some rows may have title blank but have it in another cell; we keep strict here
+    if (!title) return;
+    if (!artist) artist = "Unknown Artist";
+
+    rows.push({
+      chart: CHART_NAME,
+      year,
+      rank,
+      title,
+      artist,
+      source: sourceUrl,
+    });
+  });
+
+  // De-dupe by rank (Wikipedia sometimes repeats or has subrows)
+  const byRank = new Map();
+  for (const r of rows) {
+    if (!byRank.has(r.rank)) byRank.set(r.rank, r);
+  }
+  return Array.from(byRank.values()).sort((a, b) => a.rank - b.rank);
+}
+
+async function fetchHtml(url) {
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123 Safari/537.36",
+      Accept: "text/html,application/xhtml+xml",
+      "Accept-Language": "en-US,en;q=0.9",
+      "Cache-Control": "no-cache",
+      Pragma: "no-cache",
+    },
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+  return await res.text();
+}
+
+function expectedMinimumRows(year) {
+  if (year >= 1959) return 90; // Hot 100 page should parse near 100
+  if (year >= 1956) return 40; // Top 50 page should parse near 50
+  return 25; // Top 30 page should parse near 30
+}
+
+async function ingestYear(year, url) {
+  console.log(`[wiki-50s] Fetch ${year}: ${url}`);
+  const html = await fetchHtml(url);
+  const $ = cheerio.load(html);
+
+  const best = pickBestWikitable($);
+  if (!best) throw new Error(`No suitable wikitable found for ${year}`);
+
+  const rows = parseRows($, best, year, url);
+  const minRows = expectedMinimumRows(year);
+
+  if (rows.length < minRows) {
+    const titleText = clean($("title").text());
+    throw new Error(
+      `Parsed too few rows for ${year}: ${rows.length} (min ${minRows}). Page title=${titleText || "(none)"}`
+    );
+  }
+
+  console.log(`[wiki-50s] ${year}: parsed ${rows.length} rows`);
+  return rows;
+}
+
+async function main() {
+  const years = Object.keys(YEAR_URLS).map(Number).sort((a, b) => a - b);
+
+  const all = [];
+  let ok = 0, fail = 0;
+
+  for (const y of years) {
+    try {
+      const rows = await ingestYear(y, YEAR_URLS[y]);
+      all.push(...rows);
+      ok++;
+    } catch (e) {
+      fail++;
+      console.error(`[wiki-50s] FAILED ${y}: ${e.message}`);
+    }
+  }
+
+  const payload = {
+    chart: CHART_NAME,
+    years: { start: years[0], end: years[years.length - 1] },
+    sources: YEAR_URLS,
+    rows: all,
+    generatedAt: new Date().toISOString(),
+  };
+
+  fs.writeFileSync(OUT_FILE, JSON.stringify(payload, null, 2), "utf8");
+  console.log(`[wiki-50s] Wrote ${all.length} rows → ${OUT_FILE}`);
+  console.log(`[wiki-50s] Done. ok=${ok} fail=${fail}`);
+  process.exit(fail ? 1 : 0);
+}
+
+main().catch((e) => {
+  console.error(`[wiki-50s] Fatal: ${e.message}`);
+  process.exit(1);
+});
