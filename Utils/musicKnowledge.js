@@ -1,25 +1,18 @@
 "use strict";
 
 /**
- * Utils/musicKnowledge.js — v2.53
+ * Utils/musicKnowledge.js — v2.54
  *
- * GOAL (per Mac):
- *  - Public range is 1950–2024 (Nyx should say/accept this now).
+ * FIXES IN v2.54:
+ *  - Deterministic dedupe + precedence merge (chart|year|rank), Wikipedia wins over DB placeholders.
+ *  - Wikipedia merges now stamp `source` so precedence is reliable.
+ *  - Hard validation for Billboard Year-End Singles (1950–1959) to prevent Unknown/undefined shipping.
  *
- * WHAT THIS DOES:
- *  - Maintains chart-aware indexing and chart-specific availability.
- *  - Sets a PUBLIC range (1950–2024) used in prompts + validation.
- *  - Routes Year-End requests to appropriate sources (including 1950s Year-End Singles).
- *  - Optional bucket loader: Data/_buckets/music/<chart-slug>/<year>.json
- *  - Bucket cache to avoid repeated disk reads
- *  - Provides handleChat() for index.js integration.
- *
- * NEW IN v2.53:
+ * RETAINS v2.53 BEHAVIOR:
+ *  - Public range 1950–2024
  *  - Canonical chart mapping hardening for "Billboard Year-End Singles"
  *  - Treat Year-End Singles as year-end for fallback logic
- *  - formatTopList always labels with the FINAL chosen chart (prevents mislabeling)
- *
- * RETAINS:
+ *  - formatTopList labels with final chosen chart
  *  - 1988 #3 George Harrison hard-fix
  *  - rank-safe lists + rank aliases
  *  - Wikipedia Year-End merge (1970–2010 file)
@@ -31,7 +24,7 @@ const fs = require("fs");
 const path = require("path");
 
 const MK_VERSION =
-  "musicKnowledge v2.53 (canonical singles chart + singles treated as year-end + final chart labeling; retains v2.52)";
+  "musicKnowledge v2.54 (dedupe+priority merge + 50s singles validation; retains v2.53 behavior)";
 
 const DEFAULT_CHART = "Billboard Hot 100";
 const TOP40_CHART = "Top40Weekly Top 100";
@@ -122,7 +115,6 @@ function normalizeChart(chart) {
   const rawKey = normKey(raw);
 
   // HARD guarantee + tolerant match for the Singles chart label.
-  // This prevents callers from drifting the label and breaking lookups.
   if (
     rawKey === "billboard year-end singles" ||
     rawKey === "billboard year end singles" ||
@@ -195,12 +187,119 @@ function normalizeMoment(m) {
     title = "Got My Mind Set on You";
   }
 
+  // Normalize core fields
   m.artist = artist || "Unknown Artist";
   m.title = title || "Unknown Title";
   m.chart = normalizeChart(m.chart);
+
+  // Keep year numeric if possible (prevents subtle key mismatches)
+  if (year != null) m.year = year;
+
+  // Keep rank numeric if possible
   if (rank != null) m.rank = rank;
 
   return m;
+}
+
+/* =========================
+   PRIORITY + DEDUPE (v2.54)
+========================= */
+
+function srcPriority(row) {
+  const chart = normalizeChart(row.chart);
+  const y = toInt(row.year);
+  const src = String(row.source || row.dbSource || row.origin || "").toLowerCase();
+
+  // 50s singles: Wikipedia should always win (when same chart/year/rank exists)
+  if (
+    chart === YEAR_END_SINGLES_CHART &&
+    y != null &&
+    y >= 1950 &&
+    y <= 1959
+  ) {
+    if (src.includes("wikipedia.org")) return 1000;
+    // Non-wiki: still allow, but lower
+    return 100;
+  }
+
+  // General preference
+  if (src.includes("wikipedia.org")) return 500;
+
+  // Prefer rows that are not placeholder-y
+  const title = _t(row.title);
+  const artist = _t(row.artist);
+  const nonPlaceholder = title && title !== "Unknown Title" && artist && artist !== "Unknown Artist";
+  if (nonPlaceholder) return 200;
+
+  // DB / unknown origins
+  return 50;
+}
+
+function dedupeMomentsByPriority(moments) {
+  const out = new Map();
+  const passthrough = [];
+
+  for (const raw of moments) {
+    const m = normalizeMoment(raw);
+
+    const chart = normalizeChart(m.chart);
+    const y = toInt(m.year);
+    const rk = toInt(m.rank);
+
+    // Primary dedupe key for charts that have ranks (year-end lists)
+    const key = chart && y != null && rk != null ? `${chart}|${y}|${rk}` : null;
+
+    if (!key) {
+      // no safe dedupe identity: keep as-is
+      passthrough.push(m);
+      continue;
+    }
+
+    const prev = out.get(key);
+    if (!prev) {
+      out.set(key, m);
+      continue;
+    }
+
+    if (srcPriority(m) > srcPriority(prev)) {
+      out.set(key, m);
+    }
+  }
+
+  return [...out.values(), ...passthrough];
+}
+
+function validateSingles50sOrThrow(moments) {
+  // Ensure 1950–1959 Year-End Singles is clean (no Unknowns, ranks present)
+  const slice = moments.filter((m) => {
+    const c = normalizeChart(m.chart);
+    const y = toInt(m.year);
+    return c === YEAR_END_SINGLES_CHART && y != null && y >= 1950 && y <= 1959;
+  });
+
+  if (!slice.length) return;
+
+  const bad = slice.filter((m) => {
+    const y = toInt(m.year);
+    const rk = toInt(m.rank);
+    const t = _t(m.title);
+    const a = _t(m.artist);
+    return (
+      y == null ||
+      rk == null ||
+      !t ||
+      t === "Unknown Title" ||
+      !a ||
+      a === "Unknown Artist"
+    );
+  });
+
+  if (bad.length) {
+    console.warn("[musicKnowledge] CORRUPT 50s Singles sample:", bad.slice(0, 10));
+    throw new Error(
+      `[musicKnowledge] Corrupt Billboard Year-End Singles (1950–1959): bad=${bad.length} total=${slice.length}`
+    );
+  }
 }
 
 /* =========================
@@ -227,6 +326,7 @@ function mergeWikipediaYearEnd(moments) {
         artist: r.artist,
         title: r.title,
         chart: YEAR_END_CHART,
+        source: abs, // stamp source for priority decisions
       })
     );
   }
@@ -265,6 +365,7 @@ function mergeWikipediaYearEndSingles50s(moments) {
         artist: r.artist,
         title: r.title,
         chart: YEAR_END_SINGLES_CHART,
+        source: abs, // stamp source for priority decisions
       })
     );
   }
@@ -302,9 +403,22 @@ function loadDb() {
     break;
   }
 
-  // merges (append-only behavior)
+  // Stamp DB source on rows that do not have a source (helps priority merge)
+  if (Array.isArray(moments) && LOADED_FROM) {
+    for (const m of moments) {
+      if (m && typeof m === "object" && !m.source) m.source = LOADED_FROM;
+    }
+  }
+
+  // merges (append)
   moments = mergeWikipediaYearEnd(moments);
   moments = mergeWikipediaYearEndSingles50s(moments);
+
+  // v2.54: dedupe + priority merge to prevent placeholders from winning
+  moments = dedupeMomentsByPriority(moments);
+
+  // v2.54: hard validation for 50s singles
+  validateSingles50sOrThrow(moments);
 
   DB = { moments };
   BY_YEAR.clear();
