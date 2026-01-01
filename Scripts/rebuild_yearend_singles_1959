@@ -1,8 +1,16 @@
 const fs = require("fs");
 const path = require("path");
 
-const FILE = path.resolve(process.cwd(), "Data/wikipedia/billboard_yearend_singles_1950_1959.json");
-const DEFAULT_URL = "https://en.wikipedia.org/wiki/Billboard_year-end_top_30_singles_of_1959";
+const FILE = path.resolve(
+  process.cwd(),
+  "Data/wikipedia/billboard_yearend_singles_1950_1959.json"
+);
+
+// ✅ Correct 1959 page (the previous URLs were 404)
+const REST_URL =
+  "https://en.wikipedia.org/api/rest_v1/page/html/Billboard_Year-End_Hot_100_singles_of_1959";
+const PAGE_URL =
+  "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1959";
 
 function decodeHtml(s) {
   return String(s || "")
@@ -18,14 +26,17 @@ function stripTags(html) {
   return decodeHtml(
     String(html || "")
       .replace(/<br\s*\/?>/gi, " ")
-      .replace(/<sup[^>]*>.*?<\/sup>/gi, "")     // remove footnotes
+      .replace(/<sup[^>]*>.*?<\/sup>/gis, "")
+      .replace(/<style[\s\S]*?<\/style>/gis, "")
+      .replace(/<script[\s\S]*?<\/script>/gis, "")
       .replace(/<[^>]+>/g, " ")
   );
 }
 
 function extractAllWikitables(html) {
   const tables = [];
-  const re = /<table[^>]*class="[^"]*wikitable[^"]*"[^>]*>[\s\S]*?<\/table>/gi;
+  const re =
+    /<table[^>]*class="[^"]*wikitable[^"]*"[^>]*>[\s\S]*?<\/table>/gi;
   let m;
   while ((m = re.exec(html))) tables.push(m[0]);
   return tables;
@@ -33,18 +44,15 @@ function extractAllWikitables(html) {
 
 function extractRows(tableHtml) {
   const trs = tableHtml.match(/<tr[\s\S]*?<\/tr>/gi) || [];
-  return trs.map(tr => {
-    const cells = (tr.match(/<(td|th)[\s\S]*?<\/(td|th)>/gi) || [])
-      .map(cell => stripTags(cell))
-      .map(x => x.replace(/\s+/g, " ").trim())
-      .filter(Boolean);
-    return cells;
-  }).filter(r => r.length >= 2);
-}
-
-function isHeaderRow(row) {
-  const joined = row.join(" ").toLowerCase();
-  return joined.includes("rank") || joined.includes("no.") || joined.includes("single") || joined.includes("title") || joined.includes("artist");
+  return trs
+    .map((tr) => {
+      const cells = (tr.match(/<(td|th)[\s\S]*?<\/(td|th)>/gi) || [])
+        .map((cell) => stripTags(cell))
+        .map((x) => x.replace(/\s+/g, " ").trim())
+        .filter(Boolean);
+      return cells;
+    })
+    .filter((r) => r.length >= 2);
 }
 
 function parseRank(s) {
@@ -52,100 +60,131 @@ function parseRank(s) {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-// Try multiple common table layouts
-function pickLayout(row) {
-  // Expected: [Rank, Single/Title, Artist]
-  if (row.length >= 3) return { rankIdx: 0, titleIdx: 1, artistIdx: 2 };
+function looksLikeHeaderRow(row) {
+  const j = row.join(" ").toLowerCase();
+  return (
+    j.includes("rank") ||
+    j.includes("no.") ||
+    j.includes("single") ||
+    j.includes("title") ||
+    j.includes("artist") ||
+    j === "№ title artist(s)" ||
+    j.includes("№")
+  );
+}
 
-  // Sometimes: [Rank, Artist, Single]
-  if (row.length >= 3) return { rankIdx: 0, titleIdx: 2, artistIdx: 1 };
+// This Wikipedia page is laid out as: [№, Title, Artist(s)]
+function buildFromRows(trRows) {
+  const built = [];
+  for (const r of trRows) {
+    if (looksLikeHeaderRow(r)) continue;
 
-  return null;
+    const rk = parseRank(r[0]);
+    if (!rk) continue;
+
+    const title = r[1] || "";
+    const artist = r[2] || "";
+    if (!title || !artist) continue;
+
+    built.push({ rk, title, artist });
+  }
+  built.sort((a, b) => a.rk - b.rk);
+  return built;
+}
+
+async function fetchText(url) {
+  const res = await fetch(url, {
+    headers: { "User-Agent": "sandblast-rebuild/1959/1.0" },
+  });
+  return {
+    ok: res.ok,
+    status: res.status,
+    statusText: res.statusText,
+    text: await res.text(),
+    url,
+  };
 }
 
 (async () => {
   if (!fs.existsSync(FILE)) {
-    console.error("Missing file:", FILE);
+    console.error("Missing JSON file:", FILE);
     process.exit(1);
   }
 
   const doc = JSON.parse(fs.readFileSync(FILE, "utf8"));
   const rows = Array.isArray(doc.rows) ? doc.rows : [];
 
-  // Use doc.sources["1959"] if present, else default URL
-  const url = (doc.sources && doc.sources["1959"]) ? doc.sources["1959"] : DEFAULT_URL;
+  console.log(
+    "=== Rebuild 1959 Year-End Singles (from Billboard Year-End Hot 100 Singles of 1959) ==="
+  );
+  console.log("Target JSON:", FILE);
 
-  console.log("Fetching:", url);
-  const res = await fetch(url, { headers: { "User-Agent": "sandblast-rebuild/1.0" }});
-  if (!res.ok) {
-    console.error("Fetch failed:", res.status, res.statusText);
-    process.exit(1);
-  }
-  const html = await res.text();
+  console.log("Fetching (REST):", REST_URL);
+  let f = await fetchText(REST_URL);
 
-  const tables = extractAllWikitables(html);
-  if (!tables.length) {
-    console.error("No wikitables found on page.");
-    process.exit(1);
-  }
-
-  // Choose the table that yields the most parsed ranked rows
-  let best = [];
-  for (const tbl of tables) {
-    const trRows = extractRows(tbl);
-
-    const built = [];
-    for (const r of trRows) {
-      if (isHeaderRow(r)) continue;
-
-      const layout = pickLayout(r);
-      if (!layout) continue;
-
-      const rk = parseRank(r[layout.rankIdx]);
-      if (!rk) continue;
-
-      const title = r[layout.titleIdx] || "";
-      const artist = r[layout.artistIdx] || "";
-      if (!title || !artist) continue;
-
-      built.push({ rk, title, artist });
+  if (!f.ok) {
+    console.log("REST fetch failed:", f.status, f.statusText);
+    console.log("Fetching (PAGE):", PAGE_URL);
+    f = await fetchText(PAGE_URL);
+    if (!f.ok) {
+      console.error("PAGE fetch failed:", f.status, f.statusText);
+      process.exit(1);
     }
-
-    if (built.length > best.length) best = built;
   }
 
-  best.sort((a,b)=>a.rk-b.rk);
+  const html = f.text;
+  const tables = extractAllWikitables(html);
+  console.log("Wikitables found:", tables.length);
 
-  // Wikipedia page is usually top 30
-  const final1959 = best
-    .filter(x => x.rk >= 1 && x.rk <= 100)
-    .slice(0, 30)
-    .map(x => ({
+  if (!tables.length) {
+    console.error("No wikitables found. Page layout changed.");
+    process.exit(1);
+  }
+
+  let bestBuilt = [];
+  let bestIdx = -1;
+
+  for (let i = 0; i < tables.length; i++) {
+    const trRows = extractRows(tables[i]);
+    const built = buildFromRows(trRows);
+    if (built.length > bestBuilt.length) {
+      bestBuilt = built;
+      bestIdx = i;
+    }
+  }
+
+  console.log("Best table index:", bestIdx);
+  console.log("Parsed ranked rows:", bestBuilt.length);
+
+  // Store up to 100 (the page is Top 100). Your engine can still request Top 10.
+  const final1959 = bestBuilt
+    .filter((x) => x.rk >= 1 && x.rk <= 100)
+    .slice(0, 100)
+    .map((x) => ({
       chart: "Billboard Year-End Singles",
       year: 1959,
       rank: x.rk,
       title: x.title,
       artist: x.artist,
-      source: url
+      source: PAGE_URL,
     }));
 
-  console.log("Parsed rows:", final1959.length);
+  console.log("Final rows to write:", final1959.length);
+
   if (!final1959.length) {
-    console.error("Parsed 0 rows. Wikipedia layout likely changed; parser needs tuning.");
+    console.error("Parsed 0 usable rows. Sample extracted rows:");
+    const trRows = extractRows(tables[bestIdx]);
+    console.error(trRows.slice(0, 12));
     process.exit(1);
   }
 
-  // Remove any existing 1959 rows (there are none now, but future-proof)
-  const kept = rows.filter(r => Number(r.year) !== 1959);
-
+  // Remove any existing 1959 rows, append rebuilt
+  const kept = rows.filter((r) => Number(r.year) !== 1959);
   doc.rows = kept.concat(final1959);
   doc.generatedAt = new Date().toISOString();
-
-  // Ensure sources map contains 1959 for traceability
   doc.sources = doc.sources || {};
-  doc.sources["1959"] = url;
+  doc.sources["1959"] = PAGE_URL;
 
   fs.writeFileSync(FILE, JSON.stringify(doc, null, 2), "utf8");
-  console.log("Wrote:", FILE);
+  console.log("WROTE JSON OK.");
 })();
-'@ | Set-Content -Encoding UTF8 .\Scripts\rebuild_yearend_singles_1959.js
