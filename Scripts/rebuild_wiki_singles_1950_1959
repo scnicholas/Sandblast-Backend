@@ -1,0 +1,281 @@
+"use strict";
+
+/**
+ * Rebuild Data/wikipedia/billboard_yearend_singles_1950_1959.json
+ *
+ * Sources:
+ *  - 1950–1955: Billboard year-end top 30 singles of YYYY
+ *  - 1956–1958: Billboard year-end top 50 singles of YYYY
+ *  - 1959: Billboard Year-End Hot 100 singles of 1959
+ *
+ * Output schema:
+ * {
+ *   ok: true,
+ *   generatedAt: ISO,
+ *   rows: [{ year, rank, title, artist, chart, sourcePage, sourceRest }],
+ *   countsByYear: { "1950": 30, ... },
+ *   failures: [{ year, page, reason }]
+ * }
+ */
+
+const fs = require("fs");
+const path = require("path");
+const cheerio = require("cheerio");
+
+const OUT_FILE = path.resolve(
+  process.cwd(),
+  "Data/wikipedia/billboard_yearend_singles_1950_1959.json"
+);
+
+const YEARS = [1950, 1951, 1952, 1953, 1954, 1955, 1956, 1957, 1958, 1959];
+
+function pageTitleForYear(y) {
+  if (y >= 1950 && y <= 1955) return `Billboard_year-end_top_30_singles_of_${y}`;
+  if (y >= 1956 && y <= 1958) return `Billboard_year-end_top_50_singles_of_${y}`;
+  if (y === 1959) return `Billboard_Year-End_Hot_100_singles_of_1959`;
+  return null;
+}
+
+function restUrlForTitle(title) {
+  return `https://en.wikipedia.org/api/rest_v1/page/html/${encodeURIComponent(title)}`;
+}
+
+function pageUrlForTitle(title) {
+  return `https://en.wikipedia.org/wiki/${title}`;
+}
+
+function cleanText(s) {
+  return String(s || "")
+    .replace(/\u00A0/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function norm(s) {
+  return cleanText(s).toLowerCase();
+}
+
+function isRankHeader(h) {
+  const x = norm(h);
+  return (
+    x === "no" ||
+    x === "no." ||
+    x === "#" ||
+    x.includes("no.") ||
+    x.includes("rank") ||
+    x.includes("position") ||
+    x.includes("pos")
+  );
+}
+function isTitleHeader(h) {
+  const x = norm(h);
+  return x.includes("title") || x.includes("single");
+}
+function isArtistHeader(h) {
+  const x = norm(h);
+  return x.includes("artist");
+}
+
+function guessBestTable($) {
+  const tables = $("table.wikitable");
+  let best = null;
+  let bestScore = -1;
+
+  tables.each((_, tbl) => {
+    const $tbl = $(tbl);
+    const $headRow = $tbl.find("tr").first();
+    const headers = $headRow
+      .find("th")
+      .map((i, th) => cleanText($(th).text()))
+      .get();
+
+    if (!headers.length) return;
+
+    const hasRank = headers.some(isRankHeader);
+    const hasTitle = headers.some(isTitleHeader);
+    const hasArtist = headers.some(isArtistHeader);
+
+    // Data row heuristic
+    const trCount = $tbl.find("tr").length;
+    const dataRowCount = Math.max(0, trCount - 1);
+
+    let score = 0;
+    if (hasRank) score += 4;
+    if (hasTitle) score += 4;
+    if (hasArtist) score += 4;
+    score += Math.min(6, Math.floor(dataRowCount / 10)); // more rows = slightly better
+
+    if (score > bestScore) {
+      bestScore = score;
+      best = { $tbl, headers };
+    }
+  });
+
+  return best;
+}
+
+function findColIndex(headers, predicateFn) {
+  for (let i = 0; i < headers.length; i++) {
+    if (predicateFn(headers[i])) return i;
+  }
+  return -1;
+}
+
+function parseRank(s) {
+  const t = cleanText(s).replace(/[^\d]/g, "");
+  const n = Number(t);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function normalizeTitle(t) {
+  let s = cleanText(t);
+  // Remove surrounding quotes if present
+  s = s.replace(/^["“”]+/, "").replace(/["“”]+$/, "").trim();
+  return s;
+}
+
+function normalizeArtist(a) {
+  return cleanText(a);
+}
+
+async function fetchHtml(url) {
+  // Node 18+ has global fetch. If your environment doesn’t, install node-fetch and swap here.
+  const res = await fetch(url, {
+    headers: { "User-Agent": "sandblast-musicKnowledge/1.0 (cache rebuild)" },
+  });
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status} ${res.statusText}`);
+  }
+  return await res.text();
+}
+
+async function scrapeYear(y) {
+  const title = pageTitleForYear(y);
+  if (!title) throw new Error(`No page title mapping for year ${y}`);
+
+  const rest = restUrlForTitle(title);
+  const page = pageUrlForTitle(title);
+
+  const html = await fetchHtml(rest);
+  const $ = cheerio.load(html);
+
+  const best = guessBestTable($);
+  if (!best) throw new Error("No wikitable found");
+
+  const headers = best.headers;
+  const $tbl = best.$tbl;
+
+  const rankIdx = findColIndex(headers, isRankHeader);
+  const titleIdx = findColIndex(headers, isTitleHeader);
+  const artistIdx = findColIndex(headers, isArtistHeader);
+
+  if (rankIdx < 0 || titleIdx < 0 || artistIdx < 0) {
+    throw new Error(
+      `Could not identify columns (rankIdx=${rankIdx}, titleIdx=${titleIdx}, artistIdx=${artistIdx})`
+    );
+  }
+
+  const rows = [];
+  $tbl.find("tr").slice(1).each((_, tr) => {
+    const $cells = $(tr).find("td");
+    if ($cells.length < Math.max(rankIdx, titleIdx, artistIdx) + 1) return;
+
+    const rank = parseRank($cells.eq(rankIdx).text());
+    const titleText = normalizeTitle($cells.eq(titleIdx).text());
+    const artistText = normalizeArtist($cells.eq(artistIdx).text());
+
+    // Strict quality gate: no missing title/artist, no unknown placeholders
+    if (!rank) return;
+    if (!titleText || !artistText) return;
+
+    rows.push({
+      year: y,
+      rank,
+      title: titleText,
+      artist: artistText,
+      chart: "Billboard Year-End Singles",
+      sourcePage: page,
+      sourceRest: rest,
+    });
+  });
+
+  // Sanity: remove duplicates by rank (keep first)
+  const seen = new Set();
+  const clean = [];
+  for (const r of rows.sort((a, b) => a.rank - b.rank)) {
+    const k = `${r.year}|${r.rank}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    clean.push(r);
+  }
+
+  return { year: y, title, page, rest, rows: clean };
+}
+
+function expectedCount(y) {
+  if (y >= 1950 && y <= 1955) return 30;
+  if (y >= 1956 && y <= 1958) return 50;
+  if (y === 1959) return 100;
+  return null;
+}
+
+async function main() {
+  const failures = [];
+  const all = [];
+  const countsByYear = {};
+
+  for (const y of YEARS) {
+    const page = pageTitleForYear(y);
+    process.stdout.write(`[rebuild] ${y} -> ${page} ... `);
+
+    try {
+      const got = await scrapeYear(y);
+      const exp = expectedCount(y);
+      const count = got.rows.length;
+      countsByYear[String(y)] = count;
+
+      // Hard check: if the year is short, treat as failure (don’t silently accept partial garbage)
+      if (exp && count < Math.max(10, Math.floor(exp * 0.6))) {
+        throw new Error(`Too few rows (${count}) expected ~${exp}`);
+      }
+
+      all.push(...got.rows);
+      console.log(`OK (${count} rows)`);
+    } catch (err) {
+      console.log("FAIL");
+      failures.push({
+        year: y,
+        page,
+        reason: String(err && err.message ? err.message : err),
+      });
+    }
+  }
+
+  // Final strict gate: do not write a broken file
+  if (failures.length) {
+    console.error("\n[rebuild] Failures detected. Not writing output file.");
+    console.error(JSON.stringify(failures, null, 2));
+    process.exitCode = 1;
+    return;
+  }
+
+  // Write output
+  const out = {
+    ok: true,
+    generatedAt: new Date().toISOString(),
+    rows: all,
+    countsByYear,
+    failures,
+  };
+
+  fs.mkdirSync(path.dirname(OUT_FILE), { recursive: true });
+  fs.writeFileSync(OUT_FILE, JSON.stringify(out, null, 2), "utf8");
+
+  console.log(`\n[rebuild] Wrote ${OUT_FILE}`);
+  console.log(`[rebuild] Counts: ${JSON.stringify(countsByYear)}`);
+}
+
+main().catch((e) => {
+  console.error("[rebuild] Fatal:", e);
+  process.exit(1);
+});
