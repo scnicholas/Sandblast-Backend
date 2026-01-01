@@ -21,6 +21,10 @@
  *    to prevent "empty message" looping when the widget sends a different shape.
  *  - Optional sessionId aliases (sid/session) for the same reason.
  *  - Debug tracing of incoming payload keys + resolved message (NYX_DEBUG=true)
+ *
+ * NEW (2026-01-01, PATCH C — LOOP FIX):
+ *  - NEVER treat lane keywords (music/tv/sponsors/ai/general or lane:*) as a user name.
+ *  - Harden extractName/isOnlyName and reorder chip arbitration ahead of name capture post-intro.
  */
 
 "use strict";
@@ -54,7 +58,8 @@ const TTS_PROVIDER = (process.env.TTS_PROVIDER || "elevenlabs").toLowerCase();
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || "";
 const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || "";
 const ELEVENLABS_MODEL_ID = process.env.ELEVENLABS_MODEL_ID || ""; // optional
-const ELEVENLABS_BASE_URL = process.env.ELEVENLABS_BASE_URL || "https://api.elevenlabs.io";
+const ELEVENLABS_BASE_URL =
+  process.env.ELEVENLABS_BASE_URL || "https://api.elevenlabs.io";
 
 // Voice tuning (canonical approach you locked)
 const NYX_VOICE_STABILITY = process.env.NYX_VOICE_STABILITY || "0.35";
@@ -188,6 +193,30 @@ function lower(s) {
   return cleanText(s).toLowerCase();
 }
 
+/** PATCH C: never treat lane/commands as a user's name */
+const RESERVED_NAME_TOKENS = new Set([
+  "music",
+  "tv",
+  "television",
+  "sponsors",
+  "sponsor",
+  "ads",
+  "advertising",
+  "ai",
+  "a.i.",
+  "general",
+  "lane:music",
+  "lane:tv",
+  "lane:sponsors",
+  "lane:ai",
+  "lane:general",
+]);
+
+function isReservedNameToken(s) {
+  const t = lower(s);
+  return RESERVED_NAME_TOKENS.has(t);
+}
+
 function isGreeting(text) {
   const t = lower(text);
   if (!t) return false;
@@ -204,9 +233,14 @@ function isGreeting(text) {
   );
 }
 
+/** PATCH C: harden name detection */
 function isOnlyName(text) {
   const t = cleanText(text);
   if (!t) return false;
+
+  // Never allow reserved lane tokens to be a "name"
+  if (isReservedNameToken(t)) return false;
+
   if (/[\d@#$%^&*_=+[\]{}<>\\/|]/.test(t)) return false;
   const parts = t.split(" ").filter(Boolean);
   if (parts.length < 1 || parts.length > 3) return false;
@@ -214,18 +248,29 @@ function isOnlyName(text) {
   return true;
 }
 
+/** PATCH C: harden extraction paths */
 function extractName(text) {
   const t = cleanText(text);
+  if (!t) return null;
+
+  // Reject obvious lane tokens early
+  if (isReservedNameToken(t)) return null;
 
   let m = t.match(
     /\bmy name is\s+([A-Za-z'’-]{2,}(?:\s+[A-Za-z'’-]{2,}){0,2})\b/i
   );
-  if (m && m[1]) return m[1].trim();
+  if (m && m[1]) {
+    const candidate = m[1].trim();
+    if (!isReservedNameToken(candidate)) return candidate;
+  }
 
   m = t.match(
     /\b(i am|i'm)\s+([A-Za-z'’-]{2,}(?:\s+[A-Za-z'’-]{2,}){0,2})\b/i
   );
-  if (m && m[2]) return m[2].trim();
+  if (m && m[2]) {
+    const candidate = m[2].trim();
+    if (!isReservedNameToken(candidate)) return candidate;
+  }
 
   if (isOnlyName(t)) return t;
 
@@ -397,10 +442,7 @@ function handleDomain(st, domain, userText) {
   }
 
   if (domain === "sponsors") {
-    if (
-      sponsorsKnowledge &&
-      typeof sponsorsKnowledge.handleChat === "function"
-    ) {
+    if (sponsorsKnowledge && typeof sponsorsKnowledge.handleChat === "function") {
       try {
         return sponsorsKnowledge.handleChat({ text, session: st });
       } catch (e) {
@@ -558,25 +600,7 @@ app.post("/api/chat", async (req, res) => {
       return res.json({ ok: true, reply, followUp: null, sessionId: st.sessionId });
     }
 
-    // 2) Name capture is first-class (handle before intro rule)
-    const name = extractName(message);
-    if (name && !st.nameCaptured) {
-      st.nameCaptured = true;
-      st.userName = name;
-      if (st.phase === "greeting") {
-        st.greetedOnce = true;
-        st.phase = "engaged";
-      }
-      const reply = applyNyxTone(st, nyxAcknowledgeName(name));
-      return res.json({
-        ok: true,
-        reply,
-        followUp: ["Music", "TV", "Sponsors", "AI"],
-        sessionId: st.sessionId,
-      });
-    }
-
-    // 3) HARD RULE: Intro ALWAYS wins on first contact (even if widget sends a chip token)
+    // 2) HARD RULE: Intro ALWAYS wins on first contact (even if widget sends a chip token)
     // If first message is a lane token/chip, store it for the next user input.
     if (st.phase === "greeting" && !st.greetedOnce) {
       if (messageIsJustChip && chipDomain) {
@@ -588,29 +612,15 @@ app.post("/api/chat", async (req, res) => {
       return res.json({ ok: true, reply, followUp: null, sessionId: st.sessionId });
     }
 
-    // 4) Intent classification (post-intro)
-    const intent = classifyIntent(message);
-    st.lastUserIntent = intent.intent;
-
-    // 4.1) Apply pending domain armed from first-contact lane token
+    // 3) Apply pending domain armed from first-contact lane token
     if (st.pendingDomainAfterIntro && !st.activeDomain) {
       st.activeDomain = st.pendingDomainAfterIntro;
       st.phase = "domain_active";
       st.pendingDomainAfterIntro = null;
     }
 
-    // 5) Greeting handling: post-intro social response
-    if (intent.intent === "greeting" || isGreeting(message)) {
-      const reply = applyNyxTone(st, nyxGreetingReply(st));
-      return res.json({
-        ok: true,
-        reply,
-        followUp: ["Music", "TV", "Sponsors", "AI"],
-        sessionId: st.sessionId,
-      });
-    }
-
-    // 6) Chip arbitration: chips switch lane only when message is a lane token
+    // 4) Chip arbitration should run BEFORE name capture post-intro
+    //    (prevents "music" being treated like a name even if something slips through)
     if (messageIsJustChip && chipDomain) {
       st.activeDomain = chipDomain;
       st.phase = "domain_active";
@@ -637,9 +647,38 @@ app.post("/api/chat", async (req, res) => {
       });
     }
 
-    // 7) Otherwise: user free-text. Route based on activeDomain if set; else infer domain.
-    let domain = st.activeDomain;
+    // 5) Name capture (safe — reserved tokens rejected)
+    const name = extractName(message);
+    if (name && !st.nameCaptured) {
+      st.nameCaptured = true;
+      st.userName = name;
 
+      const reply = applyNyxTone(st, nyxAcknowledgeName(name));
+      return res.json({
+        ok: true,
+        reply,
+        followUp: ["Music", "TV", "Sponsors", "AI"],
+        sessionId: st.sessionId,
+      });
+    }
+
+    // 6) Intent classification (post-intro)
+    const intent = classifyIntent(message);
+    st.lastUserIntent = intent.intent;
+
+    // 7) Greeting handling: post-intro social response
+    if (intent.intent === "greeting" || isGreeting(message)) {
+      const reply = applyNyxTone(st, nyxGreetingReply(st));
+      return res.json({
+        ok: true,
+        reply,
+        followUp: ["Music", "TV", "Sponsors", "AI"],
+        sessionId: st.sessionId,
+      });
+    }
+
+    // 8) Otherwise: user free-text. Route based on activeDomain if set; else infer domain.
+    let domain = st.activeDomain;
     if (!domain) domain = chipDomain || "general";
 
     // If user explicitly says a domain keyword in free-text, allow it to set active lane
@@ -708,7 +747,9 @@ app.post("/api/s2s", upload.single("file"), async (req, res) => {
   try {
     if (!ENABLE_S2S) return res.status(501).json({ ok: false, error: "S2S_DISABLED" });
 
-    const sessionId = pickFirstNonEmpty(req.body?.sessionId, req.body?.sid, req.body?.session) || makeSessionId();
+    const sessionId =
+      pickFirstNonEmpty(req.body?.sessionId, req.body?.sid, req.body?.session) ||
+      makeSessionId();
     const st = getSession(sessionId);
     touchSession(st);
 
@@ -732,10 +773,15 @@ app.post("/api/s2s", upload.single("file"), async (req, res) => {
     };
 
     await new Promise((resolve) => {
-      app._router.handle({ ...fakeReq, method: "POST", url: "/api/chat" }, fakeRes, resolve);
+      app._router.handle(
+        { ...fakeReq, method: "POST", url: "/api/chat" },
+        fakeRes,
+        resolve
+      );
     });
 
-    const reply = fakeRes._json?.reply || "Want to pick up where we left off, or switch lanes?";
+    const reply =
+      fakeRes._json?.reply || "Want to pick up where we left off, or switch lanes?";
 
     let audioBytes = null;
     let audioMime = null;
@@ -806,6 +852,8 @@ app.get("/api/health", (req, res) => {
 
 app.listen(PORT, HOST, () => {
   console.log(
-    `[${SERVICE_NAME}] up :: env=${NODE_ENV} host=${HOST} port=${PORT} tts=${ENABLE_TTS ? TTS_PROVIDER : "off"}`
+    `[${SERVICE_NAME}] up :: env=${NODE_ENV} host=${HOST} port=${HOST} port=${PORT} tts=${
+      ENABLE_TTS ? TTS_PROVIDER : "off"
+    }`
   );
 });
