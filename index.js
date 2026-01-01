@@ -25,6 +25,10 @@
  * NEW (2026-01-01, PATCH C — LOOP FIX):
  *  - NEVER treat lane keywords (music/tv/sponsors/ai/general or lane:*) as a user name.
  *  - Harden extractName/isOnlyName and reorder chip arbitration ahead of name capture post-intro.
+ *
+ * NEW (2026-01-01, PATCH D — PRODUCTION SANITY):
+ *  - Optional boot sanity check for 1950–1959 singles dataset (Render deployment visibility).
+ *  - /api/health now includes music50s counts (if file present) so you can verify production instantly.
  */
 
 "use strict";
@@ -33,6 +37,8 @@ const express = require("express");
 const cors = require("cors");
 const crypto = require("crypto");
 const multer = require("multer");
+const fs = require("fs");
+const path = require("path");
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -73,6 +79,12 @@ const ENABLE_TTS = (process.env.ENABLE_TTS || "true") === "true";
 const ENABLE_S2S = (process.env.ENABLE_S2S || "true") === "true";
 const ENABLE_DEBUG = (process.env.NYX_DEBUG || "false") === "true";
 
+// PATCH D: Boot sanity behavior
+// - NYX_SANITY_ON_BOOT=true runs check + logs (default true)
+// - NYX_SANITY_ENFORCE=true will FAIL BOOT if missing/incomplete
+const NYX_SANITY_ON_BOOT = (process.env.NYX_SANITY_ON_BOOT || "true") === "true";
+const NYX_SANITY_ENFORCE = (process.env.NYX_SANITY_ENFORCE || "false") === "true";
+
 // CORS: permissive by default; tighten if you want
 app.use(
   cors({
@@ -110,6 +122,90 @@ const nyxVoiceNaturalize = safeRequire("./Utils/nyxVoiceNaturalize");
 // Optional routers
 const tvKnowledge = safeRequire("./Utils/tvKnowledge");
 const sponsorsKnowledge = safeRequire("./Utils/sponsorsKnowledge");
+
+/* ======================================================
+   PATCH D: One-command sanity (embedded) + health visibility
+====================================================== */
+
+const WIKI_SINGLES_50S_REL = "Data/wikipedia/billboard_yearend_singles_1950_1959.json";
+
+function resolveRepoPath(rel) {
+  return path.resolve(process.cwd(), rel);
+}
+
+function sanityCheck50sSingles() {
+  const abs = resolveRepoPath(WIKI_SINGLES_50S_REL);
+
+  const out = {
+    ok: false,
+    file: {
+      rel: WIKI_SINGLES_50S_REL,
+      abs,
+      exists: false,
+      mtimeMs: 0,
+    },
+    counts: {},
+    rows: 0,
+    error: null,
+  };
+
+  try {
+    out.file.exists = fs.existsSync(abs);
+    if (!out.file.exists) {
+      out.error = "FILE_MISSING";
+      return out;
+    }
+
+    try {
+      const st = fs.statSync(abs);
+      out.file.mtimeMs = Number(st.mtimeMs || 0);
+    } catch (_) {}
+
+    // Use require for parity with your one-command test behavior.
+    // NOTE: Node caches require(); but on a fresh boot this is accurate.
+    // eslint-disable-next-line global-require, import/no-dynamic-require
+    const j = require(abs);
+
+    const rows = Array.isArray(j.rows) ? j.rows : [];
+    out.rows = rows.length;
+
+    for (let y = 1950; y <= 1959; y++) {
+      out.counts[y] = rows.filter((r) => Number(r.year) === y).length;
+    }
+
+    // Minimal completeness threshold: you reported 425 total rows locally.
+    // If it's drastically smaller, treat as incomplete.
+    const total = Object.values(out.counts).reduce((a, b) => a + b, 0);
+    out.ok = out.file.exists && total >= 300;
+
+    if (!out.ok) out.error = "INCOMPLETE_OR_BAD_ROWS";
+
+    return out;
+  } catch (e) {
+    out.error = e.message || "SANITY_ERROR";
+    return out;
+  }
+}
+
+// Snapshot cached for /api/health (computed at boot; cheap + stable)
+let SANITY_50S = null;
+
+function runBootSanity50s() {
+  SANITY_50S = sanityCheck50sSingles();
+  const tag = SANITY_50S.ok ? "OK" : "FAIL";
+
+  console.log(
+    `[SANITY 50s] ${tag} exists=${SANITY_50S.file.exists} rows=${SANITY_50S.rows} counts=${JSON.stringify(
+      SANITY_50S.counts
+    )} path=${SANITY_50S.file.abs}`
+  );
+
+  if (!SANITY_50S.ok && NYX_SANITY_ENFORCE) {
+    throw new Error(
+      `Boot sanity failed for 50s singles dataset: ${SANITY_50S.error} :: ${SANITY_50S.file.abs}`
+    );
+  }
+}
 
 /* ======================================================
    Session Store (authoritative state spine)
@@ -620,7 +716,6 @@ app.post("/api/chat", async (req, res) => {
     }
 
     // 4) Chip arbitration should run BEFORE name capture post-intro
-    //    (prevents "music" being treated like a name even if something slips through)
     if (messageIsJustChip && chipDomain) {
       st.activeDomain = chipDomain;
       st.phase = "domain_active";
@@ -809,7 +904,7 @@ app.post("/api/s2s", upload.single("file"), async (req, res) => {
 });
 
 /* ======================================================
-   /api/health — Diagnostics
+   /api/health — Diagnostics (+ music50s)
 ====================================================== */
 
 app.get("/api/health", (req, res) => {
@@ -818,6 +913,9 @@ app.get("/api/health", (req, res) => {
     Boolean(ELEVENLABS_VOICE_ID) &&
     ENABLE_TTS &&
     TTS_PROVIDER === "elevenlabs";
+
+  // Ensure sanity snapshot exists even if boot sanity disabled
+  if (!SANITY_50S) SANITY_50S = sanityCheck50sSingles();
 
   return res.json({
     ok: true,
@@ -830,6 +928,18 @@ app.get("/api/health", (req, res) => {
     keepalive: true,
     nyx: { intelligenceLevel: DEFAULT_INTELLIGENCE_LEVEL },
     sessions: sessions.size,
+
+    // PATCH D: production visibility
+    music50s: {
+      ok: SANITY_50S.ok,
+      exists: SANITY_50S.file.exists,
+      rows: SANITY_50S.rows,
+      counts: SANITY_50S.counts,
+      rel: SANITY_50S.file.rel,
+      mtimeMs: SANITY_50S.file.mtimeMs,
+      error: SANITY_50S.error,
+    },
+
     tts: {
       provider: TTS_PROVIDER,
       configured: ttsConfigured,
@@ -850,9 +960,17 @@ app.get("/api/health", (req, res) => {
    Start
 ====================================================== */
 
+try {
+  if (NYX_SANITY_ON_BOOT) runBootSanity50s();
+} catch (e) {
+  console.error(`[SANITY 50s] BOOT BLOCKED: ${e.message}`);
+  // Enforced sanity should stop boot; non-enforced continues.
+  if (NYX_SANITY_ENFORCE) process.exit(1);
+}
+
 app.listen(PORT, HOST, () => {
   console.log(
-    `[${SERVICE_NAME}] up :: env=${NODE_ENV} host=${HOST} port=${HOST} port=${PORT} tts=${
+    `[${SERVICE_NAME}] up :: env=${NODE_ENV} host=${HOST} port=${PORT} tts=${
       ENABLE_TTS ? TTS_PROVIDER : "off"
     }`
   );
