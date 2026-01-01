@@ -6,7 +6,6 @@ const FILE = path.resolve(
   "Data/wikipedia/billboard_yearend_singles_1950_1959.json"
 );
 
-// ✅ Correct 1959 page
 const REST_URL =
   "https://en.wikipedia.org/api/rest_v1/page/html/Billboard_Year-End_Hot_100_singles_of_1959";
 const PAGE_URL =
@@ -35,9 +34,7 @@ function stripTags(html) {
 
 function cleanField(s) {
   let t = decodeHtml(s);
-  // remove wrapping quotes like: " Title "
   t = t.replace(/^"\s*/g, "").replace(/\s*"$/g, "");
-  // collapse spaces again
   t = t.replace(/\s+/g, " ").trim();
   return t;
 }
@@ -77,13 +74,10 @@ function looksLikeHeaderRow(row) {
     j.includes("single") ||
     j.includes("title") ||
     j.includes("artist") ||
-    j === "№ title artist(s)" ||
     j.includes("№")
   );
 }
 
-// Page layout is usually: [№, Title, Artist(s)]
-// But sometimes the artist column shifts; allow r[3] as fallback.
 function buildFromRows(trRows) {
   const built = [];
   for (const r of trRows) {
@@ -93,7 +87,7 @@ function buildFromRows(trRows) {
     if (!rk) continue;
 
     const titleRaw = r[1] || "";
-    const artistRaw = r[2] || r[3] || ""; // ✅ SHIFT-FALLBACK FIX
+    const artistRaw = r[2] || r[3] || "";
 
     const title = cleanField(titleRaw);
     const artist = cleanField(artistRaw);
@@ -106,9 +100,47 @@ function buildFromRows(trRows) {
   return built;
 }
 
+// Score tables: prefer ones that look like a complete 1–100 list.
+// - more rows is good
+// - fewer rank gaps is good
+// - having rank 1–10 present is very good
+function scoreTable(built) {
+  if (!built.length) return -1;
+
+  const ranks = built.map((x) => x.rk);
+  const uniq = new Set(ranks);
+  const maxRank = Math.max(...ranks);
+
+  // Count gaps in 1..min(100,maxRank)
+  const limit = Math.min(100, maxRank);
+  let missing = 0;
+  for (let i = 1; i <= Math.min(30, limit); i++) {
+    if (!uniq.has(i)) missing++;
+  }
+
+  let top10Missing = 0;
+  for (let i = 1; i <= 10; i++) {
+    if (!uniq.has(i)) top10Missing++;
+  }
+
+  // Primary: row count, then penalize missing in top 10 and top 30
+  return built.length * 10 - top10Missing * 200 - missing * 50;
+}
+
+// Normalize to sequential ranks (1..N) so Nyx never shows rank gaps.
+// Keeps original order by rk, but overwrites rank field.
+function normalizeSequentialRanks(built) {
+  const out = built.slice().sort((a, b) => a.rk - b.rk);
+  let seq = 1;
+  for (const item of out) {
+    item.rk = seq++;
+  }
+  return out;
+}
+
 async function fetchText(url) {
   const res = await fetch(url, {
-    headers: { "User-Agent": "sandblast-rebuild/1959/1.1" },
+    headers: { "User-Agent": "sandblast-rebuild/1959/1.2" },
   });
   return {
     ok: res.ok,
@@ -128,9 +160,7 @@ async function fetchText(url) {
   const doc = JSON.parse(fs.readFileSync(FILE, "utf8"));
   const rows = Array.isArray(doc.rows) ? doc.rows : [];
 
-  console.log(
-    "=== Rebuild 1959 Year-End Singles (from Billboard Year-End Hot 100 Singles of 1959) ==="
-  );
+  console.log("=== Rebuild 1959 Year-End Singles ===");
   console.log("Target JSON:", FILE);
 
   console.log("Fetching (REST):", REST_URL);
@@ -157,11 +187,27 @@ async function fetchText(url) {
 
   let bestBuilt = [];
   let bestIdx = -1;
+  let bestScore = -1;
 
   for (let i = 0; i < tables.length; i++) {
     const trRows = extractRows(tables[i]);
     const built = buildFromRows(trRows);
-    if (built.length > bestBuilt.length) {
+    const score = scoreTable(built);
+
+    // Debug visibility
+    if (built.length) {
+      const ranks = built.map((x) => x.rk);
+      const uniq = new Set(ranks);
+      const missTop10 = Array.from({ length: 10 }, (_, k) => k + 1).filter(
+        (n) => !uniq.has(n)
+      );
+      console.log(
+        `table#${i} rows=${built.length} score=${score} missingTop10=${missTop10.join(",") || "none"}`
+      );
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
       bestBuilt = built;
       bestIdx = i;
     }
@@ -169,8 +215,20 @@ async function fetchText(url) {
 
   console.log("Best table index:", bestIdx);
   console.log("Parsed ranked rows:", bestBuilt.length);
+  console.log("Best score:", bestScore);
 
-  const final1959 = bestBuilt
+  if (!bestBuilt.length) {
+    console.error("Parsed 0 usable rows. Sample extracted rows:");
+    const trRows = extractRows(tables[0]);
+    console.error(trRows.slice(0, 12));
+    process.exit(1);
+  }
+
+  // ✅ Normalize ranks to remove gaps like missing #4
+  const normalized = normalizeSequentialRanks(bestBuilt);
+
+  // Store up to 100.
+  const final1959 = normalized
     .filter((x) => x.rk >= 1 && x.rk <= 100)
     .slice(0, 100)
     .map((x) => ({
@@ -184,14 +242,6 @@ async function fetchText(url) {
 
   console.log("Final rows to write:", final1959.length);
 
-  if (!final1959.length) {
-    console.error("Parsed 0 usable rows. Sample extracted rows:");
-    const trRows = extractRows(tables[bestIdx]);
-    console.error(trRows.slice(0, 12));
-    process.exit(1);
-  }
-
-  // Remove any existing 1959 rows, append rebuilt
   const kept = rows.filter((r) => Number(r.year) !== 1959);
   doc.rows = kept.concat(final1959);
   doc.generatedAt = new Date().toISOString();
