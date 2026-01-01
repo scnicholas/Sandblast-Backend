@@ -6,7 +6,7 @@ const FILE = path.resolve(
   "Data/wikipedia/billboard_yearend_singles_1950_1959.json"
 );
 
-// ✅ Correct 1959 page (the previous URLs were 404)
+// ✅ Correct 1959 page
 const REST_URL =
   "https://en.wikipedia.org/api/rest_v1/page/html/Billboard_Year-End_Hot_100_singles_of_1959";
 const PAGE_URL =
@@ -31,6 +31,15 @@ function stripTags(html) {
       .replace(/<script[\s\S]*?<\/script>/gis, "")
       .replace(/<[^>]+>/g, " ")
   );
+}
+
+function cleanField(s) {
+  let t = decodeHtml(s);
+  // remove wrapping quotes like: " Title "
+  t = t.replace(/^"\s*/g, "").replace(/\s*"$/g, "");
+  // collapse spaces again
+  t = t.replace(/\s+/g, " ").trim();
+  return t;
 }
 
 function extractAllWikitables(html) {
@@ -73,7 +82,8 @@ function looksLikeHeaderRow(row) {
   );
 }
 
-// This Wikipedia page is laid out as: [№, Title, Artist(s)]
+// Page layout is usually: [№, Title, Artist(s)]
+// But sometimes the artist column shifts; allow r[3] as fallback.
 function buildFromRows(trRows) {
   const built = [];
   for (const r of trRows) {
@@ -82,8 +92,12 @@ function buildFromRows(trRows) {
     const rk = parseRank(r[0]);
     if (!rk) continue;
 
-    const title = r[1] || "";
-    const artist = r[2] || "";
+    const titleRaw = r[1] || "";
+    const artistRaw = r[2] || r[3] || ""; // ✅ SHIFT-FALLBACK FIX
+
+    const title = cleanField(titleRaw);
+    const artist = cleanField(artistRaw);
+
     if (!title || !artist) continue;
 
     built.push({ rk, title, artist });
@@ -94,7 +108,7 @@ function buildFromRows(trRows) {
 
 async function fetchText(url) {
   const res = await fetch(url, {
-    headers: { "User-Agent": "sandblast-rebuild/1959/1.0" },
+    headers: { "User-Agent": "sandblast-rebuild/1959/1.1" },
   });
   return {
     ok: res.ok,
@@ -156,7 +170,6 @@ async function fetchText(url) {
   console.log("Best table index:", bestIdx);
   console.log("Parsed ranked rows:", bestBuilt.length);
 
-  // Store up to 100 (the page is Top 100). Your engine can still request Top 10.
   const final1959 = bestBuilt
     .filter((x) => x.rk >= 1 && x.rk <= 100)
     .slice(0, 100)
