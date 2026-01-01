@@ -1,11 +1,16 @@
 "use strict";
 
 /**
- * Utils/musicKnowledge.js — v2.58
+ * Utils/musicKnowledge.js — v2.59
  *
- * FIXES IN v2.58:
+ * FIXES IN v2.59:
+ *  - GLOBAL rank-gap repair at render-time (formatTopList):
+ *      If the displayed ranked list has missing ranks (e.g., 1,2,3,5...)
+ *      or duplicate ranks, we renumber 1..N while preserving ordering.
+ *
+ * FIXES IN v2.58 retained:
  *  - 1950–1959 Billboard Year-End Singles: always serve from Wikipedia cache when present.
- *  - For 1950–1959 Year-End Singles, enforce sequential ranks (1..N) so UI never shows gaps (e.g., 1,2,3,5...).
+ *  - For 1950–1959 Year-End Singles, enforce sequential ranks (1..N) so UI never shows gaps.
  *  - Light cleanup for wrapping quotes + extra whitespace on title/artist during normalization.
  *
  * Keeps v2.57 behavior elsewhere:
@@ -18,7 +23,7 @@ const fs = require("fs");
 const path = require("path");
 
 const MK_VERSION =
-  "musicKnowledge v2.58 (50s year-end singles ranks normalized + light quote cleanup; retains v2.57 behavior)";
+  "musicKnowledge v2.59 (global rank-gap repair at render-time + retains v2.58 behavior)";
 
 const DEFAULT_CHART = "Billboard Hot 100";
 const TOP40_CHART = "Top40Weekly Top 100";
@@ -89,6 +94,13 @@ function renumberSequentialByRank(rows, limit) {
   const ranked = (rows || []).filter((m) => m && m.rank != null);
   ranked.sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999));
   const out = ranked.slice(0, Math.max(1, limit || ranked.length));
+  for (let i = 0; i < out.length; i++) out[i].rank = i + 1;
+  return out;
+}
+
+// v2.59: render-time rank repair helper (preserve existing order; overwrite ranks 1..N)
+function renumberSequentialPreserveOrder(rows) {
+  const out = (rows || []).slice();
   for (let i = 0; i < out.length; i++) out[i].rank = i + 1;
   return out;
 }
@@ -572,10 +584,29 @@ function parseYearFromText(text) {
   return m ? toInt(m[1]) : null;
 }
 
+// v2.59: global rank-gap repair happens here (render-time only)
 function formatTopList(year, chart, limit = 10) {
   const finalChart = normalizeChart(chart);
-  const list = getTopByYear(year, finalChart, limit);
+  let list = getTopByYear(year, finalChart, limit);
   if (!list.length) return null;
+
+  // Detect rank gaps or duplicates in the list we are about to display.
+  const ranks = list.map((m) => toInt(m.rank)).filter((n) => n != null);
+  const uniq = new Set(ranks);
+
+  const hasDuplicate = uniq.size !== ranks.length;
+
+  let hasGap = false;
+  for (let i = 1; i <= Math.min(list.length, limit); i++) {
+    if (!uniq.has(i)) {
+      hasGap = true;
+      break;
+    }
+  }
+
+  if (hasGap || hasDuplicate) {
+    list = renumberSequentialPreserveOrder(list);
+  }
 
   const lines = list.map((m, i) => {
     const rk = m.rank != null ? String(m.rank) : String(i + 1);
