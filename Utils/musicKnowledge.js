@@ -3,26 +3,24 @@
 /**
  * Utils/musicKnowledge.js — v2.60
  *
- * NEW IN v2.60:
- *  - Moment Intelligence schema (MomentCard) + safe template enrichment
- *  - "Story moment" routing: supports "#1", "number one", "story", "story moment"
- *    even when user does NOT repeat the year (uses lastMusicYear/lastMusicChart if present)
- *  - Nyx-aligned Music voice: broadcast-warm, decisive, no robotic "tap a chip" language
- *  - Optional sessionPatch returned to support continuity (index.js can merge into session)
+ * FIXES IN v2.60:
+ *  - Bulletproof user-text normalization to prevent looping when input is "Try: 1999",
+ *    contains NBSP, extra whitespace, etc.
+ *  - parseYearFromText now parses from normalized text.
+ *  - handleChat uses normalized text everywhere and can no longer miss a valid year.
+ *  - Optional debug trace when NYX_DEBUG=true (shows raw + normalized + year + chart context).
  *
- * Retains v2.59:
- *  - Render-time global rank-gap repair (formatTopList)
- *  - 1950–1959 Year-End Singles served from Wikipedia cache when present; no DB placeholders fallback
- *  - Sequential ranks enforced for 50s singles
- *  - Title/artist cleanField normalization
- *  - Priority + dedupe logic and Wikipedia merges
+ * Keeps v2.59 behavior:
+ *  - GLOBAL rank-gap repair at render-time (formatTopList)
+ *  - 1950–1959 Year-End Singles served from Wikipedia cache when present
+ *  - No DB-placeholder fallback for missing 50s singles years
  */
 
 const fs = require("fs");
 const path = require("path");
 
 const MK_VERSION =
-  "musicKnowledge v2.60 (Moment Intelligence schema + Nyx voice alignment + story moment routing; retains v2.59 fixes)";
+  "musicKnowledge v2.60 (bulletproof input normalization + robust year parsing + optional debug trace)";
 
 const DEFAULT_CHART = "Billboard Hot 100";
 const TOP40_CHART = "Top40Weekly Top 100";
@@ -33,6 +31,7 @@ const PUBLIC_MIN_YEAR = 1950;
 const PUBLIC_MAX_YEAR = 2024;
 
 const DATA_DIR_ENV = String(process.env.DATA_DIR || "").trim();
+const NYX_DEBUG = String(process.env.NYX_DEBUG || "false").toLowerCase() === "true";
 
 const DB_CANDIDATES = [
   "Data/music_moments_v2_layer2_plus500.json",
@@ -67,10 +66,6 @@ const BUCKET_CACHE = new Map();
 const WIKI_SINGLES_50S_BY_YEAR = new Map();
 let WIKI_SINGLES_50S_LOADED = false;
 
-/* =========================
-   BASIC UTILS
-========================= */
-
 const toInt = (x) => {
   const s = String(x ?? "").trim();
   if (!s) return null;
@@ -84,14 +79,28 @@ function cleanText(s) {
   return String(s || "").replace(/\s+/g, " ").trim();
 }
 
-// strip wrapping quotes and normalize whitespace for display safety
+/**
+ * v2.60: normalize user input so we always parse years correctly.
+ * - Strips "Try:" prefix (case-insensitive)
+ * - Converts NBSP to normal spaces
+ * - Collapses whitespace
+ */
+function normalizeUserText(raw) {
+  return String(raw || "")
+    .replace(/\u00A0/g, " ")
+    .replace(/^\s*try\s*:\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// v2.58: strip wrapping quotes and normalize whitespace for display safety
 function cleanField(s) {
   let t = cleanText(s);
   t = t.replace(/^"\s*/g, "").replace(/\s*"$/g, "");
   return cleanText(t);
 }
 
-// renumber a list sequentially by existing rank order
+// v2.58: renumber a list sequentially by existing rank order
 function renumberSequentialByRank(rows, limit) {
   const ranked = (rows || []).filter((m) => m && m.rank != null);
   ranked.sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999));
@@ -100,7 +109,7 @@ function renumberSequentialByRank(rows, limit) {
   return out;
 }
 
-// render-time rank repair helper (preserve existing order; overwrite ranks 1..N)
+// v2.59: render-time rank repair helper (preserve existing order; overwrite ranks 1..N)
 function renumberSequentialPreserveOrder(rows) {
   const out = (rows || []).slice();
   for (let i = 0; i < out.length; i++) out[i].rank = i + 1;
@@ -215,10 +224,6 @@ function isCleanMoment(m) {
   );
 }
 
-/* =========================
-   WIKI 50s SINGLES CACHE
-========================= */
-
 function loadWikiSingles50sOnce() {
   if (WIKI_SINGLES_50S_LOADED) return;
   WIKI_SINGLES_50S_LOADED = true;
@@ -325,7 +330,7 @@ function dedupeMomentsByPriority(moments) {
 }
 
 /* =========================
-   WIKIPEDIA MERGES
+   WIKIPEDIA MERGES (logs retained)
 ========================= */
 
 function mergeWikipediaYearEnd(moments) {
@@ -515,8 +520,6 @@ function getTopByYear(year, chart = DEFAULT_CHART, limit = 10) {
 
   const c = normalizeChart(chart);
 
-  // 50s singles: serve from Wikipedia cache + normalize ranks sequentially.
-  // If cache missing/empty for requested year, return empty (no DB placeholders).
   if (c === YEAR_END_SINGLES_CHART && y >= 1950 && y <= 1959) {
     const arr = WIKI_SINGLES_50S_BY_YEAR.get(y) || [];
     if (arr.length) return renumberSequentialByRank(arr, limit);
@@ -527,4 +530,202 @@ function getTopByYear(year, chart = DEFAULT_CHART, limit = 10) {
 
   if (!out.length) {
     const b = readBucket(c, y);
-    if (Array.isArray(b) && b.length) out =
+    if (Array.isArray(b) && b.length) out = b;
+  }
+
+  if (!out.length && isYearEndChart(c)) {
+    out = BY_YEAR_CHART.get(`${y}|${DEFAULT_CHART}`) || [];
+    if (!out.length) {
+      const b1 = readBucket(DEFAULT_CHART, y);
+      if (Array.isArray(b1) && b1.length) out = b1;
+    }
+    if (!out.length) {
+      out = BY_YEAR_CHART.get(`${y}|${TOP40_CHART}`) || [];
+      if (!out.length) {
+        const b2 = readBucket(TOP40_CHART, y);
+        if (Array.isArray(b2) && b2.length) out = b2;
+      }
+    }
+  }
+
+  if (!out.length) return [];
+
+  const ranked = out.filter((m) => m.rank != null);
+  const base = ranked.length ? ranked.sort((a, b) => a.rank - b.rank) : out;
+
+  return base.slice(0, Math.max(1, limit));
+}
+
+function getNumberOneByYear(year, chart = DEFAULT_CHART) {
+  const top = getTopByYear(year, chart, 1);
+  return top[0] || null;
+}
+
+/* =========================
+   CONVERSATIONAL ROUTING
+========================= */
+
+function chooseChartForYear(requestedChart, year) {
+  const y = toInt(year);
+  const c = normalizeChart(requestedChart || DEFAULT_CHART);
+
+  if (y != null && y >= 1950 && y <= 1959) {
+    if (c === YEAR_END_CHART || c === DEFAULT_CHART) return YEAR_END_SINGLES_CHART;
+    if (c === YEAR_END_SINGLES_CHART) return YEAR_END_SINGLES_CHART;
+  }
+
+  if (c === YEAR_END_SINGLES_CHART && y != null && (y < 1950 || y > 1959)) {
+    if (y >= 1970 && y <= 2010) return YEAR_END_CHART;
+    return DEFAULT_CHART;
+  }
+
+  if (c === YEAR_END_CHART && y != null && (y < 1970 || y > 2010)) {
+    return DEFAULT_CHART;
+  }
+
+  return c;
+}
+
+function parseYearFromText(text) {
+  const t = normalizeUserText(text);
+  const m = t.match(/\b(19\d{2}|20\d{2})\b/);
+  return m ? toInt(m[1]) : null;
+}
+
+// v2.59: global rank-gap repair happens here (render-time only)
+function formatTopList(year, chart, limit = 10) {
+  const finalChart = normalizeChart(chart);
+  let list = getTopByYear(year, finalChart, limit);
+  if (!list.length) return null;
+
+  const ranks = list.map((m) => toInt(m.rank)).filter((n) => n != null);
+  const uniq = new Set(ranks);
+
+  const hasDuplicate = uniq.size !== ranks.length;
+
+  let hasGap = false;
+  for (let i = 1; i <= Math.min(list.length, limit); i++) {
+    if (!uniq.has(i)) {
+      hasGap = true;
+      break;
+    }
+  }
+
+  if (hasGap || hasDuplicate) {
+    list = renumberSequentialPreserveOrder(list);
+  }
+
+  const lines = list.map((m, i) => {
+    const rk = m.rank != null ? String(m.rank) : String(i + 1);
+    const a = _t(m.artist) || "Unknown Artist";
+    const tt = _t(m.title) || "Unknown Title";
+    return `${rk}. ${a} — ${tt}`;
+  });
+
+  return `Top ${Math.min(limit, lines.length)} — ${finalChart} (${year}):\n${lines.join(
+    "\n"
+  )}`;
+}
+
+function pickFollowUpYears() {
+  const cands = [1950, 1951, 1955, 1960, 1970, 1984, 1999, 2010, 2020, 2024];
+  const out = [];
+  for (const y of cands) {
+    if (y >= PUBLIC_MIN_YEAR && y <= PUBLIC_MAX_YEAR && !out.includes(y))
+      out.push(y);
+    if (out.length >= 3) break;
+  }
+  return out;
+}
+
+function handleChat({ text, session } = {}) {
+  loadDb();
+
+  const rawText = String(text ?? "");
+  const userText = normalizeUserText(rawText);
+
+  const st = session && typeof session === "object" ? session : {};
+  const requestedChart =
+    st.activeMusicChart || st.musicChart || st.activeChart || st.chart || null;
+
+  const publicRange = `${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}`;
+
+  const year = parseYearFromText(userText);
+
+  if (NYX_DEBUG) {
+    console.log("[musicKnowledge] IN", {
+      textRaw: rawText,
+      textNorm: userText,
+      year,
+      activeMusicChart: st.activeMusicChart,
+      musicChart: st.musicChart,
+      activeDomain: st.activeDomain,
+    });
+  }
+
+  if (!userText) {
+    const yrs = pickFollowUpYears();
+    return {
+      reply: `Music—nice. Give me a year (${publicRange}) or an artist + year, and I’ll pull something memorable.`,
+      followUp: [`Try: ${yrs[0]}`, `Try: ${yrs[1]}`, "Try: Prince 1984"],
+      domain: "music",
+    };
+  }
+
+  if (year != null) {
+    if (year < PUBLIC_MIN_YEAR || year > PUBLIC_MAX_YEAR) {
+      const yrs = pickFollowUpYears();
+      return {
+        reply: `Keep it in ${publicRange}. Give me one year and I’ll go to work.`,
+        followUp: [`Try: ${yrs[0]}`, `Try: ${yrs[1]}`, `Try: ${yrs[2]}`],
+        domain: "music",
+      };
+    }
+
+    const finalChart = chooseChartForYear(requestedChart, year);
+
+    const formatted = formatTopList(year, finalChart, 10);
+    if (formatted) {
+      return {
+        reply: `${formatted}\n\nWant #1, a story moment, or another year?`,
+        followUp: ["#1", "Story moment", "Another year"],
+        domain: "music",
+      };
+    }
+
+    if (finalChart === YEAR_END_SINGLES_CHART && year >= 1950 && year <= 1959) {
+      const yrs = [1956, 1957, 1958].filter((x) => x !== year);
+      return {
+        reply: `I don’t have a clean Year-End Singles list for ${year} loaded yet. Once we rebuild the ${year} Wikipedia slice, I’ll serve it perfectly.`,
+        followUp: [`Try: ${yrs[0]}`, `Try: ${yrs[1]}`, "Try: 1956"],
+        domain: "music",
+      };
+    }
+
+    const yrs = pickFollowUpYears();
+    return {
+      reply: `I don’t have a clean chart list for ${year} on this source yet. Try another year in ${publicRange}.`,
+      followUp: [`Try: ${yrs[0]}`, `Try: ${yrs[1]}`, `Try: ${yrs[2]}`],
+      domain: "music",
+    };
+  }
+
+  const yrs = pickFollowUpYears();
+  return {
+    reply: `Give me a year (${publicRange}) or an artist + year (example: “Prince 1984”).`,
+    followUp: [`Try: ${yrs[0]}`, `Try: ${yrs[1]}`, "Try: Prince 1984"],
+    domain: "music",
+  };
+}
+
+module.exports = {
+  getTopByYear,
+  getNumberOneByYear,
+  STATS: () => {
+    loadDb();
+    return { ...STATS };
+  },
+  MK_VERSION: () => MK_VERSION,
+  handleChat,
+  PUBLIC_RANGE: () => ({ min: PUBLIC_MIN_YEAR, max: PUBLIC_MAX_YEAR }),
+};
