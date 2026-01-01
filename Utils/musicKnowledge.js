@@ -1,26 +1,25 @@
 "use strict";
 
 /**
- * Utils/musicKnowledge.js — v2.60
+ * Utils/musicKnowledge.js — v2.61
  *
- * FIXES IN v2.60:
- *  - Bulletproof user-text normalization to prevent looping when input is "Try: 1999",
- *    contains NBSP, extra whitespace, etc.
- *  - parseYearFromText now parses from normalized text.
- *  - handleChat uses normalized text everywhere and can no longer miss a valid year.
- *  - Optional debug trace when NYX_DEBUG=true (shows raw + normalized + year + chart context).
+ * FIXES IN v2.61:
+ *  - Do NOT force 1950–1959 -> Year-End Singles unless that year exists in the Wikipedia cache.
+ *    (Prevents misleading "not loaded yet" responses when the cache is missing a year like 1951.)
+ *  - chooseChartForYear now falls back to DEFAULT_CHART for missing 50s singles years.
+ *  - Improved 50s missing-year message: "missing in current cache" + forward options.
  *
- * Keeps v2.59 behavior:
+ * Keeps v2.60 behavior:
+ *  - Bulletproof user-text normalization + robust year parsing
  *  - GLOBAL rank-gap repair at render-time (formatTopList)
- *  - 1950–1959 Year-End Singles served from Wikipedia cache when present
- *  - No DB-placeholder fallback for missing 50s singles years
+ *  - Wikipedia merges + priority dedupe
  */
 
 const fs = require("fs");
 const path = require("path");
 
 const MK_VERSION =
-  "musicKnowledge v2.60 (bulletproof input normalization + robust year parsing + optional debug trace)";
+  "musicKnowledge v2.61 (50s singles existence gating + safer chart fallback + improved missing-year messaging)";
 
 const DEFAULT_CHART = "Billboard Hot 100";
 const TOP40_CHART = "Top40Weekly Top 100";
@@ -80,7 +79,7 @@ function cleanText(s) {
 }
 
 /**
- * v2.60: normalize user input so we always parse years correctly.
+ * Normalize user input so we always parse years correctly.
  * - Strips "Try:" prefix (case-insensitive)
  * - Converts NBSP to normal spaces
  * - Collapses whitespace
@@ -93,14 +92,14 @@ function normalizeUserText(raw) {
     .trim();
 }
 
-// v2.58: strip wrapping quotes and normalize whitespace for display safety
+// strip wrapping quotes and normalize whitespace for display safety
 function cleanField(s) {
   let t = cleanText(s);
   t = t.replace(/^"\s*/g, "").replace(/\s*"$/g, "");
   return cleanText(t);
 }
 
-// v2.58: renumber a list sequentially by existing rank order
+// renumber a list sequentially by existing rank order
 function renumberSequentialByRank(rows, limit) {
   const ranked = (rows || []).filter((m) => m && m.rank != null);
   ranked.sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999));
@@ -109,7 +108,7 @@ function renumberSequentialByRank(rows, limit) {
   return out;
 }
 
-// v2.59: render-time rank repair helper (preserve existing order; overwrite ranks 1..N)
+// render-time rank repair helper (preserve existing order; overwrite ranks 1..N)
 function renumberSequentialPreserveOrder(rows) {
   const out = (rows || []).slice();
   for (let i = 0; i < out.length; i++) out[i].rank = i + 1;
@@ -271,6 +270,12 @@ function loadWikiSingles50sOnce() {
     }
     WIKI_SINGLES_50S_BY_YEAR.set(y, arr);
   }
+}
+
+/** v2.61: existence gate for 50s singles by year */
+function hasWikiSingles50sYear(y) {
+  const arr = WIKI_SINGLES_50S_BY_YEAR.get(y);
+  return Array.isArray(arr) && arr.length > 0;
 }
 
 /* =========================
@@ -567,23 +572,25 @@ function getNumberOneByYear(year, chart = DEFAULT_CHART) {
 
 function chooseChartForYear(requestedChart, year) {
   const y = toInt(year);
-  const c = normalizeChart(requestedChart || DEFAULT_CHART);
+  const requested = normalizeChart(requestedChart || DEFAULT_CHART);
 
+  // v2.61: only force 50s Year-End Singles if we actually have that year in the cache
   if (y != null && y >= 1950 && y <= 1959) {
-    if (c === YEAR_END_CHART || c === DEFAULT_CHART) return YEAR_END_SINGLES_CHART;
-    if (c === YEAR_END_SINGLES_CHART) return YEAR_END_SINGLES_CHART;
+    if (hasWikiSingles50sYear(y)) return YEAR_END_SINGLES_CHART;
+    // fallback: don't claim singles if we don't have them
+    return requested || DEFAULT_CHART;
   }
 
-  if (c === YEAR_END_SINGLES_CHART && y != null && (y < 1950 || y > 1959)) {
+  if (requested === YEAR_END_SINGLES_CHART && y != null && (y < 1950 || y > 1959)) {
     if (y >= 1970 && y <= 2010) return YEAR_END_CHART;
     return DEFAULT_CHART;
   }
 
-  if (c === YEAR_END_CHART && y != null && (y < 1970 || y > 2010)) {
+  if (requested === YEAR_END_CHART && y != null && (y < 1970 || y > 2010)) {
     return DEFAULT_CHART;
   }
 
-  return c;
+  return requested;
 }
 
 function parseYearFromText(text) {
@@ -592,7 +599,7 @@ function parseYearFromText(text) {
   return m ? toInt(m[1]) : null;
 }
 
-// v2.59: global rank-gap repair happens here (render-time only)
+// global rank-gap repair happens here (render-time only)
 function formatTopList(year, chart, limit = 10) {
   const finalChart = normalizeChart(chart);
   let list = getTopByYear(year, finalChart, limit);
@@ -693,11 +700,17 @@ function handleChat({ text, session } = {}) {
       };
     }
 
-    if (finalChart === YEAR_END_SINGLES_CHART && year >= 1950 && year <= 1959) {
-      const yrs = [1956, 1957, 1958].filter((x) => x !== year);
+    // v2.61: if we tried Year-End Singles but the specific year is missing, say it accurately
+    if (
+      normalizeChart(finalChart) === YEAR_END_SINGLES_CHART &&
+      year >= 1950 &&
+      year <= 1959 &&
+      !hasWikiSingles50sYear(year)
+    ) {
+      const yrs = [1950, 1952, 1956, 1958].filter((x) => x !== year).slice(0, 3);
       return {
-        reply: `I don’t have a clean Year-End Singles list for ${year} loaded yet. Once we rebuild the ${year} Wikipedia slice, I’ll serve it perfectly.`,
-        followUp: [`Try: ${yrs[0]}`, `Try: ${yrs[1]}`, "Try: 1956"],
+        reply: `I’m missing the ${year} Year-End Singles list in the current Wikipedia cache. Try another 1950s year while I rebuild that slice.`,
+        followUp: [`Try: ${yrs[0]}`, `Try: ${yrs[1]}`, `Try: ${yrs[2]}`],
         domain: "music",
       };
     }
