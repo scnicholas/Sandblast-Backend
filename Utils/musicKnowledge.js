@@ -1,22 +1,24 @@
 "use strict";
 
 /**
- * Utils/musicKnowledge.js — v2.57
+ * Utils/musicKnowledge.js — v2.58
  *
- * FIXES IN v2.57:
- *  - 1950–1959 Billboard Year-End Singles: Wikipedia is authoritative.
- *  - If Wikipedia does NOT contain the requested year, DO NOT fall back to DB placeholders.
+ * FIXES IN v2.58:
+ *  - 1950–1959 Billboard Year-End Singles: always serve from Wikipedia cache when present.
+ *  - For 1950–1959 Year-End Singles, enforce sequential ranks (1..N) so UI never shows gaps (e.g., 1,2,3,5...).
+ *  - Light cleanup for wrapping quotes + extra whitespace on title/artist during normalization.
+ *
+ * Keeps v2.57 behavior elsewhere:
+ *  - If Wikipedia does NOT contain the requested 50s year, DO NOT fall back to DB placeholders.
  *    Instead return empty so UX can say "not available yet" rather than "Unknown Title".
  *  - Adds warning if a 50s year is missing from the Wikipedia rows.
- *
- * Keeps v2.56 behavior elsewhere.
  */
 
 const fs = require("fs");
 const path = require("path");
 
 const MK_VERSION =
-  "musicKnowledge v2.57 (no DB fallback for missing/unclean 50s singles year; retains v2.56 behavior)";
+  "musicKnowledge v2.58 (50s year-end singles ranks normalized + light quote cleanup; retains v2.57 behavior)";
 
 const DEFAULT_CHART = "Billboard Hot 100";
 const TOP40_CHART = "Top40Weekly Top 100";
@@ -72,6 +74,23 @@ const _t = (x) => (x == null ? "" : String(x)).trim();
 
 function cleanText(s) {
   return String(s || "").replace(/\s+/g, " ").trim();
+}
+
+// v2.58: strip wrapping quotes and normalize whitespace for display safety
+function cleanField(s) {
+  let t = cleanText(s);
+  // remove wrapping quotes like: " Title "
+  t = t.replace(/^"\s*/g, "").replace(/\s*"$/g, "");
+  return cleanText(t);
+}
+
+// v2.58: renumber a list sequentially by existing rank order
+function renumberSequentialByRank(rows, limit) {
+  const ranked = (rows || []).filter((m) => m && m.rank != null);
+  ranked.sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999));
+  const out = ranked.slice(0, Math.max(1, limit || ranked.length));
+  for (let i = 0; i < out.length; i++) out[i].rank = i + 1;
+  return out;
 }
 
 function coerceRank(m) {
@@ -145,8 +164,8 @@ function isYearEndChart(chart) {
 function normalizeMoment(m) {
   if (!m || typeof m !== "object") return m;
 
-  let artist = _t(m.artist);
-  let title = _t(m.title);
+  let artist = cleanField(_t(m.artist));
+  let title = cleanField(_t(m.title));
   const year = toInt(m.year);
   const rank = coerceRank(m);
 
@@ -224,7 +243,9 @@ function loadWikiSingles50sOnce() {
     const arr = WIKI_SINGLES_50S_BY_YEAR.get(y) || [];
     arr.sort((a, b) => a.rank - b.rank);
     if (!arr.length) {
-      console.warn(`[musicKnowledge] WARNING: Wikipedia 50s singles missing year ${y} in rows payload.`);
+      console.warn(
+        `[musicKnowledge] WARNING: Wikipedia 50s singles missing year ${y} in rows payload.`
+      );
     }
     WIKI_SINGLES_50S_BY_YEAR.set(y, arr);
   }
@@ -315,7 +336,9 @@ function mergeWikipediaYearEnd(moments) {
     );
   }
 
-  console.log(`[musicKnowledge] Wikipedia Year-End merge: source=${abs} rows=${merged.length}`);
+  console.log(
+    `[musicKnowledge] Wikipedia Year-End merge: source=${abs} rows=${merged.length}`
+  );
   return moments.concat(merged);
 }
 
@@ -350,7 +373,9 @@ function mergeWikipediaYearEndSingles50s(moments) {
     );
   }
 
-  console.log(`[musicKnowledge] Wikipedia Year-End Singles merge: source=${abs} rows=${merged.length}`);
+  console.log(
+    `[musicKnowledge] Wikipedia Year-End Singles merge: source=${abs} rows=${merged.length}`
+  );
   return moments.concat(merged);
 }
 
@@ -392,7 +417,8 @@ function loadDb() {
   BY_YEAR.clear();
   BY_YEAR_CHART.clear();
 
-  let minY = null, maxY = null;
+  let minY = null,
+    maxY = null;
   const charts = new Set();
 
   for (const raw of moments) {
@@ -472,11 +498,12 @@ function getTopByYear(year, chart = DEFAULT_CHART, limit = 10) {
 
   const c = normalizeChart(chart);
 
-  // v2.57: if 50s singles requested and Wikipedia cache is missing/empty, return empty (no DB placeholders).
+  // v2.58: 50s singles: serve from Wikipedia cache + normalize ranks sequentially.
+  // v2.57 behavior preserved: if cache missing/empty for requested year, return empty (no DB placeholders).
   if (c === YEAR_END_SINGLES_CHART && y >= 1950 && y <= 1959) {
     const arr = WIKI_SINGLES_50S_BY_YEAR.get(y) || [];
-    if (arr.length) return arr.slice(0, Math.max(1, limit));
-    return []; // IMPORTANT: do not fall back to BY_YEAR_CHART (placeholders)
+    if (arr.length) return renumberSequentialByRank(arr, limit);
+    return [];
   }
 
   let out = BY_YEAR_CHART.get(`${y}|${c}`) || [];
@@ -557,14 +584,17 @@ function formatTopList(year, chart, limit = 10) {
     return `${rk}. ${a} — ${t}`;
   });
 
-  return `Top ${Math.min(limit, lines.length)} — ${finalChart} (${year}):\n${lines.join("\n")}`;
+  return `Top ${Math.min(limit, lines.length)} — ${finalChart} (${year}):\n${lines.join(
+    "\n"
+  )}`;
 }
 
 function pickFollowUpYears() {
   const cands = [1950, 1951, 1955, 1960, 1970, 1984, 1999, 2010, 2020, 2024];
   const out = [];
   for (const y of cands) {
-    if (y >= PUBLIC_MIN_YEAR && y <= PUBLIC_MAX_YEAR && !out.includes(y)) out.push(y);
+    if (y >= PUBLIC_MIN_YEAR && y <= PUBLIC_MAX_YEAR && !out.includes(y))
+      out.push(y);
     if (out.length >= 3) break;
   }
   return out;
@@ -611,7 +641,7 @@ function handleChat({ text, session } = {}) {
       };
     }
 
-    // v2.57: if 50s singles year is missing, say it plainly.
+    // v2.57 behavior retained: if 50s singles year is missing, say it plainly.
     if (finalChart === YEAR_END_SINGLES_CHART && year >= 1950 && year <= 1959) {
       const yrs = [1956, 1957, 1958].filter((x) => x !== year);
       return {
