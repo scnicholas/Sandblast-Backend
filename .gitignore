@@ -96,13 +96,21 @@ Data/wikipedia/**
 
 # =========================
 # IMPORTANT: PRODUCTION DATASET ALLOWLIST
-# This file MUST be committed for Year-End charts to work
+# These files MUST be committed for Year-End charts to work
 # =========================
 !Data/wikipedia/
 !Data/wikipedia/billboard_yearend_hot100_1970_2010.json
+!Data/wikipedia/billboard_yearend_singles_1950_1959.json
 
 # =========================
 # Local audio artifacts (never commit)
 # =========================
 *.mp3
 nyx_*.mp3
+
+# =========================
+# Local sanity outputs
+# =========================
+nyx_payload.json
+s2s_response.json
+Data/_sanity_music_report_*.json
