@@ -1,7 +1,7 @@
 "use strict";
 
 /**
- * Utils/musicKnowledge.js — v2.52
+ * Utils/musicKnowledge.js — v2.53
  *
  * GOAL (per Mac):
  *  - Public range is 1950–2024 (Nyx should say/accept this now).
@@ -14,29 +14,30 @@
  *  - Bucket cache to avoid repeated disk reads
  *  - Provides handleChat() for index.js integration.
  *
- * NEW IN v2.52:
- *  - Adds Billboard Year-End Singles chart for 1950–1959 (Wikipedia sources)
- *  - Merges Data/wikipedia/billboard_yearend_singles_1950_1959.json
- *  - Routes 1950–1959 Year-End + Hot 100 requests to the Singles chart automatically
+ * NEW IN v2.53:
+ *  - Canonical chart mapping hardening for "Billboard Year-End Singles"
+ *  - Treat Year-End Singles as year-end for fallback logic
+ *  - formatTopList always labels with the FINAL chosen chart (prevents mislabeling)
  *
  * RETAINS:
  *  - 1988 #3 George Harrison hard-fix
  *  - rank-safe lists + rank aliases
  *  - Wikipedia Year-End merge (1970–2010 file)
  *  - Buckets fallback + cache
+ *  - 1950s Year-End Singles merge (1950–1959)
  */
 
 const fs = require("fs");
 const path = require("path");
 
 const MK_VERSION =
-  "musicKnowledge v2.52 (adds 1950s Billboard Year-End Singles + keeps v2.51 buckets/chart-aware/handleChat)";
+  "musicKnowledge v2.53 (canonical singles chart + singles treated as year-end + final chart labeling; retains v2.52)";
 
 const DEFAULT_CHART = "Billboard Hot 100";
 const TOP40_CHART = "Top40Weekly Top 100";
 const YEAR_END_CHART = "Billboard Year-End Hot 100";
 
-// NEW: 1950s Wikipedia Year-End Singles chart (Top 30/50/100 by year)
+// 1950s Wikipedia Year-End Singles chart (Top 30/50/100 by year)
 const YEAR_END_SINGLES_CHART = "Billboard Year-End Singles";
 
 // PUBLIC (what Nyx says/accepts)
@@ -63,11 +64,9 @@ const DB_CANDIDATES = [
 const WIKI_YEAREND_COMBINED =
   "Data/wikipedia/billboard_yearend_hot100_1970_2010.json";
 
-// NEW: 1950s year-end singles dataset you will generate via the ingestion script below
 const WIKI_YEAREND_SINGLES_1950_1959 =
   "Data/wikipedia/billboard_yearend_singles_1950_1959.json";
 
-// Buckets (created by your ingestion scripts)
 const BUCKETS_BASE_DIR = "Data/_buckets/music";
 
 /* =========================
@@ -110,19 +109,41 @@ function coerceRank(m) {
   return n && n >= 1 && n <= 100 ? n : null;
 }
 
+function normKey(s) {
+  return cleanText(String(s || "")).toLowerCase();
+}
+
 /* =========================
-   CHART NORMALIZATION
+   CHART NORMALIZATION (HARDENED)
 ========================= */
 
 function normalizeChart(chart) {
   const raw = chart || DEFAULT_CHART;
-  const c = String(raw).toLowerCase();
+  const rawKey = normKey(raw);
 
-  // NEW: explicitly distinguish 1950s "year-end singles" pages
+  // HARD guarantee + tolerant match for the Singles chart label.
+  // This prevents callers from drifting the label and breaking lookups.
+  if (
+    rawKey === "billboard year-end singles" ||
+    rawKey === "billboard year end singles" ||
+    rawKey === "year-end singles" ||
+    rawKey === "year end singles" ||
+    rawKey === "billboard year-end single" ||
+    rawKey === "billboard year end single"
+  ) {
+    return YEAR_END_SINGLES_CHART;
+  }
+
+  const c = rawKey;
+
+  // Explicitly distinguish 1950s "year-end singles" pages
   if (
     c.includes("year") &&
     c.includes("end") &&
-    (c.includes("single") || c.includes("singles") || c.includes("top 30") || c.includes("top 50"))
+    (c.includes("single") ||
+      c.includes("singles") ||
+      c.includes("top 30") ||
+      c.includes("top 50"))
   ) {
     return YEAR_END_SINGLES_CHART;
   }
@@ -136,8 +157,10 @@ function normalizeChart(chart) {
 }
 
 function isYearEndChart(chart) {
-  const c = String(chart || "").toLowerCase();
-  return c.includes("year") && c.includes("end");
+  const c = normKey(chart);
+  if (c.includes("year") && c.includes("end")) return true;
+  // Singles is also Year-End
+  return normalizeChart(chart) === YEAR_END_SINGLES_CHART;
 }
 
 function slugifyChart(name) {
@@ -214,14 +237,13 @@ function mergeWikipediaYearEnd(moments) {
   return moments.concat(merged);
 }
 
-// NEW: 1950s Year-End Singles merge (Top 30/50/100 by year)
+// 1950s Year-End Singles merge (Top 30/50/100 by year)
 function mergeWikipediaYearEndSingles50s(moments) {
   const abs = path.resolve(__dirname, "..", WIKI_YEAREND_SINGLES_1950_1959);
   if (!fs.existsSync(abs)) return moments;
 
   const doc = JSON.parse(fs.readFileSync(abs, "utf8"));
 
-  // support multiple shapes
   const rows = Array.isArray(doc?.rows)
     ? doc.rows
     : Array.isArray(doc?.moments)
@@ -356,7 +378,6 @@ function readBucket(chart, year) {
     BUCKET_CACHE.set(key, out);
     return out;
   } catch (e) {
-    // Do not crash; treat as absent
     return null;
   }
 }
@@ -380,7 +401,7 @@ function getTopByYear(year, chart = DEFAULT_CHART, limit = 10) {
     if (Array.isArray(b) && b.length) out = b;
   }
 
-  // For Year-End: if no entries, fall back to broad sources (including buckets)
+  // For Year-End: if no entries, fall back to broad sources
   if (!out.length && isYearEndChart(c)) {
     out = BY_YEAR_CHART.get(`${y}|${DEFAULT_CHART}`) || [];
     if (!out.length) {
@@ -413,13 +434,13 @@ function getNumberOneByYear(year, chart = DEFAULT_CHART) {
    CHART RANGES (internal truth)
 ========================= */
 
-const CHART_RANGES = new Map(); // chart -> { min, max, countYears }
+const CHART_RANGES = new Map();
 
 function buildChartRanges() {
   loadDb();
   if (CHART_RANGES.size) return;
 
-  const perChart = new Map(); // chart -> {min,max,years:Set}
+  const perChart = new Map();
   for (const k of BY_YEAR_CHART.keys()) {
     const pipe = k.indexOf("|");
     if (pipe < 0) continue;
@@ -452,7 +473,6 @@ function getChartYearRange(chart) {
 
   if (r && r.min != null && r.max != null) return { chart: c, ...r };
 
-  // fallback to global
   loadDb();
   return {
     chart: c,
@@ -467,15 +487,13 @@ function getAvailableCharts() {
   return [...(STATS.charts || [])];
 }
 
-// Internal chart-aware range text (truth per chart)
 function getMusicRangeText(chart) {
   const r = getChartYearRange(chart);
-  const min = r?.min ?? STATS.yearMin ?? 1951;
+  const min = r?.min ?? STATS.yearMin ?? 1950;
   const max = r?.max ?? STATS.yearMax ?? 2024;
   return `${min}–${max}`;
 }
 
-// Public range text (what Nyx advertises)
 function getPublicRangeText() {
   return `${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}`;
 }
@@ -484,28 +502,21 @@ function getPublicRangeText() {
    CONVERSATIONAL ROUTING
 ========================= */
 
-/**
- * If a chart is requested that can't serve the requested year,
- * route to a chart that will (including 1950s Year-End Singles).
- */
 function chooseChartForYear(requestedChart, year) {
   const y = toInt(year);
   const c = normalizeChart(requestedChart || DEFAULT_CHART);
 
-  // NEW: 1950–1959: prefer Year-End Singles when user asks for Year-End or Hot 100
+  // 1950–1959: prefer Year-End Singles when user asks for Hot 100 or Year-End Hot 100
   if (y != null && y >= 1950 && y <= 1959) {
     if (c === YEAR_END_CHART || c === DEFAULT_CHART) return YEAR_END_SINGLES_CHART;
     if (c === YEAR_END_SINGLES_CHART) return YEAR_END_SINGLES_CHART;
   }
 
-  // If someone asks for Singles outside its supported range, route safely
   if (c === YEAR_END_SINGLES_CHART && y != null && (y < 1950 || y > 1959)) {
-    // if year-end hot100 range, go there; else go broad
     if (y >= 1970 && y <= 2010) return YEAR_END_CHART;
     return DEFAULT_CHART;
   }
 
-  // Existing: Year-End Hot 100 (1970–2010) else broad
   if (c === YEAR_END_CHART && y != null && (y < 1970 || y > 2010)) {
     return DEFAULT_CHART;
   }
@@ -528,10 +539,11 @@ function parseArtistYear(text) {
 }
 
 function formatTopList(year, chart, limit = 10) {
-  const list = getTopByYear(year, chart, limit);
+  // IMPORTANT: label must reflect the final chosen chart
+  const finalChart = normalizeChart(chart);
+  const list = getTopByYear(year, finalChart, limit);
   if (!list.length) return null;
 
-  const chartName = normalizeChart(chart);
   const lines = list.map((m, i) => {
     const rk = m.rank != null ? String(m.rank) : String(i + 1);
     const a = _t(m.artist) || "Unknown Artist";
@@ -539,9 +551,7 @@ function formatTopList(year, chart, limit = 10) {
     return `${rk}. ${a} — ${t}`;
   });
 
-  return `Top ${Math.min(limit, lines.length)} — ${chartName} (${year}):\n${lines.join(
-    "\n"
-  )}`;
+  return `Top ${Math.min(limit, lines.length)} — ${finalChart} (${year}):\n${lines.join("\n")}`;
 }
 
 function pickFollowUpYears() {
@@ -554,12 +564,6 @@ function pickFollowUpYears() {
   return out;
 }
 
-/**
- * handleChat({ text, session })
- * - Public promise: 1950–2024
- * - Uses buckets if present
- * - If bucket exists but empty, stays honest and guides forward
- */
 function handleChat({ text, session } = {}) {
   loadDb();
 
@@ -571,7 +575,6 @@ function handleChat({ text, session } = {}) {
 
   const publicRange = getPublicRangeText();
 
-  // Lane entry (chip click / empty)
   if (!userText) {
     const yrs = pickFollowUpYears();
     return {
@@ -581,7 +584,6 @@ function handleChat({ text, session } = {}) {
     };
   }
 
-  // Year flow
   const year = parseYearFromText(userText);
   if (year != null) {
     if (year < PUBLIC_MIN_YEAR || year > PUBLIC_MAX_YEAR) {
@@ -593,9 +595,9 @@ function handleChat({ text, session } = {}) {
       };
     }
 
-    const chart = chooseChartForYear(requestedChart, year);
+    const finalChart = chooseChartForYear(requestedChart, year);
 
-    const formatted = formatTopList(year, chart, 10);
+    const formatted = formatTopList(year, finalChart, 10);
     if (formatted) {
       return {
         reply: `${formatted}\n\nWant #1, a story moment, or another year?`,
@@ -604,8 +606,7 @@ function handleChat({ text, session } = {}) {
       };
     }
 
-    // Deterministic: if bucket file exists but is empty, say "no rows yet"
-    const bucketArr = readBucket(chart, year);
+    const bucketArr = readBucket(finalChart, year);
     if (Array.isArray(bucketArr) && bucketArr.length === 0) {
       const yrs = pickFollowUpYears();
       return {
@@ -615,7 +616,6 @@ function handleChat({ text, session } = {}) {
       };
     }
 
-    // If we don't have rows and no bucket, be honest + guide
     const yrs = pickFollowUpYears();
     return {
       reply: `I don’t have a clean chart list for ${year} on this source yet. Try another year in ${publicRange}.`,
@@ -624,7 +624,6 @@ function handleChat({ text, session } = {}) {
     };
   }
 
-  // Artist + year flow (lightweight; we still steer to year lists)
   const ay = parseArtistYear(userText);
   if (ay.year != null) {
     if (ay.year < PUBLIC_MIN_YEAR || ay.year > PUBLIC_MAX_YEAR) {
@@ -636,8 +635,8 @@ function handleChat({ text, session } = {}) {
       };
     }
 
-    const chart = chooseChartForYear(requestedChart, ay.year);
-    const formatted = formatTopList(ay.year, chart, 10);
+    const finalChart = chooseChartForYear(requestedChart, ay.year);
+    const formatted = formatTopList(ay.year, finalChart, 10);
     if (formatted) {
       return {
         reply: `${formatted}\n\nIf you tell me the exact song title by ${ay.artist || "that artist"}, I’ll give you a quick story moment.`,
@@ -647,7 +646,6 @@ function handleChat({ text, session } = {}) {
     }
   }
 
-  // Default fallback: keep it simple, public range
   const yrs = pickFollowUpYears();
   return {
     reply: `Give me a year (${publicRange}) or an artist + year (example: “Prince 1984”).`,
@@ -664,18 +662,17 @@ module.exports = {
   getTopByYear,
   getNumberOneByYear,
 
-  // diagnostics / metadata
   STATS: () => {
     loadDb();
     return { ...STATS };
   },
   MK_VERSION: () => MK_VERSION,
 
-  // ranges + charts
   getChartYearRange,
-  getMusicRangeText, // chart-truth
-  getPublicRangeText, // Nyx public promise
+  getMusicRangeText,
+  getPublicRangeText,
   getAvailableCharts,
+
   CHART_RANGES: () => {
     buildChartRanges();
     const out = {};
@@ -683,15 +680,12 @@ module.exports = {
     return out;
   },
 
-  // buckets (diagnostic)
   BUCKETS: () => ({
     baseDir: BUCKETS_BASE_DIR,
     hasAnyCache: BUCKET_CACHE.size > 0,
   }),
 
-  // chat integration
   handleChat,
 
-  // public range
   PUBLIC_RANGE: () => ({ min: PUBLIC_MIN_YEAR, max: PUBLIC_MAX_YEAR }),
 };
