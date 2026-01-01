@@ -15,6 +15,12 @@
  * NEW (2026-01-01):
  *  - Merge module-provided sessionPatch into session spine safely
  *    (needed for musicKnowledge Moment Intelligence continuity: lastMusicYear/lastMusicChart)
+ *
+ * NEW (2026-01-01, PATCH B):
+ *  - Payload tolerance: accept message from multiple keys (message/text/input/value/label/query)
+ *    to prevent "empty message" looping when the widget sends a different shape.
+ *  - Optional sessionId aliases (sid/session) for the same reason.
+ *  - Debug tracing of incoming payload keys + resolved message (NYX_DEBUG=true)
  */
 
 "use strict";
@@ -54,7 +60,8 @@ const ELEVENLABS_BASE_URL = process.env.ELEVENLABS_BASE_URL || "https://api.elev
 const NYX_VOICE_STABILITY = process.env.NYX_VOICE_STABILITY || "0.35";
 const NYX_VOICE_SIMILARITY = process.env.NYX_VOICE_SIMILARITY || "0.80";
 const NYX_VOICE_STYLE = process.env.NYX_VOICE_STYLE || "0.25";
-const NYX_VOICE_SPEAKER_BOOST = (process.env.NYX_VOICE_SPEAKER_BOOST || "true") === "true";
+const NYX_VOICE_SPEAKER_BOOST =
+  (process.env.NYX_VOICE_SPEAKER_BOOST || "true") === "true";
 
 // Utility feature toggles
 const ENABLE_TTS = (process.env.ENABLE_TTS || "true") === "true";
@@ -77,12 +84,13 @@ app.use(express.urlencoded({ extended: true }));
    Safe Imports (do not crash if a module changes)
 ====================================================== */
 
-function safeRequire(path) {
+function safeRequire(modPath) {
   try {
     // eslint-disable-next-line import/no-dynamic-require, global-require
-    return require(path);
+    return require(modPath);
   } catch (e) {
-    if (ENABLE_DEBUG) console.warn(`[safeRequire] missing/failed: ${path} :: ${e.message}`);
+    if (ENABLE_DEBUG)
+      console.warn(`[safeRequire] missing/failed: ${modPath} :: ${e.message}`);
     return null;
   }
 }
@@ -135,9 +143,8 @@ function newSessionState(sessionId) {
     lastUserIntent: null,
     lastUserText: null,
 
-    // NEW: if the first message was a lane token/chip, we store it here
-    // so the intro can be returned cleanly (single line), but the lane is "armed"
-    // for the next user message without requiring another chip tap.
+    // If the first message was a lane token/chip, store it here so intro can be returned cleanly,
+    // but the lane is armed for next message without requiring another chip tap.
     pendingDomainAfterIntro: null,
 
     // loop protection
@@ -210,10 +217,14 @@ function isOnlyName(text) {
 function extractName(text) {
   const t = cleanText(text);
 
-  let m = t.match(/\bmy name is\s+([A-Za-z'’-]{2,}(?:\s+[A-Za-z'’-]{2,}){0,2})\b/i);
+  let m = t.match(
+    /\bmy name is\s+([A-Za-z'’-]{2,}(?:\s+[A-Za-z'’-]{2,}){0,2})\b/i
+  );
   if (m && m[1]) return m[1].trim();
 
-  m = t.match(/\b(i am|i'm)\s+([A-Za-z'’-]{2,}(?:\s+[A-Za-z'’-]{2,}){0,2})\b/i);
+  m = t.match(
+    /\b(i am|i'm)\s+([A-Za-z'’-]{2,}(?:\s+[A-Za-z'’-]{2,}){0,2})\b/i
+  );
   if (m && m[2]) return m[2].trim();
 
   if (isOnlyName(t)) return t;
@@ -244,7 +255,6 @@ function noteLoopProtection(st, reply) {
 function applySessionPatch(st, patch) {
   if (!patch || typeof patch !== "object") return;
 
-  // Protect spine invariants + critical runtime fields
   const BLOCK = new Set([
     "sessionId",
     "createdAt",
@@ -259,6 +269,36 @@ function applySessionPatch(st, patch) {
     if (BLOCK.has(k)) continue;
     st[k] = v;
   }
+}
+
+/* ======================================================
+   Payload normalization (prevents widget mismatch looping)
+====================================================== */
+
+function pickFirstNonEmpty(...vals) {
+  for (const v of vals) {
+    const t = cleanText(v);
+    if (t) return t;
+  }
+  return "";
+}
+
+function resolveSessionId(body) {
+  const b = body || {};
+  return pickFirstNonEmpty(b.sessionId, b.sid, b.session, b.session_id);
+}
+
+function resolveMessage(body) {
+  const b = body || {};
+  return pickFirstNonEmpty(
+    b.message,
+    b.text,
+    b.input,
+    b.value,
+    b.label,
+    b.query,
+    b.prompt
+  );
 }
 
 /* ======================================================
@@ -290,7 +330,8 @@ function normalizeDomainFromChipOrText(text) {
 
   if (["music", "lane:music"].includes(t)) return "music";
   if (["tv", "television", "lane:tv"].includes(t)) return "tv";
-  if (["sponsors", "sponsor", "ads", "advertising", "lane:sponsors"].includes(t)) return "sponsors";
+  if (["sponsors", "sponsor", "ads", "advertising", "lane:sponsors"].includes(t))
+    return "sponsors";
   if (["ai", "a.i.", "consulting", "lane:ai"].includes(t)) return "ai";
   if (["general", "lane:general"].includes(t)) return "general";
 
@@ -326,11 +367,13 @@ function handleDomain(st, domain, userText) {
       try {
         return musicKnowledge.handleChat({ text, session: st });
       } catch (e) {
-        if (ENABLE_DEBUG) console.warn(`[musicKnowledge.handleChat] failed: ${e.message}`);
+        if (ENABLE_DEBUG)
+          console.warn(`[musicKnowledge.handleChat] failed: ${e.message}`);
       }
     }
     return {
-      reply: "Alright—music. Give me a year (1950–2024) or an artist + year, and I’ll pull something memorable.",
+      reply:
+        "Alright—music. Give me a year (1950–2024) or an artist + year, and I’ll pull something memorable.",
       followUp: ["Try: 1984", "Try: 1999", "Try: Prince 1984"],
       domain: "music",
     };
@@ -341,26 +384,33 @@ function handleDomain(st, domain, userText) {
       try {
         return tvKnowledge.handleChat({ text, session: st });
       } catch (e) {
-        if (ENABLE_DEBUG) console.warn(`[tvKnowledge.handleChat] failed: ${e.message}`);
+        if (ENABLE_DEBUG)
+          console.warn(`[tvKnowledge.handleChat] failed: ${e.message}`);
       }
     }
     return {
-      reply: "TV—got it. Tell me a show title, a decade, or a vibe (crime, western, comedy) and I’ll line up the best next step.",
+      reply:
+        "TV—got it. Tell me a show title, a decade, or a vibe (crime, western, comedy) and I’ll line up the best next step.",
       followUp: ["Try: crime classics", "Try: westerns", "Try: 1960s TV"],
       domain: "tv",
     };
   }
 
   if (domain === "sponsors") {
-    if (sponsorsKnowledge && typeof sponsorsKnowledge.handleChat === "function") {
+    if (
+      sponsorsKnowledge &&
+      typeof sponsorsKnowledge.handleChat === "function"
+    ) {
       try {
         return sponsorsKnowledge.handleChat({ text, session: st });
       } catch (e) {
-        if (ENABLE_DEBUG) console.warn(`[sponsorsKnowledge.handleChat] failed: ${e.message}`);
+        if (ENABLE_DEBUG)
+          console.warn(`[sponsorsKnowledge.handleChat] failed: ${e.message}`);
       }
     }
     return {
-      reply: "Sponsors—perfect. Are you looking to advertise, explore packages, or see audience and placement options?",
+      reply:
+        "Sponsors—perfect. Are you looking to advertise, explore packages, or see audience and placement options?",
       followUp: ["Advertising packages", "Audience stats", "Placement options"],
       domain: "sponsors",
     };
@@ -368,7 +418,8 @@ function handleDomain(st, domain, userText) {
 
   if (domain === "ai") {
     return {
-      reply: "AI lane—love it. Tell me what you’re trying to achieve: build something, automate a workflow, or improve a business process.",
+      reply:
+        "AI lane—love it. Tell me what you’re trying to achieve: build something, automate a workflow, or improve a business process.",
       followUp: ["Build a chatbot", "Automate outreach", "Improve operations"],
       domain: "ai",
     };
@@ -390,7 +441,8 @@ function applyNyxTone(st, reply) {
     try {
       return nyxPersonality.applyTone(reply, { session: st });
     } catch (e) {
-      if (ENABLE_DEBUG) console.warn(`[nyxPersonality.applyTone] failed: ${e.message}`);
+      if (ENABLE_DEBUG)
+        console.warn(`[nyxPersonality.applyTone] failed: ${e.message}`);
     }
   }
   return reply;
@@ -436,7 +488,9 @@ async function elevenlabsTts(text) {
 
   if (!resp.ok) {
     const errText = await resp.text().catch(() => "");
-    throw new Error(`ElevenLabs TTS failed: ${resp.status} ${resp.statusText} :: ${errText}`);
+    throw new Error(
+      `ElevenLabs TTS failed: ${resp.status} ${resp.statusText} :: ${errText}`
+    );
   }
 
   const arrayBuf = await resp.arrayBuffer();
@@ -468,8 +522,17 @@ async function ttsForReply(text) {
 
 app.post("/api/chat", async (req, res) => {
   try {
-    const sessionId = cleanText(req.body.sessionId);
-    const message = cleanText(req.body.message);
+    const sessionId = resolveSessionId(req.body);
+    const message = resolveMessage(req.body);
+
+    if (ENABLE_DEBUG) {
+      const keys = Object.keys(req.body || {});
+      console.log("[/api/chat] inbound", {
+        keys,
+        sessionId: sessionId || "(none)",
+        message: message || "(EMPTY)",
+      });
+    }
 
     const st = getSession(sessionId);
     touchSession(st);
@@ -478,7 +541,9 @@ app.post("/api/chat", async (req, res) => {
     // --- Precompute chip token safely (FIX precedence bug)
     const chipDomain = normalizeDomainFromChipOrText(message);
     const isLaneToken = lower(message).startsWith("lane:");
-    const isSimpleDomainWord = ["music", "tv", "sponsors", "ai", "general"].includes(lower(message));
+    const isSimpleDomainWord = ["music", "tv", "sponsors", "ai", "general"].includes(
+      lower(message)
+    );
     const messageIsJustChip = Boolean(chipDomain) && (isLaneToken || isSimpleDomainWord);
 
     // 1) Empty message: if first contact -> intro; else prompt forward
@@ -503,11 +568,16 @@ app.post("/api/chat", async (req, res) => {
         st.phase = "engaged";
       }
       const reply = applyNyxTone(st, nyxAcknowledgeName(name));
-      return res.json({ ok: true, reply, followUp: ["Music", "TV", "Sponsors", "AI"], sessionId: st.sessionId });
+      return res.json({
+        ok: true,
+        reply,
+        followUp: ["Music", "TV", "Sponsors", "AI"],
+        sessionId: st.sessionId,
+      });
     }
 
     // 3) HARD RULE: Intro ALWAYS wins on first contact (even if widget sends a chip token)
-    // NEW behavior: if first message is a lane token/chip, we store it for the next user input.
+    // If first message is a lane token/chip, store it for the next user input.
     if (st.phase === "greeting" && !st.greetedOnce) {
       if (messageIsJustChip && chipDomain) {
         st.pendingDomainAfterIntro = chipDomain;
@@ -522,8 +592,7 @@ app.post("/api/chat", async (req, res) => {
     const intent = classifyIntent(message);
     st.lastUserIntent = intent.intent;
 
-    // 4.1) If we have a pending domain armed from a first-contact lane token,
-    // set it now and clear pending. This ensures the NEXT free text is routed properly.
+    // 4.1) Apply pending domain armed from first-contact lane token
     if (st.pendingDomainAfterIntro && !st.activeDomain) {
       st.activeDomain = st.pendingDomainAfterIntro;
       st.phase = "domain_active";
@@ -533,23 +602,25 @@ app.post("/api/chat", async (req, res) => {
     // 5) Greeting handling: post-intro social response
     if (intent.intent === "greeting" || isGreeting(message)) {
       const reply = applyNyxTone(st, nyxGreetingReply(st));
-      return res.json({ ok: true, reply, followUp: ["Music", "TV", "Sponsors", "AI"], sessionId: st.sessionId });
+      return res.json({
+        ok: true,
+        reply,
+        followUp: ["Music", "TV", "Sponsors", "AI"],
+        sessionId: st.sessionId,
+      });
     }
 
     // 6) Chip arbitration: chips switch lane only when message is a lane token
-    // (Post-intro behavior remains: a chip tap sets the lane and returns the lane prompt.)
     if (messageIsJustChip && chipDomain) {
       st.activeDomain = chipDomain;
       st.phase = "domain_active";
 
       const result = handleDomain(st, chipDomain, "");
 
-      // NEW: safely merge module sessionPatch into session spine
       if (result && result.sessionPatch) applySessionPatch(st, result.sessionPatch);
 
       let reply = applyNyxTone(st, result.reply);
 
-      // Loop guard should not be annoying; only on real repeats
       const forcedForward = noteLoopProtection(st, reply);
       if (forcedForward) {
         reply = applyNyxTone(
@@ -569,9 +640,7 @@ app.post("/api/chat", async (req, res) => {
     // 7) Otherwise: user free-text. Route based on activeDomain if set; else infer domain.
     let domain = st.activeDomain;
 
-    if (!domain) {
-      domain = chipDomain || "general";
-    }
+    if (!domain) domain = chipDomain || "general";
 
     // If user explicitly says a domain keyword in free-text, allow it to set active lane
     const explicitDomain = normalizeDomainFromChipOrText(message);
@@ -585,7 +654,6 @@ app.post("/api/chat", async (req, res) => {
 
     const result = handleDomain(st, domain, message);
 
-    // NEW: safely merge module sessionPatch into session spine
     if (result && result.sessionPatch) applySessionPatch(st, result.sessionPatch);
 
     let reply = applyNyxTone(st, result.reply);
@@ -615,7 +683,7 @@ app.post("/api/chat", async (req, res) => {
 
 async function handleTts(req, res) {
   try {
-    const text = cleanText(req.body.text || req.body.reply);
+    const text = pickFirstNonEmpty(req.body?.text, req.body?.reply, req.body?.message);
     if (!text) return res.status(400).json({ ok: false, error: "NO_TEXT" });
 
     const audio = await ttsForReply(text);
@@ -640,7 +708,7 @@ app.post("/api/s2s", upload.single("file"), async (req, res) => {
   try {
     if (!ENABLE_S2S) return res.status(501).json({ ok: false, error: "S2S_DISABLED" });
 
-    const sessionId = cleanText(req.body.sessionId) || makeSessionId();
+    const sessionId = pickFirstNonEmpty(req.body?.sessionId, req.body?.sid, req.body?.session) || makeSessionId();
     const st = getSession(sessionId);
     touchSession(st);
 
@@ -652,7 +720,6 @@ app.post("/api/s2s", upload.single("file"), async (req, res) => {
     const transcript = cleanText(req.body.transcript || "");
     const syntheticText = transcript || "Hi Nyx";
 
-    // Reuse /api/chat logic internally (simple)
     const fakeReq = { body: { message: syntheticText, sessionId: st.sessionId } };
     const fakeRes = {
       _json: null,
@@ -665,11 +732,7 @@ app.post("/api/s2s", upload.single("file"), async (req, res) => {
     };
 
     await new Promise((resolve) => {
-      app._router.handle(
-        { ...fakeReq, method: "POST", url: "/api/chat" },
-        fakeRes,
-        resolve
-      );
+      app._router.handle({ ...fakeReq, method: "POST", url: "/api/chat" }, fakeRes, resolve);
     });
 
     const reply = fakeRes._json?.reply || "Want to pick up where we left off, or switch lanes?";
