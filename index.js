@@ -7,7 +7,7 @@
  *  - /api/voice is a real alias of /api/tts
  *  - Keeps your state spine + safe imports + final-boundary TTS
  *
- * Additional critical updates (appended, non-destructive):
+ * Additional critical updates (non-destructive):
  *  - If first message is a lane token/chip, intro still returns (single line),
  *    BUT we store the selected lane so next user text continues in that lane
  *    without requiring a second chip tap.
@@ -28,13 +28,13 @@
  *
  * NEW (2026-01-01, PATCH D — PRODUCTION SANITY):
  *  - Optional boot sanity check for 1950–1959 singles dataset (Render deployment visibility).
- *  - /api/health now includes music50s counts (if file present) so you can verify production instantly.
+ *  - /api/health includes music50s counts (if file present) so you can verify production instantly.
  *
  * NEW (2026-01-01, PATCH E — RENDER ROOT-DIR FIX):
  *  - Sanity check no longer relies on process.cwd() only.
  *  - Walks UP parent directories (from __dirname) to find Data/wikipedia dataset even if
  *    Render "Root Directory" is a subfolder.
- *  - Adds high-signal debug listing so missing file is obvious (NYX_DEBUG=true).
+ *  - Adds high-signal directory evidence so missing file is obvious (NYX_DEBUG=true).
  *
  * NEW (2026-01-01, PATCH F — DEPLOY SURVIVAL):
  *  - Never crash-loop production just because a static dataset is missing.
@@ -138,7 +138,7 @@ const tvKnowledge = safeRequire("./Utils/tvKnowledge");
 const sponsorsKnowledge = safeRequire("./Utils/sponsorsKnowledge");
 
 /* ======================================================
-   PATCH D/E: One-command sanity + health visibility + root-dir robustness
+   PATCH D/E/F: One-command sanity + health visibility + root-dir robustness + deploy survival
 ====================================================== */
 
 const WIKI_SINGLES_50S_REL =
@@ -375,8 +375,11 @@ function newSessionState(sessionId) {
     lastUserIntent: null,
     lastUserText: null,
 
+    // If the first message was a lane token/chip, store it here so intro can be returned cleanly,
+    // but the lane is armed for next message without requiring another chip tap.
     pendingDomainAfterIntro: null,
 
+    // loop protection
     lastReplyHash: null,
     repeatCount: 0,
   };
@@ -417,6 +420,7 @@ function lower(s) {
   return cleanText(s).toLowerCase();
 }
 
+/** PATCH C: never treat lane/commands as a user's name */
 const RESERVED_NAME_TOKENS = new Set([
   "music",
   "tv",
@@ -456,10 +460,14 @@ function isGreeting(text) {
   );
 }
 
+/** PATCH C: harden name detection */
 function isOnlyName(text) {
   const t = cleanText(text);
   if (!t) return false;
+
+  // Never allow reserved lane tokens to be a "name"
   if (isReservedNameToken(t)) return false;
+
   if (/[\d@#$%^&*_=+[\]{}<>\\/|]/.test(t)) return false;
   const parts = t.split(" ").filter(Boolean);
   if (parts.length < 1 || parts.length > 3) return false;
@@ -467,9 +475,12 @@ function isOnlyName(text) {
   return true;
 }
 
+/** PATCH C: harden extraction paths */
 function extractName(text) {
   const t = cleanText(text);
   if (!t) return null;
+
+  // Reject obvious lane tokens early
   if (isReservedNameToken(t)) return null;
 
   let m = t.match(
@@ -489,6 +500,7 @@ function extractName(text) {
   }
 
   if (isOnlyName(t)) return t;
+
   return null;
 }
 
@@ -498,11 +510,13 @@ function hashReply(s) {
 
 function noteLoopProtection(st, reply) {
   const h = hashReply(reply);
-  if (st.lastReplyHash === h) st.repeatCount += 1;
-  else {
+  if (st.lastReplyHash === h) {
+    st.repeatCount += 1;
+  } else {
     st.lastReplyHash = h;
     st.repeatCount = 0;
   }
+  // Less aggressive: require 2 repeats (prevents "nagging" early)
   return st.repeatCount >= 2;
 }
 
@@ -642,7 +656,8 @@ function handleDomain(st, domain, userText) {
       try {
         return tvKnowledge.handleChat({ text, session: st });
       } catch (e) {
-        if (ENABLE_DEBUG) console.warn(`[tvKnowledge.handleChat] failed: ${e.message}`);
+        if (ENABLE_DEBUG)
+          console.warn(`[tvKnowledge.handleChat] failed: ${e.message}`);
       }
     }
     return {
@@ -792,6 +807,7 @@ app.post("/api/chat", async (req, res) => {
     touchSession(st);
     st.lastUserText = message;
 
+    // --- Precompute chip token safely (FIX precedence bug)
     const chipDomain = normalizeDomainFromChipOrText(message);
     const isLaneToken = lower(message).startsWith("lane:");
     const isSimpleDomainWord = ["music", "tv", "sponsors", "ai", "general"].includes(
@@ -799,6 +815,7 @@ app.post("/api/chat", async (req, res) => {
     );
     const messageIsJustChip = Boolean(chipDomain) && (isLaneToken || isSimpleDomainWord);
 
+    // 1) Empty message: if first contact -> intro; else prompt forward
     if (!message) {
       if (st.phase === "greeting" && !st.greetedOnce) {
         st.greetedOnce = true;
@@ -810,6 +827,8 @@ app.post("/api/chat", async (req, res) => {
       return res.json({ ok: true, reply, followUp: null, sessionId: st.sessionId });
     }
 
+    // 2) HARD RULE: Intro ALWAYS wins on first contact (even if widget sends a chip token)
+    // If first message is a lane token/chip, store it for the next user input.
     if (st.phase === "greeting" && !st.greetedOnce) {
       if (messageIsJustChip && chipDomain) {
         st.pendingDomainAfterIntro = chipDomain;
@@ -820,12 +839,14 @@ app.post("/api/chat", async (req, res) => {
       return res.json({ ok: true, reply, followUp: null, sessionId: st.sessionId });
     }
 
+    // 3) Apply pending domain armed from first-contact lane token
     if (st.pendingDomainAfterIntro && !st.activeDomain) {
       st.activeDomain = st.pendingDomainAfterIntro;
       st.phase = "domain_active";
       st.pendingDomainAfterIntro = null;
     }
 
+    // 4) Chip arbitration should run BEFORE name capture post-intro
     if (messageIsJustChip && chipDomain) {
       st.activeDomain = chipDomain;
       st.phase = "domain_active";
@@ -836,7 +857,8 @@ app.post("/api/chat", async (req, res) => {
 
       let reply = applyNyxTone(st, result.reply);
 
-      if (noteLoopProtection(st, reply)) {
+      const forcedForward = noteLoopProtection(st, reply);
+      if (forcedForward) {
         reply = applyNyxTone(
           st,
           `${reply}\n\nGive me one detail (year, title, or goal) and I’ll move us forward immediately.`
@@ -851,6 +873,7 @@ app.post("/api/chat", async (req, res) => {
       });
     }
 
+    // 5) Name capture (safe — reserved tokens rejected)
     const name = extractName(message);
     if (name && !st.nameCaptured) {
       st.nameCaptured = true;
@@ -865,9 +888,11 @@ app.post("/api/chat", async (req, res) => {
       });
     }
 
+    // 6) Intent classification (post-intro)
     const intent = classifyIntent(message);
     st.lastUserIntent = intent.intent;
 
+    // 7) Greeting handling: post-intro social response
     if (intent.intent === "greeting" || isGreeting(message)) {
       const reply = applyNyxTone(st, nyxGreetingReply(st));
       return res.json({
@@ -878,9 +903,11 @@ app.post("/api/chat", async (req, res) => {
       });
     }
 
+    // 8) Otherwise: user free-text. Route based on activeDomain if set; else infer domain.
     let domain = st.activeDomain;
     if (!domain) domain = chipDomain || "general";
 
+    // If user explicitly says a domain keyword in free-text, allow it to set active lane
     const explicitDomain = normalizeDomainFromChipOrText(message);
     if (explicitDomain) {
       st.activeDomain = explicitDomain;
@@ -896,7 +923,8 @@ app.post("/api/chat", async (req, res) => {
 
     let reply = applyNyxTone(st, result.reply);
 
-    if (noteLoopProtection(st, reply)) {
+    const forcedForward = noteLoopProtection(st, reply);
+    if (forcedForward) {
       reply = applyNyxTone(
         st,
         `${reply}\n\nGive me one specific input (a year, a title, or a goal) and I’ll move us forward immediately.`
@@ -1017,6 +1045,7 @@ app.get("/api/health", (req, res) => {
     ENABLE_TTS &&
     TTS_PROVIDER === "elevenlabs";
 
+  // Ensure sanity snapshot exists even if boot sanity disabled
   if (!SANITY_50S) SANITY_50S = sanityCheck50sSingles();
 
   return res.json({
@@ -1031,6 +1060,7 @@ app.get("/api/health", (req, res) => {
     nyx: { intelligenceLevel: DEFAULT_INTELLIGENCE_LEVEL },
     sessions: sessions.size,
 
+    // PATCH D/E/F: production visibility
     music50s: {
       ok: SANITY_50S.ok,
       exists: SANITY_50S.file.exists,
