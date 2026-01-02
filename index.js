@@ -41,6 +41,11 @@
  *  - Legacy NYX_SANITY_ENFORCE becomes warn-only.
  *  - Only NYX_SANITY_HARD_FAIL=true can terminate the process.
  *  - Always-on directory evidence when sanity fails (no need to enable debug).
+ *
+ * NEW (2026-01-01, PATCH G — MUSIC MOMENTS ROUTING):
+ *  - Add musicMoments module (Utils/musicMoments.js) if present.
+ *  - If user asks for "story moment" / "moment" / "top 10" / "top ten" (etc.), route to musicMoments first.
+ *  - Fallback to existing musicKnowledge.handleChat unchanged.
  */
 
 "use strict";
@@ -136,6 +141,9 @@ const nyxVoiceNaturalize = safeRequire("./Utils/nyxVoiceNaturalize");
 // Optional routers
 const tvKnowledge = safeRequire("./Utils/tvKnowledge");
 const sponsorsKnowledge = safeRequire("./Utils/sponsorsKnowledge");
+
+// PATCH G: Music Moments module (optional)
+const musicMoments = safeRequire("./Utils/musicMoments");
 
 /* ======================================================
    PATCH D/E/F: One-command sanity + health visibility + root-dir robustness + deploy survival
@@ -610,6 +618,26 @@ function normalizeDomainFromChipOrText(text) {
   return null;
 }
 
+// PATCH G: detect when user wants Music Moments
+function wantsMusicMoments(text) {
+  const t = lower(text);
+  if (!t) return false;
+
+  // explicit phrases
+  if (t.includes("story moment")) return true;
+  if (t.includes("music moment")) return true;
+
+  // top 10 variants
+  if (t.includes("top 10")) return true;
+  if (t.includes("top ten")) return true;
+
+  // common shorthand: "moment 1988" / "moments 1957"
+  // (avoid matching "momentum" etc.)
+  if (/\bmoment(s)?\b/.test(t)) return true;
+
+  return false;
+}
+
 function classifyIntent(text) {
   const t = cleanText(text);
   if (!t) return { intent: "empty", confidence: 1.0 };
@@ -631,22 +659,56 @@ function classifyIntent(text) {
   return { intent: "general", confidence: 0.5 };
 }
 
+// PATCH G: normalize module return shapes
+function normalizeModuleResult(result) {
+  if (!result) return null;
+
+  // If module returns {ok, reply, followUp, sessionPatch}
+  if (typeof result === "object" && typeof result.reply === "string") {
+    return {
+      reply: result.reply,
+      followUp: result.followUp || null,
+      sessionPatch: result.sessionPatch || null,
+      domain: result.domain || null,
+    };
+  }
+
+  // If module returns {text, ...} or anything else: ignore
+  return null;
+}
+
 function handleDomain(st, domain, userText) {
   const text = cleanText(userText);
 
   if (domain === "music") {
+    // PATCH G: Music Moments first, when asked
+    if (musicMoments && typeof musicMoments.handle === "function" && wantsMusicMoments(text)) {
+      try {
+        const mm = musicMoments.handle(text, st);
+        const normalized = normalizeModuleResult(mm);
+        if (normalized) return normalized;
+      } catch (e) {
+        if (ENABLE_DEBUG)
+          console.warn(`[musicMoments.handle] failed: ${e.message}`);
+      }
+    }
+
+    // Existing musicKnowledge path (unchanged)
     if (musicKnowledge && typeof musicKnowledge.handleChat === "function") {
       try {
-        return musicKnowledge.handleChat({ text, session: st });
+        const mk = musicKnowledge.handleChat({ text, session: st });
+        const normalized = normalizeModuleResult(mk) || mk; // preserve legacy shape if you had one
+        return normalized;
       } catch (e) {
         if (ENABLE_DEBUG)
           console.warn(`[musicKnowledge.handleChat] failed: ${e.message}`);
       }
     }
+
     return {
       reply:
-        "Alright—music. Give me a year (1950–2024) or an artist + year, and I’ll pull something memorable.",
-      followUp: ["Try: 1984", "Try: 1999", "Try: Prince 1984"],
+        "Alright—music. Give me a year (1950–2024), or say “top 10 1988” / “story moment 1957”, and I’ll pull something memorable.",
+      followUp: ["Try: 1957 story moment", "Try: top 10 1988", "Try: Prince 1984"],
       domain: "music",
     };
   }
