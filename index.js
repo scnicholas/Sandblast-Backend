@@ -55,6 +55,10 @@
  *  - /api/health exposes BUILD_SHA so you can confirm Render deployment instantly.
  *  - If very first message is a Music Moments command, arm pendingDomainAfterIntro="music"
  *    while still returning the intro (keeps "intro always wins" rule).
+ *
+ * HOTFIX (2026-01-02, PATCH I):
+ *  - Greeting handling MUST run before name capture post-intro (prevents "hi" => userName).
+ *  - isOnlyName must reject greetings explicitly.
  */
 
 "use strict";
@@ -482,13 +486,16 @@ function isGreeting(text) {
   );
 }
 
-/** PATCH C: harden name detection */
+/** PATCH I: harden name detection (reject greetings explicitly) */
 function isOnlyName(text) {
   const t = cleanText(text);
   if (!t) return false;
 
   // Never allow reserved lane tokens to be a "name"
   if (isReservedNameToken(t)) return false;
+
+  // Never allow greetings to be a "name"
+  if (isGreeting(t)) return false;
 
   if (/[\d@#$%^&*_=+[\]{}<>\\/|]/.test(t)) return false;
   const parts = t.split(" ").filter(Boolean);
@@ -497,10 +504,13 @@ function isOnlyName(text) {
   return true;
 }
 
-/** PATCH C: harden extraction paths */
+/** PATCH I: harden extraction paths */
 function extractName(text) {
   const t = cleanText(text);
   if (!t) return null;
+
+  // Reject greetings up front
+  if (isGreeting(t)) return null;
 
   // Reject obvious lane tokens early
   if (isReservedNameToken(t)) return null;
@@ -510,7 +520,7 @@ function extractName(text) {
   );
   if (m && m[1]) {
     const candidate = m[1].trim();
-    if (!isReservedNameToken(candidate)) return candidate;
+    if (!isReservedNameToken(candidate) && !isGreeting(candidate)) return candidate;
   }
 
   m = t.match(
@@ -518,7 +528,7 @@ function extractName(text) {
   );
   if (m && m[2]) {
     const candidate = m[2].trim();
-    if (!isReservedNameToken(candidate)) return candidate;
+    if (!isReservedNameToken(candidate) && !isGreeting(candidate)) return candidate;
   }
 
   if (isOnlyName(t)) return t;
@@ -955,7 +965,22 @@ app.post("/api/chat", async (req, res) => {
       });
     }
 
-    // 5) Name capture (safe — reserved tokens rejected)
+    // 5) Intent classification (post-intro)
+    const intent = classifyIntent(message);
+    st.lastUserIntent = intent.intent;
+
+    // PATCH I: Greeting must be handled BEFORE name capture (prevents "hi" => name)
+    if (intent.intent === "greeting" || isGreeting(message)) {
+      const reply = applyNyxTone(st, nyxGreetingReply(st));
+      return res.json({
+        ok: true,
+        reply,
+        followUp: ["Music", "TV", "Sponsors", "AI"],
+        sessionId: st.sessionId,
+      });
+    }
+
+    // 6) Name capture (safe — reserved tokens + greetings rejected)
     const name = extractName(message);
     if (name && !st.nameCaptured) {
       st.nameCaptured = true;
@@ -970,22 +995,7 @@ app.post("/api/chat", async (req, res) => {
       });
     }
 
-    // 6) Intent classification (post-intro)
-    const intent = classifyIntent(message);
-    st.lastUserIntent = intent.intent;
-
-    // 7) Greeting handling: post-intro social response
-    if (intent.intent === "greeting" || isGreeting(message)) {
-      const reply = applyNyxTone(st, nyxGreetingReply(st));
-      return res.json({
-        ok: true,
-        reply,
-        followUp: ["Music", "TV", "Sponsors", "AI"],
-        sessionId: st.sessionId,
-      });
-    }
-
-    // 8) Otherwise: user free-text. Route based on activeDomain if set; else infer domain.
+    // 7) Otherwise: user free-text. Route based on activeDomain if set; else infer domain.
     let domain = st.activeDomain;
     if (!domain) domain = chipDomain || "general";
 
