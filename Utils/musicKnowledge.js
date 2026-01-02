@@ -1,13 +1,17 @@
 "use strict";
 
 /**
- * Utils/musicKnowledge.js — v2.67
+ * Utils/musicKnowledge.js — v2.68
  *
- * Critical fixes (v2.67):
+ * Critical fixes (v2.67 retained):
  *  - Validate session.activeMusicChart against loaded chart set; auto-fallback if unsupported.
  *  - Year-only requests never dead-end due to unknown chart context (e.g., "Canada RPM").
  *  - If the requested chart has no rows for a year, retry canonical fallbacks before returning “clean list”.
  *  - Normalize common chart aliases consistently (RPM, Canada RPM, Year-End variants).
+ *
+ * New in v2.68:
+ *  - Multi-file Wikipedia Year-End Hot 100 merge support (drop in new year-range JSON files; auto-merge if present).
+ *  - Prepares ingestion for 1960–1969 (and future ranges) without more code changes.
  *
  * Retains critical behavior:
  *  - 1950–1959 Billboard Year-End Singles are served ONLY from Wikipedia cache when requested / when 50s year is requested.
@@ -27,7 +31,7 @@ const path = require("path");
 // Version
 // =========================
 const MK_VERSION =
-  "musicKnowledge v2.67 (chart validation + canonical fallbacks; prevents year dead-ends from unsupported chart contexts)";
+  "musicKnowledge v2.68 (multi-file Year-End merge + chart validation + canonical fallbacks)";
 
 // =========================
 // Public Range / Charts
@@ -56,11 +60,22 @@ const DB_CANDIDATES = [
   "Data/music_moments.json",
 ];
 
-// Wikipedia datasets
-const WIKI_YEAREND_HOT100_1970_2010 =
-  "Data/wikipedia/billboard_yearend_hot100_1970_2010.json";
+// Wikipedia datasets (existing + planned drop-ins)
 const WIKI_YEAREND_SINGLES_1950_1959 =
   "Data/wikipedia/billboard_yearend_singles_1950_1959.json";
+
+// Year-End Hot 100 ranges (merge any that exist)
+const WIKI_YEAREND_HOT100_FILES = [
+  // ✅ NEW: 1960–1969 (you will generate this file next)
+  "Data/wikipedia/billboard_yearend_hot100_1960_1969.json",
+
+  // ✅ Existing
+  "Data/wikipedia/billboard_yearend_hot100_1970_2010.json",
+
+  // Planned future drops (leave commented until you generate them)
+  // "Data/wikipedia/billboard_yearend_hot100_1976_1979.json",
+  // "Data/wikipedia/billboard_yearend_hot100_2011_2024.json",
+];
 
 // =========================
 // Internal State
@@ -104,9 +119,8 @@ function normalizeChart(raw) {
 
   const c = s.toLowerCase();
 
-  // --- Common aliases / normalization
-  // RPM variants (keep the canonical label if you ever load it; otherwise it's just a requested chart)
-  if (c === "rpm" || c === "canada rpm" || c.includes("canada") && c.includes("rpm")) {
+  // RPM variants (kept as a canonical label, even if you don't load it yet)
+  if (c === "rpm" || c === "canada rpm" || (c.includes("canada") && c.includes("rpm"))) {
     return "Canada RPM";
   }
 
@@ -281,10 +295,12 @@ function loadWikiSingles50sOnce({ force = false } = {}) {
     WIKI_SINGLES_50S_BY_YEAR.set(y, arr);
   }
 
-  // Explicit confirmation log (the line you wanted)
+  // Explicit confirmation log
   try {
     const counts = {};
-    for (let y = 1950; y <= 1959; y++) counts[y] = (WIKI_SINGLES_50S_BY_YEAR.get(y) || []).length;
+    for (let y = 1950; y <= 1959; y++) {
+      counts[y] = (WIKI_SINGLES_50S_BY_YEAR.get(y) || []).length;
+    }
     console.log(
       `[musicKnowledge] 50s Singles cache loaded: counts=${JSON.stringify(counts)}`
     );
@@ -313,38 +329,64 @@ function clearWikiSingles50sCache() {
 // =========================
 // DB Load + Index (non-50s support)
 // =========================
-function mergeWikipediaYearEndHot100(moments) {
-  const abs = resolveRepoPath(WIKI_YEAREND_HOT100_1970_2010);
-  if (!fs.existsSync(abs)) return moments;
-
-  const doc = safeJsonRead(abs);
-  const rows = Array.isArray(doc?.rows)
-    ? doc.rows
-    : Array.isArray(doc?.moments)
-      ? doc.moments
-      : Array.isArray(doc)
-        ? doc
-        : [];
-
+function mergeWikipediaYearEndHot100Files(moments, relFiles) {
   const merged = [];
-  for (const r of rows) {
-    const y = toInt(r.year);
-    const rk = toInt(r.rank);
-    if (!y || !rk) continue;
+  const failures = [];
+  let mergedTotal = 0;
 
-    merged.push(
-      normalizeMoment({
-        year: y,
-        rank: rk,
-        artist: r.artist,
-        title: r.title,
-        chart: YEAR_END_CHART,
-        source: abs,
-      })
+  for (const rel of relFiles || []) {
+    const abs = resolveRepoPath(rel);
+    if (!fs.existsSync(abs)) continue;
+
+    try {
+      const doc = safeJsonRead(abs);
+      const rows = Array.isArray(doc?.rows)
+        ? doc.rows
+        : Array.isArray(doc?.moments)
+          ? doc.moments
+          : Array.isArray(doc)
+            ? doc
+            : [];
+
+      let count = 0;
+
+      for (const r of rows) {
+        const y = toInt(r.year);
+        const rk = toInt(r.rank);
+        if (!y || !rk) continue;
+
+        merged.push(
+          normalizeMoment({
+            year: y,
+            rank: rk,
+            artist: r.artist,
+            title: r.title,
+            chart: YEAR_END_CHART,
+            source: abs,
+          })
+        );
+        count++;
+      }
+
+      mergedTotal += count;
+      console.log(
+        `[musicKnowledge] Wikipedia Year-End merge: source=${abs} rows=${count}`
+      );
+    } catch (e) {
+      failures.push({ file: abs, error: e?.message || String(e) });
+    }
+  }
+
+  if (failures.length) {
+    console.warn(
+      `[musicKnowledge] Wikipedia Year-End merge failures: ${JSON.stringify(
+        failures
+      )}`
     );
   }
 
-  console.log(`[musicKnowledge] Wikipedia Year-End merge: source=${abs} rows=${merged.length}`);
+  // Keep behavior: if no year-end files exist, silently return original list.
+  if (!mergedTotal) return moments;
   return moments.concat(merged);
 }
 
@@ -374,8 +416,8 @@ function loadDb() {
     }
   }
 
-  // Merge year-end 1970–2010 (if present)
-  moments = mergeWikipediaYearEndHot100(moments);
+  // Merge Wikipedia Year-End Hot 100 range files that exist
+  moments = mergeWikipediaYearEndHot100Files(moments, WIKI_YEAREND_HOT100_FILES);
 
   DB = { moments };
 
@@ -519,11 +561,7 @@ function formatTopListWithFallbacks(year, requestedChart, limit = 10) {
   if (!y) return null;
 
   const first = normalizeChart(requestedChart);
-  const preferred = [
-    first,
-    YEAR_END_CHART,
-    DEFAULT_CHART,
-  ];
+  const preferred = [first, YEAR_END_CHART, DEFAULT_CHART];
 
   // Only try charts that exist in this build (prevents wasting cycles)
   const tryCharts = [];
@@ -584,7 +622,11 @@ function handleChat({ text, session }) {
           reply: `I’m missing the ${y} Year-End Singles list in the current Wikipedia cache — so I won’t fake it. Try another 1950s year.`,
           followUp: ["1950", "1956", "1959"],
           domain: "music",
-          sessionPatch: { activeMusicChart: chart, lastMusicYear: y, lastMusicChart: chart },
+          sessionPatch: {
+            activeMusicChart: chart,
+            lastMusicYear: y,
+            lastMusicChart: chart,
+          },
         };
       }
 
@@ -593,7 +635,11 @@ function handleChat({ text, session }) {
         reply: `${formatted}\n\nWant #1, a story moment, or another year?`,
         followUp: ["#1", "Story moment", "Another year"],
         domain: "music",
-        sessionPatch: { activeMusicChart: chart, lastMusicYear: y, lastMusicChart: chart },
+        sessionPatch: {
+          activeMusicChart: chart,
+          lastMusicYear: y,
+          lastMusicChart: chart,
+        },
       };
     }
 
@@ -613,12 +659,16 @@ function handleChat({ text, session }) {
       };
     }
 
-    // If we still can't produce a list, be honest (rare if your datasets are present)
+    // If we still can't produce a list, be honest
     return {
       reply: `I don’t have a clean list for ${y} on the available chart sources in this build yet. Try another year.`,
       followUp: ["1970", "1984", "1999"],
       domain: "music",
-      sessionPatch: { activeMusicChart: session.activeMusicChart, lastMusicYear: y, lastMusicChart: session.activeMusicChart },
+      sessionPatch: {
+        activeMusicChart: session.activeMusicChart,
+        lastMusicYear: y,
+        lastMusicChart: session.activeMusicChart,
+      },
     };
   }
 
