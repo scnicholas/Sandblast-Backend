@@ -1,0 +1,201 @@
+/* Scripts/build_billboard_yearend_hot100_1960_1969.js
+   Builds: Data/wikipedia/billboard_yearend_hot100_1960_1969.json
+
+   Source pages follow the pattern:
+   https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_YYYY
+   Example confirmed:
+   1960 page :contentReference[oaicite:1]{index=1}
+*/
+
+const fs = require("fs");
+const path = require("path");
+
+const OUT_FILE = path.resolve(
+  process.cwd(),
+  "Data/wikipedia/billboard_yearend_hot100_1960_1969.json"
+);
+
+const BASE_PAGE = "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_";
+
+function decodeHtml(s) {
+  return String(s || "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function stripTags(html) {
+  return decodeHtml(
+    String(html || "")
+      .replace(/<br\s*\/?>/gi, " ")
+      .replace(/<sup[^>]*>.*?<\/sup>/gis, "") // remove footnotes
+      .replace(/<style[^>]*>.*?<\/style>/gis, "")
+      .replace(/<script[^>]*>.*?<\/script>/gis, "")
+      .replace(/<\/?[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+  );
+}
+
+// Very small HTML table extractor (no cheerio dependency)
+function extractWikitableRows(html) {
+  const tables = [];
+  const tableRe = /<table[^>]*class="[^"]*wikitable[^"]*"[^>]*>([\s\S]*?)<\/table>/gi;
+  let m;
+  while ((m = tableRe.exec(html))) {
+    tables.push(m[0]);
+  }
+  return tables;
+}
+
+function extractRowsFromTable(tableHtml) {
+  const rows = [];
+  const trRe = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+  let m;
+  while ((m = trRe.exec(tableHtml))) {
+    const tr = m[1];
+    // capture cells (th/td)
+    const cellRe = /<(td|th)[^>]*>([\s\S]*?)<\/(td|th)>/gi;
+    const cells = [];
+    let c;
+    while ((c = cellRe.exec(tr))) {
+      const raw = c[2];
+      const txt = stripTags(raw);
+      cells.push(txt);
+    }
+    if (cells.length) rows.push(cells);
+  }
+  return rows;
+}
+
+function findHeaderIndex(headers, candidates) {
+  const norm = (s) => String(s || "").toLowerCase().replace(/\s+/g, " ").trim();
+  const H = headers.map(norm);
+  for (const cand of candidates) {
+    const idx = H.findIndex((h) => h === cand || h.includes(cand));
+    if (idx >= 0) return idx;
+  }
+  return -1;
+}
+
+function pickBestTable(allTables) {
+  // Heuristic: choose the table whose header row includes rank/no + title + artist
+  for (const t of allTables) {
+    const rows = extractRowsFromTable(t);
+    if (!rows.length) continue;
+    const header = rows[0];
+    const rankIdx = findHeaderIndex(header, ["no.", "no", "#", "rank", "position", "pos"]);
+    const titleIdx = findHeaderIndex(header, ["title"]);
+    const artistIdx = findHeaderIndex(header, ["artist"]);
+    if (rankIdx >= 0 && titleIdx >= 0 && artistIdx >= 0) {
+      return { tableHtml: t, rankIdx, titleIdx, artistIdx };
+    }
+  }
+  return null;
+}
+
+async function fetchText(url) {
+  const resp = await fetch(url, {
+    headers: { "User-Agent": "Sandblast/1.0 (Nyx data builder)" },
+  });
+  if (!resp.ok) throw new Error(`${resp.status} ${resp.statusText}`);
+  return resp.text();
+}
+
+function toInt(s) {
+  const n = Number(String(s || "").replace(/[^\d]/g, ""));
+  return Number.isFinite(n) ? n : null;
+}
+
+async function buildYear(year) {
+  const url = `${BASE_PAGE}${year}`;
+  const html = await fetchText(url);
+
+  const tables = extractWikitableRows(html);
+  if (!tables.length) {
+    return { year, ok: false, error: "NO_WIKITABLE" };
+  }
+
+  const best = pickBestTable(tables);
+  if (!best) {
+    return { year, ok: false, error: "NO_MATCHING_TABLE" };
+  }
+
+  const rows = extractRowsFromTable(best.tableHtml);
+  const data = rows.slice(1); // skip header
+
+  const out = [];
+  for (const r of data) {
+    const rank = toInt(r[best.rankIdx]);
+    const title = (r[best.titleIdx] || "").trim();
+    const artist = (r[best.artistIdx] || "").trim();
+    if (!rank || !title || !artist) continue;
+    out.push({
+      year,
+      rank,
+      title,
+      artist,
+      chart: "Billboard Year-End Hot 100",
+      source: url,
+    });
+  }
+
+  // sanity: should be close to 100 rows
+  if (out.length < 80) {
+    return { year, ok: false, error: `TOO_FEW_ROWS(${out.length})`, rows: out.length };
+  }
+
+  // sort by rank
+  out.sort((a, b) => a.rank - b.rank);
+  return { year, ok: true, rows: out };
+}
+
+async function main() {
+  const all = [];
+  const failures = [];
+
+  for (let y = 1960; y <= 1969; y++) {
+    process.stdout.write(`Fetching ${y}... `);
+    try {
+      const r = await buildYear(y);
+      if (!r.ok) {
+        console.log(`FAIL: ${r.error}`);
+        failures.push(r);
+        continue;
+      }
+      console.log(`OK (${r.rows.length})`);
+      all.push(...r.rows);
+    } catch (e) {
+      console.log(`FAIL: ${e.message}`);
+      failures.push({ year: y, ok: false, error: e.message });
+    }
+  }
+
+  fs.mkdirSync(path.dirname(OUT_FILE), { recursive: true });
+
+  const payload = {
+    ok: failures.length === 0,
+    chart: "Billboard Year-End Hot 100",
+    range: { start: 1960, end: 1969 },
+    rows: all,
+    years: { count: 10 },
+    failures,
+    builtAt: new Date().toISOString(),
+  };
+
+  fs.writeFileSync(OUT_FILE, JSON.stringify(payload, null, 2), "utf8");
+
+  console.log("\n=== BUILD COMPLETE ===");
+  console.log("Output:", OUT_FILE);
+  console.log("Rows:", all.length);
+  console.log("Failures:", failures.length);
+  if (failures.length) console.log("Failure details:", failures);
+}
+
+main().catch((e) => {
+  console.error("FATAL:", e);
+  process.exit(1);
+});
