@@ -29,6 +29,12 @@
  * NEW (2026-01-01, PATCH D — PRODUCTION SANITY):
  *  - Optional boot sanity check for 1950–1959 singles dataset (Render deployment visibility).
  *  - /api/health now includes music50s counts (if file present) so you can verify production instantly.
+ *
+ * NEW (2026-01-01, PATCH E — RENDER ROOT-DIR FIX):
+ *  - Sanity check no longer relies on process.cwd() only.
+ *  - Walks UP parent directories (from __dirname) to find Data/wikipedia dataset even if
+ *    Render "Root Directory" is a subfolder.
+ *  - Adds high-signal debug listing so missing file is obvious (NYX_DEBUG=true).
  */
 
 "use strict";
@@ -95,7 +101,7 @@ app.use(
 );
 
 app.use(express.json({ limit: "2mb" }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true })));
 
 /* ======================================================
    Safe Imports (do not crash if a module changes)
@@ -124,17 +130,69 @@ const tvKnowledge = safeRequire("./Utils/tvKnowledge");
 const sponsorsKnowledge = safeRequire("./Utils/sponsorsKnowledge");
 
 /* ======================================================
-   PATCH D: One-command sanity (embedded) + health visibility
+   PATCH D/E: One-command sanity + health visibility + root-dir robustness
 ====================================================== */
 
 const WIKI_SINGLES_50S_REL = "Data/wikipedia/billboard_yearend_singles_1950_1959.json";
 
-function resolveRepoPath(rel) {
-  return path.resolve(process.cwd(), rel);
+/** Small, safe directory listing to prove what exists on Render */
+function safeLs(absDir) {
+  try {
+    const items = fs.readdirSync(absDir);
+    // return a compact list to avoid log spam
+    return items.slice(0, 50);
+  } catch (e) {
+    return `LS_FAIL: ${e.message}`;
+  }
+}
+
+/**
+ * PATCH E: Find a file by walking UP from a starting directory.
+ * This solves Render Root Directory mis-scope (service started in subfolder).
+ */
+function findUpwards(startDir, relPath, maxDepth = 6) {
+  let dir = path.resolve(startDir);
+  for (let i = 0; i <= maxDepth; i++) {
+    const candidate = path.resolve(dir, relPath);
+    if (fs.existsSync(candidate)) return { found: true, abs: candidate, base: dir, depth: i };
+    const parent = path.dirname(dir);
+    if (!parent || parent === dir) break;
+    dir = parent;
+  }
+  return { found: false, abs: path.resolve(startDir, relPath), base: path.resolve(startDir), depth: maxDepth };
+}
+
+/**
+ * Primary resolver:
+ * - try process.cwd()
+ * - try __dirname (location of index.js)
+ * - walk upwards from __dirname to handle nested root directories
+ */
+function resolveRepoFile(rel) {
+  const tries = [];
+
+  // 1) cwd direct
+  tries.push({ label: "cwd", abs: path.resolve(process.cwd(), rel), base: process.cwd() });
+
+  // 2) __dirname direct
+  tries.push({ label: "__dirname", abs: path.resolve(__dirname, rel), base: __dirname });
+
+  // 3) upwards search from __dirname
+  const up = findUpwards(__dirname, rel, 8);
+  tries.push({ label: "upwards(__dirname)", abs: up.abs, base: up.base, depth: up.depth, found: up.found });
+
+  // Return first existing
+  for (const t of tries) {
+    if (fs.existsSync(t.abs)) return { abs: t.abs, evidence: tries, foundBy: t.label };
+  }
+
+  // None found: return best guess (upwards path) + evidence
+  return { abs: up.abs, evidence: tries, foundBy: "none" };
 }
 
 function sanityCheck50sSingles() {
-  const abs = resolveRepoPath(WIKI_SINGLES_50S_REL);
+  const resolved = resolveRepoFile(WIKI_SINGLES_50S_REL);
+  const abs = resolved.abs;
 
   const out = {
     ok: false,
@@ -143,16 +201,45 @@ function sanityCheck50sSingles() {
       abs,
       exists: false,
       mtimeMs: 0,
+      foundBy: resolved.foundBy,
     },
     counts: {},
     rows: 0,
     error: null,
+    evidence: resolved.evidence || null,
   };
 
   try {
     out.file.exists = fs.existsSync(abs);
+
     if (!out.file.exists) {
       out.error = "FILE_MISSING";
+
+      // High-signal debug (only when NYX_DEBUG=true)
+      if (ENABLE_DEBUG) {
+        console.log("[SANITY DBG] cwd=", process.cwd());
+        console.log("[SANITY DBG] __dirname=", __dirname);
+        console.log("[SANITY DBG] Data ls=", safeLs(path.resolve(process.cwd(), "Data")));
+        console.log(
+          "[SANITY DBG] Data(wiki) ls=",
+          safeLs(path.resolve(process.cwd(), "Data", "wikipedia"))
+        );
+
+        // Evidence of attempted bases
+        console.log("[SANITY DBG] resolve evidence=", JSON.stringify(out.evidence, null, 2));
+
+        // Also prove what exists near index.js
+        console.log("[SANITY DBG] __dirname ls=", safeLs(__dirname));
+        console.log(
+          "[SANITY DBG] __dirname/Data ls=",
+          safeLs(path.resolve(__dirname, "Data"))
+        );
+        console.log(
+          "[SANITY DBG] __dirname/Data/wikipedia ls=",
+          safeLs(path.resolve(__dirname, "Data", "wikipedia"))
+        );
+      }
+
       return out;
     }
 
@@ -162,7 +249,6 @@ function sanityCheck50sSingles() {
     } catch (_) {}
 
     // Use require for parity with your one-command test behavior.
-    // NOTE: Node caches require(); but on a fresh boot this is accurate.
     // eslint-disable-next-line global-require, import/no-dynamic-require
     const j = require(abs);
 
@@ -173,8 +259,7 @@ function sanityCheck50sSingles() {
       out.counts[y] = rows.filter((r) => Number(r.year) === y).length;
     }
 
-    // Minimal completeness threshold: you reported 425 total rows locally.
-    // If it's drastically smaller, treat as incomplete.
+    // Minimal completeness threshold: local was ~425.
     const total = Object.values(out.counts).reduce((a, b) => a + b, 0);
     out.ok = out.file.exists && total >= 300;
 
@@ -197,12 +282,12 @@ function runBootSanity50s() {
   console.log(
     `[SANITY 50s] ${tag} exists=${SANITY_50S.file.exists} rows=${SANITY_50S.rows} counts=${JSON.stringify(
       SANITY_50S.counts
-    )} path=${SANITY_50S.file.abs}`
+    )} foundBy=${SANITY_50S.file.foundBy} path=${SANITY_50S.file.abs}`
   );
 
   if (!SANITY_50S.ok && NYX_SANITY_ENFORCE) {
     throw new Error(
-      `Boot sanity failed for 50s singles dataset: ${SANITY_50S.error} :: ${SANITY_50S.file.abs}`
+      `Boot sanity failed for 50s singles dataset: ${SANITY_50S.error} :: ${SANITY_50S.file.abs} :: foundBy=${SANITY_50S.file.foundBy}`
     );
   }
 }
@@ -929,13 +1014,15 @@ app.get("/api/health", (req, res) => {
     nyx: { intelligenceLevel: DEFAULT_INTELLIGENCE_LEVEL },
     sessions: sessions.size,
 
-    // PATCH D: production visibility
+    // PATCH D/E: production visibility
     music50s: {
       ok: SANITY_50S.ok,
       exists: SANITY_50S.file.exists,
       rows: SANITY_50S.rows,
       counts: SANITY_50S.counts,
       rel: SANITY_50S.file.rel,
+      abs: SANITY_50S.file.abs,
+      foundBy: SANITY_50S.file.foundBy,
       mtimeMs: SANITY_50S.file.mtimeMs,
       error: SANITY_50S.error,
     },
