@@ -66,6 +66,10 @@
  *    instead of returning the generic “Tell me a year…” loop.
  *  - If story moments layer is missing, say so directly (no looping).
  *  - /api/health reports whether musicMoments is loaded.
+ *
+ * NEW (2026-01-02, STEP 1 — NYX DEFAULT RESPONSE WRAPPER):
+ *  - Enforce: Acknowledge → Lock Intent → Advance (post-intro only)
+ *  - Intro remains a single line and always wins on first contact.
  */
 
 "use strict";
@@ -632,6 +636,112 @@ function nyxGreetingReply(st) {
 }
 
 /* ======================================================
+   STEP 1: Nyx Default Response Wrapper (post-intro)
+   Enforces: Acknowledge → Lock Intent → Advance
+====================================================== */
+
+function shouldApplyDefaultWrapper(st, baseReply) {
+  // Never wrap the hard intro line. Keep it single-line and canonical.
+  if (!st) return true;
+  if (st.phase === "greeting") return false;
+  if (!baseReply) return true;
+  const r = String(baseReply).trim();
+  if (!r) return true;
+  if (r === nyxIntroLine()) return false;
+  return true;
+}
+
+function pickAckForDomain(domain, userText) {
+  const t = lower(userText);
+  if (isGreeting(t)) return "Hey.";
+  if (domain === "music") return "Alright.";
+  if (domain === "tv") return "Got it.";
+  if (domain === "sponsors") return "Perfect.";
+  if (domain === "ai") return "Alright — let’s work.";
+  return "Got it.";
+}
+
+function lockIntentLine({ domain, intent, userText }) {
+  const t = cleanText(userText);
+  const y = extractYearForWrapper(t);
+
+  // Intent-specific locks (declarative, not questions)
+  if (intent === "name") return "You’re introducing yourself.";
+  if (intent === "greeting") return "Good to hear from you.";
+
+  // Domain-specific locks
+  if (domain === "music") {
+    if (y) return `You’re looking at music for ${y}.`;
+    if (t && /top\s*(10|ten)/i.test(t)) return "You want the top 10.";
+    if (t && /\bstory\s+moment\b/i.test(t)) return "You want the story moment.";
+    return "You’re in the music lane.";
+  }
+  if (domain === "tv") return "You’re exploring TV.";
+  if (domain === "sponsors") return "You’re looking at Sponsors.";
+  if (domain === "ai") return "You’re in the AI lane.";
+
+  // Neutral lock
+  return "You want something specific — I’ve got you.";
+}
+
+function extractYearForWrapper(text) {
+  const m = String(text || "").match(/\b(19|20)\d{2}\b/);
+  if (!m) return null;
+  const y = Number(m[0]);
+  if (y < 1900 || y > 2100) return null;
+  return y;
+}
+
+function needsAdvanceLine(coreReply) {
+  const r = String(coreReply || "").trim();
+  if (!r) return true;
+
+  // If the reply already clearly advances with an instruction or choice, don't add more.
+  const low = r.toLowerCase();
+  const alreadyAdvances =
+    low.includes("give me") ||
+    low.includes("tell me") ||
+    low.includes("try:") ||
+    low.includes("want ") ||
+    low.includes("pick ") ||
+    low.includes("choose ") ||
+    r.endsWith("?");
+
+  return !alreadyAdvances;
+}
+
+function advanceLineForDomain(domain) {
+  if (domain === "music") return "Give me a year, and I’ll start with the top 10 — then the #1 story.";
+  if (domain === "tv") return "Give me a decade or a vibe, and I’ll line up the best starting point.";
+  if (domain === "sponsors") return "Tell me your goal — reach, clicks, or brand lift — and I’ll propose a clean plan.";
+  if (domain === "ai") return "Tell me what you’re building, and I’ll give you the fastest plan that won’t break later.";
+  return "Give me the topic in one line — I’ll take it from there.";
+}
+
+function nyxWrapDefaultReply({
+  st,
+  userText = "",
+  domain = "general",
+  intent = "general",
+  coreReply = "",
+} = {}) {
+  const core = String(coreReply || "").trim();
+  if (!shouldApplyDefaultWrapper(st, core)) return core;
+
+  const ack = pickAckForDomain(domain, userText);
+  const lock = lockIntentLine({ domain, intent, userText });
+
+  const parts = [ack, lock, core].filter(Boolean);
+
+  if (needsAdvanceLine(core)) {
+    parts.push(advanceLineForDomain(domain));
+  }
+
+  // Keep tight: no extra blank lines
+  return parts.join("\n");
+}
+
+/* ======================================================
    Domain routing (safe, minimal, forward-moving)
 ====================================================== */
 
@@ -972,7 +1082,15 @@ app.post("/api/chat", async (req, res) => {
         const reply = applyNyxTone(st, nyxIntroLine());
         return res.json({ ok: true, reply, followUp: null, sessionId: st.sessionId });
       }
-      const reply = applyNyxTone(st, "I’m here. Tell me what you want to do next.");
+      // Post-intro: wrap the fallback so it always advances.
+      const base = applyNyxTone(st, "I’m here. Tell me what you want to do next.");
+      const reply = nyxWrapDefaultReply({
+        st,
+        userText: "",
+        domain: st.activeDomain || "general",
+        intent: "empty",
+        coreReply: base,
+      });
       return res.json({ ok: true, reply, followUp: null, sessionId: st.sessionId });
     }
 
@@ -1008,14 +1126,30 @@ app.post("/api/chat", async (req, res) => {
 
       if (result && result.sessionPatch) applySessionPatch(st, result.sessionPatch);
 
-      let reply = applyNyxTone(st, result.reply);
+      let base = applyNyxTone(st, result.reply);
+
+      // STEP 1: enforce wrapper post-intro
+      let reply = nyxWrapDefaultReply({
+        st,
+        userText: message,
+        domain: chipDomain,
+        intent: `domain:${chipDomain}`,
+        coreReply: base,
+      });
 
       const forcedForward = noteLoopProtection(st, reply);
       if (forcedForward) {
-        reply = applyNyxTone(
+        const bump = applyNyxTone(
           st,
           `${reply}\n\nGive me one detail (year, title, or goal) and I’ll move us forward immediately.`
         );
+        reply = nyxWrapDefaultReply({
+          st,
+          userText: message,
+          domain: chipDomain,
+          intent: `domain:${chipDomain}`,
+          coreReply: bump,
+        });
       }
 
       return res.json({
@@ -1032,7 +1166,14 @@ app.post("/api/chat", async (req, res) => {
 
     // PATCH I: Greeting must be handled BEFORE name capture (prevents "hi" => name)
     if (intent.intent === "greeting" || isGreeting(message)) {
-      const reply = applyNyxTone(st, nyxGreetingReply(st));
+      const base = applyNyxTone(st, nyxGreetingReply(st));
+      const reply = nyxWrapDefaultReply({
+        st,
+        userText: message,
+        domain: st.activeDomain || "general",
+        intent: "greeting",
+        coreReply: base,
+      });
       return res.json({
         ok: true,
         reply,
@@ -1047,7 +1188,15 @@ app.post("/api/chat", async (req, res) => {
       st.nameCaptured = true;
       st.userName = name;
 
-      const reply = applyNyxTone(st, nyxAcknowledgeName(name));
+      const base = applyNyxTone(st, nyxAcknowledgeName(name));
+      const reply = nyxWrapDefaultReply({
+        st,
+        userText: message,
+        domain: st.activeDomain || "general",
+        intent: "name",
+        coreReply: base,
+      });
+
       return res.json({
         ok: true,
         reply,
@@ -1081,14 +1230,30 @@ app.post("/api/chat", async (req, res) => {
 
     if (result && result.sessionPatch) applySessionPatch(st, result.sessionPatch);
 
-    let reply = applyNyxTone(st, result.reply);
+    let base = applyNyxTone(st, result.reply);
+
+    // STEP 1: enforce wrapper on all post-intro replies
+    let reply = nyxWrapDefaultReply({
+      st,
+      userText: message,
+      domain,
+      intent: intent.intent || "general",
+      coreReply: base,
+    });
 
     const forcedForward = noteLoopProtection(st, reply);
     if (forcedForward) {
-      reply = applyNyxTone(
+      const bump = applyNyxTone(
         st,
         `${reply}\n\nGive me one specific input (a year, a title, or a goal) and I’ll move us forward immediately.`
       );
+      reply = nyxWrapDefaultReply({
+        st,
+        userText: message,
+        domain,
+        intent: intent.intent || "general",
+        coreReply: bump,
+      });
     }
 
     return res.json({
