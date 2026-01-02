@@ -1,9 +1,15 @@
 "use strict";
 
 /**
- * Utils/musicKnowledge.js — v2.66 (rebase-clean; 50s singles authoritative + hot-reload + forced reload + sequential ranks + clean fields)
+ * Utils/musicKnowledge.js — v2.67
  *
- * Critical behavior:
+ * Critical fixes (v2.67):
+ *  - Validate session.activeMusicChart against loaded chart set; auto-fallback if unsupported.
+ *  - Year-only requests never dead-end due to unknown chart context (e.g., "Canada RPM").
+ *  - If the requested chart has no rows for a year, retry canonical fallbacks before returning “clean list”.
+ *  - Normalize common chart aliases consistently (RPM, Canada RPM, Year-End variants).
+ *
+ * Retains critical behavior:
  *  - 1950–1959 Billboard Year-End Singles are served ONLY from Wikipedia cache when requested / when 50s year is requested.
  *  - No fake placeholders for missing 50s slices: if missing, say so plainly.
  *  - Hot-reload cache when the JSON file mtime changes; forced reload once if a requested 50s year appears missing.
@@ -21,7 +27,7 @@ const path = require("path");
 // Version
 // =========================
 const MK_VERSION =
-  "musicKnowledge v2.66 (rebase-clean; 50s singles authoritative + hot-reload + forced reload + sequential ranks + clean fields)";
+  "musicKnowledge v2.67 (chart validation + canonical fallbacks; prevents year dead-ends from unsupported chart contexts)";
 
 // =========================
 // Public Range / Charts
@@ -92,21 +98,26 @@ function toInt(x) {
   return Number.isFinite(n) ? n : null;
 }
 
-function normKey(s) {
-  return cleanText(String(s || "")).toLowerCase();
-}
-
 function normalizeChart(raw) {
   const s = cleanText(raw);
   if (!s) return DEFAULT_CHART;
 
   const c = s.toLowerCase();
 
+  // --- Common aliases / normalization
+  // RPM variants (keep the canonical label if you ever load it; otherwise it's just a requested chart)
+  if (c === "rpm" || c === "canada rpm" || c.includes("canada") && c.includes("rpm")) {
+    return "Canada RPM";
+  }
+
   // Singles year-end
   if (
     c.includes("year") &&
     c.includes("end") &&
-    (c.includes("single") || c.includes("singles") || c.includes("top 30") || c.includes("top 50"))
+    (c.includes("single") ||
+      c.includes("singles") ||
+      c.includes("top 30") ||
+      c.includes("top 50"))
   ) {
     return YEAR_END_SINGLES_CHART;
   }
@@ -413,8 +424,24 @@ function loadDb() {
   return DB;
 }
 
+function chartIsAvailable(chart) {
+  loadDb();
+  const c = normalizeChart(chart);
+  return STATS.charts.includes(c);
+}
+
+function pickBestAvailableChart(preferredList) {
+  loadDb();
+  for (const raw of preferredList) {
+    const c = normalizeChart(raw);
+    if (STATS.charts.includes(c)) return c;
+  }
+  // fallback: any loaded chart, else DEFAULT_CHART
+  return STATS.charts[0] || DEFAULT_CHART;
+}
+
 // =========================
-// Chart Choice Logic (critical for 50s)
+// Chart Choice Logic (critical for 50s + chart validation)
 // =========================
 function chooseChartForYear(year, requestedChart) {
   const y = toInt(year);
@@ -431,7 +458,16 @@ function chooseChartForYear(year, requestedChart) {
     return { ok: true, chart: YEAR_END_SINGLES_CHART };
   }
 
-  // Otherwise: keep requested chart
+  // For non-50s: validate requested chart; if unsupported, fall back deterministically
+  loadDb();
+
+  if (STATS.charts && STATS.charts.length) {
+    if (!STATS.charts.includes(req)) {
+      const fallback = pickBestAvailableChart([YEAR_END_CHART, DEFAULT_CHART]);
+      return { ok: true, chart: fallback, fellBackFrom: req };
+    }
+  }
+
   return { ok: true, chart: req || DEFAULT_CHART };
 }
 
@@ -470,6 +506,40 @@ function formatTopList(year, chart, limit = 10) {
   });
 
   return `Top ${Math.min(limit, lines.length)} — ${c} (${year}):\n${lines.join("\n")}`;
+}
+
+/**
+ * Non-50s “never dead-end” selector:
+ * - Try the chosen chart first
+ * - Then retry canonical fallbacks that are actually loaded in this build
+ */
+function formatTopListWithFallbacks(year, requestedChart, limit = 10) {
+  loadDb();
+  const y = toInt(year);
+  if (!y) return null;
+
+  const first = normalizeChart(requestedChart);
+  const preferred = [
+    first,
+    YEAR_END_CHART,
+    DEFAULT_CHART,
+  ];
+
+  // Only try charts that exist in this build (prevents wasting cycles)
+  const tryCharts = [];
+  for (const c0 of preferred) {
+    const c = normalizeChart(c0);
+    if (!tryCharts.includes(c) && STATS.charts.includes(c)) tryCharts.push(c);
+  }
+  // If build has some other chart(s), add one as last resort
+  if (!tryCharts.length && STATS.charts.length) tryCharts.push(STATS.charts[0]);
+
+  for (const c of tryCharts) {
+    const formatted = formatTopList(y, c, limit);
+    if (formatted) return { formatted, chartUsed: c };
+  }
+
+  return null;
 }
 
 // =========================
@@ -527,22 +597,28 @@ function handleChat({ text, session }) {
       };
     }
 
-    // Non-50s flow
-    const formatted = formatTopList(y, chart, 10);
-    if (formatted) {
+    // Non-50s: format using fallbacks (prevents dead-ends from unsupported chart contexts)
+    const out = formatTopListWithFallbacks(y, chart, 10);
+    if (out && out.formatted) {
+      session.activeMusicChart = out.chartUsed || chart;
       return {
-        reply: `${formatted}\n\nWant #1, a story moment, or another year?`,
+        reply: `${out.formatted}\n\nWant #1, a story moment, or another year?`,
         followUp: ["#1", "Story moment", "Another year"],
         domain: "music",
-        sessionPatch: { activeMusicChart: chart, lastMusicYear: y, lastMusicChart: chart },
+        sessionPatch: {
+          activeMusicChart: session.activeMusicChart,
+          lastMusicYear: y,
+          lastMusicChart: session.activeMusicChart,
+        },
       };
     }
 
+    // If we still can't produce a list, be honest (rare if your datasets are present)
     return {
-      reply: `I don’t have a clean list for ${y} on that chart source yet. Try another year.`,
+      reply: `I don’t have a clean list for ${y} on the available chart sources in this build yet. Try another year.`,
       followUp: ["1970", "1984", "1999"],
       domain: "music",
-      sessionPatch: { activeMusicChart: chart, lastMusicYear: y, lastMusicChart: chart },
+      sessionPatch: { activeMusicChart: session.activeMusicChart, lastMusicYear: y, lastMusicChart: session.activeMusicChart },
     };
   }
 
@@ -578,4 +654,7 @@ module.exports = {
   // Ops / debug helpers
   reloadWikiSingles50s: () => loadWikiSingles50sOnce({ force: true }),
   clearWikiSingles50sCache,
+
+  // For diagnostics
+  _chartIsAvailable: chartIsAvailable,
 };
