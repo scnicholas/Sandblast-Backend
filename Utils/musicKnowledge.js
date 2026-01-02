@@ -1,7 +1,7 @@
 "use strict";
 
 /**
- * Utils/musicKnowledge.js — v2.68
+ * Utils/musicKnowledge.js — v2.69
  *
  * Critical fixes (v2.67 retained):
  *  - Validate session.activeMusicChart against loaded chart set; auto-fallback if unsupported.
@@ -9,9 +9,9 @@
  *  - If the requested chart has no rows for a year, retry canonical fallbacks before returning “clean list”.
  *  - Normalize common chart aliases consistently (RPM, Canada RPM, Year-End variants).
  *
- * New in v2.68:
+ * New in v2.68+:
  *  - Multi-file Wikipedia Year-End Hot 100 merge support (drop in new year-range JSON files; auto-merge if present).
- *  - Prepares ingestion for 1960–1969 (and future ranges) without more code changes.
+ *  - Enables ingestion for 1960–1969, 1976–1979, 2011–2024 (as soon as the JSON files exist).
  *
  * Retains critical behavior:
  *  - 1950–1959 Billboard Year-End Singles are served ONLY from Wikipedia cache when requested / when 50s year is requested.
@@ -31,7 +31,7 @@ const path = require("path");
 // Version
 // =========================
 const MK_VERSION =
-  "musicKnowledge v2.68 (multi-file Year-End merge + chart validation + canonical fallbacks)";
+  "musicKnowledge v2.69 (Year-End Hot100 range enablement + chart validation + canonical fallbacks)";
 
 // =========================
 // Public Range / Charts
@@ -66,15 +66,17 @@ const WIKI_YEAREND_SINGLES_1950_1959 =
 
 // Year-End Hot 100 ranges (merge any that exist)
 const WIKI_YEAREND_HOT100_FILES = [
-  // ✅ NEW: 1960–1969 (you will generate this file next)
+  // 1960–1969
   "Data/wikipedia/billboard_yearend_hot100_1960_1969.json",
 
-  // ✅ Existing
+  // 1970–2010 (existing)
   "Data/wikipedia/billboard_yearend_hot100_1970_2010.json",
 
-  // Planned future drops (leave commented until you generate them)
-  // "Data/wikipedia/billboard_yearend_hot100_1976_1979.json",
-  // "Data/wikipedia/billboard_yearend_hot100_2011_2024.json",
+  // 1976–1979 (if your audit confirms those are missing from 1970–2010 build, this fixes it cleanly)
+  "Data/wikipedia/billboard_yearend_hot100_1976_1979.json",
+
+  // 2011–2024 (fills post-2010)
+  "Data/wikipedia/billboard_yearend_hot100_2011_2024.json",
 ];
 
 // =========================
@@ -120,7 +122,11 @@ function normalizeChart(raw) {
   const c = s.toLowerCase();
 
   // RPM variants (kept as a canonical label, even if you don't load it yet)
-  if (c === "rpm" || c === "canada rpm" || (c.includes("canada") && c.includes("rpm"))) {
+  if (
+    c === "rpm" ||
+    c === "canada rpm" ||
+    (c.includes("canada") && c.includes("rpm"))
+  ) {
     return "Canada RPM";
   }
 
@@ -140,7 +146,8 @@ function normalizeChart(raw) {
   if (c.includes("year") && c.includes("end")) return YEAR_END_CHART;
 
   // default hot100
-  if (c.includes("billboard") || c.includes("hot 100") || c.includes("hot100")) return DEFAULT_CHART;
+  if (c.includes("billboard") || c.includes("hot 100") || c.includes("hot100"))
+    return DEFAULT_CHART;
 
   return s;
 }
