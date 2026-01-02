@@ -35,6 +35,12 @@
  *  - Walks UP parent directories (from __dirname) to find Data/wikipedia dataset even if
  *    Render "Root Directory" is a subfolder.
  *  - Adds high-signal debug listing so missing file is obvious (NYX_DEBUG=true).
+ *
+ * NEW (2026-01-01, PATCH F — DEPLOY SURVIVAL):
+ *  - Never crash-loop production just because a static dataset is missing.
+ *  - Legacy NYX_SANITY_ENFORCE becomes warn-only.
+ *  - Only NYX_SANITY_HARD_FAIL=true can terminate the process.
+ *  - Always-on directory evidence when sanity fails (no need to enable debug).
  */
 
 "use strict";
@@ -85,11 +91,13 @@ const ENABLE_TTS = (process.env.ENABLE_TTS || "true") === "true";
 const ENABLE_S2S = (process.env.ENABLE_S2S || "true") === "true";
 const ENABLE_DEBUG = (process.env.NYX_DEBUG || "false") === "true";
 
-// PATCH D: Boot sanity behavior
+// PATCH D/F: Boot sanity behavior
 // - NYX_SANITY_ON_BOOT=true runs check + logs (default true)
-// - NYX_SANITY_ENFORCE=true will FAIL BOOT if missing/incomplete
+// - NYX_SANITY_ENFORCE=true is legacy; now WARN-ONLY (prevents crash-loops)
+// - NYX_SANITY_HARD_FAIL=true is the ONLY flag that can terminate the process
 const NYX_SANITY_ON_BOOT = (process.env.NYX_SANITY_ON_BOOT || "true") === "true";
-const NYX_SANITY_ENFORCE = (process.env.NYX_SANITY_ENFORCE || "false") === "true";
+const NYX_SANITY_ENFORCE = (process.env.NYX_SANITY_ENFORCE || "false") === "true"; // legacy
+const NYX_SANITY_HARD_FAIL = (process.env.NYX_SANITY_HARD_FAIL || "false") === "true"; // NEW
 
 // CORS: permissive by default; tighten if you want
 app.use(
@@ -101,7 +109,7 @@ app.use(
 );
 
 app.use(express.json({ limit: "2mb" }));
-app.use(express.urlencoded({ extended: true })); // ✅ FIXED: removed extra ")"
+app.use(express.urlencoded({ extended: true }));
 
 /* ======================================================
    Safe Imports (do not crash if a module changes)
@@ -133,13 +141,13 @@ const sponsorsKnowledge = safeRequire("./Utils/sponsorsKnowledge");
    PATCH D/E: One-command sanity + health visibility + root-dir robustness
 ====================================================== */
 
-const WIKI_SINGLES_50S_REL = "Data/wikipedia/billboard_yearend_singles_1950_1959.json";
+const WIKI_SINGLES_50S_REL =
+  "Data/wikipedia/billboard_yearend_singles_1950_1959.json";
 
 /** Small, safe directory listing to prove what exists on Render */
 function safeLs(absDir) {
   try {
     const items = fs.readdirSync(absDir);
-    // return a compact list to avoid log spam
     return items.slice(0, 50);
   } catch (e) {
     return `LS_FAIL: ${e.message}`;
@@ -154,12 +162,18 @@ function findUpwards(startDir, relPath, maxDepth = 6) {
   let dir = path.resolve(startDir);
   for (let i = 0; i <= maxDepth; i++) {
     const candidate = path.resolve(dir, relPath);
-    if (fs.existsSync(candidate)) return { found: true, abs: candidate, base: dir, depth: i };
+    if (fs.existsSync(candidate))
+      return { found: true, abs: candidate, base: dir, depth: i };
     const parent = path.dirname(dir);
     if (!parent || parent === dir) break;
     dir = parent;
   }
-  return { found: false, abs: path.resolve(startDir, relPath), base: path.resolve(startDir), depth: maxDepth };
+  return {
+    found: false,
+    abs: path.resolve(startDir, relPath),
+    base: path.resolve(startDir),
+    depth: maxDepth,
+  };
 }
 
 /**
@@ -172,18 +186,33 @@ function resolveRepoFile(rel) {
   const tries = [];
 
   // 1) cwd direct
-  tries.push({ label: "cwd", abs: path.resolve(process.cwd(), rel), base: process.cwd() });
+  tries.push({
+    label: "cwd",
+    abs: path.resolve(process.cwd(), rel),
+    base: process.cwd(),
+  });
 
   // 2) __dirname direct
-  tries.push({ label: "__dirname", abs: path.resolve(__dirname, rel), base: __dirname });
+  tries.push({
+    label: "__dirname",
+    abs: path.resolve(__dirname, rel),
+    base: __dirname,
+  });
 
   // 3) upwards search from __dirname
   const up = findUpwards(__dirname, rel, 8);
-  tries.push({ label: "upwards(__dirname)", abs: up.abs, base: up.base, depth: up.depth, found: up.found });
+  tries.push({
+    label: "upwards(__dirname)",
+    abs: up.abs,
+    base: up.base,
+    depth: up.depth,
+    found: up.found,
+  });
 
   // Return first existing
   for (const t of tries) {
-    if (fs.existsSync(t.abs)) return { abs: t.abs, evidence: tries, foundBy: t.label };
+    if (fs.existsSync(t.abs))
+      return { abs: t.abs, evidence: tries, foundBy: t.label };
   }
 
   // None found: return best guess (upwards path) + evidence
@@ -214,32 +243,6 @@ function sanityCheck50sSingles() {
 
     if (!out.file.exists) {
       out.error = "FILE_MISSING";
-
-      // High-signal debug (only when NYX_DEBUG=true)
-      if (ENABLE_DEBUG) {
-        console.log("[SANITY DBG] cwd=", process.cwd());
-        console.log("[SANITY DBG] __dirname=", __dirname);
-        console.log("[SANITY DBG] Data ls=", safeLs(path.resolve(process.cwd(), "Data")));
-        console.log(
-          "[SANITY DBG] Data(wiki) ls=",
-          safeLs(path.resolve(process.cwd(), "Data", "wikipedia"))
-        );
-
-        // Evidence of attempted bases
-        console.log("[SANITY DBG] resolve evidence=", JSON.stringify(out.evidence, null, 2));
-
-        // Also prove what exists near index.js
-        console.log("[SANITY DBG] __dirname ls=", safeLs(__dirname));
-        console.log(
-          "[SANITY DBG] __dirname/Data ls=",
-          safeLs(path.resolve(__dirname, "Data"))
-        );
-        console.log(
-          "[SANITY DBG] __dirname/Data/wikipedia ls=",
-          safeLs(path.resolve(__dirname, "Data", "wikipedia"))
-        );
-      }
-
       return out;
     }
 
@@ -248,7 +251,6 @@ function sanityCheck50sSingles() {
       out.file.mtimeMs = Number(st.mtimeMs || 0);
     } catch (_) {}
 
-    // Use require for parity with your one-command test behavior.
     // eslint-disable-next-line global-require, import/no-dynamic-require
     const j = require(abs);
 
@@ -259,7 +261,6 @@ function sanityCheck50sSingles() {
       out.counts[y] = rows.filter((r) => Number(r.year) === y).length;
     }
 
-    // Minimal completeness threshold: local was ~425.
     const total = Object.values(out.counts).reduce((a, b) => a + b, 0);
     out.ok = out.file.exists && total >= 300;
 
@@ -285,9 +286,54 @@ function runBootSanity50s() {
     )} foundBy=${SANITY_50S.file.foundBy} path=${SANITY_50S.file.abs}`
   );
 
-  if (!SANITY_50S.ok && NYX_SANITY_ENFORCE) {
+  // PATCH F: if fail, ALWAYS print high-signal evidence (no env vars required)
+  if (!SANITY_50S.ok) {
+    try {
+      console.log("[SANITY 50s] cwd=", process.cwd());
+      console.log("[SANITY 50s] __dirname=", __dirname);
+
+      // Render canonical working dir (most builds end here)
+      const renderRoot = "/opt/render/project/src";
+      console.log("[SANITY 50s] ls /opt/render/project/src =", safeLs(renderRoot));
+      console.log(
+        "[SANITY 50s] ls /opt/render/project/src/Data =",
+        safeLs(path.join(renderRoot, "Data"))
+      );
+      console.log(
+        "[SANITY 50s] ls /opt/render/project/src/Data/wikipedia =",
+        safeLs(path.join(renderRoot, "Data", "wikipedia"))
+      );
+
+      // Where index.js actually is
+      console.log("[SANITY 50s] ls __dirname =", safeLs(__dirname));
+      console.log(
+        "[SANITY 50s] ls __dirname/Data =",
+        safeLs(path.resolve(__dirname, "Data"))
+      );
+      console.log(
+        "[SANITY 50s] ls __dirname/Data/wikipedia =",
+        safeLs(path.resolve(__dirname, "Data", "wikipedia"))
+      );
+
+      console.log(
+        "[SANITY 50s] resolve evidence=",
+        JSON.stringify(SANITY_50S.evidence, null, 2)
+      );
+    } catch (e) {
+      console.log("[SANITY 50s] debug listing failed:", e.message);
+    }
+  }
+
+  // PATCH F: legacy enforce is warn-only; only HARD_FAIL can terminate
+  if (!SANITY_50S.ok && NYX_SANITY_HARD_FAIL) {
     throw new Error(
-      `Boot sanity failed for 50s singles dataset: ${SANITY_50S.error} :: ${SANITY_50S.file.abs} :: foundBy=${SANITY_50S.file.foundBy}`
+      `Boot sanity hard-fail for 50s singles dataset: ${SANITY_50S.error} :: ${SANITY_50S.file.abs} :: foundBy=${SANITY_50S.file.foundBy}`
+    );
+  }
+
+  if (!SANITY_50S.ok && NYX_SANITY_ENFORCE && !NYX_SANITY_HARD_FAIL) {
+    console.warn(
+      "[SANITY 50s] NYX_SANITY_ENFORCE=true detected (legacy). Hard-exit is disabled unless NYX_SANITY_HARD_FAIL=true. Continuing in degraded mode."
     );
   }
 }
@@ -329,11 +375,8 @@ function newSessionState(sessionId) {
     lastUserIntent: null,
     lastUserText: null,
 
-    // If the first message was a lane token/chip, store it here so intro can be returned cleanly,
-    // but the lane is armed for next message without requiring another chip tap.
     pendingDomainAfterIntro: null,
 
-    // loop protection
     lastReplyHash: null,
     repeatCount: 0,
   };
@@ -374,7 +417,6 @@ function lower(s) {
   return cleanText(s).toLowerCase();
 }
 
-/** PATCH C: never treat lane/commands as a user's name */
 const RESERVED_NAME_TOKENS = new Set([
   "music",
   "tv",
@@ -414,14 +456,10 @@ function isGreeting(text) {
   );
 }
 
-/** PATCH C: harden name detection */
 function isOnlyName(text) {
   const t = cleanText(text);
   if (!t) return false;
-
-  // Never allow reserved lane tokens to be a "name"
   if (isReservedNameToken(t)) return false;
-
   if (/[\d@#$%^&*_=+[\]{}<>\\/|]/.test(t)) return false;
   const parts = t.split(" ").filter(Boolean);
   if (parts.length < 1 || parts.length > 3) return false;
@@ -429,12 +467,9 @@ function isOnlyName(text) {
   return true;
 }
 
-/** PATCH C: harden extraction paths */
 function extractName(text) {
   const t = cleanText(text);
   if (!t) return null;
-
-  // Reject obvious lane tokens early
   if (isReservedNameToken(t)) return null;
 
   let m = t.match(
@@ -454,7 +489,6 @@ function extractName(text) {
   }
 
   if (isOnlyName(t)) return t;
-
   return null;
 }
 
@@ -464,13 +498,11 @@ function hashReply(s) {
 
 function noteLoopProtection(st, reply) {
   const h = hashReply(reply);
-  if (st.lastReplyHash === h) {
-    st.repeatCount += 1;
-  } else {
+  if (st.lastReplyHash === h) st.repeatCount += 1;
+  else {
     st.lastReplyHash = h;
     st.repeatCount = 0;
   }
-  // Less aggressive: require 2 repeats (prevents "nagging" early)
   return st.repeatCount >= 2;
 }
 
@@ -610,8 +642,7 @@ function handleDomain(st, domain, userText) {
       try {
         return tvKnowledge.handleChat({ text, session: st });
       } catch (e) {
-        if (ENABLE_DEBUG)
-          console.warn(`[tvKnowledge.handleChat] failed: ${e.message}`);
+        if (ENABLE_DEBUG) console.warn(`[tvKnowledge.handleChat] failed: ${e.message}`);
       }
     }
     return {
@@ -761,7 +792,6 @@ app.post("/api/chat", async (req, res) => {
     touchSession(st);
     st.lastUserText = message;
 
-    // --- Precompute chip token safely (FIX precedence bug)
     const chipDomain = normalizeDomainFromChipOrText(message);
     const isLaneToken = lower(message).startsWith("lane:");
     const isSimpleDomainWord = ["music", "tv", "sponsors", "ai", "general"].includes(
@@ -769,7 +799,6 @@ app.post("/api/chat", async (req, res) => {
     );
     const messageIsJustChip = Boolean(chipDomain) && (isLaneToken || isSimpleDomainWord);
 
-    // 1) Empty message: if first contact -> intro; else prompt forward
     if (!message) {
       if (st.phase === "greeting" && !st.greetedOnce) {
         st.greetedOnce = true;
@@ -781,8 +810,6 @@ app.post("/api/chat", async (req, res) => {
       return res.json({ ok: true, reply, followUp: null, sessionId: st.sessionId });
     }
 
-    // 2) HARD RULE: Intro ALWAYS wins on first contact (even if widget sends a chip token)
-    // If first message is a lane token/chip, store it for the next user input.
     if (st.phase === "greeting" && !st.greetedOnce) {
       if (messageIsJustChip && chipDomain) {
         st.pendingDomainAfterIntro = chipDomain;
@@ -793,14 +820,12 @@ app.post("/api/chat", async (req, res) => {
       return res.json({ ok: true, reply, followUp: null, sessionId: st.sessionId });
     }
 
-    // 3) Apply pending domain armed from first-contact lane token
     if (st.pendingDomainAfterIntro && !st.activeDomain) {
       st.activeDomain = st.pendingDomainAfterIntro;
       st.phase = "domain_active";
       st.pendingDomainAfterIntro = null;
     }
 
-    // 4) Chip arbitration should run BEFORE name capture post-intro
     if (messageIsJustChip && chipDomain) {
       st.activeDomain = chipDomain;
       st.phase = "domain_active";
@@ -811,8 +836,7 @@ app.post("/api/chat", async (req, res) => {
 
       let reply = applyNyxTone(st, result.reply);
 
-      const forcedForward = noteLoopProtection(st, reply);
-      if (forcedForward) {
+      if (noteLoopProtection(st, reply)) {
         reply = applyNyxTone(
           st,
           `${reply}\n\nGive me one detail (year, title, or goal) and I’ll move us forward immediately.`
@@ -827,7 +851,6 @@ app.post("/api/chat", async (req, res) => {
       });
     }
 
-    // 5) Name capture (safe — reserved tokens rejected)
     const name = extractName(message);
     if (name && !st.nameCaptured) {
       st.nameCaptured = true;
@@ -842,11 +865,9 @@ app.post("/api/chat", async (req, res) => {
       });
     }
 
-    // 6) Intent classification (post-intro)
     const intent = classifyIntent(message);
     st.lastUserIntent = intent.intent;
 
-    // 7) Greeting handling: post-intro social response
     if (intent.intent === "greeting" || isGreeting(message)) {
       const reply = applyNyxTone(st, nyxGreetingReply(st));
       return res.json({
@@ -857,11 +878,9 @@ app.post("/api/chat", async (req, res) => {
       });
     }
 
-    // 8) Otherwise: user free-text. Route based on activeDomain if set; else infer domain.
     let domain = st.activeDomain;
     if (!domain) domain = chipDomain || "general";
 
-    // If user explicitly says a domain keyword in free-text, allow it to set active lane
     const explicitDomain = normalizeDomainFromChipOrText(message);
     if (explicitDomain) {
       st.activeDomain = explicitDomain;
@@ -877,8 +896,7 @@ app.post("/api/chat", async (req, res) => {
 
     let reply = applyNyxTone(st, result.reply);
 
-    const forcedForward = noteLoopProtection(st, reply);
-    if (forcedForward) {
+    if (noteLoopProtection(st, reply)) {
       reply = applyNyxTone(
         st,
         `${reply}\n\nGive me one specific input (a year, a title, or a goal) and I’ll move us forward immediately.`
@@ -999,7 +1017,6 @@ app.get("/api/health", (req, res) => {
     ENABLE_TTS &&
     TTS_PROVIDER === "elevenlabs";
 
-  // Ensure sanity snapshot exists even if boot sanity disabled
   if (!SANITY_50S) SANITY_50S = sanityCheck50sSingles();
 
   return res.json({
@@ -1014,7 +1031,6 @@ app.get("/api/health", (req, res) => {
     nyx: { intelligenceLevel: DEFAULT_INTELLIGENCE_LEVEL },
     sessions: sessions.size,
 
-    // PATCH D/E: production visibility
     music50s: {
       ok: SANITY_50S.ok,
       exists: SANITY_50S.file.exists,
@@ -1051,8 +1067,15 @@ try {
   if (NYX_SANITY_ON_BOOT) runBootSanity50s();
 } catch (e) {
   console.error(`[SANITY 50s] BOOT BLOCKED: ${e.message}`);
-  // Enforced sanity should stop boot; non-enforced continues.
-  if (NYX_SANITY_ENFORCE) process.exit(1);
+
+  // PATCH F: never crash-loop unless explicitly requested
+  if (NYX_SANITY_HARD_FAIL) process.exit(1);
+
+  if (NYX_SANITY_ENFORCE) {
+    console.warn(
+      "[SANITY 50s] NYX_SANITY_ENFORCE=true detected (legacy). Continuing in degraded mode. Set NYX_SANITY_HARD_FAIL=true to hard-fail."
+    );
+  }
 }
 
 app.listen(PORT, HOST, () => {
