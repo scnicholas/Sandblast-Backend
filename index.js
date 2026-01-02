@@ -59,6 +59,13 @@
  * HOTFIX (2026-01-02, PATCH I):
  *  - Greeting handling MUST run before name capture post-intro (prevents "hi" => userName).
  *  - isOnlyName must reject greetings explicitly.
+ *
+ * NEW (2026-01-02, PATCH MM — DETERMINISTIC MOMENTS COMMAND PARSER + GRACEFUL DEGRADE):
+ *  - Parse "top 10 ####" and "story moment ####" explicitly.
+ *  - If Utils/musicMoments is missing in production, make "top 10 ####" fall back to musicKnowledge(year)
+ *    instead of returning the generic “Tell me a year…” loop.
+ *  - If story moments layer is missing, say so directly (no looping).
+ *  - /api/health reports whether musicMoments is loaded.
  */
 
 "use strict";
@@ -662,6 +669,22 @@ function wantsMusicMoments(text) {
   return false;
 }
 
+// PATCH MM: Parse moments commands deterministically
+function parseMomentsCommand(text) {
+  const t = lower(text);
+  if (!t) return null;
+
+  // top 10 1988 / top ten 1988
+  let m = t.match(/\btop\s*(10|ten)\s*(\d{4})\b/);
+  if (m) return { kind: "top10", year: Number(m[2]) };
+
+  // story moment 1957 / music moment 1957 / moment 1957 / moments 1957
+  m = t.match(/\b(story\s+moment|music\s+moment|moment|moments)\s*(\d{4})\b/);
+  if (m) return { kind: "story", year: Number(m[2]) };
+
+  return null;
+}
+
 function classifyIntent(text) {
   const t = cleanText(text);
   if (!t) return { intent: "empty", confidence: 1.0 };
@@ -705,7 +728,10 @@ function handleDomain(st, domain, userText) {
   const text = cleanText(userText);
 
   if (domain === "music") {
-    // PATCH G: Music Moments first, when asked
+    // PATCH MM: deterministic command parsing (used for graceful degrade)
+    const mmCmd = parseMomentsCommand(text);
+
+    // PATCH G: Music Moments first, when asked and module exists
     if (
       musicMoments &&
       typeof musicMoments.handle === "function" &&
@@ -718,6 +744,41 @@ function handleDomain(st, domain, userText) {
       } catch (e) {
         if (ENABLE_DEBUG) console.warn(`[musicMoments.handle] failed: ${e.message}`);
       }
+    }
+
+    // PATCH MM: If musicMoments is missing, prevent the generic "Tell me a year..." loop:
+    // - top10: feed just the year into musicKnowledge
+    // - story: tell the truth (moments layer not deployed)
+    if (
+      (!musicMoments || typeof musicMoments.handle !== "function") &&
+      mmCmd &&
+      mmCmd.year
+    ) {
+      if (mmCmd.kind === "top10") {
+        if (musicKnowledge && typeof musicKnowledge.handleChat === "function") {
+          try {
+            const mk = musicKnowledge.handleChat({ text: String(mmCmd.year), session: st });
+            return normalizeModuleResult(mk) || mk;
+          } catch (e) {
+            if (ENABLE_DEBUG)
+              console.warn(`[musicKnowledge.handleChat] failed: ${e.message}`);
+          }
+        }
+        return {
+          reply: `Top 10 (${mmCmd.year})—I can do that, but the music charts module isn’t available right now. Try again in a moment.`,
+          followUp: [`${mmCmd.year}`, `top 10 ${mmCmd.year}`, "Prince 1984"],
+          domain: "music",
+        };
+      }
+
+      // story moments require the moments dataset/module
+      return {
+        reply:
+          `I can do “story moment ${mmCmd.year}”, but the Music Moments layer isn’t deployed on the server yet.\n\n` +
+          `Fix: commit/push Utils/musicMoments.js + the moments dataset, then redeploy. After that, “story moment ${mmCmd.year}” will work instantly.`,
+        followUp: [`top 10 ${mmCmd.year}`, `${mmCmd.year}`, "Prince 1984"],
+        domain: "music",
+      };
     }
 
     // Existing musicKnowledge path (unchanged)
@@ -1134,7 +1195,7 @@ app.post("/api/s2s", upload.single("file"), async (req, res) => {
 });
 
 /* ======================================================
-   /api/health — Diagnostics (+ music50s + build)
+   /api/health — Diagnostics (+ music50s + build + modules)
 ====================================================== */
 
 app.get("/api/health", (req, res) => {
@@ -1162,6 +1223,12 @@ app.get("/api/health", (req, res) => {
 
     nyx: { intelligenceLevel: DEFAULT_INTELLIGENCE_LEVEL },
     sessions: sessions.size,
+
+    // PATCH MM: module visibility
+    modules: {
+      musicMomentsLoaded: Boolean(musicMoments && typeof musicMoments.handle === "function"),
+      musicKnowledgeLoaded: Boolean(musicKnowledge && typeof musicKnowledge.handleChat === "function"),
+    },
 
     // PATCH D/E/F: production visibility
     music50s: {
