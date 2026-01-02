@@ -50,6 +50,11 @@
  * NEW (2026-01-02, PATCH G2 — IMPLICIT MUSIC LANE):
  *  - If user types "story moment 1957" or "top 10 1988" WITHOUT selecting the music chip,
  *    automatically treat that message as the music domain (and persist activeDomain="music").
+ *
+ * NEW (2026-01-02, PATCH H — BUILD STAMP + FIRST-CONTACT MUSIC ARM):
+ *  - /api/health exposes BUILD_SHA so you can confirm Render deployment instantly.
+ *  - If very first message is a Music Moments command, arm pendingDomainAfterIntro="music"
+ *    while still returning the intro (keeps "intro always wins" rule).
  */
 
 "use strict";
@@ -73,6 +78,13 @@ const HOST = process.env.HOST || "0.0.0.0";
 
 const SERVICE_NAME = process.env.SERVICE_NAME || "sandblast-backend";
 const NODE_ENV = process.env.NODE_ENV || "development";
+
+// PATCH H: Build stamp (Render sets RENDER_GIT_COMMIT for deploys)
+const BUILD_SHA =
+  process.env.RENDER_GIT_COMMIT ||
+  process.env.GIT_SHA ||
+  process.env.COMMIT_SHA ||
+  null;
 
 // Session TTL to prevent memory bloat
 const SESSION_TTL_MINUTES = Number(process.env.SESSION_TTL_MINUTES || 90);
@@ -304,7 +316,6 @@ function runBootSanity50s() {
       console.log("[SANITY 50s] cwd=", process.cwd());
       console.log("[SANITY 50s] __dirname=", __dirname);
 
-      // Render canonical working dir (most builds end here)
       const renderRoot = "/opt/render/project/src";
       console.log("[SANITY 50s] ls /opt/render/project/src =", safeLs(renderRoot));
       console.log(
@@ -316,7 +327,6 @@ function runBootSanity50s() {
         safeLs(path.join(renderRoot, "Data", "wikipedia"))
       );
 
-      // Where index.js actually is
       console.log("[SANITY 50s] ls __dirname =", safeLs(__dirname));
       console.log(
         "[SANITY 50s] ls __dirname/Data =",
@@ -387,7 +397,7 @@ function newSessionState(sessionId) {
     lastUserIntent: null,
     lastUserText: null,
 
-    // If the first message was a lane token/chip, store it here so intro can be returned cleanly,
+    // If the first message was a lane token/chip OR a moments command, store it here so intro can be returned cleanly,
     // but the lane is armed for next message without requiring another chip tap.
     pendingDomainAfterIntro: null,
 
@@ -867,6 +877,7 @@ app.post("/api/chat", async (req, res) => {
         keys,
         sessionId: sessionId || "(none)",
         message: message || "(EMPTY)",
+        build: BUILD_SHA || "(no-build-sha)",
       });
     }
 
@@ -894,19 +905,23 @@ app.post("/api/chat", async (req, res) => {
       return res.json({ ok: true, reply, followUp: null, sessionId: st.sessionId });
     }
 
-    // 2) HARD RULE: Intro ALWAYS wins on first contact (even if widget sends a chip token)
+    // 2) HARD RULE: Intro ALWAYS wins on first contact
     // If first message is a lane token/chip, store it for the next user input.
+    // PATCH H: if first message is a music moments command, arm music lane for the next turn.
     if (st.phase === "greeting" && !st.greetedOnce) {
       if (messageIsJustChip && chipDomain) {
         st.pendingDomainAfterIntro = chipDomain;
+      } else if (wantsMusicMoments(message)) {
+        st.pendingDomainAfterIntro = "music";
       }
+
       st.greetedOnce = true;
       st.phase = "engaged";
       const reply = applyNyxTone(st, nyxIntroLine());
       return res.json({ ok: true, reply, followUp: null, sessionId: st.sessionId });
     }
 
-    // 3) Apply pending domain armed from first-contact lane token
+    // 3) Apply pending domain armed from first-contact lane token / moments command
     if (st.pendingDomainAfterIntro && !st.activeDomain) {
       st.activeDomain = st.pendingDomainAfterIntro;
       st.phase = "domain_active";
@@ -1109,7 +1124,7 @@ app.post("/api/s2s", upload.single("file"), async (req, res) => {
 });
 
 /* ======================================================
-   /api/health — Diagnostics (+ music50s)
+   /api/health — Diagnostics (+ music50s + build)
 ====================================================== */
 
 app.get("/api/health", (req, res) => {
@@ -1131,6 +1146,10 @@ app.get("/api/health", (req, res) => {
     time: new Date().toISOString(),
     pid: process.pid,
     keepalive: true,
+
+    // PATCH H: Deployment stamp (verify Render is running the commit you expect)
+    build: BUILD_SHA,
+
     nyx: { intelligenceLevel: DEFAULT_INTELLIGENCE_LEVEL },
     sessions: sessions.size,
 
@@ -1184,8 +1203,8 @@ try {
 
 app.listen(PORT, HOST, () => {
   console.log(
-    `[${SERVICE_NAME}] up :: env=${NODE_ENV} host=${HOST} port=${PORT} tts=${
-      ENABLE_TTS ? TTS_PROVIDER : "off"
-    }`
+    `[${SERVICE_NAME}] up :: env=${NODE_ENV} host=${HOST} port=${PORT} build=${
+      BUILD_SHA || "none"
+    } tts=${ENABLE_TTS ? TTS_PROVIDER : "off"}`
   );
 });
