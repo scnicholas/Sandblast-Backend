@@ -73,6 +73,11 @@
  *
  * NEW (2026-01-02, STEP 1 TONE TUNE):
  *  - Slightly warmer, more confident pacing (host presence)
+ *
+ * NEW (2026-01-02, PATCH J — YEAR-ONLY CHART FALLBACK):
+ *  - If user enters a year-only (e.g., "1999") and current chart context can't produce a clean list,
+ *    automatically retry against canonical charts (Year-End Hot 100 → Hot 100 → Year-End Singles),
+ *    persist the working chart in session, and prevent dead-end messaging.
  */
 
 "use strict";
@@ -458,6 +463,39 @@ function cleanText(s) {
 
 function lower(s) {
   return cleanText(s).toLowerCase();
+}
+
+/* ======================================================
+   PATCH J: Year-only chart fallback helpers
+====================================================== */
+
+function isYearOnly(text) {
+  const t = cleanText(text);
+  return /^\d{4}$/.test(t);
+}
+
+function extractYear(text) {
+  const t = cleanText(text);
+  const m = t.match(/\b(19|20)\d{2}\b/);
+  if (!m) return null;
+  const y = Number(m[0]);
+  // keep range broad; your datasets cover 1950–2024+ in practice
+  if (y < 1950 || y > 2030) return null;
+  return y;
+}
+
+function looksLikeMissingYearList(reply, year) {
+  const r = String(reply || "").toLowerCase();
+  if (!r) return false;
+
+  // High-signal patterns seen in the wild + close variants
+  if (r.includes("don't have a clean list")) return true;
+  if (r.includes("dont have a clean list")) return true;
+  if (r.includes("try another year")) return true;
+  if (r.includes("not available") && year && r.includes(String(year))) return true;
+  if (year && r.includes(String(year)) && r.includes("clean list")) return true;
+
+  return false;
 }
 
 /** PATCH C: never treat lane/commands as a user's name */
@@ -919,12 +957,43 @@ function handleDomain(st, domain, userText) {
       };
     }
 
-    // Existing musicKnowledge path (unchanged)
+    // Existing musicKnowledge path (UPGRADED with year-only chart fallback)
     if (musicKnowledge && typeof musicKnowledge.handleChat === "function") {
       try {
-        const mk = musicKnowledge.handleChat({ text, session: st });
-        const normalized = normalizeModuleResult(mk) || mk; // preserve legacy shape if you had one
-        return normalized;
+        // First attempt (current chart context)
+        const mk1 = musicKnowledge.handleChat({ text, session: st });
+        const out1 = normalizeModuleResult(mk1) || mk1;
+
+        // PATCH J: If user gave a year-only and this chart source can't produce a clean list,
+        // retry against canonical chart sources and persist the working chart.
+        const year = extractYear(text);
+        if (year && isYearOnly(text) && looksLikeMissingYearList(out1?.reply, year)) {
+          const originalChart = st.activeMusicChart || null;
+
+          const fallbacks = [
+            "Billboard Year-End Hot 100",
+            "Billboard Hot 100",
+            "Billboard Year-End Singles",
+          ];
+
+          for (const chart of fallbacks) {
+            st.activeMusicChart = chart;
+
+            const mk2 = musicKnowledge.handleChat({ text: String(year), session: st });
+            const out2 = normalizeModuleResult(mk2) || mk2;
+
+            if (out2?.reply && !looksLikeMissingYearList(out2.reply, year)) {
+              // Persist the working chart context in session
+              return out2;
+            }
+          }
+
+          // If none worked, restore original chart context and return the original response
+          st.activeMusicChart = originalChart;
+          return out1;
+        }
+
+        return out1;
       } catch (e) {
         if (ENABLE_DEBUG)
           console.warn(`[musicKnowledge.handleChat] failed: ${e.message}`);
