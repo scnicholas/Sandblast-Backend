@@ -70,6 +70,9 @@
  * NEW (2026-01-02, STEP 1 — NYX DEFAULT RESPONSE WRAPPER):
  *  - Enforce: Acknowledge → Lock Intent → Advance (post-intro only)
  *  - Intro remains a single line and always wins on first contact.
+ *
+ * NEW (2026-01-02, STEP 1 TONE TUNE):
+ *  - Slightly warmer, more confident pacing (host presence)
  */
 
 "use strict";
@@ -638,6 +641,7 @@ function nyxGreetingReply(st) {
 /* ======================================================
    STEP 1: Nyx Default Response Wrapper (post-intro)
    Enforces: Acknowledge → Lock Intent → Advance
+   TONE: slightly warmer, more confident pacing
 ====================================================== */
 
 function shouldApplyDefaultWrapper(st, baseReply) {
@@ -653,35 +657,56 @@ function shouldApplyDefaultWrapper(st, baseReply) {
 
 function pickAckForDomain(domain, userText) {
   const t = lower(userText);
-  if (isGreeting(t)) return "Hey.";
-  if (domain === "music") return "Alright.";
-  if (domain === "tv") return "Got it.";
-  if (domain === "sponsors") return "Perfect.";
-  if (domain === "ai") return "Alright — let’s work.";
-  return "Got it.";
+
+  // Warm but controlled. Host energy: present, confident.
+  if (isGreeting(t)) return "Hey — good to hear you.";
+
+  if (domain === "music") return "Alright — I’m with you.";
+  if (domain === "tv") return "Got it — let’s line this up.";
+  if (domain === "sponsors") return "Perfect — we can make this clean.";
+  if (domain === "ai") return "Alright — let’s build this properly.";
+
+  return "Got it — I’m with you.";
 }
 
 function lockIntentLine({ domain, intent, userText }) {
   const t = cleanText(userText);
   const y = extractYearForWrapper(t);
+  const low = t.toLowerCase();
 
-  // Intent-specific locks (declarative, not questions)
-  if (intent === "name") return "You’re introducing yourself.";
-  if (intent === "greeting") return "Good to hear from you.";
+  // Intent locks (declarative, confident)
+  if (intent === "name") return "Nice — I’ve got your name.";
+  if (intent === "greeting") return "We’re good. Where do you want to go next?";
 
-  // Domain-specific locks
+  // Domain locks (short, specific)
   if (domain === "music") {
-    if (y) return `You’re looking at music for ${y}.`;
-    if (t && /top\s*(10|ten)/i.test(t)) return "You want the top 10.";
-    if (t && /\bstory\s+moment\b/i.test(t)) return "You want the story moment.";
-    return "You’re in the music lane.";
+    if (y) return `You’re on ${y}.`;
+    if (/top\s*(10|ten)/i.test(t)) return "You want the top 10.";
+    if (/\bstory\s+moment\b/i.test(t)) return "You want the story moment.";
+    if (/\bartist\b|\bsong\b|\btrack\b/.test(low)) return "You’re chasing a specific song or artist.";
+    return "Music lane — locked.";
   }
-  if (domain === "tv") return "You’re exploring TV.";
-  if (domain === "sponsors") return "You’re looking at Sponsors.";
-  if (domain === "ai") return "You’re in the AI lane.";
 
-  // Neutral lock
-  return "You want something specific — I’ve got you.";
+  if (domain === "tv") {
+    if (/\b(19|20)\d{2}s\b/.test(low)) return "You’re browsing by decade.";
+    if (/\bcrime\b|\bwestern\b|\bcomedy\b|\bdrama\b/.test(low)) return "You’re picking by genre.";
+    return "TV lane — locked.";
+  }
+
+  if (domain === "sponsors") {
+    if (/\bpackage\b|\btier\b|\bprice\b/.test(low)) return "You’re looking at sponsor packages.";
+    if (/\bmetric\b|\bctr\b|\bclick\b|\breach\b/.test(low)) return "You’re thinking outcomes and metrics.";
+    return "Sponsors lane — locked.";
+  }
+
+  if (domain === "ai") {
+    if (/\bwidget\b|\bapi\b|\bintegrat\b|\bbackend\b/.test(low)) return "You’re building or integrating.";
+    if (/\bplan\b|\broadmap\b|\bstrategy\b/.test(low)) return "You want a strategy that holds up.";
+    return "AI lane — locked.";
+  }
+
+  // Neutral lock: warm + decisive
+  return "Alright — you want something specific. We’ll keep it tight.";
 }
 
 function extractYearForWrapper(text) {
@@ -696,7 +721,7 @@ function needsAdvanceLine(coreReply) {
   const r = String(coreReply || "").trim();
   if (!r) return true;
 
-  // If the reply already clearly advances with an instruction or choice, don't add more.
+  // If the reply already gives a next step or ends with a purposeful question, don’t add more.
   const low = r.toLowerCase();
   const alreadyAdvances =
     low.includes("give me") ||
@@ -705,16 +730,22 @@ function needsAdvanceLine(coreReply) {
     low.includes("want ") ||
     low.includes("pick ") ||
     low.includes("choose ") ||
+    low.includes("next:") ||
     r.endsWith("?");
 
   return !alreadyAdvances;
 }
 
 function advanceLineForDomain(domain) {
-  if (domain === "music") return "Give me a year, and I’ll start with the top 10 — then the #1 story.";
-  if (domain === "tv") return "Give me a decade or a vibe, and I’ll line up the best starting point.";
-  if (domain === "sponsors") return "Tell me your goal — reach, clicks, or brand lift — and I’ll propose a clean plan.";
-  if (domain === "ai") return "Tell me what you’re building, and I’ll give you the fastest plan that won’t break later.";
+  // Confident pacing: one clear next beat, framed like a host.
+  if (domain === "music")
+    return "Give me a year — I’ll start with the top 10, then we’ll hit the #1 story.";
+  if (domain === "tv")
+    return "Give me a decade or a vibe — I’ll recommend the best first pick and why it fits.";
+  if (domain === "sponsors")
+    return "Tell me your goal — reach, clicks, or brand lift — and I’ll map the right placement.";
+  if (domain === "ai")
+    return "Tell me what you’re building — I’ll give you the fastest plan that won’t break later.";
   return "Give me the topic in one line — I’ll take it from there.";
 }
 
@@ -733,11 +764,8 @@ function nyxWrapDefaultReply({
 
   const parts = [ack, lock, core].filter(Boolean);
 
-  if (needsAdvanceLine(core)) {
-    parts.push(advanceLineForDomain(domain));
-  }
+  if (needsAdvanceLine(core)) parts.push(advanceLineForDomain(domain));
 
-  // Keep tight: no extra blank lines
   return parts.join("\n");
 }
 
