@@ -101,7 +101,7 @@ app.use(
 );
 
 app.use(express.json({ limit: "2mb" }));
-app.use(express.urlencoded({ extended: true })));
+app.use(express.urlencoded({ extended: true })); // ✅ FIXED: removed extra ")"
 
 /* ======================================================
    Safe Imports (do not crash if a module changes)
