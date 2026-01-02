@@ -46,6 +46,10 @@
  *  - Add musicMoments module (Utils/musicMoments.js) if present.
  *  - If user asks for "story moment" / "moment" / "top 10" / "top ten" (etc.), route to musicMoments first.
  *  - Fallback to existing musicKnowledge.handleChat unchanged.
+ *
+ * NEW (2026-01-02, PATCH G2 — IMPLICIT MUSIC LANE):
+ *  - If user types "story moment 1957" or "top 10 1988" WITHOUT selecting the music chip,
+ *    automatically treat that message as the music domain (and persist activeDomain="music").
  */
 
 "use strict";
@@ -682,14 +686,17 @@ function handleDomain(st, domain, userText) {
 
   if (domain === "music") {
     // PATCH G: Music Moments first, when asked
-    if (musicMoments && typeof musicMoments.handle === "function" && wantsMusicMoments(text)) {
+    if (
+      musicMoments &&
+      typeof musicMoments.handle === "function" &&
+      wantsMusicMoments(text)
+    ) {
       try {
         const mm = musicMoments.handle(text, st);
         const normalized = normalizeModuleResult(mm);
         if (normalized) return normalized;
       } catch (e) {
-        if (ENABLE_DEBUG)
-          console.warn(`[musicMoments.handle] failed: ${e.message}`);
+        if (ENABLE_DEBUG) console.warn(`[musicMoments.handle] failed: ${e.message}`);
       }
     }
 
@@ -718,8 +725,7 @@ function handleDomain(st, domain, userText) {
       try {
         return tvKnowledge.handleChat({ text, session: st });
       } catch (e) {
-        if (ENABLE_DEBUG)
-          console.warn(`[tvKnowledge.handleChat] failed: ${e.message}`);
+        if (ENABLE_DEBUG) console.warn(`[tvKnowledge.handleChat] failed: ${e.message}`);
       }
     }
     return {
@@ -772,8 +778,7 @@ function applyNyxTone(st, reply) {
     try {
       return nyxPersonality.applyTone(reply, { session: st });
     } catch (e) {
-      if (ENABLE_DEBUG)
-        console.warn(`[nyxPersonality.applyTone] failed: ${e.message}`);
+      if (ENABLE_DEBUG) console.warn(`[nyxPersonality.applyTone] failed: ${e.message}`);
     }
   }
   return reply;
@@ -975,8 +980,15 @@ app.post("/api/chat", async (req, res) => {
       st.activeDomain = explicitDomain;
       st.phase = "domain_active";
       domain = explicitDomain;
-    } else if (st.phase !== "domain_active" && domain !== "general") {
-      st.phase = "domain_active";
+    } else {
+      // PATCH G2: Implicit Music lane for moments/top10, even without chip selection
+      if (wantsMusicMoments(message)) {
+        domain = "music";
+        st.activeDomain = "music";
+        st.phase = "domain_active";
+      } else if (st.phase !== "domain_active" && domain !== "general") {
+        st.phase = "domain_active";
+      }
     }
 
     const result = handleDomain(st, domain, message);
