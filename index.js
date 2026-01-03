@@ -984,13 +984,46 @@ const badMomentReply = (r) => {
 if (normalized && badMomentReply(normalized.reply)) {
   if (mmCmd && mmCmd.year) {
     const y = Number(mmCmd.year);
-    return {
-      reply:
-        `I don’t have a clean story moment packaged for ${y} yet (the moment data is incomplete on the server).\n\n` +
-        `Want “top 10 ${y}” instead, or should I roll to ${y - 1} / ${y + 1}?`,
-      followUp: [`top 10 ${y}`, `story moment ${y - 1}`, `story moment ${y + 1}`],
-      domain: "music",
-    };
+// SECONDARY FALLBACK (2026-01-03): If the moments layer is present but returns broken placeholders,
+// synthesize a clean, short story moment from musicKnowledge Top 10 (#1) so the user still gets content.
+if (musicKnowledge && typeof musicKnowledge.handleChat === "function") {
+  try {
+    const mkTop = musicKnowledge.handleChat({ text: `top 10 ${y}`, session: st });
+    const mkNorm = normalizeModuleResult(mkTop) || mkTop;
+    const topReply = String(mkNorm && mkNorm.reply ? mkNorm.reply : "").trim();
+
+    // Parse "#1 Artist — Title" from the first list item
+    // Supports variants like: "1. Artist — Title"
+    const m1 = topReply.match(/^\s*1\.\s*([^—\n]+?)\s*—\s*([^\n]+)\s*$/m);
+    if (m1) {
+      const artist = m1[1].trim();
+      const title = m1[2].trim();
+
+      const story =
+        `Story moment — ${y}: ${artist} — ${title}.\n` +
+        `That #1 didn’t just chart — it set the room’s tempo. Radio leaned in, people memorized the chorus fast, ` +
+        `and the year started to “sound like” this track. If you want, I can pull the full “top 10 ${y}”, ` +
+        `or roll to ${y - 1} / ${y + 1} for the next moment.`;
+
+      return {
+        reply: story,
+        followUp: [`top 10 ${y}`, `story moment ${y - 1}`, `story moment ${y + 1}`],
+        domain: "music",
+      };
+    }
+  } catch (e) {
+    if (ENABLE_DEBUG) console.warn(`[musicMoments.fallback->musicKnowledge] failed: ${e.message}`);
+  }
+}
+
+// If we can’t synthesize, tell the truth and offer safe navigation.
+return {
+  reply:
+    `I don’t have a clean story moment packaged for ${y} yet (the moment data is incomplete on the server).\n\n` +
+    `Want “top 10 ${y}” instead, or should I roll to ${y - 1} / ${y + 1}?`,
+  followUp: [`top 10 ${y}`, `story moment ${y - 1}`, `story moment ${y + 1}`],
+  domain: "music",
+};
   }
   return {
     reply:
