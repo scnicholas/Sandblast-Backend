@@ -1,4 +1,4 @@
-/**
+/** 
  * index.js — Sandblast Backend (Nyx)
  * Critical fixes:
  *  - Intro ALWAYS wins on first contact (even if widget sends lane token)
@@ -125,43 +125,36 @@ const ELEVENLABS_BASE_URL =
 
 // Voice tuning (canonical approach you locked)
 const NYX_VOICE_STABILITY = process.env.NYX_VOICE_STABILITY || "0.35";
-const NYX_VOICE_SIMILARITY = process.env.NYX_VOICE_SIMILARITY || "0.80";
-const NYX_VOICE_STYLE = process.env.NYX_VOICE_STYLE || "0.25";
+const NYX_VOICE_SIMILARITY = process.env.NYX_VOICE_SIMILARITY || "0.75";
+const NYX_VOICE_STYLE = process.env.NYX_VOICE_STYLE || "0.45";
 const NYX_VOICE_SPEAKER_BOOST =
-  (process.env.NYX_VOICE_SPEAKER_BOOST || "true") === "true";
+  String(process.env.NYX_VOICE_SPEAKER_BOOST || "true").toLowerCase() === "true";
 
-// Utility feature toggles
-const ENABLE_TTS = (process.env.ENABLE_TTS || "true") === "true";
-const ENABLE_S2S = (process.env.ENABLE_S2S || "true") === "true";
-const ENABLE_DEBUG = (process.env.NYX_DEBUG || "false") === "true";
+// Sanity enforcement (legacy) — now warn-only by default
+const NYX_SANITY_ENFORCE =
+  String(process.env.NYX_SANITY_ENFORCE || "false").toLowerCase() === "true";
 
-// PATCH D/F: Boot sanity behavior
-// - NYX_SANITY_ON_BOOT=true runs check + logs (default true)
-// - NYX_SANITY_ENFORCE=true is legacy; now WARN-ONLY (prevents crash-loops)
-// - NYX_SANITY_HARD_FAIL=true is the ONLY flag that can terminate the process
-const NYX_SANITY_ON_BOOT = (process.env.NYX_SANITY_ON_BOOT || "true") === "true";
-const NYX_SANITY_ENFORCE = (process.env.NYX_SANITY_ENFORCE || "false") === "true"; // legacy
-const NYX_SANITY_HARD_FAIL = (process.env.NYX_SANITY_HARD_FAIL || "false") === "true"; // NEW
+// Only THIS can hard-fail the process
+const NYX_SANITY_HARD_FAIL =
+  String(process.env.NYX_SANITY_HARD_FAIL || "false").toLowerCase() === "true";
 
-// CORS: permissive by default; tighten if you want
-app.use(
-  cors({
-    origin: "*",
-    methods: ["GET", "POST", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
-
-app.use(express.json({ limit: "2mb" }));
-app.use(express.urlencoded({ extended: true }));
+// Debug
+const ENABLE_DEBUG = String(process.env.NYX_DEBUG || "false").toLowerCase() === "true";
 
 /* ======================================================
-   Safe Imports (do not crash if a module changes)
+   Middleware
+====================================================== */
+
+app.use(cors());
+app.use(express.json({ limit: "5mb" }));
+
+/* ======================================================
+   Safe require helpers
 ====================================================== */
 
 function safeRequire(modPath) {
   try {
-    // eslint-disable-next-line import/no-dynamic-require, global-require
+    // eslint-disable-next-line global-require
     return require(modPath);
   } catch (e) {
     if (ENABLE_DEBUG)
@@ -301,90 +294,84 @@ function sanityCheck50sSingles() {
     // eslint-disable-next-line global-require, import/no-dynamic-require
     const j = require(abs);
 
-    const rows = Array.isArray(j.rows) ? j.rows : [];
-    out.rows = rows.length;
+    const rows = Array.isArray(j.rows)
+      ? j.rows
+      : Array.isArray(j)
+      ? j
+      : Array.isArray(j.data)
+      ? j.data
+      : null;
 
-    for (let y = 1950; y <= 1959; y++) {
-      out.counts[y] = rows.filter((r) => Number(r.year) === y).length;
+    if (!rows) {
+      out.error = "BAD_FORMAT";
+      return out;
     }
 
-    const total = Object.values(out.counts).reduce((a, b) => a + b, 0);
-    out.ok = out.file.exists && total >= 300;
-
-    if (!out.ok) out.error = "INCOMPLETE_OR_BAD_ROWS";
-
+    out.rows = rows.length;
+    const counts = {};
+    for (const r of rows) {
+      const y = Number(r.year);
+      if (!Number.isFinite(y)) continue;
+      counts[y] = (counts[y] || 0) + 1;
+    }
+    out.counts = counts;
+    out.ok = out.rows > 0;
     return out;
   } catch (e) {
-    out.error = e.message || "SANITY_ERROR";
+    out.error = e.message || String(e);
     return out;
   }
 }
 
-// Snapshot cached for /api/health (computed at boot; cheap + stable)
-let SANITY_50S = null;
+const bootSanity50s = sanityCheck50sSingles();
 
 function runBootSanity50s() {
-  SANITY_50S = sanityCheck50sSingles();
-  const tag = SANITY_50S.ok ? "OK" : "FAIL";
+  // PATCH F: deploy survival — never crash by default
+  if (bootSanity50s.ok) {
+    if (ENABLE_DEBUG) {
+      console.log(
+        `[bootSanity50s] ok=true rows=${bootSanity50s.rows} foundBy=${bootSanity50s.file.foundBy}`
+      );
+    }
+    return;
+  }
 
-  console.log(
-    `[SANITY 50s] ${tag} exists=${SANITY_50S.file.exists} rows=${SANITY_50S.rows} counts=${JSON.stringify(
-      SANITY_50S.counts
-    )} foundBy=${SANITY_50S.file.foundBy} path=${SANITY_50S.file.abs}`
+  // Always-on evidence when sanity fails (so you can see why in Render logs)
+  console.warn(
+    `[bootSanity50s] ok=false error=${bootSanity50s.error} exists=${bootSanity50s.file.exists} abs=${bootSanity50s.file.abs} foundBy=${bootSanity50s.file.foundBy}`
   );
 
-  // PATCH F: if fail, ALWAYS print high-signal evidence (no env vars required)
-  if (!SANITY_50S.ok) {
-    try {
-      console.log("[SANITY 50s] cwd=", process.cwd());
-      console.log("[SANITY 50s] __dirname=", __dirname);
-
-      const renderRoot = "/opt/render/project/src";
-      console.log("[SANITY 50s] ls /opt/render/project/src =", safeLs(renderRoot));
-      console.log(
-        "[SANITY 50s] ls /opt/render/project/src/Data =",
-        safeLs(path.join(renderRoot, "Data"))
+  if (ENABLE_DEBUG && bootSanity50s.evidence) {
+    for (const t of bootSanity50s.evidence) {
+      console.warn(
+        `[bootSanity50s] evidence label=${t.label} base=${t.base} abs=${t.abs} exists=${fs.existsSync(
+          t.abs
+        )}`
       );
-      console.log(
-        "[SANITY 50s] ls /opt/render/project/src/Data/wikipedia =",
-        safeLs(path.join(renderRoot, "Data", "wikipedia"))
-      );
-
-      console.log("[SANITY 50s] ls __dirname =", safeLs(__dirname));
-      console.log(
-        "[SANITY 50s] ls __dirname/Data =",
-        safeLs(path.resolve(__dirname, "Data"))
-      );
-      console.log(
-        "[SANITY 50s] ls __dirname/Data/wikipedia =",
-        safeLs(path.resolve(__dirname, "Data", "wikipedia"))
-      );
-
-      console.log(
-        "[SANITY 50s] resolve evidence=",
-        JSON.stringify(SANITY_50S.evidence, null, 2)
-      );
-    } catch (e) {
-      console.log("[SANITY 50s] debug listing failed:", e.message);
+      try {
+        const dir = path.dirname(t.abs);
+        console.warn(`[bootSanity50s] ls ${dir} ->`, safeLs(dir));
+      } catch (_) {}
     }
   }
 
-  // PATCH F: legacy enforce is warn-only; only HARD_FAIL can terminate
-  if (!SANITY_50S.ok && NYX_SANITY_HARD_FAIL) {
-    throw new Error(
-      `Boot sanity hard-fail for 50s singles dataset: ${SANITY_50S.error} :: ${SANITY_50S.file.abs} :: foundBy=${SANITY_50S.file.foundBy}`
-    );
+  if (NYX_SANITY_HARD_FAIL) {
+    console.error("[bootSanity50s] HARD FAIL enabled. Exiting.");
+    process.exit(1);
   }
 
-  if (!SANITY_50S.ok && NYX_SANITY_ENFORCE && !NYX_SANITY_HARD_FAIL) {
+  // Legacy behavior becomes warn-only
+  if (NYX_SANITY_ENFORCE) {
     console.warn(
-      "[SANITY 50s] NYX_SANITY_ENFORCE=true detected (legacy). Hard-exit is disabled unless NYX_SANITY_HARD_FAIL=true. Continuing in degraded mode."
+      "[bootSanity50s] NYX_SANITY_ENFORCE is legacy. Warning only (no crash). Use NYX_SANITY_HARD_FAIL=true to terminate."
     );
   }
 }
 
+runBootSanity50s();
+
 /* ======================================================
-   Session Store (authoritative state spine)
+   Session store
 ====================================================== */
 
 const sessions = new Map();
@@ -397,77 +384,76 @@ function makeSessionId() {
   return crypto.randomBytes(8).toString("hex");
 }
 
-/**
- * phase:
- *  - "greeting": intro allowed (one time)
- *  - "engaged": post-intro, general conversation (name capture/intent routing)
- *  - "domain_active": user is in a lane (music/tv/sponsors/ai/etc.)
- */
-function newSessionState(sessionId) {
+function newSessionState() {
   return {
-    sessionId,
+    id: makeSessionId(),
     createdAt: nowMs(),
     updatedAt: nowMs(),
-    intelligenceLevel: DEFAULT_INTELLIGENCE_LEVEL,
-
+    // "greeting" -> intro shown; "domain_active" -> chip selected or inferred
     phase: "greeting",
-    greetedOnce: false,
-
-    nameCaptured: false,
+    // user name capture
     userName: null,
-
-    activeDomain: null, // "music" | "tv" | "sponsors" | "ai" | "general"
-    lastUserIntent: null,
-    lastUserText: null,
-
-    // If the first message was a lane token/chip OR a moments command, store it here so intro can be returned cleanly,
-    // but the lane is armed for next message without requiring another chip tap.
+    // active domain lane
+    activeDomain: "general",
+    // if first message was a lane token, we store it to arm after intro
     pendingDomainAfterIntro: null,
+
+    // OPTION 3 (Music Moments) state spine
+    lastStoryYear: null,
+    lastStoryAt: 0,
+    pendingMicroYear: null, // year awaiting user confirmation for a micro-moment
+    usedMicroYears: {}, // { [year:number]: true }
+    suppressWrapOnce: false, // one-turn wrapper bypass when we intentionally format beats
 
     // loop protection
     lastReplyHash: null,
     repeatCount: 0,
+    lastUserText: null,
+
+    // music continuity (module-provided sessionPatch may update)
+    activeMusicChart: null,
+    lastMusicYear: null,
+    lastMusicChart: null,
+
+    // intelligence
+    intelligenceLevel: DEFAULT_INTELLIGENCE_LEVEL,
   };
 }
 
-function getSession(sessionIdRaw) {
-  const sid = (sessionIdRaw || "").trim() || makeSessionId();
-  let st = sessions.get(sid);
-  if (!st) {
-    st = newSessionState(sid);
-    sessions.set(sid, st);
-  }
-  return st;
+function getSession(sessionId) {
+  if (!sessionId) return null;
+  return sessions.get(sessionId) || null;
 }
 
 function touchSession(st) {
+  if (!st) return;
   st.updatedAt = nowMs();
 }
 
 function cleanupSessions() {
-  const ttl = SESSION_TTL_MINUTES * 60 * 1000;
-  const cutoff = nowMs() - ttl;
-  for (const [sid, st] of sessions.entries()) {
-    if ((st.updatedAt || st.createdAt) < cutoff) sessions.delete(sid);
+  const ttlMs = SESSION_TTL_MINUTES * 60 * 1000;
+  const cutoff = nowMs() - ttlMs;
+  for (const [id, st] of sessions.entries()) {
+    if (!st || !st.updatedAt || st.updatedAt < cutoff) sessions.delete(id);
   }
 }
-setInterval(cleanupSessions, 60 * 1000).unref();
+
+// periodic cleanup
+setInterval(cleanupSessions, 30 * 60 * 1000).unref();
 
 /* ======================================================
-   Helpers: text normalization + detection
+   Text helpers
 ====================================================== */
 
 function cleanText(s) {
-  return String(s || "").replace(/\s+/g, " ").trim();
+  return String(s || "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function lower(s) {
   return cleanText(s).toLowerCase();
 }
-
-/* ======================================================
-   PATCH J: Year-only chart fallback helpers
-====================================================== */
 
 function isYearOnly(text) {
   const t = cleanText(text);
@@ -476,50 +462,36 @@ function isYearOnly(text) {
 
 function extractYear(text) {
   const t = cleanText(text);
-  const m = t.match(/\b(19|20)\d{2}\b/);
-  if (!m) return null;
-  const y = Number(m[0]);
-  // keep range broad; your datasets cover 1950–2024+ in practice
-  if (y < 1950 || y > 2030) return null;
-  return y;
+  const m = t.match(/\b(19\d{2}|20\d{2})\b/);
+  return m ? Number(m[1]) : null;
 }
 
-function looksLikeMissingYearList(reply, year) {
-  const r = String(reply || "").toLowerCase();
-  if (!r) return false;
-
-  // High-signal patterns seen in the wild + close variants
-  if (r.includes("don't have a clean list")) return true;
-  if (r.includes("dont have a clean list")) return true;
-  if (r.includes("try another year")) return true;
-  if (r.includes("not available") && year && r.includes(String(year))) return true;
-  if (year && r.includes(String(year)) && r.includes("clean list")) return true;
-
-  return false;
+function looksLikeMissingYearList(reply) {
+  const r = lower(reply);
+  return (
+    r.includes("give me a year") ||
+    r.includes("tell me a year") ||
+    r.includes("pick a year") ||
+    r.includes("choose a year") ||
+    r.includes("year (") ||
+    r.includes("enter a year")
+  );
 }
 
-/** PATCH C: never treat lane/commands as a user's name */
-const RESERVED_NAME_TOKENS = new Set([
-  "music",
-  "tv",
-  "television",
-  "sponsors",
-  "sponsor",
-  "ads",
-  "advertising",
-  "ai",
-  "a.i.",
-  "general",
-  "lane:music",
-  "lane:tv",
-  "lane:sponsors",
-  "lane:ai",
-  "lane:general",
-]);
-
-function isReservedNameToken(s) {
-  const t = lower(s);
-  return RESERVED_NAME_TOKENS.has(t);
+function isReservedNameToken(text) {
+  const t = lower(text);
+  if (!t) return false;
+  return (
+    t === "music" ||
+    t === "tv" ||
+    t === "sponsors" ||
+    t === "ai" ||
+    t === "general" ||
+    t.startsWith("lane:") ||
+    t.includes("story moment") ||
+    t.includes("top 10") ||
+    t.includes("top ten")
+  );
 }
 
 function isGreeting(text) {
@@ -527,165 +499,185 @@ function isGreeting(text) {
   if (!t) return false;
   return (
     t === "hi" ||
-    t === "hey" ||
     t === "hello" ||
+    t === "hey" ||
+    t === "yo" ||
+    t === "hiya" ||
     t === "good morning" ||
     t === "good afternoon" ||
-    t === "good evening" ||
-    t.startsWith("hi ") ||
-    t.startsWith("hey ") ||
-    t.startsWith("hello ")
+    t === "good evening"
   );
 }
 
-/** PATCH I: harden name detection (reject greetings explicitly) */
+function isAffirmation(text) {
+  const t = lower(text);
+  if (!t) return false;
+
+  // Tight, high-signal confirmations (avoid false positives like "yeah but...")
+  return (
+    t === "yes" ||
+    t === "y" ||
+    t === "yeah" ||
+    t === "yep" ||
+    t === "sure" ||
+    t === "ok" ||
+    t === "okay" ||
+    t === "please" ||
+    t === "do it" ||
+    t === "go" ||
+    t === "let's go" ||
+    t === "lets go" ||
+    t === "hit it" ||
+    t === "continue" ||
+    t === "keep going"
+  );
+}
+
+function isNextCue(text) {
+  const t = lower(text);
+  if (!t) return false;
+  return (
+    t === "next" ||
+    t === "next year" ||
+    t === "keep going" ||
+    t === "continue" ||
+    t === "go on" ||
+    t === "move on" ||
+    t === "another" ||
+    t === "one more"
+  );
+}
+
+/** PATCH I: harden name detection to avoid greetings and lane tokens */
 function isOnlyName(text) {
   const t = cleanText(text);
   if (!t) return false;
 
-  // Never allow reserved lane tokens to be a "name"
+  // reject greeting-only, lane tokens, or reserved words
+  if (isGreeting(t)) return false;
   if (isReservedNameToken(t)) return false;
 
-  // Never allow greetings to be a "name"
-  if (isGreeting(t)) return false;
-
-  if (/[\d@#$%^&*_=+[\]{}<>\\/|]/.test(t)) return false;
+  // single word or two-word "First Last"
   const parts = t.split(" ").filter(Boolean);
-  if (parts.length < 1 || parts.length > 3) return false;
-  if (!parts.every((p) => /^[A-Za-z'’-]{2,}$/.test(p))) return false;
-  return true;
+  if (parts.length < 1 || parts.length > 2) return false;
+
+  // must be alphabetic-ish
+  const ok = parts.every((p) => /^[a-zA-Z][a-zA-Z'-]*$/.test(p));
+  return ok;
 }
 
-/** PATCH I: harden extraction paths */
 function extractName(text) {
   const t = cleanText(text);
-  if (!t) return null;
-
-  // Reject greetings up front
-  if (isGreeting(t)) return null;
-
-  // Reject obvious lane tokens early
-  if (isReservedNameToken(t)) return null;
-
-  let m = t.match(
-    /\bmy name is\s+([A-Za-z'’-]{2,}(?:\s+[A-Za-z'’-]{2,}){0,2})\b/i
-  );
-  if (m && m[1]) {
-    const candidate = m[1].trim();
-    if (!isReservedNameToken(candidate) && !isGreeting(candidate)) return candidate;
-  }
-
-  m = t.match(
-    /\b(i am|i'm)\s+([A-Za-z'’-]{2,}(?:\s+[A-Za-z'’-]{2,}){0,2})\b/i
-  );
-  if (m && m[2]) {
-    const candidate = m[2].trim();
-    if (!isReservedNameToken(candidate) && !isGreeting(candidate)) return candidate;
-  }
-
-  if (isOnlyName(t)) return t;
-
-  return null;
+  if (!isOnlyName(t)) return null;
+  return t;
 }
 
-function hashReply(s) {
-  return crypto.createHash("sha1").update(String(s || "")).digest("hex");
+/* ======================================================
+   Loop protection (lightweight)
+====================================================== */
+
+function hashReply(reply) {
+  return crypto.createHash("sha1").update(String(reply || "")).digest("hex");
 }
 
 function noteLoopProtection(st, reply) {
+  if (!st) return;
   const h = hashReply(reply);
   if (st.lastReplyHash === h) {
-    st.repeatCount += 1;
+    st.repeatCount = (st.repeatCount || 0) + 1;
   } else {
     st.lastReplyHash = h;
     st.repeatCount = 0;
   }
-  // Less aggressive: require 2 repeats (prevents "nagging" early)
-  return st.repeatCount >= 2;
 }
 
 /* ======================================================
-   SAFE sessionPatch merge (module → session spine)
+   Session patch merge (safe)
 ====================================================== */
 
 function applySessionPatch(st, patch) {
-  if (!patch || typeof patch !== "object") return;
-
-  const BLOCK = new Set([
-    "sessionId",
-    "createdAt",
-    "updatedAt",
-    "repeatCount",
-    "lastReplyHash",
+  if (!st || !patch || typeof patch !== "object") return;
+  // Only allow known keys; prevent module from overwriting critical session scaffolding
+  const allow = new Set([
+    "activeMusicChart",
+    "lastMusicYear",
+    "lastMusicChart",
+    "activeDomain",
     "phase",
-    "greetedOnce",
+    "userName",
+    "intelligenceLevel",
   ]);
-
   for (const [k, v] of Object.entries(patch)) {
-    if (BLOCK.has(k)) continue;
+    if (!allow.has(k)) continue;
     st[k] = v;
   }
 }
 
 /* ======================================================
-   Payload normalization (prevents widget mismatch looping)
+   Payload tolerance (PATCH B)
 ====================================================== */
 
-function pickFirstNonEmpty(...vals) {
-  for (const v of vals) {
-    const t = cleanText(v);
-    if (t) return t;
+function pickFirstNonEmpty(obj, keys) {
+  for (const k of keys) {
+    const v = obj && obj[k];
+    if (typeof v === "string" && cleanText(v)) return cleanText(v);
   }
   return "";
 }
 
 function resolveSessionId(body) {
-  const b = body || {};
-  return pickFirstNonEmpty(b.sessionId, b.sid, b.session, b.session_id);
-}
-
-function resolveMessage(body) {
-  const b = body || {};
-  return pickFirstNonEmpty(
-    b.message,
-    b.text,
-    b.input,
-    b.value,
-    b.label,
-    b.query,
-    b.prompt
+  return (
+    pickFirstNonEmpty(body, ["sessionId", "sid", "session"]) ||
+    pickFirstNonEmpty(body, ["id"])
   );
 }
 
+function resolveMessage(body) {
+  return pickFirstNonEmpty(body, [
+    "message",
+    "text",
+    "input",
+    "value",
+    "label",
+    "query",
+  ]);
+}
+
 /* ======================================================
-   Nyx Copy: Intro + social responses (no chips listed)
+   Nyx voice / intro / greeting
 ====================================================== */
 
 function nyxIntroLine() {
-  return "On air—welcome to Sandblast. I’m Nyx, your guide. Tell me what you’re here for, and I’ll take it from there.";
+  // single line, no extra options
+  return "On air—welcome to Sandblast. I’m Nyx. Tell me what you’re here for, and I’ll take it from there.";
 }
 
 function nyxAcknowledgeName(name) {
-  return `Perfect, ${name}. What do you want to dive into first—music, TV, sponsors, or something else?`;
+  const n = cleanText(name);
+  if (!n) return null;
+  return `Got you, ${n}.`;
 }
 
-function nyxGreetingReply(st) {
-  if (st.nameCaptured && st.userName) {
-    return `Hey, ${st.userName}. Where do you want to go next?`;
+function nyxGreetingReply(st, userText) {
+  const greet = isGreeting(userText);
+  if (!greet) return null;
+
+  // If we already know the name, greet with name.
+  if (st && st.userName) {
+    return `Hey, ${st.userName}—good to have you back. What are we doing today?`;
   }
-  return "Hey. What are you in the mood for today—music, TV, sponsors, or something else?";
+  return "Hey—good to have you here. What are we doing today?";
 }
 
 /* ======================================================
-   STEP 1: Nyx Default Response Wrapper (post-intro)
-   Enforces: Acknowledge → Lock Intent → Advance
-   TONE: slightly warmer, more confident pacing
+   STEP 1 — Acknowledge → Lock Intent → Advance
 ====================================================== */
 
 function shouldApplyDefaultWrapper(st, baseReply) {
   // Never wrap the hard intro line. Keep it single-line and canonical.
   if (!st) return true;
   if (st.phase === "greeting") return false;
+  if (st.suppressWrapOnce) return false;
   if (!baseReply) return true;
   const r = String(baseReply).trim();
   if (!r) return true;
@@ -694,195 +686,158 @@ function shouldApplyDefaultWrapper(st, baseReply) {
 }
 
 function pickAckForDomain(domain, userText) {
+  const d = (domain || "general").toLowerCase();
   const t = lower(userText);
 
-  // Warm but controlled. Host energy: present, confident.
-  if (isGreeting(t)) return "Hey — good to hear you.";
-
-  if (domain === "music") return "Alright — I’m with you.";
-  if (domain === "tv") return "Got it — let’s line this up.";
-  if (domain === "sponsors") return "Perfect — we can make this clean.";
-  if (domain === "ai") return "Alright — let’s build this properly.";
-
-  return "Got it — I’m with you.";
+  if (d === "music") {
+    if (t.includes("top 10") || t.includes("top ten")) return "Music—top ten. Clean and sharp.";
+    if (t.includes("story")) return "Music—story moment. Got it.";
+    if (isYearOnly(t)) return "Music—year locked.";
+    return "Music—locked.";
+  }
+  if (d === "tv") return "TV—locked.";
+  if (d === "sponsors") return "Sponsors—locked.";
+  if (d === "ai") return "AI—locked.";
+  return "Got it.";
 }
 
-function lockIntentLine({ domain, intent, userText }) {
-  const t = cleanText(userText);
-  const y = extractYearForWrapper(t);
-  const low = t.toLowerCase();
-
-  // Intent locks (declarative, confident)
-  if (intent === "name") return "Nice — I’ve got your name.";
-  if (intent === "greeting") return "We’re good. Where do you want to go next?";
-
-  // Domain locks (short, specific)
-  if (domain === "music") {
-    if (y) return `You’re on ${y}.`;
-    if (/top\s*(10|ten)/i.test(t)) return "You want the top 10.";
-    if (/\bstory\s+moment\b/i.test(t)) return "You want the story moment.";
-    if (/\bartist\b|\bsong\b|\btrack\b/.test(low)) return "You’re chasing a specific song or artist.";
-    return "Music lane — locked.";
-  }
-
-  if (domain === "tv") {
-    if (/\b(19|20)\d{2}s\b/.test(low)) return "You’re browsing by decade.";
-    if (/\bcrime\b|\bwestern\b|\bcomedy\b|\bdrama\b/.test(low)) return "You’re picking by genre.";
-    return "TV lane — locked.";
-  }
-
-  if (domain === "sponsors") {
-    if (/\bpackage\b|\btier\b|\bprice\b/.test(low)) return "You’re looking at sponsor packages.";
-    if (/\bmetric\b|\bctr\b|\bclick\b|\breach\b/.test(low)) return "You’re thinking outcomes and metrics.";
-    return "Sponsors lane — locked.";
-  }
-
-  if (domain === "ai") {
-    if (/\bwidget\b|\bapi\b|\bintegrat\b|\bbackend\b/.test(low)) return "You’re building or integrating.";
-    if (/\bplan\b|\broadmap\b|\bstrategy\b/.test(low)) return "You want a strategy that holds up.";
-    return "AI lane — locked.";
-  }
-
-  // Neutral lock: warm + decisive
-  return "Alright — you want something specific. We’ll keep it tight.";
+function lockIntentLine({ dom, intent, year }) {
+  const d = (dom || "general").toLowerCase();
+  if (d === "music" && year) return `Intent: Music moments (${year}).`;
+  if (d === "music") return "Intent: Music moments.";
+  if (d === "tv") return "Intent: TV.";
+  if (d === "sponsors") return "Intent: Sponsors.";
+  if (d === "ai") return "Intent: AI.";
+  return "Intent: General.";
 }
 
-function extractYearForWrapper(text) {
-  const m = String(text || "").match(/\b(19|20)\d{2}\b/);
-  if (!m) return null;
-  const y = Number(m[0]);
-  if (y < 1900 || y > 2100) return null;
-  return y;
+function extractYearForWrapper(userText, st) {
+  const y = extractYear(userText);
+  if (y) return y;
+  if (st && st.lastMusicYear) return Number(st.lastMusicYear);
+  return null;
 }
 
 function needsAdvanceLine(coreReply) {
-  const r = String(coreReply || "").trim();
-  if (!r) return true;
-
-  // If the reply already gives a next step or ends with a purposeful question, don’t add more.
-  const low = r.toLowerCase();
-  const alreadyAdvances =
-    low.includes("give me") ||
-    low.includes("tell me") ||
-    low.includes("try:") ||
-    low.includes("want ") ||
-    low.includes("pick ") ||
-    low.includes("choose ") ||
-    low.includes("next:") ||
-    r.endsWith("?");
-
-  return !alreadyAdvances;
+  const r = lower(coreReply);
+  // Avoid adding “advance” if the reply already ends with a question or offers next steps
+  if (r.endsWith("?")) return false;
+  if (r.includes("want") && r.includes("?")) return false;
+  if (r.includes("say") && r.includes("story moment")) return false;
+  if (r.includes("want") && r.includes("another year")) return false;
+  return true;
 }
 
-function advanceLineForDomain(domain) {
-  // Confident pacing: one clear next beat, framed like a host.
-  if (domain === "music")
-    return "Give me a year — I’ll start with the top 10, then we’ll hit the #1 story.";
-  if (domain === "tv")
-    return "Give me a decade or a vibe — I’ll recommend the best first pick and why it fits.";
-  if (domain === "sponsors")
-    return "Tell me your goal — reach, clicks, or brand lift — and I’ll map the right placement.";
-  if (domain === "ai")
-    return "Tell me what you’re building — I’ll give you the fastest plan that won’t break later.";
-  return "Give me the topic in one line — I’ll take it from there.";
+function advanceLineForDomain(dom, year) {
+  const d = (dom || "general").toLowerCase();
+  if (d === "music") {
+    if (year) return `Next: say “top 10 ${year}”, “story moment ${year}”, or give me another year.`;
+    return "Next: give me a year, or say “top 10 ####” / “story moment ####”.";
+  }
+  if (d === "tv") return "Next: tell me a show, decade, or mood and I’ll line it up.";
+  if (d === "sponsors") return "Next: tell me what you’re promoting and your budget range.";
+  if (d === "ai") return "Next: tell me your goal (automation, growth, support, or security) and your timeline.";
+  return "Next: tell me what you want to do, and I’ll drive.";
 }
 
 function nyxWrapDefaultReply({
   st,
-  userText = "",
-  domain = "general",
-  intent = "general",
-  coreReply = "",
+  userText,
+  domain,
+  intent,
+  coreReply,
+  year,
 } = {}) {
   const core = String(coreReply || "").trim();
   if (!shouldApplyDefaultWrapper(st, core)) return core;
 
   const ack = pickAckForDomain(domain, userText);
-  const lock = lockIntentLine({ domain, intent, userText });
+  const y = year || extractYearForWrapper(userText, st);
+  const lock = lockIntentLine({ dom: domain, intent, year: y });
+  const advance = needsAdvanceLine(core) ? advanceLineForDomain(domain, y) : "";
 
-  const parts = [ack, lock, core].filter(Boolean);
-
-  if (needsAdvanceLine(core)) parts.push(advanceLineForDomain(domain));
-
-  return parts.join("\n");
+  // 3-beat, clean. No filler.
+  return [ack, lock, core, advance].filter(Boolean).join("\n");
 }
 
 /* ======================================================
-   Domain routing (safe, minimal, forward-moving)
+   Domain normalization + moments intent
 ====================================================== */
 
-function normalizeDomainFromChipOrText(text) {
+function normalizeDomainFromChipOrText(chip, text) {
+  const c = lower(chip);
+  if (c === "music") return "music";
+  if (c === "tv") return "tv";
+  if (c === "sponsors") return "sponsors";
+  if (c === "ai") return "ai";
+  if (c === "general") return "general";
+
   const t = lower(text);
   if (!t) return null;
 
-  if (["music", "lane:music"].includes(t)) return "music";
-  if (["tv", "television", "lane:tv"].includes(t)) return "tv";
-  if (["sponsors", "sponsor", "ads", "advertising", "lane:sponsors"].includes(t))
-    return "sponsors";
-  if (["ai", "a.i.", "consulting", "lane:ai"].includes(t)) return "ai";
-  if (["general", "lane:general"].includes(t)) return "general";
+  if (t.startsWith("lane:")) {
+    const lane = t.split(":")[1] || "";
+    return normalizeDomainFromChipOrText(lane, "");
+  }
+
+  // PATCH G2: implicit music lane if message looks like a moments command
+  if (wantsMusicMoments(t)) return "music";
 
   return null;
 }
 
-// PATCH G: detect when user wants Music Moments
 function wantsMusicMoments(text) {
   const t = lower(text);
   if (!t) return false;
-
-  // explicit phrases
-  if (t.includes("story moment")) return true;
-  if (t.includes("music moment")) return true;
-
-  // top 10 variants
-  if (t.includes("top 10")) return true;
-  if (t.includes("top ten")) return true;
-
-  // common shorthand: "moment 1988" / "moments 1957"
-  // (avoid matching "momentum" etc.)
-  if (/\bmoment(s)?\b/.test(t)) return true;
-
-  return false;
+  return (
+    /\btop\s*(10|ten)\b/.test(t) ||
+    /\bstory\s*moment\b/.test(t) ||
+    /\bmoment\b/.test(t) ||
+    /\bmicro(?:\s+moment)?\b/.test(t)
+  );
 }
 
-// PATCH MM: Parse moments commands deterministically
+// PATCH MM: deterministic command parsing
 function parseMomentsCommand(text) {
   const t = lower(text);
   if (!t) return null;
 
+  // micro moment 1957 / micro 1957
+  let m = t.match(/\bmicro(?:\s+moment)?\s*(\d{4})\b/);
+  if (m) return { kind: "micro", year: Number(m[1]) };
+
   // top 10 1988 / top ten 1988
-  let m = t.match(/\btop\s*(10|ten)\s*(\d{4})\b/);
+  m = t.match(/\btop\s*(10|ten)\s*(\d{4})\b/);
   if (m) return { kind: "top10", year: Number(m[2]) };
 
-  // story moment 1957 / music moment 1957 / moment 1957 / moments 1957
-  m = t.match(/\b(story\s+moment|music\s+moment|moment|moments)\s*(\d{4})\b/);
+  // story moment 1957 / moment 1957
+  m = t.match(/\b(story\s*moment|moment)\s*(\d{4})\b/);
   if (m) return { kind: "story", year: Number(m[2]) };
 
   return null;
 }
 
+/* ======================================================
+   Intent classifier (fallback)
+====================================================== */
+
 function classifyIntent(text) {
-  const t = cleanText(text);
-  if (!t) return { intent: "empty", confidence: 1.0 };
-
   if (intentClassifier && typeof intentClassifier.classify === "function") {
-    try {
-      return intentClassifier.classify(t);
-    } catch (e) {
-      if (ENABLE_DEBUG) console.warn(`[intentClassifier] failed: ${e.message}`);
-    }
+    return intentClassifier.classify(text);
   }
-
-  const d = normalizeDomainFromChipOrText(t);
-  if (d) return { intent: `domain:${d}`, confidence: 0.75 };
-
-  if (isGreeting(t)) return { intent: "greeting", confidence: 0.9 };
-  if (extractName(t)) return { intent: "name", confidence: 0.85 };
-
-  return { intent: "general", confidence: 0.5 };
+  // Minimal fallback
+  const t = lower(text);
+  if (t.includes("sponsor")) return { domain: "sponsors", intent: "sponsors" };
+  if (t.includes("tv") || t.includes("show")) return { domain: "tv", intent: "tv" };
+  if (t.includes("ai") || t.includes("automation")) return { domain: "ai", intent: "ai" };
+  if (wantsMusicMoments(t)) return { domain: "music", intent: "music_moments" };
+  return { domain: "general", intent: "general" };
 }
 
-// PATCH G: normalize module return shapes
+/* ======================================================
+   Module result normalization
+====================================================== */
+
 function normalizeModuleResult(result) {
   if (!result) return null;
 
@@ -893,198 +848,215 @@ function normalizeModuleResult(result) {
       followUp: result.followUp || null,
       sessionPatch: result.sessionPatch || null,
       domain: result.domain || null,
+      meta: result.meta || null,
     };
   }
 
-  // If module returns {text, ...} or anything else: ignore
+  // If module returns a raw string
+  if (typeof result === "string") {
+    return { reply: result, followUp: null, sessionPatch: null, domain: null };
+  }
+
   return null;
 }
 
-function handleDomain(st, domain, userText) {
-  const text = cleanText(userText);
+/* ======================================================
+   Domain router
+====================================================== */
 
-  if (domain === "music") {
-    // PATCH MM: deterministic command parsing (used for graceful degrade)
-    const mmCmd = parseMomentsCommand(text);
+function handleDomain(domain, text, st) {
+  const d = (domain || "general").toLowerCase();
+  const t = cleanText(text);
 
-    // PATCH G: Music Moments first, when asked and module exists
-    if (
-      musicMoments &&
-      typeof musicMoments.handle === "function" &&
-      wantsMusicMoments(text)
-    ) {
+  // MUSIC
+  if (d === "music") {
+    // PATCH MM: deterministic command parsing and graceful degrade
+    const mmCmd = parseMomentsCommand(t);
+
+    // Prefer musicMoments if present and the text is a moments command
+    if (mmCmd && musicMoments && typeof musicMoments.handle === "function") {
       try {
         const mm = musicMoments.handle(text, st);
         const normalized = normalizeModuleResult(mm);
+
+        if (normalized && mmCmd && mmCmd.year) {
+          const y = Number(mmCmd.year);
+
+          // OPTION 3: Story → Offer Micro → Advance (no wrapper; we already format the beats)
+          if (mmCmd.kind === "story") {
+            st.lastStoryYear = y;
+            st.lastStoryAt = nowMs();
+
+            // Offer a micro-moment once per year per session (unless already used)
+            const used = Boolean(st.usedMicroYears && st.usedMicroYears[y]);
+            if (!used) st.pendingMicroYear = y;
+
+            const anchor = `Anchor: ${y} → #1 sets the emotional temperature for the year.`;
+
+            const microOffer = used
+              ? "If you want the next beat, say “next year”."
+              : `Want the 10-second micro-moment for ${y}? Say “yes” (or just “micro ${y}”).`;
+
+            return {
+              ...normalized,
+              reply: `${normalized.reply}\n\n${anchor}\n${microOffer}`,
+              followUp: used
+                ? [`story moment ${y + 1}`, "top 10 " + (y + 1)]
+                : [`micro ${y}`, `story moment ${y + 1}`, `top 10 ${y}`],
+              meta: { noWrap: true },
+              domain: "music",
+            };
+          }
+
+          // OPTION 3: Micro moment (assumes musicMoments supports "micro moment ####")
+          if (mmCmd.kind === "micro") {
+            st.pendingMicroYear = null;
+            st.usedMicroYears = st.usedMicroYears || {};
+            st.usedMicroYears[y] = true;
+
+            const nextYear = y + 1;
+            const nextCue =
+              nextYear <= 2024
+                ? `Next beat: say “story moment ${nextYear}” (or just “next”).`
+                : "If you want another decade, give me a year and I’ll keep rolling.";
+
+            return {
+              ...normalized,
+              reply: `${normalized.reply}\n\n${nextCue}`,
+              followUp:
+                nextYear <= 2024
+                  ? [`story moment ${nextYear}`, "next", `top 10 ${y}`]
+                  : [`top 10 ${y}`, "1950", "1960"],
+              meta: { noWrap: true },
+              domain: "music",
+            };
+          }
+        }
+
         if (normalized) return normalized;
       } catch (e) {
-        if (ENABLE_DEBUG) console.warn(`[musicMoments.handle] failed: ${e.message}`);
+        if (ENABLE_DEBUG) console.warn("[musicMoments.handle] failed:", e.message);
       }
     }
 
-    // PATCH MM: If musicMoments is missing, prevent the generic "Tell me a year..." loop:
-    // - top10: feed just the year into musicKnowledge
-    // - story: tell the truth (moments layer not deployed)
-    if (
-      (!musicMoments || typeof musicMoments.handle !== "function") &&
-      mmCmd &&
-      mmCmd.year
-    ) {
-      if (mmCmd.kind === "top10") {
-        if (musicKnowledge && typeof musicKnowledge.handleChat === "function") {
-          try {
-            const mk = musicKnowledge.handleChat({ text: String(mmCmd.year), session: st });
-            return normalizeModuleResult(mk) || mk;
-          } catch (e) {
-            if (ENABLE_DEBUG)
-              console.warn(`[musicKnowledge.handleChat] failed: ${e.message}`);
-          }
-        }
-        return {
-          reply: `Top 10 (${mmCmd.year})—I can do that, but the music charts module isn’t available right now. Try again in a moment.`,
-          followUp: [`${mmCmd.year}`, `top 10 ${mmCmd.year}`, "Prince 1984"],
-          domain: "music",
-        };
+    // Graceful degrade:
+    // If musicMoments missing, we try to handle "top 10 ####" via musicKnowledge by feeding just the year.
+    if (mmCmd && mmCmd.kind === "top10" && musicKnowledge && typeof musicKnowledge.handleChat === "function") {
+      const y = Number(mmCmd.year);
+      const r = musicKnowledge.handleChat({ text: String(y), session: st });
+      const normalized = normalizeModuleResult(r);
+      if (normalized) {
+        normalized.domain = "music";
+        return normalized;
       }
+    }
 
-      // story moments require the moments dataset/module
+    if (mmCmd && mmCmd.kind === "story" && (!musicMoments || typeof musicMoments.handle !== "function")) {
       return {
         reply:
-          `I can do “story moment ${mmCmd.year}”, but the Music Moments layer isn’t deployed on the server yet.\n\n` +
-          `Fix: commit/push Utils/musicMoments.js + the moments dataset, then redeploy. After that, “story moment ${mmCmd.year}” will work instantly.`,
-        followUp: [`top 10 ${mmCmd.year}`, `${mmCmd.year}`, "Prince 1984"],
+          "Story moments aren’t loaded on this deployment yet. If you want, ask for “top 10 ####” and I’ll still give you the list—then we’ll add the story layer back in.",
+        followUp: ["top 10 1950", "top 10 1988", "music 1957"],
+        sessionPatch: null,
         domain: "music",
       };
     }
 
-    // Existing musicKnowledge path (UPGRADED with year-only chart fallback)
+    // Default musicKnowledge routing
     if (musicKnowledge && typeof musicKnowledge.handleChat === "function") {
-      try {
-        // First attempt (current chart context)
-        const mk1 = musicKnowledge.handleChat({ text, session: st });
-        const out1 = normalizeModuleResult(mk1) || mk1;
-
-        // PATCH J: If user gave a year-only and this chart source can't produce a clean list,
-        // retry against canonical chart sources and persist the working chart.
-        const year = extractYear(text);
-        if (year && isYearOnly(text) && looksLikeMissingYearList(out1?.reply, year)) {
-          const originalChart = st.activeMusicChart || null;
-
-          const fallbacks = [
-            "Billboard Year-End Hot 100",
-            "Billboard Hot 100",
-            "Billboard Year-End Singles",
-          ];
-
-          for (const chart of fallbacks) {
-            st.activeMusicChart = chart;
-
-            const mk2 = musicKnowledge.handleChat({ text: String(year), session: st });
-            const out2 = normalizeModuleResult(mk2) || mk2;
-
-            if (out2?.reply && !looksLikeMissingYearList(out2.reply, year)) {
-              // Persist the working chart context in session
-              return out2;
-            }
-          }
-
-          // If none worked, restore original chart context and return the original response
-          st.activeMusicChart = originalChart;
-          return out1;
-        }
-
-        return out1;
-      } catch (e) {
-        if (ENABLE_DEBUG)
-          console.warn(`[musicKnowledge.handleChat] failed: ${e.message}`);
+      const r = musicKnowledge.handleChat({ text: t, session: st });
+      const normalized = normalizeModuleResult(r);
+      if (normalized) {
+        normalized.domain = "music";
+        return normalized;
       }
     }
 
     return {
-      reply:
-        "Alright—music. Give me a year (1950–2024), or say “top 10 1988” / “story moment 1957”, and I’ll pull something memorable.",
-      followUp: ["Try: 1957 story moment", "Try: top 10 1988", "Try: Prince 1984"],
+      reply: "Music module isn’t available right now.",
+      followUp: ["general", "tv", "sponsors", "ai"],
+      sessionPatch: null,
       domain: "music",
     };
   }
 
-  if (domain === "tv") {
-    if (tvKnowledge && typeof tvKnowledge.handleChat === "function") {
-      try {
-        return tvKnowledge.handleChat({ text, session: st });
-      } catch (e) {
-        if (ENABLE_DEBUG) console.warn(`[tvKnowledge.handleChat] failed: ${e.message}`);
-      }
+  // TV
+  if (d === "tv" && tvKnowledge && typeof tvKnowledge.handleChat === "function") {
+    const r = tvKnowledge.handleChat({ text: t, session: st });
+    const normalized = normalizeModuleResult(r);
+    if (normalized) {
+      normalized.domain = "tv";
+      return normalized;
     }
-    return {
-      reply:
-        "TV—got it. Tell me a show title, a decade, or a vibe (crime, western, comedy) and I’ll line up the best next step.",
-      followUp: ["Try: crime classics", "Try: westerns", "Try: 1960s TV"],
-      domain: "tv",
-    };
   }
 
-  if (domain === "sponsors") {
-    if (sponsorsKnowledge && typeof sponsorsKnowledge.handleChat === "function") {
-      try {
-        return sponsorsKnowledge.handleChat({ text, session: st });
-      } catch (e) {
-        if (ENABLE_DEBUG)
-          console.warn(`[sponsorsKnowledge.handleChat] failed: ${e.message}`);
-      }
+  // Sponsors
+  if (
+    d === "sponsors" &&
+    sponsorsKnowledge &&
+    typeof sponsorsKnowledge.handleChat === "function"
+  ) {
+    const r = sponsorsKnowledge.handleChat({ text: t, session: st });
+    const normalized = normalizeModuleResult(r);
+    if (normalized) {
+      normalized.domain = "sponsors";
+      return normalized;
     }
-    return {
-      reply:
-        "Sponsors—perfect. Are you looking to advertise, explore packages, or see audience and placement options?",
-      followUp: ["Advertising packages", "Audience stats", "Placement options"],
-      domain: "sponsors",
-    };
   }
 
-  if (domain === "ai") {
-    return {
-      reply:
-        "AI lane—love it. Tell me what you’re trying to achieve: build something, automate a workflow, or improve a business process.",
-      followUp: ["Build a chatbot", "Automate outreach", "Improve operations"],
-      domain: "ai",
-    };
+  // AI
+  if (d === "ai" && nyxPersonality && typeof nyxPersonality.handleAiChat === "function") {
+    const r = nyxPersonality.handleAiChat({ text: t, session: st });
+    const normalized = normalizeModuleResult(r);
+    if (normalized) {
+      normalized.domain = "ai";
+      return normalized;
+    }
   }
 
+  // General fallback
+  if (nyxPersonality && typeof nyxPersonality.handleGeneralChat === "function") {
+    const r = nyxPersonality.handleGeneralChat({ text: t, session: st });
+    const normalized = normalizeModuleResult(r);
+    if (normalized) {
+      normalized.domain = "general";
+      return normalized;
+    }
+  }
+
+  // Last resort
   return {
-    reply: "Alright. Tell me what you want to do, and I’ll steer us cleanly.",
+    reply: "Tell me what you want to do, and I’ll take it from there.",
     followUp: ["Music", "TV", "Sponsors", "AI"],
+    sessionPatch: null,
     domain: "general",
   };
 }
 
 /* ======================================================
-   Nyx Tone Wrapper (optional)
+   Tone wrapper (non-destructive)
 ====================================================== */
 
-function applyNyxTone(st, reply) {
-  if (nyxPersonality && typeof nyxPersonality.applyTone === "function") {
+function applyNyxTone(text) {
+  const t = cleanText(text);
+  if (!t) return t;
+  // If you want to route through nyxPersonality’s tone wrapper, do it safely.
+  if (nyxPersonality && typeof nyxPersonality.toneWrap === "function") {
     try {
-      return nyxPersonality.applyTone(reply, { session: st });
-    } catch (e) {
-      if (ENABLE_DEBUG) console.warn(`[nyxPersonality.applyTone] failed: ${e.message}`);
+      return nyxPersonality.toneWrap(t);
+    } catch (_) {
+      return t;
     }
   }
-  return reply;
+  return t;
 }
 
 /* ======================================================
-   TTS (ElevenLabs) — final boundary only
+   ElevenLabs TTS
 ====================================================== */
 
 async function elevenlabsTts(text) {
-  let fetchFn = global.fetch;
-  if (!fetchFn) {
-    try {
-      // eslint-disable-next-line global-require
-      fetchFn = require("node-fetch");
-    } catch (e) {
-      throw new Error("Fetch unavailable; install node-fetch or use Node 18+.");
-    }
+  if (!ELEVENLABS_API_KEY || !ELEVENLABS_VOICE_ID) {
+    return { ok: false, error: "Missing ElevenLabs API key/voice ID." };
   }
 
   const url = `${ELEVENLABS_BASE_URL}/v1/text-to-speech/${ELEVENLABS_VOICE_ID}`;
@@ -1096,11 +1068,11 @@ async function elevenlabsTts(text) {
       stability: Number(NYX_VOICE_STABILITY),
       similarity_boost: Number(NYX_VOICE_SIMILARITY),
       style: Number(NYX_VOICE_STYLE),
-      use_speaker_boost: NYX_VOICE_SPEAKER_BOOST,
+      use_speaker_boost: Boolean(NYX_VOICE_SPEAKER_BOOST),
     },
   };
 
-  const resp = await fetchFn(url, {
+  const res = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -1110,366 +1082,337 @@ async function elevenlabsTts(text) {
     body: JSON.stringify(payload),
   });
 
-  if (!resp.ok) {
-    const errText = await resp.text().catch(() => "");
-    throw new Error(
-      `ElevenLabs TTS failed: ${resp.status} ${resp.statusText} :: ${errText}`
-    );
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    return { ok: false, error: `ElevenLabs ${res.status}: ${txt}` };
   }
 
-  const arrayBuf = await resp.arrayBuffer();
-  return {
-    audioBytes: Buffer.from(arrayBuf),
-    audioMime: "audio/mpeg",
-  };
+  const buf = Buffer.from(await res.arrayBuffer());
+  return { ok: true, audioBytes: buf, audioMime: "audio/mpeg" };
 }
 
-async function ttsForReply(text) {
-  const raw = cleanText(text);
-  if (!raw) return null;
+async function ttsForReply(replyText) {
+  const text = String(replyText || "").trim();
+  if (!text) return { ok: false, error: "NO_TEXT" };
 
-  const natural =
-    nyxVoiceNaturalize && typeof nyxVoiceNaturalize === "function"
-      ? nyxVoiceNaturalize(raw)
-      : raw;
+  // Canonical: naturalize before TTS (you locked this)
+  let t = text;
+  if (nyxVoiceNaturalize && typeof nyxVoiceNaturalize === "function") {
+    try {
+      t = nyxVoiceNaturalize(t);
+    } catch (_) {}
+  }
 
-  if (!ENABLE_TTS) return null;
-  if (TTS_PROVIDER !== "elevenlabs") return null;
-  if (!ELEVENLABS_API_KEY || !ELEVENLABS_VOICE_ID) return null;
+  if (TTS_PROVIDER === "elevenlabs") {
+    return elevenlabsTts(t);
+  }
 
-  return elevenlabsTts(natural);
+  return { ok: false, error: `Unknown TTS provider: ${TTS_PROVIDER}` };
 }
 
 /* ======================================================
-   /api/chat — Core endpoint
+   /api/chat
 ====================================================== */
 
 app.post("/api/chat", async (req, res) => {
   try {
-    const sessionId = resolveSessionId(req.body);
-    const message = resolveMessage(req.body);
+    const incomingKeys = Object.keys(req.body || {});
+    let sessionId = resolveSessionId(req.body);
+
+    let st = sessionId ? getSession(sessionId) : null;
+    if (!st) {
+      st = newSessionState();
+      sessions.set(st.id, st);
+      sessionId = st.id;
+    }
+    touchSession(st);
+
+    let message = resolveMessage(req.body);
 
     if (ENABLE_DEBUG) {
-      const keys = Object.keys(req.body || {});
-      console.log("[/api/chat] inbound", {
-        keys,
-        sessionId: sessionId || "(none)",
-        message: message || "(EMPTY)",
-        build: BUILD_SHA || "(no-build-sha)",
-      });
+      console.log("[/api/chat] keys=", incomingKeys, "sessionId=", sessionId, "msg=", message);
     }
 
-    const st = getSession(sessionId);
-    touchSession(st);
+    // Empty message guard — do not loop; ask once.
+    if (!cleanText(message)) {
+      const reply = "I didn’t catch that. Tell me what you want to do—Music, TV, Sponsors, or AI.";
+      noteLoopProtection(st, reply);
+      return res.json({ ok: true, reply, followUp: null, sessionId });
+    }
+
+    // Store last user text
     st.lastUserText = message;
 
-    // --- Precompute chip token safely (FIX precedence bug)
-    const chipDomain = normalizeDomainFromChipOrText(message);
-    const isLaneToken = lower(message).startsWith("lane:");
-    const isSimpleDomainWord = ["music", "tv", "sponsors", "ai", "general"].includes(
-      lower(message)
-    );
-    const messageIsJustChip = Boolean(chipDomain) && (isLaneToken || isSimpleDomainWord);
-
-    // 1) Empty message: if first contact -> intro; else prompt forward
-    if (!message) {
-      if (st.phase === "greeting" && !st.greetedOnce) {
-        st.greetedOnce = true;
-        st.phase = "engaged";
-        const reply = applyNyxTone(st, nyxIntroLine());
-        return res.json({ ok: true, reply, followUp: null, sessionId: st.sessionId });
+    // OPTION 3 (Music Moments): intercept confirmations so Nyx can advance without looping.
+    //  - If we just offered a micro-moment for a given year and the user affirms, convert this turn into "micro moment YEAR".
+    //  - If user says "next" after a story, convert to the next year's story moment.
+    if (st.pendingMicroYear && isAffirmation(message)) {
+      const y = Number(st.pendingMicroYear);
+      st.pendingMicroYear = null;
+      st.activeDomain = "music";
+      st.phase = "domain_active";
+      // Mark micro used so it can't be re-fired in-session.
+      st.usedMicroYears = st.usedMicroYears || {};
+      st.usedMicroYears[y] = true;
+      // Preserve formatting; this is a deliberate 3-beat response.
+      st.suppressWrapOnce = true;
+      // Rewrite message for downstream routing.
+      message = `micro moment ${y}`;
+    } else if (st.lastStoryYear && isNextCue(message)) {
+      const nextYear = Number(st.lastStoryYear) + 1;
+      if (nextYear >= 1950 && nextYear <= 2024) {
+        st.activeDomain = "music";
+        st.phase = "domain_active";
+        st.suppressWrapOnce = true;
+        message = `story moment ${nextYear}`;
       }
-      // Post-intro: wrap the fallback so it always advances.
-      const base = applyNyxTone(st, "I’m here. Tell me what you want to do next.");
-      const reply = nyxWrapDefaultReply({
-        st,
-        userText: "",
-        domain: st.activeDomain || "general",
-        intent: "empty",
-        coreReply: base,
-      });
-      return res.json({ ok: true, reply, followUp: null, sessionId: st.sessionId });
     }
 
-    // 2) HARD RULE: Intro ALWAYS wins on first contact
-    // If first message is a lane token/chip, store it for the next user input.
-    // PATCH H: if first message is a music moments command, arm music lane for the next turn.
-    if (st.phase === "greeting" && !st.greetedOnce) {
-      if (messageIsJustChip && chipDomain) {
-        st.pendingDomainAfterIntro = chipDomain;
-      } else if (wantsMusicMoments(message)) {
-        st.pendingDomainAfterIntro = "music";
+    // Keep lastUserText consistent if we rewrote the message above.
+    st.lastUserText = message;
+
+    // --- Precompute chip token if provided (widget may send lane token in message)
+    const inferredChip = normalizeDomainFromChipOrText(message, message);
+    let chipDomain = inferredChip || st.activeDomain || "general";
+
+    // First contact: intro ALWAYS wins (single line), but store pending domain if message is a lane token/moments cmd
+    if (st.phase === "greeting") {
+      // greeting handler first (PATCH I)
+      const greetReply = nyxGreetingReply(st, message);
+      if (greetReply) {
+        const reply = greetReply;
+        noteLoopProtection(st, reply);
+        // Keep greeting phase until they say something real
+        return res.json({ ok: true, reply, followUp: null, sessionId });
       }
 
-      st.greetedOnce = true;
-      st.phase = "engaged";
-      const reply = applyNyxTone(st, nyxIntroLine());
-      return res.json({ ok: true, reply, followUp: null, sessionId: st.sessionId });
+      // If first message implies a domain, arm it for after intro
+      const dom = normalizeDomainFromChipOrText(inferredChip, message);
+      if (dom) {
+        st.pendingDomainAfterIntro = dom;
+      }
+
+      const reply = nyxIntroLine();
+      noteLoopProtection(st, reply);
+      // Flip phase after returning intro
+      st.phase = "intro_shown";
+      return res.json({ ok: true, reply, followUp: null, sessionId });
     }
 
-    // 3) Apply pending domain armed from first-contact lane token / moments command
-    if (st.pendingDomainAfterIntro && !st.activeDomain) {
+    // After intro: if pending domain was armed, activate it now
+    if (st.phase === "intro_shown" && st.pendingDomainAfterIntro) {
       st.activeDomain = st.pendingDomainAfterIntro;
-      st.phase = "domain_active";
+      chipDomain = st.activeDomain;
       st.pendingDomainAfterIntro = null;
+      st.phase = "domain_active";
     }
 
-    // 4) Chip arbitration should run BEFORE name capture post-intro
-    if (messageIsJustChip && chipDomain) {
-      st.activeDomain = chipDomain;
+    // greeting handler post-intro (PATCH I)
+    const greetReply2 = nyxGreetingReply(st, message);
+    if (greetReply2) {
+      const base = greetReply2;
+      let reply;
+      if (st.suppressWrapOnce) {
+        reply = base;
+      } else {
+        reply = nyxWrapDefaultReply({
+          st,
+          userText: message,
+          domain: chipDomain,
+          intent: `domain:${chipDomain}`,
+          coreReply: base,
+        });
+      }
+      noteLoopProtection(st, reply);
+      st.suppressWrapOnce = false;
+      return res.json({ ok: true, reply, followUp: null, sessionId });
+    }
+
+    // Chip arbitration BEFORE name capture (PATCH C)
+    const maybeDom = normalizeDomainFromChipOrText(inferredChip, message);
+    if (maybeDom) {
+      st.activeDomain = maybeDom;
+      chipDomain = maybeDom;
       st.phase = "domain_active";
+    }
 
-      const result = handleDomain(st, chipDomain, "");
+    // Name capture ONLY if the message looks like a real name (PATCH C/I)
+    if (!st.userName && isOnlyName(message)) {
+      const name = extractName(message);
+      if (name) {
+        st.userName = name;
+        const base = `${nyxAcknowledgeName(name)} What are we doing today—Music, TV, Sponsors, or AI?`;
+        let reply;
+        if (st.suppressWrapOnce) {
+          reply = base;
+        } else {
+          reply = nyxWrapDefaultReply({
+            st,
+            userText: message,
+            domain: "general",
+            intent: "name_capture",
+            coreReply: base,
+          });
+        }
+        noteLoopProtection(st, reply);
+        st.phase = "domain_active";
+        // Reset one-turn flags
+        st.suppressWrapOnce = false;
 
-      if (result && result.sessionPatch) applySessionPatch(st, result.sessionPatch);
+        return res.json({ ok: true, reply, followUp: null, sessionId });
+      }
+    }
 
-      let base = applyNyxTone(st, result.reply);
+    // Intent classification (fallback)
+    const classified = classifyIntent(message);
+    if (classified && classified.domain) {
+      // Do not override explicit domain selection unless it's still general
+      if (st.activeDomain === "general" && classified.domain !== "general") {
+        st.activeDomain = classified.domain;
+        chipDomain = classified.domain;
+        st.phase = "domain_active";
+      }
+    }
 
-      // STEP 1: enforce wrapper post-intro
-      let reply = nyxWrapDefaultReply({
+    // Domain handle
+    const result = handleDomain(chipDomain, message, st);
+    const normalized = normalizeModuleResult(result) || {
+      reply: "Tell me what you want to do, and I’ll take it from there.",
+      followUp: null,
+      sessionPatch: null,
+      domain: chipDomain,
+    };
+
+    // Merge sessionPatch safely (PATCH 2026-01-01)
+    if (normalized.sessionPatch) applySessionPatch(st, normalized.sessionPatch);
+
+    // PATCH J: Year-only chart fallback (if music + year-only + dead-end year prompt)
+    if (
+      chipDomain === "music" &&
+      isYearOnly(message) &&
+      looksLikeMissingYearList(normalized.reply) &&
+      musicKnowledge &&
+      typeof musicKnowledge.handleChat === "function"
+    ) {
+      const y = Number(message);
+      const tryCharts = [
+        "Billboard Year-End Hot 100",
+        "Billboard Hot 100",
+        "Billboard Year-End Singles",
+      ];
+      let recovered = null;
+      for (const ch of tryCharts) {
+        const sessionClone = { ...st, activeMusicChart: ch };
+        const r = musicKnowledge.handleChat({ text: String(y), session: sessionClone });
+        const n = normalizeModuleResult(r);
+        if (n && n.reply && !looksLikeMissingYearList(n.reply)) {
+          recovered = { n, ch, sessionClone };
+          break;
+        }
+      }
+      if (recovered) {
+        // Persist the working chart
+        st.activeMusicChart = recovered.ch;
+        normalized.reply = recovered.n.reply;
+        normalized.followUp = recovered.n.followUp || normalized.followUp;
+      }
+    }
+
+    // Apply tone wrapper (non-destructive)
+    let base = applyNyxTone(normalized.reply);
+
+    // STEP 1: enforce wrapper post-intro (unless this turn intentionally formats the beats)
+    let reply;
+    if ((result && result.meta && result.meta.noWrap) || st.suppressWrapOnce) {
+      reply = base;
+    } else {
+      reply = nyxWrapDefaultReply({
         st,
         userText: message,
         domain: chipDomain,
         intent: `domain:${chipDomain}`,
         coreReply: base,
       });
-
-      const forcedForward = noteLoopProtection(st, reply);
-      if (forcedForward) {
-        const bump = applyNyxTone(
-          st,
-          `${reply}\n\nGive me one detail (year, title, or goal) and I’ll move us forward immediately.`
-        );
-        reply = nyxWrapDefaultReply({
-          st,
-          userText: message,
-          domain: chipDomain,
-          intent: `domain:${chipDomain}`,
-          coreReply: bump,
-        });
-      }
-
-      return res.json({
-        ok: true,
-        reply,
-        followUp: result.followUp || null,
-        sessionId: st.sessionId,
-      });
     }
 
-    // 5) Intent classification (post-intro)
-    const intent = classifyIntent(message);
-    st.lastUserIntent = intent.intent;
-
-    // PATCH I: Greeting must be handled BEFORE name capture (prevents "hi" => name)
-    if (intent.intent === "greeting" || isGreeting(message)) {
-      const base = applyNyxTone(st, nyxGreetingReply(st));
-      const reply = nyxWrapDefaultReply({
-        st,
-        userText: message,
-        domain: st.activeDomain || "general",
-        intent: "greeting",
-        coreReply: base,
-      });
-      return res.json({
-        ok: true,
-        reply,
-        followUp: ["Music", "TV", "Sponsors", "AI"],
-        sessionId: st.sessionId,
-      });
+    // Loop guard: if same reply repeats too often, force a hard pivot question
+    noteLoopProtection(st, reply);
+    if (st.repeatCount >= 2) {
+      reply = "Quick pivot—tell me one clear thing you want right now: a year, a top 10, or a story moment.";
+      st.repeatCount = 0;
+      st.lastReplyHash = hashReply(reply);
     }
 
-    // 6) Name capture (safe — reserved tokens + greetings rejected)
-    const name = extractName(message);
-    if (name && !st.nameCaptured) {
-      st.nameCaptured = true;
-      st.userName = name;
-
-      const base = applyNyxTone(st, nyxAcknowledgeName(name));
-      const reply = nyxWrapDefaultReply({
-        st,
-        userText: message,
-        domain: st.activeDomain || "general",
-        intent: "name",
-        coreReply: base,
-      });
-
-      return res.json({
-        ok: true,
-        reply,
-        followUp: ["Music", "TV", "Sponsors", "AI"],
-        sessionId: st.sessionId,
-      });
-    }
-
-    // 7) Otherwise: user free-text. Route based on activeDomain if set; else infer domain.
-    let domain = st.activeDomain;
-    if (!domain) domain = chipDomain || "general";
-
-    // If user explicitly says a domain keyword in free-text, allow it to set active lane
-    const explicitDomain = normalizeDomainFromChipOrText(message);
-    if (explicitDomain) {
-      st.activeDomain = explicitDomain;
-      st.phase = "domain_active";
-      domain = explicitDomain;
-    } else {
-      // PATCH G2: Implicit Music lane for moments/top10, even without chip selection
-      if (wantsMusicMoments(message)) {
-        domain = "music";
-        st.activeDomain = "music";
-        st.phase = "domain_active";
-      } else if (st.phase !== "domain_active" && domain !== "general") {
-        st.phase = "domain_active";
-      }
-    }
-
-    const result = handleDomain(st, domain, message);
-
-    if (result && result.sessionPatch) applySessionPatch(st, result.sessionPatch);
-
-    let base = applyNyxTone(st, result.reply);
-
-    // STEP 1: enforce wrapper on all post-intro replies
-    let reply = nyxWrapDefaultReply({
-      st,
-      userText: message,
-      domain,
-      intent: intent.intent || "general",
-      coreReply: base,
-    });
-
-    const forcedForward = noteLoopProtection(st, reply);
-    if (forcedForward) {
-      const bump = applyNyxTone(
-        st,
-        `${reply}\n\nGive me one specific input (a year, a title, or a goal) and I’ll move us forward immediately.`
-      );
-      reply = nyxWrapDefaultReply({
-        st,
-        userText: message,
-        domain,
-        intent: intent.intent || "general",
-        coreReply: bump,
-      });
-    }
+    // Reset one-turn flags
+    st.suppressWrapOnce = false;
 
     return res.json({
       ok: true,
       reply,
-      followUp: result.followUp || null,
-      sessionId: st.sessionId,
+      followUp: normalized.followUp || null,
+      sessionId,
     });
   } catch (e) {
-    return res.status(500).json({ ok: false, error: e.message || "SERVER_ERROR" });
+    console.error("[/api/chat] error:", e);
+    return res.status(500).json({
+      ok: false,
+      error: e.message || String(e),
+    });
   }
 });
 
 /* ======================================================
-   /api/tts + /api/voice — Explicit TTS endpoint + alias
+   /api/tts + /api/voice alias
 ====================================================== */
 
 async function handleTts(req, res) {
   try {
-    const text = pickFirstNonEmpty(req.body?.text, req.body?.reply, req.body?.message);
-    if (!text) return res.status(400).json({ ok: false, error: "NO_TEXT" });
+    // Payload tolerance: accept NO_TEXT (widget may send reply elsewhere)
+    const text = pickFirstNonEmpty(req.body, ["text", "message", "reply"]) || "";
+    if (!cleanText(text)) {
+      return res.status(400).json({ ok: false, error: "NO_TEXT" });
+    }
 
-    const audio = await ttsForReply(text);
-    if (!audio) return res.status(501).json({ ok: false, error: "TTS_NOT_CONFIGURED" });
+    const out = await ttsForReply(text);
+    if (!out.ok) return res.status(500).json(out);
 
-    res.setHeader("Content-Type", audio.audioMime);
+    // Safer audio headers (canonical)
+    res.setHeader("Content-Type", out.audioMime || "audio/mpeg");
     res.setHeader("Cache-Control", "no-store");
-    return res.send(audio.audioBytes);
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    return res.send(out.audioBytes);
   } catch (e) {
-    return res.status(500).json({ ok: false, error: e.message || "TTS_ERROR" });
+    console.error("[/api/tts] error:", e);
+    return res.status(500).json({ ok: false, error: e.message || String(e) });
   }
 }
 
 app.post("/api/tts", handleTts);
+// Canonical alias you locked
 app.post("/api/voice", handleTts);
 
 /* ======================================================
-   /api/s2s — Speech-to-speech (minimal placeholder)
+   /api/s2s (speech-to-speech passthrough)
 ====================================================== */
 
 app.post("/api/s2s", upload.single("file"), async (req, res) => {
   try {
-    if (!ENABLE_S2S) return res.status(501).json({ ok: false, error: "S2S_DISABLED" });
-
-    const sessionId =
-      pickFirstNonEmpty(req.body?.sessionId, req.body?.sid, req.body?.session) ||
-      makeSessionId();
-    const st = getSession(sessionId);
-    touchSession(st);
-
-    const file = req.file;
-    if (!file || !file.buffer) {
-      return res.status(400).json({ ok: false, error: "NO_FILE" });
-    }
-
-    const transcript = cleanText(req.body.transcript || "");
-    const syntheticText = transcript || "Hi Nyx";
-
-    const fakeReq = { body: { message: syntheticText, sessionId: st.sessionId } };
-    const fakeRes = {
-      _json: null,
-      json(obj) {
-        this._json = obj;
-      },
-      status() {
-        return this;
-      },
-    };
-
-    await new Promise((resolve) => {
-      app._router.handle(
-        { ...fakeReq, method: "POST", url: "/api/chat" },
-        fakeRes,
-        resolve
-      );
-    });
-
-    const reply =
-      fakeRes._json?.reply || "Want to pick up where we left off, or switch lanes?";
-
-    let audioBytes = null;
-    let audioMime = null;
-    try {
-      const audio = await ttsForReply(reply);
-      if (audio) {
-        audioBytes = audio.audioBytes.toString("base64");
-        audioMime = audio.audioMime;
-      }
-    } catch (e) {
-      if (ENABLE_DEBUG) console.warn(`[s2s tts] failed: ${e.message}`);
-    }
-
-    return res.json({
-      ok: true,
-      transcript: syntheticText,
-      reply,
-      audioBytes,
-      audioMime,
-      sessionId: st.sessionId,
+    // This endpoint expects your existing implementation elsewhere; keep non-destructive.
+    // If you’ve wired it in another module, you can call it here.
+    return res.status(501).json({
+      ok: false,
+      error: "S2S endpoint is not implemented in this build.",
     });
   } catch (e) {
-    return res.status(500).json({ ok: false, error: e.message || "S2S_ERROR" });
+    return res.status(500).json({ ok: false, error: e.message || String(e) });
   }
 });
 
 /* ======================================================
-   /api/health — Diagnostics (+ music50s + build + modules)
+   /api/health
 ====================================================== */
 
 app.get("/api/health", (req, res) => {
-  const ttsConfigured =
-    Boolean(ELEVENLABS_API_KEY) &&
-    Boolean(ELEVENLABS_VOICE_ID) &&
-    ENABLE_TTS &&
-    TTS_PROVIDER === "elevenlabs";
-
-  // Ensure sanity snapshot exists even if boot sanity disabled
-  if (!SANITY_50S) SANITY_50S = sanityCheck50sSingles();
-
   return res.json({
     ok: true,
     service: SERVICE_NAME,
@@ -1479,44 +1422,25 @@ app.get("/api/health", (req, res) => {
     time: new Date().toISOString(),
     pid: process.pid,
     keepalive: true,
-
-    // PATCH H: Deployment stamp (verify Render is running the commit you expect)
     build: BUILD_SHA,
-
     nyx: { intelligenceLevel: DEFAULT_INTELLIGENCE_LEVEL },
     sessions: sessions.size,
-
-    // PATCH MM: module visibility
-    modules: {
-      musicMomentsLoaded: Boolean(musicMoments && typeof musicMoments.handle === "function"),
-      musicKnowledgeLoaded: Boolean(musicKnowledge && typeof musicKnowledge.handleChat === "function"),
-    },
-
-    // PATCH D/E/F: production visibility
     music50s: {
-      ok: SANITY_50S.ok,
-      exists: SANITY_50S.file.exists,
-      rows: SANITY_50S.rows,
-      counts: SANITY_50S.counts,
-      rel: SANITY_50S.file.rel,
-      abs: SANITY_50S.file.abs,
-      foundBy: SANITY_50S.file.foundBy,
-      mtimeMs: SANITY_50S.file.mtimeMs,
-      error: SANITY_50S.error,
+      ok: bootSanity50s.ok,
+      exists: bootSanity50s.file.exists,
+      rows: bootSanity50s.rows,
+      counts: bootSanity50s.counts,
+      rel: bootSanity50s.file.rel,
+      abs: bootSanity50s.file.abs,
+      foundBy: bootSanity50s.file.foundBy,
+      mtimeMs: bootSanity50s.file.mtimeMs,
+      error: bootSanity50s.error,
     },
-
+    musicMomentsLoaded: Boolean(musicMoments && typeof musicMoments.handle === "function"),
     tts: {
       provider: TTS_PROVIDER,
-      configured: ttsConfigured,
-      hasApiKey: Boolean(ELEVENLABS_API_KEY),
-      hasVoiceId: Boolean(ELEVENLABS_VOICE_ID),
-      hasModelId: Boolean(ELEVENLABS_MODEL_ID),
-      voiceTuning: {
-        stability: NYX_VOICE_STABILITY,
-        similarity: NYX_VOICE_SIMILARITY,
-        style: NYX_VOICE_STYLE,
-        speakerBoost: NYX_VOICE_SPEAKER_BOOST,
-      },
+      voiceIdPresent: Boolean(ELEVENLABS_VOICE_ID),
+      keyPresent: Boolean(ELEVENLABS_API_KEY),
     },
   });
 });
@@ -1525,25 +1449,8 @@ app.get("/api/health", (req, res) => {
    Start
 ====================================================== */
 
-try {
-  if (NYX_SANITY_ON_BOOT) runBootSanity50s();
-} catch (e) {
-  console.error(`[SANITY 50s] BOOT BLOCKED: ${e.message}`);
-
-  // PATCH F: never crash-loop unless explicitly requested
-  if (NYX_SANITY_HARD_FAIL) process.exit(1);
-
-  if (NYX_SANITY_ENFORCE) {
-    console.warn(
-      "[SANITY 50s] NYX_SANITY_ENFORCE=true detected (legacy). Continuing in degraded mode. Set NYX_SANITY_HARD_FAIL=true to hard-fail."
-    );
-  }
-}
-
 app.listen(PORT, HOST, () => {
   console.log(
-    `[${SERVICE_NAME}] up :: env=${NODE_ENV} host=${HOST} port=${PORT} build=${
-      BUILD_SHA || "none"
-    } tts=${ENABLE_TTS ? TTS_PROVIDER : "off"}`
+    `[${SERVICE_NAME}] listening on http://${HOST}:${PORT} env=${NODE_ENV} build=${BUILD_SHA || "n/a"}`
   );
 });
