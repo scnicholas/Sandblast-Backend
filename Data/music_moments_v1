@@ -77,116 +77,137 @@
 
 
     /* =====================================================
-       APPENDED CONTENT — 1960s STORY MOMENTS v1
+       APPENDED CONTENT — 1950s MICRO-MOMENTS v1 (CANONICAL)
        ===================================================== */
 
     {
-      "id": "MM-1960s-story-1960-v1",
-      "type": "story_moment",
-      "year": 1960,
-      "decade": "1960s",
-      "title": "Theme from A Summer Place",
-      "artist": "Percy Faith",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "As \"Theme from A Summer Place\" dominated the charts, American music sounded calm and cinematic—but the surface was deceiving. Teen audiences were growing fast, vocal harmony groups thrived, and rhythm and blues continued feeding rock’s next evolution. The industry still favored polish, yet the decade was already leaning toward change.",
+      "id": "MM-1950s-micro-1950-v1",
+      "type": "micro_moment",
+      "year": 1950,
+      "decade": "1950s",
+      "moment_text": "In 1950, most hit records were still marketed to adult audiences, with youth culture not yet recognized as a distinct commercial force in music programming or promotion.",
       "voice": "nyx",
       "media_type": "narrative",
       "rights": "editorial-original",
       "canonical": true,
-      "tags": ["1960", "story", "transition"]
+      "tags": ["1950", "micro", "industry"]
     },
 
     {
-      "id": "MM-1960s-story-1964-v1",
-      "type": "story_moment",
-      "year": 1964,
-      "decade": "1960s",
-      "title": "I Want to Hold Your Hand",
-      "artist": "The Beatles",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "When \"I Want to Hold Your Hand\" hit number one, everything changed. The British Invasion rewired American pop overnight. Bands eclipsed solo stars, guitars led the charge, and youth culture went global. Music grew louder, sharper, and self-aware. The modern pop era had arrived.",
+      "id": "MM-1950s-micro-1951-v1",
+      "type": "micro_moment",
+      "year": 1951,
+      "decade": "1950s",
+      "moment_text": "By 1951, jukeboxes rivaled radio as the primary driver of hit exposure, quietly shifting influence toward venues where younger listeners gathered and shaped taste directly.",
       "voice": "nyx",
       "media_type": "narrative",
       "rights": "editorial-original",
       "canonical": true,
-      "tags": ["1964", "story", "british-invasion"]
-    },
-
-    /* ... 1961–1969 story moments ... */
-
-
-    /* =====================================================
-       APPENDED CONTENT — 1970s STORY MOMENTS v1
-       ===================================================== */
-
-    {
-      "id": "MM-1970s-story-1970-v1",
-      "type": "story_moment",
-      "year": 1970,
-      "decade": "1970s",
-      "title": "Bridge Over Troubled Water",
-      "artist": "Simon & Garfunkel",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "With \"Bridge Over Troubled Water\" leading the year, music turned inward and expansive at once. Albums became emotional statements, not collections of singles. Singer-songwriters stepped forward, studio craft deepened, and listeners embraced longer, more personal works. The album era was no longer coming—it had arrived.",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": ["1970", "story", "album-era"]
+      "tags": ["1951", "micro", "distribution"]
     },
 
     {
-      "id": "MM-1970s-story-1971-v1",
-      "type": "story_moment",
-      "year": 1971,
-      "decade": "1970s",
-      "title": "Joy to the World",
-      "artist": "Three Dog Night",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "\"Joy to the World\" topped the year as rock fully embraced personality and groove. Bands dominated radio, FM listening grew, and songwriting loosened its grip on convention. Humor, swagger, and individuality mattered more than polish. Music felt lived-in, communal, and confidently free.",
+      "id": "MM-1950s-micro-1952-v1",
+      "type": "micro_moment",
+      "year": 1952,
+      "decade": "1950s",
+      "moment_text": "Early-50s recording sessions relied on minimal microphone setups, forcing performers to balance volume, clarity, and emotion in real time rather than fixing problems later.",
       "voice": "nyx",
       "media_type": "narrative",
       "rights": "editorial-original",
       "canonical": true,
-      "tags": ["1971", "story", "fm-radio"]
+      "tags": ["1952", "micro", "production"]
     },
 
     {
-      "id": "MM-1970s-story-1972-v1",
-      "type": "story_moment",
-      "year": 1972,
-      "decade": "1970s",
-      "title": "The First Time Ever I Saw Your Face",
-      "artist": "Roberta Flack",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "As \"The First Time Ever I Saw Your Face\" ruled the year, intimacy took center stage. Soul crossed into pop with elegance, singer-songwriters refined vulnerability, and production favored space over excess. Emotion carried weight. Music slowed down—not from fatigue, but from control.",
+      "id": "MM-1950s-micro-1953-v1",
+      "type": "micro_moment",
+      "year": 1953,
+      "decade": "1950s",
+      "moment_text": "Television variety shows began accelerating song popularity in 1953, compressing the gap between regional success and national recognition almost overnight.",
       "voice": "nyx",
       "media_type": "narrative",
       "rights": "editorial-original",
       "canonical": true,
-      "tags": ["1972", "story", "intimacy"]
+      "tags": ["1953", "micro", "television"]
     },
 
     {
-      "id": "MM-1970s-story-1979-v1",
-      "type": "story_moment",
-      "year": 1979,
-      "decade": "1970s",
-      "title": "My Sharona",
-      "artist": "The Knack",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "\"My Sharona\" closed the decade with urgency and bite. Disco peaked, backlash followed, and guitar-driven rock surged back into focus. New wave energy cracked the door to the 1980s. The 1970s ended the way they lived—by reinventing themselves one last time.",
+      "id": "MM-1950s-micro-1954-v1",
+      "type": "micro_moment",
+      "year": 1954,
+      "decade": "1950s",
+      "moment_text": "Mid-decade recordings were typically captured live to mono tape, meaning entire performances were preserved in single takes, with no multitrack safety net.",
       "voice": "nyx",
       "media_type": "narrative",
       "rights": "editorial-original",
       "canonical": true,
-      "tags": ["1979", "story", "transition-to-80s"]
+      "tags": ["1954", "micro", "recording"]
+    },
+
+    {
+      "id": "MM-1950s-micro-1955-v1",
+      "type": "micro_moment",
+      "year": 1955,
+      "decade": "1950s",
+      "moment_text": "By 1955, record labels were increasingly tracking teenage buying habits, recognizing youth spending power as a driving force in chart performance.",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": ["1955", "micro", "youth-market"]
+    },
+
+    {
+      "id": "MM-1950s-micro-1956-v1",
+      "type": "micro_moment",
+      "year": 1956,
+      "decade": "1950s",
+      "moment_text": "The rise of portable record players in 1956 shifted listening from shared family spaces to private bedrooms, subtly changing how young audiences formed musical identity.",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": ["1956", "micro", "listening-habits"]
+    },
+
+    {
+      "id": "MM-1950s-micro-1957-v1",
+      "type": "micro_moment",
+      "year": 1957,
+      "decade": "1950s",
+      "moment_text": "Growing backlash against rock-influenced music in 1957 reflected widening generational tension, with radio bans revealing anxiety over youth independence and expression.",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": ["1957", "micro", "cultural-tension"]
+    },
+
+    {
+      "id": "MM-1950s-micro-1958-v1",
+      "type": "micro_moment",
+      "year": 1958,
+      "decade": "1950s",
+      "moment_text": "Late-50s hits were increasingly shaped by producers behind the scenes, signaling a quiet transition from performer-led recordings to studio-driven sound design.",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": ["1958", "micro", "production-shift"]
+    },
+
+    {
+      "id": "MM-1950s-micro-1959-v1",
+      "type": "micro_moment",
+      "year": 1959,
+      "decade": "1950s",
+      "moment_text": "By 1959, popular music stood on the edge of transformation, with stylistic fragmentation hinting that the unified pop era of the early 1950s was ending.",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": ["1959", "micro", "transition"]
     }
 
   ]
