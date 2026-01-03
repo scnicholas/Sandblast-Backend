@@ -37,7 +37,6 @@
 
     /* =====================================================
        APPENDED CONTENT — 1950s STORY MOMENTS v1
-       (Editorial / Nyx-ready)
        ===================================================== */
 
     {
@@ -79,7 +78,6 @@
 
     /* =====================================================
        APPENDED CONTENT — 1960s STORY MOMENTS v1
-       (Editorial / Nyx-ready)
        ===================================================== */
 
     {
@@ -117,6 +115,79 @@
     },
 
     /* ... 1961–1969 story moments ... */
+
+
+    /* =====================================================
+       APPENDED CONTENT — 1970s STORY MOMENTS v1
+       ===================================================== */
+
+    {
+      "id": "MM-1970s-story-1970-v1",
+      "type": "story_moment",
+      "year": 1970,
+      "decade": "1970s",
+      "title": "Bridge Over Troubled Water",
+      "artist": "Simon & Garfunkel",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "With \"Bridge Over Troubled Water\" leading the year, music turned inward and expansive at once. Albums became emotional statements, not collections of singles. Singer-songwriters stepped forward, studio craft deepened, and listeners embraced longer, more personal works. The album era was no longer coming—it had arrived.",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": ["1970", "story", "album-era"]
+    },
+
+    {
+      "id": "MM-1970s-story-1971-v1",
+      "type": "story_moment",
+      "year": 1971,
+      "decade": "1970s",
+      "title": "Joy to the World",
+      "artist": "Three Dog Night",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "\"Joy to the World\" topped the year as rock fully embraced personality and groove. Bands dominated radio, FM listening grew, and songwriting loosened its grip on convention. Humor, swagger, and individuality mattered more than polish. Music felt lived-in, communal, and confidently free.",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": ["1971", "story", "fm-radio"]
+    },
+
+    {
+      "id": "MM-1970s-story-1972-v1",
+      "type": "story_moment",
+      "year": 1972,
+      "decade": "1970s",
+      "title": "The First Time Ever I Saw Your Face",
+      "artist": "Roberta Flack",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "As \"The First Time Ever I Saw Your Face\" ruled the year, intimacy took center stage. Soul crossed into pop with elegance, singer-songwriters refined vulnerability, and production favored space over excess. Emotion carried weight. Music slowed down—not from fatigue, but from control.",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": ["1972", "story", "intimacy"]
+    },
+
+    {
+      "id": "MM-1970s-story-1979-v1",
+      "type": "story_moment",
+      "year": 1979,
+      "decade": "1970s",
+      "title": "My Sharona",
+      "artist": "The Knack",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "\"My Sharona\" closed the decade with urgency and bite. Disco peaked, backlash followed, and guitar-driven rock surged back into focus. New wave energy cracked the door to the 1980s. The 1970s ended the way they lived—by reinventing themselves one last time.",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": ["1979", "story", "transition-to-80s"]
+    }
 
   ]
 }
