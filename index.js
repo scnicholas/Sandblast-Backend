@@ -505,6 +505,60 @@ function looksLikeMissingYearList(reply, year) {
   return false;
 }
 
+// PATCH K (2026-01-03): Detect broken placeholder replies from Music Moments
+function badMomentReply(reply) {
+  const s = String(reply || "").trim();
+  if (!s) return true;
+  // High-signal junk markers that should never reach users
+  if (/\bnull\b/i.test(s)) return true;
+  if (/\bundefined\b/i.test(s)) return true;
+  // e.g., "Artist — null" or "null — Title"
+  if (/\bnull\b\s*—\s*\bnull\b/i.test(s)) return true;
+  return false;
+}
+
+/**
+ * Secondary fallback: if Music Moments is present but returns broken placeholders,
+ * synthesize a short, broadcast-safe story moment from musicKnowledge's Top 10 (#1 item).
+ * Returns a normalized module-like result {reply, followUp, domain} or null if it cannot synthesize.
+ */
+function synthesizeStoryMomentFromTop10(year, st) {
+  const y = Number(year);
+  if (!y || y < 1950 || y > 2024) return null;
+  if (!musicKnowledge || typeof musicKnowledge.handleChat !== "function") return null;
+
+  try {
+    const mkTop = musicKnowledge.handleChat({ text: `top 10 ${y}`, session: st });
+    const mkNorm = normalizeModuleResult(mkTop) || mkTop;
+    const topReply = String(mkNorm && mkNorm.reply ? mkNorm.reply : "").trim();
+    if (!topReply) return null;
+
+    // Parse "#1 Artist — Title" from the first list item: "1. Artist — Title"
+    const m1 = topReply.match(/^\s*1\.\s*([^—\n]+?)\s*—\s*([^\n]+)\s*$/m);
+    if (!m1) return null;
+
+    const artist = m1[1].trim();
+    const title = m1[2].trim();
+
+    // 50–60-ish words, tight and broadcastable (no fluff, no fake facts)
+    const story =
+      `Story moment — ${y}: ${artist} — ${title}. ` +
+      `That #1 wasn’t just a chart win—it became the year’s “default mood” on radio. ` +
+      `You’d hear it in cars, shops, and living rooms, and people learned the hook fast. ` +
+      `Want the full top 10 for ${y}, or should I roll to ${y - 1} / ${y + 1}?`;
+
+    return {
+      reply: story,
+      followUp: [`top 10 ${y}`, `story moment ${y - 1}`, `story moment ${y + 1}`],
+      domain: "music",
+    };
+  } catch (e) {
+    if (ENABLE_DEBUG)
+      console.warn(`[synthesizeStoryMomentFromTop10] failed: ${e.message}`);
+    return null;
+  }
+}
+
 /** PATCH C: never treat lane/commands as a user's name */
 const RESERVED_NAME_TOKENS = new Set([
   "music",
@@ -544,7 +598,6 @@ function isGreeting(text) {
     t.startsWith("hello ")
   );
 }
-
 
 function isAffirmation(text) {
   const t = lower(text);
@@ -969,70 +1022,33 @@ function handleDomain(st, domain, userText) {
       try {
         const mm = musicMoments.handle(text, st);
         const normalized = normalizeModuleResult(mm);
-// PATCH K (2026-01-03): Guard against broken moments payloads (null/undefined fields)
-// If the moments layer returns placeholders like "null — null", degrade gracefully
-// instead of appearing to loop or serving nonsense.
-const badMomentReply = (r) => {
-  const s = String(r || "").trim();
-  if (!s) return true;
-  if (/\bnull\b/i.test(s)) return true;
-  if (/\bundefined\b/i.test(s)) return true;
-  if (/\s—\s*null\s—\s*null\b/i.test(s)) return true;
-  return false;
-};
 
-if (normalized && badMomentReply(normalized.reply)) {
-  if (mmCmd && mmCmd.year) {
-    const y = Number(mmCmd.year);
-// SECONDARY FALLBACK (2026-01-03): If the moments layer is present but returns broken placeholders,
-// synthesize a clean, short story moment from musicKnowledge Top 10 (#1) so the user still gets content.
-if (musicKnowledge && typeof musicKnowledge.handleChat === "function") {
-  try {
-    const mkTop = musicKnowledge.handleChat({ text: `top 10 ${y}`, session: st });
-    const mkNorm = normalizeModuleResult(mkTop) || mkTop;
-    const topReply = String(mkNorm && mkNorm.reply ? mkNorm.reply : "").trim();
+        // PATCH K (2026-01-03): If the moments layer returns broken placeholders,
+        // degrade gracefully (no looping, no nonsense).
+        if (normalized && badMomentReply(normalized.reply)) {
+          const y = mmCmd && mmCmd.year ? Number(mmCmd.year) : null;
 
-    // Parse "#1 Artist — Title" from the first list item
-    // Supports variants like: "1. Artist — Title"
-    const m1 = topReply.match(/^\s*1\.\s*([^—\n]+?)\s*—\s*([^\n]+)\s*$/m);
-    if (m1) {
-      const artist = m1[1].trim();
-      const title = m1[2].trim();
+          if (y) {
+            // Secondary fallback: synthesize a clean story moment from musicKnowledge (#1 from top 10)
+            const synth = synthesizeStoryMomentFromTop10(y, st);
+            if (synth) return synth;
 
-      const story =
-        `Story moment — ${y}: ${artist} — ${title}.\n` +
-        `That #1 didn’t just chart — it set the room’s tempo. Radio leaned in, people memorized the chorus fast, ` +
-        `and the year started to “sound like” this track. If you want, I can pull the full “top 10 ${y}”, ` +
-        `or roll to ${y - 1} / ${y + 1} for the next moment.`;
+            return {
+              reply:
+                `I don’t have a clean story moment packaged for ${y} yet (the moment data on the server is incomplete).\n\n` +
+                `Want “top 10 ${y}” instead, or should I roll to ${y - 1} / ${y + 1}?`,
+              followUp: [`top 10 ${y}`, `story moment ${y - 1}`, `story moment ${y + 1}`],
+              domain: "music",
+            };
+          }
 
-      return {
-        reply: story,
-        followUp: [`top 10 ${y}`, `story moment ${y - 1}`, `story moment ${y + 1}`],
-        domain: "music",
-      };
-    }
-  } catch (e) {
-    if (ENABLE_DEBUG) console.warn(`[musicMoments.fallback->musicKnowledge] failed: ${e.message}`);
-  }
-}
-
-// If we can’t synthesize, tell the truth and offer safe navigation.
-return {
-  reply:
-    `I don’t have a clean story moment packaged for ${y} yet (the moment data is incomplete on the server).\n\n` +
-    `Want “top 10 ${y}” instead, or should I roll to ${y - 1} / ${y + 1}?`,
-  followUp: [`top 10 ${y}`, `story moment ${y - 1}`, `story moment ${y + 1}`],
-  domain: "music",
-};
-  }
-  return {
-    reply:
-      "I can do story moments, but the moment data coming back is incomplete right now. Give me a year (e.g., “top 10 1958” or “story moment 1957”).",
-    followUp: ["top 10 1958", "story moment 1957", "story moment 1959"],
-    domain: "music",
-  };
-}
-
+          return {
+            reply:
+              "I can do story moments, but the moment data coming back is incomplete right now. Try “top 10 1958” or “story moment 1957”.",
+            followUp: ["top 10 1958", "story moment 1957", "story moment 1959"],
+            domain: "music",
+          };
+        }
 
         if (normalized && mmCmd && mmCmd.year) {
           const y = Number(mmCmd.year);
@@ -1050,7 +1066,7 @@ return {
 
             const microOffer = used
               ? "If you want the next beat, say “next year”."
-              : `Want the 10‑second micro‑moment for ${y}? Say “yes” (or just “micro ${y}”).`;
+              : `Want the 10-second micro-moment for ${y}? Say “yes” (or just “micro ${y}”).`;
 
             return {
               ...normalized,
@@ -1363,7 +1379,6 @@ app.post("/api/chat", async (req, res) => {
     // Keep lastUserText consistent if we rewrote the message above.
     st.lastUserText = message;
 
-
     // --- Precompute chip token safely (FIX precedence bug)
     const chipDomain = normalizeDomainFromChipOrText(message);
     const isLaneToken = lower(message).startsWith("lane:");
@@ -1455,10 +1470,10 @@ app.post("/api/chat", async (req, res) => {
         });
       }
 
-            // Reset one-turn flags
+      // Reset one-turn flags
       st.suppressWrapOnce = false;
 
-return res.json({
+      return res.json({
         ok: true,
         reply,
         followUp: result.followUp || null,
