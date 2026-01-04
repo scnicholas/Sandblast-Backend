@@ -1,0 +1,117 @@
+"use strict";
+
+/**
+ * Validate story moments coverage (1950–1989) in Data/music_moments_v1.json.
+ * - Strips JSON comments
+ * - Parses JSON
+ * - Checks per-year presence and required fields
+ * - Checks word count guardrails (default 35–85 words)
+ * - Writes a report to Data/_reports/story_validate_1950_1989.json
+ *
+ * Usage:
+ *   node Scripts/validate_story_moments_1950_1989.js
+ */
+
+const fs = require("fs");
+const path = require("path");
+
+const FILE = path.resolve(process.cwd(), "Data/music_moments_v1.json");
+const OUT_DIR = path.resolve(process.cwd(), "Data/_reports");
+const OUT_FILE = path.resolve(OUT_DIR, "story_validate_1950_1989.json");
+
+const MIN_YEAR = 1950;
+const MAX_YEAR = 1989;
+
+const WORD_MIN = 35;
+const WORD_MAX = 85;
+
+function stripJsonComments(s) {
+  s = String(s || "");
+  s = s.replace(/\/\*[\s\S]*?\*\//g, "");
+  s = s.replace(/^\s*\/\/.*$/gm, "");
+  return s;
+}
+
+function wc(s) {
+  return String(s || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean).length;
+}
+
+function main() {
+  if (!fs.existsSync(FILE)) {
+    console.error("Missing:", FILE);
+    process.exit(2);
+  }
+
+  const raw = fs.readFileSync(FILE, "utf8");
+  const stripped = stripJsonComments(raw);
+
+  let j;
+  try {
+    j = JSON.parse(stripped);
+  } catch (e) {
+    console.error("PARSE FAIL after comment stripping:", e.message);
+    process.exit(1);
+  }
+
+  const moments = Array.isArray(j.moments) ? j.moments : [];
+  const stories = moments.filter((m) => String(m?.type || "").toLowerCase() === "story_moment");
+
+  const byYear = new Map();
+  for (const s of stories) {
+    const y = Number(s.year);
+    if (!Number.isFinite(y)) continue;
+    if (!byYear.has(y)) byYear.set(y, []);
+    byYear.get(y).push(s);
+  }
+
+  const missingYears = [];
+  const issues = [];
+  for (let y = MIN_YEAR; y <= MAX_YEAR; y++) {
+    const arr = byYear.get(y) || [];
+    if (!arr.length) {
+      missingYears.push(y);
+      continue;
+    }
+    // Validate each story object
+    for (const obj of arr) {
+      const required = ["id", "type", "year", "title", "artist", "moment_text"];
+      for (const k of required) {
+        if (obj[k] === undefined || obj[k] === null || String(obj[k]).trim() === "") {
+          issues.push({ year: y, id: obj.id || null, issue: `missing_field:${k}` });
+        }
+      }
+      const count = wc(obj.moment_text);
+      if (count < WORD_MIN || count > WORD_MAX) {
+        issues.push({ year: y, id: obj.id || null, issue: `word_count:${count}` });
+      }
+    }
+  }
+
+  const report = {
+    ok: missingYears.length === 0 && issues.length === 0,
+    file: FILE,
+    range: { minYear: MIN_YEAR, maxYear: MAX_YEAR },
+    counts: {
+      totalMoments: moments.length,
+      storyMoments: stories.length,
+    },
+    missingYears,
+    issues,
+  };
+
+  fs.mkdirSync(OUT_DIR, { recursive: true });
+  fs.writeFileSync(OUT_FILE, JSON.stringify(report, null, 2), "utf8");
+
+  console.log("VALIDATION DONE");
+  console.log("Story count:", stories.length);
+  console.log("Missing years:", missingYears.length);
+  console.log("Issues:", issues.length);
+  console.log("Report:", OUT_FILE);
+
+  process.exit(report.ok ? 0 : 1);
+}
+
+main();
