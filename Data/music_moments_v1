@@ -48,7 +48,7 @@
       "artist": "The Weavers",
       "chart": "Billboard Year-End Singles",
       "position": 1,
-      "moment_text": "With \"Goodnight Irene\" topping the charts, American music still leaned gentle and familiar. Beneath the calm surface, rhythm and blues were gaining strength, electric guitars were entering studios, and jukeboxes were multiplying fast. This was the quiet before the shift—the year music began loosening its collar.",
+      "moment_text": "With “Goodnight Irene” leading the year-end list, America still sounded warm and familiar. But jukeboxes were multiplying, R&B was turning up the voltage, and the studio guitar was starting to bite. The country was ready for louder, younger voices. Want the top 10, a micro-moment, or the next year?",
       "voice": "nyx",
       "media_type": "narrative",
       "rights": "editorial-original",
@@ -65,7 +65,7 @@
       "artist": "Nat King Cole",
       "chart": "Billboard Year-End Singles",
       "position": 1,
-      "moment_text": "\"Too Young\" ruled radio, smooth and sentimental, while something sharper moved underneath. DJs bent formats, electric bass reshaped rhythm sections, and singles became the industry’s new currency. Music was still polite on top—but the pulse underneath was changing fast.",
+      "moment_text": "“Too Young” sat at #1 on Billboard’s year-end singles list, all velvet and restraint. Yet the market was tilting: teen buyers had cash, radio was chasing freshness, and the edges of R&B and country were bleeding into pop. The polite era was cracking. Want the top 10, a micro-moment, or the next year?",
       "voice": "nyx",
       "media_type": "narrative",
       "rights": "editorial-original",
@@ -73,7 +73,142 @@
       "tags": ["1951", "story", "radio"]
     },
 
-    /* ... 1952–1959 story moments ... */
+    {
+  "id": "MM-1950s-story-1952-v1",
+  "type": "story_moment",
+  "year": 1952,
+  "decade": "1950s",
+  "title": "Blue Tango",
+  "artist": "Leroy Anderson",
+  "chart": "Billboard Year-End Singles",
+  "position": 1,
+  "moment_text": "“Blue Tango” took the year-end crown, proving an instrumental could still own the room. But underneath the orchestras, postwar pop was speeding up—bigger drum accents, sharper riffs, and more dance-floor momentum. The sound was getting more physical, less parlor. Want the top 10, a micro-moment, or the next year?",
+  "voice": "nyx",
+  "media_type": "narrative",
+  "rights": "editorial-original",
+  "canonical": true,
+  "tags": ["1952", "story", "instrumental"]
+},
+
+{
+  "id": "MM-1950s-story-1953-v1",
+  "type": "story_moment",
+  "year": 1953,
+  "decade": "1950s",
+  "title": "The Song from Moulin Rouge",
+  "artist": "Percy Faith featuring Felicia Sanders",
+  "chart": "Billboard Year-End Singles",
+  "position": 1,
+  "moment_text": "Percy Faith’s “The Song from Moulin Rouge” topped the year, Hollywood romance in widescreen sound. At the same time, doo-wop corners and R&B clubs were building a different future—tighter harmonies, rawer vocals, and beats you could feel. Two Americas, one dial. Want the top 10, a micro-moment, or the next year?",
+  "voice": "nyx",
+  "media_type": "narrative",
+  "rights": "editorial-original",
+  "canonical": true,
+  "tags": ["1953", "story", "pop-vs-rnb"]
+},
+
+{
+  "id": "MM-1950s-story-1954-v1",
+  "type": "story_moment",
+  "year": 1954,
+  "decade": "1950s",
+  "title": "Little Things Mean a Lot",
+  "artist": "Kitty Kallen",
+  "chart": "Billboard Year-End Singles",
+  "position": 1,
+  "moment_text": "Kitty Kallen’s “Little Things Mean a Lot” ruled the year-end list—sweet, precise, and radio-perfect. But 1954 carried a warning: “Sh-Boom” and “Shake, Rattle and Roll” were already in the bloodstream, pushing rhythm forward. Pop didn’t know it yet, but it was losing control. Want the top 10, a micro-moment, or the next year?",
+  "voice": "nyx",
+  "media_type": "narrative",
+  "rights": "editorial-original",
+  "canonical": true,
+  "tags": ["1954", "story", "early-rock"]
+},
+
+{
+  "id": "MM-1950s-story-1955-v1",
+  "type": "story_moment",
+  "year": 1955,
+  "decade": "1950s",
+  "title": "Cherry Pink and Apple Blossom White",
+  "artist": "Perez Prado",
+  "chart": "Billboard Year-End Singles",
+  "position": 1,
+  "moment_text": "Perez Prado’s “Cherry Pink and Apple Blossom White” hit #1 for the year, a bright Latin swirl in every living room. Then the other shoe dropped: “Rock Around the Clock” exploded right behind it, signaling youth culture as a market force, not a phase. The tempo of America changed. Want the top 10, a micro-moment, or the next year?",
+  "voice": "nyx",
+  "media_type": "narrative",
+  "rights": "editorial-original",
+  "canonical": true,
+  "tags": ["1955", "story", "youth-market"]
+},
+
+{
+  "id": "MM-1950s-story-1956-v1",
+  "type": "story_moment",
+  "year": 1956,
+  "decade": "1950s",
+  "title": "Heartbreak Hotel",
+  "artist": "Elvis Presley",
+  "chart": "Billboard Year-End Singles",
+  "position": 1,
+  "moment_text": "Elvis Presley’s “Heartbreak Hotel” finished #1 for the year—and the old rules didn’t survive it. The vocal sounded lonely, the guitar felt dangerous, and the crowd finally had a face. Rock ’n’ roll wasn’t a side show anymore; it was the main event. Want the top 10, a micro-moment, or the next year?",
+  "voice": "nyx",
+  "media_type": "narrative",
+  "rights": "editorial-original",
+  "canonical": true,
+  "tags": ["1956", "story", "rock-breakthrough"]
+},
+
+{
+  "id": "MM-1950s-story-1957-v1",
+  "type": "story_moment",
+  "year": 1957,
+  "decade": "1950s",
+  "title": "All Shook Up",
+  "artist": "Elvis Presley",
+  "chart": "Billboard Year-End Singles",
+  "position": 1,
+  "moment_text": "“All Shook Up” put Elvis back at the top of the year-end list, and the energy was unmistakable. Rock was getting cleaner, faster, and more unavoidable—teen radio, teen movies, teen everything. The industry started chasing youth on purpose, not by accident. Want the top 10, a micro-moment, or the next year?",
+  "voice": "nyx",
+  "media_type": "narrative",
+  "rights": "editorial-original",
+  "canonical": true,
+  "tags": ["1957", "story", "teen-culture"]
+},
+
+{
+  "id": "MM-1950s-story-1958-v1",
+  "type": "story_moment",
+  "year": 1958,
+  "decade": "1950s",
+  "title": "Volare (Nel blu dipinto di blu)",
+  "artist": "Domenico Modugno",
+  "chart": "Billboard Year-End Hot 100",
+  "position": 1,
+  "moment_text": "Domenico Modugno’s “Volare (Nel blu dipinto di blu)” led the year, and it felt like pop suddenly had passports. The Hot 100 era was beginning, and the palette widened—rock, crooners, novelty hits, and international melodies all competing on one scoreboard. America’s charts became a battleground. Want the top 10, a micro-moment, or the next year?",
+  "voice": "nyx",
+  "media_type": "narrative",
+  "rights": "editorial-original",
+  "canonical": true,
+  "tags": ["1958", "story", "hot-100-era"]
+},
+
+{
+  "id": "MM-1950s-story-1959-v1",
+  "type": "story_moment",
+  "year": 1959,
+  "decade": "1950s",
+  "title": "The Battle of New Orleans",
+  "artist": "Johnny Horton",
+  "chart": "Billboard Year-End Hot 100",
+  "position": 1,
+  "moment_text": "Johnny Horton’s “The Battle of New Orleans” topped the 1959 year-end Hot 100, proof that novelty and storytelling could beat pure teen angst. Yet the scene was sharpening: doo-wop, early soul, and swaggering rock were taking over the air. The sixties were already knocking. Want the top 10, a micro-moment, or the next year?",
+  "voice": "nyx",
+  "media_type": "narrative",
+  "rights": "editorial-original",
+  "canonical": true,
+  "tags": ["1959", "story", "sixties-ahead"]
+}
+
 
 
     /* =====================================================
