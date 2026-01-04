@@ -78,6 +78,10 @@
  *  - If user enters a year-only (e.g., "1999") and current chart context can't produce a clean list,
  *    automatically retry against canonical charts (Year-End Hot 100 → Hot 100 → Year-End Singles),
  *    persist the working chart in session, and prevent dead-end messaging.
+ *
+ * NEW (2026-01-03, PATCH CORS-HARDEN — BROWSER REACHABILITY FIX):
+ *  - Replace wildcard CORS with allowlist + explicit OPTIONS preflight handling.
+ *  - Prevents widget “I can’t reach the backend right now” caused by blocked preflight.
  */
 
 "use strict";
@@ -143,12 +147,59 @@ const NYX_SANITY_ON_BOOT = (process.env.NYX_SANITY_ON_BOOT || "true") === "true"
 const NYX_SANITY_ENFORCE = (process.env.NYX_SANITY_ENFORCE || "false") === "true"; // legacy
 const NYX_SANITY_HARD_FAIL = (process.env.NYX_SANITY_HARD_FAIL || "false") === "true"; // NEW
 
-// CORS: permissive by default; tighten if you want
+/* ======================================================
+   PATCH CORS-HARDEN: Allowlist + explicit OPTIONS handling
+   - Fixes browser preflight blocks that produce “can’t reach backend”
+====================================================== */
+
+// Comma-separated list, e.g.
+// CORS_ORIGINS="https://sandblast.channel,https://www.sandblast.channel,http://localhost:3000"
+const ALLOWED_ORIGINS = String(
+  process.env.CORS_ORIGINS ||
+    "https://sandblast.channel,https://www.sandblast.channel,http://localhost:3000,http://127.0.0.1:3000"
+)
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+function isAllowedOrigin(origin) {
+  if (!origin) return false;
+  return ALLOWED_ORIGINS.includes(origin);
+}
+
+// Always apply high-signal CORS headers early (before body parsing)
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+
+  if (origin && isAllowedOrigin(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Vary", "Origin");
+  }
+
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Max-Age", "86400"); // cache preflight for 24h
+
+  if (req.method === "OPTIONS") {
+    // Preflight must be a clean 200 or the browser will block the POST
+    return res.status(200).json({ ok: true });
+  }
+
+  next();
+});
+
+// Keep cors() installed for compatibility, but driven by allowlist
 app.use(
   cors({
-    origin: "*",
+    origin(origin, cb) {
+      // Allow same-origin / server-to-server calls with no Origin header
+      if (!origin) return cb(null, true);
+      if (isAllowedOrigin(origin)) return cb(null, true);
+      return cb(new Error(`CORS blocked for origin: ${origin}`), false);
+    },
     methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
+    optionsSuccessStatus: 200,
   })
 );
 
