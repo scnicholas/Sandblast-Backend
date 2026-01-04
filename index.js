@@ -885,7 +885,7 @@ function lockIntentLine({ domain, intent, userText }) {
 
   if (domain === "sponsors") {
     if (/\bpackage\b|\btier\b|\bprice\b/.test(low)) return "You’re looking at sponsor packages.";
-    if (/\bmetric\b|\bctr\b|\bclick\b|\breach\b/.test(low)) return "You’re thinking outcomes and metrics.";
+    if (/\bmetric\b|\bctr\b|\bclick\b|\breach\b|\bviews\b/.test(low)) return "You’re thinking outcomes and metrics.";
     return "Sponsors lane — locked.";
   }
 
