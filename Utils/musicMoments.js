@@ -1,20 +1,23 @@
 "use strict";
 
 /**
- * Utils/musicMoments.js — v1.4
+ * Utils/musicMoments.js — v1.6
  *
  * Canonical behavior:
  *  - Chart truth (Top 10, rank picks) is delegated to Utils/musicKnowledge.
- *  - Curated story paragraphs are loaded from Data/music_moments_v1.json:
- *      - entries where type === "story_moment"
- *      - uses moment_text
- *  - Supports:
- *      - "top 10 1988"
- *      - "story moment 1957" / "moment 1957" / "story 1957"
- *      - "#2 moment" (uses session context if available)
- *      - "#2 moment 1957"
- *      - "micro 1957" / "micro moment 1957"
- *      - "yes" (if session.pendingMicroYear is set by index.js)
+ *  - Curated story + micro moments are loaded from Data/music_moments_v1.json:
+ *      - story: type === "story_moment" -> moment_text
+ *      - micro: type === "micro_moment" -> moment_text
+ *  - Year context bullets (1950–1989) loaded from Data/music_year_context_1950_1989.json
+ *    and appended to story/micro/top10 replies.
+ *
+ * Supports:
+ *  - "top 10 1988"
+ *  - "story moment 1957" / "moment 1957" / "story 1957"
+ *  - "#2 moment" (requires session context or top 10 run first)
+ *  - "#2 moment 1957"
+ *  - "micro 1957" / "micro moment 1957"
+ *  - "yes" (if session.pendingMicroYear is set by index.js)
  */
 
 const fs = require("fs");
@@ -26,18 +29,20 @@ const musicKnowledge = require("./musicKnowledge");
 // Version
 // ---------------------------------------------------------
 const VERSION =
-  "musicMoments v1.4 (curated story moments from music_moments_v1.json + micro; top10/rank sourced from musicKnowledge)";
+  "musicMoments v1.6 (curated story+micro from music_moments_v1.json; year context 1950–1989; top10/rank via musicKnowledge; null-header fix)";
 
 // ---------------------------------------------------------
-// Curated Story Moments file (canonical for story_moment text)
+// Canonical moments + year context files
 // ---------------------------------------------------------
 const MOMENTS_FILE = "Data/music_moments_v1.json";
+const YEAR_CONTEXT_FILE = "Data/music_year_context_1950_1989.json";
 
 // ---------------------------------------------------------
 // Cache
 // ---------------------------------------------------------
-// { ok, file, rows, indexByKey, indexByYearRank, indexByYear, mtimeMs }
-let STORY_CACHE = null;
+let STORY_CACHE = null; // story_moment index
+let MICRO_CACHE = null; // micro_moment index
+let YEAR_CONTEXT_CACHE = null; // year->bullets map
 
 // ---------------------------------------------------------
 // Helpers
@@ -125,7 +130,57 @@ function ensureForwardBeat(text) {
   const t = cleanText(text);
   if (!t) return t;
   if (endsWithForwardBeat(t)) return t;
-  return `${t} Want the top 10, a story moment, or the next year?`;
+  return `${t} Want the top 10, a micro-moment, or the next year?`;
+}
+
+// ---------------------------------------------------------
+// Year context loader (1950–1989)
+// ---------------------------------------------------------
+function loadYearContext({ force = false } = {}) {
+  const file = resolveRepoPath(YEAR_CONTEXT_FILE);
+  const mtimeMs = getMtimeMs(file);
+
+  if (
+    !force &&
+    YEAR_CONTEXT_CACHE &&
+    mtimeMs &&
+    mtimeMs === YEAR_CONTEXT_CACHE.mtimeMs
+  ) {
+    return YEAR_CONTEXT_CACHE;
+  }
+
+  if (!fs.existsSync(file)) {
+    YEAR_CONTEXT_CACHE = { ok: false, file, mtimeMs: 0, years: {} };
+    return YEAR_CONTEXT_CACHE;
+  }
+
+  try {
+    const raw = fs.readFileSync(file, "utf8");
+    const doc = JSON.parse(raw);
+    const years = doc?.years && typeof doc.years === "object" ? doc.years : {};
+    YEAR_CONTEXT_CACHE = { ok: true, file, mtimeMs, years };
+    return YEAR_CONTEXT_CACHE;
+  } catch (_) {
+    YEAR_CONTEXT_CACHE = { ok: false, file, mtimeMs: 0, years: {} };
+    return YEAR_CONTEXT_CACHE;
+  }
+}
+
+function getYearContextBullets(year, max = 3) {
+  const y = toInt(year);
+  if (!y) return [];
+  const db = loadYearContext({ force: false });
+  if (!db.ok) return [];
+  const items = db.years[String(y)];
+  if (!Array.isArray(items) || items.length === 0) return [];
+  const n = Math.max(0, Math.min(toInt(max) || 3, 6));
+  return items.slice(0, n).map((x) => cleanText(x)).filter(Boolean);
+}
+
+function formatYearContext(year) {
+  const bullets = getYearContextBullets(year, 3);
+  if (!bullets.length) return "";
+  return `\n\nContext — ${year}:\n- ${bullets.join("\n- ")}`;
 }
 
 // ---------------------------------------------------------
@@ -200,11 +255,8 @@ function loadStory({ force = false } = {}) {
     // by year default (prefer #1 if present, else first)
     const yk = String(year);
     const existing = indexByYear.get(yk);
-    if (!existing) {
-      indexByYear.set(yk, rec);
-    } else if (toInt(rec.rank) === 1 && toInt(existing.rank) !== 1) {
-      indexByYear.set(yk, rec);
-    }
+    if (!existing) indexByYear.set(yk, rec);
+    else if (toInt(rec.rank) === 1 && toInt(existing.rank) !== 1) indexByYear.set(yk, rec);
   }
 
   STORY_CACHE = {
@@ -244,6 +296,57 @@ function lookupCuratedStory({ year, artist, title, rank }) {
 }
 
 // ---------------------------------------------------------
+// Curated Micro Moments loader (hot reload)
+// ---------------------------------------------------------
+function loadMicro({ force = false } = {}) {
+  const file = resolveRepoPath(MOMENTS_FILE);
+  const mtimeMs = getMtimeMs(file);
+
+  if (!force && MICRO_CACHE && mtimeMs && mtimeMs === MICRO_CACHE.mtimeMs) {
+    return MICRO_CACHE;
+  }
+
+  if (!fs.existsSync(file)) {
+    MICRO_CACHE = { ok: false, file, rows: 0, byYear: new Map(), mtimeMs: 0 };
+    return MICRO_CACHE;
+  }
+
+  const doc = safeLenientJsonRead(file);
+  const rows = Array.isArray(doc?.moments) ? doc.moments : [];
+
+  const byYear = new Map();
+  let kept = 0;
+
+  for (const r of rows) {
+    if (!r) continue;
+    if (String(r.type || "").toLowerCase() !== "micro_moment") continue;
+
+    const year = toInt(r.year);
+    const text = fixEncoding(cleanText(r.moment_text));
+    if (!year || !text) continue;
+
+    kept += 1;
+
+    byYear.set(String(year), {
+      year,
+      moment: text, // micro should NOT get a forward-beat suffix
+      id: cleanText(r.id) || null,
+      decade: cleanText(r.decade) || null,
+      tags: Array.isArray(r.tags) ? r.tags : [],
+    });
+  }
+
+  MICRO_CACHE = { ok: true, file, rows: kept, byYear, mtimeMs };
+  return MICRO_CACHE;
+}
+
+function lookupCuratedMicro(year) {
+  const db = loadMicro({ force: false });
+  if (!db.ok) return null;
+  return db.byYear.get(String(year)) || null;
+}
+
+// ---------------------------------------------------------
 // Controlled fallback story paragraph (only if curated missing)
 // ---------------------------------------------------------
 function buildFallbackStory({ year, artist, title }) {
@@ -251,21 +354,20 @@ function buildFallbackStory({ year, artist, title }) {
   const a = artist || "the artist";
   const t = title || "that song";
 
-  // Keep this short-ish and broadcast-safe. Forward beat appended separately.
   return ensureForwardBeat(
     `In ${y}, “${t}” didn’t just get played—it became part of the year’s texture. ${a} landed a track that felt personal even in a crowded room, the one people remembered after the radio went quiet. The song matched the pace of life back then: clear, direct, and hard to shake.`
   );
 }
 
 // ---------------------------------------------------------
-// Micro moment generator (10-second cue)
+// Micro moment generator (only if curated micro missing)
 // ---------------------------------------------------------
-function buildMicroMoment({ year, artist, title }) {
+function buildMicroMomentFallback({ year, artist, title }) {
   const y = year || "that year";
   const a = artist || "the artist";
   const t = title || "that song";
 
-  // 18–25 words, tight, no filler.
+  // 18–25 words, tight.
   return `Micro — ${y}: ${a}’s “${t}” set the tone—fast hook, clear emotion, and a chorus that stayed in your pocket all day.`;
 }
 
@@ -276,7 +378,6 @@ function parse(text, session) {
   const raw = cleanText(text);
   const t = raw.toLowerCase();
 
-  // Special: “yes” triggers micro moment if index.js armed it
   const isYes = /^(yes|yep|yeah|yup|sure|ok|okay)$/i.test(raw);
 
   const yearMatch = t.match(/\b(19[5-9]\d|20[0-2]\d)\b/);
@@ -286,10 +387,12 @@ function parse(text, session) {
 
   const wantsMicro =
     !wantsTop10 &&
-    (/\bmicro\b/.test(t) || /\bmicro\s*moment\b/.test(t) || (isYes && toInt(session?.pendingMicroYear)));
+    (/\bmicro\b/.test(t) ||
+      /\bmicro\s*moment\b/.test(t) ||
+      (isYes && toInt(session?.pendingMicroYear)));
 
-  // story/moment request (top10 wins if both)
-  const wantsStory = !wantsTop10 && !wantsMicro && (/\bstory\b/.test(t) || /\bmoment\b/.test(t));
+  const wantsStory =
+    !wantsTop10 && !wantsMicro && (/\bstory\b/.test(t) || /\bmoment\b/.test(t));
 
   const rankMatch =
     t.match(/(?:^|\s)#\s*(\d{1,2})(?:\s|$)/) ||
@@ -297,8 +400,8 @@ function parse(text, session) {
 
   const rank = rankMatch ? toInt(rankMatch[1]) : null;
 
-  // If user said "yes" and we have pendingMicroYear, use that year
-  const microYear = isYes && toInt(session?.pendingMicroYear) ? toInt(session.pendingMicroYear) : null;
+  const microYear =
+    isYes && toInt(session?.pendingMicroYear) ? toInt(session.pendingMicroYear) : null;
 
   return { year, wantsTop10, wantsStory, wantsMicro, microYear, rank };
 }
@@ -333,17 +436,13 @@ function formatTop10FromRows(year, chartUsed, rows) {
 
 // ---------------------------------------------------------
 // Pick a song for a story moment
-// Priority:
-//  1) Session lastTop10 / lastTop1 (if present)
-//  2) Pull Top10 via musicKnowledge for year + rank (or #1 default)
 // ---------------------------------------------------------
 function pickSong(session, year, rank) {
   session = session || {};
   const y = year || toInt(session.lastMusicYear) || null;
 
   const lastTop10 = Array.isArray(session.lastTop10) ? session.lastTop10 : null;
-  const lastTop1 =
-    session.lastTop1 && typeof session.lastTop1 === "object" ? session.lastTop1 : null;
+  const lastTop1 = session.lastTop1 && typeof session.lastTop1 === "object" ? session.lastTop1 : null;
 
   if (y && lastTop10 && lastTop10.length) {
     const scoped = lastTop10.filter((x) => !x?.year || toInt(x.year) === y);
@@ -403,13 +502,12 @@ function pickSong(session, year, rank) {
 // ---------------------------------------------------------
 function handle(text, session = {}) {
   const input = String(text || "");
-  const { year, wantsTop10, wantsStory, wantsMicro, microYear, rank } = parse(
-    input,
-    session
-  );
+  const { year, wantsTop10, wantsStory, wantsMicro, microYear, rank } = parse(input, session);
 
-  // Hot reload story cache
+  // Hot reload caches
   loadStory({ force: false });
+  loadMicro({ force: false });
+  loadYearContext({ force: false });
 
   // Top 10
   if (wantsTop10) {
@@ -425,19 +523,22 @@ function handle(text, session = {}) {
     const out = formatTop10FromRows(year, chartUsed, rows);
 
     if (!out) {
-      // Relax chart filter: try common fallback
       const relaxed = { ...session, activeMusicChart: "Billboard Year-End Hot 100" };
       const alt = mkTop10(year, relaxed);
       const out2 = formatTop10FromRows(year, alt.chartUsed, alt.rows);
 
       return {
         ok: true,
-        reply: out2 || `No chart rows found for ${year} on the available sources in this build yet.`,
+        reply: (out2 || `No chart rows found for ${year} on the available sources in this build yet.`) + formatYearContext(year),
         followUp: { kind: "offer_next", year },
       };
     }
 
-    return { ok: true, reply: out, followUp: { kind: "offer_next", year } };
+    return {
+      ok: true,
+      reply: out + formatYearContext(year),
+      followUp: { kind: "offer_next", year },
+    };
   }
 
   // Micro moment
@@ -451,9 +552,19 @@ function handle(text, session = {}) {
       };
     }
 
-    // If we can pick the #1 song, micro will be anchored properly
-    const picked = pickSong(session, y, 1);
+    // Prefer curated micro from music_moments_v1.json
+    const curatedMicro = lookupCuratedMicro(y);
+    if (curatedMicro?.moment) {
+      session.pendingMicroYear = null;
+      return {
+        ok: true,
+        reply: `Micro — ${y}:\n${curatedMicro.moment}` + formatYearContext(y),
+        followUp: { kind: "offer_next", year: y },
+      };
+    }
 
+    // Fallback: anchor to #1 (requires list context or mkTop10 success)
+    const picked = pickSong(session, y, 1);
     if (!picked.artist || !picked.title) {
       return {
         ok: true,
@@ -462,12 +573,11 @@ function handle(text, session = {}) {
       };
     }
 
-    // Clear pending micro once used
     session.pendingMicroYear = null;
 
     return {
       ok: true,
-      reply: buildMicroMoment(picked),
+      reply: buildMicroMomentFallback(picked) + formatYearContext(y),
       followUp: { kind: "offer_next", year: y },
     };
   }
@@ -484,7 +594,7 @@ function handle(text, session = {}) {
       };
     }
 
-    // If rank asked but we still lack title/artist, we need top10 context
+    // If rank requested but we still lack title/artist, we need top10 context
     if (picked.rank && (!picked.artist || !picked.title)) {
       return {
         ok: true,
@@ -495,11 +605,15 @@ function handle(text, session = {}) {
       };
     }
 
-    // Try curated story from Data/music_moments_v1.json first
+    // Try curated story first
     const curated = lookupCuratedStory(picked);
-    const storyText = curated ? curated.moment : buildFallbackStory(picked);
 
-    // If your curated moment_text already ends with a forward beat, do not add another.
+    // Null-header fix: if pickSong didn't provide artist/title, use curated header fields
+    const headerArtist = picked.artist || curated?.artist || "Unknown Artist";
+    const headerTitle = picked.title || curated?.title || "Unknown Title";
+
+    const storyText = curated ? curated.moment : buildFallbackStory({ ...picked, artist: headerArtist, title: headerTitle });
+
     const addTail = endsWithForwardBeat(storyText)
       ? ""
       : `\n\nWant another one (say “#2 moment”), the Top 10, or a different year?`;
@@ -507,8 +621,9 @@ function handle(text, session = {}) {
     return {
       ok: true,
       reply:
-        `Story moment — ${picked.year}: ${picked.artist} — ${picked.title}\n\n` +
-        `${storyText}${addTail}`,
+        `Story moment — ${picked.year}: ${headerArtist} — ${headerTitle}\n\n` +
+        `${storyText}${addTail}` +
+        formatYearContext(picked.year),
       followUp: { kind: "offer_next", year: picked.year },
     };
   }
@@ -522,8 +637,21 @@ function handle(text, session = {}) {
     };
   }
 
-  // Default: treat as story moment for the year (quick, confident)
-  const picked = pickSong(session, year, null);
+  // Default: treat as story moment for the year
+  const curated = lookupCuratedStory({ year });
+  if (curated) {
+    return {
+      ok: true,
+      reply:
+        `Story moment — ${year}: ${curated.artist} — ${curated.title}\n\n` +
+        `${curated.moment}` +
+        formatYearContext(year),
+      followUp: { kind: "offer_next", year },
+    };
+  }
+
+  // If not curated, try anchor to #1 for fallback story
+  const picked = pickSong(session, year, 1);
   if (!picked.artist || !picked.title) {
     return {
       ok: true,
@@ -532,8 +660,7 @@ function handle(text, session = {}) {
     };
   }
 
-  const curated = lookupCuratedStory(picked);
-  const storyText = curated ? curated.moment : buildFallbackStory(picked);
+  const storyText = buildFallbackStory(picked);
 
   const addTail = endsWithForwardBeat(storyText)
     ? ""
@@ -543,7 +670,8 @@ function handle(text, session = {}) {
     ok: true,
     reply:
       `Story moment — ${picked.year}: ${picked.artist} — ${picked.title}\n\n` +
-      `${storyText}${addTail}`,
+      `${storyText}${addTail}` +
+      formatYearContext(picked.year),
     followUp: { kind: "offer_next", year: picked.year },
   };
 }
@@ -554,9 +682,11 @@ function handle(text, session = {}) {
 module.exports = {
   VERSION: () => VERSION,
 
-  // curated story loader
+  // loaders
   loadStory: (force = false) => loadStory({ force }),
+  loadMicro: (force = false) => loadMicro({ force }),
+  loadYearContext: (force = false) => loadYearContext({ force }),
 
-  // main handler
+  // handler
   handle,
 };
