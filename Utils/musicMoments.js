@@ -1,25 +1,20 @@
 "use strict";
 
 /**
- * Utils/musicMoments.js — v1.3 (delegates chart truth to musicKnowledge)
+ * Utils/musicMoments.js — v1.4
  *
- * What this module does now (correctly):
- *  - Uses Utils/musicKnowledge as the canonical chart source for:
- *      - "top 10 YEAR"
- *      - selecting #rank entries for story moments
- *  - Uses Data/music_story_moments_v1.json as curated story paragraphs (optional).
- *  - If curated paragraph missing, generates a controlled fallback story paragraph.
- *
- * Why:
- *  - Your real datasets are already wired into musicKnowledge (Wikipedia year-end + v2 moments DB).
- *  - Data/music_moments_v1.json is not present / not canonical, so relying on it causes “No moments loaded”.
- *
- * Supported queries:
- *  - "top 10 1988"
- *  - "story moment 1988"
- *  - "#2 moment" (uses session lastTop10/lastMusicYear if present, else asks for top10)
- *  - "#2 moment 1988"
- *  - "moment 1988" / "story 1988"
+ * Canonical behavior:
+ *  - Chart truth (Top 10, rank picks) is delegated to Utils/musicKnowledge.
+ *  - Curated story paragraphs are loaded from Data/music_moments_v1.json:
+ *      - entries where type === "story_moment"
+ *      - uses moment_text
+ *  - Supports:
+ *      - "top 10 1988"
+ *      - "story moment 1957" / "moment 1957" / "story 1957"
+ *      - "#2 moment" (uses session context if available)
+ *      - "#2 moment 1957"
+ *      - "micro 1957" / "micro moment 1957"
+ *      - "yes" (if session.pendingMicroYear is set by index.js)
  */
 
 const fs = require("fs");
@@ -31,17 +26,18 @@ const musicKnowledge = require("./musicKnowledge");
 // Version
 // ---------------------------------------------------------
 const VERSION =
-  "musicMoments v1.3 (curated story moments + fallback; top10/rank sourced from musicKnowledge)";
+  "musicMoments v1.4 (curated story moments from music_moments_v1.json + micro; top10/rank sourced from musicKnowledge)";
 
 // ---------------------------------------------------------
-// Curated Story Moments file (optional)
+// Curated Story Moments file (canonical for story_moment text)
 // ---------------------------------------------------------
-const STORY_FILE = "Data/music_story_moments_v1.json";
+const MOMENTS_FILE = "Data/music_moments_v1.json";
 
 // ---------------------------------------------------------
 // Cache
 // ---------------------------------------------------------
-let STORY_CACHE = null; // { ok, file, rows, indexByKey, indexByYearRank, mtimeMs }
+// { ok, file, rows, indexByKey, indexByYearRank, indexByYear, mtimeMs }
+let STORY_CACHE = null;
 
 // ---------------------------------------------------------
 // Helpers
@@ -65,21 +61,30 @@ function resolveRepoPath(rel) {
   return path.resolve(process.cwd(), rel);
 }
 
-function safeJsonRead(absPath) {
-  try {
-    const raw = fs.readFileSync(absPath, "utf8");
-    return JSON.parse(raw);
-  } catch (_) {
-    return null;
-  }
-}
-
 function getMtimeMs(absPath) {
   try {
     const st = fs.statSync(absPath);
     return st && st.mtimeMs ? st.mtimeMs : 0;
   } catch (_) {
     return 0;
+  }
+}
+
+function stripJsonComments(input) {
+  // Handles /* ... */ and whole-line // comments
+  let s = String(input || "");
+  s = s.replace(/\/\*[\s\S]*?\*\//g, "");
+  s = s.replace(/^\s*\/\/.*$/gm, "");
+  return s;
+}
+
+function safeLenientJsonRead(absPath) {
+  try {
+    const raw = fs.readFileSync(absPath, "utf8");
+    const cleaned = stripJsonComments(raw);
+    return JSON.parse(cleaned);
+  } catch (_) {
+    return null;
   }
 }
 
@@ -91,11 +96,43 @@ function makeStoryKey(year, artist, title) {
   return `${year}|${normKey(artist)}|${normKey(title)}`;
 }
 
+function fixEncoding(s) {
+  // Common mojibake from smart punctuation
+  return String(s || "")
+    .replace(/â€”/g, "—")
+    .replace(/â€“/g, "–")
+    .replace(/â€œ/g, "“")
+    .replace(/â€/g, "”")
+    .replace(/â€™/g, "’")
+    .replace(/Â/g, "")
+    .trim();
+}
+
+function endsWithForwardBeat(text) {
+  const t = cleanText(text).toLowerCase();
+  if (!t) return false;
+  return (
+    t.endsWith("?") ||
+    t.includes("want the top 10") ||
+    t.includes("want the top ten") ||
+    t.includes("want a micro") ||
+    t.includes("next year") ||
+    t.includes("another year")
+  );
+}
+
+function ensureForwardBeat(text) {
+  const t = cleanText(text);
+  if (!t) return t;
+  if (endsWithForwardBeat(t)) return t;
+  return `${t} Want the top 10, a story moment, or the next year?`;
+}
+
 // ---------------------------------------------------------
 // Curated Story Moments loader (hot reload)
 // ---------------------------------------------------------
 function loadStory({ force = false } = {}) {
-  const file = resolveRepoPath(STORY_FILE);
+  const file = resolveRepoPath(MOMENTS_FILE);
   const mtimeMs = getMtimeMs(file);
 
   if (!force && STORY_CACHE && mtimeMs && mtimeMs === STORY_CACHE.mtimeMs) {
@@ -109,39 +146,74 @@ function loadStory({ force = false } = {}) {
       rows: 0,
       indexByKey: new Map(),
       indexByYearRank: new Map(),
+      indexByYear: new Map(),
       mtimeMs: 0,
     };
     return STORY_CACHE;
   }
 
-  const doc = safeJsonRead(file);
+  const doc = safeLenientJsonRead(file);
   const rows = Array.isArray(doc?.moments) ? doc.moments : [];
 
   const indexByKey = new Map();
-  const indexByYearRank = new Map();
+  const indexByYearRank = new Map(); // `${year}|${rank}`
+  const indexByYear = new Map(); // `${year}` -> best story (rank 1 preferred)
+
+  let kept = 0;
 
   for (const r of rows) {
+    if (!r) continue;
+    if (String(r.type || "").toLowerCase() !== "story_moment") continue;
+
     const year = toInt(r.year);
-    const rank = toInt(r.rank);
+    const rank = toInt(r.position) || toInt(r.rank) || null;
+
     const { artist, title } = normalizeArtistTitle(r.artist, r.title);
-    const moment = cleanText(r.moment);
+    const chart = cleanText(r.chart);
+    const momentText = fixEncoding(cleanText(r.moment_text));
 
-    if (!year || !artist || !title || !moment) continue;
+    if (!year || !artist || !title || !momentText) continue;
 
+    kept += 1;
+
+    const rec = {
+      year,
+      rank,
+      artist,
+      title,
+      chart,
+      moment: ensureForwardBeat(momentText),
+      id: cleanText(r.id) || null,
+      decade: cleanText(r.decade) || null,
+      tags: Array.isArray(r.tags) ? r.tags : [],
+    };
+
+    // by key (artist/title)
     const k = makeStoryKey(year, artist, title);
-    indexByKey.set(k, { year, rank: rank || null, artist, title, moment });
+    indexByKey.set(k, rec);
 
+    // by year+rank
     if (rank && rank >= 1 && rank <= 100) {
-      indexByYearRank.set(`${year}|${rank}`, { year, rank, artist, title, moment });
+      indexByYearRank.set(`${year}|${rank}`, rec);
+    }
+
+    // by year default (prefer #1 if present, else first)
+    const yk = String(year);
+    const existing = indexByYear.get(yk);
+    if (!existing) {
+      indexByYear.set(yk, rec);
+    } else if (toInt(rec.rank) === 1 && toInt(existing.rank) !== 1) {
+      indexByYear.set(yk, rec);
     }
   }
 
   STORY_CACHE = {
     ok: true,
     file,
-    rows: rows.length,
+    rows: kept,
     indexByKey,
     indexByYearRank,
+    indexByYear,
     mtimeMs,
   };
 
@@ -163,33 +235,61 @@ function lookupCuratedStory({ year, artist, title, rank }) {
     if (hit) return hit;
   }
 
+  if (year) {
+    const hit = db.indexByYear.get(String(year));
+    if (hit) return hit;
+  }
+
   return null;
 }
 
 // ---------------------------------------------------------
-// Controlled fallback story paragraph
+// Controlled fallback story paragraph (only if curated missing)
 // ---------------------------------------------------------
 function buildFallbackStory({ year, artist, title }) {
   const y = year || "that year";
   const a = artist || "the artist";
   const t = title || "that song";
 
-  return `In ${y}, “${t}” didn’t just get played—it got absorbed into the mood of the moment. ${a} landed a track that felt personal even in a crowded room, the one people remembered after the radio went quiet. The year moved at its own pace, and this song matched it—steady, vivid, and hard to shake. That’s why it stuck, because it sounded like what life felt like back then.`;
+  // Keep this short-ish and broadcast-safe. Forward beat appended separately.
+  return ensureForwardBeat(
+    `In ${y}, “${t}” didn’t just get played—it became part of the year’s texture. ${a} landed a track that felt personal even in a crowded room, the one people remembered after the radio went quiet. The song matched the pace of life back then: clear, direct, and hard to shake.`
+  );
+}
+
+// ---------------------------------------------------------
+// Micro moment generator (10-second cue)
+// ---------------------------------------------------------
+function buildMicroMoment({ year, artist, title }) {
+  const y = year || "that year";
+  const a = artist || "the artist";
+  const t = title || "that song";
+
+  // 18–25 words, tight, no filler.
+  return `Micro — ${y}: ${a}’s “${t}” set the tone—fast hook, clear emotion, and a chorus that stayed in your pocket all day.`;
 }
 
 // ---------------------------------------------------------
 // Intent parsing
 // ---------------------------------------------------------
-function parse(text) {
-  const t = cleanText(text).toLowerCase();
+function parse(text, session) {
+  const raw = cleanText(text);
+  const t = raw.toLowerCase();
+
+  // Special: “yes” triggers micro moment if index.js armed it
+  const isYes = /^(yes|yep|yeah|yup|sure|ok|okay)$/i.test(raw);
 
   const yearMatch = t.match(/\b(19[5-9]\d|20[0-2]\d)\b/);
   const year = yearMatch ? toInt(yearMatch[1]) : null;
 
-  const wantsTop10 = /top\s*10/.test(t);
+  const wantsTop10 = /top\s*(10|ten)/.test(t);
+
+  const wantsMicro =
+    !wantsTop10 &&
+    (/\bmicro\b/.test(t) || /\bmicro\s*moment\b/.test(t) || (isYes && toInt(session?.pendingMicroYear)));
 
   // story/moment request (top10 wins if both)
-  const wantsStory = !wantsTop10 && (/\bstory\b/.test(t) || /\bmoment\b/.test(t));
+  const wantsStory = !wantsTop10 && !wantsMicro && (/\bstory\b/.test(t) || /\bmoment\b/.test(t));
 
   const rankMatch =
     t.match(/(?:^|\s)#\s*(\d{1,2})(?:\s|$)/) ||
@@ -197,7 +297,10 @@ function parse(text) {
 
   const rank = rankMatch ? toInt(rankMatch[1]) : null;
 
-  return { year, wantsTop10, wantsStory, rank };
+  // If user said "yes" and we have pendingMicroYear, use that year
+  const microYear = isYes && toInt(session?.pendingMicroYear) ? toInt(session.pendingMicroYear) : null;
+
+  return { year, wantsTop10, wantsStory, wantsMicro, microYear, rank };
 }
 
 // ---------------------------------------------------------
@@ -206,14 +309,12 @@ function parse(text) {
 function mkTop10(year, session) {
   const chart = session?.activeMusicChart || "Billboard Hot 100";
   try {
-    // Prefer the safe helper if present (we added it in your musicKnowledge update)
     if (typeof musicKnowledge._getTopByYear === "function") {
       const rows = musicKnowledge._getTopByYear(year, chart, 10) || [];
       return { chartUsed: chart, rows };
     }
   } catch (_) {}
 
-  // Fallback: use handleChat(year) and parse out the list is messier; avoid.
   return { chartUsed: chart, rows: [] };
 }
 
@@ -241,7 +342,8 @@ function pickSong(session, year, rank) {
   const y = year || toInt(session.lastMusicYear) || null;
 
   const lastTop10 = Array.isArray(session.lastTop10) ? session.lastTop10 : null;
-  const lastTop1 = session.lastTop1 && typeof session.lastTop1 === "object" ? session.lastTop1 : null;
+  const lastTop1 =
+    session.lastTop1 && typeof session.lastTop1 === "object" ? session.lastTop1 : null;
 
   if (y && lastTop10 && lastTop10.length) {
     const scoped = lastTop10.filter((x) => !x?.year || toInt(x.year) === y);
@@ -252,7 +354,6 @@ function pickSong(session, year, rank) {
         const at = normalizeArtistTitle(hit.artist, hit.title);
         return { year: y, rank: toInt(hit.rank) || rank, artist: at.artist, title: at.title };
       }
-      // rank asked but not found
       return { year: y, rank, artist: null, title: null };
     }
 
@@ -268,7 +369,6 @@ function pickSong(session, year, rank) {
     return { year: y, rank: toInt(lastTop1.rank) || 1, artist: at.artist, title: at.title };
   }
 
-  // No session context; pull from musicKnowledge directly
   if (y) {
     const { rows } = mkTop10(y, session);
     if (rows && rows.length) {
@@ -303,9 +403,12 @@ function pickSong(session, year, rank) {
 // ---------------------------------------------------------
 function handle(text, session = {}) {
   const input = String(text || "");
-  const { year, wantsTop10, wantsStory, rank } = parse(input);
+  const { year, wantsTop10, wantsStory, wantsMicro, microYear, rank } = parse(
+    input,
+    session
+  );
 
-  // Keep story file hot-reloaded
+  // Hot reload story cache
   loadStory({ force: false });
 
   // Top 10
@@ -322,7 +425,7 @@ function handle(text, session = {}) {
     const out = formatTop10FromRows(year, chartUsed, rows);
 
     if (!out) {
-      // fall back by relaxing chart filter: try DEFAULT chart by temporarily overriding
+      // Relax chart filter: try common fallback
       const relaxed = { ...session, activeMusicChart: "Billboard Year-End Hot 100" };
       const alt = mkTop10(year, relaxed);
       const out2 = formatTop10FromRows(year, alt.chartUsed, alt.rows);
@@ -337,9 +440,40 @@ function handle(text, session = {}) {
     return { ok: true, reply: out, followUp: { kind: "offer_next", year } };
   }
 
+  // Micro moment
+  if (wantsMicro) {
+    const y = microYear || year || toInt(session.lastMusicYear) || null;
+    if (!y) {
+      return {
+        ok: true,
+        reply: `Tell me a year (1950–2024) for a micro-moment — for example: “micro 1957”.`,
+        followUp: { kind: "ask_year" },
+      };
+    }
+
+    // If we can pick the #1 song, micro will be anchored properly
+    const picked = pickSong(session, y, 1);
+
+    if (!picked.artist || !picked.title) {
+      return {
+        ok: true,
+        reply: `Quick setup: say “top 10 ${y}” first, then I’ll deliver a clean micro-moment instantly.`,
+        followUp: { kind: "need_top10", year: y },
+      };
+    }
+
+    // Clear pending micro once used
+    session.pendingMicroYear = null;
+
+    return {
+      ok: true,
+      reply: buildMicroMoment(picked),
+      followUp: { kind: "offer_next", year: y },
+    };
+  }
+
   // Story / moment
   if (wantsStory) {
-    // If no year given, rely on session context (or prompt for top10)
     const picked = pickSong(session, year, rank);
 
     if (!picked.year) {
@@ -361,15 +495,20 @@ function handle(text, session = {}) {
       };
     }
 
+    // Try curated story from Data/music_moments_v1.json first
     const curated = lookupCuratedStory(picked);
     const storyText = curated ? curated.moment : buildFallbackStory(picked);
+
+    // If your curated moment_text already ends with a forward beat, do not add another.
+    const addTail = endsWithForwardBeat(storyText)
+      ? ""
+      : `\n\nWant another one (say “#2 moment”), the Top 10, or a different year?`;
 
     return {
       ok: true,
       reply:
         `Story moment — ${picked.year}: ${picked.artist} — ${picked.title}\n\n` +
-        `${storyText}\n\n` +
-        `Want another one (say “#2 moment”), the Top 10, or a different year?`,
+        `${storyText}${addTail}`,
       followUp: { kind: "offer_next", year: picked.year },
     };
   }
@@ -396,12 +535,15 @@ function handle(text, session = {}) {
   const curated = lookupCuratedStory(picked);
   const storyText = curated ? curated.moment : buildFallbackStory(picked);
 
+  const addTail = endsWithForwardBeat(storyText)
+    ? ""
+    : `\n\nWant #2, the Top 10, or another year?`;
+
   return {
     ok: true,
     reply:
       `Story moment — ${picked.year}: ${picked.artist} — ${picked.title}\n\n` +
-      `${storyText}\n\n` +
-      `Want #2, the Top 10, or another year?`,
+      `${storyText}${addTail}`,
     followUp: { kind: "offer_next", year: picked.year },
   };
 }
