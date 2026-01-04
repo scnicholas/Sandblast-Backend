@@ -2,16 +2,28 @@
 
 /**
  * Sandblast Backend — index.js (canonical)
- * Fixes:
- *  - Browser reachability (CORS allowlist + explicit OPTIONS preflight with Allow-Origin)
- *  - Widget compatibility (payload tolerance + stable JSON replies)
- *  - TTS compatibility (/api/tts + /api/voice alias returning audioBytes/audioMime)
+ * Updates included:
+ *  - CORS hardening (OPTIONS + dynamic allow-origin + proper headers)
+ *  - Payload tolerance (prevents empty-message loops)
+ *  - Anti-loop gate (server-side repeat-reply breaker)
+ *  - TTS stability (/api/tts + /api/voice alias via shared handler)
+ *  - Speech-to-Text endpoint (/api/s2s) multipart audio upload w/ safe module discovery
  *  - Music routing (musicMoments first, then musicKnowledge fallback)
  */
 
 const express = require("express");
 const cors = require("cors");
 const crypto = require("crypto");
+
+// Optional dependency: multer (for /api/s2s multipart audio upload)
+// If you don't have it installed yet: npm i multer
+let multer = null;
+try {
+  // eslint-disable-next-line global-require
+  multer = require("multer");
+} catch (_) {
+  multer = null;
+}
 
 const app = express();
 
@@ -55,7 +67,6 @@ function isAllowedOrigin(origin) {
 
 /* ======================================================
    CRITICAL: Preflight + CORS headers (browser unblock)
-   - Must set Access-Control-Allow-Origin on OPTIONS and POST
 ====================================================== */
 
 app.use((req, res, next) => {
@@ -67,10 +78,12 @@ app.use((req, res, next) => {
   }
 
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, X-Requested-With"
+  );
   res.setHeader("Access-Control-Max-Age", "86400");
 
-  // Explicitly answer preflight cleanly
   if (req.method === "OPTIONS") {
     return res.status(200).json({ ok: true });
   }
@@ -78,7 +91,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// Keep cors() for normal requests too (matches allowlist)
 app.use(
   cors({
     origin: (origin, cb) => {
@@ -87,7 +99,7 @@ app.use(
       return cb(new Error(`CORS blocked: ${origin}`), false);
     },
     methods: ["GET", "POST", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
     optionsSuccessStatus: 200,
     credentials: false,
   })
@@ -97,7 +109,7 @@ app.use(
    Body parsing
 ====================================================== */
 
-app.use(express.json({ limit: "2mb" }));
+app.use(express.json({ limit: "5mb" }));
 app.use(express.urlencoded({ extended: true }));
 
 /* ======================================================
@@ -119,6 +131,13 @@ const musicKnowledge = safeRequire("./Utils/musicKnowledge");
 
 // Nyx voice naturalizer (optional but recommended)
 const nyxVoiceNaturalize = safeRequire("./Utils/nyxVoiceNaturalize");
+
+// Optional S2S/STT handlers (we’ll probe several common names)
+const s2sModule =
+  safeRequire("./Utils/s2s") ||
+  safeRequire("./Utils/speechToSpeech") ||
+  safeRequire("./Utils/s2sHandler") ||
+  safeRequire("./Utils/stt");
 
 /* ======================================================
    Sessions (simple in-memory)
@@ -184,6 +203,58 @@ function extractMessage(body) {
 function extractSessionId(body) {
   if (!body || typeof body !== "object") return null;
   return body.sessionId || body.sid || body.session || null;
+}
+
+/* ======================================================
+   Anti-loop gate (server-side breaker)
+   If the same reply repeats, force a forward step.
+====================================================== */
+
+function hashStr(s) {
+  return crypto.createHash("sha1").update(String(s || "")).digest("hex");
+}
+
+function applyAntiLoop(session, userMsg, reply) {
+  const msg = cleanText(userMsg);
+  const rep = cleanText(reply);
+
+  if (!msg || !rep) return { reply: rep, followUp: null };
+
+  session._loop = session._loop || {
+    lastUserHash: null,
+    lastReplyHash: null,
+    repeats: 0,
+  };
+
+  const uH = hashStr(msg);
+  const rH = hashStr(rep);
+
+  const sameAsLast = session._loop.lastUserHash === uH && session._loop.lastReplyHash === rH;
+
+  if (sameAsLast) session._loop.repeats += 1;
+  else session._loop.repeats = 0;
+
+  session._loop.lastUserHash = uH;
+  session._loop.lastReplyHash = rH;
+
+  // If we’ve repeated the exact same reply for the same input, break the loop.
+  if (session._loop.repeats >= 1) {
+    const forced = [
+      "I’m not going to repeat myself and waste your time.",
+      "Pick one, and I’ll execute it:",
+      "• Top 10 (example: “top 10 1950”)",
+      "• Story moment (example: “story moment 1950”)",
+      "• Micro moment (example: “micro moment 1950”)",
+      "Or just type a year (1950–2024).",
+    ].join(" ");
+    return {
+      reply: forced,
+      followUp: null,
+      _antiLoopTripped: true,
+    };
+  }
+
+  return { reply: rep, followUp: null };
 }
 
 /* ======================================================
@@ -258,6 +329,28 @@ async function elevenLabsTts(text) {
   return { ok: true, audioBytes: buf.toString("base64"), audioMime: "audio/mpeg" };
 }
 
+async function handleTts(req, res) {
+  try {
+    if (!ENABLE_TTS) return res.status(503).json({ ok: false, error: "TTS_DISABLED" });
+
+    const text = cleanText(req.body?.text || req.body?.message || req.body?.input || "");
+    if (!text) return res.status(400).json({ ok: false, error: "NO_TEXT" });
+
+    if (TTS_PROVIDER === "elevenlabs") {
+      const out = await elevenLabsTts(text);
+      if (!out || out.ok === false) {
+        return res.status(500).json(out || { ok: false, error: "TTS_FAILED" });
+      }
+      return res.json({ ok: true, audioBytes: out.audioBytes, audioMime: out.audioMime });
+    }
+
+    return res.status(400).json({ ok: false, error: `UNKNOWN_TTS_PROVIDER:${TTS_PROVIDER}` });
+  } catch (err) {
+    console.error("[/api/tts] ERROR:", err);
+    return res.status(500).json({ ok: false, error: "TTS_ERROR" });
+  }
+}
+
 /* ======================================================
    Routes
 ====================================================== */
@@ -285,6 +378,11 @@ app.get("/api/health", (req, res) => {
         style: NYX_VOICE_STYLE,
         speakerBoost: NYX_VOICE_SPEAKER_BOOST,
       },
+    },
+    s2s: {
+      enabled: Boolean(multer) && Boolean(s2sModule),
+      hasMulter: Boolean(multer),
+      hasModule: Boolean(s2sModule),
     },
   });
 });
@@ -327,11 +425,15 @@ app.post("/api/chat", async (req, res) => {
           if (out.sessionPatch && typeof out.sessionPatch === "object") {
             Object.assign(session, out.sessionPatch);
           }
+
+          // Anti-loop breaker
+          const loopFix = applyAntiLoop(session, msg, out.reply);
           setSession(sessionId, session);
+
           return res.json({
             ok: true,
-            reply: String(out.reply).trim(),
-            followUp: out.followUp || null,
+            reply: loopFix.reply,
+            followUp: out.followUp || loopFix.followUp || null,
             sessionId,
           });
         }
@@ -348,11 +450,15 @@ app.post("/api/chat", async (req, res) => {
           if (out.sessionPatch && typeof out.sessionPatch === "object") {
             Object.assign(session, out.sessionPatch);
           }
+
+          // Anti-loop breaker
+          const loopFix = applyAntiLoop(session, msg, out.reply);
           setSession(sessionId, session);
+
           return res.json({
             ok: true,
-            reply: String(out.reply).trim(),
-            followUp: out.followUp || null,
+            reply: loopFix.reply,
+            followUp: out.followUp || loopFix.followUp || null,
             sessionId,
           });
         }
@@ -379,39 +485,150 @@ app.post("/api/chat", async (req, res) => {
 });
 
 // TTS
-app.post("/api/tts", async (req, res) => {
-  try {
-    if (!ENABLE_TTS) return res.status(503).json({ ok: false, error: "TTS_DISABLED" });
+app.post("/api/tts", handleTts);
 
-    const text = cleanText(req.body?.text || req.body?.message || req.body?.input || "");
-    if (!text) return res.status(400).json({ ok: false, error: "NO_TEXT" });
+// /api/voice alias (widget compatibility) — clean alias, no router weirdness
+app.post("/api/voice", handleTts);
 
-    if (TTS_PROVIDER === "elevenlabs") {
-      const out = await elevenLabsTts(text);
-      if (!out || out.ok === false) {
-        return res.status(500).json(out || { ok: false, error: "TTS_FAILED" });
+/* ======================================================
+   Speech-to-Speech / Speech-to-Text
+   POST /api/s2s  (multipart/form-data with field "file")
+   Returns: { ok, transcript, reply, audioBytes, audioMime, sessionId }
+====================================================== */
+
+if (multer) {
+  const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } });
+
+  app.post("/api/s2s", upload.single("file"), async (req, res) => {
+    try {
+      const sessionId =
+        req.body?.sessionId ||
+        req.headers["x-session-id"] ||
+        makeSessionId();
+
+      const session =
+        getSession(sessionId) || {
+          _t: nowMs(),
+          hasSpoken: false,
+          activeMusicChart: "Billboard Hot 100",
+        };
+
+      if (!req.file || !req.file.buffer) {
+        setSession(sessionId, session);
+        return res.status(400).json({ ok: false, error: "NO_AUDIO_FILE", sessionId });
       }
-      return res.json({ ok: true, audioBytes: out.audioBytes, audioMime: out.audioMime });
+
+      if (!s2sModule) {
+        setSession(sessionId, session);
+        return res.status(501).json({
+          ok: false,
+          error: "S2S_NOT_CONFIGURED",
+          detail:
+            "No S2S module found. Add Utils/s2s.js (or speechToSpeech.js) and export a handler.",
+          sessionId,
+        });
+      }
+
+      // We support a few common module shapes to reduce friction.
+      // Preferred: s2sModule.handle({ audioBuffer, mimeType, session, sessionId })
+      // Alternate: s2sModule.handleS2S(req, session) OR s2sModule.transcribe(buffer, mimeType)
+      const mimeType = req.file.mimetype || "audio/webm";
+      const audioBuffer = req.file.buffer;
+
+      let transcript = "";
+      let reply = "";
+      let audioBytes = null;
+      let audioMime = null;
+
+      if (typeof s2sModule.handle === "function") {
+        const out = await s2sModule.handle({ audioBuffer, mimeType, session, sessionId });
+        transcript = out?.transcript || "";
+        reply = out?.reply || "";
+        audioBytes = out?.audioBytes || null;
+        audioMime = out?.audioMime || null;
+        if (out?.sessionPatch && typeof out.sessionPatch === "object") {
+          Object.assign(session, out.sessionPatch);
+        }
+      } else if (typeof s2sModule.handleS2S === "function") {
+        const out = await s2sModule.handleS2S(req, session);
+        transcript = out?.transcript || "";
+        reply = out?.reply || "";
+        audioBytes = out?.audioBytes || null;
+        audioMime = out?.audioMime || null;
+        if (out?.sessionPatch && typeof out.sessionPatch === "object") {
+          Object.assign(session, out.sessionPatch);
+        }
+      } else if (typeof s2sModule.transcribe === "function") {
+        transcript = cleanText(await s2sModule.transcribe(audioBuffer, mimeType));
+        // If we only got transcript, push it through chat.
+        const chatOut = await new Promise((resolve) => {
+          const fakeReq = { body: { message: transcript, sessionId } };
+          const fakeRes = {
+            json: (o) => resolve(o),
+            status: () => fakeRes,
+          };
+          app._router.handle(
+            { ...req, method: "POST", url: "/api/chat", body: fakeReq.body },
+            fakeRes,
+            () => resolve({ ok: false })
+          );
+        });
+        reply = chatOut?.reply || "";
+      } else {
+        setSession(sessionId, session);
+        return res.status(501).json({
+          ok: false,
+          error: "S2S_MODULE_SHAPE_UNKNOWN",
+          detail:
+            "Expected Utils/s2s to export handle() or handleS2S() or transcribe().",
+          sessionId,
+        });
+      }
+
+      // If no audio returned by s2s module, optionally synthesize reply via TTS
+      if (!audioBytes && ENABLE_TTS && cleanText(reply)) {
+        const ttsOut = await elevenLabsTts(reply);
+        if (ttsOut?.ok) {
+          audioBytes = ttsOut.audioBytes;
+          audioMime = ttsOut.audioMime;
+        }
+      }
+
+      // Anti-loop breaker if the reply repeats
+      const loopFix = applyAntiLoop(session, transcript || "[voice]", reply || "");
+      reply = loopFix.reply;
+
+      setSession(sessionId, session);
+      return res.json({
+        ok: true,
+        transcript: transcript || "",
+        reply: cleanText(reply),
+        audioBytes: audioBytes || null,
+        audioMime: audioMime || null,
+        sessionId,
+      });
+    } catch (err) {
+      console.error("[/api/s2s] ERROR:", err);
+      return res.status(500).json({ ok: false, error: "S2S_ERROR" });
     }
-
-    return res.status(400).json({ ok: false, error: `UNKNOWN_TTS_PROVIDER:${TTS_PROVIDER}` });
-  } catch (err) {
-    console.error("[/api/tts] ERROR:", err);
-    return res.status(500).json({ ok: false, error: "TTS_ERROR" });
-  }
-});
-
-// /api/voice alias (widget compatibility)
-app.post("/api/voice", (req, res, next) => {
-  req.url = "/api/tts";
-  next();
-});
-app.post("/api/voice", (req, res) => app._router.handle(req, res, () => {}));
+  });
+} else {
+  // If multer isn't installed, still define endpoint with clear guidance
+  app.post("/api/s2s", (req, res) => {
+    res.status(501).json({
+      ok: false,
+      error: "S2S_MULTER_NOT_INSTALLED",
+      detail: "Install multer to enable multipart audio uploads: npm i multer",
+    });
+  });
+}
 
 /* ======================================================
    Start
 ====================================================== */
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`[sandblast-backend] up :${PORT} env=${NODE_ENV} build=${BUILD_SHA || "n/a"}`);
+  console.log(
+    `[sandblast-backend] up :${PORT} env=${NODE_ENV} build=${BUILD_SHA || "n/a"}`
+  );
 });
