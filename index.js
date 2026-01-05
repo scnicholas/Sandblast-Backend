@@ -1,6 +1,7 @@
 "use strict";
 
 /**
+ * Sandblastt
  * Sandblast Backend — index.js (product-system hardened, regression-grade)
  *
  * PILLAR A — Interaction Contract (UI ↔ Backend)
@@ -13,14 +14,10 @@
  * PILLAR B — Conversation Engine readiness
  *  - Greeting contract: ALWAYS includes hi/hey/welcome tokens (passes harness)
  *  - Missing-year guards for Top10/Story/Micro (chat + s2s transcript)
+ *  - ✅ Pending mode memory (Top10/Story/Micro) when year is provided next
+ *  - ✅ Mode+year one-shot normalization (top10/top ten/story/micro + 1988)
  *  - Consistent “next move” follow-ups in non-terminal replies
  *  - Anti-loop gate with polite breaker (after 2 exact repeats)
- *
- * PILLAR B.1 — Prime Directive (Conversation Advancement)
- *  - Nyx must ALWAYS advance the conversation (no dead ends)
- *  - Every non-terminal reply gets 2–3 concrete next moves (chips + prose)
- *  - Adds light state anchoring (year/mode/chart) to reduce loop risk
- *  - Normalize mixed-mode examples so replies stay consistent
  *
  * PILLAR C — Personality guardrails (public-safe)
  *  - No rude/harsh language
@@ -66,7 +63,7 @@ const BUILD_SHA =
   process.env.RENDER_GIT_COMMIT || process.env.GIT_SHA || process.env.COMMIT_SHA || null;
 
 // ✅ Index version stamp (proves which file is actually running)
-const INDEX_VERSION = "index.js v1.0.1 (P2 year-only mode guard)";
+const INDEX_VERSION = "index.js v1.0.2 (P2 pendingMode + one-shot mode+year normalize)";
 
 /* ======================================================
    Helpers: timing + ids (must run EARLY)
@@ -174,7 +171,7 @@ app.use(
       if (isAllowedOrigin(origin)) return cb(null, true);
       return cb(new Error(`CORS blocked: ${origin}`), false);
     },
-    methods: ["GET", "POST", "OPTIONS"],
+    methods: ["GET", "POST,OPTIONS"],
     allowedHeaders: [
       "Content-Type",
       "Accept",
@@ -399,7 +396,7 @@ function replyMissingYear(kind) {
   };
 }
 
-// ✅ P2 fix: year-only should prompt for mode (Top 10 / Story / Micro), not redirect to “try story moment …”
+// ✅ P2: year-only should prompt for mode (Top 10 / Story / Micro)
 function replyNeedModeForYear(year, session) {
   const followUpLegacy = buildYearFollowupStrings();
   const followUpsV1 = buildYearFollowupsV1();
@@ -653,7 +650,7 @@ app.post("/api/chat", (req, res) => {
   const contractIn = extractContractVersion(req);
 
   const body = req.body || {};
-  const text = extractMessage(body);
+  let text = extractMessage(body); // ✅ must be let (normalizer may rewrite)
   const voiceMode = normalizeVoiceMode(body.voiceMode || body.voice_mode || body.mode);
 
   let sessionId = extractSessionId(body);
@@ -690,9 +687,11 @@ app.post("/api/chat", (req, res) => {
     );
   }
 
-  // 2) Missing-year intent guard (Top10/Story/Micro)
+  // 2) Missing-year intent guard (Top10/Story/Micro) + ✅ remember pending mode
   const missingKind = classifyMissingYearIntent(text);
   if (missingKind) {
+    session.pendingMode = missingKind; // ✅ key fix: store chosen mode until year arrives
+
     const r = replyMissingYear(missingKind);
     const guarded = antiLoopGuard(session, r.reply);
 
@@ -712,11 +711,62 @@ app.post("/api/chat", (req, res) => {
     );
   }
 
-  // 3) ✅ Year-only input -> prompt for mode (Top 10 / Story / Micro) instead of downstream redirect
+  // 3) Year-only input handling
   const yearFromText = extractYearFromText(text);
   const looksLikeOnlyYear = !!yearFromText && cleanText(text) === String(yearFromText);
 
   if (looksLikeOnlyYear && !hasExplicitMode(text)) {
+    // ✅ If user previously selected a mode, honor it automatically
+    if (session.pendingMode) {
+      const mode = session.pendingMode;
+      session.pendingMode = null; // consume once
+      session.lastYear = yearFromText;
+
+      const composed =
+        mode === "top10"
+          ? `top 10 ${yearFromText}`
+          : mode === "story"
+          ? `story moment ${yearFromText}`
+          : `micro moment ${yearFromText}`;
+
+      let engine = null;
+      try {
+        engine = safeMusicHandle({ text: composed, session });
+      } catch (_) {
+        engine = null;
+      }
+
+      let reply = engine?.reply || engine?.text || engine?.message || null;
+
+      if (!reply) {
+        reply =
+          mode === "top10"
+            ? `Staying with ${yearFromText} · Top 10 — I’m not seeing Top 10 data for that year yet. Try “story moment ${yearFromText}” or another year.`
+            : mode === "story"
+            ? fallbackStoryMoment(yearFromText)
+            : fallbackMicroMoment(yearFromText);
+      }
+
+      reply = ensureNextMoveSuffix(reply, session);
+      const guarded = antiLoopGuard(session, reply);
+
+      setSession(sessionId, session);
+
+      return res.json(
+        buildResponseEnvelope({
+          ok: true,
+          reply: guarded.reply,
+          sessionId,
+          visitorId,
+          contractVersion: useV1 ? NYX_CONTRACT_VERSION : contractIn,
+          followUpLegacy: buildYearFollowupStrings(),
+          followUpsV1: buildYearFollowupsV1(),
+          requestId: req.requestId,
+        })
+      );
+    }
+
+    // Otherwise: year-only with no pending mode -> ask which mode they want
     const r = replyNeedModeForYear(yearFromText, session);
     const guarded = antiLoopGuard(session, r.reply);
 
@@ -736,7 +786,24 @@ app.post("/api/chat", (req, res) => {
     );
   }
 
-  // 4) Delegate to music engine when available
+  // 4) ✅ Normalize one-shot mode+year phrases BEFORE engine routing (fixes “top 10 1988”)
+  const tNorm = cleanText(text).toLowerCase();
+  const yNorm = extractYearFromText(tNorm);
+
+  if (yNorm) {
+    if (/\b(top\s*10|top10|top ten)\b/.test(tNorm)) {
+      text = `top 10 ${yNorm}`;
+      session.lastYear = yNorm;
+    } else if (/\b(story\s*moment|story)\b/.test(tNorm)) {
+      text = `story moment ${yNorm}`;
+      session.lastYear = yNorm;
+    } else if (/\b(micro\s*moment|micro)\b/.test(tNorm)) {
+      text = `micro moment ${yNorm}`;
+      session.lastYear = yNorm;
+    }
+  }
+
+  // 5) Delegate to music engine when available
   let engine = null;
   try {
     engine = safeMusicHandle({ text, session });
@@ -755,7 +822,7 @@ app.post("/api/chat", (req, res) => {
     }
   }
 
-  // 5) If engine didn't answer, produce a safe, advancing fallback
+  // 6) If engine didn't answer, produce a safe, advancing fallback
   if (!reply) {
     const y = extractYearFromText(text) || session.lastYear || null;
     const t = cleanText(text).toLowerCase();
@@ -917,7 +984,9 @@ app.post("/api/s2s", upload ? upload.single("audio") : (req, res, next) => next(
 
     return res.json({ ok: true, ...result, requestId: req.requestId });
   } catch (e) {
-    return res.status(500).json({ ok: false, error: "S2S_ERROR", detail: e.message || String(e), requestId: req.requestId });
+    return res
+      .status(500)
+      .json({ ok: false, error: "S2S_ERROR", detail: e.message || String(e), requestId: req.requestId });
   }
 });
 
@@ -942,8 +1011,6 @@ app.use((err, req, res, next) => {
 ====================================================== */
 
 app.listen(PORT, "0.0.0.0", () => {
-  // Keep this exact log format; you’re using it as a sanity signal.
-  // Example: [sandblast-backend] up :10000 env=production build=n/a contract=1 rollout=100%
   const build = BUILD_SHA || "n/a";
   console.log(
     `[sandblast-backend] up :${PORT} env=${NODE_ENV} build=${build} contract=${NYX_CONTRACT_VERSION} rollout=${NYX_ROLLOUT_PCT}% version=${INDEX_VERSION}`
