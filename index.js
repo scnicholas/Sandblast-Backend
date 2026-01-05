@@ -5,7 +5,8 @@
  * Updates included:
  *  - CORS hardening (OPTIONS + dynamic allow-origin + proper headers)
  *  - Payload tolerance (prevents empty-message loops)
- *  - Anti-loop gate (server-side repeat-reply breaker)
+ *  - Anti-loop gate (server-side repeat-reply breaker) [UPDATED: polite + triggers after 2 repeats]
+ *  - Missing-year guard for Top10/Story/Micro [NEW: prevents "Top 10" loop]
  *  - TTS stability (/api/tts + /api/voice alias via shared handler)
  *  - Speech-to-Text endpoint (/api/s2s) multipart audio upload w/ safe module discovery
  *  - Music routing (musicMoments first, then musicKnowledge fallback)
@@ -16,7 +17,6 @@ const cors = require("cors");
 const crypto = require("crypto");
 
 // Optional dependency: multer (for /api/s2s multipart audio upload)
-// If you don't have it installed yet: npm i multer
 let multer = null;
 try {
   // eslint-disable-next-line global-require
@@ -206,8 +206,60 @@ function extractSessionId(body) {
 }
 
 /* ======================================================
+   Intent helpers (NEW: missing-year guard)
+====================================================== */
+
+function extractYearFromText(s) {
+  const m = String(s || "").match(/\b(19[5-9]\d|20[0-1]\d|202[0-4])\b/); // 1950–2024
+  return m ? Number(m[1]) : null;
+}
+
+function classifyMissingYearIntent(s) {
+  const t = cleanText(s).toLowerCase();
+  const hasYear = extractYearFromText(t) !== null;
+
+  if (hasYear) return null;
+
+  // Only intercept if user clearly asked for these actions but omitted the year
+  if (/\btop\s*10\b/.test(t) || /\btop10\b/.test(t)) return "top10";
+  if (/\bstory\s*moment\b/.test(t)) return "story";
+  if (/\bmicro\s*moment\b/.test(t)) return "micro";
+
+  return null;
+}
+
+function buildYearFollowups() {
+  // Tap-friendly, minimal, high-utility
+  return ["1950", "1960", "1970", "1980", "1990", "2000", "2010", "2024"];
+}
+
+function replyMissingYear(intent) {
+  const label =
+    intent === "top10"
+      ? "Top 10"
+      : intent === "story"
+      ? "a story moment"
+      : "a micro moment";
+
+  const hint =
+    intent === "top10"
+      ? 'Try: “top 10 1950”'
+      : intent === "story"
+      ? 'Try: “story moment 1950”'
+      : 'Try: “micro moment 1950”';
+
+  return {
+    reply: `Got you. What year should I use for ${label}? (1950–2024) ${hint}.`,
+    followUp: buildYearFollowups(),
+  };
+}
+
+/* ======================================================
    Anti-loop gate (server-side breaker)
-   If the same reply repeats, force a forward step.
+   UPDATED:
+    - triggers after 2 repeats (less aggressive)
+    - polite copy (broadcast-appropriate)
+    - includes follow-ups
 ====================================================== */
 
 function hashStr(s) {
@@ -229,7 +281,8 @@ function applyAntiLoop(session, userMsg, reply) {
   const uH = hashStr(msg);
   const rH = hashStr(rep);
 
-  const sameAsLast = session._loop.lastUserHash === uH && session._loop.lastReplyHash === rH;
+  const sameAsLast =
+    session._loop.lastUserHash === uH && session._loop.lastReplyHash === rH;
 
   if (sameAsLast) session._loop.repeats += 1;
   else session._loop.repeats = 0;
@@ -237,19 +290,20 @@ function applyAntiLoop(session, userMsg, reply) {
   session._loop.lastUserHash = uH;
   session._loop.lastReplyHash = rH;
 
-  // If we’ve repeated the exact same reply for the same input, break the loop.
-  if (session._loop.repeats >= 1) {
+  // Break only after 2 exact repeats for same input/reply
+  if (session._loop.repeats >= 2) {
     const forced = [
-      "I’m not going to repeat myself and waste your time.",
-      "Pick one, and I’ll execute it:",
-      "• Top 10 (example: “top 10 1950”)",
-      "• Story moment (example: “story moment 1950”)",
-      "• Micro moment (example: “micro moment 1950”)",
-      "Or just type a year (1950–2024).",
+      "Looks like we hit a repeat — let’s move forward.",
+      "Pick one:",
+      "• Top 10: “top 10 1950”",
+      "• Story moment: “story moment 1950”",
+      "• Micro moment: “micro moment 1950”",
+      "Or type any year (1950–2024) and I’ll take it from there.",
     ].join(" ");
+
     return {
       reply: forced,
-      followUp: null,
+      followUp: buildYearFollowups(),
       _antiLoopTripped: true,
     };
   }
@@ -417,6 +471,19 @@ app.post("/api/chat", async (req, res) => {
       });
     }
 
+    // NEW: Guard against incomplete commands that cause loops (e.g., “Top 10” with no year)
+    const missingIntent = classifyMissingYearIntent(msg);
+    if (missingIntent) {
+      const out = replyMissingYear(missingIntent);
+      setSession(sessionId, session);
+      return res.json({
+        ok: true,
+        reply: out.reply,
+        followUp: out.followUp,
+        sessionId,
+      });
+    }
+
     // Route: curated moments first
     if (musicMoments && typeof musicMoments.handle === "function") {
       try {
@@ -426,7 +493,7 @@ app.post("/api/chat", async (req, res) => {
             Object.assign(session, out.sessionPatch);
           }
 
-          // Anti-loop breaker
+          // Anti-loop breaker (UPDATED)
           const loopFix = applyAntiLoop(session, msg, out.reply);
           setSession(sessionId, session);
 
@@ -451,7 +518,7 @@ app.post("/api/chat", async (req, res) => {
             Object.assign(session, out.sessionPatch);
           }
 
-          // Anti-loop breaker
+          // Anti-loop breaker (UPDATED)
           const loopFix = applyAntiLoop(session, msg, out.reply);
           setSession(sessionId, session);
 
@@ -472,7 +539,7 @@ app.post("/api/chat", async (req, res) => {
     return res.json({
       ok: true,
       reply: "Tell me a year (1950–2024) and I’ll pull the top 10, #1, or a story moment.",
-      followUp: null,
+      followUp: buildYearFollowups(),
       sessionId,
     });
   } catch (err) {
@@ -487,7 +554,7 @@ app.post("/api/chat", async (req, res) => {
 // TTS
 app.post("/api/tts", handleTts);
 
-// /api/voice alias (widget compatibility) — clean alias, no router weirdness
+// /api/voice alias (widget compatibility)
 app.post("/api/voice", handleTts);
 
 /* ======================================================
@@ -497,7 +564,10 @@ app.post("/api/voice", handleTts);
 ====================================================== */
 
 if (multer) {
-  const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } });
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 12 * 1024 * 1024 },
+  });
 
   app.post("/api/s2s", upload.single("file"), async (req, res) => {
     try {
@@ -529,9 +599,6 @@ if (multer) {
         });
       }
 
-      // We support a few common module shapes to reduce friction.
-      // Preferred: s2sModule.handle({ audioBuffer, mimeType, session, sessionId })
-      // Alternate: s2sModule.handleS2S(req, session) OR s2sModule.transcribe(buffer, mimeType)
       const mimeType = req.file.mimetype || "audio/webm";
       const audioBuffer = req.file.buffer;
 
@@ -560,7 +627,6 @@ if (multer) {
         }
       } else if (typeof s2sModule.transcribe === "function") {
         transcript = cleanText(await s2sModule.transcribe(audioBuffer, mimeType));
-        // If we only got transcript, push it through chat.
         const chatOut = await new Promise((resolve) => {
           const fakeReq = { body: { message: transcript, sessionId } };
           const fakeRes = {
@@ -585,6 +651,13 @@ if (multer) {
         });
       }
 
+      // NEW: Missing-year guard for voice transcripts too (prevents the same loop in S2S)
+      const missingIntent = classifyMissingYearIntent(transcript || "");
+      if (missingIntent) {
+        const out = replyMissingYear(missingIntent);
+        reply = out.reply;
+      }
+
       // If no audio returned by s2s module, optionally synthesize reply via TTS
       if (!audioBytes && ENABLE_TTS && cleanText(reply)) {
         const ttsOut = await elevenLabsTts(reply);
@@ -594,7 +667,7 @@ if (multer) {
         }
       }
 
-      // Anti-loop breaker if the reply repeats
+      // Anti-loop breaker (UPDATED, uses transcript as userMsg)
       const loopFix = applyAntiLoop(session, transcript || "[voice]", reply || "");
       reply = loopFix.reply;
 
@@ -613,7 +686,6 @@ if (multer) {
     }
   });
 } else {
-  // If multer isn't installed, still define endpoint with clear guidance
   app.post("/api/s2s", (req, res) => {
     res.status(501).json({
       ok: false,
