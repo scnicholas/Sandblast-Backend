@@ -1,7 +1,7 @@
 "use strict";
 
 /**
- * Sandblastt
+ * Sandblast
  * Sandblast Backend — index.js (product-system hardened, regression-grade)
  *
  * PILLAR A — Interaction Contract (UI ↔ Backend)
@@ -16,6 +16,8 @@
  *  - Missing-year guards for Top10/Story/Micro (chat + s2s transcript)
  *  - ✅ Pending mode memory (Top10/Story/Micro) when year is provided next
  *  - ✅ Mode+year one-shot normalization (top10/top ten/story/micro + 1988)
+ *  - ✅ Engine-compat mode routing: pass YEAR ONLY with session.activeMusicMode
+ *  - ✅ Optional durable sessions via Upstash Redis REST (multi-instance safe)
  *  - Consistent “next move” follow-ups in non-terminal replies
  *  - Anti-loop gate with polite breaker (after 2 exact repeats)
  *
@@ -63,7 +65,8 @@ const BUILD_SHA =
   process.env.RENDER_GIT_COMMIT || process.env.GIT_SHA || process.env.COMMIT_SHA || null;
 
 // ✅ Index version stamp (proves which file is actually running)
-const INDEX_VERSION = "index.js v1.0.2 (P2 pendingMode + one-shot mode+year normalize)";
+const INDEX_VERSION =
+  "index.js v1.0.3 (P2 engine-compat Top10 routing + optional durable sessions)";
 
 /* ======================================================
    Helpers: timing + ids (must run EARLY)
@@ -221,17 +224,58 @@ const s2sModule =
   safeRequire("./Utils/stt");
 
 /* ======================================================
-   Sessions (in-memory)
+   Sessions (in-memory + optional durable Upstash Redis REST)
 ====================================================== */
 
 const SESSIONS = new Map();
 const SESSION_TTL_MIN = Number(process.env.SESSION_TTL_MINUTES || 120);
+const SESSION_TTL_SEC = Math.max(60, Number(process.env.SESSION_TTL_SECONDS || 7200)); // 2h default
 
 function makeSessionId() {
   return crypto.randomBytes(9).toString("hex");
 }
 
-function getSession(sessionId) {
+// Optional durable sessions via Upstash REST (no npm deps)
+const UPSTASH_REST_URL = process.env.UPSTASH_REDIS_REST_URL || null;
+const UPSTASH_REST_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || null;
+const SESSION_KEY_PREFIX = process.env.SESSION_KEY_PREFIX || "nyx:sess:";
+
+async function upstashGet(key) {
+  if (!UPSTASH_REST_URL || !UPSTASH_REST_TOKEN) return null;
+  try {
+    const url = `${UPSTASH_REST_URL.replace(/\/+$/, "")}/get/${encodeURIComponent(key)}`;
+    const resp = await fetch(url, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${UPSTASH_REST_TOKEN}` },
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json().catch(() => null);
+    const val = data && (data.result ?? data.value ?? null);
+    return val == null ? null : String(val);
+  } catch (_) {
+    return null;
+  }
+}
+
+async function upstashSet(key, value, ttlSec) {
+  if (!UPSTASH_REST_URL || !UPSTASH_REST_TOKEN) return false;
+  try {
+    // Upstash REST supports /set/<key>/<value>?EX=seconds
+    const base = UPSTASH_REST_URL.replace(/\/+$/, "");
+    const url = `${base}/set/${encodeURIComponent(key)}/${encodeURIComponent(value)}?EX=${encodeURIComponent(
+      String(ttlSec)
+    )}`;
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${UPSTASH_REST_TOKEN}` },
+    });
+    return !!resp.ok;
+  } catch (_) {
+    return false;
+  }
+}
+
+function getSessionMem(sessionId) {
   if (!sessionId) return null;
   const s = SESSIONS.get(sessionId);
   if (!s) return null;
@@ -246,10 +290,48 @@ function getSession(sessionId) {
   return s;
 }
 
-function setSession(sessionId, session) {
+function setSessionMem(sessionId, session) {
   if (!sessionId) return;
   session._t = nowMs();
   SESSIONS.set(sessionId, session);
+}
+
+async function getSession(sessionId) {
+  if (!sessionId) return null;
+
+  // Prefer durable store if configured
+  if (UPSTASH_REST_URL && UPSTASH_REST_TOKEN) {
+    const raw = await upstashGet(SESSION_KEY_PREFIX + sessionId);
+    if (raw) {
+      try {
+        const s = JSON.parse(raw);
+        if (s && typeof s === "object") {
+          s._t = nowMs();
+          // keep local hot cache too
+          SESSIONS.set(sessionId, s);
+          return s;
+        }
+      } catch (_) {
+        // fallthrough to memory
+      }
+    }
+  }
+
+  return getSessionMem(sessionId);
+}
+
+async function setSession(sessionId, session) {
+  if (!sessionId) return;
+  session._t = nowMs();
+  SESSIONS.set(sessionId, session);
+
+  if (UPSTASH_REST_URL && UPSTASH_REST_TOKEN) {
+    try {
+      await upstashSet(SESSION_KEY_PREFIX + sessionId, JSON.stringify(session), SESSION_TTL_SEC);
+    } catch (_) {
+      // ignore; memory cache still holds
+    }
+  }
 }
 
 /* ======================================================
@@ -610,6 +692,11 @@ app.get("/api/health", (req, res) => {
       },
     },
     s2s: { enabled: true, hasMulter: !!multer, hasModule: !!s2sModule },
+    durableSessions: {
+      enabled: !!(UPSTASH_REST_URL && UPSTASH_REST_TOKEN),
+      provider: UPSTASH_REST_URL ? "upstash_rest" : "none",
+      ttlSec: SESSION_TTL_SEC,
+    },
     requestId: req.requestId,
   });
 });
@@ -645,7 +732,7 @@ app.post("/api/diag/echo", (req, res) => {
    /api/chat (main)
 ====================================================== */
 
-app.post("/api/chat", (req, res) => {
+app.post("/api/chat", async (req, res) => {
   const visitorId = extractVisitorId(req);
   const contractIn = extractContractVersion(req);
 
@@ -656,12 +743,13 @@ app.post("/api/chat", (req, res) => {
   let sessionId = extractSessionId(body);
   if (!sessionId) sessionId = makeSessionId();
 
-  let session = getSession(sessionId);
+  let session = await getSession(sessionId);
   if (!session) session = {};
 
   // keep light state anchors
   session.lastVoiceMode = voiceMode || session.lastVoiceMode || "standard";
   session.activeMusicChart = session.activeMusicChart || "Billboard Hot 100";
+  session.activeMusicMode = session.activeMusicMode || null; // ✅ new: engine-compat mode hint
 
   // ensure v1 contract decisions (kept even if you always include both)
   const useV1 = shouldUseV1Contract(contractIn, visitorId);
@@ -671,7 +759,7 @@ app.post("/api/chat", (req, res) => {
     const reply0 = greetingReply();
     const guarded = antiLoopGuard(session, reply0);
 
-    setSession(sessionId, session);
+    await setSession(sessionId, session);
 
     return res.json(
       buildResponseEnvelope({
@@ -690,12 +778,14 @@ app.post("/api/chat", (req, res) => {
   // 2) Missing-year intent guard (Top10/Story/Micro) + ✅ remember pending mode
   const missingKind = classifyMissingYearIntent(text);
   if (missingKind) {
-    session.pendingMode = missingKind; // ✅ key fix: store chosen mode until year arrives
+    session.pendingMode = missingKind; // store chosen mode until year arrives
+    // also set engine-facing mode hint now
+    session.activeMusicMode = missingKind;
 
     const r = replyMissingYear(missingKind);
     const guarded = antiLoopGuard(session, r.reply);
 
-    setSession(sessionId, session);
+    await setSession(sessionId, session);
 
     return res.json(
       buildResponseEnvelope({
@@ -711,7 +801,31 @@ app.post("/api/chat", (req, res) => {
     );
   }
 
-  // 3) Year-only input handling
+  // 3) ✅ One-shot normalize mode+year phrases BEFORE year-only handling (fixes “top 10 1988”)
+  //    IMPORTANT: For Top10 we route as YEAR ONLY with session.activeMusicMode=top10 (engine compatibility).
+  const tNorm = cleanText(text).toLowerCase();
+  const yNorm = extractYearFromText(tNorm);
+
+  if (yNorm) {
+    if (/\b(top\s*10|top10|top ten)\b/.test(tNorm)) {
+      session.activeMusicMode = "top10";
+      session.pendingMode = "top10"; // makes behavior consistent even if engine ignores activeMusicMode
+      session.lastYear = yNorm;
+      text = String(yNorm); // ✅ engine-compat: YEAR ONLY
+    } else if (/\b(story\s*moment|story)\b/.test(tNorm)) {
+      session.activeMusicMode = "story";
+      session.pendingMode = null;
+      session.lastYear = yNorm;
+      text = `story moment ${yNorm}`; // story already proven to work
+    } else if (/\b(micro\s*moment|micro)\b/.test(tNorm)) {
+      session.activeMusicMode = "micro";
+      session.pendingMode = null;
+      session.lastYear = yNorm;
+      text = `micro moment ${yNorm}`;
+    }
+  }
+
+  // 4) Year-only input handling
   const yearFromText = extractYearFromText(text);
   const looksLikeOnlyYear = !!yearFromText && cleanText(text) === String(yearFromText);
 
@@ -721,17 +835,21 @@ app.post("/api/chat", (req, res) => {
       const mode = session.pendingMode;
       session.pendingMode = null; // consume once
       session.lastYear = yearFromText;
+      session.activeMusicMode = mode;
 
-      const composed =
+      // ✅ engine-compat routing:
+      // - For top10, pass YEAR ONLY and let mode live in session
+      // - For story/micro, pass explicit string (already stable)
+      const routedText =
         mode === "top10"
-          ? `top 10 ${yearFromText}`
+          ? String(yearFromText)
           : mode === "story"
           ? `story moment ${yearFromText}`
           : `micro moment ${yearFromText}`;
 
       let engine = null;
       try {
-        engine = safeMusicHandle({ text: composed, session });
+        engine = safeMusicHandle({ text: routedText, session });
       } catch (_) {
         engine = null;
       }
@@ -750,7 +868,7 @@ app.post("/api/chat", (req, res) => {
       reply = ensureNextMoveSuffix(reply, session);
       const guarded = antiLoopGuard(session, reply);
 
-      setSession(sessionId, session);
+      await setSession(sessionId, session);
 
       return res.json(
         buildResponseEnvelope({
@@ -770,7 +888,7 @@ app.post("/api/chat", (req, res) => {
     const r = replyNeedModeForYear(yearFromText, session);
     const guarded = antiLoopGuard(session, r.reply);
 
-    setSession(sessionId, session);
+    await setSession(sessionId, session);
 
     return res.json(
       buildResponseEnvelope({
@@ -784,23 +902,6 @@ app.post("/api/chat", (req, res) => {
         requestId: req.requestId,
       })
     );
-  }
-
-  // 4) ✅ Normalize one-shot mode+year phrases BEFORE engine routing (fixes “top 10 1988”)
-  const tNorm = cleanText(text).toLowerCase();
-  const yNorm = extractYearFromText(tNorm);
-
-  if (yNorm) {
-    if (/\b(top\s*10|top10|top ten)\b/.test(tNorm)) {
-      text = `top 10 ${yNorm}`;
-      session.lastYear = yNorm;
-    } else if (/\b(story\s*moment|story)\b/.test(tNorm)) {
-      text = `story moment ${yNorm}`;
-      session.lastYear = yNorm;
-    } else if (/\b(micro\s*moment|micro)\b/.test(tNorm)) {
-      text = `micro moment ${yNorm}`;
-      session.lastYear = yNorm;
-    }
   }
 
   // 5) Delegate to music engine when available
@@ -841,7 +942,7 @@ app.post("/api/chat", (req, res) => {
   const guarded = antiLoopGuard(session, reply);
 
   // Commit session
-  setSession(sessionId, session);
+  await setSession(sessionId, session);
 
   return res.json(
     buildResponseEnvelope({
@@ -862,7 +963,7 @@ app.post("/api/chat", (req, res) => {
 ====================================================== */
 
 async function elevenlabsTts({ text, mode }) {
-  const fetch = global.fetch || (await import("node-fetch")).default; // Node 18 has fetch; fallback if needed
+  const fetchImpl = global.fetch || (await import("node-fetch")).default; // Node 18 has fetch; fallback if needed
 
   if (!ELEVENLABS_ENABLED || !ELEVENLABS_API_KEY || !ELEVENLABS_VOICE_ID) {
     const err = new Error("TTS_DISABLED");
@@ -894,7 +995,7 @@ async function elevenlabsTts({ text, mode }) {
     },
   };
 
-  const resp = await fetch(url, {
+  const resp = await fetchImpl(url, {
     method: "POST",
     headers: {
       "xi-api-key": ELEVENLABS_API_KEY,
