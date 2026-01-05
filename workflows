@@ -1,1 +1,27 @@
+name: Nyx Regression Harness
 
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+  pull_request:
+
+jobs:
+  nyx-regression:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Nyx Regression Harness
+        shell: pwsh
+        run: |
+          Set-ExecutionPolicy Bypass -Scope Process -Force
+          ./Tools/Harness/nyx_harness_v2.ps1
+
+      - name: Upload JUnit Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nyx-junit-report
+          path: Tools/Harness/harness_reports/*.xml
