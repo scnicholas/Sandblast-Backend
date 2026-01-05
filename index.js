@@ -18,6 +18,7 @@
  *  - ✅ Mode+year one-shot normalization (top10/top ten/story/micro + 1988)
  *  - ✅ Engine-compat mode routing: pass YEAR ONLY with session.activeMusicMode
  *  - ✅ Optional durable sessions via Upstash Redis REST (multi-instance safe)
+ *  - ✅ Top10 chart routing fix: force Billboard Year-End Hot 100 + one retry on “no clean list”
  *  - Consistent “next move” follow-ups in non-terminal replies
  *  - Anti-loop gate with polite breaker (after 2 exact repeats)
  *
@@ -66,7 +67,7 @@ const BUILD_SHA =
 
 // ✅ Index version stamp (proves which file is actually running)
 const INDEX_VERSION =
-  "index.js v1.0.3 (P2 engine-compat Top10 routing + optional durable sessions)";
+  "index.js v1.0.4 (P2 Top10 force Year-End chart + one retry on no-clean-list)";
 
 /* ======================================================
    Helpers: timing + ids (must run EARLY)
@@ -429,6 +430,25 @@ function hasExplicitMode(text) {
 }
 
 /* ======================================================
+   P2 Top10 routing helpers (v1.0.4)
+====================================================== */
+
+function isTop10Text(text) {
+  const t = cleanText(text).toLowerCase();
+  return /\b(top\s*10|top10|top ten)\b/.test(t);
+}
+
+function forceTop10Chart(session) {
+  if (!session || typeof session !== "object") return;
+  session.activeMusicChart = "Billboard Year-End Hot 100";
+}
+
+function replyIndicatesNoCleanList(reply) {
+  const t = cleanText(reply).toLowerCase();
+  return t.includes("don’t have a clean list") || t.includes("don't have a clean list");
+}
+
+/* ======================================================
    Followups (legacy + v1)
 ====================================================== */
 
@@ -782,6 +802,11 @@ app.post("/api/chat", async (req, res) => {
     // also set engine-facing mode hint now
     session.activeMusicMode = missingKind;
 
+    // ✅ v1.0.4: force chart source for Top 10
+    if (missingKind === "top10") {
+      forceTop10Chart(session);
+    }
+
     const r = replyMissingYear(missingKind);
     const guarded = antiLoopGuard(session, r.reply);
 
@@ -807,10 +832,14 @@ app.post("/api/chat", async (req, res) => {
   const yNorm = extractYearFromText(tNorm);
 
   if (yNorm) {
-    if (/\b(top\s*10|top10|top ten)\b/.test(tNorm)) {
+    if (isTop10Text(tNorm)) {
       session.activeMusicMode = "top10";
       session.pendingMode = "top10"; // makes behavior consistent even if engine ignores activeMusicMode
       session.lastYear = yNorm;
+
+      // ✅ v1.0.4: force chart source for Top 10
+      forceTop10Chart(session);
+
       text = String(yNorm); // ✅ engine-compat: YEAR ONLY
     } else if (/\b(story\s*moment|story)\b/.test(tNorm)) {
       session.activeMusicMode = "story";
@@ -837,6 +866,11 @@ app.post("/api/chat", async (req, res) => {
       session.lastYear = yearFromText;
       session.activeMusicMode = mode;
 
+      // ✅ v1.0.4: force Top 10 chart source when consuming pending mode
+      if (mode === "top10") {
+        forceTop10Chart(session);
+      }
+
       // ✅ engine-compat routing:
       // - For top10, pass YEAR ONLY and let mode live in session
       // - For story/micro, pass explicit string (already stable)
@@ -855,6 +889,18 @@ app.post("/api/chat", async (req, res) => {
       }
 
       let reply = engine?.reply || engine?.text || engine?.message || null;
+
+      // ✅ v1.0.4: one retry if Top 10 came back “no clean list”
+      if (mode === "top10" && reply && replyIndicatesNoCleanList(reply)) {
+        forceTop10Chart(session);
+        try {
+          const engine2 = safeMusicHandle({ text: String(yearFromText), session });
+          const reply2 = engine2?.reply || engine2?.text || engine2?.message || null;
+          if (reply2) reply = reply2;
+        } catch (_) {
+          // no-op
+        }
+      }
 
       if (!reply) {
         reply =
@@ -930,7 +976,9 @@ app.post("/api/chat", async (req, res) => {
 
     if (y && /\bstory\b|\bstory\s*moment\b/.test(t)) reply = fallbackStoryMoment(y);
     else if (y && /\bmicro\b|\bmicro\s*moment\b/.test(t)) reply = fallbackMicroMoment(y);
-    else if (y && /\btop\s*10\b|\btop10\b/.test(t)) {
+    else if (y && isTop10Text(t)) {
+      // Keep consistent with the forced chart policy
+      forceTop10Chart(session);
       reply = `Staying with ${y} · Top 10 — Say “top 10 ${y}” and I’ll read it out clean. Want Story moment or Micro moment instead?`;
     } else {
       reply = "Hi — tell me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment.";
