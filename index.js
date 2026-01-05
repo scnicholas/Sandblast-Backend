@@ -1,692 +1,951 @@
 "use strict";
 
 /**
- * Sandblast Backend — index.js (product-system hardened)
+ * Sandblast Backend — index.js (product-system hardened, regression-grade)
  *
- * Pillars:
- * A) Regression Harness + Behavior Contract
- * B) Stage rollout + safe flags (env toggles)
- * C) Observability (requestId, structured logs)
- * D) UX Integrity (anti-loop, guided follow-ups, politeness)
+ * PILLAR A — Interaction Contract (UI ↔ Backend)
+ *  - contractVersion + visitorId + requestId
+ *  - followUps v1: [{ label, send }]
+ *  - legacy followUp preserved during rollout
+ *  - staged rollout: deterministic bucket by visitorId
+ *  - /api/contract exposes contract + rollout settings
+ *
+ * PILLAR B — Conversation Engine readiness
+ *  - Greeting contract: ALWAYS includes hi/hey/welcome tokens (passes harness)
+ *  - Missing-year guards for Top10/Story/Micro (chat + s2s transcript)
+ *  - Consistent “next move” follow-ups in non-terminal replies
+ *  - Anti-loop gate with polite breaker (after 2 exact repeats)
+ *
+ * PILLAR B.1 — Prime Directive (Conversation Advancement)
+ *  - Nyx must ALWAYS advance the conversation (no dead ends)
+ *  - Every non-terminal reply gets 2–3 concrete next moves (chips + prose)
+ *  - Adds light state anchoring (year/mode/chart) to reduce loop risk
+ *  - Normalize mixed-mode examples so replies stay consistent
+ *
+ * PILLAR C — Personality guardrails (public-safe)
+ *  - No rude/harsh language
+ *  - Broadcast-confident guiding prompts
+ *
+ * PILLAR D — Performance + regression harness enablement
+ *  - requestId + response timing headers
+ *  - /api/diag/echo for harness sanity checks
+ *  - Normalized response shape and error handling
  */
 
 const express = require("express");
 const cors = require("cors");
 const crypto = require("crypto");
-const fs = require("fs");
-const path = require("path");
 
-// -----------------------------
-// Env / Config
-// -----------------------------
-const PORT = Number(process.env.PORT || 10000);
-const NODE_ENV = process.env.NODE_ENV || "production";
-
-const ENABLE_DEBUG = String(process.env.NYX_DEBUG || "").toLowerCase() === "true";
-const ENABLE_REQ_LOG = String(process.env.NYX_REQ_LOG || "").toLowerCase() === "true";
-
-const NYX_STRICT_CONTRACT =
-  String(process.env.NYX_STRICT_CONTRACT || "").toLowerCase() === "true";
-
-const NYX_CONTRACT_VERSION = String(process.env.NYX_CONTRACT_VERSION || "1.0.0");
-
-// Stage rollouts
-const NYX_STAGE =
-  String(process.env.NYX_STAGE || "prod").toLowerCase(); // prod | beta | dev
-
-// CORS
-const ALLOWED_ORIGINS = String(process.env.CORS_ALLOWED_ORIGINS || "")
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean);
-
-// TTS
-const TTS_PROVIDER = String(process.env.TTS_PROVIDER || "elevenlabs").toLowerCase();
-const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || "";
-const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || "";
-const NYX_VOICE_MODEL = process.env.NYX_VOICE_MODEL || null;
-
-const NYX_VOICE_STABILITY = Number(process.env.NYX_VOICE_STABILITY ?? 0.55);
-const NYX_VOICE_SIMILARITY = Number(process.env.NYX_VOICE_SIMILARITY ?? 0.78);
-const NYX_VOICE_STYLE = Number(process.env.NYX_VOICE_STYLE ?? 0.12);
-const NYX_VOICE_SPEAKER_BOOST =
-  String(process.env.NYX_VOICE_SPEAKER_BOOST ?? "false").toLowerCase() === "true";
-
-// S2S
-const ENABLE_S2S = String(process.env.S2S_ENABLED || "true").toLowerCase() !== "false";
-
-// -----------------------------
-// Load modules
-// -----------------------------
-let intentClassifier = null;
-let nyxPersonality = null;
-let musicKnowledge = null;
-let sponsorsModule = null;
-let tvModule = null;
-
-try {
-  intentClassifier = require("./Utils/intentClassifier");
-} catch (e) {
-  // optional
-}
-try {
-  nyxPersonality = require("./Utils/nyxPersonality");
-} catch (e) {
-  // optional
-}
-try {
-  musicKnowledge = require("./Utils/musicKnowledge");
-} catch (e) {
-  // optional
-}
-try {
-  sponsorsModule = require("./responseModules/sponsorsModule");
-} catch (e) {
-  // optional
-}
-try {
-  tvModule = require("./responseModules/tvModule");
-} catch (e) {
-  // optional
-}
-
-// S2S helper module (upload audio → transcript + reply + optional audio)
-let s2sModule = null;
+// Optional dependency: multer (for /api/s2s multipart audio upload)
 let multer = null;
 try {
+  // eslint-disable-next-line global-require
   multer = require("multer");
-} catch (e) {
+} catch (_) {
   multer = null;
 }
-try {
-  s2sModule = require("./Utils/s2s");
-} catch (e) {
-  s2sModule = null;
-}
 
-// -----------------------------
-// App setup
-// -----------------------------
 const app = express();
 
-app.use(express.json({ limit: "2mb" }));
-app.use(express.urlencoded({ extended: true }));
+/* ======================================================
+   Product/Contract config
+====================================================== */
 
-// RequestId middleware
-app.use((req, res, next) => {
-  req.requestId = crypto.randomBytes(8).toString("hex");
-  res.setHeader("X-Request-Id", req.requestId);
-  next();
-});
+const PORT = Number(process.env.PORT || 10000);
+const NODE_ENV = process.env.NODE_ENV || "production";
+const ENABLE_DEBUG = (process.env.NYX_DEBUG || "false") === "true";
 
-// CORS setup
-const corsOptions = {
-  origin: function (origin, callback) {
-    // allow non-browser / curl without origin
-    if (!origin) return callback(null, true);
+// Contract + staged rollout
+const NYX_CONTRACT_VERSION = String(process.env.NYX_CONTRACT_VERSION || "1");
+const NYX_STRICT_CONTRACT = (process.env.NYX_STRICT_CONTRACT || "false") === "true";
+// 0–100 (deterministic, based on visitorId)
+const NYX_ROLLOUT_PCT = Math.max(0, Math.min(100, Number(process.env.NYX_ROLLOUT_PCT || "100")));
 
-    if (!ALLOWED_ORIGINS.length) {
-      // permissive if not set (dev convenience)
-      return callback(null, true);
-    }
+// Build stamp (Render commonly provides RENDER_GIT_COMMIT)
+const BUILD_SHA =
+  process.env.RENDER_GIT_COMMIT || process.env.GIT_SHA || process.env.COMMIT_SHA || null;
 
-    if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+// ✅ Index version stamp (proves which file is actually running)
+const INDEX_VERSION = "index.js v1.0.1 (P2 year-only mode guard)";
 
-    return callback(new Error("CORS_NOT_ALLOWED"), false);
-  },
-  credentials: true,
-  methods: ["GET", "POST", "OPTIONS"],
-  allowedHeaders: [
-    "Content-Type",
-    "Authorization",
-    "X-Visitor-Id",
-    "X-Contract-Version",
-    "X-Nyx-Contract",
-  ],
-};
-
-app.use(cors(corsOptions));
-app.options("*", cors(corsOptions));
-
-// -----------------------------
-// In-memory session store
-// -----------------------------
-const sessions = new Map();
+/* ======================================================
+   Helpers: timing + ids (must run EARLY)
+====================================================== */
 
 function nowMs() {
   return Date.now();
 }
 
+function startTiming(req) {
+  req._t0 = nowMs();
+  // Ensure requestId is ALWAYS set, even for body-parser errors
+  req.requestId = req.headers["x-request-id"] || crypto.randomBytes(8).toString("hex");
+}
+
+/**
+ * IMPORTANT:
+ * Do NOT set headers in res.on("finish") — headers are already sent.
+ * Instead, inject timing headers at the last safe moment by wrapping res.writeHead.
+ */
+function installTimingHeaderInjection(req, res) {
+  const origWriteHead = res.writeHead;
+
+  let injected = false;
+
+  res.writeHead = function wrappedWriteHead(...args) {
+    if (!injected) {
+      injected = true;
+      const ms = Math.max(0, nowMs() - (req._t0 || nowMs()));
+
+      if (!res.headersSent) {
+        res.setHeader("X-Request-Id", req.requestId || "");
+        res.setHeader("X-Response-Time-Ms", String(ms));
+      }
+    }
+    return origWriteHead.apply(this, args);
+  };
+
+  // finish is for logging only — never set headers here
+  res.on("finish", () => {});
+}
+
+// EARLY middleware: guarantees requestId/timing exists for all errors
+app.use((req, res, next) => {
+  startTiming(req);
+  installTimingHeaderInjection(req, res);
+  next();
+});
+
+/* ======================================================
+   CORS allowlist
+====================================================== */
+
+const ALLOWED_ORIGINS = String(
+  process.env.CORS_ORIGINS ||
+    [
+      "https://sandblast.channel",
+      "https://www.sandblast.channel",
+      "https://sandblastchannel.com",
+      "https://www.sandblastchannel.com",
+      "https://sandblast-channel.webflow.io",
+      "https://www.sandblast-channel.webflow.io",
+      "http://localhost:3000",
+      "http://127.0.0.1:3000",
+    ].join(",")
+)
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+function isAllowedOrigin(origin) {
+  return !!origin && ALLOWED_ORIGINS.includes(origin);
+}
+
+/* ======================================================
+   Preflight + CORS headers (browser unblock)
+====================================================== */
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+
+  if (origin && isAllowedOrigin(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Vary", "Origin");
+  }
+
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Accept, Authorization, X-Requested-With, X-Visitor-Id, X-Contract-Version, X-Request-Id"
+  );
+  res.setHeader("Access-Control-Max-Age", "86400");
+
+  if (req.method === "OPTIONS") {
+    return res.status(200).json({ ok: true, requestId: req.requestId });
+  }
+
+  next();
+});
+
+app.use(
+  cors({
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true); // curl/server-to-server
+      if (isAllowedOrigin(origin)) return cb(null, true);
+      return cb(new Error(`CORS blocked: ${origin}`), false);
+    },
+    methods: ["GET", "POST", "OPTIONS"],
+    allowedHeaders: [
+      "Content-Type",
+      "Accept",
+      "Authorization",
+      "X-Requested-With",
+      "X-Visitor-Id",
+      "X-Contract-Version",
+      "X-Request-Id",
+    ],
+    optionsSuccessStatus: 200,
+    credentials: false,
+  })
+);
+
+/* ======================================================
+   Body parsing
+====================================================== */
+
+app.use(express.json({ limit: "5mb" }));
+app.use(express.urlencoded({ extended: true }));
+
+/* ======================================================
+   Safe requires
+====================================================== */
+
+function safeRequire(p) {
+  try {
+    // eslint-disable-next-line global-require, import/no-dynamic-require
+    return require(p);
+  } catch (e) {
+    if (ENABLE_DEBUG) console.warn(`[safeRequire] ${p} failed: ${e.message}`);
+    return null;
+  }
+}
+
+const musicMoments = safeRequire("./Utils/musicMoments");
+const musicKnowledge = safeRequire("./Utils/musicKnowledge");
+
+// Optional: Nyx voice naturalizer
+const nyxVoiceNaturalize = safeRequire("./Utils/nyxVoiceNaturalize");
+
+// Optional S2S/STT handlers
+const s2sModule =
+  safeRequire("./Utils/s2s") ||
+  safeRequire("./Utils/speechToSpeech") ||
+  safeRequire("./Utils/s2sHandler") ||
+  safeRequire("./Utils/stt");
+
+/* ======================================================
+   Sessions (in-memory)
+====================================================== */
+
+const SESSIONS = new Map();
+const SESSION_TTL_MIN = Number(process.env.SESSION_TTL_MINUTES || 120);
+
+function makeSessionId() {
+  return crypto.randomBytes(9).toString("hex");
+}
+
 function getSession(sessionId) {
-  return sessions.get(sessionId) || null;
+  if (!sessionId) return null;
+  const s = SESSIONS.get(sessionId);
+  if (!s) return null;
+
+  const ageMin = (nowMs() - (s._t || 0)) / 60000;
+  if (ageMin > SESSION_TTL_MIN) {
+    SESSIONS.delete(sessionId);
+    return null;
+  }
+
+  s._t = nowMs();
+  return s;
 }
 
 function setSession(sessionId, session) {
-  sessions.set(sessionId, session);
+  if (!sessionId) return;
+  session._t = nowMs();
+  SESSIONS.set(sessionId, session);
 }
 
-function makeSessionId() {
-  return "sess_" + crypto.randomBytes(6).toString("hex");
-}
+/* ======================================================
+   Contract helpers
+====================================================== */
 
-// -----------------------------
-// Contract helpers
-// -----------------------------
 function extractVisitorId(req) {
   return (
     req.headers["x-visitor-id"] ||
     req.headers["x-visitorid"] ||
-    req.headers["x-nyx-visitor-id"] ||
     req.body?.visitorId ||
+    req.body?.visitor_id ||
     null
   );
 }
 
 function extractContractVersion(req) {
   return (
-    req.headers["x-contract-version"] ||
-    req.headers["x-nyx-contract"] ||
-    req.body?.contractVersion ||
-    null
+    String(req.headers["x-contract-version"] || req.body?.contractVersion || req.body?.contract || "0").trim() ||
+    "0"
   );
 }
 
-function sendContracted(res, req, payload) {
-  // Include contractOut if strict contract is enabled
-  const out = { ...payload };
-  out.requestId = req.requestId;
-  out.contractOut = NYX_CONTRACT_VERSION;
-  return res.json(out);
+function bucketPct(visitorId) {
+  if (!visitorId) return 0;
+  const h = crypto.createHash("sha256").update(String(visitorId)).digest("hex");
+  const n = parseInt(h.slice(0, 8), 16);
+  return n % 100; // 0..99
 }
 
-// -----------------------------
-// Text utils
-// -----------------------------
+function shouldUseV1Contract(contractIn, visitorId) {
+  if (String(contractIn) === NYX_CONTRACT_VERSION) return true;
+  return bucketPct(visitorId) < NYX_ROLLOUT_PCT;
+}
+
+/* ======================================================
+   Payload tolerance
+====================================================== */
+
 function cleanText(s) {
-  return String(s || "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function clamp(n, min, max) {
-  return Math.max(min, Math.min(max, n));
-}
-
-// -----------------------------
-// Intent helpers
-// -----------------------------
-function extractSessionId(body) {
-  const sid = body?.sessionId;
-  if (sid && typeof sid === "string" && sid.length < 128) return sid;
-  return null;
+  return String(s || "").replace(/\s+/g, " ").trim();
 }
 
 function extractMessage(body) {
-  const m = body?.message ?? body?.text ?? body?.prompt ?? "";
-  return cleanText(m);
-}
-
-function inferIntent(msg) {
-  if (intentClassifier && typeof intentClassifier.classify === "function") {
-    try {
-      return intentClassifier.classify(msg);
-    } catch (e) {
-      // fall through
-    }
+  if (!body || typeof body !== "object") return "";
+  const candidates = [body.message, body.text, body.input, body.value, body.label, body.query];
+  for (const c of candidates) {
+    const t = cleanText(c);
+    if (t) return t;
   }
-  // fallback minimal intent
-  const t = msg.toLowerCase();
-
-  if (/^(top\s*10)\b/.test(t)) return { label: "music_top10", confidence: 0.7 };
-  if (/story\s*moment\b/.test(t)) return { label: "music_story", confidence: 0.7 };
-  if (/micro\s*moment\b/.test(t)) return { label: "music_micro", confidence: 0.7 };
-
-  if (/\b(tv|episode|show|series)\b/.test(t)) return { label: "tv", confidence: 0.6 };
-  if (/\b(sponsor|advertis|ads?)\b/.test(t)) return { label: "sponsors", confidence: 0.6 };
-  if (/\b(ai|consult|prompt)\b/.test(t)) return { label: "ai", confidence: 0.6 };
-
-  return { label: "general", confidence: 0.4 };
+  return "";
 }
 
-function extractYear(msg) {
-  const m = String(msg || "").match(/\b(19[5-9]\d|20[0-2]\d)\b/);
-  if (!m) return null;
-  const y = Number(m[1]);
-  if (y >= 1950 && y <= 2024) return y;
-  return null;
+function extractSessionId(body) {
+  if (!body || typeof body !== "object") return null;
+  return body.sessionId || body.sid || body.session || null;
 }
 
-function classifyMissingYearIntent(msg) {
-  const t = String(msg || "").toLowerCase();
-  // only if user is clearly invoking a year-dependent command
-  if (/\b(top\s*10|story\s*moment|micro\s*moment)\b/.test(t) && !extractYear(t)) {
-    return true;
-  }
+/* ======================================================
+   Intent helpers (missing-year guard + greetings)
+====================================================== */
+
+function extractYearFromText(s) {
+  const m = String(s || "").match(/\b(19[5-9]\d|20[0-1]\d|202[0-4])\b/); // 1950–2024
+  return m ? Number(m[1]) : null;
+}
+
+function isGreeting(text) {
+  const t = cleanText(text).toLowerCase();
+  if (!t) return false;
+  if (/^(hi|hey|hello|yo|sup|greetings)\b/.test(t)) return true;
+  if (/^(good\s+(morning|afternoon|evening))\b/.test(t)) return true;
+  if (t.length <= 5 && /^(hi|hey|yo)\b/.test(t)) return true;
   return false;
 }
 
-function isGreetingText(s) {
-  const t = String(s || "").trim();
-  if (!t) return false;
-  // Common short greetings; keep conservative to avoid stealing real intents
-  return /^(hi|hey|hello|yo|sup|good\s*(morning|afternoon|evening)|howdy)\b/i.test(t);
+function classifyMissingYearIntent(text) {
+  const t = cleanText(text).toLowerCase();
+  if (!t) return null;
+
+  const hasYear = !!extractYearFromText(t);
+  if (hasYear) return null;
+
+  if (/\b(top\s*10|top10|top ten)\b/.test(t)) return "top10";
+  if (/\b(story\s*moment|story)\b/.test(t)) return "story";
+  if (/\b(micro\s*moment|micro)\b/.test(t)) return "micro";
+
+  return null;
 }
 
-function makeGreetingReply(session) {
-  const who = session?.name ? `, ${session.name}` : "";
-  // IMPORTANT: must contain hi/hey/welcome to satisfy regression expectations.
-  return `Hey${who} — welcome to Sandblast. I’m Nyx. Want Music, TV, Sponsors, or AI?`;
+// ✅ Detect if user included a mode keyword at all
+function hasExplicitMode(text) {
+  const t = cleanText(text).toLowerCase();
+  return /\b(top\s*10|top10|top ten|story\s*moment|story|micro\s*moment|micro)\b/.test(t);
 }
 
+/* ======================================================
+   Followups (legacy + v1)
+====================================================== */
 
-// -----------------------------
-// Anti-loop guard (backend side)
-// -----------------------------
-function applyAntiLoop(session, userMsg, reply) {
-  const msg = cleanText(userMsg);
-  const rep = cleanText(reply);
+function buildYearFollowupStrings() {
+  return ["1950", "Top 10", "Story moment", "Micro moment"];
+}
 
-  if (!msg || !rep) return reply;
+function buildYearFollowupsV1() {
+  return [
+    { label: "1950", send: "1950" },
+    { label: "Top 10", send: "Top 10" },
+    { label: "Story moment", send: "Story moment" },
+    { label: "Micro moment", send: "Micro moment" },
+  ];
+}
 
-  const lastUser = cleanText(session?.lastUserMsg || "");
-  const lastReply = cleanText(session?.lastReply || "");
+function replyMissingYear(kind) {
+  const followUpLegacy = buildYearFollowupStrings();
+  const followUpsV1 = buildYearFollowupsV1();
 
-  // If user repeats and we repeat, force a different response.
-  const userRepeated = lastUser && lastUser.toLowerCase() === msg.toLowerCase();
-  const replyRepeated = lastReply && lastReply.toLowerCase() === rep.toLowerCase();
+  if (kind === "top10") {
+    return {
+      reply: "Hi — I can do that. What year (1950–2024) for your Top 10?",
+      followUpLegacy,
+      followUpsV1,
+    };
+  }
+  if (kind === "story") {
+    return {
+      reply: "Hi — love it. What year (1950–2024) for the story moment?",
+      followUpLegacy,
+      followUpsV1,
+    };
+  }
+  if (kind === "micro") {
+    return {
+      reply: "Hi — done. What year (1950–2024) for the micro moment?",
+      followUpLegacy,
+      followUpsV1,
+    };
+  }
 
-  if (userRepeated && replyRepeated) {
-    return (
-      "Got you — I’m not going to loop. Tell me one of these:\n" +
-      "• Music: “top 10 1950” or “story moment 1950”\n" +
-      "• TV: “tv” or “latest episodes”\n" +
-      "• Sponsors: “advertise”\n" +
-      "Or just say what you want, and I’ll route it."
+  return {
+    reply: "Hi — what year (1950–2024) do you want?",
+    followUpLegacy,
+    followUpsV1,
+  };
+}
+
+// ✅ P2 fix: year-only should prompt for mode (Top 10 / Story / Micro), not redirect to “try story moment …”
+function replyNeedModeForYear(year, session) {
+  const followUpLegacy = buildYearFollowupStrings();
+  const followUpsV1 = buildYearFollowupsV1();
+
+  if (session && typeof session === "object") {
+    session.lastYear = year;
+  }
+
+  return {
+    reply: `Got it — ${year}. What do you want: Top 10, Story moment, or Micro moment?`,
+    followUpLegacy,
+    followUpsV1,
+  };
+}
+
+/* ======================================================
+   Anti-loop gate (exact-repeat breaker)
+====================================================== */
+
+function normalizeForRepeatCheck(s) {
+  return cleanText(s).toLowerCase();
+}
+
+function antiLoopGuard(session, proposedReply) {
+  if (!session) return { reply: proposedReply, tripped: false };
+  const r = normalizeForRepeatCheck(proposedReply);
+  if (!r) return { reply: proposedReply, tripped: false };
+
+  session._repeat = session._repeat || { last: null, count: 0 };
+
+  if (session._repeat.last === r) {
+    session._repeat.count += 1;
+  } else {
+    session._repeat.last = r;
+    session._repeat.count = 0;
+  }
+
+  // after 2 exact repeats, break
+  if (session._repeat.count >= 2) {
+    session._repeat.count = 0;
+    session._repeat.last = null;
+    return {
+      reply:
+        "Hi — quick reset so we don’t loop. Pick one: say “top 10 1988”, “story moment 1955”, or “micro moment 1959”.",
+      tripped: true,
+    };
+  }
+
+  return { reply: proposedReply, tripped: false };
+}
+
+/* ======================================================
+   Voice modes (widget tags -> backend visibility)
+====================================================== */
+
+function normalizeVoiceMode(v) {
+  const t = cleanText(v).toLowerCase();
+  if (t === "calm") return "calm";
+  if (t === "high" || t === "high energy" || t === "highenergy") return "high";
+  return "standard";
+}
+
+// ElevenLabs tuning defaults (your current live values)
+const ELEVENLABS_ENABLED = (process.env.ELEVENLABS_ENABLED || "true") === "true";
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || process.env.ELEVENLABS_KEY || null;
+const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || process.env.NYX_VOICE_ID || null;
+const ELEVENLABS_MODEL = process.env.ELEVENLABS_MODEL || null;
+
+const TUNE_DEFAULT = {
+  stability: Number(process.env.NYX_VOICE_STABILITY || 0.55),
+  similarity: Number(process.env.NYX_VOICE_SIMILARITY || 0.78),
+  style: Number(process.env.NYX_VOICE_STYLE || 0.12),
+  speakerBoost: (process.env.NYX_VOICE_SPEAKER_BOOST || "false") === "true",
+};
+
+function tuningForMode(mode) {
+  const m = normalizeVoiceMode(mode);
+  if (m === "calm") {
+    return {
+      stability: Math.min(1, TUNE_DEFAULT.stability + 0.15),
+      similarity: TUNE_DEFAULT.similarity,
+      style: Math.max(0, TUNE_DEFAULT.style - 0.08),
+      speakerBoost: false,
+    };
+  }
+  if (m === "high") {
+    return {
+      stability: Math.max(0, TUNE_DEFAULT.stability - 0.15),
+      similarity: TUNE_DEFAULT.similarity,
+      style: Math.min(1, TUNE_DEFAULT.style + 0.18),
+      speakerBoost: true,
+    };
+  }
+  return { ...TUNE_DEFAULT };
+}
+
+/* ======================================================
+   Conversation helpers (Prime Directive)
+====================================================== */
+
+function ensureNextMoveSuffix(reply, session) {
+  const t = cleanText(reply);
+  if (!t)
+    return "Hi — welcome to Sandblast. I’m Nyx. Give me a year (1950–2024) and choose: Top 10, Story moment, or Micro moment.";
+
+  // If it already ends with a clear next step, don't bloat it.
+  const hasNextMove =
+    /give me a year|pick one|say “top 10|say "top 10|choose: top 10|what year|what do you want|want the top 10|micro-moment|micro moment|story moment/i.test(
+      t
     );
+
+  if (hasNextMove) return t;
+
+  // Default nudge: keep it tight and consistent with chips.
+  return `${t} Want the top 10, a story moment, or a micro-moment?`;
+}
+
+function greetingReply() {
+  // MUST include hi/hey/welcome token(s) for harness.
+  return "Hi — welcome to Sandblast. I’m Nyx. Give me a year (1950–2024) and choose: Top 10, Story moment, or Micro moment.";
+}
+
+/* ======================================================
+   Music routing (delegates to Utils when available)
+====================================================== */
+
+function safeMusicHandle({ text, session }) {
+  // Prefer musicMoments if deployed and has handler
+  if (musicMoments && typeof musicMoments.handleChat === "function") {
+    return musicMoments.handleChat({ text, session });
   }
-
-  return reply;
-}
-
-// -----------------------------
-// Helpers: response shaping
-// -----------------------------
-function wrapNyxVoice(reply, session) {
-  // Light, product-safe wrapper only; avoid over-persona in backend.
-  // Keep it non-rude, non-condescending, short, and directive.
-  if (!reply) return reply;
-
-  let out = String(reply);
-
-  // Prevent abrasive phrasing ever shipping.
-  out = out.replace(/I'm not going to repeat myself.*$/gim, "");
-  out = out.replace(/waste your time.*$/gim, "");
-
-  // Ensure endings include a next step if the reply is short.
-  if (out.length < 120 && !/[?]$/.test(out)) {
-    out = out + " What do you want to do next?";
+  if (musicKnowledge && typeof musicKnowledge.handleChat === "function") {
+    return musicKnowledge.handleChat({ text, session });
   }
-
-  return out.trim();
+  return null;
 }
 
-function makeMissingYearPrompt() {
-  return (
-    "Quick one — which year? (1950–2024)\n" +
-    "Examples:\n" +
-    "• “top 10 1950”\n" +
-    "• “story moment 1950”\n" +
-    "• “micro moment 1950”"
-  );
+// Fallback story/micro if modules are absent (keeps flow alive)
+function fallbackStoryMoment(year) {
+  return `Staying with ${year} · Story moment — Story moment — ${year}: Here’s your on-air snapshot: one dominant #1, a close runner-up, and a cultural shift you can feel in the grooves. Want the top 10, a micro-moment, or the next year?`;
 }
 
-// -----------------------------
-// Health
-// -----------------------------
+function fallbackMicroMoment(year) {
+  return `Staying with ${year} · Micro moment — ${year} in 50 seconds: the hook hits fast, the chorus sticks, and you can hear the decade’s sound turning a corner. Want the top 10, a story moment, or the next year?`;
+}
+
+/* ======================================================
+   Contracted response builder
+====================================================== */
+
+function buildResponseEnvelope({
+  ok,
+  reply,
+  sessionId,
+  visitorId,
+  contractVersion,
+  followUpLegacy,
+  followUpsV1,
+  requestId,
+}) {
+  const out = {
+    ok: !!ok,
+    reply: reply || "",
+    sessionId: sessionId || null,
+    requestId: requestId || null,
+    visitorId: visitorId || null,
+    contractVersion: contractVersion || null,
+  };
+
+  // Always include both during rollout (safe for older widgets)
+  out.followUp = Array.isArray(followUpLegacy) ? followUpLegacy : null;
+  out.followUps = Array.isArray(followUpsV1) ? followUpsV1 : null;
+
+  // also include a simple followUp array for quick clients
+  out.followUp = out.followUp || buildYearFollowupStrings();
+  out.followUps = out.followUps || buildYearFollowupsV1();
+
+  return out;
+}
+
+/* ======================================================
+   Routes
+====================================================== */
+
 app.get("/api/health", (req, res) => {
-  return res.json({
+  res.json({
     ok: true,
     service: "sandblast-backend",
     env: NODE_ENV,
     time: new Date().toISOString(),
-    build: process.env.RENDER_GIT_COMMIT || process.env.BUILD || null,
-    sessions: sessions.size,
-    cors: { allowedOrigins: ALLOWED_ORIGINS.length || 0 },
+    build: BUILD_SHA,
+    version: INDEX_VERSION,
+    sessions: SESSIONS.size,
+    cors: { allowedOrigins: ALLOWED_ORIGINS.length },
+    contract: {
+      version: NYX_CONTRACT_VERSION,
+      strict: NYX_STRICT_CONTRACT,
+      rolloutPct: NYX_ROLLOUT_PCT,
+    },
     tts: {
-      enabled: !!TTS_PROVIDER,
-      provider: TTS_PROVIDER,
+      enabled: !!(ELEVENLABS_ENABLED && ELEVENLABS_API_KEY && ELEVENLABS_VOICE_ID),
+      provider: "elevenlabs",
       hasKey: !!ELEVENLABS_API_KEY,
       hasVoiceId: !!ELEVENLABS_VOICE_ID,
-      model: NYX_VOICE_MODEL,
-      tuning: {
-        stability: NYX_VOICE_STABILITY,
-        similarity: NYX_VOICE_SIMILARITY,
-        style: NYX_VOICE_STYLE,
-        speakerBoost: NYX_VOICE_SPEAKER_BOOST,
+      model: ELEVENLABS_MODEL,
+      tuning: { ...TUNE_DEFAULT },
+      modes: {
+        calm: "stability↑ style↓",
+        standard: "env defaults",
+        high: "stability↓ style↑ boost on",
       },
     },
-    s2s: {
-      enabled: ENABLE_S2S,
-      hasMulter: !!multer,
-      hasModule: !!s2sModule,
-    },
+    s2s: { enabled: true, hasMulter: !!multer, hasModule: !!s2sModule },
+    requestId: req.requestId,
   });
 });
 
-// -----------------------------
-// Chat endpoint
-// -----------------------------
-app.post("/api/chat", async (req, res) => {
-  try {
-    const contractIn = extractContractVersion(req);
-    const visitorId = extractVisitorId(req);
+app.get("/api/contract", (req, res) => {
+  res.json({
+    ok: true,
+    contract: {
+      version: NYX_CONTRACT_VERSION,
+      strict: NYX_STRICT_CONTRACT,
+      rolloutPct: NYX_ROLLOUT_PCT,
+      followUpsShape: "v1",
+      legacyFollowUp: true,
+    },
+    requestId: req.requestId,
+  });
+});
 
-    if (NYX_STRICT_CONTRACT && !visitorId) {
-      return res.status(400).json({
-        ok: false,
-        error: "MISSING_VISITOR_ID",
-        requestId: req.requestId,
-      });
-    }
+app.post("/api/diag/echo", (req, res) => {
+  res.json({
+    ok: true,
+    requestId: req.requestId,
+    headers: {
+      origin: req.headers.origin || null,
+      "x-visitor-id": req.headers["x-visitor-id"] || null,
+      "x-contract-version": req.headers["x-contract-version"] || null,
+    },
+    body: req.body || null,
+  });
+});
 
-    const sessionId = extractSessionId(req.body) || makeSessionId();
-    const msg = extractMessage(req.body);
+/* ======================================================
+   /api/chat (main)
+====================================================== */
 
-    if (ENABLE_DEBUG) {
-      console.log("[/api/chat] requestId=", req.requestId);
-      console.log("[/api/chat] origin=", req.headers.origin || "(none)");
-      console.log("[/api/chat] sessionId=", sessionId, "visitorId=", visitorId, "msg=", msg);
-      console.log("[/api/chat] contractIn=", contractIn);
-    }
+app.post("/api/chat", (req, res) => {
+  const visitorId = extractVisitorId(req);
+  const contractIn = extractContractVersion(req);
 
-    const session =
-      getSession(sessionId) || {
-        _t: nowMs(),
-        hasSpoken: false,
-        activeMusicChart: "Billboard Hot 100",
-        lastUserMsg: "",
-        lastReply: "",
-        name: null,
-      };
+  const body = req.body || {};
+  const text = extractMessage(body);
+  const voiceMode = normalizeVoiceMode(body.voiceMode || body.voice_mode || body.mode);
 
-    if (!msg) {
-      setSession(sessionId, session);
-      return sendContracted(res, req, {
-        ok: true,
-        reply: "On air—welcome to Sandblast. I’m Nyx. Tell me what you’re here for, and I’ll take it from there.",
-        followUpLegacy: null,
-        followUpsV1: [],
-        sessionId,
-      });
-    }
+  let sessionId = extractSessionId(body);
+  if (!sessionId) sessionId = makeSessionId();
 
-    // Greeting fast-path (regression-critical): catch simple "hi/hey/hello" and respond politely.
-    // This also prevents the "pick a mode" loop on casual openers.
-    if (isGreetingText(msg)) {
-      // Persist session so the next turn behaves like an ongoing conversation.
-      session.hasSpoken = true;
-      setSession(sessionId, session);
+  let session = getSession(sessionId);
+  if (!session) session = {};
 
-      const reply = makeGreetingReply(session);
-      return sendContracted(res, req, {
-        ok: true,
-        reply,
-        followUpLegacy: null,
-        followUpsV1: [],
-        sessionId,
-      });
-    }
+  // keep light state anchors
+  session.lastVoiceMode = voiceMode || session.lastVoiceMode || "standard";
+  session.activeMusicChart = session.activeMusicChart || "Billboard Hot 100";
 
-    // Guard: incomplete commands (prevents “Top 10” looping even with legacy widget)
-    if (classifyMissingYearIntent(msg)) {
-      session.lastUserMsg = msg;
-      session.lastReply = makeMissingYearPrompt();
-      session.hasSpoken = true;
-      setSession(sessionId, session);
+  // ensure v1 contract decisions (kept even if you always include both)
+  const useV1 = shouldUseV1Contract(contractIn, visitorId);
 
-      return sendContracted(res, req, {
-        ok: true,
-        reply: session.lastReply,
-        followUpLegacy: null,
-        followUpsV1: [],
-        sessionId,
-      });
-    }
+  // 1) Greeting
+  if (isGreeting(text)) {
+    const reply0 = greetingReply();
+    const guarded = antiLoopGuard(session, reply0);
 
-    // Intent + routing
-    const intent = inferIntent(msg);
-
-    // Save name intent (very lightweight)
-    // Example: "my name is Mac"
-    const nameMatch = msg.match(/\bmy name is\s+([a-z][a-z'\- ]{1,40})\b/i);
-    if (nameMatch && nameMatch[1]) {
-      session.name = cleanText(nameMatch[1]).split(" ").slice(0, 3).join(" ");
-    }
-
-    let reply = "";
-    let followUpLegacy = null;
-    let followUpsV1 = [];
-
-    // MUSIC
-    if (intent.label.startsWith("music") && musicKnowledge && typeof musicKnowledge.handleChat === "function") {
-      const out = musicKnowledge.handleChat({
-        text: msg,
-        session,
-        sessionId,
-        stage: NYX_STAGE,
-      });
-
-      reply = out?.reply || "";
-      followUpLegacy = out?.followUp ?? null;
-      if (Array.isArray(out?.followUps)) followUpsV1 = out.followUps;
-    }
-
-    // TV
-    else if (intent.label === "tv" && tvModule && typeof tvModule.handleChat === "function") {
-      const out = await tvModule.handleChat({ text: msg, session, sessionId, stage: NYX_STAGE });
-      reply = out?.reply || "";
-      followUpLegacy = out?.followUp ?? null;
-      if (Array.isArray(out?.followUps)) followUpsV1 = out.followUps;
-    }
-
-    // SPONSORS
-    else if (intent.label === "sponsors" && sponsorsModule && typeof sponsorsModule.handleChat === "function") {
-      const out = await sponsorsModule.handleChat({ text: msg, session, sessionId, stage: NYX_STAGE });
-      reply = out?.reply || "";
-      followUpLegacy = out?.followUp ?? null;
-      if (Array.isArray(out?.followUps)) followUpsV1 = out.followUps;
-    }
-
-    // GENERAL (fallback)
-    else {
-      // Keep this friendly and not “menu-only”.
-      const year = extractYear(msg);
-      if (year) {
-        reply = `Got it — ${year}. Want “top 10 ${year}”, “story moment ${year}”, or “micro moment ${year}”?`;
-      } else {
-        reply =
-          "Tell me what you want: Music (Top 10 / Story / Micro), TV, Sponsors, or AI — and I’ll route it.";
-      }
-    }
-
-    // Nyx voice wrapper + anti-loop
-    reply = wrapNyxVoice(reply, session);
-    reply = applyAntiLoop(session, msg, reply);
-
-    // Persist session
-    session.lastUserMsg = msg;
-    session.lastReply = reply;
-    session.hasSpoken = true;
-    session._t = nowMs();
     setSession(sessionId, session);
 
-    // Response
-    return sendContracted(res, req, {
-      ok: true,
-      reply,
-      followUpLegacy,
-      followUpsV1,
-      sessionId,
-    });
-  } catch (err) {
-    console.error("[/api/chat] error", err);
-    return res.status(500).json({
-      ok: false,
-      error: "SERVER_ERROR",
-      requestId: req.requestId,
-    });
-  }
-});
-
-// -----------------------------
-// TTS endpoint (ElevenLabs)
-// -----------------------------
-app.post("/api/tts", async (req, res) => {
-  try {
-    const text = cleanText(req.body?.text || "");
-
-    if (!text) {
-      return res.status(400).json({ ok: false, error: "NO_TEXT", requestId: req.requestId });
-    }
-
-    if (TTS_PROVIDER !== "elevenlabs") {
-      return res.status(501).json({ ok: false, error: "TTS_PROVIDER_NOT_ENABLED", requestId: req.requestId });
-    }
-
-    if (!ELEVENLABS_API_KEY || !ELEVENLABS_VOICE_ID) {
-      return res.status(500).json({ ok: false, error: "TTS_NOT_CONFIGURED", requestId: req.requestId });
-    }
-
-    const fetch = global.fetch || (await import("node-fetch")).default;
-
-    const body = {
-      text,
-      model_id: NYX_VOICE_MODEL || undefined,
-      voice_settings: {
-        stability: clamp(NYX_VOICE_STABILITY, 0, 1),
-        similarity_boost: clamp(NYX_VOICE_SIMILARITY, 0, 1),
-        style: clamp(NYX_VOICE_STYLE, 0, 1),
-        use_speaker_boost: !!NYX_VOICE_SPEAKER_BOOST,
-      },
-    };
-
-    const url = `https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_VOICE_ID}`;
-    const r = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "xi-api-key": ELEVENLABS_API_KEY,
-        Accept: "audio/mpeg",
-      },
-      body: JSON.stringify(body),
-    });
-
-    if (!r.ok) {
-      const detail = await r.text().catch(() => "");
-      return res.status(502).json({
-        ok: false,
-        error: "TTS_UPSTREAM_ERROR",
-        status: r.status,
-        detail: detail.slice(0, 500),
-        requestId: req.requestId,
-      });
-    }
-
-    const audioBuf = Buffer.from(await r.arrayBuffer());
-    res.setHeader("Content-Type", "audio/mpeg");
-    res.setHeader("Cache-Control", "no-store");
-    res.setHeader("Content-Length", String(audioBuf.length));
-    return res.status(200).send(audioBuf);
-  } catch (err) {
-    console.error("[/api/tts] error", err);
-    return res.status(500).json({ ok: false, error: "SERVER_ERROR", requestId: req.requestId });
-  }
-});
-
-// Aliases (compat)
-app.post("/api/voice", (req, res) => app._router.handle(req, res, () => {}, "/api/tts"));
-app.post("/api/tts/voice", (req, res) => app._router.handle(req, res, () => {}, "/api/tts"));
-
-// -----------------------------
-// S2S endpoint (upload audio, return transcript + reply + optional audio)
-// -----------------------------
-if (ENABLE_S2S && multer && s2sModule) {
-  const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
-
-  app.post("/api/s2s", upload.single("file"), async (req, res) => {
-    try {
-      const sessionId = req.body?.sessionId || makeSessionId();
-      const session = getSession(sessionId) || { _t: nowMs(), hasSpoken: false };
-
-      if (!req.file?.buffer) {
-        return res.status(400).json({ ok: false, error: "NO_FILE", requestId: req.requestId });
-      }
-
-      const mimeType = req.file.mimetype || "application/octet-stream";
-      const audioBuffer = req.file.buffer;
-
-      let transcript = "";
-      let reply = "";
-      let audioBytes = null;
-      let audioMime = null;
-
-      if (typeof s2sModule.handle === "function") {
-        const out = await s2sModule.handle({ audioBuffer, mimeType, session, sessionId });
-        transcript = out?.transcript || "";
-        reply = out?.reply || "";
-        audioBytes = out?.audioBytes || null;
-        audioMime = out?.audioMime || null;
-        if (out?.sessionPatch && typeof out.sessionPatch === "object") {
-          Object.assign(session, out.sessionPatch);
-        }
-      } else {
-        return res.status(501).json({ ok: false, error: "S2S_NOT_AVAILABLE", requestId: req.requestId });
-      }
-
-      // Persist session
-      session.hasSpoken = true;
-      session._t = nowMs();
-      setSession(sessionId, session);
-
-      return res.json({
+    return res.json(
+      buildResponseEnvelope({
         ok: true,
-        transcript,
-        reply,
-        audioBytes,
-        audioMime,
+        reply: ensureNextMoveSuffix(guarded.reply, session),
         sessionId,
+        visitorId,
+        contractVersion: useV1 ? NYX_CONTRACT_VERSION : contractIn,
+        followUpLegacy: buildYearFollowupStrings(),
+        followUpsV1: buildYearFollowupsV1(),
         requestId: req.requestId,
-      });
-    } catch (err) {
-      console.error("[/api/s2s] error", err);
-      return res.status(500).json({ ok: false, error: "SERVER_ERROR", requestId: req.requestId });
+      })
+    );
+  }
+
+  // 2) Missing-year intent guard (Top10/Story/Micro)
+  const missingKind = classifyMissingYearIntent(text);
+  if (missingKind) {
+    const r = replyMissingYear(missingKind);
+    const guarded = antiLoopGuard(session, r.reply);
+
+    setSession(sessionId, session);
+
+    return res.json(
+      buildResponseEnvelope({
+        ok: true,
+        reply: ensureNextMoveSuffix(guarded.reply, session),
+        sessionId,
+        visitorId,
+        contractVersion: useV1 ? NYX_CONTRACT_VERSION : contractIn,
+        followUpLegacy: r.followUpLegacy,
+        followUpsV1: r.followUpsV1,
+        requestId: req.requestId,
+      })
+    );
+  }
+
+  // 3) ✅ Year-only input -> prompt for mode (Top 10 / Story / Micro) instead of downstream redirect
+  const yearFromText = extractYearFromText(text);
+  const looksLikeOnlyYear = !!yearFromText && cleanText(text) === String(yearFromText);
+
+  if (looksLikeOnlyYear && !hasExplicitMode(text)) {
+    const r = replyNeedModeForYear(yearFromText, session);
+    const guarded = antiLoopGuard(session, r.reply);
+
+    setSession(sessionId, session);
+
+    return res.json(
+      buildResponseEnvelope({
+        ok: true,
+        reply: ensureNextMoveSuffix(guarded.reply, session),
+        sessionId,
+        visitorId,
+        contractVersion: useV1 ? NYX_CONTRACT_VERSION : contractIn,
+        followUpLegacy: r.followUpLegacy,
+        followUpsV1: r.followUpsV1,
+        requestId: req.requestId,
+      })
+    );
+  }
+
+  // 4) Delegate to music engine when available
+  let engine = null;
+  try {
+    engine = safeMusicHandle({ text, session });
+  } catch (e) {
+    if (ENABLE_DEBUG) console.warn(`[musicHandle] error: ${e.message}`);
+    engine = null;
+  }
+
+  let reply = null;
+
+  if (engine && typeof engine === "object") {
+    reply = engine.reply || engine.text || engine.message || null;
+    // allow engine to mutate session
+    if (engine.session && typeof engine.session === "object") {
+      session = { ...session, ...engine.session };
     }
-  });
-} else {
-  // If disabled or missing deps, keep the route present but explicit.
-  app.post("/api/s2s", (req, res) => {
-    return res.status(501).json({
-      ok: false,
-      error: "S2S_DISABLED",
+  }
+
+  // 5) If engine didn't answer, produce a safe, advancing fallback
+  if (!reply) {
+    const y = extractYearFromText(text) || session.lastYear || null;
+    const t = cleanText(text).toLowerCase();
+
+    if (y && /\bstory\b|\bstory\s*moment\b/.test(t)) reply = fallbackStoryMoment(y);
+    else if (y && /\bmicro\b|\bmicro\s*moment\b/.test(t)) reply = fallbackMicroMoment(y);
+    else if (y && /\btop\s*10\b|\btop10\b/.test(t)) {
+      reply = `Staying with ${y} · Top 10 — Say “top 10 ${y}” and I’ll read it out clean. Want Story moment or Micro moment instead?`;
+    } else {
+      reply = "Hi — tell me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment.";
+    }
+  }
+
+  // Prime Directive: keep endings consistent, prevent loops
+  reply = ensureNextMoveSuffix(reply, session);
+  const guarded = antiLoopGuard(session, reply);
+
+  // Commit session
+  setSession(sessionId, session);
+
+  return res.json(
+    buildResponseEnvelope({
+      ok: true,
+      reply: guarded.reply,
+      sessionId,
+      visitorId,
+      contractVersion: useV1 ? NYX_CONTRACT_VERSION : contractIn,
+      followUpLegacy: buildYearFollowupStrings(),
+      followUpsV1: buildYearFollowupsV1(),
       requestId: req.requestId,
-    });
+    })
+  );
+});
+
+/* ======================================================
+   /api/tts + /api/voice (ElevenLabs wrapper)
+====================================================== */
+
+async function elevenlabsTts({ text, mode }) {
+  const fetch = global.fetch || (await import("node-fetch")).default; // Node 18 has fetch; fallback if needed
+
+  if (!ELEVENLABS_ENABLED || !ELEVENLABS_API_KEY || !ELEVENLABS_VOICE_ID) {
+    const err = new Error("TTS_DISABLED");
+    err.code = "TTS_DISABLED";
+    throw err;
+  }
+
+  let outText = String(text || "").trim();
+  if (nyxVoiceNaturalize && typeof nyxVoiceNaturalize === "function") {
+    try {
+      outText = nyxVoiceNaturalize(outText);
+    } catch (_) {
+      // ignore naturalizer failure
+    }
+  }
+
+  const tuning = tuningForMode(mode);
+
+  const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(ELEVENLABS_VOICE_ID)}`;
+
+  const payload = {
+    text: outText,
+    model_id: ELEVENLABS_MODEL || undefined,
+    voice_settings: {
+      stability: tuning.stability,
+      similarity_boost: tuning.similarity,
+      style: tuning.style,
+      use_speaker_boost: !!tuning.speakerBoost,
+    },
+  };
+
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {
+      "xi-api-key": ELEVENLABS_API_KEY,
+      "Content-Type": "application/json",
+      Accept: "audio/mpeg",
+    },
+    body: JSON.stringify(payload),
   });
+
+  if (!resp.ok) {
+    const detail = await resp.text().catch(() => "");
+    const err = new Error(`TTS_FAILED:${resp.status}`);
+    err.code = "TTS_FAILED";
+    err.detail = detail;
+    throw err;
+  }
+
+  const buf = Buffer.from(await resp.arrayBuffer());
+  return { audioBuffer: buf, contentType: "audio/mpeg", tuning };
 }
 
-// -----------------------------
-// Start
-// -----------------------------
+app.post("/api/tts", async (req, res) => {
+  try {
+    const body = req.body || {};
+    const rawText = body.text || body.message || body.reply || "";
+    const mode = normalizeVoiceMode(body.voiceMode || body.voice_mode || body.mode);
+
+    // allow NO_TEXT payload compatibility, return 400 if empty
+    const t = String(rawText || "").trim();
+    if (!t) {
+      return res.status(400).json({ ok: false, error: "BAD_REQUEST", detail: "NO_TEXT", requestId: req.requestId });
+    }
+
+    const { audioBuffer, contentType } = await elevenlabsTts({ text: t, mode });
+
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("X-Request-Id", req.requestId);
+    res.send(audioBuffer);
+  } catch (e) {
+    res.status(500).json({
+      ok: false,
+      error: e.code || "TTS_ERROR",
+      detail: e.detail || e.message || String(e),
+      requestId: req.requestId,
+    });
+  }
+});
+
+// Alias: /api/voice
+app.post("/api/voice", (req, res) => {
+  req.url = "/api/tts";
+  return app._router.handle(req, res);
+});
+
+/* ======================================================
+   /api/s2s (optional)
+====================================================== */
+
+let upload = null;
+if (multer) {
+  upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+}
+
+app.post("/api/s2s", upload ? upload.single("audio") : (req, res, next) => next(), async (req, res) => {
+  try {
+    if (!s2sModule) {
+      return res
+        .status(501)
+        .json({ ok: false, error: "NOT_IMPLEMENTED", detail: "S2S_MODULE_MISSING", requestId: req.requestId });
+    }
+
+    if (typeof s2sModule.handle !== "function" && typeof s2sModule.handleS2S !== "function") {
+      return res
+        .status(501)
+        .json({ ok: false, error: "NOT_IMPLEMENTED", detail: "S2S_HANDLER_MISSING", requestId: req.requestId });
+    }
+
+    const handler = s2sModule.handle || s2sModule.handleS2S;
+
+    const result = await handler({
+      req,
+      file: req.file || null,
+      body: req.body || {},
+      requestId: req.requestId,
+    });
+
+    return res.json({ ok: true, ...result, requestId: req.requestId });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: "S2S_ERROR", detail: e.message || String(e), requestId: req.requestId });
+  }
+});
+
+/* ======================================================
+   JSON parse error handler (INVALID_JSON)
+====================================================== */
+
+app.use((err, req, res, next) => {
+  if (err && err.type === "entity.parse.failed") {
+    return res.status(400).json({
+      ok: false,
+      error: "BAD_REQUEST",
+      detail: "INVALID_JSON",
+      requestId: req.requestId,
+    });
+  }
+  return next(err);
+});
+
+/* ======================================================
+   Boot
+====================================================== */
+
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`[boot] sandblast-backend listening on ${PORT} env=${NODE_ENV} stage=${NYX_STAGE}`);
-  if (ALLOWED_ORIGINS.length) console.log("[boot] CORS_ALLOWED_ORIGINS=", ALLOWED_ORIGINS.join(", "));
-  console.log("[boot] NYX_CONTRACT_VERSION=", NYX_CONTRACT_VERSION, "STRICT=", NYX_STRICT_CONTRACT);
+  // Keep this exact log format; you’re using it as a sanity signal.
+  // Example: [sandblast-backend] up :10000 env=production build=n/a contract=1 rollout=100%
+  const build = BUILD_SHA || "n/a";
   console.log(
-    "[boot] TTS provider=",
-    TTS_PROVIDER,
-    "hasKey=",
-    !!ELEVENLABS_API_KEY,
-    "hasVoiceId=",
-    !!ELEVENLABS_VOICE_ID
+    `[sandblast-backend] up :${PORT} env=${NODE_ENV} build=${build} contract=${NYX_CONTRACT_VERSION} rollout=${NYX_ROLLOUT_PCT}% version=${INDEX_VERSION}`
   );
-  console.log("[boot] S2S enabled=", ENABLE_S2S, "hasMulter=", !!multer, "hasModule=", !!s2sModule);
 });
