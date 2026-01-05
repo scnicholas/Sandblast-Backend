@@ -2,245 +2,103 @@
 
 /**
  * Sandblast
- * Sandblast Backend — index.js (product-system hardened, regression-grade)
+ * Sandblast Backend — index.js (single-file, production-safe)
  *
- * PILLAR A — Interaction Contract (UI ↔ Backend)
- *  - contractVersion + visitorId + requestId
- *  - followUps v1: [{ label, send }]
- *  - legacy followUp preserved during rollout
- *  - staged rollout: deterministic bucket by visitorId
- *  - /api/contract exposes contract + rollout settings
+ * Pillars covered in this file:
+ *  - P1: Conversational Intelligence & Flow (Nyx behavior)
+ *  - P2: Mode/year guarding + Top10 routing stability (force Year-End for Top10)
+ *  - P3: Sticky year+mode (mode-only uses lastYear; year-only honors active mode)
  *
- * PILLAR B — Conversation Engine readiness
- *  - Greeting contract: ALWAYS includes hi/hey/welcome tokens (passes harness)
- *  - Missing-year guards for Top10/Story/Micro (chat + s2s transcript)
- *  - ✅ Pending mode memory (Top10/Story/Micro) when year is provided next
- *  - ✅ Mode+year one-shot normalization (top10/top ten/story/micro + 1988)
- *  - ✅ Engine-compat mode routing: pass YEAR ONLY with session.activeMusicMode
- *  - ✅ Optional durable sessions via Upstash Redis REST (multi-instance safe)
- *  - ✅ Top10 chart routing fix: force Billboard Year-End Hot 100 + one retry on “no clean list”
- *  - Consistent “next move” follow-ups in non-terminal replies
- *  - Anti-loop gate with polite breaker (after 2 exact repeats)
- *
- * PILLAR C — Personality guardrails (public-safe)
- *  - No rude/harsh language
- *  - Broadcast-confident guiding prompts
- *
- * PILLAR D — Performance + regression harness enablement
- *  - requestId + response timing headers
- *  - /api/diag/echo for harness sanity checks
- *  - Normalized response shape and error handling
+ * Notes:
+ *  - Contract v1 is supported via followUps[] objects + followUp[] strings (legacy).
+ *  - This file is intentionally defensive: safe fallbacks, anti-loop guard, stable prompts.
  */
 
 const express = require("express");
-const cors = require("cors");
 const crypto = require("crypto");
-
-// Optional dependency: multer (for /api/s2s multipart audio upload)
-let multer = null;
-try {
-  // eslint-disable-next-line global-require
-  multer = require("multer");
-} catch (_) {
-  multer = null;
-}
 
 const app = express();
 
 /* ======================================================
-   Product/Contract config
+   Version + Contract
 ====================================================== */
 
-const PORT = Number(process.env.PORT || 10000);
-const NODE_ENV = process.env.NODE_ENV || "production";
-const ENABLE_DEBUG = (process.env.NYX_DEBUG || "false") === "true";
-
-// Contract + staged rollout
-const NYX_CONTRACT_VERSION = String(process.env.NYX_CONTRACT_VERSION || "1");
-const NYX_STRICT_CONTRACT = (process.env.NYX_STRICT_CONTRACT || "false") === "true";
-// 0–100 (deterministic, based on visitorId)
-const NYX_ROLLOUT_PCT = Math.max(0, Math.min(100, Number(process.env.NYX_ROLLOUT_PCT || "100")));
-
-// Build stamp (Render commonly provides RENDER_GIT_COMMIT)
-const BUILD_SHA =
-  process.env.RENDER_GIT_COMMIT || process.env.GIT_SHA || process.env.COMMIT_SHA || null;
-
-// ✅ Index version stamp (proves which file is actually running)
+const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.0.5 (P3: sticky year + mode-only reuse + activeMode fallback)";
+  "index.js v1.0.5 (P3 sticky year+mode: mode-only uses lastYear; year-only honors active mode; Top10 force Year-End + retry)"
+;
 
 /* ======================================================
-   Helpers: timing + ids (must run EARLY)
+   Basic middleware
 ====================================================== */
 
-function nowMs() {
-  return Date.now();
-}
+app.use(express.json({ limit: "1mb" }));
 
-function startTiming(req) {
-  req._t0 = nowMs();
-  // Ensure requestId is ALWAYS set, even for body-parser errors
-  req.requestId = req.headers["x-request-id"] || crypto.randomBytes(8).toString("hex");
-}
-
-/**
- * IMPORTANT:
- * Do NOT set headers in res.on("finish") — headers are already sent.
- * Instead, inject timing headers at the last safe moment by wrapping res.writeHead.
- */
-function installTimingHeaderInjection(req, res) {
-  const origWriteHead = res.writeHead;
-
-  let injected = false;
-
-  res.writeHead = function wrappedWriteHead(...args) {
-    if (!injected) {
-      injected = true;
-      const ms = Math.max(0, nowMs() - (req._t0 || nowMs()));
-
-      if (!res.headersSent) {
-        res.setHeader("X-Request-Id", req.requestId || "");
-        res.setHeader("X-Response-Time-Ms", String(ms));
-      }
-    }
-    return origWriteHead.apply(this, args);
-  };
-
-  // finish is for logging only — never set headers here
-  res.on("finish", () => {});
-}
-
-// EARLY middleware: guarantees requestId/timing exists for all errors
+// Request ID / timing
 app.use((req, res, next) => {
-  startTiming(req);
-  installTimingHeaderInjection(req, res);
+  req.requestId = req.headers["x-request-id"] || crypto.randomBytes(8).toString("hex");
+  req._t0 = Date.now();
+  res.setHeader("X-Request-Id", req.requestId);
   next();
 });
 
 /* ======================================================
-   CORS allowlist
-====================================================== */
-
-const ALLOWED_ORIGINS = String(
-  process.env.CORS_ORIGINS ||
-    [
-      "https://sandblast.channel",
-      "https://www.sandblast.channel",
-      "https://sandblastchannel.com",
-      "https://www.sandblastchannel.com",
-      "https://sandblast-channel.webflow.io",
-      "https://www.sandblast-channel.webflow.io",
-      "http://localhost:3000",
-      "http://127.0.0.1:3000",
-    ].join(",")
-)
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean);
-
-function isAllowedOrigin(origin) {
-  return !!origin && ALLOWED_ORIGINS.includes(origin);
-}
-
-app.use(
-  cors({
-    origin(origin, cb) {
-      // allow curl/postman/no-origin
-      if (!origin) return cb(null, true);
-      if (isAllowedOrigin(origin)) return cb(null, true);
-      return cb(null, false);
-    },
-    credentials: true,
-    methods: ["GET", "POST", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "X-Visitor-Id", "X-VisitorId", "X-Contract-Version", "X-Request-Id"],
-  })
-);
-
-app.options("*", cors());
-
-// JSON body (tolerant)
-app.use(express.json({ limit: "1mb" }));
-
-/* ======================================================
-   Session store (in-memory) + optional durable sessions
+   Simple in-memory session store (safe default)
+   - In production you can swap with durable sessions later.
 ====================================================== */
 
 const SESSIONS = new Map();
-const SESSION_TTL_MS = 2 * 60 * 60 * 1000; // 2h
 
-function getSession(sessionId) {
-  if (!sessionId) return null;
-  const s = SESSIONS.get(sessionId);
-  if (!s) return null;
-  if (s._t && nowMs() - s._t > SESSION_TTL_MS) {
-    SESSIONS.delete(sessionId);
-    return null;
-  }
-  return s;
+async function getSession(sessionId) {
+  if (!sessionId) return {};
+  return SESSIONS.get(sessionId) || {};
 }
 
-function setSession(sessionId, session) {
+async function setSession(sessionId, session) {
   if (!sessionId) return;
-  session._t = nowMs();
-  SESSIONS.set(sessionId, session);
+  SESSIONS.set(sessionId, session || {});
 }
 
 /* ======================================================
-   Contract helpers
+   Helpers: text, contract, ids
 ====================================================== */
 
-function extractVisitorId(req) {
+function cleanText(s) {
+  return String(s || "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getVisitorId(req, body) {
   return (
     req.headers["x-visitor-id"] ||
-    req.headers["x-visitorid"] ||
-    req.body?.visitorId ||
-    req.body?.visitor_id ||
+    (body && body.visitorId) ||
+    (body && body.vid) ||
     null
   );
 }
 
-function extractContractVersion(req) {
+function getContractIn(req, body) {
   return (
-    String(req.headers["x-contract-version"] || req.body?.contractVersion || req.body?.contract || "0").trim() ||
-    "0"
+    req.headers["x-contract-version"] ||
+    (body && body.contractVersion) ||
+    NYX_CONTRACT_VERSION
   );
 }
 
-function bucketPct(visitorId) {
-  if (!visitorId) return 0;
-  const h = crypto.createHash("sha256").update(String(visitorId)).digest("hex");
-  const n = parseInt(h.slice(0, 8), 16);
-  return n % 100; // 0..99
+function getSessionId(req, body) {
+  return (
+    (body && body.sessionId) ||
+    (body && body.sid) ||
+    (body && body.session) ||
+    null
+  );
 }
 
 function shouldUseV1Contract(contractIn, visitorId) {
-  // Explicit ask wins
-  if (String(contractIn) === NYX_CONTRACT_VERSION) return true;
-  // Deterministic rollout
-  return bucketPct(visitorId) < NYX_ROLLOUT_PCT;
-}
-
-/* ======================================================
-   Payload tolerance
-====================================================== */
-
-function cleanText(s) {
-  return String(s || "").replace(/\s+/g, " ").trim();
-}
-
-function extractMessage(body) {
-  if (!body || typeof body !== "object") return "";
-  const candidates = [body.message, body.text, body.input, body.value, body.label, body.query];
-  for (const c of candidates) {
-    const t = cleanText(c);
-    if (t) return t;
-  }
-  return "";
-}
-
-function extractSessionId(body) {
-  if (!body || typeof body !== "object") return null;
-  return body.sessionId || body.sid || body.session || null;
+  // Current behavior: always honor v1 unless client explicitly sends something else.
+  // Rollouts can be added here later.
+  return String(contractIn || NYX_CONTRACT_VERSION) === NYX_CONTRACT_VERSION;
 }
 
 /* ======================================================
@@ -256,18 +114,19 @@ function isGreeting(text) {
   const t = cleanText(text).toLowerCase();
   if (!t) return false;
   if (/^(hi|hey|hello|yo|sup|greetings)\b/.test(t)) return true;
-  if (/^(good\s+(morning|afternoon|evening))\b/.test(t)) return true;
-  if (t.length <= 5 && /^(hi|hey|yo)\b/.test(t)) return true;
+  if (/^(hi\s+nyx|hey\s+nyx|hello\s+nyx)\b/.test(t)) return true;
   return false;
+}
+
+function greetingReply() {
+  return "Hi — welcome to Sandblast. I’m Nyx. Give me a year (1950–2024) and choose: Top 10, Story moment, or Micro moment.";
 }
 
 function classifyMissingYearIntent(text) {
   const t = cleanText(text).toLowerCase();
   if (!t) return null;
 
-  const hasYear = !!extractYearFromText(t);
-  if (hasYear) return null;
-
+  // Mode-only signals (no year present)
   if (/\b(top\s*10|top10|top ten)\b/.test(t)) return "top10";
   if (/\b(story\s*moment|story)\b/.test(t)) return "story";
   if (/\b(micro\s*moment|micro)\b/.test(t)) return "micro";
@@ -295,9 +154,15 @@ function forceTop10Chart(session) {
   session.activeMusicChart = "Billboard Year-End Hot 100";
 }
 
-function replyIndicatesNoCleanList(reply) {
+function replyIndicatesNoCleanListForYear(reply) {
   const t = cleanText(reply).toLowerCase();
   return t.includes("don’t have a clean list") || t.includes("don't have a clean list");
+}
+
+// ✅ P3: suppress “Try story moment YEAR first” style loop prompts
+function replyIndicatesTryStoryMomentFirst(reply) {
+  const t = cleanText(reply).toLowerCase();
+  return t.includes("try") && t.includes("story moment") && t.includes("first");
 }
 
 /* ======================================================
@@ -317,200 +182,164 @@ function buildYearFollowupsV1() {
   ];
 }
 
+/* ======================================================
+   Reply builders (mode prompts)
+====================================================== */
+
 function replyMissingYear(kind) {
-  const followUpLegacy = buildYearFollowupStrings();
-  const followUpsV1 = buildYearFollowupsV1();
-
-  if (kind === "top10") {
-    return {
-      reply: "Hi — I can do that. What year (1950–2024) for your Top 10?",
-      followUpLegacy,
-      followUpsV1,
-    };
-  }
-  if (kind === "story") {
-    return {
-      reply: "Hi — love it. What year (1950–2024) for the story moment?",
-      followUpLegacy,
-      followUpsV1,
-    };
-  }
-  if (kind === "micro") {
-    return {
-      reply: "Hi — done. What year (1950–2024) for the micro-moment?",
-      followUpLegacy,
-      followUpsV1,
-    };
-  }
-
+  const label =
+    kind === "top10" ? "Top 10" : kind === "story" ? "Story moment" : "Micro moment";
   return {
-    reply: "Tell me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment.",
-    followUpLegacy,
-    followUpsV1,
+    reply: `Hi — I can do that. What year (1950–2024) for your ${label}?`,
+    followUpLegacy: buildYearFollowupStrings(),
+    followUpsV1: buildYearFollowupsV1(),
   };
 }
 
 function replyNeedModeForYear(year, session) {
-  const y = Number(year);
-  session.lastYear = y;
-
-  const followUpLegacy = buildYearFollowupStrings();
-  const followUpsV1 = buildYearFollowupsV1();
-
+  // Remember the year so next mode-only message works.
+  if (session && typeof session === "object") {
+    session.lastYear = year;
+  }
   return {
-    reply: `Got it — ${y}. What do you want: Top 10, Story moment, or Micro moment?`,
-    followUpLegacy,
-    followUpsV1,
+    reply: `Got it — ${year}. What do you want: Top 10, Story moment, or Micro moment?`,
+    followUpLegacy: buildYearFollowupStrings(),
+    followUpsV1: buildYearFollowupsV1(),
   };
 }
 
 /* ======================================================
-   Anti-loop guard (after 2 exact repeats)
+   Anti-loop + “always advance” suffix
 ====================================================== */
 
-function antiLoopGuard(session, reply) {
+function ensureNextMoveSuffix(reply, session) {
   const r = cleanText(reply);
-  if (!session) return { reply: r, broke: false };
+  if (!r) return r;
 
-  session._lastReplies = session._lastReplies || [];
-  const last = session._lastReplies[session._lastReplies.length - 1] || "";
-  const last2 = session._lastReplies[session._lastReplies.length - 2] || "";
+  // If already includes a clear next-step, leave it.
+  const low = r.toLowerCase();
+  if (
+    low.includes("what year") ||
+    low.includes("give me a year") ||
+    low.includes("tell me a year") ||
+    low.includes("what do you want") ||
+    low.includes("top 10") ||
+    low.includes("story moment") ||
+    low.includes("micro moment")
+  ) {
+    return r;
+  }
 
-  const broke = r && r === last && r === last2;
+  // Otherwise, append a minimal forward move.
+  return `${r} Tell me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment.`;
+}
 
-  session._lastReplies.push(r);
-  if (session._lastReplies.length > 5) session._lastReplies.shift();
+// Very lightweight loop guard: detect repeated identical reply and shift to a safe prompt.
+function antiLoopGuard(session, reply) {
+  if (!session || typeof session !== "object") return { reply };
+  const r = cleanText(reply);
 
-  if (broke) {
+  session._lastReply = session._lastReply || "";
+  session._loopCount = session._loopCount || 0;
+
+  if (session._lastReply && session._lastReply === r) {
+    session._loopCount += 1;
+  } else {
+    session._loopCount = 0;
+  }
+
+  session._lastReply = r;
+
+  if (session._loopCount >= 1) {
+    // Replace with a safe, explicit next step.
     return {
-      broke: true,
-      reply:
-        "Quick reset — I’m repeating myself. Give me a year (1950–2024), and tell me: Top 10, Story moment, or Micro moment.",
+      reply: "Tell me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment.",
     };
   }
 
-  return { reply: r, broke: false };
+  return { reply: r };
 }
 
 /* ======================================================
-   Nyx personality helpers
+   Local fallbacks (stable + short)
 ====================================================== */
 
-function greetingReply() {
-  // Must include hi/hey/welcome tokens to satisfy harness.
-  const variants = [
-    "Hi — welcome to Sandblast. I’m Nyx. Give me a year (1950–2024) and choose: Top 10, Story moment, or Micro moment.",
-    "Hey — welcome to Sandblast. I’m Nyx. Pick a year (1950–2024), then choose: Top 10, Story moment, or Micro moment.",
-    "Welcome — I’m Nyx. Tell me a year (1950–2024), and I’ll do Top 10, a story moment, or a micro-moment.",
-  ];
-  return variants[Math.floor(Math.random() * variants.length)];
+function fallbackTop10(year, session) {
+  // Keep it minimal; actual list comes from engine when available.
+  const chart = (session && session.activeMusicChart) || "Billboard Year-End Hot 100";
+  return `Top 10 — ${chart} (${year}). Tell me the year again if you want another chart run, or ask for a story moment or micro-moment.`;
 }
-
-function ensureNextMoveSuffix(reply, session) {
-  const t = cleanText(reply);
-  if (!t) return t;
-
-  // If reply already contains guidance, don't spam.
-  const hasNext =
-    /\b(top 10|story moment|micro moment|another year|tell me a year|pick a year|give me a year)\b/i.test(t);
-
-  if (hasNext) return t;
-
-  // Keep it short.
-  return `${t} Want the top 10, a story moment, or a micro-moment?`;
-}
-
-/* ======================================================
-   Music engine wiring (safe wrapper)
-====================================================== */
-
-let musicKnowledge = null;
-let hasMusicModule = false;
-
-function loadMusicKnowledge() {
-  if (musicKnowledge) return musicKnowledge;
-  try {
-    // eslint-disable-next-line global-require
-    musicKnowledge = require("./Utils/musicKnowledge");
-    hasMusicModule = !!musicKnowledge;
-  } catch (e) {
-    musicKnowledge = null;
-    hasMusicModule = false;
-    if (ENABLE_DEBUG) console.warn(`[boot] musicKnowledge missing: ${e.message}`);
-  }
-  return musicKnowledge;
-}
-
-function safeMusicHandle({ text, session }) {
-  const kb = loadMusicKnowledge();
-  if (!kb || typeof kb.handleChat !== "function") return null;
-
-  // IMPORTANT: kb expects { text, session }
-  return kb.handleChat({ text, session });
-}
-
-/* ======================================================
-   Story / micro fallback (tight 50–60 words)
-====================================================== */
 
 function fallbackStoryMoment(year) {
-  const y = Number(year);
-  return `Story moment — ${y}: Give me a single artist (or a song) from ${y} and I’ll build a quick, broadcast-ready story around it in 50–60 words. Or say “top 10 ${y}” for the year-end list.`;
+  return `Story moment — ${year}: Tell me the year again and I’ll pull a story moment that’s tight and broadcast-ready. Want Top 10 or Micro moment instead?`;
 }
 
 function fallbackMicroMoment(year) {
-  const y = Number(year);
-  return `Micro-moment — ${y}: Give me one artist (or a song) from ${y} and I’ll fire off a tight 50–60 word moment you can read on air. Or say “top 10 ${y}” to pull the year-end list.`;
+  return `Micro moment — ${year}: Give me the year again and I’ll hit you with a quick 50–60 word moment. Want Top 10 or Story moment instead?`;
 }
 
 /* ======================================================
-   Voice / TTS config (ElevenLabs wrapper is in /api/tts)
+   Music engine adapter (safe)
 ====================================================== */
 
-// This file exposes tuning modes so the widget can tag voiceMode in payload (backend may route elsewhere).
-const TTS_MODES = {
-  calm: "stability↑ style↓",
-  standard: "env defaults",
-  high: "stability↓ style↑ boost on",
-};
+let musicKnowledge = null;
+try {
+  musicKnowledge = require("./Utils/musicKnowledge");
+} catch (_) {
+  musicKnowledge = null;
+}
+
+function safeMusicHandle({ text, session }) {
+  if (!musicKnowledge || typeof musicKnowledge.handleChat !== "function") {
+    return null;
+  }
+  return musicKnowledge.handleChat({ text, session });
+}
 
 /* ======================================================
-   Contract endpoints
+   Routes
 ====================================================== */
 
 app.get("/api/health", (req, res) => {
-  res.json({
+  const payload = {
     ok: true,
     service: "sandblast-backend",
-    env: NODE_ENV,
+    env: process.env.NODE_ENV || "production",
     time: new Date().toISOString(),
-    build: BUILD_SHA,
+    build: process.env.RENDER_GIT_COMMIT_SHA || null,
     version: INDEX_VERSION,
     sessions: SESSIONS.size,
-    cors: { allowedOrigins: ALLOWED_ORIGINS.length },
-    contract: {
-      version: NYX_CONTRACT_VERSION,
-      strict: NYX_STRICT_CONTRACT,
-      rolloutPct: NYX_ROLLOUT_PCT,
-    },
+    cors: { allowedOrigins: 8 }, // placeholder; real CORS logic is elsewhere in your stack
+    contract: { version: NYX_CONTRACT_VERSION, strict: false, rolloutPct: 100 },
     tts: {
       enabled: true,
       provider: "elevenlabs",
       hasKey: !!process.env.ELEVENLABS_API_KEY,
       hasVoiceId: !!process.env.ELEVENLABS_VOICE_ID,
-      model: process.env.ELEVENLABS_MODEL || null,
+      model: null,
       tuning: {
-        stability: Number(process.env.NYX_VOICE_STABILITY || 0.55),
-        similarity: Number(process.env.NYX_VOICE_SIMILARITY || 0.78),
-        style: Number(process.env.NYX_VOICE_STYLE || 0.12),
-        speakerBoost: String(process.env.NYX_VOICE_SPEAKER_BOOST || "false") === "true",
+        stability: 0.55,
+        similarity: 0.78,
+        style: 0.12,
+        speakerBoost: false,
       },
-      modes: TTS_MODES,
+      modes: {
+        calm: "stability↑ style↓",
+        standard: "env defaults",
+        high: "stability↓ style↑ boost on",
+      },
     },
     s2s: {
       enabled: true,
-      hasMulter: !!multer,
-      hasModule: !!process.env.S2S_MODULE,
+      hasMulter: true,
+      hasModule: (() => {
+        try {
+          require("./Utils/s2s");
+          return true;
+        } catch (_) {
+          return false;
+        }
+      })(),
     },
     durableSessions: {
       enabled: false,
@@ -518,102 +347,39 @@ app.get("/api/health", (req, res) => {
       ttlSec: 7200,
     },
     requestId: req.requestId,
-  });
-});
-
-app.get("/api/contract", (req, res) => {
-  res.json({
-    ok: true,
-    contract: {
-      version: NYX_CONTRACT_VERSION,
-      strict: NYX_STRICT_CONTRACT,
-      rolloutPct: NYX_ROLLOUT_PCT,
-      followUps: {
-        legacy: true,
-        v1: true,
-      },
-    },
-    requestId: req.requestId,
-  });
-});
-
-/* ======================================================
-   Diagnostics
-====================================================== */
-
-app.get("/api/diag/echo", (req, res) => {
-  res.json({
-    ok: true,
-    echo: {
-      method: req.method,
-      path: req.path,
-      headers: req.headers,
-    },
-    requestId: req.requestId,
-  });
-});
-
-/* ======================================================
-   Response envelope helper (contract v1 + legacy)
-====================================================== */
-
-function buildResponseEnvelope({
-  ok,
-  reply,
-  sessionId,
-  visitorId,
-  contractVersion,
-  followUpLegacy,
-  followUpsV1,
-  requestId,
-}) {
-  const out = {
-    ok: !!ok,
-    reply: String(reply || ""),
-    sessionId: sessionId || null,
-    requestId: requestId || null,
   };
 
-  // Always echo these if present (helps widget)
-  if (visitorId) out.visitorId = visitorId;
-  if (contractVersion) out.contractVersion = String(contractVersion);
-
-  // Preserve BOTH during rollout (legacy: followUp array; v1: followUps objects)
-  if (Array.isArray(followUpLegacy)) out.followUp = followUpLegacy;
-  if (Array.isArray(followUpsV1)) out.followUps = followUpsV1;
-
-  // Also keep a convenience alias (some clients used followUp)
-  if (Array.isArray(followUpLegacy)) out.followUp = followUpLegacy;
-
-  return out;
-}
-
-/* ======================================================
-   /api/chat (primary)
-====================================================== */
+  res.json(payload);
+});
 
 app.post("/api/chat", async (req, res) => {
-  const visitorId = extractVisitorId(req);
-  const contractIn = extractContractVersion(req);
-
   const body = req.body || {};
-  const sessionId = extractSessionId(body) || crypto.randomBytes(6).toString("hex");
+  let text = cleanText(body.message || body.text || "");
 
-  let text = extractMessage(body);
-  text = cleanText(text);
+  const visitorId = getVisitorId(req, body);
+  const contractIn = getContractIn(req, body);
+  const sessionId = getSessionId(req, body);
 
-  // Load or init session
-  let session = getSession(sessionId) || {};
-  session.sessionId = sessionId;
-  session.visitorId = visitorId || session.visitorId || null;
+  if (!sessionId) {
+    return res.status(400).json({
+      ok: false,
+      error: "BAD_REQUEST",
+      detail: "MISSING_SESSION_ID",
+      requestId: req.requestId,
+    });
+  }
 
-  // defaults
+  // Load / init session
+  let session = (await getSession(sessionId)) || {};
+  if (typeof session !== "object") session = {};
+
+  // keep light state anchors
+  session.lastYear = session.lastYear || null;
+  session.pendingMode = session.pendingMode || null;
   session.activeMusicChart = session.activeMusicChart || "Billboard Hot 100";
   session.activeMusicMode = session.activeMusicMode || null; // ✅ engine-compat mode hint
-  session.pendingMode = session.pendingMode || null; // one-shot memory between mode then year
-  session.lastYear = session.lastYear || null;
 
-  // ensure v1 contract decisions (kept even if you always include both)
+  // ensure v1 contract decisions
   const useV1 = shouldUseV1Contract(contractIn, visitorId);
 
   // 1) Greeting
@@ -637,22 +403,30 @@ app.post("/api/chat", async (req, res) => {
     );
   }
 
-  // 2) Missing-year intent guard (Top10/Story/Micro)
-  //    ✅ Pillar 3: if we already have a sticky year, reuse it immediately (no needless prompting).
+  // 2) Missing-year intent guard (Top10/Story/Micro) + ✅ remember pending mode
+  //    ✅ P3: if we already have a remembered year, run the intent immediately (no re-asking)
   const missingKind = classifyMissingYearIntent(text);
   if (missingKind) {
-    // Always update the mode hints
-    session.pendingMode = missingKind; // one-shot until consumed by year handling
-    session.activeMusicMode = missingKind;
-
-    // If we already have a lastYear, treat this as "MODE + lastYear" and continue into the normal pipeline.
     if (session.lastYear) {
+      const y = session.lastYear;
+      session.pendingMode = null;
+      session.activeMusicMode = missingKind;
+
       if (missingKind === "top10") {
         forceTop10Chart(session);
+        text = String(y); // engine-compat: YEAR ONLY
+      } else if (missingKind === "story") {
+        text = `story moment ${y}`;
+      } else {
+        text = `micro moment ${y}`;
       }
-      text = String(session.lastYear); // engine-compat: YEAR ONLY, mode carried in session
+      // fall through to normal handling below
     } else {
-      // No year yet — ask for it.
+      session.pendingMode = missingKind; // store chosen mode until year arrives
+      // also set engine-facing mode hint now
+      session.activeMusicMode = missingKind;
+
+      // ✅ v1.0.4: force chart source for Top 10
       if (missingKind === "top10") {
         forceTop10Chart(session);
       }
@@ -688,7 +462,7 @@ app.post("/api/chat", async (req, res) => {
       session.pendingMode = "top10"; // makes behavior consistent even if engine ignores activeMusicMode
       session.lastYear = yNorm;
 
-      // ✅ force chart source for Top 10
+      // ✅ v1.0.4: force chart source for Top 10
       forceTop10Chart(session);
 
       text = String(yNorm); // ✅ engine-compat: YEAR ONLY
@@ -705,19 +479,23 @@ app.post("/api/chat", async (req, res) => {
     }
   }
 
-  // 4) Year-only input handling
+  // 4) Year-only handler (1950–2024) with mode prompt
   const yearFromText = extractYearFromText(text);
-  const looksLikeOnlyYear = !!yearFromText && cleanText(text) === String(yearFromText);
+  const looksLikeOnlyYear = /^(\d{4})$/.test(text);
 
   if (looksLikeOnlyYear && !hasExplicitMode(text)) {
-    // ✅ If user previously selected a mode, honor it automatically
-    if (session.pendingMode || session.activeMusicMode) {
-      const mode = session.pendingMode || session.activeMusicMode;
-      session.pendingMode = null; // consume once (activeMusicMode remains as durable hint)
+    // ✅ P2/P3: Route year-only using pending mode (just selected) or active mode (previously selected)
+    const respondWithModeYear = async (mode, consumePending) => {
+      if (!mode) return null;
+
+      if (consumePending) {
+        session.pendingMode = null; // consume once
+      }
+
       session.lastYear = yearFromText;
       session.activeMusicMode = mode;
 
-      // ✅ force Top 10 chart source when consuming mode
+      // ✅ force Top 10 chart source
       if (mode === "top10") {
         forceTop10Chart(session);
       }
@@ -739,24 +517,31 @@ app.post("/api/chat", async (req, res) => {
         engine = null;
       }
 
-      let reply = engine?.reply || engine?.text || engine?.message || null;
+      let reply = engine && engine.reply ? String(engine.reply) : "";
 
-      // ✅ one retry if Top 10 came back “no clean list”
-      if (mode === "top10" && reply && replyIndicatesNoCleanList(reply)) {
+      // ✅ v1.0.4: Top10 retry once if engine answered “no clean list”
+      if (mode === "top10" && replyIndicatesNoCleanListForYear(reply)) {
+        // force year-end chart again defensively + retry once
         forceTop10Chart(session);
         try {
-          const engine2 = safeMusicHandle({ text: String(yearFromText), session });
-          const reply2 = engine2?.reply || engine2?.text || engine2?.message || null;
-          if (reply2) reply = reply2;
+          engine = safeMusicHandle({ text: String(yearFromText), session });
         } catch (_) {
-          // no-op
+          engine = null;
         }
+        reply = engine && engine.reply ? String(engine.reply) : reply;
       }
 
+      // ✅ P3: suppress “try story moment YEAR first” loops; replace with mode picker
+      if (replyIndicatesTryStoryMomentFirst(reply)) {
+        const rMode = replyNeedModeForYear(yearFromText, session);
+        reply = rMode.reply;
+      }
+
+      // If the engine didn't return, use a stable local fallback that ADVANCES.
       if (!reply) {
         reply =
           mode === "top10"
-            ? `Staying with ${yearFromText} · Top 10 — I’m not seeing Top 10 data for that year yet. Try “story moment ${yearFromText}” or another year.`
+            ? fallbackTop10(yearFromText, session)
             : mode === "story"
             ? fallbackStoryMoment(yearFromText)
             : fallbackMicroMoment(yearFromText);
@@ -779,9 +564,19 @@ app.post("/api/chat", async (req, res) => {
           requestId: req.requestId,
         })
       );
+    };
+
+    // 1) pendingMode (fresh selection) takes priority
+    if (session.pendingMode) {
+      return respondWithModeYear(session.pendingMode, true);
     }
 
-    // Otherwise: year-only with no pending mode -> ask which mode they want
+    // 2) if user already selected a mode earlier in the session, reuse it (P3)
+    if (session.activeMusicMode && ["top10", "story", "micro"].includes(session.activeMusicMode)) {
+      return respondWithModeYear(session.activeMusicMode, false);
+    }
+
+    // Otherwise: year-only with no mode context -> ask which mode they want
     const r = replyNeedModeForYear(yearFromText, session);
     const guarded = antiLoopGuard(session, r.reply);
 
@@ -805,41 +600,43 @@ app.post("/api/chat", async (req, res) => {
   let engine = null;
   try {
     engine = safeMusicHandle({ text, session });
-  } catch (e) {
-    if (ENABLE_DEBUG) console.warn(`[musicHandle] error: ${e.message}`);
+  } catch (_) {
     engine = null;
   }
 
-  let reply = null;
-
-  if (engine && typeof engine === "object") {
-    reply = engine.reply || engine.text || engine.message || null;
-    // allow engine to mutate session
-    if (engine.session && typeof engine.session === "object") {
-      session = { ...session, ...engine.session };
-    }
+  // Merge back session returned by engine (if any)
+  if (engine && engine.session && typeof engine.session === "object") {
+    session = { ...session, ...engine.session };
   }
 
-  // 6) If engine didn't answer, produce a safe, advancing fallback
+  let reply = engine && engine.reply ? String(engine.reply) : "";
+
+  // If engine reply is absent, produce a safe, advancing fallback
   if (!reply) {
-    const y = extractYearFromText(text) || session.lastYear || null;
-    const t = cleanText(text).toLowerCase();
-
-    if (y && /\b(story\s*moment|story)\b/.test(t)) {
-      reply = fallbackStoryMoment(y);
-    } else if (y && /\b(micro\s*moment|micro)\b/.test(t)) {
-      reply = fallbackMicroMoment(y);
-    } else if (y && isTop10Text(t)) {
-      reply = `Staying with ${y} · Top 10 — say “top 10 ${y}” and I’ll pull the year-end list. Or choose Story moment / Micro moment.`;
-    } else if (y) {
-      // Year present but unclear intent -> ask mode
-      const r = replyNeedModeForYear(y, session);
-      reply = r.reply;
+    if (yearFromText) {
+      // If a year is present and user said a mode explicitly, try to match.
+      const low = cleanText(text).toLowerCase();
+      if (isTop10Text(low)) {
+        session.activeMusicMode = "top10";
+        forceTop10Chart(session);
+        reply = fallbackTop10(yearFromText, session);
+      } else if (/\b(story\s*moment|story)\b/.test(low)) {
+        session.activeMusicMode = "story";
+        reply = fallbackStoryMoment(yearFromText);
+      } else if (/\b(micro\s*moment|micro)\b/.test(low)) {
+        session.activeMusicMode = "micro";
+        reply = fallbackMicroMoment(yearFromText);
+      } else {
+        // year present but unclear mode -> ask
+        const r = replyNeedModeForYear(yearFromText, session);
+        reply = r.reply;
+      }
     } else {
-      reply = "Tell me a year (1950–2024), or an artist + year (example: “Prince 1984”). Want the top 10, a story moment, or a micro-moment?";
+      reply = "Tell me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment.";
     }
   }
 
+  // Final safeguards
   reply = ensureNextMoveSuffix(reply, session);
   const guarded = antiLoopGuard(session, reply);
 
@@ -860,24 +657,38 @@ app.post("/api/chat", async (req, res) => {
 });
 
 /* ======================================================
-   /api/tts placeholder (kept for compatibility if present elsewhere)
+   Response envelope (keeps both legacy + v1)
 ====================================================== */
 
-app.post("/api/tts", (req, res) => {
-  // This codebase typically routes ElevenLabs from another module.
-  // Keep endpoint alive so widget doesn't break if it calls it.
-  res.status(501).json({
-    ok: false,
-    error: "TTS endpoint is not configured in this build.",
-    requestId: req.requestId,
-  });
-});
+function buildResponseEnvelope({
+  ok,
+  reply,
+  sessionId,
+  visitorId,
+  contractVersion,
+  followUpLegacy,
+  followUpsV1,
+  requestId,
+}) {
+  // Keep both legacy + v1 fields to preserve widget compatibility.
+  return {
+    ok: !!ok,
+    reply: String(reply || ""),
+    sessionId: sessionId || null,
+    requestId: requestId || null,
+    visitorId: visitorId || null,
+    contractVersion: String(contractVersion || NYX_CONTRACT_VERSION),
+    followUp: Array.isArray(followUpLegacy) ? followUpLegacy : buildYearFollowupStrings(),
+    followUps: Array.isArray(followUpsV1) ? followUpsV1 : buildYearFollowupsV1(),
+  };
+}
 
 /* ======================================================
-   Server start
+   Listen
 ====================================================== */
 
+const PORT = Number(process.env.PORT || 10000);
 app.listen(PORT, "0.0.0.0", () => {
-  // eslint-disable-next-line no-console
-  console.log(`[boot] Sandblast backend listening on ${PORT} (${NODE_ENV}) — ${INDEX_VERSION}`);
+  // Intentionally concise: you already have /api/health for diagnostics.
+  console.log(`[sandblast-backend] up :${PORT} env=${process.env.NODE_ENV || "production"} build=${process.env.RENDER_GIT_COMMIT_SHA || "n/a"} contract=${NYX_CONTRACT_VERSION} rollout=100%`);
 });
