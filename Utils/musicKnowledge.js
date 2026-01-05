@@ -1,13 +1,19 @@
 "use strict";
 
 /**
- * Utils/musicKnowledge.js — v2.66 (rebase-clean; 50s singles authoritative + hot-reload + forced reload + sequential ranks + clean fields)
+ * Utils/musicKnowledge.js — v2.70
  *
- * Critical behavior:
- *  - 1950–1959 Billboard Year-End Singles are served ONLY from Wikipedia cache when requested / when 50s year is requested.
- *  - No fake placeholders for missing 50s slices: if missing, say so plainly.
- *  - Hot-reload cache when the JSON file mtime changes; forced reload once if a requested 50s year appears missing.
- *  - Normalize title/artist (trim/quotes/whitespace), normalize ranks, and renumber sequentially (1..N) to avoid gaps.
+ * Critical fixes retained (v2.69):
+ *  - Validate session.activeMusicChart against loaded chart set; auto-fallback if unsupported.
+ *  - Year-only requests never dead-end due to unknown chart context (e.g., "Canada RPM").
+ *  - If the requested chart has no rows for a year, retry canonical fallbacks before returning “clean list”.
+ *  - Normalize common chart aliases consistently (RPM, Canada RPM, Year-End variants).
+ *
+ * Improvements in v2.70 (critical for your current Nyx flow):
+ *  - Always return a canonical sessionPatch (stop relying on session mutation for correctness).
+ *  - Parse and respond to: "top 10 ####", "top ten ####", "#1", and "story moment ####".
+ *  - "#1" uses session.lastMusicYear if present; otherwise asks for a year.
+ *  - If story moments layer isn't deployed, respond truthfully and give a next best action.
  *
  * Integration:
  *  - Designed to be called as: handleChat({ text, session })
@@ -21,7 +27,7 @@ const path = require("path");
 // Version
 // =========================
 const MK_VERSION =
-  "musicKnowledge v2.66 (rebase-clean; 50s singles authoritative + hot-reload + forced reload + sequential ranks + clean fields)";
+  "musicKnowledge v2.70 (command parsing + canonical sessionPatch + stronger degrade messaging)";
 
 // =========================
 // Public Range / Charts
@@ -50,11 +56,24 @@ const DB_CANDIDATES = [
   "Data/music_moments.json",
 ];
 
-// Wikipedia datasets
-const WIKI_YEAREND_HOT100_1970_2010 =
-  "Data/wikipedia/billboard_yearend_hot100_1970_2010.json";
+// Wikipedia datasets (existing + planned drop-ins)
 const WIKI_YEAREND_SINGLES_1950_1959 =
   "Data/wikipedia/billboard_yearend_singles_1950_1959.json";
+
+// Year-End Hot 100 ranges (merge any that exist)
+const WIKI_YEAREND_HOT100_FILES = [
+  // 1960–1969
+  "Data/wikipedia/billboard_yearend_hot100_1960_1969.json",
+
+  // 1970–2010 (existing)
+  "Data/wikipedia/billboard_yearend_hot100_1970_2010.json",
+
+  // 1976–1979 (optional)
+  "Data/wikipedia/billboard_yearend_hot100_1976_1979.json",
+
+  // 2011–2024
+  "Data/wikipedia/billboard_yearend_hot100_2011_2024.json",
+];
 
 // =========================
 // Internal State
@@ -80,7 +99,6 @@ function cleanText(s) {
 
 function cleanField(s) {
   let t = cleanText(s);
-  // strip wrapping quotes (some wiki rows have them)
   t = t.replace(/^"\s*/g, "").replace(/\s*"$/g, "");
   return cleanText(t);
 }
@@ -92,30 +110,35 @@ function toInt(x) {
   return Number.isFinite(n) ? n : null;
 }
 
-function normKey(s) {
-  return cleanText(String(s || "")).toLowerCase();
-}
-
 function normalizeChart(raw) {
   const s = cleanText(raw);
   if (!s) return DEFAULT_CHART;
 
   const c = s.toLowerCase();
 
-  // Singles year-end
+  if (
+    c === "rpm" ||
+    c === "canada rpm" ||
+    (c.includes("canada") && c.includes("rpm"))
+  ) {
+    return "Canada RPM";
+  }
+
   if (
     c.includes("year") &&
     c.includes("end") &&
-    (c.includes("single") || c.includes("singles") || c.includes("top 30") || c.includes("top 50"))
+    (c.includes("single") ||
+      c.includes("singles") ||
+      c.includes("top 30") ||
+      c.includes("top 50"))
   ) {
     return YEAR_END_SINGLES_CHART;
   }
 
-  // Year-end hot 100
   if (c.includes("year") && c.includes("end")) return YEAR_END_CHART;
 
-  // default hot100
-  if (c.includes("billboard") || c.includes("hot 100") || c.includes("hot100")) return DEFAULT_CHART;
+  if (c.includes("billboard") || c.includes("hot 100") || c.includes("hot100"))
+    return DEFAULT_CHART;
 
   return s;
 }
@@ -123,7 +146,6 @@ function normalizeChart(raw) {
 function resolveRepoPath(rel) {
   if (path.isAbsolute(rel)) return rel;
   if (DATA_DIR_ENV) return path.resolve(DATA_DIR_ENV, rel);
-  // Utils/.. => repo root in typical Render layout (/opt/render/project/src)
   return path.resolve(__dirname, "..", rel);
 }
 
@@ -152,7 +174,7 @@ function normalizeMoment(m) {
   const year = toInt(m.year);
   const rank = coerceRank(m);
 
-  // Hard fix — known bad row in some sources: 1988 #3 George Harrison
+  // Known fix: 1988 #3 George Harrison row normalization
   if (
     year === 1988 &&
     rank === 3 &&
@@ -173,13 +195,46 @@ function normalizeMoment(m) {
   return m;
 }
 
-// Renumber a list sequentially by existing rank order (1..N)
 function renumberSequentialByRank(rows, limit) {
   const ranked = (rows || []).filter((m) => m && m.rank != null);
   ranked.sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999));
   const out = ranked.slice(0, Math.max(1, limit || ranked.length));
   for (let i = 0; i < out.length; i++) out[i].rank = i + 1;
   return out;
+}
+
+// =========================
+// Command Parsing (v2.70)
+// =========================
+function parseCommand(msg) {
+  const t = cleanText(msg).toLowerCase();
+  if (!t) return null;
+
+  let m = t.match(/\btop\s*(10|ten)\s*(\d{4})\b/);
+  if (m) return { kind: "top10", year: Number(m[2]) };
+
+  m = t.match(/\b(story\s+moment|music\s+moment|moment|moments)\s*(\d{4})\b/);
+  if (m) return { kind: "story", year: Number(m[2]) };
+
+  if (t === "#1" || t === "1" || t === "number 1") return { kind: "number1" };
+
+  // Year-only is handled elsewhere; do not treat it as a special "command" here.
+  return null;
+}
+
+function canonicalPatch(session, extra = {}) {
+  const patch = {
+    activeMusicChart: session.activeMusicChart || DEFAULT_CHART,
+    lastMusicYear: session.lastMusicYear ?? null,
+    lastMusicChart: session.lastMusicChart || session.activeMusicChart || DEFAULT_CHART,
+    ...extra,
+  };
+
+  // Strip null-ish fields where it helps (keeps sessionPatch clean)
+  if (!patch.lastMusicYear) delete patch.lastMusicYear;
+  if (!patch.lastMusicChart) delete patch.lastMusicChart;
+
+  return patch;
 }
 
 // =========================
@@ -235,7 +290,6 @@ function loadWikiSingles50sOnce({ force = false } = {}) {
         ? doc
         : [];
 
-  // pre-seed
   for (let y = 1950; y <= 1959; y++) WIKI_SINGLES_50S_BY_YEAR.set(y, []);
 
   for (const r of rows) {
@@ -270,10 +324,11 @@ function loadWikiSingles50sOnce({ force = false } = {}) {
     WIKI_SINGLES_50S_BY_YEAR.set(y, arr);
   }
 
-  // Explicit confirmation log (the line you wanted)
   try {
     const counts = {};
-    for (let y = 1950; y <= 1959; y++) counts[y] = (WIKI_SINGLES_50S_BY_YEAR.get(y) || []).length;
+    for (let y = 1950; y <= 1959; y++) {
+      counts[y] = (WIKI_SINGLES_50S_BY_YEAR.get(y) || []).length;
+    }
     console.log(
       `[musicKnowledge] 50s Singles cache loaded: counts=${JSON.stringify(counts)}`
     );
@@ -286,7 +341,6 @@ function hasWikiSingles50sYear(year) {
   return Array.isArray(arr) && arr.length > 0;
 }
 
-// Attempt a forced reload once if a year is requested and appears missing
 function ensureWikiSingles50sYear(year) {
   if (hasWikiSingles50sYear(year)) return true;
   loadWikiSingles50sOnce({ force: true });
@@ -302,45 +356,69 @@ function clearWikiSingles50sCache() {
 // =========================
 // DB Load + Index (non-50s support)
 // =========================
-function mergeWikipediaYearEndHot100(moments) {
-  const abs = resolveRepoPath(WIKI_YEAREND_HOT100_1970_2010);
-  if (!fs.existsSync(abs)) return moments;
-
-  const doc = safeJsonRead(abs);
-  const rows = Array.isArray(doc?.rows)
-    ? doc.rows
-    : Array.isArray(doc?.moments)
-      ? doc.moments
-      : Array.isArray(doc)
-        ? doc
-        : [];
-
+function mergeWikipediaYearEndHot100Files(moments, relFiles) {
   const merged = [];
-  for (const r of rows) {
-    const y = toInt(r.year);
-    const rk = toInt(r.rank);
-    if (!y || !rk) continue;
+  const failures = [];
+  let mergedTotal = 0;
 
-    merged.push(
-      normalizeMoment({
-        year: y,
-        rank: rk,
-        artist: r.artist,
-        title: r.title,
-        chart: YEAR_END_CHART,
-        source: abs,
-      })
+  for (const rel of relFiles || []) {
+    const abs = resolveRepoPath(rel);
+    if (!fs.existsSync(abs)) continue;
+
+    try {
+      const doc = safeJsonRead(abs);
+      const rows = Array.isArray(doc?.rows)
+        ? doc.rows
+        : Array.isArray(doc?.moments)
+          ? doc.moments
+          : Array.isArray(doc)
+            ? doc
+            : [];
+
+      let count = 0;
+
+      for (const r of rows) {
+        const y = toInt(r.year);
+        const rk = toInt(r.rank);
+        if (!y || !rk) continue;
+
+        merged.push(
+          normalizeMoment({
+            year: y,
+            rank: rk,
+            artist: r.artist,
+            title: r.title,
+            chart: YEAR_END_CHART,
+            source: abs,
+          })
+        );
+        count++;
+      }
+
+      mergedTotal += count;
+      console.log(
+        `[musicKnowledge] Wikipedia Year-End merge: source=${abs} rows=${count}`
+      );
+    } catch (e) {
+      failures.push({ file: abs, error: e?.message || String(e) });
+    }
+  }
+
+  if (failures.length) {
+    console.warn(
+      `[musicKnowledge] Wikipedia Year-End merge failures: ${JSON.stringify(
+        failures
+      )}`
     );
   }
 
-  console.log(`[musicKnowledge] Wikipedia Year-End merge: source=${abs} rows=${merged.length}`);
+  if (!mergedTotal) return moments;
   return moments.concat(merged);
 }
 
 function loadDb() {
   if (DB && INDEX_BUILT) return DB;
 
-  // Load 50s singles cache early (and log counts if present)
   loadWikiSingles50sOnce({ force: false });
 
   let moments = [];
@@ -358,13 +436,10 @@ function loadDb() {
       moments = arr;
       LOADED_FROM = abs;
       break;
-    } catch (_) {
-      // keep trying candidates
-    }
+    } catch (_) {}
   }
 
-  // Merge year-end 1970–2010 (if present)
-  moments = mergeWikipediaYearEndHot100(moments);
+  moments = mergeWikipediaYearEndHot100Files(moments, WIKI_YEAREND_HOT100_FILES);
 
   DB = { moments };
 
@@ -390,7 +465,6 @@ function loadDb() {
     BY_YEAR_CHART.set(key, [...(BY_YEAR_CHART.get(key) || []), m]);
   }
 
-  // Sort each bucket by rank
   for (const [k, arr] of BY_YEAR_CHART.entries()) {
     arr.sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999));
     BY_YEAR_CHART.set(k, arr);
@@ -413,25 +487,46 @@ function loadDb() {
   return DB;
 }
 
+function chartIsAvailable(chart) {
+  loadDb();
+  const c = normalizeChart(chart);
+  return STATS.charts.includes(c);
+}
+
+function pickBestAvailableChart(preferredList) {
+  loadDb();
+  for (const raw of preferredList) {
+    const c = normalizeChart(raw);
+    if (STATS.charts.includes(c)) return c;
+  }
+  return STATS.charts[0] || DEFAULT_CHART;
+}
+
 // =========================
-// Chart Choice Logic (critical for 50s)
+// Chart Choice Logic
 // =========================
 function chooseChartForYear(year, requestedChart) {
   const y = toInt(year);
   const req = normalizeChart(requestedChart || DEFAULT_CHART);
 
-  // Explicit Year-End Singles request: only valid for 1950–1959 here
   if (req === YEAR_END_SINGLES_CHART) {
     if (y >= 1950 && y <= 1959) return { ok: true, chart: YEAR_END_SINGLES_CHART };
     return { ok: false, reason: "OUT_OF_RANGE_FOR_SINGLES" };
   }
 
-  // Pre-Hot100 era: route to Year-End Singles if possible
   if (y >= 1950 && y <= 1959) {
     return { ok: true, chart: YEAR_END_SINGLES_CHART };
   }
 
-  // Otherwise: keep requested chart
+  loadDb();
+
+  if (STATS.charts && STATS.charts.length) {
+    if (!STATS.charts.includes(req)) {
+      const fallback = pickBestAvailableChart([YEAR_END_CHART, DEFAULT_CHART]);
+      return { ok: true, chart: fallback, fellBackFrom: req };
+    }
+  }
+
   return { ok: true, chart: req || DEFAULT_CHART };
 }
 
@@ -442,7 +537,6 @@ function getTopByYear(year, chart, limit = 10) {
   const y = toInt(year);
   const c = normalizeChart(chart || DEFAULT_CHART);
 
-  // 50s Year-End Singles: authoritative cache + sequential ranks; no placeholders.
   if (c === YEAR_END_SINGLES_CHART && y >= 1950 && y <= 1959) {
     if (!ensureWikiSingles50sYear(y)) return [];
     const arr = WIKI_SINGLES_50S_BY_YEAR.get(y) || [];
@@ -450,7 +544,6 @@ function getTopByYear(year, chart, limit = 10) {
     return renumberSequentialByRank(arr, Math.min(limit, arr.length));
   }
 
-  // Non-50s: use indexed DB (if present)
   loadDb();
   const arr = BY_YEAR_CHART.get(`${y}|${c}`) || [];
   if (!arr.length) return [];
@@ -472,6 +565,39 @@ function formatTopList(year, chart, limit = 10) {
   return `Top ${Math.min(limit, lines.length)} — ${c} (${year}):\n${lines.join("\n")}`;
 }
 
+function formatTopListWithFallbacks(year, requestedChart, limit = 10) {
+  loadDb();
+  const y = toInt(year);
+  if (!y) return null;
+
+  const first = normalizeChart(requestedChart);
+  const preferred = [first, YEAR_END_CHART, DEFAULT_CHART];
+
+  const tryCharts = [];
+  for (const c0 of preferred) {
+    const c = normalizeChart(c0);
+    if (!tryCharts.includes(c) && STATS.charts.includes(c)) tryCharts.push(c);
+  }
+
+  if (!tryCharts.length && STATS.charts.length) tryCharts.push(STATS.charts[0]);
+
+  for (const c of tryCharts) {
+    const formatted = formatTopList(y, c, limit);
+    if (formatted) return { formatted, chartUsed: c };
+  }
+
+  return null;
+}
+
+function getNumberOneLine(year, chart) {
+  const list = getTopByYear(year, chart, 1);
+  if (!list.length) return null;
+  const m = list[0];
+  const a = cleanText(m.artist) || "Unknown Artist";
+  const t = cleanText(m.title) || "Unknown Title";
+  return `#1 — ${a} — ${t}`;
+}
+
 // =========================
 // Conversational Entry
 // =========================
@@ -479,8 +605,183 @@ function handleChat({ text, session }) {
   const msg = cleanText(text);
   session = session || {};
 
-  // Default chart preference for the session
+  // Ensure session chart defaults exist
   if (!session.activeMusicChart) session.activeMusicChart = DEFAULT_CHART;
+
+  // v2.70 command parsing (top10 / #1 / story moment ####)
+  const cmd = parseCommand(msg);
+  if (cmd) {
+    if (cmd.kind === "top10") {
+      const y = toInt(cmd.year);
+      if (!y || y < PUBLIC_MIN_YEAR || y > PUBLIC_MAX_YEAR) {
+        return {
+          reply: `Give me a year between ${PUBLIC_MIN_YEAR} and ${PUBLIC_MAX_YEAR}.`,
+          followUp: ["1956", "1984", "1999"],
+          domain: "music",
+          sessionPatch: canonicalPatch(session),
+        };
+      }
+
+      const choice = chooseChartForYear(y, session.activeMusicChart);
+      if (!choice.ok) {
+        if (choice.reason === "OUT_OF_RANGE_FOR_SINGLES") {
+          return {
+            reply: `Year-End Singles is only available for 1950–1959 in my current build. Try a year in that range.`,
+            followUp: ["1950", "1956", "1959"],
+            domain: "music",
+            sessionPatch: canonicalPatch(session),
+          };
+        }
+        return {
+          reply: `That year’s chart isn’t available yet.`,
+          followUp: ["1970", "1984", "1999"],
+          domain: "music",
+          sessionPatch: canonicalPatch(session),
+        };
+      }
+
+      const chart = choice.chart;
+      session.activeMusicChart = chart;
+
+      // 50s: authoritative singles list
+      if (chart === YEAR_END_SINGLES_CHART && y >= 1950 && y <= 1959) {
+        const formatted = formatTopList(y, chart, 10);
+        if (!formatted) {
+          session.lastMusicYear = y;
+          session.lastMusicChart = chart;
+          return {
+            reply: `I’m missing the ${y} Year-End Singles list in the current Wikipedia cache — so I won’t fake it. Try another 1950s year.`,
+            followUp: ["1950", "1956", "1959"],
+            domain: "music",
+            sessionPatch: canonicalPatch(session, {
+              activeMusicChart: chart,
+              lastMusicYear: y,
+              lastMusicChart: chart,
+            }),
+          };
+        }
+
+        session.lastMusicYear = y;
+        session.lastMusicChart = chart;
+        return {
+          reply: `${formatted}\n\nWant #1, a story moment, or another year?`,
+          followUp: ["#1", "Story moment", "Another year"],
+          domain: "music",
+          sessionPatch: canonicalPatch(session, {
+            activeMusicChart: chart,
+            lastMusicYear: y,
+            lastMusicChart: chart,
+          }),
+        };
+      }
+
+      // Non-50s: use fallbacks
+      const out = formatTopListWithFallbacks(y, chart, 10);
+      if (out && out.formatted) {
+        session.activeMusicChart = out.chartUsed || chart;
+        session.lastMusicYear = y;
+        session.lastMusicChart = session.activeMusicChart;
+
+        return {
+          reply: `${out.formatted}\n\nWant #1, a story moment, or another year?`,
+          followUp: ["#1", "Story moment", "Another year"],
+          domain: "music",
+          sessionPatch: canonicalPatch(session, {
+            activeMusicChart: session.activeMusicChart,
+            lastMusicYear: y,
+            lastMusicChart: session.activeMusicChart,
+          }),
+        };
+      }
+
+      // No data available
+      session.lastMusicYear = y;
+      session.lastMusicChart = session.activeMusicChart;
+
+      const missingHint =
+        STATS.moments > 0
+          ? ""
+          : " (No chart datasets are currently loaded on the server.)";
+
+      return {
+        reply: `I don’t have a clean list for ${y} on the available chart sources in this build yet${missingHint}. Try another year.`,
+        followUp: ["1970", "1984", "1999"],
+        domain: "music",
+        sessionPatch: canonicalPatch(session, {
+          activeMusicChart: session.activeMusicChart,
+          lastMusicYear: y,
+          lastMusicChart: session.activeMusicChart,
+        }),
+      };
+    }
+
+    if (cmd.kind === "number1") {
+      const y = toInt(session.lastMusicYear);
+      const chart = normalizeChart(session.lastMusicChart || session.activeMusicChart);
+
+      if (!y || y < PUBLIC_MIN_YEAR || y > PUBLIC_MAX_YEAR) {
+        return {
+          reply: `Tell me a year first (example: “1988” or “top 10 1988”), then I can give you #1.`,
+          followUp: ["1988", "top 10 1988", "1956"],
+          domain: "music",
+          sessionPatch: canonicalPatch(session),
+        };
+      }
+
+      const line = getNumberOneLine(y, chart);
+      if (!line) {
+        return {
+          reply: `I can’t pull a clean #1 for ${y} on ${chart} in this build yet. Try “top 10 ${y}” or pick another year.`,
+          followUp: [`top 10 ${y}`, "1984", "1999"],
+          domain: "music",
+          sessionPatch: canonicalPatch(session, {
+            activeMusicChart: chart,
+            lastMusicYear: y,
+            lastMusicChart: chart,
+          }),
+        };
+      }
+
+      return {
+        reply: `${line}\n\nWant a story moment for ${y}, or another year?`,
+        followUp: [`story moment ${y}`, "Another year", "top 10 " + y],
+        domain: "music",
+        sessionPatch: canonicalPatch(session, {
+          activeMusicChart: chart,
+          lastMusicYear: y,
+          lastMusicChart: chart,
+        }),
+      };
+    }
+
+    if (cmd.kind === "story") {
+      const y = toInt(cmd.year);
+      if (!y || y < PUBLIC_MIN_YEAR || y > PUBLIC_MAX_YEAR) {
+        return {
+          reply: `Give me a year between ${PUBLIC_MIN_YEAR} and ${PUBLIC_MAX_YEAR} for a story moment.`,
+          followUp: ["1957", "1988", "1999"],
+          domain: "music",
+          sessionPatch: canonicalPatch(session),
+        };
+      }
+
+      // Truthful: this module doesn't generate story moments; that's musicMoments layer.
+      session.lastMusicYear = y;
+      session.lastMusicChart = normalizeChart(session.activeMusicChart);
+
+      return {
+        reply:
+          `I can anchor ${y} with the chart facts, but the broadcast “story moment” is handled by the Music Moments layer.\n\n` +
+          `If you want the raw spine right now, say “top 10 ${y}” and then “#1”.`,
+        followUp: [`top 10 ${y}`, "#1", "another year"],
+        domain: "music",
+        sessionPatch: canonicalPatch(session, {
+          lastMusicYear: y,
+          lastMusicChart: session.lastMusicChart,
+        }),
+      };
+    }
+  }
 
   // Year-only input?
   const y = toInt(msg);
@@ -492,14 +793,14 @@ function handleChat({ text, session }) {
           reply: `Year-End Singles is only available for 1950–1959 in my current build. Try a year in that range.`,
           followUp: ["1950", "1956", "1959"],
           domain: "music",
-          sessionPatch: {},
+          sessionPatch: canonicalPatch(session),
         };
       }
       return {
         reply: `That year’s chart isn’t available yet.`,
         followUp: ["1970", "1984", "1999"],
         domain: "music",
-        sessionPatch: {},
+        sessionPatch: canonicalPatch(session),
       };
     }
 
@@ -509,12 +810,19 @@ function handleChat({ text, session }) {
     // 1950s Year-End Singles
     if (chart === YEAR_END_SINGLES_CHART && y >= 1950 && y <= 1959) {
       const rows = getTopByYear(y, chart, 10);
+      session.lastMusicYear = y;
+      session.lastMusicChart = chart;
+
       if (!rows.length) {
         return {
           reply: `I’m missing the ${y} Year-End Singles list in the current Wikipedia cache — so I won’t fake it. Try another 1950s year.`,
           followUp: ["1950", "1956", "1959"],
           domain: "music",
-          sessionPatch: { activeMusicChart: chart, lastMusicYear: y, lastMusicChart: chart },
+          sessionPatch: canonicalPatch(session, {
+            activeMusicChart: chart,
+            lastMusicYear: y,
+            lastMusicChart: chart,
+          }),
         };
       }
 
@@ -523,46 +831,69 @@ function handleChat({ text, session }) {
         reply: `${formatted}\n\nWant #1, a story moment, or another year?`,
         followUp: ["#1", "Story moment", "Another year"],
         domain: "music",
-        sessionPatch: { activeMusicChart: chart, lastMusicYear: y, lastMusicChart: chart },
+        sessionPatch: canonicalPatch(session, {
+          activeMusicChart: chart,
+          lastMusicYear: y,
+          lastMusicChart: chart,
+        }),
       };
     }
 
-    // Non-50s flow
-    const formatted = formatTopList(y, chart, 10);
-    if (formatted) {
+    // Non-50s: format using fallbacks
+    const out = formatTopListWithFallbacks(y, chart, 10);
+    session.lastMusicYear = y;
+    session.lastMusicChart = session.activeMusicChart;
+
+    if (out && out.formatted) {
+      session.activeMusicChart = out.chartUsed || chart;
+      session.lastMusicChart = session.activeMusicChart;
+
       return {
-        reply: `${formatted}\n\nWant #1, a story moment, or another year?`,
+        reply: `${out.formatted}\n\nWant #1, a story moment, or another year?`,
         followUp: ["#1", "Story moment", "Another year"],
         domain: "music",
-        sessionPatch: { activeMusicChart: chart, lastMusicYear: y, lastMusicChart: chart },
+        sessionPatch: canonicalPatch(session, {
+          activeMusicChart: session.activeMusicChart,
+          lastMusicYear: y,
+          lastMusicChart: session.activeMusicChart,
+        }),
       };
     }
 
+    const missingHint =
+      STATS.moments > 0
+        ? ""
+        : " (No chart datasets are currently loaded on the server.)";
+
     return {
-      reply: `I don’t have a clean list for ${y} on that chart source yet. Try another year.`,
+      reply: `I don’t have a clean list for ${y} on the available chart sources in this build yet${missingHint}. Try another year.`,
       followUp: ["1970", "1984", "1999"],
       domain: "music",
-      sessionPatch: { activeMusicChart: chart, lastMusicYear: y, lastMusicChart: chart },
+      sessionPatch: canonicalPatch(session, {
+        activeMusicChart: session.activeMusicChart,
+        lastMusicYear: y,
+        lastMusicChart: session.activeMusicChart,
+      }),
     };
   }
 
-  // Lane prompt handling (lightweight)
+  // Lane prompt handling
   if (/^music$/i.test(msg)) {
     session.activeMusicChart = DEFAULT_CHART;
     return {
       reply: `Alright—music. Give me a year (1950–2024) or an artist + year, and I’ll pull something memorable.`,
       followUp: ["1956", "1984", "1999"],
       domain: "music",
-      sessionPatch: { activeMusicChart: DEFAULT_CHART },
+      sessionPatch: canonicalPatch(session, { activeMusicChart: DEFAULT_CHART }),
     };
   }
 
   // Default prompt
   return {
-    reply: `Tell me a year (1950–2024), or an artist + year (example: “Prince 1984”).`,
-    followUp: ["1956", "Prince 1984", "1999"],
+    reply: `Tell me a year (1950–2024), or an artist + year (example: “Prince 1984”). You can also say “top 10 1988” or “#1”.`,
+    followUp: ["1956", "Prince 1984", "top 10 1988"],
     domain: "music",
-    sessionPatch: { activeMusicChart: session.activeMusicChart || DEFAULT_CHART },
+    sessionPatch: canonicalPatch(session),
   };
 }
 
@@ -578,4 +909,7 @@ module.exports = {
   // Ops / debug helpers
   reloadWikiSingles50s: () => loadWikiSingles50sOnce({ force: true }),
   clearWikiSingles50sCache,
+
+  // For diagnostics
+  _chartIsAvailable: chartIsAvailable,
 };

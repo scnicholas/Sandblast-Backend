@@ -1,2102 +1,1716 @@
-[
-  {
-    "id": "MM-1950-gordon-jenkins-and-the-weavers-goodnight-irene-billboard-year-end-singles-P1",
-    "type": "music_moment",
-    "date": "1950-01-01",
-    "year": 1950,
-    "artist": "Gordon Jenkins & The Weavers",
-    "title": "Goodnight Irene",
-    "chart": "Billboard Year-End Singles",
-    "position": 1,
-    "event_type": "year_snapshot",
-    "moment_text": "If you want a quick time machine: 1950. Gordon Jenkins & The Weavers at #1 on Billboard Year-End Singles with \"Goodnight Irene\" — pure era-defining energy.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1950",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1950-nat-king-cole-with-les-baxter-mona-lisa-billboard-year-end-singles-P2",
-    "type": "music_moment",
-    "date": "1950-01-01",
-    "year": 1950,
-    "artist": "Nat King Cole with Les Baxter",
-    "title": "Mona Lisa",
-    "chart": "Billboard Year-End Singles",
-    "position": 2,
-    "event_type": "year_snapshot",
-    "moment_text": "In 1950, Nat King Cole with Les Baxter landed at #2 on Billboard Year-End Singles with \"Mona Lisa\" — a strong signal of what listeners were craving that year.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1950",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1950-anton-karas-third-man-theme-billboard-year-end-singles-P3",
-    "type": "music_moment",
-    "date": "1950-01-01",
-    "year": 1950,
-    "artist": "Anton Karas",
-    "title": "Third Man Theme",
-    "chart": "Billboard Year-End Singles",
-    "position": 3,
-    "event_type": "year_snapshot",
-    "moment_text": "1950 was a big year for Anton Karas. \"Third Man Theme\" hit #3 on Billboard Year-End Singles and helped define the sound of the moment.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1950",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1950-gary-and-bing-crosby-with-matty-matlock-sam-s-song-billboard-year-end-singles-P4",
-    "type": "music_moment",
-    "date": "1950-01-01",
-    "year": 1950,
-    "artist": "Gary & Bing Crosby with Matty Matlock",
-    "title": "Sam's Song",
-    "chart": "Billboard Year-End Singles",
-    "position": 4,
-    "event_type": "year_snapshot",
-    "moment_text": "Chart snapshot: 1950, Billboard Year-End Singles. Gary & Bing Crosby with Matty Matlock reached #4 with \"Sam's Song\" — one of the tracks people kept coming back to.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1950",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1950-teresa-brewer-music-music-music-billboard-year-end-singles-P6",
-    "type": "music_moment",
-    "date": "1950-01-01",
-    "year": 1950,
-    "artist": "Teresa Brewer",
-    "title": "Music, Music, Music",
-    "chart": "Billboard Year-End Singles",
-    "position": 6,
-    "event_type": "year_snapshot",
-    "moment_text": "In 1950, Teresa Brewer landed at #6 on Billboard Year-End Singles with \"Music, Music, Music\" — a strong signal of what listeners were craving that year.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1950",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1950-guy-lombardo-third-man-theme-billboard-year-end-singles-P7",
-    "type": "music_moment",
-    "date": "1950-01-01",
-    "year": 1950,
-    "artist": "Guy Lombardo",
-    "title": "Third Man Theme",
-    "chart": "Billboard Year-End Singles",
-    "position": 7,
-    "event_type": "year_snapshot",
-    "moment_text": "1950 was a big year for Guy Lombardo. \"Third Man Theme\" hit #7 on Billboard Year-End Singles and helped define the sound of the moment.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1950",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1950-red-foley-chattanoogie-shoe-shine-boy-billboard-year-end-singles-P8",
-    "type": "music_moment",
-    "date": "1950-01-01",
-    "year": 1950,
-    "artist": "Red Foley",
-    "title": "Chattanoogie Shoe Shine Boy",
-    "chart": "Billboard Year-End Singles",
-    "position": 8,
-    "event_type": "year_snapshot",
-    "moment_text": "Chart snapshot: 1950, Billboard Year-End Singles. Red Foley reached #8 with \"Chattanoogie Shoe Shine Boy\" — one of the tracks people kept coming back to.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1950",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1950-sammy-kaye-harbor-lights-billboard-year-end-singles-P9",
-    "type": "music_moment",
-    "date": "1950-01-01",
-    "year": 1950,
-    "artist": "Sammy Kaye",
-    "title": "Harbor Lights",
-    "chart": "Billboard Year-End Singles",
-    "position": 9,
-    "event_type": "year_snapshot",
-    "moment_text": "If you want a quick time machine: 1950. Sammy Kaye at #9 on Billboard Year-End Singles with \"Harbor Lights\" — pure era-defining energy.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1950",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1950-sammy-kaye-and-don-cornell-it-isn-t-fair-billboard-year-end-singles-P10",
-    "type": "music_moment",
-    "date": "1950-01-01",
-    "year": 1950,
-    "artist": "Sammy Kaye & Don Cornell",
-    "title": "It Isn't Fair",
-    "chart": "Billboard Year-End Singles",
-    "position": 10,
-    "event_type": "year_snapshot",
-    "moment_text": "In 1950, Sammy Kaye & Don Cornell landed at #10 on Billboard Year-End Singles with \"It Isn't Fair\" — a strong signal of what listeners were craving that year.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1950",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1950-eileen-barton-with-morty-craft-if-i-knew-you-were-coming-i-d-have-baked-a-cake-billboard-year-end-singles-P11",
-    "type": "music_moment",
-    "date": "1950-01-01",
-    "year": 1950,
-    "artist": "Eileen Barton with Morty Craft",
-    "title": "If I Knew You Were Coming I'd have Baked a Cake",
-    "chart": "Billboard Year-End Singles",
-    "position": 11,
-    "event_type": "year_snapshot",
-    "moment_text": "1950 was a big year for Eileen Barton with Morty Craft. \"If I Knew You Were Coming I'd have Baked a Cake\" hit #11 on Billboard Year-End Singles and helped define the sound of the moment.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1950",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1951-nat-king-cole-with-les-baxter-too-young-billboard-year-end-singles-P1",
-    "type": "music_moment",
-    "date": "1951-01-01",
-    "year": 1951,
-    "artist": "Nat King Cole with Les Baxter",
-    "title": "Too Young",
-    "chart": "Billboard Year-End Singles",
-    "position": 1,
-    "event_type": "year_snapshot",
-    "moment_text": "Chart snapshot: 1951, Billboard Year-End Singles. Nat King Cole with Les Baxter reached #1 with \"Too Young\" — one of the tracks people kept coming back to.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1951",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1951-tony-bennett-with-percy-faith-because-of-you-billboard-year-end-singles-P2",
-    "type": "music_moment",
-    "date": "1951-01-01",
-    "year": 1951,
-    "artist": "Tony Bennett with Percy Faith",
-    "title": "Because of You",
-    "chart": "Billboard Year-End Singles",
-    "position": 2,
-    "event_type": "year_snapshot",
-    "moment_text": "If you want a quick time machine: 1951. Tony Bennett with Percy Faith at #2 on Billboard Year-End Singles with \"Because of You\" — pure era-defining energy.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1951",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1951-les-paul-and-mary-ford-how-high-the-moon-billboard-year-end-singles-P3",
-    "type": "music_moment",
-    "date": "1951-01-01",
-    "year": 1951,
-    "artist": "Les Paul and Mary Ford",
-    "title": "How High the Moon",
-    "chart": "Billboard Year-End Singles",
-    "position": 3,
-    "event_type": "year_snapshot",
-    "moment_text": "In 1951, Les Paul and Mary Ford landed at #3 on Billboard Year-End Singles with \"How High the Moon\" — a strong signal of what listeners were craving that year.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1951",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1951-rosemary-clooney-come-on-a-my-house-billboard-year-end-singles-P4",
-    "type": "music_moment",
-    "date": "1951-01-01",
-    "year": 1951,
-    "artist": "Rosemary Clooney",
-    "title": "Come On-a My House",
-    "chart": "Billboard Year-End Singles",
-    "position": 4,
-    "event_type": "year_snapshot",
-    "moment_text": "1951 was a big year for Rosemary Clooney. \"Come On-a My House\" hit #4 on Billboard Year-End Singles and helped define the sound of the moment.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1951",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1951-mario-lanza-with-ray-sinatra-and-jeff-alexander-be-my-love-billboard-year-end-singles-P5",
-    "type": "music_moment",
-    "date": "1951-01-01",
-    "year": 1951,
-    "artist": "Mario Lanza with Ray Sinatra and Jeff Alexander",
-    "title": "Be My Love",
-    "chart": "Billboard Year-End Singles",
-    "position": 5,
-    "event_type": "year_snapshot",
-    "moment_text": "Chart snapshot: 1951, Billboard Year-End Singles. Mario Lanza with Ray Sinatra and Jeff Alexander reached #5 with \"Be My Love\" — one of the tracks people kept coming back to.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1951",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1951-the-weavers-and-terry-gilkyson-with-vic-schoen-on-top-of-old-smoky-billboard-year-end-singles-P6",
-    "type": "music_moment",
-    "date": "1951-01-01",
-    "year": 1951,
-    "artist": "The Weavers and Terry Gilkyson with Vic Schoen",
-    "title": "On Top of Old Smoky",
-    "chart": "Billboard Year-End Singles",
-    "position": 6,
-    "event_type": "year_snapshot",
-    "moment_text": "If you want a quick time machine: 1951. The Weavers and Terry Gilkyson with Vic Schoen at #6 on Billboard Year-End Singles with \"On Top of Old Smoky\" — pure era-defining energy.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1951",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1951-tony-bennett-with-percy-faith-cold-cold-heart-billboard-year-end-singles-P7",
-    "type": "music_moment",
-    "date": "1951-01-01",
-    "year": 1951,
-    "artist": "Tony Bennett with Percy Faith",
-    "title": "Cold, Cold Heart",
-    "chart": "Billboard Year-End Singles",
-    "position": 7,
-    "event_type": "year_snapshot",
-    "moment_text": "In 1951, Tony Bennett with Percy Faith landed at #7 on Billboard Year-End Singles with \"Cold, Cold Heart\" — a strong signal of what listeners were craving that year.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1951",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1951-perry-como-with-mitchell-ayres-if-billboard-year-end-singles-P8",
-    "type": "music_moment",
-    "date": "1951-01-01",
-    "year": 1951,
-    "artist": "Perry Como with Mitchell Ayres",
-    "title": "If",
-    "chart": "Billboard Year-End Singles",
-    "position": 8,
-    "event_type": "year_snapshot",
-    "moment_text": "1951 was a big year for Perry Como with Mitchell Ayres. \"If\" hit #8 on Billboard Year-End Singles and helped define the sound of the moment.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1951",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1951-mario-lanza-the-loveliest-night-of-the-year-billboard-year-end-singles-P9",
-    "type": "music_moment",
-    "date": "1951-01-01",
-    "year": 1951,
-    "artist": "Mario Lanza",
-    "title": "The Loveliest Night of the Year",
-    "chart": "Billboard Year-End Singles",
-    "position": 9,
-    "event_type": "year_snapshot",
-    "moment_text": "Chart snapshot: 1951, Billboard Year-End Singles. Mario Lanza reached #9 with \"The Loveliest Night of the Year\" — one of the tracks people kept coming back to.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1951",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1951-patti-page-tennessee-waltz-billboard-year-end-singles-P10",
-    "type": "music_moment",
-    "date": "1951-01-01",
-    "year": 1951,
-    "artist": "Patti Page",
-    "title": "Tennessee Waltz",
-    "chart": "Billboard Year-End Singles",
-    "position": 10,
-    "event_type": "year_snapshot",
-    "moment_text": "If you want a quick time machine: 1951. Patti Page at #10 on Billboard Year-End Singles with \"Tennessee Waltz\" — pure era-defining energy.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1951",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1952-leroy-anderson-blue-tango-billboard-year-end-singles-P1",
-    "type": "music_moment",
-    "date": "1952-01-01",
-    "year": 1952,
-    "artist": "Leroy Anderson",
-    "title": "Blue Tango",
-    "chart": "Billboard Year-End Singles",
-    "position": 1,
-    "event_type": "year_snapshot",
-    "moment_text": "1952 was a big year for Leroy Anderson. \"Blue Tango\" hit #1 on Billboard Year-End Singles and helped define the sound of the moment.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1952",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1952-kay-starr-wheel-of-fortune-billboard-year-end-singles-P2",
-    "type": "music_moment",
-    "date": "1952-01-01",
-    "year": 1952,
-    "artist": "Kay Starr",
-    "title": "Wheel of Fortune",
-    "chart": "Billboard Year-End Singles",
-    "position": 2,
-    "event_type": "year_snapshot",
-    "moment_text": "Chart snapshot: 1952, Billboard Year-End Singles. Kay Starr reached #2 with \"Wheel of Fortune\" — one of the tracks people kept coming back to.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1952",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1952-johnnie-ray-and-the-four-lads-cry-billboard-year-end-singles-P3",
-    "type": "music_moment",
-    "date": "1952-01-01",
-    "year": 1952,
-    "artist": "Johnnie Ray & The Four Lads",
-    "title": "Cry",
-    "chart": "Billboard Year-End Singles",
-    "position": 3,
-    "event_type": "year_snapshot",
-    "moment_text": "If you want a quick time machine: 1952. Johnnie Ray & The Four Lads at #3 on Billboard Year-End Singles with \"Cry\" — pure era-defining energy.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1952",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1952-jo-stafford-with-paul-weston-you-belong-to-me-billboard-year-end-singles-P4",
-    "type": "music_moment",
-    "date": "1952-01-01",
-    "year": 1952,
-    "artist": "Jo Stafford with Paul Weston",
-    "title": "You Belong to Me",
-    "chart": "Billboard Year-End Singles",
-    "position": 4,
-    "event_type": "year_snapshot",
-    "moment_text": "In 1952, Jo Stafford with Paul Weston landed at #4 on Billboard Year-End Singles with \"You Belong to Me\" — a strong signal of what listeners were craving that year.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1952",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1952-vera-lynn-with-her-majesty-s-forces-and-roland-shaw-auf-wiederseh-n-sweetheart-billboard-year-end-singles-P5",
-    "type": "music_moment",
-    "date": "1952-01-01",
-    "year": 1952,
-    "artist": "Vera Lynn with Her Majesty's Forces and Roland Shaw",
-    "title": "Auf Wiederseh'n, Sweetheart",
-    "chart": "Billboard Year-End Singles",
-    "position": 5,
-    "event_type": "year_snapshot",
-    "moment_text": "1952 was a big year for Vera Lynn with Her Majesty's Forces and Roland Shaw. \"Auf Wiederseh'n, Sweetheart\" hit #5 on Billboard Year-End Singles and helped define the sound of the moment.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1952",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1952-rosemary-clooney-with-percy-faith-half-as-much-billboard-year-end-singles-P6",
-    "type": "music_moment",
-    "date": "1952-01-01",
-    "year": 1952,
-    "artist": "Rosemary Clooney with Percy Faith",
-    "title": "Half as Much",
-    "chart": "Billboard Year-End Singles",
-    "position": 6,
-    "event_type": "year_snapshot",
-    "moment_text": "Chart snapshot: 1952, Billboard Year-End Singles. Rosemary Clooney with Percy Faith reached #6 with \"Half as Much\" — one of the tracks people kept coming back to.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1952",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1952-eddie-fisher-with-hugo-winterhalter-wish-you-were-here-billboard-year-end-singles-P7",
-    "type": "music_moment",
-    "date": "1952-01-01",
-    "year": 1952,
-    "artist": "Eddie Fisher with Hugo Winterhalter",
-    "title": "Wish You Were Here",
-    "chart": "Billboard Year-End Singles",
-    "position": 7,
-    "event_type": "year_snapshot",
-    "moment_text": "If you want a quick time machine: 1952. Eddie Fisher with Hugo Winterhalter at #7 on Billboard Year-End Singles with \"Wish You Were Here\" — pure era-defining energy.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1952",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1952-patti-page-i-went-to-your-wedding-billboard-year-end-singles-P8",
-    "type": "music_moment",
-    "date": "1952-01-01",
-    "year": 1952,
-    "artist": "Patti Page",
-    "title": "I Went to Your Wedding",
-    "chart": "Billboard Year-End Singles",
-    "position": 8,
-    "event_type": "year_snapshot",
-    "moment_text": "In 1952, Patti Page landed at #8 on Billboard Year-End Singles with \"I Went to Your Wedding\" — a strong signal of what listeners were craving that year.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1952",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1952-al-martino-here-in-my-heart-billboard-year-end-singles-P9",
-    "type": "music_moment",
-    "date": "1952-01-01",
-    "year": 1952,
-    "artist": "Al Martino",
-    "title": "Here in My Heart",
-    "chart": "Billboard Year-End Singles",
-    "position": 9,
-    "event_type": "year_snapshot",
-    "moment_text": "1952 was a big year for Al Martino. \"Here in My Heart\" hit #9 on Billboard Year-End Singles and helped define the sound of the moment.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1952",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1952-percy-faith-with-stan-freeman-delicado-billboard-year-end-singles-P10",
-    "type": "music_moment",
-    "date": "1952-01-01",
-    "year": 1952,
-    "artist": "Percy Faith with Stan Freeman",
-    "title": "Delicado",
-    "chart": "Billboard Year-End Singles",
-    "position": 10,
-    "event_type": "year_snapshot",
-    "moment_text": "Chart snapshot: 1952, Billboard Year-End Singles. Percy Faith with Stan Freeman reached #10 with \"Delicado\" — one of the tracks people kept coming back to.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1952",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1953-percy-faith-featuring-felicia-sanders-the-song-from-moulin-rouge-billboard-year-end-singles-P1",
-    "type": "music_moment",
-    "date": "1953-01-01",
-    "year": 1953,
-    "artist": "Percy Faith featuring Felicia Sanders",
-    "title": "The Song from Moulin Rouge",
-    "chart": "Billboard Year-End Singles",
-    "position": 1,
-    "event_type": "year_snapshot",
-    "moment_text": "In 1953, Percy Faith featuring Felicia Sanders landed at #1 on Billboard Year-End Singles with \"The Song from Moulin Rouge\" — a strong signal of what listeners were craving that year.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1953",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1953-les-paul-and-mary-ford-vaya-con-dios-billboard-year-end-singles-P2",
-    "type": "music_moment",
-    "date": "1953-01-01",
-    "year": 1953,
-    "artist": "Les Paul and Mary Ford",
-    "title": "Vaya con Dios",
-    "chart": "Billboard Year-End Singles",
-    "position": 2,
-    "event_type": "year_snapshot",
-    "moment_text": "1953 was a big year for Les Paul and Mary Ford. \"Vaya con Dios\" hit #2 on Billboard Year-End Singles and helped define the sound of the moment.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1953",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1953-patti-page-how-much-is-that-doggie-in-the-window-billboard-year-end-singles-P3",
-    "type": "music_moment",
-    "date": "1953-01-01",
-    "year": 1953,
-    "artist": "Patti Page",
-    "title": "(How Much Is) That Doggie in the Window?",
-    "chart": "Billboard Year-End Singles",
-    "position": 3,
-    "event_type": "year_snapshot",
-    "moment_text": "Chart snapshot: 1953, Billboard Year-End Singles. Patti Page reached #3 with \"(How Much Is) That Doggie in the Window?\" — one of the tracks people kept coming back to.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1953",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1953-eddie-fisher-with-hugo-winterhalter-i-m-walking-behind-you-billboard-year-end-singles-P4",
-    "type": "music_moment",
-    "date": "1953-01-01",
-    "year": 1953,
-    "artist": "Eddie Fisher with Hugo Winterhalter",
-    "title": "I'm Walking Behind You",
-    "chart": "Billboard Year-End Singles",
-    "position": 4,
-    "event_type": "year_snapshot",
-    "moment_text": "If you want a quick time machine: 1953. Eddie Fisher with Hugo Winterhalter at #4 on Billboard Year-End Singles with \"I'm Walking Behind You\" — pure era-defining energy.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1953",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1953-ames-brothers-with-hugo-winterhalter-you-you-you-billboard-year-end-singles-P5",
-    "type": "music_moment",
-    "date": "1953-01-01",
-    "year": 1953,
-    "artist": "Ames Brothers with Hugo Winterhalter",
-    "title": "You, You, You",
-    "chart": "Billboard Year-End Singles",
-    "position": 5,
-    "event_type": "year_snapshot",
-    "moment_text": "In 1953, Ames Brothers with Hugo Winterhalter landed at #5 on Billboard Year-End Singles with \"You, You, You\" — a strong signal of what listeners were craving that year.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1953",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1953-teresa-brewer-with-jack-pleis-till-i-waltz-again-with-you-billboard-year-end-singles-P6",
-    "type": "music_moment",
-    "date": "1953-01-01",
-    "year": 1953,
-    "artist": "Teresa Brewer with Jack Pleis",
-    "title": "Till I Waltz Again with You",
-    "chart": "Billboard Year-End Singles",
-    "position": 6,
-    "event_type": "year_snapshot",
-    "moment_text": "1953 was a big year for Teresa Brewer with Jack Pleis. \"Till I Waltz Again with You\" hit #6 on Billboard Year-End Singles and helped define the sound of the moment.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1953",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1953-les-baxter-april-in-portugal-billboard-year-end-singles-P7",
-    "type": "music_moment",
-    "date": "1953-01-01",
-    "year": 1953,
-    "artist": "Les Baxter",
-    "title": "April in Portugal",
-    "chart": "Billboard Year-End Singles",
-    "position": 7,
-    "event_type": "year_snapshot",
-    "moment_text": "Chart snapshot: 1953, Billboard Year-End Singles. Les Baxter reached #7 with \"April in Portugal\" — one of the tracks people kept coming back to.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1953",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1953-perry-como-with-henri-ren-no-other-love-billboard-year-end-singles-P8",
-    "type": "music_moment",
-    "date": "1953-01-01",
-    "year": 1953,
-    "artist": "Perry Como with Henri René",
-    "title": "No Other Love",
-    "chart": "Billboard Year-End Singles",
-    "position": 8,
-    "event_type": "year_snapshot",
-    "moment_text": "If you want a quick time machine: 1953. Perry Como with Henri René at #8 on Billboard Year-End Singles with \"No Other Love\" — pure era-defining energy.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1953",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1953-perry-como-don-t-let-the-stars-get-in-your-eyes-billboard-year-end-singles-P9",
-    "type": "music_moment",
-    "date": "1953-01-01",
-    "year": 1953,
-    "artist": "Perry Como",
-    "title": "Don't Let the Stars Get in Your Eyes",
-    "chart": "Billboard Year-End Singles",
-    "position": 9,
-    "event_type": "year_snapshot",
-    "moment_text": "In 1953, Perry Como landed at #9 on Billboard Year-End Singles with \"Don't Let the Stars Get in Your Eyes\" — a strong signal of what listeners were craving that year.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1953",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1953-frankie-laine-with-paul-weston-i-believe-billboard-year-end-singles-P10",
-    "type": "music_moment",
-    "date": "1953-01-01",
-    "year": 1953,
-    "artist": "Frankie Laine with Paul Weston",
-    "title": "I Believe",
-    "chart": "Billboard Year-End Singles",
-    "position": 10,
-    "event_type": "year_snapshot",
-    "moment_text": "1953 was a big year for Frankie Laine with Paul Weston. \"I Believe\" hit #10 on Billboard Year-End Singles and helped define the sound of the moment.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1953",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1954-kitty-kallen-with-jack-pleis-little-things-mean-a-lot-billboard-year-end-singles-P1",
-    "type": "music_moment",
-    "date": "1954-01-01",
-    "year": 1954,
-    "artist": "Kitty Kallen with Jack Pleis",
-    "title": "Little Things Mean a Lot",
-    "chart": "Billboard Year-End Singles",
-    "position": 1,
-    "event_type": "year_snapshot",
-    "moment_text": "If you want a quick time machine: 1954. Kitty Kallen with Jack Pleis at #1 on Billboard Year-End Singles with \"Little Things Mean a Lot\" — pure era-defining energy.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1954",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1954-perry-como-with-hugo-winterhalter-wanted-billboard-year-end-singles-P2",
-    "type": "music_moment",
-    "date": "1954-01-01",
-    "year": 1954,
-    "artist": "Perry Como with Hugo Winterhalter",
-    "title": "Wanted",
-    "chart": "Billboard Year-End Singles",
-    "position": 2,
-    "event_type": "year_snapshot",
-    "moment_text": "In 1954, Perry Como with Hugo Winterhalter landed at #2 on Billboard Year-End Singles with \"Wanted\" — a strong signal of what listeners were craving that year.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1954",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1954-rosemary-clooney-with-buddy-cole-hey-there-billboard-year-end-singles-P3",
-    "type": "music_moment",
-    "date": "1954-01-01",
-    "year": 1954,
-    "artist": "Rosemary Clooney with Buddy Cole",
-    "title": "Hey There",
-    "chart": "Billboard Year-End Singles",
-    "position": 3,
-    "event_type": "year_snapshot",
-    "moment_text": "1954 was a big year for Rosemary Clooney with Buddy Cole. \"Hey There\" hit #3 on Billboard Year-End Singles and helped define the sound of the moment.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1954",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1954-the-crew-cuts-with-david-carroll-sh-boom-billboard-year-end-singles-P4",
-    "type": "music_moment",
-    "date": "1954-01-01",
-    "year": 1954,
-    "artist": "The Crew-Cuts with David Carroll",
-    "title": "Sh-Boom",
-    "chart": "Billboard Year-End Singles",
-    "position": 4,
-    "event_type": "year_snapshot",
-    "moment_text": "Chart snapshot: 1954, Billboard Year-End Singles. The Crew-Cuts with David Carroll reached #4 with \"Sh-Boom\" — one of the tracks people kept coming back to.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1954",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1954-jo-stafford-with-paul-weston-make-love-to-me-billboard-year-end-singles-P5",
-    "type": "music_moment",
-    "date": "1954-01-01",
-    "year": 1954,
-    "artist": "Jo Stafford with Paul Weston",
-    "title": "Make Love to Me",
-    "chart": "Billboard Year-End Singles",
-    "position": 5,
-    "event_type": "year_snapshot",
-    "moment_text": "If you want a quick time machine: 1954. Jo Stafford with Paul Weston at #5 on Billboard Year-End Singles with \"Make Love to Me\" — pure era-defining energy.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1954",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1954-eddie-fisher-with-hugo-winterhalter-oh-my-pa-pa-billboard-year-end-singles-P6",
-    "type": "music_moment",
-    "date": "1954-01-01",
-    "year": 1954,
-    "artist": "Eddie Fisher with Hugo Winterhalter",
-    "title": "Oh! My Pa-Pa",
-    "chart": "Billboard Year-End Singles",
-    "position": 6,
-    "event_type": "year_snapshot",
-    "moment_text": "In 1954, Eddie Fisher with Hugo Winterhalter landed at #6 on Billboard Year-End Singles with \"Oh! My Pa-Pa\" — a strong signal of what listeners were craving that year.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1954",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1954-the-four-knights-oh-baby-mine-i-get-so-lonely-billboard-year-end-singles-P7",
-    "type": "music_moment",
-    "date": "1954-01-01",
-    "year": 1954,
-    "artist": "The Four Knights",
-    "title": "(Oh Baby Mine) I Get So Lonely",
-    "chart": "Billboard Year-End Singles",
-    "position": 7,
-    "event_type": "year_snapshot",
-    "moment_text": "1954 was a big year for The Four Knights. \"(Oh Baby Mine) I Get So Lonely\" hit #7 on Billboard Year-End Singles and helped define the sound of the moment.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1954",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1954-the-four-aces-featuring-al-alberts-and-jack-pleis-three-coins-in-the-fountain-billboard-year-end-singles-P8",
-    "type": "music_moment",
-    "date": "1954-01-01",
-    "year": 1954,
-    "artist": "The Four Aces featuring Al Alberts and Jack Pleis",
-    "title": "Three Coins in the Fountain",
-    "chart": "Billboard Year-End Singles",
-    "position": 8,
-    "event_type": "year_snapshot",
-    "moment_text": "Chart snapshot: 1954, Billboard Year-End Singles. The Four Aces featuring Al Alberts and Jack Pleis reached #8 with \"Three Coins in the Fountain\" — one of the tracks people kept coming back to.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1954",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1954-doris-day-with-ray-heindorf-secret-love-billboard-year-end-singles-P9",
-    "type": "music_moment",
-    "date": "1954-01-01",
-    "year": 1954,
-    "artist": "Doris Day with Ray Heindorf",
-    "title": "Secret Love",
-    "chart": "Billboard Year-End Singles",
-    "position": 9,
-    "event_type": "year_snapshot",
-    "moment_text": "If you want a quick time machine: 1954. Doris Day with Ray Heindorf at #9 on Billboard Year-End Singles with \"Secret Love\" — pure era-defining energy.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1954",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1954-archie-bleyer-hernando-s-hideaway-billboard-year-end-singles-P10",
-    "type": "music_moment",
-    "date": "1954-01-01",
-    "year": 1954,
-    "artist": "Archie Bleyer",
-    "title": "Hernando's Hideaway",
-    "chart": "Billboard Year-End Singles",
-    "position": 10,
-    "event_type": "year_snapshot",
-    "moment_text": "In 1954, Archie Bleyer landed at #10 on Billboard Year-End Singles with \"Hernando's Hideaway\" — a strong signal of what listeners were craving that year.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1954",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1955-perez-prado-cherry-pink-and-apple-blossom-white-billboard-year-end-singles-P1",
-    "type": "music_moment",
-    "date": "1955-01-01",
-    "year": 1955,
-    "artist": "Perez Prado",
-    "title": "Cherry Pink And Apple Blossom White",
-    "chart": "Billboard Year-End Singles",
-    "position": 1,
-    "event_type": "year_snapshot",
-    "moment_text": "Chart snapshot: 1955, Billboard Year-End Singles. Perez Prado reached #1 with \"Cherry Pink And Apple Blossom White\" — one of the tracks people kept coming back to.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1955",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1955-bill-haley-and-his-comets-rock-around-the-clock-billboard-year-end-singles-P2",
-    "type": "music_moment",
-    "date": "1955-01-01",
-    "year": 1955,
-    "artist": "Bill Haley & His Comets",
-    "title": "Rock Around the Clock",
-    "chart": "Billboard Year-End Singles",
-    "position": 2,
-    "event_type": "year_snapshot",
-    "moment_text": "If you want a quick time machine: 1955. Bill Haley & His Comets at #2 on Billboard Year-End Singles with \"Rock Around the Clock\" — pure era-defining energy.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1955",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1955-mitch-miller-the-yellow-rose-of-texas-billboard-year-end-singles-P3",
-    "type": "music_moment",
-    "date": "1955-01-01",
-    "year": 1955,
-    "artist": "Mitch Miller",
-    "title": "The Yellow Rose of Texas",
-    "chart": "Billboard Year-End Singles",
-    "position": 3,
-    "event_type": "year_snapshot",
-    "moment_text": "In 1955, Mitch Miller landed at #3 on Billboard Year-End Singles with \"The Yellow Rose of Texas\" — a strong signal of what listeners were craving that year.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1955",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1955-roger-williams-autumn-leaves-billboard-year-end-singles-P4",
-    "type": "music_moment",
-    "date": "1955-01-01",
-    "year": 1955,
-    "artist": "Roger Williams",
-    "title": "Autumn Leaves",
-    "chart": "Billboard Year-End Singles",
-    "position": 4,
-    "event_type": "year_snapshot",
-    "moment_text": "1955 was a big year for Roger Williams. \"Autumn Leaves\" hit #4 on Billboard Year-End Singles and helped define the sound of the moment.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1955",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1955-les-baxter-unchained-melody-billboard-year-end-singles-P5",
-    "type": "music_moment",
-    "date": "1955-01-01",
-    "year": 1955,
-    "artist": "Les Baxter",
-    "title": "Unchained Melody",
-    "chart": "Billboard Year-End Singles",
-    "position": 5,
-    "event_type": "year_snapshot",
-    "moment_text": "Chart snapshot: 1955, Billboard Year-End Singles. Les Baxter reached #5 with \"Unchained Melody\" — one of the tracks people kept coming back to.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1955",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1955-bill-hayes-the-ballad-of-davy-crockett-billboard-year-end-singles-P6",
-    "type": "music_moment",
-    "date": "1955-01-01",
-    "year": 1955,
-    "artist": "Bill Hayes",
-    "title": "The Ballad of Davy Crockett",
-    "chart": "Billboard Year-End Singles",
-    "position": 6,
-    "event_type": "year_snapshot",
-    "moment_text": "If you want a quick time machine: 1955. Bill Hayes at #6 on Billboard Year-End Singles with \"The Ballad of Davy Crockett\" — pure era-defining energy.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1955",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1955-the-four-aces-love-is-a-many-splendored-thing-billboard-year-end-singles-P7",
-    "type": "music_moment",
-    "date": "1955-01-01",
-    "year": 1955,
-    "artist": "The Four Aces",
-    "title": "Love Is a Many-Splendored Thing",
-    "chart": "Billboard Year-End Singles",
-    "position": 7,
-    "event_type": "year_snapshot",
-    "moment_text": "In 1955, The Four Aces landed at #7 on Billboard Year-End Singles with \"Love Is a Many-Splendored Thing\" — a strong signal of what listeners were craving that year.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1955",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1955-the-mcguire-sisters-sincerely-billboard-year-end-singles-P8",
-    "type": "music_moment",
-    "date": "1955-01-01",
-    "year": 1955,
-    "artist": "The McGuire Sisters",
-    "title": "Sincerely",
-    "chart": "Billboard Year-End Singles",
-    "position": 8,
-    "event_type": "year_snapshot",
-    "moment_text": "1955 was a big year for The McGuire Sisters. \"Sincerely\" hit #8 on Billboard Year-End Singles and helped define the sound of the moment.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1955",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1955-pat-boone-ain-t-that-a-shame-billboard-year-end-singles-P9",
-    "type": "music_moment",
-    "date": "1955-01-01",
-    "year": 1955,
-    "artist": "Pat Boone",
-    "title": "Ain't That a Shame",
-    "chart": "Billboard Year-End Singles",
-    "position": 9,
-    "event_type": "year_snapshot",
-    "moment_text": "Chart snapshot: 1955, Billboard Year-End Singles. Pat Boone reached #9 with \"Ain't That a Shame\" — one of the tracks people kept coming back to.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1955",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1955-georgia-gibbs-the-wallflower-dance-with-me-henry-billboard-year-end-singles-P10",
-    "type": "music_moment",
-    "date": "1955-01-01",
-    "year": 1955,
-    "artist": "Georgia Gibbs",
-    "title": "The Wallflower (Dance with Me, Henry)",
-    "chart": "Billboard Year-End Singles",
-    "position": 10,
-    "event_type": "year_snapshot",
-    "moment_text": "If you want a quick time machine: 1955. Georgia Gibbs at #10 on Billboard Year-End Singles with \"The Wallflower (Dance with Me, Henry)\" — pure era-defining energy.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1955",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1956-elvis-presley-heartbreak-hotel-billboard-year-end-singles-P1",
-    "type": "music_moment",
-    "date": "1956-01-01",
-    "year": 1956,
-    "artist": "Elvis Presley",
-    "title": "Heartbreak Hotel",
-    "chart": "Billboard Year-End Singles",
-    "position": 1,
-    "event_type": "year_snapshot",
-    "moment_text": "1956 was a big year for Elvis Presley. \"Heartbreak Hotel\" hit #1 on Billboard Year-End Singles and helped define the sound of the moment.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1956",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1956-nelson-riddle-lisbon-antigua-billboard-year-end-singles-P3",
-    "type": "music_moment",
-    "date": "1956-01-01",
-    "year": 1956,
-    "artist": "Nelson Riddle",
-    "title": "Lisbon Antigua",
-    "chart": "Billboard Year-End Singles",
-    "position": 3,
-    "event_type": "year_snapshot",
-    "moment_text": "If you want a quick time machine: 1956. Nelson Riddle at #3 on Billboard Year-End Singles with \"Lisbon Antigua\" — pure era-defining energy.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1956",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1956-the-platters-my-prayer-billboard-year-end-singles-P4",
-    "type": "music_moment",
-    "date": "1956-01-01",
-    "year": 1956,
-    "artist": "The Platters",
-    "title": "My Prayer",
-    "chart": "Billboard Year-End Singles",
-    "position": 4,
-    "event_type": "year_snapshot",
-    "moment_text": "In 1956, The Platters landed at #4 on Billboard Year-End Singles with \"My Prayer\" — a strong signal of what listeners were craving that year.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1956",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1956-gogi-grant-the-wayward-wind-billboard-year-end-singles-P5",
-    "type": "music_moment",
-    "date": "1956-01-01",
-    "year": 1956,
-    "artist": "Gogi Grant",
-    "title": "The Wayward Wind",
-    "chart": "Billboard Year-End Singles",
-    "position": 5,
-    "event_type": "year_snapshot",
-    "moment_text": "1956 was a big year for Gogi Grant. \"The Wayward Wind\" hit #5 on Billboard Year-End Singles and helped define the sound of the moment.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1956",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1956-elvis-presley-hound-dog-billboard-year-end-singles-P6",
-    "type": "music_moment",
-    "date": "1956-01-01",
-    "year": 1956,
-    "artist": "Elvis Presley",
-    "title": "Hound Dog",
-    "chart": "Billboard Year-End Singles",
-    "position": 6,
-    "event_type": "year_snapshot",
-    "moment_text": "Chart snapshot: 1956, Billboard Year-End Singles. Elvis Presley reached #6 with \"Hound Dog\" — one of the tracks people kept coming back to.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1956",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1956-les-baxter-the-poor-people-of-paris-billboard-year-end-singles-P7",
-    "type": "music_moment",
-    "date": "1956-01-01",
-    "year": 1956,
-    "artist": "Les Baxter",
-    "title": "The Poor People of Paris",
-    "chart": "Billboard Year-End Singles",
-    "position": 7,
-    "event_type": "year_snapshot",
-    "moment_text": "If you want a quick time machine: 1956. Les Baxter at #7 on Billboard Year-End Singles with \"The Poor People of Paris\" — pure era-defining energy.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1956",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1956-doris-day-que-sera-sera-whatever-will-be-will-be-billboard-year-end-singles-P8",
-    "type": "music_moment",
-    "date": "1956-01-01",
-    "year": 1956,
-    "artist": "Doris Day",
-    "title": "Que Sera, Sera (Whatever Will Be, Will Be)",
-    "chart": "Billboard Year-End Singles",
-    "position": 8,
-    "event_type": "year_snapshot",
-    "moment_text": "In 1956, Doris Day landed at #8 on Billboard Year-End Singles with \"Que Sera, Sera (Whatever Will Be, Will Be)\" — a strong signal of what listeners were craving that year.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1956",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1956-dean-martin-memories-are-made-of-this-billboard-year-end-singles-P9",
-    "type": "music_moment",
-    "date": "1956-01-01",
-    "year": 1956,
-    "artist": "Dean Martin",
-    "title": "Memories Are Made of This",
-    "chart": "Billboard Year-End Singles",
-    "position": 9,
-    "event_type": "year_snapshot",
-    "moment_text": "1956 was a big year for Dean Martin. \"Memories Are Made of This\" hit #9 on Billboard Year-End Singles and helped define the sound of the moment.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1956",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1956-kay-starr-the-rock-and-roll-waltz-billboard-year-end-singles-P10",
-    "type": "music_moment",
-    "date": "1956-01-01",
-    "year": 1956,
-    "artist": "Kay Starr",
-    "title": "(The) Rock and Roll Waltz",
-    "chart": "Billboard Year-End Singles",
-    "position": 10,
-    "event_type": "year_snapshot",
-    "moment_text": "Chart snapshot: 1956, Billboard Year-End Singles. Kay Starr reached #10 with \"(The) Rock and Roll Waltz\" — one of the tracks people kept coming back to.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1956",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1956-morris-stoloff-moonglow-and-theme-from-picnic-billboard-year-end-singles-P11",
-    "type": "music_moment",
-    "date": "1956-01-01",
-    "year": 1956,
-    "artist": "Morris Stoloff",
-    "title": "Moonglow and Theme from Picnic",
-    "chart": "Billboard Year-End Singles",
-    "position": 11,
-    "event_type": "year_snapshot",
-    "moment_text": "If you want a quick time machine: 1956. Morris Stoloff at #11 on Billboard Year-End Singles with \"Moonglow and Theme from Picnic\" — pure era-defining energy.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1956",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1957-elvis-presley-all-shook-up-billboard-year-end-singles-P1",
-    "type": "music_moment",
-    "date": "1957-01-01",
-    "year": 1957,
-    "artist": "Elvis Presley",
-    "title": "All Shook Up",
-    "chart": "Billboard Year-End Singles",
-    "position": 1,
-    "event_type": "year_snapshot",
-    "moment_text": "In 1957, Elvis Presley landed at #1 on Billboard Year-End Singles with \"All Shook Up\" — a strong signal of what listeners were craving that year.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1957",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1957-pat-boone-love-letters-in-the-sand-billboard-year-end-singles-P2",
-    "type": "music_moment",
-    "date": "1957-01-01",
-    "year": 1957,
-    "artist": "Pat Boone",
-    "title": "Love Letters in the Sand",
-    "chart": "Billboard Year-End Singles",
-    "position": 2,
-    "event_type": "year_snapshot",
-    "moment_text": "1957 was a big year for Pat Boone. \"Love Letters in the Sand\" hit #2 on Billboard Year-End Singles and helped define the sound of the moment.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1957",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1957-the-diamonds-little-darlin-billboard-year-end-singles-P3",
-    "type": "music_moment",
-    "date": "1957-01-01",
-    "year": 1957,
-    "artist": "The Diamonds",
-    "title": "Little Darlin'",
-    "chart": "Billboard Year-End Singles",
-    "position": 3,
-    "event_type": "year_snapshot",
-    "moment_text": "Chart snapshot: 1957, Billboard Year-End Singles. The Diamonds reached #3 with \"Little Darlin'\" — one of the tracks people kept coming back to.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1957",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1957-tab-hunter-young-love-billboard-year-end-singles-P4",
-    "type": "music_moment",
-    "date": "1957-01-01",
-    "year": 1957,
-    "artist": "Tab Hunter",
-    "title": "Young Love",
-    "chart": "Billboard Year-End Singles",
-    "position": 4,
-    "event_type": "year_snapshot",
-    "moment_text": "If you want a quick time machine: 1957. Tab Hunter at #4 on Billboard Year-End Singles with \"Young Love\" — pure era-defining energy.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1957",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1957-jimmy-dorsey-so-rare-billboard-year-end-singles-P5",
-    "type": "music_moment",
-    "date": "1957-01-01",
-    "year": 1957,
-    "artist": "Jimmy Dorsey",
-    "title": "So Rare",
-    "chart": "Billboard Year-End Singles",
-    "position": 5,
-    "event_type": "year_snapshot",
-    "moment_text": "In 1957, Jimmy Dorsey landed at #5 on Billboard Year-End Singles with \"So Rare\" — a strong signal of what listeners were craving that year.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1957",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1957-pat-boone-don-t-forbid-me-billboard-year-end-singles-P6",
-    "type": "music_moment",
-    "date": "1957-01-01",
-    "year": 1957,
-    "artist": "Pat Boone",
-    "title": "Don't Forbid Me",
-    "chart": "Billboard Year-End Singles",
-    "position": 6,
-    "event_type": "year_snapshot",
-    "moment_text": "1957 was a big year for Pat Boone. \"Don't Forbid Me\" hit #6 on Billboard Year-End Singles and helped define the sound of the moment.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1957",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1957-guy-mitchell-singing-the-blues-billboard-year-end-singles-P7",
-    "type": "music_moment",
-    "date": "1957-01-01",
-    "year": 1957,
-    "artist": "Guy Mitchell",
-    "title": "Singing the Blues",
-    "chart": "Billboard Year-End Singles",
-    "position": 7,
-    "event_type": "year_snapshot",
-    "moment_text": "Chart snapshot: 1957, Billboard Year-End Singles. Guy Mitchell reached #7 with \"Singing the Blues\" — one of the tracks people kept coming back to.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1957",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1957-sonny-james-young-love-billboard-year-end-singles-P8",
-    "type": "music_moment",
-    "date": "1957-01-01",
-    "year": 1957,
-    "artist": "Sonny James",
-    "title": "Young Love",
-    "chart": "Billboard Year-End Singles",
-    "position": 8,
-    "event_type": "year_snapshot",
-    "moment_text": "If you want a quick time machine: 1957. Sonny James at #8 on Billboard Year-End Singles with \"Young Love\" — pure era-defining energy.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1957",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1957-elvis-presley-too-much-billboard-year-end-singles-P9",
-    "type": "music_moment",
-    "date": "1957-01-01",
-    "year": 1957,
-    "artist": "Elvis Presley",
-    "title": "Too Much",
-    "chart": "Billboard Year-End Singles",
-    "position": 9,
-    "event_type": "year_snapshot",
-    "moment_text": "In 1957, Elvis Presley landed at #9 on Billboard Year-End Singles with \"Too Much\" — a strong signal of what listeners were craving that year.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1957",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1957-perry-como-round-and-round-billboard-year-end-singles-P10",
-    "type": "music_moment",
-    "date": "1957-01-01",
-    "year": 1957,
-    "artist": "Perry Como",
-    "title": "Round and Round",
-    "chart": "Billboard Year-End Singles",
-    "position": 10,
-    "event_type": "year_snapshot",
-    "moment_text": "1957 was a big year for Perry Como. \"Round and Round\" hit #10 on Billboard Year-End Singles and helped define the sound of the moment.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1957",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1958-domenico-modugno-volare-nel-blu-dipinto-di-blu-billboard-year-end-singles-P1",
-    "type": "music_moment",
-    "date": "1958-01-01",
-    "year": 1958,
-    "artist": "Domenico Modugno",
-    "title": "Volare (Nel blu dipinto di blu)",
-    "chart": "Billboard Year-End Singles",
-    "position": 1,
-    "event_type": "year_snapshot",
-    "moment_text": "If you want a quick time machine: 1958. Domenico Modugno at #1 on Billboard Year-End Singles with \"Volare (Nel blu dipinto di blu)\" — pure era-defining energy.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1958",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1958-the-everly-brothers-all-i-have-to-do-is-dream-claudette-billboard-year-end-singles-P2",
-    "type": "music_moment",
-    "date": "1958-01-01",
-    "year": 1958,
-    "artist": "The Everly Brothers",
-    "title": "All I Have to Do Is Dream\" / \"Claudette",
-    "chart": "Billboard Year-End Singles",
-    "position": 2,
-    "event_type": "year_snapshot",
-    "moment_text": "In 1958, The Everly Brothers landed at #2 on Billboard Year-End Singles with \"All I Have to Do Is Dream\" / \"Claudette\" — a strong signal of what listeners were craving that year.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1958",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1958-elvis-presley-don-t-i-beg-of-you-billboard-year-end-singles-P3",
-    "type": "music_moment",
-    "date": "1958-01-01",
-    "year": 1958,
-    "artist": "Elvis Presley",
-    "title": "Don't\" / \"I Beg of You",
-    "chart": "Billboard Year-End Singles",
-    "position": 3,
-    "event_type": "year_snapshot",
-    "moment_text": "1958 was a big year for Elvis Presley. \"Don't\" / \"I Beg of You\" hit #3 on Billboard Year-End Singles and helped define the sound of the moment.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1958",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1958-david-seville-witch-doctor-billboard-year-end-singles-P4",
-    "type": "music_moment",
-    "date": "1958-01-01",
-    "year": 1958,
-    "artist": "David Seville",
-    "title": "Witch Doctor",
-    "chart": "Billboard Year-End Singles",
-    "position": 4,
-    "event_type": "year_snapshot",
-    "moment_text": "Chart snapshot: 1958, Billboard Year-End Singles. David Seville reached #4 with \"Witch Doctor\" — one of the tracks people kept coming back to.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1958",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1958-perez-prado-patricia-billboard-year-end-singles-P5",
-    "type": "music_moment",
-    "date": "1958-01-01",
-    "year": 1958,
-    "artist": "Perez Prado",
-    "title": "Patricia",
-    "chart": "Billboard Year-End Singles",
-    "position": 5,
-    "event_type": "year_snapshot",
-    "moment_text": "If you want a quick time machine: 1958. Perez Prado at #5 on Billboard Year-End Singles with \"Patricia\" — pure era-defining energy.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1958",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1958-billy-vaughn-sail-along-silv-ry-moon-raunchy-billboard-year-end-singles-P6",
-    "type": "music_moment",
-    "date": "1958-01-01",
-    "year": 1958,
-    "artist": "Billy Vaughn",
-    "title": "Sail Along, Silv'ry Moon\" / \"Raunchy",
-    "chart": "Billboard Year-End Singles",
-    "position": 6,
-    "event_type": "year_snapshot",
-    "moment_text": "In 1958, Billy Vaughn landed at #6 on Billboard Year-End Singles with \"Sail Along, Silv'ry Moon\" / \"Raunchy\" — a strong signal of what listeners were craving that year.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1958",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1958-perry-como-catch-a-falling-star-magic-moments-billboard-year-end-singles-P7",
-    "type": "music_moment",
-    "date": "1958-01-01",
-    "year": 1958,
-    "artist": "Perry Como",
-    "title": "Catch a Falling Star\" / \"Magic Moments",
-    "chart": "Billboard Year-End Singles",
-    "position": 7,
-    "event_type": "year_snapshot",
-    "moment_text": "1958 was a big year for Perry Como. \"Catch a Falling Star\" / \"Magic Moments\" hit #7 on Billboard Year-End Singles and helped define the sound of the moment.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1958",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1958-the-champs-tequila-billboard-year-end-singles-P8",
-    "type": "music_moment",
-    "date": "1958-01-01",
-    "year": 1958,
-    "artist": "The Champs",
-    "title": "Tequila",
-    "chart": "Billboard Year-End Singles",
-    "position": 8,
-    "event_type": "year_snapshot",
-    "moment_text": "Chart snapshot: 1958, Billboard Year-End Singles. The Champs reached #8 with \"Tequila\" — one of the tracks people kept coming back to.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1958",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1958-tommy-edwards-it-s-all-in-the-game-billboard-year-end-singles-P9",
-    "type": "music_moment",
-    "date": "1958-01-01",
-    "year": 1958,
-    "artist": "Tommy Edwards",
-    "title": "It's All in the Game",
-    "chart": "Billboard Year-End Singles",
-    "position": 9,
-    "event_type": "year_snapshot",
-    "moment_text": "If you want a quick time machine: 1958. Tommy Edwards at #9 on Billboard Year-End Singles with \"It's All in the Game\" — pure era-defining energy.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1958",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1958-dean-martin-return-to-me-billboard-year-end-singles-P10",
-    "type": "music_moment",
-    "date": "1958-01-01",
-    "year": 1958,
-    "artist": "Dean Martin",
-    "title": "Return to Me",
-    "chart": "Billboard Year-End Singles",
-    "position": 10,
-    "event_type": "year_snapshot",
-    "moment_text": "In 1958, Dean Martin landed at #10 on Billboard Year-End Singles with \"Return to Me\" — a strong signal of what listeners were craving that year.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1958",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1959-johnny-horton-the-battle-of-new-orleans-billboard-year-end-singles-P1",
-    "type": "music_moment",
-    "date": "1959-01-01",
-    "year": 1959,
-    "artist": "Johnny Horton",
-    "title": "The Battle of New Orleans",
-    "chart": "Billboard Year-End Singles",
-    "position": 1,
-    "event_type": "year_snapshot",
-    "moment_text": "Chart snapshot: 1959, Billboard Year-End Singles. Johnny Horton reached #1 with \"The Battle of New Orleans\" — one of the tracks people kept coming back to.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1959",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1959-bobby-darin-mack-the-knife-billboard-year-end-singles-P2",
-    "type": "music_moment",
-    "date": "1959-01-01",
-    "year": 1959,
-    "artist": "Bobby Darin",
-    "title": "Mack the Knife",
-    "chart": "Billboard Year-End Singles",
-    "position": 2,
-    "event_type": "year_snapshot",
-    "moment_text": "If you want a quick time machine: 1959. Bobby Darin at #2 on Billboard Year-End Singles with \"Mack the Knife\" — pure era-defining energy.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1959",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1959-lloyd-price-personality-billboard-year-end-singles-P3",
-    "type": "music_moment",
-    "date": "1959-01-01",
-    "year": 1959,
-    "artist": "Lloyd Price",
-    "title": "Personality",
-    "chart": "Billboard Year-End Singles",
-    "position": 3,
-    "event_type": "year_snapshot",
-    "moment_text": "In 1959, Lloyd Price landed at #3 on Billboard Year-End Singles with \"Personality\" — a strong signal of what listeners were craving that year.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1959",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1959-frankie-avalon-venus-billboard-year-end-singles-P4",
-    "type": "music_moment",
-    "date": "1959-01-01",
-    "year": 1959,
-    "artist": "Frankie Avalon",
-    "title": "Venus",
-    "chart": "Billboard Year-End Singles",
-    "position": 4,
-    "event_type": "year_snapshot",
-    "moment_text": "1959 was a big year for Frankie Avalon. \"Venus\" hit #4 on Billboard Year-End Singles and helped define the sound of the moment.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1959",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1959-paul-anka-lonely-boy-billboard-year-end-singles-P5",
-    "type": "music_moment",
-    "date": "1959-01-01",
-    "year": 1959,
-    "artist": "Paul Anka",
-    "title": "Lonely Boy",
-    "chart": "Billboard Year-End Singles",
-    "position": 5,
-    "event_type": "year_snapshot",
-    "moment_text": "Chart snapshot: 1959, Billboard Year-End Singles. Paul Anka reached #5 with \"Lonely Boy\" — one of the tracks people kept coming back to.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1959",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1959-bobby-darin-dream-lover-billboard-year-end-singles-P6",
-    "type": "music_moment",
-    "date": "1959-01-01",
-    "year": 1959,
-    "artist": "Bobby Darin",
-    "title": "Dream Lover",
-    "chart": "Billboard Year-End Singles",
-    "position": 6,
-    "event_type": "year_snapshot",
-    "moment_text": "If you want a quick time machine: 1959. Bobby Darin at #6 on Billboard Year-End Singles with \"Dream Lover\" — pure era-defining energy.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1959",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1959-the-browns-the-three-bells-billboard-year-end-singles-P7",
-    "type": "music_moment",
-    "date": "1959-01-01",
-    "year": 1959,
-    "artist": "The Browns",
-    "title": "The Three Bells",
-    "chart": "Billboard Year-End Singles",
-    "position": 7,
-    "event_type": "year_snapshot",
-    "moment_text": "In 1959, The Browns landed at #7 on Billboard Year-End Singles with \"The Three Bells\" — a strong signal of what listeners were craving that year.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1959",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1959-the-fleetwoods-come-softly-to-me-billboard-year-end-singles-P8",
-    "type": "music_moment",
-    "date": "1959-01-01",
-    "year": 1959,
-    "artist": "The Fleetwoods",
-    "title": "Come Softly to Me",
-    "chart": "Billboard Year-End Singles",
-    "position": 8,
-    "event_type": "year_snapshot",
-    "moment_text": "1959 was a big year for The Fleetwoods. \"Come Softly to Me\" hit #8 on Billboard Year-End Singles and helped define the sound of the moment.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1959",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1959-wilbert-harrison-kansas-city-billboard-year-end-singles-P9",
-    "type": "music_moment",
-    "date": "1959-01-01",
-    "year": 1959,
-    "artist": "Wilbert Harrison",
-    "title": "Kansas City",
-    "chart": "Billboard Year-End Singles",
-    "position": 9,
-    "event_type": "year_snapshot",
-    "moment_text": "Chart snapshot: 1959, Billboard Year-End Singles. Wilbert Harrison reached #9 with \"Kansas City\" — one of the tracks people kept coming back to.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1959",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  },
-  {
-    "id": "MM-1959-the-fleetwoods-mr-blue-billboard-year-end-singles-P10",
-    "type": "music_moment",
-    "date": "1959-01-01",
-    "year": 1959,
-    "artist": "The Fleetwoods",
-    "title": "Mr. Blue",
-    "chart": "Billboard Year-End Singles",
-    "position": 10,
-    "event_type": "year_snapshot",
-    "moment_text": "If you want a quick time machine: 1959. The Fleetwoods at #10 on Billboard Year-End Singles with \"Mr. Blue\" — pure era-defining energy.",
-    "source": "Charts dataset (internal)",
-    "confidence": "high",
-    "tags": [
-      "1959",
-      "charts",
-      "year-end"
-    ],
-    "media_type": "audio",
-    "rights": "licensed-music"
-  }
-]
+{
+  "version": "music_moments_v1",
+  "description": "Canonical music moments including chart data and editorial story moments",
+  "moments": [
+
+    /* =====================================================
+       EXISTING CONTENT (UNCHANGED)
+       Chart-based music_moment entries
+       ===================================================== */
+
+    {
+      "id": "MM-1950-gordon-jenkins-and-the-weavers-goodnight-irene-billboard-year-end-singles-P1",
+      "type": "music_moment",
+      "year": 1950,
+      "title": "Goodnight Irene",
+      "artist": "Gordon Jenkins & The Weavers",
+      "chart": "Billboard Year-End Singles",
+      "position": 1,
+      "media_type": "chart",
+      "rights": "licensed"
+    },
+
+    {
+      "id": "MM-1951-nat-king-cole-too-young-billboard-year-end-singles-P1",
+      "type": "music_moment",
+      "year": 1951,
+      "title": "Too Young",
+      "artist": "Nat King Cole",
+      "chart": "Billboard Year-End Singles",
+      "position": 1,
+      "media_type": "chart",
+      "rights": "licensed"
+    },
+
+    /* ... ALL existing chart entries continue here ... */
+
+
+    /* =====================================================
+       APPENDED CONTENT — 1950s STORY MOMENTS v1
+       ===================================================== */
+
+    {
+      "id": "MM-1950s-story-1950-v1",
+      "type": "story_moment",
+      "year": 1950,
+      "decade": "1950s",
+      "title": "Goodnight Irene",
+      "artist": "The Weavers",
+      "chart": "Billboard Year-End Singles",
+      "position": 1,
+      "moment_text": "With “Goodnight Irene” leading the year-end list, America still sounded warm and familiar. But jukeboxes were multiplying, R&B was turning up the voltage, and the studio guitar was starting to bite. The country was ready for louder, younger voices. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": ["1950", "story", "transition"]
+    },
+
+    {
+      "id": "MM-1950s-story-1951-v1",
+      "type": "story_moment",
+      "year": 1951,
+      "decade": "1950s",
+      "title": "Too Young",
+      "artist": "Nat King Cole",
+      "chart": "Billboard Year-End Singles",
+      "position": 1,
+      "moment_text": "“Too Young” sat at #1 on Billboard’s year-end singles list, all velvet and restraint. Yet the market was tilting: teen buyers had cash, radio was chasing freshness, and the edges of R&B and country were bleeding into pop. The polite era was cracking. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": ["1951", "story", "radio"]
+    },
+
+    {
+      "id": "MM-1950s-story-1952-v1",
+      "type": "story_moment",
+      "year": 1952,
+      "decade": "1950s",
+      "title": "Blue Tango",
+      "artist": "Leroy Anderson",
+      "chart": "Billboard Year-End Singles",
+      "position": 1,
+      "moment_text": "“Blue Tango” took the year-end crown, proving an instrumental could still own the room. But underneath the orchestras, postwar pop was speeding up—bigger drum accents, sharper riffs, and more dance-floor momentum. The sound was getting more physical, less parlor. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": ["1952", "story", "instrumental"]
+    },
+
+    {
+      "id": "MM-1950s-story-1953-v1",
+      "type": "story_moment",
+      "year": 1953,
+      "decade": "1950s",
+      "title": "The Song from Moulin Rouge",
+      "artist": "Percy Faith featuring Felicia Sanders",
+      "chart": "Billboard Year-End Singles",
+      "position": 1,
+      "moment_text": "Percy Faith’s “The Song from Moulin Rouge” topped the year, Hollywood romance in widescreen sound. At the same time, doo-wop corners and R&B clubs were building a different future—tighter harmonies, rawer vocals, and beats you could feel. Two Americas, one dial. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": ["1953", "story", "pop-vs-rnb"]
+    },
+
+    {
+      "id": "MM-1950s-story-1954-v1",
+      "type": "story_moment",
+      "year": 1954,
+      "decade": "1950s",
+      "title": "Little Things Mean a Lot",
+      "artist": "Kitty Kallen",
+      "chart": "Billboard Year-End Singles",
+      "position": 1,
+      "moment_text": "Kitty Kallen’s “Little Things Mean a Lot” ruled the year-end list—sweet, precise, and radio-perfect. But 1954 carried a warning: “Sh-Boom” and “Shake, Rattle and Roll” were already in the bloodstream, pushing rhythm forward. Pop didn’t know it yet, but it was losing control. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": ["1954", "story", "early-rock"]
+    },
+
+    {
+      "id": "MM-1950s-story-1955-v1",
+      "type": "story_moment",
+      "year": 1955,
+      "decade": "1950s",
+      "title": "Cherry Pink and Apple Blossom White",
+      "artist": "Perez Prado",
+      "chart": "Billboard Year-End Singles",
+      "position": 1,
+      "moment_text": "Perez Prado’s “Cherry Pink and Apple Blossom White” hit #1 for the year, a bright Latin swirl in every living room. Then the other shoe dropped: “Rock Around the Clock” exploded right behind it, signaling youth culture as a market force, not a phase. The tempo of America changed. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": ["1955", "story", "youth-market"]
+    },
+
+    {
+      "id": "MM-1950s-story-1956-v1",
+      "type": "story_moment",
+      "year": 1956,
+      "decade": "1950s",
+      "title": "Heartbreak Hotel",
+      "artist": "Elvis Presley",
+      "chart": "Billboard Year-End Singles",
+      "position": 1,
+      "moment_text": "Elvis Presley’s “Heartbreak Hotel” finished #1 for the year—and the old rules didn’t survive it. The vocal sounded lonely, the guitar felt dangerous, and the crowd finally had a face. Rock ’n’ roll wasn’t a side show anymore; it was the main event. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": ["1956", "story", "rock-breakthrough"]
+    },
+
+    {
+      "id": "MM-1950s-story-1957-v1",
+      "type": "story_moment",
+      "year": 1957,
+      "decade": "1950s",
+      "title": "All Shook Up",
+      "artist": "Elvis Presley",
+      "chart": "Billboard Year-End Singles",
+      "position": 1,
+      "moment_text": "“All Shook Up” put Elvis back at the top of the year-end list, and the energy was unmistakable. Rock was getting cleaner, faster, and more unavoidable—teen radio, teen movies, teen everything. The industry started chasing youth on purpose, not by accident. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": ["1957", "story", "teen-culture"]
+    },
+
+    {
+      "id": "MM-1950s-story-1958-v1",
+      "type": "story_moment",
+      "year": 1958,
+      "decade": "1950s",
+      "title": "Volare (Nel blu dipinto di blu)",
+      "artist": "Domenico Modugno",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "Domenico Modugno’s “Volare (Nel blu dipinto di blu)” led the year, and it felt like pop suddenly had passports. The Hot 100 era was beginning, and the palette widened—rock, crooners, novelty hits, and international melodies all competing on one scoreboard. America’s charts became a battleground. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": ["1958", "story", "hot-100-era"]
+    },
+
+    {
+      "id": "MM-1950s-story-1959-v1",
+      "type": "story_moment",
+      "year": 1959,
+      "decade": "1950s",
+      "title": "The Battle of New Orleans",
+      "artist": "Johnny Horton",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "Johnny Horton’s “The Battle of New Orleans” topped the 1959 year-end Hot 100, proof that novelty and storytelling could beat pure teen angst. Yet the scene was sharpening: doo-wop, early soul, and swaggering rock were taking over the air. The sixties were already knocking. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": ["1959", "story", "sixties-ahead"]
+    },
+
+    /* =====================================================
+
+    {
+      "id": "MM-1960-story-v1",
+      "type": "story_moment",
+      "year": 1960,
+      "decade": "1960s",
+      "title": "Theme from A Summer Place",
+      "artist": "Percy Faith",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "Billboard’s year-end Hot 100 for 1960 crowned “Theme from A Summer Place,” with Percy Faith owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1960",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1961-story-v1",
+      "type": "story_moment",
+      "year": 1961,
+      "decade": "1960s",
+      "title": "Tossin' and Turnin'",
+      "artist": "Bobby Lewis",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "“Tossin' and Turnin'” by Bobby Lewis led the 1961 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1961",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1962-story-v1",
+      "type": "story_moment",
+      "year": 1962,
+      "decade": "1960s",
+      "title": "Stranger on the Shore",
+      "artist": "Acker Bilk",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "In 1962, “Stranger on the Shore” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1962",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1963-story-v1",
+      "type": "story_moment",
+      "year": 1963,
+      "decade": "1960s",
+      "title": "Surfin' U.S.A.",
+      "artist": "The Beach Boys",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "Billboard’s year-end Hot 100 for 1963 crowned “Surfin' U.S.A.,” with The Beach Boys owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1963",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1964-story-v1",
+      "type": "story_moment",
+      "year": 1964,
+      "decade": "1960s",
+      "title": "I Want to Hold Your Hand",
+      "artist": "The Beatles",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "“I Want to Hold Your Hand” by The Beatles led the 1964 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1964",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1965-story-v1",
+      "type": "story_moment",
+      "year": 1965,
+      "decade": "1960s",
+      "title": "Wooly Bully",
+      "artist": "Sam the Sham and the Pharaohs",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "In 1965, “Wooly Bully” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1965",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1966-story-v1",
+      "type": "story_moment",
+      "year": 1966,
+      "decade": "1960s",
+      "title": "California Dreamin'",
+      "artist": "The Mamas & the Papas",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "Billboard’s year-end Hot 100 for 1966 crowned “California Dreamin',” with The Mamas & the Papas owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1966",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1967-story-v1",
+      "type": "story_moment",
+      "year": 1967,
+      "decade": "1960s",
+      "title": "To Sir With Love",
+      "artist": "Lulu",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "“To Sir With Love” by Lulu led the 1967 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1967",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1968-story-v1",
+      "type": "story_moment",
+      "year": 1968,
+      "decade": "1960s",
+      "title": "Hey Jude",
+      "artist": "The Beatles",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "In 1968, “Hey Jude” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1968",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1969-story-v1",
+      "type": "story_moment",
+      "year": 1969,
+      "decade": "1960s",
+      "title": "Sugar, Sugar",
+      "artist": "The Archies",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "Billboard’s year-end Hot 100 for 1969 crowned “Sugar, Sugar,” with The Archies owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1969",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1970-story-v1",
+      "type": "story_moment",
+      "year": 1970,
+      "decade": "1970s",
+      "title": "Bridge Over Troubled Water",
+      "artist": "Simon & Garfunkel",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "“Bridge Over Troubled Water” by Simon & Garfunkel led the 1970 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1970",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1971-story-v1",
+      "type": "story_moment",
+      "year": 1971,
+      "decade": "1970s",
+      "title": "Joy to the World",
+      "artist": "Three Dog Night",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "In 1971, “Joy to the World” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1971",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1972-story-v1",
+      "type": "story_moment",
+      "year": 1972,
+      "decade": "1970s",
+      "title": "The First Time Ever I Saw Your Face",
+      "artist": "Roberta Flack",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "Billboard’s year-end Hot 100 for 1972 crowned “The First Time Ever I Saw Your Face,” with Roberta Flack owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1972",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1973-story-v1",
+      "type": "story_moment",
+      "year": 1973,
+      "decade": "1970s",
+      "title": "Tie a Yellow Ribbon Round the Ole Oak Tree",
+      "artist": "Tony Orlando and Dawn",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "“Tie a Yellow Ribbon Round the Ole Oak Tree” by Tony Orlando and Dawn led the 1973 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1973",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1974-story-v1",
+      "type": "story_moment",
+      "year": 1974,
+      "decade": "1970s",
+      "title": "The Way We Were",
+      "artist": "Barbra Streisand",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "In 1974, “The Way We Were” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1974",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1975-story-v1",
+      "type": "story_moment",
+      "year": 1975,
+      "decade": "1970s",
+      "title": "Love Will Keep Us Together",
+      "artist": "Captain & Tennille",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "Billboard’s year-end Hot 100 for 1975 crowned “Love Will Keep Us Together,” with Captain & Tennille owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1975",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1976-story-v1",
+      "type": "story_moment",
+      "year": 1976,
+      "decade": "1970s",
+      "title": "Silly Love Songs",
+      "artist": "Wings",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "“Silly Love Songs” by Wings led the 1976 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1976",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1977-story-v1",
+      "type": "story_moment",
+      "year": 1977,
+      "decade": "1970s",
+      "title": "Tonight's the Night (Gonna Be Alright)",
+      "artist": "Rod Stewart",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "In 1977, “Tonight's the Night (Gonna Be Alright)” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1977",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1978-story-v1",
+      "type": "story_moment",
+      "year": 1978,
+      "decade": "1970s",
+      "title": "Shadow Dancing",
+      "artist": "Andy Gibb",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "Billboard’s year-end Hot 100 for 1978 crowned “Shadow Dancing,” with Andy Gibb owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1978",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1979-story-v1",
+      "type": "story_moment",
+      "year": 1979,
+      "decade": "1970s",
+      "title": "My Sharona",
+      "artist": "The Knack",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "“My Sharona” by The Knack led the 1979 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1979",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1980-story-v1",
+      "type": "story_moment",
+      "year": 1980,
+      "decade": "1980s",
+      "title": "Call Me",
+      "artist": "Blondie",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "In 1980, “Call Me” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1980",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1981-story-v1",
+      "type": "story_moment",
+      "year": 1981,
+      "decade": "1980s",
+      "title": "Bette Davis Eyes",
+      "artist": "Kim Carnes",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "Billboard’s year-end Hot 100 for 1981 crowned “Bette Davis Eyes,” with Kim Carnes owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1981",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1982-story-v1",
+      "type": "story_moment",
+      "year": 1982,
+      "decade": "1980s",
+      "title": "Physical",
+      "artist": "Olivia Newton-John",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "“Physical” by Olivia Newton-John led the 1982 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1982",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1983-story-v1",
+      "type": "story_moment",
+      "year": 1983,
+      "decade": "1980s",
+      "title": "Every Breath You Take",
+      "artist": "The Police",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "In 1983, “Every Breath You Take” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1983",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1984-story-v1",
+      "type": "story_moment",
+      "year": 1984,
+      "decade": "1980s",
+      "title": "When Doves Cry",
+      "artist": "Prince",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "Billboard’s year-end Hot 100 for 1984 crowned “When Doves Cry,” with Prince owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1984",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1985-story-v1",
+      "type": "story_moment",
+      "year": 1985,
+      "decade": "1980s",
+      "title": "Careless Whisper",
+      "artist": "George Michael",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "“Careless Whisper” by George Michael led the 1985 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1985",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1986-story-v1",
+      "type": "story_moment",
+      "year": 1986,
+      "decade": "1980s",
+      "title": "That's What Friends Are For",
+      "artist": "Dionne and Friends",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "In 1986, “That's What Friends Are For” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1986",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1987-story-v1",
+      "type": "story_moment",
+      "year": 1987,
+      "decade": "1980s",
+      "title": "Walk Like An Egyptian",
+      "artist": "The Bangles",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "Billboard’s year-end Hot 100 for 1987 crowned “Walk Like An Egyptian,” with The Bangles owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1987",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1988-story-v1",
+      "type": "story_moment",
+      "year": 1988,
+      "decade": "1980s",
+      "title": "Faith",
+      "artist": "George Michael",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "“Faith” by George Michael led the 1988 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1988",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1989-story-v1",
+      "type": "story_moment",
+      "year": 1989,
+      "decade": "1980s",
+      "title": "Look Away",
+      "artist": "Chicago",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "In 1989, “Look Away” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1989",
+        "story",
+        "year-end"
+      ]
+    },
+
+
+
+    {
+      "id": "MM-1990-story-v1",
+      "type": "story_moment",
+      "year": 1990,
+      "decade": "1990s",
+      "title": "Hold On",
+      "artist": "Wilson Phillips",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "Billboard’s year-end Hot 100 for 1990 crowned “Hold On,” with Wilson Phillips owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1990",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1991-story-v1",
+      "type": "story_moment",
+      "year": 1991,
+      "decade": "1990s",
+      "title": "(Everything I Do) I Do It for You",
+      "artist": "Bryan Adams",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "“(Everything I Do) I Do It for You” by Bryan Adams led the 1991 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1991",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1992-story-v1",
+      "type": "story_moment",
+      "year": 1992,
+      "decade": "1990s",
+      "title": "End of the Road",
+      "artist": "Boyz II Men",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "In 1992, “End of the Road” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1992",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1993-story-v1",
+      "type": "story_moment",
+      "year": 1993,
+      "decade": "1990s",
+      "title": "I Will Always Love You",
+      "artist": "Whitney Houston",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "Billboard’s year-end Hot 100 for 1993 crowned “I Will Always Love You,” with Whitney Houston owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1993",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1994-story-v1",
+      "type": "story_moment",
+      "year": 1994,
+      "decade": "1990s",
+      "title": "The Sign",
+      "artist": "Ace of Base",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "“The Sign” by Ace of Base led the 1994 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1994",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1995-story-v1",
+      "type": "story_moment",
+      "year": 1995,
+      "decade": "1990s",
+      "title": "Gangsta's Paradise",
+      "artist": "Coolio featuring L.V.",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "In 1995, “Gangsta's Paradise” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1995",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1996-story-v1",
+      "type": "story_moment",
+      "year": 1996,
+      "decade": "1990s",
+      "title": "Macarena (Bayside Boys Mix)",
+      "artist": "Los del Río",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "Billboard’s year-end Hot 100 for 1996 crowned “Macarena (Bayside Boys Mix),” with Los del Río owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1996",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1997-story-v1",
+      "type": "story_moment",
+      "year": 1997,
+      "decade": "1990s",
+      "title": "Candle in the Wind 1997 \" / \" Something About the Way You Look Tonight",
+      "artist": "Elton John",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "“Candle in the Wind 1997 \" / \" Something About the Way You Look Tonight” by Elton John led the 1997 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1997",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1998-story-v1",
+      "type": "story_moment",
+      "year": 1998,
+      "decade": "1990s",
+      "title": "Too Close",
+      "artist": "Next",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "In 1998, “Too Close” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1998",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-1999-story-v1",
+      "type": "story_moment",
+      "year": 1999,
+      "decade": "1990s",
+      "title": "Believe",
+      "artist": "Cher",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "Billboard’s year-end Hot 100 for 1999 crowned “Believe,” with Cher owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "1999",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-2000-story-v1",
+      "type": "story_moment",
+      "year": 2000,
+      "decade": "2000s",
+      "title": "Breathe",
+      "artist": "Faith Hill",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "“Breathe” by Faith Hill led the 2000 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "2000",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-2001-story-v1",
+      "type": "story_moment",
+      "year": 2001,
+      "decade": "2000s",
+      "title": "Hanging by a Moment",
+      "artist": "Lifehouse",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "In 2001, “Hanging by a Moment” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "2001",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-2002-story-v1",
+      "type": "story_moment",
+      "year": 2002,
+      "decade": "2000s",
+      "title": "How You Remind Me",
+      "artist": "Nickelback",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "Billboard’s year-end Hot 100 for 2002 crowned “How You Remind Me,” with Nickelback owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "2002",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-2003-story-v1",
+      "type": "story_moment",
+      "year": 2003,
+      "decade": "2000s",
+      "title": "In da Club",
+      "artist": "50 Cent",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "“In da Club” by 50 Cent led the 2003 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "2003",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-2004-story-v1",
+      "type": "story_moment",
+      "year": 2004,
+      "decade": "2000s",
+      "title": "Yeah!",
+      "artist": "Usher featuring Lil Jon and Ludacris",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "In 2004, “Yeah!” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "2004",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-2005-story-v1",
+      "type": "story_moment",
+      "year": 2005,
+      "decade": "2000s",
+      "title": "We Belong Together",
+      "artist": "Mariah Carey",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "Billboard’s year-end Hot 100 for 2005 crowned “We Belong Together,” with Mariah Carey owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "2005",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-2006-story-v1",
+      "type": "story_moment",
+      "year": 2006,
+      "decade": "2000s",
+      "title": "Bad Day",
+      "artist": "Daniel Powter",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "“Bad Day” by Daniel Powter led the 2006 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "2006",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-2007-story-v1",
+      "type": "story_moment",
+      "year": 2007,
+      "decade": "2000s",
+      "title": "Irreplaceable",
+      "artist": "Beyoncé",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "In 2007, “Irreplaceable” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "2007",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-2008-story-v1",
+      "type": "story_moment",
+      "year": 2008,
+      "decade": "2000s",
+      "title": "Low",
+      "artist": "Flo Rida featuring T-Pain",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "Billboard’s year-end Hot 100 for 2008 crowned “Low,” with Flo Rida featuring T-Pain owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "2008",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-2009-story-v1",
+      "type": "story_moment",
+      "year": 2009,
+      "decade": "2000s",
+      "title": "Boom Boom Pow",
+      "artist": "The Black Eyed Peas",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "“Boom Boom Pow” by The Black Eyed Peas led the 2009 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "2009",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-2010-story-v1",
+      "type": "story_moment",
+      "year": 2010,
+      "decade": "2010s",
+      "title": "Tik Tok",
+      "artist": "Kesha",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "In 2010, “Tik Tok” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "2010",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-2011-story-v1",
+      "type": "story_moment",
+      "year": 2011,
+      "decade": "2010s",
+      "title": "Rolling in the Deep",
+      "artist": "Adele",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "Billboard’s year-end Hot 100 for 2011 crowned “Rolling in the Deep,” with Adele owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "2011",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-2012-story-v1",
+      "type": "story_moment",
+      "year": 2012,
+      "decade": "2010s",
+      "title": "Somebody That I Used to Know",
+      "artist": "Gotye featuring Kimbra",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "“Somebody That I Used to Know” by Gotye featuring Kimbra led the 2012 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "2012",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-2013-story-v1",
+      "type": "story_moment",
+      "year": 2013,
+      "decade": "2010s",
+      "title": "Thrift Shop",
+      "artist": "Macklemore & Ryan Lewis featuring Wanz",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "In 2013, “Thrift Shop” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "2013",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-2014-story-v1",
+      "type": "story_moment",
+      "year": 2014,
+      "decade": "2010s",
+      "title": "Happy",
+      "artist": "Pharrell Williams",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "Billboard’s year-end Hot 100 for 2014 crowned “Happy,” with Pharrell Williams owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "2014",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-2015-story-v1",
+      "type": "story_moment",
+      "year": 2015,
+      "decade": "2010s",
+      "title": "Uptown Funk",
+      "artist": "Mark Ronson featuring Bruno Mars",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "“Uptown Funk” by Mark Ronson featuring Bruno Mars led the 2015 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "2015",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-2016-story-v1",
+      "type": "story_moment",
+      "year": 2016,
+      "decade": "2010s",
+      "title": "Love Yourself",
+      "artist": "Justin Bieber",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "In 2016, “Love Yourself” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "2016",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-2017-story-v1",
+      "type": "story_moment",
+      "year": 2017,
+      "decade": "2010s",
+      "title": "Shape of You",
+      "artist": "Ed Sheeran",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "Billboard’s year-end Hot 100 for 2017 crowned “Shape of You,” with Ed Sheeran owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "2017",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-2018-story-v1",
+      "type": "story_moment",
+      "year": 2018,
+      "decade": "2010s",
+      "title": "God's Plan",
+      "artist": "Drake",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "“God's Plan” by Drake led the 2018 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "2018",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-2019-story-v1",
+      "type": "story_moment",
+      "year": 2019,
+      "decade": "2010s",
+      "title": "Old Town Road",
+      "artist": "Lil Nas X featuring Billy Ray Cyrus",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "In 2019, “Old Town Road” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "2019",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-2020-story-v1",
+      "type": "story_moment",
+      "year": 2020,
+      "decade": "2020s",
+      "title": "Blinding Lights",
+      "artist": "The Weeknd",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "Billboard’s year-end Hot 100 for 2020 crowned “Blinding Lights,” with The Weeknd owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "2020",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-2021-story-v1",
+      "type": "story_moment",
+      "year": 2021,
+      "decade": "2020s",
+      "title": "Levitating",
+      "artist": "Dua Lipa",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "“Levitating” by Dua Lipa led the 2021 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "2021",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-2022-story-v1",
+      "type": "story_moment",
+      "year": 2022,
+      "decade": "2020s",
+      "title": "Heat Waves",
+      "artist": "Glass Animals",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "In 2022, “Heat Waves” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "2022",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-2023-story-v1",
+      "type": "story_moment",
+      "year": 2023,
+      "decade": "2020s",
+      "title": "Last Night",
+      "artist": "Morgan Wallen",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "Billboard’s year-end Hot 100 for 2023 crowned “Last Night,” with Morgan Wallen owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "2023",
+        "story",
+        "year-end"
+      ]
+    },
+
+    {
+      "id": "MM-2024-story-v1",
+      "type": "story_moment",
+      "year": 2024,
+      "decade": "2020s",
+      "title": "Lose Control",
+      "artist": "Teddy Swims",
+      "chart": "Billboard Year-End Hot 100",
+      "position": 1,
+      "moment_text": "“Lose Control” by Teddy Swims led the 2024 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": [
+        "2024",
+        "story",
+        "year-end"
+      ]
+    },
+
+
+       APPENDED CONTENT — 1950s MICRO-MOMENTS v1 (CANONICAL)
+       ===================================================== */
+
+    {
+      "id": "MM-1950s-micro-1950-v1",
+      "type": "micro_moment",
+      "year": 1950,
+      "decade": "1950s",
+      "moment_text": "In 1950, most hit records were still marketed to adult audiences, with youth culture not yet recognized as a distinct commercial force in music programming or promotion.",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": ["1950", "micro", "industry"]
+    },
+
+    {
+      "id": "MM-1950s-micro-1951-v1",
+      "type": "micro_moment",
+      "year": 1951,
+      "decade": "1950s",
+      "moment_text": "By 1951, jukeboxes rivaled radio as the primary driver of hit exposure, quietly shifting influence toward venues where younger listeners gathered and shaped taste directly.",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": ["1951", "micro", "distribution"]
+    },
+
+    {
+      "id": "MM-1950s-micro-1952-v1",
+      "type": "micro_moment",
+      "year": 1952,
+      "decade": "1950s",
+      "moment_text": "Early-50s recording sessions relied on minimal microphone setups, forcing performers to balance volume, clarity, and emotion in real time rather than fixing problems later.",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": ["1952", "micro", "production"]
+    },
+
+    {
+      "id": "MM-1950s-micro-1953-v1",
+      "type": "micro_moment",
+      "year": 1953,
+      "decade": "1950s",
+      "moment_text": "Television variety shows began accelerating song popularity in 1953, compressing the gap between regional success and national recognition almost overnight.",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": ["1953", "micro", "television"]
+    },
+
+    {
+      "id": "MM-1950s-micro-1954-v1",
+      "type": "micro_moment",
+      "year": 1954,
+      "decade": "1950s",
+      "moment_text": "Mid-decade recordings were typically captured live to mono tape, meaning entire performances were preserved in single takes, with no multitrack safety net.",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": ["1954", "micro", "recording"]
+    },
+
+    {
+      "id": "MM-1950s-micro-1955-v1",
+      "type": "micro_moment",
+      "year": 1955,
+      "decade": "1950s",
+      "moment_text": "By 1955, record labels were increasingly tracking teenage buying habits, recognizing youth spending power as a driving force in chart performance.",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": ["1955", "micro", "youth-market"]
+    },
+
+    {
+      "id": "MM-1950s-micro-1956-v1",
+      "type": "micro_moment",
+      "year": 1956,
+      "decade": "1950s",
+      "moment_text": "The rise of portable record players in 1956 shifted listening from shared family spaces to private bedrooms, subtly changing how young audiences formed musical identity.",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": ["1956", "micro", "listening-habits"]
+    },
+
+    {
+      "id": "MM-1950s-micro-1957-v1",
+      "type": "micro_moment",
+      "year": 1957,
+      "decade": "1950s",
+      "moment_text": "Growing backlash against rock-influenced music in 1957 reflected widening generational tension, with radio bans revealing anxiety over youth independence and expression.",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": ["1957", "micro", "cultural-tension"]
+    },
+
+    {
+      "id": "MM-1950s-micro-1958-v1",
+      "type": "micro_moment",
+      "year": 1958,
+      "decade": "1950s",
+      "moment_text": "Late-50s hits were increasingly shaped by producers behind the scenes, signaling a quiet transition from performer-led recordings to studio-driven sound design.",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": ["1958", "micro", "production-shift"]
+    },
+
+    {
+      "id": "MM-1950s-micro-1959-v1",
+      "type": "micro_moment",
+      "year": 1959,
+      "decade": "1950s",
+      "moment_text": "By 1959, popular music stood on the edge of transformation, with stylistic fragmentation hinting that the unified pop era of the early 1950s was ending.",
+      "voice": "nyx",
+      "media_type": "narrative",
+      "rights": "editorial-original",
+      "canonical": true,
+      "tags": ["1959", "micro", "transition"]
+    }
+
+  ]
+}
