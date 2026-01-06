@@ -3,17 +3,19 @@
 /**
  * Sandblast Backend — index.js
  *
- * This revision is a surgical hardening pass on your v1.4.0/1.4.1:
- *  - CORS: guarantees preflight uses the SAME corsOptions (no accidental wildcard),
- *          supports www/non-www normalization, and ensures CORS runs on /api/health, /api/chat, /api/tts, /api/voice.
- *  - Parser: keeps rawBody capture + JSON error responses + safe fallback parse.
- *  - Contract: optional strict enforcement (409 on mismatch) + always returns X-Contract-Version.
- *  - Sessions: TTL cleanup hardened (unref safe) + optional max sessions cap.
- *  - Chat: closes loop edges:
+ * index.js v1.4.2 (CORS origin normalization + loop-closure + top10-no-year + #1 routing + another-year token)
+ *
+ * Hardening pass:
+ *  - CORS: preflight uses SAME corsOptions, supports www/non-www symmetry, runs on /api/* consistently.
+ *  - Parser: rawBody capture + JSON error responses + safe fallback parse for text/plain.
+ *  - Contract: optional strict enforcement (409) + always returns X-Contract-Version.
+ *  - Sessions: TTL cleanup hardened + optional MAX_SESSIONS cap.
+ *  - Chat loop closure:
  *      - year-only with active/pending mode always executes (never re-asks mode)
  *      - “Another year” token supported
  *      - “Top 10” (no year) uses session.lastYear (sticky year)
  *      - “#1” uses engine (#1) if available; otherwise derives from last Top 10 list
+ *      - next/prev year supports mode continuity
  *  - Headers: Cache-Control no-store for dynamic endpoints.
  */
 
@@ -86,7 +88,6 @@ const MAX_SESSIONS = Math.max(0, Number(process.env.MAX_SESSIONS || 0));
 function normalizeOrigin(origin) {
   const o = String(origin || "").trim();
   if (!o) return "";
-  // normalize trailing slash
   return o.replace(/\/$/, "");
 }
 
@@ -96,7 +97,7 @@ function originMatchesAllowlist(origin) {
 
   if (ALLOWED_ORIGINS.includes(o)) return true;
 
-  // handle www/non-www symmetry (https://www.example.com vs https://example.com)
+  // handle www/non-www symmetry
   try {
     const u = new URL(o);
     const host = String(u.hostname || "");
@@ -136,7 +137,11 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-// CRITICAL: preflight must use the SAME cors rules (avoid accidental wildcard)
+
+// CRITICAL: preflight must use the SAME cors rules (avoid accidental wildcard).
+// Using app.options("*") can be flaky under some proxy/router stacks.
+// This handles OPTIONS cleanly for /api/* and still keeps a global fallback.
+app.options("/api/*", cors(corsOptions));
 app.options("*", cors(corsOptions));
 
 /* ======================================================
@@ -164,6 +169,7 @@ app.use((err, req, res, next) => {
       contentType: req.headers["content-type"] || null,
       rawPreview: String(req.rawBody || "").slice(0, 700),
       requestId,
+      contractVersion: NYX_CONTRACT_VERSION,
     });
   }
 
@@ -192,9 +198,23 @@ function cleanText(s) {
 function safeJsonParse(body, rawFallback) {
   try {
     if (body && typeof body === "object") return body;
-    if (typeof body === "string" && body.trim()) return JSON.parse(body);
-    if (rawFallback && String(rawFallback).trim())
-      return JSON.parse(String(rawFallback));
+
+    // If body is string and looks like JSON, parse it.
+    if (typeof body === "string" && body.trim()) {
+      const t = body.trim();
+      if ((t.startsWith("{") && t.endsWith("}")) || (t.startsWith("[") && t.endsWith("]"))) {
+        return JSON.parse(t);
+      }
+      // Some clients send raw text; fall through.
+    }
+
+    if (rawFallback && String(rawFallback).trim()) {
+      const rt = String(rawFallback).trim();
+      if ((rt.startsWith("{") && rt.endsWith("}")) || (rt.startsWith("[") && rt.endsWith("]"))) {
+        return JSON.parse(rt);
+      }
+    }
+
     return null;
   } catch {
     return null;
@@ -665,6 +685,7 @@ async function ttsHandler(req, res) {
       contentType: req.headers["content-type"] || null,
       rawPreview: String(req.rawBody || "").slice(0, 700),
       requestId,
+      contractVersion: NYX_CONTRACT_VERSION,
     });
   }
 
@@ -681,13 +702,14 @@ async function ttsHandler(req, res) {
   );
 
   if (!TTS_ENABLED)
-    return res.status(503).json({ ok: false, error: "TTS_DISABLED", requestId });
+    return res.status(503).json({ ok: false, error: "TTS_DISABLED", requestId, contractVersion: NYX_CONTRACT_VERSION });
   if (TTS_PROVIDER !== "elevenlabs")
     return res.status(500).json({
       ok: false,
       error: "TTS_PROVIDER_UNSUPPORTED",
       provider: TTS_PROVIDER,
       requestId,
+      contractVersion: NYX_CONTRACT_VERSION,
     });
   if (!hasFetch)
     return res.status(500).json({
@@ -695,6 +717,7 @@ async function ttsHandler(req, res) {
       error: "TTS_RUNTIME",
       detail: "fetch() not available",
       requestId,
+      contractVersion: NYX_CONTRACT_VERSION,
     });
   if (!ELEVEN_KEY || !ELEVEN_VOICE_ID)
     return res.status(500).json({
@@ -702,6 +725,7 @@ async function ttsHandler(req, res) {
       error: "TTS_MISCONFIG",
       detail: "Missing ELEVENLABS env",
       requestId,
+      contractVersion: NYX_CONTRACT_VERSION,
     });
   if (!text)
     return res.status(400).json({
@@ -709,6 +733,7 @@ async function ttsHandler(req, res) {
       error: "BAD_REQUEST",
       detail: "Missing text",
       requestId,
+      contractVersion: NYX_CONTRACT_VERSION,
     });
 
   if (s && hasExplicitVoiceMode) s.voiceMode = voiceMode;
@@ -722,6 +747,7 @@ async function ttsHandler(req, res) {
         upstreamStatus: out.status,
         upstreamBody: out.detail,
         requestId,
+        contractVersion: NYX_CONTRACT_VERSION,
       });
     }
 
@@ -732,6 +758,7 @@ async function ttsHandler(req, res) {
         error: "TTS_BAD_AUDIO",
         detail: `Audio payload too small (${buf.length} bytes)`,
         requestId,
+        contractVersion: NYX_CONTRACT_VERSION,
       });
     }
 
@@ -747,6 +774,7 @@ async function ttsHandler(req, res) {
       error: "TTS_ERROR",
       detail: String(e && e.message ? e.message : e),
       requestId,
+      contractVersion: NYX_CONTRACT_VERSION,
     });
   }
 }
@@ -800,6 +828,7 @@ app.post("/api/chat", async (req, res) => {
       contentType: req.headers["content-type"] || null,
       rawPreview: String(req.rawBody || "").slice(0, 700),
       requestId,
+      contractVersion: NYX_CONTRACT_VERSION,
     });
   }
 
@@ -819,6 +848,7 @@ app.post("/api/chat", async (req, res) => {
       expected: NYX_CONTRACT_VERSION,
       got: incomingContract,
       requestId,
+      contractVersion: NYX_CONTRACT_VERSION,
     });
   }
 
@@ -855,10 +885,9 @@ app.post("/api/chat", async (req, res) => {
   // another year: ask year, keep mode sticky
   if (nav === "anotherYear") {
     session.pendingMode = session.activeMusicMode || session.pendingMode || null;
-    const ask =
-      session.pendingMode
-        ? replyMissingYearForMode(session, session.pendingMode)
-        : "Alright. What year (1950–2024)?";
+    const ask = session.pendingMode
+      ? replyMissingYearForMode(session, session.pendingMode)
+      : "Alright. What year (1950–2024)?";
     session.lastReply = ask;
     session.lastReplyAt = Date.now();
     session.lastIntent = "askYear";
@@ -980,13 +1009,11 @@ app.post("/api/chat", async (req, res) => {
       });
     }
 
-    // Prefer engine #1 which respects chart context
     const out = await runMusicEngine("#1", session);
     const reply0 = cleanText(out.reply || "");
 
     let reply = reply0;
     if (!reply || /^tell me a year/i.test(reply)) {
-      // fallback: derive from cached top10 #1
       if (session.lastTop10One && session.lastTop10One.year === session.lastYear) {
         reply = `#1 — ${session.lastTop10One.artist || "Unknown Artist"} — ${
           session.lastTop10One.title || "Unknown Title"
@@ -1013,7 +1040,10 @@ app.post("/api/chat", async (req, res) => {
       contractVersion: NYX_CONTRACT_VERSION,
       voiceMode: session.voiceMode,
       ...(engineFollow
-        ? { followUp: engineFollow, followUps: engineFollow.map((x) => ({ label: x, send: x })) }
+        ? {
+            followUp: engineFollow,
+            followUps: engineFollow.map((x) => ({ label: x, send: x })),
+          }
         : makeFollowUps(session)),
     });
   }
@@ -1073,7 +1103,10 @@ app.post("/api/chat", async (req, res) => {
       contractVersion: NYX_CONTRACT_VERSION,
       voiceMode: session.voiceMode,
       ...(engineFollow
-        ? { followUp: engineFollow, followUps: engineFollow.map((x) => ({ label: x, send: x })) }
+        ? {
+            followUp: engineFollow,
+            followUps: engineFollow.map((x) => ({ label: x, send: x })),
+          }
         : makeFollowUps(session)),
     });
   }
@@ -1113,7 +1146,10 @@ app.post("/api/chat", async (req, res) => {
         contractVersion: NYX_CONTRACT_VERSION,
         voiceMode: session.voiceMode,
         ...(engineFollow
-          ? { followUp: engineFollow, followUps: engineFollow.map((x) => ({ label: x, send: x })) }
+          ? {
+              followUp: engineFollow,
+              followUps: engineFollow.map((x) => ({ label: x, send: x })),
+            }
           : makeFollowUps(session)),
       });
     }
@@ -1171,7 +1207,10 @@ app.post("/api/chat", async (req, res) => {
         contractVersion: NYX_CONTRACT_VERSION,
         voiceMode: session.voiceMode,
         ...(engineFollow
-          ? { followUp: engineFollow, followUps: engineFollow.map((x) => ({ label: x, send: x })) }
+          ? {
+              followUp: engineFollow,
+              followUps: engineFollow.map((x) => ({ label: x, send: x })),
+            }
           : makeFollowUps(session)),
       });
     }
@@ -1220,7 +1259,10 @@ app.post("/api/chat", async (req, res) => {
     contractVersion: NYX_CONTRACT_VERSION,
     voiceMode: session.voiceMode,
     ...(engineFollow
-      ? { followUp: engineFollow, followUps: engineFollow.map((x) => ({ label: x, send: x })) }
+      ? {
+          followUp: engineFollow,
+          followUps: engineFollow.map((x) => ({ label: x, send: x })),
+        }
       : makeFollowUps(session)),
   });
 });
