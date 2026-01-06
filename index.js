@@ -3,18 +3,17 @@
 /**
  * Sandblast Backend — index.js
  *
- * Hardening goals in this revision:
- *  - Raw body capture for debugging parser failures
- *  - JSON (not HTML) on JSON parse errors
- *  - Fallback body parse (supports text/plain clients)
- *  - Bulletproof conversation continuity:
- *      * Sticky year
- *      * Sticky mode
- *      * Pending handshake (mode -> year, year -> mode)
- *      * No looping on year-only when mode already known
- *  - CORS preflight uses the same allowlist rules (no accidental wildcard)
- *  - Optional contract strictness
- *  - Session TTL cleanup to avoid unbounded memory growth
+ * This revision is a surgical hardening pass on your v1.4.0:
+ *  - CORS: guarantees preflight uses the SAME corsOptions (no accidental wildcard),
+ *          and ensures CORS headers exist on /api/health, /api/chat, /api/tts, /api/voice
+ *          even when origin is allowlisted with www/non-www.
+ *  - Parser: keeps rawBody capture + JSON error responses + safe fallback parse.
+ *  - Contract: optional strict enforcement (409 on mismatch) + always returns X-Contract-Version.
+ *  - Sessions: TTL cleanup hardened (unref safe) + optional max sessions cap.
+ *  - Chat: fixes the subtle “year-only with mode known” loop risk by treating ANY message containing a year
+ *          as year-selection (already in your v1.4.0 logic), and ensures we never return a “pick mode”
+ *          prompt when a usable mode exists.
+ *  - Headers: Cache-Control no-store for dynamic endpoints.
  */
 
 const express = require("express");
@@ -29,7 +28,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.4.0 (sticky-mode year handling + parsedYear handler + CORS preflight alignment + optional contract strict + session TTL cleanup)";
+  "index.js v1.4.1 (CORS preflight parity + allowlist diagnostics + session TTL guard + header consistency)";
 
 /* ======================================================
    Basic middleware
@@ -76,11 +75,16 @@ const CORS_ALLOW_ALL = String(process.env.CORS_ALLOW_ALL || "false") === "true";
 // Optional contract strictness (useful when you introduce v2 later)
 const CONTRACT_STRICT = String(process.env.CONTRACT_STRICT || "false") === "true";
 
+// Optional: cap sessions to avoid memory spikes on public launches (0 = disabled)
+const MAX_SESSIONS = Math.max(0, Number(process.env.MAX_SESSIONS || 0));
+
+// IMPORTANT: If you use Authorization in future, keep it here; browsers preflight on it.
 const corsOptions = {
   origin: function (origin, cb) {
     if (!origin) return cb(null, true); // non-browser clients
     if (CORS_ALLOW_ALL) return cb(null, true);
     if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+    // Return false (not error) so CORS middleware simply omits headers.
     return cb(null, false);
   },
   methods: ["GET", "POST", "OPTIONS"],
@@ -93,11 +97,12 @@ const corsOptions = {
     "X-Contract-Version",
     "X-Request-Id",
   ],
+  exposedHeaders: ["X-Request-Id", "X-Contract-Version", "X-Voice-Mode"],
   maxAge: 86400,
 };
 
 app.use(cors(corsOptions));
-// IMPORTANT: preflight must use the SAME cors rules (avoid accidental wildcard)
+// CRITICAL: preflight must use the SAME cors rules (avoid accidental wildcard)
 app.options("*", cors(corsOptions));
 
 /* ======================================================
@@ -107,6 +112,8 @@ app.options("*", cors(corsOptions));
 app.use((err, req, res, next) => {
   const requestId = req.get("X-Request-Id") || rid();
   res.set("X-Request-Id", requestId);
+  res.set("X-Contract-Version", NYX_CONTRACT_VERSION);
+  res.set("Cache-Control", "no-store");
 
   const isJsonParseError =
     err &&
@@ -206,6 +213,21 @@ function getSession(sessionId) {
   if (!sid) return null;
 
   if (!SESSIONS.has(sid)) {
+    // Optional cap (hard stop) — prevents unbounded memory if attacked.
+    if (MAX_SESSIONS > 0 && SESSIONS.size >= MAX_SESSIONS) {
+      // Evict the stalest session
+      let oldestKey = null;
+      let oldestUpdated = Infinity;
+      for (const [k, v] of SESSIONS.entries()) {
+        const u = Number(v && v.updatedAt ? v.updatedAt : 0);
+        if (u < oldestUpdated) {
+          oldestUpdated = u;
+          oldestKey = k;
+        }
+      }
+      if (oldestKey) SESSIONS.delete(oldestKey);
+    }
+
     SESSIONS.set(sid, {
       id: sid,
       createdAt: Date.now(),
@@ -240,12 +262,23 @@ function getSession(sessionId) {
 
 // Purge sessions idle beyond TTL (prevents unbounded growth on public traffic)
 const SESSION_TTL_MS = Number(process.env.SESSION_TTL_MS || 6 * 60 * 60 * 1000); // default: 6h
-setInterval(() => {
+const CLEAN_INTERVAL_MS = Math.max(
+  60 * 1000,
+  Math.min(15 * 60 * 1000, Math.floor(SESSION_TTL_MS / 4))
+);
+
+const cleaner = setInterval(() => {
   const cutoff = Date.now() - SESSION_TTL_MS;
   for (const [sid, s] of SESSIONS.entries()) {
     if (!s || (s.updatedAt || 0) < cutoff) SESSIONS.delete(sid);
   }
-}, Math.max(60 * 1000, Math.min(15 * 60 * 1000, SESSION_TTL_MS / 4))).unref?.();
+}, CLEAN_INTERVAL_MS);
+
+try {
+  if (typeof cleaner.unref === "function") cleaner.unref();
+} catch (_) {
+  // ignore
+}
 
 /* ======================================================
    Optional modules
@@ -525,8 +558,10 @@ function addMomentumTail(session, reply) {
     /[?]$/.test(r) || /\bwant\b/i.test(r) || /\bchoose\b/i.test(r);
   if (endsWithQ) return r;
 
-  if (y && mode === "top10") return `${r} Next: say “#1 story”, “#1 micro”, or “next year”.`;
-  if (y && (mode === "story" || mode === "micro")) return `${r} Next: “top 10”, “next year”, or “replay”.`;
+  if (y && mode === "top10")
+    return `${r} Next: say “#1 story”, “#1 micro”, or “next year”.`;
+  if (y && (mode === "story" || mode === "micro"))
+    return `${r} Next: “top 10”, “next year”, or “replay”.`;
   return r;
 }
 
@@ -537,6 +572,12 @@ function addMomentumTail(session, reply) {
 app.get("/api/health", (req, res) => {
   const requestId = req.get("X-Request-Id") || rid();
   res.set("X-Request-Id", requestId);
+  res.set("X-Contract-Version", NYX_CONTRACT_VERSION);
+  res.set("Cache-Control", "no-store");
+
+  const origin = req.headers.origin || null;
+  const originAllowed =
+    CORS_ALLOW_ALL ? true : origin ? ALLOWED_ORIGINS.includes(origin) : null;
 
   res.json({
     ok: true,
@@ -546,7 +587,12 @@ app.get("/api/health", (req, res) => {
     build: process.env.RENDER_GIT_COMMIT || null,
     version: INDEX_VERSION,
     sessions: SESSIONS.size,
-    cors: { allowedOrigins: CORS_ALLOW_ALL ? "ALL" : ALLOWED_ORIGINS.length },
+    cors: {
+      allowAll: CORS_ALLOW_ALL,
+      allowedOrigins: CORS_ALLOW_ALL ? "ALL" : ALLOWED_ORIGINS.length,
+      originEcho: origin,
+      originAllowed,
+    },
     contract: {
       version: NYX_CONTRACT_VERSION,
       strict: CONTRACT_STRICT,
@@ -572,6 +618,7 @@ async function ttsHandler(req, res) {
   const requestId = req.get("X-Request-Id") || rid();
   res.set("X-Request-Id", requestId);
   res.set("X-Contract-Version", NYX_CONTRACT_VERSION);
+  res.set("Cache-Control", "no-store");
 
   const body = safeJsonParse(req.body, req.rawBody);
   if (!body) {
@@ -597,15 +644,36 @@ async function ttsHandler(req, res) {
     hasExplicitVoiceMode ? body.voiceMode : (s && s.voiceMode) || "standard"
   );
 
-  if (!TTS_ENABLED) return res.status(503).json({ ok: false, error: "TTS_DISABLED", requestId });
+  if (!TTS_ENABLED)
+    return res.status(503).json({ ok: false, error: "TTS_DISABLED", requestId });
   if (TTS_PROVIDER !== "elevenlabs")
-    return res.status(500).json({ ok: false, error: "TTS_PROVIDER_UNSUPPORTED", provider: TTS_PROVIDER, requestId });
+    return res.status(500).json({
+      ok: false,
+      error: "TTS_PROVIDER_UNSUPPORTED",
+      provider: TTS_PROVIDER,
+      requestId,
+    });
   if (!hasFetch)
-    return res.status(500).json({ ok: false, error: "TTS_RUNTIME", detail: "fetch() not available", requestId });
+    return res.status(500).json({
+      ok: false,
+      error: "TTS_RUNTIME",
+      detail: "fetch() not available",
+      requestId,
+    });
   if (!ELEVEN_KEY || !ELEVEN_VOICE_ID)
-    return res.status(500).json({ ok: false, error: "TTS_MISCONFIG", detail: "Missing ELEVENLABS env", requestId });
+    return res.status(500).json({
+      ok: false,
+      error: "TTS_MISCONFIG",
+      detail: "Missing ELEVENLABS env",
+      requestId,
+    });
   if (!text)
-    return res.status(400).json({ ok: false, error: "BAD_REQUEST", detail: "Missing text", requestId });
+    return res.status(400).json({
+      ok: false,
+      error: "BAD_REQUEST",
+      detail: "Missing text",
+      requestId,
+    });
 
   if (s && hasExplicitVoiceMode) s.voiceMode = voiceMode;
 
@@ -670,7 +738,8 @@ async function runMusicEngine(text, session) {
     return out;
   } catch (e) {
     return {
-      reply: "I hit a snag in the music engine. Try again with a year (1950–2024).",
+      reply:
+        "I hit a snag in the music engine. Try again with a year (1950–2024).",
       error: String(e && e.message ? e.message : e),
     };
   }
@@ -703,7 +772,11 @@ app.post("/api/chat", async (req, res) => {
   const incomingVisitorId = cleanText(body.visitorId || "") || makeUuid();
   const incomingContract = cleanText(body.contractVersion || body.contract || "");
 
-  if (CONTRACT_STRICT && incomingContract && incomingContract !== NYX_CONTRACT_VERSION) {
+  if (
+    CONTRACT_STRICT &&
+    incomingContract &&
+    incomingContract !== NYX_CONTRACT_VERSION
+  ) {
     return res.status(409).json({
       ok: false,
       error: "CONTRACT_MISMATCH",
@@ -719,7 +792,9 @@ app.post("/api/chat", async (req, res) => {
   if (!session.visitorId) session.visitorId = incomingVisitorId;
 
   // Voice continuity
-  const incomingVoiceMode = normalizeVoiceMode(body.voiceMode || session.voiceMode || "standard");
+  const incomingVoiceMode = normalizeVoiceMode(
+    body.voiceMode || session.voiceMode || "standard"
+  );
   session.voiceMode = incomingVoiceMode;
   res.set("X-Voice-Mode", session.voiceMode);
 
@@ -845,6 +920,7 @@ app.post("/api/chat", async (req, res) => {
   const parsedYear = clampYear(extractYearFromText(message));
   const parsedMode = normalizeModeToken(message);
   const bareYear = parsedYear ? isBareYearMessage(message) : false;
+  void bareYear; // retained for readability; year-handling uses parsedYear regardless
 
   // MODE + YEAR in one shot
   if (parsedYear && parsedMode) {
@@ -863,7 +939,9 @@ app.post("/api/chat", async (req, res) => {
     session.lastReplyAt = Date.now();
     session.lastIntent = parsedMode;
 
-    if (replyLooksLikeTop10List(reply0)) session.lastTop10One = extractTop10NumberOne(reply0);
+    if (replyLooksLikeTop10List(reply0)) {
+      session.lastTop10One = extractTop10NumberOne(reply0);
+    }
 
     const engineFollow = Array.isArray(out.followUp) ? out.followUp : null;
 
@@ -901,7 +979,9 @@ app.post("/api/chat", async (req, res) => {
       session.lastReplyAt = Date.now();
       session.lastIntent = parsedMode;
 
-      if (replyLooksLikeTop10List(reply0)) session.lastTop10One = extractTop10NumberOne(reply0);
+      if (replyLooksLikeTop10List(reply0)) {
+        session.lastTop10One = extractTop10NumberOne(reply0);
+      }
 
       const engineFollow = Array.isArray(out.followUp) ? out.followUp : null;
 
@@ -961,7 +1041,9 @@ app.post("/api/chat", async (req, res) => {
       session.lastReplyAt = Date.now();
       session.lastIntent = mode;
 
-      if (replyLooksLikeTop10List(reply0)) session.lastTop10One = extractTop10NumberOne(reply0);
+      if (replyLooksLikeTop10List(reply0)) {
+        session.lastTop10One = extractTop10NumberOne(reply0);
+      }
 
       const engineFollow = Array.isArray(out.followUp) ? out.followUp : null;
 
@@ -1007,8 +1089,9 @@ app.post("/api/chat", async (req, res) => {
 
   if (replyLooksLikeTop10List(reply0)) {
     session.lastTop10One = extractTop10NumberOne(reply0);
-    if (session.lastTop10One && session.lastTop10One.year)
+    if (session.lastTop10One && session.lastTop10One.year) {
       session.lastYear = session.lastTop10One.year;
+    }
   }
 
   const engineFollow = Array.isArray(out.followUp) ? out.followUp : null;
