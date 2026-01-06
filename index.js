@@ -18,8 +18,6 @@
 const express = require("express");
 const crypto = require("crypto");
 const cors = require("cors");
-const fs = require("fs");
-const path = require("path");
 
 const app = express();
 
@@ -29,7 +27,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.2.2 (P4 polish: guarantee #1 micro with #1 story under chip cap)";
+  "index.js v1.3.0 (P5.1: /api/tts mp3 + voiceMode persistence + /api/voice alias)";
 
 /* ======================================================
    Basic middleware
@@ -130,24 +128,32 @@ const SESSIONS = new Map();
 function getSession(sessionId) {
   const sid = String(sessionId || "").trim();
   if (!sid) return null;
+
   if (!SESSIONS.has(sid)) {
     SESSIONS.set(sid, {
       id: sid,
       createdAt: Date.now(),
       updatedAt: Date.now(),
+
       // conversation state
       lastYear: null,
       activeMusicMode: null, // "top10" | "story" | "micro"
       pendingMode: null, // mode waiting for year
+
       // chart:
       activeMusicChart: "Billboard Hot 100",
+
       // P4 momentum state
       lastReply: null,
       lastReplyAt: null,
       lastTop10One: null, // {year, artist, title}
       lastIntent: null, // "top10"|"story"|"micro"|...
+
+      // P5 voice continuity
+      voiceMode: "standard", // "calm" | "standard" | "high"
     });
   }
+
   const s = SESSIONS.get(sid);
   s.updatedAt = Date.now();
   return s;
@@ -160,7 +166,7 @@ function getSession(sessionId) {
 let musicKnowledge = null;
 try {
   musicKnowledge = require("./Utils/musicKnowledge");
-} catch (e) {
+} catch {
   musicKnowledge = null;
 }
 
@@ -169,7 +175,7 @@ let s2sModule = null;
 try {
   s2sModule = require("./Utils/s2s");
   s2sEnabled = !!s2sModule;
-} catch (e) {
+} catch {
   s2sEnabled = false;
   s2sModule = null;
 }
@@ -182,6 +188,17 @@ const TTS_ENABLED = String(process.env.TTS_ENABLED || "true") === "true";
 const TTS_PROVIDER = String(process.env.TTS_PROVIDER || "elevenlabs");
 const ELEVEN_KEY = String(process.env.ELEVENLABS_API_KEY || "");
 const ELEVEN_VOICE_ID = String(process.env.ELEVENLABS_VOICE_ID || "");
+const ELEVEN_MODEL_ID = String(process.env.ELEVENLABS_MODEL_ID || "eleven_multilingual_v2");
+
+// Node 18+ has global fetch. If not, this will throw and we return a JSON error.
+const hasFetch = typeof fetch === "function";
+
+function normalizeVoiceMode(m) {
+  const t = String(m || "").toLowerCase().trim();
+  if (t === "calm") return "calm";
+  if (t === "high" || t === "highenergy" || t === "high-energy") return "high";
+  return "standard";
+}
 
 function getTtsTuningForMode(voiceMode) {
   const base = {
@@ -192,7 +209,8 @@ function getTtsTuningForMode(voiceMode) {
       String(process.env.NYX_VOICE_SPEAKER_BOOST ?? "false") === "true",
   };
 
-  const m = String(voiceMode || "").toLowerCase();
+  const m = normalizeVoiceMode(voiceMode);
+
   if (m === "calm") {
     return {
       ...base,
@@ -201,7 +219,8 @@ function getTtsTuningForMode(voiceMode) {
       speakerBoost: false,
     };
   }
-  if (m === "high" || m === "highenergy" || m === "high-energy") {
+
+  if (m === "high") {
     return {
       ...base,
       stability: Math.max(0, base.stability - 0.12),
@@ -209,7 +228,43 @@ function getTtsTuningForMode(voiceMode) {
       speakerBoost: true,
     };
   }
+
   return base;
+}
+
+async function elevenTtsMp3Buffer(text, voiceMode) {
+  const tuning = getTtsTuningForMode(voiceMode);
+
+  const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(
+    ELEVEN_VOICE_ID
+  )}`;
+
+  const r = await fetch(url, {
+    method: "POST",
+    headers: {
+      "xi-api-key": ELEVEN_KEY,
+      "Content-Type": "application/json",
+      "Accept": "audio/mpeg",
+    },
+    body: JSON.stringify({
+      text,
+      model_id: ELEVEN_MODEL_ID,
+      voice_settings: {
+        stability: tuning.stability,
+        similarity_boost: tuning.similarity,
+        style: tuning.style,
+        use_speaker_boost: tuning.speakerBoost,
+      },
+    }),
+  });
+
+  if (!r.ok) {
+    const errText = await r.text().catch(() => "");
+    return { ok: false, status: r.status, detail: errText.slice(0, 600) };
+  }
+
+  const buf = Buffer.from(await r.arrayBuffer());
+  return { ok: true, buf };
 }
 
 /* ======================================================
@@ -287,7 +342,6 @@ function replyIndicatesNoCleanListForYear(reply) {
   );
 }
 
-// suppress “Try story moment YEAR first” style loop prompts
 function replyIndicatesTryStoryMomentFirst(reply) {
   const t = cleanText(reply).toLowerCase();
   return t.includes("try “story moment") || t.includes('try "story moment');
@@ -319,8 +373,6 @@ function stripTrailingWantPrompt(s) {
     .trim();
 }
 
-// Extract year + #1 artist/title from Top10 reply:
-// "Top 10 — Billboard Year-End Hot 100 (1988): 1. George Michael — Faith 2. ..."
 function extractTop10NumberOne(reply) {
   const t = cleanText(reply);
 
@@ -328,7 +380,6 @@ function extractTop10NumberOne(reply) {
   const year = ym ? clampYear(Number(ym[1])) : null;
   if (!year) return null;
 
-  // Capture item 1 until " 2." or end
   const m = t.match(/:\s*1\.\s*([^—]+?)\s*—\s*(.+?)(?=\s+2\.|$)/i);
   if (!m) return { year, artist: null, title: null };
 
@@ -340,14 +391,12 @@ function extractTop10NumberOne(reply) {
 }
 
 function makeMicroMomentFromNumberOne({ year, artist, title }) {
-  // ~35–45 words, broadcast-tight
   const a = artist || "the year’s biggest artist";
   const s = title ? `“${title}”` : "a massive #1";
   return `Micro moment — ${year}: ${a} hit #1 with ${s}. One hook, one heartbeat—pure year-end momentum that made radios feel like a victory lap. Want a story moment, or another year?`;
 }
 
 function makeStoryMomentFromNumberOne({ year, artist, title }) {
-  // ~50–60 words, broadcast-tight
   const a = artist || "the year’s biggest artist";
   const s = title ? `“${title}”` : "a massive #1";
   return `Story moment — ${year}: ${a} owned the year-end conversation with ${s} at #1. It’s a snapshot of the era—tight chorus, big polish, and that “turn it up again” energy that glued people to their car radios. Want the Top 10, a micro moment, or another year?`;
@@ -357,11 +406,6 @@ function makeStoryMomentFromNumberOne({ year, artist, title }) {
    Pillar 4: Momentum + context-aware follow-ups
 ====================================================== */
 
-/**
- * FIX (v1.2.2):
- * When chip count is capped, "#1 story" and "#1 micro" must NOT be dropped.
- * If lastTop10One exists, we guarantee both are present by prioritizing them.
- */
 function makeFollowUps(session) {
   const baseModes = ["Top 10", "Story moment", "Micro moment"];
 
@@ -371,16 +415,9 @@ function makeFollowUps(session) {
   const hasReplay = !!(session && session.lastReply);
   const hasOne = !!(session && session.lastTop10One && session.lastTop10One.year);
 
-  // Priority ordering under an 8-chip cap:
-  // 1) Year + modes always
-  // 2) #1 story + #1 micro together (if available)
-  // 3) Prev/Next (if year known)
-  // 4) Replay last (nice-to-have)
   const items = [yearChip, ...baseModes];
 
-  if (hasYear && hasOne) {
-    items.push("#1 story", "#1 micro");
-  }
+  if (hasYear && hasOne) items.push("#1 story", "#1 micro");
 
   if (hasYear) {
     const py = safeIncYear(session.lastYear, -1);
@@ -389,32 +426,19 @@ function makeFollowUps(session) {
     if (ny) items.push("Next year");
   }
 
-  if (hasYear && hasReplay) {
-    items.push("Replay last");
-  }
+  if (hasYear && hasReplay) items.push("Replay last");
 
-  // De-dupe while preserving order
   const deduped = [];
   for (const x of items) {
     if (!deduped.includes(x)) deduped.push(x);
   }
 
-  // Enforce cap (8) without breaking the #1 pair rule.
-  // If we must trim, trim from the end first (Replay/Next/Prev are at the end by design).
   let capped = deduped.slice(0, 8);
 
-  // Absolute guarantee: if #1 story is present, #1 micro must be too (and vice versa).
   const hasStoryChip = capped.includes("#1 story");
   const hasMicroChip = capped.includes("#1 micro");
   if (hasOne && (hasStoryChip ^ hasMicroChip)) {
-    // Replace the last chip with the missing mate.
-    // This preserves cap and enforces the pair.
-    if (!hasStoryChip) {
-      capped[capped.length - 1] = "#1 story";
-    } else {
-      capped[capped.length - 1] = "#1 micro";
-    }
-    // Re-dedupe after replacement
+    capped[capped.length - 1] = hasStoryChip ? "#1 micro" : "#1 story";
     const tmp = [];
     for (const x of capped) {
       if (!tmp.includes(x)) tmp.push(x);
@@ -461,16 +485,11 @@ function addMomentumTail(session, reply) {
   const y = session && clampYear(session.lastYear) ? session.lastYear : null;
   const mode = session && session.activeMusicMode ? session.activeMusicMode : null;
 
-  // Only add a tail if the reply doesn't already end in a question/CTA.
   const endsWithQ = /[?]$/.test(r) || /\bwant\b/i.test(r) || /\bchoose\b/i.test(r);
   if (endsWithQ) return r;
 
-  if (y && mode === "top10") {
-    return `${r} Next: say “#1 story”, “#1 micro”, or “next year”.`;
-  }
-  if (y && (mode === "story" || mode === "micro")) {
-    return `${r} Next: “top 10”, “next year”, or “replay”.`;
-  }
+  if (y && mode === "top10") return `${r} Next: say “#1 story”, “#1 micro”, or “next year”.`;
+  if (y && (mode === "story" || mode === "micro")) return `${r} Next: “top 10”, “next year”, or “replay”.`;
   return r;
 }
 
@@ -501,13 +520,14 @@ app.get("/api/health", (req, res) => {
       provider: TTS_PROVIDER,
       hasKey: !!ELEVEN_KEY,
       hasVoiceId: !!ELEVEN_VOICE_ID,
-      model: null,
+      model: ELEVEN_MODEL_ID || null,
       tuning: getTtsTuningForMode("standard"),
       modes: {
         calm: "stability↑ style↓",
         standard: "env defaults",
         high: "stability↓ style↑ boost on",
       },
+      hasFetch,
     },
     s2s: { enabled: true, hasMulter: true, hasModule: !!s2sEnabled },
     durableSessions: {
@@ -520,6 +540,84 @@ app.get("/api/health", (req, res) => {
 });
 
 /* ======================================================
+   API: tts  (Pillar 5.1)
+====================================================== */
+
+app.post("/api/tts", async (req, res) => {
+  const requestId = req.get("X-Request-Id") || rid();
+  res.set("X-Request-Id", requestId);
+
+  const body = safeJsonParse(req.body);
+  if (!body) {
+    return res.status(400).json({ ok: false, error: "BAD_REQUEST", detail: "INVALID_JSON", requestId });
+  }
+
+  const text = cleanText(body.text || body.message || "");
+  const voiceMode = normalizeVoiceMode(body.voiceMode || "standard");
+  const contractVersion = cleanText(body.contractVersion || body.contract || "");
+
+  if (contractVersion && contractVersion !== NYX_CONTRACT_VERSION) {
+    // soft-accept for now
+  }
+
+  if (!TTS_ENABLED) {
+    return res.status(503).json({ ok: false, error: "TTS_DISABLED", requestId });
+  }
+  if (TTS_PROVIDER !== "elevenlabs") {
+    return res.status(500).json({ ok: false, error: "TTS_PROVIDER_UNSUPPORTED", provider: TTS_PROVIDER, requestId });
+  }
+  if (!hasFetch) {
+    return res.status(500).json({ ok: false, error: "TTS_RUNTIME", detail: "fetch() not available", requestId });
+  }
+  if (!ELEVEN_KEY || !ELEVEN_VOICE_ID) {
+    return res.status(500).json({
+      ok: false,
+      error: "TTS_MISCONFIG",
+      detail: "Missing ELEVENLABS_API_KEY or ELEVENLABS_VOICE_ID",
+      requestId,
+    });
+  }
+  if (!text) {
+    return res.status(400).json({ ok: false, error: "BAD_REQUEST", detail: "Missing text", requestId });
+  }
+
+  try {
+    const out = await elevenTtsMp3Buffer(text, voiceMode);
+    if (!out.ok) {
+      return res.status(502).json({
+        ok: false,
+        error: "TTS_UPSTREAM",
+        upstreamStatus: out.status,
+        upstreamBody: out.detail,
+        requestId,
+      });
+    }
+
+    const buf = out.buf;
+
+    res.status(200);
+    res.set("Content-Type", "audio/mpeg");
+    res.set("Content-Length", String(buf.length));
+    res.set("Cache-Control", "no-store");
+    res.set("X-Voice-Mode", voiceMode);
+    return res.end(buf);
+  } catch (e) {
+    return res.status(500).json({
+      ok: false,
+      error: "TTS_ERROR",
+      detail: String(e && e.message ? e.message : e),
+      requestId,
+    });
+  }
+});
+
+// Alias for compatibility
+app.post("/api/voice", (req, res) => {
+  req.url = "/api/tts";
+  return app._router.handle(req, res);
+});
+
+/* ======================================================
    API: chat
 ====================================================== */
 
@@ -527,7 +625,6 @@ app.post("/api/chat", async (req, res) => {
   const requestId = req.get("X-Request-Id") || rid();
   res.set("X-Request-Id", requestId);
 
-  // Defensive parse
   const body = safeJsonParse(req.body);
   if (!body) {
     return res.status(400).json({
@@ -542,11 +639,12 @@ app.post("/api/chat", async (req, res) => {
   const sessionId = cleanText(body.sessionId || "");
   const visitorId = cleanText(body.visitorId || "");
   const contractVersion = cleanText(body.contractVersion || body.contract || "");
-  const voiceMode = cleanText(body.voiceMode || "standard"); // widget can tag this
 
-  // Contract check (soft)
+  // P5: persist voiceMode into session for continuity
+  const incomingVoiceMode = normalizeVoiceMode(body.voiceMode || "standard");
+
   if (contractVersion && contractVersion !== NYX_CONTRACT_VERSION) {
-    // allow for now; future: strict mode
+    // soft-accept for now
   }
 
   const session =
@@ -560,10 +658,14 @@ app.post("/api/chat", async (req, res) => {
       lastReplyAt: null,
       lastTop10One: null,
       lastIntent: null,
+      voiceMode: "standard",
     });
 
-  // P4 nav shortcuts: replay / next / prev / #1 story/micro
+  // Store voiceMode as soon as we have a session object.
+  session.voiceMode = incomingVoiceMode || session.voiceMode || "standard";
+
   const nav = normalizeNavToken(message);
+
   if (nav === "replay" && session.lastReply) {
     return res.json({
       ok: true,
@@ -572,14 +674,16 @@ app.post("/api/chat", async (req, res) => {
       requestId,
       visitorId: visitorId || null,
       contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
       ...makeFollowUps(session),
     });
   }
+
   if ((nav === "nextYear" || nav === "prevYear") && clampYear(session.lastYear)) {
     const nextY = safeIncYear(session.lastYear, nav === "nextYear" ? +1 : -1);
     if (nextY) {
       session.lastYear = nextY;
-      // If we have a sticky mode, run it; otherwise ask mode.
+
       if (session.activeMusicMode) {
         const mode = session.activeMusicMode;
 
@@ -596,7 +700,6 @@ app.post("/api/chat", async (req, res) => {
         session.lastReplyAt = Date.now();
         session.lastIntent = mode;
 
-        // capture #1 if top10 reply
         if (replyLooksLikeTop10List(reply0)) {
           session.lastTop10One = extractTop10NumberOne(reply0);
         }
@@ -608,6 +711,7 @@ app.post("/api/chat", async (req, res) => {
           requestId,
           visitorId: visitorId || null,
           contractVersion: NYX_CONTRACT_VERSION,
+          voiceMode: session.voiceMode,
           ...makeFollowUps(session),
         });
       }
@@ -619,10 +723,12 @@ app.post("/api/chat", async (req, res) => {
         requestId,
         visitorId: visitorId || null,
         contractVersion: NYX_CONTRACT_VERSION,
+        voiceMode: session.voiceMode,
         ...makeFollowUps(session),
       });
     }
   }
+
   if ((nav === "oneStory" || nav === "oneMicro") && session.lastTop10One && session.lastTop10One.year) {
     const rep = nav === "oneStory"
       ? makeStoryMomentFromNumberOne(session.lastTop10One)
@@ -643,11 +749,11 @@ app.post("/api/chat", async (req, res) => {
       requestId,
       visitorId: visitorId || null,
       contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
       ...makeFollowUps(session),
     });
   }
 
-  // Greeting handling
   if (!message || isGreeting(message)) {
     const out = {
       ok: true,
@@ -656,6 +762,7 @@ app.post("/api/chat", async (req, res) => {
       requestId,
       visitorId: visitorId || null,
       contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
       ...makeFollowUps(session),
     };
     session.lastReply = out.reply;
@@ -664,21 +771,15 @@ app.post("/api/chat", async (req, res) => {
     return res.json(out);
   }
 
-  // -------------------------------
-  // Pillar 3 Resolver (mode/year)
-  // -------------------------------
-
   const parsedYear = clampYear(extractYearFromText(message));
   const parsedMode = normalizeModeToken(message);
   const bareYear = parsedYear ? isBareYearMessage(message) : false;
 
-  // A/B/C) One-shot mode + year
   if (parsedYear && parsedMode) {
     session.lastYear = parsedYear;
     session.activeMusicMode = parsedMode;
     session.pendingMode = null;
 
-    // Force year-spine chart for any year-based mode
     forceYearSpineChart(session);
 
     const canonical = `${modeToCommand(parsedMode)} ${parsedYear}`;
@@ -688,12 +789,10 @@ app.post("/api/chat", async (req, res) => {
     });
     const reply = addMomentumTail(session, reply0);
 
-    // cache last reply for replay
     session.lastReply = reply;
     session.lastReplyAt = Date.now();
     session.lastIntent = parsedMode;
 
-    // capture #1 if top10 reply
     if (replyLooksLikeTop10List(reply0)) {
       session.lastTop10One = extractTop10NumberOne(reply0);
     }
@@ -705,20 +804,18 @@ app.post("/api/chat", async (req, res) => {
       requestId,
       visitorId: visitorId || null,
       contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
       ...makeFollowUps(session),
     });
   }
 
-  // D) Mode-only (handshake mode -> year) OR use sticky year if present
   if (parsedMode && !parsedYear) {
-    session.activeMusicMode = parsedMode; // sticky mode
+    session.activeMusicMode = parsedMode;
     session.pendingMode = parsedMode;
 
-    // If lastYear exists, run immediately
     if (session.lastYear) {
       session.pendingMode = null;
 
-      // Force year-spine chart for any year-based mode
       forceYearSpineChart(session);
 
       const canonical = `${modeToCommand(parsedMode)} ${session.lastYear}`;
@@ -743,13 +840,12 @@ app.post("/api/chat", async (req, res) => {
         requestId,
         visitorId: visitorId || null,
         contractVersion: NYX_CONTRACT_VERSION,
+        voiceMode: session.voiceMode,
         ...makeFollowUps(session),
       });
     }
 
-    // Else ask for year once (rotating variants)
     const ask = replyMissingYearForMode(session, parsedMode);
-
     session.lastReply = ask;
     session.lastReplyAt = Date.now();
     session.lastIntent = "askYear";
@@ -761,20 +857,18 @@ app.post("/api/chat", async (req, res) => {
       requestId,
       visitorId: visitorId || null,
       contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
       ...makeFollowUps(session),
     });
   }
 
-  // E/F) Year-only steps
   if (bareYear) {
-    // pending mode exists: bind + execute
     if (session.pendingMode) {
       const mode = session.pendingMode;
       session.lastYear = parsedYear;
       session.activeMusicMode = mode;
       session.pendingMode = null;
 
-      // Force year-spine chart for any year-based mode
       forceYearSpineChart(session);
 
       const canonical = `${modeToCommand(mode)} ${parsedYear}`;
@@ -799,16 +893,15 @@ app.post("/api/chat", async (req, res) => {
         requestId,
         visitorId: visitorId || null,
         contractVersion: NYX_CONTRACT_VERSION,
+        voiceMode: session.voiceMode,
         ...makeFollowUps(session),
       });
     }
 
-    // active mode exists: sticky mode across years
     if (session.activeMusicMode) {
       const mode = session.activeMusicMode;
       session.lastYear = parsedYear;
 
-      // Force year-spine chart for any year-based mode
       forceYearSpineChart(session);
 
       const canonical = `${modeToCommand(mode)} ${parsedYear}`;
@@ -833,15 +926,14 @@ app.post("/api/chat", async (req, res) => {
         requestId,
         visitorId: visitorId || null,
         contractVersion: NYX_CONTRACT_VERSION,
+        voiceMode: session.voiceMode,
         ...makeFollowUps(session),
       });
     }
 
-    // bare year, no mode: store and ask for mode
     session.lastYear = parsedYear;
 
     const askMode = `Got it — ${parsedYear}. What do you want: Top 10, Story moment, or Micro moment?`;
-
     session.lastReply = askMode;
     session.lastReplyAt = Date.now();
     session.lastIntent = "askMode";
@@ -853,11 +945,11 @@ app.post("/api/chat", async (req, res) => {
       requestId,
       visitorId: visitorId || null,
       contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
       ...makeFollowUps(session),
     });
   }
 
-  // Default: pass through (supports “Prince 1984”, etc.)
   const reply0 = await runMusicEngine(message, session, null);
   const reply = addMomentumTail(session, reply0);
 
@@ -867,7 +959,6 @@ app.post("/api/chat", async (req, res) => {
 
   if (replyLooksLikeTop10List(reply0)) {
     session.lastTop10One = extractTop10NumberOne(reply0);
-    // If it contains a year, store it (helps with next/prev)
     if (session.lastTop10One && session.lastTop10One.year) {
       session.lastYear = session.lastTop10One.year;
     }
@@ -880,6 +971,7 @@ app.post("/api/chat", async (req, res) => {
     requestId,
     visitorId: visitorId || null,
     contractVersion: NYX_CONTRACT_VERSION,
+    voiceMode: session.voiceMode,
     ...makeFollowUps(session),
   });
 });
@@ -889,7 +981,6 @@ app.post("/api/chat", async (req, res) => {
 ====================================================== */
 
 async function runMusicEngine(text, session, hint) {
-  // If engine missing, provide safe fallback
   if (!musicKnowledge || typeof musicKnowledge.handleChat !== "function") {
     return "Tell me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment.";
   }
@@ -905,13 +996,11 @@ async function runMusicEngine(text, session, hint) {
   const hintedMode = (hint && hint.hintedMode) || null;
   const wantedMode = hintedMode || session.activeMusicMode || null;
 
-  // Primary call
   let out = safeCall(text);
   let reply = cleanText(out && out.reply);
 
   const parsedYear = clampYear(extractYearFromText(text));
 
-  // If engine says "no clean list", force year-spine chart and retry once.
   if (parsedYear && replyIndicatesNoCleanListForYear(reply)) {
     forceYearSpineChart(session);
     const retry = safeCall(text);
@@ -919,8 +1008,6 @@ async function runMusicEngine(text, session, hint) {
     if (retryReply) reply = retryReply;
   }
 
-  // Mode-fidelity fallback:
-  // If Story/Micro was requested but engine returns Top 10, convert to requested mode.
   if ((wantedMode === "story" || wantedMode === "micro") && replyLooksLikeTop10List(reply)) {
     const one = extractTop10NumberOne(reply);
     if (one && one.year) {
@@ -930,8 +1017,6 @@ async function runMusicEngine(text, session, hint) {
     }
   }
 
-  // If Story/Micro requested and engine can't resolve a "clean list",
-  // fetch Top 10 once and synthesize Story/Micro from #1.
   if (
     (wantedMode === "story" || wantedMode === "micro") &&
     parsedYear &&
@@ -950,11 +1035,8 @@ async function runMusicEngine(text, session, hint) {
           : makeMicroMomentFromNumberOne(one);
       }
     }
-    // If even Top10 fails, keep original reply (truthful failure).
   }
 
-  // If musicKnowledge prompts for year even though we have year/mode context,
-  // force session state and retry with bare year.
   if (replyIndicatesYearPrompt(reply)) {
     const fallbackYear =
       (hint && hint.hintedYear) ||
@@ -977,7 +1059,6 @@ async function runMusicEngine(text, session, hint) {
       const secondReply = cleanText(second && second.reply);
 
       if (secondReply && !replyIndicatesYearPrompt(secondReply)) {
-        // If Story/Micro requested but second reply is Top10, convert.
         if ((wantedMode === "story" || wantedMode === "micro") && replyLooksLikeTop10List(secondReply)) {
           const one = extractTop10NumberOne(secondReply);
           if (one && one.year) {
@@ -991,16 +1072,13 @@ async function runMusicEngine(text, session, hint) {
     }
   }
 
-  // Suppress loop-y prompts like “Try story moment YEAR first”
   const yr = clampYear(extractYearFromText(text)) || session.lastYear;
   if (replyIndicatesTryStoryMomentFirst(reply) && yr) {
     return `Got it — ${yr}. What do you want: Top 10, Story moment, or Micro moment?`;
   }
 
-  // Final fallback safety
   if (!reply) {
-    reply =
-      "Tell me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment.";
+    reply = "Tell me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment.";
   }
 
   return reply;
@@ -1017,9 +1095,7 @@ const server = app.listen(PORT, HOST, () => {
   console.log(
     `[sandblast-backend] up :${PORT} env=${process.env.NODE_ENV || "production"} build=${
       process.env.RENDER_GIT_COMMIT || "n/a"
-    } contract=${NYX_CONTRACT_VERSION} rollout=${
-      process.env.CONTRACT_ROLLOUT_PCT || "100%"}
-     version=${INDEX_VERSION}`
+    } contract=${NYX_CONTRACT_VERSION} rollout=${process.env.CONTRACT_ROLLOUT_PCT || "100%"} version=${INDEX_VERSION}`
   );
 });
 
