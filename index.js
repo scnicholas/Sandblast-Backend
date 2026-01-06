@@ -29,8 +29,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.0.6 (P3 missing-year guard ignores mode+year; keeps P2/P3 routing)"
-;
+  "index.js v1.0.7 (P3 resolver: one-shot mode+year + handshake + sticky mode/year; missing-year guard runs after resolver)";
 
 /* ======================================================
    Basic middleware
@@ -42,9 +41,7 @@ app.use(express.json({ limit: "1mb" }));
 function parseAllowedOrigins() {
   const raw = String(process.env.CORS_ALLOWED_ORIGINS || "").trim();
   const defaults = ["http://localhost:3000", "http://127.0.0.1:3000"];
-  const list = raw
-    ? raw.split(",").map((s) => s.trim()).filter(Boolean)
-    : [];
+  const list = raw ? raw.split(",").map((s) => s.trim()).filter(Boolean) : [];
   return Array.from(new Set([...defaults, ...list]));
 }
 const ALLOWED_ORIGINS = parseAllowedOrigins();
@@ -121,19 +118,22 @@ const SESSIONS = new Map();
 function getSession(sessionId) {
   const sid = String(sessionId || "").trim();
   if (!sid) return null;
+
   if (!SESSIONS.has(sid)) {
     SESSIONS.set(sid, {
       id: sid,
       createdAt: Date.now(),
       updatedAt: Date.now(),
       // conversation state
-      lastYear: null,
-      activeMusicMode: null, // "top10" | "story" | "micro"
+      lastYear: null, // sticky year
+      activeMusicMode: null, // "top10" | "story" | "micro" (sticky mode)
       pendingMode: null, // mode waiting for year
+      pendingYear: null, // year waiting for mode
       // future:
       activeMusicChart: "Billboard Hot 100",
     });
   }
+
   const s = SESSIONS.get(sid);
   s.updatedAt = Date.now();
   return s;
@@ -285,6 +285,13 @@ function normalizeModeToken(text) {
   return null;
 }
 
+function modeToPhrase(mode) {
+  if (mode === "top10") return "top 10";
+  if (mode === "story") return "story moment";
+  if (mode === "micro") return "micro moment";
+  return null;
+}
+
 /* ======================================================
    API: health
 ====================================================== */
@@ -360,13 +367,18 @@ app.post("/api/chat", async (req, res) => {
     // allow for now; future: strict mode
   }
 
-  const session = getSession(sessionId) || {
-    id: null,
-    lastYear: null,
-    activeMusicMode: null,
-    pendingMode: null,
-    activeMusicChart: "Billboard Hot 100",
-  };
+  const session =
+    getSession(sessionId) || {
+      id: null,
+      lastYear: null,
+      activeMusicMode: null,
+      pendingMode: null,
+      pendingYear: null,
+      activeMusicChart: "Billboard Hot 100",
+    };
+
+  // Normalize session fields (defensive)
+  if (!("pendingYear" in session)) session.pendingYear = null;
 
   // Greeting handling
   if (!message || isGreeting(message)) {
@@ -386,30 +398,82 @@ app.post("/api/chat", async (req, res) => {
   const year = clampYear(extractYearFromText(message));
   const modeToken = normalizeModeToken(message);
 
-  // P3: One-shot normalize when user provided mode+year in the same message.
-  // Example: "top 10 1988" => set active mode + lastYear immediately.
+  /* ======================================================
+     PILLAR 3 — Resolver (MUST RUN BEFORE missing-year guards)
+     Handles:
+       A/B/C one-shot: mode + year
+       D handshake: mode -> year
+       E handshake: year -> mode
+       F sticky mode: mode -> year -> next year
+  ====================================================== */
+
+  // A/B/C: One-shot mode + year → execute immediately
   if (year && modeToken) {
     session.lastYear = year;
     session.activeMusicMode = modeToken;
     session.pendingMode = null;
+    session.pendingYear = null;
 
-    // If Top 10, force year-end chart to avoid Hot 100 list gaps for some years
     if (modeToken === "top10") forceTop10Chart(session);
+
+    const reconstructed = `${modeToPhrase(modeToken)} ${year}`;
+    const reply = await runMusicEngine(reconstructed, session);
+    return res.json({
+      ok: true,
+      reply,
+      sessionId: sessionId || session.id || null,
+      requestId,
+      visitorId: visitorId || null,
+      contractVersion: NYX_CONTRACT_VERSION,
+      ...makeFollowUps(),
+    });
   }
 
-  // P2/P3: Missing-year guard for mode-only messages (Top 10 / Story moment / Micro moment)
-  // Uses lastYear if available, otherwise asks for year and stores pendingMode.
-  const missingKind = classifyMissingYearIntent(message);
-  if (missingKind) {
+  // D: Mode-only (no year) → if we have lastYear, execute; else set pendingMode and ask year
+  if (modeToken && !year) {
+    session.activeMusicMode = modeToken; // sticky mode
+    session.pendingMode = modeToken;
+    session.pendingYear = null;
+
     if (session.lastYear) {
-      // auto-complete: treat as mode-only using last known year
-      session.activeMusicMode = missingKind;
+      if (modeToken === "top10") forceTop10Chart(session);
+      const reconstructed = `${modeToPhrase(modeToken)} ${session.lastYear}`;
+      const reply = await runMusicEngine(reconstructed, session);
       session.pendingMode = null;
+      return res.json({
+        ok: true,
+        reply,
+        sessionId: sessionId || session.id || null,
+        requestId,
+        visitorId: visitorId || null,
+        contractVersion: NYX_CONTRACT_VERSION,
+        ...makeFollowUps(),
+      });
+    }
 
-      if (missingKind === "top10") forceTop10Chart(session);
+    return res.json({
+      ok: true,
+      reply: replyMissingYearForMode(modeToken),
+      sessionId: sessionId || session.id || null,
+      requestId,
+      visitorId: visitorId || null,
+      contractVersion: NYX_CONTRACT_VERSION,
+      ...makeFollowUps(),
+    });
+  }
 
-      // run engine immediately with reconstructed query
-      const reconstructed = `${missingKind === "top10" ? "top 10" : missingKind} ${session.lastYear}`;
+  // E/F: Year-only (no explicit mode keyword) → if mode is sticky, execute; else ask for mode
+  if (year && !hasExplicitMode(message) && !modeToken) {
+    session.lastYear = year;
+
+    if (session.activeMusicMode) {
+      // sticky mode path
+      session.pendingMode = null;
+      session.pendingYear = null;
+
+      if (session.activeMusicMode === "top10") forceTop10Chart(session);
+
+      const reconstructed = `${modeToPhrase(session.activeMusicMode)} ${year}`;
       const reply = await runMusicEngine(reconstructed, session);
       return res.json({
         ok: true,
@@ -422,65 +486,9 @@ app.post("/api/chat", async (req, res) => {
       });
     }
 
-    // no lastYear: set pending mode and ask for year
-    session.pendingMode = missingKind;
-    const out = {
-      ok: true,
-      reply: replyMissingYearForMode(missingKind),
-      sessionId: sessionId || session.id || null,
-      requestId,
-      visitorId: visitorId || null,
-      contractVersion: NYX_CONTRACT_VERSION,
-      ...makeFollowUps(),
-    };
-    return res.json(out);
-  }
-
-  // If user provides a year after a pending mode, bind and continue.
-  // Example: "Top 10" → (pendingMode=top10) → "1988"
-  if (year && session.pendingMode) {
-    session.lastYear = year;
-    session.activeMusicMode = session.pendingMode;
-    session.pendingMode = null;
-
-    if (session.activeMusicMode === "top10") forceTop10Chart(session);
-
-    const reconstructed = `${session.activeMusicMode === "top10" ? "top 10" : session.activeMusicMode} ${year}`;
-    const reply = await runMusicEngine(reconstructed, session);
+    // no sticky mode: ask for mode, store pendingYear
+    session.pendingYear = year;
     return res.json({
-      ok: true,
-      reply,
-      sessionId: sessionId || session.id || null,
-      requestId,
-      visitorId: visitorId || null,
-      contractVersion: NYX_CONTRACT_VERSION,
-      ...makeFollowUps(),
-    });
-  }
-
-  // If message is just a year (and we already have an active mode), continue.
-  if (year && !hasExplicitMode(message) && session.activeMusicMode) {
-    session.lastYear = year;
-
-    if (session.activeMusicMode === "top10") forceTop10Chart(session);
-
-    const reconstructed = `${session.activeMusicMode === "top10" ? "top 10" : session.activeMusicMode} ${year}`;
-    const reply = await runMusicEngine(reconstructed, session);
-    return res.json({
-      ok: true,
-      reply,
-      sessionId: sessionId || session.id || null,
-      requestId,
-      visitorId: visitorId || null,
-      contractVersion: NYX_CONTRACT_VERSION,
-      ...makeFollowUps(),
-    });
-  }
-
-  // If message is a bare year with no active mode, ask for mode (guided)
-  if (year && !hasExplicitMode(message) && !session.activeMusicMode) {
-    session.lastYear = year;
-    const out = {
       ok: true,
       reply: `Got it — ${year}. What do you want: Top 10, Story moment, or Micro moment?`,
       sessionId: sessionId || session.id || null,
@@ -488,8 +496,96 @@ app.post("/api/chat", async (req, res) => {
       visitorId: visitorId || null,
       contractVersion: NYX_CONTRACT_VERSION,
       ...makeFollowUps(),
-    };
-    return res.json(out);
+    });
+  }
+
+  // E: If user picked a mode after we stored a pendingYear → execute now
+  if (modeToken && session.pendingYear && !year) {
+    const y = clampYear(Number(session.pendingYear));
+    session.pendingYear = null;
+
+    if (y) {
+      session.lastYear = y;
+      session.activeMusicMode = modeToken;
+      session.pendingMode = null;
+
+      if (modeToken === "top10") forceTop10Chart(session);
+
+      const reconstructed = `${modeToPhrase(modeToken)} ${y}`;
+      const reply = await runMusicEngine(reconstructed, session);
+      return res.json({
+        ok: true,
+        reply,
+        sessionId: sessionId || session.id || null,
+        requestId,
+        visitorId: visitorId || null,
+        contractVersion: NYX_CONTRACT_VERSION,
+        ...makeFollowUps(),
+      });
+    }
+  }
+
+  // D (hard fallback): If user provides a year after a pending mode, bind and continue.
+  if (year && session.pendingMode) {
+    session.lastYear = year;
+    session.activeMusicMode = session.pendingMode;
+    session.pendingMode = null;
+    session.pendingYear = null;
+
+    if (session.activeMusicMode === "top10") forceTop10Chart(session);
+
+    const reconstructed = `${modeToPhrase(session.activeMusicMode)} ${year}`;
+    const reply = await runMusicEngine(reconstructed, session);
+    return res.json({
+      ok: true,
+      reply,
+      sessionId: sessionId || session.id || null,
+      requestId,
+      visitorId: visitorId || null,
+      contractVersion: NYX_CONTRACT_VERSION,
+      ...makeFollowUps(),
+    });
+  }
+
+  /* ======================================================
+     Legacy guard (kept) — now safe because resolver ran first
+  ====================================================== */
+
+  // P2/P3: Missing-year guard for mode-only messages (Top 10 / Story moment / Micro moment)
+  const missingKind = classifyMissingYearIntent(message);
+  if (missingKind) {
+    if (session.lastYear) {
+      session.activeMusicMode = missingKind;
+      session.pendingMode = null;
+      session.pendingYear = null;
+
+      if (missingKind === "top10") forceTop10Chart(session);
+
+      const reconstructed = `${modeToPhrase(missingKind)} ${session.lastYear}`;
+      const reply = await runMusicEngine(reconstructed, session);
+      return res.json({
+        ok: true,
+        reply,
+        sessionId: sessionId || session.id || null,
+        requestId,
+        visitorId: visitorId || null,
+        contractVersion: NYX_CONTRACT_VERSION,
+        ...makeFollowUps(),
+      });
+    }
+
+    session.pendingMode = missingKind;
+    session.pendingYear = null;
+
+    return res.json({
+      ok: true,
+      reply: replyMissingYearForMode(missingKind),
+      sessionId: sessionId || session.id || null,
+      requestId,
+      visitorId: visitorId || null,
+      contractVersion: NYX_CONTRACT_VERSION,
+      ...makeFollowUps(),
+    });
   }
 
   // Default: pass through to engine
@@ -531,7 +627,6 @@ async function runMusicEngine(text, session) {
   let reply = cleanText(out && out.reply);
 
   // P2/P3: If Top 10 request returns “no clean list”, force Year-End chart and retry once.
-  // This addresses years like 1988 depending on chart source availability.
   const year = clampYear(extractYearFromText(text));
   const askedTop10 = isTop10Mode(text) || session.activeMusicMode === "top10";
 
@@ -548,7 +643,6 @@ async function runMusicEngine(text, session) {
 
   // P3: Suppress loop-y prompts like “Try story moment YEAR first”
   if (replyIndicatesTryStoryMomentFirst(reply) && year) {
-    // If user already asked a year/mode, return a crisp nudge instead of loop-bait.
     return `Got it — ${year}. What do you want: Top 10, Story moment, or Micro moment?`;
   }
 
