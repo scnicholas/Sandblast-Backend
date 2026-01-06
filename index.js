@@ -29,7 +29,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.0.9 (P3 resolver stable + musicKnowledge year-prompt retry: mode+year -> set session -> retry with bare year)";
+  "index.js v1.1.0 (P3 stable + year-spine chart forced for Top10/Story/Micro + broader clean-list retry)";
 
 /* ======================================================
    Basic middleware
@@ -167,7 +167,8 @@ function getTtsTuningForMode(voiceMode) {
     stability: Number(process.env.NYX_VOICE_STABILITY ?? 0.55),
     similarity: Number(process.env.NYX_VOICE_SIMILARITY ?? 0.78),
     style: Number(process.env.NYX_VOICE_STYLE ?? 0.12),
-    speakerBoost: String(process.env.NYX_VOICE_SPEAKER_BOOST ?? "false") === "true",
+    speakerBoost:
+      String(process.env.NYX_VOICE_SPEAKER_BOOST ?? "false") === "true",
   };
 
   const m = String(voiceMode || "").toLowerCase();
@@ -225,9 +226,12 @@ function makeFollowUps() {
 }
 
 function replyMissingYearForMode(mode) {
-  if (mode === "top10") return "Hi — I can do that. What year (1950–2024) for your Top 10?";
-  if (mode === "story") return "Hi — love it. What year (1950–2024) for the story moment?";
-  if (mode === "micro") return "Sure. What year (1950–2024) for the micro-moment?";
+  if (mode === "top10")
+    return "Hi — I can do that. What year (1950–2024) for your Top 10?";
+  if (mode === "story")
+    return "Hi — love it. What year (1950–2024) for the story moment?";
+  if (mode === "micro")
+    return "Sure. What year (1950–2024) for the micro-moment?";
   return "What year (1950–2024) should I use?";
 }
 
@@ -246,7 +250,11 @@ function modeToCommand(mode) {
   return "top 10";
 }
 
-function forceTop10Chart(session) {
+/**
+ * v1.1.0: Force a single "year spine" chart for any year-based mode (Top10/Story/Micro)
+ * so story/micro do not drift to a chart source that lacks a year.
+ */
+function forceYearSpineChart(session) {
   if (!session || typeof session !== "object") return;
   session.activeMusicChart = "Billboard Year-End Hot 100";
 }
@@ -259,7 +267,9 @@ function isTop10Mode(text) {
 
 function replyIndicatesNoCleanListForYear(reply) {
   const t = cleanText(reply).toLowerCase();
-  return t.includes("don’t have a clean list") || t.includes("don't have a clean list");
+  return (
+    t.includes("don’t have a clean list") || t.includes("don't have a clean list")
+  );
 }
 
 function replyIndicatesTryStoryMomentFirst(reply) {
@@ -267,7 +277,6 @@ function replyIndicatesTryStoryMomentFirst(reply) {
   return t.includes("try “story moment") || t.includes('try "story moment');
 }
 
-// Detect musicKnowledge’s “year prompt” response
 function replyIndicatesYearPrompt(reply) {
   const t = cleanText(reply).toLowerCase();
   return (
@@ -352,13 +361,14 @@ app.post("/api/chat", async (req, res) => {
     // allow for now; future: strict mode
   }
 
-  const session = getSession(sessionId) || {
-    id: null,
-    lastYear: null,
-    activeMusicMode: null,
-    pendingMode: null,
-    activeMusicChart: "Billboard Hot 100",
-  };
+  const session =
+    getSession(sessionId) || ({
+      id: null,
+      lastYear: null,
+      activeMusicMode: null,
+      pendingMode: null,
+      activeMusicChart: "Billboard Hot 100",
+    });
 
   // Greeting handling
   if (!message || isGreeting(message)) {
@@ -388,10 +398,14 @@ app.post("/api/chat", async (req, res) => {
     session.activeMusicMode = parsedMode;
     session.pendingMode = null;
 
-    if (parsedMode === "top10") forceTop10Chart(session);
+    // v1.1.0: force year-spine chart for any year-based mode
+    forceYearSpineChart(session);
 
     const canonical = `${modeToCommand(parsedMode)} ${parsedYear}`;
-    const reply = await runMusicEngine(canonical, session, { hintedMode: parsedMode, hintedYear: parsedYear });
+    const reply = await runMusicEngine(canonical, session, {
+      hintedMode: parsedMode,
+      hintedYear: parsedYear,
+    });
 
     return res.json({
       ok: true,
@@ -409,12 +423,18 @@ app.post("/api/chat", async (req, res) => {
     session.activeMusicMode = parsedMode; // sticky mode
     session.pendingMode = parsedMode;
 
+    // If lastYear exists, run immediately
     if (session.lastYear) {
       session.pendingMode = null;
-      if (parsedMode === "top10") forceTop10Chart(session);
+
+      // v1.1.0: force year-spine chart for any year-based mode
+      forceYearSpineChart(session);
 
       const canonical = `${modeToCommand(parsedMode)} ${session.lastYear}`;
-      const reply = await runMusicEngine(canonical, session, { hintedMode: parsedMode, hintedYear: session.lastYear });
+      const reply = await runMusicEngine(canonical, session, {
+        hintedMode: parsedMode,
+        hintedYear: session.lastYear,
+      });
 
       return res.json({
         ok: true,
@@ -427,6 +447,7 @@ app.post("/api/chat", async (req, res) => {
       });
     }
 
+    // Else ask for year once
     return res.json({
       ok: true,
       reply: replyMissingYearForMode(parsedMode),
@@ -447,10 +468,14 @@ app.post("/api/chat", async (req, res) => {
       session.activeMusicMode = mode;
       session.pendingMode = null;
 
-      if (mode === "top10") forceTop10Chart(session);
+      // v1.1.0: force year-spine chart for any year-based mode
+      forceYearSpineChart(session);
 
       const canonical = `${modeToCommand(mode)} ${parsedYear}`;
-      const reply = await runMusicEngine(canonical, session, { hintedMode: mode, hintedYear: parsedYear });
+      const reply = await runMusicEngine(canonical, session, {
+        hintedMode: mode,
+        hintedYear: parsedYear,
+      });
 
       return res.json({
         ok: true,
@@ -468,10 +493,14 @@ app.post("/api/chat", async (req, res) => {
       const mode = session.activeMusicMode;
       session.lastYear = parsedYear;
 
-      if (mode === "top10") forceTop10Chart(session);
+      // v1.1.0: force year-spine chart for any year-based mode
+      forceYearSpineChart(session);
 
       const canonical = `${modeToCommand(mode)} ${parsedYear}`;
-      const reply = await runMusicEngine(canonical, session, { hintedMode: mode, hintedYear: parsedYear });
+      const reply = await runMusicEngine(canonical, session, {
+        hintedMode: mode,
+        hintedYear: parsedYear,
+      });
 
       return res.json({
         ok: true,
@@ -534,12 +563,14 @@ async function runMusicEngine(text, session, hint) {
   let out = safeCall(text);
   let reply = cleanText(out && out.reply);
 
-  // If Top 10 request returns “no clean list”, force Year-End chart and retry once.
   const parsedYear = clampYear(extractYearFromText(text));
-  const askedTop10 = isTop10Mode(text) || session.activeMusicMode === "top10";
+  const modeCtx =
+    (hint && hint.hintedMode) || session.activeMusicMode || null;
 
-  if (askedTop10 && parsedYear && replyIndicatesNoCleanListForYear(reply)) {
-    forceTop10Chart(session);
+  // v1.1.0: broaden the clean-list retry beyond Top10 to Story/Micro too
+  // If the engine says "no clean list", force the year-spine chart and retry once.
+  if (parsedYear && replyIndicatesNoCleanListForYear(reply)) {
+    forceYearSpineChart(session);
     const retry = safeCall(text);
     const retryReply = cleanText(retry && retry.reply);
     if (retryReply) reply = retryReply;
@@ -548,12 +579,19 @@ async function runMusicEngine(text, session, hint) {
   // P3: If musicKnowledge wrongly prompts for year even though we have year/mode context,
   // force session state and retry with bare year (musicKnowledge is more reliable that way).
   if (replyIndicatesYearPrompt(reply)) {
-    const hintedMode = hint && hint.hintedMode ? hint.hintedMode : session.activeMusicMode;
-    const hintedYear = hint && hint.hintedYear ? hint.hintedYear : clampYear(extractYearFromText(text)) || session.lastYear;
+    const hintedMode = modeCtx;
+    const hintedYear =
+      (hint && hint.hintedYear) ||
+      clampYear(extractYearFromText(text)) ||
+      session.lastYear;
 
     if (hintedYear) session.lastYear = hintedYear;
     if (hintedMode) session.activeMusicMode = hintedMode;
-    if (session.activeMusicMode === "top10") forceTop10Chart(session);
+
+    // v1.1.0: keep year-spine chart aligned for any year-based mode
+    if (session.activeMusicMode === "top10" || session.activeMusicMode === "story" || session.activeMusicMode === "micro") {
+      forceYearSpineChart(session);
+    }
 
     if (hintedYear) {
       const second = safeCall(String(hintedYear));
@@ -572,7 +610,8 @@ async function runMusicEngine(text, session, hint) {
 
   // Final fallback safety
   if (!reply) {
-    reply = "Tell me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment.";
+    reply =
+      "Tell me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment.";
   }
 
   return reply;
@@ -589,7 +628,9 @@ const server = app.listen(PORT, HOST, () => {
   console.log(
     `[sandblast-backend] up :${PORT} env=${process.env.NODE_ENV || "production"} build=${
       process.env.RENDER_GIT_COMMIT || "n/a"
-    } contract=${NYX_CONTRACT_VERSION} rollout=${process.env.CONTRACT_ROLLOUT_PCT || "100%"}`
+    } contract=${NYX_CONTRACT_VERSION} rollout=${
+      process.env.CONTRACT_ROLLOUT_PCT || "100%"
+    }`
   );
 });
 
