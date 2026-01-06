@@ -3,11 +3,18 @@
 /**
  * Sandblast Backend — index.js
  *
- * Critical hardening in this revision:
- *  - Captures raw body for debugging.
- *  - Returns JSON (not HTML) on JSON parse errors.
- *  - Fallback parse: if express.json fails or body arrives as string/empty, we attempt to parse req.rawBody safely.
- *  - Keeps contract v1, voiceMode continuity, session issuance, and followUps guidance.
+ * Hardening goals in this revision:
+ *  - Raw body capture for debugging parser failures
+ *  - JSON (not HTML) on JSON parse errors
+ *  - Fallback body parse (supports text/plain clients)
+ *  - Bulletproof conversation continuity:
+ *      * Sticky year
+ *      * Sticky mode
+ *      * Pending handshake (mode -> year, year -> mode)
+ *      * No looping on year-only when mode already known
+ *  - CORS preflight uses the same allowlist rules (no accidental wildcard)
+ *  - Optional contract strictness
+ *  - Session TTL cleanup to avoid unbounded memory growth
  */
 
 const express = require("express");
@@ -22,7 +29,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.3.3 (JSON-parse hardening + rawBody capture + JSON error responses + fallback body parse)";
+  "index.js v1.4.0 (sticky-mode year handling + parsedYear handler + CORS preflight alignment + optional contract strict + session TTL cleanup)";
 
 /* ======================================================
    Basic middleware
@@ -37,7 +44,7 @@ function rawBodySaver(req, res, buf, encoding) {
   }
 }
 
-// Parse JSON defensively. If body is malformed, Express will throw and we catch below.
+// Parse JSON defensively.
 app.use(
   express.json({
     limit: "1mb",
@@ -64,44 +71,43 @@ function parseAllowedOrigins() {
 const ALLOWED_ORIGINS = parseAllowedOrigins();
 
 // If you truly want wildcard, set CORS_ALLOW_ALL=true on Render.
-// Otherwise we echo the requesting origin if it’s allowlisted.
 const CORS_ALLOW_ALL = String(process.env.CORS_ALLOW_ALL || "false") === "true";
 
-app.use(
-  cors({
-    origin: function (origin, cb) {
-      if (!origin) return cb(null, true); // non-browser clients
+// Optional contract strictness (useful when you introduce v2 later)
+const CONTRACT_STRICT = String(process.env.CONTRACT_STRICT || "false") === "true";
 
-      if (CORS_ALLOW_ALL) return cb(null, true);
+const corsOptions = {
+  origin: function (origin, cb) {
+    if (!origin) return cb(null, true); // non-browser clients
+    if (CORS_ALLOW_ALL) return cb(null, true);
+    if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+    return cb(null, false);
+  },
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: [
+    "Content-Type",
+    "Accept",
+    "Authorization",
+    "X-Requested-With",
+    "X-Visitor-Id",
+    "X-Contract-Version",
+    "X-Request-Id",
+  ],
+  maxAge: 86400,
+};
 
-      if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
-      return cb(null, false);
-    },
-    methods: ["GET", "POST", "OPTIONS"],
-    allowedHeaders: [
-      "Content-Type",
-      "Accept",
-      "Authorization",
-      "X-Requested-With",
-      "X-Visitor-Id",
-      "X-Contract-Version",
-      "X-Request-Id",
-    ],
-    maxAge: 86400,
-  })
-);
-
-app.options("*", cors());
+app.use(cors(corsOptions));
+// IMPORTANT: preflight must use the SAME cors rules (avoid accidental wildcard)
+app.options("*", cors(corsOptions));
 
 /* ======================================================
    JSON parse error handler (pre-route)
-   This prevents Express from returning HTML 400 pages.
+   Prevent Express from returning HTML 400 pages.
 ====================================================== */
 app.use((err, req, res, next) => {
   const requestId = req.get("X-Request-Id") || rid();
   res.set("X-Request-Id", requestId);
 
-  // Express JSON parser error signature
   const isJsonParseError =
     err &&
     (err.type === "entity.parse.failed" ||
@@ -143,11 +149,11 @@ function cleanText(s) {
 }
 
 function safeJsonParse(body, rawFallback) {
-  // express.json already parses; express.text yields string; we support both
   try {
     if (body && typeof body === "object") return body;
     if (typeof body === "string" && body.trim()) return JSON.parse(body);
-    if (rawFallback && String(rawFallback).trim()) return JSON.parse(String(rawFallback));
+    if (rawFallback && String(rawFallback).trim())
+      return JSON.parse(String(rawFallback));
     return null;
   } catch {
     return null;
@@ -186,13 +192,12 @@ function makeUuid() {
 }
 
 /* ======================================================
-   Session store (in-memory)
+   Session store (in-memory) + TTL cleanup
 ====================================================== */
 
 const SESSIONS = new Map();
 
 function issueSessionId() {
-  // Short + stable enough
   return `s_${rid()}_${Date.now().toString(36)}`;
 }
 
@@ -205,6 +210,9 @@ function getSession(sessionId) {
       id: sid,
       createdAt: Date.now(),
       updatedAt: Date.now(),
+
+      // identity/analytics
+      visitorId: null,
 
       // conversation state
       lastYear: null,
@@ -229,6 +237,15 @@ function getSession(sessionId) {
   s.updatedAt = Date.now();
   return s;
 }
+
+// Purge sessions idle beyond TTL (prevents unbounded growth on public traffic)
+const SESSION_TTL_MS = Number(process.env.SESSION_TTL_MS || 6 * 60 * 60 * 1000); // default: 6h
+setInterval(() => {
+  const cutoff = Date.now() - SESSION_TTL_MS;
+  for (const [sid, s] of SESSIONS.entries()) {
+    if (!s || (s.updatedAt || 0) < cutoff) SESSIONS.delete(sid);
+  }
+}, Math.max(60 * 1000, Math.min(15 * 60 * 1000, SESSION_TTL_MS / 4))).unref?.();
 
 /* ======================================================
    Optional modules
@@ -419,7 +436,8 @@ function extractTop10NumberOne(reply) {
   const artist = cleanText(m[1]);
   const title = stripTrailingWantPrompt(m[2]);
 
-  if (!artist || !title) return { year, artist: artist || null, title: title || null };
+  if (!artist || !title)
+    return { year, artist: artist || null, title: title || null };
   return { year, artist, title };
 }
 
@@ -490,7 +508,10 @@ function replyMissingYearForMode(session, mode) {
   if (mode === "top10") return pickRotate(session, "askYear_top10", poolTop10);
   if (mode === "story") return pickRotate(session, "askYear_story", poolStory);
   if (mode === "micro") return pickRotate(session, "askYear_micro", poolMicro);
-  return pickRotate(session, "askYear_generic", ["What year (1950–2024) should I use?", "Which year (1950–2024)?"]);
+  return pickRotate(session, "askYear_generic", [
+    "What year (1950–2024) should I use?",
+    "Which year (1950–2024)?",
+  ]);
 }
 
 function addMomentumTail(session, reply) {
@@ -500,7 +521,8 @@ function addMomentumTail(session, reply) {
   const y = session && clampYear(session.lastYear) ? session.lastYear : null;
   const mode = session && session.activeMusicMode ? session.activeMusicMode : null;
 
-  const endsWithQ = /[?]$/.test(r) || /\bwant\b/i.test(r) || /\bchoose\b/i.test(r);
+  const endsWithQ =
+    /[?]$/.test(r) || /\bwant\b/i.test(r) || /\bchoose\b/i.test(r);
   if (endsWithQ) return r;
 
   if (y && mode === "top10") return `${r} Next: say “#1 story”, “#1 micro”, or “next year”.`;
@@ -527,8 +549,7 @@ app.get("/api/health", (req, res) => {
     cors: { allowedOrigins: CORS_ALLOW_ALL ? "ALL" : ALLOWED_ORIGINS.length },
     contract: {
       version: NYX_CONTRACT_VERSION,
-      strict: String(process.env.CONTRACT_STRICT || "false") === "true",
-      rolloutPct: Number(process.env.CONTRACT_ROLLOUT_PCT || 100),
+      strict: CONTRACT_STRICT,
     },
     tts: {
       enabled: TTS_ENABLED,
@@ -550,6 +571,7 @@ app.get("/api/health", (req, res) => {
 async function ttsHandler(req, res) {
   const requestId = req.get("X-Request-Id") || rid();
   res.set("X-Request-Id", requestId);
+  res.set("X-Contract-Version", NYX_CONTRACT_VERSION);
 
   const body = safeJsonParse(req.body, req.rawBody);
   if (!body) {
@@ -614,7 +636,6 @@ async function ttsHandler(req, res) {
     res.set("Content-Length", String(buf.length));
     res.set("Cache-Control", "no-store");
     res.set("X-Voice-Mode", voiceMode);
-    res.set("X-Contract-Version", NYX_CONTRACT_VERSION);
     return res.end(buf);
   } catch (e) {
     return res.status(500).json({
@@ -635,12 +656,14 @@ app.post("/api/voice", ttsHandler);
 
 async function runMusicEngine(text, session) {
   if (!musicKnowledge || typeof musicKnowledge.handleChat !== "function") {
-    return { reply: "Tell me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment." };
+    return {
+      reply:
+        "Tell me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment.",
+    };
   }
 
   try {
     const out = musicKnowledge.handleChat({ text, session }) || {};
-    // Apply canonical sessionPatch if provided
     if (out.sessionPatch && typeof out.sessionPatch === "object") {
       Object.assign(session, out.sessionPatch);
     }
@@ -660,6 +683,8 @@ async function runMusicEngine(text, session) {
 app.post("/api/chat", async (req, res) => {
   const requestId = req.get("X-Request-Id") || rid();
   res.set("X-Request-Id", requestId);
+  res.set("X-Contract-Version", NYX_CONTRACT_VERSION);
+  res.set("Cache-Control", "no-store");
 
   const body = safeJsonParse(req.body, req.rawBody);
   if (!body) {
@@ -675,16 +700,30 @@ app.post("/api/chat", async (req, res) => {
 
   const message = cleanText(body.message || body.text || "");
   let sessionId = cleanText(body.sessionId || "");
-  const visitorId = cleanText(body.visitorId || "") || makeUuid();
-  const contractVersion = cleanText(body.contractVersion || body.contract || "");
+  const incomingVisitorId = cleanText(body.visitorId || "") || makeUuid();
+  const incomingContract = cleanText(body.contractVersion || body.contract || "");
 
-  // Issue a sessionId if missing (this helps widget continuity)
+  if (CONTRACT_STRICT && incomingContract && incomingContract !== NYX_CONTRACT_VERSION) {
+    return res.status(409).json({
+      ok: false,
+      error: "CONTRACT_MISMATCH",
+      expected: NYX_CONTRACT_VERSION,
+      got: incomingContract,
+      requestId,
+    });
+  }
+
   if (!sessionId) sessionId = issueSessionId();
 
   const session = getSession(sessionId);
+  if (!session.visitorId) session.visitorId = incomingVisitorId;
+
   // Voice continuity
   const incomingVoiceMode = normalizeVoiceMode(body.voiceMode || session.voiceMode || "standard");
   session.voiceMode = incomingVoiceMode;
+  res.set("X-Voice-Mode", session.voiceMode);
+
+  const visitorId = session.visitorId;
 
   const nav = normalizeNavToken(message);
 
@@ -724,7 +763,6 @@ app.post("/api/chat", async (req, res) => {
           session.lastTop10One = extractTop10NumberOne(reply0);
         }
 
-        // Prefer engine followups if present
         const engineFollow = Array.isArray(out.followUp) ? out.followUp : null;
 
         return res.json({
@@ -736,7 +774,10 @@ app.post("/api/chat", async (req, res) => {
           contractVersion: NYX_CONTRACT_VERSION,
           voiceMode: session.voiceMode,
           ...(engineFollow
-            ? { followUp: engineFollow, followUps: engineFollow.map((x) => ({ label: x, send: x })) }
+            ? {
+                followUp: engineFollow,
+                followUps: engineFollow.map((x) => ({ label: x, send: x })),
+              }
             : makeFollowUps(session)),
         });
       }
@@ -805,6 +846,7 @@ app.post("/api/chat", async (req, res) => {
   const parsedMode = normalizeModeToken(message);
   const bareYear = parsedYear ? isBareYearMessage(message) : false;
 
+  // MODE + YEAR in one shot
   if (parsedYear && parsedMode) {
     session.lastYear = parsedYear;
     session.activeMusicMode = parsedMode;
@@ -839,11 +881,13 @@ app.post("/api/chat", async (req, res) => {
     });
   }
 
+  // MODE only (needs year)
   if (parsedMode && !parsedYear) {
     session.activeMusicMode = parsedMode;
     session.pendingMode = parsedMode;
 
-    if (session.lastYear) {
+    // If we already have a year, run immediately (sticky year)
+    if (clampYear(session.lastYear)) {
       session.pendingMode = null;
 
       forceYearSpineChart(session);
@@ -892,11 +936,17 @@ app.post("/api/chat", async (req, res) => {
     });
   }
 
-  if (bareYear) {
+  // YEAR present (even if not bareYear): treat as year selection
+  if (parsedYear && !parsedMode) {
     session.lastYear = parsedYear;
 
-    if (session.pendingMode) {
-      const mode = session.pendingMode;
+    // Priority order:
+    //  1) pendingMode (user said mode first, then year)
+    //  2) activeMusicMode (sticky mode)
+    //  3) ask for mode
+    const mode = session.pendingMode || session.activeMusicMode || null;
+
+    if (mode) {
       session.activeMusicMode = mode;
       session.pendingMode = null;
 
@@ -946,7 +996,7 @@ app.post("/api/chat", async (req, res) => {
     });
   }
 
-  // passthrough
+  // passthrough to engine
   const out = await runMusicEngine(message, session);
   const reply0 = cleanText(out.reply || "");
   const reply = addMomentumTail(session, reply0);
@@ -957,7 +1007,8 @@ app.post("/api/chat", async (req, res) => {
 
   if (replyLooksLikeTop10List(reply0)) {
     session.lastTop10One = extractTop10NumberOne(reply0);
-    if (session.lastTop10One && session.lastTop10One.year) session.lastYear = session.lastTop10One.year;
+    if (session.lastTop10One && session.lastTop10One.year)
+      session.lastYear = session.lastTop10One.year;
   }
 
   const engineFollow = Array.isArray(out.followUp) ? out.followUp : null;
