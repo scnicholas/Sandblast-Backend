@@ -5,14 +5,17 @@
  * Sandblast Backend — index.js
  *
  * Goals:
- *  - Bulletproof /api/chat contract v1.
+ *  - Bulletproof /api/chat contract v1 for the Nyx widget.
+ *  - Fix critical production failures (CORS + session creation).
  *  - Strong conversational flow: greeting → year/mode routing → guided follow-ups.
- *  - Defensive session handling (in-memory) with optional durable sessions (future).
- *  - Works with musicKnowledge + optional s2s (server-to-server) modules.
+ *  - Defensive session handling (in-memory) with forward-compatible hooks.
  *
- * Notes:
- *  - This file is intentionally defensive: safe parsing, safe fallbacks.
- *  - Keep “chips” support via followUps array (legacy).
+ * Critical fixes in this build:
+ *  1) CORS: default-allow Sandblast production origins even if env is missing/mis-set.
+ *  2) Sessions: server generates a sessionId when client doesn't send one (fixes “no continuity” + widget never storing session).
+ *  3) VoiceMode: accepts voiceMode from body OR body.context.voiceMode (widget sends both).
+ *  4) OPTIONS preflight uses SAME cors options (not the default cors()).
+ *  5) Better error visibility: explicit 4xx/5xx JSON with requestId; optional console logging.
  */
 
 const express = require("express");
@@ -27,7 +30,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.3.1 (P5.1 hardening: /api/tts mp3 + voiceMode continuity + /api/voice alias safe handler + better error visibility)";
+  "index.js v1.3.2 (CRITICAL: prod CORS defaults + server-generated sessionId + unified preflight + context.voiceMode + better visibility)";
 
 /* ======================================================
    Basic middleware
@@ -35,38 +38,94 @@ const INDEX_VERSION =
 
 app.use(express.json({ limit: "1mb" }));
 
-// CORS: allowlist from env (comma-separated), plus localhost by default
-function parseAllowedOrigins() {
-  const raw = String(process.env.CORS_ALLOWED_ORIGINS || "").trim();
-  const defaults = ["http://localhost:3000", "http://127.0.0.1:3000"];
-  const list = raw ? raw.split(",").map((s) => s.trim()).filter(Boolean) : [];
-  return Array.from(new Set([...defaults, ...list]));
+/* ------------------------------------------------------
+   CORS (CRITICAL)
+   - Allows Sandblast production domains by default.
+   - Also allows env allowlist (comma-separated).
+   - Also allows localhost dev.
+   - Uses the SAME cors options for app.options preflight.
+------------------------------------------------------ */
+
+function cleanOrigin(o) {
+  return String(o || "").trim().replace(/\/$/, "");
 }
+
+function parseAllowedOrigins() {
+  // Always-allowed defaults (critical: prevents “env missing” breaking prod)
+  const defaults = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+
+    // Sandblast Webflow + primary site (include www)
+    "https://sandblast.channel",
+    "https://www.sandblast.channel", // harmless if unused
+    "https://sandblastchannel.com",
+    "https://www.sandblastchannel.com",
+  ];
+
+  const raw = String(process.env.CORS_ALLOWED_ORIGINS || "").trim();
+  const envList = raw
+    ? raw
+        .split(",")
+        .map((s) => cleanOrigin(s))
+        .filter(Boolean)
+    : [];
+
+  // Normalize + de-dupe
+  return Array.from(new Set([...defaults.map(cleanOrigin), ...envList]));
+}
+
 const ALLOWED_ORIGINS = parseAllowedOrigins();
 
-app.use(
-  cors({
-    origin: function (origin, cb) {
-      // allow non-browser clients
-      if (!origin) return cb(null, true);
-      if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
-      return cb(null, false);
-    },
-    methods: ["GET", "POST", "OPTIONS"],
-    allowedHeaders: [
-      "Content-Type",
-      "Accept",
-      "Authorization",
-      "X-Requested-With",
-      "X-Visitor-Id",
-      "X-Contract-Version",
-      "X-Request-Id",
-    ],
-    maxAge: 86400,
-  })
-);
+function isOriginAllowed(origin) {
+  const o = cleanOrigin(origin);
+  if (!o) return true; // non-browser / server-to-server clients
+  if (ALLOWED_ORIGINS.includes(o)) return true;
 
-app.options("*", cors());
+  // Defensive wildcarding for Sandblast subdomains (optional but safe)
+  // Example: preview subdomains, etc. Tighten/remove if you don’t want this.
+  try {
+    const u = new URL(o);
+    const host = u.hostname.toLowerCase();
+    if (host === "sandblast.channel") return true;
+    if (host.endsWith(".sandblast.channel")) return true;
+    if (host === "sandblastchannel.com") return true;
+    if (host.endsWith(".sandblastchannel.com")) return true;
+  } catch (_) {
+    // ignore URL parse failures
+  }
+
+  return false;
+}
+
+const corsOptions = {
+  origin: function (origin, cb) {
+    // Allow non-browser clients
+    if (!origin) return cb(null, true);
+
+    const ok = isOriginAllowed(origin);
+    // If blocked, we return an error so it’s visible in logs (better than silent false)
+    if (!ok) return cb(new Error("CORS blocked: " + origin), false);
+
+    return cb(null, true);
+  },
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: [
+    "Content-Type",
+    "Accept",
+    "Authorization",
+    "X-Requested-With",
+    "X-Visitor-Id",
+    "X-Contract-Version",
+    "X-Request-Id",
+  ],
+  exposedHeaders: ["X-Request-Id", "X-Voice-Mode", "X-Contract-Version"],
+  credentials: false,
+  maxAge: 86400,
+};
+
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 
 /* ======================================================
    Helpers
@@ -80,6 +139,11 @@ function rid() {
   return crypto.randomBytes(8).toString("hex");
 }
 
+function makeSessionId() {
+  // Short, URL-safe, unique enough for in-memory sessions
+  return "nyx_" + rid() + "_" + Date.now().toString(36);
+}
+
 function cleanText(s) {
   return String(s || "")
     .replace(/\u200B/g, "")
@@ -90,7 +154,7 @@ function cleanText(s) {
 function safeJsonParse(body) {
   // express.json already parses; this exists for defensive paths
   try {
-    if (typeof body === "object") return body;
+    if (typeof body === "object" && body !== null) return body;
     return JSON.parse(String(body || "{}"));
   } catch {
     return null;
@@ -126,34 +190,40 @@ function safeIncYear(y, delta) {
 
 const SESSIONS = new Map();
 
+function createSession(sid) {
+  const id = String(sid || "").trim() || makeSessionId();
+  const s = {
+    id,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+
+    // conversation state
+    lastYear: null,
+    activeMusicMode: null, // "top10" | "story" | "micro"
+    pendingMode: null, // mode waiting for year
+
+    // chart:
+    activeMusicChart: "Billboard Hot 100",
+
+    // P4 momentum state
+    lastReply: null,
+    lastReplyAt: null,
+    lastTop10One: null, // {year, artist, title}
+    lastIntent: null, // "top10"|"story"|"micro"|...
+
+    // P5 voice continuity
+    voiceMode: "standard", // "calm" | "standard" | "high"
+  };
+
+  SESSIONS.set(id, s);
+  return s;
+}
+
 function getSession(sessionId) {
   const sid = String(sessionId || "").trim();
   if (!sid) return null;
 
-  if (!SESSIONS.has(sid)) {
-    SESSIONS.set(sid, {
-      id: sid,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-
-      // conversation state
-      lastYear: null,
-      activeMusicMode: null, // "top10" | "story" | "micro"
-      pendingMode: null, // mode waiting for year
-
-      // chart:
-      activeMusicChart: "Billboard Hot 100",
-
-      // P4 momentum state
-      lastReply: null,
-      lastReplyAt: null,
-      lastTop10One: null, // {year, artist, title}
-      lastIntent: null, // "top10"|"story"|"micro"|...
-
-      // P5 voice continuity
-      voiceMode: "standard", // "calm" | "standard" | "high"
-    });
-  }
+  if (!SESSIONS.has(sid)) return createSession(sid);
 
   const s = SESSIONS.get(sid);
   s.updatedAt = Date.now();
@@ -343,9 +413,7 @@ function forceYearSpineChart(session) {
 
 function replyIndicatesNoCleanListForYear(reply) {
   const t = cleanText(reply).toLowerCase();
-  return (
-    t.includes("don’t have a clean list") || t.includes("don't have a clean list")
-  );
+  return t.includes("don’t have a clean list") || t.includes("don't have a clean list");
 }
 
 function replyIndicatesTryStoryMomentFirst(reply) {
@@ -392,8 +460,7 @@ function extractTop10NumberOne(reply) {
   const artist = cleanText(m[1]);
   const title = stripTrailingWantPrompt(m[2]);
 
-  if (!artist || !title)
-    return { year, artist: artist || null, title: title || null };
+  if (!artist || !title) return { year, artist: artist || null, title: title || null };
   return { year, artist, title };
 }
 
@@ -436,9 +503,7 @@ function makeFollowUps(session) {
   if (hasYear && hasReplay) items.push("Replay last");
 
   const deduped = [];
-  for (const x of items) {
-    if (!deduped.includes(x)) deduped.push(x);
-  }
+  for (const x of items) if (!deduped.includes(x)) deduped.push(x);
 
   let capped = deduped.slice(0, 8);
 
@@ -477,6 +542,7 @@ function replyMissingYearForMode(session, mode) {
   if (mode === "top10") return pickRotate(session, "askYear_top10", poolTop10);
   if (mode === "story") return pickRotate(session, "askYear_story", poolStory);
   if (mode === "micro") return pickRotate(session, "askYear_micro", poolMicro);
+
   return pickRotate(session, "askYear_generic", [
     "What year (1950–2024) should I use?",
     "Which year (1950–2024)?",
@@ -490,12 +556,10 @@ function addMomentumTail(session, reply) {
   const y = session && clampYear(session.lastYear) ? session.lastYear : null;
   const mode = session && session.activeMusicMode ? session.activeMusicMode : null;
 
-  const endsWithQ =
-    /[?]$/.test(r) || /\bwant\b/i.test(r) || /\bchoose\b/i.test(r);
+  const endsWithQ = /[?]$/.test(r) || /\bwant\b/i.test(r) || /\bchoose\b/i.test(r);
   if (endsWithQ) return r;
 
-  if (y && mode === "top10")
-    return `${r} Next: say “#1 story”, “#1 micro”, or “next year”.`;
+  if (y && mode === "top10") return `${r} Next: say “#1 story”, “#1 micro”, or “next year”.`;
   if (y && (mode === "story" || mode === "micro"))
     return `${r} Next: “top 10”, “next year”, or “replay”.`;
   return r;
@@ -517,7 +581,7 @@ app.get("/api/health", (req, res) => {
     build: process.env.RENDER_GIT_COMMIT || null,
     version: INDEX_VERSION,
     sessions: SESSIONS.size,
-    cors: { allowedOrigins: ALLOWED_ORIGINS.length },
+    cors: { allowedOrigins: ALLOWED_ORIGINS.length, allowed: ALLOWED_ORIGINS },
     contract: {
       version: NYX_CONTRACT_VERSION,
       strict: String(process.env.CONTRACT_STRICT || "false") === "true",
@@ -548,7 +612,7 @@ app.get("/api/health", (req, res) => {
 });
 
 /* ======================================================
-   API: tts  (Pillar 5.1 + 5.2)
+   API: tts
    - Accepts: { text, voiceMode?, contractVersion, sessionId? }
    - Returns: audio/mpeg with X-Voice-Mode + X-Contract-Version
 ====================================================== */
@@ -559,37 +623,42 @@ async function ttsHandler(req, res) {
 
   const body = safeJsonParse(req.body);
   if (!body) {
-    return res
-      .status(400)
-      .json({ ok: false, error: "BAD_REQUEST", detail: "INVALID_JSON", requestId });
+    return res.status(400).json({
+      ok: false,
+      error: "BAD_REQUEST",
+      detail: "INVALID_JSON",
+      requestId,
+    });
   }
 
   const text = cleanText(body.text || body.message || "");
   const contractVersion = cleanText(body.contractVersion || body.contract || "");
 
-  // Continuity: inherit voiceMode from sessionId when voiceMode is not explicitly provided (Pillar 5.2)
   const sid = cleanText(body.sessionId || "");
   const s = sid ? getSession(sid) : null;
 
-  const hasExplicitVoiceMode =
-    Object.prototype.hasOwnProperty.call(body, "voiceMode") &&
-    String(body.voiceMode || "").trim() !== "";
+  // Accept voiceMode from body OR body.context.voiceMode (widget sends both)
+  const contextVoiceMode = body && body.context ? body.context.voiceMode : "";
+  const rawVoiceMode =
+    Object.prototype.hasOwnProperty.call(body, "voiceMode") && String(body.voiceMode || "").trim()
+      ? body.voiceMode
+      : contextVoiceMode;
 
-  const voiceMode = normalizeVoiceMode(
-    hasExplicitVoiceMode ? body.voiceMode : (s && s.voiceMode) || "standard"
-  );
+  const hasExplicitVoiceMode = String(rawVoiceMode || "").trim() !== "";
+  const voiceMode = normalizeVoiceMode(hasExplicitVoiceMode ? rawVoiceMode : (s && s.voiceMode) || "standard");
 
   if (contractVersion && contractVersion !== NYX_CONTRACT_VERSION) {
-    // soft-accept for now
+    // soft-accept
   }
 
-  if (!TTS_ENABLED) {
-    return res.status(503).json({ ok: false, error: "TTS_DISABLED", requestId });
-  }
+  if (!TTS_ENABLED) return res.status(503).json({ ok: false, error: "TTS_DISABLED", requestId });
   if (TTS_PROVIDER !== "elevenlabs") {
-    return res
-      .status(500)
-      .json({ ok: false, error: "TTS_PROVIDER_UNSUPPORTED", provider: TTS_PROVIDER, requestId });
+    return res.status(500).json({
+      ok: false,
+      error: "TTS_PROVIDER_UNSUPPORTED",
+      provider: TTS_PROVIDER,
+      requestId,
+    });
   }
   if (!hasFetch) {
     return res.status(500).json({
@@ -616,9 +685,6 @@ async function ttsHandler(req, res) {
     });
   }
 
-  // Persist voiceMode to session:
-  // - If explicit: store it
-  // - If inherited: keep existing (already is)
   if (s && hasExplicitVoiceMode) s.voiceMode = voiceMode;
 
   try {
@@ -635,7 +701,6 @@ async function ttsHandler(req, res) {
 
     const buf = out.buf || Buffer.alloc(0);
     if (!Buffer.isBuffer(buf) || buf.length < 1024) {
-      // Prevent “tiny body saved as mp3” from passing silently.
       return res.status(502).json({
         ok: false,
         error: "TTS_BAD_AUDIO",
@@ -663,7 +728,6 @@ async function ttsHandler(req, res) {
 }
 
 app.post("/api/tts", ttsHandler);
-// Alias for compatibility (no Express internals / no req.url mutation)
 app.post("/api/voice", ttsHandler);
 
 /* ======================================================
@@ -673,6 +737,7 @@ app.post("/api/voice", ttsHandler);
 app.post("/api/chat", async (req, res) => {
   const requestId = req.get("X-Request-Id") || rid();
   res.set("X-Request-Id", requestId);
+  res.set("X-Contract-Version", NYX_CONTRACT_VERSION);
 
   const body = safeJsonParse(req.body);
   if (!body) {
@@ -685,33 +750,32 @@ app.post("/api/chat", async (req, res) => {
   }
 
   const message = cleanText(body.message || body.text || "");
-  const sessionId = cleanText(body.sessionId || "");
   const visitorId = cleanText(body.visitorId || "");
+
+  // CRITICAL: if client did not send a sessionId, CREATE one.
+  // The widget only stores sessionId when the server returns it.
+  let sessionId = cleanText(body.sessionId || "");
+  let session = sessionId ? getSession(sessionId) : null;
+  if (!session) {
+    session = createSession();
+    sessionId = session.id;
+  }
+
   const contractVersion = cleanText(body.contractVersion || body.contract || "");
 
-  // P5: persist voiceMode into session for continuity
-  const incomingVoiceMode = normalizeVoiceMode(body.voiceMode || "standard");
+  // Voice mode: accept from body.voiceMode OR body.context.voiceMode
+  const contextVoiceMode = body && body.context ? body.context.voiceMode : "";
+  const rawVoiceMode =
+    Object.prototype.hasOwnProperty.call(body, "voiceMode") && String(body.voiceMode || "").trim()
+      ? body.voiceMode
+      : contextVoiceMode;
+
+  const incomingVoiceMode = normalizeVoiceMode(rawVoiceMode || session.voiceMode || "standard");
+  session.voiceMode = incomingVoiceMode || session.voiceMode || "standard";
 
   if (contractVersion && contractVersion !== NYX_CONTRACT_VERSION) {
     // soft-accept for now
   }
-
-  const session =
-    getSession(sessionId) || {
-      id: null,
-      lastYear: null,
-      activeMusicMode: null,
-      pendingMode: null,
-      activeMusicChart: "Billboard Hot 100",
-      lastReply: null,
-      lastReplyAt: null,
-      lastTop10One: null,
-      lastIntent: null,
-      voiceMode: "standard",
-    };
-
-  // Store voiceMode as soon as we have a session object.
-  session.voiceMode = incomingVoiceMode || session.voiceMode || "standard";
 
   const nav = normalizeNavToken(message);
 
@@ -719,7 +783,7 @@ app.post("/api/chat", async (req, res) => {
     return res.json({
       ok: true,
       reply: session.lastReply,
-      sessionId: sessionId || session.id || null,
+      sessionId,
       requestId,
       visitorId: visitorId || null,
       contractVersion: NYX_CONTRACT_VERSION,
@@ -749,14 +813,12 @@ app.post("/api/chat", async (req, res) => {
         session.lastReplyAt = Date.now();
         session.lastIntent = mode;
 
-        if (replyLooksLikeTop10List(reply0)) {
-          session.lastTop10One = extractTop10NumberOne(reply0);
-        }
+        if (replyLooksLikeTop10List(reply0)) session.lastTop10One = extractTop10NumberOne(reply0);
 
         return res.json({
           ok: true,
           reply,
-          sessionId: sessionId || session.id || null,
+          sessionId,
           requestId,
           visitorId: visitorId || null,
           contractVersion: NYX_CONTRACT_VERSION,
@@ -768,7 +830,7 @@ app.post("/api/chat", async (req, res) => {
       return res.json({
         ok: true,
         reply: `Got it — ${nextY}. What do you want: Top 10, Story moment, or Micro moment?`,
-        sessionId: sessionId || session.id || null,
+        sessionId,
         requestId,
         visitorId: visitorId || null,
         contractVersion: NYX_CONTRACT_VERSION,
@@ -799,7 +861,7 @@ app.post("/api/chat", async (req, res) => {
     return res.json({
       ok: true,
       reply: rep,
-      sessionId: sessionId || session.id || null,
+      sessionId,
       requestId,
       visitorId: visitorId || null,
       contractVersion: NYX_CONTRACT_VERSION,
@@ -812,7 +874,7 @@ app.post("/api/chat", async (req, res) => {
     const out = {
       ok: true,
       reply: greetingReply(),
-      sessionId: sessionId || session.id || null,
+      sessionId,
       requestId,
       visitorId: visitorId || null,
       contractVersion: NYX_CONTRACT_VERSION,
@@ -847,14 +909,12 @@ app.post("/api/chat", async (req, res) => {
     session.lastReplyAt = Date.now();
     session.lastIntent = parsedMode;
 
-    if (replyLooksLikeTop10List(reply0)) {
-      session.lastTop10One = extractTop10NumberOne(reply0);
-    }
+    if (replyLooksLikeTop10List(reply0)) session.lastTop10One = extractTop10NumberOne(reply0);
 
     return res.json({
       ok: true,
       reply,
-      sessionId: sessionId || session.id || null,
+      sessionId,
       requestId,
       visitorId: visitorId || null,
       contractVersion: NYX_CONTRACT_VERSION,
@@ -883,14 +943,12 @@ app.post("/api/chat", async (req, res) => {
       session.lastReplyAt = Date.now();
       session.lastIntent = parsedMode;
 
-      if (replyLooksLikeTop10List(reply0)) {
-        session.lastTop10One = extractTop10NumberOne(reply0);
-      }
+      if (replyLooksLikeTop10List(reply0)) session.lastTop10One = extractTop10NumberOne(reply0);
 
       return res.json({
         ok: true,
         reply,
-        sessionId: sessionId || session.id || null,
+        sessionId,
         requestId,
         visitorId: visitorId || null,
         contractVersion: NYX_CONTRACT_VERSION,
@@ -907,7 +965,7 @@ app.post("/api/chat", async (req, res) => {
     return res.json({
       ok: true,
       reply: ask,
-      sessionId: sessionId || session.id || null,
+      sessionId,
       requestId,
       visitorId: visitorId || null,
       contractVersion: NYX_CONTRACT_VERSION,
@@ -936,14 +994,12 @@ app.post("/api/chat", async (req, res) => {
       session.lastReplyAt = Date.now();
       session.lastIntent = mode;
 
-      if (replyLooksLikeTop10List(reply0)) {
-        session.lastTop10One = extractTop10NumberOne(reply0);
-      }
+      if (replyLooksLikeTop10List(reply0)) session.lastTop10One = extractTop10NumberOne(reply0);
 
       return res.json({
         ok: true,
         reply,
-        sessionId: sessionId || session.id || null,
+        sessionId,
         requestId,
         visitorId: visitorId || null,
         contractVersion: NYX_CONTRACT_VERSION,
@@ -969,14 +1025,12 @@ app.post("/api/chat", async (req, res) => {
       session.lastReplyAt = Date.now();
       session.lastIntent = mode;
 
-      if (replyLooksLikeTop10List(reply0)) {
-        session.lastTop10One = extractTop10NumberOne(reply0);
-      }
+      if (replyLooksLikeTop10List(reply0)) session.lastTop10One = extractTop10NumberOne(reply0);
 
       return res.json({
         ok: true,
         reply,
-        sessionId: sessionId || session.id || null,
+        sessionId,
         requestId,
         visitorId: visitorId || null,
         contractVersion: NYX_CONTRACT_VERSION,
@@ -995,7 +1049,7 @@ app.post("/api/chat", async (req, res) => {
     return res.json({
       ok: true,
       reply: askMode,
-      sessionId: sessionId || session.id || null,
+      sessionId,
       requestId,
       visitorId: visitorId || null,
       contractVersion: NYX_CONTRACT_VERSION,
@@ -1013,15 +1067,13 @@ app.post("/api/chat", async (req, res) => {
 
   if (replyLooksLikeTop10List(reply0)) {
     session.lastTop10One = extractTop10NumberOne(reply0);
-    if (session.lastTop10One && session.lastTop10One.year) {
-      session.lastYear = session.lastTop10One.year;
-    }
+    if (session.lastTop10One && session.lastTop10One.year) session.lastYear = session.lastTop10One.year;
   }
 
   return res.json({
     ok: true,
     reply,
-    sessionId: sessionId || session.id || null,
+    sessionId,
     requestId,
     visitorId: visitorId || null,
     contractVersion: NYX_CONTRACT_VERSION,
@@ -1062,23 +1114,14 @@ async function runMusicEngine(text, session, hint) {
     if (retryReply) reply = retryReply;
   }
 
-  if (
-    (wantedMode === "story" || wantedMode === "micro") &&
-    replyLooksLikeTop10List(reply)
-  ) {
+  if ((wantedMode === "story" || wantedMode === "micro") && replyLooksLikeTop10List(reply)) {
     const one = extractTop10NumberOne(reply);
     if (one && one.year) {
-      return wantedMode === "story"
-        ? makeStoryMomentFromNumberOne(one)
-        : makeMicroMomentFromNumberOne(one);
+      return wantedMode === "story" ? makeStoryMomentFromNumberOne(one) : makeMicroMomentFromNumberOne(one);
     }
   }
 
-  if (
-    (wantedMode === "story" || wantedMode === "micro") &&
-    parsedYear &&
-    replyIndicatesNoCleanListForYear(reply)
-  ) {
+  if ((wantedMode === "story" || wantedMode === "micro") && parsedYear && replyIndicatesNoCleanListForYear(reply)) {
     forceYearSpineChart(session);
 
     const topOut = safeCall(`top 10 ${parsedYear}`);
@@ -1087,9 +1130,7 @@ async function runMusicEngine(text, session, hint) {
     if (replyLooksLikeTop10List(topReply)) {
       const one = extractTop10NumberOne(topReply);
       if (one && one.year) {
-        return wantedMode === "story"
-          ? makeStoryMomentFromNumberOne(one)
-          : makeMicroMomentFromNumberOne(one);
+        return wantedMode === "story" ? makeStoryMomentFromNumberOne(one) : makeMicroMomentFromNumberOne(one);
       }
     }
   }
@@ -1103,11 +1144,7 @@ async function runMusicEngine(text, session, hint) {
     if (fallbackYear) session.lastYear = fallbackYear;
     if (wantedMode) session.activeMusicMode = wantedMode;
 
-    if (
-      session.activeMusicMode === "top10" ||
-      session.activeMusicMode === "story" ||
-      session.activeMusicMode === "micro"
-    ) {
+    if (session.activeMusicMode === "top10" || session.activeMusicMode === "story" || session.activeMusicMode === "micro") {
       forceYearSpineChart(session);
     }
 
@@ -1116,15 +1153,10 @@ async function runMusicEngine(text, session, hint) {
       const secondReply = cleanText(second && second.reply);
 
       if (secondReply && !replyIndicatesYearPrompt(secondReply)) {
-        if (
-          (wantedMode === "story" || wantedMode === "micro") &&
-          replyLooksLikeTop10List(secondReply)
-        ) {
+        if ((wantedMode === "story" || wantedMode === "micro") && replyLooksLikeTop10List(secondReply)) {
           const one = extractTop10NumberOne(secondReply);
           if (one && one.year) {
-            return wantedMode === "story"
-              ? makeStoryMomentFromNumberOne(one)
-              : makeMicroMomentFromNumberOne(one);
+            return wantedMode === "story" ? makeStoryMomentFromNumberOne(one) : makeMicroMomentFromNumberOne(one);
           }
         }
         return secondReply;
@@ -1138,8 +1170,7 @@ async function runMusicEngine(text, session, hint) {
   }
 
   if (!reply) {
-    reply =
-      "Tell me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment.";
+    reply = "Tell me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment.";
   }
 
   return reply;
@@ -1156,8 +1187,9 @@ const server = app.listen(PORT, HOST, () => {
   console.log(
     `[sandblast-backend] up :${PORT} env=${process.env.NODE_ENV || "production"} build=${
       process.env.RENDER_GIT_COMMIT || "n/a"
-    } contract=${NYX_CONTRACT_VERSION} rollout=${process.env.CONTRACT_ROLLOUT_PCT || "100%"} version=${INDEX_VERSION}`
+    } contract=${NYX_CONTRACT_VERSION} version=${INDEX_VERSION}`
   );
+  console.log(`[sandblast-backend] cors allowlist (${ALLOWED_ORIGINS.length}): ${ALLOWED_ORIGINS.join(", ")}`);
 });
 
 server.on("error", (err) => {
