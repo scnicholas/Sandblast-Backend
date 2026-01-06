@@ -3,16 +3,17 @@
 /**
  * Sandblast Backend — index.js
  *
- * This revision is a surgical hardening pass on your v1.4.0:
+ * This revision is a surgical hardening pass on your v1.4.0/1.4.1:
  *  - CORS: guarantees preflight uses the SAME corsOptions (no accidental wildcard),
- *          and ensures CORS headers exist on /api/health, /api/chat, /api/tts, /api/voice
- *          even when origin is allowlisted with www/non-www.
+ *          supports www/non-www normalization, and ensures CORS runs on /api/health, /api/chat, /api/tts, /api/voice.
  *  - Parser: keeps rawBody capture + JSON error responses + safe fallback parse.
  *  - Contract: optional strict enforcement (409 on mismatch) + always returns X-Contract-Version.
  *  - Sessions: TTL cleanup hardened (unref safe) + optional max sessions cap.
- *  - Chat: fixes the subtle “year-only with mode known” loop risk by treating ANY message containing a year
- *          as year-selection (already in your v1.4.0 logic), and ensures we never return a “pick mode”
- *          prompt when a usable mode exists.
+ *  - Chat: closes loop edges:
+ *      - year-only with active/pending mode always executes (never re-asks mode)
+ *      - “Another year” token supported
+ *      - “Top 10” (no year) uses session.lastYear (sticky year)
+ *      - “#1” uses engine (#1) if available; otherwise derives from last Top 10 list
  *  - Headers: Cache-Control no-store for dynamic endpoints.
  */
 
@@ -28,7 +29,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.4.1 (CORS preflight parity + allowlist diagnostics + session TTL guard + header consistency)";
+  "index.js v1.4.2 (CORS origin normalization + loop-closure + top10-no-year + #1 routing + another-year token)";
 
 /* ======================================================
    Basic middleware
@@ -60,6 +61,10 @@ app.use(
   })
 );
 
+/* ======================================================
+   CORS
+====================================================== */
+
 // CORS: allowlist from env (comma-separated), plus localhost by default
 function parseAllowedOrigins() {
   const raw = String(process.env.CORS_ALLOWED_ORIGINS || "").trim();
@@ -78,13 +83,42 @@ const CONTRACT_STRICT = String(process.env.CONTRACT_STRICT || "false") === "true
 // Optional: cap sessions to avoid memory spikes on public launches (0 = disabled)
 const MAX_SESSIONS = Math.max(0, Number(process.env.MAX_SESSIONS || 0));
 
+function normalizeOrigin(origin) {
+  const o = String(origin || "").trim();
+  if (!o) return "";
+  // normalize trailing slash
+  return o.replace(/\/$/, "");
+}
+
+function originMatchesAllowlist(origin) {
+  const o = normalizeOrigin(origin);
+  if (!o) return false;
+
+  if (ALLOWED_ORIGINS.includes(o)) return true;
+
+  // handle www/non-www symmetry (https://www.example.com vs https://example.com)
+  try {
+    const u = new URL(o);
+    const host = String(u.hostname || "");
+    if (!host) return false;
+
+    const altHost = host.startsWith("www.") ? host.slice(4) : `www.${host}`;
+    const alt = `${u.protocol}//${altHost}${u.port ? `:${u.port}` : ""}`;
+    return ALLOWED_ORIGINS.includes(alt);
+  } catch (_) {
+    return false;
+  }
+}
+
 // IMPORTANT: If you use Authorization in future, keep it here; browsers preflight on it.
 const corsOptions = {
   origin: function (origin, cb) {
     if (!origin) return cb(null, true); // non-browser clients
     if (CORS_ALLOW_ALL) return cb(null, true);
-    if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
-    // Return false (not error) so CORS middleware simply omits headers.
+
+    if (originMatchesAllowlist(origin)) return cb(null, true);
+
+    // Return false (not error) so cors middleware simply omits headers.
     return cb(null, false);
   },
   methods: ["GET", "POST", "OPTIONS"],
@@ -213,9 +247,7 @@ function getSession(sessionId) {
   if (!sid) return null;
 
   if (!SESSIONS.has(sid)) {
-    // Optional cap (hard stop) — prevents unbounded memory if attacked.
     if (MAX_SESSIONS > 0 && SESSIONS.size >= MAX_SESSIONS) {
-      // Evict the stalest session
       let oldestKey = null;
       let oldestUpdated = Infinity;
       for (const [k, v] of SESSIONS.entries()) {
@@ -260,8 +292,7 @@ function getSession(sessionId) {
   return s;
 }
 
-// Purge sessions idle beyond TTL (prevents unbounded growth on public traffic)
-const SESSION_TTL_MS = Number(process.env.SESSION_TTL_MS || 6 * 60 * 60 * 1000); // default: 6h
+const SESSION_TTL_MS = Number(process.env.SESSION_TTL_MS || 6 * 60 * 60 * 1000);
 const CLEAN_INTERVAL_MS = Math.max(
   60 * 1000,
   Math.min(15 * 60 * 1000, Math.floor(SESSION_TTL_MS / 4))
@@ -432,8 +463,12 @@ function normalizeNavToken(text) {
   if (/^(next|next year|forward|year\+1)\b/.test(t)) return "nextYear";
   if (/^(prev|previous|previous year|back|year-1)\b/.test(t)) return "prevYear";
 
+  if (/^(another year|new year|different year)\b/.test(t)) return "anotherYear";
+
   if (/^(#?1\s*story|story\s*#?1|number\s*1\s*story)\b/.test(t)) return "oneStory";
   if (/^(#?1\s*micro|micro\s*#?1|number\s*1\s*micro)\b/.test(t)) return "oneMicro";
+
+  if (/^#?1\b/.test(t) || /^number\s*1\b/.test(t)) return "one";
 
   return null;
 }
@@ -445,7 +480,7 @@ function forceYearSpineChart(session) {
 
 function replyLooksLikeTop10List(reply) {
   const t = cleanText(reply);
-  return /^Top 10\s+—/i.test(t);
+  return /^Top\s+10\s+—/i.test(t);
 }
 
 function stripTrailingWantPrompt(s) {
@@ -501,13 +536,14 @@ function makeFollowUps(session) {
 
   const items = [yearChip, ...baseModes];
 
-  if (hasYear && hasOne) items.push("#1 story", "#1 micro");
+  if (hasYear && hasOne) items.push("#1", "#1 story", "#1 micro");
 
   if (hasYear) {
     const py = safeIncYear(session.lastYear, -1);
     const ny = safeIncYear(session.lastYear, +1);
     if (py) items.push("Prev year");
     if (ny) items.push("Next year");
+    items.push("Another year");
   }
 
   if (hasYear && hasReplay) items.push("Replay last");
@@ -559,9 +595,9 @@ function addMomentumTail(session, reply) {
   if (endsWithQ) return r;
 
   if (y && mode === "top10")
-    return `${r} Next: say “#1 story”, “#1 micro”, or “next year”.`;
+    return `${r} Next: say “#1”, “#1 story”, “#1 micro”, or “next year”.`;
   if (y && (mode === "story" || mode === "micro"))
-    return `${r} Next: “top 10”, “next year”, or “replay”.`;
+    return `${r} Next: “top 10”, “next year”, “another year”, or “replay”.`;
   return r;
 }
 
@@ -577,7 +613,7 @@ app.get("/api/health", (req, res) => {
 
   const origin = req.headers.origin || null;
   const originAllowed =
-    CORS_ALLOW_ALL ? true : origin ? ALLOWED_ORIGINS.includes(origin) : null;
+    CORS_ALLOW_ALL ? true : origin ? originMatchesAllowlist(origin) : null;
 
   res.json({
     ok: true,
@@ -802,6 +838,7 @@ app.post("/api/chat", async (req, res) => {
 
   const nav = normalizeNavToken(message);
 
+  // replay
   if (nav === "replay" && session.lastReply) {
     return res.json({
       ok: true,
@@ -815,6 +852,29 @@ app.post("/api/chat", async (req, res) => {
     });
   }
 
+  // another year: ask year, keep mode sticky
+  if (nav === "anotherYear") {
+    session.pendingMode = session.activeMusicMode || session.pendingMode || null;
+    const ask =
+      session.pendingMode
+        ? replyMissingYearForMode(session, session.pendingMode)
+        : "Alright. What year (1950–2024)?";
+    session.lastReply = ask;
+    session.lastReplyAt = Date.now();
+    session.lastIntent = "askYear";
+    return res.json({
+      ok: true,
+      reply: ask,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+      ...makeFollowUps(session),
+    });
+  }
+
+  // next/prev year
   if ((nav === "nextYear" || nav === "prevYear") && clampYear(session.lastYear)) {
     const nextY = safeIncYear(session.lastYear, nav === "nextYear" ? +1 : -1);
     if (nextY) {
@@ -870,6 +930,7 @@ app.post("/api/chat", async (req, res) => {
     }
   }
 
+  // #1 story/micro from lastTop10One
   if (
     (nav === "oneStory" || nav === "oneMicro") &&
     session.lastTop10One &&
@@ -900,6 +961,64 @@ app.post("/api/chat", async (req, res) => {
     });
   }
 
+  // #1 (engine first, fallback to derived)
+  if (nav === "one") {
+    if (!clampYear(session.lastYear)) {
+      const ask = "Tell me a year first (1950–2024), then I’ll give you #1.";
+      session.lastReply = ask;
+      session.lastReplyAt = Date.now();
+      session.lastIntent = "askYear";
+      return res.json({
+        ok: true,
+        reply: ask,
+        sessionId,
+        requestId,
+        visitorId,
+        contractVersion: NYX_CONTRACT_VERSION,
+        voiceMode: session.voiceMode,
+        ...makeFollowUps(session),
+      });
+    }
+
+    // Prefer engine #1 which respects chart context
+    const out = await runMusicEngine("#1", session);
+    const reply0 = cleanText(out.reply || "");
+
+    let reply = reply0;
+    if (!reply || /^tell me a year/i.test(reply)) {
+      // fallback: derive from cached top10 #1
+      if (session.lastTop10One && session.lastTop10One.year === session.lastYear) {
+        reply = `#1 — ${session.lastTop10One.artist || "Unknown Artist"} — ${
+          session.lastTop10One.title || "Unknown Title"
+        }`;
+      } else {
+        reply = "Run “top 10” first so I can lock the year’s #1 cleanly.";
+      }
+    }
+
+    reply = addMomentumTail(session, reply);
+
+    session.lastReply = reply;
+    session.lastReplyAt = Date.now();
+    session.lastIntent = "number1";
+
+    const engineFollow = Array.isArray(out.followUp) ? out.followUp : null;
+
+    return res.json({
+      ok: true,
+      reply,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+      ...(engineFollow
+        ? { followUp: engineFollow, followUps: engineFollow.map((x) => ({ label: x, send: x })) }
+        : makeFollowUps(session)),
+    });
+  }
+
+  // Greeting / empty
   if (!message || isGreeting(message)) {
     const out = {
       ok: true,
@@ -920,7 +1039,7 @@ app.post("/api/chat", async (req, res) => {
   const parsedYear = clampYear(extractYearFromText(message));
   const parsedMode = normalizeModeToken(message);
   const bareYear = parsedYear ? isBareYearMessage(message) : false;
-  void bareYear; // retained for readability; year-handling uses parsedYear regardless
+  void bareYear;
 
   // MODE + YEAR in one shot
   if (parsedYear && parsedMode) {
@@ -959,12 +1078,12 @@ app.post("/api/chat", async (req, res) => {
     });
   }
 
-  // MODE only (needs year)
+  // MODE only
   if (parsedMode && !parsedYear) {
     session.activeMusicMode = parsedMode;
     session.pendingMode = parsedMode;
 
-    // If we already have a year, run immediately (sticky year)
+    // Sticky year: run immediately if we have lastYear
     if (clampYear(session.lastYear)) {
       session.pendingMode = null;
 
@@ -1016,14 +1135,10 @@ app.post("/api/chat", async (req, res) => {
     });
   }
 
-  // YEAR present (even if not bareYear): treat as year selection
+  // YEAR present: treat as year selection (prefers pending/active mode)
   if (parsedYear && !parsedMode) {
     session.lastYear = parsedYear;
 
-    // Priority order:
-    //  1) pendingMode (user said mode first, then year)
-    //  2) activeMusicMode (sticky mode)
-    //  3) ask for mode
     const mode = session.pendingMode || session.activeMusicMode || null;
 
     if (mode) {
