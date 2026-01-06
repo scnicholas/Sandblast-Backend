@@ -29,7 +29,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.1.0 (P3 stable + year-spine chart forced for Top10/Story/Micro + broader clean-list retry)";
+  "index.js v1.1.1 (P3 stable + year-spine chart forced + Story/Micro mode-fidelity fallback when engine returns Top10 or missing data)";
 
 /* ======================================================
    Basic middleware
@@ -251,7 +251,7 @@ function modeToCommand(mode) {
 }
 
 /**
- * v1.1.0: Force a single "year spine" chart for any year-based mode (Top10/Story/Micro)
+ * v1.1.x: Force a single "year spine" chart for any year-based mode (Top10/Story/Micro)
  * so story/micro do not drift to a chart source that lacks a year.
  */
 function forceYearSpineChart(session) {
@@ -284,6 +284,59 @@ function replyIndicatesYearPrompt(reply) {
     t.includes("tell me a year (1950") ||
     t.includes("or an artist + year")
   );
+}
+
+/* ======================================================
+   Mode-fidelity helpers (Story/Micro fallback)
+====================================================== */
+
+function replyLooksLikeTop10List(reply) {
+  const t = cleanText(reply);
+  return /^Top 10\s+—/i.test(t);
+}
+
+function stripTrailingWantPrompt(s) {
+  return cleanText(String(s || ""))
+    .replace(/\s+Want\s+#1.*$/i, "")
+    .replace(/\s+Want\s+a\s+story\s+moment.*$/i, "")
+    .replace(/\s+Want\s+a\s+micro\s+moment.*$/i, "")
+    .trim();
+}
+
+// Extract year + #1 artist/title from Top10 reply:
+// "Top 10 — Billboard Year-End Hot 100 (1988): 1. George Michael — Faith 2. ..."
+function extractTop10NumberOne(reply) {
+  const t = cleanText(reply);
+
+  const ym = t.match(/\((19[5-9]\d|20[0-1]\d|202[0-4])\)\s*:/);
+  const year = ym ? clampYear(Number(ym[1])) : null;
+  if (!year) return null;
+
+  // Capture item 1 until " 2." or end
+  const m = t.match(
+    /:\s*1\.\s*([^—]+?)\s*—\s*(.+?)(?=\s+2\.|$)/i
+  );
+  if (!m) return { year, artist: null, title: null };
+
+  const artist = cleanText(m[1]);
+  const title = stripTrailingWantPrompt(m[2]);
+
+  if (!artist || !title) return { year, artist: artist || null, title: title || null };
+  return { year, artist, title };
+}
+
+function makeMicroMomentFromNumberOne({ year, artist, title }) {
+  // Target ~35–45 words, broadcast-tight
+  const a = artist || "the year’s biggest artist";
+  const s = title ? `“${title}”` : "a massive #1";
+  return `Micro moment — ${year}: ${a} hit #1 with ${s}. One hook, one heartbeat—pure late-year momentum that made radios feel like a victory lap. Want a story moment, or another year?`;
+}
+
+function makeStoryMomentFromNumberOne({ year, artist, title }) {
+  // Target ~50–60 words, broadcast-tight
+  const a = artist || "the year’s biggest artist";
+  const s = title ? `“${title}”` : "a massive #1";
+  return `Story moment — ${year}: ${a} owned the year-end conversation with ${s} at #1. It’s a snapshot of the era—tight chorus, big polish, and that “turn it up again” energy that glued people to their car radios. Want the Top 10, a micro moment, or another year?`;
 }
 
 /* ======================================================
@@ -398,7 +451,7 @@ app.post("/api/chat", async (req, res) => {
     session.activeMusicMode = parsedMode;
     session.pendingMode = null;
 
-    // v1.1.0: force year-spine chart for any year-based mode
+    // Force year-spine chart for any year-based mode
     forceYearSpineChart(session);
 
     const canonical = `${modeToCommand(parsedMode)} ${parsedYear}`;
@@ -427,7 +480,7 @@ app.post("/api/chat", async (req, res) => {
     if (session.lastYear) {
       session.pendingMode = null;
 
-      // v1.1.0: force year-spine chart for any year-based mode
+      // Force year-spine chart for any year-based mode
       forceYearSpineChart(session);
 
       const canonical = `${modeToCommand(parsedMode)} ${session.lastYear}`;
@@ -468,7 +521,7 @@ app.post("/api/chat", async (req, res) => {
       session.activeMusicMode = mode;
       session.pendingMode = null;
 
-      // v1.1.0: force year-spine chart for any year-based mode
+      // Force year-spine chart for any year-based mode
       forceYearSpineChart(session);
 
       const canonical = `${modeToCommand(mode)} ${parsedYear}`;
@@ -493,7 +546,7 @@ app.post("/api/chat", async (req, res) => {
       const mode = session.activeMusicMode;
       session.lastYear = parsedYear;
 
-      // v1.1.0: force year-spine chart for any year-based mode
+      // Force year-spine chart for any year-based mode
       forceYearSpineChart(session);
 
       const canonical = `${modeToCommand(mode)} ${parsedYear}`;
@@ -559,16 +612,16 @@ async function runMusicEngine(text, session, hint) {
     }
   };
 
+  const hintedMode = (hint && hint.hintedMode) || null;
+  const wantedMode = hintedMode || session.activeMusicMode || null;
+
   // Primary call
   let out = safeCall(text);
   let reply = cleanText(out && out.reply);
 
   const parsedYear = clampYear(extractYearFromText(text));
-  const modeCtx =
-    (hint && hint.hintedMode) || session.activeMusicMode || null;
 
-  // v1.1.0: broaden the clean-list retry beyond Top10 to Story/Micro too
-  // If the engine says "no clean list", force the year-spine chart and retry once.
+  // v1.1.x: If engine says "no clean list", force year-spine chart and retry once.
   if (parsedYear && replyIndicatesNoCleanListForYear(reply)) {
     forceYearSpineChart(session);
     const retry = safeCall(text);
@@ -576,27 +629,65 @@ async function runMusicEngine(text, session, hint) {
     if (retryReply) reply = retryReply;
   }
 
+  // v1.1.1: Mode-fidelity fallback
+  // If Story/Micro was requested but engine returns Top 10, convert to the requested mode.
+  if ((wantedMode === "story" || wantedMode === "micro") && replyLooksLikeTop10List(reply)) {
+    const one = extractTop10NumberOne(reply);
+    if (one && one.year) {
+      return wantedMode === "story"
+        ? makeStoryMomentFromNumberOne(one)
+        : makeMicroMomentFromNumberOne(one);
+    }
+  }
+
+  // v1.1.1: If Story/Micro requested and engine can't resolve a "clean list",
+  // we fetch Top 10 once and synthesize Story/Micro from #1 (always returns something).
+  if ((wantedMode === "story" || wantedMode === "micro") && parsedYear && replyIndicatesNoCleanListForYear(reply)) {
+    forceYearSpineChart(session);
+
+    // Important: do NOT permanently flip activeMusicMode to top10; we just fetch a spine.
+    const topOut = safeCall(`top 10 ${parsedYear}`);
+    const topReply = cleanText(topOut && topOut.reply);
+
+    if (replyLooksLikeTop10List(topReply)) {
+      const one = extractTop10NumberOne(topReply);
+      if (one && one.year) {
+        return wantedMode === "story"
+          ? makeStoryMomentFromNumberOne(one)
+          : makeMicroMomentFromNumberOne(one);
+      }
+    }
+    // If even Top10 fails, keep original reply (truthful failure).
+  }
+
   // P3: If musicKnowledge wrongly prompts for year even though we have year/mode context,
   // force session state and retry with bare year (musicKnowledge is more reliable that way).
   if (replyIndicatesYearPrompt(reply)) {
-    const hintedMode = modeCtx;
-    const hintedYear =
+    const fallbackYear =
       (hint && hint.hintedYear) ||
       clampYear(extractYearFromText(text)) ||
       session.lastYear;
 
-    if (hintedYear) session.lastYear = hintedYear;
-    if (hintedMode) session.activeMusicMode = hintedMode;
+    if (fallbackYear) session.lastYear = fallbackYear;
+    if (wantedMode) session.activeMusicMode = wantedMode;
 
-    // v1.1.0: keep year-spine chart aligned for any year-based mode
     if (session.activeMusicMode === "top10" || session.activeMusicMode === "story" || session.activeMusicMode === "micro") {
       forceYearSpineChart(session);
     }
 
-    if (hintedYear) {
-      const second = safeCall(String(hintedYear));
+    if (fallbackYear) {
+      const second = safeCall(String(fallbackYear));
       const secondReply = cleanText(second && second.reply);
       if (secondReply && !replyIndicatesYearPrompt(secondReply)) {
+        // If Story/Micro requested but second reply is Top10, convert.
+        if ((wantedMode === "story" || wantedMode === "micro") && replyLooksLikeTop10List(secondReply)) {
+          const one = extractTop10NumberOne(secondReply);
+          if (one && one.year) {
+            return wantedMode === "story"
+              ? makeStoryMomentFromNumberOne(one)
+              : makeMicroMomentFromNumberOne(one);
+          }
+        }
         return secondReply;
       }
     }
