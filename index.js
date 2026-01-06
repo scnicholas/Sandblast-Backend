@@ -29,7 +29,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.0.8 (P3 resolver fixed + canonical command tokens lowercased for musicKnowledge compatibility)";
+  "index.js v1.0.9 (P3 resolver stable + musicKnowledge year-prompt retry: mode+year -> set session -> retry with bare year)";
 
 /* ======================================================
    Basic middleware
@@ -239,8 +239,6 @@ function normalizeModeToken(text) {
   return null;
 }
 
-// IMPORTANT: musicKnowledge appears sensitive to the command token form.
-// Use the canonical lowercase commands it already understands.
 function modeToCommand(mode) {
   if (mode === "top10") return "top 10";
   if (mode === "story") return "story moment";
@@ -264,10 +262,19 @@ function replyIndicatesNoCleanListForYear(reply) {
   return t.includes("don’t have a clean list") || t.includes("don't have a clean list");
 }
 
-// P3: suppress “Try story moment YEAR first” style loop prompts
 function replyIndicatesTryStoryMomentFirst(reply) {
   const t = cleanText(reply).toLowerCase();
   return t.includes("try “story moment") || t.includes('try "story moment');
+}
+
+// Detect musicKnowledge’s “year prompt” response
+function replyIndicatesYearPrompt(reply) {
+  const t = cleanText(reply).toLowerCase();
+  return (
+    t.startsWith("tell me a year") ||
+    t.includes("tell me a year (1950") ||
+    t.includes("or an artist + year")
+  );
 }
 
 /* ======================================================
@@ -368,7 +375,7 @@ app.post("/api/chat", async (req, res) => {
   }
 
   // -------------------------------
-  // Pillar 3 Resolver (must run BEFORE any generic “what year?” prompts)
+  // Pillar 3 Resolver (mode/year)
   // -------------------------------
 
   const parsedYear = clampYear(extractYearFromText(message));
@@ -383,8 +390,8 @@ app.post("/api/chat", async (req, res) => {
 
     if (parsedMode === "top10") forceTop10Chart(session);
 
-    const canonical = `${modeToCommand(parsedMode)} ${parsedYear}`; // ✅ lowercase command tokens
-    const reply = await runMusicEngine(canonical, session);
+    const canonical = `${modeToCommand(parsedMode)} ${parsedYear}`;
+    const reply = await runMusicEngine(canonical, session, { hintedMode: parsedMode, hintedYear: parsedYear });
 
     return res.json({
       ok: true,
@@ -400,15 +407,14 @@ app.post("/api/chat", async (req, res) => {
   // D) Mode-only (handshake mode -> year) OR use sticky year if present
   if (parsedMode && !parsedYear) {
     session.activeMusicMode = parsedMode; // sticky mode
-    session.pendingMode = parsedMode; // waiting for year unless lastYear exists
+    session.pendingMode = parsedMode;
 
     if (session.lastYear) {
       session.pendingMode = null;
-
       if (parsedMode === "top10") forceTop10Chart(session);
 
-      const canonical = `${modeToCommand(parsedMode)} ${session.lastYear}`; // ✅ lowercase command tokens
-      const reply = await runMusicEngine(canonical, session);
+      const canonical = `${modeToCommand(parsedMode)} ${session.lastYear}`;
+      const reply = await runMusicEngine(canonical, session, { hintedMode: parsedMode, hintedYear: session.lastYear });
 
       return res.json({
         ok: true,
@@ -432,10 +438,9 @@ app.post("/api/chat", async (req, res) => {
     });
   }
 
-  // E/F) Year-only steps (handshake year -> mode, sticky mode across years)
-  // Only intercept TRUE bare-year messages (e.g., "1988"), not "Prince 1988".
+  // E/F) Year-only steps
   if (bareYear) {
-    // If we have a pending mode (user said mode then year), bind and execute.
+    // pending mode exists: bind + execute
     if (session.pendingMode) {
       const mode = session.pendingMode;
       session.lastYear = parsedYear;
@@ -444,8 +449,8 @@ app.post("/api/chat", async (req, res) => {
 
       if (mode === "top10") forceTop10Chart(session);
 
-      const canonical = `${modeToCommand(mode)} ${parsedYear}`; // ✅ lowercase command tokens
-      const reply = await runMusicEngine(canonical, session);
+      const canonical = `${modeToCommand(mode)} ${parsedYear}`;
+      const reply = await runMusicEngine(canonical, session, { hintedMode: mode, hintedYear: parsedYear });
 
       return res.json({
         ok: true,
@@ -458,15 +463,15 @@ app.post("/api/chat", async (req, res) => {
       });
     }
 
-    // If we have an active mode (sticky mode), treat year as “mode + year”
+    // active mode exists: sticky mode across years
     if (session.activeMusicMode) {
       const mode = session.activeMusicMode;
       session.lastYear = parsedYear;
 
       if (mode === "top10") forceTop10Chart(session);
 
-      const canonical = `${modeToCommand(mode)} ${parsedYear}`; // ✅ lowercase command tokens
-      const reply = await runMusicEngine(canonical, session);
+      const canonical = `${modeToCommand(mode)} ${parsedYear}`;
+      const reply = await runMusicEngine(canonical, session, { hintedMode: mode, hintedYear: parsedYear });
 
       return res.json({
         ok: true,
@@ -479,7 +484,7 @@ app.post("/api/chat", async (req, res) => {
       });
     }
 
-    // Bare year with no mode context: store year and ask for mode (guided)
+    // bare year, no mode: store and ask for mode
     session.lastYear = parsedYear;
 
     return res.json({
@@ -493,8 +498,8 @@ app.post("/api/chat", async (req, res) => {
     });
   }
 
-  // Default: pass through to engine (supports “Prince 1984”, artist queries, etc.)
-  const reply = await runMusicEngine(message, session);
+  // Default: pass through (supports “Prince 1984”, etc.)
+  const reply = await runMusicEngine(message, session, null);
 
   return res.json({
     ok: true,
@@ -511,44 +516,58 @@ app.post("/api/chat", async (req, res) => {
    Music engine wrapper
 ====================================================== */
 
-async function runMusicEngine(text, session) {
+async function runMusicEngine(text, session, hint) {
   // If engine missing, provide safe fallback
   if (!musicKnowledge || typeof musicKnowledge.handleChat !== "function") {
     return "Tell me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment.";
   }
 
-  const input = {
-    text,
-    session,
+  const safeCall = (t) => {
+    try {
+      return musicKnowledge.handleChat({ text: t, session });
+    } catch {
+      return null;
+    }
   };
 
-  let out;
-  try {
-    out = musicKnowledge.handleChat(input);
-  } catch (e) {
-    return "I hit a snag reading that. Tell me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment.";
-  }
-
+  // Primary call
+  let out = safeCall(text);
   let reply = cleanText(out && out.reply);
 
-  // P2/P3: If Top 10 request returns “no clean list”, force Year-End chart and retry once.
-  const year = clampYear(extractYearFromText(text));
+  // If Top 10 request returns “no clean list”, force Year-End chart and retry once.
+  const parsedYear = clampYear(extractYearFromText(text));
   const askedTop10 = isTop10Mode(text) || session.activeMusicMode === "top10";
 
-  if (askedTop10 && year && replyIndicatesNoCleanListForYear(reply)) {
+  if (askedTop10 && parsedYear && replyIndicatesNoCleanListForYear(reply)) {
     forceTop10Chart(session);
-    try {
-      const retry = musicKnowledge.handleChat({ text, session });
-      const retryReply = cleanText(retry && retry.reply);
-      if (retryReply) reply = retryReply;
-    } catch {
-      // keep original
+    const retry = safeCall(text);
+    const retryReply = cleanText(retry && retry.reply);
+    if (retryReply) reply = retryReply;
+  }
+
+  // P3: If musicKnowledge wrongly prompts for year even though we have year/mode context,
+  // force session state and retry with bare year (musicKnowledge is more reliable that way).
+  if (replyIndicatesYearPrompt(reply)) {
+    const hintedMode = hint && hint.hintedMode ? hint.hintedMode : session.activeMusicMode;
+    const hintedYear = hint && hint.hintedYear ? hint.hintedYear : clampYear(extractYearFromText(text)) || session.lastYear;
+
+    if (hintedYear) session.lastYear = hintedYear;
+    if (hintedMode) session.activeMusicMode = hintedMode;
+    if (session.activeMusicMode === "top10") forceTop10Chart(session);
+
+    if (hintedYear) {
+      const second = safeCall(String(hintedYear));
+      const secondReply = cleanText(second && second.reply);
+      if (secondReply && !replyIndicatesYearPrompt(secondReply)) {
+        return secondReply;
+      }
     }
   }
 
-  // P3: Suppress loop-y prompts like “Try story moment YEAR first”
-  if (replyIndicatesTryStoryMomentFirst(reply) && year) {
-    return `Got it — ${year}. What do you want: Top 10, Story moment, or Micro moment?`;
+  // Suppress loop-y prompts like “Try story moment YEAR first”
+  const yr = clampYear(extractYearFromText(text)) || session.lastYear;
+  if (replyIndicatesTryStoryMomentFirst(reply) && yr) {
+    return `Got it — ${yr}. What do you want: Top 10, Story moment, or Micro moment?`;
   }
 
   // Final fallback safety
