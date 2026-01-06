@@ -1,7 +1,7 @@
 "use strict";
 
 /**
- * Utils/musicKnowledge.js — v2.71
+ * Utils/musicKnowledge.js — v2.71 (CRITICAL UPDATE)
  *
  * Retains v2.70 stability guarantees:
  *  - Validate session.activeMusicChart against loaded chart set; auto-fallback if unsupported.
@@ -10,15 +10,16 @@
  *  - Normalize common chart aliases consistently (RPM, Canada RPM, Year-End variants).
  *  - Always return a canonical sessionPatch (stop relying on session mutation for correctness).
  *
- * New in v2.71 (to make Music Moments feel “across the board” even before full moments coverage):
+ * New in v2.71:
  *  - Adds parsing for: "micro moment ####" and "micro ####".
  *  - Adds "top 10" (no year) => uses session.lastMusicYear if present; otherwise asks for a year.
  *  - Story/Micro attempts to use Music Moments layer if available; otherwise uses deterministic chart-based fallback.
  *  - Deterministic fallback is tight (50–60-ish words), non-fluffy, and never loops.
  *
- * Integration:
- *  - Designed to be called as: handleChat({ text, session })
- *  - Returns: { reply, followUp, domain:"music", sessionPatch }
+ * Critical fixes in this resend:
+ *  - Adds internal exports: _getTopByYear and _getNumberOneLine for musicMoments integration.
+ *  - Hardens musicMoments safe-calls: supports getMoment(...) OR handle(...) without throwing.
+ *  - Ensures lastMusicYear/lastMusicChart are patched consistently on every successful response.
  */
 
 const fs = require("fs");
@@ -28,7 +29,7 @@ const path = require("path");
 // Version
 // =========================
 const MK_VERSION =
-  "musicKnowledge v2.71 (micro parsing + story/micro moments wiring + deterministic fallback)";
+  "musicKnowledge v2.71 (micro parsing + story/micro moments wiring + deterministic fallback + internal exports)";
 
 // =========================
 // Public Range / Charts
@@ -63,27 +64,17 @@ const WIKI_YEAREND_SINGLES_1950_1959 =
 
 // Year-End Hot 100 ranges (merge any that exist)
 const WIKI_YEAREND_HOT100_FILES = [
-  // 1960–1969
   "Data/wikipedia/billboard_yearend_hot100_1960_1969.json",
-
-  // 1970–2010 (existing)
   "Data/wikipedia/billboard_yearend_hot100_1970_2010.json",
-
-  // 1976–1979 (optional)
   "Data/wikipedia/billboard_yearend_hot100_1976_1979.json",
-
-  // 2011–2024
   "Data/wikipedia/billboard_yearend_hot100_2011_2024.json",
 ];
 
 // =========================
-// Optional dependency: Music Moments layer
-// (Safe require: do not crash if absent)
+// Optional dependency: Music Moments layer (safe require)
 // =========================
 let musicMoments = null;
 try {
-  // If you have Utils/musicMoments.js exporting getMoment(...) or handleChat(...),
-  // this will auto-wire. If not present, we fall back deterministically.
   // eslint-disable-next-line global-require
   musicMoments = require("./musicMoments");
 } catch (_) {
@@ -97,7 +88,7 @@ let DB = null;
 let LOADED_FROM = null;
 let INDEX_BUILT = false;
 
-const BY_YEAR_CHART = new Map(); // key: `${year}|${chart}` => moments[]
+const BY_YEAR_CHART = new Map(); // `${year}|${chart}` => moments[]
 const STATS = { moments: 0, yearMin: null, yearMax: null, charts: [] };
 
 // Authoritative cache for 1950–1959 Year-End Singles
@@ -231,22 +222,10 @@ function canonicalPatch(session, extra = {}) {
     ...extra,
   };
 
-  // Strip null-ish fields where it helps (keeps sessionPatch clean)
   if (!patch.lastMusicYear) delete patch.lastMusicYear;
   if (!patch.lastMusicChart) delete patch.lastMusicChart;
 
   return patch;
-}
-
-function followupsForYear(year) {
-  const y = toInt(year);
-  if (!y) return ["1956", "1984", "1999"];
-  return [
-    `#1`,
-    `story moment ${y}`,
-    `micro moment ${y}`,
-    `top 10 ${y + 1 <= PUBLIC_MAX_YEAR ? y + 1 : y}`,
-  ];
 }
 
 // =========================
@@ -275,12 +254,11 @@ function parseCommand(msg) {
 
   if (t === "#1" || t === "1" || t === "number 1") return { kind: "number1" };
 
-  // Year-only is handled elsewhere; do not treat it as a special "command" here.
   return null;
 }
 
 // =========================
-// 50s Singles Cache (hot-reload + forced reload)
+// 50s Singles Cache
 // =========================
 function getWikiSingles50sFileMtimeMs() {
   const abs = resolveRepoPath(WIKI_YEAREND_SINGLES_1950_1959);
@@ -396,7 +374,7 @@ function clearWikiSingles50sCache() {
 }
 
 // =========================
-// DB Load + Index (non-50s support)
+// DB Load + Index
 // =========================
 function mergeWikipediaYearEndHot100Files(moments, relFiles) {
   const merged = [];
@@ -512,7 +490,7 @@ function loadDb() {
     BY_YEAR_CHART.set(k, arr);
   }
 
-  // Ensure 50s Year-End Singles is treated as an "available chart" even if the main DB doesn't include it.
+  // Ensure 50s Year-End Singles is treated as "available"
   if (hasWikiSingles50sYear(1950)) charts.add(YEAR_END_SINGLES_CHART);
 
   STATS.moments = moments.length;
@@ -560,7 +538,6 @@ function chooseChartForYear(year, requestedChart) {
     return { ok: false, reason: "OUT_OF_RANGE_FOR_SINGLES" };
   }
 
-  // Default 1950–1959 to Year-End Singles (canonical for early years)
   if (y >= 1950 && y <= 1959) {
     return { ok: true, chart: YEAR_END_SINGLES_CHART };
   }
@@ -619,11 +596,11 @@ function formatTopListWithFallbacks(year, requestedChart, limit = 10) {
   const y = toInt(year);
   if (!y) return null;
 
-  // 1950–1959: try Singles first (authoritative)
+  // 1950–1959: try Singles first
   if (y >= 1950 && y <= 1959) {
     const formatted50s = formatTopList(y, YEAR_END_SINGLES_CHART, limit);
-    if (formatted50s) return { formatted: formatted50s, chartUsed: YEAR_END_SINGLES_CHART };
-    // If missing, fall through to DB fallbacks
+    if (formatted50s)
+      return { formatted: formatted50s, chartUsed: YEAR_END_SINGLES_CHART };
   }
 
   const first = normalizeChart(requestedChart);
@@ -661,10 +638,7 @@ function getMomentFromLayer({ year, chart, kind }) {
   if (!musicMoments) return null;
 
   try {
-    // Support a few plausible APIs without forcing your implementation:
-    // - getMoment({year, chart, kind})
-    // - getMoment(year, chart, kind)
-    // - handleChat({text, session}) (not used here)
+    // 1) Preferred: musicMoments.getMoment(...)
     if (typeof musicMoments.getMoment === "function") {
       const res =
         musicMoments.getMoment.length >= 2
@@ -674,7 +648,15 @@ function getMomentFromLayer({ year, chart, kind }) {
       if (typeof res === "string" && res.trim()) return res.trim();
       if (res && typeof res.text === "string" && res.text.trim())
         return res.text.trim();
-      return null;
+    }
+
+    // 2) Alternate: musicMoments.handle(...) — build a small prompt
+    if (typeof musicMoments.handle === "function") {
+      const prompt =
+        kind === "micro" ? `micro moment ${year}` : `story moment ${year}`;
+      const out = musicMoments.handle(prompt, { ...{ activeMusicChart: chart } });
+      if (out && typeof out.reply === "string" && out.reply.trim())
+        return out.reply.trim();
     }
 
     return null;
@@ -687,7 +669,6 @@ function buildDeterministicMoment({ year, chart, kind }) {
   const y = toInt(year);
   const c = normalizeChart(chart || DEFAULT_CHART);
 
-  // Use top 3 if possible for richer fallback; still deterministic and factual.
   const top3 = getTopByYear(y, c, 3);
   const top1 = top3[0] || null;
   if (!top1) return null;
@@ -701,7 +682,6 @@ function buildDeterministicMoment({ year, chart, kind }) {
   const a3 = top3[2] ? cleanText(top3[2].artist) || "Unknown Artist" : null;
   const t3 = top3[2] ? cleanText(top3[2].title) || "Unknown Title" : null;
 
-  // Tight, broadcast-friendly, low-fluff, ~50–60 words.
   if (kind === "micro") {
     const extra =
       a2 && t2
@@ -717,13 +697,12 @@ function buildDeterministicMoment({ year, chart, kind }) {
     );
   }
 
-  // story
   const spine =
     a2 && t2 && a3 && t3
-      ? ` The top three shaped the year: ${a1} (“${t1}”), ${a2} (“${t2}”), and ${a3} (“${t3}”).`
+      ? `The top three shaped the year: ${a1} (“${t1}”), ${a2} (“${t2}”), and ${a3} (“${t3}”).`
       : a2 && t2
-        ? ` The top of the chart held steady: ${a1} (“${t1}”) with ${a2} (“${t2}”) close behind.`
-        : ` The year’s defining #1 was ${a1} with “${t1}.”`;
+        ? `The top of the chart held steady: ${a1} (“${t1}”) with ${a2} (“${t2}”) close behind.`
+        : `The year’s defining #1 was ${a1} with “${t1}.”`;
 
   return (
     `Story moment — ${y}: ${spine} ` +
@@ -738,11 +717,9 @@ function getMomentOrFallback({ year, chart, kind }) {
 
   const c = normalizeChart(chart || DEFAULT_CHART);
 
-  // 1) Try authored layer
   const fromLayer = getMomentFromLayer({ year: y, chart: c, kind });
   if (fromLayer) return fromLayer;
 
-  // 2) Deterministic fallback from chart rows
   return buildDeterministicMoment({ year: y, chart: c, kind });
 }
 
@@ -753,14 +730,11 @@ function handleChat({ text, session }) {
   const msg = cleanText(text);
   session = session || {};
 
-  // Ensure session chart defaults exist
   if (!session.activeMusicChart) session.activeMusicChart = DEFAULT_CHART;
 
-  // v2.71 command parsing (top10 / #1 / story moment #### / micro moment ####)
   const cmd = parseCommand(msg);
   if (cmd) {
     if (cmd.kind === "top10") {
-      // If year omitted, use lastMusicYear
       const impliedYear = toInt(cmd.year ?? session.lastMusicYear);
 
       if (!isYearInRange(impliedYear)) {
@@ -794,7 +768,6 @@ function handleChat({ text, session }) {
 
       const chart = choice.chart;
 
-      // 50s: authoritative singles list
       if (chart === YEAR_END_SINGLES_CHART && y >= 1950 && y <= 1959) {
         const formatted = formatTopList(y, chart, 10);
         if (!formatted) {
@@ -822,7 +795,6 @@ function handleChat({ text, session }) {
         };
       }
 
-      // Non-50s: use fallbacks
       const out = formatTopListWithFallbacks(y, chart, 10);
       if (out && out.formatted) {
         const used = out.chartUsed || chart;
@@ -839,7 +811,6 @@ function handleChat({ text, session }) {
         };
       }
 
-      // No data available
       const missingHint =
         STATS.moments > 0
           ? ""
@@ -936,7 +907,6 @@ function handleChat({ text, session }) {
       });
 
       if (!moment) {
-        // Absolute worst case: no rows at all
         return {
           reply: `I can’t pull a clean ${
             cmd.kind === "micro" ? "micro" : "story"
@@ -987,7 +957,6 @@ function handleChat({ text, session }) {
 
     const chart = choice.chart;
 
-    // 1950s Year-End Singles
     if (chart === YEAR_END_SINGLES_CHART && y >= 1950 && y <= 1959) {
       const rows = getTopByYear(y, chart, 10);
 
@@ -1017,7 +986,6 @@ function handleChat({ text, session }) {
       };
     }
 
-    // Non-50s: format using fallbacks
     const out = formatTopListWithFallbacks(y, chart, 10);
 
     if (out && out.formatted) {
@@ -1051,7 +1019,6 @@ function handleChat({ text, session }) {
     };
   }
 
-  // Lane prompt handling
   if (/^music$/i.test(msg)) {
     return {
       reply: `Alright—music. Give me a year (1950–2024), or say “top 10 1988”, “story moment 1988”, or “micro moment 1988”.`,
@@ -1061,7 +1028,6 @@ function handleChat({ text, session }) {
     };
   }
 
-  // Default prompt
   return {
     reply: `Tell me a year (1950–2024), or say “top 10 1988”, “#1”, “story moment 1988”, or “micro moment 1988”.`,
     followUp: ["1956", "top 10 1988", "story moment 1955"],
@@ -1085,4 +1051,8 @@ module.exports = {
 
   // For diagnostics
   _chartIsAvailable: chartIsAvailable,
+
+  // For Utils/musicMoments.js integration (critical)
+  _getTopByYear: getTopByYear,
+  _getNumberOneLine: getNumberOneLine,
 };
