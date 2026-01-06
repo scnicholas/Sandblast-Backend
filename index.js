@@ -208,7 +208,8 @@ function getTtsTuningForMode(voiceMode) {
     stability: Number(process.env.NYX_VOICE_STABILITY ?? 0.55),
     similarity: Number(process.env.NYX_VOICE_SIMILARITY ?? 0.78),
     style: Number(process.env.NYX_VOICE_STYLE ?? 0.12),
-    speakerBoost: String(process.env.NYX_VOICE_SPEAKER_BOOST ?? "false") === "true",
+    speakerBoost:
+      String(process.env.NYX_VOICE_SPEAKER_BOOST ?? "false") === "true",
   };
 
   const m = normalizeVoiceMode(voiceMode);
@@ -342,7 +343,9 @@ function forceYearSpineChart(session) {
 
 function replyIndicatesNoCleanListForYear(reply) {
   const t = cleanText(reply).toLowerCase();
-  return t.includes("don’t have a clean list") || t.includes("don't have a clean list");
+  return (
+    t.includes("don’t have a clean list") || t.includes("don't have a clean list")
+  );
 }
 
 function replyIndicatesTryStoryMomentFirst(reply) {
@@ -389,7 +392,8 @@ function extractTop10NumberOne(reply) {
   const artist = cleanText(m[1]);
   const title = stripTrailingWantPrompt(m[2]);
 
-  if (!artist || !title) return { year, artist: artist || null, title: title || null };
+  if (!artist || !title)
+    return { year, artist: artist || null, title: title || null };
   return { year, artist, title };
 }
 
@@ -544,8 +548,8 @@ app.get("/api/health", (req, res) => {
 });
 
 /* ======================================================
-   API: tts  (Pillar 5.1)
-   - Accepts: { text, voiceMode, contractVersion, sessionId? }
+   API: tts  (Pillar 5.1 + 5.2)
+   - Accepts: { text, voiceMode?, contractVersion, sessionId? }
    - Returns: audio/mpeg with X-Voice-Mode + X-Contract-Version
 ====================================================== */
 
@@ -563,15 +567,16 @@ async function ttsHandler(req, res) {
   const text = cleanText(body.text || body.message || "");
   const contractVersion = cleanText(body.contractVersion || body.contract || "");
 
-  // Optional continuity: if sessionId provided and voiceMode not provided, use session voiceMode
+  // Continuity: inherit voiceMode from sessionId when voiceMode is not explicitly provided (Pillar 5.2)
   const sid = cleanText(body.sessionId || "");
   const s = sid ? getSession(sid) : null;
 
-  const incomingModeRaw = body.voiceMode;
+  const hasExplicitVoiceMode =
+    Object.prototype.hasOwnProperty.call(body, "voiceMode") &&
+    String(body.voiceMode || "").trim() !== "";
+
   const voiceMode = normalizeVoiceMode(
-    incomingModeRaw != null && String(incomingModeRaw).trim() !== ""
-      ? incomingModeRaw
-      : (s && s.voiceMode) || "standard"
+    hasExplicitVoiceMode ? body.voiceMode : (s && s.voiceMode) || "standard"
   );
 
   if (contractVersion && contractVersion !== NYX_CONTRACT_VERSION) {
@@ -611,8 +616,10 @@ async function ttsHandler(req, res) {
     });
   }
 
-  // If we have a session, persist voiceMode for continuity
-  if (s) s.voiceMode = voiceMode;
+  // Persist voiceMode to session:
+  // - If explicit: store it
+  // - If inherited: keep existing (already is)
+  if (s && hasExplicitVoiceMode) s.voiceMode = voiceMode;
 
   try {
     const out = await elevenTtsMp3Buffer(text, voiceMode);
@@ -628,7 +635,7 @@ async function ttsHandler(req, res) {
 
     const buf = out.buf || Buffer.alloc(0);
     if (!Buffer.isBuffer(buf) || buf.length < 1024) {
-      // This prevents “tiny body saved as mp3” from passing silently.
+      // Prevent “tiny body saved as mp3” from passing silently.
       return res.status(502).json({
         ok: false,
         error: "TTS_BAD_AUDIO",
@@ -690,7 +697,7 @@ app.post("/api/chat", async (req, res) => {
   }
 
   const session =
-    getSession(sessionId) || ({
+    getSession(sessionId) || {
       id: null,
       lastYear: null,
       activeMusicMode: null,
@@ -701,7 +708,7 @@ app.post("/api/chat", async (req, res) => {
       lastTop10One: null,
       lastIntent: null,
       voiceMode: "standard",
-    });
+    };
 
   // Store voiceMode as soon as we have a session object.
   session.voiceMode = incomingVoiceMode || session.voiceMode || "standard";
@@ -1055,7 +1062,10 @@ async function runMusicEngine(text, session, hint) {
     if (retryReply) reply = retryReply;
   }
 
-  if ((wantedMode === "story" || wantedMode === "micro") && replyLooksLikeTop10List(reply)) {
+  if (
+    (wantedMode === "story" || wantedMode === "micro") &&
+    replyLooksLikeTop10List(reply)
+  ) {
     const one = extractTop10NumberOne(reply);
     if (one && one.year) {
       return wantedMode === "story"
@@ -1086,12 +1096,18 @@ async function runMusicEngine(text, session, hint) {
 
   if (replyIndicatesYearPrompt(reply)) {
     const fallbackYear =
-      (hint && hint.hintedYear) || clampYear(extractYearFromText(text)) || session.lastYear;
+      (hint && hint.hintedYear) ||
+      clampYear(extractYearFromText(text)) ||
+      session.lastYear;
 
     if (fallbackYear) session.lastYear = fallbackYear;
     if (wantedMode) session.activeMusicMode = wantedMode;
 
-    if (session.activeMusicMode === "top10" || session.activeMusicMode === "story" || session.activeMusicMode === "micro") {
+    if (
+      session.activeMusicMode === "top10" ||
+      session.activeMusicMode === "story" ||
+      session.activeMusicMode === "micro"
+    ) {
       forceYearSpineChart(session);
     }
 
@@ -1100,7 +1116,10 @@ async function runMusicEngine(text, session, hint) {
       const secondReply = cleanText(second && second.reply);
 
       if (secondReply && !replyIndicatesYearPrompt(secondReply)) {
-        if ((wantedMode === "story" || wantedMode === "micro") && replyLooksLikeTop10List(secondReply)) {
+        if (
+          (wantedMode === "story" || wantedMode === "micro") &&
+          replyLooksLikeTop10List(secondReply)
+        ) {
           const one = extractTop10NumberOne(secondReply);
           if (one && one.year) {
             return wantedMode === "story"
@@ -1119,7 +1138,8 @@ async function runMusicEngine(text, session, hint) {
   }
 
   if (!reply) {
-    reply = "Tell me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment.";
+    reply =
+      "Tell me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment.";
   }
 
   return reply;
