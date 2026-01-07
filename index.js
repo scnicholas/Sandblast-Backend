@@ -3,20 +3,16 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.4.2 (CORS origin normalization + loop-closure + top10-no-year + #1 routing + another-year token)
+ * index.js v1.4.3 (Adds server + upstream timeouts for Render; preserves v1.4.2 logic)
  *
  * Hardening pass:
- *  - CORS: preflight uses SAME corsOptions, supports www/non-www symmetry, runs on /api/* consistently.
- *  - Parser: rawBody capture + JSON error responses + safe fallback parse for text/plain.
- *  - Contract: optional strict enforcement (409) + always returns X-Contract-Version.
- *  - Sessions: TTL cleanup hardened + optional MAX_SESSIONS cap.
- *  - Chat loop closure:
- *      - year-only with active/pending mode always executes (never re-asks mode)
- *      - “Another year” token supported
- *      - “Top 10” (no year) uses session.lastYear (sticky year)
- *      - “#1” uses engine (#1) if available; otherwise derives from last Top 10 list
- *      - next/prev year supports mode continuity
- *  - Headers: Cache-Control no-store for dynamic endpoints.
+ *  - Adds request timeout controls for Render/Node:
+ *      - res.setTimeout(30000) middleware
+ *      - server.requestTimeout = 30000
+ *      - server.headersTimeout = 35000
+ *      - server.keepAliveTimeout = 65000
+ *  - Adds upstream AbortController timeout for ElevenLabs TTS (default 25s; env override)
+ *  - Preserves: CORS, parser defense, contract headers, loop-closure behavior, followups, etc.
  */
 
 const express = require("express");
@@ -31,7 +27,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.4.2 (CORS origin normalization + loop-closure + top10-no-year + #1 routing + another-year token)";
+  "index.js v1.4.3 (server+upstream timeouts for Render; preserves v1.4.2 loop-closure+CORS)";
 
 /* ======================================================
    Basic middleware
@@ -62,6 +58,27 @@ app.use(
     verify: rawBodySaver,
   })
 );
+
+/* ======================================================
+   Timeout middleware (Render hardening)
+   - Ensures the server does not cut off responses too early.
+   - Client/widget can still abort sooner, but server-side is now permissive.
+====================================================== */
+
+const REQUEST_TIMEOUT_MS = Math.max(
+  10000,
+  Math.min(60000, Number(process.env.REQUEST_TIMEOUT_MS || 30000))
+);
+
+app.use((req, res, next) => {
+  // Express/Node will emit a timeout event; we keep it simple and just set the timer.
+  try {
+    res.setTimeout(REQUEST_TIMEOUT_MS);
+  } catch (_) {
+    // ignore
+  }
+  next();
+});
 
 /* ======================================================
    CORS
@@ -202,7 +219,10 @@ function safeJsonParse(body, rawFallback) {
     // If body is string and looks like JSON, parse it.
     if (typeof body === "string" && body.trim()) {
       const t = body.trim();
-      if ((t.startsWith("{") && t.endsWith("}")) || (t.startsWith("[") && t.endsWith("]"))) {
+      if (
+        (t.startsWith("{") && t.endsWith("}")) ||
+        (t.startsWith("[") && t.endsWith("]"))
+      ) {
         return JSON.parse(t);
       }
       // Some clients send raw text; fall through.
@@ -210,7 +230,10 @@ function safeJsonParse(body, rawFallback) {
 
     if (rawFallback && String(rawFallback).trim()) {
       const rt = String(rawFallback).trim();
-      if ((rt.startsWith("{") && rt.endsWith("}")) || (rt.startsWith("[") && rt.endsWith("]"))) {
+      if (
+        (rt.startsWith("{") && rt.endsWith("}")) ||
+        (rt.startsWith("[") && rt.endsWith("]"))
+      ) {
         return JSON.parse(rt);
       }
     }
@@ -356,6 +379,12 @@ const ELEVEN_MODEL_ID = String(
 
 const hasFetch = typeof fetch === "function";
 
+// Upstream timeout defaults to 25s; override with ELEVEN_TTS_TIMEOUT_MS if needed.
+const ELEVEN_TTS_TIMEOUT_MS = Math.max(
+  8000,
+  Math.min(60000, Number(process.env.ELEVEN_TTS_TIMEOUT_MS || 25000))
+);
+
 function normalizeVoiceMode(m) {
   const t = String(m || "").toLowerCase().trim();
   if (t === "calm") return "calm";
@@ -413,23 +442,46 @@ async function elevenTtsMp3Buffer(text, voiceMode) {
     },
   };
 
-  const r = await fetch(url, {
-    method: "POST",
-    headers: {
-      "xi-api-key": ELEVEN_KEY,
-      "Content-Type": "application/json",
-      Accept: "audio/mpeg",
-    },
-    body: JSON.stringify(body),
-  });
+  // ✅ Upstream timeout guard (prevents hanging requests causing client aborts)
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), ELEVEN_TTS_TIMEOUT_MS);
 
-  if (!r.ok) {
-    const errText = await r.text().catch(() => "");
-    return { ok: false, status: r.status, detail: errText.slice(0, 1200) };
+  try {
+    const r = await fetch(url, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "xi-api-key": ELEVEN_KEY,
+        "Content-Type": "application/json",
+        Accept: "audio/mpeg",
+        Connection: "keep-alive",
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!r.ok) {
+      const errText = await r.text().catch(() => "");
+      return { ok: false, status: r.status, detail: errText.slice(0, 1200) };
+    }
+
+    const buf = Buffer.from(await r.arrayBuffer());
+    return { ok: true, buf };
+  } catch (e) {
+    const msg = String(e && e.message ? e.message : e);
+    const isAbort =
+      msg.toLowerCase().includes("aborted") ||
+      msg.toLowerCase().includes("abort") ||
+      msg.toLowerCase().includes("timeout");
+    return {
+      ok: false,
+      status: isAbort ? 504 : 502,
+      detail: isAbort
+        ? `Upstream timeout after ${ELEVEN_TTS_TIMEOUT_MS}ms`
+        : msg,
+    };
+  } finally {
+    clearTimeout(t);
   }
-
-  const buf = Buffer.from(await r.arrayBuffer());
-  return { ok: true, buf };
 }
 
 /* ======================================================
@@ -477,7 +529,9 @@ function normalizeNavToken(text) {
   const t = cleanText(text).toLowerCase();
   if (!t) return null;
 
-  if (/^(replay|repeat|again|say that again|one more time|replay last)\b/.test(t))
+  if (
+    /^(replay|repeat|again|say that again|one more time|replay last)\b/.test(t)
+  )
     return "replay";
 
   if (/^(next|next year|forward|year\+1)\b/.test(t)) return "nextYear";
@@ -485,8 +539,10 @@ function normalizeNavToken(text) {
 
   if (/^(another year|new year|different year)\b/.test(t)) return "anotherYear";
 
-  if (/^(#?1\s*story|story\s*#?1|number\s*1\s*story)\b/.test(t)) return "oneStory";
-  if (/^(#?1\s*micro|micro\s*#?1|number\s*1\s*micro)\b/.test(t)) return "oneMicro";
+  if (/^(#?1\s*story|story\s*#?1|number\s*1\s*story)\b/.test(t))
+    return "oneStory";
+  if (/^(#?1\s*micro|micro\s*#?1|number\s*1\s*micro)\b/.test(t))
+    return "oneMicro";
 
   if (/^#?1\b/.test(t) || /^number\s*1\b/.test(t)) return "one";
 
@@ -653,6 +709,10 @@ app.get("/api/health", (req, res) => {
       version: NYX_CONTRACT_VERSION,
       strict: CONTRACT_STRICT,
     },
+    timeouts: {
+      requestTimeoutMs: REQUEST_TIMEOUT_MS,
+      elevenTtsTimeoutMs: ELEVEN_TTS_TIMEOUT_MS,
+    },
     tts: {
       enabled: TTS_ENABLED,
       provider: TTS_PROVIDER,
@@ -702,7 +762,12 @@ async function ttsHandler(req, res) {
   );
 
   if (!TTS_ENABLED)
-    return res.status(503).json({ ok: false, error: "TTS_DISABLED", requestId, contractVersion: NYX_CONTRACT_VERSION });
+    return res.status(503).json({
+      ok: false,
+      error: "TTS_DISABLED",
+      requestId,
+      contractVersion: NYX_CONTRACT_VERSION,
+    });
   if (TTS_PROVIDER !== "elevenlabs")
     return res.status(500).json({
       ok: false,
@@ -904,7 +969,10 @@ app.post("/api/chat", async (req, res) => {
   }
 
   // next/prev year
-  if ((nav === "nextYear" || nav === "prevYear") && clampYear(session.lastYear)) {
+  if (
+    (nav === "nextYear" || nav === "prevYear") &&
+    clampYear(session.lastYear)
+  ) {
     const nextY = safeIncYear(session.lastYear, nav === "nextYear" ? +1 : -1);
     if (nextY) {
       session.lastYear = nextY;
@@ -1014,7 +1082,10 @@ app.post("/api/chat", async (req, res) => {
 
     let reply = reply0;
     if (!reply || /^tell me a year/i.test(reply)) {
-      if (session.lastTop10One && session.lastTop10One.year === session.lastYear) {
+      if (
+        session.lastTop10One &&
+        session.lastTop10One.year === session.lastYear
+      ) {
         reply = `#1 — ${session.lastTop10One.artist || "Unknown Artist"} — ${
           session.lastTop10One.title || "Unknown Title"
         }`;
@@ -1281,6 +1352,20 @@ const server = app.listen(PORT, HOST, () => {
     } contract=${NYX_CONTRACT_VERSION} version=${INDEX_VERSION}`
   );
 });
+
+// ✅ Node server timeout hardening (covers slow first response / cold starts / upstream latency)
+try {
+  // Total time allowed to receive the full request (body) + process it
+  server.requestTimeout = REQUEST_TIMEOUT_MS;
+
+  // Time allowed to receive request headers (must be > requestTimeout to avoid premature close)
+  server.headersTimeout = Math.max(REQUEST_TIMEOUT_MS + 5000, 35000);
+
+  // Keep connections alive for reuse (helps performance under repeated widget calls)
+  server.keepAliveTimeout = Math.max(65000, server.keepAliveTimeout || 0);
+} catch (_) {
+  // ignore if runtime doesn't support specific fields
+}
 
 server.on("error", (err) => {
   console.error("[sandblast-backend] fatal listen error", err);
