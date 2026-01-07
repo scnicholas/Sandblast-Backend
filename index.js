@@ -3,21 +3,21 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.4.4 (Render timeouts + Top10 chart fallback ladder + gap-aware replies; preserves v1.4.2 loop closure)
+ * index.js v1.4.5 (contract hardening + engine loop-closure + debug snapshot; preserves v1.4.4)
  *
  * Adds:
- *  - Server timeouts + upstream fetch AbortController timeout (prevents 14s-ish cutoffs from being server-driven)
- *  - Top 10 fallback ladder:
- *      tries alternate charts if engine returns "no clean list for YEAR"
- *  - Gap-aware reply:
- *      if ALL charts fail for that year, returns a helpful “coverage gap” response
+ *  - Response helper that guarantees followUps array of {label,send} (never missing)
+ *  - Engine loop-closure: if engine asks for year/mode despite session having it, re-run once with explicit command
+ *  - Optional debug snapshot: /api/chat?debug=1 includes state + engine metadata (safe, small)
  *
  * Preserves:
+ *  - Render/server timeouts + upstream AbortController timeout
+ *  - Top10 chart fallback ladder + gap-aware replies
  *  - CORS origin normalization (www/non-www), same corsOptions for preflight
  *  - Parser defenses (raw body capture, JSON error handler)
  *  - Contract headers + optional strict 409 enforcement
  *  - Session TTL cleanup + MAX_SESSIONS
- *  - Chat loop closure, sticky year, #1 routing, next/prev/another year tokens
+ *  - Sticky year, #1 routing, next/prev/another year tokens
  */
 
 const express = require("express");
@@ -32,7 +32,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.4.4 (timeouts + Top10 chart fallback ladder + gap-aware replies; preserves loop-closure+CORS)";
+  "index.js v1.4.5 (contract hardening + engine loop-closure + debug snapshot; preserves v1.4.4)";
 
 /* ======================================================
    Basic middleware
@@ -98,6 +98,7 @@ const ALLOWED_ORIGINS = parseAllowedOrigins();
 const CORS_ALLOW_ALL = String(process.env.CORS_ALLOW_ALL || "false") === "true";
 const CONTRACT_STRICT = String(process.env.CONTRACT_STRICT || "false") === "true";
 const MAX_SESSIONS = Math.max(0, Number(process.env.MAX_SESSIONS || 0));
+const CHAT_DEBUG = String(process.env.CHAT_DEBUG || "false") === "true";
 
 function normalizeOrigin(origin) {
   const o = String(origin || "").trim();
@@ -254,6 +255,13 @@ function makeUuid() {
   });
 }
 
+function parseDebugFlag(req) {
+  if (!req) return false;
+  const q = String(req.query && req.query.debug ? req.query.debug : "").trim();
+  if (q === "1" || q.toLowerCase() === "true") return true;
+  return false;
+}
+
 /* ======================================================
    Session store (in-memory) + TTL cleanup
 ====================================================== */
@@ -289,17 +297,23 @@ function getSession(sessionId) {
 
       visitorId: null,
 
+      // Music state
       lastYear: null,
       activeMusicMode: null, // "top10" | "story" | "micro"
       pendingMode: null,
-
       activeMusicChart: "Billboard Hot 100",
 
+      // Optional lane (widget sends lane; keep for future routing)
+      lane: "general",
+
+      // Memory + loop closure anchors
       lastReply: null,
       lastReplyAt: null,
       lastTop10One: null,
       lastIntent: null,
+      lastEngine: null, // { kind, chart, note, at }
 
+      // Voice continuity
       voiceMode: "standard", // "calm" | "standard" | "high"
     });
   }
@@ -511,10 +525,9 @@ function normalizeNavToken(text) {
 ====================================================== */
 
 function pickPrimaryChartForYear(year) {
-  // Your known strong sources:
+  // Known strong sources:
   // - 1950–1959: Billboard Year-End Singles
   // - 1970+: Billboard Year-End Hot 100
-  // Middle years can be attempted via alternate charts.
   if (year >= 1950 && year <= 1959) return "Billboard Year-End Singles";
   return "Billboard Year-End Hot 100";
 }
@@ -535,12 +548,10 @@ function looksLikeNoCleanListReply(reply, year) {
 }
 
 function buildTop10GapReply(year, session) {
-  // Give the user something actionable instead of a dead end.
   const y = clampYear(Number(year));
   const prev = y ? safeIncYear(y, -1) : null;
   const next = y ? safeIncYear(y, +1) : null;
 
-  // Strong “known good” anchors (based on your current build patterns)
   const suggested = [];
   if (y && y >= 1960 && y <= 1969) {
     suggested.push("1959", "1970");
@@ -558,7 +569,6 @@ function buildTop10GapReply(year, session) {
   const yStr = y ? String(y) : "that year";
   const picks = unique.slice(0, 3).join(", ");
 
-  // Keep it short, confident, non-looping.
   return `I don’t have a clean Top 10 list for ${yStr} in this build yet — that year sits in a chart coverage gap. Try ${picks}. Or say “story moment ${yStr}” / “micro moment ${yStr}” and I’ll still give you a tight moment if the engine has narrative entries.`;
 }
 
@@ -566,10 +576,8 @@ async function runTop10WithFallback(year, session) {
   const y = clampYear(Number(year));
   if (!y) return { reply: "Tell me a year (1950–2024) for Top 10." };
 
-  // Primary chart based on year range
   const primary = pickPrimaryChartForYear(y);
 
-  // Ladder of alternates (cheap attempt before we declare a gap)
   const ladder = [
     primary,
     "Billboard Year-End Singles",
@@ -578,7 +586,6 @@ async function runTop10WithFallback(year, session) {
     "UK Singles Chart",
   ];
 
-  // preserve original chart to restore if needed
   const originalChart = session.activeMusicChart;
 
   for (const chart of ladder) {
@@ -588,12 +595,13 @@ async function runTop10WithFallback(year, session) {
     const reply0 = cleanText(out.reply || "");
 
     if (reply0 && !looksLikeNoCleanListReply(reply0, y)) {
+      session.lastEngine = { kind: "top10", chart, note: "ok", at: Date.now() };
       return out;
     }
   }
 
-  // restore and return a gap-aware message
   session.activeMusicChart = originalChart;
+  session.lastEngine = { kind: "top10", chart: originalChart, note: "gap", at: Date.now() };
   return { reply: buildTop10GapReply(y, session) };
 }
 
@@ -643,8 +651,27 @@ function makeStoryMomentFromNumberOne({ year, artist, title }) {
   return `Story moment — ${year}: ${a} owned the year-end conversation with ${s} at #1. It’s a snapshot of the era—tight chorus, big polish, and that “turn it up again” energy that glued people to their car radios. Want the Top 10, a micro moment, or another year?`;
 }
 
+function engineAsksForYear(reply) {
+  const t = cleanText(reply).toLowerCase();
+  return (
+    t.startsWith("tell me a year") ||
+    t.includes("tell me a year (1950–2024)") ||
+    t.includes("give me a year") ||
+    t.includes("what year (1950–2024)")
+  );
+}
+
+function engineAsksForMode(reply) {
+  const t = cleanText(reply).toLowerCase();
+  return (
+    t.includes("choose: top 10") ||
+    t.includes("what do you want: top 10") ||
+    t.includes("top 10, story moment, or micro moment")
+  );
+}
+
 /* ======================================================
-   Followups
+   Followups (contract-hard)
 ====================================================== */
 
 function makeFollowUps(session) {
@@ -671,12 +698,61 @@ function makeFollowUps(session) {
   if (hasYear && hasReplay) items.push("Replay last");
 
   const deduped = [];
-  for (const x of items) if (!deduped.includes(x)) deduped.push(x);
+  for (const x of items) if (x && !deduped.includes(x)) deduped.push(x);
 
+  const primary = deduped.slice(0, 8);
   return {
-    followUp: deduped.slice(0, 8),
-    followUps: deduped.slice(0, 8).map((x) => ({ label: x, send: x })),
+    followUp: primary,
+    followUps: primary.map((x) => ({ label: x, send: x })),
   };
+}
+
+function normalizeEngineFollowups(out) {
+  // Accept various engine shapes; produce array of {label,send}
+  const push = (acc, v) => {
+    if (!v) return;
+    if (typeof v === "string") {
+      const s = cleanText(v);
+      if (s) acc.push({ label: s, send: s });
+      return;
+    }
+    if (typeof v === "object") {
+      const label = cleanText(v.label || v.text || v.title || v.send || v.value || "");
+      const send = cleanText(v.send || v.value || v.payload || v.label || v.text || "");
+      if (label && send) acc.push({ label, send });
+    }
+  };
+
+  const acc = [];
+  if (!out || typeof out !== "object") return acc;
+
+  const cands = [
+    out.followUps,
+    out.followupS,
+    out.followups,
+    out.follow_up,
+    out.followUp,
+    out.followup,
+  ].filter(Boolean);
+
+  for (const c of cands) {
+    if (Array.isArray(c)) c.forEach((x) => push(acc, x));
+    else push(acc, c);
+  }
+
+  // Some engines use followUp as array of strings
+  if (Array.isArray(out.followUp)) out.followUp.forEach((x) => push(acc, x));
+
+  // Dedup by send
+  const seen = new Set();
+  const out2 = [];
+  for (const it of acc) {
+    const k = cleanText(it.send).toLowerCase();
+    if (!k || seen.has(k)) continue;
+    seen.add(k);
+    out2.push(it);
+  }
+  return out2.slice(0, 12);
 }
 
 function replyMissingYearForMode(session, mode) {
@@ -715,6 +791,45 @@ function addMomentumTail(session, reply) {
   if (y && mode === "top10") return `${r} Next: say “#1”, “#1 story”, “#1 micro”, or “next year”.`;
   if (y && (mode === "story" || mode === "micro")) return `${r} Next: “top 10”, “next year”, “another year”, or “replay”.`;
   return r;
+}
+
+function respondJson(req, res, base, session, engineOut) {
+  // Contract: followUps ALWAYS exists and is an array of {label,send}
+  const fallback = makeFollowUps(session);
+
+  const engineNorm = normalizeEngineFollowups(engineOut);
+  const useEngine = engineNorm.length > 0;
+
+  const payload = Object.assign({}, base, {
+    followUp: useEngine ? engineNorm.map((x) => x.label).slice(0, 8) : fallback.followUp,
+    followUps: useEngine ? engineNorm.slice(0, 8) : fallback.followUps,
+  });
+
+  const wantsDebug = CHAT_DEBUG || parseDebugFlag(req);
+  if (wantsDebug) {
+    payload.debug = {
+      index: INDEX_VERSION,
+      state: {
+        lastYear: session ? session.lastYear : null,
+        activeMusicMode: session ? session.activeMusicMode : null,
+        pendingMode: session ? session.pendingMode : null,
+        activeMusicChart: session ? session.activeMusicChart : null,
+        lane: session ? session.lane : null,
+        voiceMode: session ? session.voiceMode : null,
+        lastIntent: session ? session.lastIntent : null,
+        lastEngine: session ? session.lastEngine : null,
+      },
+      engine: engineOut
+        ? {
+            hasReply: !!cleanText(engineOut.reply),
+            hasFollowup: !!engineOut.followUp,
+            hasFollowups: !!engineOut.followUps,
+          }
+        : null,
+    };
+  }
+
+  return res.json(payload);
 }
 
 /* ======================================================
@@ -879,7 +994,7 @@ app.post("/api/tts", ttsHandler);
 app.post("/api/voice", ttsHandler);
 
 /* ======================================================
-   Music engine wrapper
+   Music engine wrapper + loop-closure helper
 ====================================================== */
 
 async function runMusicEngine(text, session) {
@@ -899,13 +1014,33 @@ async function runMusicEngine(text, session) {
   }
 }
 
-/* ======================================================
-   Chat logic helpers
-====================================================== */
+async function runEngineWithLoopClosure(command, session, maxReruns = 1) {
+  // Prevent the last “engine asks for year/mode even though we have it” loop.
+  let out = await runMusicEngine(command, session);
+  let reply0 = cleanText(out.reply || "");
 
-function replyLooksLikeTop10List(reply) {
-  const t = cleanText(reply);
-  return /^Top\s+10\s+—/i.test(t);
+  if (maxReruns <= 0) return out;
+
+  const y = clampYear(session.lastYear);
+  const m = session.activeMusicMode || session.pendingMode || null;
+
+  // If engine asks for year but we have y, rerun with explicit "command y"
+  if (reply0 && engineAsksForYear(reply0) && y) {
+    const cmd = m ? `${modeToCommand(m)} ${y}` : `${command} ${y}`;
+    out = await runMusicEngine(cmd, session);
+    session.lastEngine = { kind: "loopClosure", chart: session.activeMusicChart, note: "askedYear_rerun", at: Date.now() };
+    return out;
+  }
+
+  // If engine asks for mode but we have mode, rerun with explicit mode
+  if (reply0 && engineAsksForMode(reply0) && m && y) {
+    const cmd = `${modeToCommand(m)} ${y}`;
+    out = await runMusicEngine(cmd, session);
+    session.lastEngine = { kind: "loopClosure", chart: session.activeMusicChart, note: "askedMode_rerun", at: Date.now() };
+    return out;
+  }
+
+  return out;
 }
 
 /* ======================================================
@@ -951,18 +1086,23 @@ app.post("/api/chat", async (req, res) => {
   const session = getSession(sessionId);
   if (!session.visitorId) session.visitorId = incomingVisitorId;
 
+  // Store lane (widget sends lane)
+  const incomingLane = cleanText((body.lane || (body.context && body.context.lane) || "")).toLowerCase();
+  if (incomingLane && ["general", "music", "tv", "sponsors", "ai"].includes(incomingLane)) {
+    session.lane = incomingLane;
+  }
+
   // Voice continuity
-  const incomingVoiceMode = normalizeVoiceMode(body.voiceMode || session.voiceMode || "standard");
+  const incomingVoiceMode = normalizeVoiceMode(body.voiceMode || (body.context && body.context.voiceMode) || session.voiceMode || "standard");
   session.voiceMode = incomingVoiceMode;
   res.set("X-Voice-Mode", session.voiceMode);
 
   const visitorId = session.visitorId;
-
   const nav = normalizeNavToken(message);
 
   // replay
   if (nav === "replay" && session.lastReply) {
-    return res.json({
+    const base = {
       ok: true,
       reply: session.lastReply,
       sessionId,
@@ -970,8 +1110,9 @@ app.post("/api/chat", async (req, res) => {
       visitorId,
       contractVersion: NYX_CONTRACT_VERSION,
       voiceMode: session.voiceMode,
-      ...makeFollowUps(session),
-    });
+    };
+    session.lastIntent = "replay";
+    return respondJson(req, res, base, session, null);
   }
 
   // another year
@@ -981,7 +1122,7 @@ app.post("/api/chat", async (req, res) => {
     session.lastReply = ask;
     session.lastReplyAt = Date.now();
     session.lastIntent = "askYear";
-    return res.json({
+    const base = {
       ok: true,
       reply: ask,
       sessionId,
@@ -989,8 +1130,8 @@ app.post("/api/chat", async (req, res) => {
       visitorId,
       contractVersion: NYX_CONTRACT_VERSION,
       voiceMode: session.voiceMode,
-      ...makeFollowUps(session),
-    });
+    };
+    return respondJson(req, res, base, session, null);
   }
 
   // next/prev year
@@ -1002,13 +1143,11 @@ app.post("/api/chat", async (req, res) => {
       if (session.activeMusicMode) {
         const mode = session.activeMusicMode;
 
-        // chart spine depends on year
         forceYearSpineChart(session, nextY);
 
-        // ✅ Top10 uses fallback ladder; story/micro go direct
         let out;
         if (mode === "top10") out = await runTop10WithFallback(nextY, session);
-        else out = await runMusicEngine(`${modeToCommand(mode)} ${nextY}`, session);
+        else out = await runEngineWithLoopClosure(`${modeToCommand(mode)} ${nextY}`, session, 1);
 
         const reply0 = cleanText(out.reply || "");
         const reply = addMomentumTail(session, reply0);
@@ -1019,9 +1158,7 @@ app.post("/api/chat", async (req, res) => {
 
         if (replyLooksLikeTop10List(reply0)) session.lastTop10One = extractTop10NumberOne(reply0);
 
-        const engineFollow = Array.isArray(out.followUp) ? out.followUp : null;
-
-        return res.json({
+        const base = {
           ok: true,
           reply,
           sessionId,
@@ -1029,13 +1166,11 @@ app.post("/api/chat", async (req, res) => {
           visitorId,
           contractVersion: NYX_CONTRACT_VERSION,
           voiceMode: session.voiceMode,
-          ...(engineFollow
-            ? { followUp: engineFollow, followUps: engineFollow.map((x) => ({ label: x, send: x })) }
-            : makeFollowUps(session)),
-        });
+        };
+        return respondJson(req, res, base, session, out);
       }
 
-      return res.json({
+      const base = {
         ok: true,
         reply: `Got it — ${nextY}. What do you want: Top 10, Story moment, or Micro moment?`,
         sessionId,
@@ -1043,14 +1178,18 @@ app.post("/api/chat", async (req, res) => {
         visitorId,
         contractVersion: NYX_CONTRACT_VERSION,
         voiceMode: session.voiceMode,
-        ...makeFollowUps(session),
-      });
+      };
+      session.lastReply = base.reply;
+      session.lastReplyAt = Date.now();
+      session.lastIntent = "askMode";
+      return respondJson(req, res, base, session, null);
     }
   }
 
   // #1 story/micro from lastTop10One
   if ((nav === "oneStory" || nav === "oneMicro") && session.lastTop10One && session.lastTop10One.year) {
-    const rep = nav === "oneStory" ? makeStoryMomentFromNumberOne(session.lastTop10One) : makeMicroMomentFromNumberOne(session.lastTop10One);
+    const rep =
+      nav === "oneStory" ? makeStoryMomentFromNumberOne(session.lastTop10One) : makeMicroMomentFromNumberOne(session.lastTop10One);
 
     session.activeMusicMode = nav === "oneStory" ? "story" : "micro";
     session.pendingMode = null;
@@ -1060,7 +1199,7 @@ app.post("/api/chat", async (req, res) => {
     session.lastReplyAt = Date.now();
     session.lastIntent = session.activeMusicMode;
 
-    return res.json({
+    const base = {
       ok: true,
       reply: rep,
       sessionId,
@@ -1068,8 +1207,8 @@ app.post("/api/chat", async (req, res) => {
       visitorId,
       contractVersion: NYX_CONTRACT_VERSION,
       voiceMode: session.voiceMode,
-      ...makeFollowUps(session),
-    });
+    };
+    return respondJson(req, res, base, session, null);
   }
 
   // #1 (engine first, fallback)
@@ -1079,7 +1218,7 @@ app.post("/api/chat", async (req, res) => {
       session.lastReply = ask;
       session.lastReplyAt = Date.now();
       session.lastIntent = "askYear";
-      return res.json({
+      const base = {
         ok: true,
         reply: ask,
         sessionId,
@@ -1087,11 +1226,11 @@ app.post("/api/chat", async (req, res) => {
         visitorId,
         contractVersion: NYX_CONTRACT_VERSION,
         voiceMode: session.voiceMode,
-        ...makeFollowUps(session),
-      });
+      };
+      return respondJson(req, res, base, session, null);
     }
 
-    const out = await runMusicEngine("#1", session);
+    const out = await runEngineWithLoopClosure("#1", session, 1);
     const reply0 = cleanText(out.reply || "");
 
     let reply = reply0;
@@ -1109,9 +1248,7 @@ app.post("/api/chat", async (req, res) => {
     session.lastReplyAt = Date.now();
     session.lastIntent = "number1";
 
-    const engineFollow = Array.isArray(out.followUp) ? out.followUp : null;
-
-    return res.json({
+    const base = {
       ok: true,
       reply,
       sessionId,
@@ -1119,15 +1256,13 @@ app.post("/api/chat", async (req, res) => {
       visitorId,
       contractVersion: NYX_CONTRACT_VERSION,
       voiceMode: session.voiceMode,
-      ...(engineFollow
-        ? { followUp: engineFollow, followUps: engineFollow.map((x) => ({ label: x, send: x })) }
-        : makeFollowUps(session)),
-    });
+    };
+    return respondJson(req, res, base, session, out);
   }
 
   // Greeting / empty
   if (!message || isGreeting(message)) {
-    const out = {
+    const base = {
       ok: true,
       reply: greetingReply(),
       sessionId,
@@ -1135,18 +1270,16 @@ app.post("/api/chat", async (req, res) => {
       visitorId,
       contractVersion: NYX_CONTRACT_VERSION,
       voiceMode: session.voiceMode,
-      ...makeFollowUps(session),
     };
-    session.lastReply = out.reply;
+    session.lastReply = base.reply;
     session.lastReplyAt = Date.now();
     session.lastIntent = "greeting";
-    return res.json(out);
+    return respondJson(req, res, base, session, null);
   }
 
   const parsedYear = clampYear(extractYearFromText(message));
   const parsedMode = normalizeModeToken(message);
   const bareYear = parsedYear ? isBareYearMessage(message) : false;
-  void bareYear;
 
   // MODE + YEAR in one shot
   if (parsedYear && parsedMode) {
@@ -1158,7 +1291,7 @@ app.post("/api/chat", async (req, res) => {
 
     let out;
     if (parsedMode === "top10") out = await runTop10WithFallback(parsedYear, session);
-    else out = await runMusicEngine(`${modeToCommand(parsedMode)} ${parsedYear}`, session);
+    else out = await runEngineWithLoopClosure(`${modeToCommand(parsedMode)} ${parsedYear}`, session, 1);
 
     const reply0 = cleanText(out.reply || "");
     const reply = addMomentumTail(session, reply0);
@@ -1169,9 +1302,7 @@ app.post("/api/chat", async (req, res) => {
 
     if (replyLooksLikeTop10List(reply0)) session.lastTop10One = extractTop10NumberOne(reply0);
 
-    const engineFollow = Array.isArray(out.followUp) ? out.followUp : null;
-
-    return res.json({
+    const base = {
       ok: true,
       reply,
       sessionId,
@@ -1179,10 +1310,8 @@ app.post("/api/chat", async (req, res) => {
       visitorId,
       contractVersion: NYX_CONTRACT_VERSION,
       voiceMode: session.voiceMode,
-      ...(engineFollow
-        ? { followUp: engineFollow, followUps: engineFollow.map((x) => ({ label: x, send: x })) }
-        : makeFollowUps(session)),
-    });
+    };
+    return respondJson(req, res, base, session, out);
   }
 
   // MODE only
@@ -1198,7 +1327,7 @@ app.post("/api/chat", async (req, res) => {
 
       let out;
       if (parsedMode === "top10") out = await runTop10WithFallback(session.lastYear, session);
-      else out = await runMusicEngine(`${modeToCommand(parsedMode)} ${session.lastYear}`, session);
+      else out = await runEngineWithLoopClosure(`${modeToCommand(parsedMode)} ${session.lastYear}`, session, 1);
 
       const reply0 = cleanText(out.reply || "");
       const reply = addMomentumTail(session, reply0);
@@ -1209,9 +1338,7 @@ app.post("/api/chat", async (req, res) => {
 
       if (replyLooksLikeTop10List(reply0)) session.lastTop10One = extractTop10NumberOne(reply0);
 
-      const engineFollow = Array.isArray(out.followUp) ? out.followUp : null;
-
-      return res.json({
+      const base = {
         ok: true,
         reply,
         sessionId,
@@ -1219,10 +1346,8 @@ app.post("/api/chat", async (req, res) => {
         visitorId,
         contractVersion: NYX_CONTRACT_VERSION,
         voiceMode: session.voiceMode,
-        ...(engineFollow
-          ? { followUp: engineFollow, followUps: engineFollow.map((x) => ({ label: x, send: x })) }
-          : makeFollowUps(session)),
-      });
+      };
+      return respondJson(req, res, base, session, out);
     }
 
     const ask = replyMissingYearForMode(session, parsedMode);
@@ -1230,7 +1355,7 @@ app.post("/api/chat", async (req, res) => {
     session.lastReplyAt = Date.now();
     session.lastIntent = "askYear";
 
-    return res.json({
+    const base = {
       ok: true,
       reply: ask,
       sessionId,
@@ -1238,8 +1363,8 @@ app.post("/api/chat", async (req, res) => {
       visitorId,
       contractVersion: NYX_CONTRACT_VERSION,
       voiceMode: session.voiceMode,
-      ...makeFollowUps(session),
-    });
+    };
+    return respondJson(req, res, base, session, null);
   }
 
   // YEAR present: treat as year selection (prefers pending/active mode)
@@ -1255,7 +1380,7 @@ app.post("/api/chat", async (req, res) => {
 
       let out;
       if (mode === "top10") out = await runTop10WithFallback(parsedYear, session);
-      else out = await runMusicEngine(`${modeToCommand(mode)} ${parsedYear}`, session);
+      else out = await runEngineWithLoopClosure(`${modeToCommand(mode)} ${parsedYear}`, session, 1);
 
       const reply0 = cleanText(out.reply || "");
       const reply = addMomentumTail(session, reply0);
@@ -1266,9 +1391,7 @@ app.post("/api/chat", async (req, res) => {
 
       if (replyLooksLikeTop10List(reply0)) session.lastTop10One = extractTop10NumberOne(reply0);
 
-      const engineFollow = Array.isArray(out.followUp) ? out.followUp : null;
-
-      return res.json({
+      const base = {
         ok: true,
         reply,
         sessionId,
@@ -1276,10 +1399,8 @@ app.post("/api/chat", async (req, res) => {
         visitorId,
         contractVersion: NYX_CONTRACT_VERSION,
         voiceMode: session.voiceMode,
-        ...(engineFollow
-          ? { followUp: engineFollow, followUps: engineFollow.map((x) => ({ label: x, send: x })) }
-          : makeFollowUps(session)),
-      });
+      };
+      return respondJson(req, res, base, session, out);
     }
 
     const askMode = `Got it — ${parsedYear}. What do you want: Top 10, Story moment, or Micro moment?`;
@@ -1287,7 +1408,7 @@ app.post("/api/chat", async (req, res) => {
     session.lastReplyAt = Date.now();
     session.lastIntent = "askMode";
 
-    return res.json({
+    const base = {
       ok: true,
       reply: askMode,
       sessionId,
@@ -1295,14 +1416,33 @@ app.post("/api/chat", async (req, res) => {
       visitorId,
       contractVersion: NYX_CONTRACT_VERSION,
       voiceMode: session.voiceMode,
-      ...makeFollowUps(session),
-    });
+    };
+    return respondJson(req, res, base, session, null);
   }
 
-  // passthrough to engine
+  // If user only sent a bare year but no mode, prefer a crisp mode prompt (avoids engine wandering)
+  if (bareYear && parsedYear) {
+    const askMode = `Got it — ${parsedYear}. What do you want: Top 10, Story moment, or Micro moment?`;
+    session.lastReply = askMode;
+    session.lastReplyAt = Date.now();
+    session.lastIntent = "askMode";
+
+    const base = {
+      ok: true,
+      reply: askMode,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
+    return respondJson(req, res, base, session, null);
+  }
+
+  // passthrough to engine (with spine chart + loop closure)
   forceYearSpineChart(session, session.lastYear);
 
-  const out = await runMusicEngine(message, session);
+  const out = await runEngineWithLoopClosure(message, session, 1);
   const reply0 = cleanText(out.reply || "");
   const reply = addMomentumTail(session, reply0);
 
@@ -1315,9 +1455,7 @@ app.post("/api/chat", async (req, res) => {
     if (session.lastTop10One && session.lastTop10One.year) session.lastYear = session.lastTop10One.year;
   }
 
-  const engineFollow = Array.isArray(out.followUp) ? out.followUp : null;
-
-  return res.json({
+  const base = {
     ok: true,
     reply,
     sessionId,
@@ -1325,10 +1463,8 @@ app.post("/api/chat", async (req, res) => {
     visitorId,
     contractVersion: NYX_CONTRACT_VERSION,
     voiceMode: session.voiceMode,
-    ...(engineFollow
-      ? { followUp: engineFollow, followUps: engineFollow.map((x) => ({ label: x, send: x })) }
-      : makeFollowUps(session)),
-  });
+  };
+  return respondJson(req, res, base, session, out);
 });
 
 /* ======================================================
