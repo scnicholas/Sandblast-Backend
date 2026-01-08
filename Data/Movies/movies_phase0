@@ -1,0 +1,126 @@
+{
+  "version": "movies_phase0_v1",
+  "last_updated": "2026-01-08T00:00:00.000Z",
+  "items": [
+    {
+      "id": "PH0-ia-behindgreenlights",
+      "title": "Behind Green Lights",
+      "year": null,
+      "type": "unknown",
+      "genres": [],
+      "summary": "",
+      "rights": {
+        "status": "candidate_public_domain",
+        "verified": false,
+        "confidence": "unknown",
+        "basis": "unverified_source_listing",
+        "notes": "Candidate only. Verify via Sandblast PD Kit before distribution."
+      },
+      "sources": [
+        {
+          "provider": "internet_archive",
+          "identifier": "BehindGreenLights",
+          "url": "https://archive.org/details/BehindGreenLights"
+        }
+      ],
+      "created_at": "2026-01-08T00:00:00.000Z",
+      "updated_at": "2026-01-08T00:00:00.000Z"
+    },
+    {
+      "id": "PH0-ia-mr-imperium",
+      "title": "Mr Imperium",
+      "year": null,
+      "type": "unknown",
+      "genres": [],
+      "summary": "",
+      "rights": {
+        "status": "candidate_public_domain",
+        "verified": false,
+        "confidence": "unknown",
+        "basis": "unverified_source_listing",
+        "notes": "Candidate only. Verify via Sandblast PD Kit before distribution."
+      },
+      "sources": [
+        {
+          "provider": "internet_archive",
+          "identifier": "Mr_Imperium",
+          "url": "https://archive.org/details/Mr_Imperium"
+        }
+      ],
+      "created_at": "2026-01-08T00:00:00.000Z",
+      "updated_at": "2026-01-08T00:00:00.000Z"
+    },
+    {
+      "id": "PH0-ia-sea-hunt-mark-of-the-octopus",
+      "title": "Sea Hunt Mark Of The Octopus",
+      "year": null,
+      "type": "unknown",
+      "genres": [],
+      "summary": "",
+      "rights": {
+        "status": "candidate_public_domain",
+        "verified": false,
+        "confidence": "unknown",
+        "basis": "unverified_source_listing",
+        "notes": "Candidate only. Verify via Sandblast PD Kit before distribution."
+      },
+      "sources": [
+        {
+          "provider": "internet_archive",
+          "identifier": "Sea_Hunt_Mark_of_the_Octopus",
+          "url": "https://archive.org/details/Sea_Hunt_Mark_of_the_Octopus"
+        }
+      ],
+      "created_at": "2026-01-08T00:00:00.000Z",
+      "updated_at": "2026-01-08T00:00:00.000Z"
+    },
+    {
+      "id": "PH0-ia-the-chase-pnm",
+      "title": "The Chase Pnm",
+      "year": null,
+      "type": "unknown",
+      "genres": [],
+      "summary": "",
+      "rights": {
+        "status": "candidate_public_domain",
+        "verified": false,
+        "confidence": "unknown",
+        "basis": "unverified_source_listing",
+        "notes": "Candidate only. Verify via Sandblast PD Kit before distribution."
+      },
+      "sources": [
+        {
+          "provider": "internet_archive",
+          "identifier": "the-chase-pnm",
+          "url": "https://archive.org/details/the-chase-pnm"
+        }
+      ],
+      "created_at": "2026-01-08T00:00:00.000Z",
+      "updated_at": "2026-01-08T00:00:00.000Z"
+    },
+    {
+      "id": "PH0-ia-don-daredevil-rides-again",
+      "title": "Don Daredevil Rides Again",
+      "year": null,
+      "type": "unknown",
+      "genres": [],
+      "summary": "",
+      "rights": {
+        "status": "candidate_public_domain",
+        "verified": false,
+        "confidence": "unknown",
+        "basis": "unverified_source_listing",
+        "notes": "Candidate only. Verify via Sandblast PD Kit before distribution."
+      },
+      "sources": [
+        {
+          "provider": "internet_archive",
+          "identifier": "don-daredevil-rides-again",
+          "url": "https://archive.org/details/don-daredevil-rides-again"
+        }
+      ],
+      "created_at": "2026-01-08T00:00:00.000Z",
+      "updated_at": "2026-01-08T00:00:00.000Z"
+    }
+  ]
+}
