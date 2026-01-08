@@ -1,0 +1,23 @@
+[
+  {
+    "id": "archive_org",
+    "name": "Internet Archive",
+    "type": "primary",
+    "trust_level": "high",
+    "notes": "Uploader-supplied metadata; requires verification for legal certainty"
+  },
+  {
+    "id": "pd_movies_blogspot",
+    "name": "PublicDomainMoviesOnline (Blogspot)",
+    "type": "curated",
+    "trust_level": "medium",
+    "notes": "Curated list; useful for discovery, not legal authority"
+  },
+  {
+    "id": "pdinfo",
+    "name": "Public Domain Information Project",
+    "type": "authoritative",
+    "trust_level": "very_high",
+    "notes": "Legal confirmation source"
+  }
+]
