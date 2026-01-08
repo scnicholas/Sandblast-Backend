@@ -217,14 +217,20 @@ function safeJsonParse(body, rawFallback) {
 
     if (typeof body === "string" && body.trim()) {
       const t = body.trim();
-      if ((t.startsWith("{") && t.endsWith("}")) || (t.startsWith("[") && t.endsWith("]"))) {
+      if (
+        (t.startsWith("{") && t.endsWith("}")) ||
+        (t.startsWith("[") && t.endsWith("]"))
+      ) {
         return JSON.parse(t);
       }
     }
 
     if (rawFallback && String(rawFallback).trim()) {
       const rt = String(rawFallback).trim();
-      if ((rt.startsWith("{") && rt.endsWith("}")) || (rt.startsWith("[") && rt.endsWith("]"))) {
+      if (
+        (rt.startsWith("{") && rt.endsWith("}")) ||
+        (rt.startsWith("[") && rt.endsWith("]"))
+      ) {
         return JSON.parse(rt);
       }
     }
@@ -242,7 +248,8 @@ function clampYear(y) {
 }
 
 function pickRotate(session, key, options) {
-  if (!session || !Array.isArray(options) || options.length === 0) return options?.[0] || "";
+  if (!session || !Array.isArray(options) || options.length === 0)
+    return options?.[0] || "";
   const k = String(key || "rot");
   const idxKey = `_rot_${k}`;
   const last = Number(session[idxKey] || 0);
@@ -451,7 +458,9 @@ function loadSponsorsCatalogOnce() {
   // 2) Next: sponsorsKnowledge.loadCatalog()
   if (sponsorsKnowledge && typeof sponsorsKnowledge.loadCatalog === "function") {
     try {
-      const rel = sponsorsKnowledge.DEFAULT_CATALOG_REL || "Data/sponsors/sponsors_catalog_v1.json";
+      const rel =
+        sponsorsKnowledge.DEFAULT_CATALOG_REL ||
+        "Data/sponsors/sponsors_catalog_v1.json";
       const out = sponsorsKnowledge.loadCatalog(rel);
       if (out && out.ok && out.catalog) {
         SPONSORS_CATALOG = out.catalog;
@@ -466,7 +475,9 @@ function loadSponsorsCatalogOnce() {
   if (SPONSORS_CATALOG) return SPONSORS_CATALOG;
 
   // 4) File/env fallback
-  const rel = String(process.env.SPONSORS_CATALOG_REL || "Data/sponsors/sponsors_catalog_v1.json");
+  const rel = String(
+    process.env.SPONSORS_CATALOG_REL || "Data/sponsors/sponsors_catalog_v1.json"
+  );
   const abs = path.resolve(process.cwd(), rel);
 
   try {
@@ -525,7 +536,9 @@ const TTS_ENABLED = String(process.env.TTS_ENABLED || "true") === "true";
 const TTS_PROVIDER = String(process.env.TTS_PROVIDER || "elevenlabs");
 const ELEVEN_KEY = String(process.env.ELEVENLABS_API_KEY || "");
 const ELEVEN_VOICE_ID = String(process.env.ELEVENLABS_VOICE_ID || "");
-const ELEVEN_MODEL_ID = String(process.env.ELEVENLABS_MODEL_ID || "eleven_multilingual_v2");
+const ELEVEN_MODEL_ID = String(
+  process.env.ELEVENLABS_MODEL_ID || "eleven_multilingual_v2"
+);
 
 const hasFetch = typeof fetch === "function";
 const ELEVEN_TTS_TIMEOUT_MS = Math.max(
@@ -545,7 +558,8 @@ function getTtsTuningForMode(voiceMode) {
     stability: Number(process.env.NYX_VOICE_STABILITY ?? 0.55),
     similarity: Number(process.env.NYX_VOICE_SIMILARITY ?? 0.78),
     style: Number(process.env.NYX_VOICE_STYLE ?? 0.12),
-    speakerBoost: String(process.env.NYX_VOICE_SPEAKER_BOOST ?? "false") === "true",
+    speakerBoost:
+      String(process.env.NYX_VOICE_SPEAKER_BOOST ?? "false") === "true",
   };
 
   const m = normalizeVoiceMode(voiceMode);
@@ -574,7 +588,9 @@ function getTtsTuningForMode(voiceMode) {
 async function elevenTtsMp3Buffer(text, voiceMode) {
   const tuning = getTtsTuningForMode(voiceMode);
 
-  const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(ELEVEN_VOICE_ID)}`;
+  const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(
+    ELEVEN_VOICE_ID
+  )}`;
 
   const body = {
     text,
@@ -619,7 +635,9 @@ async function elevenTtsMp3Buffer(text, voiceMode) {
     return {
       ok: false,
       status: isAbort ? 504 : 502,
-      detail: isAbort ? `Upstream timeout after ${ELEVEN_TTS_TIMEOUT_MS}ms` : msg,
+      detail: isAbort
+        ? `Upstream timeout after ${ELEVEN_TTS_TIMEOUT_MS}ms`
+        : msg,
     };
   } finally {
     clearTimeout(t);
@@ -671,7 +689,8 @@ function normalizeNavToken(text) {
   const t = cleanText(text).toLowerCase();
   if (!t) return null;
 
-  if (/^(replay|repeat|again|say that again|one more time|replay last)\b/.test(t)) return "replay";
+  if (/^(replay|repeat|again|say that again|one more time|replay last)\b/.test(t))
+    return "replay";
   if (/^(next|next year|forward|year\+1)\b/.test(t)) return "nextYear";
   if (/^(prev|previous|previous year|back|year-1)\b/.test(t)) return "prevYear";
   if (/^(another year|new year|different year)\b/.test(t)) return "anotherYear";
@@ -693,7 +712,10 @@ const MIC_GUARD_WINDOW_MS = Math.max(
   2000,
   Math.min(20000, Number(process.env.MIC_GUARD_WINDOW_MS || 9000))
 );
-const MIC_GUARD_MIN_CHARS = Math.max(24, Math.min(240, Number(process.env.MIC_GUARD_MIN_CHARS || 60)));
+const MIC_GUARD_MIN_CHARS = Math.max(
+  24,
+  Math.min(240, Number(process.env.MIC_GUARD_MIN_CHARS || 60))
+);
 
 function normalizeForEchoCompare(s) {
   return cleanText(String(s || ""))
@@ -788,7 +810,8 @@ async function runSponsorsEngine(text, session) {
   if (sponsorsLane && typeof sponsorsLane.handleChat === "function") {
     try {
       const out = sponsorsLane.handleChat({ text, session }) || {};
-      if (out.sessionPatch && typeof out.sessionPatch === "object") Object.assign(session, out.sessionPatch);
+      if (out.sessionPatch && typeof out.sessionPatch === "object")
+        Object.assign(session, out.sessionPatch);
       return out;
     } catch (e) {
       return {
@@ -846,7 +869,8 @@ async function runMoviesEngine(text, session) {
 
   try {
     const out = moviesLane.handleChat({ text, session }) || {};
-    if (out.sessionPatch && typeof out.sessionPatch === "object") Object.assign(session, out.sessionPatch);
+    if (out.sessionPatch && typeof out.sessionPatch === "object")
+      Object.assign(session, out.sessionPatch);
     return out;
   } catch (e) {
     return {
@@ -920,7 +944,13 @@ async function runTop10WithFallback(year, session) {
 
   const primary = pickPrimaryChartForYear(y);
 
-  const ladder = [primary, "Billboard Year-End Singles", "Billboard Hot 100", "Canada RPM", "UK Singles Chart"];
+  const ladder = [
+    primary,
+    "Billboard Year-End Singles",
+    "Billboard Hot 100",
+    "Canada RPM",
+    "UK Singles Chart",
+  ];
 
   const originalChart = session.activeMusicChart;
 
@@ -1097,7 +1127,14 @@ function normalizeEngineFollowups(out) {
   const acc = [];
   if (!out || typeof out !== "object") return acc;
 
-  const cands = [out.followUps, out.followupS, out.followups, out.follow_up, out.followUp, out.followup].filter(Boolean);
+  const cands = [
+    out.followUps,
+    out.followupS,
+    out.followups,
+    out.follow_up,
+    out.followUp,
+    out.followup,
+  ].filter(Boolean);
 
   for (const c of cands) {
     if (Array.isArray(c)) c.forEach((x) => push(acc, x));
@@ -1137,7 +1174,10 @@ function replyMissingYearForMode(session, mode) {
   if (mode === "top10") return pickRotate(session, "askYear_top10", poolTop10);
   if (mode === "story") return pickRotate(session, "askYear_story", poolStory);
   if (mode === "micro") return pickRotate(session, "askYear_micro", poolMicro);
-  return pickRotate(session, "askYear_generic", ["What year (1950–2024) should I use?", "Which year (1950–2024)?"]);
+  return pickRotate(session, "askYear_generic", [
+    "What year (1950–2024) should I use?",
+    "Which year (1950–2024)?",
+  ]);
 }
 
 function addMomentumTail(session, reply) {
@@ -1229,7 +1269,8 @@ function respondJson(req, res, base, session, engineOut, opts) {
         replay: session
           ? {
               hasLastReply: !!session.lastReply,
-              hasLastFollowUps: Array.isArray(session.lastFollowUps) && session.lastFollowUps.length > 0,
+              hasLastFollowUps:
+                Array.isArray(session.lastFollowUps) && session.lastFollowUps.length > 0,
             }
           : null,
       },
@@ -1240,7 +1281,11 @@ function respondJson(req, res, base, session, engineOut, opts) {
       },
       sponsors: {
         laneLoaded: !!(sponsorsLane && typeof sponsorsLane.handleChat === "function"),
-        knowledgeLoaded: !!(sponsorsKnowledge && (typeof sponsorsKnowledge.getCatalog === "function" || typeof sponsorsKnowledge.loadCatalog === "function")),
+        knowledgeLoaded: !!(
+          sponsorsKnowledge &&
+          (typeof sponsorsKnowledge.getCatalog === "function" ||
+            typeof sponsorsKnowledge.loadCatalog === "function")
+        ),
         catalogMeta: sponsorsCatalogMeta || null,
         catalogDebug: sponsorsCatalogDebug
           ? {
@@ -1267,8 +1312,12 @@ function respondJson(req, res, base, session, engineOut, opts) {
 
   if (session && !options.noStoreFollowups) {
     try {
-      session.lastFollowUp = Array.isArray(payload.followUp) ? payload.followUp.slice(0, 12) : null;
-      session.lastFollowUps = Array.isArray(payload.followUps) ? payload.followUps.slice(0, 12) : null;
+      session.lastFollowUp = Array.isArray(payload.followUp)
+        ? payload.followUp.slice(0, 12)
+        : null;
+      session.lastFollowUps = Array.isArray(payload.followUps)
+        ? payload.followUps.slice(0, 12)
+        : null;
     } catch (_) {
       // ignore
     }
@@ -1341,7 +1390,11 @@ app.get("/api/health", (req, res) => {
     },
     sponsors: {
       laneLoaded: !!(sponsorsLane && typeof sponsorsLane.handleChat === "function"),
-      knowledgeLoaded: !!(sponsorsKnowledge && (typeof sponsorsKnowledge.getCatalog === "function" || typeof sponsorsKnowledge.loadCatalog === "function")),
+      knowledgeLoaded: !!(
+        sponsorsKnowledge &&
+        (typeof sponsorsKnowledge.getCatalog === "function" ||
+          typeof sponsorsKnowledge.loadCatalog === "function")
+      ),
       catalog: {
         ok: sponsorsOk,
         version: sponsorsOk ? cat.version || null : null,
@@ -1391,12 +1444,17 @@ async function ttsHandler(req, res) {
   const s = sid ? getSession(sid) : null;
 
   const hasExplicitVoiceMode =
-    Object.prototype.hasOwnProperty.call(body, "voiceMode") && String(body.voiceMode || "").trim() !== "";
+    Object.prototype.hasOwnProperty.call(body, "voiceMode") &&
+    String(body.voiceMode || "").trim() !== "";
 
-  const voiceMode = normalizeVoiceMode(hasExplicitVoiceMode ? body.voiceMode : (s && s.voiceMode) || "standard");
+  const voiceMode = normalizeVoiceMode(
+    hasExplicitVoiceMode ? body.voiceMode : (s && s.voiceMode) || "standard"
+  );
 
   if (!TTS_ENABLED)
-    return res.status(503).json({ ok: false, error: "TTS_DISABLED", requestId, contractVersion: NYX_CONTRACT_VERSION });
+    return res
+      .status(503)
+      .json({ ok: false, error: "TTS_DISABLED", requestId, contractVersion: NYX_CONTRACT_VERSION });
   if (TTS_PROVIDER !== "elevenlabs")
     return res.status(500).json({
       ok: false,
@@ -1487,7 +1545,8 @@ async function runMusicEngine(text, session) {
 
   try {
     const out = musicKnowledge.handleChat({ text, session }) || {};
-    if (out.sessionPatch && typeof out.sessionPatch === "object") Object.assign(session, out.sessionPatch);
+    if (out.sessionPatch && typeof out.sessionPatch === "object")
+      Object.assign(session, out.sessionPatch);
     return out;
   } catch (e) {
     return {
@@ -1509,14 +1568,24 @@ async function runEngineWithLoopClosure(command, session, maxReruns = 1) {
   if (reply0 && engineAsksForYear(reply0) && y) {
     const cmd = m ? `${modeToCommand(m)} ${y}` : `${command} ${y}`;
     out = await runMusicEngine(cmd, session);
-    session.lastEngine = { kind: "loopClosure", chart: session.activeMusicChart, note: "askedYear_rerun", at: Date.now() };
+    session.lastEngine = {
+      kind: "loopClosure",
+      chart: session.activeMusicChart,
+      note: "askedYear_rerun",
+      at: Date.now(),
+    };
     return out;
   }
 
   if (reply0 && engineAsksForMode(reply0) && m && y) {
     const cmd = `${modeToCommand(m)} ${y}`;
     out = await runMusicEngine(cmd, session);
-    session.lastEngine = { kind: "loopClosure", chart: session.activeMusicChart, note: "askedMode_rerun", at: Date.now() };
+    session.lastEngine = {
+      kind: "loopClosure",
+      chart: session.activeMusicChart,
+      note: "askedMode_rerun",
+      at: Date.now(),
+    };
     return out;
   }
 
@@ -1589,7 +1658,12 @@ app.post("/api/chat", async (req, res) => {
     session.lastReply = reply;
     session.lastReplyAt = Date.now();
     session.lastIntent = "micEchoGuard";
-    session.lastEngine = { kind: "micEchoGuard", chart: session.activeMusicChart, note: "blockedEcho", at: Date.now() };
+    session.lastEngine = {
+      kind: "micEchoGuard",
+      chart: session.activeMusicChart,
+      note: "blockedEcho",
+      at: Date.now(),
+    };
 
     const base = {
       ok: true,
@@ -1702,7 +1776,9 @@ app.post("/api/chat", async (req, res) => {
 
   if (nav === "anotherYear") {
     session.pendingMode = session.activeMusicMode || session.pendingMode || null;
-    const ask = session.pendingMode ? replyMissingYearForMode(session, session.pendingMode) : "Alright. What year (1950–2024)?";
+    const ask = session.pendingMode
+      ? replyMissingYearForMode(session, session.pendingMode)
+      : "Alright. What year (1950–2024)?";
     session.lastReply = ask;
     session.lastReplyAt = Date.now();
     session.lastIntent = "askYear";
@@ -1819,7 +1895,9 @@ app.post("/api/chat", async (req, res) => {
     let reply = reply0;
     if (!reply || /^tell me a year/i.test(reply)) {
       if (session.lastTop10One && session.lastTop10One.year === session.lastYear) {
-        reply = `#1 — ${session.lastTop10One.artist || "Unknown Artist"} — ${session.lastTop10One.title || "Unknown Title"}`;
+        reply = `#1 — ${session.lastTop10One.artist || "Unknown Artist"} — ${
+          session.lastTop10One.title || "Unknown Title"
+        }`;
       } else {
         reply = "Run “top 10” first so I can lock the year’s #1 cleanly.";
       }
