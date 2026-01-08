@@ -3,17 +3,18 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.4.9 (Replay FollowUps Parity + Sponsors Catalog Sync; preserves v1.4.8)
+ * index.js v1.5.0 (Phase 0 Movies Lane + Nav Routing Guard; preserves v1.4.9)
  *
  * Adds / Fixes:
- *  - Replay FollowUps parity: “Replay last” now replays BOTH the last reply text and the last followUps/followUp set,
- *    preventing the widget from showing generic chips after a replay.
- *  - FollowUps memory: respondJson() persists the final emitted followUps/followUp into session.lastFollowUps/session.lastFollowUp
- *    on every response (including engine-provided followups), enabling perfect replay continuity.
+ *  - Phase 0 Movies lane: dedicated routing + session namespace (session.movies.phase0)
+ *  - Nav routing guard: Movies lane is evaluated before music nav tokens (except Replay),
+ *    preventing “next year/another year” from hijacking Movies conversations.
+ *  - Movies-safe followUps: contract-hard followUps and replay parity preserved via respondJson storage.
+ *  - Momentum tails: disabled for Movies lane (no music prompts appended).
  *
  * Preserves:
- *  - Sponsors catalog sync (prefers sponsorsKnowledge.getCatalog() normalized)
- *  - Health + debug: normalized packages/tiers counts + safe catalog meta/debug
+ *  - Replay FollowUps parity + followUps memory (lastFollowUps/lastFollowUp)
+ *  - Sponsors catalog sync + health/debug meta
  *  - Mic Feedback Guard
  *  - Sponsors Lane routing + contract-hard followUps
  *  - Loop-closure rerun once when engine asks for year/mode despite session state
@@ -41,7 +42,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.4.9 (Replay FollowUps Parity + Sponsors Catalog Sync; preserves v1.4.8)";
+  "index.js v1.5.0 (Phase 0 Movies Lane + Nav Routing Guard; preserves v1.4.9)";
 
 /* ======================================================
    Basic middleware
@@ -312,15 +313,15 @@ function getSession(sessionId) {
       pendingMode: null,
       activeMusicChart: "Billboard Hot 100",
 
-      // Optional lane (widget sends lane; keep for future routing)
+      // Optional lane
       lane: "general",
 
       // Memory + loop closure anchors
       lastReply: null,
       lastReplyAt: null,
 
-      // NEW: last emitted followups for replay parity
-      lastFollowUp: null, // array of strings (optional)
+      // Replay parity
+      lastFollowUp: null, // array of strings
       lastFollowUps: null, // array of {label,send}
 
       lastTop10One: null,
@@ -330,7 +331,7 @@ function getSession(sessionId) {
       // Voice continuity
       voiceMode: "standard", // "calm" | "standard" | "high"
 
-      // Sponsors context (aligned to Utils/sponsorsLane.js expectations)
+      // Sponsors context
       sponsors: {
         property: "",
         goal: "",
@@ -339,6 +340,20 @@ function getSession(sessionId) {
         cta: "",
         restrictions: "",
         stage: "",
+      },
+
+      // Movies (Phase 0) context
+      movies: {
+        phase0: {
+          format: "",
+          era: "",
+          genres: "",
+          budgetModel: "",
+          territory: "",
+          distribution: "",
+          sources: "",
+          missing: [],
+        },
       },
     });
   }
@@ -394,6 +409,14 @@ try {
   sponsorsLane = null;
 }
 
+// moviesLane: Phase 0 movies acquisition handler
+let moviesLane = null;
+try {
+  moviesLane = require("./Utils/moviesLane");
+} catch {
+  moviesLane = null;
+}
+
 /* ======================================================
    Sponsors catalog (optional JSON; safe fallback if missing)
 ====================================================== */
@@ -425,7 +448,7 @@ function loadSponsorsCatalogOnce() {
     }
   }
 
-  // 2) Next: sponsorsKnowledge.loadCatalog() (normalized) if getCatalog() isn't available
+  // 2) Next: sponsorsKnowledge.loadCatalog()
   if (sponsorsKnowledge && typeof sponsorsKnowledge.loadCatalog === "function") {
     try {
       const rel = sponsorsKnowledge.DEFAULT_CATALOG_REL || "Data/sponsors/sponsors_catalog_v1.json";
@@ -435,7 +458,7 @@ function loadSponsorsCatalogOnce() {
         return SPONSORS_CATALOG;
       }
     } catch (_) {
-      // ignore; fall through
+      // ignore
     }
   }
 
@@ -454,10 +477,10 @@ function loadSponsorsCatalogOnce() {
       return SPONSORS_CATALOG;
     }
   } catch (_) {
-    // ignore; fall through
+    // ignore
   }
 
-  // 5) Minimal built-in fallback (keeps Sponsors lane functional even without file)
+  // 5) Minimal built-in fallback
   SPONSORS_CATALOG = {
     version: "sponsors_catalog_fallback",
     packages: [
@@ -677,7 +700,7 @@ function normalizeForEchoCompare(s) {
     .toLowerCase()
     .replace(/[“”]/g, '"')
     .replace(/[‘’]/g, "'")
-    .replace(/[^\p{L}\p{N}\s#]/gu, "") // keep letters/numbers/spaces/#; drop punctuation
+    .replace(/[^\p{L}\p{N}\s#]/gu, "")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -693,16 +716,12 @@ function isLikelyMicEcho(incomingText, session) {
   const last = normalizeForEchoCompare(session.lastReply);
 
   if (!inc || !last) return false;
-
-  // Must be substantive; avoids blocking short user replies like "yes"
   if (inc.length < MIC_GUARD_MIN_CHARS) return false;
 
-  // Strong echo cases: exact match, or one contains the other (common with partial transcripts)
   if (inc === last) return true;
   if (inc.includes(last) && last.length >= MIC_GUARD_MIN_CHARS) return true;
   if (last.includes(inc) && inc.length >= MIC_GUARD_MIN_CHARS) return true;
 
-  // Light similarity fallback: same first 12 words is almost always an echo.
   const incW = inc.split(" ").filter(Boolean);
   const lastW = last.split(" ").filter(Boolean);
   if (incW.length >= 12 && lastW.length >= 12) {
@@ -715,9 +734,11 @@ function isLikelyMicEcho(incomingText, session) {
 }
 
 function micEchoBreakerReply(session) {
-  // Keep it actionable and forward-moving; no infinite loops.
   if (session && session.lane === "sponsors") {
     return "I’m picking up my own audio (mic feedback). Tap a follow-up, or type: TV / Radio / Website / Social, plus your goal and budget range in CAD.";
+  }
+  if (session && session.lane === "movies") {
+    return "I’m picking up my own audio (mic feedback). Tap a follow-up, or reply with: movie/series | 70s/80s | genres | rev-share(no MG)/MG | territory | FAST/AVOD.";
   }
   const y = session && clampYear(session.lastYear) ? session.lastYear : null;
   if (y && session.activeMusicMode) {
@@ -728,18 +749,15 @@ function micEchoBreakerReply(session) {
 
 /* ======================================================
    Sponsors intent (fallback)
-   - Prefer Utils/sponsorsLane.isSponsorIntent if available
 ====================================================== */
 
 function isSponsorIntentFallback(text) {
   const t = cleanText(text).toLowerCase();
   if (!t) return false;
 
-  // strong sponsor signals
   const strong =
     /\b(sponsor|sponsorship|advertis(e|ing)|rate\s*card|media\s*kit|ad\s*package|ad\s*packages|ad\s*pricing|pricing|promote|promotion|commercial|campaign)\b/;
 
-  // avoid false positives like "song sponsor"
   if (
     /\b(sponsor)\b/.test(t) &&
     /\b(song|music|artist|album)\b/.test(t) &&
@@ -767,7 +785,6 @@ function isSponsorIntent(text) {
 ====================================================== */
 
 async function runSponsorsEngine(text, session) {
-  // Prefer sponsorsLane (canonical)
   if (sponsorsLane && typeof sponsorsLane.handleChat === "function") {
     try {
       const out = sponsorsLane.handleChat({ text, session }) || {};
@@ -782,7 +799,6 @@ async function runSponsorsEngine(text, session) {
     }
   }
 
-  // Minimal fallback if sponsorsLane is missing: keep the lane alive
   loadSponsorsCatalogOnce();
   return {
     reply:
@@ -797,6 +813,56 @@ async function runSponsorsEngine(text, session) {
       { label: "Book a call", send: "Book a call" },
     ],
   };
+}
+
+/* ======================================================
+   Movies engine wrapper (Phase 0)
+====================================================== */
+
+function isMoviesIntent(text) {
+  if (moviesLane && typeof moviesLane.detectMoviesIntent === "function") {
+    try {
+      return moviesLane.detectMoviesIntent(text);
+    } catch (_) {
+      return { hit: false, confidence: 0 };
+    }
+  }
+  // If moviesLane missing, keep it disabled rather than guessing
+  return { hit: false, confidence: 0 };
+}
+
+async function runMoviesEngine(text, session) {
+  if (!moviesLane || typeof moviesLane.handleChat !== "function") {
+    return {
+      reply:
+        "Movies lane isn’t loaded in this build yet. Add Utils/moviesLane.js and redeploy, then say: “movies phase 0”.",
+      followUps: [
+        { label: "Movies (Phase 0)", send: "movies phase 0" },
+        { label: "Filmhub", send: "filmhub" },
+        { label: "Bitmax", send: "bitmax" },
+      ],
+    };
+  }
+
+  try {
+    const out = moviesLane.handleChat({ text, session }) || {};
+    if (out.sessionPatch && typeof out.sessionPatch === "object") Object.assign(session, out.sessionPatch);
+    return out;
+  } catch (e) {
+    return {
+      reply:
+        "Movies lane hit a snag. Reply in one line: “movie/series | 70s/80s | genres | rev-share(no MG)/MG | territory | FAST/AVOD”.",
+      error: String(e && e.message ? e.message : e),
+      followUps: [
+        { label: "Movie", send: "movie" },
+        { label: "Series", send: "series" },
+        { label: "1970s", send: "1970s" },
+        { label: "1980s", send: "1980s" },
+        { label: "Rev-share (No MG)", send: "rev share no mg" },
+        { label: "FAST+AVOD", send: "FAST AVOD" },
+      ],
+    };
+  }
 }
 
 /* ======================================================
@@ -953,7 +1019,25 @@ function makeFollowUps(session) {
   const hasReplay = !!(session && session.lastReply);
   const hasOne = !!(session && session.lastTop10One && session.lastTop10One.year);
 
-  // Sponsors lane fallback followups if engine doesn't provide any
+  // Movies lane followups
+  if (session && session.lane === "movies") {
+    const mfu = [
+      { label: "Movie", send: "movie" },
+      { label: "Series", send: "series" },
+      { label: "1970s", send: "1970s" },
+      { label: "1980s", send: "1980s" },
+      { label: "Crime/Detective", send: "crime detective" },
+      { label: "Comedy", send: "comedy" },
+      { label: "Rev-share (No MG)", send: "rev share no mg" },
+      { label: "FAST+AVOD", send: "FAST AVOD" },
+    ];
+    return {
+      followUp: mfu.map((x) => x.label).slice(0, 8),
+      followUps: mfu.slice(0, 8),
+    };
+  }
+
+  // Sponsors lane followups
   if (session && session.lane === "sponsors") {
     const sfu = [
       { label: "TV", send: "TV" },
@@ -996,7 +1080,6 @@ function makeFollowUps(session) {
 }
 
 function normalizeEngineFollowups(out) {
-  // Accept various engine shapes; produce array of {label,send}
   const push = (acc, v) => {
     if (!v) return;
     if (typeof v === "string") {
@@ -1021,10 +1104,8 @@ function normalizeEngineFollowups(out) {
     else push(acc, c);
   }
 
-  // Some engines use followUp as array of strings
   if (Array.isArray(out.followUp)) out.followUp.forEach((x) => push(acc, x));
 
-  // Dedup by send
   const seen = new Set();
   const out2 = [];
   for (const it of acc) {
@@ -1063,8 +1144,8 @@ function addMomentumTail(session, reply) {
   const r = cleanText(reply);
   if (!r) return r;
 
-  // Sponsors lane: do NOT add music momentum tails
-  if (session && session.lane === "sponsors") return r;
+  // Sponsors + Movies: do NOT add music momentum tails
+  if (session && (session.lane === "sponsors" || session.lane === "movies")) return r;
 
   const y = session && clampYear(session.lastYear) ? session.lastYear : null;
   const mode = session && session.activeMusicMode ? session.activeMusicMode : null;
@@ -1079,10 +1160,8 @@ function addMomentumTail(session, reply) {
 
 function respondJson(req, res, base, session, engineOut, opts) {
   const options = opts && typeof opts === "object" ? opts : {};
-  // Contract: followUps ALWAYS exists and is an array of {label,send}
   const fallback = makeFollowUps(session);
 
-  // Optional: force followups (used for Replay parity)
   const forcedFollowUps =
     Array.isArray(options.forceFollowUps) && options.forceFollowUps.length
       ? options.forceFollowUps
@@ -1146,6 +1225,7 @@ function respondJson(req, res, base, session, engineOut, opts) {
         lastIntent: session ? session.lastIntent : null,
         lastEngine: session ? session.lastEngine : null,
         sponsors: session ? session.sponsors : null,
+        movies: session ? session.movies : null,
         replay: session
           ? {
               hasLastReply: !!session.lastReply,
@@ -1172,6 +1252,9 @@ function respondJson(req, res, base, session, engineOut, opts) {
             }
           : null,
       },
+      movies: {
+        laneLoaded: !!(moviesLane && typeof moviesLane.handleChat === "function"),
+      },
       engine: engineOut
         ? {
             hasReply: !!cleanText(engineOut.reply),
@@ -1182,7 +1265,6 @@ function respondJson(req, res, base, session, engineOut, opts) {
     };
   }
 
-  // NEW: persist the final emitted followups for perfect Replay parity
   if (session && !options.noStoreFollowups) {
     try {
       session.lastFollowUp = Array.isArray(payload.followUp) ? payload.followUp.slice(0, 12) : null;
@@ -1273,6 +1355,9 @@ app.get("/api/health", (req, res) => {
             ? "sponsorsKnowledge_or_file"
             : "file_or_env",
       },
+    },
+    movies: {
+      laneLoaded: !!(moviesLane && typeof moviesLane.handleChat === "function"),
     },
     requestId,
   });
@@ -1483,7 +1568,7 @@ app.post("/api/chat", async (req, res) => {
 
   // Store lane (widget sends lane)
   const incomingLane = cleanText((body.lane || (body.context && body.context.lane) || "")).toLowerCase();
-  if (incomingLane && ["general", "music", "tv", "sponsors", "ai"].includes(incomingLane)) {
+  if (incomingLane && ["general", "music", "tv", "sponsors", "movies", "ai"].includes(incomingLane)) {
     session.lane = incomingLane;
   }
 
@@ -1521,7 +1606,7 @@ app.post("/api/chat", async (req, res) => {
   const nav = normalizeNavToken(message);
 
   // ======================================================
-  // Sponsors Lane router (early, before music nav tokens)
+  // Sponsors Lane router (early)
   // ======================================================
 
   const explicitMusic =
@@ -1556,7 +1641,7 @@ app.post("/api/chat", async (req, res) => {
   }
 
   // ======================================================
-  // Replay (must replay BOTH reply and last followUps/followUp)
+  // Replay (global; must replay BOTH reply + last followUps/followUp)
   // ======================================================
   if (nav === "replay" && session.lastReply) {
     const forcedFollowUps =
@@ -1577,11 +1662,44 @@ app.post("/api/chat", async (req, res) => {
     return respondJson(req, res, base, session, null, {
       forceFollowUps: forcedFollowUps,
       forceFollowUp: forcedFollowUp,
-      // keep storing on replay; it reaffirms the same followups
     });
   }
 
-  // another year
+  // ======================================================
+  // Movies Lane router (Phase 0) — must run BEFORE music nav tokens
+  // ======================================================
+  const moviesIntent = isMoviesIntent(message);
+  const moviesRoute = session.lane === "movies" || (moviesIntent && moviesIntent.hit);
+
+  if (moviesRoute) {
+    session.lane = "movies";
+    session.lastIntent = "movies";
+
+    const out = await runMoviesEngine(message || "movies phase 0", session);
+    const reply0 = cleanText(out.reply || "");
+    const reply = reply0 || "Movies Phase 0 — tell me: movie or series?";
+
+    session.lastReply = reply;
+    session.lastReplyAt = Date.now();
+    session.lastEngine = { kind: "movies", chart: null, note: "phase0", at: Date.now() };
+
+    const base = {
+      ok: true,
+      reply,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
+
+    return respondJson(req, res, base, session, out);
+  }
+
+  // ======================================================
+  // Music nav tokens (only after Sponsors/Replay/Movies)
+  // ======================================================
+
   if (nav === "anotherYear") {
     session.pendingMode = session.activeMusicMode || session.pendingMode || null;
     const ask = session.pendingMode ? replyMissingYearForMode(session, session.pendingMode) : "Alright. What year (1950–2024)?";
@@ -1600,7 +1718,6 @@ app.post("/api/chat", async (req, res) => {
     return respondJson(req, res, base, session, null);
   }
 
-  // next/prev year
   if ((nav === "nextYear" || nav === "prevYear") && clampYear(session.lastYear)) {
     const nextY = safeIncYear(session.lastYear, nav === "nextYear" ? +1 : -1);
     if (nextY) {
@@ -1652,7 +1769,6 @@ app.post("/api/chat", async (req, res) => {
     }
   }
 
-  // #1 story/micro from lastTop10One
   if ((nav === "oneStory" || nav === "oneMicro") && session.lastTop10One && session.lastTop10One.year) {
     const rep =
       nav === "oneStory"
@@ -1679,7 +1795,6 @@ app.post("/api/chat", async (req, res) => {
     return respondJson(req, res, base, session, null);
   }
 
-  // #1
   if (nav === "one") {
     if (!clampYear(session.lastYear)) {
       const ask = "Tell me a year first (1950–2024), then I’ll give you #1.";
@@ -1728,7 +1843,6 @@ app.post("/api/chat", async (req, res) => {
     return respondJson(req, res, base, session, out);
   }
 
-  // Greeting / empty
   if (!message || isGreeting(message)) {
     const base = {
       ok: true,
@@ -1749,7 +1863,6 @@ app.post("/api/chat", async (req, res) => {
   const parsedMode = normalizeModeToken(message);
   const bareYear = parsedYear ? isBareYearMessage(message) : false;
 
-  // MODE + YEAR
   if (parsedYear && parsedMode) {
     session.lastYear = parsedYear;
     session.activeMusicMode = parsedMode;
@@ -1782,7 +1895,6 @@ app.post("/api/chat", async (req, res) => {
     return respondJson(req, res, base, session, out);
   }
 
-  // MODE only
   if (parsedMode && !parsedYear) {
     session.activeMusicMode = parsedMode;
     session.pendingMode = parsedMode;
@@ -1834,7 +1946,6 @@ app.post("/api/chat", async (req, res) => {
     return respondJson(req, res, base, session, null);
   }
 
-  // YEAR present
   if (parsedYear && !parsedMode) {
     session.lastYear = parsedYear;
     const mode = session.pendingMode || session.activeMusicMode || null;
@@ -1905,7 +2016,6 @@ app.post("/api/chat", async (req, res) => {
     return respondJson(req, res, base, session, null);
   }
 
-  // passthrough to engine
   forceYearSpineChart(session, session.lastYear);
 
   const out = await runEngineWithLoopClosure(message, session, 1);
@@ -1948,7 +2058,6 @@ const server = app.listen(PORT, HOST, () => {
   );
 });
 
-// Node server timeout hardening
 try {
   server.requestTimeout = REQUEST_TIMEOUT_MS;
   server.headersTimeout = Math.max(REQUEST_TIMEOUT_MS + 5000, 35000);
