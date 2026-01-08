@@ -3,16 +3,17 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.4.8 (Sponsors Catalog Sync + safer catalog debug; preserves v1.4.7)
+ * index.js v1.4.9 (Replay FollowUps Parity + Sponsors Catalog Sync; preserves v1.4.8)
  *
  * Adds / Fixes:
- *  - Sponsors catalog sync: prefers sponsorsKnowledge.getCatalog() (normalized) when available,
- *    falling back to loadCatalog() and then to file/env and finally to built-in fallback.
- *    This prevents “catalog not loaded / wrong shape” issues when sponsors_catalog_v1.json uses `packages`.
- *  - Health + debug: reports packages count from normalized catalog (tiers OR packages),
- *    includes catalog meta when available.
+ *  - Replay FollowUps parity: “Replay last” now replays BOTH the last reply text and the last followUps/followUp set,
+ *    preventing the widget from showing generic chips after a replay.
+ *  - FollowUps memory: respondJson() persists the final emitted followUps/followUp into session.lastFollowUps/session.lastFollowUp
+ *    on every response (including engine-provided followups), enabling perfect replay continuity.
  *
  * Preserves:
+ *  - Sponsors catalog sync (prefers sponsorsKnowledge.getCatalog() normalized)
+ *  - Health + debug: normalized packages/tiers counts + safe catalog meta/debug
  *  - Mic Feedback Guard
  *  - Sponsors Lane routing + contract-hard followUps
  *  - Loop-closure rerun once when engine asks for year/mode despite session state
@@ -40,7 +41,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.4.8 (Sponsors Catalog Sync + safer catalog debug; preserves v1.4.7)";
+  "index.js v1.4.9 (Replay FollowUps Parity + Sponsors Catalog Sync; preserves v1.4.8)";
 
 /* ======================================================
    Basic middleware
@@ -317,6 +318,11 @@ function getSession(sessionId) {
       // Memory + loop closure anchors
       lastReply: null,
       lastReplyAt: null,
+
+      // NEW: last emitted followups for replay parity
+      lastFollowUp: null, // array of strings (optional)
+      lastFollowUps: null, // array of {label,send}
+
       lastTop10One: null,
       lastIntent: null,
       lastEngine: null, // { kind, chart, note, at }
@@ -1071,16 +1077,40 @@ function addMomentumTail(session, reply) {
   return r;
 }
 
-function respondJson(req, res, base, session, engineOut) {
+function respondJson(req, res, base, session, engineOut, opts) {
+  const options = opts && typeof opts === "object" ? opts : {};
   // Contract: followUps ALWAYS exists and is an array of {label,send}
   const fallback = makeFollowUps(session);
+
+  // Optional: force followups (used for Replay parity)
+  const forcedFollowUps =
+    Array.isArray(options.forceFollowUps) && options.forceFollowUps.length
+      ? options.forceFollowUps
+      : null;
+
+  const forcedFollowUp =
+    Array.isArray(options.forceFollowUp) && options.forceFollowUp.length
+      ? options.forceFollowUp
+      : null;
 
   const engineNorm = normalizeEngineFollowups(engineOut);
   const useEngine = engineNorm.length > 0;
 
+  const finalFollowUps = forcedFollowUps
+    ? forcedFollowUps.slice(0, 8)
+    : useEngine
+    ? engineNorm.slice(0, 8)
+    : fallback.followUps;
+
+  const finalFollowUp = forcedFollowUp
+    ? forcedFollowUp.slice(0, 8)
+    : useEngine
+    ? engineNorm.map((x) => x.label).slice(0, 8)
+    : fallback.followUp;
+
   const payload = Object.assign({}, base, {
-    followUp: useEngine ? engineNorm.map((x) => x.label).slice(0, 8) : fallback.followUp,
-    followUps: useEngine ? engineNorm.slice(0, 8) : fallback.followUps,
+    followUp: finalFollowUp,
+    followUps: finalFollowUps,
   });
 
   const wantsDebug = CHAT_DEBUG || parseDebugFlag(req);
@@ -1116,6 +1146,12 @@ function respondJson(req, res, base, session, engineOut) {
         lastIntent: session ? session.lastIntent : null,
         lastEngine: session ? session.lastEngine : null,
         sponsors: session ? session.sponsors : null,
+        replay: session
+          ? {
+              hasLastReply: !!session.lastReply,
+              hasLastFollowUps: Array.isArray(session.lastFollowUps) && session.lastFollowUps.length > 0,
+            }
+          : null,
       },
       micGuard: {
         enabled: MIC_GUARD_ENABLED,
@@ -1144,6 +1180,16 @@ function respondJson(req, res, base, session, engineOut) {
           }
         : null,
     };
+  }
+
+  // NEW: persist the final emitted followups for perfect Replay parity
+  if (session && !options.noStoreFollowups) {
+    try {
+      session.lastFollowUp = Array.isArray(payload.followUp) ? payload.followUp.slice(0, 12) : null;
+      session.lastFollowUps = Array.isArray(payload.followUps) ? payload.followUps.slice(0, 12) : null;
+    } catch (_) {
+      // ignore
+    }
   }
 
   return res.json(payload);
@@ -1509,8 +1555,15 @@ app.post("/api/chat", async (req, res) => {
     return respondJson(req, res, base, session, out);
   }
 
-  // replay
+  // ======================================================
+  // Replay (must replay BOTH reply and last followUps/followUp)
+  // ======================================================
   if (nav === "replay" && session.lastReply) {
+    const forcedFollowUps =
+      Array.isArray(session.lastFollowUps) && session.lastFollowUps.length ? session.lastFollowUps : null;
+    const forcedFollowUp =
+      Array.isArray(session.lastFollowUp) && session.lastFollowUp.length ? session.lastFollowUp : null;
+
     const base = {
       ok: true,
       reply: session.lastReply,
@@ -1521,7 +1574,11 @@ app.post("/api/chat", async (req, res) => {
       voiceMode: session.voiceMode,
     };
     session.lastIntent = "replay";
-    return respondJson(req, res, base, session, null);
+    return respondJson(req, res, base, session, null, {
+      forceFollowUps: forcedFollowUps,
+      forceFollowUp: forcedFollowUp,
+      // keep storing on replay; it reaffirms the same followups
+    });
   }
 
   // another year
