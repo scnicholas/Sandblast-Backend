@@ -9,6 +9,7 @@
  *      property (tv/radio/website/social/bundle)
  *      goal (calls/foot traffic/website clicks/brand awareness)
  *      category (catalog id or "other")
+ *      business (optional, but used for scripts; never fall back to category)
  *      budgetTier (starter_test/growth_bundle/dominance)
  *      cta (book_a_call/request_rate_card/whatsapp)
  *      restrictions (optional free text)
@@ -84,14 +85,15 @@ function getState(session) {
   const st = s.sponsors;
 
   return {
-    property: cleanText(st.property || ""), // "tv|radio|website|social|bundle"
+    property: cleanText(st.property || ""), // tv|radio|website|social|bundle
     goal: cleanText(st.goal || ""),
     category: cleanText(st.category || ""),
+    business: cleanText(st.business || st.businessName || st.brand || ""), // allow legacy keys
     budgetTier: cleanText(st.budgetTier || ""),
     cta: cleanText(st.cta || ""),
     restrictions: cleanText(st.restrictions || ""),
     // internal flow
-    stage: cleanText(st.stage || ""), // ask_property|ask_goal|ask_category|ask_budget|ask_cta|ask_restrictions|done
+    stage: cleanText(st.stage || ""), // ask_property|ask_goal|ask_category|ask_business|ask_budget|ask_cta|ask_restrictions|done
   };
 }
 
@@ -125,11 +127,16 @@ function prettifyCategory(catalog, categoryId) {
   return cleanText(String(v || hitKey)) || hitKey;
 }
 
+function isTierId(s) {
+  const t = cleanText(s).toLowerCase();
+  return t === "starter_test" || t === "growth_bundle" || t === "dominance";
+}
+
 function makeFollowUpsForStage(stage, catalog) {
   const props = (catalog && catalog.properties) || { tv: true, radio: true, website: true, social: true };
   const ctaLabels = getCtaLabels(catalog);
 
-  const tierChoices = SK.listTierChoices(); // [{id,label,range,frequency_hint}]
+  const tierChoices = SK.listTierChoices(); // [{id,label,range}]
   const tiers = tierChoices.length
     ? tierChoices
     : [
@@ -165,10 +172,19 @@ function makeFollowUpsForStage(stage, catalog) {
     ];
   }
 
+  if (stage === "ask_business") {
+    return [
+      { label: "Skip (generic)", send: "Skip" },
+      { label: "Business: (type it)", send: "Business: " },
+      { label: "Use category name", send: "Use category name" },
+    ];
+  }
+
   if (stage === "ask_budget") {
+    // send tier id
     return tiers.slice(0, 3).map((t) => ({
       label: cleanText(t.label || t.id),
-      send: cleanText(t.id || t.label), // send tier id
+      send: cleanText(t.id || t.label),
     }));
   }
 
@@ -192,6 +208,7 @@ function makeFollowUpsForStage(stage, catalog) {
   return [
     { label: "Build my offer", send: "Build my offer" },
     { label: "Write 15-second script", send: "Write 15-second script" },
+    { label: "30-second cut", send: "30-second cut" },
     { label: "Request rate card", send: "Request rate card" },
     { label: "Another sponsor", send: "Another sponsor" },
   ];
@@ -210,11 +227,11 @@ function stagePrompt(stage, session, catalog) {
   if (stage === "ask_category") {
     return p.category || "What category are you in? (restaurant, auto, grocery, church, fitness, trades, events, other)";
   }
+  if (stage === "ask_business") {
+    return p.business || "Sponsor name (what should I say on-air)? Reply “Business: <name>” or tap Skip.";
+  }
   if (stage === "ask_budget") {
-    return (
-      p.budget ||
-      `Budget tier in ${currency}: Starter, Growth, or Dominance? (You can also type a number like “800”.)`
-    );
+    return p.budget || `Budget tier in ${currency}: Starter, Growth, or Dominance? (Or type a number like “800”.)`;
   }
   if (stage === "ask_cta") {
     return p.cta || "Preferred CTA: Book a call, Request rate card, or WhatsApp?";
@@ -233,11 +250,46 @@ function nextMissingField(state) {
   if (!state.property) return "ask_property";
   if (!state.goal) return "ask_goal";
   if (!state.category) return "ask_category";
+
+  // business is optional; ask once (does not block build)
+  if (state.stage !== "done" && !state.business) return "ask_business";
+
   if (!state.budgetTier) return "ask_budget";
   if (!state.cta) return "ask_cta";
+
   // restrictions are optional; ask once, but don’t block
   if (state.stage !== "done" && !state.restrictions) return "ask_restrictions";
+
   return "done";
+}
+
+function extractBusinessName(text) {
+  const t = cleanText(text);
+  const lower = t.toLowerCase();
+
+  // "Business: Acme Auto"
+  const m1 = t.match(/\b(business|company|brand|sponsor)\s*:\s*(.+)$/i);
+  if (m1 && m1[2]) {
+    const v = cleanText(m1[2]);
+    if (v) return v;
+  }
+
+  // "Sponsored by Acme Auto"
+  const m2 = t.match(/\b(sponsored by|sponsor is|our sponsor is)\s+(.+)$/i);
+  if (m2 && m2[2]) {
+    const v = cleanText(m2[2]);
+    if (v) return v;
+  }
+
+  // If they’re in ask_business stage and they typed something short, accept it
+  if (t.length >= 2 && t.length <= 60 && !lower.includes("http") && !lower.includes("@") && !/\b(rate card|bundle|tier|growth|starter|dominance)\b/.test(lower)) {
+    // Avoid treating "Auto Services" as business name by itself
+    if (!/\b(auto services|restaurant\/takeout|grocery\/specialty|church\/faith|fitness\/wellness|trades|events|other)\b/i.test(t)) {
+      return t;
+    }
+  }
+
+  return "";
 }
 
 function applyUserAnswerToState(text, state, catalog) {
@@ -256,16 +308,23 @@ function applyUserAnswerToState(text, state, catalog) {
   const cat = SK.normalizeCategoryToken(t);
   if (cat) state.category = cat;
 
+  // business name capture (never infer from category unless user explicitly requests)
+  if (!state.business) {
+    const bn = extractBusinessName(t);
+    if (bn) state.business = bn;
+  }
+  if (lower === "skip") state.business = state.business || "";
+  if (lower === "use category name") {
+    const catPretty = prettifyCategory(catalog, state.category || "other");
+    if (catPretty && catPretty !== "other") state.business = catPretty;
+  }
+
   // budget tier (supports explicit tier id OR numeric)
-  const tier =
-    (lower === "starter_test" || lower === "growth_bundle" || lower === "dominance" ? lower : null) ||
-    SK.normalizeBudgetToken(t);
+  const tier = isTierId(lower) ? lower : SK.normalizeBudgetToken(t);
   if (tier) state.budgetTier = tier;
 
   // cta (supports explicit token or friendly phrases)
-  const cta =
-    (lower === "book_a_call" || lower === "request_rate_card" || lower === "whatsapp" ? lower : null) ||
-    SK.normalizeCtaToken(t);
+  const cta = lower === "book_a_call" || lower === "request_rate_card" || lower === "whatsapp" ? lower : SK.normalizeCtaToken(t);
   if (cta) state.cta = cta;
 
   // soft-cta shortcuts
@@ -278,18 +337,17 @@ function applyUserAnswerToState(text, state, catalog) {
   else if (lower.includes("standard policy")) state.restrictions = "standard";
   else if (lower.includes("i have restrictions")) state.restrictions = "custom";
   else {
-    // If they typed a short sentence with "restrict", treat as custom restriction note
     if (!state.restrictions && t.length >= 8 && lower.includes("restrict")) state.restrictions = t;
   }
 
   // Actions (tight: avoid matching every “build” in a sentence)
   const wantsBuild =
     lower === "build my offer" ||
-    /\b(build my offer|build the offer|recommend package|recommend a package|package it)\b/.test(lower);
+    /\b(build my offer|build the offer|recommend package|recommend a package|package it|get a package recommendation)\b/.test(lower);
 
   const wantsAnother = lower.includes("another sponsor") || lower.includes("new sponsor");
 
-  // If they say "sponsors lane" with no other info, treat as enter-lane
+  // Lane enter
   const enterLane = lower === "sponsors lane" || lower === "sponsor lane";
 
   return { wantsBuild, wantsAnother, enterLane };
@@ -320,10 +378,10 @@ function buildOfferReply(session, state, catalog) {
     return pickRotate(session, "sponsors_offer_fail", [
       "Sponsors Lane — I can’t load the sponsors catalog right now.",
       "Tell me: TV/Radio/Website/Social + budget tier + category, and I’ll package a recommendation anyway.",
-    ].join("\n"));
+    ]);
   }
 
-  const currency = (catalog && catalog.currency) || rec.currency || "CAD";
+  const currency = (catalog && catalog.currency) || "CAD";
   const tierLine = `${rec.tierLabel} (${currency})`;
   const bundleLine = formatBundle(rec.propertyBundle);
   const goalLine = state.goal || "brand awareness";
@@ -346,6 +404,8 @@ function buildOfferReply(session, state, catalog) {
       ? "Restrictions: noted (custom)"
       : `Restrictions: ${state.restrictions}`;
 
+  const sponsorNameLine = state.business ? `Sponsor: ${state.business}` : "Sponsor: (name optional)";
+
   // 6–10 lines, no fluff
   const lines = [
     "Sponsors Lane — recommendation:",
@@ -356,6 +416,7 @@ function buildOfferReply(session, state, catalog) {
     `5) CTA: ${ctaPretty}`,
     `6) Frequency: ${rec.frequencyHint || "4–7 mentions/week"}`,
     `7) ${restrictLine}`,
+    `8) ${sponsorNameLine}`,
     "Next: “Write 15-second script” or “Request rate card”.",
   ];
 
@@ -369,15 +430,22 @@ function buildRateCardReply(session, catalog) {
 
   const lines = [
     `Rate card snapshot (${currency}):`,
-    tiers.length
-      ? `1) ${tiers[0].label}${tiers[0].range ? ` — ${tiers[0].range.min || ""}${tiers[0].range.max ? `–${tiers[0].range.max}` : ""}` : ""}`
-      : "1) Starter — entry test flight",
+    tiers.length ? `1) ${tiers[0].label}` : "1) Starter — entry test flight",
     tiers.length > 1 ? `2) ${tiers[1].label}` : "2) Growth — repeat exposure + outcomes",
     tiers.length > 2 ? `3) ${tiers[2].label}` : "3) Dominance — segment ownership + scale",
     `Next: choose a tier, then your CTA (${ctaLabels.book_a_call} / ${ctaLabels.request_rate_card} / ${ctaLabels.whatsapp}).`,
   ];
 
   return lines.join("\n");
+}
+
+function getSponsorNameForScript(state, catalog) {
+  const name = cleanText(state.business || "");
+  if (name) return name;
+
+  // Never use raw category id like "other" as sponsor name.
+  // If user explicitly used category-name, we already stored it in business.
+  return "your business";
 }
 
 function handleChat({ text, session } = {}) {
@@ -391,14 +459,15 @@ function handleChat({ text, session } = {}) {
   if (session && typeof session === "object") session.lane = "sponsors";
 
   const state = getState(session);
+  const lower = message.toLowerCase();
 
   // Hard reset / new sponsor
-  const lower = message.toLowerCase();
   if (lower.includes("another sponsor") || lower.includes("new sponsor")) {
     setState(session, {
       property: "",
       goal: "",
       category: "",
+      business: "",
       budgetTier: "",
       cta: "",
       restrictions: "",
@@ -415,7 +484,6 @@ function handleChat({ text, session } = {}) {
 
   // Rate card request (fast path)
   if (lower === "request rate card" || lower.includes("rate card") || lower.includes("media kit")) {
-    // set CTA if they asked for it
     state.cta = "request_rate_card";
     setState(session, state);
 
@@ -449,13 +517,18 @@ function handleChat({ text, session } = {}) {
   // Build my offer
   if (action.wantsBuild) {
     const missing = nextMissingField(state);
-    if (missing !== "done" && missing !== "ask_restrictions") {
+
+    // Allow build even if we're only missing business/restrictions (optional)
+    const blockers = ["ask_property", "ask_goal", "ask_category", "ask_budget", "ask_cta"];
+    if (blockers.includes(missing)) {
       state.stage = missing;
       setState(session, state);
 
-      const reply = ["Sponsors Lane — I’m missing one piece.", stagePrompt(missing, session, catalog), "Answer that and I’ll build the offer."].join(
-        "\n"
-      );
+      const reply = [
+        "Sponsors Lane — I’m missing one piece.",
+        stagePrompt(missing, session, catalog),
+        "Answer that and I’ll build the offer.",
+      ].join("\n");
 
       return {
         reply,
@@ -486,12 +559,12 @@ function handleChat({ text, session } = {}) {
       (cta === "whatsapp" && ctaLabels.whatsapp) ||
       ctaLabels.book_a_call;
 
-    const categoryPretty = prettifyCategory(catalog, state.category || "other");
     const goalPretty = state.goal || "results";
+    const sponsorName = getSponsorNameForScript(state, catalog);
 
     const script = [
       "15-second sponsor script:",
-      `“This hour on Sandblast is sponsored by ${categoryPretty}. If you want ${goalPretty} without the noise, get in front of the right audience. ${ctaPretty} today and lock your spot.”`,
+      `“This hour on Sandblast is sponsored by ${sponsorName}. If you want ${goalPretty} without the noise, get in front of the right audience. ${ctaPretty} today and lock your spot.”`,
       "Next: say “Build my offer” to package TV/Radio/Website/Social, or ask for a 30-second cut.",
     ].join("\n");
 
@@ -507,7 +580,7 @@ function handleChat({ text, session } = {}) {
     };
   }
 
-  // 30-second cut (simple extension)
+  // 30-second cut
   if (lower.includes("30-second") || lower.includes("30 second") || lower.includes("30s")) {
     const ctaLabels = getCtaLabels(catalog);
     const cta = state.cta || "book_a_call";
@@ -517,12 +590,12 @@ function handleChat({ text, session } = {}) {
       (cta === "whatsapp" && ctaLabels.whatsapp) ||
       ctaLabels.book_a_call;
 
-    const categoryPretty = prettifyCategory(catalog, state.category || "other");
     const goalPretty = state.goal || "results";
+    const sponsorName = getSponsorNameForScript(state, catalog);
 
     const script = [
       "30-second sponsor script:",
-      `“Sandblast is powered by sponsors like ${categoryPretty}. If you’re serious about ${goalPretty}, this is where you show up consistently—on-air, on-site, and in social feeds. We build a clean flight, track outcomes, and keep the message tight. ${ctaPretty} and we’ll map the best package for your budget.”`,
+      `“Sandblast is powered by sponsors like ${sponsorName}. If you’re serious about ${goalPretty}, this is where you show up consistently—on-air, on-site, and in social feeds. We build a clean flight, track outcomes, and keep the message tight. ${ctaPretty} and we’ll map the best package for your budget.”`,
       "Want it tailored for Radio vs Website, or a TV tag?",
     ].join("\n");
 
@@ -545,7 +618,7 @@ function handleChat({ text, session } = {}) {
   // Persist
   setState(session, state);
 
-  // If user said something sponsor-ish but didn’t provide enough, ask the next question
+  // If empty message, prompt nextStage
   if (!message) {
     const reply = stagePrompt(nextStage, session, catalog);
     return {
@@ -555,6 +628,7 @@ function handleChat({ text, session } = {}) {
     };
   }
 
+  // If sponsor intent, continue the lane questions
   if (isSponsorIntent(message) || (session && session.lane === "sponsors")) {
     const reply = stagePrompt(nextStage, session, catalog);
     return {
