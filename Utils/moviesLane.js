@@ -4,6 +4,7 @@
  * Utils/moviesLane.js
  *
  * Phase 0 Movies Lane (Acquisition Shortlist + Feasibility Filter)
+ * + Phase 0 PD Database Lookup (Internet Archive + curated listings)
  *
  * Collect minimal fields:
  *  - format: movie | series
@@ -14,23 +15,154 @@
  *  - distribution: FAST | AVOD | FAST+AVOD | etc.
  *  - sources: Filmhub | Bitmax | other (optional)
  *
+ * PD/Metadata mode:
+ *  - Recognizes archive.org URLs and identifiers
+ *  - Recognizes known titles from a local Phase0 DB JSON file
+ *  - Returns safe rights language (candidate/verified/unknown)
+ *
  * Returns:
  *  - reply (tight, forward-moving)
  *  - followUps (array of {label,send}) ALWAYS
- *  - sessionPatch (lane + movies.phase0)
+ *  - sessionPatch (lane + movies.phase0 + optional movies.catalog)
  */
+
+const fs = require("fs");
+const path = require("path");
+
+/* =========================
+   Basics
+========================= */
 
 function cleanText(s) {
   return String(s || "").replace(/\u200B/g, "").replace(/\s+/g, " ").trim();
 }
 
-function hasAny(text, arr) {
-  const t = cleanText(text).toLowerCase();
-  return arr.some((k) => t.includes(k));
+function lc(s) {
+  return cleanText(s).toLowerCase();
 }
 
+function hasAny(text, arr) {
+  const t = lc(text);
+  return arr.some((k) => t.includes(String(k).toLowerCase()));
+}
+
+/* =========================
+   Phase 0 DB (local JSON)
+   - optional
+========================= */
+
+const DB_REL_DEFAULT = "Data/movies/movies_phase0.json";
+let DB_CACHE = null;
+let DB_META = { loaded: false, rel: DB_REL_DEFAULT, abs: null, error: null, mtimeMs: 0 };
+
+function safeReadJson(abs) {
+  try {
+    if (!fs.existsSync(abs)) return null;
+    const raw = fs.readFileSync(abs, "utf8");
+    return JSON.parse(raw);
+  } catch (e) {
+    return null;
+  }
+}
+
+function loadDbOnce(relOverride) {
+  if (DB_CACHE) return DB_CACHE;
+
+  const rel = String(relOverride || process.env.MOVIES_PHASE0_DB_REL || DB_REL_DEFAULT);
+  const abs = path.resolve(process.cwd(), rel);
+  DB_META = { loaded: false, rel, abs, error: null, mtimeMs: 0 };
+
+  try {
+    if (!fs.existsSync(abs)) {
+      DB_META.error = "FILE_MISSING";
+      return null;
+    }
+    const stat = fs.statSync(abs);
+    DB_META.mtimeMs = Number(stat && stat.mtimeMs ? stat.mtimeMs : 0);
+
+    const json = safeReadJson(abs);
+    if (!json || typeof json !== "object") {
+      DB_META.error = "INVALID_JSON";
+      return null;
+    }
+
+    // Expect { items: [...] }
+    const items = Array.isArray(json.items) ? json.items : [];
+    DB_CACHE = {
+      version: json.version || "movies_phase0",
+      last_updated: json.last_updated || null,
+      items,
+    };
+    DB_META.loaded = true;
+    return DB_CACHE;
+  } catch (e) {
+    DB_META.error = String(e && e.message ? e.message : e);
+    return null;
+  }
+}
+
+function normalizeTitleKey(title) {
+  return lc(title)
+    .replace(/[’']/g, "")
+    .replace(/[^a-z0-9\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractArchiveIdentifierFromUrl(url) {
+  const u = cleanText(url);
+  if (!u) return null;
+  // examples:
+  // https://archive.org/details/BehindGreenLights
+  // https://archive.org/details/the-chase-pnm
+  const m = u.match(/archive\.org\/details\/([^/?#]+)/i);
+  return m ? cleanText(decodeURIComponent(m[1])) : null;
+}
+
+function looksLikeArchiveIdentifier(token) {
+  const t = cleanText(token);
+  // IA identifiers are often [a-zA-Z0-9._-] and fairly short
+  if (!t) return false;
+  if (t.length < 3 || t.length > 120) return false;
+  return /^[a-z0-9][a-z0-9._-]+$/i.test(t);
+}
+
+function findItemInDbByIdentifier(db, identifier) {
+  if (!db || !Array.isArray(db.items) || !identifier) return null;
+  const id = cleanText(identifier);
+
+  for (const it of db.items) {
+    const sources = Array.isArray(it.sources) ? it.sources : [];
+    for (const s of sources) {
+      if (!s) continue;
+      const ident = cleanText(s.identifier || "");
+      if (ident && ident.toLowerCase() === id.toLowerCase()) return it;
+
+      const url = cleanText(s.url || "");
+      const urlIdent = extractArchiveIdentifierFromUrl(url);
+      if (urlIdent && urlIdent.toLowerCase() === id.toLowerCase()) return it;
+    }
+  }
+  return null;
+}
+
+function findItemInDbByTitle(db, title) {
+  if (!db || !Array.isArray(db.items) || !title) return null;
+  const key = normalizeTitleKey(title);
+
+  for (const it of db.items) {
+    const k2 = normalizeTitleKey(it.title || "");
+    if (k2 && k2 === key) return it;
+  }
+  return null;
+}
+
+/* =========================
+   Intent detection
+========================= */
+
 function detectMoviesIntent(text) {
-  const t = cleanText(text).toLowerCase();
+  const t = lc(text);
   if (!t) return { hit: false, confidence: 0 };
 
   const strong = [
@@ -58,6 +190,10 @@ function detectMoviesIntent(text) {
     "deliverables",
     "filmhub",
     "bitmax",
+    "public domain",
+    "pd",
+    "archive.org",
+    "internet archive",
   ];
 
   const typeSignals = ["movie", "movies", "film", "films", "series", "tv show", "tv shows", "episodes", "season"];
@@ -73,6 +209,10 @@ function detectMoviesIntent(text) {
   if (isMovieish) return { hit: true, confidence: hasAny(t, strong) ? 0.9 : 0.7 };
   return { hit: false, confidence: 0 };
 }
+
+/* =========================
+   FollowUps safety
+========================= */
 
 function normalizeFollowUps(followUps) {
   const safe = Array.isArray(followUps) ? followUps : [];
@@ -99,13 +239,17 @@ function normalizeFollowUps(followUps) {
   ];
 }
 
+/* =========================
+   Acquisition fields (Phase 0)
+========================= */
+
 function pickMissing(fields) {
   const required = ["format", "era", "genres", "budgetModel", "territory", "distribution"];
   return required.filter((k) => !fields[k]);
 }
 
 function extractFields(text, prevFields) {
-  const t = cleanText(text).toLowerCase();
+  const t = lc(text);
   const fields = Object.assign({}, prevFields || {});
 
   if (!fields.format) {
@@ -128,6 +272,8 @@ function extractFields(text, prevFields) {
     if (t.includes("comedy")) g.push("comedy");
     if (t.includes("thriller")) g.push("thriller");
     if (t.includes("action")) g.push("action");
+    if (t.includes("horror")) g.push("horror");
+    if (t.includes("sci-fi") || t.includes("scifi") || t.includes("science fiction")) g.push("sci-fi");
     if (g.length) fields.genres = g.join(", ");
   }
 
@@ -164,7 +310,87 @@ function extractFields(text, prevFields) {
   return fields;
 }
 
-function buildReply(fields, missing) {
+/* =========================
+   Phase 0 numeric picker
+========================= */
+
+function parseNumericChoice(text) {
+  const t = lc(text);
+  // Accept: "1", "1.", "1)", "option 1", "option 1."
+  const m = t.match(/\b(option\s*)?([1-4])[\.\)\:]?\b/);
+  if (!m) return null;
+  const n = Number(m[2]);
+  return Number.isFinite(n) ? n : null;
+}
+
+function choiceToAction(n) {
+  if (n === 1) return { label: "Filmhub only", send: "filmhub only", plan: "filmhub_only" };
+  if (n === 2) return { label: "Bitmax only", send: "bitmax only", plan: "bitmax_only" };
+  if (n === 3) return { label: "Mix sources", send: "mix sources", plan: "mix_sources" };
+  if (n === 4) return { label: "UK focus", send: "uk focus", plan: "uk_focus" };
+  return null;
+}
+
+/* =========================
+   PD / Catalog reply builder
+========================= */
+
+function formatRightsLine(rights) {
+  const r = rights && typeof rights === "object" ? rights : {};
+  const status = cleanText(r.status || "unknown");
+  const conf = cleanText(r.confidence || "unknown");
+  const basis = cleanText(r.basis || "unknown");
+  return `Rights: ${status} (confidence: ${conf}; basis: ${basis})`;
+}
+
+function buildCatalogReply(item) {
+  if (!item || typeof item !== "object") return null;
+
+  const title = cleanText(item.title || "Unknown title");
+  const year = item.year != null ? String(item.year) : "Unknown year";
+  const type = cleanText(item.type || "unknown_type");
+  const genres = Array.isArray(item.genres) ? item.genres.filter(Boolean).join(", ") : cleanText(item.genres || "");
+  const sum = cleanText(item.summary || "");
+  const rightsLine = formatRightsLine(item.rights);
+
+  const src = Array.isArray(item.sources) ? item.sources[0] : null;
+  const srcUrl = src && src.url ? cleanText(src.url) : "";
+  const srcIdent = src && src.identifier ? cleanText(src.identifier) : "";
+
+  const lines = [];
+  lines.push("Public-domain catalog (Phase 0) — match found.");
+  lines.push(`• Title: ${title} (${year})`);
+  lines.push(`• Type: ${type}`);
+  if (genres) lines.push(`• Genres: ${genres}`);
+  if (sum) lines.push(`• Summary: ${sum}`);
+  lines.push(`• ${rightsLine}`);
+  if (srcIdent) lines.push(`• IA Identifier: ${srcIdent}`);
+  if (srcUrl) lines.push(`• Source: ${srcUrl}`);
+  lines.push("");
+  lines.push("Next step: say “verify rights” to run the verification checklist, or “add 5 more” to expand the Phase 0 catalog.");
+
+  return lines.join("\n");
+}
+
+function buildCatalogFollowUps() {
+  return normalizeFollowUps([
+    { label: "Verify rights", send: "verify rights" },
+    { label: "Add 5 more", send: "add 5 more" },
+    { label: "Search by title", send: "search title" },
+    { label: "Search by IA ID", send: "search ia id" },
+    { label: "List Phase 0", send: "list phase 0" },
+    { label: "Movie", send: "movie" },
+    { label: "Series", send: "series" },
+    { label: "Filmhub", send: "filmhub" },
+  ]);
+}
+
+/* =========================
+   Phase 0 acquisition reply builder
+========================= */
+
+function buildReply(fields, missing, plan) {
+  // plan is optional: filmhub_only / bitmax_only / etc.
   if (!missing.length) {
     return [
       "Movies Phase 0 locked.",
@@ -175,9 +401,11 @@ function buildReply(fields, missing) {
       `• Territory: ${fields.territory}`,
       `• Distribution: ${fields.distribution}`,
       fields.sources ? `• Sources: ${fields.sources}` : null,
+      plan ? `• Shortlist plan: ${plan.replace(/_/g, " ")}` : null,
       "",
       "Next: pick one so I generate a 10–15 title shortlist:",
       "1) Filmhub only  2) Bitmax only  3) Mix sources  4) UK focus",
+      "Or paste an archive.org link/title to switch into PD catalog lookup.",
     ]
       .filter(Boolean)
       .join("\n");
@@ -197,10 +425,11 @@ function buildReply(fields, missing) {
     "",
     "Reply in one line like:",
     "“series | late 70s–80s | crime, detective | rev-share/no-MG | Canada | FAST+AVOD”",
+    "Or paste an archive.org link/title to pull Phase 0 metadata.",
   ].join("\n");
 }
 
-function buildFollowUps(fields, missing) {
+function buildFollowUps(fields, missing, locked) {
   if (missing.length) {
     return normalizeFollowUps([
       { label: "Movie", send: "movie" },
@@ -215,25 +444,140 @@ function buildFollowUps(fields, missing) {
     ]);
   }
 
+  // Locked acquisition state
   return normalizeFollowUps([
-    { label: "Filmhub only", send: "filmhub only" },
-    { label: "Bitmax only", send: "bitmax only" },
-    { label: "Mix sources", send: "mix sources" },
-    { label: "UK focus", send: "uk focus" },
+    { label: "1) Filmhub only", send: "1" },
+    { label: "2) Bitmax only", send: "2" },
+    { label: "3) Mix sources", send: "3" },
+    { label: "4) UK focus", send: "4" },
     { label: "Generate shortlist", send: "generate phase 0 shortlist" },
+    { label: "PD catalog lookup", send: "pd catalog" },
+    { label: "Search IA ID", send: "search ia id" },
+    { label: "Search title", send: "search title" },
   ]);
 }
+
+/* =========================
+   Main handler
+========================= */
 
 function handleChat({ text, session }) {
   const input = cleanText(text);
   const sess = session || {};
-  const prev = sess.movies && sess.movies.phase0 ? sess.movies.phase0 : {};
+  const prevPhase0 = sess.movies && sess.movies.phase0 ? sess.movies.phase0 : {};
 
-  const fields = extractFields(input, prev);
+  // Always ensure DB is available (if the file exists)
+  const db = loadDbOnce();
+
+  // --- Catalog lookup triggers ---
+  // 1) archive.org URL
+  const urlIdent = extractArchiveIdentifierFromUrl(input);
+  if (urlIdent) {
+    const item = findItemInDbByIdentifier(db, urlIdent);
+    const reply = item
+      ? buildCatalogReply(item)
+      : [
+          "Public-domain catalog (Phase 0) — I can see the archive.org identifier, but it’s not in our local Phase 0 DB yet.",
+          `• IA Identifier: ${urlIdent}`,
+          "",
+          "Next: say “add this” and I’ll create a normalized record, or “search title” if you have the exact name/year.",
+        ].join("\n");
+
+    const followUps = buildCatalogFollowUps();
+
+    const sessionPatch = {
+      lane: "movies",
+      movies: {
+        phase0: { ...prevPhase0 },
+        catalog: {
+          lastQuery: input,
+          lastIdentifier: urlIdent,
+          lastTitle: item ? item.title : "",
+          lastMatched: !!item,
+          dbLoaded: !!(DB_META && DB_META.loaded),
+        },
+      },
+    };
+
+    return { reply, followUps, sessionPatch };
+  }
+
+  // 2) direct identifier token (BehindGreenLights)
+  if (looksLikeArchiveIdentifier(input) && input.length <= 80 && !input.includes(" ")) {
+    const item = findItemInDbByIdentifier(db, input);
+    const reply = item
+      ? buildCatalogReply(item)
+      : [
+          "Public-domain catalog (Phase 0) — identifier received, but not found in the local DB yet.",
+          `• IA Identifier: ${input}`,
+          "",
+          "Next: paste the full archive.org/details/ link so I can capture richer metadata, or say “add this”.",
+        ].join("\n");
+
+    const followUps = buildCatalogFollowUps();
+
+    const sessionPatch = {
+      lane: "movies",
+      movies: {
+        phase0: { ...prevPhase0 },
+        catalog: {
+          lastQuery: input,
+          lastIdentifier: input,
+          lastTitle: item ? item.title : "",
+          lastMatched: !!item,
+          dbLoaded: !!(DB_META && DB_META.loaded),
+        },
+      },
+    };
+
+    return { reply, followUps, sessionPatch };
+  }
+
+  // 3) title lookup (best-effort) if DB exists and user asks about a known title
+  // Heuristic: contains at least one alphabetic char and length reasonable
+  if (db && db.items && /[a-z]/i.test(input) && input.length >= 4) {
+    // If user asked “is this public domain” and includes a title phrase
+    const maybeTitle = input
+      .replace(/is\s+this\s+in\s+public\s+domain\??/i, "")
+      .replace(/is\s+this\s+public\s+domain\??/i, "")
+      .trim();
+
+    const item = findItemInDbByTitle(db, maybeTitle) || findItemInDbByTitle(db, input);
+    if (item) {
+      const reply = buildCatalogReply(item);
+      const followUps = buildCatalogFollowUps();
+      const sessionPatch = {
+        lane: "movies",
+        movies: {
+          phase0: { ...prevPhase0 },
+          catalog: {
+            lastQuery: input,
+            lastIdentifier: "",
+            lastTitle: item.title || "",
+            lastMatched: true,
+            dbLoaded: !!(DB_META && DB_META.loaded),
+          },
+        },
+      };
+      return { reply, followUps, sessionPatch };
+    }
+  }
+
+  // --- Acquisition Phase 0 flow ---
+  const fields = extractFields(input, prevPhase0);
   const missing = pickMissing(fields);
+  const locked = missing.length === 0;
 
-  const reply = buildReply(fields, missing);
-  const followUps = buildFollowUps(fields, missing);
+  // Handle numeric selection once locked (your “1.” message)
+  let plan = cleanText(prevPhase0.plan || "");
+  const n = parseNumericChoice(input);
+  if (locked && n) {
+    const action = choiceToAction(n);
+    if (action) plan = action.plan;
+  }
+
+  const reply = buildReply(fields, missing, plan);
+  const followUps = buildFollowUps(fields, missing, locked);
 
   const sessionPatch = {
     lane: "movies",
@@ -241,6 +585,13 @@ function handleChat({ text, session }) {
       phase0: {
         ...fields,
         missing,
+        plan: plan || "",
+      },
+      // light diagnostics for DB without being noisy
+      catalog: {
+        dbLoaded: !!(DB_META && DB_META.loaded),
+        dbRel: DB_META ? DB_META.rel : DB_REL_DEFAULT,
+        dbError: DB_META ? DB_META.error : null,
       },
     },
   };
