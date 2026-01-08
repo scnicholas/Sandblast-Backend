@@ -1,0 +1,16 @@
+{
+  "version": "1.0",
+  "coverage": {
+    "minYear": 1950,
+    "maxYear": 2024
+  },
+  "moments": [
+    {
+      "year": 1984,
+      "rank": 1,
+      "artist": "Prince",
+      "title": "When Doves Cry",
+      "moment": "In 1984, “When Doves Cry” felt like a rupture..."
+    }
+  ]
+}

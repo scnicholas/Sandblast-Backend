@@ -1,0 +1,91 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="NyxRegressionHarness" tests="42" failures="3" time="8.678">
+  <testcase classname="Nyx" name="GET /api/contract ok + using field" time="0.703">
+  </testcase>
+  <testcase classname="Nyx" name="POST /api/diag/echo echoes + contractUsing exists" time="0.325">
+  </testcase>
+  <testcase classname="Nyx" name="POST /api/chat returns requestId + sessionId" time="0.181">
+  </testcase>
+  <testcase classname="Nyx" name="Contract v1 followUps shape (if enabled) OR legacy followUp exists" time="0.345">
+  </testcase>
+  <testcase classname="Nyx" name="CAT: Greet empty" time="0.198">
+  </testcase>
+  <testcase classname="Nyx" name="CAT: Greet hi" time="0.171">
+    <failure message="Expected reply to match regex: (?i)\b(hi|hey|welcome|on air)\b"></failure>
+  </testcase>
+  <testcase classname="Nyx" name="CAT: Ask help" time="0.124">
+  </testcase>
+  <testcase classname="Nyx" name="CAT: Missing year Top 10" time="0.118">
+  </testcase>
+  <testcase classname="Nyx" name="CAT: Missing year story" time="0.121">
+  </testcase>
+  <testcase classname="Nyx" name="CAT: Missing year micro" time="0.107">
+  </testcase>
+  <testcase classname="Nyx" name="CAT: Year only 1950" time="0.123">
+  </testcase>
+  <testcase classname="Nyx" name="CAT: Year only 1955" time="0.118">
+  </testcase>
+  <testcase classname="Nyx" name="CAT: Top 10 1950" time="0.129">
+  </testcase>
+  <testcase classname="Nyx" name="CAT: Story 1950" time="0.126">
+  </testcase>
+  <testcase classname="Nyx" name="CAT: Micro 1950" time="0.127">
+  </testcase>
+  <testcase classname="Nyx" name="CAT: Top 10 1988" time="0.147">
+  </testcase>
+  <testcase classname="Nyx" name="CAT: Story 1988" time="0.121">
+  </testcase>
+  <testcase classname="Nyx" name="CAT: Micro 1988" time="0.121">
+  </testcase>
+  <testcase classname="Nyx" name="CAT: Top 10 2024" time="0.109">
+  </testcase>
+  <testcase classname="Nyx" name="CAT: Story 2024" time="0.109">
+  </testcase>
+  <testcase classname="Nyx" name="CAT: Micro 2024" time="0.12">
+  </testcase>
+  <testcase classname="Nyx" name="CAT: Nonsense input" time="0.134">
+  </testcase>
+  <testcase classname="Nyx" name="CAT: Ambiguous request" time="0.113">
+  </testcase>
+  <testcase classname="Nyx" name="CAT: Ask range" time="0.13">
+  </testcase>
+  <testcase classname="Nyx" name="CAT: Repeat guard 1" time="0.132">
+  </testcase>
+  <testcase classname="Nyx" name="CAT: Repeat guard 2" time="0.133">
+  </testcase>
+  <testcase classname="Nyx" name="CAT: Repeat guard 3" time="0.108">
+  </testcase>
+  <testcase classname="Nyx" name="CAT: Short ping" time="0.11">
+    <failure message="Expected reply to match regex: (?i)\b(yo|hi|hey|welcome|on air)\b"></failure>
+  </testcase>
+  <testcase classname="Nyx" name="CAT: Question: what can you do" time="0.112">
+  </testcase>
+  <testcase classname="Nyx" name="CAT: Contract v1 hint" time="0.122">
+  </testcase>
+  <testcase classname="Nyx" name="CAT: Top 10 1967" time="0.115">
+  </testcase>
+  <testcase classname="Nyx" name="CAT: Top 10 1979" time="0.127">
+  </testcase>
+  <testcase classname="Nyx" name="CAT: Top 10 1999" time="0.137">
+  </testcase>
+  <testcase classname="Nyx" name="CAT: Story 1959" time="0.142">
+  </testcase>
+  <testcase classname="Nyx" name="CAT: Micro 1959" time="0.119">
+  </testcase>
+  <testcase classname="Nyx" name="CAT: Tone: no scolding" time="0.125">
+  </testcase>
+  <testcase classname="Nyx" name="CAT: Next steps present" time="0.117">
+  </testcase>
+  <testcase classname="Nyx" name="CAT: Casual ask" time="0.125">
+  </testcase>
+  <testcase classname="Nyx" name="CAT: Echo stays alive" time="0.134">
+    <failure message="Expected reply to match regex: (?i)\b(health|echo)\b"></failure>
+  </testcase>
+  <testcase classname="Nyx" name="POST /api/tts returns audioBytes" time="1.542">
+  </testcase>
+  <testcase classname="Nyx" name="POST /api/voice alias returns audioBytes" time="1.002">
+  </testcase>
+  <testcase classname="Nyx" name="POST /api/s2s returns transcript + reply" time="0">
+  </testcase>
+</testsuite>
+
