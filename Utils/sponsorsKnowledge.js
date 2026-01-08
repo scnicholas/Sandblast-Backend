@@ -5,8 +5,8 @@
  *
  * Purpose:
  *  - Load Data/sponsors/sponsors_catalog_v1.json
- *  - Provide normalized helpers for categories, tiers, CTAs, restrictions
- *  - Provide a simple recommender scaffold (tier + bundle suggestion)
+ *  - Provide normalized helpers for categories, tiers/packages, CTAs, restrictions
+ *  - Provide a simple recommender scaffold (tier/package + bundle suggestion)
  *
  * Design notes:
  *  - No external deps
@@ -76,6 +76,17 @@ function pickFirstNonEmpty(arr, fallback) {
   return fallback;
 }
 
+/**
+ * Normalized token helper (shared across modules)
+ */
+function normToken(s) {
+  return String(s || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, "")
+    .replace(/\s+/g, "_");
+}
+
 function findCatalogPath(relPath) {
   // 0) Env override supports absolute or relative
   const env = cleanText(process.env[ENV_CATALOG_PATH] || "");
@@ -110,15 +121,18 @@ function findCatalogPath(relPath) {
   return null;
 }
 
+/* ======================================================
+   Normalizers
+====================================================== */
+
 function normalizeTier(t) {
   const obj = t && typeof t === "object" ? t : {};
-  const id = cleanText(obj.id).toLowerCase();
+  const id = normToken(obj.id);
   if (!id) return null;
 
   const label = cleanText(obj.label || obj.name || obj.id);
   const price_range = obj.price_range && typeof obj.price_range === "object" ? obj.price_range : null;
 
-  // Optional per-tier defaults (not required)
   const includes = Array.isArray(obj.includes) ? obj.includes.map(cleanText).filter(Boolean) : [];
   const frequency_hint = cleanText(obj.frequency_hint || obj.frequency || "");
 
@@ -128,6 +142,27 @@ function normalizeTier(t) {
     price_range,
     includes,
     frequency_hint: frequency_hint || null,
+  };
+}
+
+function normalizePackage(p) {
+  const obj = p && typeof p === "object" ? p : {};
+  const id = normToken(obj.id);
+  if (!id) return null;
+
+  const name = cleanText(obj.name || obj.label || obj.id);
+  const channels = Array.isArray(obj.channels) ? obj.channels.map(normToken).filter(Boolean) : [];
+  const bestFor = Array.isArray(obj.bestFor) ? obj.bestFor.map(cleanText).filter(Boolean) : [];
+  const includes = Array.isArray(obj.includes) ? obj.includes.map(cleanText).filter(Boolean) : [];
+  const priceRange = cleanText(obj.priceRange || obj.price_range || "");
+
+  return {
+    id,
+    name,
+    channels,
+    bestFor,
+    includes,
+    priceRange: priceRange || null,
   };
 }
 
@@ -146,7 +181,7 @@ function normalizeCatalog(cat) {
     social: asBool(propsIn.social, true),
   };
 
-  // Tiers normalized + dedup by id
+  // Tiers normalized + dedup by id (optional in your JSON)
   const tiersRaw = Array.isArray(catalog.tiers) ? catalog.tiers : [];
   const tiersNorm = [];
   const seenTier = new Set();
@@ -158,19 +193,29 @@ function normalizeCatalog(cat) {
     tiersNorm.push(nt);
   }
 
-  // CTAs normalized
+  // Packages normalized + dedup by id (your sponsors_catalog_v1.json uses packages)
+  const pkgsRaw = Array.isArray(catalog.packages) ? catalog.packages : [];
+  const packagesNorm = [];
+  const seenPkg = new Set();
+  for (const pr of pkgsRaw) {
+    const np = normalizePackage(pr);
+    if (!np) continue;
+    if (seenPkg.has(np.id)) continue;
+    seenPkg.add(np.id);
+    packagesNorm.push(np);
+  }
+
+  // CTAs normalized (optional)
   const ctAs = catalog.ctas && typeof catalog.ctas === "object" ? catalog.ctas : {};
   const ctas = {
     primary: cleanText(ctAs.primary || "book_a_call") || "book_a_call",
     options: Array.isArray(ctAs.options) ? ctAs.options.map(cleanText).filter(Boolean) : [],
-    // Optional per-CTA payloads/labels can live in JSON; we preserve unknown keys
     ...ctAs,
   };
 
-  // Restrictions normalized
+  // Restrictions normalized (optional)
   const restrictionsIn = catalog.restrictions && typeof catalog.restrictions === "object" ? catalog.restrictions : {};
   const restrictions = {
-    // Common keys (all optional)
     restricted_categories: Array.isArray(restrictionsIn.restricted_categories)
       ? restrictionsIn.restricted_categories.map(cleanText).filter(Boolean)
       : [],
@@ -185,12 +230,13 @@ function normalizeCatalog(cat) {
   const nyx_lane_prompts =
     catalog.nyx_lane_prompts && typeof catalog.nyx_lane_prompts === "object" ? catalog.nyx_lane_prompts : {};
 
-  // Optional defaults (helps sponsorsLane avoid asking the same thing repeatedly)
+  // Defaults (optional)
   const defaultsIn = catalog.defaults && typeof catalog.defaults === "object" ? catalog.defaults : {};
   const defaults = {
     currency: cleanText(defaultsIn.currency || currency) || currency,
     cta: cleanText(defaultsIn.cta || ctas.primary) || ctas.primary,
-    tier: cleanText(defaultsIn.tier || "growth_bundle") || "growth_bundle",
+    // Prefer a package/tier-like default if present; else "growth_bundle" / "growth"
+    tier: normToken(defaultsIn.tier || "growth_bundle") || "growth_bundle",
     ...defaultsIn,
   };
 
@@ -199,7 +245,8 @@ function normalizeCatalog(cat) {
     updated,
     currency,
     properties,
-    tiers: tiersNorm,
+    tiers: tiersNorm, // optional legacy path
+    packages: packagesNorm, // canonical path for v1
     categories,
     restrictions,
     ctas,
@@ -207,6 +254,10 @@ function normalizeCatalog(cat) {
     nyx_lane_prompts,
   };
 }
+
+/* ======================================================
+   Load / Cache
+====================================================== */
 
 /**
  * Load catalog (cached). If file changes on disk, reload.
@@ -280,12 +331,22 @@ function getCatalog() {
 function getCatalogMeta() {
   const c = getCatalog();
   if (!c) return null;
+
+  const tiers = (c.tiers || []).map((t) => ({ id: t.id, label: t.label, price_range: t.price_range || null }));
+  const packages = (c.packages || []).map((p) => ({
+    id: p.id,
+    name: p.name,
+    channels: p.channels || [],
+    priceRange: p.priceRange || null,
+  }));
+
   return {
     version: c.version,
     updated: c.updated,
     currency: c.currency,
     properties: c.properties,
-    tiers: (c.tiers || []).map((t) => ({ id: t.id, label: t.label, price_range: t.price_range || null })),
+    tiers,
+    packages,
   };
 }
 
@@ -295,41 +356,149 @@ function getProperties() {
   return cat.properties || { tv: true, radio: true, website: true, social: true };
 }
 
-function getTierById(tierId) {
-  const cat = getCatalog();
-  if (!cat) return null;
-  const id = cleanText(tierId).toLowerCase();
-  return (cat.tiers || []).find((t) => cleanText(t.id).toLowerCase() === id) || null;
-}
+/* ======================================================
+   Category / Package helpers (new)
+====================================================== */
 
-function listTierChoices() {
-  const cat = getCatalog();
-  if (!cat) return [];
-  return (cat.tiers || []).map((t) => ({
-    id: cleanText(t.id),
-    label: cleanText(t.label || t.id),
-    range: t.price_range || null,
-    frequency_hint: t.frequency_hint || null,
-  }));
-}
-
-function listCategoryIds() {
-  const cat = getCatalog();
+function listCategoryIds(catalogMaybe) {
+  const cat = catalogMaybe || getCatalog();
   if (!cat) return [];
   return Object.keys(cat.categories || {}).map((k) => cleanText(k)).filter(Boolean);
+}
+
+function getCategory(catalogMaybe, categoryId) {
+  const cat = catalogMaybe || getCatalog();
+  if (!cat) return null;
+
+  const wanted = normToken(categoryId);
+  if (!wanted) return null;
+
+  const obj = cat.categories || {};
+  if (obj[wanted]) return obj[wanted];
+
+  const hitKey = Object.keys(obj).find((k) => normToken(k) === wanted);
+  return hitKey ? obj[hitKey] : null;
 }
 
 function getCategoryById(categoryId) {
   const cat = getCatalog();
   if (!cat) return null;
-  const id = cleanText(categoryId).toLowerCase();
+
+  const id = normToken(categoryId);
   const obj = cat.categories || {};
-  const hitKey = Object.keys(obj).find((k) => cleanText(k).toLowerCase() === id);
+  const hitKey = Object.keys(obj).find((k) => normToken(k) === id);
   if (!hitKey) return null;
+
   const v = obj[hitKey];
   if (v && typeof v === "object") return { id: hitKey, ...v };
   return { id: hitKey, label: cleanText(String(v || hitKey)) };
 }
+
+function getPackageById(catalogMaybe, packageId) {
+  const cat = catalogMaybe || getCatalog();
+  if (!cat) return null;
+
+  const pid = normToken(packageId);
+  if (!pid) return null;
+
+  const pkgs = Array.isArray(cat.packages) ? cat.packages : [];
+  return pkgs.find((p) => normToken(p.id) === pid) || null;
+}
+
+/**
+ * Recommend *package ids* given category + budgetTier.
+ * - budgetTier wins if explicit (starter_test/growth_bundle/dominance)
+ * - else category.recommended from catalog if present
+ * - else fallback ["growth"]
+ */
+function recommendPackageIds(catalogMaybe, categoryId, budgetTier) {
+  const cat = catalogMaybe || getCatalog();
+  if (!cat) return ["growth"];
+
+  const bt = normToken(budgetTier);
+
+  if (bt === "starter_test" || bt === "starter") return ["starter"];
+  if (bt === "growth_bundle" || bt === "growth") return ["growth"];
+  if (bt === "dominance") return ["dominance"];
+
+  const c = getCategory(cat, categoryId);
+  const rec = c && typeof c === "object" && Array.isArray(c.recommended) ? c.recommended : null;
+  if (rec && rec.length) return rec.map(normToken).filter(Boolean);
+
+  return ["growth"];
+}
+
+/* ======================================================
+   Tier/Package compatibility layer
+   - Your v1 JSON uses packages (starter/growth/dominance)
+   - Some older logic expects "tiers" (starter_test/growth_bundle/dominance)
+====================================================== */
+
+function getTierById(tierId) {
+  const cat = getCatalog();
+  if (!cat) return null;
+
+  const id = normToken(tierId);
+  if (!id) return null;
+
+  // 1) true tier list (if present)
+  const hitTier = (cat.tiers || []).find((t) => normToken(t.id) === id);
+  if (hitTier) return hitTier;
+
+  // 2) package fallback (map growth_bundle -> growth etc.)
+  const map = {
+    starter_test: "starter",
+    growth_bundle: "growth",
+    dominance: "dominance",
+    starter: "starter",
+    growth: "growth",
+  };
+  const pid = map[id] || id;
+  const p = (cat.packages || []).find((x) => normToken(x.id) === pid);
+  if (!p) return null;
+
+  // Return tier-like shape
+  return {
+    id: pid,
+    label: cleanText(p.name || p.id),
+    price_range: p.priceRange ? { text: p.priceRange } : null,
+    includes: Array.isArray(p.includes) ? p.includes : [],
+    frequency_hint: null,
+  };
+}
+
+function listTierChoices() {
+  const cat = getCatalog();
+  if (!cat) return [];
+
+  const out = [];
+
+  // Prefer tiers if defined
+  if (Array.isArray(cat.tiers) && cat.tiers.length) {
+    return cat.tiers.map((t) => ({
+      id: cleanText(t.id),
+      label: cleanText(t.label || t.id),
+      range: t.price_range || null,
+      frequency_hint: t.frequency_hint || null,
+    }));
+  }
+
+  // Fall back to packages
+  const pkgs = Array.isArray(cat.packages) ? cat.packages : [];
+  for (const p of pkgs) {
+    out.push({
+      id: cleanText(p.id),
+      label: cleanText(p.name || p.id),
+      range: p.priceRange ? { text: p.priceRange } : null,
+      frequency_hint: null,
+    });
+  }
+  return out;
+}
+
+/* ======================================================
+   Token normalizers
+====================================================== */
 
 function normalizePropertyToken(s) {
   const t = cleanText(s).toLowerCase();
@@ -349,7 +518,7 @@ function normalizeCtaToken(s) {
   if (!t) return null;
 
   if (t.includes("book") && t.includes("call")) return "book_a_call";
-  if (t.includes("rate") && (t.includes("card") || t.includes("rates"))) return "request_rate_card";
+  if (t.includes("rate") && (t.includes("card") || t.includes("rates") || t.includes("pricing"))) return "request_rate_card";
   if (t.includes("whatsapp") || /\bwa\b/.test(t)) return "whatsapp";
 
   return null;
@@ -381,7 +550,6 @@ function normalizeBudgetToken(s) {
 
   const rng = parseBudgetNumbers(t);
   if (rng) {
-    // classify by midpoint (simple)
     const mid = (rng.min + rng.max) / 2;
     if (mid < 500) return "starter_test";
     if (mid >= 500 && mid < 1500) return "growth_bundle";
@@ -409,14 +577,17 @@ function normalizeCategoryToken(s) {
   if (/\b(tutor|school|course|training|education)\b/.test(t)) return "education_tutoring_training";
   if (/\b(clinic|doctor|health|medical)\b/.test(t)) return "local_clinics_compliant";
 
-  // fallback: return "other" (lane can accept)
   return "other";
 }
 
+/* ======================================================
+   Bundle helpers
+====================================================== */
+
 function allowedBundleFromCatalog(props, wanted) {
-  // wanted: array of keys or single
   const out = [];
   const allow = props || { tv: true, radio: true, website: true, social: true };
+
   const pushIf = (k) => {
     if (!k) return;
     if (k === "tv" && !allow.tv) return;
@@ -432,10 +603,14 @@ function allowedBundleFromCatalog(props, wanted) {
   return out;
 }
 
+/* ======================================================
+   Recommendation scaffold
+====================================================== */
+
 /**
  * Recommendation scaffold.
  * Inputs: { property, tierId, budget, category, goal, cta }
- * Output: { ok, tierId, tierLabel, currency, propertyBundle, frequencyHint, notes, cta }
+ * Output: { ok, tierId, tierLabel, currency, propertyBundle, frequencyHint, notes, cta, recommendedPackageIds }
  */
 function recommendPackage(input = {}) {
   const cat = getCatalog();
@@ -447,56 +622,60 @@ function recommendPackage(input = {}) {
       propertyBundle: [],
       frequencyHint: null,
       notes: "Sponsors catalog is not loaded.",
+      recommendedPackageIds: [],
     };
   }
 
   const props = cat.properties || { tv: true, radio: true, website: true, social: true };
-
   const property = normalizePropertyToken(input.property) || "bundle";
 
   // Tier selection priority:
-  // 1) explicit tierId if it matches catalog
+  // 1) explicit tierId if it matches catalog (tiers OR packages)
   // 2) budget token (starter/growth/dominance)
   // 3) catalog defaults
-  // 4) fallback growth_bundle
-  const explicitTierId = cleanText(input.tierId).toLowerCase();
+  // 4) fallback growth_bundle (or first available)
+  const explicitTierId = normToken(input.tierId);
   const tierFromBudget = normalizeBudgetToken(input.budget);
   let tierId = null;
 
   if (explicitTierId && getTierById(explicitTierId)) tierId = explicitTierId;
   else if (tierFromBudget && getTierById(tierFromBudget)) tierId = tierFromBudget;
-  else if (cat.defaults && cleanText(cat.defaults.tier) && getTierById(cat.defaults.tier)) tierId = cleanText(cat.defaults.tier).toLowerCase();
-  else tierId = getTierById("growth_bundle") ? "growth_bundle" : ((cat.tiers && cat.tiers[0] && cat.tiers[0].id) || "growth_bundle");
+  else if (cat.defaults && normToken(cat.defaults.tier) && getTierById(cat.defaults.tier)) tierId = normToken(cat.defaults.tier);
+  else tierId = getTierById("growth_bundle") ? "growth_bundle" : ((cat.tiers && cat.tiers[0] && cat.tiers[0].id) || (cat.packages && cat.packages[0] && cat.packages[0].id) || "growth_bundle");
 
   const category = normalizeCategoryToken(input.category) || "other";
   const goal = cleanText(input.goal) || "brand awareness";
 
-  const cta = normalizeCtaToken(input.cta) || (cat.defaults && cleanText(cat.defaults.cta)) || (cat.ctas && cat.ctas.primary) || "book_a_call";
+  const cta =
+    normalizeCtaToken(input.cta) ||
+    (cat.defaults && cleanText(cat.defaults.cta)) ||
+    (cat.ctas && cat.ctas.primary) ||
+    "book_a_call";
 
   // Bundle logic (respects enabled properties)
   let bundle = [];
   if (property === "bundle") {
-    // Preferred order: tv (if enabled), then radio, website, social
     bundle = allowedBundleFromCatalog(props, ["tv", "radio", "website", "social"]);
-    // If only one property is enabled, keep it, else keep the core 3 if tv disabled
     if (!props.tv && bundle.length > 3) bundle = bundle.filter((x) => x !== "tv");
   } else {
     bundle = allowedBundleFromCatalog(props, [property]);
-    // If requested property is disabled, fall back to whatever is available
     if (!bundle.length) bundle = allowedBundleFromCatalog(props, ["radio", "website", "social", "tv"]);
   }
 
   const tier = getTierById(tierId);
-  const tierLabel = tier ? cleanText(tier.label || tier.id) : tierId;
+  const tierLabel = tier ? cleanText(tier.label || tier.id) : cleanText(tierId);
 
   // Frequency hint by tier, prefer catalog-defined hint
   let freq = tier && tier.frequency_hint ? tier.frequency_hint : null;
   if (!freq) {
-    if (tierId === "starter_test") freq = "Low frequency: 2–3 mentions/week (test + learn)";
-    else if (tierId === "growth_bundle") freq = "Core frequency: 4–7 mentions/week (enough repetition to move outcomes)";
-    else if (tierId === "dominance") freq = "High frequency: daily mentions or sponsored segment ownership";
+    const idn = normToken(tierId);
+    if (idn === "starter_test" || idn === "starter") freq = "Low frequency: 2–3 mentions/week (test + learn)";
+    else if (idn === "growth_bundle" || idn === "growth") freq = "Core frequency: 4–7 mentions/week (enough repetition to move outcomes)";
+    else if (idn === "dominance") freq = "High frequency: daily mentions or sponsored segment ownership";
     else freq = "Steady frequency matched to your flight dates and goals.";
   }
+
+  const recommendedPackageIds = recommendPackageIds(cat, category, tierId);
 
   const notes = [
     `Category: ${category}`,
@@ -514,8 +693,13 @@ function recommendPackage(input = {}) {
     frequencyHint: freq,
     notes,
     cta,
+    recommendedPackageIds,
   };
 }
+
+/* ======================================================
+   Restrictions / CTA / Prompts
+====================================================== */
 
 function getRestrictions() {
   const cat = getCatalog();
@@ -526,6 +710,7 @@ function getRestrictions() {
 function isRestrictedCategory(categoryIdOrText) {
   const cat = getCatalog();
   if (!cat) return false;
+
   const r = cat.restrictions || {};
   const list = Array.isArray(r.restricted_categories) ? r.restricted_categories : [];
   if (!list.length) return false;
@@ -556,30 +741,43 @@ module.exports = {
   DEFAULT_CATALOG_REL,
   ENV_CATALOG_PATH,
 
+  // Load/cache
   loadCatalog,
   getCatalog,
   getCatalogMeta,
+  getCatalogDebug,
 
+  // Token helper
+  normToken,
+
+  // Properties
   getProperties,
+  allowedBundleFromCatalog,
 
+  // Tiers/packages
   getTierById,
   listTierChoices,
+  getPackageById,
 
+  // Categories
   listCategoryIds,
+  getCategory,
   getCategoryById,
 
+  // Normalizers
   normalizePropertyToken,
   normalizeCtaToken,
   normalizeBudgetToken,
   normalizeCategoryToken,
-
   parseBudgetNumbers,
 
+  // Recommendations
   recommendPackage,
+  recommendPackageIds,
+
+  // Governance
   getRestrictions,
   isRestrictedCategory,
   getCtas,
   getLanePrompts,
-
-  getCatalogDebug,
 };
