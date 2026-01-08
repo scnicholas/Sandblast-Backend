@@ -3,14 +3,17 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.4.5 (contract hardening + engine loop-closure + debug snapshot; preserves v1.4.4)
+ * index.js v1.4.6 (Sponsors Lane v1 routing + catalog-backed replies; preserves v1.4.5)
  *
  * Adds:
- *  - Response helper that guarantees followUps array of {label,send} (never missing)
- *  - Engine loop-closure: if engine asks for year/mode despite session having it, re-run once with explicit command
- *  - Optional debug snapshot: /api/chat?debug=1 includes state + engine metadata (safe, small)
+ *  - Sponsors Lane router (lane:"sponsors" or sponsor-intent keywords) with safe fallbacks
+ *  - Optional sponsorsKnowledge module + catalog-driven responses
+ *  - Sponsors followUps merged into contract-hard respondJson (never missing)
  *
  * Preserves:
+ *  - Contract-hard followUps array of {label,send} (never missing)
+ *  - Engine loop-closure (re-run once when engine asks for year/mode despite session state)
+ *  - Optional debug snapshot: /api/chat?debug=1 includes state + engine metadata (safe, small)
  *  - Render/server timeouts + upstream AbortController timeout
  *  - Top10 chart fallback ladder + gap-aware replies
  *  - CORS origin normalization (www/non-www), same corsOptions for preflight
@@ -23,6 +26,8 @@
 const express = require("express");
 const crypto = require("crypto");
 const cors = require("cors");
+const fs = require("fs");
+const path = require("path");
 
 const app = express();
 
@@ -32,7 +37,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.4.5 (contract hardening + engine loop-closure + debug snapshot; preserves v1.4.4)";
+  "index.js v1.4.6 (Sponsors Lane v1 routing + catalog-backed replies; preserves v1.4.5)";
 
 /* ======================================================
    Basic middleware
@@ -315,6 +320,16 @@ function getSession(sessionId) {
 
       // Voice continuity
       voiceMode: "standard", // "calm" | "standard" | "high"
+
+      // Sponsors context (v1)
+      sponsors: {
+        goal: null, // "awareness" | "leads"
+        budget: null, // string bucket
+        business: null,
+        location: null,
+        needsCreative: null, // true/false
+        lastPackageId: null,
+      },
     });
   }
 
@@ -351,6 +366,74 @@ try {
   musicKnowledge = require("./Utils/musicKnowledge");
 } catch {
   musicKnowledge = null;
+}
+
+let sponsorsKnowledge = null;
+try {
+  sponsorsKnowledge = require("./Utils/sponsorsKnowledge");
+} catch {
+  sponsorsKnowledge = null;
+}
+
+/* ======================================================
+   Sponsors catalog (optional JSON; safe fallback if missing)
+====================================================== */
+
+let SPONSORS_CATALOG = null;
+
+function loadSponsorsCatalogOnce() {
+  if (SPONSORS_CATALOG) return SPONSORS_CATALOG;
+
+  // allow override via env
+  const rel = String(process.env.SPONSORS_CATALOG_REL || "Data/sponsors/sponsors_catalog_v1.json");
+  const abs = path.resolve(process.cwd(), rel);
+
+  try {
+    if (fs.existsSync(abs)) {
+      const raw = fs.readFileSync(abs, "utf8");
+      const json = JSON.parse(raw);
+      SPONSORS_CATALOG = json && typeof json === "object" ? json : null;
+      return SPONSORS_CATALOG;
+    }
+  } catch (_) {
+    // ignore; fall through
+  }
+
+  // Minimal built-in fallback (keeps Sponsors lane functional even without file)
+  SPONSORS_CATALOG = {
+    version: "sponsors_catalog_fallback",
+    packages: [
+      {
+        id: "starter",
+        name: "Starter",
+        priceRange: "Contact for pricing",
+        bestFor: ["testing", "local businesses"],
+        includes: ["Web placement", "1 social mention", "basic reporting"],
+      },
+      {
+        id: "growth",
+        name: "Growth",
+        priceRange: "Contact for pricing",
+        bestFor: ["lead-gen", "events"],
+        includes: ["Web + Radio bundle", "weekly mentions", "tracking + reporting"],
+      },
+      {
+        id: "dominance",
+        name: "Dominance",
+        priceRange: "Contact for pricing",
+        bestFor: ["launches", "brand dominance"],
+        includes: ["Multi-channel bundle", "sponsored segment", "priority placement"],
+      },
+    ],
+    intakeQuestions: [
+      "What do you sell (and where)?",
+      "Is your goal awareness or leads?",
+      "What’s your monthly budget range?",
+      "Do you already have creative (audio/video/banner), or do you need help?",
+    ],
+  };
+
+  return SPONSORS_CATALOG;
 }
 
 /* ======================================================
@@ -521,6 +604,230 @@ function normalizeNavToken(text) {
 }
 
 /* ======================================================
+   Sponsors intent + helpers
+====================================================== */
+
+function isSponsorIntent(text) {
+  const t = cleanText(text).toLowerCase();
+  if (!t) return false;
+
+  // strong sponsor signals
+  const strong =
+    /\b(sponsor|sponsorship|advertis(e|ing)|rate\s*card|media\s*kit|ad\s*package|ad\s*packages|ad\s*pricing|pricing|promote|promotion|commercial|campaign)\b/;
+
+  // avoid false positives like "song sponsor" (rare, but keep safe)
+  if (/\b(sponsor)\b/.test(t) && /\b(song|music|artist|album)\b/.test(t) && !/\b(advertis|pricing|rate card|media kit)\b/.test(t)) {
+    // ambiguous; don’t auto-route
+    return false;
+  }
+
+  return strong.test(t);
+}
+
+function normalizeBudgetBucket(text) {
+  const t = cleanText(text).toLowerCase();
+  if (!t) return null;
+
+  // direct buckets
+  if (/\b(under|less than)\s*\$?\s*4(00)?\b/.test(t) || /\b(<)\s*\$?\s*4(00)?\b/.test(t)) return "under_400";
+  if (/\b(\$?\s*400\s*-\s*\$?\s*999|\$?\s*500\s*-\s*\$?\s*1000|\$?\s*500\s*-\s*\$?\s*999)\b/.test(t)) return "500_1000";
+  if (/\b(\$?\s*1,?000\s*\+|\$?\s*1500\s*\+|over\s*\$?\s*1000|over\s*\$?\s*1500)\b/.test(t)) return "1500_plus";
+
+  // plain numbers (very light parsing)
+  const m = t.match(/\$\s*([0-9]{2,5})/);
+  if (m) {
+    const n = Number(String(m[1]).replace(/,/g, ""));
+    if (Number.isFinite(n)) {
+      if (n < 400) return "under_400";
+      if (n <= 1000) return "500_1000";
+      if (n >= 1500) return "1500_plus";
+      return "over_1000";
+    }
+  }
+  return null;
+}
+
+function normalizeGoal(text) {
+  const t = cleanText(text).toLowerCase();
+  if (!t) return null;
+  if (/\b(awareness|reach|brand|branding|visibility|impressions)\b/.test(t)) return "awareness";
+  if (/\b(leads|calls|messages|appointments|bookings|sales|conversions)\b/.test(t)) return "leads";
+  return null;
+}
+
+function sponsorsFollowups(session) {
+  const s = session && session.sponsors ? session.sponsors : {};
+  const hasBudget = !!s.budget;
+  const hasGoal = !!s.goal;
+
+  const base = [
+    { label: "Get a package recommendation", send: "Get a package recommendation" },
+    { label: "Request rate card", send: "Request rate card" },
+    { label: "Book a call", send: "Book a call" },
+  ];
+
+  const buckets = [
+    { label: "Budget under $400", send: "Budget under $400" },
+    { label: "Budget $500–$1,000", send: "Budget $500–$1,000" },
+    { label: "Budget $1,500+", send: "Budget $1,500+" },
+  ];
+
+  const goals = [
+    { label: "Goal: Awareness", send: "Goal: Awareness" },
+    { label: "Goal: Leads", send: "Goal: Leads" },
+  ];
+
+  const creative = [
+    { label: "I need creative help", send: "I need creative help" },
+    { label: "I have my own creative", send: "I have my own creative" },
+  ];
+
+  const out = [];
+  out.push(...base);
+
+  if (!hasGoal) out.push(...goals);
+  if (!hasBudget) out.push(...buckets);
+  out.push(...creative);
+
+  // dedupe
+  const seen = new Set();
+  const final = [];
+  for (const it of out) {
+    const k = cleanText(it.send).toLowerCase();
+    if (!k || seen.has(k)) continue;
+    seen.add(k);
+    final.push(it);
+  }
+  return final.slice(0, 12);
+}
+
+function sponsorsEntryReply(session, catalog) {
+  // Keep it tight: value + max 3 qualifiers.
+  const q = (catalog && Array.isArray(catalog.intakeQuestions) ? catalog.intakeQuestions : []).slice(0, 3);
+  const qText = q.length ? `\n1) ${q[0]}\n2) ${q[1] || "Awareness or leads?"}\n3) ${q[2] || "Budget range?"}` : "\n1) What do you sell (and where)?\n2) Awareness or leads?\n3) Budget range?";
+
+  return `Sponsors lane — got it. I can match you to the right package in under a minute.${qText}`;
+}
+
+function sponsorsPackagesOverview(catalog) {
+  const pkgs = (catalog && Array.isArray(catalog.packages) ? catalog.packages : []).slice(0, 3);
+  if (!pkgs.length) {
+    return "We can sponsor across Sandblast properties (web/radio/TV). Tell me your goal (awareness vs leads) and your monthly budget range, and I’ll recommend the right package.";
+  }
+
+  const lines = pkgs
+    .map((p) => {
+      const name = cleanText(p.name || p.id || "Package");
+      const pr = cleanText(p.priceRange || "Contact for pricing");
+      const inc = Array.isArray(p.includes) ? p.includes.slice(0, 3).map(cleanText).filter(Boolean) : [];
+      const incText = inc.length ? ` — includes: ${inc.join(", ")}` : "";
+      return `• ${name} (${pr})${incText}`;
+    })
+    .join("\n");
+
+  return `Here are the sponsor packages (high level):\n${lines}\n\nTell me your business + goal (awareness/leads) + budget range and I’ll recommend one in one shot.`;
+}
+
+async function runSponsorsEngine(text, session) {
+  const catalog = loadSponsorsCatalogOnce();
+
+  // If a dedicated module exists, defer to it (it can override everything).
+  if (sponsorsKnowledge && typeof sponsorsKnowledge.handleChat === "function") {
+    try {
+      const out = sponsorsKnowledge.handleChat({ text, session, catalog }) || {};
+      if (out.sessionPatch && typeof out.sessionPatch === "object") Object.assign(session, out.sessionPatch);
+      return out;
+    } catch (e) {
+      return {
+        reply: "I hit a snag in Sponsors mode. Tell me what you sell, your goal (awareness/leads), and your monthly budget range.",
+        error: String(e && e.message ? e.message : e),
+      };
+    }
+  }
+
+  // Lightweight built-in Sponsors v1 (works even if Utils/sponsorsKnowledge.js is absent).
+  const t = cleanText(text);
+
+  // Normalize user-provided quick tokens
+  const goal = normalizeGoal(t);
+  const budget = normalizeBudgetBucket(t);
+
+  if (goal) session.sponsors.goal = goal;
+  if (budget) session.sponsors.budget = budget;
+
+  if (/^request\s+rate\s*card\b/i.test(t) || /\brate\s*card\b/i.test(t) || /\bmedia\s*kit\b/i.test(t)) {
+    return {
+      reply:
+        "Absolutely. To send the right rate card, tell me: (1) your business type, (2) your city/market, and (3) your budget range. If you want, just reply: “Business: ___, City: ___, Budget: ___”.",
+      followUps: sponsorsFollowups(session),
+    };
+  }
+
+  if (/^book\b.*\bcall\b/i.test(t) || /\bbook a call\b/i.test(t) || /\bschedule\b.*\bcall\b/i.test(t)) {
+    return {
+      reply:
+        "Done. Quick setup: what’s your business name and the best contact (email/phone)? Also—awareness or leads? I’ll prep the call with the right package options.",
+      followUps: sponsorsFollowups(session),
+    };
+  }
+
+  if (/\b(package recommendation)\b/i.test(t) || /\brecommend\b.*\bpackage\b/i.test(t)) {
+    if (!session.sponsors.goal || !session.sponsors.budget) {
+      return {
+        reply:
+          "To recommend a package, I need two things: (1) goal (awareness or leads) and (2) monthly budget range. Drop those and I’ll map you instantly.",
+        followUps: sponsorsFollowups(session),
+      };
+    }
+
+    // Simple mapping
+    const b = session.sponsors.budget;
+    let pick = "growth";
+    if (b === "under_400") pick = "starter";
+    else if (b === "1500_plus") pick = "dominance";
+
+    session.sponsors.lastPackageId = pick;
+
+    const pkg = (catalog.packages || []).find((p) => String(p.id || "").toLowerCase() === pick) || null;
+    const name = pkg ? cleanText(pkg.name || pick) : pick;
+    const pr = pkg ? cleanText(pkg.priceRange || "") : "";
+    const g = session.sponsors.goal === "leads" ? "lead-gen" : "awareness";
+
+    return {
+      reply: `Recommendation: **${name}**${pr ? ` (${pr})` : ""} — optimized for ${g}. Next: do you want Web-only, or Web + Radio for extra frequency?`,
+      followUps: [
+        { label: "Web-only", send: "Web-only" },
+        { label: "Web + Radio", send: "Web + Radio" },
+        { label: "I need creative help", send: "I need creative help" },
+        { label: "Request rate card", send: "Request rate card" },
+        { label: "Book a call", send: "Book a call" },
+      ],
+    };
+  }
+
+  // First touch: either overview or intake
+  const hasAnySignal = !!(session.sponsors.goal || session.sponsors.budget);
+  if (!hasAnySignal) {
+    return {
+      reply: sponsorsEntryReply(session, catalog),
+      followUps: sponsorsFollowups(session),
+    };
+  }
+
+  // If they gave goal/budget but nothing else, show packages overview + 1 question
+  const overview = sponsorsPackagesOverview(catalog);
+  const missing = [];
+  if (!session.sponsors.business) missing.push("what you sell");
+  if (!session.sponsors.location) missing.push("your market/city");
+
+  const ask = missing.length ? `\n\nOne more thing: ${missing[0]}?` : "\n\nOne more thing: do you have creative ready, or do you need us to build it?";
+  return {
+    reply: `${overview}${ask}`,
+    followUps: sponsorsFollowups(session),
+  };
+}
+
+/* ======================================================
    Chart spine selection + Top10 fallback ladder
 ====================================================== */
 
@@ -578,13 +885,7 @@ async function runTop10WithFallback(year, session) {
 
   const primary = pickPrimaryChartForYear(y);
 
-  const ladder = [
-    primary,
-    "Billboard Year-End Singles",
-    "Billboard Hot 100",
-    "Canada RPM",
-    "UK Singles Chart",
-  ];
+  const ladder = [primary, "Billboard Year-End Singles", "Billboard Hot 100", "Canada RPM", "UK Singles Chart"];
 
   const originalChart = session.activeMusicChart;
 
@@ -683,6 +984,15 @@ function makeFollowUps(session) {
   const hasReplay = !!(session && session.lastReply);
   const hasOne = !!(session && session.lastTop10One && session.lastTop10One.year);
 
+  // Sponsors lane gets its own followups set
+  if (session && session.lane === "sponsors") {
+    const sfu = sponsorsFollowups(session);
+    return {
+      followUp: sfu.map((x) => x.label).slice(0, 8),
+      followUps: sfu.slice(0, 8),
+    };
+  }
+
   const items = [yearChip, ...baseModes];
 
   if (hasYear && hasOne) items.push("#1", "#1 story", "#1 micro");
@@ -726,14 +1036,7 @@ function normalizeEngineFollowups(out) {
   const acc = [];
   if (!out || typeof out !== "object") return acc;
 
-  const cands = [
-    out.followUps,
-    out.followupS,
-    out.followups,
-    out.follow_up,
-    out.followUp,
-    out.followup,
-  ].filter(Boolean);
+  const cands = [out.followUps, out.followupS, out.followups, out.follow_up, out.followUp, out.followup].filter(Boolean);
 
   for (const c of cands) {
     if (Array.isArray(c)) c.forEach((x) => push(acc, x));
@@ -782,6 +1085,9 @@ function addMomentumTail(session, reply) {
   const r = cleanText(reply);
   if (!r) return r;
 
+  // Sponsors lane: do NOT add music momentum tails
+  if (session && session.lane === "sponsors") return r;
+
   const y = session && clampYear(session.lastYear) ? session.lastYear : null;
   const mode = session && session.activeMusicMode ? session.activeMusicMode : null;
 
@@ -818,6 +1124,7 @@ function respondJson(req, res, base, session, engineOut) {
         voiceMode: session ? session.voiceMode : null,
         lastIntent: session ? session.lastIntent : null,
         lastEngine: session ? session.lastEngine : null,
+        sponsors: session ? session.sponsors : null,
       },
       engine: engineOut
         ? {
@@ -844,6 +1151,11 @@ app.get("/api/health", (req, res) => {
 
   const origin = req.headers.origin || null;
   const originAllowed = CORS_ALLOW_ALL ? true : origin ? originMatchesAllowlist(origin) : null;
+
+  // Sponsors catalog quick signal
+  const cat = loadSponsorsCatalogOnce();
+  const sponsorsOk = !!(cat && typeof cat === "object");
+  const sponsorsPkgs = sponsorsOk && Array.isArray(cat.packages) ? cat.packages.length : 0;
 
   res.json({
     ok: true,
@@ -875,6 +1187,15 @@ app.get("/api/health", (req, res) => {
       model: ELEVEN_MODEL_ID || null,
       tuning: getTtsTuningForMode("standard"),
       hasFetch,
+    },
+    sponsors: {
+      moduleLoaded: !!(sponsorsKnowledge && typeof sponsorsKnowledge.handleChat === "function"),
+      catalog: {
+        ok: sponsorsOk,
+        version: sponsorsOk ? cat.version || null : null,
+        packages: sponsorsPkgs,
+        source: SPONSORS_CATALOG && SPONSORS_CATALOG.version === "sponsors_catalog_fallback" ? "fallback" : "file_or_env",
+      },
     },
     requestId,
   });
@@ -1093,12 +1414,47 @@ app.post("/api/chat", async (req, res) => {
   }
 
   // Voice continuity
-  const incomingVoiceMode = normalizeVoiceMode(body.voiceMode || (body.context && body.context.voiceMode) || session.voiceMode || "standard");
+  const incomingVoiceMode = normalizeVoiceMode(
+    body.voiceMode || (body.context && body.context.voiceMode) || session.voiceMode || "standard"
+  );
   session.voiceMode = incomingVoiceMode;
   res.set("X-Voice-Mode", session.voiceMode);
 
   const visitorId = session.visitorId;
   const nav = normalizeNavToken(message);
+
+  // ======================================================
+  // Sponsors Lane router (early, before music nav tokens)
+  //  - If lane is sponsors OR sponsor-intent detected, handle here.
+  //  - Exception: explicit music commands keep music lane behavior.
+  // ======================================================
+
+  const explicitMusic = !!normalizeModeToken(message) || !!clampYear(extractYearFromText(message)) || /^#?1\b/i.test(cleanText(message));
+  const sponsorRoute = session.lane === "sponsors" || (isSponsorIntent(message) && !explicitMusic);
+
+  if (sponsorRoute) {
+    session.lane = "sponsors";
+    session.lastIntent = "sponsors";
+
+    const out = await runSponsorsEngine(message || "Sponsors", session);
+    const reply0 = cleanText(out.reply || "");
+    const reply = reply0 || "Sponsors lane is ready. Tell me your goal (awareness/leads) and your budget range.";
+
+    session.lastReply = reply;
+    session.lastReplyAt = Date.now();
+
+    const base = {
+      ok: true,
+      reply,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
+
+    return respondJson(req, res, base, session, out);
+  }
 
   // replay
   if (nav === "replay" && session.lastReply) {
@@ -1188,8 +1544,7 @@ app.post("/api/chat", async (req, res) => {
 
   // #1 story/micro from lastTop10One
   if ((nav === "oneStory" || nav === "oneMicro") && session.lastTop10One && session.lastTop10One.year) {
-    const rep =
-      nav === "oneStory" ? makeStoryMomentFromNumberOne(session.lastTop10One) : makeMicroMomentFromNumberOne(session.lastTop10One);
+    const rep = nav === "oneStory" ? makeStoryMomentFromNumberOne(session.lastTop10One) : makeMicroMomentFromNumberOne(session.lastTop10One);
 
     session.activeMusicMode = nav === "oneStory" ? "story" : "micro";
     session.pendingMode = null;
