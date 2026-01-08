@@ -3,17 +3,17 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.4.6 (Sponsors Lane v1 routing + catalog-backed replies; preserves v1.4.5)
+ * index.js v1.4.7 (Mic Feedback Guard + Sponsors Lane v1 routing; preserves v1.4.6)
  *
  * Adds:
- *  - Sponsors Lane router (lane:"sponsors" or sponsor-intent keywords) with safe fallbacks
- *  - sponsorsLane conversational handler (Utils/sponsorsLane.js)
- *  - sponsorsKnowledge catalog loader (Utils/sponsorsKnowledge.js) used for /api/health visibility + optional catalog access
- *  - Sponsors followUps merged into contract-hard respondJson (never missing)
+ *  - Mic Feedback Guard: detects near-immediate “echo” of Nyx’s own last reply (common when mic picks up TTS)
+ *    and safely breaks the loop with a forward-moving prompt.
+ *  - Graceful shutdown: clears session cleaner on SIGTERM/SIGINT
  *
  * Preserves:
+ *  - Sponsors Lane router + catalog-backed replies
  *  - Contract-hard followUps array of {label,send} (never missing)
- *  - Engine loop-closure (re-run once when engine asks for year/mode despite session state)
+ *  - Engine loop-closure re-run once when engine asks for year/mode despite session state
  *  - Optional debug snapshot: /api/chat?debug=1 includes state + engine metadata (safe, small)
  *  - Render/server timeouts + upstream AbortController timeout
  *  - Top10 chart fallback ladder + gap-aware replies
@@ -38,7 +38,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.4.6 (Sponsors Lane v1 routing + catalog-backed replies; preserves v1.4.5)";
+  "index.js v1.4.7 (Mic Feedback Guard + Sponsors Lane v1 routing; preserves v1.4.6)";
 
 /* ======================================================
    Basic middleware
@@ -621,6 +621,71 @@ function normalizeNavToken(text) {
 }
 
 /* ======================================================
+   Mic Feedback Guard (TTS → mic → transcript → backend loop breaker)
+====================================================== */
+
+const MIC_GUARD_ENABLED = String(process.env.MIC_GUARD_ENABLED || "true") === "true";
+const MIC_GUARD_WINDOW_MS = Math.max(
+  2000,
+  Math.min(20000, Number(process.env.MIC_GUARD_WINDOW_MS || 9000))
+);
+const MIC_GUARD_MIN_CHARS = Math.max(24, Math.min(240, Number(process.env.MIC_GUARD_MIN_CHARS || 60)));
+
+function normalizeForEchoCompare(s) {
+  return cleanText(String(s || ""))
+    .toLowerCase()
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/[^\p{L}\p{N}\s#]/gu, "") // keep letters/numbers/spaces/#; drop punctuation
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isLikelyMicEcho(incomingText, session) {
+  if (!MIC_GUARD_ENABLED) return false;
+  if (!session || !session.lastReply || !session.lastReplyAt) return false;
+
+  const dt = Date.now() - Number(session.lastReplyAt || 0);
+  if (!Number.isFinite(dt) || dt < 0 || dt > MIC_GUARD_WINDOW_MS) return false;
+
+  const inc = normalizeForEchoCompare(incomingText);
+  const last = normalizeForEchoCompare(session.lastReply);
+
+  if (!inc || !last) return false;
+
+  // Must be substantive; avoids blocking short user replies like "yes"
+  if (inc.length < MIC_GUARD_MIN_CHARS) return false;
+
+  // Strong echo cases: exact match, or one contains the other (common with partial transcripts)
+  if (inc === last) return true;
+  if (inc.includes(last) && last.length >= MIC_GUARD_MIN_CHARS) return true;
+  if (last.includes(inc) && inc.length >= MIC_GUARD_MIN_CHARS) return true;
+
+  // Light similarity fallback: same first 12 words is almost always an echo.
+  const incW = inc.split(" ").filter(Boolean);
+  const lastW = last.split(" ").filter(Boolean);
+  if (incW.length >= 12 && lastW.length >= 12) {
+    const a = incW.slice(0, 12).join(" ");
+    const b = lastW.slice(0, 12).join(" ");
+    if (a === b) return true;
+  }
+
+  return false;
+}
+
+function micEchoBreakerReply(session) {
+  // Keep it actionable and forward-moving; no infinite loops.
+  if (session && session.lane === "sponsors") {
+    return "I’m picking up my own audio (mic feedback). Tap a follow-up, or type: TV / Radio / Website / Social, plus your goal and budget range in CAD.";
+  }
+  const y = session && clampYear(session.lastYear) ? session.lastYear : null;
+  if (y && session.activeMusicMode) {
+    return `I’m picking up my own audio (mic feedback). Tap “Replay last” if you want that again, or say “next year”, “another year”, or “top 10 ${y}”.`;
+  }
+  return "I’m picking up my own audio (mic feedback). Tap a follow-up chip, or type a year (1950–2024) plus: Top 10 / Story moment / Micro moment.";
+}
+
+/* ======================================================
    Sponsors intent (fallback)
    - Prefer Utils/sponsorsLane.isSponsorIntent if available
 ====================================================== */
@@ -1011,6 +1076,11 @@ function respondJson(req, res, base, session, engineOut) {
         lastEngine: session ? session.lastEngine : null,
         sponsors: session ? session.sponsors : null,
       },
+      micGuard: {
+        enabled: MIC_GUARD_ENABLED,
+        windowMs: MIC_GUARD_WINDOW_MS,
+        minChars: MIC_GUARD_MIN_CHARS,
+      },
       sponsors: {
         laneLoaded: !!(sponsorsLane && typeof sponsorsLane.handleChat === "function"),
         knowledgeLoaded: !!(sponsorsKnowledge && typeof sponsorsKnowledge.loadCatalog === "function"),
@@ -1084,6 +1154,11 @@ app.get("/api/health", (req, res) => {
       model: ELEVEN_MODEL_ID || null,
       tuning: getTtsTuningForMode("standard"),
       hasFetch,
+    },
+    micGuard: {
+      enabled: MIC_GUARD_ENABLED,
+      windowMs: MIC_GUARD_WINDOW_MS,
+      minChars: MIC_GUARD_MIN_CHARS,
     },
     sponsors: {
       laneLoaded: !!(sponsorsLane && typeof sponsorsLane.handleChat === "function"),
@@ -1324,6 +1399,29 @@ app.post("/api/chat", async (req, res) => {
   res.set("X-Voice-Mode", session.voiceMode);
 
   const visitorId = session.visitorId;
+
+  // ======================================================
+  // Mic Feedback Guard (must run early, before intent routing)
+  // ======================================================
+  if (message && isLikelyMicEcho(message, session)) {
+    const reply = micEchoBreakerReply(session);
+    session.lastReply = reply;
+    session.lastReplyAt = Date.now();
+    session.lastIntent = "micEchoGuard";
+    session.lastEngine = { kind: "micEchoGuard", chart: session.activeMusicChart, note: "blockedEcho", at: Date.now() };
+
+    const base = {
+      ok: true,
+      reply,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
+    return respondJson(req, res, base, session, null);
+  }
+
   const nav = normalizeNavToken(message);
 
   // ======================================================
@@ -1759,4 +1857,36 @@ try {
 server.on("error", (err) => {
   console.error("[sandblast-backend] fatal listen error", err);
   process.exit(1);
+});
+
+/* ======================================================
+   Graceful shutdown
+====================================================== */
+
+function shutdown(sig) {
+  try {
+    clearInterval(cleaner);
+  } catch (_) {
+    // ignore
+  }
+  try {
+    server.close(() => {
+      console.log(`[sandblast-backend] shutdown ${sig}`);
+      process.exit(0);
+    });
+    // force-exit if close hangs
+    setTimeout(() => process.exit(0), 3000).unref?.();
+  } catch (_) {
+    process.exit(0);
+  }
+}
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
+
+process.on("unhandledRejection", (e) => {
+  console.error("[sandblast-backend] unhandledRejection", e);
+});
+process.on("uncaughtException", (e) => {
+  console.error("[sandblast-backend] uncaughtException", e);
 });
