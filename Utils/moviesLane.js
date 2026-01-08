@@ -20,6 +20,12 @@
  *  - Recognizes known titles from a local Phase0 DB JSON file
  *  - Returns safe rights language (candidate/verified/unknown)
  *
+ * Adds:
+ *  - "add this" ingestion:
+ *      - when lastIdentifier/lastUrl exists in session.movies.catalog,
+ *        create a normalized record (candidate only) and persist to JSON DB
+ *  - "list phase 0" quick sanity view
+ *
  * Returns:
  *  - reply (tight, forward-moving)
  *  - followUps (array of {label,send}) ALWAYS
@@ -46,6 +52,10 @@ function hasAny(text, arr) {
   return arr.some((k) => t.includes(String(k).toLowerCase()));
 }
 
+function nowIso() {
+  return new Date().toISOString();
+}
+
 /* =========================
    Phase 0 DB (local JSON)
    - optional
@@ -63,6 +73,16 @@ function safeReadJson(abs) {
   } catch (e) {
     return null;
   }
+}
+
+function ensureDirForFile(absPath) {
+  const dir = path.dirname(absPath);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
+
+function writeJson(abs, obj) {
+  ensureDirForFile(abs);
+  fs.writeFileSync(abs, JSON.stringify(obj, null, 2), "utf8");
 }
 
 function loadDbOnce(relOverride) {
@@ -101,6 +121,29 @@ function loadDbOnce(relOverride) {
   }
 }
 
+function persistDb(db) {
+  const rel = String(process.env.MOVIES_PHASE0_DB_REL || DB_REL_DEFAULT);
+  const abs = path.resolve(process.cwd(), rel);
+
+  try {
+    const payload = {
+      version: (db && db.version) || "movies_phase0_v1",
+      last_updated: nowIso(),
+      items: Array.isArray(db && db.items) ? db.items : [],
+    };
+
+    writeJson(abs, payload);
+
+    // Refresh cache/meta
+    DB_CACHE = payload;
+    DB_META = { loaded: true, rel, abs, error: null, mtimeMs: Date.now() };
+
+    return { ok: true, rel, abs, count: payload.items.length };
+  } catch (e) {
+    return { ok: false, error: String(e && e.message ? e.message : e), rel, abs };
+  }
+}
+
 function normalizeTitleKey(title) {
   return lc(title)
     .replace(/[’']/g, "")
@@ -112,16 +155,12 @@ function normalizeTitleKey(title) {
 function extractArchiveIdentifierFromUrl(url) {
   const u = cleanText(url);
   if (!u) return null;
-  // examples:
-  // https://archive.org/details/BehindGreenLights
-  // https://archive.org/details/the-chase-pnm
   const m = u.match(/archive\.org\/details\/([^/?#]+)/i);
   return m ? cleanText(decodeURIComponent(m[1])) : null;
 }
 
 function looksLikeArchiveIdentifier(token) {
   const t = cleanText(token);
-  // IA identifiers are often [a-zA-Z0-9._-] and fairly short
   if (!t) return false;
   if (t.length < 3 || t.length > 120) return false;
   return /^[a-z0-9][a-z0-9._-]+$/i.test(t);
@@ -155,6 +194,135 @@ function findItemInDbByTitle(db, title) {
     if (k2 && k2 === key) return it;
   }
   return null;
+}
+
+/* =========================
+   Ingest helpers ("add this")
+========================= */
+
+function isAddThis(text) {
+  const t = lc(text);
+  return /^(add this|add it|save this|ingest this|add to db|add record)\b/.test(t);
+}
+
+function titleFromIdentifier(identifier) {
+  const id = cleanText(identifier);
+  if (!id) return "";
+  return id
+    .replace(/[_-]+/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function makePhase0Id(seed) {
+  const raw = cleanText(seed);
+  const slug = raw
+    .toLowerCase()
+    .replace(/[’']/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+  return `PH0-${slug || "item"}`;
+}
+
+function buildCandidateItemFromIa(identifier, url) {
+  const ident = cleanText(identifier);
+  const srcUrl = cleanText(url) || (ident ? `https://archive.org/details/${encodeURIComponent(ident)}` : "");
+  const titleGuess = titleFromIdentifier(ident) || ident || "Unknown title";
+
+  return {
+    id: makePhase0Id(`ia-${ident || titleGuess}`),
+    title: titleGuess,
+    year: null,
+    type: "unknown",
+    genres: [],
+    summary: "",
+    rights: {
+      status: "candidate_public_domain",
+      verified: false,
+      confidence: "unknown",
+      basis: "unverified_source_listing",
+      notes: "Candidate only. Verify via Sandblast PD Kit before distribution.",
+    },
+    sources: [
+      {
+        provider: "internet_archive",
+        identifier: ident || "",
+        url: srcUrl || "",
+      },
+    ],
+    created_at: nowIso(),
+    updated_at: nowIso(),
+  };
+}
+
+function ingestLastSeen(session, db) {
+  const sess = session || {};
+  const cat = sess.movies && sess.movies.catalog ? sess.movies.catalog : {};
+
+  const lastIdentifier = cleanText(cat.lastIdentifier || "");
+  const lastUrl = cleanText(cat.lastUrl || "");
+  const lastTitle = cleanText(cat.lastTitle || "");
+
+  const key = lastIdentifier || lastTitle;
+  if (!key) return { ok: false, error: "NO_LAST_SEEN" };
+
+  const existing = lastIdentifier
+    ? findItemInDbByIdentifier(db, lastIdentifier)
+    : findItemInDbByTitle(db, lastTitle || key);
+
+  if (existing) return { ok: true, already: true, item: existing };
+
+  const newItem = lastIdentifier
+    ? buildCandidateItemFromIa(lastIdentifier, lastUrl)
+    : {
+        id: makePhase0Id(`title-${key}`),
+        title: key,
+        year: null,
+        type: "unknown",
+        genres: [],
+        summary: "",
+        rights: {
+          status: "candidate_public_domain",
+          verified: false,
+          confidence: "unknown",
+          basis: "unverified_source_listing",
+          notes: "Candidate only. Verify via Sandblast PD Kit before distribution.",
+        },
+        sources: [],
+        created_at: nowIso(),
+        updated_at: nowIso(),
+      };
+
+  const items = Array.isArray(db && db.items) ? db.items : [];
+  items.push(newItem);
+
+  const out = persistDb({ version: (db && db.version) || "movies_phase0_v1", items });
+  if (!out.ok) return { ok: false, error: out.error || "WRITE_FAILED" };
+
+  return { ok: true, already: false, item: newItem, write: out };
+}
+
+function listPhase0Reply(db, limit = 12) {
+  const items = db && Array.isArray(db.items) ? db.items : [];
+  if (!items.length) return "Phase 0 DB is empty. Paste an archive.org/details link, then say “add this”.";
+
+  const n = Math.max(1, Math.min(50, Number(limit) || 12));
+  const tail = items.slice(-n);
+
+  const lines = [];
+  lines.push(`Phase 0 DB (latest ${tail.length}):`);
+  tail.forEach((it, idx) => {
+    const title = cleanText(it.title || "Untitled");
+    const year = it.year != null ? String(it.year) : "—";
+    const src = Array.isArray(it.sources) ? it.sources[0] : null;
+    const ident = src && src.identifier ? cleanText(src.identifier) : "";
+    lines.push(`${idx + 1}. ${title} (${year})${ident ? ` — IA:${ident}` : ""}`);
+  });
+  lines.push("");
+  lines.push("Next: paste another archive.org link, or say “search title” / “search ia id”.");
+  return lines.join("\n");
 }
 
 /* =========================
@@ -197,16 +365,14 @@ function detectMoviesIntent(text) {
   ];
 
   const typeSignals = ["movie", "movies", "film", "films", "series", "tv show", "tv shows", "episodes", "season"];
-
-  // Avoid stealing explicit music flows
   const musicSignals = ["top 10", "top10", "story moment", "micro moment", "billboard", "hot 100", "rpm", "song", "artist"];
 
   const isMovieish = hasAny(t, strong) || hasAny(t, typeSignals);
   const isMusicish = hasAny(t, musicSignals);
 
   if (isMusicish && !hasAny(t, strong)) return { hit: false, confidence: 0 };
-
   if (isMovieish) return { hit: true, confidence: hasAny(t, strong) ? 0.9 : 0.7 };
+
   return { hit: false, confidence: 0 };
 }
 
@@ -218,22 +384,18 @@ function normalizeFollowUps(followUps) {
   const safe = Array.isArray(followUps) ? followUps : [];
   const cleaned = safe
     .filter((x) => x && typeof x === "object")
-    .map((x) => ({
-      label: cleanText(x.label),
-      send: cleanText(x.send),
-    }))
+    .map((x) => ({ label: cleanText(x.label), send: cleanText(x.send) }))
     .filter((x) => x.label && x.send);
 
   if (cleaned.length) return cleaned;
 
-  // Hard fallback: contract-safe
   return [
+    { label: "Add this", send: "add this" },
+    { label: "List Phase 0", send: "list phase 0" },
+    { label: "Search by title", send: "search title" },
+    { label: "Search by IA ID", send: "search ia id" },
     { label: "Movie", send: "movie" },
     { label: "Series", send: "series" },
-    { label: "1970s", send: "1970s" },
-    { label: "1980s", send: "1980s" },
-    { label: "Rev-share (No MG)", send: "rev share no mg" },
-    { label: "FAST+AVOD", send: "FAST AVOD" },
     { label: "Filmhub", send: "filmhub" },
     { label: "Bitmax", send: "bitmax" },
   ];
@@ -316,7 +478,6 @@ function extractFields(text, prevFields) {
 
 function parseNumericChoice(text) {
   const t = lc(text);
-  // Accept: "1", "1.", "1)", "option 1", "option 1."
   const m = t.match(/\b(option\s*)?([1-4])[\.\)\:]?\b/);
   if (!m) return null;
   const n = Number(m[2]);
@@ -367,21 +528,21 @@ function buildCatalogReply(item) {
   if (srcIdent) lines.push(`• IA Identifier: ${srcIdent}`);
   if (srcUrl) lines.push(`• Source: ${srcUrl}`);
   lines.push("");
-  lines.push("Next step: say “verify rights” to run the verification checklist, or “add 5 more” to expand the Phase 0 catalog.");
+  lines.push("Next step: say “verify rights” (PD Kit), or “add 5 more” to expand the Phase 0 catalog.");
 
   return lines.join("\n");
 }
 
 function buildCatalogFollowUps() {
   return normalizeFollowUps([
+    { label: "Add this", send: "add this" },
     { label: "Verify rights", send: "verify rights" },
     { label: "Add 5 more", send: "add 5 more" },
+    { label: "List Phase 0", send: "list phase 0" },
     { label: "Search by title", send: "search title" },
     { label: "Search by IA ID", send: "search ia id" },
-    { label: "List Phase 0", send: "list phase 0" },
     { label: "Movie", send: "movie" },
     { label: "Series", send: "series" },
-    { label: "Filmhub", send: "filmhub" },
   ]);
 }
 
@@ -390,7 +551,6 @@ function buildCatalogFollowUps() {
 ========================= */
 
 function buildReply(fields, missing, plan) {
-  // plan is optional: filmhub_only / bitmax_only / etc.
   if (!missing.length) {
     return [
       "Movies Phase 0 locked.",
@@ -405,7 +565,7 @@ function buildReply(fields, missing, plan) {
       "",
       "Next: pick one so I generate a 10–15 title shortlist:",
       "1) Filmhub only  2) Bitmax only  3) Mix sources  4) UK focus",
-      "Or paste an archive.org link/title to switch into PD catalog lookup.",
+      "Or paste an archive.org/details link/title to switch into PD catalog lookup.",
     ]
       .filter(Boolean)
       .join("\n");
@@ -425,7 +585,7 @@ function buildReply(fields, missing, plan) {
     "",
     "Reply in one line like:",
     "“series | late 70s–80s | crime, detective | rev-share/no-MG | Canada | FAST+AVOD”",
-    "Or paste an archive.org link/title to pull Phase 0 metadata.",
+    "Or paste an archive.org/details link/title to pull Phase 0 metadata.",
   ].join("\n");
 }
 
@@ -444,14 +604,13 @@ function buildFollowUps(fields, missing, locked) {
     ]);
   }
 
-  // Locked acquisition state
   return normalizeFollowUps([
     { label: "1) Filmhub only", send: "1" },
     { label: "2) Bitmax only", send: "2" },
     { label: "3) Mix sources", send: "3" },
     { label: "4) UK focus", send: "4" },
     { label: "Generate shortlist", send: "generate phase 0 shortlist" },
-    { label: "PD catalog lookup", send: "pd catalog" },
+    { label: "List Phase 0", send: "list phase 0" },
     { label: "Search IA ID", send: "search ia id" },
     { label: "Search title", send: "search title" },
   ]);
@@ -465,15 +624,76 @@ function handleChat({ text, session }) {
   const input = cleanText(text);
   const sess = session || {};
   const prevPhase0 = sess.movies && sess.movies.phase0 ? sess.movies.phase0 : {};
+  const prevCatalog = sess.movies && sess.movies.catalog ? sess.movies.catalog : {};
 
-  // Always ensure DB is available (if the file exists)
-  const db = loadDbOnce();
+  // Load DB (or create in-memory empty db if missing)
+  const db = loadDbOnce() || { version: "movies_phase0_v1", items: [] };
+
+  // Quick commands
+  if (/^list\s+phase\s*0\b/i.test(input) || /^list\b/i.test(input)) {
+    const reply = listPhase0Reply(db, 12);
+    const followUps = buildCatalogFollowUps();
+    const sessionPatch = {
+      lane: "movies",
+      movies: {
+        phase0: { ...prevPhase0 },
+        catalog: {
+          ...prevCatalog,
+          dbLoaded: !!(DB_META && DB_META.loaded),
+          dbRel: DB_META ? DB_META.rel : DB_REL_DEFAULT,
+          dbError: DB_META ? DB_META.error : null,
+        },
+      },
+    };
+    return { reply, followUps, sessionPatch };
+  }
+
+  // Ingest flow
+  if (isAddThis(input)) {
+    const ing = ingestLastSeen(sess, db);
+
+    const reply = ing.ok
+      ? ing.already
+        ? [
+            "Phase 0 DB — already stored.",
+            `• Title: ${cleanText(ing.item && ing.item.title) || "Unknown"}`,
+            "",
+            "Next: paste the next archive.org link and say “add this”, or say “list phase 0”.",
+          ].join("\n")
+        : [
+            "Phase 0 DB — added.",
+            `• Title: ${cleanText(ing.item && ing.item.title) || "Unknown"}`,
+            "• Rights: candidate_public_domain (unverified)",
+            "",
+            "Next: paste the next archive.org link and say “add this”, or say “list phase 0”.",
+          ].join("\n")
+      : ing.error === "NO_LAST_SEEN"
+      ? "I don’t have a last-seen archive.org item yet. Paste an archive.org/details link first."
+      : `Phase 0 DB ingest failed: ${cleanText(ing.error) || "unknown error"}`;
+
+    const followUps = buildCatalogFollowUps();
+    const sessionPatch = {
+      lane: "movies",
+      movies: {
+        phase0: { ...prevPhase0 },
+        catalog: {
+          ...prevCatalog,
+          lastMatched: !!(ing.ok && ing.item),
+          dbLoaded: !!(DB_META && DB_META.loaded),
+          dbRel: DB_META ? DB_META.rel : DB_REL_DEFAULT,
+          dbError: DB_META ? DB_META.error : null,
+        },
+      },
+    };
+    return { reply, followUps, sessionPatch };
+  }
 
   // --- Catalog lookup triggers ---
   // 1) archive.org URL
   const urlIdent = extractArchiveIdentifierFromUrl(input);
   if (urlIdent) {
     const item = findItemInDbByIdentifier(db, urlIdent);
+
     const reply = item
       ? buildCatalogReply(item)
       : [
@@ -484,15 +704,15 @@ function handleChat({ text, session }) {
         ].join("\n");
 
     const followUps = buildCatalogFollowUps();
-
     const sessionPatch = {
       lane: "movies",
       movies: {
         phase0: { ...prevPhase0 },
         catalog: {
           lastQuery: input,
+          lastUrl: input,
           lastIdentifier: urlIdent,
-          lastTitle: item ? item.title : "",
+          lastTitle: item ? item.title : titleFromIdentifier(urlIdent),
           lastMatched: !!item,
           dbLoaded: !!(DB_META && DB_META.loaded),
         },
@@ -505,6 +725,7 @@ function handleChat({ text, session }) {
   // 2) direct identifier token (BehindGreenLights)
   if (looksLikeArchiveIdentifier(input) && input.length <= 80 && !input.includes(" ")) {
     const item = findItemInDbByIdentifier(db, input);
+
     const reply = item
       ? buildCatalogReply(item)
       : [
@@ -515,15 +736,15 @@ function handleChat({ text, session }) {
         ].join("\n");
 
     const followUps = buildCatalogFollowUps();
-
     const sessionPatch = {
       lane: "movies",
       movies: {
         phase0: { ...prevPhase0 },
         catalog: {
           lastQuery: input,
+          lastUrl: `https://archive.org/details/${encodeURIComponent(input)}`,
           lastIdentifier: input,
-          lastTitle: item ? item.title : "",
+          lastTitle: item ? item.title : titleFromIdentifier(input),
           lastMatched: !!item,
           dbLoaded: !!(DB_META && DB_META.loaded),
         },
@@ -534,9 +755,7 @@ function handleChat({ text, session }) {
   }
 
   // 3) title lookup (best-effort) if DB exists and user asks about a known title
-  // Heuristic: contains at least one alphabetic char and length reasonable
   if (db && db.items && /[a-z]/i.test(input) && input.length >= 4) {
-    // If user asked “is this public domain” and includes a title phrase
     const maybeTitle = input
       .replace(/is\s+this\s+in\s+public\s+domain\??/i, "")
       .replace(/is\s+this\s+public\s+domain\??/i, "")
@@ -552,6 +771,7 @@ function handleChat({ text, session }) {
           phase0: { ...prevPhase0 },
           catalog: {
             lastQuery: input,
+            lastUrl: "",
             lastIdentifier: "",
             lastTitle: item.title || "",
             lastMatched: true,
@@ -587,7 +807,6 @@ function handleChat({ text, session }) {
         missing,
         plan: plan || "",
       },
-      // light diagnostics for DB without being noisy
       catalog: {
         dbLoaded: !!(DB_META && DB_META.loaded),
         dbRel: DB_META ? DB_META.rel : DB_REL_DEFAULT,
