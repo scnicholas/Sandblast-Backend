@@ -1,0 +1,107 @@
+{
+  "version": "nyx_movies_db_v0",
+  "sourcePolicy": {
+    "defaultAssumption": "not_verified",
+    "note": "Internet Archive 'Usage' fields are treated as signals; public domain claims require verification for broadcast/distribution."
+  },
+  "titles": [
+    {
+      "id": "MOV-IA-BehindGreenLights-1946",
+      "title": "Behind Green Lights",
+      "year": 1946,
+      "type": "movie",
+      "primarySource": {
+        "provider": "internet_archive",
+        "identifier": "BehindGreenLights",
+        "url": "https://archive.org/details/BehindGreenLights"
+      },
+      "tags": ["crime", "drama", "noir"],
+      "rights": {
+        "usageLabel": "Public Domain",
+        "licenseHint": "publicdomain (as labeled on IA item page)",
+        "confidence": "medium",
+        "needsVerification": true,
+        "verificationNotes": "IA lists Usage as Public Domain; confirm via PD verification workflow before monetized distribution."
+      }
+    },
+    {
+      "id": "MOV-IA-MrImperium-1951",
+      "title": "Mr. Imperium",
+      "year": 1951,
+      "type": "movie",
+      "primarySource": {
+        "provider": "internet_archive",
+        "identifier": "Mr.Imperium",
+        "url": "https://archive.org/details/Mr.Imperium"
+      },
+      "tags": ["drama", "musical", "romance"],
+      "rights": {
+        "usageLabel": "Public Domain",
+        "confidence": "medium",
+        "needsVerification": true,
+        "verificationNotes": "IA lists Usage as Public Domain; verify underlying copyright/renewal status."
+      }
+    },
+    {
+      "id": "TV-IA-SeaHunt-MarkOfTheOctopus-1958",
+      "title": "Sea Hunt: Mark of the Octopus",
+      "year": 1958,
+      "type": "tv_episode",
+      "episode": {
+        "series": "Sea Hunt",
+        "season": 1,
+        "episode": 4,
+        "originalAirDate": "1958-02-01"
+      },
+      "primarySource": {
+        "provider": "internet_archive",
+        "identifier": "Sea_Hunt_Mark_of_the_Octopus",
+        "url": "https://archive.org/details/Sea_Hunt_Mark_of_the_Octopus"
+      },
+      "tags": ["classic_tv", "adventure", "lloyd_bridges"],
+      "rights": {
+        "usageLabel": "Public Domain Mark 1.0",
+        "confidence": "medium",
+        "needsVerification": true,
+        "verificationNotes": "IA lists PD Mark 1.0; treat as signal and verify series/episode status before distribution."
+      }
+    },
+    {
+      "id": "MOV-IA-TheChase-PNM-1946",
+      "title": "The Chase (P&M collection upload)",
+      "year": 1946,
+      "type": "movie",
+      "primarySource": {
+        "provider": "internet_archive",
+        "identifier": "the-chase-pnm",
+        "url": "https://archive.org/details/the-chase-pnm"
+      },
+      "tags": ["film_noir", "crime", "p&m_collection"],
+      "rights": {
+        "usageLabel": "Unknown (not shown in snippet)",
+        "confidence": "low",
+        "needsVerification": true,
+        "verificationNotes": "This looks like a high-fidelity re-upload collection item; do not assume PD. Verify from authoritative sources before use."
+      }
+    },
+    {
+      "id": "MOV-IA-DonDaredevilRidesAgain-1951",
+      "title": "Don Daredevil Rides Again",
+      "year": 1951,
+      "type": "serial_compilation",
+      "primarySource": {
+        "provider": "internet_archive",
+        "identifier": "don-daredevil-rides-again",
+        "url": "https://archive.org/details/don-daredevil-rides-again"
+      },
+      "tags": ["serial", "western", "colorized"],
+      "rights": {
+        "usageLabel": "Attribution 4.0 International",
+        "licenseHint": "CC BY 4.0 (as labeled on IA item page)",
+        "confidence": "high",
+        "needsVerification": false,
+        "verificationNotes": "Not public domain; usable if you comply with CC BY 4.0 attribution requirements."
+      }
+    }
+  ]
+}
