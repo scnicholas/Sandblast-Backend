@@ -3,18 +3,20 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.4.7 (Mic Feedback Guard + Sponsors Lane v1 routing; preserves v1.4.6)
+ * index.js v1.4.8 (Sponsors Catalog Sync + safer catalog debug; preserves v1.4.7)
  *
- * Adds:
- *  - Mic Feedback Guard: detects near-immediate “echo” of Nyx’s own last reply (common when mic picks up TTS)
- *    and safely breaks the loop with a forward-moving prompt.
- *  - Graceful shutdown: clears session cleaner on SIGTERM/SIGINT
+ * Adds / Fixes:
+ *  - Sponsors catalog sync: prefers sponsorsKnowledge.getCatalog() (normalized) when available,
+ *    falling back to loadCatalog() and then to file/env and finally to built-in fallback.
+ *    This prevents “catalog not loaded / wrong shape” issues when sponsors_catalog_v1.json uses `packages`.
+ *  - Health + debug: reports packages count from normalized catalog (tiers OR packages),
+ *    includes catalog meta when available.
  *
  * Preserves:
- *  - Sponsors Lane router + catalog-backed replies
- *  - Contract-hard followUps array of {label,send} (never missing)
- *  - Engine loop-closure re-run once when engine asks for year/mode despite session state
- *  - Optional debug snapshot: /api/chat?debug=1 includes state + engine metadata (safe, small)
+ *  - Mic Feedback Guard
+ *  - Sponsors Lane routing + contract-hard followUps
+ *  - Loop-closure rerun once when engine asks for year/mode despite session state
+ *  - Debug snapshot via /api/chat?debug=1
  *  - Render/server timeouts + upstream AbortController timeout
  *  - Top10 chart fallback ladder + gap-aware replies
  *  - CORS origin normalization (www/non-www), same corsOptions for preflight
@@ -38,7 +40,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.4.7 (Mic Feedback Guard + Sponsors Lane v1 routing; preserves v1.4.6)";
+  "index.js v1.4.8 (Sponsors Catalog Sync + safer catalog debug; preserves v1.4.7)";
 
 /* ======================================================
    Basic middleware
@@ -392,16 +394,49 @@ try {
 
 let SPONSORS_CATALOG = null;
 
+function normalizeCatalogCount(cat) {
+  try {
+    if (!cat || typeof cat !== "object") return { packages: 0, tiers: 0 };
+    const pk = Array.isArray(cat.packages) ? cat.packages.length : 0;
+    const tr = Array.isArray(cat.tiers) ? cat.tiers.length : 0;
+    return { packages: pk, tiers: tr };
+  } catch {
+    return { packages: 0, tiers: 0 };
+  }
+}
+
 function loadSponsorsCatalogOnce() {
-  // Prefer sponsorsKnowledge loader if available (canonical)
-  if (sponsorsKnowledge && typeof sponsorsKnowledge.loadCatalog === "function") {
-    const out = sponsorsKnowledge.loadCatalog(sponsorsKnowledge.DEFAULT_CATALOG_REL);
-    if (out && out.ok && out.catalog) return out.catalog;
+  // 1) Canonical: sponsorsKnowledge.getCatalog() returns normalized catalog (including packages[])
+  if (sponsorsKnowledge && typeof sponsorsKnowledge.getCatalog === "function") {
+    try {
+      const c = sponsorsKnowledge.getCatalog();
+      if (c && typeof c === "object") {
+        SPONSORS_CATALOG = c;
+        return SPONSORS_CATALOG;
+      }
+    } catch (_) {
+      // ignore; fall through
+    }
   }
 
+  // 2) Next: sponsorsKnowledge.loadCatalog() (normalized) if getCatalog() isn't available
+  if (sponsorsKnowledge && typeof sponsorsKnowledge.loadCatalog === "function") {
+    try {
+      const rel = sponsorsKnowledge.DEFAULT_CATALOG_REL || "Data/sponsors/sponsors_catalog_v1.json";
+      const out = sponsorsKnowledge.loadCatalog(rel);
+      if (out && out.ok && out.catalog) {
+        SPONSORS_CATALOG = out.catalog;
+        return SPONSORS_CATALOG;
+      }
+    } catch (_) {
+      // ignore; fall through
+    }
+  }
+
+  // 3) Cached
   if (SPONSORS_CATALOG) return SPONSORS_CATALOG;
 
-  // allow override via env
+  // 4) File/env fallback
   const rel = String(process.env.SPONSORS_CATALOG_REL || "Data/sponsors/sponsors_catalog_v1.json");
   const abs = path.resolve(process.cwd(), rel);
 
@@ -416,7 +451,7 @@ function loadSponsorsCatalogOnce() {
     // ignore; fall through
   }
 
-  // Minimal built-in fallback (keeps Sponsors lane functional even without file)
+  // 5) Minimal built-in fallback (keeps Sponsors lane functional even without file)
   SPONSORS_CATALOG = {
     version: "sponsors_catalog_fallback",
     packages: [
@@ -698,7 +733,7 @@ function isSponsorIntentFallback(text) {
   const strong =
     /\b(sponsor|sponsorship|advertis(e|ing)|rate\s*card|media\s*kit|ad\s*package|ad\s*packages|ad\s*pricing|pricing|promote|promotion|commercial|campaign)\b/;
 
-  // avoid false positives like "song sponsor" (rare, but keep safe)
+  // avoid false positives like "song sponsor"
   if (
     /\b(sponsor)\b/.test(t) &&
     /\b(song|music|artist|album)\b/.test(t) &&
@@ -763,9 +798,6 @@ async function runSponsorsEngine(text, session) {
 ====================================================== */
 
 function pickPrimaryChartForYear(year) {
-  // Known strong sources:
-  // - 1950–1959: Billboard Year-End Singles
-  // - 1970+: Billboard Year-End Hot 100
   if (year >= 1950 && year <= 1959) return "Billboard Year-End Singles";
   return "Billboard Year-End Hot 100";
 }
@@ -1053,14 +1085,23 @@ function respondJson(req, res, base, session, engineOut) {
 
   const wantsDebug = CHAT_DEBUG || parseDebugFlag(req);
   if (wantsDebug) {
-    // Sponsors catalog quick debug visibility
     let sponsorsCatalogDebug = null;
+    let sponsorsCatalogMeta = null;
+
     try {
       if (sponsorsKnowledge && typeof sponsorsKnowledge.getCatalogDebug === "function") {
         sponsorsCatalogDebug = sponsorsKnowledge.getCatalogDebug();
       }
     } catch (_) {
       sponsorsCatalogDebug = null;
+    }
+
+    try {
+      if (sponsorsKnowledge && typeof sponsorsKnowledge.getCatalogMeta === "function") {
+        sponsorsCatalogMeta = sponsorsKnowledge.getCatalogMeta();
+      }
+    } catch (_) {
+      sponsorsCatalogMeta = null;
     }
 
     payload.debug = {
@@ -1083,7 +1124,8 @@ function respondJson(req, res, base, session, engineOut) {
       },
       sponsors: {
         laneLoaded: !!(sponsorsLane && typeof sponsorsLane.handleChat === "function"),
-        knowledgeLoaded: !!(sponsorsKnowledge && typeof sponsorsKnowledge.loadCatalog === "function"),
+        knowledgeLoaded: !!(sponsorsKnowledge && (typeof sponsorsKnowledge.getCatalog === "function" || typeof sponsorsKnowledge.loadCatalog === "function")),
+        catalogMeta: sponsorsCatalogMeta || null,
         catalogDebug: sponsorsCatalogDebug
           ? {
               loaded: !!sponsorsCatalogDebug.loaded,
@@ -1122,7 +1164,16 @@ app.get("/api/health", (req, res) => {
 
   const cat = loadSponsorsCatalogOnce();
   const sponsorsOk = !!(cat && typeof cat === "object");
-  const sponsorsPkgs = sponsorsOk && Array.isArray(cat.packages) ? cat.packages.length : 0;
+  const counts = normalizeCatalogCount(cat);
+
+  let meta = null;
+  try {
+    if (sponsorsKnowledge && typeof sponsorsKnowledge.getCatalogMeta === "function") {
+      meta = sponsorsKnowledge.getCatalogMeta();
+    }
+  } catch (_) {
+    meta = null;
+  }
 
   res.json({
     ok: true,
@@ -1162,11 +1213,13 @@ app.get("/api/health", (req, res) => {
     },
     sponsors: {
       laneLoaded: !!(sponsorsLane && typeof sponsorsLane.handleChat === "function"),
-      knowledgeLoaded: !!(sponsorsKnowledge && typeof sponsorsKnowledge.loadCatalog === "function"),
+      knowledgeLoaded: !!(sponsorsKnowledge && (typeof sponsorsKnowledge.getCatalog === "function" || typeof sponsorsKnowledge.loadCatalog === "function")),
       catalog: {
         ok: sponsorsOk,
         version: sponsorsOk ? cat.version || null : null,
-        packages: sponsorsPkgs,
+        packages: counts.packages,
+        tiers: counts.tiers,
+        meta,
         source:
           SPONSORS_CATALOG && SPONSORS_CATALOG.version === "sponsors_catalog_fallback"
             ? "fallback"
@@ -1314,7 +1367,6 @@ async function runMusicEngine(text, session) {
 }
 
 async function runEngineWithLoopClosure(command, session, maxReruns = 1) {
-  // Prevent the last “engine asks for year/mode even though we have it” loop.
   let out = await runMusicEngine(command, session);
   let reply0 = cleanText(out.reply || "");
 
@@ -1323,7 +1375,6 @@ async function runEngineWithLoopClosure(command, session, maxReruns = 1) {
   const y = clampYear(session.lastYear);
   const m = session.activeMusicMode || session.pendingMode || null;
 
-  // If engine asks for year but we have y, rerun with explicit "command y"
   if (reply0 && engineAsksForYear(reply0) && y) {
     const cmd = m ? `${modeToCommand(m)} ${y}` : `${command} ${y}`;
     out = await runMusicEngine(cmd, session);
@@ -1331,7 +1382,6 @@ async function runEngineWithLoopClosure(command, session, maxReruns = 1) {
     return out;
   }
 
-  // If engine asks for mode but we have mode, rerun with explicit mode
   if (reply0 && engineAsksForMode(reply0) && m && y) {
     const cmd = `${modeToCommand(m)} ${y}`;
     out = await runMusicEngine(cmd, session);
@@ -1426,8 +1476,6 @@ app.post("/api/chat", async (req, res) => {
 
   // ======================================================
   // Sponsors Lane router (early, before music nav tokens)
-  //  - If lane is sponsors OR sponsor-intent detected, handle here.
-  //  - Exception: explicit music commands keep music lane behavior.
   // ======================================================
 
   const explicitMusic =
@@ -1574,7 +1622,7 @@ app.post("/api/chat", async (req, res) => {
     return respondJson(req, res, base, session, null);
   }
 
-  // #1 (engine first, fallback)
+  // #1
   if (nav === "one") {
     if (!clampYear(session.lastYear)) {
       const ask = "Tell me a year first (1950–2024), then I’ll give you #1.";
@@ -1644,7 +1692,7 @@ app.post("/api/chat", async (req, res) => {
   const parsedMode = normalizeModeToken(message);
   const bareYear = parsedYear ? isBareYearMessage(message) : false;
 
-  // MODE + YEAR in one shot
+  // MODE + YEAR
   if (parsedYear && parsedMode) {
     session.lastYear = parsedYear;
     session.activeMusicMode = parsedMode;
@@ -1682,7 +1730,6 @@ app.post("/api/chat", async (req, res) => {
     session.activeMusicMode = parsedMode;
     session.pendingMode = parsedMode;
 
-    // Sticky year: run immediately if we have lastYear
     if (clampYear(session.lastYear)) {
       session.pendingMode = null;
 
@@ -1730,7 +1777,7 @@ app.post("/api/chat", async (req, res) => {
     return respondJson(req, res, base, session, null);
   }
 
-  // YEAR present: treat as year selection (prefers pending/active mode)
+  // YEAR present
   if (parsedYear && !parsedMode) {
     session.lastYear = parsedYear;
     const mode = session.pendingMode || session.activeMusicMode || null;
@@ -1783,7 +1830,6 @@ app.post("/api/chat", async (req, res) => {
     return respondJson(req, res, base, session, null);
   }
 
-  // If user only sent a bare year but no mode, prefer a crisp mode prompt (avoids engine wandering)
   if (bareYear && parsedYear) {
     const askMode = `Got it — ${parsedYear}. What do you want: Top 10, Story moment, or Micro moment?`;
     session.lastReply = askMode;
@@ -1802,7 +1848,7 @@ app.post("/api/chat", async (req, res) => {
     return respondJson(req, res, base, session, null);
   }
 
-  // passthrough to engine (with spine chart + loop closure)
+  // passthrough to engine
   forceYearSpineChart(session, session.lastYear);
 
   const out = await runEngineWithLoopClosure(message, session, 1);
@@ -1874,7 +1920,6 @@ function shutdown(sig) {
       console.log(`[sandblast-backend] shutdown ${sig}`);
       process.exit(0);
     });
-    // force-exit if close hangs
     setTimeout(() => process.exit(0), 3000).unref?.();
   } catch (_) {
     process.exit(0);
