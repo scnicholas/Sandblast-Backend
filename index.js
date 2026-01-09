@@ -3,17 +3,23 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.2 (TIGHT: One-Tap Resume; minimal personalization; preserves v1.5.1 core hardening)
+ * index.js v1.5.3 (TIGHT: Returning Visitors = 4 chips; preserves v1.5.2)
  *
- * Tightened scenario:
- *  - Returning visitor gets ONE personalized action:
- *      - "Continue" if resumable
- *      - otherwise "Start fresh"
- *  - Optional name cue ("Welcome back, Mac") if user volunteered a name.
+ * Update:
+ *  - Returning visitors ALWAYS get exactly 4 follow-up chips:
+ *      1) "Continue" (if resumable) OR "Start fresh"
+ *      2) "Top 10"
+ *      3) "Story moment"
+ *      4) "Micro moment"
+ *  - This is enforced in respondJson() even if the engine returns its own followUps.
  *
- * Removed from v1.5.1:
- *  - "Use my last brief" / "Use my usual" commands
- *  - Lane-specific reuse tokens
+ * Preserves:
+ *  - One-tap resume logic (Continue / Start fresh)
+ *  - Optional name cue if user volunteered a name
+ *  - Profiles TTL + sessions TTL
+ *  - Mic feedback guard
+ *  - TTS endpoints
+ *  - Contract/version headers
  */
 
 const express = require("express");
@@ -30,7 +36,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.2 (TIGHT: One-Tap Resume; minimal personalization; preserves v1.5.1 core hardening)";
+  "index.js v1.5.3 (TIGHT: Returning Visitors = 4 chips; preserves v1.5.2)";
 
 /* ======================================================
    Basic middleware
@@ -513,7 +519,11 @@ async function elevenTtsMp3Buffer(text, voiceMode) {
       msg.toLowerCase().includes("aborted") ||
       msg.toLowerCase().includes("abort") ||
       msg.toLowerCase().includes("timeout");
-    return { ok: false, status: isAbort ? 504 : 502, detail: isAbort ? `Upstream timeout after ${ELEVEN_TTS_TIMEOUT_MS}ms` : msg };
+    return {
+      ok: false,
+      status: isAbort ? 504 : 502,
+      detail: isAbort ? `Upstream timeout after ${ELEVEN_TTS_TIMEOUT_MS}ms` : msg,
+    };
   } finally {
     clearTimeout(t);
   }
@@ -666,17 +676,20 @@ async function runMusicEngine(text, session) {
     if (out.sessionPatch && typeof out.sessionPatch === "object") Object.assign(session, out.sessionPatch);
     return out;
   } catch (e) {
-    return { reply: "I hit a snag in the music engine. Try again with a year (1950–2024).", error: String(e && e.message ? e.message : e) };
+    return {
+      reply: "I hit a snag in the music engine. Try again with a year (1950–2024).",
+      error: String(e && e.message ? e.message : e),
+    };
   }
 }
 
 /* ======================================================
-   Followups (tight: ONE personalized chip max)
+   Followups
+   - Returning visitors: EXACTLY 4
+   - New visitors: richer defaults (up to 8)
 ====================================================== */
 
 function canResume(profile, session) {
-  // resumable if we have something meaningful to continue:
-  // session has lastReply, or profile has lastMusicYear+lastMusicMode
   const sesOk = !!(session && session.lastReply);
   const profOk =
     !!profile && !!clampYear(profile.lastMusicYear) && !!profile.lastMusicMode;
@@ -684,11 +697,23 @@ function canResume(profile, session) {
 }
 
 function makeFollowUpsTight(session, profile) {
-  const personal = [];
-
+  const returning = profileIsReturning(profile);
   const resumable = canResume(profile, session);
-  if (profileIsReturning(profile)) {
-    personal.push(resumable ? "Continue" : "Start fresh");
+
+  if (returning) {
+    const personal = resumable ? "Continue" : "Start fresh";
+    const four = [
+      { label: personal, send: personal },
+      { label: "Top 10", send: "Top 10" },
+      { label: "Story moment", send: "Story moment" },
+      { label: "Micro moment", send: "Micro moment" },
+    ];
+    return {
+      followUp: four.map((x) => x.label),
+      followUps: four,
+      resumable,
+      returning: true,
+    };
   }
 
   const base = [];
@@ -706,8 +731,6 @@ function makeFollowUpsTight(session, profile) {
   if (session && session.lastReply) base.push("Replay last");
 
   const out = [];
-  // ONE personal chip max
-  if (personal[0]) out.push(personal[0]);
   for (const x of base) if (x && !out.includes(x)) out.push(x);
 
   const primary = out.slice(0, 8);
@@ -715,11 +738,11 @@ function makeFollowUpsTight(session, profile) {
     followUp: primary,
     followUps: primary.map((x) => ({ label: x, send: x })),
     resumable,
+    returning: false,
   };
 }
 
 function normalizeEngineFollowups(out) {
-  // keep engine followups if provided, but we still overlay a single personal chip (if any)
   const push = (acc, v) => {
     if (!v) return;
     if (typeof v === "string") {
@@ -757,22 +780,61 @@ function normalizeEngineFollowups(out) {
 function respondJson(req, res, base, session, engineOut, profile) {
   const tight = makeFollowUpsTight(session, profile);
 
+  // HARD GUARD: returning visitors ALWAYS get exactly the 4 chips.
+  if (tight.returning) {
+    const payload = Object.assign({}, base, {
+      followUps: tight.followUps,
+      followUp: tight.followUp,
+    });
+
+    const wantsDebug = CHAT_DEBUG || parseDebugFlag(req);
+    if (wantsDebug) {
+      payload.debug = {
+        index: INDEX_VERSION,
+        profile: profile
+          ? {
+              id: profile.id,
+              name: profile.name || "",
+              returning: profileIsReturning(profile),
+              lastLane: profile.lastLane,
+              lastMusicYear: profile.lastMusicYear || null,
+              lastMusicMode: profile.lastMusicMode || null,
+              visits: profile.visits || 0,
+            }
+          : null,
+        state: {
+          lastYear: session ? session.lastYear : null,
+          activeMusicMode: session ? session.activeMusicMode : null,
+          pendingMode: session ? session.pendingMode : null,
+          lane: session ? session.lane : null,
+          voiceMode: session ? session.voiceMode : null,
+          lastIntent: session ? session.lastIntent : null,
+        },
+        resume: { resumable: tight.resumable, forcedFourChips: true },
+      };
+    }
+
+    if (session) {
+      try {
+        session.lastFollowUp = Array.isArray(payload.followUp) ? payload.followUp.slice(0, 12) : null;
+        session.lastFollowUps = Array.isArray(payload.followUps) ? payload.followUps.slice(0, 12) : null;
+      } catch (_) {}
+    }
+
+    return res.json(payload);
+  }
+
+  // New visitors: engine followups allowed; fallback to defaults.
   const engineNorm = normalizeEngineFollowups(engineOut);
   const useEngine = engineNorm.length > 0;
 
-  // overlay ONE personal chip, then fill with engine (or tight defaults)
-  const final = [];
-  if (tight.followUp[0] && (tight.followUp[0] === "Continue" || tight.followUp[0] === "Start fresh")) {
-    final.push({ label: tight.followUp[0], send: tight.followUp[0] });
-  }
-
   const fill = useEngine ? engineNorm : tight.followUps;
+
+  const final = [];
   for (const it of fill) {
     if (!it || !it.label) continue;
     if (final.length >= 8) break;
     if (final.some((x) => x.send === it.send)) continue;
-    // do not duplicate personal chip
-    if (it.send === "Continue" || it.send === "Start fresh") continue;
     final.push({ label: it.label, send: it.send });
   }
 
@@ -804,11 +866,10 @@ function respondJson(req, res, base, session, engineOut, profile) {
         voiceMode: session ? session.voiceMode : null,
         lastIntent: session ? session.lastIntent : null,
       },
-      resume: { resumable: tight.resumable },
+      resume: { resumable: tight.resumable, forcedFourChips: false },
     };
   }
 
-  // replay parity storage
   if (session) {
     try {
       session.lastFollowUp = Array.isArray(payload.followUp) ? payload.followUp.slice(0, 12) : null;
@@ -897,11 +958,45 @@ async function ttsHandler(req, res) {
     hasExplicitVoiceMode ? body.voiceMode : (s && s.voiceMode) || "standard"
   );
 
-  if (!TTS_ENABLED) return res.status(503).json({ ok: false, error: "TTS_DISABLED", requestId, contractVersion: NYX_CONTRACT_VERSION });
-  if (TTS_PROVIDER !== "elevenlabs") return res.status(500).json({ ok: false, error: "TTS_PROVIDER_UNSUPPORTED", provider: TTS_PROVIDER, requestId, contractVersion: NYX_CONTRACT_VERSION });
-  if (!hasFetch) return res.status(500).json({ ok: false, error: "TTS_RUNTIME", detail: "fetch() not available", requestId, contractVersion: NYX_CONTRACT_VERSION });
-  if (!ELEVEN_KEY || !ELEVEN_VOICE_ID) return res.status(500).json({ ok: false, error: "TTS_MISCONFIG", detail: "Missing ELEVENLABS env", requestId, contractVersion: NYX_CONTRACT_VERSION });
-  if (!text) return res.status(400).json({ ok: false, error: "BAD_REQUEST", detail: "Missing text", requestId, contractVersion: NYX_CONTRACT_VERSION });
+  if (!TTS_ENABLED)
+    return res.status(503).json({
+      ok: false,
+      error: "TTS_DISABLED",
+      requestId,
+      contractVersion: NYX_CONTRACT_VERSION,
+    });
+  if (TTS_PROVIDER !== "elevenlabs")
+    return res.status(500).json({
+      ok: false,
+      error: "TTS_PROVIDER_UNSUPPORTED",
+      provider: TTS_PROVIDER,
+      requestId,
+      contractVersion: NYX_CONTRACT_VERSION,
+    });
+  if (!hasFetch)
+    return res.status(500).json({
+      ok: false,
+      error: "TTS_RUNTIME",
+      detail: "fetch() not available",
+      requestId,
+      contractVersion: NYX_CONTRACT_VERSION,
+    });
+  if (!ELEVEN_KEY || !ELEVEN_VOICE_ID)
+    return res.status(500).json({
+      ok: false,
+      error: "TTS_MISCONFIG",
+      detail: "Missing ELEVENLABS env",
+      requestId,
+      contractVersion: NYX_CONTRACT_VERSION,
+    });
+  if (!text)
+    return res.status(400).json({
+      ok: false,
+      error: "BAD_REQUEST",
+      detail: "Missing text",
+      requestId,
+      contractVersion: NYX_CONTRACT_VERSION,
+    });
 
   if (s && hasExplicitVoiceMode) s.voiceMode = voiceMode;
 
@@ -936,7 +1031,13 @@ async function ttsHandler(req, res) {
     res.set("X-Voice-Mode", voiceMode);
     return res.end(buf);
   } catch (e) {
-    return res.status(500).json({ ok: false, error: "TTS_ERROR", detail: String(e && e.message ? e.message : e), requestId, contractVersion: NYX_CONTRACT_VERSION });
+    return res.status(500).json({
+      ok: false,
+      error: "TTS_ERROR",
+      detail: String(e && e.message ? e.message : e),
+      requestId,
+      contractVersion: NYX_CONTRACT_VERSION,
+    });
   }
 }
 
@@ -957,7 +1058,6 @@ async function runEngine(text, session) {
 ====================================================== */
 
 async function handleContinue(session, profile) {
-  // Prefer current session state if it exists.
   const y = clampYear(session.lastYear) || clampYear(profile && profile.lastMusicYear);
   const m = session.activeMusicMode || (profile && profile.lastMusicMode) || null;
 
@@ -970,7 +1070,6 @@ async function handleContinue(session, profile) {
     return out;
   }
 
-  // If we have a last reply, we can still “continue” by asking one sharp next question.
   if (session.lastReply) {
     return { reply: "Continue with what—Top 10, Story moment, or Micro moment? (You can also drop a year.)" };
   }
@@ -979,7 +1078,6 @@ async function handleContinue(session, profile) {
 }
 
 function handleFresh(session) {
-  // Clear only the “resume” anchors, not the whole session (keeps visitor/session continuity stable).
   session.lastYear = null;
   session.activeMusicMode = null;
   session.pendingMode = null;
@@ -1096,7 +1194,7 @@ app.post("/api/chat", async (req, res) => {
     return respondJson(req, res, base, session, out, profile);
   }
 
-  // Greeting (tight: returning greeting + single chip)
+  // Greeting
   if (!message || isGreeting(message)) {
     const tight = makeFollowUpsTight(session, profile);
     const reply = greetingReply(profile, tight.resumable);
