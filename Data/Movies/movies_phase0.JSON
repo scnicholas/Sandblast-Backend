@@ -1,126 +1,139 @@
-{
-  "version": "movies_phase0_v1",
-  "last_updated": "2026-01-08T00:00:00.000Z",
-  "items": [
-    {
-      "id": "PH0-ia-behindgreenlights",
-      "title": "Behind Green Lights",
-      "year": null,
-      "type": "unknown",
-      "genres": [],
-      "summary": "",
-      "rights": {
-        "status": "candidate_public_domain",
-        "verified": false,
-        "confidence": "unknown",
-        "basis": "unverified_source_listing",
-        "notes": "Candidate only. Verify via Sandblast PD Kit before distribution."
-      },
-      "sources": [
-        {
-          "provider": "internet_archive",
-          "identifier": "BehindGreenLights",
-          "url": "https://archive.org/details/BehindGreenLights"
-        }
-      ],
-      "created_at": "2026-01-08T00:00:00.000Z",
-      "updated_at": "2026-01-08T00:00:00.000Z"
-    },
-    {
-      "id": "PH0-ia-mr-imperium",
-      "title": "Mr Imperium",
-      "year": null,
-      "type": "unknown",
-      "genres": [],
-      "summary": "",
-      "rights": {
-        "status": "candidate_public_domain",
-        "verified": false,
-        "confidence": "unknown",
-        "basis": "unverified_source_listing",
-        "notes": "Candidate only. Verify via Sandblast PD Kit before distribution."
-      },
-      "sources": [
-        {
-          "provider": "internet_archive",
-          "identifier": "Mr_Imperium",
-          "url": "https://archive.org/details/Mr_Imperium"
-        }
-      ],
-      "created_at": "2026-01-08T00:00:00.000Z",
-      "updated_at": "2026-01-08T00:00:00.000Z"
-    },
-    {
-      "id": "PH0-ia-sea-hunt-mark-of-the-octopus",
-      "title": "Sea Hunt Mark Of The Octopus",
-      "year": null,
-      "type": "unknown",
-      "genres": [],
-      "summary": "",
-      "rights": {
-        "status": "candidate_public_domain",
-        "verified": false,
-        "confidence": "unknown",
-        "basis": "unverified_source_listing",
-        "notes": "Candidate only. Verify via Sandblast PD Kit before distribution."
-      },
-      "sources": [
-        {
-          "provider": "internet_archive",
-          "identifier": "Sea_Hunt_Mark_of_the_Octopus",
-          "url": "https://archive.org/details/Sea_Hunt_Mark_of_the_Octopus"
-        }
-      ],
-      "created_at": "2026-01-08T00:00:00.000Z",
-      "updated_at": "2026-01-08T00:00:00.000Z"
-    },
-    {
-      "id": "PH0-ia-the-chase-pnm",
-      "title": "The Chase Pnm",
-      "year": null,
-      "type": "unknown",
-      "genres": [],
-      "summary": "",
-      "rights": {
-        "status": "candidate_public_domain",
-        "verified": false,
-        "confidence": "unknown",
-        "basis": "unverified_source_listing",
-        "notes": "Candidate only. Verify via Sandblast PD Kit before distribution."
-      },
-      "sources": [
-        {
-          "provider": "internet_archive",
-          "identifier": "the-chase-pnm",
-          "url": "https://archive.org/details/the-chase-pnm"
-        }
-      ],
-      "created_at": "2026-01-08T00:00:00.000Z",
-      "updated_at": "2026-01-08T00:00:00.000Z"
-    },
-    {
-      "id": "PH0-ia-don-daredevil-rides-again",
-      "title": "Don Daredevil Rides Again",
-      "year": null,
-      "type": "unknown",
-      "genres": [],
-      "summary": "",
-      "rights": {
-        "status": "candidate_public_domain",
-        "verified": false,
-        "confidence": "unknown",
-        "basis": "unverified_source_listing",
-        "notes": "Candidate only. Verify via Sandblast PD Kit before distribution."
-      },
-      "sources": [
-        {
-          "provider": "internet_archive",
-          "identifier": "don-daredevil-rides-again",
-          "url": "https://archive.org/details/don-daredevil-rides-again"
-        }
-      ],
-      "created_at": "2026-01-08T00:00:00.000Z",
-      "updated_at": "2026-01-08T00:00:00.000Z"
-    }
-  ]
-}
+[
+  {
+    "id": "PH0-TV-DECOY-1957",
+    "title": "Decoy",
+    "year": 1957,
+    "type": "series",
+    "genres": ["crime", "detective", "police"],
+    "summary": "Classic crime TV series centered on an undercover female detective. Candidate for Phase 0 pending rights verification.",
+    "rights": { "status": "candidate", "confidence": "low", "basis": "needs_verification" },
+    "sources": [
+      {
+        "platform": "internet_archive",
+        "url": "",
+        "identifier": ""
+      }
+    ],
+    "notes": [
+      "Paste the exact archive.org/details/ link for the series or specific season/collection.",
+      "Run PD verification checklist before publishing/monetizing."
+    ]
+  },
+  {
+    "id": "PH0-TV-SERIES-CRIME-01",
+    "title": "Crime / Detective Candidate #1",
+    "year": null,
+    "type": "series",
+    "genres": ["crime", "detective"],
+    "summary": "Phase 0 placeholder record for a crime/detective series candidate found on curated listings or Internet Archive.",
+    "rights": { "status": "unknown", "confidence": "unknown", "basis": "not_verified" },
+    "sources": [
+      { "platform": "internet_archive", "url": "", "identifier": "" }
+    ],
+    "notes": ["Replace title/year once IA link is pasted.", "Verify rights before use."]
+  },
+  {
+    "id": "PH0-TV-SERIES-CRIME-02",
+    "title": "Crime / Detective Candidate #2",
+    "year": null,
+    "type": "series",
+    "genres": ["crime", "detective"],
+    "summary": "Phase 0 placeholder record for a crime/detective series candidate found on curated listings or Internet Archive.",
+    "rights": { "status": "unknown", "confidence": "unknown", "basis": "not_verified" },
+    "sources": [
+      { "platform": "internet_archive", "url": "", "identifier": "" }
+    ],
+    "notes": ["Replace title/year once IA link is pasted.", "Verify rights before use."]
+  },
+  {
+    "id": "PH0-TV-SERIES-COMEDY-01",
+    "title": "Comedy Candidate #1",
+    "year": null,
+    "type": "series",
+    "genres": ["comedy"],
+    "summary": "Phase 0 placeholder record for a comedy series candidate found on curated listings or Internet Archive.",
+    "rights": { "status": "unknown", "confidence": "unknown", "basis": "not_verified" },
+    "sources": [
+      { "platform": "internet_archive", "url": "", "identifier": "" }
+    ],
+    "notes": ["Replace title/year once IA link is pasted.", "Verify rights before use."]
+  },
+  {
+    "id": "PH0-TV-SERIES-COMEDY-02",
+    "title": "Comedy Candidate #2",
+    "year": null,
+    "type": "series",
+    "genres": ["comedy"],
+    "summary": "Phase 0 placeholder record for a comedy series candidate found on curated listings or Internet Archive.",
+    "rights": { "status": "unknown", "confidence": "unknown", "basis": "not_verified" },
+    "sources": [
+      { "platform": "internet_archive", "url": "", "identifier": "" }
+    ],
+    "notes": ["Replace title/year once IA link is pasted.", "Verify rights before use."]
+  },
+  {
+    "id": "PH0-MOVIE-CRIME-01",
+    "title": "Crime Movie Candidate #1",
+    "year": null,
+    "type": "movie",
+    "genres": ["crime", "thriller"],
+    "summary": "Phase 0 placeholder record for a crime/thriller movie candidate found on curated listings or Internet Archive.",
+    "rights": { "status": "unknown", "confidence": "unknown", "basis": "not_verified" },
+    "sources": [
+      { "platform": "internet_archive", "url": "", "identifier": "" }
+    ],
+    "notes": ["Replace title/year once IA link is pasted.", "Verify rights before use."]
+  },
+  {
+    "id": "PH0-MOVIE-CRIME-02",
+    "title": "Crime Movie Candidate #2",
+    "year": null,
+    "type": "movie",
+    "genres": ["crime", "detective"],
+    "summary": "Phase 0 placeholder record for a crime/detective movie candidate found on curated listings or Internet Archive.",
+    "rights": { "status": "unknown", "confidence": "unknown", "basis": "not_verified" },
+    "sources": [
+      { "platform": "internet_archive", "url": "", "identifier": "" }
+    ],
+    "notes": ["Replace title/year once IA link is pasted.", "Verify rights before use."]
+  },
+  {
+    "id": "PH0-MOVIE-COMEDY-01",
+    "title": "Comedy Movie Candidate #1",
+    "year": null,
+    "type": "movie",
+    "genres": ["comedy"],
+    "summary": "Phase 0 placeholder record for a comedy movie candidate found on curated listings or Internet Archive.",
+    "rights": { "status": "unknown", "confidence": "unknown", "basis": "not_verified" },
+    "sources": [
+      { "platform": "internet_archive", "url": "", "identifier": "" }
+    ],
+    "notes": ["Replace title/year once IA link is pasted.", "Verify rights before use."]
+  },
+  {
+    "id": "PH0-MOVIE-ACTION-01",
+    "title": "Action/Adventure Movie Candidate #1",
+    "year": null,
+    "type": "movie",
+    "genres": ["action", "adventure"],
+    "summary": "Phase 0 placeholder record for an action/adventure movie candidate found on curated listings or Internet Archive.",
+    "rights": { "status": "unknown", "confidence": "unknown", "basis": "not_verified" },
+    "sources": [
+      { "platform": "internet_archive", "url": "", "identifier": "" }
+    ],
+    "notes": ["Replace title/year once IA link is pasted.", "Verify rights before use."]
+  },
+  {
+    "id": "PH0-TV-SERIES-THRILLER-01",
+    "title": "Thriller Series Candidate #1",
+    "year": null,
+    "type": "series",
+    "genres": ["thriller", "mystery"],
+    "summary": "Phase 0 placeholder record for a thriller/mystery series candidate found on curated listings or Internet Archive.",
+    "rights": { "status": "unknown", "confidence": "unknown", "basis": "not_verified" },
+    "sources": [
+      { "platform": "internet_archive", "url": "", "identifier": "" }
+    ],
+    "notes": ["Replace title/year once IA link is pasted.", "Verify rights before use."]
+  }
+]
