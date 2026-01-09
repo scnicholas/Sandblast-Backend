@@ -3,12 +3,16 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.4 (TIGHT: Returning Visitors = 4 chips; fixes resumable + first-turn replay)
+ * index.js v1.5.5 (TIGHT + Forward-Motion Patch: loop-proof asks; fixes returning visit inflation)
  *
- * Fixes (from v1.5.3):
- *  1) Resumable is now TRUE only when there’s meaningful state (year+mode, etc.).
- *     - Prevents “resumable:true” on a fresh greeting.
- *  2) New visitors no longer get “Replay last” on the very first greeting turn.
+ * Adds (from v1.5.4):
+ *  1) Phase A Forward-Motion Patch (FMP):
+ *     - Prevents “ask year” if session already has a valid year.
+ *     - Prevents “ask mode” if session already has a valid mode.
+ *     - Loop breaker: detects repeated askYear/askMode and forces a forward action.
+ *     - No-question-end: if reply ends as open prompt, Nyx proceeds with safest next step.
+ *  2) Critical fix: Returning visitor “visits” was incrementing on every request.
+ *     - Now increments ONCE per new session (session._countedVisit).
  *
  * Preserves:
  *  - Returning visitors ALWAYS get exactly 4 follow-up chips:
@@ -36,7 +40,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.4 (TIGHT: Returning Visitors = 4 chips; fixes resumable + first-turn replay)";
+  "index.js v1.5.5 (TIGHT + Forward-Motion Patch: loop-proof asks; fixes returning visit inflation)";
 
 /* ======================================================
    Basic middleware
@@ -254,6 +258,150 @@ function makeUuid() {
 }
 
 /* ======================================================
+   Phase A — Forward Motion Patch (FMP)
+   - Prevent loop by blocking "ask year/mode" when already known
+   - Loop breaker if repeated ask prompts
+   - No-question-end: proceed with safest next action
+====================================================== */
+
+const FMP = {
+  ASK_YEAR_RE: /\b(what year|give me a year|pick a year|choose a year|year\s*\(1950|1950–2024)\b/i,
+  ASK_MODE_RE: /\b(top 10|story moment|micro moment)\b/i,
+  SOFT_OPEN_RE: /\b(what would you like|what do you want|tell me what you|choose)\b/i,
+
+  isAskingYear(reply) {
+    const r = cleanText(reply).toLowerCase();
+    return this.ASK_YEAR_RE.test(r);
+  },
+
+  isAskingMode(reply) {
+    const r = cleanText(reply).toLowerCase();
+    // must look like a mode selection prompt, not just mentioning modes
+    return this.ASK_MODE_RE.test(r) && this.SOFT_OPEN_RE.test(r);
+  },
+
+  endsOpenQuestion(reply) {
+    const r = cleanText(reply);
+    if (!r) return false;
+    if (/[?]$/.test(r)) return true;
+    const low = r.toLowerCase();
+    if (/\bwhat would you like\b/.test(low)) return true;
+    if (/\bwhat do you want\b/.test(low)) return true;
+    if (/\btell me what you\b/.test(low)) return true;
+    return false;
+  },
+
+  // detect repeated ask prompts within a short window
+  detectAskLoop(session, reply) {
+    if (!session) return null;
+
+    const askType = this.isAskingYear(reply)
+      ? "askYear"
+      : this.isAskingMode(reply)
+      ? "askMode"
+      : null;
+
+    if (!askType) return null;
+
+    const now = Date.now();
+    const last = session._fmp_lastAsk || null;
+
+    session._fmp_lastAsk = { type: askType, at: now };
+
+    if (last && last.type === askType && now - last.at < 45000) return askType;
+    return null;
+  },
+
+  // build a forward action sentence + chips
+  forceProceed(session, reason) {
+    const y = clampYear(session && session.lastYear) ? session.lastYear : null;
+    const m = session && session.activeMusicMode ? session.activeMusicMode : null;
+
+    const year = y || 1988; // safe fallback for loop break (adjustable)
+    const mode = m || "story";
+
+    if (session) {
+      session.lastYear = year;
+      session.activeMusicMode = mode;
+      session.pendingMode = null;
+    }
+
+    const modeLabel =
+      mode === "top10" ? "the Top 10" : mode === "micro" ? "a micro moment" : "a story moment";
+
+    const reply =
+      reason === "askYear"
+        ? `Locked in ${year}. I’m going to run ${modeLabel} now. Say “switch” if you want a different mode.`
+        : reason === "askMode"
+        ? `Got it — ${year}. I’m going to run ${modeLabel} now. Say “switch” if you want a different mode.`
+        : `I’ll proceed with ${modeLabel} for ${year}. Say “switch” if you want a different mode.`;
+
+    const sendRun =
+      mode === "top10"
+        ? `top 10 ${year}`
+        : mode === "micro"
+        ? `micro moment ${year}`
+        : `story moment ${year}`;
+
+    const sendSwitch = mode === "top10" ? `story moment ${year}` : `top 10 ${year}`;
+
+    const followUps = [
+      { label: "Run now", send: sendRun },
+      { label: "Switch mode", send: sendSwitch },
+      { label: "Another year", send: "Another year" },
+    ];
+
+    return { reply, followUps };
+  },
+
+  apply(out, session) {
+    if (!out || typeof out !== "object") return out;
+    if (!session) return out;
+
+    const reply = cleanText(out.reply || "");
+    if (!reply) return out;
+
+    const hasYear = !!clampYear(session.lastYear);
+    const hasMode = !!(session.activeMusicMode || session.pendingMode);
+
+    // If engine asks for year but we have it, force proceed
+    if (hasYear && this.isAskingYear(reply)) {
+      const forced = this.forceProceed(session, "askYear");
+      return Object.assign({}, out, forced);
+    }
+
+    // If engine asks for mode but we have it, force proceed
+    if (hasMode && this.isAskingMode(reply)) {
+      const forced = this.forceProceed(session, "askMode");
+      return Object.assign({}, out, forced);
+    }
+
+    // Loop breaker: repeated ask prompts
+    const loopType = this.detectAskLoop(session, reply);
+    if (loopType) {
+      const forced = this.forceProceed(session, loopType);
+      return Object.assign({}, out, forced);
+    }
+
+    // No-question-end: if open-ended, append momentum unless we're missing both year+mode
+    if (this.endsOpenQuestion(reply)) {
+      const y = clampYear(session.lastYear) ? session.lastYear : null;
+      const mode = session.activeMusicMode || session.pendingMode || null;
+      if (y && mode) {
+        const modeLabel =
+          mode === "top10" ? "the Top 10" : mode === "micro" ? "a micro moment" : "a story moment";
+        const amended =
+          `${reply.replace(/[?]+$/g, ".")} ` +
+          `I’ll proceed with ${modeLabel} for ${y} unless you say “switch”.`;
+        return Object.assign({}, out, { reply: amended });
+      }
+    }
+
+    return out;
+  },
+};
+
+/* ======================================================
    Visitor Profiles (tight)
 ====================================================== */
 
@@ -389,6 +537,12 @@ function getSession(sessionId) {
       lastEngine: null,
 
       voiceMode: "standard",
+
+      // v1.5.5: count profile visit once per new session
+      _countedVisit: false,
+
+      // v1.5.5: forward motion ask loop memory
+      _fmp_lastAsk: null,
     });
   }
 
@@ -1151,7 +1305,8 @@ async function handleContinue(session, profile) {
     session.activeMusicMode = m;
     session.pendingMode = null;
 
-    const out = await runEngine(`${modeToCommand(m)} ${y}`, session);
+    const out0 = await runEngine(`${modeToCommand(m)} ${y}`, session);
+    const out = FMP.apply(out0, session);
     return out;
   }
 
@@ -1229,7 +1384,12 @@ app.post("/api/chat", async (req, res) => {
   const visitorId = session.visitorId;
 
   const profile = getProfile(visitorId);
-  if (profile) profile.visits = Number(profile.visits || 0) + 1;
+
+  // v1.5.5: increment visits ONCE per session (prevents instant "returning" on chatty first visit)
+  if (profile && !session._countedVisit) {
+    profile.visits = Number(profile.visits || 0) + 1;
+    session._countedVisit = true;
+  }
 
   const foundName = detectNameFromText(message);
   if (profile && foundName) profile.name = foundName;
@@ -1281,7 +1441,8 @@ app.post("/api/chat", async (req, res) => {
   // Continue (tight)
   if (nav === "continue") {
     session.lane = "music";
-    const out = await handleContinue(session, profile);
+    const out0 = await handleContinue(session, profile);
+    const out = FMP.apply(out0, session);
     const reply = addMomentumTail(session, cleanText(out.reply || "Continuing."));
 
     session.lastReply = reply;
@@ -1362,7 +1523,8 @@ app.post("/api/chat", async (req, res) => {
     session.activeMusicMode = parsedMode;
     session.pendingMode = null;
 
-    const out = await runEngine(`${modeToCommand(parsedMode)} ${parsedYear}`, session);
+    const out0 = await runEngine(`${modeToCommand(parsedMode)} ${parsedYear}`, session);
+    const out = FMP.apply(out0, session);
     const reply = addMomentumTail(session, cleanText(out.reply || ""));
 
     session.lastReply = reply;
@@ -1391,7 +1553,8 @@ app.post("/api/chat", async (req, res) => {
     if (clampYear(session.lastYear)) {
       session.pendingMode = null;
 
-      const out = await runEngine(`${modeToCommand(parsedMode)} ${session.lastYear}`, session);
+      const out0 = await runEngine(`${modeToCommand(parsedMode)} ${session.lastYear}`, session);
+      const out = FMP.apply(out0, session);
       const reply = addMomentumTail(session, cleanText(out.reply || ""));
 
       session.lastReply = reply;
@@ -1440,7 +1603,8 @@ app.post("/api/chat", async (req, res) => {
       session.activeMusicMode = mode;
       session.pendingMode = null;
 
-      const out = await runEngine(`${modeToCommand(mode)} ${parsedYear}`, session);
+      const out0 = await runEngine(`${modeToCommand(mode)} ${parsedYear}`, session);
+      const out = FMP.apply(out0, session);
       const reply = addMomentumTail(session, cleanText(out.reply || ""));
 
       session.lastReply = reply;
@@ -1502,7 +1666,10 @@ app.post("/api/chat", async (req, res) => {
 
   // Fallback passthrough
   session.lane = "music";
-  const out = await runEngine(message, session);
+  const out0 = await runEngine(message, session);
+  const out = FMP.apply(out0, session);
+
+  // If FMP produced followUps (engine-level), keep them available to respondJson() for new visitors
   const reply = addMomentumTail(session, cleanText(out.reply || ""));
 
   session.lastReply = reply;
