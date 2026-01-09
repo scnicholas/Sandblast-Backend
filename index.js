@@ -14,6 +14,17 @@
  *  2) Critical fix: Returning visitor “visits” was incrementing on every request.
  *     - Now increments ONCE per new session (session._countedVisit).
  *
+ * CRITICAL PATCHES (this resend):
+ *  3) Chart Contamination Guard:
+ *     - If session.activeMusicChart is Year-End Singles and user requests >=1960,
+ *       auto-switch to a supported 1960+ default (Year-End Hot 100 -> Hot 100).
+ *     - Prevents “Singles only 1950–1959” dead-ends when user asks modern years.
+ *  4) Navigation completion:
+ *     - Implements nextYear / prevYear / anotherYear handling (was parsed but not routed).
+ *  5) Session field bridge for musicKnowledge v2.71:
+ *     - Mirrors session.lastYear <-> session.lastMusicYear
+ *     - Ensures activeMusicChart exists and stays sane across calls.
+ *
  * Preserves:
  *  - Returning visitors ALWAYS get exactly 4 follow-up chips:
  *      1) "Continue" (if resumable) OR "Start fresh"
@@ -40,7 +51,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.5 (TIGHT + Forward-Motion Patch: loop-proof asks; fixes returning visit inflation)";
+  "index.js v1.5.5 (TIGHT + Forward-Motion Patch: loop-proof asks; fixes returning visit inflation + chart contamination guard + nav completion + music field bridge)";
 
 /* ======================================================
    Basic middleware
@@ -258,16 +269,88 @@ function makeUuid() {
 }
 
 /* ======================================================
+   Music constants + chart contamination guard
+====================================================== */
+
+const DEFAULT_CHART = "Billboard Hot 100";
+const YEAR_END_CHART = "Billboard Year-End Hot 100";
+const YEAR_END_SINGLES_CHART = "Billboard Year-End Singles";
+
+function normalizeChartToken(s) {
+  const t = cleanText(s).toLowerCase();
+  if (!t) return DEFAULT_CHART;
+  if (t.includes("year") && t.includes("end") && t.includes("single")) return YEAR_END_SINGLES_CHART;
+  if (t.includes("year") && t.includes("end")) return YEAR_END_CHART;
+  if (t.includes("hot 100") || t.includes("hot100") || t.includes("billboard")) return DEFAULT_CHART;
+  return cleanText(s);
+}
+
+/**
+ * Critical: if a stale session carries Singles into 1960+ requests, auto-switch.
+ * Prefer Year-End Hot 100 if available; otherwise Hot 100.
+ * (musicKnowledge.js will also validate, but we guard here before calling it.)
+ */
+function guardChartForYear(session, year) {
+  if (!session) return;
+  const y = clampYear(Number(year));
+  if (!y) return;
+
+  const c = normalizeChartToken(session.activeMusicChart || DEFAULT_CHART);
+
+  if (c === YEAR_END_SINGLES_CHART && y >= 1960) {
+    session.activeMusicChart = YEAR_END_CHART; // preferred
+  }
+
+  // if somehow empty/invalid, reset
+  if (!session.activeMusicChart) session.activeMusicChart = DEFAULT_CHART;
+}
+
+/**
+ * Bridge: musicKnowledge v2.71 uses lastMusicYear/lastMusicChart; index.js uses lastYear.
+ * Keep them coherent before and after engine calls.
+ */
+function preEngineBridge(session) {
+  if (!session) return;
+  if (!session.activeMusicChart) session.activeMusicChart = DEFAULT_CHART;
+
+  // If musicKnowledge fields exist but index fields missing, mirror them
+  if (!clampYear(session.lastYear) && clampYear(session.lastMusicYear)) {
+    session.lastYear = session.lastMusicYear;
+  }
+  if (!session.lastMusicChart && session.activeMusicChart) {
+    session.lastMusicChart = session.activeMusicChart;
+  }
+}
+
+function postEngineBridge(session) {
+  if (!session) return;
+
+  // Mirror back: if musicKnowledge patched lastMusicYear, keep lastYear aligned
+  if (clampYear(session.lastMusicYear) && !clampYear(session.lastYear)) {
+    session.lastYear = session.lastMusicYear;
+  }
+  if (clampYear(session.lastYear) && (!clampYear(session.lastMusicYear) || session.lastMusicYear !== session.lastYear)) {
+    session.lastMusicYear = session.lastYear;
+  }
+
+  // Chart coherence
+  if (session.lastMusicChart && !session.activeMusicChart) {
+    session.activeMusicChart = session.lastMusicChart;
+  }
+  if (session.activeMusicChart && !session.lastMusicChart) {
+    session.lastMusicChart = session.activeMusicChart;
+  }
+}
+
+/* ======================================================
    Phase A — Forward Motion Patch (FMP)
-   - Prevent loop by blocking "ask year/mode" when already known
-   - Loop breaker if repeated ask prompts
-   - No-question-end: proceed with safest next action
 ====================================================== */
 
 const FMP = {
   ASK_YEAR_RE: /\b(what year|give me a year|pick a year|choose a year|year\s*\(1950|1950–2024)\b/i,
-  ASK_MODE_RE: /\b(top 10|story moment|micro moment)\b/i,
-  SOFT_OPEN_RE: /\b(what would you like|what do you want|tell me what you|choose)\b/i,
+  // mode prompt must look like a choice prompt, not merely mentioning modes
+  ASK_MODE_RE: /\b(top\s*10|story\s*moment|micro\s*moment)\b/i,
+  SOFT_OPEN_RE: /\b(what would you like|what do you want|tell me what you|choose|pick)\b/i,
 
   isAskingYear(reply) {
     const r = cleanText(reply).toLowerCase();
@@ -276,7 +359,6 @@ const FMP = {
 
   isAskingMode(reply) {
     const r = cleanText(reply).toLowerCase();
-    // must look like a mode selection prompt, not just mentioning modes
     return this.ASK_MODE_RE.test(r) && this.SOFT_OPEN_RE.test(r);
   },
 
@@ -291,7 +373,6 @@ const FMP = {
     return false;
   },
 
-  // detect repeated ask prompts within a short window
   detectAskLoop(session, reply) {
     if (!session) return null;
 
@@ -312,18 +393,20 @@ const FMP = {
     return null;
   },
 
-  // build a forward action sentence + chips
   forceProceed(session, reason) {
     const y = clampYear(session && session.lastYear) ? session.lastYear : null;
     const m = session && session.activeMusicMode ? session.activeMusicMode : null;
 
-    const year = y || 1988; // safe fallback for loop break (adjustable)
+    const year = y || 1988; // safe fallback for loop break
     const mode = m || "story";
 
     if (session) {
       session.lastYear = year;
+      session.lastMusicYear = year;
       session.activeMusicMode = mode;
       session.pendingMode = null;
+
+      guardChartForYear(session, year);
     }
 
     const modeLabel =
@@ -364,26 +447,22 @@ const FMP = {
     const hasYear = !!clampYear(session.lastYear);
     const hasMode = !!(session.activeMusicMode || session.pendingMode);
 
-    // If engine asks for year but we have it, force proceed
     if (hasYear && this.isAskingYear(reply)) {
       const forced = this.forceProceed(session, "askYear");
       return Object.assign({}, out, forced);
     }
 
-    // If engine asks for mode but we have it, force proceed
     if (hasMode && this.isAskingMode(reply)) {
       const forced = this.forceProceed(session, "askMode");
       return Object.assign({}, out, forced);
     }
 
-    // Loop breaker: repeated ask prompts
     const loopType = this.detectAskLoop(session, reply);
     if (loopType) {
       const forced = this.forceProceed(session, loopType);
       return Object.assign({}, out, forced);
     }
 
-    // No-question-end: if open-ended, append momentum unless we're missing both year+mode
     if (this.endsOpenQuestion(reply)) {
       const y = clampYear(session.lastYear) ? session.lastYear : null;
       const mode = session.activeMusicMode || session.pendingMode || null;
@@ -426,13 +505,11 @@ function getProfile(visitorId) {
       lastSeenAt: Date.now(),
       visits: 0,
 
-      // tight personal cue
       name: "",
 
-      // tight resume memory
       lastLane: "general",
       lastMusicYear: null,
-      lastMusicMode: null, // "top10" | "story" | "micro"
+      lastMusicMode: null,
       lastHadReply: false,
     });
   }
@@ -522,15 +599,19 @@ function getSession(sessionId) {
       lastYear: null,
       activeMusicMode: null,
       pendingMode: null,
-      activeMusicChart: "Billboard Hot 100",
+
+      // musicKnowledge-compatible fields (bridge)
+      lastMusicYear: null,
+      lastMusicChart: DEFAULT_CHART,
+      activeMusicChart: DEFAULT_CHART,
 
       lane: "general",
 
       lastReply: null,
       lastReplyAt: null,
 
-      lastFollowUp: null, // array of strings
-      lastFollowUps: null, // array of {label,send}
+      lastFollowUp: null,
+      lastFollowUps: null,
 
       lastTop10One: null,
       lastIntent: null,
@@ -538,10 +619,7 @@ function getSession(sessionId) {
 
       voiceMode: "standard",
 
-      // v1.5.5: count profile visit once per new session
       _countedVisit: false,
-
-      // v1.5.5: forward motion ask loop memory
       _fmp_lastAsk: null,
     });
   }
@@ -838,7 +916,7 @@ function addMomentumTail(session, reply) {
 }
 
 /* ======================================================
-   Music engine wrapper (kept)
+   Music engine wrapper (bridged)
 ====================================================== */
 
 async function runMusicEngine(text, session) {
@@ -849,9 +927,19 @@ async function runMusicEngine(text, session) {
   }
 
   try {
+    preEngineBridge(session);
+
+    // if message implies a year, guard chart before engine runs
+    const y = clampYear(extractYearFromText(text));
+    if (y) guardChartForYear(session, y);
+
     const out = musicKnowledge.handleChat({ text, session }) || {};
-    if (out.sessionPatch && typeof out.sessionPatch === "object")
+
+    if (out.sessionPatch && typeof out.sessionPatch === "object") {
       Object.assign(session, out.sessionPatch);
+    }
+
+    postEngineBridge(session);
     return out;
   } catch (e) {
     return {
@@ -863,16 +951,12 @@ async function runMusicEngine(text, session) {
 
 /* ======================================================
    Followups
-   - Returning visitors: EXACTLY 4
-   - New visitors: richer defaults (up to 8)
 ====================================================== */
 
 function hasMeaningfulResumeState(profile, session) {
-  // Profile-based resume: must have year+mode
   const profOk =
     !!profile && !!clampYear(profile.lastMusicYear) && !!profile.lastMusicMode;
 
-  // Session-based resume: must have year+mode OR a known “contentful” state
   const sesYear = !!(session && clampYear(session.lastYear));
   const sesMode = !!(session && session.activeMusicMode);
   const sesPairOk = sesYear && sesMode;
@@ -937,7 +1021,6 @@ function makeFollowUpsTight(session, profile) {
     base.push("Another year");
   }
 
-  // Fix: don’t show “Replay last” on the first greeting turn
   const intent = session ? String(session.lastIntent || "") : "";
   const isFirstGreeting = intent === "greeting" && !hasMeaningfulResumeState(profile, session);
 
@@ -999,7 +1082,6 @@ function normalizeEngineFollowups(out) {
 function respondJson(req, res, base, session, engineOut, profile) {
   const tight = makeFollowUpsTight(session, profile);
 
-  // HARD GUARD: returning visitors ALWAYS get exactly the 4 chips.
   if (tight.returning) {
     const payload = Object.assign({}, base, {
       followUps: tight.followUps,
@@ -1025,6 +1107,7 @@ function respondJson(req, res, base, session, engineOut, profile) {
           lastYear: session ? session.lastYear : null,
           activeMusicMode: session ? session.activeMusicMode : null,
           pendingMode: session ? session.pendingMode : null,
+          activeMusicChart: session ? session.activeMusicChart : null,
           lane: session ? session.lane : null,
           voiceMode: session ? session.voiceMode : null,
           lastIntent: session ? session.lastIntent : null,
@@ -1047,7 +1130,6 @@ function respondJson(req, res, base, session, engineOut, profile) {
     return res.json(payload);
   }
 
-  // New visitors: engine followups allowed; fallback to defaults.
   const engineNorm = normalizeEngineFollowups(engineOut);
   const useEngine = engineNorm.length > 0;
 
@@ -1085,6 +1167,7 @@ function respondJson(req, res, base, session, engineOut, profile) {
         lastYear: session ? session.lastYear : null,
         activeMusicMode: session ? session.activeMusicMode : null,
         pendingMode: session ? session.pendingMode : null,
+        activeMusicChart: session ? session.activeMusicChart : null,
         lane: session ? session.lane : null,
         voiceMode: session ? session.voiceMode : null,
         lastIntent: session ? session.lastIntent : null,
@@ -1156,6 +1239,11 @@ app.get("/api/health", (req, res) => {
       enabled: MIC_GUARD_ENABLED,
       windowMs: MIC_GUARD_WINDOW_MS,
       minChars: MIC_GUARD_MIN_CHARS,
+    },
+    music: {
+      defaultChart: DEFAULT_CHART,
+      yearEndChart: YEAR_END_CHART,
+      yearEndSinglesChart: YEAR_END_SINGLES_CHART,
     },
     requestId,
   });
@@ -1302,8 +1390,11 @@ async function handleContinue(session, profile) {
 
   if (y && m) {
     session.lastYear = y;
+    session.lastMusicYear = y;
     session.activeMusicMode = m;
     session.pendingMode = null;
+
+    guardChartForYear(session, y);
 
     const out0 = await runEngine(`${modeToCommand(m)} ${y}`, session);
     const out = FMP.apply(out0, session);
@@ -1325,12 +1416,77 @@ async function handleContinue(session, profile) {
 
 function handleFresh(session) {
   session.lastYear = null;
+  session.lastMusicYear = null;
   session.activeMusicMode = null;
   session.pendingMode = null;
   session.lastTop10One = null;
+
+  // keep chart default sane
+  session.activeMusicChart = DEFAULT_CHART;
+  session.lastMusicChart = DEFAULT_CHART;
+
   return {
     reply:
       "Clean slate. Give me a year (1950–2024) and choose: Top 10, Story moment, or Micro moment.",
+  };
+}
+
+/* ======================================================
+   Nav handlers: nextYear / prevYear / anotherYear
+====================================================== */
+
+async function handleYearNav(session, direction /* +1|-1 */) {
+  const y0 = clampYear(session.lastYear);
+  const mode = session.activeMusicMode || session.pendingMode || null;
+
+  if (!y0) {
+    return {
+      reply: "Tell me a year first (1950–2024), then I can go next/previous year.",
+    };
+  }
+
+  const y1 = safeIncYear(y0, direction);
+  if (!y1) {
+    return {
+      reply: `You’re at the edge of the range. Pick a year between 1950 and 2024.`,
+    };
+  }
+
+  session.lastYear = y1;
+  session.lastMusicYear = y1;
+
+  guardChartForYear(session, y1);
+
+  if (!mode) {
+    session.pendingMode = null;
+    return {
+      reply: `Got it — ${y1}. What do you want: Top 10, Story moment, or Micro moment?`,
+    };
+  }
+
+  session.activeMusicMode = mode;
+  session.pendingMode = null;
+
+  const out0 = await runEngine(`${modeToCommand(mode)} ${y1}`, session);
+  const out = FMP.apply(out0, session);
+  return out;
+}
+
+function handleAnotherYear(session) {
+  // preserve current mode preference (if any), but require a year
+  const mode = session.pendingMode || session.activeMusicMode || null;
+
+  session.lastYear = null;
+  session.lastMusicYear = null;
+
+  if (mode) {
+    session.pendingMode = mode;
+    return { reply: replyMissingYearForMode(mode) };
+  }
+
+  return {
+    reply:
+      "Alright — new year. Give me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment.",
   };
 }
 
@@ -1382,10 +1538,9 @@ app.post("/api/chat", async (req, res) => {
   if (!session.visitorId) session.visitorId = incomingVisitorId;
 
   const visitorId = session.visitorId;
-
   const profile = getProfile(visitorId);
 
-  // v1.5.5: increment visits ONCE per session (prevents instant "returning" on chatty first visit)
+  // v1.5.5: increment visits ONCE per session
   if (profile && !session._countedVisit) {
     profile.visits = Number(profile.visits || 0) + 1;
     session._countedVisit = true;
@@ -1399,6 +1554,10 @@ app.post("/api/chat", async (req, res) => {
   );
   session.voiceMode = incomingVoiceMode;
   res.set("X-Voice-Mode", session.voiceMode);
+
+  // Ensure chart defaults are always sane + bridge any prior musicKnowledge state
+  preEngineBridge(session);
+  postEngineBridge(session);
 
   // Mic echo guard
   if (message && isLikelyMicEcho(message, session)) {
@@ -1436,6 +1595,79 @@ app.post("/api/chat", async (req, res) => {
     session.lastIntent = "replay";
     updateProfileFromSession(profile, session);
     return respondJson(req, res, base, session, null, profile);
+  }
+
+  // Next/Prev/Another year (complete routing)
+  if (nav === "nextYear") {
+    session.lane = "music";
+    const out0 = await handleYearNav(session, +1);
+    const out = FMP.apply(out0, session);
+    const reply = addMomentumTail(session, cleanText(out.reply || "Next year."));
+
+    session.lastReply = reply;
+    session.lastReplyAt = Date.now();
+    session.lastIntent = "nextYear";
+
+    updateProfileFromSession(profile, session);
+
+    const base = {
+      ok: true,
+      reply,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
+    return respondJson(req, res, base, session, out, profile);
+  }
+
+  if (nav === "prevYear") {
+    session.lane = "music";
+    const out0 = await handleYearNav(session, -1);
+    const out = FMP.apply(out0, session);
+    const reply = addMomentumTail(session, cleanText(out.reply || "Previous year."));
+
+    session.lastReply = reply;
+    session.lastReplyAt = Date.now();
+    session.lastIntent = "prevYear";
+
+    updateProfileFromSession(profile, session);
+
+    const base = {
+      ok: true,
+      reply,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
+    return respondJson(req, res, base, session, out, profile);
+  }
+
+  if (nav === "anotherYear") {
+    session.lane = "music";
+    const out0 = handleAnotherYear(session);
+    const out = FMP.apply(out0, session);
+    const reply = cleanText(out.reply || "");
+
+    session.lastReply = reply;
+    session.lastReplyAt = Date.now();
+    session.lastIntent = "anotherYear";
+
+    updateProfileFromSession(profile, session);
+
+    const base = {
+      ok: true,
+      reply,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
+    return respondJson(req, res, base, session, out, profile);
   }
 
   // Continue (tight)
@@ -1489,7 +1721,6 @@ app.post("/api/chat", async (req, res) => {
 
   // Greeting
   if (!message || isGreeting(message)) {
-    // Set intent BEFORE follow-up computation so new-visitor chips suppress “Replay last”
     session.lastIntent = "greeting";
 
     const tight = makeFollowUpsTight(session, profile);
@@ -1517,9 +1748,14 @@ app.post("/api/chat", async (req, res) => {
   const parsedMode = normalizeModeToken(message);
   const bareYear = parsedYear ? isBareYearMessage(message) : false;
 
+  if (parsedYear) {
+    session.lastYear = parsedYear;
+    session.lastMusicYear = parsedYear;
+    guardChartForYear(session, parsedYear);
+  }
+
   if (parsedYear && parsedMode) {
     session.lane = "music";
-    session.lastYear = parsedYear;
     session.activeMusicMode = parsedMode;
     session.pendingMode = null;
 
@@ -1596,7 +1832,6 @@ app.post("/api/chat", async (req, res) => {
 
   if (parsedYear && !parsedMode) {
     session.lane = "music";
-    session.lastYear = parsedYear;
 
     const mode = session.pendingMode || session.activeMusicMode || null;
     if (mode) {
@@ -1669,7 +1904,6 @@ app.post("/api/chat", async (req, res) => {
   const out0 = await runEngine(message, session);
   const out = FMP.apply(out0, session);
 
-  // If FMP produced followUps (engine-level), keep them available to respondJson() for new visitors
   const reply = addMomentumTail(session, cleanText(out.reply || ""));
 
   session.lastReply = reply;
