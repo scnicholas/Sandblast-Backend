@@ -3,16 +3,18 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.0 (Phase 0 Movies Lane + Nav Routing Guard; preserves v1.4.9)
+ * index.js v1.5.1 (Personal Cues + Personalized Follow-Ups v1; preserves v1.5.0)
  *
  * Adds / Fixes:
- *  - Phase 0 Movies lane: dedicated routing + session namespace (session.movies.phase0)
- *  - Nav routing guard: Movies lane is evaluated before music nav tokens (except Replay),
- *    preventing “next year/another year” from hijacking Movies conversations.
- *  - Movies-safe followUps: contract-hard followUps and replay parity preserved via respondJson storage.
- *  - Momentum tails: disabled for Movies lane (no music prompts appended).
+ *  - Lightweight visitor profile memory keyed by visitorId (PROFILES map)
+ *  - Personal cues: name capture (e.g., "I'm Mac") + returning greeting
+ *  - Personalized follow-ups:
+ *      - "Continue" chip (resume last meaningful flow)
+ *      - "Use my usual" chips for Sponsors + Movies lanes
+ *  - Global nav token: continue/resume handled early and safely
  *
  * Preserves:
+ *  - Phase 0 Movies lane + nav routing guard (Movies before music nav tokens except Replay/Continue)
  *  - Replay FollowUps parity + followUps memory (lastFollowUps/lastFollowUp)
  *  - Sponsors catalog sync + health/debug meta
  *  - Mic Feedback Guard
@@ -42,7 +44,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.0 (Phase 0 Movies Lane + Nav Routing Guard; preserves v1.4.9)";
+  "index.js v1.5.1 (Personal Cues + Personalized Follow-Ups v1; preserves v1.5.0)";
 
 /* ======================================================
    Basic middleware
@@ -277,6 +279,167 @@ function parseDebugFlag(req) {
   const q = String(req.query && req.query.debug ? req.query.debug : "").trim();
   if (q === "1" || q.toLowerCase() === "true") return true;
   return false;
+}
+
+/* ======================================================
+   Visitor Profiles (lightweight personalization)
+====================================================== */
+
+const PROFILES = new Map();
+
+const PROFILE_TTL_MS = Number(process.env.PROFILE_TTL_MS || 30 * 24 * 60 * 60 * 1000); // default 30 days
+const PROFILE_CLEAN_INTERVAL_MS = Math.max(
+  10 * 60 * 1000,
+  Math.min(60 * 60 * 1000, Math.floor(PROFILE_TTL_MS / 12))
+);
+
+function getProfile(visitorId) {
+  const vid = cleanText(visitorId || "");
+  if (!vid) return null;
+
+  if (!PROFILES.has(vid)) {
+    PROFILES.set(vid, {
+      id: vid,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      lastSeenAt: Date.now(),
+
+      // personal cues
+      name: "",
+
+      // preference memory
+      preferredLane: "general", // "music" | "sponsors" | "movies" | ...
+      preferredMusicMode: "", // "top10" | "story" | "micro"
+      preferredVoiceMode: "standard",
+
+      // last known stable context
+      lastMusicYear: null,
+      lastMusicMode: null,
+
+      lastSponsorsBrief: null, // {property,goal,category,budgetTier,cta,restrictions}
+      lastMoviesBrief: null, // {format,era,genres,budgetModel,territory,distribution,sources}
+
+      // metrics
+      visits: 0,
+    });
+  }
+
+  const p = PROFILES.get(vid);
+  p.updatedAt = Date.now();
+  p.lastSeenAt = Date.now();
+  return p;
+}
+
+function profileIsReturning(profile) {
+  if (!profile) return false;
+  return Number(profile.visits || 0) >= 2;
+}
+
+function detectNameFromText(text) {
+  const t = cleanText(text);
+  if (!t) return null;
+
+  // Examples:
+  // "I'm Mac", "Im Mac", "I am Mac", "my name is Mac"
+  const m = t.match(/\b(?:i[' ]?m|i am|im|my name is)\s+([A-Za-z][A-Za-z\-']{1,30})\b/i);
+  if (!m) return null;
+
+  const raw = cleanText(m[1] || "");
+  if (!raw) return null;
+
+  const name = raw.charAt(0).toUpperCase() + raw.slice(1);
+  if (name.length < 2) return null;
+  return name;
+}
+
+function updateProfileFromSession(profile, session) {
+  if (!profile || !session) return;
+
+  // Lane preference
+  if (session.lane && typeof session.lane === "string") {
+    profile.preferredLane = session.lane;
+  }
+
+  // Voice mode preference
+  if (session.voiceMode) profile.preferredVoiceMode = session.voiceMode;
+
+  // Music preference
+  if (clampYear(session.lastYear)) profile.lastMusicYear = session.lastYear;
+  if (session.activeMusicMode) profile.lastMusicMode = session.activeMusicMode;
+
+  if (session.activeMusicMode) profile.preferredMusicMode = session.activeMusicMode;
+
+  // Sponsors brief
+  try {
+    if (session.sponsors && typeof session.sponsors === "object") {
+      const s = session.sponsors;
+      const hasAny = !!(
+        cleanText(s.property) ||
+        cleanText(s.goal) ||
+        cleanText(s.category) ||
+        cleanText(s.budgetTier) ||
+        cleanText(s.cta) ||
+        cleanText(s.restrictions)
+      );
+      if (hasAny) {
+        profile.lastSponsorsBrief = {
+          property: cleanText(s.property),
+          goal: cleanText(s.goal),
+          category: cleanText(s.category),
+          budgetTier: cleanText(s.budgetTier),
+          cta: cleanText(s.cta),
+          restrictions: cleanText(s.restrictions),
+        };
+      }
+    }
+  } catch (_) {
+    // ignore
+  }
+
+  // Movies brief
+  try {
+    if (session.movies && session.movies.phase0 && typeof session.movies.phase0 === "object") {
+      const m = session.movies.phase0;
+      const hasAny = !!(
+        cleanText(m.format) ||
+        cleanText(m.era) ||
+        cleanText(m.genres) ||
+        cleanText(m.budgetModel) ||
+        cleanText(m.territory) ||
+        cleanText(m.distribution) ||
+        cleanText(m.sources)
+      );
+      if (hasAny) {
+        profile.lastMoviesBrief = {
+          format: cleanText(m.format),
+          era: cleanText(m.era),
+          genres: cleanText(m.genres),
+          budgetModel: cleanText(m.budgetModel),
+          territory: cleanText(m.territory),
+          distribution: cleanText(m.distribution),
+          sources: cleanText(m.sources),
+        };
+      }
+    }
+  } catch (_) {
+    // ignore
+  }
+
+  profile.updatedAt = Date.now();
+}
+
+const profileCleaner = setInterval(() => {
+  const cutoff = Date.now() - PROFILE_TTL_MS;
+  for (const [vid, p] of PROFILES.entries()) {
+    const u = Number(p && p.updatedAt ? p.updatedAt : 0);
+    if (!p || u < cutoff) PROFILES.delete(vid);
+  }
+}, PROFILE_CLEAN_INTERVAL_MS);
+
+try {
+  if (typeof profileCleaner.unref === "function") profileCleaner.unref();
+} catch (_) {
+  // ignore
 }
 
 /* ======================================================
@@ -666,7 +829,16 @@ function isGreeting(text) {
   return false;
 }
 
-function greetingReply() {
+function greetingReply(profile) {
+  const returning = profileIsReturning(profile);
+  const name = profile && cleanText(profile.name) ? cleanText(profile.name) : "";
+
+  if (returning) {
+    const who = name ? `${name}` : "welcome back";
+    // keep it tight; offer immediate path back into flow
+    return `Hi — ${who}. I’m Nyx. Want to continue where we left off, or start fresh?`;
+  }
+
   return "Hi — welcome to Sandblast. I’m Nyx. Give me a year (1950–2024) and choose: Top 10, Story moment, or Micro moment.";
 }
 
@@ -691,6 +863,10 @@ function normalizeNavToken(text) {
 
   if (/^(replay|repeat|again|say that again|one more time|replay last)\b/.test(t))
     return "replay";
+
+  // NEW: continue/resume (global)
+  if (/^(continue|resume|pick up|carry on|go on)\b/.test(t)) return "continue";
+
   if (/^(next|next year|forward|year\+1)\b/.test(t)) return "nextYear";
   if (/^(prev|previous|previous year|back|year-1)\b/.test(t)) return "prevYear";
   if (/^(another year|new year|different year)\b/.test(t)) return "anotherYear";
@@ -764,7 +940,7 @@ function micEchoBreakerReply(session) {
   }
   const y = session && clampYear(session.lastYear) ? session.lastYear : null;
   if (y && session.activeMusicMode) {
-    return `I’m picking up my own audio (mic feedback). Tap “Replay last” if you want that again, or say “next year”, “another year”, or “top 10 ${y}”.`;
+    return `I’m picking up my own audio (mic feedback). Tap “Replay last” if you want that again, or say “continue”, “next year”, “another year”, or “top 10 ${y}”.`;
   }
   return "I’m picking up my own audio (mic feedback). Tap a follow-up chip, or type a year (1950–2024) plus: Top 10 / Story moment / Micro moment.";
 }
@@ -1037,10 +1213,10 @@ function engineAsksForMode(reply) {
 }
 
 /* ======================================================
-   Followups (contract-hard)
+   Followups (contract-hard) + personalization overlay
 ====================================================== */
 
-function makeFollowUps(session) {
+function makeFollowUps(session, profile) {
   const baseModes = ["Top 10", "Story moment", "Micro moment"];
 
   const hasYear = !!(session && clampYear(session.lastYear));
@@ -1061,6 +1237,12 @@ function makeFollowUps(session) {
       { label: "Rev-share (No MG)", send: "rev share no mg" },
       { label: "FAST+AVOD", send: "FAST AVOD" },
     ];
+
+    // Personalized: "Use my usual" if we have a saved brief
+    if (profile && profile.lastMoviesBrief) {
+      mfu.unshift({ label: "Use my usual", send: "movies:usual" });
+    }
+
     return {
       followUp: mfu.map((x) => x.label).slice(0, 8),
       followUps: mfu.slice(0, 8),
@@ -1079,13 +1261,27 @@ function makeFollowUps(session) {
       { label: "Request rate card", send: "Request rate card" },
       { label: "Book a call", send: "Book a call" },
     ];
+
+    // Personalized: "Use my last brief" if we have one
+    if (profile && profile.lastSponsorsBrief) {
+      sfu.unshift({ label: "Use my last brief", send: "sponsors:reuse" });
+    }
+
     return {
       followUp: sfu.map((x) => x.label).slice(0, 8),
       followUps: sfu.slice(0, 8),
     };
   }
 
-  const items = [yearChip, ...baseModes];
+  // General/music followups
+  const items = [];
+
+  // Personalized: returning visitor + has lastReply => offer Continue
+  if (profileIsReturning(profile) && session && session.lastReply) {
+    items.push("Continue");
+  }
+
+  items.push(yearChip, ...baseModes);
 
   if (hasYear && hasOne) items.push("#1", "#1 story", "#1 micro");
 
@@ -1200,7 +1396,9 @@ function addMomentumTail(session, reply) {
 
 function respondJson(req, res, base, session, engineOut, opts) {
   const options = opts && typeof opts === "object" ? opts : {};
-  const fallback = makeFollowUps(session);
+  const profile = options.profile || null;
+
+  const fallback = makeFollowUps(session, profile);
 
   const forcedFollowUps =
     Array.isArray(options.forceFollowUps) && options.forceFollowUps.length
@@ -1255,6 +1453,21 @@ function respondJson(req, res, base, session, engineOut, opts) {
 
     payload.debug = {
       index: INDEX_VERSION,
+      profile: profile
+        ? {
+            id: profile.id,
+            name: profile.name || "",
+            returning: profileIsReturning(profile),
+            preferredLane: profile.preferredLane,
+            preferredMusicMode: profile.preferredMusicMode || null,
+            preferredVoiceMode: profile.preferredVoiceMode || null,
+            lastMusicYear: profile.lastMusicYear || null,
+            lastMusicMode: profile.lastMusicMode || null,
+            hasSponsorsBrief: !!profile.lastSponsorsBrief,
+            hasMoviesBrief: !!profile.lastMoviesBrief,
+            visits: profile.visits || 0,
+          }
+        : null,
       state: {
         lastYear: session ? session.lastYear : null,
         activeMusicMode: session ? session.activeMusicMode : null,
@@ -1360,6 +1573,7 @@ app.get("/api/health", (req, res) => {
     build: process.env.RENDER_GIT_COMMIT || null,
     version: INDEX_VERSION,
     sessions: SESSIONS.size,
+    profiles: PROFILES.size,
     cors: {
       allowAll: CORS_ALLOW_ALL,
       allowedOrigins: CORS_ALLOW_ALL ? "ALL" : ALLOWED_ORIGINS.length,
@@ -1593,6 +1807,61 @@ async function runEngineWithLoopClosure(command, session, maxReruns = 1) {
 }
 
 /* ======================================================
+   Personalized actions helpers
+====================================================== */
+
+async function handleContinue(session, profile) {
+  // Priority: current session lane, else profile preferred lane
+  const lane = (session && session.lane) || (profile && profile.preferredLane) || "general";
+
+  if (lane === "sponsors") {
+    // If we have a last brief, encourage reuse; otherwise run sponsors engine with a nudge
+    return {
+      lane: "sponsors",
+      out: await runSponsorsEngine("continue", session),
+    };
+  }
+
+  if (lane === "movies") {
+    return {
+      lane: "movies",
+      out: await runMoviesEngine("movies phase 0", session),
+    };
+  }
+
+  // Music: if we have a year + mode, resume that exact request
+  const y = clampYear(session && session.lastYear ? session.lastYear : (profile && profile.lastMusicYear));
+  const m = (session && session.activeMusicMode) || (profile && profile.lastMusicMode) || null;
+
+  if (y && m) {
+    session.lastYear = y;
+    session.activeMusicMode = m;
+    session.pendingMode = null;
+    forceYearSpineChart(session, y);
+
+    let out;
+    if (m === "top10") out = await runTop10WithFallback(y, session);
+    else out = await runEngineWithLoopClosure(`${modeToCommand(m)} ${y}`, session, 1);
+
+    return { lane: "music", out };
+  }
+
+  // If we can’t resume, ask intelligently based on what we know
+  if (profile && profile.preferredMusicMode) {
+    session.pendingMode = profile.preferredMusicMode;
+    return {
+      lane: "music",
+      out: { reply: replyMissingYearForMode(session, profile.preferredMusicMode) },
+    };
+  }
+
+  return {
+    lane: "general",
+    out: { reply: "Alright — what are we doing today: music, sponsors, or movies?" },
+  };
+}
+
+/* ======================================================
    API: chat
 ====================================================== */
 
@@ -1635,6 +1904,16 @@ app.post("/api/chat", async (req, res) => {
   const session = getSession(sessionId);
   if (!session.visitorId) session.visitorId = incomingVisitorId;
 
+  const visitorId = session.visitorId;
+
+  // Profile (personalization)
+  const profile = getProfile(visitorId);
+  if (profile) profile.visits = Number(profile.visits || 0) + 1;
+
+  // Capture name if user provides it
+  const foundName = detectNameFromText(message);
+  if (profile && foundName) profile.name = foundName;
+
   // Store lane (widget sends lane)
   const incomingLane = cleanText((body.lane || (body.context && body.context.lane) || "")).toLowerCase();
   if (incomingLane && ["general", "music", "tv", "sponsors", "movies", "ai"].includes(incomingLane)) {
@@ -1647,8 +1926,6 @@ app.post("/api/chat", async (req, res) => {
   );
   session.voiceMode = incomingVoiceMode;
   res.set("X-Voice-Mode", session.voiceMode);
-
-  const visitorId = session.visitorId;
 
   // ======================================================
   // Mic Feedback Guard (must run early, before intent routing)
@@ -1665,6 +1942,8 @@ app.post("/api/chat", async (req, res) => {
       at: Date.now(),
     };
 
+    updateProfileFromSession(profile, session);
+
     const base = {
       ok: true,
       reply,
@@ -1674,10 +1953,132 @@ app.post("/api/chat", async (req, res) => {
       contractVersion: NYX_CONTRACT_VERSION,
       voiceMode: session.voiceMode,
     };
-    return respondJson(req, res, base, session, null);
+    return respondJson(req, res, base, session, null, { profile });
   }
 
   const nav = normalizeNavToken(message);
+
+  // ======================================================
+  // Replay (global; must replay BOTH reply + last followUps/followUp)
+  // ======================================================
+  if (nav === "replay" && session.lastReply) {
+    const forcedFollowUps =
+      Array.isArray(session.lastFollowUps) && session.lastFollowUps.length ? session.lastFollowUps : null;
+    const forcedFollowUp =
+      Array.isArray(session.lastFollowUp) && session.lastFollowUp.length ? session.lastFollowUp : null;
+
+    const base = {
+      ok: true,
+      reply: session.lastReply,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
+    session.lastIntent = "replay";
+    updateProfileFromSession(profile, session);
+    return respondJson(req, res, base, session, null, {
+      forceFollowUps: forcedFollowUps,
+      forceFollowUp: forcedFollowUp,
+      profile,
+    });
+  }
+
+  // ======================================================
+  // Continue/Resume (global; returns to last meaningful flow)
+  // ======================================================
+  if (nav === "continue") {
+    const cont = await handleContinue(session, profile);
+    if (cont && cont.lane) session.lane = cont.lane === "music" ? "music" : cont.lane;
+
+    const reply0 = cleanText((cont && cont.out && cont.out.reply) || "");
+    const reply = addMomentumTail(session, reply0 || "Alright — continuing.");
+
+    session.lastReply = reply;
+    session.lastReplyAt = Date.now();
+    session.lastIntent = "continue";
+    session.lastEngine = { kind: "continue", chart: session.activeMusicChart, note: session.lane, at: Date.now() };
+
+    updateProfileFromSession(profile, session);
+
+    const base = {
+      ok: true,
+      reply,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
+    return respondJson(req, res, base, session, cont.out || null, { profile });
+  }
+
+  // ======================================================
+  // Personalized utility commands for lanes (chips)
+  // ======================================================
+  if (message === "sponsors:reuse" && profile && profile.lastSponsorsBrief) {
+    session.lane = "sponsors";
+    // inject a compact structured prompt into sponsors engine
+    const b = profile.lastSponsorsBrief;
+    const prompt = `Use last brief: ${b.property || "property?"} | ${b.goal || "goal?"} | ${b.budgetTier || "budget?"} | ${b.cta || ""}`.trim();
+
+    const out = await runSponsorsEngine(prompt, session);
+    const reply0 = cleanText(out.reply || "");
+    const reply = reply0 || "Using your last sponsors brief. What do you want to adjust first—property, goal, or budget?";
+
+    session.lastReply = reply;
+    session.lastReplyAt = Date.now();
+    session.lastIntent = "sponsorsReuse";
+
+    updateProfileFromSession(profile, session);
+
+    const base = {
+      ok: true,
+      reply,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
+    return respondJson(req, res, base, session, out, { profile });
+  }
+
+  if (message === "movies:usual" && profile && profile.lastMoviesBrief) {
+    session.lane = "movies";
+    const b = profile.lastMoviesBrief;
+    const parts = [
+      b.format || "series",
+      b.era || "late 70s / 80s",
+      b.genres || "crime detective",
+      b.budgetModel || "rev-share (no MG)",
+      b.territory || "world",
+      b.distribution || "FAST+AVOD",
+    ];
+    const prompt = parts.join(" | ");
+
+    const out = await runMoviesEngine(prompt, session);
+    const reply0 = cleanText(out.reply || "");
+    const reply = reply0 || "Using your usual Movies Phase 0 brief. Want to tighten genres, territory, or budget model?";
+
+    session.lastReply = reply;
+    session.lastReplyAt = Date.now();
+    session.lastIntent = "moviesUsual";
+
+    updateProfileFromSession(profile, session);
+
+    const base = {
+      ok: true,
+      reply,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
+    return respondJson(req, res, base, session, out, { profile });
+  }
 
   // ======================================================
   // Sponsors Lane router (early)
@@ -1701,6 +2102,8 @@ app.post("/api/chat", async (req, res) => {
     session.lastReply = reply;
     session.lastReplyAt = Date.now();
 
+    updateProfileFromSession(profile, session);
+
     const base = {
       ok: true,
       reply,
@@ -1711,32 +2114,7 @@ app.post("/api/chat", async (req, res) => {
       voiceMode: session.voiceMode,
     };
 
-    return respondJson(req, res, base, session, out);
-  }
-
-  // ======================================================
-  // Replay (global; must replay BOTH reply + last followUps/followUp)
-  // ======================================================
-  if (nav === "replay" && session.lastReply) {
-    const forcedFollowUps =
-      Array.isArray(session.lastFollowUps) && session.lastFollowUps.length ? session.lastFollowUps : null;
-    const forcedFollowUp =
-      Array.isArray(session.lastFollowUp) && session.lastFollowUp.length ? session.lastFollowUp : null;
-
-    const base = {
-      ok: true,
-      reply: session.lastReply,
-      sessionId,
-      requestId,
-      visitorId,
-      contractVersion: NYX_CONTRACT_VERSION,
-      voiceMode: session.voiceMode,
-    };
-    session.lastIntent = "replay";
-    return respondJson(req, res, base, session, null, {
-      forceFollowUps: forcedFollowUps,
-      forceFollowUp: forcedFollowUp,
-    });
+    return respondJson(req, res, base, session, out, { profile });
   }
 
   // ======================================================
@@ -1757,6 +2135,8 @@ app.post("/api/chat", async (req, res) => {
     session.lastReplyAt = Date.now();
     session.lastEngine = { kind: "movies", chart: null, note: "phase0", at: Date.now() };
 
+    updateProfileFromSession(profile, session);
+
     const base = {
       ok: true,
       reply,
@@ -1767,11 +2147,11 @@ app.post("/api/chat", async (req, res) => {
       voiceMode: session.voiceMode,
     };
 
-    return respondJson(req, res, base, session, out);
+    return respondJson(req, res, base, session, out, { profile });
   }
 
   // ======================================================
-  // Music nav tokens (only after Sponsors/Replay/Movies)
+  // Music nav tokens (only after Sponsors/Replay/Continue/Movies)
   // ======================================================
 
   if (nav === "anotherYear") {
@@ -1782,6 +2162,9 @@ app.post("/api/chat", async (req, res) => {
     session.lastReply = ask;
     session.lastReplyAt = Date.now();
     session.lastIntent = "askYear";
+
+    updateProfileFromSession(profile, session);
+
     const base = {
       ok: true,
       reply: ask,
@@ -1791,7 +2174,7 @@ app.post("/api/chat", async (req, res) => {
       contractVersion: NYX_CONTRACT_VERSION,
       voiceMode: session.voiceMode,
     };
-    return respondJson(req, res, base, session, null);
+    return respondJson(req, res, base, session, null, { profile });
   }
 
   if ((nav === "nextYear" || nav === "prevYear") && clampYear(session.lastYear)) {
@@ -1817,6 +2200,8 @@ app.post("/api/chat", async (req, res) => {
 
         if (replyLooksLikeTop10List(reply0)) session.lastTop10One = extractTop10NumberOne(reply0);
 
+        updateProfileFromSession(profile, session);
+
         const base = {
           ok: true,
           reply,
@@ -1826,7 +2211,7 @@ app.post("/api/chat", async (req, res) => {
           contractVersion: NYX_CONTRACT_VERSION,
           voiceMode: session.voiceMode,
         };
-        return respondJson(req, res, base, session, out);
+        return respondJson(req, res, base, session, out, { profile });
       }
 
       const base = {
@@ -1841,7 +2226,10 @@ app.post("/api/chat", async (req, res) => {
       session.lastReply = base.reply;
       session.lastReplyAt = Date.now();
       session.lastIntent = "askMode";
-      return respondJson(req, res, base, session, null);
+
+      updateProfileFromSession(profile, session);
+
+      return respondJson(req, res, base, session, null, { profile });
     }
   }
 
@@ -1859,6 +2247,8 @@ app.post("/api/chat", async (req, res) => {
     session.lastReplyAt = Date.now();
     session.lastIntent = session.activeMusicMode;
 
+    updateProfileFromSession(profile, session);
+
     const base = {
       ok: true,
       reply: rep,
@@ -1868,7 +2258,7 @@ app.post("/api/chat", async (req, res) => {
       contractVersion: NYX_CONTRACT_VERSION,
       voiceMode: session.voiceMode,
     };
-    return respondJson(req, res, base, session, null);
+    return respondJson(req, res, base, session, null, { profile });
   }
 
   if (nav === "one") {
@@ -1877,6 +2267,9 @@ app.post("/api/chat", async (req, res) => {
       session.lastReply = ask;
       session.lastReplyAt = Date.now();
       session.lastIntent = "askYear";
+
+      updateProfileFromSession(profile, session);
+
       const base = {
         ok: true,
         reply: ask,
@@ -1886,7 +2279,7 @@ app.post("/api/chat", async (req, res) => {
         contractVersion: NYX_CONTRACT_VERSION,
         voiceMode: session.voiceMode,
       };
-      return respondJson(req, res, base, session, null);
+      return respondJson(req, res, base, session, null, { profile });
     }
 
     const out = await runEngineWithLoopClosure("#1", session, 1);
@@ -1909,6 +2302,8 @@ app.post("/api/chat", async (req, res) => {
     session.lastReplyAt = Date.now();
     session.lastIntent = "number1";
 
+    updateProfileFromSession(profile, session);
+
     const base = {
       ok: true,
       reply,
@@ -1918,13 +2313,13 @@ app.post("/api/chat", async (req, res) => {
       contractVersion: NYX_CONTRACT_VERSION,
       voiceMode: session.voiceMode,
     };
-    return respondJson(req, res, base, session, out);
+    return respondJson(req, res, base, session, out, { profile });
   }
 
   if (!message || isGreeting(message)) {
     const base = {
       ok: true,
-      reply: greetingReply(),
+      reply: greetingReply(profile),
       sessionId,
       requestId,
       visitorId,
@@ -1934,7 +2329,10 @@ app.post("/api/chat", async (req, res) => {
     session.lastReply = base.reply;
     session.lastReplyAt = Date.now();
     session.lastIntent = "greeting";
-    return respondJson(req, res, base, session, null);
+
+    updateProfileFromSession(profile, session);
+
+    return respondJson(req, res, base, session, null, { profile });
   }
 
   const parsedYear = clampYear(extractYearFromText(message));
@@ -1961,6 +2359,8 @@ app.post("/api/chat", async (req, res) => {
 
     if (replyLooksLikeTop10List(reply0)) session.lastTop10One = extractTop10NumberOne(reply0);
 
+    updateProfileFromSession(profile, session);
+
     const base = {
       ok: true,
       reply,
@@ -1970,7 +2370,7 @@ app.post("/api/chat", async (req, res) => {
       contractVersion: NYX_CONTRACT_VERSION,
       voiceMode: session.voiceMode,
     };
-    return respondJson(req, res, base, session, out);
+    return respondJson(req, res, base, session, out, { profile });
   }
 
   if (parsedMode && !parsedYear) {
@@ -1995,6 +2395,8 @@ app.post("/api/chat", async (req, res) => {
 
       if (replyLooksLikeTop10List(reply0)) session.lastTop10One = extractTop10NumberOne(reply0);
 
+      updateProfileFromSession(profile, session);
+
       const base = {
         ok: true,
         reply,
@@ -2004,13 +2406,15 @@ app.post("/api/chat", async (req, res) => {
         contractVersion: NYX_CONTRACT_VERSION,
         voiceMode: session.voiceMode,
       };
-      return respondJson(req, res, base, session, out);
+      return respondJson(req, res, base, session, out, { profile });
     }
 
     const ask = replyMissingYearForMode(session, parsedMode);
     session.lastReply = ask;
     session.lastReplyAt = Date.now();
     session.lastIntent = "askYear";
+
+    updateProfileFromSession(profile, session);
 
     const base = {
       ok: true,
@@ -2021,7 +2425,7 @@ app.post("/api/chat", async (req, res) => {
       contractVersion: NYX_CONTRACT_VERSION,
       voiceMode: session.voiceMode,
     };
-    return respondJson(req, res, base, session, null);
+    return respondJson(req, res, base, session, null, { profile });
   }
 
   if (parsedYear && !parsedMode) {
@@ -2047,6 +2451,8 @@ app.post("/api/chat", async (req, res) => {
 
       if (replyLooksLikeTop10List(reply0)) session.lastTop10One = extractTop10NumberOne(reply0);
 
+      updateProfileFromSession(profile, session);
+
       const base = {
         ok: true,
         reply,
@@ -2056,13 +2462,15 @@ app.post("/api/chat", async (req, res) => {
         contractVersion: NYX_CONTRACT_VERSION,
         voiceMode: session.voiceMode,
       };
-      return respondJson(req, res, base, session, out);
+      return respondJson(req, res, base, session, out, { profile });
     }
 
     const askMode = `Got it — ${parsedYear}. What do you want: Top 10, Story moment, or Micro moment?`;
     session.lastReply = askMode;
     session.lastReplyAt = Date.now();
     session.lastIntent = "askMode";
+
+    updateProfileFromSession(profile, session);
 
     const base = {
       ok: true,
@@ -2073,7 +2481,7 @@ app.post("/api/chat", async (req, res) => {
       contractVersion: NYX_CONTRACT_VERSION,
       voiceMode: session.voiceMode,
     };
-    return respondJson(req, res, base, session, null);
+    return respondJson(req, res, base, session, null, { profile });
   }
 
   if (bareYear && parsedYear) {
@@ -2082,6 +2490,8 @@ app.post("/api/chat", async (req, res) => {
     session.lastReplyAt = Date.now();
     session.lastIntent = "askMode";
 
+    updateProfileFromSession(profile, session);
+
     const base = {
       ok: true,
       reply: askMode,
@@ -2091,7 +2501,7 @@ app.post("/api/chat", async (req, res) => {
       contractVersion: NYX_CONTRACT_VERSION,
       voiceMode: session.voiceMode,
     };
-    return respondJson(req, res, base, session, null);
+    return respondJson(req, res, base, session, null, { profile });
   }
 
   forceYearSpineChart(session, session.lastYear);
@@ -2109,6 +2519,8 @@ app.post("/api/chat", async (req, res) => {
     if (session.lastTop10One && session.lastTop10One.year) session.lastYear = session.lastTop10One.year;
   }
 
+  updateProfileFromSession(profile, session);
+
   const base = {
     ok: true,
     reply,
@@ -2118,7 +2530,7 @@ app.post("/api/chat", async (req, res) => {
     contractVersion: NYX_CONTRACT_VERSION,
     voiceMode: session.voiceMode,
   };
-  return respondJson(req, res, base, session, out);
+  return respondJson(req, res, base, session, out, { profile });
 });
 
 /* ======================================================
@@ -2156,6 +2568,11 @@ server.on("error", (err) => {
 function shutdown(sig) {
   try {
     clearInterval(cleaner);
+  } catch (_) {
+    // ignore
+  }
+  try {
+    clearInterval(profileCleaner);
   } catch (_) {
     // ignore
   }
