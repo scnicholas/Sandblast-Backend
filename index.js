@@ -3,17 +3,19 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.3 (TIGHT: Returning Visitors = 4 chips; preserves v1.5.2)
+ * index.js v1.5.4 (TIGHT: Returning Visitors = 4 chips; fixes resumable + first-turn replay)
  *
- * Update:
+ * Fixes (from v1.5.3):
+ *  1) Resumable is now TRUE only when there’s meaningful state (year+mode, etc.).
+ *     - Prevents “resumable:true” on a fresh greeting.
+ *  2) New visitors no longer get “Replay last” on the very first greeting turn.
+ *
+ * Preserves:
  *  - Returning visitors ALWAYS get exactly 4 follow-up chips:
  *      1) "Continue" (if resumable) OR "Start fresh"
  *      2) "Top 10"
  *      3) "Story moment"
  *      4) "Micro moment"
- *  - This is enforced in respondJson() even if the engine returns its own followUps.
- *
- * Preserves:
  *  - One-tap resume logic (Continue / Start fresh)
  *  - Optional name cue if user volunteered a name
  *  - Profiles TTL + sessions TTL
@@ -25,8 +27,6 @@
 const express = require("express");
 const crypto = require("crypto");
 const cors = require("cors");
-const fs = require("fs");
-const path = require("path");
 
 const app = express();
 
@@ -36,7 +36,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.3 (TIGHT: Returning Visitors = 4 chips; preserves v1.5.2)";
+  "index.js v1.5.4 (TIGHT: Returning Visitors = 4 chips; fixes resumable + first-turn replay)";
 
 /* ======================================================
    Basic middleware
@@ -258,7 +258,9 @@ function makeUuid() {
 ====================================================== */
 
 const PROFILES = new Map();
-const PROFILE_TTL_MS = Number(process.env.PROFILE_TTL_MS || 30 * 24 * 60 * 60 * 1000);
+const PROFILE_TTL_MS = Number(
+  process.env.PROFILE_TTL_MS || 30 * 24 * 60 * 60 * 1000
+);
 const PROFILE_CLEAN_INTERVAL_MS = Math.max(
   10 * 60 * 1000,
   Math.min(60 * 60 * 1000, Math.floor(PROFILE_TTL_MS / 12))
@@ -300,7 +302,9 @@ function profileIsReturning(profile) {
 function detectNameFromText(text) {
   const t = cleanText(text);
   if (!t) return null;
-  const m = t.match(/\b(?:i[' ]?m|i am|im|my name is)\s+([A-Za-z][A-Za-z\-']{1,30})\b/i);
+  const m = t.match(
+    /\b(?:i[' ]?m|i am|im|my name is)\s+([A-Za-z][A-Za-z\-']{1,30})\b/i
+  );
   if (!m) return null;
   const raw = cleanText(m[1] || "");
   if (!raw) return null;
@@ -393,7 +397,9 @@ function getSession(sessionId) {
   return s;
 }
 
-const SESSION_TTL_MS = Number(process.env.SESSION_TTL_MS || 6 * 60 * 60 * 1000);
+const SESSION_TTL_MS = Number(
+  process.env.SESSION_TTL_MS || 6 * 60 * 60 * 1000
+);
 const CLEAN_INTERVAL_MS = Math.max(
   60 * 1000,
   Math.min(15 * 60 * 1000, Math.floor(SESSION_TTL_MS / 4))
@@ -428,7 +434,9 @@ const TTS_ENABLED = String(process.env.TTS_ENABLED || "true") === "true";
 const TTS_PROVIDER = String(process.env.TTS_PROVIDER || "elevenlabs");
 const ELEVEN_KEY = String(process.env.ELEVENLABS_API_KEY || "");
 const ELEVEN_VOICE_ID = String(process.env.ELEVENLABS_VOICE_ID || "");
-const ELEVEN_MODEL_ID = String(process.env.ELEVENLABS_MODEL_ID || "eleven_multilingual_v2");
+const ELEVEN_MODEL_ID = String(
+  process.env.ELEVENLABS_MODEL_ID || "eleven_multilingual_v2"
+);
 
 const hasFetch = typeof fetch === "function";
 const ELEVEN_TTS_TIMEOUT_MS = Math.max(
@@ -448,7 +456,8 @@ function getTtsTuningForMode(voiceMode) {
     stability: Number(process.env.NYX_VOICE_STABILITY ?? 0.55),
     similarity: Number(process.env.NYX_VOICE_SIMILARITY ?? 0.78),
     style: Number(process.env.NYX_VOICE_STYLE ?? 0.12),
-    speakerBoost: String(process.env.NYX_VOICE_SPEAKER_BOOST ?? "false") === "true",
+    speakerBoost:
+      String(process.env.NYX_VOICE_SPEAKER_BOOST ?? "false") === "true",
   };
 
   const m = normalizeVoiceMode(voiceMode);
@@ -620,7 +629,8 @@ function normalizeNavToken(text) {
   const t = cleanText(text).toLowerCase();
   if (!t) return null;
 
-  if (/^(replay|repeat|again|say that again|one more time|replay last)\b/.test(t)) return "replay";
+  if (/^(replay|repeat|again|say that again|one more time|replay last)\b/.test(t))
+    return "replay";
   if (/^(continue|resume|pick up|carry on|go on)\b/.test(t)) return "continue";
   if (/^(start fresh|restart|new start|reset)\b/.test(t)) return "fresh";
 
@@ -679,12 +689,15 @@ function addMomentumTail(session, reply) {
 
 async function runMusicEngine(text, session) {
   if (!musicKnowledge || typeof musicKnowledge.handleChat !== "function") {
-    return { reply: "Tell me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment." };
+    return {
+      reply: "Tell me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment.",
+    };
   }
 
   try {
     const out = musicKnowledge.handleChat({ text, session }) || {};
-    if (out.sessionPatch && typeof out.sessionPatch === "object") Object.assign(session, out.sessionPatch);
+    if (out.sessionPatch && typeof out.sessionPatch === "object")
+      Object.assign(session, out.sessionPatch);
     return out;
   } catch (e) {
     return {
@@ -700,10 +713,37 @@ async function runMusicEngine(text, session) {
    - New visitors: richer defaults (up to 8)
 ====================================================== */
 
+function hasMeaningfulResumeState(profile, session) {
+  // Profile-based resume: must have year+mode
+  const profOk =
+    !!profile && !!clampYear(profile.lastMusicYear) && !!profile.lastMusicMode;
+
+  // Session-based resume: must have year+mode OR a known “contentful” state
+  const sesYear = !!(session && clampYear(session.lastYear));
+  const sesMode = !!(session && session.activeMusicMode);
+  const sesPairOk = sesYear && sesMode;
+
+  const contentfulIntents = new Set([
+    "top10",
+    "story",
+    "micro",
+    "continue",
+    "passthrough",
+  ]);
+
+  const sesIntentOk =
+    !!session &&
+    !!session.lastIntent &&
+    contentfulIntents.has(String(session.lastIntent)) &&
+    sesYear;
+
+  const sesTopOneOk = !!(session && session.lastTop10One && sesYear);
+
+  return profOk || sesPairOk || sesIntentOk || sesTopOneOk;
+}
+
 function canResume(profile, session) {
-  const sesOk = !!(session && session.lastReply);
-  const profOk = !!profile && !!clampYear(profile.lastMusicYear) && !!profile.lastMusicMode;
-  return sesOk || profOk;
+  return hasMeaningfulResumeState(profile, session);
 }
 
 function makeFollowUpsTight(session, profile) {
@@ -728,7 +768,12 @@ function makeFollowUpsTight(session, profile) {
 
   const base = [];
   const hasYear = !!(session && clampYear(session.lastYear));
-  base.push(hasYear ? String(session.lastYear) : "1950", "Top 10", "Story moment", "Micro moment");
+  base.push(
+    hasYear ? String(session.lastYear) : "1950",
+    "Top 10",
+    "Story moment",
+    "Micro moment"
+  );
 
   if (hasYear) {
     const py = safeIncYear(session.lastYear, -1);
@@ -738,7 +783,11 @@ function makeFollowUpsTight(session, profile) {
     base.push("Another year");
   }
 
-  if (session && session.lastReply) base.push("Replay last");
+  // Fix: don’t show “Replay last” on the first greeting turn
+  const intent = session ? String(session.lastIntent || "") : "";
+  const isFirstGreeting = intent === "greeting" && !hasMeaningfulResumeState(profile, session);
+
+  if (session && session.lastReply && !isFirstGreeting) base.push("Replay last");
 
   const out = [];
   for (const x of base) if (x && !out.includes(x)) out.push(x);
@@ -761,8 +810,12 @@ function normalizeEngineFollowups(out) {
       return;
     }
     if (typeof v === "object") {
-      const label = cleanText(v.label || v.text || v.title || v.send || v.value || "");
-      const send = cleanText(v.send || v.value || v.payload || v.label || v.text || "");
+      const label = cleanText(
+        v.label || v.text || v.title || v.send || v.value || ""
+      );
+      const send = cleanText(
+        v.send || v.value || v.payload || v.label || v.text || ""
+      );
       if (label && send) acc.push({ label, send });
     }
   };
@@ -770,7 +823,9 @@ function normalizeEngineFollowups(out) {
   const acc = [];
   if (!out || typeof out !== "object") return acc;
 
-  const cands = [out.followUps, out.followups, out.followUp, out.followup].filter(Boolean);
+  const cands = [out.followUps, out.followups, out.followUp, out.followup].filter(
+    Boolean
+  );
   for (const c of cands) {
     if (Array.isArray(c)) c.forEach((x) => push(acc, x));
     else push(acc, c);
@@ -826,8 +881,12 @@ function respondJson(req, res, base, session, engineOut, profile) {
 
     if (session) {
       try {
-        session.lastFollowUp = Array.isArray(payload.followUp) ? payload.followUp.slice(0, 12) : null;
-        session.lastFollowUps = Array.isArray(payload.followUps) ? payload.followUps.slice(0, 12) : null;
+        session.lastFollowUp = Array.isArray(payload.followUp)
+          ? payload.followUp.slice(0, 12)
+          : null;
+        session.lastFollowUps = Array.isArray(payload.followUps)
+          ? payload.followUps.slice(0, 12)
+          : null;
       } catch (_) {}
     }
 
@@ -882,8 +941,12 @@ function respondJson(req, res, base, session, engineOut, profile) {
 
   if (session) {
     try {
-      session.lastFollowUp = Array.isArray(payload.followUp) ? payload.followUp.slice(0, 12) : null;
-      session.lastFollowUps = Array.isArray(payload.followUps) ? payload.followUps.slice(0, 12) : null;
+      session.lastFollowUp = Array.isArray(payload.followUp)
+        ? payload.followUp.slice(0, 12)
+        : null;
+      session.lastFollowUps = Array.isArray(payload.followUps)
+        ? payload.followUps.slice(0, 12)
+        : null;
     } catch (_) {}
   }
 
@@ -901,7 +964,11 @@ app.get("/api/health", (req, res) => {
   res.set("Cache-Control", "no-store");
 
   const origin = req.headers.origin || null;
-  const originAllowed = CORS_ALLOW_ALL ? true : origin ? originMatchesAllowlist(origin) : null;
+  const originAllowed = CORS_ALLOW_ALL
+    ? true
+    : origin
+    ? originMatchesAllowlist(origin)
+    : null;
 
   res.json({
     ok: true,
@@ -919,7 +986,10 @@ app.get("/api/health", (req, res) => {
       originAllowed,
     },
     contract: { version: NYX_CONTRACT_VERSION, strict: CONTRACT_STRICT },
-    timeouts: { requestTimeoutMs: REQUEST_TIMEOUT_MS, elevenTtsTimeoutMs: ELEVEN_TTS_TIMEOUT_MS },
+    timeouts: {
+      requestTimeoutMs: REQUEST_TIMEOUT_MS,
+      elevenTtsTimeoutMs: ELEVEN_TTS_TIMEOUT_MS,
+    },
     tts: {
       enabled: TTS_ENABLED,
       provider: TTS_PROVIDER,
@@ -928,7 +998,11 @@ app.get("/api/health", (req, res) => {
       model: ELEVEN_MODEL_ID || null,
       hasFetch,
     },
-    micGuard: { enabled: MIC_GUARD_ENABLED, windowMs: MIC_GUARD_WINDOW_MS, minChars: MIC_GUARD_MIN_CHARS },
+    micGuard: {
+      enabled: MIC_GUARD_ENABLED,
+      windowMs: MIC_GUARD_WINDOW_MS,
+      minChars: MIC_GUARD_MIN_CHARS,
+    },
     requestId,
   });
 });
@@ -1068,7 +1142,8 @@ async function runEngine(text, session) {
 ====================================================== */
 
 async function handleContinue(session, profile) {
-  const y = clampYear(session.lastYear) || clampYear(profile && profile.lastMusicYear);
+  const y =
+    clampYear(session.lastYear) || clampYear(profile && profile.lastMusicYear);
   const m = session.activeMusicMode || (profile && profile.lastMusicMode) || null;
 
   if (y && m) {
@@ -1082,12 +1157,14 @@ async function handleContinue(session, profile) {
 
   if (session.lastReply) {
     return {
-      reply: "Continue with what—Top 10, Story moment, or Micro moment? (You can also drop a year.)",
+      reply:
+        "Continue with what—Top 10, Story moment, or Micro moment? (You can also drop a year.)",
     };
   }
 
   return {
-    reply: "What are we doing: Top 10, Story moment, or Micro moment? Start with a year (1950–2024).",
+    reply:
+      "What are we doing: Top 10, Story moment, or Micro moment? Start with a year (1950–2024).",
   };
 }
 
@@ -1097,7 +1174,8 @@ function handleFresh(session) {
   session.pendingMode = null;
   session.lastTop10One = null;
   return {
-    reply: "Clean slate. Give me a year (1950–2024) and choose: Top 10, Story moment, or Micro moment.",
+    reply:
+      "Clean slate. Give me a year (1950–2024) and choose: Top 10, Story moment, or Micro moment.",
   };
 }
 
@@ -1129,7 +1207,11 @@ app.post("/api/chat", async (req, res) => {
   const incomingVisitorId = cleanText(body.visitorId || "") || makeUuid();
   const incomingContract = cleanText(body.contractVersion || body.contract || "");
 
-  if (CONTRACT_STRICT && incomingContract && incomingContract !== NYX_CONTRACT_VERSION) {
+  if (
+    CONTRACT_STRICT &&
+    incomingContract &&
+    incomingContract !== NYX_CONTRACT_VERSION
+  ) {
     return res.status(409).json({
       ok: false,
       error: "CONTRACT_MISMATCH",
@@ -1152,7 +1234,9 @@ app.post("/api/chat", async (req, res) => {
   const foundName = detectNameFromText(message);
   if (profile && foundName) profile.name = foundName;
 
-  const incomingVoiceMode = normalizeVoiceMode(body.voiceMode || session.voiceMode || "standard");
+  const incomingVoiceMode = normalizeVoiceMode(
+    body.voiceMode || session.voiceMode || "standard"
+  );
   session.voiceMode = incomingVoiceMode;
   res.set("X-Voice-Mode", session.voiceMode);
 
@@ -1244,12 +1328,14 @@ app.post("/api/chat", async (req, res) => {
 
   // Greeting
   if (!message || isGreeting(message)) {
+    // Set intent BEFORE follow-up computation so new-visitor chips suppress “Replay last”
+    session.lastIntent = "greeting";
+
     const tight = makeFollowUpsTight(session, profile);
     const reply = greetingReply(profile, tight.resumable);
 
     session.lastReply = reply;
     session.lastReplyAt = Date.now();
-    session.lastIntent = "greeting";
 
     updateProfileFromSession(profile, session);
 
