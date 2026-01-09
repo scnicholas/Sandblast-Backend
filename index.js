@@ -477,7 +477,9 @@ function getTtsTuningForMode(voiceMode) {
 async function elevenTtsMp3Buffer(text, voiceMode) {
   const tuning = getTtsTuningForMode(voiceMode);
 
-  const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(ELEVEN_VOICE_ID)}`;
+  const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(
+    ELEVEN_VOICE_ID
+  )}`;
 
   const body = {
     text,
@@ -534,8 +536,14 @@ async function elevenTtsMp3Buffer(text, voiceMode) {
 ====================================================== */
 
 const MIC_GUARD_ENABLED = String(process.env.MIC_GUARD_ENABLED || "true") === "true";
-const MIC_GUARD_WINDOW_MS = Math.max(2000, Math.min(20000, Number(process.env.MIC_GUARD_WINDOW_MS || 9000)));
-const MIC_GUARD_MIN_CHARS = Math.max(24, Math.min(240, Number(process.env.MIC_GUARD_MIN_CHARS || 60)));
+const MIC_GUARD_WINDOW_MS = Math.max(
+  2000,
+  Math.min(20000, Number(process.env.MIC_GUARD_WINDOW_MS || 9000))
+);
+const MIC_GUARD_MIN_CHARS = Math.max(
+  24,
+  Math.min(240, Number(process.env.MIC_GUARD_MIN_CHARS || 60))
+);
 
 function normalizeForEchoCompare(s) {
   return cleanText(String(s || ""))
@@ -626,7 +634,10 @@ function normalizeNavToken(text) {
 function isGreeting(text) {
   const t = cleanText(text).toLowerCase();
   if (!t) return false;
-  return /^(hi|hey|hello|yo|sup|greetings)\b/.test(t) || /^(hi\s+nyx|hey\s+nyx|hello\s+nyx)\b/.test(t);
+  return (
+    /^(hi|hey|hello|yo|sup|greetings)\b/.test(t) ||
+    /^(hi\s+nyx|hey\s+nyx|hello\s+nyx)\b/.test(t)
+  );
 }
 
 function greetingReply(profile, canContinue) {
@@ -691,8 +702,7 @@ async function runMusicEngine(text, session) {
 
 function canResume(profile, session) {
   const sesOk = !!(session && session.lastReply);
-  const profOk =
-    !!profile && !!clampYear(profile.lastMusicYear) && !!profile.lastMusicMode;
+  const profOk = !!profile && !!clampYear(profile.lastMusicYear) && !!profile.lastMusicMode;
   return sesOk || profOk;
 }
 
@@ -1071,10 +1081,14 @@ async function handleContinue(session, profile) {
   }
 
   if (session.lastReply) {
-    return { reply: "Continue with what—Top 10, Story moment, or Micro moment? (You can also drop a year.)" };
+    return {
+      reply: "Continue with what—Top 10, Story moment, or Micro moment? (You can also drop a year.)",
+    };
   }
 
-  return { reply: "What are we doing: Top 10, Story moment, or Micro moment? Start with a year (1950–2024)." };
+  return {
+    reply: "What are we doing: Top 10, Story moment, or Micro moment? Start with a year (1950–2024).",
+  };
 }
 
 function handleFresh(session) {
@@ -1082,7 +1096,9 @@ function handleFresh(session) {
   session.activeMusicMode = null;
   session.pendingMode = null;
   session.lastTop10One = null;
-  return { reply: "Clean slate. Give me a year (1950–2024) and choose: Top 10, Story moment, or Micro moment." };
+  return {
+    reply: "Clean slate. Give me a year (1950–2024) and choose: Top 10, Story moment, or Micro moment.",
+  };
 }
 
 /* ======================================================
@@ -1148,7 +1164,15 @@ app.post("/api/chat", async (req, res) => {
     session.lastIntent = "micEchoGuard";
     updateProfileFromSession(profile, session);
 
-    const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+    const base = {
+      ok: true,
+      reply,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
     return respondJson(req, res, base, session, null, profile);
   }
 
@@ -1156,7 +1180,15 @@ app.post("/api/chat", async (req, res) => {
 
   // Replay (global)
   if (nav === "replay" && session.lastReply) {
-    const base = { ok: true, reply: session.lastReply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+    const base = {
+      ok: true,
+      reply: session.lastReply,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
     session.lastIntent = "replay";
     updateProfileFromSession(profile, session);
     return respondJson(req, res, base, session, null, profile);
@@ -1174,7 +1206,15 @@ app.post("/api/chat", async (req, res) => {
 
     updateProfileFromSession(profile, session);
 
-    const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+    const base = {
+      ok: true,
+      reply,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
     return respondJson(req, res, base, session, out, profile);
   }
 
@@ -1190,7 +1230,15 @@ app.post("/api/chat", async (req, res) => {
 
     updateProfileFromSession(profile, session);
 
-    const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+    const base = {
+      ok: true,
+      reply,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
     return respondJson(req, res, base, session, out, profile);
   }
 
@@ -1205,7 +1253,15 @@ app.post("/api/chat", async (req, res) => {
 
     updateProfileFromSession(profile, session);
 
-    const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+    const base = {
+      ok: true,
+      reply,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
     return respondJson(req, res, base, session, null, profile);
   }
 
@@ -1229,7 +1285,15 @@ app.post("/api/chat", async (req, res) => {
 
     updateProfileFromSession(profile, session);
 
-    const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+    const base = {
+      ok: true,
+      reply,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
     return respondJson(req, res, base, session, out, profile);
   }
 
@@ -1250,7 +1314,15 @@ app.post("/api/chat", async (req, res) => {
 
       updateProfileFromSession(profile, session);
 
-      const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+      const base = {
+        ok: true,
+        reply,
+        sessionId,
+        requestId,
+        visitorId,
+        contractVersion: NYX_CONTRACT_VERSION,
+        voiceMode: session.voiceMode,
+      };
       return respondJson(req, res, base, session, out, profile);
     }
 
@@ -1261,7 +1333,15 @@ app.post("/api/chat", async (req, res) => {
 
     updateProfileFromSession(profile, session);
 
-    const base = { ok: true, reply: ask, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+    const base = {
+      ok: true,
+      reply: ask,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
     return respondJson(req, res, base, session, null, profile);
   }
 
@@ -1283,7 +1363,15 @@ app.post("/api/chat", async (req, res) => {
 
       updateProfileFromSession(profile, session);
 
-      const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+      const base = {
+        ok: true,
+        reply,
+        sessionId,
+        requestId,
+        visitorId,
+        contractVersion: NYX_CONTRACT_VERSION,
+        voiceMode: session.voiceMode,
+      };
       return respondJson(req, res, base, session, out, profile);
     }
 
@@ -1294,7 +1382,15 @@ app.post("/api/chat", async (req, res) => {
 
     updateProfileFromSession(profile, session);
 
-    const base = { ok: true, reply: askMode, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+    const base = {
+      ok: true,
+      reply: askMode,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
     return respondJson(req, res, base, session, null, profile);
   }
 
@@ -1306,7 +1402,15 @@ app.post("/api/chat", async (req, res) => {
 
     updateProfileFromSession(profile, session);
 
-    const base = { ok: true, reply: askMode, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+    const base = {
+      ok: true,
+      reply: askMode,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
     return respondJson(req, res, base, session, null, profile);
   }
 
@@ -1321,7 +1425,15 @@ app.post("/api/chat", async (req, res) => {
 
   updateProfileFromSession(profile, session);
 
-  const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+  const base = {
+    ok: true,
+    reply,
+    sessionId,
+    requestId,
+    visitorId,
+    contractVersion: NYX_CONTRACT_VERSION,
+    voiceMode: session.voiceMode,
+  };
   return respondJson(req, res, base, session, out, profile);
 });
 
@@ -1334,7 +1446,9 @@ const HOST = "0.0.0.0";
 
 const server = app.listen(PORT, HOST, () => {
   console.log(
-    `[sandblast-backend] up :${PORT} env=${process.env.NODE_ENV || "production"} build=${process.env.RENDER_GIT_COMMIT || "n/a"} contract=${NYX_CONTRACT_VERSION} version=${INDEX_VERSION}`
+    `[sandblast-backend] up :${PORT} env=${process.env.NODE_ENV || "production"} build=${
+      process.env.RENDER_GIT_COMMIT || "n/a"
+    } contract=${NYX_CONTRACT_VERSION} version=${INDEX_VERSION}`
   );
 });
 
@@ -1365,5 +1479,9 @@ function shutdown(sig) {
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
 
-process.on("unhandledRejection", (e) => console.error("[sandblast-backend] unhandledRejection", e));
-process.on("uncaughtException", (e) => console.error("[sandblast-backend] uncaughtException", e));
+process.on("unhandledRejection", (e) =>
+  console.error("[sandblast-backend] unhandledRejection", e)
+);
+process.on("uncaughtException", (e) =>
+  console.error("[sandblast-backend] uncaughtException", e)
+);
