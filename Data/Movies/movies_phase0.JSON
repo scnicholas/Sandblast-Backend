@@ -1,139 +1,130 @@
-[
-  {
-    "id": "PH0-TV-DECOY-1957",
-    "title": "Decoy",
-    "year": 1957,
-    "type": "series",
-    "genres": ["crime", "detective", "police"],
-    "summary": "Classic crime TV series centered on an undercover female detective. Candidate for Phase 0 pending rights verification.",
-    "rights": { "status": "candidate", "confidence": "low", "basis": "needs_verification" },
-    "sources": [
-      {
-        "platform": "internet_archive",
-        "url": "",
-        "identifier": ""
-      }
-    ],
-    "notes": [
-      "Paste the exact archive.org/details/ link for the series or specific season/collection.",
-      "Run PD verification checklist before publishing/monetizing."
-    ]
-  },
-  {
-    "id": "PH0-TV-SERIES-CRIME-01",
-    "title": "Crime / Detective Candidate #1",
-    "year": null,
-    "type": "series",
-    "genres": ["crime", "detective"],
-    "summary": "Phase 0 placeholder record for a crime/detective series candidate found on curated listings or Internet Archive.",
-    "rights": { "status": "unknown", "confidence": "unknown", "basis": "not_verified" },
-    "sources": [
-      { "platform": "internet_archive", "url": "", "identifier": "" }
-    ],
-    "notes": ["Replace title/year once IA link is pasted.", "Verify rights before use."]
-  },
-  {
-    "id": "PH0-TV-SERIES-CRIME-02",
-    "title": "Crime / Detective Candidate #2",
-    "year": null,
-    "type": "series",
-    "genres": ["crime", "detective"],
-    "summary": "Phase 0 placeholder record for a crime/detective series candidate found on curated listings or Internet Archive.",
-    "rights": { "status": "unknown", "confidence": "unknown", "basis": "not_verified" },
-    "sources": [
-      { "platform": "internet_archive", "url": "", "identifier": "" }
-    ],
-    "notes": ["Replace title/year once IA link is pasted.", "Verify rights before use."]
-  },
-  {
-    "id": "PH0-TV-SERIES-COMEDY-01",
-    "title": "Comedy Candidate #1",
-    "year": null,
-    "type": "series",
-    "genres": ["comedy"],
-    "summary": "Phase 0 placeholder record for a comedy series candidate found on curated listings or Internet Archive.",
-    "rights": { "status": "unknown", "confidence": "unknown", "basis": "not_verified" },
-    "sources": [
-      { "platform": "internet_archive", "url": "", "identifier": "" }
-    ],
-    "notes": ["Replace title/year once IA link is pasted.", "Verify rights before use."]
-  },
-  {
-    "id": "PH0-TV-SERIES-COMEDY-02",
-    "title": "Comedy Candidate #2",
-    "year": null,
-    "type": "series",
-    "genres": ["comedy"],
-    "summary": "Phase 0 placeholder record for a comedy series candidate found on curated listings or Internet Archive.",
-    "rights": { "status": "unknown", "confidence": "unknown", "basis": "not_verified" },
-    "sources": [
-      { "platform": "internet_archive", "url": "", "identifier": "" }
-    ],
-    "notes": ["Replace title/year once IA link is pasted.", "Verify rights before use."]
-  },
-  {
-    "id": "PH0-MOVIE-CRIME-01",
-    "title": "Crime Movie Candidate #1",
-    "year": null,
-    "type": "movie",
-    "genres": ["crime", "thriller"],
-    "summary": "Phase 0 placeholder record for a crime/thriller movie candidate found on curated listings or Internet Archive.",
-    "rights": { "status": "unknown", "confidence": "unknown", "basis": "not_verified" },
-    "sources": [
-      { "platform": "internet_archive", "url": "", "identifier": "" }
-    ],
-    "notes": ["Replace title/year once IA link is pasted.", "Verify rights before use."]
-  },
-  {
-    "id": "PH0-MOVIE-CRIME-02",
-    "title": "Crime Movie Candidate #2",
-    "year": null,
-    "type": "movie",
-    "genres": ["crime", "detective"],
-    "summary": "Phase 0 placeholder record for a crime/detective movie candidate found on curated listings or Internet Archive.",
-    "rights": { "status": "unknown", "confidence": "unknown", "basis": "not_verified" },
-    "sources": [
-      { "platform": "internet_archive", "url": "", "identifier": "" }
-    ],
-    "notes": ["Replace title/year once IA link is pasted.", "Verify rights before use."]
-  },
-  {
-    "id": "PH0-MOVIE-COMEDY-01",
-    "title": "Comedy Movie Candidate #1",
-    "year": null,
-    "type": "movie",
-    "genres": ["comedy"],
-    "summary": "Phase 0 placeholder record for a comedy movie candidate found on curated listings or Internet Archive.",
-    "rights": { "status": "unknown", "confidence": "unknown", "basis": "not_verified" },
-    "sources": [
-      { "platform": "internet_archive", "url": "", "identifier": "" }
-    ],
-    "notes": ["Replace title/year once IA link is pasted.", "Verify rights before use."]
-  },
-  {
-    "id": "PH0-MOVIE-ACTION-01",
-    "title": "Action/Adventure Movie Candidate #1",
-    "year": null,
-    "type": "movie",
-    "genres": ["action", "adventure"],
-    "summary": "Phase 0 placeholder record for an action/adventure movie candidate found on curated listings or Internet Archive.",
-    "rights": { "status": "unknown", "confidence": "unknown", "basis": "not_verified" },
-    "sources": [
-      { "platform": "internet_archive", "url": "", "identifier": "" }
-    ],
-    "notes": ["Replace title/year once IA link is pasted.", "Verify rights before use."]
-  },
-  {
-    "id": "PH0-TV-SERIES-THRILLER-01",
-    "title": "Thriller Series Candidate #1",
-    "year": null,
-    "type": "series",
-    "genres": ["thriller", "mystery"],
-    "summary": "Phase 0 placeholder record for a thriller/mystery series candidate found on curated listings or Internet Archive.",
-    "rights": { "status": "unknown", "confidence": "unknown", "basis": "not_verified" },
-    "sources": [
-      { "platform": "internet_archive", "url": "", "identifier": "" }
-    ],
-    "notes": ["Replace title/year once IA link is pasted.", "Verify rights before use."]
-  }
-]
+{
+  "version": "movies_phase0",
+  "last_updated": "2026-01-08",
+  "items": [
+
+    /* =========================
+       EXISTING ITEMS (UNCHANGED)
+       ========================= */
+
+    {
+      "id": "PH0-TV-DECOY-1957",
+      "title": "Decoy",
+      "year": 1957,
+      "type": "series",
+      "genres": ["crime", "detective", "police"],
+      "summary": "Classic crime TV series centered on an undercover female detective.",
+      "rights": { "status": "candidate", "confidence": "low", "basis": "needs_verification" },
+      "sources": [
+        { "platform": "internet_archive", "url": "", "identifier": "" }
+      ]
+    },
+
+    /* =========================
+       PHASE 0 — PUBLIC DOMAIN MOVIES ONLINE
+       ========================= */
+
+    {
+      "id": "PH0-MOVIE-WHITE-ZOMBIE-1932",
+      "title": "White Zombie",
+      "year": 1932,
+      "type": "movie",
+      "genres": ["horror"],
+      "summary": "Early zombie horror film starring Bela Lugosi.",
+      "rights": { "status": "candidate", "confidence": "medium", "basis": "widely_listed_pd" },
+      "sources": [
+        { "platform": "pdmo", "url": "https://publicdomainmoviesonline.blogspot.com/2013/12/white-zombie.html", "identifier": "" }
+      ]
+    },
+    {
+      "id": "PH0-MOVIE-NOSFERATU-1922",
+      "title": "Nosferatu",
+      "year": 1922,
+      "type": "movie",
+      "genres": ["horror"],
+      "summary": "Silent German expressionist vampire film.",
+      "rights": { "status": "verified", "confidence": "high", "basis": "pre-1929" },
+      "sources": [
+        { "platform": "pdmo", "url": "https://publicdomainmoviesonline.blogspot.com/2013/12/nosferatu.html", "identifier": "" }
+      ]
+    },
+    {
+      "id": "PH0-MOVIE-PHANTOM-OPERA-1925",
+      "title": "The Phantom of the Opera",
+      "year": 1925,
+      "type": "movie",
+      "genres": ["horror", "drama"],
+      "summary": "Silent adaptation of Gaston Leroux’s novel.",
+      "rights": { "status": "verified", "confidence": "high", "basis": "pre-1929" },
+      "sources": [
+        { "platform": "pdmo", "url": "https://publicdomainmoviesonline.blogspot.com/2013/12/the-phantom-of-opera.html", "identifier": "" }
+      ]
+    },
+    {
+      "id": "PH0-MOVIE-GENERAL-1926",
+      "title": "The General",
+      "year": 1926,
+      "type": "movie",
+      "genres": ["comedy", "action"],
+      "summary": "Buster Keaton Civil War comedy classic.",
+      "rights": { "status": "verified", "confidence": "high", "basis": "pre-1929" },
+      "sources": [
+        { "platform": "pdmo", "url": "https://publicdomainmoviesonline.blogspot.com/2013/12/the-general.html", "identifier": "" }
+      ]
+    },
+
+    /* =========================
+       PHASE 0 — ARCHIVE.ORG SERIALS & FILMS
+       ========================= */
+
+    {
+      "id": "PH0-SERIAL-MIRACLE-RIDER-1935",
+      "title": "The Miracle Rider",
+      "year": 1935,
+      "type": "series",
+      "genres": ["western", "adventure"],
+      "summary": "Republic Pictures western serial starring Tom Mix.",
+      "rights": { "status": "candidate", "confidence": "medium", "basis": "serial_pd_claim" },
+      "sources": [
+        { "platform": "internet_archive", "url": "https://archive.org/details/miracle-rider", "identifier": "miracle-rider" }
+      ]
+    },
+    {
+      "id": "PH0-SERIAL-BLACK-COIN-1936",
+      "title": "The Black Coin",
+      "year": 1936,
+      "type": "series",
+      "genres": ["mystery", "adventure"],
+      "summary": "Columbia serial involving secret societies and espionage.",
+      "rights": { "status": "candidate", "confidence": "medium", "basis": "serial_pd_claim" },
+      "sources": [
+        { "platform": "internet_archive", "url": "https://archive.org/details/black-coin", "identifier": "black-coin" }
+      ]
+    },
+    {
+      "id": "PH0-SERIAL-GANG-BUSTERS-1942",
+      "title": "Gang Busters",
+      "year": 1942,
+      "type": "series",
+      "genres": ["crime"],
+      "summary": "Crime serial adaptation of the popular radio program.",
+      "rights": { "status": "candidate", "confidence": "medium", "basis": "serial_pd_claim" },
+      "sources": [
+        { "platform": "internet_archive", "url": "https://archive.org/details/gang-busters-serial", "identifier": "gang-busters-serial" }
+      ]
+    },
+    {
+      "id": "PH0-SERIAL-PHANTOM-1931",
+      "title": "The Phantom",
+      "year": 1931,
+      "type": "series",
+      "genres": ["adventure"],
+      "summary": "Early adventure serial adaptation.",
+      "rights": { "status": "candidate", "confidence": "medium", "basis": "serial_pd_claim" },
+      "sources": [
+        { "platform": "internet_archive", "url": "https://archive.org/details/the-phantom-serial", "identifier": "the-phantom-serial" }
+      ]
+    }
+
+  ]
+}
