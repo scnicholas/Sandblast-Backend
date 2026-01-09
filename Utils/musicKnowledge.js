@@ -1,25 +1,27 @@
 "use strict";
 
 /**
- * Utils/musicKnowledge.js — v2.71 (CRITICAL UPDATE)
+ * Utils/musicKnowledge.js — v2.72 (CRITICAL FIX: chart resolver + no “Year-End Singles” dead-ends)
  *
- * Retains v2.70 stability guarantees:
+ * Retains v2.71 guarantees:
  *  - Validate session.activeMusicChart against loaded chart set; auto-fallback if unsupported.
  *  - Year-only requests never dead-end due to unknown chart context (e.g., "Canada RPM").
  *  - If the requested chart has no rows for a year, retry canonical fallbacks before returning “clean list”.
  *  - Normalize common chart aliases consistently (RPM, Canada RPM, Year-End variants).
  *  - Always return a canonical sessionPatch (stop relying on session mutation for correctness).
- *
- * New in v2.71:
- *  - Adds parsing for: "micro moment ####" and "micro ####".
- *  - Adds "top 10" (no year) => uses session.lastMusicYear if present; otherwise asks for a year.
- *  - Story/Micro attempts to use Music Moments layer if available; otherwise uses deterministic chart-based fallback.
- *  - Deterministic fallback is tight (50–60-ish words), non-fluffy, and never loops.
- *
- * Critical fixes in this resend:
- *  - Adds internal exports: _getTopByYear and _getNumberOneLine for musicMoments integration.
- *  - Hardens musicMoments safe-calls: supports getMoment(...) OR handle(...) without throwing.
+ *  - Parsing for: "micro moment ####" and "micro ####".
+ *  - "top 10" (no year) => uses session.lastMusicYear if present; otherwise asks for a year.
+ *  - Story/Micro attempts to use Music Moments layer if available; otherwise deterministic chart-based fallback.
+ *  - Deterministic fallback is tight, non-fluffy, and never loops.
+ *  - Internal exports: _getTopByYear and _getNumberOneLine for musicMoments integration.
+ *  - Hardened musicMoments safe-calls: supports getMoment(...) OR handle(...) without throwing.
  *  - Ensures lastMusicYear/lastMusicChart are patched consistently on every successful response.
+ *
+ * New in v2.72:
+ *  - CRITICAL: If session.activeMusicChart is “Billboard Year-End Singles” but the requested year is outside 1950–1959,
+ *    we DO NOT return an out-of-range dead-end. We automatically resolve to the best available chart (Year-End Hot 100 → Hot 100).
+ *  - Adds resolveChartForYear(...) + hasAnyRowsForYearOnChart(...) to prevent “sticky chart” misrouting.
+ *  - Story/Micro no longer hard-fails when chart choice is out-of-range; it resolves and proceeds.
  */
 
 const fs = require("fs");
@@ -29,7 +31,7 @@ const path = require("path");
 // Version
 // =========================
 const MK_VERSION =
-  "musicKnowledge v2.71 (micro parsing + story/micro moments wiring + deterministic fallback + internal exports)";
+  "musicKnowledge v2.72 (chart resolver: no Year-End Singles dead-ends; sticky-chart safe; story/micro proceed)";
 
 // =========================
 // Public Range / Charts
@@ -229,7 +231,7 @@ function canonicalPatch(session, extra = {}) {
 }
 
 // =========================
-// Command Parsing (v2.71)
+// Command Parsing (v2.72)
 // =========================
 function parseCommand(msg) {
   const t = cleanText(msg).toLowerCase();
@@ -526,32 +528,70 @@ function pickBestAvailableChart(preferredList) {
 }
 
 // =========================
-// Chart Choice Logic
+// Chart Resolver (v2.72)
 // =========================
-function chooseChartForYear(year, requestedChart) {
+function hasAnyRowsForYearOnChart(year, chart) {
   const y = toInt(year);
-  const req = normalizeChart(requestedChart || DEFAULT_CHART);
+  const c = normalizeChart(chart || DEFAULT_CHART);
 
-  if (req === YEAR_END_SINGLES_CHART) {
-    if (y >= 1950 && y <= 1959)
-      return { ok: true, chart: YEAR_END_SINGLES_CHART };
-    return { ok: false, reason: "OUT_OF_RANGE_FOR_SINGLES" };
-  }
+  if (!y) return false;
 
-  if (y >= 1950 && y <= 1959) {
-    return { ok: true, chart: YEAR_END_SINGLES_CHART };
+  if (c === YEAR_END_SINGLES_CHART) {
+    return y >= 1950 && y <= 1959 && hasWikiSingles50sYear(y);
   }
 
   loadDb();
+  const arr = BY_YEAR_CHART.get(`${y}|${c}`) || [];
+  return Array.isArray(arr) && arr.length > 0;
+}
 
-  if (STATS.charts && STATS.charts.length) {
-    if (!STATS.charts.includes(req)) {
-      const fallback = pickBestAvailableChart([YEAR_END_CHART, DEFAULT_CHART]);
-      return { ok: true, chart: fallback, fellBackFrom: req };
-    }
+/**
+ * Resolve chart for a year, preventing “sticky chart” dead-ends.
+ * - If requested chart is Year-End Singles but year is outside 1950–1959, automatically fall back.
+ * - If requested chart isn't available, fall back to Year-End Hot 100, then Hot 100, then any available.
+ * - For 1950–1959, prefer Year-End Singles if it exists; otherwise fall back normally.
+ */
+function resolveChartForYear(year, requestedChart) {
+  const y = toInt(year);
+  const req = normalizeChart(requestedChart || DEFAULT_CHART);
+
+  // Safety: if no year, just validate chart availability
+  if (!y) {
+    const c = chartIsAvailable(req) ? req : pickBestAvailableChart([YEAR_END_CHART, DEFAULT_CHART]);
+    return { ok: true, chart: c, fellBackFrom: c !== req ? req : undefined };
   }
 
-  return { ok: true, chart: req || DEFAULT_CHART };
+  // 1950–1959: prefer singles if available (this is the canonical 50s spine in your build)
+  if (y >= 1950 && y <= 1959) {
+    if (chartIsAvailable(YEAR_END_SINGLES_CHART)) {
+      return { ok: true, chart: YEAR_END_SINGLES_CHART, fellBackFrom: req !== YEAR_END_SINGLES_CHART ? req : undefined };
+    }
+    // No singles file? fall back to anything available
+    const c = pickBestAvailableChart([YEAR_END_CHART, DEFAULT_CHART, req]);
+    return { ok: true, chart: c, fellBackFrom: c !== req ? req : undefined };
+  }
+
+  // Outside 50s: NEVER hard-fail because req is Singles.
+  if (req === YEAR_END_SINGLES_CHART) {
+    const c = pickBestAvailableChart([YEAR_END_CHART, DEFAULT_CHART]);
+    return { ok: true, chart: c, fellBackFrom: YEAR_END_SINGLES_CHART };
+  }
+
+  // Validate availability
+  if (!chartIsAvailable(req)) {
+    const c = pickBestAvailableChart([YEAR_END_CHART, DEFAULT_CHART]);
+    return { ok: true, chart: c, fellBackFrom: req };
+  }
+
+  return { ok: true, chart: req };
+}
+
+// =========================
+// Back-compat wrapper (kept name; behavior fixed)
+// =========================
+function chooseChartForYear(year, requestedChart) {
+  // Kept for external callers: now delegates to resolver and NEVER returns OUT_OF_RANGE_FOR_SINGLES dead-ends.
+  return resolveChartForYear(year, requestedChart);
 }
 
 // =========================
@@ -748,54 +788,13 @@ function handleChat({ text, session }) {
 
       const y = impliedYear;
 
-      const choice = chooseChartForYear(y, session.activeMusicChart);
-      if (!choice.ok) {
-        if (choice.reason === "OUT_OF_RANGE_FOR_SINGLES") {
-          return {
-            reply: `Year-End Singles is only available for 1950–1959 in my current build. Try a year in that range.`,
-            followUp: ["1950", "1956", "1959"],
-            domain: "music",
-            sessionPatch: canonicalPatch(session),
-          };
-        }
-        return {
-          reply: `That year’s chart isn’t available yet.`,
-          followUp: ["1970", "1984", "1999"],
-          domain: "music",
-          sessionPatch: canonicalPatch(session),
-        };
-      }
-
+      // v2.72: always resolve chart safely (no out-of-range singles dead-end)
+      const choice = resolveChartForYear(y, session.activeMusicChart);
       const chart = choice.chart;
 
-      if (chart === YEAR_END_SINGLES_CHART && y >= 1950 && y <= 1959) {
-        const formatted = formatTopList(y, chart, 10);
-        if (!formatted) {
-          return {
-            reply: `I’m missing the ${y} Year-End Singles list in the current Wikipedia cache — so I won’t fake it. Try another 1950s year.`,
-            followUp: ["1950", "1956", "1959"],
-            domain: "music",
-            sessionPatch: canonicalPatch(session, {
-              activeMusicChart: chart,
-              lastMusicYear: y,
-              lastMusicChart: chart,
-            }),
-          };
-        }
-
-        return {
-          reply: `${formatted}\n\nWant #1, a story moment, a micro moment, or another year?`,
-          followUp: ["#1", `story moment ${y}`, `micro moment ${y}`, "Another year"],
-          domain: "music",
-          sessionPatch: canonicalPatch(session, {
-            activeMusicChart: chart,
-            lastMusicYear: y,
-            lastMusicChart: chart,
-          }),
-        };
-      }
-
+      // If the resolved chart has zero rows for this year, Top10 will attempt fallbacks anyway.
       const out = formatTopListWithFallbacks(y, chart, 10);
+
       if (out && out.formatted) {
         const used = out.chartUsed || chart;
 
@@ -816,9 +815,12 @@ function handleChat({ text, session }) {
           ? ""
           : " (No chart datasets are currently loaded on the server.)";
 
+      // Forward motion (no dead end)
       return {
-        reply: `I don’t have a clean list for ${y} on the available chart sources in this build yet${missingHint}. Try another year.`,
-        followUp: ["1970", "1984", "1999"],
+        reply:
+          `I don’t have a clean Top 10 list for ${y} on the loaded chart sources in this build yet${missingHint}. ` +
+          `I *can* still do a story moment or micro moment for ${y} if you want.`,
+        followUp: [`story moment ${y}`, `micro moment ${y}`, "Another year"],
         domain: "music",
         sessionPatch: canonicalPatch(session, {
           activeMusicChart: normalizeChart(session.activeMusicChart),
@@ -841,16 +843,22 @@ function handleChat({ text, session }) {
         };
       }
 
-      const line = getNumberOneLine(y, chart);
+      // v2.72: resolve chart if the stored chart is stale/out-of-range
+      const resolved = resolveChartForYear(y, chart);
+      const chartUsed = resolved.chart;
+
+      const line = getNumberOneLine(y, chartUsed);
       if (!line) {
         return {
-          reply: `I can’t pull a clean #1 for ${y} on ${chart} in this build yet. Try “top 10 ${y}” or pick another year.`,
-          followUp: [`top 10 ${y}`, "1984", "1999"],
+          reply:
+            `I can’t pull a clean #1 for ${y} on ${chartUsed} in this build yet. ` +
+            `Try “top 10 ${y}”, or ask for a story/micro moment.`,
+          followUp: [`top 10 ${y}`, `story moment ${y}`, `micro moment ${y}`],
           domain: "music",
           sessionPatch: canonicalPatch(session, {
-            activeMusicChart: chart,
+            activeMusicChart: chartUsed,
             lastMusicYear: y,
-            lastMusicChart: chart,
+            lastMusicChart: chartUsed,
           }),
         };
       }
@@ -860,9 +868,9 @@ function handleChat({ text, session }) {
         followUp: [`story moment ${y}`, `micro moment ${y}`, "Another year"],
         domain: "music",
         sessionPatch: canonicalPatch(session, {
-          activeMusicChart: chart,
+          activeMusicChart: chartUsed,
           lastMusicYear: y,
-          lastMusicChart: chart,
+          lastMusicChart: chartUsed,
         }),
       };
     }
@@ -880,24 +888,8 @@ function handleChat({ text, session }) {
         };
       }
 
-      const choice = chooseChartForYear(y, session.activeMusicChart);
-      if (!choice.ok) {
-        if (choice.reason === "OUT_OF_RANGE_FOR_SINGLES") {
-          return {
-            reply: `Year-End Singles is only available for 1950–1959 in my current build. Try a year in that range.`,
-            followUp: ["1950", "1956", "1959"],
-            domain: "music",
-            sessionPatch: canonicalPatch(session),
-          };
-        }
-        return {
-          reply: `That year’s chart isn’t available yet.`,
-          followUp: ["1970", "1984", "1999"],
-          domain: "music",
-          sessionPatch: canonicalPatch(session),
-        };
-      }
-
+      // v2.72: always resolve chart safely (no out-of-range singles dead-end)
+      const choice = resolveChartForYear(y, session.activeMusicChart);
       const chart = choice.chart;
 
       const moment = getMomentOrFallback({
@@ -908,9 +900,9 @@ function handleChat({ text, session }) {
 
       if (!moment) {
         return {
-          reply: `I can’t pull a clean ${
-            cmd.kind === "micro" ? "micro" : "story"
-          } moment for ${y} on ${chart} in this build yet. Try “top 10 ${y}”.`,
+          reply:
+            `I can’t pull a clean ${cmd.kind === "micro" ? "micro" : "story"} moment for ${y} on ${chart} in this build yet. ` +
+            `Try “top 10 ${y}” or pick another year.`,
           followUp: [`top 10 ${y}`, "#1", "Another year"],
           domain: "music",
           sessionPatch: canonicalPatch(session, {
@@ -937,55 +929,11 @@ function handleChat({ text, session }) {
   // Year-only input?
   const y = toInt(msg);
   if (isYearInRange(y)) {
-    const choice = chooseChartForYear(y, session.activeMusicChart);
-    if (!choice.ok) {
-      if (choice.reason === "OUT_OF_RANGE_FOR_SINGLES") {
-        return {
-          reply: `Year-End Singles is only available for 1950–1959 in my current build. Try a year in that range.`,
-          followUp: ["1950", "1956", "1959"],
-          domain: "music",
-          sessionPatch: canonicalPatch(session),
-        };
-      }
-      return {
-        reply: `That year’s chart isn’t available yet.`,
-        followUp: ["1970", "1984", "1999"],
-        domain: "music",
-        sessionPatch: canonicalPatch(session),
-      };
-    }
-
+    // v2.72: resolve chart safely
+    const choice = resolveChartForYear(y, session.activeMusicChart);
     const chart = choice.chart;
 
-    if (chart === YEAR_END_SINGLES_CHART && y >= 1950 && y <= 1959) {
-      const rows = getTopByYear(y, chart, 10);
-
-      if (!rows.length) {
-        return {
-          reply: `I’m missing the ${y} Year-End Singles list in the current Wikipedia cache — so I won’t fake it. Try another 1950s year.`,
-          followUp: ["1950", "1956", "1959"],
-          domain: "music",
-          sessionPatch: canonicalPatch(session, {
-            activeMusicChart: chart,
-            lastMusicYear: y,
-            lastMusicChart: chart,
-          }),
-        };
-      }
-
-      const formatted = formatTopList(y, chart, 10);
-      return {
-        reply: `${formatted}\n\nWant #1, a story moment, a micro moment, or another year?`,
-        followUp: ["#1", `story moment ${y}`, `micro moment ${y}`, "Another year"],
-        domain: "music",
-        sessionPatch: canonicalPatch(session, {
-          activeMusicChart: chart,
-          lastMusicYear: y,
-          lastMusicChart: chart,
-        }),
-      };
-    }
-
+    // Prefer showing top10 if data exists; otherwise keep forward motion (offer story/micro)
     const out = formatTopListWithFallbacks(y, chart, 10);
 
     if (out && out.formatted) {
@@ -1002,14 +950,34 @@ function handleChat({ text, session }) {
       };
     }
 
+    // No clean top list: offer story/micro (layer or deterministic if possible)
+    const story = getMomentOrFallback({ year: y, chart, kind: "story" });
+    const micro = getMomentOrFallback({ year: y, chart, kind: "micro" });
+
+    if (micro || story) {
+      const reply = micro || story;
+      return {
+        reply,
+        followUp: [`top 10 ${y}`, "#1", "Another year"],
+        domain: "music",
+        sessionPatch: canonicalPatch(session, {
+          activeMusicChart: chart,
+          lastMusicYear: y,
+          lastMusicChart: chart,
+        }),
+      };
+    }
+
     const missingHint =
       STATS.moments > 0
         ? ""
         : " (No chart datasets are currently loaded on the server.)";
 
     return {
-      reply: `I don’t have a clean list for ${y} on the available chart sources in this build yet${missingHint}. Try another year.`,
-      followUp: ["1970", "1984", "1999"],
+      reply:
+        `I don’t have chart rows loaded for ${y} in this build yet${missingHint}. ` +
+        `Pick a 1950s year for full lists, or ask for “story moment ${y}” / “micro moment ${y}” if your Moments layer covers it.`,
+      followUp: ["1956", `story moment ${y}`, `micro moment ${y}`],
       domain: "music",
       sessionPatch: canonicalPatch(session, {
         activeMusicChart: normalizeChart(session.activeMusicChart),
@@ -1051,6 +1019,8 @@ module.exports = {
 
   // For diagnostics
   _chartIsAvailable: chartIsAvailable,
+  _hasAnyRowsForYearOnChart: hasAnyRowsForYearOnChart,
+  _resolveChartForYear: resolveChartForYear,
 
   // For Utils/musicMoments.js integration (critical)
   _getTopByYear: getTopByYear,
