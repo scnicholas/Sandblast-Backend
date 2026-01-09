@@ -3,31 +3,17 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.1 (Personal Cues + Personalized Follow-Ups v1; preserves v1.5.0)
+ * index.js v1.5.2 (TIGHT: One-Tap Resume; minimal personalization; preserves v1.5.1 core hardening)
  *
- * Adds / Fixes:
- *  - Lightweight visitor profile memory keyed by visitorId (PROFILES map)
- *  - Personal cues: name capture (e.g., "I'm Mac") + returning greeting
- *  - Personalized follow-ups:
- *      - "Continue" chip (resume last meaningful flow)
- *      - "Use my usual" chips for Sponsors + Movies lanes
- *  - Global nav token: continue/resume handled early and safely
+ * Tightened scenario:
+ *  - Returning visitor gets ONE personalized action:
+ *      - "Continue" if resumable
+ *      - otherwise "Start fresh"
+ *  - Optional name cue ("Welcome back, Mac") if user volunteered a name.
  *
- * Preserves:
- *  - Phase 0 Movies lane + nav routing guard (Movies before music nav tokens except Replay/Continue)
- *  - Replay FollowUps parity + followUps memory (lastFollowUps/lastFollowUp)
- *  - Sponsors catalog sync + health/debug meta
- *  - Mic Feedback Guard
- *  - Sponsors Lane routing + contract-hard followUps
- *  - Loop-closure rerun once when engine asks for year/mode despite session state
- *  - Debug snapshot via /api/chat?debug=1
- *  - Render/server timeouts + upstream AbortController timeout
- *  - Top10 chart fallback ladder + gap-aware replies
- *  - CORS origin normalization (www/non-www), same corsOptions for preflight
- *  - Parser defenses (raw body capture, JSON error handler)
- *  - Contract headers + optional strict 409 enforcement
- *  - Session TTL cleanup + MAX_SESSIONS
- *  - Sticky year, #1 routing, next/prev/another year tokens
+ * Removed from v1.5.1:
+ *  - "Use my last brief" / "Use my usual" commands
+ *  - Lane-specific reuse tokens
  */
 
 const express = require("express");
@@ -44,22 +30,18 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.1 (Personal Cues + Personalized Follow-Ups v1; preserves v1.5.0)";
+  "index.js v1.5.2 (TIGHT: One-Tap Resume; minimal personalization; preserves v1.5.1 core hardening)";
 
 /* ======================================================
    Basic middleware
 ====================================================== */
 
-// ---- Raw body capture (for debugging parser failures) ----
 function rawBodySaver(req, res, buf, encoding) {
   try {
     if (buf && buf.length) req.rawBody = buf.toString(encoding || "utf8");
-  } catch (_) {
-    // ignore
-  }
+  } catch (_) {}
 }
 
-// Parse JSON defensively.
 app.use(
   express.json({
     limit: "1mb",
@@ -67,7 +49,6 @@ app.use(
   })
 );
 
-// Also accept text payloads (some proxies/clients accidentally send text/plain)
 app.use(
   express.text({
     type: ["text/*"],
@@ -77,7 +58,7 @@ app.use(
 );
 
 /* ======================================================
-   Timeout middleware (Render hardening)
+   Timeout middleware
 ====================================================== */
 
 const REQUEST_TIMEOUT_MS = Math.max(
@@ -88,9 +69,7 @@ const REQUEST_TIMEOUT_MS = Math.max(
 app.use((req, res, next) => {
   try {
     res.setTimeout(REQUEST_TIMEOUT_MS);
-  } catch (_) {
-    // ignore
-  }
+  } catch (_) {}
   next();
 });
 
@@ -98,7 +77,6 @@ app.use((req, res, next) => {
    CORS
 ====================================================== */
 
-// CORS: allowlist from env (comma-separated), plus localhost by default
 function parseAllowedOrigins() {
   const raw = String(process.env.CORS_ALLOWED_ORIGINS || "").trim();
   const defaults = ["http://localhost:3000", "http://127.0.0.1:3000"];
@@ -124,7 +102,6 @@ function originMatchesAllowlist(origin) {
 
   if (ALLOWED_ORIGINS.includes(o)) return true;
 
-  // handle www/non-www symmetry
   try {
     const u = new URL(o);
     const host = String(u.hostname || "");
@@ -140,7 +117,7 @@ function originMatchesAllowlist(origin) {
 
 const corsOptions = {
   origin: function (origin, cb) {
-    if (!origin) return cb(null, true); // non-browser clients
+    if (!origin) return cb(null, true);
     if (CORS_ALLOW_ALL) return cb(null, true);
     if (originMatchesAllowlist(origin)) return cb(null, true);
     return cb(null, false);
@@ -164,7 +141,7 @@ app.options("/api/*", cors(corsOptions));
 app.options("*", cors(corsOptions));
 
 /* ======================================================
-   JSON parse error handler (pre-route)
+   JSON parse error handler
 ====================================================== */
 app.use((err, req, res, next) => {
   const requestId = req.get("X-Request-Id") || rid();
@@ -249,21 +226,17 @@ function clampYear(y) {
   return y;
 }
 
-function pickRotate(session, key, options) {
-  if (!session || !Array.isArray(options) || options.length === 0)
-    return options?.[0] || "";
-  const k = String(key || "rot");
-  const idxKey = `_rot_${k}`;
-  const last = Number(session[idxKey] || 0);
-  const next = (last + 1) % options.length;
-  session[idxKey] = next;
-  return options[next];
-}
-
 function safeIncYear(y, delta) {
   const yy = clampYear(Number(y));
   if (!yy) return null;
   return clampYear(yy + delta);
+}
+
+function parseDebugFlag(req) {
+  if (!req) return false;
+  const q = String(req.query && req.query.debug ? req.query.debug : "").trim();
+  if (q === "1" || q.toLowerCase() === "true") return true;
+  return false;
 }
 
 function makeUuid() {
@@ -274,20 +247,12 @@ function makeUuid() {
   });
 }
 
-function parseDebugFlag(req) {
-  if (!req) return false;
-  const q = String(req.query && req.query.debug ? req.query.debug : "").trim();
-  if (q === "1" || q.toLowerCase() === "true") return true;
-  return false;
-}
-
 /* ======================================================
-   Visitor Profiles (lightweight personalization)
+   Visitor Profiles (tight)
 ====================================================== */
 
 const PROFILES = new Map();
-
-const PROFILE_TTL_MS = Number(process.env.PROFILE_TTL_MS || 30 * 24 * 60 * 60 * 1000); // default 30 days
+const PROFILE_TTL_MS = Number(process.env.PROFILE_TTL_MS || 30 * 24 * 60 * 60 * 1000);
 const PROFILE_CLEAN_INTERVAL_MS = Math.max(
   10 * 60 * 1000,
   Math.min(60 * 60 * 1000, Math.floor(PROFILE_TTL_MS / 12))
@@ -303,24 +268,16 @@ function getProfile(visitorId) {
       createdAt: Date.now(),
       updatedAt: Date.now(),
       lastSeenAt: Date.now(),
+      visits: 0,
 
-      // personal cues
+      // tight personal cue
       name: "",
 
-      // preference memory
-      preferredLane: "general", // "music" | "sponsors" | "movies" | ...
-      preferredMusicMode: "", // "top10" | "story" | "micro"
-      preferredVoiceMode: "standard",
-
-      // last known stable context
+      // tight resume memory
+      lastLane: "general",
       lastMusicYear: null,
-      lastMusicMode: null,
-
-      lastSponsorsBrief: null, // {property,goal,category,budgetTier,cta,restrictions}
-      lastMoviesBrief: null, // {format,era,genres,budgetModel,territory,distribution,sources}
-
-      // metrics
-      visits: 0,
+      lastMusicMode: null, // "top10" | "story" | "micro"
+      lastHadReply: false,
     });
   }
 
@@ -331,22 +288,16 @@ function getProfile(visitorId) {
 }
 
 function profileIsReturning(profile) {
-  if (!profile) return false;
-  return Number(profile.visits || 0) >= 2;
+  return !!profile && Number(profile.visits || 0) >= 2;
 }
 
 function detectNameFromText(text) {
   const t = cleanText(text);
   if (!t) return null;
-
-  // Examples:
-  // "I'm Mac", "Im Mac", "I am Mac", "my name is Mac"
   const m = t.match(/\b(?:i[' ]?m|i am|im|my name is)\s+([A-Za-z][A-Za-z\-']{1,30})\b/i);
   if (!m) return null;
-
   const raw = cleanText(m[1] || "");
   if (!raw) return null;
-
   const name = raw.charAt(0).toUpperCase() + raw.slice(1);
   if (name.length < 2) return null;
   return name;
@@ -355,75 +306,11 @@ function detectNameFromText(text) {
 function updateProfileFromSession(profile, session) {
   if (!profile || !session) return;
 
-  // Lane preference
-  if (session.lane && typeof session.lane === "string") {
-    profile.preferredLane = session.lane;
-  }
+  profile.lastLane = session.lane || profile.lastLane || "general";
+  profile.lastHadReply = !!session.lastReply;
 
-  // Voice mode preference
-  if (session.voiceMode) profile.preferredVoiceMode = session.voiceMode;
-
-  // Music preference
   if (clampYear(session.lastYear)) profile.lastMusicYear = session.lastYear;
   if (session.activeMusicMode) profile.lastMusicMode = session.activeMusicMode;
-
-  if (session.activeMusicMode) profile.preferredMusicMode = session.activeMusicMode;
-
-  // Sponsors brief
-  try {
-    if (session.sponsors && typeof session.sponsors === "object") {
-      const s = session.sponsors;
-      const hasAny = !!(
-        cleanText(s.property) ||
-        cleanText(s.goal) ||
-        cleanText(s.category) ||
-        cleanText(s.budgetTier) ||
-        cleanText(s.cta) ||
-        cleanText(s.restrictions)
-      );
-      if (hasAny) {
-        profile.lastSponsorsBrief = {
-          property: cleanText(s.property),
-          goal: cleanText(s.goal),
-          category: cleanText(s.category),
-          budgetTier: cleanText(s.budgetTier),
-          cta: cleanText(s.cta),
-          restrictions: cleanText(s.restrictions),
-        };
-      }
-    }
-  } catch (_) {
-    // ignore
-  }
-
-  // Movies brief
-  try {
-    if (session.movies && session.movies.phase0 && typeof session.movies.phase0 === "object") {
-      const m = session.movies.phase0;
-      const hasAny = !!(
-        cleanText(m.format) ||
-        cleanText(m.era) ||
-        cleanText(m.genres) ||
-        cleanText(m.budgetModel) ||
-        cleanText(m.territory) ||
-        cleanText(m.distribution) ||
-        cleanText(m.sources)
-      );
-      if (hasAny) {
-        profile.lastMoviesBrief = {
-          format: cleanText(m.format),
-          era: cleanText(m.era),
-          genres: cleanText(m.genres),
-          budgetModel: cleanText(m.budgetModel),
-          territory: cleanText(m.territory),
-          distribution: cleanText(m.distribution),
-          sources: cleanText(m.sources),
-        };
-      }
-    }
-  } catch (_) {
-    // ignore
-  }
 
   profile.updatedAt = Date.now();
 }
@@ -435,15 +322,12 @@ const profileCleaner = setInterval(() => {
     if (!p || u < cutoff) PROFILES.delete(vid);
   }
 }, PROFILE_CLEAN_INTERVAL_MS);
-
 try {
   if (typeof profileCleaner.unref === "function") profileCleaner.unref();
-} catch (_) {
-  // ignore
-}
+} catch (_) {}
 
 /* ======================================================
-   Session store (in-memory) + TTL cleanup
+   Sessions
 ====================================================== */
 
 const SESSIONS = new Map();
@@ -477,54 +361,24 @@ function getSession(sessionId) {
 
       visitorId: null,
 
-      // Music state
       lastYear: null,
-      activeMusicMode: null, // "top10" | "story" | "micro"
+      activeMusicMode: null,
       pendingMode: null,
       activeMusicChart: "Billboard Hot 100",
 
-      // Optional lane
       lane: "general",
 
-      // Memory + loop closure anchors
       lastReply: null,
       lastReplyAt: null,
 
-      // Replay parity
       lastFollowUp: null, // array of strings
       lastFollowUps: null, // array of {label,send}
 
       lastTop10One: null,
       lastIntent: null,
-      lastEngine: null, // { kind, chart, note, at }
+      lastEngine: null,
 
-      // Voice continuity
-      voiceMode: "standard", // "calm" | "standard" | "high"
-
-      // Sponsors context
-      sponsors: {
-        property: "",
-        goal: "",
-        category: "",
-        budgetTier: "",
-        cta: "",
-        restrictions: "",
-        stage: "",
-      },
-
-      // Movies (Phase 0) context
-      movies: {
-        phase0: {
-          format: "",
-          era: "",
-          genres: "",
-          budgetModel: "",
-          territory: "",
-          distribution: "",
-          sources: "",
-          missing: [],
-        },
-      },
+      voiceMode: "standard",
     });
   }
 
@@ -545,12 +399,9 @@ const cleaner = setInterval(() => {
     if (!s || (s.updatedAt || 0) < cutoff) SESSIONS.delete(sid);
   }
 }, CLEAN_INTERVAL_MS);
-
 try {
   if (typeof cleaner.unref === "function") cleaner.unref();
-} catch (_) {
-  // ignore
-}
+} catch (_) {}
 
 /* ======================================================
    Optional modules
@@ -563,145 +414,15 @@ try {
   musicKnowledge = null;
 }
 
-// sponsorsKnowledge: catalog loader + normalizers
-let sponsorsKnowledge = null;
-try {
-  sponsorsKnowledge = require("./Utils/sponsorsKnowledge");
-} catch {
-  sponsorsKnowledge = null;
-}
-
-// sponsorsLane: conversational lane handler
-let sponsorsLane = null;
-try {
-  sponsorsLane = require("./Utils/sponsorsLane");
-} catch {
-  sponsorsLane = null;
-}
-
-// moviesLane: Phase 0 movies acquisition handler
-let moviesLane = null;
-try {
-  moviesLane = require("./Utils/moviesLane");
-} catch {
-  moviesLane = null;
-}
-
 /* ======================================================
-   Sponsors catalog (optional JSON; safe fallback if missing)
-====================================================== */
-
-let SPONSORS_CATALOG = null;
-
-function normalizeCatalogCount(cat) {
-  try {
-    if (!cat || typeof cat !== "object") return { packages: 0, tiers: 0 };
-    const pk = Array.isArray(cat.packages) ? cat.packages.length : 0;
-    const tr = Array.isArray(cat.tiers) ? cat.tiers.length : 0;
-    return { packages: pk, tiers: tr };
-  } catch {
-    return { packages: 0, tiers: 0 };
-  }
-}
-
-function loadSponsorsCatalogOnce() {
-  // 1) Canonical: sponsorsKnowledge.getCatalog() returns normalized catalog (including packages[])
-  if (sponsorsKnowledge && typeof sponsorsKnowledge.getCatalog === "function") {
-    try {
-      const c = sponsorsKnowledge.getCatalog();
-      if (c && typeof c === "object") {
-        SPONSORS_CATALOG = c;
-        return SPONSORS_CATALOG;
-      }
-    } catch (_) {
-      // ignore; fall through
-    }
-  }
-
-  // 2) Next: sponsorsKnowledge.loadCatalog()
-  if (sponsorsKnowledge && typeof sponsorsKnowledge.loadCatalog === "function") {
-    try {
-      const rel =
-        sponsorsKnowledge.DEFAULT_CATALOG_REL ||
-        "Data/sponsors/sponsors_catalog_v1.json";
-      const out = sponsorsKnowledge.loadCatalog(rel);
-      if (out && out.ok && out.catalog) {
-        SPONSORS_CATALOG = out.catalog;
-        return SPONSORS_CATALOG;
-      }
-    } catch (_) {
-      // ignore
-    }
-  }
-
-  // 3) Cached
-  if (SPONSORS_CATALOG) return SPONSORS_CATALOG;
-
-  // 4) File/env fallback
-  const rel = String(
-    process.env.SPONSORS_CATALOG_REL || "Data/sponsors/sponsors_catalog_v1.json"
-  );
-  const abs = path.resolve(process.cwd(), rel);
-
-  try {
-    if (fs.existsSync(abs)) {
-      const raw = fs.readFileSync(abs, "utf8");
-      const json = JSON.parse(raw);
-      SPONSORS_CATALOG = json && typeof json === "object" ? json : null;
-      return SPONSORS_CATALOG;
-    }
-  } catch (_) {
-    // ignore
-  }
-
-  // 5) Minimal built-in fallback
-  SPONSORS_CATALOG = {
-    version: "sponsors_catalog_fallback",
-    packages: [
-      {
-        id: "starter",
-        name: "Starter",
-        priceRange: "Contact for pricing",
-        bestFor: ["testing", "local businesses"],
-        includes: ["Web placement", "1 social mention", "basic reporting"],
-      },
-      {
-        id: "growth",
-        name: "Growth",
-        priceRange: "Contact for pricing",
-        bestFor: ["lead-gen", "events"],
-        includes: ["Web + Radio bundle", "weekly mentions", "tracking + reporting"],
-      },
-      {
-        id: "dominance",
-        name: "Dominance",
-        priceRange: "Contact for pricing",
-        bestFor: ["launches", "brand dominance"],
-        includes: ["Multi-channel bundle", "sponsored segment", "priority placement"],
-      },
-    ],
-    intakeQuestions: [
-      "What do you sell (and where)?",
-      "Is your goal awareness or leads?",
-      "What’s your monthly budget range?",
-      "Do you already have creative (audio/video/banner), or do you need help?",
-    ],
-  };
-
-  return SPONSORS_CATALOG;
-}
-
-/* ======================================================
-   TTS (ElevenLabs)
+   TTS (kept as-is)
 ====================================================== */
 
 const TTS_ENABLED = String(process.env.TTS_ENABLED || "true") === "true";
 const TTS_PROVIDER = String(process.env.TTS_PROVIDER || "elevenlabs");
 const ELEVEN_KEY = String(process.env.ELEVENLABS_API_KEY || "");
 const ELEVEN_VOICE_ID = String(process.env.ELEVENLABS_VOICE_ID || "");
-const ELEVEN_MODEL_ID = String(
-  process.env.ELEVENLABS_MODEL_ID || "eleven_multilingual_v2"
-);
+const ELEVEN_MODEL_ID = String(process.env.ELEVENLABS_MODEL_ID || "eleven_multilingual_v2");
 
 const hasFetch = typeof fetch === "function";
 const ELEVEN_TTS_TIMEOUT_MS = Math.max(
@@ -721,8 +442,7 @@ function getTtsTuningForMode(voiceMode) {
     stability: Number(process.env.NYX_VOICE_STABILITY ?? 0.55),
     similarity: Number(process.env.NYX_VOICE_SIMILARITY ?? 0.78),
     style: Number(process.env.NYX_VOICE_STYLE ?? 0.12),
-    speakerBoost:
-      String(process.env.NYX_VOICE_SPEAKER_BOOST ?? "false") === "true",
+    speakerBoost: String(process.env.NYX_VOICE_SPEAKER_BOOST ?? "false") === "true",
   };
 
   const m = normalizeVoiceMode(voiceMode);
@@ -751,9 +471,7 @@ function getTtsTuningForMode(voiceMode) {
 async function elevenTtsMp3Buffer(text, voiceMode) {
   const tuning = getTtsTuningForMode(voiceMode);
 
-  const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(
-    ELEVEN_VOICE_ID
-  )}`;
+  const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(ELEVEN_VOICE_ID)}`;
 
   const body = {
     text,
@@ -795,103 +513,19 @@ async function elevenTtsMp3Buffer(text, voiceMode) {
       msg.toLowerCase().includes("aborted") ||
       msg.toLowerCase().includes("abort") ||
       msg.toLowerCase().includes("timeout");
-    return {
-      ok: false,
-      status: isAbort ? 504 : 502,
-      detail: isAbort
-        ? `Upstream timeout after ${ELEVEN_TTS_TIMEOUT_MS}ms`
-        : msg,
-    };
+    return { ok: false, status: isAbort ? 504 : 502, detail: isAbort ? `Upstream timeout after ${ELEVEN_TTS_TIMEOUT_MS}ms` : msg };
   } finally {
     clearTimeout(t);
   }
 }
 
 /* ======================================================
-   Intent helpers
-====================================================== */
-
-function extractYearFromText(s) {
-  const m = String(s || "").match(/\b(19[5-9]\d|20[0-1]\d|202[0-4])\b/);
-  return m ? Number(m[1]) : null;
-}
-
-function isBareYearMessage(text) {
-  const t = cleanText(text);
-  return /^\s*(19[5-9]\d|20[0-1]\d|202[0-4])\s*$/.test(t);
-}
-
-function isGreeting(text) {
-  const t = cleanText(text).toLowerCase();
-  if (!t) return false;
-  if (/^(hi|hey|hello|yo|sup|greetings)\b/.test(t)) return true;
-  if (/^(hi\s+nyx|hey\s+nyx|hello\s+nyx)\b/.test(t)) return true;
-  return false;
-}
-
-function greetingReply(profile) {
-  const returning = profileIsReturning(profile);
-  const name = profile && cleanText(profile.name) ? cleanText(profile.name) : "";
-
-  if (returning) {
-    const who = name ? `${name}` : "welcome back";
-    // keep it tight; offer immediate path back into flow
-    return `Hi — ${who}. I’m Nyx. Want to continue where we left off, or start fresh?`;
-  }
-
-  return "Hi — welcome to Sandblast. I’m Nyx. Give me a year (1950–2024) and choose: Top 10, Story moment, or Micro moment.";
-}
-
-function normalizeModeToken(text) {
-  const t = cleanText(text).toLowerCase();
-  if (/\b(top\s*10|top10|top ten)\b/.test(t)) return "top10";
-  if (/\b(story\s*moment|story)\b/.test(t)) return "story";
-  if (/\b(micro\s*moment|micro)\b/.test(t)) return "micro";
-  return null;
-}
-
-function modeToCommand(mode) {
-  if (mode === "top10") return "top 10";
-  if (mode === "story") return "story moment";
-  if (mode === "micro") return "micro moment";
-  return "top 10";
-}
-
-function normalizeNavToken(text) {
-  const t = cleanText(text).toLowerCase();
-  if (!t) return null;
-
-  if (/^(replay|repeat|again|say that again|one more time|replay last)\b/.test(t))
-    return "replay";
-
-  // NEW: continue/resume (global)
-  if (/^(continue|resume|pick up|carry on|go on)\b/.test(t)) return "continue";
-
-  if (/^(next|next year|forward|year\+1)\b/.test(t)) return "nextYear";
-  if (/^(prev|previous|previous year|back|year-1)\b/.test(t)) return "prevYear";
-  if (/^(another year|new year|different year)\b/.test(t)) return "anotherYear";
-
-  if (/^(#?1\s*story|story\s*#?1|number\s*1\s*story)\b/.test(t)) return "oneStory";
-  if (/^(#?1\s*micro|micro\s*#?1|number\s*1\s*micro)\b/.test(t)) return "oneMicro";
-
-  if (/^#?1\b/.test(t) || /^number\s*1\b/.test(t)) return "one";
-
-  return null;
-}
-
-/* ======================================================
-   Mic Feedback Guard (TTS → mic → transcript → backend loop breaker)
+   Mic Feedback Guard (kept)
 ====================================================== */
 
 const MIC_GUARD_ENABLED = String(process.env.MIC_GUARD_ENABLED || "true") === "true";
-const MIC_GUARD_WINDOW_MS = Math.max(
-  2000,
-  Math.min(20000, Number(process.env.MIC_GUARD_WINDOW_MS || 9000))
-);
-const MIC_GUARD_MIN_CHARS = Math.max(
-  24,
-  Math.min(240, Number(process.env.MIC_GUARD_MIN_CHARS || 60))
-);
+const MIC_GUARD_WINDOW_MS = Math.max(2000, Math.min(20000, Number(process.env.MIC_GUARD_WINDOW_MS || 9000)));
+const MIC_GUARD_MIN_CHARS = Math.max(24, Math.min(240, Number(process.env.MIC_GUARD_MIN_CHARS || 60)));
 
 function normalizeForEchoCompare(s) {
   return cleanText(String(s || ""))
@@ -931,381 +565,161 @@ function isLikelyMicEcho(incomingText, session) {
   return false;
 }
 
-function micEchoBreakerReply(session) {
-  if (session && session.lane === "sponsors") {
-    return "I’m picking up my own audio (mic feedback). Tap a follow-up, or type: TV / Radio / Website / Social, plus your goal and budget range in CAD.";
-  }
-  if (session && session.lane === "movies") {
-    return "I’m picking up my own audio (mic feedback). Tap a follow-up, or reply with: movie/series | 70s/80s | genres | rev-share(no MG)/MG | territory | FAST/AVOD.";
-  }
-  const y = session && clampYear(session.lastYear) ? session.lastYear : null;
-  if (y && session.activeMusicMode) {
-    return `I’m picking up my own audio (mic feedback). Tap “Replay last” if you want that again, or say “continue”, “next year”, “another year”, or “top 10 ${y}”.`;
-  }
+function micEchoBreakerReply() {
   return "I’m picking up my own audio (mic feedback). Tap a follow-up chip, or type a year (1950–2024) plus: Top 10 / Story moment / Micro moment.";
 }
 
 /* ======================================================
-   Sponsors intent (fallback)
+   Music helpers
 ====================================================== */
 
-function isSponsorIntentFallback(text) {
+function extractYearFromText(s) {
+  const m = String(s || "").match(/\b(19[5-9]\d|20[0-1]\d|202[0-4])\b/);
+  return m ? Number(m[1]) : null;
+}
+
+function isBareYearMessage(text) {
+  const t = cleanText(text);
+  return /^\s*(19[5-9]\d|20[0-1]\d|202[0-4])\s*$/.test(t);
+}
+
+function normalizeModeToken(text) {
+  const t = cleanText(text).toLowerCase();
+  if (/\b(top\s*10|top10|top ten)\b/.test(t)) return "top10";
+  if (/\b(story\s*moment|story)\b/.test(t)) return "story";
+  if (/\b(micro\s*moment|micro)\b/.test(t)) return "micro";
+  return null;
+}
+
+function modeToCommand(mode) {
+  if (mode === "top10") return "top 10";
+  if (mode === "story") return "story moment";
+  if (mode === "micro") return "micro moment";
+  return "top 10";
+}
+
+function normalizeNavToken(text) {
+  const t = cleanText(text).toLowerCase();
+  if (!t) return null;
+
+  if (/^(replay|repeat|again|say that again|one more time|replay last)\b/.test(t)) return "replay";
+  if (/^(continue|resume|pick up|carry on|go on)\b/.test(t)) return "continue";
+  if (/^(start fresh|restart|new start|reset)\b/.test(t)) return "fresh";
+
+  if (/^(next|next year|forward|year\+1)\b/.test(t)) return "nextYear";
+  if (/^(prev|previous|previous year|back|year-1)\b/.test(t)) return "prevYear";
+  if (/^(another year|new year|different year)\b/.test(t)) return "anotherYear";
+
+  return null;
+}
+
+function isGreeting(text) {
   const t = cleanText(text).toLowerCase();
   if (!t) return false;
-
-  const strong =
-    /\b(sponsor|sponsorship|advertis(e|ing)|rate\s*card|media\s*kit|ad\s*package|ad\s*packages|ad\s*pricing|pricing|promote|promotion|commercial|campaign)\b/;
-
-  if (
-    /\b(sponsor)\b/.test(t) &&
-    /\b(song|music|artist|album)\b/.test(t) &&
-    !/\b(advertis|pricing|rate card|media kit)\b/.test(t)
-  ) {
-    return false;
-  }
-
-  return strong.test(t);
+  return /^(hi|hey|hello|yo|sup|greetings)\b/.test(t) || /^(hi\s+nyx|hey\s+nyx|hello\s+nyx)\b/.test(t);
 }
 
-function isSponsorIntent(text) {
-  if (sponsorsLane && typeof sponsorsLane.isSponsorIntent === "function") {
-    try {
-      return !!sponsorsLane.isSponsorIntent(text);
-    } catch (_) {
-      return isSponsorIntentFallback(text);
-    }
+function greetingReply(profile, canContinue) {
+  const returning = profileIsReturning(profile);
+  const name = profile && cleanText(profile.name) ? cleanText(profile.name) : "";
+
+  if (!returning) {
+    return "Hi — welcome to Sandblast. I’m Nyx. Give me a year (1950–2024) and choose: Top 10, Story moment, or Micro moment.";
   }
-  return isSponsorIntentFallback(text);
+
+  const who = name ? `Welcome back, ${name}.` : "Welcome back.";
+  if (canContinue) return `${who} Want to continue where we left off?`;
+  return `${who} Want to start fresh?`;
 }
 
-/* ======================================================
-   Sponsors engine wrapper
-====================================================== */
+function replyMissingYearForMode(mode) {
+  if (mode === "top10") return "What year (1950–2024) for your Top 10?";
+  if (mode === "story") return "What year (1950–2024) for the story moment?";
+  if (mode === "micro") return "What year (1950–2024) for the micro-moment?";
+  return "What year (1950–2024)?";
+}
 
-async function runSponsorsEngine(text, session) {
-  if (sponsorsLane && typeof sponsorsLane.handleChat === "function") {
-    try {
-      const out = sponsorsLane.handleChat({ text, session }) || {};
-      if (out.sessionPatch && typeof out.sessionPatch === "object")
-        Object.assign(session, out.sessionPatch);
-      return out;
-    } catch (e) {
-      return {
-        reply:
-          "Sponsors lane hit a snag. Tell me: TV/Radio/Website/Social (or bundle), your goal (calls/foot traffic/clicks/awareness), and a budget range in CAD.",
-        error: String(e && e.message ? e.message : e),
-      };
-    }
-  }
+function addMomentumTail(session, reply) {
+  const r = cleanText(reply);
+  if (!r) return r;
+  if (session && session.lane !== "general" && session.lane !== "music") return r;
+  const y = session && clampYear(session.lastYear) ? session.lastYear : null;
+  const mode = session && session.activeMusicMode ? session.activeMusicMode : null;
+  const endsWithQ = /[?]$/.test(r);
+  if (endsWithQ) return r;
 
-  loadSponsorsCatalogOnce();
-  return {
-    reply:
-      "Sponsors lane is online. Tell me what you want to promote (TV/Radio/Website/Social/bundle), your goal, and your budget range in CAD.",
-    followUps: [
-      { label: "TV", send: "TV" },
-      { label: "Radio", send: "Radio" },
-      { label: "Website", send: "Website" },
-      { label: "Social", send: "Social" },
-      { label: "Bundle", send: "Bundle" },
-      { label: "Request rate card", send: "Request rate card" },
-      { label: "Book a call", send: "Book a call" },
-    ],
-  };
+  if (y && mode) return `${r} Next: “next year”, “another year”, or “replay”.`;
+  return r;
 }
 
 /* ======================================================
-   Movies engine wrapper (Phase 0)
+   Music engine wrapper (kept)
 ====================================================== */
 
-function isMoviesIntent(text) {
-  if (moviesLane && typeof moviesLane.detectMoviesIntent === "function") {
-    try {
-      return moviesLane.detectMoviesIntent(text);
-    } catch (_) {
-      return { hit: false, confidence: 0 };
-    }
-  }
-  // If moviesLane missing, keep it disabled rather than guessing
-  return { hit: false, confidence: 0 };
-}
-
-async function runMoviesEngine(text, session) {
-  if (!moviesLane || typeof moviesLane.handleChat !== "function") {
-    return {
-      reply:
-        "Movies lane isn’t loaded in this build yet. Add Utils/moviesLane.js and redeploy, then say: “movies phase 0”.",
-      followUps: [
-        { label: "Movies (Phase 0)", send: "movies phase 0" },
-        { label: "Filmhub", send: "filmhub" },
-        { label: "Bitmax", send: "bitmax" },
-      ],
-    };
+async function runMusicEngine(text, session) {
+  if (!musicKnowledge || typeof musicKnowledge.handleChat !== "function") {
+    return { reply: "Tell me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment." };
   }
 
   try {
-    const out = moviesLane.handleChat({ text, session }) || {};
-    if (out.sessionPatch && typeof out.sessionPatch === "object")
-      Object.assign(session, out.sessionPatch);
+    const out = musicKnowledge.handleChat({ text, session }) || {};
+    if (out.sessionPatch && typeof out.sessionPatch === "object") Object.assign(session, out.sessionPatch);
     return out;
   } catch (e) {
-    return {
-      reply:
-        "Movies lane hit a snag. Reply in one line: “movie/series | 70s/80s | genres | rev-share(no MG)/MG | territory | FAST/AVOD”.",
-      error: String(e && e.message ? e.message : e),
-      followUps: [
-        { label: "Movie", send: "movie" },
-        { label: "Series", send: "series" },
-        { label: "1970s", send: "1970s" },
-        { label: "1980s", send: "1980s" },
-        { label: "Rev-share (No MG)", send: "rev share no mg" },
-        { label: "FAST+AVOD", send: "FAST AVOD" },
-      ],
-    };
+    return { reply: "I hit a snag in the music engine. Try again with a year (1950–2024).", error: String(e && e.message ? e.message : e) };
   }
 }
 
 /* ======================================================
-   Chart spine selection + Top10 fallback ladder
+   Followups (tight: ONE personalized chip max)
 ====================================================== */
 
-function pickPrimaryChartForYear(year) {
-  if (year >= 1950 && year <= 1959) return "Billboard Year-End Singles";
-  return "Billboard Year-End Hot 100";
+function canResume(profile, session) {
+  // resumable if we have something meaningful to continue:
+  // session has lastReply, or profile has lastMusicYear+lastMusicMode
+  const sesOk = !!(session && session.lastReply);
+  const profOk =
+    !!profile && !!clampYear(profile.lastMusicYear) && !!profile.lastMusicMode;
+  return sesOk || profOk;
 }
 
-function forceYearSpineChart(session, year) {
-  if (!session || typeof session !== "object") return;
-  const y = clampYear(Number(year ?? session.lastYear));
-  if (!y) return;
-  session.activeMusicChart = pickPrimaryChartForYear(y);
-}
+function makeFollowUpsTight(session, profile) {
+  const personal = [];
 
-function looksLikeNoCleanListReply(reply, year) {
-  const t = cleanText(reply).toLowerCase();
-  if (!t) return false;
-  if (!t.includes("clean list")) return false;
-  if (year && t.includes(String(year))) return true;
-  return true;
-}
-
-function buildTop10GapReply(year, session) {
-  const y = clampYear(Number(year));
-  const prev = y ? safeIncYear(y, -1) : null;
-  const next = y ? safeIncYear(y, +1) : null;
-
-  const suggested = [];
-  if (y && y >= 1960 && y <= 1969) {
-    suggested.push("1959", "1970");
-    if (prev && prev >= 1950 && prev <= 1959) suggested.unshift(String(prev));
-    if (next && next >= 1970) suggested.push(String(next));
-  } else {
-    if (prev) suggested.push(String(prev));
-    if (next) suggested.push(String(next));
-    suggested.push("1959", "1970");
+  const resumable = canResume(profile, session);
+  if (profileIsReturning(profile)) {
+    personal.push(resumable ? "Continue" : "Start fresh");
   }
 
-  const unique = [];
-  for (const s of suggested) if (s && !unique.includes(s)) unique.push(s);
-
-  const yStr = y ? String(y) : "that year";
-  const picks = unique.slice(0, 3).join(", ");
-
-  return `I don’t have a clean Top 10 list for ${yStr} in this build yet — that year sits in a chart coverage gap. Try ${picks}. Or say “story moment ${yStr}” / “micro moment ${yStr}” and I’ll still give you a tight moment if the engine has narrative entries.`;
-}
-
-async function runTop10WithFallback(year, session) {
-  const y = clampYear(Number(year));
-  if (!y) return { reply: "Tell me a year (1950–2024) for Top 10." };
-
-  const primary = pickPrimaryChartForYear(y);
-
-  const ladder = [
-    primary,
-    "Billboard Year-End Singles",
-    "Billboard Hot 100",
-    "Canada RPM",
-    "UK Singles Chart",
-  ];
-
-  const originalChart = session.activeMusicChart;
-
-  for (const chart of ladder) {
-    session.activeMusicChart = chart;
-
-    const out = await runMusicEngine(`top 10 ${y}`, session);
-    const reply0 = cleanText(out.reply || "");
-
-    if (reply0 && !looksLikeNoCleanListReply(reply0, y)) {
-      session.lastEngine = { kind: "top10", chart, note: "ok", at: Date.now() };
-      return out;
-    }
-  }
-
-  session.activeMusicChart = originalChart;
-  session.lastEngine = { kind: "top10", chart: originalChart, note: "gap", at: Date.now() };
-  return { reply: buildTop10GapReply(y, session) };
-}
-
-/* ======================================================
-   Reply parsing helpers
-====================================================== */
-
-function replyLooksLikeTop10List(reply) {
-  const t = cleanText(reply);
-  return /^Top\s+10\s+—/i.test(t);
-}
-
-function stripTrailingWantPrompt(s) {
-  return cleanText(String(s || ""))
-    .replace(/\s+Want\s+#1.*$/i, "")
-    .replace(/\s+Want\s+a\s+story\s+moment.*$/i, "")
-    .replace(/\s+Want\s+a\s+micro\s+moment.*$/i, "")
-    .trim();
-}
-
-function extractTop10NumberOne(reply) {
-  const t = cleanText(reply);
-
-  const ym = t.match(/\((19[5-9]\d|20[0-1]\d|202[0-4])\)\s*:/);
-  const year = ym ? clampYear(Number(ym[1])) : null;
-  if (!year) return null;
-
-  const m = t.match(/:\s*1\.\s*([^—]+?)\s*—\s*(.+?)(?=\s+2\.|$)/i);
-  if (!m) return { year, artist: null, title: null };
-
-  const artist = cleanText(m[1]);
-  const title = stripTrailingWantPrompt(m[2]);
-
-  if (!artist || !title) return { year, artist: artist || null, title: title || null };
-  return { year, artist, title };
-}
-
-function makeMicroMomentFromNumberOne({ year, artist, title }) {
-  const a = artist || "the year’s biggest artist";
-  const s = title ? `“${title}”` : "a massive #1";
-  return `Micro moment — ${year}: ${a} hit #1 with ${s}. One hook, one heartbeat—pure year-end momentum that made radios feel like a victory lap. Want a story moment, or another year?`;
-}
-
-function makeStoryMomentFromNumberOne({ year, artist, title }) {
-  const a = artist || "the year’s biggest artist";
-  const s = title ? `“${title}”` : "a massive #1";
-  return `Story moment — ${year}: ${a} owned the year-end conversation with ${s} at #1. It’s a snapshot of the era—tight chorus, big polish, and that “turn it up again” energy that glued people to their car radios. Want the Top 10, a micro moment, or another year?`;
-}
-
-function engineAsksForYear(reply) {
-  const t = cleanText(reply).toLowerCase();
-  return (
-    t.startsWith("tell me a year") ||
-    t.includes("tell me a year (1950–2024)") ||
-    t.includes("give me a year") ||
-    t.includes("what year (1950–2024)")
-  );
-}
-
-function engineAsksForMode(reply) {
-  const t = cleanText(reply).toLowerCase();
-  return (
-    t.includes("choose: top 10") ||
-    t.includes("what do you want: top 10") ||
-    t.includes("top 10, story moment, or micro moment")
-  );
-}
-
-/* ======================================================
-   Followups (contract-hard) + personalization overlay
-====================================================== */
-
-function makeFollowUps(session, profile) {
-  const baseModes = ["Top 10", "Story moment", "Micro moment"];
-
+  const base = [];
   const hasYear = !!(session && clampYear(session.lastYear));
-  const yearChip = hasYear ? String(session.lastYear) : "1950";
-
-  const hasReplay = !!(session && session.lastReply);
-  const hasOne = !!(session && session.lastTop10One && session.lastTop10One.year);
-
-  // Movies lane followups
-  if (session && session.lane === "movies") {
-    const mfu = [
-      { label: "Movie", send: "movie" },
-      { label: "Series", send: "series" },
-      { label: "1970s", send: "1970s" },
-      { label: "1980s", send: "1980s" },
-      { label: "Crime/Detective", send: "crime detective" },
-      { label: "Comedy", send: "comedy" },
-      { label: "Rev-share (No MG)", send: "rev share no mg" },
-      { label: "FAST+AVOD", send: "FAST AVOD" },
-    ];
-
-    // Personalized: "Use my usual" if we have a saved brief
-    if (profile && profile.lastMoviesBrief) {
-      mfu.unshift({ label: "Use my usual", send: "movies:usual" });
-    }
-
-    return {
-      followUp: mfu.map((x) => x.label).slice(0, 8),
-      followUps: mfu.slice(0, 8),
-    };
-  }
-
-  // Sponsors lane followups
-  if (session && session.lane === "sponsors") {
-    const sfu = [
-      { label: "TV", send: "TV" },
-      { label: "Radio", send: "Radio" },
-      { label: "Website", send: "Website" },
-      { label: "Social", send: "Social" },
-      { label: "Bundle", send: "Bundle" },
-      { label: "Build my offer", send: "Build my offer" },
-      { label: "Request rate card", send: "Request rate card" },
-      { label: "Book a call", send: "Book a call" },
-    ];
-
-    // Personalized: "Use my last brief" if we have one
-    if (profile && profile.lastSponsorsBrief) {
-      sfu.unshift({ label: "Use my last brief", send: "sponsors:reuse" });
-    }
-
-    return {
-      followUp: sfu.map((x) => x.label).slice(0, 8),
-      followUps: sfu.slice(0, 8),
-    };
-  }
-
-  // General/music followups
-  const items = [];
-
-  // Personalized: returning visitor + has lastReply => offer Continue
-  if (profileIsReturning(profile) && session && session.lastReply) {
-    items.push("Continue");
-  }
-
-  items.push(yearChip, ...baseModes);
-
-  if (hasYear && hasOne) items.push("#1", "#1 story", "#1 micro");
+  base.push(hasYear ? String(session.lastYear) : "1950", "Top 10", "Story moment", "Micro moment");
 
   if (hasYear) {
     const py = safeIncYear(session.lastYear, -1);
     const ny = safeIncYear(session.lastYear, +1);
-    if (py) items.push("Prev year");
-    if (ny) items.push("Next year");
-    items.push("Another year");
+    if (py) base.push("Prev year");
+    if (ny) base.push("Next year");
+    base.push("Another year");
   }
 
-  if (hasYear && hasReplay) items.push("Replay last");
+  if (session && session.lastReply) base.push("Replay last");
 
-  const deduped = [];
-  for (const x of items) if (x && !deduped.includes(x)) deduped.push(x);
+  const out = [];
+  // ONE personal chip max
+  if (personal[0]) out.push(personal[0]);
+  for (const x of base) if (x && !out.includes(x)) out.push(x);
 
-  const primary = deduped.slice(0, 8);
+  const primary = out.slice(0, 8);
   return {
     followUp: primary,
     followUps: primary.map((x) => ({ label: x, send: x })),
+    resumable,
   };
 }
 
 function normalizeEngineFollowups(out) {
+  // keep engine followups if provided, but we still overlay a single personal chip (if any)
   const push = (acc, v) => {
     if (!v) return;
     if (typeof v === "string") {
@@ -1323,21 +737,11 @@ function normalizeEngineFollowups(out) {
   const acc = [];
   if (!out || typeof out !== "object") return acc;
 
-  const cands = [
-    out.followUps,
-    out.followupS,
-    out.followups,
-    out.follow_up,
-    out.followUp,
-    out.followup,
-  ].filter(Boolean);
-
+  const cands = [out.followUps, out.followups, out.followUp, out.followup].filter(Boolean);
   for (const c of cands) {
     if (Array.isArray(c)) c.forEach((x) => push(acc, x));
     else push(acc, c);
   }
-
-  if (Array.isArray(out.followUp)) out.followUp.forEach((x) => push(acc, x));
 
   const seen = new Set();
   const out2 = [];
@@ -1350,107 +754,35 @@ function normalizeEngineFollowups(out) {
   return out2.slice(0, 12);
 }
 
-function replyMissingYearForMode(session, mode) {
-  const poolTop10 = [
-    "Perfect. What year (1950–2024) for your Top 10?",
-    "Got you. Which year (1950–2024) should I use for Top 10?",
-    "Alright—name the year (1950–2024) and I’ll pull the Top 10.",
-  ];
-  const poolStory = [
-    "Love it. What year (1950–2024) for the story moment?",
-    "Alright—what year (1950–2024) are we doing for the story moment?",
-    "Great. Give me the year (1950–2024) and I’ll set the scene.",
-  ];
-  const poolMicro = [
-    "Sure. What year (1950–2024) for the micro-moment?",
-    "Quick one—what year (1950–2024) for the micro-moment?",
-    "Got it. Drop the year (1950–2024) and I’ll keep it tight.",
-  ];
-
-  if (mode === "top10") return pickRotate(session, "askYear_top10", poolTop10);
-  if (mode === "story") return pickRotate(session, "askYear_story", poolStory);
-  if (mode === "micro") return pickRotate(session, "askYear_micro", poolMicro);
-  return pickRotate(session, "askYear_generic", [
-    "What year (1950–2024) should I use?",
-    "Which year (1950–2024)?",
-  ]);
-}
-
-function addMomentumTail(session, reply) {
-  const r = cleanText(reply);
-  if (!r) return r;
-
-  // Sponsors + Movies: do NOT add music momentum tails
-  if (session && (session.lane === "sponsors" || session.lane === "movies")) return r;
-
-  const y = session && clampYear(session.lastYear) ? session.lastYear : null;
-  const mode = session && session.activeMusicMode ? session.activeMusicMode : null;
-
-  const endsWithQ = /[?]$/.test(r) || /\bwant\b/i.test(r) || /\bchoose\b/i.test(r);
-  if (endsWithQ) return r;
-
-  if (y && mode === "top10") return `${r} Next: say “#1”, “#1 story”, “#1 micro”, or “next year”.`;
-  if (y && (mode === "story" || mode === "micro")) return `${r} Next: “top 10”, “next year”, “another year”, or “replay”.`;
-  return r;
-}
-
-function respondJson(req, res, base, session, engineOut, opts) {
-  const options = opts && typeof opts === "object" ? opts : {};
-  const profile = options.profile || null;
-
-  const fallback = makeFollowUps(session, profile);
-
-  const forcedFollowUps =
-    Array.isArray(options.forceFollowUps) && options.forceFollowUps.length
-      ? options.forceFollowUps
-      : null;
-
-  const forcedFollowUp =
-    Array.isArray(options.forceFollowUp) && options.forceFollowUp.length
-      ? options.forceFollowUp
-      : null;
+function respondJson(req, res, base, session, engineOut, profile) {
+  const tight = makeFollowUpsTight(session, profile);
 
   const engineNorm = normalizeEngineFollowups(engineOut);
   const useEngine = engineNorm.length > 0;
 
-  const finalFollowUps = forcedFollowUps
-    ? forcedFollowUps.slice(0, 8)
-    : useEngine
-    ? engineNorm.slice(0, 8)
-    : fallback.followUps;
+  // overlay ONE personal chip, then fill with engine (or tight defaults)
+  const final = [];
+  if (tight.followUp[0] && (tight.followUp[0] === "Continue" || tight.followUp[0] === "Start fresh")) {
+    final.push({ label: tight.followUp[0], send: tight.followUp[0] });
+  }
 
-  const finalFollowUp = forcedFollowUp
-    ? forcedFollowUp.slice(0, 8)
-    : useEngine
-    ? engineNorm.map((x) => x.label).slice(0, 8)
-    : fallback.followUp;
+  const fill = useEngine ? engineNorm : tight.followUps;
+  for (const it of fill) {
+    if (!it || !it.label) continue;
+    if (final.length >= 8) break;
+    if (final.some((x) => x.send === it.send)) continue;
+    // do not duplicate personal chip
+    if (it.send === "Continue" || it.send === "Start fresh") continue;
+    final.push({ label: it.label, send: it.send });
+  }
 
   const payload = Object.assign({}, base, {
-    followUp: finalFollowUp,
-    followUps: finalFollowUps,
+    followUps: final.slice(0, 8),
+    followUp: final.slice(0, 8).map((x) => x.label),
   });
 
   const wantsDebug = CHAT_DEBUG || parseDebugFlag(req);
   if (wantsDebug) {
-    let sponsorsCatalogDebug = null;
-    let sponsorsCatalogMeta = null;
-
-    try {
-      if (sponsorsKnowledge && typeof sponsorsKnowledge.getCatalogDebug === "function") {
-        sponsorsCatalogDebug = sponsorsKnowledge.getCatalogDebug();
-      }
-    } catch (_) {
-      sponsorsCatalogDebug = null;
-    }
-
-    try {
-      if (sponsorsKnowledge && typeof sponsorsKnowledge.getCatalogMeta === "function") {
-        sponsorsCatalogMeta = sponsorsKnowledge.getCatalogMeta();
-      }
-    } catch (_) {
-      sponsorsCatalogMeta = null;
-    }
-
     payload.debug = {
       index: INDEX_VERSION,
       profile: profile
@@ -1458,13 +790,9 @@ function respondJson(req, res, base, session, engineOut, opts) {
             id: profile.id,
             name: profile.name || "",
             returning: profileIsReturning(profile),
-            preferredLane: profile.preferredLane,
-            preferredMusicMode: profile.preferredMusicMode || null,
-            preferredVoiceMode: profile.preferredVoiceMode || null,
+            lastLane: profile.lastLane,
             lastMusicYear: profile.lastMusicYear || null,
             lastMusicMode: profile.lastMusicMode || null,
-            hasSponsorsBrief: !!profile.lastSponsorsBrief,
-            hasMoviesBrief: !!profile.lastMoviesBrief,
             visits: profile.visits || 0,
           }
         : null,
@@ -1472,68 +800,20 @@ function respondJson(req, res, base, session, engineOut, opts) {
         lastYear: session ? session.lastYear : null,
         activeMusicMode: session ? session.activeMusicMode : null,
         pendingMode: session ? session.pendingMode : null,
-        activeMusicChart: session ? session.activeMusicChart : null,
         lane: session ? session.lane : null,
         voiceMode: session ? session.voiceMode : null,
         lastIntent: session ? session.lastIntent : null,
-        lastEngine: session ? session.lastEngine : null,
-        sponsors: session ? session.sponsors : null,
-        movies: session ? session.movies : null,
-        replay: session
-          ? {
-              hasLastReply: !!session.lastReply,
-              hasLastFollowUps:
-                Array.isArray(session.lastFollowUps) && session.lastFollowUps.length > 0,
-            }
-          : null,
       },
-      micGuard: {
-        enabled: MIC_GUARD_ENABLED,
-        windowMs: MIC_GUARD_WINDOW_MS,
-        minChars: MIC_GUARD_MIN_CHARS,
-      },
-      sponsors: {
-        laneLoaded: !!(sponsorsLane && typeof sponsorsLane.handleChat === "function"),
-        knowledgeLoaded: !!(
-          sponsorsKnowledge &&
-          (typeof sponsorsKnowledge.getCatalog === "function" ||
-            typeof sponsorsKnowledge.loadCatalog === "function")
-        ),
-        catalogMeta: sponsorsCatalogMeta || null,
-        catalogDebug: sponsorsCatalogDebug
-          ? {
-              loaded: !!sponsorsCatalogDebug.loaded,
-              rel: sponsorsCatalogDebug.rel || null,
-              abs: sponsorsCatalogDebug.abs || null,
-              error: sponsorsCatalogDebug.error || null,
-              mtimeMs: sponsorsCatalogDebug.mtimeMs || 0,
-            }
-          : null,
-      },
-      movies: {
-        laneLoaded: !!(moviesLane && typeof moviesLane.handleChat === "function"),
-      },
-      engine: engineOut
-        ? {
-            hasReply: !!cleanText(engineOut.reply),
-            hasFollowup: !!engineOut.followUp,
-            hasFollowups: !!engineOut.followUps,
-          }
-        : null,
+      resume: { resumable: tight.resumable },
     };
   }
 
-  if (session && !options.noStoreFollowups) {
+  // replay parity storage
+  if (session) {
     try {
-      session.lastFollowUp = Array.isArray(payload.followUp)
-        ? payload.followUp.slice(0, 12)
-        : null;
-      session.lastFollowUps = Array.isArray(payload.followUps)
-        ? payload.followUps.slice(0, 12)
-        : null;
-    } catch (_) {
-      // ignore
-    }
+      session.lastFollowUp = Array.isArray(payload.followUp) ? payload.followUp.slice(0, 12) : null;
+      session.lastFollowUps = Array.isArray(payload.followUps) ? payload.followUps.slice(0, 12) : null;
+    } catch (_) {}
   }
 
   return res.json(payload);
@@ -1552,19 +832,6 @@ app.get("/api/health", (req, res) => {
   const origin = req.headers.origin || null;
   const originAllowed = CORS_ALLOW_ALL ? true : origin ? originMatchesAllowlist(origin) : null;
 
-  const cat = loadSponsorsCatalogOnce();
-  const sponsorsOk = !!(cat && typeof cat === "object");
-  const counts = normalizeCatalogCount(cat);
-
-  let meta = null;
-  try {
-    if (sponsorsKnowledge && typeof sponsorsKnowledge.getCatalogMeta === "function") {
-      meta = sponsorsKnowledge.getCatalogMeta();
-    }
-  } catch (_) {
-    meta = null;
-  }
-
   res.json({
     ok: true,
     service: "sandblast-backend",
@@ -1580,58 +847,23 @@ app.get("/api/health", (req, res) => {
       originEcho: origin,
       originAllowed,
     },
-    contract: {
-      version: NYX_CONTRACT_VERSION,
-      strict: CONTRACT_STRICT,
-    },
-    timeouts: {
-      requestTimeoutMs: REQUEST_TIMEOUT_MS,
-      elevenTtsTimeoutMs: ELEVEN_TTS_TIMEOUT_MS,
-    },
+    contract: { version: NYX_CONTRACT_VERSION, strict: CONTRACT_STRICT },
+    timeouts: { requestTimeoutMs: REQUEST_TIMEOUT_MS, elevenTtsTimeoutMs: ELEVEN_TTS_TIMEOUT_MS },
     tts: {
       enabled: TTS_ENABLED,
       provider: TTS_PROVIDER,
       hasKey: !!ELEVEN_KEY,
       hasVoiceId: !!ELEVEN_VOICE_ID,
       model: ELEVEN_MODEL_ID || null,
-      tuning: getTtsTuningForMode("standard"),
       hasFetch,
     },
-    micGuard: {
-      enabled: MIC_GUARD_ENABLED,
-      windowMs: MIC_GUARD_WINDOW_MS,
-      minChars: MIC_GUARD_MIN_CHARS,
-    },
-    sponsors: {
-      laneLoaded: !!(sponsorsLane && typeof sponsorsLane.handleChat === "function"),
-      knowledgeLoaded: !!(
-        sponsorsKnowledge &&
-        (typeof sponsorsKnowledge.getCatalog === "function" ||
-          typeof sponsorsKnowledge.loadCatalog === "function")
-      ),
-      catalog: {
-        ok: sponsorsOk,
-        version: sponsorsOk ? cat.version || null : null,
-        packages: counts.packages,
-        tiers: counts.tiers,
-        meta,
-        source:
-          SPONSORS_CATALOG && SPONSORS_CATALOG.version === "sponsors_catalog_fallback"
-            ? "fallback"
-            : sponsorsKnowledge
-            ? "sponsorsKnowledge_or_file"
-            : "file_or_env",
-      },
-    },
-    movies: {
-      laneLoaded: !!(moviesLane && typeof moviesLane.handleChat === "function"),
-    },
+    micGuard: { enabled: MIC_GUARD_ENABLED, windowMs: MIC_GUARD_WINDOW_MS, minChars: MIC_GUARD_MIN_CHARS },
     requestId,
   });
 });
 
 /* ======================================================
-   API: tts
+   API: tts (unchanged)
 ====================================================== */
 
 async function ttsHandler(req, res) {
@@ -1665,42 +897,11 @@ async function ttsHandler(req, res) {
     hasExplicitVoiceMode ? body.voiceMode : (s && s.voiceMode) || "standard"
   );
 
-  if (!TTS_ENABLED)
-    return res
-      .status(503)
-      .json({ ok: false, error: "TTS_DISABLED", requestId, contractVersion: NYX_CONTRACT_VERSION });
-  if (TTS_PROVIDER !== "elevenlabs")
-    return res.status(500).json({
-      ok: false,
-      error: "TTS_PROVIDER_UNSUPPORTED",
-      provider: TTS_PROVIDER,
-      requestId,
-      contractVersion: NYX_CONTRACT_VERSION,
-    });
-  if (!hasFetch)
-    return res.status(500).json({
-      ok: false,
-      error: "TTS_RUNTIME",
-      detail: "fetch() not available",
-      requestId,
-      contractVersion: NYX_CONTRACT_VERSION,
-    });
-  if (!ELEVEN_KEY || !ELEVEN_VOICE_ID)
-    return res.status(500).json({
-      ok: false,
-      error: "TTS_MISCONFIG",
-      detail: "Missing ELEVENLABS env",
-      requestId,
-      contractVersion: NYX_CONTRACT_VERSION,
-    });
-  if (!text)
-    return res.status(400).json({
-      ok: false,
-      error: "BAD_REQUEST",
-      detail: "Missing text",
-      requestId,
-      contractVersion: NYX_CONTRACT_VERSION,
-    });
+  if (!TTS_ENABLED) return res.status(503).json({ ok: false, error: "TTS_DISABLED", requestId, contractVersion: NYX_CONTRACT_VERSION });
+  if (TTS_PROVIDER !== "elevenlabs") return res.status(500).json({ ok: false, error: "TTS_PROVIDER_UNSUPPORTED", provider: TTS_PROVIDER, requestId, contractVersion: NYX_CONTRACT_VERSION });
+  if (!hasFetch) return res.status(500).json({ ok: false, error: "TTS_RUNTIME", detail: "fetch() not available", requestId, contractVersion: NYX_CONTRACT_VERSION });
+  if (!ELEVEN_KEY || !ELEVEN_VOICE_ID) return res.status(500).json({ ok: false, error: "TTS_MISCONFIG", detail: "Missing ELEVENLABS env", requestId, contractVersion: NYX_CONTRACT_VERSION });
+  if (!text) return res.status(400).json({ ok: false, error: "BAD_REQUEST", detail: "Missing text", requestId, contractVersion: NYX_CONTRACT_VERSION });
 
   if (s && hasExplicitVoiceMode) s.voiceMode = voiceMode;
 
@@ -1735,13 +936,7 @@ async function ttsHandler(req, res) {
     res.set("X-Voice-Mode", voiceMode);
     return res.end(buf);
   } catch (e) {
-    return res.status(500).json({
-      ok: false,
-      error: "TTS_ERROR",
-      detail: String(e && e.message ? e.message : e),
-      requestId,
-      contractVersion: NYX_CONTRACT_VERSION,
-    });
+    return res.status(500).json({ ok: false, error: "TTS_ERROR", detail: String(e && e.message ? e.message : e), requestId, contractVersion: NYX_CONTRACT_VERSION });
   }
 }
 
@@ -1749,116 +944,47 @@ app.post("/api/tts", ttsHandler);
 app.post("/api/voice", ttsHandler);
 
 /* ======================================================
-   Music engine wrapper + loop-closure helper
+   Engine runner
 ====================================================== */
 
-async function runMusicEngine(text, session) {
-  if (!musicKnowledge || typeof musicKnowledge.handleChat !== "function") {
-    return { reply: "Tell me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment." };
-  }
-
-  try {
-    const out = musicKnowledge.handleChat({ text, session }) || {};
-    if (out.sessionPatch && typeof out.sessionPatch === "object")
-      Object.assign(session, out.sessionPatch);
-    return out;
-  } catch (e) {
-    return {
-      reply: "I hit a snag in the music engine. Try again with a year (1950–2024).",
-      error: String(e && e.message ? e.message : e),
-    };
-  }
-}
-
-async function runEngineWithLoopClosure(command, session, maxReruns = 1) {
-  let out = await runMusicEngine(command, session);
-  let reply0 = cleanText(out.reply || "");
-
-  if (maxReruns <= 0) return out;
-
-  const y = clampYear(session.lastYear);
-  const m = session.activeMusicMode || session.pendingMode || null;
-
-  if (reply0 && engineAsksForYear(reply0) && y) {
-    const cmd = m ? `${modeToCommand(m)} ${y}` : `${command} ${y}`;
-    out = await runMusicEngine(cmd, session);
-    session.lastEngine = {
-      kind: "loopClosure",
-      chart: session.activeMusicChart,
-      note: "askedYear_rerun",
-      at: Date.now(),
-    };
-    return out;
-  }
-
-  if (reply0 && engineAsksForMode(reply0) && m && y) {
-    const cmd = `${modeToCommand(m)} ${y}`;
-    out = await runMusicEngine(cmd, session);
-    session.lastEngine = {
-      kind: "loopClosure",
-      chart: session.activeMusicChart,
-      note: "askedMode_rerun",
-      at: Date.now(),
-    };
-    return out;
-  }
-
+async function runEngine(text, session) {
+  const out = await runMusicEngine(text, session);
   return out;
 }
 
 /* ======================================================
-   Personalized actions helpers
+   Continue / Start fresh handlers (tight)
 ====================================================== */
 
 async function handleContinue(session, profile) {
-  // Priority: current session lane, else profile preferred lane
-  const lane = (session && session.lane) || (profile && profile.preferredLane) || "general";
-
-  if (lane === "sponsors") {
-    // If we have a last brief, encourage reuse; otherwise run sponsors engine with a nudge
-    return {
-      lane: "sponsors",
-      out: await runSponsorsEngine("continue", session),
-    };
-  }
-
-  if (lane === "movies") {
-    return {
-      lane: "movies",
-      out: await runMoviesEngine("movies phase 0", session),
-    };
-  }
-
-  // Music: if we have a year + mode, resume that exact request
-  const y = clampYear(session && session.lastYear ? session.lastYear : (profile && profile.lastMusicYear));
-  const m = (session && session.activeMusicMode) || (profile && profile.lastMusicMode) || null;
+  // Prefer current session state if it exists.
+  const y = clampYear(session.lastYear) || clampYear(profile && profile.lastMusicYear);
+  const m = session.activeMusicMode || (profile && profile.lastMusicMode) || null;
 
   if (y && m) {
     session.lastYear = y;
     session.activeMusicMode = m;
     session.pendingMode = null;
-    forceYearSpineChart(session, y);
 
-    let out;
-    if (m === "top10") out = await runTop10WithFallback(y, session);
-    else out = await runEngineWithLoopClosure(`${modeToCommand(m)} ${y}`, session, 1);
-
-    return { lane: "music", out };
+    const out = await runEngine(`${modeToCommand(m)} ${y}`, session);
+    return out;
   }
 
-  // If we can’t resume, ask intelligently based on what we know
-  if (profile && profile.preferredMusicMode) {
-    session.pendingMode = profile.preferredMusicMode;
-    return {
-      lane: "music",
-      out: { reply: replyMissingYearForMode(session, profile.preferredMusicMode) },
-    };
+  // If we have a last reply, we can still “continue” by asking one sharp next question.
+  if (session.lastReply) {
+    return { reply: "Continue with what—Top 10, Story moment, or Micro moment? (You can also drop a year.)" };
   }
 
-  return {
-    lane: "general",
-    out: { reply: "Alright — what are we doing today: music, sponsors, or movies?" },
-  };
+  return { reply: "What are we doing: Top 10, Story moment, or Micro moment? Start with a year (1950–2024)." };
+}
+
+function handleFresh(session) {
+  // Clear only the “resume” anchors, not the whole session (keeps visitor/session continuity stable).
+  session.lastYear = null;
+  session.activeMusicMode = null;
+  session.pendingMode = null;
+  session.lastTop10One = null;
+  return { reply: "Clean slate. Give me a year (1950–2024) and choose: Top 10, Story moment, or Micro moment." };
 }
 
 /* ======================================================
@@ -1906,563 +1032,161 @@ app.post("/api/chat", async (req, res) => {
 
   const visitorId = session.visitorId;
 
-  // Profile (personalization)
   const profile = getProfile(visitorId);
   if (profile) profile.visits = Number(profile.visits || 0) + 1;
 
-  // Capture name if user provides it
   const foundName = detectNameFromText(message);
   if (profile && foundName) profile.name = foundName;
 
-  // Store lane (widget sends lane)
-  const incomingLane = cleanText((body.lane || (body.context && body.context.lane) || "")).toLowerCase();
-  if (incomingLane && ["general", "music", "tv", "sponsors", "movies", "ai"].includes(incomingLane)) {
-    session.lane = incomingLane;
-  }
-
-  // Voice continuity
-  const incomingVoiceMode = normalizeVoiceMode(
-    body.voiceMode || (body.context && body.context.voiceMode) || session.voiceMode || "standard"
-  );
+  const incomingVoiceMode = normalizeVoiceMode(body.voiceMode || session.voiceMode || "standard");
   session.voiceMode = incomingVoiceMode;
   res.set("X-Voice-Mode", session.voiceMode);
 
-  // ======================================================
-  // Mic Feedback Guard (must run early, before intent routing)
-  // ======================================================
+  // Mic echo guard
   if (message && isLikelyMicEcho(message, session)) {
-    const reply = micEchoBreakerReply(session);
+    const reply = micEchoBreakerReply();
     session.lastReply = reply;
     session.lastReplyAt = Date.now();
     session.lastIntent = "micEchoGuard";
-    session.lastEngine = {
-      kind: "micEchoGuard",
-      chart: session.activeMusicChart,
-      note: "blockedEcho",
-      at: Date.now(),
-    };
-
     updateProfileFromSession(profile, session);
 
-    const base = {
-      ok: true,
-      reply,
-      sessionId,
-      requestId,
-      visitorId,
-      contractVersion: NYX_CONTRACT_VERSION,
-      voiceMode: session.voiceMode,
-    };
-    return respondJson(req, res, base, session, null, { profile });
+    const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+    return respondJson(req, res, base, session, null, profile);
   }
 
   const nav = normalizeNavToken(message);
 
-  // ======================================================
-  // Replay (global; must replay BOTH reply + last followUps/followUp)
-  // ======================================================
+  // Replay (global)
   if (nav === "replay" && session.lastReply) {
-    const forcedFollowUps =
-      Array.isArray(session.lastFollowUps) && session.lastFollowUps.length ? session.lastFollowUps : null;
-    const forcedFollowUp =
-      Array.isArray(session.lastFollowUp) && session.lastFollowUp.length ? session.lastFollowUp : null;
-
-    const base = {
-      ok: true,
-      reply: session.lastReply,
-      sessionId,
-      requestId,
-      visitorId,
-      contractVersion: NYX_CONTRACT_VERSION,
-      voiceMode: session.voiceMode,
-    };
+    const base = { ok: true, reply: session.lastReply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
     session.lastIntent = "replay";
     updateProfileFromSession(profile, session);
-    return respondJson(req, res, base, session, null, {
-      forceFollowUps: forcedFollowUps,
-      forceFollowUp: forcedFollowUp,
-      profile,
-    });
+    return respondJson(req, res, base, session, null, profile);
   }
 
-  // ======================================================
-  // Continue/Resume (global; returns to last meaningful flow)
-  // ======================================================
+  // Continue (tight)
   if (nav === "continue") {
-    const cont = await handleContinue(session, profile);
-    if (cont && cont.lane) session.lane = cont.lane === "music" ? "music" : cont.lane;
-
-    const reply0 = cleanText((cont && cont.out && cont.out.reply) || "");
-    const reply = addMomentumTail(session, reply0 || "Alright — continuing.");
+    session.lane = "music";
+    const out = await handleContinue(session, profile);
+    const reply = addMomentumTail(session, cleanText(out.reply || "Continuing."));
 
     session.lastReply = reply;
     session.lastReplyAt = Date.now();
     session.lastIntent = "continue";
-    session.lastEngine = { kind: "continue", chart: session.activeMusicChart, note: session.lane, at: Date.now() };
 
     updateProfileFromSession(profile, session);
 
-    const base = {
-      ok: true,
-      reply,
-      sessionId,
-      requestId,
-      visitorId,
-      contractVersion: NYX_CONTRACT_VERSION,
-      voiceMode: session.voiceMode,
-    };
-    return respondJson(req, res, base, session, cont.out || null, { profile });
+    const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+    return respondJson(req, res, base, session, out, profile);
   }
 
-  // ======================================================
-  // Personalized utility commands for lanes (chips)
-  // ======================================================
-  if (message === "sponsors:reuse" && profile && profile.lastSponsorsBrief) {
-    session.lane = "sponsors";
-    // inject a compact structured prompt into sponsors engine
-    const b = profile.lastSponsorsBrief;
-    const prompt = `Use last brief: ${b.property || "property?"} | ${b.goal || "goal?"} | ${b.budgetTier || "budget?"} | ${b.cta || ""}`.trim();
-
-    const out = await runSponsorsEngine(prompt, session);
-    const reply0 = cleanText(out.reply || "");
-    const reply = reply0 || "Using your last sponsors brief. What do you want to adjust first—property, goal, or budget?";
+  // Start fresh (tight)
+  if (nav === "fresh") {
+    session.lane = "music";
+    const out = handleFresh(session);
+    const reply = cleanText(out.reply);
 
     session.lastReply = reply;
     session.lastReplyAt = Date.now();
-    session.lastIntent = "sponsorsReuse";
+    session.lastIntent = "fresh";
 
     updateProfileFromSession(profile, session);
 
-    const base = {
-      ok: true,
-      reply,
-      sessionId,
-      requestId,
-      visitorId,
-      contractVersion: NYX_CONTRACT_VERSION,
-      voiceMode: session.voiceMode,
-    };
-    return respondJson(req, res, base, session, out, { profile });
+    const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+    return respondJson(req, res, base, session, out, profile);
   }
 
-  if (message === "movies:usual" && profile && profile.lastMoviesBrief) {
-    session.lane = "movies";
-    const b = profile.lastMoviesBrief;
-    const parts = [
-      b.format || "series",
-      b.era || "late 70s / 80s",
-      b.genres || "crime detective",
-      b.budgetModel || "rev-share (no MG)",
-      b.territory || "world",
-      b.distribution || "FAST+AVOD",
-    ];
-    const prompt = parts.join(" | ");
-
-    const out = await runMoviesEngine(prompt, session);
-    const reply0 = cleanText(out.reply || "");
-    const reply = reply0 || "Using your usual Movies Phase 0 brief. Want to tighten genres, territory, or budget model?";
-
-    session.lastReply = reply;
-    session.lastReplyAt = Date.now();
-    session.lastIntent = "moviesUsual";
-
-    updateProfileFromSession(profile, session);
-
-    const base = {
-      ok: true,
-      reply,
-      sessionId,
-      requestId,
-      visitorId,
-      contractVersion: NYX_CONTRACT_VERSION,
-      voiceMode: session.voiceMode,
-    };
-    return respondJson(req, res, base, session, out, { profile });
-  }
-
-  // ======================================================
-  // Sponsors Lane router (early)
-  // ======================================================
-
-  const explicitMusic =
-    !!normalizeModeToken(message) ||
-    !!clampYear(extractYearFromText(message)) ||
-    /^#?1\b/i.test(cleanText(message));
-
-  const sponsorRoute = session.lane === "sponsors" || (isSponsorIntent(message) && !explicitMusic);
-
-  if (sponsorRoute) {
-    session.lane = "sponsors";
-    session.lastIntent = "sponsors";
-
-    const out = await runSponsorsEngine(message || "Sponsors", session);
-    const reply0 = cleanText(out.reply || "");
-    const reply = reply0 || "Sponsors lane is ready. Tell me what you’re promoting and your budget range in CAD.";
-
-    session.lastReply = reply;
-    session.lastReplyAt = Date.now();
-
-    updateProfileFromSession(profile, session);
-
-    const base = {
-      ok: true,
-      reply,
-      sessionId,
-      requestId,
-      visitorId,
-      contractVersion: NYX_CONTRACT_VERSION,
-      voiceMode: session.voiceMode,
-    };
-
-    return respondJson(req, res, base, session, out, { profile });
-  }
-
-  // ======================================================
-  // Movies Lane router (Phase 0) — must run BEFORE music nav tokens
-  // ======================================================
-  const moviesIntent = isMoviesIntent(message);
-  const moviesRoute = session.lane === "movies" || (moviesIntent && moviesIntent.hit);
-
-  if (moviesRoute) {
-    session.lane = "movies";
-    session.lastIntent = "movies";
-
-    const out = await runMoviesEngine(message || "movies phase 0", session);
-    const reply0 = cleanText(out.reply || "");
-    const reply = reply0 || "Movies Phase 0 — tell me: movie or series?";
-
-    session.lastReply = reply;
-    session.lastReplyAt = Date.now();
-    session.lastEngine = { kind: "movies", chart: null, note: "phase0", at: Date.now() };
-
-    updateProfileFromSession(profile, session);
-
-    const base = {
-      ok: true,
-      reply,
-      sessionId,
-      requestId,
-      visitorId,
-      contractVersion: NYX_CONTRACT_VERSION,
-      voiceMode: session.voiceMode,
-    };
-
-    return respondJson(req, res, base, session, out, { profile });
-  }
-
-  // ======================================================
-  // Music nav tokens (only after Sponsors/Replay/Continue/Movies)
-  // ======================================================
-
-  if (nav === "anotherYear") {
-    session.pendingMode = session.activeMusicMode || session.pendingMode || null;
-    const ask = session.pendingMode
-      ? replyMissingYearForMode(session, session.pendingMode)
-      : "Alright. What year (1950–2024)?";
-    session.lastReply = ask;
-    session.lastReplyAt = Date.now();
-    session.lastIntent = "askYear";
-
-    updateProfileFromSession(profile, session);
-
-    const base = {
-      ok: true,
-      reply: ask,
-      sessionId,
-      requestId,
-      visitorId,
-      contractVersion: NYX_CONTRACT_VERSION,
-      voiceMode: session.voiceMode,
-    };
-    return respondJson(req, res, base, session, null, { profile });
-  }
-
-  if ((nav === "nextYear" || nav === "prevYear") && clampYear(session.lastYear)) {
-    const nextY = safeIncYear(session.lastYear, nav === "nextYear" ? +1 : -1);
-    if (nextY) {
-      session.lastYear = nextY;
-
-      if (session.activeMusicMode) {
-        const mode = session.activeMusicMode;
-
-        forceYearSpineChart(session, nextY);
-
-        let out;
-        if (mode === "top10") out = await runTop10WithFallback(nextY, session);
-        else out = await runEngineWithLoopClosure(`${modeToCommand(mode)} ${nextY}`, session, 1);
-
-        const reply0 = cleanText(out.reply || "");
-        const reply = addMomentumTail(session, reply0);
-
-        session.lastReply = reply;
-        session.lastReplyAt = Date.now();
-        session.lastIntent = mode;
-
-        if (replyLooksLikeTop10List(reply0)) session.lastTop10One = extractTop10NumberOne(reply0);
-
-        updateProfileFromSession(profile, session);
-
-        const base = {
-          ok: true,
-          reply,
-          sessionId,
-          requestId,
-          visitorId,
-          contractVersion: NYX_CONTRACT_VERSION,
-          voiceMode: session.voiceMode,
-        };
-        return respondJson(req, res, base, session, out, { profile });
-      }
-
-      const base = {
-        ok: true,
-        reply: `Got it — ${nextY}. What do you want: Top 10, Story moment, or Micro moment?`,
-        sessionId,
-        requestId,
-        visitorId,
-        contractVersion: NYX_CONTRACT_VERSION,
-        voiceMode: session.voiceMode,
-      };
-      session.lastReply = base.reply;
-      session.lastReplyAt = Date.now();
-      session.lastIntent = "askMode";
-
-      updateProfileFromSession(profile, session);
-
-      return respondJson(req, res, base, session, null, { profile });
-    }
-  }
-
-  if ((nav === "oneStory" || nav === "oneMicro") && session.lastTop10One && session.lastTop10One.year) {
-    const rep =
-      nav === "oneStory"
-        ? makeStoryMomentFromNumberOne(session.lastTop10One)
-        : makeMicroMomentFromNumberOne(session.lastTop10One);
-
-    session.activeMusicMode = nav === "oneStory" ? "story" : "micro";
-    session.pendingMode = null;
-    session.lastYear = session.lastTop10One.year;
-
-    session.lastReply = rep;
-    session.lastReplyAt = Date.now();
-    session.lastIntent = session.activeMusicMode;
-
-    updateProfileFromSession(profile, session);
-
-    const base = {
-      ok: true,
-      reply: rep,
-      sessionId,
-      requestId,
-      visitorId,
-      contractVersion: NYX_CONTRACT_VERSION,
-      voiceMode: session.voiceMode,
-    };
-    return respondJson(req, res, base, session, null, { profile });
-  }
-
-  if (nav === "one") {
-    if (!clampYear(session.lastYear)) {
-      const ask = "Tell me a year first (1950–2024), then I’ll give you #1.";
-      session.lastReply = ask;
-      session.lastReplyAt = Date.now();
-      session.lastIntent = "askYear";
-
-      updateProfileFromSession(profile, session);
-
-      const base = {
-        ok: true,
-        reply: ask,
-        sessionId,
-        requestId,
-        visitorId,
-        contractVersion: NYX_CONTRACT_VERSION,
-        voiceMode: session.voiceMode,
-      };
-      return respondJson(req, res, base, session, null, { profile });
-    }
-
-    const out = await runEngineWithLoopClosure("#1", session, 1);
-    const reply0 = cleanText(out.reply || "");
-
-    let reply = reply0;
-    if (!reply || /^tell me a year/i.test(reply)) {
-      if (session.lastTop10One && session.lastTop10One.year === session.lastYear) {
-        reply = `#1 — ${session.lastTop10One.artist || "Unknown Artist"} — ${
-          session.lastTop10One.title || "Unknown Title"
-        }`;
-      } else {
-        reply = "Run “top 10” first so I can lock the year’s #1 cleanly.";
-      }
-    }
-
-    reply = addMomentumTail(session, reply);
-
-    session.lastReply = reply;
-    session.lastReplyAt = Date.now();
-    session.lastIntent = "number1";
-
-    updateProfileFromSession(profile, session);
-
-    const base = {
-      ok: true,
-      reply,
-      sessionId,
-      requestId,
-      visitorId,
-      contractVersion: NYX_CONTRACT_VERSION,
-      voiceMode: session.voiceMode,
-    };
-    return respondJson(req, res, base, session, out, { profile });
-  }
-
+  // Greeting (tight: returning greeting + single chip)
   if (!message || isGreeting(message)) {
-    const base = {
-      ok: true,
-      reply: greetingReply(profile),
-      sessionId,
-      requestId,
-      visitorId,
-      contractVersion: NYX_CONTRACT_VERSION,
-      voiceMode: session.voiceMode,
-    };
-    session.lastReply = base.reply;
+    const tight = makeFollowUpsTight(session, profile);
+    const reply = greetingReply(profile, tight.resumable);
+
+    session.lastReply = reply;
     session.lastReplyAt = Date.now();
     session.lastIntent = "greeting";
 
     updateProfileFromSession(profile, session);
 
-    return respondJson(req, res, base, session, null, { profile });
+    const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+    return respondJson(req, res, base, session, null, profile);
   }
 
+  // Standard mode/year parsing
   const parsedYear = clampYear(extractYearFromText(message));
   const parsedMode = normalizeModeToken(message);
   const bareYear = parsedYear ? isBareYearMessage(message) : false;
 
   if (parsedYear && parsedMode) {
+    session.lane = "music";
     session.lastYear = parsedYear;
     session.activeMusicMode = parsedMode;
     session.pendingMode = null;
 
-    forceYearSpineChart(session, parsedYear);
-
-    let out;
-    if (parsedMode === "top10") out = await runTop10WithFallback(parsedYear, session);
-    else out = await runEngineWithLoopClosure(`${modeToCommand(parsedMode)} ${parsedYear}`, session, 1);
-
-    const reply0 = cleanText(out.reply || "");
-    const reply = addMomentumTail(session, reply0);
+    const out = await runEngine(`${modeToCommand(parsedMode)} ${parsedYear}`, session);
+    const reply = addMomentumTail(session, cleanText(out.reply || ""));
 
     session.lastReply = reply;
     session.lastReplyAt = Date.now();
     session.lastIntent = parsedMode;
 
-    if (replyLooksLikeTop10List(reply0)) session.lastTop10One = extractTop10NumberOne(reply0);
-
     updateProfileFromSession(profile, session);
 
-    const base = {
-      ok: true,
-      reply,
-      sessionId,
-      requestId,
-      visitorId,
-      contractVersion: NYX_CONTRACT_VERSION,
-      voiceMode: session.voiceMode,
-    };
-    return respondJson(req, res, base, session, out, { profile });
+    const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+    return respondJson(req, res, base, session, out, profile);
   }
 
   if (parsedMode && !parsedYear) {
+    session.lane = "music";
     session.activeMusicMode = parsedMode;
     session.pendingMode = parsedMode;
 
     if (clampYear(session.lastYear)) {
       session.pendingMode = null;
 
-      forceYearSpineChart(session, session.lastYear);
-
-      let out;
-      if (parsedMode === "top10") out = await runTop10WithFallback(session.lastYear, session);
-      else out = await runEngineWithLoopClosure(`${modeToCommand(parsedMode)} ${session.lastYear}`, session, 1);
-
-      const reply0 = cleanText(out.reply || "");
-      const reply = addMomentumTail(session, reply0);
+      const out = await runEngine(`${modeToCommand(parsedMode)} ${session.lastYear}`, session);
+      const reply = addMomentumTail(session, cleanText(out.reply || ""));
 
       session.lastReply = reply;
       session.lastReplyAt = Date.now();
       session.lastIntent = parsedMode;
 
-      if (replyLooksLikeTop10List(reply0)) session.lastTop10One = extractTop10NumberOne(reply0);
-
       updateProfileFromSession(profile, session);
 
-      const base = {
-        ok: true,
-        reply,
-        sessionId,
-        requestId,
-        visitorId,
-        contractVersion: NYX_CONTRACT_VERSION,
-        voiceMode: session.voiceMode,
-      };
-      return respondJson(req, res, base, session, out, { profile });
+      const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+      return respondJson(req, res, base, session, out, profile);
     }
 
-    const ask = replyMissingYearForMode(session, parsedMode);
+    const ask = replyMissingYearForMode(parsedMode);
     session.lastReply = ask;
     session.lastReplyAt = Date.now();
     session.lastIntent = "askYear";
 
     updateProfileFromSession(profile, session);
 
-    const base = {
-      ok: true,
-      reply: ask,
-      sessionId,
-      requestId,
-      visitorId,
-      contractVersion: NYX_CONTRACT_VERSION,
-      voiceMode: session.voiceMode,
-    };
-    return respondJson(req, res, base, session, null, { profile });
+    const base = { ok: true, reply: ask, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+    return respondJson(req, res, base, session, null, profile);
   }
 
   if (parsedYear && !parsedMode) {
+    session.lane = "music";
     session.lastYear = parsedYear;
-    const mode = session.pendingMode || session.activeMusicMode || null;
 
+    const mode = session.pendingMode || session.activeMusicMode || null;
     if (mode) {
       session.activeMusicMode = mode;
       session.pendingMode = null;
 
-      forceYearSpineChart(session, parsedYear);
-
-      let out;
-      if (mode === "top10") out = await runTop10WithFallback(parsedYear, session);
-      else out = await runEngineWithLoopClosure(`${modeToCommand(mode)} ${parsedYear}`, session, 1);
-
-      const reply0 = cleanText(out.reply || "");
-      const reply = addMomentumTail(session, reply0);
+      const out = await runEngine(`${modeToCommand(mode)} ${parsedYear}`, session);
+      const reply = addMomentumTail(session, cleanText(out.reply || ""));
 
       session.lastReply = reply;
       session.lastReplyAt = Date.now();
       session.lastIntent = mode;
 
-      if (replyLooksLikeTop10List(reply0)) session.lastTop10One = extractTop10NumberOne(reply0);
-
       updateProfileFromSession(profile, session);
 
-      const base = {
-        ok: true,
-        reply,
-        sessionId,
-        requestId,
-        visitorId,
-        contractVersion: NYX_CONTRACT_VERSION,
-        voiceMode: session.voiceMode,
-      };
-      return respondJson(req, res, base, session, out, { profile });
+      const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+      return respondJson(req, res, base, session, out, profile);
     }
 
     const askMode = `Got it — ${parsedYear}. What do you want: Top 10, Story moment, or Micro moment?`;
@@ -2472,16 +1196,8 @@ app.post("/api/chat", async (req, res) => {
 
     updateProfileFromSession(profile, session);
 
-    const base = {
-      ok: true,
-      reply: askMode,
-      sessionId,
-      requestId,
-      visitorId,
-      contractVersion: NYX_CONTRACT_VERSION,
-      voiceMode: session.voiceMode,
-    };
-    return respondJson(req, res, base, session, null, { profile });
+    const base = { ok: true, reply: askMode, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+    return respondJson(req, res, base, session, null, profile);
   }
 
   if (bareYear && parsedYear) {
@@ -2492,45 +1208,23 @@ app.post("/api/chat", async (req, res) => {
 
     updateProfileFromSession(profile, session);
 
-    const base = {
-      ok: true,
-      reply: askMode,
-      sessionId,
-      requestId,
-      visitorId,
-      contractVersion: NYX_CONTRACT_VERSION,
-      voiceMode: session.voiceMode,
-    };
-    return respondJson(req, res, base, session, null, { profile });
+    const base = { ok: true, reply: askMode, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+    return respondJson(req, res, base, session, null, profile);
   }
 
-  forceYearSpineChart(session, session.lastYear);
-
-  const out = await runEngineWithLoopClosure(message, session, 1);
-  const reply0 = cleanText(out.reply || "");
-  const reply = addMomentumTail(session, reply0);
+  // Fallback passthrough
+  session.lane = "music";
+  const out = await runEngine(message, session);
+  const reply = addMomentumTail(session, cleanText(out.reply || ""));
 
   session.lastReply = reply;
   session.lastReplyAt = Date.now();
   session.lastIntent = "passthrough";
 
-  if (replyLooksLikeTop10List(reply0)) {
-    session.lastTop10One = extractTop10NumberOne(reply0);
-    if (session.lastTop10One && session.lastTop10One.year) session.lastYear = session.lastTop10One.year;
-  }
-
   updateProfileFromSession(profile, session);
 
-  const base = {
-    ok: true,
-    reply,
-    sessionId,
-    requestId,
-    visitorId,
-    contractVersion: NYX_CONTRACT_VERSION,
-    voiceMode: session.voiceMode,
-  };
-  return respondJson(req, res, base, session, out, { profile });
+  const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+  return respondJson(req, res, base, session, out, profile);
 });
 
 /* ======================================================
@@ -2542,9 +1236,7 @@ const HOST = "0.0.0.0";
 
 const server = app.listen(PORT, HOST, () => {
   console.log(
-    `[sandblast-backend] up :${PORT} env=${process.env.NODE_ENV || "production"} build=${
-      process.env.RENDER_GIT_COMMIT || "n/a"
-    } contract=${NYX_CONTRACT_VERSION} version=${INDEX_VERSION}`
+    `[sandblast-backend] up :${PORT} env=${process.env.NODE_ENV || "production"} build=${process.env.RENDER_GIT_COMMIT || "n/a"} contract=${NYX_CONTRACT_VERSION} version=${INDEX_VERSION}`
   );
 });
 
@@ -2552,30 +1244,15 @@ try {
   server.requestTimeout = REQUEST_TIMEOUT_MS;
   server.headersTimeout = Math.max(REQUEST_TIMEOUT_MS + 5000, 35000);
   server.keepAliveTimeout = Math.max(65000, server.keepAliveTimeout || 0);
-} catch (_) {
-  // ignore
-}
-
-server.on("error", (err) => {
-  console.error("[sandblast-backend] fatal listen error", err);
-  process.exit(1);
-});
-
-/* ======================================================
-   Graceful shutdown
-====================================================== */
+} catch (_) {}
 
 function shutdown(sig) {
   try {
     clearInterval(cleaner);
-  } catch (_) {
-    // ignore
-  }
+  } catch (_) {}
   try {
     clearInterval(profileCleaner);
-  } catch (_) {
-    // ignore
-  }
+  } catch (_) {}
   try {
     server.close(() => {
       console.log(`[sandblast-backend] shutdown ${sig}`);
@@ -2590,9 +1267,5 @@ function shutdown(sig) {
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
 
-process.on("unhandledRejection", (e) => {
-  console.error("[sandblast-backend] unhandledRejection", e);
-});
-process.on("uncaughtException", (e) => {
-  console.error("[sandblast-backend] uncaughtException", e);
-});
+process.on("unhandledRejection", (e) => console.error("[sandblast-backend] unhandledRejection", e));
+process.on("uncaughtException", (e) => console.error("[sandblast-backend] uncaughtException", e));
