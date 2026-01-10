@@ -6,7 +6,11 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node index.js",
-    "start:prod": "node index.js"
+    "start:prod": "node index.js",
+
+    "build:top10": "node Scripts/build_top10_by_year_v1.js",
+    "check:top10": "node Scripts/check_top10_by_year_v1.js",
+    "top10:rebuild": "npm run build:top10 && npm run check:top10"
   },
   "dependencies": {
     "axios": "^1.13.2",
