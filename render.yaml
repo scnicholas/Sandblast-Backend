@@ -3,8 +3,71 @@ services:
     name: sandblast-backend
     env: node
     plan: free
-    region: oregon          # change if your Render region is different
-    branch: main            # change to your actual Git branch name if not "main"
-    buildCommand: "npm install"
-    startCommand: "npm start"
+    region: oregon
+    branch: main
     autoDeploy: true
+
+    # Prefer npm ci when you have a package-lock.json (more deterministic)
+    buildCommand: "npm ci"
+    startCommand: "npm start"
+
+    # Render will use this to consider your service healthy.
+    healthCheckPath: "/api/health"
+
+    # Strongly recommended: pin Node so deploys don’t change behavior.
+    envVars:
+      - key: NODE_VERSION
+        value: "20.11.1"
+
+      # ===== App hardening defaults (safe) =====
+      - key: NODE_ENV
+        value: "production"
+      - key: CONTRACT_STRICT
+        value: "false"
+      - key: CHAT_DEBUG
+        value: "false"
+      - key: REQUEST_TIMEOUT_MS
+        value: "30000"
+      - key: SESSION_TTL_MS
+        value: "21600000"   # 6h
+      - key: PROFILE_TTL_MS
+        value: "2592000000" # 30d
+      - key: MIC_GUARD_ENABLED
+        value: "true"
+      - key: MIC_GUARD_WINDOW_MS
+        value: "9000"
+      - key: MIC_GUARD_MIN_CHARS
+        value: "60"
+
+      # ===== CORS =====
+      # Put your real allowlist here, comma-separated (NO trailing slash).
+      # Example:
+      # https://sandblast.channel,https://www.sandblast.channel,https://sandblastchannel.com,https://www.sandblastchannel.com
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: CORS_ALLOW_ALL
+        value: "false"
+
+      # ===== TTS =====
+      - key: TTS_ENABLED
+        value: "true"
+      - key: TTS_PROVIDER
+        value: "elevenlabs"
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: ELEVENLABS_VOICE_ID
+        sync: false
+      - key: ELEVENLABS_MODEL_ID
+        value: "eleven_multilingual_v2"
+      - key: ELEVEN_TTS_TIMEOUT_MS
+        value: "25000"
+
+      # ===== Nyx tuning (optional, but you already support these) =====
+      - key: NYX_VOICE_STABILITY
+        value: "0.55"
+      - key: NYX_VOICE_SIMILARITY
+        value: "0.78"
+      - key: NYX_VOICE_STYLE
+        value: "0.12"
+      - key: NYX_VOICE_SPEAKER_BOOST
+        value: "false"
