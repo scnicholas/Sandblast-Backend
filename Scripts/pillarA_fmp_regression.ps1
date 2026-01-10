@@ -4,11 +4,19 @@
 
 $ErrorActionPreference = "Stop"
 
-# ===== CONFIG =====
+# ===== CONFIG (HARDENED) =====
 $BASE = $env:BASE
 if (-not $BASE) { $BASE = "https://sandblast-backend.onrender.com" }
 
-$VISITOR = "mac-regress-001"
+# Strip hidden chars + whitespace + smart quotes; ensure scheme; remove trailing slash
+$BASE = ($BASE | Out-String).Trim()
+$BASE = $BASE -replace "\u200B",""            # zero-width space
+$BASE = $BASE -replace "[`r`n`t ]",""         # CR/LF/TAB/spaces
+$BASE = $BASE -replace "[“”‘’]",""            # smart quotes
+if ($BASE -notmatch '^https?://') { $BASE = "https://$BASE" }
+$BASE = $BASE.TrimEnd("/")
+
+$VISITOR  = "mac-regress-001"
 $CONTRACT = "1"
 
 function New-SessionId([string]$prefix) {
@@ -16,13 +24,16 @@ function New-SessionId([string]$prefix) {
 }
 
 function Invoke-NyxChat([string]$msg, [string]$sid, [switch]$Debug) {
-  $uri = "$BASE/api/chat"
-  if ($Debug) { $uri = "$uri?debug=1" }
+  $uri = "{0}/api/chat" -f $BASE
+  if ($Debug) { $uri = "{0}/api/chat?debug=1" -f $BASE }
+
+  # Optional safety: validate URI early with a clearer error than Invoke-RestMethod
+  try { [void][Uri]$uri } catch { throw "BAD URI BUILT: '$uri' (BASE='$BASE')" }
 
   $payload = @{
-    message = $msg
-    sessionId = $sid
-    visitorId = $VISITOR
+    message         = $msg
+    sessionId       = $sid
+    visitorId       = $VISITOR
     contractVersion = $CONTRACT
   } | ConvertTo-Json -Depth 6
 
