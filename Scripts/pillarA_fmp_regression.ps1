@@ -27,18 +27,32 @@ function Invoke-NyxChat([string]$msg, [string]$sid, [switch]$Debug) {
   $uri = "{0}/api/chat" -f $BASE
   if ($Debug) { $uri = "{0}/api/chat?debug=1" -f $BASE }
 
-  # Optional safety: validate URI early with a clearer error than Invoke-RestMethod
+  # Validate URI early with a clearer error than Invoke-RestMethod
   try { [void][Uri]$uri } catch { throw "BAD URI BUILT: '$uri' (BASE='$BASE')" }
 
-  $payload = @{
+  $payloadObj = @{
     message         = $msg
     sessionId       = $sid
     visitorId       = $VISITOR
     contractVersion = $CONTRACT
-  } | ConvertTo-Json -Depth 6
+  }
 
-  $resp = Invoke-RestMethod -Method Post -Uri $uri -ContentType "application/json" -Body $payload
-  return $resp
+  $payload = $payloadObj | ConvertTo-Json -Depth 6
+
+  try {
+    $resp = Invoke-RestMethod -Method Post -Uri $uri -ContentType "application/json" -Body $payload
+    return $resp
+  } catch {
+    Write-Host "`nAPI CALL FAILED" -ForegroundColor Red
+    Write-Host ("URI:     {0}" -f $uri)
+    Write-Host ("MESSAGE: {0}" -f $msg)
+    Write-Host ("SID:     {0}" -f $sid)
+    Write-Host ("VISITOR: {0}" -f $VISITOR)
+    Write-Host ("CONTRACT:{0}" -f $CONTRACT)
+    Write-Host "PAYLOAD:" 
+    Write-Host $payload
+    throw
+  }
 }
 
 function Assert-True([bool]$cond, [string]$label) {
