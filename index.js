@@ -3,24 +3,56 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.7 (TIGHT + Replay-Chips Continuity Patch)
+ * index.js v1.5.7 (TIGHT + Forward-Motion Patch: loop-proof asks; fixes returning visit inflation)
  *
- * Based on v1.5.6 you provided, plus the CRITICAL patch:
- *  - Replay now returns the SAME followUps the user saw on the last turn
- *    (uses session.lastFollowUps / session.lastFollowUp when available),
- *    instead of recomputing “base” chips.
+ * Adds (from v1.5.6 you pasted):
+ *  1) Phase A Forward-Motion Patch (FMP):
+ *     - Prevents “ask year” if session already has a valid year.
+ *     - Prevents “ask mode” if session already has a valid mode.
+ *     - Loop breaker: detects repeated askYear/askMode and forces a forward action.
+ *     - No-question-end: if reply ends as open prompt, Nyx proceeds with safest next step (only when year+mode exist).
+ *  2) Critical fix: Returning visitor “visits” increments ONCE per new session (session._countedVisit).
+ *  3) Chart Contamination Guard:
+ *     - If session.activeMusicChart is Year-End Singles and user requests >=1960,
+ *       auto-switch to a supported 1960+ default (Year-End Hot 100 -> Hot 100 via musicKnowledge resolver).
+ *  4) Navigation completion:
+ *     - Implements nextYear / prevYear / anotherYear handling.
+ *  5) Session field bridge for musicKnowledge v2.72+:
+ *     - Mirrors session.lastYear <-> session.lastMusicYear
+ *     - Keeps activeMusicChart/lastMusicChart sane across calls
  *
- * Everything else preserved from v1.5.6:
- *  - Phase A Forward-Motion Patch (FMP)
- *  - Returning visitor visit increment ONCE per session
- *  - Chart contamination guard
- *  - Navigation completion (next/prev/another year)
- *  - Session bridge for musicKnowledge v2.72+
- *  - TOP10 Missing Escape (deterministic)
- *  - Returning 4 chips enforced ONLY on greeting (GREETING ONLY)
+ * NEW in v1.5.6:
+ *  6) TOP10 Missing Escape (deterministic):
+ *     - If user requests Top 10 for a year we don’t have chart rows for, Nyx does NOT “ask what next”.
+ *     - Nyx automatically switches to Story moment for that same year and proceeds.
+ *     - Provides stable forward-moving follow-ups (Replay / Micro / Next Year / Another Year).
+ *
+ * NEW in v1.5.7 (this revision):
+ *  7) Replay chips integrity:
+ *     - “Replay last” now returns the SAME follow-up chips the user saw on the original reply
+ *       (uses session.lastFollowUps / session.lastFollowUp when available),
+ *       instead of recomputing generic defaults.
+ *
+ * Preserves:
+ *  - Returning visitors ALWAYS get exactly 4 follow-up chips (GREETING ONLY):
+ *      1) "Continue" (if resumable) OR "Start fresh"
+ *      2) "Top 10"
+ *      3) "Story moment"
+ *      4) "Micro moment"
+ *  - One-tap resume logic (Continue / Start fresh)
+ *  - Optional name cue if user volunteered a name
+ *  - Profiles TTL + sessions TTL
  *  - Mic feedback guard
  *  - TTS endpoints
  *  - Contract/version headers
+ *
+ * v1.5.6 hardening preserved:
+ *  - Removes the duplicate/unreachable “bare-year guard” branch (prevents double-askMode paths).
+ *
+ * CRITICAL PATCH (carried forward):
+ *  - Fixes “returning visitor chip inflation” UX regression:
+ *    Returning 4-chip enforcement is now applied ONLY on greeting (and only when explicitly requested),
+ *    not on every in-flow content turn (prevents looping / loss of nav chips).
  */
 
 const express = require("express");
@@ -35,7 +67,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.7 (TIGHT + Replay-Chips Continuity Patch + Forward-Motion Patch + TOP10 Missing Escape + RETURNING-CHIPS-GREETING-ONLY: loop-proof asks; fixes returning visit inflation + chart contamination guard + nav completion + music field bridge)";
+  "index.js v1.5.7 (TIGHT + Forward-Motion Patch + TOP10 Missing Escape + REPLAY-CHIPS-INTEGRITY + RETURNING-CHIPS-GREETING-ONLY: loop-proof asks; fixes returning visit inflation + chart contamination guard + nav completion + music field bridge)";
 
 /* ======================================================
    Basic middleware
@@ -1684,7 +1716,7 @@ app.post("/api/chat", async (req, res) => {
 
   const nav = normalizeNavToken(message);
 
-  // Replay (global) — CRITICAL PATCH: return last chips exactly if available
+  // Replay (global) — v1.5.7: return the SAME chips user saw last time when available
   if (nav === "replay" && session.lastReply) {
     const base = {
       ok: true,
@@ -1699,8 +1731,13 @@ app.post("/api/chat", async (req, res) => {
     session.lastIntent = "replay";
     updateProfileFromSession(profile, session);
 
-    // Prefer the exact chips user saw last turn
-    if (Array.isArray(session.lastFollowUps) && Array.isArray(session.lastFollowUp)) {
+    const hasSavedChips =
+      Array.isArray(session.lastFollowUps) &&
+      session.lastFollowUps.length > 0 &&
+      Array.isArray(session.lastFollowUp) &&
+      session.lastFollowUp.length > 0;
+
+    if (hasSavedChips) {
       const payload = Object.assign({}, base, {
         followUps: session.lastFollowUps.slice(0, 12),
         followUp: session.lastFollowUp.slice(0, 12),
@@ -1708,6 +1745,7 @@ app.post("/api/chat", async (req, res) => {
 
       const wantsDebug = CHAT_DEBUG || parseDebugFlag(req);
       if (wantsDebug) {
+        const tight = makeFollowUpsTight(session, profile);
         payload.debug = {
           index: INDEX_VERSION,
           profile: profile
@@ -1730,14 +1768,15 @@ app.post("/api/chat", async (req, res) => {
             voiceMode: session ? session.voiceMode : null,
             lastIntent: session ? session.lastIntent : null,
           },
-          resume: { resumable: canResume(profile, session), forcedFourChips: false },
+          resume: { resumable: tight.resumable, forcedFourChips: false },
         };
       }
 
+      // IMPORTANT: do NOT overwrite session.lastFollowUps/lastFollowUp here.
       return res.json(payload);
     }
 
-    // Fallback if we don't have last chips stored
+    // Fallback if chips were never stored (rare)
     return respondJson(req, res, base, session, null, profile, false);
   }
 
