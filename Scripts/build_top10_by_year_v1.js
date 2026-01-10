@@ -1,206 +1,151 @@
 "use strict";
 
 /**
- * build_top10_by_year_v1.js
+ * Scripts/build_top10_by_year_v1.js
  *
- * Input:  Data/top10_by_year_source_v1.json  (human-editable)
- * Output: Data/top10_by_year_v1.json         (normalized, runtime-ready)
+ * Input:
+ *  - Data/top10_input_rows.json (array of {year,pos,artist,title})
+ *
+ * Output:
+ *  - Data/top10_by_year_v1.json
  *
  * Guarantees:
- * - Valid years within range
- * - Each included year has exactly positions 1..10 (unless you choose lenient mode)
- * - No duplicate positions, normalized strings, stable item keys
- * - Coverage report (missing years list)
- *
- * Usage:
- *   node Scripts/build_top10_by_year_v1.js
- *   node Scripts/build_top10_by_year_v1.js --lenient
- *
- * Lenient mode:
- * - Allows missing positions (still normalizes what exists)
- * - Still reports coverage and missing positions
+ *  - Deterministic output (stable sort, stable formatting)
+ *  - Validates rows (basic strict checks)
+ *  - For each year: enforces positions 1..10 (drops extras; warns on missing)
+ *  - Normalizes whitespace, strips outer quotes
  */
 
 const fs = require("fs");
 const path = require("path");
-const crypto = require("crypto");
 
-const ROOT = process.cwd();
-const INFILE = path.join(ROOT, "Data", "top10_by_year_source_v1.json");
-const OUTFILE = path.join(ROOT, "Data", "top10_by_year_v1.json");
+const ROOT = path.resolve(__dirname, "..");
+const IN_FILE = path.join(ROOT, "Data", "top10_input_rows.json");
+const OUT_FILE = path.join(ROOT, "Data", "top10_by_year_v1.json");
 
-const args = new Set(process.argv.slice(2));
-const LENIENT = args.has("--lenient");
+const CHART = "Billboard Year-End Hot 100";
+const SOURCE = "top10_input_rows.json (curated)";
 
-function die(msg) {
+function cleanText(s) {
+  return String(s || "").replace(/\s+/g, " ").trim();
+}
+
+function cleanField(s) {
+  let t = cleanText(s);
+  t = t.replace(/^"\s*/g, "").replace(/\s*"$/g, "");
+  return cleanText(t);
+}
+
+function toInt(x) {
+  const s = String(x ?? "").trim();
+  if (!s) return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+function readJson(p) {
+  const raw = fs.readFileSync(p, "utf8");
+  return JSON.parse(raw);
+}
+
+function writeJson(p, obj) {
+  const json = JSON.stringify(obj, null, 2) + "\n";
+  fs.writeFileSync(p, json, "utf8");
+}
+
+function fail(msg) {
   console.error(`[build_top10_by_year_v1] ERROR: ${msg}`);
   process.exit(1);
 }
 
-function readJson(fp) {
-  if (!fs.existsSync(fp)) die(`Missing file: ${fp}`);
-  const raw = fs.readFileSync(fp, "utf8");
-  try {
-    return JSON.parse(raw);
-  } catch (e) {
-    die(`Invalid JSON in ${fp}: ${String(e && e.message ? e.message : e)}`);
+function warn(msg) {
+  console.warn(`[build_top10_by_year_v1] WARN: ${msg}`);
+}
+
+function validateRow(r, i) {
+  if (!r || typeof r !== "object") fail(`Row ${i} is not an object.`);
+
+  const year = toInt(r.year);
+  const pos = toInt(r.pos);
+  const artist = cleanField(r.artist);
+  const title = cleanField(r.title);
+
+  if (!year || year < 1950 || year > 2024) fail(`Row ${i} invalid year: ${r.year}`);
+  if (!pos || pos < 1 || pos > 10) fail(`Row ${i} invalid pos (1..10): ${r.pos}`);
+  if (!artist) fail(`Row ${i} missing artist`);
+  if (!title) fail(`Row ${i} missing title`);
+
+  return { year, pos, artist, title };
+}
+
+function stableSortRows(a, b) {
+  // Deterministic: year asc, pos asc, artist asc, title asc
+  if (a.year !== b.year) return a.year - b.year;
+  if (a.pos !== b.pos) return a.pos - b.pos;
+  const aa = a.artist.localeCompare(b.artist);
+  if (aa !== 0) return aa;
+  return a.title.localeCompare(b.title);
+}
+
+function build() {
+  if (!fs.existsSync(IN_FILE)) fail(`Missing input file: ${IN_FILE}`);
+
+  const raw = readJson(IN_FILE);
+  if (!Array.isArray(raw)) fail("Input must be an array.");
+
+  const rows = raw.map(validateRow).sort(stableSortRows);
+
+  // Group by year
+  const byYear = new Map();
+  for (const r of rows) {
+    if (!byYear.has(r.year)) byYear.set(r.year, []);
+    byYear.get(r.year).push(r);
   }
-}
 
-function writeJson(fp, obj) {
-  const out = JSON.stringify(obj, null, 2) + "\n";
-  fs.writeFileSync(fp, out, "utf8");
-}
+  const yearsOut = {};
+  const yearList = Array.from(byYear.keys()).sort((a, b) => a - b);
 
-function cleanText(s) {
-  return String(s || "")
-    .replace(/\u200B/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
+  for (const y of yearList) {
+    const items = byYear
+      .get(y)
+      .slice()
+      .sort((a, b) => a.pos - b.pos);
 
-function clampInt(n, min, max) {
-  const x = Number(n);
-  if (!Number.isFinite(x)) return null;
-  const i = Math.floor(x);
-  if (i < min || i > max) return null;
-  return i;
-}
-
-function stableKey(year, pos, title, artist) {
-  const base = `${year}|${pos}|${cleanText(title).toLowerCase()}|${cleanText(artist).toLowerCase()}`;
-  return crypto.createHash("sha1").update(base).digest("hex").slice(0, 16);
-}
-
-function normalizeItem(year, item) {
-  if (!item || typeof item !== "object") return null;
-
-  const pos = clampInt(item.pos, 1, 10);
-  const title = cleanText(item.title);
-  const artist = cleanText(item.artist);
-
-  if (!pos) return null;
-  if (!title) return null;
-  if (!artist) return null;
-
-  return {
-    pos,
-    title,
-    artist,
-    key: stableKey(year, pos, title, artist),
-  };
-}
-
-function validateYearBlock(year, items) {
-  const positions = new Set(items.map((x) => x.pos));
-  const missing = [];
-  for (let p = 1; p <= 10; p++) if (!positions.has(p)) missing.push(p);
-
-  // duplicates
-  if (positions.size !== items.length) {
-    // find duplicates
-    const seen = new Set();
-    const dup = [];
+    // Deduplicate by (pos) keeping first deterministic row
+    const seenPos = new Set();
+    const final = [];
     for (const it of items) {
-      if (seen.has(it.pos)) dup.push(it.pos);
-      seen.add(it.pos);
-    }
-    die(`Year ${year}: duplicate positions found: ${Array.from(new Set(dup)).join(", ")}`);
-  }
-
-  if (!LENIENT && missing.length) {
-    die(`Year ${year}: missing positions ${missing.join(", ")} (run with --lenient to allow partial years)`);
-  }
-
-  // sorted
-  items.sort((a, b) => a.pos - b.pos);
-
-  return { missingPositions: missing };
-}
-
-function main() {
-  const src = readJson(INFILE);
-
-  const srcVersion = cleanText(src.version);
-  if (srcVersion !== "top10_by_year_source_v1") {
-    die(`Unexpected source version. Expected "top10_by_year_source_v1", got "${srcVersion || "EMPTY"}"`);
-  }
-
-  const chart = cleanText(src.chart) || "Billboard Year-End Hot 100";
-  const minYear = clampInt(src?.range?.minYear, 1800, 3000) ?? 1950;
-  const maxYear = clampInt(src?.range?.maxYear, 1800, 3000) ?? 2024;
-  if (minYear > maxYear) die(`range invalid: minYear ${minYear} > maxYear ${maxYear}`);
-
-  const yearsObj = src.years && typeof src.years === "object" ? src.years : {};
-  const normalizedYears = {};
-  const present = [];
-  const missing = [];
-  const perYearWarnings = {};
-
-  for (let y = minYear; y <= maxYear; y++) {
-    const key = String(y);
-    const rawList = yearsObj[key];
-
-    if (!Array.isArray(rawList) || rawList.length === 0) {
-      missing.push(y);
-      continue;
-    }
-
-    // normalize items
-    const items = [];
-    for (const raw of rawList) {
-      const it = normalizeItem(y, raw);
-      if (!it) {
-        if (!perYearWarnings[key]) perYearWarnings[key] = [];
-        perYearWarnings[key].push(`Dropped invalid item: ${JSON.stringify(raw).slice(0, 180)}`);
+      if (seenPos.has(it.pos)) {
+        warn(`Year ${y}: duplicate pos ${it.pos} (“${it.artist} — ${it.title}”) dropped`);
         continue;
       }
-      items.push(it);
+      seenPos.add(it.pos);
+      final.push({ pos: it.pos, artist: it.artist, title: it.title });
+      if (final.length >= 10) break;
     }
 
-    if (!items.length) {
-      missing.push(y);
-      continue;
+    // Warn on missing positions
+    for (let p = 1; p <= Math.min(10, final.length ? 10 : 10); p++) {
+      if (!seenPos.has(p)) warn(`Year ${y}: missing pos ${p}`);
     }
 
-    const { missingPositions } = validateYearBlock(y, items);
-    if (missingPositions.length) {
-      if (!perYearWarnings[key]) perYearWarnings[key] = [];
-      perYearWarnings[key].push(`Missing positions: ${missingPositions.join(", ")}`);
-    }
-
-    normalizedYears[key] = {
+    yearsOut[String(y)] = {
       year: y,
-      chart,
-      items,
+      chart: CHART,
+      items: final
     };
-    present.push(y);
   }
 
   const out = {
     version: "top10_by_year_v1",
-    chart,
+    chart: CHART,
+    source: SOURCE,
     generatedAt: new Date().toISOString(),
-    range: { minYear, maxYear },
-    coverage: {
-      yearsPresent: present.length,
-      yearsMissing: missing.length,
-      present,
-      missing,
-    },
-    years: normalizedYears,
+    years: yearsOut
   };
 
-  // attach warnings only if any exist (keeps runtime clean)
-  const warnKeys = Object.keys(perYearWarnings);
-  if (warnKeys.length) out.warnings = perYearWarnings;
-
-  writeJson(OUTFILE, out);
-
-  console.log(`[build_top10_by_year_v1] OK -> ${path.relative(ROOT, OUTFILE)}`);
-  console.log(`[build_top10_by_year_v1] Coverage: ${present.length}/${(maxYear - minYear + 1)} years`);
-  if (missing.length) console.log(`[build_top10_by_year_v1] Missing years (count=${missing.length}).`);
-  if (warnKeys.length) console.log(`[build_top10_by_year_v1] Warnings in output (count=${warnKeys.length}).`);
+  writeJson(OUT_FILE, out);
+  console.log(`[build_top10_by_year_v1] OK: wrote ${OUT_FILE} (years=${yearList.length})`);
 }
 
-main();
+build();
