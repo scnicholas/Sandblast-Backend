@@ -1,0 +1,20 @@
+{
+  "version": "top10_by_year_source_v1",
+  "chart": "Billboard Year-End Hot 100",
+  "range": { "minYear": 1950, "maxYear": 2024 },
+  "notes": "Editable source input. Build script normalizes and outputs Data/top10_by_year_v1.json",
+  "years": {
+    "1964": [
+      { "pos": 1, "title": "PLACEHOLDER", "artist": "PLACEHOLDER" },
+      { "pos": 2, "title": "PLACEHOLDER", "artist": "PLACEHOLDER" },
+      { "pos": 3, "title": "PLACEHOLDER", "artist": "PLACEHOLDER" },
+      { "pos": 4, "title": "PLACEHOLDER", "artist": "PLACEHOLDER" },
+      { "pos": 5, "title": "PLACEHOLDER", "artist": "PLACEHOLDER" },
+      { "pos": 6, "title": "PLACEHOLDER", "artist": "PLACEHOLDER" },
+      { "pos": 7, "title": "PLACEHOLDER", "artist": "PLACEHOLDER" },
+      { "pos": 8, "title": "PLACEHOLDER", "artist": "PLACEHOLDER" },
+      { "pos": 9, "title": "PLACEHOLDER", "artist": "PLACEHOLDER" },
+      { "pos": 10, "title": "PLACEHOLDER", "artist": "PLACEHOLDER" }
+    ]
+  }
+}
