@@ -35,7 +35,7 @@
  *  - Contract/version headers
  *
  * v1.5.6 small hardening:
- *  - Removes a duplicate/unreachable bare-year branch (prevents double-askMode paths).
+ *  - Removes the duplicate/unreachable “bare-year guard” branch (prevents double-askMode paths).
  */
 
 const express = require("express");
@@ -335,7 +335,8 @@ function postEngineBridge(session) {
   }
   if (
     clampYear(session.lastYear) &&
-    (!clampYear(session.lastMusicYear) || session.lastMusicYear !== session.lastYear)
+    (!clampYear(session.lastMusicYear) ||
+      session.lastMusicYear !== session.lastYear)
   ) {
     session.lastMusicYear = session.lastYear;
   }
@@ -360,7 +361,8 @@ function postEngineBridge(session) {
 ====================================================== */
 
 const FMP = {
-  ASK_YEAR_RE: /\b(what year|give me a year|pick a year|choose a year|year\s*\(1950|1950–2024)\b/i,
+  ASK_YEAR_RE:
+    /\b(what year|give me a year|pick a year|choose a year|year\s*\(1950|1950–2024)\b/i,
   ASK_MODE_CHOICE_RE: /\b(choose|pick|what do you want|which do you want|select)\b/i,
   MODE_WORDS_RE: /\b(top\s*10|story\s*moment|micro\s*moment)\b/i,
   SOFT_OPEN_RE: /\b(what would you like|what do you want|tell me what you|choose|pick)\b/i,
@@ -446,7 +448,8 @@ const FMP = {
         ? `micro moment ${year}`
         : `story moment ${year}`;
 
-    const sendSwitch = mode === "top10" ? `story moment ${year}` : `top 10 ${year}`;
+    const sendSwitch =
+      mode === "top10" ? `story moment ${year}` : `top 10 ${year}`;
 
     const followUps = [
       { label: "Run now", send: sendRun },
@@ -509,9 +512,7 @@ const FMP = {
 ====================================================== */
 
 const PROFILES = new Map();
-const PROFILE_TTL_MS = Number(
-  process.env.PROFILE_TTL_MS || 30 * 24 * 60 * 60 * 1000
-);
+const PROFILE_TTL_MS = Number(process.env.PROFILE_TTL_MS || 30 * 24 * 60 * 60 * 1000);
 const PROFILE_CLEAN_INTERVAL_MS = Math.max(
   10 * 60 * 1000,
   Math.min(60 * 60 * 1000, Math.floor(PROFILE_TTL_MS / 12))
@@ -551,9 +552,7 @@ function profileIsReturning(profile) {
 function detectNameFromText(text) {
   const t = cleanText(text);
   if (!t) return null;
-  const m = t.match(
-    /\b(?:i[' ]?m|i am|im|my name is)\s+([A-Za-z][A-Za-z\-']{1,30})\b/i
-  );
+  const m = t.match(/\b(?:i[' ]?m|i am|im|my name is)\s+([A-Za-z][A-Za-z\-']{1,30})\b/i);
   if (!m) return null;
   const raw = cleanText(m[1] || "");
   if (!raw) return null;
@@ -653,9 +652,7 @@ function getSession(sessionId) {
   return s;
 }
 
-const SESSION_TTL_MS = Number(
-  process.env.SESSION_TTL_MS || 6 * 60 * 60 * 1000
-);
+const SESSION_TTL_MS = Number(process.env.SESSION_TTL_MS || 6 * 60 * 60 * 1000);
 const CLEAN_INTERVAL_MS = Math.max(
   60 * 1000,
   Math.min(15 * 60 * 1000, Math.floor(SESSION_TTL_MS / 4))
@@ -690,11 +687,8 @@ const TTS_ENABLED = String(process.env.TTS_ENABLED || "true") === "true";
 const TTS_PROVIDER = String(process.env.TTS_PROVIDER || "elevenlabs");
 const ELEVEN_KEY = String(process.env.ELEVENLABS_API_KEY || "");
 const ELEVEN_VOICE_ID = String(process.env.ELEVENLABS_VOICE_ID || "");
-const ELEVEN_MODEL_ID = String(
-  process.env.ELEVENLABS_MODEL_ID || "eleven_multilingual_v2"
-);
+const ELEVEN_MODEL_ID = String(process.env.ELEVENLABS_MODEL_ID || "eleven_multilingual_v2");
 
-const hasFetch = typeof fetch === "function";
 const ELEVEN_TTS_TIMEOUT_MS = Math.max(
   8000,
   Math.min(60000, Number(process.env.ELEVEN_TTS_TIMEOUT_MS || 25000))
@@ -712,8 +706,7 @@ function getTtsTuningForMode(voiceMode) {
     stability: Number(process.env.NYX_VOICE_STABILITY ?? 0.55),
     similarity: Number(process.env.NYX_VOICE_SIMILARITY ?? 0.78),
     style: Number(process.env.NYX_VOICE_STYLE ?? 0.12),
-    speakerBoost:
-      String(process.env.NYX_VOICE_SPEAKER_BOOST ?? "false") === "true",
+    speakerBoost: String(process.env.NYX_VOICE_SPEAKER_BOOST ?? "false") === "true",
   };
 
   const m = normalizeVoiceMode(voiceMode);
@@ -742,9 +735,7 @@ function getTtsTuningForMode(voiceMode) {
 async function elevenTtsMp3Buffer(text, voiceMode) {
   const tuning = getTtsTuningForMode(voiceMode);
 
-  const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(
-    ELEVEN_VOICE_ID
-  )}`;
+  const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(ELEVEN_VOICE_ID)}`;
 
   const body = {
     text,
@@ -984,13 +975,7 @@ function hasMeaningfulResumeState(profile, session) {
   const sesMode = !!(session && session.activeMusicMode);
   const sesPairOk = sesYear && sesMode;
 
-  const contentfulIntents = new Set([
-    "top10",
-    "story",
-    "micro",
-    "continue",
-    "passthrough",
-  ]);
+  const contentfulIntents = new Set(["top10", "story", "micro", "continue", "passthrough"]);
 
   const sesIntentOk =
     !!session &&
@@ -1029,12 +1014,7 @@ function makeFollowUpsTight(session, profile) {
 
   const base = [];
   const hasYear = !!(session && clampYear(session.lastYear));
-  base.push(
-    hasYear ? String(session.lastYear) : "1950",
-    "Top 10",
-    "Story moment",
-    "Micro moment"
-  );
+  base.push(hasYear ? String(session.lastYear) : "1950", "Top 10", "Story moment", "Micro moment");
 
   if (hasYear) {
     const py = safeIncYear(session.lastYear, -1);
@@ -1045,8 +1025,7 @@ function makeFollowUpsTight(session, profile) {
   }
 
   const intent = session ? String(session.lastIntent || "") : "";
-  const isFirstGreeting =
-    intent === "greeting" && !hasMeaningfulResumeState(profile, session);
+  const isFirstGreeting = intent === "greeting" && !hasMeaningfulResumeState(profile, session);
 
   if (session && session.lastReply && !isFirstGreeting) base.push("Replay last");
 
@@ -1136,12 +1115,8 @@ function respondJson(req, res, base, session, engineOut, profile) {
 
     if (session) {
       try {
-        session.lastFollowUp = Array.isArray(payload.followUp)
-          ? payload.followUp.slice(0, 12)
-          : null;
-        session.lastFollowUps = Array.isArray(payload.followUps)
-          ? payload.followUps.slice(0, 12)
-          : null;
+        session.lastFollowUp = Array.isArray(payload.followUp) ? payload.followUp.slice(0, 12) : null;
+        session.lastFollowUps = Array.isArray(payload.followUps) ? payload.followUps.slice(0, 12) : null;
       } catch (_) {}
     }
 
@@ -1196,12 +1171,8 @@ function respondJson(req, res, base, session, engineOut, profile) {
 
   if (session) {
     try {
-      session.lastFollowUp = Array.isArray(payload.followUp)
-        ? payload.followUp.slice(0, 12)
-        : null;
-      session.lastFollowUps = Array.isArray(payload.followUps)
-        ? payload.followUps.slice(0, 12)
-        : null;
+      session.lastFollowUp = Array.isArray(payload.followUp) ? payload.followUp.slice(0, 12) : null;
+      session.lastFollowUps = Array.isArray(payload.followUps) ? payload.followUps.slice(0, 12) : null;
     } catch (_) {}
   }
 
@@ -1219,11 +1190,7 @@ app.get("/api/health", (req, res) => {
   res.set("Cache-Control", "no-store");
 
   const origin = req.headers.origin || null;
-  const originAllowed = CORS_ALLOW_ALL
-    ? true
-    : origin
-    ? originMatchesAllowlist(origin)
-    : null;
+  const originAllowed = CORS_ALLOW_ALL ? true : origin ? originMatchesAllowlist(origin) : null;
 
   res.json({
     ok: true,
@@ -1421,14 +1388,12 @@ async function handleContinue(session, profile) {
 
   if (session.lastReply) {
     return {
-      reply:
-        "Continue with what—Top 10, Story moment, or Micro moment? (You can also drop a year.)",
+      reply: "Continue with what—Top 10, Story moment, or Micro moment? (You can also drop a year.)",
     };
   }
 
   return {
-    reply:
-      "What are we doing: Top 10, Story moment, or Micro moment? Start with a year (1950–2024).",
+    reply: "What are we doing: Top 10, Story moment, or Micro moment? Start with a year (1950–2024).",
   };
 }
 
@@ -1443,8 +1408,7 @@ function handleFresh(session) {
   session.lastMusicChart = DEFAULT_CHART;
 
   return {
-    reply:
-      "Clean slate. Give me a year (1950–2024) and choose: Top 10, Story moment, or Micro moment.",
+    reply: "Clean slate. Give me a year (1950–2024) and choose: Top 10, Story moment, or Micro moment.",
   };
 }
 
@@ -1498,8 +1462,7 @@ function handleAnotherYear(session) {
   }
 
   return {
-    reply:
-      "Alright — new year. Give me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment.",
+    reply: "Alright — new year. Give me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment.",
   };
 }
 
@@ -1884,25 +1847,8 @@ app.post("/api/chat", async (req, res) => {
     return respondJson(req, res, base, session, null, profile);
   }
 
-  // Bare-year guard: if it’s a bare year but we didn’t hit the branches above (defensive)
-  if (bareYear && parsedYear) {
-    const askMode = `Got it — ${parsedYear}. What do you want: Top 10, Story moment, or Micro moment?`;
-    session.lastReply = askMode;
-    session.lastReplyAt = Date.now();
-    session.lastIntent = "askMode";
-    updateProfileFromSession(profile, session);
-
-    const base = {
-      ok: true,
-      reply: askMode,
-      sessionId,
-      requestId,
-      visitorId,
-      contractVersion: NYX_CONTRACT_VERSION,
-      voiceMode: session.voiceMode,
-    };
-    return respondJson(req, res, base, session, null, profile);
-  }
+  // NOTE: bareYear guard removed (duplicate/unreachable under the branches above)
+  void bareYear; // keep variable referenced for lint/clarity; no runtime effect
 
   // Fallback passthrough
   session.lane = "music";
