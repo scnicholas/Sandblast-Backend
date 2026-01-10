@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.7 (TIGHT + Forward-Motion Patch: loop-proof asks; fixes returning visit inflation)
+ * index.js v1.5.8 (TIGHT + Forward-Motion Patch: loop-proof asks; fixes returning visit inflation)
  *
  * Adds (from v1.5.6 you pasted):
  *  1) Phase A Forward-Motion Patch (FMP):
@@ -27,11 +27,17 @@
  *     - Nyx automatically switches to Story moment for that same year and proceeds.
  *     - Provides stable forward-moving follow-ups (Replay / Micro / Next Year / Another Year).
  *
- * NEW in v1.5.7 (this revision):
+ * NEW in v1.5.7 (carried forward):
  *  7) Replay chips integrity:
  *     - “Replay last” now returns the SAME follow-up chips the user saw on the original reply
  *       (uses session.lastFollowUps / session.lastFollowUp when available),
  *       instead of recomputing generic defaults.
+ *
+ * NEW in v1.5.8 (this revision):
+ *  8) Follow-up merge policy:
+ *     - When engine returns a small/skinny chip set (common on Story/Micro),
+ *       we KEEP engine chips and TOP-UP with tight nav chips (Prev/Next/Another/Replay) to a max of 8,
+ *       instead of replacing nav with the engine’s minimal set.
  *
  * Preserves:
  *  - Returning visitors ALWAYS get exactly 4 follow-up chips (GREETING ONLY):
@@ -67,7 +73,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.7 (TIGHT + Forward-Motion Patch + TOP10 Missing Escape + REPLAY-CHIPS-INTEGRITY + RETURNING-CHIPS-GREETING-ONLY: loop-proof asks; fixes returning visit inflation + chart contamination guard + nav completion + music field bridge)";
+  "index.js v1.5.8 (TIGHT + Forward-Motion Patch + TOP10 Missing Escape + REPLAY-CHIPS-INTEGRITY + FOLLOWUP-MERGE + RETURNING-CHIPS-GREETING-ONLY: loop-proof asks; fixes returning visit inflation + chart contamination guard + nav completion + music field bridge)";
 
 /* ======================================================
    Basic middleware
@@ -1148,7 +1154,8 @@ function makeFollowUpsTight(session, profile) {
   }
 
   const intent = session ? String(session.lastIntent || "") : "";
-  const isFirstGreeting = intent === "greeting" && !hasMeaningfulResumeState(profile, session);
+  const isFirstGreeting =
+    intent === "greeting" && !hasMeaningfulResumeState(profile, session);
 
   if (session && session.lastReply && !isFirstGreeting) base.push("Replay last");
 
@@ -1176,7 +1183,9 @@ function normalizeEngineFollowups(out) {
       const label = cleanText(
         v.label || v.text || v.title || v.send || v.value || ""
       );
-      const send = cleanText(v.send || v.value || v.payload || v.label || v.text || "");
+      const send = cleanText(
+        v.send || v.value || v.payload || v.label || v.text || ""
+      );
       if (label && send) acc.push({ label, send });
     }
   };
@@ -1206,7 +1215,7 @@ function normalizeEngineFollowups(out) {
  * - If forceFourChips === true AND visitor is returning:
  *     enforce the exact 4-chip returning visitor set.
  * - Otherwise:
- *     prefer engine followUps (if any); else use tight defaults.
+ *     KEEP engine followUps (if any) and TOP-UP with tight defaults (nav/replay) to a max of 8.
  */
 function respondJson(req, res, base, session, engineOut, profile, forceFourChips) {
   const tight = makeFollowUpsTight(session, profile);
@@ -1262,21 +1271,34 @@ function respondJson(req, res, base, session, engineOut, profile, forceFourChips
   }
 
   const engineNorm = normalizeEngineFollowups(engineOut);
-  const useEngine = engineNorm.length > 0;
 
-  const fill = useEngine ? engineNorm : tight.followUps;
+  // v1.5.8: merge engine chips + tight chips (nav/replay) with de-dupe, cap at 8
+  const merged = [];
+  const seen = new Set();
 
-  const final = [];
-  for (const it of fill) {
-    if (!it || !it.label) continue;
-    if (final.length >= 8) break;
-    if (final.some((x) => x.send === it.send)) continue;
-    final.push({ label: it.label, send: it.send });
+  const add = (it) => {
+    if (!it || !it.label || !it.send) return;
+    const k = cleanText(it.send).toLowerCase();
+    if (!k || seen.has(k)) return;
+    seen.add(k);
+    merged.push({ label: it.label, send: it.send });
+  };
+
+  for (const it of engineNorm) {
+    if (merged.length >= 8) break;
+    add(it);
+  }
+
+  if (merged.length < 8) {
+    for (const it of tight.followUps) {
+      if (merged.length >= 8) break;
+      add(it);
+    }
   }
 
   const payload = Object.assign({}, base, {
-    followUps: final.slice(0, 8),
-    followUp: final.slice(0, 8).map((x) => x.label),
+    followUps: merged.slice(0, 8),
+    followUp: merged.slice(0, 8).map((x) => x.label),
   });
 
   const wantsDebug = CHAT_DEBUG || parseDebugFlag(req);
