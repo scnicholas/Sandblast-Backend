@@ -371,13 +371,18 @@ function looksLikeTop10Missing(reply) {
   if (!r) return false;
 
   // Catch common engine phrasing: "I don't have a clean Top 10 list for 1964..."
-  if (r.includes("don't have") && r.includes("top") && r.includes("10")) return true;
-  if (r.includes("dont have") && r.includes("top") && r.includes("10")) return true;
-  if (r.includes("no clean") && r.includes("top") && r.includes("10")) return true;
-  if (r.includes("not have") && r.includes("top") && r.includes("10")) return true;
+  if (r.includes("don't have") && r.includes("top") && r.includes("10"))
+    return true;
+  if (r.includes("dont have") && r.includes("top") && r.includes("10"))
+    return true;
+  if (r.includes("no clean") && r.includes("top") && r.includes("10"))
+    return true;
+  if (r.includes("not have") && r.includes("top") && r.includes("10"))
+    return true;
 
   // Catch variants: missing chart sources / not loaded chart sources
-  if (r.includes("chart") && r.includes("not") && r.includes("loaded") && r.includes("top")) return true;
+  if (r.includes("chart") && r.includes("not") && r.includes("loaded") && r.includes("top"))
+    return true;
   if (r.includes("loaded chart sources") && r.includes("top")) return true;
 
   return false;
