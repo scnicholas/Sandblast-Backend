@@ -3,50 +3,24 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.6 (TIGHT + Forward-Motion Patch: loop-proof asks; fixes returning visit inflation)
+ * index.js v1.5.7 (TIGHT + Replay-Chips Continuity Patch)
  *
- * Adds (from v1.5.5 draft you pasted):
- *  1) Phase A Forward-Motion Patch (FMP):
- *     - Prevents “ask year” if session already has a valid year.
- *     - Prevents “ask mode” if session already has a valid mode.
- *     - Loop breaker: detects repeated askYear/askMode and forces a forward action.
- *     - No-question-end: if reply ends as open prompt, Nyx proceeds with safest next step (only when year+mode exist).
- *  2) Critical fix: Returning visitor “visits” increments ONCE per new session (session._countedVisit).
- *  3) Chart Contamination Guard:
- *     - If session.activeMusicChart is Year-End Singles and user requests >=1960,
- *       auto-switch to a supported 1960+ default (Year-End Hot 100 -> Hot 100 via musicKnowledge resolver).
- *  4) Navigation completion:
- *     - Implements nextYear / prevYear / anotherYear handling (was parsed but not routed in older builds).
- *  5) Session field bridge for musicKnowledge v2.72+:
- *     - Mirrors session.lastYear <-> session.lastMusicYear
- *     - Keeps activeMusicChart/lastMusicChart sane across calls
+ * Based on v1.5.6 you provided, plus the CRITICAL patch:
+ *  - Replay now returns the SAME followUps the user saw on the last turn
+ *    (uses session.lastFollowUps / session.lastFollowUp when available),
+ *    instead of recomputing “base” chips.
  *
- * NEW in v1.5.6:
- *  6) TOP10 Missing Escape (deterministic):
- *     - If user requests Top 10 for a year we don’t have chart rows for, Nyx does NOT “ask what next”.
- *     - Nyx automatically switches to Story moment for that same year and proceeds.
- *     - Provides stable forward-moving follow-ups (Replay / Micro / Next Year / Another Year).
- *
- * Preserves:
- *  - Returning visitors ALWAYS get exactly 4 follow-up chips (GREETING ONLY):
- *      1) "Continue" (if resumable) OR "Start fresh"
- *      2) "Top 10"
- *      3) "Story moment"
- *      4) "Micro moment"
- *  - One-tap resume logic (Continue / Start fresh)
- *  - Optional name cue if user volunteered a name
- *  - Profiles TTL + sessions TTL
+ * Everything else preserved from v1.5.6:
+ *  - Phase A Forward-Motion Patch (FMP)
+ *  - Returning visitor visit increment ONCE per session
+ *  - Chart contamination guard
+ *  - Navigation completion (next/prev/another year)
+ *  - Session bridge for musicKnowledge v2.72+
+ *  - TOP10 Missing Escape (deterministic)
+ *  - Returning 4 chips enforced ONLY on greeting (GREETING ONLY)
  *  - Mic feedback guard
  *  - TTS endpoints
  *  - Contract/version headers
- *
- * v1.5.6 small hardening:
- *  - Removes the duplicate/unreachable “bare-year guard” branch (prevents double-askMode paths).
- *
- * CRITICAL PATCH (this revision):
- *  - Fixes “returning visitor chip inflation” UX regression:
- *    Returning 4-chip enforcement is now applied ONLY on greeting (and only when explicitly requested),
- *    not on every in-flow content turn (prevents looping / loss of nav chips).
  */
 
 const express = require("express");
@@ -61,7 +35,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.6 (TIGHT + Forward-Motion Patch + TOP10 Missing Escape + RETURNING-CHIPS-GREETING-ONLY: loop-proof asks; fixes returning visit inflation + chart contamination guard + nav completion + music field bridge)";
+  "index.js v1.5.7 (TIGHT + Replay-Chips Continuity Patch + Forward-Motion Patch + TOP10 Missing Escape + RETURNING-CHIPS-GREETING-ONLY: loop-proof asks; fixes returning visit inflation + chart contamination guard + nav completion + music field bridge)";
 
 /* ======================================================
    Basic middleware
@@ -1710,7 +1684,7 @@ app.post("/api/chat", async (req, res) => {
 
   const nav = normalizeNavToken(message);
 
-  // Replay (global)
+  // Replay (global) — CRITICAL PATCH: return last chips exactly if available
   if (nav === "replay" && session.lastReply) {
     const base = {
       ok: true,
@@ -1721,8 +1695,49 @@ app.post("/api/chat", async (req, res) => {
       contractVersion: NYX_CONTRACT_VERSION,
       voiceMode: session.voiceMode,
     };
+
     session.lastIntent = "replay";
     updateProfileFromSession(profile, session);
+
+    // Prefer the exact chips user saw last turn
+    if (Array.isArray(session.lastFollowUps) && Array.isArray(session.lastFollowUp)) {
+      const payload = Object.assign({}, base, {
+        followUps: session.lastFollowUps.slice(0, 12),
+        followUp: session.lastFollowUp.slice(0, 12),
+      });
+
+      const wantsDebug = CHAT_DEBUG || parseDebugFlag(req);
+      if (wantsDebug) {
+        payload.debug = {
+          index: INDEX_VERSION,
+          profile: profile
+            ? {
+                id: profile.id,
+                name: profile.name || "",
+                returning: profileIsReturning(profile),
+                lastLane: profile.lastLane,
+                lastMusicYear: profile.lastMusicYear || null,
+                lastMusicMode: profile.lastMusicMode || null,
+                visits: profile.visits || 0,
+              }
+            : null,
+          state: {
+            lastYear: session ? session.lastYear : null,
+            activeMusicMode: session ? session.activeMusicMode : null,
+            pendingMode: session ? session.pendingMode : null,
+            activeMusicChart: session ? session.activeMusicChart : null,
+            lane: session ? session.lane : null,
+            voiceMode: session ? session.voiceMode : null,
+            lastIntent: session ? session.lastIntent : null,
+          },
+          resume: { resumable: canResume(profile, session), forcedFourChips: false },
+        };
+      }
+
+      return res.json(payload);
+    }
+
+    // Fallback if we don't have last chips stored
     return respondJson(req, res, base, session, null, profile, false);
   }
 
