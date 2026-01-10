@@ -279,29 +279,35 @@ const YEAR_END_SINGLES_CHART = "Billboard Year-End Singles";
 function normalizeChartToken(s) {
   const t = cleanText(s).toLowerCase();
   if (!t) return DEFAULT_CHART;
-  if (t.includes("year") && t.includes("end") && t.includes("single")) return YEAR_END_SINGLES_CHART;
+  if (t.includes("year") && t.includes("end") && t.includes("single"))
+    return YEAR_END_SINGLES_CHART;
   if (t.includes("year") && t.includes("end")) return YEAR_END_CHART;
-  if (t.includes("hot 100") || t.includes("hot100") || t.includes("billboard")) return DEFAULT_CHART;
-  return cleanText(s);
+  if (t.includes("hot 100") || t.includes("hot100") || t.includes("billboard"))
+    return DEFAULT_CHART;
+  return cleanText(s) || DEFAULT_CHART;
 }
 
 /**
  * Critical: if a stale session carries Singles into 1960+ requests, auto-switch.
  * Prefer Year-End Hot 100 if available; otherwise Hot 100.
- * (musicKnowledge.js will also validate, but we guard here before calling it.)
  */
 function guardChartForYear(session, year) {
   if (!session) return;
   const y = clampYear(Number(year));
   if (!y) return;
 
-  const c = normalizeChartToken(session.activeMusicChart || DEFAULT_CHART);
+  const current = normalizeChartToken(session.activeMusicChart || DEFAULT_CHART);
 
-  if (c === YEAR_END_SINGLES_CHART && y >= 1960) {
+  // Hard reset if empty/invalid
+  if (!session.activeMusicChart) session.activeMusicChart = DEFAULT_CHART;
+
+  // Singles only supports 1950–1959; force a safe chart for 1960+
+  if (current === YEAR_END_SINGLES_CHART && y >= 1960) {
     session.activeMusicChart = YEAR_END_CHART; // preferred
   }
 
-  // if somehow empty/invalid, reset
+  // Ensure final sanity
+  session.activeMusicChart = normalizeChartToken(session.activeMusicChart || DEFAULT_CHART);
   if (!session.activeMusicChart) session.activeMusicChart = DEFAULT_CHART;
 }
 
@@ -311,7 +317,9 @@ function guardChartForYear(session, year) {
  */
 function preEngineBridge(session) {
   if (!session) return;
+
   if (!session.activeMusicChart) session.activeMusicChart = DEFAULT_CHART;
+  session.activeMusicChart = normalizeChartToken(session.activeMusicChart);
 
   // If musicKnowledge fields exist but index fields missing, mirror them
   if (!clampYear(session.lastYear) && clampYear(session.lastMusicYear)) {
@@ -329,7 +337,10 @@ function postEngineBridge(session) {
   if (clampYear(session.lastMusicYear) && !clampYear(session.lastYear)) {
     session.lastYear = session.lastMusicYear;
   }
-  if (clampYear(session.lastYear) && (!clampYear(session.lastMusicYear) || session.lastMusicYear !== session.lastYear)) {
+  if (
+    clampYear(session.lastYear) &&
+    (!clampYear(session.lastMusicYear) || session.lastMusicYear !== session.lastYear)
+  ) {
     session.lastMusicYear = session.lastYear;
   }
 
@@ -340,6 +351,9 @@ function postEngineBridge(session) {
   if (session.activeMusicChart && !session.lastMusicChart) {
     session.lastMusicChart = session.activeMusicChart;
   }
+
+  session.activeMusicChart = normalizeChartToken(session.activeMusicChart || DEFAULT_CHART);
+  session.lastMusicChart = normalizeChartToken(session.lastMusicChart || session.activeMusicChart || DEFAULT_CHART);
 }
 
 /* ======================================================
@@ -348,8 +362,11 @@ function postEngineBridge(session) {
 
 const FMP = {
   ASK_YEAR_RE: /\b(what year|give me a year|pick a year|choose a year|year\s*\(1950|1950–2024)\b/i,
-  // mode prompt must look like a choice prompt, not merely mentioning modes
-  ASK_MODE_RE: /\b(top\s*10|story\s*moment|micro\s*moment)\b/i,
+
+  // ask-mode must look like a choice prompt, not merely mentioning modes
+  ASK_MODE_CHOICE_RE: /\b(choose|pick|what do you want|which do you want|select)\b/i,
+  MODE_WORDS_RE: /\b(top\s*10|story\s*moment|micro\s*moment)\b/i,
+
   SOFT_OPEN_RE: /\b(what would you like|what do you want|tell me what you|choose|pick)\b/i,
 
   isAskingYear(reply) {
@@ -359,7 +376,7 @@ const FMP = {
 
   isAskingMode(reply) {
     const r = cleanText(reply).toLowerCase();
-    return this.ASK_MODE_RE.test(r) && this.SOFT_OPEN_RE.test(r);
+    return this.MODE_WORDS_RE.test(r) && (this.ASK_MODE_CHOICE_RE.test(r) || this.SOFT_OPEN_RE.test(r));
   },
 
   endsOpenQuestion(reply) {
@@ -463,6 +480,7 @@ const FMP = {
       return Object.assign({}, out, forced);
     }
 
+    // Only apply “no-question-end” proceed when we truly have BOTH year + mode
     if (this.endsOpenQuestion(reply)) {
       const y = clampYear(session.lastYear) ? session.lastYear : null;
       const mode = session.activeMusicMode || session.pendingMode || null;
@@ -1384,9 +1402,12 @@ async function runEngine(text, session) {
 ====================================================== */
 
 async function handleContinue(session, profile) {
-  const y =
-    clampYear(session.lastYear) || clampYear(profile && profile.lastMusicYear);
-  const m = session.activeMusicMode || (profile && profile.lastMusicMode) || null;
+  // FIX: Pick year deterministically (don’t OR two clampYear() calls)
+  const yFromSession = clampYear(session && session.lastYear ? Number(session.lastYear) : NaN);
+  const yFromProfile = clampYear(profile && profile.lastMusicYear ? Number(profile.lastMusicYear) : NaN);
+  const y = yFromSession || yFromProfile || null;
+
+  const m = (session && session.activeMusicMode) || (profile && profile.lastMusicMode) || null;
 
   if (y && m) {
     session.lastYear = y;
@@ -1436,7 +1457,7 @@ function handleFresh(session) {
 ====================================================== */
 
 async function handleYearNav(session, direction /* +1|-1 */) {
-  const y0 = clampYear(session.lastYear);
+  const y0 = clampYear(Number(session.lastYear));
   const mode = session.activeMusicMode || session.pendingMode || null;
 
   if (!y0) {
