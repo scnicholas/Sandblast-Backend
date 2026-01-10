@@ -3,7 +3,8 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.8 (TIGHT + Forward-Motion Patch: loop-proof asks; fixes returning visit inflation)
+ * index.js v1.5.9 (TIGHT + Forward-Motion Patch + TOP10 Missing Escape + REPLAY-CHIPS-INTEGRITY + FOLLOWUP-MERGE
+ * + RETURNING-CHIPS-GREETING-ONLY + PILLAR B (#1 ROUTING): loop-proof asks; fixes returning visit inflation
  *
  * Adds (from v1.5.6 you pasted):
  *  1) Phase A Forward-Motion Patch (FMP):
@@ -33,11 +34,17 @@
  *       (uses session.lastFollowUps / session.lastFollowUp when available),
  *       instead of recomputing generic defaults.
  *
- * NEW in v1.5.8 (this revision):
+ * NEW in v1.5.8 (carried forward):
  *  8) Follow-up merge policy:
  *     - When engine returns a small/skinny chip set (common on Story/Micro),
  *       we KEEP engine chips and TOP-UP with tight nav chips (Prev/Next/Another/Replay) to a max of 8,
  *       instead of replacing nav with the engine’s minimal set.
+ *
+ * NEW in v1.5.9 (Pillar B):
+ *  9) #1 routing (deterministic):
+ *     - Recognizes: "#1", "number one", "no. 1", etc.
+ *     - Uses session.lastYear; if missing, asks year.
+ *     - Deterministic fallback: runs Top 10 {year}, extracts the #1 line, returns "#1 — Artist — Title".
  *
  * Preserves:
  *  - Returning visitors ALWAYS get exactly 4 follow-up chips (GREETING ONLY):
@@ -73,7 +80,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.8 (TIGHT + Forward-Motion Patch + TOP10 Missing Escape + REPLAY-CHIPS-INTEGRITY + FOLLOWUP-MERGE + RETURNING-CHIPS-GREETING-ONLY: loop-proof asks; fixes returning visit inflation + chart contamination guard + nav completion + music field bridge)";
+  "index.js v1.5.9 (TIGHT + Forward-Motion Patch + TOP10 Missing Escape + REPLAY-CHIPS-INTEGRITY + FOLLOWUP-MERGE + RETURNING-CHIPS-GREETING-ONLY + PILLAR-B-#1-ROUTING: loop-proof asks; fixes returning visit inflation + chart contamination guard + nav completion + music field bridge)";
 
 /* ======================================================
    Basic middleware
@@ -415,7 +422,7 @@ function top10MissingFollowUps(year) {
     { label: "Micro moment", send: `micro moment ${y}` },
     { label: ny ? `Top 10 ${ny}` : "Top 10", send: ny ? `top 10 ${ny}` : "Top 10" },
     { label: "Another year", send: "Another year" },
-    { label: "Replay", send: "Replay last" },
+    { label: "Replay last", send: "Replay last" },
   ];
 }
 
@@ -958,6 +965,10 @@ function normalizeNavToken(text) {
   if (/^(continue|resume|pick up|carry on|go on)\b/.test(t)) return "continue";
   if (/^(start fresh|restart|new start|reset)\b/.test(t)) return "fresh";
 
+  // Pillar B: #1 / number-one
+  if (/^(#\s*1|number\s*1|number\s*one|no\.?\s*1|the\s*#\s*1)\b/.test(t))
+    return "numberOne";
+
   if (/^(next|next year|forward|year\+1)\b/.test(t)) return "nextYear";
   if (/^(prev|previous|previous year|back|year-1)\b/.test(t)) return "prevYear";
   if (/^(another year|new year|different year)\b/.test(t)) return "anotherYear";
@@ -1005,6 +1016,39 @@ function addMomentumTail(session, reply) {
 
   if (y && mode) return `${r} Next: “next year”, “another year”, or “replay”.`;
   return r;
+}
+
+/* ======================================================
+   Pillar B: #1 extraction (deterministic fallback)
+====================================================== */
+
+function extractNumberOneFromTop10Reply(replyText) {
+  const t = String(replyText || "");
+
+  // Most common: "1. Artist — Title 2. ..."
+  let m =
+    t.match(/(?:^|\s)1\.\s*([^—\n]+?)\s*—\s*([^\n]+?)(?=(?:\s+2\.)|\n|$)/) ||
+    t.match(/(?:^|\s)1\)\s*([^—\n]+?)\s*—\s*([^\n]+?)(?=(?:\s+2\))|\n|$)/) ||
+    t.match(/(?:^|\s)#1\s*[:\-]?\s*([^—\n]+?)\s*—\s*([^\n]+?)(?:\n|$)/i);
+
+  if (!m) return null;
+
+  const artist = cleanText(m[1] || "");
+  const title = cleanText(m[2] || "");
+  if (!artist || !title) return null;
+
+  return { artist, title };
+}
+
+function numberOneFollowUps(year) {
+  const y = clampYear(Number(year)) || 1988;
+  return [
+    { label: "Top 10", send: `top 10 ${y}` },
+    { label: `Story moment ${y}`, send: `story moment ${y}` },
+    { label: `Micro moment ${y}`, send: `micro moment ${y}` },
+    { label: "Another year", send: "Another year" },
+    { label: "Replay last", send: "Replay last" },
+  ];
 }
 
 /* ======================================================
@@ -1102,6 +1146,7 @@ function hasMeaningfulResumeState(profile, session) {
     "micro",
     "continue",
     "passthrough",
+    "numberOne",
   ]);
 
   const sesIntentOk =
@@ -1219,7 +1264,7 @@ function normalizeEngineFollowups(out) {
  * respondJson()
  * - If forceFourChips === true AND visitor is returning:
  *     enforce the exact 4-chip returning visitor set.
- * - Otherwise (v1.5.8):
+ * - Otherwise:
  *     KEEP engine followUps (if any) and TOP-UP with tight defaults (nav/replay) to a max of 8.
  */
 function respondJson(req, res, base, session, engineOut, profile, forceFourChips) {
@@ -1277,7 +1322,7 @@ function respondJson(req, res, base, session, engineOut, profile, forceFourChips
 
   const engineNorm = normalizeEngineFollowups(engineOut);
 
-  // v1.5.8: merge engine chips + tight chips (nav/replay) with de-dupe, cap at 8
+  // Merge engine chips + tight chips (nav/replay) with de-dupe, cap at 8
   const merged = [];
   const seen = new Set();
 
@@ -1655,6 +1700,58 @@ function handleAnotherYear(session) {
 }
 
 /* ======================================================
+   Pillar B: #1 handler (deterministic)
+====================================================== */
+
+async function handleNumberOne(session) {
+  const y0 = clampYear(Number(session.lastYear));
+  if (!y0) {
+    return { reply: "What year (1950–2024) for #1?" };
+  }
+
+  session.lane = "music";
+  session.pendingMode = null;
+  guardChartForYear(session, y0);
+
+  // If already known for this session/year, return immediately.
+  if (session.lastTop10One && typeof session.lastTop10One === "string") {
+    return {
+      reply: `#1 — ${cleanText(session.lastTop10One)} (${y0}).`,
+      followUps: numberOneFollowUps(y0),
+    };
+  }
+
+  // Primary attempt: let the engine answer "#1 {year}" if it supports it.
+  const outA = await runEngine(`#1 ${y0}`, session);
+  const outA2 = FMP.apply(outA, session);
+
+  // If engine actually produced a usable #1 line, keep it.
+  const rA = cleanText(outA2 && outA2.reply ? outA2.reply : "");
+  if (rA && /(^|\s)#\s*1\b/i.test(rA)) {
+    return Object.assign({}, outA2, { followUps: numberOneFollowUps(y0) });
+  }
+
+  // Deterministic fallback: run top 10 and extract the first entry.
+  const outB = await runEngine(`top 10 ${y0}`, session);
+  const outB2 = FMP.apply(outB, session);
+  const rB = cleanText(outB2 && outB2.reply ? outB2.reply : "");
+
+  const one = extractNumberOneFromTop10Reply(rB);
+  if (one) {
+    session.lastTop10One = `${one.artist} — ${one.title}`;
+    return {
+      reply: `#1 — ${one.artist} — ${one.title} (${y0}).`,
+      followUps: numberOneFollowUps(y0),
+    };
+  }
+
+  // Last-resort: if parsing failed, still return the top10 reply with #1 chip set.
+  return Object.assign({}, outB2, {
+    followUps: numberOneFollowUps(y0),
+  });
+}
+
+/* ======================================================
    API: chat
 ====================================================== */
 
@@ -1807,6 +1904,31 @@ app.post("/api/chat", async (req, res) => {
 
     // Fallback if chips were never stored (rare)
     return respondJson(req, res, base, session, null, profile, false);
+  }
+
+  // Pillar B: #1
+  if (nav === "numberOne") {
+    session.lane = "music";
+    const out0 = await handleNumberOne(session);
+    const out = FMP.apply(out0, session);
+    const reply = addMomentumTail(session, cleanText(out.reply || "#1."));
+
+    session.lastReply = reply;
+    session.lastReplyAt = Date.now();
+    session.lastIntent = "numberOne";
+
+    updateProfileFromSession(profile, session);
+
+    const base = {
+      ok: true,
+      reply,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
+    return respondJson(req, res, base, session, out, profile, false);
   }
 
   // Next/Prev/Another year (complete routing)
@@ -2098,7 +2220,7 @@ app.post("/api/chat", async (req, res) => {
   }
 
   // NOTE: bareYear guard removed (duplicate/unreachable under the branches above)
-  void bareYear; // keep variable referenced for clarity; no runtime effect
+  void bareYear;
 
   // Fallback passthrough
   session.lane = "music";
