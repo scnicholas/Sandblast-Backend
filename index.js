@@ -1035,7 +1035,10 @@ async function runMusicEngine(text, session) {
     // ===== TOP10 Missing Escape (deterministic) =====
     const reply0 = cleanText(out.reply || "");
     const modeReq =
-      normalizeModeToken(text) || session.activeMusicMode || session.pendingMode || null;
+      normalizeModeToken(text) ||
+      session.activeMusicMode ||
+      session.pendingMode ||
+      null;
     const yearReq = clampYear(y || session.lastYear || session.lastMusicYear);
 
     if (modeReq === "top10" && yearReq && looksLikeTop10Missing(reply0)) {
@@ -1193,7 +1196,9 @@ function normalizeEngineFollowups(out) {
   const acc = [];
   if (!out || typeof out !== "object") return acc;
 
-  const cands = [out.followUps, out.followups, out.followUp, out.followup].filter(Boolean);
+  const cands = [out.followUps, out.followups, out.followUp, out.followup].filter(
+    Boolean
+  );
   for (const c of cands) {
     if (Array.isArray(c)) c.forEach((x) => push(acc, x));
     else push(acc, c);
@@ -1214,7 +1219,7 @@ function normalizeEngineFollowups(out) {
  * respondJson()
  * - If forceFourChips === true AND visitor is returning:
  *     enforce the exact 4-chip returning visitor set.
- * - Otherwise:
+ * - Otherwise (v1.5.8):
  *     KEEP engine followUps (if any) and TOP-UP with tight defaults (nav/replay) to a max of 8.
  */
 function respondJson(req, res, base, session, engineOut, profile, forceFourChips) {
@@ -1284,11 +1289,13 @@ function respondJson(req, res, base, session, engineOut, profile, forceFourChips
     merged.push({ label: it.label, send: it.send });
   };
 
+  // Prefer engine chips first (if any)
   for (const it of engineNorm) {
     if (merged.length >= 8) break;
     add(it);
   }
 
+  // Top-up with tight defaults
   if (merged.length < 8) {
     for (const it of tight.followUps) {
       if (merged.length >= 8) break;
