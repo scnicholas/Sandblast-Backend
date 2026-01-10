@@ -28,7 +28,7 @@
  *     - Provides stable forward-moving follow-ups (Replay / Micro / Next Year / Another Year).
  *
  * Preserves:
- *  - Returning visitors ALWAYS get exactly 4 follow-up chips:
+ *  - Returning visitors ALWAYS get exactly 4 follow-up chips (GREETING ONLY):
  *      1) "Continue" (if resumable) OR "Start fresh"
  *      2) "Top 10"
  *      3) "Story moment"
@@ -42,6 +42,11 @@
  *
  * v1.5.6 small hardening:
  *  - Removes the duplicate/unreachable “bare-year guard” branch (prevents double-askMode paths).
+ *
+ * CRITICAL PATCH (this revision):
+ *  - Fixes “returning visitor chip inflation” UX regression:
+ *    Returning 4-chip enforcement is now applied ONLY on greeting (and only when explicitly requested),
+ *    not on every in-flow content turn (prevents looping / loss of nav chips).
  */
 
 const express = require("express");
@@ -56,7 +61,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.6 (TIGHT + Forward-Motion Patch + TOP10 Missing Escape: loop-proof asks; fixes returning visit inflation + chart contamination guard + nav completion + music field bridge)";
+  "index.js v1.5.6 (TIGHT + Forward-Motion Patch + TOP10 Missing Escape + RETURNING-CHIPS-GREETING-ONLY: loop-proof asks; fixes returning visit inflation + chart contamination guard + nav completion + music field bridge)";
 
 /* ======================================================
    Basic middleware
@@ -370,7 +375,6 @@ function looksLikeTop10Missing(reply) {
   const r = cleanText(reply).toLowerCase();
   if (!r) return false;
 
-  // Catch common engine phrasing: "I don't have a clean Top 10 list for 1964..."
   if (r.includes("don't have") && r.includes("top") && r.includes("10"))
     return true;
   if (r.includes("dont have") && r.includes("top") && r.includes("10"))
@@ -380,8 +384,12 @@ function looksLikeTop10Missing(reply) {
   if (r.includes("not have") && r.includes("top") && r.includes("10"))
     return true;
 
-  // Catch variants: missing chart sources / not loaded chart sources
-  if (r.includes("chart") && r.includes("not") && r.includes("loaded") && r.includes("top"))
+  if (
+    r.includes("chart") &&
+    r.includes("not") &&
+    r.includes("loaded") &&
+    r.includes("top")
+  )
     return true;
   if (r.includes("loaded chart sources") && r.includes("top")) return true;
 
@@ -555,7 +563,9 @@ const FMP = {
 ====================================================== */
 
 const PROFILES = new Map();
-const PROFILE_TTL_MS = Number(process.env.PROFILE_TTL_MS || 30 * 24 * 60 * 60 * 1000);
+const PROFILE_TTL_MS = Number(
+  process.env.PROFILE_TTL_MS || 30 * 24 * 60 * 60 * 1000
+);
 const PROFILE_CLEAN_INTERVAL_MS = Math.max(
   10 * 60 * 1000,
   Math.min(60 * 60 * 1000, Math.floor(PROFILE_TTL_MS / 12))
@@ -595,7 +605,9 @@ function profileIsReturning(profile) {
 function detectNameFromText(text) {
   const t = cleanText(text);
   if (!t) return null;
-  const m = t.match(/\b(?:i[' ]?m|i am|im|my name is)\s+([A-Za-z][A-Za-z\-']{1,30})\b/i);
+  const m = t.match(
+    /\b(?:i[' ]?m|i am|im|my name is)\s+([A-Za-z][A-Za-z\-']{1,30})\b/i
+  );
   if (!m) return null;
   const raw = cleanText(m[1] || "");
   if (!raw) return null;
@@ -730,7 +742,9 @@ const TTS_ENABLED = String(process.env.TTS_ENABLED || "true") === "true";
 const TTS_PROVIDER = String(process.env.TTS_PROVIDER || "elevenlabs");
 const ELEVEN_KEY = String(process.env.ELEVENLABS_API_KEY || "");
 const ELEVEN_VOICE_ID = String(process.env.ELEVENLABS_VOICE_ID || "");
-const ELEVEN_MODEL_ID = String(process.env.ELEVENLABS_MODEL_ID || "eleven_multilingual_v2");
+const ELEVEN_MODEL_ID = String(
+  process.env.ELEVENLABS_MODEL_ID || "eleven_multilingual_v2"
+);
 
 const ELEVEN_TTS_TIMEOUT_MS = Math.max(
   8000,
@@ -749,7 +763,8 @@ function getTtsTuningForMode(voiceMode) {
     stability: Number(process.env.NYX_VOICE_STABILITY ?? 0.55),
     similarity: Number(process.env.NYX_VOICE_SIMILARITY ?? 0.78),
     style: Number(process.env.NYX_VOICE_STYLE ?? 0.12),
-    speakerBoost: String(process.env.NYX_VOICE_SPEAKER_BOOST ?? "false") === "true",
+    speakerBoost:
+      String(process.env.NYX_VOICE_SPEAKER_BOOST ?? "false") === "true",
   };
 
   const m = normalizeVoiceMode(voiceMode);
@@ -838,7 +853,8 @@ async function elevenTtsMp3Buffer(text, voiceMode) {
    Mic Feedback Guard (kept)
 ====================================================== */
 
-const MIC_GUARD_ENABLED = String(process.env.MIC_GUARD_ENABLED || "true") === "true";
+const MIC_GUARD_ENABLED =
+  String(process.env.MIC_GUARD_ENABLED || "true") === "true";
 const MIC_GUARD_WINDOW_MS = Math.max(
   2000,
   Math.min(20000, Number(process.env.MIC_GUARD_WINDOW_MS || 9000))
@@ -923,7 +939,9 @@ function normalizeNavToken(text) {
   const t = cleanText(text).toLowerCase();
   if (!t) return null;
 
-  if (/^(replay|repeat|again|say that again|one more time|replay last)\b/.test(t))
+  if (
+    /^(replay|repeat|again|say that again|one more time|replay last)\b/.test(t)
+  )
     return "replay";
   if (/^(continue|resume|pick up|carry on|go on)\b/.test(t)) return "continue";
   if (/^(start fresh|restart|new start|reset)\b/.test(t)) return "fresh";
@@ -1003,9 +1021,9 @@ async function runMusicEngine(text, session) {
     postEngineBridge(session);
 
     // ===== TOP10 Missing Escape (deterministic) =====
-    // If the user asked for Top 10 and engine says chart isn't available, auto-switch to Story moment and run it.
     const reply0 = cleanText(out.reply || "");
-    const modeReq = normalizeModeToken(text) || session.activeMusicMode || session.pendingMode || null;
+    const modeReq =
+      normalizeModeToken(text) || session.activeMusicMode || session.pendingMode || null;
     const yearReq = clampYear(y || session.lastYear || session.lastMusicYear);
 
     if (modeReq === "top10" && yearReq && looksLikeTop10Missing(reply0)) {
@@ -1018,10 +1036,11 @@ async function runMusicEngine(text, session) {
       guardChartForYear(session, yearReq);
       preEngineBridge(session);
 
-      const out2 = musicKnowledge.handleChat({
-        text: `story moment ${yearReq}`,
-        session,
-      }) || {};
+      const out2 =
+        musicKnowledge.handleChat({
+          text: `story moment ${yearReq}`,
+          session,
+        }) || {};
 
       if (out2.sessionPatch && typeof out2.sessionPatch === "object") {
         Object.assign(session, out2.sessionPatch);
@@ -1062,7 +1081,13 @@ function hasMeaningfulResumeState(profile, session) {
   const sesMode = !!(session && session.activeMusicMode);
   const sesPairOk = sesYear && sesMode;
 
-  const contentfulIntents = new Set(["top10", "story", "micro", "continue", "passthrough"]);
+  const contentfulIntents = new Set([
+    "top10",
+    "story",
+    "micro",
+    "continue",
+    "passthrough",
+  ]);
 
   const sesIntentOk =
     !!session &&
@@ -1101,7 +1126,12 @@ function makeFollowUpsTight(session, profile) {
 
   const base = [];
   const hasYear = !!(session && clampYear(session.lastYear));
-  base.push(hasYear ? String(session.lastYear) : "1950", "Top 10", "Story moment", "Micro moment");
+  base.push(
+    hasYear ? String(session.lastYear) : "1950",
+    "Top 10",
+    "Story moment",
+    "Micro moment"
+  );
 
   if (hasYear) {
     const py = safeIncYear(session.lastYear, -1);
@@ -1137,7 +1167,9 @@ function normalizeEngineFollowups(out) {
       return;
     }
     if (typeof v === "object") {
-      const label = cleanText(v.label || v.text || v.title || v.send || v.value || "");
+      const label = cleanText(
+        v.label || v.text || v.title || v.send || v.value || ""
+      );
       const send = cleanText(v.send || v.value || v.payload || v.label || v.text || "");
       if (label && send) acc.push({ label, send });
     }
@@ -1163,10 +1195,19 @@ function normalizeEngineFollowups(out) {
   return out2.slice(0, 12);
 }
 
-function respondJson(req, res, base, session, engineOut, profile) {
+/**
+ * respondJson()
+ * - If forceFourChips === true AND visitor is returning:
+ *     enforce the exact 4-chip returning visitor set.
+ * - Otherwise:
+ *     prefer engine followUps (if any); else use tight defaults.
+ */
+function respondJson(req, res, base, session, engineOut, profile, forceFourChips) {
   const tight = makeFollowUpsTight(session, profile);
 
-  if (tight.returning) {
+  const enforceReturning = !!forceFourChips && !!tight.returning;
+
+  if (enforceReturning) {
     const payload = Object.assign({}, base, {
       followUps: tight.followUps,
       followUp: tight.followUp,
@@ -1202,8 +1243,12 @@ function respondJson(req, res, base, session, engineOut, profile) {
 
     if (session) {
       try {
-        session.lastFollowUp = Array.isArray(payload.followUp) ? payload.followUp.slice(0, 12) : null;
-        session.lastFollowUps = Array.isArray(payload.followUps) ? payload.followUps.slice(0, 12) : null;
+        session.lastFollowUp = Array.isArray(payload.followUp)
+          ? payload.followUp.slice(0, 12)
+          : null;
+        session.lastFollowUps = Array.isArray(payload.followUps)
+          ? payload.followUps.slice(0, 12)
+          : null;
       } catch (_) {}
     }
 
@@ -1258,8 +1303,12 @@ function respondJson(req, res, base, session, engineOut, profile) {
 
   if (session) {
     try {
-      session.lastFollowUp = Array.isArray(payload.followUp) ? payload.followUp.slice(0, 12) : null;
-      session.lastFollowUps = Array.isArray(payload.followUps) ? payload.followUps.slice(0, 12) : null;
+      session.lastFollowUp = Array.isArray(payload.followUp)
+        ? payload.followUp.slice(0, 12)
+        : null;
+      session.lastFollowUps = Array.isArray(payload.followUps)
+        ? payload.followUps.slice(0, 12)
+        : null;
     } catch (_) {}
   }
 
@@ -1277,7 +1326,11 @@ app.get("/api/health", (req, res) => {
   res.set("Cache-Control", "no-store");
 
   const origin = req.headers.origin || null;
-  const originAllowed = CORS_ALLOW_ALL ? true : origin ? originMatchesAllowlist(origin) : null;
+  const originAllowed = CORS_ALLOW_ALL
+    ? true
+    : origin
+    ? originMatchesAllowlist(origin)
+    : null;
 
   res.json({
     ok: true,
@@ -1455,11 +1508,18 @@ async function runEngine(text, session) {
 ====================================================== */
 
 async function handleContinue(session, profile) {
-  const yFromSession = clampYear(session && session.lastYear ? Number(session.lastYear) : NaN);
-  const yFromProfile = clampYear(profile && profile.lastMusicYear ? Number(profile.lastMusicYear) : NaN);
+  const yFromSession = clampYear(
+    session && session.lastYear ? Number(session.lastYear) : NaN
+  );
+  const yFromProfile = clampYear(
+    profile && profile.lastMusicYear ? Number(profile.lastMusicYear) : NaN
+  );
   const y = yFromSession || yFromProfile || null;
 
-  const m = (session && session.activeMusicMode) || (profile && profile.lastMusicMode) || null;
+  const m =
+    (session && session.activeMusicMode) ||
+    (profile && profile.lastMusicMode) ||
+    null;
 
   if (y && m) {
     session.lastYear = y;
@@ -1475,12 +1535,14 @@ async function handleContinue(session, profile) {
 
   if (session.lastReply) {
     return {
-      reply: "Continue with what—Top 10, Story moment, or Micro moment? (You can also drop a year.)",
+      reply:
+        "Continue with what—Top 10, Story moment, or Micro moment? (You can also drop a year.)",
     };
   }
 
   return {
-    reply: "What are we doing: Top 10, Story moment, or Micro moment? Start with a year (1950–2024).",
+    reply:
+      "What are we doing: Top 10, Story moment, or Micro moment? Start with a year (1950–2024).",
   };
 }
 
@@ -1495,7 +1557,8 @@ function handleFresh(session) {
   session.lastMusicChart = DEFAULT_CHART;
 
   return {
-    reply: "Clean slate. Give me a year (1950–2024) and choose: Top 10, Story moment, or Micro moment.",
+    reply:
+      "Clean slate. Give me a year (1950–2024) and choose: Top 10, Story moment, or Micro moment.",
   };
 }
 
@@ -1515,7 +1578,9 @@ async function handleYearNav(session, direction) {
 
   const y1 = safeIncYear(y0, direction);
   if (!y1) {
-    return { reply: "You’re at the edge of the range. Pick a year between 1950 and 2024." };
+    return {
+      reply: "You’re at the edge of the range. Pick a year between 1950 and 2024.",
+    };
   }
 
   session.lastYear = y1;
@@ -1549,7 +1614,8 @@ function handleAnotherYear(session) {
   }
 
   return {
-    reply: "Alright — new year. Give me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment.",
+    reply:
+      "Alright — new year. Give me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment.",
   };
 }
 
@@ -1581,7 +1647,11 @@ app.post("/api/chat", async (req, res) => {
   const incomingVisitorId = cleanText(body.visitorId || "") || makeUuid();
   const incomingContract = cleanText(body.contractVersion || body.contract || "");
 
-  if (CONTRACT_STRICT && incomingContract && incomingContract !== NYX_CONTRACT_VERSION) {
+  if (
+    CONTRACT_STRICT &&
+    incomingContract &&
+    incomingContract !== NYX_CONTRACT_VERSION
+  ) {
     return res.status(409).json({
       ok: false,
       error: "CONTRACT_MISMATCH",
@@ -1608,7 +1678,9 @@ app.post("/api/chat", async (req, res) => {
   const foundName = detectNameFromText(message);
   if (profile && foundName) profile.name = foundName;
 
-  const incomingVoiceMode = normalizeVoiceMode(body.voiceMode || session.voiceMode || "standard");
+  const incomingVoiceMode = normalizeVoiceMode(
+    body.voiceMode || session.voiceMode || "standard"
+  );
   session.voiceMode = incomingVoiceMode;
   res.set("X-Voice-Mode", session.voiceMode);
 
@@ -1633,7 +1705,7 @@ app.post("/api/chat", async (req, res) => {
       contractVersion: NYX_CONTRACT_VERSION,
       voiceMode: session.voiceMode,
     };
-    return respondJson(req, res, base, session, null, profile);
+    return respondJson(req, res, base, session, null, profile, false);
   }
 
   const nav = normalizeNavToken(message);
@@ -1651,7 +1723,7 @@ app.post("/api/chat", async (req, res) => {
     };
     session.lastIntent = "replay";
     updateProfileFromSession(profile, session);
-    return respondJson(req, res, base, session, null, profile);
+    return respondJson(req, res, base, session, null, profile, false);
   }
 
   // Next/Prev/Another year (complete routing)
@@ -1675,13 +1747,16 @@ app.post("/api/chat", async (req, res) => {
       contractVersion: NYX_CONTRACT_VERSION,
       voiceMode: session.voiceMode,
     };
-    return respondJson(req, res, base, session, out, profile);
+    return respondJson(req, res, base, session, out, profile, false);
   }
 
   if (nav === "prevYear") {
     session.lane = "music";
     const out = await handleYearNav(session, -1);
-    const reply = addMomentumTail(session, cleanText(out.reply || "Previous year."));
+    const reply = addMomentumTail(
+      session,
+      cleanText(out.reply || "Previous year.")
+    );
 
     session.lastReply = reply;
     session.lastReplyAt = Date.now();
@@ -1698,7 +1773,7 @@ app.post("/api/chat", async (req, res) => {
       contractVersion: NYX_CONTRACT_VERSION,
       voiceMode: session.voiceMode,
     };
-    return respondJson(req, res, base, session, out, profile);
+    return respondJson(req, res, base, session, out, profile, false);
   }
 
   if (nav === "anotherYear") {
@@ -1722,7 +1797,7 @@ app.post("/api/chat", async (req, res) => {
       contractVersion: NYX_CONTRACT_VERSION,
       voiceMode: session.voiceMode,
     };
-    return respondJson(req, res, base, session, out, profile);
+    return respondJson(req, res, base, session, out, profile, false);
   }
 
   // Continue
@@ -1730,7 +1805,10 @@ app.post("/api/chat", async (req, res) => {
     session.lane = "music";
     const out0 = await handleContinue(session, profile);
     const out = FMP.apply(out0, session);
-    const reply = addMomentumTail(session, cleanText(out.reply || "Continuing."));
+    const reply = addMomentumTail(
+      session,
+      cleanText(out.reply || "Continuing.")
+    );
 
     session.lastReply = reply;
     session.lastReplyAt = Date.now();
@@ -1747,7 +1825,7 @@ app.post("/api/chat", async (req, res) => {
       contractVersion: NYX_CONTRACT_VERSION,
       voiceMode: session.voiceMode,
     };
-    return respondJson(req, res, base, session, out, profile);
+    return respondJson(req, res, base, session, out, profile, false);
   }
 
   // Start fresh
@@ -1771,7 +1849,7 @@ app.post("/api/chat", async (req, res) => {
       contractVersion: NYX_CONTRACT_VERSION,
       voiceMode: session.voiceMode,
     };
-    return respondJson(req, res, base, session, out, profile);
+    return respondJson(req, res, base, session, out, profile, false);
   }
 
   // Greeting
@@ -1795,7 +1873,9 @@ app.post("/api/chat", async (req, res) => {
       contractVersion: NYX_CONTRACT_VERSION,
       voiceMode: session.voiceMode,
     };
-    return respondJson(req, res, base, session, null, profile);
+
+    // CRITICAL: only greetings enforce 4 returning chips
+    return respondJson(req, res, base, session, null, profile, true);
   }
 
   // Standard mode/year parsing
@@ -1833,7 +1913,7 @@ app.post("/api/chat", async (req, res) => {
       contractVersion: NYX_CONTRACT_VERSION,
       voiceMode: session.voiceMode,
     };
-    return respondJson(req, res, base, session, out, profile);
+    return respondJson(req, res, base, session, out, profile, false);
   }
 
   if (parsedMode && !parsedYear) {
@@ -1863,7 +1943,7 @@ app.post("/api/chat", async (req, res) => {
         contractVersion: NYX_CONTRACT_VERSION,
         voiceMode: session.voiceMode,
       };
-      return respondJson(req, res, base, session, out, profile);
+      return respondJson(req, res, base, session, out, profile, false);
     }
 
     const ask = replyMissingYearForMode(parsedMode);
@@ -1882,7 +1962,7 @@ app.post("/api/chat", async (req, res) => {
       contractVersion: NYX_CONTRACT_VERSION,
       voiceMode: session.voiceMode,
     };
-    return respondJson(req, res, base, session, null, profile);
+    return respondJson(req, res, base, session, null, profile, false);
   }
 
   if (parsedYear && !parsedMode) {
@@ -1912,7 +1992,7 @@ app.post("/api/chat", async (req, res) => {
         contractVersion: NYX_CONTRACT_VERSION,
         voiceMode: session.voiceMode,
       };
-      return respondJson(req, res, base, session, out, profile);
+      return respondJson(req, res, base, session, out, profile, false);
     }
 
     const askMode = `Got it — ${parsedYear}. What do you want: Top 10, Story moment, or Micro moment?`;
@@ -1931,7 +2011,7 @@ app.post("/api/chat", async (req, res) => {
       contractVersion: NYX_CONTRACT_VERSION,
       voiceMode: session.voiceMode,
     };
-    return respondJson(req, res, base, session, null, profile);
+    return respondJson(req, res, base, session, null, profile, false);
   }
 
   // NOTE: bareYear guard removed (duplicate/unreachable under the branches above)
@@ -1959,7 +2039,7 @@ app.post("/api/chat", async (req, res) => {
     contractVersion: NYX_CONTRACT_VERSION,
     voiceMode: session.voiceMode,
   };
-  return respondJson(req, res, base, session, out, profile);
+  return respondJson(req, res, base, session, out, profile, false);
 });
 
 /* ======================================================
