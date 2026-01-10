@@ -21,6 +21,12 @@
  *     - Mirrors session.lastYear <-> session.lastMusicYear
  *     - Keeps activeMusicChart/lastMusicChart sane across calls
  *
+ * NEW in v1.5.6:
+ *  6) TOP10 Missing Escape (deterministic):
+ *     - If user requests Top 10 for a year we don’t have chart rows for, Nyx does NOT “ask what next”.
+ *     - Nyx automatically switches to Story moment for that same year and proceeds.
+ *     - Provides stable forward-moving follow-ups (Replay / Micro / Next Year / Another Year).
+ *
  * Preserves:
  *  - Returning visitors ALWAYS get exactly 4 follow-up chips:
  *      1) "Continue" (if resumable) OR "Start fresh"
@@ -50,7 +56,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.6 (TIGHT + Forward-Motion Patch: loop-proof asks; fixes returning visit inflation + chart contamination guard + nav completion + music field bridge)";
+  "index.js v1.5.6 (TIGHT + Forward-Motion Patch + TOP10 Missing Escape: loop-proof asks; fixes returning visit inflation + chart contamination guard + nav completion + music field bridge)";
 
 /* ======================================================
    Basic middleware
@@ -354,6 +360,38 @@ function postEngineBridge(session) {
   session.lastMusicChart = normalizeChartToken(
     session.lastMusicChart || session.activeMusicChart || DEFAULT_CHART
   );
+}
+
+/* ======================================================
+   TOP10 Missing Escape (deterministic)
+====================================================== */
+
+function looksLikeTop10Missing(reply) {
+  const r = cleanText(reply).toLowerCase();
+  if (!r) return false;
+
+  // Catch common engine phrasing: "I don't have a clean Top 10 list for 1964..."
+  if (r.includes("don't have") && r.includes("top") && r.includes("10")) return true;
+  if (r.includes("dont have") && r.includes("top") && r.includes("10")) return true;
+  if (r.includes("no clean") && r.includes("top") && r.includes("10")) return true;
+  if (r.includes("not have") && r.includes("top") && r.includes("10")) return true;
+
+  // Catch variants: missing chart sources / not loaded chart sources
+  if (r.includes("chart") && r.includes("not") && r.includes("loaded") && r.includes("top")) return true;
+  if (r.includes("loaded chart sources") && r.includes("top")) return true;
+
+  return false;
+}
+
+function top10MissingFollowUps(year) {
+  const y = clampYear(Number(year)) || 1988;
+  const ny = safeIncYear(y, +1);
+  return [
+    { label: "Micro moment", send: `micro moment ${y}` },
+    { label: ny ? `Top 10 ${ny}` : "Top 10", send: ny ? `top 10 ${ny}` : "Top 10" },
+    { label: "Another year", send: "Another year" },
+    { label: "Replay", send: "Replay last" },
+  ];
 }
 
 /* ======================================================
@@ -735,7 +773,9 @@ function getTtsTuningForMode(voiceMode) {
 async function elevenTtsMp3Buffer(text, voiceMode) {
   const tuning = getTtsTuningForMode(voiceMode);
 
-  const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(ELEVEN_VOICE_ID)}`;
+  const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(
+    ELEVEN_VOICE_ID
+  )}`;
 
   const body = {
     text,
@@ -780,7 +820,9 @@ async function elevenTtsMp3Buffer(text, voiceMode) {
     return {
       ok: false,
       status: isAbort ? 504 : 502,
-      detail: isAbort ? `Upstream timeout after ${ELEVEN_TTS_TIMEOUT_MS}ms` : msg,
+      detail: isAbort
+        ? `Upstream timeout after ${ELEVEN_TTS_TIMEOUT_MS}ms`
+        : msg,
     };
   } finally {
     clearTimeout(t);
@@ -931,7 +973,7 @@ function addMomentumTail(session, reply) {
 }
 
 /* ======================================================
-   Music engine wrapper (bridged)
+   Music engine wrapper (bridged + TOP10 Missing Escape)
 ====================================================== */
 
 async function runMusicEngine(text, session) {
@@ -954,6 +996,46 @@ async function runMusicEngine(text, session) {
     }
 
     postEngineBridge(session);
+
+    // ===== TOP10 Missing Escape (deterministic) =====
+    // If the user asked for Top 10 and engine says chart isn't available, auto-switch to Story moment and run it.
+    const reply0 = cleanText(out.reply || "");
+    const modeReq = normalizeModeToken(text) || session.activeMusicMode || session.pendingMode || null;
+    const yearReq = clampYear(y || session.lastYear || session.lastMusicYear);
+
+    if (modeReq === "top10" && yearReq && looksLikeTop10Missing(reply0)) {
+      session.lane = "music";
+      session.activeMusicMode = "story";
+      session.pendingMode = null;
+      session.lastYear = yearReq;
+      session.lastMusicYear = yearReq;
+
+      guardChartForYear(session, yearReq);
+      preEngineBridge(session);
+
+      const out2 = musicKnowledge.handleChat({
+        text: `story moment ${yearReq}`,
+        session,
+      }) || {};
+
+      if (out2.sessionPatch && typeof out2.sessionPatch === "object") {
+        Object.assign(session, out2.sessionPatch);
+      }
+
+      postEngineBridge(session);
+
+      const storyReply = cleanText(out2.reply || "");
+      const prefix = `I don’t have a clean Top 10 chart for ${yearReq} in this build. I’m switching to the story moment for ${yearReq}.`;
+
+      const stitched = storyReply ? `${prefix}\n\n${storyReply}` : prefix;
+
+      return Object.assign({}, out2, {
+        reply: stitched,
+        followUps: top10MissingFollowUps(yearReq),
+      });
+    }
+    // ==============================================
+
     return out;
   } catch (e) {
     return {
@@ -1848,7 +1930,7 @@ app.post("/api/chat", async (req, res) => {
   }
 
   // NOTE: bareYear guard removed (duplicate/unreachable under the branches above)
-  void bareYear; // keep variable referenced for lint/clarity; no runtime effect
+  void bareYear; // keep variable referenced for clarity; no runtime effect
 
   // Fallback passthrough
   session.lane = "music";
