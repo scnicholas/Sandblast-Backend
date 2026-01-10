@@ -1,0 +1,159 @@
+"use strict";
+
+/**
+ * Utils/conversationProgress.js
+ *
+ * Conversation Progress Engine (CPE)
+ * Purpose:
+ *  - Normalize user input into "intent-ish" hints (year/mode)
+ *  - Detect missing slots and return exactly ONE forward question
+ *  - Provide universal followUps contract (4 chips)
+ *
+ * Universal chips (ALWAYS):
+ *  1) Continue (if resumable) OR Start fresh
+ *  2) Top 10
+ *  3) Story moment
+ *  4) Micro moment
+ */
+
+function norm(s) {
+  return String(s || "")
+    .replace(/\u200B/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function lower(s) {
+  return norm(s).toLowerCase();
+}
+
+function parseYear(text) {
+  const s = lower(text);
+  const m = s.match(/\b(19[5-9]\d|20[0-1]\d|202[0-4])\b/); // 1950–2024
+  if (!m) return null;
+  const y = parseInt(m[1], 10);
+  if (y >= 1950 && y <= 2024) return y;
+  return null;
+}
+
+function parseMode(text) {
+  const s = lower(text);
+
+  // Normalize common variants
+  if (/\btop\s*10\b/.test(s) || /\btop ten\b/.test(s)) return "top10";
+  if (/\bstory\b/.test(s)) return "story";
+  if (/\bmicro\b/.test(s)) return "micro";
+
+  // If user taps chips that send "Top 10" etc.
+  if (s === "top 10") return "top10";
+  if (s === "story moment") return "story";
+  if (s === "micro moment") return "micro";
+
+  return null;
+}
+
+function resumable(session) {
+  // "Resumable" means we have at least a year or mode or prior lane context
+  // You can tighten this later if you want.
+  if (!session) return false;
+  return !!(session.year || session.mode || session.lane || session.lastReply);
+}
+
+function universalFollowUps(session) {
+  const canContinue = resumable(session);
+  return [
+    canContinue
+      ? { label: "Continue", send: "Continue" }
+      : { label: "Start fresh", send: "Start fresh" },
+    { label: "Top 10", send: "Top 10" },
+    { label: "Story moment", send: "Story moment" },
+    { label: "Micro moment", send: "Micro moment" },
+  ];
+}
+
+function applyInputHints(text, session) {
+  const y = parseYear(text);
+  const m = parseMode(text);
+
+  const patch = {};
+  if (y) patch.year = y;
+  if (m) patch.mode = m;
+
+  // If user provides year without mode, we remember "pendingYear" so the next question can be mode.
+  // If user provides mode without year, remember pendingMode so next question can be year.
+  if (y && !m) patch.pending = { ...(session.pending || {}), year: y };
+  if (m && !y) patch.pending = { ...(session.pending || {}), mode: m };
+
+  return patch;
+}
+
+function resolvePending(session) {
+  const p = session.pending || {};
+  // If we now have both, commit them
+  if (p.year && p.mode) {
+    session.year = session.year || p.year;
+    session.mode = session.mode || p.mode;
+    session.pending = {};
+    return true;
+  }
+  return false;
+}
+
+function missingSlotQuestion(session) {
+  // Decide ONE question to ask, max.
+  // Priority: if mode missing but year known -> ask mode.
+  // If year missing but mode known -> ask year.
+  // If both missing -> ask year first (fastest cognitive load).
+  const y = session.year || (session.pending && session.pending.year);
+  const m = session.mode || (session.pending && session.pending.mode);
+
+  if (!y && !m) {
+    return "Give me a year (1950–2024).";
+  }
+  if (y && !m) {
+    return `Got it — ${y}. What do you want: Top 10, Story moment, or Micro moment?`;
+  }
+  if (!y && m) {
+    return "Which year (1950–2024)?";
+  }
+  return null; // nothing missing
+}
+
+function isStartFresh(text) {
+  const s = lower(text);
+  return s === "start fresh" || s === "restart" || s === "reset";
+}
+
+function isContinue(text) {
+  const s = lower(text);
+  return s === "continue" || s === "keep going" || s === "resume";
+}
+
+function startFresh(session) {
+  // Preserve visitor identity; clear conversational state.
+  session.year = null;
+  session.mode = null;
+  session.pending = {};
+  session.lane = session.lane || "general";
+  session.lastReply = null;
+  session.lastUser = null;
+  session.resumed = false;
+}
+
+function markContinue(session) {
+  session.resumed = true;
+}
+
+module.exports = {
+  parseYear,
+  parseMode,
+  universalFollowUps,
+  applyInputHints,
+  resolvePending,
+  missingSlotQuestion,
+  isStartFresh,
+  isContinue,
+  startFresh,
+  markContinue,
+  norm
+};
