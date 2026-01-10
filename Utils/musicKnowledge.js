@@ -557,14 +557,20 @@ function resolveChartForYear(year, requestedChart) {
 
   // Safety: if no year, just validate chart availability
   if (!y) {
-    const c = chartIsAvailable(req) ? req : pickBestAvailableChart([YEAR_END_CHART, DEFAULT_CHART]);
+    const c = chartIsAvailable(req)
+      ? req
+      : pickBestAvailableChart([YEAR_END_CHART, DEFAULT_CHART]);
     return { ok: true, chart: c, fellBackFrom: c !== req ? req : undefined };
   }
 
   // 1950–1959: prefer singles if available (this is the canonical 50s spine in your build)
   if (y >= 1950 && y <= 1959) {
     if (chartIsAvailable(YEAR_END_SINGLES_CHART)) {
-      return { ok: true, chart: YEAR_END_SINGLES_CHART, fellBackFrom: req !== YEAR_END_SINGLES_CHART ? req : undefined };
+      return {
+        ok: true,
+        chart: YEAR_END_SINGLES_CHART,
+        fellBackFrom: req !== YEAR_END_SINGLES_CHART ? req : undefined,
+      };
     }
     // No singles file? fall back to anything available
     const c = pickBestAvailableChart([YEAR_END_CHART, DEFAULT_CHART, req]);
@@ -792,7 +798,6 @@ function handleChat({ text, session }) {
       const choice = resolveChartForYear(y, session.activeMusicChart);
       const chart = choice.chart;
 
-      // If the resolved chart has zero rows for this year, Top10 will attempt fallbacks anyway.
       const out = formatTopListWithFallbacks(y, chart, 10);
 
       if (out && out.formatted) {
@@ -815,7 +820,6 @@ function handleChat({ text, session }) {
           ? ""
           : " (No chart datasets are currently loaded on the server.)";
 
-      // Forward motion (no dead end)
       return {
         reply:
           `I don’t have a clean Top 10 list for ${y} on the loaded chart sources in this build yet${missingHint}. ` +
@@ -832,7 +836,9 @@ function handleChat({ text, session }) {
 
     if (cmd.kind === "number1") {
       const y = toInt(session.lastMusicYear);
-      const chart = normalizeChart(session.lastMusicChart || session.activeMusicChart);
+      const chart = normalizeChart(
+        session.lastMusicChart || session.activeMusicChart
+      );
 
       if (!isYearInRange(y)) {
         return {
@@ -915,7 +921,11 @@ function handleChat({ text, session }) {
 
       return {
         reply: moment,
-        followUp: [`top 10 ${y}`, "#1", y + 1 <= PUBLIC_MAX_YEAR ? String(y + 1) : "Another year"],
+        followUp: [
+          `top 10 ${y}`,
+          "#1",
+          y + 1 <= PUBLIC_MAX_YEAR ? String(y + 1) : "Another year",
+        ],
         domain: "music",
         sessionPatch: canonicalPatch(session, {
           activeMusicChart: chart,
