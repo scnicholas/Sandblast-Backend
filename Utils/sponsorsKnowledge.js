@@ -626,7 +626,8 @@ function normalizeCtaToken(s) {
   if (!t) return null;
 
   if (t.includes("book") && t.includes("call")) return "book_a_call";
-  if (t.includes("rate") && (t.includes("card") || t.includes("rates") || t.includes("pricing"))) return "request_rate_card";
+  if (t.includes("rate") && (t.includes("card") || t.includes("rates") || t.includes("pricing")))
+    return "request_rate_card";
   if (t.includes("whatsapp") || /\bwa\b/.test(t)) return "whatsapp";
 
   return null;
