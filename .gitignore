@@ -41,6 +41,9 @@ payload.json
 chat_payload.json
 tts_payload.json
 payload_*.json
+*_payload.json
+t_*.json
+health.json
 
 # =========================
 # Local scratch / one-off utilities (do not commit)
@@ -55,6 +58,11 @@ Scripts/cards_to_chart_dump.js
 Scripts/*.txt
 Scripts/*.json
 Scripts/debug_*.js
+
+# =========================
+# Local temporary working directories
+# =========================
+_local_tmp/
 
 # =========================
 # OS / Editor noise
