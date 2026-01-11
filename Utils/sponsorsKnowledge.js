@@ -8,6 +8,20 @@
  *  - Provide normalized helpers for categories, tiers/packages, CTAs, restrictions
  *  - Provide a simple recommender scaffold (tier/package + bundle suggestion)
  *
+ * Option A Update (catalog load reliability + better diagnostics):
+ *  1) ENV override precedence fixed:
+ *      - If SPONSORS_CATALOG_PATH is set, it overrides DEFAULT unless an explicit relPath is passed.
+ *      - Previously, relPath could unintentionally override env even when empty-ish.
+ *  2) findCatalogPath now tests BOTH:
+ *      - the explicit relPath
+ *      - the env override path (absolute or relative)
+ *     and returns the first match.
+ *  3) Adds richer load error info:
+ *      - candidates list (where we looked)
+ *      - lastErr if read/parse fails
+ *  4) Adds getCatalogStatus(): small, safe status object for debugging in /api/health or /api/chat?debug=1.
+ *  5) Keeps callers safe: never throws outward.
+ *
  * Design notes:
  *  - No external deps
  *  - Safe file loading with cwd-relative fallback
@@ -29,6 +43,8 @@ let _cache = {
   error: null,
   mtimeMs: 0,
   loadedAt: 0,
+  candidates: [],
+  lastErr: null,
 };
 
 function nowIso() {
@@ -87,37 +103,91 @@ function normToken(s) {
     .replace(/\s+/g, "_");
 }
 
-function findCatalogPath(relPath) {
-  // 0) Env override supports absolute or relative
-  const env = cleanText(process.env[ENV_CATALOG_PATH] || "");
-  const chosen = cleanText(relPath || "") || env || DEFAULT_CATALOG_REL;
-
-  // If absolute path is provided, try it directly
+function fileExists(abs) {
   try {
-    if (chosen && path.isAbsolute(chosen) && fs.existsSync(chosen)) return chosen;
-  } catch (_) {
+    return !!abs && fs.existsSync(abs);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Build candidate absolute paths for a given rel (or abs) string.
+ * Returns { candidates: string[], directAbs?: string }
+ */
+function buildCandidates(maybePath) {
+  const p = cleanText(maybePath || "");
+  const out = [];
+
+  if (!p) return { candidates: out };
+
+  // Absolute path direct
+  try {
+    if (path.isAbsolute(p)) {
+      return { candidates: [p] };
+    }
+  } catch {
     // ignore
   }
 
-  const rel = String(chosen || DEFAULT_CATALOG_REL).replace(/^\/+/, "");
-  const candidates = [];
+  const rel = String(p).replace(/^\/+/, "");
 
   // 1) cwd-relative
-  candidates.push(path.join(process.cwd(), rel));
+  out.push(path.join(process.cwd(), rel));
 
   // 2) relative to this file (../Data/...)
-  candidates.push(path.join(__dirname, "..", rel));
+  out.push(path.join(__dirname, "..", rel));
 
   // 3) relative to project root guess (/src)
-  candidates.push(path.join(process.cwd(), "src", rel));
+  out.push(path.join(process.cwd(), "src", rel));
 
-  for (const abs of candidates) {
-    try {
-      if (fs.existsSync(abs)) return abs;
-    } catch (_) {
-      // ignore
-    }
+  return { candidates: out };
+}
+
+/**
+ * Find the catalog path.
+ * Precedence:
+ *  - If relPath is a real value, try it first
+ *  - Else if ENV override exists, try it
+ *  - Else default
+ *
+ * We also test BOTH relPath and env path (when both exist), in a deterministic order.
+ */
+function findCatalogPath(relPath) {
+  const env = cleanText(process.env[ENV_CATALOG_PATH] || "");
+  const rel = cleanText(relPath || "");
+
+  // Determine search order
+  const searchList = [];
+  if (rel) searchList.push(rel);
+  if (env && env !== rel) searchList.push(env);
+  if (DEFAULT_CATALOG_REL !== rel && DEFAULT_CATALOG_REL !== env) searchList.push(DEFAULT_CATALOG_REL);
+  if (!searchList.length) searchList.push(DEFAULT_CATALOG_REL);
+
+  const candidates = [];
+  for (const item of searchList) {
+    const built = buildCandidates(item);
+    for (const c of built.candidates) candidates.push(c);
   }
+
+  // De-dup while preserving order
+  const seen = new Set();
+  const uniq = [];
+  for (const c of candidates) {
+    const key = String(c || "");
+    if (!key) continue;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    uniq.push(key);
+  }
+
+  // Save candidates for diagnostics (last attempt)
+  _cache.candidates = uniq;
+
+  for (const abs of uniq) {
+    if (fileExists(abs)) return abs;
+  }
+
   return null;
 }
 
@@ -235,7 +305,6 @@ function normalizeCatalog(cat) {
   const defaults = {
     currency: cleanText(defaultsIn.currency || currency) || currency,
     cta: cleanText(defaultsIn.cta || ctas.primary) || ctas.primary,
-    // Prefer a package/tier-like default if present; else "growth_bundle" / "growth"
     tier: normToken(defaultsIn.tier || "growth_bundle") || "growth_bundle",
     ...defaultsIn,
   };
@@ -263,24 +332,31 @@ function normalizeCatalog(cat) {
  * Load catalog (cached). If file changes on disk, reload.
  */
 function loadCatalog(relPath) {
-  const rel =
-    pickFirstNonEmpty([relPath, process.env[ENV_CATALOG_PATH], DEFAULT_CATALOG_REL], DEFAULT_CATALOG_REL).replace(
-      /^\/+/,
-      ""
-    );
+  // IMPORTANT precedence:
+  // - If relPath is provided and non-empty, we honor it.
+  // - Else env override (if set).
+  // - Else default.
+  const requested = cleanText(relPath || "");
+  const env = cleanText(process.env[ENV_CATALOG_PATH] || "");
+  const effectiveRel = requested || env || DEFAULT_CATALOG_REL;
 
-  const abs = findCatalogPath(rel);
+  // Find path considering BOTH requested and env and default (deterministic order)
+  const abs = findCatalogPath(effectiveRel);
+
   if (!abs) {
+    const relShown = effectiveRel.replace(/^\/+/, "");
     _cache = {
       loaded: false,
-      rel,
+      rel: relShown,
       abs: null,
       catalog: null,
-      error: `CATALOG_NOT_FOUND: ${rel}`,
+      error: `CATALOG_NOT_FOUND: ${relShown}`,
       mtimeMs: 0,
       loadedAt: 0,
+      candidates: Array.isArray(_cache.candidates) ? _cache.candidates : [],
+      lastErr: null,
     };
-    return { ok: false, error: _cache.error, rel, abs: null, catalog: null };
+    return { ok: false, error: _cache.error, rel: relShown, abs: null, catalog: null, candidates: _cache.candidates };
   }
 
   try {
@@ -288,7 +364,7 @@ function loadCatalog(relPath) {
     const mtimeMs = Number(st.mtimeMs || 0);
 
     if (_cache.loaded && _cache.abs === abs && _cache.mtimeMs === mtimeMs && _cache.catalog) {
-      return { ok: true, rel, abs, catalog: _cache.catalog };
+      return { ok: true, rel: _cache.rel, abs, catalog: _cache.catalog };
     }
 
     const { json, mtimeMs: newMtime } = tryReadJsonFile(abs);
@@ -296,26 +372,39 @@ function loadCatalog(relPath) {
 
     _cache = {
       loaded: true,
-      rel,
+      rel: effectiveRel.replace(/^\/+/, ""),
       abs,
       catalog,
       error: null,
       mtimeMs: newMtime,
       loadedAt: Date.now(),
+      candidates: Array.isArray(_cache.candidates) ? _cache.candidates : [],
+      lastErr: null,
     };
 
-    return { ok: true, rel, abs, catalog };
+    return { ok: true, rel: _cache.rel, abs, catalog };
   } catch (e) {
+    const msg = String(e && e.message ? e.message : e);
     _cache = {
       loaded: false,
-      rel,
+      rel: effectiveRel.replace(/^\/+/, ""),
       abs,
       catalog: null,
-      error: `CATALOG_READ_ERROR: ${String(e && e.message ? e.message : e)}`,
+      error: `CATALOG_READ_ERROR: ${msg}`,
       mtimeMs: 0,
       loadedAt: 0,
+      candidates: Array.isArray(_cache.candidates) ? _cache.candidates : [],
+      lastErr: msg,
     };
-    return { ok: false, error: _cache.error, rel, abs, catalog: null };
+    return {
+      ok: false,
+      error: _cache.error,
+      rel: _cache.rel,
+      abs,
+      catalog: null,
+      candidates: _cache.candidates,
+      lastErr: _cache.lastErr,
+    };
   }
 }
 
@@ -356,6 +445,23 @@ function getProperties() {
   return cat.properties || { tv: true, radio: true, website: true, social: true };
 }
 
+/**
+ * Small, safe diagnostic snapshot for debug/health.
+ * Does not include the full catalog payload.
+ */
+function getCatalogStatus() {
+  return {
+    ok: !!(_cache.loaded && _cache.catalog),
+    rel: _cache.rel || null,
+    abs: _cache.abs || null,
+    error: _cache.error || null,
+    mtimeMs: _cache.mtimeMs || 0,
+    loadedAt: _cache.loadedAt || 0,
+    candidates: Array.isArray(_cache.candidates) ? _cache.candidates.slice(0, 10) : [],
+    lastErr: _cache.lastErr || null,
+  };
+}
+
 /* ======================================================
    Category / Package helpers (new)
 ====================================================== */
@@ -363,7 +469,9 @@ function getProperties() {
 function listCategoryIds(catalogMaybe) {
   const cat = catalogMaybe || getCatalog();
   if (!cat) return [];
-  return Object.keys(cat.categories || {}).map((k) => cleanText(k)).filter(Boolean);
+  return Object.keys(cat.categories || {})
+    .map((k) => cleanText(k))
+    .filter(Boolean);
 }
 
 function getCategory(catalogMaybe, categoryId) {
@@ -407,9 +515,6 @@ function getPackageById(catalogMaybe, packageId) {
 
 /**
  * Recommend *package ids* given category + budgetTier.
- * - budgetTier wins if explicit (starter_test/growth_bundle/dominance)
- * - else category.recommended from catalog if present
- * - else fallback ["growth"]
  */
 function recommendPackageIds(catalogMaybe, categoryId, budgetTier) {
   const cat = catalogMaybe || getCatalog();
@@ -430,8 +535,6 @@ function recommendPackageIds(catalogMaybe, categoryId, budgetTier) {
 
 /* ======================================================
    Tier/Package compatibility layer
-   - Your v1 JSON uses packages (starter/growth/dominance)
-   - Some older logic expects "tiers" (starter_test/growth_bundle/dominance)
 ====================================================== */
 
 function getTierById(tierId) {
@@ -471,8 +574,6 @@ function listTierChoices() {
   const cat = getCatalog();
   if (!cat) return [];
 
-  const out = [];
-
   // Prefer tiers if defined
   if (Array.isArray(cat.tiers) && cat.tiers.length) {
     return cat.tiers.map((t) => ({
@@ -485,15 +586,12 @@ function listTierChoices() {
 
   // Fall back to packages
   const pkgs = Array.isArray(cat.packages) ? cat.packages : [];
-  for (const p of pkgs) {
-    out.push({
-      id: cleanText(p.id),
-      label: cleanText(p.name || p.id),
-      range: p.priceRange ? { text: p.priceRange } : null,
-      frequency_hint: null,
-    });
-  }
-  return out;
+  return pkgs.map((p) => ({
+    id: cleanText(p.id),
+    label: cleanText(p.name || p.id),
+    range: p.priceRange ? { text: p.priceRange } : null,
+    frequency_hint: null,
+  }));
 }
 
 /* ======================================================
@@ -518,7 +616,8 @@ function normalizeCtaToken(s) {
   if (!t) return null;
 
   if (t.includes("book") && t.includes("call")) return "book_a_call";
-  if (t.includes("rate") && (t.includes("card") || t.includes("rates") || t.includes("pricing"))) return "request_rate_card";
+  if (t.includes("rate") && (t.includes("card") || t.includes("rates") || t.includes("pricing")))
+    return "request_rate_card";
   if (t.includes("whatsapp") || /\bwa\b/.test(t)) return "whatsapp";
 
   return null;
@@ -629,19 +728,20 @@ function recommendPackage(input = {}) {
   const props = cat.properties || { tv: true, radio: true, website: true, social: true };
   const property = normalizePropertyToken(input.property) || "bundle";
 
-  // Tier selection priority:
-  // 1) explicit tierId if it matches catalog (tiers OR packages)
-  // 2) budget token (starter/growth/dominance)
-  // 3) catalog defaults
-  // 4) fallback growth_bundle (or first available)
   const explicitTierId = normToken(input.tierId);
   const tierFromBudget = normalizeBudgetToken(input.budget);
   let tierId = null;
 
   if (explicitTierId && getTierById(explicitTierId)) tierId = explicitTierId;
   else if (tierFromBudget && getTierById(tierFromBudget)) tierId = tierFromBudget;
-  else if (cat.defaults && normToken(cat.defaults.tier) && getTierById(cat.defaults.tier)) tierId = normToken(cat.defaults.tier);
-  else tierId = getTierById("growth_bundle") ? "growth_bundle" : ((cat.tiers && cat.tiers[0] && cat.tiers[0].id) || (cat.packages && cat.packages[0] && cat.packages[0].id) || "growth_bundle");
+  else if (cat.defaults && normToken(cat.defaults.tier) && getTierById(cat.defaults.tier))
+    tierId = normToken(cat.defaults.tier);
+  else
+    tierId = getTierById("growth_bundle")
+      ? "growth_bundle"
+      : (cat.tiers && cat.tiers[0] && cat.tiers[0].id) ||
+        (cat.packages && cat.packages[0] && cat.packages[0].id) ||
+        "growth_bundle";
 
   const category = normalizeCategoryToken(input.category) || "other";
   const goal = cleanText(input.goal) || "brand awareness";
@@ -670,19 +770,15 @@ function recommendPackage(input = {}) {
   if (!freq) {
     const idn = normToken(tierId);
     if (idn === "starter_test" || idn === "starter") freq = "Low frequency: 2–3 mentions/week (test + learn)";
-    else if (idn === "growth_bundle" || idn === "growth") freq = "Core frequency: 4–7 mentions/week (enough repetition to move outcomes)";
+    else if (idn === "growth_bundle" || idn === "growth")
+      freq = "Core frequency: 4–7 mentions/week (enough repetition to move outcomes)";
     else if (idn === "dominance") freq = "High frequency: daily mentions or sponsored segment ownership";
     else freq = "Steady frequency matched to your flight dates and goals.";
   }
 
   const recommendedPackageIds = recommendPackageIds(cat, category, tierId);
 
-  const notes = [
-    `Category: ${category}`,
-    `Goal: ${goal}`,
-    `CTA: ${cta}`,
-    `Tier: ${tierLabel}`,
-  ].join(" | ");
+  const notes = [`Category: ${category}`, `Goal: ${goal}`, `CTA: ${cta}`, `Tier: ${tierLabel}`].join(" | ");
 
   return {
     ok: true,
@@ -746,6 +842,7 @@ module.exports = {
   getCatalog,
   getCatalogMeta,
   getCatalogDebug,
+  getCatalogStatus,
 
   // Token helper
   normToken,
