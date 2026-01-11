@@ -5,6 +5,17 @@
  *
  * Sponsors Lane v1.2 (TIGHT + Deterministic + Chip-Safe + Optional Business/Restrictions + Script Variants)
  *
+ * Option A Update (surgical fixes + forward-motion guarantees):
+ *  1) Rotation bug fix: pickRotate now starts at -1 so it actually returns option[0] first.
+ *  2) “Ask-once” guards for optional fields:
+ *      - business is OPTIONAL and should be asked at most once unless user explicitly requests.
+ *      - restrictions is OPTIONAL and should be asked at most once unless user explicitly requests.
+ *     Implemented via state flags: askedBusiness, askedRestrictions.
+ *  3) Budget number parsing fallback:
+ *      - If user types a number (e.g., “800”) and SK doesn’t normalize it, map it to a tier deterministically.
+ *  4) Chip-safe progression:
+ *      - “Skip” and “No restrictions” now actually advance and don’t cause repeated asks.
+ *
  * Purpose:
  *  - Sponsors Lane conversational handler (Nyx-ready)
  *  - Collects minimal fields:
@@ -39,13 +50,16 @@ function cleanText(s) {
     .trim();
 }
 
+/**
+ * Deterministic rotation that actually returns options[0] first.
+ */
 function pickRotate(session, key, options) {
   if (!session || !Array.isArray(options) || options.length === 0) {
     return (options && options[0]) || "";
   }
   const k = String(key || "rot");
   const idxKey = `_rot_${k}`;
-  const last = Number(session[idxKey] || 0);
+  const last = Number.isFinite(Number(session[idxKey])) ? Number(session[idxKey]) : -1;
   const next = (last + 1) % options.length;
   session[idxKey] = next;
   return options[next];
@@ -85,11 +99,7 @@ function isSponsorIntent(text) {
     return true;
 
   // Soft triggers (but still pretty safe)
-  if (
-    /\b(brand deal|sponsorship|sponsored|spot buy|flight|impressions|cpm)\b/.test(
-      t
-    )
-  )
+  if (/\b(brand deal|sponsorship|sponsored|spot buy|flight|impressions|cpm)\b/.test(t))
     return true;
 
   return false;
@@ -99,17 +109,10 @@ function normalizeGoal(text) {
   const t = cleanText(text).toLowerCase();
   if (!t) return null;
 
-  if (t.includes("call") || t.includes("booking") || /\bbook\b/.test(t))
-    return "calls";
-  if (
-    t.includes("foot") ||
-    t.includes("store") ||
-    t.includes("walk-in") ||
-    t.includes("walk in")
-  )
+  if (t.includes("call") || t.includes("booking") || /\bbook\b/.test(t)) return "calls";
+  if (t.includes("foot") || t.includes("store") || t.includes("walk-in") || t.includes("walk in"))
     return "foot traffic";
-  if (t.includes("click") || t.includes("website") || t.includes("site"))
-    return "website clicks";
+  if (t.includes("click") || t.includes("website") || t.includes("site")) return "website clicks";
   if (t.includes("awareness") || t.includes("brand")) return "brand awareness";
 
   return null;
@@ -124,6 +127,20 @@ function looksLikeUrl(s) {
   const t = cleanText(s).toLowerCase();
   if (!t) return false;
   return t.includes("http://") || t.includes("https://") || t.startsWith("www.");
+}
+
+function parseBudgetNumber(text) {
+  const t = cleanText(text);
+  if (!t) return null;
+
+  // Pull the first number-looking token; allow commas and $.
+  const m = t.match(/(?:^|\s)\$?\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)(?:\.\d+)?(?:\s|$)/);
+  if (!m || !m[1]) return null;
+
+  const raw = m[1].replace(/,/g, "");
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n;
 }
 
 /* ======================================================
@@ -144,6 +161,10 @@ function getState(session) {
     cta: cleanText(st.cta || ""),
     restrictions: cleanText(st.restrictions || ""),
     stage: cleanText(st.stage || ""), // ask_property|ask_goal|ask_category|ask_business|ask_budget|ask_cta|ask_restrictions|done
+
+    // Ask-once flags for OPTIONAL fields (prevents loops)
+    askedBusiness: !!st.askedBusiness,
+    askedRestrictions: !!st.askedRestrictions,
   };
 }
 
@@ -167,9 +188,7 @@ function getCtaLabels(catalog) {
     {};
   return {
     book_a_call: cleanText(labels.book_a_call || "Book a call") || "Book a call",
-    request_rate_card:
-      cleanText(labels.request_rate_card || "Request rate card") ||
-      "Request rate card",
+    request_rate_card: cleanText(labels.request_rate_card || "Request rate card") || "Request rate card",
     whatsapp: cleanText(labels.whatsapp || "WhatsApp") || "WhatsApp",
   };
 }
@@ -184,8 +203,7 @@ function prettifyCategory(catalog, categoryId) {
   if (!hitKey) return id;
 
   const v = c[hitKey];
-  if (v && typeof v === "object")
-    return cleanText(v.label || v.name || hitKey) || hitKey;
+  if (v && typeof v === "object") return cleanText(v.label || v.name || hitKey) || hitKey;
   return cleanText(String(v || hitKey)) || hitKey;
 }
 
@@ -334,8 +352,7 @@ function stagePrompt(stage, session, catalog) {
   }
   if (stage === "ask_budget") {
     return (
-      p.budget ||
-      `Budget tier in ${currency}: Starter, Growth, or Dominance? (Or type a number like “800”.)`
+      p.budget || `Budget tier in ${currency}: Starter, Growth, or Dominance? (Or type a number like “800”.)`
     );
   }
   if (stage === "ask_cta") {
@@ -351,19 +368,22 @@ function stagePrompt(stage, session, catalog) {
   ]);
 }
 
+/**
+ * Optional fields are “ask-once”:
+ *  - business: ask once (unless user explicitly engages it)
+ *  - restrictions: ask once (unless user explicitly engages it)
+ */
 function nextMissingField(state) {
   if (!state.property) return "ask_property";
   if (!state.goal) return "ask_goal";
   if (!state.category) return "ask_category";
 
-  // business is optional; ask once (does not block build)
-  if (state.stage !== "done" && !state.business) return "ask_business";
+  if (!state.askedBusiness && !state.business) return "ask_business";
 
   if (!state.budgetTier) return "ask_budget";
   if (!state.cta) return "ask_cta";
 
-  // restrictions are optional; ask once, but don’t block
-  if (state.stage !== "done" && !state.restrictions) return "ask_restrictions";
+  if (!state.askedRestrictions && !state.restrictions) return "ask_restrictions";
 
   return "done";
 }
@@ -431,25 +451,50 @@ function applyUserAnswerToState(text, state, catalog) {
   if (cat) state.category = cat;
 
   // business name capture (NEVER infer from category unless user explicitly requests)
+  const explicitBusinessEngagement =
+    lower === "skip" || lower === "use category name" || /\b(business|company|brand|sponsor)\s*:/.test(lower);
+
   if (!state.business) {
     const bn = extractBusinessName(t, state);
-    if (bn) state.business = bn;
+    if (bn) {
+      state.business = bn;
+      state.askedBusiness = true;
+    }
   }
-  if (lower === "skip") state.business = state.business || "";
+
+  if (lower === "skip") {
+    state.business = ""; // keep empty (generic)
+    state.askedBusiness = true; // IMPORTANT: prevents re-asking
+  }
+
   if (lower === "use category name") {
     const catPretty = prettifyCategory(catalog, state.category || "other");
     if (catPretty && catPretty !== "other") state.business = catPretty;
+    state.askedBusiness = true; // user explicitly requested this mapping
+  }
+
+  // If user explicitly engages business but provides nothing (e.g., “business:”),
+  // mark asked so we don’t loop.
+  if (explicitBusinessEngagement && state.stage === "ask_business") {
+    state.askedBusiness = true;
   }
 
   // budget tier (supports explicit tier id OR catalog normalization)
-  const tier = isTierId(lower) ? lower : SK.normalizeBudgetToken(t);
+  let tier = isTierId(lower) ? lower : SK.normalizeBudgetToken(t);
+  if (!tier) {
+    const n = parseBudgetNumber(t);
+    if (n) {
+      // Deterministic fallback mapping
+      if (n < 500) tier = "starter_test";
+      else if (n < 1500) tier = "growth_bundle";
+      else tier = "dominance";
+    }
+  }
   if (tier) state.budgetTier = tier;
 
   // cta (supports explicit token or friendly phrases)
   const cta =
-    lower === "book_a_call" ||
-    lower === "request_rate_card" ||
-    lower === "whatsapp"
+    lower === "book_a_call" || lower === "request_rate_card" || lower === "whatsapp"
       ? lower
       : SK.normalizeCtaToken(t);
   if (cta) state.cta = cta;
@@ -460,18 +505,27 @@ function applyUserAnswerToState(text, state, catalog) {
   if (lower.includes("whatsapp")) state.cta = "whatsapp";
   if (lower.includes("book") && lower.includes("call")) state.cta = "book_a_call";
 
-  // restrictions
-  if (lower.includes("no restrictions")) state.restrictions = "none";
-  else if (lower.includes("standard policy")) state.restrictions = "standard";
-  else if (lower.includes("i have restrictions")) state.restrictions = "custom";
-  else {
-    // If they typed a real restriction line, accept it (don’t require the word "restrict")
+  // restrictions (optional, ask-once logic)
+  if (lower.includes("no restrictions")) {
+    state.restrictions = "none";
+    state.askedRestrictions = true;
+  } else if (lower.includes("standard policy")) {
+    state.restrictions = "standard";
+    state.askedRestrictions = true;
+  } else if (lower.includes("i have restrictions")) {
+    // user is signaling they’ll type them next; mark asked so we don't loop
+    state.restrictions = "custom";
+    state.askedRestrictions = true;
+  } else {
+    // If they typed a real restriction line, accept it
     if (state.stage === "ask_restrictions" && t.length >= 6) {
       state.restrictions = t;
+      state.askedRestrictions = true;
     }
-    // If they used the word restrict anywhere, also accept
+    // If they used the word restrict anywhere, accept
     if (!state.restrictions && t.length >= 8 && lower.includes("restrict")) {
       state.restrictions = t;
+      state.askedRestrictions = true;
     }
   }
 
@@ -483,7 +537,8 @@ function applyUserAnswerToState(text, state, catalog) {
     );
 
   const wantsAnother = lower === "another sponsor" || lower.includes("new sponsor");
-  const wantsRateCard = lower === "request rate card" || lower.includes("rate card") || lower.includes("media kit");
+  const wantsRateCard =
+    lower === "request rate card" || lower.includes("rate card") || lower.includes("media kit");
 
   // Script variants / actions
   const wants15 =
@@ -491,7 +546,8 @@ function applyUserAnswerToState(text, state, catalog) {
     /\b(15[- ]second|15s)\b/.test(lower) ||
     (lower.includes("write") && lower.includes("script") && !/\b30\b/.test(lower));
 
-  const wants30 = /\b(30[- ]second|30s)\b/.test(lower) || lower.includes("30-second") || lower.includes("30 second");
+  const wants30 =
+    /\b(30[- ]second|30s)\b/.test(lower) || lower.includes("30-second") || lower.includes("30 second");
 
   const wantsRadioVersion = /\bradio version\b/.test(lower);
   const wantsWebsiteVersion = /\bwebsite version\b/.test(lower);
@@ -556,9 +612,7 @@ function buildOfferReply(session, state, catalog) {
       ? "Restrictions: noted (custom)"
       : `Restrictions: ${state.restrictions}`;
 
-  const sponsorNameLine = state.business
-    ? `Sponsor: ${state.business}`
-    : "Sponsor: (name optional)";
+  const sponsorNameLine = state.business ? `Sponsor: ${state.business}` : "Sponsor: (name optional)";
 
   // 6–10 lines, no fluff
   const lines = [
@@ -604,9 +658,7 @@ function getSponsorNameForScript(state, catalog) {
 function getCtaPretty(state, catalog) {
   const ctaLabels = getCtaLabels(catalog);
   const cta =
-    state.cta ||
-    (catalog && catalog.defaults && cleanText(catalog.defaults.cta)) ||
-    "book_a_call";
+    state.cta || (catalog && catalog.defaults && cleanText(catalog.defaults.cta)) || "book_a_call";
 
   return (
     (cta === "book_a_call" && ctaLabels.book_a_call) ||
@@ -645,10 +697,7 @@ function buildVariantTag(variant, state, catalog) {
   const ctaPretty = getCtaPretty(state, catalog);
 
   if (variant === "radio") {
-    return [
-      "Radio version (tag):",
-      `“Sponsored by ${sponsorName}. ${ctaPretty} today.”`,
-    ].join("\n");
+    return ["Radio version (tag):", `“Sponsored by ${sponsorName}. ${ctaPretty} today.”`].join("\n");
   }
 
   if (variant === "website") {
@@ -659,10 +708,7 @@ function buildVariantTag(variant, state, catalog) {
   }
 
   if (variant === "tv") {
-    return [
-      "TV tag (super short):",
-      `“Sandblast is sponsored by ${sponsorName}. ${ctaPretty}.”`,
-    ].join("\n");
+    return ["TV tag (super short):", `“Sandblast is sponsored by ${sponsorName}. ${ctaPretty}.”`].join("\n");
   }
 
   return "";
@@ -696,6 +742,8 @@ function handleChat({ text, session } = {}) {
       cta: "",
       restrictions: "",
       stage: "ask_property",
+      askedBusiness: false,
+      askedRestrictions: false,
     });
 
     const reply = stagePrompt("ask_property", session, catalog);
@@ -814,14 +862,8 @@ function handleChat({ text, session } = {}) {
   if (action.wantsBuild) {
     const missing = nextMissingField(state);
 
-    // Allow build even if we're only missing business/restrictions (optional)
-    const blockers = [
-      "ask_property",
-      "ask_goal",
-      "ask_category",
-      "ask_budget",
-      "ask_cta",
-    ];
+    // Allow build even if we're only missing OPTIONAL fields (business/restrictions)
+    const blockers = ["ask_property", "ask_goal", "ask_category", "ask_budget", "ask_cta"];
     if (blockers.includes(missing)) {
       state.stage = missing;
       setState(session, state);
@@ -879,8 +921,7 @@ function handleChat({ text, session } = {}) {
   }
 
   // Fallback (should be rare if routing is correct)
-  const reply =
-    "Sponsors Lane — tell me what you want to promote: TV, Radio, Website, Social, or a bundle.";
+  const reply = "Sponsors Lane — tell me what you want to promote: TV, Radio, Website, Social, or a bundle.";
   return {
     reply,
     followUps: makeFollowUpsForStage("ask_property", catalog),
