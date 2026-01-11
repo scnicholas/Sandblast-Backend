@@ -3,69 +3,27 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.9 (TIGHT + Forward-Motion Patch + TOP10 Missing Escape + REPLAY-CHIPS-INTEGRITY + FOLLOWUP-MERGE
- * + RETURNING-CHIPS-GREETING-ONLY + PILLAR B (#1 ROUTING): loop-proof asks; fixes returning visit inflation
+ * index.js v1.5.10 (v1.5.9 + SPONSORS/MOVIES LANE ROUTING + LANE-SAFE FOLLOWUPS)
  *
- * Adds (from v1.5.6 you pasted):
- *  1) Phase A Forward-Motion Patch (FMP):
- *     - Prevents “ask year” if session already has a valid year.
- *     - Prevents “ask mode” if session already has a valid mode.
- *     - Loop breaker: detects repeated askYear/askMode and forces a forward action.
- *     - No-question-end: if reply ends as open prompt, Nyx proceeds with safest next step (only when year+mode exist).
- *  2) Critical fix: Returning visitor “visits” increments ONCE per new session (session._countedVisit).
- *  3) Chart Contamination Guard:
- *     - If session.activeMusicChart is Year-End Singles and user requests >=1960,
- *       auto-switch to a supported 1960+ default (Year-End Hot 100 -> Hot 100 via musicKnowledge resolver).
- *  4) Navigation completion:
- *     - Implements nextYear / prevYear / anotherYear handling.
- *  5) Session field bridge for musicKnowledge v2.72+:
- *     - Mirrors session.lastYear <-> session.lastMusicYear
- *     - Keeps activeMusicChart/lastMusicChart sane across calls
+ * CRITICAL UPDATES added on top of your v1.5.9 paste:
+ *  10) Sponsors Lane routing (deterministic + safe):
+ *      - Loads Utils/sponsorsLane if present (optional).
+ *      - If session.lane === "sponsors" OR sponsorsLane.isSponsorIntent(message):
+ *          sponsorsLane.handleChat({ text: message, session })
+ *        and returns lane-owned reply + followUps (no music nav top-up pollution).
+ *      - Global replay still works (uses lastReply + lastFollowUps).
  *
- * NEW in v1.5.6:
- *  6) TOP10 Missing Escape (deterministic):
- *     - If user requests Top 10 for a year we don’t have chart rows for, Nyx does NOT “ask what next”.
- *     - Nyx automatically switches to Story moment for that same year and proceeds.
- *     - Provides stable forward-moving follow-ups (Replay / Micro / Next Year / Another Year).
+ *  11) Movies Lane routing (optional stub-ready):
+ *      - Loads Utils/moviesLane if present (optional).
+ *      - If session.lane === "movies" OR moviesLane.isMoviesIntent(message):
+ *          moviesLane.handleChat({ text: message, session })
+ *        lane-owned reply + followUps.
  *
- * NEW in v1.5.7 (carried forward):
- *  7) Replay chips integrity:
- *     - “Replay last” now returns the SAME follow-up chips the user saw on the original reply
- *       (uses session.lastFollowUps / session.lastFollowUp when available),
- *       instead of recomputing generic defaults.
+ *  12) respondJson() made lane-safe:
+ *      - For non-music lanes (sponsors/movies): DO NOT top-up with music “tight” chips.
+ *        Only return engine/lane chips (or minimal fallback) capped to 8.
  *
- * NEW in v1.5.8 (carried forward):
- *  8) Follow-up merge policy:
- *     - When engine returns a small/skinny chip set (common on Story/Micro),
- *       we KEEP engine chips and TOP-UP with tight nav chips (Prev/Next/Another/Replay) to a max of 8,
- *       instead of replacing nav with the engine’s minimal set.
- *
- * NEW in v1.5.9 (Pillar B):
- *  9) #1 routing (deterministic):
- *     - Recognizes: "#1", "number one", "no. 1", etc.
- *     - Uses session.lastYear; if missing, asks year.
- *     - Deterministic fallback: runs Top 10 {year}, extracts the #1 line, returns "#1 — Artist — Title".
- *
- * Preserves:
- *  - Returning visitors ALWAYS get exactly 4 follow-up chips (GREETING ONLY):
- *      1) "Continue" (if resumable) OR "Start fresh"
- *      2) "Top 10"
- *      3) "Story moment"
- *      4) "Micro moment"
- *  - One-tap resume logic (Continue / Start fresh)
- *  - Optional name cue if user volunteered a name
- *  - Profiles TTL + sessions TTL
- *  - Mic feedback guard
- *  - TTS endpoints
- *  - Contract/version headers
- *
- * v1.5.6 hardening preserved:
- *  - Removes the duplicate/unreachable “bare-year guard” branch (prevents double-askMode paths).
- *
- * CRITICAL PATCH (carried forward):
- *  - Fixes “returning visitor chip inflation” UX regression:
- *    Returning 4-chip enforcement is now applied ONLY on greeting (and only when explicitly requested),
- *    not on every in-flow content turn (prevents looping / loss of nav chips).
+ * Everything else from v1.5.9 is preserved.
  */
 
 const express = require("express");
@@ -80,7 +38,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.9 (TIGHT + Forward-Motion Patch + TOP10 Missing Escape + REPLAY-CHIPS-INTEGRITY + FOLLOWUP-MERGE + RETURNING-CHIPS-GREETING-ONLY + PILLAR-B-#1-ROUTING: loop-proof asks; fixes returning visit inflation + chart contamination guard + nav completion + music field bridge)";
+  "index.js v1.5.10 (v1.5.9 + SPONSORS/MOVIES LANE ROUTING + LANE-SAFE FOLLOWUPS; preserves FMP + TOP10 missing escape + replay integrity + followUp merge + returning chips greeting-only + #1 routing + chart contamination guard + nav completion + music field bridge)";
 
 /* ======================================================
    Basic middleware
@@ -246,20 +204,14 @@ function safeJsonParse(body, rawFallback) {
 
     if (typeof body === "string" && body.trim()) {
       const t = body.trim();
-      if (
-        (t.startsWith("{") && t.endsWith("}")) ||
-        (t.startsWith("[") && t.endsWith("]"))
-      ) {
+      if ((t.startsWith("{") && t.endsWith("}")) || (t.startsWith("[") && t.endsWith("]"))) {
         return JSON.parse(t);
       }
     }
 
     if (rawFallback && String(rawFallback).trim()) {
       const rt = String(rawFallback).trim();
-      if (
-        (rt.startsWith("{") && rt.endsWith("}")) ||
-        (rt.startsWith("[") && rt.endsWith("]"))
-      ) {
+      if ((rt.startsWith("{") && rt.endsWith("}")) || (rt.startsWith("[") && rt.endsWith("]"))) {
         return JSON.parse(rt);
       }
     }
@@ -308,11 +260,9 @@ const YEAR_END_SINGLES_CHART = "Billboard Year-End Singles";
 function normalizeChartToken(s) {
   const t = cleanText(s).toLowerCase();
   if (!t) return DEFAULT_CHART;
-  if (t.includes("year") && t.includes("end") && t.includes("single"))
-    return YEAR_END_SINGLES_CHART;
+  if (t.includes("year") && t.includes("end") && t.includes("single")) return YEAR_END_SINGLES_CHART;
   if (t.includes("year") && t.includes("end")) return YEAR_END_CHART;
-  if (t.includes("hot 100") || t.includes("hot100") || t.includes("billboard"))
-    return DEFAULT_CHART;
+  if (t.includes("hot 100") || t.includes("hot100") || t.includes("billboard")) return DEFAULT_CHART;
   return cleanText(s) || DEFAULT_CHART;
 }
 
@@ -333,9 +283,7 @@ function guardChartForYear(session, year) {
     session.activeMusicChart = YEAR_END_CHART;
   }
 
-  session.activeMusicChart = normalizeChartToken(
-    session.activeMusicChart || DEFAULT_CHART
-  );
+  session.activeMusicChart = normalizeChartToken(session.activeMusicChart || DEFAULT_CHART);
   if (!session.activeMusicChart) session.activeMusicChart = DEFAULT_CHART;
 }
 
@@ -363,11 +311,7 @@ function postEngineBridge(session) {
   if (clampYear(session.lastMusicYear) && !clampYear(session.lastYear)) {
     session.lastYear = session.lastMusicYear;
   }
-  if (
-    clampYear(session.lastYear) &&
-    (!clampYear(session.lastMusicYear) ||
-      session.lastMusicYear !== session.lastYear)
-  ) {
+  if (clampYear(session.lastYear) && (!clampYear(session.lastMusicYear) || session.lastMusicYear !== session.lastYear)) {
     session.lastMusicYear = session.lastYear;
   }
 
@@ -378,12 +322,8 @@ function postEngineBridge(session) {
     session.lastMusicChart = session.activeMusicChart;
   }
 
-  session.activeMusicChart = normalizeChartToken(
-    session.activeMusicChart || DEFAULT_CHART
-  );
-  session.lastMusicChart = normalizeChartToken(
-    session.lastMusicChart || session.activeMusicChart || DEFAULT_CHART
-  );
+  session.activeMusicChart = normalizeChartToken(session.activeMusicChart || DEFAULT_CHART);
+  session.lastMusicChart = normalizeChartToken(session.lastMusicChart || session.activeMusicChart || DEFAULT_CHART);
 }
 
 /* ======================================================
@@ -394,22 +334,12 @@ function looksLikeTop10Missing(reply) {
   const r = cleanText(reply).toLowerCase();
   if (!r) return false;
 
-  if (r.includes("don't have") && r.includes("top") && r.includes("10"))
-    return true;
-  if (r.includes("dont have") && r.includes("top") && r.includes("10"))
-    return true;
-  if (r.includes("no clean") && r.includes("top") && r.includes("10"))
-    return true;
-  if (r.includes("not have") && r.includes("top") && r.includes("10"))
-    return true;
+  if (r.includes("don't have") && r.includes("top") && r.includes("10")) return true;
+  if (r.includes("dont have") && r.includes("top") && r.includes("10")) return true;
+  if (r.includes("no clean") && r.includes("top") && r.includes("10")) return true;
+  if (r.includes("not have") && r.includes("top") && r.includes("10")) return true;
 
-  if (
-    r.includes("chart") &&
-    r.includes("not") &&
-    r.includes("loaded") &&
-    r.includes("top")
-  )
-    return true;
+  if (r.includes("chart") && r.includes("not") && r.includes("loaded") && r.includes("top")) return true;
   if (r.includes("loaded chart sources") && r.includes("top")) return true;
 
   return false;
@@ -431,8 +361,7 @@ function top10MissingFollowUps(year) {
 ====================================================== */
 
 const FMP = {
-  ASK_YEAR_RE:
-    /\b(what year|give me a year|pick a year|choose a year|year\s*\(1950|1950–2024)\b/i,
+  ASK_YEAR_RE: /\b(what year|give me a year|pick a year|choose a year|year\s*\(1950|1950–2024)\b/i,
   ASK_MODE_CHOICE_RE: /\b(choose|pick|what do you want|which do you want|select)\b/i,
   MODE_WORDS_RE: /\b(top\s*10|story\s*moment|micro\s*moment)\b/i,
   SOFT_OPEN_RE: /\b(what would you like|what do you want|tell me what you|choose|pick)\b/i,
@@ -444,10 +373,7 @@ const FMP = {
 
   isAskingMode(reply) {
     const r = cleanText(reply).toLowerCase();
-    return (
-      this.MODE_WORDS_RE.test(r) &&
-      (this.ASK_MODE_CHOICE_RE.test(r) || this.SOFT_OPEN_RE.test(r))
-    );
+    return this.MODE_WORDS_RE.test(r) && (this.ASK_MODE_CHOICE_RE.test(r) || this.SOFT_OPEN_RE.test(r));
   },
 
   endsOpenQuestion(reply) {
@@ -464,12 +390,7 @@ const FMP = {
   detectAskLoop(session, reply) {
     if (!session) return null;
 
-    const askType = this.isAskingYear(reply)
-      ? "askYear"
-      : this.isAskingMode(reply)
-      ? "askMode"
-      : null;
-
+    const askType = this.isAskingYear(reply) ? "askYear" : this.isAskingMode(reply) ? "askMode" : null;
     if (!askType) return null;
 
     const now = Date.now();
@@ -497,12 +418,7 @@ const FMP = {
       guardChartForYear(session, year);
     }
 
-    const modeLabel =
-      mode === "top10"
-        ? "the Top 10"
-        : mode === "micro"
-        ? "a micro moment"
-        : "a story moment";
+    const modeLabel = mode === "top10" ? "the Top 10" : mode === "micro" ? "a micro moment" : "a story moment";
 
     const reply =
       reason === "askYear"
@@ -511,15 +427,8 @@ const FMP = {
         ? `Got it — ${year}. I’m going to run ${modeLabel} now. Say “switch” if you want a different mode.`
         : `I’ll proceed with ${modeLabel} for ${year}. Say “switch” if you want a different mode.`;
 
-    const sendRun =
-      mode === "top10"
-        ? `top 10 ${year}`
-        : mode === "micro"
-        ? `micro moment ${year}`
-        : `story moment ${year}`;
-
-    const sendSwitch =
-      mode === "top10" ? `story moment ${year}` : `top 10 ${year}`;
+    const sendRun = mode === "top10" ? `top 10 ${year}` : mode === "micro" ? `micro moment ${year}` : `story moment ${year}`;
+    const sendSwitch = mode === "top10" ? `story moment ${year}` : `top 10 ${year}`;
 
     const followUps = [
       { label: "Run now", send: sendRun },
@@ -560,15 +469,8 @@ const FMP = {
       const y = clampYear(session.lastYear) ? session.lastYear : null;
       const mode = session.activeMusicMode || session.pendingMode || null;
       if (y && mode) {
-        const modeLabel =
-          mode === "top10"
-            ? "the Top 10"
-            : mode === "micro"
-            ? "a micro moment"
-            : "a story moment";
-        const amended =
-          `${reply.replace(/[?]+$/g, ".")} ` +
-          `I’ll proceed with ${modeLabel} for ${y} unless you say “switch”.`;
+        const modeLabel = mode === "top10" ? "the Top 10" : mode === "micro" ? "a micro moment" : "a story moment";
+        const amended = `${reply.replace(/[?]+$/g, ".")} ` + `I’ll proceed with ${modeLabel} for ${y} unless you say “switch”.`;
         return Object.assign({}, out, { reply: amended });
       }
     }
@@ -582,9 +484,7 @@ const FMP = {
 ====================================================== */
 
 const PROFILES = new Map();
-const PROFILE_TTL_MS = Number(
-  process.env.PROFILE_TTL_MS || 30 * 24 * 60 * 60 * 1000
-);
+const PROFILE_TTL_MS = Number(process.env.PROFILE_TTL_MS || 30 * 24 * 60 * 60 * 1000);
 const PROFILE_CLEAN_INTERVAL_MS = Math.max(
   10 * 60 * 1000,
   Math.min(60 * 60 * 1000, Math.floor(PROFILE_TTL_MS / 12))
@@ -624,9 +524,7 @@ function profileIsReturning(profile) {
 function detectNameFromText(text) {
   const t = cleanText(text);
   if (!t) return null;
-  const m = t.match(
-    /\b(?:i[' ]?m|i am|im|my name is)\s+([A-Za-z][A-Za-z\-']{1,30})\b/i
-  );
+  const m = t.match(/\b(?:i[' ]?m|i am|im|my name is)\s+([A-Za-z][A-Za-z\-']{1,30})\b/i);
   if (!m) return null;
   const raw = cleanText(m[1] || "");
   if (!raw) return null;
@@ -727,10 +625,7 @@ function getSession(sessionId) {
 }
 
 const SESSION_TTL_MS = Number(process.env.SESSION_TTL_MS || 6 * 60 * 60 * 1000);
-const CLEAN_INTERVAL_MS = Math.max(
-  60 * 1000,
-  Math.min(15 * 60 * 1000, Math.floor(SESSION_TTL_MS / 4))
-);
+const CLEAN_INTERVAL_MS = Math.max(60 * 1000, Math.min(15 * 60 * 1000, Math.floor(SESSION_TTL_MS / 4)));
 
 const cleaner = setInterval(() => {
   const cutoff = Date.now() - SESSION_TTL_MS;
@@ -753,6 +648,22 @@ try {
   musicKnowledge = null;
 }
 
+// NEW: Sponsors Lane (optional)
+let sponsorsLane = null;
+try {
+  sponsorsLane = require("./Utils/sponsorsLane");
+} catch {
+  sponsorsLane = null;
+}
+
+// NEW: Movies Lane (optional)
+let moviesLane = null;
+try {
+  moviesLane = require("./Utils/moviesLane");
+} catch {
+  moviesLane = null;
+}
+
 /* ======================================================
    TTS (kept as-is)
 ====================================================== */
@@ -761,14 +672,9 @@ const TTS_ENABLED = String(process.env.TTS_ENABLED || "true") === "true";
 const TTS_PROVIDER = String(process.env.TTS_PROVIDER || "elevenlabs");
 const ELEVEN_KEY = String(process.env.ELEVENLABS_API_KEY || "");
 const ELEVEN_VOICE_ID = String(process.env.ELEVENLABS_VOICE_ID || "");
-const ELEVEN_MODEL_ID = String(
-  process.env.ELEVENLABS_MODEL_ID || "eleven_multilingual_v2"
-);
+const ELEVEN_MODEL_ID = String(process.env.ELEVENLABS_MODEL_ID || "eleven_multilingual_v2");
 
-const ELEVEN_TTS_TIMEOUT_MS = Math.max(
-  8000,
-  Math.min(60000, Number(process.env.ELEVEN_TTS_TIMEOUT_MS || 25000))
-);
+const ELEVEN_TTS_TIMEOUT_MS = Math.max(8000, Math.min(60000, Number(process.env.ELEVEN_TTS_TIMEOUT_MS || 25000)));
 
 function normalizeVoiceMode(m) {
   const t = String(m || "").toLowerCase().trim();
@@ -782,28 +688,17 @@ function getTtsTuningForMode(voiceMode) {
     stability: Number(process.env.NYX_VOICE_STABILITY ?? 0.55),
     similarity: Number(process.env.NYX_VOICE_SIMILARITY ?? 0.78),
     style: Number(process.env.NYX_VOICE_STYLE ?? 0.12),
-    speakerBoost:
-      String(process.env.NYX_VOICE_SPEAKER_BOOST ?? "false") === "true",
+    speakerBoost: String(process.env.NYX_VOICE_SPEAKER_BOOST ?? "false") === "true",
   };
 
   const m = normalizeVoiceMode(voiceMode);
 
   if (m === "calm") {
-    return {
-      ...base,
-      stability: Math.min(1, base.stability + 0.15),
-      style: Math.max(0, base.style - 0.08),
-      speakerBoost: false,
-    };
+    return { ...base, stability: Math.min(1, base.stability + 0.15), style: Math.max(0, base.style - 0.08), speakerBoost: false };
   }
 
   if (m === "high") {
-    return {
-      ...base,
-      stability: Math.max(0, base.stability - 0.12),
-      style: Math.min(1, base.style + 0.18),
-      speakerBoost: true,
-    };
+    return { ...base, stability: Math.max(0, base.stability - 0.12), style: Math.min(1, base.style + 0.18), speakerBoost: true };
   }
 
   return base;
@@ -812,9 +707,7 @@ function getTtsTuningForMode(voiceMode) {
 async function elevenTtsMp3Buffer(text, voiceMode) {
   const tuning = getTtsTuningForMode(voiceMode);
 
-  const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(
-    ELEVEN_VOICE_ID
-  )}`;
+  const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(ELEVEN_VOICE_ID)}`;
 
   const body = {
     text,
@@ -852,17 +745,8 @@ async function elevenTtsMp3Buffer(text, voiceMode) {
     return { ok: true, buf };
   } catch (e) {
     const msg = String(e && e.message ? e.message : e);
-    const isAbort =
-      msg.toLowerCase().includes("aborted") ||
-      msg.toLowerCase().includes("abort") ||
-      msg.toLowerCase().includes("timeout");
-    return {
-      ok: false,
-      status: isAbort ? 504 : 502,
-      detail: isAbort
-        ? `Upstream timeout after ${ELEVEN_TTS_TIMEOUT_MS}ms`
-        : msg,
-    };
+    const isAbort = msg.toLowerCase().includes("aborted") || msg.toLowerCase().includes("abort") || msg.toLowerCase().includes("timeout");
+    return { ok: false, status: isAbort ? 504 : 502, detail: isAbort ? `Upstream timeout after ${ELEVEN_TTS_TIMEOUT_MS}ms` : msg };
   } finally {
     clearTimeout(t);
   }
@@ -872,16 +756,9 @@ async function elevenTtsMp3Buffer(text, voiceMode) {
    Mic Feedback Guard (kept)
 ====================================================== */
 
-const MIC_GUARD_ENABLED =
-  String(process.env.MIC_GUARD_ENABLED || "true") === "true";
-const MIC_GUARD_WINDOW_MS = Math.max(
-  2000,
-  Math.min(20000, Number(process.env.MIC_GUARD_WINDOW_MS || 9000))
-);
-const MIC_GUARD_MIN_CHARS = Math.max(
-  24,
-  Math.min(240, Number(process.env.MIC_GUARD_MIN_CHARS || 60))
-);
+const MIC_GUARD_ENABLED = String(process.env.MIC_GUARD_ENABLED || "true") === "true";
+const MIC_GUARD_WINDOW_MS = Math.max(2000, Math.min(20000, Number(process.env.MIC_GUARD_WINDOW_MS || 9000)));
+const MIC_GUARD_MIN_CHARS = Math.max(24, Math.min(240, Number(process.env.MIC_GUARD_MIN_CHARS || 60)));
 
 function normalizeForEchoCompare(s) {
   return cleanText(String(s || ""))
@@ -958,16 +835,12 @@ function normalizeNavToken(text) {
   const t = cleanText(text).toLowerCase();
   if (!t) return null;
 
-  if (
-    /^(replay|repeat|again|say that again|one more time|replay last)\b/.test(t)
-  )
-    return "replay";
+  if (/^(replay|repeat|again|say that again|one more time|replay last)\b/.test(t)) return "replay";
   if (/^(continue|resume|pick up|carry on|go on)\b/.test(t)) return "continue";
   if (/^(start fresh|restart|new start|reset)\b/.test(t)) return "fresh";
 
   // Pillar B: #1 / number-one
-  if (/^(#\s*1|number\s*1|number\s*one|no\.?\s*1|the\s*#\s*1)\b/.test(t))
-    return "numberOne";
+  if (/^(#\s*1|number\s*1|number\s*one|no\.?\s*1|the\s*#\s*1)\b/.test(t)) return "numberOne";
 
   if (/^(next|next year|forward|year\+1)\b/.test(t)) return "nextYear";
   if (/^(prev|previous|previous year|back|year-1)\b/.test(t)) return "prevYear";
@@ -979,10 +852,7 @@ function normalizeNavToken(text) {
 function isGreeting(text) {
   const t = cleanText(text).toLowerCase();
   if (!t) return false;
-  return (
-    /^(hi|hey|hello|yo|sup|greetings)\b/.test(t) ||
-    /^(hi\s+nyx|hey\s+nyx|hello\s+nyx)\b/.test(t)
-  );
+  return /^(hi|hey|hello|yo|sup|greetings)\b/.test(t) || /^(hi\s+nyx|hey\s+nyx|hello\s+nyx)\b/.test(t);
 }
 
 function greetingReply(profile, canContinue) {
@@ -1008,7 +878,10 @@ function replyMissingYearForMode(mode) {
 function addMomentumTail(session, reply) {
   const r = cleanText(reply);
   if (!r) return r;
+
+  // Only attach the “nav tail” for music/general.
   if (session && session.lane !== "general" && session.lane !== "music") return r;
+
   const y = session && clampYear(session.lastYear) ? session.lastYear : null;
   const mode = session && session.activeMusicMode ? session.activeMusicMode : null;
   const endsWithQ = /[?]$/.test(r);
@@ -1025,7 +898,6 @@ function addMomentumTail(session, reply) {
 function extractNumberOneFromTop10Reply(replyText) {
   const t = String(replyText || "");
 
-  // Most common: "1. Artist — Title 2. ..."
   let m =
     t.match(/(?:^|\s)1\.\s*([^—\n]+?)\s*—\s*([^\n]+?)(?=(?:\s+2\.)|\n|$)/) ||
     t.match(/(?:^|\s)1\)\s*([^—\n]+?)\s*—\s*([^\n]+?)(?=(?:\s+2\))|\n|$)/) ||
@@ -1057,9 +929,7 @@ function numberOneFollowUps(year) {
 
 async function runMusicEngine(text, session) {
   if (!musicKnowledge || typeof musicKnowledge.handleChat !== "function") {
-    return {
-      reply: "Tell me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment.",
-    };
+    return { reply: "Tell me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment." };
   }
 
   try {
@@ -1078,11 +948,7 @@ async function runMusicEngine(text, session) {
 
     // ===== TOP10 Missing Escape (deterministic) =====
     const reply0 = cleanText(out.reply || "");
-    const modeReq =
-      normalizeModeToken(text) ||
-      session.activeMusicMode ||
-      session.pendingMode ||
-      null;
+    const modeReq = normalizeModeToken(text) || session.activeMusicMode || session.pendingMode || null;
     const yearReq = clampYear(y || session.lastYear || session.lastMusicYear);
 
     if (modeReq === "top10" && yearReq && looksLikeTop10Missing(reply0)) {
@@ -1095,11 +961,7 @@ async function runMusicEngine(text, session) {
       guardChartForYear(session, yearReq);
       preEngineBridge(session);
 
-      const out2 =
-        musicKnowledge.handleChat({
-          text: `story moment ${yearReq}`,
-          session,
-        }) || {};
+      const out2 = musicKnowledge.handleChat({ text: `story moment ${yearReq}`, session }) || {};
 
       if (out2.sessionPatch && typeof out2.sessionPatch === "object") {
         Object.assign(session, out2.sessionPatch);
@@ -1109,23 +971,76 @@ async function runMusicEngine(text, session) {
 
       const storyReply = cleanText(out2.reply || "");
       const prefix = `I don’t have a clean Top 10 chart for ${yearReq} in this build. I’m switching to the story moment for ${yearReq}.`;
-
       const stitched = storyReply ? `${prefix}\n\n${storyReply}` : prefix;
 
-      return Object.assign({}, out2, {
-        reply: stitched,
-        followUps: top10MissingFollowUps(yearReq),
-      });
+      return Object.assign({}, out2, { reply: stitched, followUps: top10MissingFollowUps(yearReq) });
     }
     // ==============================================
 
     return out;
   } catch (e) {
-    return {
-      reply: "I hit a snag in the music engine. Try again with a year (1950–2024).",
-      error: String(e && e.message ? e.message : e),
-    };
+    return { reply: "I hit a snag in the music engine. Try again with a year (1950–2024).", error: String(e && e.message ? e.message : e) };
   }
+}
+
+/* ======================================================
+   Lane engine wrapper (NEW)
+====================================================== */
+
+function isSponsorsActive(session, message) {
+  if (!sponsorsLane) return false;
+  if (session && session.lane === "sponsors") return true;
+  if (typeof sponsorsLane.isSponsorIntent === "function" && message) return !!sponsorsLane.isSponsorIntent(message);
+  return false;
+}
+
+function isMoviesActive(session, message) {
+  if (!moviesLane) return false;
+  if (session && session.lane === "movies") return true;
+  if (typeof moviesLane.isMoviesIntent === "function" && message) return !!moviesLane.isMoviesIntent(message);
+  return false;
+}
+
+async function runSponsorsLane(text, session) {
+  if (!sponsorsLane || typeof sponsorsLane.handleChat !== "function") {
+    return { reply: "Sponsors Lane isn’t available in this build.", followUps: [{ label: "Back to music", send: "Top 10" }] };
+  }
+  try {
+    const out = sponsorsLane.handleChat({ text, session }) || {};
+    if (out.sessionPatch && typeof out.sessionPatch === "object") Object.assign(session, out.sessionPatch);
+    // sponsorsLane.js already forces session.lane = "sponsors" but we keep it explicit
+    session.lane = "sponsors";
+    return out;
+  } catch (e) {
+    session.lane = "sponsors";
+    return { reply: "Sponsors Lane hit an error. Try: TV/Radio/Website/Social or say “Request rate card”.", error: String(e && e.message ? e.message : e) };
+  }
+}
+
+async function runMoviesLane(text, session) {
+  if (!moviesLane || typeof moviesLane.handleChat !== "function") {
+    return { reply: "Movies Lane isn’t available in this build.", followUps: [{ label: "Back to music", send: "Top 10" }] };
+  }
+  try {
+    const out = moviesLane.handleChat({ text, session }) || {};
+    if (out.sessionPatch && typeof out.sessionPatch === "object") Object.assign(session, out.sessionPatch);
+    session.lane = "movies";
+    return out;
+  } catch (e) {
+    session.lane = "movies";
+    return { reply: "Movies Lane hit an error. Try: “Movies Lane” or paste a movie URL.", error: String(e && e.message ? e.message : e) };
+  }
+}
+
+/* ======================================================
+   Engine runner
+====================================================== */
+
+async function runEngine(text, session) {
+  // Lane priority: sponsors > movies > music
+  if (isSponsorsActive(session, text)) return runSponsorsLane(text, session);
+  if (isMoviesActive(session, text)) return runMoviesLane(text, session);
+  return runMusicEngine(text, session);
 }
 
 /* ======================================================
@@ -1133,27 +1048,14 @@ async function runMusicEngine(text, session) {
 ====================================================== */
 
 function hasMeaningfulResumeState(profile, session) {
-  const profOk =
-    !!profile && !!clampYear(profile.lastMusicYear) && !!profile.lastMusicMode;
+  const profOk = !!profile && !!clampYear(profile.lastMusicYear) && !!profile.lastMusicMode;
 
   const sesYear = !!(session && clampYear(session.lastYear));
   const sesMode = !!(session && session.activeMusicMode);
   const sesPairOk = sesYear && sesMode;
 
-  const contentfulIntents = new Set([
-    "top10",
-    "story",
-    "micro",
-    "continue",
-    "passthrough",
-    "numberOne",
-  ]);
-
-  const sesIntentOk =
-    !!session &&
-    !!session.lastIntent &&
-    contentfulIntents.has(String(session.lastIntent)) &&
-    sesYear;
+  const contentfulIntents = new Set(["top10", "story", "micro", "continue", "passthrough", "numberOne"]);
+  const sesIntentOk = !!session && !!session.lastIntent && contentfulIntents.has(String(session.lastIntent)) && sesYear;
 
   const sesTopOneOk = !!(session && session.lastTop10One && sesYear);
 
@@ -1176,22 +1078,12 @@ function makeFollowUpsTight(session, profile) {
       { label: "Story moment", send: "Story moment" },
       { label: "Micro moment", send: "Micro moment" },
     ];
-    return {
-      followUp: four.map((x) => x.label),
-      followUps: four,
-      resumable,
-      returning: true,
-    };
+    return { followUp: four.map((x) => x.label), followUps: four, resumable, returning: true };
   }
 
   const base = [];
   const hasYear = !!(session && clampYear(session.lastYear));
-  base.push(
-    hasYear ? String(session.lastYear) : "1950",
-    "Top 10",
-    "Story moment",
-    "Micro moment"
-  );
+  base.push(hasYear ? String(session.lastYear) : "1950", "Top 10", "Story moment", "Micro moment");
 
   if (hasYear) {
     const py = safeIncYear(session.lastYear, -1);
@@ -1202,8 +1094,7 @@ function makeFollowUpsTight(session, profile) {
   }
 
   const intent = session ? String(session.lastIntent || "") : "";
-  const isFirstGreeting =
-    intent === "greeting" && !hasMeaningfulResumeState(profile, session);
+  const isFirstGreeting = intent === "greeting" && !hasMeaningfulResumeState(profile, session);
 
   if (session && session.lastReply && !isFirstGreeting) base.push("Replay last");
 
@@ -1211,12 +1102,7 @@ function makeFollowUpsTight(session, profile) {
   for (const x of base) if (x && !out.includes(x)) out.push(x);
 
   const primary = out.slice(0, 8);
-  return {
-    followUp: primary,
-    followUps: primary.map((x) => ({ label: x, send: x })),
-    resumable,
-    returning: false,
-  };
+  return { followUp: primary, followUps: primary.map((x) => ({ label: x, send: x })), resumable, returning: false };
 }
 
 function normalizeEngineFollowups(out) {
@@ -1228,12 +1114,8 @@ function normalizeEngineFollowups(out) {
       return;
     }
     if (typeof v === "object") {
-      const label = cleanText(
-        v.label || v.text || v.title || v.send || v.value || ""
-      );
-      const send = cleanText(
-        v.send || v.value || v.payload || v.label || v.text || ""
-      );
+      const label = cleanText(v.label || v.text || v.title || v.send || v.value || "");
+      const send = cleanText(v.send || v.value || v.payload || v.label || v.text || "");
       if (label && send) acc.push({ label, send });
     }
   };
@@ -1241,9 +1123,7 @@ function normalizeEngineFollowups(out) {
   const acc = [];
   if (!out || typeof out !== "object") return acc;
 
-  const cands = [out.followUps, out.followups, out.followUp, out.followup].filter(
-    Boolean
-  );
+  const cands = [out.followUps, out.followups, out.followUp, out.followup].filter(Boolean);
   for (const c of cands) {
     if (Array.isArray(c)) c.forEach((x) => push(acc, x));
     else push(acc, c);
@@ -1264,19 +1144,21 @@ function normalizeEngineFollowups(out) {
  * respondJson()
  * - If forceFourChips === true AND visitor is returning:
  *     enforce the exact 4-chip returning visitor set.
- * - Otherwise:
- *     KEEP engine followUps (if any) and TOP-UP with tight defaults (nav/replay) to a max of 8.
+ * - Else if lane is sponsors/movies:
+ *     return lane/engine chips ONLY (cap 8). No music tight-top-up.
+ * - Otherwise (music/general):
+ *     KEEP engine chips and TOP-UP with tight defaults (nav/replay) to a max of 8.
  */
 function respondJson(req, res, base, session, engineOut, profile, forceFourChips) {
   const tight = makeFollowUpsTight(session, profile);
-
   const enforceReturning = !!forceFourChips && !!tight.returning;
 
+  // Lane-safe behavior for non-music lanes
+  const lane = session && session.lane ? String(session.lane) : "general";
+  const laneOwned = lane === "sponsors" || lane === "movies";
+
   if (enforceReturning) {
-    const payload = Object.assign({}, base, {
-      followUps: tight.followUps,
-      followUp: tight.followUp,
-    });
+    const payload = Object.assign({}, base, { followUps: tight.followUps, followUp: tight.followUp });
 
     const wantsDebug = CHAT_DEBUG || parseDebugFlag(req);
     if (wantsDebug) {
@@ -1308,12 +1190,8 @@ function respondJson(req, res, base, session, engineOut, profile, forceFourChips
 
     if (session) {
       try {
-        session.lastFollowUp = Array.isArray(payload.followUp)
-          ? payload.followUp.slice(0, 12)
-          : null;
-        session.lastFollowUps = Array.isArray(payload.followUps)
-          ? payload.followUps.slice(0, 12)
-          : null;
+        session.lastFollowUp = Array.isArray(payload.followUp) ? payload.followUp.slice(0, 12) : null;
+        session.lastFollowUps = Array.isArray(payload.followUps) ? payload.followUps.slice(0, 12) : null;
       } catch (_) {}
     }
 
@@ -1322,10 +1200,61 @@ function respondJson(req, res, base, session, engineOut, profile, forceFourChips
 
   const engineNorm = normalizeEngineFollowups(engineOut);
 
-  // Merge engine chips + tight chips (nav/replay) with de-dupe, cap at 8
+  // For sponsors/movies, return lane chips only (no top-up with music defaults).
+  if (laneOwned) {
+    const merged = [];
+    const seen = new Set();
+    const add = (it) => {
+      if (!it || !it.label || !it.send) return;
+      const k = cleanText(it.send).toLowerCase();
+      if (!k || seen.has(k)) return;
+      seen.add(k);
+      merged.push({ label: it.label, send: it.send });
+    };
+
+    for (const it of engineNorm) {
+      if (merged.length >= 8) break;
+      add(it);
+    }
+
+    // Minimal fallback if lane forgot chips
+    if (merged.length === 0) {
+      merged.push({ label: "Replay last", send: "Replay last" });
+      merged.push({ label: "Top 10", send: "Top 10" });
+    }
+
+    const payload = Object.assign({}, base, {
+      followUps: merged.slice(0, 8),
+      followUp: merged.slice(0, 8).map((x) => x.label),
+    });
+
+    const wantsDebug = CHAT_DEBUG || parseDebugFlag(req);
+    if (wantsDebug) {
+      payload.debug = {
+        index: INDEX_VERSION,
+        laneOwned: true,
+        state: {
+          lane: session ? session.lane : null,
+          lastYear: session ? session.lastYear : null,
+          voiceMode: session ? session.voiceMode : null,
+          lastIntent: session ? session.lastIntent : null,
+        },
+      };
+    }
+
+    if (session) {
+      try {
+        session.lastFollowUp = Array.isArray(payload.followUp) ? payload.followUp.slice(0, 12) : null;
+        session.lastFollowUps = Array.isArray(payload.followUps) ? payload.followUps.slice(0, 12) : null;
+      } catch (_) {}
+    }
+
+    return res.json(payload);
+  }
+
+  // Default (music/general): merge engine chips + tight chips with de-dupe, cap at 8
   const merged = [];
   const seen = new Set();
-
   const add = (it) => {
     if (!it || !it.label || !it.send) return;
     const k = cleanText(it.send).toLowerCase();
@@ -1334,13 +1263,11 @@ function respondJson(req, res, base, session, engineOut, profile, forceFourChips
     merged.push({ label: it.label, send: it.send });
   };
 
-  // Prefer engine chips first (if any)
   for (const it of engineNorm) {
     if (merged.length >= 8) break;
     add(it);
   }
 
-  // Top-up with tight defaults
   if (merged.length < 8) {
     for (const it of tight.followUps) {
       if (merged.length >= 8) break;
@@ -1383,12 +1310,8 @@ function respondJson(req, res, base, session, engineOut, profile, forceFourChips
 
   if (session) {
     try {
-      session.lastFollowUp = Array.isArray(payload.followUp)
-        ? payload.followUp.slice(0, 12)
-        : null;
-      session.lastFollowUps = Array.isArray(payload.followUps)
-        ? payload.followUps.slice(0, 12)
-        : null;
+      session.lastFollowUp = Array.isArray(payload.followUp) ? payload.followUp.slice(0, 12) : null;
+      session.lastFollowUps = Array.isArray(payload.followUps) ? payload.followUps.slice(0, 12) : null;
     } catch (_) {}
   }
 
@@ -1406,11 +1329,7 @@ app.get("/api/health", (req, res) => {
   res.set("Cache-Control", "no-store");
 
   const origin = req.headers.origin || null;
-  const originAllowed = CORS_ALLOW_ALL
-    ? true
-    : origin
-    ? originMatchesAllowlist(origin)
-    : null;
+  const originAllowed = CORS_ALLOW_ALL ? true : origin ? originMatchesAllowlist(origin) : null;
 
   res.json({
     ok: true,
@@ -1421,17 +1340,9 @@ app.get("/api/health", (req, res) => {
     version: INDEX_VERSION,
     sessions: SESSIONS.size,
     profiles: PROFILES.size,
-    cors: {
-      allowAll: CORS_ALLOW_ALL,
-      allowedOrigins: CORS_ALLOW_ALL ? "ALL" : ALLOWED_ORIGINS.length,
-      originEcho: origin,
-      originAllowed,
-    },
+    cors: { allowAll: CORS_ALLOW_ALL, allowedOrigins: CORS_ALLOW_ALL ? "ALL" : ALLOWED_ORIGINS.length, originEcho: origin, originAllowed },
     contract: { version: NYX_CONTRACT_VERSION, strict: CONTRACT_STRICT },
-    timeouts: {
-      requestTimeoutMs: REQUEST_TIMEOUT_MS,
-      elevenTtsTimeoutMs: ELEVEN_TTS_TIMEOUT_MS,
-    },
+    timeouts: { requestTimeoutMs: REQUEST_TIMEOUT_MS, elevenTtsTimeoutMs: ELEVEN_TTS_TIMEOUT_MS },
     tts: {
       enabled: TTS_ENABLED,
       provider: TTS_PROVIDER,
@@ -1440,15 +1351,12 @@ app.get("/api/health", (req, res) => {
       model: ELEVEN_MODEL_ID || null,
       hasFetch: typeof fetch === "function",
     },
-    micGuard: {
-      enabled: MIC_GUARD_ENABLED,
-      windowMs: MIC_GUARD_WINDOW_MS,
-      minChars: MIC_GUARD_MIN_CHARS,
-    },
-    music: {
-      defaultChart: DEFAULT_CHART,
-      yearEndChart: YEAR_END_CHART,
-      yearEndSinglesChart: YEAR_END_SINGLES_CHART,
+    micGuard: { enabled: MIC_GUARD_ENABLED, windowMs: MIC_GUARD_WINDOW_MS, minChars: MIC_GUARD_MIN_CHARS },
+    music: { defaultChart: DEFAULT_CHART, yearEndChart: YEAR_END_CHART, yearEndSinglesChart: YEAR_END_SINGLES_CHART },
+    lanes: {
+      sponsorsLoaded: !!sponsorsLane,
+      moviesLoaded: !!moviesLane,
+      musicLoaded: !!musicKnowledge,
     },
     requestId,
   });
@@ -1481,53 +1389,20 @@ async function ttsHandler(req, res) {
   const sid = cleanText(body.sessionId || "");
   const s = sid ? getSession(sid) : null;
 
-  const hasExplicitVoiceMode =
-    Object.prototype.hasOwnProperty.call(body, "voiceMode") &&
-    String(body.voiceMode || "").trim() !== "";
+  const hasExplicitVoiceMode = Object.prototype.hasOwnProperty.call(body, "voiceMode") && String(body.voiceMode || "").trim() !== "";
 
-  const voiceMode = normalizeVoiceMode(
-    hasExplicitVoiceMode ? body.voiceMode : (s && s.voiceMode) || "standard"
-  );
+  const voiceMode = normalizeVoiceMode(hasExplicitVoiceMode ? body.voiceMode : (s && s.voiceMode) || "standard");
 
   if (!TTS_ENABLED)
-    return res.status(503).json({
-      ok: false,
-      error: "TTS_DISABLED",
-      requestId,
-      contractVersion: NYX_CONTRACT_VERSION,
-    });
+    return res.status(503).json({ ok: false, error: "TTS_DISABLED", requestId, contractVersion: NYX_CONTRACT_VERSION });
   if (TTS_PROVIDER !== "elevenlabs")
-    return res.status(500).json({
-      ok: false,
-      error: "TTS_PROVIDER_UNSUPPORTED",
-      provider: TTS_PROVIDER,
-      requestId,
-      contractVersion: NYX_CONTRACT_VERSION,
-    });
+    return res.status(500).json({ ok: false, error: "TTS_PROVIDER_UNSUPPORTED", provider: TTS_PROVIDER, requestId, contractVersion: NYX_CONTRACT_VERSION });
   if (typeof fetch !== "function")
-    return res.status(500).json({
-      ok: false,
-      error: "TTS_RUNTIME",
-      detail: "fetch() not available",
-      requestId,
-      contractVersion: NYX_CONTRACT_VERSION,
-    });
+    return res.status(500).json({ ok: false, error: "TTS_RUNTIME", detail: "fetch() not available", requestId, contractVersion: NYX_CONTRACT_VERSION });
   if (!ELEVEN_KEY || !ELEVEN_VOICE_ID)
-    return res.status(500).json({
-      ok: false,
-      error: "TTS_MISCONFIG",
-      detail: "Missing ELEVENLABS env",
-      requestId,
-      contractVersion: NYX_CONTRACT_VERSION,
-    });
+    return res.status(500).json({ ok: false, error: "TTS_MISCONFIG", detail: "Missing ELEVENLABS env", requestId, contractVersion: NYX_CONTRACT_VERSION });
   if (!text)
-    return res.status(400).json({
-      ok: false,
-      error: "BAD_REQUEST",
-      detail: "Missing text",
-      requestId,
-      contractVersion: NYX_CONTRACT_VERSION,
-    });
+    return res.status(400).json({ ok: false, error: "BAD_REQUEST", detail: "Missing text", requestId, contractVersion: NYX_CONTRACT_VERSION });
 
   if (s && hasExplicitVoiceMode) s.voiceMode = voiceMode;
 
@@ -1562,13 +1437,7 @@ async function ttsHandler(req, res) {
     res.set("X-Voice-Mode", voiceMode);
     return res.end(buf);
   } catch (e) {
-    return res.status(500).json({
-      ok: false,
-      error: "TTS_ERROR",
-      detail: String(e && e.message ? e.message : e),
-      requestId,
-      contractVersion: NYX_CONTRACT_VERSION,
-    });
+    return res.status(500).json({ ok: false, error: "TTS_ERROR", detail: String(e && e.message ? e.message : e), requestId, contractVersion: NYX_CONTRACT_VERSION });
   }
 }
 
@@ -1576,30 +1445,15 @@ app.post("/api/tts", ttsHandler);
 app.post("/api/voice", ttsHandler);
 
 /* ======================================================
-   Engine runner
-====================================================== */
-
-async function runEngine(text, session) {
-  return runMusicEngine(text, session);
-}
-
-/* ======================================================
    Continue / Start fresh handlers (tight)
 ====================================================== */
 
 async function handleContinue(session, profile) {
-  const yFromSession = clampYear(
-    session && session.lastYear ? Number(session.lastYear) : NaN
-  );
-  const yFromProfile = clampYear(
-    profile && profile.lastMusicYear ? Number(profile.lastMusicYear) : NaN
-  );
+  const yFromSession = clampYear(session && session.lastYear ? Number(session.lastYear) : NaN);
+  const yFromProfile = clampYear(profile && profile.lastMusicYear ? Number(profile.lastMusicYear) : NaN);
   const y = yFromSession || yFromProfile || null;
 
-  const m =
-    (session && session.activeMusicMode) ||
-    (profile && profile.lastMusicMode) ||
-    null;
+  const m = (session && session.activeMusicMode) || (profile && profile.lastMusicMode) || null;
 
   if (y && m) {
     session.lastYear = y;
@@ -1614,16 +1468,10 @@ async function handleContinue(session, profile) {
   }
 
   if (session.lastReply) {
-    return {
-      reply:
-        "Continue with what—Top 10, Story moment, or Micro moment? (You can also drop a year.)",
-    };
+    return { reply: "Continue with what—Top 10, Story moment, or Micro moment? (You can also drop a year.)" };
   }
 
-  return {
-    reply:
-      "What are we doing: Top 10, Story moment, or Micro moment? Start with a year (1950–2024).",
-  };
+  return { reply: "What are we doing: Top 10, Story moment, or Micro moment? Start with a year (1950–2024)." };
 }
 
 function handleFresh(session) {
@@ -1636,10 +1484,8 @@ function handleFresh(session) {
   session.activeMusicChart = DEFAULT_CHART;
   session.lastMusicChart = DEFAULT_CHART;
 
-  return {
-    reply:
-      "Clean slate. Give me a year (1950–2024) and choose: Top 10, Story moment, or Micro moment.",
-  };
+  // Do not force lane here; caller sets it.
+  return { reply: "Clean slate. Give me a year (1950–2024) and choose: Top 10, Story moment, or Micro moment." };
 }
 
 /* ======================================================
@@ -1651,16 +1497,12 @@ async function handleYearNav(session, direction) {
   const mode = session.activeMusicMode || session.pendingMode || null;
 
   if (!y0) {
-    return {
-      reply: "Tell me a year first (1950–2024), then I can go next/previous year.",
-    };
+    return { reply: "Tell me a year first (1950–2024), then I can go next/previous year." };
   }
 
   const y1 = safeIncYear(y0, direction);
   if (!y1) {
-    return {
-      reply: "You’re at the edge of the range. Pick a year between 1950 and 2024.",
-    };
+    return { reply: "You’re at the edge of the range. Pick a year between 1950 and 2024." };
   }
 
   session.lastYear = y1;
@@ -1670,9 +1512,7 @@ async function handleYearNav(session, direction) {
 
   if (!mode) {
     session.pendingMode = null;
-    return {
-      reply: `Got it — ${y1}. What do you want: Top 10, Story moment, or Micro moment?`,
-    };
+    return { reply: `Got it — ${y1}. What do you want: Top 10, Story moment, or Micro moment?` };
   }
 
   session.activeMusicMode = mode;
@@ -1693,10 +1533,7 @@ function handleAnotherYear(session) {
     return { reply: replyMissingYearForMode(mode) };
   }
 
-  return {
-    reply:
-      "Alright — new year. Give me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment.",
-  };
+  return { reply: "Alright — new year. Give me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment." };
 }
 
 /* ======================================================
@@ -1713,25 +1550,18 @@ async function handleNumberOne(session) {
   session.pendingMode = null;
   guardChartForYear(session, y0);
 
-  // If already known for this session/year, return immediately.
   if (session.lastTop10One && typeof session.lastTop10One === "string") {
-    return {
-      reply: `#1 — ${cleanText(session.lastTop10One)} (${y0}).`,
-      followUps: numberOneFollowUps(y0),
-    };
+    return { reply: `#1 — ${cleanText(session.lastTop10One)} (${y0}).`, followUps: numberOneFollowUps(y0) };
   }
 
-  // Primary attempt: let the engine answer "#1 {year}" if it supports it.
   const outA = await runEngine(`#1 ${y0}`, session);
   const outA2 = FMP.apply(outA, session);
 
-  // If engine actually produced a usable #1 line, keep it.
   const rA = cleanText(outA2 && outA2.reply ? outA2.reply : "");
   if (rA && /(^|\s)#\s*1\b/i.test(rA)) {
     return Object.assign({}, outA2, { followUps: numberOneFollowUps(y0) });
   }
 
-  // Deterministic fallback: run top 10 and extract the first entry.
   const outB = await runEngine(`top 10 ${y0}`, session);
   const outB2 = FMP.apply(outB, session);
   const rB = cleanText(outB2 && outB2.reply ? outB2.reply : "");
@@ -1739,16 +1569,10 @@ async function handleNumberOne(session) {
   const one = extractNumberOneFromTop10Reply(rB);
   if (one) {
     session.lastTop10One = `${one.artist} — ${one.title}`;
-    return {
-      reply: `#1 — ${one.artist} — ${one.title} (${y0}).`,
-      followUps: numberOneFollowUps(y0),
-    };
+    return { reply: `#1 — ${one.artist} — ${one.title} (${y0}).`, followUps: numberOneFollowUps(y0) };
   }
 
-  // Last-resort: if parsing failed, still return the top10 reply with #1 chip set.
-  return Object.assign({}, outB2, {
-    followUps: numberOneFollowUps(y0),
-  });
+  return Object.assign({}, outB2, { followUps: numberOneFollowUps(y0) });
 }
 
 /* ======================================================
@@ -1779,11 +1603,7 @@ app.post("/api/chat", async (req, res) => {
   const incomingVisitorId = cleanText(body.visitorId || "") || makeUuid();
   const incomingContract = cleanText(body.contractVersion || body.contract || "");
 
-  if (
-    CONTRACT_STRICT &&
-    incomingContract &&
-    incomingContract !== NYX_CONTRACT_VERSION
-  ) {
+  if (CONTRACT_STRICT && incomingContract && incomingContract !== NYX_CONTRACT_VERSION) {
     return res.status(409).json({
       ok: false,
       error: "CONTRACT_MISMATCH",
@@ -1810,9 +1630,7 @@ app.post("/api/chat", async (req, res) => {
   const foundName = detectNameFromText(message);
   if (profile && foundName) profile.name = foundName;
 
-  const incomingVoiceMode = normalizeVoiceMode(
-    body.voiceMode || session.voiceMode || "standard"
-  );
+  const incomingVoiceMode = normalizeVoiceMode(body.voiceMode || session.voiceMode || "standard");
   session.voiceMode = incomingVoiceMode;
   res.set("X-Voice-Mode", session.voiceMode);
 
@@ -1828,31 +1646,15 @@ app.post("/api/chat", async (req, res) => {
     session.lastIntent = "micEchoGuard";
     updateProfileFromSession(profile, session);
 
-    const base = {
-      ok: true,
-      reply,
-      sessionId,
-      requestId,
-      visitorId,
-      contractVersion: NYX_CONTRACT_VERSION,
-      voiceMode: session.voiceMode,
-    };
+    const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
     return respondJson(req, res, base, session, null, profile, false);
   }
 
   const nav = normalizeNavToken(message);
 
-  // Replay (global) — v1.5.7: return the SAME chips user saw last time when available
+  // Replay (global) — returns SAME chips when available
   if (nav === "replay" && session.lastReply) {
-    const base = {
-      ok: true,
-      reply: session.lastReply,
-      sessionId,
-      requestId,
-      visitorId,
-      contractVersion: NYX_CONTRACT_VERSION,
-      voiceMode: session.voiceMode,
-    };
+    const base = { ok: true, reply: session.lastReply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
 
     session.lastIntent = "replay";
     updateProfileFromSession(profile, session);
@@ -1874,22 +1676,8 @@ app.post("/api/chat", async (req, res) => {
         const tight = makeFollowUpsTight(session, profile);
         payload.debug = {
           index: INDEX_VERSION,
-          profile: profile
-            ? {
-                id: profile.id,
-                name: profile.name || "",
-                returning: profileIsReturning(profile),
-                lastLane: profile.lastLane,
-                lastMusicYear: profile.lastMusicYear || null,
-                lastMusicMode: profile.lastMusicMode || null,
-                visits: profile.visits || 0,
-              }
-            : null,
           state: {
             lastYear: session ? session.lastYear : null,
-            activeMusicMode: session ? session.activeMusicMode : null,
-            pendingMode: session ? session.pendingMode : null,
-            activeMusicChart: session ? session.activeMusicChart : null,
             lane: session ? session.lane : null,
             voiceMode: session ? session.voiceMode : null,
             lastIntent: session ? session.lastIntent : null,
@@ -1898,15 +1686,31 @@ app.post("/api/chat", async (req, res) => {
         };
       }
 
-      // IMPORTANT: do NOT overwrite session.lastFollowUps/lastFollowUp here.
       return res.json(payload);
     }
 
-    // Fallback if chips were never stored (rare)
     return respondJson(req, res, base, session, null, profile, false);
   }
 
-  // Pillar B: #1
+  // Greeting (must stay before lane auto-routing)
+  if (!message || isGreeting(message)) {
+    session.lastIntent = "greeting";
+
+    const tight = makeFollowUpsTight(session, profile);
+    const reply = greetingReply(profile, tight.resumable);
+
+    session.lastReply = reply;
+    session.lastReplyAt = Date.now();
+
+    updateProfileFromSession(profile, session);
+
+    const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+
+    // CRITICAL: only greetings enforce 4 returning chips
+    return respondJson(req, res, base, session, null, profile, true);
+  }
+
+  // Pillar B: #1 (music-only)
   if (nav === "numberOne") {
     session.lane = "music";
     const out0 = await handleNumberOne(session);
@@ -1919,19 +1723,11 @@ app.post("/api/chat", async (req, res) => {
 
     updateProfileFromSession(profile, session);
 
-    const base = {
-      ok: true,
-      reply,
-      sessionId,
-      requestId,
-      visitorId,
-      contractVersion: NYX_CONTRACT_VERSION,
-      voiceMode: session.voiceMode,
-    };
+    const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
     return respondJson(req, res, base, session, out, profile, false);
   }
 
-  // Next/Prev/Another year (complete routing)
+  // Next/Prev/Another year (music-only)
   if (nav === "nextYear") {
     session.lane = "music";
     const out = await handleYearNav(session, +1);
@@ -1943,25 +1739,14 @@ app.post("/api/chat", async (req, res) => {
 
     updateProfileFromSession(profile, session);
 
-    const base = {
-      ok: true,
-      reply,
-      sessionId,
-      requestId,
-      visitorId,
-      contractVersion: NYX_CONTRACT_VERSION,
-      voiceMode: session.voiceMode,
-    };
+    const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
     return respondJson(req, res, base, session, out, profile, false);
   }
 
   if (nav === "prevYear") {
     session.lane = "music";
     const out = await handleYearNav(session, -1);
-    const reply = addMomentumTail(
-      session,
-      cleanText(out.reply || "Previous year.")
-    );
+    const reply = addMomentumTail(session, cleanText(out.reply || "Previous year."));
 
     session.lastReply = reply;
     session.lastReplyAt = Date.now();
@@ -1969,15 +1754,7 @@ app.post("/api/chat", async (req, res) => {
 
     updateProfileFromSession(profile, session);
 
-    const base = {
-      ok: true,
-      reply,
-      sessionId,
-      requestId,
-      visitorId,
-      contractVersion: NYX_CONTRACT_VERSION,
-      voiceMode: session.voiceMode,
-    };
+    const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
     return respondJson(req, res, base, session, out, profile, false);
   }
 
@@ -1993,27 +1770,16 @@ app.post("/api/chat", async (req, res) => {
 
     updateProfileFromSession(profile, session);
 
-    const base = {
-      ok: true,
-      reply,
-      sessionId,
-      requestId,
-      visitorId,
-      contractVersion: NYX_CONTRACT_VERSION,
-      voiceMode: session.voiceMode,
-    };
+    const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
     return respondJson(req, res, base, session, out, profile, false);
   }
 
-  // Continue
+  // Continue (music-only)
   if (nav === "continue") {
     session.lane = "music";
     const out0 = await handleContinue(session, profile);
     const out = FMP.apply(out0, session);
-    const reply = addMomentumTail(
-      session,
-      cleanText(out.reply || "Continuing.")
-    );
+    const reply = addMomentumTail(session, cleanText(out.reply || "Continuing."));
 
     session.lastReply = reply;
     session.lastReplyAt = Date.now();
@@ -2021,19 +1787,11 @@ app.post("/api/chat", async (req, res) => {
 
     updateProfileFromSession(profile, session);
 
-    const base = {
-      ok: true,
-      reply,
-      sessionId,
-      requestId,
-      visitorId,
-      contractVersion: NYX_CONTRACT_VERSION,
-      voiceMode: session.voiceMode,
-    };
+    const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
     return respondJson(req, res, base, session, out, profile, false);
   }
 
-  // Start fresh
+  // Start fresh (music-only)
   if (nav === "fresh") {
     session.lane = "music";
     const out = handleFresh(session);
@@ -2045,45 +1803,46 @@ app.post("/api/chat", async (req, res) => {
 
     updateProfileFromSession(profile, session);
 
-    const base = {
-      ok: true,
-      reply,
-      sessionId,
-      requestId,
-      visitorId,
-      contractVersion: NYX_CONTRACT_VERSION,
-      voiceMode: session.voiceMode,
-    };
+    const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
     return respondJson(req, res, base, session, out, profile, false);
   }
 
-  // Greeting
-  if (!message || isGreeting(message)) {
-    session.lastIntent = "greeting";
+  // ======================================================
+  // NEW: Sponsors/Movie Lane routing (before music parsing)
+  // ======================================================
 
-    const tight = makeFollowUpsTight(session, profile);
-    const reply = greetingReply(profile, tight.resumable);
+  if (isSponsorsActive(session, message)) {
+    const out0 = await runSponsorsLane(message, session);
+    const reply = cleanText(out0.reply || "Sponsors Lane.");
 
     session.lastReply = reply;
     session.lastReplyAt = Date.now();
+    session.lastIntent = "sponsors";
 
     updateProfileFromSession(profile, session);
 
-    const base = {
-      ok: true,
-      reply,
-      sessionId,
-      requestId,
-      visitorId,
-      contractVersion: NYX_CONTRACT_VERSION,
-      voiceMode: session.voiceMode,
-    };
-
-    // CRITICAL: only greetings enforce 4 returning chips
-    return respondJson(req, res, base, session, null, profile, true);
+    const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+    return respondJson(req, res, base, session, out0, profile, false);
   }
 
-  // Standard mode/year parsing
+  if (isMoviesActive(session, message)) {
+    const out0 = await runMoviesLane(message, session);
+    const reply = cleanText(out0.reply || "Movies Lane.");
+
+    session.lastReply = reply;
+    session.lastReplyAt = Date.now();
+    session.lastIntent = "movies";
+
+    updateProfileFromSession(profile, session);
+
+    const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+    return respondJson(req, res, base, session, out0, profile, false);
+  }
+
+  // ======================================================
+  // Music: Standard mode/year parsing
+  // ======================================================
+
   const parsedYear = clampYear(extractYearFromText(message));
   const parsedMode = normalizeModeToken(message);
   const bareYear = parsedYear ? isBareYearMessage(message) : false;
@@ -2109,15 +1868,7 @@ app.post("/api/chat", async (req, res) => {
 
     updateProfileFromSession(profile, session);
 
-    const base = {
-      ok: true,
-      reply,
-      sessionId,
-      requestId,
-      visitorId,
-      contractVersion: NYX_CONTRACT_VERSION,
-      voiceMode: session.voiceMode,
-    };
+    const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
     return respondJson(req, res, base, session, out, profile, false);
   }
 
@@ -2139,15 +1890,7 @@ app.post("/api/chat", async (req, res) => {
 
       updateProfileFromSession(profile, session);
 
-      const base = {
-        ok: true,
-        reply,
-        sessionId,
-        requestId,
-        visitorId,
-        contractVersion: NYX_CONTRACT_VERSION,
-        voiceMode: session.voiceMode,
-      };
+      const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
       return respondJson(req, res, base, session, out, profile, false);
     }
 
@@ -2158,15 +1901,7 @@ app.post("/api/chat", async (req, res) => {
 
     updateProfileFromSession(profile, session);
 
-    const base = {
-      ok: true,
-      reply: ask,
-      sessionId,
-      requestId,
-      visitorId,
-      contractVersion: NYX_CONTRACT_VERSION,
-      voiceMode: session.voiceMode,
-    };
+    const base = { ok: true, reply: ask, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
     return respondJson(req, res, base, session, null, profile, false);
   }
 
@@ -2188,15 +1923,7 @@ app.post("/api/chat", async (req, res) => {
 
       updateProfileFromSession(profile, session);
 
-      const base = {
-        ok: true,
-        reply,
-        sessionId,
-        requestId,
-        visitorId,
-        contractVersion: NYX_CONTRACT_VERSION,
-        voiceMode: session.voiceMode,
-      };
+      const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
       return respondJson(req, res, base, session, out, profile, false);
     }
 
@@ -2207,22 +1934,14 @@ app.post("/api/chat", async (req, res) => {
 
     updateProfileFromSession(profile, session);
 
-    const base = {
-      ok: true,
-      reply: askMode,
-      sessionId,
-      requestId,
-      visitorId,
-      contractVersion: NYX_CONTRACT_VERSION,
-      voiceMode: session.voiceMode,
-    };
+    const base = { ok: true, reply: askMode, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
     return respondJson(req, res, base, session, null, profile, false);
   }
 
   // NOTE: bareYear guard removed (duplicate/unreachable under the branches above)
   void bareYear;
 
-  // Fallback passthrough
+  // Fallback passthrough (music)
   session.lane = "music";
   const out0 = await runEngine(message, session);
   const out = FMP.apply(out0, session);
@@ -2235,15 +1954,7 @@ app.post("/api/chat", async (req, res) => {
 
   updateProfileFromSession(profile, session);
 
-  const base = {
-    ok: true,
-    reply,
-    sessionId,
-    requestId,
-    visitorId,
-    contractVersion: NYX_CONTRACT_VERSION,
-    voiceMode: session.voiceMode,
-  };
+  const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
   return respondJson(req, res, base, session, out, profile, false);
 });
 
@@ -2256,9 +1967,7 @@ const HOST = "0.0.0.0";
 
 const server = app.listen(PORT, HOST, () => {
   console.log(
-    `[sandblast-backend] up :${PORT} env=${process.env.NODE_ENV || "production"} build=${
-      process.env.RENDER_GIT_COMMIT || "n/a"
-    } contract=${NYX_CONTRACT_VERSION} version=${INDEX_VERSION}`
+    `[sandblast-backend] up :${PORT} env=${process.env.NODE_ENV || "production"} build=${process.env.RENDER_GIT_COMMIT || "n/a"} contract=${NYX_CONTRACT_VERSION} version=${INDEX_VERSION}`
   );
 });
 
@@ -2289,9 +1998,5 @@ function shutdown(sig) {
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
 
-process.on("unhandledRejection", (e) =>
-  console.error("[sandblast-backend] unhandledRejection", e)
-);
-process.on("uncaughtException", (e) =>
-  console.error("[sandblast-backend] uncaughtException", e)
-);
+process.on("unhandledRejection", (e) => console.error("[sandblast-backend] unhandledRejection", e));
+process.on("uncaughtException", (e) => console.error("[sandblast-backend] uncaughtException", e));
