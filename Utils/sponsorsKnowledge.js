@@ -113,7 +113,7 @@ function fileExists(abs) {
 
 /**
  * Build candidate absolute paths for a given rel (or abs) string.
- * Returns { candidates: string[], directAbs?: string }
+ * Returns { candidates: string[] }
  */
 function buildCandidates(maybePath) {
   const p = cleanText(maybePath || "");
@@ -135,7 +135,7 @@ function buildCandidates(maybePath) {
   // 1) cwd-relative
   out.push(path.join(process.cwd(), rel));
 
-  // 2) relative to this file (../Data/...)
+  // 2) relative to this file (../Data/... from Utils/)
   out.push(path.join(__dirname, "..", rel));
 
   // 3) relative to project root guess (/src)
@@ -305,6 +305,7 @@ function normalizeCatalog(cat) {
   const defaults = {
     currency: cleanText(defaultsIn.currency || currency) || currency,
     cta: cleanText(defaultsIn.cta || ctas.primary) || ctas.primary,
+    // Prefer a package/tier-like default if present; else "growth_bundle" / "growth"
     tier: normToken(defaultsIn.tier || "growth_bundle") || "growth_bundle",
     ...defaultsIn,
   };
@@ -330,12 +331,12 @@ function normalizeCatalog(cat) {
 
 /**
  * Load catalog (cached). If file changes on disk, reload.
+ * Precedence:
+ *  - If relPath is provided and non-empty, it is tried first.
+ *  - Else env override (if set).
+ *  - Else default.
  */
 function loadCatalog(relPath) {
-  // IMPORTANT precedence:
-  // - If relPath is provided and non-empty, we honor it.
-  // - Else env override (if set).
-  // - Else default.
   const requested = cleanText(relPath || "");
   const env = cleanText(process.env[ENV_CATALOG_PATH] || "");
   const effectiveRel = requested || env || DEFAULT_CATALOG_REL;
@@ -463,7 +464,7 @@ function getCatalogStatus() {
 }
 
 /* ======================================================
-   Category / Package helpers (new)
+   Category / Package helpers
 ====================================================== */
 
 function listCategoryIds(catalogMaybe) {
@@ -515,6 +516,9 @@ function getPackageById(catalogMaybe, packageId) {
 
 /**
  * Recommend *package ids* given category + budgetTier.
+ * - budgetTier wins if explicit (starter_test/growth_bundle/dominance)
+ * - else category.recommended from catalog if present
+ * - else fallback ["growth"]
  */
 function recommendPackageIds(catalogMaybe, categoryId, budgetTier) {
   const cat = catalogMaybe || getCatalog();
@@ -535,6 +539,8 @@ function recommendPackageIds(catalogMaybe, categoryId, budgetTier) {
 
 /* ======================================================
    Tier/Package compatibility layer
+   - Your v1 JSON uses packages (starter/growth/dominance)
+   - Some older logic expects "tiers" (starter_test/growth_bundle/dominance)
 ====================================================== */
 
 function getTierById(tierId) {
@@ -586,12 +592,16 @@ function listTierChoices() {
 
   // Fall back to packages
   const pkgs = Array.isArray(cat.packages) ? cat.packages : [];
-  return pkgs.map((p) => ({
-    id: cleanText(p.id),
-    label: cleanText(p.name || p.id),
-    range: p.priceRange ? { text: p.priceRange } : null,
-    frequency_hint: null,
-  }));
+  const out = [];
+  for (const p of pkgs) {
+    out.push({
+      id: cleanText(p.id),
+      label: cleanText(p.name || p.id),
+      range: p.priceRange ? { text: p.priceRange } : null,
+      frequency_hint: null,
+    });
+  }
+  return out;
 }
 
 /* ======================================================
@@ -616,8 +626,7 @@ function normalizeCtaToken(s) {
   if (!t) return null;
 
   if (t.includes("book") && t.includes("call")) return "book_a_call";
-  if (t.includes("rate") && (t.includes("card") || t.includes("rates") || t.includes("pricing")))
-    return "request_rate_card";
+  if (t.includes("rate") && (t.includes("card") || t.includes("rates") || t.includes("pricing"))) return "request_rate_card";
   if (t.includes("whatsapp") || /\bwa\b/.test(t)) return "whatsapp";
 
   return null;
@@ -728,20 +737,25 @@ function recommendPackage(input = {}) {
   const props = cat.properties || { tv: true, radio: true, website: true, social: true };
   const property = normalizePropertyToken(input.property) || "bundle";
 
+  // Tier selection priority:
+  // 1) explicit tierId if it matches catalog (tiers OR packages)
+  // 2) budget token (starter/growth/dominance)
+  // 3) catalog defaults
+  // 4) fallback growth_bundle (or first available)
   const explicitTierId = normToken(input.tierId);
   const tierFromBudget = normalizeBudgetToken(input.budget);
   let tierId = null;
 
   if (explicitTierId && getTierById(explicitTierId)) tierId = explicitTierId;
   else if (tierFromBudget && getTierById(tierFromBudget)) tierId = tierFromBudget;
-  else if (cat.defaults && normToken(cat.defaults.tier) && getTierById(cat.defaults.tier))
-    tierId = normToken(cat.defaults.tier);
+  else if (cat.defaults && normToken(cat.defaults.tier) && getTierById(cat.defaults.tier)) tierId = normToken(cat.defaults.tier);
   else
-    tierId = getTierById("growth_bundle")
-      ? "growth_bundle"
-      : (cat.tiers && cat.tiers[0] && cat.tiers[0].id) ||
-        (cat.packages && cat.packages[0] && cat.packages[0].id) ||
-        "growth_bundle";
+    tierId =
+      getTierById("growth_bundle")
+        ? "growth_bundle"
+        : (cat.tiers && cat.tiers[0] && cat.tiers[0].id) ||
+          (cat.packages && cat.packages[0] && cat.packages[0].id) ||
+          "growth_bundle";
 
   const category = normalizeCategoryToken(input.category) || "other";
   const goal = cleanText(input.goal) || "brand awareness";
@@ -770,8 +784,7 @@ function recommendPackage(input = {}) {
   if (!freq) {
     const idn = normToken(tierId);
     if (idn === "starter_test" || idn === "starter") freq = "Low frequency: 2–3 mentions/week (test + learn)";
-    else if (idn === "growth_bundle" || idn === "growth")
-      freq = "Core frequency: 4–7 mentions/week (enough repetition to move outcomes)";
+    else if (idn === "growth_bundle" || idn === "growth") freq = "Core frequency: 4–7 mentions/week (enough repetition to move outcomes)";
     else if (idn === "dominance") freq = "High frequency: daily mentions or sponsored segment ownership";
     else freq = "Steady frequency matched to your flight dates and goals.";
   }
