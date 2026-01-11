@@ -3,13 +3,15 @@
 /**
  * Utils/sponsorsLane.js
  *
+ * Sponsors Lane v1.2 (TIGHT + Deterministic + Chip-Safe + Optional Business/Restrictions + Script Variants)
+ *
  * Purpose:
  *  - Sponsors Lane conversational handler (Nyx-ready)
  *  - Collects minimal fields:
  *      property (tv/radio/website/social/bundle)
  *      goal (calls/foot traffic/website clicks/brand awareness)
  *      category (catalog id or "other")
- *      business (optional, but used for scripts; never fall back to category)
+ *      business (optional, but used for scripts; NEVER fall back to category unless user explicitly requests)
  *      budgetTier (starter_test/growth_bundle/dominance)
  *      cta (book_a_call/request_rate_card/whatsapp)
  *      restrictions (optional free text)
@@ -26,6 +28,10 @@
 
 const SK = require("./sponsorsKnowledge");
 
+/* ======================================================
+   Utilities
+====================================================== */
+
 function cleanText(s) {
   return String(s || "")
     .replace(/\u200B/g, "")
@@ -34,7 +40,9 @@ function cleanText(s) {
 }
 
 function pickRotate(session, key, options) {
-  if (!session || !Array.isArray(options) || options.length === 0) return (options && options[0]) || "";
+  if (!session || !Array.isArray(options) || options.length === 0) {
+    return (options && options[0]) || "";
+  }
   const k = String(key || "rot");
   const idxKey = `_rot_${k}`;
   const last = Number(session[idxKey] || 0);
@@ -54,30 +62,73 @@ function normalizeYesNo(s) {
 function isSponsorIntent(text) {
   const t = cleanText(text).toLowerCase();
   if (!t) return false;
-  return (
+
+  // Very explicit sponsor lane triggers
+  if (
     t.includes("sponsor") ||
     t.includes("sponsors lane") ||
+    t.includes("sponsor lane") ||
     t.includes("advertis") ||
     t.includes("rate card") ||
+    t.includes("media kit") ||
     t.includes("promo") ||
+    t.includes("promotion") ||
     t.includes("ad spot") ||
     t.includes("commercial") ||
     t.includes("campaign") ||
-    t.includes("media kit")
-  );
+    t.includes("banner ad") ||
+    t.includes("run an ad") ||
+    t.includes("buy ads") ||
+    t.includes("ad space") ||
+    t.includes("pricing")
+  )
+    return true;
+
+  // Soft triggers (but still pretty safe)
+  if (
+    /\b(brand deal|sponsorship|sponsored|spot buy|flight|impressions|cpm)\b/.test(
+      t
+    )
+  )
+    return true;
+
+  return false;
 }
 
 function normalizeGoal(text) {
   const t = cleanText(text).toLowerCase();
   if (!t) return null;
 
-  if (t.includes("call") || t.includes("booking") || /\bbook\b/.test(t)) return "calls";
-  if (t.includes("foot") || t.includes("store") || t.includes("walk-in") || t.includes("walk in")) return "foot traffic";
-  if (t.includes("click") || t.includes("website") || t.includes("site")) return "website clicks";
+  if (t.includes("call") || t.includes("booking") || /\bbook\b/.test(t))
+    return "calls";
+  if (
+    t.includes("foot") ||
+    t.includes("store") ||
+    t.includes("walk-in") ||
+    t.includes("walk in")
+  )
+    return "foot traffic";
+  if (t.includes("click") || t.includes("website") || t.includes("site"))
+    return "website clicks";
   if (t.includes("awareness") || t.includes("brand")) return "brand awareness";
 
   return null;
 }
+
+function isTierId(s) {
+  const t = cleanText(s).toLowerCase();
+  return t === "starter_test" || t === "growth_bundle" || t === "dominance";
+}
+
+function looksLikeUrl(s) {
+  const t = cleanText(s).toLowerCase();
+  if (!t) return false;
+  return t.includes("http://") || t.includes("https://") || t.startsWith("www.");
+}
+
+/* ======================================================
+   State
+====================================================== */
 
 function getState(session) {
   const s = session && typeof session === "object" ? session : {};
@@ -88,11 +139,10 @@ function getState(session) {
     property: cleanText(st.property || ""), // tv|radio|website|social|bundle
     goal: cleanText(st.goal || ""),
     category: cleanText(st.category || ""),
-    business: cleanText(st.business || st.businessName || st.brand || ""), // allow legacy keys
+    business: cleanText(st.business || st.businessName || st.brand || ""),
     budgetTier: cleanText(st.budgetTier || ""),
     cta: cleanText(st.cta || ""),
     restrictions: cleanText(st.restrictions || ""),
-    // internal flow
     stage: cleanText(st.stage || ""), // ask_property|ask_goal|ask_category|ask_business|ask_budget|ask_cta|ask_restrictions|done
   };
 }
@@ -103,12 +153,23 @@ function setState(session, patch) {
   Object.assign(session.sponsors, patch || {});
 }
 
+/* ======================================================
+   Catalog helpers
+====================================================== */
+
 function getCtaLabels(catalog) {
   const labels =
-    (catalog && catalog.ctas && catalog.ctas.labels && typeof catalog.ctas.labels === "object" && catalog.ctas.labels) || {};
+    (catalog &&
+      catalog.ctas &&
+      catalog.ctas.labels &&
+      typeof catalog.ctas.labels === "object" &&
+      catalog.ctas.labels) ||
+    {};
   return {
     book_a_call: cleanText(labels.book_a_call || "Book a call") || "Book a call",
-    request_rate_card: cleanText(labels.request_rate_card || "Request rate card") || "Request rate card",
+    request_rate_card:
+      cleanText(labels.request_rate_card || "Request rate card") ||
+      "Request rate card",
     whatsapp: cleanText(labels.whatsapp || "WhatsApp") || "WhatsApp",
   };
 }
@@ -123,17 +184,34 @@ function prettifyCategory(catalog, categoryId) {
   if (!hitKey) return id;
 
   const v = c[hitKey];
-  if (v && typeof v === "object") return cleanText(v.label || v.name || hitKey) || hitKey;
+  if (v && typeof v === "object")
+    return cleanText(v.label || v.name || hitKey) || hitKey;
   return cleanText(String(v || hitKey)) || hitKey;
 }
 
-function isTierId(s) {
-  const t = cleanText(s).toLowerCase();
-  return t === "starter_test" || t === "growth_bundle" || t === "dominance";
+function formatBundle(bundle = []) {
+  const b = Array.isArray(bundle) ? bundle : [];
+  const pretty = b.map((x) => {
+    if (x === "tv") return "TV";
+    if (x === "radio") return "Radio";
+    if (x === "website") return "Website";
+    if (x === "social") return "Social";
+    return String(x);
+  });
+  return pretty.join(" + ");
 }
 
+/* ======================================================
+   Followups
+====================================================== */
+
 function makeFollowUpsForStage(stage, catalog) {
-  const props = (catalog && catalog.properties) || { tv: true, radio: true, website: true, social: true };
+  const props = (catalog && catalog.properties) || {
+    tv: true,
+    radio: true,
+    website: true,
+    social: true,
+  };
   const ctaLabels = getCtaLabels(catalog);
 
   const tierChoices = SK.listTierChoices(); // [{id,label,range}]
@@ -152,11 +230,20 @@ function makeFollowUpsForStage(stage, catalog) {
     if (props.website) out.push({ label: "Website", send: "Website" });
     if (props.social) out.push({ label: "Social", send: "Social" });
     out.push({ label: "Bundle", send: "Bundle" });
+    out.push({ label: "Request rate card", send: "Request rate card" });
+    out.push({ label: "Build my offer", send: "Build my offer" });
     return out.slice(0, 8);
   }
 
   if (stage === "ask_goal") {
-    return ["Calls", "Foot traffic", "Website clicks", "Brand awareness"].map((x) => ({ label: x, send: x })).slice(0, 8);
+    return [
+      { label: "Calls", send: "Calls" },
+      { label: "Foot traffic", send: "Foot traffic" },
+      { label: "Website clicks", send: "Website clicks" },
+      { label: "Brand awareness", send: "Brand awareness" },
+      { label: "Request rate card", send: "Request rate card" },
+      { label: "Build my offer", send: "Build my offer" },
+    ].slice(0, 8);
   }
 
   if (stage === "ask_category") {
@@ -169,19 +256,19 @@ function makeFollowUpsForStage(stage, catalog) {
       { label: "Trades", send: "Trades" },
       { label: "Events", send: "Events" },
       { label: "Other", send: "Other" },
-    ];
+    ].slice(0, 8);
   }
 
   if (stage === "ask_business") {
     return [
       { label: "Skip (generic)", send: "Skip" },
-      { label: "Business: (type it)", send: "Business: " },
       { label: "Use category name", send: "Use category name" },
-    ];
+      { label: "Business: (type it)", send: "Business: " },
+      { label: "Build my offer", send: "Build my offer" },
+    ].slice(0, 8);
   }
 
   if (stage === "ask_budget") {
-    // send tier id
     return tiers.slice(0, 3).map((t) => ({
       label: cleanText(t.label || t.id),
       send: cleanText(t.id || t.label),
@@ -193,7 +280,8 @@ function makeFollowUpsForStage(stage, catalog) {
       { label: ctaLabels.book_a_call, send: "book_a_call" },
       { label: ctaLabels.request_rate_card, send: "request_rate_card" },
       { label: ctaLabels.whatsapp, send: "whatsapp" },
-    ];
+      { label: "Build my offer", send: "Build my offer" },
+    ].slice(0, 8);
   }
 
   if (stage === "ask_restrictions") {
@@ -201,7 +289,8 @@ function makeFollowUpsForStage(stage, catalog) {
       { label: "No restrictions", send: "No restrictions" },
       { label: "Standard policy restrictions", send: "Standard policy restrictions" },
       { label: "I have restrictions", send: "I have restrictions" },
-    ];
+      { label: "Build my offer", send: "Build my offer" },
+    ].slice(0, 8);
   }
 
   // done
@@ -211,27 +300,43 @@ function makeFollowUpsForStage(stage, catalog) {
     { label: "30-second cut", send: "30-second cut" },
     { label: "Request rate card", send: "Request rate card" },
     { label: "Another sponsor", send: "Another sponsor" },
-  ];
+  ].slice(0, 8);
 }
+
+/* ======================================================
+   Prompts + stage selection
+====================================================== */
 
 function stagePrompt(stage, session, catalog) {
   const p = (catalog && catalog.nyx_lane_prompts) || {};
   const currency = (catalog && catalog.currency) || "CAD";
 
   if (stage === "ask_property") {
-    return p.open || "Sponsors Lane — quick setup. What do you want to promote: TV, Radio, Website, Social, or a bundle?";
+    return (
+      p.open ||
+      "Sponsors Lane — quick setup. What do you want to promote: TV, Radio, Website, Social, or a bundle?"
+    );
   }
   if (stage === "ask_goal") {
     return p.goal || "What’s your goal: calls, foot traffic, website clicks, or brand awareness?";
   }
   if (stage === "ask_category") {
-    return p.category || "What category are you in? (restaurant, auto, grocery, church, fitness, trades, events, other)";
+    return (
+      p.category ||
+      "What category are you in? (restaurant, auto, grocery, church, fitness, trades, events, other)"
+    );
   }
   if (stage === "ask_business") {
-    return p.business || "Sponsor name (what should I say on-air)? Reply “Business: <name>” or tap Skip.";
+    return (
+      p.business ||
+      "Sponsor name (what should I say on-air)? Reply “Business: <name>” or tap Skip."
+    );
   }
   if (stage === "ask_budget") {
-    return p.budget || `Budget tier in ${currency}: Starter, Growth, or Dominance? (Or type a number like “800”.)`;
+    return (
+      p.budget ||
+      `Budget tier in ${currency}: Starter, Growth, or Dominance? (Or type a number like “800”.)`
+    );
   }
   if (stage === "ask_cta") {
     return p.cta || "Preferred CTA: Book a call, Request rate card, or WhatsApp?";
@@ -263,9 +368,14 @@ function nextMissingField(state) {
   return "done";
 }
 
-function extractBusinessName(text) {
+/* ======================================================
+   Parsing + state application
+====================================================== */
+
+function extractBusinessName(text, state) {
   const t = cleanText(text);
   const lower = t.toLowerCase();
+  if (!t) return "";
 
   // "Business: Acme Auto"
   const m1 = t.match(/\b(business|company|brand|sponsor)\s*:\s*(.+)$/i);
@@ -282,9 +392,21 @@ function extractBusinessName(text) {
   }
 
   // If they’re in ask_business stage and they typed something short, accept it
-  if (t.length >= 2 && t.length <= 60 && !lower.includes("http") && !lower.includes("@") && !/\b(rate card|bundle|tier|growth|starter|dominance)\b/.test(lower)) {
-    // Avoid treating "Auto Services" as business name by itself
-    if (!/\b(auto services|restaurant\/takeout|grocery\/specialty|church\/faith|fitness\/wellness|trades|events|other)\b/i.test(t)) {
+  if (
+    state &&
+    state.stage === "ask_business" &&
+    t.length >= 2 &&
+    t.length <= 60 &&
+    !looksLikeUrl(t) &&
+    !t.includes("@") &&
+    !/\b(rate card|bundle|tier|growth|starter|dominance)\b/.test(lower)
+  ) {
+    // Avoid treating category labels as business name unless they explicitly used "Use category name"
+    if (
+      !/\b(auto services|restaurant\/takeout|grocery\/specialty|church\/faith|fitness\/wellness|trades|events|other)\b/i.test(
+        t
+      )
+    ) {
       return t;
     }
   }
@@ -308,9 +430,9 @@ function applyUserAnswerToState(text, state, catalog) {
   const cat = SK.normalizeCategoryToken(t);
   if (cat) state.category = cat;
 
-  // business name capture (never infer from category unless user explicitly requests)
+  // business name capture (NEVER infer from category unless user explicitly requests)
   if (!state.business) {
-    const bn = extractBusinessName(t);
+    const bn = extractBusinessName(t, state);
     if (bn) state.business = bn;
   }
   if (lower === "skip") state.business = state.business || "";
@@ -319,16 +441,22 @@ function applyUserAnswerToState(text, state, catalog) {
     if (catPretty && catPretty !== "other") state.business = catPretty;
   }
 
-  // budget tier (supports explicit tier id OR numeric)
+  // budget tier (supports explicit tier id OR catalog normalization)
   const tier = isTierId(lower) ? lower : SK.normalizeBudgetToken(t);
   if (tier) state.budgetTier = tier;
 
   // cta (supports explicit token or friendly phrases)
-  const cta = lower === "book_a_call" || lower === "request_rate_card" || lower === "whatsapp" ? lower : SK.normalizeCtaToken(t);
+  const cta =
+    lower === "book_a_call" ||
+    lower === "request_rate_card" ||
+    lower === "whatsapp"
+      ? lower
+      : SK.normalizeCtaToken(t);
   if (cta) state.cta = cta;
 
   // soft-cta shortcuts
   if (lower.includes("rate card")) state.cta = "request_rate_card";
+  if (lower.includes("media kit")) state.cta = "request_rate_card";
   if (lower.includes("whatsapp")) state.cta = "whatsapp";
   if (lower.includes("book") && lower.includes("call")) state.cta = "book_a_call";
 
@@ -337,33 +465,57 @@ function applyUserAnswerToState(text, state, catalog) {
   else if (lower.includes("standard policy")) state.restrictions = "standard";
   else if (lower.includes("i have restrictions")) state.restrictions = "custom";
   else {
-    if (!state.restrictions && t.length >= 8 && lower.includes("restrict")) state.restrictions = t;
+    // If they typed a real restriction line, accept it (don’t require the word "restrict")
+    if (state.stage === "ask_restrictions" && t.length >= 6) {
+      state.restrictions = t;
+    }
+    // If they used the word restrict anywhere, also accept
+    if (!state.restrictions && t.length >= 8 && lower.includes("restrict")) {
+      state.restrictions = t;
+    }
   }
 
   // Actions (tight: avoid matching every “build” in a sentence)
   const wantsBuild =
     lower === "build my offer" ||
-    /\b(build my offer|build the offer|recommend package|recommend a package|package it|get a package recommendation)\b/.test(lower);
+    /\b(build my offer|build the offer|recommend package|recommend a package|package it|get a package recommendation)\b/.test(
+      lower
+    );
 
-  const wantsAnother = lower.includes("another sponsor") || lower.includes("new sponsor");
+  const wantsAnother = lower === "another sponsor" || lower.includes("new sponsor");
+  const wantsRateCard = lower === "request rate card" || lower.includes("rate card") || lower.includes("media kit");
+
+  // Script variants / actions
+  const wants15 =
+    lower === "write 15-second script" ||
+    /\b(15[- ]second|15s)\b/.test(lower) ||
+    (lower.includes("write") && lower.includes("script") && !/\b30\b/.test(lower));
+
+  const wants30 = /\b(30[- ]second|30s)\b/.test(lower) || lower.includes("30-second") || lower.includes("30 second");
+
+  const wantsRadioVersion = /\bradio version\b/.test(lower);
+  const wantsWebsiteVersion = /\bwebsite version\b/.test(lower);
+  const wantsTvTag = /\btv tag\b/.test(lower);
 
   // Lane enter
   const enterLane = lower === "sponsors lane" || lower === "sponsor lane";
 
-  return { wantsBuild, wantsAnother, enterLane };
+  return {
+    wantsBuild,
+    wantsAnother,
+    wantsRateCard,
+    wants15,
+    wants30,
+    wantsRadioVersion,
+    wantsWebsiteVersion,
+    wantsTvTag,
+    enterLane,
+  };
 }
 
-function formatBundle(bundle = []) {
-  const b = Array.isArray(bundle) ? bundle : [];
-  const pretty = b.map((x) => {
-    if (x === "tv") return "TV";
-    if (x === "radio") return "Radio";
-    if (x === "website") return "Website";
-    if (x === "social") return "Social";
-    return String(x);
-  });
-  return pretty.join(" + ");
-}
+/* ======================================================
+   Offer + scripts
+====================================================== */
 
 function buildOfferReply(session, state, catalog) {
   const rec = SK.recommendPackage({
@@ -374,7 +526,7 @@ function buildOfferReply(session, state, catalog) {
     cta: state.cta,
   });
 
-  if (!rec.ok) {
+  if (!rec || !rec.ok) {
     return pickRotate(session, "sponsors_offer_fail", [
       "Sponsors Lane — I can’t load the sponsors catalog right now.",
       "Tell me: TV/Radio/Website/Social + budget tier + category, and I’ll package a recommendation anyway.",
@@ -404,7 +556,9 @@ function buildOfferReply(session, state, catalog) {
       ? "Restrictions: noted (custom)"
       : `Restrictions: ${state.restrictions}`;
 
-  const sponsorNameLine = state.business ? `Sponsor: ${state.business}` : "Sponsor: (name optional)";
+  const sponsorNameLine = state.business
+    ? `Sponsor: ${state.business}`
+    : "Sponsor: (name optional)";
 
   // 6–10 lines, no fluff
   const lines = [
@@ -444,16 +598,86 @@ function getSponsorNameForScript(state, catalog) {
   if (name) return name;
 
   // Never use raw category id like "other" as sponsor name.
-  // If user explicitly used category-name, we already stored it in business.
   return "your business";
 }
+
+function getCtaPretty(state, catalog) {
+  const ctaLabels = getCtaLabels(catalog);
+  const cta =
+    state.cta ||
+    (catalog && catalog.defaults && cleanText(catalog.defaults.cta)) ||
+    "book_a_call";
+
+  return (
+    (cta === "book_a_call" && ctaLabels.book_a_call) ||
+    (cta === "request_rate_card" && ctaLabels.request_rate_card) ||
+    (cta === "whatsapp" && ctaLabels.whatsapp) ||
+    ctaLabels.book_a_call
+  );
+}
+
+function buildScript15(state, catalog) {
+  const sponsorName = getSponsorNameForScript(state, catalog);
+  const ctaPretty = getCtaPretty(state, catalog);
+  const goalPretty = state.goal || "results";
+
+  return [
+    "15-second sponsor script:",
+    `“This hour on Sandblast is sponsored by ${sponsorName}. If you want ${goalPretty} without the noise, get in front of the right audience. ${ctaPretty} today and lock your spot.”`,
+    "Next: say “Build my offer” to package TV/Radio/Website/Social, or ask for a 30-second cut.",
+  ].join("\n");
+}
+
+function buildScript30(state, catalog) {
+  const sponsorName = getSponsorNameForScript(state, catalog);
+  const ctaPretty = getCtaPretty(state, catalog);
+  const goalPretty = state.goal || "results";
+
+  return [
+    "30-second sponsor script:",
+    `“Sandblast is powered by sponsors like ${sponsorName}. If you’re serious about ${goalPretty}, this is where you show up consistently—on-air, on-site, and in social feeds. We build a clean flight, track outcomes, and keep the message tight. ${ctaPretty} and we’ll map the best package for your budget.”`,
+    "Want it tailored for Radio vs Website, or a TV tag?",
+  ].join("\n");
+}
+
+function buildVariantTag(variant, state, catalog) {
+  const sponsorName = getSponsorNameForScript(state, catalog);
+  const ctaPretty = getCtaPretty(state, catalog);
+
+  if (variant === "radio") {
+    return [
+      "Radio version (tag):",
+      `“Sponsored by ${sponsorName}. ${ctaPretty} today.”`,
+    ].join("\n");
+  }
+
+  if (variant === "website") {
+    return [
+      "Website version (tag):",
+      `“This segment is brought to you by ${sponsorName}. Visit us online—${ctaPretty}.”`,
+    ].join("\n");
+  }
+
+  if (variant === "tv") {
+    return [
+      "TV tag (super short):",
+      `“Sandblast is sponsored by ${sponsorName}. ${ctaPretty}.”`,
+    ].join("\n");
+  }
+
+  return "";
+}
+
+/* ======================================================
+   Main handler
+====================================================== */
 
 function handleChat({ text, session } = {}) {
   const message = cleanText(text);
 
   // Load catalog (safe)
   const loaded = SK.loadCatalog(SK.DEFAULT_CATALOG_REL);
-  const catalog = loaded.ok ? loaded.catalog : null;
+  const catalog = loaded && loaded.ok ? loaded.catalog : null;
 
   // Force lane
   if (session && typeof session === "object") session.lane = "sponsors";
@@ -462,7 +686,7 @@ function handleChat({ text, session } = {}) {
   const lower = message.toLowerCase();
 
   // Hard reset / new sponsor
-  if (lower.includes("another sponsor") || lower.includes("new sponsor")) {
+  if (lower === "another sponsor" || lower.includes("new sponsor")) {
     setState(session, {
       property: "",
       goal: "",
@@ -482,8 +706,23 @@ function handleChat({ text, session } = {}) {
     };
   }
 
+  // Apply answer + detect actions
+  const action = applyUserAnswerToState(message, state, catalog);
+
+  // If user just enters Sponsors Lane, start at property
+  if (action.enterLane && nextMissingField(state) === "ask_property") {
+    state.stage = "ask_property";
+    setState(session, state);
+    const reply = stagePrompt("ask_property", session, catalog);
+    return {
+      reply,
+      followUps: makeFollowUpsForStage("ask_property", catalog),
+      sessionPatch: { lane: "sponsors" },
+    };
+  }
+
   // Rate card request (fast path)
-  if (lower === "request rate card" || lower.includes("rate card") || lower.includes("media kit")) {
+  if (action.wantsRateCard) {
     state.cta = "request_rate_card";
     setState(session, state);
 
@@ -499,17 +738,74 @@ function handleChat({ text, session } = {}) {
     };
   }
 
-  // Apply answer
-  const action = applyUserAnswerToState(message, state, catalog);
-
-  // If user just enters Sponsors Lane, start at property
-  if (action.enterLane && nextMissingField(state) === "ask_property") {
-    state.stage = "ask_property";
-    setState(session, state);
-    const reply = stagePrompt("ask_property", session, catalog);
+  // Script variants
+  if (action.wantsRadioVersion) {
+    const reply = buildVariantTag("radio", state, catalog);
     return {
       reply,
-      followUps: makeFollowUpsForStage("ask_property", catalog),
+      followUps: [
+        { label: "Write 15-second script", send: "Write 15-second script" },
+        { label: "30-second cut", send: "30-second cut" },
+        { label: "TV tag", send: "TV tag" },
+        { label: "Build my offer", send: "Build my offer" },
+      ],
+      sessionPatch: { lane: "sponsors" },
+    };
+  }
+
+  if (action.wantsWebsiteVersion) {
+    const reply = buildVariantTag("website", state, catalog);
+    return {
+      reply,
+      followUps: [
+        { label: "Write 15-second script", send: "Write 15-second script" },
+        { label: "30-second cut", send: "30-second cut" },
+        { label: "TV tag", send: "TV tag" },
+        { label: "Build my offer", send: "Build my offer" },
+      ],
+      sessionPatch: { lane: "sponsors" },
+    };
+  }
+
+  if (action.wantsTvTag) {
+    const reply = buildVariantTag("tv", state, catalog);
+    return {
+      reply,
+      followUps: [
+        { label: "Write 15-second script", send: "Write 15-second script" },
+        { label: "30-second cut", send: "30-second cut" },
+        { label: "Radio version", send: "Radio version" },
+        { label: "Build my offer", send: "Build my offer" },
+      ],
+      sessionPatch: { lane: "sponsors" },
+    };
+  }
+
+  // Write scripts
+  if (action.wants15) {
+    const reply = buildScript15(state, catalog);
+    return {
+      reply,
+      followUps: [
+        { label: "Build my offer", send: "Build my offer" },
+        { label: "30-second cut", send: "30-second cut" },
+        { label: "Request rate card", send: "Request rate card" },
+        { label: "Another sponsor", send: "Another sponsor" },
+      ],
+      sessionPatch: { lane: "sponsors" },
+    };
+  }
+
+  if (action.wants30) {
+    const reply = buildScript30(state, catalog);
+    return {
+      reply,
+      followUps: [
+        { label: "Radio version", send: "Radio version" },
+        { label: "Website version", send: "Website version" },
+        { label: "TV tag", send: "TV tag" },
+        { label: "Build my offer", send: "Build my offer" },
+      ],
       sessionPatch: { lane: "sponsors" },
     };
   }
@@ -519,7 +815,13 @@ function handleChat({ text, session } = {}) {
     const missing = nextMissingField(state);
 
     // Allow build even if we're only missing business/restrictions (optional)
-    const blockers = ["ask_property", "ask_goal", "ask_category", "ask_budget", "ask_cta"];
+    const blockers = [
+      "ask_property",
+      "ask_goal",
+      "ask_category",
+      "ask_budget",
+      "ask_cta",
+    ];
     if (blockers.includes(missing)) {
       state.stage = missing;
       setState(session, state);
@@ -549,68 +851,6 @@ function handleChat({ text, session } = {}) {
     };
   }
 
-  // Script writing
-  if (lower === "write 15-second script" || lower.includes("15-second") || lower.includes("15 second") || lower.includes("write script")) {
-    const ctaLabels = getCtaLabels(catalog);
-    const cta = state.cta || (catalog && catalog.defaults && cleanText(catalog.defaults.cta)) || "book_a_call";
-    const ctaPretty =
-      (cta === "book_a_call" && ctaLabels.book_a_call) ||
-      (cta === "request_rate_card" && ctaLabels.request_rate_card) ||
-      (cta === "whatsapp" && ctaLabels.whatsapp) ||
-      ctaLabels.book_a_call;
-
-    const goalPretty = state.goal || "results";
-    const sponsorName = getSponsorNameForScript(state, catalog);
-
-    const script = [
-      "15-second sponsor script:",
-      `“This hour on Sandblast is sponsored by ${sponsorName}. If you want ${goalPretty} without the noise, get in front of the right audience. ${ctaPretty} today and lock your spot.”`,
-      "Next: say “Build my offer” to package TV/Radio/Website/Social, or ask for a 30-second cut.",
-    ].join("\n");
-
-    return {
-      reply: script,
-      followUps: [
-        { label: "Build my offer", send: "Build my offer" },
-        { label: "30-second cut", send: "30-second cut" },
-        { label: "Request rate card", send: "Request rate card" },
-        { label: "Another sponsor", send: "Another sponsor" },
-      ],
-      sessionPatch: { lane: "sponsors" },
-    };
-  }
-
-  // 30-second cut
-  if (lower.includes("30-second") || lower.includes("30 second") || lower.includes("30s")) {
-    const ctaLabels = getCtaLabels(catalog);
-    const cta = state.cta || "book_a_call";
-    const ctaPretty =
-      (cta === "book_a_call" && ctaLabels.book_a_call) ||
-      (cta === "request_rate_card" && ctaLabels.request_rate_card) ||
-      (cta === "whatsapp" && ctaLabels.whatsapp) ||
-      ctaLabels.book_a_call;
-
-    const goalPretty = state.goal || "results";
-    const sponsorName = getSponsorNameForScript(state, catalog);
-
-    const script = [
-      "30-second sponsor script:",
-      `“Sandblast is powered by sponsors like ${sponsorName}. If you’re serious about ${goalPretty}, this is where you show up consistently—on-air, on-site, and in social feeds. We build a clean flight, track outcomes, and keep the message tight. ${ctaPretty} and we’ll map the best package for your budget.”`,
-      "Want it tailored for Radio vs Website, or a TV tag?",
-    ].join("\n");
-
-    return {
-      reply: script,
-      followUps: [
-        { label: "Radio version", send: "Radio version" },
-        { label: "Website version", send: "Website version" },
-        { label: "TV tag", send: "TV tag" },
-        { label: "Build my offer", send: "Build my offer" },
-      ],
-      sessionPatch: { lane: "sponsors" },
-    };
-  }
-
   // Normal progression: ask next missing field
   const nextStage = nextMissingField(state);
   state.stage = nextStage;
@@ -628,7 +868,7 @@ function handleChat({ text, session } = {}) {
     };
   }
 
-  // If sponsor intent, continue the lane questions
+  // If sponsor intent (or lane already set), continue lane questions
   if (isSponsorIntent(message) || (session && session.lane === "sponsors")) {
     const reply = stagePrompt(nextStage, session, catalog);
     return {
@@ -639,7 +879,8 @@ function handleChat({ text, session } = {}) {
   }
 
   // Fallback (should be rare if routing is correct)
-  const reply = "Sponsors Lane — tell me what you want to promote: TV, Radio, Website, Social, or a bundle.";
+  const reply =
+    "Sponsors Lane — tell me what you want to promote: TV, Radio, Website, Social, or a bundle.";
   return {
     reply,
     followUps: makeFollowUpsForStage("ask_property", catalog),
