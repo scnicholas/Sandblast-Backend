@@ -3,170 +3,206 @@
 /**
  * Scripts/ingest_top40weekly_60s_top100_v1.js
  *
- * Input:
- *  - Data/raw/top40weekly/top-100-songs-of-the-60s.html
+ * Reads:
+ *   Data/raw/top40weekly/top-100-songs-of-the-60s.html
  *
- * Output:
- *  - Data/top100_top40weekly_1960s_v1.json
+ * Writes:
+ *   Data/top100_top40weekly_1960s_v1.json
+ *
+ * Output rows:
+ *   { year, rank, artist, title, source }
  *
  * Notes:
- *  - Top40Weekly markup can vary; this parser is defensive:
- *    - Finds year anchor blocks (#1960-topsongslist etc)
- *    - Extracts rows by scanning for ranked lines "1." / "1)" / "#1"
- *    - Requires pos + artist + title
+ * - Robust against minor HTML structure changes
+ * - Detects bot/challenge pages and exits with a clear message
  */
 
 const fs = require("fs");
 const path = require("path");
 
 const ROOT = path.resolve(__dirname, "..");
-const IN_FILE = path.join(ROOT, "Data", "raw", "top40weekly", "top-100-songs-of-the-60s.html");
+const IN_FILE = path.join(
+  ROOT,
+  "Data",
+  "raw",
+  "top40weekly",
+  "top-100-songs-of-the-60s.html"
+);
 const OUT_FILE = path.join(ROOT, "Data", "top100_top40weekly_1960s_v1.json");
 
-function clean(s) {
+const SOURCE = "Top40Weekly — Top 100 Songs of the 60s";
+
+function cleanText(s) {
   return String(s || "")
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
+    .replace(/\u200B/g, "")
     .replace(/&nbsp;/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
 function stripTags(html) {
-  return clean(String(html || "").replace(/<[^>]*>/g, " "));
+  // Keep some structure hints
+  return cleanText(
+    String(html || "")
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<\/(p|div|tr|li|h\d|br|table)>/gi, "\n")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<[^>]+>/g, " ")
+  );
 }
 
-/**
- * Heuristic line parser.
- * Supports patterns like:
- *  "1. Song Title – Artist"
- *  "1) Song Title - Artist"
- *  "#1 Song Title — Artist"
- * Also tries inverse "Artist – Song Title" if needed.
- */
-function parseRankLine(line) {
-  const raw = clean(line);
-  if (!raw) return null;
-
-  // Must start with rank marker
-  const mRank = raw.match(/^(#?\s*\d{1,3})\s*[.)-]?\s*(.+)$/);
-  if (!mRank) return null;
-
-  const pos = Number(String(mRank[1]).replace(/[^0-9]/g, ""));
-  if (!Number.isFinite(pos) || pos < 1 || pos > 100) return null;
-
-  const rest = clean(mRank[2]);
-
-  // Split on common separators
-  const parts =
-    rest.split(/\s(?:—|–|-|:)\s/).map(clean).filter(Boolean);
-
-  if (parts.length < 2) return null;
-
-  // Prefer Title — Artist (common)
-  let title = parts[0];
-  let artist = parts.slice(1).join(" ");
-
-  // If it looks like "Artist — Title" (artist contains "feat" etc and title is short),
-  // attempt swap as fallback
-  const looksLikeArtistFirst =
-    /\b(feat\.|ft\.|and|&|with)\b/i.test(title) && title.length > artist.length;
-  if (looksLikeArtistFirst) {
-    const tmp = title;
-    title = artist;
-    artist = tmp;
-  }
-
-  title = clean(title).replace(/^["']|["']$/g, "");
-  artist = clean(artist).replace(/^["']|["']$/g, "");
-
-  if (!title || !artist) return null;
-
-  return { pos, title, artist };
+function looksLikeBotBlock(html) {
+  const t = String(html || "").toLowerCase();
+  return (
+    t.includes("just a moment") ||
+    t.includes("verify you are human") ||
+    t.includes("cf-chl") ||
+    t.includes("cloudflare") ||
+    t.includes("captcha") ||
+    t.includes("access denied") ||
+    t.includes("challenge-platform")
+  );
 }
 
-/**
- * Extract year section content between anchors.
- */
-function sliceYearSection(html, year) {
-  const id = `${year}-topsongslist`;
-  const startRe = new RegExp(`id=["']${id}["']`, "i");
-  const startIdx = html.search(startRe);
-  if (startIdx < 0) return null;
+function findSection(html, year) {
+  // Try a few id patterns Top40Weekly has used historically
+  const patterns = [
+    new RegExp(`id=["']${year}-topsongslist["']`, "i"),
+    new RegExp(`id=["']${year}[-_]?topsongslist["']`, "i"),
+    new RegExp(`name=["']${year}-topsongslist["']`, "i"),
+    new RegExp(`href=["']#${year}-topsongslist["']`, "i"),
+  ];
 
-  // End at next year anchor or end of file
-  let endIdx = html.length;
-  for (let y = year + 1; y <= 1969; y++) {
-    const id2 = `${y}-topsongslist`;
-    const re2 = new RegExp(`id=["']${id2}["']`, "i");
-    const idx2 = html.slice(startIdx + 1).search(re2);
-    if (idx2 >= 0) {
-      endIdx = startIdx + 1 + idx2;
+  let start = -1;
+  for (const rx of patterns) {
+    const m = rx.exec(html);
+    if (m && typeof m.index === "number") {
+      start = m.index;
       break;
     }
   }
+  if (start < 0) return null;
 
-  return html.slice(startIdx, endIdx);
+  // End at next year's anchor or end of document
+  const nextYear = year + 1;
+  const endRx = new RegExp(`id=["']${nextYear}-topsongslist["']`, "i");
+  const m2 = endRx.exec(html.slice(start));
+  const end = m2 && typeof m2.index === "number" ? start + m2.index : html.length;
+
+  return html.slice(start, end);
+}
+
+function parseRankedRowsFromText(text, year) {
+  // Heuristic: look for lines starting with rank 1..100, then parse "Artist – Title" or "Title – Artist"
+  const lines = String(text || "")
+    .split(/\n+/)
+    .map((l) => cleanText(l))
+    .filter(Boolean);
+
+  const rows = [];
+  for (const line of lines) {
+    // Common patterns: "1. Artist - Song", "1 Artist – Song"
+    const m =
+      line.match(/^(\d{1,3})[.)-]?\s+(.*)$/) ||
+      line.match(/^#\s*(\d{1,3})\s+(.*)$/);
+    if (!m) continue;
+
+    const rank = Number(m[1]);
+    if (!Number.isFinite(rank) || rank < 1 || rank > 100) continue;
+
+    const rest = cleanText(m[2]);
+
+    // Split on dash variants
+    const parts = rest.split(/\s+[-–—]\s+/).map(cleanText).filter(Boolean);
+
+    let artist = "";
+    let title = "";
+
+    if (parts.length >= 2) {
+      // Usually "Artist – Title"
+      // But sometimes "Title – Artist"
+      // Decide by looking for quotes or common title casing? Keep simple: prefer longer title-ish tokens with quotes
+      const a = parts[0];
+      const b = parts[1];
+
+      // If first part contains feat/&, often artist. If second contains feat/&, often artist.
+      const looksArtist = (s) =>
+        /\b(feat\.|featuring|&|and|with)\b/i.test(s) || /\b(the|band|orchestra)\b/i.test(s);
+
+      if (looksArtist(a) && !looksArtist(b)) {
+        artist = a; title = b;
+      } else if (!looksArtist(a) && looksArtist(b)) {
+        title = a; artist = b;
+      } else {
+        // default: Artist – Title
+        artist = a; title = b;
+      }
+    } else {
+      // If no dash, skip; too ambiguous
+      continue;
+    }
+
+    artist = cleanText(artist.replace(/^["']|["']$/g, ""));
+    title = cleanText(title.replace(/^["']|["']$/g, ""));
+
+    if (!artist || !title) continue;
+
+    rows.push({ year, rank, artist, title, source: SOURCE });
+  }
+
+  // Deduplicate by rank
+  const seen = new Set();
+  const out = [];
+  for (const r of rows) {
+    const k = `${r.year}:${r.rank}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(r);
+  }
+  // Sort by rank
+  out.sort((a, b) => a.rank - b.rank);
+  return out;
 }
 
 function main() {
   if (!fs.existsSync(IN_FILE)) {
-    console.error(`Missing input HTML: ${IN_FILE}`);
-    console.error(`Download it with: curl.exe -L "https://top40weekly.com/top-100-songs-of-the-60s/" -o "${IN_FILE}"`);
+    console.error("Missing input file:", IN_FILE);
+    console.error("Download it first to Data/raw/top40weekly/top-100-songs-of-the-60s.html");
     process.exit(1);
   }
 
   const html = fs.readFileSync(IN_FILE, "utf8");
-  const rows = [];
 
+  if (looksLikeBotBlock(html)) {
+    console.error("Downloaded HTML looks like a bot/challenge page (Cloudflare/captcha).");
+    console.error("Re-download with curl headers (User-Agent + --compressed), then re-run this script.");
+    process.exit(2);
+  }
+
+  const allRows = [];
   for (let year = 1960; year <= 1969; year++) {
-    const section = sliceYearSection(html, year);
-    if (!section) {
-      console.warn(`WARN: Could not find section for ${year} (#${year}-topsongslist)`);
+    const sectionHtml = findSection(html, year);
+    if (!sectionHtml) {
+      console.log(`Year ${year}: parsed 0 ranked rows (section not found)`);
       continue;
     }
 
-    // Strip tags and split into lines
-    const text = stripTags(section);
-    const lines = text.split(/\r?\n/).map(clean).filter(Boolean);
+    const text = stripTags(sectionHtml);
+    const rows = parseRankedRowsFromText(text, year);
 
-    // Collect rank lines
-    const yearRows = [];
-    for (const ln of lines) {
-      // Only consider likely rank lines
-      if (!/^(#?\s*\d{1,3})\s*[.)-]/.test(ln)) continue;
-
-      const parsed = parseRankLine(ln);
-      if (parsed) yearRows.push(parsed);
-    }
-
-    // De-dupe by pos
-    const byPos = new Map();
-    for (const r of yearRows) {
-      if (!byPos.has(r.pos)) byPos.set(r.pos, r);
-    }
-
-    // Emit
-    for (let pos = 1; pos <= 100; pos++) {
-      const r = byPos.get(pos);
-      if (!r) continue;
-      rows.push({
-        year,
-        pos,
-        artist: r.artist,
-        title: r.title,
-        source: "top40weekly-60s",
-      });
-    }
-
-    const got = Array.from(byPos.keys()).filter((p) => p >= 1 && p <= 100).length;
-    console.log(`Year ${year}: parsed ${got} ranked rows`);
+    console.log(`Year ${year}: parsed ${rows.length} ranked rows`);
+    allRows.push(...rows);
   }
 
-  fs.writeFileSync(OUT_FILE, JSON.stringify(rows, null, 2), "utf8");
-  console.log(`\nWrote: ${OUT_FILE}`);
-  console.log(`Rows: ${rows.length}`);
+  fs.writeFileSync(OUT_FILE, JSON.stringify(allRows, null, 2), "utf8");
+  console.log("\nWrote:", OUT_FILE);
+  console.log("Rows:", allRows.length);
+
+  if (allRows.length === 0) {
+    console.log("\nDEBUG TIP: confirm the year anchors exist in the HTML:");
+    console.log('  Select-String -Path ".\\Data\\raw\\top40weekly\\top-100-songs-of-the-60s.html" -Pattern "1960-topsongslist","topsongslist" -SimpleMatch');
+  }
 }
 
 main();
