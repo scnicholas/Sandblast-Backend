@@ -3,20 +3,19 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.12 (SURGICAL: Top10-missing detector hardened for smart quotes + punctuation)
+ * index.js v1.5.13 (SURGICAL: Top10-missing detector hardened + NO-TECH-LEAK copy + better chips)
  *
  * Fix:
- *  - Your Top 10 missing escape DID NOT trigger because replies can contain curly apostrophes:
- *      “don’t have … Top 10 …”
- *    while the detector only matched straight apostrophes:
- *      "don't have … top 10 …"
- *  - v1.5.12 normalizes smart quotes/apostrophes and strips punctuation before matching.
+ *  - Top 10 missing escape now:
+ *     1) Detects smart quotes/apostrophes + punctuation (kept from v1.5.12)
+ *     2) Removes “build / loaded sources / clean list” tech-leak language from user-facing replies
+ *     3) Uses confident, curated framing + mode-forward chips (Story / Micro / next-year Top10)
  *
  * Preserves:
  *  - v1.5.11 lane overrides + lane exit + routing precedence
  *  - FMP, GH1 micro-guard, replay integrity, followUp merge, greeting-only 4-chip enforcement
  *  - #1 routing, chart contamination guard, nav completion, music field bridge
- *  - Removes duplicate /api/health route (keep only one)
+ *  - Single /api/health route (no duplicates)
  */
 
 const express = require("express");
@@ -31,7 +30,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.12 (v1.5.11 + Top10-missing detector smart-quote hardening; preserves lane overrides/escape + routing precedence + GH1 micro-guard + FMP + TOP10 missing escape + replay integrity + followUp merge + returning chips greeting-only + #1 routing + chart contamination guard + nav completion + music field bridge)";
+  "index.js v1.5.13 (v1.5.12 + NO-TECH-LEAK Top10-missing escape + better chips; preserves lane overrides/escape + routing precedence + GH1 micro-guard + FMP + replay integrity + followUp merge + returning chips greeting-only + #1 routing + chart contamination guard + nav completion + music field bridge)";
 
 /* ======================================================
    Basic middleware
@@ -342,7 +341,7 @@ function postEngineBridge(session) {
 ====================================================== */
 
 /**
- * v1.5.12: normalize smart quotes/apostrophes + strip punctuation so
+ * v1.5.12+: normalize smart quotes/apostrophes + strip punctuation so
  * “don’t have a clean Top 10…” matches the detector.
  */
 function normalizeForTop10Missing(s) {
@@ -360,7 +359,6 @@ function looksLikeTop10Missing(reply) {
   const r = normalizeForTop10Missing(reply);
   if (!r) return false;
 
-  // Core signals
   const hasTop10 =
     (r.includes("top") && r.includes("10")) ||
     r.includes("top10") ||
@@ -368,8 +366,11 @@ function looksLikeTop10Missing(reply) {
 
   if (!hasTop10) return false;
 
-  // Missing / not loaded phrasing (broad)
-  if (r.includes("dont have") || r.includes("don't have") || r.includes("do not have"))
+  if (
+    r.includes("dont have") ||
+    r.includes("don't have") ||
+    r.includes("do not have")
+  )
     return true;
 
   if (r.includes("no clean") && r.includes("top")) return true;
@@ -384,10 +385,23 @@ function looksLikeTop10Missing(reply) {
   return false;
 }
 
+/**
+ * NO-TECH-LEAK curated framing for Top10 gaps.
+ * Never mention: build / loaded sources / dataset / parsing / clean list.
+ */
+function top10MissingPreface(year) {
+  const y = clampYear(Number(year)) || 1988;
+  return (
+    `For ${y}, I can give you something richer than a standard Top 10 right now.` +
+    ` I can run a story moment or a micro moment. I’ll start with the story moment—say “micro moment ${y}” if you prefer that.`
+  );
+}
+
 function top10MissingFollowUps(year) {
   const y = clampYear(Number(year)) || 1988;
   const ny = safeIncYear(y, +1);
   return [
+    { label: "Story moment", send: `story moment ${y}` },
     { label: "Micro moment", send: `micro moment ${y}` },
     { label: ny ? `Top 10 ${ny}` : "Top 10", send: ny ? `top 10 ${ny}` : "Top 10" },
     { label: "Another year", send: "Another year" },
@@ -553,7 +567,6 @@ function ensureForwardMotion(reply, session) {
   if (!r) return r;
   if (!session) return r;
 
-  // Lane-safe: only apply for music/general
   const lane = session.lane ? String(session.lane) : "general";
   if (lane !== "general" && lane !== "music") return r;
 
@@ -584,7 +597,6 @@ function addMomentumTail(session, reply) {
   const r = cleanText(reply);
   if (!r) return r;
 
-  // Only attach the “nav tail” for music/general.
   if (session && session.lane !== "general" && session.lane !== "music") return r;
 
   const y = session && clampYear(session.lastYear) ? session.lastYear : null;
@@ -599,10 +611,7 @@ function addMomentumTail(session, reply) {
 function finalizeReply(session, replyRaw) {
   let r = cleanText(replyRaw || "");
 
-  // GH-1 micro-guard BEFORE momentum tail
   r = ensureForwardMotion(r, session);
-
-  // Keep your existing momentum behavior (music/general only)
   r = addMomentumTail(session, r);
 
   return cleanText(r);
@@ -782,7 +791,6 @@ try {
   musicKnowledge = null;
 }
 
-// Sponsors Lane (optional)
 let sponsorsLane = null;
 try {
   sponsorsLane = require("./Utils/sponsorsLane");
@@ -790,7 +798,6 @@ try {
   sponsorsLane = null;
 }
 
-// Movies Lane (optional)
 let moviesLane = null;
 try {
   moviesLane = require("./Utils/moviesLane");
@@ -1003,7 +1010,6 @@ function explicitLaneCommand(text) {
   const t = cleanText(text).toLowerCase();
   if (!t) return null;
 
-  // Explicit lane selection
   if (/^(movies\s+lane|movie\s+lane|movies)\s*$/.test(t)) return "movies";
   if (
     /^(sponsors?\s+lane|sponsor\s+lane|sponsors?|advertising|advertise|sponsorship)\s*$/.test(
@@ -1021,7 +1027,6 @@ function isLaneExitCommand(text) {
   const t = cleanText(text).toLowerCase();
   if (!t) return false;
 
-  // Works when stuck in sponsors/movies
   if (/^(switch|switch\s+mode|exit|exit\s+lane|leave|leave\s+lane|back)\s*$/.test(t))
     return true;
   if (/^(back\s+to\s+music|return\s+to\s+music)\s*$/.test(t)) return true;
@@ -1042,7 +1047,6 @@ function normalizeNavToken(text) {
   if (/^(continue|resume|pick up|carry on|go on)\b/.test(t)) return "continue";
   if (/^(start fresh|restart|new start|reset)\b/.test(t)) return "fresh";
 
-  // #1 / number-one
   if (/^(#\s*1|number\s*1|number\s*one|no\.?\s*1|the\s*#\s*1)\b/.test(t))
     return "numberOne";
 
@@ -1139,13 +1143,14 @@ async function runMusicEngine(text, session) {
 
     postEngineBridge(session);
 
-    // ===== TOP10 Missing Escape (deterministic) =====
+    // ===== TOP10 Missing Escape (deterministic + NO-TECH-LEAK) =====
     const reply0 = cleanText(out.reply || "");
     const modeReq =
       normalizeModeToken(text) || session.activeMusicMode || session.pendingMode || null;
     const yearReq = clampYear(y || session.lastYear || session.lastMusicYear);
 
     if (modeReq === "top10" && yearReq && looksLikeTop10Missing(reply0)) {
+      // Force a confident pivot to story moment (still honoring intent forward motion)
       session.lane = "music";
       session.activeMusicMode = "story";
       session.pendingMode = null;
@@ -1165,15 +1170,15 @@ async function runMusicEngine(text, session) {
       postEngineBridge(session);
 
       const storyReply = cleanText(out2.reply || "");
-      const prefix = `I don’t have a clean Top 10 chart for ${yearReq} in this build. I’m switching to the story moment for ${yearReq}.`;
-      const stitched = storyReply ? `${prefix}\n\n${storyReply}` : prefix;
+      const preface = top10MissingPreface(yearReq);
+      const stitched = storyReply ? `${preface}\n\n${storyReply}` : preface;
 
       return Object.assign({}, out2, {
         reply: stitched,
         followUps: top10MissingFollowUps(yearReq),
       });
     }
-    // ==============================================
+    // =============================================================
 
     return out;
   } catch (e) {
@@ -1250,7 +1255,6 @@ async function runMoviesLane(text, session) {
 }
 
 async function runEngine(text, session) {
-  // Lane priority: sponsors > movies > music (explicit override handled in /api/chat)
   if (isSponsorsActive(session, text)) return runSponsorsLane(text, session);
   if (isMoviesActive(session, text)) return runMoviesLane(text, session);
   return runMusicEngine(text, session);
@@ -1713,7 +1717,7 @@ function handleFresh(session) {
   session.activeMusicChart = DEFAULT_CHART;
   session.lastMusicChart = DEFAULT_CHART;
 
-  session.lane = "music"; // safe reset
+  session.lane = "music";
 
   return {
     reply:
@@ -1859,7 +1863,6 @@ app.post("/api/chat", async (req, res) => {
   const visitorId = session.visitorId;
   const profile = getProfile(visitorId);
 
-  // Increment visits ONCE per session
   if (profile && !session._countedVisit) {
     profile.visits = Number(profile.visits || 0) + 1;
     session._countedVisit = true;
@@ -1872,11 +1875,9 @@ app.post("/api/chat", async (req, res) => {
   session.voiceMode = incomingVoiceMode;
   res.set("X-Voice-Mode", session.voiceMode);
 
-  // Ensure chart defaults are always sane + bridge any prior musicKnowledge state
   preEngineBridge(session);
   postEngineBridge(session);
 
-  // Mic echo guard
   if (message && isLikelyMicEcho(message, session)) {
     const reply = micEchoBreakerReply();
     session.lastReply = reply;
@@ -1898,7 +1899,6 @@ app.post("/api/chat", async (req, res) => {
 
   const nav = normalizeNavToken(message);
 
-  // Replay (global) — returns SAME chips when available
   if (nav === "replay" && session.lastReply) {
     const base = {
       ok: true,
@@ -1946,7 +1946,6 @@ app.post("/api/chat", async (req, res) => {
     return respondJson(req, res, base, session, null, profile, false);
   }
 
-  // Greeting (must stay before lane auto-routing)
   if (!message || isGreeting(message)) {
     session.lastIntent = "greeting";
 
@@ -1968,13 +1967,8 @@ app.post("/api/chat", async (req, res) => {
       voiceMode: session.voiceMode,
     };
 
-    // CRITICAL: only greetings enforce 4 returning chips
     return respondJson(req, res, base, session, null, profile, true);
   }
-
-  // ======================================================
-  // SURGICAL: explicit lane command override + lane exit
-  // ======================================================
 
   const laneCmd = explicitLaneCommand(message);
   if (laneCmd) {
@@ -2005,7 +1999,6 @@ app.post("/api/chat", async (req, res) => {
     return respondJson(req, res, base, session, null, profile, false);
   }
 
-  // Lane exit works even when lane-locked.
   if (isLaneExitCommand(message) && (session.lane === "sponsors" || session.lane === "movies")) {
     session.lane = "music";
     session.lastIntent = "laneExit";
@@ -2030,7 +2023,6 @@ app.post("/api/chat", async (req, res) => {
     return respondJson(req, res, base, session, null, profile, false);
   }
 
-  // #1 (music-only)
   if (nav === "numberOne") {
     session.lane = "music";
     const out0 = await handleNumberOne(session);
@@ -2055,7 +2047,6 @@ app.post("/api/chat", async (req, res) => {
     return respondJson(req, res, base, session, out, profile, false);
   }
 
-  // Next/Prev/Another year (music-only)
   if (nav === "nextYear") {
     session.lane = "music";
     const out = await handleYearNav(session, +1);
@@ -2126,7 +2117,6 @@ app.post("/api/chat", async (req, res) => {
     return respondJson(req, res, base, session, out, profile, false);
   }
 
-  // Continue (music-only)
   if (nav === "continue") {
     session.lane = "music";
     const out0 = await handleContinue(session, profile);
@@ -2151,7 +2141,6 @@ app.post("/api/chat", async (req, res) => {
     return respondJson(req, res, base, session, out, profile, false);
   }
 
-  // Start fresh (music-only)
   if (nav === "fresh") {
     session.lane = "music";
     const out = handleFresh(session);
@@ -2174,10 +2163,6 @@ app.post("/api/chat", async (req, res) => {
     };
     return respondJson(req, res, base, session, out, profile, false);
   }
-
-  // ======================================================
-  // Sponsors/Movie Lane routing (before music parsing)
-  // ======================================================
 
   if (isSponsorsActive(session, message)) {
     const out0 = await runSponsorsLane(message, session);
@@ -2222,10 +2207,6 @@ app.post("/api/chat", async (req, res) => {
     };
     return respondJson(req, res, base, session, out0, profile, false);
   }
-
-  // ======================================================
-  // Music: Standard mode/year parsing
-  // ======================================================
 
   const parsedYear = clampYear(extractYearFromText(message));
   const parsedMode = normalizeModeToken(message);
@@ -2362,10 +2343,8 @@ app.post("/api/chat", async (req, res) => {
     return respondJson(req, res, base, session, null, profile, false);
   }
 
-  // NOTE: bareYear guard removed (duplicate/unreachable under the branches above)
   void bareYear;
 
-  // Fallback passthrough (music)
   session.lane = "music";
   const out0 = await runEngine(message, session);
   const out = FMP.apply(out0, session);
