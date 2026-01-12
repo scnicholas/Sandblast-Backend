@@ -19,6 +19,10 @@
  * Notes:
  *  - Removes duplicate /api/health route (keep only one).
  *  - Preserves everything else as indicated in your header.
+ *
+ * v1.5.11+ (PUBLIC-SAFE TOP10 GAP COPY):
+ *  - Removes “clean list / sources / build” language from Top 10 missing escape.
+ *  - Keeps deterministic pivot to Story moment + same followUps contract.
  */
 
 const express = require("express");
@@ -1152,7 +1156,10 @@ async function runMusicEngine(text, session) {
       postEngineBridge(session);
 
       const storyReply = cleanText(out2.reply || "");
-      const prefix = `I don’t have a clean Top 10 chart for ${yearReq} in this build. I’m switching to the story moment for ${yearReq}.`;
+
+      // PUBLIC-SAFE: no “clean list”, no “build”, no “sources”
+      const prefix = `Top 10 for ${yearReq} isn’t available yet — so I’m switching to a Story moment for ${yearReq}.`;
+
       const stitched = storyReply ? `${prefix}\n\n${storyReply}` : prefix;
 
       return Object.assign({}, out2, {
