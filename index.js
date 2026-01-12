@@ -3,26 +3,20 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.11 (SURGICAL: explicit lane commands + lane lock escape + routing precedence)
+ * index.js v1.5.12 (SURGICAL: Top10-missing detector hardened for smart quotes + punctuation)
  *
- * Surgical fixes on top of v1.5.10:
- *  A) Explicit Lane Command Override (highest priority, post-greeting / pre-lane auto-routing)
- *     - “Movies Lane” always forces session.lane="movies"
- *     - “Sponsors Lane” always forces session.lane="sponsors"
- *     - “Music Lane” / “Back to music” always forces session.lane="music"
- *  B) Lane escape commands (works even when lane-locked):
- *     - “switch” / “switch mode” / “back” / “exit lane” / “leave lane”
- *       - if in sponsors/movies => exits to music (keeps lastYear/mode intact)
- *  C) Router precedence:
- *     - Explicit lane cmd > exit cmd > nav handlers (#1/next/prev/etc) > lane routing > music parsing
+ * Fix:
+ *  - Your Top 10 missing escape DID NOT trigger because replies can contain curly apostrophes:
+ *      “don’t have … Top 10 …”
+ *    while the detector only matched straight apostrophes:
+ *      "don't have … top 10 …"
+ *  - v1.5.12 normalizes smart quotes/apostrophes and strips punctuation before matching.
  *
- * Notes:
- *  - Removes duplicate /api/health route (keep only one).
- *  - Preserves everything else as indicated in your header.
- *
- * v1.5.11+ (PUBLIC-SAFE TOP10 GAP COPY):
- *  - Removes “clean list / sources / build” language from Top 10 missing escape.
- *  - Keeps deterministic pivot to Story moment + same followUps contract.
+ * Preserves:
+ *  - v1.5.11 lane overrides + lane exit + routing precedence
+ *  - FMP, GH1 micro-guard, replay integrity, followUp merge, greeting-only 4-chip enforcement
+ *  - #1 routing, chart contamination guard, nav completion, music field bridge
+ *  - Removes duplicate /api/health route (keep only one)
  */
 
 const express = require("express");
@@ -37,7 +31,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.11 (v1.5.10 + SURGICAL lane overrides/escape; preserves SPONSORS/MOVIES routing + lane-safe followups + GH1 micro-guard + FMP + TOP10 missing escape + replay integrity + followUp merge + returning chips greeting-only + #1 routing + chart contamination guard + nav completion + music field bridge)";
+  "index.js v1.5.12 (v1.5.11 + Top10-missing detector smart-quote hardening; preserves lane overrides/escape + routing precedence + GH1 micro-guard + FMP + TOP10 missing escape + replay integrity + followUp merge + returning chips greeting-only + #1 routing + chart contamination guard + nav completion + music field bridge)";
 
 /* ======================================================
    Basic middleware
@@ -347,27 +341,45 @@ function postEngineBridge(session) {
    TOP10 Missing Escape (deterministic)
 ====================================================== */
 
+/**
+ * v1.5.12: normalize smart quotes/apostrophes + strip punctuation so
+ * “don’t have a clean Top 10…” matches the detector.
+ */
+function normalizeForTop10Missing(s) {
+  return cleanText(String(s || ""))
+    .toLowerCase()
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/[*_`]/g, "")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function looksLikeTop10Missing(reply) {
-  const r = cleanText(reply).toLowerCase();
+  const r = normalizeForTop10Missing(reply);
   if (!r) return false;
 
-  if (r.includes("don't have") && r.includes("top") && r.includes("10"))
-    return true;
-  if (r.includes("dont have") && r.includes("top") && r.includes("10"))
-    return true;
-  if (r.includes("no clean") && r.includes("top") && r.includes("10"))
-    return true;
-  if (r.includes("not have") && r.includes("top") && r.includes("10"))
+  // Core signals
+  const hasTop10 =
+    (r.includes("top") && r.includes("10")) ||
+    r.includes("top10") ||
+    r.includes("top ten");
+
+  if (!hasTop10) return false;
+
+  // Missing / not loaded phrasing (broad)
+  if (r.includes("dont have") || r.includes("don't have") || r.includes("do not have"))
     return true;
 
-  if (
-    r.includes("chart") &&
-    r.includes("not") &&
-    r.includes("loaded") &&
-    r.includes("top")
-  )
-    return true;
-  if (r.includes("loaded chart sources") && r.includes("top")) return true;
+  if (r.includes("no clean") && r.includes("top")) return true;
+
+  if (r.includes("not loaded") && r.includes("chart")) return true;
+  if (r.includes("loaded sources") && r.includes("build")) return true;
+  if (r.includes("not in this build") && hasTop10) return true;
+
+  if (r.includes("cant") && r.includes("top") && r.includes("10")) return true;
+  if (r.includes("cannot") && r.includes("top") && r.includes("10")) return true;
 
   return false;
 }
@@ -377,10 +389,7 @@ function top10MissingFollowUps(year) {
   const ny = safeIncYear(y, +1);
   return [
     { label: "Micro moment", send: `micro moment ${y}` },
-    {
-      label: ny ? `Top 10 ${ny}` : "Top 10",
-      send: ny ? `top 10 ${ny}` : "Top 10",
-    },
+    { label: ny ? `Top 10 ${ny}` : "Top 10", send: ny ? `top 10 ${ny}` : "Top 10" },
     { label: "Another year", send: "Another year" },
     { label: "Replay last", send: "Replay last" },
   ];
@@ -987,7 +996,7 @@ function modeToCommand(mode) {
 }
 
 /* ======================================================
-   NEW: Explicit Lane Command + Lane Exit
+   Explicit Lane Command + Lane Exit
 ====================================================== */
 
 function explicitLaneCommand(text) {
@@ -1033,7 +1042,7 @@ function normalizeNavToken(text) {
   if (/^(continue|resume|pick up|carry on|go on)\b/.test(t)) return "continue";
   if (/^(start fresh|restart|new start|reset)\b/.test(t)) return "fresh";
 
-  // Pillar B: #1 / number-one
+  // #1 / number-one
   if (/^(#\s*1|number\s*1|number\s*one|no\.?\s*1|the\s*#\s*1)\b/.test(t))
     return "numberOne";
 
@@ -1074,7 +1083,7 @@ function replyMissingYearForMode(mode) {
 }
 
 /* ======================================================
-   Pillar B: #1 extraction (deterministic fallback)
+   #1 extraction (deterministic fallback)
 ====================================================== */
 
 function extractNumberOneFromTop10Reply(replyText) {
@@ -1156,10 +1165,7 @@ async function runMusicEngine(text, session) {
       postEngineBridge(session);
 
       const storyReply = cleanText(out2.reply || "");
-
-      // PUBLIC-SAFE: no “clean list”, no “build”, no “sources”
-      const prefix = `Top 10 for ${yearReq} isn’t available yet — so I’m switching to a Story moment for ${yearReq}.`;
-
+      const prefix = `I don’t have a clean Top 10 chart for ${yearReq} in this build. I’m switching to the story moment for ${yearReq}.`;
       const stitched = storyReply ? `${prefix}\n\n${storyReply}` : prefix;
 
       return Object.assign({}, out2, {
@@ -1766,7 +1772,7 @@ function handleAnotherYear(session) {
 }
 
 /* ======================================================
-   Pillar B: #1 handler (deterministic)
+   #1 handler (deterministic)
 ====================================================== */
 
 async function handleNumberOne(session) {
@@ -1996,7 +2002,6 @@ app.post("/api/chat", async (req, res) => {
       voiceMode: session.voiceMode,
     };
 
-    // Let respondJson decide lane-safe chips; engineOut null is fine here.
     return respondJson(req, res, base, session, null, profile, false);
   }
 
@@ -2025,7 +2030,7 @@ app.post("/api/chat", async (req, res) => {
     return respondJson(req, res, base, session, null, profile, false);
   }
 
-  // Pillar B: #1 (music-only)
+  // #1 (music-only)
   if (nav === "numberOne") {
     session.lane = "music";
     const out0 = await handleNumberOne(session);
