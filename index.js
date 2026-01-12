@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.10 (v1.5.9 + SPONSORS/MOVIES LANE ROUTING + LANE-SAFE FOLLOWUPS)
+ * index.js v1.5.10 (v1.5.9 + SPONSORS/MOVIES LANE ROUTING + LANE-SAFE FOLLOWUPS + GH1 MICRO-GUARD)
  *
  * CRITICAL UPDATES added on top of your v1.5.9 paste:
  *  10) Sponsors Lane routing (deterministic + safe):
@@ -23,6 +23,10 @@
  *      - For non-music lanes (sponsors/movies): DO NOT top-up with music “tight” chips.
  *        Only return engine/lane chips (or minimal fallback) capped to 8.
  *
+ *  13) GH-1 Micro-Guard (forward motion, minimal, safe):
+ *      - If lane is music/general AND session has year+mode AND reply ends with a question,
+ *        convert to a forward-moving close (prevents polite loops).
+ *
  * Everything else from v1.5.9 is preserved.
  */
 
@@ -38,7 +42,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.10 (v1.5.9 + SPONSORS/MOVIES LANE ROUTING + LANE-SAFE FOLLOWUPS; preserves FMP + TOP10 missing escape + replay integrity + followUp merge + returning chips greeting-only + #1 routing + chart contamination guard + nav completion + music field bridge)";
+  "index.js v1.5.10 (v1.5.9 + SPONSORS/MOVIES LANE ROUTING + LANE-SAFE FOLLOWUPS + GH1 micro-guard; preserves FMP + TOP10 missing escape + replay integrity + followUp merge + returning chips greeting-only + #1 routing + chart contamination guard + nav completion + music field bridge)";
 
 /* ======================================================
    Basic middleware
@@ -204,14 +208,20 @@ function safeJsonParse(body, rawFallback) {
 
     if (typeof body === "string" && body.trim()) {
       const t = body.trim();
-      if ((t.startsWith("{") && t.endsWith("}")) || (t.startsWith("[") && t.endsWith("]"))) {
+      if (
+        (t.startsWith("{") && t.endsWith("}")) ||
+        (t.startsWith("[") && t.endsWith("]"))
+      ) {
         return JSON.parse(t);
       }
     }
 
     if (rawFallback && String(rawFallback).trim()) {
       const rt = String(rawFallback).trim();
-      if ((rt.startsWith("{") && rt.endsWith("}")) || (rt.startsWith("[") && rt.endsWith("]"))) {
+      if (
+        (rt.startsWith("{") && rt.endsWith("}")) ||
+        (rt.startsWith("[") && rt.endsWith("]"))
+      ) {
         return JSON.parse(rt);
       }
     }
@@ -260,9 +270,11 @@ const YEAR_END_SINGLES_CHART = "Billboard Year-End Singles";
 function normalizeChartToken(s) {
   const t = cleanText(s).toLowerCase();
   if (!t) return DEFAULT_CHART;
-  if (t.includes("year") && t.includes("end") && t.includes("single")) return YEAR_END_SINGLES_CHART;
+  if (t.includes("year") && t.includes("end") && t.includes("single"))
+    return YEAR_END_SINGLES_CHART;
   if (t.includes("year") && t.includes("end")) return YEAR_END_CHART;
-  if (t.includes("hot 100") || t.includes("hot100") || t.includes("billboard")) return DEFAULT_CHART;
+  if (t.includes("hot 100") || t.includes("hot100") || t.includes("billboard"))
+    return DEFAULT_CHART;
   return cleanText(s) || DEFAULT_CHART;
 }
 
@@ -283,7 +295,9 @@ function guardChartForYear(session, year) {
     session.activeMusicChart = YEAR_END_CHART;
   }
 
-  session.activeMusicChart = normalizeChartToken(session.activeMusicChart || DEFAULT_CHART);
+  session.activeMusicChart = normalizeChartToken(
+    session.activeMusicChart || DEFAULT_CHART
+  );
   if (!session.activeMusicChart) session.activeMusicChart = DEFAULT_CHART;
 }
 
@@ -311,7 +325,10 @@ function postEngineBridge(session) {
   if (clampYear(session.lastMusicYear) && !clampYear(session.lastYear)) {
     session.lastYear = session.lastMusicYear;
   }
-  if (clampYear(session.lastYear) && (!clampYear(session.lastMusicYear) || session.lastMusicYear !== session.lastYear)) {
+  if (
+    clampYear(session.lastYear) &&
+    (!clampYear(session.lastMusicYear) || session.lastMusicYear !== session.lastYear)
+  ) {
     session.lastMusicYear = session.lastYear;
   }
 
@@ -322,8 +339,12 @@ function postEngineBridge(session) {
     session.lastMusicChart = session.activeMusicChart;
   }
 
-  session.activeMusicChart = normalizeChartToken(session.activeMusicChart || DEFAULT_CHART);
-  session.lastMusicChart = normalizeChartToken(session.lastMusicChart || session.activeMusicChart || DEFAULT_CHART);
+  session.activeMusicChart = normalizeChartToken(
+    session.activeMusicChart || DEFAULT_CHART
+  );
+  session.lastMusicChart = normalizeChartToken(
+    session.lastMusicChart || session.activeMusicChart || DEFAULT_CHART
+  );
 }
 
 /* ======================================================
@@ -334,12 +355,17 @@ function looksLikeTop10Missing(reply) {
   const r = cleanText(reply).toLowerCase();
   if (!r) return false;
 
-  if (r.includes("don't have") && r.includes("top") && r.includes("10")) return true;
-  if (r.includes("dont have") && r.includes("top") && r.includes("10")) return true;
-  if (r.includes("no clean") && r.includes("top") && r.includes("10")) return true;
-  if (r.includes("not have") && r.includes("top") && r.includes("10")) return true;
+  if (r.includes("don't have") && r.includes("top") && r.includes("10"))
+    return true;
+  if (r.includes("dont have") && r.includes("top") && r.includes("10"))
+    return true;
+  if (r.includes("no clean") && r.includes("top") && r.includes("10"))
+    return true;
+  if (r.includes("not have") && r.includes("top") && r.includes("10"))
+    return true;
 
-  if (r.includes("chart") && r.includes("not") && r.includes("loaded") && r.includes("top")) return true;
+  if (r.includes("chart") && r.includes("not") && r.includes("loaded") && r.includes("top"))
+    return true;
   if (r.includes("loaded chart sources") && r.includes("top")) return true;
 
   return false;
@@ -373,7 +399,10 @@ const FMP = {
 
   isAskingMode(reply) {
     const r = cleanText(reply).toLowerCase();
-    return this.MODE_WORDS_RE.test(r) && (this.ASK_MODE_CHOICE_RE.test(r) || this.SOFT_OPEN_RE.test(r));
+    return (
+      this.MODE_WORDS_RE.test(r) &&
+      (this.ASK_MODE_CHOICE_RE.test(r) || this.SOFT_OPEN_RE.test(r))
+    );
   },
 
   endsOpenQuestion(reply) {
@@ -390,7 +419,11 @@ const FMP = {
   detectAskLoop(session, reply) {
     if (!session) return null;
 
-    const askType = this.isAskingYear(reply) ? "askYear" : this.isAskingMode(reply) ? "askMode" : null;
+    const askType = this.isAskingYear(reply)
+      ? "askYear"
+      : this.isAskingMode(reply)
+      ? "askMode"
+      : null;
     if (!askType) return null;
 
     const now = Date.now();
@@ -418,7 +451,8 @@ const FMP = {
       guardChartForYear(session, year);
     }
 
-    const modeLabel = mode === "top10" ? "the Top 10" : mode === "micro" ? "a micro moment" : "a story moment";
+    const modeLabel =
+      mode === "top10" ? "the Top 10" : mode === "micro" ? "a micro moment" : "a story moment";
 
     const reply =
       reason === "askYear"
@@ -427,7 +461,12 @@ const FMP = {
         ? `Got it — ${year}. I’m going to run ${modeLabel} now. Say “switch” if you want a different mode.`
         : `I’ll proceed with ${modeLabel} for ${year}. Say “switch” if you want a different mode.`;
 
-    const sendRun = mode === "top10" ? `top 10 ${year}` : mode === "micro" ? `micro moment ${year}` : `story moment ${year}`;
+    const sendRun =
+      mode === "top10"
+        ? `top 10 ${year}`
+        : mode === "micro"
+        ? `micro moment ${year}`
+        : `story moment ${year}`;
     const sendSwitch = mode === "top10" ? `story moment ${year}` : `top 10 ${year}`;
 
     const followUps = [
@@ -469,8 +508,11 @@ const FMP = {
       const y = clampYear(session.lastYear) ? session.lastYear : null;
       const mode = session.activeMusicMode || session.pendingMode || null;
       if (y && mode) {
-        const modeLabel = mode === "top10" ? "the Top 10" : mode === "micro" ? "a micro moment" : "a story moment";
-        const amended = `${reply.replace(/[?]+$/g, ".")} ` + `I’ll proceed with ${modeLabel} for ${y} unless you say “switch”.`;
+        const modeLabel =
+          mode === "top10" ? "the Top 10" : mode === "micro" ? "a micro moment" : "a story moment";
+        const amended =
+          `${reply.replace(/[?]+$/g, ".")} ` +
+          `I’ll proceed with ${modeLabel} for ${y} unless you say “switch”.`;
         return Object.assign({}, out, { reply: amended });
       }
     }
@@ -478,6 +520,50 @@ const FMP = {
     return out;
   },
 };
+
+/* ======================================================
+   GH-1 Micro-Guard (forward motion)
+====================================================== */
+
+function ensureForwardMotion(reply, session) {
+  const r = cleanText(reply);
+  if (!r) return r;
+  if (!session) return r;
+
+  // Lane-safe: only apply for music/general
+  const lane = session.lane ? String(session.lane) : "general";
+  if (lane !== "general" && lane !== "music") return r;
+
+  const hasYear = !!clampYear(Number(session.lastYear));
+  const hasMode = !!(session.activeMusicMode || session.pendingMode);
+  const endsWithQuestion = /\?\s*$/.test(r);
+
+  if (hasYear && hasMode && endsWithQuestion) {
+    const y = clampYear(Number(session.lastYear));
+    const mode = session.activeMusicMode || session.pendingMode;
+    const modeLabel =
+      mode === "top10" ? "Top 10" : mode === "micro" ? "a micro moment" : "a story moment";
+
+    return (
+      r.replace(/\?\s*$/, ".") +
+      `\n\nI’ll keep going with ${modeLabel} for ${y} unless you say “switch”.`
+    );
+  }
+
+  return r;
+}
+
+function finalizeReply(session, replyRaw) {
+  let r = cleanText(replyRaw || "");
+
+  // GH-1 micro-guard BEFORE momentum tail
+  r = ensureForwardMotion(r, session);
+
+  // Keep your existing momentum behavior (music/general only)
+  r = addMomentumTail(session, r);
+
+  return cleanText(r);
+}
 
 /* ======================================================
    Visitor Profiles (tight)
@@ -524,7 +610,9 @@ function profileIsReturning(profile) {
 function detectNameFromText(text) {
   const t = cleanText(text);
   if (!t) return null;
-  const m = t.match(/\b(?:i[' ]?m|i am|im|my name is)\s+([A-Za-z][A-Za-z\-']{1,30})\b/i);
+  const m = t.match(
+    /\b(?:i[' ]?m|i am|im|my name is)\s+([A-Za-z][A-Za-z\-']{1,30})\b/i
+  );
   if (!m) return null;
   const raw = cleanText(m[1] || "");
   if (!raw) return null;
@@ -625,7 +713,10 @@ function getSession(sessionId) {
 }
 
 const SESSION_TTL_MS = Number(process.env.SESSION_TTL_MS || 6 * 60 * 60 * 1000);
-const CLEAN_INTERVAL_MS = Math.max(60 * 1000, Math.min(15 * 60 * 1000, Math.floor(SESSION_TTL_MS / 4)));
+const CLEAN_INTERVAL_MS = Math.max(
+  60 * 1000,
+  Math.min(15 * 60 * 1000, Math.floor(SESSION_TTL_MS / 4))
+);
 
 const cleaner = setInterval(() => {
   const cutoff = Date.now() - SESSION_TTL_MS;
@@ -648,7 +739,7 @@ try {
   musicKnowledge = null;
 }
 
-// NEW: Sponsors Lane (optional)
+// Sponsors Lane (optional)
 let sponsorsLane = null;
 try {
   sponsorsLane = require("./Utils/sponsorsLane");
@@ -656,7 +747,7 @@ try {
   sponsorsLane = null;
 }
 
-// NEW: Movies Lane (optional)
+// Movies Lane (optional)
 let moviesLane = null;
 try {
   moviesLane = require("./Utils/moviesLane");
@@ -674,7 +765,10 @@ const ELEVEN_KEY = String(process.env.ELEVENLABS_API_KEY || "");
 const ELEVEN_VOICE_ID = String(process.env.ELEVENLABS_VOICE_ID || "");
 const ELEVEN_MODEL_ID = String(process.env.ELEVENLABS_MODEL_ID || "eleven_multilingual_v2");
 
-const ELEVEN_TTS_TIMEOUT_MS = Math.max(8000, Math.min(60000, Number(process.env.ELEVEN_TTS_TIMEOUT_MS || 25000)));
+const ELEVEN_TTS_TIMEOUT_MS = Math.max(
+  8000,
+  Math.min(60000, Number(process.env.ELEVEN_TTS_TIMEOUT_MS || 25000))
+);
 
 function normalizeVoiceMode(m) {
   const t = String(m || "").toLowerCase().trim();
@@ -694,11 +788,21 @@ function getTtsTuningForMode(voiceMode) {
   const m = normalizeVoiceMode(voiceMode);
 
   if (m === "calm") {
-    return { ...base, stability: Math.min(1, base.stability + 0.15), style: Math.max(0, base.style - 0.08), speakerBoost: false };
+    return {
+      ...base,
+      stability: Math.min(1, base.stability + 0.15),
+      style: Math.max(0, base.style - 0.08),
+      speakerBoost: false,
+    };
   }
 
   if (m === "high") {
-    return { ...base, stability: Math.max(0, base.stability - 0.12), style: Math.min(1, base.style + 0.18), speakerBoost: true };
+    return {
+      ...base,
+      stability: Math.max(0, base.stability - 0.12),
+      style: Math.min(1, base.style + 0.18),
+      speakerBoost: true,
+    };
   }
 
   return base;
@@ -707,7 +811,9 @@ function getTtsTuningForMode(voiceMode) {
 async function elevenTtsMp3Buffer(text, voiceMode) {
   const tuning = getTtsTuningForMode(voiceMode);
 
-  const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(ELEVEN_VOICE_ID)}`;
+  const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(
+    ELEVEN_VOICE_ID
+  )}`;
 
   const body = {
     text,
@@ -745,8 +851,17 @@ async function elevenTtsMp3Buffer(text, voiceMode) {
     return { ok: true, buf };
   } catch (e) {
     const msg = String(e && e.message ? e.message : e);
-    const isAbort = msg.toLowerCase().includes("aborted") || msg.toLowerCase().includes("abort") || msg.toLowerCase().includes("timeout");
-    return { ok: false, status: isAbort ? 504 : 502, detail: isAbort ? `Upstream timeout after ${ELEVEN_TTS_TIMEOUT_MS}ms` : msg };
+    const isAbort =
+      msg.toLowerCase().includes("aborted") ||
+      msg.toLowerCase().includes("abort") ||
+      msg.toLowerCase().includes("timeout");
+    return {
+      ok: false,
+      status: isAbort ? 504 : 502,
+      detail: isAbort
+        ? `Upstream timeout after ${ELEVEN_TTS_TIMEOUT_MS}ms`
+        : msg,
+    };
   } finally {
     clearTimeout(t);
   }
@@ -757,8 +872,14 @@ async function elevenTtsMp3Buffer(text, voiceMode) {
 ====================================================== */
 
 const MIC_GUARD_ENABLED = String(process.env.MIC_GUARD_ENABLED || "true") === "true";
-const MIC_GUARD_WINDOW_MS = Math.max(2000, Math.min(20000, Number(process.env.MIC_GUARD_WINDOW_MS || 9000)));
-const MIC_GUARD_MIN_CHARS = Math.max(24, Math.min(240, Number(process.env.MIC_GUARD_MIN_CHARS || 60)));
+const MIC_GUARD_WINDOW_MS = Math.max(
+  2000,
+  Math.min(20000, Number(process.env.MIC_GUARD_WINDOW_MS || 9000))
+);
+const MIC_GUARD_MIN_CHARS = Math.max(
+  24,
+  Math.min(240, Number(process.env.MIC_GUARD_MIN_CHARS || 60))
+);
 
 function normalizeForEchoCompare(s) {
   return cleanText(String(s || ""))
@@ -835,12 +956,14 @@ function normalizeNavToken(text) {
   const t = cleanText(text).toLowerCase();
   if (!t) return null;
 
-  if (/^(replay|repeat|again|say that again|one more time|replay last)\b/.test(t)) return "replay";
+  if (/^(replay|repeat|again|say that again|one more time|replay last)\b/.test(t))
+    return "replay";
   if (/^(continue|resume|pick up|carry on|go on)\b/.test(t)) return "continue";
   if (/^(start fresh|restart|new start|reset)\b/.test(t)) return "fresh";
 
   // Pillar B: #1 / number-one
-  if (/^(#\s*1|number\s*1|number\s*one|no\.?\s*1|the\s*#\s*1)\b/.test(t)) return "numberOne";
+  if (/^(#\s*1|number\s*1|number\s*one|no\.?\s*1|the\s*#\s*1)\b/.test(t))
+    return "numberOne";
 
   if (/^(next|next year|forward|year\+1)\b/.test(t)) return "nextYear";
   if (/^(prev|previous|previous year|back|year-1)\b/.test(t)) return "prevYear";
@@ -852,7 +975,10 @@ function normalizeNavToken(text) {
 function isGreeting(text) {
   const t = cleanText(text).toLowerCase();
   if (!t) return false;
-  return /^(hi|hey|hello|yo|sup|greetings)\b/.test(t) || /^(hi\s+nyx|hey\s+nyx|hello\s+nyx)\b/.test(t);
+  return (
+    /^(hi|hey|hello|yo|sup|greetings)\b/.test(t) ||
+    /^(hi\s+nyx|hey\s+nyx|hello\s+nyx)\b/.test(t)
+  );
 }
 
 function greetingReply(profile, canContinue) {
@@ -929,7 +1055,9 @@ function numberOneFollowUps(year) {
 
 async function runMusicEngine(text, session) {
   if (!musicKnowledge || typeof musicKnowledge.handleChat !== "function") {
-    return { reply: "Tell me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment." };
+    return {
+      reply: "Tell me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment.",
+    };
   }
 
   try {
@@ -973,13 +1101,19 @@ async function runMusicEngine(text, session) {
       const prefix = `I don’t have a clean Top 10 chart for ${yearReq} in this build. I’m switching to the story moment for ${yearReq}.`;
       const stitched = storyReply ? `${prefix}\n\n${storyReply}` : prefix;
 
-      return Object.assign({}, out2, { reply: stitched, followUps: top10MissingFollowUps(yearReq) });
+      return Object.assign({}, out2, {
+        reply: stitched,
+        followUps: top10MissingFollowUps(yearReq),
+      });
     }
     // ==============================================
 
     return out;
   } catch (e) {
-    return { reply: "I hit a snag in the music engine. Try again with a year (1950–2024).", error: String(e && e.message ? e.message : e) };
+    return {
+      reply: "I hit a snag in the music engine. Try again with a year (1950–2024).",
+      error: String(e && e.message ? e.message : e),
+    };
   }
 }
 
@@ -990,36 +1124,46 @@ async function runMusicEngine(text, session) {
 function isSponsorsActive(session, message) {
   if (!sponsorsLane) return false;
   if (session && session.lane === "sponsors") return true;
-  if (typeof sponsorsLane.isSponsorIntent === "function" && message) return !!sponsorsLane.isSponsorIntent(message);
+  if (typeof sponsorsLane.isSponsorIntent === "function" && message)
+    return !!sponsorsLane.isSponsorIntent(message);
   return false;
 }
 
 function isMoviesActive(session, message) {
   if (!moviesLane) return false;
   if (session && session.lane === "movies") return true;
-  if (typeof moviesLane.isMoviesIntent === "function" && message) return !!moviesLane.isMoviesIntent(message);
+  if (typeof moviesLane.isMoviesIntent === "function" && message)
+    return !!moviesLane.isMoviesIntent(message);
   return false;
 }
 
 async function runSponsorsLane(text, session) {
   if (!sponsorsLane || typeof sponsorsLane.handleChat !== "function") {
-    return { reply: "Sponsors Lane isn’t available in this build.", followUps: [{ label: "Back to music", send: "Top 10" }] };
+    return {
+      reply: "Sponsors Lane isn’t available in this build.",
+      followUps: [{ label: "Back to music", send: "Top 10" }],
+    };
   }
   try {
     const out = sponsorsLane.handleChat({ text, session }) || {};
     if (out.sessionPatch && typeof out.sessionPatch === "object") Object.assign(session, out.sessionPatch);
-    // sponsorsLane.js already forces session.lane = "sponsors" but we keep it explicit
     session.lane = "sponsors";
     return out;
   } catch (e) {
     session.lane = "sponsors";
-    return { reply: "Sponsors Lane hit an error. Try: TV/Radio/Website/Social or say “Request rate card”.", error: String(e && e.message ? e.message : e) };
+    return {
+      reply: "Sponsors Lane hit an error. Try: TV/Radio/Website/Social or say “Request rate card”.",
+      error: String(e && e.message ? e.message : e),
+    };
   }
 }
 
 async function runMoviesLane(text, session) {
   if (!moviesLane || typeof moviesLane.handleChat !== "function") {
-    return { reply: "Movies Lane isn’t available in this build.", followUps: [{ label: "Back to music", send: "Top 10" }] };
+    return {
+      reply: "Movies Lane isn’t available in this build.",
+      followUps: [{ label: "Back to music", send: "Top 10" }],
+    };
   }
   try {
     const out = moviesLane.handleChat({ text, session }) || {};
@@ -1028,7 +1172,10 @@ async function runMoviesLane(text, session) {
     return out;
   } catch (e) {
     session.lane = "movies";
-    return { reply: "Movies Lane hit an error. Try: “Movies Lane” or paste a movie URL.", error: String(e && e.message ? e.message : e) };
+    return {
+      reply: "Movies Lane hit an error. Try: “Movies Lane” or paste a movie URL.",
+      error: String(e && e.message ? e.message : e),
+    };
   }
 }
 
@@ -1054,8 +1201,19 @@ function hasMeaningfulResumeState(profile, session) {
   const sesMode = !!(session && session.activeMusicMode);
   const sesPairOk = sesYear && sesMode;
 
-  const contentfulIntents = new Set(["top10", "story", "micro", "continue", "passthrough", "numberOne"]);
-  const sesIntentOk = !!session && !!session.lastIntent && contentfulIntents.has(String(session.lastIntent)) && sesYear;
+  const contentfulIntents = new Set([
+    "top10",
+    "story",
+    "micro",
+    "continue",
+    "passthrough",
+    "numberOne",
+  ]);
+  const sesIntentOk =
+    !!session &&
+    !!session.lastIntent &&
+    contentfulIntents.has(String(session.lastIntent)) &&
+    sesYear;
 
   const sesTopOneOk = !!(session && session.lastTop10One && sesYear);
 
@@ -1102,7 +1260,12 @@ function makeFollowUpsTight(session, profile) {
   for (const x of base) if (x && !out.includes(x)) out.push(x);
 
   const primary = out.slice(0, 8);
-  return { followUp: primary, followUps: primary.map((x) => ({ label: x, send: x })), resumable, returning: false };
+  return {
+    followUp: primary,
+    followUps: primary.map((x) => ({ label: x, send: x })),
+    resumable,
+    returning: false,
+  };
 }
 
 function normalizeEngineFollowups(out) {
@@ -1340,7 +1503,12 @@ app.get("/api/health", (req, res) => {
     version: INDEX_VERSION,
     sessions: SESSIONS.size,
     profiles: PROFILES.size,
-    cors: { allowAll: CORS_ALLOW_ALL, allowedOrigins: CORS_ALLOW_ALL ? "ALL" : ALLOWED_ORIGINS.length, originEcho: origin, originAllowed },
+    cors: {
+      allowAll: CORS_ALLOW_ALL,
+      allowedOrigins: CORS_ALLOW_ALL ? "ALL" : ALLOWED_ORIGINS.length,
+      originEcho: origin,
+      originAllowed,
+    },
     contract: { version: NYX_CONTRACT_VERSION, strict: CONTRACT_STRICT },
     timeouts: { requestTimeoutMs: REQUEST_TIMEOUT_MS, elevenTtsTimeoutMs: ELEVEN_TTS_TIMEOUT_MS },
     tts: {
@@ -1389,20 +1557,47 @@ async function ttsHandler(req, res) {
   const sid = cleanText(body.sessionId || "");
   const s = sid ? getSession(sid) : null;
 
-  const hasExplicitVoiceMode = Object.prototype.hasOwnProperty.call(body, "voiceMode") && String(body.voiceMode || "").trim() !== "";
+  const hasExplicitVoiceMode =
+    Object.prototype.hasOwnProperty.call(body, "voiceMode") && String(body.voiceMode || "").trim() !== "";
 
-  const voiceMode = normalizeVoiceMode(hasExplicitVoiceMode ? body.voiceMode : (s && s.voiceMode) || "standard");
+  const voiceMode = normalizeVoiceMode(
+    hasExplicitVoiceMode ? body.voiceMode : (s && s.voiceMode) || "standard"
+  );
 
   if (!TTS_ENABLED)
     return res.status(503).json({ ok: false, error: "TTS_DISABLED", requestId, contractVersion: NYX_CONTRACT_VERSION });
   if (TTS_PROVIDER !== "elevenlabs")
-    return res.status(500).json({ ok: false, error: "TTS_PROVIDER_UNSUPPORTED", provider: TTS_PROVIDER, requestId, contractVersion: NYX_CONTRACT_VERSION });
+    return res.status(500).json({
+      ok: false,
+      error: "TTS_PROVIDER_UNSUPPORTED",
+      provider: TTS_PROVIDER,
+      requestId,
+      contractVersion: NYX_CONTRACT_VERSION,
+    });
   if (typeof fetch !== "function")
-    return res.status(500).json({ ok: false, error: "TTS_RUNTIME", detail: "fetch() not available", requestId, contractVersion: NYX_CONTRACT_VERSION });
+    return res.status(500).json({
+      ok: false,
+      error: "TTS_RUNTIME",
+      detail: "fetch() not available",
+      requestId,
+      contractVersion: NYX_CONTRACT_VERSION,
+    });
   if (!ELEVEN_KEY || !ELEVEN_VOICE_ID)
-    return res.status(500).json({ ok: false, error: "TTS_MISCONFIG", detail: "Missing ELEVENLABS env", requestId, contractVersion: NYX_CONTRACT_VERSION });
+    return res.status(500).json({
+      ok: false,
+      error: "TTS_MISCONFIG",
+      detail: "Missing ELEVENLABS env",
+      requestId,
+      contractVersion: NYX_CONTRACT_VERSION,
+    });
   if (!text)
-    return res.status(400).json({ ok: false, error: "BAD_REQUEST", detail: "Missing text", requestId, contractVersion: NYX_CONTRACT_VERSION });
+    return res.status(400).json({
+      ok: false,
+      error: "BAD_REQUEST",
+      detail: "Missing text",
+      requestId,
+      contractVersion: NYX_CONTRACT_VERSION,
+    });
 
   if (s && hasExplicitVoiceMode) s.voiceMode = voiceMode;
 
@@ -1437,7 +1632,13 @@ async function ttsHandler(req, res) {
     res.set("X-Voice-Mode", voiceMode);
     return res.end(buf);
   } catch (e) {
-    return res.status(500).json({ ok: false, error: "TTS_ERROR", detail: String(e && e.message ? e.message : e), requestId, contractVersion: NYX_CONTRACT_VERSION });
+    return res.status(500).json({
+      ok: false,
+      error: "TTS_ERROR",
+      detail: String(e && e.message ? e.message : e),
+      requestId,
+      contractVersion: NYX_CONTRACT_VERSION,
+    });
   }
 }
 
@@ -1468,10 +1669,14 @@ async function handleContinue(session, profile) {
   }
 
   if (session.lastReply) {
-    return { reply: "Continue with what—Top 10, Story moment, or Micro moment? (You can also drop a year.)" };
+    return {
+      reply: "Continue with what—Top 10, Story moment, or Micro moment? (You can also drop a year.)",
+    };
   }
 
-  return { reply: "What are we doing: Top 10, Story moment, or Micro moment? Start with a year (1950–2024)." };
+  return {
+    reply: "What are we doing: Top 10, Story moment, or Micro moment? Start with a year (1950–2024).",
+  };
 }
 
 function handleFresh(session) {
@@ -1484,7 +1689,6 @@ function handleFresh(session) {
   session.activeMusicChart = DEFAULT_CHART;
   session.lastMusicChart = DEFAULT_CHART;
 
-  // Do not force lane here; caller sets it.
   return { reply: "Clean slate. Give me a year (1950–2024) and choose: Top 10, Story moment, or Micro moment." };
 }
 
@@ -1533,7 +1737,9 @@ function handleAnotherYear(session) {
     return { reply: replyMissingYearForMode(mode) };
   }
 
-  return { reply: "Alright — new year. Give me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment." };
+  return {
+    reply: "Alright — new year. Give me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment.",
+  };
 }
 
 /* ======================================================
@@ -1715,7 +1921,7 @@ app.post("/api/chat", async (req, res) => {
     session.lane = "music";
     const out0 = await handleNumberOne(session);
     const out = FMP.apply(out0, session);
-    const reply = addMomentumTail(session, cleanText(out.reply || "#1."));
+    const reply = finalizeReply(session, out.reply || "#1.");
 
     session.lastReply = reply;
     session.lastReplyAt = Date.now();
@@ -1731,7 +1937,7 @@ app.post("/api/chat", async (req, res) => {
   if (nav === "nextYear") {
     session.lane = "music";
     const out = await handleYearNav(session, +1);
-    const reply = addMomentumTail(session, cleanText(out.reply || "Next year."));
+    const reply = finalizeReply(session, out.reply || "Next year.");
 
     session.lastReply = reply;
     session.lastReplyAt = Date.now();
@@ -1746,7 +1952,7 @@ app.post("/api/chat", async (req, res) => {
   if (nav === "prevYear") {
     session.lane = "music";
     const out = await handleYearNav(session, -1);
-    const reply = addMomentumTail(session, cleanText(out.reply || "Previous year."));
+    const reply = finalizeReply(session, out.reply || "Previous year.");
 
     session.lastReply = reply;
     session.lastReplyAt = Date.now();
@@ -1779,7 +1985,7 @@ app.post("/api/chat", async (req, res) => {
     session.lane = "music";
     const out0 = await handleContinue(session, profile);
     const out = FMP.apply(out0, session);
-    const reply = addMomentumTail(session, cleanText(out.reply || "Continuing."));
+    const reply = finalizeReply(session, out.reply || "Continuing.");
 
     session.lastReply = reply;
     session.lastReplyAt = Date.now();
@@ -1808,7 +2014,7 @@ app.post("/api/chat", async (req, res) => {
   }
 
   // ======================================================
-  // NEW: Sponsors/Movie Lane routing (before music parsing)
+  // Sponsors/Movie Lane routing (before music parsing)
   // ======================================================
 
   if (isSponsorsActive(session, message)) {
@@ -1860,7 +2066,7 @@ app.post("/api/chat", async (req, res) => {
 
     const out0 = await runEngine(`${modeToCommand(parsedMode)} ${parsedYear}`, session);
     const out = FMP.apply(out0, session);
-    const reply = addMomentumTail(session, cleanText(out.reply || ""));
+    const reply = finalizeReply(session, out.reply || "");
 
     session.lastReply = reply;
     session.lastReplyAt = Date.now();
@@ -1882,7 +2088,7 @@ app.post("/api/chat", async (req, res) => {
 
       const out0 = await runEngine(`${modeToCommand(parsedMode)} ${session.lastYear}`, session);
       const out = FMP.apply(out0, session);
-      const reply = addMomentumTail(session, cleanText(out.reply || ""));
+      const reply = finalizeReply(session, out.reply || "");
 
       session.lastReply = reply;
       session.lastReplyAt = Date.now();
@@ -1915,7 +2121,7 @@ app.post("/api/chat", async (req, res) => {
 
       const out0 = await runEngine(`${modeToCommand(mode)} ${parsedYear}`, session);
       const out = FMP.apply(out0, session);
-      const reply = addMomentumTail(session, cleanText(out.reply || ""));
+      const reply = finalizeReply(session, out.reply || "");
 
       session.lastReply = reply;
       session.lastReplyAt = Date.now();
@@ -1946,7 +2152,7 @@ app.post("/api/chat", async (req, res) => {
   const out0 = await runEngine(message, session);
   const out = FMP.apply(out0, session);
 
-  const reply = addMomentumTail(session, cleanText(out.reply || ""));
+  const reply = finalizeReply(session, out.reply || "");
 
   session.lastReply = reply;
   session.lastReplyAt = Date.now();
@@ -1967,7 +2173,9 @@ const HOST = "0.0.0.0";
 
 const server = app.listen(PORT, HOST, () => {
   console.log(
-    `[sandblast-backend] up :${PORT} env=${process.env.NODE_ENV || "production"} build=${process.env.RENDER_GIT_COMMIT || "n/a"} contract=${NYX_CONTRACT_VERSION} version=${INDEX_VERSION}`
+    `[sandblast-backend] up :${PORT} env=${process.env.NODE_ENV || "production"} build=${
+      process.env.RENDER_GIT_COMMIT || "n/a"
+    } contract=${NYX_CONTRACT_VERSION} version=${INDEX_VERSION}`
   );
 });
 
@@ -1998,5 +2206,9 @@ function shutdown(sig) {
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
 
-process.on("unhandledRejection", (e) => console.error("[sandblast-backend] unhandledRejection", e));
-process.on("uncaughtException", (e) => console.error("[sandblast-backend] uncaughtException", e));
+process.on("unhandledRejection", (e) =>
+  console.error("[sandblast-backend] unhandledRejection", e)
+);
+process.on("uncaughtException", (e) =>
+  console.error("[sandblast-backend] uncaughtException", e)
+);
