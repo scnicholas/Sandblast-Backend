@@ -13,7 +13,8 @@
  *   { year, rank, artist, title, source }
  *
  * Notes:
- * - Robust against minor HTML structure changes
+ * - Structure-first parsing: li/tr/p blocks before plain text fallback
+ * - More robust section finder: id/name/href + year headers
  * - Detects bot/challenge pages and exits with a clear message
  */
 
@@ -36,12 +37,24 @@ function cleanText(s) {
   return String(s || "")
     .replace(/\u200B/g, "")
     .replace(/&nbsp;/g, " ")
+    .replace(/&#8217;|&rsquo;/g, "'")
+    .replace(/&#8220;|&#8221;|&ldquo;|&rdquo;/g, '"')
+    .replace(/&amp;/g, "&")
     .replace(/\s+/g, " ")
     .trim();
 }
 
+function decodeCommonEntities(s) {
+  // keep it tiny and deterministic (no external deps)
+  return cleanText(String(s || ""))
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&nbsp;/g, " ");
+}
+
 function stripTags(html) {
-  // Keep some structure hints
   return cleanText(
     String(html || "")
       .replace(/<script[\s\S]*?<\/script>/gi, " ")
@@ -65,17 +78,34 @@ function looksLikeBotBlock(html) {
   );
 }
 
+/**
+ * More robust: locate a year section by:
+ * - id/name containing year (with optional suffix/prefix)
+ * - href="#year..."
+ * - header tags containing the year (h1..h4)
+ *
+ * Then cut the slice until the next year marker.
+ */
 function findSection(html, year) {
-  // Try a few id patterns Top40Weekly has used historically
-  const patterns = [
-    new RegExp(`id=["']${year}-topsongslist["']`, "i"),
-    new RegExp(`id=["']${year}[-_]?topsongslist["']`, "i"),
-    new RegExp(`name=["']${year}-topsongslist["']`, "i"),
-    new RegExp(`href=["']#${year}-topsongslist["']`, "i"),
+  const y = String(year);
+
+  const markers = [
+    // Anchors/ids/names
+    new RegExp(`id=["'][^"']*${y}[^"']*["']`, "i"),
+    new RegExp(`name=["'][^"']*${y}[^"']*["']`, "i"),
+    new RegExp(`href=["']#${y}[^"']*["']`, "i"),
+
+    // Common Top40Weekly variants
+    new RegExp(`id=["']${y}-topsongslist["']`, "i"),
+    new RegExp(`id=["']${y}[-_]?topsongslist["']`, "i"),
+    new RegExp(`id=["']${y}[-_]?topsongs["']`, "i"),
+
+    // Header containing the year
+    new RegExp(`<h[1-4][^>]*>[^<]*\\b${y}\\b[^<]*<\\/h[1-4]>`, "i"),
   ];
 
   let start = -1;
-  for (const rx of patterns) {
+  for (const rx of markers) {
     const m = rx.exec(html);
     if (m && typeof m.index === "number") {
       start = m.index;
@@ -84,85 +114,176 @@ function findSection(html, year) {
   }
   if (start < 0) return null;
 
-  // End at next year's anchor or end of document
-  const nextYear = year + 1;
-  const endRx = new RegExp(`id=["']${nextYear}-topsongslist["']`, "i");
-  const m2 = endRx.exec(html.slice(start));
-  const end = m2 && typeof m2.index === "number" ? start + m2.index : html.length;
+  const nextYear = String(year + 1);
+  const endMarkers = [
+    new RegExp(`id=["'][^"']*${nextYear}[^"']*["']`, "i"),
+    new RegExp(`name=["'][^"']*${nextYear}[^"']*["']`, "i"),
+    new RegExp(`href=["']#${nextYear}[^"']*["']`, "i"),
+    new RegExp(`<h[1-4][^>]*>[^<]*\\b${nextYear}\\b[^<]*<\\/h[1-4]>`, "i"),
+  ];
+
+  let end = html.length;
+  const slice = html.slice(start);
+  for (const rx of endMarkers) {
+    const m = rx.exec(slice);
+    if (m && typeof m.index === "number" && m.index > 10) {
+      end = start + m.index;
+      break;
+    }
+  }
 
   return html.slice(start, end);
 }
 
-function parseRankedRowsFromText(text, year) {
-  // Heuristic: look for lines starting with rank 1..100, then parse "Artist – Title" or "Title – Artist"
-  const lines = String(text || "")
-    .split(/\n+/)
-    .map((l) => cleanText(l))
-    .filter(Boolean);
+/**
+ * Extract candidate ranked “items” from HTML blocks first:
+ * - <li>...</li>
+ * - <tr>...</tr>
+ * - <p>...</p>
+ * Then parse each item for rank + "Artist – Title" / "Title – Artist".
+ */
+function extractRankItemsFromHtml(sectionHtml) {
+  const html = String(sectionHtml || "");
+  const blocks = [];
 
-  const rows = [];
-  for (const line of lines) {
-    // Common patterns: "1. Artist - Song", "1 Artist – Song"
-    const m =
-      line.match(/^(\d{1,3})[.)-]?\s+(.*)$/) ||
-      line.match(/^#\s*(\d{1,3})\s+(.*)$/);
-    if (!m) continue;
+  const pushAll = (rx) => {
+    let m;
+    while ((m = rx.exec(html))) {
+      const raw = m[1] || "";
+      const t = decodeCommonEntities(stripTags(raw));
+      if (t) blocks.push(t);
+    }
+  };
 
-    const rank = Number(m[1]);
+  // Prefer LI (most common for ranked lists)
+  pushAll(/<li\b[^>]*>([\s\S]*?)<\/li>/gi);
+
+  // Tables sometimes used
+  pushAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi);
+
+  // Sometimes paragraphs
+  pushAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi);
+
+  // If nothing, fallback to a coarse text slice
+  if (blocks.length === 0) {
+    const t = decodeCommonEntities(stripTags(html));
+    if (t) blocks.push(t);
+  }
+
+  return blocks;
+}
+
+function parseOneRankLine(line) {
+  const s = cleanText(line);
+  if (!s) return null;
+
+  // rank prefix: "1.", "1)", "1 -", "#1"
+  const m =
+    s.match(/^(?:#\s*)?(\d{1,3})\s*[.)-]?\s+(.*)$/) ||
+    s.match(/^rank\s*(\d{1,3})\s*[:\-]\s*(.*)$/i);
+
+  if (!m) return null;
+
+  const rank = Number(m[1]);
+  if (!Number.isFinite(rank) || rank < 1 || rank > 100) return null;
+
+  const rest = cleanText(m[2]);
+  if (!rest) return null;
+
+  // Split on dash variants: "Artist – Title"
+  const parts = rest.split(/\s+[-–—:]\s+/).map(cleanText).filter(Boolean);
+  if (parts.length < 2) return null;
+
+  const a = parts[0];
+  const b = parts[1];
+
+  const looksArtist = (x) =>
+    /\b(feat\.|featuring|&|with)\b/i.test(x) ||
+    /\b(orchestra|band|singers|quartet|trio)\b/i.test(x);
+
+  let artist = "";
+  let title = "";
+
+  // Decide direction
+  if (looksArtist(a) && !looksArtist(b)) {
+    artist = a; title = b;
+  } else if (!looksArtist(a) && looksArtist(b)) {
+    title = a; artist = b;
+  } else {
+    // Default: Artist – Title
+    artist = a; title = b;
+  }
+
+  artist = cleanText(artist.replace(/^["']|["']$/g, ""));
+  title = cleanText(title.replace(/^["']|["']$/g, ""));
+
+  if (!artist || !title) return null;
+
+  return { rank, artist, title };
+}
+
+/**
+ * For blocks that contain multiple ranks in one string,
+ * extract repeated patterns without relying on line breaks.
+ *
+ * Example: "1. Artist – Song 2. Artist – Song 3. ..."
+ */
+function extractMultipleRankLines(blockText) {
+  const t = " " + cleanText(blockText) + " ";
+  if (!t.trim()) return [];
+
+  const out = [];
+
+  // Capture " (rank). .... " until next rank or end
+  const rx = /(?:^|\s)(#?\s*\d{1,3})\s*[.)-]\s+([\s\S]*?)(?=(?:\s#?\s*\d{1,3}\s*[.)-]\s)|$)/g;
+
+  let m;
+  while ((m = rx.exec(t))) {
+    const maybeRank = cleanText(m[1]).replace(/^#\s*/, "");
+    const rank = Number(maybeRank);
     if (!Number.isFinite(rank) || rank < 1 || rank > 100) continue;
 
-    const rest = cleanText(m[2]);
+    const body = cleanText(m[2]);
+    if (!body) continue;
 
-    // Split on dash variants
-    const parts = rest.split(/\s+[-–—]\s+/).map(cleanText).filter(Boolean);
+    const parsed = parseOneRankLine(`${rank}. ${body}`);
+    if (parsed) out.push(parsed);
+  }
 
-    let artist = "";
-    let title = "";
+  return out;
+}
 
-    if (parts.length >= 2) {
-      // Usually "Artist – Title"
-      // But sometimes "Title – Artist"
-      // Decide by looking for quotes or common title casing? Keep simple: prefer longer title-ish tokens with quotes
-      const a = parts[0];
-      const b = parts[1];
+function parseYearSection(sectionHtml, year) {
+  const items = extractRankItemsFromHtml(sectionHtml);
 
-      // If first part contains feat/&, often artist. If second contains feat/&, often artist.
-      const looksArtist = (s) =>
-        /\b(feat\.|featuring|&|and|with)\b/i.test(s) || /\b(the|band|orchestra)\b/i.test(s);
-
-      if (looksArtist(a) && !looksArtist(b)) {
-        artist = a; title = b;
-      } else if (!looksArtist(a) && looksArtist(b)) {
-        title = a; artist = b;
-      } else {
-        // default: Artist – Title
-        artist = a; title = b;
-      }
-    } else {
-      // If no dash, skip; too ambiguous
+  const rows = [];
+  for (const item of items) {
+    // First try single-line parse
+    const one = parseOneRankLine(item);
+    if (one) {
+      rows.push({ year, rank: one.rank, artist: one.artist, title: one.title, source: SOURCE });
       continue;
     }
 
-    artist = cleanText(artist.replace(/^["']|["']$/g, ""));
-    title = cleanText(title.replace(/^["']|["']$/g, ""));
-
-    if (!artist || !title) continue;
-
-    rows.push({ year, rank, artist, title, source: SOURCE });
+    // Then try multi-rank extraction
+    const many = extractMultipleRankLines(item);
+    for (const p of many) {
+      rows.push({ year, rank: p.rank, artist: p.artist, title: p.title, source: SOURCE });
+    }
   }
 
-  // Deduplicate by rank
+  // Deduplicate by rank (keep first)
   const seen = new Set();
-  const out = [];
+  const uniq = [];
   for (const r of rows) {
     const k = `${r.year}:${r.rank}`;
     if (seen.has(k)) continue;
     seen.add(k);
-    out.push(r);
+    uniq.push(r);
   }
-  // Sort by rank
-  out.sort((a, b) => a.rank - b.rank);
-  return out;
+
+  uniq.sort((a, b) => a.rank - b.rank);
+  return uniq;
 }
 
 function main() {
@@ -188,8 +309,7 @@ function main() {
       continue;
     }
 
-    const text = stripTags(sectionHtml);
-    const rows = parseRankedRowsFromText(text, year);
+    const rows = parseYearSection(sectionHtml, year);
 
     console.log(`Year ${year}: parsed ${rows.length} ranked rows`);
     allRows.push(...rows);
@@ -199,9 +319,10 @@ function main() {
   console.log("\nWrote:", OUT_FILE);
   console.log("Rows:", allRows.length);
 
-  if (allRows.length === 0) {
-    console.log("\nDEBUG TIP: confirm the year anchors exist in the HTML:");
-    console.log('  Select-String -Path ".\\Data\\raw\\top40weekly\\top-100-songs-of-the-60s.html" -Pattern "1960-topsongslist","topsongslist" -SimpleMatch');
+  if (allRows.length === 0)S
+  {
+    console.log("\nDEBUG TIP: confirm anchors/headers exist in the HTML:");
+    console.log('  Select-String -Path ".\\Data\\raw\\top40weekly\\top-100-songs-of-the-60s.html" -Pattern "1960","1960-","topsongs","topsongslist","<h2","<h3" -SimpleMatch | Select-Object -First 60');
   }
 }
 
