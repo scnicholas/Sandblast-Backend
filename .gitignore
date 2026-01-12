@@ -65,6 +65,12 @@ Scripts/debug_*.js
 _local_tmp/
 
 # =========================
+# Regression outputs (local only — never commit)
+# =========================
+Scripts/_regression_out/
+_regression_out/
+
+# =========================
 # OS / Editor noise
 # =========================
 .DS_Store
