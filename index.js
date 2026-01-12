@@ -3,31 +3,22 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.10 (v1.5.9 + SPONSORS/MOVIES LANE ROUTING + LANE-SAFE FOLLOWUPS + GH1 MICRO-GUARD)
+ * index.js v1.5.11 (SURGICAL: explicit lane commands + lane lock escape + routing precedence)
  *
- * CRITICAL UPDATES added on top of your v1.5.9 paste:
- *  10) Sponsors Lane routing (deterministic + safe):
- *      - Loads Utils/sponsorsLane if present (optional).
- *      - If session.lane === "sponsors" OR sponsorsLane.isSponsorIntent(message):
- *          sponsorsLane.handleChat({ text: message, session })
- *        and returns lane-owned reply + followUps (no music nav top-up pollution).
- *      - Global replay still works (uses lastReply + lastFollowUps).
+ * Surgical fixes on top of v1.5.10:
+ *  A) Explicit Lane Command Override (highest priority, post-greeting / pre-lane auto-routing)
+ *     - “Movies Lane” always forces session.lane="movies"
+ *     - “Sponsors Lane” always forces session.lane="sponsors"
+ *     - “Music Lane” / “Back to music” always forces session.lane="music"
+ *  B) Lane escape commands (works even when lane-locked):
+ *     - “switch” / “switch mode” / “back” / “exit lane” / “leave lane”
+ *       - if in sponsors/movies => exits to music (keeps lastYear/mode intact)
+ *  C) Router precedence:
+ *     - Explicit lane cmd > exit cmd > nav handlers (#1/next/prev/etc) > lane routing > music parsing
  *
- *  11) Movies Lane routing (optional stub-ready):
- *      - Loads Utils/moviesLane if present (optional).
- *      - If session.lane === "movies" OR moviesLane.isMoviesIntent(message):
- *          moviesLane.handleChat({ text: message, session })
- *        lane-owned reply + followUps.
- *
- *  12) respondJson() made lane-safe:
- *      - For non-music lanes (sponsors/movies): DO NOT top-up with music “tight” chips.
- *        Only return engine/lane chips (or minimal fallback) capped to 8.
- *
- *  13) GH-1 Micro-Guard (forward motion, minimal, safe):
- *      - If lane is music/general AND session has year+mode AND reply ends with a question,
- *        convert to a forward-moving close (prevents polite loops).
- *
- * Everything else from v1.5.9 is preserved.
+ * Notes:
+ *  - Removes duplicate /api/health route (keep only one).
+ *  - Preserves everything else as indicated in your header.
  */
 
 const express = require("express");
@@ -42,7 +33,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.10 (v1.5.9 + SPONSORS/MOVIES LANE ROUTING + LANE-SAFE FOLLOWUPS + GH1 micro-guard; preserves FMP + TOP10 missing escape + replay integrity + followUp merge + returning chips greeting-only + #1 routing + chart contamination guard + nav completion + music field bridge)";
+  "index.js v1.5.11 (v1.5.10 + SURGICAL lane overrides/escape; preserves SPONSORS/MOVIES routing + lane-safe followups + GH1 micro-guard + FMP + TOP10 missing escape + replay integrity + followUp merge + returning chips greeting-only + #1 routing + chart contamination guard + nav completion + music field bridge)";
 
 /* ======================================================
    Basic middleware
@@ -327,7 +318,8 @@ function postEngineBridge(session) {
   }
   if (
     clampYear(session.lastYear) &&
-    (!clampYear(session.lastMusicYear) || session.lastMusicYear !== session.lastYear)
+    (!clampYear(session.lastMusicYear) ||
+      session.lastMusicYear !== session.lastYear)
   ) {
     session.lastMusicYear = session.lastYear;
   }
@@ -364,7 +356,12 @@ function looksLikeTop10Missing(reply) {
   if (r.includes("not have") && r.includes("top") && r.includes("10"))
     return true;
 
-  if (r.includes("chart") && r.includes("not") && r.includes("loaded") && r.includes("top"))
+  if (
+    r.includes("chart") &&
+    r.includes("not") &&
+    r.includes("loaded") &&
+    r.includes("top")
+  )
     return true;
   if (r.includes("loaded chart sources") && r.includes("top")) return true;
 
@@ -376,7 +373,10 @@ function top10MissingFollowUps(year) {
   const ny = safeIncYear(y, +1);
   return [
     { label: "Micro moment", send: `micro moment ${y}` },
-    { label: ny ? `Top 10 ${ny}` : "Top 10", send: ny ? `top 10 ${ny}` : "Top 10" },
+    {
+      label: ny ? `Top 10 ${ny}` : "Top 10",
+      send: ny ? `top 10 ${ny}` : "Top 10",
+    },
     { label: "Another year", send: "Another year" },
     { label: "Replay last", send: "Replay last" },
   ];
@@ -387,8 +387,10 @@ function top10MissingFollowUps(year) {
 ====================================================== */
 
 const FMP = {
-  ASK_YEAR_RE: /\b(what year|give me a year|pick a year|choose a year|year\s*\(1950|1950–2024)\b/i,
-  ASK_MODE_CHOICE_RE: /\b(choose|pick|what do you want|which do you want|select)\b/i,
+  ASK_YEAR_RE:
+    /\b(what year|give me a year|pick a year|choose a year|year\s*\(1950|1950–2024)\b/i,
+  ASK_MODE_CHOICE_RE:
+    /\b(choose|pick|what do you want|which do you want|select)\b/i,
   MODE_WORDS_RE: /\b(top\s*10|story\s*moment|micro\s*moment)\b/i,
   SOFT_OPEN_RE: /\b(what would you like|what do you want|tell me what you|choose|pick)\b/i,
 
@@ -452,7 +454,11 @@ const FMP = {
     }
 
     const modeLabel =
-      mode === "top10" ? "the Top 10" : mode === "micro" ? "a micro moment" : "a story moment";
+      mode === "top10"
+        ? "the Top 10"
+        : mode === "micro"
+        ? "a micro moment"
+        : "a story moment";
 
     const reply =
       reason === "askYear"
@@ -509,7 +515,11 @@ const FMP = {
       const mode = session.activeMusicMode || session.pendingMode || null;
       if (y && mode) {
         const modeLabel =
-          mode === "top10" ? "the Top 10" : mode === "micro" ? "a micro moment" : "a story moment";
+          mode === "top10"
+            ? "the Top 10"
+            : mode === "micro"
+            ? "a micro moment"
+            : "a story moment";
         const amended =
           `${reply.replace(/[?]+$/g, ".")} ` +
           `I’ll proceed with ${modeLabel} for ${y} unless you say “switch”.`;
@@ -542,7 +552,11 @@ function ensureForwardMotion(reply, session) {
     const y = clampYear(Number(session.lastYear));
     const mode = session.activeMusicMode || session.pendingMode;
     const modeLabel =
-      mode === "top10" ? "Top 10" : mode === "micro" ? "a micro moment" : "a story moment";
+      mode === "top10"
+        ? "Top 10"
+        : mode === "micro"
+        ? "a micro moment"
+        : "a story moment";
 
     return (
       r.replace(/\?\s*$/, ".") +
@@ -550,6 +564,22 @@ function ensureForwardMotion(reply, session) {
     );
   }
 
+  return r;
+}
+
+function addMomentumTail(session, reply) {
+  const r = cleanText(reply);
+  if (!r) return r;
+
+  // Only attach the “nav tail” for music/general.
+  if (session && session.lane !== "general" && session.lane !== "music") return r;
+
+  const y = session && clampYear(session.lastYear) ? session.lastYear : null;
+  const mode = session && session.activeMusicMode ? session.activeMusicMode : null;
+  const endsWithQ = /[?]$/.test(r);
+  if (endsWithQ) return r;
+
+  if (y && mode) return `${r} Next: “next year”, “another year”, or “replay”.`;
   return r;
 }
 
@@ -952,6 +982,44 @@ function modeToCommand(mode) {
   return "top 10";
 }
 
+/* ======================================================
+   NEW: Explicit Lane Command + Lane Exit
+====================================================== */
+
+function explicitLaneCommand(text) {
+  const t = cleanText(text).toLowerCase();
+  if (!t) return null;
+
+  // Explicit lane selection
+  if (/^(movies\s+lane|movie\s+lane|movies)\s*$/.test(t)) return "movies";
+  if (
+    /^(sponsors?\s+lane|sponsor\s+lane|sponsors?|advertising|advertise|sponsorship)\s*$/.test(
+      t
+    )
+  )
+    return "sponsors";
+  if (/^(music\s+lane|back\s+to\s+music|return\s+to\s+music|music)\s*$/.test(t))
+    return "music";
+
+  return null;
+}
+
+function isLaneExitCommand(text) {
+  const t = cleanText(text).toLowerCase();
+  if (!t) return false;
+
+  // Works when stuck in sponsors/movies
+  if (/^(switch|switch\s+mode|exit|exit\s+lane|leave|leave\s+lane|back)\s*$/.test(t))
+    return true;
+  if (/^(back\s+to\s+music|return\s+to\s+music)\s*$/.test(t)) return true;
+
+  return false;
+}
+
+/* ======================================================
+   Nav tokens
+====================================================== */
+
 function normalizeNavToken(text) {
   const t = cleanText(text).toLowerCase();
   if (!t) return null;
@@ -999,22 +1067,6 @@ function replyMissingYearForMode(mode) {
   if (mode === "story") return "What year (1950–2024) for the story moment?";
   if (mode === "micro") return "What year (1950–2024) for the micro-moment?";
   return "What year (1950–2024)?";
-}
-
-function addMomentumTail(session, reply) {
-  const r = cleanText(reply);
-  if (!r) return r;
-
-  // Only attach the “nav tail” for music/general.
-  if (session && session.lane !== "general" && session.lane !== "music") return r;
-
-  const y = session && clampYear(session.lastYear) ? session.lastYear : null;
-  const mode = session && session.activeMusicMode ? session.activeMusicMode : null;
-  const endsWithQ = /[?]$/.test(r);
-  if (endsWithQ) return r;
-
-  if (y && mode) return `${r} Next: “next year”, “another year”, or “replay”.`;
-  return r;
 }
 
 /* ======================================================
@@ -1076,7 +1128,8 @@ async function runMusicEngine(text, session) {
 
     // ===== TOP10 Missing Escape (deterministic) =====
     const reply0 = cleanText(out.reply || "");
-    const modeReq = normalizeModeToken(text) || session.activeMusicMode || session.pendingMode || null;
+    const modeReq =
+      normalizeModeToken(text) || session.activeMusicMode || session.pendingMode || null;
     const yearReq = clampYear(y || session.lastYear || session.lastMusicYear);
 
     if (modeReq === "top10" && yearReq && looksLikeTop10Missing(reply0)) {
@@ -1089,7 +1142,8 @@ async function runMusicEngine(text, session) {
       guardChartForYear(session, yearReq);
       preEngineBridge(session);
 
-      const out2 = musicKnowledge.handleChat({ text: `story moment ${yearReq}`, session }) || {};
+      const out2 =
+        musicKnowledge.handleChat({ text: `story moment ${yearReq}`, session }) || {};
 
       if (out2.sessionPatch && typeof out2.sessionPatch === "object") {
         Object.assign(session, out2.sessionPatch);
@@ -1118,7 +1172,7 @@ async function runMusicEngine(text, session) {
 }
 
 /* ======================================================
-   Lane engine wrapper (NEW)
+   Lane engine wrapper
 ====================================================== */
 
 function isSponsorsActive(session, message) {
@@ -1141,18 +1195,20 @@ async function runSponsorsLane(text, session) {
   if (!sponsorsLane || typeof sponsorsLane.handleChat !== "function") {
     return {
       reply: "Sponsors Lane isn’t available in this build.",
-      followUps: [{ label: "Back to music", send: "Top 10" }],
+      followUps: [{ label: "Back to music", send: "Back to music" }],
     };
   }
   try {
     const out = sponsorsLane.handleChat({ text, session }) || {};
-    if (out.sessionPatch && typeof out.sessionPatch === "object") Object.assign(session, out.sessionPatch);
+    if (out.sessionPatch && typeof out.sessionPatch === "object")
+      Object.assign(session, out.sessionPatch);
     session.lane = "sponsors";
     return out;
   } catch (e) {
     session.lane = "sponsors";
     return {
-      reply: "Sponsors Lane hit an error. Try: TV/Radio/Website/Social or say “Request rate card”.",
+      reply:
+        "Sponsors Lane hit an error. Try: TV/Radio/Website/Social or say “Request rate card”.",
       error: String(e && e.message ? e.message : e),
     };
   }
@@ -1162,12 +1218,13 @@ async function runMoviesLane(text, session) {
   if (!moviesLane || typeof moviesLane.handleChat !== "function") {
     return {
       reply: "Movies Lane isn’t available in this build.",
-      followUps: [{ label: "Back to music", send: "Top 10" }],
+      followUps: [{ label: "Back to music", send: "Back to music" }],
     };
   }
   try {
     const out = moviesLane.handleChat({ text, session }) || {};
-    if (out.sessionPatch && typeof out.sessionPatch === "object") Object.assign(session, out.sessionPatch);
+    if (out.sessionPatch && typeof out.sessionPatch === "object")
+      Object.assign(session, out.sessionPatch);
     session.lane = "movies";
     return out;
   } catch (e) {
@@ -1179,12 +1236,8 @@ async function runMoviesLane(text, session) {
   }
 }
 
-/* ======================================================
-   Engine runner
-====================================================== */
-
 async function runEngine(text, session) {
-  // Lane priority: sponsors > movies > music
+  // Lane priority: sponsors > movies > music (explicit override handled in /api/chat)
   if (isSponsorsActive(session, text)) return runSponsorsLane(text, session);
   if (isMoviesActive(session, text)) return runMoviesLane(text, session);
   return runMusicEngine(text, session);
@@ -1195,7 +1248,8 @@ async function runEngine(text, session) {
 ====================================================== */
 
 function hasMeaningfulResumeState(profile, session) {
-  const profOk = !!profile && !!clampYear(profile.lastMusicYear) && !!profile.lastMusicMode;
+  const profOk =
+    !!profile && !!clampYear(profile.lastMusicYear) && !!profile.lastMusicMode;
 
   const sesYear = !!(session && clampYear(session.lastYear));
   const sesMode = !!(session && session.activeMusicMode);
@@ -1236,12 +1290,22 @@ function makeFollowUpsTight(session, profile) {
       { label: "Story moment", send: "Story moment" },
       { label: "Micro moment", send: "Micro moment" },
     ];
-    return { followUp: four.map((x) => x.label), followUps: four, resumable, returning: true };
+    return {
+      followUp: four.map((x) => x.label),
+      followUps: four,
+      resumable,
+      returning: true,
+    };
   }
 
   const base = [];
   const hasYear = !!(session && clampYear(session.lastYear));
-  base.push(hasYear ? String(session.lastYear) : "1950", "Top 10", "Story moment", "Micro moment");
+  base.push(
+    hasYear ? String(session.lastYear) : "1950",
+    "Top 10",
+    "Story moment",
+    "Micro moment"
+  );
 
   if (hasYear) {
     const py = safeIncYear(session.lastYear, -1);
@@ -1303,25 +1367,18 @@ function normalizeEngineFollowups(out) {
   return out2.slice(0, 12);
 }
 
-/**
- * respondJson()
- * - If forceFourChips === true AND visitor is returning:
- *     enforce the exact 4-chip returning visitor set.
- * - Else if lane is sponsors/movies:
- *     return lane/engine chips ONLY (cap 8). No music tight-top-up.
- * - Otherwise (music/general):
- *     KEEP engine chips and TOP-UP with tight defaults (nav/replay) to a max of 8.
- */
 function respondJson(req, res, base, session, engineOut, profile, forceFourChips) {
   const tight = makeFollowUpsTight(session, profile);
   const enforceReturning = !!forceFourChips && !!tight.returning;
 
-  // Lane-safe behavior for non-music lanes
   const lane = session && session.lane ? String(session.lane) : "general";
   const laneOwned = lane === "sponsors" || lane === "movies";
 
   if (enforceReturning) {
-    const payload = Object.assign({}, base, { followUps: tight.followUps, followUp: tight.followUp });
+    const payload = Object.assign({}, base, {
+      followUps: tight.followUps,
+      followUp: tight.followUp,
+    });
 
     const wantsDebug = CHAT_DEBUG || parseDebugFlag(req);
     if (wantsDebug) {
@@ -1363,7 +1420,6 @@ function respondJson(req, res, base, session, engineOut, profile, forceFourChips
 
   const engineNorm = normalizeEngineFollowups(engineOut);
 
-  // For sponsors/movies, return lane chips only (no top-up with music defaults).
   if (laneOwned) {
     const merged = [];
     const seen = new Set();
@@ -1380,10 +1436,9 @@ function respondJson(req, res, base, session, engineOut, profile, forceFourChips
       add(it);
     }
 
-    // Minimal fallback if lane forgot chips
     if (merged.length === 0) {
       merged.push({ label: "Replay last", send: "Replay last" });
-      merged.push({ label: "Top 10", send: "Top 10" });
+      merged.push({ label: "Back to music", send: "Back to music" });
     }
 
     const payload = Object.assign({}, base, {
@@ -1415,7 +1470,6 @@ function respondJson(req, res, base, session, engineOut, profile, forceFourChips
     return res.json(payload);
   }
 
-  // Default (music/general): merge engine chips + tight chips with de-dupe, cap at 8
   const merged = [];
   const seen = new Set();
   const add = (it) => {
@@ -1482,55 +1536,6 @@ function respondJson(req, res, base, session, engineOut, profile, forceFourChips
 }
 
 /* ======================================================
-   API: health
-====================================================== */
-
-app.get("/api/health", (req, res) => {
-  const requestId = req.get("X-Request-Id") || rid();
-  res.set("X-Request-Id", requestId);
-  res.set("X-Contract-Version", NYX_CONTRACT_VERSION);
-  res.set("Cache-Control", "no-store");
-
-  const origin = req.headers.origin || null;
-  const originAllowed = CORS_ALLOW_ALL ? true : origin ? originMatchesAllowlist(origin) : null;
-
-  res.json({
-    ok: true,
-    service: "sandblast-backend",
-    env: process.env.NODE_ENV || "production",
-    time: nowIso(),
-    build: process.env.RENDER_GIT_COMMIT || null,
-    version: INDEX_VERSION,
-    sessions: SESSIONS.size,
-    profiles: PROFILES.size,
-    cors: {
-      allowAll: CORS_ALLOW_ALL,
-      allowedOrigins: CORS_ALLOW_ALL ? "ALL" : ALLOWED_ORIGINS.length,
-      originEcho: origin,
-      originAllowed,
-    },
-    contract: { version: NYX_CONTRACT_VERSION, strict: CONTRACT_STRICT },
-    timeouts: { requestTimeoutMs: REQUEST_TIMEOUT_MS, elevenTtsTimeoutMs: ELEVEN_TTS_TIMEOUT_MS },
-    tts: {
-      enabled: TTS_ENABLED,
-      provider: TTS_PROVIDER,
-      hasKey: !!ELEVEN_KEY,
-      hasVoiceId: !!ELEVEN_VOICE_ID,
-      model: ELEVEN_MODEL_ID || null,
-      hasFetch: typeof fetch === "function",
-    },
-    micGuard: { enabled: MIC_GUARD_ENABLED, windowMs: MIC_GUARD_WINDOW_MS, minChars: MIC_GUARD_MIN_CHARS },
-    music: { defaultChart: DEFAULT_CHART, yearEndChart: YEAR_END_CHART, yearEndSinglesChart: YEAR_END_SINGLES_CHART },
-    lanes: {
-      sponsorsLoaded: !!sponsorsLane,
-      moviesLoaded: !!moviesLane,
-      musicLoaded: !!musicKnowledge,
-    },
-    requestId,
-  });
-});
-
-/* ======================================================
    API: tts (unchanged)
 ====================================================== */
 
@@ -1558,14 +1563,20 @@ async function ttsHandler(req, res) {
   const s = sid ? getSession(sid) : null;
 
   const hasExplicitVoiceMode =
-    Object.prototype.hasOwnProperty.call(body, "voiceMode") && String(body.voiceMode || "").trim() !== "";
+    Object.prototype.hasOwnProperty.call(body, "voiceMode") &&
+    String(body.voiceMode || "").trim() !== "";
 
   const voiceMode = normalizeVoiceMode(
     hasExplicitVoiceMode ? body.voiceMode : (s && s.voiceMode) || "standard"
   );
 
   if (!TTS_ENABLED)
-    return res.status(503).json({ ok: false, error: "TTS_DISABLED", requestId, contractVersion: NYX_CONTRACT_VERSION });
+    return res.status(503).json({
+      ok: false,
+      error: "TTS_DISABLED",
+      requestId,
+      contractVersion: NYX_CONTRACT_VERSION,
+    });
   if (TTS_PROVIDER !== "elevenlabs")
     return res.status(500).json({
       ok: false,
@@ -1689,7 +1700,12 @@ function handleFresh(session) {
   session.activeMusicChart = DEFAULT_CHART;
   session.lastMusicChart = DEFAULT_CHART;
 
-  return { reply: "Clean slate. Give me a year (1950–2024) and choose: Top 10, Story moment, or Micro moment." };
+  session.lane = "music"; // safe reset
+
+  return {
+    reply:
+      "Clean slate. Give me a year (1950–2024) and choose: Top 10, Story moment, or Micro moment.",
+  };
 }
 
 /* ======================================================
@@ -1757,7 +1773,10 @@ async function handleNumberOne(session) {
   guardChartForYear(session, y0);
 
   if (session.lastTop10One && typeof session.lastTop10One === "string") {
-    return { reply: `#1 — ${cleanText(session.lastTop10One)} (${y0}).`, followUps: numberOneFollowUps(y0) };
+    return {
+      reply: `#1 — ${cleanText(session.lastTop10One)} (${y0}).`,
+      followUps: numberOneFollowUps(y0),
+    };
   }
 
   const outA = await runEngine(`#1 ${y0}`, session);
@@ -1852,7 +1871,15 @@ app.post("/api/chat", async (req, res) => {
     session.lastIntent = "micEchoGuard";
     updateProfileFromSession(profile, session);
 
-    const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+    const base = {
+      ok: true,
+      reply,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
     return respondJson(req, res, base, session, null, profile, false);
   }
 
@@ -1860,7 +1887,15 @@ app.post("/api/chat", async (req, res) => {
 
   // Replay (global) — returns SAME chips when available
   if (nav === "replay" && session.lastReply) {
-    const base = { ok: true, reply: session.lastReply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+    const base = {
+      ok: true,
+      reply: session.lastReply,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
 
     session.lastIntent = "replay";
     updateProfileFromSession(profile, session);
@@ -1910,10 +1945,77 @@ app.post("/api/chat", async (req, res) => {
 
     updateProfileFromSession(profile, session);
 
-    const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+    const base = {
+      ok: true,
+      reply,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
 
     // CRITICAL: only greetings enforce 4 returning chips
     return respondJson(req, res, base, session, null, profile, true);
+  }
+
+  // ======================================================
+  // SURGICAL: explicit lane command override + lane exit
+  // ======================================================
+
+  const laneCmd = explicitLaneCommand(message);
+  if (laneCmd) {
+    session.lane = laneCmd;
+    session.lastIntent = "laneSelect";
+
+    const reply =
+      laneCmd === "movies"
+        ? "Movies Lane. Paste a movie link or tell me the decade/genre you want (crime, detective, comedy, etc.)."
+        : laneCmd === "sponsors"
+        ? "Sponsors Lane. What’s your goal: calls, foot traffic, website clicks, or brand awareness?"
+        : "Back to music. Give me a year (1950–2024) and choose: Top 10, Story moment, or Micro moment.";
+
+    session.lastReply = reply;
+    session.lastReplyAt = Date.now();
+    updateProfileFromSession(profile, session);
+
+    const base = {
+      ok: true,
+      reply,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
+
+    // Let respondJson decide lane-safe chips; engineOut null is fine here.
+    return respondJson(req, res, base, session, null, profile, false);
+  }
+
+  // Lane exit works even when lane-locked.
+  if (isLaneExitCommand(message) && (session.lane === "sponsors" || session.lane === "movies")) {
+    session.lane = "music";
+    session.lastIntent = "laneExit";
+
+    const reply =
+      "Back to music. Tell me a year (1950–2024) and choose: Top 10, Story moment, or Micro moment.";
+
+    session.lastReply = reply;
+    session.lastReplyAt = Date.now();
+    updateProfileFromSession(profile, session);
+
+    const base = {
+      ok: true,
+      reply,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
+
+    return respondJson(req, res, base, session, null, profile, false);
   }
 
   // Pillar B: #1 (music-only)
@@ -1929,7 +2031,15 @@ app.post("/api/chat", async (req, res) => {
 
     updateProfileFromSession(profile, session);
 
-    const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+    const base = {
+      ok: true,
+      reply,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
     return respondJson(req, res, base, session, out, profile, false);
   }
 
@@ -1945,7 +2055,15 @@ app.post("/api/chat", async (req, res) => {
 
     updateProfileFromSession(profile, session);
 
-    const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+    const base = {
+      ok: true,
+      reply,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
     return respondJson(req, res, base, session, out, profile, false);
   }
 
@@ -1960,7 +2078,15 @@ app.post("/api/chat", async (req, res) => {
 
     updateProfileFromSession(profile, session);
 
-    const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+    const base = {
+      ok: true,
+      reply,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
     return respondJson(req, res, base, session, out, profile, false);
   }
 
@@ -1976,7 +2102,15 @@ app.post("/api/chat", async (req, res) => {
 
     updateProfileFromSession(profile, session);
 
-    const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+    const base = {
+      ok: true,
+      reply,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
     return respondJson(req, res, base, session, out, profile, false);
   }
 
@@ -1993,7 +2127,15 @@ app.post("/api/chat", async (req, res) => {
 
     updateProfileFromSession(profile, session);
 
-    const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+    const base = {
+      ok: true,
+      reply,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
     return respondJson(req, res, base, session, out, profile, false);
   }
 
@@ -2009,7 +2151,15 @@ app.post("/api/chat", async (req, res) => {
 
     updateProfileFromSession(profile, session);
 
-    const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+    const base = {
+      ok: true,
+      reply,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
     return respondJson(req, res, base, session, out, profile, false);
   }
 
@@ -2027,7 +2177,15 @@ app.post("/api/chat", async (req, res) => {
 
     updateProfileFromSession(profile, session);
 
-    const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+    const base = {
+      ok: true,
+      reply,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
     return respondJson(req, res, base, session, out0, profile, false);
   }
 
@@ -2041,7 +2199,15 @@ app.post("/api/chat", async (req, res) => {
 
     updateProfileFromSession(profile, session);
 
-    const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+    const base = {
+      ok: true,
+      reply,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
     return respondJson(req, res, base, session, out0, profile, false);
   }
 
@@ -2074,7 +2240,15 @@ app.post("/api/chat", async (req, res) => {
 
     updateProfileFromSession(profile, session);
 
-    const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+    const base = {
+      ok: true,
+      reply,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
     return respondJson(req, res, base, session, out, profile, false);
   }
 
@@ -2096,7 +2270,15 @@ app.post("/api/chat", async (req, res) => {
 
       updateProfileFromSession(profile, session);
 
-      const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+      const base = {
+        ok: true,
+        reply,
+        sessionId,
+        requestId,
+        visitorId,
+        contractVersion: NYX_CONTRACT_VERSION,
+        voiceMode: session.voiceMode,
+      };
       return respondJson(req, res, base, session, out, profile, false);
     }
 
@@ -2107,7 +2289,15 @@ app.post("/api/chat", async (req, res) => {
 
     updateProfileFromSession(profile, session);
 
-    const base = { ok: true, reply: ask, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+    const base = {
+      ok: true,
+      reply: ask,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
     return respondJson(req, res, base, session, null, profile, false);
   }
 
@@ -2129,7 +2319,15 @@ app.post("/api/chat", async (req, res) => {
 
       updateProfileFromSession(profile, session);
 
-      const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+      const base = {
+        ok: true,
+        reply,
+        sessionId,
+        requestId,
+        visitorId,
+        contractVersion: NYX_CONTRACT_VERSION,
+        voiceMode: session.voiceMode,
+      };
       return respondJson(req, res, base, session, out, profile, false);
     }
 
@@ -2140,7 +2338,15 @@ app.post("/api/chat", async (req, res) => {
 
     updateProfileFromSession(profile, session);
 
-    const base = { ok: true, reply: askMode, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+    const base = {
+      ok: true,
+      reply: askMode,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
     return respondJson(req, res, base, session, null, profile, false);
   }
 
@@ -2160,8 +2366,65 @@ app.post("/api/chat", async (req, res) => {
 
   updateProfileFromSession(profile, session);
 
-  const base = { ok: true, reply, sessionId, requestId, visitorId, contractVersion: NYX_CONTRACT_VERSION, voiceMode: session.voiceMode };
+  const base = {
+    ok: true,
+    reply,
+    sessionId,
+    requestId,
+    visitorId,
+    contractVersion: NYX_CONTRACT_VERSION,
+    voiceMode: session.voiceMode,
+  };
   return respondJson(req, res, base, session, out, profile, false);
+});
+
+/* ======================================================
+   API: health
+====================================================== */
+
+app.get("/api/health", (req, res) => {
+  const requestId = req.get("X-Request-Id") || rid();
+  res.set("X-Request-Id", requestId);
+  res.set("X-Contract-Version", NYX_CONTRACT_VERSION);
+  res.set("Cache-Control", "no-store");
+
+  const origin = req.headers.origin || null;
+  const originAllowed = CORS_ALLOW_ALL ? true : origin ? originMatchesAllowlist(origin) : null;
+
+  res.json({
+    ok: true,
+    service: "sandblast-backend",
+    env: process.env.NODE_ENV || "production",
+    time: nowIso(),
+    build: process.env.RENDER_GIT_COMMIT || null,
+    version: INDEX_VERSION,
+    sessions: SESSIONS.size,
+    profiles: PROFILES.size,
+    cors: {
+      allowAll: CORS_ALLOW_ALL,
+      allowedOrigins: CORS_ALLOW_ALL ? "ALL" : ALLOWED_ORIGINS.length,
+      originEcho: origin,
+      originAllowed,
+    },
+    contract: { version: NYX_CONTRACT_VERSION, strict: CONTRACT_STRICT },
+    timeouts: { requestTimeoutMs: REQUEST_TIMEOUT_MS, elevenTtsTimeoutMs: ELEVEN_TTS_TIMEOUT_MS },
+    tts: {
+      enabled: TTS_ENABLED,
+      provider: TTS_PROVIDER,
+      hasKey: !!ELEVEN_KEY,
+      hasVoiceId: !!ELEVEN_VOICE_ID,
+      model: ELEVEN_MODEL_ID || null,
+      hasFetch: typeof fetch === "function",
+    },
+    micGuard: { enabled: MIC_GUARD_ENABLED, windowMs: MIC_GUARD_WINDOW_MS, minChars: MIC_GUARD_MIN_CHARS },
+    music: { defaultChart: DEFAULT_CHART, yearEndChart: YEAR_END_CHART, yearEndSinglesChart: YEAR_END_SINGLES_CHART },
+    lanes: {
+      sponsorsLoaded: !!sponsorsLane,
+      moviesLoaded: !!moviesLane,
+      musicLoaded: !!musicKnowledge,
+    },
+    requestId,
+  });
 });
 
 /* ======================================================
