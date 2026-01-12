@@ -1,0 +1,95 @@
+"use strict";
+
+/**
+ * Scripts/merge_top10_input_rows_from_top100_v1.js
+ *
+ * Input:
+ *  - Data/top10_input_rows.json (canonical; may exist)
+ *  - Data/top100_top40weekly_1960s_v1.json (from ingest script)
+ *
+ * Output:
+ *  - Data/top10_input_rows.json (updated, de-duped)
+ */
+
+const fs = require("fs");
+const path = require("path");
+
+const ROOT = path.resolve(__dirname, "..");
+const TOP10_IN = path.join(ROOT, "Data", "top10_input_rows.json");
+const TOP100_60S = path.join(ROOT, "Data", "top100_top40weekly_1960s_v1.json");
+
+function clean(s) {
+  return String(s || "").replace(/\s+/g, " ").trim();
+}
+
+function loadJson(p, fallback) {
+  if (!fs.existsSync(p)) return fallback;
+  return JSON.parse(fs.readFileSync(p, "utf8"));
+}
+
+function keyOf(row) {
+  const y = Number(row.year);
+  const pos = Number(row.pos);
+  const a = clean(row.artist).toLowerCase();
+  const t = clean(row.title).toLowerCase();
+  return `${y}|${pos}|${a}|${t}`;
+}
+
+function main() {
+  const base = loadJson(TOP10_IN, []);
+  const top100 = loadJson(TOP100_60S, []);
+
+  const add = [];
+  for (const r of top100) {
+    const y = Number(r.year);
+    const pos = Number(r.pos);
+    if (!Number.isFinite(y) || !Number.isFinite(pos)) continue;
+    if (y < 1950 || y > 2024) continue;
+    if (pos < 1 || pos > 10) continue;
+
+    add.push({
+      year: y,
+      pos,
+      artist: clean(r.artist),
+      title: clean(r.title),
+      source: clean(r.source || "top40weekly"),
+    });
+  }
+
+  const merged = [];
+  const seen = new Set();
+
+  // keep existing first (canonical priority), then fill missing
+  for (const r of base.concat(add)) {
+    const y = Number(r.year);
+    const pos = Number(r.pos);
+    if (!Number.isFinite(y) || !Number.isFinite(pos)) continue;
+    if (y < 1950 || y > 2024) continue;
+    if (pos < 1 || pos > 10) continue;
+
+    const artist = clean(r.artist);
+    const title = clean(r.title);
+    if (!artist || !title) continue;
+
+    const k = `${y}|${pos}`; // IMPORTANT: only one entry per year+pos
+    if (seen.has(k)) continue;
+
+    seen.add(k);
+    merged.push({
+      year: y,
+      pos,
+      artist,
+      title,
+      source: clean(r.source || "merged"),
+    });
+  }
+
+  // stable sort
+  merged.sort((a, b) => (a.year - b.year) || (a.pos - b.pos));
+
+  fs.writeFileSync(TOP10_IN, JSON.stringify(merged, null, 2), "utf8");
+  console.log(`Wrote: ${TOP10_IN}`);
+  console.log(`Rows: ${merged.length}`);
+}
+
+main();
