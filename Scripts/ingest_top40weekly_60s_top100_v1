@@ -1,0 +1,172 @@
+"use strict";
+
+/**
+ * Scripts/ingest_top40weekly_60s_top100_v1.js
+ *
+ * Input:
+ *  - Data/raw/top40weekly/top-100-songs-of-the-60s.html
+ *
+ * Output:
+ *  - Data/top100_top40weekly_1960s_v1.json
+ *
+ * Notes:
+ *  - Top40Weekly markup can vary; this parser is defensive:
+ *    - Finds year anchor blocks (#1960-topsongslist etc)
+ *    - Extracts rows by scanning for ranked lines "1." / "1)" / "#1"
+ *    - Requires pos + artist + title
+ */
+
+const fs = require("fs");
+const path = require("path");
+
+const ROOT = path.resolve(__dirname, "..");
+const IN_FILE = path.join(ROOT, "Data", "raw", "top40weekly", "top-100-songs-of-the-60s.html");
+const OUT_FILE = path.join(ROOT, "Data", "top100_top40weekly_1960s_v1.json");
+
+function clean(s) {
+  return String(s || "")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function stripTags(html) {
+  return clean(String(html || "").replace(/<[^>]*>/g, " "));
+}
+
+/**
+ * Heuristic line parser.
+ * Supports patterns like:
+ *  "1. Song Title – Artist"
+ *  "1) Song Title - Artist"
+ *  "#1 Song Title — Artist"
+ * Also tries inverse "Artist – Song Title" if needed.
+ */
+function parseRankLine(line) {
+  const raw = clean(line);
+  if (!raw) return null;
+
+  // Must start with rank marker
+  const mRank = raw.match(/^(#?\s*\d{1,3})\s*[.)-]?\s*(.+)$/);
+  if (!mRank) return null;
+
+  const pos = Number(String(mRank[1]).replace(/[^0-9]/g, ""));
+  if (!Number.isFinite(pos) || pos < 1 || pos > 100) return null;
+
+  const rest = clean(mRank[2]);
+
+  // Split on common separators
+  const parts =
+    rest.split(/\s(?:—|–|-|:)\s/).map(clean).filter(Boolean);
+
+  if (parts.length < 2) return null;
+
+  // Prefer Title — Artist (common)
+  let title = parts[0];
+  let artist = parts.slice(1).join(" ");
+
+  // If it looks like "Artist — Title" (artist contains "feat" etc and title is short),
+  // attempt swap as fallback
+  const looksLikeArtistFirst =
+    /\b(feat\.|ft\.|and|&|with)\b/i.test(title) && title.length > artist.length;
+  if (looksLikeArtistFirst) {
+    const tmp = title;
+    title = artist;
+    artist = tmp;
+  }
+
+  title = clean(title).replace(/^["']|["']$/g, "");
+  artist = clean(artist).replace(/^["']|["']$/g, "");
+
+  if (!title || !artist) return null;
+
+  return { pos, title, artist };
+}
+
+/**
+ * Extract year section content between anchors.
+ */
+function sliceYearSection(html, year) {
+  const id = `${year}-topsongslist`;
+  const startRe = new RegExp(`id=["']${id}["']`, "i");
+  const startIdx = html.search(startRe);
+  if (startIdx < 0) return null;
+
+  // End at next year anchor or end of file
+  let endIdx = html.length;
+  for (let y = year + 1; y <= 1969; y++) {
+    const id2 = `${y}-topsongslist`;
+    const re2 = new RegExp(`id=["']${id2}["']`, "i");
+    const idx2 = html.slice(startIdx + 1).search(re2);
+    if (idx2 >= 0) {
+      endIdx = startIdx + 1 + idx2;
+      break;
+    }
+  }
+
+  return html.slice(startIdx, endIdx);
+}
+
+function main() {
+  if (!fs.existsSync(IN_FILE)) {
+    console.error(`Missing input HTML: ${IN_FILE}`);
+    console.error(`Download it with: curl.exe -L "https://top40weekly.com/top-100-songs-of-the-60s/" -o "${IN_FILE}"`);
+    process.exit(1);
+  }
+
+  const html = fs.readFileSync(IN_FILE, "utf8");
+  const rows = [];
+
+  for (let year = 1960; year <= 1969; year++) {
+    const section = sliceYearSection(html, year);
+    if (!section) {
+      console.warn(`WARN: Could not find section for ${year} (#${year}-topsongslist)`);
+      continue;
+    }
+
+    // Strip tags and split into lines
+    const text = stripTags(section);
+    const lines = text.split(/\r?\n/).map(clean).filter(Boolean);
+
+    // Collect rank lines
+    const yearRows = [];
+    for (const ln of lines) {
+      // Only consider likely rank lines
+      if (!/^(#?\s*\d{1,3})\s*[.)-]/.test(ln)) continue;
+
+      const parsed = parseRankLine(ln);
+      if (parsed) yearRows.push(parsed);
+    }
+
+    // De-dupe by pos
+    const byPos = new Map();
+    for (const r of yearRows) {
+      if (!byPos.has(r.pos)) byPos.set(r.pos, r);
+    }
+
+    // Emit
+    for (let pos = 1; pos <= 100; pos++) {
+      const r = byPos.get(pos);
+      if (!r) continue;
+      rows.push({
+        year,
+        pos,
+        artist: r.artist,
+        title: r.title,
+        source: "top40weekly-60s",
+      });
+    }
+
+    const got = Array.from(byPos.keys()).filter((p) => p >= 1 && p <= 100).length;
+    console.log(`Year ${year}: parsed ${got} ranked rows`);
+  }
+
+  fs.writeFileSync(OUT_FILE, JSON.stringify(rows, null, 2), "utf8");
+  console.log(`\nWrote: ${OUT_FILE}`);
+  console.log(`Rows: ${rows.length}`);
+}
+
+main();
