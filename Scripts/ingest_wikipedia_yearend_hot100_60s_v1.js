@@ -24,10 +24,10 @@
  *  - Defensive header detection + column mapping
  *  - Won’t emit empty year shells unless it has rows
  *  - POLISH: removes stray "[[" / "]]" and trims wrapping quotes in title/artist
- *  - NEW: if a row-block accidentally contains MULTIPLE logical rows (missing "|-" separators),
- *         split the cells into fixed-width chunks and parse each chunk as a row
- *  - NEW (IMPORTANT): supports ROWSPAN-style tables where Artist is blank on subsequent rows
- *         (e.g., 1964 rank #2 "She Loves You" inherits artist from rank #1 "The Beatles")
+ *  - NEW: splits accidental multi-row blocks (missing "|-") into fixed-width chunks
+ *  - NEW (IMPORTANT): supports ROWSPAN-style tables where Artist is blank/omitted on subsequent rows
+ *  - NEW (CRITICAL): accepts SHORT rows (e.g., only Rank+Title because Artist is rowspanned)
+ *    by padding missing columns before parsing (fixes 1964 rank #2).
  */
 
 const fs = require("fs");
@@ -262,16 +262,21 @@ function parseWikitableToRows(year, wikitableBlock) {
       current.push(t.replace(/^\|\s*/, ""));
       continue;
     }
-
-    // Ignore header cells "!" inside table body.
   }
 
   const rows = [];
   let lastArtist = "";
   let lastRank = null;
 
-  function acceptRowCells(cells) {
-    if (!cells || cells.length < expectedCols) return;
+  function acceptRowCells(cellsRaw) {
+    if (!cellsRaw || !cellsRaw.length) return;
+
+    // CRITICAL: Pad short rows to expectedCols so rowspan-missing artist rows can be parsed.
+    // Common case: expectedCols=3 but row has only [rank,title].
+    const cells = cellsRaw.slice();
+    if (cells.length < expectedCols) {
+      while (cells.length < expectedCols) cells.push("");
+    }
 
     const rankRaw = String(cells[colRank] || "");
     const rank = Number(rankRaw.replace(/[^\d]/g, ""));
@@ -280,14 +285,16 @@ function parseWikitableToRows(year, wikitableBlock) {
     const title = polishField(cells[colTitle] || "");
     let artist = polishField(cells[colArtist] || "");
 
-    // ROWSPAN FIX:
-    // Some pages omit artist on subsequent rows because the artist cell uses rowspan.
-    // Example (1964): rank 2 has title but blank artist; inherit from previous row (rank 1).
+    // ROWSPAN FIX: inherit artist when it’s missing and rank increments by 1
     if (!artist && lastArtist && Number.isFinite(lastRank) && rank === lastRank + 1) {
       artist = lastArtist;
     }
 
-    if (!title || !artist) return;
+    if (!title || !artist) {
+      // Still reject if we cannot resolve both fields
+      lastRank = rank; // keep rank progression for next attempt
+      return;
+    }
 
     rows.push({
       year,
@@ -313,8 +320,7 @@ function parseWikitableToRows(year, wikitableBlock) {
       cells = block.map((c) => normalizeCell(c));
     }
 
-    // If a row block accidentally contains multiple logical rows, split into chunks.
-    // Keep it conservative: only chunk when it divides evenly.
+    // If a row block accidentally contains multiple logical rows, split into chunks when divisible.
     if (cells.length > expectedCols && cells.length % expectedCols === 0) {
       for (let i = 0; i < cells.length; i += expectedCols) {
         acceptRowCells(cells.slice(i, i + expectedCols));
