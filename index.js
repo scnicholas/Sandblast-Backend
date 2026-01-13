@@ -22,6 +22,12 @@
  *  - GH1 micro-guard, replay integrity, followUp merge, greeting-only 4-chip enforcement
  *  - #1 routing, chart contamination guard, nav completion, music field bridge
  *  - Single /api/health route (no duplicates)
+ *
+ * CRITICAL v1.5.18 fixes (Cognitive OS efficiency):
+ *  - Bare-year ALWAYS defaults to Top 10 (prevents story/micro “mode stickiness” after a story seed)
+ *  - Removes redundant schedule-lane double-check (runEngine already handles schedule precedence)
+ *  - Ensures lane-owned follow-ups always include “Back to music” escape hatch
+ *  - Stabilizes follow-up label casing for nav tokens (“Prev year”/“Next year”) without breaking old clients
  */
 
 const express = require("express");
@@ -1110,7 +1116,11 @@ function explicitLaneCommand(text) {
     )
   )
     return "sponsors";
-  if (/^(schedule\s+lane|programming\s+lane|roku\s+lane|schedule|programming)\s*$/.test(t))
+  if (
+    /^(schedule\s+lane|programming\s+lane|roku\s+lane|schedule|programming)\s*$/.test(
+      t
+    )
+  )
     return "schedule";
   if (/^(music\s+lane|back\s+to\s+music|return\s+to\s+music|music)\s*$/.test(t))
     return "music";
@@ -1512,6 +1522,13 @@ function normalizeEngineFollowups(out) {
   return out2.slice(0, 12);
 }
 
+function ensureLaneEscapeChips(merged) {
+  // lane-owned conversations should ALWAYS offer a clean escape hatch.
+  const hasBack = merged.some((x) => cleanText(x.send).toLowerCase() === "back to music");
+  if (!hasBack) merged.push({ label: "Back to music", send: "Back to music" });
+  return merged;
+}
+
 function respondJson(req, res, base, session, engineOut, profile, forceFourChips) {
   const tight = makeFollowUpsTight(session, profile);
   const enforceReturning = !!forceFourChips && !!tight.returning;
@@ -1579,14 +1596,15 @@ function respondJson(req, res, base, session, engineOut, profile, forceFourChips
     };
 
     for (const it of engineNorm) {
-      if (merged.length >= 8) break;
+      if (merged.length >= 7) break; // reserve 1 slot for "Back to music"
       add(it);
     }
 
     if (merged.length === 0) {
       merged.push({ label: "Replay last", send: "Replay last" });
-      merged.push({ label: "Back to music", send: "Back to music" });
     }
+
+    ensureLaneEscapeChips(merged);
 
     const payload = Object.assign({}, base, {
       followUps: merged.slice(0, 8),
@@ -2318,75 +2336,8 @@ app.post("/api/chat", async (req, res) => {
     return respondJson(req, res, base, session, out, profile, false);
   }
 
-  // v1.5.18: Schedule lane check (intent-based) before sponsor/movies/music
-  if (isScheduleActive(session, message)) {
-    const out0 = await runScheduleLane(message, session);
-    const out = await applyFmp(out0, session);
-    const reply = cleanText(out.reply || "Schedule Lane.");
-
-    session.lastReply = reply;
-    session.lastReplyAt = Date.now();
-    session.lastIntent = "schedule";
-
-    updateProfileFromSession(profile, session);
-
-    const base = {
-      ok: true,
-      reply,
-      sessionId,
-      requestId,
-      visitorId,
-      contractVersion: NYX_CONTRACT_VERSION,
-      voiceMode: session.voiceMode,
-    };
-    return respondJson(req, res, base, session, out, profile, false);
-  }
-
-  if (isSponsorsActive(session, message)) {
-    const out0 = await runSponsorsLane(message, session);
-    const out = await applyFmp(out0, session);
-    const reply = cleanText(out.reply || "Sponsors Lane.");
-
-    session.lastReply = reply;
-    session.lastReplyAt = Date.now();
-    session.lastIntent = "sponsors";
-
-    updateProfileFromSession(profile, session);
-
-    const base = {
-      ok: true,
-      reply,
-      sessionId,
-      requestId,
-      visitorId,
-      contractVersion: NYX_CONTRACT_VERSION,
-      voiceMode: session.voiceMode,
-    };
-    return respondJson(req, res, base, session, out, profile, false);
-  }
-
-  if (isMoviesActive(session, message)) {
-    const out0 = await runMoviesLane(message, session);
-    const out = await applyFmp(out0, session);
-    const reply = cleanText(out.reply || "Movies Lane.");
-
-    session.lastReply = reply;
-    session.lastReplyAt = Date.now();
-    session.lastIntent = "movies";
-
-    updateProfileFromSession(profile, session);
-
-    const base = {
-      ok: true,
-      reply,
-      sessionId,
-      requestId,
-      visitorId,
-      contractVersion: NYX_CONTRACT_VERSION,
-      voiceMode: session.voiceMode,
-    };
-    return respondJson(req, res, base, session, out, profile, false);
-  }
+  // Sponsors/movies/schedule/music lane routing is handled centrally by runEngine().
+  // IMPORTANT: do NOT duplicate lane checks here (prevents divergence and mode leaks).
 
   // v1.5.17: Explicit Top10 command must win BEFORE generic year/mode parsing.
   if (isExplicitTop10WithYear(message)) {
@@ -2526,9 +2477,7 @@ app.post("/api/chat", async (req, res) => {
     session.lane = "music";
 
     // v1.5.18 FIX (regression): bare-year ALWAYS defaults to Top 10 (does not inherit prior mode)
-    const mode = bareYear
-      ? "top10"
-      : (session.pendingMode || session.activeMusicMode || "top10");
+    const mode = bareYear ? "top10" : (session.pendingMode || session.activeMusicMode || "top10");
 
     session.activeMusicMode = mode;
     session.pendingMode = null;
@@ -2563,7 +2512,7 @@ app.post("/api/chat", async (req, res) => {
   // Keep variable referenced (no-op) to avoid unused in some bundlers/lints
   void bareYear;
 
-  session.lane = "music";
+  // Default: route through runEngine (schedule > sponsors > movies > music)
   const out0 = await runEngine(message, session);
   const out = await applyFmp(out0, session);
 
