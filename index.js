@@ -667,10 +667,8 @@ function addMomentumTail(session, reply) {
 
 function finalizeReply(session, replyRaw) {
   let r = cleanText(replyRaw || "");
-
   r = ensureForwardMotion(r, session);
   r = addMomentumTail(session, r);
-
   return cleanText(r);
 }
 
