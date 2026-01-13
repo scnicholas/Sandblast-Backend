@@ -18,12 +18,16 @@
  * Full decade:
  *   node Scripts/ingest_wikipedia_yearend_hot100_60s_v1.js --years=1960-1969
  *
- * Key fixes vs earlier drafts:
- *  - Avoids the "|}\n" string literal syntax landmine (no stray newline in a quoted token)
+ * Key fixes:
  *  - Handles style/attrs cells like:  | style="text-align:center;" | 1
  *  - Handles multi-line row blocks between "|-" markers
- *  - More defensive header detection + column mapping
+ *  - Defensive header detection + column mapping
  *  - Won’t emit empty year shells unless it has rows
+ *  - POLISH: removes stray "[[" / "]]" and trims wrapping quotes in title/artist
+ *  - NEW: if a row-block accidentally contains MULTIPLE logical rows (missing "|-" separators),
+ *         split the cells into fixed-width chunks and parse each chunk as a row
+ *  - NEW (IMPORTANT): supports ROWSPAN-style tables where Artist is blank on subsequent rows
+ *         (e.g., 1964 rank #2 "She Loves You" inherits artist from rank #1 "The Beatles")
  */
 
 const fs = require("fs");
@@ -51,7 +55,7 @@ function cleanText(s) {
 
 function parseArgsYears() {
   const arg = process.argv.find((a) => a.startsWith("--years="));
-  if (!arg) return [1960]; // validate-first default
+  if (!arg) return [1960];
 
   const raw = arg.split("=", 2)[1] || "";
   const t = raw.trim();
@@ -93,7 +97,6 @@ async function fetchWikiText(year) {
 
   const r = await fetch(api, {
     headers: {
-      // Keep this polite; Wikipedia may ignore/override UA, but don’t send empty.
       "User-Agent": "SandblastBot/1.0 (year-end parser; contact: none)",
       Accept: "application/json",
       "Accept-Language": "en-US,en;q=0.9",
@@ -120,7 +123,6 @@ async function fetchWikiText(year) {
 function extractWikitableBlocks(wikitext) {
   const text = String(wikitext || "");
   const blocks = [];
-  // Accept sortable / plain wikitable variants
   const rx = /\{\|\s*class="wikitable[^"]*"[\s\S]*?\n\|\}/g;
   let m;
   while ((m = rx.exec(text))) blocks.push(m[0]);
@@ -136,7 +138,6 @@ function scoreWikitableBlock(block) {
   if (t.includes("artist")) s += 2;
   if (t.includes("no.") || t.includes("no")) s += 1;
 
-  // more rows → likely the main table
   const rowCount = (block.match(/\n\|-\s*\n/g) || []).length;
   if (rowCount >= 80) s += 3;
   if (rowCount >= 100) s += 2;
@@ -163,59 +164,52 @@ function pickBestWikitable(wikitext) {
 function stripWikiMarkup(s) {
   let t = String(s || "");
 
-  // remove references
   t = t.replace(/<ref[^>]*>[\s\S]*?<\/ref>/g, " ");
   t = t.replace(/<ref[^\/]*\/>/g, " ");
 
-  // convert [[Link|Text]] -> Text ; [[Text]] -> Text
   t = t.replace(/\[\[([^|\]]+)\|([^\]]+)\]\]/g, "$2");
   t = t.replace(/\[\[([^\]]+)\]\]/g, "$1");
 
-  // remove templates {{...}} (best effort)
   for (let i = 0; i < 6; i++) {
     t = t.replace(/\{\{[^{}]*\}\}/g, " ");
   }
 
-  // remove italics/bold markup
   t = t.replace(/''+/g, "");
-
-  // remove HTML tags
   t = t.replace(/<[^>]+>/g, " ");
 
-  // cleanup
+  // kill leftovers
+  t = t.replace(/\[\[|\]\]/g, " ");
+
   t = t.replace(/&nbsp;/g, " ");
   t = t.replace(/\s+/g, " ");
 
   return cleanText(t);
 }
 
-/**
- * Cells may look like:
- *   style="text-align:center;" | 1
- *   scope="row" | "Song"
- * We want the rightmost value after the final pipe.
- */
+function polishField(s) {
+  let t = cleanText(s);
+  t = t.replace(/\[\[|\]\]/g, " ");
+  t = t.replace(/^[\s"'“”‘’]+/, "");
+  t = t.replace(/[\s"'“”‘’]+$/, "");
+  t = t.replace(/\s+/g, " ").trim();
+  return t;
+}
+
 function normalizeCell(raw) {
   let t = String(raw || "").trim();
 
-  // If it contains pipe(s), keep the last segment (common with style/attrs)
+  // style="..." | value  --> keep last segment
   if (t.includes("|")) {
-    const parts = t.split("|").map((p) => p.trim()).filter(Boolean);
+    const parts = t
+      .split("|")
+      .map((p) => p.trim())
+      .filter(Boolean);
     if (parts.length) t = parts[parts.length - 1];
   }
 
   return stripWikiMarkup(t);
 }
 
-/**
- * FIXED: Wikipedia wikitables often use MULTI-LINE rows:
- *   |-
- *   | 1
- *   | ''Song''
- *   | [[Artist]]
- *
- * So we parse row blocks between "|-" markers.
- */
 function parseWikitableToRows(year, wikitableBlock) {
   const lines = String(wikitableBlock || "").split("\n");
 
@@ -244,6 +238,8 @@ function parseWikitableToRows(year, wikitableBlock) {
   const colTitle = idxTitle >= 0 ? idxTitle : 1;
   const colArtist = idxArtist >= 0 ? idxArtist : 2;
 
+  const expectedCols = Math.max(colRank, colTitle, colArtist) + 1;
+
   // Collect row blocks
   const rowBlocks = [];
   let current = [];
@@ -262,39 +258,36 @@ function parseWikitableToRows(year, wikitableBlock) {
       break;
     }
 
-    // Data cells start with "|"
     if (t.startsWith("|")) {
-      // strip leading pipe for cleaner parsing
       current.push(t.replace(/^\|\s*/, ""));
       continue;
     }
 
-    // Header cells may start with "!" inside the table; ignore them for data rows.
+    // Ignore header cells "!" inside table body.
   }
 
   const rows = [];
+  let lastArtist = "";
+  let lastRank = null;
 
-  for (const block of rowBlocks) {
-    if (!block || block.length < 1) continue;
-
-    // Handle single-line rows: | 1 || "Song" || Artist
-    let cells = [];
-    if (block.length === 1 && block[0].includes("||")) {
-      cells = block[0].split("||").map((c) => normalizeCell(c));
-    } else {
-      cells = block.map((c) => normalizeCell(c));
-    }
-
-    // Guard: if we didn't get enough columns, skip
-    if (cells.length < Math.max(colRank, colTitle, colArtist) + 1) continue;
+  function acceptRowCells(cells) {
+    if (!cells || cells.length < expectedCols) return;
 
     const rankRaw = String(cells[colRank] || "");
     const rank = Number(rankRaw.replace(/[^\d]/g, ""));
-    if (!Number.isFinite(rank) || rank < 1 || rank > 100) continue;
+    if (!Number.isFinite(rank) || rank < 1 || rank > 100) return;
 
-    const title = cleanText(cells[colTitle] || "");
-    const artist = cleanText(cells[colArtist] || "");
-    if (!title || !artist) continue;
+    const title = polishField(cells[colTitle] || "");
+    let artist = polishField(cells[colArtist] || "");
+
+    // ROWSPAN FIX:
+    // Some pages omit artist on subsequent rows because the artist cell uses rowspan.
+    // Example (1964): rank 2 has title but blank artist; inherit from previous row (rank 1).
+    if (!artist && lastArtist && Number.isFinite(lastRank) && rank === lastRank + 1) {
+      artist = lastArtist;
+    }
+
+    if (!title || !artist) return;
 
     rows.push({
       year,
@@ -305,6 +298,31 @@ function parseWikitableToRows(year, wikitableBlock) {
       chart: CHART,
       url: pageUrl(year),
     });
+
+    lastArtist = artist;
+    lastRank = rank;
+  }
+
+  for (const block of rowBlocks) {
+    if (!block || block.length < 1) continue;
+
+    let cells = [];
+    if (block.length === 1 && block[0].includes("||")) {
+      cells = block[0].split("||").map((c) => normalizeCell(c));
+    } else {
+      cells = block.map((c) => normalizeCell(c));
+    }
+
+    // If a row block accidentally contains multiple logical rows, split into chunks.
+    // Keep it conservative: only chunk when it divides evenly.
+    if (cells.length > expectedCols && cells.length % expectedCols === 0) {
+      for (let i = 0; i < cells.length; i += expectedCols) {
+        acceptRowCells(cells.slice(i, i + expectedCols));
+      }
+      continue;
+    }
+
+    acceptRowCells(cells);
   }
 
   // Deduplicate by (year, rank)
@@ -321,15 +339,6 @@ function parseWikitableToRows(year, wikitableBlock) {
   return out;
 }
 
-/**
- * Build Top 10 map from flat rows.
- * Output shape:
- * {
- *   version, chart, source, generatedAt,
- *   meta: { inputFile, outputFile, strict, validatedRows, yearsBuilt, yearsWithComplete10 },
- *   years: { "1960": { year, chart, items:[{pos,artist,title}...] } }
- * }
- */
 function buildTop10ByYear(allRows) {
   const byYear = new Map();
   for (const r of allRows) {
@@ -348,7 +357,6 @@ function buildTop10ByYear(allRows) {
     const rows = byYear.get(y).slice().sort((a, b) => a.rank - b.rank);
     const top10 = rows.filter((x) => x.rank >= 1 && x.rank <= 10).slice(0, 10);
 
-    // Don’t emit empty shells
     if (!top10.length) continue;
 
     yearsOut[String(y)] = {
@@ -423,12 +431,10 @@ async function main() {
     console.log("");
   }
 
-  // Write Top100 flat output
   fs.writeFileSync(OUT_TOP100, JSON.stringify(all, null, 2), "utf8");
   console.log("Wrote:", OUT_TOP100);
   console.log("Total rows:", all.length);
 
-  // Build + write Top10 map output
   const built = buildTop10ByYear(all);
   const payload = {
     version: "top10_by_year_v1",
@@ -456,9 +462,7 @@ async function main() {
       (k) => (payload.years[k]?.items || []).length !== 10
     );
     if (incomplete.length) {
-      console.log(
-        `\nWARNING: Incomplete Top10 years: ${incomplete.join(", ")} (fix before adding more).`
-      );
+      console.log(`\nWARNING: Incomplete Top10 years: ${incomplete.join(", ")} (fix before adding more).`);
     }
   }
 }
