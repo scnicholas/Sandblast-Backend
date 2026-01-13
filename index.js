@@ -3,16 +3,17 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.13 (SURGICAL: Top10-missing detector hardened + NO-TECH-LEAK copy + better chips)
+ * index.js v1.5.14 (SURGICAL: Bare-year defaults to Top 10 + Year-End chart pin)
  *
- * Fix:
- *  - Top 10 missing escape now:
- *     1) Detects smart quotes/apostrophes + punctuation (kept from v1.5.12)
- *     2) Removes “build / loaded sources / clean list” tech-leak language from user-facing replies
- *     3) Uses confident, curated framing + mode-forward chips (Story / Micro / next-year Top10)
+ * Adds:
+ *  - When user provides a year with NO explicit mode (e.g., "1963"):
+ *      - Default mode = Top 10 (not last-used Story/Micro)
+ *      - Pin chart context to Billboard Year-End Hot 100 for Top 10 runs
+ *  - This removes the “year → story moment” loop feeling in the UI.
  *
  * Preserves:
- *  - v1.5.11 lane overrides + lane exit + routing precedence
+ *  - v1.5.13 Top10-missing detector hardening + NO-TECH-LEAK copy + better chips
+ *  - lane overrides + lane exit + routing precedence
  *  - FMP, GH1 micro-guard, replay integrity, followUp merge, greeting-only 4-chip enforcement
  *  - #1 routing, chart contamination guard, nav completion, music field bridge
  *  - Single /api/health route (no duplicates)
@@ -30,7 +31,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.13 (v1.5.12 + NO-TECH-LEAK Top10-missing escape + better chips; preserves lane overrides/escape + routing precedence + GH1 micro-guard + FMP + replay integrity + followUp merge + returning chips greeting-only + #1 routing + chart contamination guard + nav completion + music field bridge)";
+  "index.js v1.5.14 (v1.5.13 + Bare-year defaults Top 10 + Year-End chart pin; preserves NO-TECH-LEAK Top10-missing escape + better chips + lane overrides/escape + routing precedence + GH1 micro-guard + FMP + replay integrity + followUp merge + returning chips greeting-only + #1 routing + chart contamination guard + nav completion + music field bridge)";
 
 /* ======================================================
    Basic middleware
@@ -2223,6 +2224,12 @@ app.post("/api/chat", async (req, res) => {
     session.activeMusicMode = parsedMode;
     session.pendingMode = null;
 
+    // Pin chart context for Top 10
+    if (parsedMode === "top10") {
+      session.activeMusicChart = YEAR_END_CHART;
+      session.lastMusicChart = YEAR_END_CHART;
+    }
+
     const out0 = await runEngine(`${modeToCommand(parsedMode)} ${parsedYear}`, session);
     const out = FMP.apply(out0, session);
     const reply = finalizeReply(session, out.reply || "");
@@ -2252,6 +2259,12 @@ app.post("/api/chat", async (req, res) => {
 
     if (clampYear(session.lastYear)) {
       session.pendingMode = null;
+
+      // Pin chart context for Top 10
+      if (parsedMode === "top10") {
+        session.activeMusicChart = YEAR_END_CHART;
+        session.lastMusicChart = YEAR_END_CHART;
+      }
 
       const out0 = await runEngine(`${modeToCommand(parsedMode)} ${session.lastYear}`, session);
       const out = FMP.apply(out0, session);
@@ -2297,52 +2310,40 @@ app.post("/api/chat", async (req, res) => {
   if (parsedYear && !parsedMode) {
     session.lane = "music";
 
-    const mode = session.pendingMode || session.activeMusicMode || null;
-    if (mode) {
-      session.activeMusicMode = mode;
-      session.pendingMode = null;
+    // v1.5.14: year with no explicit mode defaults to Top 10
+    const mode = session.pendingMode || session.activeMusicMode || "top10";
+    session.activeMusicMode = mode;
+    session.pendingMode = null;
 
-      const out0 = await runEngine(`${modeToCommand(mode)} ${parsedYear}`, session);
-      const out = FMP.apply(out0, session);
-      const reply = finalizeReply(session, out.reply || "");
-
-      session.lastReply = reply;
-      session.lastReplyAt = Date.now();
-      session.lastIntent = mode;
-
-      updateProfileFromSession(profile, session);
-
-      const base = {
-        ok: true,
-        reply,
-        sessionId,
-        requestId,
-        visitorId,
-        contractVersion: NYX_CONTRACT_VERSION,
-        voiceMode: session.voiceMode,
-      };
-      return respondJson(req, res, base, session, out, profile, false);
+    // Pin chart context for Top 10 (Year-End Hot 100)
+    if (mode === "top10") {
+      session.activeMusicChart = YEAR_END_CHART;
+      session.lastMusicChart = YEAR_END_CHART;
     }
 
-    const askMode = `Got it — ${parsedYear}. What do you want: Top 10, Story moment, or Micro moment?`;
-    session.lastReply = askMode;
+    const out0 = await runEngine(`${modeToCommand(mode)} ${parsedYear}`, session);
+    const out = FMP.apply(out0, session);
+    const reply = finalizeReply(session, out.reply || "");
+
+    session.lastReply = reply;
     session.lastReplyAt = Date.now();
-    session.lastIntent = "askMode";
+    session.lastIntent = mode;
 
     updateProfileFromSession(profile, session);
 
     const base = {
       ok: true,
-      reply: askMode,
+      reply,
       sessionId,
       requestId,
       visitorId,
       contractVersion: NYX_CONTRACT_VERSION,
       voiceMode: session.voiceMode,
     };
-    return respondJson(req, res, base, session, null, profile, false);
+    return respondJson(req, res, base, session, out, profile, false);
   }
 
+  // Keep variable referenced (no-op) to avoid unused in some bundlers/lints
   void bareYear;
 
   session.lane = "music";
