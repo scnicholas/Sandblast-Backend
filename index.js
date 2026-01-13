@@ -2525,8 +2525,11 @@ app.post("/api/chat", async (req, res) => {
   if (parsedYear && !parsedMode) {
     session.lane = "music";
 
-    // year with no explicit mode defaults to Top 10
-    const mode = session.pendingMode || session.activeMusicMode || "top10";
+    // v1.5.18 FIX (regression): bare-year ALWAYS defaults to Top 10 (does not inherit prior mode)
+    const mode = bareYear
+      ? "top10"
+      : (session.pendingMode || session.activeMusicMode || "top10");
+
     session.activeMusicMode = mode;
     session.pendingMode = null;
 
