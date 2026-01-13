@@ -3,12 +3,12 @@
   "scheduleTz": "America/Toronto",
   "shows": [
     {
-      "id": "sb-show-gospel-sunday",
+      "id": "sb-radio-gospel-sunday",
       "title": "Gospel Sunday",
+      "channel": "Sandblast Radio",
       "days": ["SUN"],
       "start": "18:00",
-      "end": "22:00",
-      "channel": "Sandblast Radio"
+      "end": "22:00"
     }
   ]
 }
