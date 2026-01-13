@@ -3,15 +3,15 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.14 (SURGICAL: Bare-year defaults to Top 10 + Year-End chart pin)
+ * index.js v1.5.15 (SURGICAL: Mode-chip override ALWAYS wins + FMP respects pendingMode)
  *
- * Adds:
- *  - When user provides a year with NO explicit mode (e.g., "1963"):
- *      - Default mode = Top 10 (not last-used Story/Micro)
- *      - Pin chart context to Billboard Year-End Hot 100 for Top 10 runs
- *  - This removes the “year → story moment” loop feeling in the UI.
+ * Fixes:
+ *  - Mode-only taps (e.g., chip “Top 10”) now deterministically override the prior mode (Story/Micro),
+ *    even when a year is already locked in-session.
+ *  - FMP.forceProceed now prefers pendingMode when choosing what to run (prevents “Top 10 chip → story moment”).
  *
  * Preserves:
+ *  - v1.5.14 Bare-year defaults Top 10 + Year-End chart pin
  *  - v1.5.13 Top10-missing detector hardening + NO-TECH-LEAK copy + better chips
  *  - lane overrides + lane exit + routing precedence
  *  - FMP, GH1 micro-guard, replay integrity, followUp merge, greeting-only 4-chip enforcement
@@ -31,7 +31,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.14 (v1.5.13 + Bare-year defaults Top 10 + Year-End chart pin; preserves NO-TECH-LEAK Top10-missing escape + better chips + lane overrides/escape + routing precedence + GH1 micro-guard + FMP + replay integrity + followUp merge + returning chips greeting-only + #1 routing + chart contamination guard + nav completion + music field bridge)";
+  "index.js v1.5.15 (v1.5.14 + Mode-chip override wins + FMP uses pendingMode; preserves NO-TECH-LEAK Top10-missing escape + better chips + lane overrides/escape + routing precedence + GH1 micro-guard + replay integrity + followUp merge + returning chips greeting-only + #1 routing + chart contamination guard + nav completion + music field bridge)";
 
 /* ======================================================
    Basic middleware
@@ -467,7 +467,10 @@ const FMP = {
 
   forceProceed(session, reason) {
     const y = clampYear(session && session.lastYear) ? session.lastYear : null;
-    const m = session && session.activeMusicMode ? session.activeMusicMode : null;
+
+    // v1.5.15: IMPORTANT — prefer pendingMode when deciding what to run
+    const m =
+      (session && (session.pendingMode || session.activeMusicMode)) || null;
 
     const year = y || 1988;
     const mode = m || "story";
@@ -475,8 +478,16 @@ const FMP = {
     if (session) {
       session.lastYear = year;
       session.lastMusicYear = year;
+
+      // v1.5.15: lock the mode chosen (and clear pending)
       session.activeMusicMode = mode;
       session.pendingMode = null;
+
+      // Pin chart for Top 10
+      if (mode === "top10") {
+        session.activeMusicChart = YEAR_END_CHART;
+        session.lastMusicChart = YEAR_END_CHART;
+      }
 
       guardChartForYear(session, year);
     }
@@ -1693,6 +1704,12 @@ async function handleContinue(session, profile) {
 
     guardChartForYear(session, y);
 
+    // Pin chart context for Top 10
+    if (m === "top10") {
+      session.activeMusicChart = YEAR_END_CHART;
+      session.lastMusicChart = YEAR_END_CHART;
+    }
+
     const out0 = await runEngine(`${modeToCommand(m)} ${y}`, session);
     return FMP.apply(out0, session);
   }
@@ -1755,6 +1772,12 @@ async function handleYearNav(session, direction) {
 
   session.activeMusicMode = mode;
   session.pendingMode = null;
+
+  // Pin chart context for Top 10
+  if (mode === "top10") {
+    session.activeMusicChart = YEAR_END_CHART;
+    session.lastMusicChart = YEAR_END_CHART;
+  }
 
   const out0 = await runEngine(`${modeToCommand(mode)} ${y1}`, session);
   return FMP.apply(out0, session);
@@ -2254,17 +2277,19 @@ app.post("/api/chat", async (req, res) => {
 
   if (parsedMode && !parsedYear) {
     session.lane = "music";
+
+    // v1.5.15: MODE-CHIP OVERRIDE — lock mode immediately
     session.activeMusicMode = parsedMode;
     session.pendingMode = parsedMode;
 
+    // Pin chart context for Top 10 immediately (even before running)
+    if (parsedMode === "top10") {
+      session.activeMusicChart = YEAR_END_CHART;
+      session.lastMusicChart = YEAR_END_CHART;
+    }
+
     if (clampYear(session.lastYear)) {
       session.pendingMode = null;
-
-      // Pin chart context for Top 10
-      if (parsedMode === "top10") {
-        session.activeMusicChart = YEAR_END_CHART;
-        session.lastMusicChart = YEAR_END_CHART;
-      }
 
       const out0 = await runEngine(`${modeToCommand(parsedMode)} ${session.lastYear}`, session);
       const out = FMP.apply(out0, session);
