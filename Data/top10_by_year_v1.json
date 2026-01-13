@@ -1,17 +1,241 @@
 {
   "version": "top10_by_year_v1",
   "chart": "Billboard Year-End Hot 100",
-  "source": "top100_billboard_yearend_1960s_v1.json (generated from MediaWiki API)",
-  "generatedAt": "2026-01-13T02:07:18.282Z",
+  "source": "top10_input_rows.json (curated)",
+  "generatedAt": "2026-01-13T06:53:31.008Z",
   "meta": {
-    "inputFile": "Data/top100_billboard_yearend_1960s_v1.json",
+    "inputFile": "Data/top10_input_rows.json",
     "outputFile": "Data/top10_by_year_v1.json",
     "strict": true,
-    "validatedRows": 100,
-    "yearsBuilt": 1,
-    "yearsWithComplete10": 1
+    "validatedRows": 102,
+    "yearsBuilt": 10,
+    "yearsWithComplete10": 9
   },
   "years": {
+    "1960": {
+      "year": 1960,
+      "chart": "Billboard Year-End Hot 100",
+      "items": [
+        {
+          "pos": 1,
+          "artist": "Percy Faith",
+          "title": "Theme from A Summer Place"
+        },
+        {
+          "pos": 2,
+          "artist": "Brenda Lee",
+          "title": "I'm Sorry"
+        },
+        {
+          "pos": 3,
+          "artist": "Elvis Presley",
+          "title": "It's Now or Never"
+        },
+        {
+          "pos": 4,
+          "artist": "Johnny Preston",
+          "title": "Running Bear"
+        },
+        {
+          "pos": 5,
+          "artist": "Mark Dinning",
+          "title": "Teen Angel"
+        },
+        {
+          "pos": 6,
+          "artist": "Brenda Lee",
+          "title": "I'm Sorry"
+        },
+        {
+          "pos": 7,
+          "artist": "Elvis Presley",
+          "title": "It's Now or Never"
+        },
+        {
+          "pos": 8,
+          "artist": "Jimmy Jones",
+          "title": "Handy Man"
+        },
+        {
+          "pos": 9,
+          "artist": "Elvis Presley",
+          "title": "Stuck on You"
+        },
+        {
+          "pos": 10,
+          "artist": "Chubby Checker",
+          "title": "The Twist"
+        }
+      ]
+    },
+    "1961": {
+      "year": 1961,
+      "chart": "Billboard Year-End Hot 100",
+      "items": [
+        {
+          "pos": 1,
+          "artist": "Bobby Lewis",
+          "title": "Tossin' and Turnin'"
+        },
+        {
+          "pos": 2,
+          "artist": "Patsy Cline",
+          "title": "I Fall to Pieces"
+        },
+        {
+          "pos": 3,
+          "artist": "The Highwaymen",
+          "title": "Michael"
+        },
+        {
+          "pos": 4,
+          "artist": "Roy Orbison",
+          "title": "Crying"
+        },
+        {
+          "pos": 5,
+          "artist": "Del Shannon",
+          "title": "Runaway"
+        },
+        {
+          "pos": 6,
+          "artist": "The Jive Five",
+          "title": "My True Story"
+        },
+        {
+          "pos": 7,
+          "artist": "Chubby Checker",
+          "title": "Pony Time"
+        },
+        {
+          "pos": 8,
+          "artist": "The String-A-Longs",
+          "title": "Wheels"
+        },
+        {
+          "pos": 9,
+          "artist": "Dee Clark",
+          "title": "Raindrops"
+        },
+        {
+          "pos": 10,
+          "artist": "Joe Dowell",
+          "title": "Wooden Heart"
+        }
+      ]
+    },
+    "1962": {
+      "year": 1962,
+      "chart": "Billboard Year-End Hot 100",
+      "items": [
+        {
+          "pos": 1,
+          "artist": "Acker Bilk",
+          "title": "Stranger on the Shore"
+        },
+        {
+          "pos": 2,
+          "artist": "Ray Charles",
+          "title": "I Can't Stop Loving You"
+        },
+        {
+          "pos": 3,
+          "artist": "Dee Dee Sharp",
+          "title": "Mashed Potato Time"
+        },
+        {
+          "pos": 4,
+          "artist": "Bobby Vinton",
+          "title": "Roses Are Red (My Love)"
+        },
+        {
+          "pos": 5,
+          "artist": "David Rose",
+          "title": "The Stripper"
+        },
+        {
+          "pos": 6,
+          "artist": "Shelley Fabares",
+          "title": "Johnny Angel"
+        },
+        {
+          "pos": 7,
+          "artist": "Little Eva",
+          "title": "The Loco-Motion"
+        },
+        {
+          "pos": 8,
+          "artist": "The Sensations",
+          "title": "Let Me In"
+        },
+        {
+          "pos": 9,
+          "artist": "Chubby Checker",
+          "title": "The Twist"
+        },
+        {
+          "pos": 10,
+          "artist": "The Shirelles",
+          "title": "Soldier Boy"
+        }
+      ]
+    },
+    "1963": {
+      "year": 1963,
+      "chart": "Billboard Year-End Hot 100",
+      "items": [
+        {
+          "pos": 1,
+          "artist": "The Beach Boys",
+          "title": "Surfin' U.S.A."
+        },
+        {
+          "pos": 2,
+          "artist": "Skeeter Davis",
+          "title": "The End of the World"
+        },
+        {
+          "pos": 3,
+          "artist": "The Cascades",
+          "title": "Rhythm of the Rain"
+        },
+        {
+          "pos": 4,
+          "artist": "The Chiffons",
+          "title": "He's So Fine"
+        },
+        {
+          "pos": 5,
+          "artist": "Bobby Vinton",
+          "title": "Blue Velvet"
+        },
+        {
+          "pos": 6,
+          "artist": "Paul & Paula",
+          "title": "Hey Paula"
+        },
+        {
+          "pos": 7,
+          "artist": "Little Stevie Wonder",
+          "title": "Fingertips – Part 2"
+        },
+        {
+          "pos": 8,
+          "artist": "Andy Williams",
+          "title": "Can't Get Used to Losing You"
+        },
+        {
+          "pos": 9,
+          "artist": "The Angels",
+          "title": "My Boyfriend's Back"
+        },
+        {
+          "pos": 10,
+          "artist": "Kyu Sakamoto",
+          "title": "Sukiyaki"
+        }
+      ]
+    },
     "1964": {
       "year": 1964,
       "chart": "Billboard Year-End Hot 100",
@@ -20,11 +244,6 @@
           "pos": 1,
           "artist": "The Beatles",
           "title": "I Want to Hold Your Hand"
-        },
-        {
-          "pos": 2,
-          "artist": "The Beatles",
-          "title": "She Loves You"
         },
         {
           "pos": 3,
@@ -65,6 +284,286 @@
           "pos": 10,
           "artist": "The Supremes",
           "title": "Where Did Our Love Go"
+        }
+      ]
+    },
+    "1965": {
+      "year": 1965,
+      "chart": "Billboard Year-End Hot 100",
+      "items": [
+        {
+          "pos": 1,
+          "artist": "Sam the Sham and the Pharaohs",
+          "title": "Wooly Bully"
+        },
+        {
+          "pos": 2,
+          "artist": "Four Tops",
+          "title": "I Can't Help Myself (Sugar Pie Honey Bunch)"
+        },
+        {
+          "pos": 3,
+          "artist": "The Rolling Stones",
+          "title": "(I Can't Get No) Satisfaction"
+        },
+        {
+          "pos": 4,
+          "artist": "We Five",
+          "title": "You Were on My Mind"
+        },
+        {
+          "pos": 5,
+          "artist": "The Righteous Brothers",
+          "title": "You've Lost That Lovin' Feelin'"
+        },
+        {
+          "pos": 6,
+          "artist": "Petula Clark",
+          "title": "Downtown"
+        },
+        {
+          "pos": 7,
+          "artist": "The Beatles",
+          "title": "Help!"
+        },
+        {
+          "pos": 8,
+          "artist": "Herman's Hermits",
+          "title": "Can't You Hear My Heartbeat"
+        },
+        {
+          "pos": 9,
+          "artist": "Elvis Presley",
+          "title": "Crying in the Chapel"
+        },
+        {
+          "pos": 10,
+          "artist": "The Temptations",
+          "title": "My Girl"
+        }
+      ]
+    },
+    "1966": {
+      "year": 1966,
+      "chart": "Billboard Year-End Hot 100",
+      "items": [
+        {
+          "pos": 1,
+          "artist": "The Mamas & the Papas",
+          "title": "California Dreamin'"
+        },
+        {
+          "pos": 2,
+          "artist": "? and the Mysterians",
+          "title": "96 Tears"
+        },
+        {
+          "pos": 3,
+          "artist": "Jimmy Ruffin",
+          "title": "What Becomes of the Brokenhearted"
+        },
+        {
+          "pos": 4,
+          "artist": "The Monkees",
+          "title": "Last Train to Clarksville"
+        },
+        {
+          "pos": 5,
+          "artist": "Four Tops",
+          "title": "Reach Out I'll Be There"
+        },
+        {
+          "pos": 6,
+          "artist": "Nancy Sinatra",
+          "title": "These Boots Are Made for Walkin'"
+        },
+        {
+          "pos": 7,
+          "artist": "The Association",
+          "title": "Cherish"
+        },
+        {
+          "pos": 8,
+          "artist": "Frank Sinatra",
+          "title": "Strangers in the Night"
+        },
+        {
+          "pos": 9,
+          "artist": "Paul Revere & the Raiders",
+          "title": "Kicks"
+        },
+        {
+          "pos": 10,
+          "artist": "SSgt Barry Sadler",
+          "title": "The Ballad of the Green Berets"
+        }
+      ]
+    },
+    "1967": {
+      "year": 1967,
+      "chart": "Billboard Year-End Hot 100",
+      "items": [
+        {
+          "pos": 1,
+          "artist": "Lulu",
+          "title": "To Sir With Love"
+        },
+        {
+          "pos": 2,
+          "artist": "The Box Tops",
+          "title": "The Letter"
+        },
+        {
+          "pos": 3,
+          "artist": "Bobbie Gentry",
+          "title": "Ode to Billie Joe"
+        },
+        {
+          "pos": 4,
+          "artist": "The Association",
+          "title": "Windy"
+        },
+        {
+          "pos": 5,
+          "artist": "The Monkees",
+          "title": "I'm a Believer"
+        },
+        {
+          "pos": 6,
+          "artist": "The Doors",
+          "title": "Light My Fire"
+        },
+        {
+          "pos": 7,
+          "artist": "Frank & Nancy Sinatra",
+          "title": "Somethin' Stupid"
+        },
+        {
+          "pos": 8,
+          "artist": "The Turtles",
+          "title": "Happy Together"
+        },
+        {
+          "pos": 9,
+          "artist": "The Young Rascals",
+          "title": "Groovin'"
+        },
+        {
+          "pos": 10,
+          "artist": "Frankie Valli",
+          "title": "Can't Take My Eyes Off You"
+        }
+      ]
+    },
+    "1968": {
+      "year": 1968,
+      "chart": "Billboard Year-End Hot 100",
+      "items": [
+        {
+          "pos": 1,
+          "artist": "The Beatles",
+          "title": "Hey Jude"
+        },
+        {
+          "pos": 2,
+          "artist": "Paul Mauriat",
+          "title": "Love is Blue"
+        },
+        {
+          "pos": 3,
+          "artist": "Bobby Goldsboro",
+          "title": "Honey"
+        },
+        {
+          "pos": 4,
+          "artist": "Otis Redding",
+          "title": "(Sittin' On) The Dock of the Bay"
+        },
+        {
+          "pos": 5,
+          "artist": "The Rascals",
+          "title": "People Got to Be Free"
+        },
+        {
+          "pos": 6,
+          "artist": "Cream",
+          "title": "Sunshine of Your Love"
+        },
+        {
+          "pos": 7,
+          "artist": "Herb Alpert",
+          "title": "This Guy's in Love with You"
+        },
+        {
+          "pos": 8,
+          "artist": "Hugo Montenegro",
+          "title": "The Good, the Bad and the Ugly"
+        },
+        {
+          "pos": 9,
+          "artist": "Simon & Garfunkel",
+          "title": "Mrs. Robinson"
+        },
+        {
+          "pos": 10,
+          "artist": "Archie Bell & the Drells",
+          "title": "Tighten Up"
+        }
+      ]
+    },
+    "1969": {
+      "year": 1969,
+      "chart": "Billboard Year-End Hot 100",
+      "items": [
+        {
+          "pos": 1,
+          "artist": "The Archies",
+          "title": "Sugar, Sugar"
+        },
+        {
+          "pos": 2,
+          "artist": "The 5th Dimension",
+          "title": "Aquarius/Let the Sunshine In"
+        },
+        {
+          "pos": 3,
+          "artist": "The Temptations",
+          "title": "I Can't Get Next to You"
+        },
+        {
+          "pos": 4,
+          "artist": "The Rolling Stones",
+          "title": "Honky Tonk Women"
+        },
+        {
+          "pos": 5,
+          "artist": "Sly and the Family Stone",
+          "title": "Everyday People"
+        },
+        {
+          "pos": 6,
+          "artist": "Tommy Roe",
+          "title": "Dizzy"
+        },
+        {
+          "pos": 7,
+          "artist": "Sly and the Family Stone",
+          "title": "Hot Fun in the Summertime"
+        },
+        {
+          "pos": 8,
+          "artist": "Tom Jones",
+          "title": "I'll Never Fall in Love Again"
+        },
+        {
+          "pos": 9,
+          "artist": "The Foundations",
+          "title": "Build Me Up Buttercup"
+        },
+        {
+          "pos": 10,
+          "artist": "Tommy James and the Shondells",
+          "title": "Crimson and Clover"
         }
       ]
     }

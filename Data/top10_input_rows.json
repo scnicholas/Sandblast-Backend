@@ -1,5 +1,617 @@
 [
-  { "year": 1960, "pos": 1, "artist": "Percy Faith", "title": "Theme from A Summer Place" },
-  { "year": 1960, "pos": 2, "artist": "Brenda Lee", "title": "I'm Sorry" },
-  { "year": 1960, "pos": 3, "artist": "Elvis Presley", "title": "It's Now or Never" }
+  {
+    "year": 1960,
+    "pos": 1,
+    "artist": "Percy Faith",
+    "title": "Theme from A Summer Place",
+    "source": "merged"
+  },
+  {
+    "year": 1960,
+    "pos": 1,
+    "artist": "Percy Faith",
+    "title": "\" Theme from A Summer Place \""
+  },
+  {
+    "year": 1960,
+    "pos": 2,
+    "artist": "Brenda Lee",
+    "title": "I'm Sorry",
+    "source": "merged"
+  },
+  {
+    "year": 1960,
+    "pos": 2,
+    "artist": "Jim Reeves",
+    "title": "\" He'll Have to Go \""
+  },
+  {
+    "year": 1960,
+    "pos": 3,
+    "artist": "Elvis Presley",
+    "title": "It's Now or Never",
+    "source": "merged"
+  },
+  {
+    "year": 1960,
+    "pos": 3,
+    "artist": "The Everly Brothers",
+    "title": "\" Cathy's Clown \""
+  },
+  {
+    "year": 1960,
+    "pos": 4,
+    "artist": "Johnny Preston",
+    "title": "\" Running Bear \""
+  },
+  {
+    "year": 1960,
+    "pos": 5,
+    "artist": "Mark Dinning",
+    "title": "\" Teen Angel \""
+  },
+  {
+    "year": 1960,
+    "pos": 6,
+    "artist": "Brenda Lee",
+    "title": "\" I'm Sorry \""
+  },
+  {
+    "year": 1960,
+    "pos": 7,
+    "artist": "Elvis Presley",
+    "title": "\" It's Now or Never \""
+  },
+  {
+    "year": 1960,
+    "pos": 8,
+    "artist": "Jimmy Jones",
+    "title": "\" Handy Man \""
+  },
+  {
+    "year": 1960,
+    "pos": 9,
+    "artist": "Elvis Presley",
+    "title": "\" Stuck on You \""
+  },
+  {
+    "year": 1960,
+    "pos": 10,
+    "artist": "Chubby Checker",
+    "title": "\" The Twist \""
+  },
+  {
+    "year": 1961,
+    "pos": 1,
+    "artist": "Bobby Lewis",
+    "title": "\" Tossin' and Turnin' \""
+  },
+  {
+    "year": 1961,
+    "pos": 2,
+    "artist": "Patsy Cline",
+    "title": "\" I Fall to Pieces \""
+  },
+  {
+    "year": 1961,
+    "pos": 3,
+    "artist": "The Highwaymen",
+    "title": "\" Michael \""
+  },
+  {
+    "year": 1961,
+    "pos": 4,
+    "artist": "Roy Orbison",
+    "title": "\" Crying \""
+  },
+  {
+    "year": 1961,
+    "pos": 5,
+    "artist": "Del Shannon",
+    "title": "\" Runaway \""
+  },
+  {
+    "year": 1961,
+    "pos": 6,
+    "artist": "The Jive Five",
+    "title": "\" My True Story \""
+  },
+  {
+    "year": 1961,
+    "pos": 7,
+    "artist": "Chubby Checker",
+    "title": "\" Pony Time \""
+  },
+  {
+    "year": 1961,
+    "pos": 8,
+    "artist": "The String-A-Longs",
+    "title": "\" Wheels \""
+  },
+  {
+    "year": 1961,
+    "pos": 9,
+    "artist": "Dee Clark",
+    "title": "\" Raindrops \""
+  },
+  {
+    "year": 1961,
+    "pos": 10,
+    "artist": "Joe Dowell",
+    "title": "\" Wooden Heart \""
+  },
+  {
+    "year": 1962,
+    "pos": 1,
+    "artist": "Acker Bilk",
+    "title": "\" Stranger on the Shore \""
+  },
+  {
+    "year": 1962,
+    "pos": 2,
+    "artist": "Ray Charles",
+    "title": "\" I Can't Stop Loving You \""
+  },
+  {
+    "year": 1962,
+    "pos": 3,
+    "artist": "Dee Dee Sharp",
+    "title": "\" Mashed Potato Time \""
+  },
+  {
+    "year": 1962,
+    "pos": 4,
+    "artist": "Bobby Vinton",
+    "title": "\" Roses Are Red (My Love) \""
+  },
+  {
+    "year": 1962,
+    "pos": 5,
+    "artist": "David Rose",
+    "title": "\" The Stripper \""
+  },
+  {
+    "year": 1962,
+    "pos": 6,
+    "artist": "Shelley Fabares",
+    "title": "\" Johnny Angel \""
+  },
+  {
+    "year": 1962,
+    "pos": 7,
+    "artist": "Little Eva",
+    "title": "\" The Loco-Motion \""
+  },
+  {
+    "year": 1962,
+    "pos": 8,
+    "artist": "The Sensations",
+    "title": "\" Let Me In \""
+  },
+  {
+    "year": 1962,
+    "pos": 9,
+    "artist": "Chubby Checker",
+    "title": "\" The Twist \""
+  },
+  {
+    "year": 1962,
+    "pos": 10,
+    "artist": "The Shirelles",
+    "title": "\" Soldier Boy \""
+  },
+  {
+    "year": 1963,
+    "pos": 1,
+    "artist": "The Beach Boys",
+    "title": "\" Surfin' U.S.A. \""
+  },
+  {
+    "year": 1963,
+    "pos": 2,
+    "artist": "Skeeter Davis",
+    "title": "\" The End of the World \""
+  },
+  {
+    "year": 1963,
+    "pos": 3,
+    "artist": "The Cascades",
+    "title": "\" Rhythm of the Rain \""
+  },
+  {
+    "year": 1963,
+    "pos": 4,
+    "artist": "The Chiffons",
+    "title": "\" He's So Fine \""
+  },
+  {
+    "year": 1963,
+    "pos": 5,
+    "artist": "Bobby Vinton",
+    "title": "\" Blue Velvet \""
+  },
+  {
+    "year": 1963,
+    "pos": 6,
+    "artist": "Paul & Paula",
+    "title": "\" Hey Paula \""
+  },
+  {
+    "year": 1963,
+    "pos": 7,
+    "artist": "Little Stevie Wonder",
+    "title": "\" Fingertips – Part 2 \""
+  },
+  {
+    "year": 1963,
+    "pos": 8,
+    "artist": "Andy Williams",
+    "title": "\" Can't Get Used to Losing You \""
+  },
+  {
+    "year": 1963,
+    "pos": 9,
+    "artist": "The Angels",
+    "title": "\" My Boyfriend's Back \""
+  },
+  {
+    "year": 1963,
+    "pos": 10,
+    "artist": "Kyu Sakamoto",
+    "title": "\" Sukiyaki \""
+  },
+  {
+    "year": 1964,
+    "pos": 1,
+    "artist": "The Beatles",
+    "title": "\" I Want to Hold Your Hand \""
+  },
+  {
+    "year": 1964,
+    "pos": 3,
+    "artist": "Louis Armstrong",
+    "title": "\" Hello, Dolly! \""
+  },
+  {
+    "year": 1964,
+    "pos": 4,
+    "artist": "Roy Orbison",
+    "title": "\" Oh, Pretty Woman \""
+  },
+  {
+    "year": 1964,
+    "pos": 5,
+    "artist": "The Beach Boys",
+    "title": "\" I Get Around \""
+  },
+  {
+    "year": 1964,
+    "pos": 6,
+    "artist": "Dean Martin",
+    "title": "\" Everybody Loves Somebody \""
+  },
+  {
+    "year": 1964,
+    "pos": 7,
+    "artist": "Mary Wells",
+    "title": "\" My Guy \""
+  },
+  {
+    "year": 1964,
+    "pos": 8,
+    "artist": "Gale Garnett",
+    "title": "\" We'll Sing in the Sunshine \""
+  },
+  {
+    "year": 1964,
+    "pos": 9,
+    "artist": "J. Frank Wilson and the Cavaliers",
+    "title": "\" Last Kiss \""
+  },
+  {
+    "year": 1964,
+    "pos": 10,
+    "artist": "The Supremes",
+    "title": "\" Where Did Our Love Go \""
+  },
+  {
+    "year": 1965,
+    "pos": 1,
+    "artist": "Sam the Sham and the Pharaohs",
+    "title": "\" Wooly Bully \""
+  },
+  {
+    "year": 1965,
+    "pos": 2,
+    "artist": "Four Tops",
+    "title": "\" I Can't Help Myself (Sugar Pie Honey Bunch) \""
+  },
+  {
+    "year": 1965,
+    "pos": 3,
+    "artist": "The Rolling Stones",
+    "title": "\" (I Can't Get No) Satisfaction \""
+  },
+  {
+    "year": 1965,
+    "pos": 4,
+    "artist": "We Five",
+    "title": "\" You Were on My Mind \""
+  },
+  {
+    "year": 1965,
+    "pos": 5,
+    "artist": "The Righteous Brothers",
+    "title": "\" You've Lost That Lovin' Feelin' \""
+  },
+  {
+    "year": 1965,
+    "pos": 6,
+    "artist": "Petula Clark",
+    "title": "\" Downtown \""
+  },
+  {
+    "year": 1965,
+    "pos": 7,
+    "artist": "The Beatles",
+    "title": "\" Help! \""
+  },
+  {
+    "year": 1965,
+    "pos": 8,
+    "artist": "Herman's Hermits",
+    "title": "\" Can't You Hear My Heartbeat \""
+  },
+  {
+    "year": 1965,
+    "pos": 9,
+    "artist": "Elvis Presley",
+    "title": "\" Crying in the Chapel \""
+  },
+  {
+    "year": 1965,
+    "pos": 10,
+    "artist": "The Temptations",
+    "title": "\" My Girl \""
+  },
+  {
+    "year": 1966,
+    "pos": 1,
+    "artist": "The Mamas & the Papas",
+    "title": "\" California Dreamin' \""
+  },
+  {
+    "year": 1966,
+    "pos": 2,
+    "artist": "? and the Mysterians",
+    "title": "\" 96 Tears \""
+  },
+  {
+    "year": 1966,
+    "pos": 3,
+    "artist": "Jimmy Ruffin",
+    "title": "\" What Becomes of the Brokenhearted \""
+  },
+  {
+    "year": 1966,
+    "pos": 4,
+    "artist": "The Monkees",
+    "title": "\" Last Train to Clarksville \""
+  },
+  {
+    "year": 1966,
+    "pos": 5,
+    "artist": "Four Tops",
+    "title": "\" Reach Out I'll Be There \""
+  },
+  {
+    "year": 1966,
+    "pos": 6,
+    "artist": "Nancy Sinatra",
+    "title": "\" These Boots Are Made for Walkin' \""
+  },
+  {
+    "year": 1966,
+    "pos": 7,
+    "artist": "The Association",
+    "title": "\" Cherish \""
+  },
+  {
+    "year": 1966,
+    "pos": 8,
+    "artist": "Frank Sinatra",
+    "title": "\" Strangers in the Night \""
+  },
+  {
+    "year": 1966,
+    "pos": 9,
+    "artist": "Paul Revere & the Raiders",
+    "title": "\" Kicks \""
+  },
+  {
+    "year": 1966,
+    "pos": 10,
+    "artist": "SSgt Barry Sadler",
+    "title": "\" The Ballad of the Green Berets \""
+  },
+  {
+    "year": 1967,
+    "pos": 1,
+    "artist": "Lulu",
+    "title": "\" To Sir With Love \""
+  },
+  {
+    "year": 1967,
+    "pos": 2,
+    "artist": "The Box Tops",
+    "title": "\" The Letter \""
+  },
+  {
+    "year": 1967,
+    "pos": 3,
+    "artist": "Bobbie Gentry",
+    "title": "\" Ode to Billie Joe \""
+  },
+  {
+    "year": 1967,
+    "pos": 4,
+    "artist": "The Association",
+    "title": "\" Windy \""
+  },
+  {
+    "year": 1967,
+    "pos": 5,
+    "artist": "The Monkees",
+    "title": "\" I'm a Believer \""
+  },
+  {
+    "year": 1967,
+    "pos": 6,
+    "artist": "The Doors",
+    "title": "\" Light My Fire \""
+  },
+  {
+    "year": 1967,
+    "pos": 7,
+    "artist": "Frank & Nancy Sinatra",
+    "title": "\" Somethin' Stupid \""
+  },
+  {
+    "year": 1967,
+    "pos": 8,
+    "artist": "The Turtles",
+    "title": "\" Happy Together \""
+  },
+  {
+    "year": 1967,
+    "pos": 9,
+    "artist": "The Young Rascals",
+    "title": "\" Groovin' \""
+  },
+  {
+    "year": 1967,
+    "pos": 10,
+    "artist": "Frankie Valli",
+    "title": "\" Can't Take My Eyes Off You \""
+  },
+  {
+    "year": 1968,
+    "pos": 1,
+    "artist": "The Beatles",
+    "title": "\" Hey Jude \""
+  },
+  {
+    "year": 1968,
+    "pos": 2,
+    "artist": "Paul Mauriat",
+    "title": "\" Love is Blue \""
+  },
+  {
+    "year": 1968,
+    "pos": 3,
+    "artist": "Bobby Goldsboro",
+    "title": "\" Honey \""
+  },
+  {
+    "year": 1968,
+    "pos": 4,
+    "artist": "Otis Redding",
+    "title": "\" (Sittin' On) The Dock of the Bay \""
+  },
+  {
+    "year": 1968,
+    "pos": 5,
+    "artist": "The Rascals",
+    "title": "\" People Got to Be Free \""
+  },
+  {
+    "year": 1968,
+    "pos": 6,
+    "artist": "Cream",
+    "title": "\" Sunshine of Your Love \""
+  },
+  {
+    "year": 1968,
+    "pos": 7,
+    "artist": "Herb Alpert",
+    "title": "\" This Guy's in Love with You \""
+  },
+  {
+    "year": 1968,
+    "pos": 8,
+    "artist": "Hugo Montenegro",
+    "title": "\" The Good, the Bad and the Ugly \""
+  },
+  {
+    "year": 1968,
+    "pos": 9,
+    "artist": "Simon & Garfunkel",
+    "title": "\" Mrs. Robinson \""
+  },
+  {
+    "year": 1968,
+    "pos": 10,
+    "artist": "Archie Bell & the Drells",
+    "title": "\" Tighten Up \""
+  },
+  {
+    "year": 1969,
+    "pos": 1,
+    "artist": "The Archies",
+    "title": "\" Sugar, Sugar \""
+  },
+  {
+    "year": 1969,
+    "pos": 2,
+    "artist": "The 5th Dimension",
+    "title": "\" Aquarius/Let the Sunshine In \""
+  },
+  {
+    "year": 1969,
+    "pos": 3,
+    "artist": "The Temptations",
+    "title": "\" I Can't Get Next to You \""
+  },
+  {
+    "year": 1969,
+    "pos": 4,
+    "artist": "The Rolling Stones",
+    "title": "\" Honky Tonk Women \""
+  },
+  {
+    "year": 1969,
+    "pos": 5,
+    "artist": "Sly and the Family Stone",
+    "title": "\" Everyday People \""
+  },
+  {
+    "year": 1969,
+    "pos": 6,
+    "artist": "Tommy Roe",
+    "title": "\" Dizzy \""
+  },
+  {
+    "year": 1969,
+    "pos": 7,
+    "artist": "Sly and the Family Stone",
+    "title": "\" Hot Fun in the Summertime \""
+  },
+  {
+    "year": 1969,
+    "pos": 8,
+    "artist": "Tom Jones",
+    "title": "\" I'll Never Fall in Love Again \""
+  },
+  {
+    "year": 1969,
+    "pos": 9,
+    "artist": "The Foundations",
+    "title": "\" Build Me Up Buttercup \""
+  },
+  {
+    "year": 1969,
+    "pos": 10,
+    "artist": "Tommy James and the Shondells",
+    "title": "\" Crimson and Clover \""
+  }
 ]
