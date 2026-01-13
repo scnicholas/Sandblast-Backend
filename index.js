@@ -42,7 +42,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.18 (v1.5.17 + Schedule Lane (timezone-aware programming); preserves explicit Top10 guard + FMP autorun + mode-chip override + NO-TECH-LEAK Top10-missing escape + lanes/routing + replay/chips + #1 routing + chart guard + nav completion + music bridge)";
+  "index.js v1.5.18 (v1.5.17 + Schedule Lane (timezone-aware programming); preserves explicit Top10 guard + FMP autorun + mode-chip override + NO-TECH-LEAK Top10-missing escape + lanes/routing + replay/chips + #1 routing + chart guard + nav completion + music bridge; fixes: bare-year=>Top10, no schedule double-check, lane escape chip, nav label casing)";
 
 /* ======================================================
    Basic middleware
