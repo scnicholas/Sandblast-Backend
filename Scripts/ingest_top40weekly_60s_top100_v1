@@ -24,8 +24,9 @@
  *  - Defensive header detection + column mapping
  *  - Won’t emit empty year shells unless it has rows
  *  - POLISH: removes stray "[[" / "]]" and trims wrapping quotes in title/artist
- *  - NEW: if a row-block accidentally contains MULTIPLE logical rows (missing "|-" separators),
- *         we split the cells into fixed-width chunks and parse each chunk as a row (fixes 1964 rank #2).
+ *  - NEW: captures row-header cells that begin with "!" (fixes 1964 missing rank #2)
+ *  - Optional: if a row-block accidentally contains MULTIPLE logical rows (missing "|-" separators),
+ *              we split the cells into fixed-width chunks and parse each chunk as a row.
  */
 
 const fs = require("fs");
@@ -257,8 +258,15 @@ function parseWikitableToRows(year, wikitableBlock) {
       break;
     }
 
+    // Normal data cells
     if (t.startsWith("|")) {
       current.push(t.replace(/^\|\s*/, ""));
+      continue;
+    }
+
+    // NEW: row-header cells (common for rank column): ! scope="row" | 2
+    if (t.startsWith("!")) {
+      current.push(t.replace(/^!+\s*/, ""));
       continue;
     }
   }
@@ -291,14 +299,15 @@ function parseWikitableToRows(year, wikitableBlock) {
     if (!block || block.length < 1) continue;
 
     let cells = [];
+    // Handle single-line rows: | 1 || "Song" || Artist
+    // Also handle single-line header-like rows: ! 1 || "Song" || Artist
     if (block.length === 1 && block[0].includes("||")) {
       cells = block[0].split("||").map((c) => normalizeCell(c));
     } else {
       cells = block.map((c) => normalizeCell(c));
     }
 
-    // NEW: If a row block accidentally contains multiple logical rows (e.g., 6 cells for 2 rows),
-    // split into fixed-width chunks.
+    // Optional: split multi-row blocks if they are perfectly chunkable
     if (cells.length > expectedCols && cells.length % expectedCols === 0) {
       for (let i = 0; i < cells.length; i += expectedCols) {
         acceptRowCells(cells.slice(i, i + expectedCols));
@@ -306,7 +315,6 @@ function parseWikitableToRows(year, wikitableBlock) {
       continue;
     }
 
-    // Otherwise parse as a single logical row
     acceptRowCells(cells);
   }
 
