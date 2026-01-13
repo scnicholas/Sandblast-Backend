@@ -3,131 +3,111 @@
 /**
  * Utils/timezoneResolver.js
  *
- * Purpose:
- *  - Resolve user's timezone from text or session
- *  - Map common cities -> IANA time zones
- *  - Provide safe fallbacks + a confidence score
+ * Goal:
+ *  - Resolve user's timezone from text:
+ *      - Explicit IANA ("Europe/London")
+ *      - Common forms ("London", "Toronto", "New York")
+ *      - Light abbreviation mapping ("EST", "EDT", "GMT", "BST")
  *
  * Notes:
- *  - Deterministic and conservative: if uncertain, it returns null tz and suggests chips.
+ *  - This is intentionally small and deterministic.
+ *  - Expand CITY_TO_TZ over time as needed.
  */
 
-const fs = require("fs");
-const path = require("path");
+function cleanText(s) {
+  return String(s || "").replace(/\u200B/g, "").replace(/\s+/g, " ").trim();
+}
 
-const ROOT = path.resolve(__dirname, "..");
-const CITY_MAP_FILE = path.join(ROOT, "Data", "timezone_city_map_v1.json");
+const IANA_RE = /\b([A-Za-z]+\/[A-Za-z0-9_\-+]+)\b/;
 
-// Minimal built-in seed to prevent empty map on first run
-const SEED_MAP = {
-  "london": "Europe/London",
-  "toronto": "America/Toronto",
-  "new york": "America/New_York",
-  "nyc": "America/New_York",
-  "los angeles": "America/Los_Angeles",
-  "la": "America/Los_Angeles",
-  "vancouver": "America/Vancouver",
-  "chicago": "America/Chicago",
-  "miami": "America/New_York"
+const ABBR_TO_IANA = {
+  // Keep these conservative; abbreviations are ambiguous globally.
+  // We use them only when user is clearly talking about a locale.
+  gmt: "Etc/GMT",
+  utc: "Etc/UTC",
+  bst: "Europe/London", // British Summer Time (contextual)
+  est: "America/Toronto", // treat as ET for your platform default
+  edt: "America/Toronto",
+  et: "America/Toronto",
+  pt: "America/Los_Angeles",
+  pst: "America/Los_Angeles",
+  pdt: "America/Los_Angeles",
 };
 
-function safeReadJson(filePath) {
-  try {
-    if (!fs.existsSync(filePath)) return null;
-    const raw = fs.readFileSync(filePath, "utf8");
-    return JSON.parse(raw);
-  } catch (e) {
-    return null;
+const CITY_TO_TZ = {
+  // Start with your highest-value cities; expand safely over time.
+  london: "Europe/London",
+  toronto: "America/Toronto",
+  "new york": "America/New_York",
+  nyc: "America/New_York",
+  "los angeles": "America/Los_Angeles",
+  la: "America/Los_Angeles",
+  chicago: "America/Chicago",
+  miami: "America/New_York",
+  vancouver: "America/Vancouver",
+  "san francisco": "America/Los_Angeles",
+  paris: "Europe/Paris",
+  berlin: "Europe/Berlin",
+  madrid: "Europe/Madrid",
+  rome: "Europe/Rome",
+  dublin: "Europe/Dublin",
+  singapore: "Asia/Singapore",
+  tokyo: "Asia/Tokyo",
+  sydney: "Australia/Sydney",
+};
+
+function findCity(text) {
+  const t = cleanText(text).toLowerCase();
+  if (!t) return null;
+
+  // Check longer keys first to avoid "la" matching inside words.
+  const keys = Object.keys(CITY_TO_TZ).sort((a, b) => b.length - a.length);
+  for (const k of keys) {
+    const re = new RegExp(`\\b${escapeRegExp(k)}\\b`, "i");
+    if (re.test(t)) return k;
   }
-}
-
-function normalize(s) {
-  return String(s || "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toLowerCase();
-}
-
-function loadCityMap() {
-  const j = safeReadJson(CITY_MAP_FILE);
-  if (!j || typeof j !== "object") return { ...SEED_MAP };
-
-  // Allow both {"London":"Europe/London"} and {"london":"Europe/London"}
-  const out = { ...SEED_MAP };
-  for (const [k, v] of Object.entries(j)) {
-    if (!v) continue;
-    out[normalize(k)] = String(v).trim();
-  }
-  return out;
-}
-
-const CITY_MAP = loadCityMap();
-
-function extractCityCandidate(text) {
-  const t = normalize(text);
-
-  // Quick wins: "in london", "from london", "i'm in london"
-  const m = t.match(/\b(in|from|at)\s+([a-zA-Z][a-zA-Z\s.'-]{1,32})\b/);
-  if (m && m[2]) return normalize(m[2]);
-
-  // If user only typed a city name
-  if (t.length > 1 && t.length <= 40 && !/\d/.test(t)) {
-    return t;
-  }
-
   return null;
 }
 
-function resolveTimezone({ text, session }) {
-  const out = {
-    tz: null,
-    city: null,
-    confidence: 0.0,
-    source: "none",
-    followUps: []
-  };
+function escapeRegExp(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
-  // 1) Session stickiness
-  if (session && session.userTz && typeof session.userTz === "string") {
-    out.tz = session.userTz;
-    out.city = session.userCity || null;
-    out.confidence = 0.95;
-    out.source = "session";
-    return out;
+function resolveTimezone(text, session) {
+  const raw = cleanText(text);
+  const t = raw.toLowerCase();
+
+  // 1) Explicit IANA
+  const m = raw.match(IANA_RE);
+  if (m && m[1]) {
+    const tz = cleanText(m[1]);
+    return { ok: true, tz, city: null, source: "iana" };
   }
 
-  // 2) Parse from text
-  const cityCandidate = extractCityCandidate(text);
-  if (cityCandidate && CITY_MAP[cityCandidate]) {
-    out.tz = CITY_MAP[cityCandidate];
-    out.city = cityCandidate;
-    out.confidence = 0.85;
-    out.source = "city_map";
-    return out;
+  // 2) Abbreviation
+  const abbrMatch = t.match(/\b(utc|gmt|bst|est|edt|et|pt|pst|pdt)\b/i);
+  if (abbrMatch && abbrMatch[1]) {
+    const abbr = cleanText(abbrMatch[1]).toLowerCase();
+    const tz = ABBR_TO_IANA[abbr] || null;
+    if (tz) return { ok: true, tz, city: null, source: "abbr" };
   }
 
-  // 3) Weak heuristics for GMT/UK wording
-  const t = normalize(text);
-  if (/\b(uk|britain|england|london|gmt)\b/.test(t)) {
-    out.tz = "Europe/London";
-    out.city = "london";
-    out.confidence = 0.65;
-    out.source = "heuristic";
-    return out;
+  // 3) City match
+  const cityKey = findCity(raw);
+  if (cityKey) {
+    const tz = CITY_TO_TZ[cityKey] || null;
+    if (tz) return { ok: true, tz, city: cityKey, source: "city" };
   }
 
-  // 4) Unknown — propose chips
-  out.followUps = [
-    { label: "Toronto (ET)", send: "I'm in Toronto" },
-    { label: "London (UK)", send: "I'm in London" },
-    { label: "New York (ET)", send: "I'm in New York" },
-    { label: "Los Angeles (PT)", send: "I'm in Los Angeles" }
-  ];
+  // 4) If session already has a tz, keep it
+  if (session && session.userTz) {
+    return { ok: true, tz: session.userTz, city: session.userCity || null, source: "session" };
+  }
 
-  return out;
+  // 5) Default to ET (your platform authoring time)
+  return { ok: true, tz: "America/Toronto", city: null, source: "default" };
 }
 
 module.exports = {
   resolveTimezone,
-  loadCityMap
 };
