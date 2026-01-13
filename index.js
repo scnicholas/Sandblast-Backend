@@ -3,14 +3,17 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17 (SURGICAL: explicit “top 10 ####” no longer degrades to bare-year → story auto-run)
+ * index.js v1.5.18 (SURGICAL: adds Schedule Lane (timezone-aware Roku programming) without disturbing v1.5.17 behavior)
  *
- * Fixes:
- *  - Explicit Top10 Guard: if user text matches “top 10 ####” (or top10/top ten), we bypass the
- *    year-only defaulting and call the music engine with the original command intact.
- *  - Prevents the observed failure mode where “top 10 1963” was handled like “1963” and auto-ran story.
+ * Adds:
+ *  - Schedule Lane (Utils/scheduleLane.js):
+ *      - Detects schedule intent (“what time does ___ play in London”, “what’s playing now”, “schedule”)
+ *      - Resolves user timezone from text/session (city → IANA tz via timezoneResolver)
+ *      - Converts ET-authored programming windows to user local time (DST-safe)
+ *      - Preserves lane routing precedence + follow-up merge behavior
  *
- * Preserves:
+ * Preserves (from v1.5.17):
+ *  - Explicit Top10 Guard: “top 10 ####” no longer degrades to bare-year → story auto-run
  *  - v1.5.16 FMP auto-run after forceProceed
  *  - v1.5.15 Mode-chip override ALWAYS wins + FMP respects pendingMode
  *  - Bare-year defaults Top 10 + Year-End chart pin
@@ -33,7 +36,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.17 (v1.5.16 + explicit Top10 guard to prevent top10 #### degrading to bare-year; preserves FMP autorun + mode-chip override + NO-TECH-LEAK Top10-missing escape + lanes/routing + replay/chips + #1 routing + chart guard + nav completion + music bridge)";
+  "index.js v1.5.18 (v1.5.17 + Schedule Lane (timezone-aware programming); preserves explicit Top10 guard + FMP autorun + mode-chip override + NO-TECH-LEAK Top10-missing escape + lanes/routing + replay/chips + #1 routing + chart guard + nav completion + music bridge)";
 
 /* ======================================================
    Basic middleware
@@ -802,7 +805,12 @@ function getSession(sessionId) {
       lastMusicChart: DEFAULT_CHART,
       activeMusicChart: DEFAULT_CHART,
 
+      // lanes
       lane: "general",
+
+      // schedule lane state (timezone)
+      userTz: null,
+      userCity: null,
 
       lastReply: null,
       lastReplyAt: null,
@@ -868,6 +876,14 @@ try {
   moviesLane = require("./Utils/moviesLane");
 } catch {
   moviesLane = null;
+}
+
+// v1.5.18: Schedule Lane (timezone-aware programming)
+let scheduleLane = null;
+try {
+  scheduleLane = require("./Utils/scheduleLane");
+} catch {
+  scheduleLane = null;
 }
 
 /* ======================================================
@@ -1073,7 +1089,10 @@ function modeToCommand(mode) {
  */
 function isExplicitTop10WithYear(text) {
   const t = cleanText(text).toLowerCase();
-  return /\btop\s*(10|ten)\s*(19[5-9]\d|20[0-1]\d|202[0-4])\b/.test(t) || /\btop10\s*(19[5-9]\d|20[0-1]\d|202[0-4])\b/.test(t);
+  return (
+    /\btop\s*(10|ten)\s*(19[5-9]\d|20[0-1]\d|202[0-4])\b/.test(t) ||
+    /\btop10\s*(19[5-9]\d|20[0-1]\d|202[0-4])\b/.test(t)
+  );
 }
 
 /* ======================================================
@@ -1091,6 +1110,8 @@ function explicitLaneCommand(text) {
     )
   )
     return "sponsors";
+  if (/^(schedule\s+lane|programming\s+lane|roku\s+lane|schedule|programming)\s*$/.test(t))
+    return "schedule";
   if (/^(music\s+lane|back\s+to\s+music|return\s+to\s+music|music)\s*$/.test(t))
     return "music";
 
@@ -1261,7 +1282,7 @@ async function runMusicEngine(text, session) {
 }
 
 /* ======================================================
-   Lane engine wrapper
+   Lane engine wrappers
 ====================================================== */
 
 function isSponsorsActive(session, message) {
@@ -1277,6 +1298,16 @@ function isMoviesActive(session, message) {
   if (session && session.lane === "movies") return true;
   if (typeof moviesLane.isMoviesIntent === "function" && message)
     return !!moviesLane.isMoviesIntent(message);
+  return false;
+}
+
+// v1.5.18
+function isScheduleActive(session, message) {
+  if (!scheduleLane) return false;
+  if (session && session.lane === "schedule") return true;
+  if (typeof scheduleLane.isScheduleQuestion === "function" && message) {
+    return !!scheduleLane.isScheduleQuestion(message);
+  }
   return false;
 }
 
@@ -1325,7 +1356,33 @@ async function runMoviesLane(text, session) {
   }
 }
 
+// v1.5.18
+async function runScheduleLane(text, session) {
+  if (!scheduleLane || typeof scheduleLane.handleChat !== "function") {
+    return {
+      reply: "Schedule Lane isn’t available in this build.",
+      followUps: [{ label: "Back to music", send: "Back to music" }],
+    };
+  }
+  try {
+    const out = scheduleLane.handleChat({ text, session }) || {};
+    if (out.sessionPatch && typeof out.sessionPatch === "object")
+      Object.assign(session, out.sessionPatch);
+    session.lane = "schedule";
+    return out;
+  } catch (e) {
+    session.lane = "schedule";
+    return {
+      reply:
+        "Schedule Lane hit an error. Try: “What time does Gospel Sunday play in London?”",
+      error: String(e && e.message ? e.message : e),
+    };
+  }
+}
+
 async function runEngine(text, session) {
+  // v1.5.18 precedence: schedule before other lanes if intent matches
+  if (isScheduleActive(session, text)) return runScheduleLane(text, session);
   if (isSponsorsActive(session, text)) return runSponsorsLane(text, session);
   if (isMoviesActive(session, text)) return runMoviesLane(text, session);
   return runMusicEngine(text, session);
@@ -1460,7 +1517,7 @@ function respondJson(req, res, base, session, engineOut, profile, forceFourChips
   const enforceReturning = !!forceFourChips && !!tight.returning;
 
   const lane = session && session.lane ? String(session.lane) : "general";
-  const laneOwned = lane === "sponsors" || lane === "movies";
+  const laneOwned = lane === "sponsors" || lane === "movies" || lane === "schedule";
 
   if (enforceReturning) {
     const payload = Object.assign({}, base, {
@@ -1491,6 +1548,8 @@ function respondJson(req, res, base, session, engineOut, profile, forceFourChips
           lane: session ? session.lane : null,
           voiceMode: session ? session.voiceMode : null,
           lastIntent: session ? session.lastIntent : null,
+          userTz: session ? session.userTz : null,
+          userCity: session ? session.userCity : null,
         },
         resume: { resumable: tight.resumable, forcedFourChips: true },
       };
@@ -1544,6 +1603,8 @@ function respondJson(req, res, base, session, engineOut, profile, forceFourChips
           lastYear: session ? session.lastYear : null,
           voiceMode: session ? session.voiceMode : null,
           lastIntent: session ? session.lastIntent : null,
+          userTz: session ? session.userTz : null,
+          userCity: session ? session.userCity : null,
         },
       };
     }
@@ -1608,6 +1669,8 @@ function respondJson(req, res, base, session, engineOut, profile, forceFourChips
         lane: session ? session.lane : null,
         voiceMode: session ? session.voiceMode : null,
         lastIntent: session ? session.lastIntent : null,
+        userTz: session ? session.userTz : null,
+        userCity: session ? session.userCity : null,
       },
       resume: { resumable: tight.resumable, forcedFourChips: false },
     };
@@ -2016,6 +2079,8 @@ app.post("/api/chat", async (req, res) => {
             lane: session ? session.lane : null,
             voiceMode: session ? session.voiceMode : null,
             lastIntent: session ? session.lastIntent : null,
+            userTz: session ? session.userTz : null,
+            userCity: session ? session.userCity : null,
           },
           resume: { resumable: tight.resumable, forcedFourChips: false },
         };
@@ -2061,6 +2126,8 @@ app.post("/api/chat", async (req, res) => {
         ? "Movies Lane. Paste a movie link or tell me the decade/genre you want (crime, detective, comedy, etc.)."
         : laneCmd === "sponsors"
         ? "Sponsors Lane. What’s your goal: calls, foot traffic, website clicks, or brand awareness?"
+        : laneCmd === "schedule"
+        ? "Schedule Lane. Ask: “What time does Gospel Sunday play in London?” or say “Show me the schedule”."
         : "Back to music. Give me a year (1950–2024) and choose: Top 10, Story moment, or Micro moment.";
 
     session.lastReply = reply;
@@ -2080,7 +2147,10 @@ app.post("/api/chat", async (req, res) => {
     return respondJson(req, res, base, session, null, profile, false);
   }
 
-  if (isLaneExitCommand(message) && (session.lane === "sponsors" || session.lane === "movies")) {
+  if (
+    isLaneExitCommand(message) &&
+    (session.lane === "sponsors" || session.lane === "movies" || session.lane === "schedule")
+  ) {
     session.lane = "music";
     session.lastIntent = "laneExit";
 
@@ -2233,6 +2303,30 @@ app.post("/api/chat", async (req, res) => {
     session.lastReply = reply;
     session.lastReplyAt = Date.now();
     session.lastIntent = "fresh";
+
+    updateProfileFromSession(profile, session);
+
+    const base = {
+      ok: true,
+      reply,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
+    return respondJson(req, res, base, session, out, profile, false);
+  }
+
+  // v1.5.18: Schedule lane check (intent-based) before sponsor/movies/music
+  if (isScheduleActive(session, message)) {
+    const out0 = await runScheduleLane(message, session);
+    const out = await applyFmp(out0, session);
+    const reply = cleanText(out.reply || "Schedule Lane.");
+
+    session.lastReply = reply;
+    session.lastReplyAt = Date.now();
+    session.lastIntent = "schedule";
 
     updateProfileFromSession(profile, session);
 
@@ -2531,6 +2625,7 @@ app.get("/api/health", (req, res) => {
     micGuard: { enabled: MIC_GUARD_ENABLED, windowMs: MIC_GUARD_WINDOW_MS, minChars: MIC_GUARD_MIN_CHARS },
     music: { defaultChart: DEFAULT_CHART, yearEndChart: YEAR_END_CHART, yearEndSinglesChart: YEAR_END_SINGLES_CHART },
     lanes: {
+      scheduleLoaded: !!scheduleLane,
       sponsorsLoaded: !!sponsorsLane,
       moviesLoaded: !!moviesLane,
       musicLoaded: !!musicKnowledge,
