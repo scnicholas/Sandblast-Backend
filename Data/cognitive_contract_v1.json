@@ -1,0 +1,15 @@
+{
+  "version": "1.0",
+  "principles": {
+    "forwardMotion": true,
+    "minimizeUserEffort": true,
+    "modeClarity": true,
+    "respectBoundaries": true,
+    "transparentIntent": true
+  },
+  "constraints": {
+    "oneModePerReply": true,
+    "noRedundantQuestions": true,
+    "neverLoopAskYearMode": true
+  }
+}
