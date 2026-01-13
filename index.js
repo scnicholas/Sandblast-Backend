@@ -3,16 +3,15 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.16 (SURGICAL: FMP auto-runs after forceProceed to remove “Run now” stalls)
+ * index.js v1.5.17 (SURGICAL: explicit “top 10 ####” no longer degrades to bare-year → story auto-run)
  *
- * Adds:
- *  - FMP Auto-Run: when FMP.forceProceed fires (askYear/askMode loop-break), we immediately execute the chosen command
- *    (top 10 / story moment / micro moment) instead of returning a “Run now” holding pattern.
- *  - Guarded by:
- *      - env FMP_AUTORUN_ENABLED (default true)
- *      - per-session short cooldown to prevent loops
+ * Fixes:
+ *  - Explicit Top10 Guard: if user text matches “top 10 ####” (or top10/top ten), we bypass the
+ *    year-only defaulting and call the music engine with the original command intact.
+ *  - Prevents the observed failure mode where “top 10 1963” was handled like “1963” and auto-ran story.
  *
  * Preserves:
+ *  - v1.5.16 FMP auto-run after forceProceed
  *  - v1.5.15 Mode-chip override ALWAYS wins + FMP respects pendingMode
  *  - Bare-year defaults Top 10 + Year-End chart pin
  *  - Top10-missing detector hardening + NO-TECH-LEAK copy + better chips
@@ -34,7 +33,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.16 (v1.5.15 + FMP auto-run after forceProceed; preserves mode-chip override wins + pendingMode-aware FMP + NO-TECH-LEAK Top10-missing escape + better chips + lane overrides/escape + routing precedence + GH1 micro-guard + replay integrity + followUp merge + returning chips greeting-only + #1 routing + chart contamination guard + nav completion + music field bridge)";
+  "index.js v1.5.17 (v1.5.16 + explicit Top10 guard to prevent top10 #### degrading to bare-year; preserves FMP autorun + mode-chip override + NO-TECH-LEAK Top10-missing escape + lanes/routing + replay/chips + #1 routing + chart guard + nav completion + music bridge)";
 
 /* ======================================================
    Basic middleware
@@ -523,8 +522,12 @@ const FMP = {
       { label: "Another year", send: "Another year" },
     ];
 
-    // v1.5.16: attach meta so chat layer can auto-execute without stalling
-    return { reply, followUps, _fmpMeta: { run: sendRun, switch: sendSwitch, year, mode } };
+    // v1.5.17: attach meta so chat layer can auto-execute without stalling
+    return {
+      reply,
+      followUps,
+      _fmpMeta: { run: sendRun, switch: sendSwitch, year, mode },
+    };
   },
 
   apply(out, session) {
@@ -575,7 +578,7 @@ const FMP = {
 };
 
 /**
- * v1.5.16: Auto-run after FMP.forceProceed to avoid “Run now” stalls.
+ * v1.5.17: Auto-run after FMP.forceProceed to avoid “Run now” stalls.
  */
 async function maybeAutoRunFmp(out, session) {
   if (!FMP_AUTORUN_ENABLED) return out;
@@ -588,7 +591,11 @@ async function maybeAutoRunFmp(out, session) {
 
   const now = Date.now();
   const lastAt = Number(session._fmpAutoRanAt || 0);
-  if (Number.isFinite(lastAt) && lastAt > 0 && now - lastAt < FMP_AUTORUN_COOLDOWN_MS) {
+  if (
+    Number.isFinite(lastAt) &&
+    lastAt > 0 &&
+    now - lastAt < FMP_AUTORUN_COOLDOWN_MS
+  ) {
     return out;
   }
 
@@ -812,7 +819,7 @@ function getSession(sessionId) {
       _countedVisit: false,
       _fmp_lastAsk: null,
 
-      // v1.5.16 autorun guard
+      // v1.5.17 autorun guard
       _fmpAutoRanAt: 0,
     });
   }
@@ -1058,6 +1065,15 @@ function modeToCommand(mode) {
   if (mode === "story") return "story moment";
   if (mode === "micro") return "micro moment";
   return "top 10";
+}
+
+/**
+ * v1.5.17: Explicit Top10 guard (prevents “top 10 ####” being treated like bare-year)
+ * Accepts: "top 10 1963", "top10 1963", "top ten 1963" (any spacing/case)
+ */
+function isExplicitTop10WithYear(text) {
+  const t = cleanText(text).toLowerCase();
+  return /\btop\s*(10|ten)\s*(19[5-9]\d|20[0-1]\d|202[0-4])\b/.test(t) || /\btop10\s*(19[5-9]\d|20[0-1]\d|202[0-4])\b/.test(t);
 }
 
 /* ======================================================
@@ -2263,6 +2279,42 @@ app.post("/api/chat", async (req, res) => {
     session.lastReply = reply;
     session.lastReplyAt = Date.now();
     session.lastIntent = "movies";
+
+    updateProfileFromSession(profile, session);
+
+    const base = {
+      ok: true,
+      reply,
+      sessionId,
+      requestId,
+      visitorId,
+      contractVersion: NYX_CONTRACT_VERSION,
+      voiceMode: session.voiceMode,
+    };
+    return respondJson(req, res, base, session, out, profile, false);
+  }
+
+  // v1.5.17: Explicit Top10 command must win BEFORE generic year/mode parsing.
+  if (isExplicitTop10WithYear(message)) {
+    const y = clampYear(extractYearFromText(message));
+    if (y) {
+      session.lane = "music";
+      session.lastYear = y;
+      session.lastMusicYear = y;
+      session.activeMusicMode = "top10";
+      session.pendingMode = null;
+      session.activeMusicChart = YEAR_END_CHART;
+      session.lastMusicChart = YEAR_END_CHART;
+      guardChartForYear(session, y);
+    }
+
+    const out0 = await runEngine(message, session); // pass-through intact: "top 10 1963"
+    const out = await applyFmp(out0, session);
+    const reply = finalizeReply(session, out.reply || "");
+
+    session.lastReply = reply;
+    session.lastReplyAt = Date.now();
+    session.lastIntent = "top10";
 
     updateProfileFromSession(profile, session);
 
