@@ -3,18 +3,21 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.15 (SURGICAL: Mode-chip override ALWAYS wins + FMP respects pendingMode)
+ * index.js v1.5.16 (SURGICAL: FMP auto-runs after forceProceed to remove “Run now” stalls)
  *
- * Fixes:
- *  - Mode-only taps (e.g., chip “Top 10”) now deterministically override the prior mode (Story/Micro),
- *    even when a year is already locked in-session.
- *  - FMP.forceProceed now prefers pendingMode when choosing what to run (prevents “Top 10 chip → story moment”).
+ * Adds:
+ *  - FMP Auto-Run: when FMP.forceProceed fires (askYear/askMode loop-break), we immediately execute the chosen command
+ *    (top 10 / story moment / micro moment) instead of returning a “Run now” holding pattern.
+ *  - Guarded by:
+ *      - env FMP_AUTORUN_ENABLED (default true)
+ *      - per-session short cooldown to prevent loops
  *
  * Preserves:
- *  - v1.5.14 Bare-year defaults Top 10 + Year-End chart pin
- *  - v1.5.13 Top10-missing detector hardening + NO-TECH-LEAK copy + better chips
+ *  - v1.5.15 Mode-chip override ALWAYS wins + FMP respects pendingMode
+ *  - Bare-year defaults Top 10 + Year-End chart pin
+ *  - Top10-missing detector hardening + NO-TECH-LEAK copy + better chips
  *  - lane overrides + lane exit + routing precedence
- *  - FMP, GH1 micro-guard, replay integrity, followUp merge, greeting-only 4-chip enforcement
+ *  - GH1 micro-guard, replay integrity, followUp merge, greeting-only 4-chip enforcement
  *  - #1 routing, chart contamination guard, nav completion, music field bridge
  *  - Single /api/health route (no duplicates)
  */
@@ -31,7 +34,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.15 (v1.5.14 + Mode-chip override wins + FMP uses pendingMode; preserves NO-TECH-LEAK Top10-missing escape + better chips + lane overrides/escape + routing precedence + GH1 micro-guard + replay integrity + followUp merge + returning chips greeting-only + #1 routing + chart contamination guard + nav completion + music field bridge)";
+  "index.js v1.5.16 (v1.5.15 + FMP auto-run after forceProceed; preserves mode-chip override wins + pendingMode-aware FMP + NO-TECH-LEAK Top10-missing escape + better chips + lane overrides/escape + routing precedence + GH1 micro-guard + replay integrity + followUp merge + returning chips greeting-only + #1 routing + chart contamination guard + nav completion + music field bridge)";
 
 /* ======================================================
    Basic middleware
@@ -341,10 +344,6 @@ function postEngineBridge(session) {
    TOP10 Missing Escape (deterministic)
 ====================================================== */
 
-/**
- * v1.5.12+: normalize smart quotes/apostrophes + strip punctuation so
- * “don’t have a clean Top 10…” matches the detector.
- */
 function normalizeForTop10Missing(s) {
   return cleanText(String(s || ""))
     .toLowerCase()
@@ -386,10 +385,6 @@ function looksLikeTop10Missing(reply) {
   return false;
 }
 
-/**
- * NO-TECH-LEAK curated framing for Top10 gaps.
- * Never mention: build / loaded sources / dataset / parsing / clean list.
- */
 function top10MissingPreface(year) {
   const y = clampYear(Number(year)) || 1988;
   return (
@@ -413,6 +408,13 @@ function top10MissingFollowUps(year) {
 /* ======================================================
    Phase A — Forward Motion Patch (FMP)
 ====================================================== */
+
+const FMP_AUTORUN_ENABLED =
+  String(process.env.FMP_AUTORUN_ENABLED || "true") === "true";
+const FMP_AUTORUN_COOLDOWN_MS = Math.max(
+  750,
+  Math.min(15000, Number(process.env.FMP_AUTORUN_COOLDOWN_MS || 2500))
+);
 
 const FMP = {
   ASK_YEAR_RE:
@@ -479,7 +481,7 @@ const FMP = {
       session.lastYear = year;
       session.lastMusicYear = year;
 
-      // v1.5.15: lock the mode chosen (and clear pending)
+      // lock the mode chosen (and clear pending)
       session.activeMusicMode = mode;
       session.pendingMode = null;
 
@@ -512,7 +514,8 @@ const FMP = {
         : mode === "micro"
         ? `micro moment ${year}`
         : `story moment ${year}`;
-    const sendSwitch = mode === "top10" ? `story moment ${year}` : `top 10 ${year}`;
+    const sendSwitch =
+      mode === "top10" ? `story moment ${year}` : `top 10 ${year}`;
 
     const followUps = [
       { label: "Run now", send: sendRun },
@@ -520,7 +523,8 @@ const FMP = {
       { label: "Another year", send: "Another year" },
     ];
 
-    return { reply, followUps };
+    // v1.5.16: attach meta so chat layer can auto-execute without stalling
+    return { reply, followUps, _fmpMeta: { run: sendRun, switch: sendSwitch, year, mode } };
   },
 
   apply(out, session) {
@@ -569,6 +573,47 @@ const FMP = {
     return out;
   },
 };
+
+/**
+ * v1.5.16: Auto-run after FMP.forceProceed to avoid “Run now” stalls.
+ */
+async function maybeAutoRunFmp(out, session) {
+  if (!FMP_AUTORUN_ENABLED) return out;
+  if (!out || typeof out !== "object") return out;
+  if (!session) return out;
+
+  const meta = out._fmpMeta || null;
+  const cmd = meta && cleanText(meta.run) ? cleanText(meta.run) : "";
+  if (!cmd) return out;
+
+  const now = Date.now();
+  const lastAt = Number(session._fmpAutoRanAt || 0);
+  if (Number.isFinite(lastAt) && lastAt > 0 && now - lastAt < FMP_AUTORUN_COOLDOWN_MS) {
+    return out;
+  }
+
+  // mark before executing to prevent rapid recursion
+  session._fmpAutoRanAt = now;
+
+  const out2 = await runEngine(cmd, session);
+  const out3 = FMP.apply(out2, session);
+
+  // preserve the “switch mode” affordance if engine didn't provide anything
+  if (!out3.followUps && out.followUps) out3.followUps = out.followUps;
+
+  // remove meta to avoid re-running on later merges
+  if (out3 && typeof out3 === "object") {
+    try {
+      delete out3._fmpMeta;
+    } catch (_) {}
+  }
+  return out3;
+}
+
+async function applyFmp(out0, session) {
+  const out1 = FMP.apply(out0, session);
+  return await maybeAutoRunFmp(out1, session);
+}
 
 /* ======================================================
    GH-1 Micro-Guard (forward motion)
@@ -768,6 +813,9 @@ function getSession(sessionId) {
 
       _countedVisit: false,
       _fmp_lastAsk: null,
+
+      // v1.5.16 autorun guard
+      _fmpAutoRanAt: 0,
     });
   }
 
@@ -1155,14 +1203,12 @@ async function runMusicEngine(text, session) {
 
     postEngineBridge(session);
 
-    // ===== TOP10 Missing Escape (deterministic + NO-TECH-LEAK) =====
     const reply0 = cleanText(out.reply || "");
     const modeReq =
       normalizeModeToken(text) || session.activeMusicMode || session.pendingMode || null;
     const yearReq = clampYear(y || session.lastYear || session.lastMusicYear);
 
     if (modeReq === "top10" && yearReq && looksLikeTop10Missing(reply0)) {
-      // Force a confident pivot to story moment (still honoring intent forward motion)
       session.lane = "music";
       session.activeMusicMode = "story";
       session.pendingMode = null;
@@ -1190,7 +1236,6 @@ async function runMusicEngine(text, session) {
         followUps: top10MissingFollowUps(yearReq),
       });
     }
-    // =============================================================
 
     return out;
   } catch (e) {
@@ -1704,14 +1749,13 @@ async function handleContinue(session, profile) {
 
     guardChartForYear(session, y);
 
-    // Pin chart context for Top 10
     if (m === "top10") {
       session.activeMusicChart = YEAR_END_CHART;
       session.lastMusicChart = YEAR_END_CHART;
     }
 
     const out0 = await runEngine(`${modeToCommand(m)} ${y}`, session);
-    return FMP.apply(out0, session);
+    return await applyFmp(out0, session);
   }
 
   if (session.lastReply) {
@@ -1773,14 +1817,13 @@ async function handleYearNav(session, direction) {
   session.activeMusicMode = mode;
   session.pendingMode = null;
 
-  // Pin chart context for Top 10
   if (mode === "top10") {
     session.activeMusicChart = YEAR_END_CHART;
     session.lastMusicChart = YEAR_END_CHART;
   }
 
   const out0 = await runEngine(`${modeToCommand(mode)} ${y1}`, session);
-  return FMP.apply(out0, session);
+  return await applyFmp(out0, session);
 }
 
 function handleAnotherYear(session) {
@@ -1821,7 +1864,7 @@ async function handleNumberOne(session) {
   }
 
   const outA = await runEngine(`#1 ${y0}`, session);
-  const outA2 = FMP.apply(outA, session);
+  const outA2 = await applyFmp(outA, session);
 
   const rA = cleanText(outA2 && outA2.reply ? outA2.reply : "");
   if (rA && /(^|\s)#\s*1\b/i.test(rA)) {
@@ -1829,7 +1872,7 @@ async function handleNumberOne(session) {
   }
 
   const outB = await runEngine(`top 10 ${y0}`, session);
-  const outB2 = FMP.apply(outB, session);
+  const outB2 = await applyFmp(outB, session);
   const rB = cleanText(outB2 && outB2.reply ? outB2.reply : "");
 
   const one = extractNumberOneFromTop10Reply(rB);
@@ -2050,7 +2093,7 @@ app.post("/api/chat", async (req, res) => {
   if (nav === "numberOne") {
     session.lane = "music";
     const out0 = await handleNumberOne(session);
-    const out = FMP.apply(out0, session);
+    const out = await applyFmp(out0, session);
     const reply = finalizeReply(session, out.reply || "#1.");
 
     session.lastReply = reply;
@@ -2073,7 +2116,8 @@ app.post("/api/chat", async (req, res) => {
 
   if (nav === "nextYear") {
     session.lane = "music";
-    const out = await handleYearNav(session, +1);
+    const out0 = await handleYearNav(session, +1);
+    const out = await applyFmp(out0, session);
     const reply = finalizeReply(session, out.reply || "Next year.");
 
     session.lastReply = reply;
@@ -2096,7 +2140,8 @@ app.post("/api/chat", async (req, res) => {
 
   if (nav === "prevYear") {
     session.lane = "music";
-    const out = await handleYearNav(session, -1);
+    const out0 = await handleYearNav(session, -1);
+    const out = await applyFmp(out0, session);
     const reply = finalizeReply(session, out.reply || "Previous year.");
 
     session.lastReply = reply;
@@ -2120,7 +2165,7 @@ app.post("/api/chat", async (req, res) => {
   if (nav === "anotherYear") {
     session.lane = "music";
     const out0 = handleAnotherYear(session);
-    const out = FMP.apply(out0, session);
+    const out = await applyFmp(out0, session);
     const reply = cleanText(out.reply || "");
 
     session.lastReply = reply;
@@ -2144,7 +2189,7 @@ app.post("/api/chat", async (req, res) => {
   if (nav === "continue") {
     session.lane = "music";
     const out0 = await handleContinue(session, profile);
-    const out = FMP.apply(out0, session);
+    const out = await applyFmp(out0, session);
     const reply = finalizeReply(session, out.reply || "Continuing.");
 
     session.lastReply = reply;
@@ -2167,7 +2212,8 @@ app.post("/api/chat", async (req, res) => {
 
   if (nav === "fresh") {
     session.lane = "music";
-    const out = handleFresh(session);
+    const out0 = handleFresh(session);
+    const out = await applyFmp(out0, session);
     const reply = cleanText(out.reply);
 
     session.lastReply = reply;
@@ -2190,7 +2236,8 @@ app.post("/api/chat", async (req, res) => {
 
   if (isSponsorsActive(session, message)) {
     const out0 = await runSponsorsLane(message, session);
-    const reply = cleanText(out0.reply || "Sponsors Lane.");
+    const out = await applyFmp(out0, session);
+    const reply = cleanText(out.reply || "Sponsors Lane.");
 
     session.lastReply = reply;
     session.lastReplyAt = Date.now();
@@ -2207,12 +2254,13 @@ app.post("/api/chat", async (req, res) => {
       contractVersion: NYX_CONTRACT_VERSION,
       voiceMode: session.voiceMode,
     };
-    return respondJson(req, res, base, session, out0, profile, false);
+    return respondJson(req, res, base, session, out, profile, false);
   }
 
   if (isMoviesActive(session, message)) {
     const out0 = await runMoviesLane(message, session);
-    const reply = cleanText(out0.reply || "Movies Lane.");
+    const out = await applyFmp(out0, session);
+    const reply = cleanText(out.reply || "Movies Lane.");
 
     session.lastReply = reply;
     session.lastReplyAt = Date.now();
@@ -2229,7 +2277,7 @@ app.post("/api/chat", async (req, res) => {
       contractVersion: NYX_CONTRACT_VERSION,
       voiceMode: session.voiceMode,
     };
-    return respondJson(req, res, base, session, out0, profile, false);
+    return respondJson(req, res, base, session, out, profile, false);
   }
 
   const parsedYear = clampYear(extractYearFromText(message));
@@ -2247,14 +2295,13 @@ app.post("/api/chat", async (req, res) => {
     session.activeMusicMode = parsedMode;
     session.pendingMode = null;
 
-    // Pin chart context for Top 10
     if (parsedMode === "top10") {
       session.activeMusicChart = YEAR_END_CHART;
       session.lastMusicChart = YEAR_END_CHART;
     }
 
     const out0 = await runEngine(`${modeToCommand(parsedMode)} ${parsedYear}`, session);
-    const out = FMP.apply(out0, session);
+    const out = await applyFmp(out0, session);
     const reply = finalizeReply(session, out.reply || "");
 
     session.lastReply = reply;
@@ -2278,11 +2325,10 @@ app.post("/api/chat", async (req, res) => {
   if (parsedMode && !parsedYear) {
     session.lane = "music";
 
-    // v1.5.15: MODE-CHIP OVERRIDE — lock mode immediately
+    // MODE-CHIP OVERRIDE — lock mode immediately
     session.activeMusicMode = parsedMode;
     session.pendingMode = parsedMode;
 
-    // Pin chart context for Top 10 immediately (even before running)
     if (parsedMode === "top10") {
       session.activeMusicChart = YEAR_END_CHART;
       session.lastMusicChart = YEAR_END_CHART;
@@ -2292,7 +2338,7 @@ app.post("/api/chat", async (req, res) => {
       session.pendingMode = null;
 
       const out0 = await runEngine(`${modeToCommand(parsedMode)} ${session.lastYear}`, session);
-      const out = FMP.apply(out0, session);
+      const out = await applyFmp(out0, session);
       const reply = finalizeReply(session, out.reply || "");
 
       session.lastReply = reply;
@@ -2335,19 +2381,18 @@ app.post("/api/chat", async (req, res) => {
   if (parsedYear && !parsedMode) {
     session.lane = "music";
 
-    // v1.5.14: year with no explicit mode defaults to Top 10
+    // year with no explicit mode defaults to Top 10
     const mode = session.pendingMode || session.activeMusicMode || "top10";
     session.activeMusicMode = mode;
     session.pendingMode = null;
 
-    // Pin chart context for Top 10 (Year-End Hot 100)
     if (mode === "top10") {
       session.activeMusicChart = YEAR_END_CHART;
       session.lastMusicChart = YEAR_END_CHART;
     }
 
     const out0 = await runEngine(`${modeToCommand(mode)} ${parsedYear}`, session);
-    const out = FMP.apply(out0, session);
+    const out = await applyFmp(out0, session);
     const reply = finalizeReply(session, out.reply || "");
 
     session.lastReply = reply;
@@ -2373,7 +2418,7 @@ app.post("/api/chat", async (req, res) => {
 
   session.lane = "music";
   const out0 = await runEngine(message, session);
-  const out = FMP.apply(out0, session);
+  const out = await applyFmp(out0, session);
 
   const reply = finalizeReply(session, out.reply || "");
 
