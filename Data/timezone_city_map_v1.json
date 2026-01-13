@@ -2,5 +2,6 @@
   "London": "Europe/London",
   "Toronto": "America/Toronto",
   "New York": "America/New_York",
-  "Los Angeles": "America/Los_Angeles"
+  "Los Angeles": "America/Los_Angeles",
+  "Vancouver": "America/Vancouver"
 }
