@@ -1,0 +1,20 @@
+{
+  "version": "roku_programming_v1",
+  "authoringTimezone": "America/Toronto",
+  "shows": [
+    {
+      "id": "gospel_sunday",
+      "title": "Gospel Sunday",
+      "days": ["SUN"],
+      "start": "18:00",
+      "durationMin": 240
+    },
+    {
+      "id": "nyx_music_block",
+      "title": "Nyx Music Block",
+      "days": ["MON", "TUE", "WED", "THU", "FRI"],
+      "start": "20:00",
+      "durationMin": 120
+    }
+  ]
+}
