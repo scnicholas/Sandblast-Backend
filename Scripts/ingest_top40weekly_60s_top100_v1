@@ -1,329 +1,497 @@
 "use strict";
 
 /**
- * Scripts/ingest_top40weekly_60s_top100_v1.js
+ * Scripts/ingest_wikipedia_yearend_hot100_60s_v1.js
  *
- * Reads:
- *   Data/raw/top40weekly/top-100-songs-of-the-60s.html
+ * Uses MediaWiki API (NOT HTML scraping) to fetch wikitext for:
+ *   Billboard_Year-End_Hot_100_singles_of_YYYY
  *
- * Writes:
- *   Data/top100_top40weekly_1960s_v1.json
+ * Parses the year-end wikitable into rows:
+ *   { year, rank, title, artist, source, chart, url }
  *
- * Output rows:
- *   { year, rank, artist, title, source }
+ * Outputs:
+ *  1) Data/top100_billboard_yearend_1960s_v1.json  (flat array, ranks 1–100 when available)
+ *  2) Data/top10_by_year_v1.json                   (years map + meta; Top 10 only)
  *
- * Notes:
- * - Structure-first parsing: li/tr/p blocks before plain text fallback
- * - More robust section finder: id/name/href + year headers
- * - Detects bot/challenge pages and exits with a clear message
+ * Default: 1960 only (validate-first)
+ *   node Scripts/ingest_wikipedia_yearend_hot100_60s_v1.js --years=1960
+ * Full decade:
+ *   node Scripts/ingest_wikipedia_yearend_hot100_60s_v1.js --years=1960-1969
+ *
+ * Key fixes vs earlier drafts:
+ *  - Avoids the "|}\n" string literal syntax landmine (no stray newline in a quoted token)
+ *  - Handles style/attrs cells like:  | style="text-align:center;" | 1
+ *  - Handles multi-line row blocks between "|-" markers
+ *  - More defensive header detection + column mapping
+ *  - Won’t emit empty year shells unless it has rows
+ *  - FINAL POLISH: removes stray "[[" / "]]" and trims wrapping quotes in title/artist
  */
 
 const fs = require("fs");
 const path = require("path");
 
 const ROOT = path.resolve(__dirname, "..");
-const IN_FILE = path.join(
-  ROOT,
-  "Data",
-  "raw",
-  "top40weekly",
-  "top-100-songs-of-the-60s.html"
-);
-const OUT_FILE = path.join(ROOT, "Data", "top100_top40weekly_1960s_v1.json");
+const OUT_TOP100 = path.join(ROOT, "Data", "top100_billboard_yearend_1960s_v1.json");
+const OUT_TOP10 = path.join(ROOT, "Data", "top10_by_year_v1.json");
 
-const SOURCE = "Top40Weekly — Top 100 Songs of the 60s";
+const SOURCE = "Wikipedia (MediaWiki API) — Billboard Year-End Hot 100 singles";
+const CHART = "Billboard Year-End Hot 100";
+
+// ---- utils ----
+
+function ensureDir(p) {
+  fs.mkdirSync(p, { recursive: true });
+}
 
 function cleanText(s) {
   return String(s || "")
     .replace(/\u200B/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&#8217;|&rsquo;/g, "'")
-    .replace(/&#8220;|&#8221;|&ldquo;|&rdquo;/g, '"')
-    .replace(/&amp;/g, "&")
     .replace(/\s+/g, " ")
     .trim();
 }
 
-function decodeCommonEntities(s) {
-  // keep it tiny and deterministic (no external deps)
-  return cleanText(String(s || ""))
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;|&apos;/g, "'")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&nbsp;/g, " ");
-}
+function parseArgsYears() {
+  const arg = process.argv.find((a) => a.startsWith("--years="));
+  if (!arg) return [1960]; // validate-first default
 
-function stripTags(html) {
-  return cleanText(
-    String(html || "")
-      .replace(/<script[\s\S]*?<\/script>/gi, " ")
-      .replace(/<style[\s\S]*?<\/style>/gi, " ")
-      .replace(/<\/(p|div|tr|li|h\d|br|table)>/gi, "\n")
-      .replace(/<br\s*\/?>/gi, "\n")
-      .replace(/<[^>]+>/g, " ")
-  );
-}
+  const raw = arg.split("=", 2)[1] || "";
+  const t = raw.trim();
+  if (!t) return [1960];
 
-function looksLikeBotBlock(html) {
-  const t = String(html || "").toLowerCase();
-  return (
-    t.includes("just a moment") ||
-    t.includes("verify you are human") ||
-    t.includes("cf-chl") ||
-    t.includes("cloudflare") ||
-    t.includes("captcha") ||
-    t.includes("access denied") ||
-    t.includes("challenge-platform")
-  );
-}
-
-/**
- * More robust: locate a year section by:
- * - id/name containing year (with optional suffix/prefix)
- * - href="#year..."
- * - header tags containing the year (h1..h4)
- *
- * Then cut the slice until the next year marker.
- */
-function findSection(html, year) {
-  const y = String(year);
-
-  const markers = [
-    // Anchors/ids/names
-    new RegExp(`id=["'][^"']*${y}[^"']*["']`, "i"),
-    new RegExp(`name=["'][^"']*${y}[^"']*["']`, "i"),
-    new RegExp(`href=["']#${y}[^"']*["']`, "i"),
-
-    // Common Top40Weekly variants
-    new RegExp(`id=["']${y}-topsongslist["']`, "i"),
-    new RegExp(`id=["']${y}[-_]?topsongslist["']`, "i"),
-    new RegExp(`id=["']${y}[-_]?topsongs["']`, "i"),
-
-    // Header containing the year
-    new RegExp(`<h[1-4][^>]*>[^<]*\\b${y}\\b[^<]*<\\/h[1-4]>`, "i"),
-  ];
-
-  let start = -1;
-  for (const rx of markers) {
-    const m = rx.exec(html);
-    if (m && typeof m.index === "number") {
-      start = m.index;
-      break;
-    }
-  }
-  if (start < 0) return null;
-
-  const nextYear = String(year + 1);
-  const endMarkers = [
-    new RegExp(`id=["'][^"']*${nextYear}[^"']*["']`, "i"),
-    new RegExp(`name=["'][^"']*${nextYear}[^"']*["']`, "i"),
-    new RegExp(`href=["']#${nextYear}[^"']*["']`, "i"),
-    new RegExp(`<h[1-4][^>]*>[^<]*\\b${nextYear}\\b[^<]*<\\/h[1-4]>`, "i"),
-  ];
-
-  let end = html.length;
-  const slice = html.slice(start);
-  for (const rx of endMarkers) {
-    const m = rx.exec(slice);
-    if (m && typeof m.index === "number" && m.index > 10) {
-      end = start + m.index;
-      break;
+  if (t.includes("-")) {
+    const [a, b] = t.split("-", 2).map((x) => Number(x.trim()));
+    if (Number.isFinite(a) && Number.isFinite(b)) {
+      const lo = Math.min(a, b);
+      const hi = Math.max(a, b);
+      const out = [];
+      for (let y = lo; y <= hi; y++) out.push(y);
+      return out;
     }
   }
 
-  return html.slice(start, end);
+  const parts = t
+    .split(",")
+    .map((x) => Number(x.trim()))
+    .filter((n) => Number.isFinite(n));
+
+  return parts.length ? parts : [1960];
 }
 
-/**
- * Extract candidate ranked “items” from HTML blocks first:
- * - <li>...</li>
- * - <tr>...</tr>
- * - <p>...</p>
- * Then parse each item for rank + "Artist – Title" / "Title – Artist".
- */
-function extractRankItemsFromHtml(sectionHtml) {
-  const html = String(sectionHtml || "");
+function pageTitle(year) {
+  return `Billboard_Year-End_Hot_100_singles_of_${year}`;
+}
+
+function pageUrl(year) {
+  return `https://en.wikipedia.org/wiki/${pageTitle(year)}`;
+}
+
+async function fetchWikiText(year) {
+  const title = pageTitle(year);
+  const api =
+    "https://en.wikipedia.org/w/api.php" +
+    `?action=parse&format=json&prop=wikitext&origin=*` +
+    `&page=${encodeURIComponent(title)}`;
+
+  const r = await fetch(api, {
+    headers: {
+      // Keep this polite; Wikipedia may ignore/override UA, but don’t send empty.
+      "User-Agent": "SandblastBot/1.0 (year-end parser; contact: none)",
+      Accept: "application/json",
+      "Accept-Language": "en-US,en;q=0.9",
+    },
+  });
+
+  const j = await r.json().catch(() => null);
+  if (!r.ok || !j) return { ok: false, status: r.status, error: "BAD_RESPONSE" };
+
+  if (j.error) {
+    return {
+      ok: false,
+      status: 400,
+      error: cleanText(j.error.info || j.error.code || "API_ERROR"),
+    };
+  }
+
+  const wt = j?.parse?.wikitext?.["*"];
+  if (!wt) return { ok: false, status: 200, error: "NO_WIKITEXT" };
+
+  return { ok: true, status: 200, wikitext: String(wt) };
+}
+
+function extractWikitableBlocks(wikitext) {
+  const text = String(wikitext || "");
   const blocks = [];
 
-  const pushAll = (rx) => {
-    let m;
-    while ((m = rx.exec(html))) {
-      const raw = m[1] || "";
-      const t = decodeCommonEntities(stripTags(raw));
-      if (t) blocks.push(t);
-    }
-  };
-
-  // Prefer LI (most common for ranked lists)
-  pushAll(/<li\b[^>]*>([\s\S]*?)<\/li>/gi);
-
-  // Tables sometimes used
-  pushAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi);
-
-  // Sometimes paragraphs
-  pushAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi);
-
-  // If nothing, fallback to a coarse text slice
-  if (blocks.length === 0) {
-    const t = decodeCommonEntities(stripTags(html));
-    if (t) blocks.push(t);
-  }
-
+  // Accept sortable/plain; sometimes extra classes are present
+  const rx = /\{\|\s*class="wikitable[^"]*"[\s\S]*?\n\|\}/g;
+  let m;
+  while ((m = rx.exec(text))) blocks.push(m[0]);
   return blocks;
 }
 
-function parseOneRankLine(line) {
-  const s = cleanText(line);
-  if (!s) return null;
+function scoreWikitableBlock(block) {
+  const t = String(block || "").toLowerCase();
+  let s = 0;
 
-  // rank prefix: "1.", "1)", "1 -", "#1"
-  const m =
-    s.match(/^(?:#\s*)?(\d{1,3})\s*[.)-]?\s+(.*)$/) ||
-    s.match(/^rank\s*(\d{1,3})\s*[:\-]\s*(.*)$/i);
+  if (t.includes("rank")) s += 2;
+  if (t.includes("title")) s += 2;
+  if (t.includes("artist")) s += 2;
+  if (t.includes("no.") || t.includes("no")) s += 1;
 
-  if (!m) return null;
+  // more rows → likely the main table
+  const rowCount = (block.match(/\n\|-\s*\n/g) || []).length;
+  if (rowCount >= 80) s += 3;
+  if (rowCount >= 100) s += 2;
 
-  const rank = Number(m[1]);
-  if (!Number.isFinite(rank) || rank < 1 || rank > 100) return null;
+  return s;
+}
 
-  const rest = cleanText(m[2]);
-  if (!rest) return null;
+function pickBestWikitable(wikitext) {
+  const blocks = extractWikitableBlocks(wikitext);
+  if (!blocks.length) return null;
 
-  // Split on dash variants: "Artist – Title"
-  const parts = rest.split(/\s+[-–—:]\s+/).map(cleanText).filter(Boolean);
-  if (parts.length < 2) return null;
+  let best = null;
+  let bestScore = -Infinity;
+  for (const b of blocks) {
+    const s = scoreWikitableBlock(b);
+    if (s > bestScore) {
+      best = b;
+      bestScore = s;
+    }
+  }
+  return best;
+}
 
-  const a = parts[0];
-  const b = parts[1];
+function stripWikiMarkup(s) {
+  let t = String(s || "");
 
-  const looksArtist = (x) =>
-    /\b(feat\.|featuring|&|with)\b/i.test(x) ||
-    /\b(orchestra|band|singers|quartet|trio)\b/i.test(x);
+  // remove references
+  t = t.replace(/<ref[^>]*>[\s\S]*?<\/ref>/g, " ");
+  t = t.replace(/<ref[^\/]*\/>/g, " ");
 
-  let artist = "";
-  let title = "";
+  // convert [[Link|Text]] -> Text ; [[Text]] -> Text
+  t = t.replace(/\[\[([^|\]]+)\|([^\]]+)\]\]/g, "$2");
+  t = t.replace(/\[\[([^\]]+)\]\]/g, "$1");
 
-  // Decide direction
-  if (looksArtist(a) && !looksArtist(b)) {
-    artist = a; title = b;
-  } else if (!looksArtist(a) && looksArtist(b)) {
-    title = a; artist = b;
-  } else {
-    // Default: Artist – Title
-    artist = a; title = b;
+  // remove templates {{...}} (best effort; nested-ish)
+  for (let i = 0; i < 6; i++) {
+    t = t.replace(/\{\{[^{}]*\}\}/g, " ");
   }
 
-  artist = cleanText(artist.replace(/^["']|["']$/g, ""));
-  title = cleanText(title.replace(/^["']|["']$/g, ""));
+  // remove italics/bold markup
+  t = t.replace(/''+/g, "");
 
-  if (!artist || !title) return null;
+  // remove HTML tags
+  t = t.replace(/<[^>]+>/g, " ");
 
-  return { rank, artist, title };
+  // IMPORTANT: kill any leftover wiki brackets that slipped through
+  t = t.replace(/\[\[|\]\]/g, " ");
+
+  // cleanup
+  t = t.replace(/&nbsp;/g, " ");
+  t = t.replace(/\s+/g, " ");
+
+  return cleanText(t);
+}
+
+function polishField(s) {
+  let t = cleanText(s);
+
+  // extra safety: strip any stray wiki brackets
+  t = t.replace(/\[\[|\]\]/g, " ");
+
+  // trim wrapping quotes (straight + curly)
+  t = t.replace(/^[\s"'“”‘’]+/, "");
+  t = t.replace(/[\s"'“”‘’]+$/, "");
+
+  // normalize spaces again
+  t = t.replace(/\s+/g, " ").trim();
+
+  return t;
 }
 
 /**
- * For blocks that contain multiple ranks in one string,
- * extract repeated patterns without relying on line breaks.
- *
- * Example: "1. Artist – Song 2. Artist – Song 3. ..."
+ * Cells may look like:
+ *   style="text-align:center;" | 1
+ *   scope="row" | "Song"
+ * We want the rightmost value after the final pipe.
  */
-function extractMultipleRankLines(blockText) {
-  const t = " " + cleanText(blockText) + " ";
-  if (!t.trim()) return [];
+function normalizeCell(raw) {
+  let t = String(raw || "").trim();
 
-  const out = [];
-
-  // Capture " (rank). .... " until next rank or end
-  const rx = /(?:^|\s)(#?\s*\d{1,3})\s*[.)-]\s+([\s\S]*?)(?=(?:\s#?\s*\d{1,3}\s*[.)-]\s)|$)/g;
-
-  let m;
-  while ((m = rx.exec(t))) {
-    const maybeRank = cleanText(m[1]).replace(/^#\s*/, "");
-    const rank = Number(maybeRank);
-    if (!Number.isFinite(rank) || rank < 1 || rank > 100) continue;
-
-    const body = cleanText(m[2]);
-    if (!body) continue;
-
-    const parsed = parseOneRankLine(`${rank}. ${body}`);
-    if (parsed) out.push(parsed);
+  // If it contains pipe(s), keep the last segment (common with style/attrs)
+  if (t.includes("|")) {
+    const parts = t
+      .split("|")
+      .map((p) => p.trim())
+      .filter(Boolean);
+    if (parts.length) t = parts[parts.length - 1];
   }
 
-  return out;
+  return stripWikiMarkup(t);
 }
 
-function parseYearSection(sectionHtml, year) {
-  const items = extractRankItemsFromHtml(sectionHtml);
+/**
+ * FIXED: Wikipedia wikitables often use MULTI-LINE rows:
+ *   |-
+ *   | 1
+ *   | ''Song''
+ *   | [[Artist]]
+ *
+ * So we parse row blocks between "|-" markers.
+ */
+function parseWikitableToRows(year, wikitableBlock) {
+  const lines = String(wikitableBlock || "").split("\n");
 
-  const rows = [];
-  for (const item of items) {
-    // First try single-line parse
-    const one = parseOneRankLine(item);
-    if (one) {
-      rows.push({ year, rank: one.rank, artist: one.artist, title: one.title, source: SOURCE });
+  // Identify header row (best-effort)
+  let headerIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const t = lines[i].trim();
+    if (t.startsWith("!")) {
+      headerIdx = i;
+      break;
+    }
+  }
+
+  const headerLine = headerIdx >= 0 ? lines[headerIdx] : "";
+  const headers = headerLine
+    .split("!!")
+    .map((h) => normalizeCell(h.replace(/^!+/, "")))
+    .map((h) => h.toLowerCase());
+
+  const idxRank = headers.findIndex((h) => h.includes("rank") || h.includes("no"));
+  const idxTitle = headers.findIndex((h) => h.includes("title") || h.includes("single"));
+  const idxArtist = headers.findIndex((h) => h.includes("artist"));
+
+  // fallback: common 3-col layout
+  const colRank = idxRank >= 0 ? idxRank : 0;
+  const colTitle = idxTitle >= 0 ? idxTitle : 1;
+  const colArtist = idxArtist >= 0 ? idxArtist : 2;
+
+  // Collect row blocks
+  const rowBlocks = [];
+  let current = [];
+
+  for (const line of lines) {
+    const t = line.trim();
+
+    if (t.startsWith("|-")) {
+      if (current.length) rowBlocks.push(current);
+      current = [];
       continue;
     }
 
-    // Then try multi-rank extraction
-    const many = extractMultipleRankLines(item);
-    for (const p of many) {
-      rows.push({ year, rank: p.rank, artist: p.artist, title: p.title, source: SOURCE });
+    if (t.startsWith("|}")) {
+      if (current.length) rowBlocks.push(current);
+      break;
     }
+
+    // Data cells start with "|"
+    if (t.startsWith("|")) {
+      // strip leading pipe for cleaner parsing
+      current.push(t.replace(/^\|\s*/, ""));
+      continue;
+    }
+
+    // Header cells may start with "!" inside the table; ignore them for data rows.
   }
 
-  // Deduplicate by rank (keep first)
+  const rows = [];
+
+  for (const block of rowBlocks) {
+    if (!block || block.length < 1) continue;
+
+    // Handle single-line rows: | 1 || "Song" || Artist
+    let cells = [];
+    if (block.length === 1 && block[0].includes("||")) {
+      cells = block[0].split("||").map((c) => normalizeCell(c));
+    } else {
+      cells = block.map((c) => normalizeCell(c));
+    }
+
+    // Guard: if we didn't get enough columns, skip
+    if (cells.length < Math.max(colRank, colTitle, colArtist) + 1) continue;
+
+    const rankRaw = String(cells[colRank] || "");
+    const rank = Number(rankRaw.replace(/[^\d]/g, ""));
+    if (!Number.isFinite(rank) || rank < 1 || rank > 100) continue;
+
+    const title = polishField(cells[colTitle] || "");
+    const artist = polishField(cells[colArtist] || "");
+    if (!title || !artist) continue;
+
+    rows.push({
+      year,
+      rank,
+      title,
+      artist,
+      source: SOURCE,
+      chart: CHART,
+      url: pageUrl(year),
+    });
+  }
+
+  // Deduplicate by (year, rank)
   const seen = new Set();
-  const uniq = [];
+  const out = [];
   for (const r of rows) {
     const k = `${r.year}:${r.rank}`;
     if (seen.has(k)) continue;
     seen.add(k);
-    uniq.push(r);
+    out.push(r);
   }
 
-  uniq.sort((a, b) => a.rank - b.rank);
-  return uniq;
+  out.sort((a, b) => a.rank - b.rank);
+  return out;
 }
 
-function main() {
-  if (!fs.existsSync(IN_FILE)) {
-    console.error("Missing input file:", IN_FILE);
-    console.error("Download it first to Data/raw/top40weekly/top-100-songs-of-the-60s.html");
+/**
+ * Build Top 10 map from flat rows.
+ * Output shape:
+ * {
+ *   version, chart, source, generatedAt,
+ *   meta: { inputFile, outputFile, strict, validatedRows, yearsBuilt, yearsWithComplete10 },
+ *   years: { "1960": { year, chart, items:[{pos,artist,title}...] } }
+ * }
+ */
+function buildTop10ByYear(allRows) {
+  const byYear = new Map();
+  for (const r of allRows) {
+    const y = Number(r.year);
+    if (!Number.isFinite(y)) continue;
+    if (!byYear.has(y)) byYear.set(y, []);
+    byYear.get(y).push(r);
+  }
+
+  const yearsOut = {};
+  let yearsBuilt = 0;
+  let yearsWithComplete10 = 0;
+
+  const years = [...byYear.keys()].sort((a, b) => a - b);
+  for (const y of years) {
+    const rows = byYear.get(y).slice().sort((a, b) => a.rank - b.rank);
+    const top10 = rows.filter((x) => x.rank >= 1 && x.rank <= 10).slice(0, 10);
+
+    // Don’t emit empty shells
+    if (!top10.length) continue;
+
+    yearsOut[String(y)] = {
+      year: y,
+      chart: CHART,
+      items: top10.map((x) => ({
+        pos: x.rank,
+        artist: x.artist,
+        title: x.title,
+      })),
+    };
+
+    yearsBuilt += 1;
+    if (top10.length === 10) yearsWithComplete10 += 1;
+  }
+
+  return { yearsOut, yearsBuilt, yearsWithComplete10 };
+}
+
+async function main() {
+  if (typeof fetch !== "function") {
+    console.error("ERROR: fetch() not available in this Node runtime.");
     process.exit(1);
   }
 
-  const html = fs.readFileSync(IN_FILE, "utf8");
+  ensureDir(path.join(ROOT, "Data"));
 
-  if (looksLikeBotBlock(html)) {
-    console.error("Downloaded HTML looks like a bot/challenge page (Cloudflare/captcha).");
-    console.error("Re-download with curl headers (User-Agent + --compressed), then re-run this script.");
-    process.exit(2);
-  }
+  const years = parseArgsYears();
+  console.log("Years:", years.join(", "));
+  console.log("Chart:", CHART);
+  console.log("Source:", SOURCE);
+  console.log("");
 
-  const allRows = [];
-  for (let year = 1960; year <= 1969; year++) {
-    const sectionHtml = findSection(html, year);
-    if (!sectionHtml) {
-      console.log(`Year ${year}: parsed 0 ranked rows (section not found)`);
+  const all = [];
+
+  for (const year of years) {
+    const y = Number(year);
+    if (!Number.isFinite(y)) continue;
+
+    console.log(`[${y}] Fetching: ${pageUrl(y)}`);
+    const got = await fetchWikiText(y);
+
+    if (!got.ok) {
+      console.log(`[${y}] ERROR: ${got.error || "FETCH_FAILED"} (status=${got.status})`);
+      console.log("");
       continue;
     }
 
-    const rows = parseYearSection(sectionHtml, year);
+    const table = pickBestWikitable(got.wikitext);
+    if (!table) {
+      console.log(`[${y}] ERROR: no wikitable found in wikitext.`);
+      console.log("");
+      continue;
+    }
 
-    console.log(`Year ${year}: parsed ${rows.length} ranked rows`);
-    allRows.push(...rows);
+    const rows = parseWikitableToRows(y, table);
+    const top10Count = rows.filter((r) => r.rank >= 1 && r.rank <= 10).length;
+
+    console.log(`[${y}] Parsed rows: ${rows.length} | Top10 rows: ${top10Count}`);
+
+    if (rows.length < 50) {
+      console.log(
+        `[${y}] WARNING: low row count (${rows.length}). Table selection/parsing may be off.`
+      );
+    }
+
+    if (top10Count !== 10) {
+      console.log(
+        `[${y}] WARNING: Top10 incomplete (${top10Count}/10). Validate before expanding years.`
+      );
+    } else {
+      console.log(`[${y}] PASS: Top10 complete (10/10).`);
+    }
+
+    rows.forEach((r) => all.push(r));
+    console.log("");
   }
 
-  fs.writeFileSync(OUT_FILE, JSON.stringify(allRows, null, 2), "utf8");
-  console.log("\nWrote:", OUT_FILE);
-  console.log("Rows:", allRows.length);
+  // Write Top100 flat output
+  fs.writeFileSync(OUT_TOP100, JSON.stringify(all, null, 2), "utf8");
+  console.log("Wrote:", OUT_TOP100);
+  console.log("Total rows:", all.length);
 
-  if (allRows.length === 0)S
-  {
-    console.log("\nDEBUG TIP: confirm anchors/headers exist in the HTML:");
-    console.log('  Select-String -Path ".\\Data\\raw\\top40weekly\\top-100-songs-of-the-60s.html" -Pattern "1960","1960-","topsongs","topsongslist","<h2","<h3" -SimpleMatch | Select-Object -First 60');
+  // Build + write Top10 map output
+  const built = buildTop10ByYear(all);
+  const payload = {
+    version: "top10_by_year_v1",
+    chart: CHART,
+    source: "top100_billboard_yearend_1960s_v1.json (generated from MediaWiki API)",
+    generatedAt: new Date().toISOString(),
+    meta: {
+      inputFile: path.relative(ROOT, OUT_TOP100).replace(/\\/g, "/"),
+      outputFile: path.relative(ROOT, OUT_TOP10).replace(/\\/g, "/"),
+      strict: true,
+      validatedRows: all.length,
+      yearsBuilt: built.yearsBuilt,
+      yearsWithComplete10: built.yearsWithComplete10,
+    },
+    years: built.yearsOut,
+  };
+
+  fs.writeFileSync(OUT_TOP10, JSON.stringify(payload, null, 2), "utf8");
+  console.log("Wrote:", OUT_TOP10);
+
+  if (built.yearsBuilt === 0) {
+    console.log("\nWARNING: No Top10 years built (no parsed data).");
+  } else {
+    const incomplete = Object.keys(payload.years).filter(
+      (k) => (payload.years[k]?.items || []).length !== 10
+    );
+    if (incomplete.length) {
+      console.log(
+        `\nWARNING: Incomplete Top10 years: ${incomplete.join(", ")} (fix before adding more).`
+      );
+    }
   }
 }
 
-main();
+main().catch((e) => {
+  console.error("FATAL:", e);
+  process.exit(1);
+});
