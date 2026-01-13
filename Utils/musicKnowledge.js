@@ -1,29 +1,24 @@
 "use strict";
 
 /**
- * Utils/musicKnowledge.js — v2.73 (TOP10 STORE INTEGRATION + v2.72 chart resolver guarantees)
+ * Utils/musicKnowledge.js — v2.74 (FULL-RANGE SOURCE COVERAGE + TOP10 STORE FIRST + HARDENED YEAR-END MERGE)
  *
- * Retains v2.72 guarantees (as you specified):
- *  - Validate session.activeMusicChart against loaded chart set; auto-fallback if unsupported.
- *  - Year-only requests never dead-end due to unknown chart context (e.g., "Canada RPM").
- *  - If the requested chart has no rows for a year, retry canonical fallbacks before returning “clean list”.
- *  - Normalize common chart aliases consistently (RPM, Canada RPM, Year-End variants).
- *  - Always return a canonical sessionPatch (stop relying on session mutation for correctness).
- *  - Parsing for: "micro moment ####" and "micro ####".
- *  - "top 10" (no year) => uses session.lastMusicYear if present; otherwise asks for a year.
- *  - Story/Micro attempts to use Music Moments layer if available; otherwise deterministic chart-based fallback.
- *  - Deterministic fallback is tight, non-fluffy, and never loops.
- *  - Internal exports: _getTopByYear and _getNumberOneLine for musicMoments integration.
- *  - Hardened musicMoments safe-calls: supports getMoment(...) OR handle(...) without throwing.
- *  - Ensures lastMusicYear/lastMusicChart are patched consistently on every successful response.
- *  - CRITICAL: “Billboard Year-End Singles” never dead-ends outside 1950–1959 (auto resolves).
+ * Goal you stated (non-negotiable):
+ *  - We can access all music sources needed from 1950 through 2024.
  *
- * New in v2.73:
- *  - Adds Top 10 Store integration (Data/top10_by_year_v1.json) as the preferred truth spine for Top 10 queries.
- *    - Used for Top 10 lists AND #1 lines (via Top 10 list) when available.
- *    - Included in chart availability + hasAnyRowsForYearOnChart(...).
- *    - Safe mtime reload (no process restart needed).
- *  - Fallback ladder remains: Top10 Store -> Wikipedia 50s Singles (1950–1959) -> Wikipedia Year-End Hot 100 merges -> DB -> canonical fallbacks.
+ * What this file guarantees:
+ *  - Top 10 queries ALWAYS prefer the curated Top10 Store when present (Data/top10_by_year_v1.json).
+ *    This fixes “Top 10 1963/1965–1969 falling into story moment” when the store has the year.
+ *  - 1950–1959: prefers Wikipedia Year-End Singles spine if available.
+ *  - 1960–2024: prefers Top10 Store spine (Year-End Hot 100) when available, otherwise falls back through
+ *    Wikipedia Year-End Hot 100 merges, then DB candidates, then canonical fallbacks.
+ *  - Chart resolver is store-aware and will not dead-end on sticky charts or Year-End Singles outside 50s.
+ *  - Safe mtime reload for Top10 Store + 50s Singles cache (no restart required).
+ *  - Deterministic, non-looping fallbacks.
+ *
+ * NOTE:
+ *  - This module can *load* multiple sources; actual coverage depends on which JSON files exist on disk.
+ *    It will gracefully degrade if some sources aren't present.
  */
 
 const fs = require("fs");
@@ -33,7 +28,7 @@ const path = require("path");
 // Version
 // =========================
 const MK_VERSION =
-  "musicKnowledge v2.73 (Top10 Store integrated; chart resolver retained; no Year-End Singles dead-ends; sticky-chart safe)";
+  "musicKnowledge v2.74 (Full-range sources 1950–2024; Top10 Store-first; Year-End merge hardened; no dead-ends)";
 
 // =========================
 // Public Range / Charts
@@ -96,7 +91,13 @@ let LOADED_FROM = null;
 let INDEX_BUILT = false;
 
 const BY_YEAR_CHART = new Map(); // `${year}|${chart}` => moments[]
-const STATS = { moments: 0, yearMin: null, yearMax: null, charts: [] };
+const STATS = {
+  moments: 0,
+  yearMin: null,
+  yearMax: null,
+  charts: [],
+  sources: {}, // v2.74: introspection of what loaded
+};
 
 // Authoritative cache for 1950–1959 Year-End Singles
 const WIKI_SINGLES_50S_BY_YEAR = new Map();
@@ -180,6 +181,15 @@ function safeJsonRead(absPath) {
   }
 }
 
+function safeStatMtimeMs(absPath) {
+  try {
+    const st = fs.statSync(absPath);
+    return st && st.mtimeMs ? st.mtimeMs : 0;
+  } catch (_) {
+    return 0;
+  }
+}
+
 function coerceRank(m) {
   const raw =
     m.rank ?? m.position ?? m.no ?? m.pos ?? m.number ?? m["no."] ?? m["#"];
@@ -240,6 +250,11 @@ function canonicalPatch(session, extra = {}) {
   return patch;
 }
 
+function bumpSourceStat(key, delta) {
+  STATS.sources = STATS.sources || {};
+  STATS.sources[key] = (STATS.sources[key] || 0) + (delta || 0);
+}
+
 // =========================
 // Command Parsing (v2.72+)
 // =========================
@@ -272,20 +287,10 @@ function parseCommand(msg) {
 // =========================
 // Top 10 Store Cache
 // =========================
-function getTop10StoreMtimeMs() {
-  const abs = resolveRepoPath(TOP10_STORE_FILE);
-  try {
-    const st = fs.statSync(abs);
-    return st && st.mtimeMs ? st.mtimeMs : 0;
-  } catch (_) {
-    return 0;
-  }
-}
-
 function loadTop10StoreOnce({ force = false } = {}) {
   const abs = resolveRepoPath(TOP10_STORE_FILE);
+  const mtimeMs = safeStatMtimeMs(abs);
 
-  const mtimeMs = getTop10StoreMtimeMs();
   const changedOnDisk =
     mtimeMs &&
     TOP10_STORE_LAST_MTIME_MS &&
@@ -300,6 +305,7 @@ function loadTop10StoreOnce({ force = false } = {}) {
   if (force || changedOnDisk) {
     TOP10_STORE = null;
     TOP10_STORE_LOADED = false;
+    TOP10_STORE_LAST_MTIME_MS = 0;
   }
 
   if (TOP10_STORE_LOADED) return;
@@ -308,51 +314,83 @@ function loadTop10StoreOnce({ force = false } = {}) {
 
   if (!fs.existsSync(abs)) {
     // Store is optional (build can be added later)
+    bumpSourceStat("top10_store_missing", 1);
     return;
   }
 
-  TOP10_STORE_LAST_MTIME_MS = mtimeMs || getTop10StoreMtimeMs();
+  TOP10_STORE_LAST_MTIME_MS = mtimeMs || safeStatMtimeMs(abs);
 
   const doc = safeJsonRead(abs);
-  if (!doc || typeof doc !== "object") return;
+  if (!doc || typeof doc !== "object") {
+    bumpSourceStat("top10_store_badjson", 1);
+    return;
+  }
 
-  if (cleanText(doc.version) !== "top10_by_year_v1") return;
-  if (!doc.years || typeof doc.years !== "object") return;
+  // Accept both:
+  //  A) wrapper format: {version:"top10_by_year_v1", years:{ "1964":{...} } }
+  //  B) bare map format: { "1964":[...], "1965":[...] } or { "1964":{items:[...]}}
+  let yearsNode = null;
+  if (cleanText(doc.version) === "top10_by_year_v1" && doc.years) {
+    yearsNode = doc.years;
+  } else {
+    yearsNode = doc; // permissive fallback: treat root as year-map
+  }
 
-  TOP10_STORE = doc;
+  if (!yearsNode || typeof yearsNode !== "object") {
+    bumpSourceStat("top10_store_badshape", 1);
+    return;
+  }
 
-  // Treat YEAR_END_CHART as available if store exists (even if DB is absent)
-  try {
-    if (!STATS.charts.includes(YEAR_END_CHART)) {
-      STATS.charts.push(YEAR_END_CHART);
-    }
-  } catch (_) {}
+  TOP10_STORE = { version: "top10_by_year_v1", years: yearsNode };
+  bumpSourceStat("top10_store_loaded", 1);
 }
 
 function hasTop10StoreYear(year) {
   loadTop10StoreOnce({ force: false });
   if (!TOP10_STORE || !TOP10_STORE.years) return false;
+
   const node = TOP10_STORE.years[String(year)];
-  return !!(node && Array.isArray(node.items) && node.items.length);
+  if (!node) return false;
+
+  // wrapper node with items
+  if (Array.isArray(node.items) && node.items.length) return true;
+
+  // node itself is an array of {pos,artist,title}
+  if (Array.isArray(node) && node.length) return true;
+
+  // legacy: node.rows
+  if (Array.isArray(node.rows) && node.rows.length) return true;
+
+  return false;
 }
 
 function getTop10StoreList(year, limit = 10) {
   loadTop10StoreOnce({ force: false });
   if (!TOP10_STORE || !TOP10_STORE.years) return [];
 
-  const node = TOP10_STORE.years[String(year)];
-  if (!node || !Array.isArray(node.items) || !node.items.length) return [];
+  const ykey = String(year);
+  const node = TOP10_STORE.years[ykey];
+  if (!node) return [];
 
-  const items = node.items.slice(0, Math.max(1, Math.min(limit, 10)));
+  const chart = cleanText(node.chart) || YEAR_END_CHART;
+  const yearVal = toInt(node.year) || toInt(year);
 
-  // Normalize to our "moment" shape expected downstream
-  return items.map((it) =>
+  let items = [];
+  if (Array.isArray(node.items)) items = node.items;
+  else if (Array.isArray(node.rows)) items = node.rows;
+  else if (Array.isArray(node)) items = node;
+
+  if (!Array.isArray(items) || !items.length) return [];
+
+  const capped = items.slice(0, Math.max(1, Math.min(limit, 10)));
+
+  return capped.map((it) =>
     normalizeMoment({
-      year: toInt(node.year) || toInt(year),
-      rank: toInt(it.pos),
+      year: yearVal,
+      rank: toInt(it.pos ?? it.rank ?? it.position ?? it.no ?? it["#"]),
       title: it.title,
       artist: it.artist,
-      chart: cleanText(node.chart) || YEAR_END_CHART,
+      chart,
       source: TOP10_STORE_FILE,
     })
   );
@@ -361,20 +399,10 @@ function getTop10StoreList(year, limit = 10) {
 // =========================
 // 50s Singles Cache
 // =========================
-function getWikiSingles50sFileMtimeMs() {
-  const abs = resolveRepoPath(WIKI_YEAREND_SINGLES_1950_1959);
-  try {
-    const st = fs.statSync(abs);
-    return st && st.mtimeMs ? st.mtimeMs : 0;
-  } catch (_) {
-    return 0;
-  }
-}
-
 function loadWikiSingles50sOnce({ force = false } = {}) {
   const abs = resolveRepoPath(WIKI_YEAREND_SINGLES_1950_1959);
+  const mtimeMs = safeStatMtimeMs(abs);
 
-  const mtimeMs = getWikiSingles50sFileMtimeMs();
   const changedOnDisk =
     mtimeMs &&
     WIKI_SINGLES_50S_LAST_MTIME_MS &&
@@ -389,18 +417,22 @@ function loadWikiSingles50sOnce({ force = false } = {}) {
   if (force || changedOnDisk) {
     WIKI_SINGLES_50S_BY_YEAR.clear();
     WIKI_SINGLES_50S_LOADED = false;
+    WIKI_SINGLES_50S_LAST_MTIME_MS = 0;
   }
 
   if (WIKI_SINGLES_50S_LOADED) return;
 
   WIKI_SINGLES_50S_LOADED = true;
 
+  for (let y = 1950; y <= 1959; y++) WIKI_SINGLES_50S_BY_YEAR.set(y, []);
+
   if (!fs.existsSync(abs)) {
     console.warn(`[musicKnowledge] 50s Singles cache file not found: ${abs}`);
+    bumpSourceStat("wiki_50s_singles_missing", 1);
     return;
   }
 
-  WIKI_SINGLES_50S_LAST_MTIME_MS = mtimeMs || getWikiSingles50sFileMtimeMs();
+  WIKI_SINGLES_50S_LAST_MTIME_MS = mtimeMs || safeStatMtimeMs(abs);
 
   const doc = safeJsonRead(abs);
   const rows = Array.isArray(doc?.rows)
@@ -411,7 +443,7 @@ function loadWikiSingles50sOnce({ force = false } = {}) {
         ? doc
         : [];
 
-  for (let y = 1950; y <= 1959; y++) WIKI_SINGLES_50S_BY_YEAR.set(y, []);
+  let count = 0;
 
   for (const r of rows) {
     const y = toInt(r.year);
@@ -432,28 +464,16 @@ function loadWikiSingles50sOnce({ force = false } = {}) {
     const arr = WIKI_SINGLES_50S_BY_YEAR.get(y) || [];
     arr.push(entry);
     WIKI_SINGLES_50S_BY_YEAR.set(y, arr);
+    count++;
   }
 
   for (let y = 1950; y <= 1959; y++) {
     const arr = WIKI_SINGLES_50S_BY_YEAR.get(y) || [];
     arr.sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999));
-    if (!arr.length) {
-      console.warn(
-        `[musicKnowledge] WARNING: Wikipedia 50s singles missing year ${y} in rows payload.`
-      );
-    }
     WIKI_SINGLES_50S_BY_YEAR.set(y, arr);
   }
 
-  try {
-    const counts = {};
-    for (let y = 1950; y <= 1959; y++) {
-      counts[y] = (WIKI_SINGLES_50S_BY_YEAR.get(y) || []).length;
-    }
-    console.log(
-      `[musicKnowledge] 50s Singles cache loaded: counts=${JSON.stringify(counts)}`
-    );
-  } catch (_) {}
+  bumpSourceStat("wiki_50s_singles_rows", count);
 }
 
 function hasWikiSingles50sYear(year) {
@@ -475,8 +495,17 @@ function clearWikiSingles50sCache() {
 }
 
 // =========================
-// DB Load + Index
+// DB Load + Index (Plus Wikipedia merges)
 // =========================
+function extractRowsFromDoc(doc) {
+  if (!doc) return [];
+  if (Array.isArray(doc)) return doc;
+  if (Array.isArray(doc.rows)) return doc.rows;
+  if (Array.isArray(doc.moments)) return doc.moments;
+  if (Array.isArray(doc.data)) return doc.data;
+  return [];
+}
+
 function mergeWikipediaYearEndHot100Files(moments, relFiles) {
   const merged = [];
   const failures = [];
@@ -488,19 +517,14 @@ function mergeWikipediaYearEndHot100Files(moments, relFiles) {
 
     try {
       const doc = safeJsonRead(abs);
-      const rows = Array.isArray(doc?.rows)
-        ? doc.rows
-        : Array.isArray(doc?.moments)
-          ? doc.moments
-          : Array.isArray(doc)
-            ? doc
-            : [];
+      const rows = extractRowsFromDoc(doc);
+      if (!Array.isArray(rows) || !rows.length) continue;
 
       let count = 0;
 
       for (const r of rows) {
         const y = toInt(r.year);
-        const rk = toInt(r.rank);
+        const rk = toInt(r.rank ?? r.pos ?? r.position ?? r.no ?? r["#"]);
         if (!y || !rk) continue;
 
         merged.push(
@@ -517,17 +541,20 @@ function mergeWikipediaYearEndHot100Files(moments, relFiles) {
       }
 
       mergedTotal += count;
+      bumpSourceStat("wiki_yearend_hot100_rows", count);
+
       console.log(
-        `[musicKnowledge] Wikipedia Year-End merge: source=${abs} rows=${count}`
+        `[musicKnowledge] Wikipedia Year-End Hot 100 merge: source=${abs} rows=${count}`
       );
     } catch (e) {
       failures.push({ file: abs, error: e?.message || String(e) });
+      bumpSourceStat("wiki_yearend_hot100_failures", 1);
     }
   }
 
   if (failures.length) {
     console.warn(
-      `[musicKnowledge] Wikipedia Year-End merge failures: ${JSON.stringify(
+      `[musicKnowledge] Wikipedia Year-End Hot 100 merge failures: ${JSON.stringify(
         failures
       )}`
     );
@@ -540,7 +567,7 @@ function mergeWikipediaYearEndHot100Files(moments, relFiles) {
 function loadDb() {
   if (DB && INDEX_BUILT) return DB;
 
-  // Store + 50s Singles are optional but should be available early for chart resolver.
+  // Load caches early
   loadTop10StoreOnce({ force: false });
   loadWikiSingles50sOnce({ force: false });
 
@@ -551,17 +578,17 @@ function loadDb() {
     const abs = resolveRepoPath(rel);
     if (!fs.existsSync(abs)) continue;
 
-    try {
-      const json = safeJsonRead(abs);
-      const arr = Array.isArray(json?.moments) ? json.moments : json;
-      if (!Array.isArray(arr) || !arr.length) continue;
+    const json = safeJsonRead(abs);
+    const rows = extractRowsFromDoc(json);
+    if (!Array.isArray(rows) || !rows.length) continue;
 
-      moments = arr;
-      LOADED_FROM = abs;
-      break;
-    } catch (_) {}
+    moments = rows;
+    LOADED_FROM = abs;
+    bumpSourceStat("db_loaded_from", 1);
+    break;
   }
 
+  // Merge Wikipedia Year-End Hot 100 files (1960–2024 coverage as available)
   moments = mergeWikipediaYearEndHot100Files(moments, WIKI_YEAREND_HOT100_FILES);
 
   DB = { moments };
@@ -593,16 +620,20 @@ function loadDb() {
     BY_YEAR_CHART.set(k, arr);
   }
 
-  // Ensure 50s Year-End Singles is treated as "available"
+  // Ensure 50s Year-End Singles chart is treated as "available" if present
   if (hasWikiSingles50sYear(1950)) charts.add(YEAR_END_SINGLES_CHART);
 
-  // Ensure Top10 Store chart is treated as "available"
+  // Ensure Year-End chart is treated as available if store exists (even without DB)
   if (TOP10_STORE && hasTop10StoreYear(1960)) charts.add(YEAR_END_CHART);
 
   STATS.moments = moments.length;
   STATS.yearMin = minY;
   STATS.yearMax = maxY;
   STATS.charts = Array.from(charts);
+
+  // Coverage hints (v2.74)
+  if (TOP10_STORE) bumpSourceStat("top10_store_years", Object.keys(TOP10_STORE.years || {}).length);
+  if (LOADED_FROM) bumpSourceStat("db_file", 1);
 
   INDEX_BUILT = true;
 
@@ -620,6 +651,7 @@ function chartIsAvailable(chart) {
   loadDb();
   const c = normalizeChart(chart);
   if (c === YEAR_END_CHART && TOP10_STORE) return true;
+  if (c === YEAR_END_SINGLES_CHART && hasWikiSingles50sYear(1950)) return true;
   return STATS.charts.includes(c);
 }
 
@@ -633,7 +665,7 @@ function pickBestAvailableChart(preferredList) {
 }
 
 // =========================
-// Chart Resolver (v2.72 behavior retained; store-aware)
+// Chart Resolver (store-aware; no sticky dead-ends)
 // =========================
 function hasAnyRowsForYearOnChart(year, chart) {
   const y = toInt(year);
@@ -657,10 +689,10 @@ function hasAnyRowsForYearOnChart(year, chart) {
 
 /**
  * Resolve chart for a year, preventing “sticky chart” dead-ends.
- * - If requested chart is Year-End Singles but year is outside 1950–1959, automatically fall back.
- * - If requested chart isn't available, fall back to Year-End Hot 100, then Hot 100, then any available.
- * - For 1950–1959, prefer Year-End Singles if it exists; otherwise fall back normally.
- * - For 1960+, if Top10 Store has the year, prefer Year-End Hot 100 as the truth spine.
+ * - 1950–1959: prefer Year-End Singles if available; else fall back.
+ * - 1960+: if Top10 Store has year, prefer Year-End Hot 100 (truth spine).
+ * - Year-End Singles never dead-ends outside 1950–1959.
+ * - If requested chart isn't available, fall back through canonical charts.
  */
 function resolveChartForYear(year, requestedChart) {
   const y = toInt(year);
@@ -710,7 +742,7 @@ function resolveChartForYear(year, requestedChart) {
   return { ok: true, chart: req };
 }
 
-// Back-compat wrapper (kept name; behavior fixed)
+// Back-compat wrapper
 function chooseChartForYear(year, requestedChart) {
   return resolveChartForYear(year, requestedChart);
 }
@@ -722,13 +754,13 @@ function getTopByYear(year, chart, limit = 10) {
   const y = toInt(year);
   const c = normalizeChart(chart || DEFAULT_CHART);
 
-  // Top10 Store (preferred for Year-End Hot 100)
+  // 1) Top10 Store (preferred for YEAR_END_CHART, and also usable for #1 lines)
   if (c === YEAR_END_CHART) {
     const storeList = getTop10StoreList(y, limit);
     if (storeList.length) return renumberSequentialByRank(storeList, limit);
   }
 
-  // Wikipedia 50s Singles
+  // 2) Wikipedia 50s Singles
   if (c === YEAR_END_SINGLES_CHART && y >= 1950 && y <= 1959) {
     if (!ensureWikiSingles50sYear(y)) return [];
     const arr = WIKI_SINGLES_50S_BY_YEAR.get(y) || [];
@@ -736,6 +768,7 @@ function getTopByYear(year, chart, limit = 10) {
     return renumberSequentialByRank(arr, Math.min(limit, arr.length));
   }
 
+  // 3) DB / merged Wikipedia Year-End Hot 100
   loadDb();
   const arr = BY_YEAR_CHART.get(`${y}|${c}`) || [];
   if (!arr.length) return [];
@@ -764,14 +797,14 @@ function formatTopListWithFallbacks(year, requestedChart, limit = 10) {
   const y = toInt(year);
   if (!y) return null;
 
-  // 1) 1960+: prefer Top10 Store (truth spine) when present
+  // (A) 1960+: prefer Top10 Store if present
   if (y >= 1960 && hasTop10StoreYear(y)) {
     const formattedStore = formatTopList(y, YEAR_END_CHART, limit);
     if (formattedStore)
       return { formatted: formattedStore, chartUsed: YEAR_END_CHART };
   }
 
-  // 2) 1950–1959: try Singles first
+  // (B) 1950–1959: try Singles first
   if (y >= 1950 && y <= 1959) {
     const formatted50s = formatTopList(y, YEAR_END_SINGLES_CHART, limit);
     if (formatted50s)
@@ -799,8 +832,23 @@ function formatTopListWithFallbacks(year, requestedChart, limit = 10) {
 }
 
 function getNumberOneLine(year, chart) {
-  const list = getTopByYear(year, chart, 1);
+  const y = toInt(year);
+  const c = normalizeChart(chart || DEFAULT_CHART);
+
+  // Prefer store for #1 lines when store covers year
+  if (c === YEAR_END_CHART && hasTop10StoreYear(y)) {
+    const list = getTop10StoreList(y, 1);
+    if (list.length) {
+      const m = list[0];
+      const a = cleanText(m.artist) || "Unknown Artist";
+      const t = cleanText(m.title) || "Unknown Title";
+      return `#1 — ${a} — ${t}`;
+    }
+  }
+
+  const list = getTopByYear(y, c, 1);
   if (!list.length) return null;
+
   const m = list[0];
   const a = cleanText(m.artist) || "Unknown Artist";
   const t = cleanText(m.title) || "Unknown Title";
@@ -826,11 +874,11 @@ function getMomentFromLayer({ year, chart, kind }) {
         return res.text.trim();
     }
 
-    // 2) Alternate: musicMoments.handle(...) — build a small prompt
+    // 2) Alternate: musicMoments.handle(...)
     if (typeof musicMoments.handle === "function") {
       const prompt =
         kind === "micro" ? `micro moment ${year}` : `story moment ${year}`;
-      const out = musicMoments.handle(prompt, { ...{ activeMusicChart: chart } });
+      const out = musicMoments.handle(prompt, { activeMusicChart: chart });
       if (out && typeof out.reply === "string" && out.reply.trim())
         return out.reply.trim();
     }
@@ -928,7 +976,7 @@ function handleChat({ text, session }) {
 
       const y = impliedYear;
 
-      // v2.72+: resolve chart safely (store-aware)
+      // Resolve chart safely (store-aware)
       const choice = resolveChartForYear(y, session.activeMusicChart);
       const chart = choice.chart;
 
@@ -936,7 +984,6 @@ function handleChat({ text, session }) {
 
       if (out && out.formatted) {
         const used = out.chartUsed || chart;
-
         return {
           reply: `${out.formatted}\n\nWant #1, a story moment, a micro moment, or another year?`,
           followUp: ["#1", `story moment ${y}`, `micro moment ${y}`, "Another year"],
@@ -983,7 +1030,7 @@ function handleChat({ text, session }) {
         };
       }
 
-      // v2.72+: resolve chart if the stored chart is stale/out-of-range (store-aware)
+      // Resolve chart if the stored chart is stale/out-of-range (store-aware)
       const resolved = resolveChartForYear(y, chart);
       const chartUsed = resolved.chart;
 
@@ -1028,7 +1075,7 @@ function handleChat({ text, session }) {
         };
       }
 
-      // v2.72+: resolve chart safely (store-aware; no singles dead-ends)
+      // Resolve chart safely (store-aware; no singles dead-ends)
       const choice = resolveChartForYear(y, session.activeMusicChart);
       const chart = choice.chart;
 
@@ -1073,7 +1120,7 @@ function handleChat({ text, session }) {
   // Year-only input?
   const y = toInt(msg);
   if (isYearInRange(y)) {
-    // v2.72+: resolve chart safely (store-aware)
+    // Resolve chart safely (store-aware)
     const choice = resolveChartForYear(y, session.activeMusicChart);
     const chart = choice.chart;
 
@@ -1168,6 +1215,7 @@ module.exports = {
   _chartIsAvailable: chartIsAvailable,
   _hasAnyRowsForYearOnChart: hasAnyRowsForYearOnChart,
   _resolveChartForYear: resolveChartForYear,
+  _chooseChartForYear: chooseChartForYear,
 
   // For Utils/musicMoments.js integration (critical)
   _getTopByYear: getTopByYear,
