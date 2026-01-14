@@ -314,11 +314,15 @@ function deriveCogFromSession(session) {
   if (lane === "schedule")
     return { phase: "handoff", state: "active", reason: "lane:schedule" };
 
-  const hasMode = !!m && (m.includes("top") || m.includes("story") || m.includes("micro"));
+  const hasMode =
+    !!m && (m.includes("top") || m.includes("story") || m.includes("micro"));
 
-  if (!y && !hasMode) return { phase: "engage", state: "collect", reason: "need:year_mode" };
-  if (!y && hasMode) return { phase: "engage", state: "collect", reason: "need:year" };
-  if (y && !hasMode) return { phase: "engage", state: "decide", reason: "need:mode" };
+  if (!y && !hasMode)
+    return { phase: "engage", state: "collect", reason: "need:year_mode" };
+  if (!y && hasMode)
+    return { phase: "engage", state: "collect", reason: "need:year" };
+  if (y && !hasMode)
+    return { phase: "engage", state: "decide", reason: "need:mode" };
 
   return { phase: "execute", state: "running", reason: "music:ready" };
 }
@@ -334,7 +338,9 @@ function attachCogToPayload(payload, session) {
     reason: c.reason,
     lane: session ? String(session.lane || "general") : "general",
     year:
-      session && clampYear(Number(session.lastYear)) ? Number(session.lastYear) : null,
+      session && clampYear(Number(session.lastYear))
+        ? Number(session.lastYear)
+        : null,
     mode: session ? (session.activeMusicMode || session.pendingMode || null) : null,
   };
   return payload;
@@ -393,7 +399,10 @@ function preEngineBridge(session) {
   session.activeMusicChart = normalizeChartToken(session.activeMusicChart);
 
   // v1.5.20: always Number() before clampYear to avoid string-year drift
-  if (!clampYear(Number(session.lastYear)) && clampYear(Number(session.lastMusicYear))) {
+  if (
+    !clampYear(Number(session.lastYear)) &&
+    clampYear(Number(session.lastMusicYear))
+  ) {
     session.lastYear = Number(session.lastMusicYear);
   }
   if (!session.lastMusicChart && session.activeMusicChart) {
@@ -406,7 +415,10 @@ function preEngineBridge(session) {
 function postEngineBridge(session) {
   if (!session) return;
 
-  if (clampYear(Number(session.lastMusicYear)) && !clampYear(Number(session.lastYear))) {
+  if (
+    clampYear(Number(session.lastMusicYear)) &&
+    !clampYear(Number(session.lastYear))
+  ) {
     session.lastYear = Number(session.lastMusicYear);
   }
   if (
@@ -460,7 +472,11 @@ function looksLikeTop10Missing(reply) {
 
   if (!hasTop10) return false;
 
-  if (r.includes("dont have") || r.includes("don't have") || r.includes("do not have"))
+  if (
+    r.includes("dont have") ||
+    r.includes("don't have") ||
+    r.includes("do not have")
+  )
     return true;
 
   if (r.includes("no clean") && r.includes("top")) return true;
@@ -583,7 +599,11 @@ const FMP = {
     }
 
     const modeLabel =
-      mode === "top10" ? "the Top 10" : mode === "micro" ? "a micro moment" : "a story moment";
+      mode === "top10"
+        ? "the Top 10"
+        : mode === "micro"
+        ? "a micro moment"
+        : "a story moment";
 
     const reply =
       reason === "askYear"
@@ -761,14 +781,20 @@ function _afHasYear(session) {
 }
 
 function _afHasMode(session) {
-  const m = cleanText(session && (session.activeMusicMode || session.pendingMode) ? (session.activeMusicMode || session.pendingMode) : "")
-    .toLowerCase();
+  const m = cleanText(
+    session && (session.activeMusicMode || session.pendingMode)
+      ? session.activeMusicMode || session.pendingMode
+      : ""
+  ).toLowerCase();
   return !!m && (m.includes("top") || m.includes("story") || m.includes("micro"));
 }
 
 function _afModeLabel(session) {
-  const m = cleanText(session && (session.activeMusicMode || session.pendingMode) ? (session.activeMusicMode || session.pendingMode) : "")
-    .toLowerCase();
+  const m = cleanText(
+    session && (session.activeMusicMode || session.pendingMode)
+      ? session.activeMusicMode || session.pendingMode
+      : ""
+  ).toLowerCase();
   if (m.includes("top")) return "Top 10";
   if (m.includes("story")) return "Story moment";
   if (m.includes("micro")) return "Micro moment";
@@ -780,8 +806,13 @@ function _afLooksLikeQuestion(reply) {
   if (!t) return false;
   if (t.endsWith("?")) return true;
   if (t.includes("what would you like") || t.includes("which would you like")) return true;
-  if (t.includes("give me a year") || t.includes("pick a year") || t.includes("choose a year")) return true;
-  if (t.includes("choose a mode") || t.includes("pick a mode") || (t.includes("top 10") && t.includes("story moment") && t.includes("micro moment")))
+  if (t.includes("give me a year") || t.includes("pick a year") || t.includes("choose a year"))
+    return true;
+  if (
+    t.includes("choose a mode") ||
+    t.includes("pick a mode") ||
+    (t.includes("top 10") && t.includes("story moment") && t.includes("micro moment"))
+  )
     return true;
   return false;
 }
@@ -1884,10 +1915,12 @@ function respondJson(req, res, base, session, engineOut, profile, forceFourChips
         followUps: payload.followUps,
         session,
       });
-      payload.reply = fin.reply;
+      payload.reply = finalizeReply(session, fin.reply);
       payload.followUps = fin.followUps;
       payload.followUp = (fin.followUps || []).map((x) => x.label);
-    } catch (_) {}
+    } catch (_) {
+      payload.reply = finalizeReply(session, payload.reply);
+    }
 
     attachCogToPayload(payload, session);
 
@@ -1962,10 +1995,12 @@ function respondJson(req, res, base, session, engineOut, profile, forceFourChips
       followUps: payload.followUps,
       session,
     });
-    payload.reply = fin.reply;
+    payload.reply = finalizeReply(session, fin.reply);
     payload.followUps = fin.followUps;
     payload.followUp = (fin.followUps || []).map((x) => x.label);
-  } catch (_) {}
+  } catch (_) {
+    payload.reply = finalizeReply(session, payload.reply);
+  }
 
   attachCogToPayload(payload, session);
 
