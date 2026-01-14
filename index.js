@@ -3,31 +3,24 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18 (SURGICAL: adds Schedule Lane (timezone-aware Roku programming) without disturbing v1.5.17 behavior)
+ * index.js v1.5.19 (COGNITIVE LAYERING: more assertive + bulletproof; preserves v1.5.18 behavior)
  *
- * Adds:
- *  - Schedule Lane (Utils/scheduleLane.js):
- *      - Detects schedule intent (“what time does ___ play in London”, “what’s playing now”, “schedule”)
- *      - Resolves user timezone from text/session (city → IANA tz via timezoneResolver)
- *      - Converts ET-authored programming windows to user local time (DST-safe)
- *      - Preserves lane routing precedence + follow-up merge behavior
+ * Adds (Cognitive OS Layer v1.0):
+ *  - session.cogPhase + session.cogState + session.cogReason (lightweight, deterministic)
+ *  - Optional payload.cog (non-breaking add) so frontend/avatar can reflect phase/state
+ *  - Assertive auto-continue for returning/resumable greetings (env-gated)
+ *  - Assertive “missing info” handling (less questions; more directives + safe defaults)
+ *  - Hardened “no-question-end” for music/general lane (keeps forward motion)
  *
- * Preserves (from v1.5.17):
- *  - Explicit Top10 Guard: “top 10 ####” no longer degrades to bare-year → story auto-run
- *  - v1.5.16 FMP auto-run after forceProceed
- *  - v1.5.15 Mode-chip override ALWAYS wins + FMP respects pendingMode
- *  - Bare-year defaults Top 10 + Year-End chart pin
- *  - Top10-missing detector hardening + NO-TECH-LEAK copy + better chips
- *  - lane overrides + lane exit + routing precedence
- *  - GH1 micro-guard, replay integrity, followUp merge, greeting-only 4-chip enforcement
- *  - #1 routing, chart contamination guard, nav completion, music field bridge
- *  - Single /api/health route (no duplicates)
- *
- * CRITICAL v1.5.18 fixes (Cognitive OS efficiency):
- *  - Bare-year ALWAYS defaults to Top 10 (prevents story/micro “mode stickiness” after a story seed)
- *  - Removes redundant schedule-lane double-check (runEngine already handles schedule precedence)
- *  - Ensures lane-owned follow-ups always include “Back to music” escape hatch
- *  - Stabilizes follow-up label casing for nav tokens (“Prev year”/“Next year”) without breaking old clients
+ * Preserves (from v1.5.18):
+ *  - Schedule Lane (timezone-aware programming) + precedence
+ *  - Explicit Top10 Guard + bare-year => Top 10
+ *  - FMP autorun + loop-proofing
+ *  - Lane escape chip always present (Back to music)
+ *  - Replay integrity, followUp merge, greeting-only 4-chip enforcement
+ *  - Chart contamination guard + musicKnowledge bridge
+ *  - Top10-missing deterministic escape
+ *  - #1 routing, nav completion, mic feedback guard, single /api/health
  */
 
 const express = require("express");
@@ -42,7 +35,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.18 (v1.5.17 + Schedule Lane (timezone-aware programming); preserves explicit Top10 guard + FMP autorun + mode-chip override + NO-TECH-LEAK Top10-missing escape + lanes/routing + replay/chips + #1 routing + chart guard + nav completion + music bridge; fixes: bare-year=>Top10, no schedule double-check, lane escape chip, nav label casing)";
+  "index.js v1.5.19 (v1.5.18 + Cognitive OS assertive layering: cogPhase/state, optional payload.cog, auto-continue on greeting for returning/resumable (env-gated), more directive prompts, hardened no-question-end; preserves schedule/sponsors/movies/music routing, explicit Top10 guard, FMP autorun, lane escape chips, replay integrity, chart guard/bridge, Top10-missing escape)";
 
 /* ======================================================
    Basic middleware
@@ -260,6 +253,80 @@ function makeUuid() {
 }
 
 /* ======================================================
+   Cognitive OS Layer (assertive)
+====================================================== */
+
+/**
+ * Optional behavior toggles (safe defaults):
+ *  - COG_PAYLOAD_ENABLED: include payload.cog for UI/avatar (default true)
+ *  - COG_AUTOCONTINUE_ON_GREETING: returning+resumable greeting auto-runs Continue (default true)
+ *  - COG_AUTOCONTINUE_COOLDOWN_MS: throttle to avoid surprise loops (default 6h)
+ */
+const COG_PAYLOAD_ENABLED =
+  String(process.env.COG_PAYLOAD_ENABLED || "true") === "true";
+
+const COG_AUTOCONTINUE_ON_GREETING =
+  String(process.env.COG_AUTOCONTINUE_ON_GREETING || "true") === "true";
+
+const COG_AUTOCONTINUE_COOLDOWN_MS = Math.max(
+  30 * 1000,
+  Math.min(24 * 60 * 60 * 1000, Number(process.env.COG_AUTOCONTINUE_COOLDOWN_MS || 6 * 60 * 60 * 1000))
+);
+
+function initCog(session) {
+  if (!session) return;
+  if (!session.cogPhase) session.cogPhase = "idle";
+  if (!session.cogState) session.cogState = "ready";
+  if (!session.cogReason) session.cogReason = "";
+  if (!Number.isFinite(Number(session._cogLastAutoContinueAt || 0)))
+    session._cogLastAutoContinueAt = 0;
+}
+
+function setCog(session, phase, state, reason) {
+  if (!session) return;
+  initCog(session);
+  session.cogPhase = cleanText(phase || "idle") || "idle";
+  session.cogState = cleanText(state || "ready") || "ready";
+  session.cogReason = cleanText(reason || "") || "";
+}
+
+function deriveCogFromSession(session) {
+  if (!session) return { phase: "idle", state: "ready", reason: "" };
+  initCog(session);
+
+  const lane = String(session.lane || "general");
+  const y = clampYear(Number(session.lastYear));
+  const m = session.activeMusicMode || session.pendingMode || null;
+
+  if (lane === "sponsors") return { phase: "handoff", state: "active", reason: "lane:sponsors" };
+  if (lane === "movies") return { phase: "handoff", state: "active", reason: "lane:movies" };
+  if (lane === "schedule") return { phase: "handoff", state: "active", reason: "lane:schedule" };
+
+  if (!y && !m) return { phase: "engage", state: "collect", reason: "need:year_mode" };
+  if (!y && m) return { phase: "engage", state: "collect", reason: "need:year" };
+  if (y && !m) return { phase: "engage", state: "decide", reason: "need:mode" };
+
+  return { phase: "execute", state: "running", reason: "music:ready" };
+}
+
+function attachCogToPayload(payload, session) {
+  if (!COG_PAYLOAD_ENABLED) return payload;
+  if (!payload || typeof payload !== "object") return payload;
+
+  const c = deriveCogFromSession(session);
+  // Keep it compact and stable for frontend consumers.
+  payload.cog = {
+    phase: c.phase,
+    state: c.state,
+    reason: c.reason,
+    lane: session ? String(session.lane || "general") : "general",
+    year: session && clampYear(Number(session.lastYear)) ? Number(session.lastYear) : null,
+    mode: session ? (session.activeMusicMode || session.pendingMode || null) : null,
+  };
+  return payload;
+}
+
+/* ======================================================
    Music constants + chart contamination guard
 ====================================================== */
 
@@ -317,6 +384,8 @@ function preEngineBridge(session) {
   if (!session.lastMusicChart && session.activeMusicChart) {
     session.lastMusicChart = session.activeMusicChart;
   }
+
+  initCog(session);
 }
 
 function postEngineBridge(session) {
@@ -346,6 +415,8 @@ function postEngineBridge(session) {
   session.lastMusicChart = normalizeChartToken(
     session.lastMusicChart || session.activeMusicChart || DEFAULT_CHART
   );
+
+  initCog(session);
 }
 
 /* ======================================================
@@ -397,7 +468,7 @@ function top10MissingPreface(year) {
   const y = clampYear(Number(year)) || 1988;
   return (
     `For ${y}, I can give you something richer than a standard Top 10 right now.` +
-    ` I can run a story moment or a micro moment. I’ll start with the story moment—say “micro moment ${y}” if you prefer that.`
+    ` I’m going to run a story moment—say “micro moment ${y}” if you want the tighter version.`
   );
 }
 
@@ -478,7 +549,7 @@ const FMP = {
   forceProceed(session, reason) {
     const y = clampYear(session && session.lastYear) ? session.lastYear : null;
 
-    // v1.5.15: IMPORTANT — prefer pendingMode when deciding what to run
+    // prefer pendingMode when deciding what to run
     const m =
       (session && (session.pendingMode || session.activeMusicMode)) || null;
 
@@ -489,17 +560,16 @@ const FMP = {
       session.lastYear = year;
       session.lastMusicYear = year;
 
-      // lock the mode chosen (and clear pending)
       session.activeMusicMode = mode;
       session.pendingMode = null;
 
-      // Pin chart for Top 10
       if (mode === "top10") {
         session.activeMusicChart = YEAR_END_CHART;
         session.lastMusicChart = YEAR_END_CHART;
       }
 
       guardChartForYear(session, year);
+      setCog(session, "execute", "running", `fmp:${reason || "forceProceed"}`);
     }
 
     const modeLabel =
@@ -509,12 +579,13 @@ const FMP = {
         ? "a micro moment"
         : "a story moment";
 
+    // More assertive copy: declarative + clear escape hatch.
     const reply =
       reason === "askYear"
-        ? `Locked in ${year}. I’m going to run ${modeLabel} now. Say “switch” if you want a different mode.`
+        ? `Locked in ${year}. Running ${modeLabel} now. Say “switch” if you want a different mode.`
         : reason === "askMode"
-        ? `Got it — ${year}. I’m going to run ${modeLabel} now. Say “switch” if you want a different mode.`
-        : `I’ll proceed with ${modeLabel} for ${year}. Say “switch” if you want a different mode.`;
+        ? `Got it — ${year}. Running ${modeLabel} now. Say “switch” if you want a different mode.`
+        : `Running ${modeLabel} for ${year}. Say “switch” if you want a different mode.`;
 
     const sendRun =
       mode === "top10"
@@ -531,7 +602,6 @@ const FMP = {
       { label: "Another year", send: "Another year" },
     ];
 
-    // v1.5.17: attach meta so chat layer can auto-execute without stalling
     return {
       reply,
       followUps,
@@ -577,7 +647,7 @@ const FMP = {
             : "a story moment";
         const amended =
           `${reply.replace(/[?]+$/g, ".")} ` +
-          `I’ll proceed with ${modeLabel} for ${y} unless you say “switch”.`;
+          `Proceeding with ${modeLabel} for ${y} unless you say “switch”.`;
         return Object.assign({}, out, { reply: amended });
       }
     }
@@ -586,9 +656,6 @@ const FMP = {
   },
 };
 
-/**
- * v1.5.17: Auto-run after FMP.forceProceed to avoid “Run now” stalls.
- */
 async function maybeAutoRunFmp(out, session) {
   if (!FMP_AUTORUN_ENABLED) return out;
   if (!out || typeof out !== "object") return out;
@@ -608,16 +675,14 @@ async function maybeAutoRunFmp(out, session) {
     return out;
   }
 
-  // mark before executing to prevent rapid recursion
   session._fmpAutoRanAt = now;
+  setCog(session, "execute", "running", "fmp:autoRun");
 
   const out2 = await runEngine(cmd, session);
   const out3 = FMP.apply(out2, session);
 
-  // preserve the “switch mode” affordance if engine didn't provide anything
   if (!out3.followUps && out.followUps) out3.followUps = out.followUps;
 
-  // remove meta to avoid re-running on later merges
   if (out3 && typeof out3 === "object") {
     try {
       delete out3._fmpMeta;
@@ -632,7 +697,7 @@ async function applyFmp(out0, session) {
 }
 
 /* ======================================================
-   GH-1 Micro-Guard (forward motion)
+   GH-1 Micro-Guard (forward motion) + Assertive reply finalize
 ====================================================== */
 
 function ensureForwardMotion(reply, session) {
@@ -645,6 +710,8 @@ function ensureForwardMotion(reply, session) {
 
   const hasYear = !!clampYear(Number(session.lastYear));
   const hasMode = !!(session.activeMusicMode || session.pendingMode);
+
+  // If it ends with a question and we already have enough context, convert to declarative.
   const endsWithQuestion = /\?\s*$/.test(r);
 
   if (hasYear && hasMode && endsWithQuestion) {
@@ -659,7 +726,7 @@ function ensureForwardMotion(reply, session) {
 
     return (
       r.replace(/\?\s*$/, ".") +
-      `\n\nI’ll keep going with ${modeLabel} for ${y} unless you say “switch”.`
+      `\n\nProceeding with ${modeLabel} for ${y}. Say “switch” to change mode.`
     );
   }
 
@@ -835,11 +902,18 @@ function getSession(sessionId) {
 
       // v1.5.17 autorun guard
       _fmpAutoRanAt: 0,
+
+      // Cognitive OS
+      cogPhase: "idle",
+      cogState: "ready",
+      cogReason: "",
+      _cogLastAutoContinueAt: 0,
     });
   }
 
   const s = SESSIONS.get(sid);
   s.updatedAt = Date.now();
+  initCog(s);
   return s;
 }
 
@@ -884,7 +958,6 @@ try {
   moviesLane = null;
 }
 
-// v1.5.18: Schedule Lane (timezone-aware programming)
 let scheduleLane = null;
 try {
   scheduleLane = require("./Utils/scheduleLane");
@@ -1089,10 +1162,6 @@ function modeToCommand(mode) {
   return "top 10";
 }
 
-/**
- * v1.5.17: Explicit Top10 guard (prevents “top 10 ####” being treated like bare-year)
- * Accepts: "top 10 1963", "top10 1963", "top ten 1963" (any spacing/case)
- */
 function isExplicitTop10WithYear(text) {
   const t = cleanText(text).toLowerCase();
   return (
@@ -1157,7 +1226,6 @@ function normalizeNavToken(text) {
 
   if (/^(next|next year|forward|year\+1)\b/.test(t)) return "nextYear";
 
-  // v1.5.18 FIX: accept "prev year" (chip casing) in addition to "previous year"
   if (/^(prev|prev year|previous|previous year|back|year-1)\b/.test(t)) return "prevYear";
 
   if (/^(another year|new year|different year)\b/.test(t)) return "anotherYear";
@@ -1179,19 +1247,20 @@ function greetingReply(profile, canContinue) {
   const name = profile && cleanText(profile.name) ? cleanText(profile.name) : "";
 
   if (!returning) {
-    return "Hi — welcome to Sandblast. I’m Nyx. Give me a year (1950–2024) and choose: Top 10, Story moment, or Micro moment.";
+    return "Hi — welcome to Sandblast. I’m Nyx. Drop a year (1950–2024). Then choose: Top 10, Story moment, or Micro moment.";
   }
 
   const who = name ? `Welcome back, ${name}.` : "Welcome back.";
-  if (canContinue) return `${who} Want to continue where we left off?`;
-  return `${who} Want to start fresh?`;
+  // More assertive (but still chip-driven): the auto-continue path is handled in /api/chat when enabled.
+  if (canContinue) return `${who} I can continue where we left off—tap “Continue”, or drop a year to pivot.`;
+  return `${who} Tap “Start fresh”, or drop a year to jump in.`;
 }
 
 function replyMissingYearForMode(mode) {
-  if (mode === "top10") return "What year (1950–2024) for your Top 10?";
-  if (mode === "story") return "What year (1950–2024) for the story moment?";
-  if (mode === "micro") return "What year (1950–2024) for the micro-moment?";
-  return "What year (1950–2024)?";
+  if (mode === "top10") return "Drop a year (1950–2024) for your Top 10.";
+  if (mode === "story") return "Drop a year (1950–2024) for the story moment.";
+  if (mode === "micro") return "Drop a year (1950–2024) for the micro moment.";
+  return "Drop a year (1950–2024).";
 }
 
 /* ======================================================
@@ -1233,7 +1302,7 @@ function numberOneFollowUps(year) {
 async function runMusicEngine(text, session) {
   if (!musicKnowledge || typeof musicKnowledge.handleChat !== "function") {
     return {
-      reply: "Tell me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment.",
+      reply: "Drop a year (1950–2024). Then choose: Top 10, Story moment, or Micro moment.",
     };
   }
 
@@ -1266,6 +1335,8 @@ async function runMusicEngine(text, session) {
       guardChartForYear(session, yearReq);
       preEngineBridge(session);
 
+      setCog(session, "execute", "running", "top10Missing:storyFallback");
+
       const out2 =
         musicKnowledge.handleChat({ text: `story moment ${yearReq}`, session }) || {};
 
@@ -1288,7 +1359,7 @@ async function runMusicEngine(text, session) {
     return out;
   } catch (e) {
     return {
-      reply: "I hit a snag in the music engine. Try again with a year (1950–2024).",
+      reply: "I hit a snag in the music engine. Drop a year (1950–2024) and I’ll rerun it.",
       error: String(e && e.message ? e.message : e),
     };
   }
@@ -1314,7 +1385,6 @@ function isMoviesActive(session, message) {
   return false;
 }
 
-// v1.5.18
 function isScheduleActive(session, message) {
   if (!scheduleLane) return false;
   if (session && session.lane === "schedule") return true;
@@ -1336,12 +1406,14 @@ async function runSponsorsLane(text, session) {
     if (out.sessionPatch && typeof out.sessionPatch === "object")
       Object.assign(session, out.sessionPatch);
     session.lane = "sponsors";
+    setCog(session, "handoff", "active", "lane:sponsors");
     return out;
   } catch (e) {
     session.lane = "sponsors";
+    setCog(session, "handoff", "active", "lane:sponsors:error");
     return {
       reply:
-        "Sponsors Lane hit an error. Try: TV/Radio/Website/Social or say “Request rate card”.",
+        "Sponsors Lane hit an error. State your goal (calls / foot traffic / website clicks / brand awareness).",
       error: String(e && e.message ? e.message : e),
     };
   }
@@ -1359,17 +1431,18 @@ async function runMoviesLane(text, session) {
     if (out.sessionPatch && typeof out.sessionPatch === "object")
       Object.assign(session, out.sessionPatch);
     session.lane = "movies";
+    setCog(session, "handoff", "active", "lane:movies");
     return out;
   } catch (e) {
     session.lane = "movies";
+    setCog(session, "handoff", "active", "lane:movies:error");
     return {
-      reply: "Movies Lane hit an error. Try: “Movies Lane” or paste a movie URL.",
+      reply: "Movies Lane hit an error. Say “Movies Lane” or paste a movie URL.",
       error: String(e && e.message ? e.message : e),
     };
   }
 }
 
-// v1.5.18
 async function runScheduleLane(text, session) {
   if (!scheduleLane || typeof scheduleLane.handleChat !== "function") {
     return {
@@ -1382,9 +1455,11 @@ async function runScheduleLane(text, session) {
     if (out.sessionPatch && typeof out.sessionPatch === "object")
       Object.assign(session, out.sessionPatch);
     session.lane = "schedule";
+    setCog(session, "handoff", "active", "lane:schedule");
     return out;
   } catch (e) {
     session.lane = "schedule";
+    setCog(session, "handoff", "active", "lane:schedule:error");
     return {
       reply:
         "Schedule Lane hit an error. Try: “What time does Gospel Sunday play in London?”",
@@ -1394,10 +1469,17 @@ async function runScheduleLane(text, session) {
 }
 
 async function runEngine(text, session) {
-  // v1.5.18 precedence: schedule before other lanes if intent matches
+  // precedence: schedule before other lanes if intent matches
   if (isScheduleActive(session, text)) return runScheduleLane(text, session);
   if (isSponsorsActive(session, text)) return runSponsorsLane(text, session);
   if (isMoviesActive(session, text)) return runMoviesLane(text, session);
+
+  // music/general
+  if (session) {
+    session.lane = "music";
+    const c = deriveCogFromSession(session);
+    setCog(session, c.phase, c.state, c.reason);
+  }
   return runMusicEngine(text, session);
 }
 
@@ -1490,12 +1572,6 @@ function makeFollowUpsTight(session, profile) {
   };
 }
 
-/**
- * v1.5.18 FIX: stabilize nav label casing for chip tokens (without breaking old clients).
- * Any variant of "prev/previous" and "next" is canonicalized to:
- *   - Label: "Prev year" / "Next year"
- *   - Send:  "Prev year" / "Next year"
- */
 function canonicalizeNavChip(it) {
   if (!it || typeof it !== "object") return it;
   const send = cleanText(it.send || "");
@@ -1509,9 +1585,7 @@ function canonicalizeNavChip(it) {
     l === "prev year" ||
     l === "previous year";
 
-  const isNext =
-    s === "next year" ||
-    l === "next year";
+  const isNext = s === "next year" || l === "next year";
 
   if (isPrev) return { label: "Prev year", send: "Prev year" };
   if (isNext) return { label: "Next year", send: "Next year" };
@@ -1554,7 +1628,6 @@ function normalizeEngineFollowups(out) {
 }
 
 function ensureLaneEscapeChips(merged) {
-  // lane-owned conversations should ALWAYS offer a clean escape hatch.
   const hasBack = merged.some((x) => cleanText(x.send).toLowerCase() === "back to music");
   if (!hasBack) merged.push({ label: "Back to music", send: "Back to music" });
   return merged;
@@ -1572,6 +1645,8 @@ function respondJson(req, res, base, session, engineOut, profile, forceFourChips
       followUps: tight.followUps,
       followUp: tight.followUp,
     });
+
+    attachCogToPayload(payload, session);
 
     const wantsDebug = CHAT_DEBUG || parseDebugFlag(req);
     if (wantsDebug) {
@@ -1598,6 +1673,13 @@ function respondJson(req, res, base, session, engineOut, profile, forceFourChips
           lastIntent: session ? session.lastIntent : null,
           userTz: session ? session.userTz : null,
           userCity: session ? session.userCity : null,
+          cog: session
+            ? {
+                phase: session.cogPhase,
+                state: session.cogState,
+                reason: session.cogReason,
+              }
+            : null,
         },
         resume: { resumable: tight.resumable, forcedFourChips: true },
       };
@@ -1627,7 +1709,7 @@ function respondJson(req, res, base, session, engineOut, profile, forceFourChips
     };
 
     for (const it of engineNorm) {
-      if (merged.length >= 7) break; // reserve 1 slot for "Back to music"
+      if (merged.length >= 7) break;
       add(it);
     }
 
@@ -1642,6 +1724,8 @@ function respondJson(req, res, base, session, engineOut, profile, forceFourChips
       followUp: merged.slice(0, 8).map((x) => x.label),
     });
 
+    attachCogToPayload(payload, session);
+
     const wantsDebug = CHAT_DEBUG || parseDebugFlag(req);
     if (wantsDebug) {
       payload.debug = {
@@ -1654,6 +1738,13 @@ function respondJson(req, res, base, session, engineOut, profile, forceFourChips
           lastIntent: session ? session.lastIntent : null,
           userTz: session ? session.userTz : null,
           userCity: session ? session.userCity : null,
+          cog: session
+            ? {
+                phase: session.cogPhase,
+                state: session.cogState,
+                reason: session.cogReason,
+              }
+            : null,
         },
       };
     }
@@ -1695,6 +1786,8 @@ function respondJson(req, res, base, session, engineOut, profile, forceFourChips
     followUp: merged.slice(0, 8).map((x) => x.label),
   });
 
+  attachCogToPayload(payload, session);
+
   const wantsDebug = CHAT_DEBUG || parseDebugFlag(req);
   if (wantsDebug) {
     payload.debug = {
@@ -1720,6 +1813,13 @@ function respondJson(req, res, base, session, engineOut, profile, forceFourChips
         lastIntent: session ? session.lastIntent : null,
         userTz: session ? session.userTz : null,
         userCity: session ? session.userCity : null,
+        cog: session
+          ? {
+              phase: session.cogPhase,
+              state: session.cogState,
+              reason: session.cogReason,
+            }
+          : null,
       },
       resume: { resumable: tight.resumable, forcedFourChips: false },
     };
@@ -1857,7 +1957,7 @@ app.post("/api/tts", ttsHandler);
 app.post("/api/voice", ttsHandler);
 
 /* ======================================================
-   Continue / Start fresh handlers (tight)
+   Continue / Start fresh handlers (tight + assertive)
 ====================================================== */
 
 async function handleContinue(session, profile) {
@@ -1880,18 +1980,14 @@ async function handleContinue(session, profile) {
       session.lastMusicChart = YEAR_END_CHART;
     }
 
+    setCog(session, "execute", "running", "continue");
     const out0 = await runEngine(`${modeToCommand(m)} ${y}`, session);
     return await applyFmp(out0, session);
   }
 
-  if (session.lastReply) {
-    return {
-      reply: "Continue with what—Top 10, Story moment, or Micro moment? (You can also drop a year.)",
-    };
-  }
-
+  // Assertive: give a direct instruction, not a question.
   return {
-    reply: "What are we doing: Top 10, Story moment, or Micro moment? Start with a year (1950–2024).",
+    reply: "Continue is ready. Drop a year (1950–2024) or tap: Top 10 / Story moment / Micro moment.",
   };
 }
 
@@ -1906,10 +2002,11 @@ function handleFresh(session) {
   session.lastMusicChart = DEFAULT_CHART;
 
   session.lane = "music";
+  setCog(session, "engage", "collect", "fresh");
 
   return {
     reply:
-      "Clean slate. Give me a year (1950–2024) and choose: Top 10, Story moment, or Micro moment.",
+      "Clean slate. Drop a year (1950–2024). Then choose: Top 10, Story moment, or Micro moment.",
   };
 }
 
@@ -1922,11 +2019,13 @@ async function handleYearNav(session, direction) {
   const mode = session.activeMusicMode || session.pendingMode || null;
 
   if (!y0) {
-    return { reply: "Tell me a year first (1950–2024), then I can go next/previous year." };
+    setCog(session, "engage", "collect", "need:year");
+    return { reply: "Drop a year first (1950–2024). Then I can go next/previous year." };
   }
 
   const y1 = safeIncYear(y0, direction);
   if (!y1) {
+    setCog(session, "engage", "collect", "edge:range");
     return { reply: "You’re at the edge of the range. Pick a year between 1950 and 2024." };
   }
 
@@ -1937,7 +2036,8 @@ async function handleYearNav(session, direction) {
 
   if (!mode) {
     session.pendingMode = null;
-    return { reply: `Got it — ${y1}. What do you want: Top 10, Story moment, or Micro moment?` };
+    setCog(session, "engage", "decide", "need:mode");
+    return { reply: `Locked in ${y1}. Choose: Top 10, Story moment, or Micro moment.` };
   }
 
   session.activeMusicMode = mode;
@@ -1948,6 +2048,7 @@ async function handleYearNav(session, direction) {
     session.lastMusicChart = YEAR_END_CHART;
   }
 
+  setCog(session, "execute", "running", direction > 0 ? "nav:nextYear" : "nav:prevYear");
   const out0 = await runEngine(`${modeToCommand(mode)} ${y1}`, session);
   return await applyFmp(out0, session);
 }
@@ -1960,11 +2061,13 @@ function handleAnotherYear(session) {
 
   if (mode) {
     session.pendingMode = mode;
+    setCog(session, "engage", "collect", "anotherYear:needYear");
     return { reply: replyMissingYearForMode(mode) };
   }
 
+  setCog(session, "engage", "collect", "anotherYear");
   return {
-    reply: "Alright — new year. Give me a year (1950–2024), then choose: Top 10, Story moment, or Micro moment.",
+    reply: "New year. Drop a year (1950–2024). Then choose: Top 10, Story moment, or Micro moment.",
   };
 }
 
@@ -1975,12 +2078,14 @@ function handleAnotherYear(session) {
 async function handleNumberOne(session) {
   const y0 = clampYear(Number(session.lastYear));
   if (!y0) {
-    return { reply: "What year (1950–2024) for #1?" };
+    setCog(session, "engage", "collect", "need:year:#1");
+    return { reply: "Drop a year (1950–2024) for #1." };
   }
 
   session.lane = "music";
   session.pendingMode = null;
   guardChartForYear(session, y0);
+  setCog(session, "execute", "running", "numberOne");
 
   if (session.lastTop10One && typeof session.lastTop10One === "string") {
     return {
@@ -2052,6 +2157,7 @@ app.post("/api/chat", async (req, res) => {
   if (!sessionId) sessionId = issueSessionId();
   const session = getSession(sessionId);
   if (!session.visitorId) session.visitorId = incomingVisitorId;
+  initCog(session);
 
   const visitorId = session.visitorId;
   const profile = getProfile(visitorId);
@@ -2076,6 +2182,7 @@ app.post("/api/chat", async (req, res) => {
     session.lastReply = reply;
     session.lastReplyAt = Date.now();
     session.lastIntent = "micEchoGuard";
+    setCog(session, "engage", "recover", "micEchoGuard");
     updateProfileFromSession(profile, session);
 
     const base = {
@@ -2104,6 +2211,7 @@ app.post("/api/chat", async (req, res) => {
     };
 
     session.lastIntent = "replay";
+    setCog(session, "execute", "replay", "replay");
     updateProfileFromSession(profile, session);
 
     const hasSavedChips =
@@ -2118,6 +2226,8 @@ app.post("/api/chat", async (req, res) => {
         followUp: session.lastFollowUp.slice(0, 12),
       });
 
+      attachCogToPayload(payload, session);
+
       const wantsDebug = CHAT_DEBUG || parseDebugFlag(req);
       if (wantsDebug) {
         const tight = makeFollowUpsTight(session, profile);
@@ -2130,6 +2240,11 @@ app.post("/api/chat", async (req, res) => {
             lastIntent: session ? session.lastIntent : null,
             userTz: session ? session.userTz : null,
             userCity: session ? session.userCity : null,
+            cog: {
+              phase: session.cogPhase,
+              state: session.cogState,
+              reason: session.cogReason,
+            },
           },
           resume: { resumable: tight.resumable, forcedFourChips: false },
         };
@@ -2141,10 +2256,49 @@ app.post("/api/chat", async (req, res) => {
     return respondJson(req, res, base, session, null, profile, false);
   }
 
+  // Greeting / empty
   if (!message || isGreeting(message)) {
     session.lastIntent = "greeting";
 
     const tight = makeFollowUpsTight(session, profile);
+    const returning = profileIsReturning(profile);
+
+    // Assertive: auto-continue when returning + resumable, but throttle hard.
+    if (COG_AUTOCONTINUE_ON_GREETING && returning && tight.resumable) {
+      const now = Date.now();
+      const lastAt = Number(session._cogLastAutoContinueAt || 0);
+      const canAuto = !lastAt || now - lastAt >= COG_AUTOCONTINUE_COOLDOWN_MS;
+
+      if (canAuto) {
+        session._cogLastAutoContinueAt = now;
+        session.lane = "music";
+        setCog(session, "execute", "running", "autoContinue:greeting");
+
+        const out0 = await handleContinue(session, profile);
+        const out = await applyFmp(out0, session);
+        const reply = finalizeReply(session, out.reply || "Continuing.");
+
+        session.lastReply = reply;
+        session.lastReplyAt = Date.now();
+        session.lastIntent = "continue";
+
+        updateProfileFromSession(profile, session);
+
+        const base = {
+          ok: true,
+          reply,
+          sessionId,
+          requestId,
+          visitorId,
+          contractVersion: NYX_CONTRACT_VERSION,
+          voiceMode: session.voiceMode,
+        };
+
+        return respondJson(req, res, base, session, out, profile, false);
+      }
+    }
+
+    setCog(session, "engage", "ready", "greeting");
     const reply = greetingReply(profile, tight.resumable);
 
     session.lastReply = reply;
@@ -2170,14 +2324,19 @@ app.post("/api/chat", async (req, res) => {
     session.lane = laneCmd;
     session.lastIntent = "laneSelect";
 
+    if (laneCmd === "movies") setCog(session, "handoff", "active", "laneSelect:movies");
+    else if (laneCmd === "sponsors") setCog(session, "handoff", "active", "laneSelect:sponsors");
+    else if (laneCmd === "schedule") setCog(session, "handoff", "active", "laneSelect:schedule");
+    else setCog(session, "engage", "collect", "laneSelect:music");
+
     const reply =
       laneCmd === "movies"
-        ? "Movies Lane. Paste a movie link or tell me the decade/genre you want (crime, detective, comedy, etc.)."
+        ? "Movies Lane. Paste a movie link, or tell me decade + vibe (crime / detective / comedy)."
         : laneCmd === "sponsors"
-        ? "Sponsors Lane. What’s your goal: calls, foot traffic, website clicks, or brand awareness?"
+        ? "Sponsors Lane. State your goal: calls / foot traffic / website clicks / brand awareness."
         : laneCmd === "schedule"
         ? "Schedule Lane. Ask: “What time does Gospel Sunday play in London?” or say “Show me the schedule”."
-        : "Back to music. Give me a year (1950–2024) and choose: Top 10, Story moment, or Micro moment.";
+        : "Back to music. Drop a year (1950–2024). Then choose: Top 10, Story moment, or Micro moment.";
 
     session.lastReply = reply;
     session.lastReplyAt = Date.now();
@@ -2202,9 +2361,10 @@ app.post("/api/chat", async (req, res) => {
   ) {
     session.lane = "music";
     session.lastIntent = "laneExit";
+    setCog(session, "engage", "collect", "laneExit");
 
     const reply =
-      "Back to music. Tell me a year (1950–2024) and choose: Top 10, Story moment, or Micro moment.";
+      "Back to music. Drop a year (1950–2024). Then choose: Top 10, Story moment, or Micro moment.";
 
     session.lastReply = reply;
     session.lastReplyAt = Date.now();
@@ -2367,10 +2527,7 @@ app.post("/api/chat", async (req, res) => {
     return respondJson(req, res, base, session, out, profile, false);
   }
 
-  // Sponsors/movies/schedule/music lane routing is handled centrally by runEngine().
-  // IMPORTANT: do NOT duplicate lane checks here (prevents divergence and mode leaks).
-
-  // v1.5.17: Explicit Top10 command must win BEFORE generic year/mode parsing.
+  // Explicit Top10 must win BEFORE generic year/mode parsing.
   if (isExplicitTop10WithYear(message)) {
     const y = clampYear(extractYearFromText(message));
     if (y) {
@@ -2382,9 +2539,10 @@ app.post("/api/chat", async (req, res) => {
       session.activeMusicChart = YEAR_END_CHART;
       session.lastMusicChart = YEAR_END_CHART;
       guardChartForYear(session, y);
+      setCog(session, "execute", "running", "explicitTop10");
     }
 
-    const out0 = await runEngine(message, session); // pass-through intact: "top 10 1963"
+    const out0 = await runEngine(message, session);
     const out = await applyFmp(out0, session);
     const reply = finalizeReply(session, out.reply || "");
 
@@ -2426,6 +2584,8 @@ app.post("/api/chat", async (req, res) => {
       session.lastMusicChart = YEAR_END_CHART;
     }
 
+    setCog(session, "execute", "running", "parsed:year+mode");
+
     const out0 = await runEngine(`${modeToCommand(parsedMode)} ${parsedYear}`, session);
     const out = await applyFmp(out0, session);
     const reply = finalizeReply(session, out.reply || "");
@@ -2462,6 +2622,7 @@ app.post("/api/chat", async (req, res) => {
 
     if (clampYear(session.lastYear)) {
       session.pendingMode = null;
+      setCog(session, "execute", "running", "parsed:modeOnly:useLastYear");
 
       const out0 = await runEngine(`${modeToCommand(parsedMode)} ${session.lastYear}`, session);
       const out = await applyFmp(out0, session);
@@ -2485,7 +2646,10 @@ app.post("/api/chat", async (req, res) => {
       return respondJson(req, res, base, session, out, profile, false);
     }
 
+    // More assertive (directive, not question)
+    setCog(session, "engage", "collect", "parsed:modeOnly:needYear");
     const ask = replyMissingYearForMode(parsedMode);
+
     session.lastReply = ask;
     session.lastReplyAt = Date.now();
     session.lastIntent = "askYear";
@@ -2507,7 +2671,7 @@ app.post("/api/chat", async (req, res) => {
   if (parsedYear && !parsedMode) {
     session.lane = "music";
 
-    // v1.5.18 FIX (regression): bare-year ALWAYS defaults to Top 10 (does not inherit prior mode)
+    // bare-year ALWAYS defaults to Top 10
     const mode = bareYear ? "top10" : (session.pendingMode || session.activeMusicMode || "top10");
 
     session.activeMusicMode = mode;
@@ -2517,6 +2681,8 @@ app.post("/api/chat", async (req, res) => {
       session.activeMusicChart = YEAR_END_CHART;
       session.lastMusicChart = YEAR_END_CHART;
     }
+
+    setCog(session, "execute", "running", bareYear ? "parsed:bareYear=>top10" : "parsed:yearOnly");
 
     const out0 = await runEngine(`${modeToCommand(mode)} ${parsedYear}`, session);
     const out = await applyFmp(out0, session);
@@ -2540,7 +2706,6 @@ app.post("/api/chat", async (req, res) => {
     return respondJson(req, res, base, session, out, profile, false);
   }
 
-  // Keep variable referenced (no-op) to avoid unused in some bundlers/lints
   void bareYear;
 
   // Default: route through runEngine (schedule > sponsors > movies > music)
@@ -2552,6 +2717,10 @@ app.post("/api/chat", async (req, res) => {
   session.lastReply = reply;
   session.lastReplyAt = Date.now();
   session.lastIntent = "passthrough";
+
+  // keep cog consistent at end of turn
+  const c = deriveCogFromSession(session);
+  setCog(session, c.phase, c.state, c.reason);
 
   updateProfileFromSession(profile, session);
 
@@ -2612,6 +2781,11 @@ app.get("/api/health", (req, res) => {
       sponsorsLoaded: !!sponsorsLane,
       moviesLoaded: !!moviesLane,
       musicLoaded: !!musicKnowledge,
+    },
+    cognitive: {
+      payloadEnabled: COG_PAYLOAD_ENABLED,
+      autoContinueOnGreeting: COG_AUTOCONTINUE_ON_GREETING,
+      autoContinueCooldownMs: COG_AUTOCONTINUE_COOLDOWN_MS,
     },
     requestId,
   });
