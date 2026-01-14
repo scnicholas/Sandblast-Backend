@@ -1156,7 +1156,10 @@ function normalizeNavToken(text) {
     return "numberOne";
 
   if (/^(next|next year|forward|year\+1)\b/.test(t)) return "nextYear";
-  if (/^(prev|previous|previous year|back|year-1)\b/.test(t)) return "prevYear";
+
+  // v1.5.18 FIX: accept "prev year" (chip casing) in addition to "previous year"
+  if (/^(prev|prev year|previous|previous year|back|year-1)\b/.test(t)) return "prevYear";
+
   if (/^(another year|new year|different year)\b/.test(t)) return "anotherYear";
 
   return null;
@@ -1487,18 +1490,46 @@ function makeFollowUpsTight(session, profile) {
   };
 }
 
+/**
+ * v1.5.18 FIX: stabilize nav label casing for chip tokens (without breaking old clients).
+ * Any variant of "prev/previous" and "next" is canonicalized to:
+ *   - Label: "Prev year" / "Next year"
+ *   - Send:  "Prev year" / "Next year"
+ */
+function canonicalizeNavChip(it) {
+  if (!it || typeof it !== "object") return it;
+  const send = cleanText(it.send || "");
+  const label = cleanText(it.label || "");
+  const s = send.toLowerCase();
+  const l = label.toLowerCase();
+
+  const isPrev =
+    s === "prev year" ||
+    s === "previous year" ||
+    l === "prev year" ||
+    l === "previous year";
+
+  const isNext =
+    s === "next year" ||
+    l === "next year";
+
+  if (isPrev) return { label: "Prev year", send: "Prev year" };
+  if (isNext) return { label: "Next year", send: "Next year" };
+  return it;
+}
+
 function normalizeEngineFollowups(out) {
   const push = (acc, v) => {
     if (!v) return;
     if (typeof v === "string") {
       const s = cleanText(v);
-      if (s) acc.push({ label: s, send: s });
+      if (s) acc.push(canonicalizeNavChip({ label: s, send: s }));
       return;
     }
     if (typeof v === "object") {
       const label = cleanText(v.label || v.text || v.title || v.send || v.value || "");
       const send = cleanText(v.send || v.value || v.payload || v.label || v.text || "");
-      if (label && send) acc.push({ label, send });
+      if (label && send) acc.push(canonicalizeNavChip({ label, send }));
     }
   };
 
