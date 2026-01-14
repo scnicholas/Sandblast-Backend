@@ -14,6 +14,10 @@
  *      - end-of-turn cog is re-derived AFTER finalizeReply (keeps UI/avatar synced with the final state)
  *  3) Slightly more assertive momentum tail behavior:
  *      - ensures the “Next:” tail is appended only when it won’t duplicate or conflict with question endings
+ *  4) Backend “Assertive Finisher” (respondJson layer):
+ *      - guarantees chips when missing/weak (deterministic)
+ *      - removes “hovering” questions when session already has enough context
+ *      - mirrors followUp string[] for legacy clients
  *
  * Preserves (from v1.5.19):
  *  - Cognitive OS fields + optional payload.cog
@@ -33,7 +37,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.20 (v1.5.19 + numeric-year hardening in bridges + tighter cog consistency + safer momentum tail; preserves schedule/sponsors/movies/music routing, explicit Top10 guard, FMP autorun, lane escape chips, replay integrity, chart guard/bridge, Top10-missing escape)";
+  "index.js v1.5.20 (v1.5.19 + numeric-year hardening in bridges + tighter cog consistency + safer momentum tail + Assertive Finisher in respondJson; preserves schedule/sponsors/movies/music routing, explicit Top10 guard, FMP autorun, lane escape chips, replay integrity, chart guard/bridge, Top10-missing escape)";
 
 /* ======================================================
    Basic middleware
@@ -89,7 +93,8 @@ function parseAllowedOrigins() {
 const ALLOWED_ORIGINS = parseAllowedOrigins();
 
 const CORS_ALLOW_ALL = String(process.env.CORS_ALLOW_ALL || "false") === "true";
-const CONTRACT_STRICT = String(process.env.CONTRACT_STRICT || "false") === "true";
+const CONTRACT_STRICT =
+  String(process.env.CONTRACT_STRICT || "false") === "true";
 const MAX_SESSIONS = Math.max(0, Number(process.env.MAX_SESSIONS || 0));
 const CHAT_DEBUG = String(process.env.CHAT_DEBUG || "false") === "true";
 
@@ -296,16 +301,24 @@ function deriveCogFromSession(session) {
   initCog(session);
 
   const lane = String(session.lane || "general");
+
+  // Always normalize numeric year / tokens here
   const y = clampYear(Number(session.lastYear));
-  const m = session.activeMusicMode || session.pendingMode || null;
+  const mRaw = session.activeMusicMode || session.pendingMode || null;
+  const m = cleanText(mRaw || "").toLowerCase();
 
-  if (lane === "sponsors") return { phase: "handoff", state: "active", reason: "lane:sponsors" };
-  if (lane === "movies") return { phase: "handoff", state: "active", reason: "lane:movies" };
-  if (lane === "schedule") return { phase: "handoff", state: "active", reason: "lane:schedule" };
+  if (lane === "sponsors")
+    return { phase: "handoff", state: "active", reason: "lane:sponsors" };
+  if (lane === "movies")
+    return { phase: "handoff", state: "active", reason: "lane:movies" };
+  if (lane === "schedule")
+    return { phase: "handoff", state: "active", reason: "lane:schedule" };
 
-  if (!y && !m) return { phase: "engage", state: "collect", reason: "need:year_mode" };
-  if (!y && m) return { phase: "engage", state: "collect", reason: "need:year" };
-  if (y && !m) return { phase: "engage", state: "decide", reason: "need:mode" };
+  const hasMode = !!m && (m.includes("top") || m.includes("story") || m.includes("micro"));
+
+  if (!y && !hasMode) return { phase: "engage", state: "collect", reason: "need:year_mode" };
+  if (!y && hasMode) return { phase: "engage", state: "collect", reason: "need:year" };
+  if (y && !hasMode) return { phase: "engage", state: "decide", reason: "need:mode" };
 
   return { phase: "execute", state: "running", reason: "music:ready" };
 }
@@ -320,7 +333,8 @@ function attachCogToPayload(payload, session) {
     state: c.state,
     reason: c.reason,
     lane: session ? String(session.lane || "general") : "general",
-    year: session && clampYear(Number(session.lastYear)) ? Number(session.lastYear) : null,
+    year:
+      session && clampYear(Number(session.lastYear)) ? Number(session.lastYear) : null,
     mode: session ? (session.activeMusicMode || session.pendingMode || null) : null,
   };
   return payload;
@@ -446,11 +460,7 @@ function looksLikeTop10Missing(reply) {
 
   if (!hasTop10) return false;
 
-  if (
-    r.includes("dont have") ||
-    r.includes("don't have") ||
-    r.includes("do not have")
-  )
+  if (r.includes("dont have") || r.includes("don't have") || r.includes("do not have"))
     return true;
 
   if (r.includes("no clean") && r.includes("top")) return true;
@@ -499,8 +509,7 @@ const FMP_AUTORUN_COOLDOWN_MS = Math.max(
 const FMP = {
   ASK_YEAR_RE:
     /\b(what year|give me a year|pick a year|choose a year|year\s*\(1950|1950–2024)\b/i,
-  ASK_MODE_CHOICE_RE:
-    /\b(choose|pick|what do you want|which do you want|select)\b/i,
+  ASK_MODE_CHOICE_RE: /\b(choose|pick|what do you want|which do you want|select)\b/i,
   MODE_WORDS_RE: /\b(top\s*10|story\s*moment|micro\s*moment)\b/i,
   SOFT_OPEN_RE: /\b(what would you like|what do you want|tell me what you|choose|pick)\b/i,
 
@@ -548,10 +557,11 @@ const FMP = {
   },
 
   forceProceed(session, reason) {
-    const y = clampYear(Number(session && session.lastYear)) ? Number(session.lastYear) : null;
+    const y = clampYear(Number(session && session.lastYear))
+      ? Number(session.lastYear)
+      : null;
 
-    const m =
-      (session && (session.pendingMode || session.activeMusicMode)) || null;
+    const m = (session && (session.pendingMode || session.activeMusicMode)) || null;
 
     const year = y || 1988;
     const mode = m || "story";
@@ -573,11 +583,7 @@ const FMP = {
     }
 
     const modeLabel =
-      mode === "top10"
-        ? "the Top 10"
-        : mode === "micro"
-        ? "a micro moment"
-        : "a story moment";
+      mode === "top10" ? "the Top 10" : mode === "micro" ? "a micro moment" : "a story moment";
 
     const reply =
       reason === "askYear"
@@ -592,8 +598,7 @@ const FMP = {
         : mode === "micro"
         ? `micro moment ${year}`
         : `story moment ${year}`;
-    const sendSwitch =
-      mode === "top10" ? `story moment ${year}` : `top 10 ${year}`;
+    const sendSwitch = mode === "top10" ? `story moment ${year}` : `top 10 ${year}`;
 
     const followUps = [
       { label: "Run now", send: sendRun },
@@ -666,11 +671,7 @@ async function maybeAutoRunFmp(out, session) {
 
   const now = Date.now();
   const lastAt = Number(session._fmpAutoRanAt || 0);
-  if (
-    Number.isFinite(lastAt) &&
-    lastAt > 0 &&
-    now - lastAt < FMP_AUTORUN_COOLDOWN_MS
-  ) {
+  if (Number.isFinite(lastAt) && lastAt > 0 && now - lastAt < FMP_AUTORUN_COOLDOWN_MS) {
     return out;
   }
 
@@ -716,11 +717,7 @@ function ensureForwardMotion(reply, session) {
     const y = clampYear(Number(session.lastYear));
     const mode = session.activeMusicMode || session.pendingMode;
     const modeLabel =
-      mode === "top10"
-        ? "Top 10"
-        : mode === "micro"
-        ? "a micro moment"
-        : "a story moment";
+      mode === "top10" ? "Top 10" : mode === "micro" ? "a micro moment" : "a story moment";
 
     return (
       r.replace(/\?\s*$/, ".") +
@@ -753,6 +750,140 @@ function finalizeReply(session, replyRaw) {
   r = ensureForwardMotion(r, session);
   r = addMomentumTail(session, r);
   return cleanText(r);
+}
+
+/* ======================================================
+   Assertive Finisher (respondJson layer)
+====================================================== */
+
+function _afHasYear(session) {
+  return !!(session && clampYear(Number(session.lastYear)));
+}
+
+function _afHasMode(session) {
+  const m = cleanText(session && (session.activeMusicMode || session.pendingMode) ? (session.activeMusicMode || session.pendingMode) : "")
+    .toLowerCase();
+  return !!m && (m.includes("top") || m.includes("story") || m.includes("micro"));
+}
+
+function _afModeLabel(session) {
+  const m = cleanText(session && (session.activeMusicMode || session.pendingMode) ? (session.activeMusicMode || session.pendingMode) : "")
+    .toLowerCase();
+  if (m.includes("top")) return "Top 10";
+  if (m.includes("story")) return "Story moment";
+  if (m.includes("micro")) return "Micro moment";
+  return "Top 10";
+}
+
+function _afLooksLikeQuestion(reply) {
+  const t = cleanText(reply).toLowerCase();
+  if (!t) return false;
+  if (t.endsWith("?")) return true;
+  if (t.includes("what would you like") || t.includes("which would you like")) return true;
+  if (t.includes("give me a year") || t.includes("pick a year") || t.includes("choose a year")) return true;
+  if (t.includes("choose a mode") || t.includes("pick a mode") || (t.includes("top 10") && t.includes("story moment") && t.includes("micro moment")))
+    return true;
+  return false;
+}
+
+function _afWantsYear(reply) {
+  const t = cleanText(reply).toLowerCase();
+  return (
+    t.includes("give me a year") ||
+    t.includes("pick a year") ||
+    t.includes("choose a year") ||
+    t.includes("drop a year") ||
+    t.includes("year (1950")
+  );
+}
+
+function _afWantsMode(reply) {
+  const t = cleanText(reply).toLowerCase();
+  return (
+    (t.includes("choose") || t.includes("pick") || t.includes("select")) &&
+    (t.includes("top 10") || t.includes("story") || t.includes("micro"))
+  );
+}
+
+function _afDedupeChips(chips) {
+  const seen = new Set();
+  const out = [];
+  for (const c of chips || []) {
+    const label = cleanText(c && c.label);
+    const send = cleanText(c && c.send);
+    const k = (label + "||" + send).toLowerCase();
+    if (!label || !send) continue;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push({ label, send });
+  }
+  return out;
+}
+
+function assertiveFinisher({ reply, followUps, session }) {
+  let r = String(reply || "");
+  let chips = Array.isArray(followUps) ? followUps : [];
+
+  const hasYear = _afHasYear(session);
+  const hasMode = _afHasMode(session);
+
+  // Rewrite hovering prompts if context already exists
+  if (hasYear && _afWantsYear(r)) {
+    r = `Locked in ${Number(session.lastYear)}.`;
+  }
+  if (hasMode && _afWantsMode(r)) {
+    r = `Got it — ${_afModeLabel(session)}.`;
+  }
+
+  // Inject deterministic chip sets if missing/weak
+  if (!chips || chips.length < 2) {
+    if (!hasYear) {
+      chips = [
+        { label: "1950s", send: "1950" },
+        { label: "1970s", send: "1970" },
+        { label: "1990s", send: "1990" },
+        { label: "2010s", send: "2010" },
+        { label: "Pick for me", send: "random year" },
+      ];
+      if (!cleanText(r)) r = "Pick a year (1950–2024). Want a quick jump?";
+    } else if (!hasMode) {
+      chips = [
+        { label: "Top 10", send: "Top 10" },
+        { label: "Story moment", send: "Story moment" },
+        { label: "Micro moment", send: "Micro moment" },
+        { label: "Another year", send: "another year" },
+      ];
+      if (!cleanText(r) || _afLooksLikeQuestion(r)) r = `Got ${Number(session.lastYear)}. Choose one:`;
+    } else {
+      const y = Number(session.lastYear);
+      chips = [
+        { label: "Replay last", send: "replay" },
+        { label: "Another year", send: "another year" },
+        { label: "Switch mode", send: "switch" },
+        { label: "Top 10", send: "Top 10" },
+        { label: "Story moment", send: "Story moment" },
+        { label: "Micro moment", send: "Micro moment" },
+      ];
+      if (_afLooksLikeQuestion(r)) {
+        r = `Locked in ${y} — ${_afModeLabel(session)}. Say “switch” to change mode.`;
+      }
+    }
+  }
+
+  chips = _afDedupeChips(chips);
+
+  // Minimum bar: ensure at least 3 chips if we have any chips at all
+  if (chips.length > 0 && chips.length < 3) {
+    chips = _afDedupeChips(
+      chips.concat([
+        { label: "Another year", send: "another year" },
+        { label: "Replay last", send: "replay" },
+        { label: "Switch mode", send: "switch" },
+      ])
+    );
+  }
+
+  return { reply: r, followUps: chips };
 }
 
 /* ======================================================
@@ -800,9 +931,7 @@ function profileIsReturning(profile) {
 function detectNameFromText(text) {
   const t = cleanText(text);
   if (!t) return null;
-  const m = t.match(
-    /\b(?:i[' ]?m|i am|im|my name is)\s+([A-Za-z][A-Za-z\-']{1,30})\b/i
-  );
+  const m = t.match(/\b(?:i[' ]?m|i am|im|my name is)\s+([A-Za-z][A-Za-z\-']{1,30})\b/i);
   if (!m) return null;
   const raw = cleanText(m[1] || "");
   if (!raw) return null;
@@ -862,7 +991,7 @@ function getSession(sessionId) {
       if (oldestKey) SESSIONS.delete(oldestKey);
     }
 
-    SESSIONS.set(sid, {
+    const s0 = {
       id: sid,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -908,7 +1037,10 @@ function getSession(sessionId) {
       cogState: "ready",
       cogReason: "",
       _cogLastAutoContinueAt: 0,
-    });
+    };
+
+    initCog(s0);
+    SESSIONS.set(sid, s0);
   }
 
   const s = SESSIONS.get(sid);
@@ -1251,7 +1383,8 @@ function greetingReply(profile, canContinue) {
   }
 
   const who = name ? `Welcome back, ${name}.` : "Welcome back.";
-  if (canContinue) return `${who} I can continue where we left off—tap “Continue”, or drop a year to pivot.`;
+  if (canContinue)
+    return `${who} I can continue where we left off—tap “Continue”, or drop a year to pivot.`;
   return `${who} Tap “Start fresh”, or drop a year to jump in.`;
 }
 
@@ -1301,7 +1434,8 @@ function numberOneFollowUps(year) {
 async function runMusicEngine(text, session) {
   if (!musicKnowledge || typeof musicKnowledge.handleChat !== "function") {
     return {
-      reply: "Drop a year (1950–2024). Then choose: Top 10, Story moment, or Micro moment.",
+      reply:
+        "Drop a year (1950–2024). Then choose: Top 10, Story moment, or Micro moment.",
     };
   }
 
@@ -1321,8 +1455,13 @@ async function runMusicEngine(text, session) {
 
     const reply0 = cleanText(out.reply || "");
     const modeReq =
-      normalizeModeToken(text) || session.activeMusicMode || session.pendingMode || null;
-    const yearReq = clampYear(Number(y || session.lastYear || session.lastMusicYear));
+      normalizeModeToken(text) ||
+      session.activeMusicMode ||
+      session.pendingMode ||
+      null;
+    const yearReq = clampYear(
+      Number(y || session.lastYear || session.lastMusicYear)
+    );
 
     if (modeReq === "top10" && yearReq && looksLikeTop10Missing(reply0)) {
       session.lane = "music";
@@ -1337,7 +1476,10 @@ async function runMusicEngine(text, session) {
       setCog(session, "execute", "running", "top10Missing:storyFallback");
 
       const out2 =
-        musicKnowledge.handleChat({ text: `story moment ${yearReq}`, session }) || {};
+        musicKnowledge.handleChat({
+          text: `story moment ${yearReq}`,
+          session,
+        }) || {};
 
       if (out2.sessionPatch && typeof out2.sessionPatch === "object") {
         Object.assign(session, out2.sessionPatch);
@@ -1358,7 +1500,8 @@ async function runMusicEngine(text, session) {
     return out;
   } catch (e) {
     return {
-      reply: "I hit a snag in the music engine. Drop a year (1950–2024) and I’ll rerun it.",
+      reply:
+        "I hit a snag in the music engine. Drop a year (1950–2024) and I’ll rerun it.",
       error: String(e && e.message ? e.message : e),
     };
   }
@@ -1486,7 +1629,9 @@ async function runEngine(text, session) {
 
 function hasMeaningfulResumeState(profile, session) {
   const profOk =
-    !!profile && !!clampYear(Number(profile.lastMusicYear)) && !!profile.lastMusicMode;
+    !!profile &&
+    !!clampYear(Number(profile.lastMusicYear)) &&
+    !!profile.lastMusicMode;
 
   const sesYear = !!(session && clampYear(Number(session.lastYear)));
   const sesMode = !!(session && session.activeMusicMode);
@@ -1553,7 +1698,8 @@ function makeFollowUpsTight(session, profile) {
   }
 
   const intent = session ? String(session.lastIntent || "") : "";
-  const isFirstGreeting = intent === "greeting" && !hasMeaningfulResumeState(profile, session);
+  const isFirstGreeting =
+    intent === "greeting" && !hasMeaningfulResumeState(profile, session);
 
   if (session && session.lastReply && !isFirstGreeting) base.push("Replay last");
 
@@ -1598,7 +1744,9 @@ function normalizeEngineFollowups(out) {
       return;
     }
     if (typeof v === "object") {
-      const label = cleanText(v.label || v.text || v.title || v.send || v.value || "");
+      const label = cleanText(
+        v.label || v.text || v.title || v.send || v.value || ""
+      );
       const send = cleanText(v.send || v.value || v.payload || v.label || v.text || "");
       if (label && send) acc.push(canonicalizeNavChip({ label, send }));
     }
@@ -1625,10 +1773,16 @@ function normalizeEngineFollowups(out) {
 }
 
 function ensureLaneEscapeChips(merged) {
-  const hasBack = merged.some((x) => cleanText(x.send).toLowerCase() === "back to music");
+  const hasBack = merged.some(
+    (x) => cleanText(x.send).toLowerCase() === "back to music"
+  );
   if (!hasBack) merged.push({ label: "Back to music", send: "Back to music" });
   return merged;
 }
+
+/* ======================================================
+   respondJson (includes Assertive Finisher)
+====================================================== */
 
 function respondJson(req, res, base, session, engineOut, profile, forceFourChips) {
   const tight = makeFollowUpsTight(session, profile);
@@ -1637,6 +1791,7 @@ function respondJson(req, res, base, session, engineOut, profile, forceFourChips
   const lane = session && session.lane ? String(session.lane) : "general";
   const laneOwned = lane === "sponsors" || lane === "movies" || lane === "schedule";
 
+  // Returning visitors: EXACTLY 4 chips (preserve canonical behavior). Skip finisher.
   if (enforceReturning) {
     const payload = Object.assign({}, base, {
       followUps: tight.followUps,
@@ -1684,8 +1839,12 @@ function respondJson(req, res, base, session, engineOut, profile, forceFourChips
 
     if (session) {
       try {
-        session.lastFollowUp = Array.isArray(payload.followUp) ? payload.followUp.slice(0, 12) : null;
-        session.lastFollowUps = Array.isArray(payload.followUps) ? payload.followUps.slice(0, 12) : null;
+        session.lastFollowUp = Array.isArray(payload.followUp)
+          ? payload.followUp.slice(0, 12)
+          : null;
+        session.lastFollowUps = Array.isArray(payload.followUps)
+          ? payload.followUps.slice(0, 12)
+          : null;
       } catch (_) {}
     }
 
@@ -1710,16 +1869,25 @@ function respondJson(req, res, base, session, engineOut, profile, forceFourChips
       add(it);
     }
 
-    if (merged.length === 0) {
-      merged.push({ label: "Replay last", send: "Replay last" });
-    }
-
+    if (merged.length === 0) merged.push({ label: "Replay last", send: "Replay last" });
     ensureLaneEscapeChips(merged);
 
-    const payload = Object.assign({}, base, {
+    let payload = Object.assign({}, base, {
       followUps: merged.slice(0, 8),
       followUp: merged.slice(0, 8).map((x) => x.label),
     });
+
+    // Assertive Finisher (lane-owned too): guarantees chips if missing/weak
+    try {
+      const fin = assertiveFinisher({
+        reply: payload.reply,
+        followUps: payload.followUps,
+        session,
+      });
+      payload.reply = fin.reply;
+      payload.followUps = fin.followUps;
+      payload.followUp = (fin.followUps || []).map((x) => x.label);
+    } catch (_) {}
 
     attachCogToPayload(payload, session);
 
@@ -1748,8 +1916,12 @@ function respondJson(req, res, base, session, engineOut, profile, forceFourChips
 
     if (session) {
       try {
-        session.lastFollowUp = Array.isArray(payload.followUp) ? payload.followUp.slice(0, 12) : null;
-        session.lastFollowUps = Array.isArray(payload.followUps) ? payload.followUps.slice(0, 12) : null;
+        session.lastFollowUp = Array.isArray(payload.followUp)
+          ? payload.followUp.slice(0, 12)
+          : null;
+        session.lastFollowUps = Array.isArray(payload.followUps)
+          ? payload.followUps.slice(0, 12)
+          : null;
       } catch (_) {}
     }
 
@@ -1778,10 +1950,22 @@ function respondJson(req, res, base, session, engineOut, profile, forceFourChips
     }
   }
 
-  const payload = Object.assign({}, base, {
+  let payload = Object.assign({}, base, {
     followUps: merged.slice(0, 8),
     followUp: merged.slice(0, 8).map((x) => x.label),
   });
+
+  // Assertive Finisher: chips + de-hover questions
+  try {
+    const fin = assertiveFinisher({
+      reply: payload.reply,
+      followUps: payload.followUps,
+      session,
+    });
+    payload.reply = fin.reply;
+    payload.followUps = fin.followUps;
+    payload.followUp = (fin.followUps || []).map((x) => x.label);
+  } catch (_) {}
 
   attachCogToPayload(payload, session);
 
@@ -1824,8 +2008,12 @@ function respondJson(req, res, base, session, engineOut, profile, forceFourChips
 
   if (session) {
     try {
-      session.lastFollowUp = Array.isArray(payload.followUp) ? payload.followUp.slice(0, 12) : null;
-      session.lastFollowUps = Array.isArray(payload.followUps) ? payload.followUps.slice(0, 12) : null;
+      session.lastFollowUp = Array.isArray(payload.followUp)
+        ? payload.followUp.slice(0, 12)
+        : null;
+      session.lastFollowUps = Array.isArray(payload.followUps)
+        ? payload.followUps.slice(0, 12)
+        : null;
     } catch (_) {}
   }
 
@@ -1958,11 +2146,16 @@ app.post("/api/voice", ttsHandler);
 ====================================================== */
 
 async function handleContinue(session, profile) {
-  const yFromSession = clampYear(session && session.lastYear ? Number(session.lastYear) : NaN);
-  const yFromProfile = clampYear(profile && profile.lastMusicYear ? Number(profile.lastMusicYear) : NaN);
+  const yFromSession = clampYear(
+    session && session.lastYear ? Number(session.lastYear) : NaN
+  );
+  const yFromProfile = clampYear(
+    profile && profile.lastMusicYear ? Number(profile.lastMusicYear) : NaN
+  );
   const y = yFromSession || yFromProfile || null;
 
-  const m = (session && session.activeMusicMode) || (profile && profile.lastMusicMode) || null;
+  const m =
+    (session && session.activeMusicMode) || (profile && profile.lastMusicMode) || null;
 
   if (y && m) {
     session.lastYear = y;
@@ -1983,7 +2176,8 @@ async function handleContinue(session, profile) {
   }
 
   return {
-    reply: "Continue is ready. Drop a year (1950–2024) or tap: Top 10 / Story moment / Micro moment.",
+    reply:
+      "Continue is ready. Drop a year (1950–2024) or tap: Top 10 / Story moment / Micro moment.",
   };
 }
 
@@ -2016,13 +2210,19 @@ async function handleYearNav(session, direction) {
 
   if (!y0) {
     setCog(session, "engage", "collect", "need:year");
-    return { reply: "Drop a year first (1950–2024). Then I can go next/previous year." };
+    return {
+      reply:
+        "Drop a year first (1950–2024). Then I can go next/previous year.",
+    };
   }
 
   const y1 = safeIncYear(y0, direction);
   if (!y1) {
     setCog(session, "engage", "collect", "edge:range");
-    return { reply: "You’re at the edge of the range. Pick a year between 1950 and 2024." };
+    return {
+      reply:
+        "You’re at the edge of the range. Pick a year between 1950 and 2024.",
+    };
   }
 
   session.lastYear = y1;
@@ -2063,7 +2263,8 @@ function handleAnotherYear(session) {
 
   setCog(session, "engage", "collect", "anotherYear");
   return {
-    reply: "New year. Drop a year (1950–2024). Then choose: Top 10, Story moment, or Micro moment.",
+    reply:
+      "New year. Drop a year (1950–2024). Then choose: Top 10, Story moment, or Micro moment.",
   };
 }
 
@@ -2105,7 +2306,10 @@ async function handleNumberOne(session) {
   const one = extractNumberOneFromTop10Reply(rB);
   if (one) {
     session.lastTop10One = `${one.artist} — ${one.title}`;
-    return { reply: `#1 — ${one.artist} — ${one.title} (${y0}).`, followUps: numberOneFollowUps(y0) };
+    return {
+      reply: `#1 — ${one.artist} — ${one.title} (${y0}).`,
+      followUps: numberOneFollowUps(y0),
+    };
   }
 
   return Object.assign({}, outB2, { followUps: numberOneFollowUps(y0) });
@@ -2174,11 +2378,15 @@ app.post("/api/chat", async (req, res) => {
   postEngineBridge(session);
 
   if (message && isLikelyMicEcho(message, session)) {
-    const reply = micEchoBreakerReply();
+    const reply = finalizeReply(session, micEchoBreakerReply());
     session.lastReply = reply;
     session.lastReplyAt = Date.now();
     session.lastIntent = "micEchoGuard";
-    setCog(session, "engage", "recover", "micEchoGuard");
+
+    // re-derive after final reply
+    const c2 = deriveCogFromSession(session);
+    setCog(session, c2.phase, c2.state, "micEchoGuard");
+
     updateProfileFromSession(profile, session);
 
     const base = {
@@ -2198,7 +2406,7 @@ app.post("/api/chat", async (req, res) => {
   if (nav === "replay" && session.lastReply) {
     const base = {
       ok: true,
-      reply: session.lastReply,
+      reply: finalizeReply(session, session.lastReply),
       sessionId,
       requestId,
       visitorId,
@@ -2207,7 +2415,11 @@ app.post("/api/chat", async (req, res) => {
     };
 
     session.lastIntent = "replay";
-    setCog(session, "execute", "replay", "replay");
+
+    // re-derive after final reply
+    const c2 = deriveCogFromSession(session);
+    setCog(session, c2.phase, c2.state, "replay");
+
     updateProfileFromSession(profile, session);
 
     const hasSavedChips =
@@ -2297,11 +2509,13 @@ app.post("/api/chat", async (req, res) => {
       }
     }
 
-    setCog(session, "engage", "ready", "greeting");
-    const reply = greetingReply(profile, tight.resumable);
-
+    const reply = finalizeReply(session, greetingReply(profile, tight.resumable));
     session.lastReply = reply;
     session.lastReplyAt = Date.now();
+
+    // re-derive after final reply
+    const c2 = deriveCogFromSession(session);
+    setCog(session, c2.phase, c2.state, "greeting");
 
     updateProfileFromSession(profile, session);
 
@@ -2328,7 +2542,7 @@ app.post("/api/chat", async (req, res) => {
     else if (laneCmd === "schedule") setCog(session, "handoff", "active", "laneSelect:schedule");
     else setCog(session, "engage", "collect", "laneSelect:music");
 
-    const reply =
+    const raw =
       laneCmd === "movies"
         ? "Movies Lane. Paste a movie link, or tell me decade + vibe (crime / detective / comedy)."
         : laneCmd === "sponsors"
@@ -2337,8 +2551,15 @@ app.post("/api/chat", async (req, res) => {
         ? "Schedule Lane. Ask: “What time does Gospel Sunday play in London?” or say “Show me the schedule”."
         : "Back to music. Drop a year (1950–2024). Then choose: Top 10, Story moment, or Micro moment.";
 
+    const reply = finalizeReply(session, raw);
+
     session.lastReply = reply;
     session.lastReplyAt = Date.now();
+
+    // re-derive after final reply
+    const c2 = deriveCogFromSession(session);
+    setCog(session, c2.phase, c2.state, `laneSelect:${laneCmd}`);
+
     updateProfileFromSession(profile, session);
 
     const base = {
@@ -2360,13 +2581,18 @@ app.post("/api/chat", async (req, res) => {
   ) {
     session.lane = "music";
     session.lastIntent = "laneExit";
-    setCog(session, "engage", "collect", "laneExit");
 
-    const reply =
-      "Back to music. Drop a year (1950–2024). Then choose: Top 10, Story moment, or Micro moment.";
+    const reply = finalizeReply(
+      session,
+      "Back to music. Drop a year (1950–2024). Then choose: Top 10, Story moment, or Micro moment."
+    );
 
     session.lastReply = reply;
     session.lastReplyAt = Date.now();
+
+    const c2 = deriveCogFromSession(session);
+    setCog(session, c2.phase, c2.state, "laneExit");
+
     updateProfileFromSession(profile, session);
 
     const base = {
@@ -2467,7 +2693,7 @@ app.post("/api/chat", async (req, res) => {
     session.lane = "music";
     const out0 = handleAnotherYear(session);
     const out = await applyFmp(out0, session);
-    const reply = cleanText(out.reply || "");
+    const reply = finalizeReply(session, out.reply || "");
 
     session.lastReply = reply;
     session.lastReplyAt = Date.now();
@@ -2521,7 +2747,7 @@ app.post("/api/chat", async (req, res) => {
     session.lane = "music";
     const out0 = handleFresh(session);
     const out = await applyFmp(out0, session);
-    const reply = cleanText(out.reply);
+    const reply = finalizeReply(session, out.reply || "");
 
     session.lastReply = reply;
     session.lastReplyAt = Date.now();
@@ -2646,7 +2872,10 @@ app.post("/api/chat", async (req, res) => {
       session.pendingMode = null;
       setCog(session, "execute", "running", "parsed:modeOnly:useLastYear");
 
-      const out0 = await runEngine(`${modeToCommand(parsedMode)} ${Number(session.lastYear)}`, session);
+      const out0 = await runEngine(
+        `${modeToCommand(parsedMode)} ${Number(session.lastYear)}`,
+        session
+      );
       const out = await applyFmp(out0, session);
       const reply = finalizeReply(session, out.reply || "");
 
@@ -2672,11 +2901,14 @@ app.post("/api/chat", async (req, res) => {
     }
 
     setCog(session, "engage", "collect", "parsed:modeOnly:needYear");
-    const ask = replyMissingYearForMode(parsedMode);
+    const ask = finalizeReply(session, replyMissingYearForMode(parsedMode));
 
     session.lastReply = ask;
     session.lastReplyAt = Date.now();
     session.lastIntent = "askYear";
+
+    const c2 = deriveCogFromSession(session);
+    setCog(session, c2.phase, c2.state, "need:year");
 
     updateProfileFromSession(profile, session);
 
