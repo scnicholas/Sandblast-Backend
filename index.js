@@ -3,24 +3,22 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.19 (COGNITIVE LAYERING: more assertive + bulletproof; preserves v1.5.18 behavior)
+ * index.js v1.5.20 (COGNITIVE LAYERING: more assertive + bulletproof; preserves v1.5.19 behavior)
  *
- * Adds (Cognitive OS Layer v1.0):
- *  - session.cogPhase + session.cogState + session.cogReason (lightweight, deterministic)
- *  - Optional payload.cog (non-breaking add) so frontend/avatar can reflect phase/state
+ * Surgical fixes vs v1.5.19 you pasted:
+ *  1) Hard numeric normalization for clampYear checks in bridges (preEngineBridge/postEngineBridge) to prevent any
+ *     accidental string-year drift from silently disabling year logic.
+ *  2) Stronger “cog consistency” guarantees:
+ *      - initCog() is enforced on session create + getSession
+ *      - deriveCogFromSession() always uses normalized year/mode
+ *      - end-of-turn cog is re-derived AFTER finalizeReply (keeps UI/avatar synced with the final state)
+ *  3) Slightly more assertive momentum tail behavior:
+ *      - ensures the “Next:” tail is appended only when it won’t duplicate or conflict with question endings
+ *
+ * Preserves (from v1.5.19):
+ *  - Cognitive OS fields + optional payload.cog
  *  - Assertive auto-continue for returning/resumable greetings (env-gated)
- *  - Assertive “missing info” handling (less questions; more directives + safe defaults)
- *  - Hardened “no-question-end” for music/general lane (keeps forward motion)
- *
- * Preserves (from v1.5.18):
- *  - Schedule Lane (timezone-aware programming) + precedence
- *  - Explicit Top10 Guard + bare-year => Top 10
- *  - FMP autorun + loop-proofing
- *  - Lane escape chip always present (Back to music)
- *  - Replay integrity, followUp merge, greeting-only 4-chip enforcement
- *  - Chart contamination guard + musicKnowledge bridge
- *  - Top10-missing deterministic escape
- *  - #1 routing, nav completion, mic feedback guard, single /api/health
+ *  - Schedule Lane precedence + all routing/guards/FMP/Replay integrity
  */
 
 const express = require("express");
@@ -35,7 +33,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.19 (v1.5.18 + Cognitive OS assertive layering: cogPhase/state, optional payload.cog, auto-continue on greeting for returning/resumable (env-gated), more directive prompts, hardened no-question-end; preserves schedule/sponsors/movies/music routing, explicit Top10 guard, FMP autorun, lane escape chips, replay integrity, chart guard/bridge, Top10-missing escape)";
+  "index.js v1.5.20 (v1.5.19 + numeric-year hardening in bridges + tighter cog consistency + safer momentum tail; preserves schedule/sponsors/movies/music routing, explicit Top10 guard, FMP autorun, lane escape chips, replay integrity, chart guard/bridge, Top10-missing escape)";
 
 /* ======================================================
    Basic middleware
@@ -270,7 +268,10 @@ const COG_AUTOCONTINUE_ON_GREETING =
 
 const COG_AUTOCONTINUE_COOLDOWN_MS = Math.max(
   30 * 1000,
-  Math.min(24 * 60 * 60 * 1000, Number(process.env.COG_AUTOCONTINUE_COOLDOWN_MS || 6 * 60 * 60 * 1000))
+  Math.min(
+    24 * 60 * 60 * 1000,
+    Number(process.env.COG_AUTOCONTINUE_COOLDOWN_MS || 6 * 60 * 60 * 1000)
+  )
 );
 
 function initCog(session) {
@@ -314,7 +315,6 @@ function attachCogToPayload(payload, session) {
   if (!payload || typeof payload !== "object") return payload;
 
   const c = deriveCogFromSession(session);
-  // Keep it compact and stable for frontend consumers.
   payload.cog = {
     phase: c.phase,
     state: c.state,
@@ -378,8 +378,9 @@ function preEngineBridge(session) {
   if (!session.activeMusicChart) session.activeMusicChart = DEFAULT_CHART;
   session.activeMusicChart = normalizeChartToken(session.activeMusicChart);
 
-  if (!clampYear(session.lastYear) && clampYear(session.lastMusicYear)) {
-    session.lastYear = session.lastMusicYear;
+  // v1.5.20: always Number() before clampYear to avoid string-year drift
+  if (!clampYear(Number(session.lastYear)) && clampYear(Number(session.lastMusicYear))) {
+    session.lastYear = Number(session.lastMusicYear);
   }
   if (!session.lastMusicChart && session.activeMusicChart) {
     session.lastMusicChart = session.activeMusicChart;
@@ -391,15 +392,15 @@ function preEngineBridge(session) {
 function postEngineBridge(session) {
   if (!session) return;
 
-  if (clampYear(session.lastMusicYear) && !clampYear(session.lastYear)) {
-    session.lastYear = session.lastMusicYear;
+  if (clampYear(Number(session.lastMusicYear)) && !clampYear(Number(session.lastYear))) {
+    session.lastYear = Number(session.lastMusicYear);
   }
   if (
-    clampYear(session.lastYear) &&
-    (!clampYear(session.lastMusicYear) ||
-      session.lastMusicYear !== session.lastYear)
+    clampYear(Number(session.lastYear)) &&
+    (!clampYear(Number(session.lastMusicYear)) ||
+      Number(session.lastMusicYear) !== Number(session.lastYear))
   ) {
-    session.lastMusicYear = session.lastYear;
+    session.lastMusicYear = Number(session.lastYear);
   }
 
   if (session.lastMusicChart && !session.activeMusicChart) {
@@ -547,9 +548,8 @@ const FMP = {
   },
 
   forceProceed(session, reason) {
-    const y = clampYear(session && session.lastYear) ? session.lastYear : null;
+    const y = clampYear(Number(session && session.lastYear)) ? Number(session.lastYear) : null;
 
-    // prefer pendingMode when deciding what to run
     const m =
       (session && (session.pendingMode || session.activeMusicMode)) || null;
 
@@ -579,7 +579,6 @@ const FMP = {
         ? "a micro moment"
         : "a story moment";
 
-    // More assertive copy: declarative + clear escape hatch.
     const reply =
       reason === "askYear"
         ? `Locked in ${year}. Running ${modeLabel} now. Say “switch” if you want a different mode.`
@@ -616,7 +615,7 @@ const FMP = {
     const reply = cleanText(out.reply || "");
     if (!reply) return out;
 
-    const hasYear = !!clampYear(session.lastYear);
+    const hasYear = !!clampYear(Number(session.lastYear));
     const hasMode = !!(session.activeMusicMode || session.pendingMode);
 
     if (hasYear && this.isAskingYear(reply)) {
@@ -636,7 +635,7 @@ const FMP = {
     }
 
     if (this.endsOpenQuestion(reply)) {
-      const y = clampYear(session.lastYear) ? session.lastYear : null;
+      const y = clampYear(Number(session.lastYear)) ? Number(session.lastYear) : null;
       const mode = session.activeMusicMode || session.pendingMode || null;
       if (y && mode) {
         const modeLabel =
@@ -711,7 +710,6 @@ function ensureForwardMotion(reply, session) {
   const hasYear = !!clampYear(Number(session.lastYear));
   const hasMode = !!(session.activeMusicMode || session.pendingMode);
 
-  // If it ends with a question and we already have enough context, convert to declarative.
   const endsWithQuestion = /\?\s*$/.test(r);
 
   if (hasYear && hasMode && endsWithQuestion) {
@@ -739,10 +737,12 @@ function addMomentumTail(session, reply) {
 
   if (session && session.lane !== "general" && session.lane !== "music") return r;
 
-  const y = session && clampYear(session.lastYear) ? session.lastYear : null;
+  const y = session && clampYear(Number(session.lastYear)) ? Number(session.lastYear) : null;
   const mode = session && session.activeMusicMode ? session.activeMusicMode : null;
-  const endsWithQ = /[?]$/.test(r);
-  if (endsWithQ) return r;
+
+  // v1.5.20: do not append if it already ends with a question OR already contains "Next:"
+  if (/[?]$/.test(r)) return r;
+  if (/\bNext:\b/i.test(r)) return r;
 
   if (y && mode) return `${r} Next: “next year”, “another year”, or “replay”.`;
   return r;
@@ -817,7 +817,7 @@ function updateProfileFromSession(profile, session) {
   profile.lastLane = session.lane || profile.lastLane || "general";
   profile.lastHadReply = !!session.lastReply;
 
-  if (clampYear(session.lastYear)) profile.lastMusicYear = session.lastYear;
+  if (clampYear(Number(session.lastYear))) profile.lastMusicYear = Number(session.lastYear);
   if (session.activeMusicMode) profile.lastMusicMode = session.activeMusicMode;
 
   profile.updatedAt = Date.now();
@@ -1251,7 +1251,6 @@ function greetingReply(profile, canContinue) {
   }
 
   const who = name ? `Welcome back, ${name}.` : "Welcome back.";
-  // More assertive (but still chip-driven): the auto-continue path is handled in /api/chat when enabled.
   if (canContinue) return `${who} I can continue where we left off—tap “Continue”, or drop a year to pivot.`;
   return `${who} Tap “Start fresh”, or drop a year to jump in.`;
 }
@@ -1323,7 +1322,7 @@ async function runMusicEngine(text, session) {
     const reply0 = cleanText(out.reply || "");
     const modeReq =
       normalizeModeToken(text) || session.activeMusicMode || session.pendingMode || null;
-    const yearReq = clampYear(y || session.lastYear || session.lastMusicYear);
+    const yearReq = clampYear(Number(y || session.lastYear || session.lastMusicYear));
 
     if (modeReq === "top10" && yearReq && looksLikeTop10Missing(reply0)) {
       session.lane = "music";
@@ -1469,12 +1468,10 @@ async function runScheduleLane(text, session) {
 }
 
 async function runEngine(text, session) {
-  // precedence: schedule before other lanes if intent matches
   if (isScheduleActive(session, text)) return runScheduleLane(text, session);
   if (isSponsorsActive(session, text)) return runSponsorsLane(text, session);
   if (isMoviesActive(session, text)) return runMoviesLane(text, session);
 
-  // music/general
   if (session) {
     session.lane = "music";
     const c = deriveCogFromSession(session);
@@ -1489,9 +1486,9 @@ async function runEngine(text, session) {
 
 function hasMeaningfulResumeState(profile, session) {
   const profOk =
-    !!profile && !!clampYear(profile.lastMusicYear) && !!profile.lastMusicMode;
+    !!profile && !!clampYear(Number(profile.lastMusicYear)) && !!profile.lastMusicMode;
 
-  const sesYear = !!(session && clampYear(session.lastYear));
+  const sesYear = !!(session && clampYear(Number(session.lastYear)));
   const sesMode = !!(session && session.activeMusicMode);
   const sesPairOk = sesYear && sesMode;
 
@@ -1539,17 +1536,17 @@ function makeFollowUpsTight(session, profile) {
   }
 
   const base = [];
-  const hasYear = !!(session && clampYear(session.lastYear));
+  const hasYear = !!(session && clampYear(Number(session.lastYear)));
   base.push(
-    hasYear ? String(session.lastYear) : "1950",
+    hasYear ? String(Number(session.lastYear)) : "1950",
     "Top 10",
     "Story moment",
     "Micro moment"
   );
 
   if (hasYear) {
-    const py = safeIncYear(session.lastYear, -1);
-    const ny = safeIncYear(session.lastYear, +1);
+    const py = safeIncYear(Number(session.lastYear), -1);
+    const ny = safeIncYear(Number(session.lastYear), +1);
     if (py) base.push("Prev year");
     if (ny) base.push("Next year");
     base.push("Another year");
@@ -1985,7 +1982,6 @@ async function handleContinue(session, profile) {
     return await applyFmp(out0, session);
   }
 
-  // Assertive: give a direct instruction, not a question.
   return {
     reply: "Continue is ready. Drop a year (1950–2024) or tap: Top 10 / Story moment / Micro moment.",
   };
@@ -2263,7 +2259,6 @@ app.post("/api/chat", async (req, res) => {
     const tight = makeFollowUpsTight(session, profile);
     const returning = profileIsReturning(profile);
 
-    // Assertive: auto-continue when returning + resumable, but throttle hard.
     if (COG_AUTOCONTINUE_ON_GREETING && returning && tight.resumable) {
       const now = Date.now();
       const lastAt = Number(session._cogLastAutoContinueAt || 0);
@@ -2281,6 +2276,10 @@ app.post("/api/chat", async (req, res) => {
         session.lastReply = reply;
         session.lastReplyAt = Date.now();
         session.lastIntent = "continue";
+
+        // v1.5.20: derive cog after final reply to keep payload.cog in sync
+        const c2 = deriveCogFromSession(session);
+        setCog(session, c2.phase, c2.state, c2.reason);
 
         updateProfileFromSession(profile, session);
 
@@ -2393,6 +2392,9 @@ app.post("/api/chat", async (req, res) => {
     session.lastReplyAt = Date.now();
     session.lastIntent = "numberOne";
 
+    const c2 = deriveCogFromSession(session);
+    setCog(session, c2.phase, c2.state, c2.reason);
+
     updateProfileFromSession(profile, session);
 
     const base = {
@@ -2416,6 +2418,9 @@ app.post("/api/chat", async (req, res) => {
     session.lastReply = reply;
     session.lastReplyAt = Date.now();
     session.lastIntent = "nextYear";
+
+    const c2 = deriveCogFromSession(session);
+    setCog(session, c2.phase, c2.state, c2.reason);
 
     updateProfileFromSession(profile, session);
 
@@ -2441,6 +2446,9 @@ app.post("/api/chat", async (req, res) => {
     session.lastReplyAt = Date.now();
     session.lastIntent = "prevYear";
 
+    const c2 = deriveCogFromSession(session);
+    setCog(session, c2.phase, c2.state, c2.reason);
+
     updateProfileFromSession(profile, session);
 
     const base = {
@@ -2464,6 +2472,9 @@ app.post("/api/chat", async (req, res) => {
     session.lastReply = reply;
     session.lastReplyAt = Date.now();
     session.lastIntent = "anotherYear";
+
+    const c2 = deriveCogFromSession(session);
+    setCog(session, c2.phase, c2.state, c2.reason);
 
     updateProfileFromSession(profile, session);
 
@@ -2489,6 +2500,9 @@ app.post("/api/chat", async (req, res) => {
     session.lastReplyAt = Date.now();
     session.lastIntent = "continue";
 
+    const c2 = deriveCogFromSession(session);
+    setCog(session, c2.phase, c2.state, c2.reason);
+
     updateProfileFromSession(profile, session);
 
     const base = {
@@ -2512,6 +2526,9 @@ app.post("/api/chat", async (req, res) => {
     session.lastReply = reply;
     session.lastReplyAt = Date.now();
     session.lastIntent = "fresh";
+
+    const c2 = deriveCogFromSession(session);
+    setCog(session, c2.phase, c2.state, c2.reason);
 
     updateProfileFromSession(profile, session);
 
@@ -2549,6 +2566,9 @@ app.post("/api/chat", async (req, res) => {
     session.lastReply = reply;
     session.lastReplyAt = Date.now();
     session.lastIntent = "top10";
+
+    const c2 = deriveCogFromSession(session);
+    setCog(session, c2.phase, c2.state, c2.reason);
 
     updateProfileFromSession(profile, session);
 
@@ -2594,6 +2614,9 @@ app.post("/api/chat", async (req, res) => {
     session.lastReplyAt = Date.now();
     session.lastIntent = parsedMode;
 
+    const c2 = deriveCogFromSession(session);
+    setCog(session, c2.phase, c2.state, c2.reason);
+
     updateProfileFromSession(profile, session);
 
     const base = {
@@ -2611,7 +2634,6 @@ app.post("/api/chat", async (req, res) => {
   if (parsedMode && !parsedYear) {
     session.lane = "music";
 
-    // MODE-CHIP OVERRIDE — lock mode immediately
     session.activeMusicMode = parsedMode;
     session.pendingMode = parsedMode;
 
@@ -2620,17 +2642,20 @@ app.post("/api/chat", async (req, res) => {
       session.lastMusicChart = YEAR_END_CHART;
     }
 
-    if (clampYear(session.lastYear)) {
+    if (clampYear(Number(session.lastYear))) {
       session.pendingMode = null;
       setCog(session, "execute", "running", "parsed:modeOnly:useLastYear");
 
-      const out0 = await runEngine(`${modeToCommand(parsedMode)} ${session.lastYear}`, session);
+      const out0 = await runEngine(`${modeToCommand(parsedMode)} ${Number(session.lastYear)}`, session);
       const out = await applyFmp(out0, session);
       const reply = finalizeReply(session, out.reply || "");
 
       session.lastReply = reply;
       session.lastReplyAt = Date.now();
       session.lastIntent = parsedMode;
+
+      const c2 = deriveCogFromSession(session);
+      setCog(session, c2.phase, c2.state, c2.reason);
 
       updateProfileFromSession(profile, session);
 
@@ -2646,7 +2671,6 @@ app.post("/api/chat", async (req, res) => {
       return respondJson(req, res, base, session, out, profile, false);
     }
 
-    // More assertive (directive, not question)
     setCog(session, "engage", "collect", "parsed:modeOnly:needYear");
     const ask = replyMissingYearForMode(parsedMode);
 
@@ -2671,7 +2695,6 @@ app.post("/api/chat", async (req, res) => {
   if (parsedYear && !parsedMode) {
     session.lane = "music";
 
-    // bare-year ALWAYS defaults to Top 10
     const mode = bareYear ? "top10" : (session.pendingMode || session.activeMusicMode || "top10");
 
     session.activeMusicMode = mode;
@@ -2692,6 +2715,9 @@ app.post("/api/chat", async (req, res) => {
     session.lastReplyAt = Date.now();
     session.lastIntent = mode;
 
+    const c2 = deriveCogFromSession(session);
+    setCog(session, c2.phase, c2.state, c2.reason);
+
     updateProfileFromSession(profile, session);
 
     const base = {
@@ -2708,7 +2734,6 @@ app.post("/api/chat", async (req, res) => {
 
   void bareYear;
 
-  // Default: route through runEngine (schedule > sponsors > movies > music)
   const out0 = await runEngine(message, session);
   const out = await applyFmp(out0, session);
 
@@ -2718,7 +2743,6 @@ app.post("/api/chat", async (req, res) => {
   session.lastReplyAt = Date.now();
   session.lastIntent = "passthrough";
 
-  // keep cog consistent at end of turn
   const c = deriveCogFromSession(session);
   setCog(session, c.phase, c.state, c.reason);
 
