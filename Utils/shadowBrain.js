@@ -343,7 +343,9 @@ function ensureImprint(visitorId, now) {
 
   // PATCH: decay uses lastDecayAt, not lastSeenAt (which changes every call)
   const halfLifeMs = DEFAULTS.imprintHalfLifeDays * 24 * 60 * 60 * 1000;
-  const lastDecayAt = Number.isFinite(Number(imp.lastDecayAt)) ? Number(imp.lastDecayAt) : Number(imp.lastSeenAt || t);
+  const lastDecayAt = Number.isFinite(Number(imp.lastDecayAt))
+    ? Number(imp.lastDecayAt)
+    : Number(imp.lastSeenAt || t);
   const dt = t - lastDecayAt;
 
   if (Number.isFinite(dt) && dt > 0) {
@@ -676,7 +678,7 @@ function intentForCandidate(lane, candidate) {
   if (ln === "music") {
     if (send.startsWith("top 10") || label.startsWith("top 10")) return "top10_run";
     if (send.startsWith("story moment") || label.startsWith("story moment")) return "story_moment";
-    if (send.startsWith("micro moment") || label.startsWith("micro moment")) return "micro_moment"; // PATCH: exists end-to-end
+    if (send.startsWith("micro moment") || label.startsWith("micro moment")) return "micro_moment"; // PATCH
     if (send.startsWith("#1") || label.startsWith("#1")) return "number1";
     if (send === "another year") return "another_year";
     if (send === "next year") return "next_year";
@@ -878,10 +880,13 @@ function get({ session, visitorId, lane, mode, year, userText, replyText, follow
 
     const topIntent = ranked[0] ? ranked[0].intent : null;
 
+    const effectiveMode =
+      cleanText(mode || (session && (session.activeMusicMode || session.pendingMode)) || "") || null;
+
     sh = {
       at: t,
       lane: ln,
-      mode: cleanText(mode || (session && (session.activeMusicMode || session.pendingMode)) || ""),
+      mode: effectiveMode,
       year: y,
       orderedIntents: ranked.map((r) => ({ intent: r.intent, w: round4(r.w) })),
       candidates: ordered.candMeta.map((c) => ({
@@ -897,7 +902,7 @@ function get({ session, visitorId, lane, mode, year, userText, replyText, follow
         uiHints: uiHintsFor(ln, topIntent),
       },
       orderedChips: ordered.ordered.slice(0, 10),
-      sig: sigOf(ln, y, (session && session.activeMusicMode) || mode || "", topIntent),
+      sig: sigOf(ln, y, effectiveMode || "", topIntent),
     };
 
     if (session) setSessionShadow(session, sh);
