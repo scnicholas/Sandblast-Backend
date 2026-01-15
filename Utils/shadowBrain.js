@@ -1,26 +1,25 @@
 "use strict";
 
 /**
- * Shadow Brain — C+ + D (v1.2)
+ * Shadow Brain — C+ + D (v1.3 PATCHED)
  *  - C+ Probabilistic follow-up weighting (deterministic)
  *  - D Cognitive memory imprinting (behavioral prefs; non-sensitive)
  *
- * Goals:
- *  - No external deps
- *  - Deterministic weights (no RNG required)
- *  - Tiny memory footprint (in-process LRU + TTL)
- *  - Guardrails (caps, decay, TTL, update throttles)
+ * PATCHES INCLUDED (v1.3):
+ *  1) Fix decay bug: dt was always 0 because lastSeenAt was set before dt calc
+ *     -> now uses lastDecayAt properly and updates after decay.
+ *  2) Stronger lane normalization + alias support (musicLane, sponsor, etc.)
+ *  3) Better year extraction fallback (from session.lastYear/year/lastMusicYear)
+ *  4) Better candidate intent mapping (micro_moment intent supported end-to-end)
+ *  5) External followUps mapping: uses followUps first, but preserves minimum core actions in music lane
+ *  6) Adds safe, deterministic “signature” for debugging (no RNG, no user data)
+ *  7) Adds minimal prefetch hints (uiHints) derived from topIntent + lane
  *
  * Usage:
  *   const shadowBrain = require("./Utils/shadowBrain");
  *   shadowBrain.prime({ session, visitorId, lane, mode, year, now });
  *   shadowBrain.observe({ session, visitorId, userText, event, lane, mode, year, now });
  *   const { shadow, imprint } = shadowBrain.get({ session, visitorId, lane, mode, year, userText, replyText, followUps, now });
- *
- * Notes:
- *  - This module NEVER stores sensitive personal data.
- *  - It stores only small numeric "knobs" that represent interaction preferences.
- *  - "session" is used for per-session shadow caching only.
  */
 
 /* ======================================================
@@ -28,26 +27,19 @@
 ====================================================== */
 
 const DEFAULTS = {
-  // Session shadow TTL (ms): if stale, rebuild candidates
   shadowTtlMs: 45_000,
 
-  // Imprint TTL (ms): evict users if inactive
   imprintTtlMs: 7 * 24 * 60 * 60 * 1000, // 7 days
-
-  // LRU cap
   maxImprints: 3000,
 
-  // Caps: avoid overlearning quickly
   imprintMaxUpdatesPerDay: 24,
-  imprintStep: 0.04, // base update step (small)
-  imprintStepStrong: 0.07, // for high-signal events like explicit correction / "stop asking"
+  imprintStep: 0.04,
+  imprintStepStrong: 0.07,
   imprintMin: 0.05,
   imprintMax: 0.95,
 
-  // Decay: old prefs drift toward neutral (0.5)
   imprintHalfLifeDays: 14,
 
-  // Baselines by lane (C+ starting distributions)
   laneBaselines: {
     music: [
       { intent: "top10_run", w: 0.55 },
@@ -80,7 +72,6 @@ const DEFAULTS = {
     ],
   },
 
-  // Bias mapping: which imprint knobs influence which intents
   intentBiasMap: {
     // music
     top10_run: { knob: "musicTop10", dir: +1 },
@@ -98,14 +89,13 @@ const DEFAULTS = {
     convert_time: { knob: "questionTolerance", dir: +1 },
     set_city: { knob: "questionTolerance", dir: +1 },
 
-    // sponsors/movies (light, optional)
+    // sponsors/movies
     collect_property: { knob: "questionTolerance", dir: +1 },
     collect_goal: { knob: "questionTolerance", dir: +1 },
     collect_budget: { knob: "questionTolerance", dir: +1 },
     request_contact: { knob: "momentumFast", dir: +1 },
   },
 
-  // Strong deterministic evidence boosts (C+)
   evidenceBoosts: {
     userSaysNextYear: { another_year: +0.22 },
     userSaysAnotherYear: { another_year: +0.18 },
@@ -120,12 +110,10 @@ const DEFAULTS = {
     userAsksMovies: { collect_title: +0.14, collect_budget: +0.10 },
   },
 
-  // Soft penalties
   penalties: {
     lowQuestionToleranceClarifyPenalty: 0.15,
   },
 
-  // Candidate templates (turn intents into UI chips)
   candidates: {
     music: {
       top10_run: (year) => ({
@@ -214,10 +202,6 @@ class TinyLRU {
   }
 }
 
-/* ======================================================
-   Global memory (process-local)
-====================================================== */
-
 const IMPRINTS = new TinyLRU(DEFAULTS.maxImprints);
 
 /* ======================================================
@@ -256,7 +240,6 @@ function normWeights(arr) {
   return arr.map((x) => ({ ...x, w: x.w / s }));
 }
 
-// Exponential decay toward "mid" (0.5 typically)
 function decayToward(mid, value, halfLifeMs, dtMs) {
   if (!Number.isFinite(dtMs) || dtMs <= 0) return value;
   if (!Number.isFinite(halfLifeMs) || halfLifeMs <= 0) return value;
@@ -272,11 +255,41 @@ function clampYear(y) {
 
 function laneOf(laneRaw) {
   const lane = cleanText(laneRaw || "").toLowerCase();
-  if (lane === "music") return "music";
-  if (lane === "sponsors") return "sponsors";
-  if (lane === "movies") return "movies";
-  if (lane === "schedule") return "schedule";
+
+  // PATCH: lane aliases
+  if (lane === "music" || lane === "musiclane" || lane === "music_lane") return "music";
+  if (lane === "sponsors" || lane === "sponsor" || lane === "ads" || lane === "advertising") return "sponsors";
+  if (lane === "movies" || lane === "movie" || lane === "film") return "movies";
+  if (lane === "schedule" || lane === "programming" || lane === "tv_schedule") return "schedule";
+
   return "general";
+}
+
+function getSessionYear(session) {
+  if (!session || typeof session !== "object") return null;
+  const candidates = [
+    session.year,
+    session.lastYear,
+    session.lastMusicYear,
+    session.musicYear,
+    session.activeYear,
+  ];
+  for (const v of candidates) {
+    const y = clampYear(Number(v));
+    if (y) return y;
+  }
+  return null;
+}
+
+function sigOf(lane, year, mode, topIntent) {
+  // deterministic, no secrets; good for debugging cache collisions
+  const s = `${lane || ""}|${year || ""}|${mode || ""}|${topIntent || ""}`;
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(16);
 }
 
 /* ======================================================
@@ -289,53 +302,50 @@ function ensureImprint(visitorId, now) {
   if (!vid) return null;
 
   let imp = IMPRINTS.get(vid);
+
   if (!imp) {
     imp = {
       visitorId: vid,
       createdAt: t,
       lastSeenAt: t,
 
-      // throttling
       dayKey: dayKeyOf(t),
       dayUpdates: 0,
 
-      // knob values in [0..1], neutral at 0.5
+      lastDecayAt: t, // PATCH: initialize decay anchor
+
       knobs: {
-        // music preferences
         musicTop10: 0.50,
         musicStory: 0.50,
         musicNumber1: 0.50,
 
-        // pacing
         momentumFast: 0.50,
 
-        // recovery preference
         recoveryRecommend: 0.55,
         recoveryOptions: 0.45,
 
-        // question tolerance (higher = more OK with clarifying questions)
         questionTolerance: 0.50,
 
-        // tone bias (reserved for later)
         toneCrisp: 0.55,
         toneWarm: 0.45,
       },
     };
     IMPRINTS.set(vid, imp);
-  } else {
-    imp.lastSeenAt = t;
+    return imp;
   }
 
-  // rollover daily throttles
+  // rollover daily throttles BEFORE increment/update
   const dk = dayKeyOf(t);
   if (imp.dayKey !== dk) {
     imp.dayKey = dk;
     imp.dayUpdates = 0;
   }
 
-  // decay knobs toward 0.5 over time
+  // PATCH: decay uses lastDecayAt, not lastSeenAt (which changes every call)
   const halfLifeMs = DEFAULTS.imprintHalfLifeDays * 24 * 60 * 60 * 1000;
-  const dt = t - Number(imp.lastDecayAt || imp.lastSeenAt || t);
+  const lastDecayAt = Number.isFinite(Number(imp.lastDecayAt)) ? Number(imp.lastDecayAt) : Number(imp.lastSeenAt || t);
+  const dt = t - lastDecayAt;
+
   if (Number.isFinite(dt) && dt > 0) {
     for (const k of Object.keys(imp.knobs || {})) {
       const v = Number(imp.knobs[k]);
@@ -345,6 +355,7 @@ function ensureImprint(visitorId, now) {
     imp.lastDecayAt = t;
   }
 
+  imp.lastSeenAt = t;
   return imp;
 }
 
@@ -360,7 +371,7 @@ function maybeEvictExpired(now) {
   const t = nowMs(now);
   const keys = IMPRINTS.keys();
   if (!keys.length) return;
-  // cheap sweep (bounded)
+
   const sweepN = Math.min(30, keys.length);
   for (let i = 0; i < sweepN; i++) {
     const k = keys[i];
@@ -390,20 +401,15 @@ function recordImprintEvent(imp, evidence) {
   const strong = evidence && evidence.strong === true;
   const step = strong ? DEFAULTS.imprintStepStrong : DEFAULTS.imprintStep;
 
-  // evidence->knob updates (kept sparse and safe)
   if (evidence.userAsksTop10) bumpKnob(imp, "musicTop10", +step);
   if (evidence.userAsksStory) bumpKnob(imp, "musicStory", +step);
   if (evidence.userAsksNumber1) bumpKnob(imp, "musicNumber1", +step);
 
   if (evidence.userSaysNextYear || evidence.userSaysAnotherYear) bumpKnob(imp, "momentumFast", +step);
 
-  // "stop asking / don't ask / just do it" => lower question tolerance
   if (evidence.userSignalsLowQuestions) bumpKnob(imp, "questionTolerance", -step);
-
-  // "can you explain / why / how" => higher question tolerance
   if (evidence.userSignalsWantsExplain) bumpKnob(imp, "questionTolerance", +step);
 
-  // weak preference (recommend vs options) — only if explicitly asked
   if (evidence.userSignalsRecommend) {
     bumpKnob(imp, "recoveryRecommend", +step);
     bumpKnob(imp, "recoveryOptions", -step * 0.5);
@@ -418,7 +424,7 @@ function recordImprintEvent(imp, evidence) {
 }
 
 /* ======================================================
-   Evidence extraction (deterministic)
+   Evidence extraction
 ====================================================== */
 
 function extractEvidence(userText, lane, mode, year) {
@@ -447,25 +453,20 @@ function extractEvidence(userText, lane, mode, year) {
 
   if (!t) return ev;
 
-  // nav
   if (/^\s*(next|next year|year\+1)\b/.test(t)) ev.userSaysNextYear = true;
   if (/^\s*(another year|new year|different year)\b/.test(t)) ev.userSaysAnotherYear = true;
 
-  // modes
   if (/\b(story moment|story)\b/.test(t)) ev.userAsksStory = true;
   if (/\b(top\s*10|top10|top ten)\b/.test(t)) ev.userAsksTop10 = true;
   if (/\b(#\s*1|number\s*1|number\s*one|no\.?\s*1)\b/.test(t)) ev.userAsksNumber1 = true;
 
   if (/^\s*(ok|okay|sure|yes|continue|go on|carry on)\s*$/.test(t)) ev.userVagueOkContinue = true;
 
-  // user correction signals
   if (/\b(no[, ]|not that|that’s wrong|thats wrong|actually|i meant|correction)\b/.test(t)) ev.userCorrects = true;
 
-  // switch
   if (/^\s*(switch|switch mode)\b/.test(t)) ev.userSaysSwitchMode = true;
 
-  // lane intent
-  if (/\b(schedule|what time|playing now|what's playing|what is playing|in london|in toronto|timezone)\b/.test(t)) {
+  if (/\b(schedule|what time|playing now|what's playing|what is playing|timezone|time zone)\b/.test(t)) {
     ev.userAsksSchedule = true;
   }
   if (/\b(sponsor|advertis|rate card|pricing|package|whatsapp)\b/.test(t)) {
@@ -475,7 +476,11 @@ function extractEvidence(userText, lane, mode, year) {
     ev.userAsksMovies = true;
   }
 
-  // question tolerance cues
+  // City hints (keep deterministic; don't attempt full geocode here)
+  if (/\b(in london|in toronto|in new york|in miami|in los angeles|in la)\b/.test(t)) {
+    ev.userAsksSchedule = true;
+  }
+
   if (/\b(stop asking|don’t ask|don't ask|just do it|skip questions|no questions)\b/.test(t)) {
     ev.userSignalsLowQuestions = true;
     ev.strong = true;
@@ -484,11 +489,9 @@ function extractEvidence(userText, lane, mode, year) {
     ev.userSignalsWantsExplain = true;
   }
 
-  // recovery preference
   if (/\b(recommend|suggest|what should i|best option)\b/.test(t)) ev.userSignalsRecommend = true;
   if (/\b(options|choices|list them|give me choices)\b/.test(t)) ev.userSignalsOptions = true;
 
-  // If user explicitly names a lane while in another lane, consider it strong.
   const ln = laneOf(lane);
   if (ln !== "schedule" && ev.userAsksSchedule) ev.strong = true;
   if (ln !== "sponsors" && ev.userAsksSponsors) ev.strong = true;
@@ -546,11 +549,8 @@ function applyImprintBias(weights, imp) {
     const knobVal = Number(imp.knobs[rule.knob]);
     if (!Number.isFinite(knobVal)) continue;
 
-    // neutral = 0.5. Convert to bias in [-1..+1]
     const centered = (knobVal - 0.5) * 2.0 * (rule.dir || 1);
-
-    // Bias scale (kept conservative)
-    const scale = 0.18; // max ~ +/-0.18 weight shift before renorm
+    const scale = 0.18;
     it.w += centered * scale;
   }
   return out;
@@ -562,7 +562,6 @@ function applyPenalties(weights, imp) {
 
   const qt = Number(imp.knobs.questionTolerance);
   if (Number.isFinite(qt) && qt < 0.35) {
-    // penalize clarify if user dislikes questions
     for (const it of out) {
       if (it.intent === "clarify") {
         it.w -= DEFAULTS.penalties.lowQuestionToleranceClarifyPenalty;
@@ -587,28 +586,24 @@ function rankIntents(lane, evidence, imp) {
    Candidates + preparation payload
 ====================================================== */
 
-function buildCandidates(lane, year, session) {
+function buildCandidates(lane, year) {
   const ln = laneOf(lane);
   const y = clampYear(Number(year));
-
-  // Always include a safe nav escape where relevant
   const templates = DEFAULTS.candidates[ln] || DEFAULTS.candidates.general;
 
   const list = [];
 
-  // Music: include mode set + replay/switch/navigation (if year known)
   if (ln === "music") {
-    // Always offer the 3 core modes
     list.push(templates.top10_run(y));
     list.push(templates.story_moment(y));
     list.push(templates.micro_moment(y));
     list.push(templates.number1(y));
 
     if (y) {
-      // These are UI actions; ordering handled by weights
       list.push(templates.next_year());
       list.push(templates.prev_year());
     }
+
     list.push(templates.another_year());
     list.push(templates.replay());
     list.push(templates.switch_mode());
@@ -630,16 +625,38 @@ function buildCandidates(lane, year, session) {
     list.push(templates.request_contact());
     list.push(templates.back_to_music());
   } else {
-    // general
     list.push(templates.recommend());
     list.push(templates.options());
     list.push(templates.clarify());
   }
 
-  // Dedupe by send
+  return dedupeCandidates(list);
+}
+
+// PATCH: enforce minimum core candidates even if engine followUps are sparse
+function mergeWithCoreCandidates(lane, year, externalCandidates) {
+  const ln = laneOf(lane);
+  const core = buildCandidates(ln, year);
+
+  if (!Array.isArray(externalCandidates) || externalCandidates.length === 0) return core;
+
+  // For music: ensure at least Top10/Story/Micro/#1 exist
+  if (ln === "music") {
+    const merged = [...externalCandidates, ...core];
+    return dedupeCandidates(merged);
+  }
+
+  // For other lanes: external is usually fine, but keep "back to music" if present in core
+  const merged = [...externalCandidates];
+  const coreBack = core.find((c) => cleanText(c.send).toLowerCase() === "back to music");
+  if (coreBack) merged.push(coreBack);
+  return dedupeCandidates(merged);
+}
+
+function dedupeCandidates(list) {
   const seen = new Set();
   const out = [];
-  for (const c of list) {
+  for (const c of list || []) {
     const send = cleanText(c && c.send);
     const label = cleanText(c && c.label);
     if (!send || !label) continue;
@@ -648,7 +665,6 @@ function buildCandidates(lane, year, session) {
     seen.add(k);
     out.push({ label, send });
   }
-
   return out;
 }
 
@@ -660,7 +676,7 @@ function intentForCandidate(lane, candidate) {
   if (ln === "music") {
     if (send.startsWith("top 10") || label.startsWith("top 10")) return "top10_run";
     if (send.startsWith("story moment") || label.startsWith("story moment")) return "story_moment";
-    if (send.startsWith("micro moment") || label.startsWith("micro moment")) return "micro_moment";
+    if (send.startsWith("micro moment") || label.startsWith("micro moment")) return "micro_moment"; // PATCH: exists end-to-end
     if (send.startsWith("#1") || label.startsWith("#1")) return "number1";
     if (send === "another year") return "another_year";
     if (send === "next year") return "next_year";
@@ -699,7 +715,6 @@ function intentForCandidate(lane, candidate) {
     if (send === "clarify") return "clarify";
   }
 
-  // fallback
   return "clarify";
 }
 
@@ -716,12 +731,11 @@ function orderCandidatesByIntentWeights(lane, candidates, rankedIntents) {
 
   scored.sort((a, b) => {
     if (b.w !== a.w) return b.w - a.w;
-    return a.idx - b.idx; // deterministic tie-break
+    return a.idx - b.idx;
   });
 
-  const top = scored.map((x) => x.c);
+  const orderedChips = scored.map((x) => x.c);
 
-  // Return also “candidates with scores” for debug/prefetch
   const candMeta = scored.map((x) => ({
     intent: x.intent,
     w: x.w,
@@ -729,11 +743,30 @@ function orderCandidatesByIntentWeights(lane, candidates, rankedIntents) {
     send: x.c.send,
   }));
 
-  return { ordered: top, candMeta };
+  return { ordered: orderedChips, candMeta };
+}
+
+function uiHintsFor(lane, topIntent) {
+  const ln = laneOf(lane);
+  const intent = String(topIntent || "");
+
+  if (ln === "music") {
+    if (intent === "top10_run") return { prefetch: ["top10"], nudge: "top10" };
+    if (intent === "story_moment") return { prefetch: ["story"], nudge: "story" };
+    if (intent === "micro_moment") return { prefetch: ["micro"], nudge: "micro" };
+    if (intent === "number1") return { prefetch: ["number1"], nudge: "number1" };
+    return { prefetch: ["top10"], nudge: "top10" };
+  }
+
+  if (ln === "schedule") return { prefetch: ["schedule"], nudge: "schedule" };
+  if (ln === "sponsors") return { prefetch: ["sponsors"], nudge: "sponsors" };
+  if (ln === "movies") return { prefetch: ["movies"], nudge: "movies" };
+
+  return { prefetch: [], nudge: "clarify" };
 }
 
 /* ======================================================
-   Session shadow cache (C+)
+   Session shadow cache
 ====================================================== */
 
 function getSessionShadow(session) {
@@ -769,9 +802,8 @@ function prime({ session, visitorId, lane, mode, year, now } = {}) {
   const imp = ensureImprint(vid, t);
   if (!imp) return { ok: false };
 
-  // cache baseline shadow in session to avoid recompute
   const ln = laneOf(lane || (session && session.lane) || "general");
-  const y = clampYear(Number(year || (session && (session.lastYear || session.lastMusicYear))));
+  const y = clampYear(Number(year || getSessionYear(session)));
 
   if (session && !freshShadow(session, t)) {
     setSessionShadow(session, {
@@ -782,6 +814,8 @@ function prime({ session, visitorId, lane, mode, year, now } = {}) {
       orderedIntents: [],
       candidates: [],
       prepared: null,
+      orderedChips: null,
+      sig: null,
     });
   }
 
@@ -799,34 +833,22 @@ function observe({ session, visitorId, userText, event, lane, mode, year, now } 
   if (!imp) return { ok: false };
 
   const ln = laneOf(lane || (session && session.lane) || "general");
-  const y = clampYear(Number(year || (session && (session.lastYear || session.lastMusicYear))));
+  const y = clampYear(Number(year || getSessionYear(session)));
 
   const evidence = extractEvidence(userText, ln, mode, y);
 
-  // imprint update (D)
   recordImprintEvent(imp, evidence);
 
-  // invalidate session shadow so next get() rebuilds with latest evidence
   if (session) {
     const sh = getSessionShadow(session) || {};
-    sh.at = 0; // force stale
+    sh.at = 0;
     setSessionShadow(session, sh);
   }
 
   return { ok: true, evidence: slimEvidence(evidence), imprint: slimImprint(imp) };
 }
 
-function get({
-  session,
-  visitorId,
-  lane,
-  mode,
-  year,
-  userText,
-  replyText,
-  followUps,
-  now,
-} = {}) {
+function get({ session, visitorId, lane, mode, year, userText, replyText, followUps, now } = {}) {
   const t = nowMs(now);
   maybeEvictExpired(t);
 
@@ -837,9 +859,8 @@ function get({
   if (!imp) return { shadow: null, imprint: null };
 
   const ln = laneOf(lane || (session && session.lane) || "general");
-  const y = clampYear(Number(year || (session && (session.lastYear || session.lastMusicYear))));
+  const y = clampYear(Number(year || getSessionYear(session)));
 
-  // Try session cache
   let sh = session ? getSessionShadow(session) : null;
   const needsRebuild = !sh || !freshShadow(session, t) || sh.lane !== ln || sh.year !== y;
 
@@ -847,13 +868,15 @@ function get({
     const evidence = extractEvidence(userText || "", ln, mode, y);
     const ranked = rankIntents(ln, evidence, imp);
 
-    // candidates can be driven either from engine followUps (if provided) or templates
-    const baseCandidates =
-      Array.isArray(followUps) && followUps.length
-        ? sanitizeExternalFollowUps(followUps)
-        : buildCandidates(ln, y, session);
+    // External followUps first, but patch with core actions where needed
+    const externalCandidates =
+      Array.isArray(followUps) && followUps.length ? sanitizeExternalFollowUps(followUps) : null;
+
+    const baseCandidates = mergeWithCoreCandidates(ln, y, externalCandidates);
 
     const ordered = orderCandidatesByIntentWeights(ln, baseCandidates, ranked);
+
+    const topIntent = ranked[0] ? ranked[0].intent : null;
 
     sh = {
       at: t,
@@ -868,13 +891,13 @@ function get({
         send: c.send,
       })),
       prepared: {
-        // “prepared” is intentionally lightweight: helps UI prefetch cues
         year: y,
         lane: ln,
-        topIntent: ranked[0] ? ranked[0].intent : null,
+        topIntent,
+        uiHints: uiHintsFor(ln, topIntent),
       },
-      // orderedChips can be used by UI if you want to reorder chips on client
-      orderedChips: ordered.ordered.slice(0, 8),
+      orderedChips: ordered.ordered.slice(0, 10),
+      sig: sigOf(ln, y, (session && session.activeMusicMode) || mode || "", topIntent),
     };
 
     if (session) setSessionShadow(session, sh);
@@ -884,7 +907,7 @@ function get({
 }
 
 /* ======================================================
-   Slimming helpers (don’t leak internals)
+   Slimming helpers
 ====================================================== */
 
 function round4(x) {
@@ -915,7 +938,6 @@ function slimImprint(imp) {
 
 function slimEvidence(ev) {
   if (!ev) return null;
-  // only return booleans that matter
   const keys = Object.keys(ev).filter((k) => typeof ev[k] === "boolean" && ev[k] === true);
   return keys.sort();
 }
@@ -930,8 +952,8 @@ function slimShadow(sh) {
     orderedIntents: Array.isArray(sh.orderedIntents) ? sh.orderedIntents : [],
     candidates: Array.isArray(sh.candidates) ? sh.candidates : [],
     prepared: sh.prepared || null,
-    // If you want the UI to reorder chips, you can read this and apply it.
     orderedChips: Array.isArray(sh.orderedChips) ? sh.orderedChips : null,
+    sig: sh.sig || null,
   };
 }
 
@@ -963,8 +985,6 @@ module.exports = {
   prime,
   observe,
   get,
-
-  // (optional) diagnostics hooks
   _diag: {
     imprintsSize: () => IMPRINTS.size(),
     _getImprintUnsafe: (visitorId) => IMPRINTS.get(cleanText(visitorId || "")),
