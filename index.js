@@ -3,26 +3,19 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.20 (COGNITIVE LAYERING: more assertive + bulletproof; preserves v1.5.19 behavior)
+ * index.js v1.5.21 (COG CANONICAL + FINAL SYNC: canonical phases/states + re-derive cog AFTER finalizeReply; preserves v1.5.20 behavior)
  *
- * Surgical fixes vs v1.5.19 you pasted:
- *  1) Hard numeric normalization for clampYear checks in bridges (preEngineBridge/postEngineBridge) to prevent any
- *     accidental string-year drift from silently disabling year logic.
- *  2) Stronger “cog consistency” guarantees:
- *      - initCog() is enforced on session create + getSession
- *      - deriveCogFromSession() always uses normalized year/mode
- *      - end-of-turn cog is re-derived AFTER finalizeReply (keeps UI/avatar synced with the final state)
- *  3) Slightly more assertive momentum tail behavior:
- *      - ensures the “Next:” tail is appended only when it won’t duplicate or conflict with question endings
- *  4) Backend “Assertive Finisher” (respondJson layer):
- *      - guarantees chips when missing/weak (deterministic)
- *      - removes “hovering” questions when session already has enough context
- *      - mirrors followUp string[] for legacy clients
+ * Surgical fixes vs v1.5.20 you pasted:
+ *  1) Canonical Cognitive OS phases/states enforced (idle|engaged|guiding|explaining|deciding|handoff).
+ *     - Backward compatible: legacy setCog("engage"/"execute"/"running"/"decide") is auto-normalized.
+ *  2) End-of-turn cog is re-derived AFTER finalizeReply (respondJson + replay direct path) using deriveCogFromFinalReply()
+ *     so payload.cog and avatar/UI always reflect the final reply language.
+ *  3) payload.cog now includes ts (epoch ms) for deterministic UI sync/debug.
  *
- * Preserves (from v1.5.19):
- *  - Cognitive OS fields + optional payload.cog
- *  - Assertive auto-continue for returning/resumable greetings (env-gated)
+ * Preserves (from v1.5.20):
+ *  - Numeric-year hardening in bridges
  *  - Schedule Lane precedence + all routing/guards/FMP/Replay integrity
+ *  - Assertive Finisher behavior
  */
 
 const express = require("express");
@@ -37,7 +30,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.20 (v1.5.19 + numeric-year hardening in bridges + tighter cog consistency + safer momentum tail + Assertive Finisher in respondJson; preserves schedule/sponsors/movies/music routing, explicit Top10 guard, FMP autorun, lane escape chips, replay integrity, chart guard/bridge, Top10-missing escape)";
+  "index.js v1.5.21 (v1.5.20 + canonical Cognitive OS phases/states + final-reply cog sync w/ ts; preserves schedule/sponsors/movies/music routing, explicit Top10 guard, FMP autorun, lane escape chips, replay integrity, chart guard/bridge, Top10-missing escape)";
 
 /* ======================================================
    Basic middleware
@@ -256,7 +249,7 @@ function makeUuid() {
 }
 
 /* ======================================================
-   Cognitive OS Layer (assertive)
+   Cognitive OS Layer (assertive + canonical)
 ====================================================== */
 
 /**
@@ -279,25 +272,89 @@ const COG_AUTOCONTINUE_COOLDOWN_MS = Math.max(
   )
 );
 
+// Canonical phases/states (UI contract)
+const COG_PHASE = Object.freeze({
+  IDLE: "idle",
+  ENGAGED: "engaged",
+  GUIDING: "guiding",
+  EXPLAINING: "explaining",
+  DECIDING: "deciding",
+  HANDOFF: "handoff",
+});
+
+const COG_STATE = Object.freeze({
+  IDLE: "idle",
+  READY: "ready",
+  COLLECT: "collect",
+  CONFIDENT: "confident",
+  CAUTIOUS: "cautious",
+  ACTIVE: "active",
+});
+
+function cogNow() {
+  return Date.now();
+}
+
 function initCog(session) {
   if (!session) return;
-  if (!session.cogPhase) session.cogPhase = "idle";
-  if (!session.cogState) session.cogState = "ready";
+  if (!session.cogPhase) session.cogPhase = COG_PHASE.IDLE;
+  if (!session.cogState) session.cogState = COG_STATE.READY;
   if (!session.cogReason) session.cogReason = "";
   if (!Number.isFinite(Number(session._cogLastAutoContinueAt || 0)))
     session._cogLastAutoContinueAt = 0;
+  if (!Number.isFinite(Number(session.cogTs || 0))) session.cogTs = 0;
+}
+
+// Back-compat canonicalizers (accept legacy tokens)
+function _canonPhase(p) {
+  const t = cleanText(p || "").toLowerCase();
+
+  // canonical
+  if (t === COG_PHASE.IDLE) return COG_PHASE.IDLE;
+  if (t === COG_PHASE.ENGAGED) return COG_PHASE.ENGAGED;
+  if (t === COG_PHASE.GUIDING) return COG_PHASE.GUIDING;
+  if (t === COG_PHASE.EXPLAINING) return COG_PHASE.EXPLAINING;
+  if (t === COG_PHASE.DECIDING) return COG_PHASE.DECIDING;
+  if (t === COG_PHASE.HANDOFF) return COG_PHASE.HANDOFF;
+
+  // legacy aliases
+  if (t === "engage") return COG_PHASE.ENGAGED;
+  if (t === "execute") return COG_PHASE.GUIDING; // “I’m doing it now”
+  if (t === "decide") return COG_PHASE.DECIDING;
+
+  // safe default when active
+  return COG_PHASE.ENGAGED;
+}
+
+function _canonState(s) {
+  const t = cleanText(s || "").toLowerCase();
+
+  // canonical
+  if (t === COG_STATE.IDLE) return COG_STATE.IDLE;
+  if (t === COG_STATE.READY) return COG_STATE.READY;
+  if (t === COG_STATE.COLLECT) return COG_STATE.COLLECT;
+  if (t === COG_STATE.CONFIDENT) return COG_STATE.CONFIDENT;
+  if (t === COG_STATE.CAUTIOUS) return COG_STATE.CAUTIOUS;
+  if (t === COG_STATE.ACTIVE) return COG_STATE.ACTIVE;
+
+  // legacy aliases
+  if (t === "running") return COG_STATE.CONFIDENT;
+  if (t === "decide") return COG_STATE.READY;
+
+  return COG_STATE.READY;
 }
 
 function setCog(session, phase, state, reason) {
   if (!session) return;
   initCog(session);
-  session.cogPhase = cleanText(phase || "idle") || "idle";
-  session.cogState = cleanText(state || "ready") || "ready";
+  session.cogPhase = _canonPhase(phase);
+  session.cogState = _canonState(state);
   session.cogReason = cleanText(reason || "") || "";
+  session.cogTs = cogNow();
 }
 
 function deriveCogFromSession(session) {
-  if (!session) return { phase: "idle", state: "ready", reason: "" };
+  if (!session) return { phase: COG_PHASE.IDLE, state: COG_STATE.READY, reason: "" };
   initCog(session);
 
   const lane = String(session.lane || "general");
@@ -308,40 +365,69 @@ function deriveCogFromSession(session) {
   const m = cleanText(mRaw || "").toLowerCase();
 
   if (lane === "sponsors")
-    return { phase: "handoff", state: "active", reason: "lane:sponsors" };
+    return { phase: COG_PHASE.HANDOFF, state: COG_STATE.ACTIVE, reason: "lane:sponsors" };
   if (lane === "movies")
-    return { phase: "handoff", state: "active", reason: "lane:movies" };
+    return { phase: COG_PHASE.HANDOFF, state: COG_STATE.ACTIVE, reason: "lane:movies" };
   if (lane === "schedule")
-    return { phase: "handoff", state: "active", reason: "lane:schedule" };
+    return { phase: COG_PHASE.HANDOFF, state: COG_STATE.ACTIVE, reason: "lane:schedule" };
 
   const hasMode =
     !!m && (m.includes("top") || m.includes("story") || m.includes("micro"));
 
   if (!y && !hasMode)
-    return { phase: "engage", state: "collect", reason: "need:year_mode" };
+    return { phase: COG_PHASE.ENGAGED, state: COG_STATE.COLLECT, reason: "need:year_mode" };
   if (!y && hasMode)
-    return { phase: "engage", state: "collect", reason: "need:year" };
+    return { phase: COG_PHASE.ENGAGED, state: COG_STATE.COLLECT, reason: "need:year" };
   if (y && !hasMode)
-    return { phase: "engage", state: "decide", reason: "need:mode" };
+    return { phase: COG_PHASE.DECIDING, state: COG_STATE.READY, reason: "need:mode" };
 
-  return { phase: "execute", state: "running", reason: "music:ready" };
+  return { phase: COG_PHASE.GUIDING, state: COG_STATE.CONFIDENT, reason: "music:ready" };
+}
+
+// Final-sync cognition based on the actual reply language (UI truth)
+function deriveCogFromFinalReply(session, finalReply) {
+  const base = deriveCogFromSession(session);
+  const r = cleanText(finalReply || "").toLowerCase();
+
+  // lane-owned still wins
+  const lane = String(session && session.lane ? session.lane : "general").toLowerCase();
+  if (lane === "sponsors" || lane === "movies" || lane === "schedule") return base;
+
+  // Explaining posture
+  if (/\b(why|because|context|history|here’s what happened|that's because)\b/.test(r)) {
+    return { phase: COG_PHASE.EXPLAINING, state: COG_STATE.CONFIDENT, reason: "final:explaining" };
+  }
+
+  // Deciding posture (explicit small choice set)
+  if (/\b(choose one|pick one|choose:|pick:|options:)\b/.test(r)) {
+    return { phase: COG_PHASE.DECIDING, state: COG_STATE.CONFIDENT, reason: "final:deciding" };
+  }
+
+  // Guiding posture (forward action)
+  if (/\b(next:|proceeding with|running|i’m going to run|i'm going to run|locked in)\b/.test(r)) {
+    return { phase: COG_PHASE.GUIDING, state: COG_STATE.CONFIDENT, reason: "final:guiding" };
+  }
+
+  return base;
 }
 
 function attachCogToPayload(payload, session) {
   if (!COG_PAYLOAD_ENABLED) return payload;
   if (!payload || typeof payload !== "object") return payload;
 
-  const c = deriveCogFromSession(session);
+  initCog(session);
+
   payload.cog = {
-    phase: c.phase,
-    state: c.state,
-    reason: c.reason,
+    phase: session ? session.cogPhase : COG_PHASE.IDLE,
+    state: session ? session.cogState : COG_STATE.READY,
+    reason: session ? session.cogReason : "",
     lane: session ? String(session.lane || "general") : "general",
     year:
       session && clampYear(Number(session.lastYear))
         ? Number(session.lastYear)
         : null,
     mode: session ? (session.activeMusicMode || session.pendingMode || null) : null,
+    ts: session ? Number(session.cogTs || cogNow()) : cogNow(),
   };
   return payload;
 }
@@ -1063,10 +1149,11 @@ function getSession(sessionId) {
       // v1.5.17 autorun guard
       _fmpAutoRanAt: 0,
 
-      // Cognitive OS
-      cogPhase: "idle",
-      cogState: "ready",
+      // Cognitive OS (canonical)
+      cogPhase: COG_PHASE.IDLE,
+      cogState: COG_STATE.READY,
       cogReason: "",
+      cogTs: 0,
       _cogLastAutoContinueAt: 0,
     };
 
@@ -1812,7 +1899,7 @@ function ensureLaneEscapeChips(merged) {
 }
 
 /* ======================================================
-   respondJson (includes Assertive Finisher)
+   respondJson (includes Assertive Finisher + FINAL COG SYNC)
 ====================================================== */
 
 function respondJson(req, res, base, session, engineOut, profile, forceFourChips) {
@@ -1828,6 +1915,12 @@ function respondJson(req, res, base, session, engineOut, profile, forceFourChips
       followUps: tight.followUps,
       followUp: tight.followUp,
     });
+
+    // v1.5.21: FINAL cog sync after finalizeReply
+    try {
+      const cFinal = deriveCogFromFinalReply(session, payload.reply);
+      setCog(session, cFinal.phase, cFinal.state, cFinal.reason);
+    } catch (_) {}
 
     attachCogToPayload(payload, session);
 
@@ -1861,6 +1954,7 @@ function respondJson(req, res, base, session, engineOut, profile, forceFourChips
                 phase: session.cogPhase,
                 state: session.cogState,
                 reason: session.cogReason,
+                ts: session.cogTs,
               }
             : null,
         },
@@ -1922,6 +2016,12 @@ function respondJson(req, res, base, session, engineOut, profile, forceFourChips
       payload.reply = finalizeReply(session, payload.reply);
     }
 
+    // v1.5.21: FINAL cog sync after finalizeReply
+    try {
+      const cFinal = deriveCogFromFinalReply(session, payload.reply);
+      setCog(session, cFinal.phase, cFinal.state, cFinal.reason);
+    } catch (_) {}
+
     attachCogToPayload(payload, session);
 
     const wantsDebug = CHAT_DEBUG || parseDebugFlag(req);
@@ -1941,6 +2041,7 @@ function respondJson(req, res, base, session, engineOut, profile, forceFourChips
                 phase: session.cogPhase,
                 state: session.cogState,
                 reason: session.cogReason,
+                ts: session.cogTs,
               }
             : null,
         },
@@ -2002,6 +2103,12 @@ function respondJson(req, res, base, session, engineOut, profile, forceFourChips
     payload.reply = finalizeReply(session, payload.reply);
   }
 
+  // v1.5.21: FINAL cog sync after finalizeReply
+  try {
+    const cFinal = deriveCogFromFinalReply(session, payload.reply);
+    setCog(session, cFinal.phase, cFinal.state, cFinal.reason);
+  } catch (_) {}
+
   attachCogToPayload(payload, session);
 
   const wantsDebug = CHAT_DEBUG || parseDebugFlag(req);
@@ -2034,6 +2141,7 @@ function respondJson(req, res, base, session, engineOut, profile, forceFourChips
               phase: session.cogPhase,
               state: session.cogState,
               reason: session.cogReason,
+              ts: session.cogTs,
             }
           : null,
       },
@@ -2419,7 +2527,7 @@ app.post("/api/chat", async (req, res) => {
     session.lastIntent = "micEchoGuard";
 
     // re-derive after final reply
-    const c2 = deriveCogFromSession(session);
+    const c2 = deriveCogFromFinalReply(session, reply);
     setCog(session, c2.phase, c2.state, "micEchoGuard");
 
     updateProfileFromSession(profile, session);
@@ -2452,7 +2560,7 @@ app.post("/api/chat", async (req, res) => {
     session.lastIntent = "replay";
 
     // re-derive after final reply
-    const c2 = deriveCogFromSession(session);
+    const c2 = deriveCogFromFinalReply(session, base.reply);
     setCog(session, c2.phase, c2.state, "replay");
 
     updateProfileFromSession(profile, session);
@@ -2468,6 +2576,12 @@ app.post("/api/chat", async (req, res) => {
         followUps: session.lastFollowUps.slice(0, 12),
         followUp: session.lastFollowUp.slice(0, 12),
       });
+
+      // v1.5.21: FINAL cog sync for direct replay path
+      try {
+        const cFinal = deriveCogFromFinalReply(session, payload.reply);
+        setCog(session, cFinal.phase, cFinal.state, cFinal.reason);
+      } catch (_) {}
 
       attachCogToPayload(payload, session);
 
@@ -2487,6 +2601,7 @@ app.post("/api/chat", async (req, res) => {
               phase: session.cogPhase,
               state: session.cogState,
               reason: session.cogReason,
+              ts: session.cogTs,
             },
           },
           resume: { resumable: tight.resumable, forcedFourChips: false },
@@ -2524,8 +2639,8 @@ app.post("/api/chat", async (req, res) => {
         session.lastReplyAt = Date.now();
         session.lastIntent = "continue";
 
-        // v1.5.20: derive cog after final reply to keep payload.cog in sync
-        const c2 = deriveCogFromSession(session);
+        // derive after final reply to keep payload.cog in sync
+        const c2 = deriveCogFromFinalReply(session, reply);
         setCog(session, c2.phase, c2.state, c2.reason);
 
         updateProfileFromSession(profile, session);
@@ -2549,7 +2664,7 @@ app.post("/api/chat", async (req, res) => {
     session.lastReplyAt = Date.now();
 
     // re-derive after final reply
-    const c2 = deriveCogFromSession(session);
+    const c2 = deriveCogFromFinalReply(session, reply);
     setCog(session, c2.phase, c2.state, "greeting");
 
     updateProfileFromSession(profile, session);
@@ -2592,7 +2707,7 @@ app.post("/api/chat", async (req, res) => {
     session.lastReplyAt = Date.now();
 
     // re-derive after final reply
-    const c2 = deriveCogFromSession(session);
+    const c2 = deriveCogFromFinalReply(session, reply);
     setCog(session, c2.phase, c2.state, `laneSelect:${laneCmd}`);
 
     updateProfileFromSession(profile, session);
@@ -2625,7 +2740,7 @@ app.post("/api/chat", async (req, res) => {
     session.lastReply = reply;
     session.lastReplyAt = Date.now();
 
-    const c2 = deriveCogFromSession(session);
+    const c2 = deriveCogFromFinalReply(session, reply);
     setCog(session, c2.phase, c2.state, "laneExit");
 
     updateProfileFromSession(profile, session);
@@ -2653,7 +2768,7 @@ app.post("/api/chat", async (req, res) => {
     session.lastReplyAt = Date.now();
     session.lastIntent = "numberOne";
 
-    const c2 = deriveCogFromSession(session);
+    const c2 = deriveCogFromFinalReply(session, reply);
     setCog(session, c2.phase, c2.state, c2.reason);
 
     updateProfileFromSession(profile, session);
@@ -2680,7 +2795,7 @@ app.post("/api/chat", async (req, res) => {
     session.lastReplyAt = Date.now();
     session.lastIntent = "nextYear";
 
-    const c2 = deriveCogFromSession(session);
+    const c2 = deriveCogFromFinalReply(session, reply);
     setCog(session, c2.phase, c2.state, c2.reason);
 
     updateProfileFromSession(profile, session);
@@ -2707,7 +2822,7 @@ app.post("/api/chat", async (req, res) => {
     session.lastReplyAt = Date.now();
     session.lastIntent = "prevYear";
 
-    const c2 = deriveCogFromSession(session);
+    const c2 = deriveCogFromFinalReply(session, reply);
     setCog(session, c2.phase, c2.state, c2.reason);
 
     updateProfileFromSession(profile, session);
@@ -2734,7 +2849,7 @@ app.post("/api/chat", async (req, res) => {
     session.lastReplyAt = Date.now();
     session.lastIntent = "anotherYear";
 
-    const c2 = deriveCogFromSession(session);
+    const c2 = deriveCogFromFinalReply(session, reply);
     setCog(session, c2.phase, c2.state, c2.reason);
 
     updateProfileFromSession(profile, session);
@@ -2761,7 +2876,7 @@ app.post("/api/chat", async (req, res) => {
     session.lastReplyAt = Date.now();
     session.lastIntent = "continue";
 
-    const c2 = deriveCogFromSession(session);
+    const c2 = deriveCogFromFinalReply(session, reply);
     setCog(session, c2.phase, c2.state, c2.reason);
 
     updateProfileFromSession(profile, session);
@@ -2788,7 +2903,7 @@ app.post("/api/chat", async (req, res) => {
     session.lastReplyAt = Date.now();
     session.lastIntent = "fresh";
 
-    const c2 = deriveCogFromSession(session);
+    const c2 = deriveCogFromFinalReply(session, reply);
     setCog(session, c2.phase, c2.state, c2.reason);
 
     updateProfileFromSession(profile, session);
@@ -2828,7 +2943,7 @@ app.post("/api/chat", async (req, res) => {
     session.lastReplyAt = Date.now();
     session.lastIntent = "top10";
 
-    const c2 = deriveCogFromSession(session);
+    const c2 = deriveCogFromFinalReply(session, reply);
     setCog(session, c2.phase, c2.state, c2.reason);
 
     updateProfileFromSession(profile, session);
@@ -2875,7 +2990,7 @@ app.post("/api/chat", async (req, res) => {
     session.lastReplyAt = Date.now();
     session.lastIntent = parsedMode;
 
-    const c2 = deriveCogFromSession(session);
+    const c2 = deriveCogFromFinalReply(session, reply);
     setCog(session, c2.phase, c2.state, c2.reason);
 
     updateProfileFromSession(profile, session);
@@ -2918,7 +3033,7 @@ app.post("/api/chat", async (req, res) => {
       session.lastReplyAt = Date.now();
       session.lastIntent = parsedMode;
 
-      const c2 = deriveCogFromSession(session);
+      const c2 = deriveCogFromFinalReply(session, reply);
       setCog(session, c2.phase, c2.state, c2.reason);
 
       updateProfileFromSession(profile, session);
@@ -2942,7 +3057,7 @@ app.post("/api/chat", async (req, res) => {
     session.lastReplyAt = Date.now();
     session.lastIntent = "askYear";
 
-    const c2 = deriveCogFromSession(session);
+    const c2 = deriveCogFromFinalReply(session, ask);
     setCog(session, c2.phase, c2.state, "need:year");
 
     updateProfileFromSession(profile, session);
@@ -2982,7 +3097,7 @@ app.post("/api/chat", async (req, res) => {
     session.lastReplyAt = Date.now();
     session.lastIntent = mode;
 
-    const c2 = deriveCogFromSession(session);
+    const c2 = deriveCogFromFinalReply(session, reply);
     setCog(session, c2.phase, c2.state, c2.reason);
 
     updateProfileFromSession(profile, session);
@@ -3010,7 +3125,7 @@ app.post("/api/chat", async (req, res) => {
   session.lastReplyAt = Date.now();
   session.lastIntent = "passthrough";
 
-  const c = deriveCogFromSession(session);
+  const c = deriveCogFromFinalReply(session, reply);
   setCog(session, c.phase, c.state, c.reason);
 
   updateProfileFromSession(profile, session);
@@ -3077,6 +3192,8 @@ app.get("/api/health", (req, res) => {
       payloadEnabled: COG_PAYLOAD_ENABLED,
       autoContinueOnGreeting: COG_AUTOCONTINUE_ON_GREETING,
       autoContinueCooldownMs: COG_AUTOCONTINUE_COOLDOWN_MS,
+      canonicalPhases: Object.values(COG_PHASE),
+      canonicalStates: Object.values(COG_STATE),
     },
     requestId,
   });
