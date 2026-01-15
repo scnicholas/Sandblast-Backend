@@ -1,16 +1,23 @@
 {
   "name": "sandblast-backend",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Backend for Sandblast project",
   "main": "index.js",
   "scripts": {
+    "prestart": "node -e \"console.log('[prestart] node', process.version)\"",
+
     "start": "node index.js",
-    "dev": "node index.js",
     "start:prod": "node index.js",
+
+    "dev": "node index.js",
+    "dev:watch": "node --watch index.js",
 
     "build:top10": "node Scripts/build_top10_by_year_v1.js",
     "check:top10": "node Scripts/check_top10_by_year_v1.js",
-    "top10:rebuild": "npm run build:top10 && npm run check:top10"
+    "top10:rebuild": "npm run build:top10 && npm run check:top10",
+
+    "test:shadow:local": "node Scripts/regression_shadowBrain_v1.js",
+    "test:shadow:api": "powershell -NoProfile -ExecutionPolicy Bypass -File Scripts/regression_shadowBrain_api_v1.ps1"
   },
   "dependencies": {
     "axios": "^1.13.2",
@@ -19,11 +26,15 @@
     "dotenv": "^16.6.1",
     "express": "^4.21.0",
     "form-data": "^4.0.5",
+    "luxon": "^3.7.2",
     "multer": "^2.0.2",
     "openai": "^4.104.0"
   },
   "engines": {
     "node": ">=18.0.0"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "esbuild": "^0.27.2"
+  }
 }
