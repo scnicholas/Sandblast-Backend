@@ -1,35 +1,25 @@
 "use strict";
 
 /**
- * Shadow Brain — C+ + D (v1.3 PATCHED)
+ * Shadow Brain — C+ + D (v1.3a PATCHED)
  *  - C+ Probabilistic follow-up weighting (deterministic)
  *  - D Cognitive memory imprinting (behavioral prefs; non-sensitive)
  *
- * PATCHES INCLUDED (v1.3):
- *  1) Fix decay bug: dt was always 0 because lastSeenAt was set before dt calc
- *     -> now uses lastDecayAt properly and updates after decay.
- *  2) Stronger lane normalization + alias support (musicLane, sponsor, etc.)
- *  3) Better year extraction fallback (from session.lastYear/year/lastMusicYear)
- *  4) Better candidate intent mapping (micro_moment intent supported end-to-end)
- *  5) External followUps mapping: uses followUps first, but preserves minimum core actions in music lane
- *  6) Adds safe, deterministic “signature” for debugging (no RNG, no user data)
- *  7) Adds minimal prefetch hints (uiHints) derived from topIntent + lane
- *
- * Usage:
- *   const shadowBrain = require("./Utils/shadowBrain");
- *   shadowBrain.prime({ session, visitorId, lane, mode, year, now });
- *   shadowBrain.observe({ session, visitorId, userText, event, lane, mode, year, now });
- *   const { shadow, imprint } = shadowBrain.get({ session, visitorId, lane, mode, year, userText, replyText, followUps, now });
+ * PATCHES INCLUDED (v1.3a):
+ *  1) Fix decay bug (already in your v1.3) via lastDecayAt
+ *  2) Lane alias normalization
+ *  3) Session year extraction fallback
+ *  4) micro_moment intent supported end-to-end (baseline + bias + evidence)
+ *  5) External followUps merge w/ minimum core actions (music)
+ *  6) Deterministic signature (no user data)
+ *  7) Minimal uiHints for prefetch
+ *  8) Safety: rankIntents never returns empty
  */
-
-/* ======================================================
-   Defaults
-====================================================== */
 
 const DEFAULTS = {
   shadowTtlMs: 45_000,
 
-  imprintTtlMs: 7 * 24 * 60 * 60 * 1000, // 7 days
+  imprintTtlMs: 7 * 24 * 60 * 60 * 1000,
   maxImprints: 3000,
 
   imprintMaxUpdatesPerDay: 24,
@@ -40,141 +30,127 @@ const DEFAULTS = {
 
   imprintHalfLifeDays: 14,
 
+  // PATCH: include micro_moment baseline (small but non-zero)
   laneBaselines: {
     music: [
-      { intent: "top10_run", w: 0.55 },
-      { intent: "story_moment", w: 0.25 },
+      { intent: "top10_run", w: 0.50 },
+      { intent: "story_moment", w: 0.22 },
+      { intent: "micro_moment", w: 0.10 },
       { intent: "number1", w: 0.10 },
-      { intent: "another_year", w: 0.10 },
+      { intent: "another_year", w: 0.08 }
     ],
     sponsors: [
       { intent: "collect_property", w: 0.35 },
       { intent: "collect_goal", w: 0.30 },
       { intent: "collect_budget", w: 0.20 },
-      { intent: "request_contact", w: 0.15 },
+      { intent: "request_contact", w: 0.15 }
     ],
     schedule: [
       { intent: "what_playing_now", w: 0.40 },
       { intent: "convert_time", w: 0.35 },
       { intent: "set_city", w: 0.15 },
-      { intent: "back_to_music", w: 0.10 },
+      { intent: "back_to_music", w: 0.10 }
     ],
     movies: [
       { intent: "collect_title", w: 0.35 },
       { intent: "collect_budget", w: 0.25 },
       { intent: "collect_rights", w: 0.25 },
-      { intent: "request_contact", w: 0.15 },
+      { intent: "request_contact", w: 0.15 }
     ],
     general: [
       { intent: "clarify", w: 0.45 },
       { intent: "recommend", w: 0.35 },
-      { intent: "options", w: 0.20 },
-    ],
+      { intent: "options", w: 0.20 }
+    ]
   },
 
+  // PATCH: micro_moment bias knob added (uses musicStory by default to avoid new knob)
   intentBiasMap: {
-    // music
     top10_run: { knob: "musicTop10", dir: +1 },
     story_moment: { knob: "musicStory", dir: +1 },
+    micro_moment: { knob: "musicStory", dir: +0.6 }, // softer coupling
     number1: { knob: "musicNumber1", dir: +1 },
     another_year: { knob: "momentumFast", dir: +1 },
 
-    // general
     recommend: { knob: "recoveryRecommend", dir: +1 },
     options: { knob: "recoveryOptions", dir: +1 },
     clarify: { knob: "questionTolerance", dir: +1 },
 
-    // schedule
     what_playing_now: { knob: "momentumFast", dir: +1 },
     convert_time: { knob: "questionTolerance", dir: +1 },
     set_city: { knob: "questionTolerance", dir: +1 },
 
-    // sponsors/movies
     collect_property: { knob: "questionTolerance", dir: +1 },
     collect_goal: { knob: "questionTolerance", dir: +1 },
     collect_budget: { knob: "questionTolerance", dir: +1 },
-    request_contact: { knob: "momentumFast", dir: +1 },
+    request_contact: { knob: "momentumFast", dir: +1 }
   },
 
+  // PATCH: add userAsksMicro boost
   evidenceBoosts: {
     userSaysNextYear: { another_year: +0.22 },
     userSaysAnotherYear: { another_year: +0.18 },
     userAsksStory: { story_moment: +0.25 },
+    userAsksMicro: { micro_moment: +0.25 },
     userAsksTop10: { top10_run: +0.25 },
     userAsksNumber1: { number1: +0.25 },
     userVagueOkContinue: { story_moment: +0.10, top10_run: +0.06 },
     userCorrects: { clarify: +0.20 },
-    userSaysSwitchMode: { story_moment: +0.08, top10_run: +0.08, number1: +0.05 },
+    userSaysSwitchMode: { story_moment: +0.08, top10_run: +0.08, number1: +0.05, micro_moment: +0.06 },
     userAsksSchedule: { what_playing_now: +0.18, convert_time: +0.10 },
     userAsksSponsors: { collect_goal: +0.14, collect_property: +0.10 },
-    userAsksMovies: { collect_title: +0.14, collect_budget: +0.10 },
+    userAsksMovies: { collect_title: +0.14, collect_budget: +0.10 }
   },
 
   penalties: {
-    lowQuestionToleranceClarifyPenalty: 0.15,
+    lowQuestionToleranceClarifyPenalty: 0.15
   },
 
   candidates: {
     music: {
-      top10_run: (year) => ({
-        label: year ? `Top 10 ${year}` : "Top 10",
-        send: year ? `top 10 ${year}` : "Top 10",
-      }),
-      story_moment: (year) => ({
-        label: year ? `Story moment ${year}` : "Story moment",
-        send: year ? `story moment ${year}` : "Story moment",
-      }),
-      micro_moment: (year) => ({
-        label: year ? `Micro moment ${year}` : "Micro moment",
-        send: year ? `micro moment ${year}` : "Micro moment",
-      }),
-      number1: (year) => ({
-        label: year ? `#1 ${year}` : "#1",
-        send: year ? `#1 ${year}` : "#1",
-      }),
+      top10_run: (year) => ({ label: year ? `Top 10 ${year}` : "Top 10", send: year ? `top 10 ${year}` : "Top 10" }),
+      story_moment: (year) => ({ label: year ? `Story moment ${year}` : "Story moment", send: year ? `story moment ${year}` : "Story moment" }),
+      micro_moment: (year) => ({ label: year ? `Micro moment ${year}` : "Micro moment", send: year ? `micro moment ${year}` : "Micro moment" }),
+      number1: (year) => ({ label: year ? `#1 ${year}` : "#1", send: year ? `#1 ${year}` : "#1" }),
       another_year: () => ({ label: "Another year", send: "another year" }),
       next_year: () => ({ label: "Next year", send: "next year" }),
       prev_year: () => ({ label: "Prev year", send: "prev year" }),
       replay: () => ({ label: "Replay last", send: "replay" }),
       switch_mode: () => ({ label: "Switch mode", send: "switch" }),
-      back_to_music: () => ({ label: "Back to music", send: "back to music" }),
+      back_to_music: () => ({ label: "Back to music", send: "back to music" })
     },
     sponsors: {
       collect_property: () => ({ label: "TV / Radio / Web?", send: "tv" }),
       collect_goal: () => ({ label: "Goal", send: "brand awareness" }),
       collect_budget: () => ({ label: "Budget", send: "starter_test" }),
       request_contact: () => ({ label: "WhatsApp", send: "whatsapp" }),
-      back_to_music: () => ({ label: "Back to music", send: "back to music" }),
+      back_to_music: () => ({ label: "Back to music", send: "back to music" })
     },
     schedule: {
       what_playing_now: () => ({ label: "What’s playing now?", send: "what’s playing now" }),
       convert_time: () => ({ label: "Convert time", send: "what time does it play in London" }),
       set_city: () => ({ label: "Set my city", send: "I’m in London" }),
-      back_to_music: () => ({ label: "Back to music", send: "back to music" }),
+      back_to_music: () => ({ label: "Back to music", send: "back to music" })
     },
     movies: {
       collect_title: () => ({ label: "Movie title", send: "Movie: The Saint" }),
       collect_budget: () => ({ label: "Budget", send: "budget under $1000" }),
       collect_rights: () => ({ label: "Rights", send: "non-exclusive license" }),
       request_contact: () => ({ label: "Email me details", send: "send rate card" }),
-      back_to_music: () => ({ label: "Back to music", send: "back to music" }),
+      back_to_music: () => ({ label: "Back to music", send: "back to music" })
     },
     general: {
       clarify: () => ({ label: "Clarify", send: "clarify" }),
       recommend: () => ({ label: "Recommend", send: "recommend" }),
-      options: () => ({ label: "Options", send: "options" }),
-    },
-  },
+      options: () => ({ label: "Options", send: "options" })
+    }
+  }
 };
-
-/* ======================================================
-   Tiny LRU
-====================================================== */
 
 class TinyLRU {
   constructor(max = 1000) {
     this.max = max;
-    this.map = new Map(); // key -> { value, at }
+    this.map = new Map();
   }
   get(key) {
     const hit = this.map.get(key);
@@ -204,25 +180,15 @@ class TinyLRU {
 
 const IMPRINTS = new TinyLRU(DEFAULTS.maxImprints);
 
-/* ======================================================
-   Utilities
-====================================================== */
-
 function cleanText(s) {
-  return String(s || "")
-    .replace(/\u200B/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
+  return String(s || "").replace(/\u200B/g, "").replace(/\s+/g, " ").trim();
 }
-
 function clamp(x, a, b) {
   return Math.max(a, Math.min(b, x));
 }
-
 function nowMs(provided) {
   return Number.isFinite(provided) ? provided : Date.now();
 }
-
 function dayKeyOf(t) {
   const d = new Date(t);
   const y = d.getUTCFullYear();
@@ -230,7 +196,6 @@ function dayKeyOf(t) {
   const da = String(d.getUTCDate()).padStart(2, "0");
   return `${y}-${m}-${da}`;
 }
-
 function normWeights(arr) {
   const s = arr.reduce((acc, x) => acc + (Number.isFinite(x.w) ? x.w : 0), 0);
   if (s <= 0) {
@@ -239,50 +204,35 @@ function normWeights(arr) {
   }
   return arr.map((x) => ({ ...x, w: x.w / s }));
 }
-
 function decayToward(mid, value, halfLifeMs, dtMs) {
   if (!Number.isFinite(dtMs) || dtMs <= 0) return value;
   if (!Number.isFinite(halfLifeMs) || halfLifeMs <= 0) return value;
   const factor = Math.pow(0.5, dtMs / halfLifeMs);
   return mid + (value - mid) * factor;
 }
-
 function clampYear(y) {
   if (!Number.isFinite(y)) return null;
   if (y < 1950 || y > 2024) return null;
   return y;
 }
-
 function laneOf(laneRaw) {
   const lane = cleanText(laneRaw || "").toLowerCase();
-
-  // PATCH: lane aliases
   if (lane === "music" || lane === "musiclane" || lane === "music_lane") return "music";
   if (lane === "sponsors" || lane === "sponsor" || lane === "ads" || lane === "advertising") return "sponsors";
   if (lane === "movies" || lane === "movie" || lane === "film") return "movies";
   if (lane === "schedule" || lane === "programming" || lane === "tv_schedule") return "schedule";
-
   return "general";
 }
-
 function getSessionYear(session) {
   if (!session || typeof session !== "object") return null;
-  const candidates = [
-    session.year,
-    session.lastYear,
-    session.lastMusicYear,
-    session.musicYear,
-    session.activeYear,
-  ];
+  const candidates = [session.year, session.lastYear, session.lastMusicYear, session.musicYear, session.activeYear];
   for (const v of candidates) {
     const y = clampYear(Number(v));
     if (y) return y;
   }
   return null;
 }
-
 function sigOf(lane, year, mode, topIntent) {
-  // deterministic, no secrets; good for debugging cache collisions
   const s = `${lane || ""}|${year || ""}|${mode || ""}|${topIntent || ""}`;
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) {
@@ -291,10 +241,6 @@ function sigOf(lane, year, mode, topIntent) {
   }
   return (h >>> 0).toString(16);
 }
-
-/* ======================================================
-   Imprints (D)
-====================================================== */
 
 function ensureImprint(visitorId, now) {
   const t = nowMs(now);
@@ -308,44 +254,33 @@ function ensureImprint(visitorId, now) {
       visitorId: vid,
       createdAt: t,
       lastSeenAt: t,
-
       dayKey: dayKeyOf(t),
       dayUpdates: 0,
-
-      lastDecayAt: t, // PATCH: initialize decay anchor
-
+      lastDecayAt: t,
       knobs: {
         musicTop10: 0.50,
         musicStory: 0.50,
         musicNumber1: 0.50,
-
         momentumFast: 0.50,
-
         recoveryRecommend: 0.55,
         recoveryOptions: 0.45,
-
         questionTolerance: 0.50,
-
         toneCrisp: 0.55,
-        toneWarm: 0.45,
-      },
+        toneWarm: 0.45
+      }
     };
     IMPRINTS.set(vid, imp);
     return imp;
   }
 
-  // rollover daily throttles BEFORE increment/update
   const dk = dayKeyOf(t);
   if (imp.dayKey !== dk) {
     imp.dayKey = dk;
     imp.dayUpdates = 0;
   }
 
-  // PATCH: decay uses lastDecayAt, not lastSeenAt (which changes every call)
   const halfLifeMs = DEFAULTS.imprintHalfLifeDays * 24 * 60 * 60 * 1000;
-  const lastDecayAt = Number.isFinite(Number(imp.lastDecayAt))
-    ? Number(imp.lastDecayAt)
-    : Number(imp.lastSeenAt || t);
+  const lastDecayAt = Number.isFinite(Number(imp.lastDecayAt)) ? Number(imp.lastDecayAt) : Number(imp.lastSeenAt || t);
   const dt = t - lastDecayAt;
 
   if (Number.isFinite(dt) && dt > 0) {
@@ -373,7 +308,6 @@ function maybeEvictExpired(now) {
   const t = nowMs(now);
   const keys = IMPRINTS.keys();
   if (!keys.length) return;
-
   const sweepN = Math.min(30, keys.length);
   for (let i = 0; i < sweepN; i++) {
     const k = keys[i];
@@ -405,6 +339,7 @@ function recordImprintEvent(imp, evidence) {
 
   if (evidence.userAsksTop10) bumpKnob(imp, "musicTop10", +step);
   if (evidence.userAsksStory) bumpKnob(imp, "musicStory", +step);
+  if (evidence.userAsksMicro) bumpKnob(imp, "musicStory", +step * 0.6);
   if (evidence.userAsksNumber1) bumpKnob(imp, "musicNumber1", +step);
 
   if (evidence.userSaysNextYear || evidence.userSaysAnotherYear) bumpKnob(imp, "momentumFast", +step);
@@ -425,16 +360,13 @@ function recordImprintEvent(imp, evidence) {
   imp.lastUpdateAt = Date.now();
 }
 
-/* ======================================================
-   Evidence extraction
-====================================================== */
-
 function extractEvidence(userText, lane, mode, year) {
   const t = cleanText(userText || "").toLowerCase();
   const ev = {
     userSaysNextYear: false,
     userSaysAnotherYear: false,
     userAsksStory: false,
+    userAsksMicro: false,
     userAsksTop10: false,
     userAsksNumber1: false,
     userVagueOkContinue: false,
@@ -450,7 +382,7 @@ function extractEvidence(userText, lane, mode, year) {
     userSignalsRecommend: false,
     userSignalsOptions: false,
 
-    strong: false,
+    strong: false
   };
 
   if (!t) return ev;
@@ -459,6 +391,7 @@ function extractEvidence(userText, lane, mode, year) {
   if (/^\s*(another year|new year|different year)\b/.test(t)) ev.userSaysAnotherYear = true;
 
   if (/\b(story moment|story)\b/.test(t)) ev.userAsksStory = true;
+  if (/\b(micro moment|micro)\b/.test(t)) ev.userAsksMicro = true;
   if (/\b(top\s*10|top10|top ten)\b/.test(t)) ev.userAsksTop10 = true;
   if (/\b(#\s*1|number\s*1|number\s*one|no\.?\s*1)\b/.test(t)) ev.userAsksNumber1 = true;
 
@@ -468,28 +401,15 @@ function extractEvidence(userText, lane, mode, year) {
 
   if (/^\s*(switch|switch mode)\b/.test(t)) ev.userSaysSwitchMode = true;
 
-  if (/\b(schedule|what time|playing now|what's playing|what is playing|timezone|time zone)\b/.test(t)) {
-    ev.userAsksSchedule = true;
-  }
-  if (/\b(sponsor|advertis|rate card|pricing|package|whatsapp)\b/.test(t)) {
-    ev.userAsksSponsors = true;
-  }
-  if (/\b(movies|license|filmhub|bitmax|series|rights)\b/.test(t)) {
-    ev.userAsksMovies = true;
-  }
-
-  // City hints (keep deterministic; don't attempt full geocode here)
-  if (/\b(in london|in toronto|in new york|in miami|in los angeles|in la)\b/.test(t)) {
-    ev.userAsksSchedule = true;
-  }
+  if (/\b(schedule|what time|playing now|what's playing|what is playing|timezone|time zone)\b/.test(t)) ev.userAsksSchedule = true;
+  if (/\b(sponsor|advertis|rate card|pricing|package|whatsapp)\b/.test(t)) ev.userAsksSponsors = true;
+  if (/\b(movies|license|filmhub|bitmax|series|rights)\b/.test(t)) ev.userAsksMovies = true;
 
   if (/\b(stop asking|don’t ask|don't ask|just do it|skip questions|no questions)\b/.test(t)) {
     ev.userSignalsLowQuestions = true;
     ev.strong = true;
   }
-  if (/\b(explain|why|how does|walk me through|detail|step by step)\b/.test(t)) {
-    ev.userSignalsWantsExplain = true;
-  }
+  if (/\b(explain|why|how does|walk me through|detail|step by step)\b/.test(t)) ev.userSignalsWantsExplain = true;
 
   if (/\b(recommend|suggest|what should i|best option)\b/.test(t)) ev.userSignalsRecommend = true;
   if (/\b(options|choices|list them|give me choices)\b/.test(t)) ev.userSignalsOptions = true;
@@ -501,10 +421,6 @@ function extractEvidence(userText, lane, mode, year) {
 
   return ev;
 }
-
-/* ======================================================
-   Weighting (C+)
-====================================================== */
 
 function baselineForLane(lane) {
   const ln = laneOf(lane);
@@ -529,6 +445,7 @@ function applyEvidenceBoosts(weights, evidence) {
   if (evidence.userSaysNextYear) addBoost("userSaysNextYear");
   if (evidence.userSaysAnotherYear) addBoost("userSaysAnotherYear");
   if (evidence.userAsksStory) addBoost("userAsksStory");
+  if (evidence.userAsksMicro) addBoost("userAsksMicro");
   if (evidence.userAsksTop10) addBoost("userAsksTop10");
   if (evidence.userAsksNumber1) addBoost("userAsksNumber1");
   if (evidence.userVagueOkContinue) addBoost("userVagueOkContinue");
@@ -565,14 +482,13 @@ function applyPenalties(weights, imp) {
   const qt = Number(imp.knobs.questionTolerance);
   if (Number.isFinite(qt) && qt < 0.35) {
     for (const it of out) {
-      if (it.intent === "clarify") {
-        it.w -= DEFAULTS.penalties.lowQuestionToleranceClarifyPenalty;
-      }
+      if (it.intent === "clarify") it.w -= DEFAULTS.penalties.lowQuestionToleranceClarifyPenalty;
     }
   }
   return out;
 }
 
+// PATCH: never return empty
 function rankIntents(lane, evidence, imp) {
   let w = baselineForLane(lane);
   w = applyEvidenceBoosts(w, evidence);
@@ -581,18 +497,33 @@ function rankIntents(lane, evidence, imp) {
   w = w.map((x) => ({ ...x, w: Math.max(0.001, Number(x.w) || 0.001) }));
   w = normWeights(w);
   w.sort((a, b) => b.w - a.w);
+
+  if (!Array.isArray(w) || w.length === 0) {
+    // fallback for safety
+    w = normWeights([{ intent: "clarify", w: 1 }]);
+  }
   return w;
 }
 
-/* ======================================================
-   Candidates + preparation payload
-====================================================== */
+function dedupeCandidates(list) {
+  const seen = new Set();
+  const out = [];
+  for (const c of list || []) {
+    const send = cleanText(c && c.send);
+    const label = cleanText(c && c.label);
+    if (!send || !label) continue;
+    const k = send.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push({ label, send });
+  }
+  return out;
+}
 
 function buildCandidates(lane, year) {
   const ln = laneOf(lane);
   const y = clampYear(Number(year));
   const templates = DEFAULTS.candidates[ln] || DEFAULTS.candidates.general;
-
   const list = [];
 
   if (ln === "music") {
@@ -600,12 +531,10 @@ function buildCandidates(lane, year) {
     list.push(templates.story_moment(y));
     list.push(templates.micro_moment(y));
     list.push(templates.number1(y));
-
     if (y) {
       list.push(templates.next_year());
       list.push(templates.prev_year());
     }
-
     list.push(templates.another_year());
     list.push(templates.replay());
     list.push(templates.switch_mode());
@@ -635,39 +564,35 @@ function buildCandidates(lane, year) {
   return dedupeCandidates(list);
 }
 
-// PATCH: enforce minimum core candidates even if engine followUps are sparse
-function mergeWithCoreCandidates(lane, year, externalCandidates) {
-  const ln = laneOf(lane);
-  const core = buildCandidates(ln, year);
-
-  if (!Array.isArray(externalCandidates) || externalCandidates.length === 0) return core;
-
-  // For music: ensure at least Top10/Story/Micro/#1 exist
-  if (ln === "music") {
-    const merged = [...externalCandidates, ...core];
-    return dedupeCandidates(merged);
-  }
-
-  // For other lanes: external is usually fine, but keep "back to music" if present in core
-  const merged = [...externalCandidates];
-  const coreBack = core.find((c) => cleanText(c.send).toLowerCase() === "back to music");
-  if (coreBack) merged.push(coreBack);
-  return dedupeCandidates(merged);
-}
-
-function dedupeCandidates(list) {
-  const seen = new Set();
+function sanitizeExternalFollowUps(followUps) {
   const out = [];
-  for (const c of list || []) {
-    const send = cleanText(c && c.send);
-    const label = cleanText(c && c.label);
-    if (!send || !label) continue;
+  const seen = new Set();
+  for (const it of followUps || []) {
+    const label = cleanText(it && it.label);
+    const send = cleanText(it && it.send);
+    if (!label || !send) continue;
     const k = send.toLowerCase();
     if (seen.has(k)) continue;
     seen.add(k);
     out.push({ label, send });
   }
   return out;
+}
+
+function mergeWithCoreCandidates(lane, year, externalCandidates) {
+  const ln = laneOf(lane);
+  const core = buildCandidates(ln, year);
+  if (!Array.isArray(externalCandidates) || externalCandidates.length === 0) return core;
+
+  if (ln === "music") {
+    const merged = [...externalCandidates, ...core];
+    return dedupeCandidates(merged);
+  }
+
+  const merged = [...externalCandidates];
+  const coreBack = core.find((c) => cleanText(c.send).toLowerCase() === "back to music");
+  if (coreBack) merged.push(coreBack);
+  return dedupeCandidates(merged);
 }
 
 function intentForCandidate(lane, candidate) {
@@ -678,7 +603,7 @@ function intentForCandidate(lane, candidate) {
   if (ln === "music") {
     if (send.startsWith("top 10") || label.startsWith("top 10")) return "top10_run";
     if (send.startsWith("story moment") || label.startsWith("story moment")) return "story_moment";
-    if (send.startsWith("micro moment") || label.startsWith("micro moment")) return "micro_moment"; // PATCH
+    if (send.startsWith("micro moment") || label.startsWith("micro moment")) return "micro_moment";
     if (send.startsWith("#1") || label.startsWith("#1")) return "number1";
     if (send === "another year") return "another_year";
     if (send === "next year") return "next_year";
@@ -687,14 +612,12 @@ function intentForCandidate(lane, candidate) {
     if (send === "switch") return "switch_mode";
     if (send === "back to music") return "back_to_music";
   }
-
   if (ln === "schedule") {
     if (send.includes("playing now")) return "what_playing_now";
     if (send.includes("what time")) return "convert_time";
     if (send.includes("i’m in") || send.includes("i'm in")) return "set_city";
     if (send === "back to music") return "back_to_music";
   }
-
   if (ln === "sponsors") {
     if (send === "tv") return "collect_property";
     if (send.includes("awareness") || send.includes("calls") || send.includes("foot")) return "collect_goal";
@@ -702,7 +625,6 @@ function intentForCandidate(lane, candidate) {
     if (send.includes("whatsapp") || send.includes("rate")) return "request_contact";
     if (send === "back to music") return "back_to_music";
   }
-
   if (ln === "movies") {
     if (send.startsWith("movie:")) return "collect_title";
     if (send.includes("budget")) return "collect_budget";
@@ -710,13 +632,11 @@ function intentForCandidate(lane, candidate) {
     if (send.includes("rate") || send.includes("email")) return "request_contact";
     if (send === "back to music") return "back_to_music";
   }
-
   if (ln === "general") {
     if (send === "recommend") return "recommend";
     if (send === "options") return "options";
     if (send === "clarify") return "clarify";
   }
-
   return "clarify";
 }
 
@@ -737,14 +657,7 @@ function orderCandidatesByIntentWeights(lane, candidates, rankedIntents) {
   });
 
   const orderedChips = scored.map((x) => x.c);
-
-  const candMeta = scored.map((x) => ({
-    intent: x.intent,
-    w: x.w,
-    label: x.c.label,
-    send: x.c.send,
-  }));
-
+  const candMeta = scored.map((x) => ({ intent: x.intent, w: x.w, label: x.c.label, send: x.c.send }));
   return { ordered: orderedChips, candMeta };
 }
 
@@ -759,28 +672,20 @@ function uiHintsFor(lane, topIntent) {
     if (intent === "number1") return { prefetch: ["number1"], nudge: "number1" };
     return { prefetch: ["top10"], nudge: "top10" };
   }
-
   if (ln === "schedule") return { prefetch: ["schedule"], nudge: "schedule" };
   if (ln === "sponsors") return { prefetch: ["sponsors"], nudge: "sponsors" };
   if (ln === "movies") return { prefetch: ["movies"], nudge: "movies" };
-
   return { prefetch: [], nudge: "clarify" };
 }
-
-/* ======================================================
-   Session shadow cache
-====================================================== */
 
 function getSessionShadow(session) {
   if (!session || typeof session !== "object") return null;
   return session._shadowBrain || null;
 }
-
 function setSessionShadow(session, shadow) {
   if (!session || typeof session !== "object") return;
   session._shadowBrain = shadow;
 }
-
 function freshShadow(session, now) {
   const sh = getSessionShadow(session);
   if (!sh) return false;
@@ -789,10 +694,6 @@ function freshShadow(session, now) {
   if (!Number.isFinite(at) || at <= 0) return false;
   return t - at <= DEFAULTS.shadowTtlMs;
 }
-
-/* ======================================================
-   Public API
-====================================================== */
 
 function prime({ session, visitorId, lane, mode, year, now } = {}) {
   const t = nowMs(now);
@@ -817,7 +718,7 @@ function prime({ session, visitorId, lane, mode, year, now } = {}) {
       candidates: [],
       prepared: null,
       orderedChips: null,
-      sig: null,
+      sig: null
     });
   }
 
@@ -838,7 +739,6 @@ function observe({ session, visitorId, userText, event, lane, mode, year, now } 
   const y = clampYear(Number(year || getSessionYear(session)));
 
   const evidence = extractEvidence(userText, ln, mode, y);
-
   recordImprintEvent(imp, evidence);
 
   if (session) {
@@ -870,39 +770,27 @@ function get({ session, visitorId, lane, mode, year, userText, replyText, follow
     const evidence = extractEvidence(userText || "", ln, mode, y);
     const ranked = rankIntents(ln, evidence, imp);
 
-    // External followUps first, but patch with core actions where needed
-    const externalCandidates =
-      Array.isArray(followUps) && followUps.length ? sanitizeExternalFollowUps(followUps) : null;
-
+    const externalCandidates = Array.isArray(followUps) && followUps.length ? sanitizeExternalFollowUps(followUps) : null;
     const baseCandidates = mergeWithCoreCandidates(ln, y, externalCandidates);
 
     const ordered = orderCandidatesByIntentWeights(ln, baseCandidates, ranked);
-
     const topIntent = ranked[0] ? ranked[0].intent : null;
-
-    const effectiveMode =
-      cleanText(mode || (session && (session.activeMusicMode || session.pendingMode)) || "") || null;
 
     sh = {
       at: t,
       lane: ln,
-      mode: effectiveMode,
+      mode: cleanText(mode || (session && (session.activeMusicMode || session.pendingMode)) || ""),
       year: y,
       orderedIntents: ranked.map((r) => ({ intent: r.intent, w: round4(r.w) })),
-      candidates: ordered.candMeta.map((c) => ({
-        intent: c.intent,
-        w: round4(c.w),
-        label: c.label,
-        send: c.send,
-      })),
+      candidates: ordered.candMeta.map((c) => ({ intent: c.intent, w: round4(c.w), label: c.label, send: c.send })),
       prepared: {
         year: y,
         lane: ln,
         topIntent,
-        uiHints: uiHintsFor(ln, topIntent),
+        uiHints: uiHintsFor(ln, topIntent)
       },
       orderedChips: ordered.ordered.slice(0, 10),
-      sig: sigOf(ln, y, effectiveMode || "", topIntent),
+      sig: sigOf(ln, y, (session && session.activeMusicMode) || mode || "", topIntent)
     };
 
     if (session) setSessionShadow(session, sh);
@@ -910,10 +798,6 @@ function get({ session, visitorId, lane, mode, year, userText, replyText, follow
 
   return { shadow: slimShadow(sh), imprint: slimImprint(imp) };
 }
-
-/* ======================================================
-   Slimming helpers
-====================================================== */
 
 function round4(x) {
   const n = Number(x);
@@ -936,8 +820,8 @@ function slimImprint(imp) {
       recoveryOptions: round4(imp.knobs.recoveryOptions),
       questionTolerance: round4(imp.knobs.questionTolerance),
       toneCrisp: round4(imp.knobs.toneCrisp),
-      toneWarm: round4(imp.knobs.toneWarm),
-    },
+      toneWarm: round4(imp.knobs.toneWarm)
+    }
   };
 }
 
@@ -958,32 +842,9 @@ function slimShadow(sh) {
     candidates: Array.isArray(sh.candidates) ? sh.candidates : [],
     prepared: sh.prepared || null,
     orderedChips: Array.isArray(sh.orderedChips) ? sh.orderedChips : null,
-    sig: sh.sig || null,
+    sig: sh.sig || null
   };
 }
-
-/* ======================================================
-   External followUp sanitization
-====================================================== */
-
-function sanitizeExternalFollowUps(followUps) {
-  const out = [];
-  const seen = new Set();
-  for (const it of followUps || []) {
-    const label = cleanText(it && it.label);
-    const send = cleanText(it && it.send);
-    if (!label || !send) continue;
-    const k = send.toLowerCase();
-    if (seen.has(k)) continue;
-    seen.add(k);
-    out.push({ label, send });
-  }
-  return out;
-}
-
-/* ======================================================
-   Module exports
-====================================================== */
 
 module.exports = {
   DEFAULTS,
@@ -992,6 +853,6 @@ module.exports = {
   get,
   _diag: {
     imprintsSize: () => IMPRINTS.size(),
-    _getImprintUnsafe: (visitorId) => IMPRINTS.get(cleanText(visitorId || "")),
-  },
+    _getImprintUnsafe: (visitorId) => IMPRINTS.get(cleanText(visitorId || ""))
+  }
 };
