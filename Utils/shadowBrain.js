@@ -12,6 +12,10 @@
  *  3) Determinism fix: imprint updates are gated to HIGH-SIGNAL evidence only.
  *     (No learning on low-signal "ok/continue" etc.)
  *  4) Determinism fix: decay only runs if dt >= 60s (prevents tiny time drift flips).
+ *
+ * NOTE:
+ *  - This file is intentionally dependency-free and deterministic.
+ *  - It does NOT store sensitive personal data.
  */
 
 const DEFAULTS = {
@@ -36,33 +40,33 @@ const DEFAULTS = {
     music: [
       { intent: "top10_run", w: 0.52 },
       { intent: "story_moment", w: 0.24 },
-      { intent: "micro_moment", w: 0.14 },   // ✅ added
+      { intent: "micro_moment", w: 0.14 }, // ✅ added
       { intent: "number1", w: 0.06 },
-      { intent: "another_year", w: 0.04 }
+      { intent: "another_year", w: 0.04 },
     ],
     sponsors: [
       { intent: "collect_property", w: 0.35 },
-      { intent: "collect_goal", w: 0.30 },
-      { intent: "collect_budget", w: 0.20 },
-      { intent: "request_contact", w: 0.15 }
+      { intent: "collect_goal", w: 0.3 },
+      { intent: "collect_budget", w: 0.2 },
+      { intent: "request_contact", w: 0.15 },
     ],
     schedule: [
-      { intent: "what_playing_now", w: 0.40 },
+      { intent: "what_playing_now", w: 0.4 },
       { intent: "convert_time", w: 0.35 },
       { intent: "set_city", w: 0.15 },
-      { intent: "back_to_music", w: 0.10 }
+      { intent: "back_to_music", w: 0.1 },
     ],
     movies: [
       { intent: "collect_title", w: 0.35 },
       { intent: "collect_budget", w: 0.25 },
       { intent: "collect_rights", w: 0.25 },
-      { intent: "request_contact", w: 0.15 }
+      { intent: "request_contact", w: 0.15 },
     ],
     general: [
       { intent: "clarify", w: 0.45 },
       { intent: "recommend", w: 0.35 },
-      { intent: "options", w: 0.20 }
-    ]
+      { intent: "options", w: 0.2 },
+    ],
   },
 
   intentBiasMap: {
@@ -87,7 +91,7 @@ const DEFAULTS = {
     collect_property: { knob: "questionTolerance", dir: +1 },
     collect_goal: { knob: "questionTolerance", dir: +1 },
     collect_budget: { knob: "questionTolerance", dir: +1 },
-    request_contact: { knob: "momentumFast", dir: +1 }
+    request_contact: { knob: "momentumFast", dir: +1 },
   },
 
   evidenceBoosts: {
@@ -97,31 +101,62 @@ const DEFAULTS = {
     userAsksTop10: { top10_run: +0.25 },
     userAsksMicro: { micro_moment: +0.22 },
     userAsksNumber1: { number1: +0.25 },
-    userCorrects: { clarify: +0.20 },
+    userCorrects: { clarify: +0.2 },
     userSaysSwitchMode: { story_moment: +0.08, top10_run: +0.08, micro_moment: +0.06, number1: +0.05 },
-    userAsksSchedule: { what_playing_now: +0.18, convert_time: +0.10 },
-    userAsksSponsors: { collect_goal: +0.14, collect_property: +0.10 },
-    userAsksMovies: { collect_title: +0.14, collect_budget: +0.10 }
+    userAsksSchedule: { what_playing_now: +0.18, convert_time: +0.1 },
+    userAsksSponsors: { collect_goal: +0.14, collect_property: +0.1 },
+    userAsksMovies: { collect_title: +0.14, collect_budget: +0.1 },
   },
 
   penalties: {
-    lowQuestionToleranceClarifyPenalty: 0.15
+    lowQuestionToleranceClarifyPenalty: 0.15,
   },
 
   candidates: {
     music: {
       top10_run: (year) => ({ label: year ? `Top 10 ${year}` : "Top 10", send: year ? `top 10 ${year}` : "Top 10" }),
-      story_moment: (year) => ({ label: year ? `Story moment ${year}` : "Story moment", send: year ? `story moment ${year}` : "Story moment" }),
-      micro_moment: (year) => ({ label: year ? `Micro moment ${year}` : "Micro moment", send: year ? `micro moment ${year}` : "Micro moment" }),
+      story_moment: (year) => ({
+        label: year ? `Story moment ${year}` : "Story moment",
+        send: year ? `story moment ${year}` : "Story moment",
+      }),
+      micro_moment: (year) => ({
+        label: year ? `Micro moment ${year}` : "Micro moment",
+        send: year ? `micro moment ${year}` : "Micro moment",
+      }),
       number1: (year) => ({ label: year ? `#1 ${year}` : "#1", send: year ? `#1 ${year}` : "#1" }),
       another_year: () => ({ label: "Another year", send: "another year" }),
       next_year: () => ({ label: "Next year", send: "next year" }),
       prev_year: () => ({ label: "Prev year", send: "prev year" }),
       replay: () => ({ label: "Replay last", send: "replay" }),
       switch_mode: () => ({ label: "Switch mode", send: "switch" }),
-      back_to_music: () => ({ label: "Back to music", send: "back to music" })
-    }
-  }
+      back_to_music: () => ({ label: "Back to music", send: "back to music" }),
+    },
+    sponsors: {
+      collect_property: () => ({ label: "TV / Radio / Web?", send: "tv" }),
+      collect_goal: () => ({ label: "Goal", send: "brand awareness" }),
+      collect_budget: () => ({ label: "Budget", send: "starter_test" }),
+      request_contact: () => ({ label: "WhatsApp", send: "whatsapp" }),
+      back_to_music: () => ({ label: "Back to music", send: "back to music" }),
+    },
+    schedule: {
+      what_playing_now: () => ({ label: "What’s playing now?", send: "what’s playing now" }),
+      convert_time: () => ({ label: "Convert time", send: "what time does it play in London" }),
+      set_city: () => ({ label: "Set my city", send: "I’m in London" }),
+      back_to_music: () => ({ label: "Back to music", send: "back to music" }),
+    },
+    movies: {
+      collect_title: () => ({ label: "Movie title", send: "Movie: The Saint" }),
+      collect_budget: () => ({ label: "Budget", send: "budget under $1000" }),
+      collect_rights: () => ({ label: "Rights", send: "non-exclusive license" }),
+      request_contact: () => ({ label: "Email me details", send: "send rate card" }),
+      back_to_music: () => ({ label: "Back to music", send: "back to music" }),
+    },
+    general: {
+      clarify: () => ({ label: "Clarify", send: "clarify" }),
+      recommend: () => ({ label: "Recommend", send: "recommend" }),
+      options: () => ({ label: "Options", send: "options" }),
+    },
+  },
 };
 
 /* ---------------- Tiny LRU ---------------- */
@@ -240,18 +275,18 @@ function ensureImprint(visitorId, now) {
       dayUpdates: 0,
       lastDecayAt: t,
       knobs: {
-        musicTop10: 0.50,
-        musicStory: 0.50,
-        musicMicro: 0.50,
-        musicNumber1: 0.50,
+        musicTop10: 0.5,
+        musicStory: 0.5,
+        musicMicro: 0.5,
+        musicNumber1: 0.5,
 
-        momentumFast: 0.50,
+        momentumFast: 0.5,
 
         recoveryRecommend: 0.55,
         recoveryOptions: 0.45,
 
-        questionTolerance: 0.50
-      }
+        questionTolerance: 0.5,
+      },
     };
     IMPRINTS.set(vid, imp);
     return imp;
@@ -396,7 +431,7 @@ function extractEvidence(userText, lane, mode, year) {
     userSignalsRecommend: false,
     userSignalsOptions: false,
 
-    strong: false
+    strong: false,
   };
 
   if (!t) return ev;
@@ -524,7 +559,7 @@ function rankIntents(lane, evidence, imp) {
 function buildCandidates(lane, year) {
   const ln = laneOf(lane);
   const y = clampYear(Number(year));
-  const templates = (DEFAULTS.candidates[ln] || DEFAULTS.candidates.music);
+  const templates = DEFAULTS.candidates[ln] || DEFAULTS.candidates.music;
 
   const list = [];
   if (ln === "music") {
@@ -540,6 +575,7 @@ function buildCandidates(lane, year) {
     list.push(templates.replay());
     list.push(templates.switch_mode());
   }
+
   return dedupeCandidates(list);
 }
 
@@ -574,6 +610,7 @@ function intentForCandidate(lane, candidate) {
     if (send === "replay") return "replay";
     if (send === "switch") return "switch_mode";
   }
+
   return "clarify";
 }
 
@@ -594,7 +631,7 @@ function orderCandidatesByIntentWeights(lane, candidates, rankedIntents) {
 
   return {
     ordered: scored.map((x) => x.c),
-    candMeta: scored.map((x) => ({ intent: x.intent, w: x.w, label: x.c.label, send: x.c.send }))
+    candMeta: scored.map((x) => ({ intent: x.intent, w: x.w, label: x.c.label, send: x.c.send })),
   };
 }
 
@@ -702,7 +739,7 @@ function get({ session, visitorId, lane, mode, year, userText, replyText, follow
       orderedIntents: ranked.map((r) => ({ intent: r.intent, w: round4(r.w) })),
       candidates: ordered.candMeta.map((c) => ({ intent: c.intent, w: round4(c.w), label: c.label, send: c.send })),
       prepared: { year: y, lane: ln, topIntent: ranked[0] ? ranked[0].intent : null },
-      orderedChips: ordered.ordered.slice(0, 10)
+      orderedChips: ordered.ordered.slice(0, 10),
     };
 
     if (session) setSessionShadow(session, sh);
@@ -733,8 +770,8 @@ function slimImprint(imp) {
       momentumFast: round4(imp.knobs.momentumFast),
       recoveryRecommend: round4(imp.knobs.recoveryRecommend),
       recoveryOptions: round4(imp.knobs.recoveryOptions),
-      questionTolerance: round4(imp.knobs.questionTolerance)
-    }
+      questionTolerance: round4(imp.knobs.questionTolerance),
+    },
   };
 }
 
@@ -748,7 +785,7 @@ function slimShadow(sh) {
     orderedIntents: Array.isArray(sh.orderedIntents) ? sh.orderedIntents : [],
     candidates: Array.isArray(sh.candidates) ? sh.candidates : [],
     prepared: sh.prepared || null,
-    orderedChips: Array.isArray(sh.orderedChips) ? sh.orderedChips : null
+    orderedChips: Array.isArray(sh.orderedChips) ? sh.orderedChips : null,
   };
 }
 
@@ -761,6 +798,6 @@ module.exports = {
   get,
   _diag: {
     imprintsSize: () => IMPRINTS.size(),
-    _getImprintUnsafe: (visitorId) => IMPRINTS.get(cleanText(visitorId || ""))
-  }
+    _getImprintUnsafe: (visitorId) => IMPRINTS.get(cleanText(visitorId || "")),
+  },
 };
