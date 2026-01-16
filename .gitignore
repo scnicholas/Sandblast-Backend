@@ -44,6 +44,8 @@ payload_*.json
 *_payload.json
 t_*.json
 health.json
+nyx_payload.json
+s2s_response.json
 
 # =========================
 # Local scratch / one-off utilities (do not commit)
@@ -102,6 +104,7 @@ audit_*.json
 Data/*.txt
 Data/*.html
 Data/billboard_yearend_hot100_1970_2010.json.txt
+Data/_sanity_music_report_*.json
 
 # =========================
 # Wikipedia scrape outputs (IGNORE BY DEFAULT)
@@ -125,9 +128,9 @@ nyx_*.mp3
 # =========================
 # Local sanity outputs
 # =========================
-nyx_payload.json
-s2s_response.json
 Data/_sanity_music_report_*.json
 
+# =========================
+# Utility staging artifacts
+# =========================
 Utils/lanePolicy.js.txt
-
