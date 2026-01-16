@@ -1,0 +1,936 @@
+"use strict";
+
+/**
+ * Shadow Brain — C+ + D (v1.4.1 DETERMINISTIC + DEDUPE PATCHED)
+ *  - C+ Probabilistic follow-up weighting (deterministic)
+ *  - D Cognitive memory imprinting (behavioral prefs; non-sensitive)
+ *
+ * FIXES (v1.4):
+ *  1) Local regression fix: freshShadow() now requires orderedIntents.length > 0
+ *     (so prime() won't "poison" cache with empty intents).
+ *  2) Adds micro_moment to music baselines (so it exists in orderedIntents deterministically).
+ *  3) Determinism fix: imprint updates are gated to HIGH-SIGNAL evidence only.
+ *     (No learning on low-signal "ok/continue" etc.)
+ *  4) Determinism fix: decay only runs if dt >= 60s (prevents tiny time drift flips).
+ *
+ * FIXES (v1.4.1):
+ *  5) Determinism fix: observe() dedupes identical repeated inputs within a short window
+ *     (prevents “story moment 1988” twice from re-learning and flipping ranks).
+ *  6) Adds deterministic sig to slimShadow() for deployment/debug visibility.
+ *
+ * NOTE:
+ *  - This file is intentionally dependency-free and deterministic.
+ *  - It does NOT store sensitive personal data.
+ */
+
+const DEFAULTS = {
+  shadowTtlMs: 45_000,
+
+  imprintTtlMs: 7 * 24 * 60 * 60 * 1000,
+  maxImprints: 3000,
+
+  imprintMaxUpdatesPerDay: 24,
+  imprintStep: 0.04,
+  imprintStepStrong: 0.07,
+  imprintMin: 0.05,
+  imprintMax: 0.95,
+
+  imprintHalfLifeDays: 14,
+
+  // Minimum dt before applying decay (determinism guard)
+  decayMinDtMs: 60_000,
+
+  // ✅ v1.4.1: Dedupe learning for identical repeated inputs (double-tap / retry guard)
+  observeDedupeWindowMs: 5_000,
+
+  // Baselines by lane (C+)
+  laneBaselines: {
+    music: [
+      { intent: "top10_run", w: 0.52 },
+      { intent: "story_moment", w: 0.24 },
+      { intent: "micro_moment", w: 0.14 }, // ✅ added
+      { intent: "number1", w: 0.06 },
+      { intent: "another_year", w: 0.04 },
+    ],
+    sponsors: [
+      { intent: "collect_property", w: 0.35 },
+      { intent: "collect_goal", w: 0.3 },
+      { intent: "collect_budget", w: 0.2 },
+      { intent: "request_contact", w: 0.15 },
+    ],
+    schedule: [
+      { intent: "what_playing_now", w: 0.4 },
+      { intent: "convert_time", w: 0.35 },
+      { intent: "set_city", w: 0.15 },
+      { intent: "back_to_music", w: 0.1 },
+    ],
+    movies: [
+      { intent: "collect_title", w: 0.35 },
+      { intent: "collect_budget", w: 0.25 },
+      { intent: "collect_rights", w: 0.25 },
+      { intent: "request_contact", w: 0.15 },
+    ],
+    general: [
+      { intent: "clarify", w: 0.45 },
+      { intent: "recommend", w: 0.35 },
+      { intent: "options", w: 0.2 },
+    ],
+  },
+
+  intentBiasMap: {
+    // music
+    top10_run: { knob: "musicTop10", dir: +1 },
+    story_moment: { knob: "musicStory", dir: +1 },
+    micro_moment: { knob: "musicMicro", dir: +1 }, // ✅ bias knob
+    number1: { knob: "musicNumber1", dir: +1 },
+    another_year: { knob: "momentumFast", dir: +1 },
+
+    // general
+    recommend: { knob: "recoveryRecommend", dir: +1 },
+    options: { knob: "recoveryOptions", dir: +1 },
+    clarify: { knob: "questionTolerance", dir: +1 },
+
+    // schedule
+    what_playing_now: { knob: "momentumFast", dir: +1 },
+    convert_time: { knob: "questionTolerance", dir: +1 },
+    set_city: { knob: "questionTolerance", dir: +1 },
+
+    // sponsors/movies
+    collect_property: { knob: "questionTolerance", dir: +1 },
+    collect_goal: { knob: "questionTolerance", dir: +1 },
+    collect_budget: { knob: "questionTolerance", dir: +1 },
+    request_contact: { knob: "momentumFast", dir: +1 },
+  },
+
+  evidenceBoosts: {
+    userSaysNextYear: { another_year: +0.22 },
+    userSaysAnotherYear: { another_year: +0.18 },
+    userAsksStory: { story_moment: +0.25 },
+    userAsksTop10: { top10_run: +0.25 },
+    userAsksMicro: { micro_moment: +0.22 },
+    userAsksNumber1: { number1: +0.25 },
+    userCorrects: { clarify: +0.2 },
+    userSaysSwitchMode: {
+      story_moment: +0.08,
+      top10_run: +0.08,
+      micro_moment: +0.06,
+      number1: +0.05,
+    },
+    userAsksSchedule: { what_playing_now: +0.18, convert_time: +0.1 },
+    userAsksSponsors: { collect_goal: +0.14, collect_property: +0.1 },
+    userAsksMovies: { collect_title: +0.14, collect_budget: +0.1 },
+  },
+
+  penalties: {
+    lowQuestionToleranceClarifyPenalty: 0.15,
+  },
+
+  candidates: {
+    music: {
+      top10_run: (year) => ({
+        label: year ? `Top 10 ${year}` : "Top 10",
+        send: year ? `top 10 ${year}` : "Top 10",
+      }),
+      story_moment: (year) => ({
+        label: year ? `Story moment ${year}` : "Story moment",
+        send: year ? `story moment ${year}` : "Story moment",
+      }),
+      micro_moment: (year) => ({
+        label: year ? `Micro moment ${year}` : "Micro moment",
+        send: year ? `micro moment ${year}` : "Micro moment",
+      }),
+      number1: (year) => ({
+        label: year ? `#1 ${year}` : "#1",
+        send: year ? `#1 ${year}` : "#1",
+      }),
+      another_year: () => ({ label: "Another year", send: "another year" }),
+      next_year: () => ({ label: "Next year", send: "next year" }),
+      prev_year: () => ({ label: "Prev year", send: "prev year" }),
+      replay: () => ({ label: "Replay last", send: "replay" }),
+      switch_mode: () => ({ label: "Switch mode", send: "switch" }),
+      back_to_music: () => ({ label: "Back to music", send: "back to music" }),
+    },
+    sponsors: {
+      collect_property: () => ({ label: "TV / Radio / Web?", send: "tv" }),
+      collect_goal: () => ({ label: "Goal", send: "brand awareness" }),
+      collect_budget: () => ({ label: "Budget", send: "starter_test" }),
+      request_contact: () => ({ label: "WhatsApp", send: "whatsapp" }),
+      back_to_music: () => ({ label: "Back to music", send: "back to music" }),
+    },
+    schedule: {
+      what_playing_now: () => ({ label: "What’s playing now?", send: "what’s playing now" }),
+      convert_time: () => ({ label: "Convert time", send: "what time does it play in London" }),
+      set_city: () => ({ label: "Set my city", send: "I’m in London" }),
+      back_to_music: () => ({ label: "Back to music", send: "back to music" }),
+    },
+    movies: {
+      collect_title: () => ({ label: "Movie title", send: "Movie: The Saint" }),
+      collect_budget: () => ({ label: "Budget", send: "budget under $1000" }),
+      collect_rights: () => ({ label: "Rights", send: "non-exclusive license" }),
+      request_contact: () => ({ label: "Email me details", send: "send rate card" }),
+      back_to_music: () => ({ label: "Back to music", send: "back to music" }),
+    },
+    general: {
+      clarify: () => ({ label: "Clarify", send: "clarify" }),
+      recommend: () => ({ label: "Recommend", send: "recommend" }),
+      options: () => ({ label: "Options", send: "options" }),
+    },
+  },
+};
+
+/* ---------------- Tiny LRU ---------------- */
+
+class TinyLRU {
+  constructor(max = 1000) {
+    this.max = max;
+    this.map = new Map();
+  }
+  get(key) {
+    const hit = this.map.get(key);
+    if (!hit) return null;
+    this.map.delete(key);
+    this.map.set(key, hit);
+    return hit.value;
+  }
+  set(key, value) {
+    if (this.map.has(key)) this.map.delete(key);
+    this.map.set(key, { value, at: Date.now() });
+    if (this.map.size > this.max) {
+      const firstKey = this.map.keys().next().value;
+      this.map.delete(firstKey);
+    }
+  }
+  delete(key) {
+    this.map.delete(key);
+  }
+  size() {
+    return this.map.size;
+  }
+  keys() {
+    return Array.from(this.map.keys());
+  }
+}
+
+const IMPRINTS = new TinyLRU(DEFAULTS.maxImprints);
+
+/* ---------------- Utilities ---------------- */
+
+function cleanText(s) {
+  return String(s || "").replace(/\u200B/g, "").replace(/\s+/g, " ").trim();
+}
+
+function clamp(x, a, b) {
+  return Math.max(a, Math.min(b, x));
+}
+
+function nowMs(provided) {
+  return Number.isFinite(provided) ? provided : Date.now();
+}
+
+function dayKeyOf(t) {
+  const d = new Date(t);
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const da = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${da}`;
+}
+
+function normWeights(arr) {
+  const s = arr.reduce((acc, x) => acc + (Number.isFinite(x.w) ? x.w : 0), 0);
+  if (s <= 0) {
+    const n = arr.length || 1;
+    return arr.map((x) => ({ ...x, w: 1 / n }));
+  }
+  return arr.map((x) => ({ ...x, w: x.w / s }));
+}
+
+function decayToward(mid, value, halfLifeMs, dtMs) {
+  if (!Number.isFinite(dtMs) || dtMs <= 0) return value;
+  if (!Number.isFinite(halfLifeMs) || halfLifeMs <= 0) return value;
+  const factor = Math.pow(0.5, dtMs / halfLifeMs);
+  return mid + (value - mid) * factor;
+}
+
+function clampYear(y) {
+  if (!Number.isFinite(y)) return null;
+  if (y < 1950 || y > 2024) return null;
+  return y;
+}
+
+function laneOf(laneRaw) {
+  const lane = cleanText(laneRaw || "").toLowerCase();
+  if (lane === "music" || lane === "musiclane" || lane === "music_lane") return "music";
+  if (lane === "sponsors" || lane === "sponsor" || lane === "ads" || lane === "advertising") return "sponsors";
+  if (lane === "movies" || lane === "movie" || lane === "film") return "movies";
+  if (lane === "schedule" || lane === "programming" || lane === "tv_schedule") return "schedule";
+  return "general";
+}
+
+function getSessionYear(session) {
+  if (!session || typeof session !== "object") return null;
+  const candidates = [
+    session.year,
+    session.lastYear,
+    session.lastMusicYear,
+    session.musicYear,
+    session.activeYear,
+  ];
+  for (const v of candidates) {
+    const y = clampYear(Number(v));
+    if (y) return y;
+  }
+  return null;
+}
+
+// deterministic signature (no secrets) for debug/deploy verification
+function sigOf(lane, year, mode, topIntent) {
+  const s = `${lane || ""}|${year || ""}|${mode || ""}|${topIntent || ""}`;
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(16);
+}
+
+// ✅ v1.4.1: observe dedupe signature (visitor + lane + userText)
+function obsSig(visitorId, lane, userText) {
+  const vid = cleanText(visitorId || "").toLowerCase();
+  const ln = laneOf(lane || "").toLowerCase();
+  const ut = cleanText(userText || "").toLowerCase();
+  return `${vid}|${ln}|${ut}`;
+}
+
+/* ---------------- Imprints ---------------- */
+
+function ensureImprint(visitorId, now) {
+  const t = nowMs(now);
+  const vid = cleanText(visitorId || "");
+  if (!vid) return null;
+
+  let imp = IMPRINTS.get(vid);
+
+  if (!imp) {
+    imp = {
+      visitorId: vid,
+      createdAt: t,
+      lastSeenAt: t,
+      dayKey: dayKeyOf(t),
+      dayUpdates: 0,
+      lastDecayAt: t,
+
+      // ✅ v1.4.1: dedupe anchors
+      lastObsSig: "",
+      lastObsAt: 0,
+
+      knobs: {
+        musicTop10: 0.5,
+        musicStory: 0.5,
+        musicMicro: 0.5,
+        musicNumber1: 0.5,
+
+        momentumFast: 0.5,
+
+        recoveryRecommend: 0.55,
+        recoveryOptions: 0.45,
+
+        questionTolerance: 0.5,
+      },
+    };
+    IMPRINTS.set(vid, imp);
+    return imp;
+  }
+
+  // rollover daily throttles first
+  const dk = dayKeyOf(t);
+  if (imp.dayKey !== dk) {
+    imp.dayKey = dk;
+    imp.dayUpdates = 0;
+  }
+
+  // decay only if meaningful dt (determinism guard)
+  const halfLifeMs = DEFAULTS.imprintHalfLifeDays * 24 * 60 * 60 * 1000;
+  const lastDecayAt = Number.isFinite(Number(imp.lastDecayAt)) ? Number(imp.lastDecayAt) : t;
+  const dt = t - lastDecayAt;
+
+  if (Number.isFinite(dt) && dt >= DEFAULTS.decayMinDtMs) {
+    for (const k of Object.keys(imp.knobs || {})) {
+      const v = Number(imp.knobs[k]);
+      if (!Number.isFinite(v)) continue;
+      imp.knobs[k] = clamp(decayToward(0.5, v, halfLifeMs, dt), 0, 1);
+    }
+    imp.lastDecayAt = t;
+  }
+
+  imp.lastSeenAt = t;
+  return imp;
+}
+
+function imprintExpired(imp, now) {
+  if (!imp) return true;
+  const t = nowMs(now);
+  const last = Number(imp.lastSeenAt || 0);
+  if (!Number.isFinite(last) || last <= 0) return true;
+  return t - last > DEFAULTS.imprintTtlMs;
+}
+
+function maybeEvictExpired(now) {
+  const t = nowMs(now);
+  const keys = IMPRINTS.keys();
+  if (!keys.length) return;
+  const sweepN = Math.min(30, keys.length);
+  for (let i = 0; i < sweepN; i++) {
+    const k = keys[i];
+    const imp = IMPRINTS.get(k);
+    if (!imp || imprintExpired(imp, t)) IMPRINTS.delete(k);
+  }
+}
+
+function canImprintUpdate(imp) {
+  if (!imp) return false;
+  if (imp.dayUpdates >= DEFAULTS.imprintMaxUpdatesPerDay) return false;
+  return true;
+}
+
+function bumpKnob(imp, knob, delta) {
+  if (!imp || !imp.knobs) return;
+  if (!Object.prototype.hasOwnProperty.call(imp.knobs, knob)) return;
+  const v = Number(imp.knobs[knob]);
+  const nv = clamp(v + delta, DEFAULTS.imprintMin, DEFAULTS.imprintMax);
+  imp.knobs[knob] = nv;
+}
+
+/**
+ * ✅ Determinism rule:
+ * Only learn on HIGH-SIGNAL evidence.
+ * Low-signal turns (like "ok") must not mutate knobs.
+ */
+function isHighSignalEvidence(ev) {
+  if (!ev) return false;
+
+  // explicit mode requests / lane switches / corrections / preference cues
+  return !!(
+    ev.userAsksTop10 ||
+    ev.userAsksStory ||
+    ev.userAsksMicro ||
+    ev.userAsksNumber1 ||
+    ev.userSaysSwitchMode ||
+    ev.userCorrects ||
+    ev.userAsksSchedule ||
+    ev.userAsksSponsors ||
+    ev.userAsksMovies ||
+    ev.userSignalsLowQuestions ||
+    ev.userSignalsWantsExplain ||
+    ev.userSignalsRecommend ||
+    ev.userSignalsOptions
+  );
+}
+
+function recordImprintEvent(imp, evidence) {
+  if (!imp) return;
+  if (!canImprintUpdate(imp)) return;
+  if (!isHighSignalEvidence(evidence)) return; // ✅ key determinism gate
+
+  const strong = evidence && evidence.strong === true;
+  const step = strong ? DEFAULTS.imprintStepStrong : DEFAULTS.imprintStep;
+
+  if (evidence.userAsksTop10) bumpKnob(imp, "musicTop10", +step);
+  if (evidence.userAsksStory) bumpKnob(imp, "musicStory", +step);
+  if (evidence.userAsksMicro) bumpKnob(imp, "musicMicro", +step);
+  if (evidence.userAsksNumber1) bumpKnob(imp, "musicNumber1", +step);
+
+  if (evidence.userSaysNextYear || evidence.userSaysAnotherYear) bumpKnob(imp, "momentumFast", +step);
+
+  if (evidence.userSignalsLowQuestions) bumpKnob(imp, "questionTolerance", -step);
+  if (evidence.userSignalsWantsExplain) bumpKnob(imp, "questionTolerance", +step);
+
+  if (evidence.userSignalsRecommend) {
+    bumpKnob(imp, "recoveryRecommend", +step);
+    bumpKnob(imp, "recoveryOptions", -step * 0.5);
+  }
+  if (evidence.userSignalsOptions) {
+    bumpKnob(imp, "recoveryOptions", +step);
+    bumpKnob(imp, "recoveryRecommend", -step * 0.5);
+  }
+
+  imp.dayUpdates += 1;
+  imp.lastUpdateAt = Date.now();
+}
+
+/* ---------------- Evidence ---------------- */
+
+function extractEvidence(userText, lane, mode, year) {
+  const t = cleanText(userText || "").toLowerCase();
+  const ev = {
+    userSaysNextYear: false,
+    userSaysAnotherYear: false,
+    userAsksStory: false,
+    userAsksTop10: false,
+    userAsksMicro: false,
+    userAsksNumber1: false,
+    userCorrects: false,
+    userSaysSwitchMode: false,
+
+    userAsksSchedule: false,
+    userAsksSponsors: false,
+    userAsksMovies: false,
+
+    userSignalsLowQuestions: false,
+    userSignalsWantsExplain: false,
+    userSignalsRecommend: false,
+    userSignalsOptions: false,
+
+    strong: false,
+  };
+
+  if (!t) return ev;
+
+  if (/^\s*(next|next year|year\+1)\b/.test(t)) ev.userSaysNextYear = true;
+  if (/^\s*(another year|new year|different year)\b/.test(t)) ev.userSaysAnotherYear = true;
+
+  if (/\b(story moment|story)\b/.test(t)) ev.userAsksStory = true;
+  if (/\b(top\s*10|top10|top ten)\b/.test(t)) ev.userAsksTop10 = true;
+  if (/\b(micro moment|micro)\b/.test(t)) ev.userAsksMicro = true;
+  if (/\b(#\s*1|number\s*1|number\s*one|no\.?\s*1)\b/.test(t)) ev.userAsksNumber1 = true;
+
+  if (/\b(no[, ]|not that|that’s wrong|thats wrong|actually|i meant|correction)\b/.test(t)) ev.userCorrects = true;
+  if (/^\s*(switch|switch mode)\b/.test(t)) ev.userSaysSwitchMode = true;
+
+  if (/\b(schedule|what time|playing now|timezone|time zone)\b/.test(t)) ev.userAsksSchedule = true;
+  if (/\b(sponsor|advertis|rate card|pricing|package|whatsapp)\b/.test(t)) ev.userAsksSponsors = true;
+  if (/\b(movies|license|filmhub|bitmax|series|rights)\b/.test(t)) ev.userAsksMovies = true;
+
+  if (/\b(stop asking|don’t ask|don't ask|just do it|skip questions|no questions)\b/.test(t)) {
+    ev.userSignalsLowQuestions = true;
+    ev.strong = true;
+  }
+  if (/\b(explain|why|how does|walk me through|detail|step by step)\b/.test(t)) {
+    ev.userSignalsWantsExplain = true;
+  }
+
+  if (/\b(recommend|suggest|what should i|best option)\b/.test(t)) ev.userSignalsRecommend = true;
+  if (/\b(options|choices|list them|give me choices)\b/.test(t)) ev.userSignalsOptions = true;
+
+  const ln = laneOf(lane);
+  if (ln !== "schedule" && ev.userAsksSchedule) ev.strong = true;
+  if (ln !== "sponsors" && ev.userAsksSponsors) ev.strong = true;
+  if (ln !== "movies" && ev.userAsksMovies) ev.strong = true;
+
+  return ev;
+}
+
+/* ---------------- Weighting ---------------- */
+
+function baselineForLane(lane) {
+  const ln = laneOf(lane);
+  const base = DEFAULTS.laneBaselines[ln] || DEFAULTS.laneBaselines.general;
+  return base.map((x) => ({ intent: x.intent, w: Number(x.w) }));
+}
+
+function applyEvidenceBoosts(weights, evidence) {
+  const out = weights.map((x) => ({ ...x }));
+  const boosts = DEFAULTS.evidenceBoosts;
+
+  function addBoost(mapKey) {
+    const boost = boosts[mapKey];
+    if (!boost) return;
+    for (const it of out) {
+      if (Object.prototype.hasOwnProperty.call(boost, it.intent)) {
+        it.w += Number(boost[it.intent]) || 0;
+      }
+    }
+  }
+
+  if (evidence.userSaysNextYear) addBoost("userSaysNextYear");
+  if (evidence.userSaysAnotherYear) addBoost("userSaysAnotherYear");
+  if (evidence.userAsksStory) addBoost("userAsksStory");
+  if (evidence.userAsksTop10) addBoost("userAsksTop10");
+  if (evidence.userAsksMicro) addBoost("userAsksMicro");
+  if (evidence.userAsksNumber1) addBoost("userAsksNumber1");
+  if (evidence.userCorrects) addBoost("userCorrects");
+  if (evidence.userSaysSwitchMode) addBoost("userSaysSwitchMode");
+  if (evidence.userAsksSchedule) addBoost("userAsksSchedule");
+  if (evidence.userAsksSponsors) addBoost("userAsksSponsors");
+  if (evidence.userAsksMovies) addBoost("userAsksMovies");
+
+  return out;
+}
+
+function applyImprintBias(weights, imp) {
+  if (!imp || !imp.knobs) return weights;
+
+  const out = weights.map((x) => ({ ...x }));
+  for (const it of out) {
+    const rule = DEFAULTS.intentBiasMap[it.intent];
+    if (!rule) continue;
+    const knobVal = Number(imp.knobs[rule.knob]);
+    if (!Number.isFinite(knobVal)) continue;
+
+    const centered = (knobVal - 0.5) * 2.0 * (rule.dir || 1);
+    const scale = 0.18;
+    it.w += centered * scale;
+  }
+  return out;
+}
+
+function applyPenalties(weights, imp) {
+  const out = weights.map((x) => ({ ...x }));
+  if (!imp || !imp.knobs) return out;
+
+  const qt = Number(imp.knobs.questionTolerance);
+  if (Number.isFinite(qt) && qt < 0.35) {
+    for (const it of out) {
+      if (it.intent === "clarify") it.w -= DEFAULTS.penalties.lowQuestionToleranceClarifyPenalty;
+    }
+  }
+  return out;
+}
+
+function rankIntents(lane, evidence, imp) {
+  let w = baselineForLane(lane);
+  w = applyEvidenceBoosts(w, evidence);
+  w = applyImprintBias(w, imp);
+  w = applyPenalties(w, imp);
+  w = w.map((x) => ({ ...x, w: Math.max(0.001, Number(x.w) || 0.001) }));
+  w = normWeights(w);
+
+  // deterministic: stable tie-break by intent name if weights equal
+  w.sort((a, b) => {
+    if (b.w !== a.w) return b.w - a.w;
+    return String(a.intent).localeCompare(String(b.intent));
+  });
+
+  return w;
+}
+
+/* ---------------- Candidates ---------------- */
+
+function buildCandidates(lane, year) {
+  const ln = laneOf(lane);
+  const y = clampYear(Number(year));
+  const templates = DEFAULTS.candidates[ln] || DEFAULTS.candidates.music;
+
+  const list = [];
+  if (ln === "music") {
+    list.push(templates.top10_run(y));
+    list.push(templates.story_moment(y));
+    list.push(templates.micro_moment(y));
+    list.push(templates.number1(y));
+    if (y) {
+      list.push(templates.next_year());
+      list.push(templates.prev_year());
+    }
+    list.push(templates.another_year());
+    list.push(templates.replay());
+    list.push(templates.switch_mode());
+  } else if (ln === "schedule") {
+    list.push(templates.what_playing_now());
+    list.push(templates.convert_time());
+    list.push(templates.set_city());
+    list.push(templates.back_to_music());
+  } else if (ln === "sponsors") {
+    list.push(templates.collect_property());
+    list.push(templates.collect_goal());
+    list.push(templates.collect_budget());
+    list.push(templates.request_contact());
+    list.push(templates.back_to_music());
+  } else if (ln === "movies") {
+    list.push(templates.collect_title());
+    list.push(templates.collect_budget());
+    list.push(templates.collect_rights());
+    list.push(templates.request_contact());
+    list.push(templates.back_to_music());
+  } else {
+    list.push(templates.recommend());
+    list.push(templates.options());
+    list.push(templates.clarify());
+  }
+
+  return dedupeCandidates(list);
+}
+
+function dedupeCandidates(list) {
+  const seen = new Set();
+  const out = [];
+  for (const c of list || []) {
+    const label = cleanText(c && c.label);
+    const send = cleanText(c && c.send);
+    if (!label || !send) continue;
+    const k = send.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push({ label, send });
+  }
+  return out;
+}
+
+function intentForCandidate(lane, candidate) {
+  const ln = laneOf(lane);
+  const send = cleanText(candidate && candidate.send).toLowerCase();
+  const label = cleanText(candidate && candidate.label).toLowerCase();
+
+  if (ln === "music") {
+    if (send.startsWith("top 10") || label.startsWith("top 10")) return "top10_run";
+    if (send.startsWith("story moment") || label.startsWith("story moment")) return "story_moment";
+    if (send.startsWith("micro moment") || label.startsWith("micro moment")) return "micro_moment";
+    if (send.startsWith("#1") || label.startsWith("#1")) return "number1";
+    if (send === "another year") return "another_year";
+    if (send === "next year") return "next_year";
+    if (send === "prev year") return "prev_year";
+    if (send === "replay") return "replay";
+    if (send === "switch") return "switch_mode";
+    if (send === "back to music") return "back_to_music";
+  }
+
+  if (ln === "schedule") {
+    if (send.includes("playing now")) return "what_playing_now";
+    if (send.includes("what time")) return "convert_time";
+    if (send.includes("i’m in") || send.includes("i'm in")) return "set_city";
+    if (send === "back to music") return "back_to_music";
+  }
+
+  if (ln === "sponsors") {
+    if (send === "tv") return "collect_property";
+    if (send.includes("awareness") || send.includes("calls") || send.includes("foot")) return "collect_goal";
+    if (send.includes("starter") || send.includes("budget")) return "collect_budget";
+    if (send.includes("whatsapp") || send.includes("rate")) return "request_contact";
+    if (send === "back to music") return "back_to_music";
+  }
+
+  if (ln === "movies") {
+    if (send.startsWith("movie:")) return "collect_title";
+    if (send.includes("budget")) return "collect_budget";
+    if (send.includes("license") || send.includes("rights")) return "collect_rights";
+    if (send.includes("rate") || send.includes("email")) return "request_contact";
+    if (send === "back to music") return "back_to_music";
+  }
+
+  if (ln === "general") {
+    if (send === "recommend") return "recommend";
+    if (send === "options") return "options";
+    if (send === "clarify") return "clarify";
+  }
+
+  return "clarify";
+}
+
+function orderCandidatesByIntentWeights(lane, candidates, rankedIntents) {
+  const wByIntent = new Map();
+  for (const r of rankedIntents || []) wByIntent.set(r.intent, Number(r.w) || 0);
+
+  const scored = (candidates || []).map((c, idx) => {
+    const intent = intentForCandidate(lane, c);
+    const w = wByIntent.has(intent) ? wByIntent.get(intent) : 0.0001;
+    return { c, intent, w, idx };
+  });
+
+  scored.sort((a, b) => {
+    if (b.w !== a.w) return b.w - a.w;
+    return a.idx - b.idx;
+  });
+
+  return {
+    ordered: scored.map((x) => x.c),
+    candMeta: scored.map((x) => ({ intent: x.intent, w: x.w, label: x.c.label, send: x.c.send })),
+  };
+}
+
+/* ---------------- Session shadow cache ---------------- */
+
+function getSessionShadow(session) {
+  if (!session || typeof session !== "object") return null;
+  return session._shadowBrain || null;
+}
+
+function setSessionShadow(session, shadow) {
+  if (!session || typeof session !== "object") return;
+  session._shadowBrain = shadow;
+}
+
+// ✅ v1.4 FIX: must have real orderedIntents to be "fresh"
+function freshShadow(session, now) {
+  const sh = getSessionShadow(session);
+  if (!sh) return false;
+  const t = nowMs(now);
+  const at = Number(sh.at || 0);
+  if (!Number.isFinite(at) || at <= 0) return false;
+  if (t - at > DEFAULTS.shadowTtlMs) return false;
+  if (!Array.isArray(sh.orderedIntents) || sh.orderedIntents.length === 0) return false;
+  return true;
+}
+
+/* ---------------- Public API ---------------- */
+
+function prime({ session, visitorId, lane, mode, year, now } = {}) {
+  const t = nowMs(now);
+  maybeEvictExpired(t);
+
+  const vid = cleanText(visitorId || "");
+  if (!vid) return { ok: false };
+
+  const imp = ensureImprint(vid, t);
+  if (!imp) return { ok: false };
+
+  // Do NOT seed "fresh" cache with empty intents; leave it stale
+  if (session && !getSessionShadow(session)) {
+    setSessionShadow(session, {
+      at: 0,
+      lane: laneOf(lane),
+      year: clampYear(Number(year || getSessionYear(session))),
+    });
+  }
+
+  return { ok: true };
+}
+
+function observe({ session, visitorId, userText, event, lane, mode, year, now } = {}) {
+  const t = nowMs(now);
+  maybeEvictExpired(t);
+
+  const vid = cleanText(visitorId || "");
+  if (!vid) return { ok: false };
+
+  const imp = ensureImprint(vid, t);
+  if (!imp) return { ok: false };
+
+  const ln = laneOf(lane || (session && session.lane) || "general");
+  const y = clampYear(Number(year || getSessionYear(session)));
+
+  const evidence = extractEvidence(userText, ln, mode, y);
+
+  // ✅ v1.4.1 Determinism: dedupe identical repeated userText within window
+  const sig = obsSig(visitorId, ln, userText);
+  const lastSig = cleanText(imp.lastObsSig || "");
+  const lastAt = Number(imp.lastObsAt || 0);
+  const dt = t - lastAt;
+
+  const isDup =
+    sig &&
+    lastSig &&
+    sig === lastSig &&
+    Number.isFinite(dt) &&
+    dt >= 0 &&
+    dt <= DEFAULTS.observeDedupeWindowMs;
+
+  if (!isDup) {
+    // D: imprint updates are gated (determinism)
+    recordImprintEvent(imp, evidence);
+    imp.lastObsSig = sig;
+    imp.lastObsAt = t;
+  }
+
+  // invalidate session cache
+  if (session) {
+    const sh = getSessionShadow(session) || {};
+    sh.at = 0;
+    setSessionShadow(session, sh);
+  }
+
+  return { ok: true };
+}
+
+function get({ session, visitorId, lane, mode, year, userText, replyText, followUps, now } = {}) {
+  const t = nowMs(now);
+  maybeEvictExpired(t);
+
+  const vid = cleanText(visitorId || "");
+  if (!vid) return { shadow: null, imprint: null };
+
+  const imp = ensureImprint(vid, t);
+  if (!imp) return { shadow: null, imprint: null };
+
+  const ln = laneOf(lane || (session && session.lane) || "general");
+  const y = clampYear(Number(year || getSessionYear(session)));
+
+  let sh = session ? getSessionShadow(session) : null;
+
+  const needsRebuild = !session || !freshShadow(session, t) || !sh || sh.lane !== ln || sh.year !== y;
+
+  if (needsRebuild) {
+    const evidence = extractEvidence(userText || "", ln, mode, y);
+    const ranked = rankIntents(ln, evidence, imp);
+
+    const baseCandidates = buildCandidates(ln, y);
+    const ordered = orderCandidatesByIntentWeights(ln, baseCandidates, ranked);
+
+    const topIntent = ranked[0] ? ranked[0].intent : null;
+
+    sh = {
+      at: t,
+      lane: ln,
+      mode: cleanText(mode || ""),
+      year: y,
+      orderedIntents: ranked.map((r) => ({ intent: r.intent, w: round4(r.w) })),
+      candidates: ordered.candMeta.map((c) => ({
+        intent: c.intent,
+        w: round4(c.w),
+        label: c.label,
+        send: c.send,
+      })),
+      prepared: { year: y, lane: ln, topIntent },
+      orderedChips: ordered.ordered.slice(0, 10),
+      sig: sigOf(ln, y, cleanText(mode || ""), topIntent),
+    };
+
+    if (session) setSessionShadow(session, sh);
+  }
+
+  return { shadow: slimShadow(sh), imprint: slimImprint(imp) };
+}
+
+/* ---------------- Slimming helpers ---------------- */
+
+function round4(x) {
+  const n = Number(x);
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(n * 10000) / 10000;
+}
+
+function slimImprint(imp) {
+  if (!imp) return null;
+  return {
+    visitorId: imp.visitorId,
+    lastSeenAt: imp.lastSeenAt,
+    dayUpdates: imp.dayUpdates,
+    knobs: {
+      musicTop10: round4(imp.knobs.musicTop10),
+      musicStory: round4(imp.knobs.musicStory),
+      musicMicro: round4(imp.knobs.musicMicro),
+      musicNumber1: round4(imp.knobs.musicNumber1),
+      momentumFast: round4(imp.knobs.momentumFast),
+      recoveryRecommend: round4(imp.knobs.recoveryRecommend),
+      recoveryOptions: round4(imp.knobs.recoveryOptions),
+      questionTolerance: round4(imp.knobs.questionTolerance),
+    },
+  };
+}
+
+function slimShadow(sh) {
+  if (!sh) return null;
+  return {
+    at: sh.at,
+    lane: sh.lane,
+    mode: sh.mode || null,
+    year: sh.year || null,
+    orderedIntents: Array.isArray(sh.orderedIntents) ? sh.orderedIntents : [],
+    candidates: Array.isArray(sh.candidates) ? sh.candidates : [],
+    prepared: sh.prepared || null,
+    orderedChips: Array.isArray(sh.orderedChips) ? sh.orderedChips : null,
+
+    // ✅ v1.4.1: expose deterministic signature for debugging
+    sig: sh.sig || null,
+  };
+}
+
+/* ---------------- Exports ---------------- */
+
+module.exports = {
+  DEFAULTS,
+  prime,
+  observe,
+  get,
+  _diag: {
+    imprintsSize: () => IMPRINTS.size(),
+    _getImprintUnsafe: (visitorId) => IMPRINTS.get(cleanText(visitorId || "")),
+  },
+};
