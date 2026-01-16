@@ -161,8 +161,8 @@ function start() {
 
   /**
    * ✅ CRITICAL PATCH A (manual preflight hardener):
-   * Guarantees OPTIONS returns HTTP OK + required headers.
-   * This is the "no more maybe" fix for browsers blocking POST due to preflight.
+   * Guarantees OPTIONS returns HTTP OK + required headers
+   * ONLY for allowed origins (otherwise return 403).
    *
    * MUST be BEFORE express.json() and BEFORE your routes.
    */
@@ -171,6 +171,13 @@ function start() {
 
     const origin = normalizeOrigin(req.headers.origin || "");
     const isAllowed = origin && ALLOWED_ORIGINS.has(origin);
+
+    // If browser sends an Origin and it's not allowed: fail fast with 403.
+    // This prevents "not HTTP ok status" ambiguity and makes debugging obvious.
+    if (origin && !isAllowed) {
+      console.warn("[CORS] preflight blocked origin:", origin);
+      return res.status(403).send("CORS origin blocked");
+    }
 
     if (isAllowed) {
       res.setHeader("Access-Control-Allow-Origin", origin);
