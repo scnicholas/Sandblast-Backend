@@ -1,6 +1,6 @@
 {
   "name": "sandblast-backend",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Backend for Sandblast project",
   "main": "index.js",
   "scripts": {
@@ -9,7 +9,7 @@
     "start": "node index.js",
     "start:prod": "node index.js",
 
-    "dev": "node index.js",
+    "dev": "node --watch index.js",
     "dev:watch": "node --watch index.js",
 
     "build:top10": "node Scripts/build_top10_by_year_v1.js",
@@ -17,7 +17,10 @@
     "top10:rebuild": "npm run build:top10 && npm run check:top10",
 
     "test:shadow:local": "node Scripts/regression_shadowBrain_v1.js",
-    "test:shadow:api": "powershell -NoProfile -ExecutionPolicy Bypass -File Scripts/regression_shadowBrain_api_v1.ps1"
+    "test:shadow:api:win": "powershell -NoProfile -ExecutionPolicy Bypass -File Scripts/regression_shadowBrain_api_v1.ps1",
+    "test:shadow:api": "node Scripts/regression_shadowBrain_api_v1.js",
+
+    "test": "npm run test:shadow:local"
   },
   "dependencies": {
     "axios": "^1.13.2",
