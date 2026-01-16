@@ -1,7 +1,7 @@
 "use strict";
 
 /**
- * Shadow Brain — C+ + D (v1.4 DETERMINISTIC PATCHED)
+ * Shadow Brain — C+ + D (v1.4.1 DETERMINISTIC + DEDUPE PATCHED)
  *  - C+ Probabilistic follow-up weighting (deterministic)
  *  - D Cognitive memory imprinting (behavioral prefs; non-sensitive)
  *
@@ -12,6 +12,11 @@
  *  3) Determinism fix: imprint updates are gated to HIGH-SIGNAL evidence only.
  *     (No learning on low-signal "ok/continue" etc.)
  *  4) Determinism fix: decay only runs if dt >= 60s (prevents tiny time drift flips).
+ *
+ * FIXES (v1.4.1):
+ *  5) Determinism fix: observe() dedupes identical repeated inputs within a short window
+ *     (prevents “story moment 1988” twice from re-learning and flipping ranks).
+ *  6) Adds deterministic sig to slimShadow() for deployment/debug visibility.
  *
  * NOTE:
  *  - This file is intentionally dependency-free and deterministic.
@@ -34,6 +39,9 @@ const DEFAULTS = {
 
   // Minimum dt before applying decay (determinism guard)
   decayMinDtMs: 60_000,
+
+  // ✅ v1.4.1: Dedupe learning for identical repeated inputs (double-tap / retry guard)
+  observeDedupeWindowMs: 5_000,
 
   // Baselines by lane (C+)
   laneBaselines: {
@@ -102,7 +110,12 @@ const DEFAULTS = {
     userAsksMicro: { micro_moment: +0.22 },
     userAsksNumber1: { number1: +0.25 },
     userCorrects: { clarify: +0.2 },
-    userSaysSwitchMode: { story_moment: +0.08, top10_run: +0.08, micro_moment: +0.06, number1: +0.05 },
+    userSaysSwitchMode: {
+      story_moment: +0.08,
+      top10_run: +0.08,
+      micro_moment: +0.06,
+      number1: +0.05,
+    },
     userAsksSchedule: { what_playing_now: +0.18, convert_time: +0.1 },
     userAsksSponsors: { collect_goal: +0.14, collect_property: +0.1 },
     userAsksMovies: { collect_title: +0.14, collect_budget: +0.1 },
@@ -114,7 +127,10 @@ const DEFAULTS = {
 
   candidates: {
     music: {
-      top10_run: (year) => ({ label: year ? `Top 10 ${year}` : "Top 10", send: year ? `top 10 ${year}` : "Top 10" }),
+      top10_run: (year) => ({
+        label: year ? `Top 10 ${year}` : "Top 10",
+        send: year ? `top 10 ${year}` : "Top 10",
+      }),
       story_moment: (year) => ({
         label: year ? `Story moment ${year}` : "Story moment",
         send: year ? `story moment ${year}` : "Story moment",
@@ -123,7 +139,10 @@ const DEFAULTS = {
         label: year ? `Micro moment ${year}` : "Micro moment",
         send: year ? `micro moment ${year}` : "Micro moment",
       }),
-      number1: (year) => ({ label: year ? `#1 ${year}` : "#1", send: year ? `#1 ${year}` : "#1" }),
+      number1: (year) => ({
+        label: year ? `#1 ${year}` : "#1",
+        send: year ? `#1 ${year}` : "#1",
+      }),
       another_year: () => ({ label: "Another year", send: "another year" }),
       next_year: () => ({ label: "Next year", send: "next year" }),
       prev_year: () => ({ label: "Prev year", send: "prev year" }),
@@ -249,12 +268,37 @@ function laneOf(laneRaw) {
 
 function getSessionYear(session) {
   if (!session || typeof session !== "object") return null;
-  const candidates = [session.year, session.lastYear, session.lastMusicYear, session.musicYear, session.activeYear];
+  const candidates = [
+    session.year,
+    session.lastYear,
+    session.lastMusicYear,
+    session.musicYear,
+    session.activeYear,
+  ];
   for (const v of candidates) {
     const y = clampYear(Number(v));
     if (y) return y;
   }
   return null;
+}
+
+// deterministic signature (no secrets) for debug/deploy verification
+function sigOf(lane, year, mode, topIntent) {
+  const s = `${lane || ""}|${year || ""}|${mode || ""}|${topIntent || ""}`;
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(16);
+}
+
+// ✅ v1.4.1: observe dedupe signature (visitor + lane + userText)
+function obsSig(visitorId, lane, userText) {
+  const vid = cleanText(visitorId || "").toLowerCase();
+  const ln = laneOf(lane || "").toLowerCase();
+  const ut = cleanText(userText || "").toLowerCase();
+  return `${vid}|${ln}|${ut}`;
 }
 
 /* ---------------- Imprints ---------------- */
@@ -274,6 +318,11 @@ function ensureImprint(visitorId, now) {
       dayKey: dayKeyOf(t),
       dayUpdates: 0,
       lastDecayAt: t,
+
+      // ✅ v1.4.1: dedupe anchors
+      lastObsSig: "",
+      lastObsAt: 0,
+
       knobs: {
         musicTop10: 0.5,
         musicStory: 0.5,
@@ -545,7 +594,7 @@ function rankIntents(lane, evidence, imp) {
   w = w.map((x) => ({ ...x, w: Math.max(0.001, Number(x.w) || 0.001) }));
   w = normWeights(w);
 
-  // deterministic: stable tie-break by intent name if weights equal after rounding
+  // deterministic: stable tie-break by intent name if weights equal
   w.sort((a, b) => {
     if (b.w !== a.w) return b.w - a.w;
     return String(a.intent).localeCompare(String(b.intent));
@@ -574,6 +623,27 @@ function buildCandidates(lane, year) {
     list.push(templates.another_year());
     list.push(templates.replay());
     list.push(templates.switch_mode());
+  } else if (ln === "schedule") {
+    list.push(templates.what_playing_now());
+    list.push(templates.convert_time());
+    list.push(templates.set_city());
+    list.push(templates.back_to_music());
+  } else if (ln === "sponsors") {
+    list.push(templates.collect_property());
+    list.push(templates.collect_goal());
+    list.push(templates.collect_budget());
+    list.push(templates.request_contact());
+    list.push(templates.back_to_music());
+  } else if (ln === "movies") {
+    list.push(templates.collect_title());
+    list.push(templates.collect_budget());
+    list.push(templates.collect_rights());
+    list.push(templates.request_contact());
+    list.push(templates.back_to_music());
+  } else {
+    list.push(templates.recommend());
+    list.push(templates.options());
+    list.push(templates.clarify());
   }
 
   return dedupeCandidates(list);
@@ -609,6 +679,36 @@ function intentForCandidate(lane, candidate) {
     if (send === "prev year") return "prev_year";
     if (send === "replay") return "replay";
     if (send === "switch") return "switch_mode";
+    if (send === "back to music") return "back_to_music";
+  }
+
+  if (ln === "schedule") {
+    if (send.includes("playing now")) return "what_playing_now";
+    if (send.includes("what time")) return "convert_time";
+    if (send.includes("i’m in") || send.includes("i'm in")) return "set_city";
+    if (send === "back to music") return "back_to_music";
+  }
+
+  if (ln === "sponsors") {
+    if (send === "tv") return "collect_property";
+    if (send.includes("awareness") || send.includes("calls") || send.includes("foot")) return "collect_goal";
+    if (send.includes("starter") || send.includes("budget")) return "collect_budget";
+    if (send.includes("whatsapp") || send.includes("rate")) return "request_contact";
+    if (send === "back to music") return "back_to_music";
+  }
+
+  if (ln === "movies") {
+    if (send.startsWith("movie:")) return "collect_title";
+    if (send.includes("budget")) return "collect_budget";
+    if (send.includes("license") || send.includes("rights")) return "collect_rights";
+    if (send.includes("rate") || send.includes("email")) return "request_contact";
+    if (send === "back to music") return "back_to_music";
+  }
+
+  if (ln === "general") {
+    if (send === "recommend") return "recommend";
+    if (send === "options") return "options";
+    if (send === "clarify") return "clarify";
   }
 
   return "clarify";
@@ -673,7 +773,11 @@ function prime({ session, visitorId, lane, mode, year, now } = {}) {
 
   // Do NOT seed "fresh" cache with empty intents; leave it stale
   if (session && !getSessionShadow(session)) {
-    setSessionShadow(session, { at: 0, lane: laneOf(lane), year: clampYear(Number(year || getSessionYear(session))) });
+    setSessionShadow(session, {
+      at: 0,
+      lane: laneOf(lane),
+      year: clampYear(Number(year || getSessionYear(session))),
+    });
   }
 
   return { ok: true };
@@ -694,8 +798,26 @@ function observe({ session, visitorId, userText, event, lane, mode, year, now } 
 
   const evidence = extractEvidence(userText, ln, mode, y);
 
-  // D: imprint updates are gated (determinism)
-  recordImprintEvent(imp, evidence);
+  // ✅ v1.4.1 Determinism: dedupe identical repeated userText within window
+  const sig = obsSig(visitorId, ln, userText);
+  const lastSig = cleanText(imp.lastObsSig || "");
+  const lastAt = Number(imp.lastObsAt || 0);
+  const dt = t - lastAt;
+
+  const isDup =
+    sig &&
+    lastSig &&
+    sig === lastSig &&
+    Number.isFinite(dt) &&
+    dt >= 0 &&
+    dt <= DEFAULTS.observeDedupeWindowMs;
+
+  if (!isDup) {
+    // D: imprint updates are gated (determinism)
+    recordImprintEvent(imp, evidence);
+    imp.lastObsSig = sig;
+    imp.lastObsAt = t;
+  }
 
   // invalidate session cache
   if (session) {
@@ -731,15 +853,23 @@ function get({ session, visitorId, lane, mode, year, userText, replyText, follow
     const baseCandidates = buildCandidates(ln, y);
     const ordered = orderCandidatesByIntentWeights(ln, baseCandidates, ranked);
 
+    const topIntent = ranked[0] ? ranked[0].intent : null;
+
     sh = {
       at: t,
       lane: ln,
       mode: cleanText(mode || ""),
       year: y,
       orderedIntents: ranked.map((r) => ({ intent: r.intent, w: round4(r.w) })),
-      candidates: ordered.candMeta.map((c) => ({ intent: c.intent, w: round4(c.w), label: c.label, send: c.send })),
-      prepared: { year: y, lane: ln, topIntent: ranked[0] ? ranked[0].intent : null },
+      candidates: ordered.candMeta.map((c) => ({
+        intent: c.intent,
+        w: round4(c.w),
+        label: c.label,
+        send: c.send,
+      })),
+      prepared: { year: y, lane: ln, topIntent },
       orderedChips: ordered.ordered.slice(0, 10),
+      sig: sigOf(ln, y, cleanText(mode || ""), topIntent),
     };
 
     if (session) setSessionShadow(session, sh);
@@ -786,6 +916,9 @@ function slimShadow(sh) {
     candidates: Array.isArray(sh.candidates) ? sh.candidates : [],
     prepared: sh.prepared || null,
     orderedChips: Array.isArray(sh.orderedChips) ? sh.orderedChips : null,
+
+    // ✅ v1.4.1: expose deterministic signature for debugging
+    sig: sh.sig || null,
   };
 }
 
