@@ -1,11 +1,36 @@
 $ErrorActionPreference = "Stop"
 
-# Set your base URL
+# -----------------------------------------
+# Config
+# -----------------------------------------
 $BASE = $env:BASE
 if (-not $BASE) { $BASE = "https://sandblast-backend.onrender.com" }
 
+# If you want a clean run every time, uncomment the next line:
+# $sessionId = "shadow_api_test_" + [System.Guid]::NewGuid().ToString("N").Substring(0,8)
+
+# Otherwise keep fixed session id (stateful):
 $sessionId = "shadow_api_test_01"
+
 $visitorId = "mac-shadow-api"
+
+# Determinism: how long to wait between duplicate calls
+$detSleepMs = 50
+
+function Assert-Shadow($resp, $label) {
+  if (-not $resp) { throw "[$label] Response is null." }
+  if (-not $resp.ok) { throw "[$label] Expected ok=true but got: $($resp.ok)" }
+  if (-not $resp.shadow) { throw "[$label] Expected payload.shadow but got null. (Is shadowBrain.get() wired into res.json?)" }
+
+  if (-not $resp.shadow.lane) { throw "[$label] shadow.lane missing" }
+  if (-not $resp.shadow.orderedIntents) { throw "[$label] shadow.orderedIntents missing" }
+  if ($resp.shadow.orderedIntents.Count -lt 1) { throw "[$label] shadow.orderedIntents empty" }
+
+  # orderedChips can be null depending on implementation, but if present should be an array
+  if ($resp.shadow.orderedChips -and ($resp.shadow.orderedChips.Count -lt 1)) {
+    throw "[$label] shadow.orderedChips present but empty"
+  }
+}
 
 function Call-Chat($text) {
   $payload = @{
@@ -21,37 +46,85 @@ function Call-Chat($text) {
     -Body $payload
 }
 
-Write-Host "BASE = $BASE"
-Write-Host "Session = $sessionId"
+function TopNIntents($shadow, $n) {
+  return (($shadow.orderedIntents | Select-Object -First $n | ForEach-Object { $_.intent }) -join "|")
+}
 
+function TopNChips($shadow, $n) {
+  if (-not $shadow.orderedChips) { return "" }
+  return (($shadow.orderedChips | Select-Object -First $n | ForEach-Object { $_.send }) -join "|")
+}
+
+function Print-ShadowSummary($resp, $label) {
+  $sh = $resp.shadow
+  $top4 = TopNIntents $sh 4
+  $chips6 = TopNChips $sh 6
+
+  Write-Host "[$label] lane:" $sh.lane "year:" $sh.year "mode:" $sh.mode "sig:" $sh.sig
+  Write-Host "[$label] top intents:" $top4
+  if ($chips6) {
+    Write-Host "[$label] top chips:" $chips6
+  }
+}
+
+Write-Host "BASE    = $BASE"
+Write-Host "Session = $sessionId"
+Write-Host "Visitor = $visitorId"
+
+# -----------------------------------------
 # 1) Bare year
+# -----------------------------------------
 $r1 = Call-Chat "1988"
 Write-Host "`n[1] reply:" $r1.reply
-if (-not $r1.shadow) { throw "Expected payload.shadow but got null. (Did you wire shadowBrain.get() into res.json?)" }
-Write-Host "[1] shadow lane:" $r1.shadow.lane "year:" $r1.shadow.year
+Assert-Shadow $r1 "1"
+Print-ShadowSummary $r1 "1"
 
+# -----------------------------------------
 # 2) Story moment
+# -----------------------------------------
 $r2 = Call-Chat "story moment 1988"
 Write-Host "`n[2] reply:" $r2.reply
-if (-not $r2.shadow) { throw "Expected payload.shadow in turn 2" }
-Write-Host "[2] top intent:" ($r2.shadow.orderedIntents[0].intent)
+Assert-Shadow $r2 "2"
+Print-ShadowSummary $r2 "2"
 
+# -----------------------------------------
 # 3) Stop asking
+# -----------------------------------------
 $r3 = Call-Chat "stop asking questions. just do it."
 Write-Host "`n[3] reply:" $r3.reply
-if (-not $r3.shadow) { throw "Expected payload.shadow in turn 3" }
+Assert-Shadow $r3 "3"
+Print-ShadowSummary $r3 "3"
 
-# 4) Determinism check: same input twice should produce same orderedIntents
+# -----------------------------------------
+# 4) Determinism check: same input twice should produce same ordering
+# -----------------------------------------
 $r4a = Call-Chat "story moment 1988"
-Start-Sleep -Milliseconds 50
+Start-Sleep -Milliseconds $detSleepMs
 $r4b = Call-Chat "story moment 1988"
 
-$topA = ($r4a.shadow.orderedIntents | Select-Object -First 4 | ForEach-Object { $_.intent }) -join "|"
-$topB = ($r4b.shadow.orderedIntents | Select-Object -First 4 | ForEach-Object { $_.intent }) -join "|"
+Assert-Shadow $r4a "4A"
+Assert-Shadow $r4b "4B"
+
+$topA = TopNIntents $r4a.shadow 4
+$topB = TopNIntents $r4b.shadow 4
+
+$chipsA = TopNChips $r4a.shadow 6
+$chipsB = TopNChips $r4b.shadow 6
 
 Write-Host "`n[4] top intents A:" $topA
 Write-Host "[4] top intents B:" $topB
 
-if ($topA -ne $topB) { throw "Non-deterministic orderedIntents for same input." }
+if ($topA -ne $topB) {
+  Write-Host "`n[4] DEBUG A:"; Print-ShadowSummary $r4a "4A"
+  Write-Host "[4] DEBUG B:"; Print-ShadowSummary $r4b "4B"
+  throw "Non-deterministic orderedIntents for same input."
+}
+
+# Optional stronger check: chips order should also match (if emitted)
+if ($chipsA -and $chipsB -and ($chipsA -ne $chipsB)) {
+  Write-Host "`n[4] top chips A:" $chipsA
+  Write-Host "[4] top chips B:" $chipsB
+  throw "Non-deterministic orderedChips for same input."
+}
 
 Write-Host "`n✅ Shadow Brain API regression PASSED"
