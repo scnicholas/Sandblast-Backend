@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17j (ANTI-502 + PREFLIGHT HARDENED + REAL ROUTE TIMEOUT + UPSTREAM QUOTA FLOOR + DEBUG PASSTHRU)
+ * index.js v1.5.17k (ANTI-502 + PREFLIGHT HARDENED + REAL ROUTE TIMEOUT + UPSTREAM QUOTA FLOOR + DEBUG PASSTHRU + TTS DIAG)
  *
  * - Hard crash visibility (uncaughtException/unhandledRejection)
  * - Parsers first + JSON parse guard
@@ -16,8 +16,10 @@
  *     * Burst guard (per-client) soft dedupe 200 + hard 429 (extreme only)
  *     * Request-body hash dedupe returns last reply 200 (stable; ignores sessionId by default)
  *     * Upstream OpenAI quota 429 -> stable 200 + headers (prevents client retry loops)
- *     * NEW: debug passthru when ?debug=1 -> includes out._engine/baseMessage/cog if provided
- * - /api/tts + /api/voice soft-loaded and cannot brick boot
+ *     * Debug passthru: baseMessage/_engine/cog (debug=1 only)
+ * - /api/tts + /api/voice:
+ *     * Soft-loaded and cannot brick boot
+ *     * NEW: /api/tts/diag endpoint + 501 diag payload (export keys + load error)
  */
 
 const express = require("express");
@@ -43,9 +45,16 @@ let shadowBrain = null;
 let chatEngine = null;
 let ttsModule = null;
 
-try { shadowBrain = require("./Utils/shadowBrain"); } catch (_) { shadowBrain = null; }
-try { chatEngine = require("./Utils/chatEngine"); } catch (_) { chatEngine = null; }
-try { ttsModule = require("./Utils/tts"); } catch (_) { ttsModule = null; }
+try {
+  shadowBrain = require("./Utils/shadowBrain");
+} catch (_) {
+  shadowBrain = null;
+}
+try {
+  chatEngine = require("./Utils/chatEngine");
+} catch (_) {
+  chatEngine = null;
+}
 
 const app = express();
 
@@ -55,11 +64,10 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.17j (ANTI-502 chat route: export-shape safe + REAL timeout + burst + hash dedupe + preflight hardened + quota floor + debug passthru)";
+  "index.js v1.5.17k (ANTI-502 chat route: export-shape safe + REAL timeout + burst + hash dedupe + preflight hardened + quota floor + debug passthru + tts diag)";
 
 const GIT_COMMIT =
-  String(process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "").trim() ||
-  null;
+  String(process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "").trim() || null;
 
 /* ======================================================
    Helpers
@@ -75,7 +83,9 @@ function normalizeStr(x) {
   return String(x == null ? "" : x).trim();
 }
 function safeSet(res, k, v) {
-  try { res.set(k, v); } catch (_) {}
+  try {
+    res.set(k, v);
+  } catch (_) {}
 }
 function setContractHeaders(res, requestId) {
   safeSet(res, "X-Request-Id", requestId);
@@ -87,7 +97,10 @@ function safeJson(res, status, obj) {
     return res.status(status).json(obj);
   } catch (e) {
     try {
-      return res.status(status).type("text/plain").send(typeof obj === "string" ? obj : JSON.stringify(obj));
+      return res
+        .status(status)
+        .type("text/plain")
+        .send(typeof obj === "string" ? obj : JSON.stringify(obj));
     } catch (_) {}
   }
 }
@@ -159,7 +172,9 @@ app.use((err, req, res, next) => {
 
 const REQUEST_TIMEOUT_MS = clamp(process.env.REQUEST_TIMEOUT_MS || 30000, 10000, 60000);
 app.use((req, res, next) => {
-  try { res.setTimeout(REQUEST_TIMEOUT_MS); } catch (_) {}
+  try {
+    res.setTimeout(REQUEST_TIMEOUT_MS);
+  } catch (_) {}
   next();
 });
 
@@ -346,15 +361,53 @@ app.get("/api/version", (req, res) => {
 });
 
 /* ======================================================
-   TTS / Voice routes (never brick)
+   TTS / Voice routes (never brick) + diagnostics
 ====================================================== */
+
+let TTS_LOAD_ERROR = null;
+
+function safeRequireTts() {
+  try {
+    const mod = require("./Utils/tts");
+    TTS_LOAD_ERROR = null;
+    return mod;
+  } catch (e) {
+    TTS_LOAD_ERROR = e;
+    return null;
+  }
+}
+
+// initial soft-load
+ttsModule = safeRequireTts();
+
+// boot log
+if (!ttsModule) {
+  console.warn(
+    "[tts] Utils/tts failed to load (soft).",
+    TTS_LOAD_ERROR && TTS_LOAD_ERROR.message ? TTS_LOAD_ERROR.message : TTS_LOAD_ERROR
+  );
+} else {
+  const keys = Object.keys(ttsModule || {});
+  console.log("[tts] loaded (soft). export keys:", keys.length ? keys.join(",") : "(none)");
+}
 
 function pickTtsHandler(mod) {
   if (!mod) return null;
+
+  // default export style
+  if (mod.default && typeof mod.default === "function") return mod.default;
+
+  // express router style
+  if (mod.router && typeof mod.router === "function") return mod.router;
+
+  // direct function
+  if (typeof mod === "function") return mod;
+
+  // known handler names
   if (typeof mod.handleTts === "function") return mod.handleTts;
   if (typeof mod.handle === "function") return mod.handle;
   if (typeof mod.tts === "function") return mod.tts;
-  if (typeof mod === "function") return mod;
+
   return null;
 }
 
@@ -362,14 +415,23 @@ async function runTts(req, res) {
   const requestId = req.get("X-Request-Id") || rid();
   setContractHeaders(res, requestId);
 
+  // lazy reload if boot failed
+  if (!ttsModule) ttsModule = safeRequireTts();
+
   const fn = pickTtsHandler(ttsModule);
   if (!fn) {
+    const exportKeys = ttsModule ? Object.keys(ttsModule) : [];
     return safeJson(res, 501, {
       ok: false,
       error: "TTS_NOT_CONFIGURED",
-      message: "Missing Utils/tts or invalid export shape.",
+      message: "Utils/tts missing or invalid export shape.",
       requestId,
       contractVersion: NYX_CONTRACT_VERSION,
+      diag: {
+        loaded: !!ttsModule,
+        exportKeys,
+        loadError: TTS_LOAD_ERROR ? String(TTS_LOAD_ERROR.message || TTS_LOAD_ERROR) : null,
+      },
     });
   }
 
@@ -386,6 +448,20 @@ async function runTts(req, res) {
     });
   }
 }
+
+app.get("/api/tts/diag", (req, res) => {
+  const requestId = req.get("X-Request-Id") || rid();
+  setContractHeaders(res, requestId);
+  const exportKeys = ttsModule ? Object.keys(ttsModule) : [];
+  return safeJson(res, 200, {
+    ok: true,
+    requestId,
+    contractVersion: NYX_CONTRACT_VERSION,
+    loaded: !!ttsModule,
+    exportKeys,
+    loadError: TTS_LOAD_ERROR ? String(TTS_LOAD_ERROR.message || TTS_LOAD_ERROR) : null,
+  });
+});
 
 app.post("/api/tts", runTts);
 app.post("/api/voice", runTts);
@@ -518,7 +594,9 @@ function respondOnce(res) {
     end: (status, text) => {
       if (sent || res.headersSent) return;
       sent = true;
-      try { return res.status(status).type("text/plain").send(String(text || "")); } catch (_) {}
+      try {
+        return res.status(status).type("text/plain").send(String(text || ""));
+      } catch (_) {}
     },
   };
 }
@@ -563,9 +641,7 @@ app.post("/api/chat", async (req, res) => {
 
     const sessionId = getSessionId(req, body) || rid();
     const visitorId =
-      normalizeStr(body.visitorId || "") ||
-      normalizeStr(req.get("X-Visitor-Id") || "") ||
-      null;
+      normalizeStr(body.visitorId || "") || normalizeStr(req.get("X-Visitor-Id") || "") || null;
 
     const session = touchSession(sessionId, { visitorId }) || { sessionId };
 
@@ -646,11 +722,8 @@ app.post("/api/chat", async (req, res) => {
 
     if (handler) {
       try {
-        out = await Promise.resolve(
-          handler({ text, session, requestId, debug: isDebug })
-        );
+        out = await Promise.resolve(handler({ text, session, requestId, debug: isDebug }));
       } catch (e) {
-        // Upstream quota floor -> stable 200 + headers, but do not throw
         if (isUpstreamQuotaError(e)) {
           safeSet(res, "X-Nyx-Upstream", "openai_insufficient_quota");
           safeSet(res, "X-Nyx-Deduped", "upstream-quota");
@@ -661,7 +734,6 @@ app.post("/api/chat", async (req, res) => {
               last ||
               "Nyx is online, but the AI brain is temporarily out of fuel (OpenAI quota). Add billing/credits, then try again.",
             followUps: ["Try again", "Open radio", "Open TV"],
-            _engine: { upstream: "openai", error: "insufficient_quota", floored: true },
           };
         } else {
           console.error("[chatEngine] error (soft):", e && e.stack ? e.stack : e);
@@ -670,15 +742,10 @@ app.post("/api/chat", async (req, res) => {
       }
     }
 
-    const reply =
-      out && typeof out === "object" && typeof out.reply === "string"
-        ? out.reply
-        : fallbackReply(text);
+    const reply = out && typeof out === "object" && typeof out.reply === "string" ? out.reply : fallbackReply(text);
 
     const followUps =
-      out && typeof out === "object" && Array.isArray(out.followUps)
-        ? normalizeFollowUpsToStrings(out.followUps)
-        : undefined;
+      out && typeof out === "object" && Array.isArray(out.followUps) ? normalizeFollowUpsToStrings(out.followUps) : undefined;
 
     // Persist last seen
     session.__lastReply = reply;
@@ -697,7 +764,7 @@ app.post("/api/chat", async (req, res) => {
     if (shadow) payload.shadow = shadow;
     if (followUps) payload.followUps = followUps;
 
-    // ✅ DEBUG PASSTHRU (safe + only when requested)
+    // DEBUG passthru (only debug=1)
     if (isDebug && out && typeof out === "object") {
       if (out.baseMessage) payload.baseMessage = String(out.baseMessage);
       if (out._engine && typeof out._engine === "object") payload._engine = out._engine;
