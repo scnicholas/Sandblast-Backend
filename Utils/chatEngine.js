@@ -6,24 +6,106 @@
  *  - NO express
  *  - NO server start
  *  - NO index.js imports
- *  - returns { reply, followUps, sessionPatch, ... }
+ *  - returns { ok, reply, followUps, sessionPatch, cog, ... }
  *
- * v0.3 (CRITICAL PATCHSET)
- * ✅ Fixes "OPTIONS preflight" breakage driver by NEVER requiring client headers
- * ✅ Deterministic base reply remains source of truth
- * ✅ Robust parsing: top10/story/micro/#1 + year extraction
- * ✅ "another year" / "next year" session-aware (never asks year if already known unless explicitly "another year")
- * ✅ Optional Nyx polish via nyxOpenAI (never blocks; never throws; never changes session state)
- * ✅ SessionPatch allowlist + normalization (year/mode aliases supported)
- * ✅ Adds cog object (for avatar cognitive sync) while staying deterministic
+ * v0.6c (UPSTREAM QUOTA HARDEN + POLISH COOLDOWN)
+ * ✅ Prevents follow-up echo loops (removes chip whose send === user text)
+ * ✅ Does NOT announce/force "Locked in ####" on greetings/general messages
+ *    unless the user explicitly requested a year or a year-mode action.
+ * ✅ NEW: OpenAI quota/billing failure never throws; polish auto-disables briefly
+ *    so clients don’t churn and logs don’t spam.
+ *
+ * Preserves:
+ * ✅ nyxOpenAI OPTIONAL (never bricks boot)
+ * ✅ lanePolicy OPTIONAL (never bricks boot)
+ * ✅ sponsorsLane/scheduleLane/moviesLane OPTIONAL (never bricks boot)
+ * ✅ packets OPTIONAL (never bricks boot)
+ * ✅ Packet interception (greeting/help/goodbye/fallback) with strict gating (no lane hijack)
+ * ✅ Lane precedence enforced BEFORE music parsing
+ * ✅ Lane handlers invoked when present; otherwise deterministic stubs
+ * ✅ Normalizes lane outputs: { reply, followUps, sessionPatch }
+ * ✅ SessionPatch allowlist + normalization
+ * ✅ Deterministic cog for avatar sync
  */
 
-const { generateNyxReply } = require("./nyxOpenAI");
+// OPTIONAL: nyxOpenAI
+let generateNyxReply = null;
+try {
+  const mod = require("./nyxOpenAI");
+  if (mod && typeof mod.generateNyxReply === "function") generateNyxReply = mod.generateNyxReply;
+} catch (_) {
+  generateNyxReply = null;
+}
+
+// OPTIONAL: lanePolicy
+let resolveLane = null;
+try {
+  const lp = require("./lanePolicy");
+  if (lp && typeof lp.resolveLane === "function") resolveLane = lp.resolveLane;
+} catch (_) {
+  resolveLane = null;
+}
+
+// OPTIONAL: lane handlers
+let sponsorsLane = null;
+let scheduleLane = null;
+let moviesLane = null;
+
+try { sponsorsLane = require("./sponsorsLane"); } catch (_) { sponsorsLane = null; }
+try { scheduleLane = require("./scheduleLane"); } catch (_) { scheduleLane = null; }
+try { moviesLane = require("./moviesLane"); } catch (_) { moviesLane = null; }
+
+// OPTIONAL: packets selector
+let packets = null;
+try {
+  packets = require("./packets"); // expects { handleChat }
+  if (!packets || typeof packets.handleChat !== "function") packets = null;
+} catch (_) {
+  packets = null;
+}
+
+/* ======================================================
+   Utilities
+====================================================== */
+
+function normCmd(s) {
+  return String(s || "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function hasExplicitYearOrModeAsk(text) {
+  const t = normCmd(text);
+
+  // explicit year
+  if (/\b(19[5-9]\d|20[0-1]\d|202[0-4])\b/.test(t)) return true;
+
+  // explicit music-mode ask (even without year)
+  if (
+    /\b(top\s*10|top10|top\s*ten|story\s*moment|micro\s*moment|#\s*1|number\s*1|no\.?\s*1|year\s*end|yearend)\b/.test(
+      t
+    )
+  )
+    return true;
+
+  // explicit navigation inside music context counts as "ask"
+  if (/\b(next\s*year|another\s*year)\b/.test(t)) return true;
+
+  return false;
+}
+
+function stripEchoFollowUps(followUps, userText) {
+  const u = normCmd(userText);
+  if (!Array.isArray(followUps) || !u) return followUps || [];
+  return followUps.filter((it) => {
+    const send = normCmd(it && it.send ? it.send : "");
+    return !!send && send !== u;
+  });
+}
 
 function clampYear(y) {
-  if (!Number.isFinite(y)) return null;
-  if (y < 1950 || y > 2024) return null;
-  return y;
+  const n = Number(y);
+  if (!Number.isFinite(n)) return null;
+  if (n < 1950 || n > 2024) return null;
+  return n;
 }
 
 function safeFollowUps(list) {
@@ -55,22 +137,19 @@ function normalizeMode(mode) {
 function extractYear(text) {
   const m = String(text || "").match(/\b(19[5-9]\d|20[0-1]\d|202[0-4])\b/);
   if (!m) return null;
-  return clampYear(Number(m[1]));
+  return clampYear(m[1]);
 }
 
 function classifyUserIntent(text) {
   const t = String(text || "").toLowerCase();
 
-  // year-only
   if (/^\s*(19[5-9]\d|20[0-1]\d|202[0-4])\s*$/.test(t)) {
     return { intent: "year_only", mode: null };
   }
 
-  // navigation (check BEFORE mode, since phrases can overlap)
   if (/\banother\s*year\b/.test(t)) return { intent: "nav", nav: "another_year" };
   if (/\bnext\s*year\b/.test(t)) return { intent: "nav", nav: "next_year" };
 
-  // mode phrases
   if (/\b(top\s*10|top10|top\s*ten)\b/.test(t)) return { intent: "mode", mode: "top10" };
   if (/\bstory\s*moment\b|\bstory\b/.test(t)) return { intent: "mode", mode: "story" };
   if (/\bmicro\s*moment\b|\bmicro\b/.test(t)) return { intent: "mode", mode: "micro" };
@@ -79,10 +158,13 @@ function classifyUserIntent(text) {
   return { intent: "general" };
 }
 
+/**
+ * SessionPatch apply (safe allowlist)
+ * - also supports patch.year / patch.mode aliases
+ */
 function applySessionPatch(session, patch) {
   if (!session || !patch || typeof patch !== "object") return;
 
-  // allowlist only
   const ALLOW = new Set(["lane", "lastMusicYear", "activeMusicMode", "voiceMode"]);
 
   for (const k of Object.keys(patch)) {
@@ -90,9 +172,8 @@ function applySessionPatch(session, patch) {
     session[k] = patch[k];
   }
 
-  // normalize common aliases if present
   if (Object.prototype.hasOwnProperty.call(patch, "year")) {
-    const y = clampYear(Number(patch.year));
+    const y = clampYear(patch.year);
     if (y) session.lastMusicYear = y;
   }
   if (Object.prototype.hasOwnProperty.call(patch, "mode")) {
@@ -100,6 +181,152 @@ function applySessionPatch(session, patch) {
     if (m) session.activeMusicMode = m;
   }
 }
+
+/* ======================================================
+   Cog (deterministic)
+====================================================== */
+
+function cogFromBase(base) {
+  try {
+    if (!base) return { phase: "idle", state: "idle", reason: "no_base", lane: "general", ts: Date.now() };
+
+    const lane = base.lane || "general";
+    const hasYear = !!base.year;
+    const hasMode = !!base.mode;
+
+    if (!hasYear && String(base.baseMessage || "").toLowerCase().includes("tell me a year")) {
+      return { phase: "engaged", state: "collect", reason: "need:year", lane, ts: Date.now() };
+    }
+
+    if (hasYear && !hasMode) {
+      return { phase: "deciding", state: "ready", reason: "need:mode", lane, year: base.year, ts: Date.now() };
+    }
+
+    if (hasYear && hasMode) {
+      return { phase: "guiding", state: "confident", reason: "run:mode", lane, year: base.year, mode: base.mode, ts: Date.now() };
+    }
+
+    return { phase: "idle", state: "attentive", reason: "default", lane, ts: Date.now() };
+  } catch {
+    return { phase: "idle", state: "attentive", reason: "cog_error", lane: (base && base.lane) || "general", ts: Date.now() };
+  }
+}
+
+/* ======================================================
+   Lane stubs (used only if lane handler missing/throws)
+====================================================== */
+
+function buildLaneStub(lane) {
+  if (lane === "sponsors") {
+    return {
+      lane: "sponsors",
+      year: null,
+      mode: null,
+      sessionPatch: { lane: "sponsors" },
+      baseMessage: "Sponsors lane. What are we promoting — TV, radio, website, social, or a bundle?",
+      followUps: safeFollowUps([
+        { label: "TV", send: "tv" },
+        { label: "Radio", send: "radio" },
+        { label: "Website", send: "website" },
+        { label: "Social", send: "social" },
+        { label: "Bundle", send: "bundle" },
+      ]),
+    };
+  }
+
+  if (lane === "schedule") {
+    return {
+      lane: "schedule",
+      year: null,
+      mode: null,
+      sessionPatch: { lane: "schedule" },
+      baseMessage: "Schedule lane. Tell me your city (or the city you want converted to).",
+      followUps: safeFollowUps([
+        { label: "London", send: "in London" },
+        { label: "Toronto", send: "in Toronto" },
+        { label: "Playing now", send: "what’s playing now" },
+        { label: "Today", send: "schedule today" },
+      ]),
+    };
+  }
+
+  if (lane === "movies") {
+    return {
+      lane: "movies",
+      year: null,
+      mode: null,
+      sessionPatch: { lane: "movies" },
+      baseMessage: "Movies/TV lane. Give me a title, a genre, or say “recommend something”.",
+      followUps: safeFollowUps([
+        { label: "Recommend something", send: "recommend something" },
+        { label: "Classic TV", send: "classic tv" },
+        { label: "Westerns", send: "westerns" },
+        { label: "Detective", send: "detective" },
+      ]),
+    };
+  }
+
+  return {
+    lane: "general",
+    year: null,
+    mode: null,
+    sessionPatch: { lane: "general" },
+    baseMessage: "Pick a lane: music (year 1950–2024), schedule, sponsors, or movies/TV.",
+    followUps: safeFollowUps([
+      { label: "Music (pick a year)", send: "1988" },
+      { label: "Schedule", send: "schedule" },
+      { label: "Sponsors", send: "sponsors" },
+      { label: "Movies/TV", send: "movies" },
+    ]),
+  };
+}
+
+/* ======================================================
+   Lane handler invoker (shape-normalizing)
+====================================================== */
+
+function normalizeLaneOutput(raw, lane) {
+  const out = { reply: "", followUps: [], sessionPatch: null };
+  if (!raw || typeof raw !== "object") return out;
+
+  out.reply = String(raw.reply || raw.message || raw.text || "").trim();
+  out.followUps = safeFollowUps(raw.followUps || raw.chips || []);
+  out.sessionPatch = raw.sessionPatch && typeof raw.sessionPatch === "object" ? raw.sessionPatch : null;
+
+  // ensure lane set in patch
+  if (out.sessionPatch && typeof out.sessionPatch === "object") {
+    if (!Object.prototype.hasOwnProperty.call(out.sessionPatch, "lane")) {
+      out.sessionPatch = { ...out.sessionPatch, lane };
+    }
+  } else {
+    out.sessionPatch = { lane };
+  }
+
+  return out;
+}
+
+async function callLaneHandler(lane, { text, session, visitorId, debug }) {
+  const mod = lane === "sponsors" ? sponsorsLane : lane === "schedule" ? scheduleLane : lane === "movies" ? moviesLane : null;
+  if (!mod) return { ok: false, reason: "missing_module" };
+
+  const fn =
+    (mod && typeof mod.handleChat === "function" && mod.handleChat) ||
+    (typeof mod === "function" && mod) ||
+    null;
+
+  if (!fn) return { ok: false, reason: "missing_entrypoint" };
+
+  try {
+    const raw = await fn({ text, session, visitorId, debug });
+    return { ok: true, raw };
+  } catch (e) {
+    return { ok: false, reason: "handler_throw", error: String(e && e.message ? e.message : e) };
+  }
+}
+
+/* ======================================================
+   Music deterministic base
+====================================================== */
 
 function baseForMode(mode, year) {
   if (!year) return "Tell me a year (1950–2024).";
@@ -137,49 +364,19 @@ function buildFollowUpsForYear(year) {
   ]);
 }
 
-/**
- * Deterministic cognition state (for avatar sync)
- * - Never uses OpenAI
- * - Derived purely from base decision + presence of year/mode
- */
-function cogFromBase(base) {
-  try {
-    if (!base) return { phase: "idle", state: "idle", reason: "no_base", lane: "general", ts: Date.now() };
-
-    const lane = base.lane || "general";
-    const hasYear = !!base.year;
-    const hasMode = !!base.mode;
-
-    // Asking user to provide year => engaged_collect
-    if (!hasYear && (base.baseMessage || "").toLowerCase().includes("tell me a year")) {
-      return { phase: "engaged", state: "collect", reason: "need:year", lane, ts: Date.now() };
-    }
-
-    // Has year but unclear mode => deciding_ready (rare here, but safe)
-    if (hasYear && !hasMode) {
-      return { phase: "deciding", state: "ready", reason: "need:mode", lane, year: base.year, ts: Date.now() };
-    }
-
-    // Executing a mode for a year => guiding_confident
-    if (hasYear && hasMode) {
-      return { phase: "guiding", state: "confident", reason: "run:mode", lane, year: base.year, mode: base.mode, ts: Date.now() };
-    }
-
-    return { phase: "idle", state: "attentive", reason: "default", lane, ts: Date.now() };
-  } catch {
-    return { phase: "idle", state: "attentive", reason: "cog_error", lane: (base && base.lane) || "general", ts: Date.now() };
-  }
-}
-
 function baseFallbackReply(text, session) {
   const cleanText = String(text || "").trim();
-  const sYear = clampYear(Number(session && session.lastMusicYear));
-  const sMode = normalizeMode(session && session.activeMusicMode) || "top10";
+  const s = session || {};
+
+  const sYear = clampYear(s.lastMusicYear);
+  const sMode = normalizeMode(s.activeMusicMode) || "top10";
 
   const cls = classifyUserIntent(cleanText);
   const yFromText = extractYear(cleanText);
 
-  // NAV: another/next year (session-aware)
+  const explicitAsk = hasExplicitYearOrModeAsk(cleanText);
+
+  // NAV
   if (cls.intent === "nav" && sYear) {
     if (cls.nav === "next_year") {
       const next = clampYear(sYear + 1);
@@ -192,11 +389,12 @@ function baseFallbackReply(text, session) {
           sessionPatch: patch,
           baseMessage: baseForMode(sMode, next),
           followUps: buildFollowUpsForYear(next),
+          navComputedYear: next,
+          navKind: "next_year",
         };
       }
     }
 
-    // "another year" => ask year (but keep mode)
     return {
       lane: "music",
       year: null,
@@ -204,10 +402,11 @@ function baseFallbackReply(text, session) {
       sessionPatch: { lane: "music", activeMusicMode: sMode },
       baseMessage: "Tell me a year (1950–2024).",
       followUps: buildFollowUpsForYear(null),
+      navKind: "another_year",
     };
   }
 
-  // YEAR-ONLY
+  // YEAR ONLY
   if (cls.intent === "year_only") {
     const y = yFromText;
     if (y) {
@@ -223,7 +422,7 @@ function baseFallbackReply(text, session) {
     }
   }
 
-  // MODE (optionally with year)
+  // MODE (with/without year)
   if (cls.intent === "mode") {
     const mode = cls.mode || "top10";
     const year = yFromText || sYear || null;
@@ -240,7 +439,6 @@ function baseFallbackReply(text, session) {
       };
     }
 
-    // mode requested but no year known
     return {
       lane: "music",
       year: null,
@@ -251,7 +449,7 @@ function baseFallbackReply(text, session) {
     };
   }
 
-  // If user typed a year anywhere (but it wasn't year-only), still respect it
+  // Text contains a year anywhere -> explicit ask
   if (yFromText) {
     const patch = { lane: "music", lastMusicYear: yFromText, activeMusicMode: sMode };
     return {
@@ -264,19 +462,34 @@ function baseFallbackReply(text, session) {
     };
   }
 
-  // DEFAULT: If session already has a year, never ask again
-  if (sYear) {
+  // 🔥 FIX #1: If session has a year but user did NOT explicitly ask for year/mode/nav,
+  // do NOT announce "Locked in ####" and do NOT force the year into the reply.
+  if (sYear && !explicitAsk) {
+    return {
+      lane: "music",
+      year: null,
+      mode: null,
+      sessionPatch: null,
+      baseMessage:
+        "Tell me a year (1950–2024), or say “top 10 1988”, “story moment 1988”, “micro moment 1988”, or “#1 1988”.",
+      followUps: buildFollowUpsForYear(null),
+      silentSessionYear: sYear,
+    };
+  }
+
+  // If user *did* explicitly ask for something music-related but gave no year,
+  // we can gently offer continuing with stored year (without saying "Locked in").
+  if (sYear && explicitAsk) {
     return {
       lane: "music",
       year: sYear,
       mode: sMode,
       sessionPatch: null,
-      baseMessage: `Locked in ${sYear}. Choose: “top 10 ${sYear}”, “story moment ${sYear}”, “micro moment ${sYear}”, or “#1 ${sYear}”.`,
+      baseMessage: `Want to continue with ${sYear}? Say “top 10 ${sYear}”, “story moment ${sYear}”, “micro moment ${sYear}”, or “#1 ${sYear}”.`,
       followUps: buildFollowUpsForYear(sYear),
     };
   }
 
-  // Ask year (only when none exists)
   return {
     lane: "music",
     year: null,
@@ -287,16 +500,104 @@ function baseFallbackReply(text, session) {
   };
 }
 
+/* ======================================================
+   Packets helpers
+====================================================== */
+
+function replaceVars(str, vars) {
+  let out = String(str || "");
+  if (!vars || typeof vars !== "object") return out;
+  for (const k of Object.keys(vars)) {
+    const v = String(vars[k]);
+    out = out.split(`{${k}}`).join(v);
+  }
+  return out;
+}
+
 /**
- * OpenAI polish guard:
- * - only attempt if nyxOpenAI is available AND baseMessage exists
- * - never alters session state
- * - never throws
- * - returns null on any failure
+ * Packet gating: packets should NOT hijack active lane flows.
+ * We allow packet interception when:
+ *  - session lane is empty or general, OR
+ *  - text clearly is greeting/help/bye,
+ *  - AND lanePolicy did not choose sponsors/schedule/movies.
  */
+function allowPacketIntercept({ lane, session, text }) {
+  const sLane = String((session && session.lane) || "").trim().toLowerCase();
+  const t = String(text || "").trim().toLowerCase();
+
+  const looksLikeGreet = /\b(hi|hello|hey|good\s*morning|good\s*afternoon|good\s*evening)\b/.test(t);
+  const looksLikeHelp = /\b(help|options|menu|what can you do|capabilities)\b/.test(t);
+  const looksLikeBye = /\b(bye|goodbye|good\s*night|goodnight|later|see you|i'?m done|thats all|that’s all)\b/.test(t);
+
+  // If lane is explicitly non-general, do not intercept unless greeting/help/bye
+  if (sLane && sLane !== "general" && sLane !== "music") {
+    return looksLikeGreet || looksLikeHelp || looksLikeBye;
+  }
+
+  // If lanePolicy already chose a non-music lane, do not intercept with general packets
+  if (lane && lane !== "music" && lane !== "general") {
+    return looksLikeGreet || looksLikeHelp || looksLikeBye;
+  }
+
+  // Otherwise allow
+  return looksLikeGreet || looksLikeHelp || looksLikeBye;
+}
+
+/* ======================================================
+   OpenAI polish (optional) + quota hardening
+====================================================== */
+
+/** Process-local cooldown when OpenAI quota is dead */
+const QUOTA_COOLDOWN_MS = Number(process.env.NYX_QUOTA_COOLDOWN_MS || 60_000);
+let _quotaCooldownUntil = 0;
+
+function quotaCooling(nowMs) {
+  const now = Number(nowMs || Date.now());
+  return now < _quotaCooldownUntil;
+}
+
+function markQuotaCooldown(nowMs) {
+  const now = Number(nowMs || Date.now());
+  _quotaCooldownUntil = Math.max(_quotaCooldownUntil, now + QUOTA_COOLDOWN_MS);
+}
+
+function isUpstreamQuotaError(e) {
+  try {
+    if (!e) return false;
+
+    // Many SDK shapes:
+    // - e.code / e.type
+    // - e.error = { code, type, message }
+    // - e.response.status / e.status
+    const code = String(e.code || (e.error && e.error.code) || "");
+    const type = String(e.type || (e.error && e.error.type) || "");
+    const status = Number(e.status || e.statusCode || (e.response && e.response.status) || NaN);
+
+    const msg = String(e.message || (e.error && e.error.message) || "");
+    const stack = String(e.stack || "");
+    const raw = (code + " " + type + " " + msg + "\n" + stack).toLowerCase();
+
+    if (code === "insufficient_quota" || type === "insufficient_quota") return true;
+    if (Number.isFinite(status) && status === 429 && raw.includes("insufficient_quota")) return true;
+
+    return (
+      raw.includes("insufficient_quota") ||
+      raw.includes("exceeded your current quota") ||
+      raw.includes("plan and billing") ||
+      raw.includes("billing details")
+    );
+  } catch (_) {
+    return false;
+  }
+}
+
 async function tryNyxPolish({ domain, intent, userMessage, baseMessage, visitorId }) {
   try {
     if (!baseMessage) return null;
+    if (!generateNyxReply) return null;
+
+    // If quota is cooling, skip polish entirely (prevents repeated upstream calls)
+    if (quotaCooling(Date.now())) return null;
 
     const refined = await generateNyxReply({
       domain,
@@ -309,38 +610,195 @@ async function tryNyxPolish({ domain, intent, userMessage, baseMessage, visitorI
 
     if (typeof refined === "string" && refined.trim()) return refined.trim();
     return null;
-  } catch {
+  } catch (e) {
+    // If quota/billing dead, mark cooldown and return null (never throw)
+    if (isUpstreamQuotaError(e)) {
+      markQuotaCooldown(Date.now());
+      return null;
+    }
     return null;
   }
 }
 
+/* ======================================================
+   Public API
+====================================================== */
+
 async function handleChat({ text, session, visitorId, now, debug }) {
   const cleanText = String(text || "").trim();
   const s = session || {};
+  const yKnown = clampYear(s.lastMusicYear);
 
-  // Deterministic base output (later: swap this with real lanes)
+  // 1) LANE POLICY FIRST
+  let laneDecision = null;
+  try {
+    if (resolveLane) laneDecision = resolveLane({ text: cleanText, session: s });
+  } catch (_) {
+    laneDecision = null;
+  }
+  const lane = String((laneDecision && laneDecision.lane) || s.lane || "music").trim() || "music";
+
+  // 2) PACKETS INTERCEPT (greeting/help/goodbye only, gated)
+  if (packets && allowPacketIntercept({ lane, session: s, text: cleanText })) {
+    const p = await packets.handleChat({ text: cleanText, session: s, visitorId, debug: !!debug });
+    const pReply = String(p && p.reply ? p.reply : "").trim();
+
+    if (pReply) {
+      // Apply packet patch (allowlist)
+      if (p.sessionPatch) applySessionPatch(s, p.sessionPatch);
+
+      // Substitute {year} if known
+      const replyVar = replaceVars(pReply, { year: yKnown || "" });
+
+      // Loop guard: strip echo followUps
+      let followUps = safeFollowUps(p.followUps || []);
+      followUps = stripEchoFollowUps(followUps, cleanText);
+
+      // Optional polish (very light)
+      let reply = replyVar;
+      const polished = await tryNyxPolish({
+        domain: "general",
+        intent: "packet",
+        userMessage: cleanText,
+        baseMessage: replyVar,
+        visitorId: visitorId || "Guest",
+      });
+      if (polished) reply = polished;
+
+      const baseForCog = { lane: (s.lane || "general"), year: yKnown || null, mode: null, baseMessage: replyVar };
+      const cog = cogFromBase(baseForCog);
+
+      const out = {
+        ok: true,
+        contractVersion: "1",
+        lane: s.lane || "general",
+        year: yKnown || null,
+        mode: s.activeMusicMode || null,
+        voiceMode: s.voiceMode || "standard",
+        reply,
+        followUps,
+        sessionPatch: p.sessionPatch || null,
+        cog,
+      };
+
+      if (debug) {
+        out.baseMessage = replyVar;
+        out._engine = {
+          version: "chatEngine v0.6c",
+          usedPackets: true,
+          hasPackets: true,
+          hasLanePolicy: !!resolveLane,
+          laneDecision: laneDecision || null,
+          packetsMeta: p.meta || null,
+          hasNyxPolish: !!generateNyxReply,
+          quotaCooling: quotaCooling(Date.now()),
+          quotaCooldownMs: QUOTA_COOLDOWN_MS,
+        };
+      }
+
+      return out;
+    }
+  }
+
+  // 3) NON-MUSIC LANES: call real lane handler (fallback to stub)
+  if (lane !== "music") {
+    let base = null;
+
+    const call = await callLaneHandler(lane, { text: cleanText, session: s, visitorId, debug });
+
+    if (call.ok) {
+      const norm = normalizeLaneOutput(call.raw, lane);
+      base = norm.reply
+        ? { lane, year: null, mode: null, sessionPatch: norm.sessionPatch, baseMessage: norm.reply, followUps: norm.followUps }
+        : buildLaneStub(lane);
+    } else {
+      base = buildLaneStub(lane);
+    }
+
+    if (base.sessionPatch) applySessionPatch(s, base.sessionPatch);
+
+    const cog = cogFromBase({ lane: base.lane, year: null, mode: null, baseMessage: base.baseMessage });
+
+    let reply = base.baseMessage;
+    const polished = await tryNyxPolish({
+      domain: "general",
+      intent: lane,
+      userMessage: cleanText,
+      baseMessage: base.baseMessage,
+      visitorId: visitorId || "Guest",
+    });
+    if (polished) reply = polished;
+
+    // Loop guard: strip echo followUps
+    let followUps = base.followUps || [];
+    followUps = stripEchoFollowUps(followUps, cleanText);
+
+    const out = {
+      ok: true,
+      contractVersion: "1",
+      lane: base.lane,
+      year: null,
+      mode: null,
+      voiceMode: s.voiceMode || "standard",
+      reply,
+      followUps,
+      sessionPatch: base.sessionPatch || null,
+      cog,
+    };
+
+    if (debug) {
+      out.baseMessage = base.baseMessage;
+      out._engine = {
+        version: "chatEngine v0.6c",
+        usedPackets: false,
+        hasPackets: !!packets,
+        hasLanePolicy: !!resolveLane,
+        laneDecision: laneDecision || null,
+        hasSponsorsLane: !!sponsorsLane,
+        hasScheduleLane: !!scheduleLane,
+        hasMoviesLane: !!moviesLane,
+        laneCallOk: call.ok,
+        laneCallFailReason: call.ok ? null : call.reason,
+        hasNyxPolish: !!generateNyxReply,
+        quotaCooling: quotaCooling(Date.now()),
+        quotaCooldownMs: QUOTA_COOLDOWN_MS,
+      };
+    }
+
+    return out;
+  }
+
+  // 4) MUSIC lane deterministic base
   const base = baseFallbackReply(cleanText, s);
 
-  // Apply patch BEFORE polish so state stays correct even if OpenAI fails
   if (base.sessionPatch) applySessionPatch(s, base.sessionPatch);
 
-  // Domain mapping (placeholder)
-  const domain = base.lane === "music" ? "radio" : "general";
+  const domain = "radio";
   const intent = base.mode || "general";
-
-  // Deterministic cog for avatar sync
   const cog = cogFromBase(base);
 
-  // Optional Nyx polish (never blocks; never throws)
   let reply = base.baseMessage;
+
+  // If music is asking for year AND packets exist, prefer phrasepack ask_year templates
+  if (!base.year && packets) {
+    const p = await packets.handleChat({ text: "music __ask_year__", session: s, visitorId, debug: !!debug });
+    if (p && p.reply) {
+      reply = String(p.reply).trim() || reply;
+    }
+  }
+
   const polished = await tryNyxPolish({
     domain,
     intent,
     userMessage: cleanText,
-    baseMessage: base.baseMessage,
+    baseMessage: reply,
     visitorId: visitorId || "Guest",
   });
   if (polished) reply = polished;
+
+  // 🔥 FIX #2: Loop guard — remove echo chips like "top 10 1960" after user sent "top 10 1960"
+  let followUps = base.followUps || [];
+  followUps = stripEchoFollowUps(followUps, cleanText);
 
   const out = {
     ok: true,
@@ -350,13 +808,26 @@ async function handleChat({ text, session, visitorId, now, debug }) {
     mode: base.mode,
     voiceMode: s.voiceMode || "standard",
     reply,
-    followUps: base.followUps,
+    followUps,
     sessionPatch: base.sessionPatch || null,
     cog,
   };
 
-  // Debug-only echo (never required by clients)
-  if (debug) out.baseMessage = base.baseMessage;
+  if (debug) {
+    out.baseMessage = reply;
+    out._engine = {
+      version: "chatEngine v0.6c",
+      hasPackets: !!packets,
+      hasNyxPolish: !!generateNyxReply,
+      hasLanePolicy: !!resolveLane,
+      laneDecision: laneDecision || null,
+      hasSponsorsLane: !!sponsorsLane,
+      hasScheduleLane: !!scheduleLane,
+      hasMoviesLane: !!moviesLane,
+      quotaCooling: quotaCooling(Date.now()),
+      quotaCooldownMs: QUOTA_COOLDOWN_MS,
+    };
+  }
 
   return out;
 }
