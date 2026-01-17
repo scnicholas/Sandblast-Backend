@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17i (ANTI-502 + PREFLIGHT HARDENED + REAL ROUTE TIMEOUT + UPSTREAM QUOTA FLOOR)
+ * index.js v1.5.17j (ANTI-502 + PREFLIGHT HARDENED + REAL ROUTE TIMEOUT + UPSTREAM QUOTA FLOOR + DEBUG PASSTHRU)
  *
  * - Hard crash visibility (uncaughtException/unhandledRejection)
  * - Parsers first + JSON parse guard
@@ -15,7 +15,8 @@
  *     * REAL timeout watchdog (respond-once floor) -> prevents hung handlers -> returns fallback 200
  *     * Burst guard (per-client) soft dedupe 200 + hard 429 (extreme only)
  *     * Request-body hash dedupe returns last reply 200 (stable; ignores sessionId by default)
- *     * NEW: Upstream OpenAI quota 429 -> stable 200 + headers (prevents client retry loops)
+ *     * Upstream OpenAI quota 429 -> stable 200 + headers (prevents client retry loops)
+ *     * NEW: debug passthru when ?debug=1 -> includes out._engine/baseMessage/cog if provided
  * - /api/tts + /api/voice soft-loaded and cannot brick boot
  */
 
@@ -54,7 +55,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.17i (ANTI-502 chat route: export-shape safe + REAL timeout + burst + hash dedupe + preflight hardened + quota floor)";
+  "index.js v1.5.17j (ANTI-502 chat route: export-shape safe + REAL timeout + burst + hash dedupe + preflight hardened + quota floor + debug passthru)";
 
 const GIT_COMMIT =
   String(process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "").trim() ||
@@ -526,6 +527,8 @@ app.post("/api/chat", async (req, res) => {
   const requestId = req.get("X-Request-Id") || rid();
   setContractHeaders(res, requestId);
 
+  const isDebug = String(req.query.debug || "") === "1";
+
   const once = respondOnce(res);
   const watchdog = setTimeout(() => {
     try {
@@ -644,10 +647,10 @@ app.post("/api/chat", async (req, res) => {
     if (handler) {
       try {
         out = await Promise.resolve(
-          handler({ text, session, requestId, debug: String(req.query.debug || "") === "1" })
+          handler({ text, session, requestId, debug: isDebug })
         );
       } catch (e) {
-        // NEW: if OpenAI quota is dead, do NOT fail/throw; return stable 200 + headers
+        // Upstream quota floor -> stable 200 + headers, but do not throw
         if (isUpstreamQuotaError(e)) {
           safeSet(res, "X-Nyx-Upstream", "openai_insufficient_quota");
           safeSet(res, "X-Nyx-Deduped", "upstream-quota");
@@ -658,6 +661,7 @@ app.post("/api/chat", async (req, res) => {
               last ||
               "Nyx is online, but the AI brain is temporarily out of fuel (OpenAI quota). Add billing/credits, then try again.",
             followUps: ["Try again", "Open radio", "Open TV"],
+            _engine: { upstream: "openai", error: "insufficient_quota", floored: true },
           };
         } else {
           console.error("[chatEngine] error (soft):", e && e.stack ? e.stack : e);
@@ -692,6 +696,13 @@ app.post("/api/chat", async (req, res) => {
 
     if (shadow) payload.shadow = shadow;
     if (followUps) payload.followUps = followUps;
+
+    // ✅ DEBUG PASSTHRU (safe + only when requested)
+    if (isDebug && out && typeof out === "object") {
+      if (out.baseMessage) payload.baseMessage = String(out.baseMessage);
+      if (out._engine && typeof out._engine === "object") payload._engine = out._engine;
+      if (out.cog && typeof out.cog === "object") payload.cog = out.cog;
+    }
 
     clearTimeout(watchdog);
     return once.json(200, payload);
