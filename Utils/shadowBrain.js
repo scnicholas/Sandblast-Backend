@@ -1,26 +1,24 @@
 "use strict";
 
 /**
- * Shadow Brain — C+ + D (v1.4.1 DETERMINISTIC + DEDUPE PATCHED)
- *  - C+ Probabilistic follow-up weighting (deterministic)
- *  - D Cognitive memory imprinting (behavioral prefs; non-sensitive)
+ * Shadow Brain — C+ + D (v1.5.0 BULLETPROOF + SAFE + DETERMINISTIC)
+ *  - C+ Deterministic follow-up weighting (lane-aware)
+ *  - D Deterministic behavioral imprinting (non-sensitive)
  *
- * FIXES (v1.4):
- *  1) Local regression fix: freshShadow() now requires orderedIntents.length > 0
- *     (so prime() won't "poison" cache with empty intents).
- *  2) Adds micro_moment to music baselines (so it exists in orderedIntents deterministically).
- *  3) Determinism fix: imprint updates are gated to HIGH-SIGNAL evidence only.
- *     (No learning on low-signal "ok/continue" etc.)
- *  4) Determinism fix: decay only runs if dt >= 60s (prevents tiny time drift flips).
- *
- * FIXES (v1.4.1):
- *  5) Determinism fix: observe() dedupes identical repeated inputs within a short window
- *     (prevents “story moment 1988” twice from re-learning and flipping ranks).
- *  6) Adds deterministic sig to slimShadow() for deployment/debug visibility.
+ * HARDENING / FIXES (v1.5.0):
+ * ✅ Never throws; all public APIs are exception-safe
+ * ✅ Strong prototype-pollution guards for session writes
+ * ✅ Observe dedupe improved: dedupe per-visitor across lane+text+mode+year (stable)
+ * ✅ Daily update throttle is deterministic and UTC-based
+ * ✅ Decay determinism: decay only on meaningful dt, clamps inputs, no NaN drift
+ * ✅ Candidate safety: sanitizes chips, caps counts, caps label/send lengths
+ * ✅ Intent ranking: stable tie-breaks, weight floors, normalization safety
+ * ✅ Session cache: TTL + invariants enforced; never "fresh" without orderedIntents
+ * ✅ Signature expanded: includes lane|year|mode|topIntent|dayKey for deploy verification
  *
  * NOTE:
- *  - This file is intentionally dependency-free and deterministic.
- *  - It does NOT store sensitive personal data.
+ *  - Dependency-free; safe to require anywhere.
+ *  - Stores no sensitive personal data.
  */
 
 const DEFAULTS = {
@@ -40,15 +38,20 @@ const DEFAULTS = {
   // Minimum dt before applying decay (determinism guard)
   decayMinDtMs: 60_000,
 
-  // ✅ v1.4.1: Dedupe learning for identical repeated inputs (double-tap / retry guard)
+  // Dedupe learning for identical repeated inputs (double-tap / retry guard)
   observeDedupeWindowMs: 5_000,
+
+  // Candidate caps (safety)
+  maxChips: 10,
+  maxLabelLen: 48,
+  maxSendLen: 96,
 
   // Baselines by lane (C+)
   laneBaselines: {
     music: [
       { intent: "top10_run", w: 0.52 },
       { intent: "story_moment", w: 0.24 },
-      { intent: "micro_moment", w: 0.14 }, // ✅ added
+      { intent: "micro_moment", w: 0.14 },
       { intent: "number1", w: 0.06 },
       { intent: "another_year", w: 0.04 },
     ],
@@ -81,7 +84,7 @@ const DEFAULTS = {
     // music
     top10_run: { knob: "musicTop10", dir: +1 },
     story_moment: { knob: "musicStory", dir: +1 },
-    micro_moment: { knob: "musicMicro", dir: +1 }, // ✅ bias knob
+    micro_moment: { knob: "musicMicro", dir: +1 },
     number1: { knob: "musicNumber1", dir: +1 },
     another_year: { knob: "momentumFast", dir: +1 },
 
@@ -182,7 +185,7 @@ const DEFAULTS = {
 
 class TinyLRU {
   constructor(max = 1000) {
-    this.max = max;
+    this.max = Math.max(10, Number(max) || 1000);
     this.map = new Map();
   }
   get(key) {
@@ -193,6 +196,7 @@ class TinyLRU {
     return hit.value;
   }
   set(key, value) {
+    if (!key) return;
     if (this.map.has(key)) this.map.delete(key);
     this.map.set(key, { value, at: Date.now() });
     if (this.map.size > this.max) {
@@ -216,15 +220,25 @@ const IMPRINTS = new TinyLRU(DEFAULTS.maxImprints);
 /* ---------------- Utilities ---------------- */
 
 function cleanText(s) {
-  return String(s || "").replace(/\u200B/g, "").replace(/\s+/g, " ").trim();
+  return String(s || "")
+    .replace(/\u200B/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function safeLower(s) {
+  return cleanText(s).toLowerCase();
 }
 
 function clamp(x, a, b) {
-  return Math.max(a, Math.min(b, x));
+  const n = Number(x);
+  if (!Number.isFinite(n)) return a;
+  return Math.max(a, Math.min(b, n));
 }
 
 function nowMs(provided) {
-  return Number.isFinite(provided) ? provided : Date.now();
+  const n = Number(provided);
+  return Number.isFinite(n) ? n : Date.now();
 }
 
 function dayKeyOf(t) {
@@ -236,29 +250,39 @@ function dayKeyOf(t) {
 }
 
 function normWeights(arr) {
-  const s = arr.reduce((acc, x) => acc + (Number.isFinite(x.w) ? x.w : 0), 0);
-  if (s <= 0) {
-    const n = arr.length || 1;
-    return arr.map((x) => ({ ...x, w: 1 / n }));
+  const list = Array.isArray(arr) ? arr : [];
+  const sum = list.reduce((acc, x) => acc + (Number.isFinite(x.w) ? x.w : 0), 0);
+
+  if (!(sum > 0)) {
+    const n = list.length || 1;
+    return list.map((x) => ({ ...x, w: 1 / n }));
   }
-  return arr.map((x) => ({ ...x, w: x.w / s }));
+  return list.map((x) => ({ ...x, w: (Number(x.w) || 0) / sum }));
 }
 
 function decayToward(mid, value, halfLifeMs, dtMs) {
-  if (!Number.isFinite(dtMs) || dtMs <= 0) return value;
-  if (!Number.isFinite(halfLifeMs) || halfLifeMs <= 0) return value;
-  const factor = Math.pow(0.5, dtMs / halfLifeMs);
-  return mid + (value - mid) * factor;
+  const dt = Number(dtMs);
+  const hl = Number(halfLifeMs);
+  const v = Number(value);
+  const m = Number(mid);
+
+  if (!Number.isFinite(dt) || dt <= 0) return v;
+  if (!Number.isFinite(hl) || hl <= 0) return v;
+  if (!Number.isFinite(v) || !Number.isFinite(m)) return v;
+
+  const factor = Math.pow(0.5, dt / hl);
+  return m + (v - m) * factor;
 }
 
 function clampYear(y) {
-  if (!Number.isFinite(y)) return null;
-  if (y < 1950 || y > 2024) return null;
-  return y;
+  const n = Number(y);
+  if (!Number.isFinite(n)) return null;
+  if (n < 1950 || n > 2024) return null;
+  return n;
 }
 
 function laneOf(laneRaw) {
-  const lane = cleanText(laneRaw || "").toLowerCase();
+  const lane = safeLower(laneRaw || "");
   if (lane === "music" || lane === "musiclane" || lane === "music_lane") return "music";
   if (lane === "sponsors" || lane === "sponsor" || lane === "ads" || lane === "advertising") return "sponsors";
   if (lane === "movies" || lane === "movie" || lane === "film") return "movies";
@@ -268,23 +292,27 @@ function laneOf(laneRaw) {
 
 function getSessionYear(session) {
   if (!session || typeof session !== "object") return null;
-  const candidates = [
-    session.year,
-    session.lastYear,
-    session.lastMusicYear,
-    session.musicYear,
-    session.activeYear,
-  ];
+  const candidates = [session.year, session.lastYear, session.lastMusicYear, session.musicYear, session.activeYear];
   for (const v of candidates) {
-    const y = clampYear(Number(v));
+    const y = clampYear(v);
     if (y) return y;
   }
   return null;
 }
 
-// deterministic signature (no secrets) for debug/deploy verification
-function sigOf(lane, year, mode, topIntent) {
-  const s = `${lane || ""}|${year || ""}|${mode || ""}|${topIntent || ""}`;
+function safeMode(modeRaw) {
+  const m = safeLower(modeRaw || "");
+  if (!m) return "";
+  if (m === "top10" || m === "top 10" || m === "top ten") return "top10";
+  if (m === "story" || m === "story moment" || m === "story_moment") return "story";
+  if (m === "micro" || m === "micro moment" || m === "micro_moment") return "micro";
+  if (m === "#1" || m === "number1" || m === "number 1" || m === "no.1" || m === "no 1") return "number1";
+  return m;
+}
+
+// Deterministic signature (no secrets) for debug/deploy verification
+function sigOf(lane, year, mode, topIntent, dayKey) {
+  const s = `${lane || ""}|${year || ""}|${mode || ""}|${topIntent || ""}|${dayKey || ""}`;
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) {
     h ^= s.charCodeAt(i);
@@ -293,12 +321,13 @@ function sigOf(lane, year, mode, topIntent) {
   return (h >>> 0).toString(16);
 }
 
-// ✅ v1.4.1: observe dedupe signature (visitor + lane + userText)
-function obsSig(visitorId, lane, userText) {
-  const vid = cleanText(visitorId || "").toLowerCase();
-  const ln = laneOf(lane || "").toLowerCase();
-  const ut = cleanText(userText || "").toLowerCase();
-  return `${vid}|${ln}|${ut}`;
+function obsSig(visitorId, lane, userText, mode, year) {
+  const vid = safeLower(visitorId || "");
+  const ln = laneOf(lane || "");
+  const ut = safeLower(userText || "");
+  const md = safeMode(mode || "");
+  const yr = clampYear(year);
+  return `${vid}|${ln}|${md}|${yr || ""}|${ut}`;
 }
 
 /* ---------------- Imprints ---------------- */
@@ -319,7 +348,7 @@ function ensureImprint(visitorId, now) {
       dayUpdates: 0,
       lastDecayAt: t,
 
-      // ✅ v1.4.1: dedupe anchors
+      // Dedupe anchors
       lastObsSig: "",
       lastObsAt: 0,
 
@@ -328,12 +357,9 @@ function ensureImprint(visitorId, now) {
         musicStory: 0.5,
         musicMicro: 0.5,
         musicNumber1: 0.5,
-
         momentumFast: 0.5,
-
         recoveryRecommend: 0.55,
         recoveryOptions: 0.45,
-
         questionTolerance: 0.5,
       },
     };
@@ -341,7 +367,7 @@ function ensureImprint(visitorId, now) {
     return imp;
   }
 
-  // rollover daily throttles first
+  // rollover daily throttles (UTC deterministic)
   const dk = dayKeyOf(t);
   if (imp.dayKey !== dk) {
     imp.dayKey = dk;
@@ -354,11 +380,13 @@ function ensureImprint(visitorId, now) {
   const dt = t - lastDecayAt;
 
   if (Number.isFinite(dt) && dt >= DEFAULTS.decayMinDtMs) {
-    for (const k of Object.keys(imp.knobs || {})) {
-      const v = Number(imp.knobs[k]);
+    const knobs = imp.knobs && typeof imp.knobs === "object" ? imp.knobs : {};
+    for (const k of Object.keys(knobs)) {
+      const v = Number(knobs[k]);
       if (!Number.isFinite(v)) continue;
-      imp.knobs[k] = clamp(decayToward(0.5, v, halfLifeMs, dt), 0, 1);
+      knobs[k] = clamp(decayToward(0.5, v, halfLifeMs, dt), 0, 1);
     }
+    imp.knobs = knobs;
     imp.lastDecayAt = t;
   }
 
@@ -388,27 +416,24 @@ function maybeEvictExpired(now) {
 
 function canImprintUpdate(imp) {
   if (!imp) return false;
-  if (imp.dayUpdates >= DEFAULTS.imprintMaxUpdatesPerDay) return false;
+  if (Number(imp.dayUpdates || 0) >= DEFAULTS.imprintMaxUpdatesPerDay) return false;
   return true;
 }
 
 function bumpKnob(imp, knob, delta) {
-  if (!imp || !imp.knobs) return;
+  if (!imp || !imp.knobs || typeof imp.knobs !== "object") return;
   if (!Object.prototype.hasOwnProperty.call(imp.knobs, knob)) return;
+
   const v = Number(imp.knobs[knob]);
-  const nv = clamp(v + delta, DEFAULTS.imprintMin, DEFAULTS.imprintMax);
+  if (!Number.isFinite(v)) return;
+
+  const nv = clamp(v + Number(delta || 0), DEFAULTS.imprintMin, DEFAULTS.imprintMax);
   imp.knobs[knob] = nv;
 }
 
-/**
- * ✅ Determinism rule:
- * Only learn on HIGH-SIGNAL evidence.
- * Low-signal turns (like "ok") must not mutate knobs.
- */
 function isHighSignalEvidence(ev) {
   if (!ev) return false;
 
-  // explicit mode requests / lane switches / corrections / preference cues
   return !!(
     ev.userAsksTop10 ||
     ev.userAsksStory ||
@@ -429,7 +454,7 @@ function isHighSignalEvidence(ev) {
 function recordImprintEvent(imp, evidence) {
   if (!imp) return;
   if (!canImprintUpdate(imp)) return;
-  if (!isHighSignalEvidence(evidence)) return; // ✅ key determinism gate
+  if (!isHighSignalEvidence(evidence)) return;
 
   const strong = evidence && evidence.strong === true;
   const step = strong ? DEFAULTS.imprintStepStrong : DEFAULTS.imprintStep;
@@ -453,14 +478,14 @@ function recordImprintEvent(imp, evidence) {
     bumpKnob(imp, "recoveryRecommend", -step * 0.5);
   }
 
-  imp.dayUpdates += 1;
+  imp.dayUpdates = Number(imp.dayUpdates || 0) + 1;
   imp.lastUpdateAt = Date.now();
 }
 
 /* ---------------- Evidence ---------------- */
 
 function extractEvidence(userText, lane, mode, year) {
-  const t = cleanText(userText || "").toLowerCase();
+  const t = safeLower(userText || "");
   const ev = {
     userSaysNextYear: false,
     userSaysAnotherYear: false,
@@ -516,6 +541,13 @@ function extractEvidence(userText, lane, mode, year) {
   if (ln !== "sponsors" && ev.userAsksSponsors) ev.strong = true;
   if (ln !== "movies" && ev.userAsksMovies) ev.strong = true;
 
+  // If user explicitly uses a mode word, treat as strong evidence
+  if (ev.userAsksTop10 || ev.userAsksStory || ev.userAsksMicro || ev.userAsksNumber1) ev.strong = true;
+
+  // Silence unused params (mode/year) intentionally: evidence is userText-driven for determinism.
+  void mode;
+  void year;
+
   return ev;
 }
 
@@ -528,7 +560,7 @@ function baselineForLane(lane) {
 }
 
 function applyEvidenceBoosts(weights, evidence) {
-  const out = weights.map((x) => ({ ...x }));
+  const out = (Array.isArray(weights) ? weights : []).map((x) => ({ ...x }));
   const boosts = DEFAULTS.evidenceBoosts;
 
   function addBoost(mapKey) {
@@ -559,7 +591,7 @@ function applyEvidenceBoosts(weights, evidence) {
 function applyImprintBias(weights, imp) {
   if (!imp || !imp.knobs) return weights;
 
-  const out = weights.map((x) => ({ ...x }));
+  const out = (Array.isArray(weights) ? weights : []).map((x) => ({ ...x }));
   for (const it of out) {
     const rule = DEFAULTS.intentBiasMap[it.intent];
     if (!rule) continue;
@@ -574,7 +606,7 @@ function applyImprintBias(weights, imp) {
 }
 
 function applyPenalties(weights, imp) {
-  const out = weights.map((x) => ({ ...x }));
+  const out = (Array.isArray(weights) ? weights : []).map((x) => ({ ...x }));
   if (!imp || !imp.knobs) return out;
 
   const qt = Number(imp.knobs.questionTolerance);
@@ -591,7 +623,12 @@ function rankIntents(lane, evidence, imp) {
   w = applyEvidenceBoosts(w, evidence);
   w = applyImprintBias(w, imp);
   w = applyPenalties(w, imp);
-  w = w.map((x) => ({ ...x, w: Math.max(0.001, Number(x.w) || 0.001) }));
+
+  w = (Array.isArray(w) ? w : []).map((x) => ({
+    ...x,
+    w: Math.max(0.001, Number(x.w) || 0.001),
+  }));
+
   w = normWeights(w);
 
   // deterministic: stable tie-break by intent name if weights equal
@@ -605,9 +642,44 @@ function rankIntents(lane, evidence, imp) {
 
 /* ---------------- Candidates ---------------- */
 
+function sanitizeCandidate(c) {
+  if (!c || typeof c !== "object") return null;
+
+  const label = cleanText(c.label);
+  const send = cleanText(c.send);
+
+  if (!label || !send) return null;
+  if (label.length > DEFAULTS.maxLabelLen) return null;
+  if (send.length > DEFAULTS.maxSendLen) return null;
+
+  // drop weird payloads
+  if (label.includes("\0") || send.includes("\0")) return null;
+
+  return { label, send };
+}
+
+function dedupeCandidates(list) {
+  const seen = new Set();
+  const out = [];
+
+  for (const raw of Array.isArray(list) ? list : []) {
+    const c = sanitizeCandidate(raw);
+    if (!c) continue;
+
+    const k = c.send.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+
+    out.push(c);
+    if (out.length >= DEFAULTS.maxChips) break;
+  }
+
+  return out;
+}
+
 function buildCandidates(lane, year) {
   const ln = laneOf(lane);
-  const y = clampYear(Number(year));
+  const y = clampYear(year);
   const templates = DEFAULTS.candidates[ln] || DEFAULTS.candidates.music;
 
   const list = [];
@@ -649,25 +721,10 @@ function buildCandidates(lane, year) {
   return dedupeCandidates(list);
 }
 
-function dedupeCandidates(list) {
-  const seen = new Set();
-  const out = [];
-  for (const c of list || []) {
-    const label = cleanText(c && c.label);
-    const send = cleanText(c && c.send);
-    if (!label || !send) continue;
-    const k = send.toLowerCase();
-    if (seen.has(k)) continue;
-    seen.add(k);
-    out.push({ label, send });
-  }
-  return out;
-}
-
 function intentForCandidate(lane, candidate) {
   const ln = laneOf(lane);
-  const send = cleanText(candidate && candidate.send).toLowerCase();
-  const label = cleanText(candidate && candidate.label).toLowerCase();
+  const send = safeLower(candidate && candidate.send);
+  const label = safeLower(candidate && candidate.label);
 
   if (ln === "music") {
     if (send.startsWith("top 10") || label.startsWith("top 10")) return "top10_run";
@@ -716,9 +773,11 @@ function intentForCandidate(lane, candidate) {
 
 function orderCandidatesByIntentWeights(lane, candidates, rankedIntents) {
   const wByIntent = new Map();
-  for (const r of rankedIntents || []) wByIntent.set(r.intent, Number(r.w) || 0);
+  for (const r of Array.isArray(rankedIntents) ? rankedIntents : []) {
+    wByIntent.set(r.intent, Number(r.w) || 0);
+  }
 
-  const scored = (candidates || []).map((c, idx) => {
+  const scored = (Array.isArray(candidates) ? candidates : []).map((c, idx) => {
     const intent = intentForCandidate(lane, c);
     const w = wByIntent.has(intent) ? wByIntent.get(intent) : 0.0001;
     return { c, intent, w, idx };
@@ -726,7 +785,7 @@ function orderCandidatesByIntentWeights(lane, candidates, rankedIntents) {
 
   scored.sort((a, b) => {
     if (b.w !== a.w) return b.w - a.w;
-    return a.idx - b.idx;
+    return a.idx - b.idx; // stable
   });
 
   return {
@@ -744,10 +803,13 @@ function getSessionShadow(session) {
 
 function setSessionShadow(session, shadow) {
   if (!session || typeof session !== "object") return;
+  // proto-safety
+  if (Object.prototype.hasOwnProperty.call(session, "__proto__")) return;
+  if (Object.prototype.hasOwnProperty.call(session, "constructor")) return;
   session._shadowBrain = shadow;
 }
 
-// ✅ v1.4 FIX: must have real orderedIntents to be "fresh"
+// Must have real orderedIntents to be "fresh"
 function freshShadow(session, now) {
   const sh = getSessionShadow(session);
   if (!sh) return false;
@@ -762,120 +824,147 @@ function freshShadow(session, now) {
 /* ---------------- Public API ---------------- */
 
 function prime({ session, visitorId, lane, mode, year, now } = {}) {
-  const t = nowMs(now);
-  maybeEvictExpired(t);
+  try {
+    const t = nowMs(now);
+    maybeEvictExpired(t);
 
-  const vid = cleanText(visitorId || "");
-  if (!vid) return { ok: false };
+    const vid = cleanText(visitorId || "");
+    if (!vid) return { ok: false };
 
-  const imp = ensureImprint(vid, t);
-  if (!imp) return { ok: false };
+    const imp = ensureImprint(vid, t);
+    if (!imp) return { ok: false };
 
-  // Do NOT seed "fresh" cache with empty intents; leave it stale
-  if (session && !getSessionShadow(session)) {
-    setSessionShadow(session, {
-      at: 0,
-      lane: laneOf(lane),
-      year: clampYear(Number(year || getSessionYear(session))),
-    });
+    // Do NOT seed "fresh" cache with empty intents; leave it stale
+    if (session && !getSessionShadow(session)) {
+      setSessionShadow(session, {
+        at: 0,
+        lane: laneOf(lane),
+        year: clampYear(year || getSessionYear(session)),
+        mode: safeMode(mode || ""),
+      });
+    }
+
+    return { ok: true };
+  } catch (_) {
+    return { ok: false };
   }
-
-  return { ok: true };
 }
 
 function observe({ session, visitorId, userText, event, lane, mode, year, now } = {}) {
-  const t = nowMs(now);
-  maybeEvictExpired(t);
+  try {
+    const t = nowMs(now);
+    maybeEvictExpired(t);
 
-  const vid = cleanText(visitorId || "");
-  if (!vid) return { ok: false };
+    const vid = cleanText(visitorId || "");
+    if (!vid) return { ok: false };
 
-  const imp = ensureImprint(vid, t);
-  if (!imp) return { ok: false };
+    const imp = ensureImprint(vid, t);
+    if (!imp) return { ok: false };
 
-  const ln = laneOf(lane || (session && session.lane) || "general");
-  const y = clampYear(Number(year || getSessionYear(session)));
+    const ln = laneOf(lane || (session && session.lane) || "general");
+    const y = clampYear(year || getSessionYear(session));
+    const md = safeMode(mode || "");
 
-  const evidence = extractEvidence(userText, ln, mode, y);
+    // evidence is derived from userText only, deterministically
+    const evidence = extractEvidence(userText, ln, md, y);
 
-  // ✅ v1.4.1 Determinism: dedupe identical repeated userText within window
-  const sig = obsSig(visitorId, ln, userText);
-  const lastSig = cleanText(imp.lastObsSig || "");
-  const lastAt = Number(imp.lastObsAt || 0);
-  const dt = t - lastAt;
+    // Dedupe identical repeated inputs within window
+    const sig = obsSig(visitorId, ln, userText, md, y);
+    const lastSig = cleanText(imp.lastObsSig || "");
+    const lastAt = Number(imp.lastObsAt || 0);
+    const dt = t - lastAt;
 
-  const isDup =
-    sig &&
-    lastSig &&
-    sig === lastSig &&
-    Number.isFinite(dt) &&
-    dt >= 0 &&
-    dt <= DEFAULTS.observeDedupeWindowMs;
+    const isDup =
+      sig &&
+      lastSig &&
+      sig === lastSig &&
+      Number.isFinite(dt) &&
+      dt >= 0 &&
+      dt <= DEFAULTS.observeDedupeWindowMs;
 
-  if (!isDup) {
-    // D: imprint updates are gated (determinism)
-    recordImprintEvent(imp, evidence);
-    imp.lastObsSig = sig;
-    imp.lastObsAt = t;
+    if (!isDup) {
+      recordImprintEvent(imp, evidence);
+      imp.lastObsSig = sig;
+      imp.lastObsAt = t;
+    }
+
+    // invalidate session cache
+    if (session) {
+      const sh = getSessionShadow(session) || {};
+      sh.at = 0;
+      setSessionShadow(session, sh);
+    }
+
+    // event parameter intentionally ignored (determinism + avoid hidden channels)
+    void event;
+
+    return { ok: true };
+  } catch (_) {
+    return { ok: false };
   }
-
-  // invalidate session cache
-  if (session) {
-    const sh = getSessionShadow(session) || {};
-    sh.at = 0;
-    setSessionShadow(session, sh);
-  }
-
-  return { ok: true };
 }
 
 function get({ session, visitorId, lane, mode, year, userText, replyText, followUps, now } = {}) {
-  const t = nowMs(now);
-  maybeEvictExpired(t);
+  try {
+    const t = nowMs(now);
+    maybeEvictExpired(t);
 
-  const vid = cleanText(visitorId || "");
-  if (!vid) return { shadow: null, imprint: null };
+    const vid = cleanText(visitorId || "");
+    if (!vid) return { shadow: null, imprint: null };
 
-  const imp = ensureImprint(vid, t);
-  if (!imp) return { shadow: null, imprint: null };
+    const imp = ensureImprint(vid, t);
+    if (!imp) return { shadow: null, imprint: null };
 
-  const ln = laneOf(lane || (session && session.lane) || "general");
-  const y = clampYear(Number(year || getSessionYear(session)));
+    const ln = laneOf(lane || (session && session.lane) || "general");
+    const y = clampYear(year || getSessionYear(session));
+    const md = safeMode(mode || "");
 
-  let sh = session ? getSessionShadow(session) : null;
+    let sh = session ? getSessionShadow(session) : null;
 
-  const needsRebuild = !session || !freshShadow(session, t) || !sh || sh.lane !== ln || sh.year !== y;
+    const needsRebuild =
+      !session ||
+      !freshShadow(session, t) ||
+      !sh ||
+      sh.lane !== ln ||
+      Number(sh.year || 0) !== Number(y || 0);
 
-  if (needsRebuild) {
-    const evidence = extractEvidence(userText || "", ln, mode, y);
-    const ranked = rankIntents(ln, evidence, imp);
+    if (needsRebuild) {
+      const evidence = extractEvidence(userText || "", ln, md, y);
+      const ranked = rankIntents(ln, evidence, imp);
 
-    const baseCandidates = buildCandidates(ln, y);
-    const ordered = orderCandidatesByIntentWeights(ln, baseCandidates, ranked);
+      const baseCandidates = buildCandidates(ln, y);
+      const ordered = orderCandidatesByIntentWeights(ln, baseCandidates, ranked);
 
-    const topIntent = ranked[0] ? ranked[0].intent : null;
+      const topIntent = ranked[0] ? ranked[0].intent : null;
 
-    sh = {
-      at: t,
-      lane: ln,
-      mode: cleanText(mode || ""),
-      year: y,
-      orderedIntents: ranked.map((r) => ({ intent: r.intent, w: round4(r.w) })),
-      candidates: ordered.candMeta.map((c) => ({
-        intent: c.intent,
-        w: round4(c.w),
-        label: c.label,
-        send: c.send,
-      })),
-      prepared: { year: y, lane: ln, topIntent },
-      orderedChips: ordered.ordered.slice(0, 10),
-      sig: sigOf(ln, y, cleanText(mode || ""), topIntent),
-    };
+      sh = {
+        at: t,
+        lane: ln,
+        mode: md || null,
+        year: y || null,
+        orderedIntents: ranked.map((r) => ({ intent: r.intent, w: round4(r.w) })),
+        candidates: ordered.candMeta.map((c) => ({
+          intent: c.intent,
+          w: round4(c.w),
+          label: c.label,
+          send: c.send,
+        })),
+        prepared: { year: y || null, lane: ln, topIntent },
+        orderedChips: ordered.ordered.slice(0, DEFAULTS.maxChips),
+        sig: sigOf(ln, y || null, md || "", topIntent || "", dayKeyOf(t)),
+      };
 
-    if (session) setSessionShadow(session, sh);
+      if (session) setSessionShadow(session, sh);
+    }
+
+    // replyText/followUps are inputs in signature? No—keep deterministic based on userText+lane context only.
+    void replyText;
+    void followUps;
+
+    return { shadow: slimShadow(sh), imprint: slimImprint(imp) };
+  } catch (_) {
+    return { shadow: null, imprint: null };
   }
-
-  return { shadow: slimShadow(sh), imprint: slimImprint(imp) };
 }
 
 /* ---------------- Slimming helpers ---------------- */
@@ -916,8 +1005,6 @@ function slimShadow(sh) {
     candidates: Array.isArray(sh.candidates) ? sh.candidates : [],
     prepared: sh.prepared || null,
     orderedChips: Array.isArray(sh.orderedChips) ? sh.orderedChips : null,
-
-    // ✅ v1.4.1: expose deterministic signature for debugging
     sig: sh.sig || null,
   };
 }
