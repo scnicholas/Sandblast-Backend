@@ -8,18 +8,19 @@
  *  - NO index.js imports
  *  - returns { ok, reply, followUps, sessionPatch, cog, requestId }
  *
- * v0.6n (INTRO V2 + DEPTH DIAL + MICRO-BRIDGE LAYERING)
+ * v0.6o (ADVANCEMENT ENGINE v1)
  * Adds:
- *  ✅ Nyx Intro Script V2 (warmer + clearer + optional name hook)
- *  ✅ Depth Dial ("Fast" / "Deep") session-safe
- *  ✅ Micro-bridge layering when switching lanes (gentle transitions)
- *      - Option D wording: “headline vs whole thread” / “short version vs full story”
+ *  ✅ Advancement Engine v1:
+ *      - Detects low-signal replies (“ok”, “continue”, “next”, etc.)
+ *      - Ensures Nyx always advances the thread with ONE clean question + chips
+ *      - Session-safe: writes lastOpenQuestion + lastFork
  *
  * Preserves:
- *  ✅ Roku Lane bridge via Utils/rokuLane.js (optional)
- *  ✅ detectLane: separate "roku" lane from generic "tv"
- *  ✅ musicLane followUps normalization (strings <-> chip objects)
- *  ✅ merges lane sessionPatch (filtered) into engine patch
+ *  ✅ Intro V2
+ *  ✅ Depth Dial ("Fast"/"Deep")
+ *  ✅ Micro-bridge layering (Option D wording)
+ *  ✅ Roku lane wiring (optional)
+ *  ✅ Music lane shape compatibility + patch merge
  *  ✅ Input loop guard
  *  ✅ Content signature dampener
  *  ✅ SessionPatch allowlist
@@ -129,6 +130,14 @@ function normalizeFollowUpsFromLane(res) {
   }
 
   return [];
+}
+
+function endsWithQuestion(reply) {
+  const r = String(reply || "").trim();
+  if (!r) return false;
+  if (/\?\s*$/.test(r)) return true;
+  // common “soft question” patterns (no ? in copy sometimes)
+  return /\b(do you|would you|should we|want to|which one|what do you|where do we|tell me)\b/i.test(r);
 }
 
 // ----------------------------
@@ -291,6 +300,78 @@ function bridgeLine(sess) {
   const pref = (sess && sess.depthPreference) || "fast";
   if (pref === "deep") return "Do you want the short version… or the full story?";
   return "Do you want the headline… or the whole thread?";
+}
+
+// ----------------------------
+// Advancement Engine v1
+// ----------------------------
+function isLowSignal(text) {
+  const t = normalizeText(text);
+  if (!t) return true;
+  // very short acknowledgements / continuations
+  return /^(ok|okay|k|kk|sure|yes|yep|yeah|fine|cool|nice|good|great|go on|continue|next|more|again|keep going|alright|all right|sounds good|do it)$/i.test(t);
+}
+
+function shouldAdvance({ sess, userText, reply, lane }) {
+  // Don’t pile on if the assistant already asked something
+  if (endsWithQuestion(reply)) return false;
+
+  // Advance aggressively on low-signal user input
+  if (isLowSignal(userText)) return true;
+
+  // Otherwise: light advancement only in general lane to keep it moving
+  if (lane === "general") return true;
+
+  return false;
+}
+
+function advancePack({ sess, lane, year, mode }) {
+  const pref = (sess && sess.depthPreference) || "fast";
+
+  // Depth question (Option D language)
+  const depthQ = (pref === "deep")
+    ? "Do you want the short version… or the full story?"
+    : "Do you want the headline… or the whole thread?";
+
+  // Lane-specific single next question
+  let q = "What do you want next?";
+  let chips = ["Pick a year", "What’s playing now", "Show me the Roku path", "Just talk"];
+
+  if (lane === "music") {
+    const y = year && /^\d{4}$/.test(String(year)) ? String(year) : null;
+    q = y
+      ? `Want Top 10, a story moment, or a micro moment for ${y}?`
+      : "Give me a year (1950–2024) — or tell me Top 10, story moment, or micro moment.";
+    chips = y
+      ? [`Top 10 ${y}`, `Story moment ${y}`, `Micro moment ${y}`, "Pick a different year"]
+      : ["1956", "1988", "Top 10 1988", "Story moment 1955"];
+  } else if (lane === "roku" || lane === "tv") {
+    q = "Do you want Live Linear… or the VOD library?";
+    chips = ["Live linear", "VOD", "What’s playing now", "Schedule"];
+  } else if (lane === "schedule") {
+    q = "What city should I translate the schedule for?";
+    chips = ["Toronto", "London", "New York", "Use my timezone"];
+  } else if (lane === "radio") {
+    q = "Do you want to open the radio stream, or pick an era first?";
+    chips = ["Open radio", "Pick a year", "What’s playing now", "Surprise me"];
+  } else {
+    // general
+    q = "What do you feel like: a specific year, a surprise, or just talking?";
+    chips = ["Pick a year", "Surprise me", "Story moment", "Just talk"];
+  }
+
+  const line = `${q}\n\n${depthQ}`;
+  const lastOpenQuestion = q;
+
+  return {
+    line,
+    chips: dedupeStrings([...chips, "Fast", "Deep"], 10).slice(0, 4),
+    patch: {
+      lastFork: "advance",
+      lastOpenQuestion,
+      recentTopic: `advance:${lane || "general"}`
+    }
+  };
 }
 
 // ----------------------------
@@ -511,6 +592,7 @@ async function chatEngine(inputText, session) {
   let reply = "";
   let followUps = [];
   let lanePatch = null;
+  let advPatch = null;
 
   if (lane === "music" && musicLane) {
     try {
@@ -554,8 +636,16 @@ async function chatEngine(inputText, session) {
   // Micro-bridge layering (only when lane changes)
   if (needsBridge(sess, lane)) {
     reply = `${reply}\n\n${bridgeLine(sess)}`;
-    // keep chips simple but consistent with depth dial
     followUps = dedupeStrings([...followUps, "Fast", "Deep"], 10).slice(0, 4);
+  }
+
+  // Advancement Engine v1 (keeps sessions alive; one clean nudge)
+  // NOTE: We run this BEFORE elasticity overlay to avoid stacking multiple “meta” prompts.
+  if (shouldAdvance({ sess, userText: text, reply, lane })) {
+    const pack = advancePack({ sess, lane, year, mode });
+    reply = `${reply}\n\n${pack.line}`;
+    followUps = dedupeStrings([...followUps, ...pack.chips], 10).slice(0, 4);
+    advPatch = filterSessionPatch(pack.patch);
   }
 
   // Telemetry
@@ -564,7 +654,7 @@ async function chatEngine(inputText, session) {
   // DepthLevel
   const depthLevel = clampInt((Number(sess.depthLevel) || 0) + 1, 0, 20);
 
-  // Elasticity overlay
+  // Elasticity overlay (sprinkle-safe)
   const canElastic = shouldElasticOverlay({ ...sess, ...tele, introDone: true, depthLevel }, text);
   if (canElastic) {
     const elastic = elasticityOverlay({ ...sess, ...tele, depthLevel });
@@ -586,11 +676,12 @@ async function chatEngine(inputText, session) {
 
   const outCache = { reply, followUps: safeArray(followUps).slice(0, 4) };
 
-  // Compose patch (merge lanePatch)
+  // Compose patch (merge lanePatch + advPatch)
   const sessionPatch = filterSessionPatch({
     ...inPatch,
     ...tele,
     ...lanePatch,
+    ...advPatch,
     depthLevel,
     elasticToggle: Number(sess.elasticToggle || 0) + 1,
     lastElasticAt: canElastic ? nowMs() : Number(sess.lastElasticAt || 0),
@@ -609,8 +700,8 @@ async function chatEngine(inputText, session) {
 
   const cog = {
     phase: "engaged",
-    state: canElastic ? "reflect" : "respond",
-    reason: canElastic ? "elastic_overlay" : "reply",
+    state: canElastic ? "reflect" : (advPatch ? "advance" : "respond"),
+    reason: canElastic ? "elastic_overlay" : (advPatch ? "advance_v1" : "reply"),
     lane,
     year: year || undefined,
     mode: mode || undefined,
