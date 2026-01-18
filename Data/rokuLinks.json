@@ -1,0 +1,10 @@
+{
+  "roku": {
+    "enabled": false,
+    "launchDate": "2026-01-30",
+    "canonical": "https://sandblast.channel/roku",
+    "live": "https://sandblast.channel/roku/live",
+    "vod": "https://sandblast.channel/roku/vod",
+    "fallback": "https://sandblast.channel/tv"
+  }
+}
