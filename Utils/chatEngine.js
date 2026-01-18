@@ -8,24 +8,22 @@
  *  - NO index.js imports
  *  - returns { ok, reply, followUps, sessionPatch, cog, requestId }
  *
- * v0.6o (ADVANCEMENT ENGINE v1)
+ * v0.6o (NAME CAPTURE + SPARSITY GATE + INTRO V2 HOOK)
  * Adds:
- *  ✅ Advancement Engine v1:
- *      - Detects low-signal replies (“ok”, “continue”, “next”, etc.)
- *      - Ensures Nyx always advances the thread with ONE clean question + chips
- *      - Session-safe: writes lastOpenQuestion + lastFork
+ *  ✅ Session-safe name capture:
+ *      - “I’m ___”, “I am ___”, “my name is ___”, “call me ___”
+ *      - Stores session.userName (allowlisted)
+ *  ✅ Name sparsity gate:
+ *      - Uses name at most once every N turns (default 12)
+ *      - Never prefixes with “Alright, <name> …”
+ *  ✅ Intro V2 still invites name, but now it actually works
  *
  * Preserves:
- *  ✅ Intro V2
- *  ✅ Depth Dial ("Fast"/"Deep")
- *  ✅ Micro-bridge layering (Option D wording)
- *  ✅ Roku lane wiring (optional)
- *  ✅ Music lane shape compatibility + patch merge
- *  ✅ Input loop guard
- *  ✅ Content signature dampener
- *  ✅ SessionPatch allowlist
- *  ✅ Elasticity Engine
- *  ✅ Phase3 continuity overlay (consult-only)
+ *  ✅ Intro V2 + Depth Dial + Micro-Bridge Layering
+ *  ✅ Roku Lane bridge (optional)
+ *  ✅ musicLane shape normalization + lanePatch merge
+ *  ✅ Input loop guard + outSig dampener
+ *  ✅ SessionPatch allowlist + Elasticity + Phase3 sprinkle
  */
 
 const crypto = require("crypto");
@@ -102,7 +100,6 @@ function dedupeStrings(list, max = 10) {
 }
 
 function chipsToStrings(chips) {
-  // chips: [{label,send}] -> use send if present else label
   const out = [];
   for (const c of safeArray(chips)) {
     if (!c) continue;
@@ -113,31 +110,18 @@ function chipsToStrings(chips) {
 }
 
 function normalizeFollowUpsFromLane(res) {
-  // Goal: return followUps as string[]
   if (!res || typeof res !== "object") return [];
-
-  // Most preferred: followUpsStrings (explicit)
   if (Array.isArray(res.followUpsStrings)) return dedupeStrings(res.followUpsStrings, 10);
 
-  // Common: followUps: string[]
   if (Array.isArray(res.followUps) && (res.followUps.length === 0 || typeof res.followUps[0] === "string")) {
     return dedupeStrings(res.followUps, 10);
   }
 
-  // Chip objects
   if (Array.isArray(res.followUps) && res.followUps.length > 0 && typeof res.followUps[0] === "object") {
     return chipsToStrings(res.followUps);
   }
 
   return [];
-}
-
-function endsWithQuestion(reply) {
-  const r = String(reply || "").trim();
-  if (!r) return false;
-  if (/\?\s*$/.test(r)) return true;
-  // common “soft question” patterns (no ? in copy sometimes)
-  return /\b(do you|would you|should we|want to|which one|what do you|where do we|tell me)\b/i.test(r);
 }
 
 // ----------------------------
@@ -168,7 +152,10 @@ const SESSION_ALLOW = new Set([
   "activeMusicMode", "lastMusicYear", "year", "mode",
 
   // conversational layering (safe)
-  "depthPreference", "userName", "nameAskedAt", "lastOpenQuestion", "userGoal"
+  "depthPreference", "userName", "nameAskedAt", "lastOpenQuestion", "userGoal",
+
+  // name sparsity gate
+  "lastNameUseTurn"
 ]);
 
 function filterSessionPatch(patch) {
@@ -277,14 +264,15 @@ function isDepthDial(text) {
 }
 
 function depthDialReply(pref) {
+  // We keep your existing copy here; you can adjust later.
   if (pref === "deep") {
-    return "Perfect. I’ll give you the full story and keep the thread clean. Where do we start—music, TV, or just talking?";
+    return "Perfect. I’ll slow it down and add context as we go. What are we doing first—music, TV, or just talking?";
   }
-  return "Got it. I’ll keep it crisp. Point me at a year, a show, or your goal.";
+  return "Got it. Fast and clean. Point me at a year, a show, or your goal.";
 }
 
 // ----------------------------
-// Micro-Bridge Layering (Option D wording)
+// Micro-Bridge Layering (Option D copy)
 // ----------------------------
 function needsBridge(sess, lane) {
   if (!sess) return false;
@@ -297,81 +285,69 @@ function needsBridge(sess, lane) {
 }
 
 function bridgeLine(sess) {
+  // ✅ Option D: no “fast/deep” words
   const pref = (sess && sess.depthPreference) || "fast";
   if (pref === "deep") return "Do you want the short version… or the full story?";
   return "Do you want the headline… or the whole thread?";
 }
 
 // ----------------------------
-// Advancement Engine v1
+// Name Capture (session-safe)
 // ----------------------------
-function isLowSignal(text) {
-  const t = normalizeText(text);
-  if (!t) return true;
-  // very short acknowledgements / continuations
-  return /^(ok|okay|k|kk|sure|yes|yep|yeah|fine|cool|nice|good|great|go on|continue|next|more|again|keep going|alright|all right|sounds good|do it)$/i.test(t);
+function extractNameFromText(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return null;
+
+  // Basic patterns: I’m X / I am X / my name is X / call me X
+  const m =
+    raw.match(/^\s*(?:i'?m|i\s+am|my\s+name\s+is|call\s+me)\s+(.+?)\s*$/i);
+
+  if (!m || !m[1]) return null;
+
+  let name = m[1].trim();
+
+  // Strip common trailing punctuation
+  name = name.replace(/[.!?,;:]+$/g, "").trim();
+
+  // Allow 1–2 words; letters, apostrophes, hyphens only
+  // Examples: Mac, Sean, Sean Nicholas, O'Neil, Mary-Jane
+  if (!/^[A-Za-z][A-Za-z' -]{0,19}$/.test(name)) return null;
+
+  // Collapse spaces
+  name = name.replace(/\s+/g, " ").trim();
+
+  // Limit to 2 words max
+  const parts = name.split(" ").filter(Boolean);
+  if (parts.length > 2) return null;
+
+  // Title-case each part
+  name = parts.map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join(" ");
+
+  // Reject if too short after normalization
+  if (name.length < 2) return null;
+
+  return name;
 }
 
-function shouldAdvance({ sess, userText, reply, lane }) {
-  // Don’t pile on if the assistant already asked something
-  if (endsWithQuestion(reply)) return false;
+function shouldUseName(sess, turnsNow) {
+  const name = sess && sess.userName ? String(sess.userName).trim() : "";
+  if (!name) return false;
 
-  // Advance aggressively on low-signal user input
-  if (isLowSignal(userText)) return true;
+  const lastUse = Number(sess.lastNameUseTurn || 0);
+  const gap = 12; // ✅ sparsity gate: once every 12 turns max
 
-  // Otherwise: light advancement only in general lane to keep it moving
-  if (lane === "general") return true;
-
-  return false;
+  return (turnsNow - lastUse) >= gap;
 }
 
-function advancePack({ sess, lane, year, mode }) {
-  const pref = (sess && sess.depthPreference) || "fast";
+function maybePrependName(sess, turnsNow, reply) {
+  const name = sess && sess.userName ? String(sess.userName).trim() : "";
+  if (!name) return { reply, used: false };
 
-  // Depth question (Option D language)
-  const depthQ = (pref === "deep")
-    ? "Do you want the short version… or the full story?"
-    : "Do you want the headline… or the whole thread?";
+  if (!shouldUseName(sess, turnsNow)) return { reply, used: false };
 
-  // Lane-specific single next question
-  let q = "What do you want next?";
-  let chips = ["Pick a year", "What’s playing now", "Show me the Roku path", "Just talk"];
-
-  if (lane === "music") {
-    const y = year && /^\d{4}$/.test(String(year)) ? String(year) : null;
-    q = y
-      ? `Want Top 10, a story moment, or a micro moment for ${y}?`
-      : "Give me a year (1950–2024) — or tell me Top 10, story moment, or micro moment.";
-    chips = y
-      ? [`Top 10 ${y}`, `Story moment ${y}`, `Micro moment ${y}`, "Pick a different year"]
-      : ["1956", "1988", "Top 10 1988", "Story moment 1955"];
-  } else if (lane === "roku" || lane === "tv") {
-    q = "Do you want Live Linear… or the VOD library?";
-    chips = ["Live linear", "VOD", "What’s playing now", "Schedule"];
-  } else if (lane === "schedule") {
-    q = "What city should I translate the schedule for?";
-    chips = ["Toronto", "London", "New York", "Use my timezone"];
-  } else if (lane === "radio") {
-    q = "Do you want to open the radio stream, or pick an era first?";
-    chips = ["Open radio", "Pick a year", "What’s playing now", "Surprise me"];
-  } else {
-    // general
-    q = "What do you feel like: a specific year, a surprise, or just talking?";
-    chips = ["Pick a year", "Surprise me", "Story moment", "Just talk"];
-  }
-
-  const line = `${q}\n\n${depthQ}`;
-  const lastOpenQuestion = q;
-
-  return {
-    line,
-    chips: dedupeStrings([...chips, "Fast", "Deep"], 10).slice(0, 4),
-    patch: {
-      lastFork: "advance",
-      lastOpenQuestion,
-      recentTopic: `advance:${lane || "general"}`
-    }
-  };
+  // Never do “Alright, Name …”. Keep it light and not constant.
+  const prefix = `Okay, ${name}. `;
+  return { reply: `${prefix}${reply}`, used: true };
 }
 
 // ----------------------------
@@ -517,6 +493,30 @@ async function chatEngine(inputText, session) {
   const text = String(inputText || "");
   const sess = session && typeof session === "object" ? session : {};
 
+  // Name capture intercept (deterministic, before anything else)
+  const maybeName = extractNameFromText(text);
+  if (maybeName) {
+    const reply = `Nice to meet you, ${maybeName}. What do you feel like right now: a specific year, a surprise, or just talking?`;
+    const followUps = ["Pick a year", "Surprise me", "Story moment", "Just talk"];
+
+    const sessionPatch = filterSessionPatch({
+      lastInText: text,
+      lastInAt: nowMs(),
+      userName: maybeName,
+      lastNameUseTurn: Number(sess.turns || 0), // counts as a name use
+      recentTopic: "name:capture"
+    });
+
+    return {
+      ok: true,
+      reply,
+      followUps,
+      sessionPatch,
+      cog: { phase: "engaged", state: "welcome", reason: "name_captured", lane: "general", ts: nowMs() },
+      requestId
+    };
+  }
+
   // Depth dial intercept (deterministic, no lane needed)
   if (isDepthDial(text)) {
     const pref = normalizeText(text);
@@ -592,15 +592,12 @@ async function chatEngine(inputText, session) {
   let reply = "";
   let followUps = [];
   let lanePatch = null;
-  let advPatch = null;
 
   if (lane === "music" && musicLane) {
     try {
       const res = await musicLane(text, sess);
-
       reply = (res && res.reply) ? String(res.reply).trim() : "";
       if (!reply) reply = "Tell me a year (1950–2024), or say “top 10 1988”.";
-
       followUps = normalizeFollowUpsFromLane(res);
       lanePatch = filterSessionPatch(res && res.sessionPatch ? res.sessionPatch : null);
     } catch (_) {
@@ -639,22 +636,15 @@ async function chatEngine(inputText, session) {
     followUps = dedupeStrings([...followUps, "Fast", "Deep"], 10).slice(0, 4);
   }
 
-  // Advancement Engine v1 (keeps sessions alive; one clean nudge)
-  // NOTE: We run this BEFORE elasticity overlay to avoid stacking multiple “meta” prompts.
-  if (shouldAdvance({ sess, userText: text, reply, lane })) {
-    const pack = advancePack({ sess, lane, year, mode });
-    reply = `${reply}\n\n${pack.line}`;
-    followUps = dedupeStrings([...followUps, ...pack.chips], 10).slice(0, 4);
-    advPatch = filterSessionPatch(pack.patch);
-  }
-
   // Telemetry
   const tele = bumpTelemetry(sess, lane, year, mode);
-
-  // DepthLevel
   const depthLevel = clampInt((Number(sess.depthLevel) || 0) + 1, 0, 20);
 
-  // Elasticity overlay (sprinkle-safe)
+  // Name usage (sparse) — only after we know turns
+  const namePre = maybePrependName(sess, tele.turns, reply);
+  reply = namePre.reply;
+
+  // Elasticity overlay
   const canElastic = shouldElasticOverlay({ ...sess, ...tele, introDone: true, depthLevel }, text);
   if (canElastic) {
     const elastic = elasticityOverlay({ ...sess, ...tele, depthLevel });
@@ -676,12 +666,11 @@ async function chatEngine(inputText, session) {
 
   const outCache = { reply, followUps: safeArray(followUps).slice(0, 4) };
 
-  // Compose patch (merge lanePatch + advPatch)
+  // Compose patch (merge lanePatch + name usage marker if used)
   const sessionPatch = filterSessionPatch({
     ...inPatch,
     ...tele,
     ...lanePatch,
-    ...advPatch,
     depthLevel,
     elasticToggle: Number(sess.elasticToggle || 0) + 1,
     lastElasticAt: canElastic ? nowMs() : Number(sess.lastElasticAt || 0),
@@ -692,6 +681,9 @@ async function chatEngine(inputText, session) {
     depthPreference: sess.depthPreference || "fast",
     userGoal: sess.userGoal || "explore",
 
+    // name sparsity gate updates only when we used it
+    lastNameUseTurn: namePre.used ? tele.turns : Number(sess.lastNameUseTurn || 0),
+
     lastOut: outCache,
     lastOutAt: nowMs(),
     lastOutSig: outSig,
@@ -700,8 +692,8 @@ async function chatEngine(inputText, session) {
 
   const cog = {
     phase: "engaged",
-    state: canElastic ? "reflect" : (advPatch ? "advance" : "respond"),
-    reason: canElastic ? "elastic_overlay" : (advPatch ? "advance_v1" : "reply"),
+    state: canElastic ? "reflect" : "respond",
+    reason: canElastic ? "elastic_overlay" : "reply",
     lane,
     year: year || undefined,
     mode: mode || undefined,
