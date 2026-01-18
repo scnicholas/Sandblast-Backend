@@ -1,24 +1,34 @@
 "use strict";
 
 /**
- * Utils/musicKnowledge.js — v2.74 (FULL-RANGE SOURCE COVERAGE + TOP10 STORE FIRST + HARDENED YEAR-END MERGE)
+ * Utils/musicKnowledge.js — v2.75 (TOP10 LABEL FIX + TOP100 COMMAND + FOLLOWUPS SHAPE FIX + HARDENED RESOLUTION)
  *
- * Goal you stated (non-negotiable):
- *  - We can access all music sources needed from 1950 through 2024.
+ * Goal (non-negotiable):
+ *  - Access music sources 1950–2024, deterministic, no dead-ends, no looping defaults.
  *
- * What this file guarantees:
- *  - Top 10 queries ALWAYS prefer the curated Top10 Store when present (Data/top10_by_year_v1.json).
- *    This fixes “Top 10 1963/1965–1969 falling into story moment” when the store has the year.
- *  - 1950–1959: prefers Wikipedia Year-End Singles spine if available.
- *  - 1960–2024: prefers Top10 Store spine (Year-End Hot 100) when available, otherwise falls back through
- *    Wikipedia Year-End Hot 100 merges, then DB candidates, then canonical fallbacks.
- *  - Chart resolver is store-aware and will not dead-end on sticky charts or Year-End Singles outside 50s.
- *  - Safe mtime reload for Top10 Store + 50s Singles cache (no restart required).
- *  - Deterministic, non-looping fallbacks.
+ * Key fixes vs v2.74:
+ * ✅ TOP10 LABEL FIX:
+ *    - Top 10 Store (Data/top10_by_year_v1.json) is a YEAR-END TOP 10 spine.
+ *    - It should NOT be labeled “Year-End Hot 100” (that implied Top 100 list).
+ *    - Introduces: YEAR_END_TOP10_CHART = "Billboard Year-End Top 10"
+ *    - Top10 Store rows are now charted as YEAR_END_TOP10_CHART (not YEAR_END_CHART).
+ *
+ * ✅ TOP100 COMMAND SUPPORT:
+ *    - Parses “top 100 1988”, “hot 100 1988”, “year-end hot 100 1988”.
+ *    - Returns Top 100 list (limit 100) from merged Wikipedia Hot 100 ranges when present.
+ *
+ * ✅ FOLLOWUPS SHAPE FIX:
+ *    - Returns `followUps` (plural) everywhere (was `followUp` in some branches).
+ *    - This prevents downstream UI/engine mismatch (a real “loophole”).
+ *
+ * ✅ Store-aware resolver hardened:
+ *    - 1950–1959: prefers Year-End Singles spine if present.
+ *    - 1960+: Top10 Store implies YEAR_END_TOP10_CHART availability (not Hot 100).
+ *    - Year-End Singles never “sticks” outside the 50s.
  *
  * NOTE:
- *  - This module can *load* multiple sources; actual coverage depends on which JSON files exist on disk.
- *    It will gracefully degrade if some sources aren't present.
+ *  - This module can load multiple sources; actual coverage depends on which JSON files exist.
+ *  - It degrades gracefully (never throws, never bricks boot).
  */
 
 const fs = require("fs");
@@ -28,7 +38,7 @@ const path = require("path");
 // Version
 // =========================
 const MK_VERSION =
-  "musicKnowledge v2.74 (Full-range sources 1950–2024; Top10 Store-first; Year-End merge hardened; no dead-ends)";
+  "musicKnowledge v2.75 (Top10 Store labeled Year-End Top 10; Top100 command; followUps shape fixed; resolver hardened)";
 
 // =========================
 // Public Range / Charts
@@ -37,7 +47,12 @@ const PUBLIC_MIN_YEAR = 1950;
 const PUBLIC_MAX_YEAR = 2024;
 
 const DEFAULT_CHART = "Billboard Hot 100";
+
+// IMPORTANT:
+// - YEAR_END_CHART = “Year-End Hot 100” means the full Top 100 year-end list (rank 1–100).
+// - YEAR_END_TOP10_CHART = “Year-End Top 10” means the curated Top 10 store list (rank 1–10).
 const YEAR_END_CHART = "Billboard Year-End Hot 100";
+const YEAR_END_TOP10_CHART = "Billboard Year-End Top 10";
 const YEAR_END_SINGLES_CHART = "Billboard Year-End Singles";
 
 // =========================
@@ -96,7 +111,7 @@ const STATS = {
   yearMin: null,
   yearMax: null,
   charts: [],
-  sources: {}, // v2.74: introspection of what loaded
+  sources: {}, // introspection of what loaded
 };
 
 // Authoritative cache for 1950–1959 Year-End Singles
@@ -147,6 +162,15 @@ function normalizeChart(raw) {
     return "Canada RPM";
   }
 
+  // Explicit Year-End Top 10 label
+  if (
+    (c.includes("year") && c.includes("end") && c.includes("top") && c.includes("10")) ||
+    c === "billboard year-end top 10" ||
+    c === "year-end top 10"
+  ) {
+    return YEAR_END_TOP10_CHART;
+  }
+
   if (
     c.includes("year") &&
     c.includes("end") &&
@@ -158,6 +182,7 @@ function normalizeChart(raw) {
     return YEAR_END_SINGLES_CHART;
   }
 
+  // Year-End Hot 100 (Top 100 list)
   if (c.includes("year") && c.includes("end")) return YEAR_END_CHART;
 
   if (c.includes("billboard") || c.includes("hot 100") || c.includes("hot100"))
@@ -188,6 +213,11 @@ function safeStatMtimeMs(absPath) {
   } catch (_) {
     return 0;
   }
+}
+
+function bumpSourceStat(key, delta) {
+  STATS.sources = STATS.sources || {};
+  STATS.sources[key] = (STATS.sources[key] || 0) + (delta || 0);
 }
 
 function coerceRank(m) {
@@ -250,20 +280,41 @@ function canonicalPatch(session, extra = {}) {
   return patch;
 }
 
-function bumpSourceStat(key, delta) {
-  STATS.sources = STATS.sources || {};
-  STATS.sources[key] = (STATS.sources[key] || 0) + (delta || 0);
+function safeFollowUps(list) {
+  if (!Array.isArray(list)) return [];
+  const out = [];
+  const seen = new Set();
+  for (const it of list) {
+    const s = cleanText(it);
+    if (!s) continue;
+    if (s.length > 80) continue;
+    const k = s.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(s);
+    if (out.length >= 10) break;
+  }
+  return out;
 }
 
 // =========================
-// Command Parsing (v2.72+)
+// Command Parsing (v2.75)
 // =========================
 function parseCommand(msg) {
   const t = cleanText(msg).toLowerCase();
   if (!t) return null;
 
+  // "top 100 1988" / "hot 100 1988" / "year-end hot 100 1988"
+  let m = t.match(/\b(top\s*100|top100|hot\s*100|year[-\s]*end\s*hot\s*100)\s*(\d{4})\b/);
+  if (m) return { kind: "top100", year: Number(m[2]) };
+
+  // "top 100" (no year) => use lastMusicYear
+  if (/\b(top\s*100|top100|hot\s*100|year[-\s]*end\s*hot\s*100)\b/.test(t) && !/\d{4}/.test(t)) {
+    return { kind: "top100" };
+  }
+
   // "top 10 1988" / "top ten 1988"
-  let m = t.match(/\btop\s*(10|ten)\s*(\d{4})\b/);
+  m = t.match(/\btop\s*(10|ten)\s*(\d{4})\b/);
   if (m) return { kind: "top10", year: Number(m[2]) };
 
   // "top 10" (no year) => use lastMusicYear
@@ -274,9 +325,7 @@ function parseCommand(msg) {
   if (m) return { kind: "micro", year: Number(m[2]) };
 
   // "story moment 1988" / "story 1988" / "moment 1988"
-  m = t.match(
-    /\b(story\s+moment|story|music\s+moment|moment|moments)\s*(\d{4})\b/
-  );
+  m = t.match(/\b(story\s+moment|story|music\s+moment|moment|moments)\s*(\d{4})\b/);
   if (m) return { kind: "story", year: Number(m[2]) };
 
   if (t === "#1" || t === "1" || t === "number 1") return { kind: "number1" };
@@ -313,7 +362,6 @@ function loadTop10StoreOnce({ force = false } = {}) {
   TOP10_STORE_LOADED = true;
 
   if (!fs.existsSync(abs)) {
-    // Store is optional (build can be added later)
     bumpSourceStat("top10_store_missing", 1);
     return;
   }
@@ -326,14 +374,14 @@ function loadTop10StoreOnce({ force = false } = {}) {
     return;
   }
 
-  // Accept both:
-  //  A) wrapper format: {version:"top10_by_year_v1", years:{ "1964":{...} } }
-  //  B) bare map format: { "1964":[...], "1965":[...] } or { "1964":{items:[...]}}
+  // Accept:
+  //  A) {version:"top10_by_year_v1", years:{ "1964":{...} } }
+  //  B) root year-map: { "1964":[...], "1965":[...] } or { "1964":{items:[...]} }
   let yearsNode = null;
   if (cleanText(doc.version) === "top10_by_year_v1" && doc.years) {
     yearsNode = doc.years;
   } else {
-    yearsNode = doc; // permissive fallback: treat root as year-map
+    yearsNode = doc;
   }
 
   if (!yearsNode || typeof yearsNode !== "object") {
@@ -352,13 +400,8 @@ function hasTop10StoreYear(year) {
   const node = TOP10_STORE.years[String(year)];
   if (!node) return false;
 
-  // wrapper node with items
   if (Array.isArray(node.items) && node.items.length) return true;
-
-  // node itself is an array of {pos,artist,title}
   if (Array.isArray(node) && node.length) return true;
-
-  // legacy: node.rows
   if (Array.isArray(node.rows) && node.rows.length) return true;
 
   return false;
@@ -372,7 +415,8 @@ function getTop10StoreList(year, limit = 10) {
   const node = TOP10_STORE.years[ykey];
   if (!node) return [];
 
-  const chart = cleanText(node.chart) || YEAR_END_CHART;
+  // IMPORTANT: store list is “Year-End Top 10”
+  const chart = YEAR_END_TOP10_CHART;
   const yearVal = toInt(node.year) || toInt(year);
 
   let items = [];
@@ -448,7 +492,6 @@ function loadWikiSingles50sOnce({ force = false } = {}) {
   for (const r of rows) {
     const y = toInt(r.year);
     const rk = toInt(r.rank);
-
     if (!Number.isFinite(y) || y < 1950 || y > 1959) continue;
     if (!Number.isFinite(rk) || rk <= 0) continue;
 
@@ -620,18 +663,18 @@ function loadDb() {
     BY_YEAR_CHART.set(k, arr);
   }
 
-  // Ensure 50s Year-End Singles chart is treated as "available" if present
+  // Ensure 50s Year-End Singles chart is treated as available if present
   if (hasWikiSingles50sYear(1950)) charts.add(YEAR_END_SINGLES_CHART);
 
-  // Ensure Year-End chart is treated as available if store exists (even without DB)
-  if (TOP10_STORE && hasTop10StoreYear(1960)) charts.add(YEAR_END_CHART);
+  // Ensure store implies YEAR_END_TOP10_CHART availability
+  if (TOP10_STORE && hasTop10StoreYear(1960)) charts.add(YEAR_END_TOP10_CHART);
 
   STATS.moments = moments.length;
   STATS.yearMin = minY;
   STATS.yearMax = maxY;
   STATS.charts = Array.from(charts);
 
-  // Coverage hints (v2.74)
+  // Coverage hints
   if (TOP10_STORE) bumpSourceStat("top10_store_years", Object.keys(TOP10_STORE.years || {}).length);
   if (LOADED_FROM) bumpSourceStat("db_file", 1);
 
@@ -650,7 +693,7 @@ function loadDb() {
 function chartIsAvailable(chart) {
   loadDb();
   const c = normalizeChart(chart);
-  if (c === YEAR_END_CHART && TOP10_STORE) return true;
+  if (c === YEAR_END_TOP10_CHART && TOP10_STORE) return true;
   if (c === YEAR_END_SINGLES_CHART && hasWikiSingles50sYear(1950)) return true;
   return STATS.charts.includes(c);
 }
@@ -661,7 +704,7 @@ function pickBestAvailableChart(preferredList) {
     const c = normalizeChart(raw);
     if (chartIsAvailable(c)) return c;
   }
-  return STATS.charts[0] || (TOP10_STORE ? YEAR_END_CHART : DEFAULT_CHART);
+  return STATS.charts[0] || (TOP10_STORE ? YEAR_END_TOP10_CHART : DEFAULT_CHART);
 }
 
 // =========================
@@ -670,11 +713,10 @@ function pickBestAvailableChart(preferredList) {
 function hasAnyRowsForYearOnChart(year, chart) {
   const y = toInt(year);
   const c = normalizeChart(chart || DEFAULT_CHART);
-
   if (!y) return false;
 
-  // Top10 store: treat as rows on YEAR_END_CHART
-  if (c === YEAR_END_CHART) {
+  // Top10 store: treat as rows on YEAR_END_TOP10_CHART
+  if (c === YEAR_END_TOP10_CHART) {
     if (hasTop10StoreYear(y)) return true;
   }
 
@@ -690,11 +732,11 @@ function hasAnyRowsForYearOnChart(year, chart) {
 /**
  * Resolve chart for a year, preventing “sticky chart” dead-ends.
  * - 1950–1959: prefer Year-End Singles if available; else fall back.
- * - 1960+: if Top10 Store has year, prefer Year-End Hot 100 (truth spine).
+ * - 1960+: if Top10 Store has year, prefer YEAR_END_TOP10_CHART when caller is doing Top10.
  * - Year-End Singles never dead-ends outside 1950–1959.
  * - If requested chart isn't available, fall back through canonical charts.
  */
-function resolveChartForYear(year, requestedChart) {
+function resolveChartForYear(year, requestedChart, { preferTop10Store = false } = {}) {
   const y = toInt(year);
   const req = normalizeChart(requestedChart || DEFAULT_CHART);
 
@@ -702,7 +744,7 @@ function resolveChartForYear(year, requestedChart) {
   if (!y) {
     const c = chartIsAvailable(req)
       ? req
-      : pickBestAvailableChart([YEAR_END_CHART, DEFAULT_CHART]);
+      : pickBestAvailableChart([YEAR_END_TOP10_CHART, YEAR_END_CHART, DEFAULT_CHART]);
     return { ok: true, chart: c, fellBackFrom: c !== req ? req : undefined };
   }
 
@@ -719,23 +761,23 @@ function resolveChartForYear(year, requestedChart) {
     return { ok: true, chart: c, fellBackFrom: c !== req ? req : undefined };
   }
 
-  // 1960+: if store has year, prefer YEAR_END_CHART (truth spine)
-  if (hasTop10StoreYear(y)) {
-    if (req !== YEAR_END_CHART) {
-      return { ok: true, chart: YEAR_END_CHART, fellBackFrom: req };
+  // 1960+: store-aware preference for TOP10 queries
+  if (preferTop10Store && hasTop10StoreYear(y)) {
+    if (req !== YEAR_END_TOP10_CHART) {
+      return { ok: true, chart: YEAR_END_TOP10_CHART, fellBackFrom: req };
     }
-    return { ok: true, chart: YEAR_END_CHART };
+    return { ok: true, chart: YEAR_END_TOP10_CHART };
   }
 
   // Outside 50s: NEVER hard-fail because req is Singles.
   if (req === YEAR_END_SINGLES_CHART) {
-    const c = pickBestAvailableChart([YEAR_END_CHART, DEFAULT_CHART]);
+    const c = pickBestAvailableChart([YEAR_END_TOP10_CHART, YEAR_END_CHART, DEFAULT_CHART]);
     return { ok: true, chart: c, fellBackFrom: YEAR_END_SINGLES_CHART };
   }
 
   // Validate availability
   if (!chartIsAvailable(req)) {
-    const c = pickBestAvailableChart([YEAR_END_CHART, DEFAULT_CHART]);
+    const c = pickBestAvailableChart([YEAR_END_TOP10_CHART, YEAR_END_CHART, DEFAULT_CHART]);
     return { ok: true, chart: c, fellBackFrom: req };
   }
 
@@ -753,9 +795,10 @@ function chooseChartForYear(year, requestedChart) {
 function getTopByYear(year, chart, limit = 10) {
   const y = toInt(year);
   const c = normalizeChart(chart || DEFAULT_CHART);
+  if (!y) return [];
 
-  // 1) Top10 Store (preferred for YEAR_END_CHART, and also usable for #1 lines)
-  if (c === YEAR_END_CHART) {
+  // 1) Top10 Store (preferred for YEAR_END_TOP10_CHART)
+  if (c === YEAR_END_TOP10_CHART) {
     const storeList = getTop10StoreList(y, limit);
     if (storeList.length) return renumberSequentialByRank(storeList, limit);
   }
@@ -768,7 +811,7 @@ function getTopByYear(year, chart, limit = 10) {
     return renumberSequentialByRank(arr, Math.min(limit, arr.length));
   }
 
-  // 3) DB / merged Wikipedia Year-End Hot 100
+  // 3) DB / merged Wikipedia Year-End Hot 100 (and any other chart rows)
   loadDb();
   const arr = BY_YEAR_CHART.get(`${y}|${c}`) || [];
   if (!arr.length) return [];
@@ -787,9 +830,7 @@ function formatTopList(year, chart, limit = 10) {
     return `${rk}. ${a} — ${t}`;
   });
 
-  return `Top ${Math.min(limit, lines.length)} — ${c} (${year}):\n${lines.join(
-    "\n"
-  )}`;
+  return `Top ${Math.min(limit, lines.length)} — ${c} (${year}):\n${lines.join("\n")}`;
 }
 
 function formatTopListWithFallbacks(year, requestedChart, limit = 10) {
@@ -797,22 +838,24 @@ function formatTopListWithFallbacks(year, requestedChart, limit = 10) {
   const y = toInt(year);
   if (!y) return null;
 
-  // (A) 1960+: prefer Top10 Store if present
-  if (y >= 1960 && hasTop10StoreYear(y)) {
-    const formattedStore = formatTopList(y, YEAR_END_CHART, limit);
-    if (formattedStore)
-      return { formatted: formattedStore, chartUsed: YEAR_END_CHART };
+  const wantTop10 = limit <= 10;
+
+  // (A) 1960+: if Top10 Store has year and caller is doing Top10, use YEAR_END_TOP10_CHART
+  if (wantTop10 && y >= 1960 && hasTop10StoreYear(y)) {
+    const formattedStore = formatTopList(y, YEAR_END_TOP10_CHART, limit);
+    if (formattedStore) return { formatted: formattedStore, chartUsed: YEAR_END_TOP10_CHART };
   }
 
   // (B) 1950–1959: try Singles first
-  if (y >= 1950 && y <= 1959) {
+  if (wantTop10 && y >= 1950 && y <= 1959) {
     const formatted50s = formatTopList(y, YEAR_END_SINGLES_CHART, limit);
-    if (formatted50s)
-      return { formatted: formatted50s, chartUsed: YEAR_END_SINGLES_CHART };
+    if (formatted50s) return { formatted: formatted50s, chartUsed: YEAR_END_SINGLES_CHART };
   }
 
   const first = normalizeChart(requestedChart);
-  const preferred = [first, YEAR_END_CHART, DEFAULT_CHART];
+  const preferred = wantTop10
+    ? [first, YEAR_END_TOP10_CHART, DEFAULT_CHART, YEAR_END_CHART]
+    : [first, YEAR_END_CHART, DEFAULT_CHART];
 
   const tryCharts = [];
   for (const c0 of preferred) {
@@ -821,7 +864,7 @@ function formatTopListWithFallbacks(year, requestedChart, limit = 10) {
   }
 
   if (!tryCharts.length && STATS.charts.length) tryCharts.push(STATS.charts[0]);
-  if (!tryCharts.length && TOP10_STORE) tryCharts.push(YEAR_END_CHART);
+  if (!tryCharts.length && TOP10_STORE) tryCharts.push(wantTop10 ? YEAR_END_TOP10_CHART : YEAR_END_CHART);
 
   for (const c of tryCharts) {
     const formatted = formatTopList(y, c, limit);
@@ -834,9 +877,10 @@ function formatTopListWithFallbacks(year, requestedChart, limit = 10) {
 function getNumberOneLine(year, chart) {
   const y = toInt(year);
   const c = normalizeChart(chart || DEFAULT_CHART);
+  if (!y) return null;
 
-  // Prefer store for #1 lines when store covers year
-  if (c === YEAR_END_CHART && hasTop10StoreYear(y)) {
+  // Prefer store for #1 lines when store covers year (via YEAR_END_TOP10_CHART)
+  if (c === YEAR_END_TOP10_CHART && hasTop10StoreYear(y)) {
     const list = getTop10StoreList(y, 1);
     if (list.length) {
       const m = list[0];
@@ -870,17 +914,14 @@ function getMomentFromLayer({ year, chart, kind }) {
           : musicMoments.getMoment({ year, chart, kind });
 
       if (typeof res === "string" && res.trim()) return res.trim();
-      if (res && typeof res.text === "string" && res.text.trim())
-        return res.text.trim();
+      if (res && typeof res.text === "string" && res.text.trim()) return res.text.trim();
     }
 
     // 2) Alternate: musicMoments.handle(...)
     if (typeof musicMoments.handle === "function") {
-      const prompt =
-        kind === "micro" ? `micro moment ${year}` : `story moment ${year}`;
+      const prompt = kind === "micro" ? `micro moment ${year}` : `story moment ${year}`;
       const out = musicMoments.handle(prompt, { activeMusicChart: chart });
-      if (out && typeof out.reply === "string" && out.reply.trim())
-        return out.reply.trim();
+      if (out && typeof out.reply === "string" && out.reply.trim()) return out.reply.trim();
     }
 
     return null;
@@ -961,98 +1002,131 @@ function handleChat({ text, session }) {
   loadWikiSingles50sOnce({ force: false });
 
   const cmd = parseCommand(msg);
-  if (cmd) {
-    if (cmd.kind === "top10") {
-      const impliedYear = toInt(cmd.year ?? session.lastMusicYear);
 
-      if (!isYearInRange(impliedYear)) {
-        return {
-          reply: `Give me a year between ${PUBLIC_MIN_YEAR} and ${PUBLIC_MAX_YEAR} (example: “top 10 1988”).`,
-          followUp: ["1956", "1984", "top 10 1988"],
-          domain: "music",
-          sessionPatch: canonicalPatch(session),
-        };
-      }
+  // ---- TOP10 ----
+  if (cmd && cmd.kind === "top10") {
+    const impliedYear = toInt(cmd.year ?? session.lastMusicYear);
 
-      const y = impliedYear;
-
-      // Resolve chart safely (store-aware)
-      const choice = resolveChartForYear(y, session.activeMusicChart);
-      const chart = choice.chart;
-
-      const out = formatTopListWithFallbacks(y, chart, 10);
-
-      if (out && out.formatted) {
-        const used = out.chartUsed || chart;
-        return {
-          reply: `${out.formatted}\n\nWant #1, a story moment, a micro moment, or another year?`,
-          followUp: ["#1", `story moment ${y}`, `micro moment ${y}`, "Another year"],
-          domain: "music",
-          sessionPatch: canonicalPatch(session, {
-            activeMusicChart: used,
-            lastMusicYear: y,
-            lastMusicChart: used,
-          }),
-        };
-      }
-
-      const missingHint =
-        STATS.moments > 0 || TOP10_STORE
-          ? ""
-          : " (No chart datasets are currently loaded on the server.)";
-
+    if (!isYearInRange(impliedYear)) {
       return {
-        reply:
-          `I don’t have a clean Top 10 list for ${y} on the loaded sources in this build yet${missingHint}. ` +
-          `I *can* still do a story moment or micro moment for ${y} if you want.`,
-        followUp: [`story moment ${y}`, `micro moment ${y}`, "Another year"],
+        reply: `Give me a year between ${PUBLIC_MIN_YEAR} and ${PUBLIC_MAX_YEAR} (example: “top 10 1988”).`,
+        followUps: safeFollowUps(["1956", "1984", "top 10 1988"]),
+        domain: "music",
+        sessionPatch: canonicalPatch(session),
+      };
+    }
+
+    const y = impliedYear;
+
+    // Resolve chart for Top10: prefer store chart if available
+    const choice = resolveChartForYear(y, session.activeMusicChart, { preferTop10Store: true });
+    const chart = choice.chart;
+
+    const out = formatTopListWithFallbacks(y, chart, 10);
+
+    if (out && out.formatted) {
+      const used = out.chartUsed || chart;
+      return {
+        reply: `${out.formatted}\n\nWant #1, a story moment, a micro moment, or another year?`,
+        followUps: safeFollowUps(["#1", `story moment ${y}`, `micro moment ${y}`, "Another year", "Next year"]),
         domain: "music",
         sessionPatch: canonicalPatch(session, {
-          activeMusicChart: normalizeChart(session.activeMusicChart),
+          activeMusicChart: used,
           lastMusicYear: y,
-          lastMusicChart: normalizeChart(session.activeMusicChart),
+          lastMusicChart: used,
         }),
       };
     }
 
-    if (cmd.kind === "number1") {
-      const y = toInt(session.lastMusicYear);
-      const chart = normalizeChart(
-        session.lastMusicChart || session.activeMusicChart
-      );
+    const missingHint =
+      STATS.moments > 0 || TOP10_STORE ? "" : " (No chart datasets are currently loaded on the server.)";
 
-      if (!isYearInRange(y)) {
-        return {
-          reply: `Tell me a year first (example: “1988” or “top 10 1988”), then I can give you #1.`,
-          followUp: ["1988", "top 10 1988", "1956"],
-          domain: "music",
-          sessionPatch: canonicalPatch(session),
-        };
-      }
+    return {
+      reply:
+        `I don’t have a clean Top 10 list for ${y} on the loaded sources in this build yet${missingHint}. ` +
+        `I *can* still do a story moment or micro moment for ${y} if you want.`,
+      followUps: safeFollowUps([`story moment ${y}`, `micro moment ${y}`, "Another year"]),
+      domain: "music",
+      sessionPatch: canonicalPatch(session, {
+        activeMusicChart: normalizeChart(session.activeMusicChart),
+        lastMusicYear: y,
+        lastMusicChart: normalizeChart(session.activeMusicChart),
+      }),
+    };
+  }
 
-      // Resolve chart if the stored chart is stale/out-of-range (store-aware)
-      const resolved = resolveChartForYear(y, chart);
-      const chartUsed = resolved.chart;
+  // ---- TOP100 ----
+  if (cmd && cmd.kind === "top100") {
+    const impliedYear = toInt(cmd.year ?? session.lastMusicYear);
 
-      const line = getNumberOneLine(y, chartUsed);
-      if (!line) {
-        return {
-          reply:
-            `I can’t pull a clean #1 for ${y} on ${chartUsed} in this build yet. ` +
-            `Try “top 10 ${y}”, or ask for a story/micro moment.`,
-          followUp: [`top 10 ${y}`, `story moment ${y}`, `micro moment ${y}`],
-          domain: "music",
-          sessionPatch: canonicalPatch(session, {
-            activeMusicChart: chartUsed,
-            lastMusicYear: y,
-            lastMusicChart: chartUsed,
-          }),
-        };
-      }
-
+    if (!isYearInRange(impliedYear)) {
       return {
-        reply: `${line}\n\nWant a story moment, a micro moment, or another year?`,
-        followUp: [`story moment ${y}`, `micro moment ${y}`, "Another year"],
+        reply: `Give me a year between ${PUBLIC_MIN_YEAR} and ${PUBLIC_MAX_YEAR} (example: “top 100 1988”).`,
+        followUps: safeFollowUps(["1988", "top 100 1988", "top 10 1988"]),
+        domain: "music",
+        sessionPatch: canonicalPatch(session),
+      };
+    }
+
+    const y = impliedYear;
+
+    // Top100 is explicitly the Year-End Hot 100 list
+    const chart = YEAR_END_CHART;
+    const out = formatTopListWithFallbacks(y, chart, 100);
+
+    if (out && out.formatted) {
+      const used = out.chartUsed || chart;
+      return {
+        reply: `${out.formatted}\n\nWant the Top 10, #1, a story moment, or another year?`,
+        followUps: safeFollowUps([`top 10 ${y}`, "#1", `story moment ${y}`, "Another year"]),
+        domain: "music",
+        sessionPatch: canonicalPatch(session, {
+          activeMusicChart: used,
+          lastMusicYear: y,
+          lastMusicChart: used,
+        }),
+      };
+    }
+
+    return {
+      reply:
+        `I don’t have a full Year-End Hot 100 list for ${y} loaded in this build yet. ` +
+        `Try “top 10 ${y}”, “#1”, or a story/micro moment.`,
+      followUps: safeFollowUps([`top 10 ${y}`, "#1", `story moment ${y}`, `micro moment ${y}`]),
+      domain: "music",
+      sessionPatch: canonicalPatch(session, {
+        activeMusicChart: YEAR_END_CHART,
+        lastMusicYear: y,
+        lastMusicChart: YEAR_END_CHART,
+      }),
+    };
+  }
+
+  // ---- NUMBER1 ----
+  if (cmd && cmd.kind === "number1") {
+    const y = toInt(session.lastMusicYear);
+    const chart = normalizeChart(session.lastMusicChart || session.activeMusicChart);
+
+    if (!isYearInRange(y)) {
+      return {
+        reply: `Tell me a year first (example: “1988” or “top 10 1988”), then I can give you #1.`,
+        followUps: safeFollowUps(["1988", "top 10 1988", "1956"]),
+        domain: "music",
+        sessionPatch: canonicalPatch(session),
+      };
+    }
+
+    // If stored chart is Singles outside 50s, resolve away from it.
+    const resolved = resolveChartForYear(y, chart, { preferTop10Store: true });
+    const chartUsed = resolved.chart;
+
+    const line = getNumberOneLine(y, chartUsed);
+    if (!line) {
+      return {
+        reply:
+          `I can’t pull a clean #1 for ${y} on ${chartUsed} in this build yet. ` +
+          `Try “top 10 ${y}”, or ask for a story/micro moment.`,
+        followUps: safeFollowUps([`top 10 ${y}`, `story moment ${y}`, `micro moment ${y}`]),
         domain: "music",
         sessionPatch: canonicalPatch(session, {
           activeMusicChart: chartUsed,
@@ -1062,51 +1136,48 @@ function handleChat({ text, session }) {
       };
     }
 
-    if (cmd.kind === "story" || cmd.kind === "micro") {
-      const y = toInt(cmd.year);
-      if (!isYearInRange(y)) {
-        return {
-          reply: `Give me a year between ${PUBLIC_MIN_YEAR} and ${PUBLIC_MAX_YEAR} for a ${
-            cmd.kind === "micro" ? "micro moment" : "story moment"
-          }.`,
-          followUp: ["1957", "1988", "1999"],
-          domain: "music",
-          sessionPatch: canonicalPatch(session),
-        };
-      }
+    return {
+      reply: `${line}\n\nWant a story moment, a micro moment, or another year?`,
+      followUps: safeFollowUps([`story moment ${y}`, `micro moment ${y}`, "Another year"]),
+      domain: "music",
+      sessionPatch: canonicalPatch(session, {
+        activeMusicChart: chartUsed,
+        lastMusicYear: y,
+        lastMusicChart: chartUsed,
+      }),
+    };
+  }
 
-      // Resolve chart safely (store-aware; no singles dead-ends)
-      const choice = resolveChartForYear(y, session.activeMusicChart);
-      const chart = choice.chart;
-
-      const moment = getMomentOrFallback({
-        year: y,
-        chart,
-        kind: cmd.kind === "micro" ? "micro" : "story",
-      });
-
-      if (!moment) {
-        return {
-          reply:
-            `I can’t pull a clean ${cmd.kind === "micro" ? "micro" : "story"} moment for ${y} on ${chart} in this build yet. ` +
-            `Try “top 10 ${y}” or pick another year.`,
-          followUp: [`top 10 ${y}`, "#1", "Another year"],
-          domain: "music",
-          sessionPatch: canonicalPatch(session, {
-            activeMusicChart: chart,
-            lastMusicYear: y,
-            lastMusicChart: chart,
-          }),
-        };
-      }
-
+  // ---- STORY / MICRO ----
+  if (cmd && (cmd.kind === "story" || cmd.kind === "micro")) {
+    const y = toInt(cmd.year);
+    if (!isYearInRange(y)) {
       return {
-        reply: moment,
-        followUp: [
-          `top 10 ${y}`,
-          "#1",
-          y + 1 <= PUBLIC_MAX_YEAR ? String(y + 1) : "Another year",
-        ],
+        reply: `Give me a year between ${PUBLIC_MIN_YEAR} and ${PUBLIC_MAX_YEAR} for a ${
+          cmd.kind === "micro" ? "micro moment" : "story moment"
+        }.`,
+        followUps: safeFollowUps(["1957", "1988", "1999"]),
+        domain: "music",
+        sessionPatch: canonicalPatch(session),
+      };
+    }
+
+    // For moments, we do NOT force the Year-End Top 10 label; we resolve safely.
+    const choice = resolveChartForYear(y, session.activeMusicChart, { preferTop10Store: true });
+    const chart = choice.chart;
+
+    const moment = getMomentOrFallback({
+      year: y,
+      chart,
+      kind: cmd.kind === "micro" ? "micro" : "story",
+    });
+
+    if (!moment) {
+      return {
+        reply:
+          `I can’t pull a clean ${cmd.kind === "micro" ? "micro" : "story"} moment for ${y} on ${chart} in this build yet. ` +
+          `Try “top 10 ${y}” or pick another year.`,
+        followUps: safeFollowUps([`top 10 ${y}`, "#1", "Another year"]),
         domain: "music",
         sessionPatch: canonicalPatch(session, {
           activeMusicChart: chart,
@@ -1115,23 +1186,35 @@ function handleChat({ text, session }) {
         }),
       };
     }
+
+    return {
+      reply: moment,
+      followUps: safeFollowUps([`top 10 ${y}`, "#1", y + 1 <= PUBLIC_MAX_YEAR ? String(y + 1) : "Another year"]),
+      domain: "music",
+      sessionPatch: canonicalPatch(session, {
+        activeMusicChart: chart,
+        lastMusicYear: y,
+        lastMusicChart: chart,
+      }),
+    };
   }
 
   // Year-only input?
-  const y = toInt(msg);
-  if (isYearInRange(y)) {
-    // Resolve chart safely (store-aware)
-    const choice = resolveChartForYear(y, session.activeMusicChart);
+  const yOnly = toInt(msg);
+  if (isYearInRange(yOnly)) {
+    const y = yOnly;
+
+    // For bare-year, we try Top10 first (store-aware), but label correctly.
+    const choice = resolveChartForYear(y, session.activeMusicChart, { preferTop10Store: true });
     const chart = choice.chart;
 
-    // Prefer showing top10 if data exists; otherwise keep forward motion (offer story/micro)
     const out = formatTopListWithFallbacks(y, chart, 10);
 
     if (out && out.formatted) {
       const used = out.chartUsed || chart;
       return {
         reply: `${out.formatted}\n\nWant #1, a story moment, a micro moment, or another year?`,
-        followUp: ["#1", `story moment ${y}`, `micro moment ${y}`, "Another year"],
+        followUps: safeFollowUps(["#1", `story moment ${y}`, `micro moment ${y}`, "Another year"]),
         domain: "music",
         sessionPatch: canonicalPatch(session, {
           activeMusicChart: used,
@@ -1149,7 +1232,7 @@ function handleChat({ text, session }) {
       const reply = micro || story;
       return {
         reply,
-        followUp: [`top 10 ${y}`, "#1", "Another year"],
+        followUps: safeFollowUps([`top 10 ${y}`, "#1", "Another year"]),
         domain: "music",
         sessionPatch: canonicalPatch(session, {
           activeMusicChart: chart,
@@ -1160,15 +1243,13 @@ function handleChat({ text, session }) {
     }
 
     const missingHint =
-      STATS.moments > 0 || TOP10_STORE
-        ? ""
-        : " (No chart datasets are currently loaded on the server.)";
+      STATS.moments > 0 || TOP10_STORE ? "" : " (No chart datasets are currently loaded on the server.)";
 
     return {
       reply:
         `I don’t have chart rows loaded for ${y} in this build yet${missingHint}. ` +
-        `Pick a 1950s year for full lists, or ask for “story moment ${y}” / “micro moment ${y}” if your Moments layer covers it.`,
-      followUp: ["1956", `story moment ${y}`, `micro moment ${y}`],
+        `Try “top 10 ${y}”, or ask for “story moment ${y}” / “micro moment ${y}”.`,
+      followUps: safeFollowUps(["1956", `top 10 ${y}`, `story moment ${y}`, `micro moment ${y}`]),
       domain: "music",
       sessionPatch: canonicalPatch(session, {
         activeMusicChart: normalizeChart(session.activeMusicChart),
@@ -1180,16 +1261,16 @@ function handleChat({ text, session }) {
 
   if (/^music$/i.test(msg)) {
     return {
-      reply: `Alright—music. Give me a year (1950–2024), or say “top 10 1988”, “story moment 1988”, or “micro moment 1988”.`,
-      followUp: ["1956", "top 10 1988", "micro moment 1955"],
+      reply: `Alright—music. Give me a year (1950–2024), or say “top 10 1988”, “top 100 1988”, “story moment 1988”, or “micro moment 1988”.`,
+      followUps: safeFollowUps(["1956", "top 10 1988", "top 100 1988", "micro moment 1955"]),
       domain: "music",
       sessionPatch: canonicalPatch(session, { activeMusicChart: DEFAULT_CHART }),
     };
   }
 
   return {
-    reply: `Tell me a year (1950–2024), or say “top 10 1988”, “#1”, “story moment 1988”, or “micro moment 1988”.`,
-    followUp: ["1956", "top 10 1988", "story moment 1955"],
+    reply: `Tell me a year (1950–2024), or say “top 10 1988”, “top 100 1988”, “#1”, “story moment 1988”, or “micro moment 1988”.`,
+    followUps: safeFollowUps(["1956", "top 10 1988", "top 100 1988", "story moment 1955"]),
     domain: "music",
     sessionPatch: canonicalPatch(session),
   };
