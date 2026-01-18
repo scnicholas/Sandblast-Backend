@@ -8,26 +8,20 @@
  *  - NO index.js imports
  *  - returns { ok, reply, followUps, sessionPatch, cog, ... }
  *
- * v0.6f (BULLETPROOF: MODE FIX + LOOP-DAMP v2 + LANE OVERRIDE GUARD + YEAR-END SPLIT)
+ * v0.6g (BULLETPROOF: MUSIC LANE BRIDGE + SESSIONPATCH ALLOWLIST EXPAND + CONTENT SIG DAMPENER)
  *
- * FIXES / HARDENING:
- * ✅ Conversational-first UX:
- *    - Greetings/help/bye never route into music prompts unless user explicitly asked music
+ * CORE FIX:
+ * ✅ Music lane now calls Utils/musicKnowledge.js and returns REAL content.
+ * ✅ Prevents "Top 10 (1980)" label-only looping.
  *
- * ✅ Music mode pinning:
- *    - top10 != top100
- *    - top10 is "Top 10" (NOT Year-End Hot 100)
- *    - top100 is explicitly "Billboard Year-End Hot 100"
- *    - Never enters top100 unless user explicitly asks top 100 / hot 100 / year-end hot 100
- *
- * ✅ Loop dampeners:
- *    - Per-session recentSig window to suppress repeated same mode+year prompts in tight loops
- *    - Does NOT poison state by writing sig for suppressed turns
- *
- * ✅ Sanitization:
- *    - followUps validated/capped
- *    - sessionPatch allowlist + proto-safe
+ * HARDENING:
+ * ✅ SessionPatch allowlist expanded for music continuity + loop dampeners
+ * ✅ Content-signature loop dampener (reply+chips hash)
+ * ✅ top10 != top100; never enters top100 unless explicit ask
+ * ✅ Greetings/help/bye remain conversational-first
  */
+
+const crypto = require("crypto");
 
 let generateNyxReply = null;
 try {
@@ -58,6 +52,15 @@ try {
   if (!packets || typeof packets.handleChat !== "function") packets = null;
 } catch (_) {
   packets = null;
+}
+
+// ✅ NEW: music module bridge
+let musicKnowledge = null;
+try {
+  musicKnowledge = require("./musicKnowledge");
+  if (!musicKnowledge || typeof musicKnowledge.handleChat !== "function") musicKnowledge = null;
+} catch (_) {
+  musicKnowledge = null;
 }
 
 /* =========================
@@ -174,13 +177,26 @@ function safeFollowUps(list) {
   return out;
 }
 
+function sha1(s) {
+  return crypto.createHash("sha1").update(String(s)).digest("hex");
+}
+
 /**
  * SessionPatch apply (allowlist + proto safe)
+ * ✅ Expanded to allow music continuity + loop dampeners.
  */
 function applySessionPatch(session, patch) {
   if (!session || !patch || typeof patch !== "object") return;
 
-  const ALLOW = new Set(["lane", "lastMusicYear", "activeMusicMode", "voiceMode", "lastIntentSig", "lastIntentAt"]);
+  const ALLOW = new Set([
+    // core
+    "lane", "voiceMode",
+    // music continuity
+    "lastMusicYear", "activeMusicMode", "activeMusicChart", "lastMusicChart",
+    // loop dampeners
+    "lastIntentSig", "lastIntentAt", "__musicLastSig",
+  ]);
+
   for (const k of Object.keys(patch)) {
     if (!ALLOW.has(k)) continue;
     if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
@@ -320,160 +336,6 @@ async function callLaneHandler(lane, { text, session, visitorId, debug }) {
 }
 
 /* =========================
-   Music deterministic base
-========================= */
-
-function baseForMode(mode, year) {
-  if (!year) return "Tell me a year (1950–2024).";
-
-  switch (mode) {
-    case "story":
-      return `Story moment (${year})`;
-    case "micro":
-      return `Micro moment (${year})`;
-    case "number1":
-      return `#1 song (${year})`;
-    case "top100":
-      return `Billboard Year-End Hot 100 (${year})`;
-    case "top10":
-    default:
-      // ✅ FIX: top10 must NOT say Year-End Hot 100
-      return `Top 10 (${year})`;
-  }
-}
-
-function buildFollowUpsForYear(year) {
-  if (!year) {
-    return safeFollowUps([
-      { label: "1988", send: "1988" },
-      { label: "Top 10", send: "top 10 1988" },
-      { label: "Story", send: "story moment 1988" },
-      { label: "Micro", send: "micro moment 1988" },
-      { label: "#1", send: "#1 1988" },
-    ]);
-  }
-
-  return safeFollowUps([
-    { label: `Top 10 ${year}`, send: `top 10 ${year}` },
-    { label: `Story ${year}`, send: `story moment ${year}` },
-    { label: `Micro ${year}`, send: `micro moment ${year}` },
-    { label: `#1 ${year}`, send: `#1 ${year}` },
-    { label: `Top 100 ${year}`, send: `top 100 ${year}` }, // explicit available
-    { label: "Another year", send: "another year" },
-    { label: "Next year", send: "next year" },
-  ]);
-}
-
-function makeIntentSig(lane, mode, year) {
-  return `${String(lane || "general")}::${String(mode || "")}::${String(year || "")}`;
-}
-
-function baseFallbackReply(text, session) {
-  const cleanText = String(text || "").trim();
-  const s = session || {};
-
-  const sYear = clampYear(s.lastMusicYear);
-  const sMode = normalizeMode(s.activeMusicMode) || "top10";
-
-  const cls = classifyUserIntent(cleanText);
-  const yFromText = extractYear(cleanText);
-  const explicitAsk = hasExplicitYearOrModeAsk(cleanText);
-  const wantsTop100 = explicitTop100Ask(cleanText);
-
-  // NAV
-  if (cls.intent === "nav" && sYear) {
-    if (cls.nav === "next_year") {
-      const next = clampYear(sYear + 1);
-      if (next) {
-        const patch = { lane: "music", lastMusicYear: next, activeMusicMode: sMode };
-        return {
-          lane: "music",
-          year: next,
-          mode: sMode,
-          sessionPatch: patch,
-          baseMessage: baseForMode(sMode, next),
-          followUps: buildFollowUpsForYear(next),
-        };
-      }
-    }
-
-    return {
-      lane: "music",
-      year: null,
-      mode: null,
-      sessionPatch: { lane: "music", activeMusicMode: sMode },
-      baseMessage: "Tell me a year (1950–2024).",
-      followUps: buildFollowUpsForYear(null),
-    };
-  }
-
-  // YEAR ONLY
-  if (cls.intent === "year_only") {
-    const y = yFromText;
-    if (y) {
-      const mode = wantsTop100 ? "top100" : sMode;
-      const patch = { lane: "music", lastMusicYear: y, activeMusicMode: mode };
-      return { lane: "music", year: y, mode, sessionPatch: patch, baseMessage: baseForMode(mode, y), followUps: buildFollowUpsForYear(y) };
-    }
-  }
-
-  // MODE
-  if (cls.intent === "mode") {
-    const requested = normalizeMode(cls.mode) || "top10";
-    const mode = requested === "top100" ? (wantsTop100 ? "top100" : "top10") : requested;
-
-    const year = yFromText || sYear || null;
-    if (year) {
-      const patch = { lane: "music", lastMusicYear: year, activeMusicMode: mode };
-      return { lane: "music", year, mode, sessionPatch: patch, baseMessage: baseForMode(mode, year), followUps: buildFollowUpsForYear(year) };
-    }
-
-    return {
-      lane: "music",
-      year: null,
-      mode,
-      sessionPatch: { lane: "music", activeMusicMode: mode },
-      baseMessage: "Tell me a year (1950–2024).",
-      followUps: buildFollowUpsForYear(null),
-    };
-  }
-
-  // Year mentioned
-  if (yFromText) {
-    const mode = wantsTop100 ? "top100" : sMode;
-    const patch = { lane: "music", lastMusicYear: yFromText, activeMusicMode: mode };
-    return { lane: "music", year: yFromText, mode, sessionPatch: patch, baseMessage: baseForMode(mode, yFromText), followUps: buildFollowUpsForYear(yFromText) };
-  }
-
-  // Stored year but no explicit ask → don't force it
-  if (sYear && !explicitAsk) {
-    return {
-      lane: "music",
-      year: null,
-      mode: null,
-      sessionPatch: null,
-      baseMessage: "Tell me a year (1950–2024), or say “top 10 1988”, “story moment 1988”, “micro moment 1988”, or “#1 1988”.",
-      followUps: buildFollowUpsForYear(null),
-    };
-  }
-
-  // Explicit ask but no year
-  if (sYear && explicitAsk) {
-    const mode = wantsTop100 ? "top100" : sMode;
-    return {
-      lane: "music",
-      year: sYear,
-      mode,
-      sessionPatch: null,
-      baseMessage: `Want to continue with ${sYear}? Say “top 10 ${sYear}”, “story moment ${sYear}”, “micro moment ${sYear}”, or “#1 ${sYear}”.`,
-      followUps: buildFollowUpsForYear(sYear),
-    };
-  }
-
-  return { lane: "music", year: null, mode: null, sessionPatch: null, baseMessage: "Tell me a year (1950–2024).", followUps: buildFollowUpsForYear(null) };
-}
-
-/* =========================
    Packets helpers
 ========================= */
 
@@ -555,6 +417,34 @@ async function tryNyxPolish({ domain, intent, userMessage, baseMessage, visitorI
 }
 
 /* =========================
+   MUSIC BRIDGE (authoritative)
+========================= */
+
+function normalizeMusicOutput(raw) {
+  // Supports both old and new shapes: followUps[] (strings) OR chips[] objects
+  const reply = String(raw && raw.reply ? raw.reply : "").trim();
+
+  let followUps = [];
+  if (Array.isArray(raw && raw.followUps)) {
+    // expected in v2.75 musicKnowledge: array of strings
+    followUps = raw.followUps.map((x) => ({ label: String(x).slice(0, 48), send: String(x).slice(0, 80) }));
+  } else if (Array.isArray(raw && raw.chips)) {
+    followUps = safeFollowUps(raw.chips);
+  } else {
+    followUps = [];
+  }
+
+  const sessionPatch = raw && raw.sessionPatch && typeof raw.sessionPatch === "object" ? raw.sessionPatch : null;
+
+  return { reply, followUps: safeFollowUps(followUps), sessionPatch };
+}
+
+function musicContentSig(reply, followUps) {
+  const s = `${String(reply || "")}||${JSON.stringify(followUps || [])}`;
+  return sha1(s);
+}
+
+/* =========================
    Public API
 ========================= */
 
@@ -581,8 +471,6 @@ async function handleChat({ text, session, visitorId, now, debug }) {
 
   let lane = "";
   const lpLane = laneDecision && laneDecision.lane ? String(laneDecision.lane).trim().toLowerCase() : "";
-
-  // Only allow lanePolicy to override greet/help/bye if it explicitly sets force:true
   const lpForce = !!(laneDecision && laneDecision.force === true);
 
   if (lpLane && (lpForce || (!isGreetingLike(cleanText) && !isHelpLike(cleanText) && !isByeLike(cleanText)))) {
@@ -592,7 +480,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
     else lane = explicitMusicAsk || (hasStoredMusicContext && isMusicish) ? "music" : "general";
   }
 
-  // 2) packets
+  // 2) packets (greetings/help/bye)
   if (packets && allowPacketIntercept({ lane, session: s, text: cleanText })) {
     const p = await packets.handleChat({ text: cleanText, session: s, visitorId, debug: !!debug });
     const pReply = String(p && p.reply ? p.reply : "").trim();
@@ -615,7 +503,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
 
       if (debug) {
         out.baseMessage = replyVar;
-        out._engine = { version: "chatEngine v0.6f", usedPackets: true, hasLanePolicy: !!resolveLane, laneDecision: laneDecision || null, chosenLane: lane, explicitMusicAsk, hasStoredMusicContext, isMusicish, hasNyxPolish: !!generateNyxReply, quotaCooling: quotaCooling(Date.now()) };
+        out._engine = { version: "chatEngine v0.6g", usedPackets: true, hasMusicKnowledge: !!musicKnowledge, hasLanePolicy: !!resolveLane, laneDecision: laneDecision || null, chosenLane: lane, explicitMusicAsk, hasStoredMusicContext, isMusicish, hasNyxPolish: !!generateNyxReply, quotaCooling: quotaCooling(Date.now()) };
       }
       return out;
     }
@@ -638,7 +526,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
 
     if (debug) {
       out.baseMessage = base.baseMessage;
-      out._engine = { version: "chatEngine v0.6f", usedPackets: false, hasLanePolicy: !!resolveLane, laneDecision: laneDecision || null, chosenLane: "general", explicitMusicAsk, hasStoredMusicContext, isMusicish, hasNyxPolish: !!generateNyxReply };
+      out._engine = { version: "chatEngine v0.6g", usedPackets: false, hasMusicKnowledge: !!musicKnowledge, hasLanePolicy: !!resolveLane, laneDecision: laneDecision || null, chosenLane: "general", explicitMusicAsk, hasStoredMusicContext, isMusicish, hasNyxPolish: !!generateNyxReply };
     }
     return out;
   }
@@ -669,7 +557,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
 
     if (debug) {
       out.baseMessage = base.baseMessage;
-      out._engine = { version: "chatEngine v0.6f", hasLanePolicy: !!resolveLane, laneDecision: laneDecision || null, chosenLane: lane, laneCallOk: call.ok, laneCallFailReason: call.ok ? null : call.reason, hasNyxPolish: !!generateNyxReply };
+      out._engine = { version: "chatEngine v0.6g", hasMusicKnowledge: !!musicKnowledge, hasLanePolicy: !!resolveLane, laneDecision: laneDecision || null, chosenLane: lane, laneCallOk: call.ok, laneCallFailReason: call.ok ? null : call.reason, hasNyxPolish: !!generateNyxReply };
     }
     return out;
   }
@@ -684,52 +572,124 @@ async function handleChat({ text, session, visitorId, now, debug }) {
     s.activeMusicMode = "top10";
   }
 
-  const base = baseFallbackReply(cleanText, s);
+  // ✅ AUTHORITATIVE MUSIC CONTENT (if available)
+  if (musicKnowledge) {
+    try {
+      const mRaw = musicKnowledge.handleChat({ text: cleanText, session: s, visitorId, debug: !!debug });
+      const m = normalizeMusicOutput(mRaw);
 
-  if (base.sessionPatch) applySessionPatch(s, base.sessionPatch);
+      if (m.sessionPatch) applySessionPatch(s, m.sessionPatch);
 
-  // loop dampener v2: suppress same sig in tight window WITHOUT poisoning state
-  const sig = makeIntentSig("music", base.mode || "", base.year || "");
-  const lastSig = String(s.lastIntentSig || "");
-  const lastAt = Number(s.lastIntentAt || 0);
-  const nowT = Number.isFinite(now) ? Number(now) : Date.now();
-  const within = Number.isFinite(lastAt) && lastAt > 0 && (nowT - lastAt) >= 0 && (nowT - lastAt) <= 1800;
+      // content signature dampener (prevents UI spam loops if resend happens)
+      const sig = musicContentSig(m.reply, m.followUps);
+      const lastSig = String(s.__musicLastContentSig || "");
+      const nowT = Number.isFinite(now) ? Number(now) : Date.now();
+      const lastAt = Number(s.__musicLastContentAt || 0);
+      const within = Number.isFinite(lastAt) && lastAt > 0 && (nowT - lastAt) >= 0 && (nowT - lastAt) <= 1800;
 
-  let suppressed = false;
-  if (lastSig && sig === lastSig && within && !explicitMusicAsk) {
-    suppressed = true;
+      let reply = m.reply;
+      let followUps = m.followUps;
+
+      if (sig && lastSig && sig === lastSig && within && !explicitMusicAsk) {
+        reply = "Got it. Tell me another year (1950–2024), or say “#1”, “story moment”, or “micro moment”.";
+        followUps = safeFollowUps([
+          { label: "Another year", send: "another year" },
+          { label: "#1", send: "#1" },
+          { label: "Story", send: "story moment" },
+          { label: "Micro", send: "micro moment" },
+        ]);
+      } else {
+        // only commit content sig when not suppressed
+        applySessionPatch(s, { __musicLastContentSig: sig, __musicLastContentAt: nowT });
+      }
+
+      // Optional polish (keep it soft, not rigid)
+      const polished = await tryNyxPolish({
+        domain: "radio",
+        intent: "music",
+        userMessage: cleanText,
+        baseMessage: reply,
+        visitorId: visitorId || "Guest",
+      });
+      if (polished) reply = polished;
+
+      followUps = stripEchoFollowUps(followUps || [], cleanText);
+
+      const y = clampYear(s.lastMusicYear) || null;
+      const mode = normalizeMode(s.activeMusicMode) || null;
+
+      const cog = cogFromBase({ lane: "music", year: y, mode, baseMessage: reply });
+
+      const out = {
+        ok: true,
+        contractVersion: "1",
+        lane: "music",
+        year: y,
+        mode,
+        voiceMode: s.voiceMode || "standard",
+        reply,
+        followUps,
+        sessionPatch: m.sessionPatch || null,
+        cog,
+      };
+
+      if (debug) {
+        out.baseMessage = m.reply;
+        out._engine = {
+          version: "chatEngine v0.6g",
+          chosenLane: "music",
+          usedMusicKnowledge: true,
+          musicReplyLen: (m.reply || "").length,
+          wantsTop100Now,
+          contentSig: sig,
+          lastContentSig: lastSig,
+        };
+      }
+
+      // If musicKnowledge gave us *anything* usable, return it.
+      if (reply) return out;
+      // else fall through to deterministic base below
+    } catch (e) {
+      // fall through to deterministic base
+      if (debug) {
+        // eslint-disable-next-line no-console
+        console.warn("[chatEngine] musicKnowledge failed:", e && e.message ? e.message : e);
+      }
+    }
   }
 
-  let reply = base.baseMessage;
+  // Fallback: deterministic base prompts (should be rare now)
+  const baseMessage = "Tell me a year (1950–2024), or say “top 10 1988”, “story moment 1988”, “micro moment 1988”, or “#1 1988”.";
+  let reply = baseMessage;
 
-  if (suppressed) {
-    // don't repeat the same base; ask for a clarifying input
-    reply = "I’m here. Give me a year (1950–2024), or say “top 10 1988”, “story moment 1988”, “micro moment 1988”, or “#1 1988”.";
-  } else {
-    // commit sig only when not suppressed
-    applySessionPatch(s, { lastIntentSig: sig, lastIntentAt: nowT });
-  }
-
-  // packets ask-year template
-  if (!base.year && packets) {
+  // packets ask-year template (optional)
+  if (packets) {
     try {
       const p = await packets.handleChat({ text: "music __ask_year__", session: s, visitorId, debug: !!debug });
       if (p && p.reply) reply = String(p.reply).trim() || reply;
     } catch (_) {}
   }
 
-  const polished = await tryNyxPolish({ domain: "radio", intent: base.mode || "music", userMessage: cleanText, baseMessage: reply, visitorId: visitorId || "Guest" });
+  const polished = await tryNyxPolish({ domain: "radio", intent: "music", userMessage: cleanText, baseMessage: reply, visitorId: visitorId || "Guest" });
   if (polished) reply = polished;
 
-  let followUps = stripEchoFollowUps(base.followUps || [], cleanText);
+  const followUps = stripEchoFollowUps(
+    safeFollowUps([
+      { label: "1956", send: "1956" },
+      { label: "Top 10 1988", send: "top 10 1988" },
+      { label: "Story 1988", send: "story moment 1988" },
+      { label: "Micro 1988", send: "micro moment 1988" },
+    ]),
+    cleanText
+  );
 
-  const cog = cogFromBase({ ...base, baseMessage: reply });
+  const cog = cogFromBase({ lane: "music", year: yKnown || null, mode: normalizeMode(s.activeMusicMode) || null, baseMessage: reply });
 
-  const out = { ok: true, contractVersion: "1", lane: base.lane, year: base.year, mode: base.mode, voiceMode: s.voiceMode || "standard", reply, followUps, sessionPatch: base.sessionPatch || null, cog };
+  const out = { ok: true, contractVersion: "1", lane: "music", year: yKnown || null, mode: normalizeMode(s.activeMusicMode) || null, voiceMode: s.voiceMode || "standard", reply, followUps, sessionPatch: null, cog };
 
   if (debug) {
-    out.baseMessage = base.baseMessage;
-    out._engine = { version: "chatEngine v0.6f", hasPackets: !!packets, hasLanePolicy: !!resolveLane, laneDecision: laneDecision || null, chosenLane: "music", explicitMusicAsk, hasStoredMusicContext, isMusicish, wantsTop100Now, intentSig: sig, lastIntentSig: lastSig, suppressed, quotaCooling: quotaCooling(Date.now()) };
+    out.baseMessage = baseMessage;
+    out._engine = { version: "chatEngine v0.6g", chosenLane: "music", usedMusicKnowledge: false, reason: "musicKnowledge_missing_or_empty" };
   }
 
   return out;
