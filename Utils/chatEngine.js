@@ -13,6 +13,7 @@
  *  ✅ Nyx Intro Script V2 (warmer + clearer + optional name hook)
  *  ✅ Depth Dial ("Fast" / "Deep") session-safe
  *  ✅ Micro-bridge layering when switching lanes (gentle transitions)
+ *      - Option D wording: “headline vs whole thread” / “short version vs full story”
  *
  * Preserves:
  *  ✅ Roku Lane bridge via Utils/rokuLane.js (optional)
@@ -268,13 +269,13 @@ function isDepthDial(text) {
 
 function depthDialReply(pref) {
   if (pref === "deep") {
-    return "Perfect. I’ll slow it down and add context as we go. What are we doing first—music, TV, or just talking?";
+    return "Perfect. I’ll give you the full story and keep the thread clean. Where do we start—music, TV, or just talking?";
   }
-  return "Got it. Fast and clean. Point me at a year, a show, or your goal.";
+  return "Got it. I’ll keep it crisp. Point me at a year, a show, or your goal.";
 }
 
 // ----------------------------
-// Micro-Bridge Layering
+// Micro-Bridge Layering (Option D wording)
 // ----------------------------
 function needsBridge(sess, lane) {
   if (!sess) return false;
@@ -288,8 +289,8 @@ function needsBridge(sess, lane) {
 
 function bridgeLine(sess) {
   const pref = (sess && sess.depthPreference) || "fast";
-  if (pref === "deep") return "Before we jump—do you want the quick version, or should we go a little deeper?";
-  return "Got it. Want this fast and clean, or a deeper guided path?";
+  if (pref === "deep") return "Do you want the short version… or the full story?";
+  return "Do you want the headline… or the whole thread?";
 }
 
 // ----------------------------
@@ -553,6 +554,7 @@ async function chatEngine(inputText, session) {
   // Micro-bridge layering (only when lane changes)
   if (needsBridge(sess, lane)) {
     reply = `${reply}\n\n${bridgeLine(sess)}`;
+    // keep chips simple but consistent with depth dial
     followUps = dedupeStrings([...followUps, "Fast", "Deep"], 10).slice(0, 4);
   }
 
