@@ -8,17 +8,19 @@
  *  - NO index.js imports
  *  - returns { ok, reply, followUps, sessionPatch, cog, requestId }
  *
- * v0.6o (NAME CAPTURE + SPARSITY GATE + INTRO V2 HOOK)
+ * v0.6p (ADVANCEMENT ENGINE V1 + ONE-QUESTION RULE)
  * Adds:
- *  ✅ Session-safe name capture:
- *      - “I’m ___”, “I am ___”, “my name is ___”, “call me ___”
- *      - Stores session.userName (allowlisted)
- *  ✅ Name sparsity gate:
- *      - Uses name at most once every N turns (default 12)
- *      - Never prefixes with “Alright, <name> …”
- *  ✅ Intro V2 still invites name, but now it actually works
+ *  ✅ Advancement Engine v1:
+ *      - If user input is NOT direct intent and reply does NOT already ask a question,
+ *        append a single forward-driving line + refresh chips (lane-aware).
+ *      - Deterministic, dampened, and respects your Elasticity engine.
+ *  ✅ One-question rule:
+ *      - Avoids stacking multiple questions in one reply.
+ *  ✅ Lane-aware advancement packs:
+ *      - music / roku / schedule / radio / tv / general
  *
  * Preserves:
+ *  ✅ Name capture + sparsity gate
  *  ✅ Intro V2 + Depth Dial + Micro-Bridge Layering
  *  ✅ Roku Lane bridge (optional)
  *  ✅ musicLane shape normalization + lanePatch merge
@@ -264,7 +266,6 @@ function isDepthDial(text) {
 }
 
 function depthDialReply(pref) {
-  // We keep your existing copy here; you can adjust later.
   if (pref === "deep") {
     return "Perfect. I’ll slow it down and add context as we go. What are we doing first—music, TV, or just talking?";
   }
@@ -298,32 +299,22 @@ function extractNameFromText(text) {
   const raw = String(text || "").trim();
   if (!raw) return null;
 
-  // Basic patterns: I’m X / I am X / my name is X / call me X
   const m =
     raw.match(/^\s*(?:i'?m|i\s+am|my\s+name\s+is|call\s+me)\s+(.+?)\s*$/i);
 
   if (!m || !m[1]) return null;
 
   let name = m[1].trim();
-
-  // Strip common trailing punctuation
   name = name.replace(/[.!?,;:]+$/g, "").trim();
 
-  // Allow 1–2 words; letters, apostrophes, hyphens only
-  // Examples: Mac, Sean, Sean Nicholas, O'Neil, Mary-Jane
   if (!/^[A-Za-z][A-Za-z' -]{0,19}$/.test(name)) return null;
 
-  // Collapse spaces
   name = name.replace(/\s+/g, " ").trim();
 
-  // Limit to 2 words max
   const parts = name.split(" ").filter(Boolean);
   if (parts.length > 2) return null;
 
-  // Title-case each part
   name = parts.map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join(" ");
-
-  // Reject if too short after normalization
   if (name.length < 2) return null;
 
   return name;
@@ -334,8 +325,7 @@ function shouldUseName(sess, turnsNow) {
   if (!name) return false;
 
   const lastUse = Number(sess.lastNameUseTurn || 0);
-  const gap = 12; // ✅ sparsity gate: once every 12 turns max
-
+  const gap = 12; // once every 12 turns max
   return (turnsNow - lastUse) >= gap;
 }
 
@@ -345,9 +335,94 @@ function maybePrependName(sess, turnsNow, reply) {
 
   if (!shouldUseName(sess, turnsNow)) return { reply, used: false };
 
-  // Never do “Alright, Name …”. Keep it light and not constant.
+  // Keep it light; never "Alright, Name"
   const prefix = `Okay, ${name}. `;
   return { reply: `${prefix}${reply}`, used: true };
+}
+
+// ----------------------------
+// ADVANCEMENT ENGINE V1
+// ----------------------------
+function replyHasQuestion(reply) {
+  const r = String(reply || "").trim();
+  if (!r) return false;
+  // If the last ~220 chars contain a question mark, treat as already asking.
+  const tail = r.slice(-220);
+  return tail.includes("?");
+}
+
+function advancePack(lane, sess) {
+  const s = sess || {};
+  const y = s.lastMusicYear || s.year || s.lastYear || null;
+
+  if (lane === "music") {
+    if (y && /^\d{4}$/.test(String(y))) {
+      const yy = parseInt(String(y), 10);
+      return {
+        line: `Want the **Top 10**, a **story moment**, or a **micro moment** for ${yy}?`,
+        chips: [`Top 10 ${yy}`, `Story moment ${yy}`, `Micro moment ${yy}`, "Pick a year"]
+      };
+    }
+    return {
+      line: "Give me a year (1950–2024) and I’ll take you straight in.",
+      chips: ["1988", "1956", "Top 10 1988", "Pick a year"]
+    };
+  }
+
+  if (lane === "roku") {
+    return {
+      line: "Do you want **Live linear** (lean back) or **VOD** (pick a show)?",
+      chips: ["Live linear", "VOD", "Schedule", "Open Roku"]
+    };
+  }
+
+  if (lane === "schedule") {
+    return {
+      line: "Tell me your city (or timezone) and I’ll translate everything to your local time.",
+      chips: ["Toronto", "London", "New York", "What’s playing now"]
+    };
+  }
+
+  if (lane === "radio") {
+    return {
+      line: "Want me to open the stream, or guide you to an era first?",
+      chips: ["Open radio", "Pick a year", "What’s playing now", "Just talk"]
+    };
+  }
+
+  if (lane === "tv") {
+    return {
+      line: "Do you want **Live linear** or **VOD**?",
+      chips: ["Live linear", "VOD", "Show me the Roku path", "What’s playing now"]
+    };
+  }
+
+  // general
+  return {
+    line: "Point me at music, Roku/TV, schedule—or tell me what you’re trying to do today.",
+    chips: ["Pick a year", "Show me the Roku path", "What’s playing now", "Just talk"]
+  };
+}
+
+function applyAdvancement({ inputText, reply, followUps, lane, sess }) {
+  const t = normalizeText(inputText);
+
+  // If user is being explicit, don't layer extra push.
+  if (isDirectIntent(t)) return { reply, followUps };
+
+  // If reply already asks something, do not add another question.
+  if (replyHasQuestion(reply)) return { reply, followUps };
+
+  const pack = advancePack(lane, sess);
+
+  // Add a single forward-driving line.
+  const outReply = `${String(reply || "").trim()}\n\n${pack.line}`.trim();
+
+  // Refresh chips: prefer pack, but keep any existing useful chips.
+  const merged = [...safeArray(followUps), ...safeArray(pack.chips)];
+  const outChips = dedupeStrings(merged, 10).slice(0, 4);
+
+  return { reply: outReply, followUps: outChips };
 }
 
 // ----------------------------
@@ -493,7 +568,7 @@ async function chatEngine(inputText, session) {
   const text = String(inputText || "");
   const sess = session && typeof session === "object" ? session : {};
 
-  // Name capture intercept (deterministic, before anything else)
+  // Name capture intercept
   const maybeName = extractNameFromText(text);
   if (maybeName) {
     const reply = `Nice to meet you, ${maybeName}. What do you feel like right now: a specific year, a surprise, or just talking?`;
@@ -503,7 +578,7 @@ async function chatEngine(inputText, session) {
       lastInText: text,
       lastInAt: nowMs(),
       userName: maybeName,
-      lastNameUseTurn: Number(sess.turns || 0), // counts as a name use
+      lastNameUseTurn: Number(sess.turns || 0),
       recentTopic: "name:capture"
     });
 
@@ -517,7 +592,7 @@ async function chatEngine(inputText, session) {
     };
   }
 
-  // Depth dial intercept (deterministic, no lane needed)
+  // Depth dial intercept
   if (isDepthDial(text)) {
     const pref = normalizeText(text);
     const reply = depthDialReply(pref);
@@ -612,21 +687,21 @@ async function chatEngine(inputText, session) {
       followUps = normalizeFollowUpsFromLane(r);
       lanePatch = filterSessionPatch(r && r.sessionPatch ? r.sessionPatch : null);
     } catch (_) {
-      reply = "Roku routing is warming up. Do you want **Live linear** or **VOD**?";
-      followUps = ["Live linear", "VOD", "Open TV hub", "What’s playing now"];
+      reply = "Roku routing is warming up.";
+      followUps = ["Live linear", "VOD", "Schedule", "Open Roku"];
       lanePatch = null;
     }
   } else if (lane === "radio") {
     reply = "Want to jump into the radio stream now, or should I guide you to a specific era first?";
     followUps = ["Open radio", "Pick a year", "What’s playing now", "Just talk"];
   } else if (lane === "tv") {
-    reply = "Sandblast TV is coming in two flavors: **Live linear** and **VOD**. Which experience do you want?";
+    reply = "Sandblast TV is coming in two flavors: **Live linear** and **VOD**.";
     followUps = ["Live linear", "VOD", "Show me the Roku path", "What’s playing now"];
   } else if (lane === "schedule") {
-    reply = "Schedule mode — tell me your city (or timezone) and I’ll translate the programming to your local time.";
-    followUps = ["Toronto", "London", "What’s playing now", "Show me the Roku path"];
+    reply = "Schedule mode — I can translate programming to your local time.";
+    followUps = ["Toronto", "London", "New York", "What’s playing now"];
   } else {
-    reply = "I’m with you. Tell me what you want: music, Roku/TV, schedule, or just a conversation.";
+    reply = "I’m with you.";
     followUps = ["Pick a year", "Show me the Roku path", "What’s playing now", "Just talk"];
   }
 
@@ -634,6 +709,13 @@ async function chatEngine(inputText, session) {
   if (needsBridge(sess, lane)) {
     reply = `${reply}\n\n${bridgeLine(sess)}`;
     followUps = dedupeStrings([...followUps, "Fast", "Deep"], 10).slice(0, 4);
+  }
+
+  // ✅ Advancement Engine v1 (before elasticity)
+  {
+    const adv = applyAdvancement({ inputText: text, reply, followUps, lane, sess });
+    reply = adv.reply;
+    followUps = adv.followUps;
   }
 
   // Telemetry
