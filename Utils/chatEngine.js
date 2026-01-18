@@ -8,17 +8,18 @@
  *  - NO index.js imports
  *  - returns { ok, reply, followUps, sessionPatch, cog, requestId }
  *
- * v0.6k (INTRO + ELASTICITY + BULLETPROOF HARDENING)
+ * v0.6l (MUSICLANE SHAPE COMPAT + PATCH MERGE)
  * Adds:
- *  ✅ Nyx Intro Script V1 (first-contact, welcoming, waits)
- *  ✅ Conversational Elasticity Engine (reflection + pivot forks; dampened)
+ *  ✅ musicLane followUps normalization (strings <-> chip objects)
+ *  ✅ merges lane sessionPatch (filtered) into engine patch
  *
  * Preserves:
- *  ✅ Music lane bridge via Utils/musicLane.js (real content)
- *  ✅ Input loop guard (identical inbound in window -> cached output)
- *  ✅ Content signature dampener (reply+chips hash)
- *  ✅ SessionPatch allowlist (no poison keys)
- *  ✅ Phase3 continuity overlay (consult-only, sprinkle-safe)
+ *  ✅ Nyx Intro Script V1
+ *  ✅ Conversational Elasticity Engine
+ *  ✅ Input loop guard
+ *  ✅ Content signature dampener
+ *  ✅ SessionPatch allowlist
+ *  ✅ Phase3 continuity overlay (consult-only)
  */
 
 const crypto = require("crypto");
@@ -36,6 +37,10 @@ try {
   const mod = require("./musicLane");
   if (typeof mod === "function") musicLane = mod;
   else if (mod && typeof mod.musicLane === "function") musicLane = mod.musicLane;
+  else if (mod && typeof mod.handleChat === "function") {
+    // handleChat style: ({text, session}) -> {reply, followUpsStrings, followUps, sessionPatch}
+    musicLane = async (text, session) => mod.handleChat({ text, session });
+  }
 } catch (_) { /* optional */ }
 
 // ----------------------------
@@ -44,7 +49,6 @@ try {
 function nowMs() { return Date.now(); }
 
 function rid() {
-  // short request id
   return crypto.randomBytes(6).toString("hex");
 }
 
@@ -66,6 +70,52 @@ function safeArray(a) {
 
 function hashSig(s) {
   return crypto.createHash("sha256").update(String(s || "")).digest("hex").slice(0, 16);
+}
+
+function dedupeStrings(list, max = 10) {
+  const out = [];
+  const seen = new Set();
+  for (const x of safeArray(list)) {
+    const s = String(x || "").replace(/\s+/g, " ").trim();
+    if (!s) continue;
+    const k = s.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(s);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+function chipsToStrings(chips) {
+  // chips: [{label,send}] -> use send if present else label
+  const out = [];
+  for (const c of safeArray(chips)) {
+    if (!c) continue;
+    const send = (c && typeof c === "object" && (c.send || c.label)) ? (c.send || c.label) : null;
+    if (send) out.push(String(send));
+  }
+  return dedupeStrings(out, 10);
+}
+
+function normalizeFollowUpsFromLane(res) {
+  // Goal: return followUps as string[]
+  if (!res || typeof res !== "object") return [];
+
+  // Most preferred: followUpsStrings (explicit)
+  if (Array.isArray(res.followUpsStrings)) return dedupeStrings(res.followUpsStrings, 10);
+
+  // Common: followUps: string[]
+  if (Array.isArray(res.followUps) && (res.followUps.length === 0 || typeof res.followUps[0] === "string")) {
+    return dedupeStrings(res.followUps, 10);
+  }
+
+  // Chip objects
+  if (Array.isArray(res.followUps) && res.followUps.length > 0 && typeof res.followUps[0] === "object") {
+    return chipsToStrings(res.followUps);
+  }
+
+  return [];
 }
 
 // ----------------------------
@@ -90,7 +140,10 @@ const SESSION_ALLOW = new Set([
 
   // lane intent continuity (safe)
   "pendingLane", "pendingMode", "pendingYear",
-  "recentIntent", "recentTopic"
+  "recentIntent", "recentTopic",
+
+  // music continuity (safe, from musicLane)
+  "activeMusicMode", "lastMusicYear", "year", "mode"
 ]);
 
 function filterSessionPatch(patch) {
@@ -111,10 +164,9 @@ function shouldReturnCachedForRepeat(session, userText) {
 
   const lastT = normalizeText(session && session.lastInText);
   const lastAt = Number(session && session.lastInAt) || 0;
-  const withinMs = 6_000; // 6s window catches tight auto-send loops
+  const withinMs = 6_000;
 
   if (lastT && t === lastT && (nowMs() - lastAt) <= withinMs) {
-    // only if we have a cached output
     const lastOut = session && session.lastOut;
     if (lastOut && typeof lastOut.reply === "string") return true;
   }
@@ -128,7 +180,7 @@ function cachedResponse(session, reason) {
     reply: lastOut.reply || "One sec — try again.",
     followUps: safeArray(lastOut.followUps).slice(0, 4),
     sessionPatch: filterSessionPatch({
-      lastInAt: nowMs(), // update timestamp but keep stable
+      lastInAt: nowMs(),
       recentIntent: "loop_guard",
       recentTopic: reason || "repeat_input"
     }),
@@ -150,7 +202,6 @@ function dampenIfDuplicateOutput(session, reply, followUps) {
   const lastSig = (session && session.lastOutSig) || "";
   const lastSigAt = Number(session && session.lastOutSigAt) || 0;
 
-  // If identical payload repeats in a short window, add a micro-variation line
   if (sig && lastSig && sig === lastSig && (nowMs() - lastSigAt) < 12_000) {
     const tweak = "\n\n(If you want, tell me what you want next — I’m listening.)";
     return { reply: `${reply}${tweak}`, sig: buildOutSig(`${reply}${tweak}`, followUps) };
@@ -167,11 +218,8 @@ function isDirectIntent(userText) {
 }
 
 function shouldRunIntro(session, userText) {
-  // never block direct asks
   if (isDirectIntent(userText)) return false;
   if (session && session.introDone) return false;
-
-  // run on first meaningful message, including "hi"
   return true;
 }
 
@@ -196,7 +244,7 @@ Where do you want to begin?`;
 }
 
 // ----------------------------
-// Elasticity Engine (reflection + pivot forks)
+// Elasticity Engine
 // ----------------------------
 function bumpTelemetry(session, lane, year, mode) {
   const s = session || {};
@@ -239,7 +287,6 @@ function shouldElasticOverlay(session, userText) {
 
   if (!(checkpointByTurns || checkpointByTime)) return false;
 
-  // dampener: fire every other checkpoint
   const toggle = Number(session.elasticToggle || 0);
   return (toggle % 2 === 0);
 }
@@ -287,11 +334,9 @@ Do you want to keep going in the same direction — or pivot a little?`;
 // Phase3 Continuity Overlay (consult-only sprinkle)
 // ----------------------------
 function phase3Sprinkle(session) {
-  // very light, only when depthLevel grows
   const depth = Number(session && session.depthLevel) || 0;
   if (depth < 3) return null;
 
-  // consult-only, non-factual, safe
   const lines = [
     "If you want, we can tighten this into a clean path: ask → answer → deepen → pivot.",
     "I can also keep a running thread so we don’t lose the plot as we explore.",
@@ -303,7 +348,7 @@ function phase3Sprinkle(session) {
 }
 
 // ----------------------------
-// Core routing (minimal, safe defaults)
+// Core routing
 // ----------------------------
 function detectLane(text) {
   const t = normalizeText(text);
@@ -338,18 +383,16 @@ async function chatEngine(inputText, session) {
   const text = String(inputText || "");
   const sess = session && typeof session === "object" ? session : {};
 
-  // Input loop guard
   if (shouldReturnCachedForRepeat(sess, text)) {
     return cachedResponse(sess, "repeat_input");
   }
 
-  // Track inbound (for loop guard)
   const inPatch = filterSessionPatch({
     lastInText: text,
     lastInAt: nowMs()
   });
 
-  // Intro V1 (first contact)
+  // Intro V1
   if (shouldRunIntro(sess, text)) {
     const intro = nyxIntroReply();
     const outSig = buildOutSig(intro.reply, intro.followUps);
@@ -378,23 +421,29 @@ async function chatEngine(inputText, session) {
     };
   }
 
-  // Lane / mode / year
   const lane = detectLane(text);
   const year = extractYear(text);
   const mode = detectMode(text);
 
   let reply = "";
   let followUps = [];
+  let lanePatch = null;
 
-  // Minimal lane behaviors (you can expand)
   if (lane === "music" && musicLane) {
     try {
       const res = await musicLane(text, sess);
-      reply = (res && res.reply) || "Tell me a year (1950–2024), or say “top 10 1988”.";
-      followUps = safeArray(res && res.followUps);
-    } catch (e) {
+
+      reply = (res && res.reply) ? String(res.reply).trim() : "";
+      if (!reply) reply = "Tell me a year (1950–2024), or say “top 10 1988”.";
+
+      followUps = normalizeFollowUpsFromLane(res);
+
+      // merge lane patch (musicLane ensures mode/year continuity)
+      lanePatch = filterSessionPatch(res && res.sessionPatch ? res.sessionPatch : null);
+    } catch (_) {
       reply = "Music lane hiccup. Give me a year (1950–2024) and I’ll pull it up.";
       followUps = ["Top 10 1988", "Pick a year", "Story moment 1955", "Micro moment 1979"];
+      lanePatch = null;
     }
   } else if (lane === "radio") {
     reply = "Want to jump into the radio stream now, or should I guide you to a specific era first?";
@@ -406,50 +455,43 @@ async function chatEngine(inputText, session) {
     reply = "Schedule mode — tell me your city (or timezone) and I’ll translate the programming to your local time.";
     followUps = ["Toronto", "London", "What’s playing now", "Show me the Roku path"];
   } else {
-    // general
     reply = "I’m with you. Tell me what you want: music, TV/Roku, schedule, or just a conversation.";
     followUps = ["Start with music", "Show me the Roku path", "What’s playing now", "Just talk"];
   }
 
-  // Update telemetry (turns, visited lanes/years/modes)
+  // Telemetry
   const tele = bumpTelemetry(sess, lane, year, mode);
 
-  // DepthLevel (simple, deterministic)
+  // DepthLevel
   const depthLevel = clampInt((Number(sess.depthLevel) || 0) + 1, 0, 20);
 
-  // Elasticity overlay (sprinkle)
+  // Elasticity overlay
   const canElastic = shouldElasticOverlay({ ...sess, ...tele, introDone: true, depthLevel }, text);
   if (canElastic) {
     const elastic = elasticityOverlay({ ...sess, ...tele, depthLevel });
     const merged = [...safeArray(followUps), ...safeArray(elastic.followUps)];
-    const seen = new Set();
-    followUps = merged.filter((x) => {
-      const k = normalizeText(x);
-      if (!k) return false;
-      if (seen.has(k)) return false;
-      seen.add(k);
-      return true;
-    }).slice(0, 4);
-
+    followUps = dedupeStrings(merged, 10).slice(0, 4);
     reply = `${reply}\n\n—\n\n${elastic.reply}`;
+  } else {
+    followUps = dedupeStrings(followUps, 10).slice(0, 4);
   }
 
-  // Phase3 continuity sprinkle (consult-only)
+  // Phase3 sprinkle
   const p3 = phase3Sprinkle({ ...sess, depthLevel });
   if (p3) reply = `${reply}\n\n${p3}`;
 
-  // Content signature dampener
+  // Dampener
   const damp = dampenIfDuplicateOutput(sess, reply, followUps);
   reply = damp.reply;
   const outSig = damp.sig;
 
-  // Cache last output (for loop guard)
   const outCache = { reply, followUps: safeArray(followUps).slice(0, 4) };
 
-  // Compose sessionPatch (allowlisted)
+  // Compose patch (merge lanePatch)
   const sessionPatch = filterSessionPatch({
     ...inPatch,
     ...tele,
+    ...lanePatch,
     depthLevel,
     elasticToggle: Number(sess.elasticToggle || 0) + 1,
     lastElasticAt: canElastic ? nowMs() : Number(sess.lastElasticAt || 0),
@@ -462,7 +504,6 @@ async function chatEngine(inputText, session) {
     lastOutSigAt: nowMs()
   });
 
-  // cog object (minimal, stable)
   const cog = {
     phase: "engaged",
     state: canElastic ? "reflect" : "respond",
