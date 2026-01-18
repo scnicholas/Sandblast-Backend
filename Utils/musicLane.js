@@ -3,36 +3,29 @@
 /**
  * Utils/musicLane.js
  *
- * Authoritative music responder for Nyx.
- * - Deterministic
- * - Dependency-light
- * - Never throws (returns safe fallback)
+ * BULLETPROOF music lane adapter:
+ *  - Delegates all content generation to Utils/musicKnowledge.js
+ *  - Normalizes output to contract shape:
+ *      { reply, followUps, sessionPatch, meta? }
+ *  - Never throws; never bricks boot
+ *  - Ensures top100 is ONLY entered on explicit ask
  *
- * Inputs: { text, session, visitorId, debug }
- * Output: { reply, followUps, sessionPatch, _engine? }
- *
- * Data deps (expected):
- *  - Data/top10_by_year_v1.json
- *  - Data/music_moments_v1.json (optional; story/micro)
- *
- * Contract:
- *  - top10: returns ranked 1..10 list
- *  - number1: returns #1 song
- *  - story/micro: returns story/micro moment if present else fallback
- *  - top100: returns a safe “not yet wired” response unless you add a dataset
+ * Intended use:
+ *  - chatEngine calls musicLane.handleChat(...)
+ *  - musicLane calls musicKnowledge.handleChat(...)
  */
 
-const fs = require("fs");
-const path = require("path");
+let musicKnowledge = null;
+try {
+  musicKnowledge = require("./musicKnowledge");
+  if (!musicKnowledge || typeof musicKnowledge.handleChat !== "function") musicKnowledge = null;
+} catch (_) {
+  musicKnowledge = null;
+}
 
-const TOP10_PATH = path.join(process.cwd(), "Data", "top10_by_year_v1.json");
-const MOMENTS_PATH = path.join(process.cwd(), "Data", "music_moments_v1.json"); // optional
-
-let _TOP10 = null;
-let _TOP10_ERR = null;
-
-let _MOMENTS = null;
-let _MOMENTS_ERR = null;
+/* =========================
+   Utilities
+========================= */
 
 function norm(s) {
   return String(s || "").toLowerCase().replace(/\s+/g, " ").trim();
@@ -45,241 +38,190 @@ function clampYear(y) {
   return n;
 }
 
-function extractYear(text) {
-  const m = String(text || "").match(/\b(19[5-9]\d|20[0-1]\d|202[0-4])\b/);
-  return m ? clampYear(m[1]) : null;
+function safeFollowUpsStrings(list) {
+  // musicKnowledge sometimes returns followUps: string[]
+  if (!Array.isArray(list)) return [];
+  const out = [];
+  const seen = new Set();
+  for (const x of list) {
+    const s = String(x || "").trim();
+    if (!s) continue;
+    const k = s.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(s.length > 80 ? s.slice(0, 80) : s);
+    if (out.length >= 10) break;
+  }
+  return out;
 }
 
-function normalizeMode(text) {
+function safeChips(list) {
+  // chips: [{label, send}]
+  if (!Array.isArray(list)) return [];
+  const out = [];
+  const seen = new Set();
+  for (const it of list) {
+    const label = String(it && it.label ? it.label : "").trim();
+    const send = String(it && it.send ? it.send : "").trim();
+    if (!label || !send) continue;
+    if (label.length > 48 || send.length > 80) continue;
+    const k = send.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push({ label, send });
+    if (out.length >= 10) break;
+  }
+  return out;
+}
+
+function explicitTop100Ask(text) {
   const t = norm(text);
+  return /\b(top\s*100|top100|hot\s*100|billboard\s*top\s*100|year[-\s]*end\s*hot\s*100)\b/.test(t);
+}
 
-  if (/\b(story\s*moment|story)\b/.test(t)) return "story";
-  if (/\b(micro\s*moment|micro)\b/.test(t)) return "micro";
-  if (/\b(#\s*1|number\s*1|no\.?\s*1|no\s*1)\b/.test(t)) return "number1";
-
-  // explicit year-end/top100 only
-  if (/\b(top\s*100|top100|hot\s*100|year[-\s]*end\s*hot\s*100)\b/.test(t)) return "top100";
-
-  // default music mode
-  if (/\b(top\s*10|top10|top\s*ten|top)\b/.test(t)) return "top10";
-
+function normalizeModeFromText(text) {
+  const t = norm(text);
+  if (/\b(top\s*10|top10|top\s*ten)\b/.test(t)) return "top10";
+  if (explicitTop100Ask(t)) return "top100";
+  if (/\bstory\s*moment\b|\bstory\b/.test(t)) return "story";
+  if (/\bmicro\s*moment\b|\bmicro\b/.test(t)) return "micro";
+  if (/\b#\s*1\b|\bnumber\s*1\b|\bno\.?\s*1\b|\bno\s*1\b/.test(t)) return "number1";
   return null;
 }
 
-function safeFollowUpsForYear(year) {
-  if (!year) {
-    return [
-      "1988",
-      "top 10 1988",
-      "story moment 1988",
-      "micro moment 1988",
-      "#1 1988",
-    ];
+function extractYear(text) {
+  const m = String(text || "").match(/\b(19[5-9]\d|20[0-1]\d|202[0-4])\b/);
+  if (!m) return null;
+  return clampYear(m[1]);
+}
+
+/* =========================
+   Normalization
+========================= */
+
+function normalizeMusicKnowledgeOut(raw, debug) {
+  // Accept a variety of shapes (future-proof):
+  // - { reply, followUps: string[], sessionPatch }
+  // - { reply, chips: [{label,send}], sessionPatch }
+  // - { ok, reply, followUps/chips, sessionPatch }
+  const r = raw && typeof raw === "object" ? raw : {};
+  const reply = String(r.reply || r.message || r.text || "").trim();
+
+  let followUps = [];
+  if (Array.isArray(r.followUps)) {
+    followUps = safeFollowUpsStrings(r.followUps);
+    // convert string[] -> chip objects for UI
+    followUps = followUps.map((s) => ({ label: s.slice(0, 48), send: s }));
+  } else if (Array.isArray(r.chips)) {
+    followUps = safeChips(r.chips);
+  } else {
+    followUps = [];
   }
-  return [
-    `top 10 ${year}`,
-    `#1 ${year}`,
-    `story moment ${year}`,
-    `micro moment ${year}`,
-    `top 100 ${year}`,
-    "another year",
-    "next year",
-  ];
+
+  const sessionPatch = r.sessionPatch && typeof r.sessionPatch === "object" ? r.sessionPatch : null;
+
+  const meta = debug
+    ? {
+        ok: !!reply,
+        source: "musicKnowledge",
+        hasPatch: !!sessionPatch,
+        followUps: followUps.length,
+      }
+    : null;
+
+  return { reply, followUps, sessionPatch, meta };
 }
 
-function loadTop10() {
-  if (_TOP10) return _TOP10;
-  if (_TOP10_ERR) return null;
-  try {
-    const raw = fs.readFileSync(TOP10_PATH, "utf8");
-    const json = JSON.parse(raw);
-
-    // Accept either:
-    // A) { years: { "1980": [ {pos,title,artist}, ... ] } }
-    // B) { "1980": [ ... ] }
-    const years = (json && json.years && typeof json.years === "object") ? json.years : json;
-
-    if (!years || typeof years !== "object") {
-      _TOP10_ERR = "bad_shape";
-      return null;
-    }
-    _TOP10 = years;
-    return _TOP10;
-  } catch (e) {
-    _TOP10_ERR = String(e && e.message ? e.message : e);
-    return null;
-  }
-}
-
-function loadMoments() {
-  if (_MOMENTS) return _MOMENTS;
-  if (_MOMENTS_ERR) return null;
-  try {
-    if (!fs.existsSync(MOMENTS_PATH)) {
-      _MOMENTS_ERR = "missing";
-      return null;
-    }
-    const raw = fs.readFileSync(MOMENTS_PATH, "utf8");
-    const json = JSON.parse(raw);
-
-    // Accept either:
-    // A) { moments: { "1980": { story:"", micro:"" } } }
-    // B) { "1980": { story:"", micro:"" } }
-    const moments = (json && json.moments && typeof json.moments === "object") ? json.moments : json;
-
-    if (!moments || typeof moments !== "object") {
-      _MOMENTS_ERR = "bad_shape";
-      return null;
-    }
-    _MOMENTS = moments;
-    return _MOMENTS;
-  } catch (e) {
-    _MOMENTS_ERR = String(e && e.message ? e.message : e);
-    return null;
-  }
-}
-
-function formatTop10(year, rows) {
-  const list = Array.isArray(rows) ? rows : [];
-  if (!list.length) return `I don’t have a Top 10 list loaded for ${year} yet.`;
-
-  // Ensure deterministic order
-  const sorted = list
-    .map((r) => ({
-      pos: Number(r.pos || r.rank || r.position || 0),
-      title: String(r.title || r.song || r.track || "").trim(),
-      artist: String(r.artist || r.performer || "").trim(),
-    }))
-    .filter((r) => r.title && r.artist)
-    .sort((a, b) => (a.pos || 999) - (b.pos || 999))
-    .slice(0, 10);
-
-  if (!sorted.length) return `I found data for ${year}, but it’s not in the expected Top 10 shape.`;
-
-  const lines = sorted.map((r, i) => {
-    const n = r.pos && r.pos > 0 ? r.pos : (i + 1);
-    return `${n}. ${r.title} — ${r.artist}`;
-  });
-
-  return `Top 10 (${year})\n` + lines.join("\n");
-}
-
-function pickNumber1(year, rows) {
-  const list = Array.isArray(rows) ? rows : [];
-  const best =
-    list.find((r) => Number(r.pos || r.rank || r.position) === 1) ||
-    list.find((r) => String(r.pos || r.rank || r.position) === "1") ||
-    list[0] ||
-    null;
-
-  if (!best) return `I don’t have the #1 song loaded for ${year} yet.`;
-
-  const title = String(best.title || best.song || best.track || "").trim();
-  const artist = String(best.artist || best.performer || "").trim();
-  if (!title || !artist) return `I found data for ${year}, but the #1 row is missing title/artist.`;
-
-  return `#1 song (${year})\n${title} — ${artist}`;
-}
-
-function getMoment(year, type) {
-  const moments = loadMoments();
-  if (!moments) return null;
-
-  const m = moments[String(year)] || null;
-  if (!m || typeof m !== "object") return null;
-
-  const key = type === "micro" ? "micro" : "story";
-  const txt = String(m[key] || "").trim();
-  return txt || null;
-}
+/* =========================
+   Public API
+========================= */
 
 async function handleChat({ text, session, visitorId, debug }) {
   try {
-    const t = String(text || "").trim();
-    const s = session || {};
-
-    const yearFromText = extractYear(t);
-    const year = yearFromText || clampYear(s.lastMusicYear) || null;
-
-    const modeFromText = normalizeMode(t);
-    let mode = modeFromText || norm(s.activeMusicMode) || null;
-    if (mode && mode === "top 10") mode = "top10";
-
-    // Default mode if we have a year and user is “music-ish”
-    if (!mode && year) mode = "top10";
-
-    // HARD GUARD: never enter top100 unless explicitly requested now
-    const wantsTop100Now = /\b(top\s*100|top100|hot\s*100|year[-\s]*end\s*hot\s*100)\b/.test(norm(t));
-    if (mode === "top100" && !wantsTop100Now) mode = "top10";
-
-    // No year → ask gently
-    if (!year) {
+    if (!musicKnowledge) {
       return {
-        reply: "Tell me a year (1950–2024) and I’ll pull music from that era. For example: “top 10 1980” or “#1 1980”.",
-        followUps: safeFollowUpsForYear(null),
-        sessionPatch: { lane: "music", activeMusicMode: mode || "top10" },
-        ...(debug ? { _engine: { ok: true, lane: "music", reason: "need_year" } } : {}),
+        reply: "Music is warming up. Try again in a moment, or give me a year (1950–2024).",
+        followUps: [
+          { label: "1988", send: "1988" },
+          { label: "Top 10 1988", send: "top 10 1988" },
+          { label: "Story 1988", send: "story moment 1988" },
+        ],
+        sessionPatch: null,
+        meta: debug ? { ok: false, reason: "musicKnowledge_missing" } : null,
       };
     }
 
-    // Load Top10 data once we actually need it
-    const years = loadTop10();
+    const t = String(text || "").trim();
+    const s = session || {};
 
-    const rows = years ? (years[String(year)] || years[Number(year)] || null) : null;
-
-    let reply = "";
-    if (mode === "story" || mode === "micro") {
-      const moment = getMoment(year, mode);
-      if (moment) {
-        reply = `${mode === "micro" ? "Micro moment" : "Story moment"} (${year})\n${moment}`;
-      } else {
-        // graceful fallback to top10 if moments missing
-        reply = years ? formatTop10(year, rows) : `I don’t have story moments wired yet for ${year}.`;
-        mode = years ? "top10" : mode;
-      }
-    } else if (mode === "number1") {
-      if (years) reply = pickNumber1(year, rows);
-      else reply = `I can’t access the Top 10 dataset right now (missing ${path.basename(TOP10_PATH)}).`;
-    } else if (mode === "top100") {
-      // Only if you later add a dataset; for now: explicit message
-      reply = `Billboard Year-End Hot 100 (${year}) isn’t wired yet. If you want it, I’ll add a dataset + renderer.\nFor now I can do: Top 10 (${year}), #1 (${year}), story, micro.`;
-      mode = "top100";
-    } else {
-      // top10 default
-      if (years) reply = formatTop10(year, rows);
-      else reply = `I can’t access the Top 10 dataset right now (missing ${path.basename(TOP10_PATH)}).`;
-      mode = "top10";
+    // Guard: never persist top100 unless explicitly asked NOW
+    const wantsTop100Now = explicitTop100Ask(t);
+    if (String(s.activeMusicMode || "") === "top100" && !wantsTop100Now) {
+      s.activeMusicMode = "top10";
     }
 
-    const sessionPatch = {
-      lane: "music",
-      lastMusicYear: year,
-      activeMusicMode: mode,
-    };
+    // If user asked mode without year, keep session year; if year present, set it.
+    const y = extractYear(t);
+    if (y) s.lastMusicYear = y;
 
-    return {
-      reply,
-      followUps: safeFollowUpsForYear(year),
-      sessionPatch,
-      ...(debug ? {
-        _engine: {
-          ok: true,
-          lane: "music",
-          year,
-          mode,
-          hasTop10: !!years,
-          top10Err: _TOP10_ERR,
-          hasMoments: !!_MOMENTS,
-          momentsErr: _MOMENTS_ERR,
-        }
-      } : {}),
-    };
+    const mode = normalizeModeFromText(t);
+    if (mode) {
+      if (mode === "top100" && !wantsTop100Now) {
+        // This should be impossible because mode=top100 implies wantsTop100Now,
+        // but we keep it anyway.
+        s.activeMusicMode = "top10";
+      } else {
+        s.activeMusicMode = mode;
+      }
+    }
+
+    const raw = await Promise.resolve(
+      musicKnowledge.handleChat({
+        text: t,
+        session: s,
+        visitorId,
+        debug: !!debug,
+      })
+    );
+
+    const normOut = normalizeMusicKnowledgeOut(raw, !!debug);
+
+    // If musicKnowledge returned nothing, provide a deterministic safe prompt.
+    if (!normOut.reply) {
+      const y2 = clampYear(s.lastMusicYear);
+      return {
+        reply: y2
+          ? `Got it — ${y2}. Do you want Top 10, #1, a story moment, or a micro moment?`
+          : "Tell me a year (1950–2024). You can also say “top 10 1988”, “#1 1988”, “story moment 1988”, or “micro moment 1988”.",
+        followUps: y2
+          ? [
+              { label: `Top 10 ${y2}`, send: `top 10 ${y2}` },
+              { label: `#1 ${y2}`, send: `#1 ${y2}` },
+              { label: `Story ${y2}`, send: `story moment ${y2}` },
+              { label: `Micro ${y2}`, send: `micro moment ${y2}` },
+            ]
+          : [
+              { label: "1988", send: "1988" },
+              { label: "Top 10 1988", send: "top 10 1988" },
+              { label: "Story 1988", send: "story moment 1988" },
+              { label: "Micro 1988", send: "micro moment 1988" },
+            ],
+        sessionPatch: null,
+        meta: debug ? { ok: false, reason: "musicKnowledge_empty_reply" } : null,
+      };
+    }
+
+    return normOut;
   } catch (e) {
     return {
-      reply: "I hit a snag reading the music data. Try again with: “top 10 1980”.",
-      followUps: safeFollowUpsForYear(null),
-      sessionPatch: { lane: "music", activeMusicMode: "top10" },
-      ...(debug ? { _engine: { ok: false, error: String(e && e.message ? e.message : e) } } : {}),
+      reply: "Music lane hit a snag. Give me a year (1950–2024) and I’ll try again.",
+      followUps: [
+        { label: "1988", send: "1988" },
+        { label: "Top 10 1988", send: "top 10 1988" },
+        { label: "Story 1988", send: "story moment 1988" },
+      ],
+      sessionPatch: null,
+      meta: debug ? { ok: false, reason: "exception", error: String(e && e.message ? e.message : e) } : null,
     };
   }
 }
