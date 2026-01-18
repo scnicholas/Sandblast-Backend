@@ -14,11 +14,11 @@
  *  - Underlying module may return followUps as string[] or chips as objects.
  *  - chatEngine wants followUps as chip objects.
  *
- * FIX (v1.1):
- *  ✅ Guarantee lane pin + minimal continuity fields in sessionPatch
- *  ✅ Normalize followUps from string[] OR object[] (label/send)
- *  ✅ Never throw; always returns a safe fallback prompt
- *  ✅ Defensive inference: if reply implies "recommendations" or "ask_title", set session intent hints
+ * FIX (v1.1a):
+ *  - Guarantee lane pin in sessionPatch
+ *  - Normalize followUps from string[] OR object[] (label/send/text/value/query)
+ *  - Never throw; always returns a safe fallback prompt
+ *  - Optional deterministic hint inference (harmless if chatEngine ignores it)
  *
  * NOTE:
  *  - This adapter does NOT implement movie logic. It only normalizes and hardens.
@@ -54,6 +54,7 @@ function safeFollowUps(list) {
 
     if (typeof it === "string") {
       const s = String(it || "").replace(/\s+/g, " ").trim();
+      if (!s) continue;
       label = s.length > 48 ? s.slice(0, 48) : s;
       send = s.slice(0, 80);
     } else if (it && typeof it === "object") {
@@ -72,8 +73,11 @@ function safeFollowUps(list) {
       label = String(l || "").replace(/\s+/g, " ").trim();
       send = String(s || "").replace(/\s+/g, " ").trim();
 
+      if (!label || !send) continue;
       if (label.length > 48) label = label.slice(0, 48);
       if (send.length > 80) send = send.slice(0, 80);
+    } else {
+      continue;
     }
 
     if (!label || !send) continue;
@@ -93,7 +97,7 @@ function safeSessionPatch(patch) {
   return patch && typeof patch === "object" ? { ...patch } : null;
 }
 
-function inferMovieHint({ userText, reply }) {
+function inferMovieHint(userText, reply) {
   const t = norm(userText);
   const r = norm(reply);
 
@@ -107,10 +111,10 @@ function inferMovieHint({ userText, reply }) {
 
 function defaultFallback() {
   return {
-    reply: "Movies/TV lane is warming up. Give me a title, a genre, or say “recommend something”.",
+    reply: 'Movies/TV lane is warming up. Give me a title, a genre, or say "recommend something".',
     followUps: safeFollowUps(["recommend something", "classic tv", "westerns", "detective"]),
     sessionPatch: { lane: "movies" },
-    meta: null,
+    meta: null
   };
 }
 
@@ -130,30 +134,27 @@ async function handleChat({ text, session, visitorId, debug }) {
         text: cleanText,
         session: s,
         visitorId,
-        debug: !!debug,
+        debug: !!debug
       })
     );
 
-    const reply = String(raw && (raw.reply || raw.message || raw.text) ? (raw.reply || raw.message || raw.text) : "").trim();
+    const reply = String(
+      raw && (raw.reply || raw.message || raw.text) ? (raw.reply || raw.message || raw.text) : ""
+    ).trim();
 
     // Accept multiple followUp shapes
-    const fuRaw =
-      (raw && raw.followUps) ||
-      (raw && raw.chips) ||
-      (raw && raw.suggestions) ||
-      [];
+    const fuRaw = (raw && raw.followUps) || (raw && raw.chips) || (raw && raw.suggestions) || [];
     const followUps = safeFollowUps(fuRaw);
 
     let sessionPatch = safeSessionPatch(raw && raw.sessionPatch);
-
-    // ✅ Always pin lane (prevents accidental lane drift after movies replies)
     sessionPatch = sessionPatch || {};
+
+    // Always pin lane (prevents accidental lane drift after movies replies)
     if (!Object.prototype.hasOwnProperty.call(sessionPatch, "lane")) sessionPatch.lane = "movies";
 
-    // ✅ Optional: add a tiny, non-invasive hint the engine can ignore if it wants
-    const hint = inferMovieHint({ userText: cleanText, reply });
+    // Optional: tiny hint the engine can ignore if not allowlisted
+    const hint = inferMovieHint(cleanText, reply);
     if (hint && !Object.prototype.hasOwnProperty.call(sessionPatch, "moviesHint")) {
-      // chatEngine currently won't apply this unless allowlisted; harmless if ignored.
       sessionPatch.moviesHint = hint;
     }
 
@@ -167,23 +168,21 @@ async function handleChat({ text, session, visitorId, debug }) {
 
     return {
       reply,
-      followUps,
+      followUps: followUps.length ? followUps : safeFollowUps(["recommend something", "classic tv", "westerns", "detective"]),
       sessionPatch,
       meta: debug
         ? {
             ok: true,
             source: "moviesKnowledge",
             followUps: followUps.length,
-            hasPatch: !!sessionPatch,
-            inferredHint: hint || null,
+            hasPatch: true,
+            inferredHint: hint || null
           }
-        : null,
+        : null
     };
   } catch (e) {
     const fb = defaultFallback();
-    fb.meta = debug
-      ? { ok: false, reason: "exception", error: String(e && e.message ? e.message : e) }
-      : null;
+    fb.meta = debug ? { ok: false, reason: "exception", error: String(e && e.message ? e.message : e) } : null;
     return fb;
   }
 }
