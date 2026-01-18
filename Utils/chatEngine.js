@@ -8,22 +8,26 @@
  *  - NO index.js imports
  *  - returns { ok, reply, followUps, sessionPatch, cog, ... }
  *
- * v0.6i (BULLETPROOF++: MUSIC LANE BRIDGE + CONTENT SIG DAMPENER + SESSIONPATCH ALLOWLIST + INPUT/OUTPUT LOOP GUARD + PHASE3 CONTINUITY OVERLAY)
+ * v0.6j (BULLETPROOF+++:
+ *   MUSIC LANE BRIDGE + CONTENT SIG DAMPENER + SESSIONPATCH ALLOWLIST +
+ *   INPUT/OUTPUT LOOP GUARD + PHASE3 CONTINUITY OVERLAY (CONSULT-ONLY, SPRINKLE-SAFE)
+ * )
  *
  * CORE FIX:
- * ✅ Music lane calls Utils/musicLane.js (which delegates to musicKnowledge) and returns REAL content.
+ * ✅ Music lane calls Utils/musicLane.js (delegates to musicKnowledge) and returns REAL content.
  * ✅ Prevents "Top 10 (1980)" label-only looping.
  *
- * HARDENING (NEW in v0.6i):
- * ✅ Input-loop guard: if the SAME user text repeats in a tight window, return the last output (idempotent)
- * ✅ Output-loop guard: if the SAME output repeats in a tight window (even on explicit asks), return a "break loop" prompt
- * ✅ Windows are ms-based (previous 1800 was ~1.8s ambiguity; now explicit constants)
- * ✅ SessionPatch allowlist expanded to include last in/out signatures + cached last output
+ * HARDENING:
+ * ✅ Input-loop guard: identical inbound text within window → return cached last output (idempotent)
+ * ✅ Output-loop guard: identical outbound content within window → return safe "break loop" prompt
+ * ✅ Windows explicit ms constants
+ * ✅ SessionPatch allowlist includes last in/out signatures + cached last output
  *
- * PHASE 3 (NEW):
- * ✅ consultContinuity() overlay: provides continuity language + re-entry prompts/chips (consult-only)
- * ✅ Supports commands: "resume", "start fresh", "change lens" (safe, non-identity continuity)
- * ✅ Never claims long-term memory
+ * PHASE 3 (Continuity & Return):
+ * ✅ consultContinuity() overlay: continuity language + re-entry prompts/chips (consult-only)
+ * ✅ Commands: "resume", "start fresh", "change lens"
+ * ✅ Never implies long-term memory: only uses session timestamps within window
+ * ✅ Sprinkle logic: uses cc.shouldInjectContinuityLine / cc.shouldOfferReentry when available
  *
  * Preserves:
  * ✅ top10 != top100; never enters top100 unless explicit ask
@@ -161,6 +165,11 @@ function hasExplicitYearOrModeAsk(text) {
 function classifyUserIntent(text) {
   const t = normCmd(text);
 
+  // Phase 3 control words (kept in classifier so we can short-circuit cleanly)
+  if (/^\s*resume\s*$/.test(t)) return { intent: "continuity", cmd: "resume" };
+  if (/^\s*start\s*fresh\s*$/.test(t) || /^\s*restart\s*$/.test(t) || /^\s*reset\s*$/.test(t)) return { intent: "continuity", cmd: "start_fresh" };
+  if (/^\s*change\s*lens\s*$/.test(t) || /^\s*switch\s*lens\s*$/.test(t)) return { intent: "continuity", cmd: "change_lens" };
+
   if (/^\s*(19[5-9]\d|20[0-1]\d|202[0-4])\s*$/.test(t)) return { intent: "year_only" };
 
   if (/\banother\s*year\b/.test(t)) return { intent: "nav", nav: "another_year" };
@@ -172,11 +181,6 @@ function classifyUserIntent(text) {
   if (/\bstory\s*moment\b|\bstory\b/.test(t)) return { intent: "mode", mode: "story" };
   if (/\bmicro\s*moment\b|\bmicro\b/.test(t)) return { intent: "mode", mode: "micro" };
   if (/\b#\s*1\b|\bnumber\s*1\b|\bno\.?\s*1\b|\bno\s*1\b/.test(t)) return { intent: "mode", mode: "number1" };
-
-  // Phase 3 control words (kept in classifier so we can short-circuit cleanly)
-  if (/^\s*resume\s*$/.test(t)) return { intent: "continuity", cmd: "resume" };
-  if (/^\s*start\s*fresh\s*$/.test(t) || /^\s*restart\s*$/.test(t) || /^\s*reset\s*$/.test(t)) return { intent: "continuity", cmd: "start_fresh" };
-  if (/^\s*change\s*lens\s*$/.test(t) || /^\s*switch\s*lens\s*$/.test(t)) return { intent: "continuity", cmd: "change_lens" };
 
   return { intent: "general" };
 }
@@ -234,7 +238,7 @@ function applySessionPatch(session, patch) {
     "__musicLastContentSig",
     "__musicLastContentAt",
 
-    // ✅ v0.6i inbound/outbound loop guards
+    // ✅ inbound/outbound loop guards
     "__lastInSig",
     "__lastInAt",
     "__lastOutSig",
@@ -547,45 +551,69 @@ function continuityUsable(session, nowT) {
   return withinMs(nowT, at, CONTINUITY_MAX_AGE_MS);
 }
 
-function applyContinuityOverlay({ session, lane, userText, nowT, year, mode }) {
+function consultCC({ session, lane, userText, nowT, year, mode, debug }) {
   if (!consultContinuity) return null;
-  return consultContinuity({
-    session,
-    lane,
-    userText,
-    now: nowT,
-    year,
-    mode,
-    debug: false
-  });
+  try {
+    return consultContinuity({
+      session,
+      lane,
+      userText,
+      now: nowT,
+      year,
+      mode,
+      debug: !!debug
+    });
+  } catch (_) {
+    return null;
+  }
 }
 
-function mergeContinuityIntoReply({ baseReply, baseFollowUps, cc, cleanText }) {
+function shouldSprinkle(cc) {
+  // Prefer the continuity module’s own heuristics when available.
+  if (!cc) return false;
+  if (cc.shouldInjectContinuityLine === true) return true;
+  // Fallback: only sprinkle on warm/deep
+  return cc.continuityLevel === "warm" || cc.continuityLevel === "deep";
+}
+
+function shouldOfferReentryChips(cc) {
+  if (!cc) return false;
+  if (cc.shouldOfferReentry === true) return true;
+  return cc.continuityLevel === "warm" || cc.continuityLevel === "deep" || cc.continuityLevel === "light";
+}
+
+function mergeChips(baseFollowUps, addChips, cleanText) {
+  const a = Array.isArray(baseFollowUps) ? baseFollowUps : [];
+  const b = Array.isArray(addChips) ? addChips : [];
+  const merged = safeFollowUps(a.concat(b));
+  return stripEchoFollowUps(merged, cleanText);
+}
+
+function mergeContinuityReply({ baseReply, baseFollowUps, cc, cleanText, preferRecap }) {
   let reply = String(baseReply || "").trim();
   let followUps = Array.isArray(baseFollowUps) ? baseFollowUps : [];
 
   if (!cc) return { reply, followUps };
 
-  // Prefer micro recap when user asked resume explicitly
   const t = normCmd(cleanText);
   const askedResume = t === "resume";
   const askedChangeLens = t === "change lens" || t === "switch lens";
 
-  if (askedResume && cc.microRecapLine) {
+  // Decide continuity line priority
+  if ((preferRecap || askedResume) && cc.microRecapLine) {
     reply = cc.microRecapLine;
   } else if (askedChangeLens && cc.reentryPrompt) {
     reply = cc.reentryPrompt;
-  } else if (cc.continuityLine) {
-    // sprinkle continuity language in front of base message only if it won't feel spammy
+  } else if (shouldSprinkle(cc) && cc.continuityLine) {
     reply = `${cc.continuityLine} ${reply}`.trim();
-  } else if (cc.openerLine) {
+  } else if (shouldSprinkle(cc) && cc.openerLine) {
     reply = `${cc.openerLine} ${reply}`.trim();
   }
 
-  if (Array.isArray(cc.chips) && cc.chips.length) {
-    // Only use continuity chips if they don't echo the exact user input
-    const cchips = safeFollowUps(cc.chips);
-    followUps = stripEchoFollowUps(cchips, cleanText);
+  if (shouldOfferReentryChips(cc) && Array.isArray(cc.chips) && cc.chips.length) {
+    followUps = mergeChips(followUps, cc.chips, cleanText);
+  } else {
+    followUps = stripEchoFollowUps(safeFollowUps(followUps), cleanText);
   }
 
   return { reply, followUps };
@@ -627,10 +655,10 @@ async function handleChat({ text, session, visitorId, now, debug }) {
 
   const nowT = nowMsFrom(now);
 
-  // Increment turn count (Phase 2/3 consult can use it; harmless if unused elsewhere)
+  // ✅ Phase 3: increment turn count (safe/no-op if unused)
   applySessionPatch(s, { turnCount: Number(s.turnCount || 0) + 1 });
 
-  // ✅ v0.6i INPUT LOOP GUARD (idempotent response for tight repeats)
+  // ✅ INPUT LOOP GUARD (idempotent response for tight repeats)
   const inSig = sha1(normCmd(cleanText));
   const lastInSig = String(s.__lastInSig || "");
   const lastInAt = Number(s.__lastInAt || 0);
@@ -658,7 +686,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
 
     if (debug) {
       out._engine = {
-        version: "chatEngine v0.6i",
+        version: "chatEngine v0.6j",
         loopGuard: "inbound_dedupe_return_cached_last_out",
         inSig,
         lastInAt,
@@ -682,9 +710,12 @@ async function handleChat({ text, session, visitorId, now, debug }) {
       let reply = base.baseMessage;
       let followUps = stripEchoFollowUps(base.followUps || [], cleanText);
 
-      // Add a gentle re-entry opener only if continuity is usable (avoid implying memory)
-      const cc = consultContinuity ? applyContinuityOverlay({ session: s, lane: "general", userText: cleanText, nowT, year: null, mode: null }) : null;
-      if (cc && cc.openerLine) reply = `${cc.openerLine} ${reply}`.trim();
+      // Do NOT imply memory: only add opener if continuity was genuinely usable prior to reset
+      // (If reset just happened, __lastOutAt still exists; we keep it safe by requiring consult result + sprinkle).
+      const cc = consultCC({ session: s, lane: "general", userText: cleanText, nowT, year: null, mode: null, debug: false });
+      const merged = mergeContinuityReply({ baseReply: reply, baseFollowUps: followUps, cc, cleanText, preferRecap: false });
+      reply = merged.reply;
+      followUps = merged.followUps;
 
       // cache / loop-check
       const outSig = contentSig(reply, followUps);
@@ -713,7 +744,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
         sessionPatch: { lane: "general" },
         cog,
         ...(debug
-          ? { _engine: { version: "chatEngine v0.6i", continuityCmd: "start_fresh", consultedContinuity: !!cc } }
+          ? { _engine: { version: "chatEngine v0.6j", continuityCmd: "start_fresh", consultedContinuity: !!cc, phase3: cc ? { level: cc.continuityLevel, depth: cc.depth, reentry: cc.reentryStyle } : null } }
           : {})
       };
     }
@@ -723,7 +754,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
     const y = clampYear(s.lastMusicYear) || null;
     const m = normalizeMode(s.activeMusicMode) || null;
 
-    const cc = consultContinuity ? applyContinuityOverlay({ session: s, lane: laneNow, userText: cleanText, nowT, year: y, mode: m }) : null;
+    const cc = consultCC({ session: s, lane: laneNow, userText: cleanText, nowT, year: y, mode: m, debug: false });
 
     let reply = "No recap needed — give me a year (1950–2024), or say “top 10”, “#1”, “story moment”, or “micro moment”.";
     let followUps = safeFollowUps([
@@ -733,11 +764,13 @@ async function handleChat({ text, session, visitorId, now, debug }) {
       { label: "Micro", send: "micro moment 1988" }
     ]);
 
+    // Only use continuity if it's within time window (honesty guard)
     if (cc && continuityUsable(s, nowT)) {
-      // Prefer micro recap for resume, reentryPrompt for change lens
-      const merged = mergeContinuityIntoReply({ baseReply: reply, baseFollowUps: followUps, cc, cleanText });
+      const merged = mergeContinuityReply({ baseReply: reply, baseFollowUps: followUps, cc, cleanText, preferRecap: cls.cmd === "resume" });
       reply = merged.reply;
       followUps = merged.followUps;
+    } else {
+      followUps = stripEchoFollowUps(followUps, cleanText);
     }
 
     // cache / loop-check
@@ -763,21 +796,18 @@ async function handleChat({ text, session, visitorId, now, debug }) {
       mode: m,
       voiceMode: s.voiceMode || "standard",
       reply,
-      followUps: stripEchoFollowUps(followUps, cleanText),
+      followUps,
       sessionPatch: null,
       cog
     };
 
     if (debug) {
       out._engine = {
-        version: "chatEngine v0.6i",
+        version: "chatEngine v0.6j",
         continuityCmd: cls.cmd,
         continuityUsable: continuityUsable(s, nowT),
         consultedContinuity: !!cc,
-        ccLevel: cc ? cc.continuityLevel : null,
-        ccDepth: cc ? cc.depth : null,
-        ccReentry: cc ? cc.reentryStyle : null,
-        ccChipsKey: cc ? cc.chipsSetKey : null
+        phase3: cc ? { level: cc.continuityLevel, depth: cc.depth, reentry: cc.reentryStyle, chipsKey: cc.chipsSetKey } : null
       };
     }
 
@@ -818,20 +848,23 @@ async function handleChat({ text, session, visitorId, now, debug }) {
 
       let reply = replyVar;
 
-      // Phase 3 sprinkle only when continuity is usable and session is active
-      const cc = consultContinuity && continuityUsable(s, nowT)
-        ? applyContinuityOverlay({
+      // Phase 3 sprinkle
+      const cc = (consultContinuity && continuityUsable(s, nowT))
+        ? consultCC({
             session: s,
             lane: s.lane || lane || "general",
             userText: cleanText,
             nowT,
             year: clampYear(s.lastMusicYear) || null,
-            mode: normalizeMode(s.activeMusicMode) || null
+            mode: normalizeMode(s.activeMusicMode) || null,
+            debug: false
           })
         : null;
 
-      if (cc && cc.continuityLine && !isByeLike(cleanText)) {
-        reply = `${cc.continuityLine} ${reply}`.trim();
+      if (cc) {
+        const merged = mergeContinuityReply({ baseReply: reply, baseFollowUps: followUps, cc, cleanText, preferRecap: false });
+        reply = merged.reply;
+        followUps = merged.followUps;
       }
 
       const polished = await tryNyxPolish({
@@ -845,7 +878,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
 
       const cog = cogFromBase({ lane: s.lane || "general", year: yKnown || null, mode: null, baseMessage: replyVar });
 
-      // ✅ v0.6i OUT cache + OUT loop break check
+      // OUT cache + loop break
       const outSig = contentSig(reply, followUps);
       const lastOutSig = String(s.__lastOutSig || "");
       const lastOutAt = Number(s.__lastOutAt || 0);
@@ -874,7 +907,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
       if (debug) {
         out.baseMessage = replyVar;
         out._engine = {
-          version: "chatEngine v0.6i",
+          version: "chatEngine v0.6j",
           usedPackets: true,
           hasMusicLane: !!musicLane,
           hasLanePolicy: !!resolveLane,
@@ -885,7 +918,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
           isMusicish,
           hasNyxPolish: !!generateNyxReply,
           quotaCooling: quotaCooling(Date.now()),
-          phase3: cc ? { level: cc.continuityLevel, depth: cc.depth, reentry: cc.reentryStyle } : null
+          phase3: cc ? { level: cc.continuityLevel, depth: cc.depth, reentry: cc.reentryStyle, chipsKey: cc.chipsSetKey } : null
         };
       }
       return out;
@@ -902,16 +935,14 @@ async function handleChat({ text, session, visitorId, now, debug }) {
     let reply = base.baseMessage;
     let followUps = stripEchoFollowUps(base.followUps || [], cleanText);
 
-    // Phase 3 sprinkle (safe)
-    const cc = consultContinuity && continuityUsable(s, nowT)
-      ? applyContinuityOverlay({ session: s, lane: "general", userText: cleanText, nowT, year: null, mode: null })
+    const cc = (consultContinuity && continuityUsable(s, nowT))
+      ? consultCC({ session: s, lane: "general", userText: cleanText, nowT, year: null, mode: null, debug: false })
       : null;
 
-    if (cc && cc.continuityLine) {
-      reply = `${cc.continuityLine} ${reply}`.trim();
-      if (Array.isArray(cc.chips) && cc.chips.length) {
-        followUps = stripEchoFollowUps(safeFollowUps(cc.chips), cleanText);
-      }
+    if (cc) {
+      const merged = mergeContinuityReply({ baseReply: reply, baseFollowUps: followUps, cc, cleanText, preferRecap: false });
+      reply = merged.reply;
+      followUps = merged.followUps;
     }
 
     const polished = await tryNyxPolish({
@@ -923,7 +954,6 @@ async function handleChat({ text, session, visitorId, now, debug }) {
     });
     if (polished) reply = polished;
 
-    // ✅ v0.6i OUT cache + OUT loop break check
     const outSig = contentSig(reply, followUps);
     const lastOutSig = String(s.__lastOutSig || "");
     const lastOutAt = Number(s.__lastOutAt || 0);
@@ -952,7 +982,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
     if (debug) {
       out.baseMessage = base.baseMessage;
       out._engine = {
-        version: "chatEngine v0.6i",
+        version: "chatEngine v0.6j",
         usedPackets: false,
         hasMusicLane: !!musicLane,
         hasLanePolicy: !!resolveLane,
@@ -962,7 +992,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
         hasStoredMusicContext,
         isMusicish,
         hasNyxPolish: !!generateNyxReply,
-        phase3: cc ? { level: cc.continuityLevel, depth: cc.depth, reentry: cc.reentryStyle } : null
+        phase3: cc ? { level: cc.continuityLevel, depth: cc.depth, reentry: cc.reentryStyle, chipsKey: cc.chipsSetKey } : null
       };
     }
     return out;
@@ -989,16 +1019,14 @@ async function handleChat({ text, session, visitorId, now, debug }) {
     let reply = base.baseMessage;
     let followUps = stripEchoFollowUps(base.followUps || [], cleanText);
 
-    // Phase 3 sprinkle (safe)
-    const cc = consultContinuity && continuityUsable(s, nowT)
-      ? applyContinuityOverlay({ session: s, lane: base.lane, userText: cleanText, nowT, year: null, mode: null })
+    const cc = (consultContinuity && continuityUsable(s, nowT))
+      ? consultCC({ session: s, lane: base.lane, userText: cleanText, nowT, year: null, mode: null, debug: false })
       : null;
 
-    if (cc && cc.continuityLine) {
-      reply = `${cc.continuityLine} ${reply}`.trim();
-      if (Array.isArray(cc.chips) && cc.chips.length) {
-        followUps = stripEchoFollowUps(safeFollowUps(cc.chips), cleanText);
-      }
+    if (cc) {
+      const merged = mergeContinuityReply({ baseReply: reply, baseFollowUps: followUps, cc, cleanText, preferRecap: false });
+      reply = merged.reply;
+      followUps = merged.followUps;
     }
 
     const polished = await tryNyxPolish({
@@ -1010,7 +1038,6 @@ async function handleChat({ text, session, visitorId, now, debug }) {
     });
     if (polished) reply = polished;
 
-    // ✅ v0.6i OUT cache + OUT loop break check
     const outSig = contentSig(reply, followUps);
     const lastOutSig = String(s.__lastOutSig || "");
     const lastOutAt = Number(s.__lastOutAt || 0);
@@ -1039,7 +1066,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
     if (debug) {
       out.baseMessage = base.baseMessage;
       out._engine = {
-        version: "chatEngine v0.6i",
+        version: "chatEngine v0.6j",
         hasMusicLane: !!musicLane,
         hasLanePolicy: !!resolveLane,
         laneDecision: laneDecision || null,
@@ -1047,7 +1074,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
         laneCallOk: call.ok,
         laneCallFailReason: call.ok ? null : call.reason,
         hasNyxPolish: !!generateNyxReply,
-        phase3: cc ? { level: cc.continuityLevel, depth: cc.depth, reentry: cc.reentryStyle } : null
+        phase3: cc ? { level: cc.continuityLevel, depth: cc.depth, reentry: cc.reentryStyle, chipsKey: cc.chipsSetKey } : null
       };
     }
     return out;
@@ -1073,7 +1100,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
       let reply = m.reply;
       let followUps = m.followUps;
 
-      // ✅ v0.6i OUT loop dampener (works for explicit asks too)
+      // OUT loop dampener (music content signature)
       const sig = contentSig(reply, followUps);
       const lastSig = String(s.__musicLastContentSig || "");
       const lastAt = Number(s.__musicLastContentAt || 0);
@@ -1086,23 +1113,22 @@ async function handleChat({ text, session, visitorId, now, debug }) {
         applySessionPatch(s, { __musicLastContentSig: sig, __musicLastContentAt: nowT });
       }
 
-      // Phase 3 sprinkle (safe)
-      const cc = consultContinuity && continuityUsable(s, nowT)
-        ? applyContinuityOverlay({
+      const cc = (consultContinuity && continuityUsable(s, nowT))
+        ? consultCC({
             session: s,
             lane: "music",
             userText: cleanText,
             nowT,
             year: clampYear(s.lastMusicYear) || null,
-            mode: normalizeMode(s.activeMusicMode) || null
+            mode: normalizeMode(s.activeMusicMode) || null,
+            debug: false
           })
         : null;
 
-      if (cc && cc.continuityLine) {
-        reply = `${cc.continuityLine} ${reply}`.trim();
-        if (Array.isArray(cc.chips) && cc.chips.length) {
-          followUps = safeFollowUps(cc.chips);
-        }
+      if (cc) {
+        const merged = mergeContinuityReply({ baseReply: reply, baseFollowUps: followUps, cc, cleanText, preferRecap: false });
+        reply = merged.reply;
+        followUps = merged.followUps;
       }
 
       const polished = await tryNyxPolish({
@@ -1120,7 +1146,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
       const mode = normalizeMode(s.activeMusicMode) || null;
       const cog = cogFromBase({ lane: "music", year: y, mode, baseMessage: reply });
 
-      // ✅ v0.6i OUT cache + OUT loop break check (global)
+      // Global OUT cache + loop break
       const outSig = contentSig(reply, followUps);
       const lastOutSig = String(s.__lastOutSig || "");
       const lastOutAt2 = Number(s.__lastOutAt || 0);
@@ -1149,13 +1175,13 @@ async function handleChat({ text, session, visitorId, now, debug }) {
       if (debug) {
         out.baseMessage = m.reply;
         out._engine = {
-          version: "chatEngine v0.6i",
+          version: "chatEngine v0.6j",
           chosenLane: "music",
           usedMusicLane: true,
           wantsTop100Now,
           contentSig: sig,
           lastContentSig: lastSig,
-          phase3: cc ? { level: cc.continuityLevel, depth: cc.depth, reentry: cc.reentryStyle } : null
+          phase3: cc ? { level: cc.continuityLevel, depth: cc.depth, reentry: cc.reentryStyle, chipsKey: cc.chipsSetKey } : null
         };
       }
 
@@ -1180,19 +1206,22 @@ async function handleChat({ text, session, visitorId, now, debug }) {
     } catch (_) {}
   }
 
-  // Phase 3 sprinkle (safe)
-  const cc = consultContinuity && continuityUsable(s, nowT)
-    ? applyContinuityOverlay({
+  const cc = (consultContinuity && continuityUsable(s, nowT))
+    ? consultCC({
         session: s,
         lane: "music",
         userText: cleanText,
         nowT,
         year: clampYear(s.lastMusicYear) || null,
-        mode: normalizeMode(s.activeMusicMode) || null
+        mode: normalizeMode(s.activeMusicMode) || null,
+        debug: false
       })
     : null;
 
-  if (cc && cc.continuityLine) reply = `${cc.continuityLine} ${reply}`.trim();
+  if (cc) {
+    const merged = mergeContinuityReply({ baseReply: reply, baseFollowUps: [], cc, cleanText, preferRecap: false });
+    reply = merged.reply;
+  }
 
   const polished = await tryNyxPolish({
     domain: "radio",
@@ -1213,7 +1242,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
     cleanText
   );
 
-  // ✅ v0.6i OUT cache + OUT loop break check
+  // OUT cache + loop break
   const outSig = contentSig(reply, followUps);
   const lastOutSig = String(s.__lastOutSig || "");
   const lastOutAt = Number(s.__lastOutAt || 0);
@@ -1248,7 +1277,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
 
   if (debug) {
     out.baseMessage = baseMessage;
-    out._engine = { version: "chatEngine v0.6i", chosenLane: "music", usedMusicLane: false, reason: "musicLane_missing_or_empty" };
+    out._engine = { version: "chatEngine v0.6j", chosenLane: "music", usedMusicLane: false, reason: "musicLane_missing_or_empty" };
   }
 
   return out;
