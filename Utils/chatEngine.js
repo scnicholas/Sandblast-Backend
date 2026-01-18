@@ -8,35 +8,37 @@
  *  - NO index.js imports
  *  - returns { ok, reply, followUps, sessionPatch, cog, ... }
  *
- * v0.6j (BULLETPROOF+++:
- *   MUSIC LANE BRIDGE + CONTENT SIG DAMPENER + SESSIONPATCH ALLOWLIST +
- *   INPUT/OUTPUT LOOP GUARD + PHASE3 CONTINUITY OVERLAY (CONSULT-ONLY, SPRINKLE-SAFE)
+ * v0.6k (BULLETPROOF++++:
+ *   MUSIC + MOVIES + SCHEDULE + SPONSORS ADAPTER BRIDGE +
+ *   CONTENT SIG DAMPENER + SESSIONPATCH ALLOWLIST +
+ *   INPUT/OUTPUT LOOP GUARD + PHASE3 CONTINUITY OVERLAY (CONSULT-ONLY, SPRINKLE-SAFE) +
+ *   LANE STICKINESS (non-music lanes won't drift unless explicitly switched)
  * )
  *
- * CORE FIX:
+ * CORE:
  * ✅ Music lane calls Utils/musicLane.js (delegates to musicKnowledge) and returns REAL content.
- * ✅ Prevents "Top 10 (1980)" label-only looping.
+ * ✅ Movies lane calls Utils/moviesLane.js (adapter over moviesKnowledge).
+ * ✅ Schedule lane calls Utils/scheduleLane.js (timezone-aware schedule).
+ * ✅ Sponsors lane calls Utils/sponsorsLane.js.
  *
  * HARDENING:
  * ✅ Input-loop guard: identical inbound text within window → return cached last output (idempotent)
  * ✅ Output-loop guard: identical outbound content within window → return safe "break loop" prompt
- * ✅ Windows explicit ms constants
- * ✅ SessionPatch allowlist includes last in/out signatures + cached last output
+ * ✅ Safe followUps: truncate (don’t drop) + dedupe
+ * ✅ SessionPatch allowlist includes schedule tz + adapter hints + loop keys
  *
  * PHASE 3 (Continuity & Return):
- * ✅ consultContinuity() overlay: continuity language + re-entry prompts/chips (consult-only)
+ * ✅ consultContinuity() overlay (consult-only)
  * ✅ Commands: "resume", "start fresh", "change lens"
- * ✅ Never implies long-term memory: only uses session timestamps within window
- * ✅ Sprinkle logic: uses cc.shouldInjectContinuityLine / cc.shouldOfferReentry when available
- *
- * Preserves:
- * ✅ top10 != top100; never enters top100 unless explicit ask
- * ✅ Greetings/help/bye remain conversational-first
+ * ✅ Honesty guard: only uses session timestamps within window
  */
 
 const crypto = require("crypto");
 
-// Phase 3 continuity overlay (consult-only)
+/* =========================
+   Phase 3 continuity overlay (consult-only)
+========================= */
+
 let consultContinuity = null;
 try {
   const cc = require("./conversationContinuity");
@@ -44,6 +46,10 @@ try {
 } catch (_) {
   consultContinuity = null;
 }
+
+/* =========================
+   Optional OpenAI polish
+========================= */
 
 let generateNyxReply = null;
 try {
@@ -53,6 +59,10 @@ try {
   generateNyxReply = null;
 }
 
+/* =========================
+   Lane policy (optional)
+========================= */
+
 let resolveLane = null;
 try {
   const lp = require("./lanePolicy");
@@ -61,12 +71,28 @@ try {
   resolveLane = null;
 }
 
+/* =========================
+   Lane modules (adapters)
+========================= */
+
 let sponsorsLane = null;
 let scheduleLane = null;
 let moviesLane = null;
+let musicLane = null;
+
 try { sponsorsLane = require("./sponsorsLane"); } catch (_) { sponsorsLane = null; }
 try { scheduleLane = require("./scheduleLane"); } catch (_) { scheduleLane = null; }
 try { moviesLane = require("./moviesLane"); } catch (_) { moviesLane = null; }
+try {
+  musicLane = require("./musicLane");
+  if (!musicLane || typeof musicLane.handleChat !== "function") musicLane = null;
+} catch (_) {
+  musicLane = null;
+}
+
+/* =========================
+   Packets (greetings/help/bye)
+========================= */
 
 let packets = null;
 try {
@@ -76,30 +102,14 @@ try {
   packets = null;
 }
 
-// ✅ music adapter (delegates to musicKnowledge internally)
-let musicLane = null;
-try {
-  musicLane = require("./musicLane");
-  if (!musicLane || typeof musicLane.handleChat !== "function") musicLane = null;
-} catch (_) {
-  musicLane = null;
-}
-
 /* =========================
    Loop guard constants
 ========================= */
 
-// If identical inbound text repeats within this window, treat as client retry/loop -> return cached last output.
 const INBOUND_DEDUPE_MS = Number(process.env.NYX_INBOUND_DEDUPE_MS || 1500);
-
-// If identical outbound content repeats within this window, treat as loop -> break with safe prompt.
 const OUTBOUND_DEDUPE_MS = Number(process.env.NYX_OUTBOUND_DEDUPE_MS || 2500);
-
-// Hard cap: don't trust "cached last output" if it's too old.
 const LAST_OUT_MAX_AGE_MS = Number(process.env.NYX_LAST_OUT_MAX_AGE_MS || 60_000);
-
-// Phase 3: treat "return" as plausible if last output is within this window (keeps continuity language honest)
-const CONTINUITY_MAX_AGE_MS = Number(process.env.NYX_CONTINUITY_MAX_AGE_MS || 90 * 60_000); // 90 minutes
+const CONTINUITY_MAX_AGE_MS = Number(process.env.NYX_CONTINUITY_MAX_AGE_MS || 90 * 60_000);
 
 /* =========================
    Utilities
@@ -121,7 +131,13 @@ function normalizeMode(mode) {
   if (!m) return null;
 
   if (m === "top10" || m === "top 10" || m === "top ten" || m === "top") return "top10";
-  if (m === "top100" || m === "top 100" || m === "hot 100" || m === "year-end hot 100" || m === "year end hot 100") return "top100";
+  if (
+    m === "top100" ||
+    m === "top 100" ||
+    m === "hot 100" ||
+    m === "year-end hot 100" ||
+    m === "year end hot 100"
+  ) return "top100";
 
   if (m === "story" || m === "story moment" || m === "story_moment") return "story";
   if (m === "micro" || m === "micro moment" || m === "micro_moment") return "micro";
@@ -151,24 +167,40 @@ function explicitTop100Ask(text) {
 function hasExplicitYearOrModeAsk(text) {
   const t = normCmd(text);
   if (/\b(19[5-9]\d|20[0-1]\d|202[0-4])\b/.test(t)) return true;
-
   if (/\b(top\s*10|top10|top\s*ten|story\s*moment|micro\s*moment|#\s*1|number\s*1|no\.?\s*1|no\s*1)\b/.test(t)) return true;
-
   if (explicitTop100Ask(t)) return true;
   if (/\b(next\s*year|another\s*year)\b/.test(t)) return true;
-
   if (/\b(year\s*end|yearend|year-end)\b/.test(t)) return true;
-
   return false;
+}
+
+function detectExplicitLaneSwitch(text) {
+  const t = normCmd(text);
+
+  // Explicit “go to … / switch to … / back to …” patterns
+  if (/\b(back to|switch to|go to|open)\s+(music|radio)\b/.test(t)) return "music";
+  if (/\b(back to|switch to|go to|open)\s+(schedule|programming|roku)\b/.test(t)) return "schedule";
+  if (/\b(back to|switch to|go to|open)\s+(sponsors|advertis(e|ing)|ads)\b/.test(t)) return "sponsors";
+  if (/\b(back to|switch to|go to|open)\s+(movies|tv|shows)\b/.test(t)) return "movies";
+
+  // Direct single-word lane intents
+  if (/^\s*(schedule|programming|roku)\s*$/.test(t)) return "schedule";
+  if (/^\s*(sponsors|ads|advertising)\s*$/.test(t)) return "sponsors";
+  if (/^\s*(movies|tv|shows)\s*$/.test(t)) return "movies";
+  if (/^\s*(music|radio)\s*$/.test(t)) return "music";
+
+  return null;
 }
 
 function classifyUserIntent(text) {
   const t = normCmd(text);
 
-  // Phase 3 control words (kept in classifier so we can short-circuit cleanly)
+  // Phase 3 control words
   if (/^\s*resume\s*$/.test(t)) return { intent: "continuity", cmd: "resume" };
-  if (/^\s*start\s*fresh\s*$/.test(t) || /^\s*restart\s*$/.test(t) || /^\s*reset\s*$/.test(t)) return { intent: "continuity", cmd: "start_fresh" };
-  if (/^\s*change\s*lens\s*$/.test(t) || /^\s*switch\s*lens\s*$/.test(t)) return { intent: "continuity", cmd: "change_lens" };
+  if (/^\s*start\s*fresh\s*$/.test(t) || /^\s*restart\s*$/.test(t) || /^\s*reset\s*$/.test(t))
+    return { intent: "continuity", cmd: "start_fresh" };
+  if (/^\s*change\s*lens\s*$/.test(t) || /^\s*switch\s*lens\s*$/.test(t))
+    return { intent: "continuity", cmd: "change_lens" };
 
   if (/^\s*(19[5-9]\d|20[0-1]\d|202[0-4])\s*$/.test(t)) return { intent: "year_only" };
 
@@ -176,7 +208,6 @@ function classifyUserIntent(text) {
   if (/\bnext\s*year\b/.test(t)) return { intent: "nav", nav: "next_year" };
 
   if (explicitTop100Ask(t)) return { intent: "mode", mode: "top100" };
-
   if (/\b(top\s*10|top10|top\s*ten)\b/.test(t)) return { intent: "mode", mode: "top10" };
   if (/\bstory\s*moment\b|\bstory\b/.test(t)) return { intent: "mode", mode: "story" };
   if (/\bmicro\s*moment\b|\bmicro\b/.test(t)) return { intent: "mode", mode: "micro" };
@@ -194,21 +225,28 @@ function stripEchoFollowUps(followUps, userText) {
   });
 }
 
+// ✅ truncate (don’t drop) + dedupe
 function safeFollowUps(list) {
   if (!Array.isArray(list)) return [];
   const out = [];
   const seen = new Set();
+
   for (const it of list) {
-    const label = String(it && it.label ? it.label : "").trim();
-    const send = String(it && it.send ? it.send : "").trim();
+    let label = String(it && it.label ? it.label : "").trim();
+    let send = String(it && it.send ? it.send : "").trim();
     if (!label || !send) continue;
-    if (label.length > 48 || send.length > 80) continue;
+
+    if (label.length > 48) label = label.slice(0, 48);
+    if (send.length > 80) send = send.slice(0, 80);
+
     const k = send.toLowerCase();
     if (seen.has(k)) continue;
     seen.add(k);
+
     out.push({ label, send });
     if (out.length >= 10) break;
   }
+
   return out;
 }
 
@@ -232,13 +270,21 @@ function applySessionPatch(session, patch) {
     "activeMusicChart",
     "lastMusicChart",
 
+    // schedule continuity
+    "userTz",
+    "userCity",
+    "_lastDeviceTz",
+
+    // movies hints (adapter may set)
+    "moviesHint",
+
     // loop dampeners (legacy + new)
     "lastIntentSig",
     "lastIntentAt",
     "__musicLastContentSig",
     "__musicLastContentAt",
 
-    // ✅ inbound/outbound loop guards
+    // inbound/outbound loop guards
     "__lastInSig",
     "__lastInAt",
     "__lastOutSig",
@@ -247,7 +293,7 @@ function applySessionPatch(session, patch) {
     "__lastOutFollowUps",
 
     // Phase 3 optional turn counter
-    "turnCount"
+    "turnCount",
   ]);
 
   for (const k of Object.keys(patch)) {
@@ -256,6 +302,7 @@ function applySessionPatch(session, patch) {
     session[k] = patch[k];
   }
 
+  // Optional conveniences (some modules may use {year, mode})
   if (Object.prototype.hasOwnProperty.call(patch, "year")) {
     const y = clampYear(patch.year);
     if (y) session.lastMusicYear = y;
@@ -307,8 +354,8 @@ function buildLaneStub(lane) {
         { label: "Radio", send: "radio" },
         { label: "Website", send: "website" },
         { label: "Social", send: "social" },
-        { label: "Bundle", send: "bundle" }
-      ])
+        { label: "Bundle", send: "bundle" },
+      ]),
     };
   }
   if (lane === "schedule") {
@@ -319,9 +366,9 @@ function buildLaneStub(lane) {
       followUps: safeFollowUps([
         { label: "London", send: "in London" },
         { label: "Toronto", send: "in Toronto" },
-        { label: "Playing now", send: "what’s playing now" },
-        { label: "Today", send: "schedule today" }
-      ])
+        { label: "Playing now", send: "what's playing now" },
+        { label: "Today", send: "show me the schedule" },
+      ]),
     };
   }
   if (lane === "movies") {
@@ -333,8 +380,8 @@ function buildLaneStub(lane) {
         { label: "Recommend", send: "recommend something" },
         { label: "Classic TV", send: "classic tv" },
         { label: "Westerns", send: "westerns" },
-        { label: "Detective", send: "detective" }
-      ])
+        { label: "Detective", send: "detective" },
+      ]),
     };
   }
   return {
@@ -346,8 +393,8 @@ function buildLaneStub(lane) {
       { label: "Top 10", send: "top 10 1988" },
       { label: "Schedule", send: "schedule" },
       { label: "Sponsors", send: "sponsors" },
-      { label: "Movies/TV", send: "movies" }
-    ])
+      { label: "Movies/TV", send: "movies" },
+    ]),
   };
 }
 
@@ -360,7 +407,7 @@ function normalizeLaneOutput(raw, lane) {
   if (!raw || typeof raw !== "object") return out;
 
   out.reply = String(raw.reply || raw.message || raw.text || "").trim();
-  out.followUps = safeFollowUps(raw.followUps || raw.chips || []);
+  out.followUps = safeFollowUps(raw.followUps || raw.chips || raw.suggestions || []);
   out.sessionPatch = raw.sessionPatch && typeof raw.sessionPatch === "object" ? raw.sessionPatch : null;
 
   if (!out.sessionPatch) out.sessionPatch = { lane };
@@ -381,7 +428,7 @@ async function callLaneHandler(lane, { text, session, visitorId, debug }) {
   if (!fn) return { ok: false, reason: "missing_entrypoint" };
 
   try {
-    const raw = await fn({ text, session, visitorId, debug });
+    const raw = await Promise.resolve(fn({ text, session, visitorId, debug }));
     return { ok: true, raw };
   } catch (e) {
     return { ok: false, reason: "handler_throw", error: String(e && e.message ? e.message : e) };
@@ -404,8 +451,12 @@ function allowPacketIntercept({ lane, session, text }) {
   const t = normCmd(text);
   const looks = isGreetingLike(t) || isHelpLike(t) || isByeLike(t);
 
+  // If we’re deep in a non-music lane, only allow packet intercept for greetings/help/bye.
   if (sLane && sLane !== "general" && sLane !== "music") return looks;
+
+  // If lane chosen is non-music, only allow packet intercept for greetings/help/bye.
   if (lane && lane !== "music" && lane !== "general") return looks;
+
   return looks;
 }
 
@@ -437,7 +488,12 @@ function isUpstreamQuotaError(e) {
     if (code === "insufficient_quota" || type === "insufficient_quota") return true;
     if (Number.isFinite(status) && status === 429 && raw.includes("insufficient_quota")) return true;
 
-    return raw.includes("insufficient_quota") || raw.includes("exceeded your current quota") || raw.includes("plan and billing") || raw.includes("billing details");
+    return (
+      raw.includes("insufficient_quota") ||
+      raw.includes("exceeded your current quota") ||
+      raw.includes("plan and billing") ||
+      raw.includes("billing details")
+    );
   } catch (_) {
     return false;
   }
@@ -455,7 +511,7 @@ async function tryNyxPolish({ domain, intent, userMessage, baseMessage, visitorI
       userMessage,
       baseMessage,
       boundaryContext: { role: "internal", actor: visitorId || "Guest" },
-      timeoutMs: 9000
+      timeoutMs: 9000,
     });
 
     if (typeof refined === "string" && refined.trim()) return refined.trim();
@@ -470,29 +526,8 @@ async function tryNyxPolish({ domain, intent, userMessage, baseMessage, visitorI
 }
 
 /* =========================
-   MUSIC helpers
+   Shared content signature + loop guards
 ========================= */
-
-function normalizeMusicOutput(raw) {
-  const reply = String(raw && raw.reply ? raw.reply : "").trim();
-
-  let followUps = [];
-  if (Array.isArray(raw && raw.followUps)) {
-    if (raw.followUps.length && typeof raw.followUps[0] === "string") {
-      followUps = raw.followUps.map((x) => ({ label: String(x).slice(0, 48), send: String(x).slice(0, 80) }));
-    } else {
-      followUps = raw.followUps;
-    }
-  } else if (Array.isArray(raw && raw.chips)) {
-    followUps = raw.chips;
-  } else {
-    followUps = [];
-  }
-
-  const sessionPatch = raw && raw.sessionPatch && typeof raw.sessionPatch === "object" ? raw.sessionPatch : null;
-
-  return { reply, followUps: safeFollowUps(followUps), sessionPatch };
-}
 
 function contentSig(reply, followUps) {
   const s = `${String(reply || "")}||${JSON.stringify(followUps || [])}`;
@@ -517,7 +552,7 @@ function setLastOut(session, nowMs, reply, followUps) {
     __lastOutSig: sig,
     __lastOutAt: nowMs,
     __lastOutReply: String(reply || ""),
-    __lastOutFollowUps: Array.isArray(followUps) ? followUps : []
+    __lastOutFollowUps: Array.isArray(followUps) ? followUps : [],
   });
   return sig;
 }
@@ -536,7 +571,7 @@ function buildLoopBreakPrompt() {
     { label: "1988", send: "1988" },
     { label: "#1", send: "#1" },
     { label: "Story", send: "story moment" },
-    { label: "Micro", send: "micro moment" }
+    { label: "Micro", send: "micro moment" },
   ]);
   return { reply, followUps };
 }
@@ -561,7 +596,7 @@ function consultCC({ session, lane, userText, nowT, year, mode, debug }) {
       now: nowT,
       year,
       mode,
-      debug: !!debug
+      debug: !!debug,
     });
   } catch (_) {
     return null;
@@ -569,10 +604,8 @@ function consultCC({ session, lane, userText, nowT, year, mode, debug }) {
 }
 
 function shouldSprinkle(cc) {
-  // Prefer the continuity module’s own heuristics when available.
   if (!cc) return false;
   if (cc.shouldInjectContinuityLine === true) return true;
-  // Fallback: only sprinkle on warm/deep
   return cc.continuityLevel === "warm" || cc.continuityLevel === "deep";
 }
 
@@ -599,7 +632,6 @@ function mergeContinuityReply({ baseReply, baseFollowUps, cc, cleanText, preferR
   const askedResume = t === "resume";
   const askedChangeLens = t === "change lens" || t === "switch lens";
 
-  // Decide continuity line priority
   if ((preferRecap || askedResume) && cc.microRecapLine) {
     reply = cc.microRecapLine;
   } else if (askedChangeLens && cc.reentryPrompt) {
@@ -621,7 +653,7 @@ function mergeContinuityReply({ baseReply, baseFollowUps, cc, cleanText, preferR
 
 function resetConversationContext(session) {
   if (!session || typeof session !== "object") return;
-  // Minimal reset: keep voiceMode, clear lane + music context
+
   applySessionPatch(session, {
     lane: "general",
     lastMusicYear: null,
@@ -629,7 +661,7 @@ function resetConversationContext(session) {
     activeMusicChart: null,
     lastMusicChart: null,
     __musicLastContentSig: null,
-    __musicLastContentAt: null
+    __musicLastContentAt: null,
   });
 }
 
@@ -651,14 +683,15 @@ async function handleChat({ text, session, visitorId, now, debug }) {
     cls.intent === "nav" ||
     /\b(billboard|hot 100|top 10|top 100)\b/.test(normCmd(cleanText));
 
-  const hasStoredMusicContext = !!yKnown && sessionLane === "music";
-
   const nowT = nowMsFrom(now);
 
-  // ✅ Phase 3: increment turn count (safe/no-op if unused)
+  // Turn counter (safe/no-op if unused)
   applySessionPatch(s, { turnCount: Number(s.turnCount || 0) + 1 });
 
-  // ✅ INPUT LOOP GUARD (idempotent response for tight repeats)
+  /* =========================
+     INPUT LOOP GUARD (idempotent response for tight repeats)
+  ========================= */
+
   const inSig = sha1(normCmd(cleanText));
   const lastInSig = String(s.__lastInSig || "");
   const lastInAt = Number(s.__lastInAt || 0);
@@ -666,6 +699,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
   if (lastInSig && inSig === lastInSig && withinMs(nowT, lastInAt, INBOUND_DEDUPE_MS) && canUseCachedLastOut(s, nowT)) {
     const cachedReply = String(s.__lastOutReply || "").trim();
     const cachedFollowUps = safeFollowUps(Array.isArray(s.__lastOutFollowUps) ? s.__lastOutFollowUps : []);
+
     const outLane = String(s.lane || "general");
     const outYear = clampYear(s.lastMusicYear) || null;
     const outMode = normalizeMode(s.activeMusicMode) || null;
@@ -681,16 +715,16 @@ async function handleChat({ text, session, visitorId, now, debug }) {
       reply: cachedReply,
       followUps: stripEchoFollowUps(cachedFollowUps, cleanText),
       sessionPatch: null,
-      cog
+      cog,
     };
 
     if (debug) {
       out._engine = {
-        version: "chatEngine v0.6j",
+        version: "chatEngine v0.6k",
         loopGuard: "inbound_dedupe_return_cached_last_out",
         inSig,
         lastInAt,
-        nowT
+        nowT,
       };
     }
     return out;
@@ -699,7 +733,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
   applySessionPatch(s, { __lastInSig: inSig, __lastInAt: nowT });
 
   /* =========================
-     Phase 3 command short-circuits
+     PHASE 3 command short-circuits
   ========================= */
 
   if (cls.intent === "continuity") {
@@ -710,19 +744,17 @@ async function handleChat({ text, session, visitorId, now, debug }) {
       let reply = base.baseMessage;
       let followUps = stripEchoFollowUps(base.followUps || [], cleanText);
 
-      // Do NOT imply memory: only add opener if continuity was genuinely usable prior to reset
-      // (If reset just happened, __lastOutAt still exists; we keep it safe by requiring consult result + sprinkle).
       const cc = consultCC({ session: s, lane: "general", userText: cleanText, nowT, year: null, mode: null, debug: false });
       const merged = mergeContinuityReply({ baseReply: reply, baseFollowUps: followUps, cc, cleanText, preferRecap: false });
       reply = merged.reply;
       followUps = merged.followUps;
 
-      // cache / loop-check
+      // OUT cache + loop break
       const outSig = contentSig(reply, followUps);
       const lastOutSig = String(s.__lastOutSig || "");
-      const lastOutAt = Number(s.__lastOutAt || 0);
+      const lastOutAt0 = Number(s.__lastOutAt || 0);
 
-      if (lastOutSig && outSig === lastOutSig && withinMs(nowT, lastOutAt, OUTBOUND_DEDUPE_MS)) {
+      if (lastOutSig && outSig === lastOutSig && withinMs(nowT, lastOutAt0, OUTBOUND_DEDUPE_MS)) {
         const br = buildLoopBreakPrompt();
         reply = br.reply;
         followUps = stripEchoFollowUps(br.followUps, cleanText);
@@ -744,8 +776,15 @@ async function handleChat({ text, session, visitorId, now, debug }) {
         sessionPatch: { lane: "general" },
         cog,
         ...(debug
-          ? { _engine: { version: "chatEngine v0.6j", continuityCmd: "start_fresh", consultedContinuity: !!cc, phase3: cc ? { level: cc.continuityLevel, depth: cc.depth, reentry: cc.reentryStyle } : null } }
-          : {})
+          ? {
+              _engine: {
+                version: "chatEngine v0.6k",
+                continuityCmd: "start_fresh",
+                consultedContinuity: !!cc,
+                phase3: cc ? { level: cc.continuityLevel, depth: cc.depth, reentry: cc.reentryStyle } : null,
+              },
+            }
+          : {}),
       };
     }
 
@@ -761,10 +800,9 @@ async function handleChat({ text, session, visitorId, now, debug }) {
       { label: "Pick a year", send: "1988" },
       { label: "Top 10", send: "top 10 1988" },
       { label: "Story", send: "story moment 1988" },
-      { label: "Micro", send: "micro moment 1988" }
+      { label: "Micro", send: "micro moment 1988" },
     ]);
 
-    // Only use continuity if it's within time window (honesty guard)
     if (cc && continuityUsable(s, nowT)) {
       const merged = mergeContinuityReply({ baseReply: reply, baseFollowUps: followUps, cc, cleanText, preferRecap: cls.cmd === "resume" });
       reply = merged.reply;
@@ -773,12 +811,12 @@ async function handleChat({ text, session, visitorId, now, debug }) {
       followUps = stripEchoFollowUps(followUps, cleanText);
     }
 
-    // cache / loop-check
+    // OUT cache + loop break
     const outSig = contentSig(reply, followUps);
     const lastOutSig = String(s.__lastOutSig || "");
-    const lastOutAt = Number(s.__lastOutAt || 0);
+    const lastOutAt1 = Number(s.__lastOutAt || 0);
 
-    if (lastOutSig && outSig === lastOutSig && withinMs(nowT, lastOutAt, OUTBOUND_DEDUPE_MS)) {
+    if (lastOutSig && outSig === lastOutSig && withinMs(nowT, lastOutAt1, OUTBOUND_DEDUPE_MS)) {
       const br = buildLoopBreakPrompt();
       reply = br.reply;
       followUps = stripEchoFollowUps(br.followUps, cleanText);
@@ -798,23 +836,29 @@ async function handleChat({ text, session, visitorId, now, debug }) {
       reply,
       followUps,
       sessionPatch: null,
-      cog
+      cog,
     };
 
     if (debug) {
       out._engine = {
-        version: "chatEngine v0.6j",
+        version: "chatEngine v0.6k",
         continuityCmd: cls.cmd,
         continuityUsable: continuityUsable(s, nowT),
         consultedContinuity: !!cc,
-        phase3: cc ? { level: cc.continuityLevel, depth: cc.depth, reentry: cc.reentryStyle, chipsKey: cc.chipsSetKey } : null
+        phase3: cc ? { level: cc.continuityLevel, depth: cc.depth, reentry: cc.reentryStyle, chipsKey: cc.chipsSetKey } : null,
       };
     }
 
     return out;
   }
 
-  // 1) lanePolicy (guard greetings)
+  /* =========================
+     LANE SELECTION (policy + stickiness + explicit switches)
+  ========================= */
+
+  const explicitSwitch = detectExplicitLaneSwitch(cleanText);
+
+  // lanePolicy (if available)
   let laneDecision = null;
   try {
     if (resolveLane) laneDecision = resolveLane({ text: cleanText, session: s });
@@ -822,18 +866,50 @@ async function handleChat({ text, session, visitorId, now, debug }) {
     laneDecision = null;
   }
 
-  let lane = "";
   const lpLane = laneDecision && laneDecision.lane ? String(laneDecision.lane).trim().toLowerCase() : "";
   const lpForce = !!(laneDecision && laneDecision.force === true);
 
-  if (lpLane && (lpForce || (!isGreetingLike(cleanText) && !isHelpLike(cleanText) && !isByeLike(cleanText)))) {
+  const isMeta = isGreetingLike(cleanText) || isHelpLike(cleanText) || isByeLike(cleanText);
+
+  // Stickiness: keep non-general lane unless explicitly switched or meta
+  const stickyLane =
+    !isMeta &&
+    sessionLane &&
+    sessionLane !== "general" &&
+    (sessionLane === "music" || sessionLane === "schedule" || sessionLane === "movies" || sessionLane === "sponsors");
+
+  let lane = "general";
+
+  if (isMeta) {
+    lane = "general";
+  } else if (explicitSwitch) {
+    lane = explicitSwitch;
+  } else if (lpLane && (lpForce || !isMeta)) {
     lane = lpLane;
+  } else if (stickyLane) {
+    lane = sessionLane;
   } else {
-    if (isGreetingLike(cleanText) || isHelpLike(cleanText) || isByeLike(cleanText)) lane = "general";
-    else lane = explicitMusicAsk || (hasStoredMusicContext && isMusicish) ? "music" : "general";
+    // Fallback heuristics: try scheduleLane detector if exported
+    const maybeSchedule =
+      scheduleLane && typeof scheduleLane.isScheduleQuestion === "function"
+        ? !!scheduleLane.isScheduleQuestion(cleanText)
+        : /\b(schedule|programming|what's playing|whats playing|playing now|on now|roku|convert)\b/.test(normCmd(cleanText));
+
+    const maybeSponsors = /\b(sponsors|advertis(e|ing)|ads|packages|pricing)\b/.test(normCmd(cleanText));
+    const maybeMovies = /\b(movies|tv|shows|series|recommend)\b/.test(normCmd(cleanText));
+
+    if (explicitMusicAsk) lane = "music";
+    else if (maybeSchedule) lane = "schedule";
+    else if (maybeSponsors) lane = "sponsors";
+    else if (maybeMovies) lane = "movies";
+    else if (yKnown && isMusicish) lane = "music";
+    else lane = "general";
   }
 
-  // 2) packets (greetings/help/bye)
+  /* =========================
+     PACKETS INTERCEPT (greeting/help/bye)
+  ========================= */
+
   if (packets && allowPacketIntercept({ lane, session: s, text: cleanText })) {
     const p = await packets.handleChat({ text: cleanText, session: s, visitorId, debug: !!debug });
     const pReply = String(p && p.reply ? p.reply : "").trim();
@@ -848,16 +924,16 @@ async function handleChat({ text, session, visitorId, now, debug }) {
 
       let reply = replyVar;
 
-      // Phase 3 sprinkle
+      // Phase 3 sprinkle (if honest window)
       const cc = (consultContinuity && continuityUsable(s, nowT))
         ? consultCC({
             session: s,
-            lane: s.lane || lane || "general",
+            lane: String(s.lane || lane || "general"),
             userText: cleanText,
             nowT,
             year: clampYear(s.lastMusicYear) || null,
             mode: normalizeMode(s.activeMusicMode) || null,
-            debug: false
+            debug: false,
           })
         : null;
 
@@ -872,7 +948,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
         intent: "packet",
         userMessage: cleanText,
         baseMessage: reply,
-        visitorId: visitorId || "Guest"
+        visitorId: visitorId || "Guest",
       });
       if (polished) reply = polished;
 
@@ -881,9 +957,9 @@ async function handleChat({ text, session, visitorId, now, debug }) {
       // OUT cache + loop break
       const outSig = contentSig(reply, followUps);
       const lastOutSig = String(s.__lastOutSig || "");
-      const lastOutAt = Number(s.__lastOutAt || 0);
+      const lastOutAt2 = Number(s.__lastOutAt || 0);
 
-      if (lastOutSig && outSig === lastOutSig && withinMs(nowT, lastOutAt, OUTBOUND_DEDUPE_MS)) {
+      if (lastOutSig && outSig === lastOutSig && withinMs(nowT, lastOutAt2, OUTBOUND_DEDUPE_MS)) {
         const br = buildLoopBreakPrompt();
         reply = br.reply;
         followUps = stripEchoFollowUps(br.followUps, cleanText);
@@ -901,36 +977,35 @@ async function handleChat({ text, session, visitorId, now, debug }) {
         reply,
         followUps,
         sessionPatch: p.sessionPatch || null,
-        cog
+        cog,
       };
 
       if (debug) {
         out.baseMessage = replyVar;
         out._engine = {
-          version: "chatEngine v0.6j",
+          version: "chatEngine v0.6k",
           usedPackets: true,
           hasMusicLane: !!musicLane,
           hasLanePolicy: !!resolveLane,
           laneDecision: laneDecision || null,
           chosenLane: lane,
-          explicitMusicAsk,
-          hasStoredMusicContext,
-          isMusicish,
           hasNyxPolish: !!generateNyxReply,
           quotaCooling: quotaCooling(Date.now()),
-          phase3: cc ? { level: cc.continuityLevel, depth: cc.depth, reentry: cc.reentryStyle, chipsKey: cc.chipsSetKey } : null
+          phase3: cc ? { level: cc.continuityLevel, depth: cc.depth, reentry: cc.reentryStyle, chipsKey: cc.chipsSetKey } : null,
         };
       }
+
       return out;
     }
   }
 
-  // 3) general
+  /* =========================
+     GENERAL LANE
+  ========================= */
+
   if (lane === "general") {
     const base = buildLaneStub("general");
     if (base.sessionPatch) applySessionPatch(s, base.sessionPatch);
-
-    const cog = cogFromBase({ lane: "general", year: null, mode: null, baseMessage: base.baseMessage });
 
     let reply = base.baseMessage;
     let followUps = stripEchoFollowUps(base.followUps || [], cleanText);
@@ -950,21 +1025,24 @@ async function handleChat({ text, session, visitorId, now, debug }) {
       intent: "general",
       userMessage: cleanText,
       baseMessage: reply,
-      visitorId: visitorId || "Guest"
+      visitorId: visitorId || "Guest",
     });
     if (polished) reply = polished;
 
+    // OUT cache + loop break
     const outSig = contentSig(reply, followUps);
     const lastOutSig = String(s.__lastOutSig || "");
-    const lastOutAt = Number(s.__lastOutAt || 0);
+    const lastOutAt3 = Number(s.__lastOutAt || 0);
 
-    if (lastOutSig && outSig === lastOutSig && withinMs(nowT, lastOutAt, OUTBOUND_DEDUPE_MS)) {
+    if (lastOutSig && outSig === lastOutSig && withinMs(nowT, lastOutAt3, OUTBOUND_DEDUPE_MS)) {
       const br = buildLoopBreakPrompt();
       reply = br.reply;
       followUps = stripEchoFollowUps(br.followUps, cleanText);
     } else {
       setLastOut(s, nowT, reply, followUps);
     }
+
+    const cog = cogFromBase({ lane: "general", year: null, mode: null, baseMessage: reply });
 
     const out = {
       ok: true,
@@ -976,30 +1054,34 @@ async function handleChat({ text, session, visitorId, now, debug }) {
       reply,
       followUps,
       sessionPatch: base.sessionPatch || null,
-      cog
+      cog,
     };
 
     if (debug) {
       out.baseMessage = base.baseMessage;
       out._engine = {
-        version: "chatEngine v0.6j",
+        version: "chatEngine v0.6k",
         usedPackets: false,
         hasMusicLane: !!musicLane,
         hasLanePolicy: !!resolveLane,
         laneDecision: laneDecision || null,
         chosenLane: "general",
-        explicitMusicAsk,
-        hasStoredMusicContext,
-        isMusicish,
         hasNyxPolish: !!generateNyxReply,
-        phase3: cc ? { level: cc.continuityLevel, depth: cc.depth, reentry: cc.reentryStyle, chipsKey: cc.chipsSetKey } : null
+        phase3: cc ? { level: cc.continuityLevel, depth: cc.depth, reentry: cc.reentryStyle, chipsKey: cc.chipsSetKey } : null,
       };
     }
+
     return out;
   }
 
-  // 4) non-music lanes
+  /* =========================
+     NON-MUSIC LANES (movies/schedule/sponsors)
+  ========================= */
+
   if (lane !== "music") {
+    // Always pin lane when entering non-music lanes (prevents drift)
+    applySessionPatch(s, { lane });
+
     let base = null;
     const call = await callLaneHandler(lane, { text: cleanText, session: s, visitorId, debug });
 
@@ -1013,8 +1095,6 @@ async function handleChat({ text, session, visitorId, now, debug }) {
     }
 
     if (base.sessionPatch) applySessionPatch(s, base.sessionPatch);
-
-    const cog = cogFromBase({ lane: base.lane, year: null, mode: null, baseMessage: base.baseMessage });
 
     let reply = base.baseMessage;
     let followUps = stripEchoFollowUps(base.followUps || [], cleanText);
@@ -1034,21 +1114,24 @@ async function handleChat({ text, session, visitorId, now, debug }) {
       intent: lane,
       userMessage: cleanText,
       baseMessage: reply,
-      visitorId: visitorId || "Guest"
+      visitorId: visitorId || "Guest",
     });
     if (polished) reply = polished;
 
+    // OUT cache + loop break
     const outSig = contentSig(reply, followUps);
     const lastOutSig = String(s.__lastOutSig || "");
-    const lastOutAt = Number(s.__lastOutAt || 0);
+    const lastOutAt4 = Number(s.__lastOutAt || 0);
 
-    if (lastOutSig && outSig === lastOutSig && withinMs(nowT, lastOutAt, OUTBOUND_DEDUPE_MS)) {
+    if (lastOutSig && outSig === lastOutSig && withinMs(nowT, lastOutAt4, OUTBOUND_DEDUPE_MS)) {
       const br = buildLoopBreakPrompt();
       reply = br.reply;
       followUps = stripEchoFollowUps(br.followUps, cleanText);
     } else {
       setLastOut(s, nowT, reply, followUps);
     }
+
+    const cog = cogFromBase({ lane: base.lane, year: null, mode: null, baseMessage: reply });
 
     const out = {
       ok: true,
@@ -1060,13 +1143,13 @@ async function handleChat({ text, session, visitorId, now, debug }) {
       reply,
       followUps,
       sessionPatch: base.sessionPatch || null,
-      cog
+      cog,
     };
 
     if (debug) {
       out.baseMessage = base.baseMessage;
       out._engine = {
-        version: "chatEngine v0.6j",
+        version: "chatEngine v0.6k",
         hasMusicLane: !!musicLane,
         hasLanePolicy: !!resolveLane,
         laneDecision: laneDecision || null,
@@ -1074,15 +1157,21 @@ async function handleChat({ text, session, visitorId, now, debug }) {
         laneCallOk: call.ok,
         laneCallFailReason: call.ok ? null : call.reason,
         hasNyxPolish: !!generateNyxReply,
-        phase3: cc ? { level: cc.continuityLevel, depth: cc.depth, reentry: cc.reentryStyle, chipsKey: cc.chipsSetKey } : null
+        phase3: cc ? { level: cc.continuityLevel, depth: cc.depth, reentry: cc.reentryStyle, chipsKey: cc.chipsSetKey } : null,
       };
     }
+
     return out;
   }
 
-  // 5) music lane (pin lane + guard top100)
-  s.lane = "music";
+  /* =========================
+     MUSIC LANE
+  ========================= */
 
+  // Always pin lane when entering music
+  applySessionPatch(s, { lane: "music" });
+
+  // Guard: top10 != top100; never stay in top100 unless explicitly asked this turn
   const wantsTop100Now = explicitTop100Ask(cleanText) || (cls.intent === "mode" && cls.mode === "top100");
   if (normalizeMode(s.activeMusicMode) === "top100" && !wantsTop100Now) {
     s.activeMusicMode = "top10";
@@ -1090,17 +1179,17 @@ async function handleChat({ text, session, visitorId, now, debug }) {
 
   if (musicLane) {
     try {
-      const mRaw = await Promise.resolve(
-        musicLane.handleChat({ text: cleanText, session: s, visitorId, debug: !!debug })
-      );
+      const mRaw = await Promise.resolve(musicLane.handleChat({ text: cleanText, session: s, visitorId, debug: !!debug }));
 
-      const m = normalizeMusicOutput(mRaw);
-      if (m.sessionPatch) applySessionPatch(s, m.sessionPatch);
+      // musicLane adapter already normalizes {reply, followUps(chips), sessionPatch}
+      const mNorm = normalizeLaneOutput(mRaw, "music");
 
-      let reply = m.reply;
-      let followUps = m.followUps;
+      if (mNorm.sessionPatch) applySessionPatch(s, mNorm.sessionPatch);
 
-      // OUT loop dampener (music content signature)
+      let reply = mNorm.reply;
+      let followUps = mNorm.followUps;
+
+      // Music content signature dampener
       const sig = contentSig(reply, followUps);
       const lastSig = String(s.__musicLastContentSig || "");
       const lastAt = Number(s.__musicLastContentAt || 0);
@@ -1121,7 +1210,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
             nowT,
             year: clampYear(s.lastMusicYear) || null,
             mode: normalizeMode(s.activeMusicMode) || null,
-            debug: false
+            debug: false,
           })
         : null;
 
@@ -1136,7 +1225,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
         intent: "music",
         userMessage: cleanText,
         baseMessage: reply,
-        visitorId: visitorId || "Guest"
+        visitorId: visitorId || "Guest",
       });
       if (polished) reply = polished;
 
@@ -1146,12 +1235,12 @@ async function handleChat({ text, session, visitorId, now, debug }) {
       const mode = normalizeMode(s.activeMusicMode) || null;
       const cog = cogFromBase({ lane: "music", year: y, mode, baseMessage: reply });
 
-      // Global OUT cache + loop break
+      // OUT cache + loop break
       const outSig = contentSig(reply, followUps);
       const lastOutSig = String(s.__lastOutSig || "");
-      const lastOutAt2 = Number(s.__lastOutAt || 0);
+      const lastOutAt5 = Number(s.__lastOutAt || 0);
 
-      if (lastOutSig && outSig === lastOutSig && withinMs(nowT, lastOutAt2, OUTBOUND_DEDUPE_MS)) {
+      if (lastOutSig && outSig === lastOutSig && withinMs(nowT, lastOutAt5, OUTBOUND_DEDUPE_MS)) {
         const br2 = buildLoopBreakPrompt();
         reply = br2.reply;
         followUps = stripEchoFollowUps(br2.followUps, cleanText);
@@ -1168,20 +1257,20 @@ async function handleChat({ text, session, visitorId, now, debug }) {
         voiceMode: s.voiceMode || "standard",
         reply,
         followUps,
-        sessionPatch: m.sessionPatch || null,
-        cog
+        sessionPatch: mNorm.sessionPatch || null,
+        cog,
       };
 
       if (debug) {
-        out.baseMessage = m.reply;
+        out.baseMessage = mNorm.reply;
         out._engine = {
-          version: "chatEngine v0.6j",
+          version: "chatEngine v0.6k",
           chosenLane: "music",
           usedMusicLane: true,
           wantsTop100Now,
           contentSig: sig,
           lastContentSig: lastSig,
-          phase3: cc ? { level: cc.continuityLevel, depth: cc.depth, reentry: cc.reentryStyle, chipsKey: cc.chipsSetKey } : null
+          phase3: cc ? { level: cc.continuityLevel, depth: cc.depth, reentry: cc.reentryStyle, chipsKey: cc.chipsSetKey } : null,
         };
       }
 
@@ -1194,17 +1283,12 @@ async function handleChat({ text, session, visitorId, now, debug }) {
     }
   }
 
-  // Fallback (rare)
-  const baseMessage =
-    "Tell me a year (1950–2024), or say “top 10 1988”, “story moment 1988”, “micro moment 1988”, or “#1 1988”.";
-  let reply = baseMessage;
+  /* =========================
+     MUSIC FALLBACK (rare)
+  ========================= */
 
-  if (packets) {
-    try {
-      const p = await packets.handleChat({ text: "music __ask_year__", session: s, visitorId, debug: !!debug });
-      if (p && p.reply) reply = String(p.reply).trim() || reply;
-    } catch (_) {}
-  }
+  let reply =
+    "Tell me a year (1950–2024), or say “top 10 1988”, “story moment 1988”, “micro moment 1988”, or “#1 1988”.";
 
   const cc = (consultContinuity && continuityUsable(s, nowT))
     ? consultCC({
@@ -1214,7 +1298,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
         nowT,
         year: clampYear(s.lastMusicYear) || null,
         mode: normalizeMode(s.activeMusicMode) || null,
-        debug: false
+        debug: false,
       })
     : null;
 
@@ -1228,7 +1312,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
     intent: "music",
     userMessage: cleanText,
     baseMessage: reply,
-    visitorId: visitorId || "Guest"
+    visitorId: visitorId || "Guest",
   });
   if (polished) reply = polished;
 
@@ -1237,7 +1321,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
       { label: "1956", send: "1956" },
       { label: "Top 10 1988", send: "top 10 1988" },
       { label: "Story 1988", send: "story moment 1988" },
-      { label: "Micro 1988", send: "micro moment 1988" }
+      { label: "Micro 1988", send: "micro moment 1988" },
     ]),
     cleanText
   );
@@ -1245,9 +1329,9 @@ async function handleChat({ text, session, visitorId, now, debug }) {
   // OUT cache + loop break
   const outSig = contentSig(reply, followUps);
   const lastOutSig = String(s.__lastOutSig || "");
-  const lastOutAt = Number(s.__lastOutAt || 0);
+  const lastOutAt6 = Number(s.__lastOutAt || 0);
 
-  if (lastOutSig && outSig === lastOutSig && withinMs(nowT, lastOutAt, OUTBOUND_DEDUPE_MS)) {
+  if (lastOutSig && outSig === lastOutSig && withinMs(nowT, lastOutAt6, OUTBOUND_DEDUPE_MS)) {
     const br = buildLoopBreakPrompt();
     reply = br.reply;
     followUps = stripEchoFollowUps(br.followUps, cleanText);
@@ -1259,7 +1343,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
     lane: "music",
     year: yKnown || null,
     mode: normalizeMode(s.activeMusicMode) || null,
-    baseMessage: reply
+    baseMessage: reply,
   });
 
   const out = {
@@ -1272,12 +1356,11 @@ async function handleChat({ text, session, visitorId, now, debug }) {
     reply,
     followUps,
     sessionPatch: null,
-    cog
+    cog,
   };
 
   if (debug) {
-    out.baseMessage = baseMessage;
-    out._engine = { version: "chatEngine v0.6j", chosenLane: "music", usedMusicLane: false, reason: "musicLane_missing_or_empty" };
+    out._engine = { version: "chatEngine v0.6k", chosenLane: "music", usedMusicLane: false, reason: "musicLane_missing_or_failed" };
   }
 
   return out;
