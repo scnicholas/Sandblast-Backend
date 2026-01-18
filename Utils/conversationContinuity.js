@@ -8,10 +8,18 @@
  * - Returns continuity signals + optional continuity lines (opener/microRecap/continuityLanguage) + chip set key.
  * - Deterministic selection (no Math.random) based on stable seed inputs.
  *
+ * v3.1a (HARDENED):
+ * ✅ Defensive pack loading: supports root keys OR {phase3:{...}} OR {packs:{phase3:{...}}}
+ * ✅ Safer fallbacks: never returns undefined strings; trims; handles missing arrays cleanly
+ * ✅ Deterministic pick uses hash→uint32 with explicit handling
+ * ✅ Continuity thresholds tunable via env (optional)
+ * ✅ Adds `continuityUsable` + `shouldOfferReentry` helpers to simplify chatEngine integration
+ * ✅ Adds `shouldInjectContinuityLine` heuristic (sprinkle, not pour)
+ *
  * Expected use:
  *   const { consultContinuity } = require("./conversationContinuity");
  *   const cc = consultContinuity({ session, lane, userText, now, year, mode, debug });
- *   // Use cc.openerLine / cc.microRecapLine / cc.continuityLine when appropriate
+ *   // Use cc.openerLine / cc.microRecapLine / cc.continuityLine / cc.reentryPrompt when appropriate
  *
  * Safe:
  * - Never claims long-term memory
@@ -25,14 +33,16 @@ const crypto = require("crypto");
 ========================= */
 
 let PACK = null;
+let _packLoadErr = null;
+
 try {
-  // Prefer storing JSON at: Data/nyx_conversational_pack_v3_1.json
-  // NOTE: adjust path if you keep Data elsewhere.
+  // Preferred: Data/nyx_conversational_pack_v3_1.json
   // From Utils/ -> ../Data/
   // eslint-disable-next-line import/no-dynamic-require, global-require
   PACK = require("../Data/nyx_conversational_pack_v3_1.json");
-} catch (_) {
+} catch (e) {
   PACK = null;
+  _packLoadErr = e ? String(e && e.message ? e.message : e) : "pack_load_error";
 }
 
 /* =========================
@@ -92,13 +102,28 @@ const FALLBACK = {
   }
 };
 
+/* =========================
+   Pack normalization
+========================= */
+
+function resolvePhase3Pack(p) {
+  if (!p || typeof p !== "object") return null;
+
+  // v3.x root keys
+  if (p.continuity_language || p.reentry_prompts || p.return_session_openers) return p;
+
+  // nested: { phase3: {...} }
+  if (p.phase3 && typeof p.phase3 === "object") return p.phase3;
+
+  // nested: { packs: { phase3: {...} } }
+  if (p.packs && typeof p.packs === "object" && p.packs.phase3 && typeof p.packs.phase3 === "object") return p.packs.phase3;
+
+  return null;
+}
+
 function getPack() {
-  // Support either:
-  // - pack root contains keys directly (v3.x JSON)
-  // - or nested under `phase3` (if you later refactor)
-  const p = PACK && typeof PACK === "object" ? PACK : null;
-  if (p && (p.continuity_language || (p.phase3 && p.phase3.continuity_language))) return p.phase3 || p;
-  return FALLBACK;
+  const phase3 = resolvePhase3Pack(PACK);
+  return phase3 || FALLBACK;
 }
 
 /* =========================
@@ -135,12 +160,21 @@ function sha1(s) {
   return crypto.createHash("sha1").update(String(s)).digest("hex");
 }
 
+function hashToUint32(hex40) {
+  try {
+    const h = String(hex40 || "");
+    const x = parseInt(h.slice(0, 8), 16);
+    return Number.isFinite(x) ? (x >>> 0) : 0;
+  } catch (_) {
+    return 0;
+  }
+}
+
 function pickDeterministic(list, seed) {
   if (!Array.isArray(list) || list.length === 0) return null;
   const h = sha1(seed || "seed");
-  // Take first 8 hex chars -> 32-bit int
-  const n = parseInt(h.slice(0, 8), 16);
-  const idx = Number.isFinite(n) ? (n % list.length) : 0;
+  const n = hashToUint32(h);
+  const idx = list.length ? (n % list.length) : 0;
   return list[idx] || list[0] || null;
 }
 
@@ -166,52 +200,59 @@ function withinMs(nowT, thenT, windowMs) {
   return d >= 0 && d <= w;
 }
 
+function safeStr(s) {
+  const out = String(s || "").trim();
+  return out ? out : null;
+}
+
+/* =========================
+   Tunables (optional env)
+========================= */
+
+const CC_RECENT_MS = Number(process.env.NYX_CC_RECENT_MS || 2 * 60 * 1000);      // 2 minutes
+const CC_WARM_MS = Number(process.env.NYX_CC_WARM_MS || 20 * 60 * 1000);         // 20 minutes
+const CC_SESSION_MS = Number(process.env.NYX_CC_SESSION_MS || 90 * 60 * 1000);   // 90 minutes
+
+// "Sprinkle" control: only inject continuity lines occasionally after certain turn thresholds
+const CC_MIN_TURNS_WARM = Number(process.env.NYX_CC_MIN_TURNS_WARM || 6);
+const CC_MIN_TURNS_DEEP = Number(process.env.NYX_CC_MIN_TURNS_DEEP || 16);
+const CC_MIN_TURNS_VERY_DEEP = Number(process.env.NYX_CC_MIN_TURNS_VERY_DEEP || 30);
+
 /* =========================
    Continuity inference
 ========================= */
 
 function depthBand(turnCount) {
   const t = Number(turnCount || 0);
-  if (t <= 0) return "early";     // 0–5
-  if (t <= 5) return "early";
-  if (t <= 15) return "mid";
-  if (t <= 30) return "late";
-  return "deep";
+  if (t <= 5) return "early";     // 0–5
+  if (t <= 15) return "mid";      // 6–15
+  if (t <= 30) return "late";     // 16–30
+  return "deep";                  // 31+
 }
 
 function continuityLevelFrom({ depth, lastOutAt, nowT }) {
   // Continuity is stronger if conversation is active/recent.
   // IMPORTANT: this is session-time continuity, not long-term memory.
   if (!lastOutAt) {
-    // No known output timestamp; continuity purely from depth.
     if (depth === "deep") return "deep";
     if (depth === "late") return "warm";
     if (depth === "mid") return "light";
     return "none";
   }
 
-  // windows tuned for conversational return experience
-  const RECENT_MS = 2 * 60 * 1000;     // 2 minutes
-  const WARM_MS = 20 * 60 * 1000;      // 20 minutes
-  const SAME_SESSION_MS = 90 * 60 * 1000; // 90 minutes
-
-  if (withinMs(nowT, lastOutAt, RECENT_MS)) {
-    // active session → continuity based on depth
-    if (depth === "deep") return "deep";
-    if (depth === "late") return "deep";
+  if (withinMs(nowT, lastOutAt, CC_RECENT_MS)) {
+    if (depth === "deep" || depth === "late") return "deep";
     if (depth === "mid") return "warm";
     return "light";
   }
 
-  if (withinMs(nowT, lastOutAt, WARM_MS)) {
-    // short break → warm continuity
+  if (withinMs(nowT, lastOutAt, CC_WARM_MS)) {
     if (depth === "deep") return "deep";
     if (depth === "late") return "warm";
     return "light";
   }
 
-  if (withinMs(nowT, lastOutAt, SAME_SESSION_MS)) {
-    // longer pause in same “visit”
+  if (withinMs(nowT, lastOutAt, CC_SESSION_MS)) {
     if (depth === "deep" || depth === "late") return "warm";
     return "light";
   }
@@ -223,9 +264,8 @@ function continuityLevelFrom({ depth, lastOutAt, nowT }) {
 function reentryStyleFrom({ continuityLevel, lane }) {
   const l = String(lane || "general").toLowerCase();
   if (continuityLevel === "none") return "restart";
-  if (continuityLevel === "light") return l === "music" ? "soft_resume" : "resume";
-  if (continuityLevel === "warm") return l === "music" ? "soft_resume" : "resume";
-  return l === "music" ? "soft_resume" : "resume";
+  if (l === "music") return "soft_resume";
+  return "resume";
 }
 
 function chooseChipsKey({ lane, continuityLevel }) {
@@ -233,6 +273,47 @@ function chooseChipsKey({ lane, continuityLevel }) {
   if (continuityLevel === "none") return "return_set";
   if (l === "music") return "music_resume_set";
   return "resume_set";
+}
+
+/* =========================
+   Heuristics: usable + inject control
+========================= */
+
+function continuityUsable({ session, now }) {
+  const s = session && typeof session === "object" ? session : {};
+  const nowT = nowMs(now);
+  const lastOutAt = Number(s.__lastOutAt || s.__musicLastContentAt || 0) || 0;
+  if (!lastOutAt) return false;
+  // usable if within "session" window
+  return withinMs(nowT, lastOutAt, CC_SESSION_MS);
+}
+
+function shouldOfferReentry({ session, lane, now }) {
+  // Offer reentry when:
+  // - continuity is usable AND
+  // - last output isn't super recent (avoid spamming "resume" within active flow)
+  const s = session && typeof session === "object" ? session : {};
+  const nowT = nowMs(now);
+  const lastOutAt = Number(s.__lastOutAt || s.__musicLastContentAt || 0) || 0;
+  if (!lastOutAt) return false;
+  if (!withinMs(nowT, lastOutAt, CC_SESSION_MS)) return false;
+
+  // if super recent (<15s), don't prompt "resume"
+  if (withinMs(nowT, lastOutAt, 15_000)) return false;
+
+  const l = String(lane || s.lane || "general").toLowerCase();
+  return l === "music" || l === "general" || l === "schedule" || l === "movies" || l === "sponsors";
+}
+
+function shouldInjectContinuityLine({ session, continuityLevel }) {
+  // Sprinkle rule: deeper levels can appear after enough turns.
+  const s = session && typeof session === "object" ? session : {};
+  const tCount = Number(s.turnCount || s.turns || 0);
+
+  if (continuityLevel === "deep") return tCount >= CC_MIN_TURNS_VERY_DEEP;
+  if (continuityLevel === "warm") return tCount >= CC_MIN_TURNS_DEEP;
+  if (continuityLevel === "light") return tCount >= CC_MIN_TURNS_WARM;
+  return false;
 }
 
 /* =========================
@@ -244,7 +325,6 @@ function consultContinuity({ session, lane, userText, now, year, mode, debug }) 
   const pack = getPack();
 
   const nowT = nowMs(now);
-
   const sessionLane = String(lane || s.lane || "general").toLowerCase();
   const tCount = Number(s.turnCount || s.turns || 0);
 
@@ -263,92 +343,91 @@ function consultContinuity({ session, lane, userText, now, year, mode, debug }) 
   const chipsSetKey = safeChipKey(chooseChipsKey({ lane: sessionLane, continuityLevel }));
 
   // Seed selection: stable across repeated calls within a session turn
-  const seedBase =
-    [
-      "cc",
-      continuityLevel,
-      depth,
-      sessionLane,
-      norm(userText || ""),
-      String(y || ""),
-      String(m || ""),
-      String(s.__lastOutSig || s.__musicLastContentSig || "")
-    ].join("|");
+  const seedBase = [
+    "cc",
+    continuityLevel,
+    depth,
+    sessionLane,
+    norm(userText || ""),
+    String(y || ""),
+    String(m || ""),
+    String(s.__lastOutSig || s.__musicLastContentSig || "")
+  ].join("|");
 
-  const vars = {
-    year: y || "",
-    mode: m || ""
-  };
+  const vars = { year: y || "", mode: m || "" };
 
-  // Select continuity line (optional)
+  // continuity line
   const contPool =
     (pack.continuity_language && pack.continuity_language[continuityLevel]) ||
     (pack.continuity_language && pack.continuity_language.warm) ||
     (FALLBACK.continuity_language && FALLBACK.continuity_language.warm) ||
     [];
 
-  const continuityLine = replaceVars(pickDeterministic(contPool, seedBase + "|cont"), vars);
+  const continuityLine = safeStr(replaceVars(pickDeterministic(contPool, seedBase + "|cont"), vars));
 
-  // Select re-entry opener (optional)
+  // opener
   const openPool =
     (pack.return_session_openers && pack.return_session_openers[continuityLevel]) ||
     (pack.return_session_openers && pack.return_session_openers.warm) ||
     [];
 
-  const openerLine = replaceVars(pickDeterministic(openPool, seedBase + "|open"), vars);
+  const openerLine = safeStr(replaceVars(pickDeterministic(openPool, seedBase + "|open"), vars));
 
-  // Select micro recap (optional)
+  // micro recap
   const recapGroup = sessionLane === "music" ? "music" : "general";
   const recapPool =
     (pack.micro_recaps && pack.micro_recaps[recapGroup]) ||
     (FALLBACK.micro_recaps && FALLBACK.micro_recaps[recapGroup]) ||
     [];
 
-  const microRecapLine = replaceVars(pickDeterministic(recapPool, seedBase + "|recap"), vars);
+  const microRecapLine = safeStr(replaceVars(pickDeterministic(recapPool, seedBase + "|recap"), vars));
 
-  // Select re-entry prompt (optional)
+  // re-entry prompt
   let reentryPrompt = null;
   if (pack.reentry_prompts) {
     if (reentryStyle === "restart") {
-      reentryPrompt = replaceVars(
+      reentryPrompt = safeStr(replaceVars(
         pickDeterministic(pack.reentry_prompts.restart_graceful || [], seedBase + "|restart"),
         vars
-      );
+      ));
     } else if (reentryStyle === "soft_resume" && sessionLane === "music") {
-      reentryPrompt = replaceVars(
+      reentryPrompt = safeStr(replaceVars(
         pickDeterministic(pack.reentry_prompts.soft_resume_music || [], seedBase + "|softmusic"),
         vars
-      );
+      ));
     } else {
-      reentryPrompt = replaceVars(
+      reentryPrompt = safeStr(replaceVars(
         pickDeterministic(pack.reentry_prompts.generic_resume || [], seedBase + "|resume"),
         vars
-      );
+      ));
     }
   }
+
+  const chips =
+    (pack.continuity_chips && pack.continuity_chips[chipsSetKey]) ||
+    (FALLBACK.continuity_chips && FALLBACK.continuity_chips[chipsSetKey]) ||
+    [];
 
   const out = {
     continuityLevel,          // none|light|warm|deep
     depth,                    // early|mid|late|deep
     reentryStyle,             // restart|resume|soft_resume
-    allowReturnLanguage,      // boolean
-    suggestResumeOptions,     // boolean
-    chipsSetKey,              // resume_set|music_resume_set|return_set
+    allowReturnLanguage,
+    suggestResumeOptions,
+    chipsSetKey,
 
-    // Optional strings (caller decides to use)
-    openerLine: openerLine || null,
-    microRecapLine: microRecapLine || null,
-    continuityLine: continuityLine || null,
-    reentryPrompt: reentryPrompt || null,
+    continuityLine,
+    openerLine,
+    microRecapLine,
+    reentryPrompt,
 
-    // Vars caller can reuse
     vars: { year: y, mode: m },
+    chips: Array.isArray(chips) ? chips : [],
 
-    // Chips payload from pack (caller can still normalize)
-    chips:
-      (pack.continuity_chips && pack.continuity_chips[chipsSetKey]) ||
-      (FALLBACK.continuity_chips && FALLBACK.continuity_chips[chipsSetKey]) ||
-      []
+    // helpers (caller can use)
+    usable: continuityUsable({ session: s, now: nowT }),
+    shouldOfferReentry: shouldOfferReentry({ session: s, lane: sessionLane, now: nowT }),
+    shouldInjectContinuityLine: shouldInjectContinuityLine({ session: s, continuityLevel })
   };
 
   if (debug) {
@@ -358,7 +437,8 @@ function consultContinuity({ session, lane, userText, now, year, mode, debug }) 
       seedBase,
       sessionLane,
       turnCount: tCount,
-      packLoaded: !!PACK
+      packLoaded: !!PACK,
+      packLoadErr: _packLoadErr || null
     };
   }
 
@@ -367,6 +447,9 @@ function consultContinuity({ session, lane, userText, now, year, mode, debug }) 
 
 module.exports = {
   consultContinuity,
+  continuityUsable,
+  shouldOfferReentry,
+  shouldInjectContinuityLine,
   replaceVars,
   clampYear,
   normalizeMode
