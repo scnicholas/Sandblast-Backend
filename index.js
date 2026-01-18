@@ -3,23 +3,31 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17k (ANTI-502 + PREFLIGHT HARDENED + REAL ROUTE TIMEOUT + UPSTREAM QUOTA FLOOR + DEBUG PASSTHRU + TTS DIAG)
+ * index.js v1.5.17l (BULLETPROOF: session-stability fix + OPTIONS safe + sessionId hygiene + caps + guard hardening)
  *
- * - Hard crash visibility (uncaughtException/unhandledRejection)
- * - Parsers first + JSON parse guard
- * - CORS safe preflight for all /api/* (guaranteed)
- * - /health + /api/health + /api/version
- * - /api/chat:
- *     * NEVER throws past route boundary (full try/catch)
- *     * Handles ALL chatEngine export shapes (function, handleChat, reply)
- *     * REAL timeout watchdog (respond-once floor) -> prevents hung handlers -> returns fallback 200
- *     * Burst guard (per-client) soft dedupe 200 + hard 429 (extreme only)
- *     * Request-body hash dedupe returns last reply 200 (stable; ignores sessionId by default)
- *     * Upstream OpenAI quota 429 -> stable 200 + headers (prevents client retry loops)
- *     * Debug passthru: baseMessage/_engine/cog (debug=1 only)
- * - /api/tts + /api/voice:
- *     * Soft-loaded and cannot brick boot
- *     * NEW: /api/tts/diag endpoint + 501 diag payload (export keys + load error)
+ * CRITICAL FIXES vs v1.5.17k:
+ *  ✅ SESSION STABILITY FIX (major loop trigger)
+ *     - If client omits sessionId, we DO NOT generate a new one per request anymore.
+ *     - We derive a stable session key from fingerprint (visitorId or IP) + UA.
+ *     - This makes burst/dedupe/state actually work even on buggy clients.
+ *
+ *  ✅ sessionId hygiene
+ *     - Normalizes/limits length and hashes very long/untrusted session ids (prevents memory abuse)
+ *
+ *  ✅ OPTIONS route compatibility
+ *     - Replaces app.options("*") with a regex catch-all (avoids path-to-regexp surprises)
+ *
+ *  ✅ Prototype pollution hardening
+ *     - Blocks "__proto__", "constructor", and "prototype" keys in session patch
+ *
+ *  ✅ caps handshake (minimal, always present)
+ *     - payload.caps tells UI/avatar what lanes are available (helps “Nyx knows this exists”)
+ *
+ * Keeps:
+ *  - ANTI-502: hard crash visibility, parsers first, JSON guard, preflight guaranteed
+ *  - /health + /api/health + /api/version
+ *  - /api/chat: respond-once watchdog + burst + body-hash dedupe + quota floor + debug passthru
+ *  - /api/tts + /api/voice soft-loaded + /api/tts/diag
  */
 
 const express = require("express");
@@ -64,7 +72,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.17k (ANTI-502 chat route: export-shape safe + REAL timeout + burst + hash dedupe + preflight hardened + quota floor + debug passthru + tts diag)";
+  "index.js v1.5.17l (BULLETPROOF: stable session keys + OPTIONS regex + sessionId hygiene + caps + guard hardening)";
 
 const GIT_COMMIT =
   String(process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "").trim() || null;
@@ -115,22 +123,26 @@ function normCmd(s) {
 function sha256(s) {
   return crypto.createHash("sha256").update(String(s)).digest("hex");
 }
+function ua(req) {
+  return normalizeStr(req.get("user-agent") || "");
+}
 
 /** Stable body hashing.
  * IMPORTANT: ignores sessionId by default (session can churn on buggy clients).
  * If you truly want sessionId included, set BODY_HASH_INCLUDE_SESSION=true.
  */
 const BODY_HASH_INCLUDE_SESSION = String(process.env.BODY_HASH_INCLUDE_SESSION || "false") === "true";
-function stableBodyForHash(body) {
+function stableBodyForHash(body, req) {
   const b = body && typeof body === "object" ? body : {};
+  const headerVisitor = normalizeStr(req?.get?.("X-Visitor-Id") || "");
   return JSON.stringify({
     text: normalizeStr(b.text || b.message || ""),
-    visitorId: normalizeStr(b.visitorId || ""),
+    visitorId: normalizeStr(b.visitorId || headerVisitor || ""),
     contractVersion: normalizeStr(b.contractVersion || ""),
-    voiceMode: normalizeStr(b.voiceMode || ""),
+    voiceMode: normalizeStr(b.voiceMode || req?.get?.("X-Voice-Mode") || ""),
     mode: normalizeStr(b.mode || ""),
     year: b.year ?? null,
-    sessionId: BODY_HASH_INCLUDE_SESSION ? normalizeStr(b.sessionId || "") : "",
+    sessionId: BODY_HASH_INCLUDE_SESSION ? normalizeStr(b.sessionId || req?.get?.("X-Session-Id") || "") : "",
   });
 }
 
@@ -229,18 +241,17 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 /** GUARANTEED preflight handler.
- * Express's "/api/*" matching can be surprising; this route always fires for /api/...
+ * Express "/api/*" matching can be surprising; this always catches /api/...
  */
 app.use("/api", (req, res, next) => {
   if (req.method !== "OPTIONS") return next();
   const requestId = req.get("X-Request-Id") || rid();
   setContractHeaders(res, requestId);
-  // cors() will attach allow headers appropriately
   return cors(corsOptions)(req, res, () => res.sendStatus(204));
 });
 
-/** Safety net: global OPTIONS (rarely needed but harmless) */
-app.options("*", cors(corsOptions));
+/** Safety net: global OPTIONS catch-all (regex avoids "*" path-to-regexp edge cases) */
+app.options(/.*/, cors(corsOptions));
 
 /* ======================================================
    In-memory session store
@@ -254,11 +265,45 @@ const SESSION_TTL_MS = clamp(
 );
 const SESSIONS = new Map();
 
-function getSessionId(req, body) {
+function getClientIp(req) {
+  const xf = normalizeStr(req.get("x-forwarded-for") || "");
+  if (xf) return xf.split(",")[0].trim();
+  return normalizeStr(req.socket?.remoteAddress || "");
+}
+function fingerprint(req, visitorId) {
+  const vid = normalizeStr(visitorId || "");
+  if (vid) return `vid:${vid}`;
+  const ip = getClientIp(req);
+  return ip ? `ip:${ip}` : "anon";
+}
+
+/** SessionId hygiene:
+ * - trims, clamps length
+ * - hashes extremely long/untrusted IDs (prevents memory abuse)
+ */
+const SESSION_ID_MAXLEN = clamp(process.env.SESSION_ID_MAXLEN || 96, 32, 256);
+function cleanSessionId(sid) {
+  const s = normalizeStr(sid || "");
+  if (!s) return null;
+  if (s.length <= SESSION_ID_MAXLEN) return s;
+  // Hash long ids into fixed safe token
+  return "sx_" + sha256(s).slice(0, 24);
+}
+
+/** Stable session key if missing:
+ * This is the BIG fix: prevents per-request session churn.
+ */
+function deriveStableSessionId(req, visitorId) {
+  const fp = fingerprint(req, visitorId);
+  const uastr = ua(req);
+  return "auto_" + sha256(fp + "|" + uastr).slice(0, 24);
+}
+
+function getSessionId(req, body, visitorId) {
   const b = body || {};
-  const fromBody = normalizeStr(b.sessionId || "");
-  const fromHeader = normalizeStr(req.get("X-Session-Id") || "");
-  return fromBody || fromHeader || null;
+  const fromBody = cleanSessionId(b.sessionId);
+  const fromHeader = cleanSessionId(req.get("X-Session-Id"));
+  return fromBody || fromHeader || deriveStableSessionId(req, visitorId);
 }
 
 function touchSession(sessionId, patch) {
@@ -287,7 +332,7 @@ function touchSession(sessionId, patch) {
 
   if (patch && typeof patch === "object") {
     for (const [k, v] of Object.entries(patch)) {
-      if (k === "__proto__" || k === "constructor") continue;
+      if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
       s[k] = v;
     }
   }
@@ -356,6 +401,7 @@ app.get("/api/version", (req, res) => {
       requestTimeoutMs: REQUEST_TIMEOUT_MS,
       maxSessions: MAX_SESSIONS,
       bodyHashIncludeSession: BODY_HASH_INCLUDE_SESSION,
+      sessionIdMaxLen: SESSION_ID_MAXLEN,
     },
   });
 });
@@ -394,16 +440,10 @@ if (!ttsModule) {
 function pickTtsHandler(mod) {
   if (!mod) return null;
 
-  // default export style
   if (mod.default && typeof mod.default === "function") return mod.default;
-
-  // express router style
   if (mod.router && typeof mod.router === "function") return mod.router;
-
-  // direct function
   if (typeof mod === "function") return mod;
 
-  // known handler names
   if (typeof mod.handleTts === "function") return mod.handleTts;
   if (typeof mod.handle === "function") return mod.handle;
   if (typeof mod.tts === "function") return mod.tts;
@@ -415,7 +455,6 @@ async function runTts(req, res) {
   const requestId = req.get("X-Request-Id") || rid();
   setContractHeaders(res, requestId);
 
-  // lazy reload if boot failed
   if (!ttsModule) ttsModule = safeRequireTts();
 
   const fn = pickTtsHandler(ttsModule);
@@ -480,18 +519,6 @@ const BURSTS = new Map();
 
 // Body hash dedupe
 const BODY_DEDUPE_MS = clamp(process.env.BODY_DEDUPE_MS || 1600, 400, 5000);
-
-function getClientIp(req) {
-  const xf = normalizeStr(req.get("x-forwarded-for") || "");
-  if (xf) return xf.split(",")[0].trim();
-  return normalizeStr(req.socket?.remoteAddress || "");
-}
-function fingerprint(req, visitorId) {
-  const vid = normalizeStr(visitorId || "");
-  if (vid) return `vid:${vid}`;
-  const ip = getClientIp(req);
-  return ip ? `ip:${ip}` : "anon";
-}
 
 setInterval(() => {
   const now = Date.now();
@@ -560,7 +587,6 @@ function isUpstreamQuotaError(e) {
     const stack = String(e.stack || "");
     const raw = msg + "\n" + stack;
 
-    // common SDK shapes
     const code = String(e.code || (e.error && e.error.code) || "");
     const type = String(e.type || (e.error && e.error.type) || "");
     const status = Number(e.status || e.statusCode || (e.response && e.response.status) || NaN);
@@ -601,6 +627,19 @@ function respondOnce(res) {
   };
 }
 
+/** Capability handshake: tells frontend/avatar what lanes exist.
+ * Keep minimal + stable; let chatEngine override/extend via debug if desired.
+ */
+function capsPayload() {
+  return {
+    music: true,
+    movies: true,
+    sponsors: true,
+    schedule: true,
+    tts: true,
+  };
+}
+
 app.post("/api/chat", async (req, res) => {
   const requestId = req.get("X-Request-Id") || rid();
   setContractHeaders(res, requestId);
@@ -616,6 +655,7 @@ app.post("/api/chat", async (req, res) => {
         reply: "I’m here. Give me a year (1950–2024), or say “top 10 1988”.",
         requestId,
         contractVersion: NYX_CONTRACT_VERSION,
+        caps: capsPayload(),
         deduped: true,
       });
     } catch (_) {}
@@ -639,9 +679,11 @@ app.post("/api/chat", async (req, res) => {
       });
     }
 
-    const sessionId = getSessionId(req, body) || rid();
     const visitorId =
       normalizeStr(body.visitorId || "") || normalizeStr(req.get("X-Visitor-Id") || "") || null;
+
+    // IMPORTANT: stable sessionId even if client doesn't send one
+    const sessionId = getSessionId(req, body, visitorId);
 
     const session = touchSession(sessionId, { visitorId }) || { sessionId };
 
@@ -680,13 +722,14 @@ app.post("/api/chat", async (req, res) => {
           requestId,
           visitorId,
           contractVersion: NYX_CONTRACT_VERSION,
+          caps: capsPayload(),
           deduped: true,
         });
       }
     }
 
     // --- Body-hash dedupe (instant loop dampener) ---
-    const bodyHash = sha256(stableBodyForHash(body));
+    const bodyHash = sha256(stableBodyForHash(body, req));
     const lastHash = normalizeStr(session.__lastBodyHash || "");
     const lastAt = Number(session.__lastBodyAt || 0);
     if (lastHash && bodyHash === lastHash && lastAt && now - lastAt < BODY_DEDUPE_MS) {
@@ -699,6 +742,7 @@ app.post("/api/chat", async (req, res) => {
         requestId,
         visitorId,
         contractVersion: NYX_CONTRACT_VERSION,
+        caps: capsPayload(),
         deduped: true,
       });
     }
@@ -742,10 +786,13 @@ app.post("/api/chat", async (req, res) => {
       }
     }
 
-    const reply = out && typeof out === "object" && typeof out.reply === "string" ? out.reply : fallbackReply(text);
+    const reply =
+      out && typeof out === "object" && typeof out.reply === "string" ? out.reply : fallbackReply(text);
 
     const followUps =
-      out && typeof out === "object" && Array.isArray(out.followUps) ? normalizeFollowUpsToStrings(out.followUps) : undefined;
+      out && typeof out === "object" && Array.isArray(out.followUps)
+        ? normalizeFollowUpsToStrings(out.followUps)
+        : undefined;
 
     // Persist last seen
     session.__lastReply = reply;
@@ -759,6 +806,7 @@ app.post("/api/chat", async (req, res) => {
       requestId,
       visitorId,
       contractVersion: NYX_CONTRACT_VERSION,
+      caps: capsPayload(),
     };
 
     if (shadow) payload.shadow = shadow;
@@ -769,6 +817,7 @@ app.post("/api/chat", async (req, res) => {
       if (out.baseMessage) payload.baseMessage = String(out.baseMessage);
       if (out._engine && typeof out._engine === "object") payload._engine = out._engine;
       if (out.cog && typeof out.cog === "object") payload.cog = out.cog;
+      if (out.caps && typeof out.caps === "object") payload.caps = Object.assign({}, payload.caps, out.caps);
     }
 
     clearTimeout(watchdog);
@@ -783,6 +832,7 @@ app.post("/api/chat", async (req, res) => {
       reply: "I’m here. Give me a year (1950–2024), or say “top 10 1988”.",
       requestId,
       contractVersion: NYX_CONTRACT_VERSION,
+      caps: capsPayload(),
       deduped: true,
     });
   }
