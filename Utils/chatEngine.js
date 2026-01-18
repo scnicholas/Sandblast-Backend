@@ -8,12 +8,14 @@
  *  - NO index.js imports
  *  - returns { ok, reply, followUps, sessionPatch, cog, requestId }
  *
- * v0.6l (MUSICLANE SHAPE COMPAT + PATCH MERGE)
+ * v0.6m (ROKU LANE WIRING + SHAPE HARDENING)
  * Adds:
- *  ✅ musicLane followUps normalization (strings <-> chip objects)
- *  ✅ merges lane sessionPatch (filtered) into engine patch
+ *  ✅ Roku Lane bridge via Utils/rokuLane.js (optional)
+ *  ✅ detectLane: separate "roku" lane from generic "tv"
  *
  * Preserves:
+ *  ✅ musicLane followUps normalization (strings <-> chip objects)
+ *  ✅ merges lane sessionPatch (filtered) into engine patch
  *  ✅ Nyx Intro Script V1
  *  ✅ Conversational Elasticity Engine
  *  ✅ Input loop guard
@@ -41,6 +43,14 @@ try {
     // handleChat style: ({text, session}) -> {reply, followUpsStrings, followUps, sessionPatch}
     musicLane = async (text, session) => mod.handleChat({ text, session });
   }
+} catch (_) { /* optional */ }
+
+// Optional Roku bridge
+let rokuLane = null;
+try {
+  const mod = require("./rokuLane");
+  if (typeof mod === "function") rokuLane = mod;
+  else if (mod && typeof mod.rokuLane === "function") rokuLane = mod.rokuLane;
 } catch (_) { /* optional */ }
 
 // ----------------------------
@@ -142,7 +152,7 @@ const SESSION_ALLOW = new Set([
   "pendingLane", "pendingMode", "pendingYear",
   "recentIntent", "recentTopic",
 
-  // music continuity (safe, from musicLane)
+  // music continuity (safe)
   "activeMusicMode", "lastMusicYear", "year", "mode"
 ]);
 
@@ -214,7 +224,7 @@ function dampenIfDuplicateOutput(session, reply, followUps) {
 // ----------------------------
 function isDirectIntent(userText) {
   const t = normalizeText(userText);
-  return /\b(top\s*10|top\s*100|#1|story\s*moment|micro\s*moment|schedule|what'?s\s*playing|playing\s*now|vod|roku|radio|tv|open|watch|play)\b/.test(t);
+  return /\b(top\s*10|top\s*100|#1|story\s*moment|micro\s*moment|schedule|what'?s\s*playing|playing\s*now|vod|roku|radio|tv|live|linear|live\s*linear|open|watch|play)\b/.test(t);
 }
 
 function shouldRunIntro(session, userText) {
@@ -354,7 +364,8 @@ function detectLane(text) {
   const t = normalizeText(text);
 
   if (/\b(schedule|what'?s\s*playing|playing\s*now)\b/.test(t)) return "schedule";
-  if (/\b(vod|roku|tv)\b/.test(t)) return "tv";
+  if (/\b(roku|vod|on\s*demand)\b/.test(t)) return "roku"; // ✅ separate lane
+  if (/\b(tv|television)\b/.test(t)) return "tv";
   if (/\b(radio)\b/.test(t)) return "radio";
   if (/\b(top\s*10|top\s*100|#1|story\s*moment|micro\s*moment|\b19\d{2}\b|\b20\d{2}\b)\b/.test(t)) return "music";
   return "general";
@@ -372,6 +383,8 @@ function detectMode(text) {
   if (/\btop\s*100\b/.test(t)) return "top100";
   if (/\btop\s*10\b/.test(t)) return "top10";
   if (/\b#1\b/.test(t)) return "number1";
+  if (/\b(vod|on\s*demand)\b/.test(t)) return "vod";
+  if (/\b(live|linear|live\s*linear)\b/.test(t)) return "live";
   return null;
 }
 
@@ -438,11 +451,21 @@ async function chatEngine(inputText, session) {
 
       followUps = normalizeFollowUpsFromLane(res);
 
-      // merge lane patch (musicLane ensures mode/year continuity)
       lanePatch = filterSessionPatch(res && res.sessionPatch ? res.sessionPatch : null);
     } catch (_) {
       reply = "Music lane hiccup. Give me a year (1950–2024) and I’ll pull it up.";
       followUps = ["Top 10 1988", "Pick a year", "Story moment 1955", "Micro moment 1979"];
+      lanePatch = null;
+    }
+  } else if (lane === "roku" && rokuLane) {
+    try {
+      const r = await rokuLane({ text, session: sess });
+      reply = (r && r.reply) ? String(r.reply).trim() : "Roku mode — live linear or VOD?";
+      followUps = normalizeFollowUpsFromLane(r); // supports followUps strings or chips
+      lanePatch = filterSessionPatch(r && r.sessionPatch ? r.sessionPatch : null);
+    } catch (_) {
+      reply = "Roku routing is warming up. Do you want **Live linear** or **VOD**?";
+      followUps = ["Live linear", "VOD", "Open TV hub", "What’s playing now"];
       lanePatch = null;
     }
   } else if (lane === "radio") {
@@ -455,7 +478,7 @@ async function chatEngine(inputText, session) {
     reply = "Schedule mode — tell me your city (or timezone) and I’ll translate the programming to your local time.";
     followUps = ["Toronto", "London", "What’s playing now", "Show me the Roku path"];
   } else {
-    reply = "I’m with you. Tell me what you want: music, TV/Roku, schedule, or just a conversation.";
+    reply = "I’m with you. Tell me what you want: music, Roku/TV, schedule, or just a conversation.";
     followUps = ["Start with music", "Show me the Roku path", "What’s playing now", "Just talk"];
   }
 
