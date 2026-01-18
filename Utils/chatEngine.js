@@ -8,7 +8,7 @@
  *  - NO index.js imports
  *  - returns { ok, reply, followUps, sessionPatch, cog, ... }
  *
- * v0.6i (BULLETPROOF++: MUSIC LANE BRIDGE + CONTENT SIG DAMPENER + SESSIONPATCH ALLOWLIST + INPUT/OUTPUT LOOP GUARD)
+ * v0.6i (BULLETPROOF++: MUSIC LANE BRIDGE + CONTENT SIG DAMPENER + SESSIONPATCH ALLOWLIST + INPUT/OUTPUT LOOP GUARD + PHASE3 CONTINUITY OVERLAY)
  *
  * CORE FIX:
  * ✅ Music lane calls Utils/musicLane.js (which delegates to musicKnowledge) and returns REAL content.
@@ -20,12 +20,26 @@
  * ✅ Windows are ms-based (previous 1800 was ~1.8s ambiguity; now explicit constants)
  * ✅ SessionPatch allowlist expanded to include last in/out signatures + cached last output
  *
+ * PHASE 3 (NEW):
+ * ✅ consultContinuity() overlay: provides continuity language + re-entry prompts/chips (consult-only)
+ * ✅ Supports commands: "resume", "start fresh", "change lens" (safe, non-identity continuity)
+ * ✅ Never claims long-term memory
+ *
  * Preserves:
  * ✅ top10 != top100; never enters top100 unless explicit ask
  * ✅ Greetings/help/bye remain conversational-first
  */
 
 const crypto = require("crypto");
+
+// Phase 3 continuity overlay (consult-only)
+let consultContinuity = null;
+try {
+  const cc = require("./conversationContinuity");
+  if (cc && typeof cc.consultContinuity === "function") consultContinuity = cc.consultContinuity;
+} catch (_) {
+  consultContinuity = null;
+}
 
 let generateNyxReply = null;
 try {
@@ -79,6 +93,9 @@ const OUTBOUND_DEDUPE_MS = Number(process.env.NYX_OUTBOUND_DEDUPE_MS || 2500);
 
 // Hard cap: don't trust "cached last output" if it's too old.
 const LAST_OUT_MAX_AGE_MS = Number(process.env.NYX_LAST_OUT_MAX_AGE_MS || 60_000);
+
+// Phase 3: treat "return" as plausible if last output is within this window (keeps continuity language honest)
+const CONTINUITY_MAX_AGE_MS = Number(process.env.NYX_CONTINUITY_MAX_AGE_MS || 90 * 60_000); // 90 minutes
 
 /* =========================
    Utilities
@@ -156,6 +173,11 @@ function classifyUserIntent(text) {
   if (/\bmicro\s*moment\b|\bmicro\b/.test(t)) return { intent: "mode", mode: "micro" };
   if (/\b#\s*1\b|\bnumber\s*1\b|\bno\.?\s*1\b|\bno\s*1\b/.test(t)) return { intent: "mode", mode: "number1" };
 
+  // Phase 3 control words (kept in classifier so we can short-circuit cleanly)
+  if (/^\s*resume\s*$/.test(t)) return { intent: "continuity", cmd: "resume" };
+  if (/^\s*start\s*fresh\s*$/.test(t) || /^\s*restart\s*$/.test(t) || /^\s*reset\s*$/.test(t)) return { intent: "continuity", cmd: "start_fresh" };
+  if (/^\s*change\s*lens\s*$/.test(t) || /^\s*switch\s*lens\s*$/.test(t)) return { intent: "continuity", cmd: "change_lens" };
+
   return { intent: "general" };
 }
 
@@ -219,6 +241,9 @@ function applySessionPatch(session, patch) {
     "__lastOutAt",
     "__lastOutReply",
     "__lastOutFollowUps",
+
+    // Phase 3 optional turn counter
+    "turnCount"
   ]);
 
   for (const k of Object.keys(patch)) {
@@ -278,8 +303,8 @@ function buildLaneStub(lane) {
         { label: "Radio", send: "radio" },
         { label: "Website", send: "website" },
         { label: "Social", send: "social" },
-        { label: "Bundle", send: "bundle" },
-      ]),
+        { label: "Bundle", send: "bundle" }
+      ])
     };
   }
   if (lane === "schedule") {
@@ -291,8 +316,8 @@ function buildLaneStub(lane) {
         { label: "London", send: "in London" },
         { label: "Toronto", send: "in Toronto" },
         { label: "Playing now", send: "what’s playing now" },
-        { label: "Today", send: "schedule today" },
-      ]),
+        { label: "Today", send: "schedule today" }
+      ])
     };
   }
   if (lane === "movies") {
@@ -304,8 +329,8 @@ function buildLaneStub(lane) {
         { label: "Recommend", send: "recommend something" },
         { label: "Classic TV", send: "classic tv" },
         { label: "Westerns", send: "westerns" },
-        { label: "Detective", send: "detective" },
-      ]),
+        { label: "Detective", send: "detective" }
+      ])
     };
   }
   return {
@@ -317,8 +342,8 @@ function buildLaneStub(lane) {
       { label: "Top 10", send: "top 10 1988" },
       { label: "Schedule", send: "schedule" },
       { label: "Sponsors", send: "sponsors" },
-      { label: "Movies/TV", send: "movies" },
-    ]),
+      { label: "Movies/TV", send: "movies" }
+    ])
   };
 }
 
@@ -426,7 +451,7 @@ async function tryNyxPolish({ domain, intent, userMessage, baseMessage, visitorI
       userMessage,
       baseMessage,
       boundaryContext: { role: "internal", actor: visitorId || "Guest" },
-      timeoutMs: 9000,
+      timeoutMs: 9000
     });
 
     if (typeof refined === "string" && refined.trim()) return refined.trim();
@@ -488,13 +513,13 @@ function setLastOut(session, nowMs, reply, followUps) {
     __lastOutSig: sig,
     __lastOutAt: nowMs,
     __lastOutReply: String(reply || ""),
-    __lastOutFollowUps: Array.isArray(followUps) ? followUps : [],
+    __lastOutFollowUps: Array.isArray(followUps) ? followUps : []
   });
   return sig;
 }
 
 function canUseCachedLastOut(session, nowMs) {
-  const at = Number(session && session.__lastOutAt || 0);
+  const at = Number((session && session.__lastOutAt) || 0);
   if (!Number.isFinite(at) || at <= 0) return false;
   return withinMs(nowMs, at, LAST_OUT_MAX_AGE_MS) && !!(session && session.__lastOutReply);
 }
@@ -507,9 +532,77 @@ function buildLoopBreakPrompt() {
     { label: "1988", send: "1988" },
     { label: "#1", send: "#1" },
     { label: "Story", send: "story moment" },
-    { label: "Micro", send: "micro moment" },
+    { label: "Micro", send: "micro moment" }
   ]);
   return { reply, followUps };
+}
+
+/* =========================
+   Phase 3 continuity helpers
+========================= */
+
+function continuityUsable(session, nowT) {
+  const at = Number((session && session.__lastOutAt) || 0);
+  if (!Number.isFinite(at) || at <= 0) return false;
+  return withinMs(nowT, at, CONTINUITY_MAX_AGE_MS);
+}
+
+function applyContinuityOverlay({ session, lane, userText, nowT, year, mode }) {
+  if (!consultContinuity) return null;
+  return consultContinuity({
+    session,
+    lane,
+    userText,
+    now: nowT,
+    year,
+    mode,
+    debug: false
+  });
+}
+
+function mergeContinuityIntoReply({ baseReply, baseFollowUps, cc, cleanText }) {
+  let reply = String(baseReply || "").trim();
+  let followUps = Array.isArray(baseFollowUps) ? baseFollowUps : [];
+
+  if (!cc) return { reply, followUps };
+
+  // Prefer micro recap when user asked resume explicitly
+  const t = normCmd(cleanText);
+  const askedResume = t === "resume";
+  const askedChangeLens = t === "change lens" || t === "switch lens";
+
+  if (askedResume && cc.microRecapLine) {
+    reply = cc.microRecapLine;
+  } else if (askedChangeLens && cc.reentryPrompt) {
+    reply = cc.reentryPrompt;
+  } else if (cc.continuityLine) {
+    // sprinkle continuity language in front of base message only if it won't feel spammy
+    reply = `${cc.continuityLine} ${reply}`.trim();
+  } else if (cc.openerLine) {
+    reply = `${cc.openerLine} ${reply}`.trim();
+  }
+
+  if (Array.isArray(cc.chips) && cc.chips.length) {
+    // Only use continuity chips if they don't echo the exact user input
+    const cchips = safeFollowUps(cc.chips);
+    followUps = stripEchoFollowUps(cchips, cleanText);
+  }
+
+  return { reply, followUps };
+}
+
+function resetConversationContext(session) {
+  if (!session || typeof session !== "object") return;
+  // Minimal reset: keep voiceMode, clear lane + music context
+  applySessionPatch(session, {
+    lane: "general",
+    lastMusicYear: null,
+    activeMusicMode: null,
+    activeMusicChart: null,
+    lastMusicChart: null,
+    __musicLastContentSig: null,
+    __musicLastContentAt: null
+  });
 }
 
 /* =========================
@@ -534,6 +627,9 @@ async function handleChat({ text, session, visitorId, now, debug }) {
 
   const nowT = nowMsFrom(now);
 
+  // Increment turn count (Phase 2/3 consult can use it; harmless if unused elsewhere)
+  applySessionPatch(s, { turnCount: Number(s.turnCount || 0) + 1 });
+
   // ✅ v0.6i INPUT LOOP GUARD (idempotent response for tight repeats)
   const inSig = sha1(normCmd(cleanText));
   const lastInSig = String(s.__lastInSig || "");
@@ -557,7 +653,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
       reply: cachedReply,
       followUps: stripEchoFollowUps(cachedFollowUps, cleanText),
       sessionPatch: null,
-      cog,
+      cog
     };
 
     if (debug) {
@@ -566,13 +662,127 @@ async function handleChat({ text, session, visitorId, now, debug }) {
         loopGuard: "inbound_dedupe_return_cached_last_out",
         inSig,
         lastInAt,
-        nowT,
+        nowT
       };
     }
     return out;
   }
 
   applySessionPatch(s, { __lastInSig: inSig, __lastInAt: nowT });
+
+  /* =========================
+     Phase 3 command short-circuits
+  ========================= */
+
+  if (cls.intent === "continuity") {
+    if (cls.cmd === "start_fresh") {
+      resetConversationContext(s);
+      const base = buildLaneStub("general");
+
+      let reply = base.baseMessage;
+      let followUps = stripEchoFollowUps(base.followUps || [], cleanText);
+
+      // Add a gentle re-entry opener only if continuity is usable (avoid implying memory)
+      const cc = consultContinuity ? applyContinuityOverlay({ session: s, lane: "general", userText: cleanText, nowT, year: null, mode: null }) : null;
+      if (cc && cc.openerLine) reply = `${cc.openerLine} ${reply}`.trim();
+
+      // cache / loop-check
+      const outSig = contentSig(reply, followUps);
+      const lastOutSig = String(s.__lastOutSig || "");
+      const lastOutAt = Number(s.__lastOutAt || 0);
+
+      if (lastOutSig && outSig === lastOutSig && withinMs(nowT, lastOutAt, OUTBOUND_DEDUPE_MS)) {
+        const br = buildLoopBreakPrompt();
+        reply = br.reply;
+        followUps = stripEchoFollowUps(br.followUps, cleanText);
+      } else {
+        setLastOut(s, nowT, reply, followUps);
+      }
+
+      const cog = cogFromBase({ lane: "general", year: null, mode: null, baseMessage: reply });
+
+      return {
+        ok: true,
+        contractVersion: "1",
+        lane: "general",
+        year: null,
+        mode: null,
+        voiceMode: s.voiceMode || "standard",
+        reply,
+        followUps,
+        sessionPatch: { lane: "general" },
+        cog,
+        ...(debug
+          ? { _engine: { version: "chatEngine v0.6i", continuityCmd: "start_fresh", consultedContinuity: !!cc } }
+          : {})
+      };
+    }
+
+    // resume / change lens
+    const laneNow = String(s.lane || "general").toLowerCase();
+    const y = clampYear(s.lastMusicYear) || null;
+    const m = normalizeMode(s.activeMusicMode) || null;
+
+    const cc = consultContinuity ? applyContinuityOverlay({ session: s, lane: laneNow, userText: cleanText, nowT, year: y, mode: m }) : null;
+
+    let reply = "No recap needed — give me a year (1950–2024), or say “top 10”, “#1”, “story moment”, or “micro moment”.";
+    let followUps = safeFollowUps([
+      { label: "Pick a year", send: "1988" },
+      { label: "Top 10", send: "top 10 1988" },
+      { label: "Story", send: "story moment 1988" },
+      { label: "Micro", send: "micro moment 1988" }
+    ]);
+
+    if (cc && continuityUsable(s, nowT)) {
+      // Prefer micro recap for resume, reentryPrompt for change lens
+      const merged = mergeContinuityIntoReply({ baseReply: reply, baseFollowUps: followUps, cc, cleanText });
+      reply = merged.reply;
+      followUps = merged.followUps;
+    }
+
+    // cache / loop-check
+    const outSig = contentSig(reply, followUps);
+    const lastOutSig = String(s.__lastOutSig || "");
+    const lastOutAt = Number(s.__lastOutAt || 0);
+
+    if (lastOutSig && outSig === lastOutSig && withinMs(nowT, lastOutAt, OUTBOUND_DEDUPE_MS)) {
+      const br = buildLoopBreakPrompt();
+      reply = br.reply;
+      followUps = stripEchoFollowUps(br.followUps, cleanText);
+    } else {
+      setLastOut(s, nowT, reply, followUps);
+    }
+
+    const cog = cogFromBase({ lane: laneNow || "general", year: y, mode: m, baseMessage: reply });
+
+    const out = {
+      ok: true,
+      contractVersion: "1",
+      lane: laneNow || "general",
+      year: y,
+      mode: m,
+      voiceMode: s.voiceMode || "standard",
+      reply,
+      followUps: stripEchoFollowUps(followUps, cleanText),
+      sessionPatch: null,
+      cog
+    };
+
+    if (debug) {
+      out._engine = {
+        version: "chatEngine v0.6i",
+        continuityCmd: cls.cmd,
+        continuityUsable: continuityUsable(s, nowT),
+        consultedContinuity: !!cc,
+        ccLevel: cc ? cc.continuityLevel : null,
+        ccDepth: cc ? cc.depth : null,
+        ccReentry: cc ? cc.reentryStyle : null,
+        ccChipsKey: cc ? cc.chipsSetKey : null
+      };
+    }
+
+    return out;
+  }
 
   // 1) lanePolicy (guard greetings)
   let laneDecision = null;
@@ -607,12 +817,29 @@ async function handleChat({ text, session, visitorId, now, debug }) {
       followUps = stripEchoFollowUps(followUps, cleanText);
 
       let reply = replyVar;
+
+      // Phase 3 sprinkle only when continuity is usable and session is active
+      const cc = consultContinuity && continuityUsable(s, nowT)
+        ? applyContinuityOverlay({
+            session: s,
+            lane: s.lane || lane || "general",
+            userText: cleanText,
+            nowT,
+            year: clampYear(s.lastMusicYear) || null,
+            mode: normalizeMode(s.activeMusicMode) || null
+          })
+        : null;
+
+      if (cc && cc.continuityLine && !isByeLike(cleanText)) {
+        reply = `${cc.continuityLine} ${reply}`.trim();
+      }
+
       const polished = await tryNyxPolish({
         domain: "general",
         intent: "packet",
         userMessage: cleanText,
-        baseMessage: replyVar,
-        visitorId: visitorId || "Guest",
+        baseMessage: reply,
+        visitorId: visitorId || "Guest"
       });
       if (polished) reply = polished;
 
@@ -641,7 +868,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
         reply,
         followUps,
         sessionPatch: p.sessionPatch || null,
-        cog,
+        cog
       };
 
       if (debug) {
@@ -658,6 +885,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
           isMusicish,
           hasNyxPolish: !!generateNyxReply,
           quotaCooling: quotaCooling(Date.now()),
+          phase3: cc ? { level: cc.continuityLevel, depth: cc.depth, reentry: cc.reentryStyle } : null
         };
       }
       return out;
@@ -672,16 +900,28 @@ async function handleChat({ text, session, visitorId, now, debug }) {
     const cog = cogFromBase({ lane: "general", year: null, mode: null, baseMessage: base.baseMessage });
 
     let reply = base.baseMessage;
+    let followUps = stripEchoFollowUps(base.followUps || [], cleanText);
+
+    // Phase 3 sprinkle (safe)
+    const cc = consultContinuity && continuityUsable(s, nowT)
+      ? applyContinuityOverlay({ session: s, lane: "general", userText: cleanText, nowT, year: null, mode: null })
+      : null;
+
+    if (cc && cc.continuityLine) {
+      reply = `${cc.continuityLine} ${reply}`.trim();
+      if (Array.isArray(cc.chips) && cc.chips.length) {
+        followUps = stripEchoFollowUps(safeFollowUps(cc.chips), cleanText);
+      }
+    }
+
     const polished = await tryNyxPolish({
       domain: "general",
       intent: "general",
       userMessage: cleanText,
-      baseMessage: base.baseMessage,
-      visitorId: visitorId || "Guest",
+      baseMessage: reply,
+      visitorId: visitorId || "Guest"
     });
     if (polished) reply = polished;
-
-    let followUps = stripEchoFollowUps(base.followUps || [], cleanText);
 
     // ✅ v0.6i OUT cache + OUT loop break check
     const outSig = contentSig(reply, followUps);
@@ -706,7 +946,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
       reply,
       followUps,
       sessionPatch: base.sessionPatch || null,
-      cog,
+      cog
     };
 
     if (debug) {
@@ -722,6 +962,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
         hasStoredMusicContext,
         isMusicish,
         hasNyxPolish: !!generateNyxReply,
+        phase3: cc ? { level: cc.continuityLevel, depth: cc.depth, reentry: cc.reentryStyle } : null
       };
     }
     return out;
@@ -746,16 +987,28 @@ async function handleChat({ text, session, visitorId, now, debug }) {
     const cog = cogFromBase({ lane: base.lane, year: null, mode: null, baseMessage: base.baseMessage });
 
     let reply = base.baseMessage;
+    let followUps = stripEchoFollowUps(base.followUps || [], cleanText);
+
+    // Phase 3 sprinkle (safe)
+    const cc = consultContinuity && continuityUsable(s, nowT)
+      ? applyContinuityOverlay({ session: s, lane: base.lane, userText: cleanText, nowT, year: null, mode: null })
+      : null;
+
+    if (cc && cc.continuityLine) {
+      reply = `${cc.continuityLine} ${reply}`.trim();
+      if (Array.isArray(cc.chips) && cc.chips.length) {
+        followUps = stripEchoFollowUps(safeFollowUps(cc.chips), cleanText);
+      }
+    }
+
     const polished = await tryNyxPolish({
       domain: "general",
       intent: lane,
       userMessage: cleanText,
-      baseMessage: base.baseMessage,
-      visitorId: visitorId || "Guest",
+      baseMessage: reply,
+      visitorId: visitorId || "Guest"
     });
     if (polished) reply = polished;
-
-    let followUps = stripEchoFollowUps(base.followUps || [], cleanText);
 
     // ✅ v0.6i OUT cache + OUT loop break check
     const outSig = contentSig(reply, followUps);
@@ -780,7 +1033,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
       reply,
       followUps,
       sessionPatch: base.sessionPatch || null,
-      cog,
+      cog
     };
 
     if (debug) {
@@ -794,6 +1047,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
         laneCallOk: call.ok,
         laneCallFailReason: call.ok ? null : call.reason,
         hasNyxPolish: !!generateNyxReply,
+        phase3: cc ? { level: cc.continuityLevel, depth: cc.depth, reentry: cc.reentryStyle } : null
       };
     }
     return out;
@@ -832,12 +1086,31 @@ async function handleChat({ text, session, visitorId, now, debug }) {
         applySessionPatch(s, { __musicLastContentSig: sig, __musicLastContentAt: nowT });
       }
 
+      // Phase 3 sprinkle (safe)
+      const cc = consultContinuity && continuityUsable(s, nowT)
+        ? applyContinuityOverlay({
+            session: s,
+            lane: "music",
+            userText: cleanText,
+            nowT,
+            year: clampYear(s.lastMusicYear) || null,
+            mode: normalizeMode(s.activeMusicMode) || null
+          })
+        : null;
+
+      if (cc && cc.continuityLine) {
+        reply = `${cc.continuityLine} ${reply}`.trim();
+        if (Array.isArray(cc.chips) && cc.chips.length) {
+          followUps = safeFollowUps(cc.chips);
+        }
+      }
+
       const polished = await tryNyxPolish({
         domain: "radio",
         intent: "music",
         userMessage: cleanText,
         baseMessage: reply,
-        visitorId: visitorId || "Guest",
+        visitorId: visitorId || "Guest"
       });
       if (polished) reply = polished;
 
@@ -850,9 +1123,9 @@ async function handleChat({ text, session, visitorId, now, debug }) {
       // ✅ v0.6i OUT cache + OUT loop break check (global)
       const outSig = contentSig(reply, followUps);
       const lastOutSig = String(s.__lastOutSig || "");
-      const lastOutAt = Number(s.__lastOutAt || 0);
+      const lastOutAt2 = Number(s.__lastOutAt || 0);
 
-      if (lastOutSig && outSig === lastOutSig && withinMs(nowT, lastOutAt, OUTBOUND_DEDUPE_MS)) {
+      if (lastOutSig && outSig === lastOutSig && withinMs(nowT, lastOutAt2, OUTBOUND_DEDUPE_MS)) {
         const br2 = buildLoopBreakPrompt();
         reply = br2.reply;
         followUps = stripEchoFollowUps(br2.followUps, cleanText);
@@ -870,7 +1143,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
         reply,
         followUps,
         sessionPatch: m.sessionPatch || null,
-        cog,
+        cog
       };
 
       if (debug) {
@@ -882,6 +1155,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
           wantsTop100Now,
           contentSig: sig,
           lastContentSig: lastSig,
+          phase3: cc ? { level: cc.continuityLevel, depth: cc.depth, reentry: cc.reentryStyle } : null
         };
       }
 
@@ -906,12 +1180,26 @@ async function handleChat({ text, session, visitorId, now, debug }) {
     } catch (_) {}
   }
 
+  // Phase 3 sprinkle (safe)
+  const cc = consultContinuity && continuityUsable(s, nowT)
+    ? applyContinuityOverlay({
+        session: s,
+        lane: "music",
+        userText: cleanText,
+        nowT,
+        year: clampYear(s.lastMusicYear) || null,
+        mode: normalizeMode(s.activeMusicMode) || null
+      })
+    : null;
+
+  if (cc && cc.continuityLine) reply = `${cc.continuityLine} ${reply}`.trim();
+
   const polished = await tryNyxPolish({
     domain: "radio",
     intent: "music",
     userMessage: cleanText,
     baseMessage: reply,
-    visitorId: visitorId || "Guest",
+    visitorId: visitorId || "Guest"
   });
   if (polished) reply = polished;
 
@@ -920,7 +1208,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
       { label: "1956", send: "1956" },
       { label: "Top 10 1988", send: "top 10 1988" },
       { label: "Story 1988", send: "story moment 1988" },
-      { label: "Micro 1988", send: "micro moment 1988" },
+      { label: "Micro 1988", send: "micro moment 1988" }
     ]),
     cleanText
   );
@@ -942,7 +1230,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
     lane: "music",
     year: yKnown || null,
     mode: normalizeMode(s.activeMusicMode) || null,
-    baseMessage: reply,
+    baseMessage: reply
   });
 
   const out = {
@@ -955,7 +1243,7 @@ async function handleChat({ text, session, visitorId, now, debug }) {
     reply,
     followUps,
     sessionPatch: null,
-    cog,
+    cog
   };
 
   if (debug) {
