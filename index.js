@@ -3,28 +3,24 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17l (BULLETPROOF: session-stability fix + OPTIONS safe + sessionId hygiene + caps + guard hardening)
+ * index.js v1.5.17m (BULLETPROOF++: stable session keys + OPTIONS regex + sessionId hygiene + caps + guard hardening
+ *                     + LOOP KILL (server-level) + engine/caps bridge + proto-safe patch apply)
  *
- * CRITICAL FIXES vs v1.5.17k:
- *  ✅ SESSION STABILITY FIX (major loop trigger)
- *     - If client omits sessionId, we DO NOT generate a new one per request anymore.
- *     - We derive a stable session key from fingerprint (visitorId or IP) + UA.
- *     - This makes burst/dedupe/state actually work even on buggy clients.
+ * CRITICAL UPGRADES vs v1.5.17l:
+ *  ✅ LOOP KILL (server-level, independent of widget):
+ *     - Adds "reply dedupe" + "runaway identical reply" clamp
+ *     - Adds "same-intent fast-repeat" clamp (text+mode+year normalized signature)
  *
- *  ✅ sessionId hygiene
- *     - Normalizes/limits length and hashes very long/untrusted session ids (prevents memory abuse)
+ *  ✅ Engine bridge (Nyx knows what exists):
+ *     - If chatEngine returns lane/year/mode/cog/caps, we pass them through (debug + non-debug safe fields)
+ *     - caps merged safely; defaults always present
  *
- *  ✅ OPTIONS route compatibility
- *     - Replaces app.options("*") with a regex catch-all (avoids path-to-regexp surprises)
- *
- *  ✅ Prototype pollution hardening
- *     - Blocks "__proto__", "constructor", and "prototype" keys in session patch
- *
- *  ✅ caps handshake (minimal, always present)
- *     - payload.caps tells UI/avatar what lanes are available (helps “Nyx knows this exists”)
+ *  ✅ SessionPatch apply hardened:
+ *     - Prototype pollution blocked
+ *     - Allowlist keys only
  *
  * Keeps:
- *  - ANTI-502: hard crash visibility, parsers first, JSON guard, preflight guaranteed
+ *  - ANTI-502: crash visibility, parsers first, JSON guard, preflight guaranteed
  *  - /health + /api/health + /api/version
  *  - /api/chat: respond-once watchdog + burst + body-hash dedupe + quota floor + debug passthru
  *  - /api/tts + /api/voice soft-loaded + /api/tts/diag
@@ -72,7 +68,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.17l (BULLETPROOF: stable session keys + OPTIONS regex + sessionId hygiene + caps + guard hardening)";
+  "index.js v1.5.17m (BULLETPROOF++: stable session keys + loop kill + engine bridge + caps + patch hardening)";
 
 const GIT_COMMIT =
   String(process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "").trim() || null;
@@ -146,6 +142,34 @@ function stableBodyForHash(body, req) {
   });
 }
 
+/** Server-level intent signature (for loop kill, independent of widget/chatEngine).
+ * - Uses normalized text + optional explicit year/mode mentions.
+ * - This prevents "same prompt" storms from bricking UX.
+ */
+function extractYear(text) {
+  const m = String(text || "").match(/\b(19[5-9]\d|20[0-1]\d|202[0-4])\b/);
+  if (!m) return null;
+  const y = Number(m[1]);
+  if (!Number.isFinite(y) || y < 1950 || y > 2024) return null;
+  return y;
+}
+function extractMode(text) {
+  const t = normCmd(text);
+  if (/\b(top\s*100|top100|hot\s*100|year[-\s]*end\s*hot\s*100)\b/.test(t)) return "top100";
+  if (/\b(top\s*10|top10|top\s*ten)\b/.test(t)) return "top10";
+  if (/\bstory\s*moment\b|\bstory\b/.test(t)) return "story";
+  if (/\bmicro\s*moment\b|\bmicro\b/.test(t)) return "micro";
+  if (/\b#\s*1\b|\bnumber\s*1\b|\bno\.?\s*1\b|\bno\s*1\b/.test(t)) return "number1";
+  return null;
+}
+function intentSigFrom(text, session) {
+  const t = normCmd(text);
+  const y = extractYear(t) || (session && Number(session.lastMusicYear)) || null;
+  const m = extractMode(t) || (session && String(session.activeMusicMode || "")) || "";
+  const lane = session && session.lane ? String(session.lane) : "";
+  return `${lane || ""}::${m || ""}::${y || ""}::${sha256(t).slice(0, 10)}`;
+}
+
 /* ======================================================
    Parsers FIRST
 ====================================================== */
@@ -206,7 +230,6 @@ function originAllowed(origin) {
   const o = String(origin).trim().replace(/\/$/, "");
   if (ALLOWED_ORIGINS.includes(o)) return true;
 
-  // tolerate www flip
   try {
     const u = new URL(o);
     const host = String(u.hostname || "");
@@ -240,9 +263,6 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-/** GUARANTEED preflight handler.
- * Express "/api/*" matching can be surprising; this always catches /api/...
- */
 app.use("/api", (req, res, next) => {
   if (req.method !== "OPTIONS") return next();
   const requestId = req.get("X-Request-Id") || rid();
@@ -250,7 +270,6 @@ app.use("/api", (req, res, next) => {
   return cors(corsOptions)(req, res, () => res.sendStatus(204));
 });
 
-/** Safety net: global OPTIONS catch-all (regex avoids "*" path-to-regexp edge cases) */
 app.options(/.*/, cors(corsOptions));
 
 /* ======================================================
@@ -277,22 +296,14 @@ function fingerprint(req, visitorId) {
   return ip ? `ip:${ip}` : "anon";
 }
 
-/** SessionId hygiene:
- * - trims, clamps length
- * - hashes extremely long/untrusted IDs (prevents memory abuse)
- */
 const SESSION_ID_MAXLEN = clamp(process.env.SESSION_ID_MAXLEN || 96, 32, 256);
 function cleanSessionId(sid) {
   const s = normalizeStr(sid || "");
   if (!s) return null;
   if (s.length <= SESSION_ID_MAXLEN) return s;
-  // Hash long ids into fixed safe token
   return "sx_" + sha256(s).slice(0, 24);
 }
 
-/** Stable session key if missing:
- * This is the BIG fix: prevents per-request session churn.
- */
 function deriveStableSessionId(req, visitorId) {
   const fp = fingerprint(req, visitorId);
   const uastr = ua(req);
@@ -304,6 +315,32 @@ function getSessionId(req, body, visitorId) {
   const fromBody = cleanSessionId(b.sessionId);
   const fromHeader = cleanSessionId(req.get("X-Session-Id"));
   return fromBody || fromHeader || deriveStableSessionId(req, visitorId);
+}
+
+/** Strict patch apply: allowlist only + proto-safe */
+const SESSION_PATCH_ALLOW = new Set([
+  "lane",
+  "visitorId",
+  "lastMusicYear",
+  "activeMusicMode",
+  "voiceMode",
+  "lastIntentSig",
+  "lastIntentAt",
+  "__lastReply",
+  "__lastBodyHash",
+  "__lastBodyAt",
+  "__lastReplyHash",
+  "__lastReplyAt",
+  "__lastIntentSig",
+  "__lastIntentAt",
+]);
+function applySessionPatch(session, patch) {
+  if (!session || !patch || typeof patch !== "object") return;
+  for (const [k, v] of Object.entries(patch)) {
+    if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
+    if (!SESSION_PATCH_ALLOW.has(k)) continue;
+    session[k] = v;
+  }
 }
 
 function touchSession(sessionId, patch) {
@@ -330,12 +367,7 @@ function touchSession(sessionId, patch) {
 
   s._touchedAt = now;
 
-  if (patch && typeof patch === "object") {
-    for (const [k, v] of Object.entries(patch)) {
-      if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
-      s[k] = v;
-    }
-  }
+  if (patch && typeof patch === "object") applySessionPatch(s, patch);
 
   return s;
 }
@@ -423,10 +455,8 @@ function safeRequireTts() {
   }
 }
 
-// initial soft-load
 ttsModule = safeRequireTts();
 
-// boot log
 if (!ttsModule) {
   console.warn(
     "[tts] Utils/tts failed to load (soft).",
@@ -506,12 +536,12 @@ app.post("/api/tts", runTts);
 app.post("/api/voice", runTts);
 
 /* ======================================================
-   /api/chat (ANTI-502)
+   /api/chat (ANTI-502 + LOOP KILL)
 ====================================================== */
 
 const CHAT_HANDLER_TIMEOUT_MS = clamp(process.env.CHAT_HANDLER_TIMEOUT_MS || 9000, 2000, 20000);
 
-// Burst guard (soft-first)
+// Burst guard
 const BURST_WINDOW_MS = clamp(process.env.BURST_WINDOW_MS || 1500, 600, 5000);
 const BURST_SOFT_MAX = clamp(process.env.BURST_SOFT_MAX || 3, 1, 12);
 const BURST_HARD_MAX = clamp(process.env.BURST_HARD_MAX || 14, 6, 60);
@@ -519,6 +549,11 @@ const BURSTS = new Map();
 
 // Body hash dedupe
 const BODY_DEDUPE_MS = clamp(process.env.BODY_DEDUPE_MS || 1600, 400, 5000);
+
+// Reply-loop kill (server-level)
+const REPLY_DEDUPE_MS = clamp(process.env.REPLY_DEDUPE_MS || 1400, 300, 8000);
+const REPLY_REPEAT_WINDOW_MS = clamp(process.env.REPLY_REPEAT_WINDOW_MS || 5000, 1000, 20000);
+const REPLY_REPEAT_MAX = clamp(process.env.REPLY_REPEAT_MAX || 3, 1, 10);
 
 setInterval(() => {
   const now = Date.now();
@@ -548,7 +583,7 @@ function fallbackReply(text) {
     return "Tell me a year (1950–2024), or say “top 10 1988”, “#1 1988”, “story moment 1988”, or “micro moment 1988”.";
   }
   if (/^\d{4}$/.test(t)) {
-    return `Locked in ${t}. Say “top 10”, “#1”, “story moment”, or “micro moment”.`;
+    return `Got it — ${t}. Want Top 10, #1, a story moment, or a micro moment?`;
   }
   return "Got it. Tell me a year (1950–2024), or pick a mode: “top 10”, “#1”, “story moment”, “micro moment”.";
 }
@@ -579,7 +614,6 @@ function normalizeFollowUpsToStrings(followUps) {
   return out.length ? out : undefined;
 }
 
-/** Detect OpenAI insufficient_quota / quota exceeded errors from many shapes */
 function isUpstreamQuotaError(e) {
   try {
     if (!e) return false;
@@ -605,9 +639,6 @@ function isUpstreamQuotaError(e) {
   }
 }
 
-/** Respond-once guard + route watchdog timer (REAL anti-hang).
- * If handler stalls past CHAT_HANDLER_TIMEOUT_MS, we return fallback 200.
- */
 function respondOnce(res) {
   let sent = false;
   return {
@@ -617,19 +648,9 @@ function respondOnce(res) {
       sent = true;
       return safeJson(res, status, payload);
     },
-    end: (status, text) => {
-      if (sent || res.headersSent) return;
-      sent = true;
-      try {
-        return res.status(status).type("text/plain").send(String(text || ""));
-      } catch (_) {}
-    },
   };
 }
 
-/** Capability handshake: tells frontend/avatar what lanes exist.
- * Keep minimal + stable; let chatEngine override/extend via debug if desired.
- */
 function capsPayload() {
   return {
     music: true,
@@ -682,12 +703,9 @@ app.post("/api/chat", async (req, res) => {
     const visitorId =
       normalizeStr(body.visitorId || "") || normalizeStr(req.get("X-Visitor-Id") || "") || null;
 
-    // IMPORTANT: stable sessionId even if client doesn't send one
     const sessionId = getSessionId(req, body, visitorId);
-
     const session = touchSession(sessionId, { visitorId }) || { sessionId };
 
-    // --- Burst guard (per client) ---
     const now = Date.now();
     const fp = fingerprint(req, visitorId);
     const prev = BURSTS.get(fp);
@@ -728,7 +746,7 @@ app.post("/api/chat", async (req, res) => {
       }
     }
 
-    // --- Body-hash dedupe (instant loop dampener) ---
+    // --- Body-hash dedupe ---
     const bodyHash = sha256(stableBodyForHash(body, req));
     const lastHash = normalizeStr(session.__lastBodyHash || "");
     const lastAt = Number(session.__lastBodyAt || 0);
@@ -760,7 +778,7 @@ app.post("/api/chat", async (req, res) => {
       console.warn("[shadow] error (soft):", e && e.message ? e.message : e);
     }
 
-    // Chat handler (shape-safe)
+    // Chat handler
     const handler = pickChatHandler(chatEngine);
     let out = null;
 
@@ -789,15 +807,98 @@ app.post("/api/chat", async (req, res) => {
     const reply =
       out && typeof out === "object" && typeof out.reply === "string" ? out.reply : fallbackReply(text);
 
+    // --- Reply-loop kill (server-level) ---
+    const replyHash = sha256(String(reply || ""));
+    const lastReplyHash = normalizeStr(session.__lastReplyHash || "");
+    const lastReplyAt = Number(session.__lastReplyAt || 0);
+
+    // A) Fast same-reply dedupe
+    if (lastReplyHash && replyHash === lastReplyHash && lastReplyAt && now - lastReplyAt < REPLY_DEDUPE_MS) {
+      clearTimeout(watchdog);
+      safeSet(res, "X-Nyx-Deduped", "reply-hash");
+      return once.json(200, {
+        ok: true,
+        reply: String(session.__lastReply || reply || "OK.").trim(),
+        sessionId,
+        requestId,
+        visitorId,
+        contractVersion: NYX_CONTRACT_VERSION,
+        caps: capsPayload(),
+        deduped: true,
+      });
+    }
+
+    // B) Runaway repeat clamp (same reply too many times in a short window)
+    const repAt = Number(session.__repAt || 0);
+    const repCount = Number(session.__repCount || 0);
+    const withinRep = repAt && now - repAt < REPLY_REPEAT_WINDOW_MS;
+
+    if (withinRep && lastReplyHash && replyHash === lastReplyHash) {
+      const nextCount = repCount + 1;
+      session.__repCount = nextCount;
+
+      if (nextCount >= REPLY_REPEAT_MAX) {
+        clearTimeout(watchdog);
+        safeSet(res, "X-Nyx-Deduped", "reply-runaway");
+        const soft = "Okay — pause. Tell me ONE thing: a year (1950–2024) or a command like “top 10 1988”.";
+        session.__lastReply = soft;
+        session.__lastReplyHash = sha256(soft);
+        session.__lastReplyAt = now;
+
+        return once.json(200, {
+          ok: true,
+          reply: soft,
+          sessionId,
+          requestId,
+          visitorId,
+          contractVersion: NYX_CONTRACT_VERSION,
+          caps: capsPayload(),
+          deduped: true,
+        });
+      }
+    } else {
+      session.__repAt = now;
+      session.__repCount = 0;
+    }
+
+    // FollowUps
     const followUps =
       out && typeof out === "object" && Array.isArray(out.followUps)
         ? normalizeFollowUpsToStrings(out.followUps)
         : undefined;
 
+    // Apply engine sessionPatch (proto-safe + allowlist)
+    if (out && typeof out === "object" && out.sessionPatch && typeof out.sessionPatch === "object") {
+      applySessionPatch(session, out.sessionPatch);
+    }
+
     // Persist last seen
     session.__lastReply = reply;
     session.__lastBodyHash = bodyHash;
     session.__lastBodyAt = now;
+    session.__lastReplyHash = replyHash;
+    session.__lastReplyAt = now;
+
+    // Server-level intent signature (extra loop kill)
+    const sig = intentSigFrom(text, session);
+    const lastSig = normalizeStr(session.__lastIntentSig || "");
+    const lastSigAt = Number(session.__lastIntentAt || 0);
+    if (lastSig && sig === lastSig && lastSigAt && now - lastSigAt < BODY_DEDUPE_MS) {
+      clearTimeout(watchdog);
+      safeSet(res, "X-Nyx-Deduped", "intent-sig");
+      return once.json(200, {
+        ok: true,
+        reply: String(session.__lastReply || reply || "OK.").trim(),
+        sessionId,
+        requestId,
+        visitorId,
+        contractVersion: NYX_CONTRACT_VERSION,
+        caps: capsPayload(),
+        deduped: true,
+      });
+    }
+    session.__lastIntentSig = sig;
+    session.__lastIntentAt = now;
 
     const payload = {
       ok: true,
@@ -809,15 +910,26 @@ app.post("/api/chat", async (req, res) => {
       caps: capsPayload(),
     };
 
+    // Pass through safe engine fields (non-debug)
+    if (out && typeof out === "object") {
+      if (typeof out.lane === "string") payload.lane = out.lane;
+      if (out.year != null) payload.year = out.year;
+      if (typeof out.mode === "string") payload.mode = out.mode;
+      if (out.cog && typeof out.cog === "object") payload.cog = out.cog;
+
+      // caps bridge: allow engine to extend, but never remove base keys
+      if (out.caps && typeof out.caps === "object") {
+        payload.caps = Object.assign({}, payload.caps, out.caps);
+      }
+    }
+
     if (shadow) payload.shadow = shadow;
     if (followUps) payload.followUps = followUps;
 
-    // DEBUG passthru (only debug=1)
+    // DEBUG passthru
     if (isDebug && out && typeof out === "object") {
       if (out.baseMessage) payload.baseMessage = String(out.baseMessage);
       if (out._engine && typeof out._engine === "object") payload._engine = out._engine;
-      if (out.cog && typeof out.cog === "object") payload.cog = out.cog;
-      if (out.caps && typeof out.caps === "object") payload.caps = Object.assign({}, payload.caps, out.caps);
     }
 
     clearTimeout(watchdog);
