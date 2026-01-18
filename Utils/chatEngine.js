@@ -8,15 +8,19 @@
  *  - NO index.js imports
  *  - returns { ok, reply, followUps, sessionPatch, cog, ... }
  *
- * v0.6h (BULLETPROOF: MUSIC LANE BRIDGE VIA musicLane + CONTENT SIG DAMPENER + SESSIONPATCH ALLOWLIST)
+ * v0.6i (BULLETPROOF++: MUSIC LANE BRIDGE + CONTENT SIG DAMPENER + SESSIONPATCH ALLOWLIST + INPUT/OUTPUT LOOP GUARD)
  *
  * CORE FIX:
  * ✅ Music lane calls Utils/musicLane.js (which delegates to musicKnowledge) and returns REAL content.
  * ✅ Prevents "Top 10 (1980)" label-only looping.
  *
- * HARDENING:
- * ✅ SessionPatch allowlist expanded for music continuity + loop dampeners
- * ✅ Content-signature loop dampener (reply+chips hash)
+ * HARDENING (NEW in v0.6i):
+ * ✅ Input-loop guard: if the SAME user text repeats in a tight window, return the last output (idempotent)
+ * ✅ Output-loop guard: if the SAME output repeats in a tight window (even on explicit asks), return a "break loop" prompt
+ * ✅ Windows are ms-based (previous 1800 was ~1.8s ambiguity; now explicit constants)
+ * ✅ SessionPatch allowlist expanded to include last in/out signatures + cached last output
+ *
+ * Preserves:
  * ✅ top10 != top100; never enters top100 unless explicit ask
  * ✅ Greetings/help/bye remain conversational-first
  */
@@ -54,7 +58,7 @@ try {
   packets = null;
 }
 
-// ✅ NEW: music adapter (delegates to musicKnowledge internally)
+// ✅ music adapter (delegates to musicKnowledge internally)
 let musicLane = null;
 try {
   musicLane = require("./musicLane");
@@ -62,6 +66,19 @@ try {
 } catch (_) {
   musicLane = null;
 }
+
+/* =========================
+   Loop guard constants
+========================= */
+
+// If identical inbound text repeats within this window, treat as client retry/loop -> return cached last output.
+const INBOUND_DEDUPE_MS = Number(process.env.NYX_INBOUND_DEDUPE_MS || 1500);
+
+// If identical outbound content repeats within this window, treat as loop -> break with safe prompt.
+const OUTBOUND_DEDUPE_MS = Number(process.env.NYX_OUTBOUND_DEDUPE_MS || 2500);
+
+// Hard cap: don't trust "cached last output" if it's too old.
+const LAST_OUT_MAX_AGE_MS = Number(process.env.NYX_LAST_OUT_MAX_AGE_MS || 60_000);
 
 /* =========================
    Utilities
@@ -189,11 +206,19 @@ function applySessionPatch(session, patch) {
     "activeMusicChart",
     "lastMusicChart",
 
-    // loop dampeners
+    // loop dampeners (legacy + new)
     "lastIntentSig",
     "lastIntentAt",
     "__musicLastContentSig",
     "__musicLastContentAt",
+
+    // ✅ v0.6i inbound/outbound loop guards
+    "__lastInSig",
+    "__lastInAt",
+    "__lastOutSig",
+    "__lastOutAt",
+    "__lastOutReply",
+    "__lastOutFollowUps",
   ]);
 
   for (const k of Object.keys(patch)) {
@@ -420,15 +445,10 @@ async function tryNyxPolish({ domain, intent, userMessage, baseMessage, visitorI
 ========================= */
 
 function normalizeMusicOutput(raw) {
-  // Supports:
-  //  - { reply, followUps: string[] }
-  //  - { reply, chips: [{label,send}] }
-  //  - { reply, followUps: [{label,send}] } (already normalized)
   const reply = String(raw && raw.reply ? raw.reply : "").trim();
 
   let followUps = [];
   if (Array.isArray(raw && raw.followUps)) {
-    // string[] or chips[]
     if (raw.followUps.length && typeof raw.followUps[0] === "string") {
       followUps = raw.followUps.map((x) => ({ label: String(x).slice(0, 48), send: String(x).slice(0, 80) }));
     } else {
@@ -445,9 +465,51 @@ function normalizeMusicOutput(raw) {
   return { reply, followUps: safeFollowUps(followUps), sessionPatch };
 }
 
-function musicContentSig(reply, followUps) {
+function contentSig(reply, followUps) {
   const s = `${String(reply || "")}||${JSON.stringify(followUps || [])}`;
   return sha1(s);
+}
+
+function nowMsFrom(now) {
+  return Number.isFinite(now) ? Number(now) : Date.now();
+}
+
+function withinMs(nowMs, thenMs, windowMs) {
+  const n = Number(nowMs);
+  const t = Number(thenMs);
+  if (!Number.isFinite(n) || !Number.isFinite(t)) return false;
+  const d = n - t;
+  return d >= 0 && d <= windowMs;
+}
+
+function setLastOut(session, nowMs, reply, followUps) {
+  const sig = contentSig(reply, followUps);
+  applySessionPatch(session, {
+    __lastOutSig: sig,
+    __lastOutAt: nowMs,
+    __lastOutReply: String(reply || ""),
+    __lastOutFollowUps: Array.isArray(followUps) ? followUps : [],
+  });
+  return sig;
+}
+
+function canUseCachedLastOut(session, nowMs) {
+  const at = Number(session && session.__lastOutAt || 0);
+  if (!Number.isFinite(at) || at <= 0) return false;
+  return withinMs(nowMs, at, LAST_OUT_MAX_AGE_MS) && !!(session && session.__lastOutReply);
+}
+
+function buildLoopBreakPrompt() {
+  const reply =
+    "I’m here — but something is auto-repeating. Give me a fresh input: a year (1950–2024), or “#1”, “story moment”, or “micro moment”.";
+  const followUps = safeFollowUps([
+    { label: "Another year", send: "another year" },
+    { label: "1988", send: "1988" },
+    { label: "#1", send: "#1" },
+    { label: "Story", send: "story moment" },
+    { label: "Micro", send: "micro moment" },
+  ]);
+  return { reply, followUps };
 }
 
 /* =========================
@@ -469,6 +531,48 @@ async function handleChat({ text, session, visitorId, now, debug }) {
     /\b(billboard|hot 100|top 10|top 100)\b/.test(normCmd(cleanText));
 
   const hasStoredMusicContext = !!yKnown && sessionLane === "music";
+
+  const nowT = nowMsFrom(now);
+
+  // ✅ v0.6i INPUT LOOP GUARD (idempotent response for tight repeats)
+  const inSig = sha1(normCmd(cleanText));
+  const lastInSig = String(s.__lastInSig || "");
+  const lastInAt = Number(s.__lastInAt || 0);
+
+  if (lastInSig && inSig === lastInSig && withinMs(nowT, lastInAt, INBOUND_DEDUPE_MS) && canUseCachedLastOut(s, nowT)) {
+    const cachedReply = String(s.__lastOutReply || "").trim();
+    const cachedFollowUps = safeFollowUps(Array.isArray(s.__lastOutFollowUps) ? s.__lastOutFollowUps : []);
+    const outLane = String(s.lane || "general");
+    const outYear = clampYear(s.lastMusicYear) || null;
+    const outMode = normalizeMode(s.activeMusicMode) || null;
+    const cog = cogFromBase({ lane: outLane, year: outYear, mode: outMode, baseMessage: cachedReply });
+
+    const out = {
+      ok: true,
+      contractVersion: "1",
+      lane: outLane,
+      year: outYear,
+      mode: outMode,
+      voiceMode: s.voiceMode || "standard",
+      reply: cachedReply,
+      followUps: stripEchoFollowUps(cachedFollowUps, cleanText),
+      sessionPatch: null,
+      cog,
+    };
+
+    if (debug) {
+      out._engine = {
+        version: "chatEngine v0.6i",
+        loopGuard: "inbound_dedupe_return_cached_last_out",
+        inSig,
+        lastInAt,
+        nowT,
+      };
+    }
+    return out;
+  }
+
+  applySessionPatch(s, { __lastInSig: inSig, __lastInAt: nowT });
 
   // 1) lanePolicy (guard greetings)
   let laneDecision = null;
@@ -503,16 +607,58 @@ async function handleChat({ text, session, visitorId, now, debug }) {
       followUps = stripEchoFollowUps(followUps, cleanText);
 
       let reply = replyVar;
-      const polished = await tryNyxPolish({ domain: "general", intent: "packet", userMessage: cleanText, baseMessage: replyVar, visitorId: visitorId || "Guest" });
+      const polished = await tryNyxPolish({
+        domain: "general",
+        intent: "packet",
+        userMessage: cleanText,
+        baseMessage: replyVar,
+        visitorId: visitorId || "Guest",
+      });
       if (polished) reply = polished;
 
       const cog = cogFromBase({ lane: s.lane || "general", year: yKnown || null, mode: null, baseMessage: replyVar });
 
-      const out = { ok: true, contractVersion: "1", lane: s.lane || "general", year: yKnown || null, mode: s.activeMusicMode || null, voiceMode: s.voiceMode || "standard", reply, followUps, sessionPatch: p.sessionPatch || null, cog };
+      // ✅ v0.6i OUT cache + OUT loop break check
+      const outSig = contentSig(reply, followUps);
+      const lastOutSig = String(s.__lastOutSig || "");
+      const lastOutAt = Number(s.__lastOutAt || 0);
+
+      if (lastOutSig && outSig === lastOutSig && withinMs(nowT, lastOutAt, OUTBOUND_DEDUPE_MS)) {
+        const br = buildLoopBreakPrompt();
+        reply = br.reply;
+        followUps = stripEchoFollowUps(br.followUps, cleanText);
+      } else {
+        setLastOut(s, nowT, reply, followUps);
+      }
+
+      const out = {
+        ok: true,
+        contractVersion: "1",
+        lane: s.lane || "general",
+        year: yKnown || null,
+        mode: s.activeMusicMode || null,
+        voiceMode: s.voiceMode || "standard",
+        reply,
+        followUps,
+        sessionPatch: p.sessionPatch || null,
+        cog,
+      };
 
       if (debug) {
         out.baseMessage = replyVar;
-        out._engine = { version: "chatEngine v0.6h", usedPackets: true, hasMusicLane: !!musicLane, hasLanePolicy: !!resolveLane, laneDecision: laneDecision || null, chosenLane: lane, explicitMusicAsk, hasStoredMusicContext, isMusicish, hasNyxPolish: !!generateNyxReply, quotaCooling: quotaCooling(Date.now()) };
+        out._engine = {
+          version: "chatEngine v0.6i",
+          usedPackets: true,
+          hasMusicLane: !!musicLane,
+          hasLanePolicy: !!resolveLane,
+          laneDecision: laneDecision || null,
+          chosenLane: lane,
+          explicitMusicAsk,
+          hasStoredMusicContext,
+          isMusicish,
+          hasNyxPolish: !!generateNyxReply,
+          quotaCooling: quotaCooling(Date.now()),
+        };
       }
       return out;
     }
@@ -526,16 +672,57 @@ async function handleChat({ text, session, visitorId, now, debug }) {
     const cog = cogFromBase({ lane: "general", year: null, mode: null, baseMessage: base.baseMessage });
 
     let reply = base.baseMessage;
-    const polished = await tryNyxPolish({ domain: "general", intent: "general", userMessage: cleanText, baseMessage: base.baseMessage, visitorId: visitorId || "Guest" });
+    const polished = await tryNyxPolish({
+      domain: "general",
+      intent: "general",
+      userMessage: cleanText,
+      baseMessage: base.baseMessage,
+      visitorId: visitorId || "Guest",
+    });
     if (polished) reply = polished;
 
     let followUps = stripEchoFollowUps(base.followUps || [], cleanText);
 
-    const out = { ok: true, contractVersion: "1", lane: "general", year: null, mode: null, voiceMode: s.voiceMode || "standard", reply, followUps, sessionPatch: base.sessionPatch || null, cog };
+    // ✅ v0.6i OUT cache + OUT loop break check
+    const outSig = contentSig(reply, followUps);
+    const lastOutSig = String(s.__lastOutSig || "");
+    const lastOutAt = Number(s.__lastOutAt || 0);
+
+    if (lastOutSig && outSig === lastOutSig && withinMs(nowT, lastOutAt, OUTBOUND_DEDUPE_MS)) {
+      const br = buildLoopBreakPrompt();
+      reply = br.reply;
+      followUps = stripEchoFollowUps(br.followUps, cleanText);
+    } else {
+      setLastOut(s, nowT, reply, followUps);
+    }
+
+    const out = {
+      ok: true,
+      contractVersion: "1",
+      lane: "general",
+      year: null,
+      mode: null,
+      voiceMode: s.voiceMode || "standard",
+      reply,
+      followUps,
+      sessionPatch: base.sessionPatch || null,
+      cog,
+    };
 
     if (debug) {
       out.baseMessage = base.baseMessage;
-      out._engine = { version: "chatEngine v0.6h", usedPackets: false, hasMusicLane: !!musicLane, hasLanePolicy: !!resolveLane, laneDecision: laneDecision || null, chosenLane: "general", explicitMusicAsk, hasStoredMusicContext, isMusicish, hasNyxPolish: !!generateNyxReply };
+      out._engine = {
+        version: "chatEngine v0.6i",
+        usedPackets: false,
+        hasMusicLane: !!musicLane,
+        hasLanePolicy: !!resolveLane,
+        laneDecision: laneDecision || null,
+        chosenLane: "general",
+        explicitMusicAsk,
+        hasStoredMusicContext,
+        isMusicish,
+        hasNyxPolish: !!generateNyxReply,
+      };
     }
     return out;
   }
@@ -547,7 +734,9 @@ async function handleChat({ text, session, visitorId, now, debug }) {
 
     if (call.ok) {
       const normed = normalizeLaneOutput(call.raw, lane);
-      base = normed.reply ? { lane, sessionPatch: normed.sessionPatch, baseMessage: normed.reply, followUps: normed.followUps } : buildLaneStub(lane);
+      base = normed.reply
+        ? { lane, sessionPatch: normed.sessionPatch, baseMessage: normed.reply, followUps: normed.followUps }
+        : buildLaneStub(lane);
     } else {
       base = buildLaneStub(lane);
     }
@@ -557,16 +746,55 @@ async function handleChat({ text, session, visitorId, now, debug }) {
     const cog = cogFromBase({ lane: base.lane, year: null, mode: null, baseMessage: base.baseMessage });
 
     let reply = base.baseMessage;
-    const polished = await tryNyxPolish({ domain: "general", intent: lane, userMessage: cleanText, baseMessage: base.baseMessage, visitorId: visitorId || "Guest" });
+    const polished = await tryNyxPolish({
+      domain: "general",
+      intent: lane,
+      userMessage: cleanText,
+      baseMessage: base.baseMessage,
+      visitorId: visitorId || "Guest",
+    });
     if (polished) reply = polished;
 
     let followUps = stripEchoFollowUps(base.followUps || [], cleanText);
 
-    const out = { ok: true, contractVersion: "1", lane: base.lane, year: null, mode: null, voiceMode: s.voiceMode || "standard", reply, followUps, sessionPatch: base.sessionPatch || null, cog };
+    // ✅ v0.6i OUT cache + OUT loop break check
+    const outSig = contentSig(reply, followUps);
+    const lastOutSig = String(s.__lastOutSig || "");
+    const lastOutAt = Number(s.__lastOutAt || 0);
+
+    if (lastOutSig && outSig === lastOutSig && withinMs(nowT, lastOutAt, OUTBOUND_DEDUPE_MS)) {
+      const br = buildLoopBreakPrompt();
+      reply = br.reply;
+      followUps = stripEchoFollowUps(br.followUps, cleanText);
+    } else {
+      setLastOut(s, nowT, reply, followUps);
+    }
+
+    const out = {
+      ok: true,
+      contractVersion: "1",
+      lane: base.lane,
+      year: null,
+      mode: null,
+      voiceMode: s.voiceMode || "standard",
+      reply,
+      followUps,
+      sessionPatch: base.sessionPatch || null,
+      cog,
+    };
 
     if (debug) {
       out.baseMessage = base.baseMessage;
-      out._engine = { version: "chatEngine v0.6h", hasMusicLane: !!musicLane, hasLanePolicy: !!resolveLane, laneDecision: laneDecision || null, chosenLane: lane, laneCallOk: call.ok, laneCallFailReason: call.ok ? null : call.reason, hasNyxPolish: !!generateNyxReply };
+      out._engine = {
+        version: "chatEngine v0.6i",
+        hasMusicLane: !!musicLane,
+        hasLanePolicy: !!resolveLane,
+        laneDecision: laneDecision || null,
+        chosenLane: lane,
+        laneCallOk: call.ok,
+        laneCallFailReason: call.ok ? null : call.reason,
+        hasNyxPolish: !!generateNyxReply,
+      };
     }
     return out;
   }
@@ -588,28 +816,29 @@ async function handleChat({ text, session, visitorId, now, debug }) {
       const m = normalizeMusicOutput(mRaw);
       if (m.sessionPatch) applySessionPatch(s, m.sessionPatch);
 
-      const sig = musicContentSig(m.reply, m.followUps);
-      const lastSig = String(s.__musicLastContentSig || "");
-      const nowT = Number.isFinite(now) ? Number(now) : Date.now();
-      const lastAt = Number(s.__musicLastContentAt || 0);
-      const within = Number.isFinite(lastAt) && lastAt > 0 && (nowT - lastAt) >= 0 && (nowT - lastAt) <= 1800;
-
       let reply = m.reply;
       let followUps = m.followUps;
 
-      if (sig && lastSig && sig === lastSig && within && !explicitMusicAsk) {
-        reply = "Got it. Tell me another year (1950–2024), or say “#1”, “story moment”, or “micro moment”.";
-        followUps = safeFollowUps([
-          { label: "Another year", send: "another year" },
-          { label: "#1", send: "#1" },
-          { label: "Story", send: "story moment" },
-          { label: "Micro", send: "micro moment" },
-        ]);
+      // ✅ v0.6i OUT loop dampener (works for explicit asks too)
+      const sig = contentSig(reply, followUps);
+      const lastSig = String(s.__musicLastContentSig || "");
+      const lastAt = Number(s.__musicLastContentAt || 0);
+
+      if (sig && lastSig && sig === lastSig && withinMs(nowT, lastAt, OUTBOUND_DEDUPE_MS)) {
+        const br = buildLoopBreakPrompt();
+        reply = br.reply;
+        followUps = br.followUps;
       } else {
         applySessionPatch(s, { __musicLastContentSig: sig, __musicLastContentAt: nowT });
       }
 
-      const polished = await tryNyxPolish({ domain: "radio", intent: "music", userMessage: cleanText, baseMessage: reply, visitorId: visitorId || "Guest" });
+      const polished = await tryNyxPolish({
+        domain: "radio",
+        intent: "music",
+        userMessage: cleanText,
+        baseMessage: reply,
+        visitorId: visitorId || "Guest",
+      });
       if (polished) reply = polished;
 
       followUps = stripEchoFollowUps(followUps || [], cleanText);
@@ -618,11 +847,42 @@ async function handleChat({ text, session, visitorId, now, debug }) {
       const mode = normalizeMode(s.activeMusicMode) || null;
       const cog = cogFromBase({ lane: "music", year: y, mode, baseMessage: reply });
 
-      const out = { ok: true, contractVersion: "1", lane: "music", year: y, mode, voiceMode: s.voiceMode || "standard", reply, followUps, sessionPatch: m.sessionPatch || null, cog };
+      // ✅ v0.6i OUT cache + OUT loop break check (global)
+      const outSig = contentSig(reply, followUps);
+      const lastOutSig = String(s.__lastOutSig || "");
+      const lastOutAt = Number(s.__lastOutAt || 0);
+
+      if (lastOutSig && outSig === lastOutSig && withinMs(nowT, lastOutAt, OUTBOUND_DEDUPE_MS)) {
+        const br2 = buildLoopBreakPrompt();
+        reply = br2.reply;
+        followUps = stripEchoFollowUps(br2.followUps, cleanText);
+      } else {
+        setLastOut(s, nowT, reply, followUps);
+      }
+
+      const out = {
+        ok: true,
+        contractVersion: "1",
+        lane: "music",
+        year: y,
+        mode,
+        voiceMode: s.voiceMode || "standard",
+        reply,
+        followUps,
+        sessionPatch: m.sessionPatch || null,
+        cog,
+      };
 
       if (debug) {
         out.baseMessage = m.reply;
-        out._engine = { version: "chatEngine v0.6h", chosenLane: "music", usedMusicLane: true, wantsTop100Now, contentSig: sig, lastContentSig: lastSig };
+        out._engine = {
+          version: "chatEngine v0.6i",
+          chosenLane: "music",
+          usedMusicLane: true,
+          wantsTop100Now,
+          contentSig: sig,
+          lastContentSig: lastSig,
+        };
       }
 
       if (reply) return out;
@@ -635,7 +895,8 @@ async function handleChat({ text, session, visitorId, now, debug }) {
   }
 
   // Fallback (rare)
-  const baseMessage = "Tell me a year (1950–2024), or say “top 10 1988”, “story moment 1988”, “micro moment 1988”, or “#1 1988”.";
+  const baseMessage =
+    "Tell me a year (1950–2024), or say “top 10 1988”, “story moment 1988”, “micro moment 1988”, or “#1 1988”.";
   let reply = baseMessage;
 
   if (packets) {
@@ -645,10 +906,16 @@ async function handleChat({ text, session, visitorId, now, debug }) {
     } catch (_) {}
   }
 
-  const polished = await tryNyxPolish({ domain: "radio", intent: "music", userMessage: cleanText, baseMessage: reply, visitorId: visitorId || "Guest" });
+  const polished = await tryNyxPolish({
+    domain: "radio",
+    intent: "music",
+    userMessage: cleanText,
+    baseMessage: reply,
+    visitorId: visitorId || "Guest",
+  });
   if (polished) reply = polished;
 
-  const followUps = stripEchoFollowUps(
+  let followUps = stripEchoFollowUps(
     safeFollowUps([
       { label: "1956", send: "1956" },
       { label: "Top 10 1988", send: "top 10 1988" },
@@ -658,13 +925,42 @@ async function handleChat({ text, session, visitorId, now, debug }) {
     cleanText
   );
 
-  const cog = cogFromBase({ lane: "music", year: yKnown || null, mode: normalizeMode(s.activeMusicMode) || null, baseMessage: reply });
+  // ✅ v0.6i OUT cache + OUT loop break check
+  const outSig = contentSig(reply, followUps);
+  const lastOutSig = String(s.__lastOutSig || "");
+  const lastOutAt = Number(s.__lastOutAt || 0);
 
-  const out = { ok: true, contractVersion: "1", lane: "music", year: yKnown || null, mode: normalizeMode(s.activeMusicMode) || null, voiceMode: s.voiceMode || "standard", reply, followUps, sessionPatch: null, cog };
+  if (lastOutSig && outSig === lastOutSig && withinMs(nowT, lastOutAt, OUTBOUND_DEDUPE_MS)) {
+    const br = buildLoopBreakPrompt();
+    reply = br.reply;
+    followUps = stripEchoFollowUps(br.followUps, cleanText);
+  } else {
+    setLastOut(s, nowT, reply, followUps);
+  }
+
+  const cog = cogFromBase({
+    lane: "music",
+    year: yKnown || null,
+    mode: normalizeMode(s.activeMusicMode) || null,
+    baseMessage: reply,
+  });
+
+  const out = {
+    ok: true,
+    contractVersion: "1",
+    lane: "music",
+    year: yKnown || null,
+    mode: normalizeMode(s.activeMusicMode) || null,
+    voiceMode: s.voiceMode || "standard",
+    reply,
+    followUps,
+    sessionPatch: null,
+    cog,
+  };
 
   if (debug) {
     out.baseMessage = baseMessage;
-    out._engine = { version: "chatEngine v0.6h", chosenLane: "music", usedMusicLane: false, reason: "musicLane_missing_or_empty" };
+    out._engine = { version: "chatEngine v0.6i", chosenLane: "music", usedMusicLane: false, reason: "musicLane_missing_or_empty" };
   }
 
   return out;
