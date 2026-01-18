@@ -89,8 +89,13 @@ function normalizeMode(mode) {
   if (!m) return null;
 
   if (m === "top10" || m === "top 10" || m === "top ten" || m === "top") return "top10";
-  if (m === "top100" || m === "top 100" || m === "hot 100" || m === "year-end hot 100" || m === "year end hot 100")
-    return "top100";
+  if (
+    m === "top100" ||
+    m === "top 100" ||
+    m === "hot 100" ||
+    m === "year-end hot 100" ||
+    m === "year end hot 100"
+  ) return "top100";
 
   if (m === "story" || m === "story moment" || m === "story_moment") return "story";
   if (m === "micro" || m === "micro moment" || m === "micro_moment") return "micro";
@@ -190,11 +195,19 @@ function applySessionPatch(session, patch) {
 
   const ALLOW = new Set([
     // core
-    "lane", "voiceMode",
+    "lane",
+    "voiceMode",
     // music continuity
-    "lastMusicYear", "activeMusicMode", "activeMusicChart", "lastMusicChart",
-    // loop dampeners
-    "lastIntentSig", "lastIntentAt", "__musicLastSig",
+    "lastMusicYear",
+    "activeMusicMode",
+    "activeMusicChart",
+    "lastMusicChart",
+    // loop dampeners (intent + content)
+    "lastIntentSig",
+    "lastIntentAt",
+    "__musicLastSig",
+    "__musicLastContentSig",
+    "__musicLastContentAt",
   ]);
 
   for (const k of Object.keys(patch)) {
@@ -231,11 +244,25 @@ function cogFromBase(base) {
       return { phase: "deciding", state: "ready", reason: "need:mode", lane, year: base.year, ts: Date.now() };
     }
     if (hasYear && hasMode) {
-      return { phase: "guiding", state: "confident", reason: "run:mode", lane, year: base.year, mode: base.mode, ts: Date.now() };
+      return {
+        phase: "guiding",
+        state: "confident",
+        reason: "run:mode",
+        lane,
+        year: base.year,
+        mode: base.mode,
+        ts: Date.now(),
+      };
     }
     return { phase: "idle", state: "attentive", reason: "default", lane, ts: Date.now() };
   } catch {
-    return { phase: "idle", state: "attentive", reason: "cog_error", lane: (base && base.lane) || "general", ts: Date.now() };
+    return {
+      phase: "idle",
+      state: "attentive",
+      reason: "cog_error",
+      lane: (base && base.lane) || "general",
+      ts: Date.now(),
+    };
   }
 }
 
@@ -384,7 +411,12 @@ function isUpstreamQuotaError(e) {
     if (code === "insufficient_quota" || type === "insufficient_quota") return true;
     if (Number.isFinite(status) && status === 429 && raw.includes("insufficient_quota")) return true;
 
-    return raw.includes("insufficient_quota") || raw.includes("exceeded your current quota") || raw.includes("plan and billing") || raw.includes("billing details");
+    return (
+      raw.includes("insufficient_quota") ||
+      raw.includes("exceeded your current quota") ||
+      raw.includes("plan and billing") ||
+      raw.includes("billing details")
+    );
   } catch (_) {
     return false;
   }
@@ -421,15 +453,19 @@ async function tryNyxPolish({ domain, intent, userMessage, baseMessage, visitorI
 ========================= */
 
 function normalizeMusicOutput(raw) {
-  // Supports both old and new shapes: followUps[] (strings) OR chips[] objects
+  // Supports both old and new shapes:
+  //  - followUps: string[]
+  //  - chips: {label,send}[]
   const reply = String(raw && raw.reply ? raw.reply : "").trim();
 
   let followUps = [];
   if (Array.isArray(raw && raw.followUps)) {
-    // expected in v2.75 musicKnowledge: array of strings
-    followUps = raw.followUps.map((x) => ({ label: String(x).slice(0, 48), send: String(x).slice(0, 80) }));
+    followUps = raw.followUps.map((x) => ({
+      label: String(x).slice(0, 48),
+      send: String(x).slice(0, 80),
+    }));
   } else if (Array.isArray(raw && raw.chips)) {
-    followUps = safeFollowUps(raw.chips);
+    followUps = raw.chips;
   } else {
     followUps = [];
   }
@@ -457,7 +493,10 @@ async function handleChat({ text, session, visitorId, now, debug }) {
 
   const explicitMusicAsk = hasExplicitYearOrModeAsk(cleanText);
   const isMusicish =
-    cls.intent === "year_only" || cls.intent === "mode" || cls.intent === "nav" || /\b(billboard|hot 100|top 10|top 100)\b/.test(normCmd(cleanText));
+    cls.intent === "year_only" ||
+    cls.intent === "mode" ||
+    cls.intent === "nav" ||
+    /\b(billboard|hot 100|top 10|top 100)\b/.test(normCmd(cleanText));
 
   const hasStoredMusicContext = !!yKnown && sessionLane === "music";
 
@@ -494,16 +533,45 @@ async function handleChat({ text, session, visitorId, now, debug }) {
       followUps = stripEchoFollowUps(followUps, cleanText);
 
       let reply = replyVar;
-      const polished = await tryNyxPolish({ domain: "general", intent: "packet", userMessage: cleanText, baseMessage: replyVar, visitorId: visitorId || "Guest" });
+      const polished = await tryNyxPolish({
+        domain: "general",
+        intent: "packet",
+        userMessage: cleanText,
+        baseMessage: replyVar,
+        visitorId: visitorId || "Guest",
+      });
       if (polished) reply = polished;
 
       const cog = cogFromBase({ lane: s.lane || "general", year: yKnown || null, mode: null, baseMessage: replyVar });
 
-      const out = { ok: true, contractVersion: "1", lane: s.lane || "general", year: yKnown || null, mode: s.activeMusicMode || null, voiceMode: s.voiceMode || "standard", reply, followUps, sessionPatch: p.sessionPatch || null, cog };
+      const out = {
+        ok: true,
+        contractVersion: "1",
+        lane: s.lane || "general",
+        year: yKnown || null,
+        mode: s.activeMusicMode || null,
+        voiceMode: s.voiceMode || "standard",
+        reply,
+        followUps,
+        sessionPatch: p.sessionPatch || null,
+        cog,
+      };
 
       if (debug) {
         out.baseMessage = replyVar;
-        out._engine = { version: "chatEngine v0.6g", usedPackets: true, hasMusicKnowledge: !!musicKnowledge, hasLanePolicy: !!resolveLane, laneDecision: laneDecision || null, chosenLane: lane, explicitMusicAsk, hasStoredMusicContext, isMusicish, hasNyxPolish: !!generateNyxReply, quotaCooling: quotaCooling(Date.now()) };
+        out._engine = {
+          version: "chatEngine v0.6g",
+          usedPackets: true,
+          hasMusicKnowledge: !!musicKnowledge,
+          hasLanePolicy: !!resolveLane,
+          laneDecision: laneDecision || null,
+          chosenLane: lane,
+          explicitMusicAsk,
+          hasStoredMusicContext,
+          isMusicish,
+          hasNyxPolish: !!generateNyxReply,
+          quotaCooling: quotaCooling(Date.now()),
+        };
       }
       return out;
     }
@@ -517,16 +585,44 @@ async function handleChat({ text, session, visitorId, now, debug }) {
     const cog = cogFromBase({ lane: "general", year: null, mode: null, baseMessage: base.baseMessage });
 
     let reply = base.baseMessage;
-    const polished = await tryNyxPolish({ domain: "general", intent: "general", userMessage: cleanText, baseMessage: base.baseMessage, visitorId: visitorId || "Guest" });
+    const polished = await tryNyxPolish({
+      domain: "general",
+      intent: "general",
+      userMessage: cleanText,
+      baseMessage: base.baseMessage,
+      visitorId: visitorId || "Guest",
+    });
     if (polished) reply = polished;
 
     let followUps = stripEchoFollowUps(base.followUps || [], cleanText);
 
-    const out = { ok: true, contractVersion: "1", lane: "general", year: null, mode: null, voiceMode: s.voiceMode || "standard", reply, followUps, sessionPatch: base.sessionPatch || null, cog };
+    const out = {
+      ok: true,
+      contractVersion: "1",
+      lane: "general",
+      year: null,
+      mode: null,
+      voiceMode: s.voiceMode || "standard",
+      reply,
+      followUps,
+      sessionPatch: base.sessionPatch || null,
+      cog,
+    };
 
     if (debug) {
       out.baseMessage = base.baseMessage;
-      out._engine = { version: "chatEngine v0.6g", usedPackets: false, hasMusicKnowledge: !!musicKnowledge, hasLanePolicy: !!resolveLane, laneDecision: laneDecision || null, chosenLane: "general", explicitMusicAsk, hasStoredMusicContext, isMusicish, hasNyxPolish: !!generateNyxReply };
+      out._engine = {
+        version: "chatEngine v0.6g",
+        usedPackets: false,
+        hasMusicKnowledge: !!musicKnowledge,
+        hasLanePolicy: !!resolveLane,
+        laneDecision: laneDecision || null,
+        chosenLane: "general",
+        explicitMusicAsk,
+        hasStoredMusicContext,
+        isMusicish,
+        hasNyxPolish: !!generateNyxReply,
+      };
     }
     return out;
   }
@@ -538,7 +634,9 @@ async function handleChat({ text, session, visitorId, now, debug }) {
 
     if (call.ok) {
       const norm = normalizeLaneOutput(call.raw, lane);
-      base = norm.reply ? { lane, sessionPatch: norm.sessionPatch, baseMessage: norm.reply, followUps: norm.followUps } : buildLaneStub(lane);
+      base = norm.reply
+        ? { lane, sessionPatch: norm.sessionPatch, baseMessage: norm.reply, followUps: norm.followUps }
+        : buildLaneStub(lane);
     } else {
       base = buildLaneStub(lane);
     }
@@ -548,16 +646,42 @@ async function handleChat({ text, session, visitorId, now, debug }) {
     const cog = cogFromBase({ lane: base.lane, year: null, mode: null, baseMessage: base.baseMessage });
 
     let reply = base.baseMessage;
-    const polished = await tryNyxPolish({ domain: "general", intent: lane, userMessage: cleanText, baseMessage: base.baseMessage, visitorId: visitorId || "Guest" });
+    const polished = await tryNyxPolish({
+      domain: "general",
+      intent: lane,
+      userMessage: cleanText,
+      baseMessage: base.baseMessage,
+      visitorId: visitorId || "Guest",
+    });
     if (polished) reply = polished;
 
     let followUps = stripEchoFollowUps(base.followUps || [], cleanText);
 
-    const out = { ok: true, contractVersion: "1", lane: base.lane, year: null, mode: null, voiceMode: s.voiceMode || "standard", reply, followUps, sessionPatch: base.sessionPatch || null, cog };
+    const out = {
+      ok: true,
+      contractVersion: "1",
+      lane: base.lane,
+      year: null,
+      mode: null,
+      voiceMode: s.voiceMode || "standard",
+      reply,
+      followUps,
+      sessionPatch: base.sessionPatch || null,
+      cog,
+    };
 
     if (debug) {
       out.baseMessage = base.baseMessage;
-      out._engine = { version: "chatEngine v0.6g", hasMusicKnowledge: !!musicKnowledge, hasLanePolicy: !!resolveLane, laneDecision: laneDecision || null, chosenLane: lane, laneCallOk: call.ok, laneCallFailReason: call.ok ? null : call.reason, hasNyxPolish: !!generateNyxReply };
+      out._engine = {
+        version: "chatEngine v0.6g",
+        hasMusicKnowledge: !!musicKnowledge,
+        hasLanePolicy: !!resolveLane,
+        laneDecision: laneDecision || null,
+        chosenLane: lane,
+        laneCallOk: call.ok,
+        laneCallFailReason: call.ok ? null : call.reason,
+        hasNyxPolish: !!generateNyxReply,
+      };
     }
     return out;
   }
@@ -575,7 +699,10 @@ async function handleChat({ text, session, visitorId, now, debug }) {
   // ✅ AUTHORITATIVE MUSIC CONTENT (if available)
   if (musicKnowledge) {
     try {
-      const mRaw = musicKnowledge.handleChat({ text: cleanText, session: s, visitorId, debug: !!debug });
+      const mRaw = await Promise.resolve(
+        musicKnowledge.handleChat({ text: cleanText, session: s, visitorId, debug: !!debug })
+      );
+
       const m = normalizeMusicOutput(mRaw);
 
       if (m.sessionPatch) applySessionPatch(s, m.sessionPatch);
@@ -650,7 +777,6 @@ async function handleChat({ text, session, visitorId, now, debug }) {
       if (reply) return out;
       // else fall through to deterministic base below
     } catch (e) {
-      // fall through to deterministic base
       if (debug) {
         // eslint-disable-next-line no-console
         console.warn("[chatEngine] musicKnowledge failed:", e && e.message ? e.message : e);
@@ -659,7 +785,8 @@ async function handleChat({ text, session, visitorId, now, debug }) {
   }
 
   // Fallback: deterministic base prompts (should be rare now)
-  const baseMessage = "Tell me a year (1950–2024), or say “top 10 1988”, “story moment 1988”, “micro moment 1988”, or “#1 1988”.";
+  const baseMessage =
+    "Tell me a year (1950–2024), or say “top 10 1988”, “story moment 1988”, “micro moment 1988”, or “#1 1988”.";
   let reply = baseMessage;
 
   // packets ask-year template (optional)
@@ -670,7 +797,13 @@ async function handleChat({ text, session, visitorId, now, debug }) {
     } catch (_) {}
   }
 
-  const polished = await tryNyxPolish({ domain: "radio", intent: "music", userMessage: cleanText, baseMessage: reply, visitorId: visitorId || "Guest" });
+  const polished = await tryNyxPolish({
+    domain: "radio",
+    intent: "music",
+    userMessage: cleanText,
+    baseMessage: reply,
+    visitorId: visitorId || "Guest",
+  });
   if (polished) reply = polished;
 
   const followUps = stripEchoFollowUps(
@@ -683,13 +816,34 @@ async function handleChat({ text, session, visitorId, now, debug }) {
     cleanText
   );
 
-  const cog = cogFromBase({ lane: "music", year: yKnown || null, mode: normalizeMode(s.activeMusicMode) || null, baseMessage: reply });
+  const cog = cogFromBase({
+    lane: "music",
+    year: yKnown || null,
+    mode: normalizeMode(s.activeMusicMode) || null,
+    baseMessage: reply,
+  });
 
-  const out = { ok: true, contractVersion: "1", lane: "music", year: yKnown || null, mode: normalizeMode(s.activeMusicMode) || null, voiceMode: s.voiceMode || "standard", reply, followUps, sessionPatch: null, cog };
+  const out = {
+    ok: true,
+    contractVersion: "1",
+    lane: "music",
+    year: yKnown || null,
+    mode: normalizeMode(s.activeMusicMode) || null,
+    voiceMode: s.voiceMode || "standard",
+    reply,
+    followUps,
+    sessionPatch: null,
+    cog,
+  };
 
   if (debug) {
     out.baseMessage = baseMessage;
-    out._engine = { version: "chatEngine v0.6g", chosenLane: "music", usedMusicKnowledge: false, reason: "musicKnowledge_missing_or_empty" };
+    out._engine = {
+      version: "chatEngine v0.6g",
+      chosenLane: "music",
+      usedMusicKnowledge: false,
+      reason: "musicKnowledge_missing_or_empty",
+    };
   }
 
   return out;
