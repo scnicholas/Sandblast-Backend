@@ -3,22 +3,22 @@
 /**
  * Utils/sponsorsLane.js
  *
- * Sponsors Lane v1.2 (TIGHT + Deterministic + Chip-Safe + Optional Business/Restrictions + Script Variants)
+ * Sponsors Lane v1.2b (TIGHT + Deterministic + Chip-Safe + Optional Business/Restrictions + Script Variants)
  *
  * Option A Update (surgical fixes + forward-motion guarantees):
- *  1) Rotation bug fix: pickRotate now starts at -1 so it actually returns option[0] first.
- *  2) “Ask-once” guards for optional fields:
- *      - business is OPTIONAL and should be asked at most once unless user explicitly requests.
- *      - restrictions is OPTIONAL and should be asked at most once unless user explicitly requests.
- *     Implemented via state flags: askedBusiness, askedRestrictions.
+ *  1) Rotation bug fix: pickRotate now starts at -1 so it returns option[0] first.
+ *  2) Ask-once guards for optional fields:
+ *      - business OPTIONAL asked at most once unless user explicitly requests
+ *      - restrictions OPTIONAL asked at most once unless user explicitly requests
+ *     via flags: askedBusiness, askedRestrictions
  *  3) Budget number parsing fallback:
- *      - If user types a number (e.g., “800”) and SK doesn’t normalize it, map it to a tier deterministically.
+ *      - map raw numbers to tier deterministically
  *  4) Chip-safe progression:
- *      - “Skip” and “No restrictions” now actually advance and don’t cause repeated asks.
+ *      - Skip / No restrictions actually advance
  *
  * Critical behavior fix:
- *  - Prevents category from being auto-set to "other" during parsing, which can skip ask_category.
- *    We only set "other" at build time if still missing.
+ *  - Prevents category from being auto-set to "other" during parsing.
+ *    We only set "other" if the user explicitly chooses Other.
  */
 
 const SK = require("./sponsorsKnowledge");
@@ -32,6 +32,47 @@ function cleanText(s) {
     .replace(/\u200B/g, "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/**
+ * Chip-safe normalizer (hard boundary)
+ * Accepts:
+ *  - string[]
+ *  - [{label,send}]
+ * Returns: [{label,send}] (<= 10)
+ */
+function safeFollowUps(list) {
+  if (!Array.isArray(list)) return [];
+  const out = [];
+  const seen = new Set();
+
+  for (const it of list) {
+    let label = "";
+    let send = "";
+
+    if (typeof it === "string") {
+      const s = cleanText(it);
+      if (!s) continue;
+      label = s.length > 48 ? s.slice(0, 48) : s;
+      send = s.slice(0, 80);
+    } else if (it && typeof it === "object") {
+      label = cleanText(it.label || it.text || it.title || "");
+      send = cleanText(it.send || it.value || it.query || it.text || label || "");
+      if (!label || !send) continue;
+      if (label.length > 48) label = label.slice(0, 48);
+      if (send.length > 80) send = send.slice(0, 80);
+    }
+
+    if (!label || !send) continue;
+    const k = send.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+
+    out.push({ label, send });
+    if (out.length >= 10) break;
+  }
+
+  return out;
 }
 
 /**
@@ -83,8 +124,7 @@ function normalizeGoal(text) {
   if (!t) return null;
 
   if (t.includes("call") || t.includes("booking") || /\bbook\b/.test(t)) return "calls";
-  if (t.includes("foot") || t.includes("store") || t.includes("walk-in") || t.includes("walk in"))
-    return "foot traffic";
+  if (t.includes("foot") || t.includes("store") || t.includes("walk-in") || t.includes("walk in")) return "foot traffic";
   if (t.includes("click") || t.includes("website") || t.includes("site")) return "website clicks";
   if (t.includes("awareness") || t.includes("brand")) return "brand awareness";
 
@@ -135,7 +175,7 @@ function getState(session) {
     stage: cleanText(st.stage || ""),
 
     askedBusiness: !!st.askedBusiness,
-    askedRestrictions: !!st.askedRestrictions,
+    askedRestrictions: !!st.askedRestrictions
   };
 }
 
@@ -151,16 +191,11 @@ function setState(session, patch) {
 
 function getCtaLabels(catalog) {
   const labels =
-    (catalog &&
-      catalog.ctas &&
-      catalog.ctas.labels &&
-      typeof catalog.ctas.labels === "object" &&
-      catalog.ctas.labels) ||
-    {};
+    (catalog && catalog.ctas && catalog.ctas.labels && typeof catalog.ctas.labels === "object" && catalog.ctas.labels) || {};
   return {
     book_a_call: cleanText(labels.book_a_call || "Book a call") || "Book a call",
     request_rate_card: cleanText(labels.request_rate_card || "Request rate card") || "Request rate card",
-    whatsapp: cleanText(labels.whatsapp || "WhatsApp") || "WhatsApp",
+    whatsapp: cleanText(labels.whatsapp || "WhatsApp") || "WhatsApp"
   };
 }
 
@@ -178,7 +213,7 @@ function prettifyCategory(catalog, categoryId) {
   return cleanText(String(v || hitKey)) || hitKey;
 }
 
-function formatBundle(bundle = []) {
+function formatBundle(bundle) {
   const b = Array.isArray(bundle) ? bundle : [];
   const pretty = b.map((x) => {
     if (x === "tv") return "TV";
@@ -202,9 +237,9 @@ function makeFollowUpsForStage(stage, catalog) {
   const tiers = tierChoices.length
     ? tierChoices
     : [
-        { id: "starter_test", label: "Starter ($250–$499)" },
-        { id: "growth_bundle", label: "Growth ($500–$1,200)" },
-        { id: "dominance", label: "Dominance ($1,500–$3,500+)" },
+        { id: "starter_test", label: "Starter ($250-$499)" },
+        { id: "growth_bundle", label: "Growth ($500-$1,200)" },
+        { id: "dominance", label: "Dominance ($1,500-$3,500+)" }
       ];
 
   if (stage === "ask_property") {
@@ -226,7 +261,7 @@ function makeFollowUpsForStage(stage, catalog) {
       { label: "Website clicks", send: "Website clicks" },
       { label: "Brand awareness", send: "Brand awareness" },
       { label: "Request rate card", send: "Request rate card" },
-      { label: "Build my offer", send: "Build my offer" },
+      { label: "Build my offer", send: "Build my offer" }
     ].slice(0, 8);
   }
 
@@ -239,7 +274,7 @@ function makeFollowUpsForStage(stage, catalog) {
       { label: "Fitness/Wellness", send: "Fitness/Wellness" },
       { label: "Trades", send: "Trades" },
       { label: "Events", send: "Events" },
-      { label: "Other", send: "Other" },
+      { label: "Other", send: "Other" }
     ].slice(0, 8);
   }
 
@@ -248,15 +283,17 @@ function makeFollowUpsForStage(stage, catalog) {
       { label: "Skip (generic)", send: "Skip" },
       { label: "Use category name", send: "Use category name" },
       { label: "Business: (type it)", send: "Business: " },
-      { label: "Build my offer", send: "Build my offer" },
+      { label: "Build my offer", send: "Build my offer" }
     ].slice(0, 8);
   }
 
   if (stage === "ask_budget") {
-    return tiers.slice(0, 3).map((t) => ({
-      label: cleanText(t.label || t.id),
-      send: cleanText(t.id || t.label),
-    }));
+    return safeFollowUps(
+      tiers.slice(0, 3).map((t) => ({
+        label: cleanText(t.label || t.id),
+        send: cleanText(t.id || t.label)
+      }))
+    );
   }
 
   if (stage === "ask_cta") {
@@ -264,7 +301,7 @@ function makeFollowUpsForStage(stage, catalog) {
       { label: ctaLabels.book_a_call, send: "book_a_call" },
       { label: ctaLabels.request_rate_card, send: "request_rate_card" },
       { label: ctaLabels.whatsapp, send: "whatsapp" },
-      { label: "Build my offer", send: "Build my offer" },
+      { label: "Build my offer", send: "Build my offer" }
     ].slice(0, 8);
   }
 
@@ -273,7 +310,7 @@ function makeFollowUpsForStage(stage, catalog) {
       { label: "No restrictions", send: "No restrictions" },
       { label: "Standard policy restrictions", send: "Standard policy restrictions" },
       { label: "I have restrictions", send: "I have restrictions" },
-      { label: "Build my offer", send: "Build my offer" },
+      { label: "Build my offer", send: "Build my offer" }
     ].slice(0, 8);
   }
 
@@ -282,7 +319,7 @@ function makeFollowUpsForStage(stage, catalog) {
     { label: "Write 15-second script", send: "Write 15-second script" },
     { label: "30-second cut", send: "30-second cut" },
     { label: "Request rate card", send: "Request rate card" },
-    { label: "Another sponsor", send: "Another sponsor" },
+    { label: "Another sponsor", send: "Another sponsor" }
   ].slice(0, 8);
 }
 
@@ -295,25 +332,19 @@ function stagePrompt(stage, session, catalog) {
   const currency = (catalog && catalog.currency) || "CAD";
 
   if (stage === "ask_property") {
-    return (
-      p.open ||
-      "Sponsors Lane — quick setup. What do you want to promote: TV, Radio, Website, Social, or a bundle?"
-    );
+    return p.open || "Sponsors Lane - quick setup. What do you want to promote: TV, Radio, Website, Social, or a bundle?";
   }
   if (stage === "ask_goal") {
-    return p.goal || "What’s your goal: calls, foot traffic, website clicks, or brand awareness?";
+    return p.goal || "What's your goal: calls, foot traffic, website clicks, or brand awareness?";
   }
   if (stage === "ask_category") {
-    return (
-      p.category ||
-      "What category are you in? (restaurant, auto, grocery, church, fitness, trades, events, other)"
-    );
+    return p.category || "What category are you in? (restaurant, auto, grocery, church, fitness, trades, events, other)";
   }
   if (stage === "ask_business") {
-    return p.business || "Sponsor name (what should I say on-air)? Reply “Business: <name>” or tap Skip.";
+    return p.business || 'Sponsor name (what should I say on-air)? Reply "Business: <name>" or tap Skip.';
   }
   if (stage === "ask_budget") {
-    return p.budget || `Budget tier in ${currency}: Starter, Growth, or Dominance? (Or type a number like “800”.)`;
+    return p.budget || `Budget tier in ${currency}: Starter, Growth, or Dominance? (Or type a number like "800".)`;
   }
   if (stage === "ask_cta") {
     return p.cta || "Preferred CTA: Book a call, Request rate card, or WhatsApp?";
@@ -323,13 +354,13 @@ function stagePrompt(stage, session, catalog) {
   }
 
   return pickRotate(session, "sponsors_done", [
-    "Locked. Say “Build my offer” and I’ll recommend a bundle and draft your first 15-second script.",
-    "Perfect. Say “Build my offer” and I’ll package this into a clean recommendation + first script.",
+    'Locked. Say "Build my offer" and I will recommend a bundle and draft your first 15-second script.',
+    'Perfect. Say "Build my offer" and I will package this into a clean recommendation + first script.'
   ]);
 }
 
 /**
- * Optional fields are “ask-once”:
+ * Optional fields are ask-once:
  *  - business: ask once (unless user explicitly engages it)
  *  - restrictions: ask once (unless user explicitly engages it)
  */
@@ -378,11 +409,7 @@ function extractBusinessName(text, state) {
     !t.includes("@") &&
     !/\b(rate card|bundle|tier|growth|starter|dominance)\b/.test(lower)
   ) {
-    if (
-      !/\b(auto services|restaurant\/takeout|grocery\/specialty|church\/faith|fitness\/wellness|trades|events|other)\b/i.test(
-        t
-      )
-    ) {
+    if (!/\b(auto services|restaurant\/takeout|grocery\/specialty|church\/faith|fitness\/wellness|trades|events|other)\b/i.test(t)) {
       return t;
     }
   }
@@ -392,8 +419,8 @@ function extractBusinessName(text, state) {
 
 /**
  * Critical: category should NOT be auto-set to "other" here.
- * If SK.normalizeCategoryToken yields "other" because it can't identify, we treat that as "unknown"
- * and let the lane ask ask_category. If the user explicitly chooses "Other", we set "other".
+ * If SK.normalizeCategoryToken yields "other" because it can't identify, treat as unknown.
+ * If user explicitly chooses "Other", set it.
  */
 function normalizeCategoryFromInput(t, stage) {
   const lower = cleanText(t).toLowerCase();
@@ -501,9 +528,7 @@ function applyUserAnswerToState(text, state, catalog) {
 
   const wantsBuild =
     lower === "build my offer" ||
-    /\b(build my offer|build the offer|recommend package|recommend a package|package it|get a package recommendation)\b/.test(
-      lower
-    );
+    /\b(build my offer|build the offer|recommend package|recommend a package|package it|get a package recommendation)\b/.test(lower);
 
   const wantsAnother = lower === "another sponsor" || lower.includes("new sponsor");
   const wantsRateCard = lower === "request rate card" || lower.includes("rate card") || lower.includes("media kit");
@@ -531,7 +556,7 @@ function applyUserAnswerToState(text, state, catalog) {
     wantsRadioVersion,
     wantsWebsiteVersion,
     wantsTvTag,
-    enterLane,
+    enterLane
   };
 }
 
@@ -547,13 +572,13 @@ function buildOfferReply(session, state, catalog) {
     tierId: state.budgetTier,
     category: safeCategory,
     goal: state.goal,
-    cta: state.cta,
+    cta: state.cta
   });
 
   if (!rec || !rec.ok) {
     return pickRotate(session, "sponsors_offer_fail", [
-      "Sponsors Lane — I can’t load the sponsors catalog right now.",
-      "Tell me: TV/Radio/Website/Social + budget tier + category, and I’ll package a recommendation anyway.",
+      "Sponsors Lane - I cannot load the sponsors catalog right now.",
+      "Tell me: TV/Radio/Website/Social + budget tier + category, and I will package a recommendation anyway."
     ]);
   }
 
@@ -583,16 +608,16 @@ function buildOfferReply(session, state, catalog) {
   const sponsorNameLine = state.business ? `Sponsor: ${state.business}` : "Sponsor: (name optional)";
 
   const lines = [
-    "Sponsors Lane — recommendation:",
+    "Sponsors Lane - recommendation:",
     `1) Bundle: ${bundleLine}`,
     `2) Tier: ${tierLine}`,
     `3) Category: ${categoryPretty}`,
     `4) Goal: ${goalLine}`,
     `5) CTA: ${ctaPretty}`,
-    `6) Frequency: ${rec.frequencyHint || "4–7 mentions/week"}`,
+    `6) Frequency: ${rec.frequencyHint || "4-7 mentions/week"}`,
     `7) ${restrictLine}`,
     `8) ${sponsorNameLine}`,
-    "Next: “Write 15-second script” or “Request rate card”.",
+    'Next: "Write 15-second script" or "Request rate card".'
   ];
 
   return lines.join("\n");
@@ -605,10 +630,10 @@ function buildRateCardReply(session, catalog) {
 
   const lines = [
     `Rate card snapshot (${currency}):`,
-    tiers.length ? `1) ${tiers[0].label}` : "1) Starter — entry test flight",
-    tiers.length > 1 ? `2) ${tiers[1].label}` : "2) Growth — repeat exposure + outcomes",
-    tiers.length > 2 ? `3) ${tiers[2].label}` : "3) Dominance — segment ownership + scale",
-    `Next: choose a tier, then your CTA (${ctaLabels.book_a_call} / ${ctaLabels.request_rate_card} / ${ctaLabels.whatsapp}).`,
+    tiers.length ? `1) ${tiers[0].label}` : "1) Starter - entry test flight",
+    tiers.length > 1 ? `2) ${tiers[1].label}` : "2) Growth - repeat exposure + outcomes",
+    tiers.length > 2 ? `3) ${tiers[2].label}` : "3) Dominance - segment ownership + scale",
+    `Next: choose a tier, then your CTA (${ctaLabels.book_a_call} / ${ctaLabels.request_rate_card} / ${ctaLabels.whatsapp}).`
   ];
 
   return lines.join("\n");
@@ -639,8 +664,8 @@ function buildScript15(state, catalog) {
 
   return [
     "15-second sponsor script:",
-    `“This hour on Sandblast is sponsored by ${sponsorName}. If you want ${goalPretty} without the noise, get in front of the right audience. ${ctaPretty} today and lock your spot.”`,
-    "Next: say “Build my offer” to package TV/Radio/Website/Social, or ask for a 30-second cut.",
+    `"This hour on Sandblast is sponsored by ${sponsorName}. If you want ${goalPretty} without the noise, get in front of the right audience. ${ctaPretty} today and lock your spot."`,
+    'Next: say "Build my offer" to package TV/Radio/Website/Social, or ask for a 30-second cut.'
   ].join("\n");
 }
 
@@ -651,8 +676,8 @@ function buildScript30(state, catalog) {
 
   return [
     "30-second sponsor script:",
-    `“Sandblast is powered by sponsors like ${sponsorName}. If you’re serious about ${goalPretty}, this is where you show up consistently—on-air, on-site, and in social feeds. We build a clean flight, track outcomes, and keep the message tight. ${ctaPretty} and we’ll map the best package for your budget.”`,
-    "Want it tailored for Radio vs Website, or a TV tag?",
+    `"Sandblast is powered by sponsors like ${sponsorName}. If you are serious about ${goalPretty}, this is where you show up consistently - on-air, on-site, and in social feeds. We build a clean flight, track outcomes, and keep the message tight. ${ctaPretty} and we will map the best package for your budget."`,
+    "Want it tailored for Radio vs Website, or a TV tag?"
   ].join("\n");
 }
 
@@ -661,18 +686,18 @@ function buildVariantTag(variant, state, catalog) {
   const ctaPretty = getCtaPretty(state, catalog);
 
   if (variant === "radio") {
-    return ["Radio version (tag):", `“Sponsored by ${sponsorName}. ${ctaPretty} today.”`].join("\n");
+    return ["Radio version (tag):", `"Sponsored by ${sponsorName}. ${ctaPretty} today."`].join("\n");
   }
 
   if (variant === "website") {
     return [
       "Website version (tag):",
-      `“This segment is brought to you by ${sponsorName}. Visit us online—${ctaPretty}.”`,
+      `"This segment is brought to you by ${sponsorName}. Visit us online - ${ctaPretty}."`
     ].join("\n");
   }
 
   if (variant === "tv") {
-    return ["TV tag (super short):", `“Sandblast is sponsored by ${sponsorName}. ${ctaPretty}.”`].join("\n");
+    return ["TV tag (super short):", `"Sandblast is sponsored by ${sponsorName}. ${ctaPretty}."`].join("\n");
   }
 
   return "";
@@ -683,187 +708,194 @@ function buildVariantTag(variant, state, catalog) {
 ====================================================== */
 
 function handleChat({ text, session } = {}) {
-  const message = cleanText(text);
+  try {
+    const message = cleanText(text);
 
-  const loaded = SK.loadCatalog(SK.DEFAULT_CATALOG_REL);
-  const catalog = loaded && loaded.ok ? loaded.catalog : null;
+    const loaded = SK.loadCatalog(SK.DEFAULT_CATALOG_REL);
+    const catalog = loaded && loaded.ok ? loaded.catalog : null;
 
-  if (session && typeof session === "object") session.lane = "sponsors";
+    if (session && typeof session === "object") session.lane = "sponsors";
 
-  const state = getState(session);
-  const lower = message.toLowerCase();
+    const state = getState(session);
+    const lower = message.toLowerCase();
 
-  if (lower === "another sponsor" || lower.includes("new sponsor")) {
-    setState(session, {
-      property: "",
-      goal: "",
-      category: "",
-      business: "",
-      budgetTier: "",
-      cta: "",
-      restrictions: "",
-      stage: "ask_property",
-      askedBusiness: false,
-      askedRestrictions: false,
-    });
+    if (lower === "another sponsor" || lower.includes("new sponsor")) {
+      setState(session, {
+        property: "",
+        goal: "",
+        category: "",
+        business: "",
+        budgetTier: "",
+        cta: "",
+        restrictions: "",
+        stage: "ask_property",
+        askedBusiness: false,
+        askedRestrictions: false
+      });
 
-    const reply = stagePrompt("ask_property", session, catalog);
-    return {
-      reply,
-      followUps: makeFollowUpsForStage("ask_property", catalog),
-      sessionPatch: { lane: "sponsors" },
-    };
-  }
-
-  const action = applyUserAnswerToState(message, state, catalog);
-
-  if (action.enterLane && nextMissingField(state) === "ask_property") {
-    state.stage = "ask_property";
-    setState(session, state);
-    const reply = stagePrompt("ask_property", session, catalog);
-    return {
-      reply,
-      followUps: makeFollowUpsForStage("ask_property", catalog),
-      sessionPatch: { lane: "sponsors" },
-    };
-  }
-
-  if (action.wantsRateCard) {
-    state.cta = "request_rate_card";
-    setState(session, state);
-
-    return {
-      reply: buildRateCardReply(session, catalog),
-      followUps: [
-        { label: "Starter", send: "starter_test" },
-        { label: "Growth", send: "growth_bundle" },
-        { label: "Dominance", send: "dominance" },
-        { label: "Build my offer", send: "Build my offer" },
-      ],
-      sessionPatch: { lane: "sponsors" },
-    };
-  }
-
-  if (action.wantsRadioVersion) {
-    return {
-      reply: buildVariantTag("radio", state, catalog),
-      followUps: [
-        { label: "Write 15-second script", send: "Write 15-second script" },
-        { label: "30-second cut", send: "30-second cut" },
-        { label: "TV tag", send: "TV tag" },
-        { label: "Build my offer", send: "Build my offer" },
-      ],
-      sessionPatch: { lane: "sponsors" },
-    };
-  }
-
-  if (action.wantsWebsiteVersion) {
-    return {
-      reply: buildVariantTag("website", state, catalog),
-      followUps: [
-        { label: "Write 15-second script", send: "Write 15-second script" },
-        { label: "30-second cut", send: "30-second cut" },
-        { label: "TV tag", send: "TV tag" },
-        { label: "Build my offer", send: "Build my offer" },
-      ],
-      sessionPatch: { lane: "sponsors" },
-    };
-  }
-
-  if (action.wantsTvTag) {
-    return {
-      reply: buildVariantTag("tv", state, catalog),
-      followUps: [
-        { label: "Write 15-second script", send: "Write 15-second script" },
-        { label: "30-second cut", send: "30-second cut" },
-        { label: "Radio version", send: "Radio version" },
-        { label: "Build my offer", send: "Build my offer" },
-      ],
-      sessionPatch: { lane: "sponsors" },
-    };
-  }
-
-  if (action.wants15) {
-    return {
-      reply: buildScript15(state, catalog),
-      followUps: [
-        { label: "Build my offer", send: "Build my offer" },
-        { label: "30-second cut", send: "30-second cut" },
-        { label: "Request rate card", send: "Request rate card" },
-        { label: "Another sponsor", send: "Another sponsor" },
-      ],
-      sessionPatch: { lane: "sponsors" },
-    };
-  }
-
-  if (action.wants30) {
-    return {
-      reply: buildScript30(state, catalog),
-      followUps: [
-        { label: "Radio version", send: "Radio version" },
-        { label: "Website version", send: "Website version" },
-        { label: "TV tag", send: "TV tag" },
-        { label: "Build my offer", send: "Build my offer" },
-      ],
-      sessionPatch: { lane: "sponsors" },
-    };
-  }
-
-  if (action.wantsBuild) {
-    const missing = nextMissingField(state);
-
-    const blockers = ["ask_property", "ask_goal", "ask_category", "ask_budget", "ask_cta"];
-    if (blockers.includes(missing)) {
-      state.stage = missing;
-      setState(session, state);
-
+      const reply = stagePrompt("ask_property", session, catalog);
       return {
-        reply: ["Sponsors Lane — I’m missing one piece.", stagePrompt(missing, session, catalog), "Answer that and I’ll build the offer."].join(
-          "\n"
-        ),
-        followUps: makeFollowUpsForStage(missing, catalog),
-        sessionPatch: { lane: "sponsors" },
+        reply,
+        followUps: safeFollowUps(makeFollowUpsForStage("ask_property", catalog)),
+        sessionPatch: { lane: "sponsors" }
       };
     }
 
-    state.stage = "done";
+    const action = applyUserAnswerToState(message, state, catalog);
+
+    if (action.enterLane && nextMissingField(state) === "ask_property") {
+      state.stage = "ask_property";
+      setState(session, state);
+      const reply = stagePrompt("ask_property", session, catalog);
+      return {
+        reply,
+        followUps: safeFollowUps(makeFollowUpsForStage("ask_property", catalog)),
+        sessionPatch: { lane: "sponsors" }
+      };
+    }
+
+    if (action.wantsRateCard) {
+      state.cta = "request_rate_card";
+      setState(session, state);
+
+      return {
+        reply: buildRateCardReply(session, catalog),
+        followUps: safeFollowUps([
+          { label: "Starter", send: "starter_test" },
+          { label: "Growth", send: "growth_bundle" },
+          { label: "Dominance", send: "dominance" },
+          { label: "Build my offer", send: "Build my offer" }
+        ]),
+        sessionPatch: { lane: "sponsors" }
+      };
+    }
+
+    if (action.wantsRadioVersion) {
+      return {
+        reply: buildVariantTag("radio", state, catalog),
+        followUps: safeFollowUps([
+          { label: "Write 15-second script", send: "Write 15-second script" },
+          { label: "30-second cut", send: "30-second cut" },
+          { label: "TV tag", send: "TV tag" },
+          { label: "Build my offer", send: "Build my offer" }
+        ]),
+        sessionPatch: { lane: "sponsors" }
+      };
+    }
+
+    if (action.wantsWebsiteVersion) {
+      return {
+        reply: buildVariantTag("website", state, catalog),
+        followUps: safeFollowUps([
+          { label: "Write 15-second script", send: "Write 15-second script" },
+          { label: "30-second cut", send: "30-second cut" },
+          { label: "TV tag", send: "TV tag" },
+          { label: "Build my offer", send: "Build my offer" }
+        ]),
+        sessionPatch: { lane: "sponsors" }
+      };
+    }
+
+    if (action.wantsTvTag) {
+      return {
+        reply: buildVariantTag("tv", state, catalog),
+        followUps: safeFollowUps([
+          { label: "Write 15-second script", send: "Write 15-second script" },
+          { label: "30-second cut", send: "30-second cut" },
+          { label: "Radio version", send: "Radio version" },
+          { label: "Build my offer", send: "Build my offer" }
+        ]),
+        sessionPatch: { lane: "sponsors" }
+      };
+    }
+
+    if (action.wants15) {
+      return {
+        reply: buildScript15(state, catalog),
+        followUps: safeFollowUps([
+          { label: "Build my offer", send: "Build my offer" },
+          { label: "30-second cut", send: "30-second cut" },
+          { label: "Request rate card", send: "Request rate card" },
+          { label: "Another sponsor", send: "Another sponsor" }
+        ]),
+        sessionPatch: { lane: "sponsors" }
+      };
+    }
+
+    if (action.wants30) {
+      return {
+        reply: buildScript30(state, catalog),
+        followUps: safeFollowUps([
+          { label: "Radio version", send: "Radio version" },
+          { label: "Website version", send: "Website version" },
+          { label: "TV tag", send: "TV tag" },
+          { label: "Build my offer", send: "Build my offer" }
+        ]),
+        sessionPatch: { lane: "sponsors" }
+      };
+    }
+
+    if (action.wantsBuild) {
+      const missing = nextMissingField(state);
+
+      const blockers = ["ask_property", "ask_goal", "ask_category", "ask_budget", "ask_cta"];
+      if (blockers.includes(missing)) {
+        state.stage = missing;
+        setState(session, state);
+
+        return {
+          reply: ["Sponsors Lane - I'm missing one piece.", stagePrompt(missing, session, catalog), "Answer that and I'll build the offer."].join("\n"),
+          followUps: safeFollowUps(makeFollowUpsForStage(missing, catalog)),
+          sessionPatch: { lane: "sponsors" }
+        };
+      }
+
+      state.stage = "done";
+      setState(session, state);
+
+      return {
+        reply: buildOfferReply(session, state, catalog),
+        followUps: safeFollowUps(makeFollowUpsForStage("done", catalog)),
+        sessionPatch: { lane: "sponsors" }
+      };
+    }
+
+    const nextStage = nextMissingField(state);
+    state.stage = nextStage;
     setState(session, state);
 
+    if (!message) {
+      return {
+        reply: stagePrompt(nextStage, session, catalog),
+        followUps: safeFollowUps(makeFollowUpsForStage(nextStage, catalog)),
+        sessionPatch: { lane: "sponsors" }
+      };
+    }
+
+    if (isSponsorIntent(message) || (session && session.lane === "sponsors")) {
+      return {
+        reply: stagePrompt(nextStage, session, catalog),
+        followUps: safeFollowUps(makeFollowUpsForStage(nextStage, catalog)),
+        sessionPatch: { lane: "sponsors" }
+      };
+    }
+
     return {
-      reply: buildOfferReply(session, state, catalog),
-      followUps: makeFollowUpsForStage("done", catalog),
-      sessionPatch: { lane: "sponsors" },
+      reply: "Sponsors Lane - tell me what you want to promote: TV, Radio, Website, Social, or a bundle.",
+      followUps: safeFollowUps(makeFollowUpsForStage("ask_property", catalog)),
+      sessionPatch: { lane: "sponsors" }
+    };
+  } catch (e) {
+    // Never throw from lane
+    return {
+      reply: "Sponsors Lane hit a snag. Tell me what you want to promote: TV, Radio, Website, Social, or a bundle.",
+      followUps: safeFollowUps(["TV", "Radio", "Website", "Social", "Bundle"]),
+      sessionPatch: { lane: "sponsors" }
     };
   }
-
-  const nextStage = nextMissingField(state);
-  state.stage = nextStage;
-  setState(session, state);
-
-  if (!message) {
-    return {
-      reply: stagePrompt(nextStage, session, catalog),
-      followUps: makeFollowUpsForStage(nextStage, catalog),
-      sessionPatch: { lane: "sponsors" },
-    };
-  }
-
-  if (isSponsorIntent(message) || (session && session.lane === "sponsors")) {
-    return {
-      reply: stagePrompt(nextStage, session, catalog),
-      followUps: makeFollowUpsForStage(nextStage, catalog),
-      sessionPatch: { lane: "sponsors" },
-    };
-  }
-
-  return {
-    reply: "Sponsors Lane — tell me what you want to promote: TV, Radio, Website, Social, or a bundle.",
-    followUps: makeFollowUpsForStage("ask_property", catalog),
-    sessionPatch: { lane: "sponsors" },
-  };
 }
 
 module.exports = {
   handleChat,
-  isSponsorIntent,
+  isSponsorIntent
 };
