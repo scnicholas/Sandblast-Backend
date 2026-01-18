@@ -8,19 +8,21 @@
  *  - NO index.js imports
  *  - returns { ok, reply, followUps, sessionPatch, cog, requestId }
  *
- * v0.6m (ROKU LANE WIRING + SHAPE HARDENING)
+ * v0.6n (INTRO V2 + DEPTH DIAL + MICRO-BRIDGE LAYERING)
  * Adds:
- *  ✅ Roku Lane bridge via Utils/rokuLane.js (optional)
- *  ✅ detectLane: separate "roku" lane from generic "tv"
+ *  ✅ Nyx Intro Script V2 (warmer + clearer + optional name hook)
+ *  ✅ Depth Dial ("Fast" / "Deep") session-safe
+ *  ✅ Micro-bridge layering when switching lanes (gentle transitions)
  *
  * Preserves:
+ *  ✅ Roku Lane bridge via Utils/rokuLane.js (optional)
+ *  ✅ detectLane: separate "roku" lane from generic "tv"
  *  ✅ musicLane followUps normalization (strings <-> chip objects)
  *  ✅ merges lane sessionPatch (filtered) into engine patch
- *  ✅ Nyx Intro Script V1
- *  ✅ Conversational Elasticity Engine
  *  ✅ Input loop guard
  *  ✅ Content signature dampener
  *  ✅ SessionPatch allowlist
+ *  ✅ Elasticity Engine
  *  ✅ Phase3 continuity overlay (consult-only)
  */
 
@@ -153,7 +155,10 @@ const SESSION_ALLOW = new Set([
   "recentIntent", "recentTopic",
 
   // music continuity (safe)
-  "activeMusicMode", "lastMusicYear", "year", "mode"
+  "activeMusicMode", "lastMusicYear", "year", "mode",
+
+  // conversational layering (safe)
+  "depthPreference", "userName", "nameAskedAt", "lastOpenQuestion", "userGoal"
 ]);
 
 function filterSessionPatch(patch) {
@@ -220,7 +225,7 @@ function dampenIfDuplicateOutput(session, reply, followUps) {
 }
 
 // ----------------------------
-// Nyx Intro V1
+// Nyx Intro V2
 // ----------------------------
 function isDirectIntent(userText) {
   const t = normalizeText(userText);
@@ -235,22 +240,56 @@ function shouldRunIntro(session, userText) {
 
 function nyxIntroReply() {
   const reply =
-`Hi, I’m Nyx. I’m here with you.
+`Hey — I’m Nyx. I’ve got you.
 
-I’m your guide through music, film, and culture — live radio, television, and story moments that still matter.
+I can pull up a year and take you straight into the music, give you a quick story moment, or guide you through Sandblast TV and what’s playing.
 
-You can explore for a moment… or stay with me and go deeper.
+If you tell me your name, I’ll remember it for this session — or we can skip that.
 
-Where do you want to begin?`;
+What do you feel like right now: a specific year, a surprise, or just talking?`;
 
   const followUps = [
-    "Start with music",
-    "What’s playing now",
-    "Show me the Roku path",
+    "Pick a year",
+    "Surprise me",
+    "Story moment",
     "Just talk"
   ];
 
   return { reply, followUps };
+}
+
+// ----------------------------
+// Depth Dial (Fast / Deep)
+// ----------------------------
+function isDepthDial(text) {
+  const t = normalizeText(text);
+  return t === "fast" || t === "deep";
+}
+
+function depthDialReply(pref) {
+  if (pref === "deep") {
+    return "Perfect. I’ll slow it down and add context as we go. What are we doing first—music, TV, or just talking?";
+  }
+  return "Got it. Fast and clean. Point me at a year, a show, or your goal.";
+}
+
+// ----------------------------
+// Micro-Bridge Layering
+// ----------------------------
+function needsBridge(sess, lane) {
+  if (!sess) return false;
+  const lastLane = sess.lastLane || null;
+  if (!lastLane) return false;
+  if (lastLane === lane) return false;
+
+  const big = new Set(["music", "tv", "roku", "schedule", "radio", "general"]);
+  return big.has(lastLane) && big.has(lane);
+}
+
+function bridgeLine(sess) {
+  const pref = (sess && sess.depthPreference) || "fast";
+  if (pref === "deep") return "Before we jump—do you want the quick version, or should we go a little deeper?";
+  return "Got it. Want this fast and clean, or a deeper guided path?";
 }
 
 // ----------------------------
@@ -364,7 +403,7 @@ function detectLane(text) {
   const t = normalizeText(text);
 
   if (/\b(schedule|what'?s\s*playing|playing\s*now)\b/.test(t)) return "schedule";
-  if (/\b(roku|vod|on\s*demand)\b/.test(t)) return "roku"; // ✅ separate lane
+  if (/\b(roku|vod|on\s*demand)\b/.test(t)) return "roku";
   if (/\b(tv|television)\b/.test(t)) return "tv";
   if (/\b(radio)\b/.test(t)) return "radio";
   if (/\b(top\s*10|top\s*100|#1|story\s*moment|micro\s*moment|\b19\d{2}\b|\b20\d{2}\b)\b/.test(t)) return "music";
@@ -396,6 +435,29 @@ async function chatEngine(inputText, session) {
   const text = String(inputText || "");
   const sess = session && typeof session === "object" ? session : {};
 
+  // Depth dial intercept (deterministic, no lane needed)
+  if (isDepthDial(text)) {
+    const pref = normalizeText(text);
+    const reply = depthDialReply(pref);
+    const followUps = ["Pick a year", "What’s playing now", "Show me the Roku path", "Just talk"];
+
+    const sessionPatch = filterSessionPatch({
+      lastInText: text,
+      lastInAt: nowMs(),
+      depthPreference: pref,
+      recentTopic: `depth:${pref}`
+    });
+
+    return {
+      ok: true,
+      reply,
+      followUps,
+      sessionPatch,
+      cog: { phase: "engaged", state: "calibrate", reason: "depth_dial", lane: "general", ts: nowMs() },
+      requestId
+    };
+  }
+
   if (shouldReturnCachedForRepeat(sess, text)) {
     return cachedResponse(sess, "repeat_input");
   }
@@ -405,7 +467,7 @@ async function chatEngine(inputText, session) {
     lastInAt: nowMs()
   });
 
-  // Intro V1
+  // Intro V2
   if (shouldRunIntro(sess, text)) {
     const intro = nyxIntroReply();
     const outSig = buildOutSig(intro.reply, intro.followUps);
@@ -418,6 +480,13 @@ async function chatEngine(inputText, session) {
       turns: Number(sess.turns) || 0,
       lastFork: "intro",
       depthLevel: Number(sess.depthLevel || 0),
+
+      // layering seeds
+      userGoal: "explore",
+      depthPreference: sess.depthPreference || "fast",
+      lastOpenQuestion: "What do you feel like right now: a specific year, a surprise, or just talking?",
+      nameAskedAt: nowMs(),
+
       lastOut: { reply: intro.reply, followUps: intro.followUps },
       lastOutAt: nowMs(),
       lastOutSig: outSig,
@@ -429,7 +498,7 @@ async function chatEngine(inputText, session) {
       reply: intro.reply,
       followUps: intro.followUps,
       sessionPatch,
-      cog: { phase: "engaged", state: "welcome", reason: "intro_v1", lane: "general", ts: nowMs() },
+      cog: { phase: "engaged", state: "welcome", reason: "intro_v2", lane: "general", ts: nowMs() },
       requestId
     };
   }
@@ -450,7 +519,6 @@ async function chatEngine(inputText, session) {
       if (!reply) reply = "Tell me a year (1950–2024), or say “top 10 1988”.";
 
       followUps = normalizeFollowUpsFromLane(res);
-
       lanePatch = filterSessionPatch(res && res.sessionPatch ? res.sessionPatch : null);
     } catch (_) {
       reply = "Music lane hiccup. Give me a year (1950–2024) and I’ll pull it up.";
@@ -461,7 +529,7 @@ async function chatEngine(inputText, session) {
     try {
       const r = await rokuLane({ text, session: sess });
       reply = (r && r.reply) ? String(r.reply).trim() : "Roku mode — live linear or VOD?";
-      followUps = normalizeFollowUpsFromLane(r); // supports followUps strings or chips
+      followUps = normalizeFollowUpsFromLane(r);
       lanePatch = filterSessionPatch(r && r.sessionPatch ? r.sessionPatch : null);
     } catch (_) {
       reply = "Roku routing is warming up. Do you want **Live linear** or **VOD**?";
@@ -479,7 +547,13 @@ async function chatEngine(inputText, session) {
     followUps = ["Toronto", "London", "What’s playing now", "Show me the Roku path"];
   } else {
     reply = "I’m with you. Tell me what you want: music, Roku/TV, schedule, or just a conversation.";
-    followUps = ["Start with music", "Show me the Roku path", "What’s playing now", "Just talk"];
+    followUps = ["Pick a year", "Show me the Roku path", "What’s playing now", "Just talk"];
+  }
+
+  // Micro-bridge layering (only when lane changes)
+  if (needsBridge(sess, lane)) {
+    reply = `${reply}\n\n${bridgeLine(sess)}`;
+    followUps = dedupeStrings([...followUps, "Fast", "Deep"], 10).slice(0, 4);
   }
 
   // Telemetry
@@ -520,6 +594,10 @@ async function chatEngine(inputText, session) {
     lastElasticAt: canElastic ? nowMs() : Number(sess.lastElasticAt || 0),
     recentIntent: lane,
     recentTopic: year ? `year:${year}` : (mode ? `mode:${mode}` : lane),
+
+    // keep thread alive
+    depthPreference: sess.depthPreference || "fast",
+    userGoal: sess.userGoal || "explore",
 
     lastOut: outCache,
     lastOutAt: nowMs(),
