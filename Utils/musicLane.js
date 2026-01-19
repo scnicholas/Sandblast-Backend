@@ -12,12 +12,14 @@
  *
  * IMPORTANT:
  *  - musicKnowledge returns followUps as string[]
- *  - chatEngine (v0.6k) expects followUps as string[] (and will objectify if needed)
+ *  - chatEngine expects followUps as string[] (and will objectify if needed)
  *
- * FIX (v1.2):
- *  ✅ Dual followUps output: strings + chip objects (compat with both engines/UIs)
- *  ✅ Always non-empty reply (defensive)
- *  ✅ Strong continuity: pins mode/year when implied or explicitly requested
+ * v1.3 (BULLETPROOF+++):
+ *  ✅ Mode taxonomy aligned to chatEngine: story_moment / micro_moment / number1 / top10 / top100
+ *  ✅ No session mutation (pure: continuity is via sessionPatch only)
+ *  ✅ Strong continuity: sets activeMusicMode + lastMusicYear + pendingMode/pendingYear + pendingLane
+ *  ✅ Safer reply-driven mode inference (less false pinning)
+ *  ✅ Stable, capped followUpsStrings (dedupe + length + count)
  *  ✅ Exports handleChat AND function export for simple require("./musicLane")
  */
 
@@ -29,6 +31,9 @@ try {
   musicKnowledge = null;
 }
 
+// ----------------------------
+// Utilities
+// ----------------------------
 function norm(s) {
   return String(s || "").toLowerCase().replace(/\s+/g, " ").trim();
 }
@@ -41,7 +46,8 @@ function clampYear(y) {
 }
 
 function extractYearFromText(text) {
-  const m = String(text || "").match(/\b(19\d{2}|20\d{2})\b/);
+  // Only match plausible years; clampYear final-checks
+  const m = String(text || "").match(/\b(19[5-9]\d|20[0-1]\d|202[0-4])\b/);
   if (!m) return null;
   return clampYear(m[1]);
 }
@@ -49,29 +55,34 @@ function extractYearFromText(text) {
 function normalizeModeFromText(text) {
   const t = norm(text);
 
-  // explicit asks
+  // explicit asks (canonical internal mode names)
   if (/\b(top\s*10|top10|top\s*ten)\b/.test(t)) return "top10";
   if (/\b(top\s*100|top100|hot\s*100|year[-\s]*end\s*hot\s*100)\b/.test(t)) return "top100";
-  if (/\bstory\s*moment\b|\bstory\b/.test(t)) return "story";
-  if (/\bmicro\s*moment\b|\bmicro\b/.test(t)) return "micro";
+
+  // IMPORTANT: use story_moment/micro_moment (matches chatEngine)
+  if (/\bstory\s*moment\b/.test(t) || (/\bstory\b/.test(t) && /\bmoment\b/.test(t))) return "story_moment";
+  if (/\bmicro\s*moment\b/.test(t) || (/\bmicro\b/.test(t) && /\bmoment\b/.test(t))) return "micro_moment";
+
   if (/\b#\s*1\b|\bnumber\s*1\b|\bno\.?\s*1\b|\bno\s*1\b/.test(t)) return "number1";
 
   return null;
 }
 
 function inferModeFromReply(reply) {
+  // Defensive inference only; keep conservative to avoid pinning wrong mode.
   const r = norm(reply);
-
-  // reply-driven inference (defensive)
   if (!r) return null;
 
-  if (r.startsWith("top 10") || /\btop\s*10\b/.test(r)) return "top10";
-  if (r.includes("year-end hot 100") || r.includes("year end hot 100") || /\btop\s*100\b/.test(r) || r.includes("hot 100"))
-    return "top100";
-  if (r.includes("story moment")) return "story";
-  if (r.includes("micro moment")) return "micro";
+  // Strong phrases only
+  if (/\bstory moment\b/.test(r)) return "story_moment";
+  if (/\bmicro moment\b/.test(r)) return "micro_moment";
 
-  // #1 detection in copy (rare)
+  // Only infer top10/top100 when reply *looks like* a chart payload.
+  // (Avoid false positives when copy casually mentions Hot 100.)
+  if (/^\s*top\s*10\b/.test(r) || (r.includes("top 10") && r.includes("1.") && r.includes("2."))) return "top10";
+  if (r.includes("year-end") && r.includes("hot 100")) return "top100";
+  if (/^\s*top\s*100\b/.test(r)) return "top100";
+
   if (/\b#\s*1\b/.test(r) || r.includes("number 1") || r.includes("no. 1") || r.includes("no 1")) return "number1";
 
   return null;
@@ -81,15 +92,19 @@ function safeStrings(list, max = 10) {
   if (!Array.isArray(list)) return [];
   const out = [];
   const seen = new Set();
+
   for (const x of list) {
     const s = String(x || "").replace(/\s+/g, " ").trim();
     if (!s) continue;
     const k = s.toLowerCase();
     if (seen.has(k)) continue;
     seen.add(k);
+
+    // cap chip text length
     out.push(s.slice(0, 80));
     if (out.length >= max) break;
   }
+
   return out;
 }
 
@@ -109,15 +124,23 @@ function safeSessionPatch(patch) {
   return patch && typeof patch === "object" ? { ...patch } : null;
 }
 
-function ensureContinuity({ session, patch, userMode, replyMode, userYear, replyYear }) {
-  const s = session && typeof session === "object" ? session : null;
-  let p = patch && typeof patch === "object" ? patch : null;
+/**
+ * Continuity rules:
+ * - Never mutate `session`
+ * - Always set canonical continuity keys via patch:
+ *     activeMusicMode, lastMusicYear
+ * - Also set pending* hints for downstream routing:
+ *     pendingLane, pendingMode, pendingYear
+ */
+function ensureContinuity({ patch, userMode, replyMode, userYear, replyYear, priorSession }) {
+  const s = priorSession && typeof priorSession === "object" ? priorSession : null;
+  const base = patch && typeof patch === "object" ? { ...patch } : {};
 
-  const mode = userMode || replyMode || null;
+  const mode = userMode || replyMode || base.mode || base.activeMusicMode || (s && s.activeMusicMode) || null;
 
-  // Prefer explicit year in patch; otherwise infer from user text
   const y = clampYear(
-    (p && (p.year || p.lastMusicYear)) ||
+    base.year ||
+      base.lastMusicYear ||
       userYear ||
       replyYear ||
       (s && s.lastMusicYear) ||
@@ -125,47 +148,44 @@ function ensureContinuity({ session, patch, userMode, replyMode, userYear, reply
   );
 
   if (mode) {
-    if (s) s.activeMusicMode = mode;
-    p = p || {};
-    p.mode = p.mode || mode;
-    p.activeMusicMode = p.activeMusicMode || mode;
-    p.pendingMode = p.pendingMode || mode; // helps some engines route follow-ups
+    base.mode = base.mode || mode;
+    base.activeMusicMode = base.activeMusicMode || mode;
+    base.pendingMode = base.pendingMode || mode;
   }
 
   if (y) {
-    if (s) s.lastMusicYear = y;
-    p = p || {};
-    p.year = p.year || y;
-    p.lastMusicYear = p.lastMusicYear || y;
-    p.pendingYear = p.pendingYear || y;
+    base.year = base.year || y;
+    base.lastMusicYear = base.lastMusicYear || y;
+    base.pendingYear = base.pendingYear || y;
   }
 
-  // Mark lane (safe hint)
-  p = p || {};
-  p.pendingLane = p.pendingLane || "music";
-
-  return p;
+  base.pendingLane = base.pendingLane || "music";
+  return base;
 }
 
 async function handleChat({ text, session, visitorId, debug }) {
   try {
     const cleanText = String(text || "");
-    const s = session || {};
+    const s = session && typeof session === "object" ? session : {};
+
+    const userMode = normalizeModeFromText(cleanText);
+    const userYear = extractYearFromText(cleanText);
 
     if (!musicKnowledge) {
       const fallback = "Music is warming up. Give me a year (1950–2024).";
-      const followUpsStrings = safeStrings(["1956", "1988", "top 10 1988"]);
+      const followUpsStrings = safeStrings(["1956", "1988", "Top 10 1988"], 10);
+
       return {
         reply: fallback,
         followUpsStrings,
         followUps: chipsFromStrings(followUpsStrings),
         sessionPatch: ensureContinuity({
-          session: s,
           patch: null,
-          userMode: normalizeModeFromText(cleanText),
+          userMode,
           replyMode: null,
-          userYear: extractYearFromText(cleanText),
-          replyYear: null
+          userYear,
+          replyYear: null,
+          priorSession: s
         }),
         meta: debug ? { ok: false, reason: "musicKnowledge_missing" } : null
       };
@@ -188,19 +208,21 @@ async function handleChat({ text, session, visitorId, debug }) {
     const followUpsStrings = safeStrings(fuRaw, 10);
     const followUps = chipsFromStrings(followUpsStrings);
 
-    // Copy + normalize sessionPatch
+    // Copy + normalize patch
     let sessionPatch = safeSessionPatch(raw && raw.sessionPatch);
 
-    // Determine mode deterministically
-    const userMode = normalizeModeFromText(cleanText);
+    // Conservative inference
     const replyMode = inferModeFromReply(reply);
+    const replyYear = null; // intentionally conservative
 
-    // Determine year deterministically
-    const userYear = extractYearFromText(cleanText);
-    const replyYear = null; // keep conservative; avoid parsing reply for year unless you want
-
-    // Guarantee mode/year continuity so cog doesn't say "need:mode" after rendering Top 10
-    sessionPatch = ensureContinuity({ session: s, patch: sessionPatch, userMode, replyMode, userYear, replyYear });
+    sessionPatch = ensureContinuity({
+      patch: sessionPatch,
+      userMode,
+      replyMode,
+      userYear,
+      replyYear,
+      priorSession: s
+    });
 
     return {
       reply,
@@ -220,11 +242,11 @@ async function handleChat({ text, session, visitorId, debug }) {
             inferred: {
               userMode: userMode || null,
               replyMode: replyMode || null,
-              appliedMode: sessionPatch && (sessionPatch.mode || sessionPatch.activeMusicMode)
-                ? (sessionPatch.mode || sessionPatch.activeMusicMode)
+              appliedMode: sessionPatch && (sessionPatch.activeMusicMode || sessionPatch.mode)
+                ? (sessionPatch.activeMusicMode || sessionPatch.mode)
                 : null,
-              appliedYear: sessionPatch && (sessionPatch.year || sessionPatch.lastMusicYear)
-                ? (sessionPatch.year || sessionPatch.lastMusicYear)
+              appliedYear: sessionPatch && (sessionPatch.lastMusicYear || sessionPatch.year)
+                ? (sessionPatch.lastMusicYear || sessionPatch.year)
                 : null
             }
           }
@@ -232,7 +254,8 @@ async function handleChat({ text, session, visitorId, debug }) {
     };
   } catch (e) {
     const fallback = "Music lane hit a snag. Give me a year (1950–2024) and try again.";
-    const followUpsStrings = safeStrings(["1956", "1988", "top 10 1988"]);
+    const followUpsStrings = safeStrings(["1956", "1988", "Top 10 1988"], 10);
+
     return {
       reply: fallback,
       followUpsStrings,
@@ -260,7 +283,7 @@ async function musicLaneFn(text, session, opts) {
   // Primary compatibility: return string[] followUps for chatEngine
   return {
     reply: res.reply,
-    followUps: res.followUpsStrings, // <-- string[]
+    followUps: res.followUpsStrings, // string[]
     sessionPatch: res.sessionPatch,
     meta: res.meta
   };
