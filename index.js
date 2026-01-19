@@ -3,24 +3,26 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17q (CORS FIX: CORS runs BEFORE parsers/error paths + default allowlist for sandblast domains)
+ * index.js v1.5.17r (CORS HARD-LOCK: force echo on ALL responses + guaranteed OPTIONS)
  *
- * Fixes (vs v1.5.17p):
- *  ✅ CRITICAL: CORS middleware moved ABOVE body parsers and JSON-parse error handler
- *     so ALL responses (including 400 invalid JSON, contract mismatch, floors) carry CORS headers.
+ * Adds (vs v1.5.17q):
+ *  ✅ HARD CORS ECHO middleware: if origin is allowed, ALWAYS sets:
+ *     - Access-Control-Allow-Origin: <origin>
+ *     - Vary: Origin
+ *     This ensures POST responses never “lose” CORS headers even on early returns/errors.
  *
- *  ✅ Default CORS allowlist includes:
- *     - https://sandblast.channel
- *     - https://www.sandblast.channel
- *     if CORS_ALLOWED_ORIGINS env is empty (prevents “allowlistCount=0 => block everything” misconfig).
+ *  ✅ Guaranteed OPTIONS responder for ALL paths:
+ *     - returns 204 and includes allow headers
  *
- *  ✅ CORS origin callback now echoes the actual origin string (not boolean true),
- *     which avoids edge-case proxy behaviors and is clearer in diagnostics.
+ *  ✅ Default allowlist expanded (still respects env):
+ *     - sandblast.channel / www
+ *     - sandblastchannel.com / www
  *
  * Keeps:
- *  - ANTI-502: crash visibility, parsers first (after CORS), JSON guard, preflight guaranteed
+ *  - ANTI-502 crash visibility
+ *  - CORS runs BEFORE parsers/error handlers
  *  - /health + /api/health + /api/version
- *  - /api/chat: respond-once watchdog + burst + body-hash dedupe + quota floor + debug passthru
+ *  - /api/chat loop guards + dedupe payloads
  *  - /api/tts + /api/voice soft-loaded + /api/tts/diag
  */
 
@@ -67,7 +69,7 @@ app.disable("x-powered-by");
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.17q (CORS FIX: CORS before parsers/errors + default sandblast allowlist + echo origin)";
+  "index.js v1.5.17r (CORS HARD-LOCK: force echo on ALL responses + guaranteed OPTIONS)";
 
 const GIT_COMMIT =
   String(process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "").trim() || null;
@@ -128,9 +130,12 @@ function ua(req) {
 
 const CORS_ALLOW_ALL = String(process.env.CORS_ALLOW_ALL || "false") === "true";
 
+// Expanded defaults (covers both domains you’re using)
 const DEFAULT_ORIGINS = [
   "https://sandblast.channel",
   "https://www.sandblast.channel",
+  "https://sandblastchannel.com",
+  "https://www.sandblastchannel.com",
 ];
 
 const ALLOWED_ORIGINS = normalizeStr(process.env.CORS_ALLOWED_ORIGINS || "")
@@ -138,7 +143,17 @@ const ALLOWED_ORIGINS = normalizeStr(process.env.CORS_ALLOWED_ORIGINS || "")
   .map((s) => s.trim().replace(/\/$/, ""))
   .filter(Boolean);
 
-const EFFECTIVE_ORIGINS = (ALLOWED_ORIGINS.length ? ALLOWED_ORIGINS : DEFAULT_ORIGINS).slice();
+// If env empty, use defaults. If env provided, MERGE defaults (safety net).
+// If you want env to be exclusive, set CORS_ENV_EXCLUSIVE=true.
+const CORS_ENV_EXCLUSIVE = String(process.env.CORS_ENV_EXCLUSIVE || "false") === "true";
+
+const EFFECTIVE_ORIGINS = (() => {
+  if (ALLOWED_ORIGINS.length === 0) return DEFAULT_ORIGINS.slice();
+  if (CORS_ENV_EXCLUSIVE) return ALLOWED_ORIGINS.slice();
+  const set = new Set(DEFAULT_ORIGINS);
+  for (const o of ALLOWED_ORIGINS) set.add(o);
+  return Array.from(set);
+})();
 
 function originAllowed(origin) {
   if (!origin) return true; // curl/server-to-server
@@ -147,6 +162,7 @@ function originAllowed(origin) {
   const o = String(origin).trim().replace(/\/$/, "");
   if (EFFECTIVE_ORIGINS.includes(o)) return true;
 
+  // www <-> non-www toggle helper
   try {
     const u = new URL(o);
     const host = String(u.hostname || "");
@@ -158,9 +174,10 @@ function originAllowed(origin) {
   }
 }
 
+// NOTE: cors() will set headers for normal success responses,
+// but we will ALSO hard-echo below to ensure early returns/errors are covered.
 const corsOptions = {
   origin: function (origin, cb) {
-    // Explicitly echo the origin string if allowed (clearer than boolean true)
     if (!origin) return cb(null, true);
     return cb(null, originAllowed(origin) ? origin : false);
   },
@@ -175,6 +192,7 @@ const corsOptions = {
     "X-Request-Id",
     "X-Voice-Mode",
     "X-Session-Id",
+    "X-SBNYX-Client-Build",
   ],
   exposedHeaders: [
     "X-Request-Id",
@@ -182,19 +200,61 @@ const corsOptions = {
     "X-Voice-Mode",
     "X-Nyx-Deduped",
     "X-Nyx-Upstream",
+    "X-CORS-Origin-Seen",
   ],
   maxAge: 86400,
   optionsSuccessStatus: 204,
 };
 
+// ✅ Always add Vary: Origin for proper caching behavior
 app.use((req, res, next) => {
-  // Helps caches/proxies behave correctly with dynamic origin reflection
   safeSet(res, "Vary", "Origin");
   next();
 });
 
+// ✅ Standard CORS middleware
 app.use(cors(corsOptions));
-app.options("*", cors(corsOptions));
+
+/**
+ * ✅ HARD CORS ECHO (belt + suspenders)
+ * If origin is allowed, force-set the response headers for ALL downstream paths
+ * (including error handlers, floors, early returns).
+ */
+app.use((req, res, next) => {
+  try {
+    const origin = req.headers.origin ? String(req.headers.origin).trim() : "";
+    safeSet(res, "X-CORS-Origin-Seen", origin || "");
+    if (origin && originAllowed(origin)) {
+      safeSet(res, "Access-Control-Allow-Origin", origin);
+      safeSet(res, "Vary", "Origin");
+      // If you ever use credentials, you must also set Allow-Credentials true
+      // but right now widget uses credentials:"omit" so keep it false.
+    }
+  } catch (_) {}
+  next();
+});
+
+/**
+ * ✅ Guaranteed OPTIONS for ALL paths
+ * (some browsers are picky; this keeps it deterministic)
+ */
+app.options("*", (req, res) => {
+  const origin = req.headers.origin ? String(req.headers.origin).trim() : "";
+  if (origin && originAllowed(origin)) {
+    safeSet(res, "Access-Control-Allow-Origin", origin);
+    safeSet(res, "Vary", "Origin");
+  }
+  safeSet(res, "Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  safeSet(
+    res,
+    "Access-Control-Allow-Headers",
+    corsOptions.allowedHeaders.join(",")
+  );
+  safeSet(res, "Access-Control-Max-Age", String(corsOptions.maxAge || 86400));
+  const requestId = req.get("X-Request-Id") || rid();
+  setContractHeaders(res, requestId);
+  return res.sendStatus(204);
+});
 
 /* ======================================================
    Parsers (after CORS so even parse errors carry CORS)
@@ -297,17 +357,12 @@ const SESSION_PATCH_ALLOW = new Set([
   "lastMusicYear",
   "activeMusicMode",
   "voiceMode",
-
-  // ✅ Canonical: ONLY underscore intent keys
   "__lastIntentSig",
   "__lastIntentAt",
-
-  // ✅ pending continuity
   "pendingLane",
   "pendingMode",
   "pendingYear",
   "recentTopic",
-
   "__lastReply",
   "__lastBodyHash",
   "__lastBodyAt",
@@ -315,8 +370,6 @@ const SESSION_PATCH_ALLOW = new Set([
   "__lastReplyAt",
   "__repAt",
   "__repCount",
-
-  // ✅ sustained-rate tracker (server protection)
   "__srAt",
   "__srCount",
 ]);
@@ -414,6 +467,7 @@ app.get("/api/version", (req, res) => {
     uptimeSec: Math.round(process.uptime()),
     env: {
       corsAllowAll: CORS_ALLOW_ALL,
+      corsEnvExclusive: CORS_ENV_EXCLUSIVE,
       allowlistCount: EFFECTIVE_ORIGINS.length,
       requestTimeoutMs: REQUEST_TIMEOUT_MS,
       maxSessions: MAX_SESSIONS,
@@ -421,7 +475,7 @@ app.get("/api/version", (req, res) => {
         String(process.env.BODY_HASH_INCLUDE_SESSION || "false") === "true",
       sessionIdMaxLen: SESSION_ID_MAXLEN,
     },
-    allowlistSample: EFFECTIVE_ORIGINS.slice(0, 6),
+    allowlistSample: EFFECTIVE_ORIGINS.slice(0, 10),
   });
 });
 
@@ -785,13 +839,13 @@ app.post("/api/chat", async (req, res) => {
     const sessionId = getSessionId(req, body, visitorId);
     const session = touchSession(sessionId, { visitorId }) || { sessionId };
 
-    // ✅ Persist voiceMode from body/header into session
+    // Persist voiceMode from body/header into session
     const vmode = getVoiceMode(req, body);
     if (vmode) session.voiceMode = vmode;
 
     const now = Date.now();
 
-    // ✅ Sustained-rate guard (slow loop protection)
+    // Sustained-rate guard (slow loop protection)
     const srAt = Number(session.__srAt || 0);
     const srCount = Number(session.__srCount || 0);
     const srWithin = srAt && now - srAt < SR_WINDOW_MS;
