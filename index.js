@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17p (SURGICAL HARDENING: canonical intent keys + header voiceMode persistence + uniform dedupe payloads)
+ * index.js v1.5.17p (SURGICAL HARDENING: canonical intent keys + header voiceMode persistence + uniform dedupe payloads + sustained loop guard)
  *
  * Adds (vs v1.5.17o):
  *  ✅ Canonical intent keys: removes non-underscore lastIntentSig/lastIntentAt from allowlist
@@ -13,6 +13,10 @@
  *
  *  ✅ Uniform dedupe payload helper: every deduped 200 response returns the same shape
  *     (ok, reply, sessionId, requestId, visitorId, contractVersion, caps, deduped:true).
+ *
+ *  ✅ NEW (server protection, does NOT “fix” client bug):
+ *     Sustained-rate guard: catches slow endless loops that never trip burst
+ *     and returns cached reply without running chatEngine.
  *
  * Keeps:
  *  - ANTI-502: crash visibility, parsers first, JSON guard, preflight guaranteed
@@ -64,7 +68,7 @@ app.disable("x-powered-by");
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.17p (SURGICAL: canonical intent keys + voiceMode persist + uniform dedupe payloads)";
+  "index.js v1.5.17p (SURGICAL: canonical intent keys + voiceMode persist + uniform dedupe payloads + sustained guard)";
 
 const GIT_COMMIT =
   String(process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "").trim() || null;
@@ -129,13 +133,13 @@ const MAX_HASH_TEXT_LEN = clamp(process.env.MAX_HASH_TEXT_LEN || 800, 200, 4000)
  */
 const BODY_HASH_INCLUDE_SESSION =
   String(process.env.BODY_HASH_INCLUDE_SESSION || "false") === "true";
+
 function stableBodyForHash(body, req) {
   const headerVisitor = normalizeStr(req?.get?.("X-Visitor-Id") || "");
   const headerSession = normalizeStr(req?.get?.("X-Session-Id") || "");
   const headerVoice = normalizeStr(req?.get?.("X-Voice-Mode") || "");
   const headerContract = normalizeStr(req?.get?.("X-Contract-Version") || "");
 
-  // If body is text/plain (string), treat it as message content
   if (typeof body === "string") {
     const text = normalizeStr(body).slice(0, MAX_HASH_TEXT_LEN);
     return JSON.stringify({
@@ -338,15 +342,12 @@ function deriveStableSessionId(req, visitorId) {
 
 function getSessionId(req, body, visitorId) {
   const fromHeader = cleanSessionId(req.get("X-Session-Id"));
-  // if body is object, accept sessionId from body; if string, ignore
   const fromBody = body && typeof body === "object" ? cleanSessionId(body.sessionId) : null;
   return fromBody || fromHeader || deriveStableSessionId(req, visitorId);
 }
 
 function getVoiceMode(req, body) {
-  // canonical: body.voiceMode > header
-  const fromBody =
-    body && typeof body === "object" ? normalizeStr(body.voiceMode || "") : "";
+  const fromBody = body && typeof body === "object" ? normalizeStr(body.voiceMode || "") : "";
   const fromHeader = normalizeStr(req.get("X-Voice-Mode") || "");
   return fromBody || fromHeader || "";
 }
@@ -363,7 +364,7 @@ const SESSION_PATCH_ALLOW = new Set([
   "__lastIntentSig",
   "__lastIntentAt",
 
-  // ✅ pending continuity (Roku + future lanes)
+  // ✅ pending continuity
   "pendingLane",
   "pendingMode",
   "pendingYear",
@@ -376,6 +377,10 @@ const SESSION_PATCH_ALLOW = new Set([
   "__lastReplyAt",
   "__repAt",
   "__repCount",
+
+  // ✅ sustained-rate tracker (server protection)
+  "__srAt",
+  "__srCount",
 ]);
 
 function applySessionPatch(session, patch) {
@@ -410,9 +415,7 @@ function touchSession(sessionId, patch) {
   }
 
   s._touchedAt = now;
-
   if (patch && typeof patch === "object") applySessionPatch(s, patch);
-
   return s;
 }
 
@@ -602,6 +605,10 @@ const REPLY_DEDUPE_MS = clamp(process.env.REPLY_DEDUPE_MS || 1400, 300, 8000);
 const REPLY_REPEAT_WINDOW_MS = clamp(process.env.REPLY_REPEAT_WINDOW_MS || 5000, 1000, 20000);
 const REPLY_REPEAT_MAX = clamp(process.env.REPLY_REPEAT_MAX || 3, 1, 10);
 
+// Sustained-rate guard (slow loop protection)
+const SR_WINDOW_MS = clamp(process.env.SR_WINDOW_MS || 20000, 5000, 120000);
+const SR_MAX = clamp(process.env.SR_MAX || 10, 3, 60);
+
 setInterval(() => {
   const now = Date.now();
   for (const [k, v] of BURSTS.entries()) {
@@ -617,8 +624,7 @@ function extractTextFromBody(body) {
 
 function validateContract(req, body) {
   const headerV = normalizeStr(req.get("X-Contract-Version") || "");
-  const bodyV =
-    body && typeof body === "object" ? normalizeStr(body.contractVersion || "") : "";
+  const bodyV = body && typeof body === "object" ? normalizeStr(body.contractVersion || "") : "";
   const v = bodyV || headerV || "";
   const strict = String(process.env.CONTRACT_STRICT || "false") === "true";
   if (!strict) return { ok: true, got: v || null };
@@ -732,13 +738,14 @@ app.post("/api/chat", async (req, res) => {
   const watchdog = setTimeout(() => {
     try {
       safeSet(res, "X-Nyx-Deduped", "timeout-floor");
+      const vid = normalizeStr(req.get("X-Visitor-Id") || "") || null;
       return once.json(
         200,
         dedupeOkPayload({
           reply: "I’m here. Give me a year (1950–2024), or say “top 10 1988”.",
           sessionId: null,
           requestId,
-          visitorId: null,
+          visitorId: vid,
         })
       );
     } catch (_) {}
@@ -770,11 +777,38 @@ app.post("/api/chat", async (req, res) => {
     const sessionId = getSessionId(req, body, visitorId);
     const session = touchSession(sessionId, { visitorId }) || { sessionId };
 
-    // ✅ Persist voiceMode from body/header into session (prevents “forgetting”)
+    // ✅ Persist voiceMode from body/header into session
     const vmode = getVoiceMode(req, body);
     if (vmode) session.voiceMode = vmode;
 
     const now = Date.now();
+
+    // ✅ Sustained-rate guard (slow loop protection)
+    const srAt = Number(session.__srAt || 0);
+    const srCount = Number(session.__srCount || 0);
+    const srWithin = srAt && now - srAt < SR_WINDOW_MS;
+    if (srWithin) {
+      const next = srCount + 1;
+      session.__srCount = next;
+      if (next > SR_MAX) {
+        clearTimeout(watchdog);
+        safeSet(res, "X-Nyx-Deduped", "sustained");
+        return once.json(
+          200,
+          dedupeOkPayload({
+            reply: session.__lastReply || "OK.",
+            sessionId,
+            requestId,
+            visitorId,
+          })
+        );
+      }
+    } else {
+      session.__srAt = now;
+      session.__srCount = 0;
+    }
+
+    // Burst guard (short window)
     const fp = fingerprint(req, visitorId);
     const prev = BURSTS.get(fp);
 
@@ -813,7 +847,7 @@ app.post("/api/chat", async (req, res) => {
       }
     }
 
-    // --- Body-hash dedupe (FIXED for text/plain) ---
+    // Body-hash dedupe
     const bodyHash = sha256(stableBodyForHash(body, req));
     const lastHash = normalizeStr(session.__lastBodyHash || "");
     const lastAt = Number(session.__lastBodyAt || 0);
@@ -855,7 +889,6 @@ app.post("/api/chat", async (req, res) => {
         if (isUpstreamQuotaError(e)) {
           safeSet(res, "X-Nyx-Upstream", "openai_insufficient_quota");
           safeSet(res, "X-Nyx-Deduped", "upstream-quota");
-
           const last = String(session.__lastReply || "").trim();
           out = {
             reply:
@@ -873,12 +906,11 @@ app.post("/api/chat", async (req, res) => {
     const reply =
       out && typeof out === "object" && typeof out.reply === "string" ? out.reply : fallbackReply(text);
 
-    // --- Reply-loop kill (server-level) ---
+    // Reply-loop kill
     const replyHash = sha256(String(reply || ""));
     const lastReplyHash = normalizeStr(session.__lastReplyHash || "");
     const lastReplyAt = Number(session.__lastReplyAt || 0);
 
-    // A) Fast same-reply dedupe
     if (lastReplyHash && replyHash === lastReplyHash && lastReplyAt && now - lastReplyAt < REPLY_DEDUPE_MS) {
       clearTimeout(watchdog);
       safeSet(res, "X-Nyx-Deduped", "reply-hash");
@@ -893,7 +925,6 @@ app.post("/api/chat", async (req, res) => {
       );
     }
 
-    // B) Runaway repeat clamp
     const repAt = Number(session.__repAt || 0);
     const repCount = Number(session.__repCount || 0);
     const withinRep = repAt && now - repAt < REPLY_REPEAT_WINDOW_MS;
@@ -925,13 +956,11 @@ app.post("/api/chat", async (req, res) => {
       session.__repCount = 0;
     }
 
-    // FollowUps
     const followUps =
       out && typeof out === "object" && Array.isArray(out.followUps)
         ? normalizeFollowUpsToStrings(out.followUps)
         : undefined;
 
-    // Apply engine sessionPatch (proto-safe + allowlist)
     if (out && typeof out === "object" && out.sessionPatch && typeof out.sessionPatch === "object") {
       applySessionPatch(session, out.sessionPatch);
     }
@@ -943,7 +972,7 @@ app.post("/api/chat", async (req, res) => {
     session.__lastReplyHash = replyHash;
     session.__lastReplyAt = now;
 
-    // Server-level intent signature clamp (window uses INTENT_DEDUPE_MS)
+    // Intent signature clamp
     const sig = intentSigFrom(text, session);
     const lastSig = normalizeStr(session.__lastIntentSig || "");
     const lastSigAt = Number(session.__lastIntentAt || 0);
@@ -973,14 +1002,11 @@ app.post("/api/chat", async (req, res) => {
       caps: capsPayload(),
     };
 
-    // Pass through safe engine fields (non-debug)
     if (out && typeof out === "object") {
       if (typeof out.lane === "string") payload.lane = out.lane;
       if (out.year != null) payload.year = out.year;
       if (typeof out.mode === "string") payload.mode = out.mode;
       if (out.cog && typeof out.cog === "object") payload.cog = out.cog;
-
-      // caps bridge: allow engine to extend, but never remove base keys
       if (out.caps && typeof out.caps === "object") {
         payload.caps = Object.assign({}, payload.caps, out.caps);
       }
@@ -989,7 +1015,6 @@ app.post("/api/chat", async (req, res) => {
     if (shadow) payload.shadow = shadow;
     if (followUps) payload.followUps = followUps;
 
-    // DEBUG passthru
     if (isDebug && out && typeof out === "object") {
       if (out.baseMessage) payload.baseMessage = String(out.baseMessage);
       if (out._engine && typeof out._engine === "object") payload._engine = out._engine;
@@ -1002,13 +1027,14 @@ app.post("/api/chat", async (req, res) => {
     clearTimeout(watchdog);
     setContractHeaders(res, requestId);
     safeSet(res, "X-Nyx-Deduped", "floor");
+    const vid = normalizeStr(req.get("X-Visitor-Id") || "") || null;
     return once.json(
       200,
       dedupeOkPayload({
         reply: "I’m here. Give me a year (1950–2024), or say “top 10 1988”.",
         sessionId: null,
         requestId,
-        visitorId: null,
+        visitorId: vid,
       })
     );
   }
