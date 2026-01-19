@@ -3,16 +3,16 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17n (CRITICAL FIXES: text/plain body hashing + intent dedupe window + session allowlist hygiene)
+ * index.js v1.5.17p (SURGICAL HARDENING: canonical intent keys + header voiceMode persistence + uniform dedupe payloads)
  *
- * Fixes:
- *  ✅ Body-hash dedupe now works for text/plain bodies (string req.body).
- *     Previously, ALL text/plain bodies hashed the same -> false dedupe -> loop-like UX.
+ * Adds (vs v1.5.17o):
+ *  ✅ Canonical intent keys: removes non-underscore lastIntentSig/lastIntentAt from allowlist
+ *     so there’s ONE source of truth: __lastIntentSig/__lastIntentAt.
  *
- *  ✅ Intent-sig clamp uses dedicated INTENT_DEDUPE_MS (defaults 2500ms),
- *     rather than BODY_DEDUPE_MS (often too short for client retry loops).
+ *  ✅ Persist voiceMode from header/body into session (prevents “voice mode forgets”).
  *
- *  ✅ SessionPatch allowlist includes repeat-tracker keys (__repAt/__repCount) for hygiene.
+ *  ✅ Uniform dedupe payload helper: every deduped 200 response returns the same shape
+ *     (ok, reply, sessionId, requestId, visitorId, contractVersion, caps, deduped:true).
  *
  * Keeps:
  *  - ANTI-502: crash visibility, parsers first, JSON guard, preflight guaranteed
@@ -64,7 +64,7 @@ app.disable("x-powered-by");
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.17n (CRITICAL: text/plain body hashing + intent dedupe window + allowlist hygiene)";
+  "index.js v1.5.17p (SURGICAL: canonical intent keys + voiceMode persist + uniform dedupe payloads)";
 
 const GIT_COMMIT =
   String(process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "").trim() || null;
@@ -127,7 +127,8 @@ const MAX_HASH_TEXT_LEN = clamp(process.env.MAX_HASH_TEXT_LEN || 800, 200, 4000)
  *
  * CRITICAL FIX: supports text/plain (string body).
  */
-const BODY_HASH_INCLUDE_SESSION = String(process.env.BODY_HASH_INCLUDE_SESSION || "false") === "true";
+const BODY_HASH_INCLUDE_SESSION =
+  String(process.env.BODY_HASH_INCLUDE_SESSION || "false") === "true";
 function stableBodyForHash(body, req) {
   const headerVisitor = normalizeStr(req?.get?.("X-Visitor-Id") || "");
   const headerSession = normalizeStr(req?.get?.("X-Session-Id") || "");
@@ -158,7 +159,9 @@ function stableBodyForHash(body, req) {
     voiceMode: normalizeStr(b.voiceMode || headerVoice || ""),
     mode: normalizeStr(b.mode || ""),
     year: b.year ?? null,
-    sessionId: BODY_HASH_INCLUDE_SESSION ? normalizeStr(b.sessionId || headerSession || "") : "",
+    sessionId: BODY_HASH_INCLUDE_SESSION
+      ? normalizeStr(b.sessionId || headerSession || "")
+      : "",
   });
 }
 
@@ -274,7 +277,13 @@ const corsOptions = {
     "X-Voice-Mode",
     "X-Session-Id",
   ],
-  exposedHeaders: ["X-Request-Id", "X-Contract-Version", "X-Voice-Mode", "X-Nyx-Deduped", "X-Nyx-Upstream"],
+  exposedHeaders: [
+    "X-Request-Id",
+    "X-Contract-Version",
+    "X-Voice-Mode",
+    "X-Nyx-Deduped",
+    "X-Nyx-Upstream",
+  ],
   maxAge: 86400,
 };
 
@@ -334,6 +343,14 @@ function getSessionId(req, body, visitorId) {
   return fromBody || fromHeader || deriveStableSessionId(req, visitorId);
 }
 
+function getVoiceMode(req, body) {
+  // canonical: body.voiceMode > header
+  const fromBody =
+    body && typeof body === "object" ? normalizeStr(body.voiceMode || "") : "";
+  const fromHeader = normalizeStr(req.get("X-Voice-Mode") || "");
+  return fromBody || fromHeader || "";
+}
+
 /** Strict patch apply: allowlist only + proto-safe */
 const SESSION_PATCH_ALLOW = new Set([
   "lane",
@@ -341,18 +358,26 @@ const SESSION_PATCH_ALLOW = new Set([
   "lastMusicYear",
   "activeMusicMode",
   "voiceMode",
-  "lastIntentSig",
-  "lastIntentAt",
+
+  // ✅ Canonical: ONLY underscore intent keys
+  "__lastIntentSig",
+  "__lastIntentAt",
+
+  // ✅ pending continuity (Roku + future lanes)
+  "pendingLane",
+  "pendingMode",
+  "pendingYear",
+  "recentTopic",
+
   "__lastReply",
   "__lastBodyHash",
   "__lastBodyAt",
   "__lastReplyHash",
   "__lastReplyAt",
-  "__lastIntentSig",
-  "__lastIntentAt",
   "__repAt",
   "__repCount",
 ]);
+
 function applySessionPatch(session, patch) {
   if (!session || !patch || typeof patch !== "object") return;
   for (const [k, v] of Object.entries(patch)) {
@@ -684,6 +709,19 @@ function capsPayload() {
   };
 }
 
+function dedupeOkPayload({ reply, sessionId, requestId, visitorId }) {
+  return {
+    ok: true,
+    reply: String(reply || "OK.").trim(),
+    sessionId,
+    requestId,
+    visitorId,
+    contractVersion: NYX_CONTRACT_VERSION,
+    caps: capsPayload(),
+    deduped: true,
+  };
+}
+
 app.post("/api/chat", async (req, res) => {
   const requestId = req.get("X-Request-Id") || rid();
   setContractHeaders(res, requestId);
@@ -694,14 +732,15 @@ app.post("/api/chat", async (req, res) => {
   const watchdog = setTimeout(() => {
     try {
       safeSet(res, "X-Nyx-Deduped", "timeout-floor");
-      return once.json(200, {
-        ok: true,
-        reply: "I’m here. Give me a year (1950–2024), or say “top 10 1988”.",
-        requestId,
-        contractVersion: NYX_CONTRACT_VERSION,
-        caps: capsPayload(),
-        deduped: true,
-      });
+      return once.json(
+        200,
+        dedupeOkPayload({
+          reply: "I’m here. Give me a year (1950–2024), or say “top 10 1988”.",
+          sessionId: null,
+          requestId,
+          visitorId: null,
+        })
+      );
     } catch (_) {}
   }, CHAT_HANDLER_TIMEOUT_MS);
 
@@ -731,6 +770,10 @@ app.post("/api/chat", async (req, res) => {
     const sessionId = getSessionId(req, body, visitorId);
     const session = touchSession(sessionId, { visitorId }) || { sessionId };
 
+    // ✅ Persist voiceMode from body/header into session (prevents “forgetting”)
+    const vmode = getVoiceMode(req, body);
+    if (vmode) session.voiceMode = vmode;
+
     const now = Date.now();
     const fp = fingerprint(req, visitorId);
     const prev = BURSTS.get(fp);
@@ -758,16 +801,15 @@ app.post("/api/chat", async (req, res) => {
       if (count > BURST_SOFT_MAX) {
         clearTimeout(watchdog);
         safeSet(res, "X-Nyx-Deduped", "burst-soft");
-        return once.json(200, {
-          ok: true,
-          reply: String(session.__lastReply || "OK.").trim(),
-          sessionId,
-          requestId,
-          visitorId,
-          contractVersion: NYX_CONTRACT_VERSION,
-          caps: capsPayload(),
-          deduped: true,
-        });
+        return once.json(
+          200,
+          dedupeOkPayload({
+            reply: session.__lastReply || "OK.",
+            sessionId,
+            requestId,
+            visitorId,
+          })
+        );
       }
     }
 
@@ -778,16 +820,15 @@ app.post("/api/chat", async (req, res) => {
     if (lastHash && bodyHash === lastHash && lastAt && now - lastAt < BODY_DEDUPE_MS) {
       clearTimeout(watchdog);
       safeSet(res, "X-Nyx-Deduped", "body-hash");
-      return once.json(200, {
-        ok: true,
-        reply: String(session.__lastReply || "OK.").trim(),
-        sessionId,
-        requestId,
-        visitorId,
-        contractVersion: NYX_CONTRACT_VERSION,
-        caps: capsPayload(),
-        deduped: true,
-      });
+      return once.json(
+        200,
+        dedupeOkPayload({
+          reply: session.__lastReply || "OK.",
+          sessionId,
+          requestId,
+          visitorId,
+        })
+      );
     }
 
     // Shadow (soft)
@@ -841,16 +882,15 @@ app.post("/api/chat", async (req, res) => {
     if (lastReplyHash && replyHash === lastReplyHash && lastReplyAt && now - lastReplyAt < REPLY_DEDUPE_MS) {
       clearTimeout(watchdog);
       safeSet(res, "X-Nyx-Deduped", "reply-hash");
-      return once.json(200, {
-        ok: true,
-        reply: String(session.__lastReply || reply || "OK.").trim(),
-        sessionId,
-        requestId,
-        visitorId,
-        contractVersion: NYX_CONTRACT_VERSION,
-        caps: capsPayload(),
-        deduped: true,
-      });
+      return once.json(
+        200,
+        dedupeOkPayload({
+          reply: session.__lastReply || reply || "OK.",
+          sessionId,
+          requestId,
+          visitorId,
+        })
+      );
     }
 
     // B) Runaway repeat clamp
@@ -870,16 +910,15 @@ app.post("/api/chat", async (req, res) => {
         session.__lastReplyHash = sha256(soft);
         session.__lastReplyAt = now;
 
-        return once.json(200, {
-          ok: true,
-          reply: soft,
-          sessionId,
-          requestId,
-          visitorId,
-          contractVersion: NYX_CONTRACT_VERSION,
-          caps: capsPayload(),
-          deduped: true,
-        });
+        return once.json(
+          200,
+          dedupeOkPayload({
+            reply: soft,
+            sessionId,
+            requestId,
+            visitorId,
+          })
+        );
       }
     } else {
       session.__repAt = now;
@@ -904,23 +943,22 @@ app.post("/api/chat", async (req, res) => {
     session.__lastReplyHash = replyHash;
     session.__lastReplyAt = now;
 
-    // Server-level intent signature clamp (FIXED window)
+    // Server-level intent signature clamp (window uses INTENT_DEDUPE_MS)
     const sig = intentSigFrom(text, session);
     const lastSig = normalizeStr(session.__lastIntentSig || "");
     const lastSigAt = Number(session.__lastIntentAt || 0);
     if (lastSig && sig === lastSig && lastSigAt && now - lastSigAt < INTENT_DEDUPE_MS) {
       clearTimeout(watchdog);
       safeSet(res, "X-Nyx-Deduped", "intent-sig");
-      return once.json(200, {
-        ok: true,
-        reply: String(session.__lastReply || reply || "OK.").trim(),
-        sessionId,
-        requestId,
-        visitorId,
-        contractVersion: NYX_CONTRACT_VERSION,
-        caps: capsPayload(),
-        deduped: true,
-      });
+      return once.json(
+        200,
+        dedupeOkPayload({
+          reply: session.__lastReply || reply || "OK.",
+          sessionId,
+          requestId,
+          visitorId,
+        })
+      );
     }
     session.__lastIntentSig = sig;
     session.__lastIntentAt = now;
@@ -964,14 +1002,15 @@ app.post("/api/chat", async (req, res) => {
     clearTimeout(watchdog);
     setContractHeaders(res, requestId);
     safeSet(res, "X-Nyx-Deduped", "floor");
-    return once.json(200, {
-      ok: true,
-      reply: "I’m here. Give me a year (1950–2024), or say “top 10 1988”.",
-      requestId,
-      contractVersion: NYX_CONTRACT_VERSION,
-      caps: capsPayload(),
-      deduped: true,
-    });
+    return once.json(
+      200,
+      dedupeOkPayload({
+        reply: "I’m here. Give me a year (1950–2024), or say “top 10 1988”.",
+        sessionId: null,
+        requestId,
+        visitorId: null,
+      })
+    );
   }
 });
 
