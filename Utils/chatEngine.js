@@ -6,18 +6,15 @@
  *  - NO express
  *  - NO server start
  *  - NO index.js imports
- *  - returns { ok, reply, followUps, sessionPatch, cog, requestId }
+ *  - returns { ok, reply, followUps, sessionPatch, cog, requestId, lane, year, mode, caps }
  *
- * v0.6p (ADVANCEMENT ENGINE V1 + ONE-QUESTION RULE)
- * Adds:
- *  ✅ Advancement Engine v1:
- *      - If user input is NOT direct intent and reply does NOT already ask a question,
- *        append a single forward-driving line + refresh chips (lane-aware).
- *      - Deterministic, dampened, and respects your Elasticity engine.
- *  ✅ One-question rule:
- *      - Avoids stacking multiple questions in one reply.
- *  ✅ Lane-aware advancement packs:
- *      - music / roku / schedule / radio / tv / general
+ * v0.6q (BULLETPROOF+++):
+ *  ✅ Fixes index.js handler signature mismatch (supports handleChat({text, session, requestId, debug}))
+ *  ✅ Global One-Question Rule enforced (post-compose sanitation)
+ *  ✅ Dampener no longer injects extra questions
+ *  ✅ Elasticity overlay appended safely (won’t stack questions)
+ *  ✅ Intro rewritten to ask ONE question, lane-aware advancement preserved
+ *  ✅ Chip sanitization + reply length caps
  *
  * Preserves:
  *  ✅ Name capture + sparsity gate
@@ -58,6 +55,13 @@ try {
 } catch (_) { /* optional */ }
 
 // ----------------------------
+// Constants / Caps
+// ----------------------------
+const REPLY_MAX_CHARS = 1800;     // keep responses tight and safe
+const CHIP_MAX_CHARS = 60;
+const MAX_CHIPS_OUT = 4;
+
+// ----------------------------
 // Utilities
 // ----------------------------
 function nowMs() { return Date.now(); }
@@ -86,11 +90,24 @@ function hashSig(s) {
   return crypto.createHash("sha256").update(String(s || "")).digest("hex").slice(0, 16);
 }
 
+function trimTo(s, maxChars) {
+  const t = String(s || "");
+  if (t.length <= maxChars) return t;
+  return t.slice(0, Math.max(0, maxChars - 1)) + "…";
+}
+
+function sanitizeChip(s) {
+  const t = String(s || "").replace(/\s+/g, " ").trim();
+  if (!t) return "";
+  // avoid huge chips / weird payloads
+  return trimTo(t, CHIP_MAX_CHARS);
+}
+
 function dedupeStrings(list, max = 10) {
   const out = [];
   const seen = new Set();
   for (const x of safeArray(list)) {
-    const s = String(x || "").replace(/\s+/g, " ").trim();
+    const s = sanitizeChip(x);
     if (!s) continue;
     const k = s.toLowerCase();
     if (seen.has(k)) continue;
@@ -105,7 +122,8 @@ function chipsToStrings(chips) {
   const out = [];
   for (const c of safeArray(chips)) {
     if (!c) continue;
-    const send = (c && typeof c === "object" && (c.send || c.label)) ? (c.send || c.label) : null;
+    const send =
+      (c && typeof c === "object" && (c.send || c.label)) ? (c.send || c.label) : null;
     if (send) out.push(String(send));
   }
   return dedupeStrings(out, 10);
@@ -189,17 +207,22 @@ function shouldReturnCachedForRepeat(session, userText) {
 
 function cachedResponse(session, reason) {
   const lastOut = (session && session.lastOut) || {};
+  const reply = trimTo(lastOut.reply || "One sec — try again.", REPLY_MAX_CHARS);
+  const followUps = dedupeStrings(safeArray(lastOut.followUps).slice(0, MAX_CHIPS_OUT), MAX_CHIPS_OUT);
+
   return {
     ok: true,
-    reply: lastOut.reply || "One sec — try again.",
-    followUps: safeArray(lastOut.followUps).slice(0, 4),
+    reply,
+    followUps,
     sessionPatch: filterSessionPatch({
       lastInAt: nowMs(),
       recentIntent: "loop_guard",
       recentTopic: reason || "repeat_input"
     }),
     cog: { phase: "engaged", state: "steady", reason: "input_loop_guard", lane: "general", ts: nowMs() },
-    requestId: rid()
+    requestId: rid(),
+    lane: "general",
+    caps: capsPayload()
   };
 }
 
@@ -207,7 +230,7 @@ function cachedResponse(session, reason) {
 // Content signature dampener
 // ----------------------------
 function buildOutSig(reply, followUps) {
-  const chips = safeArray(followUps).slice(0, 4).join(" | ");
+  const chips = safeArray(followUps).slice(0, MAX_CHIPS_OUT).join(" | ");
   return hashSig(`${String(reply || "")}__${chips}`);
 }
 
@@ -217,14 +240,52 @@ function dampenIfDuplicateOutput(session, reply, followUps) {
   const lastSigAt = Number(session && session.lastOutSigAt) || 0;
 
   if (sig && lastSig && sig === lastSig && (nowMs() - lastSigAt) < 12_000) {
-    const tweak = "\n\n(If you want, tell me what you want next — I’m listening.)";
-    return { reply: `${reply}${tweak}`, sig: buildOutSig(`${reply}${tweak}`, followUps) };
+    // IMPORTANT: no question mark here (one-question rule)
+    const tweak = "\n\n(If you want, tell me what you want next — I’m here.)";
+    const out = `${String(reply || "").trim()}${tweak}`;
+    return { reply: out, sig: buildOutSig(out, followUps) };
   }
   return { reply, sig };
 }
 
 // ----------------------------
-// Nyx Intro V2
+// One-question rule (global)
+// ----------------------------
+function enforceOneQuestion(reply) {
+  const r = String(reply || "");
+  const idxs = [];
+  for (let i = 0; i < r.length; i++) if (r[i] === "?") idxs.push(i);
+  if (idxs.length <= 1) return r;
+
+  // Keep the LAST question mark; neutralize earlier ones.
+  const lastIdx = idxs[idxs.length - 1];
+  const chars = r.split("");
+  for (const i of idxs) {
+    if (i !== lastIdx) chars[i] = ".";
+  }
+  return chars.join("");
+}
+
+function baseHasQuestion(reply) {
+  return String(reply || "").includes("?");
+}
+
+function appendOverlaySafely(base, overlay) {
+  const b = String(base || "").trim();
+  const o = String(overlay || "").trim();
+  if (!o) return b;
+
+  // If overlay contains a question and base already has a question,
+  // neutralize earlier question marks in base to avoid stacking.
+  if (o.includes("?") && baseHasQuestion(b)) {
+    const neutralBase = enforceOneQuestion(b.replace(/\?/g, "."));
+    return `${neutralBase}\n\n—\n\n${o}`.trim();
+  }
+  return `${b}\n\n—\n\n${o}`.trim();
+}
+
+// ----------------------------
+// Nyx Intro V2 (one-question clean)
 // ----------------------------
 function isDirectIntent(userText) {
   const t = normalizeText(userText);
@@ -239,13 +300,13 @@ function shouldRunIntro(session, userText) {
 
 function nyxIntroReply() {
   const reply =
-`Hey — I’m Nyx. I’ve got you.
+`Hey — I’m Nyx.
 
-I can pull up a year and take you straight into the music, give you a quick story moment, or guide you through Sandblast TV and what’s playing.
+I can jump you into a year of music, give you a quick story moment, or guide you through Sandblast TV/Roku and what’s playing.
 
-If you tell me your name, I’ll remember it for this session — or we can skip that.
+If you want, tell me your name and I’ll use it for this session.
 
-What do you feel like right now: a specific year, a surprise, or just talking?`;
+What do you want first: a specific year, “surprise me”, or just talk?`;
 
   const followUps = [
     "Pick a year",
@@ -273,7 +334,7 @@ function depthDialReply(pref) {
 }
 
 // ----------------------------
-// Micro-Bridge Layering (Option D copy)
+// Micro-Bridge Layering
 // ----------------------------
 function needsBridge(sess, lane) {
   if (!sess) return false;
@@ -286,7 +347,6 @@ function needsBridge(sess, lane) {
 }
 
 function bridgeLine(sess) {
-  // ✅ Option D: no “fast/deep” words
   const pref = (sess && sess.depthPreference) || "fast";
   if (pref === "deep") return "Do you want the short version… or the full story?";
   return "Do you want the headline… or the whole thread?";
@@ -335,7 +395,6 @@ function maybePrependName(sess, turnsNow, reply) {
 
   if (!shouldUseName(sess, turnsNow)) return { reply, used: false };
 
-  // Keep it light; never "Alright, Name"
   const prefix = `Okay, ${name}. `;
   return { reply: `${prefix}${reply}`, used: true };
 }
@@ -346,7 +405,6 @@ function maybePrependName(sess, turnsNow, reply) {
 function replyHasQuestion(reply) {
   const r = String(reply || "").trim();
   if (!r) return false;
-  // If the last ~220 chars contain a question mark, treat as already asking.
   const tail = r.slice(-220);
   return tail.includes("?");
 }
@@ -397,7 +455,6 @@ function advancePack(lane, sess) {
     };
   }
 
-  // general
   return {
     line: "Point me at music, Roku/TV, schedule—or tell me what you’re trying to do today.",
     chips: ["Pick a year", "Show me the Roku path", "What’s playing now", "Just talk"]
@@ -407,20 +464,14 @@ function advancePack(lane, sess) {
 function applyAdvancement({ inputText, reply, followUps, lane, sess }) {
   const t = normalizeText(inputText);
 
-  // If user is being explicit, don't layer extra push.
   if (isDirectIntent(t)) return { reply, followUps };
-
-  // If reply already asks something, do not add another question.
   if (replyHasQuestion(reply)) return { reply, followUps };
 
   const pack = advancePack(lane, sess);
 
-  // Add a single forward-driving line.
   const outReply = `${String(reply || "").trim()}\n\n${pack.line}`.trim();
-
-  // Refresh chips: prefer pack, but keep any existing useful chips.
   const merged = [...safeArray(followUps), ...safeArray(pack.chips)];
-  const outChips = dedupeStrings(merged, 10).slice(0, 4);
+  const outChips = dedupeStrings(merged, 10).slice(0, MAX_CHIPS_OUT);
 
   return { reply: outReply, followUps: outChips };
 }
@@ -509,7 +560,7 @@ function elasticityOverlay(session) {
 
 Do you want to keep going in the same direction — or pivot a little?`;
 
-  return { reply, followUps: chips.filter(Boolean).slice(0, 4) };
+  return { reply, followUps: chips.filter(Boolean).slice(0, MAX_CHIPS_OUT) };
 }
 
 // ----------------------------
@@ -560,19 +611,41 @@ function detectMode(text) {
   return null;
 }
 
+function capsPayload() {
+  return {
+    music: true,
+    roku: true,
+    tv: true,
+    radio: true,
+    schedule: true,
+    tts: true
+  };
+}
+
 // ----------------------------
-// Public API
+// Public API (supports BOTH call styles)
 // ----------------------------
-async function chatEngine(inputText, session) {
-  const requestId = rid();
+async function chatEngine(arg1, arg2) {
+  // Supports:
+  //  A) chatEngine("text", session)
+  //  B) chatEngine({ text, session, requestId, debug })
+  const isObjCall = arg1 && typeof arg1 === "object" && !Array.isArray(arg1);
+  const inputText = isObjCall ? (arg1.text || arg1.message || "") : (arg1 || "");
+  const session = isObjCall ? (arg1.session || {}) : (arg2 || {});
+  const externalRequestId = isObjCall ? (arg1.requestId || null) : null;
+
+  const requestId = externalRequestId || rid();
   const text = String(inputText || "");
   const sess = session && typeof session === "object" ? session : {};
 
   // Name capture intercept
   const maybeName = extractNameFromText(text);
   if (maybeName) {
-    const reply = `Nice to meet you, ${maybeName}. What do you feel like right now: a specific year, a surprise, or just talking?`;
-    const followUps = ["Pick a year", "Surprise me", "Story moment", "Just talk"];
+    let reply =
+      `Nice to meet you, ${maybeName}. Tell me what you want first: a specific year, “surprise me”, or just talk?`;
+    reply = enforceOneQuestion(reply);
+
+    const followUps = dedupeStrings(["Pick a year", "Surprise me", "Story moment", "Just talk"], MAX_CHIPS_OUT);
 
     const sessionPatch = filterSessionPatch({
       lastInText: text,
@@ -584,19 +657,23 @@ async function chatEngine(inputText, session) {
 
     return {
       ok: true,
-      reply,
+      reply: trimTo(reply, REPLY_MAX_CHARS),
       followUps,
       sessionPatch,
       cog: { phase: "engaged", state: "welcome", reason: "name_captured", lane: "general", ts: nowMs() },
-      requestId
+      requestId,
+      lane: "general",
+      caps: capsPayload()
     };
   }
 
   // Depth dial intercept
   if (isDepthDial(text)) {
     const pref = normalizeText(text);
-    const reply = depthDialReply(pref);
-    const followUps = ["Pick a year", "What’s playing now", "Show me the Roku path", "Just talk"];
+    let reply = depthDialReply(pref);
+    reply = enforceOneQuestion(reply);
+
+    const followUps = dedupeStrings(["Pick a year", "What’s playing now", "Show me the Roku path", "Just talk"], MAX_CHIPS_OUT);
 
     const sessionPatch = filterSessionPatch({
       lastInText: text,
@@ -607,14 +684,17 @@ async function chatEngine(inputText, session) {
 
     return {
       ok: true,
-      reply,
+      reply: trimTo(reply, REPLY_MAX_CHARS),
       followUps,
       sessionPatch,
       cog: { phase: "engaged", state: "calibrate", reason: "depth_dial", lane: "general", ts: nowMs() },
-      requestId
+      requestId,
+      lane: "general",
+      caps: capsPayload()
     };
   }
 
+  // Repeat input loop guard
   if (shouldReturnCachedForRepeat(sess, text)) {
     return cachedResponse(sess, "repeat_input");
   }
@@ -627,7 +707,9 @@ async function chatEngine(inputText, session) {
   // Intro V2
   if (shouldRunIntro(sess, text)) {
     const intro = nyxIntroReply();
-    const outSig = buildOutSig(intro.reply, intro.followUps);
+    const introReply = trimTo(enforceOneQuestion(intro.reply), REPLY_MAX_CHARS);
+    const introChips = dedupeStrings(intro.followUps, MAX_CHIPS_OUT);
+    const outSig = buildOutSig(introReply, introChips);
 
     const sessionPatch = filterSessionPatch({
       ...inPatch,
@@ -641,10 +723,10 @@ async function chatEngine(inputText, session) {
       // layering seeds
       userGoal: "explore",
       depthPreference: sess.depthPreference || "fast",
-      lastOpenQuestion: "What do you feel like right now: a specific year, a surprise, or just talking?",
+      lastOpenQuestion: "What do you want first: a specific year, “surprise me”, or just talk?",
       nameAskedAt: nowMs(),
 
-      lastOut: { reply: intro.reply, followUps: intro.followUps },
+      lastOut: { reply: introReply, followUps: introChips },
       lastOutAt: nowMs(),
       lastOutSig: outSig,
       lastOutSigAt: nowMs()
@@ -652,11 +734,13 @@ async function chatEngine(inputText, session) {
 
     return {
       ok: true,
-      reply: intro.reply,
-      followUps: intro.followUps,
+      reply: introReply,
+      followUps: introChips,
       sessionPatch,
       cog: { phase: "engaged", state: "welcome", reason: "intro_v2", lane: "general", ts: nowMs() },
-      requestId
+      requestId,
+      lane: "general",
+      caps: capsPayload()
     };
   }
 
@@ -707,8 +791,8 @@ async function chatEngine(inputText, session) {
 
   // Micro-bridge layering (only when lane changes)
   if (needsBridge(sess, lane)) {
-    reply = `${reply}\n\n${bridgeLine(sess)}`;
-    followUps = dedupeStrings([...followUps, "Fast", "Deep"], 10).slice(0, 4);
+    reply = `${String(reply || "").trim()}\n\n${bridgeLine(sess)}`.trim();
+    followUps = dedupeStrings([...followUps, "Fast", "Deep"], 10).slice(0, MAX_CHIPS_OUT);
   }
 
   // ✅ Advancement Engine v1 (before elasticity)
@@ -722,31 +806,35 @@ async function chatEngine(inputText, session) {
   const tele = bumpTelemetry(sess, lane, year, mode);
   const depthLevel = clampInt((Number(sess.depthLevel) || 0) + 1, 0, 20);
 
-  // Name usage (sparse) — only after we know turns
+  // Name usage (sparse)
   const namePre = maybePrependName(sess, tele.turns, reply);
   reply = namePre.reply;
 
-  // Elasticity overlay
+  // Elasticity overlay (append safely; avoid stacking questions)
   const canElastic = shouldElasticOverlay({ ...sess, ...tele, introDone: true, depthLevel }, text);
   if (canElastic) {
     const elastic = elasticityOverlay({ ...sess, ...tele, depthLevel });
     const merged = [...safeArray(followUps), ...safeArray(elastic.followUps)];
-    followUps = dedupeStrings(merged, 10).slice(0, 4);
-    reply = `${reply}\n\n—\n\n${elastic.reply}`;
+    followUps = dedupeStrings(merged, 10).slice(0, MAX_CHIPS_OUT);
+    reply = appendOverlaySafely(reply, elastic.reply);
   } else {
-    followUps = dedupeStrings(followUps, 10).slice(0, 4);
+    followUps = dedupeStrings(followUps, 10).slice(0, MAX_CHIPS_OUT);
   }
 
   // Phase3 sprinkle
   const p3 = phase3Sprinkle({ ...sess, depthLevel });
-  if (p3) reply = `${reply}\n\n${p3}`;
+  if (p3) reply = `${String(reply || "").trim()}\n\n${p3}`.trim();
 
   // Dampener
   const damp = dampenIfDuplicateOutput(sess, reply, followUps);
   reply = damp.reply;
   const outSig = damp.sig;
 
-  const outCache = { reply, followUps: safeArray(followUps).slice(0, 4) };
+  // Final global one-question enforcement + caps
+  reply = trimTo(enforceOneQuestion(reply), REPLY_MAX_CHARS);
+  followUps = dedupeStrings(followUps, 10).slice(0, MAX_CHIPS_OUT);
+
+  const outCache = { reply, followUps: safeArray(followUps).slice(0, MAX_CHIPS_OUT) };
 
   // Compose patch (merge lanePatch + name usage marker if used)
   const sessionPatch = filterSessionPatch({
@@ -782,8 +870,28 @@ async function chatEngine(inputText, session) {
     ts: nowMs()
   };
 
-  return { ok: true, reply, followUps: outCache.followUps, sessionPatch, cog, requestId };
+  return {
+    ok: true,
+    reply,
+    followUps: outCache.followUps,
+    sessionPatch,
+    cog,
+    requestId,
+    lane,
+    year: year || undefined,
+    mode: mode || undefined,
+    caps: capsPayload()
+  };
+}
+
+/**
+ * index.js compatibility:
+ * pickChatHandler prefers mod.handleChat({text, session, requestId, debug})
+ */
+async function handleChat({ text, session, requestId, debug } = {}) {
+  return chatEngine({ text, session, requestId, debug });
 }
 
 module.exports = chatEngine;
 module.exports.chatEngine = chatEngine;
+module.exports.handleChat = handleChat;
