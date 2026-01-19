@@ -3,23 +3,22 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17p (SURGICAL HARDENING: canonical intent keys + header voiceMode persistence + uniform dedupe payloads + sustained loop guard)
+ * index.js v1.5.17q (CORS FIX: CORS runs BEFORE parsers/error paths + default allowlist for sandblast domains)
  *
- * Adds (vs v1.5.17o):
- *  ✅ Canonical intent keys: removes non-underscore lastIntentSig/lastIntentAt from allowlist
- *     so there’s ONE source of truth: __lastIntentSig/__lastIntentAt.
+ * Fixes (vs v1.5.17p):
+ *  ✅ CRITICAL: CORS middleware moved ABOVE body parsers and JSON-parse error handler
+ *     so ALL responses (including 400 invalid JSON, contract mismatch, floors) carry CORS headers.
  *
- *  ✅ Persist voiceMode from header/body into session (prevents “voice mode forgets”).
+ *  ✅ Default CORS allowlist includes:
+ *     - https://sandblast.channel
+ *     - https://www.sandblast.channel
+ *     if CORS_ALLOWED_ORIGINS env is empty (prevents “allowlistCount=0 => block everything” misconfig).
  *
- *  ✅ Uniform dedupe payload helper: every deduped 200 response returns the same shape
- *     (ok, reply, sessionId, requestId, visitorId, contractVersion, caps, deduped:true).
- *
- *  ✅ NEW (server protection, does NOT “fix” client bug):
- *     Sustained-rate guard: catches slow endless loops that never trip burst
- *     and returns cached reply without running chatEngine.
+ *  ✅ CORS origin callback now echoes the actual origin string (not boolean true),
+ *     which avoids edge-case proxy behaviors and is clearer in diagnostics.
  *
  * Keeps:
- *  - ANTI-502: crash visibility, parsers first, JSON guard, preflight guaranteed
+ *  - ANTI-502: crash visibility, parsers first (after CORS), JSON guard, preflight guaranteed
  *  - /health + /api/health + /api/version
  *  - /api/chat: respond-once watchdog + burst + body-hash dedupe + quota floor + debug passthru
  *  - /api/tts + /api/voice soft-loaded + /api/tts/diag
@@ -68,7 +67,7 @@ app.disable("x-powered-by");
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.17p (SURGICAL: canonical intent keys + voiceMode persist + uniform dedupe payloads + sustained guard)";
+  "index.js v1.5.17q (CORS FIX: CORS before parsers/errors + default sandblast allowlist + echo origin)";
 
 const GIT_COMMIT =
   String(process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "").trim() || null;
@@ -123,79 +122,82 @@ function ua(req) {
   return normalizeStr(req.get("user-agent") || "");
 }
 
-const MAX_HASH_TEXT_LEN = clamp(process.env.MAX_HASH_TEXT_LEN || 800, 200, 4000);
+/* ======================================================
+   CORS (MUST RUN BEFORE parsers + error handlers)
+====================================================== */
 
-/** Stable body hashing.
- * IMPORTANT: ignores sessionId by default (session can churn on buggy clients).
- * If you truly want sessionId included, set BODY_HASH_INCLUDE_SESSION=true.
- *
- * CRITICAL FIX: supports text/plain (string body).
- */
-const BODY_HASH_INCLUDE_SESSION =
-  String(process.env.BODY_HASH_INCLUDE_SESSION || "false") === "true";
+const CORS_ALLOW_ALL = String(process.env.CORS_ALLOW_ALL || "false") === "true";
 
-function stableBodyForHash(body, req) {
-  const headerVisitor = normalizeStr(req?.get?.("X-Visitor-Id") || "");
-  const headerSession = normalizeStr(req?.get?.("X-Session-Id") || "");
-  const headerVoice = normalizeStr(req?.get?.("X-Voice-Mode") || "");
-  const headerContract = normalizeStr(req?.get?.("X-Contract-Version") || "");
+const DEFAULT_ORIGINS = [
+  "https://sandblast.channel",
+  "https://www.sandblast.channel",
+];
 
-  if (typeof body === "string") {
-    const text = normalizeStr(body).slice(0, MAX_HASH_TEXT_LEN);
-    return JSON.stringify({
-      text,
-      visitorId: headerVisitor || "",
-      contractVersion: headerContract || "",
-      voiceMode: headerVoice || "",
-      mode: "",
-      year: null,
-      sessionId: BODY_HASH_INCLUDE_SESSION ? headerSession : "",
-    });
+const ALLOWED_ORIGINS = normalizeStr(process.env.CORS_ALLOWED_ORIGINS || "")
+  .split(",")
+  .map((s) => s.trim().replace(/\/$/, ""))
+  .filter(Boolean);
+
+const EFFECTIVE_ORIGINS = (ALLOWED_ORIGINS.length ? ALLOWED_ORIGINS : DEFAULT_ORIGINS).slice();
+
+function originAllowed(origin) {
+  if (!origin) return true; // curl/server-to-server
+  if (CORS_ALLOW_ALL) return true;
+
+  const o = String(origin).trim().replace(/\/$/, "");
+  if (EFFECTIVE_ORIGINS.includes(o)) return true;
+
+  try {
+    const u = new URL(o);
+    const host = String(u.hostname || "");
+    const altHost = host.startsWith("www.") ? host.slice(4) : `www.${host}`;
+    const alt = `${u.protocol}//${altHost}${u.port ? `:${u.port}` : ""}`;
+    return EFFECTIVE_ORIGINS.includes(alt);
+  } catch (_) {
+    return false;
   }
-
-  const b = body && typeof body === "object" ? body : {};
-  const text = normalizeStr(b.text || b.message || "").slice(0, MAX_HASH_TEXT_LEN);
-
-  return JSON.stringify({
-    text,
-    visitorId: normalizeStr(b.visitorId || headerVisitor || ""),
-    contractVersion: normalizeStr(b.contractVersion || headerContract || ""),
-    voiceMode: normalizeStr(b.voiceMode || headerVoice || ""),
-    mode: normalizeStr(b.mode || ""),
-    year: b.year ?? null,
-    sessionId: BODY_HASH_INCLUDE_SESSION
-      ? normalizeStr(b.sessionId || headerSession || "")
-      : "",
-  });
 }
 
-/** Server-level intent signature (for loop kill, independent of widget/chatEngine). */
-function extractYear(text) {
-  const m = String(text || "").match(/\b(19[5-9]\d|20[0-1]\d|202[0-4])\b/);
-  if (!m) return null;
-  const y = Number(m[1]);
-  if (!Number.isFinite(y) || y < 1950 || y > 2024) return null;
-  return y;
-}
-function extractMode(text) {
-  const t = normCmd(text);
-  if (/\b(top\s*100|top100|hot\s*100|year[-\s]*end\s*hot\s*100)\b/.test(t)) return "top100";
-  if (/\b(top\s*10|top10|top\s*ten)\b/.test(t)) return "top10";
-  if (/\bstory\s*moment\b|\bstory\b/.test(t)) return "story";
-  if (/\bmicro\s*moment\b|\bmicro\b/.test(t)) return "micro";
-  if (/\b#\s*1\b|\bnumber\s*1\b|\bno\.?\s*1\b|\bno\s*1\b/.test(t)) return "number1";
-  return null;
-}
-function intentSigFrom(text, session) {
-  const t = normCmd(text);
-  const y = extractYear(t) || (session && Number(session.lastMusicYear)) || null;
-  const m = extractMode(t) || (session && String(session.activeMusicMode || "")) || "";
-  const lane = session && session.lane ? String(session.lane) : "";
-  return `${lane || ""}::${m || ""}::${y || ""}::${sha256(t).slice(0, 10)}`;
-}
+const corsOptions = {
+  origin: function (origin, cb) {
+    // Explicitly echo the origin string if allowed (clearer than boolean true)
+    if (!origin) return cb(null, true);
+    return cb(null, originAllowed(origin) ? origin : false);
+  },
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: [
+    "Content-Type",
+    "Accept",
+    "Authorization",
+    "X-Requested-With",
+    "X-Visitor-Id",
+    "X-Contract-Version",
+    "X-Request-Id",
+    "X-Voice-Mode",
+    "X-Session-Id",
+  ],
+  exposedHeaders: [
+    "X-Request-Id",
+    "X-Contract-Version",
+    "X-Voice-Mode",
+    "X-Nyx-Deduped",
+    "X-Nyx-Upstream",
+  ],
+  maxAge: 86400,
+  optionsSuccessStatus: 204,
+};
+
+app.use((req, res, next) => {
+  // Helps caches/proxies behave correctly with dynamic origin reflection
+  safeSet(res, "Vary", "Origin");
+  next();
+});
+
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 
 /* ======================================================
-   Parsers FIRST
+   Parsers (after CORS so even parse errors carry CORS)
 ====================================================== */
 
 function rawBodySaver(req, res, buf, encoding) {
@@ -237,70 +239,6 @@ app.use((req, res, next) => {
   } catch (_) {}
   next();
 });
-
-/* ======================================================
-   CORS (bulletproof + GUARANTEED preflight for /api/*)
-====================================================== */
-
-const CORS_ALLOW_ALL = String(process.env.CORS_ALLOW_ALL || "false") === "true";
-const ALLOWED_ORIGINS = normalizeStr(process.env.CORS_ALLOWED_ORIGINS || "")
-  .split(",")
-  .map((s) => s.trim().replace(/\/$/, ""))
-  .filter(Boolean);
-
-function originAllowed(origin) {
-  if (!origin) return true;
-  if (CORS_ALLOW_ALL) return true;
-  const o = String(origin).trim().replace(/\/$/, "");
-  if (ALLOWED_ORIGINS.includes(o)) return true;
-
-  try {
-    const u = new URL(o);
-    const host = String(u.hostname || "");
-    const altHost = host.startsWith("www.") ? host.slice(4) : `www.${host}`;
-    const alt = `${u.protocol}//${altHost}${u.port ? `:${u.port}` : ""}`;
-    return ALLOWED_ORIGINS.includes(alt);
-  } catch (_) {
-    return false;
-  }
-}
-
-const corsOptions = {
-  origin: function (origin, cb) {
-    return cb(null, originAllowed(origin));
-  },
-  methods: ["GET", "POST", "OPTIONS"],
-  allowedHeaders: [
-    "Content-Type",
-    "Accept",
-    "Authorization",
-    "X-Requested-With",
-    "X-Visitor-Id",
-    "X-Contract-Version",
-    "X-Request-Id",
-    "X-Voice-Mode",
-    "X-Session-Id",
-  ],
-  exposedHeaders: [
-    "X-Request-Id",
-    "X-Contract-Version",
-    "X-Voice-Mode",
-    "X-Nyx-Deduped",
-    "X-Nyx-Upstream",
-  ],
-  maxAge: 86400,
-};
-
-app.use(cors(corsOptions));
-
-app.use("/api", (req, res, next) => {
-  if (req.method !== "OPTIONS") return next();
-  const requestId = req.get("X-Request-Id") || rid();
-  setContractHeaders(res, requestId);
-  return cors(corsOptions)(req, res, () => res.sendStatus(204));
-});
-
-app.options(/.*/, cors(corsOptions));
 
 /* ======================================================
    In-memory session store
@@ -476,14 +414,84 @@ app.get("/api/version", (req, res) => {
     uptimeSec: Math.round(process.uptime()),
     env: {
       corsAllowAll: CORS_ALLOW_ALL,
-      allowlistCount: ALLOWED_ORIGINS.length,
+      allowlistCount: EFFECTIVE_ORIGINS.length,
       requestTimeoutMs: REQUEST_TIMEOUT_MS,
       maxSessions: MAX_SESSIONS,
-      bodyHashIncludeSession: BODY_HASH_INCLUDE_SESSION,
+      bodyHashIncludeSession:
+        String(process.env.BODY_HASH_INCLUDE_SESSION || "false") === "true",
       sessionIdMaxLen: SESSION_ID_MAXLEN,
     },
+    allowlistSample: EFFECTIVE_ORIGINS.slice(0, 6),
   });
 });
+
+/* ======================================================
+   Hashing + intent helpers (unchanged)
+====================================================== */
+
+const MAX_HASH_TEXT_LEN = clamp(process.env.MAX_HASH_TEXT_LEN || 800, 200, 4000);
+
+const BODY_HASH_INCLUDE_SESSION =
+  String(process.env.BODY_HASH_INCLUDE_SESSION || "false") === "true";
+
+function stableBodyForHash(body, req) {
+  const headerVisitor = normalizeStr(req?.get?.("X-Visitor-Id") || "");
+  const headerSession = normalizeStr(req?.get?.("X-Session-Id") || "");
+  const headerVoice = normalizeStr(req?.get?.("X-Voice-Mode") || "");
+  const headerContract = normalizeStr(req?.get?.("X-Contract-Version") || "");
+
+  if (typeof body === "string") {
+    const text = normalizeStr(body).slice(0, MAX_HASH_TEXT_LEN);
+    return JSON.stringify({
+      text,
+      visitorId: headerVisitor || "",
+      contractVersion: headerContract || "",
+      voiceMode: headerVoice || "",
+      mode: "",
+      year: null,
+      sessionId: BODY_HASH_INCLUDE_SESSION ? headerSession : "",
+    });
+  }
+
+  const b = body && typeof body === "object" ? body : {};
+  const text = normalizeStr(b.text || b.message || "").slice(0, MAX_HASH_TEXT_LEN);
+
+  return JSON.stringify({
+    text,
+    visitorId: normalizeStr(b.visitorId || headerVisitor || ""),
+    contractVersion: normalizeStr(b.contractVersion || headerContract || ""),
+    voiceMode: normalizeStr(b.voiceMode || headerVoice || ""),
+    mode: normalizeStr(b.mode || ""),
+    year: b.year ?? null,
+    sessionId: BODY_HASH_INCLUDE_SESSION
+      ? normalizeStr(b.sessionId || headerSession || "")
+      : "",
+  });
+}
+
+function extractYear(text) {
+  const m = String(text || "").match(/\b(19[5-9]\d|20[0-1]\d|202[0-4])\b/);
+  if (!m) return null;
+  const y = Number(m[1]);
+  if (!Number.isFinite(y) || y < 1950 || y > 2024) return null;
+  return y;
+}
+function extractMode(text) {
+  const t = normCmd(text);
+  if (/\b(top\s*100|top100|hot\s*100|year[-\s]*end\s*hot\s*100)\b/.test(t)) return "top100";
+  if (/\b(top\s*10|top10|top\s*ten)\b/.test(t)) return "top10";
+  if (/\bstory\s*moment\b|\bstory\b/.test(t)) return "story";
+  if (/\bmicro\s*moment\b|\bmicro\b/.test(t)) return "micro";
+  if (/\b#\s*1\b|\bnumber\s*1\b|\bno\.?\s*1\b|\bno\s*1\b/.test(t)) return "number1";
+  return null;
+}
+function intentSigFrom(text, session) {
+  const t = normCmd(text);
+  const y = extractYear(t) || (session && Number(session.lastMusicYear)) || null;
+  const m = extractMode(t) || (session && String(session.activeMusicMode || "")) || "";
+  const lane = session && session.lane ? String(session.lane) : "";
+  return `${lane || ""}::${m || ""}::${y || ""}::${sha256(t).slice(0, 10)}`;
+}
 
 /* ======================================================
    TTS / Voice routes (never brick) + diagnostics
