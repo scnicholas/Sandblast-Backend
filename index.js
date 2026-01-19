@@ -3,21 +3,16 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17m (BULLETPROOF++: stable session keys + OPTIONS regex + sessionId hygiene + caps + guard hardening
- *                     + LOOP KILL (server-level) + engine/caps bridge + proto-safe patch apply)
+ * index.js v1.5.17n (CRITICAL FIXES: text/plain body hashing + intent dedupe window + session allowlist hygiene)
  *
- * CRITICAL UPGRADES vs v1.5.17l:
- *  ✅ LOOP KILL (server-level, independent of widget):
- *     - Adds "reply dedupe" + "runaway identical reply" clamp
- *     - Adds "same-intent fast-repeat" clamp (text+mode+year normalized signature)
+ * Fixes:
+ *  ✅ Body-hash dedupe now works for text/plain bodies (string req.body).
+ *     Previously, ALL text/plain bodies hashed the same -> false dedupe -> loop-like UX.
  *
- *  ✅ Engine bridge (Nyx knows what exists):
- *     - If chatEngine returns lane/year/mode/cog/caps, we pass them through (debug + non-debug safe fields)
- *     - caps merged safely; defaults always present
+ *  ✅ Intent-sig clamp uses dedicated INTENT_DEDUPE_MS (defaults 2500ms),
+ *     rather than BODY_DEDUPE_MS (often too short for client retry loops).
  *
- *  ✅ SessionPatch apply hardened:
- *     - Prototype pollution blocked
- *     - Allowlist keys only
+ *  ✅ SessionPatch allowlist includes repeat-tracker keys (__repAt/__repCount) for hygiene.
  *
  * Keeps:
  *  - ANTI-502: crash visibility, parsers first, JSON guard, preflight guaranteed
@@ -61,6 +56,7 @@ try {
 }
 
 const app = express();
+app.disable("x-powered-by");
 
 /* ======================================================
    Version + Contract
@@ -68,7 +64,7 @@ const app = express();
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.17m (BULLETPROOF++: stable session keys + loop kill + engine bridge + caps + patch hardening)";
+  "index.js v1.5.17n (CRITICAL: text/plain body hashing + intent dedupe window + allowlist hygiene)";
 
 const GIT_COMMIT =
   String(process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "").trim() || null;
@@ -123,29 +119,50 @@ function ua(req) {
   return normalizeStr(req.get("user-agent") || "");
 }
 
+const MAX_HASH_TEXT_LEN = clamp(process.env.MAX_HASH_TEXT_LEN || 800, 200, 4000);
+
 /** Stable body hashing.
  * IMPORTANT: ignores sessionId by default (session can churn on buggy clients).
  * If you truly want sessionId included, set BODY_HASH_INCLUDE_SESSION=true.
+ *
+ * CRITICAL FIX: supports text/plain (string body).
  */
 const BODY_HASH_INCLUDE_SESSION = String(process.env.BODY_HASH_INCLUDE_SESSION || "false") === "true";
 function stableBodyForHash(body, req) {
-  const b = body && typeof body === "object" ? body : {};
   const headerVisitor = normalizeStr(req?.get?.("X-Visitor-Id") || "");
+  const headerSession = normalizeStr(req?.get?.("X-Session-Id") || "");
+  const headerVoice = normalizeStr(req?.get?.("X-Voice-Mode") || "");
+  const headerContract = normalizeStr(req?.get?.("X-Contract-Version") || "");
+
+  // If body is text/plain (string), treat it as message content
+  if (typeof body === "string") {
+    const text = normalizeStr(body).slice(0, MAX_HASH_TEXT_LEN);
+    return JSON.stringify({
+      text,
+      visitorId: headerVisitor || "",
+      contractVersion: headerContract || "",
+      voiceMode: headerVoice || "",
+      mode: "",
+      year: null,
+      sessionId: BODY_HASH_INCLUDE_SESSION ? headerSession : "",
+    });
+  }
+
+  const b = body && typeof body === "object" ? body : {};
+  const text = normalizeStr(b.text || b.message || "").slice(0, MAX_HASH_TEXT_LEN);
+
   return JSON.stringify({
-    text: normalizeStr(b.text || b.message || ""),
+    text,
     visitorId: normalizeStr(b.visitorId || headerVisitor || ""),
-    contractVersion: normalizeStr(b.contractVersion || ""),
-    voiceMode: normalizeStr(b.voiceMode || req?.get?.("X-Voice-Mode") || ""),
+    contractVersion: normalizeStr(b.contractVersion || headerContract || ""),
+    voiceMode: normalizeStr(b.voiceMode || headerVoice || ""),
     mode: normalizeStr(b.mode || ""),
     year: b.year ?? null,
-    sessionId: BODY_HASH_INCLUDE_SESSION ? normalizeStr(b.sessionId || req?.get?.("X-Session-Id") || "") : "",
+    sessionId: BODY_HASH_INCLUDE_SESSION ? normalizeStr(b.sessionId || headerSession || "") : "",
   });
 }
 
-/** Server-level intent signature (for loop kill, independent of widget/chatEngine).
- * - Uses normalized text + optional explicit year/mode mentions.
- * - This prevents "same prompt" storms from bricking UX.
- */
+/** Server-level intent signature (for loop kill, independent of widget/chatEngine). */
 function extractYear(text) {
   const m = String(text || "").match(/\b(19[5-9]\d|20[0-1]\d|202[0-4])\b/);
   if (!m) return null;
@@ -311,9 +328,9 @@ function deriveStableSessionId(req, visitorId) {
 }
 
 function getSessionId(req, body, visitorId) {
-  const b = body || {};
-  const fromBody = cleanSessionId(b.sessionId);
   const fromHeader = cleanSessionId(req.get("X-Session-Id"));
+  // if body is object, accept sessionId from body; if string, ignore
+  const fromBody = body && typeof body === "object" ? cleanSessionId(body.sessionId) : null;
   return fromBody || fromHeader || deriveStableSessionId(req, visitorId);
 }
 
@@ -333,6 +350,8 @@ const SESSION_PATCH_ALLOW = new Set([
   "__lastReplyAt",
   "__lastIntentSig",
   "__lastIntentAt",
+  "__repAt",
+  "__repCount",
 ]);
 function applySessionPatch(session, patch) {
   if (!session || !patch || typeof patch !== "object") return;
@@ -550,6 +569,9 @@ const BURSTS = new Map();
 // Body hash dedupe
 const BODY_DEDUPE_MS = clamp(process.env.BODY_DEDUPE_MS || 1600, 400, 5000);
 
+// Intent clamp (separate knob)
+const INTENT_DEDUPE_MS = clamp(process.env.INTENT_DEDUPE_MS || 2500, 600, 8000);
+
 // Reply-loop kill (server-level)
 const REPLY_DEDUPE_MS = clamp(process.env.REPLY_DEDUPE_MS || 1400, 300, 8000);
 const REPLY_REPEAT_WINDOW_MS = clamp(process.env.REPLY_REPEAT_WINDOW_MS || 5000, 1000, 20000);
@@ -570,7 +592,8 @@ function extractTextFromBody(body) {
 
 function validateContract(req, body) {
   const headerV = normalizeStr(req.get("X-Contract-Version") || "");
-  const bodyV = normalizeStr((body && body.contractVersion) || "");
+  const bodyV =
+    body && typeof body === "object" ? normalizeStr(body.contractVersion || "") : "";
   const v = bodyV || headerV || "";
   const strict = String(process.env.CONTRACT_STRICT || "false") === "true";
   if (!strict) return { ok: true, got: v || null };
@@ -683,7 +706,7 @@ app.post("/api/chat", async (req, res) => {
   }, CHAT_HANDLER_TIMEOUT_MS);
 
   try {
-    const body = req.body || {};
+    const body = req.body;
     const text = extractTextFromBody(body);
 
     const contract = validateContract(req, body);
@@ -701,7 +724,9 @@ app.post("/api/chat", async (req, res) => {
     }
 
     const visitorId =
-      normalizeStr(body.visitorId || "") || normalizeStr(req.get("X-Visitor-Id") || "") || null;
+      (body && typeof body === "object" ? normalizeStr(body.visitorId || "") : "") ||
+      normalizeStr(req.get("X-Visitor-Id") || "") ||
+      null;
 
     const sessionId = getSessionId(req, body, visitorId);
     const session = touchSession(sessionId, { visitorId }) || { sessionId };
@@ -746,7 +771,7 @@ app.post("/api/chat", async (req, res) => {
       }
     }
 
-    // --- Body-hash dedupe ---
+    // --- Body-hash dedupe (FIXED for text/plain) ---
     const bodyHash = sha256(stableBodyForHash(body, req));
     const lastHash = normalizeStr(session.__lastBodyHash || "");
     const lastAt = Number(session.__lastBodyAt || 0);
@@ -828,7 +853,7 @@ app.post("/api/chat", async (req, res) => {
       });
     }
 
-    // B) Runaway repeat clamp (same reply too many times in a short window)
+    // B) Runaway repeat clamp
     const repAt = Number(session.__repAt || 0);
     const repCount = Number(session.__repCount || 0);
     const withinRep = repAt && now - repAt < REPLY_REPEAT_WINDOW_MS;
@@ -879,11 +904,11 @@ app.post("/api/chat", async (req, res) => {
     session.__lastReplyHash = replyHash;
     session.__lastReplyAt = now;
 
-    // Server-level intent signature (extra loop kill)
+    // Server-level intent signature clamp (FIXED window)
     const sig = intentSigFrom(text, session);
     const lastSig = normalizeStr(session.__lastIntentSig || "");
     const lastSigAt = Number(session.__lastIntentAt || 0);
-    if (lastSig && sig === lastSig && lastSigAt && now - lastSigAt < BODY_DEDUPE_MS) {
+    if (lastSig && sig === lastSig && lastSigAt && now - lastSigAt < INTENT_DEDUPE_MS) {
       clearTimeout(watchdog);
       safeSet(res, "X-Nyx-Deduped", "intent-sig");
       return once.json(200, {
