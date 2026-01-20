@@ -15,16 +15,24 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.6t (RESET CHIP + RESET COMMAND)
+ * v0.6u (RESET + CONTINUITY NORMALIZER + NEXT/PREV MODE-AWARE)
+ *
+ * Adds / fixes:
  *  ✅ Adds “Reset” chip (backend-owned)
  *  ✅ Handles reset command from chip or typed text
  *  ✅ Soft-resets conversation via sessionPatch overwrite (no widget changes)
+ *
+ *  ✅ CONTINUITY NORMALIZER:
+ *     - Bare year "1989" becomes:
+ *        top 10 1989 / story moment 1989 / micro moment 1989 / #1 1989
+ *       depending on current session mode
+ *     - "next year" / "previous year" become mode-aware prompts too
  *
  * Preserves:
  *  ✅ v1 chips + year picker UI
  *  ✅ loop guards + output dampener
  *  ✅ call signature hardening
- *  ✅ NEXT continuity from v0.6s
+ *  ✅ NEXT continuity from v0.6s (improved)
  */
 
 const crypto = require("crypto");
@@ -388,25 +396,6 @@ function depthDialReply(pref) {
 }
 
 // ----------------------------
-// Micro-Bridge Layering
-// ----------------------------
-function needsBridge(sess, lane) {
-  if (!sess) return false;
-  const lastLane = sess.lastLane || null;
-  if (!lastLane) return false;
-  if (lastLane === lane) return false;
-
-  const big = new Set(["music", "tv", "roku", "schedule", "radio", "general"]);
-  return big.has(lastLane) && big.has(lane);
-}
-
-function bridgeLine(sess) {
-  const pref = (sess && sess.depthPreference) || "fast";
-  if (pref === "deep") return "Do you want the short version… or the full story?";
-  return "Do you want the headline… or the whole thread?";
-}
-
-// ----------------------------
 // Name Capture (session-safe)
 // ----------------------------
 function extractNameFromText(text) {
@@ -434,25 +423,6 @@ function extractNameFromText(text) {
   return name;
 }
 
-function shouldUseName(sess, turnsNow) {
-  const name = sess && sess.userName ? String(sess.userName).trim() : "";
-  if (!name) return false;
-
-  const lastUse = Number(sess.lastNameUseTurn || 0);
-  const gap = 12;
-  return (turnsNow - lastUse) >= gap;
-}
-
-function maybePrependName(sess, turnsNow, reply) {
-  const name = sess && sess.userName ? String(sess.userName).trim() : "";
-  if (!name) return { reply, used: false };
-
-  if (!shouldUseName(sess, turnsNow)) return { reply, used: false };
-
-  const prefix = `Okay, ${name}. `;
-  return { reply: `${prefix}${reply}`, used: true };
-}
-
 // ----------------------------
 // NEXT / DEEPER INTENTS + CONTINUITY RESOLVER
 // ----------------------------
@@ -467,6 +437,17 @@ function isNextIntent(text) {
     t === "go on" ||
     t === "another" ||
     t === "more"
+  );
+}
+
+function isPrevIntent(text) {
+  const t = normalizeText(text);
+  return (
+    t === "previous" ||
+    t === "previous year" ||
+    t === "prev" ||
+    t === "back" ||
+    t === "go back"
   );
 }
 
@@ -485,7 +466,7 @@ function isDeeperIntent(text) {
 
 function isAmbiguousNav(text) {
   const t = normalizeText(text);
-  return isNextIntent(t) || isDeeperIntent(t);
+  return isNextIntent(t) || isPrevIntent(t) || isDeeperIntent(t);
 }
 
 function detectLane(text) {
@@ -572,10 +553,10 @@ function modeToPrompt(mode, year) {
   return `top 10 ${y}`;
 }
 
-function computeNextYear(year) {
+function computeYearDelta(year, delta) {
   const y = parseInt(String(year || ""), 10);
   if (!Number.isFinite(y)) return null;
-  return clampInt(y + 1, 1950, 2024);
+  return clampInt(y + delta, 1950, 2024);
 }
 
 function nextDirective(cont) {
@@ -586,11 +567,85 @@ function nextDirective(cont) {
   if (lane !== "music") return null;
   if (!year || !/^\d{4}$/.test(String(year))) return { kind: "need_year" };
 
-  const ny = computeNextYear(year);
+  const ny = computeYearDelta(year, +1);
   if (!ny) return { kind: "need_year" };
 
   const prompt = modeToPrompt(mode || "top10", String(ny));
   return { kind: "advance", year: String(ny), prompt, mode: mode || "top10" };
+}
+
+function prevDirective(cont) {
+  const lane = cont && cont.lane ? cont.lane : "general";
+  const mode = cont && cont.mode ? cont.mode : null;
+  const year = cont && cont.year ? cont.year : null;
+
+  if (lane !== "music") return null;
+  if (!year || !/^\d{4}$/.test(String(year))) return { kind: "need_year" };
+
+  const py = computeYearDelta(year, -1);
+  if (!py) return { kind: "need_year" };
+
+  const prompt = modeToPrompt(mode || "top10", String(py));
+  return { kind: "advance", year: String(py), prompt, mode: mode || "top10" };
+}
+
+/**
+ * CONTINUITY NORMALIZER (CRITICAL):
+ * - Converts bare-year messages into mode-aware prompts.
+ * - Converts year:YYYY into mode-aware prompts when we already have a music mode.
+ * - Leaves explicit user intent alone (top 10 1989 / story moment 1989 etc.)
+ */
+function isBareYearOnly(text) {
+  const t = String(text || "").trim();
+  return /^(19\d{2}|20\d{2})$/.test(t);
+}
+
+function isYearColon(text) {
+  const t = String(text || "").trim();
+  return /^year:\s*(19\d{2}|20\d{2})$/i.test(t);
+}
+
+function parseYearColon(text) {
+  const m = String(text || "").trim().match(/^year:\s*(19\d{2}|20\d{2})$/i);
+  return m ? m[1] : null;
+}
+
+function normalizeContinuityInput(rawText, sess) {
+  const t = String(rawText || "").trim();
+  if (!t) return { text: t, normalized: false, reason: null };
+
+  // If user typed reset directly, don't rewrite
+  if (isResetIntent(t)) return { text: t, normalized: false, reason: null };
+
+  // If user already gave an explicit intent, don't rewrite
+  if (isDirectIntent(t) || detectMode(t) || /\btop\s*10\b|\btop\s*100\b|\bstory\s*moment\b|\bmicro\s*moment\b|\b#1\b/.test(normalizeText(t))) {
+    return { text: t, normalized: false, reason: null };
+  }
+
+  const cont = getContinuity(sess, t);
+
+  // Bare year "1989" -> mode-aware prompt (only if we have a music mode OR are in music lane)
+  if (isBareYearOnly(t)) {
+    const y = t;
+    const mode = cont.mode || (cont.lane === "music" ? "top10" : null);
+    if (cont.lane === "music" || sess.lastMusicYear || sess.activeMusicMode || sess.lastMode) {
+      return { text: modeToPrompt(mode || "top10", y), normalized: true, reason: "bare_year_mode_aware" };
+    }
+    // If truly no music context, treat as "year:YYYY" (lets UI/year flow catch it)
+    return { text: `year:${y}`, normalized: true, reason: "bare_year_to_yearcolon" };
+  }
+
+  // year:YYYY -> if we have a mode, convert into that mode prompt
+  if (isYearColon(t)) {
+    const y = parseYearColon(t);
+    const mode = cont.mode || (cont.lane === "music" ? "top10" : null);
+    if (y && (cont.lane === "music" || sess.activeMusicMode || sess.lastMode)) {
+      return { text: modeToPrompt(mode || "top10", y), normalized: true, reason: "yearcolon_to_mode_prompt" };
+    }
+    return { text: `year:${y}`, normalized: true, reason: "yearcolon_passthru" };
+  }
+
+  return { text: t, normalized: false, reason: null };
 }
 
 // ----------------------------
@@ -759,8 +814,7 @@ async function chatEngine(arg1, arg2) {
     const r = resetReply();
     const followUpsStrings = maybeInjectResetChip(r.followUpsStrings, { turns: 1, introDone: true });
 
-    const sessionPatch = resetSessionPatch(sess);
-
+    const sessionPatchBase = resetSessionPatch(sess);
     const outSig = buildOutSig(r.reply, followUpsStrings);
 
     return {
@@ -772,8 +826,7 @@ async function chatEngine(arg1, arg2) {
       followUpsStrings,
       followUps: chipsFromStrings(followUpsStrings, 4),
       sessionPatch: filterSessionPatch({
-        ...sessionPatch,
-        // cache the reset reply so loop guards don’t misbehave
+        ...sessionPatchBase,
         lastOut: { reply: r.reply, followUps: followUpsStrings },
         lastOutAt: nowMs(),
         lastOutSig: outSig,
@@ -785,19 +838,28 @@ async function chatEngine(arg1, arg2) {
     };
   }
 
+  // ----------------------------
+  // CONTINUITY NORMALIZER (runs BEFORE next/deeper, name, depth, routing)
+  // ----------------------------
+  const normIn = normalizeContinuityInput(safeText, sess);
+  const routingText0 = normIn && typeof normIn.text === "string" ? normIn.text : safeText;
+
   // Continuity snapshot (used for next/deeper)
-  const cont = getContinuity(sess, safeText);
+  const cont = getContinuity(sess, routingText0);
 
   // ----------------------------
-  // NEXT intent intercept
+  // NEXT / PREVIOUS intercept
   // ----------------------------
-  if (isNextIntent(safeText)) {
+  let routingText = routingText0;
+  let navContext = null;
+
+  if (isNextIntent(routingText0)) {
     const nx = nextDirective(cont);
 
     if (nx && nx.kind === "need_year") {
       const yp = yearPickerReply(sess);
       const sessionPatch = filterSessionPatch({
-        lastInText: safeText,
+        lastInText: routingText0,
         lastInAt: nowMs(),
         recentIntent: "next_need_year",
         recentTopic: "next:need_year",
@@ -820,15 +882,41 @@ async function chatEngine(arg1, arg2) {
     }
 
     if (nx && nx.kind === "advance" && nx.prompt) {
-      var routingText = String(nx.prompt);
-      var nextContext = nx;
-    } else {
-      var routingText = safeText;
-      var nextContext = null;
+      routingText = String(nx.prompt);
+      navContext = { kind: "advance", dir: "next", year: String(nx.year), mode: String(nx.mode || "top10") };
     }
-  } else {
-    var routingText = safeText;
-    var nextContext = null;
+  } else if (isPrevIntent(routingText0)) {
+    const pv = prevDirective(cont);
+
+    if (pv && pv.kind === "need_year") {
+      const yp = yearPickerReply(sess);
+      const sessionPatch = filterSessionPatch({
+        lastInText: routingText0,
+        lastInAt: nowMs(),
+        recentIntent: "prev_need_year",
+        recentTopic: "prev:need_year",
+        lane: "music",
+        pendingLane: "music",
+        pendingMode: cont.mode || sess.activeMusicMode || "top10"
+      });
+
+      const chips = maybeInjectResetChip(yp.followUpsStrings, sess);
+
+      return {
+        ...yp,
+        followUpsStrings: chips,
+        followUps: chipsFromStrings(chips, 4),
+        sessionPatch,
+        cog: { phase: "engaged", state: "guide", reason: "prev_needs_year", lane: "music", ts: nowMs() },
+        requestId,
+        meta: { ts: nowMs(), contract: "v1" }
+      };
+    }
+
+    if (pv && pv.kind === "advance" && pv.prompt) {
+      routingText = String(pv.prompt);
+      navContext = { kind: "advance", dir: "prev", year: String(pv.year), mode: String(pv.mode || "top10") };
+    }
   }
 
   // Name capture intercept
@@ -1023,11 +1111,11 @@ async function chatEngine(arg1, arg2) {
   reply = damp.reply;
   const outSig = damp.sig;
 
-  // continuity pins for NEXT (unchanged from v0.6s behavior)
-  const pinnedLane = (nextContext && nextContext.kind === "advance") ? "music" : lane;
-  const pinnedYear = (nextContext && nextContext.kind === "advance") ? String(nextContext.year) : (year || null);
+  // continuity pins
+  const pinnedLane = (navContext && navContext.kind === "advance") ? "music" : lane;
+  const pinnedYear = (navContext && navContext.kind === "advance") ? String(navContext.year) : (year || null);
   const pinnedMode =
-    (nextContext && nextContext.kind === "advance") ? String(nextContext.mode || "top10") :
+    (navContext && navContext.kind === "advance") ? String(navContext.mode || "top10") :
     (mode || null);
 
   const activeMusicMode =
@@ -1054,8 +1142,8 @@ async function chatEngine(arg1, arg2) {
     lastYear: pinnedYear || undefined,
     lastMode: pinnedMode || undefined,
 
-    recentIntent: pinnedLane,
-    recentTopic: pinnedYear ? `year:${pinnedYear}` : (pinnedMode ? `mode:${pinnedMode}` : pinnedLane),
+    recentIntent: normIn.normalized ? "continuity_normalized" : pinnedLane,
+    recentTopic: normIn.normalized ? (normIn.reason || "continuity") : (pinnedYear ? `year:${pinnedYear}` : (pinnedMode ? `mode:${pinnedMode}` : pinnedLane)),
 
     lastOut: outCache,
     lastOutAt: nowMs(),
@@ -1082,7 +1170,7 @@ async function chatEngine(arg1, arg2) {
     cog: {
       phase: "engaged",
       state: "respond",
-      reason: nextContext ? "next_advance" : "reply",
+      reason: navContext ? "nav_advance" : (normIn.normalized ? "continuity_normalized" : "reply"),
       lane: pinnedLane,
       year: pinnedYear || undefined,
       mode: pinnedMode || undefined,
