@@ -6,13 +6,22 @@
  *  - NO express
  *  - NO server start
  *  - NO index.js imports
- *  - returns { ok, reply, followUps, sessionPatch, cog, requestId }
  *
- * v0.6q (BULLETPROOF+++):
- *  ✅ Preserves musicKnowledge loop dampener:
- *      - allows __musicLastSig + activeMusicChart + lastMusicChart through sessionPatch allowlist
- *  ✅ Keeps Advancement Engine v1 + One-question rule
- *  ✅ Keeps lane routing + micro-bridge + elasticity + output dampener
+ * Returns (NyxReplyContract v1 + backwards compatibility):
+ *  {
+ *    ok, reply, lane, ctx, ui,
+ *    followUps: [{id,type,label,payload}],   // preferred
+ *    followUpsStrings: ["..."],             // legacy
+ *    sessionPatch, cog, requestId, meta
+ *  }
+ *
+ * v0.6r (CONTRACT v1: followUps objects + year-picker UI + lane/ctx/ui/meta)
+ *
+ * Key goals:
+ *  ✅ Backend owns flow: every response includes next actions (followUps)
+ *  ✅ Widget stays dumb/safe: render reply + chips + optional year picker
+ *  ✅ Keeps legacy followUpsStrings so older widgets don’t break
+ *  ✅ Keeps your handler-signature hardening (object vs string call style)
  */
 
 const crypto = require("crypto");
@@ -98,9 +107,12 @@ function chipsToStrings(chips) {
   return dedupeStrings(out, 10);
 }
 
+/**
+ * Normalize followups coming back from lane modules into a simple string list.
+ * (We then convert to contract chips below.)
+ */
 function normalizeFollowUpsFromLane(res) {
   if (!res || typeof res !== "object") return [];
-
   if (Array.isArray(res.followUpsStrings)) return dedupeStrings(res.followUpsStrings, 10);
 
   if (Array.isArray(res.followUps) && (res.followUps.length === 0 || typeof res.followUps[0] === "string")) {
@@ -112,6 +124,89 @@ function normalizeFollowUpsFromLane(res) {
   }
 
   return [];
+}
+
+// ----------------------------
+// CONTRACT v1 helpers
+// ----------------------------
+const UI_PAYLOAD = {
+  YEAR_PICKER: "__ui:year_picker__"
+};
+
+function extractYearFromLabel(label) {
+  const m = String(label || "").match(/\b(19\d{2}|20\d{2})\b/);
+  return m ? m[1] : null;
+}
+
+function payloadForLabel(label) {
+  const s = String(label || "").replace(/\s+/g, " ").trim();
+  const t = s.toLowerCase();
+
+  // UI triggers
+  if (t === "pick a year" || t === "pick another year" || t === "years") return UI_PAYLOAD.YEAR_PICKER;
+
+  // Years
+  if (/^(19\d{2}|20\d{2})$/.test(s)) return `year:${s}`;
+
+  // Music intents
+  const y = extractYearFromLabel(s);
+  if (y) {
+    if (/^top\s*10\b/.test(t)) return `top 10 ${y}`;
+    if (/^top\s*100\b/.test(t)) return `top 100 ${y}`;
+    if (/^story\s*moment\b/.test(t)) return `story moment ${y}`;
+    if (/^micro\s*moment\b/.test(t)) return `micro moment ${y}`;
+    if (/^\#1\b/.test(t) || /^number\s*1\b/.test(t)) return `#1 ${y}`;
+    if (/^next\s*year\b/.test(t)) {
+      const n = clampInt(parseInt(y, 10) + 1, 1950, 2024);
+      return `year:${n}`;
+    }
+    if (/^previous\s*year\b/.test(t) || /^prev\s*year\b/.test(t)) {
+      const n = clampInt(parseInt(y, 10) - 1, 1950, 2024);
+      return `year:${n}`;
+    }
+  }
+
+  // Roku / schedule common
+  if (t === "open roku") return "open roku";
+  if (t === "schedule") return "schedule";
+  if (t === "what’s playing now" || t === "what's playing now" || t === "playing now") return "what's playing now";
+
+  // Default: send label as text
+  return s;
+}
+
+function chipsFromStrings(strings, max = 4) {
+  const list = dedupeStrings(strings, 10).slice(0, max);
+  const out = [];
+  for (let i = 0; i < list.length; i++) {
+    const label = list[i];
+    out.push({
+      id: `c${i + 1}`,
+      type: "chip",
+      label,
+      payload: payloadForLabel(label)
+    });
+  }
+  return out;
+}
+
+function ensureFollowUpsNonEmpty(lane, year, followUpsStrings) {
+  const base = safeArray(followUpsStrings);
+  if (base.length > 0) return base;
+
+  if (lane === "music") {
+    if (year && /^\d{4}$/.test(String(year))) {
+      return [`Top 10 ${year}`, `Story moment ${year}`, `Micro moment ${year}`, "Pick a year"];
+    }
+    return ["Pick a year", "Surprise me", "Story moment", "Just talk"];
+  }
+
+  if (lane === "roku") return ["Live linear", "VOD", "Schedule", "Open Roku"];
+  if (lane === "schedule") return ["Toronto", "London", "New York", "What’s playing now"];
+  if (lane === "tv") return ["Live linear", "VOD", "Show me the Roku path", "What’s playing now"];
+  if (lane === "radio") return ["Open radio", "Pick a year", "What’s playing now", "Just talk"];
+
+  return ["Pick a year", "Surprise me", "Story moment", "Just talk"];
 }
 
 // ----------------------------
@@ -134,16 +229,13 @@ const SESSION_ALLOW = new Set([
   // elasticity
   "elasticToggle", "lastElasticAt",
 
-  // lane intent continuity (safe)
+  // lane continuity (safe)
+  "lane",               // IMPORTANT for server allowlist compatibility
   "pendingLane", "pendingMode", "pendingYear",
   "recentIntent", "recentTopic",
 
   // music continuity (safe)
   "activeMusicMode", "lastMusicYear", "year", "mode",
-
-  // ✅ musicKnowledge continuity (safe + essential)
-  "activeMusicChart", "lastMusicChart",
-  "__musicLastSig", // <-- critical: preserves musicKnowledge loop dampener
 
   // conversational layering (safe)
   "depthPreference", "userName", "nameAskedAt", "lastOpenQuestion", "userGoal",
@@ -174,43 +266,54 @@ function shouldReturnCachedForRepeat(session, userText) {
 
   if (lastT && t === lastT && (nowMs() - lastAt) <= withinMs) {
     const lastOut = session && session.lastOut;
-    if (lastOut && typeof lastOut.reply === "string") return true;
+    if (lastOut && typeof lastOut.reply === "string" && lastOut.reply.trim()) return true;
   }
   return false;
 }
 
-function cachedResponse(session, reason) {
+function cachedResponse(session, reason, requestIdIn) {
   const lastOut = (session && session.lastOut) || {};
+  const reply = lastOut.reply || "One sec — try again.";
+  const followUpsStrings = safeArray(lastOut.followUps).slice(0, 4);
+
   return {
     ok: true,
-    reply: lastOut.reply || "One sec — try again.",
-    followUps: safeArray(lastOut.followUps).slice(0, 4),
+    reply,
+    lane: (session && session.lane) || "general",
+    ctx: {
+      year: session && (session.lastYear || session.lastMusicYear || session.year) || null,
+      mode: session && (session.lastMode || session.mode) || null
+    },
+    ui: { mode: "chat" },
+    followUpsStrings,
+    followUps: chipsFromStrings(followUpsStrings, 4),
     sessionPatch: filterSessionPatch({
       lastInAt: nowMs(),
       recentIntent: "loop_guard",
       recentTopic: reason || "repeat_input"
     }),
     cog: { phase: "engaged", state: "steady", reason: "input_loop_guard", lane: "general", ts: nowMs() },
-    requestId: rid()
+    requestId: requestIdIn || rid(),
+    meta: { ts: nowMs(), contract: "v1" }
   };
 }
 
 // ----------------------------
 // Content signature dampener
 // ----------------------------
-function buildOutSig(reply, followUps) {
-  const chips = safeArray(followUps).slice(0, 4).join(" | ");
+function buildOutSig(reply, followUpsStrings) {
+  const chips = safeArray(followUpsStrings).slice(0, 4).join(" | ");
   return hashSig(`${String(reply || "")}__${chips}`);
 }
 
-function dampenIfDuplicateOutput(session, reply, followUps) {
-  const sig = buildOutSig(reply, followUps);
+function dampenIfDuplicateOutput(session, reply, followUpsStrings) {
+  const sig = buildOutSig(reply, followUpsStrings);
   const lastSig = (session && session.lastOutSig) || "";
   const lastSigAt = Number(session && session.lastOutSigAt) || 0;
 
   if (sig && lastSig && sig === lastSig && (nowMs() - lastSigAt) < 12_000) {
     const tweak = "\n\n(If you want, tell me what you want next — I’m listening.)";
-    return { reply: `${reply}${tweak}`, sig: buildOutSig(`${reply}${tweak}`, followUps) };
+    return { reply: `${reply}${tweak}`, sig: buildOutSig(`${reply}${tweak}`, followUpsStrings) };
   }
   return { reply, sig };
 }
@@ -239,14 +342,14 @@ If you tell me your name, I’ll remember it for this session — or we can skip
 
 What do you feel like right now: a specific year, a surprise, or just talking?`;
 
-  const followUps = [
+  const followUpsStrings = [
     "Pick a year",
     "Surprise me",
     "Story moment",
     "Just talk"
   ];
 
-  return { reply, followUps };
+  return { reply, followUpsStrings };
 }
 
 // ----------------------------
@@ -331,7 +434,7 @@ function maybePrependName(sess, turnsNow, reply) {
 }
 
 // ----------------------------
-// ADVANCEMENT ENGINE V1 + ONE-QUESTION RULE
+// ADVANCEMENT ENGINE V1
 // ----------------------------
 function replyHasQuestion(reply) {
   const r = String(reply || "").trim();
@@ -392,20 +495,20 @@ function advancePack(lane, sess) {
   };
 }
 
-function applyAdvancement({ inputText, reply, followUps, lane, sess }) {
+function applyAdvancement({ inputText, reply, followUpsStrings, lane, sess }) {
   const t = normalizeText(inputText);
 
-  if (isDirectIntent(t)) return { reply, followUps };
-  if (replyHasQuestion(reply)) return { reply, followUps };
+  if (isDirectIntent(t)) return { reply, followUpsStrings };
+  if (replyHasQuestion(reply)) return { reply, followUpsStrings };
 
   const pack = advancePack(lane, sess);
 
   const outReply = `${String(reply || "").trim()}\n\n${pack.line}`.trim();
 
-  const merged = [...safeArray(followUps), ...safeArray(pack.chips)];
+  const merged = [...safeArray(followUpsStrings), ...safeArray(pack.chips)];
   const outChips = dedupeStrings(merged, 10).slice(0, 4);
 
-  return { reply: outReply, followUps: outChips };
+  return { reply: outReply, followUpsStrings: outChips };
 }
 
 // ----------------------------
@@ -492,7 +595,7 @@ function elasticityOverlay(session) {
 
 Do you want to keep going in the same direction — or pivot a little?`;
 
-  return { reply, followUps: chips.filter(Boolean).slice(0, 4) };
+  return { reply, followUpsStrings: chips.filter(Boolean).slice(0, 4) };
 }
 
 // ----------------------------
@@ -522,13 +625,17 @@ function detectLane(text) {
   if (/\b(roku|vod|on\s*demand)\b/.test(t)) return "roku";
   if (/\b(tv|television)\b/.test(t)) return "tv";
   if (/\b(radio)\b/.test(t)) return "radio";
-  if (/\b(top\s*10|top\s*100|#1|story\s*moment|micro\s*moment|\b19\d{2}\b|\b20\d{2}\b)\b/.test(t)) return "music";
+  if (/\b(top\s*10|top\s*100|#1|story\s*moment|micro\s*moment|\byear:\s*(19\d{2}|20\d{2})\b|\b19\d{2}\b|\b20\d{2}\b)\b/.test(t)) return "music";
   return "general";
 }
 
 function extractYear(text) {
-  const m = String(text || "").match(/\b(19\d{2}|20\d{2})\b/);
-  return m ? m[1] : null;
+  const s = String(text || "");
+  // support "year:1990" format
+  const m1 = s.match(/\byear:\s*(19\d{2}|20\d{2})\b/i);
+  if (m1) return m1[1];
+  const m2 = s.match(/\b(19\d{2}|20\d{2})\b/);
+  return m2 ? m2[1] : null;
 }
 
 function detectMode(text) {
@@ -540,77 +647,179 @@ function detectMode(text) {
   if (/\b#1\b/.test(t)) return "number1";
   if (/\b(vod|on\s*demand)\b/.test(t)) return "vod";
   if (/\b(live|linear|live\s*linear)\b/.test(t)) return "live";
+  if (/\b(surprise\s*me)\b/.test(t)) return "surprise";
   return null;
+}
+
+// ----------------------------
+// CALL SIGNATURE NORMALIZER (CRITICAL)
+// ----------------------------
+function normalizeInputArgs(arg1, arg2) {
+  // Style B: chatEngine({ text, session, requestId, debug })
+  if (arg1 && typeof arg1 === "object" && !Array.isArray(arg1)) {
+    const obj = arg1;
+    const text = typeof obj.text === "string" ? obj.text : (typeof obj.message === "string" ? obj.message : "");
+    const session = (obj.session && typeof obj.session === "object") ? obj.session : (arg2 && typeof arg2 === "object" ? arg2 : {});
+    const requestId = (typeof obj.requestId === "string" && obj.requestId.trim()) ? obj.requestId.trim() : null;
+    const debug = !!obj.debug;
+    return { text, session, requestId, debug };
+  }
+
+  // Style A: chatEngine("hi", session)
+  return {
+    text: typeof arg1 === "string" ? arg1 : String(arg1 || ""),
+    session: (arg2 && typeof arg2 === "object") ? arg2 : {},
+    requestId: null,
+    debug: false
+  };
+}
+
+// ----------------------------
+// Year picker intent (backend-owned trigger)
+// ----------------------------
+function wantsYearPicker(text) {
+  const t = normalizeText(text);
+  return (
+    t === UI_PAYLOAD.YEAR_PICKER ||
+    t === "pick a year" ||
+    t === "years" ||
+    t === "pick another year"
+  );
+}
+
+function yearPickerReply(sess) {
+  const reply = "Pick a year (1950–2024). Want Top 10, a story moment, or a micro moment after you choose?";
+  const followUpsStrings = [
+    "Surprise me",
+    "Top 10 1988",
+    "Story moment 1955",
+    "Just talk"
+  ];
+  return {
+    ok: true,
+    reply,
+    lane: "music",
+    ctx: {
+      year: sess && (sess.lastYear || sess.lastMusicYear || sess.year) || null,
+      mode: "discover"
+    },
+    ui: {
+      mode: "year_picker",
+      yearMin: 1950,
+      yearMax: 2024,
+      decadeJump: true
+    },
+    followUpsStrings,
+    followUps: chipsFromStrings(followUpsStrings, 4)
+  };
 }
 
 // ----------------------------
 // Public API
 // ----------------------------
-async function chatEngine(inputText, session) {
-  const requestId = rid();
-  const text = String(inputText || "");
-  const sess = session && typeof session === "object" ? session : {};
+async function chatEngine(arg1, arg2) {
+  const norm = normalizeInputArgs(arg1, arg2);
+
+  const text = String(norm.text || "").trim();
+  const sess = norm.session && typeof norm.session === "object" ? norm.session : {};
+  const requestId = norm.requestId || rid();
+
+  // Avoid poisoning on bad inputs
+  const safeText = text === "[object Object]" ? "" : text;
 
   // Name capture intercept
-  const maybeName = extractNameFromText(text);
+  const maybeName = extractNameFromText(safeText);
   if (maybeName) {
     const reply = `Nice to meet you, ${maybeName}. What do you feel like right now: a specific year, a surprise, or just talking?`;
-    const followUps = ["Pick a year", "Surprise me", "Story moment", "Just talk"];
+    const followUpsStrings = ["Pick a year", "Surprise me", "Story moment", "Just talk"];
 
     const sessionPatch = filterSessionPatch({
-      lastInText: text,
+      lastInText: safeText,
       lastInAt: nowMs(),
       userName: maybeName,
       lastNameUseTurn: Number(sess.turns || 0),
-      recentTopic: "name:capture"
+      recentTopic: "name:capture",
+      lane: "general"
     });
 
     return {
       ok: true,
       reply,
-      followUps,
+      lane: "general",
+      ctx: { year: null, mode: "discover" },
+      ui: { mode: "chat" },
+      followUpsStrings,
+      followUps: chipsFromStrings(followUpsStrings, 4),
       sessionPatch,
       cog: { phase: "engaged", state: "welcome", reason: "name_captured", lane: "general", ts: nowMs() },
-      requestId
+      requestId,
+      meta: { ts: nowMs(), contract: "v1" }
     };
   }
 
   // Depth dial intercept
-  if (isDepthDial(text)) {
-    const pref = normalizeText(text);
+  if (isDepthDial(safeText)) {
+    const pref = normalizeText(safeText);
     const reply = depthDialReply(pref);
-    const followUps = ["Pick a year", "What’s playing now", "Show me the Roku path", "Just talk"];
+    const followUpsStrings = ["Pick a year", "What’s playing now", "Show me the Roku path", "Just talk"];
 
     const sessionPatch = filterSessionPatch({
-      lastInText: text,
+      lastInText: safeText,
       lastInAt: nowMs(),
       depthPreference: pref,
-      recentTopic: `depth:${pref}`
+      recentTopic: `depth:${pref}`,
+      lane: "general"
     });
 
     return {
       ok: true,
       reply,
-      followUps,
+      lane: "general",
+      ctx: { year: null, mode: "discover" },
+      ui: { mode: "chat" },
+      followUpsStrings,
+      followUps: chipsFromStrings(followUpsStrings, 4),
       sessionPatch,
       cog: { phase: "engaged", state: "calibrate", reason: "depth_dial", lane: "general", ts: nowMs() },
-      requestId
+      requestId,
+      meta: { ts: nowMs(), contract: "v1" }
     };
   }
 
-  if (shouldReturnCachedForRepeat(sess, text)) {
-    return cachedResponse(sess, "repeat_input");
+  // Year picker trigger (UI mode)
+  if (wantsYearPicker(safeText)) {
+    const yp = yearPickerReply(sess);
+    const sessionPatch = filterSessionPatch({
+      lastInText: safeText,
+      lastInAt: nowMs(),
+      recentIntent: "year_picker",
+      recentTopic: "ui:year_picker",
+      lane: "music"
+    });
+
+    return {
+      ...yp,
+      sessionPatch,
+      cog: { phase: "engaged", state: "guide", reason: "ui_year_picker", lane: "music", ts: nowMs() },
+      requestId,
+      meta: { ts: nowMs(), contract: "v1" }
+    };
+  }
+
+  // Repeat-input loop guard
+  if (shouldReturnCachedForRepeat(sess, safeText)) {
+    return cachedResponse(sess, "repeat_input", requestId);
   }
 
   const inPatch = filterSessionPatch({
-    lastInText: text,
+    lastInText: safeText,
     lastInAt: nowMs()
   });
 
   // Intro V2
-  if (shouldRunIntro(sess, text)) {
+  if (shouldRunIntro(sess, safeText)) {
     const intro = nyxIntroReply();
-    const outSig = buildOutSig(intro.reply, intro.followUps);
+    const outSig = buildOutSig(intro.reply, intro.followUpsStrings);
 
     const sessionPatch = filterSessionPatch({
       ...inPatch,
@@ -626,7 +835,9 @@ async function chatEngine(inputText, session) {
       lastOpenQuestion: "What do you feel like right now: a specific year, a surprise, or just talking?",
       nameAskedAt: nowMs(),
 
-      lastOut: { reply: intro.reply, followUps: intro.followUps },
+      lane: "general",
+
+      lastOut: { reply: intro.reply, followUps: intro.followUpsStrings },
       lastOutAt: nowMs(),
       lastOutSig: outSig,
       lastOutSigAt: nowMs()
@@ -635,105 +846,118 @@ async function chatEngine(inputText, session) {
     return {
       ok: true,
       reply: intro.reply,
-      followUps: intro.followUps,
+      lane: "general",
+      ctx: { year: null, mode: "discover" },
+      ui: { mode: "chat" },
+      followUpsStrings: intro.followUpsStrings,
+      followUps: chipsFromStrings(intro.followUpsStrings, 4),
       sessionPatch,
       cog: { phase: "engaged", state: "welcome", reason: "intro_v2", lane: "general", ts: nowMs() },
-      requestId
+      requestId,
+      meta: { ts: nowMs(), contract: "v1" }
     };
   }
 
-  const lane = detectLane(text);
-  const year = extractYear(text);
-  const mode = detectMode(text);
+  const lane = detectLane(safeText);
+  const year = extractYear(safeText);
+  const mode = detectMode(safeText);
 
   let reply = "";
-  let followUps = [];
+  let followUpsStrings = [];
   let lanePatch = null;
 
   if (lane === "music" && musicLane) {
     try {
-      const res = await musicLane(text, sess);
+      const res = await musicLane(safeText, sess);
       reply = (res && res.reply) ? String(res.reply).trim() : "";
       if (!reply) reply = "Tell me a year (1950–2024), or say “top 10 1988”.";
-      followUps = normalizeFollowUpsFromLane(res);
+      followUpsStrings = normalizeFollowUpsFromLane(res);
       lanePatch = filterSessionPatch(res && res.sessionPatch ? res.sessionPatch : null);
     } catch (_) {
       reply = "Music lane hiccup. Give me a year (1950–2024) and I’ll pull it up.";
-      followUps = ["Top 10 1988", "Pick a year", "Story moment 1955", "Micro moment 1979"];
+      followUpsStrings = ["Top 10 1988", "Pick a year", "Story moment 1955", "Micro moment 1979"];
       lanePatch = null;
     }
   } else if (lane === "roku" && rokuLane) {
     try {
-      const r = await rokuLane({ text, session: sess });
+      const r = await rokuLane({ text: safeText, session: sess });
       reply = (r && r.reply) ? String(r.reply).trim() : "Roku mode — live linear or VOD?";
-      followUps = normalizeFollowUpsFromLane(r);
+      followUpsStrings = normalizeFollowUpsFromLane(r);
       lanePatch = filterSessionPatch(r && r.sessionPatch ? r.sessionPatch : null);
     } catch (_) {
       reply = "Roku routing is warming up.";
-      followUps = ["Live linear", "VOD", "Schedule", "Open Roku"];
+      followUpsStrings = ["Live linear", "VOD", "Schedule", "Open Roku"];
       lanePatch = null;
     }
   } else if (lane === "radio") {
     reply = "Want to jump into the radio stream now, or should I guide you to a specific era first?";
-    followUps = ["Open radio", "Pick a year", "What’s playing now", "Just talk"];
+    followUpsStrings = ["Open radio", "Pick a year", "What’s playing now", "Just talk"];
   } else if (lane === "tv") {
     reply = "Sandblast TV is coming in two flavors: **Live linear** and **VOD**.";
-    followUps = ["Live linear", "VOD", "Show me the Roku path", "What’s playing now"];
+    followUpsStrings = ["Live linear", "VOD", "Show me the Roku path", "What’s playing now"];
   } else if (lane === "schedule") {
     reply = "Schedule mode — I can translate programming to your local time.";
-    followUps = ["Toronto", "London", "New York", "What’s playing now"];
+    followUpsStrings = ["Toronto", "London", "New York", "What’s playing now"];
   } else {
     reply = "I’m with you.";
-    followUps = ["Pick a year", "Show me the Roku path", "What’s playing now", "Just talk"];
+    followUpsStrings = ["Pick a year", "Surprise me", "Story moment", "Just talk"];
   }
 
-  // Micro-bridge layering (only when lane changes)
+  // Bridge layering (only when lane changes)
   if (needsBridge(sess, lane)) {
     reply = `${reply}\n\n${bridgeLine(sess)}`;
-    followUps = dedupeStrings([...followUps, "Fast", "Deep"], 10).slice(0, 4);
+    followUpsStrings = dedupeStrings([...followUpsStrings, "Fast", "Deep"], 10).slice(0, 4);
   }
 
-  // Advancement Engine v1
+  // Advancement Engine v1 (before elasticity)
   {
-    const adv = applyAdvancement({ inputText: text, reply, followUps, lane, sess });
+    const adv = applyAdvancement({ inputText: safeText, reply, followUpsStrings, lane, sess });
     reply = adv.reply;
-    followUps = adv.followUps;
+    followUpsStrings = adv.followUpsStrings;
   }
+
+  // Ensure we ALWAYS have followups
+  followUpsStrings = ensureFollowUpsNonEmpty(lane, year, followUpsStrings).slice(0, 4);
 
   // Telemetry
   const tele = bumpTelemetry(sess, lane, year, mode);
   const depthLevel = clampInt((Number(sess.depthLevel) || 0) + 1, 0, 20);
 
-  // Name usage (sparse)
+  // Name usage (sparse) — only after we know turns
   const namePre = maybePrependName(sess, tele.turns, reply);
   reply = namePre.reply;
 
   // Elasticity overlay
-  const canElastic = shouldElasticOverlay({ ...sess, ...tele, introDone: true, depthLevel }, text);
+  const canElastic = shouldElasticOverlay({ ...sess, ...tele, introDone: true, depthLevel }, safeText);
   if (canElastic) {
     const elastic = elasticityOverlay({ ...sess, ...tele, depthLevel });
-    const merged = [...safeArray(followUps), ...safeArray(elastic.followUps)];
-    followUps = dedupeStrings(merged, 10).slice(0, 4);
+    const merged = [...safeArray(followUpsStrings), ...safeArray(elastic.followUpsStrings)];
+    followUpsStrings = dedupeStrings(merged, 10).slice(0, 4);
     reply = `${reply}\n\n—\n\n${elastic.reply}`;
   } else {
-    followUps = dedupeStrings(followUps, 10).slice(0, 4);
+    followUpsStrings = dedupeStrings(followUpsStrings, 10).slice(0, 4);
   }
 
   // Phase3 sprinkle
   const p3 = phase3Sprinkle({ ...sess, depthLevel });
   if (p3) reply = `${reply}\n\n${p3}`;
 
-  // Output dampener
-  const damp = dampenIfDuplicateOutput(sess, reply, followUps);
+  // Dampener
+  const damp = dampenIfDuplicateOutput(sess, reply, followUpsStrings);
   reply = damp.reply;
   const outSig = damp.sig;
 
-  const outCache = { reply, followUps: safeArray(followUps).slice(0, 4) };
+  const outCache = { reply, followUps: safeArray(followUpsStrings).slice(0, 4) };
 
+  // Compose patch (merge lanePatch + name usage marker if used)
   const sessionPatch = filterSessionPatch({
     ...inPatch,
     ...tele,
     ...lanePatch,
+
+    // pin current lane explicitly for server allowlist retention
+    lane,
+
     depthLevel,
     elasticToggle: Number(sess.elasticToggle || 0) + 1,
     lastElasticAt: canElastic ? nowMs() : Number(sess.lastElasticAt || 0),
@@ -761,7 +985,38 @@ async function chatEngine(inputText, session) {
     ts: nowMs()
   };
 
-  return { ok: true, reply, followUps: outCache.followUps, sessionPatch, cog, requestId };
+  // Contract ctx/ui
+  const ctx = {
+    year: year ? parseInt(year, 10) : (sess.lastYear ? parseInt(sess.lastYear, 10) : null),
+    mode: mode || (sess.lastMode || null)
+  };
+
+  const ui = { mode: "chat" };
+
+  // If our followups include year picker, we can hint UI mode (widget can ignore)
+  if (followUpsStrings.some(s => normalizeText(s) === "pick a year")) {
+    // keep chat mode by default; widget switches ONLY on chip click (gesture)
+    ui.mode = "chat";
+  }
+
+  return {
+    ok: true,
+    reply,
+    lane,
+    ctx,
+    ui,
+
+    // preferred v1 chips
+    followUps: chipsFromStrings(followUpsStrings, 4),
+
+    // legacy
+    followUpsStrings: followUpsStrings,
+
+    sessionPatch,
+    cog,
+    requestId,
+    meta: { ts: nowMs(), contract: "v1" }
+  };
 }
 
 module.exports = chatEngine;
