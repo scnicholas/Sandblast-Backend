@@ -15,25 +15,18 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.6u (RESET + CONTINUITY NORMALIZER + NEXT/PREV MODE-AWARE + RESET-RETURNS-INTRO)
+ * v0.6v (DEEPER MODE-AWARE + MUSIC NAV CHIPS)
  *
- * Adds / fixes:
- *  ✅ Adds “Reset” chip (backend-owned)
- *  ✅ Handles reset command from chip or typed text
- *  ✅ Soft-resets conversation via sessionPatch overwrite (no widget changes)
- *  ✅ Reset now restores Nyx intro vibe (so you “get Nyx back” immediately)
+ * Adds / fixes (vs v0.6u):
+ *  ✅ “Deeper” becomes mode-aware and stays in-place (no lane drift)
+ *  ✅ Auto-prepends Next/Previous chips when lane=music and year is known
  *
- *  ✅ CONTINUITY NORMALIZER:
- *     - Bare year "1989" becomes:
- *        top 10 1989 / story moment 1989 / micro moment 1989 / #1 1989
- *       depending on current session mode
- *     - "next year" / "previous year" become mode-aware prompts too
- *
- * Preserves:
- *  ✅ v1 chips + year picker UI
+ * Keeps:
+ *  ✅ Reset chip + reset restores intro vibe
+ *  ✅ continuity normalizer (bare year → mode-aware prompt)
+ *  ✅ next/prev mode-aware
  *  ✅ loop guards + output dampener
  *  ✅ call signature hardening
- *  ✅ NEXT continuity from v0.6s (improved)
  */
 
 const crypto = require("crypto");
@@ -230,6 +223,48 @@ function maybeInjectResetChip(strings, sess) {
   // Otherwise replace last chip
   s[s.length - 1] = "Reset";
   return s;
+}
+
+/**
+ * Music continuity UX:
+ * If lane=music and we have a year, ALWAYS offer Next/Previous.
+ * We do NOT require widget changes; these are standard chips.
+ */
+function withMusicNavChips(followUpsStrings, cont, sess) {
+  const base = safeArray(followUpsStrings);
+  const lane = cont && cont.lane ? String(cont.lane) : "";
+  const year = cont && cont.year ? String(cont.year) : "";
+
+  if (lane !== "music" || !/^\d{4}$/.test(year)) {
+    return maybeInjectResetChip(base, sess).slice(0, 4);
+  }
+
+  const wanted = ["Next", "Previous"];
+  const out = [];
+  const seen = new Set();
+
+  // prepend Next/Previous
+  for (const w of wanted) {
+    const k = normalizeText(w);
+    if (!seen.has(k)) {
+      seen.add(k);
+      out.push(w);
+    }
+  }
+
+  // then keep any existing chips (minus duplicates)
+  for (const x of base) {
+    const s = String(x || "").trim();
+    if (!s) continue;
+    const k = normalizeText(s);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(s);
+    if (out.length >= 4) break;
+  }
+
+  // ensure we still have Reset
+  return maybeInjectResetChip(out.slice(0, 4), sess).slice(0, 4);
 }
 
 function ensureFollowUpsNonEmpty(lane, year, followUpsStrings, sess) {
@@ -808,6 +843,80 @@ function yearPickerReply(sess) {
 }
 
 // ----------------------------
+// DEEPER (mode-aware, deterministic)
+// ----------------------------
+function modeForDeeper(cont, sess) {
+  const m =
+    (cont && cont.mode ? String(cont.mode) : "") ||
+    (sess && sess.activeMusicMode ? String(sess.activeMusicMode) : "") ||
+    (sess && sess.lastMode ? String(sess.lastMode) : "") ||
+    "";
+  const mm = m.toLowerCase();
+
+  if (mm === "story_moment" || mm === "micro_moment" || mm === "top10" || mm === "top100" || mm === "number1") return mm;
+
+  // default to top10 only if we’re in music context
+  const lane = (cont && cont.lane) || (sess && sess.lane) || "general";
+  if (String(lane).toLowerCase() === "music") return "top10";
+
+  return "general";
+}
+
+function deeperReply({ baseReply, cont, sess }) {
+  const lane = (cont && cont.lane) ? String(cont.lane) : (sess && sess.lane ? String(sess.lane) : "general");
+  const year = (cont && cont.year) ? String(cont.year) : (sess && (sess.lastMusicYear || sess.lastYear || sess.year) ? String(sess.lastMusicYear || sess.lastYear || sess.year) : "");
+  const mode = modeForDeeper(cont, sess);
+
+  const cleanBase = String(baseReply || "").trim();
+  if (!cleanBase) {
+    return {
+      reply: "Tell me what you want to go deeper on — a year, a story moment, a micro moment, or a #1.",
+      lane,
+      year: /^\d{4}$/.test(year) ? year : null,
+      mode
+    };
+  }
+
+  if (String(lane).toLowerCase() !== "music") {
+    const reply = cleanBase + "\n\nTell me which lane you want to deepen: Music, TV/Roku, or Schedule.";
+    return { reply, lane, year: null, mode: "general" };
+  }
+
+  const y = /^\d{4}$/.test(year) ? year : null;
+
+  if (mode === "top10" || mode === "top100") {
+    const reply =
+      cleanBase +
+      "\n\nDeeper cut: this year’s #1 isn’t just a song — it’s a timestamp. If you tell me where you were in life back then (school, first job, relationship), I’ll pin the vibe to that and keep the run going.\n\nWant the next year, or the previous?";
+    return { reply, lane: "music", year: y, mode };
+  }
+
+  if (mode === "story_moment") {
+    const reply =
+      cleanBase +
+      "\n\nDeeper cut: zoom in on the *emotion* of that year — what people were trying to escape, and what they were reaching for. That’s why the #1 felt inevitable.\n\nNext year, or stay here and go micro?";
+    return { reply, lane: "music", year: y, mode };
+  }
+
+  if (mode === "micro_moment") {
+    const reply =
+      cleanBase +
+      "\n\nDeeper cut: picture the scene — radio on, fluorescent lights somewhere, and that little half-second where you recognize the song before the lyric hits. That’s the “micro” that locks memory.\n\nNext year, or want another micro in this same year?";
+    return { reply, lane: "music", year: y, mode };
+  }
+
+  if (mode === "number1") {
+    const reply =
+      cleanBase +
+      "\n\nDeeper cut: #1 years tend to define the *texture* of the era — the production choices, the slang, the emotional posture. This one wasn’t just popular; it set the tone.\n\nNext year, or previous?";
+    return { reply, lane: "music", year: y, mode };
+  }
+
+  const reply = cleanBase + "\n\nWant to go deeper on Top 10, #1, story moment, or micro moment?";
+  return { reply, lane: "music", year: y, mode: "top10" };
+}
+
+// ----------------------------
 // Public API
 // ----------------------------
 async function chatEngine(arg1, arg2) {
@@ -857,8 +966,58 @@ async function chatEngine(arg1, arg2) {
   const normIn = normalizeContinuityInput(safeText, sess);
   const routingText0 = normIn && typeof normIn.text === "string" ? normIn.text : safeText;
 
-  // Continuity snapshot (used for next/deeper)
+  // Continuity snapshot (used for deeper/next/prev)
   const cont = getContinuity(sess, routingText0);
+
+  // ----------------------------
+  // DEEPER intercept (mode-aware, stays in-place)
+  // ----------------------------
+  if (isDeeperIntent(routingText0)) {
+    const lastOut = sess && sess.lastOut && typeof sess.lastOut === "object" ? sess.lastOut : null;
+    const baseReply = lastOut && typeof lastOut.reply === "string" ? lastOut.reply : "";
+    const dr = deeperReply({ baseReply, cont, sess });
+
+    // chips: for music+year, force Next/Previous + Reset
+    const baseChips = ensureFollowUpsNonEmpty(
+      String(dr.lane || cont.lane || "general"),
+      dr.year || cont.year || null,
+      safeArray(lastOut && lastOut.followUps ? lastOut.followUps : []),
+      sess
+    );
+
+    const finalChips = withMusicNavChips(baseChips, { lane: String(dr.lane || cont.lane || "general"), year: dr.year || cont.year || null, mode: dr.mode || cont.mode || null }, sess);
+    const outSig = buildOutSig(dr.reply, finalChips);
+
+    const sessionPatch = filterSessionPatch({
+      lastInText: routingText0,
+      lastInAt: nowMs(),
+      lane: String(dr.lane || cont.lane || "general"),
+      lastYear: dr.year || cont.year || undefined,
+      lastMode: dr.mode || cont.mode || undefined,
+      activeMusicMode: (String(dr.lane || cont.lane) === "music") ? (dr.mode || cont.mode || sess.activeMusicMode || "top10") : (sess.activeMusicMode || undefined),
+      lastMusicYear: (String(dr.lane || cont.lane) === "music") ? (dr.year || cont.year || sess.lastMusicYear || undefined) : (sess.lastMusicYear || undefined),
+      recentIntent: "deeper",
+      recentTopic: `deeper:${String(dr.mode || cont.mode || "general")}`,
+      lastOut: { reply: dr.reply, followUps: finalChips },
+      lastOutAt: nowMs(),
+      lastOutSig: outSig,
+      lastOutSigAt: nowMs()
+    });
+
+    return {
+      ok: true,
+      reply: dr.reply,
+      lane: String(dr.lane || cont.lane || "general"),
+      ctx: { year: dr.year ? parseInt(dr.year, 10) : null, mode: dr.mode || cont.mode || null },
+      ui: { mode: "chat" },
+      followUpsStrings: finalChips,
+      followUps: chipsFromStrings(finalChips, 4),
+      sessionPatch,
+      cog: { phase: "engaged", state: "expand", reason: "deeper_mode_aware", lane: String(dr.lane || cont.lane || "general"), year: dr.year || undefined, mode: dr.mode || undefined, ts: nowMs() },
+      requestId,
+      meta: { ts: nowMs(), contract: "v1" }
+    };
+  }
 
   // ----------------------------
   // NEXT / PREVIOUS intercept
@@ -1140,6 +1299,10 @@ async function chatEngine(arg1, arg2) {
     pinnedLane === "music"
       ? (pinnedYear || sess.lastMusicYear || sess.year || sess.lastYear || null)
       : (sess.lastMusicYear || null);
+
+  // **NEW**: enforce Next/Previous chips when music+year known
+  const chipCont = { lane: pinnedLane, year: pinnedYear || lastMusicYear || null, mode: pinnedMode || activeMusicMode || null };
+  followUpsStrings = withMusicNavChips(followUpsStrings, chipCont, sess);
 
   const outCache = { reply, followUps: safeArray(followUpsStrings).slice(0, 4) };
 
