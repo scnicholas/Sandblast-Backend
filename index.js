@@ -3,18 +3,22 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17s (CORS HARD-LOCK + TURN-CACHE DEDUPE: stops browser/proxy retry double-POST)
+ * index.js v1.5.17t
+ * (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION)
  *
- * Adds (vs v1.5.17r):
- *  ✅ TURN-CACHE DEDUPE (origin+visitor+turnId+text) with TTL (default 4000ms)
- *     - Catches real-world duplicate POSTs caused by browser/proxy retry (even if sessionId changes)
- *     - Runs BEFORE burst/body-hash guards so it won’t trip rate-limiters
- *     - Returns cached 200 JSON + sets X-Nyx-Deduped: turn-cache
+ * Adds (vs v1.5.17s):
+ *  ✅ Posture Control Plane (deterministic): posture=explore|relax|commit|exit
+ *  ✅ Canonical Roku bridge phrase registry (backend-locked; no drift)
+ *  ✅ Bridge gating:
+ *     - cooldown (default 45s)
+ *     - avoid duplication if line already present
+ *     - default MUSIC-FIRST (can widen via env)
+ *     - explicit "roku" mention always eligible
+ *  ✅ Bridge injection happens BEFORE reply hashing + loop-kill decisions (correct)
+ *  ✅ Session keys allowlisted for bridge state (__lastBridgeAt, __bridgeIdx, __lastPosture)
  *
  * Keeps:
- *  ✅ HARD CORS ECHO middleware: if origin is allowed, ALWAYS sets Allow-Origin + Vary on all responses
- *  ✅ Guaranteed OPTIONS responder for ALL paths (204)
- *  ✅ Expanded default origins for sandblast.channel + sandblastchannel.com
+ *  ✅ HARD CORS ECHO + guaranteed OPTIONS responder
  *  ✅ ANTI-502 crash visibility
  *  ✅ /health + /api/health + /api/version
  *  ✅ /api/chat loop guards + dedupe payload floors
@@ -64,7 +68,7 @@ app.disable("x-powered-by");
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.17s (CORS HARD-LOCK + TURN-CACHE DEDUPE: stops browser/proxy retry double-POST)";
+  "index.js v1.5.17t (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION)";
 
 const GIT_COMMIT =
   String(process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "").trim() || null;
@@ -196,6 +200,7 @@ const corsOptions = {
     "X-Nyx-Deduped",
     "X-Nyx-Upstream",
     "X-CORS-Origin-Seen",
+    "X-Nyx-Posture",
   ],
   maxAge: 86400,
   optionsSuccessStatus: 204,
@@ -362,6 +367,11 @@ const SESSION_PATCH_ALLOW = new Set([
   "__repCount",
   "__srAt",
   "__srCount",
+
+  // ✅ posture + bridge state (server-owned)
+  "__lastBridgeAt",
+  "__bridgeIdx",
+  "__lastPosture",
 ]);
 
 function applySessionPatch(session, patch) {
@@ -464,13 +474,18 @@ app.get("/api/version", (req, res) => {
       bodyHashIncludeSession: String(process.env.BODY_HASH_INCLUDE_SESSION || "false") === "true",
       sessionIdMaxLen: SESSION_ID_MAXLEN,
       turnDedupeMs: clamp(process.env.TURN_DEDUPE_MS || 4000, 800, 15000),
+
+      // ✅ posture + bridge knobs
+      bridgeEnabled: String(process.env.BRIDGE_ENABLED || "true") === "true",
+      bridgeMusicOnly: String(process.env.BRIDGE_MUSIC_ONLY || "true") === "true",
+      bridgeCooldownMs: clamp(process.env.BRIDGE_COOLDOWN_MS || 45000, 10000, 300000),
     },
     allowlistSample: EFFECTIVE_ORIGINS.slice(0, 10),
   });
 });
 
 /* ======================================================
-   Hashing + intent helpers (unchanged)
+   Hashing + intent helpers
 ====================================================== */
 
 const MAX_HASH_TEXT_LEN = clamp(process.env.MAX_HASH_TEXT_LEN || 800, 200, 4000);
@@ -536,6 +551,107 @@ function intentSigFrom(text, session) {
 }
 
 /* ======================================================
+   Posture + Bridge Control Plane (v1)
+====================================================== */
+
+const BRIDGE_ENABLED = String(process.env.BRIDGE_ENABLED || "true") === "true";
+const BRIDGE_MUSIC_ONLY = String(process.env.BRIDGE_MUSIC_ONLY || "true") === "true";
+const BRIDGE_COOLDOWN_MS = clamp(process.env.BRIDGE_COOLDOWN_MS || 45_000, 10_000, 300_000);
+
+// Canonical Roku bridge phrases (backend-locked, no drift)
+const CANON = {
+  rokuBridge: {
+    soft: [
+      "This one’s better experienced leaned back.",
+      "Same world—just on your biggest screen.",
+      "Sandblast is where we explore. Roku is where you relax.",
+      "Same intelligence. Different posture.",
+    ],
+    quiet: [
+      "If you want to stay in this moment, Roku is the quiet way to do it.",
+      "This is one of those memories that deserves the big screen.",
+      "Same world—just on your biggest screen.",
+    ],
+    companion: [
+      "I’ll meet you there.",
+      "Same world—just on your biggest screen.",
+    ],
+  },
+};
+
+function detectPosture(text, session, out) {
+  const t = normCmd(text);
+
+  // Exit cues
+  if (/\b(bye|goodbye|later|done|stop|cancel|nevermind|never mind)\b/.test(t)) return "exit";
+
+  // Commit cues (user ready for action)
+  if (/\b(install|open|launch|start|take me|go to|send me|link)\b/.test(t)) return "commit";
+
+  // Lean-back cues (relax posture)
+  if (/\b(relax|watch|tv|roku|big screen|lean back|couch|living room)\b/.test(t)) return "relax";
+
+  // Default
+  return "explore";
+}
+
+function chooseBridgeStyle(posture) {
+  if (posture === "relax") return "quiet";
+  if (posture === "commit") return "companion";
+  return "soft";
+}
+
+function pickBridgeLine(style, session) {
+  const bucket = (CANON.rokuBridge && CANON.rokuBridge[style]) || CANON.rokuBridge.soft;
+  const idx = Number(session.__bridgeIdx || 0) % bucket.length;
+  session.__bridgeIdx = idx + 1;
+  return bucket[idx];
+}
+
+function isExplicitRokuMention(text) {
+  const t = normCmd(text);
+  return /\broku\b/.test(t);
+}
+
+function bridgeEligible({ text, session, out, now }) {
+  if (!BRIDGE_ENABLED) return false;
+
+  // Cooldown
+  const last = Number(session.__lastBridgeAt || 0);
+  if (last && now - last < BRIDGE_COOLDOWN_MS) return false;
+
+  // Explicit Roku mention always eligible
+  if (isExplicitRokuMention(text)) return true;
+
+  // Music-first default (safer + more natural completion points)
+  const lane = (out && typeof out.lane === "string" ? out.lane : "") || (session && session.lane ? String(session.lane) : "");
+  if (BRIDGE_MUSIC_ONLY && lane && lane !== "music") return false;
+
+  // Completion moments based on mode
+  const mode =
+    (out && typeof out.mode === "string" ? out.mode : "") ||
+    extractMode(text) ||
+    (session && session.activeMusicMode ? String(session.activeMusicMode) : "");
+
+  if (mode === "top10" || mode === "story" || mode === "micro") return true;
+
+  // Nostalgia recognition cues
+  const t = normCmd(text);
+  if (/\b(remember|takes me back|my childhood|when i was|brings back|nostalgia)\b/.test(t)) return true;
+
+  return false;
+}
+
+function injectBridgeLine(reply, line) {
+  const base = String(reply || "").trim();
+  const add = String(line || "").trim();
+  if (!add) return base;
+  if (!base) return add;
+  if (base.includes(add)) return base;
+  return base + "\n\n" + add;
+}
+
+/* ======================================================
    TURN-CACHE DEDUPE (stops browser/proxy retry double-POST)
 ====================================================== */
 
@@ -580,7 +696,9 @@ function pruneTurnCache() {
   // simple size cap
   if (TURN_CACHE.size > TURN_CACHE_MAX) {
     // delete oldest ~10%
-    const entries = Array.from(TURN_CACHE.entries()).sort((a, b) => Number(a[1].at || 0) - Number(b[1].at || 0));
+    const entries = Array.from(TURN_CACHE.entries()).sort(
+      (a, b) => Number(a[1].at || 0) - Number(b[1].at || 0)
+    );
     const n = Math.max(1, Math.floor(TURN_CACHE_MAX * 0.1));
     for (let i = 0; i < n && i < entries.length; i++) TURN_CACHE.delete(entries[i][0]);
   }
@@ -818,8 +936,8 @@ function capsPayload() {
   };
 }
 
-function dedupeOkPayload({ reply, sessionId, requestId, visitorId }) {
-  return {
+function dedupeOkPayload({ reply, sessionId, requestId, visitorId, posture }) {
+  const payload = {
     ok: true,
     reply: String(reply || "OK.").trim(),
     sessionId,
@@ -829,6 +947,8 @@ function dedupeOkPayload({ reply, sessionId, requestId, visitorId }) {
     caps: capsPayload(),
     deduped: true,
   };
+  if (posture) payload.posture = posture;
+  return payload;
 }
 
 app.post("/api/chat", async (req, res) => {
@@ -849,6 +969,7 @@ app.post("/api/chat", async (req, res) => {
           sessionId: null,
           requestId,
           visitorId: vid,
+          posture: "explore",
         })
       );
     } catch (_) {}
@@ -884,6 +1005,10 @@ app.post("/api/chat", async (req, res) => {
     if (cached && Date.now() - Number(cached.at || 0) <= TURN_DEDUPE_MS) {
       clearTimeout(watchdog);
       safeSet(res, "X-Nyx-Deduped", "turn-cache");
+      // Preserve posture header if present
+      try {
+        if (cached.payload && cached.payload.posture) safeSet(res, "X-Nyx-Posture", String(cached.payload.posture));
+      } catch (_) {}
       return once.json(200, cached.payload);
     }
 
@@ -906,11 +1031,14 @@ app.post("/api/chat", async (req, res) => {
       if (next > SR_MAX) {
         clearTimeout(watchdog);
         safeSet(res, "X-Nyx-Deduped", "sustained");
+        const posture = session.__lastPosture || "explore";
+        safeSet(res, "X-Nyx-Posture", String(posture));
         const payload = dedupeOkPayload({
           reply: session.__lastReply || "OK.",
           sessionId,
           requestId,
           visitorId,
+          posture,
         });
         TURN_CACHE.set(turnKey, { at: Date.now(), payload });
         return once.json(200, payload);
@@ -947,11 +1075,14 @@ app.post("/api/chat", async (req, res) => {
       if (count > BURST_SOFT_MAX) {
         clearTimeout(watchdog);
         safeSet(res, "X-Nyx-Deduped", "burst-soft");
+        const posture = session.__lastPosture || "explore";
+        safeSet(res, "X-Nyx-Posture", String(posture));
         const payload = dedupeOkPayload({
           reply: session.__lastReply || "OK.",
           sessionId,
           requestId,
           visitorId,
+          posture,
         });
         TURN_CACHE.set(turnKey, { at: Date.now(), payload });
         return once.json(200, payload);
@@ -965,11 +1096,14 @@ app.post("/api/chat", async (req, res) => {
     if (lastHash && bodyHash === lastHash && lastAt && now - lastAt < BODY_DEDUPE_MS) {
       clearTimeout(watchdog);
       safeSet(res, "X-Nyx-Deduped", "body-hash");
+      const posture = session.__lastPosture || "explore";
+      safeSet(res, "X-Nyx-Posture", String(posture));
       const payload = dedupeOkPayload({
         reply: session.__lastReply || "OK.",
         sessionId,
         requestId,
         visitorId,
+        posture,
       });
       TURN_CACHE.set(turnKey, { at: Date.now(), payload });
       return once.json(200, payload);
@@ -1013,11 +1147,31 @@ app.post("/api/chat", async (req, res) => {
       }
     }
 
-    const reply =
+    // Apply sessionPatch early so posture/bridge sees updated lane/mode/year
+    if (out && typeof out === "object" && out.sessionPatch && typeof out.sessionPatch === "object") {
+      applySessionPatch(session, out.sessionPatch);
+    }
+
+    const baseReply =
       out && typeof out === "object" && typeof out.reply === "string" ? out.reply : fallbackReply(text);
 
-    // Reply-loop kill
-    const replyHash = sha256(String(reply || ""));
+    // ---- Posture + Bridge injection (canonical, 1-line, cooldown; BEFORE hashing) ----
+    const posture = detectPosture(text, session, out);
+    session.__lastPosture = posture;
+    safeSet(res, "X-Nyx-Posture", String(posture));
+
+    let finalReply = String(baseReply || "").trim();
+
+    const eligible = bridgeEligible({ text, session, out, now });
+    if (eligible) {
+      const style = chooseBridgeStyle(posture);
+      const line = pickBridgeLine(style, session);
+      finalReply = injectBridgeLine(finalReply, line);
+      session.__lastBridgeAt = now;
+    }
+
+    // Reply-loop kill (hash finalReply, not baseReply)
+    const replyHash = sha256(String(finalReply || ""));
     const lastReplyHash = normalizeStr(session.__lastReplyHash || "");
     const lastReplyAt = Number(session.__lastReplyAt || 0);
 
@@ -1025,10 +1179,11 @@ app.post("/api/chat", async (req, res) => {
       clearTimeout(watchdog);
       safeSet(res, "X-Nyx-Deduped", "reply-hash");
       const payload = dedupeOkPayload({
-        reply: session.__lastReply || reply || "OK.",
+        reply: session.__lastReply || finalReply || "OK.",
         sessionId,
         requestId,
         visitorId,
+        posture,
       });
       TURN_CACHE.set(turnKey, { at: Date.now(), payload });
       return once.json(200, payload);
@@ -1055,6 +1210,7 @@ app.post("/api/chat", async (req, res) => {
           sessionId,
           requestId,
           visitorId,
+          posture,
         });
         TURN_CACHE.set(turnKey, { at: Date.now(), payload });
         return once.json(200, payload);
@@ -1069,12 +1225,8 @@ app.post("/api/chat", async (req, res) => {
         ? normalizeFollowUpsToStrings(out.followUps)
         : undefined;
 
-    if (out && typeof out === "object" && out.sessionPatch && typeof out.sessionPatch === "object") {
-      applySessionPatch(session, out.sessionPatch);
-    }
-
-    // Persist last seen
-    session.__lastReply = reply;
+    // Persist last seen (use finalReply)
+    session.__lastReply = finalReply;
     session.__lastBodyHash = bodyHash;
     session.__lastBodyAt = now;
     session.__lastReplyHash = replyHash;
@@ -1088,10 +1240,11 @@ app.post("/api/chat", async (req, res) => {
       clearTimeout(watchdog);
       safeSet(res, "X-Nyx-Deduped", "intent-sig");
       const payload = dedupeOkPayload({
-        reply: session.__lastReply || reply || "OK.",
+        reply: session.__lastReply || finalReply || "OK.",
         sessionId,
         requestId,
         visitorId,
+        posture,
       });
       TURN_CACHE.set(turnKey, { at: Date.now(), payload });
       return once.json(200, payload);
@@ -1101,12 +1254,13 @@ app.post("/api/chat", async (req, res) => {
 
     const payload = {
       ok: true,
-      reply,
+      reply: finalReply,
       sessionId,
       requestId,
       visitorId,
       contractVersion: NYX_CONTRACT_VERSION,
       caps: capsPayload(),
+      posture,
     };
 
     if (out && typeof out === "object") {
@@ -1125,6 +1279,15 @@ app.post("/api/chat", async (req, res) => {
     if (isDebug && out && typeof out === "object") {
       if (out.baseMessage) payload.baseMessage = String(out.baseMessage);
       if (out._engine && typeof out._engine === "object") payload._engine = out._engine;
+
+      // Optional debug bridge telemetry (safe)
+      payload._bridge = {
+        enabled: BRIDGE_ENABLED,
+        musicOnly: BRIDGE_MUSIC_ONLY,
+        eligible: eligible,
+        cooldownMs: BRIDGE_COOLDOWN_MS,
+        lastBridgeAt: Number(session.__lastBridgeAt || 0) || null,
+      };
     }
 
     // Store turn-cache (final payload)
@@ -1138,11 +1301,13 @@ app.post("/api/chat", async (req, res) => {
     setContractHeaders(res, requestId);
     safeSet(res, "X-Nyx-Deduped", "floor");
     const vid = normalizeStr(req.get("X-Visitor-Id") || "") || null;
+
     const payload = dedupeOkPayload({
       reply: "I’m here. Give me a year (1950–2024), or say “top 10 1988”.",
       sessionId: null,
       requestId,
       visitorId: vid,
+      posture: "explore",
     });
 
     try {
