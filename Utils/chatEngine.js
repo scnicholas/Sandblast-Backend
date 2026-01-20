@@ -15,12 +15,13 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.6u (RESET + CONTINUITY NORMALIZER + NEXT/PREV MODE-AWARE)
+ * v0.6u (RESET + CONTINUITY NORMALIZER + NEXT/PREV MODE-AWARE + RESET-RETURNS-INTRO)
  *
  * Adds / fixes:
  *  ✅ Adds “Reset” chip (backend-owned)
  *  ✅ Handles reset command from chip or typed text
  *  ✅ Soft-resets conversation via sessionPatch overwrite (no widget changes)
+ *  ✅ Reset now restores Nyx intro vibe (so you “get Nyx back” immediately)
  *
  *  ✅ CONTINUITY NORMALIZER:
  *     - Bare year "1989" becomes:
@@ -618,7 +619,11 @@ function normalizeContinuityInput(rawText, sess) {
   if (isResetIntent(t)) return { text: t, normalized: false, reason: null };
 
   // If user already gave an explicit intent, don't rewrite
-  if (isDirectIntent(t) || detectMode(t) || /\btop\s*10\b|\btop\s*100\b|\bstory\s*moment\b|\bmicro\s*moment\b|\b#1\b/.test(normalizeText(t))) {
+  if (
+    isDirectIntent(t) ||
+    detectMode(t) ||
+    /\btop\s*10\b|\btop\s*100\b|\bstory\s*moment\b|\bmicro\s*moment\b|\b#1\b/.test(normalizeText(t))
+  ) {
     return { text: t, normalized: false, reason: null };
   }
 
@@ -662,17 +667,24 @@ function isResetIntent(text) {
   );
 }
 
+/**
+ * Reset now restores the Nyx intro vibe (instead of “Done. Clean slate.”),
+ * so you always “get Nyx back” immediately after reset.
+ */
 function resetReply() {
   const reply =
-`Done. Clean slate.
+`Hey — I’m Nyx. I’ve got you.
 
-Where do you want to go next — music (pick a year), Sandblast TV/Roku, or just talk?`;
+Pick a year (1950–2024) and I’ll take you straight into the music — Top 10, a story moment, a micro moment, or the #1.
+Or I can guide you through Sandblast TV/Roku.
+
+Where do you want to start?`;
 
   const followUpsStrings = [
     "Pick a year",
-    "What’s playing now",
-    "Show me the Roku path",
-    "Just talk"
+    "Story moment",
+    "Just talk",
+    "What’s playing now"
   ];
 
   return { reply, followUpsStrings };
@@ -681,10 +693,11 @@ Where do you want to go next — music (pick a year), Sandblast TV/Roku, or just
 function resetSessionPatch(prevSess) {
   const keepDepthPref = (prevSess && prevSess.depthPreference) ? String(prevSess.depthPreference) : "fast";
 
-  // We overwrite allowlisted keys so the next turn behaves like a fresh session.
+  // We overwrite allowlisted keys so the next turn behaves like a fresh session,
+  // BUT resetReply already *is* an intro, so we mark introDone true to avoid losing the intro vibe.
   return filterSessionPatch({
-    introDone: false,
-    introAt: 0,
+    introDone: true,
+    introAt: nowMs(),
 
     lastInText: "",
     lastInAt: nowMs(),
@@ -1143,7 +1156,9 @@ async function chatEngine(arg1, arg2) {
     lastMode: pinnedMode || undefined,
 
     recentIntent: normIn.normalized ? "continuity_normalized" : pinnedLane,
-    recentTopic: normIn.normalized ? (normIn.reason || "continuity") : (pinnedYear ? `year:${pinnedYear}` : (pinnedMode ? `mode:${pinnedMode}` : pinnedLane)),
+    recentTopic: normIn.normalized
+      ? (normIn.reason || "continuity")
+      : (pinnedYear ? `year:${pinnedYear}` : (pinnedMode ? `mode:${pinnedMode}` : pinnedLane)),
 
     lastOut: outCache,
     lastOutAt: nowMs(),
