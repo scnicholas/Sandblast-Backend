@@ -3,19 +3,20 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17t
- * (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION)
+ * index.js v1.5.17u
+ * (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + ENV KNOBS HARDENED)
  *
- * Adds (vs v1.5.17s):
- *  ✅ Posture Control Plane (deterministic): posture=explore|relax|commit|exit
- *  ✅ Canonical Roku bridge phrase registry (backend-locked; no drift)
- *  ✅ Bridge gating:
- *     - cooldown (default 45s)
- *     - avoid duplication if line already present
- *     - default MUSIC-FIRST (can widen via env)
- *     - explicit "roku" mention always eligible
- *  ✅ Bridge injection happens BEFORE reply hashing + loop-kill decisions (correct)
- *  ✅ Session keys allowlisted for bridge state (__lastBridgeAt, __bridgeIdx, __lastPosture)
+ * Adds (vs v1.5.17t):
+ *  ✅ Env knobs expanded:
+ *     - BRIDGE_STYLE_DEFAULT=soft|quiet|companion
+ *     - BRIDGE_EXPLICIT_ALWAYS=true|false (explicit "roku" always eligible even if music-only)
+ *     - BRIDGE_DEBUG_HEADERS=true|false (adds lightweight X-Nyx-Bridge headers)
+ *
+ *  ✅ Server-owned session keys protected:
+ *     - sessionPatch can NOT overwrite __lastBridgeAt/__bridgeIdx/__lastPosture (even if allowlisted)
+ *
+ *  ✅ Bridge telemetry headers (optional):
+ *     - X-Nyx-Posture, X-Nyx-Bridge (only when injected)
  *
  * Keeps:
  *  ✅ HARD CORS ECHO + guaranteed OPTIONS responder
@@ -68,7 +69,7 @@ app.disable("x-powered-by");
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.17t (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION)";
+  "index.js v1.5.17u (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + ENV KNOBS HARDENED)";
 
 const GIT_COMMIT =
   String(process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "").trim() || null;
@@ -129,7 +130,6 @@ function ua(req) {
 
 const CORS_ALLOW_ALL = String(process.env.CORS_ALLOW_ALL || "false") === "true";
 
-// Expanded defaults (covers both domains you’re using)
 const DEFAULT_ORIGINS = [
   "https://sandblast.channel",
   "https://www.sandblast.channel",
@@ -142,8 +142,6 @@ const ALLOWED_ORIGINS = normalizeStr(process.env.CORS_ALLOWED_ORIGINS || "")
   .map((s) => s.trim().replace(/\/$/, ""))
   .filter(Boolean);
 
-// If env empty, use defaults. If env provided, MERGE defaults (safety net).
-// If you want env to be exclusive, set CORS_ENV_EXCLUSIVE=true.
 const CORS_ENV_EXCLUSIVE = String(process.env.CORS_ENV_EXCLUSIVE || "false") === "true";
 
 const EFFECTIVE_ORIGINS = (() => {
@@ -155,13 +153,12 @@ const EFFECTIVE_ORIGINS = (() => {
 })();
 
 function originAllowed(origin) {
-  if (!origin) return true; // curl/server-to-server
+  if (!origin) return true;
   if (CORS_ALLOW_ALL) return true;
 
   const o = String(origin).trim().replace(/\/$/, "");
   if (EFFECTIVE_ORIGINS.includes(o)) return true;
 
-  // www <-> non-www toggle helper
   try {
     const u = new URL(o);
     const host = String(u.hostname || "");
@@ -173,8 +170,6 @@ function originAllowed(origin) {
   }
 }
 
-// NOTE: cors() will set headers for normal success responses,
-// but we will ALSO hard-echo below to ensure early returns/errors are covered.
 const corsOptions = {
   origin: function (origin, cb) {
     if (!origin) return cb(null, true);
@@ -201,25 +196,19 @@ const corsOptions = {
     "X-Nyx-Upstream",
     "X-CORS-Origin-Seen",
     "X-Nyx-Posture",
+    "X-Nyx-Bridge",
   ],
   maxAge: 86400,
   optionsSuccessStatus: 204,
 };
 
-// ✅ Always add Vary: Origin for proper caching behavior
 app.use((req, res, next) => {
   safeSet(res, "Vary", "Origin");
   next();
 });
 
-// ✅ Standard CORS middleware
 app.use(cors(corsOptions));
 
-/**
- * ✅ HARD CORS ECHO (belt + suspenders)
- * If origin is allowed, force-set the response headers for ALL downstream paths
- * (including error handlers, floors, early returns).
- */
 app.use((req, res, next) => {
   try {
     const origin = req.headers.origin ? String(req.headers.origin).trim() : "";
@@ -227,16 +216,11 @@ app.use((req, res, next) => {
     if (origin && originAllowed(origin)) {
       safeSet(res, "Access-Control-Allow-Origin", origin);
       safeSet(res, "Vary", "Origin");
-      // (No credentials)
     }
   } catch (_) {}
   next();
 });
 
-/**
- * ✅ Guaranteed OPTIONS for ALL paths
- * (some browsers are picky; this keeps it deterministic)
- */
 app.options("*", (req, res) => {
   const origin = req.headers.origin ? String(req.headers.origin).trim() : "";
   if (origin && originAllowed(origin)) {
@@ -252,7 +236,7 @@ app.options("*", (req, res) => {
 });
 
 /* ======================================================
-   Parsers (after CORS so even parse errors carry CORS)
+   Parsers (after CORS)
 ====================================================== */
 
 function rawBodySaver(req, res, buf, encoding) {
@@ -284,7 +268,7 @@ app.use((err, req, res, next) => {
 });
 
 /* ======================================================
-   Timeout middleware (socket timeout only)
+   Timeout middleware
 ====================================================== */
 
 const REQUEST_TIMEOUT_MS = clamp(process.env.REQUEST_TIMEOUT_MS || 30000, 10000, 60000);
@@ -345,6 +329,9 @@ function getVoiceMode(req, body) {
   return fromBody || fromHeader || "";
 }
 
+/* Server-owned keys (cannot be overwritten by sessionPatch) */
+const SERVER_OWNED_KEYS = new Set(["__lastBridgeAt", "__bridgeIdx", "__lastPosture"]);
+
 /** Strict patch apply: allowlist only + proto-safe */
 const SESSION_PATCH_ALLOW = new Set([
   "lane",
@@ -368,7 +355,7 @@ const SESSION_PATCH_ALLOW = new Set([
   "__srAt",
   "__srCount",
 
-  // ✅ posture + bridge state (server-owned)
+  // NOTE: server-owned keys exist in session but cannot be set by sessionPatch
   "__lastBridgeAt",
   "__bridgeIdx",
   "__lastPosture",
@@ -378,6 +365,7 @@ function applySessionPatch(session, patch) {
   if (!session || !patch || typeof patch !== "object") return;
   for (const [k, v] of Object.entries(patch)) {
     if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
+    if (SERVER_OWNED_KEYS.has(k)) continue; // ✅ protect server-owned keys
     if (!SESSION_PATCH_ALLOW.has(k)) continue;
     session[k] = v;
   }
@@ -457,6 +445,14 @@ app.get("/api/Health", (req, res) => {
 app.get("/api/version", (req, res) => {
   const requestId = req.get("X-Request-Id") || rid();
   setContractHeaders(res, requestId);
+
+  const bridgeEnabled = String(process.env.BRIDGE_ENABLED || "true") === "true";
+  const bridgeMusicOnly = String(process.env.BRIDGE_MUSIC_ONLY || "true") === "true";
+  const bridgeCooldownMs = clamp(process.env.BRIDGE_COOLDOWN_MS || 45000, 10000, 300000);
+  const bridgeStyleDefault = normalizeStr(process.env.BRIDGE_STYLE_DEFAULT || "soft").toLowerCase();
+  const bridgeExplicitAlways = String(process.env.BRIDGE_EXPLICIT_ALWAYS || "true") === "true";
+  const bridgeDebugHeaders = String(process.env.BRIDGE_DEBUG_HEADERS || "true") === "true";
+
   return safeJson(res, 200, {
     ok: true,
     requestId,
@@ -476,9 +472,12 @@ app.get("/api/version", (req, res) => {
       turnDedupeMs: clamp(process.env.TURN_DEDUPE_MS || 4000, 800, 15000),
 
       // ✅ posture + bridge knobs
-      bridgeEnabled: String(process.env.BRIDGE_ENABLED || "true") === "true",
-      bridgeMusicOnly: String(process.env.BRIDGE_MUSIC_ONLY || "true") === "true",
-      bridgeCooldownMs: clamp(process.env.BRIDGE_COOLDOWN_MS || 45000, 10000, 300000),
+      bridgeEnabled,
+      bridgeMusicOnly,
+      bridgeCooldownMs,
+      bridgeStyleDefault,
+      bridgeExplicitAlways,
+      bridgeDebugHeaders,
     },
     allowlistSample: EFFECTIVE_ORIGINS.slice(0, 10),
   });
@@ -551,14 +550,16 @@ function intentSigFrom(text, session) {
 }
 
 /* ======================================================
-   Posture + Bridge Control Plane (v1)
+   Posture + Bridge Control Plane (v1) + ENV KNOBS
 ====================================================== */
 
 const BRIDGE_ENABLED = String(process.env.BRIDGE_ENABLED || "true") === "true";
 const BRIDGE_MUSIC_ONLY = String(process.env.BRIDGE_MUSIC_ONLY || "true") === "true";
 const BRIDGE_COOLDOWN_MS = clamp(process.env.BRIDGE_COOLDOWN_MS || 45_000, 10_000, 300_000);
+const BRIDGE_STYLE_DEFAULT = normCmd(process.env.BRIDGE_STYLE_DEFAULT || "soft") || "soft";
+const BRIDGE_EXPLICIT_ALWAYS = String(process.env.BRIDGE_EXPLICIT_ALWAYS || "true") === "true";
+const BRIDGE_DEBUG_HEADERS = String(process.env.BRIDGE_DEBUG_HEADERS || "true") === "true";
 
-// Canonical Roku bridge phrases (backend-locked, no drift)
 const CANON = {
   rokuBridge: {
     soft: [
@@ -579,25 +580,21 @@ const CANON = {
   },
 };
 
-function detectPosture(text, session, out) {
+function detectPosture(text) {
   const t = normCmd(text);
 
-  // Exit cues
   if (/\b(bye|goodbye|later|done|stop|cancel|nevermind|never mind)\b/.test(t)) return "exit";
-
-  // Commit cues (user ready for action)
   if (/\b(install|open|launch|start|take me|go to|send me|link)\b/.test(t)) return "commit";
-
-  // Lean-back cues (relax posture)
   if (/\b(relax|watch|tv|roku|big screen|lean back|couch|living room)\b/.test(t)) return "relax";
-
-  // Default
   return "explore";
 }
 
 function chooseBridgeStyle(posture) {
-  if (posture === "relax") return "quiet";
-  if (posture === "commit") return "companion";
+  const p = String(posture || "");
+  if (p === "relax") return "quiet";
+  if (p === "commit") return "companion";
+  // default fall back to env style if valid
+  if (CANON.rokuBridge && CANON.rokuBridge[BRIDGE_STYLE_DEFAULT]) return BRIDGE_STYLE_DEFAULT;
   return "soft";
 }
 
@@ -616,18 +613,23 @@ function isExplicitRokuMention(text) {
 function bridgeEligible({ text, session, out, now }) {
   if (!BRIDGE_ENABLED) return false;
 
-  // Cooldown
   const last = Number(session.__lastBridgeAt || 0);
   if (last && now - last < BRIDGE_COOLDOWN_MS) return false;
 
-  // Explicit Roku mention always eligible
-  if (isExplicitRokuMention(text)) return true;
+  const explicit = isExplicitRokuMention(text);
 
-  // Music-first default (safer + more natural completion points)
-  const lane = (out && typeof out.lane === "string" ? out.lane : "") || (session && session.lane ? String(session.lane) : "");
+  // If explicit always eligible, bypass lane check
+  if (explicit && BRIDGE_EXPLICIT_ALWAYS) return true;
+
+  // Otherwise, default music-first gating
+  const lane =
+    (out && typeof out.lane === "string" ? out.lane : "") ||
+    (session && session.lane ? String(session.lane) : "");
+
   if (BRIDGE_MUSIC_ONLY && lane && lane !== "music") return false;
 
-  // Completion moments based on mode
+  if (explicit) return true;
+
   const mode =
     (out && typeof out.mode === "string" ? out.mode : "") ||
     extractMode(text) ||
@@ -635,7 +637,6 @@ function bridgeEligible({ text, session, out, now }) {
 
   if (mode === "top10" || mode === "story" || mode === "micro") return true;
 
-  // Nostalgia recognition cues
   const t = normCmd(text);
   if (/\b(remember|takes me back|my childhood|when i was|brings back|nostalgia)\b/.test(t)) return true;
 
@@ -652,19 +653,13 @@ function injectBridgeLine(reply, line) {
 }
 
 /* ======================================================
-   TURN-CACHE DEDUPE (stops browser/proxy retry double-POST)
+   TURN-CACHE DEDUPE
 ====================================================== */
 
 const TURN_DEDUPE_MS = clamp(process.env.TURN_DEDUPE_MS || 4000, 800, 15000);
 const TURN_CACHE_MAX = clamp(process.env.TURN_CACHE_MAX || 800, 100, 5000);
 const TURN_CACHE = new Map();
 
-/**
- * Build a retry-proof key:
- * - Uses origin + visitor fingerprint + client.turnId + normalized text
- * - If turnId is missing, falls back to body-hash-only key
- * - Does NOT depend on sessionId (important!)
- */
 function getTurnKey(req, body, text, visitorId) {
   const origin = normalizeStr(req.headers.origin || "");
   const fp = fingerprint(req, visitorId);
@@ -683,7 +678,6 @@ function getTurnKey(req, body, text, visitorId) {
     return sha256(JSON.stringify({ o: origin, fp, turnId, t }));
   }
 
-  // fallback: body hash (still helps for clients with no turn id)
   const bh = sha256(stableBodyForHash(body, req));
   return sha256(JSON.stringify({ o: origin, fp, bh }));
 }
@@ -693,9 +687,7 @@ function pruneTurnCache() {
   for (const [k, v] of TURN_CACHE.entries()) {
     if (!v || now - Number(v.at || 0) > TURN_DEDUPE_MS) TURN_CACHE.delete(k);
   }
-  // simple size cap
   if (TURN_CACHE.size > TURN_CACHE_MAX) {
-    // delete oldest ~10%
     const entries = Array.from(TURN_CACHE.entries()).sort(
       (a, b) => Number(a[1].at || 0) - Number(b[1].at || 0)
     );
@@ -809,24 +801,18 @@ app.post("/api/voice", runTts);
 
 const CHAT_HANDLER_TIMEOUT_MS = clamp(process.env.CHAT_HANDLER_TIMEOUT_MS || 9000, 2000, 20000);
 
-// Burst guard
 const BURST_WINDOW_MS = clamp(process.env.BURST_WINDOW_MS || 1500, 600, 5000);
 const BURST_SOFT_MAX = clamp(process.env.BURST_SOFT_MAX || 3, 1, 12);
 const BURST_HARD_MAX = clamp(process.env.BURST_HARD_MAX || 14, 6, 60);
 const BURSTS = new Map();
 
-// Body hash dedupe
 const BODY_DEDUPE_MS = clamp(process.env.BODY_DEDUPE_MS || 1600, 400, 5000);
-
-// Intent clamp (separate knob)
 const INTENT_DEDUPE_MS = clamp(process.env.INTENT_DEDUPE_MS || 2500, 600, 8000);
 
-// Reply-loop kill (server-level)
 const REPLY_DEDUPE_MS = clamp(process.env.REPLY_DEDUPE_MS || 1400, 300, 8000);
 const REPLY_REPEAT_WINDOW_MS = clamp(process.env.REPLY_REPEAT_WINDOW_MS || 5000, 1000, 20000);
 const REPLY_REPEAT_MAX = clamp(process.env.REPLY_REPEAT_MAX || 3, 1, 10);
 
-// Sustained-rate guard (slow loop protection)
 const SR_WINDOW_MS = clamp(process.env.SR_WINDOW_MS || 20000, 5000, 120000);
 const SR_MAX = clamp(process.env.SR_MAX || 10, 3, 60);
 
@@ -871,7 +857,6 @@ function pickChatHandler(mod) {
   return null;
 }
 
-// ALWAYS return followUps as string[]
 function normalizeFollowUpsToStrings(followUps) {
   if (!Array.isArray(followUps) || followUps.length === 0) return undefined;
   const seen = new Set();
@@ -927,13 +912,7 @@ function respondOnce(res) {
 }
 
 function capsPayload() {
-  return {
-    music: true,
-    movies: true,
-    sponsors: true,
-    schedule: true,
-    tts: true,
-  };
+  return { music: true, movies: true, sponsors: true, schedule: true, tts: true };
 }
 
 function dedupeOkPayload({ reply, sessionId, requestId, visitorId, posture }) {
@@ -962,6 +941,7 @@ app.post("/api/chat", async (req, res) => {
     try {
       safeSet(res, "X-Nyx-Deduped", "timeout-floor");
       const vid = normalizeStr(req.get("X-Visitor-Id") || "") || null;
+      if (BRIDGE_DEBUG_HEADERS) safeSet(res, "X-Nyx-Posture", "explore");
       return once.json(
         200,
         dedupeOkPayload({
@@ -998,30 +978,30 @@ app.post("/api/chat", async (req, res) => {
       normalizeStr(req.get("X-Visitor-Id") || "") ||
       null;
 
-    // ===== TURN-CACHE (EARLY) =====
     pruneTurnCache();
     const turnKey = getTurnKey(req, body, text, visitorId);
     const cached = TURN_CACHE.get(turnKey);
     if (cached && Date.now() - Number(cached.at || 0) <= TURN_DEDUPE_MS) {
       clearTimeout(watchdog);
       safeSet(res, "X-Nyx-Deduped", "turn-cache");
-      // Preserve posture header if present
-      try {
-        if (cached.payload && cached.payload.posture) safeSet(res, "X-Nyx-Posture", String(cached.payload.posture));
-      } catch (_) {}
+      if (BRIDGE_DEBUG_HEADERS && cached.payload && cached.payload.posture) {
+        safeSet(res, "X-Nyx-Posture", String(cached.payload.posture));
+      }
+      if (BRIDGE_DEBUG_HEADERS && cached.payload && cached.payload._bridgeInjected) {
+        safeSet(res, "X-Nyx-Bridge", String(cached.payload._bridgeInjected));
+      }
       return once.json(200, cached.payload);
     }
 
     const sessionId = getSessionId(req, body, visitorId);
     const session = touchSession(sessionId, { visitorId }) || { sessionId };
 
-    // Persist voiceMode from body/header into session
     const vmode = getVoiceMode(req, body);
     if (vmode) session.voiceMode = vmode;
 
     const now = Date.now();
 
-    // Sustained-rate guard (slow loop protection)
+    // Sustained-rate guard
     const srAt = Number(session.__srAt || 0);
     const srCount = Number(session.__srCount || 0);
     const srWithin = srAt && now - srAt < SR_WINDOW_MS;
@@ -1032,7 +1012,7 @@ app.post("/api/chat", async (req, res) => {
         clearTimeout(watchdog);
         safeSet(res, "X-Nyx-Deduped", "sustained");
         const posture = session.__lastPosture || "explore";
-        safeSet(res, "X-Nyx-Posture", String(posture));
+        if (BRIDGE_DEBUG_HEADERS) safeSet(res, "X-Nyx-Posture", String(posture));
         const payload = dedupeOkPayload({
           reply: session.__lastReply || "OK.",
           sessionId,
@@ -1048,7 +1028,7 @@ app.post("/api/chat", async (req, res) => {
       session.__srCount = 0;
     }
 
-    // Burst guard (short window)
+    // Burst guard
     const fp = fingerprint(req, visitorId);
     const prev = BURSTS.get(fp);
 
@@ -1076,7 +1056,7 @@ app.post("/api/chat", async (req, res) => {
         clearTimeout(watchdog);
         safeSet(res, "X-Nyx-Deduped", "burst-soft");
         const posture = session.__lastPosture || "explore";
-        safeSet(res, "X-Nyx-Posture", String(posture));
+        if (BRIDGE_DEBUG_HEADERS) safeSet(res, "X-Nyx-Posture", String(posture));
         const payload = dedupeOkPayload({
           reply: session.__lastReply || "OK.",
           sessionId,
@@ -1097,7 +1077,7 @@ app.post("/api/chat", async (req, res) => {
       clearTimeout(watchdog);
       safeSet(res, "X-Nyx-Deduped", "body-hash");
       const posture = session.__lastPosture || "explore";
-      safeSet(res, "X-Nyx-Posture", String(posture));
+      if (BRIDGE_DEBUG_HEADERS) safeSet(res, "X-Nyx-Posture", String(posture));
       const payload = dedupeOkPayload({
         reply: session.__lastReply || "OK.",
         sessionId,
@@ -1147,7 +1127,7 @@ app.post("/api/chat", async (req, res) => {
       }
     }
 
-    // Apply sessionPatch early so posture/bridge sees updated lane/mode/year
+    // Apply sessionPatch early (but server-owned keys remain protected)
     if (out && typeof out === "object" && out.sessionPatch && typeof out.sessionPatch === "object") {
       applySessionPatch(session, out.sessionPatch);
     }
@@ -1155,22 +1135,30 @@ app.post("/api/chat", async (req, res) => {
     const baseReply =
       out && typeof out === "object" && typeof out.reply === "string" ? out.reply : fallbackReply(text);
 
-    // ---- Posture + Bridge injection (canonical, 1-line, cooldown; BEFORE hashing) ----
-    const posture = detectPosture(text, session, out);
+    // ---- Posture + Bridge injection (BEFORE hashing) ----
+    const posture = detectPosture(text);
     session.__lastPosture = posture;
-    safeSet(res, "X-Nyx-Posture", String(posture));
+
+    if (BRIDGE_DEBUG_HEADERS) safeSet(res, "X-Nyx-Posture", String(posture));
 
     let finalReply = String(baseReply || "").trim();
 
     const eligible = bridgeEligible({ text, session, out, now });
+    let bridgeInjected = null;
+
     if (eligible) {
       const style = chooseBridgeStyle(posture);
       const line = pickBridgeLine(style, session);
-      finalReply = injectBridgeLine(finalReply, line);
-      session.__lastBridgeAt = now;
+      const next = injectBridgeLine(finalReply, line);
+      if (next !== finalReply) {
+        finalReply = next;
+        session.__lastBridgeAt = now;
+        bridgeInjected = line;
+        if (BRIDGE_DEBUG_HEADERS) safeSet(res, "X-Nyx-Bridge", line);
+      }
     }
 
-    // Reply-loop kill (hash finalReply, not baseReply)
+    // Reply-loop kill (hash finalReply)
     const replyHash = sha256(String(finalReply || ""));
     const lastReplyHash = normalizeStr(session.__lastReplyHash || "");
     const lastReplyAt = Number(session.__lastReplyAt || 0);
@@ -1225,7 +1213,7 @@ app.post("/api/chat", async (req, res) => {
         ? normalizeFollowUpsToStrings(out.followUps)
         : undefined;
 
-    // Persist last seen (use finalReply)
+    // Persist last seen
     session.__lastReply = finalReply;
     session.__lastBodyHash = bodyHash;
     session.__lastBodyAt = now;
@@ -1268,29 +1256,29 @@ app.post("/api/chat", async (req, res) => {
       if (out.year != null) payload.year = out.year;
       if (typeof out.mode === "string") payload.mode = out.mode;
       if (out.cog && typeof out.cog === "object") payload.cog = out.cog;
-      if (out.caps && typeof out.caps === "object") {
-        payload.caps = Object.assign({}, payload.caps, out.caps);
-      }
+      if (out.caps && typeof out.caps === "object") payload.caps = Object.assign({}, payload.caps, out.caps);
     }
 
     if (shadow) payload.shadow = shadow;
     if (followUps) payload.followUps = followUps;
 
+    // For header-based verification across cached responses
+    if (bridgeInjected) payload._bridgeInjected = bridgeInjected;
+
     if (isDebug && out && typeof out === "object") {
       if (out.baseMessage) payload.baseMessage = String(out.baseMessage);
       if (out._engine && typeof out._engine === "object") payload._engine = out._engine;
-
-      // Optional debug bridge telemetry (safe)
       payload._bridge = {
         enabled: BRIDGE_ENABLED,
         musicOnly: BRIDGE_MUSIC_ONLY,
-        eligible: eligible,
+        eligible,
         cooldownMs: BRIDGE_COOLDOWN_MS,
+        styleDefault: BRIDGE_STYLE_DEFAULT,
+        explicitAlways: BRIDGE_EXPLICIT_ALWAYS,
         lastBridgeAt: Number(session.__lastBridgeAt || 0) || null,
       };
     }
 
-    // Store turn-cache (final payload)
     TURN_CACHE.set(turnKey, { at: Date.now(), payload });
 
     clearTimeout(watchdog);
