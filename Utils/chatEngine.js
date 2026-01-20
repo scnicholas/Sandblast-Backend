@@ -15,16 +15,23 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.6v (DEEPER MODE-AWARE + MUSIC NAV CHIPS)
+ * v0.6w (MUSIC CONTEXT SPINE + MODE SWITCH WITHOUT RESET; NO REGRESSIONS)
  *
- * Adds / fixes (vs v0.6u):
- *  ✅ “Deeper” becomes mode-aware and stays in-place (no lane drift)
- *  ✅ Auto-prepends Next/Previous chips when lane=music and year is known
+ * Adds / fixes (vs v0.6v):
+ *  ✅ Music continuity spine: session.musicContext = { lane, year, mode, lastAction }
+ *     - Mirrored alongside existing keys (lastMusicYear/activeMusicMode) for backward safety
+ *     - getContinuity prefers musicContext first (unbreakable continuity)
+ *
+ *  ✅ Mode switching without reset:
+ *     - If user says "story moment" / "micro moment" / "#1" / "top 10" / "top 100"
+ *       WITHOUT a year, and we have a year in continuity, we rewrite to:
+ *         "story moment 1988" (etc)
  *
  * Keeps:
  *  ✅ Reset chip + reset restores intro vibe
  *  ✅ continuity normalizer (bare year → mode-aware prompt)
  *  ✅ next/prev mode-aware
+ *  ✅ deeper mode-aware + stays in-place
  *  ✅ loop guards + output dampener
  *  ✅ call signature hardening
  */
@@ -302,6 +309,10 @@ const SESSION_ALLOW = new Set([
   "pendingLane", "pendingMode", "pendingYear",
   "recentIntent", "recentTopic",
   "activeMusicMode", "lastMusicYear", "year", "mode",
+
+  // ✅ NEW: Continuity spine (preferred read path)
+  "musicContext",
+
   "depthPreference", "userName", "nameAskedAt", "lastOpenQuestion", "userGoal",
   "lastNameUseTurn"
 ]);
@@ -537,6 +548,10 @@ function detectMode(text) {
   return null;
 }
 
+/**
+ * ✅ NEW: Continuity spine read
+ * Prefer session.musicContext first, then legacy fields.
+ */
 function getContinuity(sess, safeText) {
   const s = sess || {};
   const nav = isAmbiguousNav(safeText);
@@ -545,8 +560,14 @@ function getContinuity(sess, safeText) {
   const yearFromText = extractYear(safeText);
   const modeFromText = detectMode(safeText);
 
+  const mc = (s.musicContext && typeof s.musicContext === "object") ? s.musicContext : null;
+  const mcLane = mc && mc.lane ? String(mc.lane).toLowerCase() : null;
+  const mcYear = mc && mc.year ? String(mc.year) : null;
+  const mcMode = mc && mc.mode ? String(mc.mode) : null;
+
   const lane =
     inferredLane ||
+    mcLane ||
     s.lane ||
     s.lastLane ||
     (s.lastMusicYear || s.year ? "music" : "general");
@@ -554,6 +575,7 @@ function getContinuity(sess, safeText) {
   const activeYear =
     yearFromText ||
     s.pendingYear ||
+    mcYear ||
     s.lastMusicYear ||
     s.year ||
     s.lastYear ||
@@ -562,6 +584,7 @@ function getContinuity(sess, safeText) {
   const activeMode =
     modeFromText ||
     s.pendingMode ||
+    mcMode ||
     s.activeMusicMode ||
     s.mode ||
     s.lastMode ||
@@ -629,6 +652,7 @@ function prevDirective(cont) {
  * CONTINUITY NORMALIZER (CRITICAL):
  * - Converts bare-year messages into mode-aware prompts.
  * - Converts year:YYYY into mode-aware prompts when we already have a music mode.
+ * - ✅ NEW: Converts mode-only commands into mode+year when year is known.
  * - Leaves explicit user intent alone (top 10 1989 / story moment 1989 etc.)
  */
 function isBareYearOnly(text) {
@@ -646,46 +670,35 @@ function parseYearColon(text) {
   return m ? m[1] : null;
 }
 
-function normalizeContinuityInput(rawText, sess) {
-  const t = String(rawText || "").trim();
-  if (!t) return { text: t, normalized: false, reason: null };
+function isModeOnlyWithoutYear(text) {
+  const t = normalizeText(text);
+  const hasYear = /\b(19\d{2}|20\d{2})\b/.test(t);
+  if (hasYear) return false;
+  return (
+    t === "top 10" || t === "top10" || t === "top ten" ||
+    t === "top 100" || t === "top100" ||
+    t === "story moment" || t === "story" ||
+    t === "micro moment" || t === "micro" ||
+    t === "#1" || t === "number 1" || t === "no 1" || t === "no. 1"
+  );
+}
 
-  // If user typed reset directly, don't rewrite
-  if (isResetIntent(t)) return { text: t, normalized: false, reason: null };
+function normalizeModeOnlyToPrompt(text, cont, sess) {
+  const t = normalizeText(text);
+  const year =
+    (cont && cont.year) ||
+    (sess && sess.musicContext && sess.musicContext.year ? String(sess.musicContext.year) : null) ||
+    (sess && (sess.lastMusicYear || sess.lastYear || sess.year) ? String(sess.lastMusicYear || sess.lastYear || sess.year) : null);
 
-  // If user already gave an explicit intent, don't rewrite
-  if (
-    isDirectIntent(t) ||
-    detectMode(t) ||
-    /\btop\s*10\b|\btop\s*100\b|\bstory\s*moment\b|\bmicro\s*moment\b|\b#1\b/.test(normalizeText(t))
-  ) {
-    return { text: t, normalized: false, reason: null };
-  }
+  if (!year || !/^\d{4}$/.test(String(year))) return null;
 
-  const cont = getContinuity(sess, t);
+  if (/\btop\s*10\b|top10|top ten/.test(t)) return `top 10 ${year}`;
+  if (/\btop\s*100\b|top100/.test(t)) return `top 100 ${year}`;
+  if (/\bstory\s*moment\b|\bstory\b/.test(t)) return `story moment ${year}`;
+  if (/\bmicro\s*moment\b|\bmicro\b/.test(t)) return `micro moment ${year}`;
+  if (t === "#1" || /\bnumber\s*1\b|\bno\.?\s*1\b|\bno\s*1\b/.test(t)) return `#1 ${year}`;
 
-  // Bare year "1989" -> mode-aware prompt (only if we have a music mode OR are in music lane)
-  if (isBareYearOnly(t)) {
-    const y = t;
-    const mode = cont.mode || (cont.lane === "music" ? "top10" : null);
-    if (cont.lane === "music" || sess.lastMusicYear || sess.activeMusicMode || sess.lastMode) {
-      return { text: modeToPrompt(mode || "top10", y), normalized: true, reason: "bare_year_mode_aware" };
-    }
-    // If truly no music context, treat as "year:YYYY" (lets UI/year flow catch it)
-    return { text: `year:${y}`, normalized: true, reason: "bare_year_to_yearcolon" };
-  }
-
-  // year:YYYY -> if we have a mode, convert into that mode prompt
-  if (isYearColon(t)) {
-    const y = parseYearColon(t);
-    const mode = cont.mode || (cont.lane === "music" ? "top10" : null);
-    if (y && (cont.lane === "music" || sess.activeMusicMode || sess.lastMode)) {
-      return { text: modeToPrompt(mode || "top10", y), normalized: true, reason: "yearcolon_to_mode_prompt" };
-    }
-    return { text: `year:${y}`, normalized: true, reason: "yearcolon_passthru" };
-  }
-
-  return { text: t, normalized: false, reason: null };
+  return null;
 }
 
 // ----------------------------
@@ -728,8 +741,6 @@ Where do you want to start?`;
 function resetSessionPatch(prevSess) {
   const keepDepthPref = (prevSess && prevSess.depthPreference) ? String(prevSess.depthPreference) : "fast";
 
-  // We overwrite allowlisted keys so the next turn behaves like a fresh session,
-  // BUT resetReply already *is* an intro, so we mark introDone true to avoid losing the intro vibe.
   return filterSessionPatch({
     introDone: true,
     introAt: nowMs(),
@@ -772,7 +783,9 @@ function resetSessionPatch(prevSess) {
     year: null,
     mode: null,
 
-    // keep userName (optional). if you want to wipe the name too, set userName:null here.
+    // ✅ NEW: reset clears spine too
+    musicContext: null,
+
     userGoal: "explore",
     depthPreference: keepDepthPref,
     lastOpenQuestion: null,
@@ -848,6 +861,7 @@ function yearPickerReply(sess) {
 function modeForDeeper(cont, sess) {
   const m =
     (cont && cont.mode ? String(cont.mode) : "") ||
+    (sess && sess.musicContext && sess.musicContext.mode ? String(sess.musicContext.mode) : "") ||
     (sess && sess.activeMusicMode ? String(sess.activeMusicMode) : "") ||
     (sess && sess.lastMode ? String(sess.lastMode) : "") ||
     "";
@@ -855,7 +869,6 @@ function modeForDeeper(cont, sess) {
 
   if (mm === "story_moment" || mm === "micro_moment" || mm === "top10" || mm === "top100" || mm === "number1") return mm;
 
-  // default to top10 only if we’re in music context
   const lane = (cont && cont.lane) || (sess && sess.lane) || "general";
   if (String(lane).toLowerCase() === "music") return "top10";
 
@@ -864,7 +877,10 @@ function modeForDeeper(cont, sess) {
 
 function deeperReply({ baseReply, cont, sess }) {
   const lane = (cont && cont.lane) ? String(cont.lane) : (sess && sess.lane ? String(sess.lane) : "general");
-  const year = (cont && cont.year) ? String(cont.year) : (sess && (sess.lastMusicYear || sess.lastYear || sess.year) ? String(sess.lastMusicYear || sess.lastYear || sess.year) : "");
+  const year =
+    (cont && cont.year) ? String(cont.year)
+      : (sess && sess.musicContext && sess.musicContext.year ? String(sess.musicContext.year)
+        : (sess && (sess.lastMusicYear || sess.lastYear || sess.year) ? String(sess.lastMusicYear || sess.lastYear || sess.year) : ""));
   const mode = modeForDeeper(cont, sess);
 
   const cleanBase = String(baseReply || "").trim();
@@ -961,10 +977,72 @@ async function chatEngine(arg1, arg2) {
   }
 
   // ----------------------------
+  // CONTINUITY SNAPSHOT (for mode-only rewrite + deeper/next/prev)
+  // ----------------------------
+  const cont0 = getContinuity(sess, safeText);
+
+  // ✅ NEW: MODE SWITCH WITHOUT RESET (mode-only -> mode+year)
+  // Do this BEFORE normalizeContinuityInput’s early “explicit intent” exit.
+  if (isModeOnlyWithoutYear(safeText)) {
+    const rewritten = normalizeModeOnlyToPrompt(safeText, cont0, sess);
+    if (rewritten) {
+      // treat as user intent, but anchored to current year
+      // (continuity normalizer will leave it alone because it now has a year)
+      // proceed with rewritten text
+      // eslint-disable-next-line no-unused-vars
+    }
+  }
+
+  // ----------------------------
   // CONTINUITY NORMALIZER (runs BEFORE next/deeper, name, depth, routing)
   // ----------------------------
-  const normIn = normalizeContinuityInput(safeText, sess);
-  const routingText0 = normIn && typeof normIn.text === "string" ? normIn.text : safeText;
+  // NOTE: pass the possibly rewritten mode-only phrase
+  const modeOnlyRewrite = (isModeOnlyWithoutYear(safeText) ? normalizeModeOnlyToPrompt(safeText, cont0, sess) : null);
+  const safeTextForNorm = modeOnlyRewrite ? modeOnlyRewrite : safeText;
+
+  function normalizeContinuityInput(rawText, sessIn) {
+    const t = String(rawText || "").trim();
+    if (!t) return { text: t, normalized: false, reason: null };
+
+    // If user typed reset directly, don't rewrite
+    if (isResetIntent(t)) return { text: t, normalized: false, reason: null };
+
+    // If user already gave an explicit intent, don't rewrite
+    if (
+      isDirectIntent(t) ||
+      detectMode(t) ||
+      /\btop\s*10\b|\btop\s*100\b|\bstory\s*moment\b|\bmicro\s*moment\b|\b#1\b/.test(normalizeText(t))
+    ) {
+      return { text: t, normalized: false, reason: null };
+    }
+
+    const cont = getContinuity(sessIn, t);
+
+    // Bare year "1989" -> mode-aware prompt
+    if (isBareYearOnly(t)) {
+      const y = t;
+      const mode = cont.mode || (cont.lane === "music" ? "top10" : null);
+      if (cont.lane === "music" || sessIn.lastMusicYear || sessIn.activeMusicMode || sessIn.lastMode || (sessIn.musicContext && sessIn.musicContext.mode)) {
+        return { text: modeToPrompt(mode || "top10", y), normalized: true, reason: "bare_year_mode_aware" };
+      }
+      return { text: `year:${y}`, normalized: true, reason: "bare_year_to_yearcolon" };
+    }
+
+    // year:YYYY -> if we have a mode, convert into that mode prompt
+    if (isYearColon(t)) {
+      const y = parseYearColon(t);
+      const mode = cont.mode || (cont.lane === "music" ? "top10" : null);
+      if (y && (cont.lane === "music" || sessIn.activeMusicMode || sessIn.lastMode || (sessIn.musicContext && sessIn.musicContext.mode))) {
+        return { text: modeToPrompt(mode || "top10", y), normalized: true, reason: "yearcolon_to_mode_prompt" };
+      }
+      return { text: `year:${y}`, normalized: true, reason: "yearcolon_passthru" };
+    }
+
+    return { text: t, normalized: false, reason: null };
+  }
+
+  const normIn = normalizeContinuityInput(safeTextForNorm, sess);
+  const routingText0 = normIn && typeof normIn.text === "string" ? normIn.text : safeTextForNorm;
 
   // Continuity snapshot (used for deeper/next/prev)
   const cont = getContinuity(sess, routingText0);
@@ -977,7 +1055,6 @@ async function chatEngine(arg1, arg2) {
     const baseReply = lastOut && typeof lastOut.reply === "string" ? lastOut.reply : "";
     const dr = deeperReply({ baseReply, cont, sess });
 
-    // chips: for music+year, force Next/Previous + Reset
     const baseChips = ensureFollowUpsNonEmpty(
       String(dr.lane || cont.lane || "general"),
       dr.year || cont.year || null,
@@ -985,19 +1062,36 @@ async function chatEngine(arg1, arg2) {
       sess
     );
 
-    const finalChips = withMusicNavChips(baseChips, { lane: String(dr.lane || cont.lane || "general"), year: dr.year || cont.year || null, mode: dr.mode || cont.mode || null }, sess);
+    const finalChips = withMusicNavChips(
+      baseChips,
+      { lane: String(dr.lane || cont.lane || "general"), year: dr.year || cont.year || null, mode: dr.mode || cont.mode || null },
+      sess
+    );
     const outSig = buildOutSig(dr.reply, finalChips);
+
+    const laneOut = String(dr.lane || cont.lane || "general").toLowerCase();
+    const yearOut = dr.year || cont.year || null;
+    const modeOut = dr.mode || cont.mode || null;
 
     const sessionPatch = filterSessionPatch({
       lastInText: routingText0,
       lastInAt: nowMs(),
-      lane: String(dr.lane || cont.lane || "general"),
-      lastYear: dr.year || cont.year || undefined,
-      lastMode: dr.mode || cont.mode || undefined,
-      activeMusicMode: (String(dr.lane || cont.lane) === "music") ? (dr.mode || cont.mode || sess.activeMusicMode || "top10") : (sess.activeMusicMode || undefined),
-      lastMusicYear: (String(dr.lane || cont.lane) === "music") ? (dr.year || cont.year || sess.lastMusicYear || undefined) : (sess.lastMusicYear || undefined),
+
+      lane: laneOut,
+      lastYear: yearOut || undefined,
+      lastMode: modeOut || undefined,
+
+      activeMusicMode: (laneOut === "music") ? (modeOut || sess.activeMusicMode || (sess.musicContext && sess.musicContext.mode) || "top10") : (sess.activeMusicMode || undefined),
+      lastMusicYear: (laneOut === "music") ? (yearOut || sess.lastMusicYear || (sess.musicContext && sess.musicContext.year) || undefined) : (sess.lastMusicYear || undefined),
+
+      // ✅ NEW: spine updated on deeper
+      musicContext: (laneOut === "music" && yearOut)
+        ? { lane: "music", year: String(yearOut), mode: String(modeOut || "top10"), lastAction: "deeper" }
+        : (sess.musicContext || undefined),
+
       recentIntent: "deeper",
-      recentTopic: `deeper:${String(dr.mode || cont.mode || "general")}`,
+      recentTopic: `deeper:${String(modeOut || "general")}`,
+
       lastOut: { reply: dr.reply, followUps: finalChips },
       lastOutAt: nowMs(),
       lastOutSig: outSig,
@@ -1007,13 +1101,13 @@ async function chatEngine(arg1, arg2) {
     return {
       ok: true,
       reply: dr.reply,
-      lane: String(dr.lane || cont.lane || "general"),
-      ctx: { year: dr.year ? parseInt(dr.year, 10) : null, mode: dr.mode || cont.mode || null },
+      lane: laneOut,
+      ctx: { year: yearOut ? parseInt(yearOut, 10) : null, mode: modeOut || null },
       ui: { mode: "chat" },
       followUpsStrings: finalChips,
       followUps: chipsFromStrings(finalChips, 4),
       sessionPatch,
-      cog: { phase: "engaged", state: "expand", reason: "deeper_mode_aware", lane: String(dr.lane || cont.lane || "general"), year: dr.year || undefined, mode: dr.mode || undefined, ts: nowMs() },
+      cog: { phase: "engaged", state: "expand", reason: "deeper_mode_aware", lane: laneOut, year: yearOut || undefined, mode: modeOut || undefined, ts: nowMs() },
       requestId,
       meta: { ts: nowMs(), contract: "v1" }
     };
@@ -1037,7 +1131,7 @@ async function chatEngine(arg1, arg2) {
         recentTopic: "next:need_year",
         lane: "music",
         pendingLane: "music",
-        pendingMode: cont.mode || sess.activeMusicMode || "top10"
+        pendingMode: cont.mode || (sess.musicContext && sess.musicContext.mode) || sess.activeMusicMode || "top10"
       });
 
       const chips = maybeInjectResetChip(yp.followUpsStrings, sess);
@@ -1069,7 +1163,7 @@ async function chatEngine(arg1, arg2) {
         recentTopic: "prev:need_year",
         lane: "music",
         pendingLane: "music",
-        pendingMode: cont.mode || sess.activeMusicMode || "top10"
+        pendingMode: cont.mode || (sess.musicContext && sess.musicContext.mode) || sess.activeMusicMode || "top10"
       });
 
       const chips = maybeInjectResetChip(yp.followUpsStrings, sess);
@@ -1292,19 +1386,30 @@ async function chatEngine(arg1, arg2) {
 
   const activeMusicMode =
     pinnedLane === "music"
-      ? (pinnedMode || sess.activeMusicMode || sess.mode || "top10")
+      ? (pinnedMode || (sess.musicContext && sess.musicContext.mode) || sess.activeMusicMode || sess.mode || "top10")
       : (sess.activeMusicMode || null);
 
   const lastMusicYear =
     pinnedLane === "music"
-      ? (pinnedYear || sess.lastMusicYear || sess.year || sess.lastYear || null)
+      ? (pinnedYear || (sess.musicContext && sess.musicContext.year) || sess.lastMusicYear || sess.year || sess.lastYear || null)
       : (sess.lastMusicYear || null);
 
-  // **NEW**: enforce Next/Previous chips when music+year known
+  // enforce Next/Previous chips when music+year known
   const chipCont = { lane: pinnedLane, year: pinnedYear || lastMusicYear || null, mode: pinnedMode || activeMusicMode || null };
   followUpsStrings = withMusicNavChips(followUpsStrings, chipCont, sess);
 
   const outCache = { reply, followUps: safeArray(followUpsStrings).slice(0, 4) };
+
+  // ✅ NEW: update spine (mirror safe)
+  const nextMusicContext =
+    (String(pinnedLane).toLowerCase() === "music" && (pinnedYear || lastMusicYear))
+      ? {
+          lane: "music",
+          year: String(pinnedYear || lastMusicYear),
+          mode: String(pinnedMode || activeMusicMode || "top10"),
+          lastAction: navContext ? String(navContext.dir || "nav") : (normIn.normalized ? "normalized" : "explicit")
+        }
+      : (sess.musicContext || null);
 
   const sessionPatch = filterSessionPatch({
     ...inPatch,
@@ -1317,6 +1422,9 @@ async function chatEngine(arg1, arg2) {
 
     lastYear: pinnedYear || undefined,
     lastMode: pinnedMode || undefined,
+
+    // ✅ NEW: spine
+    musicContext: nextMusicContext || undefined,
 
     recentIntent: normIn.normalized ? "continuity_normalized" : pinnedLane,
     recentTopic: normIn.normalized
