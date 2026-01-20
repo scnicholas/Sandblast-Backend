@@ -3,27 +3,22 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17r (CORS HARD-LOCK: force echo on ALL responses + guaranteed OPTIONS)
+ * index.js v1.5.17s (CORS HARD-LOCK + TURN-CACHE DEDUPE: stops browser/proxy retry double-POST)
  *
- * Adds (vs v1.5.17q):
- *  ✅ HARD CORS ECHO middleware: if origin is allowed, ALWAYS sets:
- *     - Access-Control-Allow-Origin: <origin>
- *     - Vary: Origin
- *     This ensures POST responses never “lose” CORS headers even on early returns/errors.
- *
- *  ✅ Guaranteed OPTIONS responder for ALL paths:
- *     - returns 204 and includes allow headers
- *
- *  ✅ Default allowlist expanded (still respects env):
- *     - sandblast.channel / www
- *     - sandblastchannel.com / www
+ * Adds (vs v1.5.17r):
+ *  ✅ TURN-CACHE DEDUPE (origin+visitor+turnId+text) with TTL (default 4000ms)
+ *     - Catches real-world duplicate POSTs caused by browser/proxy retry (even if sessionId changes)
+ *     - Runs BEFORE burst/body-hash guards so it won’t trip rate-limiters
+ *     - Returns cached 200 JSON + sets X-Nyx-Deduped: turn-cache
  *
  * Keeps:
- *  - ANTI-502 crash visibility
- *  - CORS runs BEFORE parsers/error handlers
- *  - /health + /api/health + /api/version
- *  - /api/chat loop guards + dedupe payloads
- *  - /api/tts + /api/voice soft-loaded + /api/tts/diag
+ *  ✅ HARD CORS ECHO middleware: if origin is allowed, ALWAYS sets Allow-Origin + Vary on all responses
+ *  ✅ Guaranteed OPTIONS responder for ALL paths (204)
+ *  ✅ Expanded default origins for sandblast.channel + sandblastchannel.com
+ *  ✅ ANTI-502 crash visibility
+ *  ✅ /health + /api/health + /api/version
+ *  ✅ /api/chat loop guards + dedupe payload floors
+ *  ✅ /api/tts + /api/voice soft-loaded + /api/tts/diag
  */
 
 const express = require("express");
@@ -69,7 +64,7 @@ app.disable("x-powered-by");
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.17r (CORS HARD-LOCK: force echo on ALL responses + guaranteed OPTIONS)";
+  "index.js v1.5.17s (CORS HARD-LOCK + TURN-CACHE DEDUPE: stops browser/proxy retry double-POST)";
 
 const GIT_COMMIT =
   String(process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "").trim() || null;
@@ -227,8 +222,7 @@ app.use((req, res, next) => {
     if (origin && originAllowed(origin)) {
       safeSet(res, "Access-Control-Allow-Origin", origin);
       safeSet(res, "Vary", "Origin");
-      // If you ever use credentials, you must also set Allow-Credentials true
-      // but right now widget uses credentials:"omit" so keep it false.
+      // (No credentials)
     }
   } catch (_) {}
   next();
@@ -245,11 +239,7 @@ app.options("*", (req, res) => {
     safeSet(res, "Vary", "Origin");
   }
   safeSet(res, "Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  safeSet(
-    res,
-    "Access-Control-Allow-Headers",
-    corsOptions.allowedHeaders.join(",")
-  );
+  safeSet(res, "Access-Control-Allow-Headers", corsOptions.allowedHeaders.join(","));
   safeSet(res, "Access-Control-Max-Age", String(corsOptions.maxAge || 86400));
   const requestId = req.get("X-Request-Id") || rid();
   setContractHeaders(res, requestId);
@@ -471,9 +461,9 @@ app.get("/api/version", (req, res) => {
       allowlistCount: EFFECTIVE_ORIGINS.length,
       requestTimeoutMs: REQUEST_TIMEOUT_MS,
       maxSessions: MAX_SESSIONS,
-      bodyHashIncludeSession:
-        String(process.env.BODY_HASH_INCLUDE_SESSION || "false") === "true",
+      bodyHashIncludeSession: String(process.env.BODY_HASH_INCLUDE_SESSION || "false") === "true",
       sessionIdMaxLen: SESSION_ID_MAXLEN,
+      turnDedupeMs: clamp(process.env.TURN_DEDUPE_MS || 4000, 800, 15000),
     },
     allowlistSample: EFFECTIVE_ORIGINS.slice(0, 10),
   });
@@ -517,9 +507,7 @@ function stableBodyForHash(body, req) {
     voiceMode: normalizeStr(b.voiceMode || headerVoice || ""),
     mode: normalizeStr(b.mode || ""),
     year: b.year ?? null,
-    sessionId: BODY_HASH_INCLUDE_SESSION
-      ? normalizeStr(b.sessionId || headerSession || "")
-      : "",
+    sessionId: BODY_HASH_INCLUDE_SESSION ? normalizeStr(b.sessionId || headerSession || "") : "",
   });
 }
 
@@ -546,6 +534,59 @@ function intentSigFrom(text, session) {
   const lane = session && session.lane ? String(session.lane) : "";
   return `${lane || ""}::${m || ""}::${y || ""}::${sha256(t).slice(0, 10)}`;
 }
+
+/* ======================================================
+   TURN-CACHE DEDUPE (stops browser/proxy retry double-POST)
+====================================================== */
+
+const TURN_DEDUPE_MS = clamp(process.env.TURN_DEDUPE_MS || 4000, 800, 15000);
+const TURN_CACHE_MAX = clamp(process.env.TURN_CACHE_MAX || 800, 100, 5000);
+const TURN_CACHE = new Map();
+
+/**
+ * Build a retry-proof key:
+ * - Uses origin + visitor fingerprint + client.turnId + normalized text
+ * - If turnId is missing, falls back to body-hash-only key
+ * - Does NOT depend on sessionId (important!)
+ */
+function getTurnKey(req, body, text, visitorId) {
+  const origin = normalizeStr(req.headers.origin || "");
+  const fp = fingerprint(req, visitorId);
+  const t = normalizeStr(text || "").slice(0, MAX_HASH_TEXT_LEN);
+
+  let turnId = "";
+  try {
+    if (body && typeof body === "object" && body.client && typeof body.client === "object") {
+      turnId = normalizeStr(body.client.turnId || "");
+    }
+  } catch (_) {
+    turnId = "";
+  }
+
+  if (turnId) {
+    return sha256(JSON.stringify({ o: origin, fp, turnId, t }));
+  }
+
+  // fallback: body hash (still helps for clients with no turn id)
+  const bh = sha256(stableBodyForHash(body, req));
+  return sha256(JSON.stringify({ o: origin, fp, bh }));
+}
+
+function pruneTurnCache() {
+  const now = Date.now();
+  for (const [k, v] of TURN_CACHE.entries()) {
+    if (!v || now - Number(v.at || 0) > TURN_DEDUPE_MS) TURN_CACHE.delete(k);
+  }
+  // simple size cap
+  if (TURN_CACHE.size > TURN_CACHE_MAX) {
+    // delete oldest ~10%
+    const entries = Array.from(TURN_CACHE.entries()).sort((a, b) => Number(a[1].at || 0) - Number(b[1].at || 0));
+    const n = Math.max(1, Math.floor(TURN_CACHE_MAX * 0.1));
+    for (let i = 0; i < n && i < entries.length; i++) TURN_CACHE.delete(entries[i][0]);
+  }
+}
+
+setInterval(() => pruneTurnCache(), 5000).unref?.();
 
 /* ======================================================
    TTS / Voice routes (never brick) + diagnostics
@@ -836,6 +877,16 @@ app.post("/api/chat", async (req, res) => {
       normalizeStr(req.get("X-Visitor-Id") || "") ||
       null;
 
+    // ===== TURN-CACHE (EARLY) =====
+    pruneTurnCache();
+    const turnKey = getTurnKey(req, body, text, visitorId);
+    const cached = TURN_CACHE.get(turnKey);
+    if (cached && Date.now() - Number(cached.at || 0) <= TURN_DEDUPE_MS) {
+      clearTimeout(watchdog);
+      safeSet(res, "X-Nyx-Deduped", "turn-cache");
+      return once.json(200, cached.payload);
+    }
+
     const sessionId = getSessionId(req, body, visitorId);
     const session = touchSession(sessionId, { visitorId }) || { sessionId };
 
@@ -855,15 +906,14 @@ app.post("/api/chat", async (req, res) => {
       if (next > SR_MAX) {
         clearTimeout(watchdog);
         safeSet(res, "X-Nyx-Deduped", "sustained");
-        return once.json(
-          200,
-          dedupeOkPayload({
-            reply: session.__lastReply || "OK.",
-            sessionId,
-            requestId,
-            visitorId,
-          })
-        );
+        const payload = dedupeOkPayload({
+          reply: session.__lastReply || "OK.",
+          sessionId,
+          requestId,
+          visitorId,
+        });
+        TURN_CACHE.set(turnKey, { at: Date.now(), payload });
+        return once.json(200, payload);
       }
     } else {
       session.__srAt = now;
@@ -897,15 +947,14 @@ app.post("/api/chat", async (req, res) => {
       if (count > BURST_SOFT_MAX) {
         clearTimeout(watchdog);
         safeSet(res, "X-Nyx-Deduped", "burst-soft");
-        return once.json(
-          200,
-          dedupeOkPayload({
-            reply: session.__lastReply || "OK.",
-            sessionId,
-            requestId,
-            visitorId,
-          })
-        );
+        const payload = dedupeOkPayload({
+          reply: session.__lastReply || "OK.",
+          sessionId,
+          requestId,
+          visitorId,
+        });
+        TURN_CACHE.set(turnKey, { at: Date.now(), payload });
+        return once.json(200, payload);
       }
     }
 
@@ -916,15 +965,14 @@ app.post("/api/chat", async (req, res) => {
     if (lastHash && bodyHash === lastHash && lastAt && now - lastAt < BODY_DEDUPE_MS) {
       clearTimeout(watchdog);
       safeSet(res, "X-Nyx-Deduped", "body-hash");
-      return once.json(
-        200,
-        dedupeOkPayload({
-          reply: session.__lastReply || "OK.",
-          sessionId,
-          requestId,
-          visitorId,
-        })
-      );
+      const payload = dedupeOkPayload({
+        reply: session.__lastReply || "OK.",
+        sessionId,
+        requestId,
+        visitorId,
+      });
+      TURN_CACHE.set(turnKey, { at: Date.now(), payload });
+      return once.json(200, payload);
     }
 
     // Shadow (soft)
@@ -976,15 +1024,14 @@ app.post("/api/chat", async (req, res) => {
     if (lastReplyHash && replyHash === lastReplyHash && lastReplyAt && now - lastReplyAt < REPLY_DEDUPE_MS) {
       clearTimeout(watchdog);
       safeSet(res, "X-Nyx-Deduped", "reply-hash");
-      return once.json(
-        200,
-        dedupeOkPayload({
-          reply: session.__lastReply || reply || "OK.",
-          sessionId,
-          requestId,
-          visitorId,
-        })
-      );
+      const payload = dedupeOkPayload({
+        reply: session.__lastReply || reply || "OK.",
+        sessionId,
+        requestId,
+        visitorId,
+      });
+      TURN_CACHE.set(turnKey, { at: Date.now(), payload });
+      return once.json(200, payload);
     }
 
     const repAt = Number(session.__repAt || 0);
@@ -1003,15 +1050,14 @@ app.post("/api/chat", async (req, res) => {
         session.__lastReplyHash = sha256(soft);
         session.__lastReplyAt = now;
 
-        return once.json(
-          200,
-          dedupeOkPayload({
-            reply: soft,
-            sessionId,
-            requestId,
-            visitorId,
-          })
-        );
+        const payload = dedupeOkPayload({
+          reply: soft,
+          sessionId,
+          requestId,
+          visitorId,
+        });
+        TURN_CACHE.set(turnKey, { at: Date.now(), payload });
+        return once.json(200, payload);
       }
     } else {
       session.__repAt = now;
@@ -1041,15 +1087,14 @@ app.post("/api/chat", async (req, res) => {
     if (lastSig && sig === lastSig && lastSigAt && now - lastSigAt < INTENT_DEDUPE_MS) {
       clearTimeout(watchdog);
       safeSet(res, "X-Nyx-Deduped", "intent-sig");
-      return once.json(
-        200,
-        dedupeOkPayload({
-          reply: session.__lastReply || reply || "OK.",
-          sessionId,
-          requestId,
-          visitorId,
-        })
-      );
+      const payload = dedupeOkPayload({
+        reply: session.__lastReply || reply || "OK.",
+        sessionId,
+        requestId,
+        visitorId,
+      });
+      TURN_CACHE.set(turnKey, { at: Date.now(), payload });
+      return once.json(200, payload);
     }
     session.__lastIntentSig = sig;
     session.__lastIntentAt = now;
@@ -1082,6 +1127,9 @@ app.post("/api/chat", async (req, res) => {
       if (out._engine && typeof out._engine === "object") payload._engine = out._engine;
     }
 
+    // Store turn-cache (final payload)
+    TURN_CACHE.set(turnKey, { at: Date.now(), payload });
+
     clearTimeout(watchdog);
     return once.json(200, payload);
   } catch (e) {
@@ -1090,15 +1138,19 @@ app.post("/api/chat", async (req, res) => {
     setContractHeaders(res, requestId);
     safeSet(res, "X-Nyx-Deduped", "floor");
     const vid = normalizeStr(req.get("X-Visitor-Id") || "") || null;
-    return once.json(
-      200,
-      dedupeOkPayload({
-        reply: "I’m here. Give me a year (1950–2024), or say “top 10 1988”.",
-        sessionId: null,
-        requestId,
-        visitorId: vid,
-      })
-    );
+    const payload = dedupeOkPayload({
+      reply: "I’m here. Give me a year (1950–2024), or say “top 10 1988”.",
+      sessionId: null,
+      requestId,
+      visitorId: vid,
+    });
+
+    try {
+      const turnKey = getTurnKey(req, req.body, extractTextFromBody(req.body), vid);
+      TURN_CACHE.set(turnKey, { at: Date.now(), payload });
+    } catch (_) {}
+
+    return once.json(200, payload);
   }
 });
 
