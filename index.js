@@ -3,27 +3,22 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17u
- * (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + ENV KNOBS HARDENED)
+ * index.js v1.5.17v
+ * (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION +
+ *  ✅ SESSIONPATCH EXPANDED (CONTINUITY PERSIST FIX) + ENV KNOBS HARDENED)
  *
- * Adds (vs v1.5.17t):
- *  ✅ Env knobs expanded:
- *     - BRIDGE_STYLE_DEFAULT=soft|quiet|companion
- *     - BRIDGE_EXPLICIT_ALWAYS=true|false (explicit "roku" always eligible even if music-only)
- *     - BRIDGE_DEBUG_HEADERS=true|false (adds lightweight X-Nyx-Bridge headers)
+ * Fixes (vs v1.5.17u):
+ *  ✅ CRITICAL: Expands SESSION_PATCH_ALLOW to include chatEngine continuity keys
+ *     (introDone/turns/lastOut/lastMode/lastMusicYear/activeMusicMode/etc.)
+ *     so "next / 1989 / mode-aware continuity" actually persists across turns.
  *
- *  ✅ Server-owned session keys protected:
- *     - sessionPatch can NOT overwrite __lastBridgeAt/__bridgeIdx/__lastPosture (even if allowlisted)
- *
- *  ✅ Bridge telemetry headers (optional):
- *     - X-Nyx-Posture, X-Nyx-Bridge (only when injected)
- *
- * Keeps:
+ * Preserves:
  *  ✅ HARD CORS ECHO + guaranteed OPTIONS responder
  *  ✅ ANTI-502 crash visibility
  *  ✅ /health + /api/health + /api/version
  *  ✅ /api/chat loop guards + dedupe payload floors
  *  ✅ /api/tts + /api/voice soft-loaded + /api/tts/diag
+ *  ✅ Server-owned session keys protected from sessionPatch overwrite
  */
 
 const express = require("express");
@@ -69,7 +64,7 @@ app.disable("x-powered-by");
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.17u (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + ENV KNOBS HARDENED)";
+  "index.js v1.5.17v (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + SESSIONPATCH EXPANDED (CONTINUITY PERSIST FIX) + ENV KNOBS HARDENED)";
 
 const GIT_COMMIT =
   String(process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "").trim() || null;
@@ -332,19 +327,37 @@ function getVoiceMode(req, body) {
 /* Server-owned keys (cannot be overwritten by sessionPatch) */
 const SERVER_OWNED_KEYS = new Set(["__lastBridgeAt", "__bridgeIdx", "__lastPosture"]);
 
-/** Strict patch apply: allowlist only + proto-safe */
+/**
+ * Strict patch apply: allowlist only + proto-safe
+ *
+ * ✅ Expanded to include chatEngine continuity/sessionPatch keys.
+ *    Without this, "next", bare-year normalization, intro/reset continuity won't persist.
+ */
 const SESSION_PATCH_ALLOW = new Set([
+  // --- Core continuity (from chatEngine SESSION_ALLOW) ---
+  "introDone", "introAt",
+  "lastInText", "lastInAt",
+  "lastOut", "lastOutAt",
+  "lastOutSig", "lastOutSigAt",
+  "turns", "startedAt", "lastTurnAt",
+  "lanesVisited", "yearsVisited", "modesVisited",
+  "lastLane", "lastYear", "lastMode",
+  "lastFork", "depthLevel",
+  "elasticToggle", "lastElasticAt",
   "lane",
+  "pendingLane", "pendingMode", "pendingYear",
+  "recentIntent", "recentTopic",
+  "activeMusicMode", "lastMusicYear", "year", "mode",
+  "depthPreference", "userName", "nameAskedAt", "lastOpenQuestion", "userGoal",
+  "lastNameUseTurn",
+
+  // --- Existing server/session basics ---
   "visitorId",
-  "lastMusicYear",
-  "activeMusicMode",
   "voiceMode",
+
+  // --- Server-side dedupe/guards (internal) ---
   "__lastIntentSig",
   "__lastIntentAt",
-  "pendingLane",
-  "pendingMode",
-  "pendingYear",
-  "recentTopic",
   "__lastReply",
   "__lastBodyHash",
   "__lastBodyAt",
@@ -363,10 +376,15 @@ const SESSION_PATCH_ALLOW = new Set([
 
 function applySessionPatch(session, patch) {
   if (!session || !patch || typeof patch !== "object") return;
+
   for (const [k, v] of Object.entries(patch)) {
     if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
     if (SERVER_OWNED_KEYS.has(k)) continue; // ✅ protect server-owned keys
     if (!SESSION_PATCH_ALLOW.has(k)) continue;
+
+    // Skip undefined (treat as "no-op") to avoid polluting session with undefined
+    if (typeof v === "undefined") continue;
+
     session[k] = v;
   }
 }
@@ -593,7 +611,6 @@ function chooseBridgeStyle(posture) {
   const p = String(posture || "");
   if (p === "relax") return "quiet";
   if (p === "commit") return "companion";
-  // default fall back to env style if valid
   if (CANON.rokuBridge && CANON.rokuBridge[BRIDGE_STYLE_DEFAULT]) return BRIDGE_STYLE_DEFAULT;
   return "soft";
 }
@@ -618,10 +635,8 @@ function bridgeEligible({ text, session, out, now }) {
 
   const explicit = isExplicitRokuMention(text);
 
-  // If explicit always eligible, bypass lane check
   if (explicit && BRIDGE_EXPLICIT_ALWAYS) return true;
 
-  // Otherwise, default music-first gating
   const lane =
     (out && typeof out.lane === "string" ? out.lane : "") ||
     (session && session.lane ? String(session.lane) : "");
@@ -1127,7 +1142,7 @@ app.post("/api/chat", async (req, res) => {
       }
     }
 
-    // Apply sessionPatch early (but server-owned keys remain protected)
+    // ✅ Apply sessionPatch early (continuity persistence)
     if (out && typeof out === "object" && out.sessionPatch && typeof out.sessionPatch === "object") {
       applySessionPatch(session, out.sessionPatch);
     }
