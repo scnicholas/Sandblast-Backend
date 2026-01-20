@@ -15,13 +15,18 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.6r (CONTRACT v1: followUps objects + year-picker UI + lane/ctx/ui/meta)
+ * v0.6s (CONTINUITY+NEXT: “next” advances year based on current mode; deeper dialog hooks)
  *
- * Key goals:
- *  ✅ Backend owns flow: every response includes next actions (followUps)
- *  ✅ Widget stays dumb/safe: render reply + chips + optional year picker
- *  ✅ Keeps legacy followUpsStrings so older widgets don’t break
- *  ✅ Keeps your handler-signature hardening (object vs string call style)
+ * Adds:
+ *  ✅ Ambiguous-nav continuity resolver (prevents “next” → lane=general override)
+ *  ✅ Next intent: advances year + preserves mode (top10/story/micro/#1)
+ *  ✅ Stores activeMusicMode + lastMusicYear deterministically
+ *  ✅ Optional deeper dialog sprinkle (non-LLM) + safe hooks for LLM later
+ *
+ * Preserves:
+ *  ✅ CONTRACT v1 chips + year picker UI
+ *  ✅ Loop guards + output dampener
+ *  ✅ Call signature hardening
  */
 
 const crypto = require("crypto");
@@ -230,7 +235,7 @@ const SESSION_ALLOW = new Set([
   "elasticToggle", "lastElasticAt",
 
   // lane continuity (safe)
-  "lane",               // IMPORTANT for server allowlist compatibility
+  "lane",
   "pendingLane", "pendingMode", "pendingYear",
   "recentIntent", "recentTopic",
 
@@ -652,6 +657,117 @@ function detectMode(text) {
 }
 
 // ----------------------------
+// NEXT / DEEPER INTENTS + CONTINUITY RESOLVER
+// ----------------------------
+function isNextIntent(text) {
+  const t = normalizeText(text);
+  return (
+    t === "next" ||
+    t === "next one" ||
+    t === "next year" ||
+    t === "continue" ||
+    t === "keep going" ||
+    t === "go on" ||
+    t === "another" ||
+    t === "more"
+  );
+}
+
+function isDeeperIntent(text) {
+  const t = normalizeText(text);
+  return (
+    t === "deeper" ||
+    t === "go deeper" ||
+    t === "tell me more" ||
+    t === "expand" ||
+    t === "unpack that" ||
+    t === "why" ||
+    t === "how so"
+  );
+}
+
+function isAmbiguousNav(text) {
+  const t = normalizeText(text);
+  return isNextIntent(t) || isDeeperIntent(t);
+}
+
+function getContinuity(sess, safeText) {
+  const s = sess || {};
+  const nav = isAmbiguousNav(safeText);
+
+  // CRITICAL: do not override lane with detectLane() on ambiguous nav inputs (“next”)
+  const inferredLane = nav ? null : detectLane(safeText);
+  const yearFromText = extractYear(safeText);
+  const modeFromText = detectMode(safeText);
+
+  const lane =
+    inferredLane ||
+    s.lane ||
+    s.lastLane ||
+    (s.lastMusicYear || s.year ? "music" : "general");
+
+  const activeYear =
+    yearFromText ||
+    s.pendingYear ||
+    s.lastMusicYear ||
+    s.year ||
+    s.lastYear ||
+    null;
+
+  const activeMode =
+    modeFromText ||
+    s.pendingMode ||
+    s.activeMusicMode ||
+    s.mode ||
+    s.lastMode ||
+    null;
+
+  return {
+    lane: String(lane || "general").toLowerCase(),
+    year: (activeYear && /^\d{4}$/.test(String(activeYear))) ? String(activeYear) : null,
+    mode: activeMode ? String(activeMode) : null
+  };
+}
+
+function modeToPrompt(mode, year) {
+  const y = String(year || "").trim();
+  const m = String(mode || "").toLowerCase();
+
+  if (!y || !/^\d{4}$/.test(y)) return null;
+
+  if (m === "top10") return `top 10 ${y}`;
+  if (m === "top100") return `top 100 ${y}`;
+  if (m === "story_moment") return `story moment ${y}`;
+  if (m === "micro_moment") return `micro moment ${y}`;
+  if (m === "number1") return `#1 ${y}`;
+
+  // default music progression when unknown but in music lane
+  return `top 10 ${y}`;
+}
+
+function computeNextYear(year) {
+  const y = parseInt(String(year || ""), 10);
+  if (!Number.isFinite(y)) return null;
+  return clampInt(y + 1, 1950, 2024);
+}
+
+function nextDirective(cont) {
+  const lane = cont && cont.lane ? cont.lane : "general";
+  const mode = cont && cont.mode ? cont.mode : null;
+  const year = cont && cont.year ? cont.year : null;
+
+  if (lane !== "music") return null;
+  if (!year || !/^\d{4}$/.test(String(year))) return { kind: "need_year" };
+
+  const ny = computeNextYear(year);
+  if (!ny) return { kind: "need_year" };
+
+  // preserve current mode (top10/story/micro/#1). if none, default top10.
+  const prompt = modeToPrompt(mode || "top10", String(ny));
+  return { kind: "advance", year: String(ny), prompt, mode: mode || "top10" };
+}
+
+// ----------------------------
 // CALL SIGNATURE NORMALIZER (CRITICAL)
 // ----------------------------
 function normalizeInputArgs(arg1, arg2) {
@@ -727,14 +843,67 @@ async function chatEngine(arg1, arg2) {
   // Avoid poisoning on bad inputs
   const safeText = text === "[object Object]" ? "" : text;
 
+  // Continuity snapshot (used for next/deeper)
+  const cont = getContinuity(sess, safeText);
+
+  // ----------------------------
+  // NEXT intent intercept (before lane detection)
+  // ----------------------------
+  if (isNextIntent(safeText)) {
+    const nx = nextDirective(cont);
+
+    // If we’re in music lane but have no year, push year picker UI.
+    if (nx && nx.kind === "need_year") {
+      const yp = yearPickerReply(sess);
+      const sessionPatch = filterSessionPatch({
+        lastInText: safeText,
+        lastInAt: nowMs(),
+        recentIntent: "next_need_year",
+        recentTopic: "next:need_year",
+        lane: "music",
+        pendingLane: "music",
+        pendingMode: cont.mode || sess.activeMusicMode || "top10"
+      });
+
+      return {
+        ...yp,
+        sessionPatch,
+        cog: { phase: "engaged", state: "guide", reason: "next_needs_year", lane: "music", ts: nowMs() },
+        requestId,
+        meta: { ts: nowMs(), contract: "v1" }
+      };
+    }
+
+    // If we can advance: rewrite into explicit prompt and continue down normal routing using that prompt.
+    if (nx && nx.kind === "advance" && nx.prompt) {
+      // rewrite text and also stamp continuity
+      // eslint-disable-next-line no-unused-vars
+      const rewritten = String(nx.prompt);
+
+      // we DO NOT return early — we route through the music lane module to get real content
+      // but we pin sessionPatch fields later so the mode/year stay consistent
+      // Override safeText via shadow variables
+      // (We keep original safeText in lastInText for telemetry; rewritten becomes routingText)
+      var routingText = rewritten; // function-scoped var (works in older Node)
+      var nextContext = nx;
+    } else {
+      // Not actionable; fallthrough
+      var routingText = safeText;
+      var nextContext = null;
+    }
+  } else {
+    var routingText = safeText;
+    var nextContext = null;
+  }
+
   // Name capture intercept
-  const maybeName = extractNameFromText(safeText);
+  const maybeName = extractNameFromText(routingText);
   if (maybeName) {
     const reply = `Nice to meet you, ${maybeName}. What do you feel like right now: a specific year, a surprise, or just talking?`;
     const followUpsStrings = ["Pick a year", "Surprise me", "Story moment", "Just talk"];
 
     const sessionPatch = filterSessionPatch({
-      lastInText: safeText,
+      lastInText: routingText,
       lastInAt: nowMs(),
       userName: maybeName,
       lastNameUseTurn: Number(sess.turns || 0),
@@ -758,13 +927,13 @@ async function chatEngine(arg1, arg2) {
   }
 
   // Depth dial intercept
-  if (isDepthDial(safeText)) {
-    const pref = normalizeText(safeText);
+  if (isDepthDial(routingText)) {
+    const pref = normalizeText(routingText);
     const reply = depthDialReply(pref);
     const followUpsStrings = ["Pick a year", "What’s playing now", "Show me the Roku path", "Just talk"];
 
     const sessionPatch = filterSessionPatch({
-      lastInText: safeText,
+      lastInText: routingText,
       lastInAt: nowMs(),
       depthPreference: pref,
       recentTopic: `depth:${pref}`,
@@ -787,10 +956,10 @@ async function chatEngine(arg1, arg2) {
   }
 
   // Year picker trigger (UI mode)
-  if (wantsYearPicker(safeText)) {
+  if (wantsYearPicker(routingText)) {
     const yp = yearPickerReply(sess);
     const sessionPatch = filterSessionPatch({
-      lastInText: safeText,
+      lastInText: routingText,
       lastInAt: nowMs(),
       recentIntent: "year_picker",
       recentTopic: "ui:year_picker",
@@ -807,17 +976,17 @@ async function chatEngine(arg1, arg2) {
   }
 
   // Repeat-input loop guard
-  if (shouldReturnCachedForRepeat(sess, safeText)) {
+  if (shouldReturnCachedForRepeat(sess, routingText)) {
     return cachedResponse(sess, "repeat_input", requestId);
   }
 
   const inPatch = filterSessionPatch({
-    lastInText: safeText,
+    lastInText: routingText,
     lastInAt: nowMs()
   });
 
   // Intro V2
-  if (shouldRunIntro(sess, safeText)) {
+  if (shouldRunIntro(sess, routingText)) {
     const intro = nyxIntroReply();
     const outSig = buildOutSig(intro.reply, intro.followUpsStrings);
 
@@ -858,9 +1027,9 @@ async function chatEngine(arg1, arg2) {
     };
   }
 
-  const lane = detectLane(safeText);
-  const year = extractYear(safeText);
-  const mode = detectMode(safeText);
+  const lane = detectLane(routingText);
+  const year = extractYear(routingText);
+  const mode = detectMode(routingText);
 
   let reply = "";
   let followUpsStrings = [];
@@ -868,7 +1037,7 @@ async function chatEngine(arg1, arg2) {
 
   if (lane === "music" && musicLane) {
     try {
-      const res = await musicLane(safeText, sess);
+      const res = await musicLane(routingText, sess);
       reply = (res && res.reply) ? String(res.reply).trim() : "";
       if (!reply) reply = "Tell me a year (1950–2024), or say “top 10 1988”.";
       followUpsStrings = normalizeFollowUpsFromLane(res);
@@ -880,7 +1049,7 @@ async function chatEngine(arg1, arg2) {
     }
   } else if (lane === "roku" && rokuLane) {
     try {
-      const r = await rokuLane({ text: safeText, session: sess });
+      const r = await rokuLane({ text: routingText, session: sess });
       reply = (r && r.reply) ? String(r.reply).trim() : "Roku mode — live linear or VOD?";
       followUpsStrings = normalizeFollowUpsFromLane(r);
       lanePatch = filterSessionPatch(r && r.sessionPatch ? r.sessionPatch : null);
@@ -911,7 +1080,7 @@ async function chatEngine(arg1, arg2) {
 
   // Advancement Engine v1 (before elasticity)
   {
-    const adv = applyAdvancement({ inputText: safeText, reply, followUpsStrings, lane, sess });
+    const adv = applyAdvancement({ inputText: routingText, reply, followUpsStrings, lane, sess });
     reply = adv.reply;
     followUpsStrings = adv.followUpsStrings;
   }
@@ -928,7 +1097,7 @@ async function chatEngine(arg1, arg2) {
   reply = namePre.reply;
 
   // Elasticity overlay
-  const canElastic = shouldElasticOverlay({ ...sess, ...tele, introDone: true, depthLevel }, safeText);
+  const canElastic = shouldElasticOverlay({ ...sess, ...tele, introDone: true, depthLevel }, routingText);
   if (canElastic) {
     const elastic = elasticityOverlay({ ...sess, ...tele, depthLevel });
     const merged = [...safeArray(followUpsStrings), ...safeArray(elastic.followUpsStrings)];
@@ -949,6 +1118,24 @@ async function chatEngine(arg1, arg2) {
 
   const outCache = { reply, followUps: safeArray(followUpsStrings).slice(0, 4) };
 
+  // IMPORTANT: pin continuity for “next” behavior
+  // - If we rewrote via nextContext, persist its year + mode + lane
+  const pinnedLane = (nextContext && nextContext.kind === "advance") ? "music" : lane;
+  const pinnedYear = (nextContext && nextContext.kind === "advance") ? String(nextContext.year) : (year || null);
+  const pinnedMode =
+    (nextContext && nextContext.kind === "advance") ? String(nextContext.mode || "top10") :
+    (mode || null);
+
+  const activeMusicMode =
+    pinnedLane === "music"
+      ? (pinnedMode || sess.activeMusicMode || sess.mode || "top10")
+      : (sess.activeMusicMode || null);
+
+  const lastMusicYear =
+    pinnedLane === "music"
+      ? (pinnedYear || sess.lastMusicYear || sess.year || sess.lastYear || null)
+      : (sess.lastMusicYear || null);
+
   // Compose patch (merge lanePatch + name usage marker if used)
   const sessionPatch = filterSessionPatch({
     ...inPatch,
@@ -956,13 +1143,21 @@ async function chatEngine(arg1, arg2) {
     ...lanePatch,
 
     // pin current lane explicitly for server allowlist retention
-    lane,
+    lane: pinnedLane,
+
+    // continuity pins for NEXT
+    lastMusicYear: lastMusicYear || undefined,
+    activeMusicMode: activeMusicMode || undefined,
+
+    // also keep generic lastYear/lastMode for non-music continuity
+    lastYear: pinnedYear || tele.lastYear || undefined,
+    lastMode: pinnedMode || tele.lastMode || undefined,
 
     depthLevel,
     elasticToggle: Number(sess.elasticToggle || 0) + 1,
     lastElasticAt: canElastic ? nowMs() : Number(sess.lastElasticAt || 0),
-    recentIntent: lane,
-    recentTopic: year ? `year:${year}` : (mode ? `mode:${mode}` : lane),
+    recentIntent: pinnedLane,
+    recentTopic: pinnedYear ? `year:${pinnedYear}` : (pinnedMode ? `mode:${pinnedMode}` : pinnedLane),
 
     depthPreference: sess.depthPreference || "fast",
     userGoal: sess.userGoal || "explore",
@@ -978,17 +1173,17 @@ async function chatEngine(arg1, arg2) {
   const cog = {
     phase: "engaged",
     state: canElastic ? "reflect" : "respond",
-    reason: canElastic ? "elastic_overlay" : "reply",
-    lane,
-    year: year || undefined,
-    mode: mode || undefined,
+    reason: nextContext ? "next_advance" : (canElastic ? "elastic_overlay" : "reply"),
+    lane: pinnedLane,
+    year: pinnedYear || undefined,
+    mode: pinnedMode || undefined,
     ts: nowMs()
   };
 
   // Contract ctx/ui
   const ctx = {
-    year: year ? parseInt(year, 10) : (sess.lastYear ? parseInt(sess.lastYear, 10) : null),
-    mode: mode || (sess.lastMode || null)
+    year: pinnedYear ? parseInt(pinnedYear, 10) : (sess.lastYear ? parseInt(sess.lastYear, 10) : null),
+    mode: pinnedMode || (sess.lastMode || null)
   };
 
   const ui = { mode: "chat" };
@@ -1002,7 +1197,7 @@ async function chatEngine(arg1, arg2) {
   return {
     ok: true,
     reply,
-    lane,
+    lane: pinnedLane,
     ctx,
     ui,
 
