@@ -16,21 +16,19 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.6y (CONTRACT-LOCK++: continuity wins over “general” + turns increment + next/prev reliability)
+ * v0.6z (CS-1 WIRING++: continuity enforcement + CS-1 session state allowlisted + deterministic turns for ALL early returns)
  *
- * Fixes vs v0.6x draft:
- *  ✅ Continuity spine now wins when inbound text is “general” (e.g., next/previous/deeper/continue)
- *     - prevents detectLane() returning "general" from overriding session.musicContext lane
- *  ✅ turns increments deterministically every turn (enables intro gating + better statefulness)
- *  ✅ next/previous work reliably even when user types just “next” (no year / no explicit music tokens)
+ * Adds:
+ *  ✅ CS-1 selector/enforcement wiring (optional module Utils/cs1.js)
+ *     - Tracks session continuity state under session.__cs1
+ *     - Marks speak events on key early-return replies (intro/reset/reentry/clarify/nav/deeper)
+ *     - Enforces allowlist pass-through for __cs1 (prevents continuity spam resets)
  *
- * Enforces:
- *  1) Non-empty reply ALWAYS
- *  2) Deterministic clarify when year required
- *  3) One intent per turn (answer OR clarify OR directive)
- *  4) Deterministic lane routing when routeHint present
- *  5) Mode/year coherence + continuity spine updates
- *  6) Content completeness for music modes (top10/top100/story/micro/#1) → else clarify (never label-only)
+ * Fixes:
+ *  ✅ Deterministic turns increment for ALL early returns (reset/intro/year-picker/name/depth/nav/deeper)
+ *
+ * Preserves:
+ *  ✅ Contract-lock guarantees + loop guards + continuity spine + next/prev reliability
  */
 
 const crypto = require("crypto");
@@ -59,6 +57,15 @@ try {
   const mod = require("./rokuLane");
   if (typeof mod === "function") rokuLane = mod;
   else if (mod && typeof mod.rokuLane === "function") rokuLane = mod.rokuLane;
+} catch (_) { /* optional */ }
+
+// ----------------------------
+// CS-1 (optional selector/enforcement layer)
+// ----------------------------
+let CS1 = null;
+try {
+  const mod = require("./cs1");
+  if (mod && typeof mod.decideCS1 === "function") CS1 = mod;
 } catch (_) { /* optional */ }
 
 // ----------------------------
@@ -310,7 +317,9 @@ const SESSION_ALLOW = new Set([
   "activeMusicMode", "lastMusicYear", "year", "mode",
   "musicContext",
   "depthPreference", "userName", "nameAskedAt", "lastOpenQuestion", "userGoal",
-  "lastNameUseTurn"
+  "lastNameUseTurn",
+  // ✅ CS-1 state (must be allowlisted or CS-1 will reset every turn)
+  "__cs1"
 ]);
 
 function filterSessionPatch(patch) {
@@ -320,6 +329,54 @@ function filterSessionPatch(patch) {
     if (SESSION_ALLOW.has(k)) out[k] = patch[k];
   }
   return out;
+}
+
+// ----------------------------
+// CS-1 helpers (no hard dependency)
+// ----------------------------
+function cs1FlagsFromText(text) {
+  const t = normalizeText(text);
+
+  const isGreeting =
+    /^(hi|hello|hey|yo|good morning|good afternoon|good evening)\b/.test(t) ||
+    /\b(hi|hello|hey|good morning|good afternoon|good evening)\b/.test(t);
+
+  const isReturn =
+    /\b(i'?m back|im back|back again|we'?re back|were back|welcome back)\b/.test(t);
+
+  const isHelp =
+    /\b(help|options|menu|capabilities|what can you do|what do you do|how does this work)\b/.test(t);
+
+  // chatEngine does not have a formal intent classifier in this file; treat these as best-effort flags
+  return { isGreeting, isReturn, isHelp, isError: false, isFallback: false };
+}
+
+function cs1Decide(session, turnCount, text) {
+  if (!CS1) return null;
+  const now = nowMs();
+  const f = cs1FlagsFromText(text);
+  try {
+    return CS1.decideCS1({
+      session,
+      turnCount,
+      intent: "general",
+      nowMs: now,
+      isReturn: !!f.isReturn,
+      isGreeting: !!f.isGreeting,
+      isHelp: !!f.isHelp,
+      isError: !!f.isError,
+      isFallback: !!f.isFallback
+    });
+  } catch (_) {
+    return null;
+  }
+}
+
+function cs1MarkSpoke(session, turnCount, lineType) {
+  if (!CS1) return;
+  try {
+    CS1.markSpoke(session, turnCount, nowMs(), lineType);
+  } catch (_) { /* ignore */ }
 }
 
 // ----------------------------
@@ -362,7 +419,8 @@ function cachedResponse(session, reason, requestIdIn) {
     sessionPatch: filterSessionPatch({
       lastInAt: nowMs(),
       recentIntent: "loop_guard",
-      recentTopic: reason || "repeat_input"
+      recentTopic: reason || "repeat_input",
+      __cs1: session.__cs1
     }),
     cog: { phase: "engaged", state: "steady", reason: "input_loop_guard", lane: "general", ts: nowMs() },
     requestId: requestIdIn || rid(),
@@ -784,7 +842,10 @@ function resetSessionPatch(prevSess) {
     depthPreference: keepDepthPref,
     lastOpenQuestion: null,
     nameAskedAt: 0,
-    lastNameUseTurn: 0
+    lastNameUseTurn: 0,
+
+    // keep __cs1 if it exists; if not, omit (CS-1 module will re-init safely)
+    __cs1: (prevSess && prevSess.__cs1) ? prevSess.__cs1 : undefined
   });
 }
 
@@ -1111,6 +1172,9 @@ function ensureSessionPatchBasics(out, sess, routingText, lane, mode, year, foll
     }
   }
 
+  // ✅ preserve CS-1 state if present (and allowlisted)
+  if (sess && sess.__cs1) patch.__cs1 = sess.__cs1;
+
   out.sessionPatch = filterSessionPatch(patch);
   return out;
 }
@@ -1161,7 +1225,8 @@ function enforceContractFinal({
         pendingMode: baseMode,
         pendingYear: null,
         recentIntent: "clarify_year",
-        recentTopic: `need_year:${String(baseMode)}`
+        recentTopic: `need_year:${String(baseMode)}`,
+        __cs1: sess.__cs1
       });
       return out;
     }
@@ -1185,7 +1250,8 @@ function enforceContractFinal({
       out.sessionPatch = filterSessionPatch({
         ...out.sessionPatch,
         recentIntent: "clarify_content",
-        recentTopic: `incomplete:${String(baseMode)}:${String(baseYear)}`
+        recentTopic: `incomplete:${String(baseMode)}:${String(baseYear)}`,
+        __cs1: sess.__cs1
       });
       return out;
     }
@@ -1234,14 +1300,40 @@ async function chatEngine(arg1, arg2) {
   const routeHintMode = forcedModeFromRouteHint(routeHintRaw);
 
   // ----------------------------
+  // CS-1 decision snapshot (optional)
+  // - We don’t *inject* language here (phrase packs do that),
+  //   but we DO ensure CS-1 state exists and survives allowlisting.
+  // ----------------------------
+  const turnCountForCS1 = Number(sess.turns || 0) + 1;
+  const cs1Decision = cs1Decide(sess, turnCountForCS1, safeText);
+  if (cs1Decision && cs1Decision.sessionPatch && cs1Decision.sessionPatch.__cs1) {
+    // store directly on session object so subsequent code sees it
+    sess.__cs1 = cs1Decision.sessionPatch.__cs1;
+  }
+
+  // ----------------------------
   // RESET intercept (must be FIRST)
   // ----------------------------
   if (isResetIntent(safeText)) {
     const r = resetReply();
     const followUpsStrings = maybeInjectResetChip(r.followUpsStrings, { turns: 1, introDone: true });
 
+    // CS-1: this is a "restart" style speak event
+    cs1MarkSpoke(sess, turnCountForCS1, "reentry");
+
     const sessionPatchBase = resetSessionPatch(sess);
     const outSig = buildOutSig(r.reply, followUpsStrings);
+
+    // ensure deterministic turns even on reset reply
+    const patch = filterSessionPatch({
+      ...sessionPatchBase,
+      lastOut: { reply: r.reply, followUps: followUpsStrings },
+      lastOutAt: nowMs(),
+      lastOutSig: outSig,
+      lastOutSigAt: nowMs(),
+      turns: 0, // reset keeps turns 0 by design; next user input becomes turn 1
+      __cs1: sess.__cs1
+    });
 
     return {
       ok: true,
@@ -1252,13 +1344,7 @@ async function chatEngine(arg1, arg2) {
       directives: [],
       followUpsStrings,
       followUps: chipsFromStrings(followUpsStrings, 4),
-      sessionPatch: filterSessionPatch({
-        ...sessionPatchBase,
-        lastOut: { reply: r.reply, followUps: followUpsStrings },
-        lastOutAt: nowMs(),
-        lastOutSig: outSig,
-        lastOutSigAt: nowMs()
-      }),
+      sessionPatch: patch,
       cog: { phase: "engaged", state: "reset", reason: "user_reset", lane: "general", ts: nowMs() },
       requestId,
       meta: { ts: nowMs(), contract: "v1" }
@@ -1334,6 +1420,8 @@ async function chatEngine(arg1, arg2) {
   // DEEPER intercept (mode-aware, stays in-place)
   // ----------------------------
   if (isDeeperIntent(routingText0)) {
+    cs1MarkSpoke(sess, turnCountForCS1, "continuity");
+
     const lastOut = sess && sess.lastOut && typeof sess.lastOut === "object" ? sess.lastOut : null;
     const baseReply = lastOut && typeof lastOut.reply === "string" ? lastOut.reply : "";
     const dr = deeperReply({ baseReply, cont, sess });
@@ -1378,7 +1466,13 @@ async function chatEngine(arg1, arg2) {
       lastOut: { reply: dr.reply, followUps: finalChips },
       lastOutAt: nowMs(),
       lastOutSig: outSig,
-      lastOutSigAt: nowMs()
+      lastOutSigAt: nowMs(),
+
+      turns: Number(sess.turns || 0) + 1,
+      lastTurnAt: nowMs(),
+      startedAt: Number(sess.startedAt) || nowMs(),
+
+      __cs1: sess.__cs1
     });
 
     const out = {
@@ -1416,6 +1510,8 @@ async function chatEngine(arg1, arg2) {
   let navContext = null;
 
   if (isNextIntent(routingText0)) {
+    cs1MarkSpoke(sess, turnCountForCS1, "continuity");
+
     const nx = nextDirective(cont);
 
     if (nx && nx.kind === "need_year") {
@@ -1427,7 +1523,11 @@ async function chatEngine(arg1, arg2) {
         recentTopic: "next:need_year",
         lane: "music",
         pendingLane: "music",
-        pendingMode: routeHintMode || cont.mode || (sess.musicContext && sess.musicContext.mode) || sess.activeMusicMode || "top10"
+        pendingMode: routeHintMode || cont.mode || (sess.musicContext && sess.musicContext.mode) || sess.activeMusicMode || "top10",
+        turns: Number(sess.turns || 0) + 1,
+        lastTurnAt: nowMs(),
+        startedAt: Number(sess.startedAt) || nowMs(),
+        __cs1: sess.__cs1
       });
 
       const chips = maybeInjectResetChip(yp.followUpsStrings, sess);
@@ -1460,6 +1560,8 @@ async function chatEngine(arg1, arg2) {
       navContext = { kind: "advance", dir: "next", year: String(nx.year), mode: String(nx.mode || "top10") };
     }
   } else if (isPrevIntent(routingText0)) {
+    cs1MarkSpoke(sess, turnCountForCS1, "continuity");
+
     const pv = prevDirective(cont);
 
     if (pv && pv.kind === "need_year") {
@@ -1471,7 +1573,11 @@ async function chatEngine(arg1, arg2) {
         recentTopic: "prev:need_year",
         lane: "music",
         pendingLane: "music",
-        pendingMode: routeHintMode || cont.mode || (sess.musicContext && sess.musicContext.mode) || sess.activeMusicMode || "top10"
+        pendingMode: routeHintMode || cont.mode || (sess.musicContext && sess.musicContext.mode) || sess.activeMusicMode || "top10",
+        turns: Number(sess.turns || 0) + 1,
+        lastTurnAt: nowMs(),
+        startedAt: Number(sess.startedAt) || nowMs(),
+        __cs1: sess.__cs1
       });
 
       const chips = maybeInjectResetChip(yp.followUpsStrings, sess);
@@ -1508,6 +1614,8 @@ async function chatEngine(arg1, arg2) {
   // Name capture intercept
   const maybeName = extractNameFromText(routingText);
   if (maybeName) {
+    cs1MarkSpoke(sess, turnCountForCS1, "reentry");
+
     const reply = `Nice to meet you, ${maybeName}. What do you feel like right now: a specific year, a surprise, or just talking?`;
     const base = ["Pick a year", "Surprise me", "Story moment", "Just talk"];
     const followUpsStrings = maybeInjectResetChip(base, sess);
@@ -1534,7 +1642,11 @@ async function chatEngine(arg1, arg2) {
         lastOut: { reply, followUps: followUpsStrings },
         lastOutAt: nowMs(),
         lastOutSig: outSig,
-        lastOutSigAt: nowMs()
+        lastOutSigAt: nowMs(),
+        turns: Number(sess.turns || 0) + 1,
+        lastTurnAt: nowMs(),
+        startedAt: Number(sess.startedAt) || nowMs(),
+        __cs1: sess.__cs1
       }),
       cog: { phase: "engaged", state: "welcome", reason: "name_captured", lane: "general", ts: nowMs() },
       requestId,
@@ -1556,6 +1668,8 @@ async function chatEngine(arg1, arg2) {
 
   // Depth dial intercept
   if (isDepthDial(routingText)) {
+    cs1MarkSpoke(sess, turnCountForCS1, "continuity");
+
     const pref = normalizeText(routingText);
     const reply = depthDialReply(pref);
     const base = ["Pick a year", "What’s playing now", "Show me the Roku path", "Just talk"];
@@ -1582,7 +1696,11 @@ async function chatEngine(arg1, arg2) {
         lastOut: { reply, followUps: followUpsStrings },
         lastOutAt: nowMs(),
         lastOutSig: outSig,
-        lastOutSigAt: nowMs()
+        lastOutSigAt: nowMs(),
+        turns: Number(sess.turns || 0) + 1,
+        lastTurnAt: nowMs(),
+        startedAt: Number(sess.startedAt) || nowMs(),
+        __cs1: sess.__cs1
       }),
       cog: { phase: "engaged", state: "calibrate", reason: "depth_dial", lane: "general", ts: nowMs() },
       requestId,
@@ -1604,6 +1722,8 @@ async function chatEngine(arg1, arg2) {
 
   // Year picker trigger (UI mode)
   if (wantsYearPicker(routingText)) {
+    cs1MarkSpoke(sess, turnCountForCS1, "router");
+
     const yp = yearPickerReply(sess);
     const chips = maybeInjectResetChip(yp.followUpsStrings, sess);
 
@@ -1616,7 +1736,11 @@ async function chatEngine(arg1, arg2) {
         lastInAt: nowMs(),
         recentIntent: "year_picker",
         recentTopic: "ui:year_picker",
-        lane: "music"
+        lane: "music",
+        turns: Number(sess.turns || 0) + 1,
+        lastTurnAt: nowMs(),
+        startedAt: Number(sess.startedAt) || nowMs(),
+        __cs1: sess.__cs1
       }),
       cog: { phase: "engaged", state: "clarify", reason: "ui_year_picker", lane: "music", ts: nowMs() },
       requestId,
@@ -1643,11 +1767,14 @@ async function chatEngine(arg1, arg2) {
 
   const inPatch = filterSessionPatch({
     lastInText: routingText,
-    lastInAt: nowMs()
+    lastInAt: nowMs(),
+    __cs1: sess.__cs1
   });
 
   // Intro V2
   if (shouldRunIntro(sess, routingText)) {
+    cs1MarkSpoke(sess, turnCountForCS1, "greeting");
+
     const intro = nyxIntroReply();
     const base = maybeInjectResetChip(intro.followUpsStrings, { turns: 1, introDone: true });
     const outSig = buildOutSig(intro.reply, base);
@@ -1666,7 +1793,11 @@ async function chatEngine(arg1, arg2) {
         introDone: true,
         introAt: nowMs(),
         startedAt: Number(sess.startedAt) || nowMs(),
-        turns: Number(sess.turns) || 0,
+
+        // ✅ deterministic increment here (was previously static)
+        turns: Number(sess.turns || 0) + 1,
+        lastTurnAt: nowMs(),
+
         lastFork: "intro",
         depthLevel: Number(sess.depthLevel || 0),
 
@@ -1680,7 +1811,9 @@ async function chatEngine(arg1, arg2) {
         lastOut: { reply: intro.reply, followUps: base },
         lastOutAt: nowMs(),
         lastOutSig: outSig,
-        lastOutSigAt: nowMs()
+        lastOutSigAt: nowMs(),
+
+        __cs1: sess.__cs1
       }),
       cog: { phase: "engaged", state: "welcome", reason: "intro_v2", lane: "general", ts: nowMs() },
       requestId,
@@ -1717,6 +1850,8 @@ async function chatEngine(arg1, arg2) {
 
   // Deterministic clarify if routeHint forces music+mode but we lack year
   if (lane === "music" && isMusicMode(mode) && !year) {
+    cs1MarkSpoke(sess, turnCountForCS1, "router");
+
     const clarify = buildClarifyYearReply({ lane: "music", mode, knownYear: null });
     const chips = maybeInjectResetChip(clarify.followUpsStrings, sess).slice(0, 4);
 
@@ -1737,6 +1872,10 @@ async function chatEngine(arg1, arg2) {
         pendingYear: null,
         recentIntent: "clarify_year",
         recentTopic: `need_year:${String(mode)}`,
+        turns: Number(sess.turns || 0) + 1,
+        lastTurnAt: nowMs(),
+        startedAt: Number(sess.startedAt) || nowMs(),
+        __cs1: sess.__cs1
       }),
       cog: { phase: "engaged", state: "clarify", reason: "need_year", lane: "music", mode, ts: nowMs() },
       requestId,
@@ -1854,11 +1993,17 @@ async function chatEngine(arg1, arg2) {
       ? (normIn.reason || "continuity")
       : (routeHintRaw ? `routeHint:${routeHintRaw}` : (pinnedYear ? `year:${pinnedYear}` : (pinnedMode ? `mode:${pinnedMode}` : pinnedLane))),
 
-
     lastOut: outCache,
     lastOutAt: nowMs(),
     lastOutSig: outSig,
-    lastOutSigAt: nowMs()
+    lastOutSigAt: nowMs(),
+
+    // ✅ deterministic increment for normal routing too
+    turns: Number(sess.turns || 0) + 1,
+    lastTurnAt: nowMs(),
+    startedAt: Number(sess.startedAt) || nowMs(),
+
+    __cs1: sess.__cs1
   });
 
   const ctx = {
