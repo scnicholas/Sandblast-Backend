@@ -1,658 +1,331 @@
 {
-  "version": "packets_v1",
-  "updated": "2026-01-16",
+  "version": "packets_v1.1-C",
+  "updated": "2026-01-21",
   "source": "nyx_phrasepack_v1",
   "voice": {
     "persona": "Nyx",
-    "style": [
-      "clean",
-      "host-like",
-      "forward",
-      "confident",
-      "warm"
-    ],
-    "constraints": [
-      "no-tech-leak",
-      "no-overexplaining",
-      "short-lines",
-      "action-forward"
-    ]
+    "style": ["clean", "host-like", "forward", "confident", "warm"],
+    "constraints": ["no-tech-leak", "no-overexplaining", "short-lines", "action-forward"]
   },
   "packets": [
+
     {
       "id": "general.greetings_first",
       "type": "greeting",
       "lane": "general",
-      "trigger": [
-        "hi",
-        "hello",
-        "hey",
-        "yo",
-        "good morning",
-        "good afternoon",
-        "good evening"
-      ],
+      "trigger": ["hi","hello","hey","yo","good morning","good afternoon","good evening"],
       "templates": [
-        "Hi — I’m Nyx. Pick a lane: music (year 1950–2024), schedule, sponsors, or movies/TV.",
-        "Hey. Nyx here. Drop a year (1950–2024) for music, or say “schedule”, “sponsors”, or “movies”.",
-        "Hello — tell me what you want: a year for music, a city for schedule, sponsor info, or something to watch."
+        "Hi — I’m Nyx. Most people start with a year.",
+        "Hey. Time moves differently here. A year opens the door.",
+        "Hello. A year is usually the cleanest way in."
       ],
       "chips": [
-        {
-          "label": "Music (pick a year)",
-          "send": "1988"
-        },
-        {
-          "label": "Schedule",
-          "send": "schedule"
-        },
-        {
-          "label": "Sponsors",
-          "send": "sponsors"
-        },
-        {
-          "label": "Movies/TV",
-          "send": "movies"
-        }
+        { "label": "Start with a year", "send": "1988" },
+        { "label": "Schedule", "send": "schedule" },
+        { "label": "Sponsors", "send": "sponsors" },
+        { "label": "Something to watch", "send": "movies" }
       ],
-      "constraints": {
-        "oncePerSession": true
-      },
-      "sessionPatch": {
-        "lane": "general"
-      }
+      "constraints": { "oncePerSession": true },
+      "sessionPatch": { "lane": "general" }
     },
+
     {
       "id": "general.greetings_returning",
       "type": "greeting",
       "lane": "general",
-      "trigger": [
-        "welcome back",
-        "back again",
-        "i'm back",
-        "im back",
-        "we're back",
-        "were back",
-        "again"
-      ],
+      "trigger": ["welcome back","back again","i'm back","im back","we're back","were back","again"],
       "templates": [
-        "Welcome back. Give me a year or tell me: schedule, sponsors, or movies.",
-        "Back again — perfect. Year first, or pick: schedule / sponsors / movies."
+        "Good to see you again. A year will get us moving.",
+        "Back already. We can pick up easily."
       ],
       "chips": [
-        {
-          "label": "Music (pick a year)",
-          "send": "1988"
-        },
-        {
-          "label": "Schedule",
-          "send": "schedule"
-        },
-        {
-          "label": "Sponsors",
-          "send": "sponsors"
-        },
-        {
-          "label": "Movies/TV",
-          "send": "movies"
-        }
+        { "label": "Pick up with a year", "send": "1988" },
+        { "label": "Schedule", "send": "schedule" },
+        { "label": "Sponsors", "send": "sponsors" },
+        { "label": "Something to watch", "send": "movies" }
       ],
-      "constraints": {
-        "oncePerSession": true
-      },
-      "sessionPatch": {
-        "lane": "general"
-      }
+      "constraints": { "oncePerSession": true },
+      "sessionPatch": { "lane": "general" }
     },
+
     {
       "id": "general.capabilities_quick",
       "type": "help",
       "lane": "general",
-      "trigger": [
-        "help",
-        "options",
-        "what can you do",
-        "what do you do",
-        "menu",
-        "capabilities",
-        "how does this work"
-      ],
+      "trigger": ["help","options","what can you do","what do you do","menu","capabilities","how does this work"],
       "templates": [
-        "Four lanes: Music by year, Schedule by city, Sponsors packages, Movies/TV picks. Choose one.",
-        "Music (year), Schedule (city), Sponsors (packages), Movies/TV (recommendations). Where do we start?"
+        "Music lives in years. Schedules live in cities. The rest unfolds as needed.",
+        "A year opens music. A city grounds the schedule. Everything else follows."
       ],
       "chips": [
-        {
-          "label": "Music (pick a year)",
-          "send": "1988"
-        },
-        {
-          "label": "Schedule",
-          "send": "schedule"
-        },
-        {
-          "label": "Sponsors",
-          "send": "sponsors"
-        },
-        {
-          "label": "Movies/TV",
-          "send": "movies"
-        }
+        { "label": "Music by year", "send": "1988" },
+        { "label": "Schedule", "send": "schedule" },
+        { "label": "Sponsors", "send": "sponsors" },
+        { "label": "Watch something", "send": "movies" }
       ],
-      "sessionPatch": {
-        "lane": "general"
-      }
+      "sessionPatch": { "lane": "general" }
     },
+
     {
       "id": "general.goodbyes_soft",
       "type": "goodbye",
       "lane": "general",
-      "trigger": [
-        "bye",
-        "goodbye",
-        "good night",
-        "goodnight",
-        "later",
-        "see you",
-        "i'm done",
-        "im done",
-        "that’s all",
-        "thats all"
-      ],
+      "trigger": ["bye","goodbye","good night","goodnight","later","see you","i'm done","im done","that’s all","thats all"],
       "templates": [
-        "Alright — I’m here when you’re back. Next time, just drop a year or say “schedule”.",
-        "Got you. Come back with a year or a city and we’ll keep it moving.",
-        "Later. Easy re-entry: “top 10 1994”."
+        "That feels like a good place to pause.",
+        "Easy to return. A year brings it back.",
+        "We can pick this up whenever."
       ],
       "chips": [
-        {
-          "label": "Top 10 1994",
-          "send": "top 10 1994"
-        },
-        {
-          "label": "Schedule",
-          "send": "schedule"
-        }
+        { "label": "Top 10 from a year", "send": "top 10 1994" },
+        { "label": "Schedule", "send": "schedule" }
       ],
-      "sessionPatch": {
-        "lane": "general"
-      }
+      "sessionPatch": { "lane": "general" }
     },
+
     {
       "id": "general.fallback_nudge",
       "type": "fallback",
       "lane": "general",
-      "trigger": [
-        "__fallback__"
-      ],
+      "trigger": ["__fallback__"],
       "templates": [
-        "Tell me a year (1950–2024), or say “schedule”, “sponsors”, or “movies”.",
-        "Pick one: year for music, city for schedule, sponsor packages, or movies/TV."
+        "A year usually clears things up.",
+        "We can start small. One year is enough."
       ],
       "chips": [
-        {
-          "label": "Music (pick a year)",
-          "send": "1988"
-        },
-        {
-          "label": "Schedule",
-          "send": "schedule"
-        },
-        {
-          "label": "Sponsors",
-          "send": "sponsors"
-        },
-        {
-          "label": "Movies/TV",
-          "send": "movies"
-        }
+        { "label": "Start with a year", "send": "1988" },
+        { "label": "Schedule", "send": "schedule" },
+        { "label": "Sponsors", "send": "sponsors" },
+        { "label": "Watch something", "send": "movies" }
       ],
-      "sessionPatch": {
-        "lane": "general"
-      }
+      "sessionPatch": { "lane": "general" }
     },
+
     {
       "id": "general.errors_generic",
       "type": "error",
       "lane": "general",
-      "trigger": [
-        "__error__"
-      ],
+      "trigger": ["__error__"],
       "templates": [
-        "I hit a snag. Try again — or switch lanes: music (year), schedule (city), sponsors, movies.",
-        "Something didn’t land on my side. Give me a year, a city, or say sponsors/movies."
+        "Something slipped. Let’s try again.",
+        "That didn’t land cleanly. A year will reset it."
       ],
       "chips": [
-        {
-          "label": "Music (pick a year)",
-          "send": "1988"
-        },
-        {
-          "label": "Schedule",
-          "send": "schedule"
-        },
-        {
-          "label": "Sponsors",
-          "send": "sponsors"
-        },
-        {
-          "label": "Movies/TV",
-          "send": "movies"
-        }
+        { "label": "Start with a year", "send": "1988" },
+        { "label": "Schedule", "send": "schedule" },
+        { "label": "Sponsors", "send": "sponsors" },
+        { "label": "Watch something", "send": "movies" }
       ],
-      "sessionPatch": {
-        "lane": "general"
-      }
+      "sessionPatch": { "lane": "general" }
     },
+
     {
       "id": "music.ask_year",
       "type": "prompt",
       "lane": "music",
-      "trigger": [
-        "music",
-        "top 10",
-        "top10",
-        "story moment",
-        "story",
-        "micro moment",
-        "micro",
-        "#1",
-        "number 1",
-        "chart",
-        "songs"
-      ],
+      "trigger": ["music","top 10","top10","story moment","story","micro moment","micro","#1","number 1","chart","songs"],
       "templates": [
-        "Give me a year (1950–2024). Example: “top 10 1988”, “story moment 1988”, or “#1 1988”.",
-        "Pick a year (1950–2024) — then choose: top 10, story moment, micro moment, or #1."
+        "Music starts with a year.",
+        "Give me the year and we’ll take it from there."
       ],
       "chips": [
-        {
-          "label": "1988",
-          "send": "1988"
-        },
-        {
-          "label": "Top 10 1988",
-          "send": "top 10 1988"
-        },
-        {
-          "label": "Story moment 1988",
-          "send": "story moment 1988"
-        },
-        {
-          "label": "Micro moment 1988",
-          "send": "micro moment 1988"
-        }
+        { "label": "1988", "send": "1988" },
+        { "label": "Top 10 (1988)", "send": "top 10 1988" },
+        { "label": "Story (1988)", "send": "story moment 1988" },
+        { "label": "Micro (1988)", "send": "micro moment 1988" }
       ],
-      "constraints": {
-        "requiresYear": true
-      },
-      "sessionPatch": {
-        "lane": "music"
-      }
+      "constraints": { "requiresYear": true },
+      "sessionPatch": { "lane": "music" }
     },
+
     {
       "id": "music.mode_prompt_has_year",
       "type": "prompt",
       "lane": "music",
-      "trigger": [
-        "__mode_prompt__"
-      ],
+      "trigger": ["__mode_prompt__"],
       "templates": [
-        "Locked in {year}. Choose: top 10, story moment, micro moment, or #1.",
-        "{year} is set. Want top 10, story moment, micro moment, or #1?"
+        "{year} is set. Different lenses reveal different details.",
+        "The year holds steady. The lens can change."
       ],
       "chips": [
-        {
-          "label": "Top 10",
-          "send": "top 10"
-        },
-        {
-          "label": "Story moment",
-          "send": "story moment"
-        },
-        {
-          "label": "Micro moment",
-          "send": "micro moment"
-        },
-        {
-          "label": "#1",
-          "send": "#1"
-        }
+        { "label": "Top 10", "send": "top 10" },
+        { "label": "Story", "send": "story moment" },
+        { "label": "Micro", "send": "micro moment" },
+        { "label": "#1", "send": "#1" }
       ],
-      "sessionPatch": {
-        "lane": "music"
-      }
+      "sessionPatch": { "lane": "music" }
     },
+
     {
       "id": "music.nav_next_year",
       "type": "nav",
       "lane": "music",
-      "trigger": [
-        "__nav_next_year__"
-      ],
+      "trigger": ["__nav_next_year__"],
       "templates": [
-        "Moving to {year}. Same mode.",
-        "Next year: {year}. Keeping the mode."
+        "{year}. Same lens.",
+        "Moving forward to {year}."
       ],
       "chips": [
-        {
-          "label": "Replay",
-          "send": "replay"
-        }
+        { "label": "Replay", "send": "replay" }
       ],
-      "sessionPatch": {
-        "lane": "music"
-      }
+      "sessionPatch": { "lane": "music" }
     },
+
     {
       "id": "music.nav_another_year",
       "type": "nav",
       "lane": "music",
-      "trigger": [
-        "another year",
-        "__nav_another_year__"
-      ],
+      "trigger": ["another year","__nav_another_year__"],
       "templates": [
-        "Sure — tell me the new year (1950–2024).",
-        "Pick another year (1950–2024)."
+        "Name the year.",
+        "Another year shifts the tone."
       ],
       "chips": [
-        {
-          "label": "1988",
-          "send": "1988"
-        },
-        {
-          "label": "1999",
-          "send": "1999"
-        },
-        {
-          "label": "2007",
-          "send": "2007"
-        }
+        { "label": "1988", "send": "1988" },
+        { "label": "1999", "send": "1999" },
+        { "label": "2007", "send": "2007" }
       ],
-      "sessionPatch": {
-        "lane": "music"
-      }
+      "sessionPatch": { "lane": "music" }
     },
+
     {
       "id": "sponsors.open",
       "type": "prompt",
       "lane": "sponsors",
-      "trigger": [
-        "sponsor",
-        "sponsors",
-        "advertise",
-        "advertising",
-        "ad package",
-        "promotion",
-        "promote"
-      ],
+      "trigger": ["sponsor","sponsors","advertise","advertising","ad package","promotion","promote"],
       "templates": [
-        "Sponsors lane. What are we promoting — TV, radio, website, social, or a bundle?",
-        "Let’s set up sponsorship. Pick placement: TV, radio, website, social, or bundle."
+        "Let’s talk sponsorship.",
+        "This is where visibility turns intentional."
       ],
       "chips": [
-        {
-          "label": "TV",
-          "send": "tv"
-        },
-        {
-          "label": "Radio",
-          "send": "radio"
-        },
-        {
-          "label": "Website",
-          "send": "website"
-        },
-        {
-          "label": "Social",
-          "send": "social"
-        },
-        {
-          "label": "Bundle",
-          "send": "bundle"
-        }
+        { "label": "TV", "send": "tv" },
+        { "label": "Radio", "send": "radio" },
+        { "label": "Website", "send": "website" },
+        { "label": "Social", "send": "social" },
+        { "label": "Bundle", "send": "bundle" }
       ],
-      "sessionPatch": {
-        "lane": "sponsors"
-      }
+      "sessionPatch": { "lane": "sponsors" }
     },
+
     {
       "id": "sponsors.need_goal",
       "type": "prompt",
       "lane": "sponsors",
-      "trigger": [
-        "__sponsors_need_goal__"
-      ],
+      "trigger": ["__sponsors_need_goal__"],
       "templates": [
-        "What’s the goal — calls, foot traffic, website clicks, or brand awareness?",
-        "What outcome are we aiming for: calls, visits, clicks, or awareness?"
+        "The outcome matters more than the format.",
+        "Results set the direction."
       ],
       "chips": [
-        {
-          "label": "Calls",
-          "send": "calls"
-        },
-        {
-          "label": "Foot traffic",
-          "send": "foot traffic"
-        },
-        {
-          "label": "Website clicks",
-          "send": "website clicks"
-        },
-        {
-          "label": "Awareness",
-          "send": "brand awareness"
-        }
+        { "label": "Calls", "send": "calls" },
+        { "label": "Foot traffic", "send": "foot traffic" },
+        { "label": "Website clicks", "send": "website clicks" },
+        { "label": "Awareness", "send": "brand awareness" }
       ],
-      "sessionPatch": {
-        "lane": "sponsors"
-      }
+      "sessionPatch": { "lane": "sponsors" }
     },
+
     {
       "id": "sponsors.need_budget",
       "type": "prompt",
       "lane": "sponsors",
-      "trigger": [
-        "__sponsors_need_budget__"
-      ],
+      "trigger": ["__sponsors_need_budget__"],
       "templates": [
-        "What budget tier fits: starter test, growth bundle, or dominance?",
-        "Pick a budget tier: starter test / growth bundle / dominance."
+        "Budget sets the scale.",
+        "The tier defines how loud this gets."
       ],
       "chips": [
-        {
-          "label": "Starter test",
-          "send": "starter test"
-        },
-        {
-          "label": "Growth bundle",
-          "send": "growth bundle"
-        },
-        {
-          "label": "Dominance",
-          "send": "dominance"
-        }
+        { "label": "Starter", "send": "starter test" },
+        { "label": "Growth", "send": "growth bundle" },
+        { "label": "Dominance", "send": "dominance" }
       ],
-      "sessionPatch": {
-        "lane": "sponsors"
-      }
+      "sessionPatch": { "lane": "sponsors" }
     },
+
     {
       "id": "schedule.open",
       "type": "prompt",
       "lane": "schedule",
-      "trigger": [
-        "schedule",
-        "what's playing",
-        "whats playing",
-        "playing now",
-        "now",
-        "today",
-        "tonight",
-        "what time",
-        "time in",
-        "in london",
-        "in toronto"
-      ],
+      "trigger": ["schedule","what's playing","whats playing","playing now","now","today","tonight","what time","time in","in london","in toronto"],
       "templates": [
-        "Schedule lane. Tell me your city (or the city you want converted to).",
-        "Got it — schedule. What city should I convert the times for?"
+        "Time depends on where you are.",
+        "The schedule shifts by city."
       ],
       "chips": [
-        {
-          "label": "What’s playing now",
-          "send": "what’s playing now"
-        },
-        {
-          "label": "Today",
-          "send": "schedule today"
-        },
-        {
-          "label": "In London",
-          "send": "in London"
-        },
-        {
-          "label": "In Toronto",
-          "send": "in Toronto"
-        }
+        { "label": "Playing now", "send": "what’s playing now" },
+        { "label": "Today", "send": "schedule today" },
+        { "label": "London", "send": "in London" },
+        { "label": "Toronto", "send": "in Toronto" }
       ],
-      "sessionPatch": {
-        "lane": "schedule"
-      }
+      "sessionPatch": { "lane": "schedule" }
     },
+
     {
       "id": "schedule.need_city",
       "type": "prompt",
       "lane": "schedule",
-      "trigger": [
-        "__schedule_need_city__"
-      ],
+      "trigger": ["__schedule_need_city__"],
       "templates": [
-        "What city are you in (or what city should I convert to)? Example: “in London”.",
-        "Tell me the city/timezone you want — then I’ll convert the schedule."
+        "The city sets the clock.",
+        "One location is enough."
       ],
       "chips": [
-        {
-          "label": "London",
-          "send": "in London"
-        },
-        {
-          "label": "Toronto",
-          "send": "in Toronto"
-        },
-        {
-          "label": "New York",
-          "send": "in New York"
-        },
-        {
-          "label": "Los Angeles",
-          "send": "in Los Angeles"
-        }
+        { "label": "London", "send": "in London" },
+        { "label": "Toronto", "send": "in Toronto" },
+        { "label": "New York", "send": "in New York" },
+        { "label": "Los Angeles", "send": "in Los Angeles" }
       ],
-      "sessionPatch": {
-        "lane": "schedule"
-      }
+      "sessionPatch": { "lane": "schedule" }
     },
+
     {
       "id": "schedule.need_show_or_now",
       "type": "prompt",
       "lane": "schedule",
-      "trigger": [
-        "__schedule_need_show__"
-      ],
+      "trigger": ["__schedule_need_show__"],
       "templates": [
-        "Do you want “what’s playing now” or a specific show name?",
-        "Say “playing now” or tell me the show title."
+        "The schedule can show what’s on now or lock onto a title."
       ],
       "chips": [
-        {
-          "label": "Playing now",
-          "send": "what’s playing now"
-        },
-        {
-          "label": "Today",
-          "send": "schedule today"
-        }
+        { "label": "Playing now", "send": "what’s playing now" },
+        { "label": "Today", "send": "schedule today" }
       ],
-      "sessionPatch": {
-        "lane": "schedule"
-      }
+      "sessionPatch": { "lane": "schedule" }
     },
+
     {
       "id": "movies.open",
       "type": "prompt",
       "lane": "movies",
-      "trigger": [
-        "movie",
-        "movies",
-        "tv",
-        "show",
-        "shows",
-        "recommend",
-        "recommend something",
-        "what to watch",
-        "watch"
-      ],
+      "trigger": ["movie","movies","tv","show","shows","recommend","recommend something","what to watch","watch"],
       "templates": [
-        "Movies/TV lane. Give me a title, a genre, or say “recommend something”.",
-        "Tell me what you’re in the mood for — title, genre, or vibe."
+        "Tell me what kind of mood you’re in."
       ],
       "chips": [
-        {
-          "label": "Recommend something",
-          "send": "recommend something"
-        },
-        {
-          "label": "Classic TV",
-          "send": "classic tv"
-        },
-        {
-          "label": "Westerns",
-          "send": "westerns"
-        },
-        {
-          "label": "Detective",
-          "send": "detective"
-        }
+        { "label": "Surprise me", "send": "recommend something" },
+        { "label": "Classic TV", "send": "classic tv" },
+        { "label": "Westerns", "send": "westerns" },
+        { "label": "Detective", "send": "detective" }
       ],
-      "sessionPatch": {
-        "lane": "movies"
-      }
+      "sessionPatch": { "lane": "movies" }
     },
+
     {
       "id": "movies.need_title_or_genre",
       "type": "prompt",
       "lane": "movies",
-      "trigger": [
-        "__movies_need_title_or_genre__"
-      ],
+      "trigger": ["__movies_need_title_or_genre__"],
       "templates": [
-        "Give me a title or a genre to target.",
-        "Title or genre — what are we hunting?"
+        "A title or a genre sets the direction."
       ],
       "chips": [
-        {
-          "label": "Recommend something",
-          "send": "recommend something"
-        },
-        {
-          "label": "Classic TV",
-          "send": "classic tv"
-        },
-        {
-          "label": "Westerns",
-          "send": "westerns"
-        },
-        {
-          "label": "Detective",
-          "send": "detective"
-        }
+        { "label": "Surprise me", "send": "recommend something" },
+        { "label": "Classic TV", "send": "classic tv" },
+        { "label": "Westerns", "send": "westerns" },
+        { "label": "Detective", "send": "detective" }
       ],
-      "sessionPatch": {
-        "lane": "movies"
-      }
+      "sessionPatch": { "lane": "movies" }
     }
+
   ]
 }
