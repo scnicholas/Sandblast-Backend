@@ -1,16 +1,18 @@
 "use strict";
 
 /**
- * Utils/musicKnowledge.js — v2.76 (CACHE SAFE + PURE CHART DEFAULT + OUTSHAPE NONEMPTY)
+ * Utils/musicKnowledge.js — v2.77 (ADD 2025 + RANGE UPDATE)
  *
- * v2.76 fixes:
- *  ✅ Avoids mutating cached wiki rows when renumbering
- *  ✅ Avoids mutating session.activeMusicChart (uses local default)
- *  ✅ outShape guarantees non-empty reply
+ * v2.77 changes:
+ *  ✅ PUBLIC_MAX_YEAR now 2025 (ONLY range expansion requested)
+ *  ✅ User-facing prompts updated to 1950–2025
+ *  ✅ Wikipedia year-end hot100 merge list includes optional 2025 file
  *
  * NOTE:
+ *  - Your Top 10s for 2011–2025 should come from TOP10_STORE_FILE (top10_by_year_v1.json).
+ *  - The wiki year-end hot100 files are still merged as YEAR_END_CHART rows (backup / non-top10 usage).
  *  - chatEngine must allow __musicLastSig, activeMusicChart, lastMusicChart
- *    so loop dampener persists across turns (handled in chatEngine v0.6q above).
+ *    so loop dampener persists across turns.
  */
 
 const fs = require("fs");
@@ -21,13 +23,13 @@ const crypto = require("crypto");
 // Version
 // =========================
 const MK_VERSION =
-  "musicKnowledge v2.76 (cache-safe renumber; pure chart default; outShape nonempty)";
+  "musicKnowledge v2.77 (adds 2025 to range; prompts updated; optional wiki 2025 merge)";
 
 // =========================
 // Public Range / Charts
 // =========================
 const PUBLIC_MIN_YEAR = 1950;
-const PUBLIC_MAX_YEAR = 2024;
+const PUBLIC_MAX_YEAR = 2025;
 
 const DEFAULT_CHART = "Billboard Hot 100";
 const YEAR_END_CHART = "Billboard Year-End Hot 100";
@@ -59,6 +61,8 @@ const WIKI_YEAREND_HOT100_FILES = [
   "Data/wikipedia/billboard_yearend_hot100_1970_2010.json",
   "Data/wikipedia/billboard_yearend_hot100_1976_1979.json",
   "Data/wikipedia/billboard_yearend_hot100_2011_2024.json",
+  // ✅ optional: if you generate this file, it will be auto-merged
+  "Data/wikipedia/billboard_yearend_hot100_2025.json",
 ];
 
 // =========================
@@ -207,7 +211,7 @@ function cloneMoment(m) {
     title: m.title,
     artist: m.artist,
     chart: m.chart,
-    source: m.source
+    source: m.source,
   };
 }
 
@@ -224,12 +228,15 @@ function renumberSequentialByRank(rows, limit) {
 }
 
 function canonicalPatch(session, extra = {}) {
-  const active = (session && session.activeMusicChart) ? session.activeMusicChart : DEFAULT_CHART;
+  const active = session && session.activeMusicChart ? session.activeMusicChart : DEFAULT_CHART;
 
   const patch = {
     activeMusicChart: active,
     lastMusicYear: session && session.lastMusicYear != null ? session.lastMusicYear : null,
-    lastMusicChart: (session && (session.lastMusicChart || session.activeMusicChart)) ? (session.lastMusicChart || session.activeMusicChart) : active,
+    lastMusicChart:
+      session && (session.lastMusicChart || session.activeMusicChart)
+        ? session.lastMusicChart || session.activeMusicChart
+        : active,
     ...extra,
   };
 
@@ -1044,14 +1051,14 @@ function handleChat({ text, session }) {
 
   if (/^music$/i.test(msg)) {
     return outShape({
-      reply: `Alright—music. Give me a year (1950–2024), or say “top 10 1988”, “story moment 1988”, or “micro moment 1988”.`,
+      reply: `Alright—music. Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}), or say “top 10 1988”, “story moment 1988”, or “micro moment 1988”.`,
       followUps: ["1956", "top 10 1988", "micro moment 1955"],
       sessionPatch: canonicalPatch(session, { activeMusicChart: activeChart }),
     });
   }
 
   return outShape({
-    reply: `Tell me a year (1950–2024), or say “top 10 1988”, “#1”, “story moment 1988”, or “micro moment 1988”.`,
+    reply: `Tell me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}), or say “top 10 1988”, “#1”, “story moment 1988”, or “micro moment 1988”.`,
     followUps: ["1956", "top 10 1988", "story moment 1955"],
     sessionPatch: canonicalPatch(session, { activeMusicChart: activeChart }),
   });
