@@ -3,15 +3,17 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17x
+ * index.js v1.5.17y
  * (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION +
  *  ✅ SESSIONPATCH EXPANDED (CONTINUITY PERSIST FIX) + ✅ CONVERSATIONAL CONTRACT ENFORCER (HARD) +
- *  ✅ ROUTE HINT AWARE COG NORMALIZATION + ENV KNOBS HARDENED)
+ *  ✅ ROUTE HINT AWARE COG NORMALIZATION + ✅ ENV KNOBS HARDENED +
+ *  ✅ TRUST PROXY (SAFE, OPTIONAL) + ✅ ROOT/API DISCOVERY ROUTES)
  *
- * Patch vs v1.5.17w:
- *  ✅ TURN KEY: when client.turnId exists, dedupe is strictly (origin+fingerprint+turnId) — no text mixed in
- *  ✅ OPTIONS: app.options(/.*/) for broader Express/router compatibility
- *  ✅ TIMEOUT FLOOR: contract payload always has a real sessionId (derived) instead of null
+ * Critical fixes vs v1.5.17x:
+ *  ✅ trust proxy support (optional, safer IP fingerprinting on Render/CF)
+ *  ✅ more robust client IP extraction (x-forwarded-for / x-real-ip)
+ *  ✅ add GET / and GET /api (prevents “mystery 404”, helps quick health checks)
+ *  ✅ small hardening: never set empty ACAO, keep Vary consistent
  */
 
 const express = require("express");
@@ -52,12 +54,22 @@ const app = express();
 app.disable("x-powered-by");
 
 /* ======================================================
+   Trust proxy (optional; recommended behind Render/CF)
+====================================================== */
+
+const TRUST_PROXY = String(process.env.TRUST_PROXY || "true") === "true";
+if (TRUST_PROXY) {
+  // 1 = trust first proxy hop (typical for Render)
+  app.set("trust proxy", 1);
+}
+
+/* ======================================================
    Version + Contract
 ====================================================== */
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.17x (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + SESSIONPATCH EXPANDED (CONTINUITY PERSIST FIX) + CONVERSATIONAL CONTRACT ENFORCER (HARD) + ROUTE HINT AWARE COG NORMALIZATION + ENV KNOBS HARDENED)";
+  "index.js v1.5.17y (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + SESSIONPATCH EXPANDED + CONVERSATIONAL CONTRACT ENFORCER (HARD) + ROUTE HINT AWARE COG NORMALIZATION + ENV KNOBS HARDENED + TRUST PROXY + ROOT/API DISCOVERY ROUTES)";
 
 const GIT_COMMIT =
   String(process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "").trim() || null;
@@ -178,7 +190,9 @@ function normalizeCog(out, session, routeHint) {
   const mode =
     (out && typeof out.mode === "string" && out.mode.trim() ? out.mode : null) ||
     (oc && typeof oc.mode === "string" && oc.mode.trim() ? oc.mode : null) ||
-    (session && typeof session.activeMusicMode === "string" && session.activeMusicMode.trim() ? session.activeMusicMode : null) ||
+    (session && typeof session.activeMusicMode === "string" && session.activeMusicMode.trim()
+      ? session.activeMusicMode
+      : null) ||
     (session && typeof session.lastMode === "string" && session.lastMode.trim() ? session.lastMode : null) ||
     null;
 
@@ -189,9 +203,9 @@ function normalizeCog(out, session, routeHint) {
     (session && session.lastYear != null ? String(session.lastYear) : null) ||
     null;
 
-  const phase = (oc && typeof oc.phase === "string" && oc.phase.trim() ? oc.phase : "engaged");
-  const state = (oc && typeof oc.state === "string" && oc.state.trim() ? oc.state : "confident");
-  const reason = (oc && typeof oc.reason === "string" && oc.reason.trim() ? oc.reason : "ok");
+  const phase = oc && typeof oc.phase === "string" && oc.phase.trim() ? oc.phase : "engaged";
+  const state = oc && typeof oc.state === "string" && oc.state.trim() ? oc.state : "confident";
+  const reason = oc && typeof oc.reason === "string" && oc.reason.trim() ? oc.reason : "ok";
 
   return {
     lane,
@@ -204,14 +218,23 @@ function normalizeCog(out, session, routeHint) {
   };
 }
 
-function enforceChatContract({ out, session, routeHint, baseReply, requestId, sessionId, visitorId, posture, shadow, followUps, bridgeInjected }) {
+function enforceChatContract({
+  out,
+  session,
+  routeHint,
+  baseReply,
+  requestId,
+  sessionId,
+  visitorId,
+  posture,
+  shadow,
+  followUps,
+  bridgeInjected,
+}) {
   const reply = nonEmptyReply(baseReply, "Alright — tell me what you want next.");
 
   const directives = normalizeDirectives(out && out.directives);
-
-  const sessionPatch =
-    allowlistSessionPatchObj(out && out.sessionPatch) || {};
-
+  const sessionPatch = allowlistSessionPatchObj(out && out.sessionPatch) || {};
   const cog = normalizeCog(out, session, routeHint);
 
   const payload = {
@@ -230,9 +253,7 @@ function enforceChatContract({ out, session, routeHint, baseReply, requestId, se
   };
 
   if (shadow) payload.shadow = shadow;
-
   if (followUps && Array.isArray(followUps) && followUps.length) payload.followUps = followUps;
-
   if (bridgeInjected) payload._bridgeInjected = bridgeInjected;
 
   return payload;
@@ -317,6 +338,7 @@ const corsOptions = {
 };
 
 app.use((req, res, next) => {
+  // keep Vary consistent for all responses
   safeSet(res, "Vary", "Origin");
   next();
 });
@@ -407,10 +429,19 @@ const SESSION_TTL_MS = clamp(
 const SESSIONS = new Map();
 
 function getClientIp(req) {
+  const xr = normalizeStr(req.get("x-real-ip") || "");
+  if (xr) return xr;
+
   const xf = normalizeStr(req.get("x-forwarded-for") || "");
   if (xf) return xf.split(",")[0].trim();
+
+  // trust proxy may populate req.ip
+  const rip = normalizeStr(req.ip || "");
+  if (rip) return rip;
+
   return normalizeStr(req.socket?.remoteAddress || "");
 }
+
 function fingerprint(req, visitorId) {
   const vid = normalizeStr(visitorId || "");
   if (vid) return `vid:${vid}`;
@@ -451,20 +482,42 @@ const SERVER_OWNED_KEYS = new Set(["__lastBridgeAt", "__bridgeIdx", "__lastPostu
  * Strict patch apply: allowlist only + proto-safe
  */
 const SESSION_PATCH_ALLOW = new Set([
-  "introDone", "introAt",
-  "lastInText", "lastInAt",
-  "lastOut", "lastOutAt",
-  "lastOutSig", "lastOutSigAt",
-  "turns", "startedAt", "lastTurnAt",
-  "lanesVisited", "yearsVisited", "modesVisited",
-  "lastLane", "lastYear", "lastMode",
-  "lastFork", "depthLevel",
-  "elasticToggle", "lastElasticAt",
+  "introDone",
+  "introAt",
+  "lastInText",
+  "lastInAt",
+  "lastOut",
+  "lastOutAt",
+  "lastOutSig",
+  "lastOutSigAt",
+  "turns",
+  "startedAt",
+  "lastTurnAt",
+  "lanesVisited",
+  "yearsVisited",
+  "modesVisited",
+  "lastLane",
+  "lastYear",
+  "lastMode",
+  "lastFork",
+  "depthLevel",
+  "elasticToggle",
+  "lastElasticAt",
   "lane",
-  "pendingLane", "pendingMode", "pendingYear",
-  "recentIntent", "recentTopic",
-  "activeMusicMode", "lastMusicYear", "year", "mode",
-  "depthPreference", "userName", "nameAskedAt", "lastOpenQuestion", "userGoal",
+  "pendingLane",
+  "pendingMode",
+  "pendingYear",
+  "recentIntent",
+  "recentTopic",
+  "activeMusicMode",
+  "lastMusicYear",
+  "year",
+  "mode",
+  "depthPreference",
+  "userName",
+  "nameAskedAt",
+  "lastOpenQuestion",
+  "userGoal",
   "lastNameUseTurn",
   "visitorId",
   "voiceMode",
@@ -532,7 +585,7 @@ setInterval(() => {
 }, 60_000).unref?.();
 
 /* ======================================================
-   Diagnostics
+   Diagnostics + Discovery
 ====================================================== */
 
 function healthPayload(requestId) {
@@ -545,6 +598,30 @@ function healthPayload(requestId) {
     contractVersion: NYX_CONTRACT_VERSION,
   };
 }
+
+app.get("/", (req, res) => {
+  const requestId = req.get("X-Request-Id") || rid();
+  setContractHeaders(res, requestId);
+  return safeJson(res, 200, {
+    ok: true,
+    service: "sandblast-backend",
+    ts: nowIso(),
+    requestId,
+    contractVersion: NYX_CONTRACT_VERSION,
+    routes: ["/health", "/api/health", "/api/version", "/api/chat", "/api/tts", "/api/voice"],
+  });
+});
+
+app.get("/api", (req, res) => {
+  const requestId = req.get("X-Request-Id") || rid();
+  setContractHeaders(res, requestId);
+  return safeJson(res, 200, {
+    ok: true,
+    requestId,
+    contractVersion: NYX_CONTRACT_VERSION,
+    routes: ["/api/health", "/api/version", "/api/chat", "/api/tts", "/api/voice", "/api/tts/diag"],
+  });
+});
 
 app.get("/health", (req, res) => {
   const requestId = req.get("X-Request-Id") || rid();
@@ -587,6 +664,7 @@ app.get("/api/version", (req, res) => {
     node: process.version,
     uptimeSec: Math.round(process.uptime()),
     env: {
+      trustProxy: TRUST_PROXY,
       corsAllowAll: CORS_ALLOW_ALL,
       corsEnvExclusive: CORS_ENV_EXCLUSIVE,
       allowlistCount: EFFECTIVE_ORIGINS.length,
@@ -612,8 +690,7 @@ app.get("/api/version", (req, res) => {
 
 const MAX_HASH_TEXT_LEN = clamp(process.env.MAX_HASH_TEXT_LEN || 800, 200, 4000);
 
-const BODY_HASH_INCLUDE_SESSION =
-  String(process.env.BODY_HASH_INCLUDE_SESSION || "false") === "true";
+const BODY_HASH_INCLUDE_SESSION = String(process.env.BODY_HASH_INCLUDE_SESSION || "false") === "true";
 
 function stableBodyForHash(body, req) {
   const headerVisitor = normalizeStr(req?.get?.("X-Visitor-Id") || "");
@@ -696,10 +773,7 @@ const CANON = {
       "This is one of those memories that deserves the big screen.",
       "Same world—just on your biggest screen.",
     ],
-    companion: [
-      "I’ll meet you there.",
-      "Same world—just on your biggest screen.",
-    ],
+    companion: ["I’ll meet you there.", "Same world—just on your biggest screen."],
   },
 };
 
@@ -738,7 +812,6 @@ function bridgeEligible({ text, session, out, now }) {
   if (last && now - last < BRIDGE_COOLDOWN_MS) return false;
 
   const explicit = isExplicitRokuMention(text);
-
   if (explicit && BRIDGE_EXPLICIT_ALWAYS) return true;
 
   const lane =
@@ -746,7 +819,6 @@ function bridgeEligible({ text, session, out, now }) {
     (session && session.lane ? String(session.lane) : "");
 
   if (BRIDGE_MUSIC_ONLY && lane && lane !== "music") return false;
-
   if (explicit) return true;
 
   const mode =
@@ -1072,7 +1144,9 @@ app.post("/api/chat", async (req, res) => {
   // ✅ derive ids early so timeout-floor never returns null sessionId
   const headerVisitorId = normalizeStr(req.get("X-Visitor-Id") || "") || null;
   const derivedSessionId = deriveStableSessionId(req, headerVisitorId);
-  const derivedSession = touchSession(derivedSessionId, { visitorId: headerVisitorId }) || { sessionId: derivedSessionId };
+  const derivedSession = touchSession(derivedSessionId, { visitorId: headerVisitorId }) || {
+    sessionId: derivedSessionId,
+  };
 
   const watchdog = setTimeout(() => {
     try {
@@ -1271,8 +1345,7 @@ app.post("/api/chat", async (req, res) => {
       applySessionPatch(session, out.sessionPatch);
     }
 
-    const baseReply =
-      out && typeof out === "object" && typeof out.reply === "string" ? out.reply : fallbackReply(text);
+    const baseReply = out && typeof out === "object" && typeof out.reply === "string" ? out.reply : fallbackReply(text);
 
     const posture = detectPosture(text);
     session.__lastPosture = posture;
@@ -1351,9 +1424,7 @@ app.post("/api/chat", async (req, res) => {
     }
 
     const followUps =
-      out && typeof out === "object" && Array.isArray(out.followUps)
-        ? normalizeFollowUpsToStrings(out.followUps)
-        : undefined;
+      out && typeof out === "object" && Array.isArray(out.followUps) ? normalizeFollowUpsToStrings(out.followUps) : undefined;
 
     session.__lastReply = finalReply;
     session.__lastBodyHash = bodyHash;
