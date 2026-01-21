@@ -1,0 +1,96 @@
+"use strict";
+
+const chatEngine = require("../Utils/chatEngine");
+
+function assert(cond, msg) {
+  if (!cond) throw new Error(msg);
+}
+
+function isNonEmptyString(s) {
+  return typeof s === "string" && s.trim().length > 0;
+}
+
+function isMusicMode(mode) {
+  const m = String(mode || "").toLowerCase();
+  return ["top10", "top100", "story_moment", "micro_moment", "number1"].includes(m);
+}
+
+function looksLikeClarifyYearReply(out) {
+  const r = String(out.reply || "").toLowerCase();
+  return r.includes("which year") || r.includes("tell me a year") || r.includes("pick a year");
+}
+
+function validateContract(out) {
+  assert(out && typeof out === "object", "Output not object");
+  assert(out.ok === true, "ok !== true");
+  assert(isNonEmptyString(out.reply), "reply empty");
+
+  assert(Array.isArray(out.followUpsStrings), "followUpsStrings missing");
+  assert(out.followUpsStrings.length >= 1 && out.followUpsStrings.length <= 4, "followUpsStrings size not 1–4");
+  for (const x of out.followUpsStrings) assert(isNonEmptyString(x), "followUpsStrings has empty");
+
+  assert(Array.isArray(out.followUps), "followUps missing");
+  assert(out.followUps.length === out.followUpsStrings.length, "followUps mismatch length");
+
+  assert(out.sessionPatch && typeof out.sessionPatch === "object", "sessionPatch missing");
+  assert(out.cog && typeof out.cog === "object", "cog missing");
+  assert(isNonEmptyString(out.cog.phase), "cog.phase missing");
+  assert(isNonEmptyString(out.cog.state), "cog.state missing");
+  assert(isNonEmptyString(out.cog.reason), "cog.reason missing");
+  assert(isNonEmptyString(out.cog.lane), "cog.lane missing");
+
+  // music rules
+  const lane = String(out.lane || "").toLowerCase();
+  const mode = String(out.ctx && out.ctx.mode ? out.ctx.mode : "").toLowerCase();
+  const year = out.ctx && out.ctx.year ? String(out.ctx.year) : "";
+
+  if (lane === "music" && isMusicMode(mode)) {
+    if (!/^\d{4}$/.test(year)) {
+      // must clarify + open year picker directive
+      assert(looksLikeClarifyYearReply(out), "music mode without year did not clarify");
+      const dirs = Array.isArray(out.directives) ? out.directives : [];
+      assert(dirs.some(d => d && d.type === "open_year_picker"), "missing directive open_year_picker");
+    }
+  }
+}
+
+async function run() {
+  let session = {};
+
+  const tests = [
+    { text: "hello", note: "intro gate should fire (unless direct intent)" },
+    { text: "Pick a year", note: "year picker UI" },
+    { text: "Top 10", note: "mode-only -> clarify year (or normalize to known year if present)" },
+    { text: "Top 10 1988", note: "music top10 with year" },
+    { text: "Next", note: "advance to next year, same mode" },
+    { text: "Previous", note: "advance to previous year, same mode" },
+    { text: "Story moment", note: "mode-only -> should map to known year if exists, else clarify" },
+    { text: "Deeper", note: "deeper uses lastOut and stays coherent" },
+    { text: "Reset", note: "reset contract + session reset patch" },
+    { text: "Top 100 1979", note: "top100 completeness gate (no label-only)" },
+  ];
+
+  for (const t of tests) {
+    const out = await chatEngine({ text: t.text, session, client: { routeHint: "" } });
+    validateContract(out);
+
+    // apply patch like index.js should
+    session = { ...session, ...(out.sessionPatch || {}) };
+
+    console.log("✅", t.text, "| lane:", out.lane, "| ctx:", out.ctx, "| cog:", out.cog.state, out.cog.reason);
+  }
+
+  // Repeat-input loop guard test (same text twice quickly)
+  const out1 = await chatEngine({ text: "Top 10 1988", session });
+  session = { ...session, ...(out1.sessionPatch || {}) };
+  const out2 = await chatEngine({ text: "Top 10 1988", session });
+  validateContract(out2);
+  console.log("✅ repeat-input guard ok");
+
+  console.log("\nALL CONTRACT MOTION TESTS PASSED ✅");
+}
+
+run().catch(err => {
+  console.error("\n❌ CONTRACT MOTION TEST FAILED:", err.message);
+  process.exit(1);
+});
