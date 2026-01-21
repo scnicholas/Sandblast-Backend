@@ -16,7 +16,13 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.6x (CONTRACT-LOCK: one-intent-per-turn + deterministic clarify + routeHint wins + content completeness gates)
+ * v0.6y (CONTRACT-LOCK++: continuity wins over “general” + turns increment + next/prev reliability)
+ *
+ * Fixes vs v0.6x draft:
+ *  ✅ Continuity spine now wins when inbound text is “general” (e.g., next/previous/deeper/continue)
+ *     - prevents detectLane() returning "general" from overriding session.musicContext lane
+ *  ✅ turns increments deterministically every turn (enables intro gating + better statefulness)
+ *  ✅ next/previous work reliably even when user types just “next” (no year / no explicit music tokens)
  *
  * Enforces:
  *  1) Non-empty reply ALWAYS
@@ -513,6 +519,15 @@ function detectLane(text) {
   return "general";
 }
 
+/**
+ * For continuity: treat "general" as unknown, not as a real override.
+ * This prevents “next / previous / deeper” from erasing musicContext lane.
+ */
+function detectLaneForContinuity(text) {
+  const l = detectLane(text);
+  return l === "general" ? null : l;
+}
+
 function extractYear(text) {
   const s = String(text || "");
   const m1 = s.match(/\byear:\s*(19\d{2}|20\d{2})\b/i);
@@ -537,10 +552,11 @@ function detectMode(text) {
 /**
  * ✅ Continuity spine read
  * Prefer session.musicContext first, then legacy fields.
+ * IMPORTANT FIX: “general” does NOT override saved lane.
  */
 function getContinuity(sess, safeText) {
   const s = sess || {};
-  const inferredLane = detectLane(safeText);
+  const inferredLane = detectLaneForContinuity(safeText);
   const yearFromText = extractYear(safeText);
   const modeFromText = detectMode(safeText);
 
@@ -1076,6 +1092,11 @@ function ensureSessionPatchBasics(out, sess, routingText, lane, mode, year, foll
   if (year) patch.lastYear = year;
   if (mode) patch.lastMode = mode;
 
+  // ✅ deterministic turn increment
+  patch.turns = turns + 1;
+  patch.lastTurnAt = nowMs();
+  if (!patch.startedAt) patch.startedAt = Number(sess.startedAt) || nowMs();
+
   // mirror music continuity
   if (String(lane).toLowerCase() === "music") {
     if (year) patch.lastMusicYear = year;
@@ -1089,11 +1110,6 @@ function ensureSessionPatchBasics(out, sess, routingText, lane, mode, year, foll
       };
     }
   }
-
-  // light counters (don’t stomp if already set)
-  if (!patch.startedAt) patch.startedAt = Number(sess.startedAt) || nowMs();
-  patch.turns = typeof patch.turns === "number" ? patch.turns : turns;
-  patch.lastTurnAt = nowMs();
 
   out.sessionPatch = filterSessionPatch(patch);
   return out;
@@ -1380,7 +1396,6 @@ async function chatEngine(arg1, arg2) {
       meta: { ts: nowMs(), contract: "v1" }
     };
 
-    // contract-lock pass
     return enforceContractFinal({
       out,
       sess,
@@ -1779,7 +1794,6 @@ async function chatEngine(arg1, arg2) {
   }
 
   // If music+mode+year known but routingText didn’t include mode/year, stabilize continuity by prompt rewrite (no second call)
-  // (We do not re-enter the lane again here; we simply ensure the output is contract-consistent.)
   let pinnedLane = (navContext && navContext.kind === "advance") ? "music" : lane;
   let pinnedYear = (navContext && navContext.kind === "advance") ? String(navContext.year) : (year || null);
   let pinnedMode =
@@ -1840,6 +1854,7 @@ async function chatEngine(arg1, arg2) {
       ? (normIn.reason || "continuity")
       : (routeHintRaw ? `routeHint:${routeHintRaw}` : (pinnedYear ? `year:${pinnedYear}` : (pinnedMode ? `mode:${pinnedMode}` : pinnedLane))),
 
+
     lastOut: outCache,
     lastOutAt: nowMs(),
     lastOutSig: outSig,
@@ -1893,7 +1908,6 @@ async function chatEngine(arg1, arg2) {
   // last polish: if clarify, keep exactly one question (no double prompts)
   if (out && out.cog && out.cog.state === "clarify") {
     out = enforceOneIntent(out);
-    // ensure it remains a single question (avoid accidental multi-question intros)
     const r = String(out.reply || "").trim();
     if (!r.endsWith("?") && !hasQuestionMark(r)) {
       out.reply = r + "?";
