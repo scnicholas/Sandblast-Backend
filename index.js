@@ -3,29 +3,15 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17w
+ * index.js v1.5.17x
  * (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION +
  *  ✅ SESSIONPATCH EXPANDED (CONTINUITY PERSIST FIX) + ✅ CONVERSATIONAL CONTRACT ENFORCER (HARD) +
  *  ✅ ROUTE HINT AWARE COG NORMALIZATION + ENV KNOBS HARDENED)
  *
- * Fixes (vs v1.5.17v):
- *  ✅ CONVERSATIONAL CONTRACT ENFORCER (HARD):
- *     - Every /api/chat response ALWAYS returns:
- *       { ok, reply(non-empty), cog(always), sessionPatch(always obj), directives(always array),
- *         followUps(optional), requestId, sessionId, visitorId, contractVersion, serverBuild }
- *     - Cached/deduped/floor payloads now also comply (no “thin” payloads).
- *
- *  ✅ ROUTE HINT AWARE:
- *     - Reads body.client.routeHint (if present) and uses it to normalize cog.lane deterministically.
- *       (Does NOT yet force routing; just keeps contract coherent. Routing comes next step.)
- *
- * Preserves:
- *  ✅ HARD CORS ECHO + guaranteed OPTIONS responder
- *  ✅ ANTI-502 crash visibility
- *  ✅ /health + /api/health + /api/version
- *  ✅ /api/chat loop guards + dedupe payload floors
- *  ✅ /api/tts + /api/voice soft-loaded + /api/tts/diag
- *  ✅ Server-owned session keys protected from sessionPatch overwrite
+ * Patch vs v1.5.17w:
+ *  ✅ TURN KEY: when client.turnId exists, dedupe is strictly (origin+fingerprint+turnId) — no text mixed in
+ *  ✅ OPTIONS: app.options(/.*/) for broader Express/router compatibility
+ *  ✅ TIMEOUT FLOOR: contract payload always has a real sessionId (derived) instead of null
  */
 
 const express = require("express");
@@ -71,7 +57,7 @@ app.disable("x-powered-by");
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.17w (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + SESSIONPATCH EXPANDED (CONTINUITY PERSIST FIX) + CONVERSATIONAL CONTRACT ENFORCER (HARD) + ROUTE HINT AWARE COG NORMALIZATION + ENV KNOBS HARDENED)";
+  "index.js v1.5.17x (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + SESSIONPATCH EXPANDED (CONTINUITY PERSIST FIX) + CONVERSATIONAL CONTRACT ENFORCER (HARD) + ROUTE HINT AWARE COG NORMALIZATION + ENV KNOBS HARDENED)";
 
 const GIT_COMMIT =
   String(process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "").trim() || null;
@@ -245,7 +231,6 @@ function enforceChatContract({ out, session, routeHint, baseReply, requestId, se
 
   if (shadow) payload.shadow = shadow;
 
-  // keep followUps optional; widget can ignore due to chip policy
   if (followUps && Array.isArray(followUps) && followUps.length) payload.followUps = followUps;
 
   if (bridgeInjected) payload._bridgeInjected = bridgeInjected;
@@ -350,7 +335,8 @@ app.use((req, res, next) => {
   next();
 });
 
-app.options("*", (req, res) => {
+/** ✅ Express/router compatibility: use regex instead of "*" */
+app.options(/.*/, (req, res) => {
   const origin = req.headers.origin ? String(req.headers.origin).trim() : "";
   if (origin && originAllowed(origin)) {
     safeSet(res, "Access-Control-Allow-Origin", origin);
@@ -463,12 +449,8 @@ const SERVER_OWNED_KEYS = new Set(["__lastBridgeAt", "__bridgeIdx", "__lastPostu
 
 /**
  * Strict patch apply: allowlist only + proto-safe
- *
- * ✅ Expanded to include chatEngine continuity/sessionPatch keys.
- *    Without this, "next", bare-year normalization, intro/reset continuity won't persist.
  */
 const SESSION_PATCH_ALLOW = new Set([
-  // --- Core continuity (from chatEngine SESSION_ALLOW) ---
   "introDone", "introAt",
   "lastInText", "lastInAt",
   "lastOut", "lastOutAt",
@@ -484,12 +466,8 @@ const SESSION_PATCH_ALLOW = new Set([
   "activeMusicMode", "lastMusicYear", "year", "mode",
   "depthPreference", "userName", "nameAskedAt", "lastOpenQuestion", "userGoal",
   "lastNameUseTurn",
-
-  // --- Existing server/session basics ---
   "visitorId",
   "voiceMode",
-
-  // --- Server-side dedupe/guards (internal) ---
   "__lastIntentSig",
   "__lastIntentAt",
   "__lastReply",
@@ -501,8 +479,6 @@ const SESSION_PATCH_ALLOW = new Set([
   "__repCount",
   "__srAt",
   "__srCount",
-
-  // NOTE: server-owned keys exist in session but cannot be set by sessionPatch
   "__lastBridgeAt",
   "__bridgeIdx",
   "__lastPosture",
@@ -513,12 +489,9 @@ function applySessionPatch(session, patch) {
 
   for (const [k, v] of Object.entries(patch)) {
     if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
-    if (SERVER_OWNED_KEYS.has(k)) continue; // ✅ protect server-owned keys
+    if (SERVER_OWNED_KEYS.has(k)) continue;
     if (!SESSION_PATCH_ALLOW.has(k)) continue;
-
-    // Skip undefined (treat as "no-op") to avoid polluting session with undefined
     if (typeof v === "undefined") continue;
-
     session[k] = v;
   }
 }
@@ -622,8 +595,6 @@ app.get("/api/version", (req, res) => {
       bodyHashIncludeSession: String(process.env.BODY_HASH_INCLUDE_SESSION || "false") === "true",
       sessionIdMaxLen: SESSION_ID_MAXLEN,
       turnDedupeMs: clamp(process.env.TURN_DEDUPE_MS || 4000, 800, 15000),
-
-      // ✅ posture + bridge knobs
       bridgeEnabled,
       bridgeMusicOnly,
       bridgeCooldownMs,
@@ -734,7 +705,6 @@ const CANON = {
 
 function detectPosture(text) {
   const t = normCmd(text);
-
   if (/\b(bye|goodbye|later|done|stop|cancel|nevermind|never mind)\b/.test(t)) return "exit";
   if (/\b(install|open|launch|start|take me|go to|send me|link)\b/.test(t)) return "commit";
   if (/\b(relax|watch|tv|roku|big screen|lean back|couch|living room)\b/.test(t)) return "relax";
@@ -812,7 +782,6 @@ const TURN_CACHE = new Map();
 function getTurnKey(req, body, text, visitorId) {
   const origin = normalizeStr(req.headers.origin || "");
   const fp = fingerprint(req, visitorId);
-  const t = normalizeStr(text || "").slice(0, MAX_HASH_TEXT_LEN);
 
   let turnId = "";
   try {
@@ -823,8 +792,9 @@ function getTurnKey(req, body, text, visitorId) {
     turnId = "";
   }
 
+  // ✅ If turnId exists, dedupe is strictly by turnId (idempotency)
   if (turnId) {
-    return sha256(JSON.stringify({ o: origin, fp, turnId, t }));
+    return sha256(JSON.stringify({ o: origin, fp, turnId }));
   }
 
   const bh = sha256(stableBodyForHash(body, req));
@@ -1075,10 +1045,6 @@ function capsPayload() {
   return { music: true, movies: true, sponsors: true, schedule: true, tts: true };
 }
 
-/**
- * ✅ Contract-compliant dedupe payload
- * (Used for cached/floor replies. Always includes cog/sessionPatch/directives.)
- */
 function dedupeOkPayload({ reply, sessionId, requestId, visitorId, posture, routeHint, session }) {
   const baseReply = String(reply || "OK.").trim() || "OK.";
   return enforceChatContract({
@@ -1101,22 +1067,26 @@ app.post("/api/chat", async (req, res) => {
   setContractHeaders(res, requestId);
 
   const isDebug = String(req.query.debug || "") === "1";
-
   const once = respondOnce(res);
+
+  // ✅ derive ids early so timeout-floor never returns null sessionId
+  const headerVisitorId = normalizeStr(req.get("X-Visitor-Id") || "") || null;
+  const derivedSessionId = deriveStableSessionId(req, headerVisitorId);
+  const derivedSession = touchSession(derivedSessionId, { visitorId: headerVisitorId }) || { sessionId: derivedSessionId };
+
   const watchdog = setTimeout(() => {
     try {
       safeSet(res, "X-Nyx-Deduped", "timeout-floor");
-      const vid = normalizeStr(req.get("X-Visitor-Id") || "") || null;
       const payload = dedupeOkPayload({
         reply: "I’m here. Give me a year (1950–2024), or say “top 10 1988”.",
-        sessionId: null,
+        sessionId: derivedSessionId,
         requestId,
-        visitorId: vid,
-        posture: "explore",
+        visitorId: headerVisitorId,
+        posture: derivedSession.__lastPosture || "explore",
         routeHint: null,
-        session: null,
+        session: derivedSession,
       });
-      if (BRIDGE_DEBUG_HEADERS) safeSet(res, "X-Nyx-Posture", "explore");
+      if (BRIDGE_DEBUG_HEADERS) safeSet(res, "X-Nyx-Posture", String(payload.posture || "explore"));
       return once.json(200, payload);
     } catch (_) {}
   }, CHAT_HANDLER_TIMEOUT_MS);
@@ -1168,7 +1138,6 @@ app.post("/api/chat", async (req, res) => {
 
     const now = Date.now();
 
-    // Sustained-rate guard
     const srAt = Number(session.__srAt || 0);
     const srCount = Number(session.__srCount || 0);
     const srWithin = srAt && now - srAt < SR_WINDOW_MS;
@@ -1197,7 +1166,6 @@ app.post("/api/chat", async (req, res) => {
       session.__srCount = 0;
     }
 
-    // Burst guard
     const fp = fingerprint(req, visitorId);
     const prev = BURSTS.get(fp);
 
@@ -1240,7 +1208,6 @@ app.post("/api/chat", async (req, res) => {
       }
     }
 
-    // Body-hash dedupe
     const bodyHash = sha256(stableBodyForHash(body, req));
     const lastHash = normalizeStr(session.__lastBodyHash || "");
     const lastAt = Number(session.__lastBodyAt || 0);
@@ -1262,7 +1229,6 @@ app.post("/api/chat", async (req, res) => {
       return once.json(200, payload);
     }
 
-    // Shadow (soft)
     let shadow = null;
     try {
       if (shadowBrain) {
@@ -1275,14 +1241,11 @@ app.post("/api/chat", async (req, res) => {
       console.warn("[shadow] error (soft):", e && e.message ? e.message : e);
     }
 
-    // Chat handler
     const handler = pickChatHandler(chatEngine);
     let out = null;
 
     if (handler) {
       try {
-        // NOTE: Contract-first: do NOT force routing yet.
-        // We pass routeHint through for next step, but engine may ignore it today.
         out = await Promise.resolve(handler({ text, session, requestId, debug: isDebug, routeHint }));
       } catch (e) {
         if (isUpstreamQuotaError(e)) {
@@ -1304,7 +1267,6 @@ app.post("/api/chat", async (req, res) => {
       }
     }
 
-    // ✅ Apply sessionPatch early (continuity persistence)
     if (out && typeof out === "object" && out.sessionPatch && typeof out.sessionPatch === "object") {
       applySessionPatch(session, out.sessionPatch);
     }
@@ -1312,14 +1274,13 @@ app.post("/api/chat", async (req, res) => {
     const baseReply =
       out && typeof out === "object" && typeof out.reply === "string" ? out.reply : fallbackReply(text);
 
-    // ---- Posture + Bridge injection (BEFORE hashing) ----
     const posture = detectPosture(text);
     session.__lastPosture = posture;
 
     if (BRIDGE_DEBUG_HEADERS) safeSet(res, "X-Nyx-Posture", String(posture));
 
     let finalReply = String(baseReply || "").trim();
-    if (!finalReply) finalReply = fallbackReply(text); // ✅ never empty
+    if (!finalReply) finalReply = fallbackReply(text);
 
     const eligible = bridgeEligible({ text, session, out, now });
     let bridgeInjected = null;
@@ -1336,7 +1297,6 @@ app.post("/api/chat", async (req, res) => {
       }
     }
 
-    // Reply-loop kill (hash finalReply)
     const replyHash = sha256(String(finalReply || ""));
     const lastReplyHash = normalizeStr(session.__lastReplyHash || "");
     const lastReplyAt = Number(session.__lastReplyAt || 0);
@@ -1395,14 +1355,12 @@ app.post("/api/chat", async (req, res) => {
         ? normalizeFollowUpsToStrings(out.followUps)
         : undefined;
 
-    // Persist last seen
     session.__lastReply = finalReply;
     session.__lastBodyHash = bodyHash;
     session.__lastBodyAt = now;
     session.__lastReplyHash = replyHash;
     session.__lastReplyAt = now;
 
-    // Intent signature clamp
     const sig = intentSigFrom(text, session);
     const lastSig = normalizeStr(session.__lastIntentSig || "");
     const lastSigAt = Number(session.__lastIntentAt || 0);
@@ -1424,7 +1382,6 @@ app.post("/api/chat", async (req, res) => {
     session.__lastIntentSig = sig;
     session.__lastIntentAt = now;
 
-    // ✅ CONTRACT ENFORCED PAYLOAD (the “real” response)
     const payload = enforceChatContract({
       out,
       session,
@@ -1466,16 +1423,19 @@ app.post("/api/chat", async (req, res) => {
     clearTimeout(watchdog);
     setContractHeaders(res, requestId);
     safeSet(res, "X-Nyx-Deduped", "floor");
+
     const vid = normalizeStr(req.get("X-Visitor-Id") || "") || null;
+    const sid = deriveStableSessionId(req, vid);
+    const sess = touchSession(sid, { visitorId: vid }) || { sessionId: sid };
 
     const payload = dedupeOkPayload({
       reply: "I’m here. Give me a year (1950–2024), or say “top 10 1988”.",
-      sessionId: null,
+      sessionId: sid,
       requestId,
       visitorId: vid,
-      posture: "explore",
+      posture: sess.__lastPosture || "explore",
       routeHint: null,
-      session: null,
+      session: sess,
     });
 
     try {
