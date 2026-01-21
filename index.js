@@ -3,17 +3,17 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17y
+ * index.js v1.5.17z
  * (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION +
  *  ✅ SESSIONPATCH EXPANDED (CONTINUITY PERSIST FIX) + ✅ CONVERSATIONAL CONTRACT ENFORCER (HARD) +
  *  ✅ ROUTE HINT AWARE COG NORMALIZATION + ✅ ENV KNOBS HARDENED +
- *  ✅ TRUST PROXY (SAFE, OPTIONAL) + ✅ ROOT/API DISCOVERY ROUTES)
+ *  ✅ TRUST PROXY (SAFE, OPTIONAL) + ✅ ROOT/API DISCOVERY ROUTES +
+ *  ✅ ROKU BRIDGE DIRECTIVE (STRUCTURED CTA) + ✅ CTA COOLDOWN + SESSION TELEMETRY)
  *
- * Critical fixes vs v1.5.17x:
- *  ✅ trust proxy support (optional, safer IP fingerprinting on Render/CF)
- *  ✅ more robust client IP extraction (x-forwarded-for / x-real-ip)
- *  ✅ add GET / and GET /api (prevents “mystery 404”, helps quick health checks)
- *  ✅ small hardening: never set empty ACAO, keep Vary consistent
+ * Patch vs v1.5.17y:
+ *  ✅ Adds structured directives[] bridge_roku CTA (backend-first; widget can ignore safely)
+ *  ✅ Adds Roku CTA cooldown + session-owned counters (__lastRokuCtaAt/__rokuCtaCount)
+ *  ✅ Contract enforcer accepts directivesOverride (so server can prepend directives safely)
  */
 
 const express = require("express");
@@ -69,7 +69,7 @@ if (TRUST_PROXY) {
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.17y (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + SESSIONPATCH EXPANDED + CONVERSATIONAL CONTRACT ENFORCER (HARD) + ROUTE HINT AWARE COG NORMALIZATION + ENV KNOBS HARDENED + TRUST PROXY + ROOT/API DISCOVERY ROUTES)";
+  "index.js v1.5.17z (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + SESSIONPATCH EXPANDED + CONVERSATIONAL CONTRACT ENFORCER (HARD) + ROUTE HINT AWARE COG NORMALIZATION + ENV KNOBS HARDENED + TRUST PROXY + ROOT/API DISCOVERY ROUTES + ROKU BRIDGE DIRECTIVE)";
 
 const GIT_COMMIT =
   String(process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "").trim() || null;
@@ -230,10 +230,11 @@ function enforceChatContract({
   shadow,
   followUps,
   bridgeInjected,
+  directivesOverride, // ✅ NEW
 }) {
   const reply = nonEmptyReply(baseReply, "Alright — tell me what you want next.");
 
-  const directives = normalizeDirectives(out && out.directives);
+  const directives = directivesOverride ? normalizeDirectives(directivesOverride) : normalizeDirectives(out && out.directives);
   const sessionPatch = allowlistSessionPatchObj(out && out.sessionPatch) || {};
   const cog = normalizeCog(out, session, routeHint);
 
@@ -476,7 +477,13 @@ function getVoiceMode(req, body) {
 }
 
 /* Server-owned keys (cannot be overwritten by sessionPatch) */
-const SERVER_OWNED_KEYS = new Set(["__lastBridgeAt", "__bridgeIdx", "__lastPosture"]);
+const SERVER_OWNED_KEYS = new Set([
+  "__lastBridgeAt",
+  "__bridgeIdx",
+  "__lastPosture",
+  "__lastRokuCtaAt",   // ✅ NEW
+  "__rokuCtaCount",    // ✅ NEW
+]);
 
 /**
  * Strict patch apply: allowlist only + proto-safe
@@ -655,6 +662,10 @@ app.get("/api/version", (req, res) => {
   const bridgeExplicitAlways = String(process.env.BRIDGE_EXPLICIT_ALWAYS || "true") === "true";
   const bridgeDebugHeaders = String(process.env.BRIDGE_DEBUG_HEADERS || "true") === "true";
 
+  const rokuChannelUrl = normalizeStr(process.env.ROKU_CHANNEL_URL || "");
+  const rokuFallbackUrl = normalizeStr(process.env.ROKU_FALLBACK_URL || "https://sandblast.channel/roku");
+  const rokuCtaCooldownMs = clamp(process.env.ROKU_CTA_COOLDOWN_MS || 600_000, 60_000, 3_600_000);
+
   return safeJson(res, 200, {
     ok: true,
     requestId,
@@ -679,6 +690,11 @@ app.get("/api/version", (req, res) => {
       bridgeStyleDefault,
       bridgeExplicitAlways,
       bridgeDebugHeaders,
+
+      // ✅ Roku directive knobs (safe disclosure)
+      rokuCtaCooldownMs,
+      hasRokuChannelUrl: !!rokuChannelUrl,
+      rokuFallbackUrl,
     },
     allowlistSample: EFFECTIVE_ORIGINS.slice(0, 10),
   });
@@ -759,6 +775,13 @@ const BRIDGE_COOLDOWN_MS = clamp(process.env.BRIDGE_COOLDOWN_MS || 45_000, 10_00
 const BRIDGE_STYLE_DEFAULT = normCmd(process.env.BRIDGE_STYLE_DEFAULT || "soft") || "soft";
 const BRIDGE_EXPLICIT_ALWAYS = String(process.env.BRIDGE_EXPLICIT_ALWAYS || "true") === "true";
 const BRIDGE_DEBUG_HEADERS = String(process.env.BRIDGE_DEBUG_HEADERS || "true") === "true";
+
+/* ✅ Structured Roku CTA (directives) */
+const ROKU_CHANNEL_URL = normalizeStr(process.env.ROKU_CHANNEL_URL || "");
+const ROKU_DEEPLINK = normalizeStr(process.env.ROKU_DEEPLINK || "");
+const ROKU_FALLBACK_URL = normalizeStr(process.env.ROKU_FALLBACK_URL || "https://sandblast.channel/roku");
+const BRIDGE_CTA_LABEL = normalizeStr(process.env.BRIDGE_CTA_LABEL || "Open Sandblast on Roku");
+const ROKU_CTA_COOLDOWN_MS = clamp(process.env.ROKU_CTA_COOLDOWN_MS || 600_000, 60_000, 3_600_000);
 
 const CANON = {
   rokuBridge: {
@@ -841,6 +864,39 @@ function injectBridgeLine(reply, line) {
   if (!base) return add;
   if (base.includes(add)) return base;
   return base + "\n\n" + add;
+}
+
+/* ✅ Roku directive emission (backend-first; safe if client ignores) */
+function canEmitRokuCta(session, now, posture) {
+  if (!session) return false;
+  if (posture === "exit") return false;
+
+  const last = Number(session.__lastRokuCtaAt || 0);
+  if (last && now - last < ROKU_CTA_COOLDOWN_MS) return false;
+
+  // must have somewhere valid to send them
+  if (!ROKU_CHANNEL_URL && !ROKU_FALLBACK_URL) return false;
+
+  return true;
+}
+
+function buildRokuBridgeDirective({ session, now, posture, reason }) {
+  const url = ROKU_CHANNEL_URL || ROKU_FALLBACK_URL;
+  const dir = {
+    type: "bridge_roku",
+    label: BRIDGE_CTA_LABEL,
+    url,
+    deeplink: ROKU_DEEPLINK || null,
+    fallbackUrl: ROKU_FALLBACK_URL || null,
+    reason: reason || `posture_${posture || "explore"}`,
+    ttlMs: 600_000,
+  };
+
+  // server-owned session telemetry
+  session.__lastRokuCtaAt = now;
+  session.__rokuCtaCount = Number(session.__rokuCtaCount || 0) + 1;
+
+  return dir;
 }
 
 /* ======================================================
@@ -1131,6 +1187,7 @@ function dedupeOkPayload({ reply, sessionId, requestId, visitorId, posture, rout
     shadow: null,
     followUps: undefined,
     bridgeInjected: null,
+    directivesOverride: null,
   });
 }
 
@@ -1370,6 +1427,15 @@ app.post("/api/chat", async (req, res) => {
       }
     }
 
+    // ✅ directives: merge engine directives + optional Roku CTA directive
+    let directives = normalizeDirectives(out && out.directives);
+    if (eligible && canEmitRokuCta(session, now, posture)) {
+      const reason = isExplicitRokuMention(text) ? "explicit_roku" : "implicit_bridge";
+      const rokuDir = buildRokuBridgeDirective({ session, now, posture, reason });
+      directives = directives || [];
+      directives.unshift(rokuDir);
+    }
+
     const replyHash = sha256(String(finalReply || ""));
     const lastReplyHash = normalizeStr(session.__lastReplyHash || "");
     const lastReplyAt = Number(session.__lastReplyAt || 0);
@@ -1465,6 +1531,7 @@ app.post("/api/chat", async (req, res) => {
       shadow,
       followUps,
       bridgeInjected,
+      directivesOverride: directives, // ✅ NEW
     });
 
     if (isDebug && out && typeof out === "object") {
@@ -1478,6 +1545,10 @@ app.post("/api/chat", async (req, res) => {
         styleDefault: BRIDGE_STYLE_DEFAULT,
         explicitAlways: BRIDGE_EXPLICIT_ALWAYS,
         lastBridgeAt: Number(session.__lastBridgeAt || 0) || null,
+        rokuCtaCooldownMs: ROKU_CTA_COOLDOWN_MS,
+        lastRokuCtaAt: Number(session.__lastRokuCtaAt || 0) || null,
+        rokuCtaCount: Number(session.__rokuCtaCount || 0) || 0,
+        hasRokuUrl: !!(ROKU_CHANNEL_URL || ROKU_FALLBACK_URL),
       };
       payload._contract = {
         routeHint: routeHint || null,
