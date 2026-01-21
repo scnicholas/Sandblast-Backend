@@ -3,14 +3,21 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17v
+ * index.js v1.5.17w
  * (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION +
- *  ✅ SESSIONPATCH EXPANDED (CONTINUITY PERSIST FIX) + ENV KNOBS HARDENED)
+ *  ✅ SESSIONPATCH EXPANDED (CONTINUITY PERSIST FIX) + ✅ CONVERSATIONAL CONTRACT ENFORCER (HARD) +
+ *  ✅ ROUTE HINT AWARE COG NORMALIZATION + ENV KNOBS HARDENED)
  *
- * Fixes (vs v1.5.17u):
- *  ✅ CRITICAL: Expands SESSION_PATCH_ALLOW to include chatEngine continuity keys
- *     (introDone/turns/lastOut/lastMode/lastMusicYear/activeMusicMode/etc.)
- *     so "next / 1989 / mode-aware continuity" actually persists across turns.
+ * Fixes (vs v1.5.17v):
+ *  ✅ CONVERSATIONAL CONTRACT ENFORCER (HARD):
+ *     - Every /api/chat response ALWAYS returns:
+ *       { ok, reply(non-empty), cog(always), sessionPatch(always obj), directives(always array),
+ *         followUps(optional), requestId, sessionId, visitorId, contractVersion, serverBuild }
+ *     - Cached/deduped/floor payloads now also comply (no “thin” payloads).
+ *
+ *  ✅ ROUTE HINT AWARE:
+ *     - Reads body.client.routeHint (if present) and uses it to normalize cog.lane deterministically.
+ *       (Does NOT yet force routing; just keeps contract coherent. Routing comes next step.)
  *
  * Preserves:
  *  ✅ HARD CORS ECHO + guaranteed OPTIONS responder
@@ -64,7 +71,7 @@ app.disable("x-powered-by");
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.17v (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + SESSIONPATCH EXPANDED (CONTINUITY PERSIST FIX) + ENV KNOBS HARDENED)";
+  "index.js v1.5.17w (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + SESSIONPATCH EXPANDED (CONTINUITY PERSIST FIX) + CONVERSATIONAL CONTRACT ENFORCER (HARD) + ROUTE HINT AWARE COG NORMALIZATION + ENV KNOBS HARDENED)";
 
 const GIT_COMMIT =
   String(process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "").trim() || null;
@@ -117,6 +124,133 @@ function sha256(s) {
 }
 function ua(req) {
   return normalizeStr(req.get("user-agent") || "");
+}
+
+/* ======================================================
+   Conversational Contract Enforcer (HARD)
+====================================================== */
+
+const LANES = new Set(["general", "music", "roku", "schedule", "radio", "sponsors", "movies"]);
+
+function normalizeRouteHint(h) {
+  const t = normCmd(h || "");
+  if (!t) return null;
+
+  // synonyms / UI hints
+  if (t === "years" || t === "year_pick" || t === "pick a year") return "music";
+  if (t === "tv") return "roku";
+  return t;
+}
+
+function normalizeLane(lane, fallback) {
+  const l = normCmd(lane || "") || normCmd(fallback || "") || "general";
+  if (LANES.has(l)) return l;
+  return "general";
+}
+
+function nonEmptyReply(s, fallback) {
+  const r = normalizeStr(s);
+  if (r) return r;
+  const fb = normalizeStr(fallback);
+  return fb || "Okay — I’m here. Tell me what you want next.";
+}
+
+function normalizeDirectives(d) {
+  if (!Array.isArray(d)) return [];
+  const out = [];
+  for (const it of d) {
+    if (!it) continue;
+    if (typeof it === "string") out.push({ type: it });
+    else if (typeof it === "object" && typeof it.type === "string" && it.type.trim()) out.push(it);
+    if (out.length >= 6) break;
+  }
+  return out;
+}
+
+function allowlistSessionPatchObj(patch) {
+  if (!patch || typeof patch !== "object") return {};
+  const out = {};
+  for (const [k, v] of Object.entries(patch)) {
+    if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
+    if (!SESSION_PATCH_ALLOW.has(k)) continue;
+    if (SERVER_OWNED_KEYS.has(k)) continue;
+    if (typeof v === "undefined") continue;
+    out[k] = v;
+  }
+  return out;
+}
+
+function normalizeCog(out, session, routeHint) {
+  const oc = out && typeof out === "object" && out.cog && typeof out.cog === "object" ? out.cog : {};
+
+  const laneFromOut = (out && typeof out.lane === "string" ? out.lane : "") || (oc && oc.lane) || "";
+  const laneFromSession = session && session.lane ? session.lane : session && session.lastLane ? session.lastLane : "";
+  const laneFromHint = normalizeRouteHint(routeHint) || "";
+
+  const lane = normalizeLane(laneFromOut, laneFromHint || laneFromSession || "general");
+
+  const mode =
+    (out && typeof out.mode === "string" && out.mode.trim() ? out.mode : null) ||
+    (oc && typeof oc.mode === "string" && oc.mode.trim() ? oc.mode : null) ||
+    (session && typeof session.activeMusicMode === "string" && session.activeMusicMode.trim() ? session.activeMusicMode : null) ||
+    (session && typeof session.lastMode === "string" && session.lastMode.trim() ? session.lastMode : null) ||
+    null;
+
+  const year =
+    (out && out.year != null ? String(out.year) : null) ||
+    (oc && oc.year != null ? String(oc.year) : null) ||
+    (session && session.lastMusicYear != null ? String(session.lastMusicYear) : null) ||
+    (session && session.lastYear != null ? String(session.lastYear) : null) ||
+    null;
+
+  const phase = (oc && typeof oc.phase === "string" && oc.phase.trim() ? oc.phase : "engaged");
+  const state = (oc && typeof oc.state === "string" && oc.state.trim() ? oc.state : "confident");
+  const reason = (oc && typeof oc.reason === "string" && oc.reason.trim() ? oc.reason : "ok");
+
+  return {
+    lane,
+    mode,
+    year,
+    phase,
+    state,
+    reason,
+    ts: Date.now(),
+  };
+}
+
+function enforceChatContract({ out, session, routeHint, baseReply, requestId, sessionId, visitorId, posture, shadow, followUps, bridgeInjected }) {
+  const reply = nonEmptyReply(baseReply, "Alright — tell me what you want next.");
+
+  const directives = normalizeDirectives(out && out.directives);
+
+  const sessionPatch =
+    allowlistSessionPatchObj(out && out.sessionPatch) || {};
+
+  const cog = normalizeCog(out, session, routeHint);
+
+  const payload = {
+    ok: true,
+    reply,
+    sessionId,
+    requestId,
+    visitorId,
+    contractVersion: NYX_CONTRACT_VERSION,
+    serverBuild: INDEX_VERSION,
+    caps: capsPayload(),
+    posture,
+    cog,
+    sessionPatch,
+    directives,
+  };
+
+  if (shadow) payload.shadow = shadow;
+
+  // keep followUps optional; widget can ignore due to chip policy
+  if (followUps && Array.isArray(followUps) && followUps.length) payload.followUps = followUps;
+
+  if (bridgeInjected) payload._bridgeInjected = bridgeInjected;
+
+  return payload;
 }
 
 /* ======================================================
@@ -844,6 +978,17 @@ function extractTextFromBody(body) {
   return normalizeStr(body.text || body.message || "");
 }
 
+function extractRouteHintFromBody(body) {
+  try {
+    if (!body || typeof body !== "object") return null;
+    const c = body.client && typeof body.client === "object" ? body.client : null;
+    if (!c) return null;
+    return normalizeRouteHint(c.routeHint || "");
+  } catch (_) {
+    return null;
+  }
+}
+
 function validateContract(req, body) {
   const headerV = normalizeStr(req.get("X-Contract-Version") || "");
   const bodyV = body && typeof body === "object" ? normalizeStr(body.contractVersion || "") : "";
@@ -930,19 +1075,25 @@ function capsPayload() {
   return { music: true, movies: true, sponsors: true, schedule: true, tts: true };
 }
 
-function dedupeOkPayload({ reply, sessionId, requestId, visitorId, posture }) {
-  const payload = {
-    ok: true,
-    reply: String(reply || "OK.").trim(),
-    sessionId,
+/**
+ * ✅ Contract-compliant dedupe payload
+ * (Used for cached/floor replies. Always includes cog/sessionPatch/directives.)
+ */
+function dedupeOkPayload({ reply, sessionId, requestId, visitorId, posture, routeHint, session }) {
+  const baseReply = String(reply || "OK.").trim() || "OK.";
+  return enforceChatContract({
+    out: null,
+    session: session || null,
+    routeHint: routeHint || null,
+    baseReply,
     requestId,
+    sessionId,
     visitorId,
-    contractVersion: NYX_CONTRACT_VERSION,
-    caps: capsPayload(),
-    deduped: true,
-  };
-  if (posture) payload.posture = posture;
-  return payload;
+    posture: posture || "explore",
+    shadow: null,
+    followUps: undefined,
+    bridgeInjected: null,
+  });
 }
 
 app.post("/api/chat", async (req, res) => {
@@ -956,23 +1107,24 @@ app.post("/api/chat", async (req, res) => {
     try {
       safeSet(res, "X-Nyx-Deduped", "timeout-floor");
       const vid = normalizeStr(req.get("X-Visitor-Id") || "") || null;
+      const payload = dedupeOkPayload({
+        reply: "I’m here. Give me a year (1950–2024), or say “top 10 1988”.",
+        sessionId: null,
+        requestId,
+        visitorId: vid,
+        posture: "explore",
+        routeHint: null,
+        session: null,
+      });
       if (BRIDGE_DEBUG_HEADERS) safeSet(res, "X-Nyx-Posture", "explore");
-      return once.json(
-        200,
-        dedupeOkPayload({
-          reply: "I’m here. Give me a year (1950–2024), or say “top 10 1988”.",
-          sessionId: null,
-          requestId,
-          visitorId: vid,
-          posture: "explore",
-        })
-      );
+      return once.json(200, payload);
     } catch (_) {}
   }, CHAT_HANDLER_TIMEOUT_MS);
 
   try {
     const body = req.body;
     const text = extractTextFromBody(body);
+    const routeHint = extractRouteHintFromBody(body);
 
     const contract = validateContract(req, body);
     if (!contract.ok) {
@@ -1034,6 +1186,8 @@ app.post("/api/chat", async (req, res) => {
           requestId,
           visitorId,
           posture,
+          routeHint,
+          session,
         });
         TURN_CACHE.set(turnKey, { at: Date.now(), payload });
         return once.json(200, payload);
@@ -1078,6 +1232,8 @@ app.post("/api/chat", async (req, res) => {
           requestId,
           visitorId,
           posture,
+          routeHint,
+          session,
         });
         TURN_CACHE.set(turnKey, { at: Date.now(), payload });
         return once.json(200, payload);
@@ -1099,6 +1255,8 @@ app.post("/api/chat", async (req, res) => {
         requestId,
         visitorId,
         posture,
+        routeHint,
+        session,
       });
       TURN_CACHE.set(turnKey, { at: Date.now(), payload });
       return once.json(200, payload);
@@ -1123,7 +1281,9 @@ app.post("/api/chat", async (req, res) => {
 
     if (handler) {
       try {
-        out = await Promise.resolve(handler({ text, session, requestId, debug: isDebug }));
+        // NOTE: Contract-first: do NOT force routing yet.
+        // We pass routeHint through for next step, but engine may ignore it today.
+        out = await Promise.resolve(handler({ text, session, requestId, debug: isDebug, routeHint }));
       } catch (e) {
         if (isUpstreamQuotaError(e)) {
           safeSet(res, "X-Nyx-Upstream", "openai_insufficient_quota");
@@ -1134,6 +1294,8 @@ app.post("/api/chat", async (req, res) => {
               last ||
               "Nyx is online, but the AI brain is temporarily out of fuel (OpenAI quota). Add billing/credits, then try again.",
             followUps: ["Try again", "Open radio", "Open TV"],
+            cog: { state: "error", reason: "upstream_quota" },
+            directives: [],
           };
         } else {
           console.error("[chatEngine] error (soft):", e && e.stack ? e.stack : e);
@@ -1157,6 +1319,7 @@ app.post("/api/chat", async (req, res) => {
     if (BRIDGE_DEBUG_HEADERS) safeSet(res, "X-Nyx-Posture", String(posture));
 
     let finalReply = String(baseReply || "").trim();
+    if (!finalReply) finalReply = fallbackReply(text); // ✅ never empty
 
     const eligible = bridgeEligible({ text, session, out, now });
     let bridgeInjected = null;
@@ -1187,6 +1350,8 @@ app.post("/api/chat", async (req, res) => {
         requestId,
         visitorId,
         posture,
+        routeHint,
+        session,
       });
       TURN_CACHE.set(turnKey, { at: Date.now(), payload });
       return once.json(200, payload);
@@ -1214,6 +1379,8 @@ app.post("/api/chat", async (req, res) => {
           requestId,
           visitorId,
           posture,
+          routeHint,
+          session,
         });
         TURN_CACHE.set(turnKey, { at: Date.now(), payload });
         return once.json(200, payload);
@@ -1248,6 +1415,8 @@ app.post("/api/chat", async (req, res) => {
         requestId,
         visitorId,
         posture,
+        routeHint,
+        session,
       });
       TURN_CACHE.set(turnKey, { at: Date.now(), payload });
       return once.json(200, payload);
@@ -1255,30 +1424,20 @@ app.post("/api/chat", async (req, res) => {
     session.__lastIntentSig = sig;
     session.__lastIntentAt = now;
 
-    const payload = {
-      ok: true,
-      reply: finalReply,
-      sessionId,
+    // ✅ CONTRACT ENFORCED PAYLOAD (the “real” response)
+    const payload = enforceChatContract({
+      out,
+      session,
+      routeHint,
+      baseReply: finalReply,
       requestId,
+      sessionId,
       visitorId,
-      contractVersion: NYX_CONTRACT_VERSION,
-      caps: capsPayload(),
       posture,
-    };
-
-    if (out && typeof out === "object") {
-      if (typeof out.lane === "string") payload.lane = out.lane;
-      if (out.year != null) payload.year = out.year;
-      if (typeof out.mode === "string") payload.mode = out.mode;
-      if (out.cog && typeof out.cog === "object") payload.cog = out.cog;
-      if (out.caps && typeof out.caps === "object") payload.caps = Object.assign({}, payload.caps, out.caps);
-    }
-
-    if (shadow) payload.shadow = shadow;
-    if (followUps) payload.followUps = followUps;
-
-    // For header-based verification across cached responses
-    if (bridgeInjected) payload._bridgeInjected = bridgeInjected;
+      shadow,
+      followUps,
+      bridgeInjected,
+    });
 
     if (isDebug && out && typeof out === "object") {
       if (out.baseMessage) payload.baseMessage = String(out.baseMessage);
@@ -1291,6 +1450,10 @@ app.post("/api/chat", async (req, res) => {
         styleDefault: BRIDGE_STYLE_DEFAULT,
         explicitAlways: BRIDGE_EXPLICIT_ALWAYS,
         lastBridgeAt: Number(session.__lastBridgeAt || 0) || null,
+      };
+      payload._contract = {
+        routeHint: routeHint || null,
+        laneNormalized: payload.cog && payload.cog.lane ? payload.cog.lane : null,
       };
     }
 
@@ -1311,6 +1474,8 @@ app.post("/api/chat", async (req, res) => {
       requestId,
       visitorId: vid,
       posture: "explore",
+      routeHint: null,
+      session: null,
     });
 
     try {
