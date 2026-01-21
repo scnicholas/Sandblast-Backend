@@ -1,6 +1,6 @@
 {
-  "version": "nyx_phrasepack_v1",
-  "updated": "2026-01-16",
+  "version": "nyx_phrasepack_v1.1",
+  "updated": "2026-01-20",
   "voice": {
     "persona": "Nyx",
     "style": ["clean", "host-like", "forward", "confident", "warm"],
@@ -9,95 +9,113 @@
   "buckets": {
     "general": {
       "greetings_first": [
-        "Hi — I’m Nyx. Pick a lane: music (year 1950–2024), schedule, sponsors, or movies/TV.",
-        "Hey. Nyx here. Drop a year (1950–2024) for music, or say “schedule”, “sponsors”, or “movies”.",
-        "Hello — tell me what you want: a year for music, a city for schedule, sponsor info, or something to watch."
+        "Hi — I’m Nyx. Most people start with a year.",
+        "Hey. Time moves differently here. Say the year and we’ll see what comes back.",
+        "Hello. If you want music, start with a year. The rest reveals itself.",
+        "You’re here. Good. A year is usually the cleanest way in.",
+        "Hi. Drop into a year and let’s stay there for a moment.",
+        "Welcome. We can move fast—or slow. A year decides that.",
+        "Hey — Nyx here. Say a year. I’ll handle the rest.",
+        "You don’t need instructions. Just give me a year.",
+        "Hello. Some years still echo. Name one.",
+        "Hi. If you’re not sure where to start—a year never fails.",
+        "Welcome back… or welcome in. Either way, start with a year.",
+        "Hey. The door’s already open. A year tells me which room you want."
       ],
+
       "greetings_returning": [
-        "Welcome back. Give me a year or tell me: schedule, sponsors, or movies.",
-        "Back again — perfect. Year first, or pick: schedule / sponsors / movies."
+        "Back already. A year will get us moving again.",
+        "Good to see you. Let’s pick up with a year.",
+        "We don’t need a reset. Just name the year.",
+        "Same place, different moment. Start with a year.",
+        "You know the way in. A year does it."
       ],
+
       "capabilities_quick": [
-        "Four lanes: Music by year, Schedule by city, Sponsors packages, Movies/TV picks. Choose one.",
-        "Music (year), Schedule (city), Sponsors (packages), Movies/TV (recommendations). Where do we start?"
+        "A year opens the music. Cities unlock schedules. The rest appears when needed.",
+        "Music lives in years. Schedules live in cities. Everything else follows."
       ],
+
       "fallback_nudge": [
-        "Tell me a year (1950–2024), or say “schedule”, “sponsors”, or “movies”.",
-        "Pick one: year for music, city for schedule, sponsor packages, or movies/TV."
+        "A year usually clears things up.",
+        "Try a year. We can pivot from there."
       ],
+
       "ack_short": [
-        "Got you.",
-        "Done.",
-        "Okay — locked."
+        "Got it.",
+        "Locked.",
+        "Alright."
       ],
+
       "goodbyes_soft": [
-        "Alright — I’m here when you’re back. Next time, just drop a year or say “schedule”.",
-        "Got you. Come back with a year or a city and we’ll keep it moving.",
-        "Later. Easy re-entry: “top 10 1994”."
+        "I’ll be right here. Next time, just bring a year.",
+        "We’ll pick this back up easily. A year is all it takes.",
+        "No clean endings here. Just come back with a year."
       ],
+
       "errors_generic": [
-        "I hit a snag. Try again — or switch lanes: music (year), schedule (city), sponsors, movies.",
-        "Something didn’t land on my side. Give me a year, a city, or say sponsors/movies."
+        "That didn’t land cleanly. Let’s try again—start with a year.",
+        "Something slipped. Give me a year and we’ll reset quietly."
       ]
     },
 
     "music": {
       "ask_year": [
-        "Give me a year (1950–2024). Example: “top 10 1988”, “story moment 1988”, or “#1 1988”.",
-        "Pick a year (1950–2024) — then choose: top 10, story moment, micro moment, or #1."
+        "Give me a year between 1950 and now.",
+        "A year opens the door."
       ],
       "mode_prompt_has_year": [
-        "Locked in {year}. Choose: top 10, story moment, micro moment, or #1.",
-        "{year} is set. Want top 10, story moment, micro moment, or #1?"
+        "{year} holds a few paths. We can take one.",
+        "{year} is set. We can stay broad—or go deep."
       ],
       "nav_next_year": [
-        "Moving to {year}. Same mode.",
-        "Next year: {year}. Keeping the mode."
+        "{year}. Same current. Different weather.",
+        "Moving ahead to {year}."
       ],
       "nav_another_year": [
-        "Sure — tell me the new year (1950–2024).",
-        "Pick another year (1950–2024)."
+        "Name the next year.",
+        "Another year will change the shape."
       ]
     },
 
     "sponsors": {
       "open": [
-        "Sponsors lane. What are we promoting — TV, radio, website, social, or a bundle?",
-        "Let’s set up sponsorship. Pick placement: TV, radio, website, social, or bundle."
+        "Let’s talk sponsorship. What are we amplifying?",
+        "This is where promotion becomes placement."
       ],
       "need_goal": [
-        "What’s the goal — calls, foot traffic, website clicks, or brand awareness?",
-        "What outcome are we aiming for: calls, visits, clicks, or awareness?"
+        "What needs to move—attention, action, or memory?",
+        "What’s the real outcome you want?"
       ],
       "need_budget": [
-        "What budget tier fits: starter test, growth bundle, or dominance?",
-        "Pick a budget tier: starter test / growth bundle / dominance."
+        "What level feels right for this?",
+        "We can start small—or make noise. Your call."
       ]
     },
 
     "schedule": {
       "open": [
-        "Schedule lane. Tell me your city (or the city you want converted to).",
-        "Got it — schedule. What city should I convert the times for?"
+        "Let’s ground this in time. Which city?",
+        "Tell me where you are—or where you want to be."
       ],
       "need_city": [
-        "What city are you in (or what city should I convert to)? Example: “in London”.",
-        "Tell me the city/timezone you want — then I’ll convert the schedule."
+        "Name the city.",
+        "Which timezone should I hold this in?"
       ],
       "need_show_or_now": [
-        "Do you want “what’s playing now” or a specific show name?",
-        "Say “playing now” or tell me the show title."
+        "Do you want what’s on now—or something specific?",
+        "Are we looking for a moment, or a title?"
       ]
     },
 
     "movies": {
       "open": [
-        "Movies/TV lane. Give me a title, a genre, or say “recommend something”.",
-        "Tell me what you’re in the mood for — title, genre, or vibe."
+        "Tell me what you’re in the mood for.",
+        "We can hunt by title—or by feeling."
       ],
       "need_title_or_genre": [
-        "Give me a title or a genre to target.",
-        "Title or genre — what are we hunting?"
+        "Name it—or describe it.",
+        "Give me a title, or a direction."
       ]
     }
   }
