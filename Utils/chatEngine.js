@@ -26,6 +26,8 @@
  *
  * Fixes:
  *  ✅ Deterministic turns increment for ALL early returns (reset/intro/year-picker/name/depth/nav/deeper)
+ *  ✅ Cached-repeat early return now increments turns (deterministic)
+ *  ✅ CS-1 markSpoke lineType normalized to: intro/reset/reentry/clarify/nav/deeper
  *
  * Preserves:
  *  ✅ Contract-lock guarantees + loop guards + continuity spine + next/prev reliability
@@ -134,6 +136,13 @@ function normalizeFollowUpsFromLane(res) {
     return chipsToStrings(res.followUps);
   }
 
+  return [];
+}
+
+function coerceFollowUpsStrings(out) {
+  if (!out || typeof out !== "object") return [];
+  if (Array.isArray(out.followUpsStrings)) return dedupeStrings(out.followUpsStrings, 10);
+  if (Array.isArray(out.followUps)) return chipsToStrings(out.followUps);
   return [];
 }
 
@@ -375,7 +384,11 @@ function cs1Decide(session, turnCount, text) {
 function cs1MarkSpoke(session, turnCount, lineType) {
   if (!CS1) return;
   try {
-    CS1.markSpoke(session, turnCount, nowMs(), lineType);
+    // normalize lineType to requested set
+    const lt = String(lineType || "").toLowerCase();
+    const allowed = new Set(["intro", "reset", "reentry", "clarify", "nav", "deeper"]);
+    const safeLt = allowed.has(lt) ? lt : "nav";
+    CS1.markSpoke(session, turnCount, nowMs(), safeLt);
   } catch (_) { /* ignore */ }
 }
 
@@ -402,7 +415,10 @@ function cachedResponse(session, reason, requestIdIn) {
   const reply = lastOut.reply || "One sec — try again.";
   const followUpsStrings = safeArray(lastOut.followUps).slice(0, 4);
 
-  const out = maybeInjectResetChip(followUpsStrings, session);
+  const outChips = maybeInjectResetChip(followUpsStrings, session);
+  const outSig = buildOutSig(reply, outChips);
+
+  const turns = Number(session && session.turns) || 0;
 
   return {
     ok: true,
@@ -414,13 +430,24 @@ function cachedResponse(session, reason, requestIdIn) {
     },
     ui: { mode: "chat" },
     directives: [],
-    followUpsStrings: out,
-    followUps: chipsFromStrings(out, 4),
+    followUpsStrings: outChips,
+    followUps: chipsFromStrings(outChips, 4),
     sessionPatch: filterSessionPatch({
       lastInAt: nowMs(),
       recentIntent: "loop_guard",
       recentTopic: reason || "repeat_input",
-      __cs1: session.__cs1
+
+      lastOut: { reply, followUps: outChips },
+      lastOutAt: nowMs(),
+      lastOutSig: outSig,
+      lastOutSigAt: nowMs(),
+
+      // ✅ deterministic increment for cached early return
+      turns: turns + 1,
+      lastTurnAt: nowMs(),
+      startedAt: Number(session && session.startedAt) || nowMs(),
+
+      __cs1: session && session.__cs1
     }),
     cog: { phase: "engaged", state: "steady", reason: "input_loop_guard", lane: "general", ts: nowMs() },
     requestId: requestIdIn || rid(),
@@ -1194,8 +1221,9 @@ function enforceContractFinal({
   const baseMode = routeHintMode || mode || cont.mode || null;
   const baseYear = year || cont.year || null;
 
-  // ensure followUps exist
-  let fus = ensureFollowUpsNonEmpty(baseLane, baseYear, out.followUpsStrings || out.followUps || [], sess).slice(0, 4);
+  // ensure followUps exist (robust extraction)
+  const existingFus = coerceFollowUpsStrings(out);
+  let fus = ensureFollowUpsNonEmpty(baseLane, baseYear, existingFus, sess).slice(0, 4);
 
   // if music+year known, enforce Next/Previous chips
   fus = withMusicNavChips(fus, { lane: baseLane, year: baseYear, mode: baseMode }, sess);
@@ -1205,6 +1233,9 @@ function enforceContractFinal({
     const needsYear = musicModeNeedsYear(baseMode);
     if (needsYear && !baseYear) {
       const clarify = buildClarifyYearReply({ lane: "music", mode: baseMode, knownYear: null });
+
+      cs1MarkSpoke(sess, Number(sess.turns || 0) + 1, "clarify");
+
       out.reply = clarify.reply;
       out.directives = [{ type: "open_year_picker" }];
       fus = maybeInjectResetChip(clarify.followUpsStrings, sess).slice(0, 4);
@@ -1234,6 +1265,9 @@ function enforceContractFinal({
     // year present but reply looks label-only → clarify (do not ship partial)
     if (baseYear && looksLikeLabelOnlyMusicReply(out.reply, baseMode, baseYear)) {
       const clarify = buildClarifyYearReply({ lane: "music", mode: baseMode, knownYear: baseYear });
+
+      cs1MarkSpoke(sess, Number(sess.turns || 0) + 1, "clarify");
+
       out.reply = clarify.reply;
       out.directives = [];
       fus = maybeInjectResetChip(clarify.followUpsStrings, sess).slice(0, 4);
@@ -1318,20 +1352,24 @@ async function chatEngine(arg1, arg2) {
     const r = resetReply();
     const followUpsStrings = maybeInjectResetChip(r.followUpsStrings, { turns: 1, introDone: true });
 
-    // CS-1: this is a "restart" style speak event
-    cs1MarkSpoke(sess, turnCountForCS1, "reentry");
+    // CS-1: reset speak event
+    cs1MarkSpoke(sess, turnCountForCS1, "reset");
 
     const sessionPatchBase = resetSessionPatch(sess);
     const outSig = buildOutSig(r.reply, followUpsStrings);
 
-    // ensure deterministic turns even on reset reply
+    const prevTurns = Number(sess.turns || 0);
+
+    // ✅ deterministic turns: increment even on reset early return
     const patch = filterSessionPatch({
       ...sessionPatchBase,
       lastOut: { reply: r.reply, followUps: followUpsStrings },
       lastOutAt: nowMs(),
       lastOutSig: outSig,
       lastOutSigAt: nowMs(),
-      turns: 0, // reset keeps turns 0 by design; next user input becomes turn 1
+      turns: prevTurns + 1,
+      lastTurnAt: nowMs(),
+      startedAt: Number(sess.startedAt) || nowMs(),
       __cs1: sess.__cs1
     });
 
@@ -1420,7 +1458,7 @@ async function chatEngine(arg1, arg2) {
   // DEEPER intercept (mode-aware, stays in-place)
   // ----------------------------
   if (isDeeperIntent(routingText0)) {
-    cs1MarkSpoke(sess, turnCountForCS1, "continuity");
+    cs1MarkSpoke(sess, turnCountForCS1, "deeper");
 
     const lastOut = sess && sess.lastOut && typeof sess.lastOut === "object" ? sess.lastOut : null;
     const baseReply = lastOut && typeof lastOut.reply === "string" ? lastOut.reply : "";
@@ -1510,11 +1548,13 @@ async function chatEngine(arg1, arg2) {
   let navContext = null;
 
   if (isNextIntent(routingText0)) {
-    cs1MarkSpoke(sess, turnCountForCS1, "continuity");
+    cs1MarkSpoke(sess, turnCountForCS1, "nav");
 
     const nx = nextDirective(cont);
 
     if (nx && nx.kind === "need_year") {
+      cs1MarkSpoke(sess, turnCountForCS1, "clarify");
+
       const yp = yearPickerReply(sess);
       const sessionPatch = filterSessionPatch({
         lastInText: routingText0,
@@ -1560,11 +1600,13 @@ async function chatEngine(arg1, arg2) {
       navContext = { kind: "advance", dir: "next", year: String(nx.year), mode: String(nx.mode || "top10") };
     }
   } else if (isPrevIntent(routingText0)) {
-    cs1MarkSpoke(sess, turnCountForCS1, "continuity");
+    cs1MarkSpoke(sess, turnCountForCS1, "nav");
 
     const pv = prevDirective(cont);
 
     if (pv && pv.kind === "need_year") {
+      cs1MarkSpoke(sess, turnCountForCS1, "clarify");
+
       const yp = yearPickerReply(sess);
       const sessionPatch = filterSessionPatch({
         lastInText: routingText0,
@@ -1668,7 +1710,7 @@ async function chatEngine(arg1, arg2) {
 
   // Depth dial intercept
   if (isDepthDial(routingText)) {
-    cs1MarkSpoke(sess, turnCountForCS1, "continuity");
+    cs1MarkSpoke(sess, turnCountForCS1, "clarify");
 
     const pref = normalizeText(routingText);
     const reply = depthDialReply(pref);
@@ -1722,7 +1764,7 @@ async function chatEngine(arg1, arg2) {
 
   // Year picker trigger (UI mode)
   if (wantsYearPicker(routingText)) {
-    cs1MarkSpoke(sess, turnCountForCS1, "router");
+    cs1MarkSpoke(sess, turnCountForCS1, "nav");
 
     const yp = yearPickerReply(sess);
     const chips = maybeInjectResetChip(yp.followUpsStrings, sess);
@@ -1773,7 +1815,7 @@ async function chatEngine(arg1, arg2) {
 
   // Intro V2
   if (shouldRunIntro(sess, routingText)) {
-    cs1MarkSpoke(sess, turnCountForCS1, "greeting");
+    cs1MarkSpoke(sess, turnCountForCS1, "intro");
 
     const intro = nyxIntroReply();
     const base = maybeInjectResetChip(intro.followUpsStrings, { turns: 1, introDone: true });
@@ -1794,7 +1836,7 @@ async function chatEngine(arg1, arg2) {
         introAt: nowMs(),
         startedAt: Number(sess.startedAt) || nowMs(),
 
-        // ✅ deterministic increment here (was previously static)
+        // ✅ deterministic increment here
         turns: Number(sess.turns || 0) + 1,
         lastTurnAt: nowMs(),
 
@@ -1850,7 +1892,7 @@ async function chatEngine(arg1, arg2) {
 
   // Deterministic clarify if routeHint forces music+mode but we lack year
   if (lane === "music" && isMusicMode(mode) && !year) {
-    cs1MarkSpoke(sess, turnCountForCS1, "router");
+    cs1MarkSpoke(sess, turnCountForCS1, "clarify");
 
     const clarify = buildClarifyYearReply({ lane: "music", mode, knownYear: null });
     const chips = maybeInjectResetChip(clarify.followUpsStrings, sess).slice(0, 4);
