@@ -3,22 +3,25 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17z
+ * index.js v1.5.17za
  * (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION +
  *  ✅ SESSIONPATCH EXPANDED (CONTINUITY PERSIST FIX) + ✅ CONVERSATIONAL CONTRACT ENFORCER (HARD) +
  *  ✅ ROUTE HINT AWARE COG NORMALIZATION + ✅ ENV KNOBS HARDENED +
  *  ✅ TRUST PROXY (SAFE, OPTIONAL) + ✅ ROOT/API DISCOVERY ROUTES +
- *  ✅ ROKU BRIDGE DIRECTIVE (STRUCTURED CTA) + ✅ CTA COOLDOWN + SESSION TELEMETRY)
+ *  ✅ ROKU BRIDGE DIRECTIVE (STRUCTURED CTA) + ✅ CTA COOLDOWN + SESSION TELEMETRY +
+ *  ✅ CORS PREFLIGHT FIX (TTS) + ✅ SANDBLAST ORIGIN FORCE-ALLOW)
  *
- * Patch vs v1.5.17y:
- *  ✅ Adds structured directives[] bridge_roku CTA (backend-first; widget can ignore safely)
- *  ✅ Adds Roku CTA cooldown + session-owned counters (__lastRokuCtaAt/__rokuCtaCount)
- *  ✅ Contract enforcer accepts directivesOverride (so server can prepend directives safely)
+ * Patch vs v1.5.17z:
+ *  ✅ Fixes CORS preflight for /api/tts and /api/chat by:
+ *     - Applying explicit CORS headers EARLY on every request (before any router/parsers)
+ *     - Short-circuiting OPTIONS with 204 + headers (preflight always satisfied when allowed)
+ *  ✅ Force-allows Sandblast origins (sandblast.channel + sandblastchannel.com, with/without www)
+ *     even if env allowlist is misconfigured (prevents accidental self-bricking)
  */
 
 const express = require("express");
 const crypto = require("crypto");
-const cors = require("cors");
+// const cors = require("cors"); // kept optional; we now do explicit CORS to avoid preflight edge cases
 
 /* ======================================================
    Hard crash visibility (Render 502 killer)
@@ -69,7 +72,7 @@ if (TRUST_PROXY) {
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.17z (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + SESSIONPATCH EXPANDED + CONVERSATIONAL CONTRACT ENFORCER (HARD) + ROUTE HINT AWARE COG NORMALIZATION + ENV KNOBS HARDENED + TRUST PROXY + ROOT/API DISCOVERY ROUTES + ROKU BRIDGE DIRECTIVE)";
+  "index.js v1.5.17za (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + SESSIONPATCH EXPANDED + CONTRACT ENFORCER + ROUTE HINT COG + ENV HARDENED + TRUST PROXY + DISCOVERY ROUTES + ROKU DIRECTIVE + CORS PREFLIGHT FIX)";
 
 const GIT_COMMIT =
   String(process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "").trim() || null;
@@ -230,7 +233,7 @@ function enforceChatContract({
   shadow,
   followUps,
   bridgeInjected,
-  directivesOverride, // ✅ NEW
+  directivesOverride,
 }) {
   const reply = nonEmptyReply(baseReply, "Alright — tell me what you want next.");
 
@@ -261,17 +264,23 @@ function enforceChatContract({
 }
 
 /* ======================================================
-   CORS (MUST RUN BEFORE parsers + error handlers)
+   CORS (MUST RUN FIRST — preflight killer for TTS)
 ====================================================== */
 
 const CORS_ALLOW_ALL = String(process.env.CORS_ALLOW_ALL || "false") === "true";
 
-const DEFAULT_ORIGINS = [
+/**
+ * Force-allow Sandblast origins (prevents accidental bricking if env allowlist is wrong).
+ * These are the origins we EXPECT to call the backend.
+ */
+const FORCE_ORIGINS = [
   "https://sandblast.channel",
   "https://www.sandblast.channel",
   "https://sandblastchannel.com",
   "https://www.sandblastchannel.com",
 ];
+
+const DEFAULT_ORIGINS = FORCE_ORIGINS.slice();
 
 const ALLOWED_ORIGINS = normalizeStr(process.env.CORS_ALLOWED_ORIGINS || "")
   .split(",")
@@ -281,96 +290,105 @@ const ALLOWED_ORIGINS = normalizeStr(process.env.CORS_ALLOWED_ORIGINS || "")
 const CORS_ENV_EXCLUSIVE = String(process.env.CORS_ENV_EXCLUSIVE || "false") === "true";
 
 const EFFECTIVE_ORIGINS = (() => {
+  // If env is empty, default to FORCE/DEFAULT list.
   if (ALLOWED_ORIGINS.length === 0) return DEFAULT_ORIGINS.slice();
-  if (CORS_ENV_EXCLUSIVE) return ALLOWED_ORIGINS.slice();
+
+  // If exclusive, still union with FORCE to prevent self-brick.
+  if (CORS_ENV_EXCLUSIVE) {
+    const set = new Set(FORCE_ORIGINS);
+    for (const o of ALLOWED_ORIGINS) set.add(o);
+    return Array.from(set);
+  }
+
+  // Non-exclusive: union everything.
   const set = new Set(DEFAULT_ORIGINS);
   for (const o of ALLOWED_ORIGINS) set.add(o);
   return Array.from(set);
 })();
 
 function originAllowed(origin) {
-  if (!origin) return true;
+  if (!origin) return true; // non-browser clients
   if (CORS_ALLOW_ALL) return true;
 
   const o = String(origin).trim().replace(/\/$/, "");
+
+  // Direct allowlist
   if (EFFECTIVE_ORIGINS.includes(o)) return true;
 
+  // Host flip www/non-www
   try {
     const u = new URL(o);
     const host = String(u.hostname || "");
     const altHost = host.startsWith("www.") ? host.slice(4) : `www.${host}`;
     const alt = `${u.protocol}//${altHost}${u.port ? `:${u.port}` : ""}`;
-    return EFFECTIVE_ORIGINS.includes(alt);
+    if (EFFECTIVE_ORIGINS.includes(alt)) return true;
+
+    // Guard-rail: allow any exact sandblast.channel / sandblastchannel.com origin even if list is off
+    const h = host.toLowerCase();
+    if (h === "sandblast.channel" || h === "www.sandblast.channel") return true;
+    if (h === "sandblastchannel.com" || h === "www.sandblastchannel.com") return true;
   } catch (_) {
-    return false;
+    // ignore URL parse errors
+  }
+
+  return false;
+}
+
+const CORS_ALLOWED_HEADERS = [
+  "Content-Type",
+  "Accept",
+  "Authorization",
+  "X-Requested-With",
+  "X-Visitor-Id",
+  "X-Contract-Version",
+  "X-Request-Id",
+  "X-Voice-Mode",
+  "X-Session-Id",
+  "X-SBNYX-Client-Build",
+];
+
+const CORS_EXPOSED_HEADERS = [
+  "X-Request-Id",
+  "X-Contract-Version",
+  "X-Voice-Mode",
+  "X-Nyx-Deduped",
+  "X-Nyx-Upstream",
+  "X-CORS-Origin-Seen",
+  "X-Nyx-Posture",
+  "X-Nyx-Bridge",
+];
+
+const CORS_MAX_AGE = 86400;
+
+function applyCors(req, res) {
+  const origin = req.headers.origin ? String(req.headers.origin).trim() : "";
+  safeSet(res, "Vary", "Origin");
+  safeSet(res, "X-CORS-Origin-Seen", origin || "");
+
+  if (origin && originAllowed(origin)) {
+    safeSet(res, "Access-Control-Allow-Origin", origin);
+    safeSet(res, "Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+    safeSet(res, "Access-Control-Allow-Headers", CORS_ALLOWED_HEADERS.join(","));
+    safeSet(res, "Access-Control-Expose-Headers", CORS_EXPOSED_HEADERS.join(","));
+    safeSet(res, "Access-Control-Max-Age", String(CORS_MAX_AGE));
   }
 }
 
-const corsOptions = {
-  origin: function (origin, cb) {
-    if (!origin) return cb(null, true);
-    return cb(null, originAllowed(origin) ? origin : false);
-  },
-  methods: ["GET", "POST", "OPTIONS"],
-  allowedHeaders: [
-    "Content-Type",
-    "Accept",
-    "Authorization",
-    "X-Requested-With",
-    "X-Visitor-Id",
-    "X-Contract-Version",
-    "X-Request-Id",
-    "X-Voice-Mode",
-    "X-Session-Id",
-    "X-SBNYX-Client-Build",
-  ],
-  exposedHeaders: [
-    "X-Request-Id",
-    "X-Contract-Version",
-    "X-Voice-Mode",
-    "X-Nyx-Deduped",
-    "X-Nyx-Upstream",
-    "X-CORS-Origin-Seen",
-    "X-Nyx-Posture",
-    "X-Nyx-Bridge",
-  ],
-  maxAge: 86400,
-  optionsSuccessStatus: 204,
-};
-
+/**
+ * ✅ EARLY CORS middleware
+ * - Always sets headers (when allowed)
+ * - Short-circuits OPTIONS with 204 (preflight success)
+ */
 app.use((req, res, next) => {
-  // keep Vary consistent for all responses
-  safeSet(res, "Vary", "Origin");
-  next();
-});
+  applyCors(req, res);
 
-app.use(cors(corsOptions));
-
-app.use((req, res, next) => {
-  try {
-    const origin = req.headers.origin ? String(req.headers.origin).trim() : "";
-    safeSet(res, "X-CORS-Origin-Seen", origin || "");
-    if (origin && originAllowed(origin)) {
-      safeSet(res, "Access-Control-Allow-Origin", origin);
-      safeSet(res, "Vary", "Origin");
-    }
-  } catch (_) {}
-  next();
-});
-
-/** ✅ Express/router compatibility: use regex instead of "*" */
-app.options(/.*/, (req, res) => {
-  const origin = req.headers.origin ? String(req.headers.origin).trim() : "";
-  if (origin && originAllowed(origin)) {
-    safeSet(res, "Access-Control-Allow-Origin", origin);
-    safeSet(res, "Vary", "Origin");
+  if (req.method === "OPTIONS") {
+    const requestId = req.get("X-Request-Id") || rid();
+    setContractHeaders(res, requestId);
+    return res.sendStatus(204);
   }
-  safeSet(res, "Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  safeSet(res, "Access-Control-Allow-Headers", corsOptions.allowedHeaders.join(","));
-  safeSet(res, "Access-Control-Max-Age", String(corsOptions.maxAge || 86400));
-  const requestId = req.get("X-Request-Id") || rid();
-  setContractHeaders(res, requestId);
-  return res.sendStatus(204);
+
+  return next();
 });
 
 /* ======================================================
@@ -481,8 +499,8 @@ const SERVER_OWNED_KEYS = new Set([
   "__lastBridgeAt",
   "__bridgeIdx",
   "__lastPosture",
-  "__lastRokuCtaAt",   // ✅ NEW
-  "__rokuCtaCount",    // ✅ NEW
+  "__lastRokuCtaAt",
+  "__rokuCtaCount",
 ]);
 
 /**
@@ -691,7 +709,6 @@ app.get("/api/version", (req, res) => {
       bridgeExplicitAlways,
       bridgeDebugHeaders,
 
-      // ✅ Roku directive knobs (safe disclosure)
       rokuCtaCooldownMs,
       hasRokuChannelUrl: !!rokuChannelUrl,
       rokuFallbackUrl,
@@ -1531,7 +1548,7 @@ app.post("/api/chat", async (req, res) => {
       shadow,
       followUps,
       bridgeInjected,
-      directivesOverride: directives, // ✅ NEW
+      directivesOverride: directives,
     });
 
     if (isDebug && out && typeof out === "object") {
