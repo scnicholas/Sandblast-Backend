@@ -1,1801 +1,2268 @@
 "use strict";
 
 /**
- * Sandblast Backend — index.js
+ * Utils/chatEngine.js
+ * Pure chat engine:
+ *  - NO express
+ *  - NO server start
+ *  - NO index.js imports
  *
- * index.js v1.5.17zb
- * (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION +
- *  ✅ SESSIONPATCH EXPANDED (CONTINUITY PERSIST FIX) + ✅ CONVERSATIONAL CONTRACT ENFORCER (HARD) +
- *  ✅ ROUTE HINT AWARE COG NORMALIZATION + ✅ ENV KNOBS HARDENED +
- *  ✅ TRUST PROXY (SAFE, OPTIONAL) + ✅ ROOT/API DISCOVERY ROUTES +
- *  ✅ ROKU BRIDGE DIRECTIVE (STRUCTURED CTA) + ✅ CTA COOLDOWN + SESSION TELEMETRY +
- *  ✅ CORS PREFLIGHT FIX (TTS) + ✅ SANDBLAST ORIGIN FORCE-ALLOW +
- *  ✅ COS PERSISTENCE WIRING (session.cog allowlist + sanitize + normalizeCog reads session.cog)
+ * Returns (NyxReplyContract v1 + backwards compatibility):
+ *  {
+ *    ok, reply, lane, ctx, ui,
+ *    directives: [{type, ...}],             // NEW (contract-lock)
+ *    followUps: [{id,type,label,payload}],  // preferred
+ *    followUpsStrings: ["..."],             // legacy
+ *    sessionPatch, cog, requestId, meta
+ *  }
  *
- * Patch vs v1.5.17za:
- *  ✅ Cognitive OS persistence:
- *     - Allows sessionPatch.cog to persist (sanitized allowlist keys)
- *     - normalizeCog() now reads session.cog as a fallback source
- *     - caps now advertises cos: true
+ * v0.6ab (COS PERSISTENCE + "NEXT STEP" INTENT + SESSIONPATCH.cog HARDENED)
  *
- * Minor hardening:
- *  ✅ session.cog patch is proto-safe + key-allowlisted + size-clamped
- *  ✅ normalizeCog includes cog.version when present
+ * Adds:
+ *  ✅ Cognitive OS (COS) payload always present in top-level out.cog
+ *  ✅ sessionPatch.cog is persisted (allowlisted) for index.js to store
+ *  ✅ "Next step" treated as first-class navigation intent (advances when possible)
+ *
+ * Preserves:
+ *  ✅ Contract-lock guarantees + loop guards + continuity spine + next/prev reliability
+ *  ✅ CS-1 wiring + __cs1 allowlisted
+ *  ✅ Pass-through for lane module fields when present (directives/ui/ctx/lane)
+ *  ✅ Deterministic turn increment (no double increment when enforceContractFinal runs)
  */
 
-const express = require("express");
 const crypto = require("crypto");
-// const cors = require("cors"); // kept optional; we now do explicit CORS to avoid preflight edge cases
 
-/* ======================================================
-   Hard crash visibility (Render 502 killer)
-====================================================== */
-
-process.on("uncaughtException", (err) => {
-  console.error("[FATAL] uncaughtException:", err && err.stack ? err.stack : err);
-});
-process.on("unhandledRejection", (err) => {
-  console.error("[FATAL] unhandledRejection:", err && err.stack ? err.stack : err);
-});
-
-/* ======================================================
-   Optional modules (soft-load)
-====================================================== */
-
-let shadowBrain = null;
-let chatEngine = null;
-let ttsModule = null;
-
+// Optional LLM hook (if you use it elsewhere)
+let generateNyxReply = null;
 try {
-  shadowBrain = require("./Utils/shadowBrain");
-} catch (_) {
-  shadowBrain = null;
-}
+  const mod = require("./nyxOpenAI");
+  if (mod && typeof mod.generateNyxReply === "function") generateNyxReply = mod.generateNyxReply;
+} catch (_) { /* optional */ }
+
+// Optional music bridge
+let musicLane = null;
 try {
-  chatEngine = require("./Utils/chatEngine");
-} catch (_) {
-  chatEngine = null;
-}
+  const mod = require("./musicLane");
+  if (typeof mod === "function") musicLane = mod;
+  else if (mod && typeof mod.musicLane === "function") musicLane = mod.musicLane;
+  else if (mod && typeof mod.handleChat === "function") {
+    musicLane = async (text, session) => mod.handleChat({ text, session });
+  }
+} catch (_) { /* optional */ }
 
-const app = express();
-app.disable("x-powered-by");
+// Optional Roku bridge
+let rokuLane = null;
+try {
+  const mod = require("./rokuLane");
+  if (typeof mod === "function") rokuLane = mod;
+  else if (mod && typeof mod.rokuLane === "function") rokuLane = mod.rokuLane;
+} catch (_) { /* optional */ }
 
-/* ======================================================
-   Trust proxy (optional; recommended behind Render/CF)
-====================================================== */
+// ----------------------------
+// CS-1 (optional selector/enforcement layer)
+// ----------------------------
+let CS1 = null;
+try {
+  const mod = require("./cs1");
+  if (mod && typeof mod.decideCS1 === "function") CS1 = mod;
+} catch (_) { /* optional */ }
 
-const TRUST_PROXY = String(process.env.TRUST_PROXY || "true") === "true";
-if (TRUST_PROXY) {
-  // 1 = trust first proxy hop (typical for Render)
-  app.set("trust proxy", 1);
-}
-
-/* ======================================================
-   Version + Contract
-====================================================== */
-
-const NYX_CONTRACT_VERSION = "1";
-const INDEX_VERSION =
-  "index.js v1.5.17zb (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + SESSIONPATCH EXPANDED + CONTRACT ENFORCER + ROUTE HINT COG + ENV HARDENED + TRUST PROXY + DISCOVERY ROUTES + ROKU DIRECTIVE + CORS PREFLIGHT FIX + COS PERSISTENCE)";
-
-const GIT_COMMIT =
-  String(process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "").trim() || null;
-
-/* ======================================================
-   Helpers
-====================================================== */
+// ----------------------------
+// Utilities
+// ----------------------------
+function nowMs() { return Date.now(); }
 
 function rid() {
-  return crypto.randomBytes(8).toString("hex");
+  return crypto.randomBytes(6).toString("hex");
 }
-function nowIso() {
-  return new Date().toISOString();
+
+function normalizeText(s) {
+  return String(s || "").trim().toLowerCase();
 }
-function normalizeStr(x) {
-  return String(x == null ? "" : x).trim();
-}
-function safeSet(res, k, v) {
-  try {
-    res.set(k, v);
-  } catch (_) {}
-}
-function safeAppendHeader(res, name, value) {
-  try {
-    const prev = res.getHeader(name);
-    if (!prev) {
-      res.setHeader(name, value);
-      return;
-    }
-    const prevStr = Array.isArray(prev) ? prev.join(",") : String(prev);
-    const parts = prevStr
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    const want = String(value).trim();
-    if (!want) return;
-    if (!parts.includes(want)) parts.push(want);
-    res.setHeader(name, parts.join(", "));
-  } catch (_) {}
-}
-function setContractHeaders(res, requestId) {
-  safeSet(res, "X-Request-Id", requestId);
-  safeSet(res, "X-Contract-Version", NYX_CONTRACT_VERSION);
-  safeSet(res, "Cache-Control", "no-store");
-}
-function safeJson(res, status, obj) {
-  try {
-    return res.status(status).json(obj);
-  } catch (e) {
-    try {
-      return res
-        .status(status)
-        .type("text/plain")
-        .send(typeof obj === "string" ? obj : JSON.stringify(obj));
-    } catch (_) {}
-  }
-}
-function clamp(n, lo, hi) {
+
+function clampInt(n, min, max) {
   const x = Number(n);
-  if (!Number.isFinite(x)) return lo;
-  return Math.max(lo, Math.min(hi, x));
-}
-function normCmd(s) {
-  return String(s || "").toLowerCase().replace(/\s+/g, " ").trim();
-}
-function sha256(s) {
-  return crypto.createHash("sha256").update(String(s)).digest("hex");
-}
-function ua(req) {
-  return normalizeStr(req.get("user-agent") || "");
+  if (!Number.isFinite(x)) return min;
+  if (x < min) return min;
+  if (x > max) return max;
+  return x;
 }
 
-/* ======================================================
-   COS (Cognitive OS) sanitizer (session.cog persistence)
-====================================================== */
-
-const COG_ALLOW_KEYS = new Set([
-  "phase",       // welcome|engaged|clarify|execute|reflect|idle
-  "state",       // confident|uncertain|error|etc
-  "reason",      // ok|upstream_quota|etc
-  "intent",      // explore|decide|build|debug|etc
-  "depth",       // fast|deep
-  "nextStep",    // concise recommended action
-  "lastShiftAt", // ms epoch
-  "version",     // cos_v0
-  "lane",        // music|roku|...
-  "mode",        // top10|story|...
-  "year",        // "1988"
-  "ts",          // ms epoch
-]);
-
-function sanitizeCogObject(obj) {
-  if (!obj || typeof obj !== "object") return null;
-
-  const out = {};
-  for (const [k, v] of Object.entries(obj)) {
-    if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
-    if (!COG_ALLOW_KEYS.has(k)) continue;
-    if (typeof v === "undefined") continue;
-
-    if (k === "nextStep") {
-      const s = normalizeStr(v).slice(0, 600);
-      if (s) out[k] = s;
-      continue;
-    }
-
-    if (k === "phase" || k === "state" || k === "reason" || k === "intent" || k === "depth" || k === "version" || k === "lane" || k === "mode" || k === "year") {
-      const s = normalizeStr(v).slice(0, 96);
-      if (s) out[k] = s;
-      continue;
-    }
-
-    if (k === "lastShiftAt" || k === "ts") {
-      const n = Number(v);
-      if (Number.isFinite(n)) out[k] = n;
-      continue;
-    }
-
-    // default: keep primitives only
-    if (v === null || typeof v === "string" || typeof v === "number" || typeof v === "boolean") out[k] = v;
-  }
-
-  return Object.keys(out).length ? out : null;
+function safeArray(a) {
+  return Array.isArray(a) ? a : [];
 }
 
-/* ======================================================
-   Conversational Contract Enforcer (HARD)
-====================================================== */
-
-const LANES = new Set(["general", "music", "roku", "schedule", "radio", "sponsors", "movies"]);
-
-function normalizeRouteHint(h) {
-  const t = normCmd(h || "");
-  if (!t) return null;
-
-  // synonyms / UI hints
-  if (t === "years" || t === "year_pick" || t === "pick a year") return "music";
-  if (t === "tv") return "roku";
-  return t;
+function hashSig(s) {
+  return crypto.createHash("sha256").update(String(s || "")).digest("hex").slice(0, 16);
 }
 
-function normalizeLane(lane, fallback) {
-  const l = normCmd(lane || "") || normCmd(fallback || "") || "general";
-  if (LANES.has(l)) return l;
-  return "general";
-}
-
-function nonEmptyReply(s, fallback) {
-  const r = normalizeStr(s);
-  if (r) return r;
-  const fb = normalizeStr(fallback);
-  return fb || "Okay — I’m here. Tell me what you want next.";
-}
-
-function normalizeDirectives(d) {
-  if (!Array.isArray(d)) return [];
+function dedupeStrings(list, max = 10) {
   const out = [];
-  for (const it of d) {
-    if (!it) continue;
-    if (typeof it === "string") out.push({ type: it });
-    else if (typeof it === "object" && typeof it.type === "string" && it.type.trim()) out.push(it);
-    if (out.length >= 6) break;
+  const seen = new Set();
+  for (const x of safeArray(list)) {
+    const s = String(x || "").replace(/\s+/g, " ").trim();
+    if (!s) continue;
+    const k = s.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(s);
+    if (out.length >= max) break;
   }
   return out;
 }
 
-function allowlistSessionPatchObj(patch) {
-  if (!patch || typeof patch !== "object") return {};
-  const out = {};
-  for (const [k, v] of Object.entries(patch)) {
-    if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
-    if (!SESSION_PATCH_ALLOW.has(k)) continue;
-    if (SERVER_OWNED_KEYS.has(k)) continue;
-    if (typeof v === "undefined") continue;
-    out[k] = v;
+function chipsToStrings(chips) {
+  const out = [];
+  for (const c of safeArray(chips)) {
+    if (!c) continue;
+    const send = (c && typeof c === "object" && (c.send || c.label)) ? (c.send || c.label) : null;
+    if (send) out.push(String(send));
   }
-  return out;
+  return dedupeStrings(out, 10);
 }
 
-function normalizeCog(out, session, routeHint) {
-  const oc = out && typeof out === "object" && out.cog && typeof out.cog === "object" ? out.cog : {};
-  const scRaw = session && session.cog && typeof session.cog === "object" ? session.cog : null;
-  const sc = scRaw ? sanitizeCogObject(scRaw) || {} : {};
+function normalizeFollowUpsFromLane(res) {
+  if (!res || typeof res !== "object") return [];
+  if (Array.isArray(res.followUpsStrings)) return dedupeStrings(res.followUpsStrings, 10);
 
-  const laneFromOut = (out && typeof out.lane === "string" ? out.lane : "") || (oc && oc.lane) || "";
-  const laneFromSession = session && session.lane ? session.lane : session && session.lastLane ? session.lastLane : "";
-  const laneFromHint = normalizeRouteHint(routeHint) || "";
-  const laneFromCog = (oc && oc.lane) || (sc && sc.lane) || "";
-
-  const lane = normalizeLane(laneFromOut, laneFromHint || laneFromCog || laneFromSession || "general");
-
-  const mode =
-    (out && typeof out.mode === "string" && out.mode.trim() ? out.mode : null) ||
-    (oc && typeof oc.mode === "string" && oc.mode.trim() ? oc.mode : null) ||
-    (sc && typeof sc.mode === "string" && sc.mode.trim() ? sc.mode : null) ||
-    (session && typeof session.activeMusicMode === "string" && session.activeMusicMode.trim()
-      ? session.activeMusicMode
-      : null) ||
-    (session && typeof session.lastMode === "string" && session.lastMode.trim() ? session.lastMode : null) ||
-    null;
-
-  const year =
-    (out && out.year != null ? String(out.year) : null) ||
-    (oc && oc.year != null ? String(oc.year) : null) ||
-    (sc && sc.year != null ? String(sc.year) : null) ||
-    (session && session.lastMusicYear != null ? String(session.lastMusicYear) : null) ||
-    (session && session.lastYear != null ? String(session.lastYear) : null) ||
-    null;
-
-  const phase =
-    (oc && typeof oc.phase === "string" && oc.phase.trim() ? oc.phase : null) ||
-    (sc && typeof sc.phase === "string" && sc.phase.trim() ? sc.phase : null) ||
-    "engaged";
-
-  const state =
-    (oc && typeof oc.state === "string" && oc.state.trim() ? oc.state : null) ||
-    (sc && typeof sc.state === "string" && sc.state.trim() ? sc.state : null) ||
-    "confident";
-
-  const reason =
-    (oc && typeof oc.reason === "string" && oc.reason.trim() ? oc.reason : null) ||
-    (sc && typeof sc.reason === "string" && sc.reason.trim() ? sc.reason : null) ||
-    "ok";
-
-  const version =
-    (oc && typeof oc.version === "string" && oc.version.trim() ? oc.version : null) ||
-    (sc && typeof sc.version === "string" && sc.version.trim() ? sc.version : null) ||
-    "cos_v0";
-
-  const nextStep =
-    (oc && typeof oc.nextStep === "string" && oc.nextStep.trim() ? oc.nextStep : null) ||
-    (sc && typeof sc.nextStep === "string" && sc.nextStep.trim() ? sc.nextStep : null) ||
-    null;
-
-  const depth =
-    (oc && typeof oc.depth === "string" && oc.depth.trim() ? oc.depth : null) ||
-    (sc && typeof sc.depth === "string" && sc.depth.trim() ? sc.depth : null) ||
-    null;
-
-  const intent =
-    (oc && typeof oc.intent === "string" && oc.intent.trim() ? oc.intent : null) ||
-    (sc && typeof sc.intent === "string" && sc.intent.trim() ? sc.intent : null) ||
-    null;
-
-  const lastShiftAt =
-    (oc && Number.isFinite(Number(oc.lastShiftAt)) ? Number(oc.lastShiftAt) : null) ||
-    (sc && Number.isFinite(Number(sc.lastShiftAt)) ? Number(sc.lastShiftAt) : null) ||
-    null;
-
-  return {
-    lane,
-    mode,
-    year,
-    phase,
-    state,
-    reason,
-    version,
-    depth,
-    intent,
-    nextStep,
-    lastShiftAt,
-    ts: Date.now(),
-  };
-}
-
-function enforceChatContract({
-  out,
-  session,
-  routeHint,
-  baseReply,
-  requestId,
-  sessionId,
-  visitorId,
-  posture,
-  shadow,
-  followUps,
-  bridgeInjected,
-  directivesOverride,
-}) {
-  const reply = nonEmptyReply(baseReply, "Alright — tell me what you want next.");
-
-  const directives = directivesOverride ? normalizeDirectives(directivesOverride) : normalizeDirectives(out && out.directives);
-
-  // NOTE: sessionPatch is returned for client-side state sync; server state is applied via applySessionPatch().
-  const sessionPatch = allowlistSessionPatchObj(out && out.sessionPatch) || {};
-  const cog = normalizeCog(out, session, routeHint);
-
-  const payload = {
-    ok: true,
-    reply,
-    sessionId,
-    requestId,
-    visitorId,
-    contractVersion: NYX_CONTRACT_VERSION,
-    serverBuild: INDEX_VERSION,
-    caps: capsPayload(),
-    posture,
-    cog,
-    sessionPatch,
-    directives,
-  };
-
-  if (shadow) payload.shadow = shadow;
-  if (followUps && Array.isArray(followUps) && followUps.length) payload.followUps = followUps;
-  if (bridgeInjected) payload._bridgeInjected = bridgeInjected;
-
-  return payload;
-}
-
-/* ======================================================
-   CORS (MUST RUN FIRST — preflight killer for TTS)
-====================================================== */
-
-const CORS_ALLOW_ALL = String(process.env.CORS_ALLOW_ALL || "false") === "true";
-
-/**
- * Force-allow Sandblast origins (prevents accidental bricking if env allowlist is wrong).
- * These are the origins we EXPECT to call the backend.
- */
-const FORCE_ORIGINS = [
-  "https://sandblast.channel",
-  "https://www.sandblast.channel",
-  "https://sandblastchannel.com",
-  "https://www.sandblastchannel.com",
-];
-
-const DEFAULT_ORIGINS = FORCE_ORIGINS.slice();
-
-const ALLOWED_ORIGINS = normalizeStr(process.env.CORS_ALLOWED_ORIGINS || "")
-  .split(",")
-  .map((s) => s.trim().replace(/\/$/, ""))
-  .filter(Boolean);
-
-const CORS_ENV_EXCLUSIVE = String(process.env.CORS_ENV_EXCLUSIVE || "false") === "true";
-
-const EFFECTIVE_ORIGINS = (() => {
-  // If env is empty, default to FORCE/DEFAULT list.
-  if (ALLOWED_ORIGINS.length === 0) return DEFAULT_ORIGINS.slice();
-
-  // If exclusive, still union with FORCE to prevent self-brick.
-  if (CORS_ENV_EXCLUSIVE) {
-    const set = new Set(FORCE_ORIGINS);
-    for (const o of ALLOWED_ORIGINS) set.add(o);
-    return Array.from(set);
+  if (Array.isArray(res.followUps) && (res.followUps.length === 0 || typeof res.followUps[0] === "string")) {
+    return dedupeStrings(res.followUps, 10);
   }
 
-  // Non-exclusive: union everything.
-  const set = new Set(DEFAULT_ORIGINS);
-  for (const o of ALLOWED_ORIGINS) set.add(o);
-  return Array.from(set);
-})();
-
-function originAllowed(origin) {
-  if (!origin) return true; // non-browser clients
-  if (CORS_ALLOW_ALL) return true;
-
-  const o = String(origin).trim().replace(/\/$/, "");
-
-  // Direct allowlist
-  if (EFFECTIVE_ORIGINS.includes(o)) return true;
-
-  // Host flip www/non-www
-  try {
-    const u = new URL(o);
-    const host = String(u.hostname || "");
-    const altHost = host.startsWith("www.") ? host.slice(4) : `www.${host}`;
-    const alt = `${u.protocol}//${altHost}${u.port ? `:${u.port}` : ""}`;
-    if (EFFECTIVE_ORIGINS.includes(alt)) return true;
-
-    // Guard-rail: allow any exact sandblast.channel / sandblastchannel.com origin even if list is off
-    const h = host.toLowerCase();
-    if (h === "sandblast.channel" || h === "www.sandblast.channel") return true;
-    if (h === "sandblastchannel.com" || h === "www.sandblastchannel.com") return true;
-  } catch (_) {
-    // ignore URL parse errors
+  if (Array.isArray(res.followUps) && res.followUps.length > 0 && typeof res.followUps[0] === "object") {
+    return chipsToStrings(res.followUps);
   }
 
-  return false;
+  return [];
 }
 
-const CORS_ALLOWED_HEADERS = [
-  "Content-Type",
-  "Accept",
-  "Authorization",
-  "X-Requested-With",
-  "X-Visitor-Id",
-  "X-Contract-Version",
-  "X-Request-Id",
-  "X-Voice-Mode",
-  "X-Session-Id",
-  "X-SBNYX-Client-Build",
-];
-
-const CORS_EXPOSED_HEADERS = [
-  "X-Request-Id",
-  "X-Contract-Version",
-  "X-Voice-Mode",
-  "X-Nyx-Deduped",
-  "X-Nyx-Upstream",
-  "X-CORS-Origin-Seen",
-  "X-Nyx-Posture",
-  "X-Nyx-Bridge",
-];
-
-const CORS_MAX_AGE = 86400;
-
-function applyCors(req, res) {
-  const origin = req.headers.origin ? String(req.headers.origin).trim() : "";
-
-  // ✅ do not clobber existing Vary; ensure Origin is present
-  safeAppendHeader(res, "Vary", "Origin");
-  safeSet(res, "X-CORS-Origin-Seen", origin || "");
-
-  if (origin && originAllowed(origin)) {
-    safeSet(res, "Access-Control-Allow-Origin", origin);
-    safeSet(res, "Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-    safeSet(res, "Access-Control-Allow-Headers", CORS_ALLOWED_HEADERS.join(","));
-    safeSet(res, "Access-Control-Expose-Headers", CORS_EXPOSED_HEADERS.join(","));
-    safeSet(res, "Access-Control-Max-Age", String(CORS_MAX_AGE));
-  }
+function coerceFollowUpsStrings(out) {
+  if (!out || typeof out !== "object") return [];
+  if (Array.isArray(out.followUpsStrings)) return dedupeStrings(out.followUpsStrings, 10);
+  if (Array.isArray(out.followUps)) return chipsToStrings(out.followUps);
+  return [];
 }
 
-/**
- * ✅ EARLY CORS middleware
- * - Always sets headers (when allowed)
- * - Short-circuits OPTIONS with 204 (preflight success)
- */
-app.use((req, res, next) => {
-  applyCors(req, res);
+function safeStr(x) { return String(x == null ? "" : x); }
+function hasQuestionMark(s) { return /\?/.test(String(s || "")); }
 
-  if (req.method === "OPTIONS") {
-    const requestId = req.get("X-Request-Id") || rid();
-    setContractHeaders(res, requestId);
-    return res.sendStatus(204);
-  }
+// ----------------------------
+// CONTRACT v1 helpers
+// ----------------------------
+const UI_PAYLOAD = {
+  YEAR_PICKER: "__ui:year_picker__"
+};
 
-  return next();
-});
+const CMD_PAYLOAD = {
+  RESET: "__cmd:reset__"
+};
 
-/* ======================================================
-   Parsers (after CORS)
-====================================================== */
-
-function rawBodySaver(req, res, buf, encoding) {
-  try {
-    if (buf && buf.length) req.rawBody = buf.toString(encoding || "utf8");
-  } catch (_) {}
+function extractYearFromLabel(label) {
+  const m = String(label || "").match(/\b(19\d{2}|20\d{2})\b/);
+  return m ? m[1] : null;
 }
 
-app.use(express.json({ limit: "1mb", verify: rawBodySaver }));
-app.use(express.text({ type: ["text/*"], limit: "1mb", verify: rawBodySaver }));
+function payloadForLabel(label) {
+  const s = String(label || "").replace(/\s+/g, " ").trim();
+  const t = s.toLowerCase();
 
-/* ======================================================
-   JSON parse error handler
-====================================================== */
+  // Command triggers
+  if (t === "reset" || t === "reset chat" || t === "start over") return CMD_PAYLOAD.RESET;
 
-app.use((err, req, res, next) => {
-  if (!err) return next();
-  const requestId = req.get("X-Request-Id") || rid();
-  setContractHeaders(res, requestId);
+  // UI triggers
+  if (t === "pick a year" || t === "pick another year" || t === "years") return UI_PAYLOAD.YEAR_PICKER;
 
-  return safeJson(res, 400, {
-    ok: false,
-    error: "BAD_REQUEST",
-    detail: "INVALID_JSON",
-    message: String(err.message || "JSON parse error"),
-    requestId,
-    contractVersion: NYX_CONTRACT_VERSION,
-  });
-});
+  // Years
+  if (/^(19\d{2}|20\d{2})$/.test(s)) return `year:${s}`;
 
-/* ======================================================
-   Timeout middleware
-====================================================== */
-
-const REQUEST_TIMEOUT_MS = clamp(process.env.REQUEST_TIMEOUT_MS || 30000, 10000, 60000);
-app.use((req, res, next) => {
-  try {
-    res.setTimeout(REQUEST_TIMEOUT_MS);
-  } catch (_) {}
-  next();
-});
-
-/* ======================================================
-   In-memory session store
-====================================================== */
-
-const MAX_SESSIONS = Math.max(0, Number(process.env.MAX_SESSIONS || 0));
-const SESSION_TTL_MS = clamp(
-  process.env.SESSION_TTL_MS || 6 * 60 * 60 * 1000,
-  10 * 60 * 1000,
-  24 * 60 * 60 * 1000
-);
-const SESSIONS = new Map();
-
-function getClientIp(req) {
-  const xr = normalizeStr(req.get("x-real-ip") || "");
-  if (xr) return xr;
-
-  const xf = normalizeStr(req.get("x-forwarded-for") || "");
-  if (xf) return xf.split(",")[0].trim();
-
-  // trust proxy may populate req.ip
-  const rip = normalizeStr(req.ip || "");
-  if (rip) return rip;
-
-  return normalizeStr(req.socket?.remoteAddress || "");
-}
-
-function fingerprint(req, visitorId) {
-  const vid = normalizeStr(visitorId || "");
-  if (vid) return `vid:${vid}`;
-  const ip = getClientIp(req);
-  return ip ? `ip:${ip}` : "anon";
-}
-
-const SESSION_ID_MAXLEN = clamp(process.env.SESSION_ID_MAXLEN || 96, 32, 256);
-function cleanSessionId(sid) {
-  const s = normalizeStr(sid || "");
-  if (!s) return null;
-  if (s.length <= SESSION_ID_MAXLEN) return s;
-  return "sx_" + sha256(s).slice(0, 24);
-}
-
-function deriveStableSessionId(req, visitorId) {
-  const fp = fingerprint(req, visitorId);
-  const uastr = ua(req);
-  return "auto_" + sha256(fp + "|" + uastr).slice(0, 24);
-}
-
-function getSessionId(req, body, visitorId) {
-  const fromHeader = cleanSessionId(req.get("X-Session-Id"));
-  const fromBody = body && typeof body === "object" ? cleanSessionId(body.sessionId) : null;
-  return fromBody || fromHeader || deriveStableSessionId(req, visitorId);
-}
-
-function getVoiceMode(req, body) {
-  const fromBody = body && typeof body === "object" ? normalizeStr(body.voiceMode || "") : "";
-  const fromHeader = normalizeStr(req.get("X-Voice-Mode") || "");
-  return fromBody || fromHeader || "";
-}
-
-/* Server-owned keys (cannot be overwritten by sessionPatch) */
-const SERVER_OWNED_KEYS = new Set([
-  "__lastBridgeAt",
-  "__bridgeIdx",
-  "__lastPosture",
-  "__lastRokuCtaAt",
-  "__rokuCtaCount",
-]);
-
-/**
- * Strict patch apply: allowlist only + proto-safe
- */
-const SESSION_PATCH_ALLOW = new Set([
-  "introDone",
-  "introAt",
-  "lastInText",
-  "lastInAt",
-  "lastOut",
-  "lastOutAt",
-  "lastOutSig",
-  "lastOutSigAt",
-  "turns",
-  "startedAt",
-  "lastTurnAt",
-  "lanesVisited",
-  "yearsVisited",
-  "modesVisited",
-  "lastLane",
-  "lastYear",
-  "lastMode",
-  "lastFork",
-  "depthLevel",
-  "elasticToggle",
-  "lastElasticAt",
-  "lane",
-  "pendingLane",
-  "pendingMode",
-  "pendingYear",
-  "recentIntent",
-  "recentTopic",
-  "activeMusicMode",
-  "lastMusicYear",
-  "year",
-  "mode",
-  "depthPreference",
-  "userName",
-  "nameAskedAt",
-  "lastOpenQuestion",
-  "userGoal",
-  "lastNameUseTurn",
-  "visitorId",
-  "voiceMode",
-
-  // loop/dedupe telemetry keys
-  "__lastIntentSig",
-  "__lastIntentAt",
-  "__lastReply",
-  "__lastBodyHash",
-  "__lastBodyAt",
-  "__lastReplyHash",
-  "__lastReplyAt",
-  "__repAt",
-  "__repCount",
-  "__srAt",
-  "__srCount",
-  "__lastBridgeAt",
-  "__bridgeIdx",
-  "__lastPosture",
-
-  // ✅ CS-1 continuity state (chatEngine v0.6z)
-  "__cs1",
-
-  // ✅ COS persistence (chatEngine may set sessionPatch.cog)
-  "cog",
-]);
-
-function applySessionPatch(session, patch) {
-  if (!session || !patch || typeof patch !== "object") return;
-
-  for (const [k, v] of Object.entries(patch)) {
-    if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
-    if (SERVER_OWNED_KEYS.has(k)) continue;
-    if (!SESSION_PATCH_ALLOW.has(k)) continue;
-    if (typeof v === "undefined") continue;
-
-    // ✅ COS object is sanitized
-    if (k === "cog") {
-      if (v === null) {
-        session.cog = null;
-        continue;
-      }
-      const sanitized = sanitizeCogObject(v);
-      if (sanitized) session.cog = sanitized;
-      continue;
+  // Music intents
+  const y = extractYearFromLabel(s);
+  if (y) {
+    if (/^top\s*10\b/.test(t)) return `top 10 ${y}`;
+    if (/^top\s*100\b/.test(t)) return `top 100 ${y}`;
+    if (/^story\s*moment\b/.test(t)) return `story moment ${y}`;
+    if (/^micro\s*moment\b/.test(t)) return `micro moment ${y}`;
+    if (/^\#1\b/.test(t) || /^number\s*1\b/.test(t)) return `#1 ${y}`;
+    if (/^next\s*year\b/.test(t)) {
+      const n = clampInt(parseInt(y, 10) + 1, 1950, 2024);
+      return `year:${n}`;
     }
-
-    session[k] = v;
-  }
-}
-
-function touchSession(sessionId, patch) {
-  if (!sessionId) return null;
-
-  const now = Date.now();
-  let s = SESSIONS.get(sessionId);
-
-  if (!s) {
-    if (MAX_SESSIONS > 0 && SESSIONS.size >= MAX_SESSIONS) {
-      let oldestKey = null;
-      let oldestAt = Infinity;
-      for (const [k, v] of SESSIONS.entries()) {
-        if (v && v._touchedAt < oldestAt) {
-          oldestAt = v._touchedAt;
-          oldestKey = k;
-        }
-      }
-      if (oldestKey) SESSIONS.delete(oldestKey);
+    if (/^previous\s*year\b/.test(t) || /^prev\s*year\b/.test(t)) {
+      const n = clampInt(parseInt(y, 10) - 1, 1950, 2024);
+      return `year:${n}`;
     }
-    s = { sessionId, _createdAt: now, _touchedAt: now };
-    SESSIONS.set(sessionId, s);
   }
 
-  s._touchedAt = now;
-  if (patch && typeof patch === "object") applySessionPatch(s, patch);
+  // Roku / schedule common
+  if (t === "open roku") return "open roku";
+  if (t === "schedule") return "schedule";
+  if (t === "what’s playing now" || t === "what's playing now" || t === "playing now") return "what's playing now";
+
+  // Default: send label as text
   return s;
 }
 
-setInterval(() => {
-  const now = Date.now();
-  for (const [k, v] of SESSIONS.entries()) {
-    const touched = Number(v?._touchedAt || v?._createdAt || 0);
-    if (!touched || now - touched > SESSION_TTL_MS) SESSIONS.delete(k);
-  }
-}, 60_000).unref?.();
-
-/* ======================================================
-   Diagnostics + Discovery
-====================================================== */
-
-function healthPayload(requestId) {
-  return {
-    ok: true,
-    service: "sandblast-backend",
-    status: "healthy",
-    ts: nowIso(),
-    requestId,
-    contractVersion: NYX_CONTRACT_VERSION,
-  };
-}
-
-app.get("/", (req, res) => {
-  const requestId = req.get("X-Request-Id") || rid();
-  setContractHeaders(res, requestId);
-  return safeJson(res, 200, {
-    ok: true,
-    service: "sandblast-backend",
-    ts: nowIso(),
-    requestId,
-    contractVersion: NYX_CONTRACT_VERSION,
-    routes: ["/health", "/api/health", "/api/version", "/api/chat", "/api/tts", "/api/voice"],
-  });
-});
-
-app.get("/api", (req, res) => {
-  const requestId = req.get("X-Request-Id") || rid();
-  setContractHeaders(res, requestId);
-  return safeJson(res, 200, {
-    ok: true,
-    requestId,
-    contractVersion: NYX_CONTRACT_VERSION,
-    routes: ["/api/health", "/api/version", "/api/chat", "/api/tts", "/api/voice", "/api/tts/diag"],
-  });
-});
-
-app.get("/health", (req, res) => {
-  const requestId = req.get("X-Request-Id") || rid();
-  setContractHeaders(res, requestId);
-  return safeJson(res, 200, healthPayload(requestId));
-});
-app.get("/Health", (req, res) => {
-  const requestId = req.get("X-Request-Id") || rid();
-  setContractHeaders(res, requestId);
-  return safeJson(res, 200, healthPayload(requestId));
-});
-app.get("/api/health", (req, res) => {
-  const requestId = req.get("X-Request-Id") || rid();
-  setContractHeaders(res, requestId);
-  return safeJson(res, 200, healthPayload(requestId));
-});
-app.get("/api/Health", (req, res) => {
-  const requestId = req.get("X-Request-Id") || rid();
-  setContractHeaders(res, requestId);
-  return safeJson(res, 200, healthPayload(requestId));
-});
-
-app.get("/api/version", (req, res) => {
-  const requestId = req.get("X-Request-Id") || rid();
-  setContractHeaders(res, requestId);
-
-  const bridgeEnabled = String(process.env.BRIDGE_ENABLED || "true") === "true";
-  const bridgeMusicOnly = String(process.env.BRIDGE_MUSIC_ONLY || "true") === "true";
-  const bridgeCooldownMs = clamp(process.env.BRIDGE_COOLDOWN_MS || 45000, 10000, 300000);
-  const bridgeStyleDefault = normalizeStr(process.env.BRIDGE_STYLE_DEFAULT || "soft").toLowerCase();
-  const bridgeExplicitAlways = String(process.env.BRIDGE_EXPLICIT_ALWAYS || "true") === "true";
-  const bridgeDebugHeaders = String(process.env.BRIDGE_DEBUG_HEADERS || "true") === "true";
-
-  const rokuChannelUrl = normalizeStr(process.env.ROKU_CHANNEL_URL || "");
-  const rokuFallbackUrl = normalizeStr(process.env.ROKU_FALLBACK_URL || "https://sandblast.channel/roku");
-  const rokuCtaCooldownMs = clamp(process.env.ROKU_CTA_COOLDOWN_MS || 600_000, 60_000, 3_600_000);
-
-  return safeJson(res, 200, {
-    ok: true,
-    requestId,
-    contractVersion: NYX_CONTRACT_VERSION,
-    indexVersion: INDEX_VERSION,
-    commit: GIT_COMMIT,
-    node: process.version,
-    uptimeSec: Math.round(process.uptime()),
-    env: {
-      trustProxy: TRUST_PROXY,
-      corsAllowAll: CORS_ALLOW_ALL,
-      corsEnvExclusive: CORS_ENV_EXCLUSIVE,
-      allowlistCount: EFFECTIVE_ORIGINS.length,
-      requestTimeoutMs: REQUEST_TIMEOUT_MS,
-      maxSessions: MAX_SESSIONS,
-      bodyHashIncludeSession: String(process.env.BODY_HASH_INCLUDE_SESSION || "false") === "true",
-      sessionIdMaxLen: SESSION_ID_MAXLEN,
-      turnDedupeMs: clamp(process.env.TURN_DEDUPE_MS || 4000, 800, 15000),
-      bridgeEnabled,
-      bridgeMusicOnly,
-      bridgeCooldownMs,
-      bridgeStyleDefault,
-      bridgeExplicitAlways,
-      bridgeDebugHeaders,
-
-      rokuCtaCooldownMs,
-      hasRokuChannelUrl: !!rokuChannelUrl,
-      rokuFallbackUrl,
-
-      // COS
-      cosPersistence: true,
-    },
-    allowlistSample: EFFECTIVE_ORIGINS.slice(0, 10),
-  });
-});
-
-/* ======================================================
-   Hashing + intent helpers
-====================================================== */
-
-const MAX_HASH_TEXT_LEN = clamp(process.env.MAX_HASH_TEXT_LEN || 800, 200, 4000);
-
-const BODY_HASH_INCLUDE_SESSION = String(process.env.BODY_HASH_INCLUDE_SESSION || "false") === "true";
-
-function stableBodyForHash(body, req) {
-  const headerVisitor = normalizeStr(req?.get?.("X-Visitor-Id") || "");
-  const headerSession = normalizeStr(req?.get?.("X-Session-Id") || "");
-  const headerVoice = normalizeStr(req?.get?.("X-Voice-Mode") || "");
-  const headerContract = normalizeStr(req?.get?.("X-Contract-Version") || "");
-
-  if (typeof body === "string") {
-    const text = normalizeStr(body).slice(0, MAX_HASH_TEXT_LEN);
-    return JSON.stringify({
-      text,
-      visitorId: headerVisitor || "",
-      contractVersion: headerContract || "",
-      voiceMode: headerVoice || "",
-      mode: "",
-      year: null,
-      sessionId: BODY_HASH_INCLUDE_SESSION ? headerSession : "",
+function chipsFromStrings(strings, max = 4) {
+  const list = dedupeStrings(strings, 10).slice(0, max);
+  const out = [];
+  for (let i = 0; i < list.length; i++) {
+    const label = list[i];
+    out.push({
+      id: `c${i + 1}`,
+      type: "chip",
+      label,
+      payload: payloadForLabel(label)
     });
   }
+  return out;
+}
 
-  const b = body && typeof body === "object" ? body : {};
-  const text = normalizeStr(b.text || b.message || "").slice(0, MAX_HASH_TEXT_LEN);
+function maybeInjectResetChip(strings, sess) {
+  const s = safeArray(strings).slice(0);
+  const turns = Number(sess && sess.turns) || 0;
 
-  return JSON.stringify({
-    text,
-    visitorId: normalizeStr(b.visitorId || headerVisitor || ""),
-    contractVersion: normalizeStr(b.contractVersion || headerContract || ""),
-    voiceMode: normalizeStr(b.voiceMode || headerVoice || ""),
-    mode: normalizeStr(b.mode || ""),
-    year: b.year ?? null,
-    sessionId: BODY_HASH_INCLUDE_SESSION ? normalizeStr(b.sessionId || headerSession || "") : "",
-  });
+  // Only show Reset once we’re “in” the conversation (prevents clutter on first touch)
+  if (turns < 1 && !(sess && sess.introDone)) return s;
+
+  const hasReset = s.some(x => normalizeText(x) === "reset");
+  if (hasReset) return s;
+
+  // Keep chips max=4: replace least valuable fallback if needed
+  if (s.length < 4) return [...s, "Reset"];
+
+  // prefer replacing “Just talk” first, then “Surprise me”
+  const replOrder = ["just talk", "surprise me"];
+  for (const k of replOrder) {
+    const idx = s.findIndex(x => normalizeText(x) === k);
+    if (idx >= 0) {
+      s[idx] = "Reset";
+      return s;
+    }
+  }
+
+  // Otherwise replace last chip
+  s[s.length - 1] = "Reset";
+  return s;
+}
+
+/**
+ * Music continuity UX:
+ * If lane=music and we have a year, ALWAYS offer Next/Previous.
+ */
+function withMusicNavChips(followUpsStrings, cont, sess) {
+  const base = safeArray(followUpsStrings);
+  const lane = cont && cont.lane ? String(cont.lane) : "";
+  const year = cont && cont.year ? String(cont.year) : "";
+
+  if (lane !== "music" || !/^\d{4}$/.test(year)) {
+    return maybeInjectResetChip(base, sess).slice(0, 4);
+  }
+
+  const wanted = ["Next", "Previous"];
+  const out = [];
+  const seen = new Set();
+
+  // prepend Next/Previous
+  for (const w of wanted) {
+    const k = normalizeText(w);
+    if (!seen.has(k)) {
+      seen.add(k);
+      out.push(w);
+    }
+  }
+
+  // then keep any existing chips (minus duplicates)
+  for (const x of base) {
+    const s = String(x || "").trim();
+    if (!s) continue;
+    const k = normalizeText(s);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(s);
+    if (out.length >= 4) break;
+  }
+
+  // ensure we still have Reset
+  return maybeInjectResetChip(out.slice(0, 4), sess).slice(0, 4);
+}
+
+function ensureFollowUpsNonEmpty(lane, year, followUpsStrings, sess) {
+  const base = safeArray(followUpsStrings);
+  if (base.length > 0) return maybeInjectResetChip(base, sess);
+
+  if (lane === "music") {
+    if (year && /^\d{4}$/.test(String(year))) {
+      return maybeInjectResetChip([`Top 10 ${year}`, `Story moment ${year}`, `Micro moment ${year}`, "Pick a year"], sess);
+    }
+    return maybeInjectResetChip(["Pick a year", "Surprise me", "Story moment", "Just talk"], sess);
+  }
+
+  if (lane === "roku") return maybeInjectResetChip(["Live linear", "VOD", "Schedule", "Open Roku"], sess);
+  if (lane === "schedule") return maybeInjectResetChip(["Toronto", "London", "New York", "What’s playing now"], sess);
+  if (lane === "tv") return maybeInjectResetChip(["Live linear", "VOD", "Show me the Roku path", "What’s playing now"], sess);
+  if (lane === "radio") return maybeInjectResetChip(["Open radio", "Pick a year", "What’s playing now", "Just talk"], sess);
+
+  return maybeInjectResetChip(["Pick a year", "Surprise me", "Story moment", "Just talk"], sess);
+}
+
+// ----------------------------
+// COS (Cognitive OS) helpers
+// ----------------------------
+function computeNextStepHint({ lane, mode, year, state }) {
+  const l = String(lane || "general").toLowerCase();
+  const m = String(mode || "").toLowerCase();
+  const y = year && /^\d{4}$/.test(String(year)) ? String(year) : null;
+  const st = String(state || "").toLowerCase();
+
+  if (st === "clarify" && l === "music" && !y) return "Pick a year (1950–2024).";
+  if (l === "music" && y) {
+    if (m === "story_moment") return `Say “Micro moment ${y}” or tap Next.`;
+    if (m === "micro_moment") return `Tap Next, or ask for “Story moment ${y}”.`;
+    if (m === "number1") return `Tap Next, or ask for “Top 10 ${y}”.`;
+    if (m === "top100") return `Tap Next, or switch to “Top 10 ${y}”.`;
+    return `Tap Next / Previous, or ask “Story moment ${y}”.`;
+  }
+  if (l === "roku" || l === "tv") return "Choose Live linear or VOD.";
+  if (l === "schedule") return "Pick a city to anchor the timezone.";
+  if (l === "radio") return "Open radio, or pick a year first.";
+  return "Pick a year, try “Surprise me”, or tell me what you want.";
+}
+
+function ensureCog(out, lane, mode, year, state, reason) {
+  const ts = nowMs();
+  const baseLane = String(lane || "general");
+  const cog = (out.cog && typeof out.cog === "object") ? out.cog : {};
+  const yy = year && /^\d{4}$/.test(String(year)) ? String(year) : (cog.year ? String(cog.year) : undefined);
+  const mm = (mode != null && mode !== "") ? String(mode) : (cog.mode ? String(cog.mode) : undefined);
+  const st = state || cog.state || "respond";
+
+  out.cog = {
+    phase: cog.phase || "engaged",
+    state: st,
+    reason: reason || cog.reason || "reply",
+    lane: cog.lane || baseLane,
+    year: yy,
+    mode: mm,
+    nextStep: cog.nextStep || computeNextStepHint({ lane: baseLane, mode: mm, year: yy, state: st }),
+    ts: cog.ts || ts
+  };
+  return out;
+}
+
+function attachCogToSessionPatch(out, sess) {
+  const patch = (out.sessionPatch && typeof out.sessionPatch === "object") ? out.sessionPatch : {};
+  // Never stomp an explicit patch.cog, but always ensure it exists
+  if (patch.cog === undefined) patch.cog = (out.cog && typeof out.cog === "object") ? out.cog : undefined;
+  out.sessionPatch = filterSessionPatch(patch);
+  return out;
+}
+
+// ----------------------------
+// HARDENING: SessionPatch Allowlist
+// ----------------------------
+const SESSION_ALLOW = new Set([
+  "introDone", "introAt",
+  "lastInText", "lastInAt", "lastOut", "lastOutAt",
+  "lastOutSig", "lastOutSigAt",
+  "turns", "startedAt", "lastTurnAt",
+  "lanesVisited", "yearsVisited", "modesVisited",
+  "lastLane", "lastYear", "lastMode",
+  "lastFork", "depthLevel",
+  "elasticToggle", "lastElasticAt",
+  "lane",
+  "pendingLane", "pendingMode", "pendingYear",
+  "recentIntent", "recentTopic",
+  "activeMusicMode", "lastMusicYear", "year", "mode",
+  "musicContext",
+  "depthPreference", "userName", "nameAskedAt", "lastOpenQuestion", "userGoal",
+  "lastNameUseTurn",
+  // ✅ COS persistence
+  "cog",
+  // ✅ CS-1 state (must be allowlisted or CS-1 will reset every turn)
+  "__cs1"
+]);
+
+function filterSessionPatch(patch) {
+  const out = {};
+  if (!patch || typeof patch !== "object") return out;
+  for (const k of Object.keys(patch)) {
+    if (!SESSION_ALLOW.has(k)) continue;
+    if (patch[k] === undefined) continue; // ✅ do NOT persist undefined (prevents stomping)
+    out[k] = patch[k];
+  }
+  return out;
+}
+
+// ----------------------------
+// CS-1 helpers (no hard dependency)
+// ----------------------------
+function cs1FlagsFromText(text) {
+  const t = normalizeText(text);
+
+  const isGreeting =
+    /^(hi|hello|hey|yo|good morning|good afternoon|good evening)\b/.test(t) ||
+    /\b(hi|hello|hey|good morning|good afternoon|good evening)\b/.test(t);
+
+  const isReturn =
+    /\b(i'?m back|im back|back again|we'?re back|were back|welcome back)\b/.test(t);
+
+  const isHelp =
+    /\b(help|options|menu|capabilities|what can you do|what do you do|how does this work)\b/.test(t);
+
+  // chatEngine does not have a formal intent classifier in this file; treat these as best-effort flags
+  return { isGreeting, isReturn, isHelp, isError: false, isFallback: false };
+}
+
+function cs1Decide(session, turnCount, text) {
+  if (!CS1) return null;
+  const now = nowMs();
+  const f = cs1FlagsFromText(text);
+  try {
+    return CS1.decideCS1({
+      session,
+      turnCount,
+      intent: "general",
+      nowMs: now,
+      isReturn: !!f.isReturn,
+      isGreeting: !!f.isGreeting,
+      isHelp: !!f.isHelp,
+      isError: !!f.isError,
+      isFallback: !!f.isFallback
+    });
+  } catch (_) {
+    return null;
+  }
+}
+
+function cs1MarkSpoke(session, turnCount, lineType) {
+  if (!CS1) return;
+  try {
+    // normalize lineType to requested set
+    const lt = String(lineType || "").toLowerCase();
+    const allowed = new Set(["intro", "reset", "reentry", "clarify", "nav", "deeper"]);
+    const safeLt = allowed.has(lt) ? lt : "nav";
+    CS1.markSpoke(session, turnCount, nowMs(), safeLt);
+  } catch (_) { /* ignore */ }
+}
+
+// ----------------------------
+// HARDENING: Input loop guard
+// ----------------------------
+function shouldReturnCachedForRepeat(session, userText) {
+  const t = normalizeText(userText);
+  if (!t) return false;
+
+  const lastT = normalizeText(session && session.lastInText);
+  const lastAt = Number(session && session.lastInAt) || 0;
+  const withinMs = 6_000;
+
+  if (lastT && t === lastT && (nowMs() - lastAt) <= withinMs) {
+    const lastOut = session && session.lastOut;
+    if (lastOut && typeof lastOut.reply === "string" && lastOut.reply.trim()) return true;
+  }
+  return false;
+}
+
+function buildOutSig(reply, followUpsStrings) {
+  const chips = safeArray(followUpsStrings).slice(0, 4).join(" | ");
+  return hashSig(`${String(reply || "")}__${chips}`);
+}
+
+function cachedResponse(session, reason, requestIdIn) {
+  const lastOut = (session && session.lastOut) || {};
+  const reply = lastOut.reply || "One sec — try again.";
+  const followUpsStrings = safeArray(lastOut.followUps).slice(0, 4);
+
+  const outChips = maybeInjectResetChip(followUpsStrings, session);
+  const outSig = buildOutSig(reply, outChips);
+
+  const turns = Number(session && session.turns) || 0;
+
+  const out = {
+    ok: true,
+    reply,
+    lane: (session && session.lane) || "general",
+    ctx: {
+      year: session && (session.lastYear || session.lastMusicYear || session.year) || null,
+      mode: session && (session.lastMode || session.mode) || null
+    },
+    ui: { mode: "chat" },
+    directives: [],
+    followUpsStrings: outChips,
+    followUps: chipsFromStrings(outChips, 4),
+    sessionPatch: filterSessionPatch({
+      lastInAt: nowMs(),
+      recentIntent: "loop_guard",
+      recentTopic: reason || "repeat_input",
+
+      lastOut: { reply, followUps: outChips },
+      lastOutAt: nowMs(),
+      lastOutSig: outSig,
+      lastOutSigAt: nowMs(),
+
+      // ✅ deterministic increment for cached early return
+      turns: turns + 1,
+      lastTurnAt: nowMs(),
+      startedAt: Number(session && session.startedAt) || nowMs(),
+
+      __cs1: session && session.__cs1
+    }),
+    cog: { phase: "engaged", state: "steady", reason: "input_loop_guard", lane: "general", ts: nowMs() },
+    requestId: requestIdIn || rid(),
+    meta: { ts: nowMs(), contract: "v1" }
+  };
+
+  ensureCog(out, out.lane, out.ctx && out.ctx.mode, out.ctx && out.ctx.year, "steady", "input_loop_guard");
+  out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: session && session.__cs1 });
+  return out;
+}
+
+// ----------------------------
+// Content signature dampener
+// ----------------------------
+function dampenIfDuplicateOutput(session, reply, followUpsStrings) {
+  const sig = buildOutSig(reply, followUpsStrings);
+  const lastSig = (session && session.lastOutSig) || "";
+  const lastSigAt = Number(session && session.lastOutSigAt) || 0;
+
+  if (sig && lastSig && sig === lastSig && (nowMs() - lastSigAt) < 12_000) {
+    const tweak = "\n\n(If you want, tell me what you want next — I’m listening.)";
+    return { reply: `${reply}${tweak}`, sig: buildOutSig(`${reply}${tweak}`, followUpsStrings) };
+  }
+  return { reply, sig };
+}
+
+// ----------------------------
+// Nyx Intro V2
+// ----------------------------
+function isDirectIntent(userText) {
+  const t = normalizeText(userText);
+  return /\b(top\s*10|top\s*100|#1|story\s*moment|micro\s*moment|schedule|what'?s\s*playing|playing\s*now|vod|roku|radio|tv|live|linear|live\s*linear|open|watch|play)\b/.test(t);
+}
+
+function shouldRunIntro(session, userText) {
+  if (isDirectIntent(userText)) return false;
+  if (session && session.introDone) return false;
+  return true;
+}
+
+function nyxIntroReply() {
+  const reply =
+`Hey — I’m Nyx. I’ve got you.
+
+I can pull up a year and take you straight into the music, give you a quick story moment, or guide you through Sandblast TV and what’s playing.
+
+If you tell me your name, I’ll remember it for this session — or we can skip that.
+
+What do you feel like right now: a specific year, a surprise, or just talking?`;
+
+  const followUpsStrings = [
+    "Pick a year",
+    "Surprise me",
+    "Story moment",
+    "Just talk"
+  ];
+
+  return { reply, followUpsStrings };
+}
+
+// ----------------------------
+// Depth Dial (Fast / Deep)
+// ----------------------------
+function isDepthDial(text) {
+  const t = normalizeText(text);
+  return t === "fast" || t === "deep";
+}
+
+function depthDialReply(pref) {
+  if (pref === "deep") {
+    return "Perfect. I’ll slow it down and add context as we go. What are we doing first—music, TV, or just talking?";
+  }
+  return "Got it. Fast and clean. Point me at a year, a show, or your goal.";
+}
+
+// ----------------------------
+// Name Capture (session-safe)
+// ----------------------------
+function extractNameFromText(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return null;
+
+  const m =
+    raw.match(/^\s*(?:i'?m|i\s+am|my\s+name\s+is|call\s+me)\s+(.+?)\s*$/i);
+
+  if (!m || !m[1]) return null;
+
+  let name = m[1].trim();
+  name = name.replace(/[.!?,;:]+$/g, "").trim();
+
+  if (!/^[A-Za-z][A-Za-z' -]{0,19}$/.test(name)) return null;
+
+  name = name.replace(/\s+/g, " ").trim();
+
+  const parts = name.split(" ").filter(Boolean);
+  if (parts.length > 2) return null;
+
+  name = parts.map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join(" ");
+  if (name.length < 2) return null;
+
+  return name;
+}
+
+// ----------------------------
+// NEXT / DEEPER INTENTS + CONTINUITY RESOLVER
+// ----------------------------
+function isNextStepIntent(text) {
+  const t = normalizeText(text);
+  return (
+    t === "next step" ||
+    t === "nextstep" ||
+    t === "what's next" ||
+    t === "whats next" ||
+    t === "next action"
+  );
+}
+
+function isNextIntent(text) {
+  const t = normalizeText(text);
+  return (
+    t === "next" ||
+    t === "next one" ||
+    t === "next year" ||
+    t === "continue" ||
+    t === "keep going" ||
+    t === "go on" ||
+    t === "another" ||
+    t === "more"
+  );
+}
+
+function isPrevIntent(text) {
+  const t = normalizeText(text);
+  return (
+    t === "previous" ||
+    t === "previous year" ||
+    t === "prev" ||
+    t === "back" ||
+    t === "go back"
+  );
+}
+
+function isDeeperIntent(text) {
+  const t = normalizeText(text);
+  return (
+    t === "deeper" ||
+    t === "go deeper" ||
+    t === "tell me more" ||
+    t === "expand" ||
+    t === "unpack that" ||
+    t === "why" ||
+    t === "how so"
+  );
+}
+
+function detectLane(text) {
+  const t = normalizeText(text);
+
+  if (/\b(schedule|what'?s\s*playing|playing\s*now)\b/.test(t)) return "schedule";
+  if (/\b(roku|vod|on\s*demand)\b/.test(t)) return "roku";
+  if (/\b(tv|television)\b/.test(t)) return "tv";
+  if (/\b(radio)\b/.test(t)) return "radio";
+  if (/\b(top\s*10|top\s*100|#1|story\s*moment|micro\s*moment|\byear:\s*(19\d{2}|20\d{2})\b|\b19\d{2}\b|\b20\d{2}\b)\b/.test(t)) return "music";
+  return "general";
+}
+
+/**
+ * For continuity: treat "general" as unknown, not as a real override.
+ * This prevents “next / previous / deeper” from erasing musicContext lane.
+ */
+function detectLaneForContinuity(text) {
+  const l = detectLane(text);
+  return l === "general" ? null : l;
 }
 
 function extractYear(text) {
-  const m = String(text || "").match(/\b(19[5-9]\d|20[0-1]\d|202[0-4])\b/);
-  if (!m) return null;
-  const y = Number(m[1]);
-  if (!Number.isFinite(y) || y < 1950 || y > 2024) return null;
-  return y;
+  const s = String(text || "");
+  const m1 = s.match(/\byear:\s*(19\d{2}|20\d{2})\b/i);
+  if (m1) return m1[1];
+  const m2 = s.match(/\b(19\d{2}|20\d{2})\b/);
+  return m2 ? m2[1] : null;
 }
-function extractMode(text) {
-  const t = normCmd(text);
-  if (/\b(top\s*100|top100|hot\s*100|year[-\s]*end\s*hot\s*100)\b/.test(t)) return "top100";
-  if (/\b(top\s*10|top10|top\s*ten)\b/.test(t)) return "top10";
-  if (/\bstory\s*moment\b|\bstory\b/.test(t)) return "story";
-  if (/\bmicro\s*moment\b|\bmicro\b/.test(t)) return "micro";
-  if (/\b#\s*1\b|\bnumber\s*1\b|\bno\.?\s*1\b|\bno\s*1\b/.test(t)) return "number1";
+
+function detectMode(text) {
+  const t = normalizeText(text);
+  if (/\bmicro\s*moment\b/.test(t)) return "micro_moment";
+  if (/\bstory\s*moment\b/.test(t)) return "story_moment";
+  if (/\btop\s*100\b/.test(t)) return "top100";
+  if (/\btop\s*10\b/.test(t)) return "top10";
+  if (/\b#1\b/.test(t)) return "number1";
+  if (/\b(vod|on\s*demand)\b/.test(t)) return "vod";
+  if (/\b(live|linear|live\s*linear)\b/.test(t)) return "live";
+  if (/\b(surprise\s*me)\b/.test(t)) return "surprise";
   return null;
 }
-function intentSigFrom(text, session) {
-  const t = normCmd(text);
-  const y = extractYear(t) || (session && Number(session.lastMusicYear)) || null;
-  const m = extractMode(t) || (session && String(session.activeMusicMode || "")) || "";
-  const lane = session && session.lane ? String(session.lane) : "";
-  return `${lane || ""}::${m || ""}::${y || ""}::${sha256(t).slice(0, 10)}`;
-}
 
-/* ======================================================
-   Posture + Bridge Control Plane (v1) + ENV KNOBS
-====================================================== */
+/**
+ * ✅ Continuity spine read
+ * Prefer session.musicContext first, then legacy fields.
+ * IMPORTANT FIX: “general” does NOT override saved lane.
+ */
+function getContinuity(sess, safeText) {
+  const s = sess || {};
+  const inferredLane = detectLaneForContinuity(safeText);
+  const yearFromText = extractYear(safeText);
+  const modeFromText = detectMode(safeText);
 
-const BRIDGE_ENABLED = String(process.env.BRIDGE_ENABLED || "true") === "true";
-const BRIDGE_MUSIC_ONLY = String(process.env.BRIDGE_MUSIC_ONLY || "true") === "true";
-const BRIDGE_COOLDOWN_MS = clamp(process.env.BRIDGE_COOLDOWN_MS || 45_000, 10_000, 300_000);
-const BRIDGE_STYLE_DEFAULT = normCmd(process.env.BRIDGE_STYLE_DEFAULT || "soft") || "soft";
-const BRIDGE_EXPLICIT_ALWAYS = String(process.env.BRIDGE_EXPLICIT_ALWAYS || "true") === "true";
-const BRIDGE_DEBUG_HEADERS = String(process.env.BRIDGE_DEBUG_HEADERS || "true") === "true";
-
-/* ✅ Structured Roku CTA (directives) */
-const ROKU_CHANNEL_URL = normalizeStr(process.env.ROKU_CHANNEL_URL || "");
-const ROKU_DEEPLINK = normalizeStr(process.env.ROKU_DEEPLINK || "");
-const ROKU_FALLBACK_URL = normalizeStr(process.env.ROKU_FALLBACK_URL || "https://sandblast.channel/roku");
-const BRIDGE_CTA_LABEL = normalizeStr(process.env.BRIDGE_CTA_LABEL || "Open Sandblast on Roku");
-const ROKU_CTA_COOLDOWN_MS = clamp(process.env.ROKU_CTA_COOLDOWN_MS || 600_000, 60_000, 3_600_000);
-
-const CANON = {
-  rokuBridge: {
-    soft: [
-      "This one’s better experienced leaned back.",
-      "Same world—just on your biggest screen.",
-      "Sandblast is where we explore. Roku is where you relax.",
-      "Same intelligence. Different posture.",
-    ],
-    quiet: [
-      "If you want to stay in this moment, Roku is the quiet way to do it.",
-      "This is one of those memories that deserves the big screen.",
-      "Same world—just on your biggest screen.",
-    ],
-    companion: ["I’ll meet you there.", "Same world—just on your biggest screen."],
-  },
-};
-
-function detectPosture(text) {
-  const t = normCmd(text);
-  if (/\b(bye|goodbye|later|done|stop|cancel|nevermind|never mind)\b/.test(t)) return "exit";
-  if (/\b(install|open|launch|start|take me|go to|send me|link)\b/.test(t)) return "commit";
-  if (/\b(relax|watch|tv|roku|big screen|lean back|couch|living room)\b/.test(t)) return "relax";
-  return "explore";
-}
-
-function chooseBridgeStyle(posture) {
-  const p = String(posture || "");
-  if (p === "relax") return "quiet";
-  if (p === "commit") return "companion";
-  if (CANON.rokuBridge && CANON.rokuBridge[BRIDGE_STYLE_DEFAULT]) return BRIDGE_STYLE_DEFAULT;
-  return "soft";
-}
-
-function pickBridgeLine(style, session) {
-  const bucket = (CANON.rokuBridge && CANON.rokuBridge[style]) || CANON.rokuBridge.soft;
-  const idx = Number(session.__bridgeIdx || 0) % bucket.length;
-  session.__bridgeIdx = idx + 1;
-  return bucket[idx];
-}
-
-function isExplicitRokuMention(text) {
-  const t = normCmd(text);
-  return /\broku\b/.test(t);
-}
-
-function bridgeEligible({ text, session, out, now }) {
-  if (!BRIDGE_ENABLED) return false;
-
-  const last = Number(session.__lastBridgeAt || 0);
-  if (last && now - last < BRIDGE_COOLDOWN_MS) return false;
-
-  const explicit = isExplicitRokuMention(text);
-  if (explicit && BRIDGE_EXPLICIT_ALWAYS) return true;
+  const mc = (s.musicContext && typeof s.musicContext === "object") ? s.musicContext : null;
+  const mcLane = mc && mc.lane ? String(mc.lane).toLowerCase() : null;
+  const mcYear = mc && mc.year ? String(mc.year) : null;
+  const mcMode = mc && mc.mode ? String(mc.mode) : null;
 
   const lane =
-    (out && typeof out.lane === "string" ? out.lane : "") ||
-    (session && session.lane ? String(session.lane) : "");
+    inferredLane ||
+    mcLane ||
+    s.lane ||
+    s.lastLane ||
+    (s.lastMusicYear || s.year ? "music" : "general");
 
-  if (BRIDGE_MUSIC_ONLY && lane && lane !== "music") return false;
-  if (explicit) return true;
+  const activeYear =
+    yearFromText ||
+    s.pendingYear ||
+    mcYear ||
+    s.lastMusicYear ||
+    s.year ||
+    s.lastYear ||
+    null;
 
-  const mode =
-    (out && typeof out.mode === "string" ? out.mode : "") ||
-    extractMode(text) ||
-    (session && session.activeMusicMode ? String(session.activeMusicMode) : "");
+  const activeMode =
+    modeFromText ||
+    s.pendingMode ||
+    mcMode ||
+    s.activeMusicMode ||
+    s.mode ||
+    s.lastMode ||
+    null;
 
-  if (mode === "top10" || mode === "story" || mode === "micro") return true;
+  return {
+    lane: String(lane || "general").toLowerCase(),
+    year: (activeYear && /^\d{4}$/.test(String(activeYear))) ? String(activeYear) : null,
+    mode: activeMode ? String(activeMode) : null
+  };
+}
 
-  const t = normCmd(text);
-  if (/\b(remember|takes me back|my childhood|when i was|brings back|nostalgia)\b/.test(t)) return true;
+function modeToPrompt(mode, year) {
+  const y = String(year || "").trim();
+  const m = String(mode || "").toLowerCase();
+
+  if (!y || !/^\d{4}$/.test(y)) return null;
+
+  if (m === "top10") return `top 10 ${y}`;
+  if (m === "top100") return `top 100 ${y}`;
+  if (m === "story_moment") return `story moment ${y}`;
+  if (m === "micro_moment") return `micro moment ${y}`;
+  if (m === "number1") return `#1 ${y}`;
+
+  return `top 10 ${y}`;
+}
+
+function computeYearDelta(year, delta) {
+  const y = parseInt(String(year || ""), 10);
+  if (!Number.isFinite(y)) return null;
+  return clampInt(y + delta, 1950, 2024);
+}
+
+function nextDirective(cont) {
+  const lane = cont && cont.lane ? cont.lane : "general";
+  const mode = cont && cont.mode ? cont.mode : null;
+  const year = cont && cont.year ? cont.year : null;
+
+  if (lane !== "music") return null;
+  if (!year || !/^\d{4}$/.test(String(year))) return { kind: "need_year" };
+
+  const ny = computeYearDelta(year, +1);
+  if (!ny) return { kind: "need_year" };
+
+  const prompt = modeToPrompt(mode || "top10", String(ny));
+  return { kind: "advance", year: String(ny), prompt, mode: mode || "top10" };
+}
+
+function prevDirective(cont) {
+  const lane = cont && cont.lane ? cont.lane : "general";
+  const mode = cont && cont.mode ? cont.mode : null;
+  const year = cont && cont.year ? cont.year : null;
+
+  if (lane !== "music") return null;
+  if (!year || !/^\d{4}$/.test(String(year))) return { kind: "need_year" };
+
+  const py = computeYearDelta(year, -1);
+  if (!py) return { kind: "need_year" };
+
+  const prompt = modeToPrompt(mode || "top10", String(py));
+  return { kind: "advance", year: String(py), prompt, mode: mode || "top10" };
+}
+
+/**
+ * CONTINUITY NORMALIZER (CRITICAL):
+ * - Converts bare-year messages into mode-aware prompts.
+ * - Converts year:YYYY into mode-aware prompts when we already have a music mode.
+ * - Converts mode-only commands into mode+year when year is known.
+ */
+function isBareYearOnly(text) {
+  const t = String(text || "").trim();
+  return /^(19\d{2}|20\d{2})$/.test(t);
+}
+
+function isYearColon(text) {
+  const t = String(text || "").trim();
+  return /^year:\s*(19\d{2}|20\d{2})$/i.test(t);
+}
+
+function parseYearColon(text) {
+  const m = String(text || "").trim().match(/^year:\s*(19\d{2}|20\d{2})$/i);
+  return m ? m[1] : null;
+}
+
+function isModeOnlyWithoutYear(text) {
+  const t = normalizeText(text);
+  const hasYear = /\b(19\d{2}|20\d{2})\b/.test(t);
+  if (hasYear) return false;
+  return (
+    t === "top 10" || t === "top10" || t === "top ten" ||
+    t === "top 100" || t === "top100" ||
+    t === "story moment" || t === "story" ||
+    t === "micro moment" || t === "micro" ||
+    t === "#1" || t === "number 1" || t === "no 1" || t === "no. 1"
+  );
+}
+
+function normalizeModeOnlyToPrompt(text, cont, sess) {
+  const t = normalizeText(text);
+  const year =
+    (cont && cont.year) ||
+    (sess && sess.musicContext && sess.musicContext.year ? String(sess.musicContext.year) : null) ||
+    (sess && (sess.lastMusicYear || sess.lastYear || sess.year) ? String(sess.lastMusicYear || sess.lastYear || sess.year) : null);
+
+  if (!year || !/^\d{4}$/.test(String(year))) return null;
+
+  if (/\btop\s*10\b|top10|top ten/.test(t)) return `top 10 ${year}`;
+  if (/\btop\s*100\b|top100/.test(t)) return `top 100 ${year}`;
+  if (/\bstory\s*moment\b|\bstory\b/.test(t)) return `story moment ${year}`;
+  if (/\bmicro\s*moment\b|\bmicro\b/.test(t)) return `micro moment ${year}`;
+  if (t === "#1" || /\bnumber\s*1\b|\bno\.?\s*1\b|\bno\s*1\b/.test(t)) return `#1 ${year}`;
+
+  return null;
+}
+
+// ----------------------------
+// RESET intent + reset reply
+// ----------------------------
+function isResetIntent(text) {
+  const t = normalizeText(text);
+  return (
+    t === "reset" ||
+    t === "reset chat" ||
+    t === "start over" ||
+    t === "restart" ||
+    t === CMD_PAYLOAD.RESET
+  );
+}
+
+function resetReply() {
+  const reply =
+`Hey — I’m Nyx. I’ve got you.
+
+Pick a year (1950–2024) and I’ll take you straight into the music — Top 10, a story moment, a micro moment, or the #1.
+Or I can guide you through Sandblast TV/Roku.
+
+Where do you want to start?`;
+
+  const followUpsStrings = [
+    "Pick a year",
+    "Story moment",
+    "Just talk",
+    "What’s playing now"
+  ];
+
+  return { reply, followUpsStrings };
+}
+
+function resetSessionPatch(prevSess) {
+  const keepDepthPref = (prevSess && prevSess.depthPreference) ? String(prevSess.depthPreference) : "fast";
+
+  return filterSessionPatch({
+    introDone: true,
+    introAt: nowMs(),
+
+    lastInText: "",
+    lastInAt: nowMs(),
+    lastOut: null,
+    lastOutAt: 0,
+    lastOutSig: "",
+    lastOutSigAt: 0,
+
+    turns: 0,
+    startedAt: nowMs(),
+    lastTurnAt: nowMs(),
+
+    lanesVisited: [],
+    yearsVisited: [],
+    modesVisited: [],
+
+    lastLane: null,
+    lastYear: null,
+    lastMode: null,
+
+    lastFork: "reset",
+    depthLevel: 0,
+
+    elasticToggle: 0,
+    lastElasticAt: 0,
+
+    lane: "general",
+    pendingLane: null,
+    pendingMode: null,
+    pendingYear: null,
+
+    recentIntent: "reset",
+    recentTopic: "reset",
+
+    activeMusicMode: null,
+    lastMusicYear: null,
+    year: null,
+    mode: null,
+
+    musicContext: null,
+
+    userGoal: "explore",
+    depthPreference: keepDepthPref,
+    lastOpenQuestion: null,
+    nameAskedAt: 0,
+    lastNameUseTurn: 0,
+
+    // keep __cs1 if it exists; if not, omit
+    __cs1: (prevSess && prevSess.__cs1) ? prevSess.__cs1 : undefined
+  });
+}
+
+// ----------------------------
+// CALL SIGNATURE NORMALIZER (CRITICAL)
+// ----------------------------
+function normalizeInputArgs(arg1, arg2) {
+  // Unified call shape: chatEngine({text,session,requestId,debug,client:{routeHint,turnId}}, session?)
+  if (arg1 && typeof arg1 === "object" && !Array.isArray(arg1)) {
+    const obj = arg1;
+    const text = typeof obj.text === "string" ? obj.text : (typeof obj.message === "string" ? obj.message : "");
+    const session = (obj.session && typeof obj.session === "object") ? obj.session : (arg2 && typeof arg2 === "object" ? arg2 : {});
+    const requestId = (typeof obj.requestId === "string" && obj.requestId.trim()) ? obj.requestId.trim() : null;
+    const debug = !!obj.debug;
+
+    const client = (obj.client && typeof obj.client === "object") ? obj.client : {};
+    const routeHint = (typeof obj.routeHint === "string" ? obj.routeHint : (typeof client.routeHint === "string" ? client.routeHint : ""));
+    const turnId = (typeof obj.turnId === "string" ? obj.turnId : (typeof client.turnId === "string" ? client.turnId : ""));
+
+    return { text, session, requestId, debug, routeHint: String(routeHint || ""), turnId: String(turnId || "") };
+  }
+
+  return {
+    text: typeof arg1 === "string" ? arg1 : String(arg1 || ""),
+    session: (arg2 && typeof arg2 === "object") ? arg2 : {},
+    requestId: null,
+    debug: false,
+    routeHint: "",
+    turnId: ""
+  };
+}
+
+// ----------------------------
+// Year picker intent (backend-owned trigger)
+// ----------------------------
+function wantsYearPicker(text) {
+  const t = normalizeText(text);
+  return (
+    t === UI_PAYLOAD.YEAR_PICKER ||
+    t === "pick a year" ||
+    t === "years" ||
+    t === "pick another year"
+  );
+}
+
+function yearPickerReply(sess) {
+  const reply = "Pick a year (1950–2024). Want Top 10, a story moment, or a micro moment after you choose?";
+  const followUpsStrings = [
+    "Surprise me",
+    "Top 10 1988",
+    "Story moment 1955",
+    "Just talk"
+  ];
+  return {
+    ok: true,
+    reply,
+    lane: "music",
+    ctx: {
+      year: sess && (sess.lastYear || sess.lastMusicYear || sess.year) || null,
+      mode: "discover"
+    },
+    ui: {
+      mode: "year_picker",
+      yearMin: 1950,
+      yearMax: 2024,
+      decadeJump: true
+    },
+    directives: [{ type: "open_year_picker" }],
+    followUpsStrings,
+    followUps: chipsFromStrings(followUpsStrings, 4)
+  };
+}
+
+// ----------------------------
+// DEEPER (mode-aware, deterministic)
+// ----------------------------
+function modeForDeeper(cont, sess) {
+  const m =
+    (cont && cont.mode ? String(cont.mode) : "") ||
+    (sess && sess.musicContext && sess.musicContext.mode ? String(sess.musicContext.mode) : "") ||
+    (sess && sess.activeMusicMode ? String(sess.activeMusicMode) : "") ||
+    (sess && sess.lastMode ? String(sess.lastMode) : "") ||
+    "";
+  const mm = m.toLowerCase();
+
+  if (mm === "story_moment" || mm === "micro_moment" || mm === "top10" || mm === "top100" || mm === "number1") return mm;
+
+  const lane = (cont && cont.lane) || (sess && sess.lane) || "general";
+  if (String(lane).toLowerCase() === "music") return "top10";
+
+  return "general";
+}
+
+function deeperReply({ baseReply, cont, sess }) {
+  const lane = (cont && cont.lane) ? String(cont.lane) : (sess && sess.lane ? String(sess.lane) : "general");
+  const year =
+    (cont && cont.year) ? String(cont.year)
+      : (sess && sess.musicContext && sess.musicContext.year ? String(sess.musicContext.year)
+        : (sess && (sess.lastMusicYear || sess.lastYear || sess.year) ? String(sess.lastMusicYear || sess.lastYear || sess.year) : ""));
+  const mode = modeForDeeper(cont, sess);
+
+  const cleanBase = String(baseReply || "").trim();
+  if (!cleanBase) {
+    return {
+      reply: "Tell me what you want to go deeper on — a year, a story moment, a micro moment, or a #1.",
+      lane,
+      year: /^\d{4}$/.test(year) ? year : null,
+      mode
+    };
+  }
+
+  if (String(lane).toLowerCase() !== "music") {
+    const reply = cleanBase + "\n\nTell me which lane you want to deepen: Music, TV/Roku, or Schedule.";
+    return { reply, lane, year: null, mode: "general" };
+  }
+
+  const y = /^\d{4}$/.test(year) ? year : null;
+
+  if (mode === "top10" || mode === "top100") {
+    const reply =
+      cleanBase +
+      "\n\nDeeper cut: this year’s #1 isn’t just a song — it’s a timestamp. If you tell me where you were in life back then (school, first job, relationship), I’ll pin the vibe to that and keep the run going.\n\nWant the next year, or the previous?";
+    return { reply, lane: "music", year: y, mode };
+  }
+
+  if (mode === "story_moment") {
+    const reply =
+      cleanBase +
+      "\n\nDeeper cut: zoom in on the *emotion* of that year — what people were trying to escape, and what they were reaching for. That’s why the #1 felt inevitable.\n\nNext year, or stay here and go micro?";
+    return { reply, lane: "music", year: y, mode };
+  }
+
+  if (mode === "micro_moment") {
+    const reply =
+      cleanBase +
+      "\n\nDeeper cut: picture the scene — radio on, fluorescent lights somewhere, and that little half-second where you recognize the song before the lyric hits. That’s the “micro” that locks memory.\n\nNext year, or want another micro in this same year?";
+    return { reply, lane: "music", year: y, mode };
+  }
+
+  if (mode === "number1") {
+    const reply =
+      cleanBase +
+      "\n\nDeeper cut: #1 years tend to define the *texture* of the era — the production choices, the slang, the emotional posture. This one wasn’t just popular; it set the tone.\n\nNext year, or previous?";
+    return { reply, lane: "music", year: y, mode };
+  }
+
+  const reply = cleanBase + "\n\nWant to go deeper on Top 10, #1, story moment, or micro moment?";
+  return { reply, lane: "music", year: y, mode: "top10" };
+}
+
+// ----------------------------
+// ROUTE HINT (deterministic lane routing)
+// ----------------------------
+function laneFromRouteHint(routeHint) {
+  const t = normalizeText(routeHint || "");
+  if (!t) return null;
+
+  // canonical-ish route hints (be forgiving)
+  if (t.includes("music")) return "music";
+  if (t.includes("roku")) return "roku";
+  if (t.includes("schedule")) return "schedule";
+  if (t.includes("tv")) return "tv";
+  if (t.includes("radio")) return "radio";
+  if (t.includes("sponsor")) return "sponsors";
+
+  // if they pass the lane name directly
+  if (t === "general") return "general";
+  return null;
+}
+
+function forcedModeFromRouteHint(routeHint) {
+  const t = normalizeText(routeHint || "");
+  if (!t) return null;
+  if (t.includes("top10") || t.includes("top 10")) return "top10";
+  if (t.includes("top100") || t.includes("top 100")) return "top100";
+  if (t.includes("story")) return "story_moment";
+  if (t.includes("micro")) return "micro_moment";
+  if (t.includes("#1") || t.includes("number1") || t.includes("number 1")) return "number1";
+  return null;
+}
+
+// ----------------------------
+// CONTRACT ENFORCERS (NEW)
+// ----------------------------
+function isMusicMode(mode) {
+  const m = String(mode || "").toLowerCase();
+  return m === "top10" || m === "top100" || m === "story_moment" || m === "micro_moment" || m === "number1";
+}
+
+function musicModeNeedsYear(mode) {
+  // For music modes, yes: year required for a meaningful response in this build.
+  return isMusicMode(mode);
+}
+
+function looksLikeLabelOnlyMusicReply(reply, mode, year) {
+  const r = String(reply || "").trim();
+  if (!r) return true;
+
+  // obvious label-only patterns
+  if (/^top\s*10\s*\(?\s*\d{4}\s*\)?\s*$/i.test(r)) return true;
+  if (/^top\s*100\s*\(?\s*\d{4}\s*\)?\s*$/i.test(r)) return true;
+  if (/^story\s*moment\s*\(?\s*\d{4}\s*\)?\s*$/i.test(r)) return true;
+  if (/^micro\s*moment\s*\(?\s*\d{4}\s*\)?\s*$/i.test(r)) return true;
+  if (/^(#1|number\s*1)\s*\(?\s*\d{4}\s*\)?\s*$/i.test(r)) return true;
+
+  // too short is suspicious for list modes
+  const m = String(mode || "").toLowerCase();
+  const y = String(year || "");
+  if ((m === "top10" || m === "top100") && y && r.length < 80) return true;
 
   return false;
 }
 
-function injectBridgeLine(reply, line) {
-  const base = String(reply || "").trim();
-  const add = String(line || "").trim();
-  if (!add) return base;
-  if (!base) return add;
-  if (base.includes(add)) return base;
-  return base + "\n\n" + add;
+function buildClarifyYearReply({ lane, mode, knownYear }) {
+  const m = String(mode || "").toLowerCase();
+  const baseLane = String(lane || "music").toLowerCase();
+
+  if (baseLane !== "music") {
+    return {
+      reply: "Tell me what you want next.",
+      followUpsStrings: ["Pick a year", "Just talk", "Surprise me", "Reset"]
+    };
+  }
+
+  if (knownYear && /^\d{4}$/.test(String(knownYear))) {
+    const y = String(knownYear);
+    return {
+      reply: `Got it — ${y}. Want Top 10, #1, a story moment, or a micro moment?`,
+      followUpsStrings: [`Top 10 ${y}`, `#1 ${y}`, `Story moment ${y}`, `Micro moment ${y}`]
+    };
+  }
+
+  if (m === "top10") {
+    return { reply: "Which year do you want for Top 10? (1950–2024)", followUpsStrings: ["Pick a year", "Top 10 1988", "Top 10 1955", "Reset"] };
+  }
+  if (m === "top100") {
+    return { reply: "Which year do you want for Top 100? (1950–2024)", followUpsStrings: ["Pick a year", "Top 100 1988", "Top 100 1979", "Reset"] };
+  }
+  if (m === "story_moment") {
+    return { reply: "Which year do you want a story moment for? (1950–2024)", followUpsStrings: ["Pick a year", "Story moment 1955", "Story moment 1988", "Reset"] };
+  }
+  if (m === "micro_moment") {
+    return { reply: "Which year do you want a micro moment for? (1950–2024)", followUpsStrings: ["Pick a year", "Micro moment 1979", "Micro moment 1994", "Reset"] };
+  }
+  if (m === "number1") {
+    return { reply: "Which year do you want the #1 song for? (1950–2024)", followUpsStrings: ["Pick a year", "#1 1988", "#1 1967", "Reset"] };
+  }
+
+  return { reply: "Tell me a year (1950–2024).", followUpsStrings: ["Pick a year", "Top 10 1988", "Story moment 1955", "Reset"] };
 }
 
-/* ✅ Roku directive emission (backend-first; safe if client ignores) */
-function canEmitRokuCta(session, now, posture) {
-  if (!session) return false;
-  if (posture === "exit") return false;
+function enforceOneIntent(out) {
+  const reply = String(out.reply || "").trim();
+  if (!reply) return out;
 
-  const last = Number(session.__lastRokuCtaAt || 0);
-  if (last && now - last < ROKU_CTA_COOLDOWN_MS) return false;
+  const qCount = (reply.match(/\?/g) || []).length;
+  if (qCount <= 1) return out;
 
-  // must have somewhere valid to send them
-  if (!ROKU_CHANNEL_URL && !ROKU_FALLBACK_URL) return false;
-
-  return true;
+  const idx = reply.indexOf("?");
+  const clipped = idx >= 0 ? reply.slice(0, idx + 1) : reply;
+  out.reply = clipped.trim();
+  return out;
 }
 
-function buildRokuBridgeDirective({ session, now, posture, reason }) {
-  const url = ROKU_CHANNEL_URL || ROKU_FALLBACK_URL;
-  const dir = {
-    type: "bridge_roku",
-    label: BRIDGE_CTA_LABEL,
-    url,
-    deeplink: ROKU_DEEPLINK || null,
-    fallbackUrl: ROKU_FALLBACK_URL || null,
-    reason: reason || `posture_${posture || "explore"}`,
-    ttlMs: 600_000,
-  };
-
-  // server-owned session telemetry
-  session.__lastRokuCtaAt = now;
-  session.__rokuCtaCount = Number(session.__rokuCtaCount || 0) + 1;
-
-  return dir;
+function enforceNonEmptyReply(out, fallbackText) {
+  const r = String(out.reply || "").trim();
+  if (r) return out;
+  out.reply = String(fallbackText || "Tell me a year (1950–2024), or say “top 10 1988”.").trim();
+  return out;
 }
 
-/* ======================================================
-   TURN-CACHE DEDUPE
-====================================================== */
+function ensureSessionPatchBasics(out, sess, routingText, lane, mode, year, followUpsStrings, outSig) {
+  const patch = (out.sessionPatch && typeof out.sessionPatch === "object") ? out.sessionPatch : {};
+  const turnsBase = Number(sess.turns || 0);
 
-const TURN_DEDUPE_MS = clamp(process.env.TURN_DEDUPE_MS || 4000, 800, 15000);
-const TURN_CACHE_MAX = clamp(process.env.TURN_CACHE_MAX || 800, 100, 5000);
-const TURN_CACHE = new Map();
+  // always persist these
+  if (patch.lastInText === undefined) patch.lastInText = routingText;
+  if (patch.lastInAt === undefined) patch.lastInAt = nowMs();
 
-function getTurnKey(req, body, text, visitorId) {
-  const origin = normalizeStr(req.headers.origin || "");
-  const fp = fingerprint(req, visitorId);
+  patch.lastOut = { reply: out.reply, followUps: safeArray(followUpsStrings).slice(0, 4) };
+  patch.lastOutAt = nowMs();
+  patch.lastOutSig = outSig;
+  patch.lastOutSigAt = nowMs();
 
-  let turnId = "";
-  try {
-    if (body && typeof body === "object" && body.client && typeof body.client === "object") {
-      turnId = normalizeStr(body.client.turnId || "");
+  patch.lane = lane || patch.lane || sess.lane || "general";
+  if (year) patch.lastYear = year;
+  if (mode) patch.lastMode = mode;
+
+  // ✅ deterministic turn increment — but DO NOT double-increment if already set upstream
+  if (!Number.isFinite(Number(patch.turns))) {
+    patch.turns = turnsBase + 1;
+  }
+  if (patch.lastTurnAt === undefined) patch.lastTurnAt = nowMs();
+  if (!patch.startedAt) patch.startedAt = Number(sess.startedAt) || nowMs();
+
+  // mirror music continuity
+  if (String(lane).toLowerCase() === "music") {
+    if (year) patch.lastMusicYear = year;
+    if (mode) patch.activeMusicMode = mode;
+    if (year) {
+      patch.musicContext = {
+        lane: "music",
+        year: String(year),
+        mode: String(mode || "top10"),
+        lastAction: patch.recentIntent || "reply"
+      };
     }
-  } catch (_) {
-    turnId = "";
   }
 
-  // ✅ If turnId exists, dedupe is strictly by turnId (idempotency)
-  if (turnId) {
-    return sha256(JSON.stringify({ o: origin, fp, turnId }));
+  // ✅ preserve CS-1 state if present (and allowlisted)
+  if (sess && sess.__cs1 && patch.__cs1 === undefined) patch.__cs1 = sess.__cs1;
+
+  // ✅ COS persistence
+  if (patch.cog === undefined && out.cog && typeof out.cog === "object") patch.cog = out.cog;
+
+  out.sessionPatch = filterSessionPatch(patch);
+  return out;
+}
+
+function enforceContractFinal({
+  out,
+  sess,
+  routingText,
+  lane,
+  mode,
+  year,
+  cont,
+  routeHintLane,
+  routeHintMode
+}) {
+  const baseLane = String(routeHintLane || lane || out.lane || "general").toLowerCase();
+  const baseMode = routeHintMode || mode || cont.mode || (out.ctx && out.ctx.mode) || null;
+  const baseYear = year || cont.year || (out.ctx && out.ctx.year ? String(out.ctx.year) : null) || null;
+
+  // ensure followUps exist (robust extraction)
+  const existingFus = coerceFollowUpsStrings(out);
+  let fus = ensureFollowUpsNonEmpty(baseLane, baseYear, existingFus, sess).slice(0, 4);
+
+  // if music+year known, enforce Next/Previous chips
+  fus = withMusicNavChips(fus, { lane: baseLane, year: baseYear, mode: baseMode }, sess);
+
+  // content completeness gate for music modes
+  if (baseLane === "music" && isMusicMode(baseMode)) {
+    const needsYear = musicModeNeedsYear(baseMode);
+    if (needsYear && !baseYear) {
+      const clarify = buildClarifyYearReply({ lane: "music", mode: baseMode, knownYear: null });
+
+      cs1MarkSpoke(sess, Number(sess.turns || 0) + 1, "clarify");
+
+      out.reply = clarify.reply;
+      out.directives = [{ type: "open_year_picker" }];
+      fus = maybeInjectResetChip(clarify.followUpsStrings, sess).slice(0, 4);
+      out.followUpsStrings = fus;
+      out.followUps = chipsFromStrings(fus, 4);
+      out.ui = { mode: "chat" };
+      out.lane = "music";
+      out.ctx = { year: null, mode: baseMode };
+
+      out = enforceOneIntent(out);
+      out = enforceNonEmptyReply(out, clarify.reply);
+      out = ensureCog(out, "music", baseMode, undefined, "clarify", "need_year");
+
+      const sig = buildOutSig(out.reply, fus);
+      out = ensureSessionPatchBasics(out, sess, routingText, "music", baseMode, null, fus, sig);
+
+      out.sessionPatch = filterSessionPatch({
+        ...out.sessionPatch,
+        pendingLane: "music",
+        pendingMode: baseMode,
+        pendingYear: null,
+        recentIntent: "clarify_year",
+        recentTopic: `need_year:${String(baseMode)}`,
+        cog: out.cog,
+        __cs1: sess.__cs1
+      });
+
+      return out;
+    }
+
+    if (baseYear && looksLikeLabelOnlyMusicReply(out.reply, baseMode, baseYear)) {
+      const clarify = buildClarifyYearReply({ lane: "music", mode: baseMode, knownYear: baseYear });
+
+      cs1MarkSpoke(sess, Number(sess.turns || 0) + 1, "clarify");
+
+      out.reply = clarify.reply;
+      out.directives = out.directives || [];
+      fus = maybeInjectResetChip(clarify.followUpsStrings, sess).slice(0, 4);
+      out.followUpsStrings = fus;
+      out.followUps = chipsFromStrings(fus, 4);
+      out.ui = { mode: "chat" };
+      out.lane = "music";
+      out.ctx = { year: parseInt(String(baseYear), 10), mode: baseMode };
+
+      out = enforceOneIntent(out);
+      out = enforceNonEmptyReply(out, clarify.reply);
+      out = ensureCog(out, "music", baseMode, String(baseYear), "clarify", "incomplete_content");
+
+      const sig = buildOutSig(out.reply, fus);
+      out = ensureSessionPatchBasics(out, sess, routingText, "music", baseMode, String(baseYear), fus, sig);
+
+      out.sessionPatch = filterSessionPatch({
+        ...out.sessionPatch,
+        recentIntent: "clarify_content",
+        recentTopic: `incomplete:${String(baseMode)}:${String(baseYear)}`,
+        cog: out.cog,
+        __cs1: sess.__cs1
+      });
+
+      return out;
+    }
   }
 
-  const bh = sha256(stableBodyForHash(body, req));
-  return sha256(JSON.stringify({ o: origin, fp, bh }));
+  // defaults if nothing special triggered
+  out.followUpsStrings = fus;
+  out.followUps = chipsFromStrings(fus, 4);
+  if (!out.directives) out.directives = [];
+
+  out = enforceOneIntent(out);
+  out = enforceNonEmptyReply(out);
+
+  // ✅ ensure cog + persist it
+  out = ensureCog(out, baseLane, baseMode || undefined, baseYear || undefined, out.cog && out.cog.state, out.cog && out.cog.reason);
+
+  const sig = buildOutSig(out.reply, fus);
+  out = ensureSessionPatchBasics(out, sess, routingText, baseLane, baseMode, baseYear, fus, sig);
+
+  // strict: keep ctx consistent
+  out.lane = baseLane;
+  out.ctx = out.ctx && typeof out.ctx === "object" ? out.ctx : {};
+  out.ctx.year = baseYear ? parseInt(String(baseYear), 10) : null;
+  out.ctx.mode = baseMode || null;
+
+  // UI default
+  out.ui = out.ui && typeof out.ui === "object" ? out.ui : { mode: "chat" };
+
+  // final attach (idempotent)
+  out = attachCogToSessionPatch(out, sess);
+
+  return out;
 }
 
-function pruneTurnCache() {
-  const now = Date.now();
-  for (const [k, v] of TURN_CACHE.entries()) {
-    if (!v || now - Number(v.at || 0) > TURN_DEDUPE_MS) TURN_CACHE.delete(k);
+// ----------------------------
+// Public API
+// ----------------------------
+async function chatEngine(arg1, arg2) {
+  const norm = normalizeInputArgs(arg1, arg2);
+
+  const text = String(norm.text || "").trim();
+  const sess = norm.session && typeof norm.session === "object" ? norm.session : {};
+  const requestId = norm.requestId || rid();
+  const routeHintRaw = String(norm.routeHint || "").trim();
+
+  const safeTextRaw = text === "[object Object]" ? "" : text;
+  const safeText = safeTextRaw;
+
+  // Deterministic routeHint
+  const routeHintLane = laneFromRouteHint(routeHintRaw);
+  const routeHintMode = forcedModeFromRouteHint(routeHintRaw);
+
+  // ----------------------------
+  // CS-1 decision snapshot (optional)
+  // ----------------------------
+  const turnCountForCS1 = Number(sess.turns || 0) + 1;
+  const cs1Decision = cs1Decide(sess, turnCountForCS1, safeText);
+  if (cs1Decision && cs1Decision.sessionPatch && cs1Decision.sessionPatch.__cs1) {
+    sess.__cs1 = cs1Decision.sessionPatch.__cs1;
   }
-  if (TURN_CACHE.size > TURN_CACHE_MAX) {
-    const entries = Array.from(TURN_CACHE.entries()).sort(
-      (a, b) => Number(a[1].at || 0) - Number(b[1].at || 0)
-    );
-    const n = Math.max(1, Math.floor(TURN_CACHE_MAX * 0.1));
-    for (let i = 0; i < n && i < entries.length; i++) TURN_CACHE.delete(entries[i][0]);
-  }
-}
 
-setInterval(() => pruneTurnCache(), 5000).unref?.();
+  // ----------------------------
+  // RESET intercept (must be FIRST)
+  // ----------------------------
+  if (isResetIntent(safeText)) {
+    const r = resetReply();
+    const followUpsStrings = maybeInjectResetChip(r.followUpsStrings, { turns: 1, introDone: true });
 
-/* ======================================================
-   TTS / Voice routes (never brick) + diagnostics
-====================================================== */
+    cs1MarkSpoke(sess, turnCountForCS1, "reset");
 
-let TTS_LOAD_ERROR = null;
+    const sessionPatchBase = resetSessionPatch(sess);
+    const outSig = buildOutSig(r.reply, followUpsStrings);
 
-function safeRequireTts() {
-  try {
-    const mod = require("./Utils/tts");
-    TTS_LOAD_ERROR = null;
-    return mod;
-  } catch (e) {
-    TTS_LOAD_ERROR = e;
-    return null;
-  }
-}
-
-ttsModule = safeRequireTts();
-
-if (!ttsModule) {
-  console.warn(
-    "[tts] Utils/tts failed to load (soft).",
-    TTS_LOAD_ERROR && TTS_LOAD_ERROR.message ? TTS_LOAD_ERROR.message : TTS_LOAD_ERROR
-  );
-} else {
-  const keys = Object.keys(ttsModule || {});
-  console.log("[tts] loaded (soft). export keys:", keys.length ? keys.join(",") : "(none)");
-}
-
-function pickTtsHandler(mod) {
-  if (!mod) return null;
-
-  if (mod.default && typeof mod.default === "function") return mod.default;
-  if (mod.router && typeof mod.router === "function") return mod.router;
-  if (typeof mod === "function") return mod;
-
-  if (typeof mod.handleTts === "function") return mod.handleTts;
-  if (typeof mod.handle === "function") return mod.handle;
-  if (typeof mod.tts === "function") return mod.tts;
-
-  return null;
-}
-
-async function runTts(req, res) {
-  const requestId = req.get("X-Request-Id") || rid();
-  setContractHeaders(res, requestId);
-
-  if (!ttsModule) ttsModule = safeRequireTts();
-
-  const fn = pickTtsHandler(ttsModule);
-  if (!fn) {
-    const exportKeys = ttsModule ? Object.keys(ttsModule) : [];
-    return safeJson(res, 501, {
-      ok: false,
-      error: "TTS_NOT_CONFIGURED",
-      message: "Utils/tts missing or invalid export shape.",
+    const out = {
+      ok: true,
+      reply: r.reply,
+      lane: "general",
+      ctx: { year: null, mode: "discover" },
+      ui: { mode: "chat" },
+      directives: [],
+      followUpsStrings,
+      followUps: chipsFromStrings(followUpsStrings, 4),
+      sessionPatch: filterSessionPatch({
+        ...sessionPatchBase,
+        lastOut: { reply: r.reply, followUps: followUpsStrings },
+        lastOutAt: nowMs(),
+        lastOutSig: outSig,
+        lastOutSigAt: nowMs(),
+        turns: 1,
+        lastTurnAt: nowMs(),
+        startedAt: nowMs(),
+        __cs1: sess.__cs1
+      }),
+      cog: { phase: "engaged", state: "reset", reason: "user_reset", lane: "general", ts: nowMs() },
       requestId,
-      contractVersion: NYX_CONTRACT_VERSION,
-      diag: {
-        loaded: !!ttsModule,
-        exportKeys,
-        loadError: TTS_LOAD_ERROR ? String(TTS_LOAD_ERROR.message || TTS_LOAD_ERROR) : null,
-      },
-    });
+      meta: { ts: nowMs(), contract: "v1" }
+    };
+
+    ensureCog(out, "general", null, null, "reset", "user_reset");
+    out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
+    return out;
   }
 
-  try {
-    return await fn(req, res);
-  } catch (e) {
-    console.error("[/api/tts] error:", e && e.stack ? e.stack : e);
-    return safeJson(res, 500, {
-      ok: false,
-      error: "TTS_ERROR",
-      message: String(e && e.message ? e.message : e),
-      requestId,
-      contractVersion: NYX_CONTRACT_VERSION,
-    });
+  // ----------------------------
+  // CONTINUITY SNAPSHOT (for mode-only rewrite + deeper/next/prev)
+  // ----------------------------
+  const cont0 = getContinuity(sess, safeText);
+
+  // MODE-only command -> mode+year (if year known)
+  const modeOnlyRewrite = (isModeOnlyWithoutYear(safeText) ? normalizeModeOnlyToPrompt(safeText, cont0, sess) : null);
+  const safeTextForNorm = modeOnlyRewrite ? modeOnlyRewrite : safeText;
+
+  // ----------------------------
+  // CONTINUITY NORMALIZER
+  // ----------------------------
+  function normalizeContinuityInput(rawText, sessIn) {
+    const t = String(rawText || "").trim();
+    if (!t) return { text: t, normalized: false, reason: null };
+
+    if (isResetIntent(t)) return { text: t, normalized: false, reason: null };
+
+    const tnorm = normalizeText(t);
+    const alreadyExplicit =
+      /\btop\s*10\b|\btop\s*100\b|\bstory\s*moment\b|\bmicro\s*moment\b|\b#1\b/.test(tnorm) &&
+      /\b(19\d{2}|20\d{2})\b/.test(tnorm);
+
+    if (alreadyExplicit) return { text: t, normalized: false, reason: null };
+
+    const cont = getContinuity(sessIn, t);
+
+    if (isBareYearOnly(t)) {
+      const y = t;
+      const mode = cont.mode || (cont.lane === "music" ? "top10" : null);
+      if (cont.lane === "music" || sessIn.lastMusicYear || sessIn.activeMusicMode || sessIn.lastMode || (sessIn.musicContext && sessIn.musicContext.mode)) {
+        return { text: modeToPrompt(mode || "top10", y), normalized: true, reason: "bare_year_mode_aware" };
+      }
+      return { text: `year:${y}`, normalized: true, reason: "bare_year_to_yearcolon" };
+    }
+
+    if (isYearColon(t)) {
+      const y = parseYearColon(t);
+      const mode = cont.mode || (cont.lane === "music" ? "top10" : null);
+      if (y && (cont.lane === "music" || sessIn.activeMusicMode || sessIn.lastMode || (sessIn.musicContext && sessIn.musicContext.mode))) {
+        return { text: modeToPrompt(mode || "top10", y), normalized: true, reason: "yearcolon_to_mode_prompt" };
+      }
+      return { text: `year:${y}`, normalized: true, reason: "yearcolon_passthru" };
+    }
+
+    return { text: t, normalized: false, reason: null };
   }
-}
 
-app.get("/api/tts/diag", (req, res) => {
-  const requestId = req.get("X-Request-Id") || rid();
-  setContractHeaders(res, requestId);
-  const exportKeys = ttsModule ? Object.keys(ttsModule) : [];
-  return safeJson(res, 200, {
-    ok: true,
-    requestId,
-    contractVersion: NYX_CONTRACT_VERSION,
-    loaded: !!ttsModule,
-    exportKeys,
-    loadError: TTS_LOAD_ERROR ? String(TTS_LOAD_ERROR.message || TTS_LOAD_ERROR) : null,
-  });
-});
+  const normIn = normalizeContinuityInput(safeTextForNorm, sess);
+  let routingText0 = normIn && typeof normIn.text === "string" ? normIn.text : safeTextForNorm;
 
-app.post("/api/tts", runTts);
-app.post("/api/voice", runTts);
-
-/* ======================================================
-   /api/chat (ANTI-502 + LOOP KILL)
-====================================================== */
-
-const CHAT_HANDLER_TIMEOUT_MS = clamp(process.env.CHAT_HANDLER_TIMEOUT_MS || 9000, 2000, 20000);
-
-const BURST_WINDOW_MS = clamp(process.env.BURST_WINDOW_MS || 1500, 600, 5000);
-const BURST_SOFT_MAX = clamp(process.env.BURST_SOFT_MAX || 3, 1, 12);
-const BURST_HARD_MAX = clamp(process.env.BURST_HARD_MAX || 14, 6, 60);
-const BURSTS = new Map();
-
-const BODY_DEDUPE_MS = clamp(process.env.BODY_DEDUPE_MS || 1600, 400, 5000);
-const INTENT_DEDUPE_MS = clamp(process.env.INTENT_DEDUPE_MS || 2500, 600, 8000);
-
-const REPLY_DEDUPE_MS = clamp(process.env.REPLY_DEDUPE_MS || 1400, 300, 8000);
-const REPLY_REPEAT_WINDOW_MS = clamp(process.env.REPLY_REPEAT_WINDOW_MS || 5000, 1000, 20000);
-const REPLY_REPEAT_MAX = clamp(process.env.REPLY_REPEAT_MAX || 3, 1, 10);
-
-const SR_WINDOW_MS = clamp(process.env.SR_WINDOW_MS || 20000, 5000, 120000);
-const SR_MAX = clamp(process.env.SR_MAX || 10, 3, 60);
-
-setInterval(() => {
-  const now = Date.now();
-  for (const [k, v] of BURSTS.entries()) {
-    if (!v || now - Number(v.at || 0) > BURST_WINDOW_MS * 6) BURSTS.delete(k);
+  // If routeHint forces a mode and the text doesn’t specify one, inject it (deterministic)
+  if (routeHintLane === "music" && routeHintMode && !detectMode(routingText0)) {
+    const y = extractYear(routingText0) || cont0.year || (sess.musicContext && sess.musicContext.year) || sess.lastMusicYear || null;
+    if (y && /^\d{4}$/.test(String(y))) {
+      routingText0 = modeToPrompt(routeHintMode, String(y)) || routingText0;
+    }
   }
-}, 5000).unref?.();
 
-function extractTextFromBody(body) {
-  if (typeof body === "string") return body.trim();
-  if (!body || typeof body !== "object") return "";
-  return normalizeStr(body.text || body.message || "");
-}
+  // Continuity snapshot (used for deeper/next/prev)
+  const cont = getContinuity(sess, routingText0);
 
-function extractRouteHintFromBody(body) {
-  try {
-    if (!body || typeof body !== "object") return null;
-    const c = body.client && typeof body.client === "object" ? body.client : null;
-    if (!c) return null;
-    return normalizeRouteHint(c.routeHint || "");
-  } catch (_) {
-    return null;
+  // ----------------------------
+  // "NEXT STEP" intent (first-class)
+  // ----------------------------
+  if (isNextStepIntent(routingText0)) {
+    // Prefer advancing music if we have music continuity; otherwise provide a deterministic “choose lane” step.
+    cs1MarkSpoke(sess, turnCountForCS1, "nav");
+
+    if (cont && cont.lane === "music") {
+      // Treat as NEXT for music when possible
+      routingText0 = "next";
+    } else {
+      const reply = "Next step: pick a lane. Do you want **Music**, **TV/Roku**, **Schedule**, or **Just talk**?";
+      const chips = maybeInjectResetChip(["Pick a year", "Show me the Roku path", "What’s playing now", "Just talk"], sess).slice(0, 4);
+      const outSig = buildOutSig(reply, chips);
+
+      const out = {
+        ok: true,
+        reply,
+        lane: "general",
+        ctx: { year: null, mode: "discover" },
+        ui: { mode: "chat" },
+        directives: [],
+        followUpsStrings: chips,
+        followUps: chipsFromStrings(chips, 4),
+        sessionPatch: filterSessionPatch({
+          lastInText: routingText0,
+          lastInAt: nowMs(),
+          recentIntent: "next_step",
+          recentTopic: "cos:next_step",
+          lane: "general",
+          lastOut: { reply, followUps: chips },
+          lastOutAt: nowMs(),
+          lastOutSig: outSig,
+          lastOutSigAt: nowMs(),
+          turns: Number(sess.turns || 0) + 1,
+          lastTurnAt: nowMs(),
+          startedAt: Number(sess.startedAt) || nowMs(),
+          __cs1: sess.__cs1
+        }),
+        cog: { phase: "engaged", state: "execute", reason: "next_step_lane_select", lane: "general", ts: nowMs() },
+        requestId,
+        meta: { ts: nowMs(), contract: "v1" }
+      };
+
+      ensureCog(out, "general", null, null, "execute", "next_step_lane_select");
+      out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
+      return out;
+    }
   }
-}
 
-function validateContract(req, body) {
-  const headerV = normalizeStr(req.get("X-Contract-Version") || "");
-  const bodyV = body && typeof body === "object" ? normalizeStr(body.contractVersion || "") : "";
-  const v = bodyV || headerV || "";
-  const strict = String(process.env.CONTRACT_STRICT || "false") === "true";
-  if (!strict) return { ok: true, got: v || null };
-  return { ok: v === NYX_CONTRACT_VERSION, got: v || null };
-}
+  // ----------------------------
+  // DEEPER intercept (mode-aware, stays in-place)
+  // ----------------------------
+  if (isDeeperIntent(routingText0)) {
+    cs1MarkSpoke(sess, turnCountForCS1, "deeper");
 
-function fallbackReply(text) {
-  const t = normalizeStr(text).toLowerCase();
-  if (!t) {
-    return "Tell me a year (1950–2024), or say “top 10 1988”, “#1 1988”, “story moment 1988”, or “micro moment 1988”.";
-  }
-  if (/^\d{4}$/.test(t)) {
-    return `Got it — ${t}. Want Top 10, #1, a story moment, or a micro moment?`;
-  }
-  return "Got it. Tell me a year (1950–2024), or pick a mode: “top 10”, “#1”, “story moment”, “micro moment”.";
-}
+    const lastOut = sess && sess.lastOut && typeof sess.lastOut === "object" ? sess.lastOut : null;
+    const baseReply = lastOut && typeof lastOut.reply === "string" ? lastOut.reply : "";
+    const dr = deeperReply({ baseReply, cont, sess });
 
-function pickChatHandler(mod) {
-  if (!mod) return null;
-  if (typeof mod.handleChat === "function") return mod.handleChat.bind(mod);
-  if (typeof mod.reply === "function") return mod.reply.bind(mod);
-  if (typeof mod === "function") return mod;
-  return null;
-}
-
-function normalizeFollowUpsToStrings(followUps) {
-  if (!Array.isArray(followUps) || followUps.length === 0) return undefined;
-  const seen = new Set();
-  const out = [];
-  for (const item of followUps) {
-    let send = "";
-    if (typeof item === "string") send = item;
-    else if (item && typeof item === "object") send = normalizeStr(item.send || item.label || "");
-    send = normalizeStr(send);
-    const k = normCmd(send);
-    if (!k || seen.has(k)) continue;
-    seen.add(k);
-    out.push(send);
-  }
-  return out.length ? out : undefined;
-}
-
-function isUpstreamQuotaError(e) {
-  try {
-    if (!e) return false;
-    const msg = String(e.message || "");
-    const stack = String(e.stack || "");
-    const raw = msg + "\n" + stack;
-
-    const code = String(e.code || (e.error && e.error.code) || "");
-    const type = String(e.type || (e.error && e.error.type) || "");
-    const status = Number(e.status || e.statusCode || (e.response && e.response.status) || NaN);
-
-    if (code === "insufficient_quota") return true;
-    if (type === "insufficient_quota") return true;
-    if (Number.isFinite(status) && status === 429 && raw.includes("insufficient_quota")) return true;
-
-    return (
-      raw.includes("insufficient_quota") ||
-      raw.includes("You exceeded your current quota") ||
-      raw.includes("check your plan and billing details")
+    const baseChips = ensureFollowUpsNonEmpty(
+      String(dr.lane || cont.lane || "general"),
+      dr.year || cont.year || null,
+      safeArray(lastOut && lastOut.followUps ? lastOut.followUps : []),
+      sess
     );
-  } catch (_) {
-    return false;
-  }
-}
 
-function respondOnce(res) {
-  let sent = false;
-  return {
-    sent: () => sent || res.headersSent,
-    json: (status, payload) => {
-      if (sent || res.headersSent) return;
-      sent = true;
-      return safeJson(res, status, payload);
-    },
-  };
-}
+    const finalChips = withMusicNavChips(
+      baseChips,
+      { lane: String(dr.lane || cont.lane || "general"), year: dr.year || cont.year || null, mode: dr.mode || cont.mode || null },
+      sess
+    );
 
-function capsPayload() {
-  return { music: true, movies: true, sponsors: true, schedule: true, tts: true, cos: true };
-}
+    const outSig = buildOutSig(dr.reply, finalChips);
 
-function dedupeOkPayload({ reply, sessionId, requestId, visitorId, posture, routeHint, session }) {
-  const baseReply = String(reply || "OK.").trim() || "OK.";
-  return enforceChatContract({
-    out: null,
-    session: session || null,
-    routeHint: routeHint || null,
-    baseReply,
-    requestId,
-    sessionId,
-    visitorId,
-    posture: posture || "explore",
-    shadow: null,
-    followUps: undefined,
-    bridgeInjected: null,
-    directivesOverride: null,
-  });
-}
+    const laneOut = String(dr.lane || cont.lane || "general").toLowerCase();
+    const yearOut = dr.year || cont.year || null;
+    const modeOut = dr.mode || cont.mode || null;
 
-app.post("/api/chat", async (req, res) => {
-  const requestId = req.get("X-Request-Id") || rid();
-  setContractHeaders(res, requestId);
+    const sessionPatch = filterSessionPatch({
+      lastInText: routingText0,
+      lastInAt: nowMs(),
 
-  const isDebug = String(req.query.debug || "") === "1";
-  const once = respondOnce(res);
+      lane: laneOut,
+      lastYear: yearOut || undefined,
+      lastMode: modeOut || undefined,
 
-  // ✅ derive ids early so timeout-floor never returns null sessionId
-  const headerVisitorId = normalizeStr(req.get("X-Visitor-Id") || "") || null;
-  const derivedSessionId = deriveStableSessionId(req, headerVisitorId);
-  const derivedSession = touchSession(derivedSessionId, { visitorId: headerVisitorId }) || {
-    sessionId: derivedSessionId,
-  };
+      activeMusicMode: (laneOut === "music") ? (modeOut || sess.activeMusicMode || (sess.musicContext && sess.musicContext.mode) || "top10") : (sess.activeMusicMode || undefined),
+      lastMusicYear: (laneOut === "music") ? (yearOut || sess.lastMusicYear || (sess.musicContext && sess.musicContext.year) || undefined) : (sess.lastMusicYear || undefined),
 
-  const watchdog = setTimeout(() => {
-    try {
-      safeSet(res, "X-Nyx-Deduped", "timeout-floor");
-      const payload = dedupeOkPayload({
-        reply: "I’m here. Give me a year (1950–2024), or say “top 10 1988”.",
-        sessionId: derivedSessionId,
-        requestId,
-        visitorId: headerVisitorId,
-        posture: derivedSession.__lastPosture || "explore",
-        routeHint: null,
-        session: derivedSession,
-      });
-      if (BRIDGE_DEBUG_HEADERS) safeSet(res, "X-Nyx-Posture", String(payload.posture || "explore"));
-      return once.json(200, payload);
-    } catch (_) {}
-  }, CHAT_HANDLER_TIMEOUT_MS);
+      musicContext: (laneOut === "music" && yearOut)
+        ? { lane: "music", year: String(yearOut), mode: String(modeOut || "top10"), lastAction: "deeper" }
+        : (sess.musicContext || undefined),
 
-  try {
-    const body = req.body;
-    const text = extractTextFromBody(body);
-    const routeHint = extractRouteHintFromBody(body);
+      recentIntent: "deeper",
+      recentTopic: `deeper:${String(modeOut || "general")}`,
 
-    const contract = validateContract(req, body);
-    if (!contract.ok) {
-      clearTimeout(watchdog);
-      return once.json(400, {
-        ok: false,
-        error: "BAD_REQUEST",
-        detail: "CONTRACT_VERSION_MISMATCH",
-        expected: NYX_CONTRACT_VERSION,
-        got: contract.got,
-        requestId,
-        contractVersion: NYX_CONTRACT_VERSION,
-      });
-    }
+      lastOut: { reply: dr.reply, followUps: finalChips },
+      lastOutAt: nowMs(),
+      lastOutSig: outSig,
+      lastOutSigAt: nowMs(),
 
-    const visitorId =
-      (body && typeof body === "object" ? normalizeStr(body.visitorId || "") : "") ||
-      normalizeStr(req.get("X-Visitor-Id") || "") ||
-      null;
+      turns: Number(sess.turns || 0) + 1,
+      lastTurnAt: nowMs(),
+      startedAt: Number(sess.startedAt) || nowMs(),
 
-    pruneTurnCache();
-    const turnKey = getTurnKey(req, body, text, visitorId);
-    const cached = TURN_CACHE.get(turnKey);
-    if (cached && Date.now() - Number(cached.at || 0) <= TURN_DEDUPE_MS) {
-      clearTimeout(watchdog);
-      safeSet(res, "X-Nyx-Deduped", "turn-cache");
-      if (BRIDGE_DEBUG_HEADERS && cached.payload && cached.payload.posture) {
-        safeSet(res, "X-Nyx-Posture", String(cached.payload.posture));
-      }
-      if (BRIDGE_DEBUG_HEADERS && cached.payload && cached.payload._bridgeInjected) {
-        safeSet(res, "X-Nyx-Bridge", String(cached.payload._bridgeInjected));
-      }
-      return once.json(200, cached.payload);
-    }
+      __cs1: sess.__cs1
+    });
 
-    const sessionId = getSessionId(req, body, visitorId);
-    const session = touchSession(sessionId, { visitorId }) || { sessionId };
+    const out = {
+      ok: true,
+      reply: dr.reply,
+      lane: laneOut,
+      ctx: { year: yearOut ? parseInt(yearOut, 10) : null, mode: modeOut || null },
+      ui: { mode: "chat" },
+      directives: [],
+      followUpsStrings: finalChips,
+      followUps: chipsFromStrings(finalChips, 4),
+      sessionPatch,
+      cog: { phase: "engaged", state: "expand", reason: "deeper_mode_aware", lane: laneOut, year: yearOut || undefined, mode: modeOut || undefined, ts: nowMs() },
+      requestId,
+      meta: { ts: nowMs(), contract: "v1" }
+    };
 
-    const vmode = getVoiceMode(req, body);
-    if (vmode) session.voiceMode = vmode;
+    ensureCog(out, laneOut, modeOut, yearOut, "expand", "deeper_mode_aware");
+    out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
 
-    const now = Date.now();
-
-    const srAt = Number(session.__srAt || 0);
-    const srCount = Number(session.__srCount || 0);
-    const srWithin = srAt && now - srAt < SR_WINDOW_MS;
-    if (srWithin) {
-      const next = srCount + 1;
-      session.__srCount = next;
-      if (next > SR_MAX) {
-        clearTimeout(watchdog);
-        safeSet(res, "X-Nyx-Deduped", "sustained");
-        const posture = session.__lastPosture || "explore";
-        if (BRIDGE_DEBUG_HEADERS) safeSet(res, "X-Nyx-Posture", String(posture));
-        const payload = dedupeOkPayload({
-          reply: session.__lastReply || "OK.",
-          sessionId,
-          requestId,
-          visitorId,
-          posture,
-          routeHint,
-          session,
-        });
-        TURN_CACHE.set(turnKey, { at: Date.now(), payload });
-        return once.json(200, payload);
-      }
-    } else {
-      session.__srAt = now;
-      session.__srCount = 0;
-    }
-
-    const fp = fingerprint(req, visitorId);
-    const prev = BURSTS.get(fp);
-
-    if (!prev || now - Number(prev.at || 0) > BURST_WINDOW_MS) {
-      BURSTS.set(fp, { at: now, count: 1 });
-    } else {
-      const count = Number(prev.count || 0) + 1;
-      BURSTS.set(fp, { at: prev.at, count });
-
-      if (count >= BURST_HARD_MAX) {
-        clearTimeout(watchdog);
-        safeSet(res, "X-Nyx-Deduped", "burst-hard");
-        return once.json(429, {
-          ok: false,
-          error: "REQUEST_BURST",
-          message: "Too many chat requests in a short window (burst guard).",
-          requestId,
-          sessionId,
-          visitorId,
-          contractVersion: NYX_CONTRACT_VERSION,
-        });
-      }
-
-      if (count > BURST_SOFT_MAX) {
-        clearTimeout(watchdog);
-        safeSet(res, "X-Nyx-Deduped", "burst-soft");
-        const posture = session.__lastPosture || "explore";
-        if (BRIDGE_DEBUG_HEADERS) safeSet(res, "X-Nyx-Posture", String(posture));
-        const payload = dedupeOkPayload({
-          reply: session.__lastReply || "OK.",
-          sessionId,
-          requestId,
-          visitorId,
-          posture,
-          routeHint,
-          session,
-        });
-        TURN_CACHE.set(turnKey, { at: Date.now(), payload });
-        return once.json(200, payload);
-      }
-    }
-
-    const bodyHash = sha256(stableBodyForHash(body, req));
-    const lastHash = normalizeStr(session.__lastBodyHash || "");
-    const lastAt = Number(session.__lastBodyAt || 0);
-    if (lastHash && bodyHash === lastHash && lastAt && now - lastAt < BODY_DEDUPE_MS) {
-      clearTimeout(watchdog);
-      safeSet(res, "X-Nyx-Deduped", "body-hash");
-      const posture = session.__lastPosture || "explore";
-      if (BRIDGE_DEBUG_HEADERS) safeSet(res, "X-Nyx-Posture", String(posture));
-      const payload = dedupeOkPayload({
-        reply: session.__lastReply || "OK.",
-        sessionId,
-        requestId,
-        visitorId,
-        posture,
-        routeHint,
-        session,
-      });
-      TURN_CACHE.set(turnKey, { at: Date.now(), payload });
-      return once.json(200, payload);
-    }
-
-    let shadow = null;
-    try {
-      if (shadowBrain) {
-        if (typeof shadowBrain.freshShadow === "function") shadow = shadowBrain.freshShadow({ session, text });
-        else if (typeof shadowBrain.prime === "function") shadow = shadowBrain.prime({ session, text });
-        else if (typeof shadowBrain === "function") shadow = shadowBrain({ session, text });
-      }
-    } catch (e) {
-      shadow = null;
-      console.warn("[shadow] error (soft):", e && e.message ? e.message : e);
-    }
-
-    const handler = pickChatHandler(chatEngine);
-    let out = null;
-
-    if (handler) {
-      try {
-        out = await Promise.resolve(handler({ text, session, requestId, debug: isDebug, routeHint }));
-      } catch (e) {
-        if (isUpstreamQuotaError(e)) {
-          safeSet(res, "X-Nyx-Upstream", "openai_insufficient_quota");
-          safeSet(res, "X-Nyx-Deduped", "upstream-quota");
-          const last = String(session.__lastReply || "").trim();
-          out = {
-            reply:
-              last ||
-              "Nyx is online, but the AI brain is temporarily out of fuel (OpenAI quota). Add billing/credits, then try again.",
-            followUps: ["Try again", "Open radio", "Open TV"],
-            cog: { state: "error", reason: "upstream_quota" },
-            directives: [],
-          };
-        } else {
-          console.error("[chatEngine] error (soft):", e && e.stack ? e.stack : e);
-          out = null;
-        }
-      }
-    }
-
-    if (out && typeof out === "object" && out.sessionPatch && typeof out.sessionPatch === "object") {
-      applySessionPatch(session, out.sessionPatch);
-    }
-
-    const baseReply = out && typeof out === "object" && typeof out.reply === "string" ? out.reply : fallbackReply(text);
-
-    const posture = detectPosture(text);
-    session.__lastPosture = posture;
-
-    if (BRIDGE_DEBUG_HEADERS) safeSet(res, "X-Nyx-Posture", String(posture));
-
-    let finalReply = String(baseReply || "").trim();
-    if (!finalReply) finalReply = fallbackReply(text);
-
-    const eligible = bridgeEligible({ text, session, out, now });
-    let bridgeInjected = null;
-
-    if (eligible) {
-      const style = chooseBridgeStyle(posture);
-      const line = pickBridgeLine(style, session);
-      const next = injectBridgeLine(finalReply, line);
-      if (next !== finalReply) {
-        finalReply = next;
-        session.__lastBridgeAt = now;
-        bridgeInjected = line;
-        if (BRIDGE_DEBUG_HEADERS) safeSet(res, "X-Nyx-Bridge", line);
-      }
-    }
-
-    // ✅ directives: merge engine directives + optional Roku CTA directive
-    let directives = normalizeDirectives(out && out.directives);
-    if (eligible && canEmitRokuCta(session, now, posture)) {
-      const reason = isExplicitRokuMention(text) ? "explicit_roku" : "implicit_bridge";
-      const rokuDir = buildRokuBridgeDirective({ session, now, posture, reason });
-      directives = directives || [];
-      directives.unshift(rokuDir);
-    }
-
-    const replyHash = sha256(String(finalReply || ""));
-    const lastReplyHash = normalizeStr(session.__lastReplyHash || "");
-    const lastReplyAt = Number(session.__lastReplyAt || 0);
-
-    if (lastReplyHash && replyHash === lastReplyHash && lastReplyAt && now - lastReplyAt < REPLY_DEDUPE_MS) {
-      clearTimeout(watchdog);
-      safeSet(res, "X-Nyx-Deduped", "reply-hash");
-      const payload = dedupeOkPayload({
-        reply: session.__lastReply || finalReply || "OK.",
-        sessionId,
-        requestId,
-        visitorId,
-        posture,
-        routeHint,
-        session,
-      });
-      TURN_CACHE.set(turnKey, { at: Date.now(), payload });
-      return once.json(200, payload);
-    }
-
-    const repAt = Number(session.__repAt || 0);
-    const repCount = Number(session.__repCount || 0);
-    const withinRep = repAt && now - repAt < REPLY_REPEAT_WINDOW_MS;
-
-    if (withinRep && lastReplyHash && replyHash === lastReplyHash) {
-      const nextCount = repCount + 1;
-      session.__repCount = nextCount;
-
-      if (nextCount >= REPLY_REPEAT_MAX) {
-        clearTimeout(watchdog);
-        safeSet(res, "X-Nyx-Deduped", "reply-runaway");
-        const soft = "Okay — pause. Tell me ONE thing: a year (1950–2024) or a command like “top 10 1988”.";
-        session.__lastReply = soft;
-        session.__lastReplyHash = sha256(soft);
-        session.__lastReplyAt = now;
-
-        const payload = dedupeOkPayload({
-          reply: soft,
-          sessionId,
-          requestId,
-          visitorId,
-          posture,
-          routeHint,
-          session,
-        });
-        TURN_CACHE.set(turnKey, { at: Date.now(), payload });
-        return once.json(200, payload);
-      }
-    } else {
-      session.__repAt = now;
-      session.__repCount = 0;
-    }
-
-    const followUps =
-      out && typeof out === "object" && Array.isArray(out.followUps)
-        ? normalizeFollowUpsToStrings(out.followUps)
-        : undefined;
-
-    session.__lastReply = finalReply;
-    session.__lastBodyHash = bodyHash;
-    session.__lastBodyAt = now;
-    session.__lastReplyHash = replyHash;
-    session.__lastReplyAt = now;
-
-    const sig = intentSigFrom(text, session);
-    const lastSig = normalizeStr(session.__lastIntentSig || "");
-    const lastSigAt = Number(session.__lastIntentAt || 0);
-    if (lastSig && sig === lastSig && lastSigAt && now - lastSigAt < INTENT_DEDUPE_MS) {
-      clearTimeout(watchdog);
-      safeSet(res, "X-Nyx-Deduped", "intent-sig");
-      const payload = dedupeOkPayload({
-        reply: session.__lastReply || finalReply || "OK.",
-        sessionId,
-        requestId,
-        visitorId,
-        posture,
-        routeHint,
-        session,
-      });
-      TURN_CACHE.set(turnKey, { at: Date.now(), payload });
-      return once.json(200, payload);
-    }
-    session.__lastIntentSig = sig;
-    session.__lastIntentAt = now;
-
-    const payload = enforceChatContract({
+    return enforceContractFinal({
       out,
-      session,
-      routeHint,
-      baseReply: finalReply,
-      requestId,
-      sessionId,
-      visitorId,
-      posture,
-      shadow,
-      followUps,
-      bridgeInjected,
-      directivesOverride: directives,
+      sess,
+      routingText: routingText0,
+      lane: laneOut,
+      mode: modeOut,
+      year: yearOut,
+      cont,
+      routeHintLane,
+      routeHintMode
     });
+  }
 
-    if (isDebug && out && typeof out === "object") {
-      if (out.baseMessage) payload.baseMessage = String(out.baseMessage);
-      if (out._engine && typeof out._engine === "object") payload._engine = out._engine;
-      payload._bridge = {
-        enabled: BRIDGE_ENABLED,
-        musicOnly: BRIDGE_MUSIC_ONLY,
-        eligible,
-        cooldownMs: BRIDGE_COOLDOWN_MS,
-        styleDefault: BRIDGE_STYLE_DEFAULT,
-        explicitAlways: BRIDGE_EXPLICIT_ALWAYS,
-        lastBridgeAt: Number(session.__lastBridgeAt || 0) || null,
-        rokuCtaCooldownMs: ROKU_CTA_COOLDOWN_MS,
-        lastRokuCtaAt: Number(session.__lastRokuCtaAt || 0) || null,
-        rokuCtaCount: Number(session.__rokuCtaCount || 0) || 0,
-        hasRokuUrl: !!(ROKU_CHANNEL_URL || ROKU_FALLBACK_URL),
+  // ----------------------------
+  // NEXT / PREVIOUS intercept
+  // ----------------------------
+  let routingText = routingText0;
+  let navContext = null;
+
+  if (isNextIntent(routingText0)) {
+    cs1MarkSpoke(sess, turnCountForCS1, "nav");
+
+    const nx = nextDirective(cont);
+
+    if (nx && nx.kind === "need_year") {
+      cs1MarkSpoke(sess, turnCountForCS1, "clarify");
+
+      const yp = yearPickerReply(sess);
+      const sessionPatch = filterSessionPatch({
+        lastInText: routingText0,
+        lastInAt: nowMs(),
+        recentIntent: "next_need_year",
+        recentTopic: "next:need_year",
+        lane: "music",
+        pendingLane: "music",
+        pendingMode: routeHintMode || cont.mode || (sess.musicContext && sess.musicContext.mode) || sess.activeMusicMode || "top10",
+        turns: Number(sess.turns || 0) + 1,
+        lastTurnAt: nowMs(),
+        startedAt: Number(sess.startedAt) || nowMs(),
+        __cs1: sess.__cs1
+      });
+
+      const chips = maybeInjectResetChip(yp.followUpsStrings, sess);
+
+      const out = {
+        ...yp,
+        followUpsStrings: chips,
+        followUps: chipsFromStrings(chips, 4),
+        sessionPatch,
+        cog: { phase: "engaged", state: "clarify", reason: "next_needs_year", lane: "music", ts: nowMs() },
+        requestId,
+        meta: { ts: nowMs(), contract: "v1" }
       };
-      payload._contract = {
-        routeHint: routeHint || null,
-        laneNormalized: payload.cog && payload.cog.lane ? payload.cog.lane : null,
-      };
+
+      ensureCog(out, "music", out.ctx && out.ctx.mode, out.ctx && out.ctx.year, "clarify", "next_needs_year");
+      out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
+
+      return enforceContractFinal({
+        out,
+        sess,
+        routingText: routingText0,
+        lane: "music",
+        mode: routeHintMode || cont.mode || null,
+        year: null,
+        cont,
+        routeHintLane,
+        routeHintMode
+      });
     }
 
-    TURN_CACHE.set(turnKey, { at: Date.now(), payload });
+    if (nx && nx.kind === "advance" && nx.prompt) {
+      routingText = String(nx.prompt);
+      navContext = { kind: "advance", dir: "next", year: String(nx.year), mode: String(nx.mode || "top10") };
+    }
+  } else if (isPrevIntent(routingText0)) {
+    cs1MarkSpoke(sess, turnCountForCS1, "nav");
 
-    clearTimeout(watchdog);
-    return once.json(200, payload);
-  } catch (e) {
-    console.error("[/api/chat] handler-floor error:", e && e.stack ? e.stack : e);
-    clearTimeout(watchdog);
-    setContractHeaders(res, requestId);
-    safeSet(res, "X-Nyx-Deduped", "floor");
+    const pv = prevDirective(cont);
 
-    const vid = normalizeStr(req.get("X-Visitor-Id") || "") || null;
-    const sid = deriveStableSessionId(req, vid);
-    const sess = touchSession(sid, { visitorId: vid }) || { sessionId: sid };
+    if (pv && pv.kind === "need_year") {
+      cs1MarkSpoke(sess, turnCountForCS1, "clarify");
 
-    const payload = dedupeOkPayload({
-      reply: "I’m here. Give me a year (1950–2024), or say “top 10 1988”.",
-      sessionId: sid,
-      requestId,
-      visitorId: vid,
-      posture: sess.__lastPosture || "explore",
-      routeHint: null,
-      session: sess,
-    });
+      const yp = yearPickerReply(sess);
+      const sessionPatch = filterSessionPatch({
+        lastInText: routingText0,
+        lastInAt: nowMs(),
+        recentIntent: "prev_need_year",
+        recentTopic: "prev:need_year",
+        lane: "music",
+        pendingLane: "music",
+        pendingMode: routeHintMode || cont.mode || (sess.musicContext && sess.musicContext.mode) || sess.activeMusicMode || "top10",
+        turns: Number(sess.turns || 0) + 1,
+        lastTurnAt: nowMs(),
+        startedAt: Number(sess.startedAt) || nowMs(),
+        __cs1: sess.__cs1
+      });
 
-    try {
-      const turnKey = getTurnKey(req, req.body, extractTextFromBody(req.body), vid);
-      TURN_CACHE.set(turnKey, { at: Date.now(), payload });
-    } catch (_) {}
+      const chips = maybeInjectResetChip(yp.followUpsStrings, sess);
 
-    return once.json(200, payload);
+      const out = {
+        ...yp,
+        followUpsStrings: chips,
+        followUps: chipsFromStrings(chips, 4),
+        sessionPatch,
+        cog: { phase: "engaged", state: "clarify", reason: "prev_needs_year", lane: "music", ts: nowMs() },
+        requestId,
+        meta: { ts: nowMs(), contract: "v1" }
+      };
+
+      ensureCog(out, "music", out.ctx && out.ctx.mode, out.ctx && out.ctx.year, "clarify", "prev_needs_year");
+      out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
+
+      return enforceContractFinal({
+        out,
+        sess,
+        routingText: routingText0,
+        lane: "music",
+        mode: routeHintMode || cont.mode || null,
+        year: null,
+        cont,
+        routeHintLane,
+        routeHintMode
+      });
+    }
+
+    if (pv && pv.kind === "advance" && pv.prompt) {
+      routingText = String(pv.prompt);
+      navContext = { kind: "advance", dir: "prev", year: String(pv.year), mode: String(pv.mode || "top10") };
+    }
   }
-});
 
-/* ======================================================
-   404 for /api/*
-====================================================== */
+  // Name capture intercept
+  const maybeName = extractNameFromText(routingText);
+  if (maybeName) {
+    cs1MarkSpoke(sess, turnCountForCS1, "reentry");
 
-app.use("/api", (req, res) => {
-  const requestId = req.get("X-Request-Id") || rid();
-  setContractHeaders(res, requestId);
-  return safeJson(res, 404, {
-    ok: false,
-    error: "NOT_FOUND",
-    message: "Unknown API route.",
-    path: req.originalUrl || req.url,
-    requestId,
-    contractVersion: NYX_CONTRACT_VERSION,
+    const reply = `Nice to meet you, ${maybeName}. What do you feel like right now: a specific year, a surprise, or just talking?`;
+    const base = ["Pick a year", "Surprise me", "Story moment", "Just talk"];
+    const followUpsStrings = maybeInjectResetChip(base, sess);
+
+    const outSig = buildOutSig(reply, followUpsStrings);
+
+    const out = {
+      ok: true,
+      reply,
+      lane: "general",
+      ctx: { year: null, mode: "discover" },
+      ui: { mode: "chat" },
+      directives: [],
+      followUpsStrings,
+      followUps: chipsFromStrings(followUpsStrings, 4),
+      sessionPatch: filterSessionPatch({
+        lastInText: routingText,
+        lastInAt: nowMs(),
+        userName: maybeName,
+        lastNameUseTurn: turnCountForCS1,
+        recentIntent: "name_capture",
+        recentTopic: "name:capture",
+        lane: "general",
+        lastOut: { reply, followUps: followUpsStrings },
+        lastOutAt: nowMs(),
+        lastOutSig: outSig,
+        lastOutSigAt: nowMs(),
+        turns: Number(sess.turns || 0) + 1,
+        lastTurnAt: nowMs(),
+        startedAt: Number(sess.startedAt) || nowMs(),
+        __cs1: sess.__cs1
+      }),
+      cog: { phase: "engaged", state: "welcome", reason: "name_captured", lane: "general", ts: nowMs() },
+      requestId,
+      meta: { ts: nowMs(), contract: "v1" }
+    };
+
+    ensureCog(out, "general", null, null, "welcome", "name_captured");
+    out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
+
+    return enforceContractFinal({
+      out,
+      sess,
+      routingText,
+      lane: "general",
+      mode: null,
+      year: null,
+      cont,
+      routeHintLane,
+      routeHintMode
+    });
+  }
+
+  // Depth dial intercept
+  if (isDepthDial(routingText)) {
+    cs1MarkSpoke(sess, turnCountForCS1, "clarify");
+
+    const pref = normalizeText(routingText);
+    const reply = depthDialReply(pref);
+    const base = ["Pick a year", "What’s playing now", "Show me the Roku path", "Just talk"];
+    const followUpsStrings = maybeInjectResetChip(base, sess);
+
+    const outSig = buildOutSig(reply, followUpsStrings);
+
+    const out = {
+      ok: true,
+      reply,
+      lane: "general",
+      ctx: { year: null, mode: "discover" },
+      ui: { mode: "chat" },
+      directives: [],
+      followUpsStrings,
+      followUps: chipsFromStrings(followUpsStrings, 4),
+      sessionPatch: filterSessionPatch({
+        lastInText: routingText,
+        lastInAt: nowMs(),
+        depthPreference: pref,
+        recentIntent: "depth_dial",
+        recentTopic: `depth:${pref}`,
+        lane: "general",
+        lastOut: { reply, followUps: followUpsStrings },
+        lastOutAt: nowMs(),
+        lastOutSig: outSig,
+        lastOutSigAt: nowMs(),
+        turns: Number(sess.turns || 0) + 1,
+        lastTurnAt: nowMs(),
+        startedAt: Number(sess.startedAt) || nowMs(),
+        __cs1: sess.__cs1
+      }),
+      cog: { phase: "engaged", state: "calibrate", reason: "depth_dial", lane: "general", ts: nowMs() },
+      requestId,
+      meta: { ts: nowMs(), contract: "v1" }
+    };
+
+    ensureCog(out, "general", null, null, "calibrate", "depth_dial");
+    out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
+
+    return enforceContractFinal({
+      out,
+      sess,
+      routingText,
+      lane: "general",
+      mode: null,
+      year: null,
+      cont,
+      routeHintLane,
+      routeHintMode
+    });
+  }
+
+  // Year picker trigger (UI mode)
+  if (wantsYearPicker(routingText)) {
+    cs1MarkSpoke(sess, turnCountForCS1, "nav");
+
+    const yp = yearPickerReply(sess);
+    const chips = maybeInjectResetChip(yp.followUpsStrings, sess);
+
+    const out = {
+      ...yp,
+      followUpsStrings: chips,
+      followUps: chipsFromStrings(chips, 4),
+      sessionPatch: filterSessionPatch({
+        lastInText: routingText,
+        lastInAt: nowMs(),
+        recentIntent: "year_picker",
+        recentTopic: "ui:year_picker",
+        lane: "music",
+        turns: Number(sess.turns || 0) + 1,
+        lastTurnAt: nowMs(),
+        startedAt: Number(sess.startedAt) || nowMs(),
+        __cs1: sess.__cs1
+      }),
+      cog: { phase: "engaged", state: "clarify", reason: "ui_year_picker", lane: "music", ts: nowMs() },
+      requestId,
+      meta: { ts: nowMs(), contract: "v1" }
+    };
+
+    ensureCog(out, "music", out.ctx && out.ctx.mode, out.ctx && out.ctx.year, "clarify", "ui_year_picker");
+    out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
+
+    return enforceContractFinal({
+      out,
+      sess,
+      routingText,
+      lane: "music",
+      mode: routeHintMode || cont.mode || null,
+      year: cont.year || null,
+      cont,
+      routeHintLane,
+      routeHintMode
+    });
+  }
+
+  // Repeat-input loop guard
+  if (shouldReturnCachedForRepeat(sess, routingText)) {
+    return cachedResponse(sess, "repeat_input", requestId);
+  }
+
+  const inPatch = filterSessionPatch({
+    lastInText: routingText,
+    lastInAt: nowMs(),
+    __cs1: sess.__cs1
   });
-});
 
-/* ======================================================
-   Global error handler
-====================================================== */
+  // Intro V2
+  if (shouldRunIntro(sess, routingText)) {
+    cs1MarkSpoke(sess, turnCountForCS1, "intro");
 
-app.use((err, req, res, next) => {
-  const requestId = req.get("X-Request-Id") || rid();
-  setContractHeaders(res, requestId);
-  console.error("[GLOBAL] error:", err && err.stack ? err.stack : err);
-  return safeJson(res, 500, {
-    ok: false,
-    error: "INTERNAL_ERROR",
-    message: "Unhandled server error.",
-    detail: String(err && err.message ? err.message : err),
-    requestId,
-    contractVersion: NYX_CONTRACT_VERSION,
+    const intro = nyxIntroReply();
+    const base = maybeInjectResetChip(intro.followUpsStrings, { turns: 1, introDone: true });
+    const outSig = buildOutSig(intro.reply, base);
+
+    const out = {
+      ok: true,
+      reply: intro.reply,
+      lane: "general",
+      ctx: { year: null, mode: "discover" },
+      ui: { mode: "chat" },
+      directives: [],
+      followUpsStrings: base,
+      followUps: chipsFromStrings(base, 4),
+      sessionPatch: filterSessionPatch({
+        ...inPatch,
+        introDone: true,
+        introAt: nowMs(),
+        startedAt: Number(sess.startedAt) || nowMs(),
+
+        // ✅ deterministic increment here
+        turns: Number(sess.turns || 0) + 1,
+        lastTurnAt: nowMs(),
+
+        lastFork: "intro",
+        depthLevel: Number(sess.depthLevel || 0),
+
+        userGoal: "explore",
+        depthPreference: sess.depthPreference || "fast",
+        lastOpenQuestion: "What do you feel like right now: a specific year, a surprise, or just talking?",
+        nameAskedAt: nowMs(),
+
+        lane: "general",
+
+        lastOut: { reply: intro.reply, followUps: base },
+        lastOutAt: nowMs(),
+        lastOutSig: outSig,
+        lastOutSigAt: nowMs(),
+
+        __cs1: sess.__cs1
+      }),
+      cog: { phase: "engaged", state: "welcome", reason: "intro_v2", lane: "general", ts: nowMs() },
+      requestId,
+      meta: { ts: nowMs(), contract: "v1" }
+    };
+
+    ensureCog(out, "general", null, null, "welcome", "intro_v2");
+    out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
+
+    return enforceContractFinal({
+      out,
+      sess,
+      routingText,
+      lane: "general",
+      mode: null,
+      year: null,
+      cont,
+      routeHintLane,
+      routeHintMode
+    });
+  }
+
+  // ----------------------------
+  // Normal routing (with routeHint precedence)
+  // ----------------------------
+  const detectedLane = detectLane(routingText);
+  const detectedYear = extractYear(routingText);
+  const detectedMode = detectMode(routingText);
+
+  const lane = routeHintLane || detectedLane;
+  const year = detectedYear || cont.year || null;
+  const mode = routeHintMode || detectedMode || cont.mode || null;
+
+  let reply = "";
+  let followUpsStrings = [];
+  let lanePatch = null;
+
+  // NEW: allow lane modules to return UI/CTX/DIRECTIVES/LANE and we preserve
+  let laneUi = null;
+  let laneCtx = null;
+  let laneDirectives = null;
+  let laneOverride = null;
+
+  // Deterministic clarify if routeHint forces music+mode but we lack year
+  if (lane === "music" && isMusicMode(mode) && !year) {
+    cs1MarkSpoke(sess, turnCountForCS1, "clarify");
+
+    const clarify = buildClarifyYearReply({ lane: "music", mode, knownYear: null });
+    const chips = maybeInjectResetChip(clarify.followUpsStrings, sess).slice(0, 4);
+
+    const out = {
+      ok: true,
+      reply: clarify.reply,
+      lane: "music",
+      ctx: { year: null, mode },
+      ui: { mode: "chat" },
+      directives: [{ type: "open_year_picker" }],
+      followUpsStrings: chips,
+      followUps: chipsFromStrings(chips, 4),
+      sessionPatch: filterSessionPatch({
+        ...inPatch,
+        lane: "music",
+        pendingLane: "music",
+        pendingMode: mode,
+        pendingYear: null,
+        recentIntent: "clarify_year",
+        recentTopic: `need_year:${String(mode)}`,
+        turns: Number(sess.turns || 0) + 1,
+        lastTurnAt: nowMs(),
+        startedAt: Number(sess.startedAt) || nowMs(),
+        __cs1: sess.__cs1
+      }),
+      cog: { phase: "engaged", state: "clarify", reason: "need_year", lane: "music", mode, ts: nowMs() },
+      requestId,
+      meta: { ts: nowMs(), contract: "v1" }
+    };
+
+    ensureCog(out, "music", mode, null, "clarify", "need_year");
+    out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
+
+    return enforceContractFinal({
+      out,
+      sess,
+      routingText,
+      lane: "music",
+      mode,
+      year: null,
+      cont,
+      routeHintLane,
+      routeHintMode
+    });
+  }
+
+  // Music lane call
+  if (lane === "music" && musicLane) {
+    try {
+      const res = await musicLane(routingText, sess);
+      reply = (res && res.reply) ? String(res.reply).trim() : "";
+      followUpsStrings = normalizeFollowUpsFromLane(res);
+      lanePatch = filterSessionPatch(res && res.sessionPatch ? res.sessionPatch : null);
+
+      if (res && typeof res === "object") {
+        if (res.ui && typeof res.ui === "object") laneUi = res.ui;
+        if (res.ctx && typeof res.ctx === "object") laneCtx = res.ctx;
+        if (Array.isArray(res.directives)) laneDirectives = res.directives;
+        if (res.lane && typeof res.lane === "string") laneOverride = res.lane;
+      }
+    } catch (_) {
+      reply = "";
+      followUpsStrings = ["Top 10 1988", "Pick a year", "Story moment 1955", "Micro moment 1979"];
+      lanePatch = null;
+    }
+  } else if (lane === "roku" && rokuLane) {
+    try {
+      const r = await rokuLane({ text: routingText, session: sess });
+      reply = (r && r.reply) ? String(r.reply).trim() : "";
+      followUpsStrings = normalizeFollowUpsFromLane(r);
+      lanePatch = filterSessionPatch(r && r.sessionPatch ? r.sessionPatch : null);
+
+      if (r && typeof r === "object") {
+        if (r.ui && typeof r.ui === "object") laneUi = r.ui;
+        if (r.ctx && typeof r.ctx === "object") laneCtx = r.ctx;
+        if (Array.isArray(r.directives)) laneDirectives = r.directives;
+        if (r.lane && typeof r.lane === "string") laneOverride = r.lane;
+      }
+    } catch (_) {
+      reply = "";
+      followUpsStrings = ["Live linear", "VOD", "Schedule", "Open Roku"];
+      lanePatch = null;
+    }
+  } else if (lane === "radio") {
+    reply = "Want to jump into the radio stream now, or should I guide you to a specific era first?";
+    followUpsStrings = ["Open radio", "Pick a year", "What’s playing now", "Just talk"];
+  } else if (lane === "tv") {
+    reply = "Sandblast TV is coming in two flavors: **Live linear** and **VOD**.";
+    followUpsStrings = ["Live linear", "VOD", "Show me the Roku path", "What’s playing now"];
+  } else if (lane === "schedule") {
+    reply = "Schedule mode — I can translate programming to your local time.";
+    followUpsStrings = ["Toronto", "London", "New York", "What’s playing now"];
+  } else {
+    reply = "I’m with you.";
+    followUpsStrings = ["Pick a year", "Surprise me", "Story moment", "Just talk"];
+  }
+
+  const pinnedLane = (navContext && navContext.kind === "advance") ? "music" : (laneOverride || lane);
+  const pinnedYear = (navContext && navContext.kind === "advance") ? String(navContext.year) : (year || null);
+  const pinnedMode =
+    (navContext && navContext.kind === "advance") ? String(navContext.mode || "top10") :
+    (mode || null);
+
+  followUpsStrings = ensureFollowUpsNonEmpty(pinnedLane, pinnedYear, followUpsStrings, sess).slice(0, 4);
+
+  const damp = dampenIfDuplicateOutput(sess, reply, followUpsStrings);
+  reply = damp.reply;
+  const outSig = damp.sig;
+
+  const activeMusicMode =
+    pinnedLane === "music"
+      ? (pinnedMode || (sess.musicContext && sess.musicContext.mode) || sess.activeMusicMode || sess.mode || "top10")
+      : (sess.activeMusicMode || null);
+
+  const lastMusicYear =
+    pinnedLane === "music"
+      ? (pinnedYear || (sess.musicContext && sess.musicContext.year) || sess.lastMusicYear || sess.year || sess.lastYear || null)
+      : (sess.lastMusicYear || null);
+
+  const chipCont = { lane: pinnedLane, year: pinnedYear || lastMusicYear || null, mode: pinnedMode || activeMusicMode || null };
+  followUpsStrings = withMusicNavChips(followUpsStrings, chipCont, sess);
+
+  const outCache = { reply, followUps: safeArray(followUpsStrings).slice(0, 4) };
+
+  const nextMusicContext =
+    (String(pinnedLane).toLowerCase() === "music" && (pinnedYear || lastMusicYear))
+      ? {
+          lane: "music",
+          year: String(pinnedYear || lastMusicYear),
+          mode: String(pinnedMode || activeMusicMode || "top10"),
+          lastAction: navContext ? String(navContext.dir || "nav") : (normIn.normalized ? "normalized" : (routeHintLane ? "routeHint" : "explicit"))
+        }
+      : (sess.musicContext || null);
+
+  const sessionPatch = filterSessionPatch({
+    ...inPatch,
+    ...lanePatch,
+
+    lane: pinnedLane,
+
+    lastMusicYear: lastMusicYear || undefined,
+    activeMusicMode: activeMusicMode || undefined,
+
+    lastYear: pinnedYear || undefined,
+    lastMode: pinnedMode || undefined,
+
+    musicContext: nextMusicContext || undefined,
+
+    recentIntent: normIn.normalized ? "continuity_normalized" : (routeHintLane ? "routeHint" : pinnedLane),
+    recentTopic: normIn.normalized
+      ? (normIn.reason || "continuity")
+      : (routeHintRaw ? `routeHint:${routeHintRaw}` : (pinnedYear ? `year:${pinnedYear}` : (pinnedMode ? `mode:${pinnedMode}` : pinnedLane))),
+
+    lastOut: outCache,
+    lastOutAt: nowMs(),
+    lastOutSig: outSig,
+    lastOutSigAt: nowMs(),
+
+    turns: Number(sess.turns || 0) + 1,
+    lastTurnAt: nowMs(),
+    startedAt: Number(sess.startedAt) || nowMs(),
+
+    __cs1: sess.__cs1
   });
-});
 
-/* ======================================================
-   Listen
-====================================================== */
+  const ctx = (laneCtx && typeof laneCtx === "object")
+    ? laneCtx
+    : {
+        year: pinnedYear ? parseInt(pinnedYear, 10) : (sess.lastYear ? parseInt(sess.lastYear, 10) : null),
+        mode: pinnedMode || (sess.lastMode || null)
+      };
 
-const PORT = Number(process.env.PORT || 3000);
-app.listen(PORT, () => {
-  console.log(`[sandblast] up on :${PORT} | ${INDEX_VERSION} | commit=${GIT_COMMIT || "n/a"}`);
-});
+  let out = {
+    ok: true,
+    reply,
+    lane: pinnedLane,
+    ctx,
+    ui: (laneUi && typeof laneUi === "object") ? laneUi : { mode: "chat" },
+
+    directives: Array.isArray(laneDirectives) ? laneDirectives : [],
+
+    followUps: chipsFromStrings(followUpsStrings, 4),
+    followUpsStrings,
+
+    sessionPatch,
+    cog: {
+      phase: "engaged",
+      state: "respond",
+      reason: navContext ? "nav_advance" : (normIn.normalized ? "continuity_normalized" : (routeHintLane ? "routeHint" : "reply")),
+      lane: pinnedLane,
+      year: pinnedYear || undefined,
+      mode: pinnedMode || undefined,
+      ts: nowMs()
+    },
+    requestId,
+    meta: { ts: nowMs(), contract: "v1" }
+  };
+
+  // ✅ ensure cog content is rich + persist it to sessionPatch.cog
+  ensureCog(out, pinnedLane, pinnedMode, pinnedYear, "respond", out.cog && out.cog.reason);
+  out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
+
+  // FINAL CONTRACT-LOCK PASS (hard guarantees)
+  out = enforceContractFinal({
+    out,
+    sess,
+    routingText,
+    lane: pinnedLane,
+    mode: pinnedMode,
+    year: pinnedYear,
+    cont,
+    routeHintLane,
+    routeHintMode
+  });
+
+  // last polish: if clarify, keep exactly one question (no double prompts)
+  if (out && out.cog && out.cog.state === "clarify") {
+    out = enforceOneIntent(out);
+    const r = String(out.reply || "").trim();
+    if (!r.endsWith("?") && !hasQuestionMark(r)) {
+      out.reply = r + "?";
+    }
+  }
+
+  // final: hard guarantee patch.cog exists
+  if (out && out.sessionPatch && typeof out.sessionPatch === "object") {
+    if (out.sessionPatch.cog === undefined && out.cog) {
+      out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog });
+    }
+  }
+
+  return out;
+}
+
+module.exports = chatEngine;
+module.exports.chatEngine = chatEngine;
