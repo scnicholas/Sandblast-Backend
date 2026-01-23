@@ -3,17 +3,19 @@
 /**
  * Utils/scheduleLane.js
  *
- * Schedule Lane v1.2b (CLEAN MERGE + Deterministic + Never-Throw + Chip-Safe)
+ * Schedule Lane v1.2c (SCHEDULE_V1.JSON + Now/Next/Today-FIRST + Deterministic + Never-Throw + Chip-Safe)
  *
  * Purpose:
  *  - Timezone-aware programming schedule for Roku/Sandblast.
- *  - Converts ET-authored schedule windows to user local time (DST-safe).
+ *  - Converts ET-authored schedule windows to user local time (DST-safe enough via Intl).
+ *  - Uses schedule_v1.json weekly grid (Sun→Sat, 30-min blocks).
  *
- * Adds (from v1.1 lineage):
- *  - Device timezone aware (session._lastDeviceTz)
- *  - "for me" (local time) support via timezoneResolver explicitTz
- *  - "Now / Next / Later" summary
- *  - Explicit ET time conversion: "Convert 8pm ET to London"
+ * Supports:
+ *  - "Now next later" (primary)
+ *  - "Today" (primary)
+ *  - "What's playing now?"
+ *  - "Convert 8pm ET to London"
+ *  - Show details via: "details:<showId>" or clicking via "nyx:<payload>"
  *
  * Output normalized to:
  *  { reply, followUps:[{label,send}], sessionPatch }
@@ -23,6 +25,9 @@ const fs = require("fs");
 const path = require("path");
 const { resolveTimezone } = require("./timezoneResolver");
 
+// ----------------------------
+// Text utils
+// ----------------------------
 function cleanText(s) {
   return String(s || "").replace(/\u200B/g, "").replace(/\s+/g, " ").trim();
 }
@@ -73,23 +78,49 @@ function safeFollowUps(list) {
   return out;
 }
 
+// ----------------------------
+// Data loading (schedule_v1.json)
+// ----------------------------
 const ROOT = path.resolve(__dirname, "..");
-const DATA_FILE = path.join(ROOT, "Data", "roku_programming_v1.json");
+const DATA_FILE = path.join(ROOT, "Data", "schedule_v1.json");
 
 let CACHE = null;
+
 function loadScheduleSafe() {
   if (CACHE) return CACHE;
   try {
     const raw = fs.readFileSync(DATA_FILE, "utf8");
-    CACHE = JSON.parse(raw);
+    const json = JSON.parse(raw);
+
+    // Minimal schema hardening
+    const authorTz = cleanText(json.timezoneCanonical || json.authoringTimezone || "America/Toronto");
+    const blockSizeMinutes = Number(json.blockSizeMinutes || 30) || 30;
+    const week = (json.week && typeof json.week === "object") ? json.week : {};
+
+    CACHE = {
+      version: cleanText(json.version || "schedule_v1"),
+      authorTz,
+      blockSizeMinutes,
+      week
+    };
+
     return CACHE;
   } catch (_) {
-    CACHE = { authoringTimezone: "America/Toronto", shows: [] };
+    CACHE = {
+      version: "schedule_v1",
+      authorTz: "America/Toronto",
+      blockSizeMinutes: 30,
+      week: {}
+    };
     return CACHE;
   }
 }
 
-const DOW = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+// ----------------------------
+// TZ formatting helpers
+// ----------------------------
+const DOW_KEYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const DOW3 = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
 function nowUtcMs() {
   return Date.now();
@@ -101,15 +132,15 @@ function fmtTime(msUtc, tz) {
     timeZone: tz,
     hour: "2-digit",
     minute: "2-digit",
-    hour12: true,
+    hour12: true
   });
   return f.format(d);
 }
 
-function fmtWeekday(msUtc, tz) {
+function fmtWeekday3(msUtc, tz) {
   const d = new Date(msUtc);
   const f = new Intl.DateTimeFormat("en-CA", { timeZone: tz, weekday: "short" });
-  return f.format(d).toUpperCase().slice(0, 3); // MON/TUE...
+  return f.format(d).toUpperCase().slice(0, 3);
 }
 
 function partsInTz(dateObj, tz) {
@@ -118,7 +149,7 @@ function partsInTz(dateObj, tz) {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-    weekday: "short",
+    weekday: "short"
   });
 
   const map = {};
@@ -127,19 +158,14 @@ function partsInTz(dateObj, tz) {
   }
 
   const weekday = String(map.weekday || "").toUpperCase().slice(0, 3);
+
   return {
     year: Number(map.year),
     month: Number(map.month),
     day: Number(map.day),
-    weekdayIndex: Math.max(0, DOW.indexOf(weekday)),
+    weekday3: weekday,
+    weekdayIndex: Math.max(0, DOW3.indexOf(weekday))
   };
-}
-
-// Add days to a Y-M-D (UTC-safe arithmetic by using Date.UTC)
-function addDaysYMD(year, month, day, deltaDays) {
-  const ms = Date.UTC(year, month - 1, day) + deltaDays * 86400000;
-  const d = new Date(ms);
-  return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() };
 }
 
 function partsHMInTz(dateObj, tz) {
@@ -147,7 +173,7 @@ function partsHMInTz(dateObj, tz) {
     timeZone: tz,
     hour: "2-digit",
     minute: "2-digit",
-    hour12: false,
+    hour12: false
   });
 
   const map = {};
@@ -157,12 +183,19 @@ function partsHMInTz(dateObj, tz) {
   return { hour: Number(map.hour), minute: Number(map.minute) };
 }
 
+// Add days to a Y-M-D (UTC-safe arithmetic by using Date.UTC)
+function addDaysYMD(year, month, day, deltaDays) {
+  const ms = Date.UTC(year, month - 1, day) + deltaDays * 86400000;
+  const d = new Date(ms);
+  return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() };
+}
+
 /**
  * Convert "zoned local time" -> UTC ms using Intl.
  * We:
  *  1) Create a UTC guess Date from components.
  *  2) Determine what time that guess represents in the target tz.
- *  3) Compute offset and correct (DST-safe enough for our schedule use).
+ *  3) Compute offset and correct (DST-safe enough for schedule use).
  */
 function zonedTimeToUtcMs(parts, tz) {
   const guessUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, 0);
@@ -183,13 +216,13 @@ function zonedTimeToUtcMs(parts, tz) {
  * Strategy:
  *  - Find today's date parts in authorTz, backtrack to Sunday, then add day offset + local time.
  */
-function getUtcForAuthoringLocal(authorTz, targetDow, hhmm, refUtcMs) {
+function getUtcForAuthoringLocal(authorTz, targetDow3, hhmm, refUtcMs) {
   const ref = new Date(refUtcMs);
   const parts = partsInTz(ref, authorTz);
 
   const sunday = addDaysYMD(parts.year, parts.month, parts.day, -parts.weekdayIndex);
 
-  const dayIndex = DOW.indexOf(targetDow);
+  const dayIndex = DOW3.indexOf(targetDow3);
   const target = addDaysYMD(sunday.year, sunday.month, sunday.day, dayIndex);
 
   const [hh, mm] = String(hhmm || "00:00")
@@ -197,110 +230,165 @@ function getUtcForAuthoringLocal(authorTz, targetDow, hhmm, refUtcMs) {
     .map((x) => Number(x));
 
   return zonedTimeToUtcMs(
-    { year: target.year, month: target.month, day: target.day, hour: Number(hh) || 0, minute: Number(mm) || 0 },
+    {
+      year: target.year,
+      month: target.month,
+      day: target.day,
+      hour: Number(hh) || 0,
+      minute: Number(mm) || 0
+    },
     authorTz
   );
 }
 
-function bestShowMatch(shows, q) {
-  if (!q) return null;
-  const qq = cleanText(q).toLowerCase();
-  if (!qq) return null;
-
-  let best = null;
-  let bestScore = 0;
-
-  for (const s of shows) {
-    const title = cleanText(s && s.title).toLowerCase();
-    const id = cleanText(s && s.id).toLowerCase();
-    if (!title && !id) continue;
-
-    let score = 0;
-    if (id === qq) score += 20;
-    if (title === qq) score += 20;
-    if (title.includes(qq)) score += 10;
-    if (qq.includes(title) && title) score += 6;
-
-    // token overlap
-    const a = new Set(title.split(" ").filter(Boolean));
-    const b = new Set(qq.split(" ").filter(Boolean));
-    let ov = 0;
-    for (const w of b) if (a.has(w)) ov++;
-    score += Math.min(8, ov);
-
-    if (score > bestScore) {
-      bestScore = score;
-      best = s;
-    }
-  }
-
-  return bestScore >= 6 ? best : null;
+// ----------------------------
+// Slot helpers (schedule_v1 grid)
+// ----------------------------
+function parseHHMM(startET) {
+  const s = String(startET || "");
+  const m = s.match(/^(\d{2}):(\d{2})(?::\d{2})?$/);
+  if (!m) return null;
+  const hh = Number(m[1]);
+  const mm = Number(m[2]);
+  if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return null;
+  return { hh, mm, hhmm: `${String(m[1])}:${String(m[2])}` };
 }
 
-function nextOccurrence(authorTz, userTz, show, nowUtc) {
-  const starts = [];
-  for (const dow of show.days || []) {
-    const s = getUtcForAuthoringLocal(authorTz, dow, show.start, nowUtc);
-    starts.push(s);
+function slotTitle(slot) {
+  // slot.show can be null or object
+  if (!slot || typeof slot !== "object") return "(Unscheduled)";
+  const show = slot.show;
+  if (!show) return "(Unscheduled)";
+  if (typeof show === "string") return cleanText(show) || "(Unscheduled)";
+  if (show && typeof show === "object") {
+    return cleanText(show.title || show.name || show.id || "") || "(Unscheduled)";
   }
-
-  const now = nowUtc;
-  const next = starts
-    .map((x) => (x >= now ? x : x + 7 * 86400000))
-    .sort((a, b) => a - b)[0];
-
-  const end = next + Number(show.durationMin || 0) * 60000;
-
-  return {
-    startUtc: next,
-    endUtc: end,
-    userDow: fmtWeekday(next, userTz),
-    userStart: fmtTime(next, userTz),
-    userEnd: fmtTime(end, userTz),
-  };
+  return "(Unscheduled)";
 }
 
-function nowPlaying(authorTz, userTz, shows, nowUtc) {
-  const now = nowUtc;
-  const airing = [];
-
-  for (const show of shows) {
-    for (const dow of show.days || []) {
-      const sUtc = getUtcForAuthoringLocal(authorTz, dow, show.start, nowUtc);
-      const eUtc = sUtc + Number(show.durationMin || 0) * 60000;
-      if (now >= sUtc && now < eUtc) {
-        airing.push({
-          show,
-          startUtc: sUtc,
-          endUtc: eUtc,
-          userDow: fmtWeekday(sUtc, userTz),
-          userStart: fmtTime(sUtc, userTz),
-          userEnd: fmtTime(eUtc, userTz),
-        });
-      }
-    }
-  }
-
-  airing.sort((a, b) => a.startUtc - b.startUtc);
-  return airing.slice(0, 2);
+function slotShowId(slot) {
+  if (!slot || typeof slot !== "object") return null;
+  const show = slot.show;
+  if (!show || typeof show !== "object") return null;
+  const id = cleanText(show.id || show.showId || "");
+  return id || null;
 }
 
-function upcomingSorted(authorTz, userTz, shows, nowUtc) {
-  const list = [];
-  for (const show of shows) {
-    const occ = nextOccurrence(authorTz, userTz, show, nowUtc);
-    list.push({ show, occ });
-  }
-  list.sort((a, b) => a.occ.startUtc - b.occ.startUtc);
-  return list;
+function slotNyxPayload(slot) {
+  // If you want click -> Nyx presentation, store:
+  // slot.show.nyxPayload e.g. "show:mannix" or "show Mannix"
+  if (!slot || typeof slot !== "object") return null;
+  const show = slot.show;
+  if (!show || typeof show !== "object") return null;
+  const p = cleanText(show.nyxPayload || show.payload || "");
+  return p || null;
 }
 
+function slotHref(slot) {
+  if (!slot || typeof slot !== "object") return null;
+  const show = slot.show;
+  if (!show || typeof show !== "object") return null;
+  const href = cleanText(show.href || show.url || "");
+  return href || null;
+}
+
+function dayKeyFromAuthorNow(authorTz, nowUtc) {
+  const idx = partsInTz(new Date(nowUtc), authorTz).weekdayIndex;
+  return DOW_KEYS[idx] || "Sunday";
+}
+
+function dayDow3FromKey(dayKey) {
+  const idx = Math.max(0, DOW_KEYS.indexOf(dayKey));
+  return DOW3[idx] || "SUN";
+}
+
+function slotIndexForAuthorNow(authorTz, blockSizeMinutes, nowUtc) {
+  const hm = partsHMInTz(new Date(nowUtc), authorTz);
+  const totalMin = hm.hour * 60 + hm.minute;
+  return Math.floor(totalMin / Math.max(1, blockSizeMinutes));
+}
+
+function getDaySlots(schedule, dayKey) {
+  const week = schedule && schedule.week ? schedule.week : {};
+  const arr = week && Array.isArray(week[dayKey]) ? week[dayKey] : [];
+  return arr;
+}
+
+function getSlotByIndex(daySlots, idx) {
+  if (!Array.isArray(daySlots) || daySlots.length === 0) return null;
+  if (idx < 0) return null;
+  if (idx >= daySlots.length) return null;
+  return daySlots[idx];
+}
+
+function slotStartUtc(schedule, dayKey, slot, refUtc) {
+  const authorTz = schedule.authorTz;
+  const dow3 = dayDow3FromKey(dayKey);
+  const p = parseHHMM(slot && slot.startET);
+  if (!p) return null;
+  return getUtcForAuthoringLocal(authorTz, dow3, p.hhmm, refUtc);
+}
+
+function slotEndUtc(schedule, slotStartUtcMs) {
+  const durMin = Number(schedule.blockSizeMinutes || 30) || 30;
+  return slotStartUtcMs + durMin * 60000;
+}
+
+function sameShow(a, b) {
+  const ta = slotTitle(a);
+  const tb = slotTitle(b);
+  return cleanText(ta).toLowerCase() === cleanText(tb).toLowerCase();
+}
+
+/**
+ * Summarize "Today" as show-runs (collapse consecutive slots with same show)
+ * Limits output length deterministically.
+ */
+function summarizeToday(schedule, dayKey, daySlots, startIdx, userTz, refUtc) {
+  const runs = [];
+  const maxRuns = 10; // keep reply tight
+
+  let i = Math.max(0, startIdx);
+  while (i < daySlots.length && runs.length < maxRuns) {
+    const cur = daySlots[i];
+    const title = slotTitle(cur);
+
+    const startUtc = slotStartUtc(schedule, dayKey, cur, refUtc);
+    if (!startUtc) break;
+
+    let j = i + 1;
+    while (j < daySlots.length && sameShow(cur, daySlots[j])) j++;
+
+    const endSlot = daySlots[j - 1];
+    const endStartUtc = slotStartUtc(schedule, dayKey, endSlot, refUtc);
+    const endUtc = endStartUtc ? slotEndUtc(schedule, endStartUtc) : (startUtc + (schedule.blockSizeMinutes || 30) * 60000);
+
+    runs.push({
+      title,
+      startUtc,
+      endUtc,
+      // carry a representative slot for links/payload
+      slot: cur
+    });
+
+    i = j;
+  }
+
+  const lines = runs.map((r) => {
+    const t1 = fmtTime(r.startUtc, userTz);
+    const t2 = fmtTime(r.endUtc, userTz);
+    return `• ${t1}–${t2}: ${r.title}`;
+  });
+
+  return { runs, lines };
+}
+
+// ----------------------------
 // Parse "convert 8pm et to london"
+// ----------------------------
 function parseConvertEt(text) {
   const t = cleanText(text).toLowerCase();
-  const m = t.match(
-    /\b(convert|what is)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*(et|est|edt)\s+(to|in)\s+(.+)\b/
-  );
+  const m = t.match(/\b(convert|what is)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*(et|est|edt)\s+(to|in)\s+(.+)\b/);
   if (!m) return null;
 
   const hourRaw = Number(m[2]);
@@ -321,7 +409,7 @@ function parseConvertEt(text) {
 }
 
 function buildEtConversion(authorTz, userTz, hour, minute) {
-  // Use "today" in authorTz, at the requested time, then format in userTz.
+  // Use "today" in authorTz, at requested time, then format in userTz.
   const now = nowUtcMs();
   const parts = partsInTz(new Date(now), authorTz);
   const utc = zonedTimeToUtcMs(
@@ -332,63 +420,84 @@ function buildEtConversion(authorTz, userTz, hour, minute) {
   return {
     authorLabel: fmtTime(utc, authorTz),
     userLabel: fmtTime(utc, userTz),
-    userDow: fmtWeekday(utc, userTz),
+    userDow: fmtWeekday3(utc, userTz)
   };
 }
 
+// ----------------------------
+// Intents
+// ----------------------------
 function isScheduleQuestion(text) {
   const t = cleanText(text).toLowerCase();
   if (!t) return false;
 
   return (
-    /\b(schedule|programming|what's playing|whats playing|playing now|on now|airing|what time|when does)\b/.test(t) ||
+    /\b(schedule|programming|what's playing|whats playing|playing now|on now|airing|what time|when does|today|now next|now\/next)\b/.test(t) ||
     /\b(convert)\b/.test(t) ||
     /\b(roku)\b/.test(t)
   );
 }
 
-function extractShowQuery(text) {
-  const t = cleanText(text);
-  const low = t.toLowerCase();
-  if (!t) return null;
-
-  const m =
-    low.match(/\bwhat time does ([a-z0-9' -]{3,60}) (play|air|start)\b/i) ||
-    low.match(/\bwhen does ([a-z0-9' -]{3,60}) (play|air|start)\b/i);
-
-  if (m && m[1]) return cleanText(m[1]);
-
-  // If user says just a show name in schedule lane, treat it as query.
-  if (/^[a-z0-9' -]{3,60}$/i.test(t) && !/\b(schedule|programming|playing|convert|roku)\b/i.test(low)) {
-    return t;
-  }
-
-  return null;
+function wantsNowNext(text) {
+  const t = cleanText(text).toLowerCase();
+  return /\b(now next later|now\/next\/later|now next|now\/next|what's on|whats on)\b/.test(t);
 }
 
+function wantsToday(text) {
+  const t = cleanText(text).toLowerCase();
+  return t === "today" || /\b(show me today|today schedule|today programming)\b/.test(t);
+}
+
+function wantsPlayingNow(text) {
+  const t = cleanText(text).toLowerCase();
+  return /\b(playing now|on now|what's playing|whats playing)\b/.test(t);
+}
+
+// details:showId or details showId
+function parseDetails(text) {
+  const t = cleanText(text);
+  const m = t.match(/^(details:|details\s+)([a-z0-9_-]{2,64})$/i);
+  if (!m) return null;
+  return cleanText(m[2]);
+}
+
+// If a UI click sends a Nyx payload: nyx:<payload>
+function parseNyxPayload(text) {
+  const t = cleanText(text);
+  const m = t.match(/^nyx:(.+)$/i);
+  if (!m) return null;
+  return cleanText(m[1]);
+}
+
+// ----------------------------
+// Default help
+// ----------------------------
 function defaultHelpReply() {
   return {
     reply:
-      "Schedule Lane (timezone-aware). Try:\n" +
+      "Schedule is timezone-aware (ET-authored). Try:\n" +
       '• "Now next later"\n' +
-      '• "What time does Gospel Sunday play for me?"\n' +
-      '• "Convert 8pm ET to London"\n' +
-      '• "Show me the schedule"',
+      '• "Today"\n' +
+      '• "What’s playing now?"\n' +
+      '• "Convert 8pm ET to London"',
     followUps: safeFollowUps([
       { label: "Now / Next / Later", send: "Now next later" },
-      { label: "Show me the schedule", send: "Show me the schedule" },
+      { label: "Today", send: "Today" },
       { label: "Playing now", send: "What's playing now?" },
-      { label: "Back to music", send: "Back to music" },
+      { label: "Convert 8pm ET to London", send: "Convert 8pm ET to London" }
     ]),
-    sessionPatch: { lane: "schedule" },
+    sessionPatch: { lane: "schedule" }
   };
 }
 
+// ----------------------------
+// Main handler (never-throw)
+// ----------------------------
 function handleChat({ text, session } = {}) {
   try {
     const schedule = loadScheduleSafe();
-    const authorTz = cleanText(schedule.authoringTimezone || "America/Toronto");
-    const shows = Array.isArray(schedule.shows) ? schedule.shows : [];
+    const authorTz = cleanText(schedule.authorTz || "America/Toronto");
+    const blockSizeMinutes = Number(schedule.blockSizeMinutes || 30) || 30;
 
     const message = cleanText(text);
     const low = message.toLowerCase();
@@ -397,15 +506,28 @@ function handleChat({ text, session } = {}) {
     // Resolve user timezone (device tz + "for me" support via resolver)
     const deviceTz = session && session._lastDeviceTz ? cleanText(session._lastDeviceTz) : "";
     const resolved = resolveTimezone(message, session, deviceTz);
-    const userTz = resolved.tz || "America/Toronto";
+    const userTz = resolved.tz || (session && session.userTz) || "America/Toronto";
     const userCity = resolved.city || (session && session.userCity) || null;
     const tzLabel = userCity ? `${capitalize(userCity)} (${userTz})` : userTz;
 
-    // Persist a minimal hint for later turns (harmless if ignored elsewhere)
+    // Persist minimal hints for later turns
     if (session && typeof session === "object") {
       session.userTz = userTz;
       if (userCity) session.userCity = userCity;
       session.lane = "schedule";
+    }
+
+    // 0) Explicit Nyx payload relay (slot hyperlinks can send nyx:<payload>)
+    const nyxPayload = parseNyxPayload(message);
+    if (nyxPayload) {
+      return {
+        reply: "Passing that to Nyx.",
+        followUps: safeFollowUps([
+          { label: "Now / Next / Later", send: "Now next later" },
+          { label: "Today", send: "Today" }
+        ]),
+        sessionPatch: { lane: "schedule", pendingNyxPayload: nyxPayload }
+      };
     }
 
     // 1) Explicit ET conversion
@@ -418,132 +540,240 @@ function handleChat({ text, session } = {}) {
       const targetLabel = placeResolved.city ? capitalize(placeResolved.city) : targetTz;
 
       return {
-        reply: `Converted time (today):\n• ${out.authorLabel} ET -> ${out.userDow} ${out.userLabel} (${targetLabel})`,
+        reply: `Converted time (today):\n• ${out.authorLabel} ET → ${out.userDow} ${out.userLabel} (${targetLabel})`,
         followUps: safeFollowUps([
-          { label: "Show me the schedule", send: "Show me the schedule" },
-          { label: "Playing now", send: "What's playing now?" },
           { label: "Now / Next / Later", send: "Now next later" },
-          { label: "Back to music", send: "Back to music" },
+          { label: "Today", send: "Today" },
+          { label: "Playing now", send: "What's playing now?" }
         ]),
-        sessionPatch: { lane: "schedule" },
+        sessionPatch: { lane: "schedule" }
       };
     }
 
-    // 2) Now / Next / Later
-    if (/\b(now next later|now\/next\/later|now next|what's on|whats on)\b/.test(low)) {
-      const nowHits = nowPlaying(authorTz, userTz, shows, now);
-      const upcoming = upcomingSorted(authorTz, userTz, shows, now);
+    // Resolve current author-day + slot index
+    const dayKey = dayKeyFromAuthorNow(authorTz, now);
+    const daySlots = getDaySlots(schedule, dayKey);
+    const idx = slotIndexForAuthorNow(authorTz, blockSizeMinutes, now);
 
-      const nowLine =
-        nowHits.length > 0
-          ? `Now: ${nowHits[0].show.title} - ${nowHits[0].userStart}-${nowHits[0].userEnd}`
-          : "Now: Nothing airing at this moment";
+    // If schedule is empty for the day, degrade gracefully
+    const hasDay = Array.isArray(daySlots) && daySlots.length > 0;
 
-      const nextLine =
-        upcoming.length > 0
-          ? `Next: ${upcoming[0].show.title} - ${upcoming[0].occ.userDow} ${upcoming[0].occ.userStart}`
-          : "Next: (no schedule loaded)";
+    // 2) NOW / NEXT / LATER (primary)
+    if (wantsNowNext(low) || /\bnow\b/.test(low)) {
+      if (!hasDay) {
+        return {
+          reply:
+            `Now / Next / Today (converted to ${tzLabel}):\n` +
+            "• Schedule is not loaded for this day yet.\n\n" +
+            'If you want, say: "Convert 8pm ET to London".',
+          followUps: safeFollowUps([
+            { label: "Today", send: "Today" },
+            { label: "Convert 8pm ET to London", send: "Convert 8pm ET to London" }
+          ]),
+          sessionPatch: { lane: "schedule" }
+        };
+      }
 
-      const laterLine =
-        upcoming.length > 1
-          ? `Later: ${upcoming[1].show.title} - ${upcoming[1].occ.userDow} ${upcoming[1].occ.userStart}`
-          : "Later: -";
+      const nowSlot = getSlotByIndex(daySlots, idx) || getSlotByIndex(daySlots, Math.max(0, daySlots.length - 1));
+      const nextSlot = getSlotByIndex(daySlots, idx + 1) || null;
+      const laterSlot = getSlotByIndex(daySlots, idx + 2) || null;
+
+      const nowStartUtc = nowSlot ? slotStartUtc(schedule, dayKey, nowSlot, now) : null;
+      const nowEndUtc = nowStartUtc != null ? slotEndUtc(schedule, nowStartUtc) : null;
+
+      const nextStartUtc = nextSlot ? slotStartUtc(schedule, dayKey, nextSlot, now) : null;
+      const nextEndUtc = nextStartUtc != null ? slotEndUtc(schedule, nextStartUtc) : null;
+
+      const laterStartUtc = laterSlot ? slotStartUtc(schedule, dayKey, laterSlot, now) : null;
+
+      const nowLine = nowStartUtc != null
+        ? `Now: ${slotTitle(nowSlot)} — ${fmtTime(nowStartUtc, userTz)}–${fmtTime(nowEndUtc, userTz)}`
+        : `Now: ${slotTitle(nowSlot)}`;
+
+      const nextLine = (nextStartUtc != null && nextEndUtc != null)
+        ? `Next: ${slotTitle(nextSlot)} — ${fmtTime(nextStartUtc, userTz)}–${fmtTime(nextEndUtc, userTz)}`
+        : "Next: (end of day)";
+
+      const laterLine = (laterStartUtc != null)
+        ? `Later: ${slotTitle(laterSlot)} — starts ${fmtTime(laterStartUtc, userTz)}`
+        : "Later: -";
+
+      // If current slot has a Nyx payload, offer it
+      const nowNyx = slotNyxPayload(nowSlot);
+      const nowId = slotShowId(nowSlot);
+      const nowHref = slotHref(nowSlot);
+
+      const chips = [];
+      chips.push({ label: "Today", send: "Today" });
+      chips.push({ label: "Now / Next / Later", send: "Now next later" });
+      chips.push({ label: "Convert time", send: "Convert 8pm ET to London" });
+
+      if (nowId) chips.unshift({ label: "Details", send: `details:${nowId}` });
+      if (nowNyx) chips.unshift({ label: "Open in Nyx", send: `nyx:${nowNyx}` });
+      if (nowHref) chips.push({ label: "Show link", send: nowHref });
 
       return {
         reply:
-          `Now / Next / Later (converted to ${tzLabel}):\n` +
+          `Now / Next / Today (converted to ${tzLabel}):\n` +
           `• ${nowLine}\n` +
           `• ${nextLine}\n` +
-          `• ${laterLine}\n\n` +
-          'Ask: "What time does <show> play for me?"',
-        followUps: safeFollowUps([
-          { label: "Show me the schedule", send: "Show me the schedule" },
-          { label: "Playing now", send: "What's playing now?" },
-          { label: "Back to music", send: "Back to music" },
-        ]),
-        sessionPatch: { lane: "schedule" },
+          `• ${laterLine}`,
+        followUps: safeFollowUps(chips),
+        sessionPatch: {
+          lane: "schedule",
+          _scheduleDayKey: dayKey,
+          _scheduleSlotIndex: idx,
+          userTz,
+          userCity: userCity || undefined
+        }
       };
     }
 
-    // 3) Playing now
-    if (/\b(playing now|on now|what's playing|whats playing)\b/.test(low)) {
-      const hits = nowPlaying(authorTz, userTz, shows, now);
-
-      if (hits.length === 0) {
+    // 3) TODAY (primary)
+    if (wantsToday(low)) {
+      if (!hasDay) {
         return {
-          reply:
-            `Nothing is airing at this exact moment (converted to ${tzLabel}). ` +
-            'Say a show name or "Show me the schedule".',
+          reply: `Today (converted to ${tzLabel}):\n• Schedule is not loaded for ${dayKey} yet.`,
           followUps: safeFollowUps([
             { label: "Now / Next / Later", send: "Now next later" },
-            { label: "Show me the schedule", send: "Show me the schedule" },
-            { label: "Back to music", send: "Back to music" },
+            { label: "Convert 8pm ET to London", send: "Convert 8pm ET to London" }
           ]),
-          sessionPatch: { lane: "schedule" },
+          sessionPatch: { lane: "schedule" }
         };
       }
 
-      const lines = hits.map((h) => `• ${h.show.title} - ${h.userDow} ${h.userStart}-${h.userEnd} (${tzLabel})`);
+      const { runs, lines } = summarizeToday(schedule, dayKey, daySlots, idx, userTz, now);
 
-      return {
-        reply: `Airing now (converted to ${tzLabel}):\n${lines.join("\n")}`,
-        followUps: safeFollowUps([
-          { label: "Now / Next / Later", send: "Now next later" },
-          { label: "Show me the schedule", send: "Show me the schedule" },
-          { label: "Back to music", send: "Back to music" },
-        ]),
-        sessionPatch: { lane: "schedule" },
-      };
-    }
+      // Offer details/nyx for the first run (the “now-ish” run)
+      const lead = runs[0] ? runs[0].slot : null;
+      const leadId = slotShowId(lead);
+      const leadNyx = slotNyxPayload(lead);
 
-    // 4) Schedule list
-    if (/\b(show me the schedule|full schedule|the schedule|programming)\b/.test(low)) {
-      const items = upcomingSorted(authorTz, userTz, shows, now)
-        .slice(0, 8)
-        .map(({ show, occ }) => `• ${show.title} - next: ${occ.userDow} ${occ.userStart}-${occ.userEnd}`);
+      const chips = [];
+      chips.push({ label: "Now / Next / Later", send: "Now next later" });
+      chips.push({ label: "Playing now", send: "What's playing now?" });
+      chips.push({ label: "Convert time", send: "Convert 8pm ET to London" });
+
+      if (leadId) chips.unshift({ label: "Details", send: `details:${leadId}` });
+      if (leadNyx) chips.unshift({ label: "Open in Nyx", send: `nyx:${leadNyx}` });
 
       return {
         reply:
-          `Schedule (next occurrences; converted to ${tzLabel}):\n` +
-          (items.length ? items.join("\n") : "• (no schedule loaded)") +
-          '\n\nAsk about a show by name, or say "Now next later".',
-        followUps: safeFollowUps([
-          { label: "Now / Next / Later", send: "Now next later" },
-          { label: "Playing now", send: "What's playing now?" },
-          { label: "Back to music", send: "Back to music" },
-        ]),
-        sessionPatch: { lane: "schedule" },
+          `Today (${dayKey}) — upcoming blocks (converted to ${tzLabel}):\n` +
+          (lines.length ? lines.join("\n") : "• (nothing scheduled)") +
+          `\n\nAsk: "details:<showId>" if you want the show card.`,
+        followUps: safeFollowUps(chips),
+        sessionPatch: {
+          lane: "schedule",
+          _scheduleDayKey: dayKey,
+          _scheduleSlotIndex: idx,
+          userTz,
+          userCity: userCity || undefined
+        }
       };
     }
 
-    // 5) Show query
-    const q = extractShowQuery(message);
-    if (q) {
-      const show = bestShowMatch(shows, q);
-      if (!show) {
+    // 4) PLAYING NOW
+    if (wantsPlayingNow(low)) {
+      // In schedule_v1 grid, "playing now" is effectively the current slot.
+      if (!hasDay) {
         return {
-          reply:
-            `I didn't find "${cleanText(q)}" in the current schedule (converted to ${tzLabel}). ` +
-            'Say "Show me the schedule" to see what is available.',
+          reply: `Nothing is scheduled right now (converted to ${tzLabel}) — the day grid isn't loaded.`,
           followUps: safeFollowUps([
-            { label: "Show me the schedule", send: "Show me the schedule" },
             { label: "Now / Next / Later", send: "Now next later" },
-            { label: "Back to music", send: "Back to music" },
+            { label: "Today", send: "Today" }
           ]),
-          sessionPatch: { lane: "schedule" },
+          sessionPatch: { lane: "schedule" }
         };
       }
 
-      const occ = nextOccurrence(authorTz, userTz, show, now);
+      const nowSlot = getSlotByIndex(daySlots, idx) || getSlotByIndex(daySlots, Math.max(0, daySlots.length - 1));
+      const startUtc = nowSlot ? slotStartUtc(schedule, dayKey, nowSlot, now) : null;
+      const endUtc = startUtc != null ? slotEndUtc(schedule, startUtc) : null;
+
+      const title = slotTitle(nowSlot);
+      const line = startUtc != null
+        ? `${title} — ${fmtTime(startUtc, userTz)}–${fmtTime(endUtc, userTz)} (${tzLabel})`
+        : `${title} (${tzLabel})`;
+
+      const id = slotShowId(nowSlot);
+      const nyx = slotNyxPayload(nowSlot);
+
       return {
-        reply: `${show.title} plays next at ${occ.userDow} ${occ.userStart}-${occ.userEnd} (converted to ${tzLabel}).`,
+        reply: `Playing now:\n• ${line}`,
         followUps: safeFollowUps([
+          id ? { label: "Details", send: `details:${id}` } : null,
+          nyx ? { label: "Open in Nyx", send: `nyx:${nyx}` } : null,
           { label: "Now / Next / Later", send: "Now next later" },
-          { label: "Show me the schedule", send: "Show me the schedule" },
-          { label: "Back to music", send: "Back to music" },
-        ]),
-        sessionPatch: { lane: "schedule" },
+          { label: "Today", send: "Today" }
+        ].filter(Boolean)),
+        sessionPatch: { lane: "schedule" }
       };
+    }
+
+    // 5) DETAILS lookup (best-effort; searches week for showId)
+    const detailsId = parseDetails(message);
+    if (detailsId) {
+      // Scan week to find the first slot with matching showId
+      let found = null;
+      let foundDay = null;
+
+      for (const dk of DOW_KEYS) {
+        const slots = getDaySlots(schedule, dk);
+        for (const sl of slots) {
+          if (slotShowId(sl) === detailsId) {
+            found = sl;
+            foundDay = dk;
+            break;
+          }
+        }
+        if (found) break;
+      }
+
+      if (!found) {
+        return {
+          reply: `I couldn’t find showId "${detailsId}" in the current weekly grid.`,
+          followUps: safeFollowUps([
+            { label: "Now / Next / Later", send: "Now next later" },
+            { label: "Today", send: "Today" }
+          ]),
+          sessionPatch: { lane: "schedule" }
+        };
+      }
+
+      const show = (found && typeof found.show === "object") ? found.show : null;
+      const title = slotTitle(found);
+      const desc = show ? cleanText(show.description || show.desc || "") : "";
+      const href = slotHref(found);
+      const nyx = slotNyxPayload(found);
+
+      const startUtc = slotStartUtc(schedule, foundDay, found, now);
+      const endUtc = startUtc != null ? slotEndUtc(schedule, startUtc) : null;
+
+      const when = (startUtc != null && endUtc != null)
+        ? `${foundDay} ${fmtTime(startUtc, userTz)}–${fmtTime(endUtc, userTz)} (${tzLabel})`
+        : `${foundDay} (${tzLabel})`;
+
+      return {
+        reply:
+          `Show details:\n` +
+          `• ${title}\n` +
+          `• When: ${when}\n` +
+          (desc ? `• ${desc}\n` : "") +
+          (href ? `• Link: ${href}\n` : "") +
+          (nyx ? `• Nyx: nyx:${nyx}\n` : ""),
+        followUps: safeFollowUps([
+          nyx ? { label: "Open in Nyx", send: `nyx:${nyx}` } : null,
+          { label: "Now / Next / Later", send: "Now next later" },
+          { label: "Today", send: "Today" }
+        ].filter(Boolean)),
+        sessionPatch: { lane: "schedule" }
+      };
+    }
+
+    // If the user is in schedule lane but asked something else, keep them oriented.
+    if (isScheduleQuestion(message)) {
+      return defaultHelpReply();
     }
 
     // Default help
@@ -551,20 +781,18 @@ function handleChat({ text, session } = {}) {
   } catch (_) {
     // Never throw from lane
     return {
-      reply:
-        "Schedule Lane hit a snag. Try: \"Show me the schedule\", \"What's playing now?\", or \"Now next later\".",
+      reply: 'Schedule Lane hit a snag. Try: "Now next later", "Today", or "Convert 8pm ET to London".',
       followUps: safeFollowUps([
-        { label: "Show me the schedule", send: "Show me the schedule" },
-        { label: "Playing now", send: "What's playing now?" },
         { label: "Now / Next / Later", send: "Now next later" },
-        { label: "Back to music", send: "Back to music" },
+        { label: "Today", send: "Today" },
+        { label: "Convert 8pm ET to London", send: "Convert 8pm ET to London" }
       ]),
-      sessionPatch: { lane: "schedule" },
+      sessionPatch: { lane: "schedule" }
     };
   }
 }
 
 module.exports = {
   isScheduleQuestion,
-  handleChat,
+  handleChat
 };
