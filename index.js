@@ -3,27 +3,24 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17za
+ * index.js v1.5.17zb
  * (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION +
  *  ✅ SESSIONPATCH EXPANDED (CONTINUITY PERSIST FIX) + ✅ CONVERSATIONAL CONTRACT ENFORCER (HARD) +
  *  ✅ ROUTE HINT AWARE COG NORMALIZATION + ✅ ENV KNOBS HARDENED +
  *  ✅ TRUST PROXY (SAFE, OPTIONAL) + ✅ ROOT/API DISCOVERY ROUTES +
  *  ✅ ROKU BRIDGE DIRECTIVE (STRUCTURED CTA) + ✅ CTA COOLDOWN + SESSION TELEMETRY +
- *  ✅ CORS PREFLIGHT FIX (TTS) + ✅ SANDBLAST ORIGIN FORCE-ALLOW)
+ *  ✅ CORS PREFLIGHT FIX (TTS) + ✅ SANDBLAST ORIGIN FORCE-ALLOW +
+ *  ✅ COS PERSISTENCE WIRING (session.cog allowlist + sanitize + normalizeCog reads session.cog)
  *
- * Patch vs v1.5.17z:
- *  ✅ Fixes CORS preflight for /api/tts and /api/chat by:
- *     - Applying explicit CORS headers EARLY on every request (before any router/parsers)
- *     - Short-circuiting OPTIONS with 204 + headers (preflight always satisfied when allowed)
- *  ✅ Force-allows Sandblast origins (sandblast.channel + sandblastchannel.com, with/without www)
- *     even if env allowlist is misconfigured (prevents accidental self-bricking)
+ * Patch vs v1.5.17za:
+ *  ✅ Cognitive OS persistence:
+ *     - Allows sessionPatch.cog to persist (sanitized allowlist keys)
+ *     - normalizeCog() now reads session.cog as a fallback source
+ *     - caps now advertises cos: true
  *
- * Additional v1.5.17za wiring:
- *  ✅ CS-1 continuity state allowlist persistence:
- *     - Allows sessionPatch.__cs1 to persist (from Utils/cs1.js via chatEngine v0.6z)
- *
- * Minor hardening (v1.5.17za+):
- *  ✅ Ensures Vary includes Origin without clobbering existing Vary values
+ * Minor hardening:
+ *  ✅ session.cog patch is proto-safe + key-allowlisted + size-clamped
+ *  ✅ normalizeCog includes cog.version when present
  */
 
 const express = require("express");
@@ -79,7 +76,7 @@ if (TRUST_PROXY) {
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.17za (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + SESSIONPATCH EXPANDED + CONTRACT ENFORCER + ROUTE HINT COG + ENV HARDENED + TRUST PROXY + DISCOVERY ROUTES + ROKU DIRECTIVE + CORS PREFLIGHT FIX)";
+  "index.js v1.5.17zb (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + SESSIONPATCH EXPANDED + CONTRACT ENFORCER + ROUTE HINT COG + ENV HARDENED + TRUST PROXY + DISCOVERY ROUTES + ROKU DIRECTIVE + CORS PREFLIGHT FIX + COS PERSISTENCE)";
 
 const GIT_COMMIT =
   String(process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "").trim() || null;
@@ -153,6 +150,59 @@ function ua(req) {
 }
 
 /* ======================================================
+   COS (Cognitive OS) sanitizer (session.cog persistence)
+====================================================== */
+
+const COG_ALLOW_KEYS = new Set([
+  "phase",       // welcome|engaged|clarify|execute|reflect|idle
+  "state",       // confident|uncertain|error|etc
+  "reason",      // ok|upstream_quota|etc
+  "intent",      // explore|decide|build|debug|etc
+  "depth",       // fast|deep
+  "nextStep",    // concise recommended action
+  "lastShiftAt", // ms epoch
+  "version",     // cos_v0
+  "lane",        // music|roku|...
+  "mode",        // top10|story|...
+  "year",        // "1988"
+  "ts",          // ms epoch
+]);
+
+function sanitizeCogObject(obj) {
+  if (!obj || typeof obj !== "object") return null;
+
+  const out = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
+    if (!COG_ALLOW_KEYS.has(k)) continue;
+    if (typeof v === "undefined") continue;
+
+    if (k === "nextStep") {
+      const s = normalizeStr(v).slice(0, 600);
+      if (s) out[k] = s;
+      continue;
+    }
+
+    if (k === "phase" || k === "state" || k === "reason" || k === "intent" || k === "depth" || k === "version" || k === "lane" || k === "mode" || k === "year") {
+      const s = normalizeStr(v).slice(0, 96);
+      if (s) out[k] = s;
+      continue;
+    }
+
+    if (k === "lastShiftAt" || k === "ts") {
+      const n = Number(v);
+      if (Number.isFinite(n)) out[k] = n;
+      continue;
+    }
+
+    // default: keep primitives only
+    if (v === null || typeof v === "string" || typeof v === "number" || typeof v === "boolean") out[k] = v;
+  }
+
+  return Object.keys(out).length ? out : null;
+}
+
+/* ======================================================
    Conversational Contract Enforcer (HARD)
 ====================================================== */
 
@@ -208,16 +258,20 @@ function allowlistSessionPatchObj(patch) {
 
 function normalizeCog(out, session, routeHint) {
   const oc = out && typeof out === "object" && out.cog && typeof out.cog === "object" ? out.cog : {};
+  const scRaw = session && session.cog && typeof session.cog === "object" ? session.cog : null;
+  const sc = scRaw ? sanitizeCogObject(scRaw) || {} : {};
 
   const laneFromOut = (out && typeof out.lane === "string" ? out.lane : "") || (oc && oc.lane) || "";
   const laneFromSession = session && session.lane ? session.lane : session && session.lastLane ? session.lastLane : "";
   const laneFromHint = normalizeRouteHint(routeHint) || "";
+  const laneFromCog = (oc && oc.lane) || (sc && sc.lane) || "";
 
-  const lane = normalizeLane(laneFromOut, laneFromHint || laneFromSession || "general");
+  const lane = normalizeLane(laneFromOut, laneFromHint || laneFromCog || laneFromSession || "general");
 
   const mode =
     (out && typeof out.mode === "string" && out.mode.trim() ? out.mode : null) ||
     (oc && typeof oc.mode === "string" && oc.mode.trim() ? oc.mode : null) ||
+    (sc && typeof sc.mode === "string" && sc.mode.trim() ? sc.mode : null) ||
     (session && typeof session.activeMusicMode === "string" && session.activeMusicMode.trim()
       ? session.activeMusicMode
       : null) ||
@@ -227,13 +281,50 @@ function normalizeCog(out, session, routeHint) {
   const year =
     (out && out.year != null ? String(out.year) : null) ||
     (oc && oc.year != null ? String(oc.year) : null) ||
+    (sc && sc.year != null ? String(sc.year) : null) ||
     (session && session.lastMusicYear != null ? String(session.lastMusicYear) : null) ||
     (session && session.lastYear != null ? String(session.lastYear) : null) ||
     null;
 
-  const phase = oc && typeof oc.phase === "string" && oc.phase.trim() ? oc.phase : "engaged";
-  const state = oc && typeof oc.state === "string" && oc.state.trim() ? oc.state : "confident";
-  const reason = oc && typeof oc.reason === "string" && oc.reason.trim() ? oc.reason : "ok";
+  const phase =
+    (oc && typeof oc.phase === "string" && oc.phase.trim() ? oc.phase : null) ||
+    (sc && typeof sc.phase === "string" && sc.phase.trim() ? sc.phase : null) ||
+    "engaged";
+
+  const state =
+    (oc && typeof oc.state === "string" && oc.state.trim() ? oc.state : null) ||
+    (sc && typeof sc.state === "string" && sc.state.trim() ? sc.state : null) ||
+    "confident";
+
+  const reason =
+    (oc && typeof oc.reason === "string" && oc.reason.trim() ? oc.reason : null) ||
+    (sc && typeof sc.reason === "string" && sc.reason.trim() ? sc.reason : null) ||
+    "ok";
+
+  const version =
+    (oc && typeof oc.version === "string" && oc.version.trim() ? oc.version : null) ||
+    (sc && typeof sc.version === "string" && sc.version.trim() ? sc.version : null) ||
+    "cos_v0";
+
+  const nextStep =
+    (oc && typeof oc.nextStep === "string" && oc.nextStep.trim() ? oc.nextStep : null) ||
+    (sc && typeof sc.nextStep === "string" && sc.nextStep.trim() ? sc.nextStep : null) ||
+    null;
+
+  const depth =
+    (oc && typeof oc.depth === "string" && oc.depth.trim() ? oc.depth : null) ||
+    (sc && typeof sc.depth === "string" && sc.depth.trim() ? sc.depth : null) ||
+    null;
+
+  const intent =
+    (oc && typeof oc.intent === "string" && oc.intent.trim() ? oc.intent : null) ||
+    (sc && typeof sc.intent === "string" && sc.intent.trim() ? sc.intent : null) ||
+    null;
+
+  const lastShiftAt =
+    (oc && Number.isFinite(Number(oc.lastShiftAt)) ? Number(oc.lastShiftAt) : null) ||
+    (sc && Number.isFinite(Number(sc.lastShiftAt)) ? Number(sc.lastShiftAt) : null) ||
+    null;
 
   return {
     lane,
@@ -242,6 +333,11 @@ function normalizeCog(out, session, routeHint) {
     phase,
     state,
     reason,
+    version,
+    depth,
+    intent,
+    nextStep,
+    lastShiftAt,
     ts: Date.now(),
   };
 }
@@ -263,6 +359,8 @@ function enforceChatContract({
   const reply = nonEmptyReply(baseReply, "Alright — tell me what you want next.");
 
   const directives = directivesOverride ? normalizeDirectives(directivesOverride) : normalizeDirectives(out && out.directives);
+
+  // NOTE: sessionPatch is returned for client-side state sync; server state is applied via applySessionPatch().
   const sessionPatch = allowlistSessionPatchObj(out && out.sessionPatch) || {};
   const cog = normalizeCog(out, session, routeHint);
 
@@ -573,6 +671,8 @@ const SESSION_PATCH_ALLOW = new Set([
   "lastNameUseTurn",
   "visitorId",
   "voiceMode",
+
+  // loop/dedupe telemetry keys
   "__lastIntentSig",
   "__lastIntentAt",
   "__lastReply",
@@ -590,6 +690,9 @@ const SESSION_PATCH_ALLOW = new Set([
 
   // ✅ CS-1 continuity state (chatEngine v0.6z)
   "__cs1",
+
+  // ✅ COS persistence (chatEngine may set sessionPatch.cog)
+  "cog",
 ]);
 
 function applySessionPatch(session, patch) {
@@ -600,6 +703,18 @@ function applySessionPatch(session, patch) {
     if (SERVER_OWNED_KEYS.has(k)) continue;
     if (!SESSION_PATCH_ALLOW.has(k)) continue;
     if (typeof v === "undefined") continue;
+
+    // ✅ COS object is sanitized
+    if (k === "cog") {
+      if (v === null) {
+        session.cog = null;
+        continue;
+      }
+      const sanitized = sanitizeCogObject(v);
+      if (sanitized) session.cog = sanitized;
+      continue;
+    }
+
     session[k] = v;
   }
 }
@@ -742,6 +857,9 @@ app.get("/api/version", (req, res) => {
       rokuCtaCooldownMs,
       hasRokuChannelUrl: !!rokuChannelUrl,
       rokuFallbackUrl,
+
+      // COS
+      cosPersistence: true,
     },
     allowlistSample: EFFECTIVE_ORIGINS.slice(0, 10),
   });
@@ -1217,7 +1335,7 @@ function respondOnce(res) {
 }
 
 function capsPayload() {
-  return { music: true, movies: true, sponsors: true, schedule: true, tts: true };
+  return { music: true, movies: true, sponsors: true, schedule: true, tts: true, cos: true };
 }
 
 function dedupeOkPayload({ reply, sessionId, requestId, visitorId, posture, routeHint, session }) {
@@ -1537,7 +1655,9 @@ app.post("/api/chat", async (req, res) => {
     }
 
     const followUps =
-      out && typeof out === "object" && Array.isArray(out.followUps) ? normalizeFollowUpsToStrings(out.followUps) : undefined;
+      out && typeof out === "object" && Array.isArray(out.followUps)
+        ? normalizeFollowUpsToStrings(out.followUps)
+        : undefined;
 
     session.__lastReply = finalReply;
     session.__lastBodyHash = bodyHash;
