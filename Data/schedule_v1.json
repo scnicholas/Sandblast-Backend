@@ -74,36 +74,46 @@
       { "startET": "02:30", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
       { "startET": "03:00", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
       { "startET": "03:30", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+
       { "startET": "04:00", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
       { "startET": "04:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
       { "startET": "05:00", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
       { "startET": "05:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+
       { "startET": "06:00", "show": { "id": "sb_news_canada", "title": "News Canada Brief", "nyxPayload": "show:sb_news_canada" } },
       { "startET": "06:30", "show": { "id": "sb_music_moments", "title": "Music Story Moments", "nyxPayload": "show:sb_music_moments" } },
+
       { "startET": "07:00", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
       { "startET": "07:30", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
       { "startET": "08:00", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
       { "startET": "08:30", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+
       { "startET": "09:00", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
       { "startET": "09:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
       { "startET": "10:00", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
       { "startET": "10:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+
       { "startET": "11:00", "show": { "id": "sb_music_moments", "title": "Music Story Moments", "nyxPayload": "show:sb_music_moments" } },
       { "startET": "11:30", "show": { "id": "sb_news_canada", "title": "News Canada Brief", "nyxPayload": "show:sb_news_canada" } },
+
       { "startET": "12:00", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
       { "startET": "12:30", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
       { "startET": "13:00", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
       { "startET": "13:30", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
+
       { "startET": "14:00", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
       { "startET": "14:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
       { "startET": "15:00", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
       { "startET": "15:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+
       { "startET": "16:00", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
       { "startET": "16:30", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
       { "startET": "17:00", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
       { "startET": "17:30", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+
       { "startET": "18:00", "show": { "id": "sb_news_canada", "title": "News Canada Brief", "nyxPayload": "show:sb_news_canada" } },
       { "startET": "18:30", "show": { "id": "sb_music_moments", "title": "Music Story Moments", "nyxPayload": "show:sb_music_moments" } },
+
       { "startET": "19:00", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
       { "startET": "19:30", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
       { "startET": "20:00", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
@@ -112,6 +122,7 @@
       { "startET": "21:30", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
       { "startET": "22:00", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
       { "startET": "22:30", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+
       { "startET": "23:00", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
       { "startET": "23:30", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } }
     ],
@@ -121,42 +132,52 @@
       { "startET": "00:30", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
       { "startET": "01:00", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
       { "startET": "01:30", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
-      { "startET": "02:00", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
-      { "startET": "02:30", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+      { "startET": "02:00", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+      { "startET": "02:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
       { "startET": "03:00", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
       { "startET": "03:30", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
-      { "startET": "04:00", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
-      { "startET": "04:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+
+      { "startET": "04:00", "show": { "id": "sb_news_canada", "title": "News Canada Brief", "nyxPayload": "show:sb_news_canada" } },
+      { "startET": "04:30", "show": { "id": "sb_music_moments", "title": "Music Story Moments", "nyxPayload": "show:sb_music_moments" } },
       { "startET": "05:00", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
       { "startET": "05:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+
       { "startET": "06:00", "show": { "id": "sb_news_canada", "title": "News Canada Brief", "nyxPayload": "show:sb_news_canada" } },
       { "startET": "06:30", "show": { "id": "sb_music_moments", "title": "Music Story Moments", "nyxPayload": "show:sb_music_moments" } },
-      { "startET": "07:00", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
-      { "startET": "07:30", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
-      { "startET": "08:00", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
-      { "startET": "08:30", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
-      { "startET": "09:00", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
-      { "startET": "09:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
-      { "startET": "10:00", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
-      { "startET": "10:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
-      { "startET": "11:00", "show": { "id": "sb_music_moments", "title": "Music Story Moments", "nyxPayload": "show:sb_music_moments" } },
-      { "startET": "11:30", "show": { "id": "sb_news_canada", "title": "News Canada Brief", "nyxPayload": "show:sb_news_canada" } },
+
+      { "startET": "07:00", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
+      { "startET": "07:30", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
+      { "startET": "08:00", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
+      { "startET": "08:30", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
+
+      { "startET": "09:00", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+      { "startET": "09:30", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+      { "startET": "10:00", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+      { "startET": "10:30", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+
+      { "startET": "11:00", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+      { "startET": "11:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+
       { "startET": "12:00", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
       { "startET": "12:30", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
-      { "startET": "13:00", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
-      { "startET": "13:30", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
+      { "startET": "13:00", "show": { "id": "sb_music_moments", "title": "Music Story Moments", "nyxPayload": "show:sb_music_moments" } },
+      { "startET": "13:30", "show": { "id": "sb_news_canada", "title": "News Canada Brief", "nyxPayload": "show:sb_news_canada" } },
+
       { "startET": "14:00", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
       { "startET": "14:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
-      { "startET": "15:00", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
-      { "startET": "15:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+      { "startET": "15:00", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+      { "startET": "15:30", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+
       { "startET": "16:00", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
       { "startET": "16:30", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
-      { "startET": "17:00", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
-      { "startET": "17:30", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+      { "startET": "17:00", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+      { "startET": "17:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+
       { "startET": "18:00", "show": { "id": "sb_news_canada", "title": "News Canada Brief", "nyxPayload": "show:sb_news_canada" } },
       { "startET": "18:30", "show": { "id": "sb_music_moments", "title": "Music Story Moments", "nyxPayload": "show:sb_music_moments" } },
-      { "startET": "19:00", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+      { "startET": "19:00", "show": { "id": "sb_music_moments", "title": "Music Story Moments", "nyxPayload": "show:sb_music_moments" } },
       { "startET": "19:30", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+
       { "startET": "20:00", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
       { "startET": "20:30", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
       { "startET": "21:00", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
@@ -167,10 +188,317 @@
       { "startET": "23:30", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } }
     ],
 
-    "Tuesday": [],
-    "Wednesday": [],
-    "Thursday": [],
-    "Friday": [],
-    "Saturday": []
+    "Tuesday": [
+      { "startET": "00:00", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+      { "startET": "00:30", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+      { "startET": "01:00", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+      { "startET": "01:30", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+      { "startET": "02:00", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+      { "startET": "02:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+      { "startET": "03:00", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+      { "startET": "03:30", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+
+      { "startET": "04:00", "show": { "id": "sb_music_moments", "title": "Music Story Moments", "nyxPayload": "show:sb_music_moments" } },
+      { "startET": "04:30", "show": { "id": "sb_news_canada", "title": "News Canada Brief", "nyxPayload": "show:sb_news_canada" } },
+      { "startET": "05:00", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+      { "startET": "05:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+
+      { "startET": "06:00", "show": { "id": "sb_news_canada", "title": "News Canada Brief", "nyxPayload": "show:sb_news_canada" } },
+      { "startET": "06:30", "show": { "id": "sb_music_moments", "title": "Music Story Moments", "nyxPayload": "show:sb_music_moments" } },
+
+      { "startET": "07:00", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+      { "startET": "07:30", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+      { "startET": "08:00", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
+      { "startET": "08:30", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
+
+      { "startET": "09:00", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+      { "startET": "09:30", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+      { "startET": "10:00", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+      { "startET": "10:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+
+      { "startET": "11:00", "show": { "id": "sb_music_moments", "title": "Music Story Moments", "nyxPayload": "show:sb_music_moments" } },
+      { "startET": "11:30", "show": { "id": "sb_news_canada", "title": "News Canada Brief", "nyxPayload": "show:sb_news_canada" } },
+
+      { "startET": "12:00", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
+      { "startET": "12:30", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
+      { "startET": "13:00", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
+      { "startET": "13:30", "show": { "id": "sb_music_moments", "title": "Music Story Moments", "nyxPayload": "show:sb_music_moments" } },
+
+      { "startET": "14:00", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+      { "startET": "14:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+      { "startET": "15:00", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+      { "startET": "15:30", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+
+      { "startET": "16:00", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+      { "startET": "16:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+      { "startET": "17:00", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+      { "startET": "17:30", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+
+      { "startET": "18:00", "show": { "id": "sb_news_canada", "title": "News Canada Brief", "nyxPayload": "show:sb_news_canada" } },
+      { "startET": "18:30", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+      { "startET": "19:00", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+      { "startET": "19:30", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+      { "startET": "20:00", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+      { "startET": "20:30", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+      { "startET": "21:00", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+      { "startET": "21:30", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+
+      { "startET": "22:00", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+      { "startET": "22:30", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+      { "startET": "23:00", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+      { "startET": "23:30", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } }
+    ],
+
+    "Wednesday": [
+      { "startET": "00:00", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+      { "startET": "00:30", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+      { "startET": "01:00", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+      { "startET": "01:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+      { "startET": "02:00", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+      { "startET": "02:30", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+      { "startET": "03:00", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+      { "startET": "03:30", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+
+      { "startET": "04:00", "show": { "id": "sb_news_canada", "title": "News Canada Brief", "nyxPayload": "show:sb_news_canada" } },
+      { "startET": "04:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+      { "startET": "05:00", "show": { "id": "sb_music_moments", "title": "Music Story Moments", "nyxPayload": "show:sb_music_moments" } },
+      { "startET": "05:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+
+      { "startET": "06:00", "show": { "id": "sb_news_canada", "title": "News Canada Brief", "nyxPayload": "show:sb_news_canada" } },
+      { "startET": "06:30", "show": { "id": "sb_music_moments", "title": "Music Story Moments", "nyxPayload": "show:sb_music_moments" } },
+
+      { "startET": "07:00", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+      { "startET": "07:30", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+      { "startET": "08:00", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+      { "startET": "08:30", "show": { "id": "sb_music_moments", "title": "Music Story Moments", "nyxPayload": "show:sb_music_moments" } },
+
+      { "startET": "09:00", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
+      { "startET": "09:30", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
+      { "startET": "10:00", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+      { "startET": "10:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+
+      { "startET": "11:00", "show": { "id": "sb_news_canada", "title": "News Canada Brief", "nyxPayload": "show:sb_news_canada" } },
+      { "startET": "11:30", "show": { "id": "sb_music_moments", "title": "Music Story Moments", "nyxPayload": "show:sb_music_moments" } },
+
+      { "startET": "12:00", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
+      { "startET": "12:30", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
+      { "startET": "13:00", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+      { "startET": "13:30", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+
+      { "startET": "14:00", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+      { "startET": "14:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+      { "startET": "15:00", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+      { "startET": "15:30", "show": { "id": "sb_music_moments", "title": "Music Story Moments", "nyxPayload": "show:sb_music_moments" } },
+
+      { "startET": "16:00", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+      { "startET": "16:30", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+      { "startET": "17:00", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
+      { "startET": "17:30", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
+
+      { "startET": "18:00", "show": { "id": "sb_news_canada", "title": "News Canada Brief", "nyxPayload": "show:sb_news_canada" } },
+      { "startET": "18:30", "show": { "id": "sb_music_moments", "title": "Music Story Moments", "nyxPayload": "show:sb_music_moments" } },
+
+      { "startET": "19:00", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+      { "startET": "19:30", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+
+      { "startET": "20:00", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+      { "startET": "20:30", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+      { "startET": "21:00", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+      { "startET": "21:30", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+      { "startET": "22:00", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+      { "startET": "22:30", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+
+      { "startET": "23:00", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+      { "startET": "23:30", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } }
+    ],
+
+    "Thursday": [
+      { "startET": "00:00", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+      { "startET": "00:30", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+      { "startET": "01:00", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+      { "startET": "01:30", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+      { "startET": "02:00", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+      { "startET": "02:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+      { "startET": "03:00", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+      { "startET": "03:30", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+
+      { "startET": "04:00", "show": { "id": "sb_news_canada", "title": "News Canada Brief", "nyxPayload": "show:sb_news_canada" } },
+      { "startET": "04:30", "show": { "id": "sb_music_moments", "title": "Music Story Moments", "nyxPayload": "show:sb_music_moments" } },
+      { "startET": "05:00", "show": { "id": "sb_music_moments", "title": "Music Story Moments", "nyxPayload": "show:sb_music_moments" } },
+      { "startET": "05:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+
+      { "startET": "06:00", "show": { "id": "sb_news_canada", "title": "News Canada Brief", "nyxPayload": "show:sb_news_canada" } },
+      { "startET": "06:30", "show": { "id": "sb_music_moments", "title": "Music Story Moments", "nyxPayload": "show:sb_music_moments" } },
+
+      { "startET": "07:00", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
+      { "startET": "07:30", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
+      { "startET": "08:00", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+      { "startET": "08:30", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+
+      { "startET": "09:00", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+      { "startET": "09:30", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+      { "startET": "10:00", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
+      { "startET": "10:30", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
+
+      { "startET": "11:00", "show": { "id": "sb_music_moments", "title": "Music Story Moments", "nyxPayload": "show:sb_music_moments" } },
+      { "startET": "11:30", "show": { "id": "sb_news_canada", "title": "News Canada Brief", "nyxPayload": "show:sb_news_canada" } },
+
+      { "startET": "12:00", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+      { "startET": "12:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+      { "startET": "13:00", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
+      { "startET": "13:30", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
+
+      { "startET": "14:00", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+      { "startET": "14:30", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+      { "startET": "15:00", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+      { "startET": "15:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+
+      { "startET": "16:00", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
+      { "startET": "16:30", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
+      { "startET": "17:00", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+      { "startET": "17:30", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+
+      { "startET": "18:00", "show": { "id": "sb_news_canada", "title": "News Canada Brief", "nyxPayload": "show:sb_news_canada" } },
+      { "startET": "18:30", "show": { "id": "sb_music_moments", "title": "Music Story Moments", "nyxPayload": "show:sb_music_moments" } },
+
+      { "startET": "19:00", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+      { "startET": "19:30", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+      { "startET": "20:00", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+      { "startET": "20:30", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+
+      { "startET": "21:00", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+      { "startET": "21:30", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+
+      { "startET": "22:00", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+      { "startET": "22:30", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+      { "startET": "23:00", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+      { "startET": "23:30", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } }
+    ],
+
+    "Friday": [
+      { "startET": "00:00", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+      { "startET": "00:30", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+      { "startET": "01:00", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+      { "startET": "01:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+      { "startET": "02:00", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+      { "startET": "02:30", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+      { "startET": "03:00", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+      { "startET": "03:30", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+
+      { "startET": "04:00", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+      { "startET": "04:30", "show": { "id": "sb_news_canada", "title": "News Canada Brief", "nyxPayload": "show:sb_news_canada" } },
+      { "startET": "05:00", "show": { "id": "sb_music_moments", "title": "Music Story Moments", "nyxPayload": "show:sb_music_moments" } },
+      { "startET": "05:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+
+      { "startET": "06:00", "show": { "id": "sb_news_canada", "title": "News Canada Brief", "nyxPayload": "show:sb_news_canada" } },
+      { "startET": "06:30", "show": { "id": "sb_music_moments", "title": "Music Story Moments", "nyxPayload": "show:sb_music_moments" } },
+
+      { "startET": "07:00", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+      { "startET": "07:30", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+      { "startET": "08:00", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
+      { "startET": "08:30", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
+
+      { "startET": "09:00", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+      { "startET": "09:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+      { "startET": "10:00", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+      { "startET": "10:30", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+
+      { "startET": "11:00", "show": { "id": "sb_music_moments", "title": "Music Story Moments", "nyxPayload": "show:sb_music_moments" } },
+      { "startET": "11:30", "show": { "id": "sb_news_canada", "title": "News Canada Brief", "nyxPayload": "show:sb_news_canada" } },
+
+      { "startET": "12:00", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
+      { "startET": "12:30", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
+      { "startET": "13:00", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+      { "startET": "13:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+
+      { "startET": "14:00", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+      { "startET": "14:30", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+      { "startET": "15:00", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
+      { "startET": "15:30", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
+
+      { "startET": "16:00", "show": { "id": "sb_music_moments", "title": "Music Story Moments", "nyxPayload": "show:sb_music_moments" } },
+      { "startET": "16:30", "show": { "id": "sb_news_canada", "title": "News Canada Brief", "nyxPayload": "show:sb_news_canada" } },
+      { "startET": "17:00", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+      { "startET": "17:30", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+
+      { "startET": "18:00", "show": { "id": "sb_news_canada", "title": "News Canada Brief", "nyxPayload": "show:sb_news_canada" } },
+      { "startET": "18:30", "show": { "id": "sb_music_moments", "title": "Music Story Moments", "nyxPayload": "show:sb_music_moments" } },
+
+      { "startET": "19:00", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+      { "startET": "19:30", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+      { "startET": "20:00", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+      { "startET": "20:30", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+      { "startET": "21:00", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+      { "startET": "21:30", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+
+      { "startET": "22:00", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+      { "startET": "22:30", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+      { "startET": "23:00", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+      { "startET": "23:30", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } }
+    ],
+
+    "Saturday": [
+      { "startET": "00:00", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+      { "startET": "00:30", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+      { "startET": "01:00", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+      { "startET": "01:30", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+      { "startET": "02:00", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+      { "startET": "02:30", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+      { "startET": "03:00", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+      { "startET": "03:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+
+      { "startET": "04:00", "show": { "id": "sb_music_moments", "title": "Music Story Moments", "nyxPayload": "show:sb_music_moments" } },
+      { "startET": "04:30", "show": { "id": "sb_news_canada", "title": "News Canada Brief", "nyxPayload": "show:sb_news_canada" } },
+      { "startET": "05:00", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+      { "startET": "05:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+
+      { "startET": "06:00", "show": { "id": "sb_news_canada", "title": "News Canada Brief", "nyxPayload": "show:sb_news_canada" } },
+      { "startET": "06:30", "show": { "id": "sb_music_moments", "title": "Music Story Moments", "nyxPayload": "show:sb_music_moments" } },
+
+      { "startET": "07:00", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+      { "startET": "07:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+      { "startET": "08:00", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
+      { "startET": "08:30", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
+
+      { "startET": "09:00", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
+      { "startET": "09:30", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
+      { "startET": "10:00", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+      { "startET": "10:30", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+
+      { "startET": "11:00", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+      { "startET": "11:30", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+
+      { "startET": "12:00", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
+      { "startET": "12:30", "show": { "id": "sb_western_block", "title": "Western Block", "nyxPayload": "show:sb_western_block" } },
+
+      { "startET": "13:00", "show": { "id": "sb_news_canada", "title": "News Canada Brief", "nyxPayload": "show:sb_news_canada" } },
+      { "startET": "13:30", "show": { "id": "sb_music_moments", "title": "Music Story Moments", "nyxPayload": "show:sb_music_moments" } },
+
+      { "startET": "14:00", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+      { "startET": "14:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+
+      { "startET": "15:00", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+      { "startET": "15:30", "show": { "id": "sb_detective_hour", "title": "Detective Hour", "nyxPayload": "show:sb_detective_hour" } },
+
+      { "startET": "16:00", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+      { "startET": "16:30", "show": { "id": "sb_classics", "title": "Sandblast Classics", "nyxPayload": "show:sb_classics" } },
+
+      { "startET": "17:00", "show": { "id": "sb_news_canada", "title": "News Canada Brief", "nyxPayload": "show:sb_news_canada" } },
+      { "startET": "17:30", "show": { "id": "sb_music_moments", "title": "Music Story Moments", "nyxPayload": "show:sb_music_moments" } },
+
+      { "startET": "18:00", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+      { "startET": "18:30", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+      { "startET": "19:00", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+      { "startET": "19:30", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+      { "startET": "20:00", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+      { "startET": "20:30", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+      { "startET": "21:00", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+      { "startET": "21:30", "show": { "id": "sb_prime_movie", "title": "Prime Movie Slot", "nyxPayload": "show:sb_prime_movie" } },
+
+      { "startET": "22:00", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+      { "startET": "22:30", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+      { "startET": "23:00", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } },
+      { "startET": "23:30", "show": { "id": "sb_late_night", "title": "Late Night Vault", "nyxPayload": "show:sb_late_night" } }
+    ]
   }
 }
