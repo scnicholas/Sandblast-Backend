@@ -16,20 +16,18 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.6aa (CS-1 WIRING++ + CONTRACT PASS-THRU + TURN DETERMINISM HARDENED)
+ * v0.6ab (COS PERSISTENCE + "NEXT STEP" INTENT + SESSIONPATCH.cog HARDENED)
  *
  * Adds:
- *  ✅ Pass-through for lane module fields when present (directives/ui/ctx/lane)
- *     - musicLane / rokuLane can return { lane, ctx, ui, directives } and we preserve them
- *
- * Fixes:
- *  ✅ Prevent double turn-increment when enforceContractFinal runs after early returns
- *     - ensureSessionPatchBasics respects an already-populated patch.turns
- *     - preserves deterministic "exactly once" increment per returned turn
+ *  ✅ Cognitive OS (COS) payload always present in top-level out.cog
+ *  ✅ sessionPatch.cog is persisted (allowlisted) for index.js to store
+ *  ✅ "Next step" treated as first-class navigation intent (advances when possible)
  *
  * Preserves:
  *  ✅ Contract-lock guarantees + loop guards + continuity spine + next/prev reliability
  *  ✅ CS-1 wiring + __cs1 allowlisted
+ *  ✅ Pass-through for lane module fields when present (directives/ui/ctx/lane)
+ *  ✅ Deterministic turn increment (no double increment when enforceContractFinal runs)
  */
 
 const crypto = require("crypto");
@@ -308,6 +306,58 @@ function ensureFollowUpsNonEmpty(lane, year, followUpsStrings, sess) {
 }
 
 // ----------------------------
+// COS (Cognitive OS) helpers
+// ----------------------------
+function computeNextStepHint({ lane, mode, year, state }) {
+  const l = String(lane || "general").toLowerCase();
+  const m = String(mode || "").toLowerCase();
+  const y = year && /^\d{4}$/.test(String(year)) ? String(year) : null;
+  const st = String(state || "").toLowerCase();
+
+  if (st === "clarify" && l === "music" && !y) return "Pick a year (1950–2024).";
+  if (l === "music" && y) {
+    if (m === "story_moment") return `Say “Micro moment ${y}” or tap Next.`;
+    if (m === "micro_moment") return `Tap Next, or ask for “Story moment ${y}”.`;
+    if (m === "number1") return `Tap Next, or ask for “Top 10 ${y}”.`;
+    if (m === "top100") return `Tap Next, or switch to “Top 10 ${y}”.`;
+    return `Tap Next / Previous, or ask “Story moment ${y}”.`;
+  }
+  if (l === "roku" || l === "tv") return "Choose Live linear or VOD.";
+  if (l === "schedule") return "Pick a city to anchor the timezone.";
+  if (l === "radio") return "Open radio, or pick a year first.";
+  return "Pick a year, try “Surprise me”, or tell me what you want.";
+}
+
+function ensureCog(out, lane, mode, year, state, reason) {
+  const ts = nowMs();
+  const baseLane = String(lane || "general");
+  const cog = (out.cog && typeof out.cog === "object") ? out.cog : {};
+  const yy = year && /^\d{4}$/.test(String(year)) ? String(year) : (cog.year ? String(cog.year) : undefined);
+  const mm = (mode != null && mode !== "") ? String(mode) : (cog.mode ? String(cog.mode) : undefined);
+  const st = state || cog.state || "respond";
+
+  out.cog = {
+    phase: cog.phase || "engaged",
+    state: st,
+    reason: reason || cog.reason || "reply",
+    lane: cog.lane || baseLane,
+    year: yy,
+    mode: mm,
+    nextStep: cog.nextStep || computeNextStepHint({ lane: baseLane, mode: mm, year: yy, state: st }),
+    ts: cog.ts || ts
+  };
+  return out;
+}
+
+function attachCogToSessionPatch(out, sess) {
+  const patch = (out.sessionPatch && typeof out.sessionPatch === "object") ? out.sessionPatch : {};
+  // Never stomp an explicit patch.cog, but always ensure it exists
+  if (patch.cog === undefined) patch.cog = (out.cog && typeof out.cog === "object") ? out.cog : undefined;
+  out.sessionPatch = filterSessionPatch(patch);
+  return out;
+}
+
+// ----------------------------
 // HARDENING: SessionPatch Allowlist
 // ----------------------------
 const SESSION_ALLOW = new Set([
@@ -326,6 +376,8 @@ const SESSION_ALLOW = new Set([
   "musicContext",
   "depthPreference", "userName", "nameAskedAt", "lastOpenQuestion", "userGoal",
   "lastNameUseTurn",
+  // ✅ COS persistence
+  "cog",
   // ✅ CS-1 state (must be allowlisted or CS-1 will reset every turn)
   "__cs1"
 ]);
@@ -426,7 +478,7 @@ function cachedResponse(session, reason, requestIdIn) {
 
   const turns = Number(session && session.turns) || 0;
 
-  return {
+  const out = {
     ok: true,
     reply,
     lane: (session && session.lane) || "general",
@@ -459,6 +511,10 @@ function cachedResponse(session, reason, requestIdIn) {
     requestId: requestIdIn || rid(),
     meta: { ts: nowMs(), contract: "v1" }
   };
+
+  ensureCog(out, out.lane, out.ctx && out.ctx.mode, out.ctx && out.ctx.year, "steady", "input_loop_guard");
+  out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: session && session.__cs1 });
+  return out;
 }
 
 // ----------------------------
@@ -556,6 +612,17 @@ function extractNameFromText(text) {
 // ----------------------------
 // NEXT / DEEPER INTENTS + CONTINUITY RESOLVER
 // ----------------------------
+function isNextStepIntent(text) {
+  const t = normalizeText(text);
+  return (
+    t === "next step" ||
+    t === "nextstep" ||
+    t === "what's next" ||
+    t === "whats next" ||
+    t === "next action"
+  );
+}
+
 function isNextIntent(text) {
   const t = normalizeText(text);
   return (
@@ -1145,22 +1212,6 @@ function enforceNonEmptyReply(out, fallbackText) {
   return out;
 }
 
-function ensureCog(out, lane, mode, year, state, reason) {
-  const ts = nowMs();
-  const baseLane = String(lane || "general");
-  const cog = (out.cog && typeof out.cog === "object") ? out.cog : {};
-  out.cog = {
-    phase: cog.phase || "engaged",
-    state: state || cog.state || "respond",
-    reason: reason || cog.reason || "reply",
-    lane: cog.lane || baseLane,
-    year: year || cog.year,
-    mode: mode || cog.mode,
-    ts: cog.ts || ts
-  };
-  return out;
-}
-
 function ensureSessionPatchBasics(out, sess, routingText, lane, mode, year, followUpsStrings, outSig) {
   const patch = (out.sessionPatch && typeof out.sessionPatch === "object") ? out.sessionPatch : {};
   const turnsBase = Number(sess.turns || 0);
@@ -1201,6 +1252,9 @@ function ensureSessionPatchBasics(out, sess, routingText, lane, mode, year, foll
 
   // ✅ preserve CS-1 state if present (and allowlisted)
   if (sess && sess.__cs1 && patch.__cs1 === undefined) patch.__cs1 = sess.__cs1;
+
+  // ✅ COS persistence
+  if (patch.cog === undefined && out.cog && typeof out.cog === "object") patch.cog = out.cog;
 
   out.sessionPatch = filterSessionPatch(patch);
   return out;
@@ -1259,6 +1313,7 @@ function enforceContractFinal({
         pendingYear: null,
         recentIntent: "clarify_year",
         recentTopic: `need_year:${String(baseMode)}`,
+        cog: out.cog,
         __cs1: sess.__cs1
       });
 
@@ -1290,6 +1345,7 @@ function enforceContractFinal({
         ...out.sessionPatch,
         recentIntent: "clarify_content",
         recentTopic: `incomplete:${String(baseMode)}:${String(baseYear)}`,
+        cog: out.cog,
         __cs1: sess.__cs1
       });
 
@@ -1305,8 +1361,10 @@ function enforceContractFinal({
   out = enforceOneIntent(out);
   out = enforceNonEmptyReply(out);
 
-  const sig = buildOutSig(out.reply, fus);
+  // ✅ ensure cog + persist it
   out = ensureCog(out, baseLane, baseMode || undefined, baseYear || undefined, out.cog && out.cog.state, out.cog && out.cog.reason);
+
+  const sig = buildOutSig(out.reply, fus);
   out = ensureSessionPatchBasics(out, sess, routingText, baseLane, baseMode, baseYear, fus, sig);
 
   // strict: keep ctx consistent
@@ -1317,6 +1375,9 @@ function enforceContractFinal({
 
   // UI default
   out.ui = out.ui && typeof out.ui === "object" ? out.ui : { mode: "chat" };
+
+  // final attach (idempotent)
+  out = attachCogToSessionPatch(out, sess);
 
   return out;
 }
@@ -1360,19 +1421,7 @@ async function chatEngine(arg1, arg2) {
     const sessionPatchBase = resetSessionPatch(sess);
     const outSig = buildOutSig(r.reply, followUpsStrings);
 
-    const patch = filterSessionPatch({
-      ...sessionPatchBase,
-      lastOut: { reply: r.reply, followUps: followUpsStrings },
-      lastOutAt: nowMs(),
-      lastOutSig: outSig,
-      lastOutSigAt: nowMs(),
-      turns: 1,
-      lastTurnAt: nowMs(),
-      startedAt: nowMs(),
-      __cs1: sess.__cs1
-    });
-
-    return {
+    const out = {
       ok: true,
       reply: r.reply,
       lane: "general",
@@ -1381,11 +1430,25 @@ async function chatEngine(arg1, arg2) {
       directives: [],
       followUpsStrings,
       followUps: chipsFromStrings(followUpsStrings, 4),
-      sessionPatch: patch,
+      sessionPatch: filterSessionPatch({
+        ...sessionPatchBase,
+        lastOut: { reply: r.reply, followUps: followUpsStrings },
+        lastOutAt: nowMs(),
+        lastOutSig: outSig,
+        lastOutSigAt: nowMs(),
+        turns: 1,
+        lastTurnAt: nowMs(),
+        startedAt: nowMs(),
+        __cs1: sess.__cs1
+      }),
       cog: { phase: "engaged", state: "reset", reason: "user_reset", lane: "general", ts: nowMs() },
       requestId,
       meta: { ts: nowMs(), contract: "v1" }
     };
+
+    ensureCog(out, "general", null, null, "reset", "user_reset");
+    out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
+    return out;
   }
 
   // ----------------------------
@@ -1449,6 +1512,56 @@ async function chatEngine(arg1, arg2) {
 
   // Continuity snapshot (used for deeper/next/prev)
   const cont = getContinuity(sess, routingText0);
+
+  // ----------------------------
+  // "NEXT STEP" intent (first-class)
+  // ----------------------------
+  if (isNextStepIntent(routingText0)) {
+    // Prefer advancing music if we have music continuity; otherwise provide a deterministic “choose lane” step.
+    cs1MarkSpoke(sess, turnCountForCS1, "nav");
+
+    if (cont && cont.lane === "music") {
+      // Treat as NEXT for music when possible
+      routingText0 = "next";
+    } else {
+      const reply = "Next step: pick a lane. Do you want **Music**, **TV/Roku**, **Schedule**, or **Just talk**?";
+      const chips = maybeInjectResetChip(["Pick a year", "Show me the Roku path", "What’s playing now", "Just talk"], sess).slice(0, 4);
+      const outSig = buildOutSig(reply, chips);
+
+      const out = {
+        ok: true,
+        reply,
+        lane: "general",
+        ctx: { year: null, mode: "discover" },
+        ui: { mode: "chat" },
+        directives: [],
+        followUpsStrings: chips,
+        followUps: chipsFromStrings(chips, 4),
+        sessionPatch: filterSessionPatch({
+          lastInText: routingText0,
+          lastInAt: nowMs(),
+          recentIntent: "next_step",
+          recentTopic: "cos:next_step",
+          lane: "general",
+          lastOut: { reply, followUps: chips },
+          lastOutAt: nowMs(),
+          lastOutSig: outSig,
+          lastOutSigAt: nowMs(),
+          turns: Number(sess.turns || 0) + 1,
+          lastTurnAt: nowMs(),
+          startedAt: Number(sess.startedAt) || nowMs(),
+          __cs1: sess.__cs1
+        }),
+        cog: { phase: "engaged", state: "execute", reason: "next_step_lane_select", lane: "general", ts: nowMs() },
+        requestId,
+        meta: { ts: nowMs(), contract: "v1" }
+      };
+
+      ensureCog(out, "general", null, null, "execute", "next_step_lane_select");
+      out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
+      return out;
+    }
+  }
 
   // ----------------------------
   // DEEPER intercept (mode-aware, stays in-place)
@@ -1524,6 +1637,9 @@ async function chatEngine(arg1, arg2) {
       meta: { ts: nowMs(), contract: "v1" }
     };
 
+    ensureCog(out, laneOut, modeOut, yearOut, "expand", "deeper_mode_aware");
+    out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
+
     return enforceContractFinal({
       out,
       sess,
@@ -1578,6 +1694,9 @@ async function chatEngine(arg1, arg2) {
         meta: { ts: nowMs(), contract: "v1" }
       };
 
+      ensureCog(out, "music", out.ctx && out.ctx.mode, out.ctx && out.ctx.year, "clarify", "next_needs_year");
+      out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
+
       return enforceContractFinal({
         out,
         sess,
@@ -1629,6 +1748,9 @@ async function chatEngine(arg1, arg2) {
         requestId,
         meta: { ts: nowMs(), contract: "v1" }
       };
+
+      ensureCog(out, "music", out.ctx && out.ctx.mode, out.ctx && out.ctx.year, "clarify", "prev_needs_year");
+      out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
 
       return enforceContractFinal({
         out,
@@ -1691,6 +1813,9 @@ async function chatEngine(arg1, arg2) {
       meta: { ts: nowMs(), contract: "v1" }
     };
 
+    ensureCog(out, "general", null, null, "welcome", "name_captured");
+    out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
+
     return enforceContractFinal({
       out,
       sess,
@@ -1745,6 +1870,9 @@ async function chatEngine(arg1, arg2) {
       meta: { ts: nowMs(), contract: "v1" }
     };
 
+    ensureCog(out, "general", null, null, "calibrate", "depth_dial");
+    out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
+
     return enforceContractFinal({
       out,
       sess,
@@ -1784,6 +1912,9 @@ async function chatEngine(arg1, arg2) {
       requestId,
       meta: { ts: nowMs(), contract: "v1" }
     };
+
+    ensureCog(out, "music", out.ctx && out.ctx.mode, out.ctx && out.ctx.year, "clarify", "ui_year_picker");
+    out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
 
     return enforceContractFinal({
       out,
@@ -1858,6 +1989,9 @@ async function chatEngine(arg1, arg2) {
       meta: { ts: nowMs(), contract: "v1" }
     };
 
+    ensureCog(out, "general", null, null, "welcome", "intro_v2");
+    out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
+
     return enforceContractFinal({
       out,
       sess,
@@ -1925,6 +2059,9 @@ async function chatEngine(arg1, arg2) {
       requestId,
       meta: { ts: nowMs(), contract: "v1" }
     };
+
+    ensureCog(out, "music", mode, null, "clarify", "need_year");
+    out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
 
     return enforceContractFinal({
       out,
@@ -2091,6 +2228,10 @@ async function chatEngine(arg1, arg2) {
     meta: { ts: nowMs(), contract: "v1" }
   };
 
+  // ✅ ensure cog content is rich + persist it to sessionPatch.cog
+  ensureCog(out, pinnedLane, pinnedMode, pinnedYear, "respond", out.cog && out.cog.reason);
+  out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
+
   // FINAL CONTRACT-LOCK PASS (hard guarantees)
   out = enforceContractFinal({
     out,
@@ -2110,6 +2251,13 @@ async function chatEngine(arg1, arg2) {
     const r = String(out.reply || "").trim();
     if (!r.endsWith("?") && !hasQuestionMark(r)) {
       out.reply = r + "?";
+    }
+  }
+
+  // final: hard guarantee patch.cog exists
+  if (out && out.sessionPatch && typeof out.sessionPatch === "object") {
+    if (out.sessionPatch.cog === undefined && out.cog) {
+      out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog });
     }
   }
 
