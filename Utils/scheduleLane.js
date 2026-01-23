@@ -3,16 +3,17 @@
 /**
  * Utils/scheduleLane.js
  *
- * Schedule Lane v1.3a (GRID SCHEDULE v1 + Deterministic + Never-Throw + Chip-Safe)
+ * Schedule Lane v1.3b (GRID SCHEDULE v1 + Deterministic + Never-Throw + Chip-Safe)
  *
  * Supports schedule_v1.json schema:
  * {
  *   version,
- *   timezoneCanonical: "America/Toronto",
+ *   timezoneCanonical: "America/Toronto",       // ET-authored (canonical)
  *   blockSizeMinutes: 30,
  *   shows: [{id,title,description,href,nyxPayload}],
  *   week: {
- *     Sunday: [{startET:"00:00", show:{id,title,nyxPayload,href?}}, ...],
+ *     Sunday:   [{startET:"00:00", show:{id,title,nyxPayload,href?}}, ...],
+ *     Monday:   [...],
  *     ...
  *   }
  * }
@@ -84,26 +85,44 @@ function safeFollowUps(list) {
 }
 
 const ROOT = path.resolve(__dirname, "..");
-const DATA_FILE = path.join(ROOT, "Data", "roku_programming_v1.json"); // keep your existing filename
+
+// Prefer schedule_v1.json, but keep backward-compat with prior filename.
+// First readable file wins.
+const DATA_FILES = [
+  path.join(ROOT, "Data", "schedule_v1.json"),
+  path.join(ROOT, "Data", "roku_programming_v1.json"),
+];
 
 let CACHE = null;
+let CACHE_PATH = null;
+
 function loadScheduleSafe() {
   if (CACHE) return CACHE;
-  try {
-    const raw = fs.readFileSync(DATA_FILE, "utf8");
-    const obj = JSON.parse(raw);
-    CACHE = obj || null;
-    return CACHE;
-  } catch (_) {
-    CACHE = {
-      version: "schedule_v1.0.0",
-      timezoneCanonical: "America/Toronto",
-      blockSizeMinutes: 30,
-      shows: [],
-      week: {},
-    };
-    return CACHE;
+
+  for (const fp of DATA_FILES) {
+    try {
+      if (!fs.existsSync(fp)) continue;
+      const raw = fs.readFileSync(fp, "utf8");
+      const obj = JSON.parse(raw);
+      if (obj && typeof obj === "object") {
+        CACHE = obj;
+        CACHE_PATH = fp;
+        return CACHE;
+      }
+    } catch (_) {
+      // continue to next file
+    }
   }
+
+  CACHE = {
+    version: "schedule_v1.0.0",
+    timezoneCanonical: "America/Toronto",
+    blockSizeMinutes: 30,
+    shows: [],
+    week: {},
+  };
+  CACHE_PATH = null;
+  return CACHE;
 }
 
 const DOW = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
@@ -138,7 +157,7 @@ function fmtTime(msUtc, tz) {
 function fmtWeekday(msUtc, tz) {
   const d = new Date(msUtc);
   const f = new Intl.DateTimeFormat("en-CA", { timeZone: tz, weekday: "short" });
-  return f.format(d).toUpperCase().slice(0, 3); // MON/TUE...
+  return f.format(d).toUpperCase().slice(0, 3);
 }
 
 function partsInTz(dateObj, tz) {
@@ -161,7 +180,7 @@ function partsInTz(dateObj, tz) {
     month: Number(map.month),
     day: Number(map.day),
     weekdayIndex: Math.max(0, DOW.indexOf(weekday)),
-    weekday, // e.g., "FRI"
+    weekday,
   };
 }
 
@@ -191,7 +210,7 @@ function partsHMInTz(dateObj, tz) {
  * Convert "zoned local time" -> UTC ms using Intl.
  *  1) Create UTC guess from components.
  *  2) Determine what time that guess represents in target tz.
- *  3) Compute offset and correct (DST-safe enough for our schedule use).
+ *  3) Compute offset and correct (DST-safe enough for schedule use).
  */
 function zonedTimeToUtcMs(parts, tz) {
   const guessUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, 0);
@@ -238,12 +257,12 @@ function isScheduleQuestion(text) {
   if (!t) return false;
 
   return (
-    /\b(schedule|programming|what's playing|whats playing|playing now|on now|airing|today|tonight|this week|full week|week schedule|grid)\b/.test(
+    /\b(schedule|programming|what's playing|whats playing|playing now|on now|airing|tonight|this week|full week|week schedule|grid)\b/.test(
       t
     ) ||
-    /\b(now next later|now\/next\/later)\b/.test(t) ||
+    /\b(now\s*\/?\s*next(\s*\/?\s*today)?|now\s+next(\s+today)?|now\/next\/today)\b/.test(t) ||
     /\b(convert|what time is)\b/.test(t) ||
-    /\b(roku)\b/.test(t)
+    /\broku\b/.test(t)
   );
 }
 
@@ -295,7 +314,6 @@ function extractShowQuery(text) {
 
   if (m && m[1]) return cleanText(m[1]);
 
-  // If user says just a show name in schedule lane, treat it as query.
   if (/^[a-z0-9' -]{3,60}$/i.test(t) && !/\b(schedule|programming|playing|convert|roku|today|week)\b/i.test(low)) {
     return t;
   }
@@ -312,7 +330,7 @@ function normalizeWeekGrid(schedule) {
   const week = schedule.week && typeof schedule.week === "object" ? schedule.week : {};
   const catalog = Array.isArray(schedule.shows) ? schedule.shows : [];
 
-  // Build a catalog map for richer details by id
+  // Catalog map (richer details by id)
   const byId = new Map();
   for (const s of catalog) {
     const id = cleanText(s && s.id);
@@ -335,12 +353,16 @@ function normalizeWeekGrid(schedule) {
       const showId = cleanText(showIn.id);
       const fromCatalog = showId ? byId.get(showId) : null;
 
+      const title = cleanText(showIn.title || (fromCatalog && fromCatalog.title) || "Untitled");
+
       const show = {
-        id: showId || cleanText(showIn.title) || "unknown",
-        title: cleanText(showIn.title || (fromCatalog && fromCatalog.title) || "Untitled"),
+        id: showId || title || "unknown",
+        title,
         description: cleanText(showIn.description || (fromCatalog && fromCatalog.description) || ""),
         href: cleanText(showIn.href || (fromCatalog && fromCatalog.href) || ""),
-        nyxPayload: cleanText(showIn.nyxPayload || (fromCatalog && fromCatalog.nyxPayload) || (showId ? `show:${showId}` : "")),
+        nyxPayload: cleanText(
+          showIn.nyxPayload || (fromCatalog && fromCatalog.nyxPayload) || (showId ? `show:${showId}` : title ? `show:${title}` : "")
+        ),
       };
 
       const startUtc = getUtcForAuthoringLocal(authorTz, dow, startET, now);
@@ -350,9 +372,8 @@ function normalizeWeekGrid(schedule) {
     }
   }
 
-  // Normalize ordering within same week anchor
   out.sort((a, b) => a.startUtc - b.startUtc);
-  return { authorTz, blockMin, blocks: out, catalog };
+  return { authorTz, blockMin, blocks: out, catalog, sourcePath: CACHE_PATH };
 }
 
 function bestShowMatch(catalog, blocks, q) {
@@ -360,7 +381,6 @@ function bestShowMatch(catalog, blocks, q) {
   const qq = cleanText(q).toLowerCase();
   if (!qq) return null;
 
-  // 1) Prefer catalog match
   let best = null;
   let bestScore = 0;
 
@@ -394,7 +414,6 @@ function bestShowMatch(catalog, blocks, q) {
 
   if (bestScore >= 8 && best) return { id: best.id, title: best.title };
 
-  // 2) Fall back to blocks match
   best = null;
   bestScore = 0;
   for (const b of blocks || []) {
@@ -411,7 +430,7 @@ function bestShowMatch(catalog, blocks, q) {
 
 function blocksForToday(blocks, authorTz, nowUtc) {
   const authorParts = partsInTz(new Date(nowUtc), authorTz);
-  const todayDow = authorParts.weekday; // "FRI" in author tz
+  const todayDow = authorParts.weekday;
   return blocks.filter((b) => b.dow === todayDow);
 }
 
@@ -426,8 +445,10 @@ function compactLineForBlock(b, userTz, tzLabel) {
   const et = fmtTime(b.endUtc, userTz);
   const d = fmtWeekday(b.startUtc, userTz);
   const show = b.show || {};
-  const link = show.href ? ` ${show.href}` : show.nyxPayload ? ` nyx:show:${cleanText(show.id)}` : "";
-  return `${d} ${st}-${et} — ${show.title}${link ? ` (${link})` : ""}${tzLabel ? ` [${tzLabel}]` : ""}`;
+
+  // Keep clickable links clean; do NOT print nyx: payloads unless you want them visible.
+  const link = show.href ? ` (${show.href})` : "";
+  return `${d} ${st}-${et} — ${show.title}${link}${tzLabel ? ` [${tzLabel}]` : ""}`;
 }
 
 // =========================
@@ -507,17 +528,21 @@ function handleChat({ text, session } = {}) {
     }
 
     // 2) Now / Next / Today (priority)
-    if (/\b(now next today|now\/next|now next|what's on|whats on)\b/.test(low)) {
+    if (/\b(now\s*\/?\s*next(\s*\/?\s*today)?|now\s+next(\s+today)?|now\/next\/today)\b/.test(low) || /\bnow\b/.test(low) && /\bnext\b/.test(low)) {
       const { now: nowBlock, next: nextBlock } = findNowNext(blocks, now);
       const today = blocksForToday(blocks, authorTz, now);
 
-      const nowLine = nowBlock ? compactLineForBlock(nowBlock, userTz, tzLabel) : `Now: (no block at this moment) [${tzLabel}]`;
-      const nextLine = nextBlock ? compactLineForBlock(nextBlock, userTz, tzLabel) : `Next: (none) [${tzLabel}]`;
+      const nowLine = nowBlock
+        ? compactLineForBlock(nowBlock, userTz, tzLabel)
+        : `Now: (no block at this moment) [${tzLabel}]`;
+      const nextLine = nextBlock
+        ? compactLineForBlock(nextBlock, userTz, tzLabel)
+        : `Next: (none) [${tzLabel}]`;
 
-      // Today: show next 10 blocks remaining today (author-day anchored)
+      // Today: show next 12 remaining blocks max
       const todayRemaining = today
         .filter((b) => b.endUtc > now)
-        .slice(0, 10)
+        .slice(0, 12)
         .map((b) => `• ${fmtTime(b.startUtc, userTz)}-${fmtTime(b.endUtc, userTz)} — ${b.show.title}${b.show.href ? ` (${b.show.href})` : ""}`);
 
       const todayHeader = today.length ? `Today (${tzLabel}) — ${blockMin}-minute blocks:` : `Today (${tzLabel}): (no blocks)`;
@@ -540,7 +565,7 @@ function handleChat({ text, session } = {}) {
       const hit = blocks.find((b) => now >= b.startUtc && now < b.endUtc) || null;
       if (!hit) {
         return {
-          reply: `Nothing is airing in this exact 30-minute block (converted to ${tzLabel}). Say "Now next today" or "Today schedule".`,
+          reply: `Nothing is airing in this exact ${blockMin}-minute block (converted to ${tzLabel}). Say "Now next today" or "Today schedule".`,
           followUps: safeFollowUps([
             { label: "Now / Next / Today", send: "Now next today" },
             { label: "Today schedule", send: "Today schedule" },
@@ -563,8 +588,8 @@ function handleChat({ text, session } = {}) {
       };
     }
 
-    // 4) Today schedule
-    if (/\b(today schedule|today's schedule|todays schedule|today)\b/.test(low) && !/\b(convert)\b/.test(low)) {
+    // 4) Today schedule (explicit)
+    if (/\b(today schedule|today's schedule|todays schedule)\b/.test(low)) {
       const today = blocksForToday(blocks, authorTz, now);
       const lines = today.map(
         (b) =>
@@ -584,8 +609,7 @@ function handleChat({ text, session } = {}) {
 
     // 5) Full schedule (compact week)
     if (/\b(full week|week schedule|full schedule|show me the schedule|the schedule|programming)\b/.test(low)) {
-      // Show next 24 blocks (12 hours) to keep reply manageable, grouped by user weekday
-      const upcoming = blocks.filter((b) => b.endUtc > now).slice(0, 24);
+      const upcoming = blocks.filter((b) => b.endUtc > now).slice(0, 28); // 14 hours @ 30-min blocks
       const grouped = {};
       for (const b of upcoming) {
         const wd = fmtWeekday(b.startUtc, userTz);
@@ -598,9 +622,7 @@ function handleChat({ text, session } = {}) {
       for (const wd of days) {
         out.push(`${wd}:`);
         for (const b of grouped[wd]) {
-          out.push(
-            `  • ${fmtTime(b.startUtc, userTz)}-${fmtTime(b.endUtc, userTz)} — ${b.show.title}${b.show.href ? ` (${b.show.href})` : ""}`
-          );
+          out.push(`  • ${fmtTime(b.startUtc, userTz)}-${fmtTime(b.endUtc, userTz)} — ${b.show.title}${b.show.href ? ` (${b.show.href})` : ""}`);
         }
       }
 
@@ -634,11 +656,14 @@ function handleChat({ text, session } = {}) {
         };
       }
 
+      const mid = cleanText(match.id).toLowerCase();
+      const mtitle = cleanText(match.title).toLowerCase();
+
       const hits = blocks
         .filter((b) => {
           const sid = cleanText(b.show && b.show.id).toLowerCase();
           const st = cleanText(b.show && b.show.title).toLowerCase();
-          return sid === cleanText(match.id).toLowerCase() || st === cleanText(match.title).toLowerCase();
+          return (mid && sid === mid) || (mtitle && st === mtitle);
         })
         .map((b) => ({ b, start: b.startUtc }))
         .sort((a, c) => a.start - c.start);
@@ -648,7 +673,7 @@ function handleChat({ text, session } = {}) {
 
       const nextLine = next ? `Next: ${compactLineForBlock(next, userTz, tzLabel)}` : "Next: (no upcoming blocks found)";
       const more = future
-        .slice(1, 5)
+        .slice(1, 6)
         .map((h) => `• ${compactLineForBlock(h.b, userTz, tzLabel)}`)
         .join("\n");
 
@@ -657,7 +682,7 @@ function handleChat({ text, session } = {}) {
           `${match.title} — schedule lookup (converted to ${tzLabel}):\n` +
           `• ${nextLine}\n` +
           (more ? `\nMore:\n${more}` : "") +
-          `\n\nTip: if you want Nyx to present the show, tap the link in parentheses (nyx:show:...).`,
+          `\n\nIf your schedule blocks include a href, it will render as a clickable link.`,
         followUps: safeFollowUps([
           { label: "Now / Next / Today", send: "Now next today" },
           { label: "Today schedule", send: "Today schedule" },
@@ -668,7 +693,6 @@ function handleChat({ text, session } = {}) {
       };
     }
 
-    // Default help
     return defaultHelpReply();
   } catch (_) {
     return {
