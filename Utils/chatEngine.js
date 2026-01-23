@@ -28,6 +28,8 @@
  *  ✅ Deterministic turns increment for ALL early returns (reset/intro/year-picker/name/depth/nav/deeper)
  *  ✅ Cached-repeat early return now increments turns (deterministic)
  *  ✅ CS-1 markSpoke lineType normalized to: intro/reset/reentry/clarify/nav/deeper
+ *  ✅ filterSessionPatch now omits undefined keys (prevents accidentally stomping __cs1, etc.)
+ *  ✅ reset early return now truly resets turns (turns=1), instead of carrying forward prevTurns
  *
  * Preserves:
  *  ✅ Contract-lock guarantees + loop guards + continuity spine + next/prev reliability
@@ -335,7 +337,9 @@ function filterSessionPatch(patch) {
   const out = {};
   if (!patch || typeof patch !== "object") return out;
   for (const k of Object.keys(patch)) {
-    if (SESSION_ALLOW.has(k)) out[k] = patch[k];
+    if (!SESSION_ALLOW.has(k)) continue;
+    if (patch[k] === undefined) continue; // ✅ do NOT persist undefined (prevents stomping)
+    out[k] = patch[k];
   }
   return out;
 }
@@ -871,7 +875,7 @@ function resetSessionPatch(prevSess) {
     nameAskedAt: 0,
     lastNameUseTurn: 0,
 
-    // keep __cs1 if it exists; if not, omit (CS-1 module will re-init safely)
+    // keep __cs1 if it exists; if not, omit
     __cs1: (prevSess && prevSess.__cs1) ? prevSess.__cs1 : undefined
   });
 }
@@ -1335,8 +1339,6 @@ async function chatEngine(arg1, arg2) {
 
   // ----------------------------
   // CS-1 decision snapshot (optional)
-  // - We don’t *inject* language here (phrase packs do that),
-  //   but we DO ensure CS-1 state exists and survives allowlisting.
   // ----------------------------
   const turnCountForCS1 = Number(sess.turns || 0) + 1;
   const cs1Decision = cs1Decide(sess, turnCountForCS1, safeText);
@@ -1358,18 +1360,16 @@ async function chatEngine(arg1, arg2) {
     const sessionPatchBase = resetSessionPatch(sess);
     const outSig = buildOutSig(r.reply, followUpsStrings);
 
-    const prevTurns = Number(sess.turns || 0);
-
-    // ✅ deterministic turns: increment even on reset early return
+    // ✅ After reset, turns should restart and deterministically be 1
     const patch = filterSessionPatch({
       ...sessionPatchBase,
       lastOut: { reply: r.reply, followUps: followUpsStrings },
       lastOutAt: nowMs(),
       lastOutSig: outSig,
       lastOutSigAt: nowMs(),
-      turns: prevTurns + 1,
+      turns: 1,
       lastTurnAt: nowMs(),
-      startedAt: Number(sess.startedAt) || nowMs(),
+      startedAt: nowMs(),
       __cs1: sess.__cs1
     });
 
@@ -1677,7 +1677,7 @@ async function chatEngine(arg1, arg2) {
         lastInText: routingText,
         lastInAt: nowMs(),
         userName: maybeName,
-        lastNameUseTurn: Number(sess.turns || 0),
+        lastNameUseTurn: turnCountForCS1,
         recentIntent: "name_capture",
         recentTopic: "name:capture",
         lane: "general",
@@ -1975,9 +1975,9 @@ async function chatEngine(arg1, arg2) {
   }
 
   // If music+mode+year known but routingText didn’t include mode/year, stabilize continuity by prompt rewrite (no second call)
-  let pinnedLane = (navContext && navContext.kind === "advance") ? "music" : lane;
-  let pinnedYear = (navContext && navContext.kind === "advance") ? String(navContext.year) : (year || null);
-  let pinnedMode =
+  const pinnedLane = (navContext && navContext.kind === "advance") ? "music" : lane;
+  const pinnedYear = (navContext && navContext.kind === "advance") ? String(navContext.year) : (year || null);
+  const pinnedMode =
     (navContext && navContext.kind === "advance") ? String(navContext.mode || "top10") :
     (mode || null);
 
