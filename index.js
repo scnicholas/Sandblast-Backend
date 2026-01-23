@@ -21,6 +21,9 @@
  * Additional v1.5.17za wiring:
  *  ✅ CS-1 continuity state allowlist persistence:
  *     - Allows sessionPatch.__cs1 to persist (from Utils/cs1.js via chatEngine v0.6z)
+ *
+ * Minor hardening (v1.5.17za+):
+ *  ✅ Ensures Vary includes Origin without clobbering existing Vary values
  */
 
 const express = require("express");
@@ -97,6 +100,24 @@ function normalizeStr(x) {
 function safeSet(res, k, v) {
   try {
     res.set(k, v);
+  } catch (_) {}
+}
+function safeAppendHeader(res, name, value) {
+  try {
+    const prev = res.getHeader(name);
+    if (!prev) {
+      res.setHeader(name, value);
+      return;
+    }
+    const prevStr = Array.isArray(prev) ? prev.join(",") : String(prev);
+    const parts = prevStr
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const want = String(value).trim();
+    if (!want) return;
+    if (!parts.includes(want)) parts.push(want);
+    res.setHeader(name, parts.join(", "));
   } catch (_) {}
 }
 function setContractHeaders(res, requestId) {
@@ -366,7 +387,9 @@ const CORS_MAX_AGE = 86400;
 
 function applyCors(req, res) {
   const origin = req.headers.origin ? String(req.headers.origin).trim() : "";
-  safeSet(res, "Vary", "Origin");
+
+  // ✅ do not clobber existing Vary; ensure Origin is present
+  safeAppendHeader(res, "Vary", "Origin");
   safeSet(res, "X-CORS-Origin-Seen", origin || "");
 
   if (origin && originAllowed(origin)) {
