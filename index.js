@@ -17,6 +17,10 @@
  *     - Short-circuiting OPTIONS with 204 + headers (preflight always satisfied when allowed)
  *  ✅ Force-allows Sandblast origins (sandblast.channel + sandblastchannel.com, with/without www)
  *     even if env allowlist is misconfigured (prevents accidental self-bricking)
+ *
+ * Additional v1.5.17za wiring:
+ *  ✅ CS-1 continuity state allowlist persistence:
+ *     - Allows sessionPatch.__cs1 to persist (from Utils/cs1.js via chatEngine v0.6z)
  */
 
 const express = require("express");
@@ -560,6 +564,9 @@ const SESSION_PATCH_ALLOW = new Set([
   "__lastBridgeAt",
   "__bridgeIdx",
   "__lastPosture",
+
+  // ✅ CS-1 continuity state (chatEngine v0.6z)
+  "__cs1",
 ]);
 
 function applySessionPatch(session, patch) {
