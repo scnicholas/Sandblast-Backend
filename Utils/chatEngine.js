@@ -16,9 +16,12 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.6zE (CS-1 WIRING++ + Conversational Pack 3.1-C + PhrasePack v1.1 + Packets v1.1-C)
+ * v0.6zF (INTRO GATE HARD-LOCK + CS-1 WIRING++ + Conversational Pack 3.1-C + PhrasePack v1.1 + Packets v1.1-C)
  *
  * Adds:
+ *  ✅ Canonical Intro Gate (hard-lock)
+ *     - First-turn intro is deterministic and cannot be replaced by packets/phrasepack/continuity
+ *     - Greeting packets suppressed until intro is served
  *  ✅ Conversational Pack 3.1-C continuity/return language (NON-IDENTITY)
  *  ✅ PhrasePack v1.1 (Nyx host-voice buckets)
  *  ✅ Packets v1.1-C (triggered micro-scripts w/ chips + optional sessionPatch)
@@ -39,7 +42,19 @@ const crypto = require("crypto");
 // Version
 // =========================
 const CE_VERSION =
-  "chatEngine v0.6zE (CS-1 + ConvPack 3.1-C + PhrasePack v1.1 + Packets v1.1-C)";
+  "chatEngine v0.6zF (INTRO GATE HARD-LOCK + CS-1 + ConvPack 3.1-C + PhrasePack v1.1 + Packets v1.1-C)";
+
+// =========================
+// Canonical Intro (HARD-LOCK)
+// =========================
+const CANON_INTRO = "Hey — Nyx here. Say a year. I’ll handle the rest.";
+
+const CANON_INTRO_CHIPS = [
+  { label: "Start with a year", send: "1988" },
+  { label: "Schedule", send: "schedule" },
+  { label: "Sponsors", send: "sponsors" },
+  { label: "Something to watch", send: "movies" },
+];
 
 // =========================
 // Optional CS-1 module
@@ -549,6 +564,27 @@ function laneIsKnown(lane) {
   const l = safeStr(lane).toLowerCase();
   return !!l && l !== "unknown" && l !== "general";
 }
+function isGreetingOnly(inboundNorm) {
+  return /^(hi|hello|hey|yo|good morning|good afternoon|good evening)$/i.test(safeStr(inboundNorm));
+}
+function shouldServeIntro({ session, inboundText }) {
+  const s = session && typeof session === "object" ? session : {};
+  if (s.__introDone) return false;
+
+  const t = safeStr(inboundText).trim();
+  const n = normText(t);
+
+  // Serve intro if:
+  //  - first meaningful turn (empty / greeting / "start" / "open") and intro not done
+  if (!n) return true;
+  if (isGreetingOnly(n)) return true;
+  if (n === "start" || n === "open" || n === "begin") return true;
+
+  // If widget sends a minimal “hey/hi” variant, treat as greeting
+  if (n.length <= 6 && (n === "hey" || n === "hi" || n === "yo")) return true;
+
+  return false;
+}
 
 // =========================
 // PhrasePack selectors (host-voice)
@@ -607,11 +643,7 @@ function packetTriggeredByText(packet, textNorm) {
   for (const tr of triggers) {
     const t = normText(tr);
     if (!t) continue;
-    if (t.startsWith("__") && t.endsWith("__")) {
-      // Special triggers are handled by caller
-      continue;
-    }
-    // Match on exact or contains; keep it simple and robust.
+    if (t.startsWith("__") && t.endsWith("__")) continue; // special handled by caller
     if (textNorm === t) return true;
     if (textNorm.includes(t)) return true;
   }
@@ -658,7 +690,13 @@ function pickPacketTemplate(packet, seed, vars) {
   return interpolateTemplate(line, vars || {});
 }
 
-function runPackets({ inboundText, session, requestId, laneHint, specialTrigger, year }) {
+function isGreetingPacket(p) {
+  const id = safeStr(p?.id);
+  const type = safeStr(p?.type).toLowerCase();
+  return type === "greeting" || id.startsWith("general.greetings_");
+}
+
+function runPackets({ inboundText, session, requestId, laneHint, specialTrigger, year, introDone }) {
   ensurePacketsState(session);
   const textNorm = normText(inboundText);
   const packets = NYX_PACKETS.packets || [];
@@ -667,6 +705,7 @@ function runPackets({ inboundText, session, requestId, laneHint, specialTrigger,
   // 1) Special-trigger pass (explicit)
   if (specialTrigger) {
     for (const p of packets) {
+      if (!introDone && isGreetingPacket(p)) continue; // HARD: greetings suppressed until intro done
       if (packetHasSpecialTrigger(p, specialTrigger)) {
         const chk = applyPacketConstraints(p, session, year);
         if (!chk.ok) continue;
@@ -681,12 +720,11 @@ function runPackets({ inboundText, session, requestId, laneHint, specialTrigger,
   const candidates = [];
   for (const p of packets) {
     if (!p || !p.id) continue;
+    if (!introDone && isGreetingPacket(p)) continue; // HARD: greetings suppressed until intro done
 
-    // lane affinity
     const pLane = safeStr(p.lane || "").toLowerCase();
     const laneScore = pLane === laneLower ? 2 : pLane === "general" ? 1 : 0;
 
-    // trigger match
     if (packetTriggeredByText(p, textNorm)) {
       const chk = applyPacketConstraints(p, session, year);
       if (!chk.ok) continue;
@@ -708,7 +746,7 @@ function commitPacketUse(session, packet) {
   st.used = st.used || {};
   st.used[packet.id] = 1;
   st.lastId = packet.id;
-  // Apply sessionPatch (only keys we explicitly allow later)
+
   const sp = packet.sessionPatch && typeof packet.sessionPatch === "object" ? packet.sessionPatch : null;
   if (sp && sp.lane) session.lane = sp.lane;
 }
@@ -836,10 +874,18 @@ function enforceNeverSay(reply) {
   return out;
 }
 
-function shapeContinuity({ reply, session, requestId, lane, inboundText, isReturn }) {
+function shapeContinuity({ reply, session, requestId, lane, inboundText, isReturn, isIntro }) {
   const s = ensureContinuityState(session);
   const sig = computeContinuitySignals(s);
   let out = safeStr(reply).trim();
+
+  // Intro is a hard-locked surface: no return wrapper, no tone injection.
+  if (isIntro) {
+    out = enforceNeverSay(out);
+    s.__lastOutSig = sha1(`${safeStr(out)}|${safeStr(lane)}|${safeStr(s.turnCount)}`).slice(0, 16);
+    if (!out) out = CANON_INTRO;
+    return out;
+  }
 
   // If still empty, PhrasePack lane opener
   if (!out) out = ppLaneOpen({ requestId, lane });
@@ -921,13 +967,78 @@ async function chatEngine(input = {}) {
 
   const lastOutAt = Number(session.__lastOutAt);
   const gapMs = Number.isFinite(lastOutAt) ? nowMs() - lastOutAt : NaN;
-  const isReturn = isReturnIntent(inboundText) || isLikelyReturnGap(gapMs);
 
+  // Year capture (for downstream)
   const yearIn = extractYear(inboundText);
   if (Number.isFinite(yearIn)) session.lastMusicYear = yearIn;
 
   // =========================
-  // Packets: FIRST PASS (normal triggers)
+  // HARD INTRO GATE (must run before packets/engine/continuity)
+  // =========================
+  const doIntro = shouldServeIntro({ session, inboundText });
+
+  if (doIntro) {
+    session.__introDone = 1;
+    session.__nyxIntro.greeted = 1;
+    session.lane = "general";
+    lane = "general";
+
+    const introFollowUps = followUpsFromChips(CANON_INTRO_CHIPS, "intro").slice(0, 10);
+    const reply = shapeContinuity({
+      reply: CANON_INTRO,
+      session,
+      requestId,
+      lane,
+      inboundText,
+      isReturn: false,
+      isIntro: true,
+    });
+
+    session.__lastOutAt = nowMs();
+
+    return {
+      ok: true,
+      reply,
+      lane,
+      ctx,
+      ui,
+      directives: [],
+      followUps: introFollowUps,
+      followUpsStrings: introFollowUps.map((f) => f.label),
+      sessionPatch: {
+        turnCount: session.turnCount,
+        lane: session.lane,
+        ctx,
+        ui,
+        __introDone: session.__introDone,
+        __lastInAt: session.__lastInAt,
+        __lastOutAt: session.__lastOutAt,
+        __lastOutSig: session.__lastOutSig,
+        __nyxCont: session.__nyxCont,
+        __nyxIntro: session.__nyxIntro,
+        __nyxPackets: session.__nyxPackets,
+        lastMusicYear: session.lastMusicYear,
+        activeMusicMode: session.activeMusicMode,
+        __cs1: session.__cs1,
+      },
+      cog: { phase: "listening" },
+      requestId,
+      meta: {
+        engine: CE_VERSION,
+        packets: `${NYX_PACKETS.version} (${NYX_PACKETS.updated})`,
+        phrasepack: `${NYX_PHRASEPACK.version} (${NYX_PHRASEPACK.updated})`,
+        pack: `${NYX_CONV_PACK.meta.name} ${NYX_CONV_PACK.meta.version}`,
+        ms: nowMs() - startedAt,
+        intro: "canonical",
+      },
+    };
+  }
+
+  const introDone = !!session.__introDone;
+  const isReturn = isReturnIntent(inboundText) || isLikelyReturnGap(gapMs);
+
+  // =========================
+  // Packets: FIRST PASS (normal triggers) — greetings suppressed until introDone
   // =========================
   let packetHit = runPackets({
     inboundText,
@@ -936,11 +1047,15 @@ async function chatEngine(input = {}) {
     laneHint: lane,
     specialTrigger: null,
     year: Number.isFinite(session.lastMusicYear) ? session.lastMusicYear : yearIn,
+    introDone,
   });
 
-  // If greeting packet is oncePerSession, we still want it to win on early turns
-  // If no packet matched and inbound is a greeting, force greeting-first by special fallback
-  if (!packetHit.hit && /^(hi|hello|hey|yo|good morning|good afternoon|good evening)$/i.test(inboundNorm)) {
+  // If no packet matched and inbound is a greeting, allow greeting packets ONLY after introDone
+  if (
+    introDone &&
+    !packetHit.hit &&
+    isGreetingOnly(inboundNorm)
+  ) {
     packetHit = runPackets({
       inboundText,
       session,
@@ -948,6 +1063,7 @@ async function chatEngine(input = {}) {
       laneHint: "general",
       specialTrigger: null,
       year: Number.isFinite(session.lastMusicYear) ? session.lastMusicYear : yearIn,
+      introDone,
     });
   }
 
@@ -958,13 +1074,12 @@ async function chatEngine(input = {}) {
     lane = safeStr(session.lane || packetHit.packet.lane || lane || "general");
 
     let reply = safeStr(packetHit.reply).trim();
-    reply = shapeContinuity({ reply, session, requestId, lane, inboundText, isReturn });
+    reply = shapeContinuity({ reply, session, requestId, lane, inboundText, isReturn, isIntro: false });
 
     const pktFollowUps = packetToFollowUps(packetHit.packet);
     const followUps = pktFollowUps.slice(0, 10);
     const followUpsStrings = followUps.map((f) => f.label);
 
-    // Also add continuity chips on returns (but keep packet chips first)
     let finalFollowUps = followUps;
     let finalFollowUpsStrings = followUpsStrings;
 
@@ -991,6 +1106,7 @@ async function chatEngine(input = {}) {
         lane: session.lane,
         ctx,
         ui,
+        __introDone: session.__introDone,
         __lastInAt: session.__lastInAt,
         __lastOutAt: session.__lastOutAt,
         __lastOutSig: session.__lastOutSig,
@@ -1048,18 +1164,13 @@ async function chatEngine(input = {}) {
   // =========================
   // Packets: SECOND PASS (special triggers derived from context)
   // =========================
-  // If music lane & year is present, inject mode prompt packet when core didn't provide strong guidance.
   const yFinal = Number.isFinite(session.lastMusicYear) ? session.lastMusicYear : extractYear(inboundText);
 
   let special = null;
   if (laneIsMusic(lane) && Number.isFinite(yFinal)) {
-    // If core reply is empty-ish or user only provided a year, use mode prompt.
     const coreNorm = normText(core?.reply || "");
     const justYear = !!inboundText && !!yFinal && normText(inboundText) === String(yFinal);
     if (!coreNorm || justYear) special = "__mode_prompt__";
-  } else if (laneIsMusic(lane) && !Number.isFinite(yFinal)) {
-    // Ask for year packet
-    special = null; // normal triggers already cover music.ask_year via keywords
   }
 
   let packet2 = { hit: false };
@@ -1071,6 +1182,7 @@ async function chatEngine(input = {}) {
       laneHint: lane,
       specialTrigger: special,
       year: yFinal,
+      introDone: true,
     });
   }
 
@@ -1097,6 +1209,7 @@ async function chatEngine(input = {}) {
       laneHint: "general",
       specialTrigger: "__fallback__",
       year: yFinal,
+      introDone: true,
     });
     if (fb.hit && fb.packet) {
       commitPacketUse(session, fb.packet);
@@ -1110,7 +1223,7 @@ async function chatEngine(input = {}) {
   }
 
   // Continuity shaping
-  reply = shapeContinuity({ reply, session, requestId, lane, inboundText, isReturn });
+  reply = shapeContinuity({ reply, session, requestId, lane, inboundText, isReturn, isIntro: false });
 
   // Return chips on return
   if (isReturn) {
@@ -1145,6 +1258,7 @@ async function chatEngine(input = {}) {
       lane: session.lane,
       ctx,
       ui,
+      __introDone: session.__introDone,
       __lastInAt: session.__lastInAt,
       __lastOutAt: session.__lastOutAt,
       __lastOutSig: session.__lastOutSig,
