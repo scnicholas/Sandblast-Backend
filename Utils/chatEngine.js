@@ -16,14 +16,17 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.6ab (COS PERSISTENCE + "NEXT STEP" INTENT + SESSIONPATCH.cog HARDENED)
+ * v0.6ac (VOICE FIX: ALWAYS EMIT SPEAK DIRECTIVE + DEDUPE)
  *
  * Adds:
- *  ✅ Cognitive OS (COS) payload always present in top-level out.cog
- *  ✅ sessionPatch.cog is persisted (allowlisted) for index.js to store
- *  ✅ "Next step" treated as first-class navigation intent (advances when possible)
+ *  ✅ Always emits directives: [{type:"speak", text:<reply>}] on EVERY reply (including intro/reset/clarify/cached)
+ *     - Prevents “text shows but no /api/tts call” when the widget keys off speak directives.
+ *     - Dedupe: does not duplicate if lane already emitted speak.
  *
  * Preserves:
+ *  ✅ COS payload always present in top-level out.cog
+ *  ✅ sessionPatch.cog is persisted (allowlisted)
+ *  ✅ "Next step" treated as first-class navigation intent
  *  ✅ Contract-lock guarantees + loop guards + continuity spine + next/prev reliability
  *  ✅ CS-1 wiring + __cs1 allowlisted
  *  ✅ Pass-through for lane module fields when present (directives/ui/ctx/lane)
@@ -145,6 +148,45 @@ function coerceFollowUpsStrings(out) {
 
 function safeStr(x) { return String(x == null ? "" : x); }
 function hasQuestionMark(s) { return /\?/.test(String(s || "")); }
+
+// ----------------------------
+// VOICE DIRECTIVE HARDENING (CRITICAL FIX)
+// ----------------------------
+function ensureDirectivesArray(out) {
+  if (!out || typeof out !== "object") return out;
+  if (!Array.isArray(out.directives)) out.directives = [];
+  return out;
+}
+
+function hasSpeakDirective(out) {
+  const dirs = safeArray(out && out.directives);
+  return dirs.some(d => d && typeof d === "object" && String(d.type || "").toLowerCase() === "speak");
+}
+
+/**
+ * Always emit a speak directive that carries the exact reply text.
+ * This lets the widget reliably trigger /api/tts even if it keys off directives only.
+ */
+function ensureSpeakDirective(out) {
+  if (!out || typeof out !== "object") return out;
+  ensureDirectivesArray(out);
+
+  const reply = String(out.reply || "").trim();
+  if (!reply) return out;
+
+  if (!hasSpeakDirective(out)) {
+    out.directives.unshift({ type: "speak", text: reply });
+  } else {
+    // If a lane emitted speak without text, patch it (non-breaking).
+    for (const d of out.directives) {
+      if (!d || typeof d !== "object") continue;
+      if (String(d.type || "").toLowerCase() !== "speak") continue;
+      if (d.text === undefined || String(d.text || "").trim() === "") d.text = reply;
+      break;
+    }
+  }
+  return out;
+}
 
 // ----------------------------
 // CONTRACT v1 helpers
@@ -514,6 +556,9 @@ function cachedResponse(session, reason, requestIdIn) {
 
   ensureCog(out, out.lane, out.ctx && out.ctx.mode, out.ctx && out.ctx.year, "steady", "input_loop_guard");
   out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: session && session.__cs1 });
+
+  // ✅ Voice fix for cached returns
+  ensureSpeakDirective(out);
   return out;
 }
 
@@ -994,7 +1039,7 @@ function yearPickerReply(sess) {
     "Story moment 1955",
     "Just talk"
   ];
-  return {
+  const out = {
     ok: true,
     reply,
     lane: "music",
@@ -1012,6 +1057,10 @@ function yearPickerReply(sess) {
     followUpsStrings,
     followUps: chipsFromStrings(followUpsStrings, 4)
   };
+
+  // ✅ Voice directive (even in year-picker mode)
+  ensureSpeakDirective(out);
+  return out;
 }
 
 // ----------------------------
@@ -1317,6 +1366,8 @@ function enforceContractFinal({
         __cs1: sess.__cs1
       });
 
+      // ✅ Voice directive guaranteed
+      ensureSpeakDirective(out);
       return out;
     }
 
@@ -1349,6 +1400,8 @@ function enforceContractFinal({
         __cs1: sess.__cs1
       });
 
+      // ✅ Voice directive guaranteed
+      ensureSpeakDirective(out);
       return out;
     }
   }
@@ -1378,6 +1431,9 @@ function enforceContractFinal({
 
   // final attach (idempotent)
   out = attachCogToSessionPatch(out, sess);
+
+  // ✅ Voice directive guaranteed (for ALL normal outputs)
+  ensureSpeakDirective(out);
 
   return out;
 }
@@ -1448,6 +1504,9 @@ async function chatEngine(arg1, arg2) {
 
     ensureCog(out, "general", null, null, "reset", "user_reset");
     out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
+
+    // ✅ Voice directive for reset
+    ensureSpeakDirective(out);
     return out;
   }
 
@@ -1559,6 +1618,9 @@ async function chatEngine(arg1, arg2) {
 
       ensureCog(out, "general", null, null, "execute", "next_step_lane_select");
       out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
+
+      // ✅ Voice directive
+      ensureSpeakDirective(out);
       return out;
     }
   }
@@ -2260,6 +2322,9 @@ async function chatEngine(arg1, arg2) {
       out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog });
     }
   }
+
+  // ✅ Belt-and-suspenders: speak directive is always present (even if later edits regress)
+  ensureSpeakDirective(out);
 
   return out;
 }
