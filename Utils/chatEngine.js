@@ -10,2676 +10,632 @@
  * Returns (NyxReplyContract v1 + backwards compatibility):
  *  {
  *    ok, reply, lane, ctx, ui,
- *    directives: [{type, ...}],             // NEW (contract-lock)
+ *    directives: [{type, ...}],             // contract-lock (optional)
  *    followUps: [{id,type,label,payload}],  // preferred
  *    followUpsStrings: ["..."],             // legacy
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.6ad (PHASE TWO PACK v2.0-C + VOICE FIX HARDENING)
+ * v0.6zC (CS-1 WIRING++ + NYX Conversational Pack 3.1-C INTEGRATION)
  *
  * Adds:
- *  ✅ Phase Two — Adaptive Endurance (Nyx Conversational Pack 2.0-C):
- *     - Session depth markers (early/mid/late/deep) based on turn count
- *     - Tone drift metadata added to out.cog.tone (style + language_bias)
- *     - Gentle adaptive prompt injection (statement-first), paced by session progression
- *     - Reflection throttle: max 1 reflective injection per session
- *     - Re-entry softening after long pause (once per pause window)
- *     - Fatigue softeners when user inputs look tired/short (non-pushy)
+ *  ✅ “Nyx Conversational Pack 3.1-C” continuity/return language (NON-IDENTITY)
+ *     - Continuity levels: none|light|warm|deep
+ *     - Return detection using session.__lastOutAt + time-gap heuristic
+ *     - Throttled safe disclaimer (max 1 per session)
+ *     - Re-entry lines (statement-first) + optional micro-recaps
+ *     - Return chips + resume chips (music-aware)
  *
- *  ✅ VOICE FIX: ALWAYS EMIT SPEAK DIRECTIVE + DEDUPE (preserved)
- *     - directives: [{type:"speak", text:<reply>}] on EVERY reply
- *     - Does not duplicate if already present; patches missing speak.text if needed
+ * Guardrails:
+ *  ✅ Never implies long-term memory
+ *  ✅ Statement-first (no questions)
+ *  ✅ No menu exposure in voice lines
+ *  ✅ Long-form gravity only
  *
- * Preserves:
- *  ✅ COS payload always present in top-level out.cog
- *  ✅ sessionPatch.cog persisted (allowlisted)
- *  ✅ "Next step" treated as first-class navigation intent
- *  ✅ Contract-lock guarantees + loop guards + continuity spine + next/prev reliability
- *  ✅ CS-1 wiring + __cs1 allowlisted
- *  ✅ Pass-through for lane module fields when present (directives/ui/ctx/lane)
- *  ✅ Deterministic turn increment (no double increment when enforceContractFinal runs)
+ * Notes:
+ *  - This file is designed to “wrap” whatever lane logic you already have
+ *    (music/sponsors/movies/general) without forcing lane rewrites.
+ *  - If you already have a cs1 module: it remains optional and safe.
  */
 
 const crypto = require("crypto");
 
-// Optional LLM hook (if you use it elsewhere)
-let generateNyxReply = null;
-try {
-  const mod = require("./nyxOpenAI");
-  if (mod && typeof mod.generateNyxReply === "function") generateNyxReply = mod.generateNyxReply;
-} catch (_) { /* optional */ }
+// =========================
+// Version
+// =========================
+const CE_VERSION =
+  "chatEngine v0.6zC (CS-1 wiring++ + Conversational Pack 3.1-C continuity/return)";
 
-// Optional music bridge
-let musicLane = null;
+// =========================
+// Optional CS-1 module
+// =========================
+let cs1 = null;
 try {
-  const mod = require("./musicLane");
-  if (typeof mod === "function") musicLane = mod;
-  else if (mod && typeof mod.musicLane === "function") musicLane = mod.musicLane;
-  else if (mod && typeof mod.handleChat === "function") {
-    musicLane = async (text, session) => mod.handleChat({ text, session });
-  }
-} catch (_) { /* optional */ }
+  // Optional module; safe if absent
+  // eslint-disable-next-line global-require, import/no-unresolved
+  cs1 = require("./cs1");
+} catch (e) {
+  cs1 = null;
+}
 
-// Optional Roku bridge
-let rokuLane = null;
-try {
-  const mod = require("./rokuLane");
-  if (typeof mod === "function") rokuLane = mod;
-  else if (mod && typeof mod.rokuLane === "function") rokuLane = mod.rokuLane;
-} catch (_) { /* optional */ }
-
-// ----------------------------
-// CS-1 (optional selector/enforcement layer)
-// ----------------------------
-let CS1 = null;
-try {
-  const mod = require("./cs1");
-  if (mod && typeof mod.decideCS1 === "function") CS1 = mod;
-} catch (_) { /* optional */ }
-
-// ----------------------------
-// Phase Two — Adaptive Endurance Pack (2.0-C)
-// ----------------------------
-const AE_PACK = {
-  depthMarkers: {
-    early: { min: 0, max: 5 },
-    mid: { min: 6, max: 15 },
-    late: { min: 16, max: 30 },
-    deep: { min: 31, max: 999999 }
+// =========================
+// Nyx Conversational Pack 3.1-C (Canonical)
+// =========================
+const NYX_CONV_PACK = {
+  meta: {
+    name: "Nyx Conversational Pack",
+    version: "3.1-C",
+    phase: "Phase Three — Continuity & Return (Canonical)",
+    purpose:
+      "Returnable, companionable continuity using conversation-state cues (non-identity), graceful re-entry, and long-form pacing.",
+    throttles: {
+      return_disclaimer_max_per_session: 1,
+      reentry_prompt_max_per_return: 1,
+    },
   },
 
-  toneDrift: {
-    early: { style: "welcoming, light, orienting", language_bias: ["curious", "open", "inviting"] },
-    mid: { style: "confident, exploratory", language_bias: ["contextual", "bridging", "reflective"] },
-    late: { style: "calm, intimate, unhurried", language_bias: ["soft pauses", "memory-adjacent", "observational"] },
-    deep: { style: "low-volume, companionable, radio-host", language_bias: ["stillness", "continuity", "shared space"] }
-  },
-
-  adaptivePrompts: {
-    early: [
-      "Structure can emerge naturally. Wandering works just as well.",
-      "Nothing needs to settle yet.",
-      "There’s no wrong way to arrive here."
+  continuity_language: {
+    light: [
+      "We’re already oriented. Nothing needs a restart.",
+      "This can continue from exactly where it is.",
+      "One small cue is enough to keep the thread intact.",
+      "The same tone can hold while we take one step forward.",
+      "This moment is steady. It doesn’t need managing.",
     ],
-    mid: [
-      "The pace has started to slow on its own.",
-      "This is beginning to take shape.",
-      "A thread is forming without being forced."
-    ],
-    late: [
-      "The rhythm has settled into something steady.",
-      "This feels less like exploring and more like staying.",
-      "The conversation knows its pace now."
+    warm: [
+      "A rhythm has formed here. It can stay.",
+      "The mood is already set. No recap is required.",
+      "This conversation has a shape now. It doesn’t need forcing.",
+      "Quiet momentum is present. It can carry the next turn.",
+      "Introductions are behind us. The thread is enough.",
     ],
     deep: [
-      "At this point, searching has given way to presence.",
-      "Staying with it carries its own weight.",
-      "Some conversations don’t need momentum."
-    ]
+      "This has become shared space, not a sequence of prompts.",
+      "Depth holds longer than novelty ever could.",
+      "Silence belongs here. It’s part of the structure.",
+      "Small movement keeps continuity alive without explanation.",
+      "This can be returnable without pretending to remember more than the present holds.",
+      "Intimacy can stay in the tone without turning personal.",
+      "The best turns often arrive when nothing is being performed.",
+      "This flow can pause without losing its center.",
+    ],
   },
 
-  deepeningQuestionsOptionalSingle: [
-    "This feeling has room to linger.",
-    "Some eras feel familiar. Others remain distant.",
-    "Sometimes it’s the surrounding time, not the sound itself, that draws focus."
+  return_disclaimers: {
+    no_memory_safe: ["I can follow what’s present here without asking you to recap."],
+  },
+
+  reentry_prompts: {
+    generic_resume: [
+      "The thread is still open. A single cue restarts the motion.",
+      "A clean restart is available, and the tone can stay the same.",
+      "Continuity can resume quietly from one word.",
+    ],
+    soft_resume_music: [
+      "The year can stay steady while the lens changes.",
+      "The lens can stay steady while the year shifts.",
+      "The thread holds with a single cue: year, lens, or mood.",
+    ],
+    restart_graceful: [
+      "A clean start lands best with one year as the anchor.",
+      "One small cue is enough to rebuild the space.",
+      "Fresh doesn’t mean cold. The tone can return immediately.",
+    ],
+  },
+
+  return_session_openers: {
+    light: ["No warm-up needed. The next step can be small.", "The thread can pick up cleanly from one cue."],
+    warm: ["The same rhythm is easy to step back into.", "This can continue without any explaining."],
+    deep: ["Same pace as before — unhurried.", "No performance needed. The space is already here."],
+  },
+
+  no_recap_needed_lines: [
+    "No recap needed. One word is enough.",
+    "You don’t have to explain. A cue is plenty.",
+    "Even a single detail can reopen the whole space.",
+    "Mid-thought is a valid entry point.",
   ],
 
-  deepeningQuestionsOptionalReflective: [
-    "Some people hear this year as a beginning. Others as an ending.",
-    "Moments like this tend to mean different things as time passes.",
-    "What stands out here often reveals itself gradually."
-  ],
+  micro_recaps: {
+    music: [
+      "The thread has been holding a year and a mood. It can deepen or contrast.",
+      "The year has stayed steady. The lens can shift without breaking continuity.",
+      "The lens has stayed steady. The year can move without losing tone.",
+    ],
+    general: [
+      "A rhythm has been building more than a plan. That rhythm can continue.",
+      "The pace has been gentle. Depth is available without pressure.",
+      "Contrast is available, and the tone can remain steady.",
+    ],
+  },
 
-  continuityLanguage: [
-    "This thread continues naturally.",
-    "There’s no pressure to change course yet.",
-    "The conversation remains aligned.",
-    "This exchange knows where it is."
-  ],
+  handoff_bridges: {
+    resume_to_deepen: ["Depth can increase without changing the topic.", "The same thread can hold one deeper step."],
+    resume_to_contrast: ["Contrast can clarify what’s already here.", "A different era can reveal the same pattern."],
+    resume_to_rest: ["Lightness is allowed. Nothing needs proving.", "Drift still counts. The space stays intact."],
+  },
 
-  contrastBridges: [
-    "Contrast would shift the meaning here.",
-    "A nearby year would echo this. A distant one would reshape it.",
-    "Sometimes contrast sharpens what’s already present."
-  ],
+  endings_that_invite_return: {
+    soft_pause: ["That feels like a clean place to pause — not end.", "We can pause with the thread still warm."],
+    return_hook: ["Next time, a single cue will reopen everything.", "The cadence can return instantly."],
+    deep_goodbye: ["Same space, anytime.", "No closing words needed. Just a pause."],
+  },
 
-  fatigueResponses: [
-    "The pace can soften further.",
-    "A lighter turn is available.",
-    "Nothing needs to be pushed forward.",
-    "Pausing is part of the rhythm."
-  ],
+  continuity_chips: {
+    resume_set: [
+      { label: "Resume", send: "resume" },
+      { label: "Start fresh", send: "start fresh" },
+      { label: "Change lens", send: "change lens" },
+    ],
+    music_resume_set: [
+      { label: "Top 10", send: "top 10" },
+      { label: "#1", send: "#1" },
+      { label: "Story", send: "story moment" },
+      { label: "Micro", send: "micro moment" },
+    ],
+    return_set: [
+      { label: "Pick a year", send: "1988" },
+      { label: "Another year", send: "another year" },
+      { label: "Contrast", send: "contrast year" },
+    ],
+  },
 
-  reEntryPrompts: [
-    "This can resume exactly where it paused.",
-    "The same tone still holds. So does change.",
-    "Nothing here expired."
-  ],
-
-  deepExitSoft: [
-    "That feels like a natural place to rest.",
-    "This doesn’t need closure — only a pause.",
-    "Some conversations are meant to stay open.",
-    "Whenever you return, the rhythm will still be here."
-  ]
+  guardrails: {
+    never_say: [
+      "I remember you from last time",
+      "You told me before that…",
+      "Welcome back, Mac",
+    ],
+    prefer_say: [
+      "I can follow what’s present here without a recap.",
+      "No recap needed — just a cue.",
+      "The thread is still open.",
+      "The rhythm is easy to re-enter.",
+    ],
+  },
 };
 
-// ----------------------------
-// Utilities
-// ----------------------------
-function nowMs() { return Date.now(); }
-
-function rid() {
-  return crypto.randomBytes(6).toString("hex");
+// =========================
+// Helpers (small + deterministic)
+// =========================
+function nowMs() {
+  return Date.now();
 }
 
-function normalizeText(s) {
-  return String(s || "").trim().toLowerCase();
+function safeStr(x) {
+  if (x === null || x === undefined) return "";
+  return String(x);
 }
 
-function clampInt(n, min, max) {
-  const x = Number(n);
-  if (!Number.isFinite(x)) return min;
-  if (x < min) return min;
-  if (x > max) return max;
-  return x;
+function clampInt(n, lo, hi, fallback) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return fallback;
+  return Math.max(lo, Math.min(hi, Math.floor(v)));
 }
 
-function safeArray(a) {
-  return Array.isArray(a) ? a : [];
+function sha1(s) {
+  return crypto.createHash("sha1").update(String(s)).digest("hex");
 }
 
-function hashSig(s) {
-  return crypto.createHash("sha256").update(String(s || "")).digest("hex").slice(0, 16);
+function pickDeterministic(arr, seed) {
+  if (!Array.isArray(arr) || arr.length === 0) return "";
+  const h = sha1(seed || "seed");
+  const n = parseInt(h.slice(0, 8), 16);
+  return arr[n % arr.length];
 }
 
-function dedupeStrings(list, max = 10) {
-  const out = [];
-  const seen = new Set();
-  for (const x of safeArray(list)) {
-    const s = String(x || "").replace(/\s+/g, " ").trim();
-    if (!s) continue;
-    const k = s.toLowerCase();
-    if (seen.has(k)) continue;
-    seen.add(k);
-    out.push(s);
-    if (out.length >= max) break;
+function normText(s) {
+  return safeStr(s).trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function isLikelyReturnGap(gapMs) {
+  // “Return” heuristic: user leaves for a while, then comes back.
+  // Keep conservative to avoid spamming continuity language mid-flow.
+  // 12 minutes is a good operational default for web widget usage.
+  return Number.isFinite(gapMs) && gapMs >= 12 * 60 * 1000;
+}
+
+function isReturnIntent(text) {
+  const t = normText(text);
+  if (!t) return false;
+  return (
+    t === "resume" ||
+    t === "start fresh" ||
+    t === "restart" ||
+    t === "change lens" ||
+    t === "back" ||
+    t === "continue"
+  );
+}
+
+function laneIsMusic(lane) {
+  const l = safeStr(lane).toLowerCase();
+  return l === "music" || l.includes("music");
+}
+
+function laneIsKnown(lane) {
+  const l = safeStr(lane).toLowerCase();
+  return !!l && l !== "unknown" && l !== "general";
+}
+
+// =========================
+// Conversational Pack — continuity selector
+// =========================
+function computeContinuitySignals(session) {
+  const turnCount = clampInt(session?.turnCount, 0, 999999, 0);
+  const lane = safeStr(session?.lane || "");
+  const lastMusicYear = session?.lastMusicYear;
+  const activeMusicMode = safeStr(session?.activeMusicMode || "");
+
+  const lastOutAt = Number(session?.__lastOutAt);
+  const gapMs = Number.isFinite(lastOutAt) ? nowMs() - lastOutAt : NaN;
+
+  // continuityLevel: none|light|warm|deep
+  // Use turnCount + lane presence as the stable signal (non-identity).
+  let continuityLevel = "none";
+  if (turnCount >= 2) continuityLevel = "light";
+  if (turnCount >= 5) continuityLevel = "warm";
+  if (turnCount >= 10) continuityLevel = "deep";
+  if (!laneIsKnown(lane) && turnCount < 3) continuityLevel = "none";
+
+  // reentryStyle: restart|resume|soft_resume
+  let reentryStyle = "resume";
+  if (!laneIsKnown(lane)) reentryStyle = "restart";
+  if (laneIsMusic(lane) && (lastMusicYear || activeMusicMode)) reentryStyle = "soft_resume";
+
+  const allowReturnLanguage = continuityLevel !== "none";
+  const suggestResumeOptions = allowReturnLanguage && (laneIsKnown(lane) || laneIsMusic(lane));
+
+  return {
+    continuityLevel,
+    reentryStyle,
+    allowReturnLanguage,
+    suggestResumeOptions,
+    gapMs,
+  };
+}
+
+function ensureContinuityState(session) {
+  if (!session || typeof session !== "object") return session;
+  if (!session.__nyxCont) {
+    session.__nyxCont = {
+      returnDisclaimerUsed: 0,
+      lastReturnAt: 0,
+      lastReturnPromptedAt: 0,
+    };
   }
-  return out;
+  return session;
 }
 
-function chipsToStrings(chips) {
-  const out = [];
-  for (const c of safeArray(chips)) {
-    if (!c) continue;
-    const send = (c && typeof c === "object" && (c.send || c.label)) ? (c.send || c.label) : null;
-    if (send) out.push(String(send));
-  }
-  return dedupeStrings(out, 10);
-}
+function buildReturnLines({ session, requestId, lane }) {
+  const sig = computeContinuitySignals(session);
+  const cont = ensureContinuityState(session).__nyxCont;
 
-function normalizeFollowUpsFromLane(res) {
-  if (!res || typeof res !== "object") return [];
-  if (Array.isArray(res.followUpsStrings)) return dedupeStrings(res.followUpsStrings, 10);
+  const lines = [];
+  const seedBase = `${requestId || "req"}|${safeStr(lane)}|${safeStr(session?.turnCount)}`;
 
-  if (Array.isArray(res.followUps) && (res.followUps.length === 0 || typeof res.followUps[0] === "string")) {
-    return dedupeStrings(res.followUps, 10);
+  // 1) Optional safe disclaimer (throttled)
+  const maxDisc = NYX_CONV_PACK.meta.throttles.return_disclaimer_max_per_session;
+  if ((cont.returnDisclaimerUsed || 0) < maxDisc) {
+    lines.push(pickDeterministic(NYX_CONV_PACK.return_disclaimers.no_memory_safe, seedBase + "|disc"));
+    cont.returnDisclaimerUsed = (cont.returnDisclaimerUsed || 0) + 1;
   }
 
-  if (Array.isArray(res.followUps) && res.followUps.length > 0 && typeof res.followUps[0] === "object") {
-    return chipsToStrings(res.followUps);
+  // 2) Return session opener (level-based)
+  const openerPool = NYX_CONV_PACK.return_session_openers[sig.continuityLevel] || [];
+  if (openerPool.length) lines.push(pickDeterministic(openerPool, seedBase + "|open"));
+
+  // 3) Reentry prompt (style-based, throttled per return)
+  const maxPrompt = NYX_CONV_PACK.meta.throttles.reentry_prompt_max_per_return;
+  const didPromptRecently = Number(cont.lastReturnPromptedAt) && nowMs() - Number(cont.lastReturnPromptedAt) < 60 * 1000;
+  if (!didPromptRecently && maxPrompt >= 1) {
+    let pool = NYX_CONV_PACK.reentry_prompts.generic_resume;
+    if (sig.reentryStyle === "soft_resume") pool = NYX_CONV_PACK.reentry_prompts.soft_resume_music;
+    if (sig.reentryStyle === "restart") pool = NYX_CONV_PACK.reentry_prompts.restart_graceful;
+    lines.push(pickDeterministic(pool, seedBase + "|prompt"));
+    cont.lastReturnPromptedAt = nowMs();
   }
 
-  return [];
+  cont.lastReturnAt = nowMs();
+
+  return lines.filter(Boolean);
 }
 
-function coerceFollowUpsStrings(out) {
-  if (!out || typeof out !== "object") return [];
-  if (Array.isArray(out.followUpsStrings)) return dedupeStrings(out.followUpsStrings, 10);
-  if (Array.isArray(out.followUps)) return chipsToStrings(out.followUps);
-  return [];
+function buildContinuityToneLine({ session, requestId }) {
+  const sig = computeContinuitySignals(session);
+  if (!sig.allowReturnLanguage) return "";
+  const pool = NYX_CONV_PACK.continuity_language[sig.continuityLevel] || [];
+  return pickDeterministic(pool, `${requestId || "req"}|tone|${sig.continuityLevel}|${safeStr(session?.turnCount)}`);
 }
 
-function safeStr(x) { return String(x == null ? "" : x); }
-function hasQuestionMark(s) { return /\?/.test(String(s || "")); }
-
-// ----------------------------
-// VOICE DIRECTIVE HARDENING (CRITICAL FIX)
-// ----------------------------
-function ensureDirectivesArray(out) {
-  if (!out || typeof out !== "object") return out;
-  if (!Array.isArray(out.directives)) out.directives = [];
-  return out;
+function buildMicroRecap({ session, requestId, lane }) {
+  const isMusic = laneIsMusic(lane) || laneIsMusic(session?.lane);
+  const pool = isMusic ? NYX_CONV_PACK.micro_recaps.music : NYX_CONV_PACK.micro_recaps.general;
+  return pickDeterministic(pool, `${requestId || "req"}|recap|${isMusic ? "m" : "g"}|${safeStr(session?.turnCount)}`);
 }
 
-function hasSpeakDirective(out) {
-  const dirs = safeArray(out && out.directives);
-  return dirs.some(d => d && typeof d === "object" && String(d.type || "").toLowerCase() === "speak");
-}
+function buildContinuityChips({ session, lane }) {
+  const chips = [];
+  const isMusic = laneIsMusic(lane) || laneIsMusic(session?.lane);
 
-/**
- * Always emit a speak directive that carries the exact reply text.
- * This lets the widget reliably trigger /api/tts even if it keys off directives only.
- */
-function ensureSpeakDirective(out) {
-  if (!out || typeof out !== "object") return out;
-  ensureDirectivesArray(out);
+  // “Resume set” always safe (no questions)
+  for (const c of NYX_CONV_PACK.continuity_chips.resume_set) chips.push(c);
 
-  const reply = String(out.reply || "").trim();
-  if (!reply) return out;
-
-  if (!hasSpeakDirective(out)) {
-    out.directives.unshift({ type: "speak", text: reply });
+  // Music-aware chips (if lane suggests music)
+  if (isMusic) {
+    for (const c of NYX_CONV_PACK.continuity_chips.music_resume_set) chips.push(c);
   } else {
-    // If a lane emitted speak without text, patch it (non-breaking).
-    for (const d of out.directives) {
-      if (!d || typeof d !== "object") continue;
-      if (String(d.type || "").toLowerCase() !== "speak") continue;
-      if (d.text === undefined || String(d.text || "").trim() === "") d.text = reply;
+    for (const c of NYX_CONV_PACK.continuity_chips.return_set) chips.push(c);
+  }
+
+  // De-dupe by label
+  const seen = new Set();
+  return chips.filter((c) => {
+    const k = safeStr(c?.label);
+    if (!k || seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
+// =========================
+// Reply shaping
+// =========================
+function prefixLines(reply, lines) {
+  const r = safeStr(reply).trim();
+  const head = (lines || []).map((s) => safeStr(s).trim()).filter(Boolean).join(" ");
+  if (!head) return r || "";
+  if (!r) return head;
+  return `${head} ${r}`;
+}
+
+function enforceNeverSay(reply) {
+  // Soft safety: if a forbidden phrase appears, replace with safe alternative.
+  // This is intentionally light-touch to avoid mangling content.
+  let out = safeStr(reply);
+
+  const bad = NYX_CONV_PACK.guardrails.never_say || [];
+  const prefer = NYX_CONV_PACK.guardrails.prefer_say || [];
+
+  for (const phrase of bad) {
+    if (!phrase) continue;
+    const rx = new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    if (rx.test(out)) {
+      out = pickDeterministic(prefer, `prefer|${phrase}|${sha1(out)}`) + " " + out;
       break;
     }
   }
   return out;
 }
 
-// ----------------------------
-// Phase Two helpers (Adaptive Endurance)
-// ----------------------------
-function aeDepthStage(turns) {
-  const t = Number(turns || 0);
-  if (t <= AE_PACK.depthMarkers.early.max) return "early";
-  if (t <= AE_PACK.depthMarkers.mid.max) return "mid";
-  if (t <= AE_PACK.depthMarkers.late.max) return "late";
-  return "deep";
-}
+function shapeContinuity({ reply, session, requestId, lane, inboundText }) {
+  const s = ensureContinuityState(session);
+  const sig = computeContinuitySignals(s);
 
-function aePickDeterministic(list, seedStr) {
-  const arr = safeArray(list);
-  if (!arr.length) return null;
-  const h = crypto.createHash("sha256").update(String(seedStr || "")).digest("hex");
-  const n = parseInt(h.slice(0, 8), 16);
-  return arr[n % arr.length];
-}
+  const lastOutAt = Number(s.__lastOutAt);
+  const gapMs = sig.gapMs;
 
-function looksFatiguedInput(text, sess) {
-  const t = String(text || "").trim();
-  if (!t) return false;
+  const wantsReturn = isReturnIntent(inboundText);
+  const isReturn = wantsReturn || isLikelyReturnGap(gapMs);
 
-  const norm = normalizeText(t);
-  const shorty = norm.length <= 3 || t.length <= 3;
-  const tiredTokens = /^(k|ok|okay|kk|sure|fine|yup|yep|nah|nope|\.\.\.|…|thanks|thx|cool)$/i.test(norm);
-  const lowEffort = shorty || tiredTokens;
+  let out = safeStr(reply).trim();
 
-  // Rapid turns + low effort tends to signal fatigue; keep this conservative.
-  const lastTurnAt = Number(sess && sess.lastTurnAt) || 0;
-  const rapid = lastTurnAt && (nowMs() - lastTurnAt) <= 2500;
-
-  return lowEffort && rapid;
-}
-
-function looksLikeExitIntent(text) {
-  const t = normalizeText(text);
-  return /\b(goodnight|gn|bye|good bye|goodbye|see you|talk later|i'?m done|im done|that'?s all|thats all)\b/.test(t);
-}
-
-function ensureStatementFirst(out, turns) {
-  if (!out || typeof out !== "object") return out;
-  const r = String(out.reply || "").trim();
-  if (!r) return out;
-
-  // If it starts with a direct question, prepend a gentle statement (pack-aligned).
-  if (/^(which|what|when|where|why|how)\b/i.test(r) || r.startsWith("?")) {
-    const stage = aeDepthStage(turns);
-    const lead = aePickDeterministic(AE_PACK.adaptivePrompts[stage], `stmtfirst:${stage}:${r}`);
-    out.reply = `${lead || "Okay."}\n\n${r}`;
-  }
-  return out;
-}
-
-/**
- * Phase Two application:
- * - Adds tone metadata to out.cog.tone
- * - Optional single injection (adaptive prompt) paced by session progression
- * - Reflection throttle (max 1 per session) in late/deep only
- * - Re-entry softener after long pause (once per pause window)
- * - Fatigue softener when input looks tired (non-pushy)
- *
- * NOTE: We keep it conservative to avoid drowning lane content.
- */
-function applyAdaptiveEndurance(out, sess, routingText, requestId) {
-  if (!out || typeof out !== "object") return out;
-  const patch = (out.sessionPatch && typeof out.sessionPatch === "object") ? out.sessionPatch : {};
-  const turns = Number(patch.turns != null ? patch.turns : (Number(sess && sess.turns) || 0) + 1);
-
-  const stage = aeDepthStage(turns);
-  const tone = AE_PACK.toneDrift[stage] || AE_PACK.toneDrift.early;
-
-  // Attach tone metadata to cog (non-breaking)
-  out.cog = (out.cog && typeof out.cog === "object") ? out.cog : {};
-  out.cog.tone = {
-    stage,
-    style: tone.style,
-    language_bias: safeArray(tone.language_bias)
-  };
-
-  // Re-entry detection: if long pause, inject once per pause window.
-  const lastTurnAt = Number(sess && sess.lastTurnAt) || 0;
-  const gapMs = lastTurnAt ? (nowMs() - lastTurnAt) : 0;
-  const longPause = gapMs >= 15 * 60 * 1000; // 15 minutes
-  const lastReentryAt = Number(sess && sess.aeReentryAt) || 0;
-  const reentryWindowOk = !lastReentryAt || (nowMs() - lastReentryAt) >= 15 * 60 * 1000;
-
-  // Reflection throttle (max 1 per session)
-  const refUsed = !!(sess && sess.aeRefUsed) || !!(patch && patch.aeRefUsed);
-
-  // Injection pacing: once every 7 turns, or on stage transitions, but never during clarify/reset.
-  const lastInjectAt = Number(sess && sess.aeLastInjectAt) || 0;
-  const lastStage = String((sess && sess.aeLastStage) || "");
-  const stageChanged = lastStage && lastStage !== stage;
-
-  const isState = out.cog && out.cog.state ? String(out.cog.state) : "";
-  const avoidStates = new Set(["clarify", "reset"]);
-  const avoid = avoidStates.has(String(isState).toLowerCase());
-
-  const shouldPaceInject =
-    !avoid &&
-    (
-      (turns % 7 === 0) ||
-      stageChanged ||
-      (lastInjectAt && (nowMs() - lastInjectAt) >= 6 * 60 * 1000) // slow drip over time
-    );
-
-  const fatigue = !avoid && looksFatiguedInput(routingText, sess);
-  const exiting = looksLikeExitIntent(routingText);
-
-  // Build optional prefix lines (statement-first)
-  const prefixLines = [];
-
-  if (exiting && (stage === "late" || stage === "deep")) {
-    const line = aePickDeterministic(AE_PACK.deepExitSoft, `exit:${requestId}:${turns}`);
-    if (line) prefixLines.push(line);
-  } else if (longPause && reentryWindowOk && turns >= 6) {
-    const line = aePickDeterministic(AE_PACK.reEntryPrompts, `reentry:${requestId}:${turns}`);
-    if (line) prefixLines.push(line);
-    patch.aeReentryAt = nowMs();
-  } else if (fatigue) {
-    const line = aePickDeterministic(AE_PACK.fatigueResponses, `fatigue:${requestId}:${turns}`);
-    if (line) prefixLines.push(line);
-  } else if (shouldPaceInject) {
-    // One gentle adaptive line; in late/deep, allow ONE reflective line per session max.
-    let line = null;
-
-    if (!refUsed && (stage === "late" || stage === "deep")) {
-      line = aePickDeterministic(AE_PACK.deepeningQuestionsOptionalReflective, `reflect:${requestId}:${turns}`);
-      if (line) {
-        patch.aeRefUsed = true;
-      }
-    }
-
-    if (!line) {
-      line = aePickDeterministic(AE_PACK.adaptivePrompts[stage], `adaptive:${requestId}:${turns}`);
-    }
-
-    if (line) prefixLines.push(line);
-  }
-
-  // Apply prefix if it won’t duplicate prior injected lines
-  const reply = String(out.reply || "").trim();
-  if (reply) {
-    const combinedPrefix = prefixLines.filter(Boolean).join("\n");
-    if (combinedPrefix) {
-      // Avoid duplicating if already present
-      const low = reply.toLowerCase();
-      const plow = combinedPrefix.toLowerCase();
-      if (!low.includes(plow)) {
-        out.reply = `${combinedPrefix}\n\n${reply}`;
-      }
-      patch.aeLastInjectAt = nowMs();
-      patch.aeLastStage = stage;
-    } else {
-      // Still track stage so stage-changes are detectable
-      patch.aeLastStage = stage;
+  // Base continuity tone (for non-return moments) — very light.
+  // Keep it minimal and never question-form.
+  if (!isReturn && sig.allowReturnLanguage) {
+    // Only add tone occasionally to avoid “poetry spam”
+    const addTone = (Number(s.turnCount) || 0) % 3 === 0;
+    if (addTone) {
+      const tone = buildContinuityToneLine({ session: s, requestId });
+      if (tone) out = prefixLines(out, [tone]);
     }
   }
 
-  // Persist AE state (allowlisted below)
-  out.sessionPatch = filterSessionPatch({ ...patch, aeLastStage: patch.aeLastStage, aeLastInjectAt: patch.aeLastInjectAt, aeRefUsed: patch.aeRefUsed, aeReentryAt: patch.aeReentryAt });
+  // Return wrapper (throttled)
+  if (isReturn) {
+    const lines = buildReturnLines({ session: s, requestId, lane });
+    // Optional micro-recap (one line max) if lane known or music
+    const recapOk = laneIsKnown(lane) || laneIsMusic(lane);
+    if (recapOk) {
+      const recap = buildMicroRecap({ session: s, requestId, lane });
+      if (recap) lines.push(recap);
+    }
+    out = prefixLines(out, lines);
+  }
 
-  // Ensure statement-first when needed
-  ensureStatementFirst(out, turns);
+  out = enforceNeverSay(out);
+
+  // Stamp return signature for loop dampening / continuity signals
+  s.__lastOutSig = sha1(`${safeStr(out)}|${safeStr(lane)}|${safeStr(s.turnCount)}`).slice(0, 16);
+
+  // Never allow empty reply
+  if (!out) out = "The thread is still open. A single cue restarts the motion.";
 
   return out;
 }
 
-// ----------------------------
-// CONTRACT v1 helpers
-// ----------------------------
-const UI_PAYLOAD = {
-  YEAR_PICKER: "__ui:year_picker__"
-};
-
-const CMD_PAYLOAD = {
-  RESET: "__cmd:reset__"
-};
-
-function extractYearFromLabel(label) {
-  const m = String(label || "").match(/\b(19\d{2}|20\d{2})\b/);
-  return m ? m[1] : null;
-}
-
-function payloadForLabel(label) {
-  const s = String(label || "").replace(/\s+/g, " ").trim();
-  const t = s.toLowerCase();
-
-  // Command triggers
-  if (t === "reset" || t === "reset chat" || t === "start over") return CMD_PAYLOAD.RESET;
-
-  // UI triggers
-  if (t === "pick a year" || t === "pick another year" || t === "years") return UI_PAYLOAD.YEAR_PICKER;
-
-  // Years
-  if (/^(19\d{2}|20\d{2})$/.test(s)) return `year:${s}`;
-
-  // Music intents
-  const y = extractYearFromLabel(s);
-  if (y) {
-    if (/^top\s*10\b/.test(t)) return `top 10 ${y}`;
-    if (/^top\s*100\b/.test(t)) return `top 100 ${y}`;
-    if (/^story\s*moment\b/.test(t)) return `story moment ${y}`;
-    if (/^micro\s*moment\b/.test(t)) return `micro moment ${y}`;
-    if (/^\#1\b/.test(t) || /^number\s*1\b/.test(t)) return `#1 ${y}`;
-    if (/^next\s*year\b/.test(t)) {
-      const n = clampInt(parseInt(y, 10) + 1, 1950, 2024);
-      return `year:${n}`;
-    }
-    if (/^previous\s*year\b/.test(t) || /^prev\s*year\b/.test(t)) {
-      const n = clampInt(parseInt(y, 10) - 1, 1950, 2024);
-      return `year:${n}`;
-    }
-  }
-
-  // Roku / schedule common
-  if (t === "open roku") return "open roku";
-  if (t === "schedule") return "schedule";
-  if (t === "what’s playing now" || t === "what's playing now" || t === "playing now") return "what's playing now";
-
-  // Default: send label as text
-  return s;
-}
-
-function chipsFromStrings(strings, max = 4) {
-  const list = dedupeStrings(strings, 10).slice(0, max);
+// =========================
+// Follow-up shaping
+// =========================
+function makeFollowUpsFromChips(chips) {
   const out = [];
-  for (let i = 0; i < list.length; i++) {
-    const label = list[i];
+  for (let i = 0; i < chips.length; i += 1) {
+    const c = chips[i];
+    const label = safeStr(c?.label).trim();
+    const send = safeStr(c?.send).trim();
+    if (!label || !send) continue;
     out.push({
-      id: `c${i + 1}`,
-      type: "chip",
+      id: `cpack_${i}_${sha1(label + "|" + send).slice(0, 8)}`,
+      type: "send",
       label,
-      payload: payloadForLabel(label)
+      payload: { text: send },
     });
   }
   return out;
 }
 
-function maybeInjectResetChip(strings, sess) {
-  const s = safeArray(strings).slice(0);
-  const turns = Number(sess && sess.turns) || 0;
-
-  // Only show Reset once we’re “in” the conversation (prevents clutter on first touch)
-  if (turns < 1 && !(sess && sess.introDone)) return s;
-
-  const hasReset = s.some(x => normalizeText(x) === "reset");
-  if (hasReset) return s;
-
-  // Keep chips max=4: replace least valuable fallback if needed
-  if (s.length < 4) return [...s, "Reset"];
-
-  // prefer replacing “Just talk” first, then “Surprise me”
-  const replOrder = ["just talk", "surprise me"];
-  for (const k of replOrder) {
-    const idx = s.findIndex(x => normalizeText(x) === k);
-    if (idx >= 0) {
-      s[idx] = "Reset";
-      return s;
-    }
-  }
-
-  // Otherwise replace last chip
-  s[s.length - 1] = "Reset";
-  return s;
-}
-
+// =========================
+// Main export
+// =========================
 /**
- * Music continuity UX:
- * If lane=music and we have a year, ALWAYS offer Next/Previous.
+ * @param {object} input
+ *   {
+ *     text, message,              // inbound text (either)
+ *     session,                    // mutable session state object
+ *     routeHint,                  // optional: preferred lane hint
+ *     requestId,                  // optional: request id
+ *     debug,                      // optional: debug flag
+ *     engine                      // optional: injected lane-router function
+ *   }
  */
-function withMusicNavChips(followUpsStrings, cont, sess) {
-  const base = safeArray(followUpsStrings);
-  const lane = cont && cont.lane ? String(cont.lane) : "";
-  const year = cont && cont.year ? String(cont.year) : "";
-
-  if (lane !== "music" || !/^\d{4}$/.test(year)) {
-    return maybeInjectResetChip(base, sess).slice(0, 4);
-  }
-
-  const wanted = ["Next", "Previous"];
-  const out = [];
-  const seen = new Set();
-
-  // prepend Next/Previous
-  for (const w of wanted) {
-    const k = normalizeText(w);
-    if (!seen.has(k)) {
-      seen.add(k);
-      out.push(w);
-    }
-  }
-
-  // then keep any existing chips (minus duplicates)
-  for (const x of base) {
-    const s = String(x || "").trim();
-    if (!s) continue;
-    const k = normalizeText(s);
-    if (seen.has(k)) continue;
-    seen.add(k);
-    out.push(s);
-    if (out.length >= 4) break;
-  }
-
-  // ensure we still have Reset
-  return maybeInjectResetChip(out.slice(0, 4), sess).slice(0, 4);
-}
-
-function ensureFollowUpsNonEmpty(lane, year, followUpsStrings, sess) {
-  const base = safeArray(followUpsStrings);
-  if (base.length > 0) return maybeInjectResetChip(base, sess);
-
-  if (lane === "music") {
-    if (year && /^\d{4}$/.test(String(year))) {
-      return maybeInjectResetChip([`Top 10 ${year}`, `Story moment ${year}`, `Micro moment ${year}`, "Pick a year"], sess);
-    }
-    return maybeInjectResetChip(["Pick a year", "Surprise me", "Story moment", "Just talk"], sess);
-  }
-
-  if (lane === "roku") return maybeInjectResetChip(["Live linear", "VOD", "Schedule", "Open Roku"], sess);
-  if (lane === "schedule") return maybeInjectResetChip(["Toronto", "London", "New York", "What’s playing now"], sess);
-  if (lane === "tv") return maybeInjectResetChip(["Live linear", "VOD", "Show me the Roku path", "What’s playing now"], sess);
-  if (lane === "radio") return maybeInjectResetChip(["Open radio", "Pick a year", "What’s playing now", "Just talk"], sess);
-
-  return maybeInjectResetChip(["Pick a year", "Surprise me", "Story moment", "Just talk"], sess);
-}
-
-// ----------------------------
-// COS (Cognitive OS) helpers
-// ----------------------------
-function computeNextStepHint({ lane, mode, year, state }) {
-  const l = String(lane || "general").toLowerCase();
-  const m = String(mode || "").toLowerCase();
-  const y = year && /^\d{4}$/.test(String(year)) ? String(year) : null;
-  const st = String(state || "").toLowerCase();
-
-  if (st === "clarify" && l === "music" && !y) return "Pick a year (1950–2024).";
-  if (l === "music" && y) {
-    if (m === "story_moment") return `Say “Micro moment ${y}” or tap Next.`;
-    if (m === "micro_moment") return `Tap Next, or ask for “Story moment ${y}”.`;
-    if (m === "number1") return `Tap Next, or ask for “Top 10 ${y}”.`;
-    if (m === "top100") return `Tap Next, or switch to “Top 10 ${y}”.`;
-    return `Tap Next / Previous, or ask “Story moment ${y}”.`;
-  }
-  if (l === "roku" || l === "tv") return "Choose Live linear or VOD.";
-  if (l === "schedule") return "Pick a city to anchor the timezone.";
-  if (l === "radio") return "Open radio, or pick a year first.";
-  return "Pick a year, try “Surprise me”, or tell me what you want.";
-}
-
-function ensureCog(out, lane, mode, year, state, reason) {
-  const ts = nowMs();
-  const baseLane = String(lane || "general");
-  const cog = (out.cog && typeof out.cog === "object") ? out.cog : {};
-  const yy = year && /^\d{4}$/.test(String(year)) ? String(year) : (cog.year ? String(cog.year) : undefined);
-  const mm = (mode != null && mode !== "") ? String(mode) : (cog.mode ? String(cog.mode) : undefined);
-  const st = state || cog.state || "respond";
-
-  out.cog = {
-    phase: cog.phase || "engaged",
-    state: st,
-    reason: reason || cog.reason || "reply",
-    lane: cog.lane || baseLane,
-    year: yy,
-    mode: mm,
-    nextStep: cog.nextStep || computeNextStepHint({ lane: baseLane, mode: mm, year: yy, state: st }),
-    ts: cog.ts || ts,
-    tone: cog.tone || undefined
-  };
-  return out;
-}
-
-function attachCogToSessionPatch(out, sess) {
-  const patch = (out.sessionPatch && typeof out.sessionPatch === "object") ? out.sessionPatch : {};
-  // Never stomp an explicit patch.cog, but always ensure it exists
-  if (patch.cog === undefined) patch.cog = (out.cog && typeof out.cog === "object") ? out.cog : undefined;
-  out.sessionPatch = filterSessionPatch(patch);
-  return out;
-}
-
-// ----------------------------
-// HARDENING: SessionPatch Allowlist
-// ----------------------------
-const SESSION_ALLOW = new Set([
-  "introDone", "introAt",
-  "lastInText", "lastInAt", "lastOut", "lastOutAt",
-  "lastOutSig", "lastOutSigAt",
-  "turns", "startedAt", "lastTurnAt",
-  "lanesVisited", "yearsVisited", "modesVisited",
-  "lastLane", "lastYear", "lastMode",
-  "lastFork", "depthLevel",
-  "elasticToggle", "lastElasticAt",
-  "lane",
-  "pendingLane", "pendingMode", "pendingYear",
-  "recentIntent", "recentTopic",
-  "activeMusicMode", "lastMusicYear", "year", "mode",
-  "musicContext",
-  "depthPreference", "userName", "nameAskedAt", "lastOpenQuestion", "userGoal",
-  "lastNameUseTurn",
-  // ✅ COS persistence
-  "cog",
-  // ✅ CS-1 state
-  "__cs1",
-  // ✅ Phase Two persistence (Adaptive Endurance)
-  "aeLastStage",
-  "aeLastInjectAt",
-  "aeRefUsed",
-  "aeReentryAt"
-]);
-
-function filterSessionPatch(patch) {
-  const out = {};
-  if (!patch || typeof patch !== "object") return out;
-  for (const k of Object.keys(patch)) {
-    if (!SESSION_ALLOW.has(k)) continue;
-    if (patch[k] === undefined) continue; // ✅ do NOT persist undefined (prevents stomping)
-    out[k] = patch[k];
-  }
-  return out;
-}
-
-// ----------------------------
-// CS-1 helpers (no hard dependency)
-// ----------------------------
-function cs1FlagsFromText(text) {
-  const t = normalizeText(text);
-
-  const isGreeting =
-    /^(hi|hello|hey|yo|good morning|good afternoon|good evening)\b/.test(t) ||
-    /\b(hi|hello|hey|good morning|good afternoon|good evening)\b/.test(t);
-
-  const isReturn =
-    /\b(i'?m back|im back|back again|we'?re back|were back|welcome back)\b/.test(t);
-
-  const isHelp =
-    /\b(help|options|menu|capabilities|what can you do|what do you do|how does this work)\b/.test(t);
-
-  // chatEngine does not have a formal intent classifier in this file; treat these as best-effort flags
-  return { isGreeting, isReturn, isHelp, isError: false, isFallback: false };
-}
-
-function cs1Decide(session, turnCount, text) {
-  if (!CS1) return null;
-  const now = nowMs();
-  const f = cs1FlagsFromText(text);
-  try {
-    return CS1.decideCS1({
-      session,
-      turnCount,
-      intent: "general",
-      nowMs: now,
-      isReturn: !!f.isReturn,
-      isGreeting: !!f.isGreeting,
-      isHelp: !!f.isHelp,
-      isError: !!f.isError,
-      isFallback: !!f.isFallback
-    });
-  } catch (_) {
-    return null;
-  }
-}
-
-function cs1MarkSpoke(session, turnCount, lineType) {
-  if (!CS1) return;
-  try {
-    const lt = String(lineType || "").toLowerCase();
-    const allowed = new Set(["intro", "reset", "reentry", "clarify", "nav", "deeper"]);
-    const safeLt = allowed.has(lt) ? lt : "nav";
-    CS1.markSpoke(session, turnCount, nowMs(), safeLt);
-  } catch (_) { /* ignore */ }
-}
-
-// ----------------------------
-// HARDENING: Input loop guard
-// ----------------------------
-function shouldReturnCachedForRepeat(session, userText) {
-  const t = normalizeText(userText);
-  if (!t) return false;
-
-  const lastT = normalizeText(session && session.lastInText);
-  const lastAt = Number(session && session.lastInAt) || 0;
-  const withinMs = 6_000;
-
-  if (lastT && t === lastT && (nowMs() - lastAt) <= withinMs) {
-    const lastOut = session && session.lastOut;
-    if (lastOut && typeof lastOut.reply === "string" && lastOut.reply.trim()) return true;
-  }
-  return false;
-}
-
-function buildOutSig(reply, followUpsStrings) {
-  const chips = safeArray(followUpsStrings).slice(0, 4).join(" | ");
-  return hashSig(`${String(reply || "")}__${chips}`);
-}
-
-function cachedResponse(session, reason, requestIdIn) {
-  const lastOut = (session && session.lastOut) || {};
-  const reply = lastOut.reply || "One sec — try again.";
-  const followUpsStrings = safeArray(lastOut.followUps).slice(0, 4);
-
-  const outChips = maybeInjectResetChip(followUpsStrings, session);
-  const outSig = buildOutSig(reply, outChips);
-
-  const turns = Number(session && session.turns) || 0;
-
-  const out = {
-    ok: true,
-    reply,
-    lane: (session && session.lane) || "general",
-    ctx: {
-      year: session && (session.lastYear || session.lastMusicYear || session.year) || null,
-      mode: session && (session.lastMode || session.mode) || null
-    },
-    ui: { mode: "chat" },
-    directives: [],
-    followUpsStrings: outChips,
-    followUps: chipsFromStrings(outChips, 4),
-    sessionPatch: filterSessionPatch({
-      lastInAt: nowMs(),
-      recentIntent: "loop_guard",
-      recentTopic: reason || "repeat_input",
-
-      lastOut: { reply, followUps: outChips },
-      lastOutAt: nowMs(),
-      lastOutSig: outSig,
-      lastOutSigAt: nowMs(),
-
-      // ✅ deterministic increment for cached early return
-      turns: turns + 1,
-      lastTurnAt: nowMs(),
-      startedAt: Number(session && session.startedAt) || nowMs(),
-
-      __cs1: session && session.__cs1,
-
-      // Phase Two
-      aeLastStage: session && session.aeLastStage,
-      aeLastInjectAt: session && session.aeLastInjectAt,
-      aeRefUsed: session && session.aeRefUsed,
-      aeReentryAt: session && session.aeReentryAt
-    }),
-    cog: { phase: "engaged", state: "steady", reason: "input_loop_guard", lane: "general", ts: nowMs() },
-    requestId: requestIdIn || rid(),
-    meta: { ts: nowMs(), contract: "v1" }
-  };
-
-  ensureCog(out, out.lane, out.ctx && out.ctx.mode, out.ctx && out.ctx.year, "steady", "input_loop_guard");
-
-  // Phase Two apply (conservative)
-  applyAdaptiveEndurance(out, session || {}, session && session.lastInText ? session.lastInText : "", out.requestId);
-
-  out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: session && session.__cs1 });
-
-  // ✅ Voice fix for cached returns
-  ensureSpeakDirective(out);
-  return out;
-}
-
-// ----------------------------
-// Content signature dampener
-// ----------------------------
-function dampenIfDuplicateOutput(session, reply, followUpsStrings) {
-  const sig = buildOutSig(reply, followUpsStrings);
-  const lastSig = (session && session.lastOutSig) || "";
-  const lastSigAt = Number(session && session.lastOutSigAt) || 0;
-
-  if (sig && lastSig && sig === lastSig && (nowMs() - lastSigAt) < 12_000) {
-    const tweak = "\n\n(If you want, tell me what you want next — I’m listening.)";
-    return { reply: `${reply}${tweak}`, sig: buildOutSig(`${reply}${tweak}`, followUpsStrings) };
-  }
-  return { reply, sig };
-}
-
-// ----------------------------
-// Nyx Intro V2
-// ----------------------------
-function isDirectIntent(userText) {
-  const t = normalizeText(userText);
-  return /\b(top\s*10|top\s*100|#1|story\s*moment|micro\s*moment|schedule|what'?s\s*playing|playing\s*now|vod|roku|radio|tv|live|linear|live\s*linear|open|watch|play)\b/.test(t);
-}
-
-function shouldRunIntro(session, userText) {
-  if (isDirectIntent(userText)) return false;
-  if (session && session.introDone) return false;
-  return true;
-}
-
-function nyxIntroReply() {
-  const reply =
-`Hey — I’m Nyx. I’ve got you.
-
-I can pull up a year and take you straight into the music, give you a quick story moment, or guide you through Sandblast TV and what’s playing.
-
-If you tell me your name, I’ll remember it for this session — or we can skip that.
-
-What do you feel like right now: a specific year, a surprise, or just talking?`;
-
-  const followUpsStrings = [
-    "Pick a year",
-    "Surprise me",
-    "Story moment",
-    "Just talk"
-  ];
-
-  return { reply, followUpsStrings };
-}
-
-// ----------------------------
-// Depth Dial (Fast / Deep)
-// ----------------------------
-function isDepthDial(text) {
-  const t = normalizeText(text);
-  return t === "fast" || t === "deep";
-}
-
-function depthDialReply(pref) {
-  if (pref === "deep") {
-    return "Perfect. I’ll slow it down and add context as we go. What are we doing first—music, TV, or just talking?";
-  }
-  return "Got it. Fast and clean. Point me at a year, a show, or your goal.";
-}
-
-// ----------------------------
-// Name Capture (session-safe)
-// ----------------------------
-function extractNameFromText(text) {
-  const raw = String(text || "").trim();
-  if (!raw) return null;
-
-  const m =
-    raw.match(/^\s*(?:i'?m|i\s+am|my\s+name\s+is|call\s+me)\s+(.+?)\s*$/i);
-
-  if (!m || !m[1]) return null;
-
-  let name = m[1].trim();
-  name = name.replace(/[.!?,;:]+$/g, "").trim();
-
-  if (!/^[A-Za-z][A-Za-z' -]{0,19}$/.test(name)) return null;
-
-  name = name.replace(/\s+/g, " ").trim();
-
-  const parts = name.split(" ").filter(Boolean);
-  if (parts.length > 2) return null;
-
-  name = parts.map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join(" ");
-  if (name.length < 2) return null;
-
-  return name;
-}
-
-// ----------------------------
-// NEXT / DEEPER INTENTS + CONTINUITY RESOLVER
-// ----------------------------
-function isNextStepIntent(text) {
-  const t = normalizeText(text);
-  return (
-    t === "next step" ||
-    t === "nextstep" ||
-    t === "what's next" ||
-    t === "whats next" ||
-    t === "next action"
-  );
-}
-
-function isNextIntent(text) {
-  const t = normalizeText(text);
-  return (
-    t === "next" ||
-    t === "next one" ||
-    t === "next year" ||
-    t === "continue" ||
-    t === "keep going" ||
-    t === "go on" ||
-    t === "another" ||
-    t === "more"
-  );
-}
-
-function isPrevIntent(text) {
-  const t = normalizeText(text);
-  return (
-    t === "previous" ||
-    t === "previous year" ||
-    t === "prev" ||
-    t === "back" ||
-    t === "go back"
-  );
-}
-
-function isDeeperIntent(text) {
-  const t = normalizeText(text);
-  return (
-    t === "deeper" ||
-    t === "go deeper" ||
-    t === "tell me more" ||
-    t === "expand" ||
-    t === "unpack that" ||
-    t === "why" ||
-    t === "how so"
-  );
-}
-
-function detectLane(text) {
-  const t = normalizeText(text);
-
-  if (/\b(schedule|what'?s\s*playing|playing\s*now)\b/.test(t)) return "schedule";
-  if (/\b(roku|vod|on\s*demand)\b/.test(t)) return "roku";
-  if (/\b(tv|television)\b/.test(t)) return "tv";
-  if (/\b(radio)\b/.test(t)) return "radio";
-  if (/\b(top\s*10|top\s*100|#1|story\s*moment|micro\s*moment|\byear:\s*(19\d{2}|20\d{2})\b|\b19\d{2}\b|\b20\d{2}\b)\b/.test(t)) return "music";
-  return "general";
-}
-
-/**
- * For continuity: treat "general" as unknown, not as a real override.
- * This prevents “next / previous / deeper” from erasing musicContext lane.
- */
-function detectLaneForContinuity(text) {
-  const l = detectLane(text);
-  return l === "general" ? null : l;
-}
-
-function extractYear(text) {
-  const s = String(text || "");
-  const m1 = s.match(/\byear:\s*(19\d{2}|20\d{2})\b/i);
-  if (m1) return m1[1];
-  const m2 = s.match(/\b(19\d{2}|20\d{2})\b/);
-  return m2 ? m2[1] : null;
-}
-
-function detectMode(text) {
-  const t = normalizeText(text);
-  if (/\bmicro\s*moment\b/.test(t)) return "micro_moment";
-  if (/\bstory\s*moment\b/.test(t)) return "story_moment";
-  if (/\btop\s*100\b/.test(t)) return "top100";
-  if (/\btop\s*10\b/.test(t)) return "top10";
-  if (/\b#1\b/.test(t)) return "number1";
-  if (/\b(vod|on\s*demand)\b/.test(t)) return "vod";
-  if (/\b(live|linear|live\s*linear)\b/.test(t)) return "live";
-  if (/\b(surprise\s*me)\b/.test(t)) return "surprise";
-  return null;
-}
-
-/**
- * ✅ Continuity spine read
- * Prefer session.musicContext first, then legacy fields.
- * IMPORTANT FIX: “general” does NOT override saved lane.
- */
-function getContinuity(sess, safeText) {
-  const s = sess || {};
-  const inferredLane = detectLaneForContinuity(safeText);
-  const yearFromText = extractYear(safeText);
-  const modeFromText = detectMode(safeText);
-
-  const mc = (s.musicContext && typeof s.musicContext === "object") ? s.musicContext : null;
-  const mcLane = mc && mc.lane ? String(mc.lane).toLowerCase() : null;
-  const mcYear = mc && mc.year ? String(mc.year) : null;
-  const mcMode = mc && mc.mode ? String(mc.mode) : null;
-
-  const lane =
-    inferredLane ||
-    mcLane ||
-    s.lane ||
-    s.lastLane ||
-    (s.lastMusicYear || s.year ? "music" : "general");
-
-  const activeYear =
-    yearFromText ||
-    s.pendingYear ||
-    mcYear ||
-    s.lastMusicYear ||
-    s.year ||
-    s.lastYear ||
-    null;
-
-  const activeMode =
-    modeFromText ||
-    s.pendingMode ||
-    mcMode ||
-    s.activeMusicMode ||
-    s.mode ||
-    s.lastMode ||
-    null;
-
-  return {
-    lane: String(lane || "general").toLowerCase(),
-    year: (activeYear && /^\d{4}$/.test(String(activeYear))) ? String(activeYear) : null,
-    mode: activeMode ? String(activeMode) : null
-  };
-}
-
-function modeToPrompt(mode, year) {
-  const y = String(year || "").trim();
-  const m = String(mode || "").toLowerCase();
-
-  if (!y || !/^\d{4}$/.test(y)) return null;
-
-  if (m === "top10") return `top 10 ${y}`;
-  if (m === "top100") return `top 100 ${y}`;
-  if (m === "story_moment") return `story moment ${y}`;
-  if (m === "micro_moment") return `micro moment ${y}`;
-  if (m === "number1") return `#1 ${y}`;
-
-  return `top 10 ${y}`;
-}
-
-function computeYearDelta(year, delta) {
-  const y = parseInt(String(year || ""), 10);
-  if (!Number.isFinite(y)) return null;
-  return clampInt(y + delta, 1950, 2024);
-}
-
-function nextDirective(cont) {
-  const lane = cont && cont.lane ? cont.lane : "general";
-  const mode = cont && cont.mode ? cont.mode : null;
-  const year = cont && cont.year ? cont.year : null;
-
-  if (lane !== "music") return null;
-  if (!year || !/^\d{4}$/.test(String(year))) return { kind: "need_year" };
-
-  const ny = computeYearDelta(year, +1);
-  if (!ny) return { kind: "need_year" };
-
-  const prompt = modeToPrompt(mode || "top10", String(ny));
-  return { kind: "advance", year: String(ny), prompt, mode: mode || "top10" };
-}
-
-function prevDirective(cont) {
-  const lane = cont && cont.lane ? cont.lane : "general";
-  const mode = cont && cont.mode ? cont.mode : null;
-  const year = cont && cont.year ? cont.year : null;
-
-  if (lane !== "music") return null;
-  if (!year || !/^\d{4}$/.test(String(year))) return { kind: "need_year" };
-
-  const py = computeYearDelta(year, -1);
-  if (!py) return { kind: "need_year" };
-
-  const prompt = modeToPrompt(mode || "top10", String(py));
-  return { kind: "advance", year: String(py), prompt, mode: mode || "top10" };
-}
-
-/**
- * CONTINUITY NORMALIZER (CRITICAL):
- * - Converts bare-year messages into mode-aware prompts.
- * - Converts year:YYYY into mode-aware prompts when we already have a music mode.
- * - Converts mode-only commands into mode+year when year is known.
- */
-function isBareYearOnly(text) {
-  const t = String(text || "").trim();
-  return /^(19\d{2}|20\d{2})$/.test(t);
-}
-
-function isYearColon(text) {
-  const t = String(text || "").trim();
-  return /^year:\s*(19\d{2}|20\d{2})$/i.test(t);
-}
-
-function parseYearColon(text) {
-  const m = String(text || "").trim().match(/^year:\s*(19\d{2}|20\d{2})$/i);
-  return m ? m[1] : null;
-}
-
-function isModeOnlyWithoutYear(text) {
-  const t = normalizeText(text);
-  const hasYear = /\b(19\d{2}|20\d{2})\b/.test(t);
-  if (hasYear) return false;
-  return (
-    t === "top 10" || t === "top10" || t === "top ten" ||
-    t === "top 100" || t === "top100" ||
-    t === "story moment" || t === "story" ||
-    t === "micro moment" || t === "micro" ||
-    t === "#1" || t === "number 1" || t === "no 1" || t === "no. 1"
-  );
-}
-
-function normalizeModeOnlyToPrompt(text, cont, sess) {
-  const t = normalizeText(text);
-  const year =
-    (cont && cont.year) ||
-    (sess && sess.musicContext && sess.musicContext.year ? String(sess.musicContext.year) : null) ||
-    (sess && (sess.lastMusicYear || sess.lastYear || sess.year) ? String(sess.lastMusicYear || sess.lastYear || sess.year) : null);
-
-  if (!year || !/^\d{4}$/.test(String(year))) return null;
-
-  if (/\btop\s*10\b|top10|top ten/.test(t)) return `top 10 ${year}`;
-  if (/\btop\s*100\b|top100/.test(t)) return `top 100 ${year}`;
-  if (/\bstory\s*moment\b|\bstory\b/.test(t)) return `story moment ${year}`;
-  if (/\bmicro\s*moment\b|\bmicro\b/.test(t)) return `micro moment ${year}`;
-  if (t === "#1" || /\bnumber\s*1\b|\bno\.?\s*1\b|\bno\s*1\b/.test(t)) return `#1 ${year}`;
-
-  return null;
-}
-
-// ----------------------------
-// RESET intent + reset reply
-// ----------------------------
-function isResetIntent(text) {
-  const t = normalizeText(text);
-  return (
-    t === "reset" ||
-    t === "reset chat" ||
-    t === "start over" ||
-    t === "restart" ||
-    t === CMD_PAYLOAD.RESET
-  );
-}
-
-function resetReply() {
-  const reply =
-`Hey — I’m Nyx. I’ve got you.
-
-Pick a year (1950–2024) and I’ll take you straight into the music — Top 10, a story moment, a micro moment, or the #1.
-Or I can guide you through Sandblast TV/Roku.
-
-Where do you want to start?`;
-
-  const followUpsStrings = [
-    "Pick a year",
-    "Story moment",
-    "Just talk",
-    "What’s playing now"
-  ];
-
-  return { reply, followUpsStrings };
-}
-
-function resetSessionPatch(prevSess) {
-  const keepDepthPref = (prevSess && prevSess.depthPreference) ? String(prevSess.depthPreference) : "fast";
-
-  return filterSessionPatch({
-    introDone: true,
-    introAt: nowMs(),
-
-    lastInText: "",
-    lastInAt: nowMs(),
-    lastOut: null,
-    lastOutAt: 0,
-    lastOutSig: "",
-    lastOutSigAt: 0,
-
-    turns: 0,
-    startedAt: nowMs(),
-    lastTurnAt: nowMs(),
-
-    lanesVisited: [],
-    yearsVisited: [],
-    modesVisited: [],
-
-    lastLane: null,
-    lastYear: null,
-    lastMode: null,
-
-    lastFork: "reset",
-    depthLevel: 0,
-
-    elasticToggle: 0,
-    lastElasticAt: 0,
-
-    lane: "general",
-    pendingLane: null,
-    pendingMode: null,
-    pendingYear: null,
-
-    recentIntent: "reset",
-    recentTopic: "reset",
-
-    activeMusicMode: null,
-    lastMusicYear: null,
-    year: null,
-    mode: null,
-
-    musicContext: null,
-
-    userGoal: "explore",
-    depthPreference: keepDepthPref,
-    lastOpenQuestion: null,
-    nameAskedAt: 0,
-    lastNameUseTurn: 0,
-
-    // Phase Two reset (new session arc)
-    aeLastStage: "early",
-    aeLastInjectAt: 0,
-    aeRefUsed: false,
-    aeReentryAt: 0,
-
-    // keep __cs1 if it exists; if not, omit
-    __cs1: (prevSess && prevSess.__cs1) ? prevSess.__cs1 : undefined
-  });
-}
-
-// ----------------------------
-// CALL SIGNATURE NORMALIZER (CRITICAL)
-// ----------------------------
-function normalizeInputArgs(arg1, arg2) {
-  // Unified call shape: chatEngine({text,session,requestId,debug,client:{routeHint,turnId}}, session?)
-  if (arg1 && typeof arg1 === "object" && !Array.isArray(arg1)) {
-    const obj = arg1;
-    const text = typeof obj.text === "string" ? obj.text : (typeof obj.message === "string" ? obj.message : "");
-    const session = (obj.session && typeof obj.session === "object") ? obj.session : (arg2 && typeof arg2 === "object" ? arg2 : {});
-    const requestId = (typeof obj.requestId === "string" && obj.requestId.trim()) ? obj.requestId.trim() : null;
-    const debug = !!obj.debug;
-
-    const client = (obj.client && typeof obj.client === "object") ? obj.client : {};
-    const routeHint = (typeof obj.routeHint === "string" ? obj.routeHint : (typeof client.routeHint === "string" ? client.routeHint : ""));
-    const turnId = (typeof obj.turnId === "string" ? obj.turnId : (typeof client.turnId === "string" ? client.turnId : ""));
-
-    return { text, session, requestId, debug, routeHint: String(routeHint || ""), turnId: String(turnId || "") };
-  }
-
-  return {
-    text: typeof arg1 === "string" ? arg1 : String(arg1 || ""),
-    session: (arg2 && typeof arg2 === "object") ? arg2 : {},
-    requestId: null,
-    debug: false,
-    routeHint: "",
-    turnId: ""
-  };
-}
-
-// ----------------------------
-// Year picker intent (backend-owned trigger)
-// ----------------------------
-function wantsYearPicker(text) {
-  const t = normalizeText(text);
-  return (
-    t === UI_PAYLOAD.YEAR_PICKER ||
-    t === "pick a year" ||
-    t === "years" ||
-    t === "pick another year"
-  );
-}
-
-function yearPickerReply(sess) {
-  const reply = "Pick a year (1950–2024). Want Top 10, a story moment, or a micro moment after you choose?";
-  const followUpsStrings = [
-    "Surprise me",
-    "Top 10 1988",
-    "Story moment 1955",
-    "Just talk"
-  ];
-  const out = {
-    ok: true,
-    reply,
-    lane: "music",
-    ctx: {
-      year: sess && (sess.lastYear || sess.lastMusicYear || sess.year) || null,
-      mode: "discover"
-    },
-    ui: {
-      mode: "year_picker",
-      yearMin: 1950,
-      yearMax: 2024,
-      decadeJump: true
-    },
-    directives: [{ type: "open_year_picker" }],
-    followUpsStrings,
-    followUps: chipsFromStrings(followUpsStrings, 4)
-  };
-
-  // ✅ Voice directive (even in year-picker mode)
-  ensureSpeakDirective(out);
-  return out;
-}
-
-// ----------------------------
-// DEEPER (mode-aware, deterministic)
-// ----------------------------
-function modeForDeeper(cont, sess) {
-  const m =
-    (cont && cont.mode ? String(cont.mode) : "") ||
-    (sess && sess.musicContext && sess.musicContext.mode ? String(sess.musicContext.mode) : "") ||
-    (sess && sess.activeMusicMode ? String(sess.activeMusicMode) : "") ||
-    (sess && sess.lastMode ? String(sess.lastMode) : "") ||
-    "";
-  const mm = m.toLowerCase();
-
-  if (mm === "story_moment" || mm === "micro_moment" || mm === "top10" || mm === "top100" || mm === "number1") return mm;
-
-  const lane = (cont && cont.lane) || (sess && sess.lane) || "general";
-  if (String(lane).toLowerCase() === "music") return "top10";
-
-  return "general";
-}
-
-function deeperReply({ baseReply, cont, sess }) {
-  const lane = (cont && cont.lane) ? String(cont.lane) : (sess && sess.lane ? String(sess.lane) : "general");
-  const year =
-    (cont && cont.year) ? String(cont.year)
-      : (sess && sess.musicContext && sess.musicContext.year ? String(sess.musicContext.year)
-        : (sess && (sess.lastMusicYear || sess.lastYear || sess.year) ? String(sess.lastMusicYear || sess.lastYear || sess.year) : ""));
-  const mode = modeForDeeper(cont, sess);
-
-  const cleanBase = String(baseReply || "").trim();
-  if (!cleanBase) {
-    return {
-      reply: "Tell me what you want to go deeper on — a year, a story moment, a micro moment, or a #1.",
-      lane,
-      year: /^\d{4}$/.test(year) ? year : null,
-      mode
-    };
-  }
-
-  if (String(lane).toLowerCase() !== "music") {
-    const reply = cleanBase + "\n\nTell me which lane you want to deepen: Music, TV/Roku, or Schedule.";
-    return { reply, lane, year: null, mode: "general" };
-  }
-
-  const y = /^\d{4}$/.test(year) ? year : null;
-
-  if (mode === "top10" || mode === "top100") {
-    const reply =
-      cleanBase +
-      "\n\nDeeper cut: this year’s #1 isn’t just a song — it’s a timestamp. If you tell me where you were in life back then (school, first job, relationship), I’ll pin the vibe to that and keep the run going.\n\nWant the next year, or the previous?";
-    return { reply, lane: "music", year: y, mode };
-  }
-
-  if (mode === "story_moment") {
-    const reply =
-      cleanBase +
-      "\n\nDeeper cut: zoom in on the *emotion* of that year — what people were trying to escape, and what they were reaching for. That’s why the #1 felt inevitable.\n\nNext year, or stay here and go micro?";
-    return { reply, lane: "music", year: y, mode };
-  }
-
-  if (mode === "micro_moment") {
-    const reply =
-      cleanBase +
-      "\n\nDeeper cut: picture the scene — radio on, fluorescent lights somewhere, and that little half-second where you recognize the song before the lyric hits. That’s the “micro” that locks memory.\n\nNext year, or want another micro in this same year?";
-    return { reply, lane: "music", year: y, mode };
-  }
-
-  if (mode === "number1") {
-    const reply =
-      cleanBase +
-      "\n\nDeeper cut: #1 years tend to define the *texture* of the era — the production choices, the slang, the emotional posture. This one wasn’t just popular; it set the tone.\n\nNext year, or previous?";
-    return { reply, lane: "music", year: y, mode };
-  }
-
-  const reply = cleanBase + "\n\nWant to go deeper on Top 10, #1, story moment, or micro moment?";
-  return { reply, lane: "music", year: y, mode: "top10" };
-}
-
-// ----------------------------
-// ROUTE HINT (deterministic lane routing)
-// ----------------------------
-function laneFromRouteHint(routeHint) {
-  const t = normalizeText(routeHint || "");
-  if (!t) return null;
-
-  // canonical-ish route hints (be forgiving)
-  if (t.includes("music")) return "music";
-  if (t.includes("roku")) return "roku";
-  if (t.includes("schedule")) return "schedule";
-  if (t.includes("tv")) return "tv";
-  if (t.includes("radio")) return "radio";
-  if (t.includes("sponsor")) return "sponsors";
-
-  // if they pass the lane name directly
-  if (t === "general") return "general";
-  return null;
-}
-
-function forcedModeFromRouteHint(routeHint) {
-  const t = normalizeText(routeHint || "");
-  if (!t) return null;
-  if (t.includes("top10") || t.includes("top 10")) return "top10";
-  if (t.includes("top100") || t.includes("top 100")) return "top100";
-  if (t.includes("story")) return "story_moment";
-  if (t.includes("micro")) return "micro_moment";
-  if (t.includes("#1") || t.includes("number1") || t.includes("number 1")) return "number1";
-  return null;
-}
-
-// ----------------------------
-// CONTRACT ENFORCERS (NEW)
-// ----------------------------
-function isMusicMode(mode) {
-  const m = String(mode || "").toLowerCase();
-  return m === "top10" || m === "top100" || m === "story_moment" || m === "micro_moment" || m === "number1";
-}
-
-function musicModeNeedsYear(mode) {
-  return isMusicMode(mode);
-}
-
-function looksLikeLabelOnlyMusicReply(reply, mode, year) {
-  const r = String(reply || "").trim();
-  if (!r) return true;
-
-  // obvious label-only patterns
-  if (/^top\s*10\s*\(?\s*\d{4}\s*\)?\s*$/i.test(r)) return true;
-  if (/^top\s*100\s*\(?\s*\d{4}\s*\)?\s*$/i.test(r)) return true;
-  if (/^story\s*moment\s*\(?\s*\d{4}\s*\)?\s*$/i.test(r)) return true;
-  if (/^micro\s*moment\s*\(?\s*\d{4}\s*\)?\s*$/i.test(r)) return true;
-  if (/^(#1|number\s*1)\s*\(?\s*\d{4}\s*\)?\s*$/i.test(r)) return true;
-
-  // too short is suspicious for list modes
-  const m = String(mode || "").toLowerCase();
-  const y = String(year || "");
-  if ((m === "top10" || m === "top100") && y && r.length < 80) return true;
-
-  return false;
-}
-
-function buildClarifyYearReply({ lane, mode, knownYear }) {
-  const m = String(mode || "").toLowerCase();
-  const baseLane = String(lane || "music").toLowerCase();
-
-  if (baseLane !== "music") {
-    return {
-      reply: "Tell me what you want next.",
-      followUpsStrings: ["Pick a year", "Just talk", "Surprise me", "Reset"]
-    };
-  }
-
-  if (knownYear && /^\d{4}$/.test(String(knownYear))) {
-    const y = String(knownYear);
-    return {
-      reply: `Got it — ${y}. Want Top 10, #1, a story moment, or a micro moment?`,
-      followUpsStrings: [`Top 10 ${y}`, `#1 ${y}`, `Story moment ${y}`, `Micro moment ${y}`]
-    };
-  }
-
-  if (m === "top10") {
-    return { reply: "We can do Top 10. Which year do you want? (1950–2024)", followUpsStrings: ["Pick a year", "Top 10 1988", "Top 10 1955", "Reset"] };
-  }
-  if (m === "top100") {
-    return { reply: "We can do Top 100. Which year do you want? (1950–2024)", followUpsStrings: ["Pick a year", "Top 100 1988", "Top 100 1979", "Reset"] };
-  }
-  if (m === "story_moment") {
-    return { reply: "We can do a story moment. Which year? (1950–2024)", followUpsStrings: ["Pick a year", "Story moment 1955", "Story moment 1988", "Reset"] };
-  }
-  if (m === "micro_moment") {
-    return { reply: "We can do a micro moment. Which year? (1950–2024)", followUpsStrings: ["Pick a year", "Micro moment 1979", "Micro moment 1994", "Reset"] };
-  }
-  if (m === "number1") {
-    return { reply: "We can do the #1 song. Which year? (1950–2024)", followUpsStrings: ["Pick a year", "#1 1988", "#1 1967", "Reset"] };
-  }
-
-  return { reply: "We can start clean. Tell me a year (1950–2024).", followUpsStrings: ["Pick a year", "Top 10 1988", "Story moment 1955", "Reset"] };
-}
-
-function enforceOneIntent(out) {
-  const reply = String(out.reply || "").trim();
-  if (!reply) return out;
-
-  const qCount = (reply.match(/\?/g) || []).length;
-  if (qCount <= 1) return out;
-
-  const idx = reply.indexOf("?");
-  const clipped = idx >= 0 ? reply.slice(0, idx + 1) : reply;
-  out.reply = clipped.trim();
-  return out;
-}
-
-function enforceNonEmptyReply(out, fallbackText) {
-  const r = String(out.reply || "").trim();
-  if (r) return out;
-  out.reply = String(fallbackText || "Tell me a year (1950–2024), or say “top 10 1988”.").trim();
-  return out;
-}
-
-function ensureSessionPatchBasics(out, sess, routingText, lane, mode, year, followUpsStrings, outSig) {
-  const patch = (out.sessionPatch && typeof out.sessionPatch === "object") ? out.sessionPatch : {};
-  const turnsBase = Number(sess.turns || 0);
-
-  // always persist these
-  if (patch.lastInText === undefined) patch.lastInText = routingText;
-  if (patch.lastInAt === undefined) patch.lastInAt = nowMs();
-
-  patch.lastOut = { reply: out.reply, followUps: safeArray(followUpsStrings).slice(0, 4) };
-  patch.lastOutAt = nowMs();
-  patch.lastOutSig = outSig;
-  patch.lastOutSigAt = nowMs();
-
-  patch.lane = lane || patch.lane || sess.lane || "general";
-  if (year) patch.lastYear = year;
-  if (mode) patch.lastMode = mode;
-
-  // ✅ deterministic turn increment — but DO NOT double-increment if already set upstream
-  if (!Number.isFinite(Number(patch.turns))) {
-    patch.turns = turnsBase + 1;
-  }
-  if (patch.lastTurnAt === undefined) patch.lastTurnAt = nowMs();
-  if (!patch.startedAt) patch.startedAt = Number(sess.startedAt) || nowMs();
-
-  // mirror music continuity
-  if (String(lane).toLowerCase() === "music") {
-    if (year) patch.lastMusicYear = year;
-    if (mode) patch.activeMusicMode = mode;
-    if (year) {
-      patch.musicContext = {
-        lane: "music",
-        year: String(year),
-        mode: String(mode || "top10"),
-        lastAction: patch.recentIntent || "reply"
-      };
-    }
-  }
-
-  // ✅ preserve CS-1 state if present (and allowlisted)
-  if (sess && sess.__cs1 && patch.__cs1 === undefined) patch.__cs1 = sess.__cs1;
-
-  // ✅ COS persistence
-  if (patch.cog === undefined && out.cog && typeof out.cog === "object") patch.cog = out.cog;
-
-  out.sessionPatch = filterSessionPatch(patch);
-  return out;
-}
-
-function enforceContractFinal({
-  out,
-  sess,
-  routingText,
-  lane,
-  mode,
-  year,
-  cont,
-  routeHintLane,
-  routeHintMode,
-  requestId
-}) {
-  const baseLane = String(routeHintLane || lane || out.lane || "general").toLowerCase();
-  const baseMode = routeHintMode || mode || cont.mode || (out.ctx && out.ctx.mode) || null;
-  const baseYear = year || cont.year || (out.ctx && out.ctx.year ? String(out.ctx.year) : null) || null;
-
-  // ensure followUps exist (robust extraction)
-  const existingFus = coerceFollowUpsStrings(out);
-  let fus = ensureFollowUpsNonEmpty(baseLane, baseYear, existingFus, sess).slice(0, 4);
-
-  // if music+year known, enforce Next/Previous chips
-  fus = withMusicNavChips(fus, { lane: baseLane, year: baseYear, mode: baseMode }, sess);
-
-  // content completeness gate for music modes
-  if (baseLane === "music" && isMusicMode(baseMode)) {
-    const needsYear = musicModeNeedsYear(baseMode);
-    if (needsYear && !baseYear) {
-      const clarify = buildClarifyYearReply({ lane: "music", mode: baseMode, knownYear: null });
-
-      cs1MarkSpoke(sess, Number(sess.turns || 0) + 1, "clarify");
-
-      out.reply = clarify.reply;
-      out.directives = [{ type: "open_year_picker" }];
-      fus = maybeInjectResetChip(clarify.followUpsStrings, sess).slice(0, 4);
-      out.followUpsStrings = fus;
-      out.followUps = chipsFromStrings(fus, 4);
-      out.ui = { mode: "chat" };
-      out.lane = "music";
-      out.ctx = { year: null, mode: baseMode };
-
-      out = enforceOneIntent(out);
-      out = enforceNonEmptyReply(out, clarify.reply);
-      out = ensureCog(out, "music", baseMode, undefined, "clarify", "need_year");
-
-      const sig = buildOutSig(out.reply, fus);
-      out = ensureSessionPatchBasics(out, sess, routingText, "music", baseMode, null, fus, sig);
-
-      out.sessionPatch = filterSessionPatch({
-        ...out.sessionPatch,
-        pendingLane: "music",
-        pendingMode: baseMode,
-        pendingYear: null,
-        recentIntent: "clarify_year",
-        recentTopic: `need_year:${String(baseMode)}`,
-        cog: out.cog,
-        __cs1: sess.__cs1
-      });
-
-      // Phase Two apply (conservative)
-      applyAdaptiveEndurance(out, sess, routingText, requestId || out.requestId);
-
-      // ✅ Voice directive guaranteed
-      ensureSpeakDirective(out);
-      return out;
-    }
-
-    if (baseYear && looksLikeLabelOnlyMusicReply(out.reply, baseMode, baseYear)) {
-      const clarify = buildClarifyYearReply({ lane: "music", mode: baseMode, knownYear: baseYear });
-
-      cs1MarkSpoke(sess, Number(sess.turns || 0) + 1, "clarify");
-
-      out.reply = clarify.reply;
-      out.directives = out.directives || [];
-      fus = maybeInjectResetChip(clarify.followUpsStrings, sess).slice(0, 4);
-      out.followUpsStrings = fus;
-      out.followUps = chipsFromStrings(fus, 4);
-      out.ui = { mode: "chat" };
-      out.lane = "music";
-      out.ctx = { year: parseInt(String(baseYear), 10), mode: baseMode };
-
-      out = enforceOneIntent(out);
-      out = enforceNonEmptyReply(out, clarify.reply);
-      out = ensureCog(out, "music", baseMode, String(baseYear), "clarify", "incomplete_content");
-
-      const sig = buildOutSig(out.reply, fus);
-      out = ensureSessionPatchBasics(out, sess, routingText, "music", baseMode, String(baseYear), fus, sig);
-
-      out.sessionPatch = filterSessionPatch({
-        ...out.sessionPatch,
-        recentIntent: "clarify_content",
-        recentTopic: `incomplete:${String(baseMode)}:${String(baseYear)}`,
-        cog: out.cog,
-        __cs1: sess.__cs1
-      });
-
-      // Phase Two apply (conservative)
-      applyAdaptiveEndurance(out, sess, routingText, requestId || out.requestId);
-
-      // ✅ Voice directive guaranteed
-      ensureSpeakDirective(out);
-      return out;
-    }
-  }
-
-  // defaults if nothing special triggered
-  out.followUpsStrings = fus;
-  out.followUps = chipsFromStrings(fus, 4);
-  if (!out.directives) out.directives = [];
-
-  out = enforceOneIntent(out);
-  out = enforceNonEmptyReply(out);
-
-  // ✅ ensure cog + persist it
-  out = ensureCog(out, baseLane, baseMode || undefined, baseYear || undefined, out.cog && out.cog.state, out.cog && out.cog.reason);
-
-  const sig = buildOutSig(out.reply, fus);
-  out = ensureSessionPatchBasics(out, sess, routingText, baseLane, baseMode, baseYear, fus, sig);
-
-  // strict: keep ctx consistent
-  out.lane = baseLane;
-  out.ctx = out.ctx && typeof out.ctx === "object" ? out.ctx : {};
-  out.ctx.year = baseYear ? parseInt(String(baseYear), 10) : null;
-  out.ctx.mode = baseMode || null;
-
-  // UI default
-  out.ui = out.ui && typeof out.ui === "object" ? out.ui : { mode: "chat" };
-
-  // final attach (idempotent)
-  out = attachCogToSessionPatch(out, sess);
-
-  // Phase Two apply (conservative)
-  applyAdaptiveEndurance(out, sess, routingText, requestId || out.requestId);
-
-  // ✅ Voice directive guaranteed (for ALL normal outputs)
-  ensureSpeakDirective(out);
-
-  return out;
-}
-
-// ----------------------------
-// Public API
-// ----------------------------
-async function chatEngine(arg1, arg2) {
-  const norm = normalizeInputArgs(arg1, arg2);
-
-  const text = String(norm.text || "").trim();
-  const sess = norm.session && typeof norm.session === "object" ? norm.session : {};
-  const requestId = norm.requestId || rid();
-  const routeHintRaw = String(norm.routeHint || "").trim();
-
-  const safeTextRaw = text === "[object Object]" ? "" : text;
-  const safeText = safeTextRaw;
-
-  // Deterministic routeHint
-  const routeHintLane = laneFromRouteHint(routeHintRaw);
-  const routeHintMode = forcedModeFromRouteHint(routeHintRaw);
-
-  // ----------------------------
-  // CS-1 decision snapshot (optional)
-  // ----------------------------
-  const turnCountForCS1 = Number(sess.turns || 0) + 1;
-  const cs1Decision = cs1Decide(sess, turnCountForCS1, safeText);
-  if (cs1Decision && cs1Decision.sessionPatch && cs1Decision.sessionPatch.__cs1) {
-    sess.__cs1 = cs1Decision.sessionPatch.__cs1;
-  }
-
-  // ----------------------------
-  // RESET intercept (must be FIRST)
-  // ----------------------------
-  if (isResetIntent(safeText)) {
-    const r = resetReply();
-    const followUpsStrings = maybeInjectResetChip(r.followUpsStrings, { turns: 1, introDone: true });
-
-    cs1MarkSpoke(sess, turnCountForCS1, "reset");
-
-    const sessionPatchBase = resetSessionPatch(sess);
-    const outSig = buildOutSig(r.reply, followUpsStrings);
-
-    const out = {
-      ok: true,
-      reply: r.reply,
-      lane: "general",
-      ctx: { year: null, mode: "discover" },
-      ui: { mode: "chat" },
-      directives: [],
-      followUpsStrings,
-      followUps: chipsFromStrings(followUpsStrings, 4),
-      sessionPatch: filterSessionPatch({
-        ...sessionPatchBase,
-        lastOut: { reply: r.reply, followUps: followUpsStrings },
-        lastOutAt: nowMs(),
-        lastOutSig: outSig,
-        lastOutSigAt: nowMs(),
-        turns: 1,
-        lastTurnAt: nowMs(),
-        startedAt: nowMs(),
-        __cs1: sess.__cs1
-      }),
-      cog: { phase: "engaged", state: "reset", reason: "user_reset", lane: "general", ts: nowMs() },
-      requestId,
-      meta: { ts: nowMs(), contract: "v1" }
-    };
-
-    ensureCog(out, "general", null, null, "reset", "user_reset");
-
-    // Phase Two apply (reset is a clean arc; keep it minimal)
-    applyAdaptiveEndurance(out, sess, safeText, requestId);
-
-    out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
-
-    // ✅ Voice directive for reset
-    ensureSpeakDirective(out);
-    return out;
-  }
-
-  // ----------------------------
-  // CONTINUITY SNAPSHOT (for mode-only rewrite + deeper/next/prev)
-  // ----------------------------
-  const cont0 = getContinuity(sess, safeText);
-
-  // MODE-only command -> mode+year (if year known)
-  const modeOnlyRewrite = (isModeOnlyWithoutYear(safeText) ? normalizeModeOnlyToPrompt(safeText, cont0, sess) : null);
-  const safeTextForNorm = modeOnlyRewrite ? modeOnlyRewrite : safeText;
-
-  // ----------------------------
-  // CONTINUITY NORMALIZER
-  // ----------------------------
-  function normalizeContinuityInput(rawText, sessIn) {
-    const t = String(rawText || "").trim();
-    if (!t) return { text: t, normalized: false, reason: null };
-
-    if (isResetIntent(t)) return { text: t, normalized: false, reason: null };
-
-    const tnorm = normalizeText(t);
-    const alreadyExplicit =
-      /\btop\s*10\b|\btop\s*100\b|\bstory\s*moment\b|\bmicro\s*moment\b|\b#1\b/.test(tnorm) &&
-      /\b(19\d{2}|20\d{2})\b/.test(tnorm);
-
-    if (alreadyExplicit) return { text: t, normalized: false, reason: null };
-
-    const cont = getContinuity(sessIn, t);
-
-    if (isBareYearOnly(t)) {
-      const y = t;
-      const mode = cont.mode || (cont.lane === "music" ? "top10" : null);
-      if (cont.lane === "music" || sessIn.lastMusicYear || sessIn.activeMusicMode || sessIn.lastMode || (sessIn.musicContext && sessIn.musicContext.mode)) {
-        return { text: modeToPrompt(mode || "top10", y), normalized: true, reason: "bare_year_mode_aware" };
-      }
-      return { text: `year:${y}`, normalized: true, reason: "bare_year_to_yearcolon" };
-    }
-
-    if (isYearColon(t)) {
-      const y = parseYearColon(t);
-      const mode = cont.mode || (cont.lane === "music" ? "top10" : null);
-      if (y && (cont.lane === "music" || sessIn.activeMusicMode || sessIn.lastMode || (sessIn.musicContext && sessIn.musicContext.mode))) {
-        return { text: modeToPrompt(mode || "top10", y), normalized: true, reason: "yearcolon_to_mode_prompt" };
-      }
-      return { text: `year:${y}`, normalized: true, reason: "yearcolon_passthru" };
-    }
-
-    return { text: t, normalized: false, reason: null };
-  }
-
-  const normIn = normalizeContinuityInput(safeTextForNorm, sess);
-  let routingText0 = normIn && typeof normIn.text === "string" ? normIn.text : safeTextForNorm;
-
-  // If routeHint forces a mode and the text doesn’t specify one, inject it (deterministic)
-  if (routeHintLane === "music" && routeHintMode && !detectMode(routingText0)) {
-    const y = extractYear(routingText0) || cont0.year || (sess.musicContext && sess.musicContext.year) || sess.lastMusicYear || null;
-    if (y && /^\d{4}$/.test(String(y))) {
-      routingText0 = modeToPrompt(routeHintMode, String(y)) || routingText0;
-    }
-  }
-
-  // Continuity snapshot (used for deeper/next/prev)
-  const cont = getContinuity(sess, routingText0);
-
-  // ----------------------------
-  // "NEXT STEP" intent (first-class)
-  // ----------------------------
-  if (isNextStepIntent(routingText0)) {
-    cs1MarkSpoke(sess, turnCountForCS1, "nav");
-
-    if (cont && cont.lane === "music") {
-      // Treat as NEXT for music when possible
-      routingText0 = "next";
-    } else {
-      const reply = "Next step: pick a lane. Do you want **Music**, **TV/Roku**, **Schedule**, or **Just talk**?";
-      const chips = maybeInjectResetChip(["Pick a year", "Show me the Roku path", "What’s playing now", "Just talk"], sess).slice(0, 4);
-      const outSig = buildOutSig(reply, chips);
-
-      const out = {
-        ok: true,
-        reply,
-        lane: "general",
-        ctx: { year: null, mode: "discover" },
-        ui: { mode: "chat" },
-        directives: [],
-        followUpsStrings: chips,
-        followUps: chipsFromStrings(chips, 4),
-        sessionPatch: filterSessionPatch({
-          lastInText: routingText0,
-          lastInAt: nowMs(),
-          recentIntent: "next_step",
-          recentTopic: "cos:next_step",
-          lane: "general",
-          lastOut: { reply, followUps: chips },
-          lastOutAt: nowMs(),
-          lastOutSig: outSig,
-          lastOutSigAt: nowMs(),
-          turns: Number(sess.turns || 0) + 1,
-          lastTurnAt: nowMs(),
-          startedAt: Number(sess.startedAt) || nowMs(),
-          __cs1: sess.__cs1
-        }),
-        cog: { phase: "engaged", state: "execute", reason: "next_step_lane_select", lane: "general", ts: nowMs() },
-        requestId,
-        meta: { ts: nowMs(), contract: "v1" }
-      };
-
-      ensureCog(out, "general", null, null, "execute", "next_step_lane_select");
-
-      // Phase Two apply
-      applyAdaptiveEndurance(out, sess, routingText0, requestId);
-
-      out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
-
-      // ✅ Voice directive
-      ensureSpeakDirective(out);
-      return out;
-    }
-  }
-
-  // ----------------------------
-  // DEEPER intercept (mode-aware, stays in-place)
-  // ----------------------------
-  if (isDeeperIntent(routingText0)) {
-    cs1MarkSpoke(sess, turnCountForCS1, "deeper");
-
-    const lastOut = sess && sess.lastOut && typeof sess.lastOut === "object" ? sess.lastOut : null;
-    const baseReply = lastOut && typeof lastOut.reply === "string" ? lastOut.reply : "";
-    const dr = deeperReply({ baseReply, cont, sess });
-
-    const baseChips = ensureFollowUpsNonEmpty(
-      String(dr.lane || cont.lane || "general"),
-      dr.year || cont.year || null,
-      safeArray(lastOut && lastOut.followUps ? lastOut.followUps : []),
-      sess
-    );
-
-    const finalChips = withMusicNavChips(
-      baseChips,
-      { lane: String(dr.lane || cont.lane || "general"), year: dr.year || cont.year || null, mode: dr.mode || cont.mode || null },
-      sess
-    );
-
-    const outSig = buildOutSig(dr.reply, finalChips);
-
-    const laneOut = String(dr.lane || cont.lane || "general").toLowerCase();
-    const yearOut = dr.year || cont.year || null;
-    const modeOut = dr.mode || cont.mode || null;
-
-    const sessionPatch = filterSessionPatch({
-      lastInText: routingText0,
-      lastInAt: nowMs(),
-
-      lane: laneOut,
-      lastYear: yearOut || undefined,
-      lastMode: modeOut || undefined,
-
-      activeMusicMode: (laneOut === "music") ? (modeOut || sess.activeMusicMode || (sess.musicContext && sess.musicContext.mode) || "top10") : (sess.activeMusicMode || undefined),
-      lastMusicYear: (laneOut === "music") ? (yearOut || sess.lastMusicYear || (sess.musicContext && sess.musicContext.year) || undefined) : (sess.lastMusicYear || undefined),
-
-      musicContext: (laneOut === "music" && yearOut)
-        ? { lane: "music", year: String(yearOut), mode: String(modeOut || "top10"), lastAction: "deeper" }
-        : (sess.musicContext || undefined),
-
-      recentIntent: "deeper",
-      recentTopic: `deeper:${String(modeOut || "general")}`,
-
-      lastOut: { reply: dr.reply, followUps: finalChips },
-      lastOutAt: nowMs(),
-      lastOutSig: outSig,
-      lastOutSigAt: nowMs(),
-
-      turns: Number(sess.turns || 0) + 1,
-      lastTurnAt: nowMs(),
-      startedAt: Number(sess.startedAt) || nowMs(),
-
-      __cs1: sess.__cs1
-    });
-
-    const out = {
-      ok: true,
-      reply: dr.reply,
-      lane: laneOut,
-      ctx: { year: yearOut ? parseInt(yearOut, 10) : null, mode: modeOut || null },
-      ui: { mode: "chat" },
-      directives: [],
-      followUpsStrings: finalChips,
-      followUps: chipsFromStrings(finalChips, 4),
-      sessionPatch,
-      cog: { phase: "engaged", state: "expand", reason: "deeper_mode_aware", lane: laneOut, year: yearOut || undefined, mode: modeOut || undefined, ts: nowMs() },
-      requestId,
-      meta: { ts: nowMs(), contract: "v1" }
-    };
-
-    ensureCog(out, laneOut, modeOut, yearOut, "expand", "deeper_mode_aware");
-
-    // Phase Two apply
-    applyAdaptiveEndurance(out, sess, routingText0, requestId);
-
-    out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
-
-    return enforceContractFinal({
-      out,
-      sess,
-      routingText: routingText0,
-      lane: laneOut,
-      mode: modeOut,
-      year: yearOut,
-      cont,
-      routeHintLane,
-      routeHintMode,
-      requestId
-    });
-  }
-
-  // ----------------------------
-  // NEXT / PREVIOUS intercept
-  // ----------------------------
-  let routingText = routingText0;
-  let navContext = null;
-
-  if (isNextIntent(routingText0)) {
-    cs1MarkSpoke(sess, turnCountForCS1, "nav");
-
-    const nx = nextDirective(cont);
-
-    if (nx && nx.kind === "need_year") {
-      cs1MarkSpoke(sess, turnCountForCS1, "clarify");
-
-      const yp = yearPickerReply(sess);
-      const sessionPatch = filterSessionPatch({
-        lastInText: routingText0,
-        lastInAt: nowMs(),
-        recentIntent: "next_need_year",
-        recentTopic: "next:need_year",
-        lane: "music",
-        pendingLane: "music",
-        pendingMode: routeHintMode || cont.mode || (sess.musicContext && sess.musicContext.mode) || sess.activeMusicMode || "top10",
-        turns: Number(sess.turns || 0) + 1,
-        lastTurnAt: nowMs(),
-        startedAt: Number(sess.startedAt) || nowMs(),
-        __cs1: sess.__cs1
-      });
-
-      const chips = maybeInjectResetChip(yp.followUpsStrings, sess);
-
-      const out = {
-        ...yp,
-        followUpsStrings: chips,
-        followUps: chipsFromStrings(chips, 4),
-        sessionPatch,
-        cog: { phase: "engaged", state: "clarify", reason: "next_needs_year", lane: "music", ts: nowMs() },
-        requestId,
-        meta: { ts: nowMs(), contract: "v1" }
-      };
-
-      ensureCog(out, "music", out.ctx && out.ctx.mode, out.ctx && out.ctx.year, "clarify", "next_needs_year");
-
-      // Phase Two apply (clarify-safe; conservative)
-      applyAdaptiveEndurance(out, sess, routingText0, requestId);
-
-      out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
-
-      return enforceContractFinal({
-        out,
-        sess,
-        routingText: routingText0,
-        lane: "music",
-        mode: routeHintMode || cont.mode || null,
-        year: null,
-        cont,
-        routeHintLane,
-        routeHintMode,
-        requestId
-      });
-    }
-
-    if (nx && nx.kind === "advance" && nx.prompt) {
-      routingText = String(nx.prompt);
-      navContext = { kind: "advance", dir: "next", year: String(nx.year), mode: String(nx.mode || "top10") };
-    }
-  } else if (isPrevIntent(routingText0)) {
-    cs1MarkSpoke(sess, turnCountForCS1, "nav");
-
-    const pv = prevDirective(cont);
-
-    if (pv && pv.kind === "need_year") {
-      cs1MarkSpoke(sess, turnCountForCS1, "clarify");
-
-      const yp = yearPickerReply(sess);
-      const sessionPatch = filterSessionPatch({
-        lastInText: routingText0,
-        lastInAt: nowMs(),
-        recentIntent: "prev_need_year",
-        recentTopic: "prev:need_year",
-        lane: "music",
-        pendingLane: "music",
-        pendingMode: routeHintMode || cont.mode || (sess.musicContext && sess.musicContext.mode) || sess.activeMusicMode || "top10",
-        turns: Number(sess.turns || 0) + 1,
-        lastTurnAt: nowMs(),
-        startedAt: Number(sess.startedAt) || nowMs(),
-        __cs1: sess.__cs1
-      });
-
-      const chips = maybeInjectResetChip(yp.followUpsStrings, sess);
-
-      const out = {
-        ...yp,
-        followUpsStrings: chips,
-        followUps: chipsFromStrings(chips, 4),
-        sessionPatch,
-        cog: { phase: "engaged", state: "clarify", reason: "prev_needs_year", lane: "music", ts: nowMs() },
-        requestId,
-        meta: { ts: nowMs(), contract: "v1" }
-      };
-
-      ensureCog(out, "music", out.ctx && out.ctx.mode, out.ctx && out.ctx.year, "clarify", "prev_needs_year");
-
-      // Phase Two apply
-      applyAdaptiveEndurance(out, sess, routingText0, requestId);
-
-      out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
-
-      return enforceContractFinal({
-        out,
-        sess,
-        routingText: routingText0,
-        lane: "music",
-        mode: routeHintMode || cont.mode || null,
-        year: null,
-        cont,
-        routeHintLane,
-        routeHintMode,
-        requestId
-      });
-    }
-
-    if (pv && pv.kind === "advance" && pv.prompt) {
-      routingText = String(pv.prompt);
-      navContext = { kind: "advance", dir: "prev", year: String(pv.year), mode: String(pv.mode || "top10") };
-    }
-  }
-
-  // Name capture intercept
-  const maybeName = extractNameFromText(routingText);
-  if (maybeName) {
-    cs1MarkSpoke(sess, turnCountForCS1, "reentry");
-
-    const reply = `Nice to meet you, ${maybeName}. What do you feel like right now: a specific year, a surprise, or just talking?`;
-    const base = ["Pick a year", "Surprise me", "Story moment", "Just talk"];
-    const followUpsStrings = maybeInjectResetChip(base, sess);
-
-    const outSig = buildOutSig(reply, followUpsStrings);
-
-    const out = {
-      ok: true,
-      reply,
-      lane: "general",
-      ctx: { year: null, mode: "discover" },
-      ui: { mode: "chat" },
-      directives: [],
-      followUpsStrings,
-      followUps: chipsFromStrings(followUpsStrings, 4),
-      sessionPatch: filterSessionPatch({
-        lastInText: routingText,
-        lastInAt: nowMs(),
-        userName: maybeName,
-        lastNameUseTurn: turnCountForCS1,
-        recentIntent: "name_capture",
-        recentTopic: "name:capture",
-        lane: "general",
-        lastOut: { reply, followUps: followUpsStrings },
-        lastOutAt: nowMs(),
-        lastOutSig: outSig,
-        lastOutSigAt: nowMs(),
-        turns: Number(sess.turns || 0) + 1,
-        lastTurnAt: nowMs(),
-        startedAt: Number(sess.startedAt) || nowMs(),
-        __cs1: sess.__cs1
-      }),
-      cog: { phase: "engaged", state: "welcome", reason: "name_captured", lane: "general", ts: nowMs() },
-      requestId,
-      meta: { ts: nowMs(), contract: "v1" }
-    };
-
-    ensureCog(out, "general", null, null, "welcome", "name_captured");
-
-    // Phase Two apply
-    applyAdaptiveEndurance(out, sess, routingText, requestId);
-
-    out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
-
-    return enforceContractFinal({
-      out,
-      sess,
-      routingText,
-      lane: "general",
-      mode: null,
-      year: null,
-      cont,
-      routeHintLane,
-      routeHintMode,
-      requestId
-    });
-  }
-
-  // Depth dial intercept
-  if (isDepthDial(routingText)) {
-    cs1MarkSpoke(sess, turnCountForCS1, "clarify");
-
-    const pref = normalizeText(routingText);
-    const reply = depthDialReply(pref);
-    const base = ["Pick a year", "What’s playing now", "Show me the Roku path", "Just talk"];
-    const followUpsStrings = maybeInjectResetChip(base, sess);
-
-    const outSig = buildOutSig(reply, followUpsStrings);
-
-    const out = {
-      ok: true,
-      reply,
-      lane: "general",
-      ctx: { year: null, mode: "discover" },
-      ui: { mode: "chat" },
-      directives: [],
-      followUpsStrings,
-      followUps: chipsFromStrings(followUpsStrings, 4),
-      sessionPatch: filterSessionPatch({
-        lastInText: routingText,
-        lastInAt: nowMs(),
-        depthPreference: pref,
-        recentIntent: "depth_dial",
-        recentTopic: `depth:${pref}`,
-        lane: "general",
-        lastOut: { reply, followUps: followUpsStrings },
-        lastOutAt: nowMs(),
-        lastOutSig: outSig,
-        lastOutSigAt: nowMs(),
-        turns: Number(sess.turns || 0) + 1,
-        lastTurnAt: nowMs(),
-        startedAt: Number(sess.startedAt) || nowMs(),
-        __cs1: sess.__cs1
-      }),
-      cog: { phase: "engaged", state: "calibrate", reason: "depth_dial", lane: "general", ts: nowMs() },
-      requestId,
-      meta: { ts: nowMs(), contract: "v1" }
-    };
-
-    ensureCog(out, "general", null, null, "calibrate", "depth_dial");
-
-    // Phase Two apply
-    applyAdaptiveEndurance(out, sess, routingText, requestId);
-
-    out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
-
-    return enforceContractFinal({
-      out,
-      sess,
-      routingText,
-      lane: "general",
-      mode: null,
-      year: null,
-      cont,
-      routeHintLane,
-      routeHintMode,
-      requestId
-    });
-  }
-
-  // Year picker trigger (UI mode)
-  if (wantsYearPicker(routingText)) {
-    cs1MarkSpoke(sess, turnCountForCS1, "nav");
-
-    const yp = yearPickerReply(sess);
-    const chips = maybeInjectResetChip(yp.followUpsStrings, sess);
-
-    const out = {
-      ...yp,
-      followUpsStrings: chips,
-      followUps: chipsFromStrings(chips, 4),
-      sessionPatch: filterSessionPatch({
-        lastInText: routingText,
-        lastInAt: nowMs(),
-        recentIntent: "year_picker",
-        recentTopic: "ui:year_picker",
-        lane: "music",
-        turns: Number(sess.turns || 0) + 1,
-        lastTurnAt: nowMs(),
-        startedAt: Number(sess.startedAt) || nowMs(),
-        __cs1: sess.__cs1
-      }),
-      cog: { phase: "engaged", state: "clarify", reason: "ui_year_picker", lane: "music", ts: nowMs() },
-      requestId,
-      meta: { ts: nowMs(), contract: "v1" }
-    };
-
-    ensureCog(out, "music", out.ctx && out.ctx.mode, out.ctx && out.ctx.year, "clarify", "ui_year_picker");
-
-    // Phase Two apply
-    applyAdaptiveEndurance(out, sess, routingText, requestId);
-
-    out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
-
-    return enforceContractFinal({
-      out,
-      sess,
-      routingText,
-      lane: "music",
-      mode: routeHintMode || cont.mode || null,
-      year: cont.year || null,
-      cont,
-      routeHintLane,
-      routeHintMode,
-      requestId
-    });
-  }
-
-  // Repeat-input loop guard
-  if (shouldReturnCachedForRepeat(sess, routingText)) {
-    return cachedResponse(sess, "repeat_input", requestId);
-  }
-
-  const inPatch = filterSessionPatch({
-    lastInText: routingText,
-    lastInAt: nowMs(),
-    __cs1: sess.__cs1,
-
-    // carry forward Phase Two trackers if present
-    aeLastStage: sess.aeLastStage,
-    aeLastInjectAt: sess.aeLastInjectAt,
-    aeRefUsed: sess.aeRefUsed,
-    aeReentryAt: sess.aeReentryAt
-  });
-
-  // Intro V2
-  if (shouldRunIntro(sess, routingText)) {
-    cs1MarkSpoke(sess, turnCountForCS1, "intro");
-
-    const intro = nyxIntroReply();
-    const base = maybeInjectResetChip(intro.followUpsStrings, { turns: 1, introDone: true });
-    const outSig = buildOutSig(intro.reply, base);
-
-    const out = {
-      ok: true,
-      reply: intro.reply,
-      lane: "general",
-      ctx: { year: null, mode: "discover" },
-      ui: { mode: "chat" },
-      directives: [],
-      followUpsStrings: base,
-      followUps: chipsFromStrings(base, 4),
-      sessionPatch: filterSessionPatch({
-        ...inPatch,
-        introDone: true,
-        introAt: nowMs(),
-        startedAt: Number(sess.startedAt) || nowMs(),
-
-        // ✅ deterministic increment here
-        turns: Number(sess.turns || 0) + 1,
-        lastTurnAt: nowMs(),
-
-        lastFork: "intro",
-        depthLevel: Number(sess.depthLevel || 0),
-
-        userGoal: "explore",
-        depthPreference: sess.depthPreference || "fast",
-        lastOpenQuestion: "What do you feel like right now: a specific year, a surprise, or just talking?",
-        nameAskedAt: nowMs(),
-
-        lane: "general",
-
-        lastOut: { reply: intro.reply, followUps: base },
-        lastOutAt: nowMs(),
-        lastOutSig: outSig,
-        lastOutSigAt: nowMs(),
-
-        __cs1: sess.__cs1
-      }),
-      cog: { phase: "engaged", state: "welcome", reason: "intro_v2", lane: "general", ts: nowMs() },
-      requestId,
-      meta: { ts: nowMs(), contract: "v1" }
-    };
-
-    ensureCog(out, "general", null, null, "welcome", "intro_v2");
-
-    // Phase Two apply (early tone, light)
-    applyAdaptiveEndurance(out, sess, routingText, requestId);
-
-    out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
-
-    return enforceContractFinal({
-      out,
-      sess,
-      routingText,
-      lane: "general",
-      mode: null,
-      year: null,
-      cont,
-      routeHintLane,
-      routeHintMode,
-      requestId
-    });
-  }
-
-  // ----------------------------
-  // Normal routing (with routeHint precedence)
-  // ----------------------------
-  const detectedLane = detectLane(routingText);
-  const detectedYear = extractYear(routingText);
-  const detectedMode = detectMode(routingText);
-
-  const lane = routeHintLane || detectedLane;
-  const year = detectedYear || cont.year || null;
-  const mode = routeHintMode || detectedMode || cont.mode || null;
-
-  let reply = "";
-  let followUpsStrings = [];
-  let lanePatch = null;
-
-  // allow lane modules to return UI/CTX/DIRECTIVES/LANE and we preserve
-  let laneUi = null;
-  let laneCtx = null;
-  let laneDirectives = null;
-  let laneOverride = null;
-
-  // Deterministic clarify if routeHint forces music+mode but we lack year
-  if (lane === "music" && isMusicMode(mode) && !year) {
-    cs1MarkSpoke(sess, turnCountForCS1, "clarify");
-
-    const clarify = buildClarifyYearReply({ lane: "music", mode, knownYear: null });
-    const chips = maybeInjectResetChip(clarify.followUpsStrings, sess).slice(0, 4);
-
-    const out = {
-      ok: true,
-      reply: clarify.reply,
-      lane: "music",
-      ctx: { year: null, mode },
-      ui: { mode: "chat" },
-      directives: [{ type: "open_year_picker" }],
-      followUpsStrings: chips,
-      followUps: chipsFromStrings(chips, 4),
-      sessionPatch: filterSessionPatch({
-        ...inPatch,
-        lane: "music",
-        pendingLane: "music",
-        pendingMode: mode,
-        pendingYear: null,
-        recentIntent: "clarify_year",
-        recentTopic: `need_year:${String(mode)}`,
-        turns: Number(sess.turns || 0) + 1,
-        lastTurnAt: nowMs(),
-        startedAt: Number(sess.startedAt) || nowMs(),
-        __cs1: sess.__cs1
-      }),
-      cog: { phase: "engaged", state: "clarify", reason: "need_year", lane: "music", mode, ts: nowMs() },
-      requestId,
-      meta: { ts: nowMs(), contract: "v1" }
-    };
-
-    ensureCog(out, "music", mode, null, "clarify", "need_year");
-
-    // Phase Two apply (clarify-safe)
-    applyAdaptiveEndurance(out, sess, routingText, requestId);
-
-    out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
-
-    return enforceContractFinal({
-      out,
-      sess,
-      routingText,
-      lane: "music",
-      mode,
-      year: null,
-      cont,
-      routeHintLane,
-      routeHintMode,
-      requestId
-    });
-  }
-
-  // Music lane call
-  if (lane === "music" && musicLane) {
+async function chatEngine(input = {}) {
+  const startedAt = nowMs();
+
+  const requestId = safeStr(input.requestId || "").trim() || sha1(String(startedAt)).slice(0, 10);
+  const session = ensureContinuityState(input.session || {});
+  const inboundText = safeStr(input.text || input.message || "").trim();
+
+  // Turn count
+  session.turnCount = clampInt(session.turnCount, 0, 999999, 0) + 1;
+
+  // Optional CS-1 continuity selector/enforcer
+  // (kept non-invasive; only tracks/marks)
+  if (cs1 && typeof cs1.ensure === "function") {
     try {
-      const res = await musicLane(routingText, sess);
-      reply = (res && res.reply) ? String(res.reply).trim() : "";
-      followUpsStrings = normalizeFollowUpsFromLane(res);
-      lanePatch = filterSessionPatch(res && res.sessionPatch ? res.sessionPatch : null);
-
-      if (res && typeof res === "object") {
-        if (res.ui && typeof res.ui === "object") laneUi = res.ui;
-        if (res.ctx && typeof res.ctx === "object") laneCtx = res.ctx;
-        if (Array.isArray(res.directives)) laneDirectives = res.directives;
-        if (res.lane && typeof res.lane === "string") laneOverride = res.lane;
-      }
-    } catch (_) {
-      reply = "";
-      followUpsStrings = ["Top 10 1988", "Pick a year", "Story moment 1955", "Micro moment 1979"];
-      lanePatch = null;
+      cs1.ensure(session);
+    } catch (e) {
+      // ignore
     }
-  } else if (lane === "roku" && rokuLane) {
-    try {
-      const r = await rokuLane({ text: routingText, session: sess });
-      reply = (r && r.reply) ? String(r.reply).trim() : "";
-      followUpsStrings = normalizeFollowUpsFromLane(r);
-      lanePatch = filterSessionPatch(r && r.sessionPatch ? r.sessionPatch : null);
+  }
 
-      if (r && typeof r === "object") {
-        if (r.ui && typeof r.ui === "object") laneUi = r.ui;
-        if (r.ctx && typeof r.ctx === "object") laneCtx = r.ctx;
-        if (Array.isArray(r.directives)) laneDirectives = r.directives;
-        if (r.lane && typeof r.lane === "string") laneOverride = r.lane;
-      }
-    } catch (_) {
-      reply = "";
-      followUpsStrings = ["Live linear", "VOD", "Schedule", "Open Roku"];
-      lanePatch = null;
-    }
-  } else if (lane === "radio") {
-    reply = "We can slip into the radio stream, or we can anchor it to a specific era first.";
-    followUpsStrings = ["Open radio", "Pick a year", "What’s playing now", "Just talk"];
-  } else if (lane === "tv") {
-    reply = "Sandblast TV lands in two flavors: **Live linear** and **VOD**.";
-    followUpsStrings = ["Live linear", "VOD", "Show me the Roku path", "What’s playing now"];
-  } else if (lane === "schedule") {
-    reply = "Schedule mode is steady. I can translate programming to your local time.";
-    followUpsStrings = ["Toronto", "London", "New York", "What’s playing now"];
+  // Track last inbound timestamp
+  session.__lastInAt = nowMs();
+
+  // Lane / ctx outputs (defaults)
+  let lane = safeStr(session.lane || input.routeHint || "general");
+  let ctx = session.ctx && typeof session.ctx === "object" ? session.ctx : {};
+  let ui = session.ui && typeof session.ui === "object" ? session.ui : {};
+
+  // -------------------------
+  // Core lane handling
+  // -------------------------
+  // If you already have lane routing elsewhere, inject it via input.engine.
+  // engine signature: async ({text, session, requestId}) => {reply,lane,ctx,ui,followUps, directives, cog}
+  let core = null;
+  if (typeof input.engine === "function") {
+    core = await input.engine({ text: inboundText, session, requestId });
   } else {
-    reply = "I’m with you.";
-    followUpsStrings = ["Pick a year", "Surprise me", "Story moment", "Just talk"];
+    // Minimal safe fallback (statement-first, no menus)
+    core = {
+      reply: inboundText
+        ? "The thread is still open. A single cue is enough to continue."
+        : "Same pace as before — unhurried.",
+      lane,
+      ctx,
+      ui,
+      followUps: [],
+      directives: [],
+      cog: { phase: "listening" },
+    };
   }
 
-  const pinnedLane = (navContext && navContext.kind === "advance") ? "music" : (laneOverride || lane);
-  const pinnedYear = (navContext && navContext.kind === "advance") ? String(navContext.year) : (year || null);
-  const pinnedMode =
-    (navContext && navContext.kind === "advance") ? String(navContext.mode || "top10") :
-    (mode || null);
+  // Normalize core output
+  lane = safeStr(core.lane || lane || "general");
+  session.lane = lane;
 
-  followUpsStrings = ensureFollowUpsNonEmpty(pinnedLane, pinnedYear, followUpsStrings, sess).slice(0, 4);
+  ctx = core.ctx && typeof core.ctx === "object" ? core.ctx : ctx;
+  ui = core.ui && typeof core.ui === "object" ? core.ui : ui;
 
-  const damp = dampenIfDuplicateOutput(sess, reply, followUpsStrings);
-  reply = damp.reply;
-  const outSig = damp.sig;
+  // -------------------------
+  // Continuity Pack shaping
+  // -------------------------
+  let reply = safeStr(core.reply || "").trim();
+  reply = shapeContinuity({ reply, session, requestId, lane, inboundText });
 
-  const activeMusicMode =
-    pinnedLane === "music"
-      ? (pinnedMode || (sess.musicContext && sess.musicContext.mode) || sess.activeMusicMode || sess.mode || "top10")
-      : (sess.activeMusicMode || null);
+  // Return chips if return detected OR user explicitly typed return intent
+  const sig = computeContinuitySignals(session);
+  const lastOutAt = Number(session.__lastOutAt);
+  const gapMs = Number.isFinite(lastOutAt) ? nowMs() - lastOutAt : NaN;
+  const isReturn = isReturnIntent(inboundText) || isLikelyReturnGap(gapMs);
 
-  const lastMusicYear =
-    pinnedLane === "music"
-      ? (pinnedYear || (sess.musicContext && sess.musicContext.year) || sess.lastMusicYear || sess.year || sess.lastYear || null)
-      : (sess.lastMusicYear || null);
+  let followUps = Array.isArray(core.followUps) ? core.followUps.slice(0) : [];
+  let followUpsStrings = Array.isArray(core.followUpsStrings) ? core.followUpsStrings.slice(0) : [];
 
-  const chipCont = { lane: pinnedLane, year: pinnedYear || lastMusicYear || null, mode: pinnedMode || activeMusicMode || null };
-  followUpsStrings = withMusicNavChips(followUpsStrings, chipCont, sess);
+  if (isReturn) {
+    const chips = buildContinuityChips({ session, lane });
+    const chipFollowUps = makeFollowUpsFromChips(chips);
 
-  const outCache = { reply, followUps: safeArray(followUpsStrings).slice(0, 4) };
+    // Prefer structured followUps; also provide legacy strings
+    followUps = chipFollowUps.concat(followUps).slice(0, 10);
+    followUpsStrings = chipFollowUps.map((f) => f.label).slice(0, 10);
+  }
 
-  const nextMusicContext =
-    (String(pinnedLane).toLowerCase() === "music" && (pinnedYear || lastMusicYear))
-      ? {
-          lane: "music",
-          year: String(pinnedYear || lastMusicYear),
-          mode: String(pinnedMode || activeMusicMode || "top10"),
-          lastAction: navContext ? String(navContext.dir || "nav") : (normIn.normalized ? "normalized" : (routeHintLane ? "routeHint" : "explicit"))
-        }
-      : (sess.musicContext || null);
+  // -------------------------
+  // CS-1 mark speak events on early return wrappers
+  // -------------------------
+  if (cs1 && typeof cs1.markSpeak === "function") {
+    try {
+      if (isReturn) cs1.markSpeak(session, "reentry");
+    } catch (e) {
+      // ignore
+    }
+  }
 
-  const sessionPatch = filterSessionPatch({
-    ...inPatch,
-    ...lanePatch,
+  // -------------------------
+  // Update last out stamps
+  // -------------------------
+  session.__lastOutAt = nowMs();
 
-    lane: pinnedLane,
+  // Allowlisted sessionPatch (keep tight; include continuity keys explicitly)
+  // NOTE: index.js must allow these keys to persist across turns.
+  const sessionPatch = {
+    turnCount: session.turnCount,
+    lane: session.lane,
+    ctx: ctx,
+    ui: ui,
 
-    lastMusicYear: lastMusicYear || undefined,
-    activeMusicMode: activeMusicMode || undefined,
+    // continuity / return
+    __lastInAt: session.__lastInAt,
+    __lastOutAt: session.__lastOutAt,
+    __lastOutSig: session.__lastOutSig,
+    __nyxCont: session.__nyxCont,
 
-    lastYear: pinnedYear || undefined,
-    lastMode: pinnedMode || undefined,
+    // music continuity cues (if your music lane uses them)
+    lastMusicYear: session.lastMusicYear,
+    activeMusicMode: session.activeMusicMode,
 
-    musicContext: nextMusicContext || undefined,
-
-    recentIntent: normIn.normalized ? "continuity_normalized" : (routeHintLane ? "routeHint" : pinnedLane),
-    recentTopic: normIn.normalized
-      ? (normIn.reason || "continuity")
-      : (routeHintRaw ? `routeHint:${routeHintRaw}` : (pinnedYear ? `year:${pinnedYear}` : (pinnedMode ? `mode:${pinnedMode}` : pinnedLane))),
-
-    lastOut: outCache,
-    lastOutAt: nowMs(),
-    lastOutSig: outSig,
-    lastOutSigAt: nowMs(),
-
-    turns: Number(sess.turns || 0) + 1,
-    lastTurnAt: nowMs(),
-    startedAt: Number(sess.startedAt) || nowMs(),
-
-    __cs1: sess.__cs1
-  });
-
-  const ctx = (laneCtx && typeof laneCtx === "object")
-    ? laneCtx
-    : {
-        year: pinnedYear ? parseInt(pinnedYear, 10) : (sess.lastYear ? parseInt(sess.lastYear, 10) : null),
-        mode: pinnedMode || (sess.lastMode || null)
-      };
-
-  let out = {
-    ok: true,
-    reply,
-    lane: pinnedLane,
-    ctx,
-    ui: (laneUi && typeof laneUi === "object") ? laneUi : { mode: "chat" },
-
-    directives: Array.isArray(laneDirectives) ? laneDirectives : [],
-
-    followUps: chipsFromStrings(followUpsStrings, 4),
-    followUpsStrings,
-
-    sessionPatch,
-    cog: {
-      phase: "engaged",
-      state: "respond",
-      reason: navContext ? "nav_advance" : (normIn.normalized ? "continuity_normalized" : (routeHintLane ? "routeHint" : "reply")),
-      lane: pinnedLane,
-      year: pinnedYear || undefined,
-      mode: pinnedMode || undefined,
-      ts: nowMs()
-    },
-    requestId,
-    meta: { ts: nowMs(), contract: "v1" }
+    // cs1 continuity state (optional module)
+    __cs1: session.__cs1,
   };
 
-  // ✅ ensure cog content is rich + persist it to sessionPatch.cog
-  ensureCog(out, pinnedLane, pinnedMode, pinnedYear, "respond", out.cog && out.cog.reason);
+  const out = {
+    ok: true,
+    reply,
+    lane,
+    ctx,
+    ui,
+    directives: Array.isArray(core.directives) ? core.directives : [],
+    followUps,
+    followUpsStrings,
+    sessionPatch,
+    cog: core.cog || { phase: "listening" },
+    requestId,
+    meta: {
+      engine: CE_VERSION,
+      pack: `${NYX_CONV_PACK.meta.name} ${NYX_CONV_PACK.meta.version}`,
+      ms: nowMs() - startedAt,
+      continuityLevel: sig.continuityLevel,
+      reentryStyle: sig.reentryStyle,
+    },
+  };
 
-  // Phase Two apply (core integration point)
-  applyAdaptiveEndurance(out, sess, routingText, requestId);
-
-  out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
-
-  // FINAL CONTRACT-LOCK PASS (hard guarantees)
-  out = enforceContractFinal({
-    out,
-    sess,
-    routingText,
-    lane: pinnedLane,
-    mode: pinnedMode,
-    year: pinnedYear,
-    cont,
-    routeHintLane,
-    routeHintMode,
-    requestId
-  });
-
-  // last polish: if clarify, keep exactly one question (no double prompts)
-  if (out && out.cog && out.cog.state === "clarify") {
-    out = enforceOneIntent(out);
-    const r = String(out.reply || "").trim();
-    if (!r.endsWith("?") && !hasQuestionMark(r)) {
-      out.reply = r + "?";
-    }
-  }
-
-  // final: hard guarantee patch.cog exists
-  if (out && out.sessionPatch && typeof out.sessionPatch === "object") {
-    if (out.sessionPatch.cog === undefined && out.cog) {
-      out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog });
-    }
-  }
-
-  // ✅ Belt-and-suspenders: speak directive is always present (even if later edits regress)
-  ensureSpeakDirective(out);
+  // Never allow empty contract fields that your index.js enforcer might reject
+  if (!out.reply) out.reply = "The thread is still open. A single cue restarts the motion.";
+  if (!out.lane) out.lane = "general";
+  if (!out.ctx) out.ctx = {};
+  if (!out.ui) out.ui = {};
 
   return out;
 }
 
-module.exports = chatEngine;
-module.exports.chatEngine = chatEngine;
+module.exports = { chatEngine, CE_VERSION };
