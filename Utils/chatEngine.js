@@ -16,21 +16,24 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.6ad (PACK MERGE: Nyx Conversational Pack + HARDENED SELECTOR)
+ * v0.6ad (PHASE TWO PACK v2.0-C + VOICE FIX HARDENING)
  *
  * Adds:
- *  ✅ Canonical Nyx Conversational Pack integration (v1.5-C)
- *     - statement-first enforced (no questions)
- *     - no menu exposure (no option lists in reply body)
- *     - no self-disclosure pressure (no “tell me your name” prompts)
- *     - no onboarding use (never used for first-touch intro/reset/onboarding)
- *     - reflection throttle: max 1 per session (persisted)
- *     - deterministic selection + no-repeat guard
+ *  ✅ Phase Two — Adaptive Endurance (Nyx Conversational Pack 2.0-C):
+ *     - Session depth markers (early/mid/late/deep) based on turn count
+ *     - Tone drift metadata added to out.cog.tone (style + language_bias)
+ *     - Gentle adaptive prompt injection (statement-first), paced by session progression
+ *     - Reflection throttle: max 1 reflective injection per session
+ *     - Re-entry softening after long pause (once per pause window)
+ *     - Fatigue softeners when user inputs look tired/short (non-pushy)
+ *
+ *  ✅ VOICE FIX: ALWAYS EMIT SPEAK DIRECTIVE + DEDUPE (preserved)
+ *     - directives: [{type:"speak", text:<reply>}] on EVERY reply
+ *     - Does not duplicate if already present; patches missing speak.text if needed
  *
  * Preserves:
- *  ✅ Always emits directives: [{type:"speak", text:<reply>}] on EVERY reply (including intro/reset/clarify/cached)
  *  ✅ COS payload always present in top-level out.cog
- *  ✅ sessionPatch.cog is persisted (allowlisted)
+ *  ✅ sessionPatch.cog persisted (allowlisted)
  *  ✅ "Next step" treated as first-class navigation intent
  *  ✅ Contract-lock guarantees + loop guards + continuity spine + next/prev reliability
  *  ✅ CS-1 wiring + __cs1 allowlisted
@@ -74,6 +77,93 @@ try {
   const mod = require("./cs1");
   if (mod && typeof mod.decideCS1 === "function") CS1 = mod;
 } catch (_) { /* optional */ }
+
+// ----------------------------
+// Phase Two — Adaptive Endurance Pack (2.0-C)
+// ----------------------------
+const AE_PACK = {
+  depthMarkers: {
+    early: { min: 0, max: 5 },
+    mid: { min: 6, max: 15 },
+    late: { min: 16, max: 30 },
+    deep: { min: 31, max: 999999 }
+  },
+
+  toneDrift: {
+    early: { style: "welcoming, light, orienting", language_bias: ["curious", "open", "inviting"] },
+    mid: { style: "confident, exploratory", language_bias: ["contextual", "bridging", "reflective"] },
+    late: { style: "calm, intimate, unhurried", language_bias: ["soft pauses", "memory-adjacent", "observational"] },
+    deep: { style: "low-volume, companionable, radio-host", language_bias: ["stillness", "continuity", "shared space"] }
+  },
+
+  adaptivePrompts: {
+    early: [
+      "Structure can emerge naturally. Wandering works just as well.",
+      "Nothing needs to settle yet.",
+      "There’s no wrong way to arrive here."
+    ],
+    mid: [
+      "The pace has started to slow on its own.",
+      "This is beginning to take shape.",
+      "A thread is forming without being forced."
+    ],
+    late: [
+      "The rhythm has settled into something steady.",
+      "This feels less like exploring and more like staying.",
+      "The conversation knows its pace now."
+    ],
+    deep: [
+      "At this point, searching has given way to presence.",
+      "Staying with it carries its own weight.",
+      "Some conversations don’t need momentum."
+    ]
+  },
+
+  deepeningQuestionsOptionalSingle: [
+    "This feeling has room to linger.",
+    "Some eras feel familiar. Others remain distant.",
+    "Sometimes it’s the surrounding time, not the sound itself, that draws focus."
+  ],
+
+  deepeningQuestionsOptionalReflective: [
+    "Some people hear this year as a beginning. Others as an ending.",
+    "Moments like this tend to mean different things as time passes.",
+    "What stands out here often reveals itself gradually."
+  ],
+
+  continuityLanguage: [
+    "This thread continues naturally.",
+    "There’s no pressure to change course yet.",
+    "The conversation remains aligned.",
+    "This exchange knows where it is."
+  ],
+
+  contrastBridges: [
+    "Contrast would shift the meaning here.",
+    "A nearby year would echo this. A distant one would reshape it.",
+    "Sometimes contrast sharpens what’s already present."
+  ],
+
+  fatigueResponses: [
+    "The pace can soften further.",
+    "A lighter turn is available.",
+    "Nothing needs to be pushed forward.",
+    "Pausing is part of the rhythm."
+  ],
+
+  reEntryPrompts: [
+    "This can resume exactly where it paused.",
+    "The same tone still holds. So does change.",
+    "Nothing here expired."
+  ],
+
+  deepExitSoft: [
+    "That feels like a natural place to rest.",
+    "This doesn’t need closure — only a pause.",
+    "Some conversations are meant to stay open.",
+    "Whenever you return, the rhythm will still be here."
+  ]
+};
 
 // ----------------------------
 // Utilities
@@ -190,6 +280,175 @@ function ensureSpeakDirective(out) {
       break;
     }
   }
+  return out;
+}
+
+// ----------------------------
+// Phase Two helpers (Adaptive Endurance)
+// ----------------------------
+function aeDepthStage(turns) {
+  const t = Number(turns || 0);
+  if (t <= AE_PACK.depthMarkers.early.max) return "early";
+  if (t <= AE_PACK.depthMarkers.mid.max) return "mid";
+  if (t <= AE_PACK.depthMarkers.late.max) return "late";
+  return "deep";
+}
+
+function aePickDeterministic(list, seedStr) {
+  const arr = safeArray(list);
+  if (!arr.length) return null;
+  const h = crypto.createHash("sha256").update(String(seedStr || "")).digest("hex");
+  const n = parseInt(h.slice(0, 8), 16);
+  return arr[n % arr.length];
+}
+
+function looksFatiguedInput(text, sess) {
+  const t = String(text || "").trim();
+  if (!t) return false;
+
+  const norm = normalizeText(t);
+  const shorty = norm.length <= 3 || t.length <= 3;
+  const tiredTokens = /^(k|ok|okay|kk|sure|fine|yup|yep|nah|nope|\.\.\.|…|thanks|thx|cool)$/i.test(norm);
+  const lowEffort = shorty || tiredTokens;
+
+  // Rapid turns + low effort tends to signal fatigue; keep this conservative.
+  const lastTurnAt = Number(sess && sess.lastTurnAt) || 0;
+  const rapid = lastTurnAt && (nowMs() - lastTurnAt) <= 2500;
+
+  return lowEffort && rapid;
+}
+
+function looksLikeExitIntent(text) {
+  const t = normalizeText(text);
+  return /\b(goodnight|gn|bye|good bye|goodbye|see you|talk later|i'?m done|im done|that'?s all|thats all)\b/.test(t);
+}
+
+function ensureStatementFirst(out, turns) {
+  if (!out || typeof out !== "object") return out;
+  const r = String(out.reply || "").trim();
+  if (!r) return out;
+
+  // If it starts with a direct question, prepend a gentle statement (pack-aligned).
+  if (/^(which|what|when|where|why|how)\b/i.test(r) || r.startsWith("?")) {
+    const stage = aeDepthStage(turns);
+    const lead = aePickDeterministic(AE_PACK.adaptivePrompts[stage], `stmtfirst:${stage}:${r}`);
+    out.reply = `${lead || "Okay."}\n\n${r}`;
+  }
+  return out;
+}
+
+/**
+ * Phase Two application:
+ * - Adds tone metadata to out.cog.tone
+ * - Optional single injection (adaptive prompt) paced by session progression
+ * - Reflection throttle (max 1 per session) in late/deep only
+ * - Re-entry softener after long pause (once per pause window)
+ * - Fatigue softener when input looks tired (non-pushy)
+ *
+ * NOTE: We keep it conservative to avoid drowning lane content.
+ */
+function applyAdaptiveEndurance(out, sess, routingText, requestId) {
+  if (!out || typeof out !== "object") return out;
+  const patch = (out.sessionPatch && typeof out.sessionPatch === "object") ? out.sessionPatch : {};
+  const turns = Number(patch.turns != null ? patch.turns : (Number(sess && sess.turns) || 0) + 1);
+
+  const stage = aeDepthStage(turns);
+  const tone = AE_PACK.toneDrift[stage] || AE_PACK.toneDrift.early;
+
+  // Attach tone metadata to cog (non-breaking)
+  out.cog = (out.cog && typeof out.cog === "object") ? out.cog : {};
+  out.cog.tone = {
+    stage,
+    style: tone.style,
+    language_bias: safeArray(tone.language_bias)
+  };
+
+  // Re-entry detection: if long pause, inject once per pause window.
+  const lastTurnAt = Number(sess && sess.lastTurnAt) || 0;
+  const gapMs = lastTurnAt ? (nowMs() - lastTurnAt) : 0;
+  const longPause = gapMs >= 15 * 60 * 1000; // 15 minutes
+  const lastReentryAt = Number(sess && sess.aeReentryAt) || 0;
+  const reentryWindowOk = !lastReentryAt || (nowMs() - lastReentryAt) >= 15 * 60 * 1000;
+
+  // Reflection throttle (max 1 per session)
+  const refUsed = !!(sess && sess.aeRefUsed) || !!(patch && patch.aeRefUsed);
+
+  // Injection pacing: once every 7 turns, or on stage transitions, but never during clarify/reset.
+  const lastInjectAt = Number(sess && sess.aeLastInjectAt) || 0;
+  const lastStage = String((sess && sess.aeLastStage) || "");
+  const stageChanged = lastStage && lastStage !== stage;
+
+  const isState = out.cog && out.cog.state ? String(out.cog.state) : "";
+  const avoidStates = new Set(["clarify", "reset"]);
+  const avoid = avoidStates.has(String(isState).toLowerCase());
+
+  const shouldPaceInject =
+    !avoid &&
+    (
+      (turns % 7 === 0) ||
+      stageChanged ||
+      (lastInjectAt && (nowMs() - lastInjectAt) >= 6 * 60 * 1000) // slow drip over time
+    );
+
+  const fatigue = !avoid && looksFatiguedInput(routingText, sess);
+  const exiting = looksLikeExitIntent(routingText);
+
+  // Build optional prefix lines (statement-first)
+  const prefixLines = [];
+
+  if (exiting && (stage === "late" || stage === "deep")) {
+    const line = aePickDeterministic(AE_PACK.deepExitSoft, `exit:${requestId}:${turns}`);
+    if (line) prefixLines.push(line);
+  } else if (longPause && reentryWindowOk && turns >= 6) {
+    const line = aePickDeterministic(AE_PACK.reEntryPrompts, `reentry:${requestId}:${turns}`);
+    if (line) prefixLines.push(line);
+    patch.aeReentryAt = nowMs();
+  } else if (fatigue) {
+    const line = aePickDeterministic(AE_PACK.fatigueResponses, `fatigue:${requestId}:${turns}`);
+    if (line) prefixLines.push(line);
+  } else if (shouldPaceInject) {
+    // One gentle adaptive line; in late/deep, allow ONE reflective line per session max.
+    let line = null;
+
+    if (!refUsed && (stage === "late" || stage === "deep")) {
+      line = aePickDeterministic(AE_PACK.deepeningQuestionsOptionalReflective, `reflect:${requestId}:${turns}`);
+      if (line) {
+        patch.aeRefUsed = true;
+      }
+    }
+
+    if (!line) {
+      line = aePickDeterministic(AE_PACK.adaptivePrompts[stage], `adaptive:${requestId}:${turns}`);
+    }
+
+    if (line) prefixLines.push(line);
+  }
+
+  // Apply prefix if it won’t duplicate prior injected lines
+  const reply = String(out.reply || "").trim();
+  if (reply) {
+    const combinedPrefix = prefixLines.filter(Boolean).join("\n");
+    if (combinedPrefix) {
+      // Avoid duplicating if already present
+      const low = reply.toLowerCase();
+      const plow = combinedPrefix.toLowerCase();
+      if (!low.includes(plow)) {
+        out.reply = `${combinedPrefix}\n\n${reply}`;
+      }
+      patch.aeLastInjectAt = nowMs();
+      patch.aeLastStage = stage;
+    } else {
+      // Still track stage so stage-changes are detectable
+      patch.aeLastStage = stage;
+    }
+  }
+
+  // Persist AE state (allowlisted below)
+  out.sessionPatch = filterSessionPatch({ ...patch, aeLastStage: patch.aeLastStage, aeLastInjectAt: patch.aeLastInjectAt, aeRefUsed: patch.aeRefUsed, aeReentryAt: patch.aeReentryAt });
+
+  // Ensure statement-first when needed
+  ensureStatementFirst(out, turns);
+
   return out;
 }
 
@@ -353,217 +612,6 @@ function ensureFollowUpsNonEmpty(lane, year, followUpsStrings, sess) {
 }
 
 // ----------------------------
-// NYX CONVERSATIONAL PACKS (CANONICAL)
-// ----------------------------
-const NYX_PACKS = Object.freeze({
-  gravity_v1_5C: Object.freeze({
-    meta: Object.freeze({
-      name: "Nyx Conversational Pack (Canonical)",
-      version: "1.5-C",
-      purpose: "Long-form conversational gravity only",
-      constraints: Object.freeze([
-        "statement-first",
-        "no menu exposure",
-        "no self-disclosure pressure",
-        "no onboarding use",
-        "reflection throttle: max 1 per session"
-      ])
-    }),
-    lines: Object.freeze([
-      "Hey — I’m Nyx. We don’t need a destination right away.",
-      "This space works best when it isn’t rushed.",
-      "Some moments unfold instead of announcing themselves.",
-      "A year can hold more than people expect.",
-      "It’s usually the quiet details that linger the longest.",
-      "Not everything important shows up on the surface.",
-      "Certain years feel different depending on where you stand now.",
-      "Memory doesn’t move in straight lines.",
-      "What mattered then isn’t always what mattered most.",
-      "Some sounds age like landmarks. Others drift like weather.",
-      "There’s value in staying with a moment a little longer.",
-      "Context often explains more than popularity ever could.",
-      "Time tends to soften sharp edges — but not meaning.",
-      "Some stories don’t need to be told all at once.",
-      "A pause can reveal what motion hides.",
-      "For many people, years like this connect in unexpected ways.",
-      "Patterns show themselves when nothing is being forced.",
-      "The past often feels closer when it isn’t explained.",
-      "Certain moments settle differently depending on when you return to them.",
-      "This is the kind of conversation that doesn’t need an ending."
-    ])
-  })
-});
-
-function getPackState(sess) {
-  const s = (sess && typeof sess === "object") ? sess : {};
-  const st = (s.__nyxPacks && typeof s.__nyxPacks === "object") ? s.__nyxPacks : {};
-  return st;
-}
-
-function shouldUseGravityPack({ text, sess, cont, routeHintLane }) {
-  const s = sess || {};
-  const t = String(text || "").trim();
-  const tn = normalizeText(t);
-  const turns = Number(s.turns || 0);
-
-  // Hard blocks: onboarding / first-touch
-  if (!s.introDone || turns < 1) return false;
-
-  // Never if route hint forces a lane
-  if (routeHintLane && String(routeHintLane).toLowerCase() !== "general") return false;
-
-  // Never if user is issuing direct intent / commands
-  if (!t) return false;
-  if (isDirectIntent(t)) return false;
-  if (wantsYearPicker(t)) return false;
-  if (isResetIntent(t)) return false;
-  if (isNextStepIntent(t) || isNextIntent(t) || isPrevIntent(t) || isDeeperIntent(t)) return false;
-  if (isDepthDial(t)) return false;
-
-  // Never if user is explicitly trying to set identity (name capture)
-  if (extractNameFromText(t)) return false;
-
-  // Only in general lane / low-intent drift
-  const lane = (cont && cont.lane) ? String(cont.lane).toLowerCase() : String(s.lane || "general").toLowerCase();
-  if (lane !== "general") return false;
-
-  // Reflection throttle: max 1 per session
-  const st = getPackState(s);
-  if (st.gravityUsed === true) return false;
-
-  // Soft triggers: greetings / short inputs / diffuse “talk” energy
-  const short = tn.length <= 24;
-  const greetingish =
-    /^(hi|hello|hey|yo|good morning|good afternoon|good evening)\b/.test(tn) ||
-    /\b(hi|hello|hey|good morning|good afternoon|good evening)\b/.test(tn);
-
-  const diffuse =
-    short ||
-    greetingish ||
-    tn === "just talk" ||
-    tn === "talk" ||
-    tn === "not sure" ||
-    tn === "i don't know" ||
-    tn === "idk";
-
-  return !!diffuse;
-}
-
-function pickDeterministicIndex(seed, max) {
-  const h = crypto.createHash("sha256").update(String(seed || "")).digest("hex").slice(0, 8);
-  const n = parseInt(h, 16);
-  if (!Number.isFinite(n) || max <= 0) return 0;
-  return n % max;
-}
-
-function enforcePackConstraints(line) {
-  // statement-first: no questions; no menu exposure: no lists / option prompts
-  let s = String(line || "").replace(/\s+/g, " ").trim();
-  if (!s) return "";
-
-  // Remove trailing question marks if any (defensive)
-  s = s.replace(/\?+$/g, "").trim();
-
-  // Avoid accidental menu-ish phrasing (defensive; pack is clean already)
-  const lowered = s.toLowerCase();
-  if (/\b(pick|choose|select)\b/.test(lowered) && /\b(or|either)\b/.test(lowered)) {
-    // collapse to first clause before "or"
-    const parts = s.split(/\bor\b/i);
-    s = String(parts[0] || s).trim();
-    s = s.replace(/[,:;-]\s*$/g, "").trim();
-  }
-
-  return s;
-}
-
-function gravityPackReply({ sess, requestId, routingText, cont }) {
-  const pack = NYX_PACKS.gravity_v1_5C;
-  const lines = safeArray(pack && pack.lines);
-  const turnsNext = Number(sess.turns || 0) + 1;
-
-  // Deterministic pick; avoids “random drift” across clients/retries
-  const seed = [
-    "gravity_v1_5C",
-    String(sess.startedAt || ""),
-    String(turnsNext),
-    String(routingText || "")
-  ].join("|");
-
-  let idx = pickDeterministicIndex(seed, lines.length);
-  const state = getPackState(sess);
-  if (Number.isFinite(Number(state.gravityLastIdx)) && lines.length > 1) {
-    const lastIdx = Number(state.gravityLastIdx);
-    if (idx === lastIdx) idx = (idx + 1) % lines.length;
-  }
-
-  const rawLine = lines[idx] || "";
-  const reply = enforcePackConstraints(rawLine);
-
-  const baseChips = ["Pick a year", "Story moment", "Just talk", "Surprise me"];
-  const followUpsStrings = maybeInjectResetChip(baseChips, sess).slice(0, 4);
-
-  const outSig = buildOutSig(reply, followUpsStrings);
-
-  const patch = filterSessionPatch({
-    lastInText: routingText,
-    lastInAt: nowMs(),
-
-    recentIntent: "gravity_pack",
-    recentTopic: "pack:gravity_v1_5C",
-
-    lane: "general",
-
-    lastOut: { reply, followUps: followUpsStrings },
-    lastOutAt: nowMs(),
-    lastOutSig: outSig,
-    lastOutSigAt: nowMs(),
-
-    turns: turnsNext,
-    lastTurnAt: nowMs(),
-    startedAt: Number(sess.startedAt) || nowMs(),
-
-    __nyxPacks: {
-      gravityUsed: true,
-      gravityUsedAt: nowMs(),
-      gravityLastIdx: idx,
-      gravityLastSig: hashSig(reply)
-    },
-
-    __cs1: sess.__cs1
-  });
-
-  const out = {
-    ok: true,
-    reply,
-    lane: "general",
-    ctx: { year: null, mode: "presence" },
-    ui: { mode: "chat" },
-    directives: [],
-    followUpsStrings,
-    followUps: chipsFromStrings(followUpsStrings, 4),
-    sessionPatch: patch,
-    cog: { phase: "engaged", state: "steady", reason: "gravity_pack", lane: "general", ts: nowMs() },
-    requestId: requestId || rid(),
-    meta: {
-      ts: nowMs(),
-      contract: "v1",
-      pack: {
-        name: pack.meta.name,
-        version: pack.meta.version,
-        id: "gravity_v1_5C",
-        lineIndex: idx
-      }
-    }
-  };
-
-  ensureCog(out, "general", "presence", null, "steady", "gravity_pack");
-  out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
-
-  ensureSpeakDirective(out);
-  return out;
-}
-
-// ----------------------------
 // COS (Cognitive OS) helpers
 // ----------------------------
 function computeNextStepHint({ lane, mode, year, state }) {
@@ -602,7 +650,8 @@ function ensureCog(out, lane, mode, year, state, reason) {
     year: yy,
     mode: mm,
     nextStep: cog.nextStep || computeNextStepHint({ lane: baseLane, mode: mm, year: yy, state: st }),
-    ts: cog.ts || ts
+    ts: cog.ts || ts,
+    tone: cog.tone || undefined
   };
   return out;
 }
@@ -636,10 +685,13 @@ const SESSION_ALLOW = new Set([
   "lastNameUseTurn",
   // ✅ COS persistence
   "cog",
-  // ✅ CS-1 state (must be allowlisted or CS-1 will reset every turn)
+  // ✅ CS-1 state
   "__cs1",
-  // ✅ Nyx Pack throttle + dedupe state
-  "__nyxPacks"
+  // ✅ Phase Two persistence (Adaptive Endurance)
+  "aeLastStage",
+  "aeLastInjectAt",
+  "aeRefUsed",
+  "aeReentryAt"
 ]);
 
 function filterSessionPatch(patch) {
@@ -697,7 +749,6 @@ function cs1Decide(session, turnCount, text) {
 function cs1MarkSpoke(session, turnCount, lineType) {
   if (!CS1) return;
   try {
-    // normalize lineType to requested set
     const lt = String(lineType || "").toLowerCase();
     const allowed = new Set(["intro", "reset", "reentry", "clarify", "nav", "deeper"]);
     const safeLt = allowed.has(lt) ? lt : "nav";
@@ -766,7 +817,12 @@ function cachedResponse(session, reason, requestIdIn) {
       startedAt: Number(session && session.startedAt) || nowMs(),
 
       __cs1: session && session.__cs1,
-      __nyxPacks: session && session.__nyxPacks
+
+      // Phase Two
+      aeLastStage: session && session.aeLastStage,
+      aeLastInjectAt: session && session.aeLastInjectAt,
+      aeRefUsed: session && session.aeRefUsed,
+      aeReentryAt: session && session.aeReentryAt
     }),
     cog: { phase: "engaged", state: "steady", reason: "input_loop_guard", lane: "general", ts: nowMs() },
     requestId: requestIdIn || rid(),
@@ -774,7 +830,11 @@ function cachedResponse(session, reason, requestIdIn) {
   };
 
   ensureCog(out, out.lane, out.ctx && out.ctx.mode, out.ctx && out.ctx.year, "steady", "input_loop_guard");
-  out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: session && session.__cs1, __nyxPacks: session && session.__nyxPacks });
+
+  // Phase Two apply (conservative)
+  applyAdaptiveEndurance(out, session || {}, session && session.lastInText ? session.lastInText : "", out.requestId);
+
+  out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: session && session.__cs1 });
 
   // ✅ Voice fix for cached returns
   ensureSpeakDirective(out);
@@ -1152,7 +1212,6 @@ Where do you want to start?`;
 
 function resetSessionPatch(prevSess) {
   const keepDepthPref = (prevSess && prevSess.depthPreference) ? String(prevSess.depthPreference) : "fast";
-  const keepNyxPacks = (prevSess && prevSess.__nyxPacks && typeof prevSess.__nyxPacks === "object") ? prevSess.__nyxPacks : undefined;
 
   return filterSessionPatch({
     introDone: true,
@@ -1204,8 +1263,11 @@ function resetSessionPatch(prevSess) {
     nameAskedAt: 0,
     lastNameUseTurn: 0,
 
-    // keep pack state (throttle) across reset? default: keep. (If you want reset to clear it, remove this.)
-    __nyxPacks: keepNyxPacks,
+    // Phase Two reset (new session arc)
+    aeLastStage: "early",
+    aeLastInjectAt: 0,
+    aeRefUsed: false,
+    aeReentryAt: 0,
 
     // keep __cs1 if it exists; if not, omit
     __cs1: (prevSess && prevSess.__cs1) ? prevSess.__cs1 : undefined
@@ -1403,7 +1465,6 @@ function isMusicMode(mode) {
 }
 
 function musicModeNeedsYear(mode) {
-  // For music modes, yes: year required for a meaningful response in this build.
   return isMusicMode(mode);
 }
 
@@ -1446,22 +1507,22 @@ function buildClarifyYearReply({ lane, mode, knownYear }) {
   }
 
   if (m === "top10") {
-    return { reply: "Which year do you want for Top 10? (1950–2024)", followUpsStrings: ["Pick a year", "Top 10 1988", "Top 10 1955", "Reset"] };
+    return { reply: "We can do Top 10. Which year do you want? (1950–2024)", followUpsStrings: ["Pick a year", "Top 10 1988", "Top 10 1955", "Reset"] };
   }
   if (m === "top100") {
-    return { reply: "Which year do you want for Top 100? (1950–2024)", followUpsStrings: ["Pick a year", "Top 100 1988", "Top 100 1979", "Reset"] };
+    return { reply: "We can do Top 100. Which year do you want? (1950–2024)", followUpsStrings: ["Pick a year", "Top 100 1988", "Top 100 1979", "Reset"] };
   }
   if (m === "story_moment") {
-    return { reply: "Which year do you want a story moment for? (1950–2024)", followUpsStrings: ["Pick a year", "Story moment 1955", "Story moment 1988", "Reset"] };
+    return { reply: "We can do a story moment. Which year? (1950–2024)", followUpsStrings: ["Pick a year", "Story moment 1955", "Story moment 1988", "Reset"] };
   }
   if (m === "micro_moment") {
-    return { reply: "Which year do you want a micro moment for? (1950–2024)", followUpsStrings: ["Pick a year", "Micro moment 1979", "Micro moment 1994", "Reset"] };
+    return { reply: "We can do a micro moment. Which year? (1950–2024)", followUpsStrings: ["Pick a year", "Micro moment 1979", "Micro moment 1994", "Reset"] };
   }
   if (m === "number1") {
-    return { reply: "Which year do you want the #1 song for? (1950–2024)", followUpsStrings: ["Pick a year", "#1 1988", "#1 1967", "Reset"] };
+    return { reply: "We can do the #1 song. Which year? (1950–2024)", followUpsStrings: ["Pick a year", "#1 1988", "#1 1967", "Reset"] };
   }
 
-  return { reply: "Tell me a year (1950–2024).", followUpsStrings: ["Pick a year", "Top 10 1988", "Story moment 1955", "Reset"] };
+  return { reply: "We can start clean. Tell me a year (1950–2024).", followUpsStrings: ["Pick a year", "Top 10 1988", "Story moment 1955", "Reset"] };
 }
 
 function enforceOneIntent(out) {
@@ -1525,9 +1586,6 @@ function ensureSessionPatchBasics(out, sess, routingText, lane, mode, year, foll
   // ✅ preserve CS-1 state if present (and allowlisted)
   if (sess && sess.__cs1 && patch.__cs1 === undefined) patch.__cs1 = sess.__cs1;
 
-  // ✅ preserve Nyx pack state
-  if (sess && sess.__nyxPacks && patch.__nyxPacks === undefined) patch.__nyxPacks = sess.__nyxPacks;
-
   // ✅ COS persistence
   if (patch.cog === undefined && out.cog && typeof out.cog === "object") patch.cog = out.cog;
 
@@ -1544,7 +1602,8 @@ function enforceContractFinal({
   year,
   cont,
   routeHintLane,
-  routeHintMode
+  routeHintMode,
+  requestId
 }) {
   const baseLane = String(routeHintLane || lane || out.lane || "general").toLowerCase();
   const baseMode = routeHintMode || mode || cont.mode || (out.ctx && out.ctx.mode) || null;
@@ -1589,9 +1648,11 @@ function enforceContractFinal({
         recentIntent: "clarify_year",
         recentTopic: `need_year:${String(baseMode)}`,
         cog: out.cog,
-        __cs1: sess.__cs1,
-        __nyxPacks: sess.__nyxPacks
+        __cs1: sess.__cs1
       });
+
+      // Phase Two apply (conservative)
+      applyAdaptiveEndurance(out, sess, routingText, requestId || out.requestId);
 
       // ✅ Voice directive guaranteed
       ensureSpeakDirective(out);
@@ -1624,9 +1685,11 @@ function enforceContractFinal({
         recentIntent: "clarify_content",
         recentTopic: `incomplete:${String(baseMode)}:${String(baseYear)}`,
         cog: out.cog,
-        __cs1: sess.__cs1,
-        __nyxPacks: sess.__nyxPacks
+        __cs1: sess.__cs1
       });
+
+      // Phase Two apply (conservative)
+      applyAdaptiveEndurance(out, sess, routingText, requestId || out.requestId);
 
       // ✅ Voice directive guaranteed
       ensureSpeakDirective(out);
@@ -1659,6 +1722,9 @@ function enforceContractFinal({
 
   // final attach (idempotent)
   out = attachCogToSessionPatch(out, sess);
+
+  // Phase Two apply (conservative)
+  applyAdaptiveEndurance(out, sess, routingText, requestId || out.requestId);
 
   // ✅ Voice directive guaranteed (for ALL normal outputs)
   ensureSpeakDirective(out);
@@ -1723,8 +1789,7 @@ async function chatEngine(arg1, arg2) {
         turns: 1,
         lastTurnAt: nowMs(),
         startedAt: nowMs(),
-        __cs1: sess.__cs1,
-        __nyxPacks: sess.__nyxPacks
+        __cs1: sess.__cs1
       }),
       cog: { phase: "engaged", state: "reset", reason: "user_reset", lane: "general", ts: nowMs() },
       requestId,
@@ -1732,7 +1797,11 @@ async function chatEngine(arg1, arg2) {
     };
 
     ensureCog(out, "general", null, null, "reset", "user_reset");
-    out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1, __nyxPacks: sess.__nyxPacks });
+
+    // Phase Two apply (reset is a clean arc; keep it minimal)
+    applyAdaptiveEndurance(out, sess, safeText, requestId);
+
+    out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
 
     // ✅ Voice directive for reset
     ensureSpeakDirective(out);
@@ -1805,7 +1874,6 @@ async function chatEngine(arg1, arg2) {
   // "NEXT STEP" intent (first-class)
   // ----------------------------
   if (isNextStepIntent(routingText0)) {
-    // Prefer advancing music if we have music continuity; otherwise provide a deterministic “choose lane” step.
     cs1MarkSpoke(sess, turnCountForCS1, "nav");
 
     if (cont && cont.lane === "music") {
@@ -1838,8 +1906,7 @@ async function chatEngine(arg1, arg2) {
           turns: Number(sess.turns || 0) + 1,
           lastTurnAt: nowMs(),
           startedAt: Number(sess.startedAt) || nowMs(),
-          __cs1: sess.__cs1,
-          __nyxPacks: sess.__nyxPacks
+          __cs1: sess.__cs1
         }),
         cog: { phase: "engaged", state: "execute", reason: "next_step_lane_select", lane: "general", ts: nowMs() },
         requestId,
@@ -1847,7 +1914,11 @@ async function chatEngine(arg1, arg2) {
       };
 
       ensureCog(out, "general", null, null, "execute", "next_step_lane_select");
-      out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1, __nyxPacks: sess.__nyxPacks });
+
+      // Phase Two apply
+      applyAdaptiveEndurance(out, sess, routingText0, requestId);
+
+      out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
 
       // ✅ Voice directive
       ensureSpeakDirective(out);
@@ -1911,8 +1982,7 @@ async function chatEngine(arg1, arg2) {
       lastTurnAt: nowMs(),
       startedAt: Number(sess.startedAt) || nowMs(),
 
-      __cs1: sess.__cs1,
-      __nyxPacks: sess.__nyxPacks
+      __cs1: sess.__cs1
     });
 
     const out = {
@@ -1931,7 +2001,11 @@ async function chatEngine(arg1, arg2) {
     };
 
     ensureCog(out, laneOut, modeOut, yearOut, "expand", "deeper_mode_aware");
-    out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1, __nyxPacks: sess.__nyxPacks });
+
+    // Phase Two apply
+    applyAdaptiveEndurance(out, sess, routingText0, requestId);
+
+    out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
 
     return enforceContractFinal({
       out,
@@ -1942,7 +2016,8 @@ async function chatEngine(arg1, arg2) {
       year: yearOut,
       cont,
       routeHintLane,
-      routeHintMode
+      routeHintMode,
+      requestId
     });
   }
 
@@ -1972,8 +2047,7 @@ async function chatEngine(arg1, arg2) {
         turns: Number(sess.turns || 0) + 1,
         lastTurnAt: nowMs(),
         startedAt: Number(sess.startedAt) || nowMs(),
-        __cs1: sess.__cs1,
-        __nyxPacks: sess.__nyxPacks
+        __cs1: sess.__cs1
       });
 
       const chips = maybeInjectResetChip(yp.followUpsStrings, sess);
@@ -1989,7 +2063,11 @@ async function chatEngine(arg1, arg2) {
       };
 
       ensureCog(out, "music", out.ctx && out.ctx.mode, out.ctx && out.ctx.year, "clarify", "next_needs_year");
-      out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1, __nyxPacks: sess.__nyxPacks });
+
+      // Phase Two apply (clarify-safe; conservative)
+      applyAdaptiveEndurance(out, sess, routingText0, requestId);
+
+      out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
 
       return enforceContractFinal({
         out,
@@ -2000,7 +2078,8 @@ async function chatEngine(arg1, arg2) {
         year: null,
         cont,
         routeHintLane,
-        routeHintMode
+        routeHintMode,
+        requestId
       });
     }
 
@@ -2028,8 +2107,7 @@ async function chatEngine(arg1, arg2) {
         turns: Number(sess.turns || 0) + 1,
         lastTurnAt: nowMs(),
         startedAt: Number(sess.startedAt) || nowMs(),
-        __cs1: sess.__cs1,
-        __nyxPacks: sess.__nyxPacks
+        __cs1: sess.__cs1
       });
 
       const chips = maybeInjectResetChip(yp.followUpsStrings, sess);
@@ -2045,7 +2123,11 @@ async function chatEngine(arg1, arg2) {
       };
 
       ensureCog(out, "music", out.ctx && out.ctx.mode, out.ctx && out.ctx.year, "clarify", "prev_needs_year");
-      out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1, __nyxPacks: sess.__nyxPacks });
+
+      // Phase Two apply
+      applyAdaptiveEndurance(out, sess, routingText0, requestId);
+
+      out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
 
       return enforceContractFinal({
         out,
@@ -2056,7 +2138,8 @@ async function chatEngine(arg1, arg2) {
         year: null,
         cont,
         routeHintLane,
-        routeHintMode
+        routeHintMode,
+        requestId
       });
     }
 
@@ -2101,8 +2184,7 @@ async function chatEngine(arg1, arg2) {
         turns: Number(sess.turns || 0) + 1,
         lastTurnAt: nowMs(),
         startedAt: Number(sess.startedAt) || nowMs(),
-        __cs1: sess.__cs1,
-        __nyxPacks: sess.__nyxPacks
+        __cs1: sess.__cs1
       }),
       cog: { phase: "engaged", state: "welcome", reason: "name_captured", lane: "general", ts: nowMs() },
       requestId,
@@ -2110,7 +2192,11 @@ async function chatEngine(arg1, arg2) {
     };
 
     ensureCog(out, "general", null, null, "welcome", "name_captured");
-    out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1, __nyxPacks: sess.__nyxPacks });
+
+    // Phase Two apply
+    applyAdaptiveEndurance(out, sess, routingText, requestId);
+
+    out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
 
     return enforceContractFinal({
       out,
@@ -2121,7 +2207,8 @@ async function chatEngine(arg1, arg2) {
       year: null,
       cont,
       routeHintLane,
-      routeHintMode
+      routeHintMode,
+      requestId
     });
   }
 
@@ -2159,8 +2246,7 @@ async function chatEngine(arg1, arg2) {
         turns: Number(sess.turns || 0) + 1,
         lastTurnAt: nowMs(),
         startedAt: Number(sess.startedAt) || nowMs(),
-        __cs1: sess.__cs1,
-        __nyxPacks: sess.__nyxPacks
+        __cs1: sess.__cs1
       }),
       cog: { phase: "engaged", state: "calibrate", reason: "depth_dial", lane: "general", ts: nowMs() },
       requestId,
@@ -2168,7 +2254,11 @@ async function chatEngine(arg1, arg2) {
     };
 
     ensureCog(out, "general", null, null, "calibrate", "depth_dial");
-    out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1, __nyxPacks: sess.__nyxPacks });
+
+    // Phase Two apply
+    applyAdaptiveEndurance(out, sess, routingText, requestId);
+
+    out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
 
     return enforceContractFinal({
       out,
@@ -2179,7 +2269,8 @@ async function chatEngine(arg1, arg2) {
       year: null,
       cont,
       routeHintLane,
-      routeHintMode
+      routeHintMode,
+      requestId
     });
   }
 
@@ -2203,8 +2294,7 @@ async function chatEngine(arg1, arg2) {
         turns: Number(sess.turns || 0) + 1,
         lastTurnAt: nowMs(),
         startedAt: Number(sess.startedAt) || nowMs(),
-        __cs1: sess.__cs1,
-        __nyxPacks: sess.__nyxPacks
+        __cs1: sess.__cs1
       }),
       cog: { phase: "engaged", state: "clarify", reason: "ui_year_picker", lane: "music", ts: nowMs() },
       requestId,
@@ -2212,7 +2302,11 @@ async function chatEngine(arg1, arg2) {
     };
 
     ensureCog(out, "music", out.ctx && out.ctx.mode, out.ctx && out.ctx.year, "clarify", "ui_year_picker");
-    out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1, __nyxPacks: sess.__nyxPacks });
+
+    // Phase Two apply
+    applyAdaptiveEndurance(out, sess, routingText, requestId);
+
+    out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
 
     return enforceContractFinal({
       out,
@@ -2223,7 +2317,8 @@ async function chatEngine(arg1, arg2) {
       year: cont.year || null,
       cont,
       routeHintLane,
-      routeHintMode
+      routeHintMode,
+      requestId
     });
   }
 
@@ -2236,7 +2331,12 @@ async function chatEngine(arg1, arg2) {
     lastInText: routingText,
     lastInAt: nowMs(),
     __cs1: sess.__cs1,
-    __nyxPacks: sess.__nyxPacks
+
+    // carry forward Phase Two trackers if present
+    aeLastStage: sess.aeLastStage,
+    aeLastInjectAt: sess.aeLastInjectAt,
+    aeRefUsed: sess.aeRefUsed,
+    aeReentryAt: sess.aeReentryAt
   });
 
   // Intro V2
@@ -2281,8 +2381,7 @@ async function chatEngine(arg1, arg2) {
         lastOutSig: outSig,
         lastOutSigAt: nowMs(),
 
-        __cs1: sess.__cs1,
-        __nyxPacks: sess.__nyxPacks
+        __cs1: sess.__cs1
       }),
       cog: { phase: "engaged", state: "welcome", reason: "intro_v2", lane: "general", ts: nowMs() },
       requestId,
@@ -2290,7 +2389,11 @@ async function chatEngine(arg1, arg2) {
     };
 
     ensureCog(out, "general", null, null, "welcome", "intro_v2");
-    out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1, __nyxPacks: sess.__nyxPacks });
+
+    // Phase Two apply (early tone, light)
+    applyAdaptiveEndurance(out, sess, routingText, requestId);
+
+    out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
 
     return enforceContractFinal({
       out,
@@ -2301,16 +2404,9 @@ async function chatEngine(arg1, arg2) {
       year: null,
       cont,
       routeHintLane,
-      routeHintMode
+      routeHintMode,
+      requestId
     });
-  }
-
-  // ----------------------------
-  // Nyx Gravity Pack intercept (post-intro only; max 1 per session)
-  // ----------------------------
-  if (shouldUseGravityPack({ text: routingText, sess, cont, routeHintLane })) {
-    cs1MarkSpoke(sess, turnCountForCS1, "reentry");
-    return gravityPackReply({ sess, requestId, routingText, cont });
   }
 
   // ----------------------------
@@ -2328,7 +2424,7 @@ async function chatEngine(arg1, arg2) {
   let followUpsStrings = [];
   let lanePatch = null;
 
-  // NEW: allow lane modules to return UI/CTX/DIRECTIVES/LANE and we preserve
+  // allow lane modules to return UI/CTX/DIRECTIVES/LANE and we preserve
   let laneUi = null;
   let laneCtx = null;
   let laneDirectives = null;
@@ -2361,8 +2457,7 @@ async function chatEngine(arg1, arg2) {
         turns: Number(sess.turns || 0) + 1,
         lastTurnAt: nowMs(),
         startedAt: Number(sess.startedAt) || nowMs(),
-        __cs1: sess.__cs1,
-        __nyxPacks: sess.__nyxPacks
+        __cs1: sess.__cs1
       }),
       cog: { phase: "engaged", state: "clarify", reason: "need_year", lane: "music", mode, ts: nowMs() },
       requestId,
@@ -2370,7 +2465,11 @@ async function chatEngine(arg1, arg2) {
     };
 
     ensureCog(out, "music", mode, null, "clarify", "need_year");
-    out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1, __nyxPacks: sess.__nyxPacks });
+
+    // Phase Two apply (clarify-safe)
+    applyAdaptiveEndurance(out, sess, routingText, requestId);
+
+    out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
 
     return enforceContractFinal({
       out,
@@ -2381,7 +2480,8 @@ async function chatEngine(arg1, arg2) {
       year: null,
       cont,
       routeHintLane,
-      routeHintMode
+      routeHintMode,
+      requestId
     });
   }
 
@@ -2423,13 +2523,13 @@ async function chatEngine(arg1, arg2) {
       lanePatch = null;
     }
   } else if (lane === "radio") {
-    reply = "Want to jump into the radio stream now, or should I guide you to a specific era first?";
+    reply = "We can slip into the radio stream, or we can anchor it to a specific era first.";
     followUpsStrings = ["Open radio", "Pick a year", "What’s playing now", "Just talk"];
   } else if (lane === "tv") {
-    reply = "Sandblast TV is coming in two flavors: **Live linear** and **VOD**.";
+    reply = "Sandblast TV lands in two flavors: **Live linear** and **VOD**.";
     followUpsStrings = ["Live linear", "VOD", "Show me the Roku path", "What’s playing now"];
   } else if (lane === "schedule") {
-    reply = "Schedule mode — I can translate programming to your local time.";
+    reply = "Schedule mode is steady. I can translate programming to your local time.";
     followUpsStrings = ["Toronto", "London", "New York", "What’s playing now"];
   } else {
     reply = "I’m with you.";
@@ -2501,8 +2601,7 @@ async function chatEngine(arg1, arg2) {
     lastTurnAt: nowMs(),
     startedAt: Number(sess.startedAt) || nowMs(),
 
-    __cs1: sess.__cs1,
-    __nyxPacks: sess.__nyxPacks
+    __cs1: sess.__cs1
   });
 
   const ctx = (laneCtx && typeof laneCtx === "object")
@@ -2540,7 +2639,11 @@ async function chatEngine(arg1, arg2) {
 
   // ✅ ensure cog content is rich + persist it to sessionPatch.cog
   ensureCog(out, pinnedLane, pinnedMode, pinnedYear, "respond", out.cog && out.cog.reason);
-  out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1, __nyxPacks: sess.__nyxPacks });
+
+  // Phase Two apply (core integration point)
+  applyAdaptiveEndurance(out, sess, routingText, requestId);
+
+  out.sessionPatch = filterSessionPatch({ ...out.sessionPatch, cog: out.cog, __cs1: sess.__cs1 });
 
   // FINAL CONTRACT-LOCK PASS (hard guarantees)
   out = enforceContractFinal({
@@ -2552,7 +2655,8 @@ async function chatEngine(arg1, arg2) {
     year: pinnedYear,
     cont,
     routeHintLane,
-    routeHintMode
+    routeHintMode,
+    requestId
   });
 
   // last polish: if clarify, keep exactly one question (no double prompts)
