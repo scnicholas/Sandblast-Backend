@@ -237,7 +237,7 @@ const NYX_PACKETS = {
   updated: "2026-01-21",
   packets: [
     // (unchanged) — keep your current packets list exactly as you have it
-    // IMPORTANT: paste your existing NYX_PACKETS.packets here (I’m leaving it unchanged)
+    // IMPORTANT: paste your existing NYX_PACKETS.packets here (left unchanged in this file)
   ],
 };
 
@@ -262,7 +262,7 @@ function normText(s) { return safeStr(s).trim().replace(/\s+/g, " ").toLowerCase
 function interpolateTemplate(s, vars) {
   let out = safeStr(s);
   Object.keys(vars || {}).forEach((k) => {
-    out = out.replace(new RegExp(`\\{${k}\\}`, "g"), safeStr(vars[k]));
+    out = out.replace(new RegExp(`\{${k}\}`, "g"), safeStr(vars[k]));
   });
   return out;
 }
@@ -323,6 +323,7 @@ function shouldServeIntroFirstTurn(session, inboundText) {
   if (session && session.__introDone) return false;
 
   // Only hard-lock on the FIRST turn.
+  // NOTE: chatEngine increments turnCount before calling this.
   const turnCount = clampInt(session?.turnCount, 0, 999999, 0);
   if (turnCount > 1) return false;
 
