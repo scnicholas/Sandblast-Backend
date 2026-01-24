@@ -16,22 +16,21 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.6zD (CS-1 WIRING++ + Conversational Pack 3.1-C + PhrasePack v1.1)
+ * v0.6zE (CS-1 WIRING++ + Conversational Pack 3.1-C + PhrasePack v1.1 + Packets v1.1-C)
  *
  * Adds:
  *  ✅ Conversational Pack 3.1-C continuity/return language (NON-IDENTITY)
- *  ✅ PhrasePack v1.1 (Nyx host-voice buckets: general/music/sponsors/schedule/movies)
- *     - Greetings (first vs returning)
- *     - Lane openers
- *     - Music year prompts + year-mode prompts
- *     - Generic fallback nudges + errors
- *     - Short acknowledgements + soft goodbyes
+ *  ✅ PhrasePack v1.1 (Nyx host-voice buckets)
+ *  ✅ Packets v1.1-C (triggered micro-scripts w/ chips + optional sessionPatch)
+ *     - Trigger matching (exact/contains) w/ deterministic selection
+ *     - oncePerSession constraints (per packet id)
+ *     - requiresYear constraint (music ask_year)
+ *     - Special triggers: __fallback__, __error__, __mode_prompt__, __nav_next_year__, __nav_another_year__
  *
  * Guardrails:
  *  ✅ No long-term memory claims
+ *  ✅ No-tech-leak / short / action-forward
  *  ✅ Statement-first preference
- *  ✅ No-tech-leak / no-overexplaining
- *  ✅ Short, action-forward lines
  */
 
 const crypto = require("crypto");
@@ -40,7 +39,7 @@ const crypto = require("crypto");
 // Version
 // =========================
 const CE_VERSION =
-  "chatEngine v0.6zD (CS-1 wiring++ + Conversational Pack 3.1-C + PhrasePack v1.1)";
+  "chatEngine v0.6zE (CS-1 + ConvPack 3.1-C + PhrasePack v1.1 + Packets v1.1-C)";
 
 // =========================
 // Optional CS-1 module
@@ -61,13 +60,7 @@ const NYX_CONV_PACK = {
   meta: {
     name: "Nyx Conversational Pack",
     version: "3.1-C",
-    phase: "Phase Three — Continuity & Return (Canonical)",
-    purpose:
-      "Returnable, companionable continuity using conversation-state cues (non-identity), graceful re-entry, and long-form pacing.",
-    throttles: {
-      return_disclaimer_max_per_session: 1,
-      reentry_prompt_max_per_return: 1,
-    },
+    throttles: { return_disclaimer_max_per_session: 1, reentry_prompt_max_per_return: 1 },
   },
 
   continuity_language: {
@@ -97,9 +90,7 @@ const NYX_CONV_PACK = {
     ],
   },
 
-  return_disclaimers: {
-    no_memory_safe: ["I can follow what’s present here without asking you to recap."],
-  },
+  return_disclaimers: { no_memory_safe: ["I can follow what’s present here without asking you to recap."] },
 
   reentry_prompts: {
     generic_resume: [
@@ -125,13 +116,6 @@ const NYX_CONV_PACK = {
     deep: ["Same pace as before — unhurried.", "No performance needed. The space is already here."],
   },
 
-  no_recap_needed_lines: [
-    "No recap needed. One word is enough.",
-    "You don’t have to explain. A cue is plenty.",
-    "Even a single detail can reopen the whole space.",
-    "Mid-thought is a valid entry point.",
-  ],
-
   micro_recaps: {
     music: [
       "The thread has been holding a year and a mood. It can deepen or contrast.",
@@ -145,18 +129,6 @@ const NYX_CONV_PACK = {
     ],
   },
 
-  handoff_bridges: {
-    resume_to_deepen: ["Depth can increase without changing the topic.", "The same thread can hold one deeper step."],
-    resume_to_contrast: ["Contrast can clarify what’s already here.", "A different era can reveal the same pattern."],
-    resume_to_rest: ["Lightness is allowed. Nothing needs proving.", "Drift still counts. The space stays intact."],
-  },
-
-  endings_that_invite_return: {
-    soft_pause: ["That feels like a clean place to pause — not end.", "We can pause with the thread still warm."],
-    return_hook: ["Next time, a single cue will reopen everything.", "The cadence can return instantly."],
-    deep_goodbye: ["Same space, anytime.", "No closing words needed. Just a pause."],
-  },
-
   continuity_chips: {
     resume_set: [
       { label: "Resume", send: "resume" },
@@ -165,9 +137,9 @@ const NYX_CONV_PACK = {
     ],
     music_resume_set: [
       { label: "Top 10", send: "top 10" },
-      { label: "#1", send: "#1" },
       { label: "Story", send: "story moment" },
       { label: "Micro", send: "micro moment" },
+      { label: "#1", send: "#1" },
     ],
     return_set: [
       { label: "Pick a year", send: "1988" },
@@ -193,11 +165,6 @@ const NYX_CONV_PACK = {
 const NYX_PHRASEPACK = {
   version: "nyx_phrasepack_v1.1",
   updated: "2026-01-20",
-  voice: {
-    persona: "Nyx",
-    style: ["clean", "host-like", "forward", "confident", "warm"],
-    constraints: ["no-tech-leak", "no-overexplaining", "short-lines", "action-forward"],
-  },
   buckets: {
     general: {
       greetings_first: [
@@ -237,26 +204,22 @@ const NYX_PHRASEPACK = {
         "Something slipped. Give me a year and we’ll reset quietly.",
       ],
     },
-
     music: {
       ask_year: ["Give me a year between 1950 and now.", "A year opens the door."],
       mode_prompt_has_year: ["{year} holds a few paths. We can take one.", "{year} is set. We can stay broad—or go deep."],
       nav_next_year: ["{year}. Same current. Different weather.", "Moving ahead to {year}."],
       nav_another_year: ["Name the next year.", "Another year will change the shape."],
     },
-
     sponsors: {
       open: ["Let’s talk sponsorship. What are we amplifying?", "This is where promotion becomes placement."],
       need_goal: ["What needs to move—attention, action, or memory?", "What’s the real outcome you want?"],
       need_budget: ["What level feels right for this?", "We can start small—or make noise. Your call."],
     },
-
     schedule: {
       open: ["Let’s ground this in time. Which city?", "Tell me where you are—or where you want to be."],
       need_city: ["Name the city.", "Which timezone should I hold this in?"],
       need_show_or_now: ["Do you want what’s on now—or something specific?", "Are we looking for a moment, or a title?"],
     },
-
     movies: {
       open: ["Tell me what you’re in the mood for.", "We can hunt by title—or by feeling."],
       need_title_or_genre: ["Name it—or describe it.", "Give me a title, or a direction."],
@@ -265,76 +228,294 @@ const NYX_PHRASEPACK = {
 };
 
 // =========================
+// Packets v1.1-C (2026-01-21)
+// =========================
+const NYX_PACKETS = {
+  version: "packets_v1.1-C",
+  updated: "2026-01-21",
+  packets: [
+    {
+      id: "general.greetings_first",
+      type: "greeting",
+      lane: "general",
+      trigger: ["hi", "hello", "hey", "yo", "good morning", "good afternoon", "good evening"],
+      templates: [
+        "Hi — I’m Nyx. Most people start with a year.",
+        "Hey. Time moves differently here. A year opens the door.",
+        "Hello. A year is usually the cleanest way in.",
+      ],
+      chips: [
+        { label: "Start with a year", send: "1988" },
+        { label: "Schedule", send: "schedule" },
+        { label: "Sponsors", send: "sponsors" },
+        { label: "Something to watch", send: "movies" },
+      ],
+      constraints: { oncePerSession: true },
+      sessionPatch: { lane: "general" },
+    },
+    {
+      id: "general.greetings_returning",
+      type: "greeting",
+      lane: "general",
+      trigger: ["welcome back", "back again", "i'm back", "im back", "we're back", "were back", "again"],
+      templates: ["Good to see you again. A year will get us moving.", "Back already. We can pick up easily."],
+      chips: [
+        { label: "Pick up with a year", send: "1988" },
+        { label: "Schedule", send: "schedule" },
+        { label: "Sponsors", send: "sponsors" },
+        { label: "Something to watch", send: "movies" },
+      ],
+      constraints: { oncePerSession: true },
+      sessionPatch: { lane: "general" },
+    },
+    {
+      id: "general.capabilities_quick",
+      type: "help",
+      lane: "general",
+      trigger: ["help", "options", "what can you do", "what do you do", "menu", "capabilities", "how does this work"],
+      templates: [
+        "Music lives in years. Schedules live in cities. The rest unfolds as needed.",
+        "A year opens music. A city grounds the schedule. Everything else follows.",
+      ],
+      chips: [
+        { label: "Music by year", send: "1988" },
+        { label: "Schedule", send: "schedule" },
+        { label: "Sponsors", send: "sponsors" },
+        { label: "Watch something", send: "movies" },
+      ],
+      sessionPatch: { lane: "general" },
+    },
+    {
+      id: "general.goodbyes_soft",
+      type: "goodbye",
+      lane: "general",
+      trigger: ["bye", "goodbye", "good night", "goodnight", "later", "see you", "i'm done", "im done", "that’s all", "thats all"],
+      templates: ["That feels like a good place to pause.", "Easy to return. A year brings it back.", "We can pick this up whenever."],
+      chips: [
+        { label: "Top 10 from a year", send: "top 10 1994" },
+        { label: "Schedule", send: "schedule" },
+      ],
+      sessionPatch: { lane: "general" },
+    },
+    {
+      id: "general.fallback_nudge",
+      type: "fallback",
+      lane: "general",
+      trigger: ["__fallback__"],
+      templates: ["A year usually clears things up.", "We can start small. One year is enough."],
+      chips: [
+        { label: "Start with a year", send: "1988" },
+        { label: "Schedule", send: "schedule" },
+        { label: "Sponsors", send: "sponsors" },
+        { label: "Watch something", send: "movies" },
+      ],
+      sessionPatch: { lane: "general" },
+    },
+    {
+      id: "general.errors_generic",
+      type: "error",
+      lane: "general",
+      trigger: ["__error__"],
+      templates: ["Something slipped. Let’s try again.", "That didn’t land cleanly. A year will reset it."],
+      chips: [
+        { label: "Start with a year", send: "1988" },
+        { label: "Schedule", send: "schedule" },
+        { label: "Sponsors", send: "sponsors" },
+        { label: "Watch something", send: "movies" },
+      ],
+      sessionPatch: { lane: "general" },
+    },
+    {
+      id: "music.ask_year",
+      type: "prompt",
+      lane: "music",
+      trigger: ["music", "top 10", "top10", "story moment", "story", "micro moment", "micro", "#1", "number 1", "chart", "songs"],
+      templates: ["Music starts with a year.", "Give me the year and we’ll take it from there."],
+      chips: [
+        { label: "1988", send: "1988" },
+        { label: "Top 10 (1988)", send: "top 10 1988" },
+        { label: "Story (1988)", send: "story moment 1988" },
+        { label: "Micro (1988)", send: "micro moment 1988" },
+      ],
+      constraints: { requiresYear: true },
+      sessionPatch: { lane: "music" },
+    },
+    {
+      id: "music.mode_prompt_has_year",
+      type: "prompt",
+      lane: "music",
+      trigger: ["__mode_prompt__"],
+      templates: ["{year} is set. Different lenses reveal different details.", "The year holds steady. The lens can change."],
+      chips: [
+        { label: "Top 10", send: "top 10" },
+        { label: "Story", send: "story moment" },
+        { label: "Micro", send: "micro moment" },
+        { label: "#1", send: "#1" },
+      ],
+      sessionPatch: { lane: "music" },
+    },
+    {
+      id: "music.nav_next_year",
+      type: "nav",
+      lane: "music",
+      trigger: ["__nav_next_year__"],
+      templates: ["{year}. Same lens.", "Moving forward to {year}."],
+      chips: [{ label: "Replay", send: "replay" }],
+      sessionPatch: { lane: "music" },
+    },
+    {
+      id: "music.nav_another_year",
+      type: "nav",
+      lane: "music",
+      trigger: ["another year", "__nav_another_year__"],
+      templates: ["Name the year.", "Another year shifts the tone."],
+      chips: [
+        { label: "1988", send: "1988" },
+        { label: "1999", send: "1999" },
+        { label: "2007", send: "2007" },
+      ],
+      sessionPatch: { lane: "music" },
+    },
+    {
+      id: "sponsors.open",
+      type: "prompt",
+      lane: "sponsors",
+      trigger: ["sponsor", "sponsors", "advertise", "advertising", "ad package", "promotion", "promote"],
+      templates: ["Let’s talk sponsorship.", "This is where visibility turns intentional."],
+      chips: [
+        { label: "TV", send: "tv" },
+        { label: "Radio", send: "radio" },
+        { label: "Website", send: "website" },
+        { label: "Social", send: "social" },
+        { label: "Bundle", send: "bundle" },
+      ],
+      sessionPatch: { lane: "sponsors" },
+    },
+    {
+      id: "sponsors.need_goal",
+      type: "prompt",
+      lane: "sponsors",
+      trigger: ["__sponsors_need_goal__"],
+      templates: ["The outcome matters more than the format.", "Results set the direction."],
+      chips: [
+        { label: "Calls", send: "calls" },
+        { label: "Foot traffic", send: "foot traffic" },
+        { label: "Website clicks", send: "website clicks" },
+        { label: "Awareness", send: "brand awareness" },
+      ],
+      sessionPatch: { lane: "sponsors" },
+    },
+    {
+      id: "sponsors.need_budget",
+      type: "prompt",
+      lane: "sponsors",
+      trigger: ["__sponsors_need_budget__"],
+      templates: ["Budget sets the scale.", "The tier defines how loud this gets."],
+      chips: [
+        { label: "Starter", send: "starter test" },
+        { label: "Growth", send: "growth bundle" },
+        { label: "Dominance", send: "dominance" },
+      ],
+      sessionPatch: { lane: "sponsors" },
+    },
+    {
+      id: "schedule.open",
+      type: "prompt",
+      lane: "schedule",
+      trigger: ["schedule", "what's playing", "whats playing", "playing now", "now", "today", "tonight", "what time", "time in", "in london", "in toronto"],
+      templates: ["Time depends on where you are.", "The schedule shifts by city."],
+      chips: [
+        { label: "Playing now", send: "what’s playing now" },
+        { label: "Today", send: "schedule today" },
+        { label: "London", send: "in London" },
+        { label: "Toronto", send: "in Toronto" },
+      ],
+      sessionPatch: { lane: "schedule" },
+    },
+    {
+      id: "schedule.need_city",
+      type: "prompt",
+      lane: "schedule",
+      trigger: ["__schedule_need_city__"],
+      templates: ["The city sets the clock.", "One location is enough."],
+      chips: [
+        { label: "London", send: "in London" },
+        { label: "Toronto", send: "in Toronto" },
+        { label: "New York", send: "in New York" },
+        { label: "Los Angeles", send: "in Los Angeles" },
+      ],
+      sessionPatch: { lane: "schedule" },
+    },
+    {
+      id: "schedule.need_show_or_now",
+      type: "prompt",
+      lane: "schedule",
+      trigger: ["__schedule_need_show__"],
+      templates: ["The schedule can show what’s on now or lock onto a title."],
+      chips: [
+        { label: "Playing now", send: "what’s playing now" },
+        { label: "Today", send: "schedule today" },
+      ],
+      sessionPatch: { lane: "schedule" },
+    },
+    {
+      id: "movies.open",
+      type: "prompt",
+      lane: "movies",
+      trigger: ["movie", "movies", "tv", "show", "shows", "recommend", "recommend something", "what to watch", "watch"],
+      templates: ["Tell me what kind of mood you’re in."],
+      chips: [
+        { label: "Surprise me", send: "recommend something" },
+        { label: "Classic TV", send: "classic tv" },
+        { label: "Westerns", send: "westerns" },
+        { label: "Detective", send: "detective" },
+      ],
+      sessionPatch: { lane: "movies" },
+    },
+    {
+      id: "movies.need_title_or_genre",
+      type: "prompt",
+      lane: "movies",
+      trigger: ["__movies_need_title_or_genre__"],
+      templates: ["A title or a genre sets the direction."],
+      chips: [
+        { label: "Surprise me", send: "recommend something" },
+        { label: "Classic TV", send: "classic tv" },
+        { label: "Westerns", send: "westerns" },
+        { label: "Detective", send: "detective" },
+      ],
+      sessionPatch: { lane: "movies" },
+    },
+  ],
+};
+
+// =========================
 // Helpers (small + deterministic)
 // =========================
 function nowMs() {
   return Date.now();
 }
-
 function safeStr(x) {
   if (x === null || x === undefined) return "";
   return String(x);
 }
-
 function clampInt(n, lo, hi, fallback) {
   const v = Number(n);
   if (!Number.isFinite(v)) return fallback;
   return Math.max(lo, Math.min(hi, Math.floor(v)));
 }
-
 function sha1(s) {
   return crypto.createHash("sha1").update(String(s)).digest("hex");
 }
-
 function pickDeterministic(arr, seed) {
   if (!Array.isArray(arr) || arr.length === 0) return "";
   const h = sha1(seed || "seed");
   const n = parseInt(h.slice(0, 8), 16);
   return arr[n % arr.length];
 }
-
 function normText(s) {
   return safeStr(s).trim().replace(/\s+/g, " ").toLowerCase();
 }
-
-function extractYear(text) {
-  const t = safeStr(text);
-  const m = t.match(/\b(19[5-9]\d|20[0-2]\d)\b/); // 1950-2029 range; we clamp later
-  if (!m) return null;
-  const y = Number(m[1]);
-  if (!Number.isFinite(y)) return null;
-  if (y < 1950) return 1950;
-  if (y > 2024) return 2024;
-  return y;
-}
-
-function isLikelyReturnGap(gapMs) {
-  // Conservative “return” threshold to avoid mid-flow overuse.
-  return Number.isFinite(gapMs) && gapMs >= 12 * 60 * 1000;
-}
-
-function isReturnIntent(text) {
-  const t = normText(text);
-  if (!t) return false;
-  return t === "resume" || t === "start fresh" || t === "restart" || t === "change lens" || t === "back" || t === "continue";
-}
-
-function isGoodbye(text) {
-  const t = normText(text);
-  if (!t) return false;
-  return /^(bye|goodbye|see you|later|good night|gn|thanks|thank you|thx|done|exit)$/i.test(t);
-}
-
-function laneIsMusic(lane) {
-  const l = safeStr(lane).toLowerCase();
-  return l === "music" || l.includes("music");
-}
-
-function laneIsKnown(lane) {
-  const l = safeStr(lane).toLowerCase();
-  return !!l && l !== "unknown" && l !== "general";
-}
-
 function interpolateTemplate(s, vars) {
   let out = safeStr(s);
   Object.keys(vars || {}).forEach((k) => {
@@ -342,12 +523,37 @@ function interpolateTemplate(s, vars) {
   });
   return out;
 }
+function extractYear(text) {
+  const t = safeStr(text);
+  const m = t.match(/\b(19[5-9]\d|20[0-2]\d)\b/);
+  if (!m) return null;
+  const y = Number(m[1]);
+  if (!Number.isFinite(y)) return null;
+  if (y < 1950) return 1950;
+  if (y > 2024) return 2024;
+  return y;
+}
+function isLikelyReturnGap(gapMs) {
+  return Number.isFinite(gapMs) && gapMs >= 12 * 60 * 1000;
+}
+function isReturnIntent(text) {
+  const t = normText(text);
+  if (!t) return false;
+  return t === "resume" || t === "start fresh" || t === "restart" || t === "change lens" || t === "back" || t === "continue";
+}
+function laneIsMusic(lane) {
+  const l = safeStr(lane).toLowerCase();
+  return l === "music" || l.includes("music");
+}
+function laneIsKnown(lane) {
+  const l = safeStr(lane).toLowerCase();
+  return !!l && l !== "unknown" && l !== "general";
+}
 
 // =========================
 // PhrasePack selectors (host-voice)
 // =========================
 function ppPick(bucketPath, seed, vars) {
-  // bucketPath example: ["general","greetings_first"]
   let ref = NYX_PHRASEPACK.buckets;
   for (const p of bucketPath) {
     if (!ref || typeof ref !== "object") return "";
@@ -356,38 +562,21 @@ function ppPick(bucketPath, seed, vars) {
   const line = pickDeterministic(ref, seed);
   return interpolateTemplate(line, vars || {});
 }
-
-function ppGreeting({ session, requestId, isReturn }) {
-  const seed = `${requestId || "req"}|greet|${safeStr(session?.turnCount)}`;
-  if (isReturn) return ppPick(["general", "greetings_returning"], seed);
-  return ppPick(["general", "greetings_first"], seed);
-}
-
 function ppFallbackNudge({ requestId }) {
-  const seed = `${requestId || "req"}|fallback`;
-  return ppPick(["general", "fallback_nudge"], seed);
+  return ppPick(["general", "fallback_nudge"], `${requestId || "req"}|fallback`);
 }
-
 function ppErrorGeneric({ requestId }) {
-  const seed = `${requestId || "req"}|err`;
-  return ppPick(["general", "errors_generic"], seed);
+  return ppPick(["general", "errors_generic"], `${requestId || "req"}|err`);
 }
-
 function ppGoodbyeSoft({ requestId }) {
-  const seed = `${requestId || "req"}|bye`;
-  return ppPick(["general", "goodbyes_soft"], seed);
+  return ppPick(["general", "goodbyes_soft"], `${requestId || "req"}|bye`);
 }
-
 function ppMusicAskYear({ requestId }) {
-  const seed = `${requestId || "req"}|music|askyear`;
-  return ppPick(["music", "ask_year"], seed);
+  return ppPick(["music", "ask_year"], `${requestId || "req"}|music|askyear`);
 }
-
 function ppMusicModePrompt({ requestId, year }) {
-  const seed = `${requestId || "req"}|music|mode|${year}`;
-  return ppPick(["music", "mode_prompt_has_year"], seed, { year });
+  return ppPick(["music", "mode_prompt_has_year"], `${requestId || "req"}|music|mode|${year}`, { year });
 }
-
 function ppLaneOpen({ requestId, lane }) {
   const l = safeStr(lane).toLowerCase();
   const seed = `${requestId || "req"}|open|${l}`;
@@ -395,8 +584,133 @@ function ppLaneOpen({ requestId, lane }) {
   if (l.includes("schedule")) return ppPick(["schedule", "open"], seed);
   if (l.includes("movie")) return ppPick(["movies", "open"], seed);
   if (laneIsMusic(lane)) return ppMusicAskYear({ requestId });
-  // General fallback
-  return ppPick(["general", "capabilities_quick"], seed) || ppFallbackNudge({ requestId });
+  return (
+    ppPick(["general", "capabilities_quick"], seed) ||
+    ppFallbackNudge({ requestId }) ||
+    "A year usually clears things up."
+  );
+}
+
+// =========================
+// Packets engine
+// =========================
+function ensurePacketsState(session) {
+  if (!session || typeof session !== "object") return session;
+  if (!session.__nyxPackets) {
+    session.__nyxPackets = { used: {}, lastId: "" };
+  }
+  return session;
+}
+
+function packetTriggeredByText(packet, textNorm) {
+  const triggers = Array.isArray(packet?.trigger) ? packet.trigger : [];
+  for (const tr of triggers) {
+    const t = normText(tr);
+    if (!t) continue;
+    if (t.startsWith("__") && t.endsWith("__")) {
+      // Special triggers are handled by caller
+      continue;
+    }
+    // Match on exact or contains; keep it simple and robust.
+    if (textNorm === t) return true;
+    if (textNorm.includes(t)) return true;
+  }
+  return false;
+}
+
+function packetHasSpecialTrigger(packet, special) {
+  const triggers = Array.isArray(packet?.trigger) ? packet.trigger : [];
+  return triggers.some((t) => normText(t) === normText(special));
+}
+
+function applyPacketConstraints(packet, session, year) {
+  const st = ensurePacketsState(session).__nyxPackets;
+  const once = !!packet?.constraints?.oncePerSession;
+  if (once && st.used && st.used[packet.id]) return { ok: false, reason: "oncePerSession" };
+
+  const reqYear = !!packet?.constraints?.requiresYear;
+  if (reqYear && !Number.isFinite(year)) return { ok: false, reason: "requiresYear" };
+
+  return { ok: true };
+}
+
+function packetToFollowUps(packet) {
+  const chips = Array.isArray(packet?.chips) ? packet.chips : [];
+  const out = [];
+  for (let i = 0; i < chips.length; i += 1) {
+    const c = chips[i];
+    const label = safeStr(c?.label).trim();
+    const send = safeStr(c?.send).trim();
+    if (!label || !send) continue;
+    out.push({
+      id: `pkt_${sha1(packet.id + "|" + label + "|" + send).slice(0, 10)}`,
+      type: "send",
+      label,
+      payload: { text: send },
+    });
+  }
+  return out;
+}
+
+function pickPacketTemplate(packet, seed, vars) {
+  const templates = Array.isArray(packet?.templates) ? packet.templates : [];
+  const line = pickDeterministic(templates, seed);
+  return interpolateTemplate(line, vars || {});
+}
+
+function runPackets({ inboundText, session, requestId, laneHint, specialTrigger, year }) {
+  ensurePacketsState(session);
+  const textNorm = normText(inboundText);
+  const packets = NYX_PACKETS.packets || [];
+  const laneLower = safeStr(laneHint || session.lane || "").toLowerCase();
+
+  // 1) Special-trigger pass (explicit)
+  if (specialTrigger) {
+    for (const p of packets) {
+      if (packetHasSpecialTrigger(p, specialTrigger)) {
+        const chk = applyPacketConstraints(p, session, year);
+        if (!chk.ok) continue;
+
+        const reply = pickPacketTemplate(p, `${requestId}|pkt|${p.id}`, { year });
+        return { hit: true, packet: p, reply };
+      }
+    }
+  }
+
+  // 2) Normal trigger pass, prefer same-lane packets, then general
+  const candidates = [];
+  for (const p of packets) {
+    if (!p || !p.id) continue;
+
+    // lane affinity
+    const pLane = safeStr(p.lane || "").toLowerCase();
+    const laneScore = pLane === laneLower ? 2 : pLane === "general" ? 1 : 0;
+
+    // trigger match
+    if (packetTriggeredByText(p, textNorm)) {
+      const chk = applyPacketConstraints(p, session, year);
+      if (!chk.ok) continue;
+      candidates.push({ p, laneScore });
+    }
+  }
+
+  if (!candidates.length) return { hit: false };
+
+  candidates.sort((a, b) => b.laneScore - a.laneScore || a.p.id.localeCompare(b.p.id));
+  const chosen = candidates[0].p;
+
+  const reply = pickPacketTemplate(chosen, `${requestId}|pkt|${chosen.id}`, { year });
+  return { hit: true, packet: chosen, reply };
+}
+
+function commitPacketUse(session, packet) {
+  const st = ensurePacketsState(session).__nyxPackets;
+  st.used = st.used || {};
+  st.used[packet.id] = 1;
+  st.lastId = packet.id;
+  // Apply sessionPatch (only keys we explicitly allow later)
+  const sp = packet.sessionPatch && typeof packet.sessionPatch === "object" ? packet.sessionPatch : null;
+  if (sp && sp.lane) session.lane = sp.lane;
 }
 
 // =========================
@@ -429,12 +743,9 @@ function computeContinuitySignals(session) {
 
 function ensureContinuityState(session) {
   if (!session || typeof session !== "object") return session;
-  if (!session.__nyxCont) {
-    session.__nyxCont = { returnDisclaimerUsed: 0, lastReturnAt: 0, lastReturnPromptedAt: 0 };
-  }
-  if (!session.__nyxIntro) {
-    session.__nyxIntro = { greeted: 0 };
-  }
+  if (!session.__nyxCont) session.__nyxCont = { returnDisclaimerUsed: 0, lastReturnAt: 0, lastReturnPromptedAt: 0 };
+  if (!session.__nyxIntro) session.__nyxIntro = { greeted: 0 };
+  ensurePacketsState(session);
   return session;
 }
 
@@ -445,21 +756,18 @@ function buildReturnLines({ session, requestId, lane }) {
   const lines = [];
   const seedBase = `${requestId || "req"}|${safeStr(lane)}|${safeStr(session?.turnCount)}`;
 
-  // 1) Optional safe disclaimer (throttled)
   const maxDisc = NYX_CONV_PACK.meta.throttles.return_disclaimer_max_per_session;
   if ((cont.returnDisclaimerUsed || 0) < maxDisc) {
     lines.push(pickDeterministic(NYX_CONV_PACK.return_disclaimers.no_memory_safe, seedBase + "|disc"));
     cont.returnDisclaimerUsed = (cont.returnDisclaimerUsed || 0) + 1;
   }
 
-  // 2) PhrasePack returning greeting (host-like)
-  lines.push(ppGreeting({ session, requestId, isReturn: true }));
+  const openerPool = NYX_CONV_PACK.return_session_openers[sig.continuityLevel] || [];
+  if (openerPool.length) lines.push(pickDeterministic(openerPool, seedBase + "|open"));
 
-  // 3) Reentry prompt (style-based, throttled per return)
   const maxPrompt = NYX_CONV_PACK.meta.throttles.reentry_prompt_max_per_return;
   const didPromptRecently =
     Number(cont.lastReturnPromptedAt) && nowMs() - Number(cont.lastReturnPromptedAt) < 60 * 1000;
-
   if (!didPromptRecently && maxPrompt >= 1) {
     let pool = NYX_CONV_PACK.reentry_prompts.generic_resume;
     if (sig.reentryStyle === "soft_resume") pool = NYX_CONV_PACK.reentry_prompts.soft_resume_music;
@@ -490,11 +798,8 @@ function buildContinuityChips({ session, lane }) {
   const isMusic = laneIsMusic(lane) || laneIsMusic(session?.lane);
 
   for (const c of NYX_CONV_PACK.continuity_chips.resume_set) chips.push(c);
-  if (isMusic) {
-    for (const c of NYX_CONV_PACK.continuity_chips.music_resume_set) chips.push(c);
-  } else {
-    for (const c of NYX_CONV_PACK.continuity_chips.return_set) chips.push(c);
-  }
+  if (isMusic) for (const c of NYX_CONV_PACK.continuity_chips.music_resume_set) chips.push(c);
+  else for (const c of NYX_CONV_PACK.continuity_chips.return_set) chips.push(c);
 
   const seen = new Set();
   return chips.filter((c) => {
@@ -510,10 +815,7 @@ function buildContinuityChips({ session, lane }) {
 // =========================
 function prefixLines(reply, lines) {
   const r = safeStr(reply).trim();
-  const head = (lines || [])
-    .map((s) => safeStr(s).trim())
-    .filter(Boolean)
-    .join(" ");
+  const head = (lines || []).map((s) => safeStr(s).trim()).filter(Boolean).join(" ");
   if (!head) return r || "";
   if (!r) return head;
   return `${head} ${r}`;
@@ -521,10 +823,8 @@ function prefixLines(reply, lines) {
 
 function enforceNeverSay(reply) {
   let out = safeStr(reply);
-
   const bad = NYX_CONV_PACK.guardrails.never_say || [];
   const prefer = NYX_CONV_PACK.guardrails.prefer_say || [];
-
   for (const phrase of bad) {
     if (!phrase) continue;
     const rx = new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
@@ -539,37 +839,13 @@ function enforceNeverSay(reply) {
 function shapeContinuity({ reply, session, requestId, lane, inboundText, isReturn }) {
   const s = ensureContinuityState(session);
   const sig = computeContinuitySignals(s);
-
   let out = safeStr(reply).trim();
 
-  // If we have nothing meaningful, use PhrasePack lane opener (short, host-like)
-  if (!out) {
-    out = ppLaneOpen({ requestId, lane });
-  }
+  // If still empty, PhrasePack lane opener
+  if (!out) out = ppLaneOpen({ requestId, lane });
 
-  // In-session greeting injection (first turn only, non-intrusive)
-  // Only if reply is currently generic or empty-ish and we haven’t greeted.
-  if ((s.__nyxIntro?.greeted || 0) === 0) {
-    const shouldGreet = s.turnCount <= 2 && (!inboundText || normText(inboundText) === "hi" || normText(inboundText) === "hello");
-    if (shouldGreet) {
-      out = prefixLines(out, [ppGreeting({ session: s, requestId, isReturn: false })]);
-      s.__nyxIntro.greeted = 1;
-    }
-  }
-
-  // Return wrapper (throttled)
-  if (isReturn) {
-    const lines = buildReturnLines({ session: s, requestId, lane });
-
-    const recapOk = laneIsKnown(lane) || laneIsMusic(lane);
-    if (recapOk) {
-      const recap = buildMicroRecap({ session: s, requestId, lane });
-      if (recap) lines.push(recap);
-    }
-
-    out = prefixLines(out, lines);
-  } else if (sig.allowReturnLanguage) {
-    // Base continuity tone occasionally (avoid overuse)
+  // Light continuity tone occasionally (non-return)
+  if (!isReturn && sig.allowReturnLanguage) {
     const addTone = (Number(s.turnCount) || 0) % 3 === 0;
     if (addTone) {
       const tone = buildContinuityToneLine({ session: s, requestId });
@@ -577,29 +853,37 @@ function shapeContinuity({ reply, session, requestId, lane, inboundText, isRetur
     }
   }
 
+  // Return wrapper
+  if (isReturn) {
+    const lines = buildReturnLines({ session: s, requestId, lane });
+    const recapOk = laneIsKnown(lane) || laneIsMusic(lane);
+    if (recapOk) {
+      const recap = buildMicroRecap({ session: s, requestId, lane });
+      if (recap) lines.push(recap);
+    }
+    out = prefixLines(out, lines);
+  }
+
   out = enforceNeverSay(out);
 
-  // Stamp return signature for loop dampening / continuity signals
   s.__lastOutSig = sha1(`${safeStr(out)}|${safeStr(lane)}|${safeStr(s.turnCount)}`).slice(0, 16);
-
-  // Never allow empty reply
   if (!out) out = ppFallbackNudge({ requestId }) || "A year usually clears things up.";
-
   return out;
 }
 
 // =========================
 // Follow-up shaping
 // =========================
-function makeFollowUpsFromChips(chips) {
+function followUpsFromChips(chips, prefix) {
   const out = [];
-  for (let i = 0; i < chips.length; i += 1) {
-    const c = chips[i];
+  const arr = Array.isArray(chips) ? chips : [];
+  for (let i = 0; i < arr.length; i += 1) {
+    const c = arr[i];
     const label = safeStr(c?.label).trim();
     const send = safeStr(c?.send).trim();
     if (!label || !send) continue;
     out.push({
-      id: `cpack_${i}_${sha1(label + "|" + send).slice(0, 8)}`,
+      id: `${prefix || "chip"}_${sha1(label + "|" + send).slice(0, 10)}`,
       type: "send",
       label,
       payload: { text: send },
@@ -611,28 +895,16 @@ function makeFollowUpsFromChips(chips) {
 // =========================
 // Main export
 // =========================
-/**
- * @param {object} input
- *   {
- *     text, message,              // inbound text (either)
- *     session,                    // mutable session state object
- *     routeHint,                  // optional: preferred lane hint
- *     requestId,                  // optional: request id
- *     debug,                      // optional: debug flag
- *     engine                      // optional: injected lane-router function
- *   }
- */
 async function chatEngine(input = {}) {
   const startedAt = nowMs();
 
   const requestId = safeStr(input.requestId || "").trim() || sha1(String(startedAt)).slice(0, 10);
   const session = ensureContinuityState(input.session || {});
   const inboundText = safeStr(input.text || input.message || "").trim();
+  const inboundNorm = normText(inboundText);
 
-  // Turn count
   session.turnCount = clampInt(session.turnCount, 0, 999999, 0) + 1;
 
-  // Optional CS-1 continuity selector/enforcer
   if (cs1 && typeof cs1.ensure === "function") {
     try {
       cs1.ensure(session);
@@ -641,42 +913,79 @@ async function chatEngine(input = {}) {
     }
   }
 
-  // Track last inbound timestamp
   session.__lastInAt = nowMs();
 
-  // Lane / ctx outputs (defaults)
   let lane = safeStr(session.lane || input.routeHint || "general");
   let ctx = session.ctx && typeof session.ctx === "object" ? session.ctx : {};
   let ui = session.ui && typeof session.ui === "object" ? session.ui : {};
 
-  // Return detection (pre-core)
   const lastOutAt = Number(session.__lastOutAt);
   const gapMs = Number.isFinite(lastOutAt) ? nowMs() - lastOutAt : NaN;
   const isReturn = isReturnIntent(inboundText) || isLikelyReturnGap(gapMs);
 
-  // Fast-path: goodbyes (short, warm, action-forward)
-  if (isGoodbye(inboundText)) {
-    const bye = ppGoodbyeSoft({ requestId });
-    const reply = shapeContinuity({
-      reply: bye,
+  const yearIn = extractYear(inboundText);
+  if (Number.isFinite(yearIn)) session.lastMusicYear = yearIn;
+
+  // =========================
+  // Packets: FIRST PASS (normal triggers)
+  // =========================
+  let packetHit = runPackets({
+    inboundText,
+    session,
+    requestId,
+    laneHint: lane,
+    specialTrigger: null,
+    year: Number.isFinite(session.lastMusicYear) ? session.lastMusicYear : yearIn,
+  });
+
+  // If greeting packet is oncePerSession, we still want it to win on early turns
+  // If no packet matched and inbound is a greeting, force greeting-first by special fallback
+  if (!packetHit.hit && /^(hi|hello|hey|yo|good morning|good afternoon|good evening)$/i.test(inboundNorm)) {
+    packetHit = runPackets({
+      inboundText,
       session,
       requestId,
-      lane,
-      inboundText,
-      isReturn: false,
+      laneHint: "general",
+      specialTrigger: null,
+      year: Number.isFinite(session.lastMusicYear) ? session.lastMusicYear : yearIn,
     });
+  }
+
+  // If packet matched, build reply + chips, apply patch + return early (no engine call)
+  if (packetHit.hit && packetHit.packet) {
+    commitPacketUse(session, packetHit.packet);
+
+    lane = safeStr(session.lane || packetHit.packet.lane || lane || "general");
+
+    let reply = safeStr(packetHit.reply).trim();
+    reply = shapeContinuity({ reply, session, requestId, lane, inboundText, isReturn });
+
+    const pktFollowUps = packetToFollowUps(packetHit.packet);
+    const followUps = pktFollowUps.slice(0, 10);
+    const followUpsStrings = followUps.map((f) => f.label);
+
+    // Also add continuity chips on returns (but keep packet chips first)
+    let finalFollowUps = followUps;
+    let finalFollowUpsStrings = followUpsStrings;
+
+    if (isReturn) {
+      const contChips = buildContinuityChips({ session, lane });
+      const contFollow = followUpsFromChips(contChips, "cont");
+      finalFollowUps = followUps.concat(contFollow).slice(0, 10);
+      finalFollowUpsStrings = finalFollowUps.map((f) => f.label).slice(0, 10);
+    }
 
     session.__lastOutAt = nowMs();
 
     return {
       ok: true,
       reply,
-      lane: lane || "general",
+      lane,
       ctx,
       ui,
       directives: [],
-      followUps: [],
-      followUpsStrings: [],
+      followUps: finalFollowUps,
+      followUpsStrings: finalFollowUpsStrings,
       sessionPatch: {
         turnCount: session.turnCount,
         lane: session.lane,
@@ -687,35 +996,34 @@ async function chatEngine(input = {}) {
         __lastOutSig: session.__lastOutSig,
         __nyxCont: session.__nyxCont,
         __nyxIntro: session.__nyxIntro,
+        __nyxPackets: session.__nyxPackets,
         lastMusicYear: session.lastMusicYear,
         activeMusicMode: session.activeMusicMode,
         __cs1: session.__cs1,
       },
-      cog: { phase: "closing" },
+      cog: { phase: "listening" },
       requestId,
       meta: {
         engine: CE_VERSION,
+        packets: `${NYX_PACKETS.version} (${NYX_PACKETS.updated})`,
         phrasepack: `${NYX_PHRASEPACK.version} (${NYX_PHRASEPACK.updated})`,
         pack: `${NYX_CONV_PACK.meta.name} ${NYX_CONV_PACK.meta.version}`,
         ms: nowMs() - startedAt,
+        packetId: packetHit.packet.id,
       },
     };
   }
 
-  // -------------------------
-  // Core lane handling
-  // -------------------------
-  // If you already have lane routing elsewhere, inject it via input.engine.
-  // engine signature: async ({text, session, requestId}) => {reply,lane,ctx,ui,followUps, directives, cog}
+  // =========================
+  // Core lane handling (engine)
+  // =========================
   let core = null;
   if (typeof input.engine === "function") {
     core = await input.engine({ text: inboundText, session, requestId });
   } else {
-    // Minimal safe fallback using PhrasePack (host-voice)
-    // - If user gave a year, assume music lens and offer mode prompt.
-    const y = extractYear(inboundText);
+    // Safe fallback using PhrasePack
+    const y = Number.isFinite(session.lastMusicYear) ? session.lastMusicYear : extractYear(inboundText);
     const fallbackLane = y ? "music" : lane || "general";
-
     core = {
       reply: y ? ppMusicModePrompt({ requestId, year: y }) : ppLaneOpen({ requestId, lane: fallbackLane }),
       lane: fallbackLane,
@@ -725,65 +1033,94 @@ async function chatEngine(input = {}) {
       directives: [],
       cog: { phase: "listening" },
     };
-
-    // Remember year if inferred
     if (y) {
       session.lastMusicYear = y;
       session.activeMusicMode = session.activeMusicMode || "top10";
     }
   }
 
-  // Normalize core output
   lane = safeStr(core?.lane || lane || "general");
   session.lane = lane;
 
   ctx = core?.ctx && typeof core.ctx === "object" ? core.ctx : ctx;
   ui = core?.ui && typeof core.ui === "object" ? core.ui : ui;
 
-  // -------------------------
-  // PhrasePack: tactical nudges for common music situations
-  // -------------------------
-  // If lane is music and we still don’t have a year, nudge for a year (short).
-  if (laneIsMusic(lane)) {
-    const yIn = extractYear(inboundText);
-    const ySess = Number(session.lastMusicYear);
-    const haveYear = Number.isFinite(ySess) || Number.isFinite(yIn);
-    if (yIn && !Number.isFinite(ySess)) session.lastMusicYear = yIn;
-    if (!haveYear) {
-      core.reply = core.reply || ppMusicAskYear({ requestId });
-    } else if (!core.reply && (yIn || ySess)) {
-      const y = Number.isFinite(yIn) ? yIn : ySess;
-      core.reply = ppMusicModePrompt({ requestId, year: y });
-    }
+  // =========================
+  // Packets: SECOND PASS (special triggers derived from context)
+  // =========================
+  // If music lane & year is present, inject mode prompt packet when core didn't provide strong guidance.
+  const yFinal = Number.isFinite(session.lastMusicYear) ? session.lastMusicYear : extractYear(inboundText);
+
+  let special = null;
+  if (laneIsMusic(lane) && Number.isFinite(yFinal)) {
+    // If core reply is empty-ish or user only provided a year, use mode prompt.
+    const coreNorm = normText(core?.reply || "");
+    const justYear = !!inboundText && !!yFinal && normText(inboundText) === String(yFinal);
+    if (!coreNorm || justYear) special = "__mode_prompt__";
+  } else if (laneIsMusic(lane) && !Number.isFinite(yFinal)) {
+    // Ask for year packet
+    special = null; // normal triggers already cover music.ask_year via keywords
   }
 
-  // -------------------------
-  // Continuity + PhrasePack shaping
-  // -------------------------
+  let packet2 = { hit: false };
+  if (special) {
+    packet2 = runPackets({
+      inboundText,
+      session,
+      requestId,
+      laneHint: lane,
+      specialTrigger: special,
+      year: yFinal,
+    });
+  }
+
   let reply = safeStr(core?.reply || "").trim();
-
-  // If the core response looks like a null/empty event, replace with PhrasePack error/fallback
-  if (!reply) {
-    reply = ppErrorGeneric({ requestId }) || ppFallbackNudge({ requestId });
-  }
-
-  reply = shapeContinuity({ reply, session, requestId, lane, inboundText, isReturn });
-
-  // Return chips if return detected OR user explicitly typed return intent
   let followUps = Array.isArray(core?.followUps) ? core.followUps.slice(0) : [];
   let followUpsStrings = Array.isArray(core?.followUpsStrings) ? core.followUpsStrings.slice(0) : [];
 
-  if (isReturn) {
-    const chips = buildContinuityChips({ session, lane });
-    const chipFollowUps = makeFollowUpsFromChips(chips);
+  if (packet2.hit && packet2.packet) {
+    commitPacketUse(session, packet2.packet);
+    lane = safeStr(session.lane || lane);
 
-    followUps = chipFollowUps.concat(followUps).slice(0, 10);
-    followUpsStrings = chipFollowUps.map((f) => f.label).slice(0, 10);
+    reply = safeStr(packet2.reply).trim() || reply;
+    const pktFollow = packetToFollowUps(packet2.packet);
+    followUps = pktFollow.concat(followUps).slice(0, 10);
+    followUpsStrings = followUps.map((f) => f.label).slice(0, 10);
   }
 
-  // -------------------------
-  // CS-1 mark speak events on early return wrappers
-  // -------------------------
+  // If still empty, use fallback packet (__fallback__)
+  if (!reply) {
+    const fb = runPackets({
+      inboundText,
+      session,
+      requestId,
+      laneHint: "general",
+      specialTrigger: "__fallback__",
+      year: yFinal,
+    });
+    if (fb.hit && fb.packet) {
+      commitPacketUse(session, fb.packet);
+      reply = safeStr(fb.reply).trim();
+      const fbFollow = packetToFollowUps(fb.packet);
+      followUps = fbFollow.concat(followUps).slice(0, 10);
+      followUpsStrings = followUps.map((f) => f.label).slice(0, 10);
+    } else {
+      reply = ppFallbackNudge({ requestId }) || "A year usually clears things up.";
+    }
+  }
+
+  // Continuity shaping
+  reply = shapeContinuity({ reply, session, requestId, lane, inboundText, isReturn });
+
+  // Return chips on return
+  if (isReturn) {
+    const contChips = buildContinuityChips({ session, lane });
+    const contFollow = followUpsFromChips(contChips, "cont");
+    followUps = contFollow.concat(followUps).slice(0, 10);
+    followUpsStrings = followUps.map((f) => f.label).slice(0, 10);
+  }
+
+  // CS-1 mark speak
   if (cs1 && typeof cs1.markSpeak === "function") {
     try {
       if (isReturn) cs1.markSpeak(session, "reentry");
@@ -792,57 +1129,44 @@ async function chatEngine(input = {}) {
     }
   }
 
-  // -------------------------
-  // Update last out stamps
-  // -------------------------
   session.__lastOutAt = nowMs();
-
-  // Allowlisted sessionPatch (keep tight; include continuity keys explicitly)
-  const sessionPatch = {
-    turnCount: session.turnCount,
-    lane: session.lane,
-    ctx,
-    ui,
-
-    // continuity / return
-    __lastInAt: session.__lastInAt,
-    __lastOutAt: session.__lastOutAt,
-    __lastOutSig: session.__lastOutSig,
-    __nyxCont: session.__nyxCont,
-    __nyxIntro: session.__nyxIntro,
-
-    // music continuity cues
-    lastMusicYear: session.lastMusicYear,
-    activeMusicMode: session.activeMusicMode,
-
-    // cs1 continuity state (optional)
-    __cs1: session.__cs1,
-  };
 
   const out = {
     ok: true,
     reply,
-    lane,
-    ctx,
-    ui,
+    lane: lane || "general",
+    ctx: ctx || {},
+    ui: ui || {},
     directives: Array.isArray(core?.directives) ? core.directives : [],
     followUps,
     followUpsStrings,
-    sessionPatch,
+    sessionPatch: {
+      turnCount: session.turnCount,
+      lane: session.lane,
+      ctx,
+      ui,
+      __lastInAt: session.__lastInAt,
+      __lastOutAt: session.__lastOutAt,
+      __lastOutSig: session.__lastOutSig,
+      __nyxCont: session.__nyxCont,
+      __nyxIntro: session.__nyxIntro,
+      __nyxPackets: session.__nyxPackets,
+      lastMusicYear: session.lastMusicYear,
+      activeMusicMode: session.activeMusicMode,
+      __cs1: session.__cs1,
+    },
     cog: core?.cog || { phase: "listening" },
     requestId,
     meta: {
       engine: CE_VERSION,
-      pack: `${NYX_CONV_PACK.meta.name} ${NYX_CONV_PACK.meta.version}`,
+      packets: `${NYX_PACKETS.version} (${NYX_PACKETS.updated})`,
       phrasepack: `${NYX_PHRASEPACK.version} (${NYX_PHRASEPACK.updated})`,
+      pack: `${NYX_CONV_PACK.meta.name} ${NYX_CONV_PACK.meta.version}`,
       ms: nowMs() - startedAt,
-      continuityLevel: computeContinuitySignals(session).continuityLevel,
-      reentryStyle: computeContinuitySignals(session).reentryStyle,
     },
   };
 
-  // Never allow empty contract fields that your index.js enforcer might reject
-  if (!out.reply) out.reply = ppFallbackNudge({ requestId }) || "A year usually clears things up.";
+  if (!out.reply) out.reply = "A year usually clears things up.";
   if (!out.lane) out.lane = "general";
   if (!out.ctx) out.ctx = {};
   if (!out.ui) out.ui = {};
