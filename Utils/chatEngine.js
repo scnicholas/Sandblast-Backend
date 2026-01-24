@@ -16,12 +16,13 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.6zG (INTRO GATE: FIRST TURN HARD-LOCK + INTENT BYPASS)
+ * v0.6zH (INTRO GATE: FIRST TURN HARD-LOCK + INTENT BYPASS + TEMPLATE SAFETY)
  *
  * Fixes:
  *  ✅ Intro is ALWAYS served on first turn unless user clearly intended a task
  *  ✅ Prevents “Got it. Tell me a year…” from stealing the opening
  *  ✅ Keeps Packets/PhrasePack/ConvPack fully intact
+ *  ✅ Fix template interpolation escaping (prevents regex oddities on {year}, etc.)
  */
 
 const crypto = require("crypto");
@@ -30,7 +31,7 @@ const crypto = require("crypto");
 // Version
 // =========================
 const CE_VERSION =
-  "chatEngine v0.6zG (INTRO FIRST-TURN HARD-LOCK + INTENT BYPASS; CS-1 + ConvPack 3.1-C + PhrasePack v1.1 + Packets v1.1-C)";
+  "chatEngine v0.6zH (INTRO FIRST-TURN HARD-LOCK + INTENT BYPASS; template-escape fix; CS-1 + ConvPack 3.1-C + PhrasePack v1.1 + Packets v1.1-C)";
 
 // =========================
 // Canonical Intro (HARD-LOCK)
@@ -244,25 +245,38 @@ const NYX_PACKETS = {
 // =========================
 // Helpers
 // =========================
-function nowMs() { return Date.now(); }
-function safeStr(x) { return x === null || x === undefined ? "" : String(x); }
+function nowMs() {
+  return Date.now();
+}
+function safeStr(x) {
+  return x === null || x === undefined ? "" : String(x);
+}
 function clampInt(n, lo, hi, fallback) {
   const v = Number(n);
   if (!Number.isFinite(v)) return fallback;
   return Math.max(lo, Math.min(hi, Math.floor(v)));
 }
-function sha1(s) { return crypto.createHash("sha1").update(String(s)).digest("hex"); }
+function sha1(s) {
+  return crypto.createHash("sha1").update(String(s)).digest("hex");
+}
 function pickDeterministic(arr, seed) {
   if (!Array.isArray(arr) || arr.length === 0) return "";
   const h = sha1(seed || "seed");
   const n = parseInt(h.slice(0, 8), 16);
   return arr[n % arr.length];
 }
-function normText(s) { return safeStr(s).trim().replace(/\s+/g, " ").toLowerCase(); }
+function normText(s) {
+  return safeStr(s).trim().replace(/\s+/g, " ").toLowerCase();
+}
+function escapeRegExp(s) {
+  return safeStr(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 function interpolateTemplate(s, vars) {
   let out = safeStr(s);
-  Object.keys(vars || {}).forEach((k) => {
-    out = out.replace(new RegExp(`\{${k}\}`, "g"), safeStr(vars[k]));
+  const v = vars && typeof vars === "object" ? vars : {};
+  Object.keys(v).forEach((k) => {
+    const rx = new RegExp(`\\{${escapeRegExp(k)}\\}`, "g");
+    out = out.replace(rx, safeStr(v[k]));
   });
   return out;
 }
@@ -310,7 +324,8 @@ function hasStrongFirstTurnIntent(text) {
   if (/\b(top\s*10|top10|story\s*moment|micro\s*moment|#1|number\s*1|chart|songs)\b/i.test(t)) return true;
 
   // Clear lane intents.
-  if (/\b(schedule|what'?s playing|playing now|sponsor|sponsors|advertis|ad package|movies|movie|watch|show|tv|radio|roku)\b/i.test(t)) return true;
+  if (/\b(schedule|what'?s playing|playing now|sponsor|sponsors|advertis|ad package|movies|movie|watch|show|tv|radio|roku)\b/i.test(t))
+    return true;
 
   // If user typed a real sentence (not greeting), treat as intent.
   // This prevents us from hijacking serious first messages.
@@ -349,7 +364,9 @@ function ppPick(bucketPath, seed, vars) {
   const line = pickDeterministic(ref, seed);
   return interpolateTemplate(line, vars || {});
 }
-function ppFallbackNudge({ requestId }) { return ppPick(["general", "fallback_nudge"], `${requestId || "req"}|fallback`); }
+function ppFallbackNudge({ requestId }) {
+  return ppPick(["general", "fallback_nudge"], `${requestId || "req"}|fallback`);
+}
 function ppMusicModePrompt({ requestId, year }) {
   return ppPick(["music", "mode_prompt_has_year"], `${requestId || "req"}|music|mode|${year}`, { year });
 }
@@ -411,9 +428,9 @@ function enforceNeverSay(reply) {
   const prefer = NYX_CONV_PACK.guardrails.prefer_say || [];
   for (const phrase of bad) {
     if (!phrase) continue;
-    const rx = new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    const rx = new RegExp(escapeRegExp(phrase), "i");
     if (rx.test(out)) {
-      out = pickDeterministic(prefer, `prefer|${phrase}|${sha1(out)}`) + " " + out;
+      out = `${pickDeterministic(prefer, `prefer|${phrase}|${sha1(out)}`)} ${out}`;
       break;
     }
   }
@@ -456,7 +473,7 @@ function followUpsFromChips(chips, prefix) {
     const send = safeStr(c?.send).trim();
     if (!label || !send) continue;
     out.push({
-      id: `${prefix || "chip"}_${sha1(label + "|" + send).slice(0, 10)}`,
+      id: `${prefix || "chip"}_${sha1(`${label}|${send}`).slice(0, 10)}`,
       type: "send",
       label,
       payload: { text: send },
@@ -479,7 +496,11 @@ async function chatEngine(input = {}) {
   session.turnCount = clampInt(session.turnCount, 0, 999999, 0) + 1;
 
   if (cs1 && typeof cs1.ensure === "function") {
-    try { cs1.ensure(session); } catch (e) { /* ignore */ }
+    try {
+      cs1.ensure(session);
+    } catch (e) {
+      /* ignore */
+    }
   }
 
   session.__lastInAt = nowMs();
@@ -516,6 +537,7 @@ async function chatEngine(input = {}) {
     });
 
     const followUps = followUpsFromChips(CANON_INTRO_CHIPS, "intro").slice(0, 10);
+    const followUpsStrings = followUps.map((f) => f.label).slice(0, 10);
 
     session.__lastOutAt = nowMs();
 
@@ -527,7 +549,7 @@ async function chatEngine(input = {}) {
       ui,
       directives: [],
       followUps,
-      followUpsStrings: followUps.map((f) => f.label),
+      followUpsStrings,
       sessionPatch: {
         turnCount: session.turnCount,
         lane: session.lane,
@@ -588,8 +610,8 @@ async function chatEngine(input = {}) {
   ui = core?.ui && typeof core.ui === "object" ? core.ui : ui;
 
   let reply = safeStr(core?.reply || "").trim();
-  let followUps = Array.isArray(core?.followUps) ? core.followUps.slice(0) : [];
-  let followUpsStrings = Array.isArray(core?.followUpsStrings) ? core.followUpsStrings.slice(0) : [];
+  let followUps = Array.isArray(core?.followUps) ? core.followUps.slice(0, 10) : [];
+  let followUpsStrings = Array.isArray(core?.followUpsStrings) ? core.followUpsStrings.slice(0, 10) : [];
 
   if (!reply) reply = ppFallbackNudge({ requestId }) || "A year usually clears things up.";
 
