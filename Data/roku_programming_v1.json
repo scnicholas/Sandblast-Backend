@@ -1,10 +1,20 @@
 {
-  "version": "roku_programming_v1",
+  "version": "roku_programming_v1.1.0",
+  "timezoneCanonical": "America/Toronto",
   "authoringTimezone": "America/Toronto",
+  "blockSizeMinutes": 30,
+  "ui": {
+    "priority": ["NOW_NEXT_TODAY", "TODAY", "FULL_WEEK"],
+    "notes": "Author in ET. Lane converts to user-local time."
+  },
   "shows": [
     {
       "id": "gospel_sunday",
       "title": "Gospel Sunday",
+      "description": "Sunday evening gospel programming block.",
+      "href": "nyx:show:gospel_sunday",
+      "nyxPayload": "show:gospel_sunday",
+      "tags": ["gospel", "sunday", "music"],
       "days": ["SUN"],
       "start": "18:00",
       "durationMin": 240
@@ -12,9 +22,63 @@
     {
       "id": "nyx_music_block",
       "title": "Nyx Music Block",
+      "description": "Weeknight music block hosted by Nyx.",
+      "href": "nyx:show:nyx_music_block",
+      "nyxPayload": "show:nyx_music_block",
+      "tags": ["music", "nyx", "weeknights"],
       "days": ["MON", "TUE", "WED", "THU", "FRI"],
       "start": "20:00",
       "durationMin": 120
     }
-  ]
+  ],
+
+  "week": {
+    "Sunday": [
+      { "startET": "18:00", "show": { "id": "gospel_sunday", "title": "Gospel Sunday", "nyxPayload": "show:gospel_sunday", "href": "nyx:show:gospel_sunday" } },
+      { "startET": "18:30", "show": { "id": "gospel_sunday", "title": "Gospel Sunday", "nyxPayload": "show:gospel_sunday", "href": "nyx:show:gospel_sunday" } },
+      { "startET": "19:00", "show": { "id": "gospel_sunday", "title": "Gospel Sunday", "nyxPayload": "show:gospel_sunday", "href": "nyx:show:gospel_sunday" } },
+      { "startET": "19:30", "show": { "id": "gospel_sunday", "title": "Gospel Sunday", "nyxPayload": "show:gospel_sunday", "href": "nyx:show:gospel_sunday" } },
+      { "startET": "20:00", "show": { "id": "gospel_sunday", "title": "Gospel Sunday", "nyxPayload": "show:gospel_sunday", "href": "nyx:show:gospel_sunday" } },
+      { "startET": "20:30", "show": { "id": "gospel_sunday", "title": "Gospel Sunday", "nyxPayload": "show:gospel_sunday", "href": "nyx:show:gospel_sunday" } },
+      { "startET": "21:00", "show": { "id": "gospel_sunday", "title": "Gospel Sunday", "nyxPayload": "show:gospel_sunday", "href": "nyx:show:gospel_sunday" } },
+      { "startET": "21:30", "show": { "id": "gospel_sunday", "title": "Gospel Sunday", "nyxPayload": "show:gospel_sunday", "href": "nyx:show:gospel_sunday" } }
+    ],
+
+    "Monday": [
+      { "startET": "20:00", "show": { "id": "nyx_music_block", "title": "Nyx Music Block", "nyxPayload": "show:nyx_music_block", "href": "nyx:show:nyx_music_block" } },
+      { "startET": "20:30", "show": { "id": "nyx_music_block", "title": "Nyx Music Block", "nyxPayload": "show:nyx_music_block", "href": "nyx:show:nyx_music_block" } },
+      { "startET": "21:00", "show": { "id": "nyx_music_block", "title": "Nyx Music Block", "nyxPayload": "show:nyx_music_block", "href": "nyx:show:nyx_music_block" } },
+      { "startET": "21:30", "show": { "id": "nyx_music_block", "title": "Nyx Music Block", "nyxPayload": "show:nyx_music_block", "href": "nyx:show:nyx_music_block" } }
+    ],
+
+    "Tuesday": [
+      { "startET": "20:00", "show": { "id": "nyx_music_block", "title": "Nyx Music Block", "nyxPayload": "show:nyx_music_block", "href": "nyx:show:nyx_music_block" } },
+      { "startET": "20:30", "show": { "id": "nyx_music_block", "title": "Nyx Music Block", "nyxPayload": "show:nyx_music_block", "href": "nyx:show:nyx_music_block" } },
+      { "startET": "21:00", "show": { "id": "nyx_music_block", "title": "Nyx Music Block", "nyxPayload": "show:nyx_music_block", "href": "nyx:show:nyx_music_block" } },
+      { "startET": "21:30", "show": { "id": "nyx_music_block", "title": "Nyx Music Block", "nyxPayload": "show:nyx_music_block", "href": "nyx:show:nyx_music_block" } }
+    ],
+
+    "Wednesday": [
+      { "startET": "20:00", "show": { "id": "nyx_music_block", "title": "Nyx Music Block", "nyxPayload": "show:nyx_music_block", "href": "nyx:show:nyx_music_block" } },
+      { "startET": "20:30", "show": { "id": "nyx_music_block", "title": "Nyx Music Block", "nyxPayload": "show:nyx_music_block", "href": "nyx:show:nyx_music_block" } },
+      { "startET": "21:00", "show": { "id": "nyx_music_block", "title": "Nyx Music Block", "nyxPayload": "show:nyx_music_block", "href": "nyx:show:nyx_music_block" } },
+      { "startET": "21:30", "show": { "id": "nyx_music_block", "title": "Nyx Music Block", "nyxPayload": "show:nyx_music_block", "href": "nyx:show:nyx_music_block" } }
+    ],
+
+    "Thursday": [
+      { "startET": "20:00", "show": { "id": "nyx_music_block", "title": "Nyx Music Block", "nyxPayload": "show:nyx_music_block", "href": "nyx:show:nyx_music_block" } },
+      { "startET": "20:30", "show": { "id": "nyx_music_block", "title": "Nyx Music Block", "nyxPayload": "show:nyx_music_block", "href": "nyx:show:nyx_music_block" } },
+      { "startET": "21:00", "show": { "id": "nyx_music_block", "title": "Nyx Music Block", "nyxPayload": "show:nyx_music_block", "href": "nyx:show:nyx_music_block" } },
+      { "startET": "21:30", "show": { "id": "nyx_music_block", "title": "Nyx Music Block", "nyxPayload": "show:nyx_music_block", "href": "nyx:show:nyx_music_block" } }
+    ],
+
+    "Friday": [
+      { "startET": "20:00", "show": { "id": "nyx_music_block", "title": "Nyx Music Block", "nyxPayload": "show:nyx_music_block", "href": "nyx:show:nyx_music_block" } },
+      { "startET": "20:30", "show": { "id": "nyx_music_block", "title": "Nyx Music Block", "nyxPayload": "show:nyx_music_block", "href": "nyx:show:nyx_music_block" } },
+      { "startET": "21:00", "show": { "id": "nyx_music_block", "title": "Nyx Music Block", "nyxPayload": "show:nyx_music_block", "href": "nyx:show:nyx_music_block" } },
+      { "startET": "21:30", "show": { "id": "nyx_music_block", "title": "Nyx Music Block", "nyxPayload": "show:nyx_music_block", "href": "nyx:show:nyx_music_block" } }
+    ],
+
+    "Saturday": []
+  }
 }
