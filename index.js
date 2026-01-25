@@ -1,7 +1,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17zc
+ * index.js v1.5.17zd
  * (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION +
  *  ✅ SESSIONPATCH EXPANDED (CONTINUITY PERSIST FIX) + ✅ CONVERSATIONAL CONTRACT ENFORCER (HARD) +
  *  ✅ ROUTE HINT AWARE COG NORMALIZATION + ✅ ENV KNOBS HARDENED +
@@ -9,7 +9,9 @@
  *  ✅ ROKU BRIDGE DIRECTIVE (STRUCTURED CTA) + ✅ CTA COOLDOWN + SESSION TELEMETRY +
  *  ✅ CORS PREFLIGHT FIX (TTS) + ✅ SANDBLAST ORIGIN FORCE-ALLOW +
  *  ✅ COS PERSISTENCE WIRING (session.cog allowlist + sanitize + normalizeCog reads session.cog) +
- *  ✅ DIRECTIVES HARDENING (sanitize objects + clamp) + ✅ NO DUPLICATE bridge_roku
+ *  ✅ DIRECTIVES HARDENING (sanitize objects + clamp) + ✅ NO DUPLICATE bridge_roku +
+ *  ✅ TTS JSON-PARSE RECOVERY (NO_TEXT / raw string payloads) +
+ *  ✅ INTRO FALLBACK GUARD (only when chatEngine missing/fails + greeting)
  */
 
 const express = require("express");
@@ -65,7 +67,7 @@ if (TRUST_PROXY) {
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.17zc (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + SESSIONPATCH EXPANDED + CONTRACT ENFORCER + ROUTE HINT COG + ENV HARDENED + TRUST PROXY + DISCOVERY ROUTES + ROKU DIRECTIVE + CORS PREFLIGHT FIX + COS PERSISTENCE + DIRECTIVES HARDENING + NO DUPLICATE bridge_roku)";
+  "index.js v1.5.17zd (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + SESSIONPATCH EXPANDED + CONTRACT ENFORCER + ROUTE HINT COG + ENV HARDENED + TRUST PROXY + DISCOVERY ROUTES + ROKU DIRECTIVE + CORS PREFLIGHT FIX + COS PERSISTENCE + DIRECTIVES HARDENING + NO DUPLICATE bridge_roku + TTS JSON-PARSE RECOVERY + INTRO FALLBACK GUARD)";
 
 const GIT_COMMIT =
   String(process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "").trim() || null;
@@ -137,6 +139,19 @@ function sha256(s) {
 function ua(req) {
   return normalizeStr(req.get("user-agent") || "");
 }
+
+/* ======================================================
+   Intro Fallback Guard (additive; only used when chatEngine is missing/fails)
+====================================================== */
+
+function isGreetingText(text) {
+  const t = normCmd(text || "");
+  if (!t) return true;
+  return /^(hi|hey|hello|yo|hiya|good morning|good afternoon|good evening|sup|what's up|whats up)\b/.test(t);
+}
+
+const INTRO_FALLBACK_TEXT =
+  "Hi — I’m Nyx.\n\nIf you want nostalgia-by-year, give me a year from 1950–2024.\nExamples: “top 10 1988”, “#1 1964”, “story moment 1977”, “micro moment 1999”.\n\nOr just tell me what you’re in the mood for, and I’ll steer.";
 
 /* ======================================================
    COS (Cognitive OS) sanitizer (session.cog persistence)
@@ -603,10 +618,56 @@ app.use(express.text({ type: ["text/*"], limit: "1mb", verify: rawBodySaver }));
 
 /* ======================================================
    JSON parse error handler
+   ✅ PATCH: TTS/VOICE recovery for non-JSON bodies (NO_TEXT / raw string)
 ====================================================== */
+
+function isJsonParseErr(err) {
+  try {
+    if (!err) return false;
+    const t = String(err.type || "");
+    if (t === "entity.parse.failed") return true;
+    const msg = String(err.message || "");
+    return /unexpected token|json|parse/i.test(msg);
+  } catch (_) {
+    return false;
+  }
+}
+
+function isTtsOrVoicePath(req) {
+  try {
+    const p = String(req.path || req.url || "");
+    return p === "/api/tts" || p === "/api/voice";
+  } catch (_) {
+    return false;
+  }
+}
 
 app.use((err, req, res, next) => {
   if (!err) return next();
+
+  // ✅ If TTS/VOICE declares JSON but sends non-JSON, do NOT brick voice.
+  if (isTtsOrVoicePath(req) && isJsonParseErr(err)) {
+    const raw = normalizeStr(req.rawBody || "");
+    const up = raw.toUpperCase();
+
+    // Common widget behavior: send "NO_TEXT" with application/json
+    if (!raw || up === "NO_TEXT") {
+      req.body = { NO_TEXT: true };
+      return next();
+    }
+
+    // If it's valid JSON after all, accept it
+    try {
+      const parsed = JSON.parse(raw);
+      req.body = parsed;
+      return next();
+    } catch (_) {
+      // Otherwise treat as plain text body
+      req.body = { text: raw };
+      return next();
+    }
+  }
+
   const requestId = req.get("X-Request-Id") || rid();
   setContractHeaders(res, requestId);
 
@@ -639,7 +700,7 @@ app.use((req, res, next) => {
 const MAX_SESSIONS = Math.max(0, Number(process.env.MAX_SESSIONS || 0));
 const SESSION_TTL_MS = clamp(
   process.env.SESSION_TTL_MS || 6 * 60 * 60 * 1000,
-  10 * 60 * 1000,
+  10 * 60 * 60 * 1000,
   24 * 60 * 60 * 1000
 );
 const SESSIONS = new Map();
@@ -1661,6 +1722,13 @@ app.post("/api/chat", async (req, res) => {
 
     let finalReply = String(baseReply || "").trim();
     if (!finalReply) finalReply = fallbackReply(text);
+
+    // ✅ INTRO FALLBACK GUARD (only if chatEngine failed/missing AND user greeted AND intro not done)
+    if (!out && !session.introDone && isGreetingText(text)) {
+      finalReply = INTRO_FALLBACK_TEXT;
+      session.introDone = true;
+      session.introAt = now;
+    }
 
     const eligible = bridgeEligible({ text, session, out, now });
     let bridgeInjected = null;
