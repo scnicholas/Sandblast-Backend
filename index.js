@@ -1,5 +1,3 @@
-AUdit index.js and make necessary fixes if needed..."use strict";
-
 /**
  * Sandblast Backend — index.js
  *
