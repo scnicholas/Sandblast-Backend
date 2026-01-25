@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17ze
+ * index.js v1.5.17zf
  * (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION +
  *  ✅ SESSIONPATCH EXPANDED (CONTINUITY PERSIST FIX) + ✅ CONVERSATIONAL CONTRACT ENFORCER (HARD) +
  *  ✅ ROUTE HINT AWARE COG NORMALIZATION + ✅ ENV KNOBS HARDENED +
@@ -14,7 +14,9 @@
  *  ✅ DIRECTIVES HARDENING (sanitize objects + clamp) + ✅ NO DUPLICATE bridge_roku +
  *  ✅ TTS JSON-PARSE RECOVERY (NO_TEXT / raw string payloads) +
  *  ✅ INTRO FALLBACK GUARD (only when chatEngine missing/fails + greeting) +
- *  ✅ LOOP FUSE v2 (input-signature dedupe + repeat clamp + quiet payload on runaway)
+ *  ✅ FALLBACK INTRO RANDOMIZER (per session; non-rigid; brand-aligned) +
+ *  ✅ LOOP FUSE v2 (input-signature dedupe + repeat clamp + quiet payload on runaway) +
+ *  ✅ FIX: SESSION_TTL_MS clamp (was forcing 10h min unintentionally)
  */
 
 const express = require("express");
@@ -70,7 +72,7 @@ if (TRUST_PROXY) {
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.17ze (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + SESSIONPATCH EXPANDED + CONTRACT ENFORCER + ROUTE HINT COG + ENV HARDENED + TRUST PROXY + DISCOVERY ROUTES + ROKU DIRECTIVE + CORS PREFLIGHT FIX + COS PERSISTENCE + DIRECTIVES HARDENING + NO DUPLICATE bridge_roku + TTS JSON-PARSE RECOVERY + INTRO FALLBACK GUARD + LOOP FUSE v2)";
+  "index.js v1.5.17zf (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + SESSIONPATCH EXPANDED + CONTRACT ENFORCER + ROUTE HINT COG + ENV HARDENED + TRUST PROXY + DISCOVERY ROUTES + ROKU DIRECTIVE + CORS PREFLIGHT FIX + COS PERSISTENCE + DIRECTIVES HARDENING + NO DUPLICATE bridge_roku + TTS JSON-PARSE RECOVERY + INTRO FALLBACK GUARD + FALLBACK INTRO RANDOMIZER + LOOP FUSE v2 + TTL CLAMP FIX)";
 
 const GIT_COMMIT =
   String(process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "").trim() || null;
@@ -155,8 +157,34 @@ function isGreetingText(text) {
   );
 }
 
-const INTRO_FALLBACK_TEXT =
-  "Hi — I’m Nyx.\n\nIf you want nostalgia-by-year, give me a year from 1950–2024.\nExamples: “top 10 1988”, “#1 1964”, “story moment 1977”, “micro moment 1999”.\n\nOr just tell me what you’re in the mood for, and I’ll steer.";
+/**
+ * FALLBACK INTRO RANDOMIZER (per session):
+ * - Only used when chatEngine missing/fails AND greeting AND intro not done.
+ * - Stable per session (no re-random every message).
+ * - Keeps the brand: continuity, calm intelligence, Roku bridge as optional posture shift.
+ */
+const INTRO_FALLBACK_BANK = [
+  "Hi — I’m Nyx.\n\nPick a year from 1950–2024 and I’ll give you something worth remembering.\nTry: “top 10 1988”, “#1 1964”, “story moment 1977”, “micro moment 1999”.\n\nOr tell me what kind of mood you’re in, and I’ll steer.",
+  "Welcome back to Sandblast.\n\nGive me a year (1950–2024) and choose a lane: “top 10”, “#1”, “story moment”, or “micro moment”.\nExample: “story moment 1969”.\n\nIf you want the big-screen posture, say “Roku”.",
+  "Hey — Nyx here.\n\nYou can drive this two ways:\n1) Year-first: “top 10 1988”\n2) Feeling-first: “something calm and nostalgic”\n\nI’ll translate either into a good next step.",
+  "Hi. We do nostalgia with precision here.\n\nDrop a year (1950–2024), then pick: Top 10, #1, Story moment, Micro moment.\nExample: “micro moment 1983”.\n\nIf you’d rather watch than chat, just say “Roku”.",
+  "Welcome.\n\nTell me a year (1950–2024) and I’ll make it feel alive again.\nExamples: “top 10 1975”, “#1 1992”, “story moment 1957”.\n\nYour pace. I’ll keep it coherent.",
+];
+
+function pickFallbackIntroForSession(session) {
+  // stable per session; no churn; no repeated “rigid intro”
+  const n = INTRO_FALLBACK_BANK.length || 1;
+  const existing = Number(session && session.introId);
+  if (Number.isFinite(existing) && existing >= 0 && existing < n) {
+    return { id: existing, text: INTRO_FALLBACK_BANK[existing] };
+  }
+  // derive from sessionId if present; otherwise randomBytes as last resort
+  const sid = normalizeStr(session && session.sessionId ? session.sessionId : "");
+  const seed = sid ? sha256(sid).slice(0, 8) : crypto.randomBytes(4).toString("hex");
+  const idx = parseInt(seed, 16) % n;
+  if (session) session.introId = idx;
+  return { id: idx, text: INTRO_FALLBACK_BANK[idx] };
+}
 
 /* ======================================================
    COS (Cognitive OS) sanitizer (session.cog persistence)
@@ -348,8 +376,13 @@ const SERVER_OWNED_KEYS = new Set([
 ]);
 
 const SESSION_PATCH_ALLOW = new Set([
+  // intro / continuity
   "introDone",
   "introAt",
+  "introId",
+  "introServed",
+  "introVariant",
+
   "lastInText",
   "lastInAt",
   "lastOut",
@@ -376,6 +409,10 @@ const SESSION_PATCH_ALLOW = new Set([
   "recentIntent",
   "recentTopic",
   "activeMusicMode",
+  "activeMusicChart",
+  "lastMusicChart",
+  "__musicLastSig",
+  "__musicLastAt",
   "lastMusicYear",
   "year",
   "mode",
@@ -486,7 +523,7 @@ function normalizeCog(out, session, routeHint) {
 
   const state =
     (oc && typeof oc.state === "string" && oc.state.trim() ? oc.state : null) ||
-    (sc && typeof sc.state === "string" && sc.state.trim() ? sc.state : null) ||
+    (sc && typeof sc.state === "string" && sc.state.trim() ? sc.phase : null) || // safe fallback
     "confident";
 
   const reason =
@@ -533,6 +570,10 @@ function normalizeCog(out, session, routeHint) {
     lastShiftAt,
     ts: Date.now(),
   };
+}
+
+function capsPayload() {
+  return { music: true, movies: true, sponsors: true, schedule: true, tts: true, cos: true };
 }
 
 function enforceChatContract({
@@ -784,11 +825,17 @@ app.use((req, res, next) => {
 ====================================================== */
 
 const MAX_SESSIONS = Math.max(0, Number(process.env.MAX_SESSIONS || 0));
+
+/**
+ * FIX: previous clamp forced minimum 10 hours (10*60*60*1000).
+ * Correct min is 10 minutes, max 24 hours.
+ */
 const SESSION_TTL_MS = clamp(
   process.env.SESSION_TTL_MS || 6 * 60 * 60 * 1000,
-  10 * 60 * 60 * 1000,
+  10 * 60 * 1000,
   24 * 60 * 60 * 1000
 );
+
 const SESSIONS = new Map();
 
 function getClientIp(req) {
@@ -1054,9 +1101,6 @@ function intentSigFrom(text, session) {
 
 /* ======================================================
    LOOP FUSE v2 (server-side protection)
-   Purpose: if widget (or browser) re-sends the same input rapidly,
-            we return a "quiet" deterministic response and avoid re-triggering
-            bridge/directives churn.
 ====================================================== */
 
 const LOOP_SIG_WINDOW_MS = clamp(process.env.LOOP_SIG_WINDOW_MS || 1600, 400, 8000);
@@ -1068,7 +1112,10 @@ function loopSig({ text, routeHint, voiceMode, session }) {
   const vm = normCmd(voiceMode || "");
   const lane = normCmd(session && session.lane ? session.lane : "");
   const mode = normCmd(session && session.activeMusicMode ? session.activeMusicMode : "");
-  const year = session && (session.lastMusicYear || session.lastYear) ? String(session.lastMusicYear || session.lastYear) : "";
+  const year =
+    session && (session.lastMusicYear || session.lastYear)
+      ? String(session.lastMusicYear || session.lastYear)
+      : "";
   const core = `${t}||${rh}||${vm}||${lane}||${mode}||${year}`;
   return sha256(core);
 }
@@ -1094,7 +1141,8 @@ function quietLoopReply(session) {
   // deterministic, non-bridging, non-directive
   const last = normalizeStr(session.__lastReply || "");
   if (last) return last;
-  return "Okay — I’ve got you. Tell me a year (1950–2024) or say “top 10 1988”.";
+  // keep it simple + non-triggering
+  return "Okay — I’ve got you. Send ONE message: a year (1950–2024) or “top 10 1988”.";
 }
 
 /* ======================================================
@@ -1506,10 +1554,6 @@ function respondOnce(res) {
   };
 }
 
-function capsPayload() {
-  return { music: true, movies: true, sponsors: true, schedule: true, tts: true, cos: true };
-}
-
 function dedupeOkPayload({ reply, sessionId, requestId, visitorId, posture, routeHint, session }) {
   const baseReply = String(reply || "OK.").trim() || "OK.";
   return enforceChatContract({
@@ -1618,7 +1662,6 @@ app.post("/api/chat", async (req, res) => {
       safeSet(res, "X-Nyx-Loop", `sig:${lf.count}`);
       safeSet(res, "X-Nyx-Deduped", lf.count >= LOOP_SIG_MAX ? "loop-hard" : "loop-soft");
 
-      // soft: return last reply quietly; hard: return a hard stop that discourages auto-send
       const reply =
         lf.count >= LOOP_SIG_MAX
           ? "Okay — we’re looping. Stop sending for a beat, then send ONE message: a year (1950–2024) or “top 10 1988”."
@@ -1637,7 +1680,6 @@ app.post("/api/chat", async (req, res) => {
         session,
       });
 
-      // cache it so repeats settle instantly
       TURN_CACHE.set(turnKey, { at: Date.now(), payload });
 
       clearTimeout(watchdog);
@@ -1645,7 +1687,7 @@ app.post("/api/chat", async (req, res) => {
     }
 
     // =========================
-    // Sustained request guard (existing)
+    // Sustained request guard
     // =========================
     const srAt = Number(session.__srAt || 0);
     const srCount = Number(session.__srCount || 0);
@@ -1676,7 +1718,7 @@ app.post("/api/chat", async (req, res) => {
     }
 
     // =========================
-    // Burst guard (existing)
+    // Burst guard
     // =========================
     const fp = fingerprint(req, visitorId);
     const prev = BURSTS.get(fp);
@@ -1721,7 +1763,7 @@ app.post("/api/chat", async (req, res) => {
     }
 
     // =========================
-    // Body hash dedupe (existing)
+    // Body hash dedupe
     // =========================
     const bodyHash = sha256(stableBodyForHash(body, req));
     const lastHash = normalizeStr(session.__lastBodyHash || "");
@@ -1800,11 +1842,14 @@ app.post("/api/chat", async (req, res) => {
     let finalReply = String(baseReply || "").trim();
     if (!finalReply) finalReply = fallbackReply(text);
 
-    // ✅ INTRO FALLBACK GUARD
+    // ✅ INTRO FALLBACK GUARD + RANDOMIZER (ONLY when chatEngine missing/fails)
     if (!out && !session.introDone && isGreetingText(text)) {
-      finalReply = INTRO_FALLBACK_TEXT;
+      const picked = pickFallbackIntroForSession(session);
+      finalReply = picked.text;
       session.introDone = true;
       session.introAt = now;
+      session.introServed = true;
+      session.introVariant = "fallback_random_v1";
     }
 
     const eligible = bridgeEligible({ text, session, out, now });
