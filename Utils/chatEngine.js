@@ -16,13 +16,15 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.6zH (INTRO GATE: FIRST TURN HARD-LOCK + INTENT BYPASS + TEMPLATE SAFETY)
+ * v0.6zI (INTRO GATE: FIRST TURN HARD-LOCK + INTENT BYPASS + TEMPLATE SAFETY + MUSIC OVERRIDE)
  *
  * Fixes:
  *  ✅ Intro is ALWAYS served on first turn unless user clearly intended a task
  *  ✅ Prevents “Got it. Tell me a year…” from stealing the opening
  *  ✅ Keeps Packets/PhrasePack/ConvPack fully intact
  *  ✅ Fix template interpolation escaping (prevents regex oddities on {year}, etc.)
+ *  ✅ Music override: if inbound contains BOTH (year + mode), force music lane + mode before core engine
+ *     - Prevents continuity/CS-1 from blocking decisive commands like “top 10 1998”
  */
 
 const crypto = require("crypto");
@@ -31,7 +33,7 @@ const crypto = require("crypto");
 // Version
 // =========================
 const CE_VERSION =
-  "chatEngine v0.6zH (INTRO FIRST-TURN HARD-LOCK + INTENT BYPASS; template-escape fix; CS-1 + ConvPack 3.1-C + PhrasePack v1.1 + Packets v1.1-C)";
+  "chatEngine v0.6zI (INTRO FIRST-TURN HARD-LOCK + INTENT BYPASS; template-escape fix; MUSIC OVERRIDE; CS-1 + ConvPack 3.1-C + PhrasePack v1.1 + Packets v1.1-C)";
 
 // =========================
 // Canonical Intro (HARD-LOCK)
@@ -290,6 +292,17 @@ function extractYear(text) {
   if (y > 2024) return 2024;
   return y;
 }
+function extractMode(text) {
+  const t = normText(text);
+  if (!t) return null;
+
+  if (/\b(top\s*100|top100|hot\s*100|year[-\s]*end\s*hot\s*100)\b/.test(t)) return "top100";
+  if (/\b(top\s*10|top10|top\s*ten)\b/.test(t)) return "top10";
+  if (/\bstory\s*moment\b|\bstory\b/.test(t)) return "story";
+  if (/\bmicro\s*moment\b|\bmicro\b/.test(t)) return "micro";
+  if (/\b#\s*1\b|\bnumber\s*1\b|\bno\.?\s*1\b|\bno\s*1\b/.test(t)) return "number1";
+  return null;
+}
 function isLikelyReturnGap(gapMs) {
   return Number.isFinite(gapMs) && gapMs >= 12 * 60 * 1000;
 }
@@ -350,6 +363,32 @@ function shouldServeIntroFirstTurn(session, inboundText) {
 
   // Otherwise: intro wins (covers empty, greetings, widget init/pings).
   return true;
+}
+
+// =========================
+// MUSIC OVERRIDE (year + mode => force music lane + mode)
+// =========================
+function applyMusicOverride(session, lane, inboundText) {
+  const year = extractYear(inboundText);
+  const mode = extractMode(inboundText);
+
+  if (!Number.isFinite(year) || !mode) return { forced: false, lane, year: null, mode: null };
+
+  // force canonical music routing for "command-like" inputs
+  const nextLane = "music";
+  if (session && typeof session === "object") {
+    session.lastMusicYear = year;
+    session.lastYear = year;
+    session.year = year;
+
+    // normalize mode into the session's existing convention where relevant
+    session.activeMusicMode = mode;
+    session.lastMode = mode;
+    session.mode = mode;
+    session.lane = nextLane;
+  }
+
+  return { forced: true, lane: nextLane, year, mode };
 }
 
 // =========================
@@ -580,11 +619,19 @@ async function chatEngine(input = {}) {
   }
 
   // =========================
+  // ✅ OVERRIDE: year+mode command forces music lane BEFORE core engine
+  // =========================
+  const ov = applyMusicOverride(session, lane, inboundText);
+  if (ov.forced) {
+    lane = ov.lane;
+  }
+
+  // =========================
   // CORE engine call (unchanged from your pattern)
   // =========================
   let core = null;
   if (typeof input.engine === "function") {
-    core = await input.engine({ text: inboundText, session, requestId });
+    core = await input.engine({ text: inboundText, session, requestId, routeHint: lane });
   } else {
     const y = Number.isFinite(session.lastMusicYear) ? session.lastMusicYear : extractYear(inboundText);
     const fallbackLane = y ? "music" : lane || "general";
@@ -652,6 +699,7 @@ async function chatEngine(input = {}) {
       phrasepack: `${NYX_PHRASEPACK.version} (${NYX_PHRASEPACK.updated})`,
       pack: `${NYX_CONV_PACK.meta.name} ${NYX_CONV_PACK.meta.version}`,
       ms: nowMs() - startedAt,
+      override: ov.forced ? `music:${ov.mode}:${ov.year}` : "",
     },
   };
 }
