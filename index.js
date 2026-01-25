@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17zf
+ * index.js v1.5.17zg
  * (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION +
  *  ✅ SESSIONPATCH EXPANDED (CONTINUITY PERSIST FIX) + ✅ CONVERSATIONAL CONTRACT ENFORCER (HARD) +
  *  ✅ ROUTE HINT AWARE COG NORMALIZATION + ✅ ENV KNOBS HARDENED +
@@ -16,7 +16,11 @@
  *  ✅ INTRO FALLBACK GUARD (only when chatEngine missing/fails + greeting) +
  *  ✅ FALLBACK INTRO RANDOMIZER (per session; non-rigid; brand-aligned) +
  *  ✅ LOOP FUSE v2 (input-signature dedupe + repeat clamp + quiet payload on runaway) +
- *  ✅ FIX: SESSION_TTL_MS clamp (was forcing 10h min unintentionally)
+ *  ✅ FIX: SESSION_TTL_MS clamp (was forcing 10h min unintentionally) +
+ *  ✅ NEW: CHATENGINE VISIBILITY HEADERS (X-Nyx-ChatEngine / X-Nyx-Engine-Meta / X-Nyx-Intro) +
+ *  ✅ NEW: INTRO RESET GAP (treat long pause as fresh entry when sessionId is auto-derived) +
+ *  ✅ NEW: SERVER TURN COUNTER (session.turns / lastTurnAt) to stabilize “first turn” semantics
+ * )
  */
 
 const express = require("express");
@@ -72,7 +76,7 @@ if (TRUST_PROXY) {
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.17zf (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + SESSIONPATCH EXPANDED + CONTRACT ENFORCER + ROUTE HINT COG + ENV HARDENED + TRUST PROXY + DISCOVERY ROUTES + ROKU DIRECTIVE + CORS PREFLIGHT FIX + COS PERSISTENCE + DIRECTIVES HARDENING + NO DUPLICATE bridge_roku + TTS JSON-PARSE RECOVERY + INTRO FALLBACK GUARD + FALLBACK INTRO RANDOMIZER + LOOP FUSE v2 + TTL CLAMP FIX)";
+  "index.js v1.5.17zg (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + SESSIONPATCH EXPANDED + CONTRACT ENFORCER + ROUTE HINT COG + ENV HARDENED + TRUST PROXY + DISCOVERY ROUTES + ROKU DIRECTIVE + CORS PREFLIGHT FIX + COS PERSISTENCE + DIRECTIVES HARDENING + NO DUPLICATE bridge_roku + TTS JSON-PARSE RECOVERY + INTRO FALLBACK GUARD + FALLBACK INTRO RANDOMIZER + LOOP FUSE v2 + TTL CLAMP FIX + CHATENGINE VISIBILITY HEADERS + INTRO RESET GAP + SERVER TURN COUNTER)";
 
 const GIT_COMMIT =
   String(process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "").trim() || null;
@@ -143,6 +147,39 @@ function sha256(s) {
 }
 function ua(req) {
   return normalizeStr(req.get("user-agent") || "");
+}
+
+/* ======================================================
+   ChatEngine visibility headers (prove which file is live)
+====================================================== */
+
+function getChatEngineVersion(mod) {
+  try {
+    if (!mod) return null;
+    if (typeof mod.CE_VERSION === "string" && mod.CE_VERSION.trim()) return mod.CE_VERSION.trim();
+    if (mod.default && typeof mod.default.CE_VERSION === "string" && mod.default.CE_VERSION.trim())
+      return mod.default.CE_VERSION.trim();
+    // Some builds export { chatEngine: fn, CE_VERSION } or { handleChat, CE_VERSION }
+    if (mod.chatEngine && typeof mod.chatEngine.CE_VERSION === "string" && mod.chatEngine.CE_VERSION.trim())
+      return mod.chatEngine.CE_VERSION.trim();
+    return null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function applyChatEngineHeaders(res, out) {
+  try {
+    const ce = getChatEngineVersion(chatEngine);
+    safeSet(res, "X-Nyx-ChatEngine", ce ? String(ce).slice(0, 180) : "missing_CE_VERSION");
+
+    if (out && out.meta && out.meta.engine) {
+      safeSet(res, "X-Nyx-Engine-Meta", String(out.meta.engine).slice(0, 180));
+    }
+    if (out && out.meta && out.meta.intro) {
+      safeSet(res, "X-Nyx-Intro", "1");
+    }
+  } catch (_) {}
 }
 
 /* ======================================================
@@ -390,6 +427,7 @@ const SESSION_PATCH_ALLOW = new Set([
   "lastOutSig",
   "lastOutSigAt",
   "turns",
+  "turnCount", // ✅ NEW: allow chatEngine “first turn” semantics to persist
   "startedAt",
   "lastTurnAt",
   "lanesVisited",
@@ -492,7 +530,8 @@ function normalizeCog(out, session, routeHint) {
 
   const laneFromOut =
     (out && typeof out.lane === "string" ? out.lane : "") || (oc && oc.lane) || "";
-  const laneFromSession = session && session.lane ? session.lane : session && session.lastLane ? session.lastLane : "";
+  const laneFromSession =
+    session && session.lane ? session.lane : session && session.lastLane ? session.lastLane : "";
   const laneFromHint = normalizeRouteHint(routeHint) || "";
   const laneFromCog = (oc && oc.lane) || (sc && sc.lane) || "";
 
@@ -703,6 +742,10 @@ const CORS_EXPOSED_HEADERS = [
   "X-Nyx-Posture",
   "X-Nyx-Bridge",
   "X-Nyx-Loop",
+  // ✅ NEW: visibility headers
+  "X-Nyx-ChatEngine",
+  "X-Nyx-Engine-Meta",
+  "X-Nyx-Intro",
 ];
 
 const CORS_MAX_AGE = 86400;
@@ -728,6 +771,8 @@ app.use((req, res, next) => {
   if (req.method === "OPTIONS") {
     const requestId = req.get("X-Request-Id") || rid();
     setContractHeaders(res, requestId);
+    // Visibility header still useful on preflight (helps confirm deploy)
+    applyChatEngineHeaders(res, null);
     return res.sendStatus(204);
   }
 
@@ -797,6 +842,7 @@ app.use((err, req, res, next) => {
 
   const requestId = req.get("X-Request-Id") || rid();
   setContractHeaders(res, requestId);
+  applyChatEngineHeaders(res, null);
 
   return safeJson(res, 400, {
     ok: false,
@@ -937,6 +983,7 @@ function healthPayload(requestId) {
 app.get("/", (req, res) => {
   const requestId = req.get("X-Request-Id") || rid();
   setContractHeaders(res, requestId);
+  applyChatEngineHeaders(res, null);
   return safeJson(res, 200, {
     ok: true,
     service: "sandblast-backend",
@@ -950,6 +997,7 @@ app.get("/", (req, res) => {
 app.get("/api", (req, res) => {
   const requestId = req.get("X-Request-Id") || rid();
   setContractHeaders(res, requestId);
+  applyChatEngineHeaders(res, null);
   return safeJson(res, 200, {
     ok: true,
     requestId,
@@ -961,27 +1009,32 @@ app.get("/api", (req, res) => {
 app.get("/health", (req, res) => {
   const requestId = req.get("X-Request-Id") || rid();
   setContractHeaders(res, requestId);
+  applyChatEngineHeaders(res, null);
   return safeJson(res, 200, healthPayload(requestId));
 });
 app.get("/Health", (req, res) => {
   const requestId = req.get("X-Request-Id") || rid();
   setContractHeaders(res, requestId);
+  applyChatEngineHeaders(res, null);
   return safeJson(res, 200, healthPayload(requestId));
 });
 app.get("/api/health", (req, res) => {
   const requestId = req.get("X-Request-Id") || rid();
   setContractHeaders(res, requestId);
+  applyChatEngineHeaders(res, null);
   return safeJson(res, 200, healthPayload(requestId));
 });
 app.get("/api/Health", (req, res) => {
   const requestId = req.get("X-Request-Id") || rid();
   setContractHeaders(res, requestId);
+  applyChatEngineHeaders(res, null);
   return safeJson(res, 200, healthPayload(requestId));
 });
 
 app.get("/api/version", (req, res) => {
   const requestId = req.get("X-Request-Id") || rid();
   setContractHeaders(res, requestId);
+  applyChatEngineHeaders(res, null);
 
   const bridgeEnabled = String(process.env.BRIDGE_ENABLED || "true") === "true";
   const bridgeMusicOnly = String(process.env.BRIDGE_MUSIC_ONLY || "true") === "true";
@@ -997,6 +1050,9 @@ app.get("/api/version", (req, res) => {
   const loopSigWindowMs = clamp(process.env.LOOP_SIG_WINDOW_MS || 1600, 400, 8000);
   const loopSigMax = clamp(process.env.LOOP_SIG_MAX || 3, 1, 12);
 
+  // ✅ NEW: intro reset gap visibility
+  const introResetGapMs = clamp(process.env.INTRO_RESET_GAP_MS || 12 * 60 * 1000, 2 * 60 * 1000, 2 * 60 * 60 * 1000);
+
   return safeJson(res, 200, {
     ok: true,
     requestId,
@@ -1005,6 +1061,7 @@ app.get("/api/version", (req, res) => {
     commit: GIT_COMMIT,
     node: process.version,
     uptimeSec: Math.round(process.uptime()),
+    chatEngine: getChatEngineVersion(chatEngine),
     env: {
       trustProxy: TRUST_PROXY,
       corsAllowAll: String(process.env.CORS_ALLOW_ALL || "false") === "true",
@@ -1030,6 +1087,7 @@ app.get("/api/version", (req, res) => {
       directiveStrMax: DIRECTIVE_STR_MAX,
       loopSigWindowMs,
       loopSigMax,
+      introResetGapMs,
     },
     allowlistSample: EFFECTIVE_ORIGINS.slice(0, 10),
   });
@@ -1376,6 +1434,7 @@ function pickTtsHandler(mod) {
 async function runTts(req, res) {
   const requestId = req.get("X-Request-Id") || rid();
   setContractHeaders(res, requestId);
+  applyChatEngineHeaders(res, null);
 
   if (!ttsModule) ttsModule = safeRequireTts();
 
@@ -1413,6 +1472,7 @@ async function runTts(req, res) {
 app.get("/api/tts/diag", (req, res) => {
   const requestId = req.get("X-Request-Id") || rid();
   setContractHeaders(res, requestId);
+  applyChatEngineHeaders(res, null);
   const exportKeys = ttsModule ? Object.keys(ttsModule) : [];
   return safeJson(res, 200, {
     ok: true,
@@ -1432,6 +1492,14 @@ app.post("/api/voice", runTts);
 ====================================================== */
 
 const CHAT_HANDLER_TIMEOUT_MS = clamp(process.env.CHAT_HANDLER_TIMEOUT_MS || 9000, 2000, 20000);
+
+// ✅ NEW: if there’s a long pause and the sessionId is auto-derived,
+// treat it as a fresh entry so intro can appear again.
+const INTRO_RESET_GAP_MS = clamp(
+  process.env.INTRO_RESET_GAP_MS || 12 * 60 * 1000,
+  2 * 60 * 1000,
+  2 * 60 * 60 * 1000
+);
 
 const BURST_WINDOW_MS = clamp(process.env.BURST_WINDOW_MS || 1500, 600, 5000);
 const BURST_SOFT_MAX = clamp(process.env.BURST_SOFT_MAX || 3, 1, 12);
@@ -1579,6 +1647,7 @@ function dedupeOkPayload({ reply, sessionId, requestId, visitorId, posture, rout
 app.post("/api/chat", async (req, res) => {
   const requestId = req.get("X-Request-Id") || rid();
   setContractHeaders(res, requestId);
+  applyChatEngineHeaders(res, null);
 
   const isDebug = String(req.query.debug || "") === "1";
   const once = respondOnce(res);
@@ -1602,6 +1671,7 @@ app.post("/api/chat", async (req, res) => {
         session: derivedSession,
       });
       if (BRIDGE_DEBUG_HEADERS) safeSet(res, "X-Nyx-Posture", String(payload.posture || "explore"));
+      applyChatEngineHeaders(res, null);
       return once.json(200, payload);
     } catch (_) {}
   }, CHAT_HANDLER_TIMEOUT_MS);
@@ -1642,6 +1712,7 @@ app.post("/api/chat", async (req, res) => {
       if (BRIDGE_DEBUG_HEADERS && cached.payload && cached.payload._bridgeInjected) {
         safeSet(res, "X-Nyx-Bridge", String(cached.payload._bridgeInjected));
       }
+      applyChatEngineHeaders(res, null);
       return once.json(200, cached.payload);
     }
 
@@ -1652,6 +1723,26 @@ app.post("/api/chat", async (req, res) => {
     if (vmode) session.voiceMode = vmode;
 
     const now = Date.now();
+
+    // ✅ NEW: stable server-side turns + lastTurnAt (chatEngine may also do it, but this guarantees persistence)
+    const prevTurnAt = Number(session.lastTurnAt || 0);
+    session.turns = Number(session.turns || 0) + 1;
+    session.lastTurnAt = now;
+
+    // ✅ NEW: intro reset gap (only meaningful for auto_ sessions)
+    // If client did NOT provide an explicit sessionId, we treat long gaps as a fresh entry.
+    const headerSid = cleanSessionId(req.get("X-Session-Id"));
+    const bodySid = body && typeof body === "object" ? cleanSessionId(body.sessionId) : null;
+    const isAutoSession = !bodySid && !headerSid && String(sessionId || "").startsWith("auto_");
+
+    if (isAutoSession && prevTurnAt && now - prevTurnAt > INTRO_RESET_GAP_MS) {
+      // Fresh re-entry posture: allow intro to occur again downstream
+      session.introDone = false;
+      session.introServed = false;
+      // do not clear introId (keeps stable variant if it does fall back)
+      // do not clear other continuity (keeps lane/year) — just re-allow an intro.
+      if (isDebug) safeSet(res, "X-Nyx-Intro", "reset_gap");
+    }
 
     // =========================
     // LOOP FUSE v2 — input signature
@@ -1683,6 +1774,7 @@ app.post("/api/chat", async (req, res) => {
       TURN_CACHE.set(turnKey, { at: Date.now(), payload });
 
       clearTimeout(watchdog);
+      applyChatEngineHeaders(res, null);
       return once.json(200, payload);
     }
 
@@ -1710,6 +1802,7 @@ app.post("/api/chat", async (req, res) => {
           session,
         });
         TURN_CACHE.set(turnKey, { at: Date.now(), payload });
+        applyChatEngineHeaders(res, null);
         return once.json(200, payload);
       }
     } else {
@@ -1732,6 +1825,7 @@ app.post("/api/chat", async (req, res) => {
       if (count >= BURST_HARD_MAX) {
         clearTimeout(watchdog);
         safeSet(res, "X-Nyx-Deduped", "burst-hard");
+        applyChatEngineHeaders(res, null);
         return once.json(429, {
           ok: false,
           error: "REQUEST_BURST",
@@ -1758,6 +1852,7 @@ app.post("/api/chat", async (req, res) => {
           session,
         });
         TURN_CACHE.set(turnKey, { at: Date.now(), payload });
+        applyChatEngineHeaders(res, null);
         return once.json(200, payload);
       }
     }
@@ -1783,6 +1878,7 @@ app.post("/api/chat", async (req, res) => {
         session,
       });
       TURN_CACHE.set(turnKey, { at: Date.now(), payload });
+      applyChatEngineHeaders(res, null);
       return once.json(200, payload);
     }
 
@@ -1819,6 +1915,7 @@ app.post("/api/chat", async (req, res) => {
             followUps: ["Try again", "Open radio", "Open TV"],
             cog: { state: "error", reason: "upstream_quota" },
             directives: [],
+            meta: { engine: getChatEngineVersion(chatEngine) || "unknown", intro: false },
           };
         } else {
           console.error("[chatEngine] error (soft):", e && e.stack ? e.stack : e);
@@ -1826,6 +1923,9 @@ app.post("/api/chat", async (req, res) => {
         }
       }
     }
+
+    // ✅ Visibility headers AFTER engine returns (meta / intro signals)
+    applyChatEngineHeaders(res, out);
 
     if (out && typeof out === "object" && out.sessionPatch && typeof out.sessionPatch === "object") {
       applySessionPatch(session, out.sessionPatch);
@@ -1850,6 +1950,7 @@ app.post("/api/chat", async (req, res) => {
       session.introAt = now;
       session.introServed = true;
       session.introVariant = "fallback_random_v1";
+      safeSet(res, "X-Nyx-Intro", "fallback_random_v1");
     }
 
     const eligible = bridgeEligible({ text, session, out, now });
@@ -1892,6 +1993,7 @@ app.post("/api/chat", async (req, res) => {
         session,
       });
       TURN_CACHE.set(turnKey, { at: Date.now(), payload });
+      applyChatEngineHeaders(res, out);
       return once.json(200, payload);
     }
 
@@ -1923,6 +2025,7 @@ app.post("/api/chat", async (req, res) => {
           session,
         });
         TURN_CACHE.set(turnKey, { at: Date.now(), payload });
+        applyChatEngineHeaders(res, out);
         return once.json(200, payload);
       }
     } else {
@@ -1957,6 +2060,7 @@ app.post("/api/chat", async (req, res) => {
         session,
       });
       TURN_CACHE.set(turnKey, { at: Date.now(), payload });
+      applyChatEngineHeaders(res, out);
       return once.json(200, payload);
     }
     session.__lastIntentSig = sig2;
@@ -2002,17 +2106,24 @@ app.post("/api/chat", async (req, res) => {
         sigMax: LOOP_SIG_MAX,
         loopCount: Number(session.__loopCount || 0),
       };
+      payload._intro = {
+        autoSession: isAutoSession,
+        introResetGapMs: INTRO_RESET_GAP_MS,
+        prevTurnAt: prevTurnAt || null,
+      };
     }
 
     TURN_CACHE.set(turnKey, { at: Date.now(), payload });
 
     clearTimeout(watchdog);
+    applyChatEngineHeaders(res, out);
     return once.json(200, payload);
   } catch (e) {
     console.error("[/api/chat] handler-floor error:", e && e.stack ? e.stack : e);
     clearTimeout(watchdog);
     setContractHeaders(res, requestId);
     safeSet(res, "X-Nyx-Deduped", "floor");
+    applyChatEngineHeaders(res, null);
 
     const vid = normalizeStr(req.get("X-Visitor-Id") || "") || null;
     const sid = deriveStableSessionId(req, vid);
@@ -2044,6 +2155,7 @@ app.post("/api/chat", async (req, res) => {
 app.use("/api", (req, res) => {
   const requestId = req.get("X-Request-Id") || rid();
   setContractHeaders(res, requestId);
+  applyChatEngineHeaders(res, null);
   return safeJson(res, 404, {
     ok: false,
     error: "NOT_FOUND",
@@ -2061,6 +2173,7 @@ app.use("/api", (req, res) => {
 app.use((err, req, res, next) => {
   const requestId = req.get("X-Request-Id") || rid();
   setContractHeaders(res, requestId);
+  applyChatEngineHeaders(res, null);
   console.error("[GLOBAL] error:", err && err.stack ? err.stack : err);
   return safeJson(res, 500, {
     ok: false,
