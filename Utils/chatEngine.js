@@ -117,59 +117,6 @@ function isGreetingOnly(t) {
   return /^(hi|hello|hey|yo|good morning|good afternoon|good evening)$/i.test(safeStr(t));
 }
 
-/**
- * ADDED (NECESSARY): Reply contract shaper + legacy compatibility fields.
- * - Ensures reply is always a non-empty string
- * - Ensures followUpsStrings exists for older widgets
- * - Passes through ctx/ui/directives if core provides them
- * - Avoids accidental undefineds that can break front-end assumptions
- */
-function toLegacyFollowUpsStrings(followUps) {
-  if (!Array.isArray(followUps)) return [];
-  return followUps
-    .map((f) => (f && typeof f.label === "string" ? f.label : ""))
-    .filter(Boolean)
-    .slice(0, 12);
-}
-function ensureNonEmptyReply(r) {
-  const s = safeStr(r).trim();
-  return s ? s : "A year usually clears things up.";
-}
-function shapeOut({ core, session, lane, requestId, ov, startedAt }) {
-  const reply = ensureNonEmptyReply(core && core.reply);
-  const outLane = safeStr((core && core.lane) || session.lane || lane || "general") || "general";
-  const followUps = Array.isArray(core && core.followUps) ? core.followUps : [];
-  const followUpsStrings =
-    Array.isArray(core && core.followUpsStrings) && core.followUpsStrings.length
-      ? core.followUpsStrings
-      : toLegacyFollowUpsStrings(followUps);
-
-  return {
-    ok: true,
-    reply,
-    lane: outLane,
-    // Pass-through (if present) without inventing structure
-    ctx: (core && core.ctx) || undefined,
-    ui: (core && core.ui) || undefined,
-    directives: Array.isArray(core && core.directives) ? core.directives : [],
-    followUps,
-    followUpsStrings,
-    sessionPatch: session,
-    cog: (core && core.cog) || { phase: "listening" },
-    requestId,
-    meta: Object.assign(
-      {
-        engine: CE_VERSION,
-        ms: nowMs() - startedAt
-      },
-      (core && core.meta && typeof core.meta === "object" ? core.meta : {}),
-      {
-        override: ov && ov.forced ? `music:${ov.mode}:${ov.year}` : ""
-      }
-    )
-  };
-}
-
 // =========================
 // Intro intent logic
 // =========================
@@ -231,26 +178,20 @@ async function chatEngine(input = {}) {
   const doIntro = !ov.forced && shouldServeIntroFirstTurn(session, inboundText);
   if (doIntro) {
     session.__introDone = 1;
-
-    // ADDED (NECESSARY): include legacy followUpsStrings + directives fields
-    const introFollowUps = CANON_INTRO_CHIPS.map(c => ({
-      id: sha1(c.label).slice(0, 8),
-      type: "send",
-      label: c.label,
-      payload: { text: c.send }
-    }));
-
     return {
       ok: true,
       reply: CANON_INTRO,
       lane: "general",
-      directives: [],
-      followUps: introFollowUps,
-      followUpsStrings: toLegacyFollowUpsStrings(introFollowUps),
+      followUps: CANON_INTRO_CHIPS.map(c => ({
+        id: sha1(c.label).slice(0, 8),
+        type: "send",
+        label: c.label,
+        payload: { text: c.send }
+      })),
       sessionPatch: session,
       cog: { phase: "listening" },
       requestId,
-      meta: { engine: CE_VERSION, intro: true, ms: nowMs() - startedAt }
+      meta: { engine: CE_VERSION, intro: true }
     };
   }
 
@@ -261,8 +202,19 @@ async function chatEngine(input = {}) {
 
   session.lane = core.lane || lane;
 
-  // ADDED (NECESSARY): shaped output guarantees contract + legacy fields
-  return shapeOut({ core, session, lane: session.lane, requestId, ov, startedAt });
+  return {
+    ok: true,
+    reply: core.reply,
+    lane: session.lane,
+    followUps: core.followUps || [],
+    sessionPatch: session,
+    cog: core.cog || { phase: "listening" },
+    requestId,
+    meta: {
+      engine: CE_VERSION,
+      override: ov.forced ? `music:${ov.mode}:${ov.year}` : ""
+    }
+  };
 }
 
 module.exports = { chatEngine, CE_VERSION };
