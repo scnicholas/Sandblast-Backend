@@ -3,24 +3,15 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17zb
+ * index.js v1.5.17zc
  * (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION +
  *  ✅ SESSIONPATCH EXPANDED (CONTINUITY PERSIST FIX) + ✅ CONVERSATIONAL CONTRACT ENFORCER (HARD) +
  *  ✅ ROUTE HINT AWARE COG NORMALIZATION + ✅ ENV KNOBS HARDENED +
  *  ✅ TRUST PROXY (SAFE, OPTIONAL) + ✅ ROOT/API DISCOVERY ROUTES +
  *  ✅ ROKU BRIDGE DIRECTIVE (STRUCTURED CTA) + ✅ CTA COOLDOWN + SESSION TELEMETRY +
  *  ✅ CORS PREFLIGHT FIX (TTS) + ✅ SANDBLAST ORIGIN FORCE-ALLOW +
- *  ✅ COS PERSISTENCE WIRING (session.cog allowlist + sanitize + normalizeCog reads session.cog)
- *
- * Patch vs v1.5.17za:
- *  ✅ Cognitive OS persistence:
- *     - Allows sessionPatch.cog to persist (sanitized allowlist keys)
- *     - normalizeCog() now reads session.cog as a fallback source
- *     - caps now advertises cos: true
- *
- * Minor hardening:
- *  ✅ session.cog patch is proto-safe + key-allowlisted + size-clamped
- *  ✅ normalizeCog includes cog.version when present
+ *  ✅ COS PERSISTENCE WIRING (session.cog allowlist + sanitize + normalizeCog reads session.cog) +
+ *  ✅ DIRECTIVES HARDENING (sanitize objects + clamp) + ✅ NO DUPLICATE bridge_roku
  */
 
 const express = require("express");
@@ -76,7 +67,7 @@ if (TRUST_PROXY) {
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.17zb (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + SESSIONPATCH EXPANDED + CONTRACT ENFORCER + ROUTE HINT COG + ENV HARDENED + TRUST PROXY + DISCOVERY ROUTES + ROKU DIRECTIVE + CORS PREFLIGHT FIX + COS PERSISTENCE)";
+  "index.js v1.5.17zc (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + SESSIONPATCH EXPANDED + CONTRACT ENFORCER + ROUTE HINT COG + ENV HARDENED + TRUST PROXY + DISCOVERY ROUTES + ROKU DIRECTIVE + CORS PREFLIGHT FIX + COS PERSISTENCE + DIRECTIVES HARDENING + NO DUPLICATE bridge_roku)";
 
 const GIT_COMMIT =
   String(process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "").trim() || null;
@@ -183,7 +174,17 @@ function sanitizeCogObject(obj) {
       continue;
     }
 
-    if (k === "phase" || k === "state" || k === "reason" || k === "intent" || k === "depth" || k === "version" || k === "lane" || k === "mode" || k === "year") {
+    if (
+      k === "phase" ||
+      k === "state" ||
+      k === "reason" ||
+      k === "intent" ||
+      k === "depth" ||
+      k === "version" ||
+      k === "lane" ||
+      k === "mode" ||
+      k === "year"
+    ) {
       const s = normalizeStr(v).slice(0, 96);
       if (s) out[k] = s;
       continue;
@@ -196,7 +197,13 @@ function sanitizeCogObject(obj) {
     }
 
     // default: keep primitives only
-    if (v === null || typeof v === "string" || typeof v === "number" || typeof v === "boolean") out[k] = v;
+    if (
+      v === null ||
+      typeof v === "string" ||
+      typeof v === "number" ||
+      typeof v === "boolean"
+    )
+      out[k] = v;
   }
 
   return Object.keys(out).length ? out : null;
@@ -231,14 +238,79 @@ function nonEmptyReply(s, fallback) {
   return fb || "Okay — I’m here. Tell me what you want next.";
 }
 
+/* ======================================================
+   Directive hardening
+====================================================== */
+
+const DIRECTIVE_MAX = clamp(process.env.DIRECTIVE_MAX || 6, 1, 12);
+const DIRECTIVE_KEY_MAX = clamp(process.env.DIRECTIVE_KEY_MAX || 24, 8, 64);
+const DIRECTIVE_STR_MAX = clamp(process.env.DIRECTIVE_STR_MAX || 800, 80, 2000);
+const DIRECTIVE_TYPE_MAX = clamp(process.env.DIRECTIVE_TYPE_MAX || 48, 16, 96);
+
+function isPlainObject(x) {
+  return !!x && typeof x === "object" && (Object.getPrototypeOf(x) === Object.prototype || Object.getPrototypeOf(x) === null);
+}
+
+function shallowSanitizeDirectiveObj(obj) {
+  if (!isPlainObject(obj)) return null;
+  const out = {};
+  let keys = 0;
+
+  for (const [k, v] of Object.entries(obj)) {
+    if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
+    keys++;
+    if (keys > DIRECTIVE_KEY_MAX) break;
+
+    if (typeof v === "undefined") continue;
+
+    if (typeof v === "string") {
+      const s = normalizeStr(v).slice(0, DIRECTIVE_STR_MAX);
+      if (s) out[k] = s;
+      continue;
+    }
+
+    if (typeof v === "number") {
+      if (Number.isFinite(v)) out[k] = v;
+      continue;
+    }
+
+    if (typeof v === "boolean" || v === null) {
+      out[k] = v;
+      continue;
+    }
+
+    // prevent nested objects/arrays from riding along
+  }
+
+  if (!out.type) return null;
+  out.type = normalizeStr(out.type).slice(0, DIRECTIVE_TYPE_MAX);
+  if (!out.type) return null;
+
+  // extra clamp for common fields
+  if (out.label) out.label = normalizeStr(out.label).slice(0, 160);
+  if (out.url) out.url = normalizeStr(out.url).slice(0, 900);
+  if (out.fallbackUrl) out.fallbackUrl = normalizeStr(out.fallbackUrl).slice(0, 900);
+  if (out.deeplink) out.deeplink = normalizeStr(out.deeplink).slice(0, 900);
+  if (out.reason) out.reason = normalizeStr(out.reason).slice(0, 160);
+
+  return out;
+}
+
 function normalizeDirectives(d) {
   if (!Array.isArray(d)) return [];
   const out = [];
   for (const it of d) {
     if (!it) continue;
-    if (typeof it === "string") out.push({ type: it });
-    else if (typeof it === "object" && typeof it.type === "string" && it.type.trim()) out.push(it);
-    if (out.length >= 6) break;
+
+    if (typeof it === "string") {
+      const t = normalizeStr(it).slice(0, DIRECTIVE_TYPE_MAX);
+      if (t) out.push({ type: t });
+    } else if (isPlainObject(it) && typeof it.type === "string" && it.type.trim()) {
+      const san = shallowSanitizeDirectiveObj(it);
+      if (san) out.push(san);
+    }
+
+    if (out.length >= DIRECTIVE_MAX) break;
   }
   return out;
 }
@@ -358,7 +430,9 @@ function enforceChatContract({
 }) {
   const reply = nonEmptyReply(baseReply, "Alright — tell me what you want next.");
 
-  const directives = directivesOverride ? normalizeDirectives(directivesOverride) : normalizeDirectives(out && out.directives);
+  const directives = directivesOverride
+    ? normalizeDirectives(directivesOverride)
+    : normalizeDirectives(out && out.directives);
 
   // NOTE: sessionPatch is returned for client-side state sync; server state is applied via applySessionPatch().
   const sessionPatch = allowlistSessionPatchObj(out && out.sessionPatch) || {};
@@ -839,8 +913,8 @@ app.get("/api/version", (req, res) => {
     uptimeSec: Math.round(process.uptime()),
     env: {
       trustProxy: TRUST_PROXY,
-      corsAllowAll: CORS_ALLOW_ALL,
-      corsEnvExclusive: CORS_ENV_EXCLUSIVE,
+      corsAllowAll: String(process.env.CORS_ALLOW_ALL || "false") === "true",
+      corsEnvExclusive: String(process.env.CORS_ENV_EXCLUSIVE || "false") === "true",
       allowlistCount: EFFECTIVE_ORIGINS.length,
       requestTimeoutMs: REQUEST_TIMEOUT_MS,
       maxSessions: MAX_SESSIONS,
@@ -860,6 +934,11 @@ app.get("/api/version", (req, res) => {
 
       // COS
       cosPersistence: true,
+
+      // Directive hardening
+      directiveMax: DIRECTIVE_MAX,
+      directiveKeyMax: DIRECTIVE_KEY_MAX,
+      directiveStrMax: DIRECTIVE_STR_MAX,
     },
     allowlistSample: EFFECTIVE_ORIGINS.slice(0, 10),
   });
@@ -870,7 +949,6 @@ app.get("/api/version", (req, res) => {
 ====================================================== */
 
 const MAX_HASH_TEXT_LEN = clamp(process.env.MAX_HASH_TEXT_LEN || 800, 200, 4000);
-
 const BODY_HASH_INCLUDE_SESSION = String(process.env.BODY_HASH_INCLUDE_SESSION || "false") === "true";
 
 function stableBodyForHash(body, req) {
@@ -1062,6 +1140,15 @@ function buildRokuBridgeDirective({ session, now, posture, reason }) {
   session.__rokuCtaCount = Number(session.__rokuCtaCount || 0) + 1;
 
   return dir;
+}
+
+function hasDirectiveType(list, type) {
+  if (!Array.isArray(list) || !type) return false;
+  const t = String(type);
+  for (const d of list) {
+    if (d && typeof d === "object" && String(d.type || "") === t) return true;
+  }
+  return false;
 }
 
 /* ======================================================
@@ -1592,9 +1679,9 @@ app.post("/api/chat", async (req, res) => {
       }
     }
 
-    // ✅ directives: merge engine directives + optional Roku CTA directive
+    // ✅ directives: merge engine directives + optional Roku CTA directive (no duplicates)
     let directives = normalizeDirectives(out && out.directives);
-    if (eligible && canEmitRokuCta(session, now, posture)) {
+    if (eligible && canEmitRokuCta(session, now, posture) && !hasDirectiveType(directives, "bridge_roku")) {
       const reason = isExplicitRokuMention(text) ? "explicit_roku" : "implicit_bridge";
       const rokuDir = buildRokuBridgeDirective({ session, now, posture, reason });
       directives = directives || [];
