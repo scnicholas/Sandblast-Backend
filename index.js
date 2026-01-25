@@ -1,7 +1,9 @@
+"use strict";
+
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17zd
+ * index.js v1.5.17ze
  * (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION +
  *  ✅ SESSIONPATCH EXPANDED (CONTINUITY PERSIST FIX) + ✅ CONVERSATIONAL CONTRACT ENFORCER (HARD) +
  *  ✅ ROUTE HINT AWARE COG NORMALIZATION + ✅ ENV KNOBS HARDENED +
@@ -11,7 +13,9 @@
  *  ✅ COS PERSISTENCE WIRING (session.cog allowlist + sanitize + normalizeCog reads session.cog) +
  *  ✅ DIRECTIVES HARDENING (sanitize objects + clamp) + ✅ NO DUPLICATE bridge_roku +
  *  ✅ TTS JSON-PARSE RECOVERY (NO_TEXT / raw string payloads) +
- *  ✅ INTRO FALLBACK GUARD (only when chatEngine missing/fails + greeting)
+ *  ✅ INTRO FALLBACK GUARD (only when chatEngine missing/fails + greeting) +
+ *  ✅ FIX: SESSION_TTL_MS clamp min (was forcing 10h) +
+ *  ✅ TTS HANDLER: supports router instance exports (router.handle)
  */
 
 const express = require("express");
@@ -67,7 +71,7 @@ if (TRUST_PROXY) {
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.17zd (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + SESSIONPATCH EXPANDED + CONTRACT ENFORCER + ROUTE HINT COG + ENV HARDENED + TRUST PROXY + DISCOVERY ROUTES + ROKU DIRECTIVE + CORS PREFLIGHT FIX + COS PERSISTENCE + DIRECTIVES HARDENING + NO DUPLICATE bridge_roku + TTS JSON-PARSE RECOVERY + INTRO FALLBACK GUARD)";
+  "index.js v1.5.17ze (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + SESSIONPATCH EXPANDED + CONTRACT ENFORCER + ROUTE HINT COG + ENV HARDENED + TRUST PROXY + DISCOVERY ROUTES + ROKU DIRECTIVE + CORS PREFLIGHT FIX + COS PERSISTENCE + DIRECTIVES HARDENING + NO DUPLICATE bridge_roku + TTS JSON-PARSE RECOVERY + INTRO FALLBACK GUARD + FIX SESSION_TTL clamp + TTS router export support)";
 
 const GIT_COMMIT =
   String(process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "").trim() || null;
@@ -147,7 +151,9 @@ function ua(req) {
 function isGreetingText(text) {
   const t = normCmd(text || "");
   if (!t) return true;
-  return /^(hi|hey|hello|yo|hiya|good morning|good afternoon|good evening|sup|what's up|whats up)\b/.test(t);
+  return /^(hi|hey|hello|yo|hiya|good morning|good afternoon|good evening|sup|what's up|whats up)\b/.test(
+    t
+  );
 }
 
 const INTRO_FALLBACK_TEXT =
@@ -158,18 +164,18 @@ const INTRO_FALLBACK_TEXT =
 ====================================================== */
 
 const COG_ALLOW_KEYS = new Set([
-  "phase",       // welcome|engaged|clarify|execute|reflect|idle
-  "state",       // confident|uncertain|error|etc
-  "reason",      // ok|upstream_quota|etc
-  "intent",      // explore|decide|build|debug|etc
-  "depth",       // fast|deep
-  "nextStep",    // concise recommended action
+  "phase", // welcome|engaged|clarify|execute|reflect|idle
+  "state", // confident|uncertain|error|etc
+  "reason", // ok|upstream_quota|etc
+  "intent", // explore|decide|build|debug|etc
+  "depth", // fast|deep
+  "nextStep", // concise recommended action
   "lastShiftAt", // ms epoch
-  "version",     // cos_v0
-  "lane",        // music|roku|...
-  "mode",        // top10|story|...
-  "year",        // "1988"
-  "ts",          // ms epoch
+  "version", // cos_v0
+  "lane", // music|roku|...
+  "mode", // top10|story|...
+  "year", // "1988"
+  "ts", // ms epoch
 ]);
 
 function sanitizeCogObject(obj) {
@@ -226,7 +232,15 @@ function sanitizeCogObject(obj) {
    Conversational Contract Enforcer (HARD)
 ====================================================== */
 
-const LANES = new Set(["general", "music", "roku", "schedule", "radio", "sponsors", "movies"]);
+const LANES = new Set([
+  "general",
+  "music",
+  "roku",
+  "schedule",
+  "radio",
+  "sponsors",
+  "movies",
+]);
 
 function normalizeRouteHint(h) {
   const t = normCmd(h || "");
@@ -261,7 +275,12 @@ const DIRECTIVE_STR_MAX = clamp(process.env.DIRECTIVE_STR_MAX || 800, 80, 2000);
 const DIRECTIVE_TYPE_MAX = clamp(process.env.DIRECTIVE_TYPE_MAX || 48, 16, 96);
 
 function isPlainObject(x) {
-  return !!x && typeof x === "object" && (Object.getPrototypeOf(x) === Object.prototype || Object.getPrototypeOf(x) === null);
+  return (
+    !!x &&
+    typeof x === "object" &&
+    (Object.getPrototypeOf(x) === Object.prototype ||
+      Object.getPrototypeOf(x) === null)
+  );
 }
 
 function shallowSanitizeDirectiveObj(obj) {
@@ -346,8 +365,10 @@ function normalizeCog(out, session, routeHint) {
   const scRaw = session && session.cog && typeof session.cog === "object" ? session.cog : null;
   const sc = scRaw ? sanitizeCogObject(scRaw) || {} : {};
 
-  const laneFromOut = (out && typeof out.lane === "string" ? out.lane : "") || (oc && oc.lane) || "";
-  const laneFromSession = session && session.lane ? session.lane : session && session.lastLane ? session.lastLane : "";
+  const laneFromOut =
+    (out && typeof out.lane === "string" ? out.lane : "") || (oc && oc.lane) || "";
+  const laneFromSession =
+    session && session.lane ? session.lane : session && session.lastLane ? session.lastLane : "";
   const laneFromHint = normalizeRouteHint(routeHint) || "";
   const laneFromCog = (oc && oc.lane) || (sc && sc.lane) || "";
 
@@ -698,11 +719,18 @@ app.use((req, res, next) => {
 ====================================================== */
 
 const MAX_SESSIONS = Math.max(0, Number(process.env.MAX_SESSIONS || 0));
+
+/**
+ * ✅ FIX:
+ * Previously, clamp min was 10 HOURS, which forced the TTL to >=10h even if default is 6h.
+ * Correct min to 10 minutes and max to 24 hours.
+ */
 const SESSION_TTL_MS = clamp(
   process.env.SESSION_TTL_MS || 6 * 60 * 60 * 1000,
-  10 * 60 * 60 * 1000,
+  10 * 60 * 1000,
   24 * 60 * 60 * 1000
 );
+
 const SESSIONS = new Map();
 
 function getClientIp(req) {
@@ -998,6 +1026,9 @@ app.get("/api/version", (req, res) => {
       directiveMax: DIRECTIVE_MAX,
       directiveKeyMax: DIRECTIVE_KEY_MAX,
       directiveStrMax: DIRECTIVE_STR_MAX,
+
+      // Sessions
+      sessionTtlMs: SESSION_TTL_MS,
     },
     allowlistSample: EFFECTIVE_ORIGINS.slice(0, 10),
   });
@@ -1288,10 +1319,41 @@ if (!ttsModule) {
 function pickTtsHandler(mod) {
   if (!mod) return null;
 
+  // default export function
   if (mod.default && typeof mod.default === "function") return mod.default;
-  if (mod.router && typeof mod.router === "function") return mod.router;
+
+  // router export can be a function OR a router instance (has .handle)
+  if (mod.router) {
+    if (typeof mod.router === "function") return mod.router;
+    if (mod.router && typeof mod.router.handle === "function") {
+      return async (req, res) => {
+        return await new Promise((resolve) => {
+          try {
+            mod.router.handle(req, res, () => resolve());
+            // if router didn't send, resolve anyway (we'll do a gentle fallback)
+            setTimeout(() => resolve(), 0).unref?.();
+          } catch (_) {
+            resolve();
+          }
+        }).then(() => {
+          if (!res.headersSent) {
+            return safeJson(res, 404, {
+              ok: false,
+              error: "TTS_ROUTER_NO_MATCH",
+              message: "TTS router did not handle this request.",
+              requestId: req.get("X-Request-Id") || null,
+              contractVersion: NYX_CONTRACT_VERSION,
+            });
+          }
+        });
+      };
+    }
+  }
+
+  // module itself as function
   if (typeof mod === "function") return mod;
 
+  // named function exports
   if (typeof mod.handleTts === "function") return mod.handleTts;
   if (typeof mod.handle === "function") return mod.handle;
   if (typeof mod.tts === "function") return mod.tts;
