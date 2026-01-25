@@ -14,8 +14,7 @@
  *  ✅ DIRECTIVES HARDENING (sanitize objects + clamp) + ✅ NO DUPLICATE bridge_roku +
  *  ✅ TTS JSON-PARSE RECOVERY (NO_TEXT / raw string payloads) +
  *  ✅ INTRO FALLBACK GUARD (only when chatEngine missing/fails + greeting) +
- *  ✅ FIX: SESSION_TTL_MS clamp min (was forcing 10h) +
- *  ✅ TTS HANDLER: supports router instance exports (router.handle)
+ *  ✅ LOOP FUSE v2 (input-signature dedupe + repeat clamp + quiet payload on runaway)
  */
 
 const express = require("express");
@@ -71,7 +70,7 @@ if (TRUST_PROXY) {
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.17ze (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + SESSIONPATCH EXPANDED + CONTRACT ENFORCER + ROUTE HINT COG + ENV HARDENED + TRUST PROXY + DISCOVERY ROUTES + ROKU DIRECTIVE + CORS PREFLIGHT FIX + COS PERSISTENCE + DIRECTIVES HARDENING + NO DUPLICATE bridge_roku + TTS JSON-PARSE RECOVERY + INTRO FALLBACK GUARD + FIX SESSION_TTL clamp + TTS router export support)";
+  "index.js v1.5.17ze (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + SESSIONPATCH EXPANDED + CONTRACT ENFORCER + ROUTE HINT COG + ENV HARDENED + TRUST PROXY + DISCOVERY ROUTES + ROKU DIRECTIVE + CORS PREFLIGHT FIX + COS PERSISTENCE + DIRECTIVES HARDENING + NO DUPLICATE bridge_roku + TTS JSON-PARSE RECOVERY + INTRO FALLBACK GUARD + LOOP FUSE v2)";
 
 const GIT_COMMIT =
   String(process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "").trim() || null;
@@ -164,18 +163,18 @@ const INTRO_FALLBACK_TEXT =
 ====================================================== */
 
 const COG_ALLOW_KEYS = new Set([
-  "phase", // welcome|engaged|clarify|execute|reflect|idle
-  "state", // confident|uncertain|error|etc
-  "reason", // ok|upstream_quota|etc
-  "intent", // explore|decide|build|debug|etc
-  "depth", // fast|deep
-  "nextStep", // concise recommended action
-  "lastShiftAt", // ms epoch
-  "version", // cos_v0
-  "lane", // music|roku|...
-  "mode", // top10|story|...
-  "year", // "1988"
-  "ts", // ms epoch
+  "phase",
+  "state",
+  "reason",
+  "intent",
+  "depth",
+  "nextStep",
+  "lastShiftAt",
+  "version",
+  "lane",
+  "mode",
+  "year",
+  "ts",
 ]);
 
 function sanitizeCogObject(obj) {
@@ -215,7 +214,6 @@ function sanitizeCogObject(obj) {
       continue;
     }
 
-    // default: keep primitives only
     if (
       v === null ||
       typeof v === "string" ||
@@ -232,21 +230,12 @@ function sanitizeCogObject(obj) {
    Conversational Contract Enforcer (HARD)
 ====================================================== */
 
-const LANES = new Set([
-  "general",
-  "music",
-  "roku",
-  "schedule",
-  "radio",
-  "sponsors",
-  "movies",
-]);
+const LANES = new Set(["general", "music", "roku", "schedule", "radio", "sponsors", "movies"]);
 
 function normalizeRouteHint(h) {
   const t = normCmd(h || "");
   if (!t) return null;
 
-  // synonyms / UI hints
   if (t === "years" || t === "year_pick" || t === "pick a year") return "music";
   if (t === "tv") return "roku";
   return t;
@@ -278,8 +267,7 @@ function isPlainObject(x) {
   return (
     !!x &&
     typeof x === "object" &&
-    (Object.getPrototypeOf(x) === Object.prototype ||
-      Object.getPrototypeOf(x) === null)
+    (Object.getPrototypeOf(x) === Object.prototype || Object.getPrototypeOf(x) === null)
   );
 }
 
@@ -310,15 +298,12 @@ function shallowSanitizeDirectiveObj(obj) {
       out[k] = v;
       continue;
     }
-
-    // prevent nested objects/arrays from riding along
   }
 
   if (!out.type) return null;
   out.type = normalizeStr(out.type).slice(0, DIRECTIVE_TYPE_MAX);
   if (!out.type) return null;
 
-  // extra clamp for common fields
   if (out.label) out.label = normalizeStr(out.label).slice(0, 160);
   if (out.url) out.url = normalizeStr(out.url).slice(0, 900);
   if (out.fallbackUrl) out.fallbackUrl = normalizeStr(out.fallbackUrl).slice(0, 900);
@@ -347,6 +332,82 @@ function normalizeDirectives(d) {
   return out;
 }
 
+/* ======================================================
+   Session patch allowlist
+====================================================== */
+
+const SERVER_OWNED_KEYS = new Set([
+  "__lastBridgeAt",
+  "__bridgeIdx",
+  "__lastPosture",
+  "__lastRokuCtaAt",
+  "__rokuCtaCount",
+  "__loopSigAt",
+  "__loopSig",
+  "__loopCount",
+]);
+
+const SESSION_PATCH_ALLOW = new Set([
+  "introDone",
+  "introAt",
+  "lastInText",
+  "lastInAt",
+  "lastOut",
+  "lastOutAt",
+  "lastOutSig",
+  "lastOutSigAt",
+  "turns",
+  "startedAt",
+  "lastTurnAt",
+  "lanesVisited",
+  "yearsVisited",
+  "modesVisited",
+  "lastLane",
+  "lastYear",
+  "lastMode",
+  "lastFork",
+  "depthLevel",
+  "elasticToggle",
+  "lastElasticAt",
+  "lane",
+  "pendingLane",
+  "pendingMode",
+  "pendingYear",
+  "recentIntent",
+  "recentTopic",
+  "activeMusicMode",
+  "lastMusicYear",
+  "year",
+  "mode",
+  "depthPreference",
+  "userName",
+  "nameAskedAt",
+  "lastOpenQuestion",
+  "userGoal",
+  "lastNameUseTurn",
+  "visitorId",
+  "voiceMode",
+
+  "__lastIntentSig",
+  "__lastIntentAt",
+  "__lastReply",
+  "__lastBodyHash",
+  "__lastBodyAt",
+  "__lastReplyHash",
+  "__lastReplyAt",
+  "__repAt",
+  "__repCount",
+  "__srAt",
+  "__srCount",
+  "__lastBridgeAt",
+  "__bridgeIdx",
+  "__lastPosture",
+
+  "__cs1",
+
+  "cog",
+]);
+
 function allowlistSessionPatchObj(patch) {
   if (!patch || typeof patch !== "object") return {};
   const out = {};
@@ -360,6 +421,33 @@ function allowlistSessionPatchObj(patch) {
   return out;
 }
 
+function applySessionPatch(session, patch) {
+  if (!session || !patch || typeof patch !== "object") return;
+
+  for (const [k, v] of Object.entries(patch)) {
+    if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
+    if (SERVER_OWNED_KEYS.has(k)) continue;
+    if (!SESSION_PATCH_ALLOW.has(k)) continue;
+    if (typeof v === "undefined") continue;
+
+    if (k === "cog") {
+      if (v === null) {
+        session.cog = null;
+        continue;
+      }
+      const sanitized = sanitizeCogObject(v);
+      if (sanitized) session.cog = sanitized;
+      continue;
+    }
+
+    session[k] = v;
+  }
+}
+
+/* ======================================================
+   Cog normalization
+====================================================== */
+
 function normalizeCog(out, session, routeHint) {
   const oc = out && typeof out === "object" && out.cog && typeof out.cog === "object" ? out.cog : {};
   const scRaw = session && session.cog && typeof session.cog === "object" ? session.cog : null;
@@ -367,8 +455,7 @@ function normalizeCog(out, session, routeHint) {
 
   const laneFromOut =
     (out && typeof out.lane === "string" ? out.lane : "") || (oc && oc.lane) || "";
-  const laneFromSession =
-    session && session.lane ? session.lane : session && session.lastLane ? session.lastLane : "";
+  const laneFromSession = session && session.lane ? session.lane : session && session.lastLane ? session.lastLane : "";
   const laneFromHint = normalizeRouteHint(routeHint) || "";
   const laneFromCog = (oc && oc.lane) || (sc && sc.lane) || "";
 
@@ -468,7 +555,6 @@ function enforceChatContract({
     ? normalizeDirectives(directivesOverride)
     : normalizeDirectives(out && out.directives);
 
-  // NOTE: sessionPatch is returned for client-side state sync; server state is applied via applySessionPatch().
   const sessionPatch = allowlistSessionPatchObj(out && out.sessionPatch) || {};
   const cog = normalizeCog(out, session, routeHint);
 
@@ -500,10 +586,6 @@ function enforceChatContract({
 
 const CORS_ALLOW_ALL = String(process.env.CORS_ALLOW_ALL || "false") === "true";
 
-/**
- * Force-allow Sandblast origins (prevents accidental bricking if env allowlist is wrong).
- * These are the origins we EXPECT to call the backend.
- */
 const FORCE_ORIGINS = [
   "https://sandblast.channel",
   "https://www.sandblast.channel",
@@ -521,32 +603,27 @@ const ALLOWED_ORIGINS = normalizeStr(process.env.CORS_ALLOWED_ORIGINS || "")
 const CORS_ENV_EXCLUSIVE = String(process.env.CORS_ENV_EXCLUSIVE || "false") === "true";
 
 const EFFECTIVE_ORIGINS = (() => {
-  // If env is empty, default to FORCE/DEFAULT list.
   if (ALLOWED_ORIGINS.length === 0) return DEFAULT_ORIGINS.slice();
 
-  // If exclusive, still union with FORCE to prevent self-brick.
   if (CORS_ENV_EXCLUSIVE) {
     const set = new Set(FORCE_ORIGINS);
     for (const o of ALLOWED_ORIGINS) set.add(o);
     return Array.from(set);
   }
 
-  // Non-exclusive: union everything.
   const set = new Set(DEFAULT_ORIGINS);
   for (const o of ALLOWED_ORIGINS) set.add(o);
   return Array.from(set);
 })();
 
 function originAllowed(origin) {
-  if (!origin) return true; // non-browser clients
+  if (!origin) return true;
   if (CORS_ALLOW_ALL) return true;
 
   const o = String(origin).trim().replace(/\/$/, "");
 
-  // Direct allowlist
   if (EFFECTIVE_ORIGINS.includes(o)) return true;
 
-  // Host flip www/non-www
   try {
     const u = new URL(o);
     const host = String(u.hostname || "");
@@ -554,13 +631,10 @@ function originAllowed(origin) {
     const alt = `${u.protocol}//${altHost}${u.port ? `:${u.port}` : ""}`;
     if (EFFECTIVE_ORIGINS.includes(alt)) return true;
 
-    // Guard-rail: allow any exact sandblast.channel / sandblastchannel.com origin even if list is off
     const h = host.toLowerCase();
     if (h === "sandblast.channel" || h === "www.sandblast.channel") return true;
     if (h === "sandblastchannel.com" || h === "www.sandblastchannel.com") return true;
-  } catch (_) {
-    // ignore URL parse errors
-  }
+  } catch (_) {}
 
   return false;
 }
@@ -587,6 +661,7 @@ const CORS_EXPOSED_HEADERS = [
   "X-CORS-Origin-Seen",
   "X-Nyx-Posture",
   "X-Nyx-Bridge",
+  "X-Nyx-Loop",
 ];
 
 const CORS_MAX_AGE = 86400;
@@ -594,7 +669,6 @@ const CORS_MAX_AGE = 86400;
 function applyCors(req, res) {
   const origin = req.headers.origin ? String(req.headers.origin).trim() : "";
 
-  // ✅ do not clobber existing Vary; ensure Origin is present
   safeAppendHeader(res, "Vary", "Origin");
   safeSet(res, "X-CORS-Origin-Seen", origin || "");
 
@@ -607,11 +681,6 @@ function applyCors(req, res) {
   }
 }
 
-/**
- * ✅ EARLY CORS middleware
- * - Always sets headers (when allowed)
- * - Short-circuits OPTIONS with 204 (preflight success)
- */
 app.use((req, res, next) => {
   applyCors(req, res);
 
@@ -666,24 +735,20 @@ function isTtsOrVoicePath(req) {
 app.use((err, req, res, next) => {
   if (!err) return next();
 
-  // ✅ If TTS/VOICE declares JSON but sends non-JSON, do NOT brick voice.
   if (isTtsOrVoicePath(req) && isJsonParseErr(err)) {
     const raw = normalizeStr(req.rawBody || "");
     const up = raw.toUpperCase();
 
-    // Common widget behavior: send "NO_TEXT" with application/json
     if (!raw || up === "NO_TEXT") {
       req.body = { NO_TEXT: true };
       return next();
     }
 
-    // If it's valid JSON after all, accept it
     try {
       const parsed = JSON.parse(raw);
       req.body = parsed;
       return next();
     } catch (_) {
-      // Otherwise treat as plain text body
       req.body = { text: raw };
       return next();
     }
@@ -719,18 +784,11 @@ app.use((req, res, next) => {
 ====================================================== */
 
 const MAX_SESSIONS = Math.max(0, Number(process.env.MAX_SESSIONS || 0));
-
-/**
- * ✅ FIX:
- * Previously, clamp min was 10 HOURS, which forced the TTL to >=10h even if default is 6h.
- * Correct min to 10 minutes and max to 24 hours.
- */
 const SESSION_TTL_MS = clamp(
   process.env.SESSION_TTL_MS || 6 * 60 * 60 * 1000,
-  10 * 60 * 1000,
+  10 * 60 * 60 * 1000,
   24 * 60 * 60 * 1000
 );
-
 const SESSIONS = new Map();
 
 function getClientIp(req) {
@@ -740,7 +798,6 @@ function getClientIp(req) {
   const xf = normalizeStr(req.get("x-forwarded-for") || "");
   if (xf) return xf.split(",")[0].trim();
 
-  // trust proxy may populate req.ip
   const rip = normalizeStr(req.ip || "");
   if (rip) return rip;
 
@@ -778,106 +835,6 @@ function getVoiceMode(req, body) {
   const fromBody = body && typeof body === "object" ? normalizeStr(body.voiceMode || "") : "";
   const fromHeader = normalizeStr(req.get("X-Voice-Mode") || "");
   return fromBody || fromHeader || "";
-}
-
-/* Server-owned keys (cannot be overwritten by sessionPatch) */
-const SERVER_OWNED_KEYS = new Set([
-  "__lastBridgeAt",
-  "__bridgeIdx",
-  "__lastPosture",
-  "__lastRokuCtaAt",
-  "__rokuCtaCount",
-]);
-
-/**
- * Strict patch apply: allowlist only + proto-safe
- */
-const SESSION_PATCH_ALLOW = new Set([
-  "introDone",
-  "introAt",
-  "lastInText",
-  "lastInAt",
-  "lastOut",
-  "lastOutAt",
-  "lastOutSig",
-  "lastOutSigAt",
-  "turns",
-  "startedAt",
-  "lastTurnAt",
-  "lanesVisited",
-  "yearsVisited",
-  "modesVisited",
-  "lastLane",
-  "lastYear",
-  "lastMode",
-  "lastFork",
-  "depthLevel",
-  "elasticToggle",
-  "lastElasticAt",
-  "lane",
-  "pendingLane",
-  "pendingMode",
-  "pendingYear",
-  "recentIntent",
-  "recentTopic",
-  "activeMusicMode",
-  "lastMusicYear",
-  "year",
-  "mode",
-  "depthPreference",
-  "userName",
-  "nameAskedAt",
-  "lastOpenQuestion",
-  "userGoal",
-  "lastNameUseTurn",
-  "visitorId",
-  "voiceMode",
-
-  // loop/dedupe telemetry keys
-  "__lastIntentSig",
-  "__lastIntentAt",
-  "__lastReply",
-  "__lastBodyHash",
-  "__lastBodyAt",
-  "__lastReplyHash",
-  "__lastReplyAt",
-  "__repAt",
-  "__repCount",
-  "__srAt",
-  "__srCount",
-  "__lastBridgeAt",
-  "__bridgeIdx",
-  "__lastPosture",
-
-  // ✅ CS-1 continuity state (chatEngine v0.6z)
-  "__cs1",
-
-  // ✅ COS persistence (chatEngine may set sessionPatch.cog)
-  "cog",
-]);
-
-function applySessionPatch(session, patch) {
-  if (!session || !patch || typeof patch !== "object") return;
-
-  for (const [k, v] of Object.entries(patch)) {
-    if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
-    if (SERVER_OWNED_KEYS.has(k)) continue;
-    if (!SESSION_PATCH_ALLOW.has(k)) continue;
-    if (typeof v === "undefined") continue;
-
-    // ✅ COS object is sanitized
-    if (k === "cog") {
-      if (v === null) {
-        session.cog = null;
-        continue;
-      }
-      const sanitized = sanitizeCogObject(v);
-      if (sanitized) session.cog = sanitized;
-      continue;
-    }
-
-    session[k] = v;
-  }
 }
 
 function touchSession(sessionId, patch) {
@@ -990,6 +947,9 @@ app.get("/api/version", (req, res) => {
   const rokuFallbackUrl = normalizeStr(process.env.ROKU_FALLBACK_URL || "https://sandblast.channel/roku");
   const rokuCtaCooldownMs = clamp(process.env.ROKU_CTA_COOLDOWN_MS || 600_000, 60_000, 3_600_000);
 
+  const loopSigWindowMs = clamp(process.env.LOOP_SIG_WINDOW_MS || 1600, 400, 8000);
+  const loopSigMax = clamp(process.env.LOOP_SIG_MAX || 3, 1, 12);
+
   return safeJson(res, 200, {
     ok: true,
     requestId,
@@ -1014,21 +974,15 @@ app.get("/api/version", (req, res) => {
       bridgeStyleDefault,
       bridgeExplicitAlways,
       bridgeDebugHeaders,
-
       rokuCtaCooldownMs,
       hasRokuChannelUrl: !!rokuChannelUrl,
       rokuFallbackUrl,
-
-      // COS
       cosPersistence: true,
-
-      // Directive hardening
       directiveMax: DIRECTIVE_MAX,
       directiveKeyMax: DIRECTIVE_KEY_MAX,
       directiveStrMax: DIRECTIVE_STR_MAX,
-
-      // Sessions
-      sessionTtlMs: SESSION_TTL_MS,
+      loopSigWindowMs,
+      loopSigMax,
     },
     allowlistSample: EFFECTIVE_ORIGINS.slice(0, 10),
   });
@@ -1096,6 +1050,51 @@ function intentSigFrom(text, session) {
   const m = extractMode(t) || (session && String(session.activeMusicMode || "")) || "";
   const lane = session && session.lane ? String(session.lane) : "";
   return `${lane || ""}::${m || ""}::${y || ""}::${sha256(t).slice(0, 10)}`;
+}
+
+/* ======================================================
+   LOOP FUSE v2 (server-side protection)
+   Purpose: if widget (or browser) re-sends the same input rapidly,
+            we return a "quiet" deterministic response and avoid re-triggering
+            bridge/directives churn.
+====================================================== */
+
+const LOOP_SIG_WINDOW_MS = clamp(process.env.LOOP_SIG_WINDOW_MS || 1600, 400, 8000);
+const LOOP_SIG_MAX = clamp(process.env.LOOP_SIG_MAX || 3, 1, 12);
+
+function loopSig({ text, routeHint, voiceMode, session }) {
+  const t = normCmd(text || "");
+  const rh = normCmd(routeHint || "");
+  const vm = normCmd(voiceMode || "");
+  const lane = normCmd(session && session.lane ? session.lane : "");
+  const mode = normCmd(session && session.activeMusicMode ? session.activeMusicMode : "");
+  const year = session && (session.lastMusicYear || session.lastYear) ? String(session.lastMusicYear || session.lastYear) : "";
+  const core = `${t}||${rh}||${vm}||${lane}||${mode}||${year}`;
+  return sha256(core);
+}
+
+function shouldLoopFuse(session, sig, now) {
+  const lastSig = normalizeStr(session.__loopSig || "");
+  const lastAt = Number(session.__loopSigAt || 0);
+  const within = lastSig && lastAt && now - lastAt < LOOP_SIG_WINDOW_MS;
+
+  if (!within || sig !== lastSig) {
+    session.__loopSig = sig;
+    session.__loopSigAt = now;
+    session.__loopCount = 0;
+    return { fuse: false, count: 0 };
+  }
+
+  const next = Number(session.__loopCount || 0) + 1;
+  session.__loopCount = next;
+  return { fuse: true, count: next };
+}
+
+function quietLoopReply(session) {
+  // deterministic, non-bridging, non-directive
+  const last = normalizeStr(session.__lastReply || "");
+  if (last) return last;
+  return "Okay — I’ve got you. Tell me a year (1950–2024) or say “top 10 1988”.";
 }
 
 /* ======================================================
@@ -1199,7 +1198,6 @@ function injectBridgeLine(reply, line) {
   return base + "\n\n" + add;
 }
 
-/* ✅ Roku directive emission (backend-first; safe if client ignores) */
 function canEmitRokuCta(session, now, posture) {
   if (!session) return false;
   if (posture === "exit") return false;
@@ -1207,7 +1205,6 @@ function canEmitRokuCta(session, now, posture) {
   const last = Number(session.__lastRokuCtaAt || 0);
   if (last && now - last < ROKU_CTA_COOLDOWN_MS) return false;
 
-  // must have somewhere valid to send them
   if (!ROKU_CHANNEL_URL && !ROKU_FALLBACK_URL) return false;
 
   return true;
@@ -1225,7 +1222,6 @@ function buildRokuBridgeDirective({ session, now, posture, reason }) {
     ttlMs: 600_000,
   };
 
-  // server-owned session telemetry
   session.__lastRokuCtaAt = now;
   session.__rokuCtaCount = Number(session.__rokuCtaCount || 0) + 1;
 
@@ -1262,7 +1258,6 @@ function getTurnKey(req, body, text, visitorId) {
     turnId = "";
   }
 
-  // ✅ If turnId exists, dedupe is strictly by turnId (idempotency)
   if (turnId) {
     return sha256(JSON.stringify({ o: origin, fp, turnId }));
   }
@@ -1319,41 +1314,10 @@ if (!ttsModule) {
 function pickTtsHandler(mod) {
   if (!mod) return null;
 
-  // default export function
   if (mod.default && typeof mod.default === "function") return mod.default;
-
-  // router export can be a function OR a router instance (has .handle)
-  if (mod.router) {
-    if (typeof mod.router === "function") return mod.router;
-    if (mod.router && typeof mod.router.handle === "function") {
-      return async (req, res) => {
-        return await new Promise((resolve) => {
-          try {
-            mod.router.handle(req, res, () => resolve());
-            // if router didn't send, resolve anyway (we'll do a gentle fallback)
-            setTimeout(() => resolve(), 0).unref?.();
-          } catch (_) {
-            resolve();
-          }
-        }).then(() => {
-          if (!res.headersSent) {
-            return safeJson(res, 404, {
-              ok: false,
-              error: "TTS_ROUTER_NO_MATCH",
-              message: "TTS router did not handle this request.",
-              requestId: req.get("X-Request-Id") || null,
-              contractVersion: NYX_CONTRACT_VERSION,
-            });
-          }
-        });
-      };
-    }
-  }
-
-  // module itself as function
+  if (mod.router && typeof mod.router === "function") return mod.router;
   if (typeof mod === "function") return mod;
 
-  // named function exports
   if (typeof mod.handleTts === "function") return mod.handleTts;
   if (typeof mod.handle === "function") return mod.handle;
   if (typeof mod.tts === "function") return mod.tts;
@@ -1560,9 +1524,13 @@ function dedupeOkPayload({ reply, sessionId, requestId, visitorId, posture, rout
     shadow: null,
     followUps: undefined,
     bridgeInjected: null,
-    directivesOverride: null,
+    directivesOverride: [],
   });
 }
+
+/* ======================================================
+   /api/chat
+====================================================== */
 
 app.post("/api/chat", async (req, res) => {
   const requestId = req.get("X-Request-Id") || rid();
@@ -1571,7 +1539,6 @@ app.post("/api/chat", async (req, res) => {
   const isDebug = String(req.query.debug || "") === "1";
   const once = respondOnce(res);
 
-  // ✅ derive ids early so timeout-floor never returns null sessionId
   const headerVisitorId = normalizeStr(req.get("X-Visitor-Id") || "") || null;
   const derivedSessionId = deriveStableSessionId(req, headerVisitorId);
   const derivedSession = touchSession(derivedSessionId, { visitorId: headerVisitorId }) || {
@@ -1642,6 +1609,44 @@ app.post("/api/chat", async (req, res) => {
 
     const now = Date.now();
 
+    // =========================
+    // LOOP FUSE v2 — input signature
+    // =========================
+    const sig = loopSig({ text, routeHint, voiceMode: vmode, session });
+    const lf = shouldLoopFuse(session, sig, now);
+    if (lf.fuse) {
+      safeSet(res, "X-Nyx-Loop", `sig:${lf.count}`);
+      safeSet(res, "X-Nyx-Deduped", lf.count >= LOOP_SIG_MAX ? "loop-hard" : "loop-soft");
+
+      // soft: return last reply quietly; hard: return a hard stop that discourages auto-send
+      const reply =
+        lf.count >= LOOP_SIG_MAX
+          ? "Okay — we’re looping. Stop sending for a beat, then send ONE message: a year (1950–2024) or “top 10 1988”."
+          : quietLoopReply(session);
+
+      const posture = session.__lastPosture || detectPosture(text);
+      if (BRIDGE_DEBUG_HEADERS) safeSet(res, "X-Nyx-Posture", String(posture));
+
+      const payload = dedupeOkPayload({
+        reply,
+        sessionId,
+        requestId,
+        visitorId,
+        posture,
+        routeHint,
+        session,
+      });
+
+      // cache it so repeats settle instantly
+      TURN_CACHE.set(turnKey, { at: Date.now(), payload });
+
+      clearTimeout(watchdog);
+      return once.json(200, payload);
+    }
+
+    // =========================
+    // Sustained request guard (existing)
+    // =========================
     const srAt = Number(session.__srAt || 0);
     const srCount = Number(session.__srCount || 0);
     const srWithin = srAt && now - srAt < SR_WINDOW_MS;
@@ -1670,6 +1675,9 @@ app.post("/api/chat", async (req, res) => {
       session.__srCount = 0;
     }
 
+    // =========================
+    // Burst guard (existing)
+    // =========================
     const fp = fingerprint(req, visitorId);
     const prev = BURSTS.get(fp);
 
@@ -1712,6 +1720,9 @@ app.post("/api/chat", async (req, res) => {
       }
     }
 
+    // =========================
+    // Body hash dedupe (existing)
+    // =========================
     const bodyHash = sha256(stableBodyForHash(body, req));
     const lastHash = normalizeStr(session.__lastBodyHash || "");
     const lastAt = Number(session.__lastBodyAt || 0);
@@ -1733,6 +1744,9 @@ app.post("/api/chat", async (req, res) => {
       return once.json(200, payload);
     }
 
+    // =========================
+    // Shadow (soft)
+    // =========================
     let shadow = null;
     try {
       if (shadowBrain) {
@@ -1775,7 +1789,8 @@ app.post("/api/chat", async (req, res) => {
       applySessionPatch(session, out.sessionPatch);
     }
 
-    const baseReply = out && typeof out === "object" && typeof out.reply === "string" ? out.reply : fallbackReply(text);
+    const baseReply =
+      out && typeof out === "object" && typeof out.reply === "string" ? out.reply : fallbackReply(text);
 
     const posture = detectPosture(text);
     session.__lastPosture = posture;
@@ -1785,7 +1800,7 @@ app.post("/api/chat", async (req, res) => {
     let finalReply = String(baseReply || "").trim();
     if (!finalReply) finalReply = fallbackReply(text);
 
-    // ✅ INTRO FALLBACK GUARD (only if chatEngine failed/missing AND user greeted AND intro not done)
+    // ✅ INTRO FALLBACK GUARD
     if (!out && !session.introDone && isGreetingText(text)) {
       finalReply = INTRO_FALLBACK_TEXT;
       session.introDone = true;
@@ -1807,7 +1822,6 @@ app.post("/api/chat", async (req, res) => {
       }
     }
 
-    // ✅ directives: merge engine directives + optional Roku CTA directive (no duplicates)
     let directives = normalizeDirectives(out && out.directives);
     if (eligible && canEmitRokuCta(session, now, posture) && !hasDirectiveType(directives, "bridge_roku")) {
       const reason = isExplicitRokuMention(text) ? "explicit_roku" : "implicit_bridge";
@@ -1847,7 +1861,9 @@ app.post("/api/chat", async (req, res) => {
       if (nextCount >= REPLY_REPEAT_MAX) {
         clearTimeout(watchdog);
         safeSet(res, "X-Nyx-Deduped", "reply-runaway");
-        const soft = "Okay — pause. Tell me ONE thing: a year (1950–2024) or a command like “top 10 1988”.";
+
+        const soft =
+          "Okay — pause. Tell me ONE thing: a year (1950–2024) or a command like “top 10 1988”.";
         session.__lastReply = soft;
         session.__lastReplyHash = sha256(soft);
         session.__lastReplyAt = now;
@@ -1880,10 +1896,10 @@ app.post("/api/chat", async (req, res) => {
     session.__lastReplyHash = replyHash;
     session.__lastReplyAt = now;
 
-    const sig = intentSigFrom(text, session);
+    const sig2 = intentSigFrom(text, session);
     const lastSig = normalizeStr(session.__lastIntentSig || "");
     const lastSigAt = Number(session.__lastIntentAt || 0);
-    if (lastSig && sig === lastSig && lastSigAt && now - lastSigAt < INTENT_DEDUPE_MS) {
+    if (lastSig && sig2 === lastSig && lastSigAt && now - lastSigAt < INTENT_DEDUPE_MS) {
       clearTimeout(watchdog);
       safeSet(res, "X-Nyx-Deduped", "intent-sig");
       const payload = dedupeOkPayload({
@@ -1898,7 +1914,7 @@ app.post("/api/chat", async (req, res) => {
       TURN_CACHE.set(turnKey, { at: Date.now(), payload });
       return once.json(200, payload);
     }
-    session.__lastIntentSig = sig;
+    session.__lastIntentSig = sig2;
     session.__lastIntentAt = now;
 
     const payload = enforceChatContract({
@@ -1936,6 +1952,11 @@ app.post("/api/chat", async (req, res) => {
         routeHint: routeHint || null,
         laneNormalized: payload.cog && payload.cog.lane ? payload.cog.lane : null,
       };
+      payload._loop = {
+        sigWindowMs: LOOP_SIG_WINDOW_MS,
+        sigMax: LOOP_SIG_MAX,
+        loopCount: Number(session.__loopCount || 0),
+      };
     }
 
     TURN_CACHE.set(turnKey, { at: Date.now(), payload });
@@ -1967,7 +1988,7 @@ app.post("/api/chat", async (req, res) => {
       TURN_CACHE.set(turnKey, { at: Date.now(), payload });
     } catch (_) {}
 
-    return once.json(200, payload);
+    return safeJson(res, 200, payload);
   }
 });
 
