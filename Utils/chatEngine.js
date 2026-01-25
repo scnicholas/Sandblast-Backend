@@ -16,9 +16,10 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.6zL
- * (INTRO PACKET VARIANTS (stable-per-login) + INTRO ON EMPTY BOOT (panel_open_intro) +
- *  IGNORE EMPTY TURN (prevents phantom first-turn / turnCount drift) +
+ * v0.6zM
+ * (INTRO PACKET VARIANTS (stable-per-login) + CONTEXTUAL INTRO BUCKETS +
+ *  INTRO ON EMPTY BOOT (panel_open_intro) +
+ *  IGNORE NON-BOOT EMPTY TURN (prevents phantom first-turn / turnCount drift / loop triggers) +
  *  INTENT BYPASS +
  *  TEMPLATE SAFETY (regex-escape) +
  *  MUSIC OVERRIDE (year+mode forces music) +
@@ -34,29 +35,57 @@ const crypto = require("crypto");
 // Version
 // =========================
 const CE_VERSION =
-  "chatEngine v0.6zL (intro packet variants stable-per-login + serve intro on empty boot source; ignore empty turn; intent bypass; template-safety; MUSIC override; CS-1 soft; safe pack loading; sessionPatch minimized)";
+  "chatEngine v0.6zM (contextual intro buckets + stable-per-login intro variants + serve intro on empty boot source; ignore non-boot empty turns; intent bypass; template-safety; MUSIC override; CS-1 soft; safe pack loading; sessionPatch minimized; nonempty)";
 
 // =========================
 // Intro (varied per login-moment; stable selection per login window)
 // =========================
 const INTRO_REARM_MS = 12 * 60 * 1000; // treat idle gap >= 12m as "new login"
 
-// Keep intros short, consistent, and within the same “packet” feel.
-const INTRO_VARIANTS = [
-  "Hey — Nyx here.\n\nGive me a year (1950–2024) and I’ll handle the rest.\nExamples: “top 10 1988”, “#1 1964”, “story moment 1977”, “micro moment 1999”.",
-  "Welcome in.\n\nYear first (1950–2024), then we go deep.\nTry: “top 10 1988” or “story moment 1977”.",
-  "Nyx, at your service.\n\nDrop a year (1950–2024) and I’ll pull the memory thread.\nExamples: “#1 1964”, “micro moment 1999”.",
-  "Hi. I’m Nyx.\n\nPick a year (1950–2024) and choose a vibe: Top 10, #1, story moment, or micro moment.",
-  "Alright — Nyx online.\n\nGive me a year (1950–2024). If you want structure: “top 10 1988”, “#1 1964”, “micro moment 1999”.",
-  "Come on in.\n\nTell me a year (1950–2024) and I’ll bring the chart, the context, and the moment.",
-  "Hey — welcome to Sandblast.\n\nYear first (1950–2024). Then: Top 10, #1, story moment, or micro moment.",
-  "Nyx here.\n\nPick a year (1950–2024) and I’ll do the rest. Try: “top 10 1988” or “story moment 1977”.",
-  "Welcome.\n\nGive me a year (1950–2024). Want it fast or cinematic? Top 10, #1, story moment, micro moment.",
-  "Hey you.\n\nDrop a year (1950–2024). I can do charts, stories, and the little details that make it real.",
-  "Nyx checking in.\n\nWhat year are we time-traveling to? (1950–2024).",
-  "Good to see you.\n\nTell me a year (1950–2024) and I’ll open the door: Top 10, #1, story moment, micro moment.",
-];
+// Bucketed intros: the widget now feels less rigid because intros match intent/lane.
+const INTRO_VARIANTS_BY_BUCKET = {
+  general: [
+    "Hey — Nyx here.\n\nGive me a year (1950–2024) and I’ll handle the rest.\nExamples: “top 10 1988”, “#1 1964”, “story moment 1977”, “micro moment 1999”.",
+    "Welcome in.\n\nYear first (1950–2024), then we go deep.\nTry: “top 10 1988” or “story moment 1977”.",
+    "Hi. I’m Nyx.\n\nPick a year (1950–2024) and choose a vibe: Top 10, #1, story moment, or micro moment.",
+    "Alright — Nyx online.\n\nGive me a year (1950–2024). If you want structure: “top 10 1988”, “#1 1964”, “micro moment 1999”.",
+    "Hey you.\n\nDrop a year (1950–2024). I can do charts, stories, and the little details that make it real.",
+    "Nyx checking in.\n\nWhat year are we time-traveling to? (1950–2024).",
+  ],
+  music: [
+    "Music mode.\n\nGive me a year (1950–2024) and tell me what you want: Top 10, #1, story moment, or micro moment.",
+    "Alright — music first.\n\nDrop a year (1950–2024). Want Top 10, #1, story moment, or micro moment?",
+    "Let’s do this properly.\n\nYear (1950–2024), then we pick the lens: Top 10, #1, story moment, micro moment.",
+    "You give me the year — I’ll give you the feeling.\n\nTry: “top 10 1988” or “story moment 1977”.",
+  ],
+  schedule: [
+    "Schedule mode.\n\nTell me your city/timezone and I’ll translate Sandblast time into yours. Or ask for “Now / Next / Later.”",
+    "Want the lineup?\n\nSay “Now / Next / Later”, or tell me your city so I can convert times cleanly.",
+    "Programming grid time.\n\nTell me where you are (city/timezone) or ask: “What’s on now?”",
+  ],
+  roku: [
+    "Roku mode.\n\nWant live linear, on-demand, or today’s schedule?",
+    "Roku.\n\nTell me if you want what’s playing now, the schedule, or a quick guide to the channel flow.",
+    "Let’s get you watching.\n\nSay “live”, “on-demand”, or “schedule”.",
+  ],
+  radio: [
+    "Radio mode.\n\nWant the stream link, or do you want to pick an era first?",
+    "Sandblast Radio.\n\nGive me a decade or a year and I’ll set the vibe — or say “stream”.",
+    "Radio is ready.\n\nPick an era, or ask me to open the stream.",
+  ],
+  sponsors: [
+    "Sponsors & advertising.\n\nWant the rate card, packages, or a quick recommendation based on your goal?",
+    "Advertising mode.\n\nTell me: brand, budget range, and what outcome you want — I’ll map you to a package.",
+    "Let’s talk sponsors.\n\nDo you want pricing, placements, or a pitch-ready package recommendation?",
+  ],
+  movies: [
+    "Movies & catalog.\n\nAre you looking for licensing, what’s available now, or what we should add next?",
+    "Film lane.\n\nTell me: genre, decade, and whether you want public-domain or licensed titles.",
+    "Movies.\n\nSay what you’re hunting for — I’ll help you find the cleanest path (PD vs licensed).",
+  ],
+};
 
+// Chips for intro: keep your canonical feel but make them more “relative”.
 const CANON_INTRO_CHIPS = [
   { label: "Pick a year", send: "1988" },
   { label: "Story moment", send: "story moment 1988" },
@@ -76,8 +105,6 @@ try {
 
 // =========================
 // Optional Packs (soft-load; never brick)
-// IMPORTANT: If your existing file has inline packs, you can replace these
-// requires with your inline objects—this wrapper will still work.
 // =========================
 let NYX_CONV_PACK = null;
 let NYX_PHRASEPACK = null;
@@ -201,9 +228,6 @@ function hasStrongFirstTurnIntent(text) {
 
 // =========================
 // Login-moment intro rearm
-// Purpose:
-//  - Show intro again after an idle gap (>= INTRO_REARM_MS)
-//  - Prevent empty/phantom client boot messages from consuming "turn 1"
 // =========================
 function isLoginMoment(session, startedAt) {
   const last = Number(session.lastTurnAt || session.lastInAt || 0);
@@ -215,7 +239,6 @@ function isLoginMoment(session, startedAt) {
 
 /**
  * Detect widget boot / panel-open intro pings where text can be empty.
- * We treat these as “intro request” ONLY if we are in a login moment.
  */
 function isBootIntroSource(input) {
   try {
@@ -223,39 +246,79 @@ function isBootIntroSource(input) {
       safeStr(input && input.client && (input.client.source || input.client.src || "")).trim() ||
       safeStr(input && input.source).trim();
     const t = normText(src);
-    return t.includes("panel_open_intro") || t.includes("panel-open-intro") || t.includes("boot_intro") || t.includes("boot-intro");
+    return (
+      t.includes("panel_open_intro") ||
+      t.includes("panel-open-intro") ||
+      t.includes("boot_intro") ||
+      t.includes("boot-intro")
+    );
   } catch (_) {
     return false;
   }
 }
 
-function shouldServeIntroLoginMoment(session, inboundText, startedAt, input) {
+// =========================
+// Intro bucket selection (contextual + “relative”)
+// =========================
+function pickIntroBucket(session, inboundText, routeHint, input) {
+  const t = normText(inboundText);
+  const rh = normText(routeHint);
+  const src = normText(
+    safeStr(input && input.client && (input.client.source || input.client.src || "")).trim() ||
+      safeStr(input && input.source).trim()
+  );
+
+  const lane = normText(session && session.lane);
+  if (lane && INTRO_VARIANTS_BY_BUCKET[lane]) return lane;
+
+  if (rh.includes("schedule") || /\b(schedule|programming|what's on|whats on|grid|now|next|later)\b/.test(t))
+    return "schedule";
+  if (rh.includes("roku") || /\b(roku|channel|tv|install|open on roku)\b/.test(t)) return "roku";
+  if (rh.includes("radio") || /\b(radio|listen|stream)\b/.test(t)) return "radio";
+  if (rh.includes("sponsor") || /\b(sponsor|advertis|rate card|pricing|packages)\b/.test(t)) return "sponsors";
+  if (rh.includes("movie") || /\b(movie|film|licens|catalog)\b/.test(t)) return "movies";
+
+  // boot intro pings should default to “general” unless routeHint implies otherwise
+  if (src.includes("panel_open_intro") || src.includes("boot_intro")) {
+    if (rh.includes("music") || rh.includes("years")) return "music";
+    return "general";
+  }
+
+  // if user greets + has music session context, lean music
+  if (isGreetingOnly(inboundText) && (session.lastMusicYear || session.activeMusicMode)) return "music";
+
+  return "general";
+}
+
+// =========================
+// Intro decision
+// =========================
+function shouldServeIntroLoginMoment(session, inboundText, startedAt, input, routeHint) {
   if (!session) return false;
 
   const empty = isEmptyOrNoText(inboundText);
 
-  // If empty text but clearly a boot intro source, allow intro (login moment only).
+  // Empty text: serve intro ONLY if it's explicitly a boot-intro source AND login moment.
   if (empty) {
     if (!isBootIntroSource(input)) return false;
     if (!isLoginMoment(session, startedAt)) return false;
 
+    // Hard stop: if intro already served in this login window, do not re-serve.
     const introAt = Number(session.introAt || 0);
-    if (introAt && startedAt - introAt < INTRO_REARM_MS / 2) return false;
+    if (introAt && startedAt - introAt < INTRO_REARM_MS) return false;
 
     return true;
   }
 
-  // If user came in with a strong intent (year/mode/lane keywords), do not intro.
-  // Exception: pure greeting -> yes, intro (that’s a login vibe).
+  // Strong intent should bypass intro (unless it's a pure greeting).
   const strong = hasStrongFirstTurnIntent(inboundText);
   if (strong && !isGreetingOnly(inboundText)) return false;
 
-  // Only on login moments (fresh session or idle gap)
   if (!isLoginMoment(session, startedAt)) return false;
 
   // Prevent repeated intro spam inside same login window
   const introAt = Number(session.introAt || 0);
-  if (introAt && startedAt - introAt < INTRO_REARM_MS / 2) return false;
+  if (introAt && startedAt - introAt < INTRO_REARM_MS) return false;
 
   return true;
 }
@@ -290,7 +353,6 @@ function ensureContinuityState(session) {
 
 // =========================
 // SessionPatch minimizer
-// Keep only keys index.js allowlists + continuity keys.
 // =========================
 const PATCH_KEYS = new Set([
   "introDone",
@@ -409,25 +471,31 @@ function cs1SelectContinuity(session, inboundText) {
 }
 
 // =========================
-// Intro selection (stable per login window)
+// Intro selection (stable per login window + bucket)
 // =========================
-function pickIntroForLogin(session, startedAt) {
-  // Create a time bucket so we can “rearm” after long idle gaps.
+function pickIntroForLogin(session, startedAt, bucketKey) {
   const bucket = Math.floor(startedAt / INTRO_REARM_MS);
+  const bkey = safeStr(bucketKey || "general");
 
-  // Reuse existing variant if still in the same bucket.
-  const prevBucket = Number(session.introBucket || 0);
+  // If we already selected an intro within this bucket, reuse it (stable).
+  const prevBucket = safeStr(session.introBucket || "");
   const prevId = Number(session.introVariantId || 0);
-  if (prevBucket === bucket && Number.isFinite(prevId) && prevId >= 0 && prevId < INTRO_VARIANTS.length) {
-    return { text: INTRO_VARIANTS[prevId], id: prevId, bucket };
+  if (prevBucket === `${bkey}:${bucket}`) {
+    const arr = INTRO_VARIANTS_BY_BUCKET[bkey] || INTRO_VARIANTS_BY_BUCKET.general;
+    if (Number.isFinite(prevId) && prevId >= 0 && prevId < arr.length) {
+      return { text: arr[prevId], id: prevId, bucket: `${bkey}:${bucket}` };
+    }
   }
 
-  // Deterministic but varied: sessionId (if any) + bucket.
-  const seed = `${safeStr(session.sessionId || session.visitorId || "")}|${bucket}|intro`;
+  const arr = INTRO_VARIANTS_BY_BUCKET[bkey] || INTRO_VARIANTS_BY_BUCKET.general;
+
+  // Deterministic but varied: sessionId/visitorId + bucket + bucketKey.
+  const seed = `${safeStr(session.sessionId || session.visitorId || "")}|${bucket}|${bkey}|intro`;
   const h = sha1(seed);
   const n = parseInt(h.slice(0, 8), 16);
-  const id = Math.abs(n) % INTRO_VARIANTS.length;
-  return { text: INTRO_VARIANTS[id] || INTRO_VARIANTS[0], id, bucket };
+  const id = Math.abs(n) % arr.length;
+
+  return { text: arr[id] || arr[0], id, bucket: `${bkey}:${bucket}` };
 }
 
 // =========================
@@ -471,8 +539,11 @@ function fallbackCore({ text, session }) {
   }
 
   if (!t || isGreetingOnly(text)) {
-    // If we’re here, we don’t have a proper sessionId bucket; just use 0.
-    return { reply: INTRO_VARIANTS[0], lane: "general", followUps: toFollowUps(CANON_INTRO_CHIPS) };
+    return {
+      reply: INTRO_VARIANTS_BY_BUCKET.general[0],
+      lane: "general",
+      followUps: toFollowUps(CANON_INTRO_CHIPS),
+    };
   }
 
   return {
@@ -495,23 +566,43 @@ async function handleChat(input = {}) {
   const inboundText = safeStr(input.text || input.message || "").trim();
   const inboundIsEmpty = isEmptyOrNoText(inboundText);
 
-  // Source hints (for boot intro + diagnostics)
   const source =
     safeStr(input && input.client && (input.client.source || input.client.src || "")).trim() ||
     safeStr(input && input.source).trim() ||
     "unknown";
 
-  // IMPORTANT:
-  // If this is an empty “boot intro ping” (panel_open_intro), do NOT let it consume a real user turn.
-  // Specifically: do not increment user-turn counters and do not set __hasRealUserTurn.
+  // Route hint (never force, only hint)
+  const routeHint =
+    safeStr((input && input.client && input.client.routeHint) || input.routeHint || session.lane || "general").trim() ||
+    "general";
+
+  // Boot intro empty pings
   const bootIntroEmpty = inboundIsEmpty && isBootIntroSource({ ...input, source });
 
+  // =========================
+  // HARD IGNORE NON-BOOT EMPTY TURN
+  // Prevents phantom turns, drift, and intro-loop triggers when some client sends empty.
+  // =========================
+  if (inboundIsEmpty && !bootIntroEmpty) {
+    // Do not mutate session state/counters on phantom empty.
+    return {
+      ok: true,
+      reply: "Ready when you are. Tell me a year (1950–2024), or what you want to do next.",
+      lane: safeStr(session.lane || "general") || "general",
+      followUps: toFollowUps(CANON_INTRO_CHIPS),
+      followUpsStrings: toFollowUpsStrings(CANON_INTRO_CHIPS),
+      sessionPatch: buildSessionPatch(session),
+      cog: { phase: "listening", state: "confident", reason: "ignored_empty_nonboot", lane: session.lane || "general" },
+      requestId,
+      meta: { engine: CE_VERSION, ignoredEmpty: true, source },
+    };
+  }
+
+  // Telemetry counters: only for non-phantom turns
   if (!bootIntroEmpty) {
-    // Telemetry counters (only for non-phantom turns)
     session.turnCount = Number(session.turnCount || 0) + 1;
     session.turns = Number(session.turns || 0) + 1;
   } else {
-    // Ensure counters exist (but do not drift upward on boot pings)
     session.turnCount = Number(session.turnCount || 0);
     session.turns = Number(session.turns || 0);
   }
@@ -521,33 +612,44 @@ async function handleChat(input = {}) {
   // Track "real user turns" separately
   if (!inboundIsEmpty) session.__hasRealUserTurn = 1;
 
+  // Update lastTurnAt even for boot-intro (keeps “login moment” coherent),
+  // but we will not let it spam intros because introAt guard is strict now.
   session.lastTurnAt = startedAt;
-  session.lastInText = inboundText;
-  session.lastInAt = startedAt;
 
-  // Lane seed (routeHint can be used as a hint; do NOT force unless override triggers)
-  let lane = safeStr(session.lane || input.routeHint || "general").trim() || "general";
+  // Only store inbound text for non-boot empty (avoid polluting lastInText with "")
+  if (!bootIntroEmpty) {
+    session.lastInText = inboundText;
+    session.lastInAt = startedAt;
+  }
+
+  // Lane seed
+  let lane = safeStr(session.lane || routeHint || "general").trim() || "general";
 
   // MUSIC OVERRIDE (pre-normalize)
   const ov = applyMusicOverride(session, inboundText);
   if (ov.forced) lane = ov.lane;
 
-  // INTRO (login-moment rearm; bypass for strong intent except pure greeting)
-  const doIntro = !ov.forced && shouldServeIntroLoginMoment(session, inboundText, startedAt, { ...input, source });
+  // INTRO (contextual + stable-per-login window)
+  const doIntro = !ov.forced && shouldServeIntroLoginMoment(session, inboundText, startedAt, { ...input, source }, routeHint);
   if (doIntro) {
     session.__introDone = 1;
     session.introDone = true;
     session.introAt = startedAt;
+
+    // Choose intro bucket based on context (relative feel)
+    const bucketKey = pickIntroBucket(session, inboundText, routeHint, { ...input, source });
+
+    // Intro is informational; we keep lane general unless the bucket is explicitly a lane.
+    // This prevents “intro forced lane drift” which is a common loop trigger.
     session.lane = "general";
 
     cs1MarkSpeak(session, "intro");
 
-    // Stable-per-login selection (no jitter) — store id + bucket
-    const pick = pickIntroForLogin(session, startedAt);
+    const pick = pickIntroForLogin(session, startedAt, bucketKey);
     session.introVariantId = pick.id;
     session.introBucket = pick.bucket;
 
-    const introLine = pick.text || INTRO_VARIANTS[0];
+    const introLine = pick.text || INTRO_VARIANTS_BY_BUCKET.general[0];
     const followUps = toFollowUps(CANON_INTRO_CHIPS);
 
     return {
@@ -559,7 +661,7 @@ async function handleChat(input = {}) {
       sessionPatch: buildSessionPatch(session),
       cog: { phase: "listening", state: "confident", reason: "intro_login_moment", lane: "general", ts: Date.now() },
       requestId,
-      meta: { engine: CE_VERSION, intro: true, loginMoment: true, source },
+      meta: { engine: CE_VERSION, intro: true, introBucket: bucketKey, loginMoment: true, source },
     };
   }
 
