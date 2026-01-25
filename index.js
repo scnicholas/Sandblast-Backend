@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17zg
+ * index.js v1.5.17zh
  * (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION +
  *  ✅ SESSIONPATCH EXPANDED (CONTINUITY PERSIST FIX) + ✅ CONVERSATIONAL CONTRACT ENFORCER (HARD) +
  *  ✅ ROUTE HINT AWARE COG NORMALIZATION + ✅ ENV KNOBS HARDENED +
@@ -19,7 +19,10 @@
  *  ✅ FIX: SESSION_TTL_MS clamp (was forcing 10h min unintentionally) +
  *  ✅ NEW: CHATENGINE VISIBILITY HEADERS (X-Nyx-ChatEngine / X-Nyx-Engine-Meta / X-Nyx-Intro) +
  *  ✅ NEW: INTRO RESET GAP (treat long pause as fresh entry when sessionId is auto-derived) +
- *  ✅ NEW: SERVER TURN COUNTER (session.turns / lastTurnAt) to stabilize “first turn” semantics
+ *  ✅ NEW: SERVER TURN COUNTER (session.turns / lastTurnAt) to stabilize “first turn” semantics +
+ *  ✅ CRITICAL: CORE ENGINE WIRING (soft-load Nyx core brain + pass as input.engine so conversational layers fire) +
+ *  ✅ CRITICAL: BOOT-INTRO BRIDGE (empty “panel open” pings can trigger intro ONCE without consuming loop fuse) +
+ *  ✅ CRITICAL: AVOID DOUBLE TURN-COUNT (do not pre-increment turns before chatEngine; let chatEngine own it)
  * )
  */
 
@@ -46,6 +49,9 @@ let shadowBrain = null;
 let chatEngine = null;
 let ttsModule = null;
 
+// ✅ NEW: soft-load a “core engine” so chatEngine wrapper can actually fire conversational layers
+let nyxCore = null;
+
 try {
   shadowBrain = require("./Utils/shadowBrain");
 } catch (_) {
@@ -55,6 +61,54 @@ try {
   chatEngine = require("./Utils/chatEngine");
 } catch (_) {
   chatEngine = null;
+}
+
+// Attempt common “core brain” module names.
+// If any exists, we pass it as `input.engine` into chatEngine.handleChat().
+function safeRequire(path) {
+  try {
+    // eslint-disable-next-line import/no-dynamic-require, global-require
+    return require(path);
+  } catch (_) {
+    return null;
+  }
+}
+
+nyxCore =
+  safeRequire("./Utils/nyxCore") ||
+  safeRequire("./Utils/nyxBrain") ||
+  safeRequire("./Utils/nyxRouter") ||
+  safeRequire("./Utils/nyxEngine") ||
+  safeRequire("./Utils/coreEngine") ||
+  safeRequire("./Utils/brain") ||
+  null;
+
+function pickCoreEngine(mod) {
+  if (!mod) return null;
+
+  // Prefer explicit function exports
+  if (typeof mod === "function") return mod;
+
+  // Common shapes
+  if (typeof mod.engine === "function") return mod.engine;
+  if (typeof mod.core === "function") return mod.core;
+  if (typeof mod.run === "function") return mod.run;
+  if (typeof mod.handle === "function") return mod.handle;
+
+  // Default export
+  if (mod.default && typeof mod.default === "function") return mod.default;
+
+  return null;
+}
+
+const NYX_CORE_ENGINE = pickCoreEngine(nyxCore);
+
+if (NYX_CORE_ENGINE) {
+  console.log("[nyxCore] loaded (soft). engine=function");
+} else if (nyxCore) {
+  console.log("[nyxCore] loaded (soft). but no callable engine export found. keys=", Object.keys(nyxCore || {}));
+} else {
+  console.log("[nyxCore] not found (soft). chatEngine may fall back unless it has internal packs.");
 }
 
 const app = express();
@@ -76,7 +130,7 @@ if (TRUST_PROXY) {
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.17zg (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + SESSIONPATCH EXPANDED + CONTRACT ENFORCER + ROUTE HINT COG + ENV HARDENED + TRUST PROXY + DISCOVERY ROUTES + ROKU DIRECTIVE + CORS PREFLIGHT FIX + COS PERSISTENCE + DIRECTIVES HARDENING + NO DUPLICATE bridge_roku + TTS JSON-PARSE RECOVERY + INTRO FALLBACK GUARD + FALLBACK INTRO RANDOMIZER + LOOP FUSE v2 + TTL CLAMP FIX + CHATENGINE VISIBILITY HEADERS + INTRO RESET GAP + SERVER TURN COUNTER)";
+  "index.js v1.5.17zh (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + SESSIONPATCH EXPANDED + CONTRACT ENFORCER + ROUTE HINT COG + ENV HARDENED + TRUST PROXY + DISCOVERY ROUTES + ROKU DIRECTIVE + CORS PREFLIGHT FIX + COS PERSISTENCE + DIRECTIVES HARDENING + NO DUPLICATE bridge_roku + TTS JSON-PARSE RECOVERY + INTRO FALLBACK GUARD + FALLBACK INTRO RANDOMIZER + LOOP FUSE v2 + TTL CLAMP FIX + CHATENGINE VISIBILITY HEADERS + INTRO RESET GAP + SERVER TURN COUNTER + CORE ENGINE WIRING + BOOT-INTRO BRIDGE + AVOID DOUBLE TURN-COUNT)";
 
 const GIT_COMMIT =
   String(process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "").trim() || null;
@@ -427,7 +481,7 @@ const SESSION_PATCH_ALLOW = new Set([
   "lastOutSig",
   "lastOutSigAt",
   "turns",
-  "turnCount", // ✅ NEW: allow chatEngine “first turn” semantics to persist
+  "turnCount",
   "startedAt",
   "lastTurnAt",
   "lanesVisited",
@@ -481,6 +535,10 @@ const SESSION_PATCH_ALLOW = new Set([
   "__cs1",
 
   "cog",
+
+  // ✅ NEW: allow chatEngine “hasRealUserTurn” + intro marker if present
+  "__introDone",
+  "__hasRealUserTurn",
 ]);
 
 function allowlistSessionPatchObj(patch) {
@@ -562,7 +620,7 @@ function normalizeCog(out, session, routeHint) {
 
   const state =
     (oc && typeof oc.state === "string" && oc.state.trim() ? oc.state : null) ||
-    (sc && typeof sc.state === "string" && sc.state.trim() ? sc.phase : null) || // safe fallback
+    (sc && typeof sc.state === "string" && sc.phase.trim() ? sc.phase : null) ||
     "confident";
 
   const reason =
@@ -742,7 +800,7 @@ const CORS_EXPOSED_HEADERS = [
   "X-Nyx-Posture",
   "X-Nyx-Bridge",
   "X-Nyx-Loop",
-  // ✅ NEW: visibility headers
+  // ✅ visibility headers
   "X-Nyx-ChatEngine",
   "X-Nyx-Engine-Meta",
   "X-Nyx-Intro",
@@ -1050,8 +1108,11 @@ app.get("/api/version", (req, res) => {
   const loopSigWindowMs = clamp(process.env.LOOP_SIG_WINDOW_MS || 1600, 400, 8000);
   const loopSigMax = clamp(process.env.LOOP_SIG_MAX || 3, 1, 12);
 
-  // ✅ NEW: intro reset gap visibility
-  const introResetGapMs = clamp(process.env.INTRO_RESET_GAP_MS || 12 * 60 * 1000, 2 * 60 * 1000, 2 * 60 * 60 * 1000);
+  const introResetGapMs = clamp(
+    process.env.INTRO_RESET_GAP_MS || 12 * 60 * 1000,
+    2 * 60 * 1000,
+    2 * 60 * 60 * 1000
+  );
 
   return safeJson(res, 200, {
     ok: true,
@@ -1062,6 +1123,7 @@ app.get("/api/version", (req, res) => {
     node: process.version,
     uptimeSec: Math.round(process.uptime()),
     chatEngine: getChatEngineVersion(chatEngine),
+    nyxCoreLoaded: !!NYX_CORE_ENGINE,
     env: {
       trustProxy: TRUST_PROXY,
       corsAllowAll: String(process.env.CORS_ALLOW_ALL || "false") === "true",
@@ -1196,10 +1258,8 @@ function shouldLoopFuse(session, sig, now) {
 }
 
 function quietLoopReply(session) {
-  // deterministic, non-bridging, non-directive
   const last = normalizeStr(session.__lastReply || "");
   if (last) return last;
-  // keep it simple + non-triggering
   return "Okay — I’ve got you. Send ONE message: a year (1950–2024) or “top 10 1988”.";
 }
 
@@ -1493,8 +1553,6 @@ app.post("/api/voice", runTts);
 
 const CHAT_HANDLER_TIMEOUT_MS = clamp(process.env.CHAT_HANDLER_TIMEOUT_MS || 9000, 2000, 20000);
 
-// ✅ NEW: if there’s a long pause and the sessionId is auto-derived,
-// treat it as a fresh entry so intro can appear again.
 const INTRO_RESET_GAP_MS = clamp(
   process.env.INTRO_RESET_GAP_MS || 12 * 60 * 1000,
   2 * 60 * 1000,
@@ -1538,6 +1596,23 @@ function extractRouteHintFromBody(body) {
   } catch (_) {
     return null;
   }
+}
+
+function extractClientSource(body) {
+  try {
+    if (!body || typeof body !== "object") return "";
+    const c = body.client && typeof body.client === "object" ? body.client : null;
+    if (!c) return "";
+    return normalizeStr(c.source || c.event || c.reason || "");
+  } catch (_) {
+    return "";
+  }
+}
+
+function isBootSource(source) {
+  const s = normCmd(source || "");
+  if (!s) return false;
+  return /\b(panel|open|boot|init|mount|load|launcher)\b/.test(s);
 }
 
 function validateContract(req, body) {
@@ -1680,6 +1755,7 @@ app.post("/api/chat", async (req, res) => {
     const body = req.body;
     const text = extractTextFromBody(body);
     const routeHint = extractRouteHintFromBody(body);
+    const source = extractClientSource(body);
 
     const contract = validateContract(req, body);
     if (!contract.ok) {
@@ -1700,6 +1776,111 @@ app.post("/api/chat", async (req, res) => {
       normalizeStr(req.get("X-Visitor-Id") || "") ||
       null;
 
+    const sessionId = getSessionId(req, body, visitorId);
+    const session = touchSession(sessionId, { visitorId }) || { sessionId };
+
+    const vmode = getVoiceMode(req, body);
+    if (vmode) session.voiceMode = vmode;
+
+    const now = Date.now();
+
+    // ✅ Keep server-side lastTurnAt for reset-gap logic, but DO NOT pre-increment turns here.
+    const prevTurnAt = Number(session.lastTurnAt || 0);
+    session.lastTurnAt = now;
+
+    // ✅ NEW: intro reset gap (only meaningful for auto_ sessions)
+    const headerSid = cleanSessionId(req.get("X-Session-Id"));
+    const bodySid = body && typeof body === "object" ? cleanSessionId(body.sessionId) : null;
+    const isAutoSession = !bodySid && !headerSid && String(sessionId || "").startsWith("auto_");
+
+    if (isAutoSession && prevTurnAt && now - prevTurnAt > INTRO_RESET_GAP_MS) {
+      session.introDone = false;
+      session.introServed = false;
+      if (isDebug) safeSet(res, "X-Nyx-Intro", "reset_gap");
+    }
+
+    // ✅ CRITICAL: BOOT-INTRO BRIDGE
+    // If widget sends an empty boot/panel-open ping, allow ONE intro without:
+    // - loop fuse
+    // - burst / hash dedupe
+    // - consuming real user intent
+    // This guarantees the intro packet shows up even if the widget opens silently.
+    const handler = pickChatHandler(chatEngine);
+    const canBootIntro =
+      !normalizeStr(text) &&
+      isBootSource(source) &&
+      handler &&
+      !session.introDone &&
+      !session.__hasRealUserTurn;
+
+    if (canBootIntro) {
+      let out = null;
+      try {
+        out = await Promise.resolve(
+          handler({
+            // synthetic greeting to trigger intro logic inside chatEngine
+            text: "hi",
+            message: "hi",
+            session,
+            requestId,
+            debug: isDebug,
+            routeHint: routeHint || "general",
+            engine: NYX_CORE_ENGINE || undefined, // ✅ the wiring that makes layers fire
+            client: Object.assign({}, (body && body.client) || {}, {
+              source: source || "panel_open_intro",
+              synthetic: true,
+            }),
+          })
+        );
+      } catch (e) {
+        console.error("[boot-intro] chatEngine error (soft):", e && e.stack ? e.stack : e);
+        out = null;
+      }
+
+      applyChatEngineHeaders(res, out);
+
+      if (out && typeof out === "object" && out.sessionPatch && typeof out.sessionPatch === "object") {
+        applySessionPatch(session, out.sessionPatch);
+      }
+
+      const baseReply =
+        out && typeof out === "object" && typeof out.reply === "string" ? out.reply : fallbackReply("");
+
+      // Mark intro served
+      session.introDone = true;
+      session.introAt = now;
+      session.introServed = true;
+
+      safeSet(res, "X-Nyx-Intro", "boot_intro");
+      safeSet(res, "X-Nyx-Deduped", "boot-intro");
+
+      const posture = "explore";
+      session.__lastPosture = posture;
+      if (BRIDGE_DEBUG_HEADERS) safeSet(res, "X-Nyx-Posture", String(posture));
+
+      const payload = enforceChatContract({
+        out,
+        session,
+        routeHint,
+        baseReply,
+        requestId,
+        sessionId,
+        visitorId,
+        posture,
+        shadow: null,
+        followUps:
+          out && typeof out === "object" && Array.isArray(out.followUps)
+            ? normalizeFollowUpsToStrings(out.followUps)
+            : undefined,
+        bridgeInjected: null,
+        directivesOverride: normalizeDirectives(out && out.directives),
+      });
+
+      clearTimeout(watchdog);
+      return once.json(200, payload);
+    }
+
+    // Normal flow from here down
     pruneTurnCache();
     const turnKey = getTurnKey(req, body, text, visitorId);
     const cached = TURN_CACHE.get(turnKey);
@@ -1714,34 +1895,6 @@ app.post("/api/chat", async (req, res) => {
       }
       applyChatEngineHeaders(res, null);
       return once.json(200, cached.payload);
-    }
-
-    const sessionId = getSessionId(req, body, visitorId);
-    const session = touchSession(sessionId, { visitorId }) || { sessionId };
-
-    const vmode = getVoiceMode(req, body);
-    if (vmode) session.voiceMode = vmode;
-
-    const now = Date.now();
-
-    // ✅ NEW: stable server-side turns + lastTurnAt (chatEngine may also do it, but this guarantees persistence)
-    const prevTurnAt = Number(session.lastTurnAt || 0);
-    session.turns = Number(session.turns || 0) + 1;
-    session.lastTurnAt = now;
-
-    // ✅ NEW: intro reset gap (only meaningful for auto_ sessions)
-    // If client did NOT provide an explicit sessionId, we treat long gaps as a fresh entry.
-    const headerSid = cleanSessionId(req.get("X-Session-Id"));
-    const bodySid = body && typeof body === "object" ? cleanSessionId(body.sessionId) : null;
-    const isAutoSession = !bodySid && !headerSid && String(sessionId || "").startsWith("auto_");
-
-    if (isAutoSession && prevTurnAt && now - prevTurnAt > INTRO_RESET_GAP_MS) {
-      // Fresh re-entry posture: allow intro to occur again downstream
-      session.introDone = false;
-      session.introServed = false;
-      // do not clear introId (keeps stable variant if it does fall back)
-      // do not clear other continuity (keeps lane/year) — just re-allow an intro.
-      if (isDebug) safeSet(res, "X-Nyx-Intro", "reset_gap");
     }
 
     // =========================
@@ -1897,12 +2050,23 @@ app.post("/api/chat", async (req, res) => {
       console.warn("[shadow] error (soft):", e && e.message ? e.message : e);
     }
 
-    const handler = pickChatHandler(chatEngine);
     let out = null;
 
     if (handler) {
       try {
-        out = await Promise.resolve(handler({ text, session, requestId, debug: isDebug, routeHint }));
+        out = await Promise.resolve(
+          handler({
+            text,
+            message: text,
+            session,
+            requestId,
+            debug: isDebug,
+            routeHint,
+            // ✅ CRITICAL: pass core engine so chatEngine wrapper can fire packs/layers
+            engine: NYX_CORE_ENGINE || undefined,
+            client: (body && body.client) || undefined,
+          })
+        );
       } catch (e) {
         if (isUpstreamQuotaError(e)) {
           safeSet(res, "X-Nyx-Upstream", "openai_insufficient_quota");
@@ -2110,6 +2274,11 @@ app.post("/api/chat", async (req, res) => {
         autoSession: isAutoSession,
         introResetGapMs: INTRO_RESET_GAP_MS,
         prevTurnAt: prevTurnAt || null,
+        clientSource: source || null,
+        bootIntroEligible: canBootIntro,
+      };
+      payload._core = {
+        nyxCoreLoaded: !!NYX_CORE_ENGINE,
       };
     }
 
