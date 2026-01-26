@@ -16,21 +16,16 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.6zO (ENTERPRISE HARDENED + LOOP KILLER)
- *  ✅ Intro feels like a real greeting (greeting-first, guidance second)
- *  ✅ Intro selection is random per login-window (but stable within that window)
- *  ✅ INBOUND NORMALIZATION: mode-only → auto-attach last known year (kills common loops)
- *  ✅ Optional: year-only + activeMusicMode → auto-attach mode (conservative)
- *  ✅ REPLAY SAFETY: requestId idempotency (session-scoped) + short-window dedupe
- *  ✅ TIMEOUT CONTAINMENT: upstream engine wrapped with hard timeout + safe fallback reply
- *  ✅ CONTRACT NORMALIZATION: non-empty reply, safe lane, bounded followUps/directives
- *  ✅ SESSION SAFETY: prototype-pollution guard + allowlisted sessionPatch merge only
- *  ✅ TURN DRIFT CONTROL: empty non-boot ignored; boot-intro does not increment turns
- *  ✅ CS-1 soft wiring (if present)
- *  ✅ SAFE PACK LOADING (optional packs never brick)
- *  ✅ SESSIONPATCH MINIMIZER (avoid session bloat)
- *  ✅ OBSERVABILITY: elapsedMs + decision flags
- *  ✅ RESET COMMAND: "__cmd:reset__" handled explicitly
+ * v0.6zP (ENTERPRISE HARDENED + ENGINE AUTOWIRE FIX)
+ *  ✅ FIX: If input.engine is missing, auto-resolve an engine from optional packs (so Top10/#1/story actually renders)
+ *  ✅ FIX: Mode-only → auto-attach last known year (kills “say top10 again” loops)
+ *  ✅ Replay safety (short-window idempotency)
+ *  ✅ Timeout containment around resolved engine
+ *  ✅ Contract normalization + sessionPatch allowlist merge
+ *  ✅ Turn drift control (ignore empty non-boot)
+ *  ✅ Intro: greeting-first + stable-per-login random selection
+ *  ✅ Reset command "__cmd:reset__"
+ *  ✅ Observability flags (engineResolvedFrom, engineOk, engineTimeout, engineEmptyReply)
  */
 
 const crypto = require("crypto");
@@ -39,7 +34,7 @@ const crypto = require("crypto");
 // Version
 // =========================
 const CE_VERSION =
-  "chatEngine v0.6zO (enterprise hardened: intro-human+loopkiller+idempotency+timeout+contract normalize+session safety+reset)";
+  "chatEngine v0.6zP (enterprise hardened: engine-autowire fix + loopkiller + idempotency + timeout + contract normalize + session safety)";
 
 // =========================
 // Enterprise knobs
@@ -52,11 +47,10 @@ const MAX_REPLY_CHARS = 4000;
 const MAX_META_STR = 220;
 
 // =========================
-// Intro (varied per login-moment; stable selection per login window)
+// Intro
 // =========================
 const INTRO_REARM_MS = 12 * 60 * 1000;
 
-// Greeting-first intros (human first; guidance second)
 const INTRO_VARIANTS_BY_BUCKET = {
   general: [
     "Hey — Nyx here. Glad you’re in.\n\nGive me a year (1950–2024) and I’ll take it from there. Try: “top 10 1988” or “story moment 1977”.",
@@ -119,10 +113,6 @@ try {
 // =========================
 // Optional Packs (soft-load; never brick)
 // =========================
-let NYX_CONV_PACK = null;
-let NYX_PHRASEPACK = null;
-let NYX_PACKETS = null;
-
 function safeRequire(path) {
   try {
     // eslint-disable-next-line import/no-dynamic-require, global-require
@@ -132,19 +122,19 @@ function safeRequire(path) {
   }
 }
 
-NYX_CONV_PACK =
+const NYX_CONV_PACK =
   safeRequire("./nyxConversationalPack") ||
   safeRequire("./nyxConvPack") ||
   safeRequire("./nyx_conv_pack") ||
   null;
 
-NYX_PHRASEPACK =
+const NYX_PHRASEPACK =
   safeRequire("./nyxPhrasePack") ||
   safeRequire("./phrasePack") ||
   safeRequire("./nyx_phrase_pack") ||
   null;
 
-NYX_PACKETS =
+const NYX_PACKETS =
   safeRequire("./nyxPackets") ||
   safeRequire("./packets") ||
   safeRequire("./nyx_packets") ||
@@ -172,17 +162,10 @@ function sha1(s) {
 function normText(s) {
   return safeStr(s).trim().replace(/\s+/g, " ").toLowerCase();
 }
-function escapeRegExp(s) {
-  return safeStr(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-function interpolateTemplate(s, vars) {
-  let out = safeStr(s);
-  const v = vars && typeof vars === "object" ? vars : {};
-  for (const k of Object.keys(v)) {
-    const key = escapeRegExp(k);
-    out = out.replace(new RegExp(`\\{${key}\\}`, "g"), safeStr(v[k]));
-  }
-  return out;
+function clampStr(s, max) {
+  const t = safeStr(s);
+  if (t.length <= max) return t;
+  return t.slice(0, max);
 }
 function nonEmptyReply(s, fallback) {
   const a = safeStr(s).trim();
@@ -190,18 +173,15 @@ function nonEmptyReply(s, fallback) {
   const b = safeStr(fallback).trim();
   return b || "Okay — tell me what you want next.";
 }
-function clampStr(s, max) {
-  const t = safeStr(s);
-  if (t.length <= max) return t;
-  return t.slice(0, max);
+function isPlainObject(x) {
+  return (
+    !!x &&
+    typeof x === "object" &&
+    (Object.getPrototypeOf(x) === Object.prototype || Object.getPrototypeOf(x) === null)
+  );
 }
-function pickRandomIndex(max) {
-  try {
-    // crypto.randomInt is available on Node 14+
-    return crypto.randomInt(0, max);
-  } catch (_) {
-    return Math.floor(Math.random() * max);
-  }
+function safeMetaStr(s) {
+  return clampStr(safeStr(s).replace(/[\r\n\t]/g, " ").trim(), MAX_META_STR);
 }
 async function withTimeout(promise, ms, tag) {
   let to = null;
@@ -214,15 +194,12 @@ async function withTimeout(promise, ms, tag) {
     if (to) clearTimeout(to);
   }
 }
-function isPlainObject(x) {
-  return (
-    !!x &&
-    typeof x === "object" &&
-    (Object.getPrototypeOf(x) === Object.prototype || Object.getPrototypeOf(x) === null)
-  );
-}
-function safeMetaStr(s) {
-  return clampStr(safeStr(s).replace(/[\r\n\t]/g, " ").trim(), MAX_META_STR);
+function pickRandomIndex(max) {
+  try {
+    return crypto.randomInt(0, max);
+  } catch (_) {
+    return Math.floor(Math.random() * max);
+  }
 }
 
 // =========================
@@ -254,79 +231,8 @@ function isEmptyOrNoText(t) {
 }
 
 // =========================
-// INBOUND NORMALIZATION (loop killer)
+// Boot intro pings
 // =========================
-function normalizeInboundText(text, session) {
-  const raw = safeStr(text).trim();
-  if (!raw) return raw;
-
-  const y = extractYear(raw);
-  const m = extractMode(raw);
-  const t = normText(raw);
-
-  // If it's mode-only (no year) and we have lastMusicYear, attach it.
-  if (!y && m && session && session.lastMusicYear) {
-    const yy = Number(session.lastMusicYear);
-    if (Number.isFinite(yy) && yy >= 1950 && yy <= 2024) {
-      // Preserve the user's original words but ensure year is present.
-      return `${raw} ${yy}`.trim();
-    }
-  }
-
-  // If it's year-only and we have an activeMusicMode (and user didn't intend a general greeting),
-  // optionally attach mode to move forward. Conservative: only when year-only and NOT a greeting.
-  if (y && !m && session && session.activeMusicMode && !isGreetingOnly(raw)) {
-    const mm = safeStr(session.activeMusicMode).trim();
-    if (mm) {
-      // Normalize to a simple canonical phrase the backend understands.
-      if (mm === "top10") return `top 10 ${y}`;
-      if (mm === "top100") return `top 100 ${y}`;
-      if (mm === "number1") return `#1 ${y}`;
-      if (mm === "story") return `story moment ${y}`;
-      if (mm === "micro") return `micro moment ${y}`;
-    }
-  }
-
-  // If user says "just talk" and we were in music, keep it from snapping back into music prompts.
-  if (/\bjust talk\b/.test(t)) {
-    session.lane = "general";
-    return raw;
-  }
-
-  return raw;
-}
-
-// =========================
-// Intent bypass (avoid intro stealing real tasks)
-// =========================
-function hasStrongFirstTurnIntent(text) {
-  const t = normText(text);
-  if (!t) return false;
-
-  if (extractYear(t)) return true;
-  if (extractMode(t)) return true;
-
-  if (/\b(schedule|programming|what(?:'s|\s+is)\s+on|guide|grid)\b/.test(t)) return true;
-  if (/\b(sponsor|advertis|rate\s*card|pricing|packages)\b/.test(t)) return true;
-  if (/\b(movie|film|licens|catalog)\b/.test(t)) return true;
-  if (/\b(roku|tv|channel|install|launch|open\s+on\s+roku)\b/.test(t)) return true;
-  if (/\b(radio|listen|stream)\b/.test(t)) return true;
-
-  if (t.length >= 12 && !isGreetingOnly(t)) return true;
-
-  return false;
-}
-
-// =========================
-// Login-moment intro rearm
-// =========================
-function isLoginMoment(session, startedAt) {
-  const last = safeInt(session.lastTurnAt || session.lastInAt || 0, 0);
-  const gap = last ? startedAt - last : Infinity;
-  if (gap >= INTRO_REARM_MS) return true;
-  if (!session.__hasRealUserTurn) return true;
-  return false;
-}
 function isBootIntroSource(input) {
   try {
     const src =
@@ -342,6 +248,81 @@ function isBootIntroSource(input) {
   } catch (_) {
     return false;
   }
+}
+
+// =========================
+// INBOUND NORMALIZATION (loop killer)
+// =========================
+function normalizeInboundText(text, session) {
+  const raw = safeStr(text).trim();
+  if (!raw) return raw;
+
+  const y = extractYear(raw);
+  const m = extractMode(raw);
+
+  // Mode-only → attach last known year
+  if (!y && m && session && session.lastMusicYear) {
+    const yy = Number(session.lastMusicYear);
+    if (Number.isFinite(yy) && yy >= 1950 && yy <= 2024) return `${raw} ${yy}`.trim();
+  }
+
+  // Year-only + activeMusicMode → attach mode conservatively
+  if (y && !m && session && session.activeMusicMode && !isGreetingOnly(raw)) {
+    const mm = safeStr(session.activeMusicMode).trim();
+    if (mm === "top10") return `top 10 ${y}`;
+    if (mm === "top100") return `top 100 ${y}`;
+    if (mm === "number1") return `#1 ${y}`;
+    if (mm === "story") return `story moment ${y}`;
+    if (mm === "micro") return `micro moment ${y}`;
+  }
+
+  return raw;
+}
+
+// =========================
+// Intro logic
+// =========================
+function isLoginMoment(session, startedAt) {
+  const last = safeInt(session.lastTurnAt || session.lastInAt || 0, 0);
+  const gap = last ? startedAt - last : Infinity;
+  if (gap >= INTRO_REARM_MS) return true;
+  if (!session.__hasRealUserTurn) return true;
+  return false;
+}
+function hasStrongFirstTurnIntent(text) {
+  const t = normText(text);
+  if (!t) return false;
+  if (extractYear(t)) return true;
+  if (extractMode(t)) return true;
+  if (/\b(schedule|programming|what(?:'s|\s+is)\s+on|guide|grid)\b/.test(t)) return true;
+  if (/\b(sponsor|advertis|rate\s*card|pricing|packages)\b/.test(t)) return true;
+  if (/\b(movie|film|licens|catalog)\b/.test(t)) return true;
+  if (/\b(roku|tv|channel|install|launch|open\s+on\s+roku)\b/.test(t)) return true;
+  if (/\b(radio|listen|stream)\b/.test(t)) return true;
+  if (t.length >= 12 && !isGreetingOnly(t)) return true;
+  return false;
+}
+function shouldServeIntroLoginMoment(session, inboundText, startedAt, input) {
+  if (!session) return false;
+
+  const empty = isEmptyOrNoText(inboundText);
+  if (empty) {
+    if (!isBootIntroSource(input)) return false;
+    if (!isLoginMoment(session, startedAt)) return false;
+    const introAt = safeInt(session.introAt || 0, 0);
+    if (introAt && startedAt - introAt < INTRO_REARM_MS) return false;
+    return true;
+  }
+
+  const strong = hasStrongFirstTurnIntent(inboundText);
+  if (strong && !isGreetingOnly(inboundText)) return false;
+
+  if (!isLoginMoment(session, startedAt)) return false;
+
+  const introAt = safeInt(session.introAt || 0, 0);
+  if (introAt && startedAt - introAt < INTRO_REARM_MS) return false;
+
+  return true;
 }
 function pickIntroBucket(session, inboundText, routeHint, input) {
   const t = normText(inboundText);
@@ -367,33 +348,24 @@ function pickIntroBucket(session, inboundText, routeHint, input) {
   }
 
   if (isGreetingOnly(inboundText) && (session.lastMusicYear || session.activeMusicMode)) return "music";
-
   return "general";
 }
-function shouldServeIntroLoginMoment(session, inboundText, startedAt, input) {
-  if (!session) return false;
+function pickIntroForLogin(session, startedAt, bucketKey) {
+  const bucket = Math.floor(startedAt / INTRO_REARM_MS);
+  const bkey = safeStr(bucketKey || "general");
+  const bucketStamp = `${bkey}:${bucket}`;
 
-  const empty = isEmptyOrNoText(inboundText);
+  const arr = INTRO_VARIANTS_BY_BUCKET[bkey] || INTRO_VARIANTS_BY_BUCKET.general;
 
-  if (empty) {
-    if (!isBootIntroSource(input)) return false;
-    if (!isLoginMoment(session, startedAt)) return false;
+  const prevBucket = safeStr(session.introBucket || "");
+  const prevId = safeInt(session.introVariantId || 0, 0);
 
-    const introAt = safeInt(session.introAt || 0, 0);
-    if (introAt && startedAt - introAt < INTRO_REARM_MS) return false;
-
-    return true;
+  if (prevBucket === bucketStamp && prevId >= 0 && prevId < arr.length) {
+    return { text: arr[prevId], id: prevId, bucket: bucketStamp };
   }
 
-  const strong = hasStrongFirstTurnIntent(inboundText);
-  if (strong && !isGreetingOnly(inboundText)) return false;
-
-  if (!isLoginMoment(session, startedAt)) return false;
-
-  const introAt = safeInt(session.introAt || 0, 0);
-  if (introAt && startedAt - introAt < INTRO_REARM_MS) return false;
-
-  return true;
+  const id = pickRandomIndex(arr.length);
+  return { text: arr[id] || arr[0], id, bucket: bucketStamp };
 }
 
 // =========================
@@ -425,7 +397,7 @@ function ensureContinuityState(session) {
 }
 
 // =========================
-// SessionPatch minimizer
+// SessionPatch allowlist
 // =========================
 const PATCH_KEYS = new Set([
   "introDone",
@@ -439,36 +411,25 @@ const PATCH_KEYS = new Set([
   "turns",
   "startedAt",
   "lastTurnAt",
+  "lane",
   "lastLane",
   "lastYear",
   "lastMode",
-  "depthLevel",
-  "elasticToggle",
-  "lane",
-  "pendingLane",
-  "pendingMode",
-  "pendingYear",
   "activeMusicMode",
   "lastMusicYear",
-  "year",
-  "mode",
-  "userName",
-  "visitorId",
-  "voiceMode",
-  "__cs1",
-  "cog",
-  "__introDone",
+  "pendingYear",
+  "pendingMode",
+  "pendingLane",
   "turnCount",
   "__hasRealUserTurn",
+  "__introDone",
+  "__cs1",
 
   "__ce_lastReqId",
   "__ce_lastReqAt",
   "__ce_lastOutHash",
   "__ce_lastOut",
   "__ce_lastOutLane",
-
-  "__ce_prevOutHash",
-  "__ce_prevOutRepeat",
 ]);
 
 function buildSessionPatch(session) {
@@ -483,7 +444,7 @@ function buildSessionPatch(session) {
 }
 
 // =========================
-// FollowUp helpers
+// FollowUps / directives normalization
 // =========================
 function normFollowUpChip(label, send) {
   const l = clampStr(safeStr(label).trim() || "Send", MAX_FOLLOWUP_LABEL);
@@ -564,57 +525,98 @@ function normalizeDirectives(directives) {
 }
 
 // =========================
-// CS-1 hooks (soft)
+// Replay cache (session-scoped)
 // =========================
-function cs1Init(session) {
-  try {
-    if (!cs1) return;
-    if (typeof cs1.ensure === "function") cs1.ensure(session);
-    if (typeof cs1.init === "function") cs1.init(session);
-  } catch (_) {}
+function replayKey(session, requestId, inboundText, source) {
+  const rid = safeStr(requestId).trim();
+  const sig = sha1(
+    `${safeStr(session.sessionId || session.visitorId || "")}|${safeStr(source)}|${safeStr(inboundText)}`
+  ).slice(0, 12);
+  return rid ? `rid:${rid}` : `sig:${sig}`;
 }
-function cs1MarkSpeak(session, tag) {
-  try {
-    if (!cs1) return;
-    if (typeof cs1.markSpeak === "function") cs1.markSpeak(session, tag);
-    else if (typeof cs1.mark === "function") cs1.mark(session, { type: "speak", tag });
-  } catch (_) {}
+function readReplay(session, key, now) {
+  const lastKey = safeStr(session.__ce_lastReqId || "");
+  const lastAt = safeInt(session.__ce_lastReqAt || 0, 0);
+  if (!lastKey || lastKey !== key) return null;
+  if (!lastAt || now - lastAt > REPLAY_WINDOW_MS) return null;
+
+  const out = session.__ce_lastOut;
+  const outLane = safeStr(session.__ce_lastOutLane || "general") || "general";
+  const outHash = safeStr(session.__ce_lastOutHash || "");
+  if (!out || !outHash) return null;
+  return { reply: out, lane: outLane };
 }
-function cs1SelectContinuity(session, inboundText) {
-  try {
-    if (!cs1) return null;
-    if (typeof cs1.select === "function") return cs1.select({ session, text: inboundText });
-    if (typeof cs1.pick === "function") return cs1.pick({ session, text: inboundText });
-    return null;
-  } catch (_) {
-    return null;
-  }
-}
-
-// =========================
-// Intro selection (RANDOM per login window, stable within that window)
-// =========================
-function pickIntroForLogin(session, startedAt, bucketKey) {
-  const bucket = Math.floor(startedAt / INTRO_REARM_MS);
-  const bkey = safeStr(bucketKey || "general");
-
-  const bucketStamp = `${bkey}:${bucket}`;
-  const prevBucket = safeStr(session.introBucket || "");
-  const prevId = safeInt(session.introVariantId || 0, 0);
-
-  const arr = INTRO_VARIANTS_BY_BUCKET[bkey] || INTRO_VARIANTS_BY_BUCKET.general;
-
-  if (prevBucket === bucketStamp && Number.isFinite(prevId) && prevId >= 0 && prevId < arr.length) {
-    return { text: arr[prevId], id: prevId, bucket: bucketStamp };
-  }
-
-  // random once per new bucketStamp
-  const id = pickRandomIndex(arr.length);
-  return { text: arr[id] || arr[0], id, bucket: bucketStamp };
+function writeReplay(session, key, now, reply, lane) {
+  session.__ce_lastReqId = key;
+  session.__ce_lastReqAt = now;
+  session.__ce_lastOut = reply;
+  session.__ce_lastOutLane = lane;
+  session.__ce_lastOutHash = sha1(`${lane}::${reply}`).slice(0, 16);
 }
 
 // =========================
-// Default core fallback
+// Hard reset
+// =========================
+function hardResetSession(session, startedAt) {
+  const keep = { visitorId: safeStr(session.visitorId || ""), sessionId: safeStr(session.sessionId || "") };
+  for (const k of Object.keys(session)) delete session[k];
+  if (keep.visitorId) session.visitorId = keep.visitorId;
+  if (keep.sessionId) session.sessionId = keep.sessionId;
+
+  session.lane = "general";
+  session.turnCount = 0;
+  session.turns = 0;
+  session.startedAt = startedAt;
+  session.lastTurnAt = startedAt;
+  session.__hasRealUserTurn = 0;
+
+  session.__introDone = 0;
+  session.introDone = false;
+  session.introAt = 0;
+  session.introVariantId = 0;
+  session.introBucket = "";
+
+  session.lastInText = "";
+  session.lastInAt = 0;
+  session.lastOut = "";
+  session.lastOutAt = 0;
+
+  session.__ce_lastReqId = "";
+  session.__ce_lastReqAt = 0;
+  session.__ce_lastOutHash = "";
+  session.__ce_lastOut = "";
+  session.__ce_lastOutLane = "";
+
+  ensureContinuityState(session);
+  return session;
+}
+
+// =========================
+// ENGINE AUTOWIRE (the fix you need)
+// =========================
+function resolveEngine(input) {
+  if (typeof input.engine === "function") return { fn: input.engine, from: "input.engine" };
+
+  // Try common handlers on NYX_PACKETS
+  const p = NYX_PACKETS;
+  if (p && typeof p.handleChat === "function") return { fn: p.handleChat.bind(p), from: "nyxPackets.handleChat" };
+  if (p && typeof p.chat === "function") return { fn: p.chat.bind(p), from: "nyxPackets.chat" };
+  if (p && typeof p.respond === "function") return { fn: p.respond.bind(p), from: "nyxPackets.respond" };
+  if (p && typeof p.run === "function") return { fn: p.run.bind(p), from: "nyxPackets.run" };
+  if (p && typeof p.route === "function") return { fn: p.route.bind(p), from: "nyxPackets.route" };
+
+  // Try common handlers on conv pack
+  const c = NYX_CONV_PACK;
+  if (c && typeof c.handleChat === "function") return { fn: c.handleChat.bind(c), from: "nyxConvPack.handleChat" };
+  if (c && typeof c.respond === "function") return { fn: c.respond.bind(c), from: "nyxConvPack.respond" };
+  if (c && typeof c.run === "function") return { fn: c.run.bind(c), from: "nyxConvPack.run" };
+
+  // Nothing resolved
+  return { fn: null, from: "none" };
+}
+
+// =========================
+// Fallback (only used when no engine is available)
 // =========================
 function fallbackCore({ text, session }) {
   const t = normText(text);
@@ -625,19 +627,17 @@ function fallbackCore({ text, session }) {
     return {
       reply: `Got it — ${y}. Want Top 10, #1, a story moment, or a micro moment?`,
       lane: "music",
-      cog: { phase: "engaged", state: "confident", reason: "music_override", lane: "music", year: String(y), mode: m },
     };
   }
 
   if (y) {
     session.lastMusicYear = y;
     session.lastYear = y;
-    session.lane = "music";
     session.pendingYear = y;
+    session.lane = "music";
     return {
       reply: `Got it — ${y}. Want Top 10, #1, a story moment, or a micro moment?`,
       lane: "music",
-      cog: { phase: "listening", state: "confident", reason: "year_only", lane: "music", year: String(y) },
       followUps: toFollowUps([
         { label: "Top 10", send: `top 10 ${y}` },
         { label: "#1", send: `#1 ${y}` },
@@ -659,128 +659,14 @@ function fallbackCore({ text, session }) {
 }
 
 // =========================
-// Replay / idempotency cache (session-scoped)
-// =========================
-function replayKey(session, requestId, inboundText, source) {
-  const rid = safeStr(requestId).trim();
-  const sig = sha1(
-    `${safeStr(session.sessionId || session.visitorId || "")}|${safeStr(source)}|${safeStr(inboundText)}`
-  ).slice(0, 12);
-  return rid ? `rid:${rid}` : `sig:${sig}`;
-}
-function readReplay(session, key, now) {
-  const lastKey = safeStr(session.__ce_lastReqId || "");
-  const lastAt = safeInt(session.__ce_lastReqAt || 0, 0);
-  if (!lastKey || lastKey !== key) return null;
-  if (!lastAt || now - lastAt > REPLAY_WINDOW_MS) return null;
-
-  const out = session.__ce_lastOut;
-  const outLane = safeStr(session.__ce_lastOutLane || "general") || "general";
-  const outHash = safeStr(session.__ce_lastOutHash || "");
-  if (!out || !outHash) return null;
-
-  return { reply: out, lane: outLane };
-}
-function writeReplay(session, key, now, reply, lane) {
-  session.__ce_lastReqId = key;
-  session.__ce_lastReqAt = now;
-  session.__ce_lastOut = reply;
-  session.__ce_lastOutLane = lane;
-  session.__ce_lastOutHash = sha1(`${lane}::${reply}`).slice(0, 16);
-}
-
-// =========================
-// HARD RESET COMMAND (enterprise-safe)
-// =========================
-function hardResetSession(session, startedAt) {
-  const keep = {
-    visitorId: safeStr(session.visitorId || ""),
-    sessionId: safeStr(session.sessionId || ""),
-  };
-
-  for (const k of Object.keys(session)) delete session[k];
-
-  if (keep.visitorId) session.visitorId = keep.visitorId;
-  if (keep.sessionId) session.sessionId = keep.sessionId;
-
-  session.lane = "general";
-  session.lastLane = "general";
-  session.turnCount = 0;
-  session.turns = 0;
-  session.startedAt = startedAt;
-  session.lastTurnAt = startedAt;
-
-  session.__hasRealUserTurn = 0;
-
-  session.__introDone = 0;
-  session.introDone = false;
-  session.introAt = 0;
-  session.introVariantId = 0;
-  session.introBucket = "";
-
-  session.lastInText = "";
-  session.lastInAt = 0;
-  session.lastOut = "";
-  session.lastOutAt = 0;
-
-  session.__ce_lastReqId = "";
-  session.__ce_lastReqAt = 0;
-  session.__ce_lastOutHash = "";
-  session.__ce_lastOut = "";
-  session.__ce_lastOutLane = "";
-
-  session.__ce_prevOutHash = "";
-  session.__ce_prevOutRepeat = 0;
-
-  if (!session.__nyxCont) session.__nyxCont = {};
-  if (!session.__nyxIntro) session.__nyxIntro = {};
-  if (!session.__nyxPackets) session.__nyxPackets = {};
-
-  return session;
-}
-
-// =========================
-// Output repeat dampener (loop killer #2)
-// =========================
-function dampenRepeatOutput(session, reply, lane, inboundText) {
-  const outHash = sha1(`${lane}::${reply}`).slice(0, 16);
-  const prev = safeStr(session.__ce_prevOutHash || "");
-  let rep = safeInt(session.__ce_prevOutRepeat || 0, 0);
-
-  if (prev && prev === outHash) {
-    rep += 1;
-  } else {
-    rep = 0;
-  }
-
-  session.__ce_prevOutHash = outHash;
-  session.__ce_prevOutRepeat = rep;
-
-  // If we repeated once already (and this is not a replay-cache scenario),
-  // rewrite into a forward-moving prompt with concrete next step.
-  if (rep >= 1) {
-    const y = extractYear(inboundText) || session.lastMusicYear || session.lastYear;
-    if (y) {
-      return `Alright — ${y}. Say “top 10 ${y}”, “#1 ${y}”, “story moment ${y}”, or “micro moment ${y}”.`;
-    }
-    return "Alright. Give me a year (1950–2024) and I’ll move us forward.";
-  }
-
-  return reply;
-}
-
-// =========================
 // Main handler
 // =========================
 async function handleChat(input = {}) {
   const startedAt = nowMs();
-
   const requestId = safeStr(input.requestId).trim() || sha1(`${startedAt}|${Math.random()}`).slice(0, 10);
 
   const session = ensureContinuityState(input.session || {});
-  cs1Init(session);
 
-  // Normalize inbound early (before anything)
   let inboundText = safeStr(input.text || input.message || "").trim();
 
   const source =
@@ -792,38 +678,33 @@ async function handleChat(input = {}) {
     safeStr((input && input.client && input.client.routeHint) || input.routeHint || session.lane || "general").trim() ||
     "general";
 
-  // RESET COMMAND must be handled before replay/intro/engine
+  // RESET
   if (inboundText === "__cmd:reset__") {
     hardResetSession(session, startedAt);
-    cs1MarkSpeak(session, "reset");
-
     const reply = "All reset. Where do you want to start?";
-    const lane = "general";
-    const followUps = toFollowUps(CANON_INTRO_CHIPS);
-
-    const rkey = replayKey(session, requestId, inboundText, source);
-    writeReplay(session, rkey, startedAt, reply, lane);
-
+    writeReplay(session, replayKey(session, requestId, inboundText, source), startedAt, reply, "general");
     return {
       ok: true,
       reply,
-      lane,
-      followUps,
+      lane: "general",
+      followUps: toFollowUps(CANON_INTRO_CHIPS),
       followUpsStrings: toFollowUpsStrings(CANON_INTRO_CHIPS),
       sessionPatch: buildSessionPatch(session),
-      cog: { phase: "listening", state: "fresh", reason: "hard_reset", lane },
+      cog: { phase: "listening", state: "fresh", reason: "hard_reset", lane: "general" },
       requestId,
       meta: { engine: CE_VERSION, reset: true, source: safeMetaStr(source), elapsedMs: nowMs() - startedAt },
     };
   }
 
-  // Apply normalization after reset handling (normalization may read session state)
+  // Normalize inbound (kills mode-only loops)
+  const preNorm = inboundText;
   inboundText = normalizeInboundText(inboundText, session);
+  const inboundNormalized = inboundText !== preNorm;
 
   const inboundIsEmpty = isEmptyOrNoText(inboundText);
   const bootIntroEmpty = inboundIsEmpty && isBootIntroSource({ ...input, source });
 
-  // HARD IGNORE NON-BOOT EMPTY TURN
+  // Ignore empty non-boot
   if (inboundIsEmpty && !bootIntroEmpty) {
     const reply = "Ready when you are. Tell me a year (1950–2024), or what you want to do next.";
     const lane = safeStr(session.lane || "general") || "general";
@@ -840,7 +721,7 @@ async function handleChat(input = {}) {
     };
   }
 
-  // REPLAY SAFETY
+  // Replay safety
   const rkey = replayKey(session, requestId, inboundText, source);
   const cached = readReplay(session, rkey, startedAt);
   if (cached) {
@@ -857,100 +738,84 @@ async function handleChat(input = {}) {
     };
   }
 
-  // Telemetry counters: only for non-phantom turns; boot-intro should NOT increment.
+  // Turn counters
   if (!bootIntroEmpty) {
     session.turnCount = safeInt(session.turnCount || 0, 0) + 1;
     session.turns = safeInt(session.turns || 0, 0) + 1;
-  } else {
-    session.turnCount = safeInt(session.turnCount || 0, 0);
-    session.turns = safeInt(session.turns || 0, 0);
   }
-
   if (!session.startedAt) session.startedAt = startedAt;
-
   if (!inboundIsEmpty) session.__hasRealUserTurn = 1;
 
   session.lastTurnAt = startedAt;
-
   if (!bootIntroEmpty) {
     session.lastInText = inboundText;
     session.lastInAt = startedAt;
   }
 
+  // Lane seed
   let lane = safeStr(session.lane || routeHint || "general").trim() || "general";
 
-  // MUSIC OVERRIDE (pre-intro)
+  // Music override
   const ov = applyMusicOverride(session, inboundText);
-  if (ov.forced) lane = ov.lane;
+  if (ov.forced) lane = "music";
 
-  // INTRO
+  // Intro
   const doIntro = !ov.forced && shouldServeIntroLoginMoment(session, inboundText, startedAt, { ...input, source });
-
   if (doIntro) {
     session.__introDone = 1;
     session.introDone = true;
     session.introAt = startedAt;
-
     const bucketKey = pickIntroBucket(session, inboundText, routeHint, { ...input, source });
-
     session.lane = "general";
-
-    cs1MarkSpeak(session, "intro");
 
     const pick = pickIntroForLogin(session, startedAt, bucketKey);
     session.introVariantId = pick.id;
     session.introBucket = pick.bucket;
 
     const introLine = nonEmptyReply(pick.text, INTRO_VARIANTS_BY_BUCKET.general[0]);
-    const followUps = toFollowUps(CANON_INTRO_CHIPS);
-
     writeReplay(session, rkey, startedAt, introLine, "general");
 
     return {
       ok: true,
       reply: introLine,
       lane: "general",
-      followUps,
+      followUps: toFollowUps(CANON_INTRO_CHIPS),
       followUpsStrings: toFollowUpsStrings(CANON_INTRO_CHIPS),
       sessionPatch: buildSessionPatch(session),
-      cog: { phase: "listening", state: "confident", reason: "intro_login_moment", lane: "general", ts: startedAt },
+      cog: { phase: "listening", state: "confident", reason: "intro_login_moment", lane: "general" },
       requestId,
-      meta: {
-        engine: CE_VERSION,
-        intro: true,
-        introBucket: safeMetaStr(bucketKey),
-        loginMoment: true,
-        source: safeMetaStr(source),
-        elapsedMs: nowMs() - startedAt,
-      },
+      meta: { engine: CE_VERSION, intro: true, introBucket: safeMetaStr(bucketKey), source: safeMetaStr(source) },
     };
   }
 
-  // Optional continuity selector (soft)
-  const continuity = cs1SelectContinuity(session, inboundText);
-  if (continuity && typeof continuity === "object") {
-    session.__cs1 = continuity.__cs1 || continuity.state || session.__cs1;
-  }
+  // Resolve engine (THIS is the fix)
+  const resolved = resolveEngine(input);
 
-  // Core engine: caller-supplied engine, else fallback
   let core = null;
   let engineTimedOut = false;
+  let engineEmptyReply = false;
+  let engineOk = false;
+
   try {
-    if (typeof input.engine === "function") {
+    if (resolved.fn) {
       core = await withTimeout(
         Promise.resolve(
-          input.engine({
+          resolved.fn({
             text: inboundText,
             session,
             requestId,
             routeHint: lane,
             packs: { conv: NYX_CONV_PACK, phrase: NYX_PHRASEPACK, packets: NYX_PACKETS },
-            interpolateTemplate,
           })
         ),
         ENGINE_TIMEOUT_MS,
         "engine"
       );
+      engineOk = true;
+      if (core && typeof core === "object") {
+        const rr = safeStr(core.reply || "").trim();
+        engineEmptyReply = !rr;
+      }
     } else {
       core = fallbackCore({ text: inboundText, session });
     }
@@ -971,24 +836,14 @@ async function handleChat(input = {}) {
     };
   }
 
-  // Normalize lane
+  // Normalize lane + reply
   const outLane = safeStr((core && core.lane) || session.lane || lane || "general").trim() || "general";
-  session.lane = outLane;
-  if (ov.forced) session.lane = "music";
+  session.lane = ov.forced ? "music" : outLane;
 
-  // Guarantee reply
   let reply = nonEmptyReply(core && core.reply, "A year usually clears things up.");
   reply = clampStr(reply, MAX_REPLY_CHARS);
 
-  // directives / followUps
-  const directives = normalizeDirectives(core && core.directives);
-  const followUps = normalizeFollowUps(core && core.followUps);
-  const followUpsStrings =
-    Array.isArray(core && core.followUpsStrings) && core.followUpsStrings.length
-      ? core.followUpsStrings.slice(0, MAX_FOLLOWUPS)
-      : undefined;
-
-  // sessionPatch merge (minimized + safe)
+  // sessionPatch allowlist merge
   if (core && isPlainObject(core.sessionPatch)) {
     for (const [k, v] of Object.entries(core.sessionPatch)) {
       if (!PATCH_KEYS.has(k)) continue;
@@ -997,22 +852,18 @@ async function handleChat(input = {}) {
     }
   }
 
-  // Output dampener (prevents “same line again” loops)
-  reply = dampenRepeatOutput(session, reply, session.lane, inboundText);
-
   session.lastOut = reply;
   session.lastOutAt = startedAt;
 
-  const cog =
-    (core && core.cog && typeof core.cog === "object" ? core.cog : null) || {
-      phase: "listening",
-      state: "confident",
-      reason: ov.forced ? "music_override" : "ok",
-      lane: session.lane,
-    };
+  // Normalize directives/followUps
+  const directives = normalizeDirectives(core && core.directives);
+  const followUps = normalizeFollowUps(core && core.followUps);
+  const followUpsStrings =
+    Array.isArray(core && core.followUpsStrings) && core.followUpsStrings.length
+      ? core.followUpsStrings.slice(0, MAX_FOLLOWUPS)
+      : undefined;
 
-  if (ov.forced) cs1MarkSpeak(session, "music_override");
-
+  // Cache replay output
   writeReplay(session, rkey, startedAt, reply, session.lane);
 
   return {
@@ -1023,15 +874,25 @@ async function handleChat(input = {}) {
     followUps,
     followUpsStrings,
     sessionPatch: buildSessionPatch(session),
-    cog,
+    cog:
+      (core && core.cog && typeof core.cog === "object" && core.cog) || {
+        phase: "listening",
+        state: "confident",
+        reason: ov.forced ? "music_override" : "ok",
+        lane: session.lane,
+      },
     requestId,
     meta: {
       engine: CE_VERSION,
-      override: ov.forced ? `music:${safeMetaStr(ov.mode)}:${safeMetaStr(ov.year)}` : "",
       source: safeMetaStr(source),
-      engineTimeout: !!engineTimedOut,
-      normalizedInbound: inboundText !== safeStr(input.text || input.message || "").trim(),
+      routeHint: safeMetaStr(routeHint),
+      inboundNormalized,
+      override: ov.forced ? `music:${safeMetaStr(ov.mode)}:${safeMetaStr(ov.year)}` : "",
       elapsedMs: nowMs() - startedAt,
+      engineResolvedFrom: resolved.from,
+      engineOk,
+      engineTimeout: !!engineTimedOut,
+      engineEmptyReply,
       packsLoaded: { conv: !!NYX_CONV_PACK, phrase: !!NYX_PHRASEPACK, packets: !!NYX_PACKETS, cs1: !!cs1 },
     },
   };
