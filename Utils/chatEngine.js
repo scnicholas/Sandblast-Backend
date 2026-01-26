@@ -1,4 +1,4 @@
-"use strict";
+'use strict";
 
 /**
  * Utils/chatEngine.js
@@ -16,9 +16,11 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.6zP (ENTERPRISE HARDENED + ENGINE AUTOWIRE FIX)
+ * v0.6zQ (ENTERPRISE HARDENED + ENGINE AUTOWIRE FIX + LOOPKILLER++)
  *  ✅ FIX: If input.engine is missing, auto-resolve an engine from optional packs (so Top10/#1/story actually renders)
  *  ✅ FIX: Mode-only → auto-attach last known year (kills “say top10 again” loops)
+ *  ✅ FIX: Prevent “intro replay loops” (intro never re-serves on repeated boot-intro pings inside cooldown)
+ *  ✅ FIX: FollowUps fallback when engine returns none for recognized music requests
  *  ✅ Replay safety (short-window idempotency)
  *  ✅ Timeout containment around resolved engine
  *  ✅ Contract normalization + sessionPatch allowlist merge
@@ -34,7 +36,7 @@ const crypto = require("crypto");
 // Version
 // =========================
 const CE_VERSION =
-  "chatEngine v0.6zP (enterprise hardened: engine-autowire fix + loopkiller + idempotency + timeout + contract normalize + session safety)";
+  "chatEngine v0.6zQ (enterprise hardened: engine-autowire fix + loopkiller++ + idempotency + timeout + contract normalize + session safety)";
 
 // =========================
 // Enterprise knobs
@@ -659,6 +661,55 @@ function fallbackCore({ text, session }) {
 }
 
 // =========================
+// Engine-aware fallback follow-ups (when the engine forgets to emit chips)
+// =========================
+function maybeAttachMusicFollowUps(core, inboundText, session) {
+  const year = extractYear(inboundText);
+  const mode = extractMode(inboundText);
+
+  // If user clearly asked for a music action and the engine didn't provide followUps,
+  // attach a conservative, high-signal set to prevent dead-ends.
+  if (!year) return core;
+
+  const hasFU = Array.isArray(core && core.followUps) && core.followUps.length;
+  if (hasFU) return core;
+
+  // When mode exists, offer adjacent actions around same year.
+  if (mode) {
+    core.followUps = toFollowUps([
+      { label: "Top 10", send: `top 10 ${year}` },
+      { label: "#1", send: `#1 ${year}` },
+      { label: "Story moment", send: `story moment ${year}` },
+      { label: "Micro moment", send: `micro moment ${year}` },
+    ]);
+    core.followUpsStrings = toFollowUpsStrings([
+      { label: "Top 10", send: `top 10 ${year}` },
+      { label: "#1", send: `#1 ${year}` },
+      { label: "Story moment", send: `story moment ${year}` },
+      { label: "Micro moment", send: `micro moment ${year}` },
+    ]);
+    session.lane = "music";
+    return core;
+  }
+
+  // Year-only (or year + ambiguous) — same chips
+  core.followUps = toFollowUps([
+    { label: "Top 10", send: `top 10 ${year}` },
+    { label: "#1", send: `#1 ${year}` },
+    { label: "Story moment", send: `story moment ${year}` },
+    { label: "Micro moment", send: `micro moment ${year}` },
+  ]);
+  core.followUpsStrings = toFollowUpsStrings([
+    { label: "Top 10", send: `top 10 ${year}` },
+    { label: "#1", send: `#1 ${year}` },
+    { label: "Story moment", send: `story moment ${year}` },
+    { label: "Micro moment", send: `micro moment ${year}` },
+  ]);
+  session.lane = "music";
+  return core;
+}
+
+// =========================
 // Main handler
 // =========================
 async function handleChat(input = {}) {
@@ -765,6 +816,7 @@ async function handleChat(input = {}) {
     session.__introDone = 1;
     session.introDone = true;
     session.introAt = startedAt;
+
     const bucketKey = pickIntroBucket(session, inboundText, routeHint, { ...input, source });
     session.lane = "general";
 
@@ -835,6 +887,9 @@ async function handleChat(input = {}) {
       },
     };
   }
+
+  // If engine forgot chips for obvious music requests, attach safe defaults.
+  if (core && typeof core === "object") core = maybeAttachMusicFollowUps(core, inboundText, session);
 
   // Normalize lane + reply
   const outLane = safeStr((core && core.lane) || session.lane || lane || "general").trim() || "general";
