@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17zi
+ * index.js v1.5.17zj
  * (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION +
  *  ✅ SESSIONPATCH EXPANDED (CONTINUITY PERSIST FIX) + ✅ CONVERSATIONAL CONTRACT ENFORCER (HARD) +
  *  ✅ ROUTE HINT AWARE COG NORMALIZATION + ✅ ENV KNOBS HARDENED +
@@ -24,10 +24,10 @@
  *  ✅ CRITICAL: BOOT-INTRO BRIDGE (empty “panel open” pings can trigger intro ONCE without consuming loop fuse) +
  *  ✅ CRITICAL: AVOID DOUBLE TURN-COUNT (do not pre-increment turns before chatEngine; let chatEngine own it)
  *
- * Fixes in v1.5.17zi:
- *  ✅ Boot-intro now calls chatEngine with EMPTY text + panel_open_intro source (prevents consuming a “real” user turn)
- *  ✅ normalizeFollowUpsToStrings now respects chatEngine followUps payload.text (prevents chips turning into labels-only)
- *  ✅ normalizeCog state fallback bug fixed (was mistakenly reading sc.phase)
+ * Patch vs v1.5.17zi:
+ *  ✅ CORS: allow Range header + expose audio/range headers (helps stubborn browser audio behaviors)
+ *  ✅ Directives: de-dupe by type/url to prevent repeats across layers
+ *  ✅ Turns: post-engine “safe increment” ONLY if engine did not increment (no doubles)
  * )
  */
 
@@ -54,7 +54,7 @@ let shadowBrain = null;
 let chatEngine = null;
 let ttsModule = null;
 
-// ✅ NEW: soft-load a “core engine” so chatEngine wrapper can actually fire conversational layers
+// ✅ soft-load a “core engine” so chatEngine wrapper can actually fire conversational layers
 let nyxCore = null;
 
 try {
@@ -111,7 +111,10 @@ const NYX_CORE_ENGINE = pickCoreEngine(nyxCore);
 if (NYX_CORE_ENGINE) {
   console.log("[nyxCore] loaded (soft). engine=function");
 } else if (nyxCore) {
-  console.log("[nyxCore] loaded (soft). but no callable engine export found. keys=", Object.keys(nyxCore || {}));
+  console.log(
+    "[nyxCore] loaded (soft). but no callable engine export found. keys=",
+    Object.keys(nyxCore || {})
+  );
 } else {
   console.log("[nyxCore] not found (soft). chatEngine may fall back unless it has internal packs.");
 }
@@ -135,7 +138,7 @@ if (TRUST_PROXY) {
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.17zi (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + SESSIONPATCH EXPANDED + CONTRACT ENFORCER + ROUTE HINT COG + ENV HARDENED + TRUST PROXY + DISCOVERY ROUTES + ROKU DIRECTIVE + CORS PREFLIGHT FIX + COS PERSISTENCE + DIRECTIVES HARDENING + NO DUPLICATE bridge_roku + TTS JSON-PARSE RECOVERY + INTRO FALLBACK GUARD + FALLBACK INTRO RANDOMIZER + LOOP FUSE v2 + TTL CLAMP FIX + CHATENGINE VISIBILITY HEADERS + INTRO RESET GAP + SERVER TURN COUNTER + CORE ENGINE WIRING + BOOT-INTRO BRIDGE + AVOID DOUBLE TURN-COUNT + BOOT-INTRO EMPTY-CALL FIX + FOLLOWUP PAYLOAD.TEXT FIX + COG STATE FIX)";
+  "index.js v1.5.17zj (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + SESSIONPATCH EXPANDED + CONTRACT ENFORCER + ROUTE HINT COG + ENV HARDENED + TRUST PROXY + DISCOVERY ROUTES + ROKU DIRECTIVE + CORS PREFLIGHT FIX + COS PERSISTENCE + DIRECTIVES HARDENING + NO DUPLICATE bridge_roku + TTS JSON-PARSE RECOVERY + INTRO FALLBACK GUARD + FALLBACK INTRO RANDOMIZER + LOOP FUSE v2 + TTL CLAMP FIX + CHATENGINE VISIBILITY HEADERS + INTRO RESET GAP + SERVER TURN COUNTER + CORE ENGINE WIRING + BOOT-INTRO BRIDGE + AVOID DOUBLE TURN-COUNT + CORS RANGE/AUDIO HEADERS + DIRECTIVE DEDUPE + POST-ENGINE TURN SAFE-INCR)";
 
 const GIT_COMMIT =
   String(process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "").trim() || null;
@@ -338,13 +341,7 @@ function sanitizeCogObject(obj) {
       continue;
     }
 
-    if (
-      v === null ||
-      typeof v === "string" ||
-      typeof v === "number" ||
-      typeof v === "boolean"
-    )
-      out[k] = v;
+    if (v === null || typeof v === "string" || typeof v === "number" || typeof v === "boolean") out[k] = v;
   }
 
   return Object.keys(out).length ? out : null;
@@ -379,7 +376,7 @@ function nonEmptyReply(s, fallback) {
 }
 
 /* ======================================================
-   Directive hardening
+   Directive hardening + de-dupe
 ====================================================== */
 
 const DIRECTIVE_MAX = clamp(process.env.DIRECTIVE_MAX || 6, 1, 12);
@@ -451,6 +448,24 @@ function normalizeDirectives(d) {
       if (san) out.push(san);
     }
 
+    if (out.length >= DIRECTIVE_MAX) break;
+  }
+  return out;
+}
+
+function dedupeDirectives(list) {
+  if (!Array.isArray(list) || list.length === 0) return [];
+  const out = [];
+  const seen = new Set();
+  for (const d of list) {
+    if (!d || typeof d !== "object") continue;
+    const t = normalizeStr(d.type || "");
+    if (!t) continue;
+    const u = normalizeStr(d.url || d.deeplink || d.fallbackUrl || "");
+    const key = (t + "::" + u).toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(d);
     if (out.length >= DIRECTIVE_MAX) break;
   }
   return out;
@@ -695,9 +710,10 @@ function enforceChatContract({
 }) {
   const reply = nonEmptyReply(baseReply, "Alright — tell me what you want next.");
 
-  const directives = directivesOverride
+  const directivesRaw = directivesOverride
     ? normalizeDirectives(directivesOverride)
     : normalizeDirectives(out && out.directives);
+  const directives = dedupeDirectives(directivesRaw);
 
   const sessionPatch = allowlistSessionPatchObj(out && out.sessionPatch) || {};
   const cog = normalizeCog(out, session, routeHint);
@@ -794,6 +810,8 @@ const CORS_ALLOWED_HEADERS = [
   "X-Voice-Mode",
   "X-Session-Id",
   "X-SBNYX-Client-Build",
+  // ✅ audio/range friendliness
+  "Range",
 ];
 
 const CORS_EXPOSED_HEADERS = [
@@ -810,6 +828,11 @@ const CORS_EXPOSED_HEADERS = [
   "X-Nyx-ChatEngine",
   "X-Nyx-Engine-Meta",
   "X-Nyx-Intro",
+  // ✅ audio/range friendliness
+  "Accept-Ranges",
+  "Content-Range",
+  "Content-Length",
+  "Content-Type",
 ];
 
 const CORS_MAX_AGE = 86400;
@@ -937,8 +960,7 @@ app.use((req, res, next) => {
 const MAX_SESSIONS = Math.max(0, Number(process.env.MAX_SESSIONS || 0));
 
 /**
- * FIX: previous clamp forced minimum 10 hours (10*60*60*1000).
- * Correct min is 10 minutes, max 24 hours.
+ * min 10 minutes, max 24 hours.
  */
 const SESSION_TTL_MS = clamp(
   process.env.SESSION_TTL_MS || 6 * 60 * 60 * 1000,
@@ -994,6 +1016,19 @@ function getVoiceMode(req, body) {
   return fromBody || fromHeader || "";
 }
 
+function initSessionDefaults(s, now) {
+  if (!s) return;
+  if (!Number.isFinite(Number(s.startedAt || 0))) s.startedAt = now;
+  if (!Number.isFinite(Number(s.turns))) s.turns = 0;
+  if (!Number.isFinite(Number(s.turnCount))) s.turnCount = Number(s.turns) || 0;
+
+  if (!Array.isArray(s.lanesVisited)) s.lanesVisited = [];
+  if (!Array.isArray(s.yearsVisited)) s.yearsVisited = [];
+  if (!Array.isArray(s.modesVisited)) s.modesVisited = [];
+
+  if (!Number.isFinite(Number(s.lastTurnAt || 0))) s.lastTurnAt = 0;
+}
+
 function touchSession(sessionId, patch) {
   if (!sessionId) return null;
 
@@ -1013,10 +1048,12 @@ function touchSession(sessionId, patch) {
       if (oldestKey) SESSIONS.delete(oldestKey);
     }
     s = { sessionId, _createdAt: now, _touchedAt: now };
+    initSessionDefaults(s, now);
     SESSIONS.set(sessionId, s);
   }
 
   s._touchedAt = now;
+  initSessionDefaults(s, now);
   if (patch && typeof patch === "object") applySessionPatch(s, patch);
   return s;
 }
@@ -1156,6 +1193,7 @@ app.get("/api/version", (req, res) => {
       loopSigWindowMs,
       loopSigMax,
       introResetGapMs,
+      corsRangeHeaders: true,
     },
     allowlistSample: EFFECTIVE_ORIGINS.slice(0, 10),
   });
@@ -1342,8 +1380,7 @@ function bridgeEligible({ text, session, out, now }) {
   if (explicit && BRIDGE_EXPLICIT_ALWAYS) return true;
 
   const lane =
-    (out && typeof out.lane === "string" ? out.lane : "") ||
-    (session && session.lane ? String(session.lane) : "");
+    (out && typeof out.lane === "string" ? out.lane : "") || (session && session.lane ? String(session.lane) : "");
 
   if (BRIDGE_MUSIC_ONLY && lane && lane !== "music") return false;
   if (explicit) return true;
@@ -1649,7 +1686,7 @@ function pickChatHandler(mod) {
   return null;
 }
 
-// ✅ FIX: followUps from chatEngine are objects like {id,type,label,payload:{text}}
+// ✅ followUps from chatEngine are objects like {id,type,label,payload:{text}}
 // This MUST return the send-texts, not labels, or chips break.
 function normalizeFollowUpsToStrings(followUps) {
   if (!Array.isArray(followUps) || followUps.length === 0) return undefined;
@@ -1731,6 +1768,22 @@ function dedupeOkPayload({ reply, sessionId, requestId, visitorId, posture, rout
   });
 }
 
+function getTurnCounter(session) {
+  const a = Number(session && session.turns);
+  const b = Number(session && session.turnCount);
+  const aa = Number.isFinite(a) ? a : 0;
+  const bb = Number.isFinite(b) ? b : 0;
+  return Math.max(aa, bb);
+}
+
+function setTurnCounter(session, n) {
+  if (!session) return;
+  const x = Number(n);
+  if (!Number.isFinite(x) || x < 0) return;
+  session.turns = x;
+  session.turnCount = x;
+}
+
 /* ======================================================
    /api/chat
 ====================================================== */
@@ -1804,7 +1857,10 @@ app.post("/api/chat", async (req, res) => {
     const prevTurnAt = Number(session.lastTurnAt || 0);
     session.lastTurnAt = now;
 
-    // ✅ NEW: intro reset gap (only meaningful for auto_ sessions)
+    // baseline session defaults (belt)
+    initSessionDefaults(session, now);
+
+    // ✅ intro reset gap (only meaningful for auto_ sessions)
     const headerSid = cleanSessionId(req.get("X-Session-Id"));
     const bodySid = body && typeof body === "object" ? cleanSessionId(body.sessionId) : null;
     const isAutoSession = !bodySid && !headerSid && String(sessionId || "").startsWith("auto_");
@@ -1815,12 +1871,9 @@ app.post("/api/chat", async (req, res) => {
       if (isDebug) safeSet(res, "X-Nyx-Intro", "reset_gap");
     }
 
-    // ✅ CRITICAL: BOOT-INTRO BRIDGE
-    // If widget sends an empty boot/panel-open ping, allow ONE intro without:
-    // - loop fuse
-    // - burst / hash dedupe
-    // - consuming real user intent
     const handler = pickChatHandler(chatEngine);
+
+    // ✅ BOOT-INTRO BRIDGE
     const canBootIntro =
       !normalizeStr(text) &&
       isBootSource(source) &&
@@ -1831,8 +1884,7 @@ app.post("/api/chat", async (req, res) => {
     if (canBootIntro) {
       let out = null;
       try {
-        // ✅ FIX: call chatEngine with EMPTY text + panel_open_intro source
-        // so chatEngine can intro without counting a “real” user turn.
+        // call chatEngine with EMPTY text + panel_open_intro source
         out = await Promise.resolve(
           handler({
             text: "",
@@ -1890,7 +1942,7 @@ app.post("/api/chat", async (req, res) => {
             ? normalizeFollowUpsToStrings(out.followUps)
             : undefined,
         bridgeInjected: null,
-        directivesOverride: normalizeDirectives(out && out.directives),
+        directivesOverride: dedupeDirectives(normalizeDirectives(out && out.directives)),
       });
 
       clearTimeout(watchdog);
@@ -2067,6 +2119,9 @@ app.post("/api/chat", async (req, res) => {
       console.warn("[shadow] error (soft):", e && e.message ? e.message : e);
     }
 
+    // ✅ capture turns before engine; do NOT pre-increment
+    const turnsBefore = getTurnCounter(session);
+
     let out = null;
 
     if (handler) {
@@ -2079,7 +2134,7 @@ app.post("/api/chat", async (req, res) => {
             requestId,
             debug: isDebug,
             routeHint,
-            // ✅ CRITICAL: pass core engine so chatEngine wrapper can fire packs/layers
+            // ✅ pass core engine so chatEngine wrapper can fire packs/layers
             engine: NYX_CORE_ENGINE || undefined,
             client: (body && body.client) || undefined,
           })
@@ -2110,6 +2165,15 @@ app.post("/api/chat", async (req, res) => {
 
     if (out && typeof out === "object" && out.sessionPatch && typeof out.sessionPatch === "object") {
       applySessionPatch(session, out.sessionPatch);
+    }
+
+    // ✅ mark real user turn (server belt); boot-intro is handled above
+    if (normalizeStr(text)) session.__hasRealUserTurn = true;
+
+    // ✅ post-engine safe increment: ONLY if engine did not increment
+    const turnsAfterEngine = getTurnCounter(session);
+    if (normalizeStr(text) && turnsAfterEngine === turnsBefore) {
+      setTurnCounter(session, turnsBefore + 1);
     }
 
     const baseReply =
@@ -2149,12 +2213,13 @@ app.post("/api/chat", async (req, res) => {
       }
     }
 
-    let directives = normalizeDirectives(out && out.directives);
+    let directives = dedupeDirectives(normalizeDirectives(out && out.directives));
     if (eligible && canEmitRokuCta(session, now, posture) && !hasDirectiveType(directives, "bridge_roku")) {
       const reason = isExplicitRokuMention(text) ? "explicit_roku" : "implicit_bridge";
       const rokuDir = buildRokuBridgeDirective({ session, now, posture, reason });
       directives = directives || [];
       directives.unshift(rokuDir);
+      directives = dedupeDirectives(directives);
     }
 
     const replyHash = sha256(String(finalReply || ""));
@@ -2190,8 +2255,7 @@ app.post("/api/chat", async (req, res) => {
         clearTimeout(watchdog);
         safeSet(res, "X-Nyx-Deduped", "reply-runaway");
 
-        const soft =
-          "Okay — pause. Tell me ONE thing: a year (1950–2024) or a command like “top 10 1988”.";
+        const soft = "Okay — pause. Tell me ONE thing: a year (1950–2024) or a command like “top 10 1988”.";
         session.__lastReply = soft;
         session.__lastReplyHash = sha256(soft);
         session.__lastReplyAt = now;
@@ -2296,6 +2360,10 @@ app.post("/api/chat", async (req, res) => {
       };
       payload._core = {
         nyxCoreLoaded: !!NYX_CORE_ENGINE,
+      };
+      payload._turns = {
+        before: turnsBefore,
+        after: getTurnCounter(session),
       };
     }
 
