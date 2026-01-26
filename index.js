@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17zj
+ * index.js v1.5.17zk
  * (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION +
  *  ✅ SESSIONPATCH EXPANDED (CONTINUITY PERSIST FIX) + ✅ CONVERSATIONAL CONTRACT ENFORCER (HARD) +
  *  ✅ ROUTE HINT AWARE COG NORMALIZATION + ✅ ENV KNOBS HARDENED +
@@ -15,19 +15,20 @@
  *  ✅ TTS JSON-PARSE RECOVERY (NO_TEXT / raw string payloads) +
  *  ✅ INTRO FALLBACK GUARD (only when chatEngine missing/fails + greeting) +
  *  ✅ FALLBACK INTRO RANDOMIZER (per session; non-rigid; brand-aligned) +
- *  ✅ LOOP FUSE v2 (input-signature dedupe + repeat clamp + quiet payload on runaway) +
+ *  ✅ LOOP FUSE v2.1 (input-signature dedupe tuned: ignore first dup; clamp repeats; quiet payload on runaway) +
  *  ✅ FIX: SESSION_TTL_MS clamp (was forcing 10h min unintentionally) +
  *  ✅ NEW: CHATENGINE VISIBILITY HEADERS (X-Nyx-ChatEngine / X-Nyx-Engine-Meta / X-Nyx-Intro) +
  *  ✅ NEW: INTRO RESET GAP (treat long pause as fresh entry when sessionId is auto-derived) +
  *  ✅ NEW: SERVER TURN COUNTER (session.turns / lastTurnAt) to stabilize “first turn” semantics +
  *  ✅ CRITICAL: CORE ENGINE WIRING (soft-load Nyx core brain + pass as input.engine so conversational layers fire) +
  *  ✅ CRITICAL: BOOT-INTRO BRIDGE (empty “panel open” pings can trigger intro ONCE without consuming loop fuse) +
- *  ✅ CRITICAL: AVOID DOUBLE TURN-COUNT (do not pre-increment turns before chatEngine; let chatEngine own it)
+ *  ✅ CRITICAL: AVOID DOUBLE TURN-COUNT (do not pre-increment turns before chatEngine; let chatEngine own it) +
+ *  ✅ CRITICAL: CONTRACT COMPLETENESS (return lane/ctx/ui + BOTH followUps objects AND followUpsStrings)
  *
- * Patch vs v1.5.17zi:
- *  ✅ CORS: allow Range header + expose audio/range headers (helps stubborn browser audio behaviors)
- *  ✅ Directives: de-dupe by type/url to prevent repeats across layers
- *  ✅ Turns: post-engine “safe increment” ONLY if engine did not increment (no doubles)
+ * Patch vs v1.5.17zj:
+ *  ✅ CONTRACT: include out.lane/out.ctx/out.ui/out.mode/out.year, plus followUps (objects) + followUpsStrings (strings)
+ *  ✅ FOLLOWUPS: sanitize + dedupe; never collapse objects into strings-only (prevents “lists/chips not firing”)
+ *  ✅ LOOP FUSE: first duplicate within window is ignored (prevents accidental double-send looking like a “loop”)
  * )
  */
 
@@ -138,7 +139,7 @@ if (TRUST_PROXY) {
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.17zj (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + SESSIONPATCH EXPANDED + CONTRACT ENFORCER + ROUTE HINT COG + ENV HARDENED + TRUST PROXY + DISCOVERY ROUTES + ROKU DIRECTIVE + CORS PREFLIGHT FIX + COS PERSISTENCE + DIRECTIVES HARDENING + NO DUPLICATE bridge_roku + TTS JSON-PARSE RECOVERY + INTRO FALLBACK GUARD + FALLBACK INTRO RANDOMIZER + LOOP FUSE v2 + TTL CLAMP FIX + CHATENGINE VISIBILITY HEADERS + INTRO RESET GAP + SERVER TURN COUNTER + CORE ENGINE WIRING + BOOT-INTRO BRIDGE + AVOID DOUBLE TURN-COUNT + CORS RANGE/AUDIO HEADERS + DIRECTIVE DEDUPE + POST-ENGINE TURN SAFE-INCR)";
+  "index.js v1.5.17zk (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + SESSIONPATCH EXPANDED + CONTRACT ENFORCER + ROUTE HINT COG + ENV HARDENED + TRUST PROXY + DISCOVERY ROUTES + ROKU DIRECTIVE + CORS PREFLIGHT FIX + COS PERSISTENCE + DIRECTIVES HARDENING + NO DUPLICATE bridge_roku + TTS JSON-PARSE RECOVERY + INTRO FALLBACK GUARD + FALLBACK INTRO RANDOMIZER + LOOP FUSE v2.1 + TTL CLAMP FIX + CHATENGINE VISIBILITY HEADERS + INTRO RESET GAP + SERVER TURN COUNTER + CORE ENGINE WIRING + BOOT-INTRO BRIDGE + AVOID DOUBLE TURN-COUNT + CONTRACT COMPLETENESS: lane/ctx/ui + followUps objects+strings)";
 
 const GIT_COMMIT =
   String(process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "").trim() || null;
@@ -472,6 +473,105 @@ function dedupeDirectives(list) {
 }
 
 /* ======================================================
+   FollowUps normalization (CRITICAL: keep objects + keep strings)
+====================================================== */
+
+const FOLLOWUPS_MAX = clamp(process.env.FOLLOWUPS_MAX || 12, 3, 24);
+const FOLLOWUP_LABEL_MAX = clamp(process.env.FOLLOWUP_LABEL_MAX || 64, 16, 120);
+const FOLLOWUP_TEXT_MAX = clamp(process.env.FOLLOWUP_TEXT_MAX || 140, 32, 240);
+const FOLLOWUP_ID_MAX = clamp(process.env.FOLLOWUP_ID_MAX || 40, 16, 80);
+const FOLLOWUP_TYPE_MAX = clamp(process.env.FOLLOWUP_TYPE_MAX || 32, 12, 60);
+
+function sanitizeFollowUpObj(item) {
+  if (!item || typeof item !== "object") return null;
+
+  const id = normalizeStr(item.id || "").slice(0, FOLLOWUP_ID_MAX);
+  const type = normalizeStr(item.type || "").slice(0, FOLLOWUP_TYPE_MAX) || "chip";
+  const label = normalizeStr(item.label || "").slice(0, FOLLOWUP_LABEL_MAX);
+
+  let sendText = "";
+  if (item.payload && typeof item.payload === "object") {
+    sendText = normalizeStr(item.payload.text || "");
+  }
+  if (!sendText) sendText = normalizeStr(item.send || "");
+  if (!sendText && label) sendText = label;
+
+  sendText = normalizeStr(sendText).slice(0, FOLLOWUP_TEXT_MAX);
+  if (!sendText) return null;
+
+  const out = {
+    id: id || sha256(type + ":" + sendText).slice(0, 10),
+    type,
+    label: label || sendText,
+    payload: { text: sendText },
+  };
+
+  return out;
+}
+
+function normalizeFollowUpsObjects(followUps) {
+  if (!Array.isArray(followUps) || followUps.length === 0) return undefined;
+  const out = [];
+  const seen = new Set();
+
+  for (const item of followUps) {
+    let obj = null;
+
+    if (typeof item === "string") {
+      const s = normalizeStr(item).slice(0, FOLLOWUP_TEXT_MAX);
+      if (!s) continue;
+      obj = {
+        id: sha256("s:" + s).slice(0, 10),
+        type: "chip",
+        label: s.slice(0, FOLLOWUP_LABEL_MAX),
+        payload: { text: s },
+      };
+    } else {
+      obj = sanitizeFollowUpObj(item);
+    }
+
+    if (!obj) continue;
+    const k = normCmd(obj.payload && obj.payload.text ? obj.payload.text : obj.label || "");
+    if (!k || seen.has(k)) continue;
+    seen.add(k);
+
+    out.push(obj);
+    if (out.length >= FOLLOWUPS_MAX) break;
+  }
+
+  return out.length ? out : undefined;
+}
+
+function normalizeFollowUpsStrings(followUps) {
+  if (!Array.isArray(followUps) || followUps.length === 0) return undefined;
+  const seen = new Set();
+  const out = [];
+
+  for (const item of followUps) {
+    let send = "";
+
+    if (typeof item === "string") {
+      send = item;
+    } else if (item && typeof item === "object") {
+      const pt =
+        item.payload && typeof item.payload === "object" ? normalizeStr(item.payload.text || "") : "";
+      send = pt || normalizeStr(item.send || "");
+      if (!send) send = normalizeStr(item.label || "");
+    }
+
+    send = normalizeStr(send).slice(0, FOLLOWUP_TEXT_MAX);
+    const k = normCmd(send);
+    if (!k || seen.has(k)) continue;
+    seen.add(k);
+    out.push(send);
+
+    if (out.length >= FOLLOWUPS_MAX) break;
+  }
+
+  return out.length ? out : undefined;
+}
+
+/* ======================================================
    Session patch allowlist
 ====================================================== */
 
@@ -638,7 +738,7 @@ function normalizeCog(out, session, routeHint) {
     (sc && typeof sc.phase === "string" && sc.phase.trim() ? sc.phase : null) ||
     "engaged";
 
-  // ✅ FIX: state fallback must read sc.state (not sc.phase)
+  // ✅ state fallback must read sc.state (not sc.phase)
   const state =
     (oc && typeof oc.state === "string" && oc.state.trim() ? oc.state : null) ||
     (sc && typeof sc.state === "string" && sc.state.trim() ? sc.state : null) ||
@@ -704,7 +804,8 @@ function enforceChatContract({
   visitorId,
   posture,
   shadow,
-  followUps,
+  followUpsObjects,
+  followUpsStrings,
   bridgeInjected,
   directivesOverride,
 }) {
@@ -718,9 +819,33 @@ function enforceChatContract({
   const sessionPatch = allowlistSessionPatchObj(out && out.sessionPatch) || {};
   const cog = normalizeCog(out, session, routeHint);
 
+  const lane =
+    out && typeof out === "object" && typeof out.lane === "string" && out.lane.trim()
+      ? normCmd(out.lane)
+      : cog && cog.lane
+      ? cog.lane
+      : "general";
+
   const payload = {
     ok: true,
     reply,
+    lane,
+    // ✅ carry through the full conversational envelope (some UI needs this)
+    ctx: out && typeof out === "object" && out.ctx && typeof out.ctx === "object" ? out.ctx : undefined,
+    ui: out && typeof out === "object" && out.ui && typeof out.ui === "object" ? out.ui : undefined,
+    mode:
+      out && typeof out === "object" && typeof out.mode === "string" && out.mode.trim()
+        ? out.mode
+        : cog && cog.mode
+        ? cog.mode
+        : undefined,
+    year:
+      out && typeof out === "object" && out.year != null
+        ? out.year
+        : cog && cog.year
+        ? cog.year
+        : undefined,
+
     sessionId,
     requestId,
     visitorId,
@@ -734,7 +859,15 @@ function enforceChatContract({
   };
 
   if (shadow) payload.shadow = shadow;
-  if (followUps && Array.isArray(followUps) && followUps.length) payload.followUps = followUps;
+
+  // ✅ CRITICAL: keep followUps as objects AND provide strings legacy (chips/lists)
+  if (followUpsObjects && Array.isArray(followUpsObjects) && followUpsObjects.length) {
+    payload.followUps = followUpsObjects;
+  }
+  if (followUpsStrings && Array.isArray(followUpsStrings) && followUpsStrings.length) {
+    payload.followUpsStrings = followUpsStrings;
+  }
+
   if (bridgeInjected) payload._bridgeInjected = bridgeInjected;
 
   return payload;
@@ -1194,6 +1327,7 @@ app.get("/api/version", (req, res) => {
       loopSigMax,
       introResetGapMs,
       corsRangeHeaders: true,
+      followUpsMax: FOLLOWUPS_MAX,
     },
     allowlistSample: EFFECTIVE_ORIGINS.slice(0, 10),
   });
@@ -1264,7 +1398,7 @@ function intentSigFrom(text, session) {
 }
 
 /* ======================================================
-   LOOP FUSE v2 (server-side protection)
+   LOOP FUSE v2.1 (server-side protection)
 ====================================================== */
 
 const LOOP_SIG_WINDOW_MS = clamp(process.env.LOOP_SIG_WINDOW_MS || 1600, 400, 8000);
@@ -1298,6 +1432,10 @@ function shouldLoopFuse(session, sig, now) {
 
   const next = Number(session.__loopCount || 0) + 1;
   session.__loopCount = next;
+
+  // ✅ v2.1: ignore the first duplicate (common double-send); start fusing at 2+
+  if (next < 2) return { fuse: false, count: next };
+
   return { fuse: true, count: next };
 }
 
@@ -1686,33 +1824,6 @@ function pickChatHandler(mod) {
   return null;
 }
 
-// ✅ followUps from chatEngine are objects like {id,type,label,payload:{text}}
-// This MUST return the send-texts, not labels, or chips break.
-function normalizeFollowUpsToStrings(followUps) {
-  if (!Array.isArray(followUps) || followUps.length === 0) return undefined;
-  const seen = new Set();
-  const out = [];
-  for (const item of followUps) {
-    let send = "";
-    if (typeof item === "string") {
-      send = item;
-    } else if (item && typeof item === "object") {
-      // preferred: payload.text
-      const pt =
-        item.payload && typeof item.payload === "object" ? normalizeStr(item.payload.text || "") : "";
-      send = pt || normalizeStr(item.send || "");
-      // last resort: label (only if it’s actually what you want sent)
-      if (!send) send = normalizeStr(item.label || "");
-    }
-    send = normalizeStr(send);
-    const k = normCmd(send);
-    if (!k || seen.has(k)) continue;
-    seen.add(k);
-    out.push(send);
-  }
-  return out.length ? out : undefined;
-}
-
 function isUpstreamQuotaError(e) {
   try {
     if (!e) return false;
@@ -1762,7 +1873,8 @@ function dedupeOkPayload({ reply, sessionId, requestId, visitorId, posture, rout
     visitorId,
     posture: posture || "explore",
     shadow: null,
-    followUps: undefined,
+    followUpsObjects: undefined,
+    followUpsStrings: undefined,
     bridgeInjected: null,
     directivesOverride: [],
   });
@@ -1927,6 +2039,9 @@ app.post("/api/chat", async (req, res) => {
       session.__lastPosture = posture;
       if (BRIDGE_DEBUG_HEADERS) safeSet(res, "X-Nyx-Posture", String(posture));
 
+      const followUpsObjects = normalizeFollowUpsObjects(out && out.followUps);
+      const followUpsStrings = normalizeFollowUpsStrings(out && out.followUps);
+
       const payload = enforceChatContract({
         out,
         session,
@@ -1937,10 +2052,8 @@ app.post("/api/chat", async (req, res) => {
         visitorId,
         posture,
         shadow: null,
-        followUps:
-          out && typeof out === "object" && Array.isArray(out.followUps)
-            ? normalizeFollowUpsToStrings(out.followUps)
-            : undefined,
+        followUpsObjects,
+        followUpsStrings,
         bridgeInjected: null,
         directivesOverride: dedupeDirectives(normalizeDirectives(out && out.directives)),
       });
@@ -1967,7 +2080,7 @@ app.post("/api/chat", async (req, res) => {
     }
 
     // =========================
-    // LOOP FUSE v2 — input signature
+    // LOOP FUSE v2.1 — input signature
     // =========================
     const sig = loopSig({ text, routeHint, voiceMode: vmode, session });
     const lf = shouldLoopFuse(session, sig, now);
@@ -2148,7 +2261,11 @@ app.post("/api/chat", async (req, res) => {
             reply:
               last ||
               "Nyx is online, but the AI brain is temporarily out of fuel (OpenAI quota). Add billing/credits, then try again.",
-            followUps: ["Try again", "Open radio", "Open TV"],
+            followUps: [
+              { id: "try_again", type: "chip", label: "Try again", payload: { text: "Try again" } },
+              { id: "open_radio", type: "chip", label: "Open radio", payload: { text: "Open radio" } },
+              { id: "open_tv", type: "chip", label: "Open TV", payload: { text: "Open TV" } },
+            ],
             cog: { state: "error", reason: "upstream_quota" },
             directives: [],
             meta: { engine: getChatEngineVersion(chatEngine) || "unknown", intro: false },
@@ -2278,10 +2395,8 @@ app.post("/api/chat", async (req, res) => {
       session.__repCount = 0;
     }
 
-    const followUps =
-      out && typeof out === "object" && Array.isArray(out.followUps)
-        ? normalizeFollowUpsToStrings(out.followUps)
-        : undefined;
+    const followUpsObjects = normalizeFollowUpsObjects(out && out.followUps);
+    const followUpsStrings = normalizeFollowUpsStrings(out && out.followUps);
 
     session.__lastReply = finalReply;
     session.__lastBodyHash = bodyHash;
@@ -2321,7 +2436,8 @@ app.post("/api/chat", async (req, res) => {
       visitorId,
       posture,
       shadow,
-      followUps,
+      followUpsObjects,
+      followUpsStrings,
       bridgeInjected,
       directivesOverride: directives,
     });
