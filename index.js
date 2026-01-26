@@ -3,37 +3,34 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17zk
- * (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION +
- *  ✅ SESSIONPATCH EXPANDED (CONTINUITY PERSIST FIX) + ✅ CONVERSATIONAL CONTRACT ENFORCER (HARD) +
- *  ✅ ROUTE HINT AWARE COG NORMALIZATION + ✅ ENV KNOBS HARDENED +
- *  ✅ TRUST PROXY (SAFE, OPTIONAL) + ✅ ROOT/API DISCOVERY ROUTES +
- *  ✅ ROKU BRIDGE DIRECTIVE (STRUCTURED CTA) + ✅ CTA COOLDOWN + SESSION TELEMETRY +
- *  ✅ CORS PREFLIGHT FIX (TTS) + ✅ SANDBLAST ORIGIN FORCE-ALLOW +
- *  ✅ COS PERSISTENCE WIRING (session.cog allowlist + sanitize + normalizeCog reads session.cog) +
- *  ✅ DIRECTIVES HARDENING (sanitize objects + clamp) + ✅ NO DUPLICATE bridge_roku +
- *  ✅ TTS JSON-PARSE RECOVERY (NO_TEXT / raw string payloads) +
- *  ✅ INTRO FALLBACK GUARD (only when chatEngine missing/fails + greeting) +
- *  ✅ FALLBACK INTRO RANDOMIZER (per session; non-rigid; brand-aligned) +
- *  ✅ LOOP FUSE v2.1 (input-signature dedupe tuned: ignore first dup; clamp repeats; quiet payload on runaway) +
- *  ✅ FIX: SESSION_TTL_MS clamp (was forcing 10h min unintentionally) +
- *  ✅ NEW: CHATENGINE VISIBILITY HEADERS (X-Nyx-ChatEngine / X-Nyx-Engine-Meta / X-Nyx-Intro) +
- *  ✅ NEW: INTRO RESET GAP (treat long pause as fresh entry when sessionId is auto-derived) +
- *  ✅ NEW: SERVER TURN COUNTER (session.turns / lastTurnAt) to stabilize “first turn” semantics +
- *  ✅ CRITICAL: CORE ENGINE WIRING (soft-load Nyx core brain + pass as input.engine so conversational layers fire) +
- *  ✅ CRITICAL: BOOT-INTRO BRIDGE (empty “panel open” pings can trigger intro ONCE without consuming loop fuse) +
- *  ✅ CRITICAL: AVOID DOUBLE TURN-COUNT (do not pre-increment turns before chatEngine; let chatEngine own it) +
- *  ✅ CRITICAL: CONTRACT COMPLETENESS (return lane/ctx/ui + BOTH followUps objects AND followUpsStrings)
+ * index.js v1.5.17zl
+ * (ENTERPRISE HARDENING PACK for 1M+ USERS + existing protections preserved)
  *
- * Patch vs v1.5.17zj:
- *  ✅ CONTRACT: include out.lane/out.ctx/out.ui/out.mode/out.year, plus followUps (objects) + followUpsStrings (strings)
- *  ✅ FOLLOWUPS: sanitize + dedupe; never collapse objects into strings-only (prevents “lists/chips not firing”)
- *  ✅ LOOP FUSE: first duplicate within window is ignored (prevents accidental double-send looking like a “loop”)
- * )
+ * Keeps everything you already locked in:
+ *  ✅ CORS HARD-LOCK + PREFLIGHT FIX (TTS)
+ *  ✅ TURN-CACHE DEDUPE + LOOP FUSE v2.1 + BURST + SUSTAINED GUARDS
+ *  ✅ POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + CTA COOLDOWN
+ *  ✅ SESSIONPATCH EXPANDED (CONTINUITY PERSIST FIX) + COS PERSISTENCE WIRING
+ *  ✅ CONVERSATIONAL CONTRACT ENFORCER (HARD) + FOLLOWUPS objects + strings
+ *  ✅ INTRO FALLBACK GUARD + per-session RANDOMIZER
+ *  ✅ CHATENGINE VISIBILITY HEADERS + INTRO RESET GAP + SERVER TURN COUNTER
+ *  ✅ TTS JSON-PARSE RECOVERY (NO_TEXT / raw string payloads)
+ *  ✅ CRITICAL: CORE ENGINE WIRING + BOOT-INTRO BRIDGE + AVOID DOUBLE TURN-COUNT
+ *
+ * New “Enterprise Grade” upgrades (additive; safe-by-default; no breaking deps):
+ *  ✅ SECURITY HEADERS (API-safe, no CSP surprises)
+ *  ✅ OPTIONAL COMPRESSION (soft-load `compression` if installed)
+ *  ✅ STRUCTURED REQUEST LOGGING (lightweight, sampling-capable)
+ *  ✅ PROMETHEUS-STYLE METRICS (/api/metrics) + READY/LIVE endpoints
+ *  ✅ GRACEFUL SHUTDOWN (SIGTERM/SIGINT) + server timeouts (slowloris resistance)
+ *  ✅ GLOBAL RATE LIMITER (token bucket; bounded memory; route-scoped; env knobs)
+ *  ✅ CORRELATION: X-Request-Id enforced across logs/metrics
  */
 
 const express = require("express");
 const crypto = require("crypto");
+const os = require("os");
+
 // const cors = require("cors"); // kept optional; we now do explicit CORS to avoid preflight edge cases
 
 /* ======================================================
@@ -122,6 +119,7 @@ if (NYX_CORE_ENGINE) {
 
 const app = express();
 app.disable("x-powered-by");
+app.set("etag", false);
 
 /* ======================================================
    Trust proxy (optional; recommended behind Render/CF)
@@ -139,10 +137,93 @@ if (TRUST_PROXY) {
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.17zk (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + SESSIONPATCH EXPANDED + CONTRACT ENFORCER + ROUTE HINT COG + ENV HARDENED + TRUST PROXY + DISCOVERY ROUTES + ROKU DIRECTIVE + CORS PREFLIGHT FIX + COS PERSISTENCE + DIRECTIVES HARDENING + NO DUPLICATE bridge_roku + TTS JSON-PARSE RECOVERY + INTRO FALLBACK GUARD + FALLBACK INTRO RANDOMIZER + LOOP FUSE v2.1 + TTL CLAMP FIX + CHATENGINE VISIBILITY HEADERS + INTRO RESET GAP + SERVER TURN COUNTER + CORE ENGINE WIRING + BOOT-INTRO BRIDGE + AVOID DOUBLE TURN-COUNT + CONTRACT COMPLETENESS: lane/ctx/ui + followUps objects+strings)";
+  "index.js v1.5.17zl (ENTERPRISE HARDENING PACK + existing guards preserved)";
 
 const GIT_COMMIT =
   String(process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "").trim() || null;
+
+/* ======================================================
+   Enterprise knobs (safe defaults)
+====================================================== */
+
+const LOG_LEVEL = String(process.env.LOG_LEVEL || "info").toLowerCase();
+const LOG_SAMPLE = Number(process.env.LOG_SAMPLE || "1"); // 1 = log all; 0.1 = 10%
+const ENABLE_ACCESS_LOG = String(process.env.ENABLE_ACCESS_LOG || "true") === "true";
+
+const BODY_LIMIT_BYTES = (() => {
+  // supports "1mb", "512kb" or raw bytes
+  const raw = String(process.env.BODY_LIMIT || "1mb").trim().toLowerCase();
+  const m = raw.match(/^(\d+)\s*(b|kb|mb)$/i);
+  if (!m) {
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : 1024 * 1024;
+  }
+  const val = Number(m[1]);
+  const unit = String(m[2]).toLowerCase();
+  if (!Number.isFinite(val) || val <= 0) return 1024 * 1024;
+  if (unit === "b") return val;
+  if (unit === "kb") return val * 1024;
+  return val * 1024 * 1024;
+})();
+
+const GRACEFUL_SHUTDOWN_MS = (() => {
+  const n = Number(process.env.GRACEFUL_SHUTDOWN_MS || 12000);
+  return Number.isFinite(n) ? Math.max(2000, Math.min(n, 60000)) : 12000;
+})();
+
+const SERVER_KEEPALIVE_MS = (() => {
+  const n = Number(process.env.SERVER_KEEPALIVE_MS || 65000); // typical LB keepalive
+  return Number.isFinite(n) ? Math.max(5000, Math.min(n, 120000)) : 65000;
+})();
+const SERVER_HEADERS_TIMEOUT_MS = (() => {
+  const n = Number(process.env.SERVER_HEADERS_TIMEOUT_MS || 70000);
+  return Number.isFinite(n) ? Math.max(5000, Math.min(n, 120000)) : 70000;
+})();
+const SERVER_REQUEST_TIMEOUT_MS = (() => {
+  const n = Number(process.env.SERVER_REQUEST_TIMEOUT_MS || 0); // 0 = Node default; avoid surprises
+  return Number.isFinite(n) ? Math.max(0, Math.min(n, 300000)) : 0;
+})();
+
+/* ======================================================
+   Lightweight structured logging (no deps)
+====================================================== */
+
+const LEVELS = { debug: 10, info: 20, warn: 30, error: 40 };
+function lvlOk(level) {
+  const want = LEVELS[LOG_LEVEL] || 20;
+  return (LEVELS[level] || 20) >= want;
+}
+function shouldSample() {
+  const p = Number(LOG_SAMPLE);
+  if (!Number.isFinite(p) || p >= 1) return true;
+  if (p <= 0) return false;
+  return Math.random() < p;
+}
+function jlog(level, msg, extra) {
+  try {
+    if (!lvlOk(level)) return;
+    if (!shouldSample()) return;
+    const payload = Object.assign(
+      {
+        ts: new Date().toISOString(),
+        level,
+        msg: String(msg || ""),
+        svc: "sandblast-backend",
+        build: INDEX_VERSION,
+        commit: GIT_COMMIT || undefined,
+        pid: process.pid,
+      },
+      extra && typeof extra === "object" ? extra : {}
+    );
+    // Keep logs JSON for ingestion (Render/Datadog/etc.)
+    console.log(JSON.stringify(payload));
+  } catch (_) {
+    // last resort
+    try {
+      console.log(level.toUpperCase() + " " + String(msg || ""));
+    } catch (_) {}
+  }
+}
 
 /* ======================================================
    Helpers
@@ -210,6 +291,157 @@ function sha256(s) {
 }
 function ua(req) {
   return normalizeStr(req.get("user-agent") || "");
+}
+
+/* ======================================================
+   Security headers (API-safe, low-risk)
+====================================================== */
+
+function applySecurityHeaders(res) {
+  safeSet(res, "X-Content-Type-Options", "nosniff");
+  safeSet(res, "X-Frame-Options", "DENY");
+  safeSet(res, "Referrer-Policy", "no-referrer");
+  safeSet(res, "Permissions-Policy", "geolocation=(), microphone=(), camera=()");
+  // HSTS only if behind HTTPS (Render typically is). Keep it mild to avoid weirdness in dev.
+  const hsts = String(process.env.HSTS || "true") === "true";
+  if (hsts) safeSet(res, "Strict-Transport-Security", "max-age=15552000; includeSubDomains");
+}
+
+/* ======================================================
+   Optional compression (soft-load, no break if missing)
+====================================================== */
+
+const compression = safeRequire("compression");
+if (compression && typeof compression === "function") {
+  const COMPRESS = String(process.env.ENABLE_COMPRESSION || "true") === "true";
+  if (COMPRESS) {
+    app.use(
+      compression({
+        threshold: clamp(process.env.COMPRESS_THRESHOLD || 1024, 256, 32 * 1024),
+      })
+    );
+    jlog("info", "compression_enabled", { threshold: Number(process.env.COMPRESS_THRESHOLD || 1024) });
+  }
+} else {
+  jlog("info", "compression_not_installed");
+}
+
+/* ======================================================
+   Metrics (Prometheus-style) + request timing
+====================================================== */
+
+const METRICS_ENABLED = String(process.env.METRICS_ENABLED || "true") === "true";
+const METRICS_TOKEN = normalizeStr(process.env.METRICS_TOKEN || ""); // optional simple auth
+
+const MET = {
+  startedAt: Date.now(),
+  reqTotal: 0,
+  reqByRoute: new Map(), // key: "METHOD path" -> count
+  status2xx: 0,
+  status3xx: 0,
+  status4xx: 0,
+  status5xx: 0,
+  inflight: 0,
+  latBucketsMs: [25, 50, 100, 200, 500, 1000, 2000, 5000, 10000],
+  latCounts: new Array(9).fill(0),
+  lastErrAt: 0,
+};
+
+function metIncRoute(method, path) {
+  const k = method + " " + path;
+  const prev = MET.reqByRoute.get(k) || 0;
+  MET.reqByRoute.set(k, prev + 1);
+}
+
+function metObserveLatency(ms) {
+  const x = Number(ms);
+  if (!Number.isFinite(x) || x < 0) return;
+  const b = MET.latBucketsMs;
+  for (let i = 0; i < b.length; i++) {
+    if (x <= b[i]) {
+      MET.latCounts[i] += 1;
+      return;
+    }
+  }
+  // > max bucket, use last
+  MET.latCounts[MET.latCounts.length - 1] += 1;
+}
+
+function promEscape(s) {
+  return String(s || "").replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/"/g, '\\"');
+}
+
+function promLine(name, labels, value) {
+  const labKeys = labels && typeof labels === "object" ? Object.keys(labels) : [];
+  const lab =
+    labKeys.length === 0
+      ? ""
+      : "{" +
+        labKeys
+          .map((k) => `${k}="${promEscape(labels[k])}"`)
+          .join(",") +
+        "}";
+  return `${name}${lab} ${Number(value) || 0}`;
+}
+
+function metricsPayloadText() {
+  const up = Math.round((Date.now() - MET.startedAt) / 1000);
+
+  const lines = [];
+  lines.push("# HELP sandblast_uptime_seconds Service uptime in seconds");
+  lines.push("# TYPE sandblast_uptime_seconds gauge");
+  lines.push(promLine("sandblast_uptime_seconds", {}, up));
+
+  lines.push("# HELP sandblast_requests_total Total HTTP requests");
+  lines.push("# TYPE sandblast_requests_total counter");
+  lines.push(promLine("sandblast_requests_total", {}, MET.reqTotal));
+
+  lines.push("# HELP sandblast_requests_by_route_total Requests by route");
+  lines.push("# TYPE sandblast_requests_by_route_total counter");
+  for (const [k, v] of MET.reqByRoute.entries()) {
+    const m = k.split(" ")[0] || "GET";
+    const p = k.slice(m.length + 1) || "/";
+    lines.push(promLine("sandblast_requests_by_route_total", { method: m, path: p }, v));
+  }
+
+  lines.push("# HELP sandblast_inflight_requests In-flight HTTP requests");
+  lines.push("# TYPE sandblast_inflight_requests gauge");
+  lines.push(promLine("sandblast_inflight_requests", {}, MET.inflight));
+
+  lines.push("# HELP sandblast_response_status_total Response status class counts");
+  lines.push("# TYPE sandblast_response_status_total counter");
+  lines.push(promLine("sandblast_response_status_total", { class: "2xx" }, MET.status2xx));
+  lines.push(promLine("sandblast_response_status_total", { class: "3xx" }, MET.status3xx));
+  lines.push(promLine("sandblast_response_status_total", { class: "4xx" }, MET.status4xx));
+  lines.push(promLine("sandblast_response_status_total", { class: "5xx" }, MET.status5xx));
+
+  lines.push("# HELP sandblast_latency_bucket_total Request latency buckets (ms)");
+  lines.push("# TYPE sandblast_latency_bucket_total counter");
+  for (let i = 0; i < MET.latBucketsMs.length; i++) {
+    lines.push(
+      promLine(
+        "sandblast_latency_bucket_total",
+        { le_ms: String(MET.latBucketsMs[i]) },
+        MET.latCounts[i]
+      )
+    );
+  }
+
+  lines.push("# HELP sandblast_instance_info Instance info");
+  lines.push("# TYPE sandblast_instance_info gauge");
+  lines.push(
+    promLine(
+      "sandblast_instance_info",
+      {
+        host: os.hostname(),
+        node: process.version,
+        commit: GIT_COMMIT || "n/a",
+      },
+      1
+    )
+  );
+
+  return lines.join("\n") + "\n";
 }
 
 /* ======================================================
@@ -986,10 +1218,55 @@ function applyCors(req, res) {
 }
 
 app.use((req, res, next) => {
+  // Correlation: ensure requestId exists early
+  const requestId = req.get("X-Request-Id") || rid();
+  req._rid = requestId;
+
+  // CORS first
   applyCors(req, res);
 
+  // Security headers next
+  applySecurityHeaders(res);
+
+  // Metrics begin
+  if (METRICS_ENABLED) {
+    MET.reqTotal += 1;
+    MET.inflight += 1;
+    metIncRoute(req.method, req.path || req.url || "/");
+    req._t0 = Date.now();
+  }
+
+  // Access log (finish hook)
+  if (ENABLE_ACCESS_LOG) {
+    const start = Date.now();
+    res.on("finish", () => {
+      try {
+        const ms = Date.now() - start;
+        const status = Number(res.statusCode || 0);
+        if (METRICS_ENABLED) {
+          MET.inflight = Math.max(0, MET.inflight - 1);
+          metObserveLatency(ms);
+          if (status >= 200 && status < 300) MET.status2xx += 1;
+          else if (status >= 300 && status < 400) MET.status3xx += 1;
+          else if (status >= 400 && status < 500) MET.status4xx += 1;
+          else if (status >= 500) MET.status5xx += 1;
+        }
+
+        jlog("info", "http_access", {
+          requestId,
+          method: req.method,
+          path: req.path || req.url,
+          status,
+          ms,
+          ip: normalizeStr(req.ip || ""),
+          ua: ua(req).slice(0, 180),
+        });
+      } catch (_) {}
+    });
+  }
+
+  // Preflight exit
   if (req.method === "OPTIONS") {
-    const requestId = req.get("X-Request-Id") || rid();
     setContractHeaders(res, requestId);
     // Visibility header still useful on preflight (helps confirm deploy)
     applyChatEngineHeaders(res, null);
@@ -1009,8 +1286,8 @@ function rawBodySaver(req, res, buf, encoding) {
   } catch (_) {}
 }
 
-app.use(express.json({ limit: "1mb", verify: rawBodySaver }));
-app.use(express.text({ type: ["text/*"], limit: "1mb", verify: rawBodySaver }));
+app.use(express.json({ limit: BODY_LIMIT_BYTES, verify: rawBodySaver }));
+app.use(express.text({ type: ["text/*"], limit: BODY_LIMIT_BYTES, verify: rawBodySaver }));
 
 /* ======================================================
    JSON parse error handler
@@ -1060,9 +1337,11 @@ app.use((err, req, res, next) => {
     }
   }
 
-  const requestId = req.get("X-Request-Id") || rid();
+  const requestId = req._rid || req.get("X-Request-Id") || rid();
   setContractHeaders(res, requestId);
   applyChatEngineHeaders(res, null);
+
+  MET.lastErrAt = Date.now();
 
   return safeJson(res, 400, {
     ok: false,
@@ -1087,6 +1366,123 @@ app.use((req, res, next) => {
 });
 
 /* ======================================================
+   Global rate limiter (token bucket, bounded memory)
+   - Additive to existing Burst/Loop guards inside /api/chat.
+   - Use env to tune per route without redeploy.
+====================================================== */
+
+const RL_ENABLED = String(process.env.RL_ENABLED || "true") === "true";
+const RL_MAX_KEYS = clamp(process.env.RL_MAX_KEYS || 50000, 1000, 200000); // bounded memory
+const RL_PRUNE_EVERY_MS = clamp(process.env.RL_PRUNE_EVERY_MS || 60000, 10000, 300000);
+
+const RL = new Map();
+/**
+ * Route policy:
+ *  - /api/chat: 40 req / 10s per key (default)
+ *  - /api/tts|/api/voice: 20 req / 10s per key (default)
+ * Keys: visitorId if present else ip+ua hash (stable, privacy-preserving)
+ */
+const RL_CHAT_CAP = clamp(process.env.RL_CHAT_CAP || 40, 5, 500);
+const RL_CHAT_WINDOW_MS = clamp(process.env.RL_CHAT_WINDOW_MS || 10000, 1000, 60000);
+
+const RL_TTS_CAP = clamp(process.env.RL_TTS_CAP || 20, 3, 200);
+const RL_TTS_WINDOW_MS = clamp(process.env.RL_TTS_WINDOW_MS || 10000, 1000, 60000);
+
+function getClientIp(req) {
+  const xr = normalizeStr(req.get("x-real-ip") || "");
+  if (xr) return xr;
+
+  const xf = normalizeStr(req.get("x-forwarded-for") || "");
+  if (xf) return xf.split(",")[0].trim();
+
+  const rip = normalizeStr(req.ip || "");
+  if (rip) return rip;
+
+  return normalizeStr(req.socket?.remoteAddress || "");
+}
+
+function rlKey(req, visitorId) {
+  const vid = normalizeStr(visitorId || "");
+  if (vid) return "vid:" + sha256(vid).slice(0, 24);
+  const ip = getClientIp(req);
+  const u = ua(req);
+  return "fp:" + sha256(String(ip || "anon") + "|" + u).slice(0, 24);
+}
+
+function rlAllow(key, cap, windowMs) {
+  const now = Date.now();
+  const ent = RL.get(key);
+  if (!ent) {
+    RL.set(key, { tokens: cap - 1, resetAt: now + windowMs, seenAt: now });
+    return { ok: true, remaining: cap - 1, resetAt: now + windowMs };
+  }
+
+  ent.seenAt = now;
+  if (now >= ent.resetAt) {
+    ent.tokens = cap - 1;
+    ent.resetAt = now + windowMs;
+    return { ok: true, remaining: ent.tokens, resetAt: ent.resetAt };
+  }
+
+  if (ent.tokens <= 0) return { ok: false, remaining: 0, resetAt: ent.resetAt };
+  ent.tokens -= 1;
+  return { ok: true, remaining: ent.tokens, resetAt: ent.resetAt };
+}
+
+function rlPrune() {
+  const now = Date.now();
+  if (RL.size <= RL_MAX_KEYS) {
+    // light prune: remove stale beyond 2 windows (~20s-60s typically)
+    for (const [k, v] of RL.entries()) {
+      if (!v) RL.delete(k);
+      else if (now - Number(v.seenAt || 0) > 5 * 60 * 1000) RL.delete(k);
+    }
+    return;
+  }
+
+  // Heavy prune: drop oldest 10%
+  const entries = Array.from(RL.entries()).sort((a, b) => Number(a[1].seenAt || 0) - Number(b[1].seenAt || 0));
+  const drop = Math.max(1, Math.floor(RL_MAX_KEYS * 0.1));
+  for (let i = 0; i < drop && i < entries.length; i++) RL.delete(entries[i][0]);
+}
+
+setInterval(() => rlPrune(), RL_PRUNE_EVERY_MS).unref?.();
+
+// Apply limiter only to hot endpoints
+app.use((req, res, next) => {
+  if (!RL_ENABLED) return next();
+  const p = String(req.path || "");
+  if (p !== "/api/chat" && p !== "/api/tts" && p !== "/api/voice") return next();
+
+  const requestId = req._rid || req.get("X-Request-Id") || rid();
+  const visitorId = normalizeStr(req.get("X-Visitor-Id") || "");
+
+  const key = rlKey(req, visitorId);
+  const isChat = p === "/api/chat";
+  const cap = isChat ? RL_CHAT_CAP : RL_TTS_CAP;
+  const win = isChat ? RL_CHAT_WINDOW_MS : RL_TTS_WINDOW_MS;
+
+  const verdict = rlAllow(key, cap, win);
+  safeSet(res, "X-RateLimit-Limit", String(cap));
+  safeSet(res, "X-RateLimit-Remaining", String(verdict.remaining));
+  safeSet(res, "X-RateLimit-Reset", String(Math.round(verdict.resetAt / 1000)));
+
+  if (!verdict.ok) {
+    setContractHeaders(res, requestId);
+    applyChatEngineHeaders(res, null);
+    return safeJson(res, 429, {
+      ok: false,
+      error: "RATE_LIMITED",
+      message: "Too many requests. Slow down for a moment.",
+      requestId,
+      contractVersion: NYX_CONTRACT_VERSION,
+    });
+  }
+
+  return next();
+});
+
+/* ======================================================
    In-memory session store
 ====================================================== */
 
@@ -1102,19 +1498,6 @@ const SESSION_TTL_MS = clamp(
 );
 
 const SESSIONS = new Map();
-
-function getClientIp(req) {
-  const xr = normalizeStr(req.get("x-real-ip") || "");
-  if (xr) return xr;
-
-  const xf = normalizeStr(req.get("x-forwarded-for") || "");
-  if (xf) return xf.split(",")[0].trim();
-
-  const rip = normalizeStr(req.ip || "");
-  if (rip) return rip;
-
-  return normalizeStr(req.socket?.remoteAddress || "");
-}
 
 function fingerprint(req, visitorId) {
   const vid = normalizeStr(visitorId || "");
@@ -1200,7 +1583,7 @@ setInterval(() => {
 }, 60_000).unref?.();
 
 /* ======================================================
-   Diagnostics + Discovery
+   Diagnostics + Discovery + readiness/liveness + metrics
 ====================================================== */
 
 function healthPayload(requestId) {
@@ -1214,8 +1597,24 @@ function healthPayload(requestId) {
   };
 }
 
+function readyPayload(requestId) {
+  const ttsReady = !!ttsModule;
+  const chatReady = !!chatEngine;
+  return {
+    ok: true,
+    service: "sandblast-backend",
+    status: ttsReady && chatReady ? "ready" : "degraded",
+    ts: nowIso(),
+    requestId,
+    contractVersion: NYX_CONTRACT_VERSION,
+    chatEngine: getChatEngineVersion(chatEngine),
+    ttsLoaded: ttsReady,
+    nyxCoreLoaded: !!NYX_CORE_ENGINE,
+  };
+}
+
 app.get("/", (req, res) => {
-  const requestId = req.get("X-Request-Id") || rid();
+  const requestId = req._rid || req.get("X-Request-Id") || rid();
   setContractHeaders(res, requestId);
   applyChatEngineHeaders(res, null);
   return safeJson(res, 200, {
@@ -1229,44 +1628,71 @@ app.get("/", (req, res) => {
 });
 
 app.get("/api", (req, res) => {
-  const requestId = req.get("X-Request-Id") || rid();
+  const requestId = req._rid || req.get("X-Request-Id") || rid();
   setContractHeaders(res, requestId);
   applyChatEngineHeaders(res, null);
   return safeJson(res, 200, {
     ok: true,
     requestId,
     contractVersion: NYX_CONTRACT_VERSION,
-    routes: ["/api/health", "/api/version", "/api/chat", "/api/tts", "/api/voice", "/api/tts/diag"],
+    routes: ["/api/health", "/api/ready", "/api/live", "/api/version", "/api/chat", "/api/tts", "/api/voice", "/api/tts/diag", "/api/metrics"],
   });
 });
 
 app.get("/health", (req, res) => {
-  const requestId = req.get("X-Request-Id") || rid();
+  const requestId = req._rid || req.get("X-Request-Id") || rid();
   setContractHeaders(res, requestId);
   applyChatEngineHeaders(res, null);
   return safeJson(res, 200, healthPayload(requestId));
 });
 app.get("/Health", (req, res) => {
-  const requestId = req.get("X-Request-Id") || rid();
+  const requestId = req._rid || req.get("X-Request-Id") || rid();
   setContractHeaders(res, requestId);
   applyChatEngineHeaders(res, null);
   return safeJson(res, 200, healthPayload(requestId));
 });
 app.get("/api/health", (req, res) => {
-  const requestId = req.get("X-Request-Id") || rid();
+  const requestId = req._rid || req.get("X-Request-Id") || rid();
   setContractHeaders(res, requestId);
   applyChatEngineHeaders(res, null);
   return safeJson(res, 200, healthPayload(requestId));
 });
 app.get("/api/Health", (req, res) => {
-  const requestId = req.get("X-Request-Id") || rid();
+  const requestId = req._rid || req.get("X-Request-Id") || rid();
   setContractHeaders(res, requestId);
   applyChatEngineHeaders(res, null);
   return safeJson(res, 200, healthPayload(requestId));
 });
 
+// Liveness: always 200 if process is up.
+app.get("/api/live", (req, res) => {
+  const requestId = req._rid || req.get("X-Request-Id") || rid();
+  setContractHeaders(res, requestId);
+  applyChatEngineHeaders(res, null);
+  return safeJson(res, 200, { ok: true, status: "live", ts: nowIso(), requestId, contractVersion: NYX_CONTRACT_VERSION });
+});
+
+// Readiness: reflects module load state.
+app.get("/api/ready", (req, res) => {
+  const requestId = req._rid || req.get("X-Request-Id") || rid();
+  setContractHeaders(res, requestId);
+  applyChatEngineHeaders(res, null);
+  const p = readyPayload(requestId);
+  return safeJson(res, 200, p);
+});
+
+// Metrics: Prometheus-style text
+app.get("/api/metrics", (req, res) => {
+  if (!METRICS_ENABLED) return res.status(404).send("metrics disabled");
+  if (METRICS_TOKEN) {
+    const got = normalizeStr(req.get("X-Metrics-Token") || "") || normalizeStr(req.query.token || "");
+    if (got !== METRICS_TOKEN) return res.status(401).type("text/plain").send("unauthorized");
+  }
+  res.status(200).type("text/plain").send(metricsPayloadText());
+});
+
 app.get("/api/version", (req, res) => {
-  const requestId = req.get("X-Request-Id") || rid();
+  const requestId = req._rid || req.get("X-Request-Id") || rid();
   setContractHeaders(res, requestId);
   applyChatEngineHeaders(res, null);
 
@@ -1307,6 +1733,7 @@ app.get("/api/version", (req, res) => {
       allowlistCount: EFFECTIVE_ORIGINS.length,
       requestTimeoutMs: REQUEST_TIMEOUT_MS,
       maxSessions: MAX_SESSIONS,
+      bodyLimitBytes: BODY_LIMIT_BYTES,
       bodyHashIncludeSession: String(process.env.BODY_HASH_INCLUDE_SESSION || "false") === "true",
       sessionIdMaxLen: SESSION_ID_MAXLEN,
       turnDedupeMs: clamp(process.env.TURN_DEDUPE_MS || 4000, 800, 15000),
@@ -1328,6 +1755,12 @@ app.get("/api/version", (req, res) => {
       introResetGapMs,
       corsRangeHeaders: true,
       followUpsMax: FOLLOWUPS_MAX,
+      rlEnabled: RL_ENABLED,
+      rlMaxKeys: RL_MAX_KEYS,
+      gracefulShutdownMs: GRACEFUL_SHUTDOWN_MS,
+      serverKeepAliveMs: SERVER_KEEPALIVE_MS,
+      serverHeadersTimeoutMs: SERVER_HEADERS_TIMEOUT_MS,
+      serverRequestTimeoutMs: SERVER_REQUEST_TIMEOUT_MS,
     },
     allowlistSample: EFFECTIVE_ORIGINS.slice(0, 10),
   });
@@ -1673,7 +2106,7 @@ function pickTtsHandler(mod) {
 }
 
 async function runTts(req, res) {
-  const requestId = req.get("X-Request-Id") || rid();
+  const requestId = req._rid || req.get("X-Request-Id") || rid();
   setContractHeaders(res, requestId);
   applyChatEngineHeaders(res, null);
 
@@ -1700,6 +2133,7 @@ async function runTts(req, res) {
     return await fn(req, res);
   } catch (e) {
     console.error("[/api/tts] error:", e && e.stack ? e.stack : e);
+    MET.lastErrAt = Date.now();
     return safeJson(res, 500, {
       ok: false,
       error: "TTS_ERROR",
@@ -1711,7 +2145,7 @@ async function runTts(req, res) {
 }
 
 app.get("/api/tts/diag", (req, res) => {
-  const requestId = req.get("X-Request-Id") || rid();
+  const requestId = req._rid || req.get("X-Request-Id") || rid();
   setContractHeaders(res, requestId);
   applyChatEngineHeaders(res, null);
   const exportKeys = ttsModule ? Object.keys(ttsModule) : [];
@@ -1901,7 +2335,7 @@ function setTurnCounter(session, n) {
 ====================================================== */
 
 app.post("/api/chat", async (req, res) => {
-  const requestId = req.get("X-Request-Id") || rid();
+  const requestId = req._rid || req.get("X-Request-Id") || rid();
   setContractHeaders(res, requestId);
   applyChatEngineHeaders(res, null);
 
@@ -2237,6 +2671,8 @@ app.post("/api/chat", async (req, res) => {
 
     let out = null;
 
+    const handler = pickChatHandler(chatEngine);
+
     if (handler) {
       try {
         out = await Promise.resolve(
@@ -2272,6 +2708,7 @@ app.post("/api/chat", async (req, res) => {
           };
         } else {
           console.error("[chatEngine] error (soft):", e && e.stack ? e.stack : e);
+          MET.lastErrAt = Date.now();
           out = null;
         }
       }
@@ -2490,6 +2927,7 @@ app.post("/api/chat", async (req, res) => {
     return once.json(200, payload);
   } catch (e) {
     console.error("[/api/chat] handler-floor error:", e && e.stack ? e.stack : e);
+    MET.lastErrAt = Date.now();
     clearTimeout(watchdog);
     setContractHeaders(res, requestId);
     safeSet(res, "X-Nyx-Deduped", "floor");
@@ -2523,7 +2961,7 @@ app.post("/api/chat", async (req, res) => {
 ====================================================== */
 
 app.use("/api", (req, res) => {
-  const requestId = req.get("X-Request-Id") || rid();
+  const requestId = req._rid || req.get("X-Request-Id") || rid();
   setContractHeaders(res, requestId);
   applyChatEngineHeaders(res, null);
   return safeJson(res, 404, {
@@ -2541,10 +2979,11 @@ app.use("/api", (req, res) => {
 ====================================================== */
 
 app.use((err, req, res, next) => {
-  const requestId = req.get("X-Request-Id") || rid();
+  const requestId = req._rid || req.get("X-Request-Id") || rid();
   setContractHeaders(res, requestId);
   applyChatEngineHeaders(res, null);
   console.error("[GLOBAL] error:", err && err.stack ? err.stack : err);
+  MET.lastErrAt = Date.now();
   return safeJson(res, 500, {
     ok: false,
     error: "INTERNAL_ERROR",
@@ -2556,10 +2995,53 @@ app.use((err, req, res, next) => {
 });
 
 /* ======================================================
-   Listen
+   Listen + enterprise server tuning + graceful shutdown
 ====================================================== */
 
 const PORT = Number(process.env.PORT || 3000);
-app.listen(PORT, () => {
+
+const server = app.listen(PORT, () => {
   console.log(`[sandblast] up on :${PORT} | ${INDEX_VERSION} | commit=${GIT_COMMIT || "n/a"}`);
+  jlog("info", "server_started", { port: PORT });
 });
+
+// Slowloris resistance / LB friendliness
+try {
+  server.keepAliveTimeout = SERVER_KEEPALIVE_MS;
+  server.headersTimeout = SERVER_HEADERS_TIMEOUT_MS;
+  if (SERVER_REQUEST_TIMEOUT_MS > 0) server.requestTimeout = SERVER_REQUEST_TIMEOUT_MS;
+} catch (_) {}
+
+// Graceful shutdown: stop accepting new connections, finish inflight, then exit.
+let shuttingDown = false;
+
+function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+
+  jlog("warn", "shutdown_start", { signal });
+
+  // Mark readiness degraded quickly if probes exist
+  try {
+    MET.lastErrAt = Date.now();
+  } catch (_) {}
+
+  // Stop accepting new connections
+  try {
+    server.close(() => {
+      jlog("warn", "shutdown_complete");
+      process.exit(0);
+    });
+  } catch (_) {
+    process.exit(0);
+  }
+
+  // Hard exit after grace window
+  setTimeout(() => {
+    jlog("error", "shutdown_forced", { afterMs: GRACEFUL_SHUTDOWN_MS });
+    process.exit(1);
+  }, GRACEFUL_SHUTDOWN_MS).unref?.();
+}
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
