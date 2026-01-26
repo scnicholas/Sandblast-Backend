@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17zm
+ * index.js v1.5.17zn
  * (ENTERPRISE HARDENING PACK for 1M+ USERS + existing protections preserved)
  *
  * Keeps everything you already locked in:
@@ -26,7 +26,11 @@
  *  ✅ GLOBAL RATE LIMITER (token bucket; bounded memory; route-scoped; env knobs)
  *  ✅ CORRELATION: X-Request-Id enforced across logs/metrics
  *
- * Patch vs v1.5.17zl:
+ * Patch vs v1.5.17zm:
+ *  ✅ Enterprise correctness:
+ *     - inflight decrements on aborted connections (res "close") to prevent stuck inflight
+ *     - rate limiter bounded-memory enforcement on key creation (not only on interval prune)
+ *     - boot-intro response cached into TURN_CACHE to prevent intro re-fire on widget double-send
  *  ✅ Metrics correctness decoupled from access logging:
  *     - inflight decrements + status/latency counts now update even if ENABLE_ACCESS_LOG=false
  *  ✅ Contract lane normalization hardened (avoid unexpected lane leakage)
@@ -142,7 +146,7 @@ if (TRUST_PROXY) {
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.17zm (ENTERPRISE HARDENING PACK + metrics correctness + existing guards preserved)";
+  "index.js v1.5.17zn (ENTERPRISE HARDENING PACK + inflight-close fix + boot-intro cache + bounded RL)";
 
 const GIT_COMMIT =
   String(process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "").trim() || null;
@@ -1248,7 +1252,11 @@ app.use((req, res, next) => {
   }
 
   // Finish hook: ALWAYS keeps metrics correct; access log optional
+  // Enterprise correctness: also handle aborted connections (res "close") so inflight can't get stuck.
+  let _sbFinished = false;
+
   res.on("finish", () => {
+    _sbFinished = true;
     try {
       const ms = Date.now() - start;
       const status = Number(res.statusCode || 0);
@@ -1272,6 +1280,17 @@ app.use((req, res, next) => {
           ip: normalizeStr(req.ip || ""),
           ua: ua(req).slice(0, 180),
         });
+      }
+    } catch (_) {}
+  });
+
+  res.on("close", () => {
+    try {
+      if (_sbFinished) return;
+      // Connection closed before "finish" (client aborted / proxy reset).
+      // Keep inflight sane; do NOT count status buckets because status may be unreliable.
+      if (METRICS_ENABLED) {
+        MET.inflight = Math.max(0, MET.inflight - 1);
       }
     } catch (_) {}
   });
@@ -1425,6 +1444,8 @@ function rlAllow(key, cap, windowMs) {
   const ent = RL.get(key);
   if (!ent) {
     RL.set(key, { tokens: cap - 1, resetAt: now + windowMs, seenAt: now });
+    // Enterprise: enforce bounded memory immediately when new keys arrive (not only on interval).
+    if (RL.size > Math.floor(RL_MAX_KEYS * 1.1)) rlPrune();
     return { ok: true, remaining: cap - 1, resetAt: now + windowMs };
   }
 
@@ -2502,6 +2523,15 @@ app.post("/api/chat", async (req, res) => {
         bridgeInjected: null,
         directivesOverride: dedupeDirectives(normalizeDirectives(out && out.directives)),
       });
+
+      // Enterprise: prevent boot/mount from re-firing intro if the widget double-sends.
+      // Cache this response under the same turn key used by normal flow.
+      try {
+        pruneTurnCache();
+        const turnKey = getTurnKey(req, body, text, visitorId);
+        TURN_CACHE.set(turnKey, { at: Date.now(), payload });
+        safeSet(res, "X-Nyx-Deduped", "boot-intro-cache");
+      } catch (_) {}
 
       clearTimeout(watchdog);
       return once.json(200, payload);
