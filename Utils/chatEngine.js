@@ -16,17 +16,19 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.6zM
- * (INTRO PACKET VARIANTS (stable-per-login) + CONTEXTUAL INTRO BUCKETS +
- *  INTRO ON EMPTY BOOT (panel_open_intro) +
- *  IGNORE NON-BOOT EMPTY TURN (prevents phantom first-turn / turnCount drift / loop triggers) +
- *  INTENT BYPASS +
- *  TEMPLATE SAFETY (regex-escape) +
- *  MUSIC OVERRIDE (year+mode forces music) +
- *  CS-1 SOFT WIRING (if present) +
- *  SAFE PACK LOADING (won’t brick if optional packs missing) +
- *  SESSIONPATCH MINIMIZER (avoid bloating sessions) +
- *  NONEMPTY REPLY GUARANTEE)
+ * v0.6zN (ENTERPRISE HARDENED)
+ *  ✅ REPLAY SAFETY: requestId idempotency (session-scoped) + short-window dedupe
+ *  ✅ TIMEOUT CONTAINMENT: upstream engine wrapped with hard timeout + safe fallback reply
+ *  ✅ CONTRACT NORMALIZATION: non-empty reply, safe lane, bounded followUps/directives
+ *  ✅ SESSION SAFETY: prototype-pollution guard + allowlisted sessionPatch merge only
+ *  ✅ TURN DRIFT CONTROL: empty non-boot ignored; boot-intro does not increment turns
+ *  ✅ INTRO: stable-per-login variants + contextual buckets + anti-spam guard
+ *  ✅ TEMPLATE SAFETY: regex-escape interpolation
+ *  ✅ MUSIC OVERRIDE: year+mode forces lane=music (pre-intro)
+ *  ✅ CS-1 soft wiring (if present)
+ *  ✅ SAFE PACK LOADING (optional packs never brick)
+ *  ✅ SESSIONPATCH MINIMIZER (avoid session bloat)
+ *  ✅ OBSERVABILITY: elapsedMs + decision flags
  */
 
 const crypto = require("crypto");
@@ -35,7 +37,17 @@ const crypto = require("crypto");
 // Version
 // =========================
 const CE_VERSION =
-  "chatEngine v0.6zM (contextual intro buckets + stable-per-login intro variants + serve intro on empty boot source; ignore non-boot empty turns; intent bypass; template-safety; MUSIC override; CS-1 soft; safe pack loading; sessionPatch minimized; nonempty)";
+  "chatEngine v0.6zN (enterprise hardened: idempotency+timeout+contract normalize+session safety)";
+
+// =========================
+// Enterprise knobs
+// =========================
+const ENGINE_TIMEOUT_MS = 9000; // hard cap for upstream engine; keep < typical edge timeouts
+const REPLAY_WINDOW_MS = 4000; // suppress accidental double-posts within 4s window
+const MAX_FOLLOWUPS = 8; // UI safety; prevents payload bloat
+const MAX_FOLLOWUP_LABEL = 48;
+const MAX_REPLY_CHARS = 4000; // prevents runaway payloads
+const MAX_META_STR = 220;
 
 // =========================
 // Intro (varied per login-moment; stable selection per login window)
@@ -146,6 +158,14 @@ function nowMs() {
 function safeStr(x) {
   return x === null || x === undefined ? "" : String(x);
 }
+function safeInt(n, def = 0) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return def;
+  // clamp to safe 32-bit range to avoid accidental infinity growth
+  if (v > 2147483000) return 2147483000;
+  if (v < -2147483000) return -2147483000;
+  return Math.trunc(v);
+}
 function sha1(s) {
   return crypto.createHash("sha1").update(String(s)).digest("hex");
 }
@@ -170,11 +190,36 @@ function nonEmptyReply(s, fallback) {
   const b = safeStr(fallback).trim();
   return b || "Okay — tell me what you want next.";
 }
+function clampStr(s, max) {
+  const t = safeStr(s);
+  if (t.length <= max) return t;
+  return t.slice(0, max);
+}
 function pickDeterministic(arr, seed) {
   if (!Array.isArray(arr) || arr.length === 0) return "";
   const h = sha1(seed || "seed");
   const n = parseInt(h.slice(0, 8), 16);
   return arr[n % arr.length];
+}
+function sleep(ms) {
+  return new Promise((res) => setTimeout(res, ms));
+}
+async function withTimeout(promise, ms, tag) {
+  let to = null;
+  const timeout = new Promise((_, rej) => {
+    to = setTimeout(() => rej(new Error(`timeout:${tag || "engine"}:${ms}`)), ms);
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (to) clearTimeout(to);
+  }
+}
+function isPlainObject(x) {
+  return !!x && typeof x === "object" && (Object.getPrototypeOf(x) === Object.prototype || Object.getPrototypeOf(x) === null);
+}
+function safeMetaStr(s) {
+  return clampStr(safeStr(s).replace(/[\r\n\t]/g, " ").trim(), MAX_META_STR);
 }
 
 // =========================
@@ -230,7 +275,7 @@ function hasStrongFirstTurnIntent(text) {
 // Login-moment intro rearm
 // =========================
 function isLoginMoment(session, startedAt) {
-  const last = Number(session.lastTurnAt || session.lastInAt || 0);
+  const last = safeInt(session.lastTurnAt || session.lastInAt || 0, 0);
   const gap = last ? startedAt - last : Infinity;
   if (gap >= INTRO_REARM_MS) return true;
   if (!session.__hasRealUserTurn) return true;
@@ -304,7 +349,7 @@ function shouldServeIntroLoginMoment(session, inboundText, startedAt, input, rou
     if (!isLoginMoment(session, startedAt)) return false;
 
     // Hard stop: if intro already served in this login window, do not re-serve.
-    const introAt = Number(session.introAt || 0);
+    const introAt = safeInt(session.introAt || 0, 0);
     if (introAt && startedAt - introAt < INTRO_REARM_MS) return false;
 
     return true;
@@ -317,7 +362,7 @@ function shouldServeIntroLoginMoment(session, inboundText, startedAt, input, rou
   if (!isLoginMoment(session, startedAt)) return false;
 
   // Prevent repeated intro spam inside same login window
-  const introAt = Number(session.introAt || 0);
+  const introAt = safeInt(session.introAt || 0, 0);
   if (introAt && startedAt - introAt < INTRO_REARM_MS) return false;
 
   return true;
@@ -399,6 +444,13 @@ const PATCH_KEYS = new Set([
   "__introDone",
   "turnCount",
   "__hasRealUserTurn",
+
+  // enterprise replay safety fields (internal)
+  "__ce_lastReqId",
+  "__ce_lastReqAt",
+  "__ce_lastOutHash",
+  "__ce_lastOut",
+  "__ce_lastOutLane",
 ]);
 
 function buildSessionPatch(session) {
@@ -415,18 +467,27 @@ function buildSessionPatch(session) {
 // =========================
 // FollowUp helpers
 // =========================
+function normFollowUpChip(label, send) {
+  const l = clampStr(safeStr(label).trim() || "Send", MAX_FOLLOWUP_LABEL);
+  const s = safeStr(send).trim();
+  const id = sha1(l + "::" + s).slice(0, 8);
+  return { id, type: "send", label: l, payload: { text: s } };
+}
 function toFollowUps(chips) {
   const arr = Array.isArray(chips) ? chips : [];
-  return arr.map((c) => {
+  const out = [];
+  const seen = new Set();
+  for (const c of arr) {
     const label = safeStr(c && c.label).trim() || "Send";
     const send = safeStr(c && c.send).trim();
-    return {
-      id: sha1(label + "::" + send).slice(0, 8),
-      type: "send",
-      label,
-      payload: { text: send },
-    };
-  });
+    const key = normText(label + "::" + send);
+    if (!send) continue;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(normFollowUpChip(label, send));
+    if (out.length >= MAX_FOLLOWUPS) break;
+  }
+  return out;
 }
 function toFollowUpsStrings(chips) {
   const arr = Array.isArray(chips) ? chips : [];
@@ -438,6 +499,49 @@ function toFollowUpsStrings(chips) {
     if (!k || seen.has(k)) continue;
     seen.add(k);
     out.push(send);
+    if (out.length >= MAX_FOLLOWUPS) break;
+  }
+  return out.length ? out : undefined;
+}
+function normalizeFollowUps(followUps) {
+  const arr = Array.isArray(followUps) ? followUps : [];
+  const out = [];
+  const seen = new Set();
+  for (const f of arr) {
+    if (!f) continue;
+    const type = safeStr(f.type || "send").trim() || "send";
+    if (type !== "send") continue; // keep UI simple + safe
+    const label = clampStr(safeStr(f.label).trim() || "Send", MAX_FOLLOWUP_LABEL);
+    const payload = isPlainObject(f.payload) ? f.payload : { text: safeStr(f.payload && f.payload.text) };
+    const text = safeStr(payload.text).trim();
+    if (!text) continue;
+    const id = safeStr(f.id).trim() || sha1(label + "::" + text).slice(0, 8);
+    const key = normText(id + "::" + label + "::" + text);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ id, type: "send", label, payload: { text } });
+    if (out.length >= MAX_FOLLOWUPS) break;
+  }
+  return out;
+}
+function normalizeDirectives(directives) {
+  const arr = Array.isArray(directives) ? directives : [];
+  const out = [];
+  for (const d of arr) {
+    if (!isPlainObject(d)) continue;
+    const type = safeStr(d.type).trim();
+    if (!type) continue;
+    // shallow copy only; avoid huge payloads
+    const obj = { type };
+    for (const [k, v] of Object.entries(d)) {
+      if (k === "type") continue;
+      if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
+      if (typeof v === "string") obj[k] = clampStr(v, 500);
+      else if (typeof v === "number" || typeof v === "boolean") obj[k] = v;
+      else if (v === null) obj[k] = null;
+    }
+    out.push(obj);
+    if (out.length >= 8) break;
   }
   return out.length ? out : undefined;
 }
@@ -479,7 +583,7 @@ function pickIntroForLogin(session, startedAt, bucketKey) {
 
   // If we already selected an intro within this bucket, reuse it (stable).
   const prevBucket = safeStr(session.introBucket || "");
-  const prevId = Number(session.introVariantId || 0);
+  const prevId = safeInt(session.introVariantId || 0, 0);
   if (prevBucket === `${bkey}:${bucket}`) {
     const arr = INTRO_VARIANTS_BY_BUCKET[bkey] || INTRO_VARIANTS_BY_BUCKET.general;
     if (Number.isFinite(prevId) && prevId >= 0 && prevId < arr.length) {
@@ -554,11 +658,46 @@ function fallbackCore({ text, session }) {
 }
 
 // =========================
+// Replay / idempotency cache (session-scoped)
+// =========================
+function replayKey(session, requestId, inboundText, source) {
+  // requestId is primary; if missing/unstable, include a signature
+  const rid = safeStr(requestId).trim();
+  const sig = sha1(`${safeStr(session.sessionId || session.visitorId || "")}|${safeStr(source)}|${safeStr(inboundText)}`).slice(
+    0,
+    12
+  );
+  return rid ? `rid:${rid}` : `sig:${sig}`;
+}
+function readReplay(session, key, now) {
+  const lastKey = safeStr(session.__ce_lastReqId || "");
+  const lastAt = safeInt(session.__ce_lastReqAt || 0, 0);
+  if (!lastKey || lastKey !== key) return null;
+  if (!lastAt || now - lastAt > REPLAY_WINDOW_MS) return null;
+
+  const out = session.__ce_lastOut;
+  const outLane = safeStr(session.__ce_lastOutLane || "general") || "general";
+  const outHash = safeStr(session.__ce_lastOutHash || "");
+  if (!out || !outHash) return null;
+
+  return { reply: out, lane: outLane };
+}
+function writeReplay(session, key, now, reply, lane) {
+  session.__ce_lastReqId = key;
+  session.__ce_lastReqAt = now;
+  session.__ce_lastOut = reply;
+  session.__ce_lastOutLane = lane;
+  session.__ce_lastOutHash = sha1(`${lane}::${reply}`).slice(0, 16);
+}
+
+// =========================
 // Main handler
 // =========================
 async function handleChat(input = {}) {
   const startedAt = nowMs();
-  const requestId = safeStr(input.requestId).trim() || sha1(startedAt).slice(0, 10);
+
+  // requestId: keep caller-provided if present; else deterministic enough for the moment
+  const requestId = safeStr(input.requestId).trim() || sha1(`${startedAt}|${Math.random()}`).slice(0, 10);
 
   const session = ensureContinuityState(input.session || {});
   cs1Init(session);
@@ -584,27 +723,47 @@ async function handleChat(input = {}) {
   // Prevents phantom turns, drift, and intro-loop triggers when some client sends empty.
   // =========================
   if (inboundIsEmpty && !bootIntroEmpty) {
-    // Do not mutate session state/counters on phantom empty.
+    const reply = "Ready when you are. Tell me a year (1950–2024), or what you want to do next.";
+    const lane = safeStr(session.lane || "general") || "general";
     return {
       ok: true,
-      reply: "Ready when you are. Tell me a year (1950–2024), or what you want to do next.",
-      lane: safeStr(session.lane || "general") || "general",
+      reply,
+      lane,
       followUps: toFollowUps(CANON_INTRO_CHIPS),
       followUpsStrings: toFollowUpsStrings(CANON_INTRO_CHIPS),
       sessionPatch: buildSessionPatch(session),
-      cog: { phase: "listening", state: "confident", reason: "ignored_empty_nonboot", lane: session.lane || "general" },
+      cog: { phase: "listening", state: "confident", reason: "ignored_empty_nonboot", lane },
       requestId,
-      meta: { engine: CE_VERSION, ignoredEmpty: true, source },
+      meta: { engine: CE_VERSION, ignoredEmpty: true, source: safeMetaStr(source), elapsedMs: nowMs() - startedAt },
     };
   }
 
-  // Telemetry counters: only for non-phantom turns
+  // =========================
+  // REPLAY SAFETY (idempotent within short window)
+  // =========================
+  const rkey = replayKey(session, requestId, inboundText, source);
+  const cached = readReplay(session, rkey, startedAt);
+  if (cached) {
+    return {
+      ok: true,
+      reply: cached.reply,
+      lane: cached.lane,
+      followUps: toFollowUps(CANON_INTRO_CHIPS),
+      followUpsStrings: toFollowUpsStrings(CANON_INTRO_CHIPS),
+      sessionPatch: buildSessionPatch(session),
+      cog: { phase: "listening", state: "confident", reason: "replay_cache", lane: cached.lane },
+      requestId,
+      meta: { engine: CE_VERSION, replay: true, source: safeMetaStr(source), elapsedMs: nowMs() - startedAt },
+    };
+  }
+
+  // Telemetry counters: only for non-phantom turns; boot-intro should NOT increment.
   if (!bootIntroEmpty) {
-    session.turnCount = Number(session.turnCount || 0) + 1;
-    session.turns = Number(session.turns || 0) + 1;
+    session.turnCount = safeInt(session.turnCount || 0, 0) + 1;
+    session.turns = safeInt(session.turns || 0, 0) + 1;
   } else {
-    session.turnCount = Number(session.turnCount || 0);
-    session.turns = Number(session.turns || 0);
+    session.turnCount = safeInt(session.turnCount || 0, 0);
+    session.turns = safeInt(session.turns || 0, 0);
   }
 
   if (!session.startedAt) session.startedAt = startedAt;
@@ -612,8 +771,7 @@ async function handleChat(input = {}) {
   // Track "real user turns" separately
   if (!inboundIsEmpty) session.__hasRealUserTurn = 1;
 
-  // Update lastTurnAt even for boot-intro (keeps “login moment” coherent),
-  // but we will not let it spam intros because introAt guard is strict now.
+  // Update lastTurnAt even for boot-intro (keeps “login moment” coherent)
   session.lastTurnAt = startedAt;
 
   // Only store inbound text for non-boot empty (avoid polluting lastInText with "")
@@ -630,7 +788,9 @@ async function handleChat(input = {}) {
   if (ov.forced) lane = ov.lane;
 
   // INTRO (contextual + stable-per-login window)
-  const doIntro = !ov.forced && shouldServeIntroLoginMoment(session, inboundText, startedAt, { ...input, source }, routeHint);
+  const doIntro =
+    !ov.forced && shouldServeIntroLoginMoment(session, inboundText, startedAt, { ...input, source }, routeHint);
+
   if (doIntro) {
     session.__introDone = 1;
     session.introDone = true;
@@ -639,8 +799,7 @@ async function handleChat(input = {}) {
     // Choose intro bucket based on context (relative feel)
     const bucketKey = pickIntroBucket(session, inboundText, routeHint, { ...input, source });
 
-    // Intro is informational; we keep lane general unless the bucket is explicitly a lane.
-    // This prevents “intro forced lane drift” which is a common loop trigger.
+    // Intro is informational; keep lane general unless explicitly forced elsewhere.
     session.lane = "general";
 
     cs1MarkSpeak(session, "intro");
@@ -649,8 +808,11 @@ async function handleChat(input = {}) {
     session.introVariantId = pick.id;
     session.introBucket = pick.bucket;
 
-    const introLine = pick.text || INTRO_VARIANTS_BY_BUCKET.general[0];
+    const introLine = nonEmptyReply(pick.text, INTRO_VARIANTS_BY_BUCKET.general[0]);
     const followUps = toFollowUps(CANON_INTRO_CHIPS);
+
+    // cache replay output
+    writeReplay(session, rkey, startedAt, introLine, "general");
 
     return {
       ok: true,
@@ -659,9 +821,16 @@ async function handleChat(input = {}) {
       followUps,
       followUpsStrings: toFollowUpsStrings(CANON_INTRO_CHIPS),
       sessionPatch: buildSessionPatch(session),
-      cog: { phase: "listening", state: "confident", reason: "intro_login_moment", lane: "general", ts: Date.now() },
+      cog: { phase: "listening", state: "confident", reason: "intro_login_moment", lane: "general", ts: startedAt },
       requestId,
-      meta: { engine: CE_VERSION, intro: true, introBucket: bucketKey, loginMoment: true, source },
+      meta: {
+        engine: CE_VERSION,
+        intro: true,
+        introBucket: safeMetaStr(bucketKey),
+        loginMoment: true,
+        source: safeMetaStr(source),
+        elapsedMs: nowMs() - startedAt,
+      },
     };
   }
 
@@ -671,51 +840,73 @@ async function handleChat(input = {}) {
     session.__cs1 = continuity.__cs1 || continuity.state || session.__cs1;
   }
 
+  // =========================
   // Core engine: if caller supplies engine, use it; else fallbackCore
+  // Wrapped with timeout + hard failure containment
+  // =========================
   let core = null;
+  let engineTimedOut = false;
   try {
     if (typeof input.engine === "function") {
-      core = await Promise.resolve(
-        input.engine({
-          text: inboundText,
-          session,
-          requestId,
-          routeHint: lane,
-          packs: { conv: NYX_CONV_PACK, phrase: NYX_PHRASEPACK, packets: NYX_PACKETS },
-          interpolateTemplate,
-          pickDeterministic,
-        })
+      core = await withTimeout(
+        Promise.resolve(
+          input.engine({
+            text: inboundText,
+            session,
+            requestId,
+            routeHint: lane,
+            packs: { conv: NYX_CONV_PACK, phrase: NYX_PHRASEPACK, packets: NYX_PACKETS },
+            interpolateTemplate,
+            pickDeterministic,
+          })
+        ),
+        ENGINE_TIMEOUT_MS,
+        "engine"
       );
     } else {
       core = fallbackCore({ text: inboundText, session });
     }
   } catch (e) {
-    const msg = e && e.message ? e.message : String(e || "");
+    const msg = safeStr(e && e.message ? e.message : e).trim();
+    engineTimedOut = msg.startsWith("timeout:engine:");
     core = {
-      reply: "I hit a snag, but I’m still here. Tell me a year (1950–2024), or say “top 10 1988”.",
+      reply: engineTimedOut
+        ? "Still with you. Give me a year (1950–2024) or say “top 10 1988” and I’ll jump right in."
+        : "I hit a snag, but I’m still here. Tell me a year (1950–2024), or say “top 10 1988”.",
       lane: session.lane || lane || "general",
-      cog: { phase: "engaged", state: "error", reason: "engine_error", detail: msg.slice(0, 140) },
+      cog: {
+        phase: "engaged",
+        state: "error",
+        reason: engineTimedOut ? "engine_timeout" : "engine_error",
+        detail: safeMetaStr(msg),
+      },
     };
   }
 
   // Normalize lane
   const outLane = safeStr((core && core.lane) || session.lane || lane || "general").trim() || "general";
   session.lane = outLane;
-
   if (ov.forced) session.lane = "music";
 
   // Guarantee reply
-  const reply = nonEmptyReply(core && core.reply, "A year usually clears things up.");
+  let reply = nonEmptyReply(core && core.reply, "A year usually clears things up.");
+  reply = clampStr(reply, MAX_REPLY_CHARS);
+
+  // directives
+  const directives = normalizeDirectives(core && core.directives);
 
   // followUps
-  const followUps = Array.isArray(core && core.followUps) ? core.followUps : [];
+  const followUps = normalizeFollowUps(core && core.followUps);
   const followUpsStrings =
-    Array.isArray(core && core.followUpsStrings) && core.followUpsStrings.length ? core.followUpsStrings : undefined;
+    Array.isArray(core && core.followUpsStrings) && core.followUpsStrings.length
+      ? core.followUpsStrings.slice(0, MAX_FOLLOWUPS)
+      : undefined;
 
-  // sessionPatch merge (minimized)
-  if (core && core.sessionPatch && typeof core.sessionPatch === "object") {
+  // sessionPatch merge (minimized + safe)
+  if (core && isPlainObject(core.sessionPatch)) {
     for (const [k, v] of Object.entries(core.sessionPatch)) {
       if (!PATCH_KEYS.has(k)) continue;
+      if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
       session[k] = v;
     }
   }
@@ -733,11 +924,14 @@ async function handleChat(input = {}) {
 
   if (ov.forced) cs1MarkSpeak(session, "music_override");
 
+  // cache replay output (for duplicate posts)
+  writeReplay(session, rkey, startedAt, reply, session.lane);
+
   return {
     ok: true,
     reply,
     lane: session.lane,
-    directives: Array.isArray(core && core.directives) ? core.directives : undefined,
+    directives,
     followUps,
     followUpsStrings,
     sessionPatch: buildSessionPatch(session),
@@ -745,8 +939,10 @@ async function handleChat(input = {}) {
     requestId,
     meta: {
       engine: CE_VERSION,
-      override: ov.forced ? `music:${ov.mode}:${ov.year}` : "",
-      source,
+      override: ov.forced ? `music:${safeMetaStr(ov.mode)}:${safeMetaStr(ov.year)}` : "",
+      source: safeMetaStr(source),
+      engineTimeout: !!engineTimedOut,
+      elapsedMs: nowMs() - startedAt,
       packsLoaded: {
         conv: !!NYX_CONV_PACK,
         phrase: !!NYX_PHRASEPACK,
