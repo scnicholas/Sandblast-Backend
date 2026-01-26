@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17zl
+ * index.js v1.5.17zm
  * (ENTERPRISE HARDENING PACK for 1M+ USERS + existing protections preserved)
  *
  * Keeps everything you already locked in:
@@ -25,6 +25,11 @@
  *  ✅ GRACEFUL SHUTDOWN (SIGTERM/SIGINT) + server timeouts (slowloris resistance)
  *  ✅ GLOBAL RATE LIMITER (token bucket; bounded memory; route-scoped; env knobs)
  *  ✅ CORRELATION: X-Request-Id enforced across logs/metrics
+ *
+ * Patch vs v1.5.17zl:
+ *  ✅ Metrics correctness decoupled from access logging:
+ *     - inflight decrements + status/latency counts now update even if ENABLE_ACCESS_LOG=false
+ *  ✅ Contract lane normalization hardened (avoid unexpected lane leakage)
  */
 
 const express = require("express");
@@ -137,7 +142,7 @@ if (TRUST_PROXY) {
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.17zl (ENTERPRISE HARDENING PACK + existing guards preserved)";
+  "index.js v1.5.17zm (ENTERPRISE HARDENING PACK + metrics correctness + existing guards preserved)";
 
 const GIT_COMMIT =
   String(process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "").trim() || null;
@@ -343,9 +348,10 @@ const MET = {
   status5xx: 0,
   inflight: 0,
   latBucketsMs: [25, 50, 100, 200, 500, 1000, 2000, 5000, 10000],
-  latCounts: new Array(9).fill(0),
+  latCounts: [], // initialized below
   lastErrAt: 0,
 };
+MET.latCounts = new Array(MET.latBucketsMs.length).fill(0);
 
 function metIncRoute(method, path) {
   const k = method + " " + path;
@@ -363,7 +369,7 @@ function metObserveLatency(ms) {
       return;
     }
   }
-  // > max bucket, use last
+  // > max bucket, use last bucket (bounded histogram)
   MET.latCounts[MET.latCounts.length - 1] += 1;
 }
 
@@ -1051,12 +1057,14 @@ function enforceChatContract({
   const sessionPatch = allowlistSessionPatchObj(out && out.sessionPatch) || {};
   const cog = normalizeCog(out, session, routeHint);
 
-  const lane =
+  // ✅ Harden lane normalization regardless of engine output shape
+  const laneCandidate =
     out && typeof out === "object" && typeof out.lane === "string" && out.lane.trim()
-      ? normCmd(out.lane)
+      ? out.lane
       : cog && cog.lane
       ? cog.lane
       : "general";
+  const lane = normalizeLane(laneCandidate, "general");
 
   const payload = {
     ok: true,
@@ -1228,30 +1236,33 @@ app.use((req, res, next) => {
   // Security headers next
   applySecurityHeaders(res);
 
+  // Start timing for metrics/logging
+  const start = Date.now();
+
   // Metrics begin
   if (METRICS_ENABLED) {
     MET.reqTotal += 1;
     MET.inflight += 1;
     metIncRoute(req.method, req.path || req.url || "/");
-    req._t0 = Date.now();
+    req._t0 = start;
   }
 
-  // Access log (finish hook)
-  if (ENABLE_ACCESS_LOG) {
-    const start = Date.now();
-    res.on("finish", () => {
-      try {
-        const ms = Date.now() - start;
-        const status = Number(res.statusCode || 0);
-        if (METRICS_ENABLED) {
-          MET.inflight = Math.max(0, MET.inflight - 1);
-          metObserveLatency(ms);
-          if (status >= 200 && status < 300) MET.status2xx += 1;
-          else if (status >= 300 && status < 400) MET.status3xx += 1;
-          else if (status >= 400 && status < 500) MET.status4xx += 1;
-          else if (status >= 500) MET.status5xx += 1;
-        }
+  // Finish hook: ALWAYS keeps metrics correct; access log optional
+  res.on("finish", () => {
+    try {
+      const ms = Date.now() - start;
+      const status = Number(res.statusCode || 0);
 
+      if (METRICS_ENABLED) {
+        MET.inflight = Math.max(0, MET.inflight - 1);
+        metObserveLatency(ms);
+        if (status >= 200 && status < 300) MET.status2xx += 1;
+        else if (status >= 300 && status < 400) MET.status3xx += 1;
+        else if (status >= 400 && status < 500) MET.status4xx += 1;
+        else if (status >= 500) MET.status5xx += 1;
+      }
+
+      if (ENABLE_ACCESS_LOG) {
         jlog("info", "http_access", {
           requestId,
           method: req.method,
@@ -1261,9 +1272,9 @@ app.use((req, res, next) => {
           ip: normalizeStr(req.ip || ""),
           ua: ua(req).slice(0, 180),
         });
-      } catch (_) {}
-    });
-  }
+      }
+    } catch (_) {}
+  });
 
   // Preflight exit
   if (req.method === "OPTIONS") {
@@ -1432,7 +1443,7 @@ function rlAllow(key, cap, windowMs) {
 function rlPrune() {
   const now = Date.now();
   if (RL.size <= RL_MAX_KEYS) {
-    // light prune: remove stale beyond 2 windows (~20s-60s typically)
+    // light prune: remove stale beyond 5 minutes
     for (const [k, v] of RL.entries()) {
       if (!v) RL.delete(k);
       else if (now - Number(v.seenAt || 0) > 5 * 60 * 1000) RL.delete(k);
@@ -2671,12 +2682,12 @@ app.post("/api/chat", async (req, res) => {
 
     let out = null;
 
-    const handler = pickChatHandler(chatEngine);
+    const handler2 = pickChatHandler(chatEngine);
 
-    if (handler) {
+    if (handler2) {
       try {
         out = await Promise.resolve(
-          handler({
+          handler2({
             text,
             message: text,
             session,
