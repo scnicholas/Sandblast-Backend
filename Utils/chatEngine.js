@@ -16,21 +16,21 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.6zN (ENTERPRISE HARDENED)
+ * v0.6zO (ENTERPRISE HARDENED + LOOP KILLER)
+ *  ✅ Intro feels like a real greeting (greeting-first, guidance second)
+ *  ✅ Intro selection is random per login-window (but stable within that window)
+ *  ✅ INBOUND NORMALIZATION: mode-only → auto-attach last known year (kills common loops)
+ *  ✅ Optional: year-only + activeMusicMode → auto-attach mode (conservative)
  *  ✅ REPLAY SAFETY: requestId idempotency (session-scoped) + short-window dedupe
  *  ✅ TIMEOUT CONTAINMENT: upstream engine wrapped with hard timeout + safe fallback reply
  *  ✅ CONTRACT NORMALIZATION: non-empty reply, safe lane, bounded followUps/directives
  *  ✅ SESSION SAFETY: prototype-pollution guard + allowlisted sessionPatch merge only
  *  ✅ TURN DRIFT CONTROL: empty non-boot ignored; boot-intro does not increment turns
- *  ✅ INTRO: stable-per-login variants + contextual buckets + anti-spam guard
- *  ✅ TEMPLATE SAFETY: regex-escape interpolation
- *  ✅ MUSIC OVERRIDE: year+mode forces lane=music (pre-intro)
  *  ✅ CS-1 soft wiring (if present)
  *  ✅ SAFE PACK LOADING (optional packs never brick)
  *  ✅ SESSIONPATCH MINIMIZER (avoid session bloat)
  *  ✅ OBSERVABILITY: elapsedMs + decision flags
- *
- *  ✅ RESET COMMAND: "__cmd:reset__" handled explicitly (fixes widget reset network error symptom)
+ *  ✅ RESET COMMAND: "__cmd:reset__" handled explicitly
  */
 
 const crypto = require("crypto");
@@ -39,67 +39,66 @@ const crypto = require("crypto");
 // Version
 // =========================
 const CE_VERSION =
-  "chatEngine v0.6zN (enterprise hardened: idempotency+timeout+contract normalize+session safety+reset)";
+  "chatEngine v0.6zO (enterprise hardened: intro-human+loopkiller+idempotency+timeout+contract normalize+session safety+reset)";
 
 // =========================
 // Enterprise knobs
 // =========================
-const ENGINE_TIMEOUT_MS = 9000; // hard cap for upstream engine; keep < typical edge timeouts
-const REPLAY_WINDOW_MS = 4000; // suppress accidental double-posts within 4s window
-const MAX_FOLLOWUPS = 8; // UI safety; prevents payload bloat
+const ENGINE_TIMEOUT_MS = 9000;
+const REPLAY_WINDOW_MS = 4000;
+const MAX_FOLLOWUPS = 8;
 const MAX_FOLLOWUP_LABEL = 48;
-const MAX_REPLY_CHARS = 4000; // prevents runaway payloads
+const MAX_REPLY_CHARS = 4000;
 const MAX_META_STR = 220;
 
 // =========================
 // Intro (varied per login-moment; stable selection per login window)
 // =========================
-const INTRO_REARM_MS = 12 * 60 * 1000; // treat idle gap >= 12m as "new login"
+const INTRO_REARM_MS = 12 * 60 * 1000;
 
-// Bucketed intros: the widget now feels less rigid because intros match intent/lane.
+// Greeting-first intros (human first; guidance second)
 const INTRO_VARIANTS_BY_BUCKET = {
   general: [
-    "Hey — Nyx here.\n\nGive me a year (1950–2024) and I’ll handle the rest.\nExamples: “top 10 1988”, “#1 1964”, “story moment 1977”, “micro moment 1999”.",
-    "Welcome in.\n\nYear first (1950–2024), then we go deep.\nTry: “top 10 1988” or “story moment 1977”.",
-    "Hi. I’m Nyx.\n\nPick a year (1950–2024) and choose a vibe: Top 10, #1, story moment, or micro moment.",
-    "Alright — Nyx online.\n\nGive me a year (1950–2024). If you want structure: “top 10 1988”, “#1 1964”, “micro moment 1999”.",
-    "Hey you.\n\nDrop a year (1950–2024). I can do charts, stories, and the little details that make it real.",
-    "Nyx checking in.\n\nWhat year are we time-traveling to? (1950–2024).",
+    "Hey — Nyx here. Glad you’re in.\n\nGive me a year (1950–2024) and I’ll take it from there. Try: “top 10 1988” or “story moment 1977”.",
+    "Hi. Come on in.\n\nPick a year (1950–2024) and tell me the vibe: Top 10, #1, story moment, or micro moment.",
+    "Hey you. Nyx on.\n\nDrop a year (1950–2024). I’ll do charts, stories, and the little details that make it real.",
+    "Welcome back — Nyx online.\n\nYear first (1950–2024). Then we can go Top 10, #1, story moment, or micro moment.",
+    "Alright. I’m here.\n\nSay a year (1950–2024) and what you want: “top 10 1988”, “#1 1964”, “micro moment 1999”.",
+    "Hey. Let’s time-travel.\n\nGive me a year (1950–2024) and I’ll handle the rest.",
   ],
   music: [
-    "Music mode.\n\nGive me a year (1950–2024) and tell me what you want: Top 10, #1, story moment, or micro moment.",
-    "Alright — music first.\n\nDrop a year (1950–2024). Want Top 10, #1, story moment, or micro moment?",
-    "Let’s do this properly.\n\nYear (1950–2024), then we pick the lens: Top 10, #1, story moment, micro moment.",
-    "You give me the year — I’ll give you the feeling.\n\nTry: “top 10 1988” or “story moment 1977”.",
+    "Hey — music mode.\n\nGive me a year (1950–2024) and choose: Top 10, #1, story moment, or micro moment.",
+    "Hi. Let’s do the soundtrack version.\n\nDrop a year (1950–2024). Want Top 10, #1, story moment, or micro moment?",
+    "Alright — music first.\n\nYear (1950–2024), then we pick the lens: Top 10, #1, story moment, micro moment.",
+    "Hey you. Give me the year… I’ll give you the feeling.\n\nTry: “top 10 1988” or “story moment 1977”.",
   ],
   schedule: [
-    "Schedule mode.\n\nTell me your city/timezone and I’ll translate Sandblast time into yours. Or ask for “Now / Next / Later.”",
-    "Want the lineup?\n\nSay “Now / Next / Later”, or tell me your city so I can convert times cleanly.",
-    "Programming grid time.\n\nTell me where you are (city/timezone) or ask: “What’s on now?”",
+    "Hey — schedule mode.\n\nTell me your city/timezone and I’ll translate Sandblast time into yours. Or ask “Now / Next / Later.”",
+    "Hi. Want the lineup?\n\nSay “Now / Next / Later”, or tell me your city so I can convert times cleanly.",
+    "Alright — programming grid time.\n\nTell me where you are (city/timezone) or ask: “What’s on now?”",
   ],
   roku: [
-    "Roku mode.\n\nWant live linear, on-demand, or today’s schedule?",
-    "Roku.\n\nTell me if you want what’s playing now, the schedule, or a quick guide to the channel flow.",
-    "Let’s get you watching.\n\nSay “live”, “on-demand”, or “schedule”.",
+    "Hey — Roku mode.\n\nWant live linear, on-demand, or today’s schedule?",
+    "Hi. Let’s get you watching.\n\nSay “live”, “on-demand”, or “schedule”.",
+    "Alright — Roku.\n\nTell me what you want: what’s on now, the schedule, or a quick channel guide.",
   ],
   radio: [
-    "Radio mode.\n\nWant the stream link, or do you want to pick an era first?",
-    "Sandblast Radio.\n\nGive me a decade or a year and I’ll set the vibe — or say “stream”.",
-    "Radio is ready.\n\nPick an era, or ask me to open the stream.",
+    "Hey — radio mode.\n\nWant the stream link, or do you want to pick an era first?",
+    "Hi. Sandblast Radio is ready.\n\nPick a decade or year… or say “stream”.",
+    "Alright — set the vibe.\n\nGive me an era, or ask me to open the stream.",
   ],
   sponsors: [
-    "Sponsors & advertising.\n\nWant the rate card, packages, or a quick recommendation based on your goal?",
-    "Advertising mode.\n\nTell me: brand, budget range, and what outcome you want — I’ll map you to a package.",
-    "Let’s talk sponsors.\n\nDo you want pricing, placements, or a pitch-ready package recommendation?",
+    "Hey — sponsors & advertising.\n\nDo you want the rate card, packages, or a recommendation based on your goal?",
+    "Hi. Advertising mode.\n\nTell me: brand, budget range, and desired outcome — I’ll map you to a package.",
+    "Alright — let’s talk sponsors.\n\nPricing, placements, or a pitch-ready package recommendation?",
   ],
   movies: [
-    "Movies & catalog.\n\nAre you looking for licensing, what’s available now, or what we should add next?",
-    "Film lane.\n\nTell me: genre, decade, and whether you want public-domain or licensed titles.",
-    "Movies.\n\nSay what you’re hunting for — I’ll help you find the cleanest path (PD vs licensed).",
+    "Hey — movies & catalog.\n\nAre you looking for licensing, what’s available now, or what we should add next?",
+    "Hi. Film lane.\n\nTell me: genre, decade, and PD vs licensed — I’ll point you cleanly.",
+    "Alright — movies.\n\nTell me what you’re hunting for, and I’ll chart the best path.",
   ],
 };
 
-// Chips for intro: keep your canonical feel but make them more “relative”.
 const CANON_INTRO_CHIPS = [
   { label: "Pick a year", send: "1988" },
   { label: "Story moment", send: "story moment 1988" },
@@ -196,11 +195,13 @@ function clampStr(s, max) {
   if (t.length <= max) return t;
   return t.slice(0, max);
 }
-function pickDeterministic(arr, seed) {
-  if (!Array.isArray(arr) || arr.length === 0) return "";
-  const h = sha1(seed || "seed");
-  const n = parseInt(h.slice(0, 8), 16);
-  return arr[n % arr.length];
+function pickRandomIndex(max) {
+  try {
+    // crypto.randomInt is available on Node 14+
+    return crypto.randomInt(0, max);
+  } catch (_) {
+    return Math.floor(Math.random() * max);
+  }
 }
 async function withTimeout(promise, ms, tag) {
   let to = null;
@@ -253,6 +254,49 @@ function isEmptyOrNoText(t) {
 }
 
 // =========================
+// INBOUND NORMALIZATION (loop killer)
+// =========================
+function normalizeInboundText(text, session) {
+  const raw = safeStr(text).trim();
+  if (!raw) return raw;
+
+  const y = extractYear(raw);
+  const m = extractMode(raw);
+  const t = normText(raw);
+
+  // If it's mode-only (no year) and we have lastMusicYear, attach it.
+  if (!y && m && session && session.lastMusicYear) {
+    const yy = Number(session.lastMusicYear);
+    if (Number.isFinite(yy) && yy >= 1950 && yy <= 2024) {
+      // Preserve the user's original words but ensure year is present.
+      return `${raw} ${yy}`.trim();
+    }
+  }
+
+  // If it's year-only and we have an activeMusicMode (and user didn't intend a general greeting),
+  // optionally attach mode to move forward. Conservative: only when year-only and NOT a greeting.
+  if (y && !m && session && session.activeMusicMode && !isGreetingOnly(raw)) {
+    const mm = safeStr(session.activeMusicMode).trim();
+    if (mm) {
+      // Normalize to a simple canonical phrase the backend understands.
+      if (mm === "top10") return `top 10 ${y}`;
+      if (mm === "top100") return `top 100 ${y}`;
+      if (mm === "number1") return `#1 ${y}`;
+      if (mm === "story") return `story moment ${y}`;
+      if (mm === "micro") return `micro moment ${y}`;
+    }
+  }
+
+  // If user says "just talk" and we were in music, keep it from snapping back into music prompts.
+  if (/\bjust talk\b/.test(t)) {
+    session.lane = "general";
+    return raw;
+  }
+
+  return raw;
+}
+
+// =========================
 // Intent bypass (avoid intro stealing real tasks)
 // =========================
 function hasStrongFirstTurnIntent(text) {
@@ -283,30 +327,22 @@ function isLoginMoment(session, startedAt) {
   if (!session.__hasRealUserTurn) return true;
   return false;
 }
-
-/**
- * Detect widget boot / panel-open intro pings where text can be empty.
- */
 function isBootIntroSource(input) {
   try {
     const src =
       safeStr(input && input.client && (input.client.source || input.client.src || "")).trim() ||
       safeStr(input && input.source).trim();
-    const t = normText(src);
+    const tt = normText(src);
     return (
-      t.includes("panel_open_intro") ||
-      t.includes("panel-open-intro") ||
-      t.includes("boot_intro") ||
-      t.includes("boot-intro")
+      tt.includes("panel_open_intro") ||
+      tt.includes("panel-open-intro") ||
+      tt.includes("boot_intro") ||
+      tt.includes("boot-intro")
     );
   } catch (_) {
     return false;
   }
 }
-
-// =========================
-// Intro bucket selection (contextual + “relative”)
-// =========================
 function pickIntroBucket(session, inboundText, routeHint, input) {
   const t = normText(inboundText);
   const rh = normText(routeHint);
@@ -334,11 +370,7 @@ function pickIntroBucket(session, inboundText, routeHint, input) {
 
   return "general";
 }
-
-// =========================
-// Intro decision
-// =========================
-function shouldServeIntroLoginMoment(session, inboundText, startedAt, input, routeHint) {
+function shouldServeIntroLoginMoment(session, inboundText, startedAt, input) {
   if (!session) return false;
 
   const empty = isEmptyOrNoText(inboundText);
@@ -407,32 +439,20 @@ const PATCH_KEYS = new Set([
   "turns",
   "startedAt",
   "lastTurnAt",
-  "lanesVisited",
-  "yearsVisited",
-  "modesVisited",
   "lastLane",
   "lastYear",
   "lastMode",
-  "lastFork",
   "depthLevel",
   "elasticToggle",
-  "lastElasticAt",
   "lane",
   "pendingLane",
   "pendingMode",
   "pendingYear",
-  "recentIntent",
-  "recentTopic",
   "activeMusicMode",
   "lastMusicYear",
   "year",
   "mode",
-  "depthPreference",
   "userName",
-  "nameAskedAt",
-  "lastOpenQuestion",
-  "userGoal",
-  "lastNameUseTurn",
   "visitorId",
   "voiceMode",
   "__cs1",
@@ -441,12 +461,14 @@ const PATCH_KEYS = new Set([
   "turnCount",
   "__hasRealUserTurn",
 
-  // enterprise replay safety fields (internal)
   "__ce_lastReqId",
   "__ce_lastReqAt",
   "__ce_lastOutHash",
   "__ce_lastOut",
   "__ce_lastOutLane",
+
+  "__ce_prevOutHash",
+  "__ce_prevOutRepeat",
 ]);
 
 function buildSessionPatch(session) {
@@ -570,29 +592,25 @@ function cs1SelectContinuity(session, inboundText) {
 }
 
 // =========================
-// Intro selection (stable per login window + bucket)
+// Intro selection (RANDOM per login window, stable within that window)
 // =========================
 function pickIntroForLogin(session, startedAt, bucketKey) {
   const bucket = Math.floor(startedAt / INTRO_REARM_MS);
   const bkey = safeStr(bucketKey || "general");
 
+  const bucketStamp = `${bkey}:${bucket}`;
   const prevBucket = safeStr(session.introBucket || "");
   const prevId = safeInt(session.introVariantId || 0, 0);
-  if (prevBucket === `${bkey}:${bucket}`) {
-    const arr = INTRO_VARIANTS_BY_BUCKET[bkey] || INTRO_VARIANTS_BY_BUCKET.general;
-    if (Number.isFinite(prevId) && prevId >= 0 && prevId < arr.length) {
-      return { text: arr[prevId], id: prevId, bucket: `${bkey}:${bucket}` };
-    }
-  }
 
   const arr = INTRO_VARIANTS_BY_BUCKET[bkey] || INTRO_VARIANTS_BY_BUCKET.general;
 
-  const seed = `${safeStr(session.sessionId || session.visitorId || "")}|${bucket}|${bkey}|intro`;
-  const h = sha1(seed);
-  const n = parseInt(h.slice(0, 8), 16);
-  const id = Math.abs(n) % arr.length;
+  if (prevBucket === bucketStamp && Number.isFinite(prevId) && prevId >= 0 && prevId < arr.length) {
+    return { text: arr[prevId], id: prevId, bucket: bucketStamp };
+  }
 
-  return { text: arr[id] || arr[0], id, bucket: `${bkey}:${bucket}` };
+  // random once per new bucketStamp
+  const id = pickRandomIndex(arr.length);
+  return { text: arr[id] || arr[0], id, bucket: bucketStamp };
 }
 
 // =========================
@@ -607,14 +625,7 @@ function fallbackCore({ text, session }) {
     return {
       reply: `Got it — ${y}. Want Top 10, #1, a story moment, or a micro moment?`,
       lane: "music",
-      cog: {
-        phase: "engaged",
-        state: "confident",
-        reason: "music_override",
-        lane: "music",
-        year: String(y),
-        mode: m,
-      },
+      cog: { phase: "engaged", state: "confident", reason: "music_override", lane: "music", year: String(y), mode: m },
     };
   }
 
@@ -622,6 +633,7 @@ function fallbackCore({ text, session }) {
     session.lastMusicYear = y;
     session.lastYear = y;
     session.lane = "music";
+    session.pendingYear = y;
     return {
       reply: `Got it — ${y}. Want Top 10, #1, a story moment, or a micro moment?`,
       lane: "music",
@@ -636,16 +648,12 @@ function fallbackCore({ text, session }) {
   }
 
   if (!t || isGreetingOnly(text)) {
-    return {
-      reply: INTRO_VARIANTS_BY_BUCKET.general[0],
-      lane: "general",
-      followUps: toFollowUps(CANON_INTRO_CHIPS),
-    };
+    return { reply: INTRO_VARIANTS_BY_BUCKET.general[0], lane: "general", followUps: toFollowUps(CANON_INTRO_CHIPS) };
   }
 
   return {
     reply:
-      "Tell me a year (1950–2024), or say “top 10 1988”, “#1 1988”, “story moment 1988”, or “micro moment 1988”.",
+      "Give me a year (1950–2024), or say “top 10 1988”, “#1 1988”, “story moment 1988”, or “micro moment 1988”.",
     lane: session.lane || "general",
   };
 }
@@ -704,32 +712,61 @@ function hardResetSession(session, startedAt) {
 
   session.__hasRealUserTurn = 0;
 
-  // Intro must be eligible again after reset
   session.__introDone = 0;
   session.introDone = false;
   session.introAt = 0;
   session.introVariantId = 0;
   session.introBucket = "";
 
-  // Clear last I/O
   session.lastInText = "";
   session.lastInAt = 0;
   session.lastOut = "";
   session.lastOutAt = 0;
 
-  // Clear replay cache so reset can’t be “replayed into not-reset”
   session.__ce_lastReqId = "";
   session.__ce_lastReqAt = 0;
   session.__ce_lastOutHash = "";
   session.__ce_lastOut = "";
   session.__ce_lastOutLane = "";
 
-  // Keep continuity shells
+  session.__ce_prevOutHash = "";
+  session.__ce_prevOutRepeat = 0;
+
   if (!session.__nyxCont) session.__nyxCont = {};
   if (!session.__nyxIntro) session.__nyxIntro = {};
   if (!session.__nyxPackets) session.__nyxPackets = {};
 
   return session;
+}
+
+// =========================
+// Output repeat dampener (loop killer #2)
+// =========================
+function dampenRepeatOutput(session, reply, lane, inboundText) {
+  const outHash = sha1(`${lane}::${reply}`).slice(0, 16);
+  const prev = safeStr(session.__ce_prevOutHash || "");
+  let rep = safeInt(session.__ce_prevOutRepeat || 0, 0);
+
+  if (prev && prev === outHash) {
+    rep += 1;
+  } else {
+    rep = 0;
+  }
+
+  session.__ce_prevOutHash = outHash;
+  session.__ce_prevOutRepeat = rep;
+
+  // If we repeated once already (and this is not a replay-cache scenario),
+  // rewrite into a forward-moving prompt with concrete next step.
+  if (rep >= 1) {
+    const y = extractYear(inboundText) || session.lastMusicYear || session.lastYear;
+    if (y) {
+      return `Alright — ${y}. Say “top 10 ${y}”, “#1 ${y}”, “story moment ${y}”, or “micro moment ${y}”.`;
+    }
+    return "Alright. Give me a year (1950–2024) and I’ll move us forward.";
+  }
+
+  return reply;
 }
 
 // =========================
@@ -743,8 +780,8 @@ async function handleChat(input = {}) {
   const session = ensureContinuityState(input.session || {});
   cs1Init(session);
 
-  const inboundText = safeStr(input.text || input.message || "").trim();
-  const inboundIsEmpty = isEmptyOrNoText(inboundText);
+  // Normalize inbound early (before anything)
+  let inboundText = safeStr(input.text || input.message || "").trim();
 
   const source =
     safeStr(input && input.client && (input.client.source || input.client.src || "")).trim() ||
@@ -755,11 +792,7 @@ async function handleChat(input = {}) {
     safeStr((input && input.client && input.client.routeHint) || input.routeHint || session.lane || "general").trim() ||
     "general";
 
-  const bootIntroEmpty = inboundIsEmpty && isBootIntroSource({ ...input, source });
-
-  // =========================
-  // RESET COMMAND (must be handled before replay/intro/engine)
-  // =========================
+  // RESET COMMAND must be handled before replay/intro/engine
   if (inboundText === "__cmd:reset__") {
     hardResetSession(session, startedAt);
     cs1MarkSpeak(session, "reset");
@@ -768,7 +801,6 @@ async function handleChat(input = {}) {
     const lane = "general";
     const followUps = toFollowUps(CANON_INTRO_CHIPS);
 
-    // write replay AFTER reset so a rapid duplicate reset stays consistent
     const rkey = replayKey(session, requestId, inboundText, source);
     writeReplay(session, rkey, startedAt, reply, lane);
 
@@ -781,18 +813,17 @@ async function handleChat(input = {}) {
       sessionPatch: buildSessionPatch(session),
       cog: { phase: "listening", state: "fresh", reason: "hard_reset", lane },
       requestId,
-      meta: {
-        engine: CE_VERSION,
-        reset: true,
-        source: safeMetaStr(source),
-        elapsedMs: nowMs() - startedAt,
-      },
+      meta: { engine: CE_VERSION, reset: true, source: safeMetaStr(source), elapsedMs: nowMs() - startedAt },
     };
   }
 
-  // =========================
+  // Apply normalization after reset handling (normalization may read session state)
+  inboundText = normalizeInboundText(inboundText, session);
+
+  const inboundIsEmpty = isEmptyOrNoText(inboundText);
+  const bootIntroEmpty = inboundIsEmpty && isBootIntroSource({ ...input, source });
+
   // HARD IGNORE NON-BOOT EMPTY TURN
-  // =========================
   if (inboundIsEmpty && !bootIntroEmpty) {
     const reply = "Ready when you are. Tell me a year (1950–2024), or what you want to do next.";
     const lane = safeStr(session.lane || "general") || "general";
@@ -809,9 +840,7 @@ async function handleChat(input = {}) {
     };
   }
 
-  // =========================
-  // REPLAY SAFETY (idempotent within short window)
-  // =========================
+  // REPLAY SAFETY
   const rkey = replayKey(session, requestId, inboundText, source);
   const cached = readReplay(session, rkey, startedAt);
   if (cached) {
@@ -850,13 +879,12 @@ async function handleChat(input = {}) {
 
   let lane = safeStr(session.lane || routeHint || "general").trim() || "general";
 
-  // MUSIC OVERRIDE (pre-normalize)
+  // MUSIC OVERRIDE (pre-intro)
   const ov = applyMusicOverride(session, inboundText);
   if (ov.forced) lane = ov.lane;
 
-  // INTRO (contextual + stable-per-login window)
-  const doIntro =
-    !ov.forced && shouldServeIntroLoginMoment(session, inboundText, startedAt, { ...input, source }, routeHint);
+  // INTRO
+  const doIntro = !ov.forced && shouldServeIntroLoginMoment(session, inboundText, startedAt, { ...input, source });
 
   if (doIntro) {
     session.__introDone = 1;
@@ -904,10 +932,7 @@ async function handleChat(input = {}) {
     session.__cs1 = continuity.__cs1 || continuity.state || session.__cs1;
   }
 
-  // =========================
-  // Core engine: if caller supplies engine, use it; else fallbackCore
-  // Wrapped with timeout + hard failure containment
-  // =========================
+  // Core engine: caller-supplied engine, else fallback
   let core = null;
   let engineTimedOut = false;
   try {
@@ -921,7 +946,6 @@ async function handleChat(input = {}) {
             routeHint: lane,
             packs: { conv: NYX_CONV_PACK, phrase: NYX_PHRASEPACK, packets: NYX_PACKETS },
             interpolateTemplate,
-            pickDeterministic,
           })
         ),
         ENGINE_TIMEOUT_MS,
@@ -956,10 +980,8 @@ async function handleChat(input = {}) {
   let reply = nonEmptyReply(core && core.reply, "A year usually clears things up.");
   reply = clampStr(reply, MAX_REPLY_CHARS);
 
-  // directives
+  // directives / followUps
   const directives = normalizeDirectives(core && core.directives);
-
-  // followUps
   const followUps = normalizeFollowUps(core && core.followUps);
   const followUpsStrings =
     Array.isArray(core && core.followUpsStrings) && core.followUpsStrings.length
@@ -974,6 +996,9 @@ async function handleChat(input = {}) {
       session[k] = v;
     }
   }
+
+  // Output dampener (prevents “same line again” loops)
+  reply = dampenRepeatOutput(session, reply, session.lane, inboundText);
 
   session.lastOut = reply;
   session.lastOutAt = startedAt;
@@ -1005,13 +1030,9 @@ async function handleChat(input = {}) {
       override: ov.forced ? `music:${safeMetaStr(ov.mode)}:${safeMetaStr(ov.year)}` : "",
       source: safeMetaStr(source),
       engineTimeout: !!engineTimedOut,
+      normalizedInbound: inboundText !== safeStr(input.text || input.message || "").trim(),
       elapsedMs: nowMs() - startedAt,
-      packsLoaded: {
-        conv: !!NYX_CONV_PACK,
-        phrase: !!NYX_PHRASEPACK,
-        packets: !!NYX_PACKETS,
-        cs1: !!cs1,
-      },
+      packsLoaded: { conv: !!NYX_CONV_PACK, phrase: !!NYX_PHRASEPACK, packets: !!NYX_PACKETS, cs1: !!cs1 },
     },
   };
 }
