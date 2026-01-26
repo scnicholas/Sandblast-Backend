@@ -243,6 +243,27 @@ function isEmptyOrNoText(t) {
   return !safeStr(t).trim();
 }
 
+
+// =========================
+// Inbound extraction (supports multiple payload shapes)
+// =========================
+function extractInboundTextFromInput(input) {
+  const direct =
+    safeStr(input && (input.text || input.message || input.prompt || input.query || "")).trim() ||
+    safeStr(input && input.body && (input.body.text || input.body.message || "")).trim() ||
+    safeStr(input && input.payload && (input.payload.text || input.payload.message || "")).trim() ||
+    safeStr(input && input.data && (input.data.text || input.data.message || "")).trim();
+
+  // Some widgets send {payload:{text}} inside followUp payloads, or {event:{text}}
+  if (direct) return direct;
+
+  const evt =
+    safeStr(input && input.event && (input.event.text || input.event.message || "")).trim() ||
+    safeStr(input && input.followUp && input.followUp.payload && input.followUp.payload.text).trim();
+
+  return evt || "";
+}
+
 // =========================
 // Boot intro pings
 // =========================
@@ -266,7 +287,7 @@ function isBootIntroSource(input) {
 // =========================
 // INBOUND NORMALIZATION (loop killer)
 // =========================
-function normalizeInboundText(text, session) {
+function normalizeInboundText(text, session, routeHint) {
   const raw = safeStr(text).trim();
   if (!raw) return raw;
 
@@ -287,6 +308,14 @@ function normalizeInboundText(text, session) {
     if (mm === "number1") return `#1 ${y}`;
     if (mm === "story") return `story moment ${y}`;
     if (mm === "micro") return `micro moment ${y}`;
+  }
+
+  // Year-only in music context → default to Top 10 (so choosing a year immediately renders)
+  if (y && !m && !isGreetingOnly(raw)) {
+    const rh = normText(routeHint || "");
+    const lane = normText(session && session.lane);
+    const inMusic = rh.includes("music") || lane === "music";
+    if (inMusic) return `top 10 ${y}`;
   }
 
   return raw;
@@ -709,7 +738,7 @@ async function handleChat(input = {}) {
 
   const session = ensureContinuityState(input.session || {});
 
-  let inboundText = safeStr(input.text || input.message || "").trim();
+  let inboundText = extractInboundTextFromInput(input);
 
   const source =
     safeStr(input && input.client && (input.client.source || input.client.src || "")).trim() ||
@@ -740,7 +769,7 @@ async function handleChat(input = {}) {
 
   // Normalize inbound (kills mode-only loops)
   const preNorm = inboundText;
-  inboundText = normalizeInboundText(inboundText, session);
+  inboundText = normalizeInboundText(inboundText, session, routeHint);
   const inboundNormalized = inboundText !== preNorm;
 
   const inboundIsEmpty = isEmptyOrNoText(inboundText);
@@ -789,6 +818,29 @@ async function handleChat(input = {}) {
       },
     };
   }
+
+  // Prevent intro replay loops: repeated boot-intro pings inside cooldown should NOT re-serve intro
+  if (bootIntroEmpty) {
+    const introAt = safeInt(session.introAt || 0, 0);
+    if (introAt && startedAt - introAt < INTRO_REARM_MS) {
+      const lastOut = safeStr(session.lastOut || "").trim();
+      const lane0 = safeStr(session.lane || "general") || "general";
+      const reply = lastOut || "Ready when you are.";
+      writeReplay(session, replayKey(session, requestId, inboundText, source), startedAt, reply, lane0);
+      return {
+        ok: true,
+        reply,
+        lane: lane0,
+        followUps: toFollowUps(CANON_INTRO_CHIPS),
+        followUpsStrings: toFollowUpsStrings(CANON_INTRO_CHIPS),
+        sessionPatch: buildSessionPatch(session),
+        cog: { phase: "listening", state: "confident", reason: "boot_intro_suppressed", lane: lane0 },
+        requestId,
+        meta: { engine: CE_VERSION, bootIntroSuppressed: true, source: safeMetaStr(source), elapsedMs: nowMs() - startedAt },
+      };
+    }
+  }
+
 
   // Ignore empty non-boot
   if (inboundIsEmpty && !bootIntroEmpty) {
