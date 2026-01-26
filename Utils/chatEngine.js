@@ -1,4 +1,4 @@
-'use strict";
+"use strict";
 
 /**
  * Utils/chatEngine.js
@@ -16,10 +16,11 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.6zQ (ENTERPRISE HARDENED + ENGINE AUTOWIRE FIX + LOOPKILLER++)
+ * v0.6zR (ENTERPRISE HARDENED + ENGINE AUTOWIRE FIX + LOOPKILLER+++)
  *  ✅ FIX: If input.engine is missing, auto-resolve an engine from optional packs (so Top10/#1/story actually renders)
  *  ✅ FIX: Mode-only → auto-attach last known year (kills “say top10 again” loops)
  *  ✅ FIX: Prevent “intro replay loops” (intro never re-serves on repeated boot-intro pings inside cooldown)
+ *  ✅ FIX: POST-INTRO GRACE WINDOW (prevents intro being overwritten by immediate UI pings / mode-only clicks)
  *  ✅ FIX: FollowUps fallback when engine returns none for recognized music requests
  *  ✅ Replay safety (short-window idempotency)
  *  ✅ Timeout containment around resolved engine
@@ -36,7 +37,7 @@ const crypto = require("crypto");
 // Version
 // =========================
 const CE_VERSION =
-  "chatEngine v0.6zQ (enterprise hardened: engine-autowire fix + loopkiller++ + idempotency + timeout + contract normalize + session safety)";
+  "chatEngine v0.6zR (enterprise hardened: engine-autowire fix + loopkiller+++ + post-intro grace + idempotency + timeout + contract normalize + session safety)";
 
 // =========================
 // Enterprise knobs
@@ -52,6 +53,11 @@ const MAX_META_STR = 220;
 // Intro
 // =========================
 const INTRO_REARM_MS = 12 * 60 * 1000;
+
+// Prevent the intro from being immediately overwritten by widget hydration pings,
+// mode-only toggles, or fast follow-up requests with no year.
+// Keep this tight; we only want to dampen the "post-boot noise" burst.
+const POST_INTRO_GRACE_MS = 650;
 
 const INTRO_VARIANTS_BY_BUCKET = {
   general: [
@@ -222,6 +228,11 @@ function extractMode(text) {
   if (/\bmicro\s*moment\b|\bmicro\b/.test(t)) return "micro";
   if (/\b#\s*1\b|\bnumber\s*1\b|\bno\.?\s*1\b|\bno\s*1\b/.test(t)) return "number1";
   return null;
+}
+function isModeOnly(text) {
+  const y = extractYear(text);
+  const m = extractMode(text);
+  return !!m && !y;
 }
 function isGreetingOnly(t) {
   return /^(hi|hello|hey|yo|hiya|good morning|good afternoon|good evening|sup|what's up|whats up)$/i.test(
@@ -665,7 +676,6 @@ function fallbackCore({ text, session }) {
 // =========================
 function maybeAttachMusicFollowUps(core, inboundText, session) {
   const year = extractYear(inboundText);
-  const mode = extractMode(inboundText);
 
   // If user clearly asked for a music action and the engine didn't provide followUps,
   // attach a conservative, high-signal set to prevent dead-ends.
@@ -674,25 +684,6 @@ function maybeAttachMusicFollowUps(core, inboundText, session) {
   const hasFU = Array.isArray(core && core.followUps) && core.followUps.length;
   if (hasFU) return core;
 
-  // When mode exists, offer adjacent actions around same year.
-  if (mode) {
-    core.followUps = toFollowUps([
-      { label: "Top 10", send: `top 10 ${year}` },
-      { label: "#1", send: `#1 ${year}` },
-      { label: "Story moment", send: `story moment ${year}` },
-      { label: "Micro moment", send: `micro moment ${year}` },
-    ]);
-    core.followUpsStrings = toFollowUpsStrings([
-      { label: "Top 10", send: `top 10 ${year}` },
-      { label: "#1", send: `#1 ${year}` },
-      { label: "Story moment", send: `story moment ${year}` },
-      { label: "Micro moment", send: `micro moment ${year}` },
-    ]);
-    session.lane = "music";
-    return core;
-  }
-
-  // Year-only (or year + ambiguous) — same chips
   core.followUps = toFollowUps([
     { label: "Top 10", send: `top 10 ${year}` },
     { label: "#1", send: `#1 ${year}` },
@@ -755,6 +746,50 @@ async function handleChat(input = {}) {
   const inboundIsEmpty = isEmptyOrNoText(inboundText);
   const bootIntroEmpty = inboundIsEmpty && isBootIntroSource({ ...input, source });
 
+  // Replay safety (must happen early; before any suppressors produce new output)
+  const rkey = replayKey(session, requestId, inboundText, source);
+  const cached = readReplay(session, rkey, startedAt);
+  if (cached) {
+    return {
+      ok: true,
+      reply: cached.reply,
+      lane: cached.lane,
+      followUps: toFollowUps(CANON_INTRO_CHIPS),
+      followUpsStrings: toFollowUpsStrings(CANON_INTRO_CHIPS),
+      sessionPatch: buildSessionPatch(session),
+      cog: { phase: "listening", state: "confident", reason: "replay_cache", lane: cached.lane },
+      requestId,
+      meta: { engine: CE_VERSION, replay: true, source: safeMetaStr(source), elapsedMs: nowMs() - startedAt },
+    };
+  }
+
+  // POST-INTRO GRACE: suppress "post-boot noise" that would overwrite the intro.
+  // Includes repeated boot pings, empty hydration calls, and mode-only clicks with no year.
+  const introAt = safeInt(session.introAt || 0, 0);
+  const justIntroed = !!introAt && startedAt - introAt < POST_INTRO_GRACE_MS;
+  if (justIntroed && (inboundIsEmpty || isModeOnly(inboundText))) {
+    const reply = nonEmptyReply(session.lastOut, INTRO_VARIANTS_BY_BUCKET.general[0]);
+    session.lastOut = reply;
+    session.lastOutAt = startedAt;
+    writeReplay(session, rkey, startedAt, reply, "general");
+    return {
+      ok: true,
+      reply,
+      lane: "general",
+      followUps: toFollowUps(CANON_INTRO_CHIPS),
+      followUpsStrings: toFollowUpsStrings(CANON_INTRO_CHIPS),
+      sessionPatch: buildSessionPatch(session),
+      cog: { phase: "listening", state: "confident", reason: "post_intro_grace", lane: "general" },
+      requestId,
+      meta: {
+        engine: CE_VERSION,
+        suppressed: "post_intro_grace",
+        source: safeMetaStr(source),
+        elapsedMs: nowMs() - startedAt,
+      },
+    };
+  }
+
   // Ignore empty non-boot
   if (inboundIsEmpty && !bootIntroEmpty) {
     const reply = "Ready when you are. Tell me a year (1950–2024), or what you want to do next.";
@@ -769,23 +804,6 @@ async function handleChat(input = {}) {
       cog: { phase: "listening", state: "confident", reason: "ignored_empty_nonboot", lane },
       requestId,
       meta: { engine: CE_VERSION, ignoredEmpty: true, source: safeMetaStr(source), elapsedMs: nowMs() - startedAt },
-    };
-  }
-
-  // Replay safety
-  const rkey = replayKey(session, requestId, inboundText, source);
-  const cached = readReplay(session, rkey, startedAt);
-  if (cached) {
-    return {
-      ok: true,
-      reply: cached.reply,
-      lane: cached.lane,
-      followUps: toFollowUps(CANON_INTRO_CHIPS),
-      followUpsStrings: toFollowUpsStrings(CANON_INTRO_CHIPS),
-      sessionPatch: buildSessionPatch(session),
-      cog: { phase: "listening", state: "confident", reason: "replay_cache", lane: cached.lane },
-      requestId,
-      meta: { engine: CE_VERSION, replay: true, source: safeMetaStr(source), elapsedMs: nowMs() - startedAt },
     };
   }
 
@@ -825,6 +843,11 @@ async function handleChat(input = {}) {
     session.introBucket = pick.bucket;
 
     const introLine = nonEmptyReply(pick.text, INTRO_VARIANTS_BY_BUCKET.general[0]);
+
+    // IMPORTANT: persist intro as lastOut so post-intro grace can safely re-emit it
+    session.lastOut = introLine;
+    session.lastOutAt = startedAt;
+
     writeReplay(session, rkey, startedAt, introLine, "general");
 
     return {
