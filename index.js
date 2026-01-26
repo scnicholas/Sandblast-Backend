@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17zh
+ * index.js v1.5.17zi
  * (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION +
  *  ✅ SESSIONPATCH EXPANDED (CONTINUITY PERSIST FIX) + ✅ CONVERSATIONAL CONTRACT ENFORCER (HARD) +
  *  ✅ ROUTE HINT AWARE COG NORMALIZATION + ✅ ENV KNOBS HARDENED +
@@ -23,6 +23,11 @@
  *  ✅ CRITICAL: CORE ENGINE WIRING (soft-load Nyx core brain + pass as input.engine so conversational layers fire) +
  *  ✅ CRITICAL: BOOT-INTRO BRIDGE (empty “panel open” pings can trigger intro ONCE without consuming loop fuse) +
  *  ✅ CRITICAL: AVOID DOUBLE TURN-COUNT (do not pre-increment turns before chatEngine; let chatEngine own it)
+ *
+ * Fixes in v1.5.17zi:
+ *  ✅ Boot-intro now calls chatEngine with EMPTY text + panel_open_intro source (prevents consuming a “real” user turn)
+ *  ✅ normalizeFollowUpsToStrings now respects chatEngine followUps payload.text (prevents chips turning into labels-only)
+ *  ✅ normalizeCog state fallback bug fixed (was mistakenly reading sc.phase)
  * )
  */
 
@@ -130,7 +135,7 @@ if (TRUST_PROXY) {
 
 const NYX_CONTRACT_VERSION = "1";
 const INDEX_VERSION =
-  "index.js v1.5.17zh (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + SESSIONPATCH EXPANDED + CONTRACT ENFORCER + ROUTE HINT COG + ENV HARDENED + TRUST PROXY + DISCOVERY ROUTES + ROKU DIRECTIVE + CORS PREFLIGHT FIX + COS PERSISTENCE + DIRECTIVES HARDENING + NO DUPLICATE bridge_roku + TTS JSON-PARSE RECOVERY + INTRO FALLBACK GUARD + FALLBACK INTRO RANDOMIZER + LOOP FUSE v2 + TTL CLAMP FIX + CHATENGINE VISIBILITY HEADERS + INTRO RESET GAP + SERVER TURN COUNTER + CORE ENGINE WIRING + BOOT-INTRO BRIDGE + AVOID DOUBLE TURN-COUNT)";
+  "index.js v1.5.17zi (CORS HARD-LOCK + TURN-CACHE DEDUPE + POSTURE CONTROL PLANE + CANONICAL ROKU BRIDGE INJECTION + SESSIONPATCH EXPANDED + CONTRACT ENFORCER + ROUTE HINT COG + ENV HARDENED + TRUST PROXY + DISCOVERY ROUTES + ROKU DIRECTIVE + CORS PREFLIGHT FIX + COS PERSISTENCE + DIRECTIVES HARDENING + NO DUPLICATE bridge_roku + TTS JSON-PARSE RECOVERY + INTRO FALLBACK GUARD + FALLBACK INTRO RANDOMIZER + LOOP FUSE v2 + TTL CLAMP FIX + CHATENGINE VISIBILITY HEADERS + INTRO RESET GAP + SERVER TURN COUNTER + CORE ENGINE WIRING + BOOT-INTRO BRIDGE + AVOID DOUBLE TURN-COUNT + BOOT-INTRO EMPTY-CALL FIX + FOLLOWUP PAYLOAD.TEXT FIX + COG STATE FIX)";
 
 const GIT_COMMIT =
   String(process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || "").trim() || null;
@@ -214,8 +219,8 @@ function getChatEngineVersion(mod) {
     if (mod.default && typeof mod.default.CE_VERSION === "string" && mod.default.CE_VERSION.trim())
       return mod.default.CE_VERSION.trim();
     // Some builds export { chatEngine: fn, CE_VERSION } or { handleChat, CE_VERSION }
-    if (mod.chatEngine && typeof mod.chatEngine.CE_VERSION === "string" && mod.chatEngine.CE_VERSION.trim())
-      return mod.chatEngine.CE_VERSION.trim();
+    if (mod.chatEngine && typeof mod.chatEngine === "function" && typeof mod.CE_VERSION === "string")
+      return mod.CE_VERSION.trim();
     return null;
   } catch (_) {
     return null;
@@ -536,7 +541,7 @@ const SESSION_PATCH_ALLOW = new Set([
 
   "cog",
 
-  // ✅ NEW: allow chatEngine “hasRealUserTurn” + intro marker if present
+  // ✅ allow chatEngine “hasRealUserTurn” + intro marker if present
   "__introDone",
   "__hasRealUserTurn",
 ]);
@@ -618,9 +623,10 @@ function normalizeCog(out, session, routeHint) {
     (sc && typeof sc.phase === "string" && sc.phase.trim() ? sc.phase : null) ||
     "engaged";
 
+  // ✅ FIX: state fallback must read sc.state (not sc.phase)
   const state =
     (oc && typeof oc.state === "string" && oc.state.trim() ? oc.state : null) ||
-    (sc && typeof sc.state === "string" && sc.phase.trim() ? sc.phase : null) ||
+    (sc && typeof sc.state === "string" && sc.state.trim() ? sc.state : null) ||
     "confident";
 
   const reason =
@@ -1643,14 +1649,24 @@ function pickChatHandler(mod) {
   return null;
 }
 
+// ✅ FIX: followUps from chatEngine are objects like {id,type,label,payload:{text}}
+// This MUST return the send-texts, not labels, or chips break.
 function normalizeFollowUpsToStrings(followUps) {
   if (!Array.isArray(followUps) || followUps.length === 0) return undefined;
   const seen = new Set();
   const out = [];
   for (const item of followUps) {
     let send = "";
-    if (typeof item === "string") send = item;
-    else if (item && typeof item === "object") send = normalizeStr(item.send || item.label || "");
+    if (typeof item === "string") {
+      send = item;
+    } else if (item && typeof item === "object") {
+      // preferred: payload.text
+      const pt =
+        item.payload && typeof item.payload === "object" ? normalizeStr(item.payload.text || "") : "";
+      send = pt || normalizeStr(item.send || "");
+      // last resort: label (only if it’s actually what you want sent)
+      if (!send) send = normalizeStr(item.label || "");
+    }
     send = normalizeStr(send);
     const k = normCmd(send);
     if (!k || seen.has(k)) continue;
@@ -1804,7 +1820,6 @@ app.post("/api/chat", async (req, res) => {
     // - loop fuse
     // - burst / hash dedupe
     // - consuming real user intent
-    // This guarantees the intro packet shows up even if the widget opens silently.
     const handler = pickChatHandler(chatEngine);
     const canBootIntro =
       !normalizeStr(text) &&
@@ -1816,20 +1831,22 @@ app.post("/api/chat", async (req, res) => {
     if (canBootIntro) {
       let out = null;
       try {
+        // ✅ FIX: call chatEngine with EMPTY text + panel_open_intro source
+        // so chatEngine can intro without counting a “real” user turn.
         out = await Promise.resolve(
           handler({
-            // synthetic greeting to trigger intro logic inside chatEngine
-            text: "hi",
-            message: "hi",
+            text: "",
+            message: "",
             session,
             requestId,
             debug: isDebug,
             routeHint: routeHint || "general",
-            engine: NYX_CORE_ENGINE || undefined, // ✅ the wiring that makes layers fire
+            engine: NYX_CORE_ENGINE || undefined,
             client: Object.assign({}, (body && body.client) || {}, {
               source: source || "panel_open_intro",
               synthetic: true,
             }),
+            source: source || "panel_open_intro",
           })
         );
       } catch (e) {
@@ -1846,7 +1863,7 @@ app.post("/api/chat", async (req, res) => {
       const baseReply =
         out && typeof out === "object" && typeof out.reply === "string" ? out.reply : fallbackReply("");
 
-      // Mark intro served
+      // Mark intro served (server-side belt + suspenders)
       session.introDone = true;
       session.introAt = now;
       session.introServed = true;
