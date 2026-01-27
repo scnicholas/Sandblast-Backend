@@ -1,4 +1,4 @@
-r""""use strict";
+"use strict";
 
 /**
  * Sandblast Backend — index.js
@@ -610,7 +610,3 @@ app.listen(PORT, () => {
 });
 
 module.exports = { app, INDEX_VERSION };
-"""
-Path("/mnt/data/index.js").write_text(index_js, encoding="utf-8")
-len(index_js), Path("/mnt/data/index.js").stat().st_size
-
