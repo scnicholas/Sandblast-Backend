@@ -16,21 +16,13 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.6zS (ENTERPRISE HARDENED + AUTHORITATIVE YEAR COMMIT (SURGICAL) + LOOPKILLER+++)
- *  ✅ FIX: Numeric year is authoritative for Music + Top10 (prevents “A year usually clears…” when year is present)
- *  ✅ FIX: Commit authoritative year into session.cog + lastMusicYear (prevents chip-click stalls / year drift)
- *  ✅ FIX: Mode-only → auto-attach last known year (kills “say top10 again” loops) + supports session.cog.year
- *  ✅ FIX: If input.engine is missing, auto-resolve an engine from optional packs (so Top10/#1/story actually renders)
- *  ✅ FIX: Prevent “intro replay loops” (intro never re-serves on repeated boot-intro pings inside cooldown)
- *  ✅ FIX: POST-INTRO GRACE WINDOW (prevents intro being overwritten by immediate UI pings / mode-only clicks)
- *  ✅ FIX: FollowUps fallback when engine returns none for recognized music requests
- *  ✅ Replay safety (short-window idempotency)
- *  ✅ Timeout containment around resolved engine
- *  ✅ Contract normalization + sessionPatch allowlist merge
- *  ✅ Turn drift control (ignore empty non-boot)
- *  ✅ Intro: greeting-first + stable-per-login random selection
- *  ✅ Reset command "__cmd:reset__" (OPTION A posture followUps)
- *  ✅ Observability flags (engineResolvedFrom, engineOk, engineTimeout, engineEmptyReply)
+ * v0.6zT (ENTERPRISE HARDENED + AUTHORITATIVE YEAR COMMIT (SURGICAL) + LOOPKILLER++++)
+ *  ✅ FIX: Numeric year authoritative for Music + Top10 even when year arrives via payload/ctx
+ *  ✅ FIX: Commit authoritative year into session.cog.year + session.cog.lastMusicYear + session.lastMusicYear
+ *  ✅ FIX: Mode-only → auto-attach last known year (prefers session.lastMusicYear, then session.cog.year/lastMusicYear)
+ *  ✅ FIX: Block “A year usually clears…” when year exists anywhere (text/payload/ctx/cog/session)
+ *  ✅ FIX: FollowUps fallback uses resolved year (not text-only)
+ *  ✅ Keeps: engine-autowire, intro replay suppression, post-intro grace, idempotency, timeout, contract normalize
  */
 
 const crypto = require("crypto");
@@ -39,7 +31,7 @@ const crypto = require("crypto");
 // Version
 // =========================
 const CE_VERSION =
-  "chatEngine v0.6zS (enterprise hardened: authoritative year commit (surgical) + engine-autowire fix + loopkiller+++ + post-intro grace + idempotency + timeout + contract normalize + session safety)";
+  "chatEngine v0.6zT (enterprise hardened: authoritative year commit across payload/ctx/cog + mode-only attach + loopkiller++++ + post-intro grace + idempotency + timeout + contract normalize + session safety)";
 
 // =========================
 // Enterprise knobs
@@ -58,7 +50,6 @@ const INTRO_REARM_MS = 12 * 60 * 1000;
 
 // Prevent the intro from being immediately overwritten by widget hydration pings,
 // mode-only toggles, or fast follow-up requests with no year.
-// Keep this tight; we only want to dampen the "post-boot noise" burst.
 const POST_INTRO_GRACE_MS = 650;
 
 const INTRO_VARIANTS_BY_BUCKET = {
@@ -223,12 +214,45 @@ function extractYear(text) {
   return y;
 }
 
-// SURGICAL: numeric year is authoritative when present in user text (tight range to prevent false hits)
+// SURGICAL: numeric year is authoritative (tight range)
 function extractYearAuthoritative(text) {
   return extractYear(text);
 }
 
-// SURGICAL: explicit Top10 intent detector (covers "top10", "top 10", "top ten")
+// NEW: year resolver across inbound shapes (payload/ctx/etc)
+function coerceYearAny(v) {
+  const n = Number(v);
+  if (Number.isFinite(n) && n >= 1950 && n <= 2024) return Math.trunc(n);
+  const y = extractYear(safeStr(v));
+  return y || null;
+}
+function resolveInboundYear(input, inboundText, session) {
+  // Priority: explicit input.year/payload.year/ctx.year, then text, then session/cog
+  const y1 = coerceYearAny(input && input.year);
+  const y2 = coerceYearAny(input && input.payload && input.payload.year);
+  const y3 = coerceYearAny(input && input.ctx && input.ctx.year);
+  const y4 = coerceYearAny(input && input.body && input.body.year);
+  const y5 = extractYearAuthoritative(inboundText);
+
+  const yS1 = coerceYearAny(session && session.lastMusicYear);
+  const yS2 = coerceYearAny(session && session.lastYear);
+  const yC1 = coerceYearAny(session && session.cog && session.cog.lastMusicYear);
+  const yC2 = coerceYearAny(session && session.cog && session.cog.year);
+
+  return y1 || y2 || y3 || y4 || y5 || yS1 || yC1 || yC2 || yS2 || null;
+}
+function commitYear(session, year, source) {
+  if (!year) return;
+  session.lastMusicYear = year;
+  session.lastYear = year;
+
+  session.cog = isPlainObject(session.cog) ? session.cog : {};
+  session.cog.year = year;
+  session.cog.lastMusicYear = year;
+  session.cog.yearSource = source || session.cog.yearSource || "unknown";
+}
+
+// SURGICAL: explicit Top10 intent detector
 function isTop10IntentText(text) {
   const t = normText(text);
   return /\btop\s*10\b/.test(t) || /\btop10\b/.test(t) || /\btop\s*ten\b/.test(t);
@@ -267,7 +291,6 @@ function extractInboundTextFromInput(input) {
     safeStr(input && input.payload && (input.payload.text || input.payload.message || "")).trim() ||
     safeStr(input && input.data && (input.data.text || input.data.message || "")).trim();
 
-  // Some widgets send {payload:{text}} inside followUp payloads, or {event:{text}}
   if (direct) return direct;
 
   const evt =
@@ -307,13 +330,16 @@ function normalizeInboundText(text, session, routeHint) {
   const y = extractYear(raw);
   const m = extractMode(raw);
 
-  // Mode-only → attach last known year (session.lastMusicYear OR session.cog.year)
+  // Mode-only → attach last known year (session.lastMusicYear OR session.cog.year OR session.cog.lastMusicYear)
   if (!y && m) {
     const yy1 = Number(session && session.lastMusicYear);
     if (Number.isFinite(yy1) && yy1 >= 1950 && yy1 <= 2024) return `${raw} ${yy1}`.trim();
 
     const yy2 = Number(session && session.cog && session.cog.year);
     if (Number.isFinite(yy2) && yy2 >= 1950 && yy2 <= 2024) return `${raw} ${yy2}`.trim();
+
+    const yy3 = Number(session && session.cog && session.cog.lastMusicYear);
+    if (Number.isFinite(yy3) && yy3 >= 1950 && yy3 <= 2024) return `${raw} ${yy3}`.trim();
   }
 
   // Year-only + activeMusicMode → attach mode conservatively
@@ -326,7 +352,7 @@ function normalizeInboundText(text, session, routeHint) {
     if (mm === "micro") return `micro moment ${y}`;
   }
 
-  // Year-only in music context → default to Top 10 (so choosing a year immediately renders)
+  // Year-only in music context → default to Top 10
   if (y && !m && !isGreetingOnly(raw)) {
     const rh = normText(routeHint || "");
     const lane = normText(session && session.lane);
@@ -405,7 +431,7 @@ function pickIntroBucket(session, inboundText, routeHint, input) {
     return "general";
   }
 
-  if (isGreetingOnly(inboundText) && (session.lastMusicYear || (session.cog && session.cog.year) || session.activeMusicMode))
+  if (isGreetingOnly(inboundText) && (session.lastMusicYear || (session.cog && (session.cog.year || session.cog.lastMusicYear)) || session.activeMusicMode))
     return "music";
   return "general";
 }
@@ -435,18 +461,14 @@ function applyMusicOverride(session, inboundText) {
   const mode = extractMode(inboundText);
   if (!year || !mode) return { forced: false };
 
-  session.lastMusicYear = year;
-  session.lastYear = year;
+  commitYear(session, year, "user_text");
+
+  session.lane = "music";
   session.lastMode = mode;
   session.activeMusicMode = mode;
-  session.lane = "music";
 
-  // Keep a compact cog snapshot (enterprise safe)
-  session.cog = isPlainObject(session.cog) ? session.cog : {};
-  session.cog.year = year;
   session.cog.lane = "music";
   session.cog.mode = mode;
-  session.cog.yearSource = session.cog.yearSource || "user_text";
 
   return { forced: true, lane: "music", year, mode };
 }
@@ -491,7 +513,7 @@ const PATCH_KEYS = new Set([
   "__introDone",
   "__cs1",
 
-  // SURGICAL: allow compact cog persistence (kept small + object-only)
+  // allow compact cog persistence
   "cog",
 
   "__ce_lastReqId",
@@ -507,7 +529,6 @@ function buildSessionPatch(session) {
   for (const k of Object.keys(s)) {
     if (!PATCH_KEYS.has(k)) continue;
     if (k === "cog") {
-      // enforce object-only; keep it compact
       if (isPlainObject(s.cog)) out.cog = s.cog;
       continue;
     }
@@ -668,12 +689,11 @@ function hardResetSession(session, startedAt) {
 }
 
 // =========================
-// ENGINE AUTOWIRE (the fix you need)
+// ENGINE AUTOWIRE
 // =========================
 function resolveEngine(input) {
   if (typeof input.engine === "function") return { fn: input.engine, from: "input.engine" };
 
-  // Try common handlers on NYX_PACKETS
   const p = NYX_PACKETS;
   if (p && typeof p.handleChat === "function") return { fn: p.handleChat.bind(p), from: "nyxPackets.handleChat" };
   if (p && typeof p.chat === "function") return { fn: p.chat.bind(p), from: "nyxPackets.chat" };
@@ -681,22 +701,20 @@ function resolveEngine(input) {
   if (p && typeof p.run === "function") return { fn: p.run.bind(p), from: "nyxPackets.run" };
   if (p && typeof p.route === "function") return { fn: p.route.bind(p), from: "nyxPackets.route" };
 
-  // Try common handlers on conv pack
   const c = NYX_CONV_PACK;
   if (c && typeof c.handleChat === "function") return { fn: c.handleChat.bind(c), from: "nyxConvPack.handleChat" };
   if (c && typeof c.respond === "function") return { fn: c.respond.bind(c), from: "nyxConvPack.respond" };
   if (c && typeof c.run === "function") return { fn: c.run.bind(c), from: "nyxConvPack.run" };
 
-  // Nothing resolved
   return { fn: null, from: "none" };
 }
 
 // =========================
 // Fallback (only used when no engine is available)
 // =========================
-function fallbackCore({ text, session }) {
+function fallbackCore({ text, session, resolvedYear }) {
   const t = normText(text);
-  const y = extractYear(t);
+  const y = resolvedYear || extractYear(t);
   const m = extractMode(t);
 
   if (y && m) {
@@ -707,14 +725,7 @@ function fallbackCore({ text, session }) {
   }
 
   if (y) {
-    session.lastMusicYear = y;
-    session.lastYear = y;
-    session.pendingYear = y;
-    session.lane = "music";
-    session.cog = isPlainObject(session.cog) ? session.cog : {};
-    session.cog.year = y;
-    session.cog.lane = "music";
-    session.cog.yearSource = "fallback";
+    commitYear(session, y, "fallback");
 
     return {
       reply: `Got it — ${y}. Want Top 10, #1, a story moment, or a micro moment?`,
@@ -740,13 +751,10 @@ function fallbackCore({ text, session }) {
 }
 
 // =========================
-// Engine-aware fallback follow-ups (when the engine forgets to emit chips)
+// Engine-aware fallback follow-ups
 // =========================
-function maybeAttachMusicFollowUps(core, inboundText, session) {
-  const year = extractYear(inboundText);
-
-  // If user clearly asked for a music action and the engine didn't provide followUps,
-  // attach a conservative, high-signal set to prevent dead-ends.
+function maybeAttachMusicFollowUps(core, resolvedYear, inboundText, session) {
+  const year = resolvedYear || extractYear(inboundText);
   if (!year) return core;
 
   const hasFU = Array.isArray(core && core.followUps) && core.followUps.length;
@@ -764,11 +772,11 @@ function maybeAttachMusicFollowUps(core, inboundText, session) {
     { label: "Story moment", send: `story moment ${year}` },
     { label: "Micro moment", send: `micro moment ${year}` },
   ]);
+
   session.lane = "music";
-  session.cog = isPlainObject(session.cog) ? session.cog : {};
-  session.cog.year = year;
+  commitYear(session, year, session.cog.yearSource || "engine_followups_fallback");
   session.cog.lane = "music";
-  session.cog.yearSource = session.cog.yearSource || "engine_followups_fallback";
+
   return core;
 }
 
@@ -780,7 +788,6 @@ async function handleChat(input = {}) {
   const requestId = safeStr(input.requestId).trim() || sha1(`${startedAt}|${Math.random()}`).slice(0, 10);
 
   const session = ensureContinuityState(input.session || {});
-  // Ensure cog exists (compact object only)
   session.cog = isPlainObject(session.cog) ? session.cog : {};
 
   let inboundText = extractInboundTextFromInput(input);
@@ -800,8 +807,6 @@ async function handleChat(input = {}) {
   if (inboundText === "__cmd:reset__") {
     hardResetSession(session, startedAt);
 
-    // Option A: offer posture-forward followUps immediately after reset.
-    // Keep them high-signal and lane-advancing.
     const RESET_FOLLOWUPS = [
       { label: "Pick a year", send: "Pick a year" },
       { label: "Music", send: "Music" },
@@ -810,7 +815,6 @@ async function handleChat(input = {}) {
 
     const reply = "All reset. Where do you want to start?";
 
-    // Ensure reset leaves an explicit lane and a stable lastOut for grace-window behavior.
     session.lane = "general";
     session.lastOut = reply;
     session.lastOutAt = startedAt;
@@ -835,40 +839,43 @@ async function handleChat(input = {}) {
   inboundText = normalizeInboundText(inboundText, session, routeHint);
   const inboundNormalized = inboundText !== preNorm;
 
+  // Resolve year from all inbound shapes (payload/ctx/text/session/cog)
+  const resolvedYear0 = resolveInboundYear(input, inboundText, session);
+
   // =========================
-  // SURGICAL: Authoritative year commit (pre-engine)
+  // AUTHORITATIVE YEAR COMMIT (pre-engine)
   // =========================
-  const yearAuth = extractYearAuthoritative(inboundText);
   const modeNow = extractMode(inboundText);
   const top10Asked = isTop10IntentText(inboundText) || modeNow === "top10";
 
   const laneHint = normText(session.lane || routeHint || "");
-  const forceMusicYear = !!yearAuth && (laneHint === "music" || top10Asked);
+  const forceMusicYear = !!resolvedYear0 && (laneHint === "music" || top10Asked);
+
+  if (resolvedYear0) {
+    // Always commit if present (this is what prevents stalls/drift)
+    commitYear(session, resolvedYear0, "resolved_inbound");
+  }
 
   if (forceMusicYear) {
-    session.cog.year = yearAuth;
-    session.cog.yearSource = "user_text_authoritative";
+    session.lane = "music";
     session.cog.lane = "music";
     if (modeNow) session.cog.mode = modeNow;
 
-    session.lastMusicYear = yearAuth;
-    session.lastYear = yearAuth;
-    session.lane = "music";
-
-    // If they explicitly asked Top10, lock that as active mode for immediate execution
     if (top10Asked) {
       session.activeMusicMode = "top10";
       session.lastMode = "top10";
       session.cog.mode = "top10";
-      if (!modeNow) inboundText = `top 10 ${yearAuth}`; // deterministic, prevents clarify gates downstream
+      // Ensure deterministic mode+year for downstream template/engine gates
+      if (!modeNow) inboundText = `top 10 ${resolvedYear0}`;
     }
   }
+
   // =========================
 
   const inboundIsEmpty = isEmptyOrNoText(inboundText);
   const bootIntroEmpty = inboundIsEmpty && isBootIntroSource({ ...input, source });
 
-  // Replay safety (must happen early; before any suppressors produce new output)
+  // Replay safety
   const rkey = replayKey(session, requestId, inboundText, source);
   const cached = readReplay(session, rkey, startedAt);
   if (cached) {
@@ -885,8 +892,7 @@ async function handleChat(input = {}) {
     };
   }
 
-  // POST-INTRO GRACE: suppress "post-boot noise" that would overwrite the intro.
-  // Includes repeated boot pings, empty hydration calls, and mode-only clicks with no year.
+  // POST-INTRO GRACE suppression
   const introAt = safeInt(session.introAt || 0, 0);
   const justIntroed = !!introAt && startedAt - introAt < POST_INTRO_GRACE_MS;
   if (justIntroed && (inboundIsEmpty || isModeOnly(inboundText))) {
@@ -903,19 +909,14 @@ async function handleChat(input = {}) {
       sessionPatch: buildSessionPatch(session),
       cog: { phase: "listening", state: "confident", reason: "post_intro_grace", lane: "general" },
       requestId,
-      meta: {
-        engine: CE_VERSION,
-        suppressed: "post_intro_grace",
-        source: safeMetaStr(source),
-        elapsedMs: nowMs() - startedAt,
-      },
+      meta: { engine: CE_VERSION, suppressed: "post_intro_grace", source: safeMetaStr(source), elapsedMs: nowMs() - startedAt },
     };
   }
 
-  // Prevent intro replay loops: repeated boot-intro pings inside cooldown should NOT re-serve intro
+  // Boot intro suppression
   if (bootIntroEmpty) {
-    const introAt = safeInt(session.introAt || 0, 0);
-    if (introAt && startedAt - introAt < INTRO_REARM_MS) {
+    const introAt2 = safeInt(session.introAt || 0, 0);
+    if (introAt2 && startedAt - introAt2 < INTRO_REARM_MS) {
       const lastOut = safeStr(session.lastOut || "").trim();
       const lane0 = safeStr(session.lane || "general") || "general";
       const reply = lastOut || "Ready when you are.";
@@ -937,15 +938,15 @@ async function handleChat(input = {}) {
   // Ignore empty non-boot
   if (inboundIsEmpty && !bootIntroEmpty) {
     const reply = "Ready when you are. Tell me a year (1950–2024), or what you want to do next.";
-    const lane = safeStr(session.lane || "general") || "general";
+    const laneX = safeStr(session.lane || "general") || "general";
     return {
       ok: true,
       reply,
-      lane,
+      lane: laneX,
       followUps: toFollowUps(CANON_INTRO_CHIPS),
       followUpsStrings: toFollowUpsStrings(CANON_INTRO_CHIPS),
       sessionPatch: buildSessionPatch(session),
-      cog: { phase: "listening", state: "confident", reason: "ignored_empty_nonboot", lane },
+      cog: { phase: "listening", state: "confident", reason: "ignored_empty_nonboot", lane: laneX },
       requestId,
       meta: { engine: CE_VERSION, ignoredEmpty: true, source: safeMetaStr(source), elapsedMs: nowMs() - startedAt },
     };
@@ -968,12 +969,12 @@ async function handleChat(input = {}) {
   // Lane seed
   let lane = safeStr(session.lane || routeHint || "general").trim() || "general";
 
-  // Music override
+  // Music override (text-based mode+year)
   const ov = applyMusicOverride(session, inboundText);
   if (ov.forced) lane = "music";
   if (forceMusicYear) lane = "music";
 
-  // Intro (do NOT serve intro if we have forced year intent)
+  // Intro (do NOT serve intro if we have year intent)
   const doIntro = !ov.forced && !forceMusicYear && shouldServeIntroLoginMoment(session, inboundText, startedAt, { ...input, source });
   if (doIntro) {
     session.__introDone = 1;
@@ -989,7 +990,6 @@ async function handleChat(input = {}) {
 
     const introLine = nonEmptyReply(pick.text, INTRO_VARIANTS_BY_BUCKET.general[0]);
 
-    // IMPORTANT: persist intro as lastOut so post-intro grace can safely re-emit it
     session.lastOut = introLine;
     session.lastOutAt = startedAt;
 
@@ -1008,7 +1008,7 @@ async function handleChat(input = {}) {
     };
   }
 
-  // Resolve engine (THIS is the fix)
+  // Resolve engine
   const resolved = resolveEngine(input);
 
   let core = null;
@@ -1037,7 +1037,7 @@ async function handleChat(input = {}) {
         engineEmptyReply = !rr;
       }
     } else {
-      core = fallbackCore({ text: inboundText, session });
+      core = fallbackCore({ text: inboundText, session, resolvedYear: resolvedYear0 });
     }
   } catch (e) {
     const msg = safeStr(e && e.message ? e.message : e).trim();
@@ -1056,14 +1056,17 @@ async function handleChat(input = {}) {
     };
   }
 
-  // If engine forgot chips for obvious music requests, attach safe defaults.
-  if (core && typeof core === "object") core = maybeAttachMusicFollowUps(core, inboundText, session);
+  // Attach safe music followUps if engine forgot chips
+  if (core && typeof core === "object") core = maybeAttachMusicFollowUps(core, resolvedYear0, inboundText, session);
 
   // Normalize lane + reply
   const outLane = safeStr((core && core.lane) || session.lane || lane || "general").trim() || "general";
   session.lane = (ov.forced || forceMusicYear) ? "music" : outLane;
 
-  let reply = nonEmptyReply(core && core.reply, "A year usually clears things up.");
+  // BLOCK the year-missing fallback when year exists anywhere
+  const resolvedYearFinal = resolveInboundYear(input, inboundText, session);
+
+  let reply = nonEmptyReply(core && core.reply, resolvedYearFinal ? `Got it — ${resolvedYearFinal}. What do you want: Top 10, #1, story moment, or micro moment?` : "A year usually clears things up.");
   reply = clampStr(reply, MAX_REPLY_CHARS);
 
   // sessionPatch allowlist merge
@@ -1078,6 +1081,10 @@ async function handleChat(input = {}) {
       session[k] = v;
     }
   }
+
+  // Re-commit year after engine merge (engine might return cog/year)
+  const yPost = resolveInboundYear(input, inboundText, session);
+  if (yPost) commitYear(session, yPost, session.cog.yearSource || "post_engine");
 
   session.lastOut = reply;
   session.lastOutAt = startedAt;
@@ -1116,7 +1123,7 @@ async function handleChat(input = {}) {
       inboundNormalized,
       override:
         (ov.forced ? `music:${safeMetaStr(ov.mode)}:${safeMetaStr(ov.year)}` : "") ||
-        (forceMusicYear ? `music:top10:${safeMetaStr(yearAuth)}` : ""),
+        (forceMusicYear ? `music:top10:${safeMetaStr(resolvedYear0)}` : ""),
       elapsedMs: nowMs() - startedAt,
       engineResolvedFrom: resolved.from,
       engineOk,
