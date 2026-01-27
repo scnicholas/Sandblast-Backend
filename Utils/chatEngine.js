@@ -16,11 +16,10 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.6zW (ENTERPRISE HARDENED++: replay payload capture + inbound clamp + burst dedupe + lane drift guard)
- *  ✅ FIX: Replay cache returns the original followUps/directives (not generic intro chips) — prevents “chip-click stalls” + reduces loop feel
- *  ✅ FIX: Inbound text is clamped + normalized early (prevents runaway payloads / proxy HTML / accidental huge bodies)
- *  ✅ FIX: Burst dedupe (sub-250ms identical inbound) treated as replay (handles double-fire click events)
- *  ✅ FIX: Intro lane drift guard preserves prior lane in session.lastLane before forcing general intro
+ * v0.6zX (ENTERPRISE HARDENED+++ + TRUE RANDOM INTROS)
+ *  ✅ NEW: Random intro shuffle-bag per bucket (no-repeat until bag refills) — fixes “same greeting” problem
+ *  ✅ NEW: Persists __nyxIntro via sessionPatch allowlist so randomization survives client sessionPatch persistence
+ *  ✅ Keeps: Replay payload capture + inbound clamp + burst dedupe + lane drift guard
  *  ✅ Keeps: Year-only payload/ctx clicks hydrate inboundText so engine runs (lists fire)
  *  ✅ Keeps: Replay cache works without client requestId
  *  ✅ Keeps: PACKETS gating enforced at ENGINE RESOLVE time
@@ -34,7 +33,7 @@ const crypto = require("crypto");
 // Version
 // =========================
 const CE_VERSION =
-  "chatEngine v0.6zW (enterprise hardened++: replay payload capture + inbound clamp + burst dedupe + lane drift guard + payload-year hydration + replayKey fix + packets gating at engine-resolve + authoritative year commit + mode-only attach + loopkiller+++++ + post-intro grace + idempotency + timeout + contract normalize + session safety)";
+  "chatEngine v0.6zX (enterprise hardened+++ + random intro shuffle-bag no-repeat + replay payload capture + inbound clamp + burst dedupe + lane drift guard + payload-year hydration + replayKey fix + packets gating at engine-resolve + authoritative year commit + mode-only attach + loopkiller+++++ + post-intro grace + idempotency + timeout + contract normalize + session safety)";
 
 // =========================
 // Enterprise knobs
@@ -212,6 +211,21 @@ function clampInboundText(raw) {
   // Safety for accidental HTML/proxy errors getting piped into chat
   const compact = t.replace(/\s+/g, " ");
   return clampStr(compact, MAX_INBOUND_CHARS);
+}
+function shuffleInPlace(arr) {
+  // Fisher-Yates, crypto-backed
+  for (let i = arr.length - 1; i > 0; i--) {
+    let j = 0;
+    try {
+      j = crypto.randomInt(0, i + 1);
+    } catch (_) {
+      j = Math.floor(Math.random() * (i + 1));
+    }
+    const tmp = arr[i];
+    arr[i] = arr[j];
+    arr[j] = tmp;
+  }
+  return arr;
 }
 
 // =========================
@@ -445,22 +459,88 @@ function pickIntroBucket(session, inboundText, routeHint, input) {
 
   return "general";
 }
-function pickIntroForLogin(session, startedAt, bucketKey) {
-  const bucket = Math.floor(startedAt / INTRO_REARM_MS);
-  const bkey = safeStr(bucketKey || "general");
-  const bucketStamp = `${bkey}:${bucket}`;
 
-  const arr = INTRO_VARIANTS_BY_BUCKET[bkey] || INTRO_VARIANTS_BY_BUCKET.general;
+/**
+ * TRUE RANDOM INTRO PICKER (shuffle-bag + no-repeat until bag refills)
+ * - Each bucket has its own bag of indices.
+ * - We pop one index per intro serve.
+ * - When empty, we refill with a fresh shuffle.
+ * - We also try to avoid repeating the immediate last intro for that bucket.
+ */
+function getIntroBag(session, bucketKey, arrLen) {
+  session.__nyxIntro = isPlainObject(session.__nyxIntro) ? session.__nyxIntro : {};
+  session.__nyxIntro.bags = isPlainObject(session.__nyxIntro.bags) ? session.__nyxIntro.bags : {};
 
-  const prevBucket = safeStr(session.introBucket || "");
-  const prevId = safeInt(session.introVariantId || 0, 0);
+  const key = safeStr(bucketKey || "general") || "general";
+  let bag = session.__nyxIntro.bags[key];
 
-  if (prevBucket === bucketStamp && prevId >= 0 && prevId < arr.length) {
-    return { text: arr[prevId], id: prevId, bucket: bucketStamp };
+  // Validate bag
+  if (!Array.isArray(bag)) bag = [];
+  bag = bag.filter((n) => Number.isInteger(n) && n >= 0 && n < arrLen);
+
+  if (!bag.length) {
+    const fresh = [];
+    for (let i = 0; i < arrLen; i++) fresh.push(i);
+    shuffleInPlace(fresh);
+
+    // Soft no-repeat: if lastId equals the first to pop, rotate once (if possible)
+    const lastId = safeInt(session.__nyxIntro.lastIdByBucket && session.__nyxIntro.lastIdByBucket[key], -1,);
+    if (arrLen > 1 && Number.isInteger(lastId) && lastId >= 0 && lastId < arrLen && fresh[fresh.length - 1] === lastId) {
+      // swap last element with a random earlier element
+      const swapWith = pickRandomIndex(fresh.length - 1);
+      const tmp = fresh[fresh.length - 1];
+      fresh[fresh.length - 1] = fresh[swapWith];
+      fresh[swapWith] = tmp;
+    }
+
+    bag = fresh;
   }
 
-  const id = pickRandomIndex(arr.length);
-  return { text: arr[id] || arr[0], id, bucket: bucketStamp };
+  session.__nyxIntro.bags[key] = bag;
+  return bag;
+}
+
+function pickIntroForLogin(session, startedAt, bucketKey) {
+  const bkey = safeStr(bucketKey || "general") || "general";
+  const arr = INTRO_VARIANTS_BY_BUCKET[bkey] || INTRO_VARIANTS_BY_BUCKET.general;
+
+  // Initialize bucket lastId map
+  session.__nyxIntro = isPlainObject(session.__nyxIntro) ? session.__nyxIntro : {};
+  session.__nyxIntro.lastIdByBucket = isPlainObject(session.__nyxIntro.lastIdByBucket)
+    ? session.__nyxIntro.lastIdByBucket
+    : {};
+
+  const bag = getIntroBag(session, bkey, arr.length);
+
+  // pop from end (most efficient)
+  let id = Number.isInteger(bag[bag.length - 1]) ? bag.pop() : pickRandomIndex(arr.length);
+
+  // Hard no-repeat against immediate last served for same bucket (if possible)
+  const lastId = safeInt(session.__nyxIntro.lastIdByBucket[bkey], -1);
+  if (arr.length > 1 && id === lastId) {
+    // try one more draw from bag; if empty, random fallback
+    if (bag.length) {
+      id = bag.pop();
+    } else {
+      // random but not lastId
+      let tries = 0;
+      let cand = id;
+      while (tries < 6 && cand === lastId) {
+        cand = pickRandomIndex(arr.length);
+        tries++;
+      }
+      id = cand;
+    }
+  }
+
+  // Persist last picked
+  session.__nyxIntro.lastIdByBucket[bkey] = id;
+
+  // Keep existing fields (used elsewhere / older logic)
+  session.introVariantId = id;
+  session.introBucket = safeStr(bkey);
+
+  return { text: arr[id] || arr[0], id, bucket: bkey, at: startedAt };
 }
 
 // =========================
@@ -549,6 +629,9 @@ const PATCH_KEYS = new Set([
 
   // packets gate flag (so widget/index can persist it if needed)
   "allowPackets",
+
+  // NEW: persist intro randomization state (small, bounded)
+  "__nyxIntro",
 ]);
 
 function buildSessionPatch(session) {
@@ -558,6 +641,10 @@ function buildSessionPatch(session) {
     if (!PATCH_KEYS.has(k)) continue;
     if (k === "cog") {
       if (isPlainObject(s.cog)) out.cog = s.cog;
+      continue;
+    }
+    if (k === "__nyxIntro") {
+      if (isPlainObject(s.__nyxIntro)) out.__nyxIntro = s.__nyxIntro;
       continue;
     }
     out[k] = s[k];
@@ -1091,8 +1178,6 @@ async function handleChat(input = {}) {
     session.lane = "general";
 
     const pick = pickIntroForLogin(session, startedAt, bucketKey);
-    session.introVariantId = pick.id;
-    session.introBucket = pick.bucket;
 
     const introLine = nonEmptyReply(pick.text, INTRO_VARIANTS_BY_BUCKET.general[0]);
 
@@ -1212,6 +1297,10 @@ async function handleChat(input = {}) {
       if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
       if (k === "cog") {
         if (isPlainObject(v)) session.cog = v;
+        continue;
+      }
+      if (k === "__nyxIntro") {
+        if (isPlainObject(v)) session.__nyxIntro = v;
         continue;
       }
       session[k] = v;
