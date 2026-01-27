@@ -3,17 +3,29 @@
 /**
  * Sandblast Backend — index.js
  *
+<<<<<<< HEAD
  * index.js v1.5.17zs
+=======
+ * index.js v1.5.17zq
+>>>>>>> 421f376 (Add /api/health endpoint and harden backend reset flow)
  * (Option B alignment: chatEngine v0.6zV compatibility + enterprise guards + /api/health alias)
  *
  * Goals:
  *  ✅ Preserve Voice/TTS stability (ElevenLabs) + /api/tts + /api/voice aliases
+<<<<<<< HEAD
  *  ✅ Preserve CORS HARD-LOCK + preflight reliability (stabilized: max-age + consistent OPTIONS headers)
  *  ✅ FIX: allow widget build headers (X-SBNYX-Client-Build / X-SBNYX-Widget-Version) to pass preflight
  *  ✅ Preserve turn dedupe + loop fuse (session + burst + sustained)
  *  ✅ Preserve sessionPatch persistence (cog + continuity keys)
  *  ✅ Preserve boot-intro bridge behavior (panel_open_intro / boot_intro)
  *  ✅ Fix: boot-intro / empty-text requests should NOT trigger outer replay dedupe or throttles
+=======
+ *  ✅ Preserve CORS HARD-LOCK + preflight reliability
+ *  ✅ Preserve turn dedupe + loop fuse (session + burst + sustained)
+ *  ✅ Preserve sessionPatch persistence (cog + continuity keys)
+ *  ✅ Preserve boot-intro bridge behavior (panel_open_intro / boot_intro)
+ *  ✅ Fix: boot-intro / empty-text requests should NOT trigger outer replay dedupe or throttles (prevents “intro loops”)
+>>>>>>> 421f376 (Add /api/health endpoint and harden backend reset flow)
  *  ✅ Fix: add GET /api/health (widget expects it)
  *
  * NOTE:
@@ -37,17 +49,32 @@ function safeRequire(p) {
   }
 }
 
+<<<<<<< HEAD
 // Your pure engine
 const chatEngine = safeRequire("./Utils/chatEngine") || safeRequire("./Utils/chatEngine.js") || null;
 
 // Optional ElevenLabs (safe-load; won't brick server if missing)
 const fetch = global.fetch || safeRequire("node-fetch");
 
+=======
+const cors = safeRequire("cors") || null; // optional; we still hard-lock CORS manually
+
+// Your pure engine
+const chatEngine = safeRequire("./Utils/chatEngine") || safeRequire("./Utils/chatEngine.js") || null;
+
+// Optional ElevenLabs (safe-load; won't brick server if missing)
+const fetch = global.fetch || safeRequire("node-fetch");
+
+>>>>>>> 421f376 (Add /api/health endpoint and harden backend reset flow)
 // =========================
 // Version
 // =========================
 const INDEX_VERSION =
+<<<<<<< HEAD
   "index.js v1.5.17zs (enterprise hardened: CORS hard-lock + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY replay+throttle bypass + requestId always-on + TTS parse recovery + chatEngine v0.6zV compatibility; CORS preflight stabilized; allow X-SBNYX client headers)";
+=======
+  "index.js v1.5.17zq (enterprise hardened: CORS hard-lock + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY replay+throttle bypass + requestId always-on + TTS parse recovery + chatEngine v0.6zV compatibility)";
+>>>>>>> 421f376 (Add /api/health endpoint and harden backend reset flow)
 
 // =========================
 // Env / knobs
@@ -189,6 +216,7 @@ function isBootLike(routeHint, body) {
   return false;
 }
 
+<<<<<<< HEAD
 function isAllowedOrigin(origin) {
   if (!origin) return false;
   const o = normalizeOrigin(origin);
@@ -219,6 +247,26 @@ function sessionKeyFromReq(req) {
   return `fp_${fp}`;
 }
 
+=======
+// =========================
+// Session store (in-memory, enterprise-safe-ish)
+// =========================
+const SESSIONS = new Map(); // key -> { data: sessionObj, lastSeenAt, burst:[ts], sustained:[ts] }
+
+function sessionKeyFromReq(req) {
+  const b = isPlainObject(req.body) ? req.body : {};
+  const h = req.headers || {};
+  const sid =
+    safeStr(b.sessionId || b.visitorId || b.deviceId).trim() ||
+    safeStr(h["x-sb-session"] || h["x-session-id"] || h["x-visitor-id"]).trim();
+
+  if (sid) return sid.slice(0, 120);
+
+  const fp = sha1(`${pickClientIp(req)}|${safeStr(req.headers["user-agent"] || "")}`).slice(0, 24);
+  return `fp_${fp}`;
+}
+
+>>>>>>> 421f376 (Add /api/health endpoint and harden backend reset flow)
 function pruneSessions(now) {
   for (const [k, v] of SESSIONS.entries()) {
     if (!v || !v.lastSeenAt) {
@@ -310,6 +358,7 @@ if (toBool(TRUST_PROXY, false)) app.set("trust proxy", 1);
 app.use(express.json({ limit: MAX_JSON_BODY }));
 app.use(express.text({ type: ["text/*"], limit: MAX_JSON_BODY }));
 
+<<<<<<< HEAD
 // =========================
 // CORS hard-lock (stabilized)
 // =========================
@@ -355,6 +404,41 @@ app.use((req, res, next) => {
 // =========================
 // Health + discovery
 // =========================
+=======
+// CORS hard-lock (works even without cors package)
+app.use((req, res, next) => {
+  const origin = normalizeOrigin(req.headers.origin || "");
+  const allow = isAllowedOrigin(origin);
+
+  if (origin && allow) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Vary", "Origin");
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      "Content-Type, Authorization, X-Requested-With, X-SB-Session, X-Session-Id, X-Visitor-Id, X-Request-Id, X-Route-Hint"
+    );
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  }
+
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  return next();
+});
+
+function isAllowedOrigin(origin) {
+  if (!origin) return false;
+  const o = normalizeOrigin(origin);
+  if (ORIGINS_ALLOWLIST.includes(o)) return true;
+  for (const rx of ORIGIN_REGEXES) {
+    try {
+      if (rx.test(o)) return true;
+    } catch (_) {}
+  }
+  return false;
+}
+
+// Health + discovery
+>>>>>>> 421f376 (Add /api/health endpoint and harden backend reset flow)
 app.get("/", (req, res) => {
   res.status(200).json({ ok: true, service: "sandblast-backend", version: INDEX_VERSION, env: NODE_ENV });
 });
@@ -372,7 +456,11 @@ app.get("/api/discovery", (req, res) => {
   res.status(200).json({
     ok: true,
     version: INDEX_VERSION,
+<<<<<<< HEAD
     endpoints: ["/api/sandblast-gpt", "/api/nyx/chat", "/api/chat", "/api/tts", "/api/voice", "/health", "/api/health"],
+=======
+    endpoints: ["/api/sandblast-gpt", "/api/nyx/chat", "/api/tts", "/api/voice", "/health", "/api/health"],
+>>>>>>> 421f376 (Add /api/health endpoint and harden backend reset flow)
   });
 });
 
