@@ -7,7 +7,7 @@
  * Reads Data/nyx/packets_v1.json and returns:
  *   { reply, followUps, sessionPatch, meta }
  *
- * v1.1b (BULLETPROOF: SAFE LOAD + STRICT MATCH + NO HIJACK + TEMPLATE HARDEN + CHIP SANITIZE)
+ * v1.1c (BULLETPROOF + CHATENGINE GATE: NO HIJACK)
  *
  * HARDENING / FIXES:
  * ✅ Never throws, never bricks boot (all-guards + safe fallbacks)
@@ -19,6 +19,10 @@
  * ✅ Anti-hijack guardrails:
  *    - packets are meant for greet/help/bye + explicit "__ask_year__" style calls
  *    - can be forced ONLY via reserved triggers; otherwise requires stable-safe trigger hit
+ * ✅ NEW: CHATENGINE GATE:
+ *    - packets only run when session.allowPackets===true
+ *    - reserved triggers ALWAYS allowed (explicit invocation)
+ *    - if a year exists, packets do not fire unless reserved trigger
  * ✅ Prototype-pollution safe sessionPatch allowlist + deep-copy
  * ✅ FollowUps sanitized (length caps, max count, dedupe, no weird objects)
  * ✅ Template selection deterministic and safe (caps, type checks)
@@ -59,6 +63,14 @@ function clampYear(y) {
   return n;
 }
 
+function extractYearFromText(text) {
+  const m = String(text || "").match(/\b(19[5-9]\d|20[0-1]\d|202[0-4])\b/);
+  if (!m) return null;
+  const y = Number(m[1]);
+  if (!Number.isFinite(y) || y < 1950 || y > 2024) return null;
+  return y;
+}
+
 function replaceVars(str, vars) {
   let out = String(str || "");
   if (!vars || typeof vars !== "object") return out;
@@ -76,8 +88,7 @@ function djb2Hash(str) {
     h = (h * 33) ^ s.charCodeAt(i);
     h |= 0;
   }
-  // convert to unsigned
-  return h >>> 0;
+  return h >>> 0; // unsigned
 }
 
 function safeFollowUps(list) {
@@ -120,13 +131,11 @@ function safeSessionPatch(patch) {
       continue;
     }
 
-    // Keep strings only for lane/mode/voiceMode/lastIntentSig
     const v = patch[k];
     if (v == null) continue;
     out[k] = String(v).trim();
   }
 
-  // empty?
   return Object.keys(out).length ? out : null;
 }
 
@@ -141,7 +150,6 @@ function reEscape(s) {
  * Trigger match policy:
  * - Reserved triggers must match EXACTLY: "__fallback__", "__error__", "__ask_year__", etc.
  * - Normal triggers match on word boundaries (prevents substring hijack).
- *   Example: trigger "hi" should match "hi", "hi there" but NOT "this".
  */
 function isReservedTrigger(trig) {
   const s = normText(trig);
@@ -158,10 +166,6 @@ function matchTrigger(textLower, trig) {
   if (isReservedTrigger(s)) return t === s;
 
   // Normal: boundary match
-  // This catches:
-  //  - "good morning" inside "good morning mac"
-  //  - "help" inside "can you help?"
-  // and avoids "hi" inside "this".
   const pattern = new RegExp(`(^|\\b)${reEscape(s)}(\\b|$)`, "i");
   return pattern.test(t);
 }
@@ -203,7 +207,6 @@ function loadPackets() {
     const mtimeMs = Number(st.mtimeMs || 0);
     if (CACHE && mtimeMs && mtimeMs === CACHE_MTIME_MS) return CACHE;
   } catch (_) {
-    // stat fail -> rely on cache if any
     if (CACHE) return CACHE;
   }
 
@@ -223,7 +226,6 @@ function loadPackets() {
       return CACHE || null;
     }
 
-    // sanitize minimally: ensure packets list is objects
     const safePackets = json.packets.filter((p) => p && typeof p === "object");
     CACHE = { packets: safePackets };
     CACHE_ERR = null;
@@ -240,28 +242,40 @@ function loadPackets() {
    Packet intent gating
 ====================================================== */
 
-/**
- * Only these packet types are allowed to match freely.
- * Anything else must be invoked via reserved triggers (explicit call).
- *
- * This prevents someone accidentally adding a trigger that hijacks whole flows.
- */
 function isAllowedPacketType(type) {
   const t = normText(type);
   return t === "greet" || t === "help" || t === "bye" || t === "system" || t === "prompt";
 }
 
-/**
- * Decide if a matched packet is allowed to fire.
- * - Reserved triggers are always allowed (explicit call).
- * - Non-reserved triggers only allowed for safe types.
- */
 function allowPacketFire({ packet, matchedTrig }) {
   const trig = normText(matchedTrig);
   if (isReservedTrigger(trig)) return true;
 
   const type = normText(packet && packet.type);
   return isAllowedPacketType(type);
+}
+
+/**
+ * NEW: chatEngine gate
+ * - If session.allowPackets !== true, packets do not run (unless reserved trigger was explicitly invoked).
+ * - If a year exists in the inbound text OR session.lastMusicYear, do not run packets unless reserved trigger.
+ */
+function gateAllowsRun({ lowerText, session, matchedTrig }) {
+  const reserved = isReservedTrigger(matchedTrig || "");
+
+  // Reserved triggers are explicit invocations — always allowed.
+  if (reserved) return true;
+
+  // Must be explicitly enabled by chatEngine.
+  const allow = !!(session && session.allowPackets === true);
+  if (!allow) return false;
+
+  // If a year is present, packets should not hijack music turns.
+  const yText = extractYearFromText(lowerText);
+  const ySess = clampYear(session && session.lastMusicYear);
+  if (yText || ySess) return false;
+
+  return true;
 }
 
 /* ======================================================
@@ -284,6 +298,7 @@ async function handleChat({ text, session, visitorId, debug }) {
     const t = String(text || "").trim();
     const lower = normText(t);
 
+    // Prefer explicit year, but support template var {year} using session lastMusicYear only (as designed)
     const y = clampYear(session && session.lastMusicYear);
     const vars = { year: y ? String(y) : "" };
 
@@ -296,11 +311,17 @@ async function handleChat({ text, session, visitorId, debug }) {
 
       for (const trig of p.trigger) {
         if (matchTrigger(lower, trig)) {
-          // gate it (prevents hijack from unsafe packet types)
-          if (allowPacketFire({ packet: p, matchedTrig: trig })) {
-            chosen = p;
-            matchedTrig = trig;
+          // 1) type/trigger guard
+          if (!allowPacketFire({ packet: p, matchedTrig: trig })) break;
+
+          // 2) NEW: chatEngine gate
+          if (!gateAllowsRun({ lowerText: lower, session, matchedTrig: trig })) {
+            // If blocked, treat as no match and continue scanning
+            break;
           }
+
+          chosen = p;
+          matchedTrig = trig;
           break;
         }
       }
@@ -308,7 +329,12 @@ async function handleChat({ text, session, visitorId, debug }) {
     }
 
     if (!chosen) {
-      return { reply: "", followUps: [], sessionPatch: null, meta: debug ? { ok: false, reason: "no_match" } : null };
+      return {
+        reply: "",
+        followUps: [],
+        sessionPatch: null,
+        meta: debug ? { ok: false, reason: "no_match_or_blocked" } : null,
+      };
     }
 
     const tmpl = pickTemplate(chosen.templates, lower);
@@ -331,7 +357,9 @@ async function handleChat({ text, session, visitorId, debug }) {
             packetLane: chosen.lane || null,
             matchedTrig: String(matchedTrig || ""),
             reservedTrig: isReservedTrigger(matchedTrig || ""),
-            hasYear: !!y,
+            gateAllowPackets: !!(session && session.allowPackets === true),
+            blockedByYear: !!(extractYearFromText(lower) || (session && clampYear(session.lastMusicYear))),
+            hasYearVar: !!y,
             path: PACKETS_PATH,
           }
         : null,
