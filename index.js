@@ -3,17 +3,13 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17zs
+ * index.js v1.5.17zu
  * (Option B alignment: chatEngine v0.6zV compatibility + enterprise guards + /api/health alias)
  *
  * Goals:
- *  ✅ Preserve Voice/TTS stability (ElevenLabs) + /api/tts + /api/voice aliases
+ *  ✅ Preserve Voice/TTS stability (ElevenLabs) + /api/tts + /api/voice aliases  <-- FIXED (no more 501 stub)
  *  ✅ Preserve CORS HARD-LOCK + preflight reliability (stabilized)
- *  ✅ Preserve turn dedupe + loop fuse (session + burst + sustained)
- *  ✅ Preserve sessionPatch persistence (cog + continuity keys)
- *  ✅ Preserve boot-intro bridge behavior (panel_open_intro / boot_intro)
- *  ✅ Fix: boot-intro / empty-text requests bypass replay + throttles
- *  ✅ Fix: add GET /api/health (widget expects it)
+ *  ✅ Preserve sessionPatch persistence
  *  ✅ Fix: allow x-sbnyx-client-build header (CORS)
  *  ✅ FIX: allow x-contract-version header (CORS)  <-- REQUIRED
  *
@@ -49,7 +45,7 @@ const fetch = global.fetch || safeRequire("node-fetch");
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.17zs (enterprise hardened: CORS hard-lock + stabilized preflight + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY bypass + requestId always-on + TTS parse recovery + chatEngine v0.6zV compatibility; CORS headers: x-sbnyx-client-build + x-contract-version)";
+  "index.js v1.5.17zu (enterprise hardened: CORS hard-lock + stabilized preflight + chatEngine v0.6zV compatibility; CORS headers: x-sbnyx-client-build + x-contract-version; ElevenLabs TTS restored on /api/tts + /api/voice)";
 
 // =========================
 // Env / knobs
@@ -71,6 +67,20 @@ const ORIGINS_REGEX_ALLOWLIST = String(
   process.env.CORS_ALLOW_ORIGINS_REGEX || ""
 ).trim();
 
+// ElevenLabs
+const ELEVEN_API_KEY = String(
+  process.env.ELEVENLABS_API_KEY || process.env.ELEVEN_API_KEY || ""
+).trim();
+
+const ELEVEN_VOICE_ID = String(
+  process.env.ELEVENLABS_VOICE_ID || process.env.NYX_VOICE_ID || ""
+).trim();
+
+const NYX_VOICE_STABILITY = clampFloat(process.env.NYX_VOICE_STABILITY, 0.45, 0, 1);
+const NYX_VOICE_SIMILARITY = clampFloat(process.env.NYX_VOICE_SIMILARITY, 0.72, 0, 1);
+const NYX_VOICE_STYLE = clampFloat(process.env.NYX_VOICE_STYLE, 0.25, 0, 1);
+const NYX_VOICE_SPEAKER_BOOST = toBool(process.env.NYX_VOICE_SPEAKER_BOOST, true);
+
 // =========================
 // Utils
 // =========================
@@ -79,17 +89,13 @@ const safeStr = (x) => (x == null ? "" : String(x));
 const sha1 = (s) =>
   crypto.createHash("sha1").update(String(s)).digest("hex");
 
-const clampInt = (v, d, min, max) => {
+function clampFloat(v, d, min, max) {
   const n = Number(v);
   if (!Number.isFinite(n)) return d;
-  return Math.max(min, Math.min(max, Math.trunc(n)));
-};
-
-const clampFloat = (v, d, min, max) => {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return d;
-  return Math.max(min, Math.min(max, n));
-};
+  if (n < min) return min;
+  if (n > max) return max;
+  return n;
+}
 
 const toBool = (v, d) => {
   const s = String(v ?? "").trim().toLowerCase();
@@ -125,6 +131,18 @@ function isAllowedOrigin(origin) {
       return false;
     }
   });
+}
+
+function safeJsonParseMaybe(x) {
+  if (x === null || x === undefined) return null;
+  if (typeof x === "object") return x;
+  const s = String(x).trim();
+  if (!s) return null;
+  try {
+    return JSON.parse(s);
+  } catch {
+    return null;
+  }
 }
 
 // =========================
@@ -164,7 +182,10 @@ app.use((req, res, next) => {
         "X-Route-Hint",
         "X-SBNYX-Client-Build",
         "X-SBNYX-Widget-Version",
-        "X-Contract-Version", // ✅ REQUIRED (fixes your current preflight block)
+        "X-Contract-Version", // ✅ REQUIRED
+        // helpful extras (browsers sometimes add these):
+        "Accept",
+        "Range",
       ].join(", ")
     );
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
@@ -201,11 +222,13 @@ app.post("/api/chat", async (req, res) => {
     });
   }
 
+  const body = (typeof req.body === "object" && req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
+
   try {
     const out = await chatEngine.handleChat({
-      ...req.body,
+      ...body,
       requestId:
-        req.body?.requestId ||
+        body?.requestId ||
         (typeof crypto.randomUUID === "function" ? crypto.randomUUID() : sha1(`${nowMs()}|${Math.random()}`)),
     });
 
@@ -220,23 +243,88 @@ app.post("/api/chat", async (req, res) => {
 });
 
 // =========================
-// TTS
+// TTS (ElevenLabs) — FIXED
 // =========================
-app.post("/api/tts", async (req, res) => {
-  res.status(501).json({
-    ok: false,
-    error: "TTS not configured",
-    version: INDEX_VERSION,
-  });
-});
+async function handleTtsRoute(req, res) {
+  // Accept either JSON body or raw text
+  let body = (typeof req.body === "object" && req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
+  if (typeof req.body === "string") body = { text: req.body };
 
-app.post("/api/voice", async (req, res) => {
-  res.status(501).json({
-    ok: false,
-    error: "Voice alias not configured",
-    version: INDEX_VERSION,
-  });
-});
+  const text = safeStr(body.text || body.message || body.prompt || "").trim();
+  const noText = toBool(body.NO_TEXT || body.noText, false);
+
+  // Hard truth: if not configured, return 501
+  if (!ELEVEN_API_KEY || !ELEVEN_VOICE_ID || !fetch) {
+    return res.status(501).json({
+      ok: false,
+      error:
+        "TTS not configured (set ELEVENLABS_API_KEY/ELEVEN_API_KEY and ELEVENLABS_VOICE_ID/NYX_VOICE_ID).",
+      version: INDEX_VERSION,
+    });
+  }
+
+  if (!text && !noText) {
+    return res.status(400).json({
+      ok: false,
+      error: "Missing text for TTS.",
+      version: INDEX_VERSION,
+    });
+  }
+
+  try {
+    const payload = {
+      text: text || " ",
+      model_id: "eleven_monolingual_v1",
+      voice_settings: {
+        stability: NYX_VOICE_STABILITY,
+        similarity_boost: NYX_VOICE_SIMILARITY,
+        style: NYX_VOICE_STYLE,
+        use_speaker_boost: NYX_VOICE_SPEAKER_BOOST,
+      },
+    };
+
+    const r = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(ELEVEN_VOICE_ID)}`,
+      {
+        method: "POST",
+        headers: {
+          "xi-api-key": ELEVEN_API_KEY,
+          "Content-Type": "application/json",
+          Accept: "audio/mpeg",
+        },
+        body: JSON.stringify(payload),
+      }
+    );
+
+    if (!r.ok) {
+      const errTxt = await r.text().catch(() => "");
+      return res.status(502).json({
+        ok: false,
+        error: "TTS upstream error",
+        detail: safeStr(errTxt).slice(0, 800),
+        status: r.status,
+        version: INDEX_VERSION,
+      });
+    }
+
+    const buf = Buffer.from(await r.arrayBuffer());
+    res.setHeader("Content-Type", "audio/mpeg");
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Content-Length", String(buf.length));
+    return res.status(200).send(buf);
+  } catch (e) {
+    return res.status(500).json({
+      ok: false,
+      error: "TTS failure",
+      detail: safeStr(e?.message || e).slice(0, 250),
+      version: INDEX_VERSION,
+    });
+  }
+}
+
+app.post("/api/tts", handleTtsRoute);
+app.post("/api/voice", handleTtsRoute);
 
 // =========================
 // Start
