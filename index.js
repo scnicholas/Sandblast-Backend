@@ -3,8 +3,8 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17zp
- * (Option B alignment: chatEngine v0.6zV compatibility + enterprise guards + BOOT INTRO LOOP FIX)
+ * index.js v1.5.17zq
+ * (Option B alignment: chatEngine v0.6zV compatibility + enterprise guards + /api/health alias)
  *
  * Goals:
  *  ✅ Preserve Voice/TTS stability (ElevenLabs) + /api/tts + /api/voice aliases
@@ -13,7 +13,7 @@
  *  ✅ Preserve sessionPatch persistence (cog + continuity keys)
  *  ✅ Preserve boot-intro bridge behavior (panel_open_intro / boot_intro)
  *  ✅ Fix: boot-intro / empty-text requests should NOT trigger outer replay dedupe or throttles (prevents “intro loops”)
- *  ✅ Fix: always provide a requestId to chatEngine (engine dedupe becomes deterministic)
+ *  ✅ Fix: add GET /api/health (widget expects it)
  *
  * NOTE:
  *  - Expects ./Utils/chatEngine.js to export handleChat (as in your v0.6zV paste).
@@ -48,7 +48,7 @@ const fetch = global.fetch || safeRequire("node-fetch");
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.17zp (enterprise hardened: CORS hard-lock + loop fuse + sessionPatch persistence + boot-intro bridge + BOOT/EMPTY replay+throttle bypass + requestId always-on + TTS parse recovery + chatEngine v0.6zV compatibility)";
+  "index.js v1.5.17zq (enterprise hardened: CORS hard-lock + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY replay+throttle bypass + requestId always-on + TTS parse recovery + chatEngine v0.6zV compatibility)";
 
 // =========================
 // Env / knobs
@@ -181,11 +181,9 @@ function isBootLike(routeHint, body) {
   const mode = safeStr(body?.mode || body?.intent || body?.client?.mode || body?.client?.intent).toLowerCase();
   const src = safeStr(body?.source || body?.client?.source).toLowerCase();
 
-  // Keep tight: only bypass for the specific boot-intro semantics.
   if (rh === "boot_intro" || rh === "panel_open_intro") return true;
   if (mode === "boot_intro" || mode === "panel_open_intro") return true;
 
-  // Some widgets tag boot as "boot" but still mean intro.
   if (rh === "boot" && (mode.includes("intro") || src.includes("widget"))) return true;
   if (mode === "boot" && rh.includes("intro")) return true;
 
@@ -195,22 +193,15 @@ function isBootLike(routeHint, body) {
 // =========================
 // Session store (in-memory, enterprise-safe-ish)
 // =========================
-/**
- * In production you may swap this for Redis; but this Map gives:
- *  - deterministic session objects (so chatEngine can persist continuity)
- *  - TTL eviction + max cap
- */
 const SESSIONS = new Map(); // key -> { data: sessionObj, lastSeenAt, burst:[ts], sustained:[ts] }
 
 function sessionKeyFromReq(req) {
-  // Widget can send one of these: visitorId, sessionId, deviceId
   const b = isPlainObject(req.body) ? req.body : {};
   const h = req.headers || {};
   const sid =
     safeStr(b.sessionId || b.visitorId || b.deviceId).trim() ||
     safeStr(h["x-sb-session"] || h["x-session-id"] || h["x-visitor-id"]).trim();
 
-  // fallback: stable-ish on IP+UA (not perfect, but better than nothing)
   if (sid) return sid.slice(0, 120);
 
   const fp = sha1(`${pickClientIp(req)}|${safeStr(req.headers["user-agent"] || "")}`).slice(0, 24);
@@ -218,7 +209,6 @@ function sessionKeyFromReq(req) {
 }
 
 function pruneSessions(now) {
-  // TTL prune
   for (const [k, v] of SESSIONS.entries()) {
     if (!v || !v.lastSeenAt) {
       SESSIONS.delete(k);
@@ -226,7 +216,6 @@ function pruneSessions(now) {
     }
     if (now - v.lastSeenAt > SESSION_TTL_MS) SESSIONS.delete(k);
   }
-  // size cap prune (oldest first)
   if (SESSIONS.size > SESSION_MAX) {
     const arr = Array.from(SESSIONS.entries()).sort((a, b) => (a[1].lastSeenAt || 0) - (b[1].lastSeenAt || 0));
     const cut = SESSIONS.size - SESSION_MAX;
@@ -242,12 +231,7 @@ function getSession(req) {
   let rec = SESSIONS.get(key);
   if (!rec) {
     rec = {
-      data: {
-        sessionId: key,
-        visitorId: key,
-        lane: "general",
-        cog: {},
-      },
+      data: { sessionId: key, visitorId: key, lane: "general", cog: {} },
       lastSeenAt: now,
       burst: [],
       sustained: [],
@@ -282,11 +266,8 @@ function checkSustained(rec, now) {
 }
 
 function replayDedupe(rec, inboundText, source, clientRequestId) {
-  // Conservative: dedupe identical inbound within a short window.
-  // chatEngine v0.6zV also has its own replayKey logic; this is an outer fuse.
   const now = nowMs();
   const rid = safeStr(clientRequestId).trim();
-
   const sig = sha1(`${safeStr(rec.data.sessionId)}|${safeStr(source)}|${safeStr(inboundText)}`).slice(0, 12);
   const key = rid ? `rid:${rid}` : `sig:${sig}`;
 
@@ -313,11 +294,8 @@ function writeReplay(rec, reply, lane) {
 // =========================
 const app = express();
 
-if (toBool(TRUST_PROXY, false)) {
-  app.set("trust proxy", 1);
-}
+if (toBool(TRUST_PROXY, false)) app.set("trust proxy", 1);
 
-// Body parsers
 app.use(express.json({ limit: MAX_JSON_BODY }));
 app.use(express.text({ type: ["text/*"], limit: MAX_JSON_BODY }));
 
@@ -337,11 +315,7 @@ app.use((req, res, next) => {
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   }
 
-  if (req.method === "OPTIONS") {
-    // Preflight should never loop; return fast
-    return res.status(204).send("");
-  }
-
+  if (req.method === "OPTIONS") return res.status(204).send("");
   return next();
 });
 
@@ -361,14 +335,21 @@ function isAllowedOrigin(origin) {
 app.get("/", (req, res) => {
   res.status(200).json({ ok: true, service: "sandblast-backend", version: INDEX_VERSION, env: NODE_ENV });
 });
+
 app.get("/health", (req, res) => {
   res.status(200).json({ ok: true, version: INDEX_VERSION, up: true, now: new Date().toISOString() });
 });
+
+// ✅ ALIAS: widget expects this exact path
+app.get("/api/health", (req, res) => {
+  res.status(200).json({ ok: true, version: INDEX_VERSION, up: true, now: new Date().toISOString() });
+});
+
 app.get("/api/discovery", (req, res) => {
   res.status(200).json({
     ok: true,
     version: INDEX_VERSION,
-    endpoints: ["/api/sandblast-gpt", "/api/nyx/chat", "/api/tts", "/api/voice", "/health"],
+    endpoints: ["/api/sandblast-gpt", "/api/nyx/chat", "/api/tts", "/api/voice", "/health", "/api/health"],
   });
 });
 
@@ -377,7 +358,6 @@ app.get("/api/discovery", (req, res) => {
 // =========================
 async function handleChatRoute(req, res) {
   const startedAt = nowMs();
-
   const body = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
 
   const clientRequestId = safeStr(body.requestId || req.headers["x-request-id"] || "").trim();
@@ -392,13 +372,10 @@ async function handleChatRoute(req, res) {
 
   const inboundText = safeStr(body.text || body.message || body.prompt || body.query || body?.payload?.text || "").trim();
 
-  // Session
   const { rec } = getSession(req);
-
-  // Determine “boot/intro system ping” (these should NOT be throttled or outer-deduped)
   const bootLike = isBootLike(routeHint, body);
 
-  // Abuse guards (skip for bootLike to prevent “intro loop throttling”)
+  // Throttle fuse (skip for bootLike)
   if (!bootLike) {
     const burst = checkBurst(rec, startedAt);
     const sus = checkSustained(rec, startedAt);
@@ -420,7 +397,6 @@ async function handleChatRoute(req, res) {
   }
 
   // Outer replay dedupe (skip for bootLike + skip for empty inboundText)
-  // Rationale: empty/boot pings often repeat on mount; deduping them causes “stale intro” replays and perceived looping.
   if (!bootLike && inboundText) {
     const dedupe = replayDedupe(rec, inboundText, source, clientRequestId);
     if (dedupe.hit) {
@@ -438,16 +414,19 @@ async function handleChatRoute(req, res) {
   if (!chatEngine || typeof chatEngine.handleChat !== "function") {
     const reply = "Backend engine not loaded. Check deploy: Utils/chatEngine.js is missing.";
     writeReplay(rec, reply, "general");
-    return res
-      .status(500)
-      .json({ ok: false, reply, lane: "general", requestId: serverRequestId, meta: { index: INDEX_VERSION, engine: "missing" } });
+    return res.status(500).json({
+      ok: false,
+      reply,
+      lane: "general",
+      requestId: serverRequestId,
+      meta: { index: INDEX_VERSION, engine: "missing" },
+    });
   }
 
   // Build engine input (Option B friendly)
-  // CRITICAL: always provide requestId (serverRequestId) so chatEngine dedupe is deterministic even when client doesn't send one.
   const engineInput = {
     ...body,
-    requestId: serverRequestId,
+    requestId: serverRequestId, // ALWAYS provide (stable engine dedupe)
     clientRequestId: clientRequestId || undefined,
     text: inboundText,
     source,
@@ -457,7 +436,7 @@ async function handleChatRoute(req, res) {
       source,
       routeHint,
     },
-    session: rec.data, // the live session object
+    session: rec.data,
   };
 
   let out;
@@ -476,18 +455,15 @@ async function handleChatRoute(req, res) {
     });
   }
 
-  // Persist sessionPatch allowlist (engine already sanitized it; we still gate)
   if (out && isPlainObject(out.sessionPatch)) {
     applySessionPatch(rec.data, out.sessionPatch);
   }
 
-  // Persist lane / lastOut for outer replay
   const lane = safeStr(out?.lane || rec.data.lane || "general") || "general";
   const reply = safeStr(out?.reply || "").trim() || "Okay — tell me what you want next.";
   rec.data.lane = lane;
   writeReplay(rec, reply, lane);
 
-  // Standard response (NyxReplyContract-ish)
   return res.status(200).json({
     ok: true,
     reply,
@@ -514,7 +490,6 @@ async function handleChatRoute(req, res) {
 function applySessionPatch(session, patch) {
   if (!isPlainObject(session) || !isPlainObject(patch)) return;
 
-  // Mirror the allowlist from chatEngine (kept narrow on purpose).
   const PATCH_KEYS = new Set([
     "introDone",
     "introAt",
@@ -572,7 +547,6 @@ app.post("/api/chat", handleChatRoute);
 async function handleTtsRoute(req, res) {
   const startedAt = nowMs();
 
-  // Accept JSON body OR raw string OR { NO_TEXT: true, text: "..."} patterns
   let body = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
   if (typeof req.body === "string") body = { text: req.body };
 
@@ -625,7 +599,6 @@ async function handleTtsRoute(req, res) {
 
     const buf = Buffer.from(await r.arrayBuffer());
 
-    // Safer headers
     res.setHeader("Content-Type", "audio/mpeg");
     res.setHeader("Cache-Control", "no-store, max-age=0");
     res.setHeader("X-Content-Type-Options", "nosniff");
@@ -643,7 +616,7 @@ async function handleTtsRoute(req, res) {
 }
 
 app.post("/api/tts", handleTtsRoute);
-app.post("/api/voice", handleTtsRoute); // alias (kept)
+app.post("/api/voice", handleTtsRoute);
 
 // =========================
 // Start
