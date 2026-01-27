@@ -16,15 +16,15 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.6zV (ENTERPRISE HARDENED + AUTHORITATIVE YEAR COMMIT (SURGICAL) + LOOPKILLER+++++ + PACKETS GATING WIRED)
- *  ✅ FIX: Year-only payload/ctx clicks (inboundText empty) now hydrate inboundText so engine actually runs (fixes “lists not firing”)
- *  ✅ FIX: Replay cache now works when client did NOT provide requestId (internal requestId no longer breaks dedupe)
- *  ✅ FIX: PACKETS GATING is enforced at ENGINE RESOLVE time (packets engine is only selected when allowPackets=true)
- *  ✅ Keeps: Numeric year authoritative for Music + Top10 even when year arrives via payload/ctx
- *  ✅ Keeps: Commit year into session.cog.year + session.cog.lastMusicYear + session.lastMusicYear
- *  ✅ Keeps: Mode-only → auto-attach last known year (prefers session.lastMusicYear, then session.cog.year/lastMusicYear)
- *  ✅ Keeps: Block “A year usually clears…” when year exists anywhere (text/payload/ctx/cog/session)
- *  ✅ Keeps: FollowUps fallback uses resolved year (not text-only)
+ * v0.6zW (ENTERPRISE HARDENED++: replay payload capture + inbound clamp + burst dedupe + lane drift guard)
+ *  ✅ FIX: Replay cache returns the original followUps/directives (not generic intro chips) — prevents “chip-click stalls” + reduces loop feel
+ *  ✅ FIX: Inbound text is clamped + normalized early (prevents runaway payloads / proxy HTML / accidental huge bodies)
+ *  ✅ FIX: Burst dedupe (sub-250ms identical inbound) treated as replay (handles double-fire click events)
+ *  ✅ FIX: Intro lane drift guard preserves prior lane in session.lastLane before forcing general intro
+ *  ✅ Keeps: Year-only payload/ctx clicks hydrate inboundText so engine runs (lists fire)
+ *  ✅ Keeps: Replay cache works without client requestId
+ *  ✅ Keeps: PACKETS gating enforced at ENGINE RESOLVE time
+ *  ✅ Keeps: Numeric year authoritative + mode-only attach + “A year usually clears…” block when year exists
  *  ✅ Keeps: engine-autowire, intro replay suppression, post-intro grace, idempotency, timeout, contract normalize
  */
 
@@ -34,17 +34,19 @@ const crypto = require("crypto");
 // Version
 // =========================
 const CE_VERSION =
-  "chatEngine v0.6zV (enterprise hardened: payload-year hydration + replayKey fix + packets gating at engine-resolve + authoritative year commit + mode-only attach + loopkiller+++++ + post-intro grace + idempotency + timeout + contract normalize + session safety)";
+  "chatEngine v0.6zW (enterprise hardened++: replay payload capture + inbound clamp + burst dedupe + lane drift guard + payload-year hydration + replayKey fix + packets gating at engine-resolve + authoritative year commit + mode-only attach + loopkiller+++++ + post-intro grace + idempotency + timeout + contract normalize + session safety)";
 
 // =========================
 // Enterprise knobs
 // =========================
 const ENGINE_TIMEOUT_MS = 9000;
 const REPLAY_WINDOW_MS = 4000;
+const BURST_DEDUPE_MS = 250; // prevents double-fire click events (chips, fast taps)
 const MAX_FOLLOWUPS = 8;
 const MAX_FOLLOWUP_LABEL = 48;
 const MAX_REPLY_CHARS = 4000;
 const MAX_META_STR = 220;
+const MAX_INBOUND_CHARS = 900; // safety: clamp inboundText to a sane size
 
 // =========================
 // Intro
@@ -203,6 +205,14 @@ function pickRandomIndex(max) {
     return Math.floor(Math.random() * max);
   }
 }
+function clampInboundText(raw) {
+  // hard clamp + sanitize weird whitespace; don't lower-case here
+  const t = safeStr(raw).replace(/\u0000/g, "").trim();
+  if (!t) return "";
+  // Safety for accidental HTML/proxy errors getting piped into chat
+  const compact = t.replace(/\s+/g, " ");
+  return clampStr(compact, MAX_INBOUND_CHARS);
+}
 
 // =========================
 // Extractors
@@ -288,13 +298,13 @@ function extractInboundTextFromInput(input) {
     safeStr(input && input.payload && (input.payload.text || input.payload.message || "")).trim() ||
     safeStr(input && input.data && (input.data.text || input.data.message || "")).trim();
 
-  if (direct) return direct;
+  if (direct) return clampInboundText(direct);
 
   const evt =
     safeStr(input && input.event && (input.event.text || input.event.message || "")).trim() ||
     safeStr(input && input.followUp && input.followUp.payload && input.followUp.payload.text).trim();
 
-  return evt || "";
+  return clampInboundText(evt || "");
 }
 
 // =========================
@@ -321,7 +331,7 @@ function isBootIntroSource(input) {
 // INBOUND NORMALIZATION (loop killer)
 // =========================
 function normalizeInboundText(text, session, routeHint) {
-  const raw = safeStr(text).trim();
+  const raw = clampInboundText(text);
   if (!raw) return raw;
 
   const y = extractYear(raw);
@@ -534,6 +544,8 @@ const PATCH_KEYS = new Set([
   "__ce_lastOutHash",
   "__ce_lastOut",
   "__ce_lastOutLane",
+  "__ce_lastInHash",
+  "__ce_lastInAt",
 
   // packets gate flag (so widget/index can persist it if needed)
   "allowPackets",
@@ -636,7 +648,7 @@ function normalizeDirectives(directives) {
 }
 
 // =========================
-// Replay cache (session-scoped)
+// Replay cache (session-scoped) — NOW captures followUps/directives
 // =========================
 function replayKey(session, clientRequestId, inboundText, source) {
   const rid = safeStr(clientRequestId).trim();
@@ -651,18 +663,33 @@ function readReplay(session, key, now) {
   if (!lastKey || lastKey !== key) return null;
   if (!lastAt || now - lastAt > REPLAY_WINDOW_MS) return null;
 
-  const out = session.__ce_lastOut;
+  const out = safeStr(session.__ce_lastOut || "");
   const outLane = safeStr(session.__ce_lastOutLane || "general") || "general";
   const outHash = safeStr(session.__ce_lastOutHash || "");
   if (!out || !outHash) return null;
-  return { reply: out, lane: outLane };
+
+  const followUps = Array.isArray(session.__ce_lastOutFollowUps) ? session.__ce_lastOutFollowUps : undefined;
+  const followUpsStrings = Array.isArray(session.__ce_lastOutFollowUpsStrings)
+    ? session.__ce_lastOutFollowUpsStrings
+    : undefined;
+  const directives = Array.isArray(session.__ce_lastOutDirectives) ? session.__ce_lastOutDirectives : undefined;
+
+  return { reply: out, lane: outLane, followUps, followUpsStrings, directives };
 }
-function writeReplay(session, key, now, reply, lane) {
+function writeReplay(session, key, now, reply, lane, extras) {
   session.__ce_lastReqId = key;
   session.__ce_lastReqAt = now;
   session.__ce_lastOut = reply;
   session.__ce_lastOutLane = lane;
   session.__ce_lastOutHash = sha1(`${lane}::${reply}`).slice(0, 16);
+
+  // Optional payload capture (enterprise QoL): preserves chips on replay
+  if (extras && typeof extras === "object") {
+    if (Array.isArray(extras.followUps)) session.__ce_lastOutFollowUps = extras.followUps.slice(0, MAX_FOLLOWUPS);
+    if (Array.isArray(extras.followUpsStrings))
+      session.__ce_lastOutFollowUpsStrings = extras.followUpsStrings.slice(0, MAX_FOLLOWUPS);
+    if (Array.isArray(extras.directives)) session.__ce_lastOutDirectives = extras.directives.slice(0, 8);
+  }
 }
 
 // =========================
@@ -675,6 +702,7 @@ function hardResetSession(session, startedAt) {
   if (keep.sessionId) session.sessionId = keep.sessionId;
 
   session.lane = "general";
+  session.lastLane = "";
   session.turnCount = 0;
   session.turns = 0;
   session.startedAt = startedAt;
@@ -697,6 +725,11 @@ function hardResetSession(session, startedAt) {
   session.__ce_lastOutHash = "";
   session.__ce_lastOut = "";
   session.__ce_lastOutLane = "";
+  session.__ce_lastOutFollowUps = undefined;
+  session.__ce_lastOutFollowUpsStrings = undefined;
+  session.__ce_lastOutDirectives = undefined;
+  session.__ce_lastInHash = "";
+  session.__ce_lastInAt = 0;
 
   session.allowPackets = false;
   session.cog = {};
@@ -836,7 +869,10 @@ async function handleChat(input = {}) {
     session.lastOut = reply;
     session.lastOutAt = startedAt;
 
-    writeReplay(session, replayKey(session, clientRequestId, inboundText, source), startedAt, reply, "general");
+    writeReplay(session, replayKey(session, clientRequestId, inboundText, source), startedAt, reply, "general", {
+      followUps: toFollowUps(RESET_FOLLOWUPS),
+      followUpsStrings: toFollowUpsStrings(RESET_FOLLOWUPS),
+    });
 
     return {
       ok: true,
@@ -850,7 +886,7 @@ async function handleChat(input = {}) {
       meta: {
         engine: CE_VERSION,
         reset: true,
-        resetOption: "A",
+        resetOption: "B",
         source: safeMetaStr(source),
         elapsedMs: nowMs() - startedAt,
       },
@@ -861,6 +897,31 @@ async function handleChat(input = {}) {
   const preNorm = inboundText;
   inboundText = normalizeInboundText(inboundText, session, routeHint);
   const inboundNormalized = inboundText !== preNorm;
+
+  // Burst dedupe: if the same inbound fires twice in <250ms, treat as replay
+  const inHash = sha1(inboundText).slice(0, 12);
+  const lastInHash = safeStr(session.__ce_lastInHash || "");
+  const lastInAt = safeInt(session.__ce_lastInAt || 0, 0);
+  if (inHash && lastInHash && inHash === lastInHash && lastInAt && startedAt - lastInAt < BURST_DEDUPE_MS) {
+    const rkey0 = replayKey(session, clientRequestId, inboundText, source);
+    const cached0 = readReplay(session, rkey0, startedAt);
+    if (cached0) {
+      return {
+        ok: true,
+        reply: cached0.reply,
+        lane: cached0.lane,
+        directives: cached0.directives,
+        followUps: cached0.followUps || toFollowUps(CANON_INTRO_CHIPS),
+        followUpsStrings: cached0.followUpsStrings || toFollowUpsStrings(CANON_INTRO_CHIPS),
+        sessionPatch: buildSessionPatch(session),
+        cog: { phase: "listening", state: "confident", reason: "burst_replay", lane: cached0.lane },
+        requestId,
+        meta: { engine: CE_VERSION, replay: true, burst: true, source: safeMetaStr(source), elapsedMs: nowMs() - startedAt },
+      };
+    }
+  }
+  session.__ce_lastInHash = inHash;
+  session.__ce_lastInAt = startedAt;
 
   // Resolve year from all inbound shapes (text/payload/ctx/session/cog)
   const resolvedYear0 = resolveInboundYear(input, inboundText, session);
@@ -885,8 +946,9 @@ async function handleChat(input = {}) {
       ok: true,
       reply: cached.reply,
       lane: cached.lane,
-      followUps: toFollowUps(CANON_INTRO_CHIPS),
-      followUpsStrings: toFollowUpsStrings(CANON_INTRO_CHIPS),
+      directives: cached.directives,
+      followUps: cached.followUps || toFollowUps(CANON_INTRO_CHIPS),
+      followUpsStrings: cached.followUpsStrings || toFollowUpsStrings(CANON_INTRO_CHIPS),
       sessionPatch: buildSessionPatch(session),
       cog: { phase: "listening", state: "confident", reason: "replay_cache", lane: cached.lane },
       requestId,
@@ -901,7 +963,10 @@ async function handleChat(input = {}) {
     const reply = nonEmptyReply(session.lastOut, INTRO_VARIANTS_BY_BUCKET.general[0]);
     session.lastOut = reply;
     session.lastOutAt = startedAt;
-    writeReplay(session, rkey, startedAt, reply, "general");
+    writeReplay(session, rkey, startedAt, reply, "general", {
+      followUps: toFollowUps(CANON_INTRO_CHIPS),
+      followUpsStrings: toFollowUpsStrings(CANON_INTRO_CHIPS),
+    });
     return {
       ok: true,
       reply,
@@ -927,7 +992,10 @@ async function handleChat(input = {}) {
       const lastOut = safeStr(session.lastOut || "").trim();
       const lane0 = safeStr(session.lane || "general") || "general";
       const reply = lastOut || "Ready when you are.";
-      writeReplay(session, replayKey(session, clientRequestId, inboundText, source), startedAt, reply, lane0);
+      writeReplay(session, replayKey(session, clientRequestId, inboundText, source), startedAt, reply, lane0, {
+        followUps: toFollowUps(CANON_INTRO_CHIPS),
+        followUpsStrings: toFollowUpsStrings(CANON_INTRO_CHIPS),
+      });
       return {
         ok: true,
         reply,
@@ -1007,13 +1075,19 @@ async function handleChat(input = {}) {
   if (forceMusicYear) lane = "music";
 
   // Intro
-  const doIntro = !ov.forced && !forceMusicYear && shouldServeIntroLoginMoment(session, inboundText, startedAt, { ...input, source });
+  const doIntro =
+    !ov.forced &&
+    !forceMusicYear &&
+    shouldServeIntroLoginMoment(session, inboundText, startedAt, { ...input, source });
   if (doIntro) {
     session.__introDone = 1;
     session.introDone = true;
     session.introAt = startedAt;
 
     const bucketKey = pickIntroBucket(session, inboundText, routeHint, { ...input, source });
+
+    // ENTERPRISE: preserve prior lane so intro doesn't permanently drift user context
+    session.lastLane = safeStr(session.lane || "");
     session.lane = "general";
 
     const pick = pickIntroForLogin(session, startedAt, bucketKey);
@@ -1028,14 +1102,17 @@ async function handleChat(input = {}) {
     // keep packets off outside the engine window
     session.allowPackets = false;
 
-    writeReplay(session, rkey, startedAt, introLine, "general");
+    const fu = toFollowUps(CANON_INTRO_CHIPS);
+    const fus = toFollowUpsStrings(CANON_INTRO_CHIPS);
+
+    writeReplay(session, rkey, startedAt, introLine, "general", { followUps: fu, followUpsStrings: fus });
 
     return {
       ok: true,
       reply: introLine,
       lane: "general",
-      followUps: toFollowUps(CANON_INTRO_CHIPS),
-      followUpsStrings: toFollowUpsStrings(CANON_INTRO_CHIPS),
+      followUps: fu,
+      followUpsStrings: fus,
       sessionPatch: buildSessionPatch(session),
       cog: { phase: "listening", state: "confident", reason: "intro_login_moment", lane: "general" },
       requestId,
@@ -1156,8 +1233,8 @@ async function handleChat(input = {}) {
       ? core.followUpsStrings.slice(0, MAX_FOLLOWUPS)
       : undefined;
 
-  // Cache replay output
-  writeReplay(session, rkey, startedAt, reply, session.lane);
+  // Cache replay output (NOW includes chips/directives)
+  writeReplay(session, rkey, startedAt, reply, session.lane, { directives, followUps, followUpsStrings });
 
   return {
     ok: true,
