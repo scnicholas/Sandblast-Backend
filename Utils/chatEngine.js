@@ -16,15 +16,15 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.6zU (ENTERPRISE HARDENED + AUTHORITATIVE YEAR COMMIT (SURGICAL) + LOOPKILLER++++ + PACKETS GATING WIRED)
- *  ✅ FIX: Numeric year authoritative for Music + Top10 even when year arrives via payload/ctx
- *  ✅ FIX: Commit authoritative year into session.cog.year + session.cog.lastMusicYear + session.lastMusicYear
- *  ✅ FIX: Mode-only → auto-attach last known year (prefers session.lastMusicYear, then session.cog.year/lastMusicYear)
- *  ✅ FIX: Block “A year usually clears…” when year exists anywhere (text/payload/ctx/cog/session)
- *  ✅ FIX: FollowUps fallback uses resolved year (not text-only)
- *  ✅ NEW: PACKETS GATING — packets.js can only fire when chatEngine explicitly allows it (prevents hijack)
- *     - sets session.allowPackets (THIS is what packets.js reads)
- *     - allowPackets is also passed into engine args for downstream awareness
+ * v0.6zV (ENTERPRISE HARDENED + AUTHORITATIVE YEAR COMMIT (SURGICAL) + LOOPKILLER+++++ + PACKETS GATING WIRED)
+ *  ✅ FIX: Year-only payload/ctx clicks (inboundText empty) now hydrate inboundText so engine actually runs (fixes “lists not firing”)
+ *  ✅ FIX: Replay cache now works when client did NOT provide requestId (internal requestId no longer breaks dedupe)
+ *  ✅ FIX: PACKETS GATING is enforced at ENGINE RESOLVE time (packets engine is only selected when allowPackets=true)
+ *  ✅ Keeps: Numeric year authoritative for Music + Top10 even when year arrives via payload/ctx
+ *  ✅ Keeps: Commit year into session.cog.year + session.cog.lastMusicYear + session.lastMusicYear
+ *  ✅ Keeps: Mode-only → auto-attach last known year (prefers session.lastMusicYear, then session.cog.year/lastMusicYear)
+ *  ✅ Keeps: Block “A year usually clears…” when year exists anywhere (text/payload/ctx/cog/session)
+ *  ✅ Keeps: FollowUps fallback uses resolved year (not text-only)
  *  ✅ Keeps: engine-autowire, intro replay suppression, post-intro grace, idempotency, timeout, contract normalize
  */
 
@@ -34,7 +34,7 @@ const crypto = require("crypto");
 // Version
 // =========================
 const CE_VERSION =
-  "chatEngine v0.6zU (enterprise hardened: authoritative year commit across payload/ctx/cog + mode-only attach + loopkiller++++ + packets gating wired + post-intro grace + idempotency + timeout + contract normalize + session safety)";
+  "chatEngine v0.6zV (enterprise hardened: payload-year hydration + replayKey fix + packets gating at engine-resolve + authoritative year commit + mode-only attach + loopkiller+++++ + post-intro grace + idempotency + timeout + contract normalize + session safety)";
 
 // =========================
 // Enterprise knobs
@@ -535,7 +535,7 @@ const PATCH_KEYS = new Set([
   "__ce_lastOut",
   "__ce_lastOutLane",
 
-  // NEW: packets gate flag (so widget/index can persist it if needed)
+  // packets gate flag (so widget/index can persist it if needed)
   "allowPackets",
 ]);
 
@@ -638,8 +638,8 @@ function normalizeDirectives(directives) {
 // =========================
 // Replay cache (session-scoped)
 // =========================
-function replayKey(session, requestId, inboundText, source) {
-  const rid = safeStr(requestId).trim();
+function replayKey(session, clientRequestId, inboundText, source) {
+  const rid = safeStr(clientRequestId).trim();
   const sig = sha1(
     `${safeStr(session.sessionId || session.visitorId || "")}|${safeStr(source)}|${safeStr(inboundText)}`
   ).slice(0, 12);
@@ -698,7 +698,7 @@ function hardResetSession(session, startedAt) {
   session.__ce_lastOut = "";
   session.__ce_lastOutLane = "";
 
-  session.allowPackets = false; // NEW
+  session.allowPackets = false;
   session.cog = {};
 
   ensureContinuityState(session);
@@ -706,17 +706,20 @@ function hardResetSession(session, startedAt) {
 }
 
 // =========================
-// ENGINE AUTOWIRE
+// ENGINE AUTOWIRE (WITH PACKETS GATING)
 // =========================
-function resolveEngine(input) {
+function resolveEngine(input, allowPackets) {
   if (typeof input.engine === "function") return { fn: input.engine, from: "input.engine" };
 
-  const p = NYX_PACKETS;
-  if (p && typeof p.handleChat === "function") return { fn: p.handleChat.bind(p), from: "nyxPackets.handleChat" };
-  if (p && typeof p.chat === "function") return { fn: p.chat.bind(p), from: "nyxPackets.chat" };
-  if (p && typeof p.respond === "function") return { fn: p.respond.bind(p), from: "nyxPackets.respond" };
-  if (p && typeof p.run === "function") return { fn: p.run.bind(p), from: "nyxPackets.run" };
-  if (p && typeof p.route === "function") return { fn: p.route.bind(p), from: "nyxPackets.route" };
+  // packets engine ONLY when explicitly allowed
+  if (allowPackets) {
+    const p = NYX_PACKETS;
+    if (p && typeof p.handleChat === "function") return { fn: p.handleChat.bind(p), from: "nyxPackets.handleChat" };
+    if (p && typeof p.chat === "function") return { fn: p.chat.bind(p), from: "nyxPackets.chat" };
+    if (p && typeof p.respond === "function") return { fn: p.respond.bind(p), from: "nyxPackets.respond" };
+    if (p && typeof p.run === "function") return { fn: p.run.bind(p), from: "nyxPackets.run" };
+    if (p && typeof p.route === "function") return { fn: p.route.bind(p), from: "nyxPackets.route" };
+  }
 
   const c = NYX_CONV_PACK;
   if (c && typeof c.handleChat === "function") return { fn: c.handleChat.bind(c), from: "nyxConvPack.handleChat" };
@@ -798,7 +801,10 @@ function maybeAttachMusicFollowUps(core, resolvedYear, inboundText, session) {
 // =========================
 async function handleChat(input = {}) {
   const startedAt = nowMs();
-  const requestId = safeStr(input.requestId).trim() || sha1(`${startedAt}|${Math.random()}`).slice(0, 10);
+
+  // IMPORTANT: clientRequestId is only "stable" if the client actually provided it.
+  const clientRequestId = safeStr(input.requestId).trim();
+  const requestId = clientRequestId || sha1(`${startedAt}|${Math.random()}`).slice(0, 10);
 
   const session = ensureContinuityState(input.session || {});
   session.cog = isPlainObject(session.cog) ? session.cog : {};
@@ -830,7 +836,7 @@ async function handleChat(input = {}) {
     session.lastOut = reply;
     session.lastOutAt = startedAt;
 
-    writeReplay(session, replayKey(session, requestId, inboundText, source), startedAt, reply, "general");
+    writeReplay(session, replayKey(session, clientRequestId, inboundText, source), startedAt, reply, "general");
 
     return {
       ok: true,
@@ -841,46 +847,38 @@ async function handleChat(input = {}) {
       sessionPatch: buildSessionPatch(session),
       cog: { phase: "listening", state: "fresh", reason: "hard_reset", lane: "general" },
       requestId,
-      meta: { engine: CE_VERSION, reset: true, resetOption: "A", source: safeMetaStr(source), elapsedMs: nowMs() - startedAt },
+      meta: {
+        engine: CE_VERSION,
+        reset: true,
+        resetOption: "A",
+        source: safeMetaStr(source),
+        elapsedMs: nowMs() - startedAt,
+      },
     };
   }
 
-  // Normalize inbound
+  // Normalize inbound (text-only normalization)
   const preNorm = inboundText;
   inboundText = normalizeInboundText(inboundText, session, routeHint);
   const inboundNormalized = inboundText !== preNorm;
 
-  // Resolve year from all inbound shapes
+  // Resolve year from all inbound shapes (text/payload/ctx/session/cog)
   const resolvedYear0 = resolveInboundYear(input, inboundText, session);
+
+  // If inboundText is empty but year exists via payload/ctx/etc, HYDRATE it so engine runs.
+  // This is the chip-click killer fix (lists not firing).
+  if (isEmptyOrNoText(inboundText) && resolvedYear0) {
+    inboundText = String(resolvedYear0);
+  }
 
   // Commit if present
   if (resolvedYear0) commitYear(session, resolvedYear0, "resolved_inbound");
 
-  // AUTHORITATIVE YEAR COMMIT (pre-engine)
-  const modeNow = extractMode(inboundText);
-  const top10Asked = isTop10IntentText(inboundText) || modeNow === "top10";
-
-  const laneHint = normText(session.lane || routeHint || "");
-  const forceMusicYear = !!resolvedYear0 && (laneHint === "music" || top10Asked);
-
-  if (forceMusicYear) {
-    session.lane = "music";
-    session.cog.lane = "music";
-    if (modeNow) session.cog.mode = modeNow;
-
-    if (top10Asked) {
-      session.activeMusicMode = "top10";
-      session.lastMode = "top10";
-      session.cog.mode = "top10";
-      if (!modeNow) inboundText = `top 10 ${resolvedYear0}`;
-    }
-  }
-
   const inboundIsEmpty = isEmptyOrNoText(inboundText);
   const bootIntroEmpty = inboundIsEmpty && isBootIntroSource({ ...input, source });
 
-  // Replay safety
-  const rkey = replayKey(session, requestId, inboundText, source);
+  // Replay safety (works even when clientRequestId is missing)
+  const rkey = replayKey(session, clientRequestId, inboundText, source);
   const cached = readReplay(session, rkey, startedAt);
   if (cached) {
     return {
@@ -913,7 +911,12 @@ async function handleChat(input = {}) {
       sessionPatch: buildSessionPatch(session),
       cog: { phase: "listening", state: "confident", reason: "post_intro_grace", lane: "general" },
       requestId,
-      meta: { engine: CE_VERSION, suppressed: "post_intro_grace", source: safeMetaStr(source), elapsedMs: nowMs() - startedAt },
+      meta: {
+        engine: CE_VERSION,
+        suppressed: "post_intro_grace",
+        source: safeMetaStr(source),
+        elapsedMs: nowMs() - startedAt,
+      },
     };
   }
 
@@ -924,7 +927,7 @@ async function handleChat(input = {}) {
       const lastOut = safeStr(session.lastOut || "").trim();
       const lane0 = safeStr(session.lane || "general") || "general";
       const reply = lastOut || "Ready when you are.";
-      writeReplay(session, replayKey(session, requestId, inboundText, source), startedAt, reply, lane0);
+      writeReplay(session, replayKey(session, clientRequestId, inboundText, source), startedAt, reply, lane0);
       return {
         ok: true,
         reply,
@@ -934,12 +937,17 @@ async function handleChat(input = {}) {
         sessionPatch: buildSessionPatch(session),
         cog: { phase: "listening", state: "confident", reason: "boot_intro_suppressed", lane: lane0 },
         requestId,
-        meta: { engine: CE_VERSION, bootIntroSuppressed: true, source: safeMetaStr(source), elapsedMs: nowMs() - startedAt },
+        meta: {
+          engine: CE_VERSION,
+          bootIntroSuppressed: true,
+          source: safeMetaStr(source),
+          elapsedMs: nowMs() - startedAt,
+        },
       };
     }
   }
 
-  // Ignore empty non-boot
+  // Ignore empty non-boot (but only if we truly have no payload intent)
   if (inboundIsEmpty && !bootIntroEmpty) {
     const reply = "Ready when you are. Tell me a year (1950–2024), or what you want to do next.";
     const laneX = safeStr(session.lane || "general") || "general";
@@ -973,6 +981,26 @@ async function handleChat(input = {}) {
   // Lane seed
   let lane = safeStr(session.lane || routeHint || "general").trim() || "general";
 
+  // AUTHORITATIVE YEAR COMMIT (pre-engine)
+  const modeNow = extractMode(inboundText);
+  const top10Asked = isTop10IntentText(inboundText) || modeNow === "top10";
+
+  const laneHint = normText(session.lane || routeHint || "");
+  const forceMusicYear = !!resolvedYear0 && (laneHint === "music" || top10Asked);
+
+  if (forceMusicYear) {
+    session.lane = "music";
+    session.cog.lane = "music";
+    if (modeNow) session.cog.mode = modeNow;
+
+    if (top10Asked) {
+      session.activeMusicMode = "top10";
+      session.lastMode = "top10";
+      session.cog.mode = "top10";
+      if (!modeNow) inboundText = `top 10 ${resolvedYear0}`;
+    }
+  }
+
   // Music override (text-based mode+year)
   const ov = applyMusicOverride(session, inboundText);
   if (ov.forced) lane = "music";
@@ -997,6 +1025,9 @@ async function handleChat(input = {}) {
     session.lastOut = introLine;
     session.lastOutAt = startedAt;
 
+    // keep packets off outside the engine window
+    session.allowPackets = false;
+
     writeReplay(session, rkey, startedAt, introLine, "general");
 
     return {
@@ -1012,19 +1043,19 @@ async function handleChat(input = {}) {
     };
   }
 
-  // Resolve engine
-  const resolved = resolveEngine(input);
+  // PACKETS gating decision (must happen BEFORE engine resolve)
+  const allowPackets = shouldAllowPackets(inboundText, routeHint, session, resolvedYear0);
+
+  // >>> THE IMPORTANT WIRE: packets.js reads session.allowPackets
+  session.allowPackets = !!allowPackets;
+
+  // Resolve engine (packets engine is only eligible when allowPackets=true)
+  const resolved = resolveEngine(input, allowPackets);
 
   let core = null;
   let engineTimedOut = false;
   let engineEmptyReply = false;
   let engineOk = false;
-
-  // PACKETS gating decision
-  const allowPackets = shouldAllowPackets(inboundText, routeHint, session, resolvedYear0);
-
-  // >>> THE IMPORTANT WIRE: packets.js reads session.allowPackets
-  session.allowPackets = !!allowPackets;
 
   try {
     if (resolved.fn) {
