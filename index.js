@@ -3,16 +3,16 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17zq
+ * index.js v1.5.17zr
  * (Option B alignment: chatEngine v0.6zV compatibility + enterprise guards + /api/health alias)
  *
  * Goals:
  *  ✅ Preserve Voice/TTS stability (ElevenLabs) + /api/tts + /api/voice aliases
- *  ✅ Preserve CORS HARD-LOCK + preflight reliability
+ *  ✅ Preserve CORS HARD-LOCK + preflight reliability (FIXED: max-age + consistent OPTIONS headers)
  *  ✅ Preserve turn dedupe + loop fuse (session + burst + sustained)
  *  ✅ Preserve sessionPatch persistence (cog + continuity keys)
  *  ✅ Preserve boot-intro bridge behavior (panel_open_intro / boot_intro)
- *  ✅ Fix: boot-intro / empty-text requests should NOT trigger outer replay dedupe or throttles (prevents “intro loops”)
+ *  ✅ Fix: boot-intro / empty-text requests should NOT trigger outer replay dedupe or throttles
  *  ✅ Fix: add GET /api/health (widget expects it)
  *
  * NOTE:
@@ -36,8 +36,6 @@ function safeRequire(p) {
   }
 }
 
-const cors = safeRequire("cors") || null; // optional; we still hard-lock CORS manually
-
 // Your pure engine
 const chatEngine = safeRequire("./Utils/chatEngine") || safeRequire("./Utils/chatEngine.js") || null;
 
@@ -48,7 +46,7 @@ const fetch = global.fetch || safeRequire("node-fetch");
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.17zq (enterprise hardened: CORS hard-lock + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY replay+throttle bypass + requestId always-on + TTS parse recovery + chatEngine v0.6zV compatibility)";
+  "index.js v1.5.17zr (enterprise hardened: CORS hard-lock + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY replay+throttle bypass + requestId always-on + TTS parse recovery + chatEngine v0.6zV compatibility; CORS preflight headers stabilized)";
 
 // =========================
 // Env / knobs
@@ -190,10 +188,22 @@ function isBootLike(routeHint, body) {
   return false;
 }
 
+function isAllowedOrigin(origin) {
+  if (!origin) return false;
+  const o = normalizeOrigin(origin);
+  if (ORIGINS_ALLOWLIST.includes(o)) return true;
+  for (const rx of ORIGIN_REGEXES) {
+    try {
+      if (rx.test(o)) return true;
+    } catch (_) {}
+  }
+  return false;
+}
+
 // =========================
-// Session store (in-memory, enterprise-safe-ish)
+// Session store (in-memory)
 // =========================
-const SESSIONS = new Map(); // key -> { data: sessionObj, lastSeenAt, burst:[ts], sustained:[ts] }
+const SESSIONS = new Map(); // key -> { data, lastSeenAt, burst:[ts], sustained:[ts] }
 
 function sessionKeyFromReq(req) {
   const b = isPlainObject(req.body) ? req.body : {};
@@ -299,39 +309,39 @@ if (toBool(TRUST_PROXY, false)) app.set("trust proxy", 1);
 app.use(express.json({ limit: MAX_JSON_BODY }));
 app.use(express.text({ type: ["text/*"], limit: MAX_JSON_BODY }));
 
-// CORS hard-lock (works even without cors package)
+// =========================
+// CORS hard-lock (stabilized)
+// =========================
 app.use((req, res, next) => {
-  const origin = normalizeOrigin(req.headers.origin || "");
-  const allow = isAllowedOrigin(origin);
+  const originRaw = safeStr(req.headers.origin || "");
+  const origin = normalizeOrigin(originRaw);
+  const allow = origin ? isAllowedOrigin(origin) : false;
+
+  // Always vary by Origin when Origin is present
+  if (origin) res.setHeader("Vary", "Origin");
 
   if (origin && allow) {
     res.setHeader("Access-Control-Allow-Origin", origin);
-    res.setHeader("Vary", "Origin");
     res.setHeader("Access-Control-Allow-Credentials", "true");
     res.setHeader(
       "Access-Control-Allow-Headers",
       "Content-Type, Authorization, X-Requested-With, X-SB-Session, X-Session-Id, X-Visitor-Id, X-Request-Id, X-Route-Hint"
     );
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+    res.setHeader("Access-Control-Max-Age", "600");
   }
 
-  if (req.method === "OPTIONS") return res.status(204).send("");
+  if (req.method === "OPTIONS") {
+    // Preflight must exit fast and clean.
+    return res.status(204).send("");
+  }
+
   return next();
 });
 
-function isAllowedOrigin(origin) {
-  if (!origin) return false;
-  const o = normalizeOrigin(origin);
-  if (ORIGINS_ALLOWLIST.includes(o)) return true;
-  for (const rx of ORIGIN_REGEXES) {
-    try {
-      if (rx.test(o)) return true;
-    } catch (_) {}
-  }
-  return false;
-}
-
+// =========================
 // Health + discovery
+// =========================
 app.get("/", (req, res) => {
   res.status(200).json({ ok: true, service: "sandblast-backend", version: INDEX_VERSION, env: NODE_ENV });
 });
