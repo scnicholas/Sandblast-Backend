@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17zr
+ * index.js v1.5.17zs
  * (Option B alignment: chatEngine v0.6zV compatibility + enterprise guards + /api/health alias)
  *
  * Goals:
@@ -15,6 +15,7 @@
  *  ✅ Fix: boot-intro / empty-text requests bypass replay + throttles
  *  ✅ Fix: add GET /api/health (widget expects it)
  *  ✅ Fix: allow x-sbnyx-client-build header (CORS)
+ *  ✅ FIX: allow x-contract-version header (CORS)  <-- REQUIRED
  *
  * NOTE:
  *  - Expects ./Utils/chatEngine.js to export handleChat
@@ -48,7 +49,7 @@ const fetch = global.fetch || safeRequire("node-fetch");
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.17zr (enterprise hardened: CORS hard-lock + stabilized preflight + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY bypass + requestId always-on + TTS parse recovery + chatEngine v0.6zV compatibility)";
+  "index.js v1.5.17zs (enterprise hardened: CORS hard-lock + stabilized preflight + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY bypass + requestId always-on + TTS parse recovery + chatEngine v0.6zV compatibility; CORS headers: x-sbnyx-client-build + x-contract-version)";
 
 // =========================
 // Env / knobs
@@ -91,9 +92,11 @@ const clampFloat = (v, d, min, max) => {
 };
 
 const toBool = (v, d) => {
-  const s = String(v ?? "").toLowerCase();
+  const s = String(v ?? "").trim().toLowerCase();
   if (!s) return !!d;
-  return ["1", "true", "yes", "on"].includes(s);
+  if (["1", "true", "yes", "y", "on"].includes(s)) return true;
+  if (["0", "false", "no", "n", "off"].includes(s)) return false;
+  return !!d;
 };
 
 const normalizeOrigin = (o) => safeStr(o).replace(/\/$/, "");
@@ -102,7 +105,9 @@ const ORIGIN_REGEXES = ORIGINS_REGEX_ALLOWLIST
   .split(";")
   .map((r) => {
     try {
-      return new RegExp(r.trim());
+      const t = r.trim();
+      if (!t) return null;
+      return new RegExp(t);
     } catch {
       return null;
     }
@@ -113,7 +118,13 @@ function isAllowedOrigin(origin) {
   if (!origin) return false;
   const o = normalizeOrigin(origin);
   if (ORIGINS_ALLOWLIST.includes(o)) return true;
-  return ORIGIN_REGEXES.some((rx) => rx.test(o));
+  return ORIGIN_REGEXES.some((rx) => {
+    try {
+      return rx.test(o);
+    } catch {
+      return false;
+    }
+  });
 }
 
 // =========================
@@ -153,12 +164,10 @@ app.use((req, res, next) => {
         "X-Route-Hint",
         "X-SBNYX-Client-Build",
         "X-SBNYX-Widget-Version",
+        "X-Contract-Version", // ✅ REQUIRED (fixes your current preflight block)
       ].join(", ")
     );
-    res.setHeader(
-      "Access-Control-Allow-Methods",
-      "GET,POST,OPTIONS"
-    );
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
     res.setHeader("Access-Control-Max-Age", "600");
   }
 
@@ -173,11 +182,11 @@ app.use((req, res, next) => {
 // Health
 // =========================
 app.get("/health", (req, res) => {
-  res.json({ ok: true, version: INDEX_VERSION, up: true });
+  res.json({ ok: true, version: INDEX_VERSION, up: true, env: NODE_ENV, now: new Date().toISOString() });
 });
 
 app.get("/api/health", (req, res) => {
-  res.json({ ok: true, version: INDEX_VERSION, up: true });
+  res.json({ ok: true, version: INDEX_VERSION, up: true, env: NODE_ENV, now: new Date().toISOString() });
 });
 
 // =========================
@@ -197,8 +206,7 @@ app.post("/api/chat", async (req, res) => {
       ...req.body,
       requestId:
         req.body?.requestId ||
-        crypto.randomUUID?.() ||
-        sha1(Math.random()),
+        (typeof crypto.randomUUID === "function" ? crypto.randomUUID() : sha1(`${nowMs()}|${Math.random()}`)),
     });
 
     return res.json({ ok: true, ...out });
@@ -234,6 +242,7 @@ app.post("/api/voice", async (req, res) => {
 // Start
 // =========================
 app.listen(PORT, () => {
+  // eslint-disable-next-line no-console
   console.log(`[Sandblast] ${INDEX_VERSION} listening on ${PORT}`);
 });
 
