@@ -22,6 +22,7 @@
  *  ✅ FIX: Mode-only → auto-attach last known year (prefers session.lastMusicYear, then session.cog.year/lastMusicYear)
  *  ✅ FIX: Block “A year usually clears…” when year exists anywhere (text/payload/ctx/cog/session)
  *  ✅ FIX: FollowUps fallback uses resolved year (not text-only)
+ *  ✅ NEW: PACKETS GATING — packets.js can only fire when chatEngine explicitly allows it (prevents hijack)
  *  ✅ Keeps: engine-autowire, intro replay suppression, post-intro grace, idempotency, timeout, contract normalize
  */
 
@@ -31,7 +32,7 @@ const crypto = require("crypto");
 // Version
 // =========================
 const CE_VERSION =
-  "chatEngine v0.6zT (enterprise hardened: authoritative year commit across payload/ctx/cog + mode-only attach + loopkiller++++ + post-intro grace + idempotency + timeout + contract normalize + session safety)";
+  "chatEngine v0.6zT (enterprise hardened: authoritative year commit across payload/ctx/cog + mode-only attach + loopkiller++++ + packets gating + post-intro grace + idempotency + timeout + contract normalize + session safety)";
 
 // =========================
 // Enterprise knobs
@@ -114,10 +115,10 @@ try {
 // =========================
 // Optional Packs (soft-load; never brick)
 // =========================
-function safeRequire(path) {
+function safeRequire(p) {
   try {
     // eslint-disable-next-line import/no-dynamic-require, global-require
-    return require(path);
+    return require(p);
   } catch (_) {
     return null;
   }
@@ -135,6 +136,7 @@ const NYX_PHRASEPACK =
   safeRequire("./nyx_phrase_pack") ||
   null;
 
+// NOTE: this resolves to your packets.js (the file you sent) when required via "./packets"
 const NYX_PACKETS =
   safeRequire("./nyxPackets") ||
   safeRequire("./packets") ||
@@ -213,8 +215,6 @@ function extractYear(text) {
   if (!Number.isFinite(y) || y < 1950 || y > 2024) return null;
   return y;
 }
-
-// SURGICAL: numeric year is authoritative (tight range)
 function extractYearAuthoritative(text) {
   return extractYear(text);
 }
@@ -227,7 +227,6 @@ function coerceYearAny(v) {
   return y || null;
 }
 function resolveInboundYear(input, inboundText, session) {
-  // Priority: explicit input.year/payload.year/ctx.year, then text, then session/cog
   const y1 = coerceYearAny(input && input.year);
   const y2 = coerceYearAny(input && input.payload && input.payload.year);
   const y3 = coerceYearAny(input && input.ctx && input.ctx.year);
@@ -252,7 +251,7 @@ function commitYear(session, year, source) {
   session.cog.yearSource = source || session.cog.yearSource || "unknown";
 }
 
-// SURGICAL: explicit Top10 intent detector
+// Top10 intent detector
 function isTop10IntentText(text) {
   const t = normText(text);
   return /\btop\s*10\b/.test(t) || /\btop10\b/.test(t) || /\btop\s*ten\b/.test(t);
@@ -431,8 +430,14 @@ function pickIntroBucket(session, inboundText, routeHint, input) {
     return "general";
   }
 
-  if (isGreetingOnly(inboundText) && (session.lastMusicYear || (session.cog && (session.cog.year || session.cog.lastMusicYear)) || session.activeMusicMode))
+  if (
+    isGreetingOnly(inboundText) &&
+    (session.lastMusicYear ||
+      (session.cog && (session.cog.year || session.cog.lastMusicYear)) ||
+      session.activeMusicMode)
+  )
     return "music";
+
   return "general";
 }
 function pickIntroForLogin(session, startedAt, bucketKey) {
@@ -451,6 +456,26 @@ function pickIntroForLogin(session, startedAt, bucketKey) {
 
   const id = pickRandomIndex(arr.length);
   return { text: arr[id] || arr[0], id, bucket: bucketStamp };
+}
+
+// =========================
+// PACKETS GATING (prevents packets.js hijacking music flows)
+// =========================
+function shouldAllowPackets(inboundText, routeHint, session, resolvedYear) {
+  // packets are ONLY for greet/help/bye/system prompts (your packets.js is designed for that)
+  // If a year exists anywhere, packets are not allowed to respond (prevents "hi" from hijacking a music request).
+  if (resolvedYear) return false;
+
+  const t = normText(inboundText);
+  if (!t) return true; // empty boot/hydration -> packets may serve minimal system/prompt if needed
+
+  // Explicit safe intents
+  if (isGreetingOnly(t)) return true;
+  if (/\b(help|support|how do i|what can you do)\b/.test(t)) return true;
+  if (/\b(bye|goodbye|see you|later|exit)\b/.test(t)) return true;
+
+  // Anything else: do not allow packets to fire.
+  return false;
 }
 
 // =========================
@@ -512,10 +537,7 @@ const PATCH_KEYS = new Set([
   "__hasRealUserTurn",
   "__introDone",
   "__cs1",
-
-  // allow compact cog persistence
   "cog",
-
   "__ce_lastReqId",
   "__ce_lastReqAt",
   "__ce_lastOutHash",
@@ -839,22 +861,18 @@ async function handleChat(input = {}) {
   inboundText = normalizeInboundText(inboundText, session, routeHint);
   const inboundNormalized = inboundText !== preNorm;
 
-  // Resolve year from all inbound shapes (payload/ctx/text/session/cog)
+  // Resolve year from all inbound shapes
   const resolvedYear0 = resolveInboundYear(input, inboundText, session);
 
-  // =========================
+  // Commit if present
+  if (resolvedYear0) commitYear(session, resolvedYear0, "resolved_inbound");
+
   // AUTHORITATIVE YEAR COMMIT (pre-engine)
-  // =========================
   const modeNow = extractMode(inboundText);
   const top10Asked = isTop10IntentText(inboundText) || modeNow === "top10";
 
   const laneHint = normText(session.lane || routeHint || "");
   const forceMusicYear = !!resolvedYear0 && (laneHint === "music" || top10Asked);
-
-  if (resolvedYear0) {
-    // Always commit if present (this is what prevents stalls/drift)
-    commitYear(session, resolvedYear0, "resolved_inbound");
-  }
 
   if (forceMusicYear) {
     session.lane = "music";
@@ -865,12 +883,9 @@ async function handleChat(input = {}) {
       session.activeMusicMode = "top10";
       session.lastMode = "top10";
       session.cog.mode = "top10";
-      // Ensure deterministic mode+year for downstream template/engine gates
       if (!modeNow) inboundText = `top 10 ${resolvedYear0}`;
     }
   }
-
-  // =========================
 
   const inboundIsEmpty = isEmptyOrNoText(inboundText);
   const bootIntroEmpty = inboundIsEmpty && isBootIntroSource({ ...input, source });
@@ -1016,6 +1031,9 @@ async function handleChat(input = {}) {
   let engineEmptyReply = false;
   let engineOk = false;
 
+  // PACKETS gating decision
+  const allowPackets = shouldAllowPackets(inboundText, routeHint, session, resolvedYear0);
+
   try {
     if (resolved.fn) {
       core = await withTimeout(
@@ -1025,7 +1043,18 @@ async function handleChat(input = {}) {
             session,
             requestId,
             routeHint: lane,
-            packs: { conv: NYX_CONV_PACK, phrase: NYX_PHRASEPACK, packets: NYX_PACKETS },
+
+            // IMPORTANT: chatEngine asserts control:
+            // - downstream may use packs, but packets should only execute when allowed.
+            allowPackets,
+
+            // Pass packs as-is, but include allowPackets + resolvedYear for smarter downstream behavior
+            packs: {
+              conv: NYX_CONV_PACK,
+              phrase: NYX_PHRASEPACK,
+              packets: NYX_PACKETS,
+            },
+            ctx: { year: resolvedYear0 || undefined, lane },
           })
         ),
         ENGINE_TIMEOUT_MS,
@@ -1066,7 +1095,12 @@ async function handleChat(input = {}) {
   // BLOCK the year-missing fallback when year exists anywhere
   const resolvedYearFinal = resolveInboundYear(input, inboundText, session);
 
-  let reply = nonEmptyReply(core && core.reply, resolvedYearFinal ? `Got it — ${resolvedYearFinal}. What do you want: Top 10, #1, story moment, or micro moment?` : "A year usually clears things up.");
+  let reply = nonEmptyReply(
+    core && core.reply,
+    resolvedYearFinal
+      ? `Got it — ${resolvedYearFinal}. What do you want: Top 10, #1, story moment, or micro moment?`
+      : "A year usually clears things up."
+  );
   reply = clampStr(reply, MAX_REPLY_CHARS);
 
   // sessionPatch allowlist merge
@@ -1082,7 +1116,7 @@ async function handleChat(input = {}) {
     }
   }
 
-  // Re-commit year after engine merge (engine might return cog/year)
+  // Re-commit year after engine merge
   const yPost = resolveInboundYear(input, inboundText, session);
   if (yPost) commitYear(session, yPost, session.cog.yearSource || "post_engine");
 
@@ -1121,6 +1155,8 @@ async function handleChat(input = {}) {
       source: safeMetaStr(source),
       routeHint: safeMetaStr(routeHint),
       inboundNormalized,
+      allowPackets,
+      resolvedYear: resolvedYearFinal || null,
       override:
         (ov.forced ? `music:${safeMetaStr(ov.mode)}:${safeMetaStr(ov.year)}` : "") ||
         (forceMusicYear ? `music:top10:${safeMetaStr(resolvedYear0)}` : ""),
