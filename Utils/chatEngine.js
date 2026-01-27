@@ -16,13 +16,15 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.6zT (ENTERPRISE HARDENED + AUTHORITATIVE YEAR COMMIT (SURGICAL) + LOOPKILLER++++)
+ * v0.6zU (ENTERPRISE HARDENED + AUTHORITATIVE YEAR COMMIT (SURGICAL) + LOOPKILLER++++ + PACKETS GATING WIRED)
  *  ✅ FIX: Numeric year authoritative for Music + Top10 even when year arrives via payload/ctx
  *  ✅ FIX: Commit authoritative year into session.cog.year + session.cog.lastMusicYear + session.lastMusicYear
  *  ✅ FIX: Mode-only → auto-attach last known year (prefers session.lastMusicYear, then session.cog.year/lastMusicYear)
  *  ✅ FIX: Block “A year usually clears…” when year exists anywhere (text/payload/ctx/cog/session)
  *  ✅ FIX: FollowUps fallback uses resolved year (not text-only)
  *  ✅ NEW: PACKETS GATING — packets.js can only fire when chatEngine explicitly allows it (prevents hijack)
+ *     - sets session.allowPackets (THIS is what packets.js reads)
+ *     - allowPackets is also passed into engine args for downstream awareness
  *  ✅ Keeps: engine-autowire, intro replay suppression, post-intro grace, idempotency, timeout, contract normalize
  */
 
@@ -32,7 +34,7 @@ const crypto = require("crypto");
 // Version
 // =========================
 const CE_VERSION =
-  "chatEngine v0.6zT (enterprise hardened: authoritative year commit across payload/ctx/cog + mode-only attach + loopkiller++++ + packets gating + post-intro grace + idempotency + timeout + contract normalize + session safety)";
+  "chatEngine v0.6zU (enterprise hardened: authoritative year commit across payload/ctx/cog + mode-only attach + loopkiller++++ + packets gating wired + post-intro grace + idempotency + timeout + contract normalize + session safety)";
 
 // =========================
 // Enterprise knobs
@@ -48,9 +50,6 @@ const MAX_META_STR = 220;
 // Intro
 // =========================
 const INTRO_REARM_MS = 12 * 60 * 1000;
-
-// Prevent the intro from being immediately overwritten by widget hydration pings,
-// mode-only toggles, or fast follow-up requests with no year.
 const POST_INTRO_GRACE_MS = 650;
 
 const INTRO_VARIANTS_BY_BUCKET = {
@@ -136,7 +135,7 @@ const NYX_PHRASEPACK =
   safeRequire("./nyx_phrase_pack") ||
   null;
 
-// NOTE: this resolves to your packets.js (the file you sent) when required via "./packets"
+// NOTE: this resolves to your packets.js when required via "./packets"
 const NYX_PACKETS =
   safeRequire("./nyxPackets") ||
   safeRequire("./packets") ||
@@ -219,7 +218,7 @@ function extractYearAuthoritative(text) {
   return extractYear(text);
 }
 
-// NEW: year resolver across inbound shapes (payload/ctx/etc)
+// year resolver across inbound shapes
 function coerceYearAny(v) {
   const n = Number(v);
   if (Number.isFinite(n) && n >= 1950 && n <= 2024) return Math.trunc(n);
@@ -251,7 +250,6 @@ function commitYear(session, year, source) {
   session.cog.yearSource = source || session.cog.yearSource || "unknown";
 }
 
-// Top10 intent detector
 function isTop10IntentText(text) {
   const t = normText(text);
   return /\btop\s*10\b/.test(t) || /\btop10\b/.test(t) || /\btop\s*ten\b/.test(t);
@@ -281,7 +279,7 @@ function isEmptyOrNoText(t) {
 }
 
 // =========================
-// Inbound extraction (supports multiple payload shapes)
+// Inbound extraction
 // =========================
 function extractInboundTextFromInput(input) {
   const direct =
@@ -329,7 +327,6 @@ function normalizeInboundText(text, session, routeHint) {
   const y = extractYear(raw);
   const m = extractMode(raw);
 
-  // Mode-only → attach last known year (session.lastMusicYear OR session.cog.year OR session.cog.lastMusicYear)
   if (!y && m) {
     const yy1 = Number(session && session.lastMusicYear);
     if (Number.isFinite(yy1) && yy1 >= 1950 && yy1 <= 2024) return `${raw} ${yy1}`.trim();
@@ -341,7 +338,6 @@ function normalizeInboundText(text, session, routeHint) {
     if (Number.isFinite(yy3) && yy3 >= 1950 && yy3 <= 2024) return `${raw} ${yy3}`.trim();
   }
 
-  // Year-only + activeMusicMode → attach mode conservatively
   if (y && !m && session && session.activeMusicMode && !isGreetingOnly(raw)) {
     const mm = safeStr(session.activeMusicMode).trim();
     if (mm === "top10") return `top 10 ${y}`;
@@ -351,7 +347,6 @@ function normalizeInboundText(text, session, routeHint) {
     if (mm === "micro") return `micro moment ${y}`;
   }
 
-  // Year-only in music context → default to Top 10
   if (y && !m && !isGreetingOnly(raw)) {
     const rh = normText(routeHint || "");
     const lane = normText(session && session.lane);
@@ -462,19 +457,15 @@ function pickIntroForLogin(session, startedAt, bucketKey) {
 // PACKETS GATING (prevents packets.js hijacking music flows)
 // =========================
 function shouldAllowPackets(inboundText, routeHint, session, resolvedYear) {
-  // packets are ONLY for greet/help/bye/system prompts (your packets.js is designed for that)
-  // If a year exists anywhere, packets are not allowed to respond (prevents "hi" from hijacking a music request).
   if (resolvedYear) return false;
 
   const t = normText(inboundText);
-  if (!t) return true; // empty boot/hydration -> packets may serve minimal system/prompt if needed
+  if (!t) return true;
 
-  // Explicit safe intents
   if (isGreetingOnly(t)) return true;
   if (/\b(help|support|how do i|what can you do)\b/.test(t)) return true;
   if (/\b(bye|goodbye|see you|later|exit)\b/.test(t)) return true;
 
-  // Anything else: do not allow packets to fire.
   return false;
 }
 
@@ -543,6 +534,9 @@ const PATCH_KEYS = new Set([
   "__ce_lastOutHash",
   "__ce_lastOut",
   "__ce_lastOutLane",
+
+  // NEW: packets gate flag (so widget/index can persist it if needed)
+  "allowPackets",
 ]);
 
 function buildSessionPatch(session) {
@@ -704,6 +698,7 @@ function hardResetSession(session, startedAt) {
   session.__ce_lastOut = "";
   session.__ce_lastOutLane = "";
 
+  session.allowPackets = false; // NEW
   session.cog = {};
 
   ensureContinuityState(session);
@@ -740,15 +735,11 @@ function fallbackCore({ text, session, resolvedYear }) {
   const m = extractMode(t);
 
   if (y && m) {
-    return {
-      reply: `Got it — ${y}. Want Top 10, #1, a story moment, or a micro moment?`,
-      lane: "music",
-    };
+    return { reply: `Got it — ${y}. Want Top 10, #1, a story moment, or a micro moment?`, lane: "music" };
   }
 
   if (y) {
     commitYear(session, y, "fallback");
-
     return {
       reply: `Got it — ${y}. Want Top 10, #1, a story moment, or a micro moment?`,
       lane: "music",
@@ -823,9 +814,7 @@ async function handleChat(input = {}) {
     safeStr((input && input.client && input.client.routeHint) || input.routeHint || session.lane || "general").trim() ||
     "general";
 
-  // =========================
-  // RESET (OPTION A posture)
-  // =========================
+  // RESET
   if (inboundText === "__cmd:reset__") {
     hardResetSession(session, startedAt);
 
@@ -856,7 +845,7 @@ async function handleChat(input = {}) {
     };
   }
 
-  // Normalize inbound (kills mode-only loops)
+  // Normalize inbound
   const preNorm = inboundText;
   inboundText = normalizeInboundText(inboundText, session, routeHint);
   const inboundNormalized = inboundText !== preNorm;
@@ -989,7 +978,7 @@ async function handleChat(input = {}) {
   if (ov.forced) lane = "music";
   if (forceMusicYear) lane = "music";
 
-  // Intro (do NOT serve intro if we have year intent)
+  // Intro
   const doIntro = !ov.forced && !forceMusicYear && shouldServeIntroLoginMoment(session, inboundText, startedAt, { ...input, source });
   if (doIntro) {
     session.__introDone = 1;
@@ -1034,6 +1023,9 @@ async function handleChat(input = {}) {
   // PACKETS gating decision
   const allowPackets = shouldAllowPackets(inboundText, routeHint, session, resolvedYear0);
 
+  // >>> THE IMPORTANT WIRE: packets.js reads session.allowPackets
+  session.allowPackets = !!allowPackets;
+
   try {
     if (resolved.fn) {
       core = await withTimeout(
@@ -1044,11 +1036,9 @@ async function handleChat(input = {}) {
             requestId,
             routeHint: lane,
 
-            // IMPORTANT: chatEngine asserts control:
-            // - downstream may use packs, but packets should only execute when allowed.
+            // Provide flag explicitly too (harmless; useful if other engines inspect it)
             allowPackets,
 
-            // Pass packs as-is, but include allowPackets + resolvedYear for smarter downstream behavior
             packs: {
               conv: NYX_CONV_PACK,
               phrase: NYX_PHRASEPACK,
@@ -1083,6 +1073,10 @@ async function handleChat(input = {}) {
         detail: safeMetaStr(msg),
       },
     };
+  } finally {
+    // Reduce surface area: packets should be allowed only for this one evaluation window.
+    // Reserved triggers still bypass inside packets.js if explicitly invoked.
+    session.allowPackets = false;
   }
 
   // Attach safe music followUps if engine forgot chips
