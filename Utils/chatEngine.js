@@ -19,6 +19,7 @@
  * v0.6zX (ENTERPRISE HARDENED+++ + TRUE RANDOM INTROS)
  *  ✅ NEW: Random intro shuffle-bag per bucket (no-repeat until bag refills) — fixes “same greeting” problem
  *  ✅ NEW: Persists __nyxIntro via sessionPatch allowlist so randomization survives client sessionPatch persistence
+ *  ✅ NEW: Velvet mode support (earned intimacy) via __nyxVelvet + velvet intro bucket (ONLY after engagement)
  *  ✅ Keeps: Replay payload capture + inbound clamp + burst dedupe + lane drift guard
  *  ✅ Keeps: Year-only payload/ctx clicks hydrate inboundText so engine runs (lists fire)
  *  ✅ Keeps: Replay cache works without client requestId
@@ -33,7 +34,7 @@ const crypto = require("crypto");
 // Version
 // =========================
 const CE_VERSION =
-  "chatEngine v0.6zX (enterprise hardened+++ + random intro shuffle-bag no-repeat + replay payload capture + inbound clamp + burst dedupe + lane drift guard + payload-year hydration + replayKey fix + packets gating at engine-resolve + authoritative year commit + mode-only attach + loopkiller+++++ + post-intro grace + idempotency + timeout + contract normalize + session safety)";
+  "chatEngine v0.6zX (enterprise hardened+++ + random intro shuffle-bag no-repeat + velvet earned-intimacy gate + replay payload capture + inbound clamp + burst dedupe + lane drift guard + payload-year hydration + replayKey fix + packets gating at engine-resolve + authoritative year commit + mode-only attach + loopkiller+++++ + post-intro grace + idempotency + timeout + contract normalize + session safety)";
 
 // =========================
 // Enterprise knobs
@@ -61,6 +62,14 @@ const INTRO_VARIANTS_BY_BUCKET = {
     "Welcome back — Nyx online.\n\nYear first (1950–2024). Then we can go Top 10, #1, story moment, or micro moment.",
     "Alright. I’m here.\n\nSay a year (1950–2024) and what you want: “top 10 1988”, “#1 1964”, “micro moment 1999”.",
     "Hey. Let’s time-travel.\n\nGive me a year (1950–2024) and I’ll handle the rest.",
+  ],
+  // Earned intimacy: ONLY after engagement (see __nyxVelvet gate below)
+  velvet: [
+    "Alright… we’re settled now.\n\nGive me the year, and I’ll slow it down just enough to make it matter.",
+    "Good. You’re here with me.\n\nPick a year, and we’ll take it properly.",
+    "Now we can do this the right way.\n\nTell me the year—Top 10, #1, or a story moment?",
+    "Let’s stay right here for a second.\n\nWhat year do you want to step into?",
+    "Okay. I’ve got you.\n\nGive me a year, and I’ll bring the texture, not just the facts.",
   ],
   music: [
     "Hey — music mode.\n\nGive me a year (1950–2024) and choose: Top 10, #1, story moment, or micro moment.",
@@ -226,6 +235,39 @@ function shuffleInPlace(arr) {
     arr[j] = tmp;
   }
   return arr;
+}
+
+// =========================
+// Intro state sanitization (bounded; enterprise-safe)
+// =========================
+function sanitizeNyxIntroState(st) {
+  if (!isPlainObject(st)) return {};
+  const out = {};
+  const bagsIn = isPlainObject(st.bags) ? st.bags : {};
+  const lastIn = isPlainObject(st.lastIdByBucket) ? st.lastIdByBucket : {};
+
+  const bagsOut = {};
+  const lastOut = {};
+
+  const bucketKeys = Object.keys(INTRO_VARIANTS_BY_BUCKET);
+  for (const k of bucketKeys) {
+    const arr = INTRO_VARIANTS_BY_BUCKET[k] || [];
+    const len = Array.isArray(arr) ? arr.length : 0;
+
+    const bag = Array.isArray(bagsIn[k])
+      ? bagsIn[k].filter((n) => Number.isInteger(n) && n >= 0 && n < len).slice(0, 64)
+      : [];
+
+    if (bag.length) bagsOut[k] = bag;
+
+    const lastId = safeInt(lastIn[k], -1);
+    if (Number.isInteger(lastId) && lastId >= 0 && lastId < len) lastOut[k] = lastId;
+  }
+
+  if (Object.keys(bagsOut).length) out.bags = bagsOut;
+  if (Object.keys(lastOut).length) out.lastIdByBucket = lastOut;
+
+  return out;
 }
 
 // =========================
@@ -446,6 +488,8 @@ function pickIntroBucket(session, inboundText, routeHint, input) {
 
   if (src.includes("panel_open_intro") || src.includes("boot_intro")) {
     if (rh.includes("music") || rh.includes("years")) return "music";
+    // Earned warmth can still apply on return-open (but only if the gate is already true)
+    if (session && session.__nyxVelvet) return "velvet";
     return "general";
   }
 
@@ -457,6 +501,9 @@ function pickIntroBucket(session, inboundText, routeHint, input) {
   )
     return "music";
 
+  // Velvet only applies when we'd otherwise be "general"
+  if (session && session.__nyxVelvet) return "velvet";
+
   return "general";
 }
 
@@ -465,29 +512,31 @@ function pickIntroBucket(session, inboundText, routeHint, input) {
  * - Each bucket has its own bag of indices.
  * - We pop one index per intro serve.
  * - When empty, we refill with a fresh shuffle.
- * - We also try to avoid repeating the immediate last intro for that bucket.
+ * - We also avoid repeating the immediate last intro for that bucket (when possible).
  */
 function getIntroBag(session, bucketKey, arrLen) {
   session.__nyxIntro = isPlainObject(session.__nyxIntro) ? session.__nyxIntro : {};
   session.__nyxIntro.bags = isPlainObject(session.__nyxIntro.bags) ? session.__nyxIntro.bags : {};
+  session.__nyxIntro.lastIdByBucket = isPlainObject(session.__nyxIntro.lastIdByBucket)
+    ? session.__nyxIntro.lastIdByBucket
+    : {};
 
   const key = safeStr(bucketKey || "general") || "general";
   let bag = session.__nyxIntro.bags[key];
 
   // Validate bag
   if (!Array.isArray(bag)) bag = [];
-  bag = bag.filter((n) => Number.isInteger(n) && n >= 0 && n < arrLen);
+  bag = bag.filter((n) => Number.isInteger(n) && n >= 0 && n < arrLen).slice(0, 64);
 
   if (!bag.length) {
     const fresh = [];
     for (let i = 0; i < arrLen; i++) fresh.push(i);
     shuffleInPlace(fresh);
 
-    // Soft no-repeat: if lastId equals the first to pop, rotate once (if possible)
-    const lastId = safeInt(session.__nyxIntro.lastIdByBucket && session.__nyxIntro.lastIdByBucket[key], -1,);
-    if (arrLen > 1 && Number.isInteger(lastId) && lastId >= 0 && lastId < arrLen && fresh[fresh.length - 1] === lastId) {
-      // swap last element with a random earlier element
-      const swapWith = pickRandomIndex(fresh.length - 1);
+    // Soft no-repeat: because we pop from end, make sure last element != lastId if possible
+    const lastId = safeInt(session.__nyxIntro.lastIdByBucket[key], -1);
+    if (arrLen > 1 && lastId >= 0 && lastId < arrLen && fresh[fresh.length - 1] === lastId) {
+      const swapWith = pickRandomIndex(fresh.length - 1); // 0..len-2
       const tmp = fresh[fresh.length - 1];
       fresh[fresh.length - 1] = fresh[swapWith];
       fresh[swapWith] = tmp;
@@ -504,7 +553,6 @@ function pickIntroForLogin(session, startedAt, bucketKey) {
   const bkey = safeStr(bucketKey || "general") || "general";
   const arr = INTRO_VARIANTS_BY_BUCKET[bkey] || INTRO_VARIANTS_BY_BUCKET.general;
 
-  // Initialize bucket lastId map
   session.__nyxIntro = isPlainObject(session.__nyxIntro) ? session.__nyxIntro : {};
   session.__nyxIntro.lastIdByBucket = isPlainObject(session.__nyxIntro.lastIdByBucket)
     ? session.__nyxIntro.lastIdByBucket
@@ -518,11 +566,9 @@ function pickIntroForLogin(session, startedAt, bucketKey) {
   // Hard no-repeat against immediate last served for same bucket (if possible)
   const lastId = safeInt(session.__nyxIntro.lastIdByBucket[bkey], -1);
   if (arr.length > 1 && id === lastId) {
-    // try one more draw from bag; if empty, random fallback
     if (bag.length) {
       id = bag.pop();
     } else {
-      // random but not lastId
       let tries = 0;
       let cand = id;
       while (tries < 6 && cand === lastId) {
@@ -533,7 +579,6 @@ function pickIntroForLogin(session, startedAt, bucketKey) {
     }
   }
 
-  // Persist last picked
   session.__nyxIntro.lastIdByBucket[bkey] = id;
 
   // Keep existing fields (used elsewhere / older logic)
@@ -632,6 +677,9 @@ const PATCH_KEYS = new Set([
 
   // NEW: persist intro randomization state (small, bounded)
   "__nyxIntro",
+
+  // NEW: velvet earned-intimacy gate
+  "__nyxVelvet",
 ]);
 
 function buildSessionPatch(session) {
@@ -644,7 +692,7 @@ function buildSessionPatch(session) {
       continue;
     }
     if (k === "__nyxIntro") {
-      if (isPlainObject(s.__nyxIntro)) out.__nyxIntro = s.__nyxIntro;
+      out.__nyxIntro = sanitizeNyxIntroState(s.__nyxIntro);
       continue;
     }
     out[k] = s[k];
@@ -820,6 +868,8 @@ function hardResetSession(session, startedAt) {
 
   session.allowPackets = false;
   session.cog = {};
+
+  session.__nyxVelvet = false;
 
   ensureContinuityState(session);
   return session;
@@ -1003,7 +1053,13 @@ async function handleChat(input = {}) {
         sessionPatch: buildSessionPatch(session),
         cog: { phase: "listening", state: "confident", reason: "burst_replay", lane: cached0.lane },
         requestId,
-        meta: { engine: CE_VERSION, replay: true, burst: true, source: safeMetaStr(source), elapsedMs: nowMs() - startedAt },
+        meta: {
+          engine: CE_VERSION,
+          replay: true,
+          burst: true,
+          source: safeMetaStr(source),
+          elapsedMs: nowMs() - startedAt,
+        },
       };
     }
   }
@@ -1126,6 +1182,18 @@ async function handleChat(input = {}) {
   }
   if (!session.startedAt) session.startedAt = startedAt;
   if (!inboundIsEmpty) session.__hasRealUserTurn = 1;
+
+  // Velvet Mode: earned intimacy (NEVER first contact)
+  // Gate: 2+ real turns AND (year/mode context exists)
+  if (
+    !session.__nyxVelvet &&
+    safeInt(session.turnCount || 0, 0) >= 2 &&
+    (!!session.lastMusicYear ||
+      !!session.lastMode ||
+      !!(session.cog && (session.cog.year || session.cog.mode || session.cog.lastMusicYear)))
+  ) {
+    session.__nyxVelvet = true;
+  }
 
   session.lastTurnAt = startedAt;
   if (!bootIntroEmpty) {
@@ -1300,7 +1368,7 @@ async function handleChat(input = {}) {
         continue;
       }
       if (k === "__nyxIntro") {
-        if (isPlainObject(v)) session.__nyxIntro = v;
+        session.__nyxIntro = sanitizeNyxIntroState(v);
         continue;
       }
       session[k] = v;
@@ -1357,6 +1425,7 @@ async function handleChat(input = {}) {
       engineTimeout: !!engineTimedOut,
       engineEmptyReply,
       packsLoaded: { conv: !!NYX_CONV_PACK, phrase: !!NYX_PHRASEPACK, packets: !!NYX_PACKETS, cs1: !!cs1 },
+      velvet: !!session.__nyxVelvet,
     },
   };
 }
