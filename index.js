@@ -3,8 +3,8 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17zo
- * (Option B alignment: chatEngine v0.6zV compatibility + enterprise guards)
+ * index.js v1.5.17zp
+ * (Option B alignment: chatEngine v0.6zV compatibility + enterprise guards + BOOT INTRO LOOP FIX)
  *
  * Goals:
  *  ✅ Preserve Voice/TTS stability (ElevenLabs) + /api/tts + /api/voice aliases
@@ -12,11 +12,12 @@
  *  ✅ Preserve turn dedupe + loop fuse (session + burst + sustained)
  *  ✅ Preserve sessionPatch persistence (cog + continuity keys)
  *  ✅ Preserve boot-intro bridge behavior (panel_open_intro / boot_intro)
- *  ✅ Zero "index.js imports" inside chatEngine (chatEngine stays pure)
+ *  ✅ Fix: boot-intro / empty-text requests should NOT trigger outer replay dedupe or throttles (prevents “intro loops”)
+ *  ✅ Fix: always provide a requestId to chatEngine (engine dedupe becomes deterministic)
  *
  * NOTE:
- *  - This file expects ./Utils/chatEngine.js to export handleChat (as in your v0.6zV paste).
- *  - This is a full-file deliverable (drop-in). If you have custom routes, merge them in carefully.
+ *  - Expects ./Utils/chatEngine.js to export handleChat (as in your v0.6zV paste).
+ *  - Full-file deliverable (drop-in).
  */
 
 // =========================
@@ -35,7 +36,7 @@ function safeRequire(p) {
   }
 }
 
-const cors = safeRequire("cors") || null;
+const cors = safeRequire("cors") || null; // optional; we still hard-lock CORS manually
 
 // Your pure engine
 const chatEngine = safeRequire("./Utils/chatEngine") || safeRequire("./Utils/chatEngine.js") || null;
@@ -47,7 +48,7 @@ const fetch = global.fetch || safeRequire("node-fetch");
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.17zo (enterprise hardened: CORS hard-lock + loop fuse + sessionPatch persistence + boot-intro bridge + TTS parse recovery + chatEngine v0.6zV compatibility)";
+  "index.js v1.5.17zp (enterprise hardened: CORS hard-lock + loop fuse + sessionPatch persistence + boot-intro bridge + BOOT/EMPTY replay+throttle bypass + requestId always-on + TTS parse recovery + chatEngine v0.6zV compatibility)";
 
 // =========================
 // Env / knobs
@@ -69,7 +70,7 @@ const ORIGINS_ALLOWLIST = String(
   .filter(Boolean);
 
 // Widget sometimes runs from preview domains — you can add them via env, no code change.
-const ORIGINS_REGEX_ALLOWLIST = String(process.env.CORS_ALLOW_ORIGINS_REGEX || "").trim(); // optional "https://.*\.webflow\.io$;https://.*\.vercel\.app$"
+const ORIGINS_REGEX_ALLOWLIST = String(process.env.CORS_ALLOW_ORIGINS_REGEX || "").trim(); // optional "https://.*\\.webflow\\.io$;https://.*\\.vercel\\.app$"
 
 const LOOP_REPLAY_WINDOW_MS = clampInt(process.env.LOOP_REPLAY_WINDOW_MS, 4000, 500, 15000);
 const BURST_WINDOW_MS = clampInt(process.env.BURST_WINDOW_MS, 1200, 200, 5000);
@@ -77,7 +78,12 @@ const BURST_MAX = clampInt(process.env.BURST_MAX, 6, 2, 30);
 const SUSTAINED_WINDOW_MS = clampInt(process.env.SUSTAINED_WINDOW_MS, 12000, 2000, 60000);
 const SUSTAINED_MAX = clampInt(process.env.SUSTAINED_MAX, 18, 6, 120);
 
-const SESSION_TTL_MS = clampInt(process.env.SESSION_TTL_MS, 45 * 60 * 1000, 10 * 60 * 1000, 12 * 60 * 60 * 1000); // default 45m
+const SESSION_TTL_MS = clampInt(
+  process.env.SESSION_TTL_MS,
+  45 * 60 * 1000,
+  10 * 60 * 1000,
+  12 * 60 * 60 * 1000
+); // default 45m
 const SESSION_MAX = clampInt(process.env.SESSION_MAX, 50000, 5000, 250000);
 
 // TTS env
@@ -162,6 +168,29 @@ function makeOriginRegexes() {
   return out;
 }
 const ORIGIN_REGEXES = makeOriginRegexes();
+
+function makeReqId() {
+  try {
+    if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  } catch (_) {}
+  return sha1(`${nowMs()}|${Math.random()}|${process.pid}`).slice(0, 20);
+}
+
+function isBootLike(routeHint, body) {
+  const rh = safeStr(routeHint).toLowerCase();
+  const mode = safeStr(body?.mode || body?.intent || body?.client?.mode || body?.client?.intent).toLowerCase();
+  const src = safeStr(body?.source || body?.client?.source).toLowerCase();
+
+  // Keep tight: only bypass for the specific boot-intro semantics.
+  if (rh === "boot_intro" || rh === "panel_open_intro") return true;
+  if (mode === "boot_intro" || mode === "panel_open_intro") return true;
+
+  // Some widgets tag boot as "boot" but still mean intro.
+  if (rh === "boot" && (mode.includes("intro") || src.includes("widget"))) return true;
+  if (mode === "boot" && rh.includes("intro")) return true;
+
+  return false;
+}
 
 // =========================
 // Session store (in-memory, enterprise-safe-ish)
@@ -303,7 +332,7 @@ app.use((req, res, next) => {
     res.setHeader("Access-Control-Allow-Credentials", "true");
     res.setHeader(
       "Access-Control-Allow-Headers",
-      "Content-Type, Authorization, X-Requested-With, X-SB-Session, X-Session-Id, X-Visitor-Id"
+      "Content-Type, Authorization, X-Requested-With, X-SB-Session, X-Session-Id, X-Visitor-Id, X-Request-Id, X-Route-Hint"
     );
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   }
@@ -350,7 +379,9 @@ async function handleChatRoute(req, res) {
   const startedAt = nowMs();
 
   const body = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
+
   const clientRequestId = safeStr(body.requestId || req.headers["x-request-id"] || "").trim();
+  const serverRequestId = clientRequestId || makeReqId();
 
   const source =
     safeStr(body?.client?.source || body?.source || req.headers["x-client-source"] || "").trim() || "unknown";
@@ -364,48 +395,60 @@ async function handleChatRoute(req, res) {
   // Session
   const { rec } = getSession(req);
 
-  // Abuse guards
-  const burst = checkBurst(rec, startedAt);
-  const sus = checkSustained(rec, startedAt);
-  if (burst.blocked || sus.blocked) {
-    const reply =
-      burst.reason === "burst"
-        ? "One sec — you’re firing a little fast. Try again in a moment."
-        : "Give me a breath — then hit me again with a year or a request.";
-    writeReplay(rec, reply, rec.data.lane || "general");
-    return res.status(429).json({
-      ok: true,
-      reply,
-      lane: rec.data.lane || "general",
-      sessionPatch: {},
-      requestId: clientRequestId || sha1(`${startedAt}|${Math.random()}`).slice(0, 10),
-      meta: { index: INDEX_VERSION, throttled: burst.blocked ? "burst" : "sustained" },
-    });
+  // Determine “boot/intro system ping” (these should NOT be throttled or outer-deduped)
+  const bootLike = isBootLike(routeHint, body);
+
+  // Abuse guards (skip for bootLike to prevent “intro loop throttling”)
+  if (!bootLike) {
+    const burst = checkBurst(rec, startedAt);
+    const sus = checkSustained(rec, startedAt);
+    if (burst.blocked || sus.blocked) {
+      const reply =
+        burst.reason === "burst"
+          ? "One sec — you’re firing a little fast. Try again in a moment."
+          : "Give me a breath — then hit me again with a year or a request.";
+      writeReplay(rec, reply, rec.data.lane || "general");
+      return res.status(429).json({
+        ok: true,
+        reply,
+        lane: rec.data.lane || "general",
+        sessionPatch: {},
+        requestId: serverRequestId,
+        meta: { index: INDEX_VERSION, throttled: burst.blocked ? "burst" : "sustained" },
+      });
+    }
   }
 
-  // Outer replay dedupe (inner engine also dedupes)
-  const dedupe = replayDedupe(rec, inboundText, source, clientRequestId);
-  if (dedupe.hit) {
-    return res.status(200).json({
-      ok: true,
-      reply: dedupe.reply,
-      lane: dedupe.lane,
-      sessionPatch: {},
-      requestId: clientRequestId || sha1(`${startedAt}|${Math.random()}`).slice(0, 10),
-      meta: { index: INDEX_VERSION, replay: true },
-    });
+  // Outer replay dedupe (skip for bootLike + skip for empty inboundText)
+  // Rationale: empty/boot pings often repeat on mount; deduping them causes “stale intro” replays and perceived looping.
+  if (!bootLike && inboundText) {
+    const dedupe = replayDedupe(rec, inboundText, source, clientRequestId);
+    if (dedupe.hit) {
+      return res.status(200).json({
+        ok: true,
+        reply: dedupe.reply,
+        lane: dedupe.lane,
+        sessionPatch: {},
+        requestId: serverRequestId,
+        meta: { index: INDEX_VERSION, replay: true },
+      });
+    }
   }
 
   if (!chatEngine || typeof chatEngine.handleChat !== "function") {
     const reply = "Backend engine not loaded. Check deploy: Utils/chatEngine.js is missing.";
     writeReplay(rec, reply, "general");
-    return res.status(500).json({ ok: false, reply, lane: "general", meta: { index: INDEX_VERSION, engine: "missing" } });
+    return res
+      .status(500)
+      .json({ ok: false, reply, lane: "general", requestId: serverRequestId, meta: { index: INDEX_VERSION, engine: "missing" } });
   }
 
   // Build engine input (Option B friendly)
+  // CRITICAL: always provide requestId (serverRequestId) so chatEngine dedupe is deterministic even when client doesn't send one.
   const engineInput = {
     ...body,
-    requestId: clientRequestId || undefined, // IMPORTANT: let engine know if client actually provided one
+    requestId: serverRequestId,
+    clientRequestId: clientRequestId || undefined,
     text: inboundText,
     source,
     routeHint,
@@ -428,7 +471,7 @@ async function handleChatRoute(req, res) {
       ok: true,
       reply,
       lane: rec.data.lane || "general",
-      requestId: clientRequestId || sha1(`${startedAt}|${Math.random()}`).slice(0, 10),
+      requestId: serverRequestId,
       meta: { index: INDEX_VERSION, error: safeStr(msg).slice(0, 200) },
     });
   }
@@ -456,13 +499,14 @@ async function handleChatRoute(req, res) {
     followUpsStrings: out?.followUpsStrings,
     sessionPatch: out?.sessionPatch || {},
     cog: out?.cog,
-    requestId: out?.requestId || clientRequestId || sha1(`${startedAt}|${Math.random()}`).slice(0, 10),
+    requestId: out?.requestId || serverRequestId,
     meta: {
       ...(isPlainObject(out?.meta) ? out.meta : {}),
       index: INDEX_VERSION,
       elapsedMs: nowMs() - startedAt,
       source,
       routeHint,
+      bootLike: !!bootLike,
     },
   });
 }
