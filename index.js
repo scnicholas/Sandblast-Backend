@@ -3,12 +3,13 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17zr
+ * index.js v1.5.17zs
  * (Option B alignment: chatEngine v0.6zV compatibility + enterprise guards + /api/health alias)
  *
  * Goals:
  *  ✅ Preserve Voice/TTS stability (ElevenLabs) + /api/tts + /api/voice aliases
- *  ✅ Preserve CORS HARD-LOCK + preflight reliability (FIXED: max-age + consistent OPTIONS headers)
+ *  ✅ Preserve CORS HARD-LOCK + preflight reliability (stabilized: max-age + consistent OPTIONS headers)
+ *  ✅ FIX: allow widget build headers (X-SBNYX-Client-Build / X-SBNYX-Widget-Version) to pass preflight
  *  ✅ Preserve turn dedupe + loop fuse (session + burst + sustained)
  *  ✅ Preserve sessionPatch persistence (cog + continuity keys)
  *  ✅ Preserve boot-intro bridge behavior (panel_open_intro / boot_intro)
@@ -46,7 +47,7 @@ const fetch = global.fetch || safeRequire("node-fetch");
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.17zr (enterprise hardened: CORS hard-lock + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY replay+throttle bypass + requestId always-on + TTS parse recovery + chatEngine v0.6zV compatibility; CORS preflight headers stabilized)";
+  "index.js v1.5.17zs (enterprise hardened: CORS hard-lock + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY replay+throttle bypass + requestId always-on + TTS parse recovery + chatEngine v0.6zV compatibility; CORS preflight stabilized; allow X-SBNYX client headers)";
 
 // =========================
 // Env / knobs
@@ -201,9 +202,9 @@ function isAllowedOrigin(origin) {
 }
 
 // =========================
-// Session store (in-memory)
+// Session store (in-memory, enterprise-safe-ish)
 // =========================
-const SESSIONS = new Map(); // key -> { data, lastSeenAt, burst:[ts], sustained:[ts] }
+const SESSIONS = new Map(); // key -> { data: sessionObj, lastSeenAt, burst:[ts], sustained:[ts] }
 
 function sessionKeyFromReq(req) {
   const b = isPlainObject(req.body) ? req.body : {};
@@ -317,22 +318,34 @@ app.use((req, res, next) => {
   const origin = normalizeOrigin(originRaw);
   const allow = origin ? isAllowedOrigin(origin) : false;
 
-  // Always vary by Origin when Origin is present
   if (origin) res.setHeader("Vary", "Origin");
 
   if (origin && allow) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Access-Control-Allow-Credentials", "true");
+
+    // ✅ IMPORTANT: include Nyx widget build headers to satisfy preflight
     res.setHeader(
       "Access-Control-Allow-Headers",
-      "Content-Type, Authorization, X-Requested-With, X-SB-Session, X-Session-Id, X-Visitor-Id, X-Request-Id, X-Route-Hint"
+      [
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+        "X-SB-Session",
+        "X-Session-Id",
+        "X-Visitor-Id",
+        "X-Request-Id",
+        "X-Route-Hint",
+        "X-SBNYX-Client-Build",
+        "X-SBNYX-Widget-Version",
+      ].join(", ")
     );
+
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
     res.setHeader("Access-Control-Max-Age", "600");
   }
 
   if (req.method === "OPTIONS") {
-    // Preflight must exit fast and clean.
     return res.status(204).send("");
   }
 
@@ -359,7 +372,7 @@ app.get("/api/discovery", (req, res) => {
   res.status(200).json({
     ok: true,
     version: INDEX_VERSION,
-    endpoints: ["/api/sandblast-gpt", "/api/nyx/chat", "/api/tts", "/api/voice", "/health", "/api/health"],
+    endpoints: ["/api/sandblast-gpt", "/api/nyx/chat", "/api/chat", "/api/tts", "/api/voice", "/health", "/api/health"],
   });
 });
 
