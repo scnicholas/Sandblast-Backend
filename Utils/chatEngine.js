@@ -29,7 +29,7 @@
  *  ✅ Contract normalization + sessionPatch allowlist merge
  *  ✅ Turn drift control (ignore empty non-boot)
  *  ✅ Intro: greeting-first + stable-per-login random selection
- *  ✅ Reset command "__cmd:reset__"
+ *  ✅ Reset command "__cmd:reset__" (OPTION A posture followUps)
  *  ✅ Observability flags (engineResolvedFrom, engineOk, engineTimeout, engineEmptyReply)
  */
 
@@ -794,21 +794,39 @@ async function handleChat(input = {}) {
     safeStr((input && input.client && input.client.routeHint) || input.routeHint || session.lane || "general").trim() ||
     "general";
 
-  // RESET
+  // =========================
+  // RESET (OPTION A posture)
+  // =========================
   if (inboundText === "__cmd:reset__") {
     hardResetSession(session, startedAt);
+
+    // Option A: offer posture-forward followUps immediately after reset.
+    // Keep them high-signal and lane-advancing.
+    const RESET_FOLLOWUPS = [
+      { label: "Pick a year", send: "Pick a year" },
+      { label: "Music", send: "Music" },
+      { label: "Radio", send: "Radio" },
+    ];
+
     const reply = "All reset. Where do you want to start?";
+
+    // Ensure reset leaves an explicit lane and a stable lastOut for grace-window behavior.
+    session.lane = "general";
+    session.lastOut = reply;
+    session.lastOutAt = startedAt;
+
     writeReplay(session, replayKey(session, requestId, inboundText, source), startedAt, reply, "general");
+
     return {
       ok: true,
       reply,
       lane: "general",
-      followUps: toFollowUps(CANON_INTRO_CHIPS),
-      followUpsStrings: toFollowUpsStrings(CANON_INTRO_CHIPS),
+      followUps: toFollowUps(RESET_FOLLOWUPS),
+      followUpsStrings: toFollowUpsStrings(RESET_FOLLOWUPS),
       sessionPatch: buildSessionPatch(session),
       cog: { phase: "listening", state: "fresh", reason: "hard_reset", lane: "general" },
       requestId,
-      meta: { engine: CE_VERSION, reset: true, source: safeMetaStr(source), elapsedMs: nowMs() - startedAt },
+      meta: { engine: CE_VERSION, reset: true, resetOption: "A", source: safeMetaStr(source), elapsedMs: nowMs() - startedAt },
     };
   }
 
@@ -1096,7 +1114,9 @@ async function handleChat(input = {}) {
       source: safeMetaStr(source),
       routeHint: safeMetaStr(routeHint),
       inboundNormalized,
-      override: (ov.forced ? `music:${safeMetaStr(ov.mode)}:${safeMetaStr(ov.year)}` : "") || (forceMusicYear ? `music:top10:${safeMetaStr(yearAuth)}` : ""),
+      override:
+        (ov.forced ? `music:${safeMetaStr(ov.mode)}:${safeMetaStr(ov.year)}` : "") ||
+        (forceMusicYear ? `music:top10:${safeMetaStr(yearAuth)}` : ""),
       elapsedMs: nowMs() - startedAt,
       engineResolvedFrom: resolved.from,
       engineOk,
