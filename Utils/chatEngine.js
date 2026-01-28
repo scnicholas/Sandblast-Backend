@@ -16,20 +16,16 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.6zZ (ENTERPRISE HARDENED+++ + OPTION A RANDOM GREETING PREFIX ONLY)
- *  ✅ NEW (Option A): Random greeting prefix on every REAL user interaction turn (message/chip/voice-submit)
- *      - NEVER on boot intro pings
- *      - No new imports, no external scripts, no contract changes
- *      - Isolated + reversible block (search: "OPTION A: RANDOM GREETING PREFIX")
- *      - Avoids immediate repeat via session.cog.__nyxGreetLast
- *  ✅ NEW (CRITICAL): Guard __cmd:reset__ so it cannot trigger from boot intro pings (prevents fake "All reset" intro)
- *      - Search: "RESET (GUARDED)"
- *  ✅ FIX: reset meta now correctly reports Option A (was incorrectly "B")
- *  ✅ FIX: reset followUps now send actionable commands (prevents post-reset “intro drift” / weak intent)
- *  ✅ FIX (CRITICAL): Greeting prefix now survives replay/burst dedupe by applying dynamically on replay returns
- *      - Stores RAW reply in replay cache; applies greeting prefix at return-time
- *      - Prevents “Did not change” when replay returns early
- *  ✅ Keeps: existing intro shuffle-bag login-moment logic (unchanged)
+ * v0.7aA (ENTERPRISE HARDENED+++ + OPTION A RANDOM GREETING PREFIX ONLY + NYX STATE SPINE v1 (COLD/WARM/ENGAGED))
+ *  ✅ NEW: NYX STATE SPINE v1 bound to session.cog.state (cold → warm → engaged; forward-only; inactivity reset)
+ *      - NEVER advances on boot intro pings
+ *      - Advances on REAL interaction (message/chip/voice-submit; payload/ctx intent counts even if text empty)
+ *      - Sticky engaged (won’t drift backward on replay/dedupe/guards)
+ *      - Protected from engine sessionPatch.cog overwrites (state is re-stamped forward-only after merges)
+ *      - Exposed in meta.nyxState so widget/debugging can see it without contract changes
+ *  ✅ Keeps: Option A random greeting prefix per real interaction (replay-safe dynamic prefix)
+ *  ✅ Keeps: Guarded __cmd:reset__ cannot trigger from boot intro pings
+ *  ✅ Keeps: Intro shuffle-bag login-moment logic (unchanged)
  *  ✅ Keeps: Replay payload capture + inbound clamp + burst dedupe + lane drift guard
  *  ✅ Keeps: Year-only payload/ctx clicks hydrate inboundText so engine runs (lists fire)
  *  ✅ Keeps: Replay cache works without client requestId
@@ -44,7 +40,7 @@ const crypto = require("crypto");
 // Version
 // =========================
 const CE_VERSION =
-  "chatEngine v0.6zZ (enterprise hardened+++ + OPTION A random greeting prefix per real interaction + replay-safe dynamic prefix + reset-guard for boot-intro + preserves intro/login shuffle-bag + velvet gate + replay payload capture + inbound clamp + burst dedupe + lane drift guard + payload-year hydration + replayKey fix + packets gating at engine-resolve + authoritative year commit + mode-only attach + loopkiller+++++ + post-intro grace + idempotency + timeout + contract normalize + session safety)";
+  "chatEngine v0.7aA (enterprise hardened+++ + OPTION A random greeting prefix per real interaction + replay-safe dynamic prefix + reset-guard for boot-intro + preserves intro/login shuffle-bag + velvet gate + replay payload capture + inbound clamp + burst dedupe + lane drift guard + payload-year hydration + replayKey fix + packets gating at engine-resolve + authoritative year commit + mode-only attach + loopkiller+++++ + post-intro grace + idempotency + timeout + contract normalize + session safety + NYX STATE SPINE v1 (cold/warm/engaged forward-only, inactivity reset, merge-protected))";
 
 // =========================
 // Enterprise knobs
@@ -246,6 +242,126 @@ function shuffleInPlace(arr) {
   }
   return arr;
 }
+
+// ============================
+// NYX STATE SPINE v1 (COLD/WARM/ENGAGED) — PURE + FORWARD-ONLY
+// Bound to session.cog.state
+// ============================
+const NYX_STATE = Object.freeze({ COLD: "cold", WARM: "warm", ENGAGED: "engaged" });
+const NYX_STATE_ORDER = Object.freeze([NYX_STATE.COLD, NYX_STATE.WARM, NYX_STATE.ENGAGED]);
+
+function sanitizeNyxState(s) {
+  const v = String(s || "").toLowerCase();
+  return v === NYX_STATE.COLD || v === NYX_STATE.WARM || v === NYX_STATE.ENGAGED ? v : null;
+}
+function nyxStateIndex(s) {
+  const v = sanitizeNyxState(s) || NYX_STATE.COLD;
+  const i = NYX_STATE_ORDER.indexOf(v);
+  return i >= 0 ? i : 0;
+}
+function nyxAdvanceState(current, next) {
+  const c = sanitizeNyxState(current) || NYX_STATE.COLD;
+  const n = sanitizeNyxState(next) || c;
+  const ci = nyxStateIndex(c);
+  const ni = nyxStateIndex(n);
+  return NYX_STATE_ORDER[Math.max(ci, ni)];
+}
+function nyxShouldIgnoreTurn(input) {
+  // Treat boot-intro / panel-open pings as non-turns
+  const t = String((input && (input.turnType || input.type || input.event)) || "").toLowerCase();
+  const rh = String((input && (input.routeHint || input.hint)) || "").toLowerCase();
+  if (t.includes("boot") || t.includes("intro") || t.includes("panel_open")) return true;
+  if (rh.includes("boot") || rh.includes("intro") || rh.includes("panel_open")) return true;
+  // Also treat explicit boot intro sources as non-turns (even if other fields are missing)
+  try {
+    if (isBootIntroSource(input)) return true;
+  } catch (_) {
+    // ignore
+  }
+  return false;
+}
+function nyxIsMeaningfulTurn(inboundText, input) {
+  if (nyxShouldIgnoreTurn(input)) return false;
+
+  const text = String(inboundText || "").trim();
+  if (text) return true;
+
+  // If user clicked a chip / sent payload/ctx with intent, treat as meaningful.
+  const payload = input && input.payload;
+  const ctx = input && input.ctx;
+  const body = input && input.body;
+
+  // Conservative signals that a user action occurred even if text is empty
+  if (payload && typeof payload === "object") {
+    if (payload.year || payload.mode || payload.action || payload.intent || payload.label) return true;
+    if (payload.text || payload.message) return true;
+  }
+  if (ctx && typeof ctx === "object") {
+    if (ctx.year || ctx.mode || ctx.action || ctx.intent || ctx.route) return true;
+  }
+  if (body && typeof body === "object") {
+    if (body.year || body.mode || body.action || body.intent) return true;
+    if (body.text || body.message) return true;
+  }
+
+  return false;
+}
+function nyxResolveState(session, inboundText, input, now) {
+  const cog = isPlainObject(session && session.cog) ? session.cog : {};
+  const prev = sanitizeNyxState(cog.state) || NYX_STATE.COLD;
+
+  const ts = Number.isFinite(now) ? now : Date.now();
+  const lastSeen = safeInt(cog.__nyxLastSeenAt || 0, 0);
+
+  const INACTIVITY_RESET_MS = 1000 * 60 * 45; // 45 minutes
+  const meaningful = nyxIsMeaningfulTurn(inboundText, input);
+
+  // Always bump lastSeen (even for ignored turns) so the session doesn't "time travel"
+  if (nyxShouldIgnoreTurn(input)) {
+    return { state: prev, lastSeenAt: ts, progressed: false, reset: false, meaningful: false };
+  }
+
+  const inactiveTooLong = lastSeen > 0 && ts - lastSeen > INACTIVITY_RESET_MS;
+
+  // If inactivity reset triggers and this is meaningful, restart at cold (new arrival)
+  if (inactiveTooLong && meaningful) {
+    return { state: NYX_STATE.COLD, lastSeenAt: ts, progressed: true, reset: true, meaningful: true };
+  }
+
+  // Normal progression (forward-only):
+  // - first meaningful: cold -> warm
+  // - subsequent meaningful: warm -> engaged
+  // - engaged sticky
+  let next = prev;
+  if (meaningful) {
+    if (nyxStateIndex(prev) <= nyxStateIndex(NYX_STATE.COLD)) next = NYX_STATE.WARM;
+    else if (nyxStateIndex(prev) === nyxStateIndex(NYX_STATE.WARM)) next = NYX_STATE.ENGAGED;
+    else next = NYX_STATE.ENGAGED;
+  }
+
+  const finalState = nyxAdvanceState(prev, next);
+  return {
+    state: finalState,
+    lastSeenAt: ts,
+    progressed: finalState !== prev,
+    reset: false,
+    meaningful,
+  };
+}
+function nyxStampState(session, st) {
+  try {
+    session.cog = isPlainObject(session.cog) ? session.cog : {};
+    const prev = sanitizeNyxState(session.cog.state) || NYX_STATE.COLD;
+    const next = sanitizeNyxState(st && st.state) || prev;
+    session.cog.state = nyxAdvanceState(prev, next);
+    session.cog.__nyxLastSeenAt = safeInt((st && st.lastSeenAt) || Date.now(), Date.now());
+  } catch (_) {
+    // no-op
+  }
+}
+// ============================
+// END NYX STATE SPINE
+// ============================
 
 // =========================
 // OPTION A: RANDOM GREETING PREFIX (ISOLATED + REVERSIBLE)
@@ -789,11 +905,13 @@ function buildSessionPatch(session) {
     }
     // Keep replay payload arrays bounded (enterprise-safe)
     if (k === "__ce_lastOutFollowUps") {
-      if (Array.isArray(s.__ce_lastOutFollowUps)) out.__ce_lastOutFollowUps = s.__ce_lastOutFollowUps.slice(0, MAX_FOLLOWUPS);
+      if (Array.isArray(s.__ce_lastOutFollowUps))
+        out.__ce_lastOutFollowUps = s.__ce_lastOutFollowUps.slice(0, MAX_FOLLOWUPS);
       continue;
     }
     if (k === "__ce_lastOutFollowUpsStrings") {
-      if (Array.isArray(s.__ce_lastOutFollowUpsStrings)) out.__ce_lastOutFollowUpsStrings = s.__ce_lastOutFollowUpsStrings.slice(0, MAX_FOLLOWUPS);
+      if (Array.isArray(s.__ce_lastOutFollowUpsStrings))
+        out.__ce_lastOutFollowUpsStrings = s.__ce_lastOutFollowUpsStrings.slice(0, MAX_FOLLOWUPS);
       continue;
     }
     if (k === "__ce_lastOutDirectives") {
@@ -923,7 +1041,9 @@ function writeReplay(session, key, now, reply, lane, extras) {
   session.__ce_lastReqAt = now;
 
   // Cache RAW reply (unprefixed) for replay. Keep __ce_lastOut for backwards compatibility.
-  const raw = safeStr((extras && typeof extras === "object" && typeof extras.rawReply === "string" && extras.rawReply) || reply);
+  const raw = safeStr(
+    (extras && typeof extras === "object" && typeof extras.rawReply === "string" && extras.rawReply) || reply
+  );
   session.__ce_lastOutRaw = raw;
   session.__ce_lastOut = raw;
 
@@ -980,7 +1100,11 @@ function hardResetSession(session, startedAt) {
   session.__ce_lastInAt = 0;
 
   session.allowPackets = false;
+
+  // NYX STATE SPINE baseline
   session.cog = {};
+  session.cog.state = NYX_STATE.COLD;
+  session.cog.__nyxLastSeenAt = startedAt;
 
   session.__nyxVelvet = false;
 
@@ -1092,6 +1216,10 @@ async function handleChat(input = {}) {
   const session = ensureContinuityState(input.session || {});
   session.cog = isPlainObject(session.cog) ? session.cog : {};
 
+  // Ensure baseline state exists (do not regress)
+  if (!sanitizeNyxState(session.cog.state)) session.cog.state = NYX_STATE.COLD;
+  if (!Number.isFinite(Number(session.cog.__nyxLastSeenAt))) session.cog.__nyxLastSeenAt = startedAt;
+
   let inboundText = extractInboundTextFromInput(input);
 
   const source =
@@ -1147,6 +1275,7 @@ async function handleChat(input = {}) {
           reset: true,
           resetOption: "A",
           source: safeMetaStr(source),
+          nyxState: safeMetaStr(session.cog.state),
           elapsedMs: nowMs() - startedAt,
         },
       };
@@ -1157,6 +1286,12 @@ async function handleChat(input = {}) {
   const preNorm = inboundText;
   inboundText = normalizeInboundText(inboundText, session, routeHint);
   const inboundNormalized = inboundText !== preNorm;
+
+  // =========================
+  // NYX STATE SPINE: stamp state BEFORE replay/burst returns (forward-only, boot-safe)
+  // =========================
+  const st0 = nyxResolveState(session, inboundText, { ...input, source, routeHint }, startedAt);
+  nyxStampState(session, st0);
 
   // Burst dedupe: if the same inbound fires twice in <250ms, treat as replay
   const inHash = sha1(inboundText).slice(0, 12);
@@ -1186,6 +1321,7 @@ async function handleChat(input = {}) {
           replay: true,
           burst: true,
           source: safeMetaStr(source),
+          nyxState: safeMetaStr(session.cog.state),
           elapsedMs: nowMs() - startedAt,
         },
       };
@@ -1201,6 +1337,9 @@ async function handleChat(input = {}) {
   // This is the chip-click killer fix (lists not firing).
   if (isEmptyOrNoText(inboundText) && resolvedYear0) {
     inboundText = String(resolvedYear0);
+    // Re-stamp state (meaningful turn via payload year) after hydration (forward-only)
+    const stH = nyxResolveState(session, inboundText, { ...input, source, routeHint }, startedAt);
+    nyxStampState(session, stH);
   }
 
   // Commit if present
@@ -1225,7 +1364,13 @@ async function handleChat(input = {}) {
       sessionPatch: buildSessionPatch(session),
       cog: { phase: "listening", state: "confident", reason: "replay_cache", lane: cached.lane },
       requestId,
-      meta: { engine: CE_VERSION, replay: true, source: safeMetaStr(source), elapsedMs: nowMs() - startedAt },
+      meta: {
+        engine: CE_VERSION,
+        replay: true,
+        source: safeMetaStr(source),
+        nyxState: safeMetaStr(session.cog.state),
+        elapsedMs: nowMs() - startedAt,
+      },
     };
   }
 
@@ -1254,6 +1399,7 @@ async function handleChat(input = {}) {
         engine: CE_VERSION,
         suppressed: "post_intro_grace",
         source: safeMetaStr(source),
+        nyxState: safeMetaStr(session.cog.state),
         elapsedMs: nowMs() - startedAt,
       },
     };
@@ -1284,6 +1430,7 @@ async function handleChat(input = {}) {
           engine: CE_VERSION,
           bootIntroSuppressed: true,
           source: safeMetaStr(source),
+          nyxState: safeMetaStr(session.cog.state),
           elapsedMs: nowMs() - startedAt,
         },
       };
@@ -1303,7 +1450,13 @@ async function handleChat(input = {}) {
       sessionPatch: buildSessionPatch(session),
       cog: { phase: "listening", state: "confident", reason: "ignored_empty_nonboot", lane: laneX },
       requestId,
-      meta: { engine: CE_VERSION, ignoredEmpty: true, source: safeMetaStr(source), elapsedMs: nowMs() - startedAt },
+      meta: {
+        engine: CE_VERSION,
+        ignoredEmpty: true,
+        source: safeMetaStr(source),
+        nyxState: safeMetaStr(session.cog.state),
+        elapsedMs: nowMs() - startedAt,
+      },
     };
   }
 
@@ -1390,7 +1543,11 @@ async function handleChat(input = {}) {
     const fu = toFollowUps(CANON_INTRO_CHIPS);
     const fus = toFollowUpsStrings(CANON_INTRO_CHIPS);
 
-    writeReplay(session, rkey, startedAt, introLine, "general", { rawReply: introLine, followUps: fu, followUpsStrings: fus });
+    writeReplay(session, rkey, startedAt, introLine, "general", {
+      rawReply: introLine,
+      followUps: fu,
+      followUpsStrings: fus,
+    });
 
     return {
       ok: true,
@@ -1401,7 +1558,13 @@ async function handleChat(input = {}) {
       sessionPatch: buildSessionPatch(session),
       cog: { phase: "listening", state: "confident", reason: "intro_login_moment", lane: "general" },
       requestId,
-      meta: { engine: CE_VERSION, intro: true, introBucket: safeMetaStr(bucketKey), source: safeMetaStr(source) },
+      meta: {
+        engine: CE_VERSION,
+        intro: true,
+        introBucket: safeMetaStr(bucketKey),
+        source: safeMetaStr(source),
+        nyxState: safeMetaStr(session.cog.state),
+      },
     };
   }
 
@@ -1490,13 +1653,27 @@ async function handleChat(input = {}) {
   );
   rawReply = clampStr(rawReply, MAX_REPLY_CHARS);
 
+  // Preserve NYX state spine before engine patch merges (merge-protected)
+  const preservedNyxState = sanitizeNyxState(session.cog && session.cog.state) || NYX_STATE.COLD;
+  const preservedNyxSeen = safeInt(session.cog && session.cog.__nyxLastSeenAt, 0);
+
   // sessionPatch allowlist merge
   if (core && isPlainObject(core.sessionPatch)) {
     for (const [k, v] of Object.entries(core.sessionPatch)) {
       if (!PATCH_KEYS.has(k)) continue;
       if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
       if (k === "cog") {
-        if (isPlainObject(v)) session.cog = v;
+        // MERGE-PROTECTED: never let engines stomp session.cog.state backward
+        if (isPlainObject(v)) {
+          const incomingState = sanitizeNyxState(v.state);
+          const incomingSeen = safeInt(v.__nyxLastSeenAt, 0);
+
+          // Replace cog as requested, then re-stamp the protected fields forward-only
+          session.cog = v;
+
+          session.cog.state = nyxAdvanceState(preservedNyxState, incomingState || preservedNyxState);
+          session.cog.__nyxLastSeenAt = Math.max(preservedNyxSeen, incomingSeen || 0) || Date.now();
+        }
         continue;
       }
       if (k === "__nyxIntro") {
@@ -1518,6 +1695,10 @@ async function handleChat(input = {}) {
       session[k] = v;
     }
   }
+
+  // Ensure state still valid post-merge (and forward-only)
+  if (!sanitizeNyxState(session.cog && session.cog.state)) session.cog.state = preservedNyxState;
+  session.cog.state = nyxAdvanceState(preservedNyxState, session.cog.state);
 
   // Re-commit year after engine merge
   const yPost = resolveInboundYear(input, inboundText, session);
@@ -1575,6 +1756,7 @@ async function handleChat(input = {}) {
       engineEmptyReply,
       packsLoaded: { conv: !!NYX_CONV_PACK, phrase: !!NYX_PHRASEPACK, packets: !!NYX_PACKETS, cs1: !!cs1 },
       velvet: !!session.__nyxVelvet,
+      nyxState: safeMetaStr(session.cog && session.cog.state),
     },
   };
 }
