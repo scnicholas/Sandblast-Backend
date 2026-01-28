@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17zw
+ * index.js v1.5.17zx
  * (Option B alignment: chatEngine v0.6zV+ compatibility + enterprise guards + /api/health alias + REAL ElevenLabs TTS)
  *
  * Goals:
@@ -18,10 +18,8 @@
  *  ✅ NEW: Engine fingerprint (CE_VERSION) printed on startup + exposed in meta
  *  ✅ NEW: Accept chatEngine module that exports handleChat OR exports a function directly
  *  ✅ NEW (CRITICAL): Empty-text chip clicks with payload/ctx intent are now treated as “meaningful” for replay/throttle keys
- *      - prevents “no change” + loop amplification when widget sends empty text but includes mode/action/intent/year
- *  ✅ NEW (CRITICAL, SURGICAL): Reset reply sanitizer removes “All reset…” from backend output
- *      - This phrase was being returned by backend and shown in widget (screenshot)
- *      - Widget will display whatever backend returns; this fixes at the source without touching widget UI
+ *  ✅ NEW (CRITICAL, SURGICAL): Reset is SILENT (no “All reset…” / “Reset complete…” bubble)
+ *      - Widget should just clear and show chips, no backend bubble
  *
  * NOTE:
  *  - Expects ./Utils/chatEngine.js to export handleChat (or be a function)
@@ -52,7 +50,7 @@ const fetchFn = global.fetch || safeRequire("node-fetch");
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.17zw (enterprise hardened: CORS hard-lock + stabilized preflight + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY bypass + requestId always-on + REAL ElevenLabs TTS + chatEngine v0.6zV+ compatibility; CORS headers: x-sbnyx-client-build + x-contract-version; engine fingerprint startup log + meta; CRITICAL: empty-text chip intent counted for replay/throttle keys; CRITICAL: reset reply sanitizer removes 'All reset' phrase)";
+  "index.js v1.5.17zx (enterprise hardened: CORS hard-lock + stabilized preflight + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY bypass + requestId always-on + REAL ElevenLabs TTS + chatEngine v0.6zV+ compatibility; CORS headers: x-sbnyx-client-build + x-contract-version; engine fingerprint startup log + meta; CRITICAL: empty-text chip intent counted for replay/throttle keys; CRITICAL: reset is silent (no reset bubble))";
 
 // =========================
 // Env / knobs
@@ -251,7 +249,7 @@ function normalizeInboundSignature(body, inboundText) {
 }
 
 // =========================
-// CRITICAL: reset reply sanitizer (removes “All reset…”)
+// CRITICAL: reset detection + SILENT reset reply
 // =========================
 function isResetCommand(inboundText, source, body) {
   const t = safeStr(inboundText).trim();
@@ -265,14 +263,17 @@ function isResetCommand(inboundText, source, body) {
   const cs = safeStr(client.source).toLowerCase();
   if (cs === "reset_btn" || cs.includes("reset")) return true;
 
+  // Some widgets send routeHint=reset or intent=reset
+  const rh = safeStr(b.routeHint || client.routeHint || "").toLowerCase();
+  const it = safeStr(b.intent || client.intent || b.mode || client.mode || "").toLowerCase();
+  if (rh.includes("reset") || it === "reset") return true;
+
   return false;
 }
 
-function sanitizeResetReply(reply) {
-  const r = safeStr(reply).trim();
-  if (!r) return r;
-  if (/^all reset\b/i.test(r)) return "Reset complete. Where do you want to go next?";
-  return r;
+function silentResetReply() {
+  // Intentionally empty: widget should not render a bubble
+  return "";
 }
 
 // =========================
@@ -394,6 +395,8 @@ function replayDedupe(rec, inboundSig, source, clientRequestId) {
       ? rec.data.__idx_lastFollowUpsStrings
       : undefined;
     const lastDir = Array.isArray(rec.data.__idx_lastDirectives) ? rec.data.__idx_lastDirectives : undefined;
+    // NOTE: even if lastOut is empty, we treat as replay hit only if non-empty;
+    // reset is handled separately as silent.
     if (lastOut) {
       return {
         hit: true,
@@ -446,7 +449,6 @@ app.use((req, res, next) => {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Access-Control-Allow-Credentials", "true");
 
-    // Include BOTH cases (some clients send lowercase custom headers)
     res.setHeader(
       "Access-Control-Allow-Headers",
       [
@@ -500,7 +502,6 @@ app.get("/health", (req, res) => {
   });
 });
 
-// ✅ ALIAS: widget expects this exact path
 app.get("/api/health", (req, res) => {
   res.status(200).json({
     ok: true,
@@ -541,17 +542,17 @@ async function handleChatRoute(req, res) {
 
   const inboundText = safeStr(body.text || body.message || body.prompt || body.query || body?.payload?.text || "").trim();
 
-  // CRITICAL: treat “empty text but intent in payload/ctx” as meaningful for throttle/replay keys
   const inboundSig = normalizeInboundSignature(body, inboundText);
   const meaningful = !!inboundSig || hasIntentSignals(body);
 
   const { rec } = getSession(req);
   const bootLike = isBootLike(routeHint, body);
 
-  // Throttle fuse:
-  // - still skip for bootLike
-  // - but DO apply to meaningful chip/intents even if inboundText is empty
-  if (!bootLike && meaningful) {
+  // Detect reset early so we can force silent response if needed.
+  const isReset = isResetCommand(inboundText, source, body);
+
+  // Throttle fuse (skip for bootLike; allow reset to pass through silently)
+  if (!bootLike && meaningful && !isReset) {
     const burst = checkBurst(rec, startedAt);
     const sus = checkSustained(rec, startedAt);
     if (burst.blocked || sus.blocked) {
@@ -575,10 +576,8 @@ async function handleChatRoute(req, res) {
     }
   }
 
-  // Outer replay dedupe:
-  // - still skip for bootLike
-  // - but DO apply to meaningful chip/intents even if inboundText is empty
-  if (!bootLike && meaningful) {
+  // Replay dedupe (skip for bootLike; also skip for reset so we don't “replay” a reset bubble ever)
+  if (!bootLike && meaningful && !isReset) {
     const dedupe = replayDedupe(rec, inboundSig, source, clientRequestId);
     if (dedupe.hit) {
       return res.status(200).json({
@@ -612,12 +611,11 @@ async function handleChatRoute(req, res) {
     });
   }
 
-  // Build engine input (Option B friendly)
   const engineInput = {
     ...body,
     requestId: serverRequestId,
     clientRequestId: clientRequestId || undefined,
-    text: inboundText, // keep explicit for engines that key off input.text
+    text: inboundText,
     source,
     routeHint,
     client: {
@@ -649,21 +647,18 @@ async function handleChatRoute(req, res) {
   }
 
   const lane = safeStr(out?.lane || rec.data.lane || "general") || "general";
-
-  // ---- CRITICAL: sanitize backend reset reply (removes “All reset…”) ----
-  const isReset = isResetCommand(inboundText, source, body);
-  const rawReply = safeStr(out?.reply || "").trim();
-  const reply = isReset ? sanitizeResetReply(rawReply) : (rawReply || "Okay — tell me what you want next.");
-  // ---------------------------------------------------------------------
-
   rec.data.lane = lane;
 
-  // Persist last followUps/directives at index-level replay cache too
+  // SILENT RESET: never send a reset bubble
+  const rawReply = safeStr(out?.reply || "").trim();
+  const reply = isReset ? silentResetReply() : (rawReply || "Okay — tell me what you want next.");
+
   const directives = Array.isArray(out?.directives) ? out.directives : undefined;
   const followUps = Array.isArray(out?.followUps) ? out.followUps : undefined;
   const followUpsStrings =
     Array.isArray(out?.followUpsStrings) && out.followUpsStrings.length ? out.followUpsStrings : undefined;
 
+  // For reset: do NOT overwrite replay cache with a reset bubble (store empty safely)
   writeReplay(rec, reply, lane, { directives, followUps, followUpsStrings });
 
   return res.status(200).json({
@@ -689,7 +684,7 @@ async function handleChatRoute(req, res) {
       bootLike: !!bootLike,
       inboundSig: inboundSig ? String(inboundSig).slice(0, 160) : null,
       meaningful: !!meaningful,
-      resetSanitized: isReset ? true : false,
+      resetSilenced: !!isReset,
     },
   });
 }
@@ -697,7 +692,6 @@ async function handleChatRoute(req, res) {
 function applySessionPatch(session, patch) {
   if (!isPlainObject(session) || !isPlainObject(patch)) return;
 
-  // Expanded allowlist to preserve chatEngine v0.6zV+ continuity + replay payload capture + intro shuffle bag
   const PATCH_KEYS = new Set([
     "introDone",
     "introAt",
@@ -724,11 +718,9 @@ function applySessionPatch(session, patch) {
     "__introDone",
     "__cs1",
 
-    // cog & gating
     "cog",
     "allowPackets",
 
-    // chatEngine replay internals (important for loop control + chip replay)
     "__ce_lastReqId",
     "__ce_lastReqAt",
     "__ce_lastOutHash",
@@ -741,7 +733,6 @@ function applySessionPatch(session, patch) {
     "__ce_lastInHash",
     "__ce_lastInAt",
 
-    // intro shuffle-bag state + velvet gate (Option A/B flows rely on these)
     "__nyxIntro",
     "__nyxVelvet",
   ]);
@@ -755,7 +746,6 @@ function applySessionPatch(session, patch) {
       continue;
     }
 
-    // Keep intro state bounded but don’t destroy structure
     if (k === "__nyxIntro") {
       if (isPlainObject(v)) session.__nyxIntro = v;
       continue;
@@ -794,7 +784,6 @@ async function handleTtsRoute(req, res) {
     return res.status(400).json({ ok: false, error: "Missing text for TTS.", meta: { index: INDEX_VERSION } });
   }
 
-  // Timeout containment
   const ac = typeof AbortController !== "undefined" ? new AbortController() : null;
   const t = setTimeout(() => {
     try {
@@ -866,7 +855,6 @@ app.listen(PORT, () => {
   // eslint-disable-next-line no-console
   console.log(`[Sandblast] ${INDEX_VERSION} listening on ${PORT}`);
 
-  // ENGINE FINGERPRINT (so you can prove deploy truth in Render logs)
   // eslint-disable-next-line no-console
   console.log(
     `[Sandblast] Engine: from=${ENGINE.from} version=${ENGINE_VERSION || "(unknown)"} loaded=${!!ENGINE.fn}`
