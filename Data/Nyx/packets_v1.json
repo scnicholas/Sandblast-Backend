@@ -1,29 +1,56 @@
 {
-  "version": "packets_v1.1-C",
-  "updated": "2026-01-21",
-  "source": "nyx_phrasepack_v1",
+  "version": "packets_v1.2-C (state-ready + fluid templates)",
+  "updated": "2026-01-28",
+  "source": "nyx_phrasepack_v1.2",
   "voice": {
     "persona": "Nyx",
-    "style": ["clean", "host-like", "forward", "confident", "warm"],
-    "constraints": ["no-tech-leak", "no-overexplaining", "short-lines", "action-forward"]
+    "style": ["clean", "host-like", "forward", "confident", "warm", "fluid"],
+    "constraints": ["no-tech-leak", "no-overexplaining", "short-lines", "action-forward", "no-menu-dumping"]
   },
   "packets": [
-
     {
       "id": "general.greetings_first",
       "type": "greeting",
       "lane": "general",
-      "trigger": ["hi","hello","hey","yo","good morning","good afternoon","good evening"],
-      "templates": [
-        "Hi — I’m Nyx. Most people start with a year.",
-        "Hey. Time moves differently here. A year opens the door.",
-        "Hello. A year is usually the cleanest way in."
+      "trigger": [
+        "hi",
+        "hello",
+        "hey",
+        "yo",
+        "hiya",
+        "sup",
+        "gm",
+        "good morning",
+        "goodmorning",
+        "good afternoon",
+        "goodafternoon",
+        "good evening",
+        "goodevening"
       ],
+      "templates": [
+        "Hi — I’m Nyx.\nStart with a year.",
+        "Hey.\nName the year and I’ll take it from there.",
+        "Hello.\nGive me a year. I’ll handle the rest."
+      ],
+      "stateTemplates": {
+        "cold": [
+          "Hi — I’m Nyx.\nGive me a year.",
+          "Hey.\nYear first—then we move."
+        ],
+        "warm": [
+          "Hey — Nyx here.\nWhat year are we stepping into?",
+          "Good.\nGive me a year and a vibe."
+        ],
+        "engaged": [
+          "Mm. There you are.\nGive me a year… we’ll do it properly.",
+          "Alright.\nSay the year—then we choose how deep."
+        ]
+      },
       "chips": [
         { "label": "Start with a year", "send": "1988" },
+        { "label": "Top 10 (1988)", "send": "top 10 1988" },
         { "label": "Schedule", "send": "schedule" },
-        { "label": "Sponsors", "send": "sponsors" },
-        { "label": "Something to watch", "send": "movies" }
+        { "label": "Sponsors", "send": "sponsors" }
       ],
       "constraints": { "oncePerSession": true },
       "sessionPatch": { "lane": "general" }
@@ -33,15 +60,38 @@
       "id": "general.greetings_returning",
       "type": "greeting",
       "lane": "general",
-      "trigger": ["welcome back","back again","i'm back","im back","we're back","were back","again"],
-      "templates": [
-        "Good to see you again. A year will get us moving.",
-        "Back already. We can pick up easily."
+      "trigger": [
+        "welcome back",
+        "back again",
+        "im back",
+        "i'm back",
+        "were back",
+        "we're back",
+        "again",
+        "back"
       ],
+      "templates": [
+        "Welcome back.\nGive me the year and we’ll keep moving.",
+        "Back already.\nSame door—new year."
+      ],
+      "stateTemplates": {
+        "cold": [
+          "Back again.\nGive me the year.",
+          "Good.\nWhat year this time?"
+        ],
+        "warm": [
+          "There you are.\nPick a year and I’ll steer.",
+          "Welcome back.\nYear first—then we choose the lens."
+        ],
+        "engaged": [
+          "Mm.\nSame place, deeper cut—what year?",
+          "Back already.\nGood. Give me the year."
+        ]
+      },
       "chips": [
-        { "label": "Pick up with a year", "send": "1988" },
+        { "label": "Pick a year", "send": "1988" },
+        { "label": "Story (1988)", "send": "story moment 1988" },
         { "label": "Schedule", "send": "schedule" },
-        { "label": "Sponsors", "send": "sponsors" },
         { "label": "Something to watch", "send": "movies" }
       ],
       "constraints": { "oncePerSession": true },
@@ -52,14 +102,23 @@
       "id": "general.capabilities_quick",
       "type": "help",
       "lane": "general",
-      "trigger": ["help","options","what can you do","what do you do","menu","capabilities","how does this work"],
+      "trigger": [
+        "help",
+        "options",
+        "what can you do",
+        "what do you do",
+        "menu",
+        "capabilities",
+        "how does this work",
+        "how it works"
+      ],
       "templates": [
-        "Music lives in years. Schedules live in cities. The rest unfolds as needed.",
-        "A year opens music. A city grounds the schedule. Everything else follows."
+        "A year opens music.\nA city anchors schedules.\nEverything else, as needed.",
+        "Music lives in years.\nSchedules live in cities.\nI’ll guide the rest."
       ],
       "chips": [
         { "label": "Music by year", "send": "1988" },
-        { "label": "Schedule", "send": "schedule" },
+        { "label": "Schedule (Toronto)", "send": "in Toronto" },
         { "label": "Sponsors", "send": "sponsors" },
         { "label": "Watch something", "send": "movies" }
       ],
@@ -70,14 +129,26 @@
       "id": "general.goodbyes_soft",
       "type": "goodbye",
       "lane": "general",
-      "trigger": ["bye","goodbye","good night","goodnight","later","see you","i'm done","im done","that’s all","thats all"],
+      "trigger": [
+        "bye",
+        "goodbye",
+        "good night",
+        "goodnight",
+        "later",
+        "see you",
+        "im done",
+        "i'm done",
+        "thats all",
+        "that’s all",
+        "done"
+      ],
       "templates": [
-        "That feels like a good place to pause.",
-        "Easy to return. A year brings it back.",
-        "We can pick this up whenever."
+        "That’s a good place to pause.\nCome back with a year.",
+        "Easy to return.\nA year brings it back."
       ],
       "chips": [
-        { "label": "Top 10 from a year", "send": "top 10 1994" },
+        { "label": "Top 10 (1994)", "send": "top 10 1994" },
+        { "label": "Story (1977)", "send": "story moment 1977" },
         { "label": "Schedule", "send": "schedule" }
       ],
       "sessionPatch": { "lane": "general" }
@@ -89,9 +160,23 @@
       "lane": "general",
       "trigger": ["__fallback__"],
       "templates": [
-        "A year usually clears things up.",
-        "We can start small. One year is enough."
+        "Give me a year—1950 to now—and I’ll steer.",
+        "Start with one year. We can pivot fast."
       ],
+      "stateTemplates": {
+        "cold": [
+          "Give me a year.\nThat’s enough to start.",
+          "Start with a year.\nI’ll do the sorting."
+        ],
+        "warm": [
+          "Okay.\nDrop a year and I’ll take it from there.",
+          "Good.\nOne year and we’re moving."
+        ],
+        "engaged": [
+          "Alright.\nGive me the year… we’ll bring it back to life.",
+          "Mm.\nYear first—then I’ll shape the moment."
+        ]
+      },
       "chips": [
         { "label": "Start with a year", "send": "1988" },
         { "label": "Schedule", "send": "schedule" },
@@ -107,13 +192,27 @@
       "lane": "general",
       "trigger": ["__error__"],
       "templates": [
-        "Something slipped. Let’s try again.",
-        "That didn’t land cleanly. A year will reset it."
+        "Tiny snag.\nTry again—give me a year.",
+        "That didn’t land cleanly.\nRepeat it once, clean and simple."
       ],
+      "stateTemplates": {
+        "cold": [
+          "That didn’t land.\nGive me a year.",
+          "Something slipped.\nTry again—year first."
+        ],
+        "warm": [
+          "Okay—small miss.\nDrop the year again and we’ll continue.",
+          "I missed that.\nGive me the year, clean and simple."
+        ],
+        "engaged": [
+          "Mm. That one broke a little.\nGive me the year and we glide past it.",
+          "Alright.\nRepeat the year—then we keep going."
+        ]
+      },
       "chips": [
         { "label": "Start with a year", "send": "1988" },
+        { "label": "Top 10 (1988)", "send": "top 10 1988" },
         { "label": "Schedule", "send": "schedule" },
-        { "label": "Sponsors", "send": "sponsors" },
         { "label": "Watch something", "send": "movies" }
       ],
       "sessionPatch": { "lane": "general" }
@@ -123,18 +222,46 @@
       "id": "music.ask_year",
       "type": "prompt",
       "lane": "music",
-      "trigger": ["music","top 10","top10","story moment","story","micro moment","micro","#1","number 1","chart","songs"],
-      "templates": [
-        "Music starts with a year.",
-        "Give me the year and we’ll take it from there."
+      "trigger": [
+        "music",
+        "top 10",
+        "top10",
+        "top ten",
+        "story moment",
+        "story",
+        "micro moment",
+        "micro",
+        "#1",
+        "number 1",
+        "number one",
+        "chart",
+        "songs"
       ],
+      "templates": [
+        "Music starts with a year.\n1950 to now.",
+        "Give me the year—then pick the lens."
+      ],
+      "stateTemplates": {
+        "cold": [
+          "Music.\nGive me a year.",
+          "Year first.\nThen Top 10 / #1 / story / micro."
+        ],
+        "warm": [
+          "Okay—music.\nWhat year are we in?",
+          "Good.\nGive me the year and I’ll steer."
+        ],
+        "engaged": [
+          "Mm. Music.\nTell me the year… I’ll bring the feeling with it.",
+          "Alright.\nYear—and we go."
+        ]
+      },
       "chips": [
         { "label": "1988", "send": "1988" },
         { "label": "Top 10 (1988)", "send": "top 10 1988" },
         { "label": "Story (1988)", "send": "story moment 1988" },
         { "label": "Micro (1988)", "send": "micro moment 1988" }
       ],
-      "constraints": { "requiresYear": true },
+      "constraints": { "requireNoYear": true },
       "sessionPatch": { "lane": "music" }
     },
 
@@ -144,14 +271,14 @@
       "lane": "music",
       "trigger": ["__mode_prompt__"],
       "templates": [
-        "{year} is set. Different lenses reveal different details.",
-        "The year holds steady. The lens can change."
+        "{year} is set.\nPick a lens: Top 10, #1, story, or micro.",
+        "{year} holds steady.\nDo you want the list, the story, or the spark?"
       ],
       "chips": [
         { "label": "Top 10", "send": "top 10" },
+        { "label": "#1", "send": "#1" },
         { "label": "Story", "send": "story moment" },
-        { "label": "Micro", "send": "micro moment" },
-        { "label": "#1", "send": "#1" }
+        { "label": "Micro", "send": "micro moment" }
       ],
       "sessionPatch": { "lane": "music" }
     },
@@ -162,12 +289,10 @@
       "lane": "music",
       "trigger": ["__nav_next_year__"],
       "templates": [
-        "{year}. Same lens.",
+        "{year}.\nSame lens.",
         "Moving forward to {year}."
       ],
-      "chips": [
-        { "label": "Replay", "send": "replay" }
-      ],
+      "chips": [{ "label": "Replay", "send": "replay" }],
       "sessionPatch": { "lane": "music" }
     },
 
@@ -175,10 +300,10 @@
       "id": "music.nav_another_year",
       "type": "nav",
       "lane": "music",
-      "trigger": ["another year","__nav_another_year__"],
+      "trigger": ["another year", "__nav_another_year__"],
       "templates": [
         "Name the year.",
-        "Another year shifts the tone."
+        "Give me the next year. I’ll pivot fast."
       ],
       "chips": [
         { "label": "1988", "send": "1988" },
@@ -192,17 +317,17 @@
       "id": "sponsors.open",
       "type": "prompt",
       "lane": "sponsors",
-      "trigger": ["sponsor","sponsors","advertise","advertising","ad package","promotion","promote"],
+      "trigger": ["sponsor", "sponsors", "advertise", "advertising", "ad package", "promotion", "promote"],
       "templates": [
-        "Let’s talk sponsorship.",
-        "This is where visibility turns intentional."
+        "Sponsors.\nWhat outcome do you want?",
+        "Let’s talk sponsorship.\nWhat are we moving—attention, action, or memory?"
       ],
       "chips": [
-        { "label": "TV", "send": "tv" },
-        { "label": "Radio", "send": "radio" },
-        { "label": "Website", "send": "website" },
-        { "label": "Social", "send": "social" },
-        { "label": "Bundle", "send": "bundle" }
+        { "label": "Calls", "send": "calls" },
+        { "label": "Foot traffic", "send": "foot traffic" },
+        { "label": "Website clicks", "send": "website clicks" },
+        { "label": "Awareness", "send": "brand awareness" },
+        { "label": "Budget next", "send": "__sponsors_need_budget__" }
       ],
       "sessionPatch": { "lane": "sponsors" }
     },
@@ -213,8 +338,8 @@
       "lane": "sponsors",
       "trigger": ["__sponsors_need_goal__"],
       "templates": [
-        "The outcome matters more than the format.",
-        "Results set the direction."
+        "If this works perfectly—what changes?",
+        "What’s the real outcome you want?"
       ],
       "chips": [
         { "label": "Calls", "send": "calls" },
@@ -231,8 +356,8 @@
       "lane": "sponsors",
       "trigger": ["__sponsors_need_budget__"],
       "templates": [
-        "Budget sets the scale.",
-        "The tier defines how loud this gets."
+        "Give me a range.\nI’ll keep it clean.",
+        "Budget sets the scale.\nStarter, Growth, or Dominance?"
       ],
       "chips": [
         { "label": "Starter", "send": "starter test" },
@@ -246,10 +371,26 @@
       "id": "schedule.open",
       "type": "prompt",
       "lane": "schedule",
-      "trigger": ["schedule","what's playing","whats playing","playing now","now","today","tonight","what time","time in","in london","in toronto"],
+      "trigger": [
+        "schedule",
+        "what's playing",
+        "whats playing",
+        "playing now",
+        "what's on",
+        "whats on",
+        "now",
+        "today",
+        "tonight",
+        "what time",
+        "time in",
+        "in london",
+        "in toronto",
+        "in new york",
+        "in los angeles"
+      ],
       "templates": [
-        "Time depends on where you are.",
-        "The schedule shifts by city."
+        "Schedule depends on where you are.\nWhich city?",
+        "Tell me the city/timezone.\nThen: Now / Next / Later."
       ],
       "chips": [
         { "label": "Playing now", "send": "what’s playing now" },
@@ -266,8 +407,8 @@
       "lane": "schedule",
       "trigger": ["__schedule_need_city__"],
       "templates": [
-        "The city sets the clock.",
-        "One location is enough."
+        "City sets the clock.\nName it.",
+        "One location is enough.\nWhich city?"
       ],
       "chips": [
         { "label": "London", "send": "in London" },
@@ -284,7 +425,7 @@
       "lane": "schedule",
       "trigger": ["__schedule_need_show__"],
       "templates": [
-        "The schedule can show what’s on now or lock onto a title."
+        "Do you want what’s on now—or a specific title?"
       ],
       "chips": [
         { "label": "Playing now", "send": "what’s playing now" },
@@ -297,10 +438,24 @@
       "id": "movies.open",
       "type": "prompt",
       "lane": "movies",
-      "trigger": ["movie","movies","tv","show","shows","recommend","recommend something","what to watch","watch"],
+      "trigger": ["movie", "movies", "tv", "show", "shows", "recommend", "recommend something", "what to watch", "watch"],
       "templates": [
-        "Tell me what kind of mood you’re in."
+        "Movies.\nTitle, genre, or mood?"
       ],
+      "stateTemplates": {
+        "cold": [
+          "Movies.\nTitle, genre, or decade?",
+          "Alright.\nWhat are we hunting—name it or describe it."
+        ],
+        "warm": [
+          "Okay—movies.\nGive me a vibe and I’ll narrow it fast.",
+          "Good.\nTitle or feeling?"
+        ],
+        "engaged": [
+          "Mm. Movies.\nTell me what you want it to feel like.",
+          "Alright.\nGive me the mood—I'll find the match."
+        ]
+      },
       "chips": [
         { "label": "Surprise me", "send": "recommend something" },
         { "label": "Classic TV", "send": "classic tv" },
@@ -316,7 +471,7 @@
       "lane": "movies",
       "trigger": ["__movies_need_title_or_genre__"],
       "templates": [
-        "A title or a genre sets the direction."
+        "Give me a title—or a genre + decade. That’s enough."
       ],
       "chips": [
         { "label": "Surprise me", "send": "recommend something" },
@@ -326,6 +481,5 @@
       ],
       "sessionPatch": { "lane": "movies" }
     }
-
   ]
 }
