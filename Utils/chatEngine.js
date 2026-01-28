@@ -26,6 +26,9 @@
  *      - Search: "RESET (GUARDED)"
  *  ✅ FIX: reset meta now correctly reports Option A (was incorrectly "B")
  *  ✅ FIX: reset followUps now send actionable commands (prevents post-reset “intro drift” / weak intent)
+ *  ✅ FIX (CRITICAL): Greeting prefix now survives replay/burst dedupe by applying dynamically on replay returns
+ *      - Stores RAW reply in replay cache; applies greeting prefix at return-time
+ *      - Prevents “Did not change” when replay returns early
  *  ✅ Keeps: existing intro shuffle-bag login-moment logic (unchanged)
  *  ✅ Keeps: Replay payload capture + inbound clamp + burst dedupe + lane drift guard
  *  ✅ Keeps: Year-only payload/ctx clicks hydrate inboundText so engine runs (lists fire)
@@ -41,7 +44,7 @@ const crypto = require("crypto");
 // Version
 // =========================
 const CE_VERSION =
-  "chatEngine v0.6zZ (enterprise hardened+++ + OPTION A random greeting prefix per real interaction + reset-guard for boot-intro + preserves intro/login shuffle-bag + velvet gate + replay payload capture + inbound clamp + burst dedupe + lane drift guard + payload-year hydration + replayKey fix + packets gating at engine-resolve + authoritative year commit + mode-only attach + loopkiller+++++ + post-intro grace + idempotency + timeout + contract normalize + session safety)";
+  "chatEngine v0.6zZ (enterprise hardened+++ + OPTION A random greeting prefix per real interaction + replay-safe dynamic prefix + reset-guard for boot-intro + preserves intro/login shuffle-bag + velvet gate + replay payload capture + inbound clamp + burst dedupe + lane drift guard + payload-year hydration + replayKey fix + packets gating at engine-resolve + authoritative year commit + mode-only attach + loopkiller+++++ + post-intro grace + idempotency + timeout + contract normalize + session safety)";
 
 // =========================
 // Enterprise knobs
@@ -250,7 +253,7 @@ function shuffleInPlace(arr) {
 // - NEVER runs on boot intro pings.
 // - Avoids immediate repeat using session.cog.__nyxGreetLast.
 // - Does not touch lane logic, chips, directives, engines, or contracts.
-// To revert: delete this whole block + the single hook near "APPLY GREETING PREFIX" below.
+// To revert: delete this whole block + the hook usage where "APPLY GREETING PREFIX" appears.
 // =========================
 const NYX_GREET_PREFIXES = [
   "Hey — Nyx here.",
@@ -751,9 +754,15 @@ const PATCH_KEYS = new Set([
   "__ce_lastReqAt",
   "__ce_lastOutHash",
   "__ce_lastOut",
+  "__ce_lastOutRaw", // NEW: replay-safe raw reply storage
   "__ce_lastOutLane",
   "__ce_lastInHash",
   "__ce_lastInAt",
+
+  // OPTIONAL (small): persist replay payload capture so chips survive across sessionPatch persistence boundaries
+  "__ce_lastOutFollowUps",
+  "__ce_lastOutFollowUpsStrings",
+  "__ce_lastOutDirectives",
 
   // packets gate flag (so widget/index can persist it if needed)
   "allowPackets",
@@ -776,6 +785,19 @@ function buildSessionPatch(session) {
     }
     if (k === "__nyxIntro") {
       out.__nyxIntro = sanitizeNyxIntroState(s.__nyxIntro);
+      continue;
+    }
+    // Keep replay payload arrays bounded (enterprise-safe)
+    if (k === "__ce_lastOutFollowUps") {
+      if (Array.isArray(s.__ce_lastOutFollowUps)) out.__ce_lastOutFollowUps = s.__ce_lastOutFollowUps.slice(0, MAX_FOLLOWUPS);
+      continue;
+    }
+    if (k === "__ce_lastOutFollowUpsStrings") {
+      if (Array.isArray(s.__ce_lastOutFollowUpsStrings)) out.__ce_lastOutFollowUpsStrings = s.__ce_lastOutFollowUpsStrings.slice(0, MAX_FOLLOWUPS);
+      continue;
+    }
+    if (k === "__ce_lastOutDirectives") {
+      if (Array.isArray(s.__ce_lastOutDirectives)) out.__ce_lastOutDirectives = s.__ce_lastOutDirectives.slice(0, 8);
       continue;
     }
     out[k] = s[k];
@@ -866,7 +888,8 @@ function normalizeDirectives(directives) {
 }
 
 // =========================
-// Replay cache (session-scoped) — NOW captures followUps/directives
+// Replay cache (session-scoped) — NOW replay-safe for Option A
+// - Stores RAW reply (unprefixed) so greeting prefix can be applied dynamically on every replay return.
 // =========================
 function replayKey(session, clientRequestId, inboundText, source) {
   const rid = safeStr(clientRequestId).trim();
@@ -881,7 +904,8 @@ function readReplay(session, key, now) {
   if (!lastKey || lastKey !== key) return null;
   if (!lastAt || now - lastAt > REPLAY_WINDOW_MS) return null;
 
-  const out = safeStr(session.__ce_lastOut || "");
+  // Prefer RAW reply (unprefixed) so Option A can be applied per-return.
+  const out = safeStr(session.__ce_lastOutRaw || session.__ce_lastOut || "");
   const outLane = safeStr(session.__ce_lastOutLane || "general") || "general";
   const outHash = safeStr(session.__ce_lastOutHash || "");
   if (!out || !outHash) return null;
@@ -897,9 +921,14 @@ function readReplay(session, key, now) {
 function writeReplay(session, key, now, reply, lane, extras) {
   session.__ce_lastReqId = key;
   session.__ce_lastReqAt = now;
-  session.__ce_lastOut = reply;
+
+  // Cache RAW reply (unprefixed) for replay. Keep __ce_lastOut for backwards compatibility.
+  const raw = safeStr((extras && typeof extras === "object" && typeof extras.rawReply === "string" && extras.rawReply) || reply);
+  session.__ce_lastOutRaw = raw;
+  session.__ce_lastOut = raw;
+
   session.__ce_lastOutLane = lane;
-  session.__ce_lastOutHash = sha1(`${lane}::${reply}`).slice(0, 16);
+  session.__ce_lastOutHash = sha1(`${lane}::${raw}`).slice(0, 16);
 
   // Optional payload capture (enterprise QoL): preserves chips on replay
   if (extras && typeof extras === "object") {
@@ -942,6 +971,7 @@ function hardResetSession(session, startedAt) {
   session.__ce_lastReqAt = 0;
   session.__ce_lastOutHash = "";
   session.__ce_lastOut = "";
+  session.__ce_lastOutRaw = "";
   session.__ce_lastOutLane = "";
   session.__ce_lastOutFollowUps = undefined;
   session.__ce_lastOutFollowUpsStrings = undefined;
@@ -1098,6 +1128,7 @@ async function handleChat(input = {}) {
       session.lastOutAt = startedAt;
 
       writeReplay(session, replayKey(session, clientRequestId, inboundText, source), startedAt, reply, "general", {
+        rawReply: reply,
         followUps: toFollowUps(RESET_FOLLOWUPS),
         followUpsStrings: toFollowUpsStrings(RESET_FOLLOWUPS),
       });
@@ -1135,9 +1166,14 @@ async function handleChat(input = {}) {
     const rkey0 = replayKey(session, clientRequestId, inboundText, source);
     const cached0 = readReplay(session, rkey0, startedAt);
     if (cached0) {
+      const inboundIsEmptyB = isEmptyOrNoText(inboundText);
+      const bootIntroEmptyB = inboundIsEmptyB && isBootIntroSource({ ...input, source });
+
+      const replyB = maybeApplyNyxGreetPrefix(session, inboundIsEmptyB, bootIntroEmptyB, cached0.reply);
+
       return {
         ok: true,
-        reply: cached0.reply,
+        reply: replyB,
         lane: cached0.lane,
         directives: cached0.directives,
         followUps: cached0.followUps || toFollowUps(CANON_INTRO_CHIPS),
@@ -1177,9 +1213,11 @@ async function handleChat(input = {}) {
   const rkey = replayKey(session, clientRequestId, inboundText, source);
   const cached = readReplay(session, rkey, startedAt);
   if (cached) {
+    const replyR = maybeApplyNyxGreetPrefix(session, inboundIsEmpty, bootIntroEmpty, cached.reply);
+
     return {
       ok: true,
-      reply: cached.reply,
+      reply: replyR,
       lane: cached.lane,
       directives: cached.directives,
       followUps: cached.followUps || toFollowUps(CANON_INTRO_CHIPS),
@@ -1199,6 +1237,7 @@ async function handleChat(input = {}) {
     session.lastOut = reply0;
     session.lastOutAt = startedAt;
     writeReplay(session, rkey, startedAt, reply0, "general", {
+      rawReply: reply0,
       followUps: toFollowUps(CANON_INTRO_CHIPS),
       followUpsStrings: toFollowUpsStrings(CANON_INTRO_CHIPS),
     });
@@ -1228,6 +1267,7 @@ async function handleChat(input = {}) {
       const lane0 = safeStr(session.lane || "general") || "general";
       const reply0 = lastOut || "Ready when you are.";
       writeReplay(session, replayKey(session, clientRequestId, inboundText, source), startedAt, reply0, lane0, {
+        rawReply: reply0,
         followUps: toFollowUps(CANON_INTRO_CHIPS),
         followUpsStrings: toFollowUpsStrings(CANON_INTRO_CHIPS),
       });
@@ -1350,7 +1390,7 @@ async function handleChat(input = {}) {
     const fu = toFollowUps(CANON_INTRO_CHIPS);
     const fus = toFollowUpsStrings(CANON_INTRO_CHIPS);
 
-    writeReplay(session, rkey, startedAt, introLine, "general", { followUps: fu, followUpsStrings: fus });
+    writeReplay(session, rkey, startedAt, introLine, "general", { rawReply: introLine, followUps: fu, followUpsStrings: fus });
 
     return {
       ok: true,
@@ -1441,13 +1481,14 @@ async function handleChat(input = {}) {
   // BLOCK the year-missing fallback when year exists anywhere
   const resolvedYearFinal = resolveInboundYear(input, inboundText, session);
 
-  let reply = nonEmptyReply(
+  // Build RAW reply (unprefixed), then apply Option A prefix (dynamic).
+  let rawReply = nonEmptyReply(
     core && core.reply,
     resolvedYearFinal
       ? `Got it — ${resolvedYearFinal}. What do you want: Top 10, #1, story moment, or micro moment?`
       : "A year usually clears things up."
   );
-  reply = clampStr(reply, MAX_REPLY_CHARS);
+  rawReply = clampStr(rawReply, MAX_REPLY_CHARS);
 
   // sessionPatch allowlist merge
   if (core && isPlainObject(core.sessionPatch)) {
@@ -1462,6 +1503,18 @@ async function handleChat(input = {}) {
         session.__nyxIntro = sanitizeNyxIntroState(v);
         continue;
       }
+      if (k === "__ce_lastOutFollowUps") {
+        if (Array.isArray(v)) session.__ce_lastOutFollowUps = v.slice(0, MAX_FOLLOWUPS);
+        continue;
+      }
+      if (k === "__ce_lastOutFollowUpsStrings") {
+        if (Array.isArray(v)) session.__ce_lastOutFollowUpsStrings = v.slice(0, MAX_FOLLOWUPS);
+        continue;
+      }
+      if (k === "__ce_lastOutDirectives") {
+        if (Array.isArray(v)) session.__ce_lastOutDirectives = v.slice(0, 8);
+        continue;
+      }
       session[k] = v;
     }
   }
@@ -1471,9 +1524,9 @@ async function handleChat(input = {}) {
   if (yPost) commitYear(session, yPost, (session.cog && session.cog.yearSource) || "post_engine");
 
   // =========================
-  // APPLY GREETING PREFIX (OPTION A) — SINGLE HOOK (REVERSIBLE)
+  // APPLY GREETING PREFIX (OPTION A) — DYNAMIC OUTPUT
   // =========================
-  reply = maybeApplyNyxGreetPrefix(session, inboundIsEmpty, bootIntroEmpty, reply);
+  const reply = maybeApplyNyxGreetPrefix(session, inboundIsEmpty, bootIntroEmpty, rawReply);
 
   session.lastOut = reply;
   session.lastOutAt = startedAt;
@@ -1486,8 +1539,8 @@ async function handleChat(input = {}) {
       ? core.followUpsStrings.slice(0, MAX_FOLLOWUPS)
       : undefined;
 
-  // Cache replay output (NOW includes chips/directives)
-  writeReplay(session, rkey, startedAt, reply, session.lane, { directives, followUps, followUpsStrings });
+  // Cache replay output as RAW (unprefixed) — greeting stays dynamic on replays.
+  writeReplay(session, rkey, startedAt, rawReply, session.lane, { rawReply, directives, followUps, followUpsStrings });
 
   return {
     ok: true,
