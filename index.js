@@ -3,8 +3,8 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17zt
- * (Option B alignment: chatEngine v0.6zV compatibility + enterprise guards + /api/health alias + REAL ElevenLabs TTS)
+ * index.js v1.5.17zu
+ * (Option B alignment: chatEngine v0.6zV+ compatibility + enterprise guards + /api/health alias + REAL ElevenLabs TTS)
  *
  * Goals:
  *  ✅ Preserve Voice/TTS stability (ElevenLabs) + /api/tts + /api/voice aliases
@@ -15,9 +15,11 @@
  *  ✅ Fix: boot-intro / empty-text requests bypass replay + throttles
  *  ✅ Fix: add GET /api/health (widget expects it)
  *  ✅ Fix: allow x-sbnyx-client-build + x-contract-version headers (CORS)  <-- REQUIRED
+ *  ✅ NEW: Engine fingerprint (CE_VERSION) printed on startup + exposed in meta
+ *  ✅ NEW: Accept chatEngine module that exports handleChat OR exports a function directly
  *
  * NOTE:
- *  - Expects ./Utils/chatEngine.js to export handleChat
+ *  - Expects ./Utils/chatEngine.js to export handleChat (or be a function)
  *  - Full-file deliverable (drop-in)
  */
 
@@ -38,14 +40,14 @@ function safeRequire(p) {
 }
 
 // Engine + fetch
-const chatEngine = safeRequire("./Utils/chatEngine") || safeRequire("./Utils/chatEngine.js") || null;
+const chatEngineMod = safeRequire("./Utils/chatEngine") || safeRequire("./Utils/chatEngine.js") || null;
 const fetchFn = global.fetch || safeRequire("node-fetch");
 
 // =========================
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.17zt (enterprise hardened: CORS hard-lock + stabilized preflight + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY bypass + requestId always-on + REAL ElevenLabs TTS + chatEngine v0.6zV compatibility; CORS headers: x-sbnyx-client-build + x-contract-version)";
+  "index.js v1.5.17zu (enterprise hardened: CORS hard-lock + stabilized preflight + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY bypass + requestId always-on + REAL ElevenLabs TTS + chatEngine v0.6zV+ compatibility; CORS headers: x-sbnyx-client-build + x-contract-version; engine fingerprint startup log + meta)";
 
 // =========================
 // Env / knobs
@@ -200,6 +202,34 @@ function isBootLike(routeHint, body) {
 }
 
 // =========================
+// Engine resolver (handleChat OR function export)
+// =========================
+function resolveEngine(mod) {
+  if (!mod) return { fn: null, from: "missing", version: "" };
+
+  if (typeof mod === "function") {
+    return { fn: mod, from: "module_function", version: safeStr(mod.CE_VERSION || "") };
+  }
+
+  if (typeof mod.handleChat === "function") {
+    return { fn: mod.handleChat.bind(mod), from: "module_handleChat", version: safeStr(mod.CE_VERSION || "") };
+  }
+
+  if (typeof mod.reply === "function") {
+    return { fn: mod.reply.bind(mod), from: "module_reply", version: safeStr(mod.CE_VERSION || "") };
+  }
+
+  if (typeof mod.chatEngine === "function") {
+    return { fn: mod.chatEngine.bind(mod), from: "module_chatEngine", version: safeStr(mod.CE_VERSION || "") };
+  }
+
+  return { fn: null, from: "invalid", version: safeStr(mod.CE_VERSION || "") };
+}
+
+const ENGINE = resolveEngine(chatEngineMod);
+const ENGINE_VERSION = safeStr(ENGINE.version || chatEngineMod?.CE_VERSION || "").trim();
+
+// =========================
 // Session store (in-memory)
 // =========================
 const SESSIONS = new Map(); // key -> { data, lastSeenAt, burst:[ts], sustained:[ts] }
@@ -285,7 +315,14 @@ function replayDedupe(rec, inboundText, source, clientRequestId) {
   if (lastKey && key === lastKey && lastAt && now - lastAt <= LOOP_REPLAY_WINDOW_MS) {
     const lastOut = safeStr(rec.data.__idx_lastOut || "");
     const lastLane = safeStr(rec.data.__idx_lastLane || "general") || "general";
-    if (lastOut) return { hit: true, reply: lastOut, lane: lastLane };
+    const lastFU = Array.isArray(rec.data.__idx_lastFollowUps) ? rec.data.__idx_lastFollowUps : undefined;
+    const lastFUS = Array.isArray(rec.data.__idx_lastFollowUpsStrings)
+      ? rec.data.__idx_lastFollowUpsStrings
+      : undefined;
+    const lastDir = Array.isArray(rec.data.__idx_lastDirectives) ? rec.data.__idx_lastDirectives : undefined;
+    if (lastOut) {
+      return { hit: true, reply: lastOut, lane: lastLane, followUps: lastFU, followUpsStrings: lastFUS, directives: lastDir };
+    }
   }
 
   rec.data.__idx_lastReqKey = key;
@@ -293,9 +330,14 @@ function replayDedupe(rec, inboundText, source, clientRequestId) {
   return { hit: false };
 }
 
-function writeReplay(rec, reply, lane) {
+function writeReplay(rec, reply, lane, extras) {
   rec.data.__idx_lastOut = safeStr(reply);
   rec.data.__idx_lastLane = safeStr(lane || "general") || "general";
+  if (extras && typeof extras === "object") {
+    if (Array.isArray(extras.followUps)) rec.data.__idx_lastFollowUps = extras.followUps.slice(0, 10);
+    if (Array.isArray(extras.followUpsStrings)) rec.data.__idx_lastFollowUpsStrings = extras.followUpsStrings.slice(0, 10);
+    if (Array.isArray(extras.directives)) rec.data.__idx_lastDirectives = extras.directives.slice(0, 10);
+  }
 }
 
 // =========================
@@ -355,22 +397,45 @@ app.use((req, res, next) => {
 // Health + discovery
 // =========================
 app.get("/", (req, res) => {
-  res.status(200).json({ ok: true, service: "sandblast-backend", version: INDEX_VERSION, env: NODE_ENV });
+  res.status(200).json({
+    ok: true,
+    service: "sandblast-backend",
+    version: INDEX_VERSION,
+    engine: ENGINE_VERSION || null,
+    engineFrom: ENGINE.from,
+    env: NODE_ENV,
+  });
 });
 
 app.get("/health", (req, res) => {
-  res.status(200).json({ ok: true, version: INDEX_VERSION, up: true, now: new Date().toISOString() });
+  res.status(200).json({
+    ok: true,
+    version: INDEX_VERSION,
+    engine: ENGINE_VERSION || null,
+    engineFrom: ENGINE.from,
+    up: true,
+    now: new Date().toISOString(),
+  });
 });
 
 // ✅ ALIAS: widget expects this exact path
 app.get("/api/health", (req, res) => {
-  res.status(200).json({ ok: true, version: INDEX_VERSION, up: true, now: new Date().toISOString() });
+  res.status(200).json({
+    ok: true,
+    version: INDEX_VERSION,
+    engine: ENGINE_VERSION || null,
+    engineFrom: ENGINE.from,
+    up: true,
+    now: new Date().toISOString(),
+  });
 });
 
 app.get("/api/discovery", (req, res) => {
   res.status(200).json({
     ok: true,
     version: INDEX_VERSION,
+    engine: ENGINE_VERSION || null,
+    engineFrom: ENGINE.from,
     endpoints: ["/api/sandblast-gpt", "/api/nyx/chat", "/api/chat", "/api/tts", "/api/voice", "/health", "/api/health"],
   });
 });
@@ -396,8 +461,8 @@ async function handleChatRoute(req, res) {
   const { rec } = getSession(req);
   const bootLike = isBootLike(routeHint, body);
 
-  // Throttle fuse (skip for bootLike)
-  if (!bootLike) {
+  // Throttle fuse (skip for bootLike + skip for empty inbound)
+  if (!bootLike && inboundText) {
     const burst = checkBurst(rec, startedAt);
     const sus = checkSustained(rec, startedAt);
     if (burst.blocked || sus.blocked) {
@@ -412,7 +477,11 @@ async function handleChatRoute(req, res) {
         lane: rec.data.lane || "general",
         sessionPatch: {},
         requestId: serverRequestId,
-        meta: { index: INDEX_VERSION, throttled: burst.blocked ? "burst" : "sustained" },
+        meta: {
+          index: INDEX_VERSION,
+          engine: ENGINE_VERSION || null,
+          throttled: burst.blocked ? "burst" : "sustained",
+        },
       });
     }
   }
@@ -425,22 +494,25 @@ async function handleChatRoute(req, res) {
         ok: true,
         reply: dedupe.reply,
         lane: dedupe.lane,
+        directives: dedupe.directives,
+        followUps: dedupe.followUps,
+        followUpsStrings: dedupe.followUpsStrings,
         sessionPatch: {},
         requestId: serverRequestId,
-        meta: { index: INDEX_VERSION, replay: true },
+        meta: { index: INDEX_VERSION, engine: ENGINE_VERSION || null, replay: true },
       });
     }
   }
 
-  if (!chatEngine || typeof chatEngine.handleChat !== "function") {
-    const reply = "Backend engine not loaded. Check deploy: Utils/chatEngine.js is missing.";
+  if (!ENGINE.fn) {
+    const reply = "Backend engine not loaded. Check deploy: Utils/chatEngine.js is missing or exports are wrong.";
     writeReplay(rec, reply, "general");
     return res.status(500).json({
       ok: false,
       reply,
       lane: "general",
       requestId: serverRequestId,
-      meta: { index: INDEX_VERSION, engine: "missing" },
+      meta: { index: INDEX_VERSION, engine: "missing_or_invalid", engineFrom: ENGINE.from, engineVersion: ENGINE_VERSION || null },
     });
   }
 
@@ -449,7 +521,7 @@ async function handleChatRoute(req, res) {
     ...body,
     requestId: serverRequestId,
     clientRequestId: clientRequestId || undefined,
-    text: inboundText,
+    text: inboundText, // keep this explicit for engines that key off input.text
     source,
     routeHint,
     client: {
@@ -462,7 +534,7 @@ async function handleChatRoute(req, res) {
 
   let out;
   try {
-    out = await chatEngine.handleChat(engineInput);
+    out = await ENGINE.fn(engineInput);
   } catch (e) {
     const msg = safeStr(e?.message || e).trim();
     const reply = "I hit a snag, but I’m still here. Give me a year (1950–2024) and I’ll jump right in.";
@@ -472,7 +544,7 @@ async function handleChatRoute(req, res) {
       reply,
       lane: rec.data.lane || "general",
       requestId: serverRequestId,
-      meta: { index: INDEX_VERSION, error: safeStr(msg).slice(0, 200) },
+      meta: { index: INDEX_VERSION, engine: ENGINE_VERSION || null, error: safeStr(msg).slice(0, 200) },
     });
   }
 
@@ -482,8 +554,16 @@ async function handleChatRoute(req, res) {
 
   const lane = safeStr(out?.lane || rec.data.lane || "general") || "general";
   const reply = safeStr(out?.reply || "").trim() || "Okay — tell me what you want next.";
+
   rec.data.lane = lane;
-  writeReplay(rec, reply, lane);
+
+  // Persist last followUps/directives at index-level replay cache too (helps “same response” events)
+  const directives = Array.isArray(out?.directives) ? out.directives : undefined;
+  const followUps = Array.isArray(out?.followUps) ? out.followUps : undefined;
+  const followUpsStrings =
+    Array.isArray(out?.followUpsStrings) && out.followUpsStrings.length ? out.followUpsStrings : undefined;
+
+  writeReplay(rec, reply, lane, { directives, followUps, followUpsStrings });
 
   return res.status(200).json({
     ok: true,
@@ -491,15 +571,17 @@ async function handleChatRoute(req, res) {
     lane,
     ctx: out?.ctx,
     ui: out?.ui,
-    directives: out?.directives,
-    followUps: out?.followUps,
-    followUpsStrings: out?.followUpsStrings,
+    directives,
+    followUps,
+    followUpsStrings,
     sessionPatch: out?.sessionPatch || {},
     cog: out?.cog,
     requestId: out?.requestId || serverRequestId,
     meta: {
       ...(isPlainObject(out?.meta) ? out.meta : {}),
       index: INDEX_VERSION,
+      engine: ENGINE_VERSION || null,
+      engineFrom: ENGINE.from,
       elapsedMs: nowMs() - startedAt,
       source,
       routeHint,
@@ -511,6 +593,7 @@ async function handleChatRoute(req, res) {
 function applySessionPatch(session, patch) {
   if (!isPlainObject(session) || !isPlainObject(patch)) return;
 
+  // Expanded allowlist to preserve chatEngine v0.6zV+ continuity + replay payload capture + intro shuffle bag
   const PATCH_KEYS = new Set([
     "introDone",
     "introAt",
@@ -536,13 +619,26 @@ function applySessionPatch(session, patch) {
     "__hasRealUserTurn",
     "__introDone",
     "__cs1",
+
+    // cog & gating
     "cog",
+    "allowPackets",
+
+    // chatEngine replay internals (important for loop control + chip replay)
     "__ce_lastReqId",
     "__ce_lastReqAt",
     "__ce_lastOutHash",
     "__ce_lastOut",
     "__ce_lastOutLane",
-    "allowPackets",
+    "__ce_lastOutFollowUps",
+    "__ce_lastOutFollowUpsStrings",
+    "__ce_lastOutDirectives",
+    "__ce_lastInHash",
+    "__ce_lastInAt",
+
+    // intro shuffle-bag state + velvet gate (Option A/B flows rely on these)
+    "__nyxIntro",
+    "__nyxVelvet",
   ]);
 
   for (const [k, v] of Object.entries(patch)) {
@@ -553,6 +649,13 @@ function applySessionPatch(session, patch) {
       if (isPlainObject(v)) session.cog = v;
       continue;
     }
+
+    // Keep intro state bounded but don’t destroy structure
+    if (k === "__nyxIntro") {
+      if (isPlainObject(v)) session.__nyxIntro = v;
+      continue;
+    }
+
     session[k] = v;
   }
 }
@@ -657,6 +760,12 @@ app.post("/api/voice", handleTtsRoute);
 app.listen(PORT, () => {
   // eslint-disable-next-line no-console
   console.log(`[Sandblast] ${INDEX_VERSION} listening on ${PORT}`);
+
+  // ENGINE FINGERPRINT (so you can prove deploy truth in Render logs)
+  // eslint-disable-next-line no-console
+  console.log(
+    `[Sandblast] Engine: from=${ENGINE.from} version=${ENGINE_VERSION || "(unknown)"} loaded=${!!ENGINE.fn}`
+  );
 });
 
 module.exports = { app, INDEX_VERSION };
