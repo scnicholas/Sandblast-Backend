@@ -16,7 +16,7 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.6zY (ENTERPRISE HARDENED+++ + OPTION A RANDOM GREETING PREFIX ONLY)
+ * v0.6zZ (ENTERPRISE HARDENED+++ + OPTION A RANDOM GREETING PREFIX ONLY)
  *  ✅ NEW (Option A): Random greeting prefix on every REAL user interaction turn (message/chip/voice-submit)
  *      - NEVER on boot intro pings
  *      - No new imports, no external scripts, no contract changes
@@ -24,6 +24,8 @@
  *      - Avoids immediate repeat via session.cog.__nyxGreetLast
  *  ✅ NEW (CRITICAL): Guard __cmd:reset__ so it cannot trigger from boot intro pings (prevents fake "All reset" intro)
  *      - Search: "RESET (GUARDED)"
+ *  ✅ FIX: reset meta now correctly reports Option A (was incorrectly "B")
+ *  ✅ FIX: reset followUps now send actionable commands (prevents post-reset “intro drift” / weak intent)
  *  ✅ Keeps: existing intro shuffle-bag login-moment logic (unchanged)
  *  ✅ Keeps: Replay payload capture + inbound clamp + burst dedupe + lane drift guard
  *  ✅ Keeps: Year-only payload/ctx clicks hydrate inboundText so engine runs (lists fire)
@@ -39,7 +41,7 @@ const crypto = require("crypto");
 // Version
 // =========================
 const CE_VERSION =
-  "chatEngine v0.6zY (enterprise hardened+++ + OPTION A random greeting prefix per real interaction + reset-guard for boot-intro + preserves intro/login shuffle-bag + velvet gate + replay payload capture + inbound clamp + burst dedupe + lane drift guard + payload-year hydration + replayKey fix + packets gating at engine-resolve + authoritative year commit + mode-only attach + loopkiller+++++ + post-intro grace + idempotency + timeout + contract normalize + session safety)";
+  "chatEngine v0.6zZ (enterprise hardened+++ + OPTION A random greeting prefix per real interaction + reset-guard for boot-intro + preserves intro/login shuffle-bag + velvet gate + replay payload capture + inbound clamp + burst dedupe + lane drift guard + payload-year hydration + replayKey fix + packets gating at engine-resolve + authoritative year commit + mode-only attach + loopkiller+++++ + post-intro grace + idempotency + timeout + contract normalize + session safety)";
 
 // =========================
 // Enterprise knobs
@@ -1082,10 +1084,11 @@ async function handleChat(input = {}) {
     } else {
       hardResetSession(session, startedAt);
 
+      // Strong-intent followups (avoid “weak intent → intro drift” right after reset)
       const RESET_FOLLOWUPS = [
-        { label: "Pick a year", send: "Pick a year" },
-        { label: "Music", send: "Music" },
-        { label: "Radio", send: "Radio" },
+        { label: "Pick a year", send: "1988" },
+        { label: "Music", send: "music" },
+        { label: "Radio", send: "radio" },
       ];
 
       const reply = "All reset. Where do you want to start?";
@@ -1111,7 +1114,7 @@ async function handleChat(input = {}) {
         meta: {
           engine: CE_VERSION,
           reset: true,
-          resetOption: "B",
+          resetOption: "A",
           source: safeMetaStr(source),
           elapsedMs: nowMs() - startedAt,
         },
