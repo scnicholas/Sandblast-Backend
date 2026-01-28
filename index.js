@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17zu
+ * index.js v1.5.17zv
  * (Option B alignment: chatEngine v0.6zV+ compatibility + enterprise guards + /api/health alias + REAL ElevenLabs TTS)
  *
  * Goals:
@@ -17,6 +17,8 @@
  *  ✅ Fix: allow x-sbnyx-client-build + x-contract-version headers (CORS)  <-- REQUIRED
  *  ✅ NEW: Engine fingerprint (CE_VERSION) printed on startup + exposed in meta
  *  ✅ NEW: Accept chatEngine module that exports handleChat OR exports a function directly
+ *  ✅ NEW (CRITICAL): Empty-text chip clicks with payload/ctx intent are now treated as “meaningful” for replay/throttle keys
+ *      - prevents “no change” + loop amplification when widget sends empty text but includes mode/action/intent/year
  *
  * NOTE:
  *  - Expects ./Utils/chatEngine.js to export handleChat (or be a function)
@@ -47,7 +49,7 @@ const fetchFn = global.fetch || safeRequire("node-fetch");
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.17zu (enterprise hardened: CORS hard-lock + stabilized preflight + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY bypass + requestId always-on + REAL ElevenLabs TTS + chatEngine v0.6zV+ compatibility; CORS headers: x-sbnyx-client-build + x-contract-version; engine fingerprint startup log + meta)";
+  "index.js v1.5.17zv (enterprise hardened: CORS hard-lock + stabilized preflight + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY bypass + requestId always-on + REAL ElevenLabs TTS + chatEngine v0.6zV+ compatibility; CORS headers: x-sbnyx-client-build + x-contract-version; engine fingerprint startup log + meta; CRITICAL: empty-text chip intent counted for replay/throttle keys)";
 
 // =========================
 // Env / knobs
@@ -202,6 +204,50 @@ function isBootLike(routeHint, body) {
 }
 
 // =========================
+// CRITICAL: empty-text chip intent normalization (index-level)
+// =========================
+function hasIntentSignals(body) {
+  const b = isPlainObject(body) ? body : {};
+  const payload = isPlainObject(b.payload) ? b.payload : {};
+  const ctx = isPlainObject(b.ctx) ? b.ctx : {};
+  const client = isPlainObject(b.client) ? b.client : {};
+
+  // Any of these means “user did something” even if text is blank.
+  const sig =
+    safeStr(payload.text || payload.message).trim() ||
+    safeStr(b.text || b.message || b.prompt || b.query).trim() ||
+    safeStr(payload.mode || payload.action || payload.intent || payload.label).trim() ||
+    safeStr(ctx.mode || ctx.action || ctx.intent || ctx.route).trim() ||
+    safeStr(b.mode || b.action || b.intent).trim() ||
+    safeStr(b.year || payload.year || ctx.year).trim() ||
+    safeStr(client.routeHint || client.source).trim();
+
+  return !!sig;
+}
+
+function normalizeInboundSignature(body, inboundText) {
+  const b = isPlainObject(body) ? body : {};
+  const payload = isPlainObject(b.payload) ? b.payload : {};
+  const ctx = isPlainObject(b.ctx) ? b.ctx : {};
+
+  const t = safeStr(inboundText).trim();
+  if (t) return t.slice(0, 240);
+
+  // If empty, build a stable signature from intent fields so replay/throttle work.
+  const tok =
+    safeStr(payload.text || payload.message).trim() ||
+    safeStr(payload.mode || payload.action || payload.intent || payload.label).trim() ||
+    safeStr(ctx.mode || ctx.action || ctx.intent || ctx.route).trim() ||
+    safeStr(b.mode || b.action || b.intent).trim() ||
+    "";
+
+  const year = safeStr(b.year || payload.year || ctx.year).trim();
+  const sig = [tok, year].filter(Boolean).join(" ").trim();
+
+  return sig.slice(0, 240);
+}
+
+// =========================
 // Engine resolver (handleChat OR function export)
 // =========================
 function resolveEngine(mod) {
@@ -304,10 +350,10 @@ function checkSustained(rec, now) {
   return { blocked: false };
 }
 
-function replayDedupe(rec, inboundText, source, clientRequestId) {
+function replayDedupe(rec, inboundSig, source, clientRequestId) {
   const now = nowMs();
   const rid = safeStr(clientRequestId).trim();
-  const sig = sha1(`${safeStr(rec.data.sessionId)}|${safeStr(source)}|${safeStr(inboundText)}`).slice(0, 12);
+  const sig = sha1(`${safeStr(rec.data.sessionId)}|${safeStr(source)}|${safeStr(inboundSig)}`).slice(0, 12);
   const key = rid ? `rid:${rid}` : `sig:${sig}`;
 
   const lastKey = safeStr(rec.data.__idx_lastReqKey || "");
@@ -321,7 +367,14 @@ function replayDedupe(rec, inboundText, source, clientRequestId) {
       : undefined;
     const lastDir = Array.isArray(rec.data.__idx_lastDirectives) ? rec.data.__idx_lastDirectives : undefined;
     if (lastOut) {
-      return { hit: true, reply: lastOut, lane: lastLane, followUps: lastFU, followUpsStrings: lastFUS, directives: lastDir };
+      return {
+        hit: true,
+        reply: lastOut,
+        lane: lastLane,
+        followUps: lastFU,
+        followUpsStrings: lastFUS,
+        directives: lastDir,
+      };
     }
   }
 
@@ -335,7 +388,8 @@ function writeReplay(rec, reply, lane, extras) {
   rec.data.__idx_lastLane = safeStr(lane || "general") || "general";
   if (extras && typeof extras === "object") {
     if (Array.isArray(extras.followUps)) rec.data.__idx_lastFollowUps = extras.followUps.slice(0, 10);
-    if (Array.isArray(extras.followUpsStrings)) rec.data.__idx_lastFollowUpsStrings = extras.followUpsStrings.slice(0, 10);
+    if (Array.isArray(extras.followUpsStrings))
+      rec.data.__idx_lastFollowUpsStrings = extras.followUpsStrings.slice(0, 10);
     if (Array.isArray(extras.directives)) rec.data.__idx_lastDirectives = extras.directives.slice(0, 10);
   }
 }
@@ -458,11 +512,17 @@ async function handleChatRoute(req, res) {
 
   const inboundText = safeStr(body.text || body.message || body.prompt || body.query || body?.payload?.text || "").trim();
 
+  // CRITICAL: treat “empty text but intent in payload/ctx” as meaningful for throttle/replay keys
+  const inboundSig = normalizeInboundSignature(body, inboundText);
+  const meaningful = !!inboundSig || hasIntentSignals(body);
+
   const { rec } = getSession(req);
   const bootLike = isBootLike(routeHint, body);
 
-  // Throttle fuse (skip for bootLike + skip for empty inbound)
-  if (!bootLike && inboundText) {
+  // Throttle fuse:
+  // - still skip for bootLike
+  // - but DO apply to meaningful chip/intents even if inboundText is empty
+  if (!bootLike && meaningful) {
     const burst = checkBurst(rec, startedAt);
     const sus = checkSustained(rec, startedAt);
     if (burst.blocked || sus.blocked) {
@@ -486,9 +546,11 @@ async function handleChatRoute(req, res) {
     }
   }
 
-  // Outer replay dedupe (skip for bootLike + skip for empty inboundText)
-  if (!bootLike && inboundText) {
-    const dedupe = replayDedupe(rec, inboundText, source, clientRequestId);
+  // Outer replay dedupe:
+  // - still skip for bootLike
+  // - but DO apply to meaningful chip/intents even if inboundText is empty
+  if (!bootLike && meaningful) {
+    const dedupe = replayDedupe(rec, inboundSig, source, clientRequestId);
     if (dedupe.hit) {
       return res.status(200).json({
         ok: true,
@@ -512,7 +574,12 @@ async function handleChatRoute(req, res) {
       reply,
       lane: "general",
       requestId: serverRequestId,
-      meta: { index: INDEX_VERSION, engine: "missing_or_invalid", engineFrom: ENGINE.from, engineVersion: ENGINE_VERSION || null },
+      meta: {
+        index: INDEX_VERSION,
+        engine: "missing_or_invalid",
+        engineFrom: ENGINE.from,
+        engineVersion: ENGINE_VERSION || null,
+      },
     });
   }
 
@@ -521,7 +588,7 @@ async function handleChatRoute(req, res) {
     ...body,
     requestId: serverRequestId,
     clientRequestId: clientRequestId || undefined,
-    text: inboundText, // keep this explicit for engines that key off input.text
+    text: inboundText, // keep explicit for engines that key off input.text
     source,
     routeHint,
     client: {
@@ -557,7 +624,7 @@ async function handleChatRoute(req, res) {
 
   rec.data.lane = lane;
 
-  // Persist last followUps/directives at index-level replay cache too (helps “same response” events)
+  // Persist last followUps/directives at index-level replay cache too
   const directives = Array.isArray(out?.directives) ? out.directives : undefined;
   const followUps = Array.isArray(out?.followUps) ? out.followUps : undefined;
   const followUpsStrings =
@@ -586,6 +653,8 @@ async function handleChatRoute(req, res) {
       source,
       routeHint,
       bootLike: !!bootLike,
+      inboundSig: inboundSig ? String(inboundSig).slice(0, 160) : null,
+      meaningful: !!meaningful,
     },
   });
 }
@@ -629,6 +698,7 @@ function applySessionPatch(session, patch) {
     "__ce_lastReqAt",
     "__ce_lastOutHash",
     "__ce_lastOut",
+    "__ce_lastOutRaw",
     "__ce_lastOutLane",
     "__ce_lastOutFollowUps",
     "__ce_lastOutFollowUpsStrings",
