@@ -16,20 +16,18 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7aB (ENTERPRISE HARDENED+++ + OPTION A RANDOM GREETING PREFIX ONLY + NYX STATE SPINE v1 (COLD/WARM/ENGAGED))
- *  ✅ FIX (CRITICAL): Empty-text chip clicks w/ payload/ctx intent now hydrate inboundText so engine runs (no more “ignored_empty_nonboot” stalls)
- *      - Works for payload.mode/action/intent/label even when payload.year absent
- *      - Uses last known year when needed (mode-only chip clicks)
- *      - NEVER hydrates on boot intro pings
- *  ✅ Keeps: NYX STATE SPINE v1 forward-only + inactivity reset + merge-protected
- *  ✅ Keeps: Option A random greeting prefix per real interaction (replay-safe dynamic prefix)
+ * v0.7aC (ENTERPRISE HARDENED+++ + OPTION A RANDOM GREETING PREFIX ONLY + NYX STATE SPINE v1 (COLD/WARM/ENGAGED))
+ *  ✅ NEW (CRITICAL): Canonical Nyx greeting used as the FIRST widget intro + after reset:
+ *      "Hello, I'm Nyx. Welcome to Sandblast Channel. How can I help you today?"
+ *      - Served on boot_intro / panel_open_intro login moment
+ *      - Served immediately after __cmd:reset__
+ *      - Prevents “Reset complete…” or other system phrasing from being the first impression
+ *  ✅ Keeps: Payload/Ctx intent hydration (CRITICAL) + year hydration + mode-only attach + replay-safe Option A prefix
  *  ✅ Keeps: Guarded __cmd:reset__ cannot trigger from boot intro pings
- *  ✅ Keeps: Intro shuffle-bag login-moment logic (unchanged)
+ *  ✅ Keeps: Intro shuffle-bag login-moment logic (unchanged for non-boot login moments)
  *  ✅ Keeps: Replay payload capture + inbound clamp + burst dedupe + lane drift guard
- *  ✅ Keeps: Year-only payload/ctx clicks hydrate inboundText so engine runs (lists fire)
- *  ✅ Keeps: Replay cache works without client requestId
  *  ✅ Keeps: PACKETS gating enforced at ENGINE RESOLVE time
- *  ✅ Keeps: Numeric year authoritative + mode-only attach + “A year usually clears…” block when year exists
+ *  ✅ Keeps: Numeric year authoritative + “A year usually clears…” block when year exists
  *  ✅ Keeps: engine-autowire, intro replay suppression, post-intro grace, idempotency, timeout, contract normalize
  */
 
@@ -39,7 +37,7 @@ const crypto = require("crypto");
 // Version
 // =========================
 const CE_VERSION =
-  "chatEngine v0.7aB (enterprise hardened+++ + OPTION A random greeting prefix per real interaction + replay-safe dynamic prefix + reset-guard for boot-intro + preserves intro/login shuffle-bag + velvet gate + replay payload capture + inbound clamp + burst dedupe + lane drift guard + payload-year hydration + payload/ctx intent hydration (CRITICAL) + replayKey fix + packets gating at engine-resolve + authoritative year commit + mode-only attach + loopkiller+++++ + post-intro grace + idempotency + timeout + contract normalize + session safety + NYX STATE SPINE v1 (cold/warm/engaged forward-only, inactivity reset, merge-protected))";
+  "chatEngine v0.7aC (enterprise hardened+++ + CANONICAL INTRO ON BOOT+RESET + OPTION A random greeting prefix per real interaction + replay-safe dynamic prefix + reset-guard for boot-intro + preserves intro/login shuffle-bag + velvet gate + replay payload capture + inbound clamp + burst dedupe + lane drift guard + payload-year hydration + payload/ctx intent hydration (CRITICAL) + replayKey fix + packets gating at engine-resolve + authoritative year commit + mode-only attach + loopkiller+++++ + post-intro grace + idempotency + timeout + contract normalize + session safety + NYX STATE SPINE v1 (cold/warm/engaged forward-only, inactivity reset, merge-protected))";
 
 // =========================
 // Enterprise knobs
@@ -52,6 +50,11 @@ const MAX_FOLLOWUP_LABEL = 48;
 const MAX_REPLY_CHARS = 4000;
 const MAX_META_STR = 220;
 const MAX_INBOUND_CHARS = 900; // safety: clamp inboundText to a sane size
+
+// =========================
+// Canonical Nyx Intro (FIRST IMPRESSION LOCK)
+// =========================
+const NYX_CANONICAL_INTRO = "Hello, I'm Nyx. Welcome to Sandblast Channel. How can I help you today?";
 
 // =========================
 // Intro
@@ -1185,7 +1188,7 @@ function fallbackCore({ text, session, resolvedYear }) {
   }
 
   if (!t || isGreetingOnly(text)) {
-    return { reply: INTRO_VARIANTS_BY_BUCKET.general[0], lane: "general", followUps: toFollowUps(CANON_INTRO_CHIPS) };
+    return { reply: NYX_CANONICAL_INTRO, lane: "general", followUps: toFollowUps(CANON_INTRO_CHIPS) };
   }
 
   return {
@@ -1265,7 +1268,8 @@ async function handleChat(input = {}) {
         { label: "Radio", send: "radio" },
       ];
 
-      const reply = "All reset. Where do you want to start?";
+      // ✅ Canonical greeting must be the first impression after reset.
+      const reply = NYX_CANONICAL_INTRO;
 
       session.lane = "general";
       session.lastOut = reply;
@@ -1400,7 +1404,7 @@ async function handleChat(input = {}) {
   const introAt = safeInt(session.introAt || 0, 0);
   const justIntroed = !!introAt && startedAt - introAt < POST_INTRO_GRACE_MS;
   if (justIntroed && (inboundIsEmpty || isModeOnly(inboundText))) {
-    const reply0 = nonEmptyReply(session.lastOut, INTRO_VARIANTS_BY_BUCKET.general[0]);
+    const reply0 = nonEmptyReply(session.lastOut, NYX_CANONICAL_INTRO);
     session.lastOut = reply0;
     session.lastOutAt = startedAt;
     writeReplay(session, rkey, startedAt, reply0, "general", {
@@ -1433,7 +1437,7 @@ async function handleChat(input = {}) {
     if (introAt2 && startedAt - introAt2 < INTRO_REARM_MS) {
       const lastOut = safeStr(session.lastOut || "").trim();
       const lane0 = safeStr(session.lane || "general") || "general";
-      const reply0 = lastOut || "Ready when you are.";
+      const reply0 = lastOut || NYX_CANONICAL_INTRO;
       writeReplay(session, replayKey(session, clientRequestId, inboundText, source), startedAt, reply0, lane0, {
         rawReply: reply0,
         followUps: toFollowUps(CANON_INTRO_CHIPS),
@@ -1540,19 +1544,31 @@ async function handleChat(input = {}) {
     !ov.forced &&
     !forceMusicYear &&
     shouldServeIntroLoginMoment(session, inboundText, startedAt, { ...input, source });
+
   if (doIntro) {
     session.__introDone = 1;
     session.introDone = true;
     session.introAt = startedAt;
 
-    const bucketKey = pickIntroBucket(session, inboundText, routeHint, { ...input, source });
+    const isBootIntro = isBootIntroSource({ ...input, source });
+
+    // ✅ FIRST IMPRESSION LOCK: boot intro gets canonical greeting (not shuffle-bag)
+    let introLine = "";
+    let bucketKey = "general";
 
     session.lastLane = safeStr(session.lane || "");
     session.lane = "general";
 
-    const pick = pickIntroForLogin(session, startedAt, bucketKey);
-
-    const introLine = nonEmptyReply(pick.text, INTRO_VARIANTS_BY_BUCKET.general[0]);
+    if (isBootIntro) {
+      session.introBucket = "general";
+      session.introVariantId = 0;
+      introLine = NYX_CANONICAL_INTRO;
+      bucketKey = "general";
+    } else {
+      bucketKey = pickIntroBucket(session, inboundText, routeHint, { ...input, source });
+      const pick = pickIntroForLogin(session, startedAt, bucketKey);
+      introLine = nonEmptyReply(pick.text, INTRO_VARIANTS_BY_BUCKET.general[0]);
+    }
 
     session.lastOut = introLine;
     session.lastOutAt = startedAt;
@@ -1583,6 +1599,7 @@ async function handleChat(input = {}) {
         introBucket: safeMetaStr(bucketKey),
         source: safeMetaStr(source),
         nyxState: safeMetaStr(session.cog.state),
+        canonicalIntro: !!isBootIntro,
       },
     };
   }
