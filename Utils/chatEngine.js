@@ -16,10 +16,13 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.6zX (ENTERPRISE HARDENED+++ + TRUE RANDOM INTROS)
- *  ✅ NEW: Random intro shuffle-bag per bucket (no-repeat until bag refills) — fixes “same greeting” problem
- *  ✅ NEW: Persists __nyxIntro via sessionPatch allowlist so randomization survives client sessionPatch persistence
- *  ✅ NEW: Velvet mode support (earned intimacy) via __nyxVelvet + velvet intro bucket (ONLY after engagement)
+ * v0.6zY (ENTERPRISE HARDENED+++ + OPTION A RANDOM GREETING PREFIX ONLY)
+ *  ✅ NEW (Option A): Random greeting prefix on every REAL user interaction turn (message/chip/voice-submit)
+ *      - NEVER on boot intro pings
+ *      - No new imports, no external scripts, no contract changes
+ *      - Isolated + reversible block (search: "OPTION A: RANDOM GREETING PREFIX")
+ *      - Avoids immediate repeat via session.cog.__nyxGreetLast
+ *  ✅ Keeps: existing intro shuffle-bag login-moment logic (unchanged)
  *  ✅ Keeps: Replay payload capture + inbound clamp + burst dedupe + lane drift guard
  *  ✅ Keeps: Year-only payload/ctx clicks hydrate inboundText so engine runs (lists fire)
  *  ✅ Keeps: Replay cache works without client requestId
@@ -34,7 +37,7 @@ const crypto = require("crypto");
 // Version
 // =========================
 const CE_VERSION =
-  "chatEngine v0.6zX (enterprise hardened+++ + random intro shuffle-bag no-repeat + velvet earned-intimacy gate + replay payload capture + inbound clamp + burst dedupe + lane drift guard + payload-year hydration + replayKey fix + packets gating at engine-resolve + authoritative year commit + mode-only attach + loopkiller+++++ + post-intro grace + idempotency + timeout + contract normalize + session safety)";
+  "chatEngine v0.6zY (enterprise hardened+++ + OPTION A random greeting prefix per real interaction + preserves all existing intro/login shuffle-bag + velvet gate + replay payload capture + inbound clamp + burst dedupe + lane drift guard + payload-year hydration + replayKey fix + packets gating at engine-resolve + authoritative year commit + mode-only attach + loopkiller+++++ + post-intro grace + idempotency + timeout + contract normalize + session safety)";
 
 // =========================
 // Enterprise knobs
@@ -236,6 +239,82 @@ function shuffleInPlace(arr) {
   }
   return arr;
 }
+
+// =========================
+// OPTION A: RANDOM GREETING PREFIX (ISOLATED + REVERSIBLE)
+// - Adds a short random "Nyx is here" prefix on every REAL user interaction turn.
+// - NEVER runs on boot intro pings.
+// - Avoids immediate repeat using session.cog.__nyxGreetLast.
+// - Does not touch lane logic, chips, directives, engines, or contracts.
+// To revert: delete this whole block + the single hook near "APPLY GREETING PREFIX" below.
+// =========================
+const NYX_GREET_PREFIXES = [
+  "Hey — Nyx here.",
+  "Alright. I’m with you.",
+  "Mm. I’m listening.",
+  "Okay — talk to me.",
+  "Good. Let’s move.",
+  "I’ve got you. Go on.",
+  "Yeah — I’m here. What’s the play?",
+];
+
+function isBootLikeTurn(inboundIsEmpty, bootIntroEmpty) {
+  // bootIntroEmpty already means "empty inbound + boot intro source"
+  if (bootIntroEmpty) return true;
+  // truly empty inbound with no boot-intro source is not a real turn either
+  if (inboundIsEmpty) return true;
+  return false;
+}
+
+function pickNyxGreetPrefix(session) {
+  try {
+    session.cog = isPlainObject(session.cog) ? session.cog : {};
+    const last = safeStr(session.cog.__nyxGreetLast || "");
+    const max = NYX_GREET_PREFIXES.length;
+    if (!max) return "";
+
+    let chosen = "";
+    // reroll a couple times to avoid immediate repeat
+    for (let i = 0; i < 4; i++) {
+      const idx = pickRandomIndex(max);
+      const cand = safeStr(NYX_GREET_PREFIXES[idx]).trim();
+      if (!cand) continue;
+      if (cand === last && max > 1) continue;
+      chosen = cand;
+      break;
+    }
+    if (!chosen) chosen = safeStr(NYX_GREET_PREFIXES[0]).trim();
+
+    session.cog.__nyxGreetLast = chosen;
+    return chosen;
+  } catch (_) {
+    return "";
+  }
+}
+
+function maybeApplyNyxGreetPrefix(session, inboundIsEmpty, bootIntroEmpty, reply) {
+  try {
+    if (isBootLikeTurn(inboundIsEmpty, bootIntroEmpty)) return reply;
+
+    const core = safeStr(reply).trim();
+    if (!core) return reply;
+
+    const prefix = pickNyxGreetPrefix(session);
+    if (!prefix) return reply;
+
+    // If the reply already begins with the same prefix, don't double it
+    const low = core.toLowerCase();
+    const plow = prefix.toLowerCase();
+    if (low.startsWith(plow)) return reply;
+
+    return `${prefix}\n\n${core}`;
+  } catch (_) {
+    return reply;
+  }
+}
+// =========================
+// END OPTION A BLOCK
+// =========================
 
 // =========================
 // Intro state sanitization (bounded; enterprise-safe)
@@ -1345,7 +1424,7 @@ async function handleChat(input = {}) {
 
   // Normalize lane + reply
   const outLane = safeStr((core && core.lane) || session.lane || lane || "general").trim() || "general";
-  session.lane = (ov.forced || forceMusicYear) ? "music" : outLane;
+  session.lane = ov.forced || forceMusicYear ? "music" : outLane;
 
   // BLOCK the year-missing fallback when year exists anywhere
   const resolvedYearFinal = resolveInboundYear(input, inboundText, session);
@@ -1379,6 +1458,11 @@ async function handleChat(input = {}) {
   const yPost = resolveInboundYear(input, inboundText, session);
   if (yPost) commitYear(session, yPost, session.cog.yearSource || "post_engine");
 
+  // =========================
+  // APPLY GREETING PREFIX (OPTION A) — SINGLE HOOK (REVERSIBLE)
+  // =========================
+  reply = maybeApplyNyxGreetPrefix(session, inboundIsEmpty, bootIntroEmpty, reply);
+
   session.lastOut = reply;
   session.lastOutAt = startedAt;
 
@@ -1405,7 +1489,7 @@ async function handleChat(input = {}) {
       (core && core.cog && typeof core.cog === "object" && core.cog) || {
         phase: "listening",
         state: "confident",
-        reason: (ov.forced || forceMusicYear) ? "music_override" : "ok",
+        reason: ov.forced || forceMusicYear ? "music_override" : "ok",
         lane: session.lane,
       },
     requestId,
