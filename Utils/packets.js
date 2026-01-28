@@ -7,7 +7,7 @@
  * Reads Data/nyx/packets_v1.json and returns:
  *   { reply, followUps, sessionPatch, meta }
  *
- * v1.1c (BULLETPROOF + CHATENGINE GATE: NO HIJACK)
+ * v1.2-C (STATE TEMPLATES + ONCE-PER-SESSION FIX + TYPE NORMALIZATION)
  *
  * HARDENING / FIXES:
  * ✅ Never throws, never bricks boot (all-guards + safe fallbacks)
@@ -17,18 +17,22 @@
  *    - reserved triggers only match exact
  *    - normal triggers must match whole word/phrase boundary (prevents "hi" matching "this")
  * ✅ Anti-hijack guardrails:
- *    - packets are meant for greet/help/bye + explicit "__ask_year__" style calls
+ *    - packets are meant for greet/help/bye/fallback/error/prompt/nav + explicit "__ask_year__" style calls
  *    - can be forced ONLY via reserved triggers; otherwise requires stable-safe trigger hit
- * ✅ NEW: CHATENGINE GATE:
+ * ✅ CHATENGINE GATE:
  *    - packets only run when session.allowPackets===true
  *    - reserved triggers ALWAYS allowed (explicit invocation)
  *    - if a year exists, packets do not fire unless reserved trigger
+ * ✅ NEW: State-aware templates:
+ *    - if packet.stateTemplates exists, choose templates from stateTemplates[session.cog.state]
+ *    - falls back to packet.templates (no regression if stateTemplates missing)
+ * ✅ NEW: oncePerSession actually works (persists under session.__nyxPackets.once)
  * ✅ Prototype-pollution safe sessionPatch allowlist + deep-copy
  * ✅ FollowUps sanitized (length caps, max count, dedupe, no weird objects)
  * ✅ Template selection deterministic and safe (caps, type checks)
  *
  * Template vars:
- *  - {year} supported (if session.lastMusicYear present)
+ *  - {year} supported (prefers session.lastMusicYear, then session.cog.year/lastMusicYear)
  */
 
 const fs = require("fs");
@@ -46,7 +50,19 @@ const MAX_CHIPS = 10;
 const MAX_LABEL_LEN = 48;
 const MAX_SEND_LEN = 96;
 const MAX_REPLY_LEN = 1200;
-const ALLOWED_PATCH_KEYS = new Set(["lane", "lastMusicYear", "activeMusicMode", "voiceMode", "lastIntentSig"]);
+
+// allowlist keys that packets.js may emit in sessionPatch
+// (chatEngine will further allowlist when it merges)
+const ALLOWED_PATCH_KEYS = new Set([
+  "lane",
+  "lastMusicYear",
+  "activeMusicMode",
+  "voiceMode",
+  "lastIntentSig",
+  "__nyxPackets", // NEW: used for oncePerSession memory (bounded + sanitized)
+]);
+
+const MAX_ONCE_IDS = 64;
 
 /* ======================================================
    Helpers
@@ -60,7 +76,7 @@ function clampYear(y) {
   const n = Number(y);
   if (!Number.isFinite(n)) return null;
   if (n < 1950 || n > 2024) return null;
-  return n;
+  return Math.trunc(n);
 }
 
 function extractYearFromText(text) {
@@ -68,7 +84,7 @@ function extractYearFromText(text) {
   if (!m) return null;
   const y = Number(m[1]);
   if (!Number.isFinite(y) || y < 1950 || y > 2024) return null;
-  return y;
+  return Math.trunc(y);
 }
 
 function replaceVars(str, vars) {
@@ -117,6 +133,36 @@ function safeFollowUps(list) {
   return out;
 }
 
+function isPlainObject(x) {
+  return !!x && typeof x === "object" && (Object.getPrototypeOf(x) === Object.prototype || Object.getPrototypeOf(x) === null);
+}
+
+function safeNyxPacketsPatch(val) {
+  // Expected shape: { once: { [packetId]: 1 } }
+  // We sanitize and bound it hard.
+  if (!isPlainObject(val)) return null;
+
+  const out = Object.create(null);
+  const onceIn = isPlainObject(val.once) ? val.once : null;
+  if (!onceIn) return null;
+
+  const onceOut = Object.create(null);
+  let count = 0;
+
+  for (const k of Object.keys(onceIn)) {
+    if (!k || k === "__proto__" || k === "constructor" || k === "prototype") continue;
+    const id = String(k).trim();
+    if (!id) continue;
+    onceOut[id] = 1;
+    count++;
+    if (count >= MAX_ONCE_IDS) break;
+  }
+
+  if (!count) return null;
+  out.once = onceOut;
+  return out;
+}
+
 function safeSessionPatch(patch) {
   if (!patch || typeof patch !== "object") return null;
 
@@ -128,6 +174,12 @@ function safeSessionPatch(patch) {
     if (k === "lastMusicYear") {
       const y = clampYear(patch[k]);
       if (y) out.lastMusicYear = y;
+      continue;
+    }
+
+    if (k === "__nyxPackets") {
+      const safe = safeNyxPacketsPatch(patch[k]);
+      if (safe) out.__nyxPackets = safe;
       continue;
     }
 
@@ -173,14 +225,15 @@ function matchTrigger(textLower, trig) {
 /**
  * Deterministic template pick:
  * - if 1 template: return it
- * - else: idx = hash(text) % len (stable)
+ * - else: idx = hash(text + salt) % len (stable)
  */
-function pickTemplate(templates, textLower) {
+function pickTemplate(templates, textLower, salt) {
   const list = Array.isArray(templates) ? templates.filter((x) => typeof x === "string" && x.trim()) : [];
   if (!list.length) return "";
   if (list.length === 1) return String(list[0]);
 
-  const idx = djb2Hash(textLower) % list.length;
+  const key = `${String(textLower || "")}::${String(salt || "")}`;
+  const idx = djb2Hash(key) % list.length;
   return String(list[idx] || "");
 }
 
@@ -244,7 +297,20 @@ function loadPackets() {
 
 function isAllowedPacketType(type) {
   const t = normText(type);
-  return t === "greet" || t === "help" || t === "bye" || t === "system" || t === "prompt";
+
+  // Support both your current packet types and older aliases.
+  return (
+    t === "greeting" ||
+    t === "greet" ||
+    t === "help" ||
+    t === "goodbye" ||
+    t === "bye" ||
+    t === "fallback" ||
+    t === "error" ||
+    t === "prompt" ||
+    t === "nav" ||
+    t === "system"
+  );
 }
 
 function allowPacketFire({ packet, matchedTrig }) {
@@ -256,9 +322,9 @@ function allowPacketFire({ packet, matchedTrig }) {
 }
 
 /**
- * NEW: chatEngine gate
- * - If session.allowPackets !== true, packets do not run (unless reserved trigger was explicitly invoked).
- * - If a year exists in the inbound text OR session.lastMusicYear, do not run packets unless reserved trigger.
+ * chatEngine gate
+ * - If session.allowPackets !== true, packets do not run (unless reserved trigger explicitly invoked).
+ * - If a year exists in inbound OR session year context exists, do not run packets unless reserved trigger.
  */
 function gateAllowsRun({ lowerText, session, matchedTrig }) {
   const reserved = isReservedTrigger(matchedTrig || "");
@@ -272,10 +338,84 @@ function gateAllowsRun({ lowerText, session, matchedTrig }) {
 
   // If a year is present, packets should not hijack music turns.
   const yText = extractYearFromText(lowerText);
-  const ySess = clampYear(session && session.lastMusicYear);
+  const ySess =
+    clampYear(session && session.lastMusicYear) ||
+    clampYear(session && session.cog && (session.cog.year || session.cog.lastMusicYear));
+
   if (yText || ySess) return false;
 
   return true;
+}
+
+/* ======================================================
+   State selection (cold / warm / engaged)
+====================================================== */
+
+function getNyxState(session) {
+  const s =
+    normText(session && session.cog && session.cog.state) ||
+    normText(session && session.cog && session.cog.phase) || // fallback (harmless)
+    normText(session && session.state) ||
+    "";
+
+  if (s === "warm" || s === "engaged" || s === "cold") return s;
+  return "cold";
+}
+
+function getYearVar(session, textLower) {
+  // Prefer explicit inbound year (if present) for {year} substitution only.
+  // Does NOT change gating (gating happens earlier).
+  const yText = extractYearFromText(textLower);
+  if (yText) return yText;
+
+  const y1 = clampYear(session && session.lastMusicYear);
+  if (y1) return y1;
+
+  const y2 = clampYear(session && session.cog && session.cog.lastMusicYear);
+  if (y2) return y2;
+
+  const y3 = clampYear(session && session.cog && session.cog.year);
+  if (y3) return y3;
+
+  return null;
+}
+
+/* ======================================================
+   oncePerSession support (persisted in session.__nyxPackets.once)
+====================================================== */
+
+function hasOnceFired(session, packetId) {
+  if (!packetId) return false;
+  const nyxPackets = session && session.__nyxPackets;
+  const once = nyxPackets && nyxPackets.once;
+  return !!(once && typeof once === "object" && once[packetId] === 1);
+}
+
+function buildOncePatch(session, packetId) {
+  if (!packetId) return null;
+
+  const out = Object.create(null);
+  const nyxPackets = Object.create(null);
+  const once = Object.create(null);
+
+  // carry forward existing (bounded)
+  const prev = session && session.__nyxPackets && session.__nyxPackets.once;
+  if (prev && typeof prev === "object") {
+    let count = 0;
+    for (const k of Object.keys(prev)) {
+      if (!k || k === "__proto__" || k === "constructor" || k === "prototype") continue;
+      once[String(k).trim()] = 1;
+      count++;
+      if (count >= MAX_ONCE_IDS) break;
+    }
+  }
+
+  // set current
+  once[String(packetId).trim()] = 1;
+
+  nyxPackets.once = once;
+  out.__nyxPackets = nyxPackets;
+  return out;
 }
 
 /* ======================================================
@@ -298,8 +438,8 @@ async function handleChat({ text, session, visitorId, debug }) {
     const t = String(text || "").trim();
     const lower = normText(t);
 
-    // Prefer explicit year, but support template var {year} using session lastMusicYear only (as designed)
-    const y = clampYear(session && session.lastMusicYear);
+    const state = getNyxState(session);
+    const y = getYearVar(session, lower);
     const vars = { year: y ? String(y) : "" };
 
     // Find first matching packet in file order (deterministic)
@@ -309,14 +449,18 @@ async function handleChat({ text, session, visitorId, debug }) {
     for (const p of packets) {
       if (!p || !Array.isArray(p.trigger)) continue;
 
+      // oncePerSession enforcement (only if packet requests it)
+      const oncePerSession = !!(p.constraints && typeof p.constraints === "object" && p.constraints.oncePerSession === true);
+      const pid = String(p.id || "").trim();
+      if (oncePerSession && pid && hasOnceFired(session, pid)) continue;
+
       for (const trig of p.trigger) {
         if (matchTrigger(lower, trig)) {
           // 1) type/trigger guard
           if (!allowPacketFire({ packet: p, matchedTrig: trig })) break;
 
-          // 2) NEW: chatEngine gate
+          // 2) chatEngine gate
           if (!gateAllowsRun({ lowerText: lower, session, matchedTrig: trig })) {
-            // If blocked, treat as no match and continue scanning
             break;
           }
 
@@ -333,22 +477,46 @@ async function handleChat({ text, session, visitorId, debug }) {
         reply: "",
         followUps: [],
         sessionPatch: null,
-        meta: debug ? { ok: false, reason: "no_match_or_blocked" } : null,
+        meta: debug ? { ok: false, reason: "no_match_or_blocked", state } : null,
       };
     }
 
-    const tmpl = pickTemplate(chosen.templates, lower);
+    // Prefer stateTemplates[state] when present; fallback to templates.
+    let templatesToUse = chosen.templates;
+    const st = chosen.stateTemplates;
+
+    if (st && typeof st === "object") {
+      const cand = st[state];
+      if (Array.isArray(cand) && cand.length) templatesToUse = cand;
+    }
+
+    const tmpl = pickTemplate(templatesToUse, lower, `${chosen.id || ""}:${state}`);
     let reply = replaceVars(tmpl, vars).trim();
 
     if (reply.length > MAX_REPLY_LEN) reply = reply.slice(0, MAX_REPLY_LEN).trim();
 
     const followUps = safeFollowUps(chosen.chips);
-    const sessionPatch = safeSessionPatch(chosen.sessionPatch);
+
+    // sessionPatch:
+    // - base patch from packet (sanitized)
+    // - if oncePerSession, also persist the fired packet id under __nyxPackets.once
+    const basePatch = safeSessionPatch(chosen.sessionPatch) || null;
+    const oncePerSession = !!(chosen.constraints && typeof chosen.constraints === "object" && chosen.constraints.oncePerSession === true);
+    const pid = String(chosen.id || "").trim();
+
+    let mergedPatch = basePatch ? Object.assign(Object.create(null), basePatch) : null;
+
+    if (oncePerSession && pid) {
+      const oncePatch = buildOncePatch(session || {}, pid);
+      if (oncePatch) {
+        mergedPatch = mergedPatch ? Object.assign(mergedPatch, safeSessionPatch(oncePatch) || {}) : safeSessionPatch(oncePatch);
+      }
+    }
 
     return {
       reply,
       followUps,
-      sessionPatch,
+      sessionPatch: mergedPatch,
       meta: debug
         ? {
             ok: true,
@@ -357,10 +525,15 @@ async function handleChat({ text, session, visitorId, debug }) {
             packetLane: chosen.lane || null,
             matchedTrig: String(matchedTrig || ""),
             reservedTrig: isReservedTrigger(matchedTrig || ""),
+            state,
+            usedStateTemplates: !!(chosen.stateTemplates && chosen.stateTemplates[state]),
             gateAllowPackets: !!(session && session.allowPackets === true),
-            blockedByYear: !!(extractYearFromText(lower) || (session && clampYear(session.lastMusicYear))),
+            blockedByYear: !!(
+              extractYearFromText(lower) ||
+              (session && (clampYear(session.lastMusicYear) || clampYear(session.cog && (session.cog.year || session.cog.lastMusicYear))))
+            ),
             hasYearVar: !!y,
-            path: PACKETS_PATH,
+            path: PACKETS_PATH
           }
         : null,
     };
