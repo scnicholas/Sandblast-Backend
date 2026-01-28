@@ -22,6 +22,8 @@
  *      - No new imports, no external scripts, no contract changes
  *      - Isolated + reversible block (search: "OPTION A: RANDOM GREETING PREFIX")
  *      - Avoids immediate repeat via session.cog.__nyxGreetLast
+ *  ✅ NEW (CRITICAL): Guard __cmd:reset__ so it cannot trigger from boot intro pings (prevents fake "All reset" intro)
+ *      - Search: "RESET (GUARDED)"
  *  ✅ Keeps: existing intro shuffle-bag login-moment logic (unchanged)
  *  ✅ Keeps: Replay payload capture + inbound clamp + burst dedupe + lane drift guard
  *  ✅ Keeps: Year-only payload/ctx clicks hydrate inboundText so engine runs (lists fire)
@@ -37,7 +39,7 @@ const crypto = require("crypto");
 // Version
 // =========================
 const CE_VERSION =
-  "chatEngine v0.6zY (enterprise hardened+++ + OPTION A random greeting prefix per real interaction + preserves all existing intro/login shuffle-bag + velvet gate + replay payload capture + inbound clamp + burst dedupe + lane drift guard + payload-year hydration + replayKey fix + packets gating at engine-resolve + authoritative year commit + mode-only attach + loopkiller+++++ + post-intro grace + idempotency + timeout + contract normalize + session safety)";
+  "chatEngine v0.6zY (enterprise hardened+++ + OPTION A random greeting prefix per real interaction + reset-guard for boot-intro + preserves intro/login shuffle-bag + velvet gate + replay payload capture + inbound clamp + burst dedupe + lane drift guard + payload-year hydration + replayKey fix + packets gating at engine-resolve + authoritative year commit + mode-only attach + loopkiller+++++ + post-intro grace + idempotency + timeout + contract normalize + session safety)";
 
 // =========================
 // Enterprise knobs
@@ -484,7 +486,7 @@ function normalizeInboundText(text, session, routeHint) {
   }
 
   if (y && !m && session && session.activeMusicMode && !isGreetingOnly(raw)) {
-    const mm = safeStr(session.activeMusicMode).trim();
+    const mm = safeStr(session && session.activeMusicMode).trim();
     if (mm === "top10") return `top 10 ${y}`;
     if (mm === "top100") return `top 100 ${y}`;
     if (mm === "number1") return `#1 ${y}`;
@@ -754,10 +756,10 @@ const PATCH_KEYS = new Set([
   // packets gate flag (so widget/index can persist it if needed)
   "allowPackets",
 
-  // NEW: persist intro randomization state (small, bounded)
+  // persist intro randomization state (small, bounded)
   "__nyxIntro",
 
-  // NEW: velvet earned-intimacy gate
+  // velvet earned-intimacy gate
   "__nyxVelvet",
 ]);
 
@@ -1039,7 +1041,7 @@ function maybeAttachMusicFollowUps(core, resolvedYear, inboundText, session) {
   ]);
 
   session.lane = "music";
-  commitYear(session, year, session.cog.yearSource || "engine_followups_fallback");
+  commitYear(session, year, (session.cog && session.cog.yearSource) || "engine_followups_fallback");
   session.cog.lane = "music";
 
   return core;
@@ -1069,44 +1071,52 @@ async function handleChat(input = {}) {
     safeStr((input && input.client && input.client.routeHint) || input.routeHint || session.lane || "general").trim() ||
     "general";
 
-  // RESET
+  // =========================
+  // RESET (GUARDED): never allow reset to trigger from boot/open intro pings
+  // =========================
   if (inboundText === "__cmd:reset__") {
-    hardResetSession(session, startedAt);
+    const bootish = isBootIntroSource({ ...input, source });
+    if (bootish) {
+      // Treat as empty so it flows through boot-intro suppression / intro logic instead of hard-reset
+      inboundText = "";
+    } else {
+      hardResetSession(session, startedAt);
 
-    const RESET_FOLLOWUPS = [
-      { label: "Pick a year", send: "Pick a year" },
-      { label: "Music", send: "Music" },
-      { label: "Radio", send: "Radio" },
-    ];
+      const RESET_FOLLOWUPS = [
+        { label: "Pick a year", send: "Pick a year" },
+        { label: "Music", send: "Music" },
+        { label: "Radio", send: "Radio" },
+      ];
 
-    const reply = "All reset. Where do you want to start?";
+      const reply = "All reset. Where do you want to start?";
 
-    session.lane = "general";
-    session.lastOut = reply;
-    session.lastOutAt = startedAt;
+      session.lane = "general";
+      session.lastOut = reply;
+      session.lastOutAt = startedAt;
 
-    writeReplay(session, replayKey(session, clientRequestId, inboundText, source), startedAt, reply, "general", {
-      followUps: toFollowUps(RESET_FOLLOWUPS),
-      followUpsStrings: toFollowUpsStrings(RESET_FOLLOWUPS),
-    });
+      writeReplay(session, replayKey(session, clientRequestId, inboundText, source), startedAt, reply, "general", {
+        followUps: toFollowUps(RESET_FOLLOWUPS),
+        followUpsStrings: toFollowUpsStrings(RESET_FOLLOWUPS),
+      });
 
-    return {
-      ok: true,
-      reply,
-      lane: "general",
-      followUps: toFollowUps(RESET_FOLLOWUPS),
-      followUpsStrings: toFollowUpsStrings(RESET_FOLLOWUPS),
-      sessionPatch: buildSessionPatch(session),
-      cog: { phase: "listening", state: "fresh", reason: "hard_reset", lane: "general" },
-      requestId,
-      meta: {
-        engine: CE_VERSION,
-        reset: true,
-        resetOption: "B",
-        source: safeMetaStr(source),
-        elapsedMs: nowMs() - startedAt,
-      },
-    };
+      return {
+        ok: true,
+        reply,
+        lane: "general",
+        followUps: toFollowUps(RESET_FOLLOWUPS),
+        followUpsStrings: toFollowUpsStrings(RESET_FOLLOWUPS),
+        sessionPatch: buildSessionPatch(session),
+        cog: { phase: "listening", state: "fresh", reason: "hard_reset", lane: "general" },
+        requestId,
+        meta: {
+          engine: CE_VERSION,
+          reset: true,
+          resetOption: "B",
+          source: safeMetaStr(source),
+          elapsedMs: nowMs() - startedAt,
+        },
+      };
+    }
   }
 
   // Normalize inbound (text-only normalization)
@@ -1182,16 +1192,16 @@ async function handleChat(input = {}) {
   const introAt = safeInt(session.introAt || 0, 0);
   const justIntroed = !!introAt && startedAt - introAt < POST_INTRO_GRACE_MS;
   if (justIntroed && (inboundIsEmpty || isModeOnly(inboundText))) {
-    const reply = nonEmptyReply(session.lastOut, INTRO_VARIANTS_BY_BUCKET.general[0]);
-    session.lastOut = reply;
+    const reply0 = nonEmptyReply(session.lastOut, INTRO_VARIANTS_BY_BUCKET.general[0]);
+    session.lastOut = reply0;
     session.lastOutAt = startedAt;
-    writeReplay(session, rkey, startedAt, reply, "general", {
+    writeReplay(session, rkey, startedAt, reply0, "general", {
       followUps: toFollowUps(CANON_INTRO_CHIPS),
       followUpsStrings: toFollowUpsStrings(CANON_INTRO_CHIPS),
     });
     return {
       ok: true,
-      reply,
+      reply: reply0,
       lane: "general",
       followUps: toFollowUps(CANON_INTRO_CHIPS),
       followUpsStrings: toFollowUpsStrings(CANON_INTRO_CHIPS),
@@ -1213,14 +1223,14 @@ async function handleChat(input = {}) {
     if (introAt2 && startedAt - introAt2 < INTRO_REARM_MS) {
       const lastOut = safeStr(session.lastOut || "").trim();
       const lane0 = safeStr(session.lane || "general") || "general";
-      const reply = lastOut || "Ready when you are.";
-      writeReplay(session, replayKey(session, clientRequestId, inboundText, source), startedAt, reply, lane0, {
+      const reply0 = lastOut || "Ready when you are.";
+      writeReplay(session, replayKey(session, clientRequestId, inboundText, source), startedAt, reply0, lane0, {
         followUps: toFollowUps(CANON_INTRO_CHIPS),
         followUpsStrings: toFollowUpsStrings(CANON_INTRO_CHIPS),
       });
       return {
         ok: true,
-        reply,
+        reply: reply0,
         lane: lane0,
         followUps: toFollowUps(CANON_INTRO_CHIPS),
         followUpsStrings: toFollowUpsStrings(CANON_INTRO_CHIPS),
@@ -1239,11 +1249,11 @@ async function handleChat(input = {}) {
 
   // Ignore empty non-boot (but only if we truly have no payload intent)
   if (inboundIsEmpty && !bootIntroEmpty) {
-    const reply = "Ready when you are. Tell me a year (1950–2024), or what you want to do next.";
+    const reply0 = "Ready when you are. Tell me a year (1950–2024), or what you want to do next.";
     const laneX = safeStr(session.lane || "general") || "general";
     return {
       ok: true,
-      reply,
+      reply: reply0,
       lane: laneX,
       followUps: toFollowUps(CANON_INTRO_CHIPS),
       followUpsStrings: toFollowUpsStrings(CANON_INTRO_CHIPS),
@@ -1415,7 +1425,6 @@ async function handleChat(input = {}) {
     };
   } finally {
     // Reduce surface area: packets should be allowed only for this one evaluation window.
-    // Reserved triggers still bypass inside packets.js if explicitly invoked.
     session.allowPackets = false;
   }
 
@@ -1456,7 +1465,7 @@ async function handleChat(input = {}) {
 
   // Re-commit year after engine merge
   const yPost = resolveInboundYear(input, inboundText, session);
-  if (yPost) commitYear(session, yPost, session.cog.yearSource || "post_engine");
+  if (yPost) commitYear(session, yPost, (session.cog && session.cog.yearSource) || "post_engine");
 
   // =========================
   // APPLY GREETING PREFIX (OPTION A) — SINGLE HOOK (REVERSIBLE)
