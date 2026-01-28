@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17zv
+ * index.js v1.5.17zw
  * (Option B alignment: chatEngine v0.6zV+ compatibility + enterprise guards + /api/health alias + REAL ElevenLabs TTS)
  *
  * Goals:
@@ -19,6 +19,9 @@
  *  ✅ NEW: Accept chatEngine module that exports handleChat OR exports a function directly
  *  ✅ NEW (CRITICAL): Empty-text chip clicks with payload/ctx intent are now treated as “meaningful” for replay/throttle keys
  *      - prevents “no change” + loop amplification when widget sends empty text but includes mode/action/intent/year
+ *  ✅ NEW (CRITICAL, SURGICAL): Reset reply sanitizer removes “All reset…” from backend output
+ *      - This phrase was being returned by backend and shown in widget (screenshot)
+ *      - Widget will display whatever backend returns; this fixes at the source without touching widget UI
  *
  * NOTE:
  *  - Expects ./Utils/chatEngine.js to export handleChat (or be a function)
@@ -49,7 +52,7 @@ const fetchFn = global.fetch || safeRequire("node-fetch");
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.17zv (enterprise hardened: CORS hard-lock + stabilized preflight + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY bypass + requestId always-on + REAL ElevenLabs TTS + chatEngine v0.6zV+ compatibility; CORS headers: x-sbnyx-client-build + x-contract-version; engine fingerprint startup log + meta; CRITICAL: empty-text chip intent counted for replay/throttle keys)";
+  "index.js v1.5.17zw (enterprise hardened: CORS hard-lock + stabilized preflight + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY bypass + requestId always-on + REAL ElevenLabs TTS + chatEngine v0.6zV+ compatibility; CORS headers: x-sbnyx-client-build + x-contract-version; engine fingerprint startup log + meta; CRITICAL: empty-text chip intent counted for replay/throttle keys; CRITICAL: reset reply sanitizer removes 'All reset' phrase)";
 
 // =========================
 // Env / knobs
@@ -245,6 +248,31 @@ function normalizeInboundSignature(body, inboundText) {
   const sig = [tok, year].filter(Boolean).join(" ").trim();
 
   return sig.slice(0, 240);
+}
+
+// =========================
+// CRITICAL: reset reply sanitizer (removes “All reset…”)
+// =========================
+function isResetCommand(inboundText, source, body) {
+  const t = safeStr(inboundText).trim();
+  if (t === "__cmd:reset__") return true;
+
+  const s = safeStr(source).toLowerCase();
+  if (s === "reset_btn" || s.includes("reset")) return true;
+
+  const b = isPlainObject(body) ? body : {};
+  const client = isPlainObject(b.client) ? b.client : {};
+  const cs = safeStr(client.source).toLowerCase();
+  if (cs === "reset_btn" || cs.includes("reset")) return true;
+
+  return false;
+}
+
+function sanitizeResetReply(reply) {
+  const r = safeStr(reply).trim();
+  if (!r) return r;
+  if (/^all reset\b/i.test(r)) return "Reset complete. Where do you want to go next?";
+  return r;
 }
 
 // =========================
@@ -504,7 +532,8 @@ async function handleChatRoute(req, res) {
   const clientRequestId = safeStr(body.requestId || req.headers["x-request-id"] || "").trim();
   const serverRequestId = clientRequestId || makeReqId();
 
-  const source = safeStr(body?.client?.source || body?.source || req.headers["x-client-source"] || "").trim() || "unknown";
+  const source =
+    safeStr(body?.client?.source || body?.source || req.headers["x-client-source"] || "").trim() || "unknown";
 
   const routeHint =
     safeStr(body?.client?.routeHint || body?.routeHint || body?.lane || req.headers["x-route-hint"] || "").trim() ||
@@ -620,7 +649,12 @@ async function handleChatRoute(req, res) {
   }
 
   const lane = safeStr(out?.lane || rec.data.lane || "general") || "general";
-  const reply = safeStr(out?.reply || "").trim() || "Okay — tell me what you want next.";
+
+  // ---- CRITICAL: sanitize backend reset reply (removes “All reset…”) ----
+  const isReset = isResetCommand(inboundText, source, body);
+  const rawReply = safeStr(out?.reply || "").trim();
+  const reply = isReset ? sanitizeResetReply(rawReply) : (rawReply || "Okay — tell me what you want next.");
+  // ---------------------------------------------------------------------
 
   rec.data.lane = lane;
 
@@ -655,6 +689,7 @@ async function handleChatRoute(req, res) {
       bootLike: !!bootLike,
       inboundSig: inboundSig ? String(inboundSig).slice(0, 160) : null,
       meaningful: !!meaningful,
+      resetSanitized: isReset ? true : false,
     },
   });
 }
