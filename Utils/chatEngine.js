@@ -16,11 +16,13 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7aE (ENTERPRISE HARDENED+++ + LOOPING MITIGATIONS)
- *  ✅ FIX (CRITICAL): replayKey now includes inbound hash even when clientRequestId exists (prevents “sticky replays” if client reuses requestId).
+ * v0.7aF (ENTERPRISE HARDENED+++ + LOOPING MITIGATIONS + writeReplay SURGICAL PATCH)
+ *  ✅ FIX (CRITICAL): replayKey includes inbound hash even when clientRequestId exists (prevents “sticky replays” if client reuses requestId).
  *  ✅ FIX (CRITICAL): Option A greeting prefix is NOT applied on replay/burst paths (prevents “different reply each replay” → perceived loops / repeated TTS).
- *  ✅ FIX: Burst-dedupe hash is now based on FINAL hydrated inboundText (prevents empty→hydrated double-processing patterns).
+ *  ✅ FIX: Burst-dedupe hash is based on FINAL hydrated inboundText (prevents empty→hydrated double-processing patterns).
  *  ✅ FIX: Optional cache for ignored empty non-boot turns (reduces repeated “Ready when you are” spam loops).
+ *  ✅ FIX (writeReplay PATCH): replay cache now returns the EXACT reply that was emitted to the user (prefix-inclusive), while still storing rawReply separately.
+ *  ✅ FIX: meaningful-turn flag now tracks FINAL hydrated inbound (prevents stale state driving greet-prefix).
  *  ✅ Keeps: Canonical first boot intro logic, reset advances, replay safety, intro shuffle-bag, packets gating, loopkiller, state spine.
  */
 
@@ -30,7 +32,7 @@ const crypto = require("crypto");
 // Version
 // =========================
 const CE_VERSION =
-  "chatEngine v0.7aE (enterprise hardened+++ + LOOP MITIGATIONS: replayKey includes inbound hash even w/ client rid + greet prefix suppressed on replay/burst + burst hash uses FINAL hydrated inbound + ignored-empty cached + preserves canonical first boot intro + canonical welcome on reset + reset advances + replayKey includes resetSeq + intro shuffle-bag + velvet gate + replay payload capture + inbound clamp + lane drift guard + payload-year hydration + payload/ctx intent hydration + packets gating at engine-resolve + authoritative year commit + mode-only attach + loopkiller+++++ + post-intro grace + idempotency + timeout + contract normalize + session safety + NYX STATE SPINE v1 (cold/warm/engaged forward-only, inactivity reset, merge-protected))";
+  "chatEngine v0.7aF (enterprise hardened+++ + LOOP MITIGATIONS + writeReplay PATCH: replay returns emitted reply (prefix-inclusive) + meaningful flag tracks FINAL inbound + replayKey includes inbound hash even w/ client rid + greet prefix suppressed on replay/burst + burst hash uses FINAL hydrated inbound + ignored-empty cached + preserves canonical first boot intro + canonical welcome on reset + reset advances + replayKey includes resetSeq + intro shuffle-bag + velvet gate + replay payload capture + inbound clamp + lane drift guard + payload-year hydration + payload/ctx intent hydration + packets gating at engine-resolve + authoritative year commit + mode-only attach + loopkiller+++++ + post-intro grace + idempotency + timeout + contract normalize + session safety + NYX STATE SPINE v1 (cold/warm/engaged forward-only, inactivity reset, merge-protected))";
 
 // =========================
 // Enterprise knobs
@@ -913,6 +915,7 @@ const PATCH_KEYS = new Set([
   "__ce_lastOutHash",
   "__ce_lastOut",
   "__ce_lastOutRaw",
+  "__ce_lastOutShown", // ✅ writeReplay patch: exact emitted reply
   "__ce_lastOutLane",
   "__ce_lastInHash",
   "__ce_lastInAt",
@@ -1040,6 +1043,7 @@ function normalizeDirectives(directives) {
 
 // =========================
 // Replay cache (session-scoped) — replay-safe for Option A
+// writeReplay PATCH: cache stores rawReply + replyShown; replay returns replyShown.
 // =========================
 function replayKey(session, clientRequestId, inboundText, source) {
   const rid = safeStr(clientRequestId).trim();
@@ -1060,7 +1064,12 @@ function readReplay(session, key, now) {
   if (!lastKey || lastKey !== key) return null;
   if (!lastAt || now - lastAt > REPLAY_WINDOW_MS) return null;
 
-  const out = safeStr(session.__ce_lastOutRaw || session.__ce_lastOut || "");
+  // ✅ PATCH: prefer EXACT emitted reply (shown), fall back to raw/legacy
+  const out =
+    safeStr(session.__ce_lastOutShown || "").trim() ||
+    safeStr(session.__ce_lastOutRaw || "").trim() ||
+    safeStr(session.__ce_lastOut || "").trim();
+
   const outLane = safeStr(session.__ce_lastOutLane || "general") || "general";
   const outHash = safeStr(session.__ce_lastOutHash || "");
   if (!out || !outHash) return null;
@@ -1079,12 +1088,21 @@ function writeReplay(session, key, now, reply, lane, extras) {
 
   const raw = safeStr(
     (extras && typeof extras === "object" && typeof extras.rawReply === "string" && extras.rawReply) || reply
-  );
+  ).trim();
+
+  const shown = safeStr(
+    (extras && typeof extras === "object" && typeof extras.replyShown === "string" && extras.replyShown) || raw
+  ).trim();
+
+  // ✅ Keep both
   session.__ce_lastOutRaw = raw;
-  session.__ce_lastOut = raw;
+  session.__ce_lastOutShown = shown;
+
+  // ✅ Back-compat: __ce_lastOut should track what the user actually saw
+  session.__ce_lastOut = shown;
 
   session.__ce_lastOutLane = lane;
-  session.__ce_lastOutHash = sha1(`${lane}::${raw}`).slice(0, 16);
+  session.__ce_lastOutHash = sha1(`${lane}::${shown}`).slice(0, 16);
 
   if (extras && typeof extras === "object") {
     if (Array.isArray(extras.followUps)) session.__ce_lastOutFollowUps = extras.followUps.slice(0, MAX_FOLLOWUPS);
@@ -1134,6 +1152,7 @@ function hardResetSession(session, startedAt) {
   session.__ce_lastOutHash = "";
   session.__ce_lastOut = "";
   session.__ce_lastOutRaw = "";
+  session.__ce_lastOutShown = "";
   session.__ce_lastOutLane = "";
   session.__ce_lastOutFollowUps = undefined;
   session.__ce_lastOutFollowUpsStrings = undefined;
@@ -1280,7 +1299,6 @@ async function handleChat(input = {}) {
     if (bootish) {
       inboundText = "";
     } else {
-      // preserve prior seq then hard reset
       const prevSeq = safeInt(session && session.cog && session.cog.__nyxResetSeq, 0);
       hardResetSession(session, startedAt);
 
@@ -1307,7 +1325,6 @@ async function handleChat(input = {}) {
         { label: "Just talk", send: "just talk" },
       ];
 
-      // ✅ Canonical welcome replaces any reset copy (first-impression lock)
       const reply = CANON_WELCOME;
 
       session.lastOut = reply;
@@ -1315,18 +1332,22 @@ async function handleChat(input = {}) {
 
       const rk = replayKey(session, clientRequestId, inboundText, source);
 
+      const fu = toFollowUps(RESET_FOLLOWUPS);
+      const fus = toFollowUpsStrings(RESET_FOLLOWUPS);
+
       writeReplay(session, rk, startedAt, reply, "general", {
         rawReply: reply,
-        followUps: toFollowUps(RESET_FOLLOWUPS),
-        followUpsStrings: toFollowUpsStrings(RESET_FOLLOWUPS),
+        replyShown: reply,
+        followUps: fu,
+        followUpsStrings: fus,
       });
 
       return {
         ok: true,
         reply,
         lane: "general",
-        followUps: toFollowUps(RESET_FOLLOWUPS),
-        followUpsStrings: toFollowUpsStrings(RESET_FOLLOWUPS),
+        followUps: fu,
+        followUpsStrings: fus,
         sessionPatch: buildSessionPatch(session),
         cog: { phase: "listening", state: "fresh", reason: "hard_reset", lane: "general" },
         requestId,
@@ -1349,8 +1370,8 @@ async function handleChat(input = {}) {
   const inboundNormalized = inboundText !== preNorm;
 
   // NYX STATE SPINE: stamp state BEFORE replay/burst returns
-  const st0 = nyxResolveState(session, inboundText, { ...input, source, routeHint }, startedAt);
-  nyxStampState(session, st0);
+  let st = nyxResolveState(session, inboundText, { ...input, source, routeHint }, startedAt);
+  nyxStampState(session, st);
 
   // Resolve year from all inbound shapes (early)
   const resolvedYear0 = resolveInboundYear(input, inboundText, session);
@@ -1358,8 +1379,8 @@ async function handleChat(input = {}) {
   // HYDRATE: empty inbound + year exists via payload/ctx
   if (isEmptyOrNoText(inboundText) && resolvedYear0) {
     inboundText = String(resolvedYear0);
-    const stH = nyxResolveState(session, inboundText, { ...input, source, routeHint }, startedAt);
-    nyxStampState(session, stH);
+    st = nyxResolveState(session, inboundText, { ...input, source, routeHint }, startedAt);
+    nyxStampState(session, st);
   }
 
   // CRITICAL HYDRATE: empty inbound + intent exists via payload/ctx
@@ -1367,8 +1388,8 @@ async function handleChat(input = {}) {
     const hydrated = hydrateEmptyInboundFromIntent(input, session, resolvedYear0, source);
     if (hydrated) {
       inboundText = normalizeInboundText(hydrated, session, routeHint);
-      const stI = nyxResolveState(session, inboundText, { ...input, source, routeHint }, startedAt);
-      nyxStampState(session, stI);
+      st = nyxResolveState(session, inboundText, { ...input, source, routeHint }, startedAt);
+      nyxStampState(session, st);
     }
   }
 
@@ -1388,7 +1409,6 @@ async function handleChat(input = {}) {
     const rkey0 = replayKey(session, clientRequestId, inboundText, source);
     const cached0 = readReplay(session, rkey0, startedAt);
     if (cached0) {
-      // IMPORTANT: do NOT apply greeting prefix on burst/replay.
       return {
         ok: true,
         reply: cached0.reply,
@@ -1417,7 +1437,6 @@ async function handleChat(input = {}) {
   const rkey = replayKey(session, clientRequestId, inboundText, source);
   const cached = readReplay(session, rkey, startedAt);
   if (cached) {
-    // IMPORTANT: do NOT apply greeting prefix on replay-cache returns.
     return {
       ok: true,
       reply: cached.reply,
@@ -1445,17 +1464,23 @@ async function handleChat(input = {}) {
     const reply0 = nonEmptyReply(session.lastOut, CANON_WELCOME);
     session.lastOut = reply0;
     session.lastOutAt = startedAt;
+
+    const fu = toFollowUps(CANON_INTRO_CHIPS);
+    const fus = toFollowUpsStrings(CANON_INTRO_CHIPS);
+
     writeReplay(session, rkey, startedAt, reply0, "general", {
       rawReply: reply0,
-      followUps: toFollowUps(CANON_INTRO_CHIPS),
-      followUpsStrings: toFollowUpsStrings(CANON_INTRO_CHIPS),
+      replyShown: reply0,
+      followUps: fu,
+      followUpsStrings: fus,
     });
+
     return {
       ok: true,
       reply: reply0,
       lane: "general",
-      followUps: toFollowUps(CANON_INTRO_CHIPS),
-      followUpsStrings: toFollowUpsStrings(CANON_INTRO_CHIPS),
+      followUps: fu,
+      followUpsStrings: fus,
       sessionPatch: buildSessionPatch(session),
       cog: { phase: "listening", state: "confident", reason: "post_intro_grace", lane: "general" },
       requestId,
@@ -1476,17 +1501,23 @@ async function handleChat(input = {}) {
       const lastOut = safeStr(session.lastOut || "").trim();
       const lane0 = safeStr(session.lane || "general") || "general";
       const reply0 = lastOut || "Ready when you are.";
+
+      const fu = toFollowUps(CANON_INTRO_CHIPS);
+      const fus = toFollowUpsStrings(CANON_INTRO_CHIPS);
+
       writeReplay(session, replayKey(session, clientRequestId, inboundText, source), startedAt, reply0, lane0, {
         rawReply: reply0,
-        followUps: toFollowUps(CANON_INTRO_CHIPS),
-        followUpsStrings: toFollowUpsStrings(CANON_INTRO_CHIPS),
+        replyShown: reply0,
+        followUps: fu,
+        followUpsStrings: fus,
       });
+
       return {
         ok: true,
         reply: reply0,
         lane: lane0,
-        followUps: toFollowUps(CANON_INTRO_CHIPS),
-        followUpsStrings: toFollowUpsStrings(CANON_INTRO_CHIPS),
+        followUps: fu,
+        followUpsStrings: fus,
         sessionPatch: buildSessionPatch(session),
         cog: { phase: "listening", state: "confident", reason: "boot_intro_suppressed", lane: lane0 },
         requestId,
@@ -1506,19 +1537,22 @@ async function handleChat(input = {}) {
     const reply0 = "Ready when you are. Tell me a year (1950–2024), or what you want to do next.";
     const laneX = safeStr(session.lane || "general") || "general";
 
-    // LOOP MITIGATION: cache this ignored-empty response briefly so repeated empty posts don't feel like “new turns”
+    const fu = toFollowUps(CANON_INTRO_CHIPS);
+    const fus = toFollowUpsStrings(CANON_INTRO_CHIPS);
+
     writeReplay(session, replayKey(session, clientRequestId, inboundText, source), startedAt, reply0, laneX, {
       rawReply: reply0,
-      followUps: toFollowUps(CANON_INTRO_CHIPS),
-      followUpsStrings: toFollowUpsStrings(CANON_INTRO_CHIPS),
+      replyShown: reply0,
+      followUps: fu,
+      followUpsStrings: fus,
     });
 
     return {
       ok: true,
       reply: reply0,
       lane: laneX,
-      followUps: toFollowUps(CANON_INTRO_CHIPS),
-      followUpsStrings: toFollowUpsStrings(CANON_INTRO_CHIPS),
+      followUps: fu,
+      followUpsStrings: fus,
       sessionPatch: buildSessionPatch(session),
       cog: { phase: "listening", state: "confident", reason: "ignored_empty_nonboot", lane: laneX },
       requestId,
@@ -1623,6 +1657,7 @@ async function handleChat(input = {}) {
 
       writeReplay(session, rkey, startedAt, introLine, "general", {
         rawReply: introLine,
+        replyShown: introLine,
         followUps: fu,
         followUpsStrings: fus,
       });
@@ -1666,6 +1701,7 @@ async function handleChat(input = {}) {
 
     writeReplay(session, rkey, startedAt, introLine, "general", {
       rawReply: introLine,
+      replyShown: introLine,
       followUps: fu,
       followUpsStrings: fus,
     });
@@ -1816,7 +1852,7 @@ async function handleChat(input = {}) {
       burst: false,
       inboundIsEmpty: isEmptyOrNoText(inboundText),
       bootIntroEmpty,
-      meaningful: st0 && st0.meaningful,
+      meaningful: !!(st && st.meaningful), // ✅ uses FINAL hydrated state
     })
   ) {
     reply = maybeApplyNyxGreetPrefix(session, isEmptyOrNoText(inboundText), bootIntroEmpty, rawReply);
@@ -1832,7 +1868,14 @@ async function handleChat(input = {}) {
       ? core.followUpsStrings.slice(0, MAX_FOLLOWUPS)
       : undefined;
 
-  writeReplay(session, rkey, startedAt, rawReply, session.lane, { rawReply, directives, followUps, followUpsStrings });
+  // ✅ writeReplay PATCH: store both raw + shown so replay returns EXACT emitted reply
+  writeReplay(session, rkey, startedAt, rawReply, session.lane, {
+    rawReply,
+    replyShown: reply,
+    directives,
+    followUps,
+    followUpsStrings,
+  });
 
   return {
     ok: true,
