@@ -16,14 +16,11 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7aC (ENTERPRISE HARDENED+++ + OPTION A RANDOM GREETING PREFIX ONLY + NYX STATE SPINE v1 (COLD/WARM/ENGAGED))
- *  ✅ NEW (CRITICAL UX): Canonical welcome line enforced for FIRST boot intro + reset:
- *      "Hello, I’m Nyx. Welcome to Sandblast Channel. How can I help you today?"
- *      - Prevents “reset complete…” / “all reset…” becoming the first impression
- *  ✅ NEW (CRITICAL UX): Reset now ADVANCES (no dead-end):
- *      - Commits lane/mode anchors after hard reset
- *      - Emits high-signal follow-ups (General/Music/Roku/Schedule/Radio + year paths)
- *      - Adds reset sequence to replay keys to prevent replay/dedupe “stickiness”
+ * v0.7aD (ENTERPRISE HARDENED+++ + OPTION A RANDOM GREETING PREFIX ONLY + NYX STATE SPINE v1 (COLD/WARM/ENGAGED))
+ *  ✅ FIX (CRITICAL): “First boot intro” detection now evaluates PRE-intro flags (was evaluated after introAt was set).
+ *      - Prevents edge cases where first-impression canonical welcome could be skipped due to ordering.
+ *  ✅ Keeps: Canonical welcome line enforced for FIRST boot intro + reset
+ *  ✅ Keeps: Reset advances (anchors + strong followUps) + replayKey includes resetSeq
  *  ✅ Keeps: Empty-text chip intent hydration, replay safety, intro shuffle-bag, packets gating, loopkiller, state spine
  */
 
@@ -33,7 +30,7 @@ const crypto = require("crypto");
 // Version
 // =========================
 const CE_VERSION =
-  "chatEngine v0.7aC (enterprise hardened+++ + canonical welcome on first boot + canonical welcome on reset + reset advances (anchors + strong followUps) + replayKey includes resetSeq (prevents sticky replays) + OPTION A random greeting prefix per real interaction + replay-safe dynamic prefix + reset-guard for boot-intro + preserves intro/login shuffle-bag + velvet gate + replay payload capture + inbound clamp + burst dedupe + lane drift guard + payload-year hydration + payload/ctx intent hydration (CRITICAL) + replayKey fix + packets gating at engine-resolve + authoritative year commit + mode-only attach + loopkiller+++++ + post-intro grace + idempotency + timeout + contract normalize + session safety + NYX STATE SPINE v1 (cold/warm/engaged forward-only, inactivity reset, merge-protected))";
+  "chatEngine v0.7aD (enterprise hardened+++ + FIX: first-boot canonical intro computed pre-flagging + canonical welcome on first boot + canonical welcome on reset + reset advances (anchors + strong followUps) + replayKey includes resetSeq (prevents sticky replays) + OPTION A random greeting prefix per real interaction + replay-safe dynamic prefix + reset-guard for boot-intro + preserves intro/login shuffle-bag + velvet gate + replay payload capture + inbound clamp + burst dedupe + lane drift guard + payload-year hydration + payload/ctx intent hydration (CRITICAL) + replayKey fix + packets gating at engine-resolve + authoritative year commit + mode-only attach + loopkiller+++++ + post-intro grace + idempotency + timeout + contract normalize + session safety + NYX STATE SPINE v1 (cold/warm/engaged forward-only, inactivity reset, merge-protected))";
 
 // =========================
 // Enterprise knobs
@@ -853,6 +850,7 @@ function applyMusicOverride(session, inboundText) {
   session.lastMode = mode;
   session.activeMusicMode = mode;
 
+  session.cog = isPlainObject(session.cog) ? session.cog : {};
   session.cog.lane = "music";
   session.cog.mode = mode;
 
@@ -1230,6 +1228,7 @@ function maybeAttachMusicFollowUps(core, resolvedYear, inboundText, session) {
 
   session.lane = "music";
   commitYear(session, year, (session.cog && session.cog.yearSource) || "engine_followups_fallback");
+  session.cog = isPlainObject(session.cog) ? session.cog : {};
   session.cog.lane = "music";
 
   return core;
@@ -1576,15 +1575,17 @@ async function handleChat(input = {}) {
     shouldServeIntroLoginMoment(session, inboundText, startedAt, { ...input, source });
 
   if (doIntro) {
+    // --- FIX: evaluate first-impression conditions BEFORE we set intro flags/timestamps
+    const preHasRealUserTurn = !!session.__hasRealUserTurn;
+    const preIntroVariantId = safeInt(session.introVariantId || 0, 0);
+    const preIntroAt = safeInt(session.introAt || 0, 0);
+    const isFirstEver = !preHasRealUserTurn && !preIntroVariantId && !preIntroAt;
+    const fromBootPing = isBootIntroSource({ ...input, source });
+
+    // now stamp intro flags
     session.__introDone = 1;
     session.introDone = true;
     session.introAt = startedAt;
-
-    const isFirstEver =
-      !session.__hasRealUserTurn &&
-      !safeInt(session.introVariantId || 0, 0) &&
-      !safeInt(session.introAt || 0, 0);
-    const fromBootPing = isBootIntroSource({ ...input, source });
 
     // ✅ FIRST BOOT INTRO = canonical welcome (no shuffle-bag randomness for first impression)
     if (fromBootPing && (!session.__hasRealUserTurn || isFirstEver)) {
