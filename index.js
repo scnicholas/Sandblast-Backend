@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17zy
+ * index.js v1.5.17zy (SURGICAL LOOP FIXES APPLIED)
  * (Option B alignment: chatEngine v0.6zV+ compatibility + enterprise guards + /api/health alias + REAL ElevenLabs TTS)
  *
  * Goals:
@@ -21,6 +21,7 @@
  *  ✅ NEW (CRITICAL, SURGICAL): Reset is SILENT (no “All reset…” / “Reset complete…” bubble)
  *      - Widget should just clear and show chips, no backend bubble
  *  ✅ NEW (LOOP FIX): Boot-intro dedupe fuse (prevents rapid repeated boot-intro pings from re-running engine)
+ *  ✅ NEW (LOOP FIX, CRITICAL): followUpsStrings suppressed when followUps objects are present (prevents “echo” double-bubbles)
  *
  * NOTE:
  *  - Expects ./Utils/chatEngine.js to export handleChat (or be a function)
@@ -51,7 +52,7 @@ const fetchFn = global.fetch || safeRequire("node-fetch");
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.17zy (enterprise hardened: CORS hard-lock + stabilized preflight + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY bypass + requestId always-on + REAL ElevenLabs TTS + chatEngine v0.6zV+ compatibility; CORS headers: x-sbnyx-client-build + x-contract-version; engine fingerprint startup log + meta; CRITICAL: empty-text chip intent counted for replay/throttle keys; CRITICAL: reset is silent (no reset bubble); LOOP FIX: boot-intro dedupe fuse)";
+  "index.js v1.5.17zy (enterprise hardened: CORS hard-lock + stabilized preflight + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY bypass + requestId always-on + REAL ElevenLabs TTS + chatEngine v0.6zV+ compatibility; CORS headers: x-sbnyx-client-build + x-contract-version; engine fingerprint startup log + meta; CRITICAL: empty-text chip intent counted for replay/throttle keys; CRITICAL: reset is silent (no reset bubble); LOOP FIX: boot-intro dedupe fuse; LOOP FIX: suppress followUpsStrings when followUps objects exist)";
 
 // =========================
 // Env / knobs
@@ -424,15 +425,17 @@ function replayDedupe(rec, inboundSig, source, clientRequestId) {
       ? rec.data.__idx_lastFollowUpsStrings
       : undefined;
     const lastDir = Array.isArray(rec.data.__idx_lastDirectives) ? rec.data.__idx_lastDirectives : undefined;
+
     // NOTE: even if lastOut is empty, we treat as replay hit only if non-empty;
     // reset is handled separately as silent.
     if (lastOut) {
+      // LOOP FIX: never return followUpsStrings if followUps exist
       return {
         hit: true,
         reply: lastOut,
         lane: lastLane,
         followUps: lastFU,
-        followUpsStrings: lastFUS,
+        followUpsStrings: lastFU ? undefined : lastFUS,
         directives: lastDir,
       };
     }
@@ -447,9 +450,12 @@ function writeReplay(rec, reply, lane, extras) {
   rec.data.__idx_lastOut = safeStr(reply);
   rec.data.__idx_lastLane = safeStr(lane || "general") || "general";
   if (extras && typeof extras === "object") {
-    if (Array.isArray(extras.followUps)) rec.data.__idx_lastFollowUps = extras.followUps.slice(0, 10);
-    if (Array.isArray(extras.followUpsStrings))
-      rec.data.__idx_lastFollowUpsStrings = extras.followUpsStrings.slice(0, 10);
+    const fu = Array.isArray(extras.followUps) ? extras.followUps.slice(0, 10) : undefined;
+    const fus = Array.isArray(extras.followUpsStrings) ? extras.followUpsStrings.slice(0, 10) : undefined;
+
+    if (fu) rec.data.__idx_lastFollowUps = fu;
+    // LOOP FIX: only store strings if object followUps are absent
+    if (!fu && fus) rec.data.__idx_lastFollowUpsStrings = fus;
     if (Array.isArray(extras.directives)) rec.data.__idx_lastDirectives = extras.directives.slice(0, 10);
   }
 }
@@ -459,9 +465,12 @@ function writeBootReplay(rec, reply, lane, extras) {
   rec.data.__idx_lastBootOut = safeStr(reply);
   rec.data.__idx_lastBootLane = safeStr(lane || "general") || "general";
   if (extras && typeof extras === "object") {
-    if (Array.isArray(extras.followUps)) rec.data.__idx_lastBootFollowUps = extras.followUps.slice(0, 10);
-    if (Array.isArray(extras.followUpsStrings))
-      rec.data.__idx_lastBootFollowUpsStrings = extras.followUpsStrings.slice(0, 10);
+    const fu = Array.isArray(extras.followUps) ? extras.followUps.slice(0, 10) : undefined;
+    const fus = Array.isArray(extras.followUpsStrings) ? extras.followUpsStrings.slice(0, 10) : undefined;
+
+    if (fu) rec.data.__idx_lastBootFollowUps = fu;
+    // LOOP FIX: only store strings if object followUps are absent
+    if (!fu && fus) rec.data.__idx_lastBootFollowUpsStrings = fus;
     if (Array.isArray(extras.directives)) rec.data.__idx_lastBootDirectives = extras.directives.slice(0, 10);
   }
 }
@@ -474,7 +483,9 @@ function readBootReplay(rec) {
     ? rec.data.__idx_lastBootFollowUpsStrings
     : undefined;
   const directives = Array.isArray(rec.data.__idx_lastBootDirectives) ? rec.data.__idx_lastBootDirectives : undefined;
-  return { reply, lane, followUps, followUpsStrings, directives };
+
+  // LOOP FIX: never return strings if followUps exist
+  return { reply, lane, followUps, followUpsStrings: followUps ? undefined : followUpsStrings, directives };
 }
 
 // =========================
@@ -734,10 +745,13 @@ async function handleChatRoute(req, res) {
   const rawReply = safeStr(out?.reply || "").trim();
   const reply = isReset ? silentResetReply() : rawReply || "Okay — tell me what you want next.";
 
+  // LOOP FIX: followUpsStrings must be suppressed if followUps objects exist (prevents echo)
   const directives = Array.isArray(out?.directives) ? out.directives : undefined;
   const followUps = Array.isArray(out?.followUps) ? out.followUps : undefined;
   const followUpsStrings =
-    Array.isArray(out?.followUpsStrings) && out?.followUpsStrings.length ? out.followUpsStrings : undefined;
+    !followUps && Array.isArray(out?.followUpsStrings) && out?.followUpsStrings.length
+      ? out.followUpsStrings
+      : undefined;
 
   // For reset: do NOT overwrite replay cache with a reset bubble (store empty safely)
   writeReplay(rec, reply, lane, { directives, followUps, followUpsStrings });
@@ -771,6 +785,7 @@ async function handleChatRoute(req, res) {
       inboundSig: inboundSig ? String(inboundSig).slice(0, 160) : null,
       meaningful: !!meaningful,
       resetSilenced: !!isReset,
+      echoSuppressed: !!followUps && Array.isArray(out?.followUpsStrings) && out?.followUpsStrings.length ? true : false,
     },
   });
 }
