@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17zx
+ * index.js v1.5.17zy
  * (Option B alignment: chatEngine v0.6zV+ compatibility + enterprise guards + /api/health alias + REAL ElevenLabs TTS)
  *
  * Goals:
@@ -20,6 +20,7 @@
  *  ✅ NEW (CRITICAL): Empty-text chip clicks with payload/ctx intent are now treated as “meaningful” for replay/throttle keys
  *  ✅ NEW (CRITICAL, SURGICAL): Reset is SILENT (no “All reset…” / “Reset complete…” bubble)
  *      - Widget should just clear and show chips, no backend bubble
+ *  ✅ NEW (LOOP FIX): Boot-intro dedupe fuse (prevents rapid repeated boot-intro pings from re-running engine)
  *
  * NOTE:
  *  - Expects ./Utils/chatEngine.js to export handleChat (or be a function)
@@ -50,7 +51,7 @@ const fetchFn = global.fetch || safeRequire("node-fetch");
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.17zx (enterprise hardened: CORS hard-lock + stabilized preflight + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY bypass + requestId always-on + REAL ElevenLabs TTS + chatEngine v0.6zV+ compatibility; CORS headers: x-sbnyx-client-build + x-contract-version; engine fingerprint startup log + meta; CRITICAL: empty-text chip intent counted for replay/throttle keys; CRITICAL: reset is silent (no reset bubble))";
+  "index.js v1.5.17zy (enterprise hardened: CORS hard-lock + stabilized preflight + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY bypass + requestId always-on + REAL ElevenLabs TTS + chatEngine v0.6zV+ compatibility; CORS headers: x-sbnyx-client-build + x-contract-version; engine fingerprint startup log + meta; CRITICAL: empty-text chip intent counted for replay/throttle keys; CRITICAL: reset is silent (no reset bubble); LOOP FIX: boot-intro dedupe fuse)";
 
 // =========================
 // Env / knobs
@@ -78,6 +79,11 @@ const BURST_WINDOW_MS = clampInt(process.env.BURST_WINDOW_MS, 1200, 200, 5000);
 const BURST_MAX = clampInt(process.env.BURST_MAX, 6, 2, 30);
 const SUSTAINED_WINDOW_MS = clampInt(process.env.SUSTAINED_WINDOW_MS, 12000, 2000, 60000);
 const SUSTAINED_MAX = clampInt(process.env.SUSTAINED_MAX, 18, 6, 120);
+
+// Boot-intro dedupe fuse (prevents repeated boot pings from re-running engine)
+const BOOT_DEDUPE_MS = clampInt(process.env.BOOT_DEDUPE_MS, 1200, 200, 6000);
+const BOOT_MAX_WINDOW_MS = clampInt(process.env.BOOT_MAX_WINDOW_MS, 6000, 1000, 30000);
+const BOOT_MAX = clampInt(process.env.BOOT_MAX, 6, 2, 40);
 
 const SESSION_TTL_MS = clampInt(
   process.env.SESSION_TTL_MS,
@@ -190,6 +196,7 @@ function makeReqId() {
   return sha1(`${nowMs()}|${Math.random()}|${process.pid}`).slice(0, 20);
 }
 
+// Boot-like detection (keep conservative; engine handles deeper rules too)
 function isBootLike(routeHint, body) {
   const rh = safeStr(routeHint).toLowerCase();
   const mode = safeStr(body?.mode || body?.intent || body?.client?.mode || body?.client?.intent).toLowerCase();
@@ -197,6 +204,12 @@ function isBootLike(routeHint, body) {
 
   if (rh === "boot_intro" || rh === "panel_open_intro") return true;
   if (mode === "boot_intro" || mode === "panel_open_intro") return true;
+
+  if (rh.includes("panel_open_intro") || rh.includes("boot_intro")) return true;
+  if (mode.includes("panel_open_intro") || mode.includes("boot_intro")) return true;
+
+  if (src.includes("panel_open_intro") || src.includes("boot_intro")) return true;
+  if (src.includes("panel-open-intro") || src.includes("boot-intro")) return true;
 
   if (rh === "boot" && (mode.includes("intro") || src.includes("widget"))) return true;
   if (mode === "boot" && rh.includes("intro")) return true;
@@ -307,7 +320,7 @@ const ENGINE_VERSION = safeStr(ENGINE.version || chatEngineMod?.CE_VERSION || ""
 // =========================
 // Session store (in-memory)
 // =========================
-const SESSIONS = new Map(); // key -> { data, lastSeenAt, burst:[ts], sustained:[ts] }
+const SESSIONS = new Map(); // key -> { data, lastSeenAt, burst:[ts], sustained:[ts], boot:[ts] }
 
 function sessionKeyFromReq(req) {
   const b = isPlainObject(req.body) ? req.body : {};
@@ -349,10 +362,12 @@ function getSession(req) {
       lastSeenAt: now,
       burst: [],
       sustained: [],
+      boot: [],
     };
     SESSIONS.set(key, rec);
   }
   rec.lastSeenAt = now;
+  if (!Array.isArray(rec.boot)) rec.boot = [];
   return { key, rec };
 }
 
@@ -376,6 +391,20 @@ function checkBurst(rec, now) {
 function checkSustained(rec, now) {
   rec.sustained = pushWindow(rec.sustained, now, SUSTAINED_WINDOW_MS);
   if (rec.sustained.length > SUSTAINED_MAX) return { blocked: true, reason: "sustained" };
+  return { blocked: false };
+}
+
+// Boot-intro fuse: throttle repeated boot pings without touching real user turns.
+// - If a boot ping repeats within BOOT_DEDUPE_MS, replay last boot output (or return 200 with empty if none).
+// - Also rate-limit boot pings within BOOT_MAX_WINDOW_MS to BOOT_MAX.
+function checkBootFuse(rec, now) {
+  rec.boot = pushWindow(rec.boot, now, BOOT_MAX_WINDOW_MS);
+  if (rec.boot.length > BOOT_MAX) return { blocked: true, reason: "boot_rate" };
+
+  const lastBootAt = Number(rec.data.__idx_lastBootAt || 0);
+  if (lastBootAt && now - lastBootAt < BOOT_DEDUPE_MS) return { blocked: true, reason: "boot_dedupe" };
+
+  rec.data.__idx_lastBootAt = now;
   return { blocked: false };
 }
 
@@ -423,6 +452,29 @@ function writeReplay(rec, reply, lane, extras) {
       rec.data.__idx_lastFollowUpsStrings = extras.followUpsStrings.slice(0, 10);
     if (Array.isArray(extras.directives)) rec.data.__idx_lastDirectives = extras.directives.slice(0, 10);
   }
+}
+
+// Dedicated boot replay store (so boot fuse can return something meaningful)
+function writeBootReplay(rec, reply, lane, extras) {
+  rec.data.__idx_lastBootOut = safeStr(reply);
+  rec.data.__idx_lastBootLane = safeStr(lane || "general") || "general";
+  if (extras && typeof extras === "object") {
+    if (Array.isArray(extras.followUps)) rec.data.__idx_lastBootFollowUps = extras.followUps.slice(0, 10);
+    if (Array.isArray(extras.followUpsStrings))
+      rec.data.__idx_lastBootFollowUpsStrings = extras.followUpsStrings.slice(0, 10);
+    if (Array.isArray(extras.directives)) rec.data.__idx_lastBootDirectives = extras.directives.slice(0, 10);
+  }
+}
+
+function readBootReplay(rec) {
+  const reply = safeStr(rec.data.__idx_lastBootOut || "");
+  const lane = safeStr(rec.data.__idx_lastBootLane || rec.data.lane || "general") || "general";
+  const followUps = Array.isArray(rec.data.__idx_lastBootFollowUps) ? rec.data.__idx_lastBootFollowUps : undefined;
+  const followUpsStrings = Array.isArray(rec.data.__idx_lastBootFollowUpsStrings)
+    ? rec.data.__idx_lastBootFollowUpsStrings
+    : undefined;
+  const directives = Array.isArray(rec.data.__idx_lastBootDirectives) ? rec.data.__idx_lastBootDirectives : undefined;
+  return { reply, lane, followUps, followUpsStrings, directives };
 }
 
 // =========================
@@ -551,6 +603,35 @@ async function handleChatRoute(req, res) {
   // Detect reset early so we can force silent response if needed.
   const isReset = isResetCommand(inboundText, source, body);
 
+  // BOOT LOOP FIX: dedupe / rate-limit boot pings (do not touch real user turns)
+  if (bootLike && !isReset) {
+    const bf = checkBootFuse(rec, startedAt);
+    if (bf.blocked) {
+      const cached = readBootReplay(rec);
+      // Return cached boot intro if we have one; otherwise 200 with empty (widget will just stay open)
+      const reply = cached.reply || "";
+      return res.status(200).json({
+        ok: true,
+        reply,
+        lane: cached.lane || rec.data.lane || "general",
+        directives: cached.directives,
+        followUps: cached.followUps,
+        followUpsStrings: cached.followUpsStrings,
+        sessionPatch: {},
+        requestId: serverRequestId,
+        meta: {
+          index: INDEX_VERSION,
+          engine: ENGINE_VERSION || null,
+          bootLike: true,
+          bootFuse: bf.reason,
+          source,
+          routeHint,
+          elapsedMs: nowMs() - startedAt,
+        },
+      });
+    }
+  }
+
   // Throttle fuse (skip for bootLike; allow reset to pass through silently)
   if (!bootLike && meaningful && !isReset) {
     const burst = checkBurst(rec, startedAt);
@@ -651,15 +732,20 @@ async function handleChatRoute(req, res) {
 
   // SILENT RESET: never send a reset bubble
   const rawReply = safeStr(out?.reply || "").trim();
-  const reply = isReset ? silentResetReply() : (rawReply || "Okay — tell me what you want next.");
+  const reply = isReset ? silentResetReply() : rawReply || "Okay — tell me what you want next.";
 
   const directives = Array.isArray(out?.directives) ? out.directives : undefined;
   const followUps = Array.isArray(out?.followUps) ? out.followUps : undefined;
   const followUpsStrings =
-    Array.isArray(out?.followUpsStrings) && out.followUpsStrings.length ? out.followUpsStrings : undefined;
+    Array.isArray(out?.followUpsStrings) && out?.followUpsStrings.length ? out.followUpsStrings : undefined;
 
   // For reset: do NOT overwrite replay cache with a reset bubble (store empty safely)
   writeReplay(rec, reply, lane, { directives, followUps, followUpsStrings });
+
+  // Also store boot replay if this was a bootLike turn (so boot fuse can reuse it)
+  if (bootLike && !isReset) {
+    writeBootReplay(rec, reply, lane, { directives, followUps, followUpsStrings });
+  }
 
   return res.status(200).json({
     ok: true,
@@ -856,9 +942,7 @@ app.listen(PORT, () => {
   console.log(`[Sandblast] ${INDEX_VERSION} listening on ${PORT}`);
 
   // eslint-disable-next-line no-console
-  console.log(
-    `[Sandblast] Engine: from=${ENGINE.from} version=${ENGINE_VERSION || "(unknown)"} loaded=${!!ENGINE.fn}`
-  );
+  console.log(`[Sandblast] Engine: from=${ENGINE.from} version=${ENGINE_VERSION || "(unknown)"} loaded=${!!ENGINE.fn}`);
 });
 
 module.exports = { app, INDEX_VERSION };
