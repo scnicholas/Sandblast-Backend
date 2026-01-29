@@ -16,12 +16,12 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7aD (ENTERPRISE HARDENED+++ + OPTION A RANDOM GREETING PREFIX ONLY + NYX STATE SPINE v1 (COLD/WARM/ENGAGED))
- *  ✅ FIX (CRITICAL): “First boot intro” detection now evaluates PRE-intro flags (was evaluated after introAt was set).
- *      - Prevents edge cases where first-impression canonical welcome could be skipped due to ordering.
- *  ✅ Keeps: Canonical welcome line enforced for FIRST boot intro + reset
- *  ✅ Keeps: Reset advances (anchors + strong followUps) + replayKey includes resetSeq
- *  ✅ Keeps: Empty-text chip intent hydration, replay safety, intro shuffle-bag, packets gating, loopkiller, state spine
+ * v0.7aE (ENTERPRISE HARDENED+++ + LOOPING MITIGATIONS)
+ *  ✅ FIX (CRITICAL): replayKey now includes inbound hash even when clientRequestId exists (prevents “sticky replays” if client reuses requestId).
+ *  ✅ FIX (CRITICAL): Option A greeting prefix is NOT applied on replay/burst paths (prevents “different reply each replay” → perceived loops / repeated TTS).
+ *  ✅ FIX: Burst-dedupe hash is now based on FINAL hydrated inboundText (prevents empty→hydrated double-processing patterns).
+ *  ✅ FIX: Optional cache for ignored empty non-boot turns (reduces repeated “Ready when you are” spam loops).
+ *  ✅ Keeps: Canonical first boot intro logic, reset advances, replay safety, intro shuffle-bag, packets gating, loopkiller, state spine.
  */
 
 const crypto = require("crypto");
@@ -30,7 +30,7 @@ const crypto = require("crypto");
 // Version
 // =========================
 const CE_VERSION =
-  "chatEngine v0.7aD (enterprise hardened+++ + FIX: first-boot canonical intro computed pre-flagging + canonical welcome on first boot + canonical welcome on reset + reset advances (anchors + strong followUps) + replayKey includes resetSeq (prevents sticky replays) + OPTION A random greeting prefix per real interaction + replay-safe dynamic prefix + reset-guard for boot-intro + preserves intro/login shuffle-bag + velvet gate + replay payload capture + inbound clamp + burst dedupe + lane drift guard + payload-year hydration + payload/ctx intent hydration (CRITICAL) + replayKey fix + packets gating at engine-resolve + authoritative year commit + mode-only attach + loopkiller+++++ + post-intro grace + idempotency + timeout + contract normalize + session safety + NYX STATE SPINE v1 (cold/warm/engaged forward-only, inactivity reset, merge-protected))";
+  "chatEngine v0.7aE (enterprise hardened+++ + LOOP MITIGATIONS: replayKey includes inbound hash even w/ client rid + greet prefix suppressed on replay/burst + burst hash uses FINAL hydrated inbound + ignored-empty cached + preserves canonical first boot intro + canonical welcome on reset + reset advances + replayKey includes resetSeq + intro shuffle-bag + velvet gate + replay payload capture + inbound clamp + lane drift guard + payload-year hydration + payload/ctx intent hydration + packets gating at engine-resolve + authoritative year commit + mode-only attach + loopkiller+++++ + post-intro grace + idempotency + timeout + contract normalize + session safety + NYX STATE SPINE v1 (cold/warm/engaged forward-only, inactivity reset, merge-protected))";
 
 // =========================
 // Enterprise knobs
@@ -421,6 +421,17 @@ function maybeApplyNyxGreetPrefix(session, inboundIsEmpty, bootIntroEmpty, reply
   } catch (_) {
     return reply;
   }
+}
+
+// LOOP MITIGATION: never mutate greeting-prefix state on replay/burst.
+// Only apply prefix on non-replay, meaningful user turns.
+function shouldApplyGreetingPrefix(opts) {
+  const o = opts && typeof opts === "object" ? opts : {};
+  if (o.replay || o.burst) return false;
+  if (o.bootIntroEmpty) return false;
+  if (o.inboundIsEmpty) return false;
+  if (o.meaningful === false) return false;
+  return true;
 }
 // =========================
 // END OPTION A BLOCK
@@ -1034,12 +1045,14 @@ function replayKey(session, clientRequestId, inboundText, source) {
   const rid = safeStr(clientRequestId).trim();
   const resetSeq = safeInt(session && session.cog && session.cog.__nyxResetSeq, 0);
 
+  const inSig = sha1(`${safeStr(inboundText)}|${safeStr(source)}`).slice(0, 8);
+
   const sig = sha1(
     `${safeStr(session.sessionId || session.visitorId || "")}|${safeStr(source)}|${safeStr(inboundText)}|rseq:${resetSeq}`
   ).slice(0, 12);
 
-  // IMPORTANT: include resetSeq even when client provides rid, to avoid “sticky replay” across resets
-  return rid ? `rid:${rid}:r${resetSeq}` : `sig:${sig}`;
+  // CRITICAL: include inbound hash even when client provides rid, to avoid “sticky replay” if client reuses requestId.
+  return rid ? `rid:${rid}:r${resetSeq}:h${inSig}` : `sig:${sig}`;
 }
 function readReplay(session, key, now) {
   const lastKey = safeStr(session.__ce_lastReqId || "");
@@ -1300,7 +1313,6 @@ async function handleChat(input = {}) {
       session.lastOut = reply;
       session.lastOutAt = startedAt;
 
-      // IMPORTANT: replay key now includes resetSeq, so reset can't “stick” to subsequent turns
       const rk = replayKey(session, clientRequestId, inboundText, source);
 
       writeReplay(session, rk, startedAt, reply, "general", {
@@ -1340,44 +1352,7 @@ async function handleChat(input = {}) {
   const st0 = nyxResolveState(session, inboundText, { ...input, source, routeHint }, startedAt);
   nyxStampState(session, st0);
 
-  // Burst dedupe
-  const inHash = sha1(inboundText).slice(0, 12);
-  const lastInHash = safeStr(session.__ce_lastInHash || "");
-  const lastInAt = safeInt(session.__ce_lastInAt || 0, 0);
-  if (inHash && lastInHash && inHash === lastInHash && lastInAt && startedAt - lastInAt < BURST_DEDUPE_MS) {
-    const rkey0 = replayKey(session, clientRequestId, inboundText, source);
-    const cached0 = readReplay(session, rkey0, startedAt);
-    if (cached0) {
-      const inboundIsEmptyB = isEmptyOrNoText(inboundText);
-      const bootIntroEmptyB = inboundIsEmptyB && isBootIntroSource({ ...input, source });
-
-      const replyB = maybeApplyNyxGreetPrefix(session, inboundIsEmptyB, bootIntroEmptyB, cached0.reply);
-
-      return {
-        ok: true,
-        reply: replyB,
-        lane: cached0.lane,
-        directives: cached0.directives,
-        followUps: cached0.followUps || toFollowUps(CANON_INTRO_CHIPS),
-        followUpsStrings: cached0.followUpsStrings || toFollowUpsStrings(CANON_INTRO_CHIPS),
-        sessionPatch: buildSessionPatch(session),
-        cog: { phase: "listening", state: "confident", reason: "burst_replay", lane: cached0.lane },
-        requestId,
-        meta: {
-          engine: CE_VERSION,
-          replay: true,
-          burst: true,
-          source: safeMetaStr(source),
-          nyxState: safeMetaStr(session.cog.state),
-          elapsedMs: nowMs() - startedAt,
-        },
-      };
-    }
-  }
-  session.__ce_lastInHash = inHash;
-  session.__ce_lastInAt = startedAt;
-
-  // Resolve year from all inbound shapes
+  // Resolve year from all inbound shapes (early)
   const resolvedYear0 = resolveInboundYear(input, inboundText, session);
 
   // HYDRATE: empty inbound + year exists via payload/ctx
@@ -1403,15 +1378,49 @@ async function handleChat(input = {}) {
   const inboundIsEmpty = isEmptyOrNoText(inboundText);
   const bootIntroEmpty = inboundIsEmpty && isBootIntroSource({ ...input, source });
 
+  // -------------------------
+  // Burst dedupe (FINAL inbound hash) — LOOP MITIGATION
+  // -------------------------
+  const inHash = sha1(inboundText).slice(0, 12);
+  const lastInHash = safeStr(session.__ce_lastInHash || "");
+  const lastInAt = safeInt(session.__ce_lastInAt || 0, 0);
+  if (inHash && lastInHash && inHash === lastInHash && lastInAt && startedAt - lastInAt < BURST_DEDUPE_MS) {
+    const rkey0 = replayKey(session, clientRequestId, inboundText, source);
+    const cached0 = readReplay(session, rkey0, startedAt);
+    if (cached0) {
+      // IMPORTANT: do NOT apply greeting prefix on burst/replay.
+      return {
+        ok: true,
+        reply: cached0.reply,
+        lane: cached0.lane,
+        directives: cached0.directives,
+        followUps: cached0.followUps || toFollowUps(CANON_INTRO_CHIPS),
+        followUpsStrings: cached0.followUpsStrings || toFollowUpsStrings(CANON_INTRO_CHIPS),
+        sessionPatch: buildSessionPatch(session),
+        cog: { phase: "listening", state: "confident", reason: "burst_replay", lane: cached0.lane },
+        requestId,
+        meta: {
+          engine: CE_VERSION,
+          replay: true,
+          burst: true,
+          source: safeMetaStr(source),
+          nyxState: safeMetaStr(session.cog.state),
+          elapsedMs: nowMs() - startedAt,
+        },
+      };
+    }
+  }
+  session.__ce_lastInHash = inHash;
+  session.__ce_lastInAt = startedAt;
+
   // Replay safety
   const rkey = replayKey(session, clientRequestId, inboundText, source);
   const cached = readReplay(session, rkey, startedAt);
   if (cached) {
-    const replyR = maybeApplyNyxGreetPrefix(session, inboundIsEmpty, bootIntroEmpty, cached.reply);
-
+    // IMPORTANT: do NOT apply greeting prefix on replay-cache returns.
     return {
       ok: true,
-      reply: replyR,
+      reply: cached.reply,
       lane: cached.lane,
       directives: cached.directives,
       followUps: cached.followUps || toFollowUps(CANON_INTRO_CHIPS),
@@ -1496,6 +1505,14 @@ async function handleChat(input = {}) {
   if (inboundIsEmpty && !bootIntroEmpty) {
     const reply0 = "Ready when you are. Tell me a year (1950–2024), or what you want to do next.";
     const laneX = safeStr(session.lane || "general") || "general";
+
+    // LOOP MITIGATION: cache this ignored-empty response briefly so repeated empty posts don't feel like “new turns”
+    writeReplay(session, replayKey(session, clientRequestId, inboundText, source), startedAt, reply0, laneX, {
+      rawReply: reply0,
+      followUps: toFollowUps(CANON_INTRO_CHIPS),
+      followUpsStrings: toFollowUpsStrings(CANON_INTRO_CHIPS),
+    });
+
     return {
       ok: true,
       reply: reply0,
@@ -1791,7 +1808,19 @@ async function handleChat(input = {}) {
   const yPost = resolveInboundYear(input, inboundText, session);
   if (yPost) commitYear(session, yPost, (session.cog && session.cog.yearSource) || "post_engine");
 
-  const reply = maybeApplyNyxGreetPrefix(session, isEmptyOrNoText(inboundText), bootIntroEmpty, rawReply);
+  // Apply greeting prefix ONLY on non-replay, meaningful user turns (loop mitigation)
+  let reply = rawReply;
+  if (
+    shouldApplyGreetingPrefix({
+      replay: false,
+      burst: false,
+      inboundIsEmpty: isEmptyOrNoText(inboundText),
+      bootIntroEmpty,
+      meaningful: st0 && st0.meaningful,
+    })
+  ) {
+    reply = maybeApplyNyxGreetPrefix(session, isEmptyOrNoText(inboundText), bootIntroEmpty, rawReply);
+  }
 
   session.lastOut = reply;
   session.lastOutAt = startedAt;
