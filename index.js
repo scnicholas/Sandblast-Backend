@@ -1,38 +1,142 @@
 "use strict";
 
 /**
- * Sandblast Backend — index.js
+ * Utils/chatEngine.js
+ * Pure chat engine:
+ *  - NO express
+ *  - NO server start
+ *  - NO index.js imports
  *
- * index.js v1.5.17zx
- * (Option B alignment: chatEngine v0.6zV+ compatibility + enterprise guards + /api/health alias + REAL ElevenLabs TTS)
+ * Returns (NyxReplyContract v1 + backwards compatibility):
+ *  {
+ *    ok, reply, lane, ctx, ui,
+ *    directives: [{type, ...}],             // contract-lock (optional)
+ *    followUps: [{id,type,label,payload}],  // preferred
+ *    followUpsStrings: ["..."],             // legacy
+ *    sessionPatch, cog, requestId, meta
+ *  }
  *
- * Goals:
- *  ✅ Preserve Voice/TTS stability (ElevenLabs) + /api/tts + /api/voice aliases
- *  ✅ Preserve CORS HARD-LOCK + preflight reliability (stabilized)
- *  ✅ Preserve turn dedupe + loop fuse (session + burst + sustained)
- *  ✅ Preserve sessionPatch persistence (cog + continuity keys)
- *  ✅ Preserve boot-intro bridge behavior (panel_open_intro / boot_intro)
- *  ✅ Fix: boot-intro / empty-text requests bypass replay + throttles
- *  ✅ Fix: add GET /api/health (widget expects it)
- *  ✅ Fix: allow x-sbnyx-client-build + x-contract-version headers (CORS)  <-- REQUIRED
- *  ✅ NEW: Engine fingerprint (CE_VERSION) printed on startup + exposed in meta
- *  ✅ NEW: Accept chatEngine module that exports handleChat OR exports a function directly
- *  ✅ NEW (CRITICAL): Empty-text chip clicks with payload/ctx intent are now treated as “meaningful” for replay/throttle keys
- *  ✅ NEW (CRITICAL, SURGICAL): Reset is SILENT (no “All reset…” / “Reset complete…” bubble)
- *      - Widget should just clear and show chips, no backend bubble
- *
- * NOTE:
- *  - Expects ./Utils/chatEngine.js to export handleChat (or be a function)
- *  - Full-file deliverable (drop-in)
+ * v0.7aC (ENTERPRISE HARDENED+++ + OPTION A RANDOM GREETING PREFIX ONLY + NYX STATE SPINE v1 (COLD/WARM/ENGAGED))
+ *  ✅ FIX (CRITICAL): “No change” / “still the same” caused by client sending panel_open_intro/boot_intro source on REAL turns:
+ *      - Boot-intro detection is now PING-ONLY (requires empty inboundText)
+ *      - Real user messages/chip clicks WILL NOT be treated as boot even if source is mis-tagged
+ *  ✅ Keeps: Empty-text chip clicks w/ payload/ctx intent hydration so engine runs (no more ignored_empty_nonboot stalls)
+ *  ✅ Keeps: NYX STATE SPINE v1 forward-only + inactivity reset + merge-protected
+ *  ✅ Keeps: Option A random greeting prefix per real interaction (replay-safe dynamic prefix)
+ *  ✅ Keeps: Guarded __cmd:reset__ cannot trigger from boot intro pings
+ *  ✅ Keeps: Intro shuffle-bag login-moment logic (unchanged)
+ *  ✅ Keeps: Replay payload capture + inbound clamp + burst dedupe + lane drift guard
+ *  ✅ Keeps: Year-only payload/ctx clicks hydrate inboundText so engine runs (lists fire)
+ *  ✅ Keeps: Replay cache works without client requestId
+ *  ✅ Keeps: PACKETS gating enforced at ENGINE RESOLVE time
+ *  ✅ Keeps: Numeric year authoritative + mode-only attach + “A year usually clears…” block when year exists
+ *  ✅ Keeps: engine-autowire, intro replay suppression, post-intro grace, idempotency, timeout, contract normalize
  */
 
-// =========================
-// Imports
-// =========================
-const express = require("express");
 const crypto = require("crypto");
 
-// Optional safe require
+// =========================
+// Version
+// =========================
+const CE_BUILD_ID = (() => {
+  try {
+    return crypto.randomBytes(4).toString("hex");
+  } catch (_) {
+    return String(Math.floor(Math.random() * 1e9));
+  }
+})();
+
+const CE_VERSION =
+  "chatEngine v0.7aC (enterprise hardened+++ + OPTION A random greeting prefix per real interaction + replay-safe dynamic prefix + boot-intro ping-only detection (CRITICAL) + reset-guard for boot-intro + preserves intro/login shuffle-bag + velvet gate + replay payload capture + inbound clamp + burst dedupe + lane drift guard + payload-year hydration + payload/ctx intent hydration + replayKey fix + packets gating at engine-resolve + authoritative year commit + mode-only attach + loopkiller+++++ + post-intro grace + idempotency + timeout + contract normalize + session safety + NYX STATE SPINE v1 (cold/warm/engaged forward-only, inactivity reset, merge-protected))";
+
+// =========================
+// Enterprise knobs
+// =========================
+const ENGINE_TIMEOUT_MS = 9000;
+const REPLAY_WINDOW_MS = 4000;
+const BURST_DEDUPE_MS = 250; // prevents double-fire click events (chips, fast taps)
+const MAX_FOLLOWUPS = 8;
+const MAX_FOLLOWUP_LABEL = 48;
+const MAX_REPLY_CHARS = 4000;
+const MAX_META_STR = 220;
+const MAX_INBOUND_CHARS = 900; // safety: clamp inboundText to a sane size
+
+// =========================
+// Intro
+// =========================
+const INTRO_REARM_MS = 12 * 60 * 1000;
+const POST_INTRO_GRACE_MS = 650;
+
+const INTRO_VARIANTS_BY_BUCKET = {
+  general: [
+    "Hey — Nyx here. Glad you’re in.\n\nGive me a year (1950–2024) and I’ll take it from there. Try: “top 10 1988” or “story moment 1977”.",
+    "Hi. Come on in.\n\nPick a year (1950–2024) and tell me the vibe: Top 10, #1, story moment, or micro moment.",
+    "Hey you. Nyx on.\n\nDrop a year (1950–2024). I’ll do charts, stories, and the little details that make it real.",
+    "Welcome back — Nyx online.\n\nYear first (1950–2024). Then we can go Top 10, #1, story moment, or micro moment.",
+    "Alright. I’m here.\n\nSay a year (1950–2024) and what you want: “top 10 1988”, “#1 1964”, “micro moment 1999”.",
+    "Hey. Let’s time-travel.\n\nGive me a year (1950–2024) and I’ll handle the rest.",
+  ],
+  // Earned intimacy: ONLY after engagement (see __nyxVelvet gate below)
+  velvet: [
+    "Alright… we’re settled now.\n\nGive me the year, and I’ll slow it down just enough to make it matter.",
+    "Good. You’re here with me.\n\nPick a year, and we’ll take it properly.",
+    "Now we can do this the right way.\n\nTell me the year—Top 10, #1, or a story moment?",
+    "Let’s stay right here for a second.\n\nWhat year do you want to step into?",
+    "Okay. I’ve got you.\n\nGive me a year, and I’ll bring the texture, not just the facts.",
+  ],
+  music: [
+    "Hey — music mode.\n\nGive me a year (1950–2024) and choose: Top 10, #1, story moment, or micro moment.",
+    "Hi. Let’s do the soundtrack version.\n\nDrop a year (1950–2024). Want Top 10, #1, story moment, or micro moment?",
+    "Alright — music first.\n\nYear (1950–2024), then we pick the lens: Top 10, #1, story moment, micro moment.",
+    "Hey you. Give me the year… I’ll give you the feeling.\n\nTry: “top 10 1988” or “story moment 1977”.",
+  ],
+  schedule: [
+    "Hey — schedule mode.\n\nTell me your city/timezone and I’ll translate Sandblast time into yours. Or ask “Now / Next / Later.”",
+    "Hi. Want the lineup?\n\nSay “Now / Next / Later”, or tell me your city so I can convert times cleanly.",
+    "Alright — programming grid time.\n\nTell me where you are (city/timezone) or ask: “What’s on now?”",
+  ],
+  roku: [
+    "Hey — Roku mode.\n\nWant live linear, on-demand, or today’s schedule?",
+    "Hi. Let’s get you watching.\n\nSay “live”, “on-demand”, or “schedule”.",
+    "Alright — Roku.\n\nTell me what you want: what’s on now, the schedule, or a quick channel guide.",
+  ],
+  radio: [
+    "Hey — radio mode.\n\nWant the stream link, or do you want to pick an era first?",
+    "Hi. Sandblast Radio is ready.\n\nPick a decade or year… or say “stream”.",
+    "Alright — set the vibe.\n\nGive me an era, or ask me to open the stream.",
+  ],
+  sponsors: [
+    "Hey — sponsors & advertising.\n\nDo you want the rate card, packages, or a recommendation based on your goal?",
+    "Hi. Advertising mode.\n\nTell me: brand, budget range, and desired outcome — I’ll map you to a package.",
+    "Alright — let’s talk sponsors.\n\nPricing, placements, or a pitch-ready package recommendation?",
+  ],
+  movies: [
+    "Hey — movies & catalog.\n\nAre you looking for licensing, what’s available now, or what we should add next?",
+    "Hi. Film lane.\n\nTell me: genre, decade, and PD vs licensed — I’ll point you cleanly.",
+    "Alright — movies.\n\nTell me what you’re hunting for, and I’ll chart the best path.",
+  ],
+};
+
+const CANON_INTRO_CHIPS = [
+  { label: "Pick a year", send: "1988" },
+  { label: "Story moment", send: "story moment 1988" },
+  { label: "Schedule", send: "schedule" },
+  { label: "Sponsors", send: "sponsors" },
+];
+
+// =========================
+// Optional CS-1 module (soft-load)
+// =========================
+let cs1 = null;
+try {
+  cs1 = require("./cs1");
+} catch (_) {
+  cs1 = null;
+}
+
+// =========================
+// Optional Packs (soft-load; never brick)
+// =========================
 function safeRequire(p) {
   try {
     // eslint-disable-next-line import/no-dynamic-require, global-require
@@ -42,63 +146,27 @@ function safeRequire(p) {
   }
 }
 
-// Engine + fetch
-const chatEngineMod = safeRequire("./Utils/chatEngine") || safeRequire("./Utils/chatEngine.js") || null;
-const fetchFn = global.fetch || safeRequire("node-fetch");
+const NYX_CONV_PACK =
+  safeRequire("./nyxConversationalPack") ||
+  safeRequire("./nyxConvPack") ||
+  safeRequire("./nyx_conv_pack") ||
+  null;
+
+const NYX_PHRASEPACK =
+  safeRequire("./nyxPhrasePack") ||
+  safeRequire("./phrasePack") ||
+  safeRequire("./nyx_phrase_pack") ||
+  null;
+
+// NOTE: this resolves to your packets.js when required via "./packets"
+const NYX_PACKETS =
+  safeRequire("./nyxPackets") ||
+  safeRequire("./packets") ||
+  safeRequire("./nyx_packets") ||
+  null;
 
 // =========================
-// Version
-// =========================
-const INDEX_VERSION =
-  "index.js v1.5.17zx (enterprise hardened: CORS hard-lock + stabilized preflight + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY bypass + requestId always-on + REAL ElevenLabs TTS + chatEngine v0.6zV+ compatibility; CORS headers: x-sbnyx-client-build + x-contract-version; engine fingerprint startup log + meta; CRITICAL: empty-text chip intent counted for replay/throttle keys; CRITICAL: reset is silent (no reset bubble))";
-
-// =========================
-// Env / knobs
-// =========================
-const PORT = Number(process.env.PORT || 10000);
-const NODE_ENV = String(process.env.NODE_ENV || "production").trim();
-const TRUST_PROXY = String(process.env.TRUST_PROXY || "").trim();
-const MAX_JSON_BODY = String(process.env.MAX_JSON_BODY || "512kb");
-
-// CORS
-const ORIGINS_ALLOWLIST = String(
-  process.env.CORS_ALLOW_ORIGINS ||
-    process.env.ALLOW_ORIGINS ||
-    "https://sandblast.channel,https://www.sandblast.channel,https://sandblastchannel.com,https://www.sandblastchannel.com"
-)
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean);
-
-const ORIGINS_REGEX_ALLOWLIST = String(process.env.CORS_ALLOW_ORIGINS_REGEX || "").trim();
-
-// Loop/guards
-const LOOP_REPLAY_WINDOW_MS = clampInt(process.env.LOOP_REPLAY_WINDOW_MS, 4000, 500, 15000);
-const BURST_WINDOW_MS = clampInt(process.env.BURST_WINDOW_MS, 1200, 200, 5000);
-const BURST_MAX = clampInt(process.env.BURST_MAX, 6, 2, 30);
-const SUSTAINED_WINDOW_MS = clampInt(process.env.SUSTAINED_WINDOW_MS, 12000, 2000, 60000);
-const SUSTAINED_MAX = clampInt(process.env.SUSTAINED_MAX, 18, 6, 120);
-
-const SESSION_TTL_MS = clampInt(
-  process.env.SESSION_TTL_MS,
-  45 * 60 * 1000,
-  10 * 60 * 1000,
-  12 * 60 * 60 * 1000
-); // default 45m
-const SESSION_MAX = clampInt(process.env.SESSION_MAX, 50000, 5000, 250000);
-
-// ElevenLabs TTS env
-const ELEVEN_API_KEY = String(process.env.ELEVENLABS_API_KEY || process.env.ELEVEN_API_KEY || "").trim();
-const ELEVEN_VOICE_ID = String(process.env.ELEVENLABS_VOICE_ID || process.env.NYX_VOICE_ID || "").trim();
-const ELEVEN_TTS_TIMEOUT_MS = clampInt(process.env.ELEVEN_TTS_TIMEOUT_MS, 20000, 4000, 60000);
-
-const NYX_VOICE_STABILITY = clampFloat(process.env.NYX_VOICE_STABILITY, 0.45, 0, 1);
-const NYX_VOICE_SIMILARITY = clampFloat(process.env.NYX_VOICE_SIMILARITY, 0.72, 0, 1);
-const NYX_VOICE_STYLE = clampFloat(process.env.NYX_VOICE_STYLE, 0.25, 0, 1);
-const NYX_VOICE_SPEAKER_BOOST = toBool(process.env.NYX_VOICE_SPEAKER_BOOST, true);
-
-// =========================
-// Utils
+// Helpers
 // =========================
 function nowMs() {
   return Date.now();
@@ -106,30 +174,29 @@ function nowMs() {
 function safeStr(x) {
   return x === null || x === undefined ? "" : String(x);
 }
+function safeInt(n, def = 0) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return def;
+  if (v > 2147483000) return 2147483000;
+  if (v < -2147483000) return -2147483000;
+  return Math.trunc(v);
+}
 function sha1(s) {
   return crypto.createHash("sha1").update(String(s)).digest("hex");
 }
-function clampInt(v, def, min, max) {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return def;
-  const t = Math.trunc(n);
-  if (t < min) return min;
-  if (t > max) return max;
-  return t;
+function normText(s) {
+  return safeStr(s).trim().replace(/\s+/g, " ").toLowerCase();
 }
-function clampFloat(v, def, min, max) {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return def;
-  if (n < min) return min;
-  if (n > max) return max;
-  return n;
+function clampStr(s, max) {
+  const t = safeStr(s);
+  if (t.length <= max) return t;
+  return t.slice(0, max);
 }
-function toBool(v, def) {
-  const s = String(v ?? "").trim().toLowerCase();
-  if (!s) return !!def;
-  if (["1", "true", "yes", "y", "on"].includes(s)) return true;
-  if (["0", "false", "no", "n", "off"].includes(s)) return false;
-  return !!def;
+function nonEmptyReply(s, fallback) {
+  const a = safeStr(s).trim();
+  if (a) return a;
+  const b = safeStr(fallback).trim();
+  return b || "Okay — tell me what you want next.";
 }
 function isPlainObject(x) {
   return (
@@ -138,727 +205,1578 @@ function isPlainObject(x) {
     (Object.getPrototypeOf(x) === Object.prototype || Object.getPrototypeOf(x) === null)
   );
 }
-function safeJsonParseMaybe(x) {
-  if (x === null || x === undefined) return null;
-  if (typeof x === "object") return x;
-  const s = String(x).trim();
-  if (!s) return null;
+function safeMetaStr(s) {
+  return clampStr(safeStr(s).replace(/[\r\n\t]/g, " ").trim(), MAX_META_STR);
+}
+async function withTimeout(promise, ms, tag) {
+  let to = null;
+  const timeout = new Promise((_, rej) => {
+    to = setTimeout(() => rej(new Error(`timeout:${tag || "engine"}:${ms}`)), ms);
+  });
   try {
-    return JSON.parse(s);
-  } catch (_) {
-    return null;
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (to) clearTimeout(to);
   }
 }
-function pickClientIp(req) {
-  const xf = safeStr(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
-  return xf || req.socket?.remoteAddress || "";
+function pickRandomIndex(max) {
+  try {
+    return crypto.randomInt(0, max);
+  } catch (_) {
+    return Math.floor(Math.random() * max);
+  }
 }
-function normalizeOrigin(o) {
-  return safeStr(o).trim().replace(/\/$/, "");
+function clampInboundText(raw) {
+  // hard clamp + sanitize weird whitespace; don't lower-case here
+  const t = safeStr(raw).replace(/\u0000/g, "").trim();
+  if (!t) return "";
+  // Safety for accidental HTML/proxy errors getting piped into chat
+  const compact = t.replace(/\s+/g, " ");
+  return clampStr(compact, MAX_INBOUND_CHARS);
 }
-function makeOriginRegexes() {
-  const raw = ORIGINS_REGEX_ALLOWLIST
-    .split(";")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  const out = [];
-  for (const r of raw) {
+function shuffleInPlace(arr) {
+  // Fisher-Yates, crypto-backed
+  for (let i = arr.length - 1; i > 0; i--) {
+    let j = 0;
     try {
-      out.push(new RegExp(r));
-    } catch (_) {}
+      j = crypto.randomInt(0, i + 1);
+    } catch (_) {
+      j = Math.floor(Math.random() * (i + 1));
+    }
+    const tmp = arr[i];
+    arr[i] = arr[j];
+    arr[j] = tmp;
+  }
+  return arr;
+}
+
+// =========================
+// Boot intro source detection
+// =========================
+function isBootIntroSource(input) {
+  try {
+    const src =
+      safeStr(input && input.client && (input.client.source || input.client.src || "")).trim() ||
+      safeStr(input && input.source).trim();
+    const tt = normText(src);
+    return (
+      tt.includes("panel_open_intro") ||
+      tt.includes("panel-open-intro") ||
+      tt.includes("boot_intro") ||
+      tt.includes("boot-intro")
+    );
+  } catch (_) {
+    return false;
+  }
+}
+function isEmptyOrNoText(t) {
+  return !safeStr(t).trim();
+}
+/**
+ * CRITICAL: treat boot-intro as a PING ONLY.
+ * If the client mis-tags real user turns with boot_intro/panel_open_intro, we must NOT suppress processing.
+ */
+function isBootIntroPing(input, inboundText) {
+  return isBootIntroSource(input) && isEmptyOrNoText(inboundText);
+}
+
+// ============================
+// NYX STATE SPINE v1 (COLD/WARM/ENGAGED) — PURE + FORWARD-ONLY
+// Bound to session.cog.state
+// ============================
+const NYX_STATE = Object.freeze({ COLD: "cold", WARM: "warm", ENGAGED: "engaged" });
+const NYX_STATE_ORDER = Object.freeze([NYX_STATE.COLD, NYX_STATE.WARM, NYX_STATE.ENGAGED]);
+
+function sanitizeNyxState(s) {
+  const v = String(s || "").toLowerCase();
+  return v === NYX_STATE.COLD || v === NYX_STATE.WARM || v === NYX_STATE.ENGAGED ? v : null;
+}
+function nyxStateIndex(s) {
+  const v = sanitizeNyxState(s) || NYX_STATE.COLD;
+  const i = NYX_STATE_ORDER.indexOf(v);
+  return i >= 0 ? i : 0;
+}
+function nyxAdvanceState(current, next) {
+  const c = sanitizeNyxState(current) || NYX_STATE.COLD;
+  const n = sanitizeNyxState(next) || c;
+  const ci = nyxStateIndex(c);
+  const ni = nyxStateIndex(n);
+  return NYX_STATE_ORDER[Math.max(ci, ni)];
+}
+function nyxShouldIgnoreTurn(input, inboundText) {
+  // Treat boot-intro / panel-open pings as non-turns — PING ONLY (empty inbound)
+  if (isBootIntroPing(input, inboundText)) return true;
+
+  const t = String((input && (input.turnType || input.type || input.event)) || "").toLowerCase();
+  const rh = String((input && (input.routeHint || input.hint)) || "").toLowerCase();
+
+  if ((t.includes("boot") || t.includes("intro") || t.includes("panel_open")) && isEmptyOrNoText(inboundText)) return true;
+  if ((rh.includes("boot") || rh.includes("intro") || rh.includes("panel_open")) && isEmptyOrNoText(inboundText)) return true;
+
+  return false;
+}
+function nyxIsMeaningfulTurn(inboundText, input) {
+  if (nyxShouldIgnoreTurn(input, inboundText)) return false;
+
+  const text = String(inboundText || "").trim();
+  if (text) return true;
+
+  // If user clicked a chip / sent payload/ctx with intent, treat as meaningful.
+  const payload = input && input.payload;
+  const ctx = input && input.ctx;
+  const body = input && input.body;
+
+  // Conservative signals that a user action occurred even if text is empty
+  if (payload && typeof payload === "object") {
+    if (payload.year || payload.mode || payload.action || payload.intent || payload.label) return true;
+    if (payload.text || payload.message) return true;
+  }
+  if (ctx && typeof ctx === "object") {
+    if (ctx.year || ctx.mode || ctx.action || ctx.intent || ctx.route) return true;
+  }
+  if (body && typeof body === "object") {
+    if (body.year || body.mode || body.action || body.intent) return true;
+    if (body.text || body.message) return true;
+  }
+
+  return false;
+}
+function nyxResolveState(session, inboundText, input, now) {
+  const cog = isPlainObject(session && session.cog) ? session.cog : {};
+  const prev = sanitizeNyxState(cog.state) || NYX_STATE.COLD;
+
+  const ts = Number.isFinite(now) ? now : Date.now();
+  const lastSeen = safeInt(cog.__nyxLastSeenAt || 0, 0);
+
+  const INACTIVITY_RESET_MS = 1000 * 60 * 45; // 45 minutes
+  const meaningful = nyxIsMeaningfulTurn(inboundText, input);
+
+  // Always bump lastSeen for ignored turns so session doesn't "time travel"
+  if (nyxShouldIgnoreTurn(input, inboundText)) {
+    return { state: prev, lastSeenAt: ts, progressed: false, reset: false, meaningful: false };
+  }
+
+  const inactiveTooLong = lastSeen > 0 && ts - lastSeen > INACTIVITY_RESET_MS;
+
+  if (inactiveTooLong && meaningful) {
+    return { state: NYX_STATE.COLD, lastSeenAt: ts, progressed: true, reset: true, meaningful: true };
+  }
+
+  let next = prev;
+  if (meaningful) {
+    if (nyxStateIndex(prev) <= nyxStateIndex(NYX_STATE.COLD)) next = NYX_STATE.WARM;
+    else if (nyxStateIndex(prev) === nyxStateIndex(NYX_STATE.WARM)) next = NYX_STATE.ENGAGED;
+    else next = NYX_STATE.ENGAGED;
+  }
+
+  const finalState = nyxAdvanceState(prev, next);
+  return {
+    state: finalState,
+    lastSeenAt: ts,
+    progressed: finalState !== prev,
+    reset: false,
+    meaningful,
+  };
+}
+function nyxStampState(session, st) {
+  try {
+    session.cog = isPlainObject(session.cog) ? session.cog : {};
+    const prev = sanitizeNyxState(session.cog.state) || NYX_STATE.COLD;
+    const next = sanitizeNyxState(st && st.state) || prev;
+    session.cog.state = nyxAdvanceState(prev, next);
+    session.cog.__nyxLastSeenAt = safeInt((st && st.lastSeenAt) || Date.now(), Date.now());
+  } catch (_) {
+    // no-op
+  }
+}
+// ============================
+// END NYX STATE SPINE
+// ============================
+
+// =========================
+// OPTION A: RANDOM GREETING PREFIX (ISOLATED + REVERSIBLE)
+// =========================
+const NYX_GREET_PREFIXES = [
+  "Hey — Nyx here.",
+  "Alright. I’m with you.",
+  "Mm. I’m listening.",
+  "Okay — talk to me.",
+  "Good. Let’s move.",
+  "I’ve got you. Go on.",
+  "Yeah — I’m here. What’s the play?",
+];
+
+function isBootLikeTurn(inboundIsEmpty, bootIntroEmpty) {
+  if (bootIntroEmpty) return true;
+  if (inboundIsEmpty) return true;
+  return false;
+}
+
+function pickNyxGreetPrefix(session) {
+  try {
+    session.cog = isPlainObject(session.cog) ? session.cog : {};
+    const last = safeStr(session.cog.__nyxGreetLast || "");
+    const max = NYX_GREET_PREFIXES.length;
+    if (!max) return "";
+
+    let chosen = "";
+    for (let i = 0; i < 4; i++) {
+      const idx = pickRandomIndex(max);
+      const cand = safeStr(NYX_GREET_PREFIXES[idx]).trim();
+      if (!cand) continue;
+      if (cand === last && max > 1) continue;
+      chosen = cand;
+      break;
+    }
+    if (!chosen) chosen = safeStr(NYX_GREET_PREFIXES[0]).trim();
+
+    session.cog.__nyxGreetLast = chosen;
+    return chosen;
+  } catch (_) {
+    return "";
+  }
+}
+
+function maybeApplyNyxGreetPrefix(session, inboundIsEmpty, bootIntroEmpty, reply) {
+  try {
+    if (isBootLikeTurn(inboundIsEmpty, bootIntroEmpty)) return reply;
+
+    const core = safeStr(reply).trim();
+    if (!core) return reply;
+
+    const prefix = pickNyxGreetPrefix(session);
+    if (!prefix) return reply;
+
+    const low = core.toLowerCase();
+    const plow = prefix.toLowerCase();
+    if (low.startsWith(plow)) return reply;
+
+    return `${prefix}\n\n${core}`;
+  } catch (_) {
+    return reply;
+  }
+}
+// =========================
+// END OPTION A BLOCK
+// =========================
+
+// =========================
+// Intro state sanitization (bounded; enterprise-safe)
+// =========================
+function sanitizeNyxIntroState(st) {
+  if (!isPlainObject(st)) return {};
+  const out = {};
+  const bagsIn = isPlainObject(st.bags) ? st.bags : {};
+  const lastIn = isPlainObject(st.lastIdByBucket) ? st.lastIdByBucket : {};
+
+  const bagsOut = {};
+  const lastOut = {};
+
+  const bucketKeys = Object.keys(INTRO_VARIANTS_BY_BUCKET);
+  for (const k of bucketKeys) {
+    const arr = INTRO_VARIANTS_BY_BUCKET[k] || [];
+    const len = Array.isArray(arr) ? arr.length : 0;
+
+    const bag = Array.isArray(bagsIn[k])
+      ? bagsIn[k].filter((n) => Number.isInteger(n) && n >= 0 && n < len).slice(0, 64)
+      : [];
+
+    if (bag.length) bagsOut[k] = bag;
+
+    const lastId = safeInt(lastIn[k], -1);
+    if (Number.isInteger(lastId) && lastId >= 0 && lastId < len) lastOut[k] = lastId;
+  }
+
+  if (Object.keys(bagsOut).length) out.bags = bagsOut;
+  if (Object.keys(lastOut).length) out.lastIdByBucket = lastOut;
+
+  return out;
+}
+
+// =========================
+// Extractors
+// =========================
+function extractYear(text) {
+  const m = safeStr(text).match(/\b(19[5-9]\d|20[0-1]\d|202[0-4])\b/);
+  if (!m) return null;
+  const y = Number(m[1]);
+  if (!Number.isFinite(y) || y < 1950 || y > 2024) return null;
+  return y;
+}
+function extractYearAuthoritative(text) {
+  return extractYear(text);
+}
+
+function coerceYearAny(v) {
+  const n = Number(v);
+  if (Number.isFinite(n) && n >= 1950 && n <= 2024) return Math.trunc(n);
+  const y = extractYear(safeStr(v));
+  return y || null;
+}
+function resolveInboundYear(input, inboundText, session) {
+  const y1 = coerceYearAny(input && input.year);
+  const y2 = coerceYearAny(input && input.payload && input.payload.year);
+  const y3 = coerceYearAny(input && input.ctx && input.ctx.year);
+  const y4 = coerceYearAny(input && input.body && input.body.year);
+  const y5 = extractYearAuthoritative(inboundText);
+
+  const yS1 = coerceYearAny(session && session.lastMusicYear);
+  const yS2 = coerceYearAny(session && session.lastYear);
+  const yC1 = coerceYearAny(session && session.cog && session.cog.lastMusicYear);
+  const yC2 = coerceYearAny(session && session.cog && session.cog.year);
+
+  return y1 || y2 || y3 || y4 || y5 || yS1 || yC1 || yC2 || yS2 || null;
+}
+function commitYear(session, year, source) {
+  if (!year) return;
+  session.lastMusicYear = year;
+  session.lastYear = year;
+
+  session.cog = isPlainObject(session.cog) ? session.cog : {};
+  session.cog.year = year;
+  session.cog.lastMusicYear = year;
+  session.cog.yearSource = source || session.cog.yearSource || "unknown";
+}
+
+function isTop10IntentText(text) {
+  const t = normText(text);
+  return /\btop\s*10\b/.test(t) || /\btop10\b/.test(t) || /\btop\s*ten\b/.test(t);
+}
+
+function extractMode(text) {
+  const t = normText(text);
+  if (/\b(top\s*100|top100|hot\s*100|year[-\s]*end\s*hot\s*100)\b/.test(t)) return "top100";
+  if (/\b(top\s*10|top10|top\s*ten)\b/.test(t)) return "top10";
+  if (/\bstory\s*moment\b|\bstory\b/.test(t)) return "story";
+  if (/\bmicro\s*moment\b|\bmicro\b/.test(t)) return "micro";
+  if (/\b#\s*1\b|\bnumber\s*1\b|\bno\.?\s*1\b|\bno\s*1\b/.test(t)) return "number1";
+  return null;
+}
+function isModeOnly(text) {
+  const y = extractYear(text);
+  const m = extractMode(text);
+  return !!m && !y;
+}
+function isGreetingOnly(t) {
+  return /^(hi|hello|hey|yo|hiya|good morning|good afternoon|good evening|sup|what's up|whats up)$/i.test(
+    safeStr(t).trim()
+  );
+}
+
+// =========================
+// Inbound extraction
+// =========================
+function extractInboundTextFromInput(input) {
+  const direct =
+    safeStr(input && (input.text || input.message || input.prompt || input.query || "")).trim() ||
+    safeStr(input && input.body && (input.body.text || input.body.message || "")).trim() ||
+    safeStr(input && input.payload && (input.payload.text || input.payload.message || "")).trim() ||
+    safeStr(input && input.data && (input.data.text || input.data.message || "")).trim();
+
+  if (direct) return clampInboundText(direct);
+
+  const evt =
+    safeStr(input && input.event && (input.event.text || input.event.message || "")).trim() ||
+    safeStr(input && input.followUp && input.followUp.payload && input.followUp.payload.text).trim();
+
+  return clampInboundText(evt || "");
+}
+
+// =========================
+// INBOUND NORMALIZATION (loop killer)
+// =========================
+function normalizeInboundText(text, session, routeHint) {
+  const raw = clampInboundText(text);
+  if (!raw) return raw;
+
+  const y = extractYear(raw);
+  const m = extractMode(raw);
+
+  if (!y && m) {
+    const yy1 = Number(session && session.lastMusicYear);
+    if (Number.isFinite(yy1) && yy1 >= 1950 && yy1 <= 2024) return `${raw} ${yy1}`.trim();
+
+    const yy2 = Number(session && session.cog && session.cog.year);
+    if (Number.isFinite(yy2) && yy2 >= 1950 && yy2 <= 2024) return `${raw} ${yy2}`.trim();
+
+    const yy3 = Number(session && session.cog && session.cog.lastMusicYear);
+    if (Number.isFinite(yy3) && yy3 >= 1950 && yy3 <= 2024) return `${raw} ${yy3}`.trim();
+  }
+
+  if (y && !m && session && session.activeMusicMode && !isGreetingOnly(raw)) {
+    const mm = safeStr(session && session.activeMusicMode).trim();
+    if (mm === "top10") return `top 10 ${y}`;
+    if (mm === "top100") return `top 100 ${y}`;
+    if (mm === "number1") return `#1 ${y}`;
+    if (mm === "story") return `story moment ${y}`;
+    if (mm === "micro") return `micro moment ${y}`;
+  }
+
+  if (y && !m && !isGreetingOnly(raw)) {
+    const rh = normText(routeHint || "");
+    const lane = normText(session && session.lane);
+    const inMusic = rh.includes("music") || lane === "music";
+    if (inMusic) return `top 10 ${y}`;
+  }
+
+  return raw;
+}
+
+// =========================
+// CRITICAL: Payload/Ctx intent hydration when inboundText empty
+// - Fixes chip-click stalls where payload carries intent but text is empty.
+// - NEVER hydrates on boot-intro PINGS.
+// =========================
+function mapModeTokenToText(modeToken) {
+  const m = normText(modeToken || "");
+  if (!m) return null;
+  if (m === "top10" || m === "top 10" || m === "top-ten" || m === "top_ten") return "top 10";
+  if (m === "top100" || m === "top 100" || m === "hot100" || m === "hot 100") return "top 100";
+  if (m === "number1" || m === "#1" || m === "no1" || m === "no 1" || m === "number 1") return "#1";
+  if (m === "story" || m === "storymoment" || m === "story moment") return "story moment";
+  if (m === "micro" || m === "micromoment" || m === "micro moment") return "micro moment";
+  if (m === "schedule") return "schedule";
+  if (m === "sponsors" || m === "sponsor") return "sponsors";
+  if (m === "roku") return "roku";
+  if (m === "radio") return "radio";
+  if (m === "movies" || m === "movie") return "movies";
+  return null;
+}
+
+function hydrateEmptyInboundFromIntent(input, session, resolvedYearMaybe, source, inboundText) {
+  try {
+    if (isBootIntroPing({ ...input, source }, inboundText)) return "";
+
+    const payload = isPlainObject(input && input.payload) ? input.payload : null;
+    const ctx = isPlainObject(input && input.ctx) ? input.ctx : null;
+    const body = isPlainObject(input && input.body) ? input.body : null;
+
+    const pText = safeStr(payload && (payload.text || payload.message)).trim();
+    const bText = safeStr(body && (body.text || body.message)).trim();
+    if (pText) return clampInboundText(pText);
+    if (bText) return clampInboundText(bText);
+
+    const tok =
+      safeStr((payload && (payload.mode || payload.action || payload.intent || payload.label)) || "").trim() ||
+      safeStr((ctx && (ctx.mode || ctx.action || ctx.intent || ctx.route)) || "").trim() ||
+      safeStr((body && (body.mode || body.action || body.intent)) || "").trim();
+
+    const mapped = mapModeTokenToText(tok) || clampInboundText(tok);
+    if (!mapped) return "";
+
+    const needsYear = /^(top 10|top 100|#1|story moment|micro moment)$/i.test(mapped);
+    if (needsYear) {
+      const y =
+        coerceYearAny(resolvedYearMaybe) ||
+        coerceYearAny(session && session.lastMusicYear) ||
+        coerceYearAny(session && session.cog && session.cog.year) ||
+        coerceYearAny(session && session.cog && session.cog.lastMusicYear) ||
+        null;
+      if (y) return `${mapped} ${y}`.trim();
+      return mapped;
+    }
+
+    return mapped;
+  } catch (_) {
+    return "";
+  }
+}
+
+// =========================
+// Intro logic
+// =========================
+function isLoginMoment(session, startedAt) {
+  const last = safeInt(session.lastTurnAt || session.lastInAt || 0, 0);
+  const gap = last ? startedAt - last : Infinity;
+  if (gap >= INTRO_REARM_MS) return true;
+  if (!session.__hasRealUserTurn) return true;
+  return false;
+}
+function hasStrongFirstTurnIntent(text) {
+  const t = normText(text);
+  if (!t) return false;
+  if (extractYear(t)) return true;
+  if (extractMode(t)) return true;
+  if (/\b(schedule|programming|what(?:'s|\s+is)\s+on|guide|grid)\b/.test(t)) return true;
+  if (/\b(sponsor|advertis|rate\s*card|pricing|packages)\b/.test(t)) return true;
+  if (/\b(movie|film|licens|catalog)\b/.test(t)) return true;
+  if (/\b(roku|tv|channel|install|launch|open\s+on\s+roku)\b/.test(t)) return true;
+  if (/\b(radio|listen|stream)\b/.test(t)) return true;
+  if (t.length >= 12 && !isGreetingOnly(t)) return true;
+  return false;
+}
+function shouldServeIntroLoginMoment(session, inboundText, startedAt, input) {
+  if (!session) return false;
+
+  const empty = isEmptyOrNoText(inboundText);
+  if (empty) {
+    if (!isBootIntroPing(input, inboundText)) return false;
+    if (!isLoginMoment(session, startedAt)) return false;
+    const introAt = safeInt(session.introAt || 0, 0);
+    if (introAt && startedAt - introAt < INTRO_REARM_MS) return false;
+    return true;
+  }
+
+  const strong = hasStrongFirstTurnIntent(inboundText);
+  if (strong && !isGreetingOnly(inboundText)) return false;
+
+  if (!isLoginMoment(session, startedAt)) return false;
+
+  const introAt = safeInt(session.introAt || 0, 0);
+  if (introAt && startedAt - introAt < INTRO_REARM_MS) return false;
+
+  return true;
+}
+function pickIntroBucket(session, inboundText, routeHint, input) {
+  const t = normText(inboundText);
+  const rh = normText(routeHint);
+  const src = normText(
+    safeStr(input && input.client && (input.client.source || input.client.src || "")).trim() ||
+      safeStr(input && input.source).trim()
+  );
+
+  const lane = normText(session && session.lane);
+  if (lane && INTRO_VARIANTS_BY_BUCKET[lane]) return lane;
+
+  if (rh.includes("schedule") || /\b(schedule|programming|what's on|whats on|grid|now|next|later)\b/.test(t))
+    return "schedule";
+  if (rh.includes("roku") || /\b(roku|channel|tv|install|open on roku)\b/.test(t)) return "roku";
+  if (rh.includes("radio") || /\b(radio|listen|stream)\b/.test(t)) return "radio";
+  if (rh.includes("sponsor") || /\b(sponsor|advertis|rate card|pricing|packages)\b/.test(t)) return "sponsors";
+  if (rh.includes("movie") || /\b(movie|film|licens|catalog)\b/.test(t)) return "movies";
+
+  if (src.includes("panel_open_intro") || src.includes("boot_intro")) {
+    if (rh.includes("music") || rh.includes("years")) return "music";
+    if (session && session.__nyxVelvet) return "velvet";
+    return "general";
+  }
+
+  if (
+    isGreetingOnly(inboundText) &&
+    (session.lastMusicYear ||
+      (session.cog && (session.cog.year || session.cog.lastMusicYear)) ||
+      session.activeMusicMode)
+  )
+    return "music";
+
+  if (session && session.__nyxVelvet) return "velvet";
+
+  return "general";
+}
+
+function getIntroBag(session, bucketKey, arrLen) {
+  session.__nyxIntro = isPlainObject(session.__nyxIntro) ? session.__nyxIntro : {};
+  session.__nyxIntro.bags = isPlainObject(session.__nyxIntro.bags) ? session.__nyxIntro.bags : {};
+  session.__nyxIntro.lastIdByBucket = isPlainObject(session.__nyxIntro.lastIdByBucket)
+    ? session.__nyxIntro.lastIdByBucket
+    : {};
+
+  const key = safeStr(bucketKey || "general") || "general";
+  let bag = session.__nyxIntro.bags[key];
+
+  if (!Array.isArray(bag)) bag = [];
+  bag = bag.filter((n) => Number.isInteger(n) && n >= 0 && n < arrLen).slice(0, 64);
+
+  if (!bag.length) {
+    const fresh = [];
+    for (let i = 0; i < arrLen; i++) fresh.push(i);
+    shuffleInPlace(fresh);
+
+    const lastId = safeInt(session.__nyxIntro.lastIdByBucket[key], -1);
+    if (arrLen > 1 && lastId >= 0 && lastId < arrLen && fresh[fresh.length - 1] === lastId) {
+      const swapWith = pickRandomIndex(fresh.length - 1);
+      const tmp = fresh[fresh.length - 1];
+      fresh[fresh.length - 1] = fresh[swapWith];
+      fresh[swapWith] = tmp;
+    }
+
+    bag = fresh;
+  }
+
+  session.__nyxIntro.bags[key] = bag;
+  return bag;
+}
+
+function pickIntroForLogin(session, startedAt, bucketKey) {
+  const bkey = safeStr(bucketKey || "general") || "general";
+  const arr = INTRO_VARIANTS_BY_BUCKET[bkey] || INTRO_VARIANTS_BY_BUCKET.general;
+
+  session.__nyxIntro = isPlainObject(session.__nyxIntro) ? session.__nyxIntro : {};
+  session.__nyxIntro.lastIdByBucket = isPlainObject(session.__nyxIntro.lastIdByBucket)
+    ? session.__nyxIntro.lastIdByBucket
+    : {};
+
+  const bag = getIntroBag(session, bkey, arr.length);
+
+  let id = Number.isInteger(bag[bag.length - 1]) ? bag.pop() : pickRandomIndex(arr.length);
+
+  const lastId = safeInt(session.__nyxIntro.lastIdByBucket[bkey], -1);
+  if (arr.length > 1 && id === lastId) {
+    if (bag.length) {
+      id = bag.pop();
+    } else {
+      let tries = 0;
+      let cand = id;
+      while (tries < 6 && cand === lastId) {
+        cand = pickRandomIndex(arr.length);
+        tries++;
+      }
+      id = cand;
+    }
+  }
+
+  session.__nyxIntro.lastIdByBucket[bkey] = id;
+
+  session.introVariantId = id;
+  session.introBucket = safeStr(bkey);
+
+  return { text: arr[id] || arr[0], id, bucket: bkey, at: startedAt };
+}
+
+// =========================
+// PACKETS GATING (prevents packets.js hijacking music flows)
+// =========================
+function shouldAllowPackets(inboundText, routeHint, session, resolvedYear) {
+  if (resolvedYear) return false;
+
+  const t = normText(inboundText);
+  if (!t) return true;
+
+  if (isGreetingOnly(t)) return true;
+  if (/\b(help|support|how do i|what can you do)\b/.test(t)) return true;
+  if (/\b(bye|goodbye|see you|later|exit)\b/.test(t)) return true;
+
+  return false;
+}
+
+// =========================
+// MUSIC OVERRIDE (year + mode forces lane=music)
+// =========================
+function applyMusicOverride(session, inboundText) {
+  const year = extractYear(inboundText);
+  const mode = extractMode(inboundText);
+  if (!year || !mode) return { forced: false };
+
+  commitYear(session, year, "user_text");
+
+  session.lane = "music";
+  session.lastMode = mode;
+  session.activeMusicMode = mode;
+
+  session.cog.lane = "music";
+  session.cog.mode = mode;
+
+  return { forced: true, lane: "music", year, mode };
+}
+
+// =========================
+// Continuity scaffolding (safe)
+// =========================
+function ensureContinuityState(session) {
+  const s = session && typeof session === "object" ? session : {};
+  if (!s.__nyxCont) s.__nyxCont = {};
+  if (!s.__nyxIntro) s.__nyxIntro = {};
+  if (!s.__nyxPackets) s.__nyxPackets = {};
+  return s;
+}
+
+// =========================
+// SessionPatch allowlist
+// =========================
+const PATCH_KEYS = new Set([
+  "introDone",
+  "introAt",
+  "introVariantId",
+  "introBucket",
+  "lastInText",
+  "lastInAt",
+  "lastOut",
+  "lastOutAt",
+  "turns",
+  "startedAt",
+  "lastTurnAt",
+  "lane",
+  "lastLane",
+  "lastYear",
+  "lastMode",
+  "activeMusicMode",
+  "lastMusicYear",
+  "pendingYear",
+  "pendingMode",
+  "pendingLane",
+  "turnCount",
+  "__hasRealUserTurn",
+  "__introDone",
+  "__cs1",
+  "cog",
+  "__ce_lastReqId",
+  "__ce_lastReqAt",
+  "__ce_lastOutHash",
+  "__ce_lastOut",
+  "__ce_lastOutRaw",
+  "__ce_lastOutLane",
+  "__ce_lastInHash",
+  "__ce_lastInAt",
+  "__ce_lastOutFollowUps",
+  "__ce_lastOutFollowUpsStrings",
+  "__ce_lastOutDirectives",
+  "allowPackets",
+  "__nyxIntro",
+  "__nyxVelvet",
+]);
+
+function buildSessionPatch(session) {
+  const s = session && typeof session === "object" ? session : {};
+  const out = {};
+  for (const k of Object.keys(s)) {
+    if (!PATCH_KEYS.has(k)) continue;
+    if (k === "cog") {
+      if (isPlainObject(s.cog)) out.cog = s.cog;
+      continue;
+    }
+    if (k === "__nyxIntro") {
+      out.__nyxIntro = sanitizeNyxIntroState(s.__nyxIntro);
+      continue;
+    }
+    if (k === "__ce_lastOutFollowUps") {
+      if (Array.isArray(s.__ce_lastOutFollowUps))
+        out.__ce_lastOutFollowUps = s.__ce_lastOutFollowUps.slice(0, MAX_FOLLOWUPS);
+      continue;
+    }
+    if (k === "__ce_lastOutFollowUpsStrings") {
+      if (Array.isArray(s.__ce_lastOutFollowUpsStrings))
+        out.__ce_lastOutFollowUpsStrings = s.__ce_lastOutFollowUpsStrings.slice(0, MAX_FOLLOWUPS);
+      continue;
+    }
+    if (k === "__ce_lastOutDirectives") {
+      if (Array.isArray(s.__ce_lastOutDirectives)) out.__ce_lastOutDirectives = s.__ce_lastOutDirectives.slice(0, 8);
+      continue;
+    }
+    out[k] = s[k];
+  }
+  if (out.__introDone && !out.introDone) out.introDone = true;
+  return out;
+}
+
+// =========================
+// FollowUps / directives normalization
+// =========================
+function normFollowUpChip(label, send) {
+  const l = clampStr(safeStr(label).trim() || "Send", MAX_FOLLOWUP_LABEL);
+  const s = safeStr(send).trim();
+  const id = sha1(l + "::" + s).slice(0, 8);
+  return { id, type: "send", label: l, payload: { text: s } };
+}
+function toFollowUps(chips) {
+  const arr = Array.isArray(chips) ? chips : [];
+  const out = [];
+  const seen = new Set();
+  for (const c of arr) {
+    const label = safeStr(c && c.label).trim() || "Send";
+    const send = safeStr(c && c.send).trim();
+    const key = normText(label + "::" + send);
+    if (!send) continue;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(normFollowUpChip(label, send));
+    if (out.length >= MAX_FOLLOWUPS) break;
   }
   return out;
 }
-const ORIGIN_REGEXES = makeOriginRegexes();
-
-function isAllowedOrigin(origin) {
-  if (!origin) return false;
-  const o = normalizeOrigin(origin);
-  if (ORIGINS_ALLOWLIST.includes(o)) return true;
-  for (const rx of ORIGIN_REGEXES) {
-    try {
-      if (rx.test(o)) return true;
-    } catch (_) {}
+function toFollowUpsStrings(chips) {
+  const arr = Array.isArray(chips) ? chips : [];
+  const out = [];
+  const seen = new Set();
+  for (const c of arr) {
+    const send = safeStr(c && c.send).trim();
+    const k = normText(send);
+    if (!k || seen.has(k)) continue;
+    seen.add(k);
+    out.push(send);
+    if (out.length >= MAX_FOLLOWUPS) break;
   }
-  return false;
+  return out.length ? out : undefined;
 }
-
-function makeReqId() {
-  try {
-    if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
-  } catch (_) {}
-  return sha1(`${nowMs()}|${Math.random()}|${process.pid}`).slice(0, 20);
-}
-
-function isBootLike(routeHint, body) {
-  const rh = safeStr(routeHint).toLowerCase();
-  const mode = safeStr(body?.mode || body?.intent || body?.client?.mode || body?.client?.intent).toLowerCase();
-  const src = safeStr(body?.source || body?.client?.source).toLowerCase();
-
-  if (rh === "boot_intro" || rh === "panel_open_intro") return true;
-  if (mode === "boot_intro" || mode === "panel_open_intro") return true;
-
-  if (rh === "boot" && (mode.includes("intro") || src.includes("widget"))) return true;
-  if (mode === "boot" && rh.includes("intro")) return true;
-
-  return false;
-}
-
-// =========================
-// CRITICAL: empty-text chip intent normalization (index-level)
-// =========================
-function hasIntentSignals(body) {
-  const b = isPlainObject(body) ? body : {};
-  const payload = isPlainObject(b.payload) ? b.payload : {};
-  const ctx = isPlainObject(b.ctx) ? b.ctx : {};
-  const client = isPlainObject(b.client) ? b.client : {};
-
-  // Any of these means “user did something” even if text is blank.
-  const sig =
-    safeStr(payload.text || payload.message).trim() ||
-    safeStr(b.text || b.message || b.prompt || b.query).trim() ||
-    safeStr(payload.mode || payload.action || payload.intent || payload.label).trim() ||
-    safeStr(ctx.mode || ctx.action || ctx.intent || ctx.route).trim() ||
-    safeStr(b.mode || b.action || b.intent).trim() ||
-    safeStr(b.year || payload.year || ctx.year).trim() ||
-    safeStr(client.routeHint || client.source).trim();
-
-  return !!sig;
-}
-
-function normalizeInboundSignature(body, inboundText) {
-  const b = isPlainObject(body) ? body : {};
-  const payload = isPlainObject(b.payload) ? b.payload : {};
-  const ctx = isPlainObject(b.ctx) ? b.ctx : {};
-
-  const t = safeStr(inboundText).trim();
-  if (t) return t.slice(0, 240);
-
-  // If empty, build a stable signature from intent fields so replay/throttle work.
-  const tok =
-    safeStr(payload.text || payload.message).trim() ||
-    safeStr(payload.mode || payload.action || payload.intent || payload.label).trim() ||
-    safeStr(ctx.mode || ctx.action || ctx.intent || ctx.route).trim() ||
-    safeStr(b.mode || b.action || b.intent).trim() ||
-    "";
-
-  const year = safeStr(b.year || payload.year || ctx.year).trim();
-  const sig = [tok, year].filter(Boolean).join(" ").trim();
-
-  return sig.slice(0, 240);
-}
-
-// =========================
-// CRITICAL: reset detection + SILENT reset reply
-// =========================
-function isResetCommand(inboundText, source, body) {
-  const t = safeStr(inboundText).trim();
-  if (t === "__cmd:reset__") return true;
-
-  const s = safeStr(source).toLowerCase();
-  if (s === "reset_btn" || s.includes("reset")) return true;
-
-  const b = isPlainObject(body) ? body : {};
-  const client = isPlainObject(b.client) ? b.client : {};
-  const cs = safeStr(client.source).toLowerCase();
-  if (cs === "reset_btn" || cs.includes("reset")) return true;
-
-  // Some widgets send routeHint=reset or intent=reset
-  const rh = safeStr(b.routeHint || client.routeHint || "").toLowerCase();
-  const it = safeStr(b.intent || client.intent || b.mode || client.mode || "").toLowerCase();
-  if (rh.includes("reset") || it === "reset") return true;
-
-  return false;
-}
-
-function silentResetReply() {
-  // Intentionally empty: widget should not render a bubble
-  return "";
-}
-
-// =========================
-// Engine resolver (handleChat OR function export)
-// =========================
-function resolveEngine(mod) {
-  if (!mod) return { fn: null, from: "missing", version: "" };
-
-  if (typeof mod === "function") {
-    return { fn: mod, from: "module_function", version: safeStr(mod.CE_VERSION || "") };
+function normalizeFollowUps(followUps) {
+  const arr = Array.isArray(followUps) ? followUps : [];
+  const out = [];
+  const seen = new Set();
+  for (const f of arr) {
+    if (!f) continue;
+    const type = safeStr(f.type || "send").trim() || "send";
+    if (type !== "send") continue;
+    const label = clampStr(safeStr(f.label).trim() || "Send", MAX_FOLLOWUP_LABEL);
+    const payload = isPlainObject(f.payload) ? f.payload : { text: safeStr(f.payload && f.payload.text) };
+    const text = safeStr(payload.text).trim();
+    if (!text) continue;
+    const id = safeStr(f.id).trim() || sha1(label + "::" + text).slice(0, 8);
+    const key = normText(id + "::" + label + "::" + text);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ id, type: "send", label, payload: { text } });
+    if (out.length >= MAX_FOLLOWUPS) break;
   }
-
-  if (typeof mod.handleChat === "function") {
-    return { fn: mod.handleChat.bind(mod), from: "module_handleChat", version: safeStr(mod.CE_VERSION || "") };
-  }
-
-  if (typeof mod.reply === "function") {
-    return { fn: mod.reply.bind(mod), from: "module_reply", version: safeStr(mod.CE_VERSION || "") };
-  }
-
-  if (typeof mod.chatEngine === "function") {
-    return { fn: mod.chatEngine.bind(mod), from: "module_chatEngine", version: safeStr(mod.CE_VERSION || "") };
-  }
-
-  return { fn: null, from: "invalid", version: safeStr(mod.CE_VERSION || "") };
+  return out;
 }
-
-const ENGINE = resolveEngine(chatEngineMod);
-const ENGINE_VERSION = safeStr(ENGINE.version || chatEngineMod?.CE_VERSION || "").trim();
-
-// =========================
-// Session store (in-memory)
-// =========================
-const SESSIONS = new Map(); // key -> { data, lastSeenAt, burst:[ts], sustained:[ts] }
-
-function sessionKeyFromReq(req) {
-  const b = isPlainObject(req.body) ? req.body : {};
-  const h = req.headers || {};
-  const sid =
-    safeStr(b.sessionId || b.visitorId || b.deviceId).trim() ||
-    safeStr(h["x-sb-session"] || h["x-session-id"] || h["x-visitor-id"]).trim();
-
-  if (sid) return sid.slice(0, 120);
-
-  const fp = sha1(`${pickClientIp(req)}|${safeStr(req.headers["user-agent"] || "")}`).slice(0, 24);
-  return `fp_${fp}`;
-}
-
-function pruneSessions(now) {
-  for (const [k, v] of SESSIONS.entries()) {
-    if (!v || !v.lastSeenAt) {
-      SESSIONS.delete(k);
-      continue;
+function normalizeDirectives(directives) {
+  const arr = Array.isArray(directives) ? directives : [];
+  const out = [];
+  for (const d of arr) {
+    if (!isPlainObject(d)) continue;
+    const type = safeStr(d.type).trim();
+    if (!type) continue;
+    const obj = { type };
+    for (const [k, v] of Object.entries(d)) {
+      if (k === "type") continue;
+      if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
+      if (typeof v === "string") obj[k] = clampStr(v, 500);
+      else if (typeof v === "number" || typeof v === "boolean") obj[k] = v;
+      else if (v === null) obj[k] = null;
     }
-    if (now - v.lastSeenAt > SESSION_TTL_MS) SESSIONS.delete(k);
+    out.push(obj);
+    if (out.length >= 8) break;
   }
-  if (SESSIONS.size > SESSION_MAX) {
-    const arr = Array.from(SESSIONS.entries()).sort((a, b) => (a[1].lastSeenAt || 0) - (b[1].lastSeenAt || 0));
-    const cut = SESSIONS.size - SESSION_MAX;
-    for (let i = 0; i < cut; i++) SESSIONS.delete(arr[i][0]);
-  }
-}
-
-function getSession(req) {
-  const now = nowMs();
-  pruneSessions(now);
-
-  const key = sessionKeyFromReq(req);
-  let rec = SESSIONS.get(key);
-  if (!rec) {
-    rec = {
-      data: { sessionId: key, visitorId: key, lane: "general", cog: {} },
-      lastSeenAt: now,
-      burst: [],
-      sustained: [],
-    };
-    SESSIONS.set(key, rec);
-  }
-  rec.lastSeenAt = now;
-  return { key, rec };
+  return out.length ? out : undefined;
 }
 
 // =========================
-// Loop / abuse guards
+// Replay cache (session-scoped) — replay-safe for Option A
 // =========================
-function pushWindow(arr, now, windowMs) {
-  const a = Array.isArray(arr) ? arr : [];
-  a.push(now);
-  const cutoff = now - windowMs;
-  while (a.length && a[0] < cutoff) a.shift();
-  return a;
-}
-
-function checkBurst(rec, now) {
-  rec.burst = pushWindow(rec.burst, now, BURST_WINDOW_MS);
-  if (rec.burst.length > BURST_MAX) return { blocked: true, reason: "burst" };
-  return { blocked: false };
-}
-
-function checkSustained(rec, now) {
-  rec.sustained = pushWindow(rec.sustained, now, SUSTAINED_WINDOW_MS);
-  if (rec.sustained.length > SUSTAINED_MAX) return { blocked: true, reason: "sustained" };
-  return { blocked: false };
-}
-
-function replayDedupe(rec, inboundSig, source, clientRequestId) {
-  const now = nowMs();
+function replayKey(session, clientRequestId, inboundText, source) {
   const rid = safeStr(clientRequestId).trim();
-  const sig = sha1(`${safeStr(rec.data.sessionId)}|${safeStr(source)}|${safeStr(inboundSig)}`).slice(0, 12);
-  const key = rid ? `rid:${rid}` : `sig:${sig}`;
+  const sig = sha1(
+    `${safeStr(session.sessionId || session.visitorId || "")}|${safeStr(source)}|${safeStr(inboundText)}`
+  ).slice(0, 12);
+  return rid ? `rid:${rid}` : `sig:${sig}`;
+}
+function readReplay(session, key, now) {
+  const lastKey = safeStr(session.__ce_lastReqId || "");
+  const lastAt = safeInt(session.__ce_lastReqAt || 0, 0);
+  if (!lastKey || lastKey !== key) return null;
+  if (!lastAt || now - lastAt > REPLAY_WINDOW_MS) return null;
 
-  const lastKey = safeStr(rec.data.__idx_lastReqKey || "");
-  const lastAt = Number(rec.data.__idx_lastReqAt || 0);
-  if (lastKey && key === lastKey && lastAt && now - lastAt <= LOOP_REPLAY_WINDOW_MS) {
-    const lastOut = safeStr(rec.data.__idx_lastOut || "");
-    const lastLane = safeStr(rec.data.__idx_lastLane || "general") || "general";
-    const lastFU = Array.isArray(rec.data.__idx_lastFollowUps) ? rec.data.__idx_lastFollowUps : undefined;
-    const lastFUS = Array.isArray(rec.data.__idx_lastFollowUpsStrings)
-      ? rec.data.__idx_lastFollowUpsStrings
-      : undefined;
-    const lastDir = Array.isArray(rec.data.__idx_lastDirectives) ? rec.data.__idx_lastDirectives : undefined;
-    // NOTE: even if lastOut is empty, we treat as replay hit only if non-empty;
-    // reset is handled separately as silent.
-    if (lastOut) {
+  const out = safeStr(session.__ce_lastOutRaw || session.__ce_lastOut || "");
+  const outLane = safeStr(session.__ce_lastOutLane || "general") || "general";
+  const outHash = safeStr(session.__ce_lastOutHash || "");
+  if (!out || !outHash) return null;
+
+  const followUps = Array.isArray(session.__ce_lastOutFollowUps) ? session.__ce_lastOutFollowUps : undefined;
+  const followUpsStrings = Array.isArray(session.__ce_lastOutFollowUpsStrings)
+    ? session.__ce_lastOutFollowUpsStrings
+    : undefined;
+  const directives = Array.isArray(session.__ce_lastOutDirectives) ? session.__ce_lastOutDirectives : undefined;
+
+  return { reply: out, lane: outLane, followUps, followUpsStrings, directives };
+}
+function writeReplay(session, key, now, reply, lane, extras) {
+  session.__ce_lastReqId = key;
+  session.__ce_lastReqAt = now;
+
+  const raw = safeStr(
+    (extras && typeof extras === "object" && typeof extras.rawReply === "string" && extras.rawReply) || reply
+  );
+  session.__ce_lastOutRaw = raw;
+  session.__ce_lastOut = raw;
+
+  session.__ce_lastOutLane = lane;
+  session.__ce_lastOutHash = sha1(`${lane}::${raw}`).slice(0, 16);
+
+  if (extras && typeof extras === "object") {
+    if (Array.isArray(extras.followUps)) session.__ce_lastOutFollowUps = extras.followUps.slice(0, MAX_FOLLOWUPS);
+    if (Array.isArray(extras.followUpsStrings))
+      session.__ce_lastOutFollowUpsStrings = extras.followUpsStrings.slice(0, MAX_FOLLOWUPS);
+    if (Array.isArray(extras.directives)) session.__ce_lastOutDirectives = extras.directives.slice(0, 8);
+  }
+}
+
+// =========================
+// Hard reset
+// =========================
+function hardResetSession(session, startedAt) {
+  const keep = { visitorId: safeStr(session.visitorId || ""), sessionId: safeStr(session.sessionId || "") };
+  for (const k of Object.keys(session)) delete session[k];
+  if (keep.visitorId) session.visitorId = keep.visitorId;
+  if (keep.sessionId) session.sessionId = keep.sessionId;
+
+  session.lane = "general";
+  session.lastLane = "";
+  session.turnCount = 0;
+  session.turns = 0;
+  session.startedAt = startedAt;
+  session.lastTurnAt = startedAt;
+  session.__hasRealUserTurn = 0;
+
+  session.__introDone = 0;
+  session.introDone = false;
+  session.introAt = 0;
+  session.introVariantId = 0;
+  session.introBucket = "";
+
+  session.lastInText = "";
+  session.lastInAt = 0;
+  session.lastOut = "";
+  session.lastOutAt = 0;
+
+  session.__ce_lastReqId = "";
+  session.__ce_lastReqAt = 0;
+  session.__ce_lastOutHash = "";
+  session.__ce_lastOut = "";
+  session.__ce_lastOutRaw = "";
+  session.__ce_lastOutLane = "";
+  session.__ce_lastOutFollowUps = undefined;
+  session.__ce_lastOutFollowUpsStrings = undefined;
+  session.__ce_lastOutDirectives = undefined;
+  session.__ce_lastInHash = "";
+  session.__ce_lastInAt = 0;
+
+  session.allowPackets = false;
+
+  session.cog = {};
+  session.cog.state = NYX_STATE.COLD;
+  session.cog.__nyxLastSeenAt = startedAt;
+
+  session.__nyxVelvet = false;
+
+  ensureContinuityState(session);
+  return session;
+}
+
+// =========================
+// ENGINE AUTOWIRE (WITH PACKETS GATING)
+// =========================
+function resolveEngine(input, allowPackets) {
+  if (typeof input.engine === "function") return { fn: input.engine, from: "input.engine" };
+
+  if (allowPackets) {
+    const p = NYX_PACKETS;
+    if (p && typeof p.handleChat === "function") return { fn: p.handleChat.bind(p), from: "nyxPackets.handleChat" };
+    if (p && typeof p.chat === "function") return { fn: p.chat.bind(p), from: "nyxPackets.chat" };
+    if (p && typeof p.respond === "function") return { fn: p.respond.bind(p), from: "nyxPackets.respond" };
+    if (p && typeof p.run === "function") return { fn: p.run.bind(p), from: "nyxPackets.run" };
+    if (p && typeof p.route === "function") return { fn: p.route.bind(p), from: "nyxPackets.route" };
+  }
+
+  const c = NYX_CONV_PACK;
+  if (c && typeof c.handleChat === "function") return { fn: c.handleChat.bind(c), from: "nyxConvPack.handleChat" };
+  if (c && typeof c.respond === "function") return { fn: c.respond.bind(c), from: "nyxConvPack.respond" };
+  if (c && typeof c.run === "function") return { fn: c.run.bind(c), from: "nyxConvPack.run" };
+
+  return { fn: null, from: "none" };
+}
+
+// =========================
+// Fallback (only used when no engine is available)
+// =========================
+function fallbackCore({ text, session, resolvedYear }) {
+  const t = normText(text);
+  const y = resolvedYear || extractYear(t);
+  const m = extractMode(t);
+
+  if (y && m) {
+    return { reply: `Got it — ${y}. Want Top 10, #1, a story moment, or a micro moment?`, lane: "music" };
+  }
+
+  if (y) {
+    commitYear(session, y, "fallback");
+    return {
+      reply: `Got it — ${y}. Want Top 10, #1, a story moment, or a micro moment?`,
+      lane: "music",
+      followUps: toFollowUps([
+        { label: "Top 10", send: `top 10 ${y}` },
+        { label: "#1", send: `#1 ${y}` },
+        { label: "Story moment", send: `story moment ${y}` },
+        { label: "Micro moment", send: `micro moment ${y}` },
+      ]),
+    };
+  }
+
+  if (!t || isGreetingOnly(text)) {
+    return { reply: INTRO_VARIANTS_BY_BUCKET.general[0], lane: "general", followUps: toFollowUps(CANON_INTRO_CHIPS) };
+  }
+
+  return {
+    reply:
+      "Give me a year (1950–2024), or say “top 10 1988”, “#1 1988”, “story moment 1988”, or “micro moment 1988”.",
+    lane: session.lane || "general",
+  };
+}
+
+// =========================
+// Engine-aware fallback follow-ups
+// =========================
+function maybeAttachMusicFollowUps(core, resolvedYear, inboundText, session) {
+  const year = resolvedYear || extractYear(inboundText);
+  if (!year) return core;
+
+  const hasFU = Array.isArray(core && core.followUps) && core.followUps.length;
+  if (hasFU) return core;
+
+  core.followUps = toFollowUps([
+    { label: "Top 10", send: `top 10 ${year}` },
+    { label: "#1", send: `#1 ${year}` },
+    { label: "Story moment", send: `story moment ${year}` },
+    { label: "Micro moment", send: `micro moment ${year}` },
+  ]);
+  core.followUpsStrings = toFollowUpsStrings([
+    { label: "Top 10", send: `top 10 ${year}` },
+    { label: "#1", send: `#1 ${year}` },
+    { label: "Story moment", send: `story moment ${year}` },
+    { label: "Micro moment", send: `micro moment ${year}` },
+  ]);
+
+  session.lane = "music";
+  commitYear(session, year, (session.cog && session.cog.yearSource) || "engine_followups_fallback");
+  session.cog.lane = "music";
+
+  return core;
+}
+
+// =========================
+// Main handler
+// =========================
+async function handleChat(input = {}) {
+  const startedAt = nowMs();
+
+  const clientRequestId = safeStr(input.requestId).trim();
+  const requestId = clientRequestId || sha1(`${startedAt}|${Math.random()}`).slice(0, 10);
+
+  const session = ensureContinuityState(input.session || {});
+  session.cog = isPlainObject(session.cog) ? session.cog : {};
+
+  if (!sanitizeNyxState(session.cog.state)) session.cog.state = NYX_STATE.COLD;
+  if (!Number.isFinite(Number(session.cog.__nyxLastSeenAt))) session.cog.__nyxLastSeenAt = startedAt;
+
+  let inboundText = extractInboundTextFromInput(input);
+
+  const source =
+    safeStr(input && input.client && (input.client.source || input.client.src || "")).trim() ||
+    safeStr(input && input.source).trim() ||
+    "unknown";
+
+  const routeHint =
+    safeStr((input && input.client && input.client.routeHint) || input.routeHint || session.lane || "general").trim() ||
+    "general";
+
+  const bootPing0 = isBootIntroPing({ ...input, source }, inboundText);
+
+  // RESET (GUARDED)
+  if (inboundText === "__cmd:reset__") {
+    if (bootPing0) {
+      inboundText = "";
+    } else {
+      hardResetSession(session, startedAt);
+
+      const RESET_FOLLOWUPS = [
+        { label: "Pick a year", send: "1988" },
+        { label: "Music", send: "music" },
+        { label: "Radio", send: "radio" },
+      ];
+
+      const reply = "All reset. Where do you want to start?";
+
+      session.lane = "general";
+      session.lastOut = reply;
+      session.lastOutAt = startedAt;
+
+      writeReplay(session, replayKey(session, clientRequestId, inboundText, source), startedAt, reply, "general", {
+        rawReply: reply,
+        followUps: toFollowUps(RESET_FOLLOWUPS),
+        followUpsStrings: toFollowUpsStrings(RESET_FOLLOWUPS),
+      });
+
       return {
-        hit: true,
-        reply: lastOut,
-        lane: lastLane,
-        followUps: lastFU,
-        followUpsStrings: lastFUS,
-        directives: lastDir,
+        ok: true,
+        reply,
+        lane: "general",
+        followUps: toFollowUps(RESET_FOLLOWUPS),
+        followUpsStrings: toFollowUpsStrings(RESET_FOLLOWUPS),
+        sessionPatch: buildSessionPatch(session),
+        cog: { phase: "listening", state: "fresh", reason: "hard_reset", lane: "general" },
+        requestId,
+        meta: {
+          engine: CE_VERSION,
+          buildId: CE_BUILD_ID,
+          reset: true,
+          resetOption: "A",
+          source: safeMetaStr(source),
+          nyxState: safeMetaStr(session.cog.state),
+          elapsedMs: nowMs() - startedAt,
+        },
       };
     }
   }
 
-  rec.data.__idx_lastReqKey = key;
-  rec.data.__idx_lastReqAt = now;
-  return { hit: false };
-}
+  // Normalize inbound (text-only normalization)
+  const preNorm = inboundText;
+  inboundText = normalizeInboundText(inboundText, session, routeHint);
+  const inboundNormalized = inboundText !== preNorm;
 
-function writeReplay(rec, reply, lane, extras) {
-  rec.data.__idx_lastOut = safeStr(reply);
-  rec.data.__idx_lastLane = safeStr(lane || "general") || "general";
-  if (extras && typeof extras === "object") {
-    if (Array.isArray(extras.followUps)) rec.data.__idx_lastFollowUps = extras.followUps.slice(0, 10);
-    if (Array.isArray(extras.followUpsStrings))
-      rec.data.__idx_lastFollowUpsStrings = extras.followUpsStrings.slice(0, 10);
-    if (Array.isArray(extras.directives)) rec.data.__idx_lastDirectives = extras.directives.slice(0, 10);
-  }
-}
+  // NYX STATE SPINE: stamp state BEFORE replay/burst returns
+  const st0 = nyxResolveState(session, inboundText, { ...input, source, routeHint }, startedAt);
+  nyxStampState(session, st0);
 
-// =========================
-// App
-// =========================
-const app = express();
+  // Burst dedupe
+  const inHash = sha1(inboundText).slice(0, 12);
+  const lastInHash = safeStr(session.__ce_lastInHash || "");
+  const lastInAt = safeInt(session.__ce_lastInAt || 0, 0);
+  if (inHash && lastInHash && inHash === lastInHash && lastInAt && startedAt - lastInAt < BURST_DEDUPE_MS) {
+    const rkey0 = replayKey(session, clientRequestId, inboundText, source);
+    const cached0 = readReplay(session, rkey0, startedAt);
+    if (cached0) {
+      const inboundIsEmptyB = isEmptyOrNoText(inboundText);
+      const bootIntroEmptyB = isBootIntroPing({ ...input, source }, inboundText);
 
-if (toBool(TRUST_PROXY, false)) app.set("trust proxy", 1);
+      const replyB = maybeApplyNyxGreetPrefix(session, inboundIsEmptyB, bootIntroEmptyB, cached0.reply);
 
-app.use(express.json({ limit: MAX_JSON_BODY }));
-app.use(express.text({ type: ["text/*"], limit: MAX_JSON_BODY }));
-
-// =========================
-// CORS hard-lock (stabilized + required headers)
-// =========================
-app.use((req, res, next) => {
-  const originRaw = safeStr(req.headers.origin || "");
-  const origin = normalizeOrigin(originRaw);
-  const allow = origin ? isAllowedOrigin(origin) : false;
-
-  if (origin) res.setHeader("Vary", "Origin");
-
-  if (origin && allow) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-    res.setHeader("Access-Control-Allow-Credentials", "true");
-
-    res.setHeader(
-      "Access-Control-Allow-Headers",
-      [
-        "Content-Type",
-        "Authorization",
-        "X-Requested-With",
-        "X-SB-Session",
-        "X-Session-Id",
-        "X-Visitor-Id",
-        "X-Request-Id",
-        "X-Route-Hint",
-        "X-SBNYX-Client-Build",
-        "x-sbnyx-client-build",
-        "X-SBNYX-Widget-Version",
-        "x-sbnyx-widget-version",
-        "X-Contract-Version",
-        "x-contract-version",
-      ].join(", ")
-    );
-
-    res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-    res.setHeader("Access-Control-Max-Age", "600");
-  }
-
-  if (req.method === "OPTIONS") return res.status(204).send("");
-  return next();
-});
-
-// =========================
-// Health + discovery
-// =========================
-app.get("/", (req, res) => {
-  res.status(200).json({
-    ok: true,
-    service: "sandblast-backend",
-    version: INDEX_VERSION,
-    engine: ENGINE_VERSION || null,
-    engineFrom: ENGINE.from,
-    env: NODE_ENV,
-  });
-});
-
-app.get("/health", (req, res) => {
-  res.status(200).json({
-    ok: true,
-    version: INDEX_VERSION,
-    engine: ENGINE_VERSION || null,
-    engineFrom: ENGINE.from,
-    up: true,
-    now: new Date().toISOString(),
-  });
-});
-
-app.get("/api/health", (req, res) => {
-  res.status(200).json({
-    ok: true,
-    version: INDEX_VERSION,
-    engine: ENGINE_VERSION || null,
-    engineFrom: ENGINE.from,
-    up: true,
-    now: new Date().toISOString(),
-  });
-});
-
-app.get("/api/discovery", (req, res) => {
-  res.status(200).json({
-    ok: true,
-    version: INDEX_VERSION,
-    engine: ENGINE_VERSION || null,
-    engineFrom: ENGINE.from,
-    endpoints: ["/api/sandblast-gpt", "/api/nyx/chat", "/api/chat", "/api/tts", "/api/voice", "/health", "/api/health"],
-  });
-});
-
-// =========================
-// Chat route (main)
-// =========================
-async function handleChatRoute(req, res) {
-  const startedAt = nowMs();
-  const body = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
-
-  const clientRequestId = safeStr(body.requestId || req.headers["x-request-id"] || "").trim();
-  const serverRequestId = clientRequestId || makeReqId();
-
-  const source =
-    safeStr(body?.client?.source || body?.source || req.headers["x-client-source"] || "").trim() || "unknown";
-
-  const routeHint =
-    safeStr(body?.client?.routeHint || body?.routeHint || body?.lane || req.headers["x-route-hint"] || "").trim() ||
-    "general";
-
-  const inboundText = safeStr(body.text || body.message || body.prompt || body.query || body?.payload?.text || "").trim();
-
-  const inboundSig = normalizeInboundSignature(body, inboundText);
-  const meaningful = !!inboundSig || hasIntentSignals(body);
-
-  const { rec } = getSession(req);
-  const bootLike = isBootLike(routeHint, body);
-
-  // Detect reset early so we can force silent response if needed.
-  const isReset = isResetCommand(inboundText, source, body);
-
-  // Throttle fuse (skip for bootLike; allow reset to pass through silently)
-  if (!bootLike && meaningful && !isReset) {
-    const burst = checkBurst(rec, startedAt);
-    const sus = checkSustained(rec, startedAt);
-    if (burst.blocked || sus.blocked) {
-      const reply =
-        burst.reason === "burst"
-          ? "One sec — you’re firing a little fast. Try again in a moment."
-          : "Give me a breath — then hit me again with a year or a request.";
-      writeReplay(rec, reply, rec.data.lane || "general");
-      return res.status(429).json({
+      return {
         ok: true,
-        reply,
-        lane: rec.data.lane || "general",
-        sessionPatch: {},
-        requestId: serverRequestId,
+        reply: replyB,
+        lane: cached0.lane,
+        directives: cached0.directives,
+        followUps: cached0.followUps || toFollowUps(CANON_INTRO_CHIPS),
+        followUpsStrings: cached0.followUpsStrings || toFollowUpsStrings(CANON_INTRO_CHIPS),
+        sessionPatch: buildSessionPatch(session),
+        cog: { phase: "listening", state: "confident", reason: "burst_replay", lane: cached0.lane },
+        requestId,
         meta: {
-          index: INDEX_VERSION,
-          engine: ENGINE_VERSION || null,
-          throttled: burst.blocked ? "burst" : "sustained",
+          engine: CE_VERSION,
+          buildId: CE_BUILD_ID,
+          replay: true,
+          burst: true,
+          source: safeMetaStr(source),
+          nyxState: safeMetaStr(session.cog.state),
+          elapsedMs: nowMs() - startedAt,
         },
-      });
+      };
+    }
+  }
+  session.__ce_lastInHash = inHash;
+  session.__ce_lastInAt = startedAt;
+
+  // Resolve year from all inbound shapes
+  const resolvedYear0 = resolveInboundYear(input, inboundText, session);
+
+  // HYDRATE: empty inbound + year exists via payload/ctx
+  if (isEmptyOrNoText(inboundText) && resolvedYear0) {
+    inboundText = String(resolvedYear0);
+    const stH = nyxResolveState(session, inboundText, { ...input, source, routeHint }, startedAt);
+    nyxStampState(session, stH);
+  }
+
+  // CRITICAL HYDRATE: empty inbound + intent exists via payload/ctx
+  if (isEmptyOrNoText(inboundText) && !isBootIntroPing({ ...input, source }, inboundText)) {
+    const hydrated = hydrateEmptyInboundFromIntent(input, session, resolvedYear0, source, inboundText);
+    if (hydrated) {
+      inboundText = normalizeInboundText(hydrated, session, routeHint);
+      const stI = nyxResolveState(session, inboundText, { ...input, source, routeHint }, startedAt);
+      nyxStampState(session, stI);
     }
   }
 
-  // Replay dedupe (skip for bootLike; also skip for reset so we don't “replay” a reset bubble ever)
-  if (!bootLike && meaningful && !isReset) {
-    const dedupe = replayDedupe(rec, inboundSig, source, clientRequestId);
-    if (dedupe.hit) {
-      return res.status(200).json({
-        ok: true,
-        reply: dedupe.reply,
-        lane: dedupe.lane,
-        directives: dedupe.directives,
-        followUps: dedupe.followUps,
-        followUpsStrings: dedupe.followUpsStrings,
-        sessionPatch: {},
-        requestId: serverRequestId,
-        meta: { index: INDEX_VERSION, engine: ENGINE_VERSION || null, replay: true },
-      });
-    }
-  }
+  // Commit year if present
+  if (resolvedYear0) commitYear(session, resolvedYear0, "resolved_inbound");
 
-  if (!ENGINE.fn) {
-    const reply = "Backend engine not loaded. Check deploy: Utils/chatEngine.js is missing or exports are wrong.";
-    writeReplay(rec, reply, "general");
-    return res.status(500).json({
-      ok: false,
-      reply,
-      lane: "general",
-      requestId: serverRequestId,
-      meta: {
-        index: INDEX_VERSION,
-        engine: "missing_or_invalid",
-        engineFrom: ENGINE.from,
-        engineVersion: ENGINE_VERSION || null,
-      },
-    });
-  }
+  const inboundIsEmpty = isEmptyOrNoText(inboundText);
+  const bootIntroEmpty = isBootIntroPing({ ...input, source }, inboundText);
 
-  const engineInput = {
-    ...body,
-    requestId: serverRequestId,
-    clientRequestId: clientRequestId || undefined,
-    text: inboundText,
-    source,
-    routeHint,
-    client: {
-      ...(isPlainObject(body.client) ? body.client : {}),
-      source,
-      routeHint,
-    },
-    session: rec.data,
-  };
+  // Replay safety
+  const rkey = replayKey(session, clientRequestId, inboundText, source);
+  const cached = readReplay(session, rkey, startedAt);
+  if (cached) {
+    const replyR = maybeApplyNyxGreetPrefix(session, inboundIsEmpty, bootIntroEmpty, cached.reply);
 
-  let out;
-  try {
-    out = await ENGINE.fn(engineInput);
-  } catch (e) {
-    const msg = safeStr(e?.message || e).trim();
-    const reply = "I hit a snag, but I’m still here. Give me a year (1950–2024) and I’ll jump right in.";
-    writeReplay(rec, reply, rec.data.lane || "general");
-    return res.status(500).json({
+    return {
       ok: true,
-      reply,
-      lane: rec.data.lane || "general",
-      requestId: serverRequestId,
-      meta: { index: INDEX_VERSION, engine: ENGINE_VERSION || null, error: safeStr(msg).slice(0, 200) },
+      reply: replyR,
+      lane: cached.lane,
+      directives: cached.directives,
+      followUps: cached.followUps || toFollowUps(CANON_INTRO_CHIPS),
+      followUpsStrings: cached.followUpsStrings || toFollowUpsStrings(CANON_INTRO_CHIPS),
+      sessionPatch: buildSessionPatch(session),
+      cog: { phase: "listening", state: "confident", reason: "replay_cache", lane: cached.lane },
+      requestId,
+      meta: {
+        engine: CE_VERSION,
+        buildId: CE_BUILD_ID,
+        replay: true,
+        source: safeMetaStr(source),
+        nyxState: safeMetaStr(session.cog.state),
+        elapsedMs: nowMs() - startedAt,
+      },
+    };
+  }
+
+  // POST-INTRO GRACE suppression
+  const introAt = safeInt(session.introAt || 0, 0);
+  const justIntroed = !!introAt && startedAt - introAt < POST_INTRO_GRACE_MS;
+  if (justIntroed && (inboundIsEmpty || isModeOnly(inboundText))) {
+    const reply0 = nonEmptyReply(session.lastOut, INTRO_VARIANTS_BY_BUCKET.general[0]);
+    session.lastOut = reply0;
+    session.lastOutAt = startedAt;
+    writeReplay(session, rkey, startedAt, reply0, "general", {
+      rawReply: reply0,
+      followUps: toFollowUps(CANON_INTRO_CHIPS),
+      followUpsStrings: toFollowUpsStrings(CANON_INTRO_CHIPS),
     });
+    return {
+      ok: true,
+      reply: reply0,
+      lane: "general",
+      followUps: toFollowUps(CANON_INTRO_CHIPS),
+      followUpsStrings: toFollowUpsStrings(CANON_INTRO_CHIPS),
+      sessionPatch: buildSessionPatch(session),
+      cog: { phase: "listening", state: "confident", reason: "post_intro_grace", lane: "general" },
+      requestId,
+      meta: {
+        engine: CE_VERSION,
+        buildId: CE_BUILD_ID,
+        suppressed: "post_intro_grace",
+        source: safeMetaStr(source),
+        nyxState: safeMetaStr(session.cog.state),
+        elapsedMs: nowMs() - startedAt,
+      },
+    };
   }
 
-  if (out && isPlainObject(out.sessionPatch)) {
-    applySessionPatch(rec.data, out.sessionPatch);
+  // Boot intro suppression (PING ONLY)
+  if (bootIntroEmpty) {
+    const introAt2 = safeInt(session.introAt || 0, 0);
+    if (introAt2 && startedAt - introAt2 < INTRO_REARM_MS) {
+      const lastOut = safeStr(session.lastOut || "").trim();
+      const lane0 = safeStr(session.lane || "general") || "general";
+      const reply0 = lastOut || "Ready when you are.";
+      writeReplay(session, replayKey(session, clientRequestId, inboundText, source), startedAt, reply0, lane0, {
+        rawReply: reply0,
+        followUps: toFollowUps(CANON_INTRO_CHIPS),
+        followUpsStrings: toFollowUpsStrings(CANON_INTRO_CHIPS),
+      });
+      return {
+        ok: true,
+        reply: reply0,
+        lane: lane0,
+        followUps: toFollowUps(CANON_INTRO_CHIPS),
+        followUpsStrings: toFollowUpsStrings(CANON_INTRO_CHIPS),
+        sessionPatch: buildSessionPatch(session),
+        cog: { phase: "listening", state: "confident", reason: "boot_intro_suppressed", lane: lane0 },
+        requestId,
+        meta: {
+          engine: CE_VERSION,
+          buildId: CE_BUILD_ID,
+          bootIntroSuppressed: true,
+          source: safeMetaStr(source),
+          nyxState: safeMetaStr(session.cog.state),
+          elapsedMs: nowMs() - startedAt,
+        },
+      };
+    }
   }
 
-  const lane = safeStr(out?.lane || rec.data.lane || "general") || "general";
-  rec.data.lane = lane;
+  // Ignore empty non-boot ONLY if still empty after hydration attempts
+  if (inboundIsEmpty && !bootIntroEmpty) {
+    const reply0 = "Ready when you are. Tell me a year (1950–2024), or what you want to do next.";
+    const laneX = safeStr(session.lane || "general") || "general";
+    return {
+      ok: true,
+      reply: reply0,
+      lane: laneX,
+      followUps: toFollowUps(CANON_INTRO_CHIPS),
+      followUpsStrings: toFollowUpsStrings(CANON_INTRO_CHIPS),
+      sessionPatch: buildSessionPatch(session),
+      cog: { phase: "listening", state: "confident", reason: "ignored_empty_nonboot", lane: laneX },
+      requestId,
+      meta: {
+        engine: CE_VERSION,
+        buildId: CE_BUILD_ID,
+        ignoredEmpty: true,
+        source: safeMetaStr(source),
+        nyxState: safeMetaStr(session.cog.state),
+        elapsedMs: nowMs() - startedAt,
+      },
+    };
+  }
 
-  // SILENT RESET: never send a reset bubble
-  const rawReply = safeStr(out?.reply || "").trim();
-  const reply = isReset ? silentResetReply() : (rawReply || "Okay — tell me what you want next.");
+  // Turn counters
+  if (!bootIntroEmpty) {
+    session.turnCount = safeInt(session.turnCount || 0, 0) + 1;
+    session.turns = safeInt(session.turns || 0, 0) + 1;
+  }
+  if (!session.startedAt) session.startedAt = startedAt;
+  if (!inboundIsEmpty) session.__hasRealUserTurn = 1;
 
-  const directives = Array.isArray(out?.directives) ? out.directives : undefined;
-  const followUps = Array.isArray(out?.followUps) ? out.followUps : undefined;
+  // Velvet Mode: earned intimacy (NEVER first contact)
+  if (
+    !session.__nyxVelvet &&
+    safeInt(session.turnCount || 0, 0) >= 2 &&
+    (!!session.lastMusicYear ||
+      !!session.lastMode ||
+      !!(session.cog && (session.cog.year || session.cog.mode || session.cog.lastMusicYear)))
+  ) {
+    session.__nyxVelvet = true;
+  }
+
+  session.lastTurnAt = startedAt;
+  if (!bootIntroEmpty) {
+    session.lastInText = inboundText;
+    session.lastInAt = startedAt;
+  }
+
+  // Lane seed
+  let lane = safeStr(session.lane || routeHint || "general").trim() || "general";
+
+  // AUTHORITATIVE YEAR COMMIT (pre-engine)
+  const modeNow = extractMode(inboundText);
+  const top10Asked = isTop10IntentText(inboundText) || modeNow === "top10";
+
+  const laneHint = normText(session.lane || routeHint || "");
+  const forceMusicYear = !!resolvedYear0 && (laneHint === "music" || top10Asked);
+
+  if (forceMusicYear) {
+    session.lane = "music";
+    session.cog.lane = "music";
+    if (modeNow) session.cog.mode = modeNow;
+
+    if (top10Asked) {
+      session.activeMusicMode = "top10";
+      session.lastMode = "top10";
+      session.cog.mode = "top10";
+      if (!modeNow) inboundText = `top 10 ${resolvedYear0}`;
+    }
+  }
+
+  // Music override (text-based mode+year)
+  const ov = applyMusicOverride(session, inboundText);
+  if (ov.forced) lane = "music";
+  if (forceMusicYear) lane = "music";
+
+  // Intro
+  const doIntro =
+    !ov.forced &&
+    !forceMusicYear &&
+    shouldServeIntroLoginMoment(session, inboundText, startedAt, { ...input, source });
+  if (doIntro) {
+    session.__introDone = 1;
+    session.introDone = true;
+    session.introAt = startedAt;
+
+    const bucketKey = pickIntroBucket(session, inboundText, routeHint, { ...input, source });
+
+    session.lastLane = safeStr(session.lane || "");
+    session.lane = "general";
+
+    const pick = pickIntroForLogin(session, startedAt, bucketKey);
+
+    const introLine = nonEmptyReply(pick.text, INTRO_VARIANTS_BY_BUCKET.general[0]);
+
+    session.lastOut = introLine;
+    session.lastOutAt = startedAt;
+
+    session.allowPackets = false;
+
+    const fu = toFollowUps(CANON_INTRO_CHIPS);
+    const fus = toFollowUpsStrings(CANON_INTRO_CHIPS);
+
+    writeReplay(session, rkey, startedAt, introLine, "general", {
+      rawReply: introLine,
+      followUps: fu,
+      followUpsStrings: fus,
+    });
+
+    return {
+      ok: true,
+      reply: introLine,
+      lane: "general",
+      followUps: fu,
+      followUpsStrings: fus,
+      sessionPatch: buildSessionPatch(session),
+      cog: { phase: "listening", state: "confident", reason: "intro_login_moment", lane: "general" },
+      requestId,
+      meta: {
+        engine: CE_VERSION,
+        buildId: CE_BUILD_ID,
+        intro: true,
+        introBucket: safeMetaStr(bucketKey),
+        source: safeMetaStr(source),
+        nyxState: safeMetaStr(session.cog.state),
+      },
+    };
+  }
+
+  // PACKETS gating decision
+  const allowPackets = shouldAllowPackets(inboundText, routeHint, session, resolvedYear0);
+  session.allowPackets = !!allowPackets;
+
+  const resolved = resolveEngine(input, allowPackets);
+
+  let core = null;
+  let engineTimedOut = false;
+  let engineEmptyReply = false;
+  let engineOk = false;
+
+  try {
+    if (resolved.fn) {
+      core = await withTimeout(
+        Promise.resolve(
+          resolved.fn({
+            text: inboundText,
+            session,
+            requestId,
+            routeHint: lane,
+            allowPackets,
+            packs: {
+              conv: NYX_CONV_PACK,
+              phrase: NYX_PHRASEPACK,
+              packets: NYX_PACKETS,
+            },
+            ctx: { year: resolvedYear0 || undefined, lane },
+          })
+        ),
+        ENGINE_TIMEOUT_MS,
+        "engine"
+      );
+      engineOk = true;
+      if (core && typeof core === "object") {
+        const rr = safeStr(core.reply || "").trim();
+        engineEmptyReply = !rr;
+      }
+    } else {
+      core = fallbackCore({ text: inboundText, session, resolvedYear: resolvedYear0 });
+    }
+  } catch (e) {
+    const msg = safeStr(e && e.message ? e.message : e).trim();
+    engineTimedOut = msg.startsWith("timeout:engine:");
+    core = {
+      reply: engineTimedOut
+        ? "Still with you. Give me a year (1950–2024) or say “top 10 1988” and I’ll jump right in."
+        : "I hit a snag, but I’m still here. Tell me a year (1950–2024), or say “top 10 1988”.",
+      lane: session.lane || lane || "general",
+      cog: {
+        phase: "engaged",
+        state: "error",
+        reason: engineTimedOut ? "engine_timeout" : "engine_error",
+        detail: safeMetaStr(msg),
+      },
+    };
+  } finally {
+    session.allowPackets = false;
+  }
+
+  if (core && typeof core === "object") core = maybeAttachMusicFollowUps(core, resolvedYear0, inboundText, session);
+
+  const outLane = safeStr((core && core.lane) || session.lane || lane || "general").trim() || "general";
+  session.lane = ov.forced || forceMusicYear ? "music" : outLane;
+
+  const resolvedYearFinal = resolveInboundYear(input, inboundText, session);
+
+  let rawReply = nonEmptyReply(
+    core && core.reply,
+    resolvedYearFinal
+      ? `Got it — ${resolvedYearFinal}. What do you want: Top 10, #1, story moment, or micro moment?`
+      : "A year usually clears things up."
+  );
+  rawReply = clampStr(rawReply, MAX_REPLY_CHARS);
+
+  const preservedNyxState = sanitizeNyxState(session.cog && session.cog.state) || NYX_STATE.COLD;
+  const preservedNyxSeen = safeInt(session.cog && session.cog.__nyxLastSeenAt, 0);
+
+  if (core && isPlainObject(core.sessionPatch)) {
+    for (const [k, v] of Object.entries(core.sessionPatch)) {
+      if (!PATCH_KEYS.has(k)) continue;
+      if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
+      if (k === "cog") {
+        if (isPlainObject(v)) {
+          const incomingState = sanitizeNyxState(v.state);
+          const incomingSeen = safeInt(v.__nyxLastSeenAt, 0);
+
+          session.cog = v;
+
+          session.cog.state = nyxAdvanceState(preservedNyxState, incomingState || preservedNyxState);
+          session.cog.__nyxLastSeenAt = Math.max(preservedNyxSeen, incomingSeen || 0) || Date.now();
+        }
+        continue;
+      }
+      if (k === "__nyxIntro") {
+        session.__nyxIntro = sanitizeNyxIntroState(v);
+        continue;
+      }
+      if (k === "__ce_lastOutFollowUps") {
+        if (Array.isArray(v)) session.__ce_lastOutFollowUps = v.slice(0, MAX_FOLLOWUPS);
+        continue;
+      }
+      if (k === "__ce_lastOutFollowUpsStrings") {
+        if (Array.isArray(v)) session.__ce_lastOutFollowUpsStrings = v.slice(0, MAX_FOLLOWUPS);
+        continue;
+      }
+      if (k === "__ce_lastOutDirectives") {
+        if (Array.isArray(v)) session.__ce_lastOutDirectives = v.slice(0, 8);
+        continue;
+      }
+      session[k] = v;
+    }
+  }
+
+  if (!sanitizeNyxState(session.cog && session.cog.state)) session.cog.state = preservedNyxState;
+  session.cog.state = nyxAdvanceState(preservedNyxState, session.cog.state);
+
+  const yPost = resolveInboundYear(input, inboundText, session);
+  if (yPost) commitYear(session, yPost, (session.cog && session.cog.yearSource) || "post_engine");
+
+  const reply = maybeApplyNyxGreetPrefix(session, isEmptyOrNoText(inboundText), bootIntroEmpty, rawReply);
+
+  session.lastOut = reply;
+  session.lastOutAt = startedAt;
+
+  const directives = normalizeDirectives(core && core.directives);
+  const followUps = normalizeFollowUps(core && core.followUps);
   const followUpsStrings =
-    Array.isArray(out?.followUpsStrings) && out.followUpsStrings.length ? out.followUpsStrings : undefined;
+    Array.isArray(core && core.followUpsStrings) && core.followUpsStrings.length
+      ? core.followUpsStrings.slice(0, MAX_FOLLOWUPS)
+      : undefined;
 
-  // For reset: do NOT overwrite replay cache with a reset bubble (store empty safely)
-  writeReplay(rec, reply, lane, { directives, followUps, followUpsStrings });
+  writeReplay(session, rkey, startedAt, rawReply, session.lane, { rawReply, directives, followUps, followUpsStrings });
 
-  return res.status(200).json({
+  return {
     ok: true,
     reply,
-    lane,
-    ctx: out?.ctx,
-    ui: out?.ui,
+    lane: session.lane,
     directives,
     followUps,
     followUpsStrings,
-    sessionPatch: out?.sessionPatch || {},
-    cog: out?.cog,
-    requestId: out?.requestId || serverRequestId,
+    sessionPatch: buildSessionPatch(session),
+    cog:
+      (core && core.cog && typeof core.cog === "object" && core.cog) || {
+        phase: "listening",
+        state: "confident",
+        reason: ov.forced || forceMusicYear ? "music_override" : "ok",
+        lane: session.lane,
+      },
+    requestId,
     meta: {
-      ...(isPlainObject(out?.meta) ? out.meta : {}),
-      index: INDEX_VERSION,
-      engine: ENGINE_VERSION || null,
-      engineFrom: ENGINE.from,
+      engine: CE_VERSION,
+      buildId: CE_BUILD_ID,
+      source: safeMetaStr(source),
+      routeHint: safeMetaStr(routeHint),
+      inboundNormalized,
+      allowPackets,
+      resolvedYear: resolvedYearFinal || null,
+      override:
+        (ov.forced ? `music:${safeMetaStr(ov.mode)}:${safeMetaStr(ov.year)}` : "") ||
+        (forceMusicYear ? `music:top10:${safeMetaStr(resolvedYear0)}` : ""),
       elapsedMs: nowMs() - startedAt,
-      source,
-      routeHint,
-      bootLike: !!bootLike,
-      inboundSig: inboundSig ? String(inboundSig).slice(0, 160) : null,
-      meaningful: !!meaningful,
-      resetSilenced: !!isReset,
+      engineResolvedFrom: resolved.from,
+      engineOk,
+      engineTimeout: !!engineTimedOut,
+      engineEmptyReply,
+      packsLoaded: { conv: !!NYX_CONV_PACK, phrase: !!NYX_PHRASEPACK, packets: !!NYX_PACKETS, cs1: !!cs1 },
+      velvet: !!session.__nyxVelvet,
+      nyxState: safeMetaStr(session.cog && session.cog.state),
     },
-  });
+  };
 }
 
-function applySessionPatch(session, patch) {
-  if (!isPlainObject(session) || !isPlainObject(patch)) return;
-
-  const PATCH_KEYS = new Set([
-    "introDone",
-    "introAt",
-    "introVariantId",
-    "introBucket",
-    "lastInText",
-    "lastInAt",
-    "lastOut",
-    "lastOutAt",
-    "turns",
-    "startedAt",
-    "lastTurnAt",
-    "lane",
-    "lastLane",
-    "lastYear",
-    "lastMode",
-    "activeMusicMode",
-    "lastMusicYear",
-    "pendingYear",
-    "pendingMode",
-    "pendingLane",
-    "turnCount",
-    "__hasRealUserTurn",
-    "__introDone",
-    "__cs1",
-
-    "cog",
-    "allowPackets",
-
-    "__ce_lastReqId",
-    "__ce_lastReqAt",
-    "__ce_lastOutHash",
-    "__ce_lastOut",
-    "__ce_lastOutRaw",
-    "__ce_lastOutLane",
-    "__ce_lastOutFollowUps",
-    "__ce_lastOutFollowUpsStrings",
-    "__ce_lastOutDirectives",
-    "__ce_lastInHash",
-    "__ce_lastInAt",
-
-    "__nyxIntro",
-    "__nyxVelvet",
-  ]);
-
-  for (const [k, v] of Object.entries(patch)) {
-    if (!PATCH_KEYS.has(k)) continue;
-    if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
-
-    if (k === "cog") {
-      if (isPlainObject(v)) session.cog = v;
-      continue;
-    }
-
-    if (k === "__nyxIntro") {
-      if (isPlainObject(v)) session.__nyxIntro = v;
-      continue;
-    }
-
-    session[k] = v;
-  }
-}
-
-// Main chat endpoints (aliases preserved)
-app.post("/api/sandblast-gpt", handleChatRoute);
-app.post("/api/nyx/chat", handleChatRoute);
-app.post("/api/chat", handleChatRoute);
-
-// =========================
-// TTS (REAL ElevenLabs)
-// =========================
-async function handleTtsRoute(req, res) {
-  const startedAt = nowMs();
-
-  let body = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
-  if (typeof req.body === "string") body = { text: req.body };
-
-  const text = safeStr(body.text || body.message || body.prompt || "").trim();
-  const noText = toBool(body.NO_TEXT || body.noText, false);
-
-  if (!ELEVEN_API_KEY || !ELEVEN_VOICE_ID || !fetchFn) {
-    return res.status(501).json({
-      ok: false,
-      error: "TTS not configured (missing ELEVENLABS_API_KEY or ELEVENLABS_VOICE_ID or fetch).",
-      meta: { index: INDEX_VERSION },
-    });
-  }
-
-  if (!text && !noText) {
-    return res.status(400).json({ ok: false, error: "Missing text for TTS.", meta: { index: INDEX_VERSION } });
-  }
-
-  const ac = typeof AbortController !== "undefined" ? new AbortController() : null;
-  const t = setTimeout(() => {
-    try {
-      if (ac) ac.abort();
-    } catch (_) {}
-  }, ELEVEN_TTS_TIMEOUT_MS);
-
-  try {
-    const payload = {
-      text: text || " ",
-      model_id: "eleven_monolingual_v1",
-      voice_settings: {
-        stability: NYX_VOICE_STABILITY,
-        similarity_boost: NYX_VOICE_SIMILARITY,
-        style: NYX_VOICE_STYLE,
-        use_speaker_boost: NYX_VOICE_SPEAKER_BOOST,
-      },
-    };
-
-    const r = await fetchFn(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(ELEVEN_VOICE_ID)}`, {
-      method: "POST",
-      headers: {
-        "xi-api-key": ELEVEN_API_KEY,
-        "Content-Type": "application/json",
-        Accept: "audio/mpeg",
-      },
-      body: JSON.stringify(payload),
-      signal: ac ? ac.signal : undefined,
-    });
-
-    if (!r.ok) {
-      const errTxt = await r.text().catch(() => "");
-      return res.status(502).json({
-        ok: false,
-        error: "TTS upstream error",
-        detail: safeStr(errTxt).slice(0, 800),
-        meta: { index: INDEX_VERSION, status: r.status },
-      });
-    }
-
-    const buf = Buffer.from(await r.arrayBuffer());
-
-    res.setHeader("Content-Type", "audio/mpeg");
-    res.setHeader("Cache-Control", "no-store, max-age=0");
-    res.setHeader("X-Content-Type-Options", "nosniff");
-    res.setHeader("Content-Length", String(buf.length));
-    return res.status(200).send(buf);
-  } catch (e) {
-    const msg = safeStr(e?.message || e).trim();
-    const aborted = /aborted|abort|timeout/i.test(msg);
-    return res.status(aborted ? 504 : 500).json({
-      ok: false,
-      error: aborted ? "TTS timeout" : "TTS failure",
-      detail: safeStr(msg).slice(0, 250),
-      meta: { index: INDEX_VERSION, elapsedMs: nowMs() - startedAt },
-    });
-  } finally {
-    clearTimeout(t);
-  }
-}
-
-app.post("/api/tts", handleTtsRoute);
-app.post("/api/voice", handleTtsRoute);
-
-// =========================
-// Start
-// =========================
-app.listen(PORT, () => {
-  // eslint-disable-next-line no-console
-  console.log(`[Sandblast] ${INDEX_VERSION} listening on ${PORT}`);
-
-  // eslint-disable-next-line no-console
-  console.log(
-    `[Sandblast] Engine: from=${ENGINE.from} version=${ENGINE_VERSION || "(unknown)"} loaded=${!!ENGINE.fn}`
-  );
-});
-
-module.exports = { app, INDEX_VERSION };
+// Back-compat exports
+module.exports = {
+  handleChat,
+  reply: handleChat,
+  chatEngine: handleChat,
+  CE_VERSION,
+};
