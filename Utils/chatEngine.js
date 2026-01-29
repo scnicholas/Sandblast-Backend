@@ -17,20 +17,10 @@
  *  }
  *
  * v0.7aC (ENTERPRISE HARDENED+++ + OPTION A RANDOM GREETING PREFIX ONLY + NYX STATE SPINE v1 (COLD/WARM/ENGAGED))
- *  ✅ FIX (CRITICAL): “No change” / “still the same” caused by client sending panel_open_intro/boot_intro source on REAL turns:
- *      - Boot-intro detection is now PING-ONLY (requires empty inboundText)
- *      - Real user messages/chip clicks WILL NOT be treated as boot even if source is mis-tagged
- *  ✅ Keeps: Empty-text chip clicks w/ payload/ctx intent hydration so engine runs (no more ignored_empty_nonboot stalls)
- *  ✅ Keeps: NYX STATE SPINE v1 forward-only + inactivity reset + merge-protected
- *  ✅ Keeps: Option A random greeting prefix per real interaction (replay-safe dynamic prefix)
- *  ✅ Keeps: Guarded __cmd:reset__ cannot trigger from boot intro pings
- *  ✅ Keeps: Intro shuffle-bag login-moment logic (unchanged)
- *  ✅ Keeps: Replay payload capture + inbound clamp + burst dedupe + lane drift guard
- *  ✅ Keeps: Year-only payload/ctx clicks hydrate inboundText so engine runs (lists fire)
- *  ✅ Keeps: Replay cache works without client requestId
- *  ✅ Keeps: PACKETS gating enforced at ENGINE RESOLVE time
- *  ✅ Keeps: Numeric year authoritative + mode-only attach + “A year usually clears…” block when year exists
- *  ✅ Keeps: engine-autowire, intro replay suppression, post-intro grace, idempotency, timeout, contract normalize
+ *  ✅ NEW (CRITICAL UX): Canonical welcome line enforced for FIRST boot intro + reset:
+ *      "Hello, I’m Nyx. Welcome to Sandblast Channel. How can I help you today?"
+ *      - Prevents “reset complete…” / “all reset…” becoming the first impression
+ *  ✅ Keeps: Empty-text chip intent hydration, replay safety, intro shuffle-bag, packets gating, loopkiller, state spine
  */
 
 const crypto = require("crypto");
@@ -38,16 +28,8 @@ const crypto = require("crypto");
 // =========================
 // Version
 // =========================
-const CE_BUILD_ID = (() => {
-  try {
-    return crypto.randomBytes(4).toString("hex");
-  } catch (_) {
-    return String(Math.floor(Math.random() * 1e9));
-  }
-})();
-
 const CE_VERSION =
-  "chatEngine v0.7aC (enterprise hardened+++ + OPTION A random greeting prefix per real interaction + replay-safe dynamic prefix + boot-intro ping-only detection (CRITICAL) + reset-guard for boot-intro + preserves intro/login shuffle-bag + velvet gate + replay payload capture + inbound clamp + burst dedupe + lane drift guard + payload-year hydration + payload/ctx intent hydration + replayKey fix + packets gating at engine-resolve + authoritative year commit + mode-only attach + loopkiller+++++ + post-intro grace + idempotency + timeout + contract normalize + session safety + NYX STATE SPINE v1 (cold/warm/engaged forward-only, inactivity reset, merge-protected))";
+  "chatEngine v0.7aC (enterprise hardened+++ + canonical welcome on first boot + canonical welcome on reset + OPTION A random greeting prefix per real interaction + replay-safe dynamic prefix + reset-guard for boot-intro + preserves intro/login shuffle-bag + velvet gate + replay payload capture + inbound clamp + burst dedupe + lane drift guard + payload-year hydration + payload/ctx intent hydration (CRITICAL) + replayKey fix + packets gating at engine-resolve + authoritative year commit + mode-only attach + loopkiller+++++ + post-intro grace + idempotency + timeout + contract normalize + session safety + NYX STATE SPINE v1 (cold/warm/engaged forward-only, inactivity reset, merge-protected))";
 
 // =========================
 // Enterprise knobs
@@ -62,6 +44,11 @@ const MAX_META_STR = 220;
 const MAX_INBOUND_CHARS = 900; // safety: clamp inboundText to a sane size
 
 // =========================
+// Canonical Welcome (FIRST IMPRESSION LOCK)
+// =========================
+const CANON_WELCOME = "Hello, I’m Nyx. Welcome to Sandblast Channel. How can I help you today?";
+
+// =========================
 // Intro
 // =========================
 const INTRO_REARM_MS = 12 * 60 * 1000;
@@ -69,6 +56,7 @@ const POST_INTRO_GRACE_MS = 650;
 
 const INTRO_VARIANTS_BY_BUCKET = {
   general: [
+    CANON_WELCOME,
     "Hey — Nyx here. Glad you’re in.\n\nGive me a year (1950–2024) and I’ll take it from there. Try: “top 10 1988” or “story moment 1977”.",
     "Hi. Come on in.\n\nPick a year (1950–2024) and tell me the vibe: Top 10, #1, story moment, or micro moment.",
     "Hey you. Nyx on.\n\nDrop a year (1950–2024). I’ll do charts, stories, and the little details that make it real.",
@@ -250,36 +238,6 @@ function shuffleInPlace(arr) {
   return arr;
 }
 
-// =========================
-// Boot intro source detection
-// =========================
-function isBootIntroSource(input) {
-  try {
-    const src =
-      safeStr(input && input.client && (input.client.source || input.client.src || "")).trim() ||
-      safeStr(input && input.source).trim();
-    const tt = normText(src);
-    return (
-      tt.includes("panel_open_intro") ||
-      tt.includes("panel-open-intro") ||
-      tt.includes("boot_intro") ||
-      tt.includes("boot-intro")
-    );
-  } catch (_) {
-    return false;
-  }
-}
-function isEmptyOrNoText(t) {
-  return !safeStr(t).trim();
-}
-/**
- * CRITICAL: treat boot-intro as a PING ONLY.
- * If the client mis-tags real user turns with boot_intro/panel_open_intro, we must NOT suppress processing.
- */
-function isBootIntroPing(input, inboundText) {
-  return isBootIntroSource(input) && isEmptyOrNoText(inboundText);
-}
-
 // ============================
 // NYX STATE SPINE v1 (COLD/WARM/ENGAGED) — PURE + FORWARD-ONLY
 // Bound to session.cog.state
@@ -303,20 +261,22 @@ function nyxAdvanceState(current, next) {
   const ni = nyxStateIndex(n);
   return NYX_STATE_ORDER[Math.max(ci, ni)];
 }
-function nyxShouldIgnoreTurn(input, inboundText) {
-  // Treat boot-intro / panel-open pings as non-turns — PING ONLY (empty inbound)
-  if (isBootIntroPing(input, inboundText)) return true;
-
+function nyxShouldIgnoreTurn(input) {
+  // Treat boot-intro / panel-open pings as non-turns
   const t = String((input && (input.turnType || input.type || input.event)) || "").toLowerCase();
   const rh = String((input && (input.routeHint || input.hint)) || "").toLowerCase();
-
-  if ((t.includes("boot") || t.includes("intro") || t.includes("panel_open")) && isEmptyOrNoText(inboundText)) return true;
-  if ((rh.includes("boot") || rh.includes("intro") || rh.includes("panel_open")) && isEmptyOrNoText(inboundText)) return true;
-
+  if (t.includes("boot") || t.includes("intro") || t.includes("panel_open")) return true;
+  if (rh.includes("boot") || rh.includes("intro") || rh.includes("panel_open")) return true;
+  // Also treat explicit boot intro sources as non-turns (even if other fields are missing)
+  try {
+    if (isBootIntroSource(input)) return true;
+  } catch (_) {
+    // ignore
+  }
   return false;
 }
 function nyxIsMeaningfulTurn(inboundText, input) {
-  if (nyxShouldIgnoreTurn(input, inboundText)) return false;
+  if (nyxShouldIgnoreTurn(input)) return false;
 
   const text = String(inboundText || "").trim();
   if (text) return true;
@@ -351,17 +311,22 @@ function nyxResolveState(session, inboundText, input, now) {
   const INACTIVITY_RESET_MS = 1000 * 60 * 45; // 45 minutes
   const meaningful = nyxIsMeaningfulTurn(inboundText, input);
 
-  // Always bump lastSeen for ignored turns so session doesn't "time travel"
-  if (nyxShouldIgnoreTurn(input, inboundText)) {
+  // Always bump lastSeen (even for ignored turns) so the session doesn't "time travel"
+  if (nyxShouldIgnoreTurn(input)) {
     return { state: prev, lastSeenAt: ts, progressed: false, reset: false, meaningful: false };
   }
 
   const inactiveTooLong = lastSeen > 0 && ts - lastSeen > INACTIVITY_RESET_MS;
 
+  // If inactivity reset triggers and this is meaningful, restart at cold (new arrival)
   if (inactiveTooLong && meaningful) {
     return { state: NYX_STATE.COLD, lastSeenAt: ts, progressed: true, reset: true, meaningful: true };
   }
 
+  // Normal progression (forward-only):
+  // - first meaningful: cold -> warm
+  // - subsequent meaningful: warm -> engaged
+  // - engaged sticky
   let next = prev;
   if (meaningful) {
     if (nyxStateIndex(prev) <= nyxStateIndex(NYX_STATE.COLD)) next = NYX_STATE.WARM;
@@ -562,6 +527,9 @@ function isGreetingOnly(t) {
     safeStr(t).trim()
   );
 }
+function isEmptyOrNoText(t) {
+  return !safeStr(t).trim();
+}
 
 // =========================
 // Inbound extraction
@@ -580,6 +548,26 @@ function extractInboundTextFromInput(input) {
     safeStr(input && input.followUp && input.followUp.payload && input.followUp.payload.text).trim();
 
   return clampInboundText(evt || "");
+}
+
+// =========================
+// Boot intro pings
+// =========================
+function isBootIntroSource(input) {
+  try {
+    const src =
+      safeStr(input && input.client && (input.client.source || input.client.src || "")).trim() ||
+      safeStr(input && input.source).trim();
+    const tt = normText(src);
+    return (
+      tt.includes("panel_open_intro") ||
+      tt.includes("panel-open-intro") ||
+      tt.includes("boot_intro") ||
+      tt.includes("boot-intro")
+    );
+  } catch (_) {
+    return false;
+  }
 }
 
 // =========================
@@ -624,8 +612,6 @@ function normalizeInboundText(text, session, routeHint) {
 
 // =========================
 // CRITICAL: Payload/Ctx intent hydration when inboundText empty
-// - Fixes chip-click stalls where payload carries intent but text is empty.
-// - NEVER hydrates on boot-intro PINGS.
 // =========================
 function mapModeTokenToText(modeToken) {
   const m = normText(modeToken || "");
@@ -643,9 +629,9 @@ function mapModeTokenToText(modeToken) {
   return null;
 }
 
-function hydrateEmptyInboundFromIntent(input, session, resolvedYearMaybe, source, inboundText) {
+function hydrateEmptyInboundFromIntent(input, session, resolvedYearMaybe, source) {
   try {
-    if (isBootIntroPing({ ...input, source }, inboundText)) return "";
+    if (isBootIntroSource({ ...input, source })) return "";
 
     const payload = isPlainObject(input && input.payload) ? input.payload : null;
     const ctx = isPlainObject(input && input.ctx) ? input.ctx : null;
@@ -710,7 +696,7 @@ function shouldServeIntroLoginMoment(session, inboundText, startedAt, input) {
 
   const empty = isEmptyOrNoText(inboundText);
   if (empty) {
-    if (!isBootIntroPing(input, inboundText)) return false;
+    if (!isBootIntroSource(input)) return false;
     if (!isLoginMoment(session, startedAt)) return false;
     const introAt = safeInt(session.introAt || 0, 0);
     if (introAt && startedAt - introAt < INTRO_REARM_MS) return false;
@@ -1191,7 +1177,7 @@ function fallbackCore({ text, session, resolvedYear }) {
   }
 
   if (!t || isGreetingOnly(text)) {
-    return { reply: INTRO_VARIANTS_BY_BUCKET.general[0], lane: "general", followUps: toFollowUps(CANON_INTRO_CHIPS) };
+    return { reply: CANON_WELCOME, lane: "general", followUps: toFollowUps(CANON_INTRO_CHIPS) };
   }
 
   return {
@@ -1257,11 +1243,10 @@ async function handleChat(input = {}) {
     safeStr((input && input.client && input.client.routeHint) || input.routeHint || session.lane || "general").trim() ||
     "general";
 
-  const bootPing0 = isBootIntroPing({ ...input, source }, inboundText);
-
   // RESET (GUARDED)
   if (inboundText === "__cmd:reset__") {
-    if (bootPing0) {
+    const bootish = isBootIntroSource({ ...input, source });
+    if (bootish) {
       inboundText = "";
     } else {
       hardResetSession(session, startedAt);
@@ -1272,7 +1257,8 @@ async function handleChat(input = {}) {
         { label: "Radio", send: "radio" },
       ];
 
-      const reply = "All reset. Where do you want to start?";
+      // ✅ Canonical welcome replaces reset copy
+      const reply = CANON_WELCOME;
 
       session.lane = "general";
       session.lastOut = reply;
@@ -1295,7 +1281,6 @@ async function handleChat(input = {}) {
         requestId,
         meta: {
           engine: CE_VERSION,
-          buildId: CE_BUILD_ID,
           reset: true,
           resetOption: "A",
           source: safeMetaStr(source),
@@ -1324,7 +1309,7 @@ async function handleChat(input = {}) {
     const cached0 = readReplay(session, rkey0, startedAt);
     if (cached0) {
       const inboundIsEmptyB = isEmptyOrNoText(inboundText);
-      const bootIntroEmptyB = isBootIntroPing({ ...input, source }, inboundText);
+      const bootIntroEmptyB = inboundIsEmptyB && isBootIntroSource({ ...input, source });
 
       const replyB = maybeApplyNyxGreetPrefix(session, inboundIsEmptyB, bootIntroEmptyB, cached0.reply);
 
@@ -1340,7 +1325,6 @@ async function handleChat(input = {}) {
         requestId,
         meta: {
           engine: CE_VERSION,
-          buildId: CE_BUILD_ID,
           replay: true,
           burst: true,
           source: safeMetaStr(source),
@@ -1364,8 +1348,8 @@ async function handleChat(input = {}) {
   }
 
   // CRITICAL HYDRATE: empty inbound + intent exists via payload/ctx
-  if (isEmptyOrNoText(inboundText) && !isBootIntroPing({ ...input, source }, inboundText)) {
-    const hydrated = hydrateEmptyInboundFromIntent(input, session, resolvedYear0, source, inboundText);
+  if (isEmptyOrNoText(inboundText) && !isBootIntroSource({ ...input, source })) {
+    const hydrated = hydrateEmptyInboundFromIntent(input, session, resolvedYear0, source);
     if (hydrated) {
       inboundText = normalizeInboundText(hydrated, session, routeHint);
       const stI = nyxResolveState(session, inboundText, { ...input, source, routeHint }, startedAt);
@@ -1377,7 +1361,7 @@ async function handleChat(input = {}) {
   if (resolvedYear0) commitYear(session, resolvedYear0, "resolved_inbound");
 
   const inboundIsEmpty = isEmptyOrNoText(inboundText);
-  const bootIntroEmpty = isBootIntroPing({ ...input, source }, inboundText);
+  const bootIntroEmpty = inboundIsEmpty && isBootIntroSource({ ...input, source });
 
   // Replay safety
   const rkey = replayKey(session, clientRequestId, inboundText, source);
@@ -1397,7 +1381,6 @@ async function handleChat(input = {}) {
       requestId,
       meta: {
         engine: CE_VERSION,
-        buildId: CE_BUILD_ID,
         replay: true,
         source: safeMetaStr(source),
         nyxState: safeMetaStr(session.cog.state),
@@ -1410,7 +1393,7 @@ async function handleChat(input = {}) {
   const introAt = safeInt(session.introAt || 0, 0);
   const justIntroed = !!introAt && startedAt - introAt < POST_INTRO_GRACE_MS;
   if (justIntroed && (inboundIsEmpty || isModeOnly(inboundText))) {
-    const reply0 = nonEmptyReply(session.lastOut, INTRO_VARIANTS_BY_BUCKET.general[0]);
+    const reply0 = nonEmptyReply(session.lastOut, CANON_WELCOME);
     session.lastOut = reply0;
     session.lastOutAt = startedAt;
     writeReplay(session, rkey, startedAt, reply0, "general", {
@@ -1429,7 +1412,6 @@ async function handleChat(input = {}) {
       requestId,
       meta: {
         engine: CE_VERSION,
-        buildId: CE_BUILD_ID,
         suppressed: "post_intro_grace",
         source: safeMetaStr(source),
         nyxState: safeMetaStr(session.cog.state),
@@ -1438,7 +1420,7 @@ async function handleChat(input = {}) {
     };
   }
 
-  // Boot intro suppression (PING ONLY)
+  // Boot intro suppression
   if (bootIntroEmpty) {
     const introAt2 = safeInt(session.introAt || 0, 0);
     if (introAt2 && startedAt - introAt2 < INTRO_REARM_MS) {
@@ -1461,7 +1443,6 @@ async function handleChat(input = {}) {
         requestId,
         meta: {
           engine: CE_VERSION,
-          buildId: CE_BUILD_ID,
           bootIntroSuppressed: true,
           source: safeMetaStr(source),
           nyxState: safeMetaStr(session.cog.state),
@@ -1486,7 +1467,6 @@ async function handleChat(input = {}) {
       requestId,
       meta: {
         engine: CE_VERSION,
-        buildId: CE_BUILD_ID,
         ignoredEmpty: true,
         source: safeMetaStr(source),
         nyxState: safeMetaStr(session.cog.state),
@@ -1553,10 +1533,57 @@ async function handleChat(input = {}) {
     !ov.forced &&
     !forceMusicYear &&
     shouldServeIntroLoginMoment(session, inboundText, startedAt, { ...input, source });
+
   if (doIntro) {
     session.__introDone = 1;
     session.introDone = true;
     session.introAt = startedAt;
+
+    const isFirstEver = !session.__hasRealUserTurn && !safeInt(session.introVariantId || 0, 0) && !safeInt(session.introAt || 0, 0);
+    const fromBootPing = isBootIntroSource({ ...input, source });
+
+    // ✅ FIRST BOOT INTRO = canonical welcome (no shuffle-bag randomness for first impression)
+    if (fromBootPing && (!session.__hasRealUserTurn || isFirstEver)) {
+      session.lastLane = safeStr(session.lane || "");
+      session.lane = "general";
+
+      session.introBucket = "general";
+      session.introVariantId = 0;
+
+      const introLine = CANON_WELCOME;
+      session.lastOut = introLine;
+      session.lastOutAt = startedAt;
+
+      session.allowPackets = false;
+
+      const fu = toFollowUps(CANON_INTRO_CHIPS);
+      const fus = toFollowUpsStrings(CANON_INTRO_CHIPS);
+
+      writeReplay(session, rkey, startedAt, introLine, "general", {
+        rawReply: introLine,
+        followUps: fu,
+        followUpsStrings: fus,
+      });
+
+      return {
+        ok: true,
+        reply: introLine,
+        lane: "general",
+        followUps: fu,
+        followUpsStrings: fus,
+        sessionPatch: buildSessionPatch(session),
+        cog: { phase: "listening", state: "confident", reason: "intro_login_moment_canon", lane: "general" },
+        requestId,
+        meta: {
+          engine: CE_VERSION,
+          intro: true,
+          introBucket: "general",
+          introCanon: true,
+          source: safeMetaStr(source),
+          nyxState: safeMetaStr(session.cog.state),
+        },
+      };
+    }
 
     const bucketKey = pickIntroBucket(session, inboundText, routeHint, { ...input, source });
 
@@ -1565,7 +1592,7 @@ async function handleChat(input = {}) {
 
     const pick = pickIntroForLogin(session, startedAt, bucketKey);
 
-    const introLine = nonEmptyReply(pick.text, INTRO_VARIANTS_BY_BUCKET.general[0]);
+    const introLine = nonEmptyReply(pick.text, CANON_WELCOME);
 
     session.lastOut = introLine;
     session.lastOutAt = startedAt;
@@ -1592,7 +1619,6 @@ async function handleChat(input = {}) {
       requestId,
       meta: {
         engine: CE_VERSION,
-        buildId: CE_BUILD_ID,
         intro: true,
         introBucket: safeMetaStr(bucketKey),
         source: safeMetaStr(source),
@@ -1752,7 +1778,6 @@ async function handleChat(input = {}) {
     requestId,
     meta: {
       engine: CE_VERSION,
-      buildId: CE_BUILD_ID,
       source: safeMetaStr(source),
       routeHint: safeMetaStr(routeHint),
       inboundNormalized,
