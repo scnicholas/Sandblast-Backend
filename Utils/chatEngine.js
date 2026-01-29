@@ -20,6 +20,10 @@
  *  ✅ NEW (CRITICAL UX): Canonical welcome line enforced for FIRST boot intro + reset:
  *      "Hello, I’m Nyx. Welcome to Sandblast Channel. How can I help you today?"
  *      - Prevents “reset complete…” / “all reset…” becoming the first impression
+ *  ✅ NEW (CRITICAL UX): Reset now ADVANCES (no dead-end):
+ *      - Commits lane/mode anchors after hard reset
+ *      - Emits high-signal follow-ups (General/Music/Roku/Schedule/Radio + year paths)
+ *      - Adds reset sequence to replay keys to prevent replay/dedupe “stickiness”
  *  ✅ Keeps: Empty-text chip intent hydration, replay safety, intro shuffle-bag, packets gating, loopkiller, state spine
  */
 
@@ -29,7 +33,7 @@ const crypto = require("crypto");
 // Version
 // =========================
 const CE_VERSION =
-  "chatEngine v0.7aC (enterprise hardened+++ + canonical welcome on first boot + canonical welcome on reset + OPTION A random greeting prefix per real interaction + replay-safe dynamic prefix + reset-guard for boot-intro + preserves intro/login shuffle-bag + velvet gate + replay payload capture + inbound clamp + burst dedupe + lane drift guard + payload-year hydration + payload/ctx intent hydration (CRITICAL) + replayKey fix + packets gating at engine-resolve + authoritative year commit + mode-only attach + loopkiller+++++ + post-intro grace + idempotency + timeout + contract normalize + session safety + NYX STATE SPINE v1 (cold/warm/engaged forward-only, inactivity reset, merge-protected))";
+  "chatEngine v0.7aC (enterprise hardened+++ + canonical welcome on first boot + canonical welcome on reset + reset advances (anchors + strong followUps) + replayKey includes resetSeq (prevents sticky replays) + OPTION A random greeting prefix per real interaction + replay-safe dynamic prefix + reset-guard for boot-intro + preserves intro/login shuffle-bag + velvet gate + replay payload capture + inbound clamp + burst dedupe + lane drift guard + payload-year hydration + payload/ctx intent hydration (CRITICAL) + replayKey fix + packets gating at engine-resolve + authoritative year commit + mode-only attach + loopkiller+++++ + post-intro grace + idempotency + timeout + contract normalize + session safety + NYX STATE SPINE v1 (cold/warm/engaged forward-only, inactivity reset, merge-protected))";
 
 // =========================
 // Enterprise knobs
@@ -1030,10 +1034,14 @@ function normalizeDirectives(directives) {
 // =========================
 function replayKey(session, clientRequestId, inboundText, source) {
   const rid = safeStr(clientRequestId).trim();
+  const resetSeq = safeInt(session && session.cog && session.cog.__nyxResetSeq, 0);
+
   const sig = sha1(
-    `${safeStr(session.sessionId || session.visitorId || "")}|${safeStr(source)}|${safeStr(inboundText)}`
+    `${safeStr(session.sessionId || session.visitorId || "")}|${safeStr(source)}|${safeStr(inboundText)}|rseq:${resetSeq}`
   ).slice(0, 12);
-  return rid ? `rid:${rid}` : `sig:${sig}`;
+
+  // IMPORTANT: include resetSeq even when client provides rid, to avoid “sticky replay” across resets
+  return rid ? `rid:${rid}:r${resetSeq}` : `sig:${sig}`;
 }
 function readReplay(session, key, now) {
   const lastKey = safeStr(session.__ce_lastReqId || "");
@@ -1079,8 +1087,15 @@ function writeReplay(session, key, now, reply, lane, extras) {
 // Hard reset
 // =========================
 function hardResetSession(session, startedAt) {
-  const keep = { visitorId: safeStr(session.visitorId || ""), sessionId: safeStr(session.sessionId || "") };
+  // Preserve stable identity + reset sequencing across hard resets
+  const keep = {
+    visitorId: safeStr(session.visitorId || ""),
+    sessionId: safeStr(session.sessionId || ""),
+    __nyxResetSeq: safeInt(session && session.cog && session.cog.__nyxResetSeq, 0),
+  };
+
   for (const k of Object.keys(session)) delete session[k];
+
   if (keep.visitorId) session.visitorId = keep.visitorId;
   if (keep.sessionId) session.sessionId = keep.sessionId;
 
@@ -1120,6 +1135,9 @@ function hardResetSession(session, startedAt) {
   session.cog = {};
   session.cog.state = NYX_STATE.COLD;
   session.cog.__nyxLastSeenAt = startedAt;
+
+  // Restore reset sequence so each reset produces a new replayKey domain
+  session.cog.__nyxResetSeq = keep.__nyxResetSeq;
 
   session.__nyxVelvet = false;
 
@@ -1231,6 +1249,7 @@ async function handleChat(input = {}) {
 
   if (!sanitizeNyxState(session.cog.state)) session.cog.state = NYX_STATE.COLD;
   if (!Number.isFinite(Number(session.cog.__nyxLastSeenAt))) session.cog.__nyxLastSeenAt = startedAt;
+  if (!Number.isFinite(Number(session.cog.__nyxResetSeq))) session.cog.__nyxResetSeq = 0;
 
   let inboundText = extractInboundTextFromInput(input);
 
@@ -1243,28 +1262,49 @@ async function handleChat(input = {}) {
     safeStr((input && input.client && input.client.routeHint) || input.routeHint || session.lane || "general").trim() ||
     "general";
 
-  // RESET (GUARDED)
+  // RESET (GUARDED + ADVANCING)
   if (inboundText === "__cmd:reset__") {
     const bootish = isBootIntroSource({ ...input, source });
     if (bootish) {
       inboundText = "";
     } else {
+      // preserve prior seq then hard reset
+      const prevSeq = safeInt(session && session.cog && session.cog.__nyxResetSeq, 0);
       hardResetSession(session, startedAt);
 
-      const RESET_FOLLOWUPS = [
-        { label: "Pick a year", send: "1988" },
-        { label: "Music", send: "music" },
-        { label: "Radio", send: "radio" },
-      ];
-
-      // ✅ Canonical welcome replaces reset copy
-      const reply = CANON_WELCOME;
+      // ✅ Advance: commit a deterministic landing mode/lane + post-reset anchors
+      session.cog = isPlainObject(session.cog) ? session.cog : {};
+      session.cog.__nyxResetSeq = safeInt(prevSeq, 0) + 1;
+      session.cog.__nyxPostReset = true;
+      session.cog.__nyxJustResetAt = startedAt;
 
       session.lane = "general";
+      session.cog.lane = "general";
+      session.cog.mode = "general";
+      session.cog.lastLane = "general";
+      session.cog.lastMode = "general";
+
+      const RESET_FOLLOWUPS = [
+        { label: "General", send: "general" },
+        { label: "Music", send: "music" },
+        { label: "Roku", send: "roku" },
+        { label: "Schedule", send: "schedule" },
+        { label: "Radio", send: "radio" },
+        { label: "Pick a year", send: "1988" },
+        { label: "Story moment", send: "story moment 1988" },
+        { label: "Just talk", send: "just talk" },
+      ];
+
+      // ✅ Canonical welcome replaces any reset copy (first-impression lock)
+      const reply = CANON_WELCOME;
+
       session.lastOut = reply;
       session.lastOutAt = startedAt;
 
-      writeReplay(session, replayKey(session, clientRequestId, inboundText, source), startedAt, reply, "general", {
+      // IMPORTANT: replay key now includes resetSeq, so reset can't “stick” to subsequent turns
+      const rk = replayKey(session, clientRequestId, inboundText, source);
+
+      writeReplay(session, rk, startedAt, reply, "general", {
         rawReply: reply,
         followUps: toFollowUps(RESET_FOLLOWUPS),
         followUpsStrings: toFollowUpsStrings(RESET_FOLLOWUPS),
@@ -1282,7 +1322,8 @@ async function handleChat(input = {}) {
         meta: {
           engine: CE_VERSION,
           reset: true,
-          resetOption: "A",
+          resetAdvanced: true,
+          resetSeq: session.cog.__nyxResetSeq,
           source: safeMetaStr(source),
           nyxState: safeMetaStr(session.cog.state),
           elapsedMs: nowMs() - startedAt,
@@ -1539,7 +1580,10 @@ async function handleChat(input = {}) {
     session.introDone = true;
     session.introAt = startedAt;
 
-    const isFirstEver = !session.__hasRealUserTurn && !safeInt(session.introVariantId || 0, 0) && !safeInt(session.introAt || 0, 0);
+    const isFirstEver =
+      !session.__hasRealUserTurn &&
+      !safeInt(session.introVariantId || 0, 0) &&
+      !safeInt(session.introAt || 0, 0);
     const fromBootPing = isBootIntroSource({ ...input, source });
 
     // ✅ FIRST BOOT INTRO = canonical welcome (no shuffle-bag randomness for first impression)
