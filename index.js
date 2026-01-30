@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18ab (SURGICAL LOOP FIXES++ + replayKey hardening + boot replay isolation + output hardening)
+ * index.js v1.5.18ac (KNOWLEDGE BRIDGE + SURGICAL LOOP FIXES++ + replayKey hardening + boot replay isolation + output hardening)
  * (Option B alignment: chatEngine v0.6zV+ / v0.7a* compatibility + enterprise guards + /api/health alias + REAL ElevenLabs TTS)
  *
  * Goals:
@@ -27,6 +27,14 @@
  *  ✅ HARDEN: engine output normalization (string / null / malformed outputs won’t crash route)
  *  ✅ HARDEN: sessionPatch.cog merges (won’t wipe existing cog keys)
  *
+ *  ✅ NEW (CRITICAL): Knowledge Bridge — load JSON + script exports from backend folders into a stable in-memory store
+ *      - Loads Data/**/*.json (and optional Scripts/**/*.js exports) at boot
+ *      - Survives partial failures (bad JSON won’t crash server)
+ *      - Provides /api/debug/knowledge to verify what’s loaded in prod (Render)
+ *      - Injects knowledge snapshot into engineInput as:
+ *          engineInput.knowledge = { json, scripts, meta }
+ *          engineInput.__knowledgeStatus = { ok, errors, loadedAt }
+ *
  * NOTE:
  *  - Expects ./Utils/chatEngine.js to export handleChat (or be a function)
  *  - Full-file deliverable (drop-in)
@@ -37,6 +45,8 @@
 // =========================
 const express = require("express");
 const crypto = require("crypto");
+const fs = require("fs");
+const path = require("path");
 
 // Optional safe require
 function safeRequire(p) {
@@ -62,7 +72,7 @@ const fetchFn =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18ab (enterprise hardened: CORS hard-lock + stabilized preflight + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY bypass + requestId always-on + REAL ElevenLabs TTS + chatEngine v0.6zV+/v0.7a* compatibility; CORS headers: x-sbnyx-client-build + x-contract-version; engine fingerprint startup log + meta; CRITICAL: empty-text chip intent counted for replay/throttle keys; CRITICAL: reset is silent (no reset bubble); LOOP FIX: boot-intro dedupe fuse; LOOP FIX: suppress followUpsStrings when followUps objects exist; LOOP FIX: replayKey includes inboundSig hash even when clientRequestId exists; LOOP FIX: boot turns do not overwrite main replay cache; HARDEN: node-fetch default export resolver; HARDEN: engine output normalization; HARDEN: sessionPatch.cog merge)";
+  "index.js v1.5.18ac (knowledge bridge boot-loader + CORS hard-lock + stabilized preflight + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY bypass + requestId always-on + REAL ElevenLabs TTS + chatEngine v0.6zV+/v0.7a* compatibility; CORS headers: x-sbnyx-client-build + x-contract-version; engine fingerprint startup log + meta; CRITICAL: empty-text chip intent counted for replay/throttle keys; CRITICAL: reset is silent (no reset bubble); LOOP FIX: boot-intro dedupe fuse; LOOP FIX: suppress followUpsStrings when followUps objects exist; LOOP FIX: replayKey includes inboundSig hash even when clientRequestId exists; LOOP FIX: boot turns do not overwrite main replay cache; HARDEN: node-fetch default export resolver; HARDEN: engine output normalization; HARDEN: sessionPatch.cog merge; NEW: Data/Scripts in-memory knowledge bridge + /api/debug/knowledge + engineInput.knowledge)";
 
 // =========================
 // Env / knobs
@@ -71,6 +81,22 @@ const PORT = Number(process.env.PORT || 10000);
 const NODE_ENV = String(process.env.NODE_ENV || "production").trim();
 const TRUST_PROXY = String(process.env.TRUST_PROXY || "").trim();
 const MAX_JSON_BODY = String(process.env.MAX_JSON_BODY || "512kb");
+
+// --- Knowledge Bridge knobs ---
+const KNOWLEDGE_AUTOLOAD = toBool(process.env.KNOWLEDGE_AUTOLOAD, true);
+const KNOWLEDGE_ENABLE_SCRIPTS = toBool(process.env.KNOWLEDGE_ENABLE_SCRIPTS, true);
+const KNOWLEDGE_RELOAD_INTERVAL_MS = clampInt(process.env.KNOWLEDGE_RELOAD_INTERVAL_MS, 0, 0, 24 * 60 * 60 * 1000); // 0 = off
+const KNOWLEDGE_MAX_FILES = clampInt(process.env.KNOWLEDGE_MAX_FILES, 2500, 200, 20000);
+const KNOWLEDGE_MAX_FILE_BYTES = clampInt(process.env.KNOWLEDGE_MAX_FILE_BYTES, 2_500_000, 50_000, 20_000_000); // per file
+const KNOWLEDGE_MAX_TOTAL_BYTES = clampInt(process.env.KNOWLEDGE_MAX_TOTAL_BYTES, 40_000_000, 1_000_000, 250_000_000); // total
+const KNOWLEDGE_DEBUG_ENDPOINT = toBool(process.env.KNOWLEDGE_DEBUG_ENDPOINT, true);
+
+// Root resolution: in Render, __dirname is safest for relative package files.
+const APP_ROOT = path.resolve(__dirname);
+
+// Directories can be overridden; defaults are ./Data and ./Scripts relative to index.js
+const DATA_DIR = path.resolve(APP_ROOT, String(process.env.DATA_DIR || "Data").trim());
+const SCRIPTS_DIR = path.resolve(APP_ROOT, String(process.env.SCRIPTS_DIR || "Scripts").trim());
 
 // CORS
 const ORIGINS_ALLOWLIST = String(
@@ -338,6 +364,281 @@ function normalizeEngineOutput(out) {
 }
 
 // =========================
+// Knowledge Bridge (Data + Scripts) — in-memory store
+// =========================
+const KNOWLEDGE = {
+  ok: false,
+  loadedAt: 0,
+  filesScanned: 0,
+  filesLoaded: 0,
+  totalBytes: 0,
+  json: {}, // key -> parsed json
+  scripts: {}, // key -> export snapshot (safe)
+  errors: [], // [{type, file, msg}]
+};
+
+function pushKnowledgeError(type, file, msg) {
+  const e = { type: safeStr(type), file: safeStr(file), msg: safeStr(msg).slice(0, 300) };
+  KNOWLEDGE.errors.push(e);
+  if (KNOWLEDGE.errors.length > 50) KNOWLEDGE.errors.shift();
+}
+
+function fileExists(p) {
+  try {
+    return fs.existsSync(p);
+  } catch (_) {
+    return false;
+  }
+}
+
+function isWithinRoot(p, root) {
+  try {
+    const rp = path.resolve(p);
+    const rr = path.resolve(root);
+    return rp === rr || rp.startsWith(rr + path.sep);
+  } catch (_) {
+    return false;
+  }
+}
+
+function safeReadFileBytes(fp) {
+  try {
+    const st = fs.statSync(fp);
+    const size = Number(st.size || 0);
+    if (!Number.isFinite(size) || size <= 0) return { ok: false, size: 0, buf: null, reason: "empty_or_unknown" };
+    if (size > KNOWLEDGE_MAX_FILE_BYTES) return { ok: false, size, buf: null, reason: "file_too_large" };
+    return { ok: true, size, buf: fs.readFileSync(fp) };
+  } catch (e) {
+    return { ok: false, size: 0, buf: null, reason: safeStr(e?.message || e) };
+  }
+}
+
+function walkFiles(dirAbs, exts, outArr, limit) {
+  if (!dirAbs || !fileExists(dirAbs)) return;
+  let stack = [dirAbs];
+  while (stack.length) {
+    const d = stack.pop();
+    let entries = [];
+    try {
+      entries = fs.readdirSync(d, { withFileTypes: true });
+    } catch (e) {
+      pushKnowledgeError("readdir", d, e?.message || e);
+      continue;
+    }
+    for (const ent of entries) {
+      if (outArr.length >= limit) return;
+      const fp = path.join(d, ent.name);
+      if (ent.isDirectory()) {
+        // Avoid node_modules recursion if someone misconfigures DATA_DIR
+        if (ent.name === "node_modules" || ent.name === ".git") continue;
+        stack.push(fp);
+      } else if (ent.isFile()) {
+        const ext = path.extname(ent.name).toLowerCase();
+        if (exts.includes(ext)) outArr.push(fp);
+      }
+    }
+  }
+}
+
+function fileKeyFromPath(rootAbs, fp) {
+  // key: relative path w/o extension, normalized to forward slashes
+  const rel = path.relative(rootAbs, fp).replace(/\\/g, "/");
+  const noExt = rel.replace(/\.[^/.]+$/, "");
+  // sanitize: avoid weird keys
+  return noExt.replace(/[^a-zA-Z0-9/_\-\.]/g, "_");
+}
+
+function sanitizeScriptExport(x) {
+  // Keep exports small + JSON-safe. If export is a function, keep a tag only.
+  if (x === null || x === undefined) return null;
+  if (typeof x === "function") return { __type: "function", name: safeStr(x.name || "anonymous") };
+  if (typeof x === "string") return x.slice(0, 4000);
+  if (typeof x === "number" || typeof x === "boolean") return x;
+  if (Array.isArray(x)) {
+    // shallow cap
+    return x.slice(0, 200).map((v) => sanitizeScriptExport(v));
+  }
+  if (isPlainObject(x)) {
+    const out = {};
+    const keys = Object.keys(x).slice(0, 200);
+    for (const k of keys) {
+      if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
+      out[k] = sanitizeScriptExport(x[k]);
+    }
+    return out;
+  }
+  // other object types: stringify tag
+  return { __type: typeof x };
+}
+
+function reloadKnowledge() {
+  const started = nowMs();
+
+  // Reset snapshot (but keep last errors until we repopulate)
+  KNOWLEDGE.ok = false;
+  KNOWLEDGE.loadedAt = started;
+  KNOWLEDGE.filesScanned = 0;
+  KNOWLEDGE.filesLoaded = 0;
+  KNOWLEDGE.totalBytes = 0;
+  KNOWLEDGE.json = {};
+  KNOWLEDGE.scripts = {};
+  KNOWLEDGE.errors = [];
+
+  // Sanity: keep loading constrained to our configured folders
+  const dataOk = fileExists(DATA_DIR) && isWithinRoot(DATA_DIR, APP_ROOT);
+  const scriptsOk = fileExists(SCRIPTS_DIR) && isWithinRoot(SCRIPTS_DIR, APP_ROOT);
+
+  if (!dataOk) pushKnowledgeError("dir", DATA_DIR, "DATA_DIR missing or outside APP_ROOT");
+  if (!scriptsOk && KNOWLEDGE_ENABLE_SCRIPTS) pushKnowledgeError("dir", SCRIPTS_DIR, "SCRIPTS_DIR missing or outside APP_ROOT");
+
+  // Gather files
+  const jsonFiles = [];
+  if (dataOk) walkFiles(DATA_DIR, [".json"], jsonFiles, KNOWLEDGE_MAX_FILES);
+
+  const jsFiles = [];
+  if (scriptsOk && KNOWLEDGE_ENABLE_SCRIPTS) walkFiles(SCRIPTS_DIR, [".js", ".cjs", ".mjs"], jsFiles, Math.min(KNOWLEDGE_MAX_FILES, 1000));
+
+  KNOWLEDGE.filesScanned = jsonFiles.length + jsFiles.length;
+
+  // Load JSON
+  let totalBytes = 0;
+  for (const fp of jsonFiles) {
+    if (KNOWLEDGE.filesLoaded >= KNOWLEDGE_MAX_FILES) break;
+
+    const r = safeReadFileBytes(fp);
+    if (!r.ok) {
+      pushKnowledgeError("json_read", fp, r.reason || "read_failed");
+      continue;
+    }
+
+    totalBytes += r.size;
+    if (totalBytes > KNOWLEDGE_MAX_TOTAL_BYTES) {
+      pushKnowledgeError("budget", fp, "total bytes budget exceeded; stopping load");
+      break;
+    }
+
+    const s = r.buf.toString("utf8");
+    let parsed = null;
+    try {
+      parsed = JSON.parse(s);
+    } catch (e) {
+      pushKnowledgeError("json_parse", fp, e?.message || e);
+      continue;
+    }
+
+    const key = fileKeyFromPath(DATA_DIR, fp);
+    KNOWLEDGE.json[key] = parsed;
+    KNOWLEDGE.filesLoaded += 1;
+    KNOWLEDGE.totalBytes = totalBytes;
+  }
+
+  // Load Scripts exports (optional)
+  if (scriptsOk && KNOWLEDGE_ENABLE_SCRIPTS) {
+    for (const fp of jsFiles) {
+      if (KNOWLEDGE.filesLoaded >= KNOWLEDGE_MAX_FILES) break;
+
+      // Avoid accidentally requiring heavy build scripts if you keep them in Scripts/
+      // Only load exports; do NOT execute scripts intended as CLIs.
+      // Heuristic: skip files with "build_" or "migrate_" unless explicitly allowed.
+      const base = path.basename(fp).toLowerCase();
+      const allowBuildScripts = toBool(process.env.KNOWLEDGE_ALLOW_BUILD_SCRIPTS, false);
+      if (!allowBuildScripts && (base.startsWith("build_") || base.includes("migrate") || base.includes("seed_"))) {
+        continue;
+      }
+
+      let mod = null;
+      try {
+        // eslint-disable-next-line import/no-dynamic-require, global-require
+        mod = require(fp);
+      } catch (e) {
+        pushKnowledgeError("script_require", fp, e?.message || e);
+        continue;
+      }
+
+      const key = fileKeyFromPath(SCRIPTS_DIR, fp);
+      KNOWLEDGE.scripts[key] = sanitizeScriptExport(mod);
+      KNOWLEDGE.filesLoaded += 1;
+    }
+  }
+
+  // Mark ok if we got anything meaningful
+  const jsonKeys = Object.keys(KNOWLEDGE.json).length;
+  const scriptKeys = Object.keys(KNOWLEDGE.scripts).length;
+  KNOWLEDGE.ok = jsonKeys + scriptKeys > 0;
+
+  // eslint-disable-next-line no-console
+  console.log(
+    `[Sandblast][Knowledge] loaded=${KNOWLEDGE.ok} jsonKeys=${jsonKeys} scriptKeys=${scriptKeys} filesLoaded=${KNOWLEDGE.filesLoaded} totalBytes=${KNOWLEDGE.totalBytes} errors=${KNOWLEDGE.errors.length} in ${nowMs() - started}ms (DATA_DIR=${DATA_DIR}, SCRIPTS_DIR=${SCRIPTS_DIR})`
+  );
+
+  return {
+    ok: KNOWLEDGE.ok,
+    loadedAt: KNOWLEDGE.loadedAt,
+    jsonKeys,
+    scriptKeys,
+    filesLoaded: KNOWLEDGE.filesLoaded,
+    totalBytes: KNOWLEDGE.totalBytes,
+    errorCount: KNOWLEDGE.errors.length,
+  };
+}
+
+function knowledgeSnapshotPublic() {
+  // Keep response small. For debugging, we provide counts + first-level keys.
+  const jsonKeys = Object.keys(KNOWLEDGE.json);
+  const scriptKeys = Object.keys(KNOWLEDGE.scripts);
+  return {
+    json: KNOWLEDGE.json,
+    scripts: KNOWLEDGE.scripts,
+    meta: {
+      ok: KNOWLEDGE.ok,
+      loadedAt: KNOWLEDGE.loadedAt,
+      dataDir: DATA_DIR,
+      scriptsDir: SCRIPTS_DIR,
+      jsonKeyCount: jsonKeys.length,
+      scriptKeyCount: scriptKeys.length,
+      filesScanned: KNOWLEDGE.filesScanned,
+      filesLoaded: KNOWLEDGE.filesLoaded,
+      totalBytes: KNOWLEDGE.totalBytes,
+      errorCount: KNOWLEDGE.errors.length,
+      errorsPreview: KNOWLEDGE.errors.slice(0, 5),
+    },
+  };
+}
+
+function knowledgeStatusForMeta() {
+  return {
+    ok: KNOWLEDGE.ok,
+    loadedAt: KNOWLEDGE.loadedAt,
+    errorCount: KNOWLEDGE.errors.length,
+    errorsPreview: KNOWLEDGE.errors.slice(0, 3),
+    jsonKeyCount: Object.keys(KNOWLEDGE.json).length,
+    scriptKeyCount: Object.keys(KNOWLEDGE.scripts).length,
+  };
+}
+
+// Boot-load knowledge once (sync) before routes begin accepting traffic
+if (KNOWLEDGE_AUTOLOAD) {
+  try {
+    reloadKnowledge();
+  } catch (e) {
+    pushKnowledgeError("boot_load", "reloadKnowledge()", e?.message || e);
+    // eslint-disable-next-line no-console
+    console.log(`[Sandblast][Knowledge] boot load failed: ${safeStr(e?.message || e).slice(0, 200)}`);
+  }
+}
+
+// Optional periodic reload (off by default)
+if (KNOWLEDGE_AUTOLOAD && KNOWLEDGE_RELOAD_INTERVAL_MS > 0) {
+  setInterval(() => {
+    try {
+      reloadKnowledge();
+    } catch (e) {
+      pushKnowledgeError("interval_load", "reloadKnowledge()", e?.message || e);
+    }
+  }, KNOWLEDGE_RELOAD_INTERVAL_MS).unref?.();
+}
+
+// =========================
 // Session store (in-memory)
 // =========================
 const SESSIONS = new Map(); // key -> { data, lastSeenAt, burst:[ts], sustained:[ts], boot:[ts] }
@@ -415,8 +716,6 @@ function checkSustained(rec, now) {
 }
 
 // Boot-intro fuse: throttle repeated boot pings without touching real user turns.
-// - If a boot ping repeats within BOOT_DEDUPE_MS, replay last boot output (or return 200 with empty if none).
-// - Also rate-limit boot pings within BOOT_MAX_WINDOW_MS to BOOT_MAX.
 function checkBootFuse(rec, now) {
   rec.boot = pushWindow(rec.boot, now, BOOT_MAX_WINDOW_MS);
   if (rec.boot.length > BOOT_MAX) return { blocked: true, reason: "boot_rate" };
@@ -578,6 +877,7 @@ app.get("/", (req, res) => {
     engine: ENGINE_VERSION || null,
     engineFrom: ENGINE.from,
     env: NODE_ENV,
+    knowledge: knowledgeStatusForMeta(),
   });
 });
 
@@ -589,6 +889,7 @@ app.get("/health", (req, res) => {
     engineFrom: ENGINE.from,
     up: true,
     now: new Date().toISOString(),
+    knowledge: knowledgeStatusForMeta(),
   });
 });
 
@@ -600,6 +901,7 @@ app.get("/api/health", (req, res) => {
     engineFrom: ENGINE.from,
     up: true,
     now: new Date().toISOString(),
+    knowledge: knowledgeStatusForMeta(),
   });
 });
 
@@ -609,9 +911,61 @@ app.get("/api/discovery", (req, res) => {
     version: INDEX_VERSION,
     engine: ENGINE_VERSION || null,
     engineFrom: ENGINE.from,
-    endpoints: ["/api/sandblast-gpt", "/api/nyx/chat", "/api/chat", "/api/tts", "/api/voice", "/health", "/api/health"],
+    endpoints: [
+      "/api/sandblast-gpt",
+      "/api/nyx/chat",
+      "/api/chat",
+      "/api/tts",
+      "/api/voice",
+      "/health",
+      "/api/health",
+      "/api/debug/knowledge",
+    ],
+    knowledge: knowledgeStatusForMeta(),
   });
 });
+
+// =========================
+// NEW: Debug knowledge endpoint (read-only)
+// =========================
+if (KNOWLEDGE_DEBUG_ENDPOINT) {
+  app.get("/api/debug/knowledge", (req, res) => {
+    // Optional minimal security: only allow in non-prod unless explicitly allowed
+    const allowInProd = toBool(process.env.KNOWLEDGE_DEBUG_ALLOW_PROD, false);
+    if (NODE_ENV === "production" && !allowInProd) {
+      return res.status(404).json({ ok: false, error: "not_found" });
+    }
+    return res.status(200).json({
+      ok: true,
+      version: INDEX_VERSION,
+      engine: ENGINE_VERSION || null,
+      knowledge: {
+        ok: KNOWLEDGE.ok,
+        loadedAt: KNOWLEDGE.loadedAt,
+        dataDir: DATA_DIR,
+        scriptsDir: SCRIPTS_DIR,
+        jsonKeyCount: Object.keys(KNOWLEDGE.json).length,
+        scriptKeyCount: Object.keys(KNOWLEDGE.scripts).length,
+        filesScanned: KNOWLEDGE.filesScanned,
+        filesLoaded: KNOWLEDGE.filesLoaded,
+        totalBytes: KNOWLEDGE.totalBytes,
+        errorCount: KNOWLEDGE.errors.length,
+        errorsPreview: KNOWLEDGE.errors.slice(0, 10),
+        jsonKeysPreview: Object.keys(KNOWLEDGE.json).slice(0, 50),
+        scriptKeysPreview: Object.keys(KNOWLEDGE.scripts).slice(0, 50),
+      },
+    });
+  });
+
+  app.post("/api/debug/knowledge/reload", (req, res) => {
+    const allowInProd = toBool(process.env.KNOWLEDGE_DEBUG_ALLOW_PROD, false);
+    if (NODE_ENV === "production" && !allowInProd) {
+      return res.status(404).json({ ok: false, error: "not_found" });
+    }
+    const summary = reloadKnowledge();
+    return res.status(200).json({ ok: true, summary, knowledge: knowledgeStatusForMeta() });
+  });
+}
 
 // =========================
 // Chat route (main)
@@ -660,6 +1014,7 @@ async function handleChatRoute(req, res) {
         meta: {
           index: INDEX_VERSION,
           engine: ENGINE_VERSION || null,
+          knowledge: knowledgeStatusForMeta(),
           bootLike: true,
           bootFuse: bf.reason,
           source,
@@ -689,6 +1044,7 @@ async function handleChatRoute(req, res) {
         meta: {
           index: INDEX_VERSION,
           engine: ENGINE_VERSION || null,
+          knowledge: knowledgeStatusForMeta(),
           throttled: burst.blocked ? "burst" : "sustained",
         },
       });
@@ -708,7 +1064,7 @@ async function handleChatRoute(req, res) {
         followUpsStrings: dedupe.followUpsStrings,
         sessionPatch: {},
         requestId: serverRequestId,
-        meta: { index: INDEX_VERSION, engine: ENGINE_VERSION || null, replay: true },
+        meta: { index: INDEX_VERSION, engine: ENGINE_VERSION || null, knowledge: knowledgeStatusForMeta(), replay: true },
       });
     }
   }
@@ -726,8 +1082,22 @@ async function handleChatRoute(req, res) {
         engine: "missing_or_invalid",
         engineFrom: ENGINE.from,
         engineVersion: ENGINE_VERSION || null,
+        knowledge: knowledgeStatusForMeta(),
       },
     });
+  }
+
+  // Ensure knowledge exists; if autoload failed, try one lazy reload (once per process boot)
+  if (KNOWLEDGE_AUTOLOAD && !KNOWLEDGE.ok) {
+    const tried = toBool(global.__SBNYX_KNOWLEDGE_LAZY_TRIED, false);
+    if (!tried) {
+      global.__SBNYX_KNOWLEDGE_LAZY_TRIED = true;
+      try {
+        reloadKnowledge();
+      } catch (e) {
+        pushKnowledgeError("lazy_reload", "reloadKnowledge()", e?.message || e);
+      }
+    }
   }
 
   const engineInput = {
@@ -743,6 +1113,11 @@ async function handleChatRoute(req, res) {
       routeHint,
     },
     session: rec.data,
+
+    // ✅ NEW: Knowledge Bridge injection
+    // chatEngine can consume engineInput.knowledge.json / .scripts
+    knowledge: knowledgeSnapshotPublic(),
+    __knowledgeStatus: knowledgeStatusForMeta(),
   };
 
   let out;
@@ -751,14 +1126,23 @@ async function handleChatRoute(req, res) {
     out = normalizeEngineOutput(out);
   } catch (e) {
     const msg = safeStr(e?.message || e).trim();
-    const reply = "I hit a snag, but I’m still here. Give me a year (1950–2024) and I’ll jump right in.";
+    // IMPORTANT: if knowledge is down, surface a distinct fallback (prevents “generic loop” confusion)
+    const k = knowledgeStatusForMeta();
+    const reply = k.ok
+      ? "I hit a snag, but I’m still here. Give me a year (1950–2024) and I’ll jump right in."
+      : "I’m online, but my knowledge packs didn’t load yet. Try again in a moment — or hit refresh — and I’ll reconnect.";
     writeReplay(rec, reply, rec.data.lane || "general");
     return res.status(500).json({
       ok: true,
       reply,
       lane: rec.data.lane || "general",
       requestId: serverRequestId,
-      meta: { index: INDEX_VERSION, engine: ENGINE_VERSION || null, error: safeStr(msg).slice(0, 200) },
+      meta: {
+        index: INDEX_VERSION,
+        engine: ENGINE_VERSION || null,
+        knowledge: k,
+        error: safeStr(msg).slice(0, 200),
+      },
     });
   }
 
@@ -814,6 +1198,7 @@ async function handleChatRoute(req, res) {
       index: INDEX_VERSION,
       engine: ENGINE_VERSION || null,
       engineFrom: ENGINE.from,
+      knowledge: knowledgeStatusForMeta(),
       elapsedMs: nowMs() - startedAt,
       source,
       routeHint,
@@ -1011,6 +1396,11 @@ app.listen(PORT, () => {
 
   // eslint-disable-next-line no-console
   console.log(`[Sandblast] Fetch: ${fetchFn ? "OK" : "MISSING"} (global.fetch=${!!global.fetch})`);
+
+  // eslint-disable-next-line no-console
+  console.log(
+    `[Sandblast] Knowledge: autoload=${KNOWLEDGE_AUTOLOAD} ok=${KNOWLEDGE.ok} jsonKeys=${Object.keys(KNOWLEDGE.json).length} scriptKeys=${Object.keys(KNOWLEDGE.scripts).length} errors=${KNOWLEDGE.errors.length} DATA_DIR=${DATA_DIR} SCRIPTS_DIR=${SCRIPTS_DIR}`
+  );
 });
 
 module.exports = { app, INDEX_VERSION };
