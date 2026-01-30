@@ -3,18 +3,25 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17zz (SURGICAL LOOP FIXES: DUP-SEND SUPPRESS + RID-IGNORING SIG DEDUPE)
+ * index.js v1.5.17zz (SURGICAL LOOP FIXES + fetch resolver hardening)
+ * (Option B alignment: chatEngine v0.6zV+ compatibility + enterprise guards + /api/health alias + REAL ElevenLabs TTS)
  *
- * What this fixes (the screenshot symptom):
- * - You’re seeing the same Nyx reply twice (“Got it — 1991… Want Top 10…”) because the widget/backend
- *   is effectively receiving the same user intent twice in rapid succession (double-submit / retry / race).
- *
- * Surgical server-side fixes:
- * ✅ DUP-SEND SUPPRESS: if an identical inbound signature arrives within a tiny window, return an EMPTY reply
- *    (widget should not render a bubble for empty reply — same as silent reset behavior).
- * ✅ SIG-BASED DEDUPE EVEN WHEN requestId CHANGES: if widget generates a new requestId on the retry,
- *    we still treat it as the same turn.
- * ✅ Preserve EVERYTHING else: CORS hard-lock, TTS, existing loop fuse, boot-intro fuse, sessionPatch allowlist, etc.
+ * Goals:
+ *  ✅ Preserve Voice/TTS stability (ElevenLabs) + /api/tts + /api/voice aliases
+ *  ✅ Preserve CORS HARD-LOCK + preflight reliability (stabilized)
+ *  ✅ Preserve turn dedupe + loop fuse (session + burst + sustained)
+ *  ✅ Preserve sessionPatch persistence (cog + continuity keys)
+ *  ✅ Preserve boot-intro bridge behavior (panel_open_intro / boot_intro)
+ *  ✅ Fix: boot-intro / empty-text requests bypass replay + throttles
+ *  ✅ Fix: add GET /api/health (widget expects it)
+ *  ✅ Fix: allow x-sbnyx-client-build + x-contract-version headers (CORS)  <-- REQUIRED
+ *  ✅ NEW: Engine fingerprint (CE_VERSION) printed on startup + exposed in meta
+ *  ✅ NEW: Accept chatEngine module that exports handleChat OR exports a function directly
+ *  ✅ NEW (CRITICAL): Empty-text chip clicks with payload/ctx intent are now treated as “meaningful” for replay/throttle keys
+ *  ✅ NEW (CRITICAL, SURGICAL): Reset is SILENT (no “All reset…” / “Reset complete…” bubble)
+ *  ✅ NEW (LOOP FIX): Boot-intro dedupe fuse (prevents rapid repeated boot-intro pings from re-running engine)
+ *  ✅ NEW (LOOP FIX, CRITICAL): followUpsStrings suppressed when followUps objects are present (prevents “echo” double-bubbles)
+ *  ✅ NEW (HARDEN): node-fetch resolver supports CJS + ESM default export (prevents fetchFn not-a-function)
  *
  * NOTE:
  *  - Expects ./Utils/chatEngine.js to export handleChat (or be a function)
@@ -39,13 +46,19 @@ function safeRequire(p) {
 
 // Engine + fetch
 const chatEngineMod = safeRequire("./Utils/chatEngine") || safeRequire("./Utils/chatEngine.js") || null;
-const fetchFn = global.fetch || safeRequire("node-fetch");
+
+// fetch resolver (Node 18+ has global.fetch; node-fetch may be CJS fn OR {default: fn})
+const nodeFetchMod = global.fetch ? null : safeRequire("node-fetch");
+const fetchFn =
+  global.fetch ||
+  (typeof nodeFetchMod === "function" ? nodeFetchMod : null) ||
+  (nodeFetchMod && typeof nodeFetchMod.default === "function" ? nodeFetchMod.default : null);
 
 // =========================
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.17zz (enterprise hardened: CORS hard-lock + stabilized preflight + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + requestId always-on + REAL ElevenLabs TTS + chatEngine v0.6zV+ compatibility; CORS headers: x-sbnyx-client-build + x-contract-version; engine fingerprint startup log + meta; CRITICAL: empty-text chip intent counted for replay/throttle keys; CRITICAL: reset is silent; LOOP FIX: boot-intro dedupe fuse; LOOP FIX: suppress followUpsStrings when followUps objects exist; LOOP FIX: duplicate-submit suppress + signature dedupe even if requestId changes)";
+  "index.js v1.5.17zz (enterprise hardened: CORS hard-lock + stabilized preflight + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY bypass + requestId always-on + REAL ElevenLabs TTS + chatEngine v0.6zV+ compatibility; CORS headers: x-sbnyx-client-build + x-contract-version; engine fingerprint startup log + meta; CRITICAL: empty-text chip intent counted for replay/throttle keys; CRITICAL: reset is silent (no reset bubble); LOOP FIX: boot-intro dedupe fuse; LOOP FIX: suppress followUpsStrings when followUps objects exist; HARDEN: node-fetch default export resolver)";
 
 // =========================
 // Env / knobs
@@ -73,10 +86,6 @@ const BURST_WINDOW_MS = clampInt(process.env.BURST_WINDOW_MS, 1200, 200, 5000);
 const BURST_MAX = clampInt(process.env.BURST_MAX, 6, 2, 30);
 const SUSTAINED_WINDOW_MS = clampInt(process.env.SUSTAINED_WINDOW_MS, 12000, 2000, 60000);
 const SUSTAINED_MAX = clampInt(process.env.SUSTAINED_MAX, 18, 6, 120);
-
-// NEW: duplicate-submit suppress window (tiny, surgical)
-// If same inbound signature arrives within this window, return empty reply (no bubble).
-const DUP_SUPPRESS_MS = clampInt(process.env.DUP_SUPPRESS_MS, 650, 150, 2500);
 
 // Boot-intro dedupe fuse (prevents repeated boot pings from re-running engine)
 const BOOT_DEDUPE_MS = clampInt(process.env.BOOT_DEDUPE_MS, 1200, 200, 6000);
@@ -224,6 +233,7 @@ function hasIntentSignals(body) {
   const ctx = isPlainObject(b.ctx) ? b.ctx : {};
   const client = isPlainObject(b.client) ? b.client : {};
 
+  // Any of these means “user did something” even if text is blank.
   const sig =
     safeStr(payload.text || payload.message).trim() ||
     safeStr(b.text || b.message || b.prompt || b.query).trim() ||
@@ -244,6 +254,7 @@ function normalizeInboundSignature(body, inboundText) {
   const t = safeStr(inboundText).trim();
   if (t) return t.slice(0, 240);
 
+  // If empty, build a stable signature from intent fields so replay/throttle work.
   const tok =
     safeStr(payload.text || payload.message).trim() ||
     safeStr(payload.mode || payload.action || payload.intent || payload.label).trim() ||
@@ -272,6 +283,7 @@ function isResetCommand(inboundText, source, body) {
   const cs = safeStr(client.source).toLowerCase();
   if (cs === "reset_btn" || cs.includes("reset")) return true;
 
+  // Some widgets send routeHint=reset or intent=reset
   const rh = safeStr(b.routeHint || client.routeHint || "").toLowerCase();
   const it = safeStr(b.intent || client.intent || b.mode || client.mode || "").toLowerCase();
   if (rh.includes("reset") || it === "reset") return true;
@@ -280,6 +292,7 @@ function isResetCommand(inboundText, source, body) {
 }
 
 function silentResetReply() {
+  // Intentionally empty: widget should not render a bubble
   return "";
 }
 
@@ -292,12 +305,15 @@ function resolveEngine(mod) {
   if (typeof mod === "function") {
     return { fn: mod, from: "module_function", version: safeStr(mod.CE_VERSION || "") };
   }
+
   if (typeof mod.handleChat === "function") {
     return { fn: mod.handleChat.bind(mod), from: "module_handleChat", version: safeStr(mod.CE_VERSION || "") };
   }
+
   if (typeof mod.reply === "function") {
     return { fn: mod.reply.bind(mod), from: "module_reply", version: safeStr(mod.CE_VERSION || "") };
   }
+
   if (typeof mod.chatEngine === "function") {
     return { fn: mod.chatEngine.bind(mod), from: "module_chatEngine", version: safeStr(mod.CE_VERSION || "") };
   }
@@ -385,7 +401,9 @@ function checkSustained(rec, now) {
   return { blocked: false };
 }
 
-// Boot-intro fuse
+// Boot-intro fuse: throttle repeated boot pings without touching real user turns.
+// - If a boot ping repeats within BOOT_DEDUPE_MS, replay last boot output (or return 200 with empty if none).
+// - Also rate-limit boot pings within BOOT_MAX_WINDOW_MS to BOOT_MAX.
 function checkBootFuse(rec, now) {
   rec.boot = pushWindow(rec.boot, now, BOOT_MAX_WINDOW_MS);
   if (rec.boot.length > BOOT_MAX) return { blocked: true, reason: "boot_rate" };
@@ -397,25 +415,15 @@ function checkBootFuse(rec, now) {
   return { blocked: false };
 }
 
-/**
- * replayDedupe (SURGICAL UPDATES)
- * - Primary dedupe is ALWAYS signature-based, even if requestId changes.
- * - Duplicate-submit suppress: if same sig arrives extremely fast, return suppress=true (empty reply).
- */
 function replayDedupe(rec, inboundSig, source, clientRequestId) {
   const now = nowMs();
-  const sigHash = sha1(`${safeStr(rec.data.sessionId)}|${safeStr(source)}|${safeStr(inboundSig)}`).slice(0, 16);
+  const rid = safeStr(clientRequestId).trim();
+  const sig = sha1(`${safeStr(rec.data.sessionId)}|${safeStr(source)}|${safeStr(inboundSig)}`).slice(0, 12);
+  const key = rid ? `rid:${rid}` : `sig:${sig}`;
 
-  const lastSigHash = safeStr(rec.data.__idx_lastSigHash || "");
+  const lastKey = safeStr(rec.data.__idx_lastReqKey || "");
   const lastAt = Number(rec.data.__idx_lastReqAt || 0);
-
-  // DUP-SEND SUPPRESS (tiny window): prevent double bubbles
-  if (lastSigHash && sigHash === lastSigHash && lastAt && now - lastAt <= DUP_SUPPRESS_MS) {
-    return { hit: true, suppress: true };
-  }
-
-  // Standard replay window: return cached output
-  if (lastSigHash && sigHash === lastSigHash && lastAt && now - lastAt <= LOOP_REPLAY_WINDOW_MS) {
+  if (lastKey && key === lastKey && lastAt && now - lastAt <= LOOP_REPLAY_WINDOW_MS) {
     const lastOut = safeStr(rec.data.__idx_lastOut || "");
     const lastLane = safeStr(rec.data.__idx_lastLane || "general") || "general";
     const lastFU = Array.isArray(rec.data.__idx_lastFollowUps) ? rec.data.__idx_lastFollowUps : undefined;
@@ -424,51 +432,50 @@ function replayDedupe(rec, inboundSig, source, clientRequestId) {
       : undefined;
     const lastDir = Array.isArray(rec.data.__idx_lastDirectives) ? rec.data.__idx_lastDirectives : undefined;
 
+    // NOTE: even if lastOut is empty, we treat as replay hit only if non-empty;
+    // reset is handled separately as silent.
     if (lastOut) {
+      // LOOP FIX: never return followUpsStrings if followUps exist
       return {
         hit: true,
-        suppress: false,
         reply: lastOut,
         lane: lastLane,
         followUps: lastFU,
-        followUpsStrings: lastFU ? undefined : lastFUS, // never both
+        followUpsStrings: lastFU ? undefined : lastFUS,
         directives: lastDir,
       };
     }
   }
 
-  // Bookkeeping (we still store requestId key for visibility/debug, but dedupe is sig-based)
-  const rid = safeStr(clientRequestId).trim();
-  rec.data.__idx_lastReqKey = rid ? `rid:${rid}` : `sig:${sigHash.slice(0, 12)}`;
-  rec.data.__idx_lastSigHash = sigHash;
+  rec.data.__idx_lastReqKey = key;
   rec.data.__idx_lastReqAt = now;
-
   return { hit: false };
 }
 
 function writeReplay(rec, reply, lane, extras) {
   rec.data.__idx_lastOut = safeStr(reply);
-  rec.data.__idx_lastOutAt = nowMs();
   rec.data.__idx_lastLane = safeStr(lane || "general") || "general";
   if (extras && typeof extras === "object") {
     const fu = Array.isArray(extras.followUps) ? extras.followUps.slice(0, 10) : undefined;
     const fus = Array.isArray(extras.followUpsStrings) ? extras.followUpsStrings.slice(0, 10) : undefined;
 
     if (fu) rec.data.__idx_lastFollowUps = fu;
+    // LOOP FIX: only store strings if object followUps are absent
     if (!fu && fus) rec.data.__idx_lastFollowUpsStrings = fus;
     if (Array.isArray(extras.directives)) rec.data.__idx_lastDirectives = extras.directives.slice(0, 10);
   }
 }
 
+// Dedicated boot replay store (so boot fuse can return something meaningful)
 function writeBootReplay(rec, reply, lane, extras) {
   rec.data.__idx_lastBootOut = safeStr(reply);
-  rec.data.__idx_lastBootOutAt = nowMs();
   rec.data.__idx_lastBootLane = safeStr(lane || "general") || "general";
   if (extras && typeof extras === "object") {
     const fu = Array.isArray(extras.followUps) ? extras.followUps.slice(0, 10) : undefined;
     const fus = Array.isArray(extras.followUpsStrings) ? extras.followUpsStrings.slice(0, 10) : undefined;
 
     if (fu) rec.data.__idx_lastBootFollowUps = fu;
+    // LOOP FIX: only store strings if object followUps are absent
     if (!fu && fus) rec.data.__idx_lastBootFollowUpsStrings = fus;
     if (Array.isArray(extras.directives)) rec.data.__idx_lastBootDirectives = extras.directives.slice(0, 10);
   }
@@ -483,6 +490,7 @@ function readBootReplay(rec) {
     : undefined;
   const directives = Array.isArray(rec.data.__idx_lastBootDirectives) ? rec.data.__idx_lastBootDirectives : undefined;
 
+  // LOOP FIX: never return strings if followUps exist
   return { reply, lane, followUps, followUpsStrings: followUps ? undefined : followUpsStrings, directives };
 }
 
@@ -521,6 +529,8 @@ app.use((req, res, next) => {
         "X-Visitor-Id",
         "X-Request-Id",
         "X-Route-Hint",
+        "X-Client-Source",
+        "x-client-source",
         "X-SBNYX-Client-Build",
         "x-sbnyx-client-build",
         "X-SBNYX-Widget-Version",
@@ -591,7 +601,7 @@ async function handleChatRoute(req, res) {
   const startedAt = nowMs();
   const body = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
 
-  const clientRequestId = safeStr(body.requestId || req.headers["x-request-id"] || "").trim();
+  const clientRequestId = safeStr(body.requestId || body.clientRequestId || req.headers["x-request-id"] || "").trim();
   const serverRequestId = clientRequestId || makeReqId();
 
   const source =
@@ -609,13 +619,15 @@ async function handleChatRoute(req, res) {
   const { rec } = getSession(req);
   const bootLike = isBootLike(routeHint, body);
 
+  // Detect reset early so we can force silent response if needed.
   const isReset = isResetCommand(inboundText, source, body);
 
-  // BOOT LOOP FIX
+  // BOOT LOOP FIX: dedupe / rate-limit boot pings (do not touch real user turns)
   if (bootLike && !isReset) {
     const bf = checkBootFuse(rec, startedAt);
     if (bf.blocked) {
       const cached = readBootReplay(rec);
+      // Return cached boot intro if we have one; otherwise 200 with empty (widget will just stay open)
       const reply = cached.reply || "";
       return res.status(200).json({
         ok: true,
@@ -664,28 +676,20 @@ async function handleChatRoute(req, res) {
     }
   }
 
-  // Replay dedupe (skip for bootLike; also skip for reset)
+  // Replay dedupe (skip for bootLike; also skip for reset so we don't “replay” a reset bubble ever)
   if (!bootLike && meaningful && !isReset) {
     const dedupe = replayDedupe(rec, inboundSig, source, clientRequestId);
     if (dedupe.hit) {
-      // DUP-SEND SUPPRESS: empty reply prevents second bubble
-      const reply = dedupe.suppress ? "" : dedupe.reply || "";
       return res.status(200).json({
         ok: true,
-        reply,
-        lane: dedupe.lane || rec.data.lane || "general",
+        reply: dedupe.reply,
+        lane: dedupe.lane,
         directives: dedupe.directives,
         followUps: dedupe.followUps,
         followUpsStrings: dedupe.followUpsStrings,
         sessionPatch: {},
         requestId: serverRequestId,
-        meta: {
-          index: INDEX_VERSION,
-          engine: ENGINE_VERSION || null,
-          replay: !dedupe.suppress,
-          suppressed: !!dedupe.suppress,
-          suppressWindowMs: dedupe.suppress ? DUP_SUPPRESS_MS : undefined,
-        },
+        meta: { index: INDEX_VERSION, engine: ENGINE_VERSION || null, replay: true },
       });
     }
   }
@@ -749,7 +753,7 @@ async function handleChatRoute(req, res) {
   const rawReply = safeStr(out?.reply || "").trim();
   const reply = isReset ? silentResetReply() : rawReply || "Okay — tell me what you want next.";
 
-  // LOOP FIX: suppress followUpsStrings if followUps exist
+  // LOOP FIX: followUpsStrings must be suppressed if followUps objects exist (prevents echo)
   const directives = Array.isArray(out?.directives) ? out.directives : undefined;
   const followUps = Array.isArray(out?.followUps) ? out.followUps : undefined;
   const followUpsStrings =
@@ -757,8 +761,10 @@ async function handleChatRoute(req, res) {
       ? out.followUpsStrings
       : undefined;
 
+  // For reset: do NOT overwrite replay cache with a reset bubble (store empty safely)
   writeReplay(rec, reply, lane, { directives, followUps, followUpsStrings });
 
+  // Also store boot replay if this was a bootLike turn (so boot fuse can reuse it)
   if (bootLike && !isReset) {
     writeBootReplay(rec, reply, lane, { directives, followUps, followUpsStrings });
   }
@@ -960,6 +966,9 @@ app.listen(PORT, () => {
 
   // eslint-disable-next-line no-console
   console.log(`[Sandblast] Engine: from=${ENGINE.from} version=${ENGINE_VERSION || "(unknown)"} loaded=${!!ENGINE.fn}`);
+
+  // eslint-disable-next-line no-console
+  console.log(`[Sandblast] Fetch: ${fetchFn ? "OK" : "MISSING"} (global.fetch=${!!global.fetch})`);
 });
 
 module.exports = { app, INDEX_VERSION };
