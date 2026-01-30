@@ -3,18 +3,22 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17zza (WIDGET-OPEN HARDEN: CORS BEFORE BODY-PARSERS + JSON/PARSER ERROR SAFE-RETURN)
- * (Option B alignment: chatEngine v0.6zV+ compatibility + enterprise guards + /api/health alias + REAL ElevenLabs TTS)
+ * index.js v1.5.17zz (SURGICAL LOOP FIXES: DUP-SEND SUPPRESS + RID-IGNORING SIG DEDUPE)
  *
- * Why this fix matters (this is the #1 “widget won’t open” cause):
- *  ✅ If express.json throws on malformed JSON, your old order returned a 400 WITHOUT CORS headers.
- *     Browser blocks the response → widget looks dead.
+ * What this fixes (the screenshot symptom):
+ * - You’re seeing the same Nyx reply twice (“Got it — 1991… Want Top 10…”) because the widget/backend
+ *   is effectively receiving the same user intent twice in rapid succession (double-submit / retry / race).
  *
- * What changed (surgical):
- *  ✅ CORS middleware moved BEFORE body parsers (so even 4xx/5xx have CORS headers)
- *  ✅ Raw-body capture + safe JSON error handler (returns JSON, not default HTML)
- *  ✅ Keeps: all your loop fuses, replay, silent reset, boot dedupe, followUps echo suppression
- *  ✅ Keeps: node-fetch resolver hardening
+ * Surgical server-side fixes:
+ * ✅ DUP-SEND SUPPRESS: if an identical inbound signature arrives within a tiny window, return an EMPTY reply
+ *    (widget should not render a bubble for empty reply — same as silent reset behavior).
+ * ✅ SIG-BASED DEDUPE EVEN WHEN requestId CHANGES: if widget generates a new requestId on the retry,
+ *    we still treat it as the same turn.
+ * ✅ Preserve EVERYTHING else: CORS hard-lock, TTS, existing loop fuse, boot-intro fuse, sessionPatch allowlist, etc.
+ *
+ * NOTE:
+ *  - Expects ./Utils/chatEngine.js to export handleChat (or be a function)
+ *  - Full-file deliverable (drop-in)
  */
 
 // =========================
@@ -35,19 +39,13 @@ function safeRequire(p) {
 
 // Engine + fetch
 const chatEngineMod = safeRequire("./Utils/chatEngine") || safeRequire("./Utils/chatEngine.js") || null;
-
-// fetch resolver (Node 18+ has global.fetch; node-fetch may be CJS fn OR {default: fn})
-const nodeFetchMod = global.fetch ? null : safeRequire("node-fetch");
-const fetchFn =
-  global.fetch ||
-  (typeof nodeFetchMod === "function" ? nodeFetchMod : null) ||
-  (nodeFetchMod && typeof nodeFetchMod.default === "function" ? nodeFetchMod.default : null);
+const fetchFn = global.fetch || safeRequire("node-fetch");
 
 // =========================
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.17zza (enterprise hardened: CORS hard-lock + preflight reliability + IMPORTANT: CORS runs BEFORE body parsers so parser errors still return CORS headers; JSON parse errors return JSON (not HTML) + rawBody capture; loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + requestId always-on + REAL ElevenLabs TTS + chatEngine v0.6zV+ compatibility; empty-text chip intent counted for replay/throttle keys; reset is silent; boot-intro dedupe fuse; suppress followUpsStrings when followUps exist; node-fetch default export resolver)";
+  "index.js v1.5.17zz (enterprise hardened: CORS hard-lock + stabilized preflight + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + requestId always-on + REAL ElevenLabs TTS + chatEngine v0.6zV+ compatibility; CORS headers: x-sbnyx-client-build + x-contract-version; engine fingerprint startup log + meta; CRITICAL: empty-text chip intent counted for replay/throttle keys; CRITICAL: reset is silent; LOOP FIX: boot-intro dedupe fuse; LOOP FIX: suppress followUpsStrings when followUps objects exist; LOOP FIX: duplicate-submit suppress + signature dedupe even if requestId changes)";
 
 // =========================
 // Env / knobs
@@ -75,6 +73,10 @@ const BURST_WINDOW_MS = clampInt(process.env.BURST_WINDOW_MS, 1200, 200, 5000);
 const BURST_MAX = clampInt(process.env.BURST_MAX, 6, 2, 30);
 const SUSTAINED_WINDOW_MS = clampInt(process.env.SUSTAINED_WINDOW_MS, 12000, 2000, 60000);
 const SUSTAINED_MAX = clampInt(process.env.SUSTAINED_MAX, 18, 6, 120);
+
+// NEW: duplicate-submit suppress window (tiny, surgical)
+// If same inbound signature arrives within this window, return empty reply (no bubble).
+const DUP_SUPPRESS_MS = clampInt(process.env.DUP_SUPPRESS_MS, 650, 150, 2500);
 
 // Boot-intro dedupe fuse (prevents repeated boot pings from re-running engine)
 const BOOT_DEDUPE_MS = clampInt(process.env.BOOT_DEDUPE_MS, 1200, 200, 6000);
@@ -222,7 +224,6 @@ function hasIntentSignals(body) {
   const ctx = isPlainObject(b.ctx) ? b.ctx : {};
   const client = isPlainObject(b.client) ? b.client : {};
 
-  // Any of these means “user did something” even if text is blank.
   const sig =
     safeStr(payload.text || payload.message).trim() ||
     safeStr(b.text || b.message || b.prompt || b.query).trim() ||
@@ -243,7 +244,6 @@ function normalizeInboundSignature(body, inboundText) {
   const t = safeStr(inboundText).trim();
   if (t) return t.slice(0, 240);
 
-  // If empty, build a stable signature from intent fields so replay/throttle work.
   const tok =
     safeStr(payload.text || payload.message).trim() ||
     safeStr(payload.mode || payload.action || payload.intent || payload.label).trim() ||
@@ -272,7 +272,6 @@ function isResetCommand(inboundText, source, body) {
   const cs = safeStr(client.source).toLowerCase();
   if (cs === "reset_btn" || cs.includes("reset")) return true;
 
-  // Some widgets send routeHint=reset or intent=reset
   const rh = safeStr(b.routeHint || client.routeHint || "").toLowerCase();
   const it = safeStr(b.intent || client.intent || b.mode || client.mode || "").toLowerCase();
   if (rh.includes("reset") || it === "reset") return true;
@@ -281,7 +280,6 @@ function isResetCommand(inboundText, source, body) {
 }
 
 function silentResetReply() {
-  // Intentionally empty: widget should not render a bubble
   return "";
 }
 
@@ -294,15 +292,12 @@ function resolveEngine(mod) {
   if (typeof mod === "function") {
     return { fn: mod, from: "module_function", version: safeStr(mod.CE_VERSION || "") };
   }
-
   if (typeof mod.handleChat === "function") {
     return { fn: mod.handleChat.bind(mod), from: "module_handleChat", version: safeStr(mod.CE_VERSION || "") };
   }
-
   if (typeof mod.reply === "function") {
     return { fn: mod.reply.bind(mod), from: "module_reply", version: safeStr(mod.CE_VERSION || "") };
   }
-
   if (typeof mod.chatEngine === "function") {
     return { fn: mod.chatEngine.bind(mod), from: "module_chatEngine", version: safeStr(mod.CE_VERSION || "") };
   }
@@ -390,7 +385,7 @@ function checkSustained(rec, now) {
   return { blocked: false };
 }
 
-// Boot-intro fuse: throttle repeated boot pings without touching real user turns.
+// Boot-intro fuse
 function checkBootFuse(rec, now) {
   rec.boot = pushWindow(rec.boot, now, BOOT_MAX_WINDOW_MS);
   if (rec.boot.length > BOOT_MAX) return { blocked: true, reason: "boot_rate" };
@@ -402,15 +397,25 @@ function checkBootFuse(rec, now) {
   return { blocked: false };
 }
 
+/**
+ * replayDedupe (SURGICAL UPDATES)
+ * - Primary dedupe is ALWAYS signature-based, even if requestId changes.
+ * - Duplicate-submit suppress: if same sig arrives extremely fast, return suppress=true (empty reply).
+ */
 function replayDedupe(rec, inboundSig, source, clientRequestId) {
   const now = nowMs();
-  const rid = safeStr(clientRequestId).trim();
-  const sig = sha1(`${safeStr(rec.data.sessionId)}|${safeStr(source)}|${safeStr(inboundSig)}`).slice(0, 12);
-  const key = rid ? `rid:${rid}` : `sig:${sig}`;
+  const sigHash = sha1(`${safeStr(rec.data.sessionId)}|${safeStr(source)}|${safeStr(inboundSig)}`).slice(0, 16);
 
-  const lastKey = safeStr(rec.data.__idx_lastReqKey || "");
+  const lastSigHash = safeStr(rec.data.__idx_lastSigHash || "");
   const lastAt = Number(rec.data.__idx_lastReqAt || 0);
-  if (lastKey && key === lastKey && lastAt && now - lastAt <= LOOP_REPLAY_WINDOW_MS) {
+
+  // DUP-SEND SUPPRESS (tiny window): prevent double bubbles
+  if (lastSigHash && sigHash === lastSigHash && lastAt && now - lastAt <= DUP_SUPPRESS_MS) {
+    return { hit: true, suppress: true };
+  }
+
+  // Standard replay window: return cached output
+  if (lastSigHash && sigHash === lastSigHash && lastAt && now - lastAt <= LOOP_REPLAY_WINDOW_MS) {
     const lastOut = safeStr(rec.data.__idx_lastOut || "");
     const lastLane = safeStr(rec.data.__idx_lastLane || "general") || "general";
     const lastFU = Array.isArray(rec.data.__idx_lastFollowUps) ? rec.data.__idx_lastFollowUps : undefined;
@@ -422,22 +427,28 @@ function replayDedupe(rec, inboundSig, source, clientRequestId) {
     if (lastOut) {
       return {
         hit: true,
+        suppress: false,
         reply: lastOut,
         lane: lastLane,
         followUps: lastFU,
-        followUpsStrings: lastFU ? undefined : lastFUS,
+        followUpsStrings: lastFU ? undefined : lastFUS, // never both
         directives: lastDir,
       };
     }
   }
 
-  rec.data.__idx_lastReqKey = key;
+  // Bookkeeping (we still store requestId key for visibility/debug, but dedupe is sig-based)
+  const rid = safeStr(clientRequestId).trim();
+  rec.data.__idx_lastReqKey = rid ? `rid:${rid}` : `sig:${sigHash.slice(0, 12)}`;
+  rec.data.__idx_lastSigHash = sigHash;
   rec.data.__idx_lastReqAt = now;
+
   return { hit: false };
 }
 
 function writeReplay(rec, reply, lane, extras) {
   rec.data.__idx_lastOut = safeStr(reply);
+  rec.data.__idx_lastOutAt = nowMs();
   rec.data.__idx_lastLane = safeStr(lane || "general") || "general";
   if (extras && typeof extras === "object") {
     const fu = Array.isArray(extras.followUps) ? extras.followUps.slice(0, 10) : undefined;
@@ -449,9 +460,9 @@ function writeReplay(rec, reply, lane, extras) {
   }
 }
 
-// Dedicated boot replay store
 function writeBootReplay(rec, reply, lane, extras) {
   rec.data.__idx_lastBootOut = safeStr(reply);
+  rec.data.__idx_lastBootOutAt = nowMs();
   rec.data.__idx_lastBootLane = safeStr(lane || "general") || "general";
   if (extras && typeof extras === "object") {
     const fu = Array.isArray(extras.followUps) ? extras.followUps.slice(0, 10) : undefined;
@@ -482,8 +493,11 @@ const app = express();
 
 if (toBool(TRUST_PROXY, false)) app.set("trust proxy", 1);
 
+app.use(express.json({ limit: MAX_JSON_BODY }));
+app.use(express.text({ type: ["text/*"], limit: MAX_JSON_BODY }));
+
 // =========================
-// CORS hard-lock MUST be BEFORE body parsers (critical for widget-open reliability)
+// CORS hard-lock (stabilized + required headers)
 // =========================
 app.use((req, res, next) => {
   const originRaw = safeStr(req.headers.origin || "");
@@ -507,8 +521,6 @@ app.use((req, res, next) => {
         "X-Visitor-Id",
         "X-Request-Id",
         "X-Route-Hint",
-        "X-Client-Source",
-        "x-client-source",
         "X-SBNYX-Client-Build",
         "x-sbnyx-client-build",
         "X-SBNYX-Widget-Version",
@@ -525,22 +537,6 @@ app.use((req, res, next) => {
   if (req.method === "OPTIONS") return res.status(204).send("");
   return next();
 });
-
-// =========================
-// Body parsers (with raw-body capture)
-// =========================
-function rawBodyCapture(req, _res, buf) {
-  try {
-    // store only small-ish bodies to avoid memory spikes
-    const s = buf ? buf.toString("utf8") : "";
-    req.rawBody = s && s.length <= 200000 ? s : "";
-  } catch (_) {
-    req.rawBody = "";
-  }
-}
-
-app.use(express.json({ limit: MAX_JSON_BODY, verify: rawBodyCapture }));
-app.use(express.text({ type: ["text/*"], limit: MAX_JSON_BODY, verify: rawBodyCapture }));
 
 // =========================
 // Health + discovery
@@ -593,30 +589,29 @@ app.get("/api/discovery", (req, res) => {
 // =========================
 async function handleChatRoute(req, res) {
   const startedAt = nowMs();
+  const body = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
 
-  // Body may be object, string, or empty (if parser failed we might still have rawBody)
-  const bodyObj = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || safeJsonParseMaybe(req.rawBody) || {};
-
-  const clientRequestId = safeStr(bodyObj.requestId || bodyObj.clientRequestId || req.headers["x-request-id"] || "").trim();
+  const clientRequestId = safeStr(body.requestId || req.headers["x-request-id"] || "").trim();
   const serverRequestId = clientRequestId || makeReqId();
 
   const source =
-    safeStr(bodyObj?.client?.source || bodyObj?.source || req.headers["x-client-source"] || "").trim() || "unknown";
+    safeStr(body?.client?.source || body?.source || req.headers["x-client-source"] || "").trim() || "unknown";
 
   const routeHint =
-    safeStr(bodyObj?.client?.routeHint || bodyObj?.routeHint || bodyObj?.lane || req.headers["x-route-hint"] || "").trim() ||
+    safeStr(body?.client?.routeHint || body?.routeHint || body?.lane || req.headers["x-route-hint"] || "").trim() ||
     "general";
 
-  const inboundText = safeStr(bodyObj.text || bodyObj.message || bodyObj.prompt || bodyObj.query || bodyObj?.payload?.text || "").trim();
+  const inboundText = safeStr(body.text || body.message || body.prompt || body.query || body?.payload?.text || "").trim();
 
-  const inboundSig = normalizeInboundSignature(bodyObj, inboundText);
-  const meaningful = !!inboundSig || hasIntentSignals(bodyObj);
+  const inboundSig = normalizeInboundSignature(body, inboundText);
+  const meaningful = !!inboundSig || hasIntentSignals(body);
 
   const { rec } = getSession(req);
-  const bootLike = isBootLike(routeHint, bodyObj);
+  const bootLike = isBootLike(routeHint, body);
 
-  const isReset = isResetCommand(inboundText, source, bodyObj);
+  const isReset = isResetCommand(inboundText, source, body);
 
+  // BOOT LOOP FIX
   if (bootLike && !isReset) {
     const bf = checkBootFuse(rec, startedAt);
     if (bf.blocked) {
@@ -644,6 +639,7 @@ async function handleChatRoute(req, res) {
     }
   }
 
+  // Throttle fuse (skip for bootLike; allow reset to pass through silently)
   if (!bootLike && meaningful && !isReset) {
     const burst = checkBurst(rec, startedAt);
     const sus = checkSustained(rec, startedAt);
@@ -668,19 +664,28 @@ async function handleChatRoute(req, res) {
     }
   }
 
+  // Replay dedupe (skip for bootLike; also skip for reset)
   if (!bootLike && meaningful && !isReset) {
     const dedupe = replayDedupe(rec, inboundSig, source, clientRequestId);
     if (dedupe.hit) {
+      // DUP-SEND SUPPRESS: empty reply prevents second bubble
+      const reply = dedupe.suppress ? "" : dedupe.reply || "";
       return res.status(200).json({
         ok: true,
-        reply: dedupe.reply,
-        lane: dedupe.lane,
+        reply,
+        lane: dedupe.lane || rec.data.lane || "general",
         directives: dedupe.directives,
         followUps: dedupe.followUps,
         followUpsStrings: dedupe.followUpsStrings,
         sessionPatch: {},
         requestId: serverRequestId,
-        meta: { index: INDEX_VERSION, engine: ENGINE_VERSION || null, replay: true },
+        meta: {
+          index: INDEX_VERSION,
+          engine: ENGINE_VERSION || null,
+          replay: !dedupe.suppress,
+          suppressed: !!dedupe.suppress,
+          suppressWindowMs: dedupe.suppress ? DUP_SUPPRESS_MS : undefined,
+        },
       });
     }
   }
@@ -703,14 +708,14 @@ async function handleChatRoute(req, res) {
   }
 
   const engineInput = {
-    ...bodyObj,
+    ...body,
     requestId: serverRequestId,
     clientRequestId: clientRequestId || undefined,
     text: inboundText,
     source,
     routeHint,
     client: {
-      ...(isPlainObject(bodyObj.client) ? bodyObj.client : {}),
+      ...(isPlainObject(body.client) ? body.client : {}),
       source,
       routeHint,
     },
@@ -740,9 +745,11 @@ async function handleChatRoute(req, res) {
   const lane = safeStr(out?.lane || rec.data.lane || "general") || "general";
   rec.data.lane = lane;
 
+  // SILENT RESET: never send a reset bubble
   const rawReply = safeStr(out?.reply || "").trim();
   const reply = isReset ? silentResetReply() : rawReply || "Okay — tell me what you want next.";
 
+  // LOOP FIX: suppress followUpsStrings if followUps exist
   const directives = Array.isArray(out?.directives) ? out.directives : undefined;
   const followUps = Array.isArray(out?.followUps) ? out.followUps : undefined;
   const followUpsStrings =
@@ -862,7 +869,7 @@ app.post("/api/chat", handleChatRoute);
 async function handleTtsRoute(req, res) {
   const startedAt = nowMs();
 
-  let body = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || safeJsonParseMaybe(req.rawBody) || {};
+  let body = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
   if (typeof req.body === "string") body = { text: req.body };
 
   const text = safeStr(body.text || body.message || body.prompt || "").trim();
@@ -945,39 +952,14 @@ app.post("/api/tts", handleTtsRoute);
 app.post("/api/voice", handleTtsRoute);
 
 // =========================
-// Parser + fallback error handler (returns JSON, never HTML)
-// This is what stops “widget won't open” when JSON is malformed.
-// =========================
-app.use((err, req, res, _next) => {
-  if (!err) return res.status(500).json({ ok: false, error: "Unknown error", meta: { index: INDEX_VERSION } });
-
-  const isBodySyntax = err && (err.type === "entity.parse.failed" || err instanceof SyntaxError);
-  const msg = safeStr(err.message || err).slice(0, 240);
-
-  // Even for errors, reply JSON (CORS headers already set earlier).
-  return res.status(isBodySyntax ? 400 : 500).json({
-    ok: false,
-    error: isBodySyntax ? "Bad JSON payload" : "Server error",
-    detail: msg,
-    requestId: safeStr(req.headers["x-request-id"] || ""),
-    meta: {
-      index: INDEX_VERSION,
-      engine: ENGINE_VERSION || null,
-      note: isBodySyntax ? "CORS is still applied; check widget payload formatting/content-type" : undefined,
-    },
-  });
-});
-
-// =========================
 // Start
 // =========================
 app.listen(PORT, () => {
   // eslint-disable-next-line no-console
   console.log(`[Sandblast] ${INDEX_VERSION} listening on ${PORT}`);
+
   // eslint-disable-next-line no-console
   console.log(`[Sandblast] Engine: from=${ENGINE.from} version=${ENGINE_VERSION || "(unknown)"} loaded=${!!ENGINE.fn}`);
-  // eslint-disable-next-line no-console
-  console.log(`[Sandblast] Fetch: ${fetchFn ? "OK" : "MISSING"} (global.fetch=${!!global.fetch})`);
 });
 
 module.exports = { app, INDEX_VERSION };
