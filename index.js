@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18aa (SURGICAL LOOP FIXES++ + replayKey hardening + boot replay isolation)
+ * index.js v1.5.18ab (SURGICAL LOOP FIXES++ + replayKey hardening + boot replay isolation + output hardening)
  * (Option B alignment: chatEngine v0.6zV+ / v0.7a* compatibility + enterprise guards + /api/health alias + REAL ElevenLabs TTS)
  *
  * Goals:
@@ -24,6 +24,8 @@
  *  ✅ LOOP FIX (CRITICAL): replayKey now includes inboundSig hash EVEN when clientRequestId exists (prevents “sticky replays” if widget reuses requestId)
  *  ✅ LOOP FIX (CRITICAL): boot-like turns DO NOT overwrite the main replay cache (prevents boot intro contaminating subsequent user-turn replay)
  *  ✅ HARDEN: node-fetch resolver supports CJS + ESM default export (prevents fetchFn not-a-function)
+ *  ✅ HARDEN: engine output normalization (string / null / malformed outputs won’t crash route)
+ *  ✅ HARDEN: sessionPatch.cog merges (won’t wipe existing cog keys)
  *
  * NOTE:
  *  - Expects ./Utils/chatEngine.js to export handleChat (or be a function)
@@ -60,7 +62,7 @@ const fetchFn =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18aa (enterprise hardened: CORS hard-lock + stabilized preflight + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY bypass + requestId always-on + REAL ElevenLabs TTS + chatEngine v0.6zV+/v0.7a* compatibility; CORS headers: x-sbnyx-client-build + x-contract-version; engine fingerprint startup log + meta; CRITICAL: empty-text chip intent counted for replay/throttle keys; CRITICAL: reset is silent (no reset bubble); LOOP FIX: boot-intro dedupe fuse; LOOP FIX: suppress followUpsStrings when followUps objects exist; LOOP FIX: replayKey includes inboundSig hash even when clientRequestId exists; LOOP FIX: boot turns do not overwrite main replay cache; HARDEN: node-fetch default export resolver)";
+  "index.js v1.5.18ab (enterprise hardened: CORS hard-lock + stabilized preflight + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY bypass + requestId always-on + REAL ElevenLabs TTS + chatEngine v0.6zV+/v0.7a* compatibility; CORS headers: x-sbnyx-client-build + x-contract-version; engine fingerprint startup log + meta; CRITICAL: empty-text chip intent counted for replay/throttle keys; CRITICAL: reset is silent (no reset bubble); LOOP FIX: boot-intro dedupe fuse; LOOP FIX: suppress followUpsStrings when followUps objects exist; LOOP FIX: replayKey includes inboundSig hash even when clientRequestId exists; LOOP FIX: boot turns do not overwrite main replay cache; HARDEN: node-fetch default export resolver; HARDEN: engine output normalization; HARDEN: sessionPatch.cog merge)";
 
 // =========================
 // Env / knobs
@@ -325,6 +327,15 @@ function resolveEngine(mod) {
 
 const ENGINE = resolveEngine(chatEngineMod);
 const ENGINE_VERSION = safeStr(ENGINE.version || chatEngineMod?.CE_VERSION || "").trim();
+
+// Normalize engine output so route never crashes if engine returns a string/null/etc.
+function normalizeEngineOutput(out) {
+  if (out === null || out === undefined) return {};
+  if (typeof out === "string") return { ok: true, reply: out };
+  if (isPlainObject(out)) return out;
+  // If weird type, stringify safely
+  return { ok: true, reply: safeStr(out) };
+}
 
 // =========================
 // Session store (in-memory)
@@ -737,6 +748,7 @@ async function handleChatRoute(req, res) {
   let out;
   try {
     out = await ENGINE.fn(engineInput);
+    out = normalizeEngineOutput(out);
   } catch (e) {
     const msg = safeStr(e?.message || e).trim();
     const reply = "I hit a snag, but I’m still here. Give me a year (1950–2024) and I’ll jump right in.";
@@ -867,12 +879,26 @@ function applySessionPatch(session, patch) {
     if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
 
     if (k === "cog") {
-      if (isPlainObject(v)) session.cog = v;
+      // HARDEN: merge instead of replace so we don't wipe existing cog keys
+      if (!isPlainObject(session.cog)) session.cog = {};
+      if (isPlainObject(v)) {
+        for (const [ck, cv] of Object.entries(v)) {
+          if (ck === "__proto__" || ck === "constructor" || ck === "prototype") continue;
+          session.cog[ck] = cv;
+        }
+      }
       continue;
     }
 
     if (k === "__nyxIntro") {
-      if (isPlainObject(v)) session.__nyxIntro = v;
+      // Merge intro object rather than replace (same rationale as cog)
+      if (!isPlainObject(session.__nyxIntro)) session.__nyxIntro = {};
+      if (isPlainObject(v)) {
+        for (const [ik, iv] of Object.entries(v)) {
+          if (ik === "__proto__" || ik === "constructor" || ik === "prototype") continue;
+          session.__nyxIntro[ik] = iv;
+        }
+      }
       continue;
     }
 
