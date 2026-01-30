@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17zy (SURGICAL LOOP FIXES APPLIED)
+ * index.js v1.5.17zz (SURGICAL LOOP FIXES + fetch resolver hardening)
  * (Option B alignment: chatEngine v0.6zV+ compatibility + enterprise guards + /api/health alias + REAL ElevenLabs TTS)
  *
  * Goals:
@@ -19,9 +19,9 @@
  *  ✅ NEW: Accept chatEngine module that exports handleChat OR exports a function directly
  *  ✅ NEW (CRITICAL): Empty-text chip clicks with payload/ctx intent are now treated as “meaningful” for replay/throttle keys
  *  ✅ NEW (CRITICAL, SURGICAL): Reset is SILENT (no “All reset…” / “Reset complete…” bubble)
- *      - Widget should just clear and show chips, no backend bubble
  *  ✅ NEW (LOOP FIX): Boot-intro dedupe fuse (prevents rapid repeated boot-intro pings from re-running engine)
  *  ✅ NEW (LOOP FIX, CRITICAL): followUpsStrings suppressed when followUps objects are present (prevents “echo” double-bubbles)
+ *  ✅ NEW (HARDEN): node-fetch resolver supports CJS + ESM default export (prevents fetchFn not-a-function)
  *
  * NOTE:
  *  - Expects ./Utils/chatEngine.js to export handleChat (or be a function)
@@ -46,13 +46,19 @@ function safeRequire(p) {
 
 // Engine + fetch
 const chatEngineMod = safeRequire("./Utils/chatEngine") || safeRequire("./Utils/chatEngine.js") || null;
-const fetchFn = global.fetch || safeRequire("node-fetch");
+
+// fetch resolver (Node 18+ has global.fetch; node-fetch may be CJS fn OR {default: fn})
+const nodeFetchMod = global.fetch ? null : safeRequire("node-fetch");
+const fetchFn =
+  global.fetch ||
+  (typeof nodeFetchMod === "function" ? nodeFetchMod : null) ||
+  (nodeFetchMod && typeof nodeFetchMod.default === "function" ? nodeFetchMod.default : null);
 
 // =========================
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.17zy (enterprise hardened: CORS hard-lock + stabilized preflight + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY bypass + requestId always-on + REAL ElevenLabs TTS + chatEngine v0.6zV+ compatibility; CORS headers: x-sbnyx-client-build + x-contract-version; engine fingerprint startup log + meta; CRITICAL: empty-text chip intent counted for replay/throttle keys; CRITICAL: reset is silent (no reset bubble); LOOP FIX: boot-intro dedupe fuse; LOOP FIX: suppress followUpsStrings when followUps objects exist)";
+  "index.js v1.5.17zz (enterprise hardened: CORS hard-lock + stabilized preflight + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY bypass + requestId always-on + REAL ElevenLabs TTS + chatEngine v0.6zV+ compatibility; CORS headers: x-sbnyx-client-build + x-contract-version; engine fingerprint startup log + meta; CRITICAL: empty-text chip intent counted for replay/throttle keys; CRITICAL: reset is silent (no reset bubble); LOOP FIX: boot-intro dedupe fuse; LOOP FIX: suppress followUpsStrings when followUps objects exist; HARDEN: node-fetch default export resolver)";
 
 // =========================
 // Env / knobs
@@ -523,6 +529,8 @@ app.use((req, res, next) => {
         "X-Visitor-Id",
         "X-Request-Id",
         "X-Route-Hint",
+        "X-Client-Source",
+        "x-client-source",
         "X-SBNYX-Client-Build",
         "x-sbnyx-client-build",
         "X-SBNYX-Widget-Version",
@@ -593,7 +601,7 @@ async function handleChatRoute(req, res) {
   const startedAt = nowMs();
   const body = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
 
-  const clientRequestId = safeStr(body.requestId || req.headers["x-request-id"] || "").trim();
+  const clientRequestId = safeStr(body.requestId || body.clientRequestId || req.headers["x-request-id"] || "").trim();
   const serverRequestId = clientRequestId || makeReqId();
 
   const source =
@@ -958,6 +966,9 @@ app.listen(PORT, () => {
 
   // eslint-disable-next-line no-console
   console.log(`[Sandblast] Engine: from=${ENGINE.from} version=${ENGINE_VERSION || "(unknown)"} loaded=${!!ENGINE.fn}`);
+
+  // eslint-disable-next-line no-console
+  console.log(`[Sandblast] Fetch: ${fetchFn ? "OK" : "MISSING"} (global.fetch=${!!global.fetch})`);
 });
 
 module.exports = { app, INDEX_VERSION };
