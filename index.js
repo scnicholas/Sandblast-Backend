@@ -3,46 +3,13 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18af (KNOWLEDGE BRIDGE + SURGICAL LOOP FIXES+++ + replayKey hardening + boot replay isolation + output hardening)
- * (Option B alignment: chatEngine v0.6zV+ / v0.7a* compatibility + enterprise guards + /api/health alias + REAL ElevenLabs TTS)
+ * index.js v1.5.18ag (CRASH-PROOF BOOT + SAFE JSON PARSE + DIAGNOSTIC LOGGING + knowledge bridge + loop fixes)
  *
- * Goals:
- *  ✅ Preserve Voice/TTS stability (ElevenLabs) + /api/tts + /api/voice aliases
- *  ✅ Preserve CORS HARD-LOCK + preflight reliability (stabilized)
- *  ✅ Preserve turn dedupe + loop fuse (session + burst + sustained)
- *  ✅ Preserve sessionPatch persistence (cog + continuity keys)
- *  ✅ Preserve boot-intro bridge behavior (panel_open_intro / boot_intro)
- *  ✅ Fix: boot-intro / empty-text requests bypass replay + throttles
- *  ✅ Fix: add GET /api/health (widget expects it)
- *  ✅ Fix: allow x-sbnyx-client-build + x-contract-version headers (CORS)  <-- REQUIRED
- *  ✅ Engine fingerprint (CE_VERSION) printed on startup + exposed in meta
- *  ✅ Accept chatEngine module that exports handleChat OR exports a function directly
- *  ✅ CRITICAL: Empty-text chip clicks with payload/ctx intent are treated as “meaningful” for replay/throttle keys
- *  ✅ CRITICAL: Reset is SILENT (no “All reset…” / “Reset complete…” bubble)
- *  ✅ LOOP FIX: Boot-intro dedupe fuse (prevents rapid repeated boot-intro pings from re-running engine)
- *  ✅ LOOP FIX (CRITICAL): followUpsStrings suppressed when followUps objects are present (prevents “echo” double-bubbles)
- *  ✅ LOOP FIX (CRITICAL): replayKey now includes inboundSig hash EVEN when clientRequestId exists (prevents “sticky replays” if widget reuses requestId)
- *  ✅ LOOP FIX (CRITICAL): boot-like turns DO NOT overwrite the main replay cache (prevents boot intro contaminating subsequent user-turn replay)
- *  ✅ HARDEN: node-fetch resolver supports CJS + ESM default export (prevents fetchFn not-a-function)
- *  ✅ HARDEN: engine output normalization (string / null / malformed outputs won’t crash route)
- *  ✅ HARDEN: sessionPatch.cog merges (won’t wipe existing cog keys)
- *
- *  ✅ NEW (CRITICAL): Knowledge Bridge — load JSON + script exports from backend folders into a stable in-memory store
- *      - Loads Data/(recursive)/.json (and optional Scripts/(recursive)/.js exports) at boot
- *      - Survives partial failures (bad JSON won’t crash server)
- *      - Provides /api/debug/knowledge to verify what’s loaded in prod (Render)
- *      - Injects knowledge snapshot into engineInput as:
- *          engineInput.knowledge = { json, scripts, meta }
- *          engineInput.__knowledgeStatus = { ok, errors, loadedAt }
- *
- *  ✅ NEW (CRITICAL): THROTTLE RESPONSE IS HTTP 200 (not 429) to prevent widget retry-loops / “double send” behavior.
- *
- *  ✅ NEW (CRITICAL): Debug knowledge endpoint no longer dumps full JSON by default (prevents giant responses / timeouts).
- *      - Set KNOWLEDGE_DEBUG_INCLUDE_DATA=true to include full data payloads.
- *
- * NOTE:
- *  - Expects ./Utils/chatEngine.js to export handleChat (or be a function)
- *  - Full-file deliverable (drop-in)
+ * Key adds vs 1.5.18af:
+ *  ✅ CRITICAL: Never crash on invalid JSON body (safe JSON middleware)
+ *  ✅ CRITICAL: process-level logging for unhandledRejection + uncaughtException
+ *  ✅ CRITICAL: express error middleware so failures return a response (not silent socket close)
+ *  ✅ SAFER DEFAULT: KNOWLEDGE_ENABLE_SCRIPTS defaults to FALSE (turn on with env)
  */
 
 // =========================
@@ -52,6 +19,24 @@ const express = require("express");
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
+
+// =========================
+// Crash-proof logging (Render-friendly)
+// =========================
+process.on("unhandledRejection", (reason) => {
+  // eslint-disable-next-line no-console
+  console.log("[Sandblast][FATAL] unhandledRejection:", reason);
+});
+process.on("uncaughtException", (err) => {
+  // eslint-disable-next-line no-console
+  console.log("[Sandblast][FATAL] uncaughtException:", err && (err.stack || err.message || err));
+  // Keep process alive long enough to log; Render will restart anyway.
+  try {
+    setTimeout(() => process.exit(1), 250).unref?.();
+  } catch (_) {
+    process.exit(1);
+  }
+});
 
 // Optional safe require
 function safeRequire(p) {
@@ -77,7 +62,7 @@ const fetchFn =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18af (knowledge bridge boot-loader + CORS hard-lock + stabilized preflight + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY bypass + requestId always-on + REAL ElevenLabs TTS + chatEngine v0.6zV+/v0.7a* compatibility; CORS headers: x-sbnyx-client-build + x-contract-version; engine fingerprint startup log + meta; CRITICAL: empty-text chip intent counted for replay/throttle keys; CRITICAL: reset is silent (no reset bubble); LOOP FIX: boot-intro dedupe fuse; LOOP FIX: suppress followUpsStrings when followUps objects exist; LOOP FIX: replayKey includes inboundSig hash even when clientRequestId exists; LOOP FIX: boot turns do not overwrite main replay cache; HARDEN: node-fetch default export resolver; HARDEN: engine output normalization; HARDEN: sessionPatch.cog merge; NEW: Data/Scripts in-memory knowledge bridge + /api/debug/knowledge + engineInput.knowledge; CRITICAL: throttle returns HTTP 200; CRITICAL: debug knowledge avoids dumping full data by default)";
+  "index.js v1.5.18ag (crash-proof boot + safe JSON parse + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
 
 // =========================
 // Env / knobs
@@ -89,11 +74,13 @@ const MAX_JSON_BODY = String(process.env.MAX_JSON_BODY || "512kb");
 
 // --- Knowledge Bridge knobs ---
 const KNOWLEDGE_AUTOLOAD = toBool(process.env.KNOWLEDGE_AUTOLOAD, true);
-const KNOWLEDGE_ENABLE_SCRIPTS = toBool(process.env.KNOWLEDGE_ENABLE_SCRIPTS, true);
+
+// SAFER DEFAULT: scripts OFF unless explicitly enabled
+const KNOWLEDGE_ENABLE_SCRIPTS = toBool(process.env.KNOWLEDGE_ENABLE_SCRIPTS, false);
+
 const KNOWLEDGE_DEBUG_ENDPOINT = toBool(process.env.KNOWLEDGE_DEBUG_ENDPOINT, true);
 const KNOWLEDGE_DEBUG_INCLUDE_DATA = toBool(process.env.KNOWLEDGE_DEBUG_INCLUDE_DATA, false);
 
-// clampInt signature is (v, def, min, max)
 const KNOWLEDGE_RELOAD_INTERVAL_MS = clampInt(
   process.env.KNOWLEDGE_RELOAD_INTERVAL_MS,
   0,
@@ -102,13 +89,11 @@ const KNOWLEDGE_RELOAD_INTERVAL_MS = clampInt(
 ); // 0 = off
 
 const KNOWLEDGE_MAX_FILES = clampInt(process.env.KNOWLEDGE_MAX_FILES, 2500, 200, 20000);
-const KNOWLEDGE_MAX_FILE_BYTES = clampInt(process.env.KNOWLEDGE_MAX_FILE_BYTES, 2_500_000, 50_000, 20_000_000); // per file
-const KNOWLEDGE_MAX_TOTAL_BYTES = clampInt(process.env.KNOWLEDGE_MAX_TOTAL_BYTES, 40_000_000, 1_000_000, 250_000_000); // total
+const KNOWLEDGE_MAX_FILE_BYTES = clampInt(process.env.KNOWLEDGE_MAX_FILE_BYTES, 2_500_000, 50_000, 20_000_000);
+const KNOWLEDGE_MAX_TOTAL_BYTES = clampInt(process.env.KNOWLEDGE_MAX_TOTAL_BYTES, 40_000_000, 1_000_000, 250_000_000);
 
-// Root resolution: in Render, __dirname is safest for relative package files.
+// Root resolution: in Render, __dirname is safest
 const APP_ROOT = path.resolve(__dirname);
-
-// Directories can be overridden; defaults are ./Data and ./Scripts relative to index.js
 const DATA_DIR = path.resolve(APP_ROOT, String(process.env.DATA_DIR || "Data").trim());
 const SCRIPTS_DIR = path.resolve(APP_ROOT, String(process.env.SCRIPTS_DIR || "Scripts").trim());
 
@@ -269,7 +254,7 @@ function isBootLike(routeHint, body) {
 }
 
 // =========================
-// CRITICAL: empty-text chip intent normalization (index-level)
+// CRITICAL: empty-text chip intent normalization
 // =========================
 function hasIntentSignals(body) {
   const b = isPlainObject(body) ? body : {};
@@ -372,7 +357,7 @@ function normalizeEngineOutput(out) {
 }
 
 // =========================
-// Knowledge Bridge (Data + Scripts) — in-memory store
+// Knowledge Bridge
 // =========================
 const KNOWLEDGE = {
   ok: false,
@@ -493,9 +478,10 @@ function reloadKnowledge() {
   const jsonFiles = [];
   if (dataOk) walkFiles(DATA_DIR, [".json"], jsonFiles, KNOWLEDGE_MAX_FILES);
 
+  // IMPORTANT: only require CJS safely (.js/.cjs). .mjs is skipped by default because require() will throw.
   const jsFiles = [];
   if (scriptsOk && KNOWLEDGE_ENABLE_SCRIPTS) {
-    walkFiles(SCRIPTS_DIR, [".js", ".cjs", ".mjs"], jsFiles, Math.min(KNOWLEDGE_MAX_FILES, 1000));
+    walkFiles(SCRIPTS_DIR, [".js", ".cjs"], jsFiles, Math.min(KNOWLEDGE_MAX_FILES, 1000));
   }
 
   KNOWLEDGE.filesScanned = jsonFiles.length + jsFiles.length;
@@ -562,18 +548,10 @@ function reloadKnowledge() {
 
   // eslint-disable-next-line no-console
   console.log(
-    `[Sandblast][Knowledge] loaded=${KNOWLEDGE.ok} jsonKeys=${jsonKeys} scriptKeys=${scriptKeys} filesLoaded=${KNOWLEDGE.filesLoaded} totalBytes=${KNOWLEDGE.totalBytes} errors=${KNOWLEDGE.errors.length} in ${nowMs() - started}ms (DATA_DIR=${DATA_DIR}, SCRIPTS_DIR=${SCRIPTS_DIR})`
+    `[Sandblast][Knowledge] loaded=${KNOWLEDGE.ok} jsonKeys=${jsonKeys} scriptKeys=${scriptKeys} filesLoaded=${KNOWLEDGE.filesLoaded} totalBytes=${KNOWLEDGE.totalBytes} errors=${KNOWLEDGE.errors.length} in ${nowMs() - started}ms (DATA_DIR=${DATA_DIR}, SCRIPTS_DIR=${SCRIPTS_DIR}, scriptsEnabled=${KNOWLEDGE_ENABLE_SCRIPTS})`
   );
 
-  return {
-    ok: KNOWLEDGE.ok,
-    loadedAt: KNOWLEDGE.loadedAt,
-    jsonKeys,
-    scriptKeys,
-    filesLoaded: KNOWLEDGE.filesLoaded,
-    totalBytes: KNOWLEDGE.totalBytes,
-    errorCount: KNOWLEDGE.errors.length,
-  };
+  return { ok: KNOWLEDGE.ok, loadedAt: KNOWLEDGE.loadedAt, jsonKeys, scriptKeys, filesLoaded: KNOWLEDGE.filesLoaded };
 }
 
 function knowledgeStatusForMeta() {
@@ -587,7 +565,6 @@ function knowledgeStatusForMeta() {
   };
 }
 
-// This is intentionally a reference snapshot (no deep clone) so it stays fast.
 function knowledgeSnapshotForEngine() {
   return {
     json: KNOWLEDGE.json,
@@ -627,7 +604,7 @@ if (KNOWLEDGE_AUTOLOAD && KNOWLEDGE_RELOAD_INTERVAL_MS > 0) {
 }
 
 // =========================
-// Session store (in-memory)
+// Session store
 // =========================
 const SESSIONS = new Map();
 
@@ -681,7 +658,7 @@ function getSession(req) {
 }
 
 // =========================
-// Loop / abuse guards
+// Loop / guards
 // =========================
 function pushWindow(arr, now, windowMs) {
   const a = Array.isArray(arr) ? arr : [];
@@ -794,7 +771,21 @@ const app = express();
 
 if (toBool(TRUST_PROXY, false)) app.set("trust proxy", 1);
 
-app.use(express.json({ limit: MAX_JSON_BODY }));
+// ---- SAFE JSON PARSE: never crash on invalid JSON ----
+app.use((req, res, next) => {
+  if (req.method === "OPTIONS") return next(); // preflight first
+  express.json({ limit: MAX_JSON_BODY })(req, res, (err) => {
+    if (err) {
+      return res.status(400).json({
+        ok: false,
+        error: "invalid_json",
+        detail: safeStr(err.message || err).slice(0, 240),
+        meta: { index: INDEX_VERSION },
+      });
+    }
+    return next();
+  });
+});
 app.use(express.text({ type: ["text/*"], limit: MAX_JSON_BODY }));
 
 // =========================
@@ -810,7 +801,6 @@ app.use((req, res, next) => {
   if (origin && allow) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Access-Control-Allow-Credentials", "true");
-
     res.setHeader(
       "Access-Control-Allow-Headers",
       [
@@ -832,7 +822,6 @@ app.use((req, res, next) => {
         "x-contract-version",
       ].join(", ")
     );
-
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
     res.setHeader("Access-Control-Max-Age", "600");
   }
@@ -922,6 +911,7 @@ if (KNOWLEDGE_DEBUG_ENDPOINT) {
         loadedAt: KNOWLEDGE.loadedAt,
         dataDir: DATA_DIR,
         scriptsDir: SCRIPTS_DIR,
+        scriptsEnabled: KNOWLEDGE_ENABLE_SCRIPTS,
         jsonKeyCount: jsonKeys.length,
         scriptKeyCount: scriptKeys.length,
         filesScanned: KNOWLEDGE.filesScanned,
@@ -949,7 +939,7 @@ if (KNOWLEDGE_DEBUG_ENDPOINT) {
 }
 
 // =========================
-// Chat route (main)
+// Chat route
 // =========================
 async function handleChatRoute(req, res) {
   const startedAt = nowMs();
@@ -1012,7 +1002,7 @@ async function handleChatRoute(req, res) {
           : "Give me a breath — then hit me again with a year or a request.";
       writeReplay(rec, reply, rec.data.lane || "general");
 
-      // CRITICAL: return 200 (not 429) to reduce client retry loops / double-sends.
+      // CRITICAL: keep HTTP 200 to avoid client retry loops
       return res.status(200).json({
         ok: true,
         reply,
@@ -1211,22 +1201,8 @@ function applySessionPatch(session, patch) {
     "__hasRealUserTurn",
     "__introDone",
     "__cs1",
-
     "cog",
     "allowPackets",
-
-    "__ce_lastReqId",
-    "__ce_lastReqAt",
-    "__ce_lastOutHash",
-    "__ce_lastOut",
-    "__ce_lastOutRaw",
-    "__ce_lastOutLane",
-    "__ce_lastOutFollowUps",
-    "__ce_lastOutFollowUpsStrings",
-    "__ce_lastOutDirectives",
-    "__ce_lastInHash",
-    "__ce_lastInAt",
-
     "__nyxIntro",
     "__nyxVelvet",
   ]);
@@ -1355,6 +1331,21 @@ app.post("/api/tts", handleTtsRoute);
 app.post("/api/voice", handleTtsRoute);
 
 // =========================
+// Express error middleware (last)
+// =========================
+app.use((err, req, res, next) => {
+  // eslint-disable-next-line no-console
+  console.log("[Sandblast][ExpressError]", err && (err.stack || err.message || err));
+  if (res.headersSent) return next(err);
+  return res.status(500).json({
+    ok: false,
+    error: "server_error",
+    detail: safeStr(err?.message || err).slice(0, 240),
+    meta: { index: INDEX_VERSION },
+  });
+});
+
+// =========================
 // Start
 // =========================
 app.listen(PORT, () => {
@@ -1366,7 +1357,7 @@ app.listen(PORT, () => {
   console.log(`[Sandblast] Fetch: ${fetchFn ? "OK" : "MISSING"} (global.fetch=${!!global.fetch})`);
   // eslint-disable-next-line no-console
   console.log(
-    `[Sandblast] Knowledge: autoload=${KNOWLEDGE_AUTOLOAD} ok=${KNOWLEDGE.ok} jsonKeys=${Object.keys(KNOWLEDGE.json).length} scriptKeys=${Object.keys(KNOWLEDGE.scripts).length} errors=${KNOWLEDGE.errors.length} DATA_DIR=${DATA_DIR} SCRIPTS_DIR=${SCRIPTS_DIR} reloadEveryMs=${KNOWLEDGE_RELOAD_INTERVAL_MS} debugIncludeData=${KNOWLEDGE_DEBUG_INCLUDE_DATA}`
+    `[Sandblast] Knowledge: autoload=${KNOWLEDGE_AUTOLOAD} ok=${KNOWLEDGE.ok} jsonKeys=${Object.keys(KNOWLEDGE.json).length} scriptKeys=${Object.keys(KNOWLEDGE.scripts).length} errors=${KNOWLEDGE.errors.length} DATA_DIR=${DATA_DIR} SCRIPTS_DIR=${SCRIPTS_DIR} reloadEveryMs=${KNOWLEDGE_RELOAD_INTERVAL_MS} debugIncludeData=${KNOWLEDGE_DEBUG_INCLUDE_DATA} scriptsEnabled=${KNOWLEDGE_ENABLE_SCRIPTS}`
   );
 });
 
