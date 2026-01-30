@@ -3,29 +3,18 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17zz (SURGICAL LOOP FIXES + fetch resolver hardening)
+ * index.js v1.5.17zza (WIDGET-OPEN HARDEN: CORS BEFORE BODY-PARSERS + JSON/PARSER ERROR SAFE-RETURN)
  * (Option B alignment: chatEngine v0.6zV+ compatibility + enterprise guards + /api/health alias + REAL ElevenLabs TTS)
  *
- * Goals:
- *  ✅ Preserve Voice/TTS stability (ElevenLabs) + /api/tts + /api/voice aliases
- *  ✅ Preserve CORS HARD-LOCK + preflight reliability (stabilized)
- *  ✅ Preserve turn dedupe + loop fuse (session + burst + sustained)
- *  ✅ Preserve sessionPatch persistence (cog + continuity keys)
- *  ✅ Preserve boot-intro bridge behavior (panel_open_intro / boot_intro)
- *  ✅ Fix: boot-intro / empty-text requests bypass replay + throttles
- *  ✅ Fix: add GET /api/health (widget expects it)
- *  ✅ Fix: allow x-sbnyx-client-build + x-contract-version headers (CORS)  <-- REQUIRED
- *  ✅ NEW: Engine fingerprint (CE_VERSION) printed on startup + exposed in meta
- *  ✅ NEW: Accept chatEngine module that exports handleChat OR exports a function directly
- *  ✅ NEW (CRITICAL): Empty-text chip clicks with payload/ctx intent are now treated as “meaningful” for replay/throttle keys
- *  ✅ NEW (CRITICAL, SURGICAL): Reset is SILENT (no “All reset…” / “Reset complete…” bubble)
- *  ✅ NEW (LOOP FIX): Boot-intro dedupe fuse (prevents rapid repeated boot-intro pings from re-running engine)
- *  ✅ NEW (LOOP FIX, CRITICAL): followUpsStrings suppressed when followUps objects are present (prevents “echo” double-bubbles)
- *  ✅ NEW (HARDEN): node-fetch resolver supports CJS + ESM default export (prevents fetchFn not-a-function)
+ * Why this fix matters (this is the #1 “widget won’t open” cause):
+ *  ✅ If express.json throws on malformed JSON, your old order returned a 400 WITHOUT CORS headers.
+ *     Browser blocks the response → widget looks dead.
  *
- * NOTE:
- *  - Expects ./Utils/chatEngine.js to export handleChat (or be a function)
- *  - Full-file deliverable (drop-in)
+ * What changed (surgical):
+ *  ✅ CORS middleware moved BEFORE body parsers (so even 4xx/5xx have CORS headers)
+ *  ✅ Raw-body capture + safe JSON error handler (returns JSON, not default HTML)
+ *  ✅ Keeps: all your loop fuses, replay, silent reset, boot dedupe, followUps echo suppression
+ *  ✅ Keeps: node-fetch resolver hardening
  */
 
 // =========================
@@ -58,7 +47,7 @@ const fetchFn =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.17zz (enterprise hardened: CORS hard-lock + stabilized preflight + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY bypass + requestId always-on + REAL ElevenLabs TTS + chatEngine v0.6zV+ compatibility; CORS headers: x-sbnyx-client-build + x-contract-version; engine fingerprint startup log + meta; CRITICAL: empty-text chip intent counted for replay/throttle keys; CRITICAL: reset is silent (no reset bubble); LOOP FIX: boot-intro dedupe fuse; LOOP FIX: suppress followUpsStrings when followUps objects exist; HARDEN: node-fetch default export resolver)";
+  "index.js v1.5.17zza (enterprise hardened: CORS hard-lock + preflight reliability + IMPORTANT: CORS runs BEFORE body parsers so parser errors still return CORS headers; JSON parse errors return JSON (not HTML) + rawBody capture; loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + requestId always-on + REAL ElevenLabs TTS + chatEngine v0.6zV+ compatibility; empty-text chip intent counted for replay/throttle keys; reset is silent; boot-intro dedupe fuse; suppress followUpsStrings when followUps exist; node-fetch default export resolver)";
 
 // =========================
 // Env / knobs
@@ -402,8 +391,6 @@ function checkSustained(rec, now) {
 }
 
 // Boot-intro fuse: throttle repeated boot pings without touching real user turns.
-// - If a boot ping repeats within BOOT_DEDUPE_MS, replay last boot output (or return 200 with empty if none).
-// - Also rate-limit boot pings within BOOT_MAX_WINDOW_MS to BOOT_MAX.
 function checkBootFuse(rec, now) {
   rec.boot = pushWindow(rec.boot, now, BOOT_MAX_WINDOW_MS);
   if (rec.boot.length > BOOT_MAX) return { blocked: true, reason: "boot_rate" };
@@ -432,10 +419,7 @@ function replayDedupe(rec, inboundSig, source, clientRequestId) {
       : undefined;
     const lastDir = Array.isArray(rec.data.__idx_lastDirectives) ? rec.data.__idx_lastDirectives : undefined;
 
-    // NOTE: even if lastOut is empty, we treat as replay hit only if non-empty;
-    // reset is handled separately as silent.
     if (lastOut) {
-      // LOOP FIX: never return followUpsStrings if followUps exist
       return {
         hit: true,
         reply: lastOut,
@@ -460,13 +444,12 @@ function writeReplay(rec, reply, lane, extras) {
     const fus = Array.isArray(extras.followUpsStrings) ? extras.followUpsStrings.slice(0, 10) : undefined;
 
     if (fu) rec.data.__idx_lastFollowUps = fu;
-    // LOOP FIX: only store strings if object followUps are absent
     if (!fu && fus) rec.data.__idx_lastFollowUpsStrings = fus;
     if (Array.isArray(extras.directives)) rec.data.__idx_lastDirectives = extras.directives.slice(0, 10);
   }
 }
 
-// Dedicated boot replay store (so boot fuse can return something meaningful)
+// Dedicated boot replay store
 function writeBootReplay(rec, reply, lane, extras) {
   rec.data.__idx_lastBootOut = safeStr(reply);
   rec.data.__idx_lastBootLane = safeStr(lane || "general") || "general";
@@ -475,7 +458,6 @@ function writeBootReplay(rec, reply, lane, extras) {
     const fus = Array.isArray(extras.followUpsStrings) ? extras.followUpsStrings.slice(0, 10) : undefined;
 
     if (fu) rec.data.__idx_lastBootFollowUps = fu;
-    // LOOP FIX: only store strings if object followUps are absent
     if (!fu && fus) rec.data.__idx_lastBootFollowUpsStrings = fus;
     if (Array.isArray(extras.directives)) rec.data.__idx_lastBootDirectives = extras.directives.slice(0, 10);
   }
@@ -490,7 +472,6 @@ function readBootReplay(rec) {
     : undefined;
   const directives = Array.isArray(rec.data.__idx_lastBootDirectives) ? rec.data.__idx_lastBootDirectives : undefined;
 
-  // LOOP FIX: never return strings if followUps exist
   return { reply, lane, followUps, followUpsStrings: followUps ? undefined : followUpsStrings, directives };
 }
 
@@ -501,11 +482,8 @@ const app = express();
 
 if (toBool(TRUST_PROXY, false)) app.set("trust proxy", 1);
 
-app.use(express.json({ limit: MAX_JSON_BODY }));
-app.use(express.text({ type: ["text/*"], limit: MAX_JSON_BODY }));
-
 // =========================
-// CORS hard-lock (stabilized + required headers)
+// CORS hard-lock MUST be BEFORE body parsers (critical for widget-open reliability)
 // =========================
 app.use((req, res, next) => {
   const originRaw = safeStr(req.headers.origin || "");
@@ -547,6 +525,22 @@ app.use((req, res, next) => {
   if (req.method === "OPTIONS") return res.status(204).send("");
   return next();
 });
+
+// =========================
+// Body parsers (with raw-body capture)
+// =========================
+function rawBodyCapture(req, _res, buf) {
+  try {
+    // store only small-ish bodies to avoid memory spikes
+    const s = buf ? buf.toString("utf8") : "";
+    req.rawBody = s && s.length <= 200000 ? s : "";
+  } catch (_) {
+    req.rawBody = "";
+  }
+}
+
+app.use(express.json({ limit: MAX_JSON_BODY, verify: rawBodyCapture }));
+app.use(express.text({ type: ["text/*"], limit: MAX_JSON_BODY, verify: rawBodyCapture }));
 
 // =========================
 // Health + discovery
@@ -599,35 +593,34 @@ app.get("/api/discovery", (req, res) => {
 // =========================
 async function handleChatRoute(req, res) {
   const startedAt = nowMs();
-  const body = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
 
-  const clientRequestId = safeStr(body.requestId || body.clientRequestId || req.headers["x-request-id"] || "").trim();
+  // Body may be object, string, or empty (if parser failed we might still have rawBody)
+  const bodyObj = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || safeJsonParseMaybe(req.rawBody) || {};
+
+  const clientRequestId = safeStr(bodyObj.requestId || bodyObj.clientRequestId || req.headers["x-request-id"] || "").trim();
   const serverRequestId = clientRequestId || makeReqId();
 
   const source =
-    safeStr(body?.client?.source || body?.source || req.headers["x-client-source"] || "").trim() || "unknown";
+    safeStr(bodyObj?.client?.source || bodyObj?.source || req.headers["x-client-source"] || "").trim() || "unknown";
 
   const routeHint =
-    safeStr(body?.client?.routeHint || body?.routeHint || body?.lane || req.headers["x-route-hint"] || "").trim() ||
+    safeStr(bodyObj?.client?.routeHint || bodyObj?.routeHint || bodyObj?.lane || req.headers["x-route-hint"] || "").trim() ||
     "general";
 
-  const inboundText = safeStr(body.text || body.message || body.prompt || body.query || body?.payload?.text || "").trim();
+  const inboundText = safeStr(bodyObj.text || bodyObj.message || bodyObj.prompt || bodyObj.query || bodyObj?.payload?.text || "").trim();
 
-  const inboundSig = normalizeInboundSignature(body, inboundText);
-  const meaningful = !!inboundSig || hasIntentSignals(body);
+  const inboundSig = normalizeInboundSignature(bodyObj, inboundText);
+  const meaningful = !!inboundSig || hasIntentSignals(bodyObj);
 
   const { rec } = getSession(req);
-  const bootLike = isBootLike(routeHint, body);
+  const bootLike = isBootLike(routeHint, bodyObj);
 
-  // Detect reset early so we can force silent response if needed.
-  const isReset = isResetCommand(inboundText, source, body);
+  const isReset = isResetCommand(inboundText, source, bodyObj);
 
-  // BOOT LOOP FIX: dedupe / rate-limit boot pings (do not touch real user turns)
   if (bootLike && !isReset) {
     const bf = checkBootFuse(rec, startedAt);
     if (bf.blocked) {
       const cached = readBootReplay(rec);
-      // Return cached boot intro if we have one; otherwise 200 with empty (widget will just stay open)
       const reply = cached.reply || "";
       return res.status(200).json({
         ok: true,
@@ -651,7 +644,6 @@ async function handleChatRoute(req, res) {
     }
   }
 
-  // Throttle fuse (skip for bootLike; allow reset to pass through silently)
   if (!bootLike && meaningful && !isReset) {
     const burst = checkBurst(rec, startedAt);
     const sus = checkSustained(rec, startedAt);
@@ -676,7 +668,6 @@ async function handleChatRoute(req, res) {
     }
   }
 
-  // Replay dedupe (skip for bootLike; also skip for reset so we don't “replay” a reset bubble ever)
   if (!bootLike && meaningful && !isReset) {
     const dedupe = replayDedupe(rec, inboundSig, source, clientRequestId);
     if (dedupe.hit) {
@@ -712,14 +703,14 @@ async function handleChatRoute(req, res) {
   }
 
   const engineInput = {
-    ...body,
+    ...bodyObj,
     requestId: serverRequestId,
     clientRequestId: clientRequestId || undefined,
     text: inboundText,
     source,
     routeHint,
     client: {
-      ...(isPlainObject(body.client) ? body.client : {}),
+      ...(isPlainObject(bodyObj.client) ? bodyObj.client : {}),
       source,
       routeHint,
     },
@@ -749,11 +740,9 @@ async function handleChatRoute(req, res) {
   const lane = safeStr(out?.lane || rec.data.lane || "general") || "general";
   rec.data.lane = lane;
 
-  // SILENT RESET: never send a reset bubble
   const rawReply = safeStr(out?.reply || "").trim();
   const reply = isReset ? silentResetReply() : rawReply || "Okay — tell me what you want next.";
 
-  // LOOP FIX: followUpsStrings must be suppressed if followUps objects exist (prevents echo)
   const directives = Array.isArray(out?.directives) ? out.directives : undefined;
   const followUps = Array.isArray(out?.followUps) ? out.followUps : undefined;
   const followUpsStrings =
@@ -761,10 +750,8 @@ async function handleChatRoute(req, res) {
       ? out.followUpsStrings
       : undefined;
 
-  // For reset: do NOT overwrite replay cache with a reset bubble (store empty safely)
   writeReplay(rec, reply, lane, { directives, followUps, followUpsStrings });
 
-  // Also store boot replay if this was a bootLike turn (so boot fuse can reuse it)
   if (bootLike && !isReset) {
     writeBootReplay(rec, reply, lane, { directives, followUps, followUpsStrings });
   }
@@ -875,7 +862,7 @@ app.post("/api/chat", handleChatRoute);
 async function handleTtsRoute(req, res) {
   const startedAt = nowMs();
 
-  let body = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
+  let body = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || safeJsonParseMaybe(req.rawBody) || {};
   if (typeof req.body === "string") body = { text: req.body };
 
   const text = safeStr(body.text || body.message || body.prompt || "").trim();
@@ -958,15 +945,37 @@ app.post("/api/tts", handleTtsRoute);
 app.post("/api/voice", handleTtsRoute);
 
 // =========================
+// Parser + fallback error handler (returns JSON, never HTML)
+// This is what stops “widget won't open” when JSON is malformed.
+// =========================
+app.use((err, req, res, _next) => {
+  if (!err) return res.status(500).json({ ok: false, error: "Unknown error", meta: { index: INDEX_VERSION } });
+
+  const isBodySyntax = err && (err.type === "entity.parse.failed" || err instanceof SyntaxError);
+  const msg = safeStr(err.message || err).slice(0, 240);
+
+  // Even for errors, reply JSON (CORS headers already set earlier).
+  return res.status(isBodySyntax ? 400 : 500).json({
+    ok: false,
+    error: isBodySyntax ? "Bad JSON payload" : "Server error",
+    detail: msg,
+    requestId: safeStr(req.headers["x-request-id"] || ""),
+    meta: {
+      index: INDEX_VERSION,
+      engine: ENGINE_VERSION || null,
+      note: isBodySyntax ? "CORS is still applied; check widget payload formatting/content-type" : undefined,
+    },
+  });
+});
+
+// =========================
 // Start
 // =========================
 app.listen(PORT, () => {
   // eslint-disable-next-line no-console
   console.log(`[Sandblast] ${INDEX_VERSION} listening on ${PORT}`);
-
   // eslint-disable-next-line no-console
   console.log(`[Sandblast] Engine: from=${ENGINE.from} version=${ENGINE_VERSION || "(unknown)"} loaded=${!!ENGINE.fn}`);
-
   // eslint-disable-next-line no-console
   console.log(`[Sandblast] Fetch: ${fetchFn ? "OK" : "MISSING"} (global.fetch=${!!global.fetch})`);
 });
