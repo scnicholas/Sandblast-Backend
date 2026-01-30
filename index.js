@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18ac (KNOWLEDGE BRIDGE + SURGICAL LOOP FIXES++ + replayKey hardening + boot replay isolation + output hardening)
+ * index.js v1.5.18ad (KNOWLEDGE BRIDGE + SURGICAL LOOP FIXES++ + replayKey hardening + boot replay isolation + output hardening)
  * (Option B alignment: chatEngine v0.6zV+ / v0.7a* compatibility + enterprise guards + /api/health alias + REAL ElevenLabs TTS)
  *
  * Goals:
@@ -40,6 +40,12 @@
  *  - Full-file deliverable (drop-in)
  */
 
+/**
+ * SAFETY GUARD (Render crash prevention):
+ * If you ever copy bullet lines out of this header, ensure they stay inside a comment block.
+ * A bare leading "*" on its own line is a SyntaxError in Node.
+ */
+
 // =========================
 // Imports
 // =========================
@@ -72,7 +78,7 @@ const fetchFn =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18ac (knowledge bridge boot-loader + CORS hard-lock + stabilized preflight + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY bypass + requestId always-on + REAL ElevenLabs TTS + chatEngine v0.6zV+/v0.7a* compatibility; CORS headers: x-sbnyx-client-build + x-contract-version; engine fingerprint startup log + meta; CRITICAL: empty-text chip intent counted for replay/throttle keys; CRITICAL: reset is silent (no reset bubble); LOOP FIX: boot-intro dedupe fuse; LOOP FIX: suppress followUpsStrings when followUps objects exist; LOOP FIX: replayKey includes inboundSig hash even when clientRequestId exists; LOOP FIX: boot turns do not overwrite main replay cache; HARDEN: node-fetch default export resolver; HARDEN: engine output normalization; HARDEN: sessionPatch.cog merge; NEW: Data/Scripts in-memory knowledge bridge + /api/debug/knowledge + engineInput.knowledge)";
+  "index.js v1.5.18ad (knowledge bridge boot-loader + CORS hard-lock + stabilized preflight + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY bypass + requestId always-on + REAL ElevenLabs TTS + chatEngine v0.6zV+/v0.7a* compatibility; CORS headers: x-sbnyx-client-build + x-contract-version; engine fingerprint startup log + meta; CRITICAL: empty-text chip intent counted for replay/throttle keys; CRITICAL: reset is silent (no reset bubble); LOOP FIX: boot-intro dedupe fuse; LOOP FIX: suppress followUpsStrings when followUps objects exist; LOOP FIX: replayKey includes inboundSig hash even when clientRequestId exists; LOOP FIX: boot turns do not overwrite main replay cache; HARDEN: node-fetch default export resolver; HARDEN: engine output normalization; HARDEN: sessionPatch.cog merge; NEW: Data/Scripts in-memory knowledge bridge + /api/debug/knowledge + engineInput.knowledge)";
 
 // =========================
 // Env / knobs
@@ -85,7 +91,15 @@ const MAX_JSON_BODY = String(process.env.MAX_JSON_BODY || "512kb");
 // --- Knowledge Bridge knobs ---
 const KNOWLEDGE_AUTOLOAD = toBool(process.env.KNOWLEDGE_AUTOLOAD, true);
 const KNOWLEDGE_ENABLE_SCRIPTS = toBool(process.env.KNOWLEDGE_ENABLE_SCRIPTS, true);
-const KNOWLEDGE_RELOAD_INTERVAL_MS = clampInt(process.env.KNOWLEDGE_RELOAD_INTERVAL_MS, 0, 0, 24 * 60 * 60 * 1000); // 0 = off
+
+// ✅ FIX: clampInt is (v, def, min, max). Previous build had an extra arg, forcing max=0 → interval always off.
+const KNOWLEDGE_RELOAD_INTERVAL_MS = clampInt(
+  process.env.KNOWLEDGE_RELOAD_INTERVAL_MS,
+  0,
+  0,
+  24 * 60 * 60 * 1000
+); // 0 = off
+
 const KNOWLEDGE_MAX_FILES = clampInt(process.env.KNOWLEDGE_MAX_FILES, 2500, 200, 20000);
 const KNOWLEDGE_MAX_FILE_BYTES = clampInt(process.env.KNOWLEDGE_MAX_FILE_BYTES, 2_500_000, 50_000, 20_000_000); // per file
 const KNOWLEDGE_MAX_TOTAL_BYTES = clampInt(process.env.KNOWLEDGE_MAX_TOTAL_BYTES, 40_000_000, 1_000_000, 250_000_000); // total
@@ -474,7 +488,7 @@ function sanitizeScriptExport(x) {
 function reloadKnowledge() {
   const started = nowMs();
 
-  // Reset snapshot (but keep last errors until we repopulate)
+  // Reset snapshot
   KNOWLEDGE.ok = false;
   KNOWLEDGE.loadedAt = started;
   KNOWLEDGE.filesScanned = 0;
@@ -484,7 +498,7 @@ function reloadKnowledge() {
   KNOWLEDGE.scripts = {};
   KNOWLEDGE.errors = [];
 
-  // Sanity: keep loading constrained to our configured folders
+  // Constrain loading to configured folders inside APP_ROOT
   const dataOk = fileExists(DATA_DIR) && isWithinRoot(DATA_DIR, APP_ROOT);
   const scriptsOk = fileExists(SCRIPTS_DIR) && isWithinRoot(SCRIPTS_DIR, APP_ROOT);
 
@@ -496,7 +510,9 @@ function reloadKnowledge() {
   if (dataOk) walkFiles(DATA_DIR, [".json"], jsonFiles, KNOWLEDGE_MAX_FILES);
 
   const jsFiles = [];
-  if (scriptsOk && KNOWLEDGE_ENABLE_SCRIPTS) walkFiles(SCRIPTS_DIR, [".js", ".cjs", ".mjs"], jsFiles, Math.min(KNOWLEDGE_MAX_FILES, 1000));
+  if (scriptsOk && KNOWLEDGE_ENABLE_SCRIPTS) {
+    walkFiles(SCRIPTS_DIR, [".js", ".cjs", ".mjs"], jsFiles, Math.min(KNOWLEDGE_MAX_FILES, 1000));
+  }
 
   KNOWLEDGE.filesScanned = jsonFiles.length + jsFiles.length;
 
@@ -537,9 +553,7 @@ function reloadKnowledge() {
     for (const fp of jsFiles) {
       if (KNOWLEDGE.filesLoaded >= KNOWLEDGE_MAX_FILES) break;
 
-      // Avoid accidentally requiring heavy build scripts if you keep them in Scripts/
-      // Only load exports; do NOT execute scripts intended as CLIs.
-      // Heuristic: skip files with "build_" or "migrate_" unless explicitly allowed.
+      // Heuristic: skip build/migrate/seed scripts unless explicitly allowed.
       const base = path.basename(fp).toLowerCase();
       const allowBuildScripts = toBool(process.env.KNOWLEDGE_ALLOW_BUILD_SCRIPTS, false);
       if (!allowBuildScripts && (base.startsWith("build_") || base.includes("migrate") || base.includes("seed_"))) {
@@ -583,7 +597,8 @@ function reloadKnowledge() {
 }
 
 function knowledgeSnapshotPublic() {
-  // Keep response small. For debugging, we provide counts + first-level keys.
+  // NOTE: This returns the actual in-memory objects (no deep clone).
+  // That’s fast, but can be large depending on your Data/ folder.
   const jsonKeys = Object.keys(KNOWLEDGE.json);
   const scriptKeys = Object.keys(KNOWLEDGE.scripts);
   return {
@@ -627,7 +642,7 @@ if (KNOWLEDGE_AUTOLOAD) {
   }
 }
 
-// Optional periodic reload (off by default)
+// Optional periodic reload
 if (KNOWLEDGE_AUTOLOAD && KNOWLEDGE_RELOAD_INTERVAL_MS > 0) {
   setInterval(() => {
     try {
@@ -750,8 +765,6 @@ function replayDedupe(rec, inboundSig, source, clientRequestId) {
       : undefined;
     const lastDir = Array.isArray(rec.data.__idx_lastDirectives) ? rec.data.__idx_lastDirectives : undefined;
 
-    // NOTE: even if lastOut is empty, we treat as replay hit only if non-empty;
-    // reset is handled separately as silent.
     if (lastOut) {
       // LOOP FIX: never return followUpsStrings if followUps exist
       return {
@@ -793,7 +806,6 @@ function writeBootReplay(rec, reply, lane, extras) {
     const fus = Array.isArray(extras.followUpsStrings) ? extras.followUpsStrings.slice(0, 10) : undefined;
 
     if (fu) rec.data.__idx_lastBootFollowUps = fu;
-    // LOOP FIX: only store strings if object followUps are absent
     if (!fu && fus) rec.data.__idx_lastBootFollowUpsStrings = fus;
     if (Array.isArray(extras.directives)) rec.data.__idx_lastBootDirectives = extras.directives.slice(0, 10);
   }
@@ -808,7 +820,6 @@ function readBootReplay(rec) {
     : undefined;
   const directives = Array.isArray(rec.data.__idx_lastBootDirectives) ? rec.data.__idx_lastBootDirectives : undefined;
 
-  // LOOP FIX: never return strings if followUps exist
   return { reply, lane, followUps, followUpsStrings: followUps ? undefined : followUpsStrings, directives };
 }
 
@@ -930,7 +941,6 @@ app.get("/api/discovery", (req, res) => {
 // =========================
 if (KNOWLEDGE_DEBUG_ENDPOINT) {
   app.get("/api/debug/knowledge", (req, res) => {
-    // Optional minimal security: only allow in non-prod unless explicitly allowed
     const allowInProd = toBool(process.env.KNOWLEDGE_DEBUG_ALLOW_PROD, false);
     if (NODE_ENV === "production" && !allowInProd) {
       return res.status(404).json({ ok: false, error: "not_found" });
@@ -1000,7 +1010,6 @@ async function handleChatRoute(req, res) {
     const bf = checkBootFuse(rec, startedAt);
     if (bf.blocked) {
       const cached = readBootReplay(rec);
-      // Return cached boot intro if we have one; otherwise 200 with empty (widget will just stay open)
       const reply = cached.reply || "";
       return res.status(200).json({
         ok: true,
@@ -1114,8 +1123,7 @@ async function handleChatRoute(req, res) {
     },
     session: rec.data,
 
-    // ✅ NEW: Knowledge Bridge injection
-    // chatEngine can consume engineInput.knowledge.json / .scripts
+    // ✅ Knowledge Bridge injection
     knowledge: knowledgeSnapshotPublic(),
     __knowledgeStatus: knowledgeStatusForMeta(),
   };
@@ -1126,7 +1134,6 @@ async function handleChatRoute(req, res) {
     out = normalizeEngineOutput(out);
   } catch (e) {
     const msg = safeStr(e?.message || e).trim();
-    // IMPORTANT: if knowledge is down, surface a distinct fallback (prevents “generic loop” confusion)
     const k = knowledgeStatusForMeta();
     const reply = k.ok
       ? "I hit a snag, but I’m still here. Give me a year (1950–2024) and I’ll jump right in."
@@ -1166,12 +1173,11 @@ async function handleChatRoute(req, res) {
       : undefined;
 
   // CRITICAL LOOP FIX:
-  // - boot-like turns should NOT overwrite the main replay cache (prevents boot intro contaminating user-turn replay)
+  // - boot-like turns should NOT overwrite the main replay cache
   // - resets should not be cached as a visible bubble (they're silent anyway)
   if (!isReset && !bootLike) {
     writeReplay(rec, reply, lane, { directives, followUps, followUpsStrings });
   } else if (isReset) {
-    // still advance the replay key timeline but keep output blank (safe)
     rec.data.__idx_lastOut = "";
     rec.data.__idx_lastLane = lane;
   }
@@ -1276,7 +1282,6 @@ function applySessionPatch(session, patch) {
     }
 
     if (k === "__nyxIntro") {
-      // Merge intro object rather than replace (same rationale as cog)
       if (!isPlainObject(session.__nyxIntro)) session.__nyxIntro = {};
       if (isPlainObject(v)) {
         for (const [ik, iv] of Object.entries(v)) {
@@ -1399,7 +1404,7 @@ app.listen(PORT, () => {
 
   // eslint-disable-next-line no-console
   console.log(
-    `[Sandblast] Knowledge: autoload=${KNOWLEDGE_AUTOLOAD} ok=${KNOWLEDGE.ok} jsonKeys=${Object.keys(KNOWLEDGE.json).length} scriptKeys=${Object.keys(KNOWLEDGE.scripts).length} errors=${KNOWLEDGE.errors.length} DATA_DIR=${DATA_DIR} SCRIPTS_DIR=${SCRIPTS_DIR}`
+    `[Sandblast] Knowledge: autoload=${KNOWLEDGE_AUTOLOAD} ok=${KNOWLEDGE.ok} jsonKeys=${Object.keys(KNOWLEDGE.json).length} scriptKeys=${Object.keys(KNOWLEDGE.scripts).length} errors=${KNOWLEDGE.errors.length} DATA_DIR=${DATA_DIR} SCRIPTS_DIR=${SCRIPTS_DIR} reloadEveryMs=${KNOWLEDGE_RELOAD_INTERVAL_MS}`
   );
 });
 
