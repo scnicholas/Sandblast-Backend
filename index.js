@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18ae (KNOWLEDGE BRIDGE + SURGICAL LOOP FIXES++ + replayKey hardening + boot replay isolation + output hardening)
+ * index.js v1.5.18af (KNOWLEDGE BRIDGE + SURGICAL LOOP FIXES+++ + replayKey hardening + boot replay isolation + output hardening)
  * (Option B alignment: chatEngine v0.6zV+ / v0.7a* compatibility + enterprise guards + /api/health alias + REAL ElevenLabs TTS)
  *
  * Goals:
@@ -34,6 +34,11 @@
  *      - Injects knowledge snapshot into engineInput as:
  *          engineInput.knowledge = { json, scripts, meta }
  *          engineInput.__knowledgeStatus = { ok, errors, loadedAt }
+ *
+ *  ✅ NEW (CRITICAL): THROTTLE RESPONSE IS HTTP 200 (not 429) to prevent widget retry-loops / “double send” behavior.
+ *
+ *  ✅ NEW (CRITICAL): Debug knowledge endpoint no longer dumps full JSON by default (prevents giant responses / timeouts).
+ *      - Set KNOWLEDGE_DEBUG_INCLUDE_DATA=true to include full data payloads.
  *
  * NOTE:
  *  - Expects ./Utils/chatEngine.js to export handleChat (or be a function)
@@ -72,7 +77,7 @@ const fetchFn =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18ae (knowledge bridge boot-loader + CORS hard-lock + stabilized preflight + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY bypass + requestId always-on + REAL ElevenLabs TTS + chatEngine v0.6zV+/v0.7a* compatibility; CORS headers: x-sbnyx-client-build + x-contract-version; engine fingerprint startup log + meta; CRITICAL: empty-text chip intent counted for replay/throttle keys; CRITICAL: reset is silent (no reset bubble); LOOP FIX: boot-intro dedupe fuse; LOOP FIX: suppress followUpsStrings when followUps objects exist; LOOP FIX: replayKey includes inboundSig hash even when clientRequestId exists; LOOP FIX: boot turns do not overwrite main replay cache; HARDEN: node-fetch default export resolver; HARDEN: engine output normalization; HARDEN: sessionPatch.cog merge; NEW: Data/Scripts in-memory knowledge bridge + /api/debug/knowledge + engineInput.knowledge)";
+  "index.js v1.5.18af (knowledge bridge boot-loader + CORS hard-lock + stabilized preflight + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY bypass + requestId always-on + REAL ElevenLabs TTS + chatEngine v0.6zV+/v0.7a* compatibility; CORS headers: x-sbnyx-client-build + x-contract-version; engine fingerprint startup log + meta; CRITICAL: empty-text chip intent counted for replay/throttle keys; CRITICAL: reset is silent (no reset bubble); LOOP FIX: boot-intro dedupe fuse; LOOP FIX: suppress followUpsStrings when followUps objects exist; LOOP FIX: replayKey includes inboundSig hash even when clientRequestId exists; LOOP FIX: boot turns do not overwrite main replay cache; HARDEN: node-fetch default export resolver; HARDEN: engine output normalization; HARDEN: sessionPatch.cog merge; NEW: Data/Scripts in-memory knowledge bridge + /api/debug/knowledge + engineInput.knowledge; CRITICAL: throttle returns HTTP 200; CRITICAL: debug knowledge avoids dumping full data by default)";
 
 // =========================
 // Env / knobs
@@ -85,6 +90,8 @@ const MAX_JSON_BODY = String(process.env.MAX_JSON_BODY || "512kb");
 // --- Knowledge Bridge knobs ---
 const KNOWLEDGE_AUTOLOAD = toBool(process.env.KNOWLEDGE_AUTOLOAD, true);
 const KNOWLEDGE_ENABLE_SCRIPTS = toBool(process.env.KNOWLEDGE_ENABLE_SCRIPTS, true);
+const KNOWLEDGE_DEBUG_ENDPOINT = toBool(process.env.KNOWLEDGE_DEBUG_ENDPOINT, true);
+const KNOWLEDGE_DEBUG_INCLUDE_DATA = toBool(process.env.KNOWLEDGE_DEBUG_INCLUDE_DATA, false);
 
 // clampInt signature is (v, def, min, max)
 const KNOWLEDGE_RELOAD_INTERVAL_MS = clampInt(
@@ -97,7 +104,6 @@ const KNOWLEDGE_RELOAD_INTERVAL_MS = clampInt(
 const KNOWLEDGE_MAX_FILES = clampInt(process.env.KNOWLEDGE_MAX_FILES, 2500, 200, 20000);
 const KNOWLEDGE_MAX_FILE_BYTES = clampInt(process.env.KNOWLEDGE_MAX_FILE_BYTES, 2_500_000, 50_000, 20_000_000); // per file
 const KNOWLEDGE_MAX_TOTAL_BYTES = clampInt(process.env.KNOWLEDGE_MAX_TOTAL_BYTES, 40_000_000, 1_000_000, 250_000_000); // total
-const KNOWLEDGE_DEBUG_ENDPOINT = toBool(process.env.KNOWLEDGE_DEBUG_ENDPOINT, true);
 
 // Root resolution: in Render, __dirname is safest for relative package files.
 const APP_ROOT = path.resolve(__dirname);
@@ -481,7 +487,8 @@ function reloadKnowledge() {
   const scriptsOk = fileExists(SCRIPTS_DIR) && isWithinRoot(SCRIPTS_DIR, APP_ROOT);
 
   if (!dataOk) pushKnowledgeError("dir", DATA_DIR, "DATA_DIR missing or outside APP_ROOT");
-  if (!scriptsOk && KNOWLEDGE_ENABLE_SCRIPTS) pushKnowledgeError("dir", SCRIPTS_DIR, "SCRIPTS_DIR missing or outside APP_ROOT");
+  if (!scriptsOk && KNOWLEDGE_ENABLE_SCRIPTS)
+    pushKnowledgeError("dir", SCRIPTS_DIR, "SCRIPTS_DIR missing or outside APP_ROOT");
 
   const jsonFiles = [];
   if (dataOk) walkFiles(DATA_DIR, [".json"], jsonFiles, KNOWLEDGE_MAX_FILES);
@@ -569,28 +576,6 @@ function reloadKnowledge() {
   };
 }
 
-function knowledgeSnapshotPublic() {
-  const jsonKeys = Object.keys(KNOWLEDGE.json);
-  const scriptKeys = Object.keys(KNOWLEDGE.scripts);
-  return {
-    json: KNOWLEDGE.json,
-    scripts: KNOWLEDGE.scripts,
-    meta: {
-      ok: KNOWLEDGE.ok,
-      loadedAt: KNOWLEDGE.loadedAt,
-      dataDir: DATA_DIR,
-      scriptsDir: SCRIPTS_DIR,
-      jsonKeyCount: jsonKeys.length,
-      scriptKeyCount: scriptKeys.length,
-      filesScanned: KNOWLEDGE.filesScanned,
-      filesLoaded: KNOWLEDGE.filesLoaded,
-      totalBytes: KNOWLEDGE.totalBytes,
-      errorCount: KNOWLEDGE.errors.length,
-      errorsPreview: KNOWLEDGE.errors.slice(0, 5),
-    },
-  };
-}
-
 function knowledgeStatusForMeta() {
   return {
     ok: KNOWLEDGE.ok,
@@ -599,6 +584,25 @@ function knowledgeStatusForMeta() {
     errorsPreview: KNOWLEDGE.errors.slice(0, 3),
     jsonKeyCount: Object.keys(KNOWLEDGE.json).length,
     scriptKeyCount: Object.keys(KNOWLEDGE.scripts).length,
+  };
+}
+
+// This is intentionally a reference snapshot (no deep clone) so it stays fast.
+function knowledgeSnapshotForEngine() {
+  return {
+    json: KNOWLEDGE.json,
+    scripts: KNOWLEDGE.scripts,
+    meta: {
+      ok: KNOWLEDGE.ok,
+      loadedAt: KNOWLEDGE.loadedAt,
+      jsonKeyCount: Object.keys(KNOWLEDGE.json).length,
+      scriptKeyCount: Object.keys(KNOWLEDGE.scripts).length,
+      filesScanned: KNOWLEDGE.filesScanned,
+      filesLoaded: KNOWLEDGE.filesLoaded,
+      totalBytes: KNOWLEDGE.totalBytes,
+      errorCount: KNOWLEDGE.errors.length,
+      errorsPreview: KNOWLEDGE.errors.slice(0, 5),
+    },
   };
 }
 
@@ -905,6 +909,10 @@ if (KNOWLEDGE_DEBUG_ENDPOINT) {
     if (NODE_ENV === "production" && !allowInProd) {
       return res.status(404).json({ ok: false, error: "not_found" });
     }
+
+    const jsonKeys = Object.keys(KNOWLEDGE.json);
+    const scriptKeys = Object.keys(KNOWLEDGE.scripts);
+
     return res.status(200).json({
       ok: true,
       version: INDEX_VERSION,
@@ -914,15 +922,18 @@ if (KNOWLEDGE_DEBUG_ENDPOINT) {
         loadedAt: KNOWLEDGE.loadedAt,
         dataDir: DATA_DIR,
         scriptsDir: SCRIPTS_DIR,
-        jsonKeyCount: Object.keys(KNOWLEDGE.json).length,
-        scriptKeyCount: Object.keys(KNOWLEDGE.scripts).length,
+        jsonKeyCount: jsonKeys.length,
+        scriptKeyCount: scriptKeys.length,
         filesScanned: KNOWLEDGE.filesScanned,
         filesLoaded: KNOWLEDGE.filesLoaded,
         totalBytes: KNOWLEDGE.totalBytes,
         errorCount: KNOWLEDGE.errors.length,
         errorsPreview: KNOWLEDGE.errors.slice(0, 10),
-        jsonKeysPreview: Object.keys(KNOWLEDGE.json).slice(0, 50),
-        scriptKeysPreview: Object.keys(KNOWLEDGE.scripts).slice(0, 50),
+        jsonKeysPreview: jsonKeys.slice(0, 80),
+        scriptKeysPreview: scriptKeys.slice(0, 80),
+        includeData: KNOWLEDGE_DEBUG_INCLUDE_DATA,
+        json: KNOWLEDGE_DEBUG_INCLUDE_DATA ? KNOWLEDGE.json : undefined,
+        scripts: KNOWLEDGE_DEBUG_INCLUDE_DATA ? KNOWLEDGE.scripts : undefined,
       },
     });
   });
@@ -947,8 +958,7 @@ async function handleChatRoute(req, res) {
   const clientRequestId = safeStr(body.requestId || body.clientRequestId || req.headers["x-request-id"] || "").trim();
   const serverRequestId = clientRequestId || makeReqId();
 
-  const source =
-    safeStr(body?.client?.source || body?.source || req.headers["x-client-source"] || "").trim() || "unknown";
+  const source = safeStr(body?.client?.source || body?.source || req.headers["x-client-source"] || "").trim() || "unknown";
 
   const routeHint =
     safeStr(body?.client?.routeHint || body?.routeHint || body?.lane || req.headers["x-route-hint"] || "").trim() ||
@@ -1001,7 +1011,9 @@ async function handleChatRoute(req, res) {
           ? "One sec — you’re firing a little fast. Try again in a moment."
           : "Give me a breath — then hit me again with a year or a request.";
       writeReplay(rec, reply, rec.data.lane || "general");
-      return res.status(429).json({
+
+      // CRITICAL: return 200 (not 429) to reduce client retry loops / double-sends.
+      return res.status(200).json({
         ok: true,
         reply,
         lane: rec.data.lane || "general",
@@ -1012,6 +1024,7 @@ async function handleChatRoute(req, res) {
           engine: ENGINE_VERSION || null,
           knowledge: knowledgeStatusForMeta(),
           throttled: burst.blocked ? "burst" : "sustained",
+          elapsedMs: nowMs() - startedAt,
         },
       });
     }
@@ -1029,7 +1042,13 @@ async function handleChatRoute(req, res) {
         followUpsStrings: dedupe.followUpsStrings,
         sessionPatch: {},
         requestId: serverRequestId,
-        meta: { index: INDEX_VERSION, engine: ENGINE_VERSION || null, knowledge: knowledgeStatusForMeta(), replay: true },
+        meta: {
+          index: INDEX_VERSION,
+          engine: ENGINE_VERSION || null,
+          knowledge: knowledgeStatusForMeta(),
+          replay: true,
+          elapsedMs: nowMs() - startedAt,
+        },
       });
     }
   }
@@ -1077,7 +1096,7 @@ async function handleChatRoute(req, res) {
       routeHint,
     },
     session: rec.data,
-    knowledge: knowledgeSnapshotPublic(),
+    knowledge: knowledgeSnapshotForEngine(),
     __knowledgeStatus: knowledgeStatusForMeta(),
   };
 
@@ -1347,7 +1366,7 @@ app.listen(PORT, () => {
   console.log(`[Sandblast] Fetch: ${fetchFn ? "OK" : "MISSING"} (global.fetch=${!!global.fetch})`);
   // eslint-disable-next-line no-console
   console.log(
-    `[Sandblast] Knowledge: autoload=${KNOWLEDGE_AUTOLOAD} ok=${KNOWLEDGE.ok} jsonKeys=${Object.keys(KNOWLEDGE.json).length} scriptKeys=${Object.keys(KNOWLEDGE.scripts).length} errors=${KNOWLEDGE.errors.length} DATA_DIR=${DATA_DIR} SCRIPTS_DIR=${SCRIPTS_DIR} reloadEveryMs=${KNOWLEDGE_RELOAD_INTERVAL_MS}`
+    `[Sandblast] Knowledge: autoload=${KNOWLEDGE_AUTOLOAD} ok=${KNOWLEDGE.ok} jsonKeys=${Object.keys(KNOWLEDGE.json).length} scriptKeys=${Object.keys(KNOWLEDGE.scripts).length} errors=${KNOWLEDGE.errors.length} DATA_DIR=${DATA_DIR} SCRIPTS_DIR=${SCRIPTS_DIR} reloadEveryMs=${KNOWLEDGE_RELOAD_INTERVAL_MS} debugIncludeData=${KNOWLEDGE_DEBUG_INCLUDE_DATA}`
   );
 });
 
