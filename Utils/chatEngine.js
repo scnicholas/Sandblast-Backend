@@ -16,14 +16,17 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7aG (ENTERPRISE HARDENED+++ + CHIP-AUTHORITATIVE ROUTING SPINE)
- *  ✅ NEW (CRITICAL): Chip payload routing spine (lane/action/year) deterministically maps to the correct knowledge command.
- *  ✅ NEW (CRITICAL): FollowUps now carry structured payload (lane/action/year/mode) while preserving legacy payload.text.
- *  ✅ FIX (CRITICAL): Packets gating blocks when a music mode is present (not just when a year exists) — prevents packets hijacking chip flows.
- *  ✅ FIX (CRITICAL): replayKey signature includes payload hash (prevents “sticky replay” when rid reused but payload differs).
- *  ✅ NEW: __chip:lane:action:year text encoding supported (fallback if only text arrives).
- *  ✅ NEW: session.cog.__nyxLastChip stamped for continuity (lane/action/year) to resolve mode-only chip clicks.
- *  ✅ Keeps: canonical first boot intro logic, reset advances, replay safety, intro shuffle-bag, loopkiller, state spine, writeReplay patch.
+ * v0.7aH (ENTERPRISE HARDENED+++ + CHIP-AUTHORITATIVE ROUTING SPINE ++ FIXES)
+ *  ✅ Keeps: Chip payload routing spine (lane/action/year) deterministic mapping to commands
+ *  ✅ Keeps: FollowUps structured payload (lane/action/year/mode) while preserving legacy payload.text
+ *  ✅ Keeps: Packets gating blocks when a music mode is present (not just when a year exists)
+ *  ✅ Keeps: replayKey signature includes payload hash
+ *  ✅ Keeps: __chip:lane:action:year fallback encoding support
+ *  ✅ Keeps: session.cog.__nyxLastChip continuity stamping
+ *
+ *  ✅ FIX (CRITICAL): normalizeFollowUps now correctly handles legacy string payloads (payload = "top 10 1988")
+ *  ✅ HARDEN: sanitize lane/action tokens used for routing (prevents weird/unsafe tokens becoming commands)
+ *  ✅ HARDEN: deriveCommandFromChip clamps unknown actions to null (prevents accidental garbage commands)
  */
 
 const crypto = require("crypto");
@@ -32,7 +35,7 @@ const crypto = require("crypto");
 // Version
 // =========================
 const CE_VERSION =
-  "chatEngine v0.7aG (enterprise hardened+++ + CHIP-AUTHORITATIVE ROUTING SPINE: payload lane/action/year routing + followUps structured payload (legacy text preserved) + packets gating blocks on music mode + replayKey includes payload hash + __chip text encoding + stamps lastChip continuity + keeps writeReplay patch + looping mitigations + canonical boot intro + state spine)";
+  "chatEngine v0.7aH (enterprise hardened+++ + CHIP-AUTHORITATIVE ROUTING SPINE + FIX normalizeFollowUps string payload + sanitize lane/action tokens + keep packets gating on music mode + replayKey includes payload hash + __chip encoding + lastChip continuity + writeReplay patch + looping mitigations + canonical boot intro + state spine)";
 
 // =========================
 // Enterprise knobs
@@ -249,8 +252,17 @@ function safeLower(x) {
   return safeStr(x).trim().toLowerCase();
 }
 
+// HARDEN: sanitize tokens used in routing/command derivation
+function sanitizeToken(x, maxLen = 32) {
+  const s = safeLower(x);
+  if (!s) return "";
+  // allow letters, digits, underscore, dash only
+  const cleaned = s.replace(/[^a-z0-9_-]/g, "").slice(0, maxLen);
+  return cleaned;
+}
+
 function coerceLane(v) {
-  const s = safeLower(v);
+  const s = sanitizeToken(v, 24);
   if (!s) return null;
   if (["music", "schedule", "roku", "radio", "sponsors", "movies", "general", "years"].includes(s)) return s;
   // alias hints
@@ -261,23 +273,29 @@ function coerceLane(v) {
 }
 
 function coerceAction(v) {
-  const s = safeLower(v);
+  const raw = safeLower(v);
+  const s = sanitizeToken(raw, 32);
   if (!s) return null;
+
   // music
-  if (["top10", "top_10", "top 10", "topten"].includes(s)) return "top10";
-  if (["top100", "top_100", "top 100", "hot100", "hot 100"].includes(s)) return "top100";
-  if (["story", "storymoment", "story_moment", "story moment"].includes(s)) return "story";
-  if (["micro", "micromoment", "micro_moment", "micro moment"].includes(s)) return "micro";
-  if (["number1", "no1", "no_1", "#1", "number 1"].includes(s)) return "number1";
-  if (["year", "year_pick", "pickyear", "pick year"].includes(s)) return "year_pick";
+  if (["top10", "top_10", "top10", "topten"].includes(s)) return "top10";
+  if (["top100", "top_100", "top100", "hot100", "hot100"].includes(s)) return "top100";
+  if (["story", "storymoment", "story_moment", "storymoment"].includes(s)) return "story";
+  if (["micro", "micromoment", "micro_moment", "micromoment"].includes(s)) return "micro";
+  if (["number1", "no1", "no_1", "number1"].includes(s)) return "number1";
+  if (["year", "year_pick", "pickyear", "pickyear"].includes(s)) return "year_pick";
+
   // schedule
-  if (["now", "playing_now", "whats_on_now", "what's on now"].includes(s)) return "now";
+  if (["now", "playing_now", "whats_on_now", "whatsonnow"].includes(s)) return "now";
   if (["next", "playing_next"].includes(s)) return "next";
   if (["later", "playing_later"].includes(s)) return "later";
   if (["today"].includes(s)) return "today";
+
   // generic
   if (["open", "start", "go"].includes(s)) return "open";
-  return s; // keep unknown action tokens (sanitized later)
+
+  // HARDEN: if it’s not one of our known-safe actions, return null (don’t create garbage commands)
+  return null;
 }
 
 // ============================
@@ -667,13 +685,12 @@ function deriveCommandFromChip(laneIn, actionIn, yearIn, session) {
 
   // Music lane
   if (lane === "music" || lane === "years") {
-    // if action is missing but we have an active mode, use it
-    const activeMode = safeLower(session && session.activeMusicMode);
+    const activeMode = coerceAction(session && session.activeMusicMode);
     const lastChip = getLastChip(session);
 
     let a = action;
     if (!a && lastChip && lastChip.action) a = lastChip.action;
-    if (!a && activeMode) a = coerceAction(activeMode);
+    if (!a && activeMode) a = activeMode;
 
     // normalize year_pick
     if (a === "year_pick" && year) return `top 10 ${year}`;
@@ -733,7 +750,6 @@ function deriveCommandFromChip(laneIn, actionIn, yearIn, session) {
     return "movies";
   }
 
-  // General fallbacks
   return null;
 }
 
@@ -1204,7 +1220,7 @@ function toFollowUps(chips) {
   for (const c of arr) {
     const label = safeStr(c && c.label).trim() || "Send";
     const send = safeStr(c && c.send).trim();
-    const extra = isPlainObject(c && c.payload) ? c.payload : (isPlainObject(c) ? c : null);
+    const extra = isPlainObject(c && c.payload) ? c.payload : isPlainObject(c) ? c : null;
     const key = normText(label + "::" + send + "::" + safeJsonStringify(extra || {}));
     if (!send) continue;
     if (seen.has(key)) continue;
@@ -1240,7 +1256,16 @@ function normalizeFollowUps(followUps) {
     if (type !== "send") continue;
     const label = clampStr(safeStr(f.label).trim() || "Send", MAX_FOLLOWUP_LABEL);
 
-    const payloadIn = isPlainObject(f.payload) ? f.payload : { text: safeStr(f.payload && f.payload.text) };
+    // ✅ FIX: handle legacy payload as a STRING (common in older codepaths)
+    // Examples:
+    //   payload: "top 10 1988"
+    //   payload: { text: "top 10 1988", lane:"music", action:"top10", year:1988 }
+    let payloadIn = null;
+    if (typeof f.payload === "string") payloadIn = { text: f.payload };
+    else if (isPlainObject(f.payload)) payloadIn = f.payload;
+    else if (typeof f.payload === "object" && f.payload && typeof f.payload.text === "string") payloadIn = { text: f.payload.text };
+    else payloadIn = { text: safeStr(f.payload) };
+
     const payload = buildStructuredPayload(payloadIn);
     const text = safeStr(payload.text).trim();
     if (!text) continue;
@@ -1610,9 +1635,18 @@ async function handleChat(input = {}) {
   // CHIP SPINE: If payload has lane/action/year, prefer it (even if inboundText is generic)
   const payloadObj = isPlainObject(input && input.payload) ? input.payload : null;
   if (payloadObj) {
-    const cmd = deriveCommandFromChip(payloadObj.lane, payloadObj.action || payloadObj.mode || payloadObj.intent, payloadObj.year, session);
+    const cmd = deriveCommandFromChip(
+      payloadObj.lane,
+      payloadObj.action || payloadObj.mode || payloadObj.intent,
+      payloadObj.year,
+      session
+    );
     if (cmd) {
-      stampLastChip(session, { lane: payloadObj.lane, action: payloadObj.action || payloadObj.mode || payloadObj.intent, year: payloadObj.year });
+      stampLastChip(session, {
+        lane: payloadObj.lane,
+        action: payloadObj.action || payloadObj.mode || payloadObj.intent,
+        year: payloadObj.year,
+      });
       inboundText = clampInboundText(cmd);
     }
   }
@@ -1758,12 +1792,19 @@ async function handleChat(input = {}) {
       const fu = toFollowUps(CANON_INTRO_CHIPS);
       const fus = toFollowUpsStrings(CANON_INTRO_CHIPS);
 
-      writeReplay(session, replayKey(session, clientRequestId, inboundText, source, payloadObj), startedAt, reply0, lane0, {
-        rawReply: reply0,
-        replyShown: reply0,
-        followUps: fu,
-        followUpsStrings: fus,
-      });
+      writeReplay(
+        session,
+        replayKey(session, clientRequestId, inboundText, source, payloadObj),
+        startedAt,
+        reply0,
+        lane0,
+        {
+          rawReply: reply0,
+          replyShown: reply0,
+          followUps: fu,
+          followUpsStrings: fus,
+        }
+      );
 
       return {
         ok: true,
@@ -1793,12 +1834,19 @@ async function handleChat(input = {}) {
     const fu = toFollowUps(CANON_INTRO_CHIPS);
     const fus = toFollowUpsStrings(CANON_INTRO_CHIPS);
 
-    writeReplay(session, replayKey(session, clientRequestId, inboundText, source, payloadObj), startedAt, reply0, laneX, {
-      rawReply: reply0,
-      replyShown: reply0,
-      followUps: fu,
-      followUpsStrings: fus,
-    });
+    writeReplay(
+      session,
+      replayKey(session, clientRequestId, inboundText, source, payloadObj),
+      startedAt,
+      reply0,
+      laneX,
+      {
+        rawReply: reply0,
+        replyShown: reply0,
+        followUps: fu,
+        followUpsStrings: fus,
+      }
+    );
 
     return {
       ok: true,
