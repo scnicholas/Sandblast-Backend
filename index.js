@@ -3,8 +3,8 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.17zz (SURGICAL LOOP FIXES + fetch resolver hardening)
- * (Option B alignment: chatEngine v0.6zV+ compatibility + enterprise guards + /api/health alias + REAL ElevenLabs TTS)
+ * index.js v1.5.18aa (SURGICAL LOOP FIXES++ + replayKey hardening + boot replay isolation)
+ * (Option B alignment: chatEngine v0.6zV+ / v0.7a* compatibility + enterprise guards + /api/health alias + REAL ElevenLabs TTS)
  *
  * Goals:
  *  ✅ Preserve Voice/TTS stability (ElevenLabs) + /api/tts + /api/voice aliases
@@ -15,13 +15,15 @@
  *  ✅ Fix: boot-intro / empty-text requests bypass replay + throttles
  *  ✅ Fix: add GET /api/health (widget expects it)
  *  ✅ Fix: allow x-sbnyx-client-build + x-contract-version headers (CORS)  <-- REQUIRED
- *  ✅ NEW: Engine fingerprint (CE_VERSION) printed on startup + exposed in meta
- *  ✅ NEW: Accept chatEngine module that exports handleChat OR exports a function directly
- *  ✅ NEW (CRITICAL): Empty-text chip clicks with payload/ctx intent are now treated as “meaningful” for replay/throttle keys
- *  ✅ NEW (CRITICAL, SURGICAL): Reset is SILENT (no “All reset…” / “Reset complete…” bubble)
- *  ✅ NEW (LOOP FIX): Boot-intro dedupe fuse (prevents rapid repeated boot-intro pings from re-running engine)
- *  ✅ NEW (LOOP FIX, CRITICAL): followUpsStrings suppressed when followUps objects are present (prevents “echo” double-bubbles)
- *  ✅ NEW (HARDEN): node-fetch resolver supports CJS + ESM default export (prevents fetchFn not-a-function)
+ *  ✅ Engine fingerprint (CE_VERSION) printed on startup + exposed in meta
+ *  ✅ Accept chatEngine module that exports handleChat OR exports a function directly
+ *  ✅ CRITICAL: Empty-text chip clicks with payload/ctx intent are treated as “meaningful” for replay/throttle keys
+ *  ✅ CRITICAL: Reset is SILENT (no “All reset…” / “Reset complete…” bubble)
+ *  ✅ LOOP FIX: Boot-intro dedupe fuse (prevents rapid repeated boot-intro pings from re-running engine)
+ *  ✅ LOOP FIX (CRITICAL): followUpsStrings suppressed when followUps objects are present (prevents “echo” double-bubbles)
+ *  ✅ LOOP FIX (CRITICAL): replayKey now includes inboundSig hash EVEN when clientRequestId exists (prevents “sticky replays” if widget reuses requestId)
+ *  ✅ LOOP FIX (CRITICAL): boot-like turns DO NOT overwrite the main replay cache (prevents boot intro contaminating subsequent user-turn replay)
+ *  ✅ HARDEN: node-fetch resolver supports CJS + ESM default export (prevents fetchFn not-a-function)
  *
  * NOTE:
  *  - Expects ./Utils/chatEngine.js to export handleChat (or be a function)
@@ -58,7 +60,7 @@ const fetchFn =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.17zz (enterprise hardened: CORS hard-lock + stabilized preflight + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY bypass + requestId always-on + REAL ElevenLabs TTS + chatEngine v0.6zV+ compatibility; CORS headers: x-sbnyx-client-build + x-contract-version; engine fingerprint startup log + meta; CRITICAL: empty-text chip intent counted for replay/throttle keys; CRITICAL: reset is silent (no reset bubble); LOOP FIX: boot-intro dedupe fuse; LOOP FIX: suppress followUpsStrings when followUps objects exist; HARDEN: node-fetch default export resolver)";
+  "index.js v1.5.18aa (enterprise hardened: CORS hard-lock + stabilized preflight + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY bypass + requestId always-on + REAL ElevenLabs TTS + chatEngine v0.6zV+/v0.7a* compatibility; CORS headers: x-sbnyx-client-build + x-contract-version; engine fingerprint startup log + meta; CRITICAL: empty-text chip intent counted for replay/throttle keys; CRITICAL: reset is silent (no reset bubble); LOOP FIX: boot-intro dedupe fuse; LOOP FIX: suppress followUpsStrings when followUps objects exist; LOOP FIX: replayKey includes inboundSig hash even when clientRequestId exists; LOOP FIX: boot turns do not overwrite main replay cache; HARDEN: node-fetch default export resolver)";
 
 // =========================
 // Env / knobs
@@ -415,11 +417,17 @@ function checkBootFuse(rec, now) {
   return { blocked: false };
 }
 
+/**
+ * CRITICAL LOOP FIX:
+ * replayKey must NOT be only "rid:<clientRequestId>" because widgets sometimes reuse requestId.
+ * We include inboundSig hash always, so "same rid + different input" won't stick to one cached output.
+ */
 function replayDedupe(rec, inboundSig, source, clientRequestId) {
   const now = nowMs();
   const rid = safeStr(clientRequestId).trim();
-  const sig = sha1(`${safeStr(rec.data.sessionId)}|${safeStr(source)}|${safeStr(inboundSig)}`).slice(0, 12);
-  const key = rid ? `rid:${rid}` : `sig:${sig}`;
+
+  const sigHash = sha1(`${safeStr(rec.data.sessionId)}|${safeStr(source)}|${safeStr(inboundSig)}`).slice(0, 12);
+  const key = rid ? `rid:${rid}|sig:${sigHash}` : `sig:${sigHash}`;
 
   const lastKey = safeStr(rec.data.__idx_lastReqKey || "");
   const lastAt = Number(rec.data.__idx_lastReqAt || 0);
@@ -761,10 +769,18 @@ async function handleChatRoute(req, res) {
       ? out.followUpsStrings
       : undefined;
 
-  // For reset: do NOT overwrite replay cache with a reset bubble (store empty safely)
-  writeReplay(rec, reply, lane, { directives, followUps, followUpsStrings });
+  // CRITICAL LOOP FIX:
+  // - boot-like turns should NOT overwrite the main replay cache (prevents boot intro contaminating user-turn replay)
+  // - resets should not be cached as a visible bubble (they're silent anyway)
+  if (!isReset && !bootLike) {
+    writeReplay(rec, reply, lane, { directives, followUps, followUpsStrings });
+  } else if (isReset) {
+    // still advance the replay key timeline but keep output blank (safe)
+    rec.data.__idx_lastOut = "";
+    rec.data.__idx_lastLane = lane;
+  }
 
-  // Also store boot replay if this was a bootLike turn (so boot fuse can reuse it)
+  // Store boot replay if this was a bootLike turn (so boot fuse can reuse it)
   if (bootLike && !isReset) {
     writeBootReplay(rec, reply, lane, { directives, followUps, followUpsStrings });
   }
