@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18ad (KNOWLEDGE BRIDGE + SURGICAL LOOP FIXES++ + replayKey hardening + boot replay isolation + output hardening)
+ * index.js v1.5.18ae (KNOWLEDGE BRIDGE + SURGICAL LOOP FIXES++ + replayKey hardening + boot replay isolation + output hardening)
  * (Option B alignment: chatEngine v0.6zV+ / v0.7a* compatibility + enterprise guards + /api/health alias + REAL ElevenLabs TTS)
  *
  * Goals:
@@ -28,7 +28,7 @@
  *  ✅ HARDEN: sessionPatch.cog merges (won’t wipe existing cog keys)
  *
  *  ✅ NEW (CRITICAL): Knowledge Bridge — load JSON + script exports from backend folders into a stable in-memory store
- *      - Loads Data/**/*.json (and optional Scripts/**/*.js exports) at boot
+ *      - Loads Data/(recursive)/.json (and optional Scripts/(recursive)/.js exports) at boot
  *      - Survives partial failures (bad JSON won’t crash server)
  *      - Provides /api/debug/knowledge to verify what’s loaded in prod (Render)
  *      - Injects knowledge snapshot into engineInput as:
@@ -38,12 +38,6 @@
  * NOTE:
  *  - Expects ./Utils/chatEngine.js to export handleChat (or be a function)
  *  - Full-file deliverable (drop-in)
- */
-
-/**
- * SAFETY GUARD (Render crash prevention):
- * If you ever copy bullet lines out of this header, ensure they stay inside a comment block.
- * A bare leading "*" on its own line is a SyntaxError in Node.
  */
 
 // =========================
@@ -78,7 +72,7 @@ const fetchFn =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18ad (knowledge bridge boot-loader + CORS hard-lock + stabilized preflight + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY bypass + requestId always-on + REAL ElevenLabs TTS + chatEngine v0.6zV+/v0.7a* compatibility; CORS headers: x-sbnyx-client-build + x-contract-version; engine fingerprint startup log + meta; CRITICAL: empty-text chip intent counted for replay/throttle keys; CRITICAL: reset is silent (no reset bubble); LOOP FIX: boot-intro dedupe fuse; LOOP FIX: suppress followUpsStrings when followUps objects exist; LOOP FIX: replayKey includes inboundSig hash even when clientRequestId exists; LOOP FIX: boot turns do not overwrite main replay cache; HARDEN: node-fetch default export resolver; HARDEN: engine output normalization; HARDEN: sessionPatch.cog merge; NEW: Data/Scripts in-memory knowledge bridge + /api/debug/knowledge + engineInput.knowledge)";
+  "index.js v1.5.18ae (knowledge bridge boot-loader + CORS hard-lock + stabilized preflight + loop fuse + sessionPatch persistence + boot-intro bridge + /api/health alias + BOOT/EMPTY bypass + requestId always-on + REAL ElevenLabs TTS + chatEngine v0.6zV+/v0.7a* compatibility; CORS headers: x-sbnyx-client-build + x-contract-version; engine fingerprint startup log + meta; CRITICAL: empty-text chip intent counted for replay/throttle keys; CRITICAL: reset is silent (no reset bubble); LOOP FIX: boot-intro dedupe fuse; LOOP FIX: suppress followUpsStrings when followUps objects exist; LOOP FIX: replayKey includes inboundSig hash even when clientRequestId exists; LOOP FIX: boot turns do not overwrite main replay cache; HARDEN: node-fetch default export resolver; HARDEN: engine output normalization; HARDEN: sessionPatch.cog merge; NEW: Data/Scripts in-memory knowledge bridge + /api/debug/knowledge + engineInput.knowledge)";
 
 // =========================
 // Env / knobs
@@ -92,7 +86,7 @@ const MAX_JSON_BODY = String(process.env.MAX_JSON_BODY || "512kb");
 const KNOWLEDGE_AUTOLOAD = toBool(process.env.KNOWLEDGE_AUTOLOAD, true);
 const KNOWLEDGE_ENABLE_SCRIPTS = toBool(process.env.KNOWLEDGE_ENABLE_SCRIPTS, true);
 
-// ✅ FIX: clampInt is (v, def, min, max). Previous build had an extra arg, forcing max=0 → interval always off.
+// clampInt signature is (v, def, min, max)
 const KNOWLEDGE_RELOAD_INTERVAL_MS = clampInt(
   process.env.KNOWLEDGE_RELOAD_INTERVAL_MS,
   0,
@@ -131,7 +125,7 @@ const BURST_MAX = clampInt(process.env.BURST_MAX, 6, 2, 30);
 const SUSTAINED_WINDOW_MS = clampInt(process.env.SUSTAINED_WINDOW_MS, 12000, 2000, 60000);
 const SUSTAINED_MAX = clampInt(process.env.SUSTAINED_MAX, 18, 6, 120);
 
-// Boot-intro dedupe fuse (prevents repeated boot pings from re-running engine)
+// Boot-intro dedupe fuse
 const BOOT_DEDUPE_MS = clampInt(process.env.BOOT_DEDUPE_MS, 1200, 200, 6000);
 const BOOT_MAX_WINDOW_MS = clampInt(process.env.BOOT_MAX_WINDOW_MS, 6000, 1000, 30000);
 const BOOT_MAX = clampInt(process.env.BOOT_MAX, 6, 2, 40);
@@ -141,7 +135,7 @@ const SESSION_TTL_MS = clampInt(
   45 * 60 * 1000,
   10 * 60 * 1000,
   12 * 60 * 60 * 1000
-); // default 45m
+);
 const SESSION_MAX = clampInt(process.env.SESSION_MAX, 50000, 5000, 250000);
 
 // ElevenLabs TTS env
@@ -247,7 +241,7 @@ function makeReqId() {
   return sha1(`${nowMs()}|${Math.random()}|${process.pid}`).slice(0, 20);
 }
 
-// Boot-like detection (keep conservative; engine handles deeper rules too)
+// Boot-like detection
 function isBootLike(routeHint, body) {
   const rh = safeStr(routeHint).toLowerCase();
   const mode = safeStr(body?.mode || body?.intent || body?.client?.mode || body?.client?.intent).toLowerCase();
@@ -277,7 +271,6 @@ function hasIntentSignals(body) {
   const ctx = isPlainObject(b.ctx) ? b.ctx : {};
   const client = isPlainObject(b.client) ? b.client : {};
 
-  // Any of these means “user did something” even if text is blank.
   const sig =
     safeStr(payload.text || payload.message).trim() ||
     safeStr(b.text || b.message || b.prompt || b.query).trim() ||
@@ -298,7 +291,6 @@ function normalizeInboundSignature(body, inboundText) {
   const t = safeStr(inboundText).trim();
   if (t) return t.slice(0, 240);
 
-  // If empty, build a stable signature from intent fields so replay/throttle work.
   const tok =
     safeStr(payload.text || payload.message).trim() ||
     safeStr(payload.mode || payload.action || payload.intent || payload.label).trim() ||
@@ -327,7 +319,6 @@ function isResetCommand(inboundText, source, body) {
   const cs = safeStr(client.source).toLowerCase();
   if (cs === "reset_btn" || cs.includes("reset")) return true;
 
-  // Some widgets send routeHint=reset or intent=reset
   const rh = safeStr(b.routeHint || client.routeHint || "").toLowerCase();
   const it = safeStr(b.intent || client.intent || b.mode || client.mode || "").toLowerCase();
   if (rh.includes("reset") || it === "reset") return true;
@@ -336,7 +327,6 @@ function isResetCommand(inboundText, source, body) {
 }
 
 function silentResetReply() {
-  // Intentionally empty: widget should not render a bubble
   return "";
 }
 
@@ -368,12 +358,10 @@ function resolveEngine(mod) {
 const ENGINE = resolveEngine(chatEngineMod);
 const ENGINE_VERSION = safeStr(ENGINE.version || chatEngineMod?.CE_VERSION || "").trim();
 
-// Normalize engine output so route never crashes if engine returns a string/null/etc.
 function normalizeEngineOutput(out) {
   if (out === null || out === undefined) return {};
   if (typeof out === "string") return { ok: true, reply: out };
   if (isPlainObject(out)) return out;
-  // If weird type, stringify safely
   return { ok: true, reply: safeStr(out) };
 }
 
@@ -386,9 +374,9 @@ const KNOWLEDGE = {
   filesScanned: 0,
   filesLoaded: 0,
   totalBytes: 0,
-  json: {}, // key -> parsed json
-  scripts: {}, // key -> export snapshot (safe)
-  errors: [], // [{type, file, msg}]
+  json: {},
+  scripts: {},
+  errors: [],
 };
 
 function pushKnowledgeError(type, file, msg) {
@@ -443,7 +431,6 @@ function walkFiles(dirAbs, exts, outArr, limit) {
       if (outArr.length >= limit) return;
       const fp = path.join(d, ent.name);
       if (ent.isDirectory()) {
-        // Avoid node_modules recursion if someone misconfigures DATA_DIR
         if (ent.name === "node_modules" || ent.name === ".git") continue;
         stack.push(fp);
       } else if (ent.isFile()) {
@@ -455,23 +442,17 @@ function walkFiles(dirAbs, exts, outArr, limit) {
 }
 
 function fileKeyFromPath(rootAbs, fp) {
-  // key: relative path w/o extension, normalized to forward slashes
   const rel = path.relative(rootAbs, fp).replace(/\\/g, "/");
   const noExt = rel.replace(/\.[^/.]+$/, "");
-  // sanitize: avoid weird keys
   return noExt.replace(/[^a-zA-Z0-9/_\-\.]/g, "_");
 }
 
 function sanitizeScriptExport(x) {
-  // Keep exports small + JSON-safe. If export is a function, keep a tag only.
   if (x === null || x === undefined) return null;
   if (typeof x === "function") return { __type: "function", name: safeStr(x.name || "anonymous") };
   if (typeof x === "string") return x.slice(0, 4000);
   if (typeof x === "number" || typeof x === "boolean") return x;
-  if (Array.isArray(x)) {
-    // shallow cap
-    return x.slice(0, 200).map((v) => sanitizeScriptExport(v));
-  }
+  if (Array.isArray(x)) return x.slice(0, 200).map((v) => sanitizeScriptExport(v));
   if (isPlainObject(x)) {
     const out = {};
     const keys = Object.keys(x).slice(0, 200);
@@ -481,14 +462,12 @@ function sanitizeScriptExport(x) {
     }
     return out;
   }
-  // other object types: stringify tag
   return { __type: typeof x };
 }
 
 function reloadKnowledge() {
   const started = nowMs();
 
-  // Reset snapshot
   KNOWLEDGE.ok = false;
   KNOWLEDGE.loadedAt = started;
   KNOWLEDGE.filesScanned = 0;
@@ -498,14 +477,12 @@ function reloadKnowledge() {
   KNOWLEDGE.scripts = {};
   KNOWLEDGE.errors = [];
 
-  // Constrain loading to configured folders inside APP_ROOT
   const dataOk = fileExists(DATA_DIR) && isWithinRoot(DATA_DIR, APP_ROOT);
   const scriptsOk = fileExists(SCRIPTS_DIR) && isWithinRoot(SCRIPTS_DIR, APP_ROOT);
 
   if (!dataOk) pushKnowledgeError("dir", DATA_DIR, "DATA_DIR missing or outside APP_ROOT");
   if (!scriptsOk && KNOWLEDGE_ENABLE_SCRIPTS) pushKnowledgeError("dir", SCRIPTS_DIR, "SCRIPTS_DIR missing or outside APP_ROOT");
 
-  // Gather files
   const jsonFiles = [];
   if (dataOk) walkFiles(DATA_DIR, [".json"], jsonFiles, KNOWLEDGE_MAX_FILES);
 
@@ -516,7 +493,6 @@ function reloadKnowledge() {
 
   KNOWLEDGE.filesScanned = jsonFiles.length + jsFiles.length;
 
-  // Load JSON
   let totalBytes = 0;
   for (const fp of jsonFiles) {
     if (KNOWLEDGE.filesLoaded >= KNOWLEDGE_MAX_FILES) break;
@@ -548,12 +524,10 @@ function reloadKnowledge() {
     KNOWLEDGE.totalBytes = totalBytes;
   }
 
-  // Load Scripts exports (optional)
   if (scriptsOk && KNOWLEDGE_ENABLE_SCRIPTS) {
     for (const fp of jsFiles) {
       if (KNOWLEDGE.filesLoaded >= KNOWLEDGE_MAX_FILES) break;
 
-      // Heuristic: skip build/migrate/seed scripts unless explicitly allowed.
       const base = path.basename(fp).toLowerCase();
       const allowBuildScripts = toBool(process.env.KNOWLEDGE_ALLOW_BUILD_SCRIPTS, false);
       if (!allowBuildScripts && (base.startsWith("build_") || base.includes("migrate") || base.includes("seed_"))) {
@@ -575,7 +549,6 @@ function reloadKnowledge() {
     }
   }
 
-  // Mark ok if we got anything meaningful
   const jsonKeys = Object.keys(KNOWLEDGE.json).length;
   const scriptKeys = Object.keys(KNOWLEDGE.scripts).length;
   KNOWLEDGE.ok = jsonKeys + scriptKeys > 0;
@@ -597,8 +570,6 @@ function reloadKnowledge() {
 }
 
 function knowledgeSnapshotPublic() {
-  // NOTE: This returns the actual in-memory objects (no deep clone).
-  // That’s fast, but can be large depending on your Data/ folder.
   const jsonKeys = Object.keys(KNOWLEDGE.json);
   const scriptKeys = Object.keys(KNOWLEDGE.scripts);
   return {
@@ -631,7 +602,6 @@ function knowledgeStatusForMeta() {
   };
 }
 
-// Boot-load knowledge once (sync) before routes begin accepting traffic
 if (KNOWLEDGE_AUTOLOAD) {
   try {
     reloadKnowledge();
@@ -642,7 +612,6 @@ if (KNOWLEDGE_AUTOLOAD) {
   }
 }
 
-// Optional periodic reload
 if (KNOWLEDGE_AUTOLOAD && KNOWLEDGE_RELOAD_INTERVAL_MS > 0) {
   setInterval(() => {
     try {
@@ -656,7 +625,7 @@ if (KNOWLEDGE_AUTOLOAD && KNOWLEDGE_RELOAD_INTERVAL_MS > 0) {
 // =========================
 // Session store (in-memory)
 // =========================
-const SESSIONS = new Map(); // key -> { data, lastSeenAt, burst:[ts], sustained:[ts], boot:[ts] }
+const SESSIONS = new Map();
 
 function sessionKeyFromReq(req) {
   const b = isPlainObject(req.body) ? req.body : {};
@@ -730,7 +699,6 @@ function checkSustained(rec, now) {
   return { blocked: false };
 }
 
-// Boot-intro fuse: throttle repeated boot pings without touching real user turns.
 function checkBootFuse(rec, now) {
   rec.boot = pushWindow(rec.boot, now, BOOT_MAX_WINDOW_MS);
   if (rec.boot.length > BOOT_MAX) return { blocked: true, reason: "boot_rate" };
@@ -742,11 +710,6 @@ function checkBootFuse(rec, now) {
   return { blocked: false };
 }
 
-/**
- * CRITICAL LOOP FIX:
- * replayKey must NOT be only "rid:<clientRequestId>" because widgets sometimes reuse requestId.
- * We include inboundSig hash always, so "same rid + different input" won't stick to one cached output.
- */
 function replayDedupe(rec, inboundSig, source, clientRequestId) {
   const now = nowMs();
   const rid = safeStr(clientRequestId).trim();
@@ -766,7 +729,6 @@ function replayDedupe(rec, inboundSig, source, clientRequestId) {
     const lastDir = Array.isArray(rec.data.__idx_lastDirectives) ? rec.data.__idx_lastDirectives : undefined;
 
     if (lastOut) {
-      // LOOP FIX: never return followUpsStrings if followUps exist
       return {
         hit: true,
         reply: lastOut,
@@ -791,13 +753,11 @@ function writeReplay(rec, reply, lane, extras) {
     const fus = Array.isArray(extras.followUpsStrings) ? extras.followUpsStrings.slice(0, 10) : undefined;
 
     if (fu) rec.data.__idx_lastFollowUps = fu;
-    // LOOP FIX: only store strings if object followUps are absent
     if (!fu && fus) rec.data.__idx_lastFollowUpsStrings = fus;
     if (Array.isArray(extras.directives)) rec.data.__idx_lastDirectives = extras.directives.slice(0, 10);
   }
 }
 
-// Dedicated boot replay store (so boot fuse can return something meaningful)
 function writeBootReplay(rec, reply, lane, extras) {
   rec.data.__idx_lastBootOut = safeStr(reply);
   rec.data.__idx_lastBootLane = safeStr(lane || "general") || "general";
@@ -834,7 +794,7 @@ app.use(express.json({ limit: MAX_JSON_BODY }));
 app.use(express.text({ type: ["text/*"], limit: MAX_JSON_BODY }));
 
 // =========================
-// CORS hard-lock (stabilized + required headers)
+// CORS hard-lock
 // =========================
 app.use((req, res, next) => {
   const originRaw = safeStr(req.headers.origin || "");
@@ -937,7 +897,7 @@ app.get("/api/discovery", (req, res) => {
 });
 
 // =========================
-// NEW: Debug knowledge endpoint (read-only)
+// Debug knowledge endpoints
 // =========================
 if (KNOWLEDGE_DEBUG_ENDPOINT) {
   app.get("/api/debug/knowledge", (req, res) => {
@@ -1002,10 +962,8 @@ async function handleChatRoute(req, res) {
   const { rec } = getSession(req);
   const bootLike = isBootLike(routeHint, body);
 
-  // Detect reset early so we can force silent response if needed.
   const isReset = isResetCommand(inboundText, source, body);
 
-  // BOOT LOOP FIX: dedupe / rate-limit boot pings (do not touch real user turns)
   if (bootLike && !isReset) {
     const bf = checkBootFuse(rec, startedAt);
     if (bf.blocked) {
@@ -1034,7 +992,6 @@ async function handleChatRoute(req, res) {
     }
   }
 
-  // Throttle fuse (skip for bootLike; allow reset to pass through silently)
   if (!bootLike && meaningful && !isReset) {
     const burst = checkBurst(rec, startedAt);
     const sus = checkSustained(rec, startedAt);
@@ -1060,7 +1017,6 @@ async function handleChatRoute(req, res) {
     }
   }
 
-  // Replay dedupe (skip for bootLike; also skip for reset so we don't “replay” a reset bubble ever)
   if (!bootLike && meaningful && !isReset) {
     const dedupe = replayDedupe(rec, inboundSig, source, clientRequestId);
     if (dedupe.hit) {
@@ -1096,7 +1052,6 @@ async function handleChatRoute(req, res) {
     });
   }
 
-  // Ensure knowledge exists; if autoload failed, try one lazy reload (once per process boot)
   if (KNOWLEDGE_AUTOLOAD && !KNOWLEDGE.ok) {
     const tried = toBool(global.__SBNYX_KNOWLEDGE_LAZY_TRIED, false);
     if (!tried) {
@@ -1122,8 +1077,6 @@ async function handleChatRoute(req, res) {
       routeHint,
     },
     session: rec.data,
-
-    // ✅ Knowledge Bridge injection
     knowledge: knowledgeSnapshotPublic(),
     __knowledgeStatus: knowledgeStatusForMeta(),
   };
@@ -1160,11 +1113,9 @@ async function handleChatRoute(req, res) {
   const lane = safeStr(out?.lane || rec.data.lane || "general") || "general";
   rec.data.lane = lane;
 
-  // SILENT RESET: never send a reset bubble
   const rawReply = safeStr(out?.reply || "").trim();
   const reply = isReset ? silentResetReply() : rawReply || "Okay — tell me what you want next.";
 
-  // LOOP FIX: followUpsStrings must be suppressed if followUps objects exist (prevents echo)
   const directives = Array.isArray(out?.directives) ? out.directives : undefined;
   const followUps = Array.isArray(out?.followUps) ? out.followUps : undefined;
   const followUpsStrings =
@@ -1172,9 +1123,6 @@ async function handleChatRoute(req, res) {
       ? out.followUpsStrings
       : undefined;
 
-  // CRITICAL LOOP FIX:
-  // - boot-like turns should NOT overwrite the main replay cache
-  // - resets should not be cached as a visible bubble (they're silent anyway)
   if (!isReset && !bootLike) {
     writeReplay(rec, reply, lane, { directives, followUps, followUpsStrings });
   } else if (isReset) {
@@ -1182,7 +1130,6 @@ async function handleChatRoute(req, res) {
     rec.data.__idx_lastLane = lane;
   }
 
-  // Store boot replay if this was a bootLike turn (so boot fuse can reuse it)
   if (bootLike && !isReset) {
     writeBootReplay(rec, reply, lane, { directives, followUps, followUpsStrings });
   }
@@ -1270,7 +1217,6 @@ function applySessionPatch(session, patch) {
     if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
 
     if (k === "cog") {
-      // HARDEN: merge instead of replace so we don't wipe existing cog keys
       if (!isPlainObject(session.cog)) session.cog = {};
       if (isPlainObject(v)) {
         for (const [ck, cv] of Object.entries(v)) {
@@ -1296,7 +1242,7 @@ function applySessionPatch(session, patch) {
   }
 }
 
-// Main chat endpoints (aliases preserved)
+// Endpoints
 app.post("/api/sandblast-gpt", handleChatRoute);
 app.post("/api/nyx/chat", handleChatRoute);
 app.post("/api/chat", handleChatRoute);
@@ -1395,13 +1341,10 @@ app.post("/api/voice", handleTtsRoute);
 app.listen(PORT, () => {
   // eslint-disable-next-line no-console
   console.log(`[Sandblast] ${INDEX_VERSION} listening on ${PORT}`);
-
   // eslint-disable-next-line no-console
   console.log(`[Sandblast] Engine: from=${ENGINE.from} version=${ENGINE_VERSION || "(unknown)"} loaded=${!!ENGINE.fn}`);
-
   // eslint-disable-next-line no-console
   console.log(`[Sandblast] Fetch: ${fetchFn ? "OK" : "MISSING"} (global.fetch=${!!global.fetch})`);
-
   // eslint-disable-next-line no-console
   console.log(
     `[Sandblast] Knowledge: autoload=${KNOWLEDGE_AUTOLOAD} ok=${KNOWLEDGE.ok} jsonKeys=${Object.keys(KNOWLEDGE.json).length} scriptKeys=${Object.keys(KNOWLEDGE.scripts).length} errors=${KNOWLEDGE.errors.length} DATA_DIR=${DATA_DIR} SCRIPTS_DIR=${SCRIPTS_DIR} reloadEveryMs=${KNOWLEDGE_RELOAD_INTERVAL_MS}`
