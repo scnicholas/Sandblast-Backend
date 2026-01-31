@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18ag (CRASH-PROOF BOOT + SAFE JSON PARSE + DIAGNOSTIC LOGGING + knowledge bridge + loop fixes)
+ * index.js v1.5.18ah (CRASH-PROOF BOOT + SAFE JSON PARSE + DIAGNOSTIC LOGGING + knowledge bridge + loop fixes)
  *
  * Key adds vs 1.5.18af:
  *  ✅ CRITICAL: Never crash on invalid JSON body (safe JSON middleware)
