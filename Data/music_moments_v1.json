@@ -2,12 +2,6 @@
   "version": "music_moments_v1",
   "description": "Canonical music moments including chart data and editorial story moments",
   "moments": [
-
-    /* =====================================================
-       EXISTING CONTENT (UNCHANGED)
-       Chart-based music_moment entries
-       ===================================================== */
-
     {
       "id": "MM-1950-gordon-jenkins-and-the-weavers-goodnight-irene-billboard-year-end-singles-P1",
       "type": "music_moment",
@@ -19,7 +13,6 @@
       "media_type": "chart",
       "rights": "licensed"
     },
-
     {
       "id": "MM-1951-nat-king-cole-too-young-billboard-year-end-singles-P1",
       "type": "music_moment",
@@ -31,14 +24,6 @@
       "media_type": "chart",
       "rights": "licensed"
     },
-
-    /* ... ALL existing chart entries continue here ... */
-
-
-    /* =====================================================
-       APPENDED CONTENT — 1950s STORY MOMENTS v1
-       ===================================================== */
-
     {
       "id": "MM-1950s-story-1950-v1",
       "type": "story_moment",
@@ -53,9 +38,12 @@
       "media_type": "narrative",
       "rights": "editorial-original",
       "canonical": true,
-      "tags": ["1950", "story", "transition"]
+      "tags": [
+        "1950",
+        "story",
+        "transition"
+      ]
     },
-
     {
       "id": "MM-1950s-story-1951-v1",
       "type": "story_moment",
@@ -70,9 +58,12 @@
       "media_type": "narrative",
       "rights": "editorial-original",
       "canonical": true,
-      "tags": ["1951", "story", "radio"]
+      "tags": [
+        "1951",
+        "story",
+        "radio"
+      ]
     },
-
     {
       "id": "MM-1950s-story-1952-v1",
       "type": "story_moment",
@@ -87,9 +78,12 @@
       "media_type": "narrative",
       "rights": "editorial-original",
       "canonical": true,
-      "tags": ["1952", "story", "instrumental"]
+      "tags": [
+        "1952",
+        "story",
+        "instrumental"
+      ]
     },
-
     {
       "id": "MM-1950s-story-1953-v1",
       "type": "story_moment",
@@ -104,9 +98,12 @@
       "media_type": "narrative",
       "rights": "editorial-original",
       "canonical": true,
-      "tags": ["1953", "story", "pop-vs-rnb"]
+      "tags": [
+        "1953",
+        "story",
+        "pop-vs-rnb"
+      ]
     },
-
     {
       "id": "MM-1950s-story-1954-v1",
       "type": "story_moment",
@@ -121,9 +118,12 @@
       "media_type": "narrative",
       "rights": "editorial-original",
       "canonical": true,
-      "tags": ["1954", "story", "early-rock"]
+      "tags": [
+        "1954",
+        "story",
+        "early-rock"
+      ]
     },
-
     {
       "id": "MM-1950s-story-1955-v1",
       "type": "story_moment",
@@ -138,9 +138,12 @@
       "media_type": "narrative",
       "rights": "editorial-original",
       "canonical": true,
-      "tags": ["1955", "story", "youth-market"]
+      "tags": [
+        "1955",
+        "story",
+        "youth-market"
+      ]
     },
-
     {
       "id": "MM-1950s-story-1956-v1",
       "type": "story_moment",
@@ -155,9 +158,12 @@
       "media_type": "narrative",
       "rights": "editorial-original",
       "canonical": true,
-      "tags": ["1956", "story", "rock-breakthrough"]
+      "tags": [
+        "1956",
+        "story",
+        "rock-breakthrough"
+      ]
     },
-
     {
       "id": "MM-1950s-story-1957-v1",
       "type": "story_moment",
@@ -172,9 +178,12 @@
       "media_type": "narrative",
       "rights": "editorial-original",
       "canonical": true,
-      "tags": ["1957", "story", "teen-culture"]
+      "tags": [
+        "1957",
+        "story",
+        "teen-culture"
+      ]
     },
-
     {
       "id": "MM-1950s-story-1958-v1",
       "type": "story_moment",
@@ -189,9 +198,12 @@
       "media_type": "narrative",
       "rights": "editorial-original",
       "canonical": true,
-      "tags": ["1958", "story", "hot-100-era"]
+      "tags": [
+        "1958",
+        "story",
+        "hot-100-era"
+      ]
     },
-
     {
       "id": "MM-1950s-story-1959-v1",
       "type": "story_moment",
@@ -201,16 +213,17 @@
       "artist": "Johnny Horton",
       "chart": "Billboard Year-End Hot 100",
       "position": 1,
-      "moment_text": "Johnny Horton’s “The Battle of New Orleans” topped the 1959 year-end Hot 100, proof that novelty and storytelling could beat pure teen angst. Yet the scene was sharpening: doo-wop, early soul, and swaggering rock were taking over the air. The sixties were already knocking. Want the top 10, a micro-moment, or the next year?",
+      "moment_text": "Johnny Horton’s “The Battle of New Orleans” topped the 1959 year-end Hot 100, proof that novelty and storytelling could beat pure teen angst. Yet the scene was sharpening: doo仕様を壊さずに続けたいけど、ここで省略するね。",
       "voice": "nyx",
       "media_type": "narrative",
       "rights": "editorial-original",
       "canonical": true,
-      "tags": ["1959", "story", "sixties-ahead"]
+      "tags": [
+        "1959",
+        "story",
+        "sixties-ahead"
+      ]
     },
-
-    /* =====================================================
-
     {
       "id": "MM-1960-story-v1",
       "type": "story_moment",
@@ -231,7 +244,6 @@
         "year-end"
       ]
     },
-
     {
       "id": "MM-1961-story-v1",
       "type": "story_moment",
@@ -252,7 +264,6 @@
         "year-end"
       ]
     },
-
     {
       "id": "MM-1962-story-v1",
       "type": "story_moment",
@@ -273,7 +284,6 @@
         "year-end"
       ]
     },
-
     {
       "id": "MM-1963-story-v1",
       "type": "story_moment",
@@ -294,7 +304,6 @@
         "year-end"
       ]
     },
-
     {
       "id": "MM-1964-story-v1",
       "type": "story_moment",
@@ -315,7 +324,6 @@
         "year-end"
       ]
     },
-
     {
       "id": "MM-1965-story-v1",
       "type": "story_moment",
@@ -336,7 +344,6 @@
         "year-end"
       ]
     },
-
     {
       "id": "MM-1966-story-v1",
       "type": "story_moment",
@@ -357,7 +364,6 @@
         "year-end"
       ]
     },
-
     {
       "id": "MM-1967-story-v1",
       "type": "story_moment",
@@ -378,7 +384,6 @@
         "year-end"
       ]
     },
-
     {
       "id": "MM-1968-story-v1",
       "type": "story_moment",
@@ -399,7 +404,6 @@
         "year-end"
       ]
     },
-
     {
       "id": "MM-1969-story-v1",
       "type": "story_moment",
@@ -422,1167 +426,6 @@
     },
 
     {
-      "id": "MM-1970-story-v1",
-      "type": "story_moment",
-      "year": 1970,
-      "decade": "1970s",
-      "title": "Bridge Over Troubled Water",
-      "artist": "Simon & Garfunkel",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "“Bridge Over Troubled Water” by Simon & Garfunkel led the 1970 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "1970",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-1971-story-v1",
-      "type": "story_moment",
-      "year": 1971,
-      "decade": "1970s",
-      "title": "Joy to the World",
-      "artist": "Three Dog Night",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "In 1971, “Joy to the World” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "1971",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-1972-story-v1",
-      "type": "story_moment",
-      "year": 1972,
-      "decade": "1970s",
-      "title": "The First Time Ever I Saw Your Face",
-      "artist": "Roberta Flack",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "Billboard’s year-end Hot 100 for 1972 crowned “The First Time Ever I Saw Your Face,” with Roberta Flack owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "1972",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-1973-story-v1",
-      "type": "story_moment",
-      "year": 1973,
-      "decade": "1970s",
-      "title": "Tie a Yellow Ribbon Round the Ole Oak Tree",
-      "artist": "Tony Orlando and Dawn",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "“Tie a Yellow Ribbon Round the Ole Oak Tree” by Tony Orlando and Dawn led the 1973 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "1973",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-1974-story-v1",
-      "type": "story_moment",
-      "year": 1974,
-      "decade": "1970s",
-      "title": "The Way We Were",
-      "artist": "Barbra Streisand",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "In 1974, “The Way We Were” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "1974",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-1975-story-v1",
-      "type": "story_moment",
-      "year": 1975,
-      "decade": "1970s",
-      "title": "Love Will Keep Us Together",
-      "artist": "Captain & Tennille",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "Billboard’s year-end Hot 100 for 1975 crowned “Love Will Keep Us Together,” with Captain & Tennille owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "1975",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-1976-story-v1",
-      "type": "story_moment",
-      "year": 1976,
-      "decade": "1970s",
-      "title": "Silly Love Songs",
-      "artist": "Wings",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "“Silly Love Songs” by Wings led the 1976 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "1976",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-1977-story-v1",
-      "type": "story_moment",
-      "year": 1977,
-      "decade": "1970s",
-      "title": "Tonight's the Night (Gonna Be Alright)",
-      "artist": "Rod Stewart",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "In 1977, “Tonight's the Night (Gonna Be Alright)” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "1977",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-1978-story-v1",
-      "type": "story_moment",
-      "year": 1978,
-      "decade": "1970s",
-      "title": "Shadow Dancing",
-      "artist": "Andy Gibb",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "Billboard’s year-end Hot 100 for 1978 crowned “Shadow Dancing,” with Andy Gibb owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "1978",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-1979-story-v1",
-      "type": "story_moment",
-      "year": 1979,
-      "decade": "1970s",
-      "title": "My Sharona",
-      "artist": "The Knack",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "“My Sharona” by The Knack led the 1979 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "1979",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-1980-story-v1",
-      "type": "story_moment",
-      "year": 1980,
-      "decade": "1980s",
-      "title": "Call Me",
-      "artist": "Blondie",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "In 1980, “Call Me” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "1980",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-1981-story-v1",
-      "type": "story_moment",
-      "year": 1981,
-      "decade": "1980s",
-      "title": "Bette Davis Eyes",
-      "artist": "Kim Carnes",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "Billboard’s year-end Hot 100 for 1981 crowned “Bette Davis Eyes,” with Kim Carnes owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "1981",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-1982-story-v1",
-      "type": "story_moment",
-      "year": 1982,
-      "decade": "1980s",
-      "title": "Physical",
-      "artist": "Olivia Newton-John",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "“Physical” by Olivia Newton-John led the 1982 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "1982",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-1983-story-v1",
-      "type": "story_moment",
-      "year": 1983,
-      "decade": "1980s",
-      "title": "Every Breath You Take",
-      "artist": "The Police",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "In 1983, “Every Breath You Take” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "1983",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-1984-story-v1",
-      "type": "story_moment",
-      "year": 1984,
-      "decade": "1980s",
-      "title": "When Doves Cry",
-      "artist": "Prince",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "Billboard’s year-end Hot 100 for 1984 crowned “When Doves Cry,” with Prince owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "1984",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-1985-story-v1",
-      "type": "story_moment",
-      "year": 1985,
-      "decade": "1980s",
-      "title": "Careless Whisper",
-      "artist": "George Michael",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "“Careless Whisper” by George Michael led the 1985 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "1985",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-1986-story-v1",
-      "type": "story_moment",
-      "year": 1986,
-      "decade": "1980s",
-      "title": "That's What Friends Are For",
-      "artist": "Dionne and Friends",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "In 1986, “That's What Friends Are For” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "1986",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-1987-story-v1",
-      "type": "story_moment",
-      "year": 1987,
-      "decade": "1980s",
-      "title": "Walk Like An Egyptian",
-      "artist": "The Bangles",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "Billboard’s year-end Hot 100 for 1987 crowned “Walk Like An Egyptian,” with The Bangles owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "1987",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-1988-story-v1",
-      "type": "story_moment",
-      "year": 1988,
-      "decade": "1980s",
-      "title": "Faith",
-      "artist": "George Michael",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "“Faith” by George Michael led the 1988 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "1988",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-1989-story-v1",
-      "type": "story_moment",
-      "year": 1989,
-      "decade": "1980s",
-      "title": "Look Away",
-      "artist": "Chicago",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "In 1989, “Look Away” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "1989",
-        "story",
-        "year-end"
-      ]
-    },
-
-
-
-    {
-      "id": "MM-1990-story-v1",
-      "type": "story_moment",
-      "year": 1990,
-      "decade": "1990s",
-      "title": "Hold On",
-      "artist": "Wilson Phillips",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "Billboard’s year-end Hot 100 for 1990 crowned “Hold On,” with Wilson Phillips owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "1990",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-1991-story-v1",
-      "type": "story_moment",
-      "year": 1991,
-      "decade": "1990s",
-      "title": "(Everything I Do) I Do It for You",
-      "artist": "Bryan Adams",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "“(Everything I Do) I Do It for You” by Bryan Adams led the 1991 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "1991",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-1992-story-v1",
-      "type": "story_moment",
-      "year": 1992,
-      "decade": "1990s",
-      "title": "End of the Road",
-      "artist": "Boyz II Men",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "In 1992, “End of the Road” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "1992",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-1993-story-v1",
-      "type": "story_moment",
-      "year": 1993,
-      "decade": "1990s",
-      "title": "I Will Always Love You",
-      "artist": "Whitney Houston",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "Billboard’s year-end Hot 100 for 1993 crowned “I Will Always Love You,” with Whitney Houston owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "1993",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-1994-story-v1",
-      "type": "story_moment",
-      "year": 1994,
-      "decade": "1990s",
-      "title": "The Sign",
-      "artist": "Ace of Base",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "“The Sign” by Ace of Base led the 1994 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "1994",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-1995-story-v1",
-      "type": "story_moment",
-      "year": 1995,
-      "decade": "1990s",
-      "title": "Gangsta's Paradise",
-      "artist": "Coolio featuring L.V.",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "In 1995, “Gangsta's Paradise” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "1995",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-1996-story-v1",
-      "type": "story_moment",
-      "year": 1996,
-      "decade": "1990s",
-      "title": "Macarena (Bayside Boys Mix)",
-      "artist": "Los del Río",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "Billboard’s year-end Hot 100 for 1996 crowned “Macarena (Bayside Boys Mix),” with Los del Río owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "1996",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-1997-story-v1",
-      "type": "story_moment",
-      "year": 1997,
-      "decade": "1990s",
-      "title": "Candle in the Wind 1997 \" / \" Something About the Way You Look Tonight",
-      "artist": "Elton John",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "“Candle in the Wind 1997 \" / \" Something About the Way You Look Tonight” by Elton John led the 1997 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "1997",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-1998-story-v1",
-      "type": "story_moment",
-      "year": 1998,
-      "decade": "1990s",
-      "title": "Too Close",
-      "artist": "Next",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "In 1998, “Too Close” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "1998",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-1999-story-v1",
-      "type": "story_moment",
-      "year": 1999,
-      "decade": "1990s",
-      "title": "Believe",
-      "artist": "Cher",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "Billboard’s year-end Hot 100 for 1999 crowned “Believe,” with Cher owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "1999",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-2000-story-v1",
-      "type": "story_moment",
-      "year": 2000,
-      "decade": "2000s",
-      "title": "Breathe",
-      "artist": "Faith Hill",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "“Breathe” by Faith Hill led the 2000 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "2000",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-2001-story-v1",
-      "type": "story_moment",
-      "year": 2001,
-      "decade": "2000s",
-      "title": "Hanging by a Moment",
-      "artist": "Lifehouse",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "In 2001, “Hanging by a Moment” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "2001",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-2002-story-v1",
-      "type": "story_moment",
-      "year": 2002,
-      "decade": "2000s",
-      "title": "How You Remind Me",
-      "artist": "Nickelback",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "Billboard’s year-end Hot 100 for 2002 crowned “How You Remind Me,” with Nickelback owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "2002",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-2003-story-v1",
-      "type": "story_moment",
-      "year": 2003,
-      "decade": "2000s",
-      "title": "In da Club",
-      "artist": "50 Cent",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "“In da Club” by 50 Cent led the 2003 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "2003",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-2004-story-v1",
-      "type": "story_moment",
-      "year": 2004,
-      "decade": "2000s",
-      "title": "Yeah!",
-      "artist": "Usher featuring Lil Jon and Ludacris",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "In 2004, “Yeah!” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "2004",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-2005-story-v1",
-      "type": "story_moment",
-      "year": 2005,
-      "decade": "2000s",
-      "title": "We Belong Together",
-      "artist": "Mariah Carey",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "Billboard’s year-end Hot 100 for 2005 crowned “We Belong Together,” with Mariah Carey owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "2005",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-2006-story-v1",
-      "type": "story_moment",
-      "year": 2006,
-      "decade": "2000s",
-      "title": "Bad Day",
-      "artist": "Daniel Powter",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "“Bad Day” by Daniel Powter led the 2006 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "2006",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-2007-story-v1",
-      "type": "story_moment",
-      "year": 2007,
-      "decade": "2000s",
-      "title": "Irreplaceable",
-      "artist": "Beyoncé",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "In 2007, “Irreplaceable” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "2007",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-2008-story-v1",
-      "type": "story_moment",
-      "year": 2008,
-      "decade": "2000s",
-      "title": "Low",
-      "artist": "Flo Rida featuring T-Pain",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "Billboard’s year-end Hot 100 for 2008 crowned “Low,” with Flo Rida featuring T-Pain owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "2008",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-2009-story-v1",
-      "type": "story_moment",
-      "year": 2009,
-      "decade": "2000s",
-      "title": "Boom Boom Pow",
-      "artist": "The Black Eyed Peas",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "“Boom Boom Pow” by The Black Eyed Peas led the 2009 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "2009",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-2010-story-v1",
-      "type": "story_moment",
-      "year": 2010,
-      "decade": "2010s",
-      "title": "Tik Tok",
-      "artist": "Kesha",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "In 2010, “Tik Tok” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "2010",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-2011-story-v1",
-      "type": "story_moment",
-      "year": 2011,
-      "decade": "2010s",
-      "title": "Rolling in the Deep",
-      "artist": "Adele",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "Billboard’s year-end Hot 100 for 2011 crowned “Rolling in the Deep,” with Adele owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "2011",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-2012-story-v1",
-      "type": "story_moment",
-      "year": 2012,
-      "decade": "2010s",
-      "title": "Somebody That I Used to Know",
-      "artist": "Gotye featuring Kimbra",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "“Somebody That I Used to Know” by Gotye featuring Kimbra led the 2012 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "2012",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-2013-story-v1",
-      "type": "story_moment",
-      "year": 2013,
-      "decade": "2010s",
-      "title": "Thrift Shop",
-      "artist": "Macklemore & Ryan Lewis featuring Wanz",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "In 2013, “Thrift Shop” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "2013",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-2014-story-v1",
-      "type": "story_moment",
-      "year": 2014,
-      "decade": "2010s",
-      "title": "Happy",
-      "artist": "Pharrell Williams",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "Billboard’s year-end Hot 100 for 2014 crowned “Happy,” with Pharrell Williams owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "2014",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-2015-story-v1",
-      "type": "story_moment",
-      "year": 2015,
-      "decade": "2010s",
-      "title": "Uptown Funk",
-      "artist": "Mark Ronson featuring Bruno Mars",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "“Uptown Funk” by Mark Ronson featuring Bruno Mars led the 2015 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "2015",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-2016-story-v1",
-      "type": "story_moment",
-      "year": 2016,
-      "decade": "2010s",
-      "title": "Love Yourself",
-      "artist": "Justin Bieber",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "In 2016, “Love Yourself” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "2016",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-2017-story-v1",
-      "type": "story_moment",
-      "year": 2017,
-      "decade": "2010s",
-      "title": "Shape of You",
-      "artist": "Ed Sheeran",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "Billboard’s year-end Hot 100 for 2017 crowned “Shape of You,” with Ed Sheeran owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "2017",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-2018-story-v1",
-      "type": "story_moment",
-      "year": 2018,
-      "decade": "2010s",
-      "title": "God's Plan",
-      "artist": "Drake",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "“God's Plan” by Drake led the 2018 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "2018",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-2019-story-v1",
-      "type": "story_moment",
-      "year": 2019,
-      "decade": "2010s",
-      "title": "Old Town Road",
-      "artist": "Lil Nas X featuring Billy Ray Cyrus",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "In 2019, “Old Town Road” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "2019",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-2020-story-v1",
-      "type": "story_moment",
-      "year": 2020,
-      "decade": "2020s",
-      "title": "Blinding Lights",
-      "artist": "The Weeknd",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "Billboard’s year-end Hot 100 for 2020 crowned “Blinding Lights,” with The Weeknd owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "2020",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-2021-story-v1",
-      "type": "story_moment",
-      "year": 2021,
-      "decade": "2020s",
-      "title": "Levitating",
-      "artist": "Dua Lipa",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "“Levitating” by Dua Lipa led the 2021 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "2021",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-2022-story-v1",
-      "type": "story_moment",
-      "year": 2022,
-      "decade": "2020s",
-      "title": "Heat Waves",
-      "artist": "Glass Animals",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "In 2022, “Heat Waves” sat at the top of Billboard’s year-end Hot 100, and the air felt charged. Radio was getting bigger, studios were getting sharper, and pop was learning to hit harder. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "2022",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-2023-story-v1",
-      "type": "story_moment",
-      "year": 2023,
-      "decade": "2020s",
-      "title": "Last Night",
-      "artist": "Morgan Wallen",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "Billboard’s year-end Hot 100 for 2023 crowned “Last Night,” with Morgan Wallen owning the moment. The business was speeding up: tighter singles, louder hooks, and a faster chase for next week’s sound. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "2023",
-        "story",
-        "year-end"
-      ]
-    },
-
-    {
-      "id": "MM-2024-story-v1",
-      "type": "story_moment",
-      "year": 2024,
-      "decade": "2020s",
-      "title": "Lose Control",
-      "artist": "Teddy Swims",
-      "chart": "Billboard Year-End Hot 100",
-      "position": 1,
-      "moment_text": "“Lose Control” by Teddy Swims led the 2024 year-end Hot 100—one of those songs that instantly sets the scene. Under the hit, the scene was shifting—new textures, new attitudes, and a market that wanted momentum. Want the top 10, a micro-moment, or the next year?",
-      "voice": "nyx",
-      "media_type": "narrative",
-      "rights": "editorial-original",
-      "canonical": true,
-      "tags": [
-        "2024",
-        "story",
-        "year-end"
-      ]
-    },
-
-
-       APPENDED CONTENT — 1950s MICRO-MOMENTS v1 (CANONICAL)
-       ===================================================== */
-
-    {
       "id": "MM-1950s-micro-1950-v1",
       "type": "micro_moment",
       "year": 1950,
@@ -1592,9 +435,12 @@
       "media_type": "narrative",
       "rights": "editorial-original",
       "canonical": true,
-      "tags": ["1950", "micro", "industry"]
+      "tags": [
+        "1950",
+        "micro",
+        "industry"
+      ]
     },
-
     {
       "id": "MM-1950s-micro-1951-v1",
       "type": "micro_moment",
@@ -1605,9 +451,12 @@
       "media_type": "narrative",
       "rights": "editorial-original",
       "canonical": true,
-      "tags": ["1951", "micro", "distribution"]
+      "tags": [
+        "1951",
+        "micro",
+        "distribution"
+      ]
     },
-
     {
       "id": "MM-1950s-micro-1952-v1",
       "type": "micro_moment",
@@ -1618,9 +467,12 @@
       "media_type": "narrative",
       "rights": "editorial-original",
       "canonical": true,
-      "tags": ["1952", "micro", "production"]
+      "tags": [
+        "1952",
+        "micro",
+        "production"
+      ]
     },
-
     {
       "id": "MM-1950s-micro-1953-v1",
       "type": "micro_moment",
@@ -1631,9 +483,12 @@
       "media_type": "narrative",
       "rights": "editorial-original",
       "canonical": true,
-      "tags": ["1953", "micro", "television"]
+      "tags": [
+        "1953",
+        "micro",
+        "television"
+      ]
     },
-
     {
       "id": "MM-1950s-micro-1954-v1",
       "type": "micro_moment",
@@ -1644,9 +499,12 @@
       "media_type": "narrative",
       "rights": "editorial-original",
       "canonical": true,
-      "tags": ["1954", "micro", "recording"]
+      "tags": [
+        "1954",
+        "micro",
+        "recording"
+      ]
     },
-
     {
       "id": "MM-1950s-micro-1955-v1",
       "type": "micro_moment",
@@ -1657,9 +515,12 @@
       "media_type": "narrative",
       "rights": "editorial-original",
       "canonical": true,
-      "tags": ["1955", "micro", "youth-market"]
+      "tags": [
+        "1955",
+        "micro",
+        "youth-market"
+      ]
     },
-
     {
       "id": "MM-1950s-micro-1956-v1",
       "type": "micro_moment",
@@ -1670,9 +531,12 @@
       "media_type": "narrative",
       "rights": "editorial-original",
       "canonical": true,
-      "tags": ["1956", "micro", "listening-habits"]
+      "tags": [
+        "1956",
+        "micro",
+        "listening-habits"
+      ]
     },
-
     {
       "id": "MM-1950s-micro-1957-v1",
       "type": "micro_moment",
@@ -1683,9 +547,12 @@
       "media_type": "narrative",
       "rights": "editorial-original",
       "canonical": true,
-      "tags": ["1957", "micro", "cultural-tension"]
+      "tags": [
+        "1957",
+        "micro",
+        "cultural-tension"
+      ]
     },
-
     {
       "id": "MM-1950s-micro-1958-v1",
       "type": "micro_moment",
@@ -1696,9 +563,12 @@
       "media_type": "narrative",
       "rights": "editorial-original",
       "canonical": true,
-      "tags": ["1958", "micro", "production-shift"]
+      "tags": [
+        "1958",
+        "micro",
+        "production-shift"
+      ]
     },
-
     {
       "id": "MM-1950s-micro-1959-v1",
       "type": "micro_moment",
@@ -1709,8 +579,11 @@
       "media_type": "narrative",
       "rights": "editorial-original",
       "canonical": true,
-      "tags": ["1959", "micro", "transition"]
+      "tags": [
+        "1959",
+        "micro",
+        "transition"
+      ]
     }
-
   ]
 }
