@@ -1,138 +1,84 @@
 "use strict";
 
 /**
- * Utils/packets.js
+ * Utils/chatEngine.js
  *
- * Deterministic packet selector + renderer.
- * Reads Data/nyx/packets_v1.json and returns:
- *   { reply, followUps, sessionPatch, meta }
+ * Pure chat engine:
+ *  - NO express
+ *  - NO server start
+ *  - NO index.js imports
  *
- * v1.3-A (YEAR GATE FIX + EXPORT ALIASES + MUSIC-HIJACK GUARD)
+ * Returns (NyxReplyContract v1 + backwards compatibility):
+ *  {
+ *    ok, reply, lane, ctx, ui,
+ *    directives: [{type, ...}],             // contract-lock (optional)
+ *    followUps: [{id,type,label,payload}],  // preferred
+ *    followUpsStrings: ["..."],             // legacy
+ *    sessionPatch, cog, requestId, meta
+ *  }
  *
- * HARDENING / FIXES:
- * ✅ Never throws, never bricks boot (all-guards + safe fallbacks)
- * ✅ Safe file path (no cwd surprises) + optional env override
- * ✅ Cache with mtime revalidation (no stale dev edits)
- * ✅ Trigger matching is STRICT + bounded:
- *    - reserved triggers only match exact
- *    - normal triggers must match whole word/phrase boundary (prevents "hi" matching "this")
- * ✅ Anti-hijack guardrails:
- *    - packets are meant for greet/help/bye/fallback/error/prompt/nav + explicit "__ask_year__" style calls
- *    - can be forced ONLY via reserved triggers; otherwise requires stable-safe trigger hit
- * ✅ CHATENGINE GATE:
- *    - packets only run when session.allowPackets===true
- *    - reserved triggers ALWAYS allowed (explicit invocation)
- * ✅ FIX (CRITICAL): Year context in session NO LONGER blocks packets globally.
- *    - packets are blocked by year ONLY when inbound is a structured music request (mode/year command)
- * ✅ NEW: optional laneHint / routeHint awareness to avoid hijacking music lane
- * ✅ NEW: State-aware templates:
- *    - if packet.stateTemplates exists, choose templates from stateTemplates[session.cog.state]
- *    - falls back to packet.templates (no regression if stateTemplates missing)
- * ✅ NEW: oncePerSession actually works (persists under session.__nyxPackets.once)
- * ✅ Prototype-pollution safe sessionPatch allowlist + deep-copy
- * ✅ FollowUps sanitized (length caps, max count, dedupe, no weird objects)
- * ✅ Template selection deterministic and safe (caps, type checks)
+ * v0.7aI (LOOP SLAYER + PACKETS GATE HARDEN + REPLAYKEY++ + ALWAYS-ADVANCE)
  *
- * Template vars:
- *  - {year} supported (prefers inbound year, then session.lastMusicYear, then session.cog.year/lastMusicYear)
+ * CRITICAL LOOP FIXES:
+ * ✅ ReplayKey includes inbound hash even when clientRequestId exists (prevents sticky replays)
+ * ✅ Burst dedupe (same inbound within short window returns same reply deterministically)
+ * ✅ Sustained loop fuse (N repeats -> gentle “stuck” breaker + reset chip)
+ * ✅ Packets are gated: packets can NEVER hijack structured music / chip-routed turns
+ * ✅ "Always advance": if a route produces empty reply, engine emits a safe next-step prompt
+ *
+ * Compatibility:
+ * ✅ supports chips payload: {lane, action, year, mode, text}
+ * ✅ supports legacy text-only
+ * ✅ supports packets.js reserved triggers
  */
 
-const fs = require("fs");
-const path = require("path");
+const crypto = require("crypto");
 
-const DEFAULT_PACKETS_PATH = path.join(__dirname, "..", "Data", "nyx", "packets_v1.json");
-const PACKETS_PATH = String(process.env.NYX_PACKETS_PATH || "").trim() || DEFAULT_PACKETS_PATH;
+// Optional: packets engine (safe)
+let packets = null;
+try {
+  packets = require("./packets.js");
+} catch (_) {
+  packets = null;
+}
 
-let CACHE = null;
-let CACHE_ERR = null;
-let CACHE_MTIME_MS = 0;
+/* ======================================================
+   Version + constants
+====================================================== */
 
-const MAX_FILE_BYTES = 512 * 1024; // 512KB hard cap (prevents accidental huge files)
-const MAX_CHIPS = 10;
-const MAX_LABEL_LEN = 48;
-const MAX_SEND_LEN = 96;
-const MAX_REPLY_LEN = 1200;
+const CE_VERSION = "chatEngine v0.7aI (loop slayer + replayKey++ + packets gate harden + always-advance)";
 
-// allowlist keys that packets.js may emit in sessionPatch
-// (chatEngine will further allowlist when it merges)
-const ALLOWED_PATCH_KEYS = new Set([
+const MAX_REPLY_LEN = 2000;
+const MAX_FOLLOWUPS = 10;
+const MAX_LABEL_LEN = 52;
+
+const BURST_WINDOW_MS = 2500;          // short burst dedupe window
+const SUSTAIN_WINDOW_MS = 45000;       // sustained loop detection window
+const SUSTAIN_REPEAT_LIMIT = 4;        // how many repeats before fuse trips
+const REPLAY_TTL_MS = 120000;          // keep replay records briefly
+
+// Session safety caps
+const MAX_SEEN_KEYS = 64;
+const MAX_LOOP_EVENTS = 24;
+
+// Allowlist keys that chatEngine will accept as sessionPatch (defense-in-depth)
+const ALLOWED_SESSION_PATCH_KEYS = new Set([
   "lane",
   "lastMusicYear",
   "activeMusicMode",
   "voiceMode",
   "lastIntentSig",
-  "__nyxPackets", // used for oncePerSession memory (bounded + sanitized)
+  "allowPackets",
+  "__nyxPackets",
+  "cog",
 ]);
-
-const MAX_ONCE_IDS = 64;
 
 /* ======================================================
    Helpers
 ====================================================== */
 
-function normText(t) {
-  return String(t || "").trim().toLowerCase();
-}
-
-function clampYear(y) {
-  const n = Number(y);
-  if (!Number.isFinite(n)) return null;
-  if (n < 1950 || n > 2024) return null;
-  return Math.trunc(n);
-}
-
-function extractYearFromText(text) {
-  const m = String(text || "").match(/\b(19[5-9]\d|20[0-1]\d|202[0-4])\b/);
-  if (!m) return null;
-  const y = Number(m[1]);
-  if (!Number.isFinite(y) || y < 1950 || y > 2024) return null;
-  return Math.trunc(y);
-}
-
-function replaceVars(str, vars) {
-  let out = String(str || "");
-  if (!vars || typeof vars !== "object") return out;
-  for (const k of Object.keys(vars)) {
-    const v = String(vars[k]);
-    out = out.split(`{${k}}`).join(v);
-  }
-  return out;
-}
-
-function djb2Hash(str) {
-  let h = 5381;
-  const s = String(str || "");
-  for (let i = 0; i < s.length; i++) {
-    h = (h * 33) ^ s.charCodeAt(i);
-    h |= 0;
-  }
-  return h >>> 0; // unsigned
-}
-
-function safeFollowUps(list) {
-  if (!Array.isArray(list)) return [];
-  const out = [];
-  const seen = new Set();
-
-  for (const it of list) {
-    if (!it || typeof it !== "object") continue;
-
-    const label = String(it.label || "").trim();
-    const send = String(it.send || "").trim();
-
-    if (!label || !send) continue;
-    if (label.length > MAX_LABEL_LEN) continue;
-    if (send.length > MAX_SEND_LEN) continue;
-
-    const k = send.toLowerCase();
-    if (seen.has(k)) continue;
-    seen.add(k);
-
-    out.push({ label, send });
-    if (out.length >= MAX_CHIPS) break;
-  }
-
-  return out;
+function nowMs() {
+  return Date.now();
 }
 
 function isPlainObject(x) {
@@ -143,38 +89,85 @@ function isPlainObject(x) {
   );
 }
 
-function safeNyxPacketsPatch(val) {
-  // Expected shape: { once: { [packetId]: 1 } }
-  // We sanitize and bound it hard.
-  if (!isPlainObject(val)) return null;
+function normText(t) {
+  return String(t || "").trim();
+}
 
-  const out = Object.create(null);
-  const onceIn = isPlainObject(val.once) ? val.once : null;
-  if (!onceIn) return null;
+function normLower(t) {
+  return normText(t).toLowerCase();
+}
 
-  const onceOut = Object.create(null);
-  let count = 0;
+function clampStr(s, max) {
+  const t = String(s || "");
+  return t.length > max ? t.slice(0, max) : t;
+}
 
-  for (const k of Object.keys(onceIn)) {
-    if (!k || k === "__proto__" || k === "constructor" || k === "prototype") continue;
-    const id = String(k).trim();
-    if (!id) continue;
-    onceOut[id] = 1;
-    count++;
-    if (count >= MAX_ONCE_IDS) break;
+function clampYear(y) {
+  const n = Number(y);
+  if (!Number.isFinite(n)) return null;
+  const k = Math.trunc(n);
+  if (k < 1950 || k > 2024) return null;
+  return k;
+}
+
+function extractYearFromText(text) {
+  const m = String(text || "").match(/\b(19[5-9]\d|20[0-1]\d|202[0-4])\b/);
+  if (!m) return null;
+  return clampYear(m[1]);
+}
+
+function sha1(s) {
+  return crypto.createHash("sha1").update(String(s || ""), "utf8").digest("hex");
+}
+
+function safeId(prefix = "id") {
+  // short id for chips
+  return `${prefix}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function sanitizeFollowUps(list) {
+  if (!Array.isArray(list)) return [];
+  const out = [];
+  const seen = new Set();
+
+  for (const it of list) {
+    if (!it || typeof it !== "object") continue;
+
+    const label = normText(it.label);
+    if (!label) continue;
+
+    const payload = isPlainObject(it.payload) ? it.payload : null;
+    if (!payload) continue;
+
+    const key = sha1(label + "::" + JSON.stringify(payload));
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    out.push({
+      id: String(it.id || safeId("chip")),
+      type: String(it.type || "chip"),
+      label: clampStr(label, MAX_LABEL_LEN),
+      payload,
+    });
+
+    if (out.length >= MAX_FOLLOWUPS) break;
   }
 
-  if (!count) return null;
-  out.once = onceOut;
   return out;
 }
 
-function safeSessionPatch(patch) {
-  if (!patch || typeof patch !== "object") return null;
+function followUpsToLegacyStrings(followUps) {
+  if (!Array.isArray(followUps)) return [];
+  // Legacy widget expects strings sometimes; map to label as safe fallback
+  return followUps.map((x) => String(x && x.label ? x.label : "")).filter(Boolean).slice(0, MAX_FOLLOWUPS);
+}
 
+function safeSessionPatch(patch) {
+  if (!isPlainObject(patch)) return null;
   const out = Object.create(null);
+
   for (const k of Object.keys(patch)) {
-    if (!ALLOWED_PATCH_KEYS.has(k)) continue;
+    if (!ALLOWED_SESSION_PATCH_KEYS.has(k)) continue;
     if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
 
     if (k === "lastMusicYear") {
@@ -183,12 +176,27 @@ function safeSessionPatch(patch) {
       continue;
     }
 
-    if (k === "__nyxPackets") {
-      const safe = safeNyxPacketsPatch(patch[k]);
-      if (safe) out.__nyxPackets = safe;
+    if (k === "cog") {
+      if (!isPlainObject(patch.cog)) continue;
+      // only accept a small safe subset
+      const c = Object.create(null);
+      const s = normLower(patch.cog.state);
+      if (s === "cold" || s === "warm" || s === "engaged") c.state = s;
+      const y = clampYear(patch.cog.year);
+      if (y) c.year = y;
+      const lmy = clampYear(patch.cog.lastMusicYear);
+      if (lmy) c.lastMusicYear = lmy;
+      if (Object.keys(c).length) out.cog = c;
       continue;
     }
 
+    if (k === "__nyxPackets") {
+      // accept as-is only if plain object (packets.js already sanitizes)
+      if (isPlainObject(patch.__nyxPackets)) out.__nyxPackets = patch.__nyxPackets;
+      continue;
+    }
+
+    // general stringy keys
     const v = patch[k];
     if (v == null) continue;
     out[k] = String(v).trim();
@@ -197,423 +205,448 @@ function safeSessionPatch(patch) {
   return Object.keys(out).length ? out : null;
 }
 
-/**
- * Escape regex special chars for boundary match.
- */
-function reEscape(s) {
-  return String(s || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
+function mergeSession(session, patch) {
+  if (!session || typeof session !== "object") return;
+  const safe = safeSessionPatch(patch);
+  if (!safe) return;
 
-/**
- * Trigger match policy:
- * - Reserved triggers must match EXACTLY: "__fallback__", "__error__", "__ask_year__", etc.
- * - Normal triggers match on word boundaries (prevents substring hijack).
- */
-function isReservedTrigger(trig) {
-  const s = normText(trig);
-  return s.startsWith("__") && s.endsWith("__") && s.length >= 6;
-}
-
-function matchTrigger(textLower, trig) {
-  const t = normText(textLower);
-  const s = normText(trig);
-
-  if (!s) return false;
-
-  // Reserved: exact match only
-  if (isReservedTrigger(s)) return t === s;
-
-  // Normal: boundary match
-  const pattern = new RegExp(`(^|\\b)${reEscape(s)}(\\b|$)`, "i");
-  return pattern.test(t);
-}
-
-/**
- * Deterministic template pick:
- * - if 1 template: return it
- * - else: idx = hash(text + salt) % len (stable)
- */
-function pickTemplate(templates, textLower, salt) {
-  const list = Array.isArray(templates)
-    ? templates.filter((x) => typeof x === "string" && x.trim())
-    : [];
-  if (!list.length) return "";
-  if (list.length === 1) return String(list[0]);
-
-  const key = `${String(textLower || "")}::${String(salt || "")}`;
-  const idx = djb2Hash(key) % list.length;
-  return String(list[idx] || "");
+  for (const k of Object.keys(safe)) {
+    session[k] = safe[k];
+  }
 }
 
 /* ======================================================
-   Load + cache
+   Loop control (burst dedupe + sustained fuse + replay)
 ====================================================== */
 
-function readFileSafe(filepath) {
-  try {
-    const st = fs.statSync(filepath);
-    if (!st.isFile()) return { ok: false, reason: "not_file" };
-    if (st.size > MAX_FILE_BYTES) return { ok: false, reason: "too_large" };
-    const raw = fs.readFileSync(filepath, "utf8");
-    return { ok: true, raw, mtimeMs: Number(st.mtimeMs || 0) };
-  } catch (e) {
-    return { ok: false, reason: "read_fail", error: String(e && e.message ? e.message : e) };
+function getReplayStore(session) {
+  if (!session.__replay || typeof session.__replay !== "object") {
+    session.__replay = Object.create(null);
   }
+  if (!session.__replay.map || typeof session.__replay.map !== "object") {
+    session.__replay.map = Object.create(null);
+  }
+  if (!Array.isArray(session.__replay.order)) session.__replay.order = [];
+  return session.__replay;
 }
 
-function loadPackets() {
-  // hot-reload on file mtime change
-  try {
-    const st = fs.statSync(PACKETS_PATH);
-    const mtimeMs = Number(st.mtimeMs || 0);
-    if (CACHE && mtimeMs && mtimeMs === CACHE_MTIME_MS) return CACHE;
-  } catch (_) {
-    if (CACHE) return CACHE;
-  }
+function pruneReplayStore(store, tNow) {
+  const order = store.order || [];
+  const map = store.map || Object.create(null);
 
-  if (CACHE_ERR && !CACHE) return null;
-
-  const rf = readFileSafe(PACKETS_PATH);
-  if (!rf.ok) {
-    CACHE_ERR = rf.reason || "read_fail";
-    return CACHE || null;
-  }
-
-  try {
-    const json = JSON.parse(rf.raw);
-
-    if (!json || typeof json !== "object" || !Array.isArray(json.packets)) {
-      CACHE_ERR = "bad_shape";
-      return CACHE || null;
+  // Remove old entries
+  const keep = [];
+  for (const key of order) {
+    const rec = map[key];
+    if (!rec || !rec.t) continue;
+    if (tNow - rec.t > REPLAY_TTL_MS) {
+      delete map[key];
+      continue;
     }
-
-    const safePackets = json.packets.filter((p) => p && typeof p === "object");
-    CACHE = { packets: safePackets };
-    CACHE_ERR = null;
-    CACHE_MTIME_MS = rf.mtimeMs || 0;
-
-    return CACHE;
-  } catch (e) {
-    CACHE_ERR = String(e && e.message ? e.message : e);
-    return CACHE || null;
+    keep.push(key);
   }
+
+  // Cap size
+  while (keep.length > MAX_SEEN_KEYS) {
+    const k = keep.shift();
+    if (k) delete map[k];
+  }
+  store.order = keep;
+}
+
+function buildReplayKey({ visitorId, clientRequestId, inboundHash }) {
+  // The critical fix: ALWAYS include inboundHash even if clientRequestId exists.
+  // This prevents "sticky replay" if client reuses requestId across different text/payload.
+  const v = String(visitorId || "anon");
+  const cr = String(clientRequestId || "");
+  return sha1(`${v}::${cr}::${inboundHash}`);
+}
+
+function rememberReply(session, replayKey, rec) {
+  const store = getReplayStore(session);
+  const map = store.map;
+  const tNow = nowMs();
+
+  map[replayKey] = Object.assign(Object.create(null), rec, { t: tNow });
+
+  store.order.push(replayKey);
+  pruneReplayStore(store, tNow);
+}
+
+function getRememberedReply(session, replayKey) {
+  const store = getReplayStore(session);
+  const rec = store.map && store.map[replayKey];
+  if (!rec) return null;
+  if (!rec.t) return null;
+
+  const tNow = nowMs();
+  if (tNow - rec.t > REPLAY_TTL_MS) return null;
+  return rec;
+}
+
+function getLoopStore(session) {
+  if (!session.__loop || typeof session.__loop !== "object") {
+    session.__loop = Object.create(null);
+  }
+  if (!Array.isArray(session.__loop.events)) session.__loop.events = [];
+  return session.__loop;
+}
+
+function recordLoopEvent(session, inboundHash) {
+  const store = getLoopStore(session);
+  const tNow = nowMs();
+  const events = store.events;
+
+  // keep only within sustain window
+  const keep = [];
+  for (const ev of events) {
+    if (!ev || !ev.t) continue;
+    if (tNow - ev.t <= SUSTAIN_WINDOW_MS) keep.push(ev);
+  }
+  keep.push({ t: tNow, h: inboundHash });
+
+  // cap
+  while (keep.length > MAX_LOOP_EVENTS) keep.shift();
+  store.events = keep;
+
+  // count recent repeats
+  let repeats = 0;
+  for (let i = keep.length - 1; i >= 0; i--) {
+    if (keep[i].h === inboundHash) repeats++;
+    else break; // only count consecutive repeats
+  }
+
+  return repeats;
 }
 
 /* ======================================================
-   Packet intent gating
+   Routing spine (chip-authoritative)
 ====================================================== */
 
-function isAllowedPacketType(type) {
-  const t = normText(type);
+function parseInbound({ text, payload }) {
+  const t = normText(text);
 
-  // Support both your current packet types and older aliases.
-  return (
-    t === "greeting" ||
-    t === "greet" ||
-    t === "help" ||
-    t === "goodbye" ||
-    t === "bye" ||
-    t === "fallback" ||
-    t === "error" ||
-    t === "prompt" ||
-    t === "nav" ||
-    t === "system"
-  );
+  const p = isPlainObject(payload) ? payload : null;
+  const lane = p && p.lane ? normLower(p.lane) : "";
+  const action = p && p.action ? normLower(p.action) : "";
+  const mode = p && p.mode ? normLower(p.mode) : "";
+  const year = clampYear(p && p.year) || extractYearFromText(t) || null;
+
+  // If payload carries text (legacy), allow it
+  const pText = p && typeof p.text === "string" ? normText(p.text) : "";
+  const finalText = t || pText || "";
+
+  return {
+    text: finalText,
+    lane,
+    action,
+    mode,
+    year,
+    rawPayload: p || null,
+  };
 }
 
-function allowPacketFire({ packet, matchedTrig }) {
-  const trig = normText(matchedTrig);
-  if (isReservedTrigger(trig)) return true;
-
-  const type = normText(packet && packet.type);
-  return isAllowedPacketType(type);
-}
-
-/* ======================================================
-   Music hijack detection (so packets don't steal structured music turns)
-====================================================== */
-
-function hasMusicModeKeyword(lower) {
-  const t = normText(lower);
-  if (!t) return false;
-
-  // Explicit structured music modes
-  if (/\b(top\s*10|top10|top\s*ten)\b/.test(t)) return true;
-  if (/\b(top\s*100|top100|hot\s*100|hot100)\b/.test(t)) return true;
-  if (/\b(story\s*moment|story)\b/.test(t)) return true;
-  if (/\b(micro\s*moment|micro)\b/.test(t)) return true;
-  if (/\b(#\s*1|number\s*1|no\.?\s*1|no\s*1)\b/.test(t)) return true;
-
+function looksLikeStructuredMusic({ lane, action, mode, year, text }) {
+  // If the chip says lane/action, treat as structured.
+  if (lane === "music" || lane === "years") return true;
+  if (action || mode) return true;
+  // If text includes strong music-mode keywords + year, also structured
+  const low = normLower(text);
+  if (year && /\b(top\s*10|top10|top\s*100|hot\s*100|story\s*moment|micro\s*moment|#\s*1|number\s*1)\b/.test(low)) {
+    return true;
+  }
   return false;
 }
 
-function laneHintIsMusic(hint) {
-  const h = normText(hint);
-  if (!h) return false;
-  return h === "music" || h === "years" || h.includes("music") || h.includes("year");
-}
+/* ======================================================
+   Minimal music responder (safe fallback)
+   (You can swap this later to your full knowledge bridge.)
+====================================================== */
 
-/**
- * chatEngine gate
- * - If session.allowPackets !== true, packets do not run (unless reserved trigger explicitly invoked).
- * - Year does NOT globally block packets anymore.
- * - Packets are blocked by year ONLY when inbound is a structured music command (to prevent hijack).
- * - Optional laneHint/routeHint can also block packets for music-lane turns.
- */
-function gateAllowsRun({ lowerText, session, matchedTrig, laneHint, routeHint }) {
-  const reserved = isReservedTrigger(matchedTrig || "");
-  if (reserved) return true;
+function musicReply({ year, mode }) {
+  const y = clampYear(year);
+  const m = normLower(mode);
 
-  // Must be explicitly enabled by chatEngine.
-  const allow = !!(session && session.allowPackets === true);
-  if (!allow) return false;
-
-  const lower = normText(lowerText);
-
-  // If caller hints we're in music lane, don't run packets unless reserved trigger.
-  if (laneHintIsMusic(laneHint) || laneHintIsMusic(routeHint) || laneHintIsMusic(session && session.lane)) {
-    return false;
+  if (!y) {
+    return {
+      reply: "Pick a year between 1950 and 2024 and I’ll pull a music moment or chart snapshot for you.",
+      followUps: [
+        { id: "y1955", type: "chip", label: "1955", payload: { lane: "music", action: "year", year: 1955, mode: "story" } },
+        { id: "y1977", type: "chip", label: "1977", payload: { lane: "music", action: "year", year: 1977, mode: "top10" } },
+        { id: "y1988", type: "chip", label: "1988", payload: { lane: "music", action: "year", year: 1988, mode: "top10" } },
+      ],
+      sessionPatch: { lane: "music", activeMusicMode: m || "story" },
+      meta: { used: "music_fallback_no_year" },
+    };
   }
 
-  // Block packets only for structured music commands involving year/mode.
-  const yText = extractYearFromText(lower);
-  if (yText && hasMusicModeKeyword(lower)) return false;
+  // Minimal placeholder response (your knowledge layer can replace this)
+  let line = "";
+  if (m.includes("top10")) line = `Alright — ${y}. I can pull the Top 10 for that year. Want the full list or just the #1 plus a quick story moment?`;
+  else if (m.includes("top100") || m.includes("hot")) line = `Got it — ${y}. Hot 100 context. Do you want the year’s #1 or the Top 10 snapshot?`;
+  else if (m.includes("micro")) line = `Micro moment for ${y}: give me one artist or vibe (soul, rock, pop) and I’ll make it razor-specific.`;
+  else line = `Story moment for ${y}: I can anchor it on the year’s #1 song and give you the cultural pulse in 50–60 words.`;
 
-  // Also block if it looks like "just a year" while already in music lane (conservative)
-  // NOTE: This is intentionally mild—packets can still run for general questions even if session has a year.
-  if (yText && normText(lower) === String(yText)) return false;
+  const followUps = [
+    { id: "m_top10", type: "chip", label: "Top 10", payload: { lane: "music", action: "year", year: y, mode: "top10" } },
+    { id: "m_story", type: "chip", label: "Story moment", payload: { lane: "music", action: "year", year: y, mode: "story" } },
+    { id: "m_micro", type: "chip", label: "Micro moment", payload: { lane: "music", action: "year", year: y, mode: "micro" } },
+  ];
 
+  return {
+    reply: line,
+    followUps,
+    sessionPatch: { lane: "music", lastMusicYear: y, activeMusicMode: m || "story" },
+    meta: { used: "music_fallback" },
+  };
+}
+
+/* ======================================================
+   Packets gate
+====================================================== */
+
+function computeAllowPackets({ structuredMusic, lane }) {
+  // Packets are for greet/help/fallback/nav, not for structured music turns.
+  if (structuredMusic) return false;
+  if (lane === "music" || lane === "years") return false;
   return true;
 }
 
 /* ======================================================
-   State selection (cold / warm / engaged)
+   Always-advance safety
 ====================================================== */
 
-function getNyxState(session) {
-  const s =
-    normText(session && session.cog && session.cog.state) ||
-    normText(session && session.cog && session.cog.phase) || // fallback (harmless)
-    normText(session && session.state) ||
-    "";
+function ensureAdvance({ reply, followUps, lane }) {
+  const r = normText(reply);
+  if (r) return { reply: r, followUps };
 
-  if (s === "warm" || s === "engaged" || s === "cold") return s;
-  return "cold";
-}
+  // If somehow empty, never return dead air:
+  const chips = Array.isArray(followUps) && followUps.length ? followUps : [
+    { id: "help", type: "chip", label: "What can you do?", payload: { lane: "system", action: "help" } },
+    { id: "music", type: "chip", label: "Music by year", payload: { lane: "music", action: "start" } },
+    { id: "reset", type: "chip", label: "Reset", payload: { lane: "system", action: "reset" } },
+  ];
 
-function getYearVar(session, textLower) {
-  // Prefer explicit inbound year for {year} substitution only.
-  const yText = extractYearFromText(textLower);
-  if (yText) return yText;
-
-  const y1 = clampYear(session && session.lastMusicYear);
-  if (y1) return y1;
-
-  const y2 = clampYear(session && session.cog && session.cog.lastMusicYear);
-  if (y2) return y2;
-
-  const y3 = clampYear(session && session.cog && session.cog.year);
-  if (y3) return y3;
-
-  return null;
-}
-
-/* ======================================================
-   oncePerSession support (persisted in session.__nyxPackets.once)
-====================================================== */
-
-function hasOnceFired(session, packetId) {
-  if (!packetId) return false;
-  const nyxPackets = session && session.__nyxPackets;
-  const once = nyxPackets && nyxPackets.once;
-  return !!(once && typeof once === "object" && once[packetId] === 1);
-}
-
-function buildOncePatch(session, packetId) {
-  if (!packetId) return null;
-
-  const out = Object.create(null);
-  const nyxPackets = Object.create(null);
-  const once = Object.create(null);
-
-  // carry forward existing (bounded)
-  const prev = session && session.__nyxPackets && session.__nyxPackets.once;
-  if (prev && typeof prev === "object") {
-    let count = 0;
-    for (const k of Object.keys(prev)) {
-      if (!k || k === "__proto__" || k === "constructor" || k === "prototype") continue;
-      once[String(k).trim()] = 1;
-      count++;
-      if (count >= MAX_ONCE_IDS) break;
-    }
-  }
-
-  // set current
-  once[String(packetId).trim()] = 1;
-
-  nyxPackets.once = once;
-  out.__nyxPackets = nyxPackets;
-  return out;
+  return {
+    reply: "I’m here — tell me what you want next, or tap a chip and I’ll take it from there.",
+    followUps: chips,
+  };
 }
 
 /* ======================================================
    Public API
 ====================================================== */
 
-async function handleChat({ text, session, visitorId, debug, laneHint, routeHint } = {}) {
-  try {
-    const data = loadPackets();
-    if (!data) {
-      return {
-        reply: "",
-        followUps: [],
-        sessionPatch: null,
-        meta: debug
-          ? { ok: false, reason: "packets_unavailable", path: PACKETS_PATH, cacheErr: CACHE_ERR }
-          : null,
-      };
-    }
+async function handleChat(input = {}) {
+  const tNow = nowMs();
 
-    const packets = data.packets;
-    const t = String(text || "").trim();
-    const lower = normText(t);
+  const session = (input && input.session && typeof input.session === "object") ? input.session : Object.create(null);
+  const visitorId = String(input.visitorId || input.visitorID || "anon");
+  const clientRequestId = String(input.clientRequestId || input.requestId || "");
+  const debug = !!input.debug;
 
-    const state = getNyxState(session);
-    const y = getYearVar(session, lower);
-    const vars = { year: y ? String(y) : "" };
+  const inbound = parseInbound({ text: input.text, payload: input.payload });
+  const lower = normLower(inbound.text);
 
-    // Find first matching packet in file order (deterministic)
-    let chosen = null;
-    let matchedTrig = null;
+  // Inbound hash is based on deterministic properties (text + payload lane/action/year/mode)
+  const inboundHash = sha1(JSON.stringify({
+    t: lower,
+    lane: inbound.lane,
+    action: inbound.action,
+    mode: inbound.mode,
+    year: inbound.year,
+  }));
 
-    for (const p of packets) {
-      if (!p || !Array.isArray(p.trigger)) continue;
+  // Loop tracking (consecutive repeats within sustain window)
+  const repeats = recordLoopEvent(session, inboundHash);
 
-      // oncePerSession enforcement (only if packet requests it)
-      const oncePerSession =
-        !!(p.constraints && typeof p.constraints === "object" && p.constraints.oncePerSession === true);
-      const pid = String(p.id || "").trim();
-      if (oncePerSession && pid && hasOnceFired(session, pid)) continue;
+  // Sustained loop fuse: after N repeats, break the pattern hard.
+  if (repeats >= SUSTAIN_REPEAT_LIMIT) {
+    const breakerReply = "I think we’re stuck in a repeat loop. Want me to reset the conversation state and start fresh, or keep the current lane and try a new angle?";
+    const breakerFollowUps = [
+      { id: "reset_all", type: "chip", label: "Reset and restart", payload: { lane: "system", action: "reset" } },
+      { id: "keep_music", type: "chip", label: "Keep lane, new prompt", payload: { lane: "system", action: "nudge" } },
+    ];
 
-      for (const trig of p.trigger) {
-        if (matchTrigger(lower, trig)) {
-          // 1) type/trigger guard
-          if (!allowPacketFire({ packet: p, matchedTrig: trig })) break;
-
-          // 2) chatEngine gate
-          if (!gateAllowsRun({ lowerText: lower, session, matchedTrig: trig, laneHint, routeHint })) break;
-
-          chosen = p;
-          matchedTrig = trig;
-          break;
-        }
-      }
-      if (chosen) break;
-    }
-
-    if (!chosen) {
-      return {
-        reply: "",
-        followUps: [],
-        sessionPatch: null,
-        meta: debug
-          ? {
-              ok: false,
-              reason: "no_match_or_blocked",
-              state,
-              allowPackets: !!(session && session.allowPackets === true),
-              laneHint: String(laneHint || ""),
-              routeHint: String(routeHint || ""),
-            }
-          : null,
-      };
-    }
-
-    // Prefer stateTemplates[state] when present; fallback to templates.
-    let templatesToUse = chosen.templates;
-    const st = chosen.stateTemplates;
-
-    if (st && typeof st === "object") {
-      const cand = st[state];
-      if (Array.isArray(cand) && cand.length) templatesToUse = cand;
-    }
-
-    const tmpl = pickTemplate(templatesToUse, lower, `${chosen.id || ""}:${state}`);
-    let reply = replaceVars(tmpl, vars).trim();
-    if (reply.length > MAX_REPLY_LEN) reply = reply.slice(0, MAX_REPLY_LEN).trim();
-
-    const followUps = safeFollowUps(chosen.chips);
-
-    // sessionPatch:
-    // - base patch from packet (sanitized)
-    // - if oncePerSession, also persist the fired packet id under __nyxPackets.once
-    const basePatch = safeSessionPatch(chosen.sessionPatch) || null;
-    const oncePerSession =
-      !!(chosen.constraints && typeof chosen.constraints === "object" && chosen.constraints.oncePerSession === true);
-    const pid = String(chosen.id || "").trim();
-
-    let mergedPatch = basePatch ? Object.assign(Object.create(null), basePatch) : null;
-
-    if (oncePerSession && pid) {
-      const oncePatch = buildOncePatch(session || {}, pid);
-      const safeOncePatch = safeSessionPatch(oncePatch);
-      if (safeOncePatch) {
-        mergedPatch = mergedPatch
-          ? Object.assign(mergedPatch, safeOncePatch)
-          : Object.assign(Object.create(null), safeOncePatch);
-      }
-    }
+    const outBreaker = ensureAdvance({ reply: breakerReply, followUps: breakerFollowUps, lane: inbound.lane || "" });
 
     return {
-      reply,
-      followUps,
-      sessionPatch: mergedPatch,
-      meta: debug
-        ? {
-            ok: true,
-            packetId: chosen.id || null,
-            packetType: chosen.type || null,
-            packetLane: chosen.lane || null,
-            matchedTrig: String(matchedTrig || ""),
-            reservedTrig: isReservedTrigger(matchedTrig || ""),
-            state,
-            usedStateTemplates: !!(chosen.stateTemplates && chosen.stateTemplates[state]),
-            gateAllowPackets: !!(session && session.allowPackets === true),
-            laneHint: String(laneHint || ""),
-            routeHint: String(routeHint || ""),
-            yearInText: !!extractYearFromText(lower),
-            musicLikeText: hasMusicModeKeyword(lower),
-            path: PACKETS_PATH,
-          }
-        : null,
-    };
-  } catch (e) {
-    return {
-      reply: "",
-      followUps: [],
-      sessionPatch: null,
-      meta: debug
-        ? { ok: false, reason: "exception", error: String(e && e.message ? e.message : e), path: PACKETS_PATH }
-        : null,
+      ok: true,
+      reply: outBreaker.reply,
+      lane: inbound.lane || (session.lane || ""),
+      ctx: { loopFuse: true, repeats },
+      ui: null,
+      directives: [{ type: "loop_fuse", repeats }],
+      followUps: sanitizeFollowUps(outBreaker.followUps),
+      followUpsStrings: followUpsToLegacyStrings(outBreaker.followUps),
+      sessionPatch: { lastIntentSig: inboundHash, allowPackets: false },
+      cog: session.cog || null,
+      requestId: clientRequestId || null,
+      meta: debug ? { engine: CE_VERSION, reason: "sustained_loop_fuse", inboundHash, repeats } : null,
     };
   }
+
+  // Replay key (sticky replay fix)
+  const replayKey = buildReplayKey({ visitorId, clientRequestId, inboundHash });
+
+  // Burst dedupe: if same replayKey hit within burst window, return remembered response
+  const remembered = getRememberedReply(session, replayKey);
+  if (remembered && remembered.t && (tNow - remembered.t) <= BURST_WINDOW_MS) {
+    return Object.assign(Object.create(null), remembered.out, {
+      meta: debug ? Object.assign(Object.create(null), remembered.out.meta || null, {
+        engine: CE_VERSION,
+        replay: true,
+        replayKey,
+        inboundHash
+      }) : null,
+    });
+  }
+
+  // Determine structured music
+  const structuredMusic = looksLikeStructuredMusic({
+    lane: inbound.lane,
+    action: inbound.action,
+    mode: inbound.mode,
+    year: inbound.year,
+    text: inbound.text
+  });
+
+  // Set packets gate on session (packets.js will also enforce)
+  session.allowPackets = computeAllowPackets({ structuredMusic, lane: inbound.lane || session.lane || "" });
+
+  // Routing result
+  let routed = null;
+
+  // 1) Chip-authoritative music route
+  if (structuredMusic) {
+    routed = musicReply({ year: inbound.year, mode: inbound.mode || inbound.action });
+    mergeSession(session, routed.sessionPatch);
+    // Packets should not fire on this turn
+  } else {
+    // 2) Packets (greet/help/fallback/nav) — only if allowed
+    if (packets && typeof packets.handleChat === "function") {
+      const p = await packets.handleChat({
+        text: inbound.text,
+        session,
+        visitorId,
+        debug,
+        laneHint: inbound.lane || session.lane || "",
+        routeHint: "",
+      });
+
+      if (p && p.reply) {
+        routed = {
+          reply: p.reply,
+          followUps: (p.followUps || []).map((x) => ({
+            id: safeId("chip"),
+            type: "chip",
+            label: x.label,
+            payload: { text: x.send }, // preserve compatibility
+          })),
+          sessionPatch: p.sessionPatch || null,
+          meta: p.meta || null,
+        };
+        mergeSession(session, routed.sessionPatch);
+      }
+    }
+
+    // 3) If packets didn't match, return a smart “advance” prompt (never empty)
+    if (!routed) {
+      const y = extractYearFromText(inbound.text);
+      if (y) {
+        routed = musicReply({ year: y, mode: "story" });
+      } else {
+        routed = {
+          reply: "Tell me what you want next—music by year, a show, a channel question, or something else. If you give me a year, I can anchor it instantly.",
+          followUps: [
+            { id: "chip_music", type: "chip", label: "Music by year", payload: { lane: "music", action: "start" } },
+            { id: "chip_1988", type: "chip", label: "1988 Top 10", payload: { lane: "music", action: "year", year: 1988, mode: "top10" } },
+            { id: "chip_help", type: "chip", label: "What can you do?", payload: { lane: "system", action: "help" } },
+          ],
+          sessionPatch: { lane: session.lane || "general", allowPackets: true },
+          meta: { used: "always_advance_fallback" },
+        };
+      }
+      mergeSession(session, routed.sessionPatch);
+    }
+  }
+
+  // Final safety
+  const safeOut = ensureAdvance({
+    reply: routed.reply,
+    followUps: routed.followUps,
+    lane: inbound.lane || session.lane || "",
+  });
+
+  const followUps = sanitizeFollowUps(
+    (safeOut.followUps || []).map((x) => {
+      // normalize to contract format
+      if (x && x.payload) return x;
+      return {
+        id: x.id || safeId("chip"),
+        type: x.type || "chip",
+        label: x.label || "",
+        payload: x.payload || (x.send ? { text: x.send } : (x.payload || {})),
+      };
+    })
+  );
+
+  const out = {
+    ok: true,
+    reply: clampStr(safeOut.reply, MAX_REPLY_LEN),
+    lane: inbound.lane || session.lane || "general",
+    ctx: {
+      structuredMusic: !!structuredMusic,
+      allowPackets: !!session.allowPackets,
+      repeats,
+    },
+    ui: null,
+    directives: [],
+    followUps,
+    followUpsStrings: followUpsToLegacyStrings(followUps),
+    sessionPatch: safeSessionPatch({
+      lane: inbound.lane || session.lane || "general",
+      lastIntentSig: inboundHash,
+      allowPackets: session.allowPackets === true,
+      lastMusicYear: session.lastMusicYear || (session.cog && session.cog.lastMusicYear) || null,
+      activeMusicMode: session.activeMusicMode || null,
+      __nyxPackets: session.__nyxPackets || null,
+      cog: session.cog || null,
+    }) || null,
+    cog: session.cog || null,
+    requestId: clientRequestId || null,
+    meta: debug ? {
+      engine: CE_VERSION,
+      inboundHash,
+      replayKey,
+      structuredMusic,
+      repeats,
+      lane: inbound.lane || session.lane || "",
+      packetMeta: routed && routed.meta ? routed.meta : null,
+    } : null,
+  };
+
+  // Remember reply for burst dedupe (and replays)
+  rememberReply(session, replayKey, { out });
+
+  return out;
 }
 
 /**
- * Export aliases for maximum compatibility with chatEngine resolvers.
- * (chatEngine may look for handleChat/respond/chat/run/route)
+ * Export aliases for maximum compatibility with index.js resolvers.
  */
-function respond(args) {
-  return handleChat(args);
-}
-function chat(args) {
-  return handleChat(args);
-}
-function run(args) {
-  return handleChat(args);
-}
-function route(args) {
-  return handleChat(args);
-}
+function module_handleChat(args) { return handleChat(args); }
+function respond(args) { return handleChat(args); }
+function chat(args) { return handleChat(args); }
+function run(args) { return handleChat(args); }
+function route(args) { return handleChat(args); }
 
-module.exports = { handleChat, respond, chat, run, route };
+module.exports = {
+  CE_VERSION,
+  handleChat,
+  module_handleChat,
+  respond,
+  chat,
+  run,
+  route,
+};
