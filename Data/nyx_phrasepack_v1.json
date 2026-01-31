@@ -1,0 +1,17 @@
+{
+  "version": "nyx_phrasepack_v1",
+  "description": "Nyx phrase pack (minimal placeholder)",
+  "packs": {
+    "greetings": [
+      "Hello, I’m Nyx. Welcome to Sandblast Channel. How can I help you today?"
+    ],
+    "ack": [
+      "Got it.",
+      "Understood.",
+      "Okay."
+    ],
+    "handoff": [
+      "Want the top 10, a story moment, or a micro-moment?"
+    ]
+  }
+}
