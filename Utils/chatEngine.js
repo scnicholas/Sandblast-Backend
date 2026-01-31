@@ -16,7 +16,7 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7aH (ENTERPRISE HARDENED+++ + CHIP-AUTHORITATIVE ROUTING SPINE ++ FIXES)
+ * v0.7aI (ENTERPRISE HARDENED+++ + CHIP-AUTHORITATIVE ROUTING SPINE ++ FIXES)
  *  ✅ Keeps: Chip payload routing spine (lane/action/year) deterministic mapping to commands
  *  ✅ Keeps: FollowUps structured payload (lane/action/year/mode) while preserving legacy payload.text
  *  ✅ Keeps: Packets gating blocks when a music mode is present (not just when a year exists)
@@ -24,7 +24,9 @@
  *  ✅ Keeps: __chip:lane:action:year fallback encoding support
  *  ✅ Keeps: session.cog.__nyxLastChip continuity stamping
  *
- *  ✅ FIX (CRITICAL): normalizeFollowUps now correctly handles legacy string payloads (payload = "top 10 1988")
+ *  ✅ FIX (CRITICAL): normalizeFollowUps now correctly handles:
+ *      - legacy string payloads (payload = "top 10 1988")
+ *      - legacy string *items* (followUps = ["top 10 1988", "#1 1977"])
  *  ✅ HARDEN: sanitize lane/action tokens used for routing (prevents weird/unsafe tokens becoming commands)
  *  ✅ HARDEN: deriveCommandFromChip clamps unknown actions to null (prevents accidental garbage commands)
  */
@@ -35,7 +37,7 @@ const crypto = require("crypto");
 // Version
 // =========================
 const CE_VERSION =
-  "chatEngine v0.7aH (enterprise hardened+++ + CHIP-AUTHORITATIVE ROUTING SPINE + FIX normalizeFollowUps string payload + sanitize lane/action tokens + keep packets gating on music mode + replayKey includes payload hash + __chip encoding + lastChip continuity + writeReplay patch + looping mitigations + canonical boot intro + state spine)";
+  "chatEngine v0.7aI (enterprise hardened+++ + CHIP-AUTHORITATIVE ROUTING SPINE + FIX normalizeFollowUps handles string items + sanitize lane/action tokens + keep packets gating on music mode + replayKey includes payload hash + __chip encoding + lastChip continuity + writeReplay patch + looping mitigations + canonical boot intro + state spine)";
 
 // =========================
 // Enterprise knobs
@@ -278,12 +280,12 @@ function coerceAction(v) {
   if (!s) return null;
 
   // music
-  if (["top10", "top_10", "top10", "topten"].includes(s)) return "top10";
-  if (["top100", "top_100", "top100", "hot100", "hot100"].includes(s)) return "top100";
-  if (["story", "storymoment", "story_moment", "storymoment"].includes(s)) return "story";
-  if (["micro", "micromoment", "micro_moment", "micromoment"].includes(s)) return "micro";
-  if (["number1", "no1", "no_1", "number1"].includes(s)) return "number1";
-  if (["year", "year_pick", "pickyear", "pickyear"].includes(s)) return "year_pick";
+  if (["top10", "top_10", "topten"].includes(s)) return "top10";
+  if (["top100", "top_100", "hot100", "hot_100", "hot100chart"].includes(s)) return "top100";
+  if (["story", "storymoment", "story_moment"].includes(s)) return "story";
+  if (["micro", "micromoment", "micro_moment"].includes(s)) return "micro";
+  if (["number1", "no1", "no_1"].includes(s)) return "number1";
+  if (["year", "year_pick", "pickyear"].includes(s)) return "year_pick";
 
   // schedule
   if (["now", "playing_now", "whats_on_now", "whatsonnow"].includes(s)) return "now";
@@ -294,7 +296,7 @@ function coerceAction(v) {
   // generic
   if (["open", "start", "go"].includes(s)) return "open";
 
-  // HARDEN: if it’s not one of our known-safe actions, return null (don’t create garbage commands)
+  // HARDEN: unknown => null (don’t create garbage commands)
   return null;
 }
 
@@ -668,8 +670,6 @@ function getLastChip(session) {
 
 // =========================
 // CHIP PAYLOAD ROUTING SPINE (CRITICAL)
-// - If payload carries lane/action/year, deterministically map to canonical inbound command.
-// - Works even if inboundText is generic ("Story moment").
 // =========================
 function deriveCommandFromChip(laneIn, actionIn, yearIn, session) {
   const lane = coerceLane(laneIn) || coerceLane(session && session.lane) || null;
@@ -1246,17 +1246,71 @@ function toFollowUpsStrings(chips) {
   return out.length ? out : undefined;
 }
 
+function labelFromSendText(sendText) {
+  const t = normText(sendText);
+  const y = extractYear(t);
+  const m = extractMode(t);
+
+  if (m === "top10" && y) return `Top 10 (${y})`;
+  if (m === "top100" && y) return `Top 100 (${y})`;
+  if (m === "number1" && y) return `#1 (${y})`;
+  if (m === "story" && y) return `Story moment (${y})`;
+  if (m === "micro" && y) return `Micro moment (${y})`;
+
+  if (/^\s*top\s*10\b/.test(t)) return y ? `Top 10 (${y})` : "Top 10";
+  if (/^\s*top\s*100\b/.test(t) || /\bhot\s*100\b/.test(t)) return y ? `Top 100 (${y})` : "Top 100";
+  if (/^\s*#\s*1\b/.test(t) || /\bnumber\s*1\b/.test(t) || /\bno\.?\s*1\b/.test(t)) return y ? `#1 (${y})` : "#1";
+  if (/\bstory\s*moment\b/.test(t)) return y ? `Story moment (${y})` : "Story moment";
+  if (/\bmicro\s*moment\b/.test(t)) return y ? `Micro moment (${y})` : "Micro moment";
+
+  if (/\bschedule\b/.test(t)) return "Schedule";
+  if (/\bsponsors?\b/.test(t)) return "Sponsors";
+  if (/\broku\b/.test(t)) return "Roku";
+  if (/\bradio\b/.test(t) || /\bstream\b/.test(t)) return "Radio";
+  if (/\bmovies?\b|\bfilm\b|\bcatalog\b/.test(t)) return "Movies";
+
+  const trimmed = clampStr(safeStr(sendText).trim(), MAX_FOLLOWUP_LABEL);
+  return trimmed || "Send";
+}
+
 function normalizeFollowUps(followUps) {
   const arr = Array.isArray(followUps) ? followUps : [];
   const out = [];
   const seen = new Set();
-  for (const f of arr) {
-    if (!f) continue;
+
+  for (const fRaw of arr) {
+    if (!fRaw) continue;
+
+    // ✅ FIX (v0.7aI): legacy followUps as STRING ITEMS
+    // Example: followUps = ["top 10 1988", "#1 1977"]
+    if (typeof fRaw === "string") {
+      const sendText = clampInboundText(fRaw);
+      if (!sendText) continue;
+
+      const payload = buildStructuredPayload({ text: sendText });
+      const text = safeStr(payload.text).trim();
+      if (!text) continue;
+
+      const label = clampStr(labelFromSendText(sendText), MAX_FOLLOWUP_LABEL);
+      const id = sha1(label + "::" + text).slice(0, 8);
+      const key = normText(id + "::" + label + "::" + text + "::" + safeJsonStringify(payload));
+
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      out.push({ id, type: "send", label, payload });
+      if (out.length >= MAX_FOLLOWUPS) break;
+      continue;
+    }
+
+    const f = fRaw;
+
     const type = safeStr(f.type || "send").trim() || "send";
     if (type !== "send") continue;
+
     const label = clampStr(safeStr(f.label).trim() || "Send", MAX_FOLLOWUP_LABEL);
 
-    // ✅ FIX: handle legacy payload as a STRING (common in older codepaths)
+    // ✅ FIX: handle legacy payload as a STRING
     // Examples:
     //   payload: "top 10 1988"
     //   payload: { text: "top 10 1988", lane:"music", action:"top10", year:1988 }
@@ -1277,6 +1331,7 @@ function normalizeFollowUps(followUps) {
     out.push({ id, type: "send", label, payload });
     if (out.length >= MAX_FOLLOWUPS) break;
   }
+
   return out;
 }
 
