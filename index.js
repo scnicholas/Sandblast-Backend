@@ -3,13 +3,14 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18ai (PINNED PACKS + larger knowledge budgets + crash-proof boot + safe JSON parse + diagnostic logging + knowledge bridge + loop fixes)
+ * index.js v1.5.18ai (PINNED PACKS + larger knowledge budgets + crash-proof boot + safe JSON parse + diagnostic logging + knowledge bridge + loop fixes + PACK INDEX)
  *
  * Key adds vs 1.5.18ah:
  *  ✅ CRITICAL: Pinned music packs load under STABLE keys (music/top10_by_year, music/number1_by_year, music/story_moments_by_year, music/micro_moments_by_year)
  *  ✅ CRITICAL: Prevent double-loading the same JSON file (pinned + crawl) via loadedFiles set
  *  ✅ SAFER: default knowledge budgets increased (file + total) to avoid silent “pack not loaded” symptoms
  *  ✅ Debug: expose pinned presence in /api/debug/knowledge
+ *  ✅ NEW: Unified Pack Index endpoints (/api/packs, /api/packs/refresh) if Utils/packIndex.js exists
  */
 
 // =========================
@@ -58,11 +59,14 @@ const fetchFn =
   (typeof nodeFetchMod === "function" ? nodeFetchMod : null) ||
   (nodeFetchMod && typeof nodeFetchMod.default === "function" ? nodeFetchMod.default : null);
 
+// Pack Index (optional)
+const packIndexMod = safeRequire("./Utils/packIndex") || safeRequire("./Utils/packIndex.js") || null;
+
 // =========================
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18ai (pinned packs + larger knowledge budgets + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
+  "index.js v1.5.18ai (pinned packs + larger knowledge budgets + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS + pack index endpoints)";
 
 // =========================
 // Env / knobs
@@ -701,6 +705,24 @@ if (KNOWLEDGE_AUTOLOAD && KNOWLEDGE_RELOAD_INTERVAL_MS > 0) {
 }
 
 // =========================
+// Pack Index helpers (optional)
+// =========================
+function packIndexAvailable() {
+  return !!(packIndexMod && (typeof packIndexMod.getPackIndex === "function" || typeof packIndexMod.refreshPackIndex === "function"));
+}
+
+function getPackIndexSafe(forceRefresh) {
+  try {
+    if (!packIndexMod) return { ok: false, error: "packIndex_missing" };
+    if (forceRefresh && typeof packIndexMod.refreshPackIndex === "function") return packIndexMod.refreshPackIndex();
+    if (typeof packIndexMod.getPackIndex === "function") return packIndexMod.getPackIndex({ forceRefresh: false });
+    return { ok: false, error: "packIndex_invalid_exports" };
+  } catch (e) {
+    return { ok: false, error: "packIndex_exception", detail: safeStr(e?.message || e).slice(0, 240) };
+  }
+}
+
+// =========================
 // Session store
 // =========================
 const SESSIONS = new Map();
@@ -939,6 +961,7 @@ app.get("/", (req, res) => {
     engineFrom: ENGINE.from,
     env: NODE_ENV,
     knowledge: knowledgeStatusForMeta(),
+    packs: { ok: packIndexAvailable() },
   });
 });
 
@@ -951,6 +974,7 @@ app.get("/health", (req, res) => {
     up: true,
     now: new Date().toISOString(),
     knowledge: knowledgeStatusForMeta(),
+    packs: { ok: packIndexAvailable() },
   });
 });
 
@@ -963,6 +987,7 @@ app.get("/api/health", (req, res) => {
     up: true,
     now: new Date().toISOString(),
     knowledge: knowledgeStatusForMeta(),
+    packs: { ok: packIndexAvailable() },
   });
 });
 
@@ -981,8 +1006,38 @@ app.get("/api/discovery", (req, res) => {
       "/health",
       "/api/health",
       "/api/debug/knowledge",
+      "/api/packs",
+      "/api/packs/refresh",
     ],
     knowledge: knowledgeStatusForMeta(),
+    packs: { ok: packIndexAvailable() },
+  });
+});
+
+// =========================
+// Pack Index endpoints (optional)
+// =========================
+app.get("/api/packs", (req, res) => {
+  const idx = getPackIndexSafe(false);
+  const ok = !!idx && idx.ok !== false;
+  return res.status(ok ? 200 : 500).json({
+    ok: ok,
+    version: INDEX_VERSION,
+    engine: ENGINE_VERSION || null,
+    engineFrom: ENGINE.from,
+    packs: idx,
+  });
+});
+
+app.post("/api/packs/refresh", (req, res) => {
+  const idx = getPackIndexSafe(true);
+  const ok = !!idx && idx.ok !== false;
+  return res.status(ok ? 200 : 500).json({
+    ok: ok,
+    version: INDEX_VERSION,
+    engine: ENGINE_VERSION || null,
+    engineFrom: ENGINE.from,
+    packs: idx,
   });
 });
 
@@ -1029,6 +1084,7 @@ if (KNOWLEDGE_DEBUG_ENDPOINT) {
         json: KNOWLEDGE_DEBUG_INCLUDE_DATA ? KNOWLEDGE.json : undefined,
         scripts: KNOWLEDGE_DEBUG_INCLUDE_DATA ? KNOWLEDGE.scripts : undefined,
       },
+      packs: { ok: packIndexAvailable() },
     });
   });
 
@@ -1038,7 +1094,7 @@ if (KNOWLEDGE_DEBUG_ENDPOINT) {
       return res.status(404).json({ ok: false, error: "not_found" });
     }
     const summary = reloadKnowledge();
-    return res.status(200).json({ ok: true, summary, knowledge: knowledgeStatusForMeta() });
+    return res.status(200).json({ ok: true, summary, knowledge: knowledgeStatusForMeta(), packs: { ok: packIndexAvailable() } });
   });
 }
 
@@ -1192,6 +1248,8 @@ async function handleChatRoute(req, res) {
     session: rec.data,
     knowledge: knowledgeSnapshotForEngine(),
     __knowledgeStatus: knowledgeStatusForMeta(),
+    // Optional: pack index snapshot so engine can surface chips without extra fs work
+    packIndex: packIndexAvailable() ? getPackIndexSafe(false) : undefined,
   };
 
   let out;
@@ -1273,6 +1331,7 @@ async function handleChatRoute(req, res) {
       meaningful: !!meaningful,
       resetSilenced: !!isReset,
       echoSuppressed: !!followUps && Array.isArray(out?.followUpsStrings) && out?.followUpsStrings.length ? true : false,
+      packs: { ok: packIndexAvailable() },
     },
   });
 }
@@ -1467,6 +1526,8 @@ app.listen(PORT, () => {
   );
   // eslint-disable-next-line no-console
   console.log(`[Sandblast] Knowledge pinned=${JSON.stringify(pinnedPresence())}`);
+  // eslint-disable-next-line no-console
+  console.log(`[Sandblast] PackIndex: ${packIndexAvailable() ? "OK" : "MISSING"} (Utils/packIndex.js)`);
 });
 
 module.exports = { app, INDEX_VERSION };
