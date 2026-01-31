@@ -3,15 +3,24 @@
   "description": "Nyx phrase pack (minimal placeholder)",
   "packs": {
     "greetings": [
-      "Hello, I’m Nyx. Welcome to Sandblast Channel. How can I help you today?"
+      "Hello, I’m Nyx. Welcome to Sandblast Channel. How can I help you today?",
+      "Hi — I’m Nyx. Want music, Roku, schedule, or radio?",
+      "Welcome back. Give me a year, or tap Top 10."
     ],
     "ack": [
       "Got it.",
       "Understood.",
-      "Okay."
+      "Okay.",
+      "Perfect.",
+      "All set.",
+      "Locked in.",
+      "Done."
     ],
     "handoff": [
-      "Want the top 10, a story moment, or a micro-moment?"
+      "Want the top 10, a story moment, or a micro-moment?",
+      "Pick one: Top 10, #1, story moment, micro-moment.",
+      "Want Top 10, the #1, or a story moment?",
+      "Say the year and I’ll pull the highlights."
     ]
   }
 }
