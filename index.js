@@ -3,13 +3,13 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18ah (CRASH-PROOF BOOT + SAFE JSON PARSE + DIAGNOSTIC LOGGING + knowledge bridge + loop fixes)
+ * index.js v1.5.18ai (PINNED PACKS + larger knowledge budgets + crash-proof boot + safe JSON parse + diagnostic logging + knowledge bridge + loop fixes)
  *
- * Key adds vs 1.5.18af:
- *  ✅ CRITICAL: Never crash on invalid JSON body (safe JSON middleware)
- *  ✅ CRITICAL: process-level logging for unhandledRejection + uncaughtException
- *  ✅ CRITICAL: express error middleware so failures return a response (not silent socket close)
- *  ✅ SAFER DEFAULT: KNOWLEDGE_ENABLE_SCRIPTS defaults to FALSE (turn on with env)
+ * Key adds vs 1.5.18ah:
+ *  ✅ CRITICAL: Pinned music packs load under STABLE keys (music/top10_by_year, music/number1_by_year, music/story_moments_by_year, music/micro_moments_by_year)
+ *  ✅ CRITICAL: Prevent double-loading the same JSON file (pinned + crawl) via loadedFiles set
+ *  ✅ SAFER: default knowledge budgets increased (file + total) to avoid silent “pack not loaded” symptoms
+ *  ✅ Debug: expose pinned presence in /api/debug/knowledge
  */
 
 // =========================
@@ -62,7 +62,7 @@ const fetchFn =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18ah (crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
+  "index.js v1.5.18ai (pinned packs + larger knowledge budgets + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
 
 // =========================
 // Env / knobs
@@ -89,13 +89,27 @@ const KNOWLEDGE_RELOAD_INTERVAL_MS = clampInt(
 ); // 0 = off
 
 const KNOWLEDGE_MAX_FILES = clampInt(process.env.KNOWLEDGE_MAX_FILES, 2500, 200, 20000);
-const KNOWLEDGE_MAX_FILE_BYTES = clampInt(process.env.KNOWLEDGE_MAX_FILE_BYTES, 2_500_000, 50_000, 20_000_000);
-const KNOWLEDGE_MAX_TOTAL_BYTES = clampInt(process.env.KNOWLEDGE_MAX_TOTAL_BYTES, 40_000_000, 1_000_000, 250_000_000);
+
+// IMPORTANT: bumped defaults to avoid silent “pack not loaded” symptoms
+const KNOWLEDGE_MAX_FILE_BYTES = clampInt(process.env.KNOWLEDGE_MAX_FILE_BYTES, 8_000_000, 50_000, 20_000_000);
+const KNOWLEDGE_MAX_TOTAL_BYTES = clampInt(process.env.KNOWLEDGE_MAX_TOTAL_BYTES, 120_000_000, 1_000_000, 250_000_000);
 
 // Root resolution: in Render, __dirname is safest
 const APP_ROOT = path.resolve(__dirname);
 const DATA_DIR = path.resolve(APP_ROOT, String(process.env.DATA_DIR || "Data").trim());
 const SCRIPTS_DIR = path.resolve(APP_ROOT, String(process.env.SCRIPTS_DIR || "Scripts").trim());
+
+// =========================
+// Knowledge: Pinned packs (stable keys)
+// =========================
+// These are the “must-have” packs Nyx expects to always be able to find.
+// Put these JSON files under /Data (or set DATA_DIR accordingly).
+const PINNED_PACKS = [
+  { key: "music/top10_by_year", rel: "music_top10_by_year.json" },
+  { key: "music/number1_by_year", rel: "music_number1_by_year.json" },
+  { key: "music/story_moments_by_year", rel: "music_story_moments_by_year.json" },
+  { key: "music/micro_moments_by_year", rel: "music_micro_moments_by_year.json" },
+];
 
 // CORS
 const ORIGINS_ALLOWLIST = String(
@@ -456,6 +470,58 @@ function sanitizeScriptExport(x) {
   return { __type: typeof x };
 }
 
+function pinnedPresence() {
+  const out = {};
+  for (const p of PINNED_PACKS) {
+    out[p.key] = Object.prototype.hasOwnProperty.call(KNOWLEDGE.json, p.key);
+  }
+  return out;
+}
+
+function loadPinnedPack(relPath, forcedKey, loadedFiles, totalBytesRef) {
+  // relPath is relative to DATA_DIR
+  const fp = path.resolve(DATA_DIR, relPath);
+
+  if (loadedFiles && loadedFiles.has(fp)) {
+    // already loaded (prevents double count)
+    return { ok: true, skipped: true, reason: "already_loaded" };
+  }
+
+  if (!fileExists(fp)) {
+    pushKnowledgeError("pinned_missing", fp, "Pinned pack missing");
+    return { ok: false, skipped: false, reason: "missing" };
+  }
+
+  const r = safeReadFileBytes(fp);
+  if (!r.ok) {
+    pushKnowledgeError("pinned_read", fp, r.reason || "read_failed");
+    return { ok: false, skipped: false, reason: r.reason || "read_failed" };
+  }
+
+  const nextTotal = (totalBytesRef.value || 0) + r.size;
+  if (nextTotal > KNOWLEDGE_MAX_TOTAL_BYTES) {
+    pushKnowledgeError("pinned_budget", fp, "total bytes budget exceeded (pinned pack skipped)");
+    return { ok: false, skipped: true, reason: "budget" };
+  }
+
+  let parsed = null;
+  try {
+    parsed = JSON.parse(r.buf.toString("utf8"));
+  } catch (e) {
+    pushKnowledgeError("pinned_parse", fp, e?.message || e);
+    return { ok: false, skipped: false, reason: "parse_failed" };
+  }
+
+  KNOWLEDGE.json[String(forcedKey)] = parsed;
+  KNOWLEDGE.filesLoaded += 1;
+  totalBytesRef.value = nextTotal;
+  KNOWLEDGE.totalBytes = totalBytesRef.value;
+
+  if (loadedFiles) loadedFiles.add(fp);
+
+  return { ok: true, skipped: false };
+}
+
 function reloadKnowledge() {
   const started = nowMs();
 
@@ -475,6 +541,22 @@ function reloadKnowledge() {
   if (!scriptsOk && KNOWLEDGE_ENABLE_SCRIPTS)
     pushKnowledgeError("dir", SCRIPTS_DIR, "SCRIPTS_DIR missing or outside APP_ROOT");
 
+  const loadedFiles = new Set(); // prevents double-loading pinned + crawl
+  const totalBytesRef = { value: 0 };
+
+  // ---- Force-load pinned packs under stable keys (before generic crawl) ----
+  if (dataOk) {
+    for (const p of PINNED_PACKS) {
+      try {
+        loadPinnedPack(p.rel, p.key, loadedFiles, totalBytesRef);
+      } catch (e) {
+        pushKnowledgeError("pinned_exception", p.rel, e?.message || e);
+      }
+      if (KNOWLEDGE.filesLoaded >= KNOWLEDGE_MAX_FILES) break;
+      if (totalBytesRef.value > KNOWLEDGE_MAX_TOTAL_BYTES) break;
+    }
+  }
+
   const jsonFiles = [];
   if (dataOk) walkFiles(DATA_DIR, [".json"], jsonFiles, KNOWLEDGE_MAX_FILES);
 
@@ -486,9 +568,10 @@ function reloadKnowledge() {
 
   KNOWLEDGE.filesScanned = jsonFiles.length + jsFiles.length;
 
-  let totalBytes = 0;
+  // Continue loading remaining json files (skip already-loaded pinned files)
   for (const fp of jsonFiles) {
     if (KNOWLEDGE.filesLoaded >= KNOWLEDGE_MAX_FILES) break;
+    if (loadedFiles.has(fp)) continue;
 
     const r = safeReadFileBytes(fp);
     if (!r.ok) {
@@ -496,8 +579,8 @@ function reloadKnowledge() {
       continue;
     }
 
-    totalBytes += r.size;
-    if (totalBytes > KNOWLEDGE_MAX_TOTAL_BYTES) {
+    totalBytesRef.value += r.size;
+    if (totalBytesRef.value > KNOWLEDGE_MAX_TOTAL_BYTES) {
       pushKnowledgeError("budget", fp, "total bytes budget exceeded; stopping load");
       break;
     }
@@ -512,9 +595,13 @@ function reloadKnowledge() {
     }
 
     const key = fileKeyFromPath(DATA_DIR, fp);
-    KNOWLEDGE.json[key] = parsed;
+    // Only set if empty to avoid overwriting pinned stable keys (we never crawl into those keys anyway)
+    if (!Object.prototype.hasOwnProperty.call(KNOWLEDGE.json, key)) {
+      KNOWLEDGE.json[key] = parsed;
+    }
     KNOWLEDGE.filesLoaded += 1;
-    KNOWLEDGE.totalBytes = totalBytes;
+    KNOWLEDGE.totalBytes = totalBytesRef.value;
+    loadedFiles.add(fp);
   }
 
   if (scriptsOk && KNOWLEDGE_ENABLE_SCRIPTS) {
@@ -546,12 +633,18 @@ function reloadKnowledge() {
   const scriptKeys = Object.keys(KNOWLEDGE.scripts).length;
   KNOWLEDGE.ok = jsonKeys + scriptKeys > 0;
 
+  const pins = pinnedPresence();
+  const pinnedOk = Object.values(pins).some(Boolean);
+
   // eslint-disable-next-line no-console
   console.log(
-    `[Sandblast][Knowledge] loaded=${KNOWLEDGE.ok} jsonKeys=${jsonKeys} scriptKeys=${scriptKeys} filesLoaded=${KNOWLEDGE.filesLoaded} totalBytes=${KNOWLEDGE.totalBytes} errors=${KNOWLEDGE.errors.length} in ${
+    `[Sandblast][Knowledge] loaded=${KNOWLEDGE.ok} pinnedAny=${pinnedOk} jsonKeys=${jsonKeys} scriptKeys=${scriptKeys} filesLoaded=${KNOWLEDGE.filesLoaded} totalBytes=${KNOWLEDGE.totalBytes} errors=${KNOWLEDGE.errors.length} in ${
       nowMs() - started
     }ms (DATA_DIR=${DATA_DIR}, SCRIPTS_DIR=${SCRIPTS_DIR}, scriptsEnabled=${KNOWLEDGE_ENABLE_SCRIPTS})`
   );
+
+  // eslint-disable-next-line no-console
+  console.log(`[Sandblast][Knowledge] pinnedPresence=${JSON.stringify(pins)}`);
 
   return { ok: KNOWLEDGE.ok, loadedAt: KNOWLEDGE.loadedAt, jsonKeys, scriptKeys, filesLoaded: KNOWLEDGE.filesLoaded };
 }
@@ -564,6 +657,7 @@ function knowledgeStatusForMeta() {
     errorsPreview: KNOWLEDGE.errors.slice(0, 3),
     jsonKeyCount: Object.keys(KNOWLEDGE.json).length,
     scriptKeyCount: Object.keys(KNOWLEDGE.scripts).length,
+    pinned: pinnedPresence(),
   };
 }
 
@@ -581,6 +675,7 @@ function knowledgeSnapshotForEngine() {
       totalBytes: KNOWLEDGE.totalBytes,
       errorCount: KNOWLEDGE.errors.length,
       errorsPreview: KNOWLEDGE.errors.slice(0, 5),
+      pinned: pinnedPresence(),
     },
   };
 }
@@ -919,6 +1014,13 @@ if (KNOWLEDGE_DEBUG_ENDPOINT) {
         filesScanned: KNOWLEDGE.filesScanned,
         filesLoaded: KNOWLEDGE.filesLoaded,
         totalBytes: KNOWLEDGE.totalBytes,
+        budgets: {
+          maxFiles: KNOWLEDGE_MAX_FILES,
+          maxFileBytes: KNOWLEDGE_MAX_FILE_BYTES,
+          maxTotalBytes: KNOWLEDGE_MAX_TOTAL_BYTES,
+        },
+        pinned: pinnedPresence(),
+        pinnedConfig: PINNED_PACKS.map((p) => ({ key: p.key, rel: p.rel })),
         errorCount: KNOWLEDGE.errors.length,
         errorsPreview: KNOWLEDGE.errors.slice(0, 10),
         jsonKeysPreview: jsonKeys.slice(0, 80),
@@ -1363,6 +1465,8 @@ app.listen(PORT, () => {
       Object.keys(KNOWLEDGE.json).length
     } scriptKeys=${Object.keys(KNOWLEDGE.scripts).length} errors=${KNOWLEDGE.errors.length} DATA_DIR=${DATA_DIR} SCRIPTS_DIR=${SCRIPTS_DIR} reloadEveryMs=${KNOWLEDGE_RELOAD_INTERVAL_MS} debugIncludeData=${KNOWLEDGE_DEBUG_INCLUDE_DATA} scriptsEnabled=${KNOWLEDGE_ENABLE_SCRIPTS}`
   );
+  // eslint-disable-next-line no-console
+  console.log(`[Sandblast] Knowledge pinned=${JSON.stringify(pinnedPresence())}`);
 });
 
 module.exports = { app, INDEX_VERSION };
