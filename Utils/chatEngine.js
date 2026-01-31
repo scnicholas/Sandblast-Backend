@@ -16,19 +16,12 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7aI (ENTERPRISE HARDENED+++ + CHIP-AUTHORITATIVE ROUTING SPINE ++ FIXES)
- *  ✅ Keeps: Chip payload routing spine (lane/action/year) deterministic mapping to commands
- *  ✅ Keeps: FollowUps structured payload (lane/action/year/mode) while preserving legacy payload.text
- *  ✅ Keeps: Packets gating blocks when a music mode is present (not just when a year exists)
- *  ✅ Keeps: replayKey signature includes payload hash
- *  ✅ Keeps: __chip:lane:action:year fallback encoding support
- *  ✅ Keeps: session.cog.__nyxLastChip continuity stamping
- *
- *  ✅ FIX (CRITICAL): normalizeFollowUps now correctly handles:
- *      - legacy string payloads (payload = "top 10 1988")
- *      - legacy string *items* (followUps = ["top 10 1988", "#1 1977"])
- *  ✅ HARDEN: sanitize lane/action tokens used for routing (prevents weird/unsafe tokens becoming commands)
- *  ✅ HARDEN: deriveCommandFromChip clamps unknown actions to null (prevents accidental garbage commands)
+ * v0.7aI (ENTERPRISE HARDENED+++ + PACKETS REACHABILITY FIX + LOOP MITIGATION SUPPORT)
+ *  ✅ FIX (CRITICAL): shouldAllowPackets default now allows packets for real user queries (was effectively always false)
+ *  ✅ ADD: explicit packets override via input.allowPackets === true, or routeHint/source contains "packets"
+ *  ✅ KEEP: chip-authoritative routing spine + replayKey includes payload hash + normalizeFollowUps string payload support
+ *  ✅ KEEP: packets guardrails for strongly-structured music commands (so deterministic music routing remains stable)
+ *  ✅ META: allowPacketsReason for fast diagnosis
  */
 
 const crypto = require("crypto");
@@ -37,7 +30,7 @@ const crypto = require("crypto");
 // Version
 // =========================
 const CE_VERSION =
-  "chatEngine v0.7aI (enterprise hardened+++ + CHIP-AUTHORITATIVE ROUTING SPINE + FIX normalizeFollowUps handles string items + sanitize lane/action tokens + keep packets gating on music mode + replayKey includes payload hash + __chip encoding + lastChip continuity + writeReplay patch + looping mitigations + canonical boot intro + state spine)";
+  "chatEngine v0.7aI (enterprise hardened+++ + PACKETS REACHABILITY FIX + packets override + allowPacketsReason meta + chip-authoritative routing spine + replayKey includes payload hash + normalizeFollowUps string payload + sanitize lane/action tokens + writeReplay patch + looping mitigations + canonical boot intro + state spine)";
 
 // =========================
 // Enterprise knobs
@@ -241,7 +234,6 @@ function shuffleInPlace(arr) {
   }
   return arr;
 }
-
 function safeJsonStringify(obj) {
   try {
     return JSON.stringify(obj);
@@ -249,7 +241,6 @@ function safeJsonStringify(obj) {
     return "";
   }
 }
-
 function safeLower(x) {
   return safeStr(x).trim().toLowerCase();
 }
@@ -281,7 +272,7 @@ function coerceAction(v) {
 
   // music
   if (["top10", "top_10", "topten"].includes(s)) return "top10";
-  if (["top100", "top_100", "hot100", "hot_100", "hot100chart"].includes(s)) return "top100";
+  if (["top100", "top_100", "hot100", "hot_100"].includes(s)) return "top100";
   if (["story", "storymoment", "story_moment"].includes(s)) return "story";
   if (["micro", "micromoment", "micro_moment"].includes(s)) return "micro";
   if (["number1", "no1", "no_1"].includes(s)) return "number1";
@@ -296,13 +287,12 @@ function coerceAction(v) {
   // generic
   if (["open", "start", "go"].includes(s)) return "open";
 
-  // HARDEN: unknown => null (don’t create garbage commands)
+  // HARDEN: unknown actions => null
   return null;
 }
 
 // ============================
 // NYX STATE SPINE v1 (COLD/WARM/ENGAGED) — PURE + FORWARD-ONLY
-// Bound to session.cog.state
 // ============================
 const NYX_STATE = Object.freeze({ COLD: "cold", WARM: "warm", ENGAGED: "engaged" });
 const NYX_STATE_ORDER = Object.freeze([NYX_STATE.COLD, NYX_STATE.WARM, NYX_STATE.ENGAGED]);
@@ -323,6 +313,22 @@ function nyxAdvanceState(current, next) {
   const ni = nyxStateIndex(n);
   return NYX_STATE_ORDER[Math.max(ci, ni)];
 }
+function isBootIntroSource(input) {
+  try {
+    const src =
+      safeStr(input && input.client && (input.client.source || input.client.src || "")).trim() ||
+      safeStr(input && input.source).trim();
+    const tt = normText(src);
+    return (
+      tt.includes("panel_open_intro") ||
+      tt.includes("panel-open-intro") ||
+      tt.includes("boot_intro") ||
+      tt.includes("boot-intro")
+    );
+  } catch (_) {
+    return false;
+  }
+}
 function nyxShouldIgnoreTurn(input) {
   const t = String((input && (input.turnType || input.type || input.event)) || "").toLowerCase();
   const rh = String((input && (input.routeHint || input.hint)) || "").toLowerCase();
@@ -330,9 +336,7 @@ function nyxShouldIgnoreTurn(input) {
   if (rh.includes("boot") || rh.includes("intro") || rh.includes("panel_open")) return true;
   try {
     if (isBootIntroSource(input)) return true;
-  } catch (_) {
-    // ignore
-  }
+  } catch (_) {}
   return false;
 }
 function nyxIsMeaningfulTurn(inboundText, input) {
@@ -402,9 +406,7 @@ function nyxStampState(session, st) {
     const next = sanitizeNyxState(st && st.state) || prev;
     session.cog.state = nyxAdvanceState(prev, next);
     session.cog.__nyxLastSeenAt = safeInt((st && st.lastSeenAt) || Date.now(), Date.now());
-  } catch (_) {
-    // no-op
-  }
+  } catch (_) {}
 }
 
 // =========================
@@ -419,12 +421,6 @@ const NYX_GREET_PREFIXES = [
   "I’ve got you. Go on.",
   "Yeah — I’m here. What’s the play?",
 ];
-
-function isBootLikeTurn(inboundIsEmpty, bootIntroEmpty) {
-  if (bootIntroEmpty) return true;
-  if (inboundIsEmpty) return true;
-  return false;
-}
 
 function pickNyxGreetPrefix(session) {
   try {
@@ -450,10 +446,10 @@ function pickNyxGreetPrefix(session) {
     return "";
   }
 }
-
 function maybeApplyNyxGreetPrefix(session, inboundIsEmpty, bootIntroEmpty, reply) {
   try {
-    if (isBootLikeTurn(inboundIsEmpty, bootIntroEmpty)) return reply;
+    if (bootIntroEmpty) return reply;
+    if (inboundIsEmpty) return reply;
 
     const core = safeStr(reply).trim();
     if (!core) return reply;
@@ -470,7 +466,6 @@ function maybeApplyNyxGreetPrefix(session, inboundIsEmpty, bootIntroEmpty, reply
     return reply;
   }
 }
-
 function shouldApplyGreetingPrefix(opts) {
   const o = opts && typeof opts === "object" ? opts : {};
   if (o.replay || o.burst) return false;
@@ -478,6 +473,299 @@ function shouldApplyGreetingPrefix(opts) {
   if (o.inboundIsEmpty) return false;
   if (o.meaningful === false) return false;
   return true;
+}
+
+// =========================
+// Extractors
+// =========================
+function extractYear(text) {
+  const m = safeStr(text).match(/\b(19[5-9]\d|20[0-1]\d|202[0-4])\b/);
+  if (!m) return null;
+  const y = Number(m[1]);
+  if (!Number.isFinite(y) || y < 1950 || y > 2024) return null;
+  return y;
+}
+function extractMode(text) {
+  const t = normText(text);
+  if (/\b(top\s*100|top100|hot\s*100|year[-\s]*end\s*hot\s*100)\b/.test(t)) return "top100";
+  if (/\b(top\s*10|top10|top\s*ten)\b/.test(t)) return "top10";
+  if (/\bstory\s*moment\b|\bstory\b/.test(t)) return "story";
+  if (/\bmicro\s*moment\b|\bmicro\b/.test(t)) return "micro";
+  if (/\b#\s*1\b|\bnumber\s*1\b|\bno\.?\s*1\b|\bno\s*1\b/.test(t)) return "number1";
+  return null;
+}
+function isGreetingOnly(t) {
+  return /^(hi|hello|hey|yo|hiya|good morning|good afternoon|good evening|sup|what's up|whats up)$/i.test(
+    safeStr(t).trim()
+  );
+}
+function isEmptyOrNoText(t) {
+  return !safeStr(t).trim();
+}
+function coerceYearAny(v) {
+  const n = Number(v);
+  if (Number.isFinite(n) && n >= 1950 && n <= 2024) return Math.trunc(n);
+  const y = extractYear(safeStr(v));
+  return y || null;
+}
+function resolveInboundYear(input, inboundText, session) {
+  const y1 = coerceYearAny(input && input.year);
+  const y2 = coerceYearAny(input && input.payload && input.payload.year);
+  const y3 = coerceYearAny(input && input.ctx && input.ctx.year);
+  const y4 = coerceYearAny(input && input.body && input.body.year);
+  const y5 = extractYear(inboundText);
+
+  const yS1 = coerceYearAny(session && session.lastMusicYear);
+  const yS2 = coerceYearAny(session && session.lastYear);
+  const yC1 = coerceYearAny(session && session.cog && session.cog.lastMusicYear);
+  const yC2 = coerceYearAny(session && session.cog && session.cog.year);
+
+  return y1 || y2 || y3 || y4 || y5 || yS1 || yC1 || yC2 || yS2 || null;
+}
+function commitYear(session, year, source) {
+  if (!year) return;
+  session.lastMusicYear = year;
+  session.lastYear = year;
+
+  session.cog = isPlainObject(session.cog) ? session.cog : {};
+  session.cog.year = year;
+  session.cog.lastMusicYear = year;
+  session.cog.yearSource = source || session.cog.yearSource || "unknown";
+}
+
+// =========================
+// Inbound extraction
+// =========================
+function extractInboundTextFromInput(input) {
+  const direct =
+    safeStr(input && (input.text || input.message || input.prompt || input.query || "")).trim() ||
+    safeStr(input && input.body && (input.body.text || input.body.message || "")).trim() ||
+    safeStr(input && input.payload && (input.payload.text || input.payload.message || "")).trim() ||
+    safeStr(input && input.data && (input.data.text || input.data.message || "")).trim();
+
+  if (direct) return clampInboundText(direct);
+
+  const evt =
+    safeStr(input && input.event && (input.event.text || input.event.message || "")).trim() ||
+    safeStr(input && input.followUp && input.followUp.payload && input.followUp.payload.text).trim();
+
+  return clampInboundText(evt || "");
+}
+
+// =========================
+// __chip text encoding support (fallback if only text comes through)
+// Format: "__chip:<lane>:<action>:<year?>"
+// Example: "__chip:music:story:1988"
+// =========================
+function parseChipEncoding(text) {
+  const s = safeStr(text).trim();
+  if (!s.startsWith("__chip:")) return null;
+  const parts = s.split(":").map((p) => safeStr(p).trim());
+  if (parts.length < 3) return null;
+  const lane = coerceLane(parts[1]);
+  const action = coerceAction(parts[2]);
+  const year = coerceYearAny(parts[3]);
+  if (!lane && !action) return null;
+  return { lane, action, year };
+}
+function stampLastChip(session, chip) {
+  try {
+    if (!chip) return;
+    session.cog = isPlainObject(session.cog) ? session.cog : {};
+    session.cog.__nyxLastChip = {
+      lane: coerceLane(chip.lane) || undefined,
+      action: coerceAction(chip.action) || undefined,
+      year: coerceYearAny(chip.year) || undefined,
+      at: Date.now(),
+    };
+  } catch (_) {}
+}
+function getLastChip(session) {
+  const c = session && session.cog && session.cog.__nyxLastChip;
+  if (!c || typeof c !== "object") return null;
+  return {
+    lane: coerceLane(c.lane),
+    action: coerceAction(c.action),
+    year: coerceYearAny(c.year),
+  };
+}
+
+// =========================
+// CHIP PAYLOAD ROUTING SPINE (CRITICAL)
+// =========================
+function deriveCommandFromChip(laneIn, actionIn, yearIn, session) {
+  const lane = coerceLane(laneIn) || coerceLane(session && session.lane) || null;
+  const action = coerceAction(actionIn) || null;
+  const year =
+    coerceYearAny(yearIn) ||
+    coerceYearAny(session && session.lastMusicYear) ||
+    coerceYearAny(session && session.cog && session.cog.year) ||
+    coerceYearAny(session && session.cog && session.cog.lastMusicYear) ||
+    null;
+
+  if (!lane && !action) return null;
+
+  if (lane === "music" || lane === "years") {
+    const activeMode = coerceAction(session && session.activeMusicMode);
+    const lastChip = getLastChip(session);
+
+    let a = action;
+    if (!a && lastChip && lastChip.action) a = lastChip.action;
+    if (!a && activeMode) a = activeMode;
+
+    if (a === "year_pick" && year) return `top 10 ${year}`;
+    if (a === "top10" && year) return `top 10 ${year}`;
+    if (a === "top100" && year) return `top 100 ${year}`;
+    if (a === "number1" && year) return `#1 ${year}`;
+    if (a === "story" && year) return `story moment ${year}`;
+    if (a === "micro" && year) return `micro moment ${year}`;
+
+    if (a && !year) {
+      if (a === "top10") return "top 10";
+      if (a === "top100") return "top 100";
+      if (a === "number1") return "#1";
+      if (a === "story") return "story moment";
+      if (a === "micro") return "micro moment";
+    }
+
+    if (year && !a) return `top 10 ${year}`;
+
+    return null;
+  }
+
+  if (lane === "schedule") {
+    if (action === "now") return "what’s playing now";
+    if (action === "next") return "what’s playing next";
+    if (action === "later") return "what’s playing later";
+    if (action === "today") return "today";
+    if (action === "open") return "schedule";
+    return "schedule";
+  }
+
+  if (lane === "roku") return "roku";
+  if (lane === "radio") return action === "stream" ? "stream" : "radio";
+  if (lane === "sponsors") return "sponsors";
+  if (lane === "movies") return "movies";
+
+  return null;
+}
+
+// =========================
+// INBOUND NORMALIZATION (loop killer)
+// =========================
+function normalizeInboundText(text, session, routeHint) {
+  const raw = clampInboundText(text);
+  if (!raw) return raw;
+
+  const y = extractYear(raw);
+  const m = extractMode(raw);
+
+  if (!y && m) {
+    const yy1 = Number(session && session.lastMusicYear);
+    if (Number.isFinite(yy1) && yy1 >= 1950 && yy1 <= 2024) return `${raw} ${yy1}`.trim();
+
+    const yy2 = Number(session && session.cog && session.cog.year);
+    if (Number.isFinite(yy2) && yy2 >= 1950 && yy2 <= 2024) return `${raw} ${yy2}`.trim();
+
+    const yy3 = Number(session && session.cog && session.cog.lastMusicYear);
+    if (Number.isFinite(yy3) && yy3 >= 1950 && yy3 <= 2024) return `${raw} ${yy3}`.trim();
+
+    const lc = getLastChip(session);
+    if (lc && lc.year) return `${raw} ${lc.year}`.trim();
+  }
+
+  if (y && !m && session && session.activeMusicMode && !isGreetingOnly(raw)) {
+    const mm = safeStr(session && session.activeMusicMode).trim();
+    if (mm === "top10") return `top 10 ${y}`;
+    if (mm === "top100") return `top 100 ${y}`;
+    if (mm === "number1") return `#1 ${y}`;
+    if (mm === "story") return `story moment ${y}`;
+    if (mm === "micro") return `micro moment ${y}`;
+  }
+
+  if (y && !m && !isGreetingOnly(raw)) {
+    const rh = normText(routeHint || "");
+    const lane = normText(session && session.lane);
+    const inMusic = rh.includes("music") || lane === "music";
+    if (inMusic) return `top 10 ${y}`;
+  }
+
+  return raw;
+}
+
+// =========================
+// PACKETS GATING (FIXED) + Reasoning
+// =========================
+function shouldAllowPackets(inboundText, routeHint, session, resolvedYear, input, source) {
+  const t = normText(inboundText);
+  const rh = normText(routeHint || "");
+  const src = normText(source || "");
+
+  // 0) If packets module isn't present, don't "allow" it.
+  if (!NYX_PACKETS) return { allow: false, reason: "no_packets_module" };
+
+  // 1) Explicit override for testing / forcing packets.
+  if (input && input.allowPackets === true) return { allow: true, reason: "input_allowPackets_true" };
+  if (rh.includes("packets") || src.includes("packets")) return { allow: true, reason: "hint_packets" };
+
+  // 2) Never allow packets for boot intro pings (prevents intro loops).
+  if (isBootIntroSource({ ...(input || {}), source })) return { allow: false, reason: "boot_intro" };
+
+  // 3) Strong deterministic music command/chip? Keep your guardrail: block packets so routing stays stable.
+  //    (If you want packets to own music too, remove this block.)
+  const m = extractMode(t);
+  const lc = getLastChip(session);
+  const chipMusic =
+    lc && lc.lane === "music" && lc.action && ["top10", "top100", "number1", "story", "micro"].includes(lc.action);
+
+  const looksLikeStructuredMusic = !!m || !!resolvedYear || chipMusic || rh === "music" || rh === "years";
+  if (looksLikeStructuredMusic) return { allow: false, reason: "structured_music_guardrail" };
+
+  // 4) Allow packets for “help / explain / what can you do / general questions”
+  if (!t) return { allow: true, reason: "empty_text_nonboot" };
+  if (isGreetingOnly(t)) return { allow: true, reason: "greeting" };
+  if (/\b(help|support|how do i|what can you do|explain|tell me about|what is)\b/.test(t))
+    return { allow: true, reason: "help_or_explain" };
+
+  // 5) If routeHint is a non-music lane, prefer deterministic routing (block packets).
+  if (rh && ["schedule", "roku", "radio", "sponsors", "movies"].includes(rh)) return { allow: false, reason: "lane_hint_nonmusic" };
+
+  // 6) DEFAULT (FIX): allow packets for real user questions.
+  return { allow: true, reason: "default_allow" };
+}
+
+// =========================
+// MUSIC OVERRIDE (year + mode forces lane=music)
+// =========================
+function applyMusicOverride(session, inboundText) {
+  const year = extractYear(inboundText);
+  const mode = extractMode(inboundText);
+  if (!year || !mode) return { forced: false };
+
+  commitYear(session, year, "user_text");
+
+  session.lane = "music";
+  session.lastMode = mode;
+  session.activeMusicMode = mode;
+
+  session.cog = isPlainObject(session.cog) ? session.cog : {};
+  session.cog.lane = "music";
+  session.cog.mode = mode;
+
+  stampLastChip(session, { lane: "music", action: mode, year });
+
+  return { forced: true, lane: "music", year, mode };
+}
+
+// =========================
+// Continuity scaffolding (safe)
+// =========================
+function ensureContinuityState(session) {
+  const s = session && typeof session === "object" ? session : {};
+  if (!s.__nyxCont) s.__nyxCont = {};
+  if (!s.__nyxIntro) s.__nyxIntro = {};
+  if (!s.__nyxPackets) s.__nyxPackets = {};
+  return s;
 }
 
 // =========================
@@ -514,363 +802,438 @@ function sanitizeNyxIntroState(st) {
 }
 
 // =========================
-// Extractors
+// SessionPatch allowlist
 // =========================
-function extractYear(text) {
-  const m = safeStr(text).match(/\b(19[5-9]\d|20[0-1]\d|202[0-4])\b/);
-  if (!m) return null;
-  const y = Number(m[1]);
-  if (!Number.isFinite(y) || y < 1950 || y > 2024) return null;
-  return y;
-}
-function extractYearAuthoritative(text) {
-  return extractYear(text);
+const PATCH_KEYS = new Set([
+  "introDone",
+  "introAt",
+  "introVariantId",
+  "introBucket",
+  "lastInText",
+  "lastInAt",
+  "lastOut",
+  "lastOutAt",
+  "turns",
+  "startedAt",
+  "lastTurnAt",
+  "lane",
+  "lastLane",
+  "lastYear",
+  "lastMode",
+  "activeMusicMode",
+  "lastMusicYear",
+  "pendingYear",
+  "pendingMode",
+  "pendingLane",
+  "turnCount",
+  "__hasRealUserTurn",
+  "__introDone",
+  "__cs1",
+  "cog",
+  "__ce_lastReqId",
+  "__ce_lastReqAt",
+  "__ce_lastOutHash",
+  "__ce_lastOut",
+  "__ce_lastOutRaw",
+  "__ce_lastOutShown",
+  "__ce_lastOutLane",
+  "__ce_lastInHash",
+  "__ce_lastInAt",
+  "__ce_lastOutFollowUps",
+  "__ce_lastOutFollowUpsStrings",
+  "__ce_lastOutDirectives",
+  "allowPackets",
+  "__nyxIntro",
+  "__nyxVelvet",
+]);
+
+function buildSessionPatch(session) {
+  const s = session && typeof session === "object" ? session : {};
+  const out = {};
+  for (const k of Object.keys(s)) {
+    if (!PATCH_KEYS.has(k)) continue;
+    if (k === "cog") {
+      if (isPlainObject(s.cog)) out.cog = s.cog;
+      continue;
+    }
+    if (k === "__nyxIntro") {
+      out.__nyxIntro = sanitizeNyxIntroState(s.__nyxIntro);
+      continue;
+    }
+    if (k === "__ce_lastOutFollowUps") {
+      if (Array.isArray(s.__ce_lastOutFollowUps))
+        out.__ce_lastOutFollowUps = s.__ce_lastOutFollowUps.slice(0, MAX_FOLLOWUPS);
+      continue;
+    }
+    if (k === "__ce_lastOutFollowUpsStrings") {
+      if (Array.isArray(s.__ce_lastOutFollowUpsStrings))
+        out.__ce_lastOutFollowUpsStrings = s.__ce_lastOutFollowUpsStrings.slice(0, MAX_FOLLOWUPS);
+      continue;
+    }
+    if (k === "__ce_lastOutDirectives") {
+      if (Array.isArray(s.__ce_lastOutDirectives)) out.__ce_lastOutDirectives = s.__ce_lastOutDirectives.slice(0, 8);
+      continue;
+    }
+    out[k] = s[k];
+  }
+  if (out.__introDone && !out.introDone) out.introDone = true;
+  return out;
 }
 
-function coerceYearAny(v) {
-  const n = Number(v);
-  if (Number.isFinite(n) && n >= 1950 && n <= 2024) return Math.trunc(n);
-  const y = extractYear(safeStr(v));
-  return y || null;
+// =========================
+// FollowUps / directives normalization
+// =========================
+function buildStructuredPayload(payloadIn) {
+  const p = isPlainObject(payloadIn) ? payloadIn : {};
+  const out = {};
+
+  if (typeof p.text === "string") out.text = clampInboundText(p.text);
+  if (!out.text && typeof p.message === "string") out.text = clampInboundText(p.message);
+
+  const lane = coerceLane(p.lane || p.route || p.bucket || p.ctxLane);
+  const action = coerceAction(p.action || p.mode || p.intent || p.routeAction);
+  const year = coerceYearAny(p.year);
+
+  if (lane) out.lane = lane;
+  if (action) out.action = action;
+  if (year) out.year = year;
+
+  if (typeof p.mode === "string") {
+    const mm = coerceAction(p.mode);
+    if (mm && ["top10", "top100", "story", "micro", "number1"].includes(mm)) out.mode = mm;
+  }
+
+  if ((!out.text || !out.text.trim()) && (out.lane || out.action)) {
+    const cmd = deriveCommandFromChip(out.lane, out.action, out.year, {});
+    if (cmd) out.text = clampInboundText(cmd);
+  }
+
+  return out;
 }
 
-function resolveInboundYear(input, inboundText, session) {
-  const y1 = coerceYearAny(input && input.year);
-  const y2 = coerceYearAny(input && input.payload && input.payload.year);
-  const y3 = coerceYearAny(input && input.ctx && input.ctx.year);
-  const y4 = coerceYearAny(input && input.body && input.body.year);
-  const y5 = extractYearAuthoritative(inboundText);
-
-  const yS1 = coerceYearAny(session && session.lastMusicYear);
-  const yS2 = coerceYearAny(session && session.lastYear);
-  const yC1 = coerceYearAny(session && session.cog && session.cog.lastMusicYear);
-  const yC2 = coerceYearAny(session && session.cog && session.cog.year);
-
-  return y1 || y2 || y3 || y4 || y5 || yS1 || yC1 || yC2 || yS2 || null;
-}
-function commitYear(session, year, source) {
-  if (!year) return;
-  session.lastMusicYear = year;
-  session.lastYear = year;
-
-  session.cog = isPlainObject(session.cog) ? session.cog : {};
-  session.cog.year = year;
-  session.cog.lastMusicYear = year;
-  session.cog.yearSource = source || session.cog.yearSource || "unknown";
-}
-
-function isTop10IntentText(text) {
-  const t = normText(text);
-  return /\btop\s*10\b/.test(t) || /\btop10\b/.test(t) || /\btop\s*ten\b/.test(t);
-}
-
-function extractMode(text) {
-  const t = normText(text);
-  if (/\b(top\s*100|top100|hot\s*100|year[-\s]*end\s*hot\s*100)\b/.test(t)) return "top100";
-  if (/\b(top\s*10|top10|top\s*ten)\b/.test(t)) return "top10";
-  if (/\bstory\s*moment\b|\bstory\b/.test(t)) return "story";
-  if (/\bmicro\s*moment\b|\bmicro\b/.test(t)) return "micro";
-  if (/\b#\s*1\b|\bnumber\s*1\b|\bno\.?\s*1\b|\bno\s*1\b/.test(t)) return "number1";
-  return null;
-}
-function isModeOnly(text) {
-  const y = extractYear(text);
-  const m = extractMode(text);
-  return !!m && !y;
-}
-function isGreetingOnly(t) {
-  return /^(hi|hello|hey|yo|hiya|good morning|good afternoon|good evening|sup|what's up|whats up)$/i.test(
-    safeStr(t).trim()
+function normFollowUpChip(label, send, payloadExtra) {
+  const l = clampStr(safeStr(label).trim() || "Send", MAX_FOLLOWUP_LABEL);
+  const s = safeStr(send).trim();
+  const payload = buildStructuredPayload({ ...(isPlainObject(payloadExtra) ? payloadExtra : {}), text: s });
+  const id = sha1(`${l}::${payload.lane || ""}::${payload.action || ""}::${payload.year || ""}::${payload.text || s}`).slice(
+    0,
+    8
   );
-}
-function isEmptyOrNoText(t) {
-  return !safeStr(t).trim();
+  return { id, type: "send", label: l, payload };
 }
 
-// =========================
-// Inbound extraction
-// =========================
-function extractInboundTextFromInput(input) {
-  const direct =
-    safeStr(input && (input.text || input.message || input.prompt || input.query || "")).trim() ||
-    safeStr(input && input.body && (input.body.text || input.body.message || "")).trim() ||
-    safeStr(input && input.payload && (input.payload.text || input.payload.message || "")).trim() ||
-    safeStr(input && input.data && (input.data.text || input.data.message || "")).trim();
+function toFollowUps(chips) {
+  const arr = Array.isArray(chips) ? chips : [];
+  const out = [];
+  const seen = new Set();
+  for (const c of arr) {
+    const label = safeStr(c && c.label).trim() || "Send";
+    const send = safeStr(c && c.send).trim();
+    const extra = isPlainObject(c && c.payload) ? c.payload : isPlainObject(c) ? c : null;
+    const key = normText(label + "::" + send + "::" + safeJsonStringify(extra || {}));
+    if (!send) continue;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(normFollowUpChip(label, send, extra));
+    if (out.length >= MAX_FOLLOWUPS) break;
+  }
+  return out;
+}
 
-  if (direct) return clampInboundText(direct);
+function toFollowUpsStrings(chips) {
+  const arr = Array.isArray(chips) ? chips : [];
+  const out = [];
+  const seen = new Set();
+  for (const c of arr) {
+    const send = safeStr(c && c.send).trim();
+    const k = normText(send);
+    if (!k || seen.has(k)) continue;
+    seen.add(k);
+    out.push(send);
+    if (out.length >= MAX_FOLLOWUPS) break;
+  }
+  return out.length ? out : undefined;
+}
 
-  const evt =
-    safeStr(input && input.event && (input.event.text || input.event.message || "")).trim() ||
-    safeStr(input && input.followUp && input.followUp.payload && input.followUp.payload.text).trim();
+function normalizeFollowUps(followUps) {
+  const arr = Array.isArray(followUps) ? followUps : [];
+  const out = [];
+  const seen = new Set();
+  for (const f of arr) {
+    if (!f) continue;
+    const type = safeStr(f.type || "send").trim() || "send";
+    if (type !== "send") continue;
+    const label = clampStr(safeStr(f.label).trim() || "Send", MAX_FOLLOWUP_LABEL);
 
-  return clampInboundText(evt || "");
+    let payloadIn = null;
+    if (typeof f.payload === "string") payloadIn = { text: f.payload };
+    else if (isPlainObject(f.payload)) payloadIn = f.payload;
+    else if (typeof f.payload === "object" && f.payload && typeof f.payload.text === "string") payloadIn = { text: f.payload.text };
+    else payloadIn = { text: safeStr(f.payload) };
+
+    const payload = buildStructuredPayload(payloadIn);
+    const text = safeStr(payload.text).trim();
+    if (!text) continue;
+
+    const id = safeStr(f.id).trim() || sha1(label + "::" + text).slice(0, 8);
+    const key = normText(id + "::" + label + "::" + text + "::" + safeJsonStringify(payload));
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ id, type: "send", label, payload });
+    if (out.length >= MAX_FOLLOWUPS) break;
+  }
+  return out;
+}
+
+function normalizeDirectives(directives) {
+  const arr = Array.isArray(directives) ? directives : [];
+  const out = [];
+  for (const d of arr) {
+    if (!isPlainObject(d)) continue;
+    const type = safeStr(d.type).trim();
+    if (!type) continue;
+    const obj = { type };
+    for (const [k, v] of Object.entries(d)) {
+      if (k === "type") continue;
+      if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
+      if (typeof v === "string") obj[k] = clampStr(v, 500);
+      else if (typeof v === "number" || typeof v === "boolean") obj[k] = v;
+      else if (v === null) obj[k] = null;
+    }
+    out.push(obj);
+    if (out.length >= 8) break;
+  }
+  return out.length ? out : undefined;
 }
 
 // =========================
-// Boot intro pings
+// Replay cache (session-scoped)
 // =========================
-function isBootIntroSource(input) {
-  try {
-    const src =
-      safeStr(input && input.client && (input.client.source || input.client.src || "")).trim() ||
-      safeStr(input && input.source).trim();
-    const tt = normText(src);
-    return (
-      tt.includes("panel_open_intro") ||
-      tt.includes("panel-open-intro") ||
-      tt.includes("boot_intro") ||
-      tt.includes("boot-intro")
-    );
-  } catch (_) {
-    return false;
+function replayKey(session, clientRequestId, inboundText, source, payloadObj) {
+  const rid = safeStr(clientRequestId).trim();
+  const resetSeq = safeInt(session && session.cog && session.cog.__nyxResetSeq, 0);
+
+  const pSig = payloadObj ? sha1(safeJsonStringify(payloadObj)).slice(0, 8) : "p0";
+  const inSig = sha1(`${safeStr(inboundText)}|${safeStr(source)}|${pSig}`).slice(0, 8);
+
+  const sig = sha1(
+    `${safeStr(session.sessionId || session.visitorId || "")}|${safeStr(source)}|${safeStr(inboundText)}|${pSig}|rseq:${resetSeq}`
+  ).slice(0, 12);
+
+  return rid ? `rid:${rid}:r${resetSeq}:h${inSig}` : `sig:${sig}`;
+}
+
+function readReplay(session, key, now) {
+  const lastKey = safeStr(session.__ce_lastReqId || "");
+  const lastAt = safeInt(session.__ce_lastReqAt || 0, 0);
+  if (!lastKey || lastKey !== key) return null;
+  if (!lastAt || now - lastAt > REPLAY_WINDOW_MS) return null;
+
+  const out =
+    safeStr(session.__ce_lastOutShown || "").trim() ||
+    safeStr(session.__ce_lastOutRaw || "").trim() ||
+    safeStr(session.__ce_lastOut || "").trim();
+
+  const outLane = safeStr(session.__ce_lastOutLane || "general") || "general";
+  const outHash = safeStr(session.__ce_lastOutHash || "");
+  if (!out || !outHash) return null;
+
+  const followUps = Array.isArray(session.__ce_lastOutFollowUps) ? session.__ce_lastOutFollowUps : undefined;
+  const followUpsStrings = Array.isArray(session.__ce_lastOutFollowUpsStrings)
+    ? session.__ce_lastOutFollowUpsStrings
+    : undefined;
+  const directives = Array.isArray(session.__ce_lastOutDirectives) ? session.__ce_lastOutDirectives : undefined;
+
+  return { reply: out, lane: outLane, followUps, followUpsStrings, directives };
+}
+
+function writeReplay(session, key, now, reply, lane, extras) {
+  session.__ce_lastReqId = key;
+  session.__ce_lastReqAt = now;
+
+  const raw = safeStr(
+    (extras && typeof extras === "object" && typeof extras.rawReply === "string" && extras.rawReply) || reply
+  ).trim();
+
+  const shown = safeStr(
+    (extras && typeof extras === "object" && typeof extras.replyShown === "string" && extras.replyShown) || raw
+  ).trim();
+
+  session.__ce_lastOutRaw = raw;
+  session.__ce_lastOutShown = shown;
+  session.__ce_lastOut = shown;
+
+  session.__ce_lastOutLane = lane;
+  session.__ce_lastOutHash = sha1(`${lane}::${shown}`).slice(0, 16);
+
+  if (extras && typeof extras === "object") {
+    if (Array.isArray(extras.followUps)) session.__ce_lastOutFollowUps = extras.followUps.slice(0, MAX_FOLLOWUPS);
+    if (Array.isArray(extras.followUpsStrings))
+      session.__ce_lastOutFollowUpsStrings = extras.followUpsStrings.slice(0, MAX_FOLLOWUPS);
+    if (Array.isArray(extras.directives)) session.__ce_lastOutDirectives = extras.directives.slice(0, 8);
   }
 }
 
 // =========================
-// __chip text encoding support (fallback if only text comes through)
-// Format: "__chip:<lane>:<action>:<year?>"
-// Example: "__chip:music:story:1988"
+// Hard reset
 // =========================
-function parseChipEncoding(text) {
-  const s = safeStr(text).trim();
-  if (!s.startsWith("__chip:")) return null;
-  const parts = s.split(":").map((p) => safeStr(p).trim());
-  if (parts.length < 3) return null;
-  const lane = coerceLane(parts[1]);
-  const action = coerceAction(parts[2]);
-  const year = coerceYearAny(parts[3]);
-  if (!lane && !action) return null;
-  return { lane, action, year };
+function hardResetSession(session, startedAt) {
+  const keep = {
+    visitorId: safeStr(session.visitorId || ""),
+    sessionId: safeStr(session.sessionId || ""),
+    __nyxResetSeq: safeInt(session && session.cog && session.cog.__nyxResetSeq, 0),
+  };
+
+  for (const k of Object.keys(session)) delete session[k];
+
+  if (keep.visitorId) session.visitorId = keep.visitorId;
+  if (keep.sessionId) session.sessionId = keep.sessionId;
+
+  session.lane = "general";
+  session.lastLane = "";
+  session.turnCount = 0;
+  session.turns = 0;
+  session.startedAt = startedAt;
+  session.lastTurnAt = startedAt;
+  session.__hasRealUserTurn = 0;
+
+  session.__introDone = 0;
+  session.introDone = false;
+  session.introAt = 0;
+  session.introVariantId = 0;
+  session.introBucket = "";
+
+  session.lastInText = "";
+  session.lastInAt = 0;
+  session.lastOut = "";
+  session.lastOutAt = 0;
+
+  session.__ce_lastReqId = "";
+  session.__ce_lastReqAt = 0;
+  session.__ce_lastOutHash = "";
+  session.__ce_lastOut = "";
+  session.__ce_lastOutRaw = "";
+  session.__ce_lastOutShown = "";
+  session.__ce_lastOutLane = "";
+  session.__ce_lastOutFollowUps = undefined;
+  session.__ce_lastOutFollowUpsStrings = undefined;
+  session.__ce_lastOutDirectives = undefined;
+  session.__ce_lastInHash = "";
+  session.__ce_lastInAt = 0;
+
+  session.allowPackets = false;
+
+  session.cog = {};
+  session.cog.state = NYX_STATE.COLD;
+  session.cog.__nyxLastSeenAt = startedAt;
+  session.cog.__nyxResetSeq = keep.__nyxResetSeq;
+  session.cog.__nyxLastChip = undefined;
+
+  session.__nyxVelvet = false;
+
+  ensureContinuityState(session);
+  return session;
 }
 
-function stampLastChip(session, chip) {
-  try {
-    if (!chip) return;
-    session.cog = isPlainObject(session.cog) ? session.cog : {};
-    session.cog.__nyxLastChip = {
-      lane: coerceLane(chip.lane) || undefined,
-      action: coerceAction(chip.action) || undefined,
-      year: coerceYearAny(chip.year) || undefined,
-      at: Date.now(),
+// =========================
+// ENGINE AUTOWIRE (WITH PACKETS GATING)
+// =========================
+function resolveEngine(input, allowPackets) {
+  if (typeof input.engine === "function") return { fn: input.engine, from: "input.engine" };
+
+  if (allowPackets) {
+    const p = NYX_PACKETS;
+    if (p && typeof p.handleChat === "function") return { fn: p.handleChat.bind(p), from: "nyxPackets.handleChat" };
+    if (p && typeof p.chat === "function") return { fn: p.chat.bind(p), from: "nyxPackets.chat" };
+    if (p && typeof p.respond === "function") return { fn: p.respond.bind(p), from: "nyxPackets.respond" };
+    if (p && typeof p.run === "function") return { fn: p.run.bind(p), from: "nyxPackets.run" };
+    if (p && typeof p.route === "function") return { fn: p.route.bind(p), from: "nyxPackets.route" };
+  }
+
+  const c = NYX_CONV_PACK;
+  if (c && typeof c.handleChat === "function") return { fn: c.handleChat.bind(c), from: "nyxConvPack.handleChat" };
+  if (c && typeof c.respond === "function") return { fn: c.respond.bind(c), from: "nyxConvPack.respond" };
+  if (c && typeof c.run === "function") return { fn: c.run.bind(c), from: "nyxConvPack.run" };
+
+  // LAST RESORT: if conv pack is missing but packets exist, use packets anyway (prevents dead zone).
+  const p = NYX_PACKETS;
+  if (!allowPackets && p) {
+    if (typeof p.handleChat === "function") return { fn: p.handleChat.bind(p), from: "nyxPackets.handleChat_fallback" };
+    if (typeof p.respond === "function") return { fn: p.respond.bind(p), from: "nyxPackets.respond_fallback" };
+  }
+
+  return { fn: null, from: "none" };
+}
+
+// =========================
+// Fallback (only used when no engine is available)
+// =========================
+function fallbackCore({ text, session, resolvedYear }) {
+  const t = normText(text);
+  const y = resolvedYear || extractYear(t);
+  const m = extractMode(t);
+
+  if (y && m) {
+    stampLastChip(session, { lane: "music", action: m, year: y });
+    return { reply: `Got it — ${y}. Want Top 10, #1, a story moment, or a micro moment?`, lane: "music" };
+  }
+
+  if (y) {
+    commitYear(session, y, "fallback");
+    stampLastChip(session, { lane: "music", action: "top10", year: y });
+    return {
+      reply: `Got it — ${y}. Want Top 10, #1, a story moment, or a micro moment?`,
+      lane: "music",
+      followUps: toFollowUps([
+        { label: "Top 10", send: `top 10 ${y}`, payload: { lane: "music", action: "top10", year: y, mode: "top10" } },
+        { label: "#1", send: `#1 ${y}`, payload: { lane: "music", action: "number1", year: y, mode: "number1" } },
+        { label: "Story moment", send: `story moment ${y}`, payload: { lane: "music", action: "story", year: y, mode: "story" } },
+        { label: "Micro moment", send: `micro moment ${y}`, payload: { lane: "music", action: "micro", year: y, mode: "micro" } },
+      ]),
     };
-  } catch (_) {
-    // no-op
   }
-}
 
-function getLastChip(session) {
-  const c = session && session.cog && session.cog.__nyxLastChip;
-  if (!c || typeof c !== "object") return null;
+  if (!t || isGreetingOnly(text)) {
+    return { reply: CANON_WELCOME, lane: "general", followUps: toFollowUps(CANON_INTRO_CHIPS) };
+  }
+
   return {
-    lane: coerceLane(c.lane),
-    action: coerceAction(c.action),
-    year: coerceYearAny(c.year),
+    reply:
+      "Give me a year (1950–2024), or say “top 10 1988”, “#1 1988”, “story moment 1988”, or “micro moment 1988”.",
+    lane: session.lane || "general",
   };
 }
 
 // =========================
-// CHIP PAYLOAD ROUTING SPINE (CRITICAL)
+// Engine-aware fallback follow-ups
 // =========================
-function deriveCommandFromChip(laneIn, actionIn, yearIn, session) {
-  const lane = coerceLane(laneIn) || coerceLane(session && session.lane) || null;
-  const action = coerceAction(actionIn) || null;
-  const year =
-    coerceYearAny(yearIn) ||
-    coerceYearAny(session && session.lastMusicYear) ||
-    coerceYearAny(session && session.cog && session.cog.year) ||
-    coerceYearAny(session && session.cog && session.cog.lastMusicYear) ||
-    null;
+function maybeAttachMusicFollowUps(core, resolvedYear, inboundText, session) {
+  const year = resolvedYear || extractYear(inboundText);
+  if (!year) return core;
 
-  if (!lane && !action) return null;
+  const hasFU = Array.isArray(core && core.followUps) && core.followUps.length;
+  if (hasFU) return core;
 
-  // Music lane
-  if (lane === "music" || lane === "years") {
-    const activeMode = coerceAction(session && session.activeMusicMode);
-    const lastChip = getLastChip(session);
+  core.followUps = toFollowUps([
+    { label: "Top 10", send: `top 10 ${year}`, payload: { lane: "music", action: "top10", year, mode: "top10" } },
+    { label: "#1", send: `#1 ${year}`, payload: { lane: "music", action: "number1", year, mode: "number1" } },
+    { label: "Story moment", send: `story moment ${year}`, payload: { lane: "music", action: "story", year, mode: "story" } },
+    { label: "Micro moment", send: `micro moment ${year}`, payload: { lane: "music", action: "micro", year, mode: "micro" } },
+  ]);
+  core.followUpsStrings = toFollowUpsStrings([
+    { label: "Top 10", send: `top 10 ${year}` },
+    { label: "#1", send: `#1 ${year}` },
+    { label: "Story moment", send: `story moment ${year}` },
+    { label: "Micro moment", send: `micro moment ${year}` },
+  ]);
 
-    let a = action;
-    if (!a && lastChip && lastChip.action) a = lastChip.action;
-    if (!a && activeMode) a = activeMode;
+  session.lane = "music";
+  commitYear(session, year, (session.cog && session.cog.yearSource) || "engine_followups_fallback");
+  session.cog = isPlainObject(session.cog) ? session.cog : {};
+  session.cog.lane = "music";
+  stampLastChip(session, { lane: "music", action: "top10", year });
 
-    // normalize year_pick
-    if (a === "year_pick" && year) return `top 10 ${year}`;
-    if (a === "top10" && year) return `top 10 ${year}`;
-    if (a === "top100" && year) return `top 100 ${year}`;
-    if (a === "number1" && year) return `#1 ${year}`;
-    if (a === "story" && year) return `story moment ${year}`;
-    if (a === "micro" && year) return `micro moment ${year}`;
-
-    // If we have a mode but not year
-    if (a && !year) {
-      if (a === "top10") return "top 10";
-      if (a === "top100") return "top 100";
-      if (a === "number1") return "#1";
-      if (a === "story") return "story moment";
-      if (a === "micro") return "micro moment";
-    }
-
-    // If we have year but not action, default to top10 (music UX)
-    if (year && !a) return `top 10 ${year}`;
-
-    return null;
-  }
-
-  // Schedule lane
-  if (lane === "schedule") {
-    if (action === "now") return "what’s playing now";
-    if (action === "next") return "what’s playing next";
-    if (action === "later") return "what’s playing later";
-    if (action === "today") return "today";
-    if (action === "open") return "schedule";
-    return "schedule";
-  }
-
-  // Roku lane
-  if (lane === "roku") {
-    if (action === "open") return "roku";
-    return "roku";
-  }
-
-  // Radio lane
-  if (lane === "radio") {
-    if (action === "open") return "radio";
-    if (action === "stream") return "stream";
-    return "radio";
-  }
-
-  // Sponsors lane
-  if (lane === "sponsors") {
-    if (action === "open") return "sponsors";
-    return "sponsors";
-  }
-
-  // Movies lane
-  if (lane === "movies") {
-    if (action === "open") return "movies";
-    return "movies";
-  }
-
-  return null;
-}
-
-// =========================
-// INBOUND NORMALIZATION (loop killer)
-// =========================
-function normalizeInboundText(text, session, routeHint) {
-  const raw = clampInboundText(text);
-  if (!raw) return raw;
-
-  const y = extractYear(raw);
-  const m = extractMode(raw);
-
-  if (!y && m) {
-    const yy1 = Number(session && session.lastMusicYear);
-    if (Number.isFinite(yy1) && yy1 >= 1950 && yy1 <= 2024) return `${raw} ${yy1}`.trim();
-
-    const yy2 = Number(session && session.cog && session.cog.year);
-    if (Number.isFinite(yy2) && yy2 >= 1950 && yy2 <= 2024) return `${raw} ${yy2}`.trim();
-
-    const yy3 = Number(session && session.cog && session.cog.lastMusicYear);
-    if (Number.isFinite(yy3) && yy3 >= 1950 && yy3 <= 2024) return `${raw} ${yy3}`.trim();
-
-    // If we have last chip year, use it (chip-first UX)
-    const lc = getLastChip(session);
-    if (lc && lc.year) return `${raw} ${lc.year}`.trim();
-  }
-
-  if (y && !m && session && session.activeMusicMode && !isGreetingOnly(raw)) {
-    const mm = safeStr(session && session.activeMusicMode).trim();
-    if (mm === "top10") return `top 10 ${y}`;
-    if (mm === "top100") return `top 100 ${y}`;
-    if (mm === "number1") return `#1 ${y}`;
-    if (mm === "story") return `story moment ${y}`;
-    if (mm === "micro") return `micro moment ${y}`;
-  }
-
-  if (y && !m && !isGreetingOnly(raw)) {
-    const rh = normText(routeHint || "");
-    const lane = normText(session && session.lane);
-    const inMusic = rh.includes("music") || lane === "music";
-    if (inMusic) return `top 10 ${y}`;
-  }
-
-  return raw;
-}
-
-// =========================
-// CRITICAL: Payload/Ctx intent hydration when inboundText empty
-// =========================
-function mapModeTokenToText(modeToken) {
-  const m = normText(modeToken || "");
-  if (!m) return null;
-  if (m === "top10" || m === "top 10" || m === "top-ten" || m === "top_ten") return "top 10";
-  if (m === "top100" || m === "top 100" || m === "hot100" || m === "hot 100") return "top 100";
-  if (m === "number1" || m === "#1" || m === "no1" || m === "no 1" || m === "number 1") return "#1";
-  if (m === "story" || m === "storymoment" || m === "story moment") return "story moment";
-  if (m === "micro" || m === "micromoment" || m === "micro moment") return "micro moment";
-  if (m === "schedule") return "schedule";
-  if (m === "sponsors" || m === "sponsor") return "sponsors";
-  if (m === "roku") return "roku";
-  if (m === "radio") return "radio";
-  if (m === "movies" || m === "movie") return "movies";
-  if (m === "now") return "what’s playing now";
-  if (m === "next") return "what’s playing next";
-  if (m === "later") return "what’s playing later";
-  if (m === "today") return "today";
-  return null;
-}
-
-function hydrateEmptyInboundFromIntent(input, session, resolvedYearMaybe, source) {
-  try {
-    if (isBootIntroSource({ ...input, source })) return "";
-
-    const payload = isPlainObject(input && input.payload) ? input.payload : null;
-    const ctx = isPlainObject(input && input.ctx) ? input.ctx : null;
-    const body = isPlainObject(input && input.body) ? input.body : null;
-
-    // 1) If structured payload exists (lane/action/year), prefer chip spine
-    const pl = payload && (payload.lane || payload.route || payload.bucket);
-    const pa = payload && (payload.action || payload.mode || payload.intent);
-    const py = payload && payload.year;
-
-    const cmdFromPayload = deriveCommandFromChip(pl, pa, py, session);
-    if (cmdFromPayload) {
-      stampLastChip(session, { lane: coerceLane(pl) || "general", action: coerceAction(pa) || undefined, year: py });
-      return clampInboundText(cmdFromPayload);
-    }
-
-    // 2) If payload includes explicit text, use it
-    const pText = safeStr(payload && (payload.text || payload.message)).trim();
-    const bText = safeStr(body && (body.text || body.message)).trim();
-    if (pText) return clampInboundText(pText);
-    if (bText) return clampInboundText(bText);
-
-    // 3) Otherwise map mode/action tokens
-    const tok =
-      safeStr((payload && (payload.mode || payload.action || payload.intent || payload.label)) || "").trim() ||
-      safeStr((ctx && (ctx.mode || ctx.action || ctx.intent || ctx.route || ctx.lane)) || "").trim() ||
-      safeStr((body && (body.mode || body.action || body.intent || body.lane)) || "").trim();
-
-    const mapped = mapModeTokenToText(tok) || clampInboundText(tok);
-    if (!mapped) return "";
-
-    const needsYear = /^(top 10|top 100|#1|story moment|micro moment)$/i.test(mapped);
-    if (needsYear) {
-      const y =
-        coerceYearAny(resolvedYearMaybe) ||
-        coerceYearAny(session && session.lastMusicYear) ||
-        coerceYearAny(session && session.cog && session.cog.year) ||
-        coerceYearAny(session && session.cog && session.cog.lastMusicYear) ||
-        (getLastChip(session) && getLastChip(session).year) ||
-        null;
-      if (y) return `${mapped} ${y}`.trim();
-      return mapped;
-    }
-
-    return mapped;
-  } catch (_) {
-    return "";
-  }
+  return core;
 }
 
 // =========================
@@ -1025,562 +1388,6 @@ function pickIntroForLogin(session, startedAt, bucketKey) {
 }
 
 // =========================
-// PACKETS GATING (prevents packets.js hijacking music flows)
-// =========================
-function shouldAllowPackets(inboundText, routeHint, session, resolvedYear) {
-  // Block packets whenever music mode intent is present, even if year is absent.
-  const t = normText(inboundText);
-  const m = extractMode(t);
-  if (m) return false;
-
-  // Also block if last chip indicates music mode
-  const lc = getLastChip(session);
-  if (lc && lc.lane === "music" && lc.action && ["top10", "top100", "number1", "story", "micro"].includes(lc.action))
-    return false;
-
-  // Existing rule: if resolvedYear exists, block packets.
-  if (resolvedYear) return false;
-
-  if (!t) return true;
-
-  if (isGreetingOnly(t)) return true;
-  if (/\b(help|support|how do i|what can you do)\b/.test(t)) return true;
-  if (/\b(bye|goodbye|see you|later|exit)\b/.test(t)) return true;
-
-  // If routeHint is strongly lane-like, prefer non-packets (more deterministic)
-  const rh = normText(routeHint || "");
-  if (rh && ["music", "schedule", "roku", "radio", "sponsors", "movies"].includes(rh)) return false;
-
-  return false;
-}
-
-// =========================
-// MUSIC OVERRIDE (year + mode forces lane=music)
-// =========================
-function applyMusicOverride(session, inboundText) {
-  const year = extractYear(inboundText);
-  const mode = extractMode(inboundText);
-  if (!year || !mode) return { forced: false };
-
-  commitYear(session, year, "user_text");
-
-  session.lane = "music";
-  session.lastMode = mode;
-  session.activeMusicMode = mode;
-
-  session.cog = isPlainObject(session.cog) ? session.cog : {};
-  session.cog.lane = "music";
-  session.cog.mode = mode;
-
-  stampLastChip(session, { lane: "music", action: mode, year });
-
-  return { forced: true, lane: "music", year, mode };
-}
-
-// =========================
-// Continuity scaffolding (safe)
-// =========================
-function ensureContinuityState(session) {
-  const s = session && typeof session === "object" ? session : {};
-  if (!s.__nyxCont) s.__nyxCont = {};
-  if (!s.__nyxIntro) s.__nyxIntro = {};
-  if (!s.__nyxPackets) s.__nyxPackets = {};
-  return s;
-}
-
-// =========================
-// SessionPatch allowlist
-// =========================
-const PATCH_KEYS = new Set([
-  "introDone",
-  "introAt",
-  "introVariantId",
-  "introBucket",
-  "lastInText",
-  "lastInAt",
-  "lastOut",
-  "lastOutAt",
-  "turns",
-  "startedAt",
-  "lastTurnAt",
-  "lane",
-  "lastLane",
-  "lastYear",
-  "lastMode",
-  "activeMusicMode",
-  "lastMusicYear",
-  "pendingYear",
-  "pendingMode",
-  "pendingLane",
-  "turnCount",
-  "__hasRealUserTurn",
-  "__introDone",
-  "__cs1",
-  "cog",
-  "__ce_lastReqId",
-  "__ce_lastReqAt",
-  "__ce_lastOutHash",
-  "__ce_lastOut",
-  "__ce_lastOutRaw",
-  "__ce_lastOutShown",
-  "__ce_lastOutLane",
-  "__ce_lastInHash",
-  "__ce_lastInAt",
-  "__ce_lastOutFollowUps",
-  "__ce_lastOutFollowUpsStrings",
-  "__ce_lastOutDirectives",
-  "allowPackets",
-  "__nyxIntro",
-  "__nyxVelvet",
-]);
-
-function buildSessionPatch(session) {
-  const s = session && typeof session === "object" ? session : {};
-  const out = {};
-  for (const k of Object.keys(s)) {
-    if (!PATCH_KEYS.has(k)) continue;
-    if (k === "cog") {
-      if (isPlainObject(s.cog)) out.cog = s.cog;
-      continue;
-    }
-    if (k === "__nyxIntro") {
-      out.__nyxIntro = sanitizeNyxIntroState(s.__nyxIntro);
-      continue;
-    }
-    if (k === "__ce_lastOutFollowUps") {
-      if (Array.isArray(s.__ce_lastOutFollowUps))
-        out.__ce_lastOutFollowUps = s.__ce_lastOutFollowUps.slice(0, MAX_FOLLOWUPS);
-      continue;
-    }
-    if (k === "__ce_lastOutFollowUpsStrings") {
-      if (Array.isArray(s.__ce_lastOutFollowUpsStrings))
-        out.__ce_lastOutFollowUpsStrings = s.__ce_lastOutFollowUpsStrings.slice(0, MAX_FOLLOWUPS);
-      continue;
-    }
-    if (k === "__ce_lastOutDirectives") {
-      if (Array.isArray(s.__ce_lastOutDirectives)) out.__ce_lastOutDirectives = s.__ce_lastOutDirectives.slice(0, 8);
-      continue;
-    }
-    out[k] = s[k];
-  }
-  if (out.__introDone && !out.introDone) out.introDone = true;
-  return out;
-}
-
-// =========================
-// FollowUps / directives normalization
-// =========================
-function buildStructuredPayload(payloadIn) {
-  const p = isPlainObject(payloadIn) ? payloadIn : {};
-  const out = {};
-
-  // legacy
-  if (typeof p.text === "string") out.text = clampInboundText(p.text);
-  if (!out.text && typeof p.message === "string") out.text = clampInboundText(p.message);
-
-  // structured routing
-  const lane = coerceLane(p.lane || p.route || p.bucket || p.ctxLane);
-  const action = coerceAction(p.action || p.mode || p.intent || p.routeAction);
-  const year = coerceYearAny(p.year);
-
-  if (lane) out.lane = lane;
-  if (action) out.action = action;
-  if (year) out.year = year;
-
-  // optional mode hint
-  if (typeof p.mode === "string") {
-    const mm = coerceAction(p.mode);
-    if (mm && ["top10", "top100", "story", "micro", "number1"].includes(mm)) out.mode = mm;
-  }
-
-  // If we have structured lane/action but no text, derive deterministic command
-  if ((!out.text || !out.text.trim()) && (out.lane || out.action)) {
-    const cmd = deriveCommandFromChip(out.lane, out.action, out.year, {});
-    if (cmd) out.text = clampInboundText(cmd);
-  }
-
-  return out;
-}
-
-function normFollowUpChip(label, send, payloadExtra) {
-  const l = clampStr(safeStr(label).trim() || "Send", MAX_FOLLOWUP_LABEL);
-  const s = safeStr(send).trim();
-  const payload = buildStructuredPayload({ ...(isPlainObject(payloadExtra) ? payloadExtra : {}), text: s });
-  const id = sha1(`${l}::${payload.lane || ""}::${payload.action || ""}::${payload.year || ""}::${payload.text || s}`).slice(
-    0,
-    8
-  );
-  return { id, type: "send", label: l, payload };
-}
-
-function toFollowUps(chips) {
-  const arr = Array.isArray(chips) ? chips : [];
-  const out = [];
-  const seen = new Set();
-  for (const c of arr) {
-    const label = safeStr(c && c.label).trim() || "Send";
-    const send = safeStr(c && c.send).trim();
-    const extra = isPlainObject(c && c.payload) ? c.payload : isPlainObject(c) ? c : null;
-    const key = normText(label + "::" + send + "::" + safeJsonStringify(extra || {}));
-    if (!send) continue;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(normFollowUpChip(label, send, extra));
-    if (out.length >= MAX_FOLLOWUPS) break;
-  }
-  return out;
-}
-
-function toFollowUpsStrings(chips) {
-  const arr = Array.isArray(chips) ? chips : [];
-  const out = [];
-  const seen = new Set();
-  for (const c of arr) {
-    const send = safeStr(c && c.send).trim();
-    const k = normText(send);
-    if (!k || seen.has(k)) continue;
-    seen.add(k);
-    out.push(send);
-    if (out.length >= MAX_FOLLOWUPS) break;
-  }
-  return out.length ? out : undefined;
-}
-
-function labelFromSendText(sendText) {
-  const t = normText(sendText);
-  const y = extractYear(t);
-  const m = extractMode(t);
-
-  if (m === "top10" && y) return `Top 10 (${y})`;
-  if (m === "top100" && y) return `Top 100 (${y})`;
-  if (m === "number1" && y) return `#1 (${y})`;
-  if (m === "story" && y) return `Story moment (${y})`;
-  if (m === "micro" && y) return `Micro moment (${y})`;
-
-  if (/^\s*top\s*10\b/.test(t)) return y ? `Top 10 (${y})` : "Top 10";
-  if (/^\s*top\s*100\b/.test(t) || /\bhot\s*100\b/.test(t)) return y ? `Top 100 (${y})` : "Top 100";
-  if (/^\s*#\s*1\b/.test(t) || /\bnumber\s*1\b/.test(t) || /\bno\.?\s*1\b/.test(t)) return y ? `#1 (${y})` : "#1";
-  if (/\bstory\s*moment\b/.test(t)) return y ? `Story moment (${y})` : "Story moment";
-  if (/\bmicro\s*moment\b/.test(t)) return y ? `Micro moment (${y})` : "Micro moment";
-
-  if (/\bschedule\b/.test(t)) return "Schedule";
-  if (/\bsponsors?\b/.test(t)) return "Sponsors";
-  if (/\broku\b/.test(t)) return "Roku";
-  if (/\bradio\b/.test(t) || /\bstream\b/.test(t)) return "Radio";
-  if (/\bmovies?\b|\bfilm\b|\bcatalog\b/.test(t)) return "Movies";
-
-  const trimmed = clampStr(safeStr(sendText).trim(), MAX_FOLLOWUP_LABEL);
-  return trimmed || "Send";
-}
-
-function normalizeFollowUps(followUps) {
-  const arr = Array.isArray(followUps) ? followUps : [];
-  const out = [];
-  const seen = new Set();
-
-  for (const fRaw of arr) {
-    if (!fRaw) continue;
-
-    // ✅ FIX (v0.7aI): legacy followUps as STRING ITEMS
-    // Example: followUps = ["top 10 1988", "#1 1977"]
-    if (typeof fRaw === "string") {
-      const sendText = clampInboundText(fRaw);
-      if (!sendText) continue;
-
-      const payload = buildStructuredPayload({ text: sendText });
-      const text = safeStr(payload.text).trim();
-      if (!text) continue;
-
-      const label = clampStr(labelFromSendText(sendText), MAX_FOLLOWUP_LABEL);
-      const id = sha1(label + "::" + text).slice(0, 8);
-      const key = normText(id + "::" + label + "::" + text + "::" + safeJsonStringify(payload));
-
-      if (seen.has(key)) continue;
-      seen.add(key);
-
-      out.push({ id, type: "send", label, payload });
-      if (out.length >= MAX_FOLLOWUPS) break;
-      continue;
-    }
-
-    const f = fRaw;
-
-    const type = safeStr(f.type || "send").trim() || "send";
-    if (type !== "send") continue;
-
-    const label = clampStr(safeStr(f.label).trim() || "Send", MAX_FOLLOWUP_LABEL);
-
-    // ✅ FIX: handle legacy payload as a STRING
-    // Examples:
-    //   payload: "top 10 1988"
-    //   payload: { text: "top 10 1988", lane:"music", action:"top10", year:1988 }
-    let payloadIn = null;
-    if (typeof f.payload === "string") payloadIn = { text: f.payload };
-    else if (isPlainObject(f.payload)) payloadIn = f.payload;
-    else if (typeof f.payload === "object" && f.payload && typeof f.payload.text === "string") payloadIn = { text: f.payload.text };
-    else payloadIn = { text: safeStr(f.payload) };
-
-    const payload = buildStructuredPayload(payloadIn);
-    const text = safeStr(payload.text).trim();
-    if (!text) continue;
-
-    const id = safeStr(f.id).trim() || sha1(label + "::" + text).slice(0, 8);
-    const key = normText(id + "::" + label + "::" + text + "::" + safeJsonStringify(payload));
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push({ id, type: "send", label, payload });
-    if (out.length >= MAX_FOLLOWUPS) break;
-  }
-
-  return out;
-}
-
-function normalizeDirectives(directives) {
-  const arr = Array.isArray(directives) ? directives : [];
-  const out = [];
-  for (const d of arr) {
-    if (!isPlainObject(d)) continue;
-    const type = safeStr(d.type).trim();
-    if (!type) continue;
-    const obj = { type };
-    for (const [k, v] of Object.entries(d)) {
-      if (k === "type") continue;
-      if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
-      if (typeof v === "string") obj[k] = clampStr(v, 500);
-      else if (typeof v === "number" || typeof v === "boolean") obj[k] = v;
-      else if (v === null) obj[k] = null;
-    }
-    out.push(obj);
-    if (out.length >= 8) break;
-  }
-  return out.length ? out : undefined;
-}
-
-// =========================
-// Replay cache (session-scoped) — replay-safe for Option A
-// writeReplay PATCH: cache stores rawReply + replyShown; replay returns replyShown.
-// =========================
-function replayKey(session, clientRequestId, inboundText, source, payloadObj) {
-  const rid = safeStr(clientRequestId).trim();
-  const resetSeq = safeInt(session && session.cog && session.cog.__nyxResetSeq, 0);
-
-  const pSig = payloadObj ? sha1(safeJsonStringify(payloadObj)).slice(0, 8) : "p0";
-  const inSig = sha1(`${safeStr(inboundText)}|${safeStr(source)}|${pSig}`).slice(0, 8);
-
-  const sig = sha1(
-    `${safeStr(session.sessionId || session.visitorId || "")}|${safeStr(source)}|${safeStr(inboundText)}|${pSig}|rseq:${resetSeq}`
-  ).slice(0, 12);
-
-  return rid ? `rid:${rid}:r${resetSeq}:h${inSig}` : `sig:${sig}`;
-}
-
-function readReplay(session, key, now) {
-  const lastKey = safeStr(session.__ce_lastReqId || "");
-  const lastAt = safeInt(session.__ce_lastReqAt || 0, 0);
-  if (!lastKey || lastKey !== key) return null;
-  if (!lastAt || now - lastAt > REPLAY_WINDOW_MS) return null;
-
-  const out =
-    safeStr(session.__ce_lastOutShown || "").trim() ||
-    safeStr(session.__ce_lastOutRaw || "").trim() ||
-    safeStr(session.__ce_lastOut || "").trim();
-
-  const outLane = safeStr(session.__ce_lastOutLane || "general") || "general";
-  const outHash = safeStr(session.__ce_lastOutHash || "");
-  if (!out || !outHash) return null;
-
-  const followUps = Array.isArray(session.__ce_lastOutFollowUps) ? session.__ce_lastOutFollowUps : undefined;
-  const followUpsStrings = Array.isArray(session.__ce_lastOutFollowUpsStrings)
-    ? session.__ce_lastOutFollowUpsStrings
-    : undefined;
-  const directives = Array.isArray(session.__ce_lastOutDirectives) ? session.__ce_lastOutDirectives : undefined;
-
-  return { reply: out, lane: outLane, followUps, followUpsStrings, directives };
-}
-
-function writeReplay(session, key, now, reply, lane, extras) {
-  session.__ce_lastReqId = key;
-  session.__ce_lastReqAt = now;
-
-  const raw = safeStr(
-    (extras && typeof extras === "object" && typeof extras.rawReply === "string" && extras.rawReply) || reply
-  ).trim();
-
-  const shown = safeStr(
-    (extras && typeof extras === "object" && typeof extras.replyShown === "string" && extras.replyShown) || raw
-  ).trim();
-
-  session.__ce_lastOutRaw = raw;
-  session.__ce_lastOutShown = shown;
-  session.__ce_lastOut = shown;
-
-  session.__ce_lastOutLane = lane;
-  session.__ce_lastOutHash = sha1(`${lane}::${shown}`).slice(0, 16);
-
-  if (extras && typeof extras === "object") {
-    if (Array.isArray(extras.followUps)) session.__ce_lastOutFollowUps = extras.followUps.slice(0, MAX_FOLLOWUPS);
-    if (Array.isArray(extras.followUpsStrings))
-      session.__ce_lastOutFollowUpsStrings = extras.followUpsStrings.slice(0, MAX_FOLLOWUPS);
-    if (Array.isArray(extras.directives)) session.__ce_lastOutDirectives = extras.directives.slice(0, 8);
-  }
-}
-
-// =========================
-// Hard reset
-// =========================
-function hardResetSession(session, startedAt) {
-  const keep = {
-    visitorId: safeStr(session.visitorId || ""),
-    sessionId: safeStr(session.sessionId || ""),
-    __nyxResetSeq: safeInt(session && session.cog && session.cog.__nyxResetSeq, 0),
-  };
-
-  for (const k of Object.keys(session)) delete session[k];
-
-  if (keep.visitorId) session.visitorId = keep.visitorId;
-  if (keep.sessionId) session.sessionId = keep.sessionId;
-
-  session.lane = "general";
-  session.lastLane = "";
-  session.turnCount = 0;
-  session.turns = 0;
-  session.startedAt = startedAt;
-  session.lastTurnAt = startedAt;
-  session.__hasRealUserTurn = 0;
-
-  session.__introDone = 0;
-  session.introDone = false;
-  session.introAt = 0;
-  session.introVariantId = 0;
-  session.introBucket = "";
-
-  session.lastInText = "";
-  session.lastInAt = 0;
-  session.lastOut = "";
-  session.lastOutAt = 0;
-
-  session.__ce_lastReqId = "";
-  session.__ce_lastReqAt = 0;
-  session.__ce_lastOutHash = "";
-  session.__ce_lastOut = "";
-  session.__ce_lastOutRaw = "";
-  session.__ce_lastOutShown = "";
-  session.__ce_lastOutLane = "";
-  session.__ce_lastOutFollowUps = undefined;
-  session.__ce_lastOutFollowUpsStrings = undefined;
-  session.__ce_lastOutDirectives = undefined;
-  session.__ce_lastInHash = "";
-  session.__ce_lastInAt = 0;
-
-  session.allowPackets = false;
-
-  session.cog = {};
-  session.cog.state = NYX_STATE.COLD;
-  session.cog.__nyxLastSeenAt = startedAt;
-  session.cog.__nyxResetSeq = keep.__nyxResetSeq;
-  session.cog.__nyxLastChip = undefined;
-
-  session.__nyxVelvet = false;
-
-  ensureContinuityState(session);
-  return session;
-}
-
-// =========================
-// ENGINE AUTOWIRE (WITH PACKETS GATING)
-// =========================
-function resolveEngine(input, allowPackets) {
-  if (typeof input.engine === "function") return { fn: input.engine, from: "input.engine" };
-
-  if (allowPackets) {
-    const p = NYX_PACKETS;
-    if (p && typeof p.handleChat === "function") return { fn: p.handleChat.bind(p), from: "nyxPackets.handleChat" };
-    if (p && typeof p.chat === "function") return { fn: p.chat.bind(p), from: "nyxPackets.chat" };
-    if (p && typeof p.respond === "function") return { fn: p.respond.bind(p), from: "nyxPackets.respond" };
-    if (p && typeof p.run === "function") return { fn: p.run.bind(p), from: "nyxPackets.run" };
-    if (p && typeof p.route === "function") return { fn: p.route.bind(p), from: "nyxPackets.route" };
-  }
-
-  const c = NYX_CONV_PACK;
-  if (c && typeof c.handleChat === "function") return { fn: c.handleChat.bind(c), from: "nyxConvPack.handleChat" };
-  if (c && typeof c.respond === "function") return { fn: c.respond.bind(c), from: "nyxConvPack.respond" };
-  if (c && typeof c.run === "function") return { fn: c.run.bind(c), from: "nyxConvPack.run" };
-
-  return { fn: null, from: "none" };
-}
-
-// =========================
-// Fallback (only used when no engine is available)
-// =========================
-function fallbackCore({ text, session, resolvedYear }) {
-  const t = normText(text);
-  const y = resolvedYear || extractYear(t);
-  const m = extractMode(t);
-
-  if (y && m) {
-    stampLastChip(session, { lane: "music", action: m, year: y });
-    return { reply: `Got it — ${y}. Want Top 10, #1, a story moment, or a micro moment?`, lane: "music" };
-  }
-
-  if (y) {
-    commitYear(session, y, "fallback");
-    stampLastChip(session, { lane: "music", action: "top10", year: y });
-    return {
-      reply: `Got it — ${y}. Want Top 10, #1, a story moment, or a micro moment?`,
-      lane: "music",
-      followUps: toFollowUps([
-        { label: "Top 10", send: `top 10 ${y}`, payload: { lane: "music", action: "top10", year: y, mode: "top10" } },
-        { label: "#1", send: `#1 ${y}`, payload: { lane: "music", action: "number1", year: y, mode: "number1" } },
-        { label: "Story moment", send: `story moment ${y}`, payload: { lane: "music", action: "story", year: y, mode: "story" } },
-        { label: "Micro moment", send: `micro moment ${y}`, payload: { lane: "music", action: "micro", year: y, mode: "micro" } },
-      ]),
-    };
-  }
-
-  if (!t || isGreetingOnly(text)) {
-    return { reply: CANON_WELCOME, lane: "general", followUps: toFollowUps(CANON_INTRO_CHIPS) };
-  }
-
-  return {
-    reply:
-      "Give me a year (1950–2024), or say “top 10 1988”, “#1 1988”, “story moment 1988”, or “micro moment 1988”.",
-    lane: session.lane || "general",
-  };
-}
-
-// =========================
-// Engine-aware fallback follow-ups
-// =========================
-function maybeAttachMusicFollowUps(core, resolvedYear, inboundText, session) {
-  const year = resolvedYear || extractYear(inboundText);
-  if (!year) return core;
-
-  const hasFU = Array.isArray(core && core.followUps) && core.followUps.length;
-  if (hasFU) return core;
-
-  core.followUps = toFollowUps([
-    { label: "Top 10", send: `top 10 ${year}`, payload: { lane: "music", action: "top10", year, mode: "top10" } },
-    { label: "#1", send: `#1 ${year}`, payload: { lane: "music", action: "number1", year, mode: "number1" } },
-    { label: "Story moment", send: `story moment ${year}`, payload: { lane: "music", action: "story", year, mode: "story" } },
-    { label: "Micro moment", send: `micro moment ${year}`, payload: { lane: "music", action: "micro", year, mode: "micro" } },
-  ]);
-  core.followUpsStrings = toFollowUpsStrings([
-    { label: "Top 10", send: `top 10 ${year}` },
-    { label: "#1", send: `#1 ${year}` },
-    { label: "Story moment", send: `story moment ${year}` },
-    { label: "Micro moment", send: `micro moment ${year}` },
-  ]);
-
-  session.lane = "music";
-  commitYear(session, year, (session.cog && session.cog.yearSource) || "engine_followups_fallback");
-  session.cog = isPlainObject(session.cog) ? session.cog : {};
-  session.cog.lane = "music";
-  stampLastChip(session, { lane: "music", action: "top10", year });
-
-  return core;
-}
-
-// =========================
 // Main handler
 // =========================
 async function handleChat(input = {}) {
@@ -1706,44 +1513,23 @@ async function handleChat(input = {}) {
     }
   }
 
-  // Normalize inbound (text-only normalization)
+  // Normalize inbound
   const preNorm = inboundText;
   inboundText = normalizeInboundText(inboundText, session, routeHint);
   const inboundNormalized = inboundText !== preNorm;
 
-  // NYX STATE SPINE: stamp state BEFORE replay/burst returns
+  // NYX STATE SPINE
   let st = nyxResolveState(session, inboundText, { ...input, source, routeHint }, startedAt);
   nyxStampState(session, st);
 
-  // Resolve year from all inbound shapes (early)
+  // Resolve year early
   const resolvedYear0 = resolveInboundYear(input, inboundText, session);
-
-  // HYDRATE: empty inbound + year exists via payload/ctx
-  if (isEmptyOrNoText(inboundText) && resolvedYear0) {
-    inboundText = String(resolvedYear0);
-    st = nyxResolveState(session, inboundText, { ...input, source, routeHint }, startedAt);
-    nyxStampState(session, st);
-  }
-
-  // CRITICAL HYDRATE: empty inbound + intent exists via payload/ctx
-  if (isEmptyOrNoText(inboundText) && !isBootIntroSource({ ...input, source })) {
-    const hydrated = hydrateEmptyInboundFromIntent(input, session, resolvedYear0, source);
-    if (hydrated) {
-      inboundText = normalizeInboundText(hydrated, session, routeHint);
-      st = nyxResolveState(session, inboundText, { ...input, source, routeHint }, startedAt);
-      nyxStampState(session, st);
-    }
-  }
-
-  // Commit year if present
   if (resolvedYear0) commitYear(session, resolvedYear0, "resolved_inbound");
 
   const inboundIsEmpty = isEmptyOrNoText(inboundText);
   const bootIntroEmpty = inboundIsEmpty && isBootIntroSource({ ...input, source });
 
-  // -------------------------
-  // Burst dedupe (FINAL inbound hash) — LOOP MITIGATION
-  // -------------------------
+  // Burst dedupe
   const inHash = sha1(inboundText).slice(0, 12);
   const lastInHash = safeStr(session.__ce_lastInHash || "");
   const lastInAt = safeInt(session.__ce_lastInAt || 0, 0);
@@ -1799,89 +1585,7 @@ async function handleChat(input = {}) {
     };
   }
 
-  // POST-INTRO GRACE suppression
-  const introAt = safeInt(session.introAt || 0, 0);
-  const justIntroed = !!introAt && startedAt - introAt < POST_INTRO_GRACE_MS;
-  if (justIntroed && (inboundIsEmpty || isModeOnly(inboundText))) {
-    const reply0 = nonEmptyReply(session.lastOut, CANON_WELCOME);
-    session.lastOut = reply0;
-    session.lastOutAt = startedAt;
-
-    const fu = toFollowUps(CANON_INTRO_CHIPS);
-    const fus = toFollowUpsStrings(CANON_INTRO_CHIPS);
-
-    writeReplay(session, rkey, startedAt, reply0, "general", {
-      rawReply: reply0,
-      replyShown: reply0,
-      followUps: fu,
-      followUpsStrings: fus,
-    });
-
-    return {
-      ok: true,
-      reply: reply0,
-      lane: "general",
-      followUps: fu,
-      followUpsStrings: fus,
-      sessionPatch: buildSessionPatch(session),
-      cog: { phase: "listening", state: "confident", reason: "post_intro_grace", lane: "general" },
-      requestId,
-      meta: {
-        engine: CE_VERSION,
-        suppressed: "post_intro_grace",
-        source: safeMetaStr(source),
-        nyxState: safeMetaStr(session.cog.state),
-        elapsedMs: nowMs() - startedAt,
-      },
-    };
-  }
-
-  // Boot intro suppression
-  if (bootIntroEmpty) {
-    const introAt2 = safeInt(session.introAt || 0, 0);
-    if (introAt2 && startedAt - introAt2 < INTRO_REARM_MS) {
-      const lastOut = safeStr(session.lastOut || "").trim();
-      const lane0 = safeStr(session.lane || "general") || "general";
-      const reply0 = lastOut || "Ready when you are.";
-
-      const fu = toFollowUps(CANON_INTRO_CHIPS);
-      const fus = toFollowUpsStrings(CANON_INTRO_CHIPS);
-
-      writeReplay(
-        session,
-        replayKey(session, clientRequestId, inboundText, source, payloadObj),
-        startedAt,
-        reply0,
-        lane0,
-        {
-          rawReply: reply0,
-          replyShown: reply0,
-          followUps: fu,
-          followUpsStrings: fus,
-        }
-      );
-
-      return {
-        ok: true,
-        reply: reply0,
-        lane: lane0,
-        followUps: fu,
-        followUpsStrings: fus,
-        sessionPatch: buildSessionPatch(session),
-        cog: { phase: "listening", state: "confident", reason: "boot_intro_suppressed", lane: lane0 },
-        requestId,
-        meta: {
-          engine: CE_VERSION,
-          bootIntroSuppressed: true,
-          source: safeMetaStr(source),
-          nyxState: safeMetaStr(session.cog.state),
-          elapsedMs: nowMs() - startedAt,
-        },
-      };
-    }
-  }
-
-  // Ignore empty non-boot ONLY if still empty after hydration attempts
+  // Ignore empty non-boot (post-hydration) — keep
   if (inboundIsEmpty && !bootIntroEmpty) {
     const reply0 = "Ready when you are. Tell me a year (1950–2024), or what you want to do next.";
     const laneX = safeStr(session.lane || "general") || "general";
@@ -1889,19 +1593,12 @@ async function handleChat(input = {}) {
     const fu = toFollowUps(CANON_INTRO_CHIPS);
     const fus = toFollowUpsStrings(CANON_INTRO_CHIPS);
 
-    writeReplay(
-      session,
-      replayKey(session, clientRequestId, inboundText, source, payloadObj),
-      startedAt,
-      reply0,
-      laneX,
-      {
-        rawReply: reply0,
-        replyShown: reply0,
-        followUps: fu,
-        followUpsStrings: fus,
-      }
-    );
+    writeReplay(session, rkey, startedAt, reply0, laneX, {
+      rawReply: reply0,
+      replyShown: reply0,
+      followUps: fu,
+      followUpsStrings: fus,
+    });
 
     return {
       ok: true,
@@ -1930,7 +1627,7 @@ async function handleChat(input = {}) {
   if (!session.startedAt) session.startedAt = startedAt;
   if (!inboundIsEmpty) session.__hasRealUserTurn = 1;
 
-  // Velvet Mode: earned intimacy (NEVER first contact)
+  // Velvet Mode
   if (
     !session.__nyxVelvet &&
     safeInt(session.turnCount || 0, 0) >= 2 &&
@@ -1950,60 +1647,24 @@ async function handleChat(input = {}) {
   // Lane seed
   let lane = safeStr(session.lane || routeHint || "general").trim() || "general";
 
-  // AUTHORITATIVE YEAR COMMIT (pre-engine)
-  const modeNow = extractMode(inboundText);
-  const top10Asked = isTop10IntentText(inboundText) || modeNow === "top10";
-
-  const laneHint = normText(session.lane || routeHint || "");
-  const forceMusicYear = !!resolvedYear0 && (laneHint === "music" || top10Asked);
-
-  if (forceMusicYear) {
-    session.lane = "music";
-    session.cog.lane = "music";
-    if (modeNow) session.cog.mode = modeNow;
-
-    if (top10Asked) {
-      session.activeMusicMode = "top10";
-      session.lastMode = "top10";
-      session.cog.mode = "top10";
-      if (!modeNow) inboundText = `top 10 ${resolvedYear0}`;
-    }
-  }
-
   // Music override (text-based mode+year)
   const ov = applyMusicOverride(session, inboundText);
   if (ov.forced) lane = "music";
-  if (forceMusicYear) lane = "music";
 
   // Intro
-  const doIntro =
-    !ov.forced &&
-    !forceMusicYear &&
-    shouldServeIntroLoginMoment(session, inboundText, startedAt, { ...input, source });
-
+  const doIntro = !ov.forced && shouldServeIntroLoginMoment(session, inboundText, startedAt, { ...input, source });
   if (doIntro) {
-    const preHasRealUserTurn = !!session.__hasRealUserTurn;
-    const preIntroVariantId = safeInt(session.introVariantId || 0, 0);
-    const preIntroAt = safeInt(session.introAt || 0, 0);
-    const isFirstEver = !preHasRealUserTurn && !preIntroVariantId && !preIntroAt;
     const fromBootPing = isBootIntroSource({ ...input, source });
 
     session.__introDone = 1;
     session.introDone = true;
     session.introAt = startedAt;
+    session.allowPackets = false;
 
-    if (fromBootPing && (!session.__hasRealUserTurn || isFirstEver)) {
-      session.lastLane = safeStr(session.lane || "");
-      session.lane = "general";
-
-      session.introBucket = "general";
-      session.introVariantId = 0;
-
+    if (fromBootPing && !session.__hasRealUserTurn) {
       const introLine = CANON_WELCOME;
       session.lastOut = introLine;
       session.lastOutAt = startedAt;
-
-      session.allowPackets = false;
 
       const fu = toFollowUps(CANON_INTRO_CHIPS);
       const fus = toFollowUpsStrings(CANON_INTRO_CHIPS);
@@ -2036,18 +1697,14 @@ async function handleChat(input = {}) {
     }
 
     const bucketKey = pickIntroBucket(session, inboundText, routeHint, { ...input, source });
-
     session.lastLane = safeStr(session.lane || "");
     session.lane = "general";
 
     const pick = pickIntroForLogin(session, startedAt, bucketKey);
-
     const introLine = nonEmptyReply(pick.text, CANON_WELCOME);
 
     session.lastOut = introLine;
     session.lastOutAt = startedAt;
-
-    session.allowPackets = false;
 
     const fu = toFollowUps(CANON_INTRO_CHIPS);
     const fus = toFollowUpsStrings(CANON_INTRO_CHIPS);
@@ -2078,9 +1735,11 @@ async function handleChat(input = {}) {
     };
   }
 
-  // PACKETS gating decision
-  const allowPackets = shouldAllowPackets(inboundText, routeHint, session, resolvedYear0);
-  session.allowPackets = !!allowPackets;
+  // PACKETS gating decision (FIXED)
+  const gate = shouldAllowPackets(inboundText, routeHint, session, resolvedYear0, input, source);
+  const allowPackets = !!(gate && gate.allow);
+  const allowPacketsReason = safeMetaStr((gate && gate.reason) || "unknown");
+  session.allowPackets = allowPackets;
 
   const resolved = resolveEngine(input, allowPackets);
 
@@ -2140,7 +1799,7 @@ async function handleChat(input = {}) {
   if (core && typeof core === "object") core = maybeAttachMusicFollowUps(core, resolvedYear0, inboundText, session);
 
   const outLane = safeStr((core && core.lane) || session.lane || lane || "general").trim() || "general";
-  session.lane = ov.forced || forceMusicYear ? "music" : outLane;
+  session.lane = ov.forced ? "music" : outLane;
 
   const resolvedYearFinal = resolveInboundYear(input, inboundText, session);
 
@@ -2152,7 +1811,6 @@ async function handleChat(input = {}) {
   );
   rawReply = clampStr(rawReply, MAX_REPLY_CHARS);
 
-  // Apply greeting prefix ONLY on meaningful, non-replay turns
   let reply = rawReply;
   if (
     shouldApplyGreetingPrefix({
@@ -2196,7 +1854,7 @@ async function handleChat(input = {}) {
       (core && core.cog && typeof core.cog === "object" && core.cog) || {
         phase: "listening",
         state: "confident",
-        reason: ov.forced || forceMusicYear ? "music_override" : "ok",
+        reason: ov.forced ? "music_override" : "ok",
         lane: session.lane,
       },
     requestId,
@@ -2206,6 +1864,7 @@ async function handleChat(input = {}) {
       routeHint: safeMetaStr(routeHint),
       inboundNormalized,
       allowPackets,
+      allowPacketsReason,
       resolvedYear: resolvedYearFinal || null,
       elapsedMs: nowMs() - startedAt,
       engineResolvedFrom: resolved.from,
