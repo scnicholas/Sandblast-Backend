@@ -62,7 +62,7 @@ const fetchFn =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18ag (crash-proof boot + safe JSON parse + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
+  "index.js v1.5.18ah (crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
 
 // =========================
 // Env / knobs
@@ -548,7 +548,9 @@ function reloadKnowledge() {
 
   // eslint-disable-next-line no-console
   console.log(
-    `[Sandblast][Knowledge] loaded=${KNOWLEDGE.ok} jsonKeys=${jsonKeys} scriptKeys=${scriptKeys} filesLoaded=${KNOWLEDGE.filesLoaded} totalBytes=${KNOWLEDGE.totalBytes} errors=${KNOWLEDGE.errors.length} in ${nowMs() - started}ms (DATA_DIR=${DATA_DIR}, SCRIPTS_DIR=${SCRIPTS_DIR}, scriptsEnabled=${KNOWLEDGE_ENABLE_SCRIPTS})`
+    `[Sandblast][Knowledge] loaded=${KNOWLEDGE.ok} jsonKeys=${jsonKeys} scriptKeys=${scriptKeys} filesLoaded=${KNOWLEDGE.filesLoaded} totalBytes=${KNOWLEDGE.totalBytes} errors=${KNOWLEDGE.errors.length} in ${
+      nowMs() - started
+    }ms (DATA_DIR=${DATA_DIR}, SCRIPTS_DIR=${SCRIPTS_DIR}, scriptsEnabled=${KNOWLEDGE_ENABLE_SCRIPTS})`
   );
 
   return { ok: KNOWLEDGE.ok, loadedAt: KNOWLEDGE.loadedAt, jsonKeys, scriptKeys, filesLoaded: KNOWLEDGE.filesLoaded };
@@ -1357,7 +1359,9 @@ app.listen(PORT, () => {
   console.log(`[Sandblast] Fetch: ${fetchFn ? "OK" : "MISSING"} (global.fetch=${!!global.fetch})`);
   // eslint-disable-next-line no-console
   console.log(
-    `[Sandblast] Knowledge: autoload=${KNOWLEDGE_AUTOLOAD} ok=${KNOWLEDGE.ok} jsonKeys=${Object.keys(KNOWLEDGE.json).length} scriptKeys=${Object.keys(KNOWLEDGE.scripts).length} errors=${KNOWLEDGE.errors.length} DATA_DIR=${DATA_DIR} SCRIPTS_DIR=${SCRIPTS_DIR} reloadEveryMs=${KNOWLEDGE_RELOAD_INTERVAL_MS} debugIncludeData=${KNOWLEDGE_DEBUG_INCLUDE_DATA} scriptsEnabled=${KNOWLEDGE_ENABLE_SCRIPTS}`
+    `[Sandblast] Knowledge: autoload=${KNOWLEDGE_AUTOLOAD} ok=${KNOWLEDGE.ok} jsonKeys=${
+      Object.keys(KNOWLEDGE.json).length
+    } scriptKeys=${Object.keys(KNOWLEDGE.scripts).length} errors=${KNOWLEDGE.errors.length} DATA_DIR=${DATA_DIR} SCRIPTS_DIR=${SCRIPTS_DIR} reloadEveryMs=${KNOWLEDGE_RELOAD_INTERVAL_MS} debugIncludeData=${KNOWLEDGE_DEBUG_INCLUDE_DATA} scriptsEnabled=${KNOWLEDGE_ENABLE_SCRIPTS}`
   );
 });
 
