@@ -3,14 +3,13 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18ai (PINNED PACKS + larger knowledge budgets + crash-proof boot + safe JSON parse + diagnostic logging + knowledge bridge + loop fixes + PACK INDEX)
+ * index.js v1.5.18aj (PINNED PACKS RESOLVER + BUILT-IN PACK INDEX + larger knowledge budgets + crash-proof boot + safe JSON parse + diagnostic logging + knowledge bridge + loop fixes)
  *
- * Key adds vs 1.5.18ah:
- *  ✅ CRITICAL: Pinned music packs load under STABLE keys (music/top10_by_year, music/number1_by_year, music/story_moments_by_year, music/micro_moments_by_year)
- *  ✅ CRITICAL: Prevent double-loading the same JSON file (pinned + crawl) via loadedFiles set
- *  ✅ SAFER: default knowledge budgets increased (file + total) to avoid silent “pack not loaded” symptoms
- *  ✅ Debug: expose pinned presence in /api/debug/knowledge
- *  ✅ NEW: Unified Pack Index endpoints (/api/packs, /api/packs/refresh) if Utils/packIndex.js exists
+ * Key adds vs 1.5.18ai:
+ *  ✅ CRITICAL: Pinned packs now support MULTI-CANDIDATE paths (Data/ + Data/Nyx/ + Data/Packs/) to avoid filename mismatch causing “pack not loaded”
+ *  ✅ CRITICAL: Built-in pack index computed from KNOWLEDGE.json keys (no dependency on Utils/packIndex.js)
+ *  ✅ /api/packs + /api/packs/refresh ALWAYS work (return built-in index even if packIndex.js is missing)
+ *  ✅ Engine receives engineInput.packIndex so chatEngine can surface chips deterministically
  */
 
 // =========================
@@ -31,7 +30,6 @@ process.on("unhandledRejection", (reason) => {
 process.on("uncaughtException", (err) => {
   // eslint-disable-next-line no-console
   console.log("[Sandblast][FATAL] uncaughtException:", err && (err.stack || err.message || err));
-  // Keep process alive long enough to log; Render will restart anyway.
   try {
     setTimeout(() => process.exit(1), 250).unref?.();
   } catch (_) {
@@ -59,14 +57,14 @@ const fetchFn =
   (typeof nodeFetchMod === "function" ? nodeFetchMod : null) ||
   (nodeFetchMod && typeof nodeFetchMod.default === "function" ? nodeFetchMod.default : null);
 
-// Pack Index (optional)
+// Optional external packIndex module (nice-to-have, never required)
 const packIndexMod = safeRequire("./Utils/packIndex") || safeRequire("./Utils/packIndex.js") || null;
 
 // =========================
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18ai (pinned packs + larger knowledge budgets + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS + pack index endpoints)";
+  "index.js v1.5.18aj (pinned packs resolver + built-in pack index + larger knowledge budgets + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
 
 // =========================
 // Env / knobs
@@ -104,15 +102,56 @@ const DATA_DIR = path.resolve(APP_ROOT, String(process.env.DATA_DIR || "Data").t
 const SCRIPTS_DIR = path.resolve(APP_ROOT, String(process.env.SCRIPTS_DIR || "Scripts").trim());
 
 // =========================
-// Knowledge: Pinned packs (stable keys)
+// Knowledge: Pinned packs (stable keys) — resilient resolver
 // =========================
-// These are the “must-have” packs Nyx expects to always be able to find.
-// Put these JSON files under /Data (or set DATA_DIR accordingly).
+//
+// IMPORTANT: Pinned packs now accept multiple rel candidates.
+// This solves: “file exists but named differently / in Data/Nyx / Data/Packs”
+// without requiring you to rename anything.
+//
 const PINNED_PACKS = [
-  { key: "music/top10_by_year", rel: "music_top10_by_year.json" },
-  { key: "music/number1_by_year", rel: "music_number1_by_year.json" },
-  { key: "music/story_moments_by_year", rel: "music_story_moments_by_year.json" },
-  { key: "music/micro_moments_by_year", rel: "music_micro_moments_by_year.json" },
+  {
+    key: "music/top10_by_year",
+    rels: [
+      "music_top10_by_year.json",
+      "Nyx/music_top10_by_year.json",
+      "Packs/music_top10_by_year.json",
+      "Nyx/music_top10.json",
+      "music_top10.json",
+    ],
+  },
+  {
+    key: "music/number1_by_year",
+    rels: [
+      "music_number1_by_year.json",
+      "Nyx/music_number1_by_year.json",
+      "Packs/music_number1_by_year.json",
+      "Nyx/music_number1.json",
+      "music_number1.json",
+    ],
+  },
+  {
+    key: "music/story_moments_by_year",
+    rels: [
+      "music_story_moments_by_year.json",
+      "Nyx/music_story_moments_by_year.json",
+      "Packs/music_story_moments_by_year.json",
+      "Nyx/music_moments.json",
+      "music_moments.json",
+      "Nyx/music_moments_v1.json",
+      "music_moments_v1.json",
+    ],
+  },
+  {
+    key: "music/micro_moments_by_year",
+    rels: [
+      "music_micro_moments_by_year.json",
+      "Nyx/music_micro_moments_by_year.json",
+      "Packs/music_micro_moments_by_year.json",
+      "Nyx/music_micro_moments.json",
+      "music_micro_moments.json",
+    ],
+  },
 ];
 
 // CORS
@@ -391,7 +430,7 @@ const KNOWLEDGE = {
 function pushKnowledgeError(type, file, msg) {
   const e = { type: safeStr(type), file: safeStr(file), msg: safeStr(msg).slice(0, 300) };
   KNOWLEDGE.errors.push(e);
-  if (KNOWLEDGE.errors.length > 50) KNOWLEDGE.errors.shift();
+  if (KNOWLEDGE.errors.length > 80) KNOWLEDGE.errors.shift();
 }
 
 function fileExists(p) {
@@ -482,18 +521,25 @@ function pinnedPresence() {
   return out;
 }
 
-function loadPinnedPack(relPath, forcedKey, loadedFiles, totalBytesRef) {
-  // relPath is relative to DATA_DIR
-  const fp = path.resolve(DATA_DIR, relPath);
+function resolvePinnedFileAbs(rels) {
+  const arr = Array.isArray(rels) ? rels : [rels];
+  for (const rel of arr) {
+    const fp = path.resolve(DATA_DIR, String(rel));
+    if (fileExists(fp)) return fp;
+  }
+  return null;
+}
 
-  if (loadedFiles && loadedFiles.has(fp)) {
-    // already loaded (prevents double count)
-    return { ok: true, skipped: true, reason: "already_loaded" };
+function loadPinnedPack(rels, forcedKey, loadedFiles, totalBytesRef) {
+  const fp = resolvePinnedFileAbs(rels);
+
+  if (!fp) {
+    pushKnowledgeError("pinned_missing", `${forcedKey}`, `Pinned pack missing (tried: ${JSON.stringify(rels)})`);
+    return { ok: false, skipped: false, reason: "missing" };
   }
 
-  if (!fileExists(fp)) {
-    pushKnowledgeError("pinned_missing", fp, "Pinned pack missing");
-    return { ok: false, skipped: false, reason: "missing" };
+  if (loadedFiles && loadedFiles.has(fp)) {
+    return { ok: true, skipped: true, reason: "already_loaded" };
   }
 
   const r = safeReadFileBytes(fp);
@@ -523,7 +569,7 @@ function loadPinnedPack(relPath, forcedKey, loadedFiles, totalBytesRef) {
 
   if (loadedFiles) loadedFiles.add(fp);
 
-  return { ok: true, skipped: false };
+  return { ok: true, skipped: false, fp };
 }
 
 function reloadKnowledge() {
@@ -549,12 +595,14 @@ function reloadKnowledge() {
   const totalBytesRef = { value: 0 };
 
   // ---- Force-load pinned packs under stable keys (before generic crawl) ----
+  const pinnedLoaded = [];
   if (dataOk) {
     for (const p of PINNED_PACKS) {
       try {
-        loadPinnedPack(p.rel, p.key, loadedFiles, totalBytesRef);
+        const rr = loadPinnedPack(p.rels, p.key, loadedFiles, totalBytesRef);
+        if (rr && rr.ok && rr.fp) pinnedLoaded.push({ key: p.key, fp: rr.fp });
       } catch (e) {
-        pushKnowledgeError("pinned_exception", p.rel, e?.message || e);
+        pushKnowledgeError("pinned_exception", p.key, e?.message || e);
       }
       if (KNOWLEDGE.filesLoaded >= KNOWLEDGE_MAX_FILES) break;
       if (totalBytesRef.value > KNOWLEDGE_MAX_TOTAL_BYTES) break;
@@ -564,7 +612,6 @@ function reloadKnowledge() {
   const jsonFiles = [];
   if (dataOk) walkFiles(DATA_DIR, [".json"], jsonFiles, KNOWLEDGE_MAX_FILES);
 
-  // IMPORTANT: only require CJS safely (.js/.cjs). .mjs is skipped by default because require() will throw.
   const jsFiles = [];
   if (scriptsOk && KNOWLEDGE_ENABLE_SCRIPTS) {
     walkFiles(SCRIPTS_DIR, [".js", ".cjs"], jsFiles, Math.min(KNOWLEDGE_MAX_FILES, 1000));
@@ -589,17 +636,15 @@ function reloadKnowledge() {
       break;
     }
 
-    const s = r.buf.toString("utf8");
     let parsed = null;
     try {
-      parsed = JSON.parse(s);
+      parsed = JSON.parse(r.buf.toString("utf8"));
     } catch (e) {
       pushKnowledgeError("json_parse", fp, e?.message || e);
       continue;
     }
 
     const key = fileKeyFromPath(DATA_DIR, fp);
-    // Only set if empty to avoid overwriting pinned stable keys (we never crawl into those keys anyway)
     if (!Object.prototype.hasOwnProperty.call(KNOWLEDGE.json, key)) {
       KNOWLEDGE.json[key] = parsed;
     }
@@ -646,9 +691,10 @@ function reloadKnowledge() {
       nowMs() - started
     }ms (DATA_DIR=${DATA_DIR}, SCRIPTS_DIR=${SCRIPTS_DIR}, scriptsEnabled=${KNOWLEDGE_ENABLE_SCRIPTS})`
   );
-
   // eslint-disable-next-line no-console
   console.log(`[Sandblast][Knowledge] pinnedPresence=${JSON.stringify(pins)}`);
+  // eslint-disable-next-line no-console
+  console.log(`[Sandblast][Knowledge] pinnedLoaded=${JSON.stringify(pinnedLoaded.slice(0, 12))}`);
 
   return { ok: KNOWLEDGE.ok, loadedAt: KNOWLEDGE.loadedAt, jsonKeys, scriptKeys, filesLoaded: KNOWLEDGE.filesLoaded };
 }
@@ -705,21 +751,88 @@ if (KNOWLEDGE_AUTOLOAD && KNOWLEDGE_RELOAD_INTERVAL_MS > 0) {
 }
 
 // =========================
-// Pack Index helpers (optional)
+// Built-in Pack Index (no dependency)
 // =========================
+function buildBuiltinPackIndex() {
+  const jsonKeys = Object.keys(KNOWLEDGE.json || {});
+  const pins = pinnedPresence();
+
+  const groups = {
+    pinned: [],
+    music: [],
+    movies: [],
+    sponsors: [],
+    top10: [],
+    generic: [],
+  };
+
+  const packs = {};
+
+  for (const k of jsonKeys) {
+    // Lightweight classification by key path
+    const kl = String(k).toLowerCase();
+
+    const domain =
+      kl.includes("sponsor") || kl.startsWith("sponsors/") || kl.includes("/sponsors/") ? "sponsors"
+      : kl.includes("movie") || kl.startsWith("movies/") || kl.includes("/movies/") ? "movies"
+      : kl.includes("music") || kl.startsWith("music/") || kl.includes("/music/") ? "music"
+      : "generic";
+
+    const kind =
+      kl.includes("top10") || kl.includes("top_10") || kl.includes("top-ten") || kl.includes("topten") ? "top10"
+      : "pack";
+
+    packs[k] = {
+      id: k,
+      available: true,
+      domain,
+      kind,
+    };
+
+    if (domain === "music") groups.music.push(k);
+    if (domain === "movies") groups.movies.push(k);
+    if (domain === "sponsors") groups.sponsors.push(k);
+    if (kind === "top10") groups.top10.push(k);
+    if (domain === "generic") groups.generic.push(k);
+  }
+
+  for (const [pk, ok] of Object.entries(pins || {})) {
+    if (ok) groups.pinned.push(pk);
+  }
+
+  // stable ordering
+  for (const g of Object.keys(groups)) groups[g].sort();
+
+  return {
+    ok: true,
+    builtAt: new Date().toISOString(),
+    pinned: pins,
+    summary: {
+      jsonKeyCount: jsonKeys.length,
+      pinnedAny: Object.values(pins || {}).some(Boolean),
+      groups: Object.fromEntries(Object.entries(groups).map(([k, v]) => [k, v.length])),
+    },
+    groups,
+    packs,
+  };
+}
+
 function packIndexAvailable() {
   return !!(packIndexMod && (typeof packIndexMod.getPackIndex === "function" || typeof packIndexMod.refreshPackIndex === "function"));
 }
 
 function getPackIndexSafe(forceRefresh) {
+  // Prefer external module if present; otherwise built-in
   try {
-    if (!packIndexMod) return { ok: false, error: "packIndex_missing" };
-    if (forceRefresh && typeof packIndexMod.refreshPackIndex === "function") return packIndexMod.refreshPackIndex();
-    if (typeof packIndexMod.getPackIndex === "function") return packIndexMod.getPackIndex({ forceRefresh: false });
-    return { ok: false, error: "packIndex_invalid_exports" };
+    if (packIndexMod) {
+      if (forceRefresh && typeof packIndexMod.refreshPackIndex === "function") return packIndexMod.refreshPackIndex();
+      if (typeof packIndexMod.getPackIndex === "function") return packIndexMod.getPackIndex({ forceRefresh: false });
+    }
   } catch (e) {
-    return { ok: false, error: "packIndex_exception", detail: safeStr(e?.message || e).slice(0, 240) };
+    // fall through to built-in
+    pushKnowledgeError("packIndex_exception", "Utils/packIndex.js", e?.message || e);
   }
+  return buildBuiltinPackIndex();
 }
 
 // =========================
@@ -892,7 +1005,7 @@ if (toBool(TRUST_PROXY, false)) app.set("trust proxy", 1);
 
 // ---- SAFE JSON PARSE: never crash on invalid JSON ----
 app.use((req, res, next) => {
-  if (req.method === "OPTIONS") return next(); // preflight first
+  if (req.method === "OPTIONS") return next();
   express.json({ limit: MAX_JSON_BODY })(req, res, (err) => {
     if (err) {
       return res.status(400).json({
@@ -961,7 +1074,7 @@ app.get("/", (req, res) => {
     engineFrom: ENGINE.from,
     env: NODE_ENV,
     knowledge: knowledgeStatusForMeta(),
-    packs: { ok: packIndexAvailable() },
+    packs: { ok: true, using: packIndexAvailable() ? "external" : "builtin" },
   });
 });
 
@@ -974,7 +1087,7 @@ app.get("/health", (req, res) => {
     up: true,
     now: new Date().toISOString(),
     knowledge: knowledgeStatusForMeta(),
-    packs: { ok: packIndexAvailable() },
+    packs: { ok: true, using: packIndexAvailable() ? "external" : "builtin" },
   });
 });
 
@@ -987,7 +1100,7 @@ app.get("/api/health", (req, res) => {
     up: true,
     now: new Date().toISOString(),
     knowledge: knowledgeStatusForMeta(),
-    packs: { ok: packIndexAvailable() },
+    packs: { ok: true, using: packIndexAvailable() ? "external" : "builtin" },
   });
 });
 
@@ -1010,18 +1123,17 @@ app.get("/api/discovery", (req, res) => {
       "/api/packs/refresh",
     ],
     knowledge: knowledgeStatusForMeta(),
-    packs: { ok: packIndexAvailable() },
+    packs: { ok: true, using: packIndexAvailable() ? "external" : "builtin" },
   });
 });
 
 // =========================
-// Pack Index endpoints (optional)
+// Pack Index endpoints (ALWAYS available)
 // =========================
 app.get("/api/packs", (req, res) => {
   const idx = getPackIndexSafe(false);
-  const ok = !!idx && idx.ok !== false;
-  return res.status(ok ? 200 : 500).json({
-    ok: ok,
+  return res.status(200).json({
+    ok: true,
     version: INDEX_VERSION,
     engine: ENGINE_VERSION || null,
     engineFrom: ENGINE.from,
@@ -1030,10 +1142,14 @@ app.get("/api/packs", (req, res) => {
 });
 
 app.post("/api/packs/refresh", (req, res) => {
+  // Refresh knowledge first if requested
+  const doReloadKnowledge = toBool(req.query.reloadKnowledge, false);
+  if (doReloadKnowledge) {
+    try { reloadKnowledge(); } catch (e) { pushKnowledgeError("packs_reloadKnowledge", "reloadKnowledge()", e?.message || e); }
+  }
   const idx = getPackIndexSafe(true);
-  const ok = !!idx && idx.ok !== false;
-  return res.status(ok ? 200 : 500).json({
-    ok: ok,
+  return res.status(200).json({
+    ok: true,
     version: INDEX_VERSION,
     engine: ENGINE_VERSION || null,
     engineFrom: ENGINE.from,
@@ -1075,16 +1191,16 @@ if (KNOWLEDGE_DEBUG_ENDPOINT) {
           maxTotalBytes: KNOWLEDGE_MAX_TOTAL_BYTES,
         },
         pinned: pinnedPresence(),
-        pinnedConfig: PINNED_PACKS.map((p) => ({ key: p.key, rel: p.rel })),
+        pinnedConfig: PINNED_PACKS.map((p) => ({ key: p.key, rels: p.rels })),
         errorCount: KNOWLEDGE.errors.length,
-        errorsPreview: KNOWLEDGE.errors.slice(0, 10),
-        jsonKeysPreview: jsonKeys.slice(0, 80),
+        errorsPreview: KNOWLEDGE.errors.slice(0, 12),
+        jsonKeysPreview: jsonKeys.slice(0, 120),
         scriptKeysPreview: scriptKeys.slice(0, 80),
         includeData: KNOWLEDGE_DEBUG_INCLUDE_DATA,
         json: KNOWLEDGE_DEBUG_INCLUDE_DATA ? KNOWLEDGE.json : undefined,
         scripts: KNOWLEDGE_DEBUG_INCLUDE_DATA ? KNOWLEDGE.scripts : undefined,
       },
-      packs: { ok: packIndexAvailable() },
+      packs: { ok: true, using: packIndexAvailable() ? "external" : "builtin", preview: getPackIndexSafe(false).summary },
     });
   });
 
@@ -1094,7 +1210,12 @@ if (KNOWLEDGE_DEBUG_ENDPOINT) {
       return res.status(404).json({ ok: false, error: "not_found" });
     }
     const summary = reloadKnowledge();
-    return res.status(200).json({ ok: true, summary, knowledge: knowledgeStatusForMeta(), packs: { ok: packIndexAvailable() } });
+    return res.status(200).json({
+      ok: true,
+      summary,
+      knowledge: knowledgeStatusForMeta(),
+      packs: { ok: true, using: packIndexAvailable() ? "external" : "builtin", preview: getPackIndexSafe(false).summary },
+    });
   });
 }
 
@@ -1162,7 +1283,6 @@ async function handleChatRoute(req, res) {
           : "Give me a breath — then hit me again with a year or a request.";
       writeReplay(rec, reply, rec.data.lane || "general");
 
-      // CRITICAL: keep HTTP 200 to avoid client retry loops
       return res.status(200).json({
         ok: true,
         reply,
@@ -1248,8 +1368,8 @@ async function handleChatRoute(req, res) {
     session: rec.data,
     knowledge: knowledgeSnapshotForEngine(),
     __knowledgeStatus: knowledgeStatusForMeta(),
-    // Optional: pack index snapshot so engine can surface chips without extra fs work
-    packIndex: packIndexAvailable() ? getPackIndexSafe(false) : undefined,
+    // ✅ Guaranteed pack index for visibility/chips
+    packIndex: getPackIndexSafe(false),
   };
 
   let out;
@@ -1331,7 +1451,7 @@ async function handleChatRoute(req, res) {
       meaningful: !!meaningful,
       resetSilenced: !!isReset,
       echoSuppressed: !!followUps && Array.isArray(out?.followUpsStrings) && out?.followUpsStrings.length ? true : false,
-      packs: { ok: packIndexAvailable() },
+      packs: getPackIndexSafe(false).summary,
     },
   });
 }
@@ -1527,7 +1647,7 @@ app.listen(PORT, () => {
   // eslint-disable-next-line no-console
   console.log(`[Sandblast] Knowledge pinned=${JSON.stringify(pinnedPresence())}`);
   // eslint-disable-next-line no-console
-  console.log(`[Sandblast] PackIndex: ${packIndexAvailable() ? "OK" : "MISSING"} (Utils/packIndex.js)`);
+  console.log(`[Sandblast] Packs: using=${packIndexAvailable() ? "external" : "builtin"} summary=${JSON.stringify(getPackIndexSafe(false).summary)}`);
 });
 
 module.exports = { app, INDEX_VERSION };
