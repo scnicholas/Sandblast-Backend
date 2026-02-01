@@ -124,6 +124,7 @@ function statSafe(p) {
   } catch (_) {
     return null;
   }
+}
 function resolveDirCaseInsensitive(parentAbs, name) {
   try {
     const direct = path.resolve(parentAbs, name);
@@ -1278,11 +1279,17 @@ function reloadKnowledge() {
   // eslint-disable-next-line no-console
   console.log(`[Sandblast][Knowledge] pinnedPresence=${JSON.stringify(pins)}`);
   // eslint-disable-next-line no-console
-  console.log(`[Sandblast][Knowledge] pinnedResolved=${JSON.stringify((KNOWLEDGE.__packsight?.pinnedResolved || []).slice(0, 12))}`);
+  console.log(
+    `[Sandblast][Knowledge] pinnedResolved=${JSON.stringify((KNOWLEDGE.__packsight?.pinnedResolved || []).slice(0, 12))}`
+  );
   // eslint-disable-next-line no-console
   console.log(`[Sandblast][Knowledge] manifest=${JSON.stringify((KNOWLEDGE.__manifest || []).slice(0, 12))}`);
   // eslint-disable-next-line no-console
-  console.log(`[Sandblast][Knowledge] probes=${JSON.stringify((KNOWLEDGE.__packsight?.probes || []).map((p) => ({ id: p.id, rel: p.rel, any: p.any, best: p.best })) )}`);
+  console.log(
+    `[Sandblast][Knowledge] probes=${JSON.stringify(
+      (KNOWLEDGE.__packsight?.probes || []).map((p) => ({ id: p.id, rel: p.rel, any: p.any, best: p.best }))
+    )}`
+  );
 
   return { ok: KNOWLEDGE.ok, loadedAt: KNOWLEDGE.loadedAt, jsonKeys, scriptKeys, filesLoaded: KNOWLEDGE.filesLoaded };
 }
@@ -2123,8 +2130,7 @@ async function handleChatRoute(req, res) {
       inboundSig: inboundSig ? String(inboundSig).slice(0, 160) : null,
       meaningful: !!meaningful,
       resetSilenced: !!isReset,
-      echoSuppressed:
-        !!followUps && Array.isArray(out?.followUpsStrings) && out?.followUpsStrings.length ? true : false,
+      echoSuppressed: !!followUps && Array.isArray(out?.followUpsStrings) && out?.followUpsStrings.length ? true : false,
       packs: getPackIndexSafe(false).summary,
     },
   });
@@ -2298,7 +2304,7 @@ function ttsGetGuidance(req, res) {
   return res.status(405).json({
     ok: false,
     error: "method_not_allowed",
-    detail: "Use POST with JSON body: { text: \"...\" }",
+    detail: 'Use POST with JSON body: { text: "..." }',
     meta: { index: INDEX_VERSION },
   });
 }
@@ -2354,7 +2360,9 @@ app.listen(PORT, () => {
   );
   // eslint-disable-next-line no-console
   console.log(
-    `[Sandblast] Packsight probes=${JSON.stringify((KNOWLEDGE.__packsight?.probes || []).map((p) => ({ id: p.id, rel: p.rel, any: p.any, best: p.best }))) }`
+    `[Sandblast] Packsight probes=${JSON.stringify(
+      (KNOWLEDGE.__packsight?.probes || []).map((p) => ({ id: p.id, rel: p.rel, any: p.any, best: p.best }))
+    )}`
   );
 });
 
