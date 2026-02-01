@@ -17,22 +17,19 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7aL (CHIP-COMPAT HARDENED + LEGACY TEXT FALLBACK + FLEX PACK SHAPES + TOP10 OUTPUT GUARANTEE)
+ * v0.7aM (YEAR-STICKY MUSIC + CHIP COMPAT + FLEX PACK SHAPES + TOP10 OUTPUT GUARANTEE)
  *
- * CRITICAL FIXES (your report):
- * ✅ Chips ALWAYS include payload.text fallback ("top 10 1981") even if widget drops structured fields
- * ✅ Engine reads chip payload from multiple locations (input.payload, input.payload.payload, input.ctx.payload, etc.)
- * ✅ Top10 pack lookup supports multiple data shapes:
- *    - byYearMap[1981] = [...]
- *    - { data:{1981:[...]} } / { years:{...} } / { byYear:{...} }
- *    - array entries like [{year:1981, top10:[...]}] or [{y:1981, list:[...]}]
- * ✅ Mode precedence fixed: top10 > #1 > micro > story (so top10 never degrades)
+ * CRITICAL FIX (your report):
+ * ✅ If a chip sends only "Top 10" / "#1 song" / "Story moment" (no year),
+ *    engine automatically uses the lastMusicYear from session/cog.
+ *    => mode chips NEVER misroute or “go nowhere” due to missing year.
  *
- * Existing protections kept:
- * ✅ sustained loop fuse
- * ✅ burst dedupe
- * ✅ packets gate prevents hijack of structured music
- * ✅ always-advance (never empty reply)
+ * Other retained fixes:
+ * ✅ Chips include payload.text fallback (legacy-safe)
+ * ✅ Engine reads chip payload from multiple locations
+ * ✅ Top10 pack lookup supports multiple shapes
+ * ✅ Mode precedence fixed: top10 > #1 > micro > story
+ * ✅ sustained loop fuse + burst dedupe + packets gate + always-advance
  */
 
 const crypto = require("crypto");
@@ -62,7 +59,7 @@ try {
 ====================================================== */
 
 const CE_VERSION =
-  "chatEngine v0.7aL (chip-compat hardened + legacy text fallback + flex pack shapes + top10 output guarantee)";
+  "chatEngine v0.7aM (year-sticky music + chip compat + flex pack shapes + top10 output guarantee)";
 
 const MAX_REPLY_LEN = 2400;
 const MAX_FOLLOWUPS = 10;
@@ -205,10 +202,8 @@ function mergeSession(session, patch) {
 function ensureChipPayload(payload) {
   const p = isPlainObject(payload) ? payload : Object.create(null);
 
-  // If we already have a text, keep it.
   const text = normText(p.text);
 
-  // Build legacy text fallback from structured fields, if needed.
   if (!text) {
     const year = clampYear(p.year);
     const mode = normLower(p.mode);
@@ -370,7 +365,6 @@ function recordLoopEvent(session, inboundHash) {
 
 /* ======================================================
    Payload extraction HARDENING
-   (this is why chips “don’t function” across builds)
 ====================================================== */
 
 function getPayloadFromAny(input) {
@@ -398,7 +392,6 @@ function getPayloadFromAny(input) {
 
 function inferMusicModeFromText(low) {
   if (!low) return "";
-  // PRECEDENCE: top10 > #1 > micro > story
   if (/\b(top\s*10|top10)\b/.test(low)) return "top10";
   if (/\b(top\s*40|top40)\b/.test(low)) return "top40";
   if (/\b(year[-\s]*end|yearend)\b/.test(low)) return "year_end";
@@ -459,6 +452,32 @@ function looksLikeStructuredMusic({ lane, action, mode, year, lower }) {
   ) return true;
 
   return false;
+}
+
+/* ======================================================
+   YEAR-STICKY MUSIC (NEW)
+====================================================== */
+
+function getStickyMusicYear(session) {
+  if (!session || typeof session !== "object") return null;
+
+  const a = clampYear(session.lastMusicYear);
+  if (a) return a;
+
+  const c = session.cog && typeof session.cog === "object" ? session.cog : null;
+  if (c) {
+    const b = clampYear(c.lastMusicYear);
+    if (b) return b;
+    const d = clampYear(c.year);
+    if (d) return d;
+  }
+
+  return null;
+}
+
+function needsYearForMode(mode) {
+  const m = normLower(mode);
+  return m === "top10" || m === "number_one" || m === "micro" || m === "story" || m === "top40" || m === "charts" || m === "year_end";
 }
 
 /* ======================================================
@@ -526,7 +545,6 @@ function findYearTextInObject(obj, year) {
   return null;
 }
 
-// Array-style packs: [{year:1981, top10:[...]}] etc.
 function findYearInArrayPack(arr, year) {
   if (!isArray(arr)) return null;
   const y = Number(year);
@@ -546,21 +564,17 @@ function findYearInArrayPack(arr, year) {
 function findTop10InKnowledge(knowledgeJson, year) {
   if (!knowledgeJson || !isPlainObject(knowledgeJson)) return null;
 
-  // 1) pinned-first
   for (const k of PIN_TOP10_KEYS) {
     if (!Object.prototype.hasOwnProperty.call(knowledgeJson, k)) continue;
     const v = knowledgeJson[k];
 
-    // object map
     const direct = findYearArrayInObject(v, year);
     if (direct && direct.length) return { sourceKey: k, list: direct };
 
-    // array pack
     const asArr = findYearInArrayPack(v, year);
     if (asArr && asArr.length) return { sourceKey: k, list: asArr };
   }
 
-  // 2) broader scan
   const keys = Object.keys(knowledgeJson).slice(0, KNOWLEDGE_SCAN_CAP);
   for (const k of keys) {
     const kl = String(k).toLowerCase();
@@ -580,7 +594,6 @@ function findTop10InKnowledge(knowledgeJson, year) {
 function findStoryMomentInKnowledge(knowledgeJson, year) {
   if (!knowledgeJson || !isPlainObject(knowledgeJson)) return null;
 
-  // pinned-first
   for (const k of PIN_STORY_KEYS) {
     if (!Object.prototype.hasOwnProperty.call(knowledgeJson, k)) continue;
     const v = knowledgeJson[k];
@@ -588,7 +601,6 @@ function findStoryMomentInKnowledge(knowledgeJson, year) {
     if (t) return { sourceKey: k, text: t };
   }
 
-  // scan
   const keys = Object.keys(knowledgeJson).slice(0, KNOWLEDGE_SCAN_CAP);
   for (const k of keys) {
     const kl = String(k).toLowerCase();
@@ -600,49 +612,6 @@ function findStoryMomentInKnowledge(knowledgeJson, year) {
   }
 
   return null;
-}
-
-/* ======================================================
-   PackIndex → chips (optional)
-====================================================== */
-
-function makePackExploreChips(packIndex) {
-  if (!packIndex || typeof packIndex !== "object") return [];
-
-  const pins = packIndex.pinned && typeof packIndex.pinned === "object" ? packIndex.pinned : {};
-  const pinnedAny = Object.values(pins).some(Boolean);
-
-  const chips = [];
-
-  chips.push({
-    id: "pk_music",
-    type: "chip",
-    label: pinnedAny ? "Music packs ready" : "Music packs not seen",
-    payload: { lane: "music", action: "start", mode: "top10" },
-  });
-
-  chips.push({
-    id: "pk_1981_top10",
-    type: "chip",
-    label: "1981 Top 10",
-    payload: { lane: "music", action: "year", year: 1981, mode: "top10" },
-  });
-
-  chips.push({
-    id: "pk_1988_story",
-    type: "chip",
-    label: "1988 Story moment",
-    payload: { lane: "music", action: "year", year: 1988, mode: "story" },
-  });
-
-  chips.push({
-    id: "pk_no1",
-    type: "chip",
-    label: "#1 song 1981",
-    payload: { lane: "music", action: "year", year: 1981, mode: "number_one" },
-  });
-
-  return chips.slice(0, MAX_FOLLOWUPS);
 }
 
 /* ======================================================
@@ -696,8 +665,10 @@ function musicReply({ year, mode, knowledge }) {
     if (hit && isArray(hit.list) && hit.list.length >= 10) {
       reply = formatTop10Reply(y, hit.list);
     } else if (hit && isArray(hit.list) && hit.list.length) {
-      // still render if partial — better than nothing
-      reply = `Top songs of ${y} (partial pack):\n\n${hit.list.slice(0, 10).map((v, i) => `${i + 1}. ${normalizeSongLine(v) || String(v)}`).join("\n")}`;
+      reply = `Top songs of ${y} (partial pack):\n\n${hit.list
+        .slice(0, 10)
+        .map((v, i) => `${i + 1}. ${normalizeSongLine(v) || String(v)}`)
+        .join("\n")}`;
     } else {
       reply = `Top 10 for ${y}: I don’t see a usable Top 10 list in the loaded packs yet.`;
     }
@@ -741,7 +712,7 @@ function musicReply({ year, mode, knowledge }) {
 }
 
 /* ======================================================
-   Packets gate
+   Packets gate + always-advance
 ====================================================== */
 
 function computeAllowPackets({ structuredMusic, lane }) {
@@ -749,10 +720,6 @@ function computeAllowPackets({ structuredMusic, lane }) {
   if (lane === "music" || lane === "years") return false;
   return true;
 }
-
-/* ======================================================
-   Always-advance safety
-====================================================== */
 
 function ensureAdvance({ reply, followUps }) {
   const r = normText(reply);
@@ -834,8 +801,13 @@ async function handleChat(input = {}) {
   if (forcedMode) inbound.mode = forcedMode;
   if (!inbound.year && intentMusicYear) inbound.year = intentMusicYear;
 
-  // If we still don't have mode, infer from text with precedence
   if (!inbound.mode) inbound.mode = inferMusicModeFromText(inbound.lower);
+
+  // YEAR-STICKY: if we have a mode that requires a year and no year was provided, pull from session/cog
+  if (!inbound.year && inbound.mode && needsYearForMode(inbound.mode)) {
+    const sticky = getStickyMusicYear(session);
+    if (sticky) inbound.year = sticky;
+  }
 
   const inboundHash = sha1(
     JSON.stringify({
@@ -908,7 +880,6 @@ async function handleChat(input = {}) {
   let routed = null;
 
   if (structuredMusic) {
-    // HARD LOCK: if top10 implied anywhere, enforce it
     const implied = inferMusicModeFromText(inbound.lower);
     const mode = (implied === "top10" ? "top10" : inbound.mode) || "top10";
 
@@ -920,22 +891,6 @@ async function handleChat(input = {}) {
 
     mergeSession(session, routed.sessionPatch);
   } else {
-    // PackIndex intro chips (optional, once)
-    const packIndex = input.packIndex || null;
-    const packChips = makePackExploreChips(packIndex);
-
-    if (!session.__packIndexSeen && packChips.length) {
-      session.__packIndexSeen = true;
-      routed = {
-        reply: "Packs check: tap a chip and I’ll pull it. If it doesn’t render, we’ll know it’s a pack-shape issue—not routing.",
-        followUps: packChips,
-        sessionPatch: { __packIndexSeen: true, lane: session.lane || "general" },
-        meta: { used: "pack_index_intro" },
-      };
-      mergeSession(session, routed.sessionPatch);
-    }
-
-    // Packets if allowed
     if (!routed && packets && typeof packets.handleChat === "function" && session.allowPackets) {
       const p = await packets.handleChat({
         text: inbound.text,
@@ -952,7 +907,7 @@ async function handleChat(input = {}) {
             id: safeId("chip"),
             type: "chip",
             label: x.label,
-            payload: { text: x.send }, // legacy-safe
+            payload: { text: x.send },
           }))
         );
 
@@ -966,7 +921,6 @@ async function handleChat(input = {}) {
       }
     }
 
-    // Text-only year fallback
     if (!routed) {
       const y = inbound.year || extractYearFromText(inbound.text);
       const mode = inferMusicModeFromText(inbound.lower) || "story";
@@ -991,7 +945,6 @@ async function handleChat(input = {}) {
   }
 
   const safeOut = ensureAdvance({ reply: routed.reply, followUps: routed.followUps });
-
   const followUps = sanitizeFollowUps(safeOut.followUps || []);
 
   const out = {
@@ -1006,6 +959,7 @@ async function handleChat(input = {}) {
       musicYear: inbound.year || null,
       classifierAction: forcedMode || null,
       payloadSeen: !!inbound.payload,
+      stickyYearUsed: (!extractYearFromText(inbound.text) && !!inbound.year) ? true : false,
     },
     ui: null,
     directives: [],
@@ -1045,23 +999,12 @@ async function handleChat(input = {}) {
 /**
  * Export aliases for maximum compatibility with index.js resolvers.
  */
-function module_handleChat(args) {
-  return handleChat(args);
-}
-function respond(args) {
-  return handleChat(args);
-}
-function chat(args) {
-  return handleChat(args);
-}
-function run(args) {
-  return handleChat(args);
-}
-function route(args) {
-  return handleChat(args);
-}
+function module_handleChat(args) { return handleChat(args); }
+function respond(args) { return handleChat(args); }
+function chat(args) { return handleChat(args); }
+function run(args) { return handleChat(args); }
+function route(args) { return handleChat(args); }
 
-// attach version for resolvers that read off functions
 handleChat.CE_VERSION = CE_VERSION;
 module_handleChat.CE_VERSION = CE_VERSION;
 
