@@ -3,18 +3,13 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18ap (PACK VISIBILITY HARDENING+++: allow Data outside APP_ROOT + bigger budgets + PUBLIC /api/packsight)
+ * index.js v1.5.18aq (PACK VISIBILITY HARDENING++++: multi-root crawl + manifest resolves across ALL data roots + stable keying)
  *
- * Key fix vs 1.5.18ao:
- *  ✅ CRITICAL: Data/Scripts no longer blocked just because they’re outside APP_ROOT (Render persistent disk mounts, etc.)
- *     - KNOWLEDGE_ALLOW_DATA_OUTSIDE_APP_ROOT defaults TRUE
- *     - KNOWLEDGE_ALLOW_SCRIPTS_OUTSIDE_APP_ROOT defaults FALSE (safer)
- *  ✅ CRITICAL: bump default file budgets so large wikipedia packs don’t silently skip
- *  ✅ NEW: /api/packsight is PUBLIC + SAFE (no prod debug gate) so you can diagnose immediately
- *
- * Keeps everything else: case-insensitive DATA/SCRIPTS resolution, multi-root pinned resolution, manifest fallback, built-in pack index,
- * chip normalizer, Nyx Voice Naturalizer, budgets, crash-proof boot, safe JSON parse, diagnostics, error middleware, knowledge bridge,
- * CORS hard-lock, loop fuse, boot isolation, output normalization, REAL ElevenLabs TTS, GET /api/tts + /api/voice guidance
+ * Key fix vs 1.5.18ap:
+ *  ✅ CRITICAL: Manifest paths (wikipedia/charts/movies/sponsors) now resolve across ALL DATA_ROOT_CANDIDATES (not just DATA_DIR)
+ *  ✅ CRITICAL: JSON crawl now walks ALL data roots (not just “bestDataRoot”), so packs don’t “vanish” when mounted elsewhere
+ *  ✅ CRITICAL: Stable keying chooses the “best root” per file (shortest rel path) to avoid split/duplicate namespaces
+ *  ✅ Keeps: allow Data outside APP_ROOT (default TRUE), bigger budgets, PUBLIC /api/packsight, pinned resolver, case-insensitive resolution, etc.
  */
 
 // =========================
@@ -73,7 +68,7 @@ const nyxVoiceNaturalizeMod =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18ap (PACK VISIBILITY HARDENING+++: allow Data outside APP_ROOT + bigger budgets + PUBLIC /api/packsight + case-insensitive Data/Scripts resolution + pinned/manifest path fallback + packsight diagnostics + manifest target probes + pinned packs to real Data/* files + manifest tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
+  "index.js v1.5.18aq (PACK VISIBILITY HARDENING++++: multi-root crawl + manifest resolves across ALL data roots + stable keying + allow Data outside APP_ROOT + bigger budgets + PUBLIC /api/packsight + case-insensitive Data/Scripts resolution + pinned/manifest path fallback + packsight diagnostics + manifest target probes + pinned packs to real Data/* files + manifest tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
 
 // =========================
 // Utils
@@ -291,6 +286,7 @@ let SCRIPTS_DIR = resolveScriptsDirFromEnv();
 const DATA_ROOT_CANDIDATES = (() => {
   const out = [];
   const pushUnique = (p) => {
+    if (!p) return;
     const rp = path.resolve(p);
     if (!out.includes(rp)) out.push(rp);
   };
@@ -392,12 +388,16 @@ const PINNED_PACKS = [
 // PACK MANIFEST LOADER (CRITICAL)
 // Loads: movies, sponsors, top40 weekly, wikipedia into stable keys
 // =========================
+//
+// NOTE (v1.5.18aq): Manifest items now use rel paths for DATA roots.
+//                   Resolver tries across DATA_ROOT_CANDIDATES (mounted disks, etc.).
+//
 const PACK_MANIFEST = [
   // --- MUSIC: Wikipedia Year-End Hot 100 (single merged file you generate) ---
   {
     key: "music/wiki/yearend_hot100_raw",
-    type: "json_file",
-    abs: path.resolve(DATA_DIR, "wikipedia/billboard_yearend_hot100_1950_2024.json"),
+    type: "json_file_rel",
+    rel: "wikipedia/billboard_yearend_hot100_1950_2024.json",
     transform: (payload) => manifestBuildYearMapFromRows(payload, "yearend_hot100"),
     outKey: "music/wiki/yearend_hot100_by_year",
   },
@@ -405,8 +405,8 @@ const PACK_MANIFEST = [
   // --- MUSIC: Top 40 weekly (folder of JSON packs) ---
   {
     key: "music/top40_weekly_raw",
-    type: "json_dir",
-    abs: path.resolve(DATA_DIR, "charts/top40_weekly"),
+    type: "json_dir_rel",
+    rel: "charts/top40_weekly",
     postTransform: (allJson) => manifestBuildTop40WeeklyIndex(allJson, "music/top40_weekly_raw"),
     outKey: "music/top40_weekly_by_year_week",
   },
@@ -414,21 +414,21 @@ const PACK_MANIFEST = [
   // --- MOVIES ---
   {
     key: "movies/roku_catalog",
-    type: "json_file_or_dir",
-    abs: path.resolve(DATA_DIR, "movies"),
+    type: "json_file_or_dir_rel",
+    rel: "movies",
   },
 
   // --- SPONSORS ---
   {
     key: "sponsors/packs",
-    type: "json_file_or_dir",
-    abs: path.resolve(DATA_DIR, "sponsors"),
+    type: "json_file_or_dir_rel",
+    rel: "sponsors",
   },
 
   // OPTIONAL: if you have runtime JSON packs under Scripts (NOT build scripts)
   {
     key: "legacy/scripts_json",
-    type: "json_dir",
+    type: "json_dir_abs",
     abs: path.resolve(SCRIPTS_DIR, "packs_json"),
   },
 ];
@@ -754,6 +754,33 @@ function fileKeyFromPath(rootAbs, fp) {
   return noExt.replace(/[^a-zA-Z0-9/_\-\.]/g, "_");
 }
 
+// v1.5.18aq: choose the “best” root for a file so keys don’t fragment across mounts
+function bestKeyForFile(fp, roots) {
+  const abs = path.resolve(fp);
+  const candidates = Array.isArray(roots) ? roots : [];
+  let best = null;
+
+  for (const r of candidates) {
+    if (!r) continue;
+    const rr = path.resolve(r);
+    if (!isWithinRoot(abs, rr)) continue;
+    const rel = path.relative(rr, abs).replace(/\\/g, "/");
+    if (!rel || rel.startsWith("..")) continue;
+
+    // prefer shorter rel (more “direct” root)
+    const score = rel.length;
+    if (!best || score < best.score) best = { root: rr, rel, score };
+  }
+
+  if (best) return fileKeyFromPath(best.root, abs);
+
+  // fallback: prefer DATA_DIR if it contains it
+  if (DATA_DIR && isWithinRoot(abs, DATA_DIR)) return fileKeyFromPath(DATA_DIR, abs);
+
+  // absolute fallback
+  return fileKeyFromPath(APP_ROOT, abs);
+}
+
 function sanitizeScriptExport(x) {
   if (x === null || x === undefined) return null;
   if (typeof x === "function") return { __type: "function", name: safeStr(x.name || "anonymous") };
@@ -793,6 +820,21 @@ function resolvePinnedFileAbs(rels) {
       const fpCI = resolveRelPathCaseInsensitive(base, relNorm);
       if (fileExists(fpCI)) return fpCI;
     }
+  }
+  return null;
+}
+
+// v1.5.18aq: resolve a manifest REL across all data roots (file OR dir)
+function resolveDataRelAcrossRoots(rel) {
+  const relNorm = String(rel || "").replace(/\\/g, "/").replace(/^\/+/, "");
+  if (!relNorm) return null;
+
+  for (const base of DATA_ROOT_CANDIDATES) {
+    const direct = path.resolve(base, relNorm);
+    if (fileExists(direct)) return direct;
+
+    const ci = resolveRelPathCaseInsensitive(base, relNorm);
+    if (fileExists(ci)) return ci;
   }
   return null;
 }
@@ -917,12 +959,12 @@ function manifestBuildTop40WeeklyIndex(allJson, prefixKey) {
   return { ok: true, label: "top40_weekly", byYearWeek, builtAt: new Date().toISOString() };
 }
 
-// If a manifest path is missing, retry with case-insensitive resolution relative to DATA_DIR / SCRIPTS_DIR / APP_ROOT.
+// If a manifest path is missing, retry with case-insensitive resolution relative to DATA roots / SCRIPTS_DIR / APP_ROOT.
 function resolveManifestAbsFallback(absPath) {
   const p = path.resolve(absPath);
   if (fileExists(p)) return p;
 
-  // If path is under DATA_DIR or a known data root, retry case-insensitive relative traversal.
+  // If path is under a known data root, retry case-insensitive relative traversal.
   for (const base of DATA_ROOT_CANDIDATES) {
     try {
       const rel = path.relative(base, p);
@@ -1042,8 +1084,10 @@ function manifestLoadPacks(loadedFiles, totalBytesRef) {
 
   for (const item of PACK_MANIFEST) {
     try {
-      if (item.type === "json_file") {
-        const res = manifestLoadJsonFileIntoKey(item.abs, item.key, loadedFiles, totalBytesRef);
+      // v1.5.18aq: resolve rels across roots (data mounts, etc.)
+      if (item.type === "json_file_rel") {
+        const fp = resolveDataRelAcrossRoots(item.rel);
+        const res = fp ? manifestLoadJsonFileIntoKey(fp, item.key, loadedFiles, totalBytesRef) : { ok: false, reason: "missing" };
 
         if (res.ok && !res.skipped && typeof item.transform === "function" && item.outKey) {
           const derived = item.transform(KNOWLEDGE.json[item.key]);
@@ -1054,8 +1098,9 @@ function manifestLoadPacks(loadedFiles, totalBytesRef) {
         continue;
       }
 
-      if (item.type === "json_dir") {
-        const res = manifestLoadJsonDirIntoPrefix(item.abs, item.key, loadedFiles, totalBytesRef);
+      if (item.type === "json_dir_rel") {
+        const dir = resolveDataRelAcrossRoots(item.rel);
+        const res = dir ? manifestLoadJsonDirIntoPrefix(dir, item.key, loadedFiles, totalBytesRef) : { ok: false, reason: "missing_dir" };
 
         if (res.ok && typeof item.postTransform === "function" && item.outKey) {
           const derived = item.postTransform(KNOWLEDGE.json, item.key);
@@ -1066,9 +1111,23 @@ function manifestLoadPacks(loadedFiles, totalBytesRef) {
         continue;
       }
 
-      if (item.type === "json_file_or_dir") {
-        const res = manifestLoadFileOrDir(item.abs, item.key, loadedFiles, totalBytesRef);
+      if (item.type === "json_file_or_dir_rel") {
+        const p = resolveDataRelAcrossRoots(item.rel);
+        const res = p ? manifestLoadFileOrDir(p, item.key, loadedFiles, totalBytesRef) : { ok: false, reason: "missing_file_or_dir" };
         loadedSummary.push({ key: item.key, ok: res.ok, reason: res.reason || "" });
+        continue;
+      }
+
+      // absolute types (scripts etc.)
+      if (item.type === "json_dir_abs") {
+        const res = manifestLoadJsonDirIntoPrefix(item.abs, item.key, loadedFiles, totalBytesRef);
+        loadedSummary.push({ key: item.key, ok: res.ok, loaded: res.loaded || 0, reason: res.reason || "" });
+        continue;
+      }
+
+      if (item.type === "json_file_abs") {
+        const res = manifestLoadJsonFileIntoKey(item.abs, item.key, loadedFiles, totalBytesRef);
+        loadedSummary.push({ key: item.key, ok: res.ok, skipped: !!res.skipped, reason: res.reason || "" });
         continue;
       }
     } catch (e) {
@@ -1224,14 +1283,27 @@ function reloadKnowledge() {
     }
   }
 
-  // ---- Crawl remaining JSON files (choose best existing root for walk) ----
+  // ---- Crawl remaining JSON files (v1.5.18aq: walk ALL data roots, not just one) ----
   const jsonFiles = [];
-  const bestDataRoot = DATA_ROOT_CANDIDATES.find((d) => {
+  const seen = new Set();
+
+  const rootsToWalk = DATA_ROOT_CANDIDATES.filter((d) => {
     const st = statSafe(d);
     return st && st.isDirectory();
   });
 
-  if (bestDataRoot) walkFiles(bestDataRoot, [".json"], jsonFiles, KNOWLEDGE_MAX_FILES);
+  for (const root of rootsToWalk) {
+    if (jsonFiles.length >= KNOWLEDGE_MAX_FILES) break;
+    const tmp = [];
+    walkFiles(root, [".json"], tmp, Math.max(0, KNOWLEDGE_MAX_FILES - jsonFiles.length));
+    for (const fp of tmp) {
+      const abs = path.resolve(fp);
+      if (seen.has(abs)) continue;
+      seen.add(abs);
+      jsonFiles.push(abs);
+      if (jsonFiles.length >= KNOWLEDGE_MAX_FILES) break;
+    }
+  }
 
   const jsFiles = [];
   if (scriptsOk && KNOWLEDGE_ENABLE_SCRIPTS) {
@@ -1251,8 +1323,8 @@ function reloadKnowledge() {
       continue;
     }
 
-    totalBytesRef.value += r.size;
-    if (totalBytesRef.value > KNOWLEDGE_MAX_TOTAL_BYTES) {
+    const nextTotal = totalBytesRef.value + r.size;
+    if (nextTotal > KNOWLEDGE_MAX_TOTAL_BYTES) {
       pushKnowledgeError("budget", fp, "total bytes budget exceeded; stopping load");
       break;
     }
@@ -1265,14 +1337,18 @@ function reloadKnowledge() {
       continue;
     }
 
-    // IMPORTANT: keyFromPath must be consistent. Prefer the bestDataRoot for stable keys.
-    const key = bestDataRoot ? fileKeyFromPath(bestDataRoot, fp) : fileKeyFromPath(DATA_DIR, fp);
+    // v1.5.18aq: stable per-file key using best root (prevents fragmentation)
+    const key = bestKeyForFile(fp, rootsToWalk.length ? rootsToWalk : DATA_ROOT_CANDIDATES);
+
     if (!Object.prototype.hasOwnProperty.call(KNOWLEDGE.json, key)) {
       KNOWLEDGE.json[key] = parsed;
     }
     KNOWLEDGE.filesLoaded += 1;
+    totalBytesRef.value = nextTotal;
     KNOWLEDGE.totalBytes = totalBytesRef.value;
     loadedFiles.add(fp);
+
+    if (totalBytesRef.value > KNOWLEDGE_MAX_TOTAL_BYTES) break;
   }
 
   if (scriptsOk && KNOWLEDGE_ENABLE_SCRIPTS) {
@@ -1905,7 +1981,13 @@ if (KNOWLEDGE_DEBUG_ENDPOINT) {
         pinned: pinnedPresence(),
         pinnedConfig: PINNED_PACKS.map((p) => ({ key: p.key, rels: p.rels })),
         manifest: Array.isArray(KNOWLEDGE.__manifest) ? KNOWLEDGE.__manifest : [],
-        manifestConfig: PACK_MANIFEST.map((m) => ({ key: m.key, type: m.type, abs: m.abs, outKey: m.outKey || null })),
+        manifestConfig: PACK_MANIFEST.map((m) => ({
+          key: m.key,
+          type: m.type,
+          rel: m.rel || null,
+          abs: m.abs || null,
+          outKey: m.outKey || null,
+        })),
         packsight: KNOWLEDGE.__packsight,
         errorCount: KNOWLEDGE.errors.length,
         errorsPreview: KNOWLEDGE.errors.slice(0, 12),
