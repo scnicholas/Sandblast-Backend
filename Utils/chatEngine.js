@@ -17,14 +17,15 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7aO (FIRST-TURN ROUTER FOLLOWUPS + v0.7aN HARDENING PRESERVED)
+ * v0.7aP (TOP10 PACK WRAPPER UNWRAP + KEY BROADENING + DIAGNOSTIC META)
  *
- * Critical adds vs v0.7aN:
- * ✅ FIRST-TURN ROUTER FOLLOWUPS: when session is fresh (or panel_open_intro) and followUps are missing/empty,
- *    Nyx ALWAYS emits a widget-compatible set so the UI can advance deterministically (prevents “frozen chips / no change”).
- * ✅ Session-internal turn counter (__turnCount) to reliably detect first turn without depending on client state.
+ * Critical adds vs v0.7aO:
+ * ✅ PACK WRAPPER UNWRAP: supports knowledge values wrapped as {data|json|value|content|pack|parsed} (common index-side patterns).
+ *    Fixes “Top 10 not usable” when the pack is loaded but stored under a wrapper object instead of raw year-map/rows.
+ * ✅ KEY BROADENING: detects top10 packs by key substrings (top10_by_year, top10-by-year, etc.) in addition to pinned keys.
+ * ✅ Optional diagnostics in debug meta: top10HitKey + top10HitShape when a year lookup fails.
  *
- * (All v0.7aN fixes preserved)
+ * (All v0.7aO fixes preserved)
  */
 
 const crypto = require("crypto");
@@ -54,7 +55,7 @@ try {
 ====================================================== */
 
 const CE_VERSION =
-  "chatEngine v0.7aO (first-turn router followUps + routing hardening + payload-root fallback + chip-authoritative mode + sticky-year source + session-scoped burst dedupe)";
+  "chatEngine v0.7aP (pack unwrap + top10 key broadening + first-turn router followUps + routing hardening + payload-root fallback + chip-authoritative mode + sticky-year source + session-scoped burst dedupe)";
 
 const MAX_REPLY_LEN = 2400;
 const MAX_FOLLOWUPS = 10;
@@ -129,6 +130,14 @@ function sha1(s) {
 
 function safeId(prefix = "id") {
   return `${prefix}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function safeJsonStringify(x) {
+  try {
+    return JSON.stringify(x);
+  } catch (_) {
+    return "";
+  }
 }
 
 /* ======================================================
@@ -592,6 +601,7 @@ function normalizeSongLine(item) {
   return null;
 }
 
+// Pinned + compatibility keys (do not delete)
 const PIN_TOP10_KEYS = ["music/top10_by_year", "music/number1_by_year", "music/top10"];
 const PIN_STORY_KEYS = [
   "music/story_moments_by_year",
@@ -602,36 +612,78 @@ const PIN_STORY_KEYS = [
 
 const KNOWLEDGE_SCAN_CAP = 1200;
 
+// NEW: unwrap common index-side wrapper shapes
+function unwrapPackValue(v, depth = 0) {
+  if (depth > 3) return v;
+  if (!v) return v;
+
+  // If it's already a direct array, we keep it (row-based packs)
+  if (isArray(v)) return v;
+
+  if (!isPlainObject(v)) return v;
+
+  // Common wrapper fields (seen in many loaders)
+  const cands = ["data", "json", "value", "content", "pack", "parsed", "payload"];
+  for (const k of cands) {
+    if (Object.prototype.hasOwnProperty.call(v, k)) {
+      const inner = v[k];
+      // If inner is non-empty, unwrap it
+      if (inner != null) return unwrapPackValue(inner, depth + 1);
+    }
+  }
+
+  // Some loaders store as { fp, ... , blob: <data> } or { file, ... }
+  if (Object.prototype.hasOwnProperty.call(v, "blob") && v.blob != null) {
+    return unwrapPackValue(v.blob, depth + 1);
+  }
+
+  return v;
+}
+
+function shapeHint(x) {
+  if (isArray(x)) return "array";
+  if (isPlainObject(x)) {
+    const keys = Object.keys(x);
+    const head = keys.slice(0, 6).join(",");
+    return `object(${keys.length})[${head}]`;
+  }
+  return typeof x;
+}
+
 function findYearArrayInObject(obj, year) {
-  if (!isPlainObject(obj)) return null;
+  const o = unwrapPackValue(obj);
+  if (!isPlainObject(o)) return null;
   const y = String(year);
 
-  if (obj[y] && isArray(obj[y])) return obj[y];
-  if (obj[year] && isArray(obj[year])) return obj[year];
+  if (o[y] && isArray(o[y])) return o[y];
+  if (o[year] && isArray(o[year])) return o[year];
 
-  const candidates = [obj.data, obj.years, obj.byYear, obj.year];
+  const candidates = [o.data, o.years, o.byYear, o.year];
   for (const c of candidates) {
-    if (!isPlainObject(c)) continue;
-    if (c[y] && isArray(c[y])) return c[y];
-    if (c[year] && isArray(c[year])) return c[year];
+    const cc = unwrapPackValue(c);
+    if (!isPlainObject(cc)) continue;
+    if (cc[y] && isArray(cc[y])) return cc[y];
+    if (cc[year] && isArray(cc[year])) return cc[year];
   }
 
   return null;
 }
 
 function findYearTextInObject(obj, year) {
-  if (!isPlainObject(obj)) return null;
+  const o = unwrapPackValue(obj);
+  if (!isPlainObject(o)) return null;
   const y = String(year);
 
-  const v1 = obj[y] || obj[year];
+  const v1 = o[y] || o[year];
   if (isString(v1) && v1.trim()) return v1.trim();
   if (isPlainObject(v1) && isString(v1.moment || v1.story || v1.text))
     return normText(v1.moment || v1.story || v1.text);
 
-  const candidates = [obj.data, obj.years, obj.byYear, obj.year];
+  const candidates = [o.data, o.years, o.byYear, o.year];
   for (const c of candidates) {
-    if (!isPlainObject(c)) continue;
-    const v = c[y] || c[year];
+    const cc = unwrapPackValue(c);
+    if (!isPlainObject(cc)) continue;
+    const v = cc[y] || cc[year];
     if (isString(v) && v.trim()) return v.trim();
     if (isPlainObject(v) && isString(v.moment || v.story || v.text))
       return normText(v.moment || v.story || v.text);
@@ -641,10 +693,11 @@ function findYearTextInObject(obj, year) {
 }
 
 function findYearInArrayPack(arr, year) {
-  if (!isArray(arr)) return null;
+  const a = unwrapPackValue(arr);
+  if (!isArray(a)) return null;
   const y = Number(year);
 
-  for (const row of arr) {
+  for (const row of a) {
     if (!isPlainObject(row)) continue;
     const ry = clampYear(row.year || row.y || row.yr);
     if (ry !== y) continue;
@@ -656,31 +709,56 @@ function findYearInArrayPack(arr, year) {
   return null;
 }
 
+function keyLooksLikeTop10(k) {
+  const kl = String(k || "").toLowerCase();
+  if (!kl) return false;
+  return (
+    kl.includes("top10_by_year") ||
+    kl.includes("top10-by-year") ||
+    kl.includes("top_10_by_year") ||
+    kl.includes("top10") ||
+    kl.includes("top_10") ||
+    kl.includes("topten") ||
+    kl.includes("chart") ||
+    kl.includes("charts")
+  );
+}
+
+function keyLooksLikeMoment(k) {
+  const kl = String(k || "").toLowerCase();
+  if (!kl) return false;
+  return kl.includes("moment") || kl.includes("story") || kl.includes("micro");
+}
+
 function findTop10InKnowledge(knowledgeJson, year) {
   if (!knowledgeJson || !isPlainObject(knowledgeJson)) return null;
 
+  // 1) pinned keys first
   for (const k of PIN_TOP10_KEYS) {
     if (!Object.prototype.hasOwnProperty.call(knowledgeJson, k)) continue;
-    const v = knowledgeJson[k];
+    const raw = knowledgeJson[k];
+    const v = unwrapPackValue(raw);
 
     const direct = findYearArrayInObject(v, year);
-    if (direct && direct.length) return { sourceKey: k, list: direct };
+    if (direct && direct.length) return { sourceKey: k, list: direct, shape: shapeHint(v) };
 
     const asArr = findYearInArrayPack(v, year);
-    if (asArr && asArr.length) return { sourceKey: k, list: asArr };
+    if (asArr && asArr.length) return { sourceKey: k, list: asArr, shape: shapeHint(v) };
   }
 
+  // 2) broadened scan
   const keys = Object.keys(knowledgeJson).slice(0, KNOWLEDGE_SCAN_CAP);
   for (const k of keys) {
-    const kl = String(k).toLowerCase();
-    if (!(kl.includes("top10") || kl.includes("top_10") || kl.includes("chart") || kl.includes("topten"))) continue;
+    if (!keyLooksLikeTop10(k)) continue;
 
-    const v = knowledgeJson[k];
+    const raw = knowledgeJson[k];
+    const v = unwrapPackValue(raw);
+
     const direct = findYearArrayInObject(v, year);
-    if (direct && direct.length) return { sourceKey: k, list: direct };
+    if (direct && direct.length) return { sourceKey: k, list: direct, shape: shapeHint(v) };
 
     const asArr = findYearInArrayPack(v, year);
-    if (asArr && asArr.length) return { sourceKey: k, list: asArr };
+    if (asArr && asArr.length) return { sourceKey: k, list: asArr, shape: shapeHint(v) };
   }
 
   return null;
@@ -691,19 +769,22 @@ function findStoryMomentInKnowledge(knowledgeJson, year) {
 
   for (const k of PIN_STORY_KEYS) {
     if (!Object.prototype.hasOwnProperty.call(knowledgeJson, k)) continue;
-    const v = knowledgeJson[k];
+    const raw = knowledgeJson[k];
+    const v = unwrapPackValue(raw);
+
     const t = findYearTextInObject(v, year);
-    if (t) return { sourceKey: k, text: t };
+    if (t) return { sourceKey: k, text: t, shape: shapeHint(v) };
   }
 
   const keys = Object.keys(knowledgeJson).slice(0, KNOWLEDGE_SCAN_CAP);
   for (const k of keys) {
-    const kl = String(k).toLowerCase();
-    if (!(kl.includes("moment") || kl.includes("story") || kl.includes("micro"))) continue;
+    if (!keyLooksLikeMoment(k)) continue;
 
-    const v = knowledgeJson[k];
+    const raw = knowledgeJson[k];
+    const v = unwrapPackValue(raw);
+
     const t = findYearTextInObject(v, year);
-    if (t) return { sourceKey: k, text: t };
+    if (t) return { sourceKey: k, text: t, shape: shapeHint(v) };
   }
 
   return null;
@@ -736,9 +817,24 @@ function musicReply({ year, mode, knowledge }) {
     return {
       reply: "Pick a year between 1950 and 2024 and I’ll pull the Top 10, #1, or a story moment — your call.",
       followUps: [
-        { id: "y1981", type: "chip", label: "1981 Top 10", payload: { lane: "music", action: "year", year: 1981, mode: "top10" } },
-        { id: "y1981no1", type: "chip", label: "#1 song (1981)", payload: { lane: "music", action: "year", year: 1981, mode: "number_one" } },
-        { id: "y1988", type: "chip", label: "1988 Story moment", payload: { lane: "music", action: "year", year: 1988, mode: "story" } },
+        {
+          id: "y1981",
+          type: "chip",
+          label: "1981 Top 10",
+          payload: { lane: "music", action: "year", year: 1981, mode: "top10" },
+        },
+        {
+          id: "y1981no1",
+          type: "chip",
+          label: "#1 song (1981)",
+          payload: { lane: "music", action: "year", year: 1981, mode: "number_one" },
+        },
+        {
+          id: "y1988",
+          type: "chip",
+          label: "1988 Story moment",
+          payload: { lane: "music", action: "year", year: 1988, mode: "story" },
+        },
       ],
       sessionPatch: { lane: "music", activeMusicMode: m || "top10" },
       meta: { used: "music_no_year" },
@@ -754,26 +850,33 @@ function musicReply({ year, mode, knowledge }) {
   const wantsCharts = m === "charts" || m === "year_end" || m === "top40";
 
   let reply = "";
+  let diag = null;
 
   if (wantsTop10) {
     const hit = findTop10InKnowledge(knowledgeJson, y);
     if (hit && isArray(hit.list) && hit.list.length >= 10) {
       reply = formatTop10Reply(y, hit.list);
+      diag = { top10HitKey: hit.sourceKey, top10HitShape: hit.shape || null, top10Len: hit.list.length };
     } else if (hit && isArray(hit.list) && hit.list.length) {
       reply = `Top songs of ${y} (partial pack):\n\n${hit.list
         .slice(0, 10)
         .map((v, i) => `${i + 1}. ${normalizeSongLine(v) || String(v)}`)
         .join("\n")}`;
+      diag = { top10HitKey: hit.sourceKey, top10HitShape: hit.shape || null, top10Len: hit.list.length };
     } else {
       reply = `Top 10 for ${y}: I don’t see a usable Top 10 list in the loaded packs yet.`;
+      // helpful debug-only hint
+      diag = { top10HitKey: null, top10HitShape: null, top10Len: 0 };
     }
   } else if (wantsNumberOne) {
     const hit = findTop10InKnowledge(knowledgeJson, y);
     if (hit && isArray(hit.list) && hit.list.length) {
       const first = normalizeSongLine(hit.list[0]) || null;
       reply = first ? `#1 song of ${y}: ${first}` : `#1 song of ${y}: (data loaded, format unexpected).`;
+      diag = { top10HitKey: hit.sourceKey, top10HitShape: hit.shape || null, top10Len: hit.list.length };
     } else {
       reply = `#1 song of ${y}: I can pull it once the chart pack for that year is usable.`;
+      diag = { top10HitKey: null, top10HitShape: null, top10Len: 0 };
     }
   } else if (wantsMicro) {
     const story = findStoryMomentInKnowledge(knowledgeJson, y);
@@ -781,12 +884,14 @@ function musicReply({ year, mode, knowledge }) {
       story && story.text
         ? `Micro moment (${y}): ${clampStr(story.text, 260)}`
         : `Micro moment for ${y}: give me a vibe (soul, rock, pop) or an artist and I’ll make it razor-specific.`;
+    diag = story ? { momentKey: story.sourceKey, momentShape: story.shape || null } : { momentKey: null };
   } else if (wantsStory) {
     const story = findStoryMomentInKnowledge(knowledgeJson, y);
     reply =
       story && story.text
         ? `Story moment for ${y}: ${clampStr(story.text, 900)}`
         : `Story moment for ${y}: I can anchor it on the year’s #1 song and give you the cultural pulse in 50–60 words.`;
+    diag = story ? { momentKey: story.sourceKey, momentShape: story.shape || null } : { momentKey: null };
   } else if (wantsCharts) {
     reply = `Got it — ${y}. Do you want the Top 10 list, or just the #1 with a quick story moment?`;
   } else {
@@ -804,7 +909,7 @@ function musicReply({ year, mode, knowledge }) {
     reply,
     followUps,
     sessionPatch: { lane: "music", lastMusicYear: y, activeMusicMode: m || "top10" },
-    meta: { used: "music_reply", mode: m || null },
+    meta: { used: "music_reply", mode: m || null, diag: diag || null },
   };
 }
 
@@ -930,7 +1035,7 @@ async function handleChat(input = {}) {
   }
 
   const inboundHash = sha1(
-    JSON.stringify({
+    safeJsonStringify({
       t: inbound.lower,
       lane: inbound.lane,
       action: inbound.action,
