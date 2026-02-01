@@ -3,14 +3,13 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18al (PINNED PACKS FIX: maps to your REAL Data/* filenames + keeps manifest loader + built-in pack index + chip normalizer + Nyx Voice Naturalizer + budgets + crash-proof boot)
+ * index.js v1.5.18am (PINNED PACKS FIX + MANIFEST TOLERANCE + TTS GET ALIAS)
  *
- * Key fix vs 1.5.18ak:
- *  ✅ Pinned packs now resolve to the filenames that ACTUALLY exist in your Data folder:
- *     - Top 10: Data/top10_by_year_v1.json (+ optional source)
- *     - Story moments: Data/music_story_moments_v1.json (+ generated fallback)
- *     - Micro moments: Data/music_moments_v1.json / v2 / layer2 / layer3
- *  ✅ Leaves #1 song pinned key in place (will stay false until you add a number1 pack file)
+ * Key fix vs 1.5.18al:
+ *  ✅ Manifest transforms now tolerate wikipedia payloads that are either {rows:[...]} OR a raw array [...]
+ *  ✅ Manifest loader now records parse/read errors consistently (pushKnowledgeError)
+ *  ✅ Adds GET /api/tts + GET /api/voice (returns 405 with guidance) to reduce “wrong method” confusion
+ *  ✅ Keeps pinned packs mapped to your real Data/* filenames, built-in pack index, chip normalizer, Nyx Voice Naturalizer, budgets, crash-proof boot
  */
 
 // =========================
@@ -69,7 +68,7 @@ const nyxVoiceNaturalizeMod =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18al (PINNED PACKS FIX to real Data/* files + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + larger knowledge budgets + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
+  "index.js v1.5.18am (PINNED PACKS FIX to real Data/* files + manifest transform tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + larger knowledge budgets + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
 
 // =========================
 // Env / knobs
@@ -114,17 +113,13 @@ const NYX_VOICE_NATURALIZE_MAXLEN = clampInt(process.env.NYX_VOICE_NATURALIZE_MA
 // Knowledge: Pinned packs (stable keys) — resilient resolver
 // =========================
 //
-// IMPORTANT: Pinned packs now accept multiple rel candidates.
-// This solves: “file exists but named differently / in Data/Nyx / Data/Packs”
-// without requiring you to rename anything.
-//
-// NOTE (v1.5.18al): Updated to match your real filenames in Data/.
+// NOTE (v1.5.18am): Updated to match your real filenames in Data/.
 //
 const PINNED_PACKS = [
   {
     key: "music/top10_by_year",
     rels: [
-      // ✅ YOUR REAL FILES (from dir listing)
+      // ✅ YOUR REAL FILES
       "top10_by_year_v1.json",
       "top10_by_year_source_v1.json",
 
@@ -189,11 +184,6 @@ const PINNED_PACKS = [
 // PACK MANIFEST LOADER (CRITICAL)
 // Loads: movies, sponsors, top40 weekly, wikipedia into stable keys
 // =========================
-//
-// Adjust paths if your repo differs; this is resilient:
-// - you can point to a file OR a folder
-// - "json_file_or_dir" will load folder OR file(.json) if present
-//
 const PACK_MANIFEST = [
   // --- MUSIC: Wikipedia Year-End Hot 100 (single merged file you generate) ---
   {
@@ -205,7 +195,6 @@ const PACK_MANIFEST = [
   },
 
   // --- MUSIC: Top 40 weekly (folder of JSON packs) ---
-  // If yours is a single file, change type to json_file and point abs to it.
   {
     key: "music/top40_weekly_raw",
     type: "json_dir",
@@ -229,7 +218,6 @@ const PACK_MANIFEST = [
   },
 
   // OPTIONAL: if you have runtime JSON packs under Scripts (NOT build scripts)
-  // Put JSON into Scripts/packs_json/ if you want runtime loading.
   {
     key: "legacy/scripts_json",
     type: "json_dir",
@@ -699,9 +687,22 @@ function loadPinnedPack(rels, forcedKey, loadedFiles, totalBytesRef) {
 // =========================
 // Manifest helpers (safe, no collisions)
 // =========================
+function manifestExtractRows(payload) {
+  // Accept:
+  //  - {rows:[...]}
+  //  - raw array [...]
+  //  - {data:[...]} / {items:[...]} (best-effort)
+  if (!payload) return [];
+  if (Array.isArray(payload)) return payload;
+  if (payload && Array.isArray(payload.rows)) return payload.rows;
+  if (payload && Array.isArray(payload.data)) return payload.data;
+  if (payload && Array.isArray(payload.items)) return payload.items;
+  return [];
+}
+
 function manifestBuildYearMapFromRows(payload, label) {
   const out = Object.create(null);
-  const rows = payload && Array.isArray(payload.rows) ? payload.rows : [];
+  const rows = manifestExtractRows(payload);
   for (const r of rows) {
     const y = Number(r && r.year);
     if (!Number.isFinite(y)) continue;
@@ -734,8 +735,9 @@ function manifestBuildTop40WeeklyIndex(allJson, prefixKey) {
       continue;
     }
 
-    if (Array.isArray(pack.rows)) {
-      for (const r of pack.rows) {
+    const rows = manifestExtractRows(pack);
+    if (rows.length) {
+      for (const r of rows) {
         const y = String(Number(r.year));
         const w = String(Number(r.week));
         if (!y || y === "NaN" || !w || w === "NaN") continue;
@@ -760,15 +762,22 @@ function manifestLoadJsonFileIntoKey(fp, key, loadedFiles, totalBytesRef) {
   if (!fileExists(fp)) return { ok: false, skipped: false, reason: "missing" };
 
   const r = safeReadFileBytes(fp);
-  if (!r.ok) return { ok: false, skipped: false, reason: r.reason || "read_failed" };
+  if (!r.ok) {
+    pushKnowledgeError("manifest_read", fp, r.reason || "read_failed");
+    return { ok: false, skipped: false, reason: r.reason || "read_failed" };
+  }
 
   const nextTotal = (totalBytesRef.value || 0) + r.size;
-  if (nextTotal > KNOWLEDGE_MAX_TOTAL_BYTES) return { ok: false, skipped: true, reason: "budget" };
+  if (nextTotal > KNOWLEDGE_MAX_TOTAL_BYTES) {
+    pushKnowledgeError("manifest_budget", fp, "total bytes budget exceeded (manifest file skipped)");
+    return { ok: false, skipped: true, reason: "budget" };
+  }
 
   let parsed = null;
   try {
     parsed = JSON.parse(r.buf.toString("utf8"));
-  } catch (_) {
+  } catch (e) {
+    pushKnowledgeError("manifest_parse", fp, e?.message || e);
     return { ok: false, skipped: false, reason: "parse_failed" };
   }
 
@@ -812,7 +821,9 @@ function manifestLoadFileOrDir(absPath, baseKey, loadedFiles, totalBytesRef) {
 
     const tryJson = absPath.endsWith(".json") ? absPath : absPath + ".json";
     if (fileExists(tryJson)) return manifestLoadJsonFileIntoKey(tryJson, baseKey, loadedFiles, totalBytesRef);
-  } catch (_) {}
+  } catch (e) {
+    pushKnowledgeError("manifest_stat", absPath, e?.message || e);
+  }
 
   return { ok: false, reason: "missing_file_or_dir" };
 }
@@ -898,7 +909,7 @@ function reloadKnowledge() {
     }
   }
 
-  // ---- Load MANIFEST packs next (stable keys for wikipedia/top40/movies/sponsors) ----
+  // ---- Load MANIFEST packs next ----
   let manifestSummary = [];
   if (dataOk || (scriptsOk && KNOWLEDGE_ENABLE_SCRIPTS)) {
     try {
@@ -1073,7 +1084,6 @@ function buildBuiltinPackIndex() {
   const packs = {};
 
   for (const k of jsonKeys) {
-    // Lightweight classification by key path
     const kl = String(k).toLowerCase();
 
     const domain =
@@ -1106,8 +1116,10 @@ function buildBuiltinPackIndex() {
     if (ok) groups.pinned.push(pk);
   }
 
-  // stable ordering
   for (const g of Object.keys(groups)) groups[g].sort();
+
+  const groupCounts = {};
+  for (const [gk, arr] of Object.entries(groups)) groupCounts[gk] = Array.isArray(arr) ? arr.length : 0;
 
   return {
     ok: true,
@@ -1116,15 +1128,11 @@ function buildBuiltinPackIndex() {
     summary: {
       jsonKeyCount: jsonKeys.length,
       pinnedAny: Object.values(pins || {}).some(Boolean),
-      groups: Object.fromEntries(Object_attachGroups(groups)),
+      groups: groupCounts,
     },
     groups,
     packs,
   };
-}
-
-function Object_attachGroups(groups) {
-  return Object.entries(groups).map(([k, v]) => [k, v.length]);
 }
 
 function packIndexAvailable() {
@@ -1135,14 +1143,12 @@ function packIndexAvailable() {
 }
 
 function getPackIndexSafe(forceRefresh) {
-  // Prefer external module if present; otherwise built-in
   try {
     if (packIndexMod) {
       if (forceRefresh && typeof packIndexMod.refreshPackIndex === "function") return packIndexMod.refreshPackIndex();
       if (typeof packIndexMod.getPackIndex === "function") return packIndexMod.getPackIndex({ forceRefresh: false });
     }
   } catch (e) {
-    // fall through to built-in
     pushKnowledgeError("packIndex_exception", "Utils/packIndex.js", e?.message || e);
   }
   return buildBuiltinPackIndex();
@@ -1280,7 +1286,6 @@ function writeReplay(rec, reply, lane, extras) {
 
     if (fu) {
       rec.data.__idx_lastFollowUps = fu;
-      // ✅ prevent stale legacy strings from replaying later
       rec.data.__idx_lastFollowUpsStrings = [];
     }
     if (!fu && fus) rec.data.__idx_lastFollowUpsStrings = fus;
@@ -1464,7 +1469,6 @@ app.get("/api/packs", (req, res) => {
 });
 
 function doPacksRefresh(req, res) {
-  // Refresh knowledge first if requested
   const doReloadKnowledge = toBool(req.query.reloadKnowledge, false);
   if (doReloadKnowledge) {
     try {
@@ -1484,7 +1488,6 @@ function doPacksRefresh(req, res) {
 }
 
 app.post("/api/packs/refresh", doPacksRefresh);
-// ✅ “always works” even from a browser / curl without POST
 app.get("/api/packs/refresh", doPacksRefresh);
 
 // =========================
@@ -1588,7 +1591,6 @@ async function handleChatRoute(req, res) {
   const startedAt = nowMs();
   const body = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
 
-  // Normalize payload shape immediately (chips + legacy)
   normalizeChipPayload(body);
 
   const clientRequestId = safeStr(body.requestId || body.clientRequestId || req.headers["x-request-id"] || "").trim();
@@ -1733,7 +1735,6 @@ async function handleChatRoute(req, res) {
     session: rec.data,
     knowledge: knowledgeSnapshotForEngine(),
     __knowledgeStatus: knowledgeStatusForMeta(),
-    // ✅ Guaranteed pack index for visibility/chips
     packIndex: getPackIndexSafe(false),
   };
 
@@ -1981,8 +1982,21 @@ async function handleTtsRoute(req, res) {
   }
 }
 
+// POST is the real contract
 app.post("/api/tts", handleTtsRoute);
 app.post("/api/voice", handleTtsRoute);
+
+// GET aliases: return guidance (avoids silent 404 / confusion)
+function ttsGetGuidance(req, res) {
+  return res.status(405).json({
+    ok: false,
+    error: "method_not_allowed",
+    detail: "Use POST with JSON body: { text: \"...\" }",
+    meta: { index: INDEX_VERSION },
+  });
+}
+app.get("/api/tts", ttsGetGuidance);
+app.get("/api/voice", ttsGetGuidance);
 
 // =========================
 // Express error middleware (last)
