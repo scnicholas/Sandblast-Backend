@@ -10,6 +10,11 @@
  *  ✅ CRITICAL: Built-in pack index computed from KNOWLEDGE.json keys (no dependency on Utils/packIndex.js)
  *  ✅ /api/packs + /api/packs/refresh ALWAYS work (return built-in index even if packIndex.js is missing)
  *  ✅ Engine receives engineInput.packIndex so chatEngine can surface chips deterministically
+ *
+ * NEW (this update):
+ *  ✅ MANIFEST PACK LOADER: loads Wikipedia (year-end), Top40 weekly, Movies, Sponsors into stable keys under KNOWLEDGE.json
+ *  ✅ Derived indexes: wikipedia year-end rows -> byYear map; Top40 weekly dir -> byYearWeek map
+ *  ✅ CHIP PAYLOAD NORMALIZER in index.js: chips no longer misroute due to payload shape differences
  */
 
 // =========================
@@ -64,7 +69,7 @@ const packIndexMod = safeRequire("./Utils/packIndex") || safeRequire("./Utils/pa
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18aj (pinned packs resolver + built-in pack index + larger knowledge budgets + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
+  "index.js v1.5.18aj (pinned packs resolver + built-in pack index + manifest pack loader + chip normalizer + larger knowledge budgets + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
 
 // =========================
 // Env / knobs
@@ -151,6 +156,58 @@ const PINNED_PACKS = [
       "Nyx/music_micro_moments.json",
       "music_micro_moments.json",
     ],
+  },
+];
+
+// =========================
+// PACK MANIFEST LOADER (CRITICAL)
+// Loads: movies, sponsors, top40 weekly, wikipedia into stable keys
+// =========================
+//
+// Adjust paths if your repo differs; this is resilient:
+// - you can point to a file OR a folder
+// - "json_file_or_dir" will load folder OR file(.json) if present
+//
+const PACK_MANIFEST = [
+  // --- MUSIC: Wikipedia Year-End Hot 100 (single merged file you generate) ---
+  {
+    key: "music/wiki/yearend_hot100_raw",
+    type: "json_file",
+    abs: path.resolve(DATA_DIR, "wikipedia/billboard_yearend_hot100_1950_2024.json"),
+    transform: (payload) => manifestBuildYearMapFromRows(payload, "yearend_hot100"),
+    outKey: "music/wiki/yearend_hot100_by_year",
+  },
+
+  // --- MUSIC: Top 40 weekly (folder of JSON packs) ---
+  // If yours is a single file, change type to json_file and point abs to it.
+  {
+    key: "music/top40_weekly_raw",
+    type: "json_dir",
+    abs: path.resolve(DATA_DIR, "charts/top40_weekly"),
+    postTransform: (allJson) => manifestBuildTop40WeeklyIndex(allJson, "music/top40_weekly_raw"),
+    outKey: "music/top40_weekly_by_year_week",
+  },
+
+  // --- MOVIES ---
+  {
+    key: "movies/roku_catalog",
+    type: "json_file_or_dir",
+    abs: path.resolve(DATA_DIR, "movies"),
+  },
+
+  // --- SPONSORS ---
+  {
+    key: "sponsors/packs",
+    type: "json_file_or_dir",
+    abs: path.resolve(DATA_DIR, "sponsors"),
+  },
+
+  // OPTIONAL: if you have runtime JSON packs under Scripts (NOT build scripts)
+  // Put JSON into Scripts/packs_json/ if you want runtime loading.
+  {
+    key: "legacy/scripts_json",
+    type: "json_dir",
+    abs: path.resolve(SCRIPTS_DIR, "packs_json"),
   },
 ];
 
@@ -425,6 +482,7 @@ const KNOWLEDGE = {
   json: {},
   scripts: {},
   errors: [],
+  __manifest: [],
 };
 
 function pushKnowledgeError(type, file, msg) {
@@ -572,6 +630,170 @@ function loadPinnedPack(rels, forcedKey, loadedFiles, totalBytesRef) {
   return { ok: true, skipped: false, fp };
 }
 
+// =========================
+// Manifest helpers (safe, no collisions)
+// =========================
+function manifestBuildYearMapFromRows(payload, label) {
+  const out = Object.create(null);
+  const rows = payload && Array.isArray(payload.rows) ? payload.rows : [];
+  for (const r of rows) {
+    const y = Number(r && r.year);
+    if (!Number.isFinite(y)) continue;
+    if (!out[y]) out[y] = [];
+    out[y].push(r);
+  }
+  for (const y of Object.keys(out)) {
+    out[y].sort((a, b) => Number(a.rank || 9999) - Number(b.rank || 9999));
+  }
+  return { ok: true, label: safeStr(label), byYear: out, builtAt: new Date().toISOString() };
+}
+
+function manifestBuildTop40WeeklyIndex(allJson, prefixKey) {
+  const byYearWeek = Object.create(null);
+  const root = allJson && typeof allJson === "object" ? allJson : {};
+
+  const keys = Object.keys(root).filter((k) => String(k).startsWith(prefixKey + "/"));
+  for (const k of keys) {
+    const pack = root[k];
+    if (!pack) continue;
+
+    if (pack.byYearWeek && typeof pack.byYearWeek === "object") {
+      for (const y of Object.keys(pack.byYearWeek)) {
+        if (!byYearWeek[y]) byYearWeek[y] = Object.create(null);
+        const weeks = pack.byYearWeek[y] || {};
+        for (const w of Object.keys(weeks)) {
+          byYearWeek[y][w] = weeks[w];
+        }
+      }
+      continue;
+    }
+
+    if (Array.isArray(pack.rows)) {
+      for (const r of pack.rows) {
+        const y = String(Number(r.year));
+        const w = String(Number(r.week));
+        if (!y || y === "NaN" || !w || w === "NaN") continue;
+        if (!byYearWeek[y]) byYearWeek[y] = Object.create(null);
+        if (!byYearWeek[y][w]) byYearWeek[y][w] = [];
+        byYearWeek[y][w].push(r);
+      }
+    }
+  }
+
+  for (const y of Object.keys(byYearWeek)) {
+    for (const w of Object.keys(byYearWeek[y])) {
+      byYearWeek[y][w].sort((a, b) => Number(a.rank || 9999) - Number(b.rank || 9999));
+    }
+  }
+
+  return { ok: true, label: "top40_weekly", byYearWeek, builtAt: new Date().toISOString() };
+}
+
+function manifestLoadJsonFileIntoKey(fp, key, loadedFiles, totalBytesRef) {
+  if (loadedFiles && loadedFiles.has(fp)) return { ok: true, skipped: true, reason: "already_loaded" };
+  if (!fileExists(fp)) return { ok: false, skipped: false, reason: "missing" };
+
+  const r = safeReadFileBytes(fp);
+  if (!r.ok) return { ok: false, skipped: false, reason: r.reason || "read_failed" };
+
+  const nextTotal = (totalBytesRef.value || 0) + r.size;
+  if (nextTotal > KNOWLEDGE_MAX_TOTAL_BYTES) return { ok: false, skipped: true, reason: "budget" };
+
+  let parsed = null;
+  try {
+    parsed = JSON.parse(r.buf.toString("utf8"));
+  } catch (_) {
+    return { ok: false, skipped: false, reason: "parse_failed" };
+  }
+
+  KNOWLEDGE.json[key] = parsed;
+  KNOWLEDGE.filesLoaded += 1;
+  totalBytesRef.value = nextTotal;
+  KNOWLEDGE.totalBytes = totalBytesRef.value;
+  if (loadedFiles) loadedFiles.add(fp);
+  return { ok: true, skipped: false };
+}
+
+function manifestLoadJsonDirIntoPrefix(dirAbs, prefixKey, loadedFiles, totalBytesRef, maxFiles = 5000) {
+  if (!fileExists(dirAbs)) return { ok: false, reason: "missing_dir", loaded: 0 };
+  const files = [];
+  walkFiles(dirAbs, [".json"], files, maxFiles);
+
+  let loaded = 0;
+  for (const fp of files) {
+    const rel = path.relative(dirAbs, fp).replace(/\\/g, "/");
+    const noExt = rel.replace(/\.[^/.]+$/, "");
+    const key = `${prefixKey}/${noExt}`;
+    const res = manifestLoadJsonFileIntoKey(fp, key, loadedFiles, totalBytesRef);
+    if (res.ok && !res.skipped) loaded++;
+    if (totalBytesRef.value > KNOWLEDGE_MAX_TOTAL_BYTES) break;
+    if (KNOWLEDGE.filesLoaded >= KNOWLEDGE_MAX_FILES) break;
+  }
+  return { ok: true, loaded };
+}
+
+function manifestLoadFileOrDir(absPath, baseKey, loadedFiles, totalBytesRef) {
+  try {
+    if (fileExists(absPath)) {
+      const st = fs.statSync(absPath);
+      if (st.isDirectory()) {
+        return manifestLoadJsonDirIntoPrefix(absPath, baseKey, loadedFiles, totalBytesRef);
+      }
+      if (st.isFile() && path.extname(absPath).toLowerCase() === ".json") {
+        return manifestLoadJsonFileIntoKey(absPath, baseKey, loadedFiles, totalBytesRef);
+      }
+    }
+
+    const tryJson = absPath.endsWith(".json") ? absPath : absPath + ".json";
+    if (fileExists(tryJson)) return manifestLoadJsonFileIntoKey(tryJson, baseKey, loadedFiles, totalBytesRef);
+  } catch (_) {}
+
+  return { ok: false, reason: "missing_file_or_dir" };
+}
+
+function manifestLoadPacks(loadedFiles, totalBytesRef) {
+  const loadedSummary = [];
+
+  for (const item of PACK_MANIFEST) {
+    try {
+      if (item.type === "json_file") {
+        const res = manifestLoadJsonFileIntoKey(item.abs, item.key, loadedFiles, totalBytesRef);
+
+        if (res.ok && !res.skipped && typeof item.transform === "function" && item.outKey) {
+          const derived = item.transform(KNOWLEDGE.json[item.key]);
+          KNOWLEDGE.json[item.outKey] = derived;
+        }
+
+        loadedSummary.push({ key: item.key, ok: res.ok, skipped: !!res.skipped, reason: res.reason || "" });
+        continue;
+      }
+
+      if (item.type === "json_dir") {
+        const res = manifestLoadJsonDirIntoPrefix(item.abs, item.key, loadedFiles, totalBytesRef);
+
+        if (res.ok && typeof item.postTransform === "function" && item.outKey) {
+          const derived = item.postTransform(KNOWLEDGE.json, item.key);
+          KNOWLEDGE.json[item.outKey] = derived;
+        }
+
+        loadedSummary.push({ key: item.key, ok: res.ok, loaded: res.loaded || 0, reason: res.reason || "" });
+        continue;
+      }
+
+      if (item.type === "json_file_or_dir") {
+        const res = manifestLoadFileOrDir(item.abs, item.key, loadedFiles, totalBytesRef);
+        loadedSummary.push({ key: item.key, ok: res.ok, reason: res.reason || "" });
+        continue;
+      }
+    } catch (e) {
+      pushKnowledgeError("manifest_exception", item.key, e?.message || e);
+      loadedSummary.push({ key: item.key, ok: false, reason: "exception" });
+    }
+  }
+
+  return loadedSummary;
+}
+
 function reloadKnowledge() {
   const started = nowMs();
 
@@ -583,6 +805,7 @@ function reloadKnowledge() {
   KNOWLEDGE.json = {};
   KNOWLEDGE.scripts = {};
   KNOWLEDGE.errors = [];
+  KNOWLEDGE.__manifest = [];
 
   const dataOk = fileExists(DATA_DIR) && isWithinRoot(DATA_DIR, APP_ROOT);
   const scriptsOk = fileExists(SCRIPTS_DIR) && isWithinRoot(SCRIPTS_DIR, APP_ROOT);
@@ -591,7 +814,7 @@ function reloadKnowledge() {
   if (!scriptsOk && KNOWLEDGE_ENABLE_SCRIPTS)
     pushKnowledgeError("dir", SCRIPTS_DIR, "SCRIPTS_DIR missing or outside APP_ROOT");
 
-  const loadedFiles = new Set(); // prevents double-loading pinned + crawl
+  const loadedFiles = new Set(); // prevents double-loading pinned + crawl + manifest
   const totalBytesRef = { value: 0 };
 
   // ---- Force-load pinned packs under stable keys (before generic crawl) ----
@@ -609,6 +832,17 @@ function reloadKnowledge() {
     }
   }
 
+  // ---- Load MANIFEST packs next (stable keys for wikipedia/top40/movies/sponsors) ----
+  let manifestSummary = [];
+  if (dataOk || (scriptsOk && KNOWLEDGE_ENABLE_SCRIPTS)) {
+    try {
+      manifestSummary = manifestLoadPacks(loadedFiles, totalBytesRef);
+      KNOWLEDGE.__manifest = Array.isArray(manifestSummary) ? manifestSummary : [];
+    } catch (e) {
+      pushKnowledgeError("manifest_load", "PACK_MANIFEST", e?.message || e);
+    }
+  }
+
   const jsonFiles = [];
   if (dataOk) walkFiles(DATA_DIR, [".json"], jsonFiles, KNOWLEDGE_MAX_FILES);
 
@@ -619,7 +853,7 @@ function reloadKnowledge() {
 
   KNOWLEDGE.filesScanned = jsonFiles.length + jsFiles.length;
 
-  // Continue loading remaining json files (skip already-loaded pinned files)
+  // Continue loading remaining json files (skip already-loaded pinned/manifest files)
   for (const fp of jsonFiles) {
     if (KNOWLEDGE.filesLoaded >= KNOWLEDGE_MAX_FILES) break;
     if (loadedFiles.has(fp)) continue;
@@ -695,6 +929,8 @@ function reloadKnowledge() {
   console.log(`[Sandblast][Knowledge] pinnedPresence=${JSON.stringify(pins)}`);
   // eslint-disable-next-line no-console
   console.log(`[Sandblast][Knowledge] pinnedLoaded=${JSON.stringify(pinnedLoaded.slice(0, 12))}`);
+  // eslint-disable-next-line no-console
+  console.log(`[Sandblast][Knowledge] manifest=${JSON.stringify((KNOWLEDGE.__manifest || []).slice(0, 12))}`);
 
   return { ok: KNOWLEDGE.ok, loadedAt: KNOWLEDGE.loadedAt, jsonKeys, scriptKeys, filesLoaded: KNOWLEDGE.filesLoaded };
 }
@@ -708,6 +944,7 @@ function knowledgeStatusForMeta() {
     jsonKeyCount: Object.keys(KNOWLEDGE.json).length,
     scriptKeyCount: Object.keys(KNOWLEDGE.scripts).length,
     pinned: pinnedPresence(),
+    manifest: Array.isArray(KNOWLEDGE.__manifest) ? KNOWLEDGE.__manifest.slice(0, 12) : [],
   };
 }
 
@@ -726,6 +963,7 @@ function knowledgeSnapshotForEngine() {
       errorCount: KNOWLEDGE.errors.length,
       errorsPreview: KNOWLEDGE.errors.slice(0, 5),
       pinned: pinnedPresence(),
+      manifest: Array.isArray(KNOWLEDGE.__manifest) ? KNOWLEDGE.__manifest : [],
     },
   };
 }
@@ -1192,9 +1430,11 @@ if (KNOWLEDGE_DEBUG_ENDPOINT) {
         },
         pinned: pinnedPresence(),
         pinnedConfig: PINNED_PACKS.map((p) => ({ key: p.key, rels: p.rels })),
+        manifest: Array.isArray(KNOWLEDGE.__manifest) ? KNOWLEDGE.__manifest : [],
+        manifestConfig: PACK_MANIFEST.map((m) => ({ key: m.key, type: m.type, abs: m.abs, outKey: m.outKey || null })),
         errorCount: KNOWLEDGE.errors.length,
         errorsPreview: KNOWLEDGE.errors.slice(0, 12),
-        jsonKeysPreview: jsonKeys.slice(0, 120),
+        jsonKeysPreview: jsonKeys.slice(0, 160),
         scriptKeysPreview: scriptKeys.slice(0, 80),
         includeData: KNOWLEDGE_DEBUG_INCLUDE_DATA,
         json: KNOWLEDGE_DEBUG_INCLUDE_DATA ? KNOWLEDGE.json : undefined,
@@ -1220,11 +1460,44 @@ if (KNOWLEDGE_DEBUG_ENDPOINT) {
 }
 
 // =========================
+// CRITICAL: CHIP PAYLOAD NORMALIZER (prevents misroutes)
+// =========================
+function normalizeChipPayload(b) {
+  if (!b || typeof b !== "object") return b;
+
+  const rootHas = b.lane || b.action || b.year || b.mode || b.intent || b.route || b.label;
+
+  if (!isPlainObject(b.payload)) b.payload = {};
+
+  if (rootHas) {
+    if (b.lane && !b.payload.lane) b.payload.lane = b.lane;
+    if (b.action && !b.payload.action) b.payload.action = b.action;
+    if (b.year && !b.payload.year) b.payload.year = b.year;
+    if (b.mode && !b.payload.mode) b.payload.mode = b.mode;
+    if (b.intent && !b.payload.intent) b.payload.intent = b.intent;
+    if (b.route && !b.payload.route) b.payload.route = b.route;
+    if (b.label && !b.payload.label) b.payload.label = b.label;
+  }
+
+  if (isPlainObject(b.payload)) {
+    if (b.payload.lane && !b.lane) b.lane = b.payload.lane;
+    if (b.payload.action && !b.action) b.action = b.payload.action;
+    if (b.payload.year && !b.year) b.year = b.payload.year;
+    if (b.payload.mode && !b.mode) b.mode = b.payload.mode;
+  }
+
+  return b;
+}
+
+// =========================
 // Chat route
 // =========================
 async function handleChatRoute(req, res) {
   const startedAt = nowMs();
   const body = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
+
+  // Normalize payload shape immediately (chips + legacy)
+  normalizeChipPayload(body);
 
   const clientRequestId = safeStr(body.requestId || body.clientRequestId || req.headers["x-request-id"] || "").trim();
   const serverRequestId = clientRequestId || makeReqId();
@@ -1646,6 +1919,8 @@ app.listen(PORT, () => {
   );
   // eslint-disable-next-line no-console
   console.log(`[Sandblast] Knowledge pinned=${JSON.stringify(pinnedPresence())}`);
+  // eslint-disable-next-line no-console
+  console.log(`[Sandblast] Knowledge manifest=${JSON.stringify((KNOWLEDGE.__manifest || []).slice(0, 12))}`);
   // eslint-disable-next-line no-console
   console.log(`[Sandblast] Packs: using=${packIndexAvailable() ? "external" : "builtin"} summary=${JSON.stringify(getPackIndexSafe(false).summary)}`);
 });
