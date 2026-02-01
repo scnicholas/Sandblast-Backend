@@ -1,7 +1,7 @@
 "use strict";
 
 /**
- * Utils/packIndex.js
+ * Utils/packIndex.off.js
  * Unified Pack Index (UPI) — one authoritative registry of available packs.
  *
  * Goals:
