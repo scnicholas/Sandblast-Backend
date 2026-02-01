@@ -3,12 +3,14 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18ak (MANIFEST PACK LOADER + PINNED PACKS MULTI-RESOLVER + BUILT-IN PACK INDEX + CHIP NORMALIZER + Nyx Voice Naturalizer + larger knowledge budgets + crash-proof boot + safe JSON parse + diagnostic logging + knowledge bridge + loop fixes)
+ * index.js v1.5.18al (PINNED PACKS FIX: maps to your REAL Data/* filenames + keeps manifest loader + built-in pack index + chip normalizer + Nyx Voice Naturalizer + budgets + crash-proof boot)
  *
- * Key adds vs 1.5.18aj:
- *  ✅ Nyx Voice Naturalizer (applied before ElevenLabs TTS) — external module if present, otherwise safe built-in
- *  ✅ GET /api/packs/refresh alias (keeps POST; makes “always works” literally true for dashboards / browsers)
- *  ✅ Tiny safety: when we write structured followUps, we clear legacy followUpsStrings cache to avoid stale replays
+ * Key fix vs 1.5.18ak:
+ *  ✅ Pinned packs now resolve to the filenames that ACTUALLY exist in your Data folder:
+ *     - Top 10: Data/top10_by_year_v1.json (+ optional source)
+ *     - Story moments: Data/music_story_moments_v1.json (+ generated fallback)
+ *     - Micro moments: Data/music_moments_v1.json / v2 / layer2 / layer3
+ *  ✅ Leaves #1 song pinned key in place (will stay false until you add a number1 pack file)
  */
 
 // =========================
@@ -67,7 +69,7 @@ const nyxVoiceNaturalizeMod =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18ak (pinned packs resolver + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + larger knowledge budgets + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
+  "index.js v1.5.18al (PINNED PACKS FIX to real Data/* files + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + larger knowledge budgets + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
 
 // =========================
 // Env / knobs
@@ -116,10 +118,19 @@ const NYX_VOICE_NATURALIZE_MAXLEN = clampInt(process.env.NYX_VOICE_NATURALIZE_MA
 // This solves: “file exists but named differently / in Data/Nyx / Data/Packs”
 // without requiring you to rename anything.
 //
+// NOTE (v1.5.18al): Updated to match your real filenames in Data/.
+//
 const PINNED_PACKS = [
   {
     key: "music/top10_by_year",
     rels: [
+      // ✅ YOUR REAL FILES (from dir listing)
+      "top10_by_year_v1.json",
+      "top10_by_year_source_v1.json",
+
+      // Optional alternates (safe to keep)
+      "Nyx/top10_by_year_v1.json",
+      "Packs/top10_by_year_v1.json",
       "music_top10_by_year.json",
       "Nyx/music_top10_by_year.json",
       "Packs/music_top10_by_year.json",
@@ -130,6 +141,8 @@ const PINNED_PACKS = [
   {
     key: "music/number1_by_year",
     rels: [
+      // (No matching file in your Data/ yet — this will stay pinned=false until you add one)
+      "music_number1_by_year_v1.json",
       "music_number1_by_year.json",
       "Nyx/music_number1_by_year.json",
       "Packs/music_number1_by_year.json",
@@ -140,18 +153,29 @@ const PINNED_PACKS = [
   {
     key: "music/story_moments_by_year",
     rels: [
+      // ✅ YOUR REAL FILES
+      "music_story_moments_v1.json",
+      "music_story_moments_1950_1989.generated.json",
+
+      // Optional alternates (safe to keep)
       "music_story_moments_by_year.json",
       "Nyx/music_story_moments_by_year.json",
       "Packs/music_story_moments_by_year.json",
-      "Nyx/music_moments.json",
-      "music_moments.json",
-      "Nyx/music_moments_v1.json",
-      "music_moments_v1.json",
+      "Nyx/music_story_moments_v1.json",
     ],
   },
   {
     key: "music/micro_moments_by_year",
     rels: [
+      // ✅ YOUR REAL FILES (layered moments)
+      "music_moments_v1.json",
+      "music_moments_v2.json",
+      "music_moments_v2_layer2.json",
+      "music_moments_v2_layer2_enriched.json",
+      "music_moments_v2_layer2_filled.json",
+      "music_moments_v2_layer3.json",
+
+      // Optional alternates
       "music_micro_moments_by_year.json",
       "Nyx/music_micro_moments_by_year.json",
       "Packs/music_micro_moments_by_year.json",
@@ -1092,11 +1116,15 @@ function buildBuiltinPackIndex() {
     summary: {
       jsonKeyCount: jsonKeys.length,
       pinnedAny: Object.values(pins || {}).some(Boolean),
-      groups: Object.fromEntries(Object.entries(groups).map(([k, v]) => [k, v.length])),
+      groups: Object.fromEntries(Object_attachGroups(groups)),
     },
     groups,
     packs,
   };
+}
+
+function Object_attachGroups(groups) {
+  return Object.entries(groups).map(([k, v]) => [k, v.length]);
 }
 
 function packIndexAvailable() {
