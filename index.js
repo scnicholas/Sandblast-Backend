@@ -3,13 +3,16 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18am (PINNED PACKS FIX + MANIFEST TOLERANCE + TTS GET ALIAS)
+ * index.js v1.5.18an (PACK VISIBILITY HARDENING: case-insensitive Data/Scripts resolution + smarter pinned/manifest path fallback + stronger pack “sight” diagnostics)
  *
- * Key fix vs 1.5.18al:
- *  ✅ Manifest transforms now tolerate wikipedia payloads that are either {rows:[...]} OR a raw array [...]
- *  ✅ Manifest loader now records parse/read errors consistently (pushKnowledgeError)
- *  ✅ Adds GET /api/tts + GET /api/voice (returns 405 with guidance) to reduce “wrong method” confusion
- *  ✅ Keeps pinned packs mapped to your real Data/* filenames, built-in pack index, chip normalizer, Nyx Voice Naturalizer, budgets, crash-proof boot
+ * Key fix vs 1.5.18am:
+ *  ✅ CRITICAL: DATA_DIR + SCRIPTS_DIR now auto-resolve case-insensitively (fixes Linux/Render “Data vs data” blindness)
+ *  ✅ CRITICAL: Pinned pack resolver now tries multiple DATA roots (DATA_DIR + discovered alternates) + case-insensitive subpath resolution
+ *  ✅ CRITICAL: Manifest loader now retries missing file/dir paths with case-insensitive resolution (fixes “wikipedia/” vs “Wikipedia/”)
+ *  ✅ Adds a compact /api/debug/packsight endpoint (optional, gated like other debug endpoints) showing exact resolved files + pinned/manifest hits
+ *  ✅ Keeps everything else: pinned packs mapped to your real Data/* filenames, built-in pack index, chip normalizer, Nyx Voice Naturalizer,
+ *     budgets, crash-proof boot, safe JSON parse, diagnostics, error middleware, knowledge bridge, CORS hard-lock, loop fuse, boot isolation,
+ *     output normalization, REAL ElevenLabs TTS, GET /api/tts + /api/voice guidance
  */
 
 // =========================
@@ -68,7 +71,7 @@ const nyxVoiceNaturalizeMod =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18am (PINNED PACKS FIX to real Data/* files + manifest transform tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + larger knowledge budgets + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
+  "index.js v1.5.18an (PACK VISIBILITY HARDENING: case-insensitive Data/Scripts resolution + pinned/manifest path fallback + packsight diagnostics + pinned packs to real Data/* files + manifest tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + larger knowledge budgets + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
 
 // =========================
 // Env / knobs
@@ -102,8 +105,131 @@ const KNOWLEDGE_MAX_TOTAL_BYTES = clampInt(process.env.KNOWLEDGE_MAX_TOTAL_BYTES
 
 // Root resolution: in Render, __dirname is safest
 const APP_ROOT = path.resolve(__dirname);
-const DATA_DIR = path.resolve(APP_ROOT, String(process.env.DATA_DIR || "Data").trim());
-const SCRIPTS_DIR = path.resolve(APP_ROOT, String(process.env.SCRIPTS_DIR || "Scripts").trim());
+
+// =========================
+// CRITICAL: Case-insensitive dir/path resolution (Linux-safe)
+// =========================
+function fileExists(p) {
+  try {
+    return fs.existsSync(p);
+  } catch (_) {
+    return false;
+  }
+}
+function statSafe(p) {
+  try {
+    return fs.statSync(p);
+  } catch (_) {
+    return null;
+  }
+}
+function resolveDirCaseInsensitive(parentAbs, name) {
+  try {
+    const direct = path.resolve(parentAbs, name);
+    const st = statSafe(direct);
+    if (st && st.isDirectory()) return direct;
+
+    const want = String(name || "").trim().toLowerCase();
+    if (!want) return direct;
+
+    const entries = fs.readdirSync(parentAbs, { withFileTypes: true });
+    const hit = entries.find((e) => e && e.isDirectory() && String(e.name).toLowerCase() === want);
+    if (hit) return path.resolve(parentAbs, hit.name);
+  } catch (_) {}
+  return path.resolve(parentAbs, name);
+}
+function resolveRelPathCaseInsensitive(rootAbs, relPath) {
+  // Best-effort: walks segments under rootAbs and matches each segment case-insensitively when needed.
+  try {
+    const rel = String(relPath || "").replace(/\\/g, "/").replace(/^\/+/, "");
+    if (!rel) return rootAbs;
+
+    const parts = rel.split("/").filter(Boolean);
+    let cur = rootAbs;
+
+    for (const part of parts) {
+      const direct = path.join(cur, part);
+      const st = statSafe(direct);
+      if (st) {
+        cur = direct;
+        continue;
+      }
+
+      // Try case-insensitive match inside cur
+      const want = String(part).toLowerCase();
+      let entries = [];
+      try {
+        entries = fs.readdirSync(cur, { withFileTypes: true });
+      } catch (_) {
+        // can’t list; bail to direct
+        cur = direct;
+        continue;
+      }
+      const hit = entries.find((e) => e && String(e.name).toLowerCase() === want);
+      if (hit) {
+        cur = path.join(cur, hit.name);
+      } else {
+        cur = direct;
+      }
+    }
+
+    return cur;
+  } catch (_) {
+    return path.join(rootAbs, relPath || "");
+  }
+}
+function resolveDataDirFromEnv() {
+  const envName = String(process.env.DATA_DIR || "Data").trim();
+  // if envName is a relative folder, resolve against APP_ROOT with case-insensitive fallback
+  const absDirect = path.resolve(APP_ROOT, envName);
+  const st = statSafe(absDirect);
+  if (st && st.isDirectory()) return absDirect;
+  // try case-insensitive folder match if envName is single-segment
+  if (!envName.includes("/") && !envName.includes("\\")) {
+    return resolveDirCaseInsensitive(APP_ROOT, envName);
+  }
+  // if multi-segment relative, walk case-insensitively
+  const rel = path.relative(APP_ROOT, absDirect);
+  return resolveRelPathCaseInsensitive(APP_ROOT, rel);
+}
+function resolveScriptsDirFromEnv() {
+  const envName = String(process.env.SCRIPTS_DIR || "Scripts").trim();
+  const absDirect = path.resolve(APP_ROOT, envName);
+  const st = statSafe(absDirect);
+  if (st && st.isDirectory()) return absDirect;
+  if (!envName.includes("/") && !envName.includes("\\")) {
+    return resolveDirCaseInsensitive(APP_ROOT, envName);
+  }
+  const rel = path.relative(APP_ROOT, absDirect);
+  return resolveRelPathCaseInsensitive(APP_ROOT, rel);
+}
+
+let DATA_DIR = resolveDataDirFromEnv();
+let SCRIPTS_DIR = resolveScriptsDirFromEnv();
+
+// Track candidate DATA roots (helps pinned packs “see” in odd layouts)
+const DATA_ROOT_CANDIDATES = (() => {
+  const out = [];
+  const pushUnique = (p) => {
+    const rp = path.resolve(p);
+    if (!out.includes(rp)) out.push(rp);
+  };
+
+  pushUnique(DATA_DIR);
+
+  // Common alternates (defensive)
+  pushUnique(path.resolve(APP_ROOT, "Data"));
+  pushUnique(path.resolve(APP_ROOT, "data"));
+  pushUnique(resolveDirCaseInsensitive(APP_ROOT, "Data"));
+  pushUnique(resolveDirCaseInsensitive(APP_ROOT, "data"));
+
+  // Filter to existing directories first, but keep at least the primary
+  const existing = out.filter((p) => {
+    const st = statSafe(p);
+    return st && st.isDirectory();
+  });
+  return existing.length ? existing : out.slice(0, 1);
+})();
 
 // Nyx Voice Naturalizer knobs
 const NYX_VOICE_NATURALIZE = toBool(process.env.NYX_VOICE_NATURALIZE, true);
@@ -113,7 +239,8 @@ const NYX_VOICE_NATURALIZE_MAXLEN = clampInt(process.env.NYX_VOICE_NATURALIZE_MA
 // Knowledge: Pinned packs (stable keys) — resilient resolver
 // =========================
 //
-// NOTE (v1.5.18am): Updated to match your real filenames in Data/.
+// NOTE: Updated to match your real filenames in Data/.
+//       v1.5.18an: resolver now tries DATA_ROOT_CANDIDATES + case-insensitive subpaths.
 //
 const PINNED_PACKS = [
   {
@@ -537,20 +664,17 @@ const KNOWLEDGE = {
   scripts: {},
   errors: [],
   __manifest: [],
+  __packsight: {
+    dataRoots: [],
+    pinnedResolved: [],
+    manifestResolved: [],
+  },
 };
 
 function pushKnowledgeError(type, file, msg) {
   const e = { type: safeStr(type), file: safeStr(file), msg: safeStr(msg).slice(0, 300) };
   KNOWLEDGE.errors.push(e);
   if (KNOWLEDGE.errors.length > 80) KNOWLEDGE.errors.shift();
-}
-
-function fileExists(p) {
-  try {
-    return fs.existsSync(p);
-  } catch (_) {
-    return false;
-  }
 }
 
 function isWithinRoot(p, root) {
@@ -636,8 +760,16 @@ function pinnedPresence() {
 function resolvePinnedFileAbs(rels) {
   const arr = Array.isArray(rels) ? rels : [rels];
   for (const rel of arr) {
-    const fp = path.resolve(DATA_DIR, String(rel));
-    if (fileExists(fp)) return fp;
+    const relNorm = String(rel).replace(/\\/g, "/").replace(/^\/+/, "");
+    for (const base of DATA_ROOT_CANDIDATES) {
+      // First try direct
+      const fpDirect = path.resolve(base, relNorm);
+      if (fileExists(fpDirect)) return fpDirect;
+
+      // Then case-insensitive traversal under base (fixes wikipedia/ vs Wikipedia/ etc.)
+      const fpCI = resolveRelPathCaseInsensitive(base, relNorm);
+      if (fileExists(fpCI)) return fpCI;
+    }
   }
   return null;
 }
@@ -680,6 +812,11 @@ function loadPinnedPack(rels, forcedKey, loadedFiles, totalBytesRef) {
   KNOWLEDGE.totalBytes = totalBytesRef.value;
 
   if (loadedFiles) loadedFiles.add(fp);
+
+  // packsight
+  if (KNOWLEDGE.__packsight && Array.isArray(KNOWLEDGE.__packsight.pinnedResolved)) {
+    KNOWLEDGE.__packsight.pinnedResolved.push({ key: String(forcedKey), fp });
+  }
 
   return { ok: true, skipped: false, fp };
 }
@@ -757,19 +894,58 @@ function manifestBuildTop40WeeklyIndex(allJson, prefixKey) {
   return { ok: true, label: "top40_weekly", byYearWeek, builtAt: new Date().toISOString() };
 }
 
-function manifestLoadJsonFileIntoKey(fp, key, loadedFiles, totalBytesRef) {
-  if (loadedFiles && loadedFiles.has(fp)) return { ok: true, skipped: true, reason: "already_loaded" };
-  if (!fileExists(fp)) return { ok: false, skipped: false, reason: "missing" };
+// v1.5.18an: if a manifest path is missing, retry with case-insensitive resolution relative to DATA_DIR / SCRIPTS_DIR / APP_ROOT.
+function resolveManifestAbsFallback(absPath) {
+  const p = path.resolve(absPath);
+  if (fileExists(p)) return p;
 
-  const r = safeReadFileBytes(fp);
+  // If path is under DATA_DIR or a known data root, retry case-insensitive relative traversal.
+  for (const base of DATA_ROOT_CANDIDATES) {
+    try {
+      const rel = path.relative(base, p);
+      if (rel && !rel.startsWith("..")) {
+        const alt = resolveRelPathCaseInsensitive(base, rel);
+        if (fileExists(alt)) return alt;
+      }
+    } catch (_) {}
+  }
+
+  // Retry under SCRIPTS_DIR similarly
+  try {
+    const relS = path.relative(SCRIPTS_DIR, p);
+    if (relS && !relS.startsWith("..")) {
+      const altS = resolveRelPathCaseInsensitive(SCRIPTS_DIR, relS);
+      if (fileExists(altS)) return altS;
+    }
+  } catch (_) {}
+
+  // Last-ditch: if absPath looks relative-ish, try from APP_ROOT case-insensitively
+  try {
+    const relA = path.relative(APP_ROOT, p);
+    if (relA && !relA.startsWith("..")) {
+      const altA = resolveRelPathCaseInsensitive(APP_ROOT, relA);
+      if (fileExists(altA)) return altA;
+    }
+  } catch (_) {}
+
+  return p;
+}
+
+function manifestLoadJsonFileIntoKey(fp, key, loadedFiles, totalBytesRef) {
+  const realFp = resolveManifestAbsFallback(fp);
+
+  if (loadedFiles && loadedFiles.has(realFp)) return { ok: true, skipped: true, reason: "already_loaded" };
+  if (!fileExists(realFp)) return { ok: false, skipped: false, reason: "missing" };
+
+  const r = safeReadFileBytes(realFp);
   if (!r.ok) {
-    pushKnowledgeError("manifest_read", fp, r.reason || "read_failed");
+    pushKnowledgeError("manifest_read", realFp, r.reason || "read_failed");
     return { ok: false, skipped: false, reason: r.reason || "read_failed" };
   }
 
   const nextTotal = (totalBytesRef.value || 0) + r.size;
   if (nextTotal > KNOWLEDGE_MAX_TOTAL_BYTES) {
-    pushKnowledgeError("manifest_budget", fp, "total bytes budget exceeded (manifest file skipped)");
+    pushKnowledgeError("manifest_budget", realFp, "total bytes budget exceeded (manifest file skipped)");
     return { ok: false, skipped: true, reason: "budget" };
   }
 
@@ -777,7 +953,7 @@ function manifestLoadJsonFileIntoKey(fp, key, loadedFiles, totalBytesRef) {
   try {
     parsed = JSON.parse(r.buf.toString("utf8"));
   } catch (e) {
-    pushKnowledgeError("manifest_parse", fp, e?.message || e);
+    pushKnowledgeError("manifest_parse", realFp, e?.message || e);
     return { ok: false, skipped: false, reason: "parse_failed" };
   }
 
@@ -785,18 +961,27 @@ function manifestLoadJsonFileIntoKey(fp, key, loadedFiles, totalBytesRef) {
   KNOWLEDGE.filesLoaded += 1;
   totalBytesRef.value = nextTotal;
   KNOWLEDGE.totalBytes = totalBytesRef.value;
-  if (loadedFiles) loadedFiles.add(fp);
-  return { ok: true, skipped: false };
+  if (loadedFiles) loadedFiles.add(realFp);
+
+  // packsight
+  if (KNOWLEDGE.__packsight && Array.isArray(KNOWLEDGE.__packsight.manifestResolved)) {
+    KNOWLEDGE.__packsight.manifestResolved.push({ key: String(key), fp: realFp });
+  }
+
+  return { ok: true, skipped: false, fp: realFp };
 }
 
 function manifestLoadJsonDirIntoPrefix(dirAbs, prefixKey, loadedFiles, totalBytesRef, maxFiles = 5000) {
-  if (!fileExists(dirAbs)) return { ok: false, reason: "missing_dir", loaded: 0 };
+  const realDir = resolveManifestAbsFallback(dirAbs);
+  const st = statSafe(realDir);
+  if (!st || !st.isDirectory()) return { ok: false, reason: "missing_dir", loaded: 0 };
+
   const files = [];
-  walkFiles(dirAbs, [".json"], files, maxFiles);
+  walkFiles(realDir, [".json"], files, maxFiles);
 
   let loaded = 0;
   for (const fp of files) {
-    const rel = path.relative(dirAbs, fp).replace(/\\/g, "/");
+    const rel = path.relative(realDir, fp).replace(/\\/g, "/");
     const noExt = rel.replace(/\.[^/.]+$/, "");
     const key = `${prefixKey}/${noExt}`;
     const res = manifestLoadJsonFileIntoKey(fp, key, loadedFiles, totalBytesRef);
@@ -804,22 +989,23 @@ function manifestLoadJsonDirIntoPrefix(dirAbs, prefixKey, loadedFiles, totalByte
     if (totalBytesRef.value > KNOWLEDGE_MAX_TOTAL_BYTES) break;
     if (KNOWLEDGE.filesLoaded >= KNOWLEDGE_MAX_FILES) break;
   }
-  return { ok: true, loaded };
+  return { ok: true, loaded, dir: realDir };
 }
 
 function manifestLoadFileOrDir(absPath, baseKey, loadedFiles, totalBytesRef) {
   try {
-    if (fileExists(absPath)) {
-      const st = fs.statSync(absPath);
+    const resolved = resolveManifestAbsFallback(absPath);
+    if (fileExists(resolved)) {
+      const st = fs.statSync(resolved);
       if (st.isDirectory()) {
-        return manifestLoadJsonDirIntoPrefix(absPath, baseKey, loadedFiles, totalBytesRef);
+        return manifestLoadJsonDirIntoPrefix(resolved, baseKey, loadedFiles, totalBytesRef);
       }
-      if (st.isFile() && path.extname(absPath).toLowerCase() === ".json") {
-        return manifestLoadJsonFileIntoKey(absPath, baseKey, loadedFiles, totalBytesRef);
+      if (st.isFile() && path.extname(resolved).toLowerCase() === ".json") {
+        return manifestLoadJsonFileIntoKey(resolved, baseKey, loadedFiles, totalBytesRef);
       }
     }
 
-    const tryJson = absPath.endsWith(".json") ? absPath : absPath + ".json";
+    const tryJson = resolved.endsWith(".json") ? resolved : resolved + ".json";
     if (fileExists(tryJson)) return manifestLoadJsonFileIntoKey(tryJson, baseKey, loadedFiles, totalBytesRef);
   } catch (e) {
     pushKnowledgeError("manifest_stat", absPath, e?.message || e);
@@ -883,8 +1069,13 @@ function reloadKnowledge() {
   KNOWLEDGE.scripts = {};
   KNOWLEDGE.errors = [];
   KNOWLEDGE.__manifest = [];
+  KNOWLEDGE.__packsight = {
+    dataRoots: DATA_ROOT_CANDIDATES.slice(0, 6),
+    pinnedResolved: [],
+    manifestResolved: [],
+  };
 
-  const dataOk = fileExists(DATA_DIR) && isWithinRoot(DATA_DIR, APP_ROOT);
+  const dataOk = DATA_ROOT_CANDIDATES.some((d) => fileExists(d) && isWithinRoot(d, APP_ROOT));
   const scriptsOk = fileExists(SCRIPTS_DIR) && isWithinRoot(SCRIPTS_DIR, APP_ROOT);
 
   if (!dataOk) pushKnowledgeError("dir", DATA_DIR, "DATA_DIR missing or outside APP_ROOT");
@@ -920,8 +1111,14 @@ function reloadKnowledge() {
     }
   }
 
+  // ---- Crawl remaining JSON files (choose best existing root for walk) ----
   const jsonFiles = [];
-  if (dataOk) walkFiles(DATA_DIR, [".json"], jsonFiles, KNOWLEDGE_MAX_FILES);
+  const bestDataRoot = DATA_ROOT_CANDIDATES.find((d) => {
+    const st = statSafe(d);
+    return st && st.isDirectory();
+  });
+
+  if (bestDataRoot) walkFiles(bestDataRoot, [".json"], jsonFiles, KNOWLEDGE_MAX_FILES);
 
   const jsFiles = [];
   if (scriptsOk && KNOWLEDGE_ENABLE_SCRIPTS) {
@@ -955,7 +1152,8 @@ function reloadKnowledge() {
       continue;
     }
 
-    const key = fileKeyFromPath(DATA_DIR, fp);
+    // IMPORTANT: keyFromPath must be consistent. Prefer the bestDataRoot for stable keys.
+    const key = bestDataRoot ? fileKeyFromPath(bestDataRoot, fp) : fileKeyFromPath(DATA_DIR, fp);
     if (!Object.prototype.hasOwnProperty.call(KNOWLEDGE.json, key)) {
       KNOWLEDGE.json[key] = parsed;
     }
@@ -1000,7 +1198,7 @@ function reloadKnowledge() {
   console.log(
     `[Sandblast][Knowledge] loaded=${KNOWLEDGE.ok} pinnedAny=${pinnedOk} jsonKeys=${jsonKeys} scriptKeys=${scriptKeys} filesLoaded=${KNOWLEDGE.filesLoaded} totalBytes=${KNOWLEDGE.totalBytes} errors=${KNOWLEDGE.errors.length} in ${
       nowMs() - started
-    }ms (DATA_DIR=${DATA_DIR}, SCRIPTS_DIR=${SCRIPTS_DIR}, scriptsEnabled=${KNOWLEDGE_ENABLE_SCRIPTS})`
+    }ms (DATA_DIR=${DATA_DIR}, dataRoots=${JSON.stringify(DATA_ROOT_CANDIDATES.slice(0, 4))}, SCRIPTS_DIR=${SCRIPTS_DIR}, scriptsEnabled=${KNOWLEDGE_ENABLE_SCRIPTS})`
   );
   // eslint-disable-next-line no-console
   console.log(`[Sandblast][Knowledge] pinnedPresence=${JSON.stringify(pins)}`);
@@ -1041,6 +1239,7 @@ function knowledgeSnapshotForEngine() {
       errorsPreview: KNOWLEDGE.errors.slice(0, 5),
       pinned: pinnedPresence(),
       manifest: Array.isArray(KNOWLEDGE.__manifest) ? KNOWLEDGE.__manifest : [],
+      packsight: KNOWLEDGE.__packsight,
     },
   };
 }
@@ -1446,6 +1645,7 @@ app.get("/api/discovery", (req, res) => {
       "/health",
       "/api/health",
       "/api/debug/knowledge",
+      "/api/debug/packsight",
       "/api/packs",
       "/api/packs/refresh",
     ],
@@ -1511,6 +1711,7 @@ if (KNOWLEDGE_DEBUG_ENDPOINT) {
         ok: KNOWLEDGE.ok,
         loadedAt: KNOWLEDGE.loadedAt,
         dataDir: DATA_DIR,
+        dataRoots: DATA_ROOT_CANDIDATES,
         scriptsDir: SCRIPTS_DIR,
         scriptsEnabled: KNOWLEDGE_ENABLE_SCRIPTS,
         jsonKeyCount: jsonKeys.length,
@@ -1536,6 +1737,33 @@ if (KNOWLEDGE_DEBUG_ENDPOINT) {
         scripts: KNOWLEDGE_DEBUG_INCLUDE_DATA ? KNOWLEDGE.scripts : undefined,
       },
       packs: { ok: true, using: packIndexAvailable() ? "external" : "builtin", preview: getPackIndexSafe(false).summary },
+    });
+  });
+
+  // v1.5.18an: compact “Nyx can see packs?” endpoint (safe + small)
+  app.get("/api/debug/packsight", (req, res) => {
+    const allowInProd = toBool(process.env.KNOWLEDGE_DEBUG_ALLOW_PROD, false);
+    if (NODE_ENV === "production" && !allowInProd) {
+      return res.status(404).json({ ok: false, error: "not_found" });
+    }
+
+    const pins = pinnedPresence();
+    const idx = getPackIndexSafe(false);
+
+    return res.status(200).json({
+      ok: true,
+      version: INDEX_VERSION,
+      engine: ENGINE_VERSION || null,
+      data: {
+        dataDir: DATA_DIR,
+        dataRoots: DATA_ROOT_CANDIDATES,
+        pinnedPresence: pins,
+        pinnedResolved: KNOWLEDGE.__packsight?.pinnedResolved || [],
+        manifestPreview: (KNOWLEDGE.__manifest || []).slice(0, 20),
+        manifestResolved: KNOWLEDGE.__packsight?.manifestResolved || [],
+      },
+      packsSummary: idx.summary,
+      pinnedKeys: idx.groups?.pinned || [],
     });
   });
 
@@ -2027,7 +2255,9 @@ app.listen(PORT, () => {
   console.log(
     `[Sandblast] Knowledge: autoload=${KNOWLEDGE_AUTOLOAD} ok=${KNOWLEDGE.ok} jsonKeys=${
       Object.keys(KNOWLEDGE.json).length
-    } scriptKeys=${Object.keys(KNOWLEDGE.scripts).length} errors=${KNOWLEDGE.errors.length} DATA_DIR=${DATA_DIR} SCRIPTS_DIR=${SCRIPTS_DIR} reloadEveryMs=${KNOWLEDGE_RELOAD_INTERVAL_MS} debugIncludeData=${KNOWLEDGE_DEBUG_INCLUDE_DATA} scriptsEnabled=${KNOWLEDGE_ENABLE_SCRIPTS}`
+    } scriptKeys=${Object.keys(KNOWLEDGE.scripts).length} errors=${KNOWLEDGE.errors.length} DATA_DIR=${DATA_DIR} dataRoots=${JSON.stringify(
+      DATA_ROOT_CANDIDATES.slice(0, 4)
+    )} SCRIPTS_DIR=${SCRIPTS_DIR} reloadEveryMs=${KNOWLEDGE_RELOAD_INTERVAL_MS} debugIncludeData=${KNOWLEDGE_DEBUG_INCLUDE_DATA} scriptsEnabled=${KNOWLEDGE_ENABLE_SCRIPTS}`
   );
   // eslint-disable-next-line no-console
   console.log(`[Sandblast] Knowledge pinned=${JSON.stringify(pinnedPresence())}`);
