@@ -17,19 +17,15 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7aM (YEAR-STICKY MUSIC + CHIP COMPAT + FLEX PACK SHAPES + TOP10 OUTPUT GUARANTEE)
+ * v0.7aN (CRITICAL ROUTING HARDENING + YEAR-STICKY + CHIP AUTHORITATIVE)
  *
- * CRITICAL FIX (your report):
- * ✅ If a chip sends only "Top 10" / "#1 song" / "Story moment" (no year),
- *    engine automatically uses the lastMusicYear from session/cog.
- *    => mode chips NEVER misroute or “go nowhere” due to missing year.
- *
- * Other retained fixes:
- * ✅ Chips include payload.text fallback (legacy-safe)
- * ✅ Engine reads chip payload from multiple locations
- * ✅ Top10 pack lookup supports multiple shapes
- * ✅ Mode precedence fixed: top10 > #1 > micro > story
- * ✅ sustained loop fuse + burst dedupe + packets gate + always-advance
+ * Critical fixes vs v0.7aM:
+ * ✅ Chip-authoritative mode selection: payload.mode ALWAYS wins over text inference (prevents “Top 10” words overriding “#1 song” chip)
+ * ✅ Payload extraction includes ROOT FIELDS fallback (lane/action/mode/year can be at root even if payload missing)
+ * ✅ Sticky-year source tracking: distinguishes year from payload vs classifier vs sticky vs text (debug + correctness)
+ * ✅ Burst dedupe key is session-scoped (avoids “anon” collisions if visitorId absent)
+ * ✅ Structured music detection honors explicit mode/action even when year is missing (then pulls sticky year)
+ * ✅ FollowUps remain widget-compatible (structured payload + payload.text fallback)
  */
 
 const crypto = require("crypto");
@@ -59,7 +55,7 @@ try {
 ====================================================== */
 
 const CE_VERSION =
-  "chatEngine v0.7aM (year-sticky music + chip compat + flex pack shapes + top10 output guarantee)";
+  "chatEngine v0.7aN (routing hardening + payload-root fallback + chip-authoritative mode + sticky-year source + session-scoped burst dedupe)";
 
 const MAX_REPLY_LEN = 2400;
 const MAX_FOLLOWUPS = 10;
@@ -97,8 +93,7 @@ function isPlainObject(x) {
   return (
     !!x &&
     typeof x === "object" &&
-    (Object.getPrototypeOf(x) === Object.prototype ||
-      Object.getPrototypeOf(x) === null)
+    (Object.getPrototypeOf(x) === Object.prototype || Object.getPrototypeOf(x) === null)
   );
 }
 
@@ -306,9 +301,18 @@ function pruneReplayStore(store, tNow) {
   store.order = keep;
 }
 
-function buildBurstKey({ visitorId, inboundHash }) {
-  const v = String(visitorId || "anon");
-  return sha1(`${v}::burst::${inboundHash}`);
+function sessionScopedVisitorId(session, inputVisitorId) {
+  const s = session && typeof session === "object" ? session : null;
+  return (
+    String(inputVisitorId || "").trim() ||
+    String((s && (s.visitorId || s.sessionId || s.deviceId)) || "").trim() ||
+    "anon"
+  );
+}
+
+function buildBurstKey({ sessionId, inboundHash }) {
+  const sid = String(sessionId || "anon");
+  return sha1(`${sid}::burst::${inboundHash}`);
 }
 
 function rememberReply(session, key, out) {
@@ -354,6 +358,7 @@ function recordLoopEvent(session, inboundHash) {
   while (keep.length > MAX_LOOP_EVENTS) keep.shift();
   store.events = keep;
 
+  // consecutive repeats from the end
   let repeats = 0;
   for (let i = keep.length - 1; i >= 0; i--) {
     if (keep[i].h === inboundHash) repeats++;
@@ -365,7 +370,31 @@ function recordLoopEvent(session, inboundHash) {
 
 /* ======================================================
    Payload extraction HARDENING
+   - Includes root field fallback if payload is missing
 ====================================================== */
+
+function buildPayloadFromRoot(input) {
+  if (!input || typeof input !== "object") return null;
+
+  const lane = normText(input.lane || (input.ctx && input.ctx.lane) || "");
+  const action = normText(input.action || (input.ctx && input.ctx.action) || "");
+  const mode = normText(input.mode || input.intent || (input.ctx && (input.ctx.mode || input.ctx.intent)) || "");
+  const year = clampYear(input.year || (input.ctx && input.ctx.year) || null);
+
+  if (!lane && !action && !mode && !year) return null;
+
+  const p = Object.create(null);
+  if (lane) p.lane = lane;
+  if (action) p.action = action;
+  if (mode) p.mode = mode;
+  if (year) p.year = year;
+
+  // text fallback if present at root
+  const t = normText(input.text || input.message || input.prompt || input.query || "");
+  if (t) p.text = t;
+
+  return p;
+}
 
 function getPayloadFromAny(input) {
   if (!input || typeof input !== "object") return null;
@@ -383,7 +412,9 @@ function getPayloadFromAny(input) {
   for (const c of cands) {
     if (isPlainObject(c)) return c;
   }
-  return null;
+
+  // ROOT fallback if no payload object exists
+  return buildPayloadFromRoot(input);
 }
 
 /* ======================================================
@@ -405,17 +436,22 @@ function inferMusicModeFromText(low) {
 function normalizeMode(mode, action, low) {
   const m = normLower(mode);
   const a = normLower(action);
+
+  // payload.mode always wins
   if (m) return m;
 
+  // action maps to mode
   if (a && ["top10", "top40", "year_end", "charts", "number_one", "micro", "story", "story_moment"].includes(a)) {
     return a === "story_moment" ? "story" : a;
   }
 
+  // infer from text
   return inferMusicModeFromText(low);
 }
 
 function parseInbound(input) {
   const payload = getPayloadFromAny(input);
+
   const textPrimary = normText(input.text || input.message || input.prompt || input.query);
   const textFromPayload = payload && typeof payload.text === "string" ? normText(payload.text) : "";
   const finalText = textPrimary || textFromPayload || "";
@@ -425,7 +461,9 @@ function parseInbound(input) {
   const lane = payload && payload.lane ? normLower(payload.lane) : "";
   const action = payload && payload.action ? normLower(payload.action) : "";
   const rawMode = payload && payload.mode ? normLower(payload.mode) : "";
-  const year = clampYear(payload && payload.year) || extractYearFromText(finalText) || null;
+  const yearFromPayload = clampYear(payload && payload.year);
+  const yearFromText = extractYearFromText(finalText);
+  const year = yearFromPayload || yearFromText || null;
 
   const mode = normalizeMode(rawMode, action, low);
 
@@ -437,6 +475,7 @@ function parseInbound(input) {
     action,
     mode,
     year,
+    _yearSource: yearFromPayload ? "payload" : yearFromText ? "text" : "",
   };
 }
 
@@ -449,13 +488,14 @@ function looksLikeStructuredMusic({ lane, action, mode, year, lower }) {
     /\b(top\s*10|top10|top\s*40|top40|hot\s*100|billboard|chart|charts|story\s*moment|micro\s*moment|#\s*1|#1|number\s*one|no\.\s*1|no\s*1)\b/.test(
       lower
     )
-  ) return true;
+  )
+    return true;
 
   return false;
 }
 
 /* ======================================================
-   YEAR-STICKY MUSIC (NEW)
+   YEAR-STICKY MUSIC
 ====================================================== */
 
 function getStickyMusicYear(session) {
@@ -477,15 +517,27 @@ function getStickyMusicYear(session) {
 
 function needsYearForMode(mode) {
   const m = normLower(mode);
-  return m === "top10" || m === "number_one" || m === "micro" || m === "story" || m === "top40" || m === "charts" || m === "year_end";
+  return (
+    m === "top10" ||
+    m === "number_one" ||
+    m === "micro" ||
+    m === "story" ||
+    m === "top40" ||
+    m === "charts" ||
+    m === "year_end"
+  );
 }
 
 /* ======================================================
    Knowledge helpers (FLEX pack shapes)
 ====================================================== */
 
-function isString(x) { return typeof x === "string"; }
-function isArray(x) { return Array.isArray(x); }
+function isString(x) {
+  return typeof x === "string";
+}
+function isArray(x) {
+  return Array.isArray(x);
+}
 
 function normalizeSongLine(item) {
   if (!item) return null;
@@ -505,7 +557,12 @@ function normalizeSongLine(item) {
 }
 
 const PIN_TOP10_KEYS = ["music/top10_by_year", "music/number1_by_year", "music/top10"];
-const PIN_STORY_KEYS = ["music/story_moments_by_year", "music/micro_moments_by_year", "music/story_moments", "music/moments"];
+const PIN_STORY_KEYS = [
+  "music/story_moments_by_year",
+  "music/micro_moments_by_year",
+  "music/story_moments",
+  "music/moments",
+];
 
 const KNOWLEDGE_SCAN_CAP = 1200;
 
@@ -532,14 +589,16 @@ function findYearTextInObject(obj, year) {
 
   const v1 = obj[y] || obj[year];
   if (isString(v1) && v1.trim()) return v1.trim();
-  if (isPlainObject(v1) && isString(v1.moment || v1.story || v1.text)) return normText(v1.moment || v1.story || v1.text);
+  if (isPlainObject(v1) && isString(v1.moment || v1.story || v1.text))
+    return normText(v1.moment || v1.story || v1.text);
 
   const candidates = [obj.data, obj.years, obj.byYear, obj.year];
   for (const c of candidates) {
     if (!isPlainObject(c)) continue;
     const v = c[y] || c[year];
     if (isString(v) && v.trim()) return v.trim();
-    if (isPlainObject(v) && isString(v.moment || v.story || v.text)) return normText(v.moment || v.story || v.text);
+    if (isPlainObject(v) && isString(v.moment || v.story || v.text))
+      return normText(v.moment || v.story || v.text);
   }
 
   return null;
@@ -682,14 +741,16 @@ function musicReply({ year, mode, knowledge }) {
     }
   } else if (wantsMicro) {
     const story = findStoryMomentInKnowledge(knowledgeJson, y);
-    reply = story && story.text
-      ? `Micro moment (${y}): ${clampStr(story.text, 260)}`
-      : `Micro moment for ${y}: give me a vibe (soul, rock, pop) or an artist and I’ll make it razor-specific.`;
+    reply =
+      story && story.text
+        ? `Micro moment (${y}): ${clampStr(story.text, 260)}`
+        : `Micro moment for ${y}: give me a vibe (soul, rock, pop) or an artist and I’ll make it razor-specific.`;
   } else if (wantsStory) {
     const story = findStoryMomentInKnowledge(knowledgeJson, y);
-    reply = story && story.text
-      ? `Story moment for ${y}: ${clampStr(story.text, 900)}`
-      : `Story moment for ${y}: I can anchor it on the year’s #1 song and give you the cultural pulse in 50–60 words.`;
+    reply =
+      story && story.text
+        ? `Story moment for ${y}: ${clampStr(story.text, 900)}`
+        : `Story moment for ${y}: I can anchor it on the year’s #1 song and give you the cultural pulse in 50–60 words.`;
   } else if (wantsCharts) {
     reply = `Got it — ${y}. Do you want the Top 10 list, or just the #1 with a quick story moment?`;
   } else {
@@ -778,11 +839,11 @@ async function handleChat(input = {}) {
   const tNow = nowMs();
 
   const session =
-    input && input.session && typeof input.session === "object"
-      ? input.session
-      : Object.create(null);
+    input && input.session && typeof input.session === "object" ? input.session : Object.create(null);
 
-  const visitorId = String(input.visitorId || input.visitorID || "anon");
+  // session-scoped id for burst dedupe stability
+  const sessionId = sessionScopedVisitorId(session, input.visitorId || input.visitorID || input.sessionId);
+
   const clientRequestId = String(input.clientRequestId || input.requestId || "");
   const debug = !!input.debug;
 
@@ -790,23 +851,34 @@ async function handleChat(input = {}) {
 
   // classifier hardening
   const intentSig = getIntentSignals(inbound.text, inbound.payload);
-  const intentMusicAction = intentSig && (intentSig.musicAction || intentSig.music_action)
-    ? String(intentSig.musicAction || intentSig.music_action)
-    : "";
-  const intentMusicYear = intentSig && (intentSig.musicYear || intentSig.music_year)
-    ? clampYear(intentSig.musicYear || intentSig.music_year)
-    : null;
+  const intentMusicAction =
+    intentSig && (intentSig.musicAction || intentSig.music_action)
+      ? String(intentSig.musicAction || intentSig.music_action)
+      : "";
+  const intentMusicYear =
+    intentSig && (intentSig.musicYear || intentSig.music_year)
+      ? clampYear(intentSig.musicYear || intentSig.music_year)
+      : null;
+
+  let yearSource = inbound._yearSource || "";
 
   const forcedMode = mapMusicActionToMode(intentMusicAction);
   if (forcedMode) inbound.mode = forcedMode;
-  if (!inbound.year && intentMusicYear) inbound.year = intentMusicYear;
+
+  if (!inbound.year && intentMusicYear) {
+    inbound.year = intentMusicYear;
+    yearSource = "classifier";
+  }
 
   if (!inbound.mode) inbound.mode = inferMusicModeFromText(inbound.lower);
 
   // YEAR-STICKY: if we have a mode that requires a year and no year was provided, pull from session/cog
   if (!inbound.year && inbound.mode && needsYearForMode(inbound.mode)) {
     const sticky = getStickyMusicYear(session);
-    if (sticky) inbound.year = sticky;
+    if (sticky) {
+      inbound.year = sticky;
+      yearSource = "sticky";
+    }
   }
 
   const inboundHash = sha1(
@@ -816,7 +888,15 @@ async function handleChat(input = {}) {
       action: inbound.action,
       mode: inbound.mode,
       year: inbound.year,
-      p: inbound.payload ? { lane: inbound.payload.lane, action: inbound.payload.action, mode: inbound.payload.mode, year: inbound.payload.year } : null,
+      ys: yearSource,
+      p: inbound.payload
+        ? {
+            lane: inbound.payload.lane,
+            action: inbound.payload.action,
+            mode: inbound.payload.mode,
+            year: inbound.payload.year,
+          }
+        : null,
     })
   );
 
@@ -847,8 +927,8 @@ async function handleChat(input = {}) {
     };
   }
 
-  // burst dedupe
-  const burstKey = buildBurstKey({ visitorId, inboundHash });
+  // burst dedupe (session-scoped, not global "anon")
+  const burstKey = buildBurstKey({ sessionId, inboundHash });
   const remembered = getRememberedReply(session, burstKey);
   if (remembered && remembered.t && tNow - remembered.t <= BURST_WINDOW_MS) {
     const out = remembered.out;
@@ -880,8 +960,8 @@ async function handleChat(input = {}) {
   let routed = null;
 
   if (structuredMusic) {
-    const implied = inferMusicModeFromText(inbound.lower);
-    const mode = (implied === "top10" ? "top10" : inbound.mode) || "top10";
+    // CRITICAL: chip-authoritative mode: inbound.mode already respected by normalizeMode()
+    const mode = inbound.mode || inferMusicModeFromText(inbound.lower) || "top10";
 
     routed = musicReply({
       year: inbound.year,
@@ -895,7 +975,7 @@ async function handleChat(input = {}) {
       const p = await packets.handleChat({
         text: inbound.text,
         session,
-        visitorId,
+        visitorId: sessionId,
         debug,
         laneHint: inbound.lane || session.lane || "",
         routeHint: "",
@@ -923,7 +1003,7 @@ async function handleChat(input = {}) {
 
     if (!routed) {
       const y = inbound.year || extractYearFromText(inbound.text);
-      const mode = inferMusicModeFromText(inbound.lower) || "story";
+      const mode = inbound.mode || inferMusicModeFromText(inbound.lower) || "story";
 
       if (y) {
         routed = musicReply({ year: y, mode, knowledge: input.knowledge || null });
@@ -957,9 +1037,10 @@ async function handleChat(input = {}) {
       repeats,
       musicMode: inbound.mode || null,
       musicYear: inbound.year || null,
+      yearSource: yearSource || null,
       classifierAction: forcedMode || null,
       payloadSeen: !!inbound.payload,
-      stickyYearUsed: (!extractYearFromText(inbound.text) && !!inbound.year) ? true : false,
+      stickyYearUsed: yearSource === "sticky",
     },
     ui: null,
     directives: [],
@@ -999,11 +1080,21 @@ async function handleChat(input = {}) {
 /**
  * Export aliases for maximum compatibility with index.js resolvers.
  */
-function module_handleChat(args) { return handleChat(args); }
-function respond(args) { return handleChat(args); }
-function chat(args) { return handleChat(args); }
-function run(args) { return handleChat(args); }
-function route(args) { return handleChat(args); }
+function module_handleChat(args) {
+  return handleChat(args);
+}
+function respond(args) {
+  return handleChat(args);
+}
+function chat(args) {
+  return handleChat(args);
+}
+function run(args) {
+  return handleChat(args);
+}
+function route(args) {
+  return handleChat(args);
+}
 
 handleChat.CE_VERSION = CE_VERSION;
 module_handleChat.CE_VERSION = CE_VERSION;
