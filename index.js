@@ -3,15 +3,16 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18ar (PACK VISIBILITY HARDENING++++ + CHIP SIGNAL ROUNDTRIP: payload<->root intent/route/label)
+ * index.js v1.5.18as (MANIFEST RESOLVER UPGRADE++++: multi-candidate rels + bounded basename/dirname fallback search across ALL data roots + probes upgraded to show bestFound + keeps PACK VISIBILITY HARDENING++++ + CHIP SIGNAL ROUNDTRIP)
  *
- * Key fix vs 1.5.18aq:
- *  ✅ CRITICAL: CHIP PAYLOAD NORMALIZER now round-trips intent/route/label (not just lane/action/year/mode)
- *     - prevents “chip looks meaningful in payload but empty at root” → misroutes / frozen follow-ups / weak replay signatures
- *  ✅ Slightly stronger inbound signature derivation using intent/route/label (when no text)
+ * Key adds vs 1.5.18ar:
+ *  ✅ CRITICAL: Manifest rel resolver now accepts rel OR rels[] + kind ("file"|"dir"|"either")
+ *  ✅ CRITICAL: If rel paths don’t match real folder layout, performs a bounded BFS search by basename/dirname across DATA roots
+ *  ✅ Probes upgraded: show bestFound (actual resolved path) even when rel mismatch exists
+ *  ✅ Manifest items upgraded: wiki + weekly now use rels[] multi-candidates
  *
- * Keeps: multi-root crawl, manifest resolves across ALL data roots, stable keying, allow Data outside APP_ROOT,
- * bigger budgets, PUBLIC /api/packsight, pinned resolver, case-insensitive resolution, etc.
+ * Keeps: multi-root crawl, pinned resolver, stable keying, allow Data outside APP_ROOT,
+ * bigger budgets, PUBLIC /api/packsight, case-insensitive resolution, chip normalizer roundtrip intent/route/label, etc.
  */
 
 // =========================
@@ -70,7 +71,7 @@ const nyxVoiceNaturalizeMod =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18ar (PACK VISIBILITY HARDENING++++: multi-root crawl + manifest resolves across ALL data roots + stable keying + CHIP SIGNAL ROUNDTRIP intent/route/label + allow Data outside APP_ROOT + bigger budgets + PUBLIC /api/packsight + case-insensitive Data/Scripts resolution + pinned/manifest path fallback + packsight diagnostics + manifest target probes + pinned packs to real Data/* files + manifest tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
+  "index.js v1.5.18as (MANIFEST RESOLVER UPGRADE++++: multi-candidate rels + bounded basename/dirname fallback search across ALL data roots + probes show bestFound + keeps PACK VISIBILITY HARDENING++++ + CHIP SIGNAL ROUNDTRIP intent/route/label + allow Data outside APP_ROOT + bigger budgets + PUBLIC /api/packsight + case-insensitive Data/Scripts resolution + pinned/manifest path fallback + packsight diagnostics + manifest target probes + pinned packs to real Data/* files + manifest tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
 
 // =========================
 // Utils
@@ -172,6 +173,12 @@ const KNOWLEDGE_ALLOW_DATA_OUTSIDE_APP_ROOT = toBool(process.env.KNOWLEDGE_ALLOW
 // Scripts are riskier; keep default OFF unless you explicitly need it.
 const KNOWLEDGE_ALLOW_SCRIPTS_OUTSIDE_APP_ROOT = toBool(process.env.KNOWLEDGE_ALLOW_SCRIPTS_OUTSIDE_APP_ROOT, false);
 
+// --- Manifest fallback search knobs (NEW in v1.5.18as) ---
+// If manifest rel paths don't match your real folder layout, do a bounded BFS search by basename/dirname.
+const MANIFEST_SEARCH_FALLBACK = toBool(process.env.MANIFEST_SEARCH_FALLBACK, true);
+const MANIFEST_SEARCH_MAX_VISITS = clampInt(process.env.MANIFEST_SEARCH_MAX_VISITS, 8000, 500, 50000);
+const MANIFEST_SEARCH_MAX_DEPTH = clampInt(process.env.MANIFEST_SEARCH_MAX_DEPTH, 6, 2, 20);
+
 // =========================
 // CRITICAL: Case-insensitive dir/path resolution (Linux-safe)
 // =========================
@@ -244,6 +251,7 @@ function resolveRelPathCaseInsensitive(rootAbs, relPath) {
     return path.join(rootAbs, relPath || "");
   }
 }
+
 function resolveDataDirFromEnv() {
   const envName = String(process.env.DATA_DIR || "Data").trim();
 
@@ -312,6 +320,65 @@ const DATA_ROOT_CANDIDATES = (() => {
 // Nyx Voice Naturalizer knobs
 const NYX_VOICE_NATURALIZE = toBool(process.env.NYX_VOICE_NATURALIZE, true);
 const NYX_VOICE_NATURALIZE_MAXLEN = clampInt(process.env.NYX_VOICE_NATURALIZE_MAXLEN, 2200, 200, 20000);
+
+// =========================
+// Manifest fallback search helpers (NEW in v1.5.18as)
+// =========================
+function safeReaddir(dirAbs) {
+  try {
+    return fs.readdirSync(dirAbs, { withFileTypes: true });
+  } catch (_) {
+    return [];
+  }
+}
+
+// Bounded BFS search across DATA_ROOT_CANDIDATES for a file/dir by exact name.
+// Returns absolute path if found, else null.
+function findByNameAcrossDataRoots(targetName, wantDir) {
+  const name = safeStr(targetName).trim();
+  if (!name) return null;
+  if (!MANIFEST_SEARCH_FALLBACK) return null;
+
+  const roots = Array.isArray(DATA_ROOT_CANDIDATES) ? DATA_ROOT_CANDIDATES.slice(0, 12) : [];
+  const maxVisits = MANIFEST_SEARCH_MAX_VISITS;
+  const maxDepth = MANIFEST_SEARCH_MAX_DEPTH;
+
+  let visits = 0;
+
+  for (const root of roots) {
+    const st = statSafe(root);
+    if (!st || !st.isDirectory()) continue;
+
+    const q = [{ dir: root, depth: 0 }];
+
+    while (q.length) {
+      const { dir, depth } = q.shift();
+      if (depth > maxDepth) continue;
+      if (visits++ > maxVisits) return null;
+
+      const entries = safeReaddir(dir);
+      for (const ent of entries) {
+        if (visits++ > maxVisits) return null;
+
+        const entName = safeStr(ent.name);
+        const fp = path.join(dir, entName);
+
+        if (entName === name) {
+          if (wantDir && ent.isDirectory()) return fp;
+          if (!wantDir && ent.isFile()) return fp;
+        }
+
+        // Keep walking
+        if (ent.isDirectory()) {
+          if (entName === "node_modules" || entName === ".git") continue;
+          q.push({ dir: fp, depth: depth + 1 });
+        }
+      }
+    }
+  }
+
+  return null;
+}
 
 // =========================
 // Knowledge: Pinned packs (stable keys) — resilient resolver
@@ -391,15 +458,22 @@ const PINNED_PACKS = [
 // Loads: movies, sponsors, top40 weekly, wikipedia into stable keys
 // =========================
 //
-// NOTE (v1.5.18aq): Manifest items now use rel paths for DATA roots.
-//                   Resolver tries across DATA_ROOT_CANDIDATES (mounted disks, etc.).
+// NOTE (v1.5.18as): Manifest items now support rel OR rels[].
+//                   Resolver tries across DATA_ROOT_CANDIDATES (mounted disks, etc.)
+//                   and falls back to bounded search by basename/dirname.
 //
 const PACK_MANIFEST = [
   // --- MUSIC: Wikipedia Year-End Hot 100 (single merged file you generate) ---
   {
     key: "music/wiki/yearend_hot100_raw",
     type: "json_file_rel",
-    rel: "wikipedia/billboard_yearend_hot100_1950_2024.json",
+    rels: [
+      "wikipedia/billboard_yearend_hot100_1950_2024.json",
+      "wiki/billboard_yearend_hot100_1950_2024.json",
+      "music/wiki/billboard_yearend_hot100_1950_2024.json",
+      "music/wikipedia/billboard_yearend_hot100_1950_2024.json",
+      "packs/wikipedia/billboard_yearend_hot100_1950_2024.json",
+    ],
     transform: (payload) => manifestBuildYearMapFromRows(payload, "yearend_hot100"),
     outKey: "music/wiki/yearend_hot100_by_year",
   },
@@ -408,7 +482,13 @@ const PACK_MANIFEST = [
   {
     key: "music/top40_weekly_raw",
     type: "json_dir_rel",
-    rel: "charts/top40_weekly",
+    rels: [
+      "charts/top40_weekly",
+      "chart/top40_weekly",
+      "music/charts/top40_weekly",
+      "packs/charts/top40_weekly",
+      "top40_weekly",
+    ],
     postTransform: (allJson) => manifestBuildTop40WeeklyIndex(allJson, "music/top40_weekly_raw"),
     outKey: "music/top40_weekly_by_year_week",
   },
@@ -417,14 +497,14 @@ const PACK_MANIFEST = [
   {
     key: "movies/roku_catalog",
     type: "json_file_or_dir_rel",
-    rel: "movies",
+    rels: ["movies", "Movies", "Data/Movies", "Data/movies"],
   },
 
   // --- SPONSORS ---
   {
     key: "sponsors/packs",
     type: "json_file_or_dir_rel",
-    rel: "sponsors",
+    rels: ["sponsors", "Sponsors", "Data/sponsors", "Data/Sponsors"],
   },
 
   // OPTIONAL: if you have runtime JSON packs under Scripts (NOT build scripts)
@@ -826,18 +906,51 @@ function resolvePinnedFileAbs(rels) {
   return null;
 }
 
-// v1.5.18aq: resolve a manifest REL across all data roots (file OR dir)
-function resolveDataRelAcrossRoots(rel) {
-  const relNorm = String(rel || "").replace(/\\/g, "/").replace(/^\/+/, "");
-  if (!relNorm) return null;
+// v1.5.18as: resolve a manifest REL (or RELS[]) across all data roots with kind + bounded fallback search
+function resolveDataRelAcrossRoots(relOrRels, kind /* "file" | "dir" | "either" */) {
+  const rels = Array.isArray(relOrRels) ? relOrRels : [relOrRels];
+  const wantKind = kind || "either";
 
-  for (const base of DATA_ROOT_CANDIDATES) {
-    const direct = path.resolve(base, relNorm);
-    if (fileExists(direct)) return direct;
+  for (const rel of rels) {
+    const relNorm = String(rel || "").replace(/\\/g, "/").replace(/^\/+/, "");
+    if (!relNorm) continue;
 
-    const ci = resolveRelPathCaseInsensitive(base, relNorm);
-    if (fileExists(ci)) return ci;
+    for (const base of DATA_ROOT_CANDIDATES) {
+      const direct = path.resolve(base, relNorm);
+      const stD = statSafe(direct);
+      if (stD) {
+        if (wantKind === "file" && stD.isFile()) return direct;
+        if (wantKind === "dir" && stD.isDirectory()) return direct;
+        if (wantKind === "either") return direct;
+      }
+
+      const ci = resolveRelPathCaseInsensitive(base, relNorm);
+      const stC = statSafe(ci);
+      if (stC) {
+        if (wantKind === "file" && stC.isFile()) return ci;
+        if (wantKind === "dir" && stC.isDirectory()) return ci;
+        if (wantKind === "either") return ci;
+      }
+    }
+
+    // --- Fallback: search by basename/dirname across roots (bounded) ---
+    const baseName = path.posix.basename(relNorm);
+    if (baseName) {
+      if (wantKind === "file") {
+        const hit = findByNameAcrossDataRoots(baseName, false);
+        if (hit) return hit;
+      } else if (wantKind === "dir") {
+        const hit = findByNameAcrossDataRoots(baseName, true);
+        if (hit) return hit;
+      } else {
+        const hitF = findByNameAcrossDataRoots(baseName, false);
+        if (hitF) return hitF;
+        const hitD = findByNameAcrossDataRoots(baseName, true);
+        if (hitD) return hitD;
+      }
+    }
   }
+
   return null;
 }
 
@@ -1086,9 +1199,9 @@ function manifestLoadPacks(loadedFiles, totalBytesRef) {
 
   for (const item of PACK_MANIFEST) {
     try {
-      // v1.5.18aq: resolve rels across roots (data mounts, etc.)
+      // v1.5.18as: resolve rels across roots + fallback search
       if (item.type === "json_file_rel") {
-        const fp = resolveDataRelAcrossRoots(item.rel);
+        const fp = resolveDataRelAcrossRoots(item.rels || item.rel, "file");
         const res = fp
           ? manifestLoadJsonFileIntoKey(fp, item.key, loadedFiles, totalBytesRef)
           : { ok: false, reason: "missing" };
@@ -1103,7 +1216,7 @@ function manifestLoadPacks(loadedFiles, totalBytesRef) {
       }
 
       if (item.type === "json_dir_rel") {
-        const dir = resolveDataRelAcrossRoots(item.rel);
+        const dir = resolveDataRelAcrossRoots(item.rels || item.rel, "dir");
         const res = dir
           ? manifestLoadJsonDirIntoPrefix(dir, item.key, loadedFiles, totalBytesRef)
           : { ok: false, reason: "missing_dir" };
@@ -1118,7 +1231,7 @@ function manifestLoadPacks(loadedFiles, totalBytesRef) {
       }
 
       if (item.type === "json_file_or_dir_rel") {
-        const p = resolveDataRelAcrossRoots(item.rel);
+        const p = resolveDataRelAcrossRoots(item.rels || item.rel, "either");
         const res = p ? manifestLoadFileOrDir(p, item.key, loadedFiles, totalBytesRef) : { ok: false, reason: "missing_file_or_dir" };
         loadedSummary.push({ key: item.key, ok: res.ok, reason: res.reason || "" });
         continue;
@@ -1148,20 +1261,45 @@ function manifestLoadPacks(loadedFiles, totalBytesRef) {
 // Probes to quickly answer “does this exist and what path resolved?”
 function buildManifestProbes() {
   const targets = [
-    { id: "wiki_yearend_hot100", rel: "wikipedia/billboard_yearend_hot100_1950_2024.json", kind: "file" },
-    { id: "top40_weekly_dir", rel: "charts/top40_weekly", kind: "dir" },
-    { id: "movies_root", rel: "movies", kind: "dir_or_file" },
-    { id: "sponsors_root", rel: "sponsors", kind: "dir_or_file" },
+    {
+      id: "wiki_yearend_hot100",
+      rels: [
+        "wikipedia/billboard_yearend_hot100_1950_2024.json",
+        "wiki/billboard_yearend_hot100_1950_2024.json",
+        "music/wiki/billboard_yearend_hot100_1950_2024.json",
+        "music/wikipedia/billboard_yearend_hot100_1950_2024.json",
+        "packs/wikipedia/billboard_yearend_hot100_1950_2024.json",
+      ],
+      kind: "file",
+    },
+    {
+      id: "top40_weekly_dir",
+      rels: [
+        "charts/top40_weekly",
+        "chart/top40_weekly",
+        "music/charts/top40_weekly",
+        "packs/charts/top40_weekly",
+        "top40_weekly",
+      ],
+      kind: "dir",
+    },
+    { id: "movies_root", rels: ["movies", "Movies"], kind: "dir_or_file" },
+    { id: "sponsors_root", rels: ["sponsors", "Sponsors"], kind: "dir_or_file" },
   ];
 
   const probes = [];
   for (const t of targets) {
+    const kind = t.kind === "file" ? "file" : t.kind === "dir" ? "dir" : "either";
+    const bestFound = resolveDataRelAcrossRoots(t.rels, kind);
+
+    // Keep your original per-root previews (use first rel as canonical for preview)
+    const previewRel = Array.isArray(t.rels) && t.rels.length ? t.rels[0] : "";
     const perRoot = [];
     for (const base of DATA_ROOT_CANDIDATES.slice(0, 8)) {
-      const direct = path.resolve(base, t.rel);
-      const directExists = fileExists(direct);
-      const ci = resolveRelPathCaseInsensitive(base, t.rel);
-      const ciExists = fileExists(ci);
+      const direct = previewRel ? path.resolve(base, previewRel) : base;
+      const directExists = previewRel ? fileExists(direct) : fileExists(base);
+      const ci = previewRel ? resolveRelPathCaseInsensitive(base, previewRel) : base;
+      const ciExists = previewRel ? fileExists(ci) : fileExists(base);
 
       const resolved = resolveManifestAbsFallback(direct);
       const resolvedExists = fileExists(resolved);
@@ -1177,31 +1315,27 @@ function buildManifestProbes() {
       });
     }
 
-    // pick a “best” resolved for quick display
-    let best = null;
-    for (const r of perRoot) {
-      if (r.resolvedExists) {
-        best = { fp: r.resolved, via: "resolveManifestAbsFallback", base: r.base };
-        break;
-      }
-      if (r.ciExists) {
-        best = { fp: r.ci, via: "case_insensitive_walk", base: r.base };
-        break;
-      }
-      if (r.directExists) {
-        best = { fp: r.direct, via: "direct", base: r.base };
-        break;
-      }
-    }
+    // best: prefer bestFound if present
+    const best =
+      bestFound
+        ? { fp: bestFound, via: "resolveDataRelAcrossRoots+fallback", base: null }
+        : (() => {
+            for (const r of perRoot) {
+              if (r.resolvedExists) return { fp: r.resolved, via: "resolveManifestAbsFallback", base: r.base };
+              if (r.ciExists) return { fp: r.ci, via: "case_insensitive_walk", base: r.base };
+              if (r.directExists) return { fp: r.direct, via: "direct", base: r.base };
+            }
+            return null;
+          })();
 
     probes.push({
       id: t.id,
-      rel: t.rel,
+      rels: t.rels,
       kind: t.kind,
       best,
+      bestFound: bestFound || null,
       any: !!best,
       rootsChecked: perRoot.length,
-      // keep compact: only show first 2 roots fully, rest summarized
       preview: perRoot.slice(0, 2),
       remainingAny: perRoot.slice(2).some((x) => x.resolvedExists || x.ciExists || x.directExists),
     });
@@ -1408,7 +1542,13 @@ function reloadKnowledge() {
   // eslint-disable-next-line no-console
   console.log(
     `[Sandblast][Knowledge] probes=${JSON.stringify(
-      (KNOWLEDGE.__packsight?.probes || []).map((p) => ({ id: p.id, rel: p.rel, any: p.any, best: p.best }))
+      (KNOWLEDGE.__packsight?.probes || []).map((p) => ({
+        id: p.id,
+        rels: (p.rels || []).slice(0, 2),
+        any: p.any,
+        bestFound: p.bestFound,
+        best: p.best,
+      }))
     )}`
   );
 
@@ -1922,6 +2062,11 @@ app.get("/api/packsight", (req, res) => {
         maxFileBytes: KNOWLEDGE_MAX_FILE_BYTES,
         maxTotalBytes: KNOWLEDGE_MAX_TOTAL_BYTES,
       },
+      manifestSearch: {
+        fallbackEnabled: MANIFEST_SEARCH_FALLBACK,
+        maxVisits: MANIFEST_SEARCH_MAX_VISITS,
+        maxDepth: MANIFEST_SEARCH_MAX_DEPTH,
+      },
       pinnedPresence: pins,
       pinnedResolved: KNOWLEDGE.__packsight?.pinnedResolved || [],
       manifestPreview: (KNOWLEDGE.__manifest || []).slice(0, 20),
@@ -1974,6 +2119,11 @@ if (KNOWLEDGE_DEBUG_ENDPOINT) {
         scriptsEnabled: KNOWLEDGE_ENABLE_SCRIPTS,
         allowDataOutsideAppRoot: KNOWLEDGE_ALLOW_DATA_OUTSIDE_APP_ROOT,
         allowScriptsOutsideAppRoot: KNOWLEDGE_ALLOW_SCRIPTS_OUTSIDE_APP_ROOT,
+        manifestSearch: {
+          fallbackEnabled: MANIFEST_SEARCH_FALLBACK,
+          maxVisits: MANIFEST_SEARCH_MAX_VISITS,
+          maxDepth: MANIFEST_SEARCH_MAX_DEPTH,
+        },
         jsonKeyCount: jsonKeys.length,
         scriptKeyCount: scriptKeys.length,
         filesScanned: KNOWLEDGE.filesScanned,
@@ -1991,6 +2141,7 @@ if (KNOWLEDGE_DEBUG_ENDPOINT) {
           key: m.key,
           type: m.type,
           rel: m.rel || null,
+          rels: m.rels || null,
           abs: m.abs || null,
           outKey: m.outKey || null,
         })),
@@ -2025,6 +2176,11 @@ if (KNOWLEDGE_DEBUG_ENDPOINT) {
         dataDir: DATA_DIR,
         dataRoots: DATA_ROOT_CANDIDATES,
         allowDataOutsideAppRoot: KNOWLEDGE_ALLOW_DATA_OUTSIDE_APP_ROOT,
+        manifestSearch: {
+          fallbackEnabled: MANIFEST_SEARCH_FALLBACK,
+          maxVisits: MANIFEST_SEARCH_MAX_VISITS,
+          maxDepth: MANIFEST_SEARCH_MAX_DEPTH,
+        },
         pinnedPresence: pins,
         pinnedResolved: KNOWLEDGE.__packsight?.pinnedResolved || [],
         manifestPreview: (KNOWLEDGE.__manifest || []).slice(0, 20),
@@ -2549,8 +2705,17 @@ app.listen(PORT, () => {
   );
   // eslint-disable-next-line no-console
   console.log(
+    `[Sandblast] ManifestSearch: fallback=${MANIFEST_SEARCH_FALLBACK} maxVisits=${MANIFEST_SEARCH_MAX_VISITS} maxDepth=${MANIFEST_SEARCH_MAX_DEPTH}`
+  );
+  // eslint-disable-next-line no-console
+  console.log(
     `[Sandblast] Packsight probes=${JSON.stringify(
-      (KNOWLEDGE.__packsight?.probes || []).map((p) => ({ id: p.id, rel: p.rel, any: p.any, best: p.best }))
+      (KNOWLEDGE.__packsight?.probes || []).map((p) => ({
+        id: p.id,
+        any: p.any,
+        bestFound: p.bestFound || null,
+        best: p.best,
+      }))
     )}`
   );
 });
