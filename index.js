@@ -3,13 +3,15 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18aq (PACK VISIBILITY HARDENING++++: multi-root crawl + manifest resolves across ALL data roots + stable keying)
+ * index.js v1.5.18ar (PACK VISIBILITY HARDENING++++ + CHIP SIGNAL ROUNDTRIP: payload<->root intent/route/label)
  *
- * Key fix vs 1.5.18ap:
- *  ✅ CRITICAL: Manifest paths (wikipedia/charts/movies/sponsors) now resolve across ALL DATA_ROOT_CANDIDATES (not just DATA_DIR)
- *  ✅ CRITICAL: JSON crawl now walks ALL data roots (not just “bestDataRoot”), so packs don’t “vanish” when mounted elsewhere
- *  ✅ CRITICAL: Stable keying chooses the “best root” per file (shortest rel path) to avoid split/duplicate namespaces
- *  ✅ Keeps: allow Data outside APP_ROOT (default TRUE), bigger budgets, PUBLIC /api/packsight, pinned resolver, case-insensitive resolution, etc.
+ * Key fix vs 1.5.18aq:
+ *  ✅ CRITICAL: CHIP PAYLOAD NORMALIZER now round-trips intent/route/label (not just lane/action/year/mode)
+ *     - prevents “chip looks meaningful in payload but empty at root” → misroutes / frozen follow-ups / weak replay signatures
+ *  ✅ Slightly stronger inbound signature derivation using intent/route/label (when no text)
+ *
+ * Keeps: multi-root crawl, manifest resolves across ALL data roots, stable keying, allow Data outside APP_ROOT,
+ * bigger budgets, PUBLIC /api/packsight, pinned resolver, case-insensitive resolution, etc.
  */
 
 // =========================
@@ -68,7 +70,7 @@ const nyxVoiceNaturalizeMod =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18aq (PACK VISIBILITY HARDENING++++: multi-root crawl + manifest resolves across ALL data roots + stable keying + allow Data outside APP_ROOT + bigger budgets + PUBLIC /api/packsight + case-insensitive Data/Scripts resolution + pinned/manifest path fallback + packsight diagnostics + manifest target probes + pinned packs to real Data/* files + manifest tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
+  "index.js v1.5.18ar (PACK VISIBILITY HARDENING++++: multi-root crawl + manifest resolves across ALL data roots + stable keying + CHIP SIGNAL ROUNDTRIP intent/route/label + allow Data outside APP_ROOT + bigger budgets + PUBLIC /api/packsight + case-insensitive Data/Scripts resolution + pinned/manifest path fallback + packsight diagnostics + manifest target probes + pinned packs to real Data/* files + manifest tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
 
 // =========================
 // Utils
@@ -582,9 +584,9 @@ function hasIntentSignals(body) {
   const sig =
     safeStr(payload.text || payload.message).trim() ||
     safeStr(b.text || b.message || b.prompt || b.query).trim() ||
-    safeStr(payload.mode || payload.action || payload.intent || payload.label).trim() ||
+    safeStr(payload.mode || payload.action || payload.intent || payload.route || payload.label).trim() ||
     safeStr(ctx.mode || ctx.action || ctx.intent || ctx.route).trim() ||
-    safeStr(b.mode || b.action || b.intent).trim() ||
+    safeStr(b.mode || b.action || b.intent || b.route).trim() ||
     safeStr(b.year || payload.year || ctx.year).trim() ||
     safeStr(client.routeHint || client.source).trim();
 
@@ -601,9 +603,9 @@ function normalizeInboundSignature(body, inboundText) {
 
   const tok =
     safeStr(payload.text || payload.message).trim() ||
-    safeStr(payload.mode || payload.action || payload.intent || payload.label).trim() ||
+    safeStr(payload.mode || payload.action || payload.intent || payload.route || payload.label).trim() ||
     safeStr(ctx.mode || ctx.action || ctx.intent || ctx.route).trim() ||
-    safeStr(b.mode || b.action || b.intent).trim() ||
+    safeStr(b.mode || b.action || b.intent || b.route || b.label).trim() ||
     "";
 
   const year = safeStr(b.year || payload.year || ctx.year).trim();
@@ -1087,7 +1089,9 @@ function manifestLoadPacks(loadedFiles, totalBytesRef) {
       // v1.5.18aq: resolve rels across roots (data mounts, etc.)
       if (item.type === "json_file_rel") {
         const fp = resolveDataRelAcrossRoots(item.rel);
-        const res = fp ? manifestLoadJsonFileIntoKey(fp, item.key, loadedFiles, totalBytesRef) : { ok: false, reason: "missing" };
+        const res = fp
+          ? manifestLoadJsonFileIntoKey(fp, item.key, loadedFiles, totalBytesRef)
+          : { ok: false, reason: "missing" };
 
         if (res.ok && !res.skipped && typeof item.transform === "function" && item.outKey) {
           const derived = item.transform(KNOWLEDGE.json[item.key]);
@@ -1100,7 +1104,9 @@ function manifestLoadPacks(loadedFiles, totalBytesRef) {
 
       if (item.type === "json_dir_rel") {
         const dir = resolveDataRelAcrossRoots(item.rel);
-        const res = dir ? manifestLoadJsonDirIntoPrefix(dir, item.key, loadedFiles, totalBytesRef) : { ok: false, reason: "missing_dir" };
+        const res = dir
+          ? manifestLoadJsonDirIntoPrefix(dir, item.key, loadedFiles, totalBytesRef)
+          : { ok: false, reason: "missing_dir" };
 
         if (res.ok && typeof item.postTransform === "function" && item.outKey) {
           const derived = item.postTransform(KNOWLEDGE.json, item.key);
@@ -2055,6 +2061,7 @@ function normalizeChipPayload(b) {
 
   if (!isPlainObject(b.payload)) b.payload = {};
 
+  // root -> payload (if root has signals, ensure payload receives them)
   if (rootHas) {
     if (b.lane && !b.payload.lane) b.payload.lane = b.lane;
     if (b.action && !b.payload.action) b.payload.action = b.action;
@@ -2065,11 +2072,16 @@ function normalizeChipPayload(b) {
     if (b.label && !b.payload.label) b.payload.label = b.label;
   }
 
+  // payload -> root (CRITICAL: round-trip ALL chip signals, not just lane/action/year/mode)
   if (isPlainObject(b.payload)) {
     if (b.payload.lane && !b.lane) b.lane = b.payload.lane;
     if (b.payload.action && !b.action) b.action = b.payload.action;
     if (b.payload.year && !b.year) b.year = b.payload.year;
     if (b.payload.mode && !b.mode) b.mode = b.payload.mode;
+
+    if (b.payload.intent && !b.intent) b.intent = b.payload.intent;
+    if (b.payload.route && !b.route) b.route = b.payload.route;
+    if (b.payload.label && !b.label) b.label = b.payload.label;
   }
 
   return b;
