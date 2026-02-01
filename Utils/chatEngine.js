@@ -17,15 +17,14 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7aN (CRITICAL ROUTING HARDENING + YEAR-STICKY + CHIP AUTHORITATIVE)
+ * v0.7aO (FIRST-TURN ROUTER FOLLOWUPS + v0.7aN HARDENING PRESERVED)
  *
- * Critical fixes vs v0.7aM:
- * ✅ Chip-authoritative mode selection: payload.mode ALWAYS wins over text inference (prevents “Top 10” words overriding “#1 song” chip)
- * ✅ Payload extraction includes ROOT FIELDS fallback (lane/action/mode/year can be at root even if payload missing)
- * ✅ Sticky-year source tracking: distinguishes year from payload vs classifier vs sticky vs text (debug + correctness)
- * ✅ Burst dedupe key is session-scoped (avoids “anon” collisions if visitorId absent)
- * ✅ Structured music detection honors explicit mode/action even when year is missing (then pulls sticky year)
- * ✅ FollowUps remain widget-compatible (structured payload + payload.text fallback)
+ * Critical adds vs v0.7aN:
+ * ✅ FIRST-TURN ROUTER FOLLOWUPS: when session is fresh (or panel_open_intro) and followUps are missing/empty,
+ *    Nyx ALWAYS emits a widget-compatible set so the UI can advance deterministically (prevents “frozen chips / no change”).
+ * ✅ Session-internal turn counter (__turnCount) to reliably detect first turn without depending on client state.
+ *
+ * (All v0.7aN fixes preserved)
  */
 
 const crypto = require("crypto");
@@ -55,7 +54,7 @@ try {
 ====================================================== */
 
 const CE_VERSION =
-  "chatEngine v0.7aN (routing hardening + payload-root fallback + chip-authoritative mode + sticky-year source + session-scoped burst dedupe)";
+  "chatEngine v0.7aO (first-turn router followUps + routing hardening + payload-root fallback + chip-authoritative mode + sticky-year source + session-scoped burst dedupe)";
 
 const MAX_REPLY_LEN = 2400;
 const MAX_FOLLOWUPS = 10;
@@ -261,6 +260,43 @@ function followUpsToLegacyStrings(followUps) {
     .map((x) => String(x && x.label ? x.label : ""))
     .filter(Boolean)
     .slice(0, MAX_FOLLOWUPS);
+}
+
+/* ======================================================
+   FIRST-TURN ROUTER FOLLOWUPS
+   - Emits widget-compatible sends (payload.text)
+   - Avoids “no followUps on boot” → frozen UI
+====================================================== */
+
+function hasUsableFollowUps(fus) {
+  return Array.isArray(fus) && fus.length > 0;
+}
+
+function firstTurnRouterFollowUps() {
+  // IMPORTANT:
+  // Your current widget filters allowed "send" strings heavily.
+  // So we make labels “pretty”, but payload.text is what gets sent.
+  // This keeps it compatible even if the widget ignores payload fields.
+  return sanitizeFollowUps([
+    {
+      id: "router_music",
+      type: "chip",
+      label: "Music",
+      payload: { lane: "music", action: "enter", mode: "top10", text: "Pick a year" },
+    },
+    {
+      id: "router_story",
+      type: "chip",
+      label: "Story moment",
+      payload: { lane: "music", action: "year", mode: "story", text: "Story moment" },
+    },
+    {
+      id: "router_talk",
+      type: "chip",
+      label: "Just talk",
+      payload: { lane: "general", action: "free", text: "Just talk" },
+    },
+  ]);
 }
 
 /* ======================================================
@@ -841,6 +877,18 @@ async function handleChat(input = {}) {
   const session =
     input && input.session && typeof input.session === "object" ? input.session : Object.create(null);
 
+  // Session-internal turn counter (do NOT expose; used only for first-turn routing)
+  const turnCountRaw = Number(session.__turnCount || 0);
+  const turnCount = Number.isFinite(turnCountRaw) && turnCountRaw >= 0 ? turnCountRaw : 0;
+
+  // detect client source (widget sends: input.client.source)
+  const clientSource = normLower(
+    (input && input.client && input.client.source) ||
+      input.source ||
+      (input && input.meta && input.meta.source) ||
+      ""
+  );
+
   // session-scoped id for burst dedupe stability
   const sessionId = sessionScopedVisitorId(session, input.visitorId || input.visitorID || input.sessionId);
 
@@ -1024,6 +1072,23 @@ async function handleChat(input = {}) {
     }
   }
 
+  // ======================================================
+  // FIRST-TURN ROUTER FOLLOWUPS (CRITICAL)
+  // - If first turn (or panel_open_intro) and followUps missing, inject router chips.
+  // ======================================================
+  const isFirstTurn =
+    turnCount === 0 ||
+    clientSource === "panel_open_intro" ||
+    clientSource === "boot_intro" ||
+    clientSource === "panel_open" ||
+    clientSource === "open";
+
+  if (isFirstTurn && (!routed || !hasUsableFollowUps(routed.followUps))) {
+    if (!routed) routed = { reply: "", followUps: [] };
+    routed.followUps = firstTurnRouterFollowUps();
+    // If reply is empty, ensureAdvance will generate a gentle line.
+  }
+
   const safeOut = ensureAdvance({ reply: routed.reply, followUps: routed.followUps });
   const followUps = sanitizeFollowUps(safeOut.followUps || []);
 
@@ -1041,6 +1106,8 @@ async function handleChat(input = {}) {
       classifierAction: forcedMode || null,
       payloadSeen: !!inbound.payload,
       stickyYearUsed: yearSource === "sticky",
+      firstTurn: !!isFirstTurn,
+      clientSource: clientSource || null,
     },
     ui: null,
     directives: [],
@@ -1069,9 +1136,17 @@ async function handleChat(input = {}) {
           lane: inbound.lane || session.lane || "",
           intentSig: intentSig || null,
           packetMeta: routed && routed.meta ? routed.meta : null,
+          turnCount,
+          clientSource,
+          isFirstTurn,
         }
       : null,
   };
+
+  // advance internal turn counter (do NOT expose; does not go through sessionPatch)
+  try {
+    session.__turnCount = turnCount + 1;
+  } catch (_) {}
 
   rememberReply(session, burstKey, out);
   return out;
