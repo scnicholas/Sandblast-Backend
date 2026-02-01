@@ -3,18 +3,18 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18ao (PACK VISIBILITY HARDENING++: case-insensitive Data/Scripts resolution + smarter pinned/manifest path fallback + stronger pack “sight” diagnostics + manifest target probes)
+ * index.js v1.5.18ap (PACK VISIBILITY HARDENING+++: allow Data outside APP_ROOT + bigger budgets + PUBLIC /api/packsight)
  *
- * Key fix vs 1.5.18an:
- *  ✅ Adds manifest target “probe” list (existence + resolved path) so you can instantly see whether Nyx can *actually* see:
- *     - wikipedia/billboard_yearend_hot100_1950_2024.json
- *     - charts/top40_weekly/
- *     - movies/
- *     - sponsors/
- *  ✅ Packsight endpoint now returns those probes (compact) + highlights which exact resolved paths were used.
- *  ✅ Keeps everything else: case-insensitive DATA/SCRIPTS resolution, multi-root pinned resolution, manifest fallback, built-in pack index,
- *     chip normalizer, Nyx Voice Naturalizer, budgets, crash-proof boot, safe JSON parse, diagnostics, error middleware, knowledge bridge,
- *     CORS hard-lock, loop fuse, boot isolation, output normalization, REAL ElevenLabs TTS, GET /api/tts + /api/voice guidance
+ * Key fix vs 1.5.18ao:
+ *  ✅ CRITICAL: Data/Scripts no longer blocked just because they’re outside APP_ROOT (Render persistent disk mounts, etc.)
+ *     - KNOWLEDGE_ALLOW_DATA_OUTSIDE_APP_ROOT defaults TRUE
+ *     - KNOWLEDGE_ALLOW_SCRIPTS_OUTSIDE_APP_ROOT defaults FALSE (safer)
+ *  ✅ CRITICAL: bump default file budgets so large wikipedia packs don’t silently skip
+ *  ✅ NEW: /api/packsight is PUBLIC + SAFE (no prod debug gate) so you can diagnose immediately
+ *
+ * Keeps everything else: case-insensitive DATA/SCRIPTS resolution, multi-root pinned resolution, manifest fallback, built-in pack index,
+ * chip normalizer, Nyx Voice Naturalizer, budgets, crash-proof boot, safe JSON parse, diagnostics, error middleware, knowledge bridge,
+ * CORS hard-lock, loop fuse, boot isolation, output normalization, REAL ElevenLabs TTS, GET /api/tts + /api/voice guidance
  */
 
 // =========================
@@ -73,7 +73,67 @@ const nyxVoiceNaturalizeMod =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18ao (PACK VISIBILITY HARDENING++: case-insensitive Data/Scripts resolution + pinned/manifest path fallback + packsight diagnostics + manifest target probes + pinned packs to real Data/* files + manifest tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + larger knowledge budgets + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
+  "index.js v1.5.18ap (PACK VISIBILITY HARDENING+++: allow Data outside APP_ROOT + bigger budgets + PUBLIC /api/packsight + case-insensitive Data/Scripts resolution + pinned/manifest path fallback + packsight diagnostics + manifest target probes + pinned packs to real Data/* files + manifest tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
+
+// =========================
+// Utils
+// =========================
+function nowMs() {
+  return Date.now();
+}
+function safeStr(x) {
+  return x === null || x === undefined ? "" : String(x);
+}
+function sha1(s) {
+  return crypto.createHash("sha1").update(String(s)).digest("hex");
+}
+function clampInt(v, def, min, max) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return def;
+  const t = Math.trunc(n);
+  if (t < min) return min;
+  if (t > max) return max;
+  return t;
+}
+function clampFloat(v, def, min, max) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return def;
+  if (n < min) return min;
+  if (n > max) return max;
+  return n;
+}
+function toBool(v, def) {
+  const s = String(v ?? "").trim().toLowerCase();
+  if (!s) return !!def;
+  if (["1", "true", "yes", "y", "on"].includes(s)) return true;
+  if (["0", "false", "no", "n", "off"].includes(s)) return false;
+  return !!def;
+}
+function isPlainObject(x) {
+  return (
+    !!x &&
+    typeof x === "object" &&
+    (Object.getPrototypeOf(x) === Object.prototype || Object.getPrototypeOf(x) === null)
+  );
+}
+function safeJsonParseMaybe(x) {
+  if (x === null || x === undefined) return null;
+  if (typeof x === "object") return x;
+  const s = String(x).trim();
+  if (!s) return null;
+  try {
+    return JSON.parse(s);
+  } catch (_) {
+    return null;
+  }
+}
+function pickClientIp(req) {
+  const xf = safeStr(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+  return xf || req.socket?.remoteAddress || "";
+}
+function normalizeOrigin(o) {
+  return safeStr(o).trim().replace(/\/$/, "");
+}
 
 // =========================
 // Env / knobs
@@ -101,12 +161,19 @@ const KNOWLEDGE_RELOAD_INTERVAL_MS = clampInt(
 
 const KNOWLEDGE_MAX_FILES = clampInt(process.env.KNOWLEDGE_MAX_FILES, 2500, 200, 20000);
 
-// IMPORTANT: bumped defaults to avoid silent “pack not loaded” symptoms
-const KNOWLEDGE_MAX_FILE_BYTES = clampInt(process.env.KNOWLEDGE_MAX_FILE_BYTES, 8_000_000, 50_000, 20_000_000);
-const KNOWLEDGE_MAX_TOTAL_BYTES = clampInt(process.env.KNOWLEDGE_MAX_TOTAL_BYTES, 120_000_000, 1_000_000, 250_000_000);
+// IMPORTANT: bumped defaults again; wikipedia merged packs are often > 8MB.
+const KNOWLEDGE_MAX_FILE_BYTES = clampInt(process.env.KNOWLEDGE_MAX_FILE_BYTES, 25_000_000, 50_000, 250_000_000);
+const KNOWLEDGE_MAX_TOTAL_BYTES = clampInt(process.env.KNOWLEDGE_MAX_TOTAL_BYTES, 250_000_000, 1_000_000, 1_500_000_000);
 
 // Root resolution: in Render, __dirname is safest
 const APP_ROOT = path.resolve(__dirname);
+
+// If your Data lives on a mounted disk (Render persistent disk), it may be outside APP_ROOT.
+// Default ON because this is the #1 reason packs “vanish” in production.
+const KNOWLEDGE_ALLOW_DATA_OUTSIDE_APP_ROOT = toBool(process.env.KNOWLEDGE_ALLOW_DATA_OUTSIDE_APP_ROOT, true);
+
+// Scripts are riskier; keep default OFF unless you explicitly need it.
+const KNOWLEDGE_ALLOW_SCRIPTS_OUTSIDE_APP_ROOT = toBool(process.env.KNOWLEDGE_ALLOW_SCRIPTS_OUTSIDE_APP_ROOT, false);
 
 // =========================
 // CRITICAL: Case-insensitive dir/path resolution (Linux-safe)
@@ -182,6 +249,12 @@ function resolveRelPathCaseInsensitive(rootAbs, relPath) {
 }
 function resolveDataDirFromEnv() {
   const envName = String(process.env.DATA_DIR || "Data").trim();
+
+  // If envName is absolute, respect it (and allow outside APP_ROOT if env allows).
+  try {
+    if (path.isAbsolute(envName)) return path.resolve(envName);
+  } catch (_) {}
+
   // if envName is a relative folder, resolve against APP_ROOT with case-insensitive fallback
   const absDirect = path.resolve(APP_ROOT, envName);
   const st = statSafe(absDirect);
@@ -196,6 +269,11 @@ function resolveDataDirFromEnv() {
 }
 function resolveScriptsDirFromEnv() {
   const envName = String(process.env.SCRIPTS_DIR || "Scripts").trim();
+
+  try {
+    if (path.isAbsolute(envName)) return path.resolve(envName);
+  } catch (_) {}
+
   const absDirect = path.resolve(APP_ROOT, envName);
   const st = statSafe(absDirect);
   if (st && st.isDirectory()) return absDirect;
@@ -242,7 +320,7 @@ const NYX_VOICE_NATURALIZE_MAXLEN = clampInt(process.env.NYX_VOICE_NATURALIZE_MA
 // =========================
 //
 // NOTE: Updated to match your real filenames in Data/.
-//       v1.5.18ao: resolver tries DATA_ROOT_CANDIDATES + case-insensitive subpaths.
+//       Resolver tries DATA_ROOT_CANDIDATES + case-insensitive subpaths.
 //
 const PINNED_PACKS = [
   {
@@ -282,10 +360,11 @@ const PINNED_PACKS = [
       "music_story_moments_1950_1989.generated.json",
 
       // Optional alternates (safe to keep)
-      "music_story_moments_by_year.json",
+      "music/story_moments_by_year.json",
       "Nyx/music_story_moments_by_year.json",
       "Packs/music_story_moments_by_year.json",
       "Nyx/music_story_moments_v1.json",
+      "music_story_moments_by_year.json",
     ],
   },
   {
@@ -366,95 +445,6 @@ const ORIGINS_ALLOWLIST = String(
 
 const ORIGINS_REGEX_ALLOWLIST = String(process.env.CORS_ALLOW_ORIGINS_REGEX || "").trim();
 
-// Loop/guards
-const LOOP_REPLAY_WINDOW_MS = clampInt(process.env.LOOP_REPLAY_WINDOW_MS, 4000, 500, 15000);
-const BURST_WINDOW_MS = clampInt(process.env.BURST_WINDOW_MS, 1200, 200, 5000);
-const BURST_MAX = clampInt(process.env.BURST_MAX, 6, 2, 30);
-const SUSTAINED_WINDOW_MS = clampInt(process.env.SUSTAINED_WINDOW_MS, 12000, 2000, 60000);
-const SUSTAINED_MAX = clampInt(process.env.SUSTAINED_MAX, 18, 6, 120);
-
-// Boot-intro dedupe fuse
-const BOOT_DEDUPE_MS = clampInt(process.env.BOOT_DEDUPE_MS, 1200, 200, 6000);
-const BOOT_MAX_WINDOW_MS = clampInt(process.env.BOOT_MAX_WINDOW_MS, 6000, 1000, 30000);
-const BOOT_MAX = clampInt(process.env.BOOT_MAX, 6, 2, 40);
-
-const SESSION_TTL_MS = clampInt(
-  process.env.SESSION_TTL_MS,
-  45 * 60 * 1000,
-  10 * 60 * 1000,
-  12 * 60 * 60 * 1000
-);
-const SESSION_MAX = clampInt(process.env.SESSION_MAX, 50000, 5000, 250000);
-
-// ElevenLabs TTS env
-const ELEVEN_API_KEY = String(process.env.ELEVENLABS_API_KEY || process.env.ELEVEN_API_KEY || "").trim();
-const ELEVEN_VOICE_ID = String(process.env.ELEVENLABS_VOICE_ID || process.env.NYX_VOICE_ID || "").trim();
-const ELEVEN_TTS_TIMEOUT_MS = clampInt(process.env.ELEVEN_TTS_TIMEOUT_MS, 20000, 4000, 60000);
-
-const NYX_VOICE_STABILITY = clampFloat(process.env.NYX_VOICE_STABILITY, 0.45, 0, 1);
-const NYX_VOICE_SIMILARITY = clampFloat(process.env.NYX_VOICE_SIMILARITY, 0.72, 0, 1);
-const NYX_VOICE_STYLE = clampFloat(process.env.NYX_VOICE_STYLE, 0.25, 0, 1);
-const NYX_VOICE_SPEAKER_BOOST = toBool(process.env.NYX_VOICE_SPEAKER_BOOST, true);
-
-// =========================
-// Utils
-// =========================
-function nowMs() {
-  return Date.now();
-}
-function safeStr(x) {
-  return x === null || x === undefined ? "" : String(x);
-}
-function sha1(s) {
-  return crypto.createHash("sha1").update(String(s)).digest("hex");
-}
-function clampInt(v, def, min, max) {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return def;
-  const t = Math.trunc(n);
-  if (t < min) return min;
-  if (t > max) return max;
-  return t;
-}
-function clampFloat(v, def, min, max) {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return def;
-  if (n < min) return min;
-  if (n > max) return max;
-  return n;
-}
-function toBool(v, def) {
-  const s = String(v ?? "").trim().toLowerCase();
-  if (!s) return !!def;
-  if (["1", "true", "yes", "y", "on"].includes(s)) return true;
-  if (["0", "false", "no", "n", "off"].includes(s)) return false;
-  return !!def;
-}
-function isPlainObject(x) {
-  return (
-    !!x &&
-    typeof x === "object" &&
-    (Object.getPrototypeOf(x) === Object.prototype || Object.getPrototypeOf(x) === null)
-  );
-}
-function safeJsonParseMaybe(x) {
-  if (x === null || x === undefined) return null;
-  if (typeof x === "object") return x;
-  const s = String(x).trim();
-  if (!s) return null;
-  try {
-    return JSON.parse(s);
-  } catch (_) {
-    return null;
-  }
-}
-function pickClientIp(req) {
-  const xf = safeStr(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
-  return xf || req.socket?.remoteAddress || "";
-}
-function normalizeOrigin(o) {
-  return safeStr(o).trim().replace(/\/$/, "");
-}
 function makeOriginRegexes() {
   const raw = ORIGINS_REGEX_ALLOWLIST
     .split(";")
@@ -488,6 +478,36 @@ function makeReqId() {
   } catch (_) {}
   return sha1(`${nowMs()}|${Math.random()}|${process.pid}`).slice(0, 20);
 }
+
+// Loop/guards
+const LOOP_REPLAY_WINDOW_MS = clampInt(process.env.LOOP_REPLAY_WINDOW_MS, 4000, 500, 15000);
+const BURST_WINDOW_MS = clampInt(process.env.BURST_WINDOW_MS, 1200, 200, 5000);
+const BURST_MAX = clampInt(process.env.BURST_MAX, 6, 2, 30);
+const SUSTAINED_WINDOW_MS = clampInt(process.env.SUSTAINED_WINDOW_MS, 12000, 2000, 60000);
+const SUSTAINED_MAX = clampInt(process.env.SUSTAINED_MAX, 18, 6, 120);
+
+// Boot-intro dedupe fuse
+const BOOT_DEDUPE_MS = clampInt(process.env.BOOT_DEDUPE_MS, 1200, 200, 6000);
+const BOOT_MAX_WINDOW_MS = clampInt(process.env.BOOT_MAX_WINDOW_MS, 6000, 1000, 30000);
+const BOOT_MAX = clampInt(process.env.BOOT_MAX, 6, 2, 40);
+
+const SESSION_TTL_MS = clampInt(
+  process.env.SESSION_TTL_MS,
+  45 * 60 * 1000,
+  10 * 60 * 1000,
+  12 * 60 * 60 * 1000
+);
+const SESSION_MAX = clampInt(process.env.SESSION_MAX, 50000, 5000, 250000);
+
+// ElevenLabs TTS env
+const ELEVEN_API_KEY = String(process.env.ELEVENLABS_API_KEY || process.env.ELEVEN_API_KEY || "").trim();
+const ELEVEN_VOICE_ID = String(process.env.ELEVENLABS_VOICE_ID || process.env.NYX_VOICE_ID || "").trim();
+const ELEVEN_TTS_TIMEOUT_MS = clampInt(process.env.ELEVEN_TTS_TIMEOUT_MS, 20000, 4000, 60000);
+
+const NYX_VOICE_STABILITY = clampFloat(process.env.NYX_VOICE_STABILITY, 0.45, 0, 1);
+const NYX_VOICE_SIMILARITY = clampFloat(process.env.NYX_VOICE_SIMILARITY, 0.72, 0, 1);
+const NYX_VOICE_STYLE = clampFloat(process.env.NYX_VOICE_STYLE, 0.25, 0, 1);
+const NYX_VOICE_SPEAKER_BOOST = toBool(process.env.NYX_VOICE_SPEAKER_BOOST, true);
 
 // =========================
 // Nyx Voice Naturalizer (pre-TTS)
@@ -897,7 +917,7 @@ function manifestBuildTop40WeeklyIndex(allJson, prefixKey) {
   return { ok: true, label: "top40_weekly", byYearWeek, builtAt: new Date().toISOString() };
 }
 
-// v1.5.18ao: if a manifest path is missing, retry with case-insensitive resolution relative to DATA_DIR / SCRIPTS_DIR / APP_ROOT.
+// If a manifest path is missing, retry with case-insensitive resolution relative to DATA_DIR / SCRIPTS_DIR / APP_ROOT.
 function resolveManifestAbsFallback(absPath) {
   const p = path.resolve(absPath);
   if (fileExists(p)) return p;
@@ -1060,7 +1080,7 @@ function manifestLoadPacks(loadedFiles, totalBytesRef) {
   return loadedSummary;
 }
 
-// v1.5.18ao: probes to quickly answer “does this exist and what path resolved?”
+// Probes to quickly answer “does this exist and what path resolved?”
 function buildManifestProbes() {
   const targets = [
     { id: "wiki_yearend_hot100", rel: "wikipedia/billboard_yearend_hot100_1950_2024.json", kind: "file" },
@@ -1144,30 +1164,48 @@ function reloadKnowledge() {
     probes: [],
   };
 
-  // v1.5.18ao: refresh probes early (even if loads fail)
+  // refresh probes early (even if loads fail)
   try {
     KNOWLEDGE.__packsight.probes = buildManifestProbes();
   } catch (_) {
     KNOWLEDGE.__packsight.probes = [];
   }
 
-  const dataOk = DATA_ROOT_CANDIDATES.some((d) => fileExists(d) && isWithinRoot(d, APP_ROOT));
-  const scriptsOk = fileExists(SCRIPTS_DIR) && isWithinRoot(SCRIPTS_DIR, APP_ROOT);
+  const dataOk = DATA_ROOT_CANDIDATES.some((d) => {
+    if (!fileExists(d)) return false;
+    if (KNOWLEDGE_ALLOW_DATA_OUTSIDE_APP_ROOT) return true;
+    return isWithinRoot(d, APP_ROOT);
+  });
 
-  if (!dataOk) pushKnowledgeError("dir", DATA_DIR, "DATA_DIR missing or outside APP_ROOT");
-  if (!scriptsOk && KNOWLEDGE_ENABLE_SCRIPTS)
-    pushKnowledgeError("dir", SCRIPTS_DIR, "SCRIPTS_DIR missing or outside APP_ROOT");
+  const scriptsOk = (() => {
+    if (!fileExists(SCRIPTS_DIR)) return false;
+    if (KNOWLEDGE_ALLOW_SCRIPTS_OUTSIDE_APP_ROOT) return true;
+    return isWithinRoot(SCRIPTS_DIR, APP_ROOT);
+  })();
+
+  if (!dataOk) {
+    pushKnowledgeError(
+      "dir",
+      DATA_DIR,
+      `DATA roots not readable (missing OR blocked by APP_ROOT). allowOutside=${KNOWLEDGE_ALLOW_DATA_OUTSIDE_APP_ROOT}`
+    );
+  }
+  if (!scriptsOk && KNOWLEDGE_ENABLE_SCRIPTS) {
+    pushKnowledgeError(
+      "dir",
+      SCRIPTS_DIR,
+      `SCRIPTS_DIR not readable (missing OR blocked by APP_ROOT). allowOutside=${KNOWLEDGE_ALLOW_SCRIPTS_OUTSIDE_APP_ROOT}`
+    );
+  }
 
   const loadedFiles = new Set(); // prevents double-loading pinned + crawl + manifest
   const totalBytesRef = { value: 0 };
 
   // ---- Force-load pinned packs under stable keys (before generic crawl) ----
-  const pinnedLoaded = [];
   if (dataOk) {
     for (const p of PINNED_PACKS) {
       try {
-        const rr = loadPinnedPack(p.rels, p.key, loadedFiles, totalBytesRef);
-        if (rr && rr.ok && rr.fp) pinnedLoaded.push({ key: p.key, fp: rr.fp });
+        loadPinnedPack(p.rels, p.key, loadedFiles, totalBytesRef);
       } catch (e) {
         pushKnowledgeError("pinned_exception", p.key, e?.message || e);
       }
@@ -1177,10 +1215,9 @@ function reloadKnowledge() {
   }
 
   // ---- Load MANIFEST packs next ----
-  let manifestSummary = [];
   if (dataOk || (scriptsOk && KNOWLEDGE_ENABLE_SCRIPTS)) {
     try {
-      manifestSummary = manifestLoadPacks(loadedFiles, totalBytesRef);
+      const manifestSummary = manifestLoadPacks(loadedFiles, totalBytesRef);
       KNOWLEDGE.__manifest = Array.isArray(manifestSummary) ? manifestSummary : [];
     } catch (e) {
       pushKnowledgeError("manifest_load", "PACK_MANIFEST", e?.message || e);
@@ -1274,7 +1311,9 @@ function reloadKnowledge() {
   console.log(
     `[Sandblast][Knowledge] loaded=${KNOWLEDGE.ok} pinnedAny=${pinnedOk} jsonKeys=${jsonKeys} scriptKeys=${scriptKeys} filesLoaded=${KNOWLEDGE.filesLoaded} totalBytes=${KNOWLEDGE.totalBytes} errors=${KNOWLEDGE.errors.length} in ${
       nowMs() - started
-    }ms (DATA_DIR=${DATA_DIR}, dataRoots=${JSON.stringify(DATA_ROOT_CANDIDATES.slice(0, 4))}, SCRIPTS_DIR=${SCRIPTS_DIR}, scriptsEnabled=${KNOWLEDGE_ENABLE_SCRIPTS})`
+    }ms (DATA_DIR=${DATA_DIR}, dataRoots=${JSON.stringify(
+      DATA_ROOT_CANDIDATES.slice(0, 4)
+    )}, allowDataOutside=${KNOWLEDGE_ALLOW_DATA_OUTSIDE_APP_ROOT}, SCRIPTS_DIR=${SCRIPTS_DIR}, scriptsEnabled=${KNOWLEDGE_ENABLE_SCRIPTS}, allowScriptsOutside=${KNOWLEDGE_ALLOW_SCRIPTS_OUTSIDE_APP_ROOT})`
   );
   // eslint-disable-next-line no-console
   console.log(`[Sandblast][Knowledge] pinnedPresence=${JSON.stringify(pins)}`);
@@ -1728,6 +1767,8 @@ app.get("/api/discovery", (req, res) => {
       "/api/voice",
       "/health",
       "/api/health",
+      "/api/knowledge",
+      "/api/packsight",
       "/api/debug/knowledge",
       "/api/debug/packsight",
       "/api/packs",
@@ -1775,6 +1816,56 @@ app.post("/api/packs/refresh", doPacksRefresh);
 app.get("/api/packs/refresh", doPacksRefresh);
 
 // =========================
+// PUBLIC Packsight (SAFE): always available in production
+// =========================
+app.get("/api/packsight", (req, res) => {
+  const pins = pinnedPresence();
+  const idx = getPackIndexSafe(false);
+
+  return res.status(200).json({
+    ok: true,
+    version: INDEX_VERSION,
+    engine: ENGINE_VERSION || null,
+    engineFrom: ENGINE.from,
+    data: {
+      appRoot: APP_ROOT,
+      dataDir: DATA_DIR,
+      dataRoots: DATA_ROOT_CANDIDATES,
+      scriptsDir: SCRIPTS_DIR,
+      scriptsEnabled: KNOWLEDGE_ENABLE_SCRIPTS,
+      allowDataOutsideAppRoot: KNOWLEDGE_ALLOW_DATA_OUTSIDE_APP_ROOT,
+      allowScriptsOutsideAppRoot: KNOWLEDGE_ALLOW_SCRIPTS_OUTSIDE_APP_ROOT,
+      budgets: {
+        maxFiles: KNOWLEDGE_MAX_FILES,
+        maxFileBytes: KNOWLEDGE_MAX_FILE_BYTES,
+        maxTotalBytes: KNOWLEDGE_MAX_TOTAL_BYTES,
+      },
+      pinnedPresence: pins,
+      pinnedResolved: KNOWLEDGE.__packsight?.pinnedResolved || [],
+      manifestPreview: (KNOWLEDGE.__manifest || []).slice(0, 20),
+      manifestResolved: KNOWLEDGE.__packsight?.manifestResolved || [],
+      probes: KNOWLEDGE.__packsight?.probes || [],
+      errorCount: KNOWLEDGE.errors.length,
+      errorsPreview: KNOWLEDGE.errors.slice(0, 12),
+    },
+    packsSummary: idx.summary,
+    pinnedKeys: idx.groups?.pinned || [],
+  });
+});
+
+// Optional: small knowledge status alias
+app.get("/api/knowledge", (req, res) => {
+  return res.status(200).json({
+    ok: true,
+    version: INDEX_VERSION,
+    engine: ENGINE_VERSION || null,
+    engineFrom: ENGINE.from,
+    knowledge: knowledgeStatusForMeta(),
+    packs: getPackIndexSafe(false).summary,
+  });
+});
+
+// =========================
 // Debug knowledge endpoints
 // =========================
 if (KNOWLEDGE_DEBUG_ENDPOINT) {
@@ -1794,10 +1885,13 @@ if (KNOWLEDGE_DEBUG_ENDPOINT) {
       knowledge: {
         ok: KNOWLEDGE.ok,
         loadedAt: KNOWLEDGE.loadedAt,
+        appRoot: APP_ROOT,
         dataDir: DATA_DIR,
         dataRoots: DATA_ROOT_CANDIDATES,
         scriptsDir: SCRIPTS_DIR,
         scriptsEnabled: KNOWLEDGE_ENABLE_SCRIPTS,
+        allowDataOutsideAppRoot: KNOWLEDGE_ALLOW_DATA_OUTSIDE_APP_ROOT,
+        allowScriptsOutsideAppRoot: KNOWLEDGE_ALLOW_SCRIPTS_OUTSIDE_APP_ROOT,
         jsonKeyCount: jsonKeys.length,
         scriptKeyCount: scriptKeys.length,
         filesScanned: KNOWLEDGE.filesScanned,
@@ -1825,7 +1919,7 @@ if (KNOWLEDGE_DEBUG_ENDPOINT) {
     });
   });
 
-  // v1.5.18ao: compact “Nyx can see packs?” endpoint (safe + small)
+  // compact “Nyx can see packs?” endpoint (safe + small) — gated in prod
   app.get("/api/debug/packsight", (req, res) => {
     const allowInProd = toBool(process.env.KNOWLEDGE_DEBUG_ALLOW_PROD, false);
     if (NODE_ENV === "production" && !allowInProd) {
@@ -1842,6 +1936,7 @@ if (KNOWLEDGE_DEBUG_ENDPOINT) {
       data: {
         dataDir: DATA_DIR,
         dataRoots: DATA_ROOT_CANDIDATES,
+        allowDataOutsideAppRoot: KNOWLEDGE_ALLOW_DATA_OUTSIDE_APP_ROOT,
         pinnedPresence: pins,
         pinnedResolved: KNOWLEDGE.__packsight?.pinnedResolved || [],
         manifestPreview: (KNOWLEDGE.__manifest || []).slice(0, 20),
@@ -2340,9 +2435,9 @@ app.listen(PORT, () => {
   console.log(
     `[Sandblast] Knowledge: autoload=${KNOWLEDGE_AUTOLOAD} ok=${KNOWLEDGE.ok} jsonKeys=${
       Object.keys(KNOWLEDGE.json).length
-    } scriptKeys=${Object.keys(KNOWLEDGE.scripts).length} errors=${KNOWLEDGE.errors.length} DATA_DIR=${DATA_DIR} dataRoots=${JSON.stringify(
+    } scriptKeys=${Object.keys(KNOWLEDGE.scripts).length} errors=${KNOWLEDGE.errors.length} APP_ROOT=${APP_ROOT} DATA_DIR=${DATA_DIR} dataRoots=${JSON.stringify(
       DATA_ROOT_CANDIDATES.slice(0, 4)
-    )} SCRIPTS_DIR=${SCRIPTS_DIR} reloadEveryMs=${KNOWLEDGE_RELOAD_INTERVAL_MS} debugIncludeData=${KNOWLEDGE_DEBUG_INCLUDE_DATA} scriptsEnabled=${KNOWLEDGE_ENABLE_SCRIPTS}`
+    )} allowDataOutside=${KNOWLEDGE_ALLOW_DATA_OUTSIDE_APP_ROOT} SCRIPTS_DIR=${SCRIPTS_DIR} scriptsEnabled=${KNOWLEDGE_ENABLE_SCRIPTS} allowScriptsOutside=${KNOWLEDGE_ALLOW_SCRIPTS_OUTSIDE_APP_ROOT} reloadEveryMs=${KNOWLEDGE_RELOAD_INTERVAL_MS} debugIncludeData=${KNOWLEDGE_DEBUG_INCLUDE_DATA}`
   );
   // eslint-disable-next-line no-console
   console.log(`[Sandblast] Knowledge pinned=${JSON.stringify(pinnedPresence())}`);
