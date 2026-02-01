@@ -3,18 +3,12 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18aj (PINNED PACKS RESOLVER + BUILT-IN PACK INDEX + larger knowledge budgets + crash-proof boot + safe JSON parse + diagnostic logging + knowledge bridge + loop fixes)
+ * index.js v1.5.18ak (MANIFEST PACK LOADER + PINNED PACKS MULTI-RESOLVER + BUILT-IN PACK INDEX + CHIP NORMALIZER + Nyx Voice Naturalizer + larger knowledge budgets + crash-proof boot + safe JSON parse + diagnostic logging + knowledge bridge + loop fixes)
  *
- * Key adds vs 1.5.18ai:
- *  ✅ CRITICAL: Pinned packs now support MULTI-CANDIDATE paths (Data/ + Data/Nyx/ + Data/Packs/) to avoid filename mismatch causing “pack not loaded”
- *  ✅ CRITICAL: Built-in pack index computed from KNOWLEDGE.json keys (no dependency on Utils/packIndex.js)
- *  ✅ /api/packs + /api/packs/refresh ALWAYS work (return built-in index even if packIndex.js is missing)
- *  ✅ Engine receives engineInput.packIndex so chatEngine can surface chips deterministically
- *
- * NEW (this update):
- *  ✅ MANIFEST PACK LOADER: loads Wikipedia (year-end), Top40 weekly, Movies, Sponsors into stable keys under KNOWLEDGE.json
- *  ✅ Derived indexes: wikipedia year-end rows -> byYear map; Top40 weekly dir -> byYearWeek map
- *  ✅ CHIP PAYLOAD NORMALIZER in index.js: chips no longer misroute due to payload shape differences
+ * Key adds vs 1.5.18aj:
+ *  ✅ Nyx Voice Naturalizer (applied before ElevenLabs TTS) — external module if present, otherwise safe built-in
+ *  ✅ GET /api/packs/refresh alias (keeps POST; makes “always works” literally true for dashboards / browsers)
+ *  ✅ Tiny safety: when we write structured followUps, we clear legacy followUpsStrings cache to avoid stale replays
  */
 
 // =========================
@@ -65,11 +59,15 @@ const fetchFn =
 // Optional external packIndex module (nice-to-have, never required)
 const packIndexMod = safeRequire("./Utils/packIndex") || safeRequire("./Utils/packIndex.js") || null;
 
+// Optional external Nyx Voice Naturalizer (nice-to-have)
+const nyxVoiceNaturalizeMod =
+  safeRequire("./Utils/nyxVoiceNaturalize") || safeRequire("./Utils/nyxVoiceNaturalize.js") || null;
+
 // =========================
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18aj (pinned packs resolver + built-in pack index + manifest pack loader + chip normalizer + larger knowledge budgets + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
+  "index.js v1.5.18ak (pinned packs resolver + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + larger knowledge budgets + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
 
 // =========================
 // Env / knobs
@@ -105,6 +103,10 @@ const KNOWLEDGE_MAX_TOTAL_BYTES = clampInt(process.env.KNOWLEDGE_MAX_TOTAL_BYTES
 const APP_ROOT = path.resolve(__dirname);
 const DATA_DIR = path.resolve(APP_ROOT, String(process.env.DATA_DIR || "Data").trim());
 const SCRIPTS_DIR = path.resolve(APP_ROOT, String(process.env.SCRIPTS_DIR || "Scripts").trim());
+
+// Nyx Voice Naturalizer knobs
+const NYX_VOICE_NATURALIZE = toBool(process.env.NYX_VOICE_NATURALIZE, true);
+const NYX_VOICE_NATURALIZE_MAXLEN = clampInt(process.env.NYX_VOICE_NATURALIZE_MAXLEN, 2200, 200, 20000);
 
 // =========================
 // Knowledge: Pinned packs (stable keys) — resilient resolver
@@ -344,6 +346,46 @@ function makeReqId() {
     if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
   } catch (_) {}
   return sha1(`${nowMs()}|${Math.random()}|${process.pid}`).slice(0, 20);
+}
+
+// =========================
+// Nyx Voice Naturalizer (pre-TTS)
+// =========================
+function builtinNyxVoiceNaturalize(input) {
+  let s = safeStr(input || "");
+  if (!s) return "";
+
+  // strip zero-width + normalize whitespace
+  s = s.replace(/[\u200B-\u200D\uFEFF]/g, "");
+  s = s.replace(/\r\n/g, "\n");
+  s = s.replace(/[ \t]+\n/g, "\n");
+  s = s.replace(/\n{3,}/g, "\n\n");
+  s = s.replace(/[ \t]{2,}/g, " ");
+  s = s.trim();
+
+  // tame repeated punctuation that can “stutter” in TTS
+  s = s.replace(/([!?.,])\1{2,}/g, "$1$1");
+  s = s.replace(/…{2,}/g, "…");
+
+  // keep it bounded
+  if (s.length > NYX_VOICE_NATURALIZE_MAXLEN) s = s.slice(0, NYX_VOICE_NATURALIZE_MAXLEN).trim();
+
+  return s;
+}
+
+function nyxVoiceNaturalize(text) {
+  if (!NYX_VOICE_NATURALIZE) return safeStr(text || "");
+  try {
+    if (nyxVoiceNaturalizeMod) {
+      if (typeof nyxVoiceNaturalizeMod === "function") return safeStr(nyxVoiceNaturalizeMod(text) || "");
+      if (typeof nyxVoiceNaturalizeMod.nyxVoiceNaturalize === "function")
+        return safeStr(nyxVoiceNaturalizeMod.nyxVoiceNaturalize(text) || "");
+      if (typeof nyxVoiceNaturalizeMod.default === "function") return safeStr(nyxVoiceNaturalizeMod.default(text) || "");
+    }
+  } catch (_) {
+    // fall back
+  }
+  return builtinNyxVoiceNaturalize(text);
 }
 
 // Boot-like detection
@@ -1011,14 +1053,16 @@ function buildBuiltinPackIndex() {
     const kl = String(k).toLowerCase();
 
     const domain =
-      kl.includes("sponsor") || kl.startsWith("sponsors/") || kl.includes("/sponsors/") ? "sponsors"
-      : kl.includes("movie") || kl.startsWith("movies/") || kl.includes("/movies/") ? "movies"
-      : kl.includes("music") || kl.startsWith("music/") || kl.includes("/music/") ? "music"
-      : "generic";
+      kl.includes("sponsor") || kl.startsWith("sponsors/") || kl.includes("/sponsors/")
+        ? "sponsors"
+        : kl.includes("movie") || kl.startsWith("movies/") || kl.includes("/movies/")
+          ? "movies"
+          : kl.includes("music") || kl.startsWith("music/") || kl.includes("/music/")
+            ? "music"
+            : "generic";
 
     const kind =
-      kl.includes("top10") || kl.includes("top_10") || kl.includes("top-ten") || kl.includes("topten") ? "top10"
-      : "pack";
+      kl.includes("top10") || kl.includes("top_10") || kl.includes("top-ten") || kl.includes("topten") ? "top10" : "pack";
 
     packs[k] = {
       id: k,
@@ -1056,7 +1100,10 @@ function buildBuiltinPackIndex() {
 }
 
 function packIndexAvailable() {
-  return !!(packIndexMod && (typeof packIndexMod.getPackIndex === "function" || typeof packIndexMod.refreshPackIndex === "function"));
+  return !!(
+    packIndexMod &&
+    (typeof packIndexMod.getPackIndex === "function" || typeof packIndexMod.refreshPackIndex === "function")
+  );
 }
 
 function getPackIndexSafe(forceRefresh) {
@@ -1203,8 +1250,13 @@ function writeReplay(rec, reply, lane, extras) {
     const fu = Array.isArray(extras.followUps) ? extras.followUps.slice(0, 10) : undefined;
     const fus = Array.isArray(extras.followUpsStrings) ? extras.followUpsStrings.slice(0, 10) : undefined;
 
-    if (fu) rec.data.__idx_lastFollowUps = fu;
+    if (fu) {
+      rec.data.__idx_lastFollowUps = fu;
+      // ✅ prevent stale legacy strings from replaying later
+      rec.data.__idx_lastFollowUpsStrings = [];
+    }
     if (!fu && fus) rec.data.__idx_lastFollowUpsStrings = fus;
+
     if (Array.isArray(extras.directives)) rec.data.__idx_lastDirectives = extras.directives.slice(0, 10);
   }
 }
@@ -1216,8 +1268,12 @@ function writeBootReplay(rec, reply, lane, extras) {
     const fu = Array.isArray(extras.followUps) ? extras.followUps.slice(0, 10) : undefined;
     const fus = Array.isArray(extras.followUpsStrings) ? extras.followUpsStrings.slice(0, 10) : undefined;
 
-    if (fu) rec.data.__idx_lastBootFollowUps = fu;
+    if (fu) {
+      rec.data.__idx_lastBootFollowUps = fu;
+      rec.data.__idx_lastBootFollowUpsStrings = [];
+    }
     if (!fu && fus) rec.data.__idx_lastBootFollowUpsStrings = fus;
+
     if (Array.isArray(extras.directives)) rec.data.__idx_lastBootDirectives = extras.directives.slice(0, 10);
   }
 }
@@ -1379,11 +1435,15 @@ app.get("/api/packs", (req, res) => {
   });
 });
 
-app.post("/api/packs/refresh", (req, res) => {
+function doPacksRefresh(req, res) {
   // Refresh knowledge first if requested
   const doReloadKnowledge = toBool(req.query.reloadKnowledge, false);
   if (doReloadKnowledge) {
-    try { reloadKnowledge(); } catch (e) { pushKnowledgeError("packs_reloadKnowledge", "reloadKnowledge()", e?.message || e); }
+    try {
+      reloadKnowledge();
+    } catch (e) {
+      pushKnowledgeError("packs_reloadKnowledge", "reloadKnowledge()", e?.message || e);
+    }
   }
   const idx = getPackIndexSafe(true);
   return res.status(200).json({
@@ -1393,7 +1453,11 @@ app.post("/api/packs/refresh", (req, res) => {
     engineFrom: ENGINE.from,
     packs: idx,
   });
-});
+}
+
+app.post("/api/packs/refresh", doPacksRefresh);
+// ✅ “always works” even from a browser / curl without POST
+app.get("/api/packs/refresh", doPacksRefresh);
 
 // =========================
 // Debug knowledge endpoints
@@ -1723,7 +1787,8 @@ async function handleChatRoute(req, res) {
       inboundSig: inboundSig ? String(inboundSig).slice(0, 160) : null,
       meaningful: !!meaningful,
       resetSilenced: !!isReset,
-      echoSuppressed: !!followUps && Array.isArray(out?.followUpsStrings) && out?.followUpsStrings.length ? true : false,
+      echoSuppressed:
+        !!followUps && Array.isArray(out?.followUpsStrings) && out?.followUpsStrings.length ? true : false,
       packs: getPackIndexSafe(false).summary,
     },
   });
@@ -1807,8 +1872,13 @@ async function handleTtsRoute(req, res) {
   let body = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
   if (typeof req.body === "string") body = { text: req.body };
 
-  const text = safeStr(body.text || body.message || body.prompt || "").trim();
+  const rawText = safeStr(body.text || body.message || body.prompt || "").trim();
   const noText = toBool(body.NO_TEXT || body.noText, false);
+
+  // Optional bypass (some callers might want *exact* text)
+  const disableNaturalize = toBool(body.disableNaturalize, false);
+
+  const text = disableNaturalize ? rawText : nyxVoiceNaturalize(rawText);
 
   if (!ELEVEN_API_KEY || !ELEVEN_VOICE_ID || !fetchFn) {
     return res.status(501).json({
@@ -1922,7 +1992,15 @@ app.listen(PORT, () => {
   // eslint-disable-next-line no-console
   console.log(`[Sandblast] Knowledge manifest=${JSON.stringify((KNOWLEDGE.__manifest || []).slice(0, 12))}`);
   // eslint-disable-next-line no-console
-  console.log(`[Sandblast] Packs: using=${packIndexAvailable() ? "external" : "builtin"} summary=${JSON.stringify(getPackIndexSafe(false).summary)}`);
+  console.log(
+    `[Sandblast] Packs: using=${packIndexAvailable() ? "external" : "builtin"} summary=${JSON.stringify(
+      getPackIndexSafe(false).summary
+    )}`
+  );
+  // eslint-disable-next-line no-console
+  console.log(
+    `[Sandblast] NyxVoice: naturalize=${NYX_VOICE_NATURALIZE} (external=${!!nyxVoiceNaturalizeMod}) maxLen=${NYX_VOICE_NATURALIZE_MAXLEN}`
+  );
 });
 
 module.exports = { app, INDEX_VERSION };
