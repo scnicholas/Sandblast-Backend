@@ -3,16 +3,18 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18an (PACK VISIBILITY HARDENING: case-insensitive Data/Scripts resolution + smarter pinned/manifest path fallback + stronger pack “sight” diagnostics)
+ * index.js v1.5.18ao (PACK VISIBILITY HARDENING++: case-insensitive Data/Scripts resolution + smarter pinned/manifest path fallback + stronger pack “sight” diagnostics + manifest target probes)
  *
- * Key fix vs 1.5.18am:
- *  ✅ CRITICAL: DATA_DIR + SCRIPTS_DIR now auto-resolve case-insensitively (fixes Linux/Render “Data vs data” blindness)
- *  ✅ CRITICAL: Pinned pack resolver now tries multiple DATA roots (DATA_DIR + discovered alternates) + case-insensitive subpath resolution
- *  ✅ CRITICAL: Manifest loader now retries missing file/dir paths with case-insensitive resolution (fixes “wikipedia/” vs “Wikipedia/”)
- *  ✅ Adds a compact /api/debug/packsight endpoint (optional, gated like other debug endpoints) showing exact resolved files + pinned/manifest hits
- *  ✅ Keeps everything else: pinned packs mapped to your real Data/* filenames, built-in pack index, chip normalizer, Nyx Voice Naturalizer,
- *     budgets, crash-proof boot, safe JSON parse, diagnostics, error middleware, knowledge bridge, CORS hard-lock, loop fuse, boot isolation,
- *     output normalization, REAL ElevenLabs TTS, GET /api/tts + /api/voice guidance
+ * Key fix vs 1.5.18an:
+ *  ✅ Adds manifest target “probe” list (existence + resolved path) so you can instantly see whether Nyx can *actually* see:
+ *     - wikipedia/billboard_yearend_hot100_1950_2024.json
+ *     - charts/top40_weekly/
+ *     - movies/
+ *     - sponsors/
+ *  ✅ Packsight endpoint now returns those probes (compact) + highlights which exact resolved paths were used.
+ *  ✅ Keeps everything else: case-insensitive DATA/SCRIPTS resolution, multi-root pinned resolution, manifest fallback, built-in pack index,
+ *     chip normalizer, Nyx Voice Naturalizer, budgets, crash-proof boot, safe JSON parse, diagnostics, error middleware, knowledge bridge,
+ *     CORS hard-lock, loop fuse, boot isolation, output normalization, REAL ElevenLabs TTS, GET /api/tts + /api/voice guidance
  */
 
 // =========================
@@ -71,7 +73,7 @@ const nyxVoiceNaturalizeMod =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18an (PACK VISIBILITY HARDENING: case-insensitive Data/Scripts resolution + pinned/manifest path fallback + packsight diagnostics + pinned packs to real Data/* files + manifest tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + larger knowledge budgets + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
+  "index.js v1.5.18ao (PACK VISIBILITY HARDENING++: case-insensitive Data/Scripts resolution + pinned/manifest path fallback + packsight diagnostics + manifest target probes + pinned packs to real Data/* files + manifest tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + larger knowledge budgets + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
 
 // =========================
 // Env / knobs
@@ -122,7 +124,6 @@ function statSafe(p) {
   } catch (_) {
     return null;
   }
-}
 function resolveDirCaseInsensitive(parentAbs, name) {
   try {
     const direct = path.resolve(parentAbs, name);
@@ -240,7 +241,7 @@ const NYX_VOICE_NATURALIZE_MAXLEN = clampInt(process.env.NYX_VOICE_NATURALIZE_MA
 // =========================
 //
 // NOTE: Updated to match your real filenames in Data/.
-//       v1.5.18an: resolver now tries DATA_ROOT_CANDIDATES + case-insensitive subpaths.
+//       v1.5.18ao: resolver tries DATA_ROOT_CANDIDATES + case-insensitive subpaths.
 //
 const PINNED_PACKS = [
   {
@@ -668,6 +669,7 @@ const KNOWLEDGE = {
     dataRoots: [],
     pinnedResolved: [],
     manifestResolved: [],
+    probes: [],
   },
 };
 
@@ -894,7 +896,7 @@ function manifestBuildTop40WeeklyIndex(allJson, prefixKey) {
   return { ok: true, label: "top40_weekly", byYearWeek, builtAt: new Date().toISOString() };
 }
 
-// v1.5.18an: if a manifest path is missing, retry with case-insensitive resolution relative to DATA_DIR / SCRIPTS_DIR / APP_ROOT.
+// v1.5.18ao: if a manifest path is missing, retry with case-insensitive resolution relative to DATA_DIR / SCRIPTS_DIR / APP_ROOT.
 function resolveManifestAbsFallback(absPath) {
   const p = path.resolve(absPath);
   if (fileExists(p)) return p;
@@ -1057,6 +1059,71 @@ function manifestLoadPacks(loadedFiles, totalBytesRef) {
   return loadedSummary;
 }
 
+// v1.5.18ao: probes to quickly answer “does this exist and what path resolved?”
+function buildManifestProbes() {
+  const targets = [
+    { id: "wiki_yearend_hot100", rel: "wikipedia/billboard_yearend_hot100_1950_2024.json", kind: "file" },
+    { id: "top40_weekly_dir", rel: "charts/top40_weekly", kind: "dir" },
+    { id: "movies_root", rel: "movies", kind: "dir_or_file" },
+    { id: "sponsors_root", rel: "sponsors", kind: "dir_or_file" },
+  ];
+
+  const probes = [];
+  for (const t of targets) {
+    const perRoot = [];
+    for (const base of DATA_ROOT_CANDIDATES.slice(0, 8)) {
+      const direct = path.resolve(base, t.rel);
+      const directExists = fileExists(direct);
+      const ci = resolveRelPathCaseInsensitive(base, t.rel);
+      const ciExists = fileExists(ci);
+
+      const resolved = resolveManifestAbsFallback(direct);
+      const resolvedExists = fileExists(resolved);
+
+      perRoot.push({
+        base,
+        direct,
+        directExists,
+        ci,
+        ciExists,
+        resolved,
+        resolvedExists,
+      });
+    }
+
+    // pick a “best” resolved for quick display
+    let best = null;
+    for (const r of perRoot) {
+      if (r.resolvedExists) {
+        best = { fp: r.resolved, via: "resolveManifestAbsFallback", base: r.base };
+        break;
+      }
+      if (r.ciExists) {
+        best = { fp: r.ci, via: "case_insensitive_walk", base: r.base };
+        break;
+      }
+      if (r.directExists) {
+        best = { fp: r.direct, via: "direct", base: r.base };
+        break;
+      }
+    }
+
+    probes.push({
+      id: t.id,
+      rel: t.rel,
+      kind: t.kind,
+      best,
+      any: !!best,
+      rootsChecked: perRoot.length,
+      // keep compact: only show first 2 roots fully, rest summarized
+      preview: perRoot.slice(0, 2),
+      remainingAny: perRoot.slice(2).some((x) => x.resolvedExists || x.ciExists || x.directExists),
+    });
+  }
+
+  return probes;
+}
+
 function reloadKnowledge() {
   const started = nowMs();
 
@@ -1073,7 +1140,15 @@ function reloadKnowledge() {
     dataRoots: DATA_ROOT_CANDIDATES.slice(0, 6),
     pinnedResolved: [],
     manifestResolved: [],
+    probes: [],
   };
+
+  // v1.5.18ao: refresh probes early (even if loads fail)
+  try {
+    KNOWLEDGE.__packsight.probes = buildManifestProbes();
+  } catch (_) {
+    KNOWLEDGE.__packsight.probes = [];
+  }
 
   const dataOk = DATA_ROOT_CANDIDATES.some((d) => fileExists(d) && isWithinRoot(d, APP_ROOT));
   const scriptsOk = fileExists(SCRIPTS_DIR) && isWithinRoot(SCRIPTS_DIR, APP_ROOT);
@@ -1203,9 +1278,11 @@ function reloadKnowledge() {
   // eslint-disable-next-line no-console
   console.log(`[Sandblast][Knowledge] pinnedPresence=${JSON.stringify(pins)}`);
   // eslint-disable-next-line no-console
-  console.log(`[Sandblast][Knowledge] pinnedLoaded=${JSON.stringify(pinnedLoaded.slice(0, 12))}`);
+  console.log(`[Sandblast][Knowledge] pinnedResolved=${JSON.stringify((KNOWLEDGE.__packsight?.pinnedResolved || []).slice(0, 12))}`);
   // eslint-disable-next-line no-console
   console.log(`[Sandblast][Knowledge] manifest=${JSON.stringify((KNOWLEDGE.__manifest || []).slice(0, 12))}`);
+  // eslint-disable-next-line no-console
+  console.log(`[Sandblast][Knowledge] probes=${JSON.stringify((KNOWLEDGE.__packsight?.probes || []).map((p) => ({ id: p.id, rel: p.rel, any: p.any, best: p.best })) )}`);
 
   return { ok: KNOWLEDGE.ok, loadedAt: KNOWLEDGE.loadedAt, jsonKeys, scriptKeys, filesLoaded: KNOWLEDGE.filesLoaded };
 }
@@ -1728,6 +1805,7 @@ if (KNOWLEDGE_DEBUG_ENDPOINT) {
         pinnedConfig: PINNED_PACKS.map((p) => ({ key: p.key, rels: p.rels })),
         manifest: Array.isArray(KNOWLEDGE.__manifest) ? KNOWLEDGE.__manifest : [],
         manifestConfig: PACK_MANIFEST.map((m) => ({ key: m.key, type: m.type, abs: m.abs, outKey: m.outKey || null })),
+        packsight: KNOWLEDGE.__packsight,
         errorCount: KNOWLEDGE.errors.length,
         errorsPreview: KNOWLEDGE.errors.slice(0, 12),
         jsonKeysPreview: jsonKeys.slice(0, 160),
@@ -1740,7 +1818,7 @@ if (KNOWLEDGE_DEBUG_ENDPOINT) {
     });
   });
 
-  // v1.5.18an: compact “Nyx can see packs?” endpoint (safe + small)
+  // v1.5.18ao: compact “Nyx can see packs?” endpoint (safe + small)
   app.get("/api/debug/packsight", (req, res) => {
     const allowInProd = toBool(process.env.KNOWLEDGE_DEBUG_ALLOW_PROD, false);
     if (NODE_ENV === "production" && !allowInProd) {
@@ -1761,6 +1839,7 @@ if (KNOWLEDGE_DEBUG_ENDPOINT) {
         pinnedResolved: KNOWLEDGE.__packsight?.pinnedResolved || [],
         manifestPreview: (KNOWLEDGE.__manifest || []).slice(0, 20),
         manifestResolved: KNOWLEDGE.__packsight?.manifestResolved || [],
+        probes: KNOWLEDGE.__packsight?.probes || [],
       },
       packsSummary: idx.summary,
       pinnedKeys: idx.groups?.pinned || [],
@@ -2272,6 +2351,10 @@ app.listen(PORT, () => {
   // eslint-disable-next-line no-console
   console.log(
     `[Sandblast] NyxVoice: naturalize=${NYX_VOICE_NATURALIZE} (external=${!!nyxVoiceNaturalizeMod}) maxLen=${NYX_VOICE_NATURALIZE_MAXLEN}`
+  );
+  // eslint-disable-next-line no-console
+  console.log(
+    `[Sandblast] Packsight probes=${JSON.stringify((KNOWLEDGE.__packsight?.probes || []).map((p) => ({ id: p.id, rel: p.rel, any: p.any, best: p.best }))) }`
   );
 });
 
