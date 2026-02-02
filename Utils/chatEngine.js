@@ -17,17 +17,19 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7aR (PINNED RESOLVER MAPS++++: #1-by-year pack + story/micro row support + cross-link power move)
+ * v0.7aS (OPTION A CANONICAL++++: pinned-pack getters + canonical action/mode normalization + pinned-first resolvers only)
  *
- * Critical adds vs v0.7aQ:
- * ✅ #1 SONG RESOLVER (pinned-first):
- *    - Reads music/number1_by_year (your new canonical asset: music_number1_by_year_v1)
- *    - Supports {rows:[{year,title,artist}]} + map shapes
- * ✅ Story/Micro moments now support {rows:[{year,moment}]} packs (v2 compatible)
- * ✅ Cross-link “power move”: #1 → Top 10 → Micro Moment (and Story) chips always present,
- *    and replies nudge the chain without sounding robotic.
+ * Critical adds vs v0.7aR:
+ * ✅ OPTION A: Single source of truth = pinned keys:
+ *    - music/top10_by_year
+ *    - music/number1_by_year
+ *    - music/story_moments_by_year
+ *    - music/micro_moments_by_year
+ * ✅ Canonical action normalization so chip payloads never miss routes (top_10/top-ten → top10, #1/no1 → number_one, etc.)
+ * ✅ Resolvers now read pinned packs FIRST and stay there; broad scan only used when pinned is missing (dev safety)
+ * ✅ Mode normalization unified: action + mode + text inference converge to the same canonical modes
  *
- * (All v0.7aQ behavior preserved)
+ * (All v0.7aR behavior preserved)
  */
 
 const crypto = require("crypto");
@@ -57,7 +59,7 @@ try {
 ====================================================== */
 
 const CE_VERSION =
-  "chatEngine v0.7aR (pinned #1 resolver + story/micro rows support + cross-link chain + loose-top10 resolver + provenance footer + pack unwrap + top10 key broadening + first-turn router followUps + routing hardening + payload-root fallback + chip-authoritative mode + sticky-year source + session-scoped burst dedupe)";
+  "chatEngine v0.7aS (Option A canonical pinned packs + action/mode normalization + pinned-first resolvers + cross-link chain + loose-top10 fallback + provenance footer + pack unwrap + first-turn router followUps + routing hardening + payload-root fallback + chip-authoritative mode + sticky-year source + session-scoped burst dedupe)";
 
 const MAX_REPLY_LEN = 2400;
 const MAX_FOLLOWUPS = 10;
@@ -143,6 +145,51 @@ function safeJsonStringify(x) {
 }
 
 /* ======================================================
+   Option A: Canonical action/mode normalization
+====================================================== */
+
+function normalizeMusicAction(action) {
+  const a = normLower(action);
+  if (!a) return "";
+
+  if (["top10", "top_10", "top-ten", "topten", "year_top10", "year-top10"].includes(a)) return "top10";
+  if (["number1", "number_1", "no1", "#1", "number-one", "numberone", "number_one", "num1"].includes(a))
+    return "number_one";
+  if (["micro", "micro_moment", "micro-moment", "micromoment", "moments_micro"].includes(a)) return "micro";
+  if (["story", "story_moment", "story-moment", "storymoment", "moments_story"].includes(a)) return "story";
+  if (["charts", "chart", "charting"].includes(a)) return "charts";
+  if (["year_end", "yearend", "year-end", "year end"].includes(a)) return "year_end";
+  if (["top40", "top_40", "top-forty", "top forty"].includes(a)) return "top40";
+
+  return a;
+}
+
+function normalizeMode(mode, action, low) {
+  const m = normLower(mode);
+  const a = normalizeMusicAction(action);
+
+  if (m) {
+    // normalize common variants
+    if (["top10", "top_10", "top-ten", "topten"].includes(m)) return "top10";
+    if (["number1", "number_1", "no1", "#1", "number-one", "numberone", "number_one"].includes(m))
+      return "number_one";
+    if (["micro", "micro_moment", "micro-moment", "micromoment"].includes(m)) return "micro";
+    if (["story", "story_moment", "story-moment", "storymoment"].includes(m)) return "story";
+    if (["charts", "chart"].includes(m)) return "charts";
+    if (["year_end", "yearend", "year-end", "year end"].includes(m)) return "year_end";
+    if (["top40", "top_40", "top forty"].includes(m)) return "top40";
+    return m;
+  }
+
+  if (a) {
+    // action can imply mode
+    if (["top10", "top40", "year_end", "charts", "number_one", "micro", "story"].includes(a)) return a;
+  }
+
+  return inferMusicModeFromText(low);
+}
+
+/* ======================================================
    Session patch safety
 ====================================================== */
 
@@ -207,16 +254,20 @@ function mergeSession(session, patch) {
 function ensureChipPayload(payload) {
   const p = isPlainObject(payload) ? payload : Object.create(null);
 
+  // Normalize action/mode early (Option A)
+  if (p.action) p.action = normalizeMusicAction(p.action);
+  if (p.mode) p.mode = normalizeMode(p.mode, p.action, "");
+
   const text = normText(p.text);
 
   if (!text) {
     const year = clampYear(p.year);
     const mode = normLower(p.mode);
     const lane = normLower(p.lane);
-    const action = normLower(p.action);
+    const action = normalizeMusicAction(p.action);
 
     let cmd = "";
-    if (lane === "music" || mode || action === "year") {
+    if (lane === "music" || mode || action === "year" || action === "enter" || action === "start") {
       if (mode === "top10") cmd = year ? `top 10 ${year}` : "top 10";
       else if (mode === "number_one") cmd = year ? `#1 ${year}` : "#1";
       else if (mode === "micro") cmd = year ? `micro moment ${year}` : "micro moment";
@@ -472,21 +523,11 @@ function inferMusicModeFromText(low) {
   return "";
 }
 
-function normalizeMode(mode, action, low) {
-  const m = normLower(mode);
-  const a = normLower(action);
-
-  if (m) return m;
-
-  if (a && ["top10", "top40", "year_end", "charts", "number_one", "micro", "story", "story_moment"].includes(a)) {
-    return a === "story_moment" ? "story" : a;
-  }
-
-  return inferMusicModeFromText(low);
-}
-
 function parseInbound(input) {
   const payload = getPayloadFromAny(input);
+
+  // Normalize payload action/mode early (Option A)
+  if (payload && payload.action) payload.action = normalizeMusicAction(payload.action);
 
   const textPrimary = normText(input.text || input.message || input.prompt || input.query);
   const textFromPayload = payload && typeof payload.text === "string" ? normText(payload.text) : "";
@@ -495,7 +536,7 @@ function parseInbound(input) {
   const low = normLower(finalText);
 
   const lane = payload && payload.lane ? normLower(payload.lane) : "";
-  const action = payload && payload.action ? normLower(payload.action) : "";
+  const action = payload && payload.action ? normalizeMusicAction(payload.action) : "";
   const rawMode = payload && payload.mode ? normLower(payload.mode) : "";
   const yearFromPayload = clampYear(payload && payload.year);
   const yearFromText = extractYearFromText(finalText);
@@ -592,7 +633,13 @@ function normalizeSongLine(item) {
   return null;
 }
 
-// Pinned + compatibility keys (do not delete)
+// Option A canonical pinned keys (single source of truth)
+const PINNED_TOP10_KEY = "music/top10_by_year";
+const PINNED_NUMBER1_KEY = "music/number1_by_year";
+const PINNED_STORY_KEY = "music/story_moments_by_year";
+const PINNED_MICRO_KEY = "music/micro_moments_by_year";
+
+// Compatibility keys (dev-safety only)
 const PIN_TOP10_KEYS = ["music/top10_by_year", "music/top10"];
 const PIN_NUMBER1_KEYS = ["music/number1_by_year", "music/number1", "music/number_one_by_year", "music/no1_by_year"];
 const PIN_STORY_KEYS = ["music/story_moments_by_year", "music/story_moments", "music/moments"];
@@ -631,6 +678,19 @@ function shapeHint(x) {
     return `object(${keys.length})[${head}]`;
   }
   return typeof x;
+}
+
+function getPinnedPacks(knowledgeJson) {
+  const kj = knowledgeJson && isPlainObject(knowledgeJson) ? knowledgeJson : Object.create(null);
+
+  const top10 = Object.prototype.hasOwnProperty.call(kj, PINNED_TOP10_KEY) ? unwrapPackValue(kj[PINNED_TOP10_KEY]) : null;
+  const number1 = Object.prototype.hasOwnProperty.call(kj, PINNED_NUMBER1_KEY)
+    ? unwrapPackValue(kj[PINNED_NUMBER1_KEY])
+    : null;
+  const story = Object.prototype.hasOwnProperty.call(kj, PINNED_STORY_KEY) ? unwrapPackValue(kj[PINNED_STORY_KEY]) : null;
+  const micro = Object.prototype.hasOwnProperty.call(kj, PINNED_MICRO_KEY) ? unwrapPackValue(kj[PINNED_MICRO_KEY]) : null;
+
+  return { top10, number1, story, micro };
 }
 
 function findYearArrayInObject(obj, year) {
@@ -760,150 +820,212 @@ function keyLooksLikeNumberOne(k) {
   );
 }
 
-function findTop10InKnowledge(knowledgeJson, year) {
+/**
+ * Option A: Pinned-only resolvers, with dev-safety fallback if pinned missing.
+ * These now accept {pinned, knowledgeJson, year} and prefer pinned values absolutely.
+ */
+
+function findTop10PinnedFirst(pinned, knowledgeJson, year) {
+  const y = clampYear(year);
+  if (!y) return null;
+
+  // 1) pinned canonical
+  if (pinned && pinned.top10) {
+    const v = pinned.top10;
+    const direct = findYearArrayInObject(v, y);
+    if (direct && direct.length) return { sourceKey: PINNED_TOP10_KEY, list: direct, shape: shapeHint(v), pinned: true };
+
+    const asArr = findYearInArrayPack(v, y);
+    if (asArr && asArr.length) return { sourceKey: PINNED_TOP10_KEY, list: asArr, shape: shapeHint(v), pinned: true };
+  }
+
+  // 2) dev-safety: older aliases, then scan (ONLY if pinned missing)
   if (!knowledgeJson || !isPlainObject(knowledgeJson)) return null;
 
   for (const k of PIN_TOP10_KEYS) {
+    if (k === PINNED_TOP10_KEY) continue;
     if (!Object.prototype.hasOwnProperty.call(knowledgeJson, k)) continue;
-    const raw = knowledgeJson[k];
-    const v = unwrapPackValue(raw);
+    const v = unwrapPackValue(knowledgeJson[k]);
 
-    const direct = findYearArrayInObject(v, year);
-    if (direct && direct.length) return { sourceKey: k, list: direct, shape: shapeHint(v) };
+    const direct = findYearArrayInObject(v, y);
+    if (direct && direct.length) return { sourceKey: k, list: direct, shape: shapeHint(v), pinned: false };
 
-    const asArr = findYearInArrayPack(v, year);
-    if (asArr && asArr.length) return { sourceKey: k, list: asArr, shape: shapeHint(v) };
+    const asArr = findYearInArrayPack(v, y);
+    if (asArr && asArr.length) return { sourceKey: k, list: asArr, shape: shapeHint(v), pinned: false };
   }
 
   const keys = Object.keys(knowledgeJson).slice(0, KNOWLEDGE_SCAN_CAP);
   for (const k of keys) {
     if (!keyLooksLikeTop10(k)) continue;
+    const v = unwrapPackValue(knowledgeJson[k]);
 
-    const raw = knowledgeJson[k];
-    const v = unwrapPackValue(raw);
+    const direct = findYearArrayInObject(v, y);
+    if (direct && direct.length) return { sourceKey: k, list: direct, shape: shapeHint(v), pinned: false };
 
-    const direct = findYearArrayInObject(v, year);
-    if (direct && direct.length) return { sourceKey: k, list: direct, shape: shapeHint(v) };
-
-    const asArr = findYearInArrayPack(v, year);
-    if (asArr && asArr.length) return { sourceKey: k, list: asArr, shape: shapeHint(v) };
+    const asArr = findYearInArrayPack(v, y);
+    if (asArr && asArr.length) return { sourceKey: k, list: asArr, shape: shapeHint(v), pinned: false };
   }
 
   return null;
 }
 
-function findStoryMomentInKnowledge(knowledgeJson, year) {
+function findStoryPinnedFirst(pinned, knowledgeJson, year) {
+  const y = clampYear(year);
+  if (!y) return null;
+
+  // 1) pinned canonical
+  if (pinned && pinned.story) {
+    const v = pinned.story;
+
+    const t1 = findYearTextInObject(v, y);
+    if (t1) return { sourceKey: PINNED_STORY_KEY, text: t1, shape: shapeHint(v), pinned: true };
+
+    const rows = isPlainObject(v) ? unwrapPackValue(v.rows) : null;
+    const t2 = rows ? findMomentInRowsArray(rows, y) : null;
+    if (t2) return { sourceKey: PINNED_STORY_KEY, text: t2, shape: shapeHint(v), pinned: true };
+  }
+
+  // 2) dev-safety fallback
   if (!knowledgeJson || !isPlainObject(knowledgeJson)) return null;
 
   for (const k of PIN_STORY_KEYS) {
+    if (k === PINNED_STORY_KEY) continue;
     if (!Object.prototype.hasOwnProperty.call(knowledgeJson, k)) continue;
-    const raw = knowledgeJson[k];
-    const v = unwrapPackValue(raw);
+    const v = unwrapPackValue(knowledgeJson[k]);
 
-    const t1 = findYearTextInObject(v, year);
-    if (t1) return { sourceKey: k, text: t1, shape: shapeHint(v) };
+    const t1 = findYearTextInObject(v, y);
+    if (t1) return { sourceKey: k, text: t1, shape: shapeHint(v), pinned: false };
 
-    // v2 row-shape: {rows:[{year,moment}]}
     const rows = isPlainObject(v) ? unwrapPackValue(v.rows) : null;
-    const t2 = rows ? findMomentInRowsArray(rows, year) : null;
-    if (t2) return { sourceKey: k, text: t2, shape: shapeHint(v) };
+    const t2 = rows ? findMomentInRowsArray(rows, y) : null;
+    if (t2) return { sourceKey: k, text: t2, shape: shapeHint(v), pinned: false };
   }
 
   const keys = Object.keys(knowledgeJson).slice(0, KNOWLEDGE_SCAN_CAP);
   for (const k of keys) {
     if (!keyLooksLikeMoment(k)) continue;
+    const v = unwrapPackValue(knowledgeJson[k]);
 
-    const raw = knowledgeJson[k];
-    const v = unwrapPackValue(raw);
-
-    const t1 = findYearTextInObject(v, year);
-    if (t1) return { sourceKey: k, text: t1, shape: shapeHint(v) };
+    const t1 = findYearTextInObject(v, y);
+    if (t1) return { sourceKey: k, text: t1, shape: shapeHint(v), pinned: false };
 
     const rows = isPlainObject(v) ? unwrapPackValue(v.rows) : null;
-    const t2 = rows ? findMomentInRowsArray(rows, year) : null;
-    if (t2) return { sourceKey: k, text: t2, shape: shapeHint(v) };
+    const t2 = rows ? findMomentInRowsArray(rows, y) : null;
+    if (t2) return { sourceKey: k, text: t2, shape: shapeHint(v), pinned: false };
   }
 
   return null;
 }
 
-function findMicroMomentInKnowledge(knowledgeJson, year) {
+function findMicroPinnedFirst(pinned, knowledgeJson, year) {
+  const y = clampYear(year);
+  if (!y) return null;
+
+  // 1) pinned canonical
+  if (pinned && pinned.micro) {
+    const v = pinned.micro;
+
+    const t1 = findYearTextInObject(v, y);
+    if (t1) return { sourceKey: PINNED_MICRO_KEY, text: t1, shape: shapeHint(v), pinned: true };
+
+    const rows = isPlainObject(v) ? unwrapPackValue(v.rows) : null;
+    const t2 = rows ? findMomentInRowsArray(rows, y) : null;
+    if (t2) return { sourceKey: PINNED_MICRO_KEY, text: t2, shape: shapeHint(v), pinned: true };
+  }
+
+  // 2) dev-safety fallback
   if (!knowledgeJson || !isPlainObject(knowledgeJson)) return null;
 
   for (const k of PIN_MICRO_KEYS) {
+    if (k === PINNED_MICRO_KEY) continue;
     if (!Object.prototype.hasOwnProperty.call(knowledgeJson, k)) continue;
-    const raw = knowledgeJson[k];
-    const v = unwrapPackValue(raw);
+    const v = unwrapPackValue(knowledgeJson[k]);
 
-    const t1 = findYearTextInObject(v, year);
-    if (t1) return { sourceKey: k, text: t1, shape: shapeHint(v) };
+    const t1 = findYearTextInObject(v, y);
+    if (t1) return { sourceKey: k, text: t1, shape: shapeHint(v), pinned: false };
 
     const rows = isPlainObject(v) ? unwrapPackValue(v.rows) : null;
-    const t2 = rows ? findMomentInRowsArray(rows, year) : null;
-    if (t2) return { sourceKey: k, text: t2, shape: shapeHint(v) };
+    const t2 = rows ? findMomentInRowsArray(rows, y) : null;
+    if (t2) return { sourceKey: k, text: t2, shape: shapeHint(v), pinned: false };
   }
 
   const keys = Object.keys(knowledgeJson).slice(0, KNOWLEDGE_SCAN_CAP);
   for (const k of keys) {
     if (!keyLooksLikeMoment(k)) continue;
-
-    const raw = knowledgeJson[k];
-    const v = unwrapPackValue(raw);
+    const v = unwrapPackValue(knowledgeJson[k]);
 
     const rows = isPlainObject(v) ? unwrapPackValue(v.rows) : null;
-    const t2 = rows ? findMomentInRowsArray(rows, year) : null;
-    if (t2) return { sourceKey: k, text: t2, shape: shapeHint(v) };
+    const t2 = rows ? findMomentInRowsArray(rows, y) : null;
+    if (t2) return { sourceKey: k, text: t2, shape: shapeHint(v), pinned: false };
   }
 
   return null;
 }
 
-function findNumberOneInKnowledge(knowledgeJson, year) {
-  if (!knowledgeJson || !isPlainObject(knowledgeJson)) return null;
+function findNumberOnePinnedFirst(pinned, knowledgeJson, year) {
+  const y = clampYear(year);
+  if (!y) return null;
 
-  // 1) pinned-first
-  for (const k of PIN_NUMBER1_KEYS) {
-    if (!Object.prototype.hasOwnProperty.call(knowledgeJson, k)) continue;
-    const raw = knowledgeJson[k];
-    const v = unwrapPackValue(raw);
+  // 1) pinned canonical
+  if (pinned && pinned.number1) {
+    const v = pinned.number1;
+    const yStr = String(y);
 
-    // Map-ish (byYear/year keys)
-    const yStr = String(year);
+    // Map-ish
     if (isPlainObject(v)) {
-      const direct = v[yStr] || v[year];
+      const direct = v[yStr] || v[y];
       if (isPlainObject(direct)) {
         const title = normText(direct.title || direct.song || direct.name || direct.track);
         const artist = normText(direct.artist || direct.by || direct.performer);
-        if (title) return { sourceKey: k, entry: { title, artist }, shape: shapeHint(v) };
+        if (title) return { sourceKey: PINNED_NUMBER1_KEY, entry: { title, artist }, shape: shapeHint(v), pinned: true };
       }
     }
 
-    // Row-list shapes: {rows:[{year,title,artist}]}
+    // Rows: {rows:[{year,title,artist}]}
     const rows = isPlainObject(v) ? unwrapPackValue(v.rows) : null;
-    const hit = rows ? findNumberOneInRowsArray(rows, year) : null;
-    if (hit) return { sourceKey: k, entry: hit, shape: shapeHint(v) };
+    const hit = rows ? findNumberOneInRowsArray(rows, y) : null;
+    if (hit) return { sourceKey: PINNED_NUMBER1_KEY, entry: hit, shape: shapeHint(v), pinned: true };
   }
 
-  // 2) broadened scan
+  // 2) dev-safety fallback
+  if (!knowledgeJson || !isPlainObject(knowledgeJson)) return null;
+
+  for (const k of PIN_NUMBER1_KEYS) {
+    if (k === PINNED_NUMBER1_KEY) continue;
+    if (!Object.prototype.hasOwnProperty.call(knowledgeJson, k)) continue;
+    const v = unwrapPackValue(knowledgeJson[k]);
+
+    const rows = isPlainObject(v) ? unwrapPackValue(v.rows) : null;
+    const hit = rows ? findNumberOneInRowsArray(rows, y) : null;
+    if (hit) return { sourceKey: k, entry: hit, shape: shapeHint(v), pinned: false };
+
+    if (isPlainObject(v)) {
+      const yStr = String(y);
+      const cand = v[yStr] || v[y] || (isPlainObject(v.byYear) ? (v.byYear[yStr] || v.byYear[y]) : null);
+      if (isPlainObject(cand)) {
+        const title = normText(cand.title || cand.song || cand.name || cand.track);
+        const artist = normText(cand.artist || cand.by || cand.performer);
+        if (title) return { sourceKey: k, entry: { title, artist }, shape: shapeHint(v), pinned: false };
+      }
+    }
+  }
+
   const keys = Object.keys(knowledgeJson).slice(0, KNOWLEDGE_SCAN_CAP);
   for (const k of keys) {
     if (!keyLooksLikeNumberOne(k)) continue;
 
-    const raw = knowledgeJson[k];
-    const v = unwrapPackValue(raw);
-
+    const v = unwrapPackValue(knowledgeJson[k]);
     const rows = isPlainObject(v) ? unwrapPackValue(v.rows) : null;
-    const hit = rows ? findNumberOneInRowsArray(rows, year) : null;
-    if (hit) return { sourceKey: k, entry: hit, shape: shapeHint(v) };
+    const hit = rows ? findNumberOneInRowsArray(rows, y) : null;
+    if (hit) return { sourceKey: k, entry: hit, shape: shapeHint(v), pinned: false };
 
-    // sometimes stored directly as map under data/byYear
     if (isPlainObject(v)) {
-      const yStr = String(year);
-      const cand = v[yStr] || v[year] || (isPlainObject(v.byYear) ? (v.byYear[yStr] || v.byYear[year]) : null);
+      const yStr = String(y);
+      const cand = v[yStr] || v[y] || (isPlainObject(v.byYear) ? (v.byYear[yStr] || v.byYear[y]) : null);
       if (isPlainObject(cand)) {
         const title = normText(cand.title || cand.song || cand.name || cand.track);
         const artist = normText(cand.artist || cand.by || cand.performer);
-        if (title) return { sourceKey: k, entry: { title, artist }, shape: shapeHint(v) };
+        if (title) return { sourceKey: k, entry: { title, artist }, shape: shapeHint(v), pinned: false };
       }
     }
   }
@@ -1112,7 +1234,7 @@ function buildPowerChainFollowUps(year) {
 
 function musicReply({ year, mode, knowledge }) {
   const y = clampYear(year);
-  const m = normLower(mode);
+  const m = normalizeMode(mode, "", "");
 
   if (!y) {
     return {
@@ -1128,6 +1250,7 @@ function musicReply({ year, mode, knowledge }) {
   }
 
   const knowledgeJson = knowledge && knowledge.json && isPlainObject(knowledge.json) ? knowledge.json : null;
+  const pinned = getPinnedPacks(knowledgeJson);
 
   const wantsTop10 = m === "top10";
   const wantsNumberOne = m === "number_one";
@@ -1139,16 +1262,16 @@ function musicReply({ year, mode, knowledge }) {
   let diag = null;
 
   if (wantsNumberOne) {
-    // 1) PINNED: music/number1_by_year (your new canonical file)
-    const no1 = findNumberOneInKnowledge(knowledgeJson, y);
+    // OPTION A: pinned-first resolver only (+ dev-safety fallback if pinned missing)
+    const no1 = findNumberOnePinnedFirst(pinned, knowledgeJson, y);
     if (no1 && no1.entry) {
       const line = formatNumberOneLine(no1.entry);
       reply = line ? `#1 song of ${y}: ${line}` : `#1 song of ${y}: (data loaded, format unexpected).`;
-      reply += `\n\nSource: ${no1.sourceKey} • Method: direct • Confidence: high`;
+      reply += `\n\nSource: ${no1.sourceKey} • Method: direct • Confidence: ${no1.pinned ? "high" : "medium"}`;
       reply += `\n\nPower move: want the Top 10 for context, then a micro moment to seal the vibe?`;
-      diag = { no1Key: no1.sourceKey, no1Shape: no1.shape || null };
+      diag = { no1Key: no1.sourceKey, no1Shape: no1.shape || null, pinned: !!no1.pinned };
     } else {
-      // 2) fallback: derive from Top10
+      // fallback: derive from Top10 (safe)
       const derived = resolveTop10LooseButSafe(knowledgeJson, y);
       if (derived && isArray(derived.top10) && derived.top10.length) {
         const first = normalizeSongLine(derived.top10[0]) || null;
@@ -1163,20 +1286,13 @@ function musicReply({ year, mode, knowledge }) {
           top10Confidence: derived.confidence,
         };
       } else {
-        const hit = findTop10InKnowledge(knowledgeJson, y);
-        if (hit && isArray(hit.list) && hit.list.length) {
-          const first = normalizeSongLine(hit.list[0]) || null;
-          reply = first ? `#1 song of ${y}: ${first}` : `#1 song of ${y}: (data loaded, format unexpected).`;
-          reply += `\n\nSource: ${hit.sourceKey} • Method: direct_or_pack • Confidence: medium`;
-          diag = { top10HitKey: hit.sourceKey, top10HitShape: hit.shape || null, top10Len: hit.list.length };
-        } else {
-          reply = `#1 song of ${y}: I can pull it once the #1-by-year pack is loaded (music/number1_by_year).`;
-          diag = { no1Key: null };
-        }
+        reply = `#1 song of ${y}: I can pull it once the #1-by-year pack is loaded (${PINNED_NUMBER1_KEY}).`;
+        diag = { no1Key: null, pinnedMissing: !pinned.number1 };
       }
     }
   } else if (wantsTop10) {
-    const hit = findTop10InKnowledge(knowledgeJson, y);
+    // OPTION A: pinned-first resolver only (+ dev-safety fallback if pinned missing)
+    const hit = findTop10PinnedFirst(pinned, knowledgeJson, y);
     const derived = !hit || !isArray(hit.list) || hit.list.length < 10 ? resolveTop10LooseButSafe(knowledgeJson, y) : null;
 
     if (derived && isArray(derived.top10) && derived.top10.length === 10) {
@@ -1192,39 +1308,38 @@ function musicReply({ year, mode, knowledge }) {
       };
     } else if (hit && isArray(hit.list) && hit.list.length >= 10) {
       reply = formatTop10Reply(y, hit.list);
-      const isPinned = hit.sourceKey === "music/top10_by_year";
-      reply += `\n\nSource: ${hit.sourceKey} • Method: ${isPinned ? "direct" : "direct_or_pack"} • Confidence: ${
-        isPinned ? "high" : "medium"
-      }`;
+      reply += `\n\nSource: ${hit.sourceKey} • Method: direct • Confidence: ${hit.pinned ? "high" : "medium"}`;
       reply += `\n\nPower move: go #1 → Micro moment. That’s your “broadcast-tight” chain.`;
-      diag = { top10HitKey: hit.sourceKey, top10HitShape: hit.shape || null, top10Len: hit.list.length };
+      diag = { top10HitKey: hit.sourceKey, top10HitShape: hit.shape || null, top10Len: hit.list.length, pinned: !!hit.pinned };
     } else if (hit && isArray(hit.list) && hit.list.length) {
       reply = `Top songs of ${y} (partial list from loaded sources):\n\n${hit.list
         .slice(0, 10)
         .map((v, i) => `${i + 1}. ${normalizeSongLine(v) || String(v)}`)
         .join("\n")}`;
       reply += `\n\nSource: ${hit.sourceKey} • Method: partial • Confidence: low`;
-      diag = { top10HitKey: hit.sourceKey, top10HitShape: hit.shape || null, top10Len: hit.list.length };
+      diag = { top10HitKey: hit.sourceKey, top10HitShape: hit.shape || null, top10Len: hit.list.length, pinned: !!hit.pinned };
     } else {
       reply =
         `I can’t responsibly assemble a clean Top 10 for ${y} from the currently loaded sources. ` +
         `If you want, I can show the closest ranked list I *do* have and tell you exactly which pack it came from.`;
-      diag = { top10HitKey: null, top10Len: 0 };
+      diag = { top10HitKey: null, top10Len: 0, pinnedMissing: !pinned.top10 };
     }
   } else if (wantsMicro) {
-    const micro = findMicroMomentInKnowledge(knowledgeJson, y);
+    // OPTION A: pinned-first resolver only (+ dev-safety fallback if pinned missing)
+    const micro = findMicroPinnedFirst(pinned, knowledgeJson, y);
     reply =
       micro && micro.text
         ? `Micro moment (${y}): ${clampStr(micro.text, 260)}`
         : `Micro moment for ${y}: give me a vibe (soul, rock, pop) or an artist and I’ll make it razor-specific.`;
-    diag = micro ? { microKey: micro.sourceKey, microShape: micro.shape || null } : { microKey: null };
+    diag = micro ? { microKey: micro.sourceKey, microShape: micro.shape || null, pinned: !!micro.pinned } : { microKey: null, pinnedMissing: !pinned.micro };
   } else if (wantsStory) {
-    const story = findStoryMomentInKnowledge(knowledgeJson, y);
+    // OPTION A: pinned-first resolver only (+ dev-safety fallback if pinned missing)
+    const story = findStoryPinnedFirst(pinned, knowledgeJson, y);
     reply =
       story && story.text
         ? `Story moment for ${y}: ${clampStr(story.text, 900)}`
         : `Story moment for ${y}: I can anchor it on the year’s #1 song and give you the cultural pulse in 50–60 words.`;
-    diag = story ? { storyKey: story.sourceKey, storyShape: story.shape || null } : { storyKey: null };
+    diag = story ? { storyKey: story.sourceKey, storyShape: story.shape || null, pinned: !!story.pinned } : { storyKey: null, pinnedMissing: !pinned.story };
   } else if (wantsCharts) {
     reply = `Got it — ${y}. Do you want the Top 10 list, or just the #1 with a quick story moment?`;
   } else {
@@ -1289,14 +1404,15 @@ function getIntentSignals(text, payload) {
 }
 
 function mapMusicActionToMode(musicAction) {
-  const a = normLower(musicAction);
+  // Option A: canonicalize classifier action too
+  const a = normalizeMusicAction(musicAction);
   if (!a) return "";
   if (a === "top10") return "top10";
   if (a === "top40") return "top40";
   if (a === "year_end") return "year_end";
   if (a === "number_one") return "number_one";
   if (a === "charts") return "charts";
-  if (a === "story_moment") return "story";
+  if (a === "story") return "story";
   if (a === "micro") return "micro";
   return a;
 }
