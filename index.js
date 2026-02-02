@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18ax (LOAD VISIBILITY++++: key collisions + skip reasons + fileMap + packsight proof)
+ * index.js v1.5.18ay (LOAD VISIBILITY++++: key collisions + skip reasons + fileMap + packsight proof)
  *
  * Why this patch exists:
  * ✅ Your /api/packs output confirms pinned packs are loading.
@@ -14,7 +14,7 @@
  *
  * Adds:
  * ✅ collision tracking: key -> [{keptFp, collidedFp}]
- * ✅ skip counters: too_large / budget_stop / parse_fail / read_fail / duplicate_fp
+ * ✅ skip counters: too_large / budget_stop / parse_fail / read_fail / duplicate_fp / key_collision
  * ✅ fileMap: key -> fp (what actually won)
  * ✅ packsight + debug endpoints include: collisions/skips/fileMapPreview
  *
@@ -25,6 +25,9 @@
  * - Nyx voice naturalizer
  * - loop fuse / replay isolation
  * - ElevenLabs TTS
+ *
+ * Small but important tweak in this build:
+ * ✅ Pinned packs are “first-wins” inside a single load cycle (no accidental overwrite if pinned loader runs twice)
  */
 
 // =========================
@@ -83,7 +86,7 @@ const nyxVoiceNaturalizeMod =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18ax (LOAD VISIBILITY++++: key collisions + skip reasons + fileMap + packsight proof + DATA ROOT AUTODISCOVERY++++ + PINNED RESOLVE DIAGNOSTICS++++ + rebuild roots on reloadKnowledge + TOP10 NORMALIZATION + BLOCKER PRUNE++++ + SOURCE REL BLOCK REMOVAL + KNOWLEDGE INJECTION FIX + /api/chat GET GUIDANCE + MANIFEST RESOLVER UPGRADE++++: multi-candidate rels + bounded basename/dirname fallback search across ALL data roots + probes show bestFound + keeps PACK VISIBILITY HARDENING++++ + CHIP SIGNAL ROUNDTRIP intent/route/label + allow Data outside APP_ROOT + bigger budgets + PUBLIC /api/packsight + case-insensitive Data/Scripts resolution + pinned/manifest path fallback + packsight diagnostics + manifest target probes + pinned packs to real Data/* files + manifest tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
+  "index.js v1.5.18ay (LOAD VISIBILITY++++: key collisions + skip reasons + fileMap + packsight proof + DATA ROOT AUTODISCOVERY++++ + PINNED RESOLVE DIAGNOSTICS++++ + rebuild roots on reloadKnowledge + TOP10 NORMALIZATION + BLOCKER PRUNE++++ + SOURCE REL BLOCK REMOVAL + KNOWLEDGE INJECTION FIX + /api/chat GET GUIDANCE + MANIFEST RESOLVER UPGRADE++++: multi-candidate rels + bounded basename/dirname fallback search across ALL data roots + probes show bestFound + keeps PACK VISIBILITY HARDENING++++ + CHIP SIGNAL ROUNDTRIP intent/route/label + allow Data outside APP_ROOT + bigger budgets + PUBLIC /api/packsight + case-insensitive Data/Scripts resolution + pinned/manifest path fallback + packsight diagnostics + manifest target probes + pinned packs to real Data/* files + manifest tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
 
 // =========================
 // Utils
@@ -1171,10 +1174,15 @@ function loadPinnedPack(rels, forcedKey, loadedFiles, totalBytesRef) {
     );
   }
 
-  // record winner (collision-proof)
-  recordKeyWinner(String(forcedKey), fp);
+  // record winner (collision-proof) — and treat pinned as first-wins in-cycle
+  const col = recordKeyWinner(String(forcedKey), fp);
 
-  KNOWLEDGE.json[String(forcedKey)] = parsed;
+  if (!Object.prototype.hasOwnProperty.call(KNOWLEDGE.json, String(forcedKey))) {
+    KNOWLEDGE.json[String(forcedKey)] = parsed;
+  } else if (col.collision) {
+    // keep first-wins for stability
+  }
+
   KNOWLEDGE.filesLoaded += 1;
   totalBytesRef.value = nextTotal;
   KNOWLEDGE.totalBytes = totalBytesRef.value;
