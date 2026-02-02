@@ -3,21 +3,28 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18aw (DATA ROOT AUTODISCOVERY++++ + PINNED RESOLVE DIAGNOSTICS++++ + rebuild roots on reloadKnowledge)
+ * index.js v1.5.18ax (LOAD VISIBILITY++++: key collisions + skip reasons + fileMap + packsight proof)
  *
- * What this fixes (most likely blocker):
- * ✅ CRITICAL: In Render/persistent disk deploys, your Data folder often lives outside __dirname.
- *   If DATA_ROOT_CANDIDATES doesn't include the REAL Data root, packs will "vanish."
+ * Why this patch exists:
+ * ✅ Your /api/packs output confirms pinned packs are loading.
+ * ❗ If Nyx still can't "use" a pack, the usual culprits are:
+ *    - key alias mismatch (engine expects key A, loader produced key B)
+ *    - silent key collisions (two files map to same computed key, one wins)
+ *    - silent skips (file too large, parse fail, budget stop)
  *
  * Adds:
- * ✅ Aggressive but bounded Data-root discovery:
- *    - Searches env hints (DATA_ROOT_HINTS), common mount points (/data,/var/data,/mnt/data), and parent dirs for "Data"
- *    - Rebuilds DATA_ROOT_CANDIDATES at boot AND every reloadKnowledge()
- * ✅ Pinned pack resolution diagnostics added to /api/packsight + logs
- * ✅ /api/packs/refresh?reloadKnowledge=1 rebuilds roots + reloads knowledge
+ * ✅ collision tracking: key -> [{keptFp, collidedFp}]
+ * ✅ skip counters: too_large / budget_stop / parse_fail / read_fail / duplicate_fp
+ * ✅ fileMap: key -> fp (what actually won)
+ * ✅ packsight + debug endpoints include: collisions/skips/fileMapPreview
  *
- * Keeps: MANIFEST RESOLVER UPGRADE++++, PACK VISIBILITY HARDENING++++, CHIP SIGNAL ROUNDTRIP,
- *        KNOWLEDGE INJECTION FIX, TOP10 pinned normalization, etc.
+ * Keeps:
+ * - DATA ROOT AUTODISCOVERY++++, pinned resolve diagnostics, rebuild roots on reloadKnowledge
+ * - manifest resolver + bounded fallback search
+ * - chip payload normalizer
+ * - Nyx voice naturalizer
+ * - loop fuse / replay isolation
+ * - ElevenLabs TTS
  */
 
 // =========================
@@ -76,7 +83,7 @@ const nyxVoiceNaturalizeMod =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18aw (DATA ROOT AUTODISCOVERY++++ + PINNED RESOLVE DIAGNOSTICS++++ + rebuild roots on reloadKnowledge + TOP10 NORMALIZATION + BLOCKER PRUNE++++ + SOURCE REL BLOCK REMOVAL + KNOWLEDGE INJECTION FIX + /api/chat GET GUIDANCE + MANIFEST RESOLVER UPGRADE++++: multi-candidate rels + bounded basename/dirname fallback search across ALL data roots + probes show bestFound + keeps PACK VISIBILITY HARDENING++++ + CHIP SIGNAL ROUNDTRIP intent/route/label + allow Data outside APP_ROOT + bigger budgets + PUBLIC /api/packsight + case-insensitive Data/Scripts resolution + pinned/manifest path fallback + packsight diagnostics + manifest target probes + pinned packs to real Data/* files + manifest tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
+  "index.js v1.5.18ax (LOAD VISIBILITY++++: key collisions + skip reasons + fileMap + packsight proof + DATA ROOT AUTODISCOVERY++++ + PINNED RESOLVE DIAGNOSTICS++++ + rebuild roots on reloadKnowledge + TOP10 NORMALIZATION + BLOCKER PRUNE++++ + SOURCE REL BLOCK REMOVAL + KNOWLEDGE INJECTION FIX + /api/chat GET GUIDANCE + MANIFEST RESOLVER UPGRADE++++: multi-candidate rels + bounded basename/dirname fallback search across ALL data roots + probes show bestFound + keeps PACK VISIBILITY HARDENING++++ + CHIP SIGNAL ROUNDTRIP intent/route/label + allow Data outside APP_ROOT + bigger budgets + PUBLIC /api/packsight + case-insensitive Data/Scripts resolution + pinned/manifest path fallback + packsight diagnostics + manifest target probes + pinned packs to real Data/* files + manifest tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
 
 // =========================
 // Utils
@@ -137,6 +144,20 @@ function pickClientIp(req) {
 function normalizeOrigin(o) {
   return safeStr(o).trim().replace(/\/$/, "");
 }
+function fileExists(p) {
+  try {
+    return fs.existsSync(p);
+  } catch (_) {
+    return false;
+  }
+}
+function statSafe(p) {
+  try {
+    return fs.statSync(p);
+  } catch (_) {
+    return null;
+  }
+}
 
 // =========================
 // Env / knobs
@@ -172,7 +193,6 @@ const KNOWLEDGE_MAX_TOTAL_BYTES = clampInt(process.env.KNOWLEDGE_MAX_TOTAL_BYTES
 const APP_ROOT = path.resolve(__dirname);
 
 // If your Data lives on a mounted disk (Render persistent disk), it may be outside APP_ROOT.
-// Default ON because this is the #1 reason packs “vanish” in production.
 const KNOWLEDGE_ALLOW_DATA_OUTSIDE_APP_ROOT = toBool(process.env.KNOWLEDGE_ALLOW_DATA_OUTSIDE_APP_ROOT, true);
 
 // Scripts are riskier; keep default OFF unless you explicitly need it.
@@ -183,7 +203,7 @@ const MANIFEST_SEARCH_FALLBACK = toBool(process.env.MANIFEST_SEARCH_FALLBACK, tr
 const MANIFEST_SEARCH_MAX_VISITS = clampInt(process.env.MANIFEST_SEARCH_MAX_VISITS, 8000, 500, 50000);
 const MANIFEST_SEARCH_MAX_DEPTH = clampInt(process.env.MANIFEST_SEARCH_MAX_DEPTH, 6, 2, 20);
 
-// --- NEW: Data root autodiscovery knobs ---
+// --- Data root autodiscovery knobs ---
 const DATA_ROOT_AUTODISCOVER = toBool(process.env.DATA_ROOT_AUTODISCOVER, true);
 const DATA_ROOT_HINTS = String(process.env.DATA_ROOT_HINTS || "").trim(); // comma-separated abs/rel paths
 const DATA_ROOT_DISCOVERY_MAX_DEPTH = clampInt(process.env.DATA_ROOT_DISCOVERY_MAX_DEPTH, 4, 1, 10);
@@ -194,22 +214,8 @@ const NYX_VOICE_NATURALIZE = toBool(process.env.NYX_VOICE_NATURALIZE, true);
 const NYX_VOICE_NATURALIZE_MAXLEN = clampInt(process.env.NYX_VOICE_NATURALIZE_MAXLEN, 2200, 200, 20000);
 
 // =========================
-// CRITICAL: Case-insensitive dir/path resolution (Linux-safe)
+// Case-insensitive dir/path resolution (Linux-safe)
 // =========================
-function fileExists(p) {
-  try {
-    return fs.existsSync(p);
-  } catch (_) {
-    return false;
-  }
-}
-function statSafe(p) {
-  try {
-    return fs.statSync(p);
-  } catch (_) {
-    return null;
-  }
-}
 function resolveDirCaseInsensitive(parentAbs, name) {
   try {
     const direct = path.resolve(parentAbs, name);
@@ -298,8 +304,7 @@ let DATA_DIR = resolveDataDirFromEnv();
 let SCRIPTS_DIR = resolveScriptsDirFromEnv();
 
 /**
- * NEW: bounded search for a directory named "Data" under a starting path (BFS).
- * Returns array of absolute dirs found (unique), limited by visit budget.
+ * bounded BFS: find directories named "data" under a starting path
  */
 function discoverNamedDirs(startAbs, wantNameLower, maxDepth, maxVisits) {
   const out = [];
@@ -348,10 +353,6 @@ function discoverNamedDirs(startAbs, wantNameLower, maxDepth, maxVisits) {
   return out;
 }
 
-/**
- * NEW: rebuild DATA_ROOT_CANDIDATES with autodiscovery.
- * This is the single most important fix when packs are on a persistent disk mount.
- */
 function rebuildDataRootCandidates() {
   const out = [];
   const pushUnique = (p) => {
@@ -362,14 +363,14 @@ function rebuildDataRootCandidates() {
     } catch (_) {}
   };
 
-  // 1) From DATA_DIR and canonical local forms
+  // canonical
   pushUnique(DATA_DIR);
   pushUnique(path.resolve(APP_ROOT, "Data"));
   pushUnique(path.resolve(APP_ROOT, "data"));
   pushUnique(resolveDirCaseInsensitive(APP_ROOT, "Data"));
   pushUnique(resolveDirCaseInsensitive(APP_ROOT, "data"));
 
-  // 2) Optional env hints (comma-separated)
+  // env hints
   if (DATA_ROOT_HINTS) {
     const parts = DATA_ROOT_HINTS.split(",").map((s) => s.trim()).filter(Boolean);
     for (const p of parts) {
@@ -380,7 +381,7 @@ function rebuildDataRootCandidates() {
     }
   }
 
-  // 3) Common mount points / Render-ish locations
+  // common mounts
   pushUnique("/data");
   pushUnique("/var/data");
   pushUnique("/mnt/data");
@@ -391,41 +392,33 @@ function rebuildDataRootCandidates() {
   pushUnique("/srv/data");
   pushUnique("/srv/Data");
 
-  // 4) Bounded autodiscovery (if enabled)
   if (DATA_ROOT_AUTODISCOVER) {
     const starts = [];
     const addStart = (p) => {
       if (!p) return;
-      const rp = path.resolve(p);
-      if (!starts.includes(rp)) starts.push(rp);
+      try {
+        const rp = path.resolve(p);
+        if (!starts.includes(rp)) starts.push(rp);
+      } catch (_) {}
     };
-
     addStart(APP_ROOT);
     addStart(process.cwd());
     addStart(path.resolve(APP_ROOT, ".."));
     addStart(path.resolve(APP_ROOT, "../.."));
 
-    // scan each start for a "Data" dir somewhere below
     for (const s of starts) {
       try {
-        const found = discoverNamedDirs(
-          s,
-          "data",
-          DATA_ROOT_DISCOVERY_MAX_DEPTH,
-          DATA_ROOT_DISCOVERY_MAX_VISITS
-        );
+        const found = discoverNamedDirs(s, "data", DATA_ROOT_DISCOVERY_MAX_DEPTH, DATA_ROOT_DISCOVERY_MAX_VISITS);
         for (const d of found) pushUnique(d);
       } catch (_) {}
     }
   }
 
-  // Filter existing dirs
   const existing = out.filter((p) => {
     const st = statSafe(p);
     return st && st.isDirectory();
   });
 
-  // If nothing exists, keep at least one fallback (so logs show intent)
   return existing.length ? existing : out.slice(0, 1);
 }
 
@@ -822,7 +815,7 @@ function normalizeEngineOutput(out) {
 }
 
 // =========================
-// Knowledge Bridge
+// Knowledge Bridge (now includes visibility diagnostics)
 // =========================
 const KNOWLEDGE = {
   ok: false,
@@ -840,8 +833,36 @@ const KNOWLEDGE = {
     pinnedMissing: [],
     manifestResolved: [],
     probes: [],
+    // NEW
+    skips: {},
+    collisions: [],
+    fileMapPreview: [],
+  },
+  // NEW internal maps (not huge)
+  __fileMap: Object.create(null), // key -> fp that "won"
+  __collisions: [], // array of {key, keptFp, collidedFp}
+  __skips: {
+    too_large: 0,
+    budget_stop: 0,
+    parse_fail: 0,
+    read_fail: 0,
+    duplicate_fp: 0,
+    key_collision: 0,
   },
 };
+
+function resetVisibilityDiagnostics() {
+  KNOWLEDGE.__fileMap = Object.create(null);
+  KNOWLEDGE.__collisions = [];
+  KNOWLEDGE.__skips = {
+    too_large: 0,
+    budget_stop: 0,
+    parse_fail: 0,
+    read_fail: 0,
+    duplicate_fp: 0,
+    key_collision: 0,
+  };
+}
 
 function pushKnowledgeError(type, file, msg) {
   const e = { type: safeStr(type), file: safeStr(file), msg: safeStr(msg).slice(0, 300) };
@@ -965,7 +986,7 @@ function resolvePinnedFileAbs(rels) {
   return null;
 }
 
-// v1.5.18au: Top10 shape normalizer (pinned)
+// Top10 shape normalizer (pinned)
 function normalizePinnedTop10Payload(payload) {
   try {
     let p = payload;
@@ -1073,6 +1094,25 @@ function resolveDataRelAcrossRoots(relOrRels, kind /* "file" | "dir" | "either" 
   return null;
 }
 
+// NEW: record a key->fp "winner" and detect collisions
+function recordKeyWinner(key, fp) {
+  const k = String(key);
+  const f = String(fp);
+  const prev = KNOWLEDGE.__fileMap[k];
+  if (!prev) {
+    KNOWLEDGE.__fileMap[k] = f;
+    return { ok: true, collision: false };
+  }
+  if (prev === f) return { ok: true, collision: false };
+
+  // collision
+  KNOWLEDGE.__skips.key_collision += 1;
+  const entry = { key: k, keptFp: prev, collidedFp: f };
+  KNOWLEDGE.__collisions.push(entry);
+  if (KNOWLEDGE.__collisions.length > 200) KNOWLEDGE.__collisions.shift();
+  return { ok: true, collision: true, keptFp: prev, collidedFp: f };
+}
+
 function loadPinnedPack(rels, forcedKey, loadedFiles, totalBytesRef) {
   const fp = resolvePinnedFileAbs(rels);
 
@@ -1090,17 +1130,21 @@ function loadPinnedPack(rels, forcedKey, loadedFiles, totalBytesRef) {
   }
 
   if (loadedFiles && loadedFiles.has(fp)) {
+    KNOWLEDGE.__skips.duplicate_fp += 1;
     return { ok: true, skipped: true, reason: "already_loaded" };
   }
 
   const r = safeReadFileBytes(fp);
   if (!r.ok) {
+    if (r.reason === "file_too_large") KNOWLEDGE.__skips.too_large += 1;
+    else KNOWLEDGE.__skips.read_fail += 1;
     pushKnowledgeError("pinned_read", fp, r.reason || "read_failed");
     return { ok: false, skipped: false, reason: r.reason || "read_failed" };
   }
 
   const nextTotal = (totalBytesRef.value || 0) + r.size;
   if (nextTotal > KNOWLEDGE_MAX_TOTAL_BYTES) {
+    KNOWLEDGE.__skips.budget_stop += 1;
     pushKnowledgeError("pinned_budget", fp, "total bytes budget exceeded (pinned pack skipped)");
     return { ok: false, skipped: true, reason: "budget" };
   }
@@ -1109,6 +1153,7 @@ function loadPinnedPack(rels, forcedKey, loadedFiles, totalBytesRef) {
   try {
     parsed = JSON.parse(r.buf.toString("utf8"));
   } catch (e) {
+    KNOWLEDGE.__skips.parse_fail += 1;
     pushKnowledgeError("pinned_parse", fp, e?.message || e);
     return { ok: false, skipped: false, reason: "parse_failed" };
   }
@@ -1125,6 +1170,9 @@ function loadPinnedPack(rels, forcedKey, loadedFiles, totalBytesRef) {
       )} fp=${fp}`
     );
   }
+
+  // record winner (collision-proof)
+  recordKeyWinner(String(forcedKey), fp);
 
   KNOWLEDGE.json[String(forcedKey)] = parsed;
   KNOWLEDGE.filesLoaded += 1;
@@ -1245,17 +1293,23 @@ function resolveManifestAbsFallback(absPath) {
 function manifestLoadJsonFileIntoKey(fp, key, loadedFiles, totalBytesRef) {
   const realFp = resolveManifestAbsFallback(fp);
 
-  if (loadedFiles && loadedFiles.has(realFp)) return { ok: true, skipped: true, reason: "already_loaded" };
+  if (loadedFiles && loadedFiles.has(realFp)) {
+    KNOWLEDGE.__skips.duplicate_fp += 1;
+    return { ok: true, skipped: true, reason: "already_loaded" };
+  }
   if (!fileExists(realFp)) return { ok: false, skipped: false, reason: "missing" };
 
   const r = safeReadFileBytes(realFp);
   if (!r.ok) {
+    if (r.reason === "file_too_large") KNOWLEDGE.__skips.too_large += 1;
+    else KNOWLEDGE.__skips.read_fail += 1;
     pushKnowledgeError("manifest_read", realFp, r.reason || "read_failed");
     return { ok: false, skipped: false, reason: r.reason || "read_failed" };
   }
 
   const nextTotal = (totalBytesRef.value || 0) + r.size;
   if (nextTotal > KNOWLEDGE_MAX_TOTAL_BYTES) {
+    KNOWLEDGE.__skips.budget_stop += 1;
     pushKnowledgeError("manifest_budget", realFp, "total bytes budget exceeded (manifest file skipped)");
     return { ok: false, skipped: true, reason: "budget" };
   }
@@ -1264,11 +1318,19 @@ function manifestLoadJsonFileIntoKey(fp, key, loadedFiles, totalBytesRef) {
   try {
     parsed = JSON.parse(r.buf.toString("utf8"));
   } catch (e) {
+    KNOWLEDGE.__skips.parse_fail += 1;
     pushKnowledgeError("manifest_parse", realFp, e?.message || e);
     return { ok: false, skipped: false, reason: "parse_failed" };
   }
 
-  KNOWLEDGE.json[key] = parsed;
+  // collision tracking
+  const col = recordKeyWinner(key, realFp);
+  if (!Object.prototype.hasOwnProperty.call(KNOWLEDGE.json, key)) {
+    KNOWLEDGE.json[key] = parsed;
+  } else if (col.collision) {
+    // keep first-wins to preserve stability
+  }
+
   KNOWLEDGE.filesLoaded += 1;
   totalBytesRef.value = nextTotal;
   KNOWLEDGE.totalBytes = totalBytesRef.value;
@@ -1337,6 +1399,8 @@ function manifestLoadPacks(loadedFiles, totalBytesRef) {
 
         if (res.ok && !res.skipped && typeof item.transform === "function" && item.outKey) {
           const derived = item.transform(KNOWLEDGE.json[item.key]);
+          // record derived (virtual)
+          recordKeyWinner(item.outKey, `__derived:${item.key}`);
           KNOWLEDGE.json[item.outKey] = derived;
         }
 
@@ -1352,6 +1416,7 @@ function manifestLoadPacks(loadedFiles, totalBytesRef) {
 
         if (res.ok && typeof item.postTransform === "function" && item.outKey) {
           const derived = item.postTransform(KNOWLEDGE.json, item.key);
+          recordKeyWinner(item.outKey, `__derived:${item.key}`);
           KNOWLEDGE.json[item.outKey] = derived;
         }
 
@@ -1388,22 +1453,15 @@ function manifestLoadPacks(loadedFiles, totalBytesRef) {
   return loadedSummary;
 }
 
-// Probes to quickly answer “does this exist and what path resolved?”
+// Probes
 function buildManifestProbes() {
   const targets = [
     {
       id: "wiki_yearend_hot100",
-      rels: [
-        "wikipedia/billboard_yearend_hot100_1950_2024.json",
-        "wiki/billboard_yearend_hot100_1950_2024.json",
-      ],
+      rels: ["wikipedia/billboard_yearend_hot100_1950_2024.json", "wiki/billboard_yearend_hot100_1950_2024.json"],
       kind: "file",
     },
-    {
-      id: "top40_weekly_dir",
-      rels: ["charts/top40_weekly", "top40_weekly"],
-      kind: "dir",
-    },
+    { id: "top40_weekly_dir", rels: ["charts/top40_weekly", "top40_weekly"], kind: "dir" },
     { id: "movies_root", rels: ["movies", "Movies"], kind: "dir_or_file" },
     { id: "sponsors_root", rels: ["sponsors", "Sponsors"], kind: "dir_or_file" },
   ];
@@ -1412,23 +1470,15 @@ function buildManifestProbes() {
   for (const t of targets) {
     const kind = t.kind === "file" ? "file" : t.kind === "dir" ? "dir" : "either";
     const bestFound = resolveDataRelAcrossRoots(t.rels, kind);
-
-    probes.push({
-      id: t.id,
-      rels: t.rels,
-      kind: t.kind,
-      bestFound: bestFound || null,
-      any: !!bestFound,
-    });
+    probes.push({ id: t.id, rels: t.rels, kind: t.kind, bestFound: bestFound || null, any: !!bestFound });
   }
-
   return probes;
 }
 
 function reloadKnowledge() {
   const started = nowMs();
 
-  // ✅ CRITICAL: rebuild roots on every reload
+  // rebuild roots every reload
   DATA_DIR = resolveDataDirFromEnv();
   SCRIPTS_DIR = resolveScriptsDirFromEnv();
   DATA_ROOT_CANDIDATES = rebuildDataRootCandidates();
@@ -1442,12 +1492,18 @@ function reloadKnowledge() {
   KNOWLEDGE.scripts = {};
   KNOWLEDGE.errors = [];
   KNOWLEDGE.__manifest = [];
+
+  resetVisibilityDiagnostics();
+
   KNOWLEDGE.__packsight = {
     dataRoots: DATA_ROOT_CANDIDATES.slice(0, 16),
     pinnedResolved: [],
     pinnedMissing: [],
     manifestResolved: [],
     probes: [],
+    skips: {},
+    collisions: [],
+    fileMapPreview: [],
   };
 
   try {
@@ -1507,6 +1563,7 @@ function reloadKnowledge() {
     }
   }
 
+  // Walk ALL json under roots (bounded)
   const jsonFiles = [];
   const seen = new Set();
 
@@ -1537,16 +1594,22 @@ function reloadKnowledge() {
 
   for (const fp of jsonFiles) {
     if (KNOWLEDGE.filesLoaded >= KNOWLEDGE_MAX_FILES) break;
-    if (loadedFiles.has(fp)) continue;
+    if (loadedFiles.has(fp)) {
+      KNOWLEDGE.__skips.duplicate_fp += 1;
+      continue;
+    }
 
     const r = safeReadFileBytes(fp);
     if (!r.ok) {
+      if (r.reason === "file_too_large") KNOWLEDGE.__skips.too_large += 1;
+      else KNOWLEDGE.__skips.read_fail += 1;
       pushKnowledgeError("json_read", fp, r.reason || "read_failed");
       continue;
     }
 
     const nextTotal = totalBytesRef.value + r.size;
     if (nextTotal > KNOWLEDGE_MAX_TOTAL_BYTES) {
+      KNOWLEDGE.__skips.budget_stop += 1;
       pushKnowledgeError("budget", fp, "total bytes budget exceeded; stopping load");
       break;
     }
@@ -1555,15 +1618,20 @@ function reloadKnowledge() {
     try {
       parsed = JSON.parse(r.buf.toString("utf8"));
     } catch (e) {
+      KNOWLEDGE.__skips.parse_fail += 1;
       pushKnowledgeError("json_parse", fp, e?.message || e);
       continue;
     }
 
     const key = bestKeyForFile(fp, rootsToWalk.length ? rootsToWalk : DATA_ROOT_CANDIDATES);
+    const col = recordKeyWinner(key, fp);
 
     if (!Object.prototype.hasOwnProperty.call(KNOWLEDGE.json, key)) {
       KNOWLEDGE.json[key] = parsed;
+    } else if (col.collision) {
+      // keep first-wins for stability (but now we *see* it)
     }
+
     KNOWLEDGE.filesLoaded += 1;
     totalBytesRef.value = nextTotal;
     KNOWLEDGE.totalBytes = totalBytesRef.value;
@@ -1592,6 +1660,7 @@ function reloadKnowledge() {
       }
 
       const key = fileKeyFromPath(SCRIPTS_DIR, fp);
+      recordKeyWinner(key, fp);
       KNOWLEDGE.scripts[key] = sanitizeScriptExport(mod);
       KNOWLEDGE.filesLoaded += 1;
     }
@@ -1601,27 +1670,25 @@ function reloadKnowledge() {
   const scriptKeys = Object.keys(KNOWLEDGE.scripts).length;
   KNOWLEDGE.ok = jsonKeys + scriptKeys > 0;
 
+  // finalize packsight visibility
+  KNOWLEDGE.__packsight.skips = { ...KNOWLEDGE.__skips };
+  KNOWLEDGE.__packsight.collisions = KNOWLEDGE.__collisions.slice(0, 200);
+  const fmKeys = Object.keys(KNOWLEDGE.__fileMap).slice(0, 120);
+  KNOWLEDGE.__packsight.fileMapPreview = fmKeys.map((k) => ({ key: k, fp: KNOWLEDGE.__fileMap[k] }));
+
   const pins = pinnedPresence();
   const pinnedOk = Object.values(pins).some(Boolean);
 
   // eslint-disable-next-line no-console
   console.log(
-    `[Sandblast][Knowledge] loaded=${KNOWLEDGE.ok} pinnedAny=${pinnedOk} jsonKeys=${jsonKeys} scriptKeys=${scriptKeys} filesLoaded=${KNOWLEDGE.filesLoaded} totalBytes=${KNOWLEDGE.totalBytes} errors=${KNOWLEDGE.errors.length} in ${
-      nowMs() - started
-    }ms (APP_ROOT=${APP_ROOT} DATA_DIR=${DATA_DIR} dataRoots=${JSON.stringify(
+    `[Sandblast][Knowledge] loaded=${KNOWLEDGE.ok} pinnedAny=${pinnedOk} jsonKeys=${jsonKeys} scriptKeys=${scriptKeys} filesLoaded=${KNOWLEDGE.filesLoaded} totalBytes=${KNOWLEDGE.totalBytes} errors=${KNOWLEDGE.errors.length} skips=${JSON.stringify(
+      KNOWLEDGE.__skips
+    )} collisions=${KNOWLEDGE.__collisions.length} in ${nowMs() - started}ms (APP_ROOT=${APP_ROOT} DATA_DIR=${DATA_DIR} dataRoots=${JSON.stringify(
       DATA_ROOT_CANDIDATES.slice(0, 10)
     )} autodiscover=${DATA_ROOT_AUTODISCOVER} hints=${DATA_ROOT_HINTS ? "yes" : "no"} SCRIPTS_DIR=${SCRIPTS_DIR} scriptsEnabled=${KNOWLEDGE_ENABLE_SCRIPTS})`
   );
   // eslint-disable-next-line no-console
   console.log(`[Sandblast][Knowledge] pinnedPresence=${JSON.stringify(pins)}`);
-  // eslint-disable-next-line no-console
-  console.log(`[Sandblast][Knowledge] pinnedResolved=${JSON.stringify((KNOWLEDGE.__packsight?.pinnedResolved || []).slice(0, 16))}`);
-  // eslint-disable-next-line no-console
-  console.log(`[Sandblast][Knowledge] pinnedMissing=${JSON.stringify((KNOWLEDGE.__packsight?.pinnedMissing || []).slice(0, 16))}`);
-  // eslint-disable-next-line no-console
-  console.log(`[Sandblast][Knowledge] manifest=${JSON.stringify((KNOWLEDGE.__manifest || []).slice(0, 12))}`);
-  // eslint-disable-next-line no-console
-  console.log(`[Sandblast][Knowledge] probes=${JSON.stringify((KNOWLEDGE.__packsight?.probes || []).slice(0, 8))}`);
 
   return { ok: KNOWLEDGE.ok, loadedAt: KNOWLEDGE.loadedAt, jsonKeys, scriptKeys, filesLoaded: KNOWLEDGE.filesLoaded };
 }
@@ -1635,6 +1702,8 @@ function knowledgeStatusForMeta() {
     jsonKeyCount: Object.keys(KNOWLEDGE.json).length,
     scriptKeyCount: Object.keys(KNOWLEDGE.scripts).length,
     pinned: pinnedPresence(),
+    skips: { ...KNOWLEDGE.__skips },
+    collisions: KNOWLEDGE.__collisions.length,
     manifest: Array.isArray(KNOWLEDGE.__manifest) ? KNOWLEDGE.__manifest.slice(0, 12) : [],
   };
 }
@@ -1654,6 +1723,9 @@ function knowledgeSnapshotForEngine() {
       errorCount: KNOWLEDGE.errors.length,
       errorsPreview: KNOWLEDGE.errors.slice(0, 5),
       pinned: pinnedPresence(),
+      skips: { ...KNOWLEDGE.__skips },
+      collisions: KNOWLEDGE.__collisions.slice(0, 50),
+      fileMapPreview: (KNOWLEDGE.__packsight?.fileMapPreview || []).slice(0, 80),
       manifest: Array.isArray(KNOWLEDGE.__manifest) ? KNOWLEDGE.__manifest : [],
       packsight: KNOWLEDGE.__packsight,
     },
@@ -1718,6 +1790,7 @@ function buildBuiltinPackIndex() {
       available: true,
       domain,
       kind,
+      file: KNOWLEDGE.__fileMap && KNOWLEDGE.__fileMap[k] ? KNOWLEDGE.__fileMap[k] : undefined,
     };
 
     if (domain === "music") groups.music.push(k);
@@ -1744,6 +1817,8 @@ function buildBuiltinPackIndex() {
       jsonKeyCount: jsonKeys.length,
       pinnedAny: Object.values(pins || {}).some(Boolean),
       groups: groupCounts,
+      skips: { ...KNOWLEDGE.__skips },
+      collisionCount: KNOWLEDGE.__collisions.length,
     },
     groups,
     packs,
@@ -2109,7 +2184,7 @@ app.post("/api/packs/refresh", doPacksRefresh);
 app.get("/api/packs/refresh", doPacksRefresh);
 
 // =========================
-// PUBLIC Packsight (SAFE)
+// PUBLIC Packsight (SAFE) — now includes skips/collisions/fileMap preview
 // =========================
 app.get("/api/packsight", (req, res) => {
   const pins = pinnedPresence();
@@ -2151,6 +2226,11 @@ app.get("/api/packsight", (req, res) => {
       manifestPreview: (KNOWLEDGE.__manifest || []).slice(0, 20),
       manifestResolved: KNOWLEDGE.__packsight?.manifestResolved || [],
       probes: KNOWLEDGE.__packsight?.probes || [],
+      // NEW
+      skips: KNOWLEDGE.__packsight?.skips || { ...KNOWLEDGE.__skips },
+      collisionCount: (KNOWLEDGE.__packsight?.collisions || KNOWLEDGE.__collisions || []).length,
+      collisionsPreview: (KNOWLEDGE.__packsight?.collisions || KNOWLEDGE.__collisions || []).slice(0, 50),
+      fileMapPreview: (KNOWLEDGE.__packsight?.fileMapPreview || []).slice(0, 80),
       errorCount: KNOWLEDGE.errors.length,
       errorsPreview: KNOWLEDGE.errors.slice(0, 12),
     },
@@ -2159,7 +2239,7 @@ app.get("/api/packsight", (req, res) => {
   });
 });
 
-// Optional: small knowledge status alias
+// small knowledge status alias
 app.get("/api/knowledge", (req, res) => {
   return res.status(200).json({
     ok: true,
@@ -2172,7 +2252,7 @@ app.get("/api/knowledge", (req, res) => {
 });
 
 // =========================
-// Debug knowledge endpoints
+// Debug knowledge endpoints (kept)
 // =========================
 if (KNOWLEDGE_DEBUG_ENDPOINT) {
   app.get("/api/debug/knowledge", (req, res) => {
@@ -2220,6 +2300,9 @@ if (KNOWLEDGE_DEBUG_ENDPOINT) {
           maxTotalBytes: KNOWLEDGE_MAX_TOTAL_BYTES,
         },
         pinned: pinnedPresence(),
+        skips: { ...KNOWLEDGE.__skips },
+        collisions: KNOWLEDGE.__collisions.slice(0, 80),
+        fileMapPreview: (KNOWLEDGE.__packsight?.fileMapPreview || []).slice(0, 120),
         pinnedConfig: PINNED_PACKS.map((p) => ({ key: p.key, rels: p.rels })),
         pinnedResolved: KNOWLEDGE.__packsight?.pinnedResolved || [],
         pinnedMissing: KNOWLEDGE.__packsight?.pinnedMissing || [],
@@ -2266,6 +2349,10 @@ if (KNOWLEDGE_DEBUG_ENDPOINT) {
         manifestPreview: (KNOWLEDGE.__manifest || []).slice(0, 20),
         manifestResolved: KNOWLEDGE.__packsight?.manifestResolved || [],
         probes: KNOWLEDGE.__packsight?.probes || [],
+        skips: { ...KNOWLEDGE.__skips },
+        collisionCount: KNOWLEDGE.__collisions.length,
+        collisionsPreview: KNOWLEDGE.__collisions.slice(0, 50),
+        fileMapPreview: (KNOWLEDGE.__packsight?.fileMapPreview || []).slice(0, 80),
       },
       packsSummary: idx.summary,
       pinnedKeys: idx.groups?.pinned || [],
@@ -2288,7 +2375,7 @@ if (KNOWLEDGE_DEBUG_ENDPOINT) {
 }
 
 // =========================
-// CRITICAL: CHIP PAYLOAD NORMALIZER (prevents misroutes)
+// CHIP PAYLOAD NORMALIZER (kept)
 // =========================
 function normalizeChipPayload(b) {
   if (!b || typeof b !== "object") return b;
@@ -2322,7 +2409,7 @@ function normalizeChipPayload(b) {
 }
 
 // =========================
-// Chat route
+// Chat route (kept — no behavior change here)
 // =========================
 async function handleChatRoute(req, res) {
   const startedAt = nowMs();
@@ -2346,7 +2433,6 @@ async function handleChatRoute(req, res) {
 
   const { rec } = getSession(req);
   const bootLike = isBootLike(routeHint, body);
-
   const isReset = isResetCommand(inboundText, source, body);
 
   if (bootLike && !isReset) {
@@ -2471,9 +2557,7 @@ async function handleChatRoute(req, res) {
     },
     session: rec.data,
 
-    // ✅ knowledge injection
     knowledge: knowledgeSnapshotForEngine(),
-
     __knowledgeStatus: knowledgeStatusForMeta(),
     packIndex: getPackIndexSafe(false),
   };
@@ -2627,13 +2711,13 @@ function applySessionPatch(session, patch) {
 }
 
 // =========================
-// Chat endpoints (POST contract)
+// Chat endpoints
 // =========================
 app.post("/api/sandblast-gpt", handleChatRoute);
 app.post("/api/nyx/chat", handleChatRoute);
 app.post("/api/chat", handleChatRoute);
 
-// ✅ GET guidance
+// GET guidance
 function chatGetGuidance(req, res) {
   return res.status(405).json({
     ok: false,
@@ -2736,11 +2820,9 @@ async function handleTtsRoute(req, res) {
   }
 }
 
-// POST is the real contract
 app.post("/api/tts", handleTtsRoute);
 app.post("/api/voice", handleTtsRoute);
 
-// GET aliases: return guidance
 function ttsGetGuidance(req, res) {
   return res.status(405).json({
     ok: false,
@@ -2785,29 +2867,9 @@ app.listen(PORT, () => {
   console.log(
     `[Sandblast] Knowledge: autoload=${KNOWLEDGE_AUTOLOAD} ok=${KNOWLEDGE.ok} jsonKeys=${
       Object.keys(KNOWLEDGE.json).length
-    } scriptKeys=${Object.keys(KNOWLEDGE.scripts).length} errors=${KNOWLEDGE.errors.length} APP_ROOT=${APP_ROOT} DATA_DIR=${DATA_DIR} SCRIPTS_DIR=${SCRIPTS_DIR} scriptsEnabled=${KNOWLEDGE_ENABLE_SCRIPTS} reloadEveryMs=${KNOWLEDGE_RELOAD_INTERVAL_MS} debugIncludeData=${KNOWLEDGE_DEBUG_INCLUDE_DATA}`
-  );
-  // eslint-disable-next-line no-console
-  console.log(`[Sandblast] Knowledge pinned=${JSON.stringify(pinnedPresence())}`);
-  // eslint-disable-next-line no-console
-  console.log(`[Sandblast] Knowledge pinnedResolved=${JSON.stringify((KNOWLEDGE.__packsight?.pinnedResolved || []).slice(0, 12))}`);
-  // eslint-disable-next-line no-console
-  console.log(`[Sandblast] Knowledge pinnedMissing=${JSON.stringify((KNOWLEDGE.__packsight?.pinnedMissing || []).slice(0, 12))}`);
-  // eslint-disable-next-line no-console
-  console.log(`[Sandblast] Knowledge manifest=${JSON.stringify((KNOWLEDGE.__manifest || []).slice(0, 12))}`);
-  // eslint-disable-next-line no-console
-  console.log(
-    `[Sandblast] Packs: using=${packIndexAvailable() ? "external" : "builtin"} summary=${JSON.stringify(
-      getPackIndexSafe(false).summary
-    )}`
-  );
-  // eslint-disable-next-line no-console
-  console.log(
-    `[Sandblast] NyxVoice: naturalize=${NYX_VOICE_NATURALIZE} (external=${!!nyxVoiceNaturalizeMod}) maxLen=${NYX_VOICE_NATURALIZE_MAXLEN}`
-  );
-  // eslint-disable-next-line no-console
-  console.log(
-    `[Sandblast] ManifestSearch: fallback=${MANIFEST_SEARCH_FALLBACK} maxVisits=${MANIFEST_SEARCH_MAX_VISITS} maxDepth=${MANIFEST_SEARCH_MAX_DEPTH}`
+    } scriptKeys=${Object.keys(KNOWLEDGE.scripts).length} errors=${KNOWLEDGE.errors.length} skips=${JSON.stringify(
+      KNOWLEDGE.__skips
+    )} collisions=${KNOWLEDGE.__collisions.length} APP_ROOT=${APP_ROOT} DATA_DIR=${DATA_DIR} SCRIPTS_DIR=${SCRIPTS_DIR} scriptsEnabled=${KNOWLEDGE_ENABLE_SCRIPTS} reloadEveryMs=${KNOWLEDGE_RELOAD_INTERVAL_MS} debugIncludeData=${KNOWLEDGE_DEBUG_INCLUDE_DATA}`
   );
 });
 
