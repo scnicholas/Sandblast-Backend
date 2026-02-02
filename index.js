@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18ay (LOAD VISIBILITY++++: key collisions + skip reasons + fileMap + packsight proof)
+ * index.js v1.5.18az (LOAD VISIBILITY++++: key collisions + skip reasons + fileMap + packsight proof + PINNED REL FIXES)
  *
  * Why this patch exists:
  * ✅ Your /api/packs output confirms pinned packs are loading.
@@ -12,11 +12,9 @@
  *    - silent key collisions (two files map to same computed key, one wins)
  *    - silent skips (file too large, parse fail, budget stop)
  *
- * Adds:
- * ✅ collision tracking: key -> [{keptFp, collidedFp}]
- * ✅ skip counters: too_large / budget_stop / parse_fail / read_fail / duplicate_fp / key_collision
- * ✅ fileMap: key -> fp (what actually won)
- * ✅ packsight + debug endpoints include: collisions/skips/fileMapPreview
+ * Adds (v1.5.18az delta vs ay):
+ * ✅ Pinned rels update: include music_story_moments_v2.json (so Story Moments v2 is recognized immediately)
+ * ✅ Pinned rels tighten: keep number1 + story moments rels ordered “preferred first”
  *
  * Keeps:
  * - DATA ROOT AUTODISCOVERY++++, pinned resolve diagnostics, rebuild roots on reloadKnowledge
@@ -26,7 +24,7 @@
  * - loop fuse / replay isolation
  * - ElevenLabs TTS
  *
- * Small but important tweak in this build:
+ * Small but important tweak in this build (kept):
  * ✅ Pinned packs are “first-wins” inside a single load cycle (no accidental overwrite if pinned loader runs twice)
  */
 
@@ -86,7 +84,7 @@ const nyxVoiceNaturalizeMod =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18ay (LOAD VISIBILITY++++: key collisions + skip reasons + fileMap + packsight proof + DATA ROOT AUTODISCOVERY++++ + PINNED RESOLVE DIAGNOSTICS++++ + rebuild roots on reloadKnowledge + TOP10 NORMALIZATION + BLOCKER PRUNE++++ + SOURCE REL BLOCK REMOVAL + KNOWLEDGE INJECTION FIX + /api/chat GET GUIDANCE + MANIFEST RESOLVER UPGRADE++++: multi-candidate rels + bounded basename/dirname fallback search across ALL data roots + probes show bestFound + keeps PACK VISIBILITY HARDENING++++ + CHIP SIGNAL ROUNDTRIP intent/route/label + allow Data outside APP_ROOT + bigger budgets + PUBLIC /api/packsight + case-insensitive Data/Scripts resolution + pinned/manifest path fallback + packsight diagnostics + manifest target probes + pinned packs to real Data/* files + manifest tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
+  "index.js v1.5.18az (LOAD VISIBILITY++++: key collisions + skip reasons + fileMap + packsight proof + PINNED REL FIXES: story_moments_v2 + ordered rel preferences + DATA ROOT AUTODISCOVERY++++ + PINNED RESOLVE DIAGNOSTICS++++ + rebuild roots on reloadKnowledge + TOP10 NORMALIZATION + BLOCKER PRUNE++++ + SOURCE REL BLOCK REMOVAL + KNOWLEDGE INJECTION FIX + /api/chat GET GUIDANCE + MANIFEST RESOLVER UPGRADE++++: multi-candidate rels + bounded basename/dirname fallback search across ALL data roots + probes show bestFound + keeps PACK VISIBILITY HARDENING++++ + CHIP SIGNAL ROUNDTRIP intent/route/label + allow Data outside APP_ROOT + bigger budgets + PUBLIC /api/packsight + case-insensitive Data/Scripts resolution + pinned/manifest path fallback + packsight diagnostics + manifest target probes + pinned packs to real Data/* files + manifest tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
 
 // =========================
 // Utils
@@ -375,7 +373,10 @@ function rebuildDataRootCandidates() {
 
   // env hints
   if (DATA_ROOT_HINTS) {
-    const parts = DATA_ROOT_HINTS.split(",").map((s) => s.trim()).filter(Boolean);
+    const parts = DATA_ROOT_HINTS
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
     for (const p of parts) {
       try {
         if (path.isAbsolute(p)) pushUnique(p);
@@ -500,8 +501,10 @@ const PINNED_PACKS = [
   {
     key: "music/number1_by_year",
     rels: [
+      // preferred first
       "music_number1_by_year_v1.json",
       "music_number1_by_year.json",
+      // fallbacks
       "Nyx/music_number1_by_year.json",
       "Packs/music_number1_by_year.json",
       "Nyx/music_number1.json",
@@ -511,7 +514,10 @@ const PINNED_PACKS = [
   {
     key: "music/story_moments_by_year",
     rels: [
+      // ✅ preferred first: v2 then v1
+      "music_story_moments_v2.json",
       "music_story_moments_v1.json",
+      // fallbacks / generated / legacy
       "music_story_moments_1950_1989.generated.json",
       "music/story_moments_by_year.json",
       "Nyx/music_story_moments_by_year.json",
@@ -558,13 +564,7 @@ const PACK_MANIFEST = [
   {
     key: "music/top40_weekly_raw",
     type: "json_dir_rel",
-    rels: [
-      "charts/top40_weekly",
-      "chart/top40_weekly",
-      "music/charts/top40_weekly",
-      "packs/charts/top40_weekly",
-      "top40_weekly",
-    ],
+    rels: ["charts/top40_weekly", "chart/top40_weekly", "music/charts/top40_weekly", "packs/charts/top40_weekly", "top40_weekly"],
     postTransform: (allJson) => manifestBuildTop40WeeklyIndex(allJson, "music/top40_weekly_raw"),
     outKey: "music/top40_weekly_by_year_week",
   },
@@ -643,12 +643,7 @@ const BOOT_DEDUPE_MS = clampInt(process.env.BOOT_DEDUPE_MS, 1200, 200, 6000);
 const BOOT_MAX_WINDOW_MS = clampInt(process.env.BOOT_MAX_WINDOW_MS, 6000, 1000, 30000);
 const BOOT_MAX = clampInt(process.env.BOOT_MAX, 6, 2, 40);
 
-const SESSION_TTL_MS = clampInt(
-  process.env.SESSION_TTL_MS,
-  45 * 60 * 1000,
-  10 * 60 * 1000,
-  12 * 60 * 60 * 1000
-);
+const SESSION_TTL_MS = clampInt(process.env.SESSION_TTL_MS, 45 * 60 * 1000, 10 * 60 * 1000, 12 * 60 * 60 * 1000);
 const SESSION_MAX = clampInt(process.env.SESSION_MAX, 50000, 5000, 250000);
 
 // ElevenLabs TTS env
@@ -1401,9 +1396,7 @@ function manifestLoadPacks(loadedFiles, totalBytesRef) {
     try {
       if (item.type === "json_file_rel") {
         const fp = resolveDataRelAcrossRoots(item.rels || item.rel, "file");
-        const res = fp
-          ? manifestLoadJsonFileIntoKey(fp, item.key, loadedFiles, totalBytesRef)
-          : { ok: false, reason: "missing" };
+        const res = fp ? manifestLoadJsonFileIntoKey(fp, item.key, loadedFiles, totalBytesRef) : { ok: false, reason: "missing" };
 
         if (res.ok && !res.skipped && typeof item.transform === "function" && item.outKey) {
           const derived = item.transform(KNOWLEDGE.json[item.key]);
@@ -1418,9 +1411,7 @@ function manifestLoadPacks(loadedFiles, totalBytesRef) {
 
       if (item.type === "json_dir_rel") {
         const dir = resolveDataRelAcrossRoots(item.rels || item.rel, "dir");
-        const res = dir
-          ? manifestLoadJsonDirIntoPrefix(dir, item.key, loadedFiles, totalBytesRef)
-          : { ok: false, reason: "missing_dir" };
+        const res = dir ? manifestLoadJsonDirIntoPrefix(dir, item.key, loadedFiles, totalBytesRef) : { ok: false, reason: "missing_dir" };
 
         if (res.ok && typeof item.postTransform === "function" && item.outKey) {
           const derived = item.postTransform(KNOWLEDGE.json, item.key);
@@ -1434,9 +1425,7 @@ function manifestLoadPacks(loadedFiles, totalBytesRef) {
 
       if (item.type === "json_file_or_dir_rel") {
         const p = resolveDataRelAcrossRoots(item.rels || item.rel, "either");
-        const res = p
-          ? manifestLoadFileOrDir(p, item.key, loadedFiles, totalBytesRef)
-          : { ok: false, reason: "missing_file_or_dir" };
+        const res = p ? manifestLoadFileOrDir(p, item.key, loadedFiles, totalBytesRef) : { ok: false, reason: "missing_file_or_dir" };
         loadedSummary.push({ key: item.key, ok: res.ok, reason: res.reason || "" });
         continue;
       }
@@ -1953,9 +1942,7 @@ function replayDedupe(rec, inboundSig, source, clientRequestId) {
     const lastOut = safeStr(rec.data.__idx_lastOut || "");
     const lastLane = safeStr(rec.data.__idx_lastLane || "general") || "general";
     const lastFU = Array.isArray(rec.data.__idx_lastFollowUps) ? rec.data.__idx_lastFollowUps : undefined;
-    const lastFUS = Array.isArray(rec.data.__idx_lastFollowUpsStrings)
-      ? rec.data.__idx_lastFollowUpsStrings
-      : undefined;
+    const lastFUS = Array.isArray(rec.data.__idx_lastFollowUpsStrings) ? rec.data.__idx_lastFollowUpsStrings : undefined;
     const lastDir = Array.isArray(rec.data.__idx_lastDirectives) ? rec.data.__idx_lastDirectives : undefined;
 
     if (lastOut) {
@@ -2608,9 +2595,7 @@ async function handleChatRoute(req, res) {
   const directives = Array.isArray(out?.directives) ? out.directives : undefined;
   const followUps = Array.isArray(out?.followUps) ? out.followUps : undefined;
   const followUpsStrings =
-    !followUps && Array.isArray(out?.followUpsStrings) && out?.followUpsStrings.length
-      ? out.followUpsStrings
-      : undefined;
+    !followUps && Array.isArray(out?.followUpsStrings) && out?.followUpsStrings.length ? out.followUpsStrings : undefined;
 
   if (!isReset && !bootLike) {
     writeReplay(rec, reply, lane, { directives, followUps, followUpsStrings });
