@@ -1,0 +1,549 @@
+{
+  "meta": {
+    "key": "music/number1_by_year",
+    "title": "Billboard Year-End Hot 100 — #1 Song by Year (1950–2024)",
+    "version": "music_number1_by_year_v1",
+    "range": {
+      "start": 1950,
+      "end": 2024
+    },
+    "fields": [
+      "year",
+      "title",
+      "artist",
+      "chart",
+      "source"
+    ],
+    "notes": [
+      "1950–2010 sourced from Wikipedia list of Billboard Year-End number-one singles (Hot 100/Top Singles category).",
+      "2011–2024 sourced from provided dataset billboard_yearend_hot100_2011_2024.json (rank=1 per year)."
+    ]
+  },
+  "rows": [
+    {
+      "year": 1950,
+      "title": "Goodnight, Irene",
+      "artist": "The Weavers",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1951,
+      "title": "Too Young",
+      "artist": "Nat King Cole",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1952,
+      "title": "Blue Tango",
+      "artist": "Leroy Anderson",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1953,
+      "title": "Song from Moulin Rouge",
+      "artist": "Percy Faith",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1954,
+      "title": "Little Things Mean a Lot",
+      "artist": "Kitty Kallen",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1955,
+      "title": "Cherry Pink and Apple Blossom White",
+      "artist": "Pérez Prado",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1956,
+      "title": "Heartbreak Hotel",
+      "artist": "Elvis Presley",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1957,
+      "title": "All Shook Up",
+      "artist": "Elvis Presley",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1958,
+      "title": "Nel blu dipinto di blu (Volare)",
+      "artist": "Domenico Modugno",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1959,
+      "title": "The Battle of New Orleans",
+      "artist": "Johnny Horton",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1960,
+      "title": "Theme from A Summer Place",
+      "artist": "Percy Faith",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1961,
+      "title": "Tossin' and Turnin'",
+      "artist": "Bobby Lewis",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1962,
+      "title": "Stranger on the Shore",
+      "artist": "Mr. Acker Bilk",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1963,
+      "title": "Sugar Shack",
+      "artist": "Jimmy Gilmer and the Fireballs",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1964,
+      "title": "I Want to Hold Your Hand",
+      "artist": "The Beatles",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1965,
+      "title": "Wooly Bully",
+      "artist": "Sam the Sham and the Pharaohs",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1966,
+      "title": "Ballad of the Green Berets",
+      "artist": "Sgt. Barry Sadler",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1967,
+      "title": "To Sir with Love",
+      "artist": "Lulu",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1968,
+      "title": "Hey Jude",
+      "artist": "The Beatles",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1969,
+      "title": "Aquarius/Let the Sunshine In",
+      "artist": "The 5th Dimension",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1970,
+      "title": "Bridge over Troubled Water",
+      "artist": "Simon & Garfunkel",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1971,
+      "title": "Joy to the World",
+      "artist": "Three Dog Night",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1972,
+      "title": "The First Time Ever I Saw Your Face",
+      "artist": "Roberta Flack",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1973,
+      "title": "Tie a Yellow Ribbon Round the Ole Oak Tree",
+      "artist": "Tony Orlando and Dawn",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1974,
+      "title": "The Way We Were",
+      "artist": "Barbra Streisand",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1975,
+      "title": "Love Will Keep Us Together",
+      "artist": "Captain & Tennille",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1976,
+      "title": "Silly Love Songs",
+      "artist": "Wings",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1977,
+      "title": "Tonight's the Night (Gonna Be Alright)",
+      "artist": "Rod Stewart",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1978,
+      "title": "Shadow Dancing",
+      "artist": "Andy Gibb",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1979,
+      "title": "My Sharona",
+      "artist": "The Knack",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1980,
+      "title": "Call Me",
+      "artist": "Blondie",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1981,
+      "title": "Bette Davis Eyes",
+      "artist": "Kim Carnes",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1982,
+      "title": "Physical",
+      "artist": "Olivia Newton-John",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1983,
+      "title": "Every Breath You Take",
+      "artist": "The Police",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1984,
+      "title": "When Doves Cry",
+      "artist": "Prince",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1985,
+      "title": "Careless Whisper",
+      "artist": "Wham!",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1986,
+      "title": "That's What Friends Are For",
+      "artist": "Dionne Warwick",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1987,
+      "title": "Walk Like an Egyptian",
+      "artist": "The Bangles",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1988,
+      "title": "Faith",
+      "artist": "George Michael",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1989,
+      "title": "Look Away",
+      "artist": "Chicago",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1990,
+      "title": "Hold On",
+      "artist": "Wilson Phillips",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1991,
+      "title": "(Everything I Do) I Do It for You",
+      "artist": "Bryan Adams",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1992,
+      "title": "End of the Road",
+      "artist": "Boyz II Men",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1993,
+      "title": "I Will Always Love You",
+      "artist": "Whitney Houston",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1994,
+      "title": "The Sign",
+      "artist": "Ace of Base",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1995,
+      "title": "Gangsta's Paradise",
+      "artist": "Coolio featuring L.V.",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1996,
+      "title": "Macarena (Bayside Boys Mix)",
+      "artist": "Los del Río",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1997,
+      "title": "Candle in the Wind 1997 / Something About the Way You Look Tonight",
+      "artist": "Elton John",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1998,
+      "title": "Too Close",
+      "artist": "Next",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 1999,
+      "title": "Believe",
+      "artist": "Cher",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 2000,
+      "title": "Breathe",
+      "artist": "Faith Hill",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 2001,
+      "title": "Hanging by a Moment",
+      "artist": "Lifehouse",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 2002,
+      "title": "How You Remind Me",
+      "artist": "Nickelback",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 2003,
+      "title": "In da Club",
+      "artist": "50 Cent",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 2004,
+      "title": "Yeah!",
+      "artist": "Usher featuring Lil Jon and Ludacris",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 2005,
+      "title": "We Belong Together",
+      "artist": "Mariah Carey",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 2006,
+      "title": "Bad Day",
+      "artist": "Daniel Powter",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 2007,
+      "title": "Irreplaceable",
+      "artist": "Beyoncé",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 2008,
+      "title": "Low",
+      "artist": "Flo Rida featuring T-Pain",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 2009,
+      "title": "Boom Boom Pow",
+      "artist": "The Black Eyed Peas",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 2010,
+      "title": "Tik Tok",
+      "artist": "Kesha",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "wikipedia:List of Billboard Year-End number-one singles"
+    },
+    {
+      "year": 2011,
+      "title": "Rolling in the Deep",
+      "artist": "Adele",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_2011"
+    },
+    {
+      "year": 2012,
+      "title": "Somebody That I Used to Know",
+      "artist": "Gotye featuring Kimbra",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_2012"
+    },
+    {
+      "year": 2013,
+      "title": "Thrift Shop",
+      "artist": "Macklemore & Ryan Lewis featuring Wanz",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_2013"
+    },
+    {
+      "year": 2014,
+      "title": "Happy",
+      "artist": "Pharrell Williams",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_2014"
+    },
+    {
+      "year": 2015,
+      "title": "Uptown Funk",
+      "artist": "Mark Ronson featuring Bruno Mars",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_2015"
+    },
+    {
+      "year": 2016,
+      "title": "Love Yourself",
+      "artist": "Justin Bieber",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_2016"
+    },
+    {
+      "year": 2017,
+      "title": "Shape of You",
+      "artist": "Ed Sheeran",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_2017"
+    },
+    {
+      "year": 2018,
+      "title": "God's Plan",
+      "artist": "Drake",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_2018"
+    },
+    {
+      "year": 2019,
+      "title": "Old Town Road",
+      "artist": "Lil Nas X featuring Billy Ray Cyrus",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_2019"
+    },
+    {
+      "year": 2020,
+      "title": "Blinding Lights",
+      "artist": "The Weeknd",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_2020"
+    },
+    {
+      "year": 2021,
+      "title": "Levitating",
+      "artist": "Dua Lipa",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_2021"
+    },
+    {
+      "year": 2022,
+      "title": "Heat Waves",
+      "artist": "Glass Animals",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_2022"
+    },
+    {
+      "year": 2023,
+      "title": "Last Night",
+      "artist": "Morgan Wallen",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_2023"
+    },
+    {
+      "year": 2024,
+      "title": "Lose Control",
+      "artist": "Teddy Swims",
+      "chart": "Billboard Year-End Hot 100 (No. 1 single)",
+      "source": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_2024"
+    }
+  ]
+}
