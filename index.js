@@ -3,16 +3,17 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18au (TOP10 NORMALIZATION + SOURCE REL BLOCK REMOVAL + keeps KNOWLEDGE INJECTION FIX + /api/chat GET GUIDANCE)
+ * index.js v1.5.18av (TOP10 NORMALIZATION + BLOCKER PRUNE++++ + keeps KNOWLEDGE INJECTION FIX + /api/chat GET GUIDANCE)
  *
- * Key adds vs v1.5.18at:
- *  ✅ CRITICAL: Normalize pinned Top10 pack into the exact year→rows map shape chatEngine expects
- *     - Supports: array rows, {rows|data|items: []}, {byYear: {...}}, or already-year-keyed objects
- *     - Sorts each year by rank when present
- *  ✅ Remove likely “blocker” candidate from Top10 pinned rels: top10_by_year_source_v1.json
- *     - Prevents accidentally pinning a metadata/columnar “source” file as the Top10 pack
+ * Key adds vs v1.5.18au:
+ *  ✅ CRITICAL: Prune ambiguous Top10 pinned rels that can “win” the resolver but aren’t year→rows packs
+ *     - Removed generic/legacy candidates like music_top10.json / Nyx/music_top10.json
+ *     - Keeps only “by_year” candidates (plus explicit top10_by_year_v1.json variants)
+ *  ✅ Prune manifest rels that can cause accidental double-Data resolution
+ *     - Removed "Data/Movies", "Data/movies", "Data/Sponsors", etc. from manifest rels
  *
- * Keeps: MANIFEST RESOLVER UPGRADE++++, PACK VISIBILITY HARDENING++++, CHIP SIGNAL ROUNDTRIP, KNOWLEDGE INJECTION FIX, etc.
+ * Keeps: MANIFEST RESOLVER UPGRADE++++, PACK VISIBILITY HARDENING++++, CHIP SIGNAL ROUNDTRIP,
+ *        KNOWLEDGE INJECTION FIX, TOP10 pinned normalization, source rel blocker removal, etc.
  */
 
 // =========================
@@ -71,7 +72,7 @@ const nyxVoiceNaturalizeMod =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18au (TOP10 NORMALIZATION + SOURCE REL BLOCK REMOVAL + KNOWLEDGE INJECTION FIX + /api/chat GET GUIDANCE + MANIFEST RESOLVER UPGRADE++++: multi-candidate rels + bounded basename/dirname fallback search across ALL data roots + probes show bestFound + keeps PACK VISIBILITY HARDENING++++ + CHIP SIGNAL ROUNDTRIP intent/route/label + allow Data outside APP_ROOT + bigger budgets + PUBLIC /api/packsight + case-insensitive Data/Scripts resolution + pinned/manifest path fallback + packsight diagnostics + manifest target probes + pinned packs to real Data/* files + manifest tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
+  "index.js v1.5.18av (TOP10 NORMALIZATION + BLOCKER PRUNE++++ + SOURCE REL BLOCK REMOVAL + KNOWLEDGE INJECTION FIX + /api/chat GET GUIDANCE + MANIFEST RESOLVER UPGRADE++++: multi-candidate rels + bounded basename/dirname fallback search across ALL data roots + probes show bestFound + keeps PACK VISIBILITY HARDENING++++ + CHIP SIGNAL ROUNDTRIP intent/route/label + allow Data outside APP_ROOT + bigger budgets + PUBLIC /api/packsight + case-insensitive Data/Scripts resolution + pinned/manifest path fallback + packsight diagnostics + manifest target probes + pinned packs to real Data/* files + manifest tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
 
 // =========================
 // Utils
@@ -370,15 +371,16 @@ const PINNED_PACKS = [
     key: "music/top10_by_year",
     rels: [
       // ✅ Prefer the real year-keyed Top10 pack (and avoid “source”/metadata packs)
+      // ✅ v1.5.18av: Remove ambiguous legacy candidates that can resolve first but aren’t by-year
       "top10_by_year_v1.json",
       "Nyx/top10_by_year_v1.json",
       "Packs/top10_by_year_v1.json",
       "music_top10_by_year.json",
       "Nyx/music_top10_by_year.json",
       "Packs/music_top10_by_year.json",
-      "Nyx/music_top10.json",
-      "music_top10.json",
-      // ❌ REMOVED potential blocker:
+      // ❌ REMOVED potential blockers:
+      // "Nyx/music_top10.json",
+      // "music_top10.json",
       // "top10_by_year_source_v1.json",
     ],
   },
@@ -456,12 +458,20 @@ const PACK_MANIFEST = [
   {
     key: "movies/roku_catalog",
     type: "json_file_or_dir_rel",
-    rels: ["movies", "Movies", "Data/Movies", "Data/movies"],
+    rels: [
+      // ✅ v1.5.18av: prune double-Data candidates (resolver already walks DATA roots)
+      "movies",
+      "Movies",
+    ],
   },
   {
     key: "sponsors/packs",
     type: "json_file_or_dir_rel",
-    rels: ["sponsors", "Sponsors", "Data/sponsors", "Data/Sponsors"],
+    rels: [
+      // ✅ v1.5.18av: prune double-Data candidates
+      "sponsors",
+      "Sponsors",
+    ],
   },
   {
     key: "legacy/scripts_json",
@@ -996,17 +1006,12 @@ function loadPinnedPack(rels, forcedKey, loadedFiles, totalBytesRef) {
     const norm = normalizePinnedTop10Payload(parsed);
     parsed = norm.payload;
     top10Note = { normalized: !!norm.normalized, kind: norm.kind };
-    if (top10Note.normalized) {
-      // eslint-disable-next-line no-console
-      console.log(
-        `[Sandblast][PinnedNormalize] key=${forcedKey} normalized=true kind=${safeStr(top10Note.kind)} fp=${fp}`
-      );
-    } else {
-      // eslint-disable-next-line no-console
-      console.log(
-        `[Sandblast][PinnedNormalize] key=${forcedKey} normalized=false kind=${safeStr(top10Note.kind)} fp=${fp}`
-      );
-    }
+    // eslint-disable-next-line no-console
+    console.log(
+      `[Sandblast][PinnedNormalize] key=${forcedKey} normalized=${top10Note.normalized ? "true" : "false"} kind=${safeStr(
+        top10Note.kind
+      )} fp=${fp}`
+    );
   }
 
   KNOWLEDGE.json[String(forcedKey)] = parsed;
@@ -1294,6 +1299,7 @@ function buildManifestProbes() {
       ],
       kind: "dir",
     },
+    // ✅ v1.5.18av: match manifest rels (no double-Data)
     { id: "movies_root", rels: ["movies", "Movies"], kind: "dir_or_file" },
     { id: "sponsors_root", rels: ["sponsors", "Sponsors"], kind: "dir_or_file" },
   ];
@@ -2565,7 +2571,8 @@ function chatGetGuidance(req, res) {
   return res.status(405).json({
     ok: false,
     error: "method_not_allowed",
-    detail: 'Use POST with JSON body. Example: { "text": "Top 10 for 1973", "payload": { "lane":"music", "action":"top10", "year":1973 } }',
+    detail:
+      'Use POST with JSON body. Example: { "text": "Top 10 for 1973", "payload": { "lane":"music", "action":"top10", "year":1973 } }',
     meta: { index: INDEX_VERSION },
   });
 }
