@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18az (LOAD VISIBILITY++++: key collisions + skip reasons + fileMap + packsight proof + PINNED REL FIXES)
+ * index.js v1.5.18ba (CRITICAL FIXES++++: sessionKey sees parsed body + manifest abs path stays correct after reload + stricter CORS hard-lock + tiny DX polish)
  *
  * Why this patch exists:
  * ✅ Your /api/packs output confirms pinned packs are loading.
@@ -12,9 +12,11 @@
  *    - silent key collisions (two files map to same computed key, one wins)
  *    - silent skips (file too large, parse fail, budget stop)
  *
- * Adds (v1.5.18az delta vs ay):
- * ✅ Pinned rels update: include music_story_moments_v2.json (so Story Moments v2 is recognized immediately)
- * ✅ Pinned rels tighten: keep number1 + story moments rels ordered “preferred first”
+ * Adds (v1.5.18ba delta vs az):
+ * ✅ CRITICAL: sessionKeyFromReq now uses the *parsed* request body (fixes “text/plain body -> sessionId ignored”)
+ * ✅ CRITICAL: PACK_MANIFEST abs paths are rebuilt per reloadKnowledge (fixes SCRIPTS_DIR drift after rebuild)
+ * ✅ CRITICAL: CORS hard-lock now actively blocks disallowed Origin on non-OPTIONS (403), instead of “silent allow”
+ * ✅ DX: JSON parser middleware instantiated once (same behavior, lower overhead)
  *
  * Keeps:
  * - DATA ROOT AUTODISCOVERY++++, pinned resolve diagnostics, rebuild roots on reloadKnowledge
@@ -84,7 +86,7 @@ const nyxVoiceNaturalizeMod =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18az (LOAD VISIBILITY++++: key collisions + skip reasons + fileMap + packsight proof + PINNED REL FIXES: story_moments_v2 + ordered rel preferences + DATA ROOT AUTODISCOVERY++++ + PINNED RESOLVE DIAGNOSTICS++++ + rebuild roots on reloadKnowledge + TOP10 NORMALIZATION + BLOCKER PRUNE++++ + SOURCE REL BLOCK REMOVAL + KNOWLEDGE INJECTION FIX + /api/chat GET GUIDANCE + MANIFEST RESOLVER UPGRADE++++: multi-candidate rels + bounded basename/dirname fallback search across ALL data roots + probes show bestFound + keeps PACK VISIBILITY HARDENING++++ + CHIP SIGNAL ROUNDTRIP intent/route/label + allow Data outside APP_ROOT + bigger budgets + PUBLIC /api/packsight + case-insensitive Data/Scripts resolution + pinned/manifest path fallback + packsight diagnostics + manifest target probes + pinned packs to real Data/* files + manifest tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
+  "index.js v1.5.18ba (CRITICAL FIXES++++: sessionKey uses parsed body + manifest abs rebuilt after reload + strict CORS hard-lock 403 + JSON parser once + LOAD VISIBILITY++++: key collisions + skip reasons + fileMap + packsight proof + PINNED REL FIXES: story_moments_v2 + ordered rel preferences + DATA ROOT AUTODISCOVERY++++ + PINNED RESOLVE DIAGNOSTICS++++ + rebuild roots on reloadKnowledge + TOP10 NORMALIZATION + BLOCKER PRUNE++++ + SOURCE REL BLOCK REMOVAL + KNOWLEDGE INJECTION FIX + /api/chat GET GUIDANCE + MANIFEST RESOLVER UPGRADE++++: multi-candidate rels + bounded basename/dirname fallback search across ALL data roots + probes show bestFound + keeps PACK VISIBILITY HARDENING++++ + CHIP SIGNAL ROUNDTRIP intent/route/label + allow Data outside APP_ROOT + bigger budgets + PUBLIC /api/packsight + case-insensitive Data/Scripts resolution + pinned/manifest path fallback + packsight diagnostics + manifest target probes + pinned packs to real Data/* files + manifest tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
 
 // =========================
 // Utils
@@ -546,44 +548,47 @@ const PINNED_PACKS = [
 
 // =========================
 // PACK MANIFEST LOADER
+// CRITICAL FIX: build this dynamically so SCRIPTS_DIR changes on reload are reflected.
 // =========================
-const PACK_MANIFEST = [
-  {
-    key: "music/wiki/yearend_hot100_raw",
-    type: "json_file_rel",
-    rels: [
-      "wikipedia/billboard_yearend_hot100_1950_2024.json",
-      "wiki/billboard_yearend_hot100_1950_2024.json",
-      "music/wiki/billboard_yearend_hot100_1950_2024.json",
-      "music/wikipedia/billboard_yearend_hot100_1950_2024.json",
-      "packs/wikipedia/billboard_yearend_hot100_1950_2024.json",
-    ],
-    transform: (payload) => manifestBuildYearMapFromRows(payload, "yearend_hot100"),
-    outKey: "music/wiki/yearend_hot100_by_year",
-  },
-  {
-    key: "music/top40_weekly_raw",
-    type: "json_dir_rel",
-    rels: ["charts/top40_weekly", "chart/top40_weekly", "music/charts/top40_weekly", "packs/charts/top40_weekly", "top40_weekly"],
-    postTransform: (allJson) => manifestBuildTop40WeeklyIndex(allJson, "music/top40_weekly_raw"),
-    outKey: "music/top40_weekly_by_year_week",
-  },
-  {
-    key: "movies/roku_catalog",
-    type: "json_file_or_dir_rel",
-    rels: ["movies", "Movies"],
-  },
-  {
-    key: "sponsors/packs",
-    type: "json_file_or_dir_rel",
-    rels: ["sponsors", "Sponsors"],
-  },
-  {
-    key: "legacy/scripts_json",
-    type: "json_dir_abs",
-    abs: path.resolve(SCRIPTS_DIR, "packs_json"),
-  },
-];
+function getPackManifest() {
+  return [
+    {
+      key: "music/wiki/yearend_hot100_raw",
+      type: "json_file_rel",
+      rels: [
+        "wikipedia/billboard_yearend_hot100_1950_2024.json",
+        "wiki/billboard_yearend_hot100_1950_2024.json",
+        "music/wiki/billboard_yearend_hot100_1950_2024.json",
+        "music/wikipedia/billboard_yearend_hot100_1950_2024.json",
+        "packs/wikipedia/billboard_yearend_hot100_1950_2024.json",
+      ],
+      transform: (payload) => manifestBuildYearMapFromRows(payload, "yearend_hot100"),
+      outKey: "music/wiki/yearend_hot100_by_year",
+    },
+    {
+      key: "music/top40_weekly_raw",
+      type: "json_dir_rel",
+      rels: ["charts/top40_weekly", "chart/top40_weekly", "music/charts/top40_weekly", "packs/charts/top40_weekly", "top40_weekly"],
+      postTransform: (allJson) => manifestBuildTop40WeeklyIndex(allJson, "music/top40_weekly_raw"),
+      outKey: "music/top40_weekly_by_year_week",
+    },
+    {
+      key: "movies/roku_catalog",
+      type: "json_file_or_dir_rel",
+      rels: ["movies", "Movies"],
+    },
+    {
+      key: "sponsors/packs",
+      type: "json_file_or_dir_rel",
+      rels: ["sponsors", "Sponsors"],
+    },
+    {
+      key: "legacy/scripts_json",
+      type: "json_dir_abs",
+      abs: path.resolve(SCRIPTS_DIR, "packs_json"),
+    },
+  ];
+}
 
 // CORS
 const ORIGINS_ALLOWLIST = String(
@@ -1391,6 +1396,7 @@ function manifestLoadFileOrDir(absPath, baseKey, loadedFiles, totalBytesRef) {
 
 function manifestLoadPacks(loadedFiles, totalBytesRef) {
   const loadedSummary = [];
+  const PACK_MANIFEST = getPackManifest(); // ✅ always current SCRIPTS_DIR
 
   for (const item of PACK_MANIFEST) {
     try {
@@ -1846,8 +1852,16 @@ function getPackIndexSafe(forceRefresh) {
 // =========================
 const SESSIONS = new Map();
 
-function sessionKeyFromReq(req) {
-  const b = isPlainObject(req.body) ? req.body : {};
+/**
+ * CRITICAL FIX: allow caller to pass parsed body (req.body may be string for text/*).
+ */
+function sessionKeyFromReq(req, bodyOverride) {
+  const b = isPlainObject(bodyOverride)
+    ? bodyOverride
+    : isPlainObject(req.body)
+      ? req.body
+      : safeJsonParseMaybe(req.body) || {};
+
   const h = req.headers || {};
   const sid =
     safeStr(b.sessionId || b.visitorId || b.deviceId).trim() ||
@@ -1874,11 +1888,11 @@ function pruneSessions(now) {
   }
 }
 
-function getSession(req) {
+function getSession(req, bodyOverride) {
   const now = nowMs();
   pruneSessions(now);
 
-  const key = sessionKeyFromReq(req);
+  const key = sessionKeyFromReq(req, bodyOverride);
   let rec = SESSIONS.get(key);
   if (!rec) {
     rec = {
@@ -2016,9 +2030,12 @@ const app = express();
 if (toBool(TRUST_PROXY, false)) app.set("trust proxy", 1);
 
 // ---- SAFE JSON PARSE: never crash on invalid JSON ----
+// ✅ DX: instantiate parser once (same semantics)
+const jsonParser = express.json({ limit: MAX_JSON_BODY });
+
 app.use((req, res, next) => {
   if (req.method === "OPTIONS") return next();
-  express.json({ limit: MAX_JSON_BODY })(req, res, (err) => {
+  jsonParser(req, res, (err) => {
     if (err) {
       return res.status(400).json({
         ok: false,
@@ -2033,7 +2050,7 @@ app.use((req, res, next) => {
 app.use(express.text({ type: ["text/*"], limit: MAX_JSON_BODY }));
 
 // =========================
-// CORS hard-lock
+// CORS hard-lock (CRITICAL: disallowed Origin -> blocked)
 // =========================
 app.use((req, res, next) => {
   const originRaw = safeStr(req.headers.origin || "");
@@ -2070,7 +2087,19 @@ app.use((req, res, next) => {
     res.setHeader("Access-Control-Max-Age", "600");
   }
 
-  if (req.method === "OPTIONS") return res.status(204).send("");
+  if (req.method === "OPTIONS") {
+    // preflight: if origin is present but not allowed, hard fail
+    if (origin && !allow) {
+      return res.status(403).json({ ok: false, error: "cors_blocked", meta: { index: INDEX_VERSION } });
+    }
+    return res.status(204).send("");
+  }
+
+  // non-preflight: block disallowed origin requests
+  if (origin && !allow) {
+    return res.status(403).json({ ok: false, error: "cors_blocked", meta: { index: INDEX_VERSION } });
+  }
+
   return next();
 });
 
@@ -2426,7 +2455,9 @@ async function handleChatRoute(req, res) {
   const inboundSig = normalizeInboundSignature(body, inboundText);
   const meaningful = !!inboundSig || hasIntentSignals(body);
 
-  const { rec } = getSession(req);
+  // ✅ CRITICAL FIX: pass parsed body so sessionKey sees sessionId even when req.body is text/plain
+  const { rec } = getSession(req, body);
+
   const bootLike = isBootLike(routeHint, body);
   const isReset = isResetCommand(inboundText, source, body);
 
