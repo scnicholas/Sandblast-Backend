@@ -3,13 +3,16 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18at (KNOWLEDGE INJECTION FIX + /api/chat GET GUIDANCE: ensures chatEngine receives knowledge.json + friendly GET handlers for browser hits)
+ * index.js v1.5.18au (TOP10 NORMALIZATION + SOURCE REL BLOCK REMOVAL + keeps KNOWLEDGE INJECTION FIX + /api/chat GET GUIDANCE)
  *
- * Key adds vs 1.5.18as:
- *  ✅ CRITICAL: Engine always receives full knowledge snapshot at engineInput.knowledge (json/scripts/meta) (this is what chatEngine reads)
- *  ✅ DX: Add GET /api/chat, /api/nyx/chat, /api/sandblast-gpt as 405 guidance (prevents “Cannot GET /api/chat” confusion in browser)
+ * Key adds vs v1.5.18at:
+ *  ✅ CRITICAL: Normalize pinned Top10 pack into the exact year→rows map shape chatEngine expects
+ *     - Supports: array rows, {rows|data|items: []}, {byYear: {...}}, or already-year-keyed objects
+ *     - Sorts each year by rank when present
+ *  ✅ Remove likely “blocker” candidate from Top10 pinned rels: top10_by_year_source_v1.json
+ *     - Prevents accidentally pinning a metadata/columnar “source” file as the Top10 pack
  *
- * Keeps: MANIFEST RESOLVER UPGRADE++++, PACK VISIBILITY HARDENING++++, CHIP SIGNAL ROUNDTRIP, etc.
+ * Keeps: MANIFEST RESOLVER UPGRADE++++, PACK VISIBILITY HARDENING++++, CHIP SIGNAL ROUNDTRIP, KNOWLEDGE INJECTION FIX, etc.
  */
 
 // =========================
@@ -68,7 +71,7 @@ const nyxVoiceNaturalizeMod =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18at (KNOWLEDGE INJECTION FIX + /api/chat GET GUIDANCE + MANIFEST RESOLVER UPGRADE++++: multi-candidate rels + bounded basename/dirname fallback search across ALL data roots + probes show bestFound + keeps PACK VISIBILITY HARDENING++++ + CHIP SIGNAL ROUNDTRIP intent/route/label + allow Data outside APP_ROOT + bigger budgets + PUBLIC /api/packsight + case-insensitive Data/Scripts resolution + pinned/manifest path fallback + packsight diagnostics + manifest target probes + pinned packs to real Data/* files + manifest tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
+  "index.js v1.5.18au (TOP10 NORMALIZATION + SOURCE REL BLOCK REMOVAL + KNOWLEDGE INJECTION FIX + /api/chat GET GUIDANCE + MANIFEST RESOLVER UPGRADE++++: multi-candidate rels + bounded basename/dirname fallback search across ALL data roots + probes show bestFound + keeps PACK VISIBILITY HARDENING++++ + CHIP SIGNAL ROUNDTRIP intent/route/label + allow Data outside APP_ROOT + bigger budgets + PUBLIC /api/packsight + case-insensitive Data/Scripts resolution + pinned/manifest path fallback + packsight diagnostics + manifest target probes + pinned packs to real Data/* files + manifest tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
 
 // =========================
 // Utils
@@ -366,8 +369,8 @@ const PINNED_PACKS = [
   {
     key: "music/top10_by_year",
     rels: [
+      // ✅ Prefer the real year-keyed Top10 pack (and avoid “source”/metadata packs)
       "top10_by_year_v1.json",
-      "top10_by_year_source_v1.json",
       "Nyx/top10_by_year_v1.json",
       "Packs/top10_by_year_v1.json",
       "music_top10_by_year.json",
@@ -375,6 +378,8 @@ const PINNED_PACKS = [
       "Packs/music_top10_by_year.json",
       "Nyx/music_top10.json",
       "music_top10.json",
+      // ❌ REMOVED potential blocker:
+      // "top10_by_year_source_v1.json",
     ],
   },
   {
@@ -840,6 +845,70 @@ function resolvePinnedFileAbs(rels) {
   return null;
 }
 
+// v1.5.18au: Top10 shape normalizer (pinned) — makes chatEngine see it as “usable”
+function normalizePinnedTop10Payload(payload) {
+  try {
+    let p = payload;
+
+    // If wrapped: { byYear: { "1953": [...] } }
+    if (isPlainObject(p) && isPlainObject(p.byYear)) p = p.byYear;
+
+    // If already year-keyed object of arrays, accept and sort.
+    if (isPlainObject(p)) {
+      const keys = Object.keys(p);
+      const yearKeys = keys.filter((k) => /^\d{4}$/.test(String(k)));
+      if (yearKeys.length) {
+        let looksRight = true;
+        for (const y of yearKeys) {
+          if (!Array.isArray(p[y])) {
+            looksRight = false;
+            break;
+          }
+        }
+        if (looksRight) {
+          for (const y of yearKeys) {
+            try {
+              p[y].sort((a, b) => Number(a?.rank || 9999) - Number(b?.rank || 9999));
+            } catch (_) {}
+          }
+          return { payload: p, normalized: false, kind: "year_keyed" };
+        }
+      }
+    }
+
+    // Extract rows from: [], {rows:[]}, {data:[]}, {items:[]}
+    const rows = Array.isArray(p)
+      ? p
+      : isPlainObject(p) && Array.isArray(p.rows)
+        ? p.rows
+        : isPlainObject(p) && Array.isArray(p.data)
+          ? p.data
+          : isPlainObject(p) && Array.isArray(p.items)
+            ? p.items
+            : null;
+
+    if (!rows) return { payload, normalized: false, kind: "unknown" };
+
+    const byYear = Object.create(null);
+    for (const r of rows) {
+      const y = Number(r && r.year);
+      if (!Number.isFinite(y)) continue;
+      if (!byYear[y]) byYear[y] = [];
+      byYear[y].push(r);
+    }
+    for (const y of Object.keys(byYear)) {
+      byYear[y].sort((a, b) => Number(a?.rank || 9999) - Number(b?.rank || 9999));
+    }
+
+    const any = Object.keys(byYear).length > 0;
+    if (!any) return { payload, normalized: false, kind: "no_years" };
+
+    return { payload: byYear, normalized: true, kind: Array.isArray(p) ? "rows_array" : "rows_wrapped" };
+  } catch (_) {
+    return { payload, normalized: false, kind: "exception" };
+  }
+}
+
 // v1.5.18as: resolve a manifest REL (or RELS[]) across all data roots with kind + bounded fallback search
 function resolveDataRelAcrossRoots(relOrRels, kind /* "file" | "dir" | "either" */) {
   const rels = Array.isArray(relOrRels) ? relOrRels : [relOrRels];
@@ -919,6 +988,27 @@ function loadPinnedPack(rels, forcedKey, loadedFiles, totalBytesRef) {
     return { ok: false, skipped: false, reason: "parse_failed" };
   }
 
+  // =========================
+  // v1.5.18au: Normalize pinned Top10 into chatEngine-usable year→rows map
+  // =========================
+  let top10Note = null;
+  if (String(forcedKey) === "music/top10_by_year") {
+    const norm = normalizePinnedTop10Payload(parsed);
+    parsed = norm.payload;
+    top10Note = { normalized: !!norm.normalized, kind: norm.kind };
+    if (top10Note.normalized) {
+      // eslint-disable-next-line no-console
+      console.log(
+        `[Sandblast][PinnedNormalize] key=${forcedKey} normalized=true kind=${safeStr(top10Note.kind)} fp=${fp}`
+      );
+    } else {
+      // eslint-disable-next-line no-console
+      console.log(
+        `[Sandblast][PinnedNormalize] key=${forcedKey} normalized=false kind=${safeStr(top10Note.kind)} fp=${fp}`
+      );
+    }
+  }
+
   KNOWLEDGE.json[String(forcedKey)] = parsed;
   KNOWLEDGE.filesLoaded += 1;
   totalBytesRef.value = nextTotal;
@@ -927,7 +1017,7 @@ function loadPinnedPack(rels, forcedKey, loadedFiles, totalBytesRef) {
   if (loadedFiles) loadedFiles.add(fp);
 
   if (KNOWLEDGE.__packsight && Array.isArray(KNOWLEDGE.__packsight.pinnedResolved)) {
-    KNOWLEDGE.__packsight.pinnedResolved.push({ key: String(forcedKey), fp });
+    KNOWLEDGE.__packsight.pinnedResolved.push({ key: String(forcedKey), fp, note: top10Note || undefined });
   }
 
   return { ok: true, skipped: false, fp };
@@ -2470,7 +2560,7 @@ app.post("/api/sandblast-gpt", handleChatRoute);
 app.post("/api/nyx/chat", handleChatRoute);
 app.post("/api/chat", handleChatRoute);
 
-// ✅ NEW: GET guidance (prevents “Cannot GET /api/chat” when you hit it in a browser)
+// ✅ GET guidance (prevents “Cannot GET /api/chat” when you hit it in a browser)
 function chatGetGuidance(req, res) {
   return res.status(405).json({
     ok: false,
