@@ -3,17 +3,21 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18av (TOP10 NORMALIZATION + BLOCKER PRUNE++++ + keeps KNOWLEDGE INJECTION FIX + /api/chat GET GUIDANCE)
+ * index.js v1.5.18aw (DATA ROOT AUTODISCOVERY++++ + PINNED RESOLVE DIAGNOSTICS++++ + rebuild roots on reloadKnowledge)
  *
- * Key adds vs v1.5.18au:
- *  ✅ CRITICAL: Prune ambiguous Top10 pinned rels that can “win” the resolver but aren’t year→rows packs
- *     - Removed generic/legacy candidates like music_top10.json / Nyx/music_top10.json
- *     - Keeps only “by_year” candidates (plus explicit top10_by_year_v1.json variants)
- *  ✅ Prune manifest rels that can cause accidental double-Data resolution
- *     - Removed "Data/Movies", "Data/movies", "Data/Sponsors", etc. from manifest rels
+ * What this fixes (most likely blocker):
+ * ✅ CRITICAL: In Render/persistent disk deploys, your Data folder often lives outside __dirname.
+ *   If DATA_ROOT_CANDIDATES doesn't include the REAL Data root, packs will "vanish."
+ *
+ * Adds:
+ * ✅ Aggressive but bounded Data-root discovery:
+ *    - Searches env hints (DATA_ROOT_HINTS), common mount points (/data,/var/data,/mnt/data), and parent dirs for "Data"
+ *    - Rebuilds DATA_ROOT_CANDIDATES at boot AND every reloadKnowledge()
+ * ✅ Pinned pack resolution diagnostics added to /api/packsight + logs
+ * ✅ /api/packs/refresh?reloadKnowledge=1 rebuilds roots + reloads knowledge
  *
  * Keeps: MANIFEST RESOLVER UPGRADE++++, PACK VISIBILITY HARDENING++++, CHIP SIGNAL ROUNDTRIP,
- *        KNOWLEDGE INJECTION FIX, TOP10 pinned normalization, source rel blocker removal, etc.
+ *        KNOWLEDGE INJECTION FIX, TOP10 pinned normalization, etc.
  */
 
 // =========================
@@ -72,7 +76,7 @@ const nyxVoiceNaturalizeMod =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18av (TOP10 NORMALIZATION + BLOCKER PRUNE++++ + SOURCE REL BLOCK REMOVAL + KNOWLEDGE INJECTION FIX + /api/chat GET GUIDANCE + MANIFEST RESOLVER UPGRADE++++: multi-candidate rels + bounded basename/dirname fallback search across ALL data roots + probes show bestFound + keeps PACK VISIBILITY HARDENING++++ + CHIP SIGNAL ROUNDTRIP intent/route/label + allow Data outside APP_ROOT + bigger budgets + PUBLIC /api/packsight + case-insensitive Data/Scripts resolution + pinned/manifest path fallback + packsight diagnostics + manifest target probes + pinned packs to real Data/* files + manifest tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
+  "index.js v1.5.18aw (DATA ROOT AUTODISCOVERY++++ + PINNED RESOLVE DIAGNOSTICS++++ + rebuild roots on reloadKnowledge + TOP10 NORMALIZATION + BLOCKER PRUNE++++ + SOURCE REL BLOCK REMOVAL + KNOWLEDGE INJECTION FIX + /api/chat GET GUIDANCE + MANIFEST RESOLVER UPGRADE++++: multi-candidate rels + bounded basename/dirname fallback search across ALL data roots + probes show bestFound + keeps PACK VISIBILITY HARDENING++++ + CHIP SIGNAL ROUNDTRIP intent/route/label + allow Data outside APP_ROOT + bigger budgets + PUBLIC /api/packsight + case-insensitive Data/Scripts resolution + pinned/manifest path fallback + packsight diagnostics + manifest target probes + pinned packs to real Data/* files + manifest tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
 
 // =========================
 // Utils
@@ -174,10 +178,20 @@ const KNOWLEDGE_ALLOW_DATA_OUTSIDE_APP_ROOT = toBool(process.env.KNOWLEDGE_ALLOW
 // Scripts are riskier; keep default OFF unless you explicitly need it.
 const KNOWLEDGE_ALLOW_SCRIPTS_OUTSIDE_APP_ROOT = toBool(process.env.KNOWLEDGE_ALLOW_SCRIPTS_OUTSIDE_APP_ROOT, false);
 
-// --- Manifest fallback search knobs (NEW in v1.5.18as) ---
+// --- Manifest fallback search knobs ---
 const MANIFEST_SEARCH_FALLBACK = toBool(process.env.MANIFEST_SEARCH_FALLBACK, true);
 const MANIFEST_SEARCH_MAX_VISITS = clampInt(process.env.MANIFEST_SEARCH_MAX_VISITS, 8000, 500, 50000);
 const MANIFEST_SEARCH_MAX_DEPTH = clampInt(process.env.MANIFEST_SEARCH_MAX_DEPTH, 6, 2, 20);
+
+// --- NEW: Data root autodiscovery knobs ---
+const DATA_ROOT_AUTODISCOVER = toBool(process.env.DATA_ROOT_AUTODISCOVER, true);
+const DATA_ROOT_HINTS = String(process.env.DATA_ROOT_HINTS || "").trim(); // comma-separated abs/rel paths
+const DATA_ROOT_DISCOVERY_MAX_DEPTH = clampInt(process.env.DATA_ROOT_DISCOVERY_MAX_DEPTH, 4, 1, 10);
+const DATA_ROOT_DISCOVERY_MAX_VISITS = clampInt(process.env.DATA_ROOT_DISCOVERY_MAX_VISITS, 2500, 200, 20000);
+
+// Nyx Voice Naturalizer knobs
+const NYX_VOICE_NATURALIZE = toBool(process.env.NYX_VOICE_NATURALIZE, true);
+const NYX_VOICE_NATURALIZE_MAXLEN = clampInt(process.env.NYX_VOICE_NATURALIZE_MAXLEN, 2200, 200, 20000);
 
 // =========================
 // CRITICAL: Case-insensitive dir/path resolution (Linux-safe)
@@ -283,30 +297,139 @@ function resolveScriptsDirFromEnv() {
 let DATA_DIR = resolveDataDirFromEnv();
 let SCRIPTS_DIR = resolveScriptsDirFromEnv();
 
-const DATA_ROOT_CANDIDATES = (() => {
+/**
+ * NEW: bounded search for a directory named "Data" under a starting path (BFS).
+ * Returns array of absolute dirs found (unique), limited by visit budget.
+ */
+function discoverNamedDirs(startAbs, wantNameLower, maxDepth, maxVisits) {
+  const out = [];
+  const seen = new Set();
+  const q = [{ dir: path.resolve(startAbs), depth: 0 }];
+  let visits = 0;
+
+  while (q.length) {
+    const cur = q.shift();
+    const dir = cur.dir;
+    const depth = cur.depth;
+
+    if (!dir || seen.has(dir)) continue;
+    seen.add(dir);
+
+    const st = statSafe(dir);
+    if (!st || !st.isDirectory()) continue;
+
+    if (visits++ > maxVisits) break;
+
+    let entries = [];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (_) {
+      continue;
+    }
+
+    for (const ent of entries) {
+      if (visits++ > maxVisits) break;
+      if (!ent || !ent.isDirectory()) continue;
+      const name = safeStr(ent.name);
+      if (!name) continue;
+
+      if (name.toLowerCase() === wantNameLower) {
+        const hit = path.join(dir, name);
+        if (!out.includes(hit)) out.push(hit);
+      }
+
+      if (depth + 1 <= maxDepth) {
+        if (name === "node_modules" || name === ".git") continue;
+        q.push({ dir: path.join(dir, name), depth: depth + 1 });
+      }
+    }
+  }
+
+  return out;
+}
+
+/**
+ * NEW: rebuild DATA_ROOT_CANDIDATES with autodiscovery.
+ * This is the single most important fix when packs are on a persistent disk mount.
+ */
+function rebuildDataRootCandidates() {
   const out = [];
   const pushUnique = (p) => {
     if (!p) return;
-    const rp = path.resolve(p);
-    if (!out.includes(rp)) out.push(rp);
+    try {
+      const rp = path.resolve(p);
+      if (!out.includes(rp)) out.push(rp);
+    } catch (_) {}
   };
 
+  // 1) From DATA_DIR and canonical local forms
   pushUnique(DATA_DIR);
   pushUnique(path.resolve(APP_ROOT, "Data"));
   pushUnique(path.resolve(APP_ROOT, "data"));
   pushUnique(resolveDirCaseInsensitive(APP_ROOT, "Data"));
   pushUnique(resolveDirCaseInsensitive(APP_ROOT, "data"));
 
+  // 2) Optional env hints (comma-separated)
+  if (DATA_ROOT_HINTS) {
+    const parts = DATA_ROOT_HINTS.split(",").map((s) => s.trim()).filter(Boolean);
+    for (const p of parts) {
+      try {
+        if (path.isAbsolute(p)) pushUnique(p);
+        else pushUnique(path.resolve(APP_ROOT, p));
+      } catch (_) {}
+    }
+  }
+
+  // 3) Common mount points / Render-ish locations
+  pushUnique("/data");
+  pushUnique("/var/data");
+  pushUnique("/mnt/data");
+  pushUnique("/opt/render/project/src/Data");
+  pushUnique("/opt/render/project/src/data");
+  pushUnique("/opt/render/project/Data");
+  pushUnique("/opt/render/project/data");
+  pushUnique("/srv/data");
+  pushUnique("/srv/Data");
+
+  // 4) Bounded autodiscovery (if enabled)
+  if (DATA_ROOT_AUTODISCOVER) {
+    const starts = [];
+    const addStart = (p) => {
+      if (!p) return;
+      const rp = path.resolve(p);
+      if (!starts.includes(rp)) starts.push(rp);
+    };
+
+    addStart(APP_ROOT);
+    addStart(process.cwd());
+    addStart(path.resolve(APP_ROOT, ".."));
+    addStart(path.resolve(APP_ROOT, "../.."));
+
+    // scan each start for a "Data" dir somewhere below
+    for (const s of starts) {
+      try {
+        const found = discoverNamedDirs(
+          s,
+          "data",
+          DATA_ROOT_DISCOVERY_MAX_DEPTH,
+          DATA_ROOT_DISCOVERY_MAX_VISITS
+        );
+        for (const d of found) pushUnique(d);
+      } catch (_) {}
+    }
+  }
+
+  // Filter existing dirs
   const existing = out.filter((p) => {
     const st = statSafe(p);
     return st && st.isDirectory();
   });
-  return existing.length ? existing : out.slice(0, 1);
-})();
 
-// Nyx Voice Naturalizer knobs
-const NYX_VOICE_NATURALIZE = toBool(process.env.NYX_VOICE_NATURALIZE, true);
-const NYX_VOICE_NATURALIZE_MAXLEN = clampInt(process.env.NYX_VOICE_NATURALIZE_MAXLEN, 2200, 200, 20000);
+  // If nothing exists, keep at least one fallback (so logs show intent)
+  return existing.length ? existing : out.slice(0, 1);
+}
+
+let DATA_ROOT_CANDIDATES = rebuildDataRootCandidates();
 
 // =========================
 // Manifest fallback search helpers
@@ -370,18 +493,12 @@ const PINNED_PACKS = [
   {
     key: "music/top10_by_year",
     rels: [
-      // ✅ Prefer the real year-keyed Top10 pack (and avoid “source”/metadata packs)
-      // ✅ v1.5.18av: Remove ambiguous legacy candidates that can resolve first but aren’t by-year
       "top10_by_year_v1.json",
       "Nyx/top10_by_year_v1.json",
       "Packs/top10_by_year_v1.json",
       "music_top10_by_year.json",
       "Nyx/music_top10_by_year.json",
       "Packs/music_top10_by_year.json",
-      // ❌ REMOVED potential blockers:
-      // "Nyx/music_top10.json",
-      // "music_top10.json",
-      // "top10_by_year_source_v1.json",
     ],
   },
   {
@@ -458,20 +575,12 @@ const PACK_MANIFEST = [
   {
     key: "movies/roku_catalog",
     type: "json_file_or_dir_rel",
-    rels: [
-      // ✅ v1.5.18av: prune double-Data candidates (resolver already walks DATA roots)
-      "movies",
-      "Movies",
-    ],
+    rels: ["movies", "Movies"],
   },
   {
     key: "sponsors/packs",
     type: "json_file_or_dir_rel",
-    rels: [
-      // ✅ v1.5.18av: prune double-Data candidates
-      "sponsors",
-      "Sponsors",
-    ],
+    rels: ["sponsors", "Sponsors"],
   },
   {
     key: "legacy/scripts_json",
@@ -728,6 +837,7 @@ const KNOWLEDGE = {
   __packsight: {
     dataRoots: [],
     pinnedResolved: [],
+    pinnedMissing: [],
     manifestResolved: [],
     probes: [],
   },
@@ -736,7 +846,7 @@ const KNOWLEDGE = {
 function pushKnowledgeError(type, file, msg) {
   const e = { type: safeStr(type), file: safeStr(file), msg: safeStr(msg).slice(0, 300) };
   KNOWLEDGE.errors.push(e);
-  if (KNOWLEDGE.errors.length > 80) KNOWLEDGE.errors.shift();
+  if (KNOWLEDGE.errors.length > 120) KNOWLEDGE.errors.shift();
 }
 
 function isWithinRoot(p, root) {
@@ -855,15 +965,13 @@ function resolvePinnedFileAbs(rels) {
   return null;
 }
 
-// v1.5.18au: Top10 shape normalizer (pinned) — makes chatEngine see it as “usable”
+// v1.5.18au: Top10 shape normalizer (pinned)
 function normalizePinnedTop10Payload(payload) {
   try {
     let p = payload;
 
-    // If wrapped: { byYear: { "1953": [...] } }
     if (isPlainObject(p) && isPlainObject(p.byYear)) p = p.byYear;
 
-    // If already year-keyed object of arrays, accept and sort.
     if (isPlainObject(p)) {
       const keys = Object.keys(p);
       const yearKeys = keys.filter((k) => /^\d{4}$/.test(String(k)));
@@ -886,7 +994,6 @@ function normalizePinnedTop10Payload(payload) {
       }
     }
 
-    // Extract rows from: [], {rows:[]}, {data:[]}, {items:[]}
     const rows = Array.isArray(p)
       ? p
       : isPlainObject(p) && Array.isArray(p.rows)
@@ -919,7 +1026,7 @@ function normalizePinnedTop10Payload(payload) {
   }
 }
 
-// v1.5.18as: resolve a manifest REL (or RELS[]) across all data roots with kind + bounded fallback search
+// resolve a manifest REL across all data roots
 function resolveDataRelAcrossRoots(relOrRels, kind /* "file" | "dir" | "either" */) {
   const rels = Array.isArray(relOrRels) ? relOrRels : [relOrRels];
   const wantKind = kind || "either";
@@ -970,7 +1077,15 @@ function loadPinnedPack(rels, forcedKey, loadedFiles, totalBytesRef) {
   const fp = resolvePinnedFileAbs(rels);
 
   if (!fp) {
-    pushKnowledgeError("pinned_missing", `${forcedKey}`, `Pinned pack missing (tried: ${JSON.stringify(rels)})`);
+    const diag = {
+      key: String(forcedKey),
+      triedRels: Array.isArray(rels) ? rels.slice(0, 32) : [rels],
+      roots: Array.isArray(DATA_ROOT_CANDIDATES) ? DATA_ROOT_CANDIDATES.slice(0, 12) : [],
+    };
+    pushKnowledgeError("pinned_missing", `${forcedKey}`, `Pinned pack missing (tried rels).`);
+    if (KNOWLEDGE.__packsight && Array.isArray(KNOWLEDGE.__packsight.pinnedMissing)) {
+      KNOWLEDGE.__packsight.pinnedMissing.push(diag);
+    }
     return { ok: false, skipped: false, reason: "missing" };
   }
 
@@ -998,9 +1113,6 @@ function loadPinnedPack(rels, forcedKey, loadedFiles, totalBytesRef) {
     return { ok: false, skipped: false, reason: "parse_failed" };
   }
 
-  // =========================
-  // v1.5.18au: Normalize pinned Top10 into chatEngine-usable year→rows map
-  // =========================
   let top10Note = null;
   if (String(forcedKey) === "music/top10_by_year") {
     const norm = normalizePinnedTop10Payload(parsed);
@@ -1249,7 +1361,9 @@ function manifestLoadPacks(loadedFiles, totalBytesRef) {
 
       if (item.type === "json_file_or_dir_rel") {
         const p = resolveDataRelAcrossRoots(item.rels || item.rel, "either");
-        const res = p ? manifestLoadFileOrDir(p, item.key, loadedFiles, totalBytesRef) : { ok: false, reason: "missing_file_or_dir" };
+        const res = p
+          ? manifestLoadFileOrDir(p, item.key, loadedFiles, totalBytesRef)
+          : { ok: false, reason: "missing_file_or_dir" };
         loadedSummary.push({ key: item.key, ok: res.ok, reason: res.reason || "" });
         continue;
       }
@@ -1282,24 +1396,14 @@ function buildManifestProbes() {
       rels: [
         "wikipedia/billboard_yearend_hot100_1950_2024.json",
         "wiki/billboard_yearend_hot100_1950_2024.json",
-        "music/wiki/billboard_yearend_hot100_1950_2024.json",
-        "music/wikipedia/billboard_yearend_hot100_1950_2024.json",
-        "packs/wikipedia/billboard_yearend_hot100_1950_2024.json",
       ],
       kind: "file",
     },
     {
       id: "top40_weekly_dir",
-      rels: [
-        "charts/top40_weekly",
-        "chart/top40_weekly",
-        "music/charts/top40_weekly",
-        "packs/charts/top40_weekly",
-        "top40_weekly",
-      ],
+      rels: ["charts/top40_weekly", "top40_weekly"],
       kind: "dir",
     },
-    // ✅ v1.5.18av: match manifest rels (no double-Data)
     { id: "movies_root", rels: ["movies", "Movies"], kind: "dir_or_file" },
     { id: "sponsors_root", rels: ["sponsors", "Sponsors"], kind: "dir_or_file" },
   ];
@@ -1309,50 +1413,12 @@ function buildManifestProbes() {
     const kind = t.kind === "file" ? "file" : t.kind === "dir" ? "dir" : "either";
     const bestFound = resolveDataRelAcrossRoots(t.rels, kind);
 
-    const previewRel = Array.isArray(t.rels) && t.rels.length ? t.rels[0] : "";
-    const perRoot = [];
-    for (const base of DATA_ROOT_CANDIDATES.slice(0, 8)) {
-      const direct = previewRel ? path.resolve(base, previewRel) : base;
-      const directExists = previewRel ? fileExists(direct) : fileExists(base);
-      const ci = previewRel ? resolveRelPathCaseInsensitive(base, previewRel) : base;
-      const ciExists = previewRel ? fileExists(ci) : fileExists(base);
-
-      const resolved = resolveManifestAbsFallback(direct);
-      const resolvedExists = fileExists(resolved);
-
-      perRoot.push({
-        base,
-        direct,
-        directExists,
-        ci,
-        ciExists,
-        resolved,
-        resolvedExists,
-      });
-    }
-
-    const best =
-      bestFound
-        ? { fp: bestFound, via: "resolveDataRelAcrossRoots+fallback", base: null }
-        : (() => {
-            for (const r of perRoot) {
-              if (r.resolvedExists) return { fp: r.resolved, via: "resolveManifestAbsFallback", base: r.base };
-              if (r.ciExists) return { fp: r.ci, via: "case_insensitive_walk", base: r.base };
-              if (r.directExists) return { fp: r.direct, via: "direct", base: r.base };
-            }
-            return null;
-          })();
-
     probes.push({
       id: t.id,
       rels: t.rels,
       kind: t.kind,
-      best,
       bestFound: bestFound || null,
-      any: !!best,
-      rootsChecked: perRoot.length,
-      preview: perRoot.slice(0, 2),
-      remainingAny: perRoot.slice(2).some((x) => x.resolvedExists || x.ciExists || x.directExists),
+      any: !!bestFound,
     });
   }
 
@@ -1361,6 +1427,11 @@ function buildManifestProbes() {
 
 function reloadKnowledge() {
   const started = nowMs();
+
+  // ✅ CRITICAL: rebuild roots on every reload
+  DATA_DIR = resolveDataDirFromEnv();
+  SCRIPTS_DIR = resolveScriptsDirFromEnv();
+  DATA_ROOT_CANDIDATES = rebuildDataRootCandidates();
 
   KNOWLEDGE.ok = false;
   KNOWLEDGE.loadedAt = started;
@@ -1372,8 +1443,9 @@ function reloadKnowledge() {
   KNOWLEDGE.errors = [];
   KNOWLEDGE.__manifest = [];
   KNOWLEDGE.__packsight = {
-    dataRoots: DATA_ROOT_CANDIDATES.slice(0, 6),
+    dataRoots: DATA_ROOT_CANDIDATES.slice(0, 16),
     pinnedResolved: [],
+    pinnedMissing: [],
     manifestResolved: [],
     probes: [],
   };
@@ -1536,30 +1608,20 @@ function reloadKnowledge() {
   console.log(
     `[Sandblast][Knowledge] loaded=${KNOWLEDGE.ok} pinnedAny=${pinnedOk} jsonKeys=${jsonKeys} scriptKeys=${scriptKeys} filesLoaded=${KNOWLEDGE.filesLoaded} totalBytes=${KNOWLEDGE.totalBytes} errors=${KNOWLEDGE.errors.length} in ${
       nowMs() - started
-    }ms (DATA_DIR=${DATA_DIR}, dataRoots=${JSON.stringify(
-      DATA_ROOT_CANDIDATES.slice(0, 4)
-    )}, allowDataOutside=${KNOWLEDGE_ALLOW_DATA_OUTSIDE_APP_ROOT}, SCRIPTS_DIR=${SCRIPTS_DIR}, scriptsEnabled=${KNOWLEDGE_ENABLE_SCRIPTS}, allowScriptsOutside=${KNOWLEDGE_ALLOW_SCRIPTS_OUTSIDE_APP_ROOT})`
+    }ms (APP_ROOT=${APP_ROOT} DATA_DIR=${DATA_DIR} dataRoots=${JSON.stringify(
+      DATA_ROOT_CANDIDATES.slice(0, 10)
+    )} autodiscover=${DATA_ROOT_AUTODISCOVER} hints=${DATA_ROOT_HINTS ? "yes" : "no"} SCRIPTS_DIR=${SCRIPTS_DIR} scriptsEnabled=${KNOWLEDGE_ENABLE_SCRIPTS})`
   );
   // eslint-disable-next-line no-console
   console.log(`[Sandblast][Knowledge] pinnedPresence=${JSON.stringify(pins)}`);
   // eslint-disable-next-line no-console
-  console.log(
-    `[Sandblast][Knowledge] pinnedResolved=${JSON.stringify((KNOWLEDGE.__packsight?.pinnedResolved || []).slice(0, 12))}`
-  );
+  console.log(`[Sandblast][Knowledge] pinnedResolved=${JSON.stringify((KNOWLEDGE.__packsight?.pinnedResolved || []).slice(0, 16))}`);
+  // eslint-disable-next-line no-console
+  console.log(`[Sandblast][Knowledge] pinnedMissing=${JSON.stringify((KNOWLEDGE.__packsight?.pinnedMissing || []).slice(0, 16))}`);
   // eslint-disable-next-line no-console
   console.log(`[Sandblast][Knowledge] manifest=${JSON.stringify((KNOWLEDGE.__manifest || []).slice(0, 12))}`);
   // eslint-disable-next-line no-console
-  console.log(
-    `[Sandblast][Knowledge] probes=${JSON.stringify(
-      (KNOWLEDGE.__packsight?.probes || []).map((p) => ({
-        id: p.id,
-        rels: (p.rels || []).slice(0, 2),
-        any: p.any,
-        bestFound: p.bestFound,
-        best: p.best,
-      }))
-    )}`
-  );
+  console.log(`[Sandblast][Knowledge] probes=${JSON.stringify((KNOWLEDGE.__packsight?.probes || []).slice(0, 8))}`);
 
   return { ok: KNOWLEDGE.ok, loadedAt: KNOWLEDGE.loadedAt, jsonKeys, scriptKeys, filesLoaded: KNOWLEDGE.filesLoaded };
 }
@@ -1578,7 +1640,6 @@ function knowledgeStatusForMeta() {
 }
 
 function knowledgeSnapshotForEngine() {
-  // CRITICAL: This is the exact shape chatEngine expects: input.knowledge.json + input.knowledge.scripts (+ meta)
   return {
     json: KNOWLEDGE.json,
     scripts: KNOWLEDGE.scripts,
@@ -2067,6 +2128,13 @@ app.get("/api/packsight", (req, res) => {
       scriptsEnabled: KNOWLEDGE_ENABLE_SCRIPTS,
       allowDataOutsideAppRoot: KNOWLEDGE_ALLOW_DATA_OUTSIDE_APP_ROOT,
       allowScriptsOutsideAppRoot: KNOWLEDGE_ALLOW_SCRIPTS_OUTSIDE_APP_ROOT,
+      dataRootDiscovery: {
+        enabled: DATA_ROOT_AUTODISCOVER,
+        hintsProvided: !!DATA_ROOT_HINTS,
+        hints: DATA_ROOT_HINTS ? DATA_ROOT_HINTS.split(",").map((s) => s.trim()).filter(Boolean) : [],
+        maxDepth: DATA_ROOT_DISCOVERY_MAX_DEPTH,
+        maxVisits: DATA_ROOT_DISCOVERY_MAX_VISITS,
+      },
       budgets: {
         maxFiles: KNOWLEDGE_MAX_FILES,
         maxFileBytes: KNOWLEDGE_MAX_FILE_BYTES,
@@ -2079,6 +2147,7 @@ app.get("/api/packsight", (req, res) => {
       },
       pinnedPresence: pins,
       pinnedResolved: KNOWLEDGE.__packsight?.pinnedResolved || [],
+      pinnedMissing: KNOWLEDGE.__packsight?.pinnedMissing || [],
       manifestPreview: (KNOWLEDGE.__manifest || []).slice(0, 20),
       manifestResolved: KNOWLEDGE.__packsight?.manifestResolved || [],
       probes: KNOWLEDGE.__packsight?.probes || [],
@@ -2129,6 +2198,12 @@ if (KNOWLEDGE_DEBUG_ENDPOINT) {
         scriptsEnabled: KNOWLEDGE_ENABLE_SCRIPTS,
         allowDataOutsideAppRoot: KNOWLEDGE_ALLOW_DATA_OUTSIDE_APP_ROOT,
         allowScriptsOutsideAppRoot: KNOWLEDGE_ALLOW_SCRIPTS_OUTSIDE_APP_ROOT,
+        dataRootDiscovery: {
+          enabled: DATA_ROOT_AUTODISCOVER,
+          hintsProvided: !!DATA_ROOT_HINTS,
+          maxDepth: DATA_ROOT_DISCOVERY_MAX_DEPTH,
+          maxVisits: DATA_ROOT_DISCOVERY_MAX_VISITS,
+        },
         manifestSearch: {
           fallbackEnabled: MANIFEST_SEARCH_FALLBACK,
           maxVisits: MANIFEST_SEARCH_MAX_VISITS,
@@ -2146,15 +2221,9 @@ if (KNOWLEDGE_DEBUG_ENDPOINT) {
         },
         pinned: pinnedPresence(),
         pinnedConfig: PINNED_PACKS.map((p) => ({ key: p.key, rels: p.rels })),
+        pinnedResolved: KNOWLEDGE.__packsight?.pinnedResolved || [],
+        pinnedMissing: KNOWLEDGE.__packsight?.pinnedMissing || [],
         manifest: Array.isArray(KNOWLEDGE.__manifest) ? KNOWLEDGE.__manifest : [],
-        manifestConfig: PACK_MANIFEST.map((m) => ({
-          key: m.key,
-          type: m.type,
-          rel: m.rel || null,
-          rels: m.rels || null,
-          abs: m.abs || null,
-          outKey: m.outKey || null,
-        })),
         packsight: KNOWLEDGE.__packsight,
         errorCount: KNOWLEDGE.errors.length,
         errorsPreview: KNOWLEDGE.errors.slice(0, 12),
@@ -2185,13 +2254,15 @@ if (KNOWLEDGE_DEBUG_ENDPOINT) {
         dataDir: DATA_DIR,
         dataRoots: DATA_ROOT_CANDIDATES,
         allowDataOutsideAppRoot: KNOWLEDGE_ALLOW_DATA_OUTSIDE_APP_ROOT,
-        manifestSearch: {
-          fallbackEnabled: MANIFEST_SEARCH_FALLBACK,
-          maxVisits: MANIFEST_SEARCH_MAX_VISITS,
-          maxDepth: MANIFEST_SEARCH_MAX_DEPTH,
+        dataRootDiscovery: {
+          enabled: DATA_ROOT_AUTODISCOVER,
+          hintsProvided: !!DATA_ROOT_HINTS,
+          maxDepth: DATA_ROOT_DISCOVERY_MAX_DEPTH,
+          maxVisits: DATA_ROOT_DISCOVERY_MAX_VISITS,
         },
         pinnedPresence: pins,
         pinnedResolved: KNOWLEDGE.__packsight?.pinnedResolved || [],
+        pinnedMissing: KNOWLEDGE.__packsight?.pinnedMissing || [],
         manifestPreview: (KNOWLEDGE.__manifest || []).slice(0, 20),
         manifestResolved: KNOWLEDGE.__packsight?.manifestResolved || [],
         probes: KNOWLEDGE.__packsight?.probes || [],
@@ -2386,10 +2457,6 @@ async function handleChatRoute(req, res) {
     }
   }
 
-  // =========================
-  // CRITICAL: KNOWLEDGE INJECTION FIX
-  // chatEngine reads input.knowledge.json — so we must pass the snapshot here.
-  // =========================
   const engineInput = {
     ...body,
     requestId: serverRequestId,
@@ -2404,7 +2471,7 @@ async function handleChatRoute(req, res) {
     },
     session: rec.data,
 
-    // ✅ This is the fix that makes Top10/Story/Micro packs usable in-engine:
+    // ✅ knowledge injection
     knowledge: knowledgeSnapshotForEngine(),
 
     __knowledgeStatus: knowledgeStatusForMeta(),
@@ -2566,7 +2633,7 @@ app.post("/api/sandblast-gpt", handleChatRoute);
 app.post("/api/nyx/chat", handleChatRoute);
 app.post("/api/chat", handleChatRoute);
 
-// ✅ GET guidance (prevents “Cannot GET /api/chat” when you hit it in a browser)
+// ✅ GET guidance
 function chatGetGuidance(req, res) {
   return res.status(405).json({
     ok: false,
@@ -2673,7 +2740,7 @@ async function handleTtsRoute(req, res) {
 app.post("/api/tts", handleTtsRoute);
 app.post("/api/voice", handleTtsRoute);
 
-// GET aliases: return guidance (avoids silent 404 / confusion)
+// GET aliases: return guidance
 function ttsGetGuidance(req, res) {
   return res.status(405).json({
     ok: false,
@@ -2712,14 +2779,20 @@ app.listen(PORT, () => {
   console.log(`[Sandblast] Fetch: ${fetchFn ? "OK" : "MISSING"} (global.fetch=${!!global.fetch})`);
   // eslint-disable-next-line no-console
   console.log(
+    `[Sandblast] DataRoots: ${JSON.stringify(DATA_ROOT_CANDIDATES.slice(0, 16))} (autodiscover=${DATA_ROOT_AUTODISCOVER} hints=${DATA_ROOT_HINTS ? "yes" : "no"})`
+  );
+  // eslint-disable-next-line no-console
+  console.log(
     `[Sandblast] Knowledge: autoload=${KNOWLEDGE_AUTOLOAD} ok=${KNOWLEDGE.ok} jsonKeys=${
       Object.keys(KNOWLEDGE.json).length
-    } scriptKeys=${Object.keys(KNOWLEDGE.scripts).length} errors=${KNOWLEDGE.errors.length} APP_ROOT=${APP_ROOT} DATA_DIR=${DATA_DIR} dataRoots=${JSON.stringify(
-      DATA_ROOT_CANDIDATES.slice(0, 4)
-    )} allowDataOutside=${KNOWLEDGE_ALLOW_DATA_OUTSIDE_APP_ROOT} SCRIPTS_DIR=${SCRIPTS_DIR} scriptsEnabled=${KNOWLEDGE_ENABLE_SCRIPTS} allowScriptsOutside=${KNOWLEDGE_ALLOW_SCRIPTS_OUTSIDE_APP_ROOT} reloadEveryMs=${KNOWLEDGE_RELOAD_INTERVAL_MS} debugIncludeData=${KNOWLEDGE_DEBUG_INCLUDE_DATA}`
+    } scriptKeys=${Object.keys(KNOWLEDGE.scripts).length} errors=${KNOWLEDGE.errors.length} APP_ROOT=${APP_ROOT} DATA_DIR=${DATA_DIR} SCRIPTS_DIR=${SCRIPTS_DIR} scriptsEnabled=${KNOWLEDGE_ENABLE_SCRIPTS} reloadEveryMs=${KNOWLEDGE_RELOAD_INTERVAL_MS} debugIncludeData=${KNOWLEDGE_DEBUG_INCLUDE_DATA}`
   );
   // eslint-disable-next-line no-console
   console.log(`[Sandblast] Knowledge pinned=${JSON.stringify(pinnedPresence())}`);
+  // eslint-disable-next-line no-console
+  console.log(`[Sandblast] Knowledge pinnedResolved=${JSON.stringify((KNOWLEDGE.__packsight?.pinnedResolved || []).slice(0, 12))}`);
+  // eslint-disable-next-line no-console
+  console.log(`[Sandblast] Knowledge pinnedMissing=${JSON.stringify((KNOWLEDGE.__packsight?.pinnedMissing || []).slice(0, 12))}`);
   // eslint-disable-next-line no-console
   console.log(`[Sandblast] Knowledge manifest=${JSON.stringify((KNOWLEDGE.__manifest || []).slice(0, 12))}`);
   // eslint-disable-next-line no-console
@@ -2735,17 +2808,6 @@ app.listen(PORT, () => {
   // eslint-disable-next-line no-console
   console.log(
     `[Sandblast] ManifestSearch: fallback=${MANIFEST_SEARCH_FALLBACK} maxVisits=${MANIFEST_SEARCH_MAX_VISITS} maxDepth=${MANIFEST_SEARCH_MAX_DEPTH}`
-  );
-  // eslint-disable-next-line no-console
-  console.log(
-    `[Sandblast] Packsight probes=${JSON.stringify(
-      (KNOWLEDGE.__packsight?.probes || []).map((p) => ({
-        id: p.id,
-        any: p.any,
-        bestFound: p.bestFound || null,
-        best: p.best,
-      }))
-    )}`
   );
 });
 
