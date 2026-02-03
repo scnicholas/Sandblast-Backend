@@ -10,9 +10,13 @@
  *  - Output normalized to:
  *      { reply, followUpsStrings: string[], followUps: [{label,send}], sessionPatch, meta? }
  *
- * v1.4b (RANGE UPDATE TO 2025)
+ * v1.4c (RANGE 2025 + KILL TOP40 GHOST + CHART NORMALIZE)
  *  ✅ Updates clampYear + prompts to 1950–2025 (aligns with musicKnowledge v2.77)
  *  ✅ Updates safeNextYear fallback ceiling to 2025
+ *  ✅ NEW: Normalizes/blocks legacy chart tokens ("Top40", "top 40", etc.) from session + patches
+ *     - If session.activeMusicChart or session.lastMusicChart contains "top40/top 40/top forty"
+ *       we remap to "Billboard Hot 100"
+ *     - Same guard applied to outbound sessionPatch keys: activeMusicChart/lastMusicChart
  *  ✅ Leaves deeper behavior + continuity reconstruction unchanged
  *
  * Exports:
@@ -44,6 +48,66 @@ function extractYearFromText(text) {
   if (!m) return null;
   return clampYear(m[1]);
 }
+
+/* ======================================================
+   Chart normalization (legacy kill-switch)
+====================================================== */
+
+const CHART_DEFAULT = "Billboard Hot 100";
+
+function isLegacyTop40Chart(x) {
+  const t = norm(x);
+  return (
+    t === "top40" ||
+    t === "top 40" ||
+    t === "top-forty" ||
+    t === "top forty" ||
+    t === "top forty chart" ||
+    t.includes("top40") ||
+    t.includes("top 40") ||
+    t.includes("top forty")
+  );
+}
+
+function normalizeChartForLane(x) {
+  const t = String(x || "").trim();
+  if (!t) return CHART_DEFAULT;
+  if (isLegacyTop40Chart(t)) return CHART_DEFAULT;
+  return t;
+}
+
+function scrubLegacyChartsInSession(session) {
+  const s = session && typeof session === "object" ? session : {};
+  const out = { ...s };
+
+  // only touch chart fields; do NOT mutate caller session object (we return a copy)
+  if (isLegacyTop40Chart(out.activeMusicChart)) out.activeMusicChart = CHART_DEFAULT;
+  if (isLegacyTop40Chart(out.lastMusicChart)) out.lastMusicChart = CHART_DEFAULT;
+
+  // some old builds might have these
+  if (isLegacyTop40Chart(out.activeChart)) out.activeChart = CHART_DEFAULT;
+  if (isLegacyTop40Chart(out.lastChart)) out.lastChart = CHART_DEFAULT;
+
+  return out;
+}
+
+function scrubLegacyChartsInPatch(patch) {
+  if (!patch || typeof patch !== "object") return patch;
+  const p = { ...patch };
+
+  if (isLegacyTop40Chart(p.activeMusicChart)) p.activeMusicChart = CHART_DEFAULT;
+  if (isLegacyTop40Chart(p.lastMusicChart)) p.lastMusicChart = CHART_DEFAULT;
+
+  // be defensive if other names are used
+  if (isLegacyTop40Chart(p.activeChart)) p.activeChart = CHART_DEFAULT;
+  if (isLegacyTop40Chart(p.lastChart)) p.lastChart = CHART_DEFAULT;
+
+  return p;
+}
+
+/* ======================================================
+   Mode inference
+====================================================== */
 
 function normalizeModeFromText(text) {
   const t = norm(text);
@@ -133,7 +197,10 @@ function ensureContinuity({ patch, userMode, replyMode, userYear, replyYear, ses
     p.pendingYear = p.pendingYear || y;
   }
 
-  // NOTE: do NOT mutate session here; chatEngine applies sessionPatch deterministically.
+  // Normalize chart fields defensively (kill Top40 if it sneaks in)
+  if (p.activeMusicChart != null) p.activeMusicChart = normalizeChartForLane(p.activeMusicChart);
+  if (p.lastMusicChart != null) p.lastMusicChart = normalizeChartForLane(p.lastMusicChart);
+
   return p;
 }
 
@@ -257,7 +324,10 @@ function deeperExpansion({ mode, year }) {
 
 async function handleChat({ text, session, visitorId, debug }) {
   try {
-    const s = session && typeof session === "object" ? session : {};
+    // scrub legacy chart values without mutating inbound session
+    const s0 = session && typeof session === "object" ? session : {};
+    const s = scrubLegacyChartsInSession(s0);
+
     const rawText = String(text || "");
 
     // Detect deeper requests
@@ -276,7 +346,7 @@ async function handleChat({ text, session, visitorId, debug }) {
           followUps: chipsFromStrings(followUpsStrings),
           sessionPatch: ensureContinuity({
             session: s,
-            patch: null,
+            patch: scrubLegacyChartsInPatch(null),
             userMode: null,
             replyMode: null,
             userYear: null,
@@ -307,7 +377,7 @@ async function handleChat({ text, session, visitorId, debug }) {
         followUps: chipsFromStrings(followUpsStrings),
         sessionPatch: ensureContinuity({
           session: s,
-          patch: null,
+          patch: scrubLegacyChartsInPatch(null),
           userMode: normalizeModeFromText(cleanText),
           replyMode: null,
           userYear: extractYearFromText(cleanText),
@@ -343,7 +413,11 @@ async function handleChat({ text, session, visitorId, debug }) {
     const replyYear = null;
 
     let sessionPatch = safeSessionPatch(raw && raw.sessionPatch);
+    sessionPatch = scrubLegacyChartsInPatch(sessionPatch);
     sessionPatch = ensureContinuity({ session: s, patch: sessionPatch, userMode, replyMode, userYear, replyYear });
+
+    // Final defensive kill-switch: ensure no Top40 values leak out
+    sessionPatch = scrubLegacyChartsInPatch(sessionPatch);
 
     // Apply deterministic deeper expansion (non-factual, texture only)
     if (deep) {
@@ -387,6 +461,14 @@ async function handleChat({ text, session, visitorId, debug }) {
             followUps: followUpsStrings.length,
             hasPatch: !!sessionPatch,
             deep,
+            chart: {
+              inboundActiveMusicChart: s0 && typeof s0 === "object" ? s0.activeMusicChart || null : null,
+              inboundLastMusicChart: s0 && typeof s0 === "object" ? s0.lastMusicChart || null : null,
+              scrubbedActiveMusicChart: s.activeMusicChart || null,
+              scrubbedLastMusicChart: s.lastMusicChart || null,
+              outboundActiveMusicChart: sessionPatch ? sessionPatch.activeMusicChart || null : null,
+              outboundLastMusicChart: sessionPatch ? sessionPatch.lastMusicChart || null : null,
+            },
             inferred: {
               userMode: userMode || null,
               replyMode: replyMode || null,
