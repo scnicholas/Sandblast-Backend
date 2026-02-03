@@ -17,19 +17,13 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7aS (OPTION A CANONICAL++++: pinned-pack getters + canonical action/mode normalization + pinned-first resolvers only)
+ * v0.7aT (OPTION A CANONICAL++++: pinned-pack getters + canonical action/mode normalization + pinned-first resolvers only
+ *         + FIX: "system/reset/help" chips no longer mis-route into music + system lane responder)
  *
- * Critical adds vs v0.7aR:
- * ✅ OPTION A: Single source of truth = pinned keys:
- *    - music/top10_by_year
- *    - music/number1_by_year
- *    - music/story_moments_by_year
- *    - music/micro_moments_by_year
- * ✅ Canonical action normalization so chip payloads never miss routes (top_10/top-ten → top10, #1/no1 → number_one, etc.)
- * ✅ Resolvers now read pinned packs FIRST and stay there; broad scan only used when pinned is missing (dev safety)
- * ✅ Mode normalization unified: action + mode + text inference converge to the same canonical modes
- *
- * (All v0.7aR behavior preserved)
+ * Critical fixes vs v0.7aS:
+ * ✅ FIX: looksLikeStructuredMusic no longer treats *any* action as “music” (so system chips don’t hijack routing)
+ * ✅ ADD: system lane responder (help/reset) with safe session clearing of loop/replay stores
+ * ✅ Preserves all v0.7aR / v0.7aS behavior otherwise
  */
 
 const crypto = require("crypto");
@@ -59,7 +53,7 @@ try {
 ====================================================== */
 
 const CE_VERSION =
-  "chatEngine v0.7aS (Option A canonical pinned packs + action/mode normalization + pinned-first resolvers + cross-link chain + loose-top10 fallback + provenance footer + pack unwrap + first-turn router followUps + routing hardening + payload-root fallback + chip-authoritative mode + sticky-year source + session-scoped burst dedupe)";
+  "chatEngine v0.7aT (Option A canonical pinned packs + action/mode normalization + pinned-first resolvers + cross-link chain + loose-top10 fallback + provenance footer + pack unwrap + first-turn router followUps + routing hardening + payload-root fallback + chip-authoritative mode + sticky-year source + session-scoped burst dedupe + SYSTEM lane responder + system chip misroute fix)";
 
 const MAX_REPLY_LEN = 2400;
 const MAX_FOLLOWUPS = 10;
@@ -145,6 +139,22 @@ function safeJsonStringify(x) {
 }
 
 /* ======================================================
+   Music mode inference (text)
+====================================================== */
+
+function inferMusicModeFromText(low) {
+  if (!low) return "";
+  if (/\b(top\s*10|top10)\b/.test(low)) return "top10";
+  if (/\b(top\s*40|top40)\b/.test(low)) return "top40";
+  if (/\b(year[-\s]*end|yearend)\b/.test(low)) return "year_end";
+  if (/\b(hot\s*100|billboard|chart|charts|charting|hit\s*parade)\b/.test(low)) return "charts";
+  if (/\b(#\s*1|#1|number\s*one|number\s*1|no\.\s*1|no\s*1|no1)\b/.test(low)) return "number_one";
+  if (/\b(micro\s*moment|micro)\b/.test(low)) return "micro";
+  if (/\b(story\s*moment|story)\b/.test(low)) return "story";
+  return "";
+}
+
+/* ======================================================
    Option A: Canonical action/mode normalization
 ====================================================== */
 
@@ -164,12 +174,15 @@ function normalizeMusicAction(action) {
   return a;
 }
 
+const MUSIC_MODES = new Set(["top10", "top40", "year_end", "charts", "number_one", "micro", "story"]);
+const MUSIC_ACTIONS_STRONG = new Set(["top10", "top40", "year_end", "charts", "number_one", "micro", "story"]);
+const MUSIC_ACTIONS_WEAK = new Set(["enter", "start", "year"]); // only music if lane=music/years
+
 function normalizeMode(mode, action, low) {
   const m = normLower(mode);
   const a = normalizeMusicAction(action);
 
   if (m) {
-    // normalize common variants
     if (["top10", "top_10", "top-ten", "topten"].includes(m)) return "top10";
     if (["number1", "number_1", "no1", "#1", "number-one", "numberone", "number_one"].includes(m))
       return "number_one";
@@ -182,8 +195,7 @@ function normalizeMode(mode, action, low) {
   }
 
   if (a) {
-    // action can imply mode
-    if (["top10", "top40", "year_end", "charts", "number_one", "micro", "story"].includes(a)) return a;
+    if (MUSIC_MODES.has(a)) return a;
   }
 
   return inferMusicModeFromText(low);
@@ -254,7 +266,6 @@ function mergeSession(session, patch) {
 function ensureChipPayload(payload) {
   const p = isPlainObject(payload) ? payload : Object.create(null);
 
-  // Normalize action/mode early (Option A)
   if (p.action) p.action = normalizeMusicAction(p.action);
   if (p.mode) p.mode = normalizeMode(p.mode, p.action, "");
 
@@ -273,6 +284,8 @@ function ensureChipPayload(payload) {
       else if (mode === "micro") cmd = year ? `micro moment ${year}` : "micro moment";
       else if (mode === "story") cmd = year ? `story moment ${year}` : "story moment";
       else cmd = year ? `music ${year}` : "music";
+    } else if (lane === "system" || action === "help" || action === "reset") {
+      cmd = action === "reset" ? "reset" : action === "help" ? "help" : "help";
     }
 
     if (cmd) p.text = cmd;
@@ -511,22 +524,9 @@ function getPayloadFromAny(input) {
    Routing spine (chip-authoritative + text inference)
 ====================================================== */
 
-function inferMusicModeFromText(low) {
-  if (!low) return "";
-  if (/\b(top\s*10|top10)\b/.test(low)) return "top10";
-  if (/\b(top\s*40|top40)\b/.test(low)) return "top40";
-  if (/\b(year[-\s]*end|yearend)\b/.test(low)) return "year_end";
-  if (/\b(hot\s*100|billboard|chart|charts|charting|hit\s*parade)\b/.test(low)) return "charts";
-  if (/\b(#\s*1|#1|number\s*one|number\s*1|no\.\s*1|no\s*1|no1)\b/.test(low)) return "number_one";
-  if (/\b(micro\s*moment|micro)\b/.test(low)) return "micro";
-  if (/\b(story\s*moment|story)\b/.test(low)) return "story";
-  return "";
-}
-
 function parseInbound(input) {
   const payload = getPayloadFromAny(input);
 
-  // Normalize payload action/mode early (Option A)
   if (payload && payload.action) payload.action = normalizeMusicAction(payload.action);
 
   const textPrimary = normText(input.text || input.message || input.prompt || input.query);
@@ -536,7 +536,8 @@ function parseInbound(input) {
   const low = normLower(finalText);
 
   const lane = payload && payload.lane ? normLower(payload.lane) : "";
-  const action = payload && payload.action ? normalizeMusicAction(payload.action) : "";
+  const actionRaw = payload && payload.action ? String(payload.action) : "";
+  const action = actionRaw ? normalizeMusicAction(actionRaw) : "";
   const rawMode = payload && payload.mode ? normLower(payload.mode) : "";
   const yearFromPayload = clampYear(payload && payload.year);
   const yearFromText = extractYearFromText(finalText);
@@ -557,12 +558,23 @@ function parseInbound(input) {
 }
 
 function looksLikeStructuredMusic({ lane, action, mode, year, lower }) {
+  // Lane explicit
   if (lane === "music" || lane === "years") return true;
-  if (action || mode) return true;
 
+  // Mode explicit and recognized as music
+  if (mode && MUSIC_MODES.has(normLower(mode))) return true;
+
+  // Strong music action implies music even without lane
+  const a = normalizeMusicAction(action);
+  if (a && MUSIC_ACTIONS_STRONG.has(a)) return true;
+
+  // Weak music actions only count if lane says music/years (handled above)
+  // Otherwise DO NOT route to music (prevents system/help/reset chips from hijacking routing)
+
+  // Text + year indicates music intent
   if (
     year &&
-    /\b(top\s*10|top10|top\s*40|top40|hot\s*100|billboard|chart|charts|story\s*moment|micro\s*moment|#\s*1|#1|number\s*one|no\.\s*1|no\s*1)\b/.test(
+    /\b(top\s*10|top10|top\s*40|top40|hot\s*100|billboard|chart|charts|story\s*moment|micro\s*moment|#\s*1|#1|number\s*one|no\.\s*1|no\s*1|no1)\b/.test(
       lower
     )
   )
@@ -594,15 +606,7 @@ function getStickyMusicYear(session) {
 
 function needsYearForMode(mode) {
   const m = normLower(mode);
-  return (
-    m === "top10" ||
-    m === "number_one" ||
-    m === "micro" ||
-    m === "story" ||
-    m === "top40" ||
-    m === "charts" ||
-    m === "year_end"
-  );
+  return m === "top10" || m === "number_one" || m === "micro" || m === "story" || m === "top40" || m === "charts" || m === "year_end";
 }
 
 /* ======================================================
@@ -822,14 +826,12 @@ function keyLooksLikeNumberOne(k) {
 
 /**
  * Option A: Pinned-only resolvers, with dev-safety fallback if pinned missing.
- * These now accept {pinned, knowledgeJson, year} and prefer pinned values absolutely.
  */
 
 function findTop10PinnedFirst(pinned, knowledgeJson, year) {
   const y = clampYear(year);
   if (!y) return null;
 
-  // 1) pinned canonical
   if (pinned && pinned.top10) {
     const v = pinned.top10;
     const direct = findYearArrayInObject(v, y);
@@ -839,7 +841,6 @@ function findTop10PinnedFirst(pinned, knowledgeJson, year) {
     if (asArr && asArr.length) return { sourceKey: PINNED_TOP10_KEY, list: asArr, shape: shapeHint(v), pinned: true };
   }
 
-  // 2) dev-safety: older aliases, then scan (ONLY if pinned missing)
   if (!knowledgeJson || !isPlainObject(knowledgeJson)) return null;
 
   for (const k of PIN_TOP10_KEYS) {
@@ -873,7 +874,6 @@ function findStoryPinnedFirst(pinned, knowledgeJson, year) {
   const y = clampYear(year);
   if (!y) return null;
 
-  // 1) pinned canonical
   if (pinned && pinned.story) {
     const v = pinned.story;
 
@@ -885,7 +885,6 @@ function findStoryPinnedFirst(pinned, knowledgeJson, year) {
     if (t2) return { sourceKey: PINNED_STORY_KEY, text: t2, shape: shapeHint(v), pinned: true };
   }
 
-  // 2) dev-safety fallback
   if (!knowledgeJson || !isPlainObject(knowledgeJson)) return null;
 
   for (const k of PIN_STORY_KEYS) {
@@ -921,7 +920,6 @@ function findMicroPinnedFirst(pinned, knowledgeJson, year) {
   const y = clampYear(year);
   if (!y) return null;
 
-  // 1) pinned canonical
   if (pinned && pinned.micro) {
     const v = pinned.micro;
 
@@ -933,7 +931,6 @@ function findMicroPinnedFirst(pinned, knowledgeJson, year) {
     if (t2) return { sourceKey: PINNED_MICRO_KEY, text: t2, shape: shapeHint(v), pinned: true };
   }
 
-  // 2) dev-safety fallback
   if (!knowledgeJson || !isPlainObject(knowledgeJson)) return null;
 
   for (const k of PIN_MICRO_KEYS) {
@@ -966,12 +963,10 @@ function findNumberOnePinnedFirst(pinned, knowledgeJson, year) {
   const y = clampYear(year);
   if (!y) return null;
 
-  // 1) pinned canonical
   if (pinned && pinned.number1) {
     const v = pinned.number1;
     const yStr = String(y);
 
-    // Map-ish
     if (isPlainObject(v)) {
       const direct = v[yStr] || v[y];
       if (isPlainObject(direct)) {
@@ -981,13 +976,11 @@ function findNumberOnePinnedFirst(pinned, knowledgeJson, year) {
       }
     }
 
-    // Rows: {rows:[{year,title,artist}]}
     const rows = isPlainObject(v) ? unwrapPackValue(v.rows) : null;
     const hit = rows ? findNumberOneInRowsArray(rows, y) : null;
     if (hit) return { sourceKey: PINNED_NUMBER1_KEY, entry: hit, shape: shapeHint(v), pinned: true };
   }
 
-  // 2) dev-safety fallback
   if (!knowledgeJson || !isPlainObject(knowledgeJson)) return null;
 
   for (const k of PIN_NUMBER1_KEYS) {
@@ -1262,7 +1255,6 @@ function musicReply({ year, mode, knowledge }) {
   let diag = null;
 
   if (wantsNumberOne) {
-    // OPTION A: pinned-first resolver only (+ dev-safety fallback if pinned missing)
     const no1 = findNumberOnePinnedFirst(pinned, knowledgeJson, y);
     if (no1 && no1.entry) {
       const line = formatNumberOneLine(no1.entry);
@@ -1271,7 +1263,6 @@ function musicReply({ year, mode, knowledge }) {
       reply += `\n\nPower move: want the Top 10 for context, then a micro moment to seal the vibe?`;
       diag = { no1Key: no1.sourceKey, no1Shape: no1.shape || null, pinned: !!no1.pinned };
     } else {
-      // fallback: derive from Top10 (safe)
       const derived = resolveTop10LooseButSafe(knowledgeJson, y);
       if (derived && isArray(derived.top10) && derived.top10.length) {
         const first = normalizeSongLine(derived.top10[0]) || null;
@@ -1291,7 +1282,6 @@ function musicReply({ year, mode, knowledge }) {
       }
     }
   } else if (wantsTop10) {
-    // OPTION A: pinned-first resolver only (+ dev-safety fallback if pinned missing)
     const hit = findTop10PinnedFirst(pinned, knowledgeJson, y);
     const derived = !hit || !isArray(hit.list) || hit.list.length < 10 ? resolveTop10LooseButSafe(knowledgeJson, y) : null;
 
@@ -1325,7 +1315,6 @@ function musicReply({ year, mode, knowledge }) {
       diag = { top10HitKey: null, top10Len: 0, pinnedMissing: !pinned.top10 };
     }
   } else if (wantsMicro) {
-    // OPTION A: pinned-first resolver only (+ dev-safety fallback if pinned missing)
     const micro = findMicroPinnedFirst(pinned, knowledgeJson, y);
     reply =
       micro && micro.text
@@ -1333,7 +1322,6 @@ function musicReply({ year, mode, knowledge }) {
         : `Micro moment for ${y}: give me a vibe (soul, rock, pop) or an artist and I’ll make it razor-specific.`;
     diag = micro ? { microKey: micro.sourceKey, microShape: micro.shape || null, pinned: !!micro.pinned } : { microKey: null, pinnedMissing: !pinned.micro };
   } else if (wantsStory) {
-    // OPTION A: pinned-first resolver only (+ dev-safety fallback if pinned missing)
     const story = findStoryPinnedFirst(pinned, knowledgeJson, y);
     reply =
       story && story.text
@@ -1346,7 +1334,6 @@ function musicReply({ year, mode, knowledge }) {
     reply = `Tell me what you want for ${y}: Top 10, #1, story moment, or a micro moment.`;
   }
 
-  // Always include the chain chips (power move), regardless of mode.
   const followUps = buildPowerChainFollowUps(y);
 
   return {
@@ -1354,6 +1341,67 @@ function musicReply({ year, mode, knowledge }) {
     followUps,
     sessionPatch: { lane: "music", lastMusicYear: y, activeMusicMode: m || "top10" },
     meta: { used: "music_reply", mode: m || null, diag: diag || null },
+  };
+}
+
+/* ======================================================
+   System responder (NEW)
+====================================================== */
+
+function buildSystemHelpFollowUps() {
+  return sanitizeFollowUps([
+    { id: "sys_music", type: "chip", label: "Music by year", payload: { lane: "music", action: "start", mode: "top10" } },
+    { id: "sys_1981", type: "chip", label: "1981 Top 10", payload: { lane: "music", action: "year", year: 1981, mode: "top10" } },
+    { id: "sys_1988", type: "chip", label: "1988 Story moment", payload: { lane: "music", action: "year", year: 1988, mode: "story" } },
+    { id: "sys_reset", type: "chip", label: "Reset", payload: { lane: "system", action: "reset" } },
+  ]);
+}
+
+function handleSystem({ action, session }) {
+  const a = normLower(action);
+
+  if (a === "reset") {
+    try {
+      delete session.__replay;
+      delete session.__loop;
+    } catch (_) {}
+
+    try {
+      session.__turnCount = 0;
+      session.allowPackets = true;
+      session.lane = "general";
+      session.lastMusicYear = null;
+      session.activeMusicMode = null;
+      session.lastIntentSig = null;
+      session.__packIndexSeen = false;
+    } catch (_) {}
+
+    const followUps = sanitizeFollowUps([
+      { id: "r_music", type: "chip", label: "Music", payload: { lane: "music", action: "start", mode: "top10", text: "Pick a year" } },
+      { id: "r_talk", type: "chip", label: "Just talk", payload: { lane: "general", action: "free", text: "Just talk" } },
+      { id: "r_help", type: "chip", label: "What can you do?", payload: { lane: "system", action: "help" } },
+    ]);
+
+    return {
+      reply: "Reset done. Where do you want to go next?",
+      followUps,
+      sessionPatch: { lane: "general", allowPackets: true, lastMusicYear: null, activeMusicMode: null },
+      meta: { used: "system_reset" },
+      directives: [{ type: "reset" }],
+    };
+  }
+
+  // default: help
+  return {
+    reply:
+      "Here’s what I can do right now:\n" +
+      "• Music by year (Top 10, #1 song, story moment, micro moment)\n" +
+      "• Keep the chain going with smart follow-ups (no dead ends)\n" +
+      "• General Q&A when you just want to talk\n\n" +
+      "Pick a chip and I’ll drive.",
+    followUps: buildSystemHelpFollowUps(),
+    sessionPatch: { lane: "general", allowPackets: true },
+    meta: { used: "system_help" },
   };
 }
 
@@ -1404,7 +1452,6 @@ function getIntentSignals(text, payload) {
 }
 
 function mapMusicActionToMode(musicAction) {
-  // Option A: canonicalize classifier action too
   const a = normalizeMusicAction(musicAction);
   if (!a) return "";
   if (a === "top10") return "top10";
@@ -1536,6 +1583,12 @@ async function handleChat(input = {}) {
     });
   }
 
+  // NEW: determine routing types (system first, then music, then packets)
+  const isSystem =
+    inbound.lane === "system" ||
+    normLower(inbound.action) === "reset" ||
+    normLower(inbound.action) === "help";
+
   const structuredMusic = looksLikeStructuredMusic({
     lane: inbound.lane,
     action: inbound.action,
@@ -1551,7 +1604,10 @@ async function handleChat(input = {}) {
 
   let routed = null;
 
-  if (structuredMusic) {
+  if (isSystem) {
+    routed = handleSystem({ action: inbound.action || "help", session });
+    mergeSession(session, routed.sessionPatch);
+  } else if (structuredMusic) {
     const mode = inbound.mode || inferMusicModeFromText(inbound.lower) || "top10";
 
     routed = musicReply({
@@ -1646,9 +1702,10 @@ async function handleChat(input = {}) {
       stickyYearUsed: yearSource === "sticky",
       firstTurn: !!isFirstTurn,
       clientSource: clientSource || null,
+      system: !!isSystem,
     },
     ui: null,
-    directives: [],
+    directives: (routed && Array.isArray(routed.directives) ? routed.directives : []) || [],
     followUps,
     followUpsStrings: followUpsToLegacyStrings(followUps),
     sessionPatch:
@@ -1677,6 +1734,7 @@ async function handleChat(input = {}) {
           turnCount,
           clientSource,
           isFirstTurn,
+          isSystem,
         }
       : null,
   };
