@@ -17,13 +17,10 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7aV (NO DIAG LEAK + YEAR-SAFE TOP10 RESOLUTION++++:
- *         + Removes "Source/Method/Confidence/Power move" debug strings from user reply
- *         + Keeps diagnostics in meta.diag ONLY when debug=true
- *         + Fixes loose Top10 derivation bug where decade arrays could be treated as a year result
- *         + Adds sourceId year-window guards (e.g., 1960s pack cannot satisfy 1987)
- *         + Tightens array payload handling: never "fall back" to whole array unless it looks like a single Top10 list
- *         + Preserves v0.7aU+ behavior otherwise (Top40 purge, 1950–2025, decade-guard extract, sticky-year non-persist)
+ * v0.7aV (TOP10 YEAR-FILTER HARD FIX + 1950–2025 clamp + Top40 purge preserved:
+ *         + FIX: year-indexed arrays no longer fall back to “entire array” (prevents 1960s poisoning 1987)
+ *         + keeps v0.7aU+ behavior: Top40 purge, decade-guard, do-not-persist sticky year, pinned-first resolvers
+ *         + adds: safe scan fallback for yearend/hot100 packs (still bounded)
  *         )
  */
 
@@ -54,7 +51,7 @@ try {
 ====================================================== */
 
 const CE_VERSION =
-  "chatEngine v0.7aV (NO DIAG LEAK + YEAR-SAFE TOP10 RESOLUTION++++ + Top40 purge + 2025 range + decade-guard year extract + do-not-persist sticky year + pinned-first resolvers + action/mode normalization + system lane responder + system chip misroute fix + always-advance + payload-root fallback + chip-authoritative mode + sticky-year source + session-scoped burst dedupe)";
+  "chatEngine v0.7aV (Top10 year-filter hard fix + Top40 purge + 2025 range + decade-guard year extract + do-not-persist sticky year + pinned-first resolvers + action/mode normalization + system lane responder + system chip misroute fix + always-advance + payload-root fallback + chip-authoritative mode + sticky-year source + session-scoped burst dedupe)";
 
 const MAX_REPLY_LEN = 2400;
 const MAX_FOLLOWUPS = 10;
@@ -146,10 +143,6 @@ function safeJsonStringify(x) {
   }
 }
 
-function shouldExposeDiag(debugFlag) {
-  return !!debugFlag;
-}
-
 /* ======================================================
    Music mode inference (text) — TOP40 PURGED
 ====================================================== */
@@ -183,8 +176,6 @@ function normalizeMusicAction(action) {
   if (["year_end", "yearend", "year-end", "year end"].includes(a)) return "year_end";
 
   // NOTE: "top40" intentionally not normalized to a music action anymore.
-  // If a client sends action=top40, it will remain "top40" but will NOT be treated as a music mode/action downstream.
-
   return a;
 }
 
@@ -213,7 +204,6 @@ function normalizeMode(mode, action, low) {
 
   if (a) {
     if (MUSIC_MODES.has(a)) return a;
-    // If action came in as top40, do not map it to a mode
     if (a === "top40") return "";
   }
 
@@ -607,17 +597,12 @@ function parseInbound(input) {
 }
 
 function looksLikeStructuredMusic({ lane, action, mode, year, lower }) {
-  // Lane explicit
   if (lane === "music" || lane === "years") return true;
-
-  // Mode explicit and recognized as music
   if (mode && MUSIC_MODES.has(normLower(mode))) return true;
 
-  // Strong music action implies music even without lane
   const a = normalizeMusicAction(action);
   if (a && MUSIC_ACTIONS_STRONG.has(a)) return true;
 
-  // Text + year indicates music intent
   if (
     year &&
     /\b(top\s*10|top10|hot\s*100|billboard|chart|charts|story\s*moment|micro\s*moment|#\s*1|#1|number\s*one|no\.\s*1|no\s*1|no1)\b/.test(
@@ -698,12 +683,7 @@ const PINNED_MICRO_KEY = "music/micro_moments_by_year";
 
 // Compatibility keys (dev-safety only)
 const PIN_TOP10_KEYS = ["music/top10_by_year", "music/top10"];
-const PIN_NUMBER1_KEYS = [
-  "music/number1_by_year",
-  "music/number1",
-  "music/number_one_by_year",
-  "music/no1_by_year",
-];
+const PIN_NUMBER1_KEYS = ["music/number1_by_year", "music/number1", "music/number_one_by_year", "music/no1_by_year"];
 const PIN_STORY_KEYS = ["music/story_moments_by_year", "music/story_moments", "music/moments"];
 const PIN_MICRO_KEYS = ["music/micro_moments_by_year", "music/micro_moments", "music/micro"];
 
@@ -745,18 +725,12 @@ function shapeHint(x) {
 function getPinnedPacks(knowledgeJson) {
   const kj = knowledgeJson && isPlainObject(knowledgeJson) ? knowledgeJson : Object.create(null);
 
-  const top10 = Object.prototype.hasOwnProperty.call(kj, PINNED_TOP10_KEY)
-    ? unwrapPackValue(kj[PINNED_TOP10_KEY])
-    : null;
+  const top10 = Object.prototype.hasOwnProperty.call(kj, PINNED_TOP10_KEY) ? unwrapPackValue(kj[PINNED_TOP10_KEY]) : null;
   const number1 = Object.prototype.hasOwnProperty.call(kj, PINNED_NUMBER1_KEY)
     ? unwrapPackValue(kj[PINNED_NUMBER1_KEY])
     : null;
-  const story = Object.prototype.hasOwnProperty.call(kj, PINNED_STORY_KEY)
-    ? unwrapPackValue(kj[PINNED_STORY_KEY])
-    : null;
-  const micro = Object.prototype.hasOwnProperty.call(kj, PINNED_MICRO_KEY)
-    ? unwrapPackValue(kj[PINNED_MICRO_KEY])
-    : null;
+  const story = Object.prototype.hasOwnProperty.call(kj, PINNED_STORY_KEY) ? unwrapPackValue(kj[PINNED_STORY_KEY]) : null;
+  const micro = Object.prototype.hasOwnProperty.call(kj, PINNED_MICRO_KEY) ? unwrapPackValue(kj[PINNED_MICRO_KEY]) : null;
 
   return { top10, number1, story, micro };
 }
@@ -899,12 +873,10 @@ function findTop10PinnedFirst(pinned, knowledgeJson, year) {
   if (pinned && pinned.top10) {
     const v = pinned.top10;
     const direct = findYearArrayInObject(v, y);
-    if (direct && direct.length)
-      return { sourceKey: PINNED_TOP10_KEY, list: direct, shape: shapeHint(v), pinned: true };
+    if (direct && direct.length) return { sourceKey: PINNED_TOP10_KEY, list: direct, shape: shapeHint(v), pinned: true };
 
     const asArr = findYearInArrayPack(v, y);
-    if (asArr && asArr.length)
-      return { sourceKey: PINNED_TOP10_KEY, list: asArr, shape: shapeHint(v), pinned: true };
+    if (asArr && asArr.length) return { sourceKey: PINNED_TOP10_KEY, list: asArr, shape: shapeHint(v), pinned: true };
   }
 
   if (!knowledgeJson || !isPlainObject(knowledgeJson)) return null;
@@ -1038,8 +1010,7 @@ function findNumberOnePinnedFirst(pinned, knowledgeJson, year) {
       if (isPlainObject(direct)) {
         const title = normText(direct.title || direct.song || direct.name || direct.track);
         const artist = normText(direct.artist || direct.by || direct.performer);
-        if (title)
-          return { sourceKey: PINNED_NUMBER1_KEY, entry: { title, artist }, shape: shapeHint(v), pinned: true };
+        if (title) return { sourceKey: PINNED_NUMBER1_KEY, entry: { title, artist }, shape: shapeHint(v), pinned: true };
       }
     }
 
@@ -1061,7 +1032,7 @@ function findNumberOnePinnedFirst(pinned, knowledgeJson, year) {
 
     if (isPlainObject(v)) {
       const yStr = String(y);
-      const cand = v[yStr] || v[y] || (isPlainObject(v.byYear) ? v.byYear[yStr] || v.byYear[y] : null);
+      const cand = v[yStr] || v[y] || (isPlainObject(v.byYear) ? (v.byYear[yStr] || v.byYear[y]) : null);
       if (isPlainObject(cand)) {
         const title = normText(cand.title || cand.song || cand.name || cand.track);
         const artist = normText(cand.artist || cand.by || cand.performer);
@@ -1081,7 +1052,7 @@ function findNumberOnePinnedFirst(pinned, knowledgeJson, year) {
 
     if (isPlainObject(v)) {
       const yStr = String(y);
-      const cand = v[yStr] || v[y] || (isPlainObject(v.byYear) ? v.byYear[yStr] || v.byYear[y] : null);
+      const cand = v[yStr] || v[y] || (isPlainObject(v.byYear) ? (v.byYear[yStr] || v.byYear[y]) : null);
       if (isPlainObject(cand)) {
         const title = normText(cand.title || cand.song || cand.name || cand.track);
         const artist = normText(cand.artist || cand.by || cand.performer);
@@ -1095,7 +1066,6 @@ function findNumberOnePinnedFirst(pinned, knowledgeJson, year) {
 
 /* ======================================================
    TOP10 LOOSE ACCEPTANCE (SAFE DERIVATION + PROVENANCE)
-   (TOP40 WEEKLY CANDIDATE REMOVED to avoid "Top40" reversion)
 ====================================================== */
 
 function _parseRank(v) {
@@ -1119,74 +1089,12 @@ function _splitTitleArtist(s) {
   return { title: t, artist: "", split: false };
 }
 
-// Year-window guard based on sourceId naming (prevents 1960s pack from answering 1987)
-function sourceYearWindow(sourceId) {
-  const id = String(sourceId || "").toLowerCase();
-
-  // e.g., "..._1960s_..." => 1960-1969
-  const dec = id.match(/\b(19\d0)s\b/);
-  if (dec) {
-    const base = parseInt(dec[1], 10);
-    if (isFinite(base)) return { min: base, max: base + 9 };
-  }
-
-  // e.g., "..._1950_1959" or "...1950-1959"
-  const rng = id.match(/\b(19\d{2}|20\d{2})\D+(19\d{2}|20\d{2})\b/);
-  if (rng) {
-    const a = parseInt(rng[1], 10);
-    const b = parseInt(rng[2], 10);
-    if (isFinite(a) && isFinite(b)) return { min: Math.min(a, b), max: Math.max(a, b) };
-  }
-
-  // "yearend_hot100_1970_2010" already matches above; keep default null for unknown
-  return null;
-}
-
-function yearAllowedForSource(sourceId, year) {
-  const y = clampYear(year);
-  if (!y) return false;
-  const win = sourceYearWindow(sourceId);
-  if (!win) return true; // unknown naming: allow
-  return y >= win.min && y <= win.max;
-}
-
-function _looksLikeTop10ListArray(arr) {
-  if (!isArray(arr)) return false;
-  if (arr.length < 8 || arr.length > 20) return false;
-
-  // If entries are plain strings like "1. ..." etc OR objects with rank 1..10 and no year field
-  let hasAnyRank = false;
-  let hasYearField = false;
-  const seenRanks = new Set();
-
-  for (const r of arr) {
-    if (typeof r === "string") {
-      const s = r.trim();
-      const m = s.match(/^(\d{1,2})\s*[\.\)]\s+/);
-      if (m) {
-        const k = parseInt(m[1], 10);
-        if (k >= 1 && k <= 10) {
-          hasAnyRank = true;
-          seenRanks.add(k);
-        }
-      }
-      continue;
-    }
-    if (!isPlainObject(r)) continue;
-
-    if (r.year != null || r.yr != null || r.y != null || r.Year != null) hasYearField = true;
-
-    const rk = _parseRank(r.rank ?? r.Rank ?? r.position ?? r.pos ?? r["#"] ?? r.no ?? r.number);
-    if (rk != null && rk >= 1 && rk <= 10) {
-      hasAnyRank = true;
-      seenRanks.add(rk);
-    }
-  }
-
-  // Must have no year field AND must cover at least 1..8 ranks to be considered "already top10-like"
-  if (hasYearField) return false;
-  if (!hasAnyRank) return false;
-  return seenRanks.size >= 8;
+// ✅ NEW: detect “year-indexed” rows
+function _rowHasYearLikeField(r) {
+  if (!isPlainObject(r)) return false;
+  const y = r.year ?? r.Year ?? r.y ?? r.yr ?? r.Y ?? r.dateYear ?? r.releaseYear;
+  const cy = clampYear(y);
+  return !!cy;
 }
 
 function _extractYearRowsFromPayload(payload, year) {
@@ -1205,18 +1113,19 @@ function _extractYearRowsFromPayload(payload, year) {
   }
 
   if (isArray(p)) {
-    // If array is a table of rows with year fields, we MUST filter; if no rows match, do NOT fall back to entire array.
+    const hasYearish = p.some((r) => _rowHasYearLikeField(r));
     const rows = p.filter((r) => {
       if (!isPlainObject(r)) return false;
       const ry = clampYear(r.year ?? r.Year ?? r.y ?? r.yr ?? r.Y);
       return ry === year;
     });
+
+    // ✅ If this looks like a multi-year table, DO NOT fall back to the whole array.
     if (rows.length) return rows;
+    if (hasYearish) return null;
 
-    // Only allow returning the entire array if it already looks like a single Top10 list (no year fields).
-    if (_looksLikeTop10ListArray(p)) return p;
-
-    return null;
+    // Only return the full list if it's truly “just a list” (no year fields)
+    return p;
   }
 
   return null;
@@ -1287,18 +1196,15 @@ function resolveTop10LooseButSafe(knowledgeJson, year) {
 
   const candidates = [
     { id: "music/top10_by_year", method: "direct", confidence: "high" },
-    // TOP40 weekly source removed intentionally
     { id: "wikipedia/billboard_yearend_hot100_1970_2010", method: "derived_top10_from_wikipedia_yearend", confidence: "medium" },
     { id: "wikipedia/billboard_yearend_singles_1950_1959", method: "derived_top10_from_wikipedia_yearend", confidence: "medium" },
     { id: "top100_billboard_yearend_1960s_v1", method: "derived_top10_from_yearend", confidence: "medium" },
     { id: "top10_by_year_source_v1", method: "derived_top10_from_source_table", confidence: "low" },
   ];
 
+  // pass 1: explicit candidates
   for (const c of candidates) {
     if (!Object.prototype.hasOwnProperty.call(knowledgeJson, c.id)) continue;
-
-    // HARD GUARD: if sourceId suggests a decade/range, it must contain the requested year
-    if (!yearAllowedForSource(c.id, y)) continue;
 
     const raw = knowledgeJson[c.id];
     const pack = unwrapPackValue(raw);
@@ -1324,6 +1230,34 @@ function resolveTop10LooseButSafe(knowledgeJson, year) {
         sourceId: c.id,
         method: c.method,
         confidence: c.confidence,
+        shape: shapeHint(payload),
+      };
+    }
+  }
+
+  // pass 2: bounded scan for “yearend/hot100” style packs
+  const keys = Object.keys(knowledgeJson).slice(0, KNOWLEDGE_SCAN_CAP);
+  for (const k of keys) {
+    const kl = String(k).toLowerCase();
+    if (!(kl.includes("yearend") || kl.includes("year-end") || kl.includes("hot100") || kl.includes("hot_100"))) continue;
+
+    const raw = knowledgeJson[k];
+    const pack = unwrapPackValue(raw);
+    const payload = isPlainObject(pack)
+      ? unwrapPackValue(pack.data ?? pack.payload ?? pack.value ?? pack.json ?? pack.content ?? pack.parsed ?? pack)
+      : pack;
+
+    const rows = _extractYearRowsFromPayload(payload, y);
+    if (!rows) continue;
+
+    const top10 = _normalizeTop10Rows(rows);
+    if (top10) {
+      return {
+        year: y,
+        top10,
+        sourceId: k,
+        method: "derived_top10_from_scanned_yearend_pack",
+        confidence: "low",
         shape: shapeHint(payload),
       };
     }
@@ -1372,10 +1306,9 @@ function buildPowerChainFollowUps(year) {
   ];
 }
 
-function musicReply({ year, mode, knowledge, yearSource, debug }) {
+function musicReply({ year, mode, knowledge, yearSource }) {
   const y = clampYear(year);
   const m = normalizeMode(mode, "", "");
-  const exposeDiag = shouldExposeDiag(debug);
 
   if (!y) {
     return {
@@ -1407,15 +1340,16 @@ function musicReply({ year, mode, knowledge, yearSource, debug }) {
     if (no1 && no1.entry) {
       const line = formatNumberOneLine(no1.entry);
       reply = line ? `#1 song of ${y}: ${line}` : `#1 song of ${y}: (data loaded, format unexpected).`;
-      reply += `\n\nWant the Top 10 for context, or a micro moment to make it cinematic?`;
+      reply += `\n\nSource: ${no1.sourceKey} • Method: direct • Confidence: ${no1.pinned ? "high" : "medium"}`;
+      reply += `\n\nPower move: want the Top 10 for context, then a micro moment to seal the vibe?`;
       diag = { no1Key: no1.sourceKey, no1Shape: no1.shape || null, pinned: !!no1.pinned };
     } else {
-      // Fallback: if #1 pack missing, try derived Top10 and take rank 1 (still year-safe)
       const derived = resolveTop10LooseButSafe(knowledgeJson, y);
       if (derived && isArray(derived.top10) && derived.top10.length) {
         const first = normalizeSongLine(derived.top10[0]) || null;
         reply = first ? `#1 song of ${y}: ${first}` : `#1 song of ${y}: (data loaded, format unexpected).`;
-        reply += `\n\nWant the full Top 10 next, or a micro moment?`;
+        reply += `\n\nSource: ${derived.sourceId} • Method: ${derived.method} • Confidence: ${derived.confidence}`;
+        reply += `\n\nPower move: pull the full Top 10 next, then a micro moment.`;
         diag = {
           top10HitKey: derived.sourceId,
           top10HitShape: derived.shape || null,
@@ -1434,7 +1368,8 @@ function musicReply({ year, mode, knowledge, yearSource, debug }) {
 
     if (derived && isArray(derived.top10) && derived.top10.length === 10) {
       reply = formatTop10Reply(y, derived.top10);
-      reply += `\n\nNext: tap “#1 song” to anchor, then “Micro moment” to seal the vibe.`;
+      reply += `\n\nSource: ${derived.sourceId} • Method: ${derived.method} • Confidence: ${derived.confidence}`;
+      reply += `\n\nPower move: tap “#1 song” to anchor, then “Micro moment” to make it cinematic.`;
       diag = {
         top10HitKey: derived.sourceId,
         top10HitShape: derived.shape || null,
@@ -1444,19 +1379,20 @@ function musicReply({ year, mode, knowledge, yearSource, debug }) {
       };
     } else if (hit && isArray(hit.list) && hit.list.length >= 10) {
       reply = formatTop10Reply(y, hit.list);
-      reply += `\n\nNext: want the #1 anchor, or a story moment for the year’s cultural pulse?`;
+      reply += `\n\nSource: ${hit.sourceKey} • Method: direct • Confidence: ${hit.pinned ? "high" : "medium"}`;
+      reply += `\n\nPower move: go #1 → Micro moment. That’s your “broadcast-tight” chain.`;
       diag = { top10HitKey: hit.sourceKey, top10HitShape: hit.shape || null, top10Len: hit.list.length, pinned: !!hit.pinned };
     } else if (hit && isArray(hit.list) && hit.list.length) {
       reply = `Top songs of ${y} (partial list from loaded sources):\n\n${hit.list
         .slice(0, 10)
         .map((v, i) => `${i + 1}. ${normalizeSongLine(v) || String(v)}`)
         .join("\n")}`;
-      reply += `\n\nIf you want, I can try to rebuild a clean Top 10 when the full year-pack is loaded.`;
+      reply += `\n\nSource: ${hit.sourceKey} • Method: partial • Confidence: low`;
       diag = { top10HitKey: hit.sourceKey, top10HitShape: hit.shape || null, top10Len: hit.list.length, pinned: !!hit.pinned };
     } else {
       reply =
         `I can’t responsibly assemble a clean Top 10 for ${y} from the currently loaded sources. ` +
-        `If you want, ask for a story moment or #1 song while we confirm the Top 10 pack.`;
+        `If you want, I can show the closest ranked list I *do* have and tell you exactly which pack it came from.`;
       diag = { top10HitKey: null, top10Len: 0, pinnedMissing: !pinned.top10 };
     }
   } else if (wantsMicro) {
@@ -1481,9 +1417,7 @@ function musicReply({ year, mode, knowledge, yearSource, debug }) {
 
   const followUps = buildPowerChainFollowUps(y);
 
-  // IMPORTANT: do NOT persist sticky-borrowed years as canonical lastMusicYear.
   const persistYear = yearSource === "payload" || yearSource === "text" || yearSource === "classifier";
-
   const sp = { lane: "music", activeMusicMode: m && MUSIC_MODES.has(m) ? m : "top10" };
   if (persistYear) sp.lastMusicYear = y;
 
@@ -1491,7 +1425,7 @@ function musicReply({ year, mode, knowledge, yearSource, debug }) {
     reply,
     followUps,
     sessionPatch: sp,
-    meta: exposeDiag ? { used: "music_reply", mode: m || null, diag: diag || null } : { used: "music_reply", mode: m || null },
+    meta: { used: "music_reply", mode: m || null, diag: diag || null },
   };
 }
 
@@ -1559,7 +1493,6 @@ function handleSystem({ action, session }) {
     };
   }
 
-  // default: help
   return {
     reply:
       "Here’s what I can do right now:\n" +
@@ -1628,7 +1561,6 @@ function mapMusicActionToMode(musicAction) {
   if (a === "charts") return "charts";
   if (a === "story") return "story";
   if (a === "micro") return "micro";
-  // NOTE: top40 intentionally not mapped
   return a;
 }
 
@@ -1751,7 +1683,6 @@ async function handleChat(input = {}) {
     });
   }
 
-  // determine routing types (system first, then music, then packets)
   const isSystem =
     inbound.lane === "system" ||
     normLower(inbound.action) === "reset" ||
@@ -1783,7 +1714,6 @@ async function handleChat(input = {}) {
       mode,
       knowledge: input.knowledge || null,
       yearSource,
-      debug,
     });
 
     mergeSession(session, routed.sessionPatch);
@@ -1823,13 +1753,7 @@ async function handleChat(input = {}) {
       const mode = inbound.mode || inferMusicModeFromText(inbound.lower) || "story";
 
       if (y) {
-        routed = musicReply({
-          year: y,
-          mode,
-          knowledge: input.knowledge || null,
-          yearSource: inbound._yearSource || "text",
-          debug,
-        });
+        routed = musicReply({ year: y, mode, knowledge: input.knowledge || null, yearSource: inbound._yearSource || "text" });
       } else {
         routed = {
           reply:
@@ -1862,7 +1786,6 @@ async function handleChat(input = {}) {
   const safeOut = ensureAdvance({ reply: routed.reply, followUps: routed.followUps });
   const followUps = sanitizeFollowUps(safeOut.followUps || []);
 
-  // IMPORTANT: only persist lastMusicYear if the year was explicit (payload/text/classifier), not sticky.
   const explicitYearForPatch =
     inbound.year && (yearSource === "payload" || yearSource === "text" || yearSource === "classifier")
       ? inbound.year
@@ -1918,7 +1841,7 @@ async function handleChat(input = {}) {
           repeats,
           lane: inbound.lane || session.lane || "",
           intentSig: intentSig || null,
-          routedMeta: routed && routed.meta ? routed.meta : null,
+          packetMeta: routed && routed.meta ? routed.meta : null,
           turnCount,
           clientSource,
           isFirstTurn,
