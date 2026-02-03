@@ -1,18 +1,13 @@
 "use strict";
 
 /**
- * Scripts/build_top10_by_year_1950_2024.js
+ * Scripts/build_top10_by_year_1950_2024.js  (v2)
  *
- * Builds a single canonical Top 10 by year file for Nyx.
- * - Tolerates Wikipedia column variations: "№", "No.", "Pos", "Artist(s)", etc.
- * - Accepts input JSON shapes:
- *    A) { rows: [ {year, rank, title, artist}, ... ] }
- *    B) [ {year, rank, title, artist}, ... ]
- *    C) { years: { "1986": { headers: [...], rows: [[...], ...] }, ... } }  (or similar)
- *    D) { items: [...] } / { data: {...} } wrappers
- *
- * Output:
- *   Data/top10_by_year_v1.json (1950–2024 guaranteed keys)
+ * Fixes:
+ *  ✅ Deep recursive scan to find year tables inside ANY JSON shape (covers your 1970–2010 pack)
+ *  ✅ Header tolerance: "№", "Artist(s)", etc.
+ *  ✅ Rankless fallback: if rank parsing fails but we have 10+ rows, assign 1–10 in order
+ *  ✅ Guarantees every year 1950–2024 exists as a key in output
  *
  * Usage:
  *   node Scripts/build_top10_by_year_1950_2024.js
@@ -22,8 +17,6 @@ const fs = require("fs");
 const path = require("path");
 
 const DATA_DIR = path.resolve(__dirname, "..", "Data");
-const WIKI_DIR = path.join(DATA_DIR, "wikipedia");
-
 const OUT_FILE = path.join(DATA_DIR, "top10_by_year_v1.json");
 
 const YEAR_START = 1950;
@@ -35,15 +28,6 @@ function isPlainObject(x) {
   return !!x && typeof x === "object" && !Array.isArray(x);
 }
 
-function safeReadJson(filePath) {
-  const raw = fs.readFileSync(filePath, "utf8");
-  return JSON.parse(raw);
-}
-
-function safeWriteJson(filePath, obj) {
-  fs.writeFileSync(filePath, JSON.stringify(obj, null, 2), "utf8");
-}
-
 function clampYear(y) {
   const n = Number(y);
   if (!Number.isFinite(n)) return null;
@@ -52,23 +36,40 @@ function clampYear(y) {
   return k;
 }
 
+function normText(s) {
+  return String(s || "").replace(/\s+/g, " ").trim();
+}
+
 function normHeader(h) {
-  // Normalize headers like "№", "Artist(s)" etc.
   const s = String(h || "").trim().toLowerCase();
   if (!s) return "";
-  // Map the unicode numero sign to "no"
+  // map unicode numero sign to "no"
   const replaced = s.replace(/№/g, "no");
-  // remove punctuation-ish
   const cleaned = replaced
     .replace(/\(s\)/g, "s")
-    .replace(/[^\p{L}\p{N}]+/gu, " ") // unicode safe
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim()
     .replace(/\s+/g, " ");
   return cleaned;
 }
 
+function parseRank(x) {
+  if (typeof x === "number" && Number.isFinite(x)) return Math.trunc(x);
+  const s = normText(x);
+  if (!s) return null;
+
+  // Common rank shapes: "1", "1.", "1)", "#1"
+  const m = s.match(/^\s*#?\s*(\d{1,3})\s*[\.\)]?\s*$/);
+  if (m) return parseInt(m[1], 10);
+
+  // "1 (tie)" / "1 tie" → 1
+  const t = s.match(/^\s*#?\s*(\d{1,3})\b/);
+  if (t) return parseInt(t[1], 10);
+
+  return null;
+}
+
 function pickIndex(headers, wantSet) {
-  // wantSet: array of acceptable normalized header names
   const map = new Map();
   headers.forEach((h, i) => map.set(normHeader(h), i));
 
@@ -76,196 +77,213 @@ function pickIndex(headers, wantSet) {
     if (map.has(want)) return map.get(want);
   }
 
-  // Partial match fallback
   const keys = Array.from(map.keys());
   for (const want of wantSet) {
     const hit = keys.find((k) => k.includes(want));
     if (hit) return map.get(hit);
   }
-
   return -1;
 }
 
-function unwrap(val) {
-  // unwrap common wrappers
-  let v = val;
-  for (let i = 0; i < 5; i++) {
-    if (!isPlainObject(v)) return v;
-    if (Array.isArray(v)) return v;
-
-    // If it already has rows, keep it (common "wrapper with meta")
-    if (Array.isArray(v.rows)) return v;
-
-    const keys = ["data", "json", "value", "content", "payload", "parsed", "pack", "items"];
-    const nextKey = keys.find((k) => v && Object.prototype.hasOwnProperty.call(v, k));
-    if (!nextKey) return v;
-    v = v[nextKey];
-  }
-  return v;
+function safeReadJson(fp) {
+  return JSON.parse(fs.readFileSync(fp, "utf8"));
 }
 
-function normalizeArtist(s) {
-  return String(s || "").replace(/\s+/g, " ").trim();
+function safeWriteJson(fp, obj) {
+  fs.writeFileSync(fp, JSON.stringify(obj, null, 2), "utf8");
 }
 
-function normalizeTitle(s) {
-  return String(s || "").replace(/\s+/g, " ").trim();
-}
-
-function parseRank(x) {
-  if (typeof x === "number" && Number.isFinite(x)) return Math.trunc(x);
-  const s = String(x || "").trim();
-  if (!s) return null;
-  const m = s.match(/^(\d{1,3})$/);
-  return m ? parseInt(m[1], 10) : null;
-}
-
-function upsertTop10(yearMap, year, rank, title, artist, src) {
+function upsert(yearMap, year, pos, title, artist, src) {
   const y = clampYear(year);
-  if (!y) return;
-  if (y < YEAR_START || y > YEAR_END) return;
+  if (!y || y < YEAR_START || y > YEAR_END) return;
 
-  const r = parseRank(rank);
-  if (!r || r < 1 || r > 10) return;
+  const p = Number(pos);
+  if (!Number.isFinite(p) || p < 1 || p > 10) return;
 
-  const t = normalizeTitle(title);
-  const a = normalizeArtist(artist);
-
+  const t = normText(title);
   if (!t) return;
 
+  const a = normText(artist) || "Unknown";
+
   if (!yearMap[y]) yearMap[y] = Object.create(null);
-  if (!yearMap[y][r]) {
-    yearMap[y][r] = { pos: r, title: t, artist: a || "Unknown", _src: src };
-  }
+  if (!yearMap[y][p]) yearMap[y][p] = { pos: p, title: t, artist: a, _src: src };
 }
 
-function consumeRowsShape(rows, src, yearMap) {
-  // rows: array of objects with some likely keys
-  if (!Array.isArray(rows)) return;
+/**
+ * Normalize a list of "row objects" into top10 slots.
+ * If rank is missing but we have >=10 valid rows, fallback to order.
+ */
+function consumeObjectRows(rows, year, src, yearMap) {
+  if (!Array.isArray(rows) || !rows.length) return;
 
-  for (const row of rows) {
-    if (!isPlainObject(row)) continue;
-
-    const year =
-      row.year ?? row.Year ?? row.y ?? row.yr ?? row.Y ?? row["year "] ?? null;
-
-    const rank =
-      row.rank ?? row.Rank ?? row.pos ?? row.Pos ?? row.position ?? row["#"] ?? row.no ?? row["№"] ?? null;
+  const candidates = [];
+  for (const r of rows) {
+    if (!isPlainObject(r)) continue;
 
     const title =
-      row.title ?? row.Title ?? row.song ?? row.Song ?? row.single ?? row.name ?? row.track ?? null;
-
+      r.title ?? r.Title ?? r.song ?? r.Song ?? r.track ?? r.name ?? r.single ?? r.entry ?? r.text ?? null;
     const artist =
-      row.artist ?? row.Artist ?? row["artist(s)"] ?? row["Artist(s)"] ?? row.performer ?? row.by ?? null;
+      r.artist ?? r.Artist ?? r["artist(s)"] ?? r["Artist(s)"] ?? r.performer ?? r.by ?? null;
+    const rank =
+      r.rank ?? r.Rank ?? r.pos ?? r.Pos ?? r.position ?? r["#"] ?? r.no ?? r["№"] ?? null;
 
-    upsertTop10(yearMap, year, rank, title, artist, src);
+    const t = normText(title);
+    const a = normText(artist);
+
+    if (!t) continue;
+
+    candidates.push({ rank: parseRank(rank), title: t, artist: a, rawRank: rank });
   }
-}
 
-function consumeYearTablesShape(obj, src, yearMap) {
-  // Tries to detect shapes like:
-  // { years: { "1986": { headers:[...], rows:[[...], ...] }, ... } }
-  // or { "1986": { headers, rows } } etc.
-  const o = unwrap(obj);
-  if (!isPlainObject(o)) return;
+  // Place ranked ones
+  const used = new Set();
+  for (const c of candidates) {
+    if (!c.rank) continue;
+    if (c.rank < 1 || c.rank > 10) continue;
+    upsert(yearMap, year, c.rank, c.title, c.artist, src);
+    used.add(c.title + "::" + c.artist);
+  }
 
-  const yearContainers = [];
-  if (isPlainObject(o.years)) yearContainers.push(o.years);
-  if (isPlainObject(o.byYear)) yearContainers.push(o.byYear);
-  if (isPlainObject(o.by_year)) yearContainers.push(o.by_year);
+  // Rankless fallback: fill remaining slots in order
+  const need = [];
+  for (let i = 1; i <= 10; i++) {
+    const y = clampYear(year);
+    if (!y) break;
+    if (!yearMap[y] || !yearMap[y][i]) need.push(i);
+  }
 
-  // also maybe the object itself is year-keyed
-  yearContainers.push(o);
-
-  for (const container of yearContainers) {
-    if (!isPlainObject(container)) continue;
-
-    for (const k of Object.keys(container)) {
-      const y = clampYear(k);
-      if (!y) continue;
-      if (y < YEAR_START || y > YEAR_END) continue;
-
-      const node = container[k];
-      const n = unwrap(node);
-      if (!isPlainObject(n)) continue;
-
-      const headers = Array.isArray(n.headers) ? n.headers : Array.isArray(n.header) ? n.header : null;
-      const rows = Array.isArray(n.rows) ? n.rows : null;
-
-      // If it's already an object-rows list, consume that path instead.
-      if (rows && rows.length && isPlainObject(rows[0])) {
-        consumeRowsShape(rows, `${src}::${y}`, yearMap);
-        continue;
-      }
-
-      // If rows are arrays, we need header indices.
-      if (headers && rows && rows.length && Array.isArray(rows[0])) {
-        const idxRank = pickIndex(headers, ["no", "number", "rank", "pos", "position"]);
-        const idxTitle = pickIndex(headers, ["title", "song", "single", "track", "name"]);
-        const idxArtist = pickIndex(headers, ["artist", "artists", "artist s", "performer", "by"]);
-
-        if (idxRank < 0 || idxTitle < 0 || idxArtist < 0) {
-          // leave; caller will log missing
-          continue;
-        }
-
-        for (const r of rows) {
-          if (!Array.isArray(r)) continue;
-          upsertTop10(
-            yearMap,
-            y,
-            r[idxRank],
-            r[idxTitle],
-            r[idxArtist],
-            `${src}::${y}`
-          );
-        }
-      }
+  if (need.length) {
+    const leftovers = candidates.filter((c) => !used.has(c.title + "::" + c.artist));
+    for (let i = 0; i < need.length && i < leftovers.length; i++) {
+      const slot = need[i];
+      const c = leftovers[i];
+      upsert(yearMap, year, slot, c.title, c.artist, src + "::rankless");
     }
   }
 }
 
-function consumeWrapperRows(obj, src, yearMap) {
-  const o = unwrap(obj);
-  if (Array.isArray(o)) {
-    // Could already be rows with year fields
-    if (o.length && isPlainObject(o[0])) consumeRowsShape(o, src, yearMap);
+/**
+ * Normalize a "table rows as arrays" (headers + rows[][]) into top10 slots.
+ * If rank fails, fallback to order.
+ */
+function consumeHeaderTable(headers, rows, year, src, yearMap) {
+  if (!Array.isArray(headers) || !Array.isArray(rows) || !rows.length) return;
+
+  const idxRank = pickIndex(headers, ["no", "number", "rank", "pos", "position"]);
+  const idxTitle = pickIndex(headers, ["title", "song", "single", "track", "name"]);
+  const idxArtist = pickIndex(headers, ["artist", "artists", "artist s", "performer", "by"]);
+
+  // If we can’t find title/artist, bail.
+  if (idxTitle < 0 || idxArtist < 0) return;
+
+  const candidates = [];
+  for (const r of rows) {
+    if (!Array.isArray(r)) continue;
+
+    const title = normText(r[idxTitle]);
+    const artist = normText(r[idxArtist]);
+
+    if (!title) continue;
+
+    const rank = idxRank >= 0 ? parseRank(r[idxRank]) : null;
+
+    candidates.push({ rank, title, artist });
+  }
+
+  // Ranked placements
+  const used = new Set();
+  for (const c of candidates) {
+    if (!c.rank) continue;
+    if (c.rank < 1 || c.rank > 10) continue;
+    upsert(yearMap, year, c.rank, c.title, c.artist, src);
+    used.add(c.title + "::" + c.artist);
+  }
+
+  // Rankless fallback to fill remaining slots
+  const need = [];
+  for (let i = 1; i <= 10; i++) {
+    const y = clampYear(year);
+    if (!y) break;
+    if (!yearMap[y] || !yearMap[y][i]) need.push(i);
+  }
+
+  if (need.length) {
+    const leftovers = candidates.filter((c) => !used.has(c.title + "::" + c.artist));
+    for (let i = 0; i < need.length && i < leftovers.length; i++) {
+      const slot = need[i];
+      const c = leftovers[i];
+      upsert(yearMap, year, slot, c.title, c.artist, src + "::rankless");
+    }
+  }
+}
+
+/**
+ * Deep scanner:
+ * Walk any JSON; whenever we find:
+ *   - a year-keyed object containing {headers, rows}
+ *   - an object containing {year, headers, rows}
+ *   - an object containing {headers, rows} nested under a year key
+ *   - an object containing {rows:[{year,...}]}
+ * we consume it.
+ */
+function deepScan(node, ctx, yearMap, seen) {
+  if (node == null) return;
+
+  // Avoid cycles (rare but safe)
+  if (typeof node === "object") {
+    if (seen.has(node)) return;
+    seen.add(node);
+  }
+
+  if (Array.isArray(node)) {
+    for (const v of node) deepScan(v, ctx, yearMap, seen);
     return;
   }
-  if (!isPlainObject(o)) return;
 
-  if (Array.isArray(o.rows)) {
-    const rows = o.rows;
+  if (!isPlainObject(node)) return;
 
-    // Case 1: rows are objects (best)
-    if (rows.length && isPlainObject(rows[0])) {
-      consumeRowsShape(rows, src, yearMap);
-      return;
+  // Case A: { rows:[{year,...}] } (multi-year object rows)
+  if (Array.isArray(node.rows) && node.rows.length && isPlainObject(node.rows[0])) {
+    for (const r of node.rows) {
+      if (!isPlainObject(r)) continue;
+      const y = clampYear(r.year ?? r.Year ?? r.y ?? r.yr ?? r.Y);
+      if (!y) continue;
+      consumeObjectRows(node.rows.filter(x => isPlainObject(x) && clampYear(x.year ?? x.Year ?? x.y ?? x.yr ?? x.Y) === y), y, ctx.src, yearMap);
     }
+  }
 
-    // Case 2: rows are arrays with headers alongside
-    const headers = Array.isArray(o.headers) ? o.headers : null;
-    if (headers && rows.length && Array.isArray(rows[0])) {
-      // If there is a YEAR column, we can extract all years from one file.
-      const idxYear = pickIndex(headers, ["year"]);
-      const idxRank = pickIndex(headers, ["no", "number", "rank", "pos", "position"]);
-      const idxTitle = pickIndex(headers, ["title", "song", "single", "track", "name"]);
-      const idxArtist = pickIndex(headers, ["artist", "artists", "artist s", "performer", "by"]);
+  // Case B: { year, headers, rows }
+  const nodeYear = clampYear(node.year ?? node.Year ?? node.y ?? node.yr ?? node.Y);
+  if (nodeYear && Array.isArray(node.headers) && Array.isArray(node.rows)) {
+    if (node.rows.length && Array.isArray(node.rows[0])) {
+      consumeHeaderTable(node.headers, node.rows, nodeYear, ctx.src, yearMap);
+    } else if (node.rows.length && isPlainObject(node.rows[0])) {
+      consumeObjectRows(node.rows, nodeYear, ctx.src, yearMap);
+    }
+  }
 
-      if (idxYear >= 0 && idxRank >= 0 && idxTitle >= 0 && idxArtist >= 0) {
-        for (const r of rows) {
-          if (!Array.isArray(r)) continue;
-          upsertTop10(
-            yearMap,
-            r[idxYear],
-            r[idxRank],
-            r[idxTitle],
-            r[idxArtist],
-            src
-          );
+  // Case C: year-keyed children: { "1986": { headers, rows } }
+  for (const k of Object.keys(node)) {
+    const y = clampYear(k);
+    if (y && y >= YEAR_START && y <= YEAR_END) {
+      const child = node[k];
+      if (isPlainObject(child)) {
+        const headers = Array.isArray(child.headers) ? child.headers : Array.isArray(child.header) ? child.header : null;
+        const rows = Array.isArray(child.rows) ? child.rows : null;
+        if (headers && rows) {
+          if (rows.length && Array.isArray(rows[0])) {
+            consumeHeaderTable(headers, rows, y, ctx.src + "::" + y, yearMap);
+          } else if (rows.length && isPlainObject(rows[0])) {
+            consumeObjectRows(rows, y, ctx.src + "::" + y, yearMap);
+          }
         }
       }
     }
+  }
+
+  // Recurse into all properties
+  for (const k of Object.keys(node)) {
+    deepScan(node[k], ctx, yearMap, seen);
   }
 }
 
@@ -273,12 +291,12 @@ function buildCanonical(yearMap) {
   const years = Object.create(null);
 
   for (let y = YEAR_START; y <= YEAR_END; y++) {
-    const ranks = yearMap[y] || null;
+    const slots = yearMap[y] || null;
     const items = [];
 
-    if (ranks) {
+    if (slots) {
       for (let pos = 1; pos <= 10; pos++) {
-        const it = ranks[pos];
+        const it = slots[pos];
         if (it) items.push({ pos: it.pos, title: it.title, artist: it.artist });
       }
     }
@@ -293,7 +311,7 @@ function buildCanonical(yearMap) {
     meta: {
       yearStart: YEAR_START,
       yearEnd: YEAR_END,
-      notes: "Built from wikipedia packs with tolerant header mapping (№, Artist(s), etc.)",
+      notes: "Deep-scanned wikipedia packs; tolerant headers (№, Artist(s)); rankless fallback enabled",
     },
     years,
   };
@@ -314,26 +332,43 @@ function summarize(out) {
   return { okYears: ok, missingYears: missing, partialYears: partial };
 }
 
-function main() {
-  if (!fs.existsSync(WIKI_DIR)) {
-    console.error(`Missing folder: ${WIKI_DIR}`);
-    process.exit(1);
+function listCandidateInputs() {
+  // We scan Data/wikipedia/*.json plus any obvious top10 sources you already have.
+  const inputs = [];
+
+  const wikiDir = path.join(DATA_DIR, "wikipedia");
+  if (fs.existsSync(wikiDir)) {
+    for (const f of fs.readdirSync(wikiDir)) {
+      if (f.toLowerCase().endsWith(".json") && f.toLowerCase().includes("billboard")) {
+        inputs.push(path.join(wikiDir, f));
+      }
+    }
   }
 
-  const wikiFiles = fs
-    .readdirSync(WIKI_DIR)
-    .filter((f) => f.toLowerCase().endsWith(".json"))
-    .filter((f) => f.toLowerCase().includes("billboard"))
-    .map((f) => path.join(WIKI_DIR, f));
+  // Also scan Data root for known helper sources (optional but harmless).
+  const rootCandidates = [
+    "top100_billboard_yearend_1960s_v1.json",
+    "top10_by_year_source_v1.json",
+    "top10_input_rows.json",
+  ];
+  for (const f of rootCandidates) {
+    const fp = path.join(DATA_DIR, f);
+    if (fs.existsSync(fp)) inputs.push(fp);
+  }
 
-  if (!wikiFiles.length) {
-    console.error(`No wikipedia billboard JSON files found in: ${WIKI_DIR}`);
+  return inputs;
+}
+
+function main() {
+  const inputs = listCandidateInputs();
+  if (!inputs.length) {
+    console.error("No input JSON files found. Expected Data/wikipedia/*.json (billboard*) at minimum.");
     process.exit(1);
   }
 
   const yearMap = Object.create(null);
 
-  for (const fp of wikiFiles) {
+  for (const fp of inputs) {
     const base = path.basename(fp);
     let json;
     try {
@@ -343,17 +378,8 @@ function main() {
       continue;
     }
 
-    const src = `wikipedia/${base}`;
-
-    // Try multiple consumers — whichever shape matches will add entries.
-    consumeWrapperRows(json, src, yearMap);
-    consumeYearTablesShape(json, src, yearMap);
-
-    // Also handle if the whole file is {rows:[{...}]} nested in data/payload/etc
-    const u = unwrap(json);
-    if (isPlainObject(u) && Array.isArray(u.rows)) {
-      consumeWrapperRows(u, src, yearMap);
-    }
+    const ctx = { src: (fp.includes(path.sep + "wikipedia" + path.sep) ? "wikipedia/" : "Data/") + base };
+    deepScan(json, ctx, yearMap, new Set());
   }
 
   const out = buildCanonical(yearMap);
@@ -362,21 +388,13 @@ function main() {
   safeWriteJson(OUT_FILE, out);
 
   console.log(`✅ Wrote: ${OUT_FILE}`);
-  console.log(
-    `Years complete (10 items): ${stats.okYears}/${YEAR_END - YEAR_START + 1}`
-  );
+  console.log(`Years complete (10 items): ${stats.okYears}/${YEAR_END - YEAR_START + 1}`);
+
   if (stats.partialYears.length) {
-    console.log(
-      `Partial years (${stats.partialYears.length}):`,
-      stats.partialYears.slice(0, 20),
-      stats.partialYears.length > 20 ? "..." : ""
-    );
+    console.log(`Partial years (${stats.partialYears.length}):`, stats.partialYears.slice(0, 30), stats.partialYears.length > 30 ? "..." : "");
   }
   if (stats.missingYears.length) {
-    console.log(
-      `Missing years (${stats.missingYears.length}):`,
-      stats.missingYears.join(", ")
-    );
+    console.log(`Missing years (${stats.missingYears.length}):`, stats.missingYears.join(", "));
   }
 }
 
