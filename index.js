@@ -3,31 +3,19 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18ba (CRITICAL FIXES++++: sessionKey sees parsed body + manifest abs path stays correct after reload + stricter CORS hard-lock + tiny DX polish)
+ * index.js v1.5.18bb (WIKI AUTHORITY FIX++++: load split wikipedia hot100 JSONs via dir + merge to canonical by_year)
  *
  * Why this patch exists:
- * ✅ Your /api/packs output confirms pinned packs are loading.
- * ❗ If Nyx still can't "use" a pack, the usual culprits are:
- *    - key alias mismatch (engine expects key A, loader produced key B)
- *    - silent key collisions (two files map to same computed key, one wins)
- *    - silent skips (file too large, parse fail, budget stop)
+ * ✅ Your /api/packs confirms pinned packs are loading.
+ * ❗ Your wiki Billboard packs are split across multiple JSON files (1960–1969, 1970–2010, 2011–2024, etc).
+ *    The prior manifest expected ONE combined file (1950_2024) → so it silently never becomes “primary”.
  *
- * Adds (v1.5.18ba delta vs az):
- * ✅ CRITICAL: sessionKeyFromReq now uses the *parsed* request body (fixes “text/plain body -> sessionId ignored”)
- * ✅ CRITICAL: PACK_MANIFEST abs paths are rebuilt per reloadKnowledge (fixes SCRIPTS_DIR drift after rebuild)
- * ✅ CRITICAL: CORS hard-lock now actively blocks disallowed Origin on non-OPTIONS (403), instead of “silent allow”
- * ✅ DX: JSON parser middleware instantiated once (same behavior, lower overhead)
+ * Fix (v1.5.18bb):
+ * ✅ Manifest now ingests /Data/wikipedia as a DIR (json_dir_rel) under key music/wiki/yearend_hot100_raw/*
+ * ✅ Post-transform merges all those split packs into ONE canonical derived map:
+ *      outKey: music/wiki/yearend_hot100_by_year
  *
- * Keeps:
- * - DATA ROOT AUTODISCOVERY++++, pinned resolve diagnostics, rebuild roots on reloadKnowledge
- * - manifest resolver + bounded fallback search
- * - chip payload normalizer
- * - Nyx voice naturalizer
- * - loop fuse / replay isolation
- * - ElevenLabs TTS
- *
- * Small but important tweak in this build (kept):
- * ✅ Pinned packs are “first-wins” inside a single load cycle (no accidental overwrite if pinned loader runs twice)
+ * Keeps everything else exactly as-is (no widget changes).
  */
 
 // =========================
@@ -86,7 +74,7 @@ const nyxVoiceNaturalizeMod =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18ba (CRITICAL FIXES++++: sessionKey uses parsed body + manifest abs rebuilt after reload + strict CORS hard-lock 403 + JSON parser once + LOAD VISIBILITY++++: key collisions + skip reasons + fileMap + packsight proof + PINNED REL FIXES: story_moments_v2 + ordered rel preferences + DATA ROOT AUTODISCOVERY++++ + PINNED RESOLVE DIAGNOSTICS++++ + rebuild roots on reloadKnowledge + TOP10 NORMALIZATION + BLOCKER PRUNE++++ + SOURCE REL BLOCK REMOVAL + KNOWLEDGE INJECTION FIX + /api/chat GET GUIDANCE + MANIFEST RESOLVER UPGRADE++++: multi-candidate rels + bounded basename/dirname fallback search across ALL data roots + probes show bestFound + keeps PACK VISIBILITY HARDENING++++ + CHIP SIGNAL ROUNDTRIP intent/route/label + allow Data outside APP_ROOT + bigger budgets + PUBLIC /api/packsight + case-insensitive Data/Scripts resolution + pinned/manifest path fallback + packsight diagnostics + manifest target probes + pinned packs to real Data/* files + manifest tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
+  "index.js v1.5.18bb (WIKI AUTHORITY FIX++++: wikipedia split hot100 dir ingest + merged year map + CRITICAL FIXES++++: sessionKey uses parsed body + manifest abs rebuilt after reload + strict CORS hard-lock 403 + JSON parser once + LOAD VISIBILITY++++: key collisions + skip reasons + fileMap + packsight proof + PINNED REL FIXES: story_moments_v2 + ordered rel preferences + DATA ROOT AUTODISCOVERY++++ + PINNED RESOLVE DIAGNOSTICS++++ + rebuild roots on reloadKnowledge + TOP10 NORMALIZATION + BLOCKER PRUNE++++ + SOURCE REL BLOCK REMOVAL + KNOWLEDGE INJECTION FIX + /api/chat GET GUIDANCE + MANIFEST RESOLVER UPGRADE++++: multi-candidate rels + bounded basename/dirname fallback search across ALL data roots + probes show bestFound + keeps PACK VISIBILITY HARDENING++++ + CHIP SIGNAL ROUNDTRIP intent/route/label + allow Data outside APP_ROOT + bigger budgets + PUBLIC /api/packsight + case-insensitive Data/Scripts resolution + pinned/manifest path fallback + packsight diagnostics + manifest target probes + pinned packs to real Data/* files + manifest tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
 
 // =========================
 // Utils
@@ -503,10 +491,8 @@ const PINNED_PACKS = [
   {
     key: "music/number1_by_year",
     rels: [
-      // preferred first
       "music_number1_by_year_v1.json",
       "music_number1_by_year.json",
-      // fallbacks
       "Nyx/music_number1_by_year.json",
       "Packs/music_number1_by_year.json",
       "Nyx/music_number1.json",
@@ -516,10 +502,8 @@ const PINNED_PACKS = [
   {
     key: "music/story_moments_by_year",
     rels: [
-      // ✅ preferred first: v2 then v1
       "music_story_moments_v2.json",
       "music_story_moments_v1.json",
-      // fallbacks / generated / legacy
       "music_story_moments_1950_1989.generated.json",
       "music/story_moments_by_year.json",
       "Nyx/music_story_moments_by_year.json",
@@ -552,19 +536,25 @@ const PINNED_PACKS = [
 // =========================
 function getPackManifest() {
   return [
+    // ✅ WIKI AUTHORITY FIX:
+    // ingest the whole wikipedia folder; merge split files into canonical year map
     {
       key: "music/wiki/yearend_hot100_raw",
-      type: "json_file_rel",
+      type: "json_dir_rel",
       rels: [
-        "wikipedia/billboard_yearend_hot100_1950_2024.json",
-        "wiki/billboard_yearend_hot100_1950_2024.json",
-        "music/wiki/billboard_yearend_hot100_1950_2024.json",
-        "music/wikipedia/billboard_yearend_hot100_1950_2024.json",
-        "packs/wikipedia/billboard_yearend_hot100_1950_2024.json",
+        "wikipedia",
+        "Wikipedia",
+        "wiki",
+        "Wiki",
+        "music/wikipedia",
+        "music/wiki",
+        "packs/wikipedia",
+        "packs/wiki",
       ],
-      transform: (payload) => manifestBuildYearMapFromRows(payload, "yearend_hot100"),
+      postTransform: (allJson) => manifestMergeYearendHot100FromDir(allJson, "music/wiki/yearend_hot100_raw"),
       outKey: "music/wiki/yearend_hot100_by_year",
     },
+
     {
       key: "music/top40_weekly_raw",
       type: "json_dir_rel",
@@ -836,14 +826,12 @@ const KNOWLEDGE = {
     pinnedMissing: [],
     manifestResolved: [],
     probes: [],
-    // NEW
     skips: {},
     collisions: [],
     fileMapPreview: [],
   },
-  // NEW internal maps (not huge)
-  __fileMap: Object.create(null), // key -> fp that "won"
-  __collisions: [], // array of {key, keptFp, collidedFp}
+  __fileMap: Object.create(null),
+  __collisions: [],
   __skips: {
     too_large: 0,
     budget_stop: 0,
@@ -1265,6 +1253,48 @@ function manifestBuildTop40WeeklyIndex(allJson, prefixKey) {
   return { ok: true, label: "top40_weekly", byYearWeek, builtAt: new Date().toISOString() };
 }
 
+// ✅ NEW: merge split wikipedia billboard yearend hot100 packs loaded under a dir prefix
+function manifestMergeYearendHot100FromDir(allJson, prefixKey) {
+  const root = allJson && typeof allJson === "object" ? allJson : {};
+  const keys = Object.keys(root).filter((k) => String(k).startsWith(prefixKey + "/"));
+
+  const out = Object.create(null);
+  let totalRows = 0;
+  let usedPacks = 0;
+
+  for (const k of keys) {
+    const kl = String(k).toLowerCase();
+    // We only want the year-end hot100 files, not "singles" unless you explicitly want them later.
+    if (!kl.includes("yearend_hot100")) continue;
+
+    const pack = root[k];
+    const rows = manifestExtractRows(pack);
+    if (!rows.length) continue;
+
+    usedPacks += 1;
+
+    for (const r of rows) {
+      const y = Number(r && r.year);
+      if (!Number.isFinite(y)) continue;
+      if (!out[y]) out[y] = [];
+      out[y].push(r);
+      totalRows += 1;
+    }
+  }
+
+  for (const y of Object.keys(out)) {
+    out[y].sort((a, b) => Number(a.rank || 9999) - Number(b.rank || 9999));
+  }
+
+  return {
+    ok: true,
+    label: "yearend_hot100",
+    byYear: out,
+    builtAt: new Date().toISOString(),
+    meta: { usedPacks, totalRows, prefixKey },
+  };
+}
+
 function resolveManifestAbsFallback(absPath) {
   const p = path.resolve(absPath);
   if (fileExists(p)) return p;
@@ -1396,7 +1426,7 @@ function manifestLoadFileOrDir(absPath, baseKey, loadedFiles, totalBytesRef) {
 
 function manifestLoadPacks(loadedFiles, totalBytesRef) {
   const loadedSummary = [];
-  const PACK_MANIFEST = getPackManifest(); // ✅ always current SCRIPTS_DIR
+  const PACK_MANIFEST = getPackManifest();
 
   for (const item of PACK_MANIFEST) {
     try {
@@ -1406,7 +1436,6 @@ function manifestLoadPacks(loadedFiles, totalBytesRef) {
 
         if (res.ok && !res.skipped && typeof item.transform === "function" && item.outKey) {
           const derived = item.transform(KNOWLEDGE.json[item.key]);
-          // record derived (virtual)
           recordKeyWinner(item.outKey, `__derived:${item.key}`);
           KNOWLEDGE.json[item.outKey] = derived;
         }
@@ -1460,9 +1489,9 @@ function manifestLoadPacks(loadedFiles, totalBytesRef) {
 function buildManifestProbes() {
   const targets = [
     {
-      id: "wiki_yearend_hot100",
-      rels: ["wikipedia/billboard_yearend_hot100_1950_2024.json", "wiki/billboard_yearend_hot100_1950_2024.json"],
-      kind: "file",
+      id: "wiki_dir",
+      rels: ["wikipedia", "Wikipedia", "wiki", "Wiki"],
+      kind: "dir",
     },
     { id: "top40_weekly_dir", rels: ["charts/top40_weekly", "top40_weekly"], kind: "dir" },
     { id: "movies_root", rels: ["movies", "Movies"], kind: "dir_or_file" },
@@ -1481,7 +1510,6 @@ function buildManifestProbes() {
 function reloadKnowledge() {
   const started = nowMs();
 
-  // rebuild roots every reload
   DATA_DIR = resolveDataDirFromEnv();
   SCRIPTS_DIR = resolveScriptsDirFromEnv();
   DATA_ROOT_CANDIDATES = rebuildDataRootCandidates();
@@ -1632,7 +1660,7 @@ function reloadKnowledge() {
     if (!Object.prototype.hasOwnProperty.call(KNOWLEDGE.json, key)) {
       KNOWLEDGE.json[key] = parsed;
     } else if (col.collision) {
-      // keep first-wins for stability (but now we *see* it)
+      // keep first-wins for stability
     }
 
     KNOWLEDGE.filesLoaded += 1;
@@ -2030,7 +2058,6 @@ const app = express();
 if (toBool(TRUST_PROXY, false)) app.set("trust proxy", 1);
 
 // ---- SAFE JSON PARSE: never crash on invalid JSON ----
-// ✅ DX: instantiate parser once (same semantics)
 const jsonParser = express.json({ limit: MAX_JSON_BODY });
 
 app.use((req, res, next) => {
@@ -2088,14 +2115,12 @@ app.use((req, res, next) => {
   }
 
   if (req.method === "OPTIONS") {
-    // preflight: if origin is present but not allowed, hard fail
     if (origin && !allow) {
       return res.status(403).json({ ok: false, error: "cors_blocked", meta: { index: INDEX_VERSION } });
     }
     return res.status(204).send("");
   }
 
-  // non-preflight: block disallowed origin requests
   if (origin && !allow) {
     return res.status(403).json({ ok: false, error: "cors_blocked", meta: { index: INDEX_VERSION } });
   }
@@ -2250,7 +2275,6 @@ app.get("/api/packsight", (req, res) => {
       manifestPreview: (KNOWLEDGE.__manifest || []).slice(0, 20),
       manifestResolved: KNOWLEDGE.__packsight?.manifestResolved || [],
       probes: KNOWLEDGE.__packsight?.probes || [],
-      // NEW
       skips: KNOWLEDGE.__packsight?.skips || { ...KNOWLEDGE.__skips },
       collisionCount: (KNOWLEDGE.__packsight?.collisions || KNOWLEDGE.__collisions || []).length,
       collisionsPreview: (KNOWLEDGE.__packsight?.collisions || KNOWLEDGE.__collisions || []).slice(0, 50),
@@ -2455,7 +2479,6 @@ async function handleChatRoute(req, res) {
   const inboundSig = normalizeInboundSignature(body, inboundText);
   const meaningful = !!inboundSig || hasIntentSignals(body);
 
-  // ✅ CRITICAL FIX: pass parsed body so sessionKey sees sessionId even when req.body is text/plain
   const { rec } = getSession(req, body);
 
   const bootLike = isBootLike(routeHint, body);
