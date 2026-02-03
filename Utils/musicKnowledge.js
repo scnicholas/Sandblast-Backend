@@ -403,7 +403,8 @@ function loadWikiSingles50sOnce({ force = false } = {}) {
   const abs = resolveRepoPath(WIKI_YEAREND_SINGLES_1950_1959);
   const mtimeMs = safeStatMtimeMs(abs);
 
-  const changedOnDisk = mtimeMs && WIKI_SINGLES_50S_LAST_MTIME_MS && mtimeMs !== WIKI_SINGLES_50S_LAST_MTIME_MS;
+  const changedOnDisk =
+    mtimeMs && WIKI_SINGLES_50S_LAST_MTIME_MS && mtimeMs !== WIKI_SINGLES_50S_LAST_MTIME_MS;
   if (force || changedOnDisk) {
     WIKI_SINGLES_50S_BY_YEAR.clear();
     WIKI_SINGLES_50S_LOADED = false;
@@ -626,7 +627,11 @@ function resolveChartForYear(year, requestedChart) {
 
   if (y >= 1950 && y <= 1959) {
     if (chartIsAvailable(YEAR_END_SINGLES_CHART)) {
-      return { ok: true, chart: YEAR_END_SINGLES_CHART, fellBackFrom: req !== YEAR_END_SINGLES_CHART ? req : undefined };
+      return {
+        ok: true,
+        chart: YEAR_END_SINGLES_CHART,
+        fellBackFrom: req !== YEAR_END_SINGLES_CHART ? req : undefined,
+      };
     }
     const c = pickBestAvailableChart([YEAR_END_CHART, DEFAULT_CHART, req]);
     return { ok: true, chart: c, fellBackFrom: c !== req ? req : undefined };
@@ -1001,7 +1006,12 @@ function handleChat({ text, session }) {
     return outShape({
       reply: moment,
       followUps: [`top 10 ${y}`, "#1", y + 1 <= PUBLIC_MAX_YEAR ? String(y + 1) : "Another year"],
-      sessionPatch: canonicalPatch(session, { activeMusicChart: chart, lastMusicYear: y, lastMusicChart: chart, __musicLastSig: sig }),
+      sessionPatch: canonicalPatch(session, {
+        activeMusicChart: chart,
+        lastMusicYear: y,
+        lastMusicChart: chart,
+        __musicLastSig: sig,
+      }),
     });
   }
 
@@ -1026,7 +1036,12 @@ function handleChat({ text, session }) {
       return outShape({
         reply: `${out.formatted}\n\nWant “#1”, a story moment, a micro moment, or another year?`,
         followUps: ["#1", `story moment ${y}`, `micro moment ${y}`, "Another year"],
-        sessionPatch: canonicalPatch(session, { activeMusicChart: used, lastMusicYear: y, lastMusicChart: used, __musicLastSig: sig }),
+        sessionPatch: canonicalPatch(session, {
+          activeMusicChart: used,
+          lastMusicYear: y,
+          lastMusicChart: used,
+          __musicLastSig: sig,
+        }),
       });
     }
 
