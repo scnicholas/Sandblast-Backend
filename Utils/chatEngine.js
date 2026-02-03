@@ -17,15 +17,21 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7aU (TOP40 PURGE + RANGE 2025++++: updates clampYear/extractYear to 2025
+ * v0.7aU+ (TOP40 PURGE + RANGE 2025++++:
+ *         + updates clampYear/extractYear to 2025
  *         + REMOVES "top40" as a recognized music mode/action (prevents reversion)
  *         + expands allowed sessionPatch keys for music continuity (activeMusicChart/lastMusicChart/__musicLastSig/etc.)
- *         + keeps v0.7aT system routing hardening + system responder)
+ *         + keeps v0.7aT system routing hardening + system responder
+ *         + NEW: decade-guard (1960s won't match 1960)
+ *         + NEW: do NOT persist sticky-borrowed years into lastMusicYear
+ *         )
  *
  * Critical deltas vs v0.7aT:
  * ✅ FIX: Top40 is no longer a valid mode/action (it can’t be inferred, normalized, routed, or stored)
  * ✅ UPDATE: Year range now supports 1950–2025 (matches musicKnowledge v2.77)
  * ✅ ADD: allow key pass-through for activeMusicChart / lastMusicChart / __musicLastSig / depthLevel / recentIntent / recentTopic
+ * ✅ FIX: decades like “1960s” no longer poison lastMusicYear (regex guard)
+ * ✅ FIX: sticky-year convenience does NOT get written back as canonical lastMusicYear
  * ✅ Preserves all v0.7aT behavior otherwise
  */
 
@@ -56,7 +62,7 @@ try {
 ====================================================== */
 
 const CE_VERSION =
-  "chatEngine v0.7aU (Top40 purge + 2025 range + pinned-first resolvers + action/mode normalization + system lane responder + system chip misroute fix + always-advance + payload-root fallback + chip-authoritative mode + sticky-year source + session-scoped burst dedupe)";
+  "chatEngine v0.7aU+ (Top40 purge + 2025 range + decade-guard year extract + do-not-persist sticky year + pinned-first resolvers + action/mode normalization + system lane responder + system chip misroute fix + always-advance + payload-root fallback + chip-authoritative mode + sticky-year source + session-scoped burst dedupe)";
 
 const MAX_REPLY_LEN = 2400;
 const MAX_FOLLOWUPS = 10;
@@ -126,7 +132,8 @@ function clampYear(y) {
 }
 
 function extractYearFromText(text) {
-  const m = String(text || "").match(/\b(19[5-9]\d|20[0-1]\d|202[0-5])\b/);
+  // IMPORTANT: decade guard — "1960s" must NOT match year 1960
+  const m = String(text || "").match(/\b(19[5-9]\d|20[0-1]\d|202[0-5])(?!s\b)\b/);
   if (!m) return null;
   return clampYear(m[1]);
 }
@@ -613,9 +620,6 @@ function looksLikeStructuredMusic({ lane, action, mode, year, lower }) {
   // Strong music action implies music even without lane
   const a = normalizeMusicAction(action);
   if (a && MUSIC_ACTIONS_STRONG.has(a)) return true;
-
-  // Weak music actions only count if lane says music/years (handled above)
-  // Otherwise DO NOT route to music (prevents system/help/reset chips from hijacking routing)
 
   // Text + year indicates music intent
   if (
@@ -1279,7 +1283,7 @@ function buildPowerChainFollowUps(year) {
   ];
 }
 
-function musicReply({ year, mode, knowledge }) {
+function musicReply({ year, mode, knowledge, yearSource }) {
   const y = clampYear(year);
   const m = normalizeMode(mode, "", "");
 
@@ -1390,11 +1394,16 @@ function musicReply({ year, mode, knowledge }) {
 
   const followUps = buildPowerChainFollowUps(y);
 
-  // IMPORTANT: keep sessionPatch minimal; musicKnowledge/musicLane own chart selection.
+  // IMPORTANT: do NOT persist sticky-borrowed years as canonical lastMusicYear.
+  const persistYear = yearSource === "payload" || yearSource === "text" || yearSource === "classifier";
+
+  const sp = { lane: "music", activeMusicMode: m && MUSIC_MODES.has(m) ? m : "top10" };
+  if (persistYear) sp.lastMusicYear = y;
+
   return {
     reply,
     followUps,
-    sessionPatch: { lane: "music", lastMusicYear: y, activeMusicMode: m && MUSIC_MODES.has(m) ? m : "top10" },
+    sessionPatch: sp,
     meta: { used: "music_reply", mode: m || null, diag: diag || null },
   };
 }
@@ -1686,6 +1695,7 @@ async function handleChat(input = {}) {
       year: inbound.year,
       mode,
       knowledge: input.knowledge || null,
+      yearSource,
     });
 
     mergeSession(session, routed.sessionPatch);
@@ -1725,7 +1735,7 @@ async function handleChat(input = {}) {
       const mode = inbound.mode || inferMusicModeFromText(inbound.lower) || "story";
 
       if (y) {
-        routed = musicReply({ year: y, mode, knowledge: input.knowledge || null });
+        routed = musicReply({ year: y, mode, knowledge: input.knowledge || null, yearSource: inbound._yearSource || "text" });
       } else {
         routed = {
           reply:
@@ -1758,6 +1768,12 @@ async function handleChat(input = {}) {
   const safeOut = ensureAdvance({ reply: routed.reply, followUps: routed.followUps });
   const followUps = sanitizeFollowUps(safeOut.followUps || []);
 
+  // IMPORTANT: only persist lastMusicYear if the year was explicit (payload/text/classifier), not sticky.
+  const explicitYearForPatch =
+    inbound.year && (yearSource === "payload" || yearSource === "text" || yearSource === "classifier")
+      ? inbound.year
+      : null;
+
   const out = {
     ok: true,
     reply: clampStr(safeOut.reply, MAX_REPLY_LEN),
@@ -1785,7 +1801,7 @@ async function handleChat(input = {}) {
         lane: inbound.lane || session.lane || "general",
         lastIntentSig: inboundHash,
         allowPackets: session.allowPackets === true,
-        lastMusicYear: session.lastMusicYear || inbound.year || null,
+        lastMusicYear: explicitYearForPatch || session.lastMusicYear || null,
         activeMusicMode: session.activeMusicMode || inbound.mode || null,
         activeMusicChart: session.activeMusicChart || null,
         lastMusicChart: session.lastMusicChart || null,
