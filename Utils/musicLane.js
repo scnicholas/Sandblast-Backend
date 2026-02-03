@@ -10,19 +10,10 @@
  *  - Output normalized to:
  *      { reply, followUpsStrings: string[], followUps: [{label,send}], sessionPatch, meta? }
  *
- * v1.4a (DEEPER SUPPORT + CONTINUITY RECONSTRUCT + YEAR-SAFE EXPANSION)
- *  ✅ Supports "… deeper" suffix without breaking musicKnowledge parsing:
- *     - Strips trailing "deeper"/"tell me more"/"expand" tokens
- *     - Calls musicKnowledge with the base prompt
- *     - Then appends a deterministic, mode-aware "deeper" expansion
- *
- *  ✅ Supports bare "deeper" / "tell me more" by reconstructing the last prompt from session:
- *     - Uses session.activeMusicMode + session.lastMusicYear
- *     - Falls back safely if missing
- *
- *  ✅ Never returns empty followUpsStrings (defensive)
- *  ✅ Continuity patch always includes pendingLane=music
- *  ✅ Does NOT mutate session object (chatEngine owns sessionPatch application)
+ * v1.4b (RANGE UPDATE TO 2025)
+ *  ✅ Updates clampYear + prompts to 1950–2025 (aligns with musicKnowledge v2.77)
+ *  ✅ Updates safeNextYear fallback ceiling to 2025
+ *  ✅ Leaves deeper behavior + continuity reconstruction unchanged
  *
  * Exports:
  *  - handleChat({text, session, visitorId, debug})
@@ -44,7 +35,7 @@ function norm(s) {
 function clampYear(y) {
   const n = Number(y);
   if (!Number.isFinite(n)) return null;
-  if (n < 1950 || n > 2024) return null;
+  if (n < 1950 || n > 2025) return null;
   return n;
 }
 
@@ -195,7 +186,7 @@ function reconstructPromptFromSession(session) {
 function safeNextYear(y) {
   const n = clampYear(y);
   if (!n) return null;
-  return clampYear(n + 1) || 2024;
+  return clampYear(n + 1) || 2025;
 }
 function safePrevYear(y) {
   const n = clampYear(y);
@@ -209,7 +200,7 @@ function deeperExpansion({ mode, year }) {
 
   // Deterministic texture only — no new facts.
   if (!y) {
-    return "\n\nIf you tell me a year (1950–2024), I can go deeper with real context.";
+    return "\n\nIf you tell me a year (1950–2025), I can go deeper with real context.";
   }
 
   const ny = safeNextYear(y);
@@ -277,7 +268,7 @@ async function handleChat({ text, session, visitorId, debug }) {
       // Pure "deeper" -> reconstruct last prompt
       const recon = reconstructPromptFromSession(s);
       if (!recon) {
-        const fallback = "Tell me a year (1950–2024) — then I can go deeper.";
+        const fallback = "Tell me a year (1950–2025) — then I can go deeper.";
         const followUpsStrings = safeStrings(["1956", "1988", "top 10 1988"], 10);
         return {
           reply: fallback,
@@ -308,7 +299,7 @@ async function handleChat({ text, session, visitorId, debug }) {
     const cleanText = String(baseText || "");
 
     if (!musicKnowledge) {
-      const fallback = "Music is warming up. Give me a year (1950–2024).";
+      const fallback = "Music is warming up. Give me a year (1950–2025).";
       const followUpsStrings = safeStrings(["1956", "1988", "top 10 1988"], 10);
       return {
         reply: fallback,
@@ -336,7 +327,7 @@ async function handleChat({ text, session, visitorId, debug }) {
     );
 
     let reply = String(raw && raw.reply ? raw.reply : "").trim();
-    if (!reply) reply = "Tell me a year (1950–2024), or say “top 10 1988”.";
+    if (!reply) reply = "Tell me a year (1950–2025), or say “top 10 1988”.";
 
     const fuRaw = Array.isArray(raw && raw.followUps) ? raw.followUps : [];
     let followUpsStrings = safeStrings(fuRaw, 10);
@@ -390,7 +381,9 @@ async function handleChat({ text, session, visitorId, debug }) {
             ok: !!reply,
             source: "musicKnowledge",
             mkVersion:
-              musicKnowledge.MK_VERSION && typeof musicKnowledge.MK_VERSION === "function" ? musicKnowledge.MK_VERSION() : null,
+              musicKnowledge.MK_VERSION && typeof musicKnowledge.MK_VERSION === "function"
+                ? musicKnowledge.MK_VERSION()
+                : null,
             followUps: followUpsStrings.length,
             hasPatch: !!sessionPatch,
             deep,
@@ -410,7 +403,7 @@ async function handleChat({ text, session, visitorId, debug }) {
         : null,
     };
   } catch (e) {
-    const fallback = "Music lane hit a snag. Give me a year (1950–2024) and try again.";
+    const fallback = "Music lane hit a snag. Give me a year (1950–2025) and try again.";
     const followUpsStrings = safeStrings(["1956", "1988", "top 10 1988"], 10);
     return {
       reply: fallback,
