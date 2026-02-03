@@ -17,13 +17,16 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7aT (OPTION A CANONICAL++++: pinned-pack getters + canonical action/mode normalization + pinned-first resolvers only
- *         + FIX: "system/reset/help" chips no longer mis-route into music + system lane responder)
+ * v0.7aU (TOP40 PURGE + RANGE 2025++++: updates clampYear/extractYear to 2025
+ *         + REMOVES "top40" as a recognized music mode/action (prevents reversion)
+ *         + expands allowed sessionPatch keys for music continuity (activeMusicChart/lastMusicChart/__musicLastSig/etc.)
+ *         + keeps v0.7aT system routing hardening + system responder)
  *
- * Critical fixes vs v0.7aS:
- * ✅ FIX: looksLikeStructuredMusic no longer treats *any* action as “music” (so system chips don’t hijack routing)
- * ✅ ADD: system lane responder (help/reset) with safe session clearing of loop/replay stores
- * ✅ Preserves all v0.7aR / v0.7aS behavior otherwise
+ * Critical deltas vs v0.7aT:
+ * ✅ FIX: Top40 is no longer a valid mode/action (it can’t be inferred, normalized, routed, or stored)
+ * ✅ UPDATE: Year range now supports 1950–2025 (matches musicKnowledge v2.77)
+ * ✅ ADD: allow key pass-through for activeMusicChart / lastMusicChart / __musicLastSig / depthLevel / recentIntent / recentTopic
+ * ✅ Preserves all v0.7aT behavior otherwise
  */
 
 const crypto = require("crypto");
@@ -53,7 +56,7 @@ try {
 ====================================================== */
 
 const CE_VERSION =
-  "chatEngine v0.7aT (Option A canonical pinned packs + action/mode normalization + pinned-first resolvers + cross-link chain + loose-top10 fallback + provenance footer + pack unwrap + first-turn router followUps + routing hardening + payload-root fallback + chip-authoritative mode + sticky-year source + session-scoped burst dedupe + SYSTEM lane responder + system chip misroute fix)";
+  "chatEngine v0.7aU (Top40 purge + 2025 range + pinned-first resolvers + action/mode normalization + system lane responder + system chip misroute fix + always-advance + payload-root fallback + chip-authoritative mode + sticky-year source + session-scoped burst dedupe)";
 
 const MAX_REPLY_LEN = 2400;
 const MAX_FOLLOWUPS = 10;
@@ -71,6 +74,12 @@ const ALLOWED_SESSION_PATCH_KEYS = new Set([
   "lane",
   "lastMusicYear",
   "activeMusicMode",
+  "activeMusicChart",
+  "lastMusicChart",
+  "__musicLastSig",
+  "depthLevel",
+  "recentIntent",
+  "recentTopic",
   "voiceMode",
   "lastIntentSig",
   "allowPackets",
@@ -112,12 +121,12 @@ function clampYear(y) {
   const n = Number(y);
   if (!Number.isFinite(n)) return null;
   const k = Math.trunc(n);
-  if (k < 1950 || k > 2024) return null;
+  if (k < 1950 || k > 2025) return null;
   return k;
 }
 
 function extractYearFromText(text) {
-  const m = String(text || "").match(/\b(19[5-9]\d|20[0-1]\d|202[0-4])\b/);
+  const m = String(text || "").match(/\b(19[5-9]\d|20[0-1]\d|202[0-5])\b/);
   if (!m) return null;
   return clampYear(m[1]);
 }
@@ -139,13 +148,13 @@ function safeJsonStringify(x) {
 }
 
 /* ======================================================
-   Music mode inference (text)
+   Music mode inference (text) — TOP40 PURGED
 ====================================================== */
 
 function inferMusicModeFromText(low) {
   if (!low) return "";
   if (/\b(top\s*10|top10)\b/.test(low)) return "top10";
-  if (/\b(top\s*40|top40)\b/.test(low)) return "top40";
+  // NOTE: intentionally NOT supporting top40/top 40 (purged)
   if (/\b(year[-\s]*end|yearend)\b/.test(low)) return "year_end";
   if (/\b(hot\s*100|billboard|chart|charts|charting|hit\s*parade)\b/.test(low)) return "charts";
   if (/\b(#\s*1|#1|number\s*one|number\s*1|no\.\s*1|no\s*1|no1)\b/.test(low)) return "number_one";
@@ -155,7 +164,7 @@ function inferMusicModeFromText(low) {
 }
 
 /* ======================================================
-   Option A: Canonical action/mode normalization
+   Option A: Canonical action/mode normalization — TOP40 PURGED
 ====================================================== */
 
 function normalizeMusicAction(action) {
@@ -169,13 +178,15 @@ function normalizeMusicAction(action) {
   if (["story", "story_moment", "story-moment", "storymoment", "moments_story"].includes(a)) return "story";
   if (["charts", "chart", "charting"].includes(a)) return "charts";
   if (["year_end", "yearend", "year-end", "year end"].includes(a)) return "year_end";
-  if (["top40", "top_40", "top-forty", "top forty"].includes(a)) return "top40";
+
+  // NOTE: "top40" intentionally not normalized to a music action anymore.
+  // If a client sends action=top40, it will remain "top40" but will NOT be treated as a music mode/action downstream.
 
   return a;
 }
 
-const MUSIC_MODES = new Set(["top10", "top40", "year_end", "charts", "number_one", "micro", "story"]);
-const MUSIC_ACTIONS_STRONG = new Set(["top10", "top40", "year_end", "charts", "number_one", "micro", "story"]);
+const MUSIC_MODES = new Set(["top10", "year_end", "charts", "number_one", "micro", "story"]);
+const MUSIC_ACTIONS_STRONG = new Set(["top10", "year_end", "charts", "number_one", "micro", "story"]);
 const MUSIC_ACTIONS_WEAK = new Set(["enter", "start", "year"]); // only music if lane=music/years
 
 function normalizeMode(mode, action, low) {
@@ -190,12 +201,17 @@ function normalizeMode(mode, action, low) {
     if (["story", "story_moment", "story-moment", "storymoment"].includes(m)) return "story";
     if (["charts", "chart"].includes(m)) return "charts";
     if (["year_end", "yearend", "year-end", "year end"].includes(m)) return "year_end";
-    if (["top40", "top_40", "top forty"].includes(m)) return "top40";
+
+    // TOP40 PURGE: do NOT accept "top40" as a mode
+    if (["top40", "top_40", "top forty", "top-forty"].includes(m)) return "";
+
     return m;
   }
 
   if (a) {
     if (MUSIC_MODES.has(a)) return a;
+    // If action came in as top40, do not map it to a mode
+    if (a === "top40") return "";
   }
 
   return inferMusicModeFromText(low);
@@ -216,6 +232,36 @@ function safeSessionPatch(patch) {
     if (k === "lastMusicYear") {
       const y = clampYear(patch[k]);
       if (y) out.lastMusicYear = y;
+      continue;
+    }
+
+    if (k === "activeMusicMode") {
+      const m = normalizeMode(patch[k], "", "");
+      if (m && MUSIC_MODES.has(m)) out.activeMusicMode = m;
+      continue;
+    }
+
+    if (k === "activeMusicChart" || k === "lastMusicChart") {
+      const v = normText(patch[k]);
+      if (v) out[k] = v;
+      continue;
+    }
+
+    if (k === "__musicLastSig") {
+      const v = normText(patch[k]);
+      if (v) out.__musicLastSig = v.slice(0, 80);
+      continue;
+    }
+
+    if (k === "depthLevel") {
+      const n = Number(patch[k]);
+      if (Number.isFinite(n) && n >= 0) out.depthLevel = Math.min(50, Math.trunc(n));
+      continue;
+    }
+
+    if (k === "recentIntent" || k === "recentTopic") {
+      const v = normText(patch[k]);
+      if (v) out[k] = v.slice(0, 48);
       continue;
     }
 
@@ -574,7 +620,7 @@ function looksLikeStructuredMusic({ lane, action, mode, year, lower }) {
   // Text + year indicates music intent
   if (
     year &&
-    /\b(top\s*10|top10|top\s*40|top40|hot\s*100|billboard|chart|charts|story\s*moment|micro\s*moment|#\s*1|#1|number\s*one|no\.\s*1|no\s*1|no1)\b/.test(
+    /\b(top\s*10|top10|hot\s*100|billboard|chart|charts|story\s*moment|micro\s*moment|#\s*1|#1|number\s*one|no\.\s*1|no\s*1|no1)\b/.test(
       lower
     )
   )
@@ -606,7 +652,14 @@ function getStickyMusicYear(session) {
 
 function needsYearForMode(mode) {
   const m = normLower(mode);
-  return m === "top10" || m === "number_one" || m === "micro" || m === "story" || m === "top40" || m === "charts" || m === "year_end";
+  return (
+    m === "top10" ||
+    m === "number_one" ||
+    m === "micro" ||
+    m === "story" ||
+    m === "charts" ||
+    m === "year_end"
+  );
 }
 
 /* ======================================================
@@ -1028,6 +1081,7 @@ function findNumberOnePinnedFirst(pinned, knowledgeJson, year) {
 
 /* ======================================================
    TOP10 LOOSE ACCEPTANCE (SAFE DERIVATION + PROVENANCE)
+   (TOP40 WEEKLY CANDIDATE REMOVED to avoid "Top40" reversion)
 ====================================================== */
 
 function _parseRank(v) {
@@ -1144,7 +1198,7 @@ function resolveTop10LooseButSafe(knowledgeJson, year) {
 
   const candidates = [
     { id: "music/top10_by_year", method: "direct", confidence: "high" },
-    { id: `top40weekly/top100_${y}`, method: "derived_top10_from_top100", confidence: "medium" },
+    // TOP40 weekly source removed intentionally
     { id: "wikipedia/billboard_yearend_hot100_1970_2010", method: "derived_top10_from_wikipedia_yearend", confidence: "medium" },
     { id: "wikipedia/billboard_yearend_singles_1950_1959", method: "derived_top10_from_wikipedia_yearend", confidence: "medium" },
     { id: "top100_billboard_yearend_1960s_v1", method: "derived_top10_from_yearend", confidence: "medium" },
@@ -1231,13 +1285,13 @@ function musicReply({ year, mode, knowledge }) {
 
   if (!y) {
     return {
-      reply: "Pick a year between 1950 and 2024 and I’ll pull the Top 10, #1, or a story moment — your call.",
+      reply: "Pick a year between 1950 and 2025 and I’ll pull the Top 10, #1, or a story moment — your call.",
       followUps: [
         { id: "y1981", type: "chip", label: "1981 Top 10", payload: { lane: "music", action: "year", year: 1981, mode: "top10" } },
         { id: "y1981no1", type: "chip", label: "#1 song (1981)", payload: { lane: "music", action: "year", year: 1981, mode: "number_one" } },
         { id: "y1988", type: "chip", label: "1988 Story moment", payload: { lane: "music", action: "year", year: 1988, mode: "story" } },
       ],
-      sessionPatch: { lane: "music", activeMusicMode: m || "top10" },
+      sessionPatch: { lane: "music", activeMusicMode: m && MUSIC_MODES.has(m) ? m : "top10" },
       meta: { used: "music_no_year" },
     };
   }
@@ -1249,7 +1303,7 @@ function musicReply({ year, mode, knowledge }) {
   const wantsNumberOne = m === "number_one";
   const wantsMicro = m === "micro";
   const wantsStory = m === "story";
-  const wantsCharts = m === "charts" || m === "year_end" || m === "top40";
+  const wantsCharts = m === "charts" || m === "year_end";
 
   let reply = "";
   let diag = null;
@@ -1336,16 +1390,17 @@ function musicReply({ year, mode, knowledge }) {
 
   const followUps = buildPowerChainFollowUps(y);
 
+  // IMPORTANT: keep sessionPatch minimal; musicKnowledge/musicLane own chart selection.
   return {
     reply,
     followUps,
-    sessionPatch: { lane: "music", lastMusicYear: y, activeMusicMode: m || "top10" },
+    sessionPatch: { lane: "music", lastMusicYear: y, activeMusicMode: m && MUSIC_MODES.has(m) ? m : "top10" },
     meta: { used: "music_reply", mode: m || null, diag: diag || null },
   };
 }
 
 /* ======================================================
-   System responder (NEW)
+   System responder
 ====================================================== */
 
 function buildSystemHelpFollowUps() {
@@ -1372,8 +1427,14 @@ function handleSystem({ action, session }) {
       session.lane = "general";
       session.lastMusicYear = null;
       session.activeMusicMode = null;
+      session.activeMusicChart = null;
+      session.lastMusicChart = null;
+      session.__musicLastSig = null;
       session.lastIntentSig = null;
       session.__packIndexSeen = false;
+      session.depthLevel = 0;
+      session.recentIntent = null;
+      session.recentTopic = null;
     } catch (_) {}
 
     const followUps = sanitizeFollowUps([
@@ -1385,7 +1446,18 @@ function handleSystem({ action, session }) {
     return {
       reply: "Reset done. Where do you want to go next?",
       followUps,
-      sessionPatch: { lane: "general", allowPackets: true, lastMusicYear: null, activeMusicMode: null },
+      sessionPatch: {
+        lane: "general",
+        allowPackets: true,
+        lastMusicYear: null,
+        activeMusicMode: null,
+        activeMusicChart: null,
+        lastMusicChart: null,
+        __musicLastSig: null,
+        depthLevel: 0,
+        recentIntent: null,
+        recentTopic: null,
+      },
       meta: { used: "system_reset" },
       directives: [{ type: "reset" }],
     };
@@ -1435,7 +1507,7 @@ function ensureAdvance({ reply, followUps }) {
 }
 
 /* ======================================================
-   Intent classifier integration (optional)
+   Intent classifier integration (optional) — TOP40 PURGED
 ====================================================== */
 
 function getIntentSignals(text, payload) {
@@ -1455,12 +1527,12 @@ function mapMusicActionToMode(musicAction) {
   const a = normalizeMusicAction(musicAction);
   if (!a) return "";
   if (a === "top10") return "top10";
-  if (a === "top40") return "top40";
   if (a === "year_end") return "year_end";
   if (a === "number_one") return "number_one";
   if (a === "charts") return "charts";
   if (a === "story") return "story";
   if (a === "micro") return "micro";
+  // NOTE: top40 intentionally not mapped
   return a;
 }
 
@@ -1583,7 +1655,7 @@ async function handleChat(input = {}) {
     });
   }
 
-  // NEW: determine routing types (system first, then music, then packets)
+  // determine routing types (system first, then music, then packets)
   const isSystem =
     inbound.lane === "system" ||
     normLower(inbound.action) === "reset" ||
@@ -1715,6 +1787,12 @@ async function handleChat(input = {}) {
         allowPackets: session.allowPackets === true,
         lastMusicYear: session.lastMusicYear || inbound.year || null,
         activeMusicMode: session.activeMusicMode || inbound.mode || null,
+        activeMusicChart: session.activeMusicChart || null,
+        lastMusicChart: session.lastMusicChart || null,
+        __musicLastSig: session.__musicLastSig || null,
+        depthLevel: session.depthLevel != null ? session.depthLevel : null,
+        recentIntent: session.recentIntent || null,
+        recentTopic: session.recentTopic || null,
         __nyxPackets: session.__nyxPackets || null,
         __packIndexSeen: !!session.__packIndexSeen,
         cog: session.cog || null,
