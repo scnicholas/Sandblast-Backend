@@ -17,11 +17,14 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7aV (TOP10 YEAR-FILTER HARD FIX + 1950–2025 clamp + Top40 purge preserved:
- *         + FIX: year-indexed arrays no longer fall back to “entire array” (prevents 1960s poisoning 1987)
- *         + keeps v0.7aU+ behavior: Top40 purge, decade-guard, do-not-persist sticky year, pinned-first resolvers
- *         + adds: safe scan fallback for yearend/hot100 packs (still bounded)
- *         )
+ * v0.7aW (YEAR ROWS SHAPE FIX++++:
+ *         + FIX: wikipedia/year-end packs commonly ship as {rows:[...]} — now supported everywhere
+ *         + FIX: pinned top10 pack can be {rows:[...]} (or nested) — now supported
+ *         + HARDEN: unwrapPackValue now also unwraps {rows:[...]} wrappers and common nesting
+ *         + HARDEN: resolveTop10LooseButSafe can extract year rows from rows arrays
+ *         + Keeps: Top40 purge, 2025 range, decade-guard, do-not-persist sticky year, pinned-first resolvers,
+ *                 action/mode normalization, system lane responder, always-advance, payload-root fallback,
+ *                 chip-authoritative mode, sticky-year source, session-scoped burst dedupe
  */
 
 const crypto = require("crypto");
@@ -51,7 +54,7 @@ try {
 ====================================================== */
 
 const CE_VERSION =
-  "chatEngine v0.7aV (Top10 year-filter hard fix + Top40 purge + 2025 range + decade-guard year extract + do-not-persist sticky year + pinned-first resolvers + action/mode normalization + system lane responder + system chip misroute fix + always-advance + payload-root fallback + chip-authoritative mode + sticky-year source + session-scoped burst dedupe)";
+  "chatEngine v0.7aW (rows-shape fix for wikipedia/year-end + pinned-top10 rows support + Top40 purge + 2025 range + decade-guard + do-not-persist sticky year + pinned-first resolvers + action/mode normalization + system lane responder + always-advance + payload-root fallback + chip-authoritative mode + sticky-year source + session-scoped burst dedupe)";
 
 const MAX_REPLY_LEN = 2400;
 const MAX_FOLLOWUPS = 10;
@@ -143,6 +146,13 @@ function safeJsonStringify(x) {
   }
 }
 
+function isString(x) {
+  return typeof x === "string";
+}
+function isArray(x) {
+  return Array.isArray(x);
+}
+
 /* ======================================================
    Music mode inference (text) — TOP40 PURGED
 ====================================================== */
@@ -160,7 +170,7 @@ function inferMusicModeFromText(low) {
 }
 
 /* ======================================================
-   Option A: Canonical action/mode normalization — TOP40 PURGED
+   Canonical action/mode normalization — TOP40 PURGED
 ====================================================== */
 
 function normalizeMusicAction(action) {
@@ -298,8 +308,7 @@ function mergeSession(session, patch) {
 }
 
 /* ======================================================
-   FollowUps: MUST be widget-compatible
-   - Include structured fields AND payload.text fallback
+   FollowUps: widget-compatible (payload.text fallback)
 ====================================================== */
 
 function ensureChipPayload(payload) {
@@ -648,15 +657,8 @@ function needsYearForMode(mode) {
 }
 
 /* ======================================================
-   Knowledge helpers (FLEX pack shapes)
+   Knowledge helpers (FLEX pack shapes) — UPDATED
 ====================================================== */
-
-function isString(x) {
-  return typeof x === "string";
-}
-function isArray(x) {
-  return Array.isArray(x);
-}
 
 function normalizeSongLine(item) {
   if (!item) return null;
@@ -689,13 +691,16 @@ const PIN_MICRO_KEYS = ["music/micro_moments_by_year", "music/micro_moments", "m
 
 const KNOWLEDGE_SCAN_CAP = 1200;
 
-// NEW: unwrap common index-side wrapper shapes
+// NEW: unwrap common wrapper shapes (now also treats single-key wrappers with rows)
 function unwrapPackValue(v, depth = 0) {
-  if (depth > 3) return v;
-  if (!v) return v;
+  if (depth > 4) return v;
+  if (v == null) return v;
 
   if (isArray(v)) return v;
   if (!isPlainObject(v)) return v;
+
+  // If this is a "wrapper" object with {rows:[...]} and maybe meta, treat rows as the data.
+  if (isArray(v.rows) && v.rows.length) return v;
 
   const cands = ["data", "json", "value", "content", "pack", "parsed", "payload"];
   for (const k of cands) {
@@ -735,6 +740,24 @@ function getPinnedPacks(knowledgeJson) {
   return { top10, number1, story, micro };
 }
 
+// NEW: extract year rows from a rows-array payload like {rows:[{year,rank,title,artist}...]}
+function extractRowsForYearFromRowsWrapper(wrapper, year) {
+  const v = unwrapPackValue(wrapper);
+  if (!isPlainObject(v)) return null;
+  const rows = unwrapPackValue(v.rows);
+  if (!isArray(rows) || !rows.length) return null;
+
+  const y = Number(year);
+  const picked = [];
+  for (const r of rows) {
+    if (!isPlainObject(r)) continue;
+    const ry = clampYear(r.year ?? r.Year ?? r.y ?? r.yr ?? r.Y);
+    if (ry !== y) continue;
+    picked.push(r);
+  }
+  return picked.length ? picked : null;
+}
+
 function findYearArrayInObject(obj, year) {
   const o = unwrapPackValue(obj);
   if (!isPlainObject(o)) return null;
@@ -743,12 +766,20 @@ function findYearArrayInObject(obj, year) {
   if (o[y] && isArray(o[y])) return o[y];
   if (o[year] && isArray(o[year])) return o[year];
 
-  const candidates = [o.data, o.years, o.byYear, o.year];
+  // Support rows wrapper
+  const asRows = extractRowsForYearFromRowsWrapper(o, year);
+  if (asRows) return asRows;
+
+  const candidates = [o.data, o.years, o.byYear, o.year, o.by_year];
   for (const c of candidates) {
     const cc = unwrapPackValue(c);
     if (!isPlainObject(cc)) continue;
     if (cc[y] && isArray(cc[y])) return cc[y];
     if (cc[year] && isArray(cc[year])) return cc[year];
+
+    // Some nests are {years:{...}, rows:[...]}—try rows too
+    const rows2 = extractRowsForYearFromRowsWrapper(cc, year);
+    if (rows2) return rows2;
   }
 
   return null;
@@ -764,7 +795,7 @@ function findYearTextInObject(obj, year) {
   if (isPlainObject(v1) && isString(v1.moment || v1.story || v1.text))
     return normText(v1.moment || v1.story || v1.text);
 
-  const candidates = [o.data, o.years, o.byYear, o.year];
+  const candidates = [o.data, o.years, o.byYear, o.year, o.by_year];
   for (const c of candidates) {
     const cc = unwrapPackValue(c);
     if (!isPlainObject(cc)) continue;
@@ -863,7 +894,7 @@ function keyLooksLikeNumberOne(k) {
 }
 
 /**
- * Option A: Pinned-only resolvers, with dev-safety fallback if pinned missing.
+ * Pinned-only resolvers, with dev-safety fallback if pinned missing.
  */
 
 function findTop10PinnedFirst(pinned, knowledgeJson, year) {
@@ -872,8 +903,13 @@ function findTop10PinnedFirst(pinned, knowledgeJson, year) {
 
   if (pinned && pinned.top10) {
     const v = pinned.top10;
+
     const direct = findYearArrayInObject(v, y);
     if (direct && direct.length) return { sourceKey: PINNED_TOP10_KEY, list: direct, shape: shapeHint(v), pinned: true };
+
+    // If pinned is {rows:[{year,rank,title,artist}...]} support it directly
+    const rowsPicked = extractRowsForYearFromRowsWrapper(v, y);
+    if (rowsPicked && rowsPicked.length) return { sourceKey: PINNED_TOP10_KEY, list: rowsPicked, shape: shapeHint(v), pinned: true };
 
     const asArr = findYearInArrayPack(v, y);
     if (asArr && asArr.length) return { sourceKey: PINNED_TOP10_KEY, list: asArr, shape: shapeHint(v), pinned: true };
@@ -889,6 +925,9 @@ function findTop10PinnedFirst(pinned, knowledgeJson, year) {
     const direct = findYearArrayInObject(v, y);
     if (direct && direct.length) return { sourceKey: k, list: direct, shape: shapeHint(v), pinned: false };
 
+    const rowsPicked = extractRowsForYearFromRowsWrapper(v, y);
+    if (rowsPicked && rowsPicked.length) return { sourceKey: k, list: rowsPicked, shape: shapeHint(v), pinned: false };
+
     const asArr = findYearInArrayPack(v, y);
     if (asArr && asArr.length) return { sourceKey: k, list: asArr, shape: shapeHint(v), pinned: false };
   }
@@ -900,6 +939,9 @@ function findTop10PinnedFirst(pinned, knowledgeJson, year) {
 
     const direct = findYearArrayInObject(v, y);
     if (direct && direct.length) return { sourceKey: k, list: direct, shape: shapeHint(v), pinned: false };
+
+    const rowsPicked = extractRowsForYearFromRowsWrapper(v, y);
+    if (rowsPicked && rowsPicked.length) return { sourceKey: k, list: rowsPicked, shape: shapeHint(v), pinned: false };
 
     const asArr = findYearInArrayPack(v, y);
     if (asArr && asArr.length) return { sourceKey: k, list: asArr, shape: shapeHint(v), pinned: false };
@@ -1066,6 +1108,8 @@ function findNumberOnePinnedFirst(pinned, knowledgeJson, year) {
 
 /* ======================================================
    TOP10 LOOSE ACCEPTANCE (SAFE DERIVATION + PROVENANCE)
+   (TOP40 WEEKLY CANDIDATE REMOVED to avoid "Top40" reversion)
+   UPDATED: supports {rows:[...]} payloads
 ====================================================== */
 
 function _parseRank(v) {
@@ -1089,42 +1133,36 @@ function _splitTitleArtist(s) {
   return { title: t, artist: "", split: false };
 }
 
-// ✅ NEW: detect “year-indexed” rows
-function _rowHasYearLikeField(r) {
-  if (!isPlainObject(r)) return false;
-  const y = r.year ?? r.Year ?? r.y ?? r.yr ?? r.Y ?? r.dateYear ?? r.releaseYear;
-  const cy = clampYear(y);
-  return !!cy;
-}
-
 function _extractYearRowsFromPayload(payload, year) {
   const yStr = String(year);
   const p = unwrapPackValue(payload);
 
   if (isPlainObject(p)) {
+    // direct year maps
     const direct = p[yStr] || p[year];
     if (isArray(direct)) return direct;
 
-    const byYear = unwrapPackValue(p.byYear || p.years || p.data || null);
+    // common nests
+    const byYear = unwrapPackValue(p.byYear || p.by_year || p.years || p.data || null);
     if (isPlainObject(byYear)) {
       const v = byYear[yStr] || byYear[year];
       if (isArray(v)) return v;
     }
+
+    // NEW: rows wrapper
+    if (isArray(p.rows)) {
+      const picked = extractRowsForYearFromRowsWrapper(p, year);
+      if (picked) return picked;
+    }
   }
 
   if (isArray(p)) {
-    const hasYearish = p.some((r) => _rowHasYearLikeField(r));
     const rows = p.filter((r) => {
       if (!isPlainObject(r)) return false;
       const ry = clampYear(r.year ?? r.Year ?? r.y ?? r.yr ?? r.Y);
       return ry === year;
     });
-
-    // ✅ If this looks like a multi-year table, DO NOT fall back to the whole array.
     if (rows.length) return rows;
-    if (hasYearish) return null;
-
-    // Only return the full list if it's truly “just a list” (no year fields)
     return p;
   }
 
@@ -1202,19 +1240,18 @@ function resolveTop10LooseButSafe(knowledgeJson, year) {
     { id: "top10_by_year_source_v1", method: "derived_top10_from_source_table", confidence: "low" },
   ];
 
-  // pass 1: explicit candidates
   for (const c of candidates) {
     if (!Object.prototype.hasOwnProperty.call(knowledgeJson, c.id)) continue;
 
     const raw = knowledgeJson[c.id];
     const pack = unwrapPackValue(raw);
 
+    // NOTE: some packs are the wrapper itself; others wrap data/payload/etc
     const payload = isPlainObject(pack)
       ? unwrapPackValue(pack.data ?? pack.payload ?? pack.value ?? pack.json ?? pack.content ?? pack.parsed ?? pack)
       : pack;
 
     const rows = _extractYearRowsFromPayload(payload, y);
-    if (!rows) continue;
 
     let rows2 = rows;
     if (isArray(rows) && rows.length && isPlainObject(rows[0])) {
@@ -1230,34 +1267,6 @@ function resolveTop10LooseButSafe(knowledgeJson, year) {
         sourceId: c.id,
         method: c.method,
         confidence: c.confidence,
-        shape: shapeHint(payload),
-      };
-    }
-  }
-
-  // pass 2: bounded scan for “yearend/hot100” style packs
-  const keys = Object.keys(knowledgeJson).slice(0, KNOWLEDGE_SCAN_CAP);
-  for (const k of keys) {
-    const kl = String(k).toLowerCase();
-    if (!(kl.includes("yearend") || kl.includes("year-end") || kl.includes("hot100") || kl.includes("hot_100"))) continue;
-
-    const raw = knowledgeJson[k];
-    const pack = unwrapPackValue(raw);
-    const payload = isPlainObject(pack)
-      ? unwrapPackValue(pack.data ?? pack.payload ?? pack.value ?? pack.json ?? pack.content ?? pack.parsed ?? pack)
-      : pack;
-
-    const rows = _extractYearRowsFromPayload(payload, y);
-    if (!rows) continue;
-
-    const top10 = _normalizeTop10Rows(rows);
-    if (top10) {
-      return {
-        year: y,
-        top10,
-        sourceId: k,
-        method: "derived_top10_from_scanned_yearend_pack",
-        confidence: "low",
         shape: shapeHint(payload),
       };
     }
@@ -1417,7 +1426,9 @@ function musicReply({ year, mode, knowledge, yearSource }) {
 
   const followUps = buildPowerChainFollowUps(y);
 
+  // IMPORTANT: do NOT persist sticky-borrowed years as canonical lastMusicYear.
   const persistYear = yearSource === "payload" || yearSource === "text" || yearSource === "classifier";
+
   const sp = { lane: "music", activeMusicMode: m && MUSIC_MODES.has(m) ? m : "top10" };
   if (persistYear) sp.lastMusicYear = y;
 
