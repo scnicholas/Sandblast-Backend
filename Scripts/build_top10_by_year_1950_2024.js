@@ -1,13 +1,14 @@
 "use strict";
 
 /**
- * Scripts/build_top10_by_year_1950_2024.js  (v2)
+ * Scripts/build_top10_by_year_1950_2024.js  (v2.1)
  *
  * Fixes:
  *  ✅ Deep recursive scan to find year tables inside ANY JSON shape (covers your 1970–2010 pack)
  *  ✅ Header tolerance: "№", "Artist(s)", etc.
  *  ✅ Rankless fallback: if rank parsing fails but we have 10+ rows, assign 1–10 in order
  *  ✅ Guarantees every year 1950–2024 exists as a key in output
+ *  ✅ v2.1: Efficient year-grouping for rows:[{year,...}] (prevents O(n^2) slowdowns on big packs)
  *
  * Usage:
  *   node Scripts/build_top10_by_year_1950_2024.js
@@ -43,13 +44,17 @@ function normText(s) {
 function normHeader(h) {
   const s = String(h || "").trim().toLowerCase();
   if (!s) return "";
+
   // map unicode numero sign to "no"
   const replaced = s.replace(/№/g, "no");
+
+  // normalize "Artist(s)" etc
   const cleaned = replaced
     .replace(/\(s\)/g, "s")
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim()
     .replace(/\s+/g, " ");
+
   return cleaned;
 }
 
@@ -121,21 +126,46 @@ function consumeObjectRows(rows, year, src, yearMap) {
     if (!isPlainObject(r)) continue;
 
     const title =
-      r.title ?? r.Title ?? r.song ?? r.Song ?? r.track ?? r.name ?? r.single ?? r.entry ?? r.text ?? null;
+      r.title ??
+      r.Title ??
+      r.song ??
+      r.Song ??
+      r.track ??
+      r.name ??
+      r.single ??
+      r.entry ??
+      r.text ??
+      null;
+
     const artist =
-      r.artist ?? r.Artist ?? r["artist(s)"] ?? r["Artist(s)"] ?? r.performer ?? r.by ?? null;
+      r.artist ??
+      r.Artist ??
+      r["artist(s)"] ??
+      r["Artist(s)"] ??
+      r.performer ??
+      r.by ??
+      null;
+
     const rank =
-      r.rank ?? r.Rank ?? r.pos ?? r.Pos ?? r.position ?? r["#"] ?? r.no ?? r["№"] ?? null;
+      r.rank ??
+      r.Rank ??
+      r.pos ??
+      r.Pos ??
+      r.position ??
+      r["#"] ??
+      r.no ??
+      r["№"] ??
+      null;
 
     const t = normText(title);
     const a = normText(artist);
 
     if (!t) continue;
 
-    candidates.push({ rank: parseRank(rank), title: t, artist: a, rawRank: rank });
+    candidates.push({ rank: parseRank(rank), title: t, artist: a });
   }
 
-  // Place ranked ones
+  // Place ranked ones first
   const used = new Set();
   for (const c of candidates) {
     if (!c.rank) continue;
@@ -145,20 +175,21 @@ function consumeObjectRows(rows, year, src, yearMap) {
   }
 
   // Rankless fallback: fill remaining slots in order
+  const y = clampYear(year);
+  if (!y) return;
+
   const need = [];
-  for (let i = 1; i <= 10; i++) {
-    const y = clampYear(year);
-    if (!y) break;
-    if (!yearMap[y] || !yearMap[y][i]) need.push(i);
+  for (let pos = 1; pos <= 10; pos++) {
+    if (!yearMap[y] || !yearMap[y][pos]) need.push(pos);
   }
 
-  if (need.length) {
-    const leftovers = candidates.filter((c) => !used.has(c.title + "::" + c.artist));
-    for (let i = 0; i < need.length && i < leftovers.length; i++) {
-      const slot = need[i];
-      const c = leftovers[i];
-      upsert(yearMap, year, slot, c.title, c.artist, src + "::rankless");
-    }
+  if (!need.length) return;
+
+  const leftovers = candidates.filter((c) => !used.has(c.title + "::" + c.artist));
+  for (let i = 0; i < need.length && i < leftovers.length; i++) {
+    const slot = need[i];
+    const c = leftovers[i];
+    upsert(yearMap, year, slot, c.title, c.artist, src + "::rankless");
   }
 }
 
@@ -186,7 +217,6 @@ function consumeHeaderTable(headers, rows, year, src, yearMap) {
     if (!title) continue;
 
     const rank = idxRank >= 0 ? parseRank(r[idxRank]) : null;
-
     candidates.push({ rank, title, artist });
   }
 
@@ -200,20 +230,21 @@ function consumeHeaderTable(headers, rows, year, src, yearMap) {
   }
 
   // Rankless fallback to fill remaining slots
+  const y = clampYear(year);
+  if (!y) return;
+
   const need = [];
-  for (let i = 1; i <= 10; i++) {
-    const y = clampYear(year);
-    if (!y) break;
-    if (!yearMap[y] || !yearMap[y][i]) need.push(i);
+  for (let pos = 1; pos <= 10; pos++) {
+    if (!yearMap[y] || !yearMap[y][pos]) need.push(pos);
   }
 
-  if (need.length) {
-    const leftovers = candidates.filter((c) => !used.has(c.title + "::" + c.artist));
-    for (let i = 0; i < need.length && i < leftovers.length; i++) {
-      const slot = need[i];
-      const c = leftovers[i];
-      upsert(yearMap, year, slot, c.title, c.artist, src + "::rankless");
-    }
+  if (!need.length) return;
+
+  const leftovers = candidates.filter((c) => !used.has(c.title + "::" + c.artist));
+  for (let i = 0; i < need.length && i < leftovers.length; i++) {
+    const slot = need[i];
+    const c = leftovers[i];
+    upsert(yearMap, year, slot, c.title, c.artist, src + "::rankless");
   }
 }
 
@@ -244,11 +275,18 @@ function deepScan(node, ctx, yearMap, seen) {
 
   // Case A: { rows:[{year,...}] } (multi-year object rows)
   if (Array.isArray(node.rows) && node.rows.length && isPlainObject(node.rows[0])) {
+    // v2.1: group rows by year once (fast)
+    const byYear = new Map();
     for (const r of node.rows) {
       if (!isPlainObject(r)) continue;
       const y = clampYear(r.year ?? r.Year ?? r.y ?? r.yr ?? r.Y);
       if (!y) continue;
-      consumeObjectRows(node.rows.filter(x => isPlainObject(x) && clampYear(x.year ?? x.Year ?? x.y ?? x.yr ?? x.Y) === y), y, ctx.src, yearMap);
+      if (y < YEAR_START || y > YEAR_END) continue;
+      if (!byYear.has(y)) byYear.set(y, []);
+      byYear.get(y).push(r);
+    }
+    for (const [y, rowsForYear] of byYear.entries()) {
+      consumeObjectRows(rowsForYear, y, ctx.src, yearMap);
     }
   }
 
@@ -268,8 +306,13 @@ function deepScan(node, ctx, yearMap, seen) {
     if (y && y >= YEAR_START && y <= YEAR_END) {
       const child = node[k];
       if (isPlainObject(child)) {
-        const headers = Array.isArray(child.headers) ? child.headers : Array.isArray(child.header) ? child.header : null;
+        const headers = Array.isArray(child.headers)
+          ? child.headers
+          : Array.isArray(child.header)
+          ? child.header
+          : null;
         const rows = Array.isArray(child.rows) ? child.rows : null;
+
         if (headers && rows) {
           if (rows.length && Array.isArray(rows[0])) {
             consumeHeaderTable(headers, rows, y, ctx.src + "::" + y, yearMap);
@@ -301,6 +344,7 @@ function buildCanonical(yearMap) {
       }
     }
 
+    // Guaranteed key exists even if empty
     years[String(y)] = { year: y, chart: CHART_NAME, items };
   }
 
@@ -333,19 +377,19 @@ function summarize(out) {
 }
 
 function listCandidateInputs() {
-  // We scan Data/wikipedia/*.json plus any obvious top10 sources you already have.
+  // Scan Data/wikipedia/*.json plus a few known helper sources in Data root.
   const inputs = [];
 
   const wikiDir = path.join(DATA_DIR, "wikipedia");
   if (fs.existsSync(wikiDir)) {
     for (const f of fs.readdirSync(wikiDir)) {
-      if (f.toLowerCase().endsWith(".json") && f.toLowerCase().includes("billboard")) {
+      const lf = f.toLowerCase();
+      if (lf.endsWith(".json") && lf.includes("billboard")) {
         inputs.push(path.join(wikiDir, f));
       }
     }
   }
 
-  // Also scan Data root for known helper sources (optional but harmless).
   const rootCandidates = [
     "top100_billboard_yearend_1960s_v1.json",
     "top10_by_year_source_v1.json",
@@ -378,7 +422,9 @@ function main() {
       continue;
     }
 
-    const ctx = { src: (fp.includes(path.sep + "wikipedia" + path.sep) ? "wikipedia/" : "Data/") + base };
+    const ctx = {
+      src: (fp.includes(path.sep + "wikipedia" + path.sep) ? "wikipedia/" : "Data/") + base,
+    };
     deepScan(json, ctx, yearMap, new Set());
   }
 
@@ -391,10 +437,14 @@ function main() {
   console.log(`Years complete (10 items): ${stats.okYears}/${YEAR_END - YEAR_START + 1}`);
 
   if (stats.partialYears.length) {
-    console.log(`Partial years (${stats.partialYears.length}):`, stats.partialYears.slice(0, 30), stats.partialYears.length > 30 ? "..." : "");
+    console.log(
+      `Partial years (${stats.partialYears.length}):`,
+      stats.partialYears.slice(0, 30),
+      stats.partialYears.length > 30 ? "..." : ""
+    );
   }
   if (stats.missingYears.length) {
-    console.log(`Missing years (${stats.missingYears.length}):`, stats.missingYears.join(", "));
+    console.log(`Missing years (${stats.missingYears.length}): ${stats.missingYears.join(", ")}`);
   }
 }
 
