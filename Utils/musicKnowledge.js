@@ -1,12 +1,18 @@
 "use strict";
 
 /**
- * Utils/musicKnowledge.js — v2.77 (ADD 2025 + RANGE UPDATE)
+ * Utils/musicKnowledge.js — v2.78 (TOP40 ALIAS FIX + CANONICAL CHART COERCE)
  *
- * v2.77 changes:
- *  ✅ PUBLIC_MAX_YEAR now 2025 (ONLY range expansion requested)
- *  ✅ User-facing prompts updated to 1950–2025
- *  ✅ Wikipedia year-end hot100 merge list includes optional 2025 file
+ * v2.78 changes:
+ *  ✅ Fixes legacy "Top40"/"Top 40" alias leak:
+ *     - normalizeChart() now maps Top40/Top 40 to DEFAULT_CHART ("Billboard Hot 100")
+ *  ✅ canonicalPatch() now normalizes session.activeMusicChart/lastMusicChart
+ *     so stale values cannot persist across turns
+ *
+ * Keeps v2.77:
+ *  ✅ PUBLIC_MAX_YEAR = 2025
+ *  ✅ Prompts updated to 1950–2025
+ *  ✅ Optional wikipedia 2025 file in merge list
  *
  * NOTE:
  *  - Your Top 10s for 2011–2025 should come from TOP10_STORE_FILE (top10_by_year_v1.json).
@@ -23,7 +29,7 @@ const crypto = require("crypto");
 // Version
 // =========================
 const MK_VERSION =
-  "musicKnowledge v2.77 (adds 2025 to range; prompts updated; optional wiki 2025 merge)";
+  "musicKnowledge v2.78 (top40 alias->hot100 + canonical chart coerce; range 1950–2025)";
 
 // =========================
 // Public Range / Charts
@@ -127,6 +133,12 @@ function normalizeChart(raw) {
 
   const c = s.toLowerCase();
 
+  // ✅ Legacy alias normalization (prevents "Top40" sticking in session)
+  // Treat "Top40"/"Top 40" as Billboard Hot 100.
+  if (c === "top40" || c === "top 40" || (c.includes("top") && c.includes("40"))) {
+    return DEFAULT_CHART;
+  }
+
   if (c === "rpm" || c === "canada rpm" || (c.includes("canada") && c.includes("rpm"))) {
     return "Canada RPM";
   }
@@ -228,17 +240,25 @@ function renumberSequentialByRank(rows, limit) {
 }
 
 function canonicalPatch(session, extra = {}) {
-  const active = session && session.activeMusicChart ? session.activeMusicChart : DEFAULT_CHART;
+  // ✅ Coerce any legacy/stale chart tokens in session immediately.
+  const sessActive = session && session.activeMusicChart ? normalizeChart(session.activeMusicChart) : null;
+  const sessLast = session && session.lastMusicChart ? normalizeChart(session.lastMusicChart) : null;
+
+  const active = sessActive || sessLast || DEFAULT_CHART;
 
   const patch = {
     activeMusicChart: active,
     lastMusicYear: session && session.lastMusicYear != null ? session.lastMusicYear : null,
     lastMusicChart:
       session && (session.lastMusicChart || session.activeMusicChart)
-        ? session.lastMusicChart || session.activeMusicChart
+        ? normalizeChart(session.lastMusicChart || session.activeMusicChart)
         : active,
     ...extra,
   };
+
+  // ✅ If extra provides charts, normalize those too (prevents re-introducing Top40 via callers).
+  if (patch.activeMusicChart) patch.activeMusicChart = normalizeChart(patch.activeMusicChart);
+  if (patch.lastMusicChart) patch.lastMusicChart = normalizeChart(patch.lastMusicChart);
 
   if (!patch.lastMusicYear) delete patch.lastMusicYear;
   if (!patch.lastMusicChart) delete patch.lastMusicChart;
@@ -840,8 +860,8 @@ function handleChat({ text, session }) {
   const msg = cleanText(text);
   session = session || {};
 
-  // DO NOT mutate session.activeMusicChart; use local default
-  const activeChart = session.activeMusicChart || DEFAULT_CHART;
+  // ✅ Always normalize incoming session chart so stale "Top40" cannot persist.
+  const activeChart = normalizeChart(session.activeMusicChart || DEFAULT_CHART);
 
   loadTop10StoreOnce({ force: false });
   loadWikiSingles50sOnce({ force: false });
@@ -865,7 +885,7 @@ function handleChat({ text, session }) {
 
     const out = formatTopListWithFallbacks(y, chart, 10);
     if (out && out.formatted) {
-      const used = out.chartUsed || chart;
+      const used = normalizeChart(out.chartUsed || chart);
 
       const sig = sigFor({ kind: "top10", year: y, chart: used });
       if (session.__musicLastSig === sig) {
@@ -940,7 +960,7 @@ function handleChat({ text, session }) {
     }
 
     const resolved = resolveChartForYear(y, session.lastMusicChart || activeChart);
-    const chartUsed = resolved.chart;
+    const chartUsed = normalizeChart(resolved.chart);
 
     const line = getNumberOneLine(y, chartUsed);
     if (!line) {
@@ -983,7 +1003,7 @@ function handleChat({ text, session }) {
     }
 
     const choice = resolveChartForYear(y, activeChart);
-    const chart = choice.chart;
+    const chart = normalizeChart(choice.chart);
 
     const moment = getMomentOrFallback({ year: y, chart, kind: cmd.kind === "micro" ? "micro" : "story" });
     if (!moment) {
@@ -1018,11 +1038,11 @@ function handleChat({ text, session }) {
   if (yearOnly && isYearInRange(yearOnly)) {
     const y = yearOnly;
     const choice = resolveChartForYear(y, activeChart);
-    const chart = choice.chart;
+    const chart = normalizeChart(choice.chart);
 
     const out = formatTopListWithFallbacks(y, chart, 10);
     if (out && out.formatted) {
-      const used = out.chartUsed || chart;
+      const used = normalizeChart(out.chartUsed || chart);
 
       const sig = sigFor({ kind: "top10", year: y, chart: used });
       if (session.__musicLastSig === sig) {
@@ -1053,7 +1073,12 @@ function handleChat({ text, session }) {
       return outShape({
         reply: micro || story,
         followUps: [`top 10 ${y}`, "#1", "Another year"],
-        sessionPatch: canonicalPatch(session, { activeMusicChart: chart, lastMusicYear: y, lastMusicChart: chart, __musicLastSig: sig }),
+        sessionPatch: canonicalPatch(session, {
+          activeMusicChart: chart,
+          lastMusicYear: y,
+          lastMusicChart: chart,
+          __musicLastSig: sig,
+        }),
       });
     }
 
