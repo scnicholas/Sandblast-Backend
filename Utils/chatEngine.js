@@ -17,10 +17,10 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7aX (PINNED TOP10 SHAPE FIX++++:
- *         + FIX: top10_by_year_v1.json commonly stores years as {years:{YYYY:{items:[...]}}}
- *                — now resolves directly (no more "derived_top10_from_yearend" fallback)
- *         + Keeps: v0.7aW rows-shape fix for wikipedia/year-end + pinned rows support,
+ * v0.7aY (PINNED TOP10 OUTPUT FIX++++:
+ *         + FIX: normalizeSongLine now honors pos/position/# as rank (Top10 items often store {pos,title,artist})
+ *         + Keeps: v0.7aX pinned top10 years{YYYY:{items}} support,
+ *                 rows-shape fix for wikipedia/year-end + pinned rows support,
  *                 Top40 purge, 2025 range, decade-guard, do-not-persist sticky year,
  *                 pinned-first resolvers, action/mode normalization, system lane responder,
  *                 always-advance, payload-root fallback, chip-authoritative mode,
@@ -54,7 +54,7 @@ try {
 ====================================================== */
 
 const CE_VERSION =
-  "chatEngine v0.7aX (pinned top10 years{YYYY:{items}} support + rows-shape fix + Top40 purge + 2025 range + decade-guard + do-not-persist sticky year + pinned-first resolvers + action/mode normalization + system lane responder + always-advance + payload-root fallback + chip-authoritative mode + sticky-year source + session-scoped burst dedupe)";
+  "chatEngine v0.7aY (pinned top10 pos->rank fix + pinned top10 years{YYYY:{items}} support + rows-shape fix + Top40 purge + 2025 range + decade-guard + do-not-persist sticky year + pinned-first resolvers + action/mode normalization + system lane responder + always-advance + payload-root fallback + chip-authoritative mode + sticky-year source + session-scoped burst dedupe)";
 
 const MAX_REPLY_LEN = 2400;
 const MAX_FOLLOWUPS = 10;
@@ -664,11 +664,24 @@ function normalizeSongLine(item) {
   if (!item) return null;
   if (isString(item)) return item.trim();
   if (isPlainObject(item)) {
-    const title = normText(item.title || item.song || item.name);
-    const artist = normText(item.artist || item.by);
-    const rank = item.rank != null ? String(item.rank).trim() : "";
+    // v0.7aY: honor pos/position/# as rank too (Top10 items are often {pos,title,artist})
+    const rankRaw =
+      item.rank ??
+      item.Rank ??
+      item.pos ??
+      item.position ??
+      item["#"] ??
+      item.no ??
+      item.number ??
+      null;
+
+    const rank = rankRaw != null ? String(rankRaw).trim() : "";
+
+    const title = normText(item.title || item.song || item.name || item.track);
+    const artist = normText(item.artist || item.by || item.performer);
+
     const bits = [];
-    if (rank) bits.push(rank + ".");
+    if (rank && /^\d{1,3}$/.test(rank)) bits.push(rank + ".");
     if (title) bits.push(title);
     if (artist) bits.push("— " + artist);
     const out = bits.join(" ").trim();
@@ -777,7 +790,7 @@ function findYearArrayInObject(obj, year) {
   if (o[y] && isArray(o[y])) return o[y];
   if (o[year] && isArray(o[year])) return o[year];
 
-  // NEW: direct year object with items/list/etc
+  // Direct year object with items/list/etc
   if (o[y] && isPlainObject(o[y])) {
     const got = _extractListFromYearObject(o[y]);
     if (got) return got;
@@ -799,7 +812,7 @@ function findYearArrayInObject(obj, year) {
     if (cc[y] && isArray(cc[y])) return cc[y];
     if (cc[year] && isArray(cc[year])) return cc[year];
 
-    // NEW: nested year object with items
+    // Nested year object with items
     if (cc[y] && isPlainObject(cc[y])) {
       const got = _extractListFromYearObject(cc[y]);
       if (got) return got;
@@ -1173,7 +1186,7 @@ function _extractYearRowsFromPayload(payload, year) {
     const direct = p[yStr] || p[year];
     if (isArray(direct)) return direct;
 
-    // NEW: direct year object with items/list/etc
+    // direct year object with items/list/etc
     if (isPlainObject(direct)) {
       const got = _extractListFromYearObject(direct);
       if (got) return got;
@@ -1185,7 +1198,7 @@ function _extractYearRowsFromPayload(payload, year) {
       const v = byYear[yStr] || byYear[year];
       if (isArray(v)) return v;
 
-      // NEW: nested year object with items/list/etc
+      // nested year object with items/list/etc
       if (isPlainObject(v)) {
         const got = _extractListFromYearObject(v);
         if (got) return got;
