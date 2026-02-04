@@ -3,19 +3,17 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18bb (WIKI AUTHORITY FIX++++: load split wikipedia hot100 JSONs via dir + merge to canonical by_year)
+ * index.js v1.5.18bc (CRITICAL PATCH++++: session patch keys for music loop-dampener + TRUE reset clears session state safely)
  *
- * Why this patch exists:
- * ✅ Your /api/packs confirms pinned packs are loading.
- * ❗ Your wiki Billboard packs are split across multiple JSON files (1960–1969, 1970–2010, 2011–2024, etc).
- *    The prior manifest expected ONE combined file (1950_2024) → so it silently never becomes “primary”.
+ * Keeps:
+ * ✅ WIKI AUTHORITY FIX++++ (wikipedia split hot100 dir ingest + merged year map)
+ * ✅ CRITICAL FIXES++++ already present (sessionKey uses parsed body + manifest abs rebuilt after reload + strict CORS hard-lock 403 + JSON parser once + LOAD VISIBILITY++++ etc.)
  *
- * Fix (v1.5.18bb):
- * ✅ Manifest now ingests /Data/wikipedia as a DIR (json_dir_rel) under key music/wiki/yearend_hot100_raw/*
- * ✅ Post-transform merges all those split packs into ONE canonical derived map:
- *      outKey: music/wiki/yearend_hot100_by_year
- *
- * Keeps everything else exactly as-is (no widget changes).
+ * Adds (v1.5.18bc):
+ * ✅ CRITICAL: applySessionPatch allows music loop-dampener keys:
+ *    - __musicLastSig, activeMusicChart, lastMusicChart, musicMomentsLoaded, musicMomentsLoadedAt
+ * ✅ CRITICAL: reset command actually clears session state (not just silences output)
+ *    - safe wipe of rec.data (preserves sessionId/visitorId), clears rate windows, clears replay caches
  */
 
 // =========================
@@ -74,7 +72,7 @@ const nyxVoiceNaturalizeMod =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18bb (WIKI AUTHORITY FIX++++: wikipedia split hot100 dir ingest + merged year map + CRITICAL FIXES++++: sessionKey uses parsed body + manifest abs rebuilt after reload + strict CORS hard-lock 403 + JSON parser once + LOAD VISIBILITY++++: key collisions + skip reasons + fileMap + packsight proof + PINNED REL FIXES: story_moments_v2 + ordered rel preferences + DATA ROOT AUTODISCOVERY++++ + PINNED RESOLVE DIAGNOSTICS++++ + rebuild roots on reloadKnowledge + TOP10 NORMALIZATION + BLOCKER PRUNE++++ + SOURCE REL BLOCK REMOVAL + KNOWLEDGE INJECTION FIX + /api/chat GET GUIDANCE + MANIFEST RESOLVER UPGRADE++++: multi-candidate rels + bounded basename/dirname fallback search across ALL data roots + probes show bestFound + keeps PACK VISIBILITY HARDENING++++ + CHIP SIGNAL ROUNDTRIP intent/route/label + allow Data outside APP_ROOT + bigger budgets + PUBLIC /api/packsight + case-insensitive Data/Scripts resolution + pinned/manifest path fallback + packsight diagnostics + manifest target probes + pinned packs to real Data/* files + manifest tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
+  "index.js v1.5.18bc (CRITICAL PATCH++++: sessionPatch allows music loop-dampener keys + TRUE reset clears session state; keeps v1.5.18bb WIKI AUTHORITY FIX++++ + CRITICAL FIXES++++: sessionKey uses parsed body + manifest abs rebuilt after reload + strict CORS hard-lock 403 + JSON parser once + LOAD VISIBILITY++++: key collisions + skip reasons + fileMap + packsight proof + PINNED REL FIXES: story_moments_v2 + ordered rel preferences + DATA ROOT AUTODISCOVERY++++ + PINNED RESOLVE DIAGNOSTICS++++ + rebuild roots on reloadKnowledge + TOP10 NORMALIZATION + BLOCKER PRUNE++++ + SOURCE REL BLOCK REMOVAL + KNOWLEDGE INJECTION FIX + /api/chat GET GUIDANCE + MANIFEST RESOLVER UPGRADE++++: multi-candidate rels + bounded basename/dirname fallback search across ALL data roots + probes show bestFound + keeps PACK VISIBILITY HARDENING++++ + CHIP SIGNAL ROUNDTRIP intent/route/label + allow Data outside APP_ROOT + bigger budgets + PUBLIC /api/packsight + case-insensitive Data/Scripts resolution + pinned/manifest path fallback + packsight diagnostics + manifest target probes + pinned packs to real Data/* files + manifest tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + loop fuse + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
 
 // =========================
 // Utils
@@ -1196,21 +1194,6 @@ function manifestExtractRows(payload) {
   return [];
 }
 
-function manifestBuildYearMapFromRows(payload, label) {
-  const out = Object.create(null);
-  const rows = manifestExtractRows(payload);
-  for (const r of rows) {
-    const y = Number(r && r.year);
-    if (!Number.isFinite(y)) continue;
-    if (!out[y]) out[y] = [];
-    out[y].push(r);
-  }
-  for (const y of Object.keys(out)) {
-    out[y].sort((a, b) => Number(a.rank || 9999) - Number(b.rank || 9999));
-  }
-  return { ok: true, label: safeStr(label), byYear: out, builtAt: new Date().toISOString() };
-}
-
 function manifestBuildTop40WeeklyIndex(allJson, prefixKey) {
   const byYearWeek = Object.create(null);
   const root = allJson && typeof allJson === "object" ? allJson : {};
@@ -1957,6 +1940,8 @@ function getSession(req, bodyOverride) {
   }
   rec.lastSeenAt = now;
   if (!Array.isArray(rec.boot)) rec.boot = [];
+  if (!Array.isArray(rec.burst)) rec.burst = [];
+  if (!Array.isArray(rec.sustained)) rec.sustained = [];
   return { key, rec };
 }
 
@@ -2480,7 +2465,47 @@ function normalizeChipPayload(b) {
 }
 
 // =========================
-// Chat route (kept — no behavior change here)
+// CRITICAL: TRUE reset clears session state safely
+// =========================
+function clearSessionState(rec) {
+  if (!rec || !isPlainObject(rec.data)) return;
+
+  const sid = safeStr(rec.data.sessionId || "");
+  const vid = safeStr(rec.data.visitorId || sid || "");
+
+  // wipe data to a safe minimal baseline
+  rec.data = {
+    sessionId: sid || vid || "unknown",
+    visitorId: vid || sid || "unknown",
+    lane: "general",
+    cog: {},
+  };
+
+  // clear rate windows + boot windows
+  rec.burst = [];
+  rec.sustained = [];
+  rec.boot = [];
+
+  // clear replay caches explicitly (paranoia)
+  rec.data.__idx_lastReqKey = "";
+  rec.data.__idx_lastReqAt = 0;
+  rec.data.__idx_lastOut = "";
+  rec.data.__idx_lastLane = "general";
+  rec.data.__idx_lastFollowUps = [];
+  rec.data.__idx_lastFollowUpsStrings = [];
+  rec.data.__idx_lastDirectives = [];
+  rec.data.__idx_lastBootAt = 0;
+  rec.data.__idx_lastBootOut = "";
+  rec.data.__idx_lastBootLane = "general";
+  rec.data.__idx_lastBootFollowUps = [];
+  rec.data.__idx_lastBootFollowUpsStrings = [];
+  rec.data.__idx_lastBootDirectives = [];
+
+  rec.lastSeenAt = nowMs();
+}
+
+// =========================
+// Chat route (kept — no behavior change except reset)
 // =========================
 async function handleChatRoute(req, res) {
   const startedAt = nowMs();
@@ -2507,11 +2532,34 @@ async function handleChatRoute(req, res) {
   const bootLike = isBootLike(routeHint, body);
   const isReset = isResetCommand(inboundText, source, body);
 
-  if (bootLike && !isReset) {
+  // ✅ CRITICAL: reset clears state immediately and returns silent reply
+  if (isReset) {
+    clearSessionState(rec);
+    return res.status(200).json({
+      ok: true,
+      reply: silentResetReply(),
+      lane: "general",
+      sessionPatch: {},
+      requestId: serverRequestId,
+      meta: {
+        index: INDEX_VERSION,
+        engine: ENGINE_VERSION || null,
+        knowledge: knowledgeStatusForMeta(),
+        resetSilenced: true,
+        resetCleared: true,
+        source,
+        routeHint,
+        elapsedMs: nowMs() - startedAt,
+      },
+    });
+  }
+
+  if (bootLike) {
     const bf = checkBootFuse(rec, startedAt);
     if (bf.blocked) {
       const cached = readBootReplay(rec);
       const reply = cached.reply || "";
+      consists: null;
       return res.status(200).json({
         ok: true,
         reply,
@@ -2535,7 +2583,7 @@ async function handleChatRoute(req, res) {
     }
   }
 
-  if (!bootLike && meaningful && !isReset) {
+  if (!bootLike && meaningful) {
     const burst = checkBurst(rec, startedAt);
     const sus = checkSustained(rec, startedAt);
     if (burst.blocked || sus.blocked) {
@@ -2562,7 +2610,7 @@ async function handleChatRoute(req, res) {
     }
   }
 
-  if (!bootLike && meaningful && !isReset) {
+  if (!bootLike && meaningful) {
     const dedupe = replayDedupe(rec, inboundSig, source, clientRequestId);
     if (dedupe.hit) {
       return res.status(200).json({
@@ -2667,21 +2715,18 @@ async function handleChatRoute(req, res) {
   rec.data.lane = lane;
 
   const rawReply = safeStr(out?.reply || "").trim();
-  const reply = isReset ? silentResetReply() : rawReply || "Okay — tell me what you want next.";
+  const reply = rawReply || "Okay — tell me what you want next.";
 
   const directives = Array.isArray(out?.directives) ? out.directives : undefined;
   const followUps = Array.isArray(out?.followUps) ? out.followUps : undefined;
   const followUpsStrings =
     !followUps && Array.isArray(out?.followUpsStrings) && out?.followUpsStrings.length ? out.followUpsStrings : undefined;
 
-  if (!isReset && !bootLike) {
+  if (!bootLike) {
     writeReplay(rec, reply, lane, { directives, followUps, followUpsStrings });
-  } else if (isReset) {
-    rec.data.__idx_lastOut = "";
-    rec.data.__idx_lastLane = lane;
   }
 
-  if (bootLike && !isReset) {
+  if (bootLike) {
     writeBootReplay(rec, reply, lane, { directives, followUps, followUpsStrings });
   }
 
@@ -2709,7 +2754,6 @@ async function handleChatRoute(req, res) {
       bootLike: !!bootLike,
       inboundSig: inboundSig ? String(inboundSig).slice(0, 160) : null,
       meaningful: !!meaningful,
-      resetSilenced: !!isReset,
       echoSuppressed: !!followUps && Array.isArray(out?.followUpsStrings) && out?.followUpsStrings.length ? true : false,
       packs: getPackIndexSafe(false).summary,
     },
@@ -2748,6 +2792,13 @@ function applySessionPatch(session, patch) {
     "allowPackets",
     "__nyxIntro",
     "__nyxVelvet",
+
+    // ✅ CRITICAL: allow music loop-dampener/session continuity keys
+    "__musicLastSig",
+    "activeMusicChart",
+    "lastMusicChart",
+    "musicMomentsLoaded",
+    "musicMomentsLoadedAt",
   ]);
 
   for (const [k, v] of Object.entries(patch)) {
