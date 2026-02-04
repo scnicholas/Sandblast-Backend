@@ -17,10 +17,12 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7aY (PINNED TOP10 OUTPUT FIX++++:
- *         + FIX: normalizeSongLine now honors pos/position/# as rank (Top10 items often store {pos,title,artist})
- *         + Keeps: v0.7aX pinned top10 years{YYYY:{items}} support,
- *                 rows-shape fix for wikipedia/year-end + pinned rows support,
+ * v0.7aY (PINNED TOP10 SHAPE FIX+++++:
+ *         + FIX: top10_by_year_v1.json canonical shape:
+ *              { years:{ YYYY:{ items:[{pos,title,artist}...] } } }
+ *           now has an explicit fast-path so it never “misses” via wrapper variance.
+ *         + FIX: normalizeSongLine now honors pos/position/# as rank (not just rank).
+ *         + Keeps: rows-shape fix for wikipedia/year-end + pinned rows support,
  *                 Top40 purge, 2025 range, decade-guard, do-not-persist sticky year,
  *                 pinned-first resolvers, action/mode normalization, system lane responder,
  *                 always-advance, payload-root fallback, chip-authoritative mode,
@@ -54,7 +56,7 @@ try {
 ====================================================== */
 
 const CE_VERSION =
-  "chatEngine v0.7aY (pinned top10 pos->rank fix + pinned top10 years{YYYY:{items}} support + rows-shape fix + Top40 purge + 2025 range + decade-guard + do-not-persist sticky year + pinned-first resolvers + action/mode normalization + system lane responder + always-advance + payload-root fallback + chip-authoritative mode + sticky-year source + session-scoped burst dedupe)";
+  "chatEngine v0.7aY (pinned top10 v1 years{YYYY:{items}} fast-path + normalizeSongLine pos/position rank + rows-shape fix + Top40 purge + 2025 range + decade-guard + do-not-persist sticky year + pinned-first resolvers + action/mode normalization + system lane responder + always-advance + payload-root fallback + chip-authoritative mode + sticky-year source + session-scoped burst dedupe)";
 
 const MAX_REPLY_LEN = 2400;
 const MAX_FOLLOWUPS = 10;
@@ -664,24 +666,25 @@ function normalizeSongLine(item) {
   if (!item) return null;
   if (isString(item)) return item.trim();
   if (isPlainObject(item)) {
-    // v0.7aY: honor pos/position/# as rank too (Top10 items are often {pos,title,artist})
+    const title = normText(item.title || item.song || item.name);
+    const artist = normText(item.artist || item.by);
+
+    // FIX: honor pos/position/# as rank, not just rank
     const rankRaw =
-      item.rank ??
-      item.Rank ??
-      item.pos ??
-      item.position ??
-      item["#"] ??
-      item.no ??
-      item.number ??
-      null;
+      item.rank != null
+        ? item.rank
+        : item.pos != null
+          ? item.pos
+          : item.position != null
+            ? item.position
+            : item["#"] != null
+              ? item["#"]
+              : null;
 
     const rank = rankRaw != null ? String(rankRaw).trim() : "";
 
-    const title = normText(item.title || item.song || item.name || item.track);
-    const artist = normText(item.artist || item.by || item.performer);
-
     const bits = [];
-    if (rank && /^\d{1,3}$/.test(rank)) bits.push(rank + ".");
+    if (rank) bits.push(rank + ".");
     if (title) bits.push(title);
     if (artist) bits.push("— " + artist);
     const out = bits.join(" ").trim();
@@ -781,9 +784,30 @@ function _extractListFromYearObject(v) {
   return null;
 }
 
+// NEW: explicit fast-path for top10_by_year_v1 canonical structure:
+// { version, chart, years:{ "1960":{ items:[...] } } }
+function fastPathTop10YearsItems(obj, year) {
+  const o = unwrapPackValue(obj);
+  if (!isPlainObject(o)) return null;
+  const years = unwrapPackValue(o.years);
+  if (!isPlainObject(years)) return null;
+
+  const yStr = String(year);
+  const yo = years[yStr] || years[year];
+  if (!isPlainObject(yo)) return null;
+
+  const list = _extractListFromYearObject(yo);
+  return list && list.length ? list : null;
+}
+
 function findYearArrayInObject(obj, year) {
   const o = unwrapPackValue(obj);
   if (!isPlainObject(o)) return null;
+
+  // FAST-PATH: canonical top10_by_year_v1 wrapper
+  const fp = fastPathTop10YearsItems(o, year);
+  if (fp) return fp;
+
   const y = String(year);
 
   // Direct year maps
@@ -809,10 +833,13 @@ function findYearArrayInObject(obj, year) {
     const cc = unwrapPackValue(c);
     if (!isPlainObject(cc)) continue;
 
+    // nested wrapper might itself be top10_by_year_v1
+    const fp2 = fastPathTop10YearsItems(cc, year);
+    if (fp2) return fp2;
+
     if (cc[y] && isArray(cc[y])) return cc[y];
     if (cc[year] && isArray(cc[year])) return cc[year];
 
-    // Nested year object with items
     if (cc[y] && isPlainObject(cc[y])) {
       const got = _extractListFromYearObject(cc[y]);
       if (got) return got;
@@ -822,7 +849,6 @@ function findYearArrayInObject(obj, year) {
       if (got) return got;
     }
 
-    // Some nests are {years:{...}, rows:[...]}—try rows too
     const rows2 = extractRowsForYearFromRowsWrapper(cc, year);
     if (rows2) return rows2;
   }
@@ -949,6 +975,10 @@ function findTop10PinnedFirst(pinned, knowledgeJson, year) {
   if (pinned && pinned.top10) {
     const v = pinned.top10;
 
+    // FAST-PATH (again) in case pinned wrapper is intact
+    const fp = fastPathTop10YearsItems(v, y);
+    if (fp && fp.length) return { sourceKey: PINNED_TOP10_KEY, list: fp, shape: shapeHint(v), pinned: true };
+
     const direct = findYearArrayInObject(v, y);
     if (direct && direct.length) return { sourceKey: PINNED_TOP10_KEY, list: direct, shape: shapeHint(v), pinned: true };
 
@@ -967,6 +997,9 @@ function findTop10PinnedFirst(pinned, knowledgeJson, year) {
     if (!Object.prototype.hasOwnProperty.call(knowledgeJson, k)) continue;
     const v = unwrapPackValue(knowledgeJson[k]);
 
+    const fp = fastPathTop10YearsItems(v, y);
+    if (fp && fp.length) return { sourceKey: k, list: fp, shape: shapeHint(v), pinned: false };
+
     const direct = findYearArrayInObject(v, y);
     if (direct && direct.length) return { sourceKey: k, list: direct, shape: shapeHint(v), pinned: false };
 
@@ -981,6 +1014,9 @@ function findTop10PinnedFirst(pinned, knowledgeJson, year) {
   for (const k of keys) {
     if (!keyLooksLikeTop10(k)) continue;
     const v = unwrapPackValue(knowledgeJson[k]);
+
+    const fp = fastPathTop10YearsItems(v, y);
+    if (fp && fp.length) return { sourceKey: k, list: fp, shape: shapeHint(v), pinned: false };
 
     const direct = findYearArrayInObject(v, y);
     if (direct && direct.length) return { sourceKey: k, list: direct, shape: shapeHint(v), pinned: false };
@@ -1182,6 +1218,10 @@ function _extractYearRowsFromPayload(payload, year) {
   const p = unwrapPackValue(payload);
 
   if (isPlainObject(p)) {
+    // canonical fast-path (again) for top10_by_year_v1
+    const fp = fastPathTop10YearsItems(p, year);
+    if (fp) return fp;
+
     // direct year maps
     const direct = p[yStr] || p[year];
     if (isArray(direct)) return direct;
@@ -1195,6 +1235,9 @@ function _extractYearRowsFromPayload(payload, year) {
     // common nests
     const byYear = unwrapPackValue(p.byYear || p.by_year || p.years || p.data || null);
     if (isPlainObject(byYear)) {
+      const fp2 = fastPathTop10YearsItems(byYear, year);
+      if (fp2) return fp2;
+
       const v = byYear[yStr] || byYear[year];
       if (isArray(v)) return v;
 
@@ -1243,7 +1286,9 @@ function _normalizeTop10Rows(rows) {
     }
 
     if (isPlainObject(r)) {
-      const rank = _parseRank(r.rank ?? r.Rank ?? r.position ?? r.pos ?? r["#"] ?? r.no ?? r.number);
+      const rank = _parseRank(
+        r.rank ?? r.Rank ?? r.position ?? r.pos ?? r["#"] ?? r.no ?? r.number
+      );
 
       let title = normText(r.title ?? r.song ?? r.Song ?? r.track ?? r.name);
       let artist = normText(r.artist ?? r.Artist ?? r.performer);
