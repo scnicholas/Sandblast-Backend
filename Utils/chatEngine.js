@@ -17,14 +17,15 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7aZ (LOOP FIX+++++:
- *         + REMOVED: top100_billboard_yearend_1960s_v1 from Top10 loose candidates (stops “derived_top10_from_yearend” loop)
- *         + ADDED: Top10 requires explicit year (if yearSource === "sticky", we refuse + ask for year)
- *         + Keeps: pinned top10 v1 years{YYYY:{items}} fast-path + normalizeSongLine pos/position rank + rows-shape fix,
- *                 Top40 purge, 2025 range, decade-guard, do-not-persist sticky year,
- *                 pinned-first resolvers, action/mode normalization, system lane responder,
- *                 always-advance, payload-root fallback, chip-authoritative mode,
- *                 sticky-year source, session-scoped burst dedupe
+ * v0.7bA (NYX #1 REVEAL CADENCE++++:
+ *         + Adds reusable #1 reveal template (Stillness → Authority → Reveal → Weight → Invitation)
+ *         + Adds era-tuned cadence variants for 50s/60s/70s (and sensible defaults outside)
+ *         + Removes user-facing “Source/Method/Confidence” & “derived #1 from Top10” fallback (no inference)
+ *         + Keeps: v0.7aZ loop fixes + pinned top10 v1 fast-path + rows-shape fix + Top40 purge + 2025 range,
+ *                 decade-guard, do-not-persist sticky year, pinned-first resolvers,
+ *                 action/mode normalization, system lane responder, always-advance,
+ *                 payload-root fallback, chip-authoritative mode, sticky-year source,
+ *                 session-scoped burst dedupe
  */
 
 const crypto = require("crypto");
@@ -54,7 +55,7 @@ try {
 ====================================================== */
 
 const CE_VERSION =
-  "chatEngine v0.7aZ (remove top100_billboard_yearend_1960s_v1 from Top10 candidates + Top10 requires explicit year; keeps pinned top10 v1 fast-path + normalizeSongLine pos/position rank + rows-shape fix + Top40 purge + 2025 range + decade-guard + do-not-persist sticky year + pinned-first resolvers + action/mode normalization + system lane responder + always-advance + payload-root fallback + chip-authoritative mode + sticky-year source + session-scoped burst dedupe)";
+  "chatEngine v0.7bA (#1 reveal cadence template + era variants 50s/60s/70s; remove user-facing provenance lines; no derived #1 fallback; keeps v0.7aZ loop fixes + pinned-first resolvers + Top40 purge + 2025 range + always-advance)";
 
 const MAX_REPLY_LEN = 2400;
 const MAX_FOLLOWUPS = 10;
@@ -1444,6 +1445,140 @@ function resolveTop10LooseButSafe(knowledgeJson, year) {
 }
 
 /* ======================================================
+   NYX #1 REVEAL CADENCE (template + era variants)
+====================================================== */
+
+function eraForYear(y) {
+  const year = clampYear(y);
+  if (!year) return "default";
+  if (year >= 1950 && year <= 1959) return "50s";
+  if (year >= 1960 && year <= 1969) return "60s";
+  if (year >= 1970 && year <= 1979) return "70s";
+  return "default";
+}
+
+function pick(arr, fallback) {
+  if (!Array.isArray(arr) || !arr.length) return fallback || "";
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function stillnessLineForEra(era, year) {
+  const y = clampYear(year);
+  if (!y) return "Every year leaves one song standing.";
+
+  if (era === "50s") {
+    return pick(
+      [
+        `Some years felt close to home.\n${y} was one of them.`,
+        "This was a year you heard through open windows.",
+        `The world moved slower here.\nSo did the memories.`,
+      ],
+      `Some years felt close to home.\n${y} was one of them.`
+    );
+  }
+
+  if (era === "60s") {
+    return pick(
+      [
+        "This wasn’t a year that stood still.\nIt was already leaning forward.",
+        `${y} didn’t arrive quietly.\nIt kept moving.`,
+        "Everything felt in motion.\nEven the silence.",
+      ],
+      `${y} didn’t arrive quietly.\nIt kept moving.`
+    );
+  }
+
+  if (era === "70s") {
+    return pick(
+      [
+        "By this point, the world had weight.\nYou could hear it in the music.",
+        "This year didn’t float.\nIt pressed in.",
+        "It wasn’t just style.\nIt was identity.",
+      ],
+      "By this point, the world had weight.\nYou could hear it in the music."
+    );
+  }
+
+  return pick(
+    [
+      `Every year leaves one song standing.`,
+      `Some years don’t rush in.\nThey linger.`,
+      `There’s always one record that tells you the truth.`,
+    ],
+    "Every year leaves one song standing."
+  );
+}
+
+function weightLinesForEra(era) {
+  if (era === "50s") {
+    return pick(
+      [
+        "Familiar.\nComfortable.\nAnd everywhere.",
+        "Simple.\nDirect.\nHard to forget.",
+        "The kind of song people carried with them.",
+      ],
+      "Familiar.\nComfortable.\nAnd everywhere."
+    );
+  }
+
+  if (era === "60s") {
+    return pick(
+      [
+        "Restless.\nFamiliar.\nQuietly unavoidable.",
+        "A shift you could feel.\nEven if you couldn’t name it.",
+        "It didn’t just play.\nIt changed the air.",
+      ],
+      "Restless.\nFamiliar.\nQuietly unavoidable."
+    );
+  }
+
+  if (era === "70s") {
+    return pick(
+      [
+        "It wasn’t just popular.\nIt stayed.",
+        "It didn’t ask for attention.\nIt held it.",
+        "Heavy.\nConfident.\nLived-in.",
+      ],
+      "It wasn’t just popular.\nIt stayed."
+    );
+  }
+
+  return pick(
+    [
+      "It didn’t just play everywhere — it defined how the year felt.",
+      "It had a way of returning.\nAgain and again.",
+      "It stuck.\nThat’s the difference.",
+    ],
+    "It didn’t just play everywhere — it defined how the year felt."
+  );
+}
+
+function buildNumberOneRevealReply(year, entry) {
+  const y = clampYear(year);
+  const title = entry && isPlainObject(entry) ? normText(entry.title) : "";
+  const artist = entry && isPlainObject(entry) ? normText(entry.artist) : "";
+  if (!y || !title) return "";
+
+  const era = eraForYear(y);
+  const still = stillnessLineForEra(era, y);
+
+  // Authority whisper is fixed (canonical)
+  const authority = "When the year finally settled…\none record stood above the rest.";
+
+  // Reveal line is sacred (canonical)
+  const reveal = artist ? `That song was “${title}” — ${artist}.` : `That song was “${title}”.`;
+
+  const weight = weightLinesForEra(era);
+
+  // Invitation is fixed (canonical)
+  const invite =
+    "Do you want the story behind why *this* song claimed the year…\n" +
+    "or should we slip into the moment where it sealed its place?";
+
+  return [still, authority, reveal, weight, invite].filter(Boolean).join("\n\n");
+}
+
+/* ======================================================
    Music responder
 ====================================================== */
 
@@ -1530,31 +1665,26 @@ function musicReply({ year, mode, knowledge, yearSource }) {
   let diag = null;
 
   if (wantsNumberOne) {
+    // STRICT: #1 song must come from #1-by-year pack (pinned-first). No “derived #1 from Top10”.
     const no1 = findNumberOnePinnedFirst(pinned, knowledgeJson, y);
     if (no1 && no1.entry) {
-      const line = formatNumberOneLine(no1.entry);
-      reply = line ? `#1 song of ${y}: ${line}` : `#1 song of ${y}: (data loaded, format unexpected).`;
-      reply += `\n\nSource: ${no1.sourceKey} • Method: direct • Confidence: ${no1.pinned ? "high" : "medium"}`;
-      reply += `\n\nPower move: want the Top 10 for context, then a micro moment to seal the vibe?`;
-      diag = { no1Key: no1.sourceKey, no1Shape: no1.shape || null, pinned: !!no1.pinned };
+      const reveal = buildNumberOneRevealReply(y, no1.entry);
+      reply = reveal || (() => {
+        const line = formatNumberOneLine(no1.entry);
+        return line ? `That song was “${line}”.` : `I have the #1 entry for ${y}, but it’s in an unexpected format.`;
+      })();
+
+      diag = {
+        no1Key: no1.sourceKey,
+        no1Shape: no1.shape || null,
+        pinned: !!no1.pinned,
+        era: eraForYear(y),
+      };
     } else {
-      const derived = resolveTop10LooseButSafe(knowledgeJson, y);
-      if (derived && isArray(derived.top10) && derived.top10.length) {
-        const first = normalizeSongLine(derived.top10[0]) || null;
-        reply = first ? `#1 song of ${y}: ${first}` : `#1 song of ${y}: (data loaded, format unexpected).`;
-        reply += `\n\nSource: ${derived.sourceId} • Method: ${derived.method} • Confidence: ${derived.confidence}`;
-        reply += `\n\nPower move: pull the full Top 10 next, then a micro moment.`;
-        diag = {
-          top10HitKey: derived.sourceId,
-          top10HitShape: derived.shape || null,
-          top10Len: derived.top10.length,
-          top10Method: derived.method,
-          top10Confidence: derived.confidence,
-        };
-      } else {
-        reply = `#1 song of ${y}: I can pull it once the #1-by-year pack is loaded (${PINNED_NUMBER1_KEY}).`;
-        diag = { no1Key: null, pinnedMissing: !pinned.number1 };
-      }
+      reply =
+        `I can’t reveal the year’s #1 for ${y} yet — the #1-by-year pack isn’t available.\n` +
+        `Once ${PINNED_NUMBER1_KEY} is loaded, I’ll do it clean.`;
+      diag = { no1Key: null, pinnedMissing: !pinned.number1 };
     }
   } else if (wantsTop10) {
     const hit = findTop10PinnedFirst(pinned, knowledgeJson, y);
@@ -1562,7 +1692,6 @@ function musicReply({ year, mode, knowledge, yearSource }) {
 
     if (derived && isArray(derived.top10) && derived.top10.length === 10) {
       reply = formatTop10Reply(y, derived.top10);
-      reply += `\n\nSource: ${derived.sourceId} • Method: ${derived.method} • Confidence: ${derived.confidence}`;
       reply += `\n\nPower move: tap “#1 song” to anchor, then “Micro moment” to make it cinematic.`;
       diag = {
         top10HitKey: derived.sourceId,
@@ -1573,7 +1702,6 @@ function musicReply({ year, mode, knowledge, yearSource }) {
       };
     } else if (hit && isArray(hit.list) && hit.list.length >= 10) {
       reply = formatTop10Reply(y, hit.list);
-      reply += `\n\nSource: ${hit.sourceKey} • Method: direct • Confidence: ${hit.pinned ? "high" : "medium"}`;
       reply += `\n\nPower move: go #1 → Micro moment. That’s your “broadcast-tight” chain.`;
       diag = { top10HitKey: hit.sourceKey, top10HitShape: hit.shape || null, top10Len: hit.list.length, pinned: !!hit.pinned };
     } else if (hit && isArray(hit.list) && hit.list.length) {
@@ -1582,7 +1710,6 @@ function musicReply({ year, mode, knowledge, yearSource }) {
           .slice(0, 10)
           .map((v, i) => `${i + 1}. ${normalizeSongLine(v) || String(v)}`)
           .join("\n")}`;
-      reply += `\n\nSource: ${hit.sourceKey} • Method: partial • Confidence: low`;
       diag = { top10HitKey: hit.sourceKey, top10HitShape: hit.shape || null, top10Len: hit.list.length, pinned: !!hit.pinned };
     } else {
       reply =
@@ -1601,13 +1728,26 @@ function musicReply({ year, mode, knowledge, yearSource }) {
       : { microKey: null, pinnedMissing: !pinned.micro };
   } else if (wantsStory) {
     const story = findStoryPinnedFirst(pinned, knowledgeJson, y);
-    reply =
-      story && story.text
-        ? `Story moment for ${y}: ${clampStr(story.text, 900)}`
-        : `Story moment for ${y}: I can anchor it on the year’s #1 song and give you the cultural pulse in 50–60 words.`;
-    diag = story
-      ? { storyKey: story.sourceKey, storyShape: story.shape || null, pinned: !!story.pinned }
-      : { storyKey: null, pinnedMissing: !pinned.story };
+    if (story && story.text) {
+      reply = `Story moment for ${y}: ${clampStr(story.text, 900)}`;
+      diag = { storyKey: story.sourceKey, storyShape: story.shape || null, pinned: !!story.pinned };
+    } else {
+      // No meta (“I can anchor…”) — keep Nyx in-presence, and guide forward.
+      const no1 = findNumberOnePinnedFirst(pinned, knowledgeJson, y);
+      if (no1 && no1.entry && normText(no1.entry.title)) {
+        const line = formatNumberOneLine(no1.entry);
+        reply =
+          `Before we go cinematic, we anchor.\n\n` +
+          `For ${y}, the year’s crown went to ${line ? `“${line}”.` : "one song that outlasted the rest."}\n\n` +
+          `Tap “Micro moment” to seal the vibe, or “Top 10” for context.`;
+        diag = { storyKey: null, anchoredByNo1: true, no1Key: no1.sourceKey, no1Shape: no1.shape || null };
+      } else {
+        reply =
+          `Story moment for ${y}: I don’t have the written moment loaded yet.\n` +
+          `If you tap “#1 song” first (once the #1 pack is loaded), I’ll anchor it clean — then we’ll make it cinematic.`;
+        diag = { storyKey: null, pinnedMissing: !pinned.story, no1Missing: !pinned.number1 };
+      }
+    }
   } else if (wantsCharts) {
     reply = `Got it — ${y}. Do you want the Top 10 list, or just the #1 with a quick story moment?`;
   } else {
