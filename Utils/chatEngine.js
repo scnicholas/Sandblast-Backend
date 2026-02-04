@@ -201,9 +201,17 @@ function normalizeMusicAction(action) {
     ].includes(a)
   )
     return "number_one";
-  if (["micro", "micro_moment", "micro-moment", "micromoment", "moments_micro"].includes(a))
+  if (
+    ["micro", "micro_moment", "micro-moment", "micromoment", "moments_micro"].includes(
+      a
+    )
+  )
     return "micro";
-  if (["story", "story_moment", "story-moment", "storymoment", "moments_story"].includes(a))
+  if (
+    ["story", "story_moment", "story-moment", "storymoment", "moments_story"].includes(
+      a
+    )
+  )
     return "story";
   if (["charts", "chart", "charting"].includes(a)) return "charts";
   if (["year_end", "yearend", "year-end", "year end"].includes(a)) return "year_end";
@@ -1010,17 +1018,21 @@ function findTop10PinnedFirst(pinned, knowledgeJson, year) {
 
     // FAST-PATH (again) in case pinned wrapper is intact
     const fp = fastPathTop10YearsItems(v, y);
-    if (fp && fp.length) return { sourceKey: PINNED_TOP10_KEY, list: fp, shape: shapeHint(v), pinned: true };
+    if (fp && fp.length)
+      return { sourceKey: PINNED_TOP10_KEY, list: fp, shape: shapeHint(v), pinned: true };
 
     const direct = findYearArrayInObject(v, y);
-    if (direct && direct.length) return { sourceKey: PINNED_TOP10_KEY, list: direct, shape: shapeHint(v), pinned: true };
+    if (direct && direct.length)
+      return { sourceKey: PINNED_TOP10_KEY, list: direct, shape: shapeHint(v), pinned: true };
 
     // If pinned is {rows:[{year,rank,title,artist}...]} support it directly
     const rowsPicked = extractRowsForYearFromRowsWrapper(v, y);
-    if (rowsPicked && rowsPicked.length) return { sourceKey: PINNED_TOP10_KEY, list: rowsPicked, shape: shapeHint(v), pinned: true };
+    if (rowsPicked && rowsPicked.length)
+      return { sourceKey: PINNED_TOP10_KEY, list: rowsPicked, shape: shapeHint(v), pinned: true };
 
     const asArr = findYearInArrayPack(v, y);
-    if (asArr && asArr.length) return { sourceKey: PINNED_TOP10_KEY, list: asArr, shape: shapeHint(v), pinned: true };
+    if (asArr && asArr.length)
+      return { sourceKey: PINNED_TOP10_KEY, list: asArr, shape: shapeHint(v), pinned: true };
   }
 
   if (!knowledgeJson || !isPlainObject(knowledgeJson)) return null;
@@ -1167,7 +1179,12 @@ function findNumberOnePinnedFirst(pinned, knowledgeJson, year) {
         const title = normText(direct.title || direct.song || direct.name || direct.track);
         const artist = normText(direct.artist || direct.by || direct.performer);
         if (title)
-          return { sourceKey: PINNED_NUMBER1_KEY, entry: { title, artist }, shape: shapeHint(v), pinned: true };
+          return {
+            sourceKey: PINNED_NUMBER1_KEY,
+            entry: { title, artist },
+            shape: shapeHint(v),
+            pinned: true,
+          };
       }
     }
 
@@ -1373,8 +1390,16 @@ function resolveTop10LooseButSafe(knowledgeJson, year) {
 
   const candidates = [
     { id: "music/top10_by_year", method: "direct", confidence: "high" },
-    { id: "wikipedia/billboard_yearend_hot100_1970_2010", method: "derived_top10_from_wikipedia_yearend", confidence: "medium" },
-    { id: "wikipedia/billboard_yearend_singles_1950_1959", method: "derived_top10_from_wikipedia_yearend", confidence: "medium" },
+    {
+      id: "wikipedia/billboard_yearend_hot100_1970_2010",
+      method: "derived_top10_from_wikipedia_yearend",
+      confidence: "medium",
+    },
+    {
+      id: "wikipedia/billboard_yearend_singles_1950_1959",
+      method: "derived_top10_from_wikipedia_yearend",
+      confidence: "medium",
+    },
 
     // REMOVED: this was causing the loop you reported
     // { id: "top100_billboard_yearend_1960s_v1", method: "derived_top10_from_yearend", confidence: "medium" },
