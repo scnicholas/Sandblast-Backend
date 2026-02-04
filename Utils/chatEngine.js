@@ -17,11 +17,13 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7aW (YEAR ROWS SHAPE FIX++++:
+ * v0.7aX (YEAR ROWS SHAPE FIX++++:
  *         + FIX: wikipedia/year-end packs commonly ship as {rows:[...]} — now supported everywhere
  *         + FIX: pinned top10 pack can be {rows:[...]} (or nested) — now supported
  *         + HARDEN: unwrapPackValue now also unwraps {rows:[...]} wrappers and common nesting
  *         + HARDEN: resolveTop10LooseButSafe can extract year rows from rows arrays
+ *         + HARDEN: rows-year detection now tolerates Year/Y/yr variants in moments/#1 helpers
+ *         + HARDEN: normalizeSongLine tolerates Artist(s) field
  *         + Keeps: Top40 purge, 2025 range, decade-guard, do-not-persist sticky year, pinned-first resolvers,
  *                 action/mode normalization, system lane responder, always-advance, payload-root fallback,
  *                 chip-authoritative mode, sticky-year source, session-scoped burst dedupe
@@ -54,7 +56,7 @@ try {
 ====================================================== */
 
 const CE_VERSION =
-  "chatEngine v0.7aW (rows-shape fix for wikipedia/year-end + pinned-top10 rows support + Top40 purge + 2025 range + decade-guard + do-not-persist sticky year + pinned-first resolvers + action/mode normalization + system lane responder + always-advance + payload-root fallback + chip-authoritative mode + sticky-year source + session-scoped burst dedupe)";
+  "chatEngine v0.7aX (rows-shape fix for wikipedia/year-end + pinned-top10 rows support + Year/Y variants hardened + Artist(s) tolerant + Top40 purge + 2025 range + decade-guard + do-not-persist sticky year + pinned-first resolvers + action/mode normalization + system lane responder + always-advance + payload-root fallback + chip-authoritative mode + sticky-year source + session-scoped burst dedupe)";
 
 const MAX_REPLY_LEN = 2400;
 const MAX_FOLLOWUPS = 10;
@@ -151,6 +153,11 @@ function isString(x) {
 }
 function isArray(x) {
   return Array.isArray(x);
+}
+
+function getRowYear(row) {
+  if (!isPlainObject(row)) return null;
+  return clampYear(row.year ?? row.Year ?? row.Y ?? row.y ?? row.yr ?? row.Yr ?? row.YR);
 }
 
 /* ======================================================
@@ -665,7 +672,7 @@ function normalizeSongLine(item) {
   if (isString(item)) return item.trim();
   if (isPlainObject(item)) {
     const title = normText(item.title || item.song || item.name);
-    const artist = normText(item.artist || item.by);
+    const artist = normText(item.artist || item["Artist(s)"] || item.by || item.performer);
     const rank = item.rank != null ? String(item.rank).trim() : "";
     const bits = [];
     if (rank) bits.push(rank + ".");
@@ -699,7 +706,8 @@ function unwrapPackValue(v, depth = 0) {
   if (isArray(v)) return v;
   if (!isPlainObject(v)) return v;
 
-  // If this is a "wrapper" object with {rows:[...]} and maybe meta, treat rows as the data.
+  // If this is a "wrapper" object with {rows:[...]} and maybe meta, treat it as a known wrapper.
+  // NOTE: We return the wrapper object (not v.rows) so callers can still access meta + rows.
   if (isArray(v.rows) && v.rows.length) return v;
 
   const cands = ["data", "json", "value", "content", "pack", "parsed", "payload"];
@@ -750,8 +758,8 @@ function extractRowsForYearFromRowsWrapper(wrapper, year) {
   const y = Number(year);
   const picked = [];
   for (const r of rows) {
-    if (!isPlainObject(r)) continue;
-    const ry = clampYear(r.year ?? r.Year ?? r.y ?? r.yr ?? r.Y);
+    const ry = getRowYear(r);
+    if (ry == null) continue;
     if (ry !== y) continue;
     picked.push(r);
   }
@@ -814,8 +822,7 @@ function findMomentInRowsArray(arr, year) {
   const y = Number(year);
 
   for (const row of a) {
-    if (!isPlainObject(row)) continue;
-    const ry = clampYear(row.year || row.y || row.yr);
+    const ry = getRowYear(row);
     if (ry !== y) continue;
 
     const t = normText(row.moment || row.story || row.text || row.copy || "");
@@ -830,12 +837,11 @@ function findNumberOneInRowsArray(arr, year) {
   const y = Number(year);
 
   for (const row of a) {
-    if (!isPlainObject(row)) continue;
-    const ry = clampYear(row.year || row.y || row.yr);
+    const ry = getRowYear(row);
     if (ry !== y) continue;
 
     const title = normText(row.title || row.song || row.name || row.track);
-    const artist = normText(row.artist || row.by || row.performer);
+    const artist = normText(row.artist || row["Artist(s)"] || row.by || row.performer);
     if (title && artist) return { title, artist };
     if (title) return { title, artist: "" };
   }
@@ -848,8 +854,7 @@ function findYearInArrayPack(arr, year) {
   const y = Number(year);
 
   for (const row of a) {
-    if (!isPlainObject(row)) continue;
-    const ry = clampYear(row.year || row.y || row.yr);
+    const ry = getRowYear(row);
     if (ry !== y) continue;
 
     const list = row.top10 || row.top_10 || row.list || row.songs || row.chart || row.entries;
@@ -1051,7 +1056,7 @@ function findNumberOnePinnedFirst(pinned, knowledgeJson, year) {
       const direct = v[yStr] || v[y];
       if (isPlainObject(direct)) {
         const title = normText(direct.title || direct.song || direct.name || direct.track);
-        const artist = normText(direct.artist || direct.by || direct.performer);
+        const artist = normText(direct.artist || direct["Artist(s)"] || direct.by || direct.performer);
         if (title) return { sourceKey: PINNED_NUMBER1_KEY, entry: { title, artist }, shape: shapeHint(v), pinned: true };
       }
     }
@@ -1077,7 +1082,7 @@ function findNumberOnePinnedFirst(pinned, knowledgeJson, year) {
       const cand = v[yStr] || v[y] || (isPlainObject(v.byYear) ? (v.byYear[yStr] || v.byYear[y]) : null);
       if (isPlainObject(cand)) {
         const title = normText(cand.title || cand.song || cand.name || cand.track);
-        const artist = normText(cand.artist || cand.by || cand.performer);
+        const artist = normText(cand.artist || cand["Artist(s)"] || cand.by || cand.performer);
         if (title) return { sourceKey: k, entry: { title, artist }, shape: shapeHint(v), pinned: false };
       }
     }
@@ -1097,7 +1102,7 @@ function findNumberOnePinnedFirst(pinned, knowledgeJson, year) {
       const cand = v[yStr] || v[y] || (isPlainObject(v.byYear) ? (v.byYear[yStr] || v.byYear[y]) : null);
       if (isPlainObject(cand)) {
         const title = normText(cand.title || cand.song || cand.name || cand.track);
-        const artist = normText(cand.artist || cand.by || cand.performer);
+        const artist = normText(cand.artist || cand["Artist(s)"] || cand.by || cand.performer);
         if (title) return { sourceKey: k, entry: { title, artist }, shape: shapeHint(v), pinned: false };
       }
     }
@@ -1157,11 +1162,7 @@ function _extractYearRowsFromPayload(payload, year) {
   }
 
   if (isArray(p)) {
-    const rows = p.filter((r) => {
-      if (!isPlainObject(r)) return false;
-      const ry = clampYear(r.year ?? r.Year ?? r.y ?? r.yr ?? r.Y);
-      return ry === year;
-    });
+    const rows = p.filter((r) => getRowYear(r) === year);
     if (rows.length) return rows;
     return p;
   }
@@ -1190,7 +1191,7 @@ function _normalizeTop10Rows(rows) {
       const rank = _parseRank(r.rank ?? r.Rank ?? r.position ?? r.pos ?? r["#"] ?? r.no ?? r.number);
 
       let title = normText(r.title ?? r.song ?? r.Song ?? r.track ?? r.name);
-      let artist = normText(r.artist ?? r.Artist ?? r.performer);
+      let artist = normText(r.artist ?? r["Artist(s)"] ?? r.Artist ?? r.performer);
 
       if (!title) title = normText(r.entry ?? r.Item ?? r.single ?? r.value ?? r.text ?? r.line);
       if (title && !artist) {
@@ -1744,8 +1745,8 @@ async function handleChat(input = {}) {
           (p.followUps || []).map((x) => ({
             id: safeId("chip"),
             type: "chip",
-            label: x.label,
-            payload: { text: x.send },
+            label: x && x.label ? x.label : "",
+            payload: { text: x && x.send ? x.send : "" },
           }))
         );
 
