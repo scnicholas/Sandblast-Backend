@@ -8,7 +8,10 @@
  *   Data/top10_by_year_v1.json
  *
  * Baseline: Top 10 = first 10 rows from each year cache.
+<<<<<<< HEAD
  * Canonical rule: pos is ALWAYS 1–10 by order (index-based).
+=======
+>>>>>>> 1523315 (Build Top10 store from per-year wiki cache (complete 1950–2025))
  * Optional overlay: if Data/top10_input_rows.json contains rows for a year,
  * it can overwrite those entries (higher authority).
  *
@@ -51,6 +54,7 @@ function loadWikiYear(year) {
   const fp = path.join(WIKI_DIR, `year_end_hot100_${year}.json`);
   if (!fs.existsSync(fp)) return null;
   const j = readJson(fp);
+<<<<<<< HEAD
   return Array.isArray(j.rows) ? j.rows : [];
 }
 
@@ -83,6 +87,36 @@ function buildTop10FromRows(rows) {
 }
 
 function buildOverlayMapFromInputRows() {
+=======
+  const rows = Array.isArray(j.rows) ? j.rows : [];
+  return rows;
+}
+
+function buildTop10FromRows(rows) {
+  // Rows already normalized by your pull script: {pos,title,artist}
+  const top10 = rows.slice(0, 10).map((r, idx) => {
+    const pos = toInt(r.pos) ?? (idx + 1);
+    const title = normStr(r.title);
+    const artist = normStr(r.artist);
+    return { pos, title, artist };
+  });
+
+  // Basic validation
+  for (let i = 0; i < top10.length; i++) {
+    const it = top10[i];
+    if (!toInt(it.pos)) return null;
+    if (!isNonEmptyString(it.title)) return null;
+    if (!isNonEmptyString(it.artist)) return null;
+  }
+  return top10.length === 10 ? top10 : null;
+}
+
+function buildOverlayMapFromInputRows() {
+  // If you keep a curated input file, we can use it to overwrite wiki-derived Top10s.
+  // Expected shapes:
+  //  - {rows:[{year,pos,title,artist}, ...]}
+  //  - or raw array [{year,pos,title,artist}, ...]
+>>>>>>> 1523315 (Build Top10 store from per-year wiki cache (complete 1950–2025))
   if (!fs.existsSync(TOP10_INPUT_ROWS)) return new Map();
 
   let j;
@@ -106,6 +140,7 @@ function buildOverlayMapFromInputRows() {
     byYear.get(y).push({ pos, title, artist });
   }
 
+<<<<<<< HEAD
   const out = new Map();
   for (const [y, items] of byYear.entries()) {
     const sorted = items
@@ -123,6 +158,16 @@ function buildOverlayMapFromInputRows() {
         }))
       );
     }
+=======
+  // Keep only years with 10+ rows; normalize ordering by pos
+  const out = new Map();
+  for (const [y, items] of byYear.entries()) {
+    const sorted = items
+      .filter((it) => it.pos >= 1 && it.pos <= 10)
+      .sort((a, b) => a.pos - b.pos);
+
+    if (sorted.length >= 10) out.set(y, sorted.slice(0, 10));
+>>>>>>> 1523315 (Build Top10 store from per-year wiki cache (complete 1950–2025))
   }
   return out;
 }
@@ -135,11 +180,19 @@ function main() {
   }
 
   const overlay = buildOverlayMapFromInputRows();
+<<<<<<< HEAD
+=======
+
+>>>>>>> 1523315 (Build Top10 store from per-year wiki cache (complete 1950–2025))
   const years = {};
   const missing = [];
   const weak = [];
 
   for (let y = YEAR_START; y <= YEAR_END; y++) {
+<<<<<<< HEAD
+=======
+    // overlay wins if present
+>>>>>>> 1523315 (Build Top10 store from per-year wiki cache (complete 1950–2025))
     if (overlay.has(y)) {
       years[String(y)] = { year: y, chart: CHART_NAME, items: overlay.get(y) };
       continue;
@@ -164,7 +217,11 @@ function main() {
   const payload = {
     version: "top10_by_year_v1",
     chart: "Billboard Year-End Hot 100",
+<<<<<<< HEAD
     source: "Wikipedia per-year cache (Data/wikipedia/charts) + optional overlay",
+=======
+    source: "wikipedia per-year cache (Data/wikipedia/charts) + optional overlay (top10_input_rows.json)",
+>>>>>>> 1523315 (Build Top10 store from per-year wiki cache (complete 1950–2025))
     generatedAt: new Date().toISOString(),
     meta: {
       yearStart: YEAR_START,
@@ -172,9 +229,15 @@ function main() {
       wikiDir: path.relative(process.cwd(), WIKI_DIR),
       overlayUsedYears: Array.from(overlay.keys()).sort((a, b) => a - b),
       missingYears: missing,
+<<<<<<< HEAD
       weakYears: weak
     },
     years
+=======
+      weakYears: weak,
+    },
+    years,
+>>>>>>> 1523315 (Build Top10 store from per-year wiki cache (complete 1950–2025))
   };
 
   writeJson(OUT_FILE, payload);
