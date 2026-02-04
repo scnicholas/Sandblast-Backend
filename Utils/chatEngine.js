@@ -1,2240 +1,2997 @@
 "use strict";
 
 /**
- * Utils/chatEngine.js
+ * Sandblast Backend — index.js
  *
- * Pure chat engine:
- *  - NO express
- *  - NO server start
- *  - NO index.js imports
+ * index.js v1.5.18bc (CRITICAL PATCH++++: session patch keys for music loop-dampener + TRUE reset clears session state safely)
  *
- * Returns (NyxReplyContract v1 + backwards compatibility):
- *  {
- *    ok, reply, lane, ctx, ui,
- *    directives: [{type, ...}],             // contract-lock (optional)
- *    followUps: [{id,type,label,payload}],  // preferred
- *    followUpsStrings: ["..."],             // legacy
- *    sessionPatch, cog, requestId, meta
- *  }
+ * Keeps:
+ * ✅ WIKI AUTHORITY FIX++++ (wikipedia split hot100 dir ingest + merged year map)
+ * ✅ CRITICAL FIXES++++ already present (sessionKey uses parsed body + manifest abs rebuilt after reload + strict CORS hard-lock 403 + JSON parser once + LOAD VISIBILITY++++ etc.)
  *
- * v0.7bA (NYX #1 REVEAL CADENCE++++:
- *         + Adds reusable #1 reveal template (Stillness → Authority → Reveal → Weight → Invitation)
- *         + Adds era-tuned cadence variants for 50s/60s/70s (and sensible defaults outside)
- *         + Removes user-facing “Source/Method/Confidence” & “derived #1 from Top10” fallback (no inference)
- *         + Keeps: v0.7aZ loop fixes + pinned top10 v1 fast-path + rows-shape fix + Top40 purge + 2025 range,
- *                 decade-guard, do-not-persist sticky year, pinned-first resolvers,
- *                 action/mode normalization, system lane responder, always-advance,
- *                 payload-root fallback, chip-authoritative mode, sticky-year source,
- *                 session-scoped burst dedupe
+ * Adds (v1.5.18bc):
+ * ✅ CRITICAL: applySessionPatch allows music loop-dampener keys:
+ *    - __musicLastSig, activeMusicChart, lastMusicChart, musicMomentsLoaded, musicMomentsLoadedAt
+ * ✅ CRITICAL: reset command actually clears session state (not just silences output)
+ *    - safe wipe of rec.data (preserves sessionId/visitorId), clears rate windows, clears replay caches
  */
 
+// =========================
+// Imports
+// =========================
+const express = require("express");
 const crypto = require("crypto");
+const fs = require("fs");
+const path = require("path");
 
-// Optional: packets engine (safe)
-let packets = null;
-try {
-  packets = require("./packets.js");
-} catch (_) {
-  packets = null;
-}
-
-// Optional: intent classifier (safe)
-let intentClassifier = null;
-try {
-  intentClassifier = require("./intentClassifier.js");
-} catch (_) {
+// =========================
+// Crash-proof logging (Render-friendly)
+// =========================
+process.on("unhandledRejection", (reason) => {
+  // eslint-disable-next-line no-console
+  console.log("[Sandblast][FATAL] unhandledRejection:", reason);
+});
+process.on("uncaughtException", (err) => {
+  // eslint-disable-next-line no-console
+  console.log("[Sandblast][FATAL] uncaughtException:", err && (err.stack || err.message || err));
   try {
-    intentClassifier = require("./intentClassifier");
-  } catch (__) {
-    intentClassifier = null;
+    setTimeout(() => process.exit(1), 250).unref?.();
+  } catch (_) {
+    process.exit(1);
+  }
+});
+
+// Optional safe require
+function safeRequire(p) {
+  try {
+    // eslint-disable-next-line import/no-dynamic-require, global-require
+    return require(p);
+  } catch (_) {
+    return null;
   }
 }
 
-/* ======================================================
-   Version + constants
-====================================================== */
+// Engine + fetch
+const chatEngineMod = safeRequire("./Utils/chatEngine") || safeRequire("./Utils/chatEngine.js") || null;
 
-const CE_VERSION =
-  "chatEngine v0.7bA (#1 reveal cadence template + era variants 50s/60s/70s; remove user-facing provenance lines; no derived #1 fallback; keeps v0.7aZ loop fixes + pinned-first resolvers + Top40 purge + 2025 range + always-advance)";
+// fetch resolver (Node 18+ has global.fetch; node-fetch may be CJS fn OR {default: fn})
+const nodeFetchMod = global.fetch ? null : safeRequire("node-fetch");
+const fetchFn =
+  global.fetch ||
+  (typeof nodeFetchMod === "function" ? nodeFetchMod : null) ||
+  (nodeFetchMod && typeof nodeFetchMod.default === "function" ? nodeFetchMod.default : null);
 
-const MAX_REPLY_LEN = 2400;
-const MAX_FOLLOWUPS = 10;
-const MAX_LABEL_LEN = 52;
+// Optional external packIndex module (nice-to-have, never required)
+const packIndexMod = safeRequire("./Utils/packIndex") || safeRequire("./Utils/packIndex.js") || null;
 
-const BURST_WINDOW_MS = 2500;
-const SUSTAIN_WINDOW_MS = 45000;
-const SUSTAIN_REPEAT_LIMIT = 4;
-const REPLAY_TTL_MS = 120000;
+// Optional external Nyx Voice Naturalizer (nice-to-have)
+const nyxVoiceNaturalizeMod =
+  safeRequire("./Utils/nyxVoiceNaturalize") || safeRequire("./Utils/nyxVoiceNaturalize.js") || null;
 
-const MAX_SEEN_KEYS = 96;
-const MAX_LOOP_EVENTS = 32;
+// =========================
+// Version
+// =========================
+const INDEX_VERSION =
+  "index.js v1.5.18bc (CRITICAL PATCH++++: sessionPatch allows music loop-dampener keys + TRUE reset clears session state; keeps v1.5.18bb WIKI AUTHORITY FIX++++ + CRITICAL FIXES++++: sessionKey uses parsed body + manifest abs rebuilt after reload + strict CORS hard-lock 403 + JSON parser once + LOAD VISIBILITY++++: key collisions + skip reasons + fileMap + packsight proof + PINNED REL FIXES: story_moments_v2 + ordered rel preferences + DATA ROOT AUTODISCOVERY++++ + PINNED RESOLVE DIAGNOSTICS++++ + rebuild roots on reloadKnowledge + TOP10 NORMALIZATION + BLOCKER PRUNE++++ + SOURCE REL BLOCK REMOVAL + KNOWLEDGE INJECTION FIX + /api/chat GET GUIDANCE + MANIFEST RESOLVER UPGRADE++++: multi-candidate rels + bounded basename/dirname fallback search across ALL data roots + probes show bestFound + keeps PACK VISIBILITY HARDENING++++ + CHIP SIGNAL ROUNDTRIP intent/route/label + allow Data outside APP_ROOT + bigger budgets + PUBLIC /api/packsight + case-insensitive Data/Scripts resolution + pinned/manifest path fallback + packsight diagnostics + manifest target probes + pinned packs to real Data/* files + manifest tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + loop fuse + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
 
-const ALLOWED_SESSION_PATCH_KEYS = new Set([
-  "lane",
-  "lastMusicYear",
-  "activeMusicMode",
-  "activeMusicChart",
-  "lastMusicChart",
-  "__musicLastSig",
-  "depthLevel",
-  "recentIntent",
-  "recentTopic",
-  "voiceMode",
-  "lastIntentSig",
-  "allowPackets",
-  "__nyxPackets",
-  "cog",
-  "__packIndexSeen",
-]);
-
-/* ======================================================
-   Helpers
-====================================================== */
-
+// =========================
+// Utils
+// =========================
 function nowMs() {
   return Date.now();
 }
-
+function safeStr(x) {
+  return x === null || x === undefined ? "" : String(x);
+}
+function sha1(s) {
+  return crypto.createHash("sha1").update(String(s)).digest("hex");
+}
+function clampInt(v, def, min, max) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return def;
+  const t = Math.trunc(n);
+  if (t < min) return min;
+  if (t > max) return max;
+  return t;
+}
+function clampFloat(v, def, min, max) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return def;
+  if (n < min) return min;
+  if (n > max) return max;
+  return n;
+}
+function toBool(v, def) {
+  const s = String(v ?? "").trim().toLowerCase();
+  if (!s) return !!def;
+  if (["1", "true", "yes", "y", "on"].includes(s)) return true;
+  if (["0", "false", "no", "n", "off"].includes(s)) return false;
+  return !!def;
+}
 function isPlainObject(x) {
   return (
     !!x &&
     typeof x === "object" &&
-    (Object.getPrototypeOf(x) === Object.prototype ||
-      Object.getPrototypeOf(x) === null)
+    (Object.getPrototypeOf(x) === Object.prototype || Object.getPrototypeOf(x) === null)
   );
 }
-
-function normText(t) {
-  return String(t || "").trim();
-}
-
-function normLower(t) {
-  return normText(t).toLowerCase();
-}
-
-function clampStr(s, max) {
-  const t = String(s || "");
-  return t.length > max ? t.slice(0, max) : t;
-}
-
-function clampYear(y) {
-  const n = Number(y);
-  if (!Number.isFinite(n)) return null;
-  const k = Math.trunc(n);
-  if (k < 1950 || k > 2025) return null;
-  return k;
-}
-
-function extractYearFromText(text) {
-  // IMPORTANT: decade guard — "1960s" must NOT match year 1960
-  const m = String(text || "").match(
-    /\b(19[5-9]\d|20[0-1]\d|202[0-5])(?!s\b)\b/
-  );
-  if (!m) return null;
-  return clampYear(m[1]);
-}
-
-function sha1(s) {
-  return crypto.createHash("sha1").update(String(s || ""), "utf8").digest("hex");
-}
-
-function safeId(prefix = "id") {
-  return `${prefix}_${Math.random().toString(36).slice(2, 9)}`;
-}
-
-function safeJsonStringify(x) {
+function safeJsonParseMaybe(x) {
+  if (x === null || x === undefined) return null;
+  if (typeof x === "object") return x;
+  const s = String(x).trim();
+  if (!s) return null;
   try {
-    return JSON.stringify(x);
+    return JSON.parse(s);
   } catch (_) {
-    return "";
+    return null;
+  }
+}
+function pickClientIp(req) {
+  const xf = safeStr(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+  return xf || req.socket?.remoteAddress || "";
+}
+function normalizeOrigin(o) {
+  return safeStr(o).trim().replace(/\/$/, "");
+}
+function fileExists(p) {
+  try {
+    return fs.existsSync(p);
+  } catch (_) {
+    return false;
+  }
+}
+function statSafe(p) {
+  try {
+    return fs.statSync(p);
+  } catch (_) {
+    return null;
   }
 }
 
-function isString(x) {
-  return typeof x === "string";
+// =========================
+// Env / knobs
+// =========================
+const PORT = Number(process.env.PORT || 10000);
+const NODE_ENV = String(process.env.NODE_ENV || "production").trim();
+const TRUST_PROXY = String(process.env.TRUST_PROXY || "").trim();
+const MAX_JSON_BODY = String(process.env.MAX_JSON_BODY || "512kb");
+
+// --- Knowledge Bridge knobs ---
+const KNOWLEDGE_AUTOLOAD = toBool(process.env.KNOWLEDGE_AUTOLOAD, true);
+
+// SAFER DEFAULT: scripts OFF unless explicitly enabled
+const KNOWLEDGE_ENABLE_SCRIPTS = toBool(process.env.KNOWLEDGE_ENABLE_SCRIPTS, false);
+
+const KNOWLEDGE_DEBUG_ENDPOINT = toBool(process.env.KNOWLEDGE_DEBUG_ENDPOINT, true);
+const KNOWLEDGE_DEBUG_INCLUDE_DATA = toBool(process.env.KNOWLEDGE_DEBUG_INCLUDE_DATA, false);
+
+const KNOWLEDGE_RELOAD_INTERVAL_MS = clampInt(
+  process.env.KNOWLEDGE_RELOAD_INTERVAL_MS,
+  0,
+  0,
+  24 * 60 * 60 * 1000
+); // 0 = off
+
+const KNOWLEDGE_MAX_FILES = clampInt(process.env.KNOWLEDGE_MAX_FILES, 2500, 200, 20000);
+
+// IMPORTANT: bumped defaults again; wikipedia merged packs are often > 8MB.
+const KNOWLEDGE_MAX_FILE_BYTES = clampInt(process.env.KNOWLEDGE_MAX_FILE_BYTES, 25_000_000, 50_000, 250_000_000);
+const KNOWLEDGE_MAX_TOTAL_BYTES = clampInt(process.env.KNOWLEDGE_MAX_TOTAL_BYTES, 250_000_000, 1_000_000, 1_500_000_000);
+
+// Root resolution: in Render, __dirname is safest
+const APP_ROOT = path.resolve(__dirname);
+
+// If your Data lives on a mounted disk (Render persistent disk), it may be outside APP_ROOT.
+const KNOWLEDGE_ALLOW_DATA_OUTSIDE_APP_ROOT = toBool(process.env.KNOWLEDGE_ALLOW_DATA_OUTSIDE_APP_ROOT, true);
+
+// Scripts are riskier; keep default OFF unless you explicitly need it.
+const KNOWLEDGE_ALLOW_SCRIPTS_OUTSIDE_APP_ROOT = toBool(process.env.KNOWLEDGE_ALLOW_SCRIPTS_OUTSIDE_APP_ROOT, false);
+
+// --- Manifest fallback search knobs ---
+const MANIFEST_SEARCH_FALLBACK = toBool(process.env.MANIFEST_SEARCH_FALLBACK, true);
+const MANIFEST_SEARCH_MAX_VISITS = clampInt(process.env.MANIFEST_SEARCH_MAX_VISITS, 8000, 500, 50000);
+const MANIFEST_SEARCH_MAX_DEPTH = clampInt(process.env.MANIFEST_SEARCH_MAX_DEPTH, 6, 2, 20);
+
+// --- Data root autodiscovery knobs ---
+const DATA_ROOT_AUTODISCOVER = toBool(process.env.DATA_ROOT_AUTODISCOVER, true);
+const DATA_ROOT_HINTS = String(process.env.DATA_ROOT_HINTS || "").trim(); // comma-separated abs/rel paths
+const DATA_ROOT_DISCOVERY_MAX_DEPTH = clampInt(process.env.DATA_ROOT_DISCOVERY_MAX_DEPTH, 4, 1, 10);
+const DATA_ROOT_DISCOVERY_MAX_VISITS = clampInt(process.env.DATA_ROOT_DISCOVERY_MAX_VISITS, 2500, 200, 20000);
+
+// Nyx Voice Naturalizer knobs
+const NYX_VOICE_NATURALIZE = toBool(process.env.NYX_VOICE_NATURALIZE, true);
+const NYX_VOICE_NATURALIZE_MAXLEN = clampInt(process.env.NYX_VOICE_NATURALIZE_MAXLEN, 2200, 200, 20000);
+
+// =========================
+// Case-insensitive dir/path resolution (Linux-safe)
+// =========================
+function resolveDirCaseInsensitive(parentAbs, name) {
+  try {
+    const direct = path.resolve(parentAbs, name);
+    const st = statSafe(direct);
+    if (st && st.isDirectory()) return direct;
+
+    const want = String(name || "").trim().toLowerCase();
+    if (!want) return direct;
+
+    const entries = fs.readdirSync(parentAbs, { withFileTypes: true });
+    const hit = entries.find((e) => e && e.isDirectory() && String(e.name).toLowerCase() === want);
+    if (hit) return path.resolve(parentAbs, hit.name);
+  } catch (_) {}
+  return path.resolve(parentAbs, name);
 }
-function isArray(x) {
-  return Array.isArray(x);
-}
+function resolveRelPathCaseInsensitive(rootAbs, relPath) {
+  try {
+    const rel = String(relPath || "").replace(/\\/g, "/").replace(/^\/+/, "");
+    if (!rel) return rootAbs;
 
-/* ======================================================
-   Music mode inference (text) — TOP40 PURGED
-====================================================== */
+    const parts = rel.split("/").filter(Boolean);
+    let cur = rootAbs;
 
-function inferMusicModeFromText(low) {
-  if (!low) return "";
-  if (/\b(top\s*10|top10)\b/.test(low)) return "top10";
-  // NOTE: intentionally NOT supporting top40/top 40 (purged)
-  if (/\b(year[-\s]*end|yearend)\b/.test(low)) return "year_end";
-  if (/\b(hot\s*100|billboard|chart|charts|charting|hit\s*parade)\b/.test(low))
-    return "charts";
-  if (/\b(#\s*1|#1|number\s*one|number\s*1|no\.\s*1|no\s*1|no1)\b/.test(low))
-    return "number_one";
-  if (/\b(micro\s*moment|micro)\b/.test(low)) return "micro";
-  if (/\b(story\s*moment|story)\b/.test(low)) return "story";
-  return "";
-}
+    for (const part of parts) {
+      const direct = path.join(cur, part);
+      const st = statSafe(direct);
+      if (st) {
+        cur = direct;
+        continue;
+      }
 
-/* ======================================================
-   Canonical action/mode normalization — TOP40 PURGED
-====================================================== */
+      const want = String(part).toLowerCase();
+      let entries = [];
+      try {
+        entries = fs.readdirSync(cur, { withFileTypes: true });
+      } catch (_) {
+        cur = direct;
+        continue;
+      }
+      const hit = entries.find((e) => e && String(e.name).toLowerCase() === want);
+      if (hit) {
+        cur = path.join(cur, hit.name);
+      } else {
+        cur = direct;
+      }
+    }
 
-function normalizeMusicAction(action) {
-  const a = normLower(action);
-  if (!a) return "";
-
-  if (
-    ["top10", "top_10", "top-ten", "topten", "year_top10", "year-top10"].includes(
-      a
-    )
-  )
-    return "top10";
-  if (
-    [
-      "number1",
-      "number_1",
-      "no1",
-      "#1",
-      "number-one",
-      "numberone",
-      "number_one",
-      "num1",
-    ].includes(a)
-  )
-    return "number_one";
-  if (
-    ["micro", "micro_moment", "micro-moment", "micromoment", "moments_micro"].includes(
-      a
-    )
-  )
-    return "micro";
-  if (
-    ["story", "story_moment", "story-moment", "storymoment", "moments_story"].includes(
-      a
-    )
-  )
-    return "story";
-  if (["charts", "chart", "charting"].includes(a)) return "charts";
-  if (["year_end", "yearend", "year-end", "year end"].includes(a)) return "year_end";
-
-  // NOTE: "top40" intentionally not normalized to a music action anymore.
-  return a;
-}
-
-const MUSIC_MODES = new Set(["top10", "year_end", "charts", "number_one", "micro", "story"]);
-const MUSIC_ACTIONS_STRONG = new Set(["top10", "year_end", "charts", "number_one", "micro", "story"]);
-const MUSIC_ACTIONS_WEAK = new Set(["enter", "start", "year"]); // only music if lane=music/years
-
-function normalizeMode(mode, action, low) {
-  const m = normLower(mode);
-  const a = normalizeMusicAction(action);
-
-  if (m) {
-    if (["top10", "top_10", "top-ten", "topten"].includes(m)) return "top10";
-    if (["number1", "number_1", "no1", "#1", "number-one", "numberone", "number_one"].includes(m))
-      return "number_one";
-    if (["micro", "micro_moment", "micro-moment", "micromoment"].includes(m)) return "micro";
-    if (["story", "story_moment", "story-moment", "storymoment"].includes(m)) return "story";
-    if (["charts", "chart"].includes(m)) return "charts";
-    if (["year_end", "yearend", "year-end", "year end"].includes(m)) return "year_end";
-
-    // TOP40 PURGE: do NOT accept "top40" as a mode
-    if (["top40", "top_40", "top forty", "top-forty"].includes(m)) return "";
-
-    return m;
+    return cur;
+  } catch (_) {
+    return path.join(rootAbs, relPath || "");
   }
+}
 
-  if (a) {
-    if (MUSIC_MODES.has(a)) return a;
-    if (a === "top40") return "";
+function resolveDataDirFromEnv() {
+  const envName = String(process.env.DATA_DIR || "Data").trim();
+  try {
+    if (path.isAbsolute(envName)) return path.resolve(envName);
+  } catch (_) {}
+
+  const absDirect = path.resolve(APP_ROOT, envName);
+  const st = statSafe(absDirect);
+  if (st && st.isDirectory()) return absDirect;
+  if (!envName.includes("/") && !envName.includes("\\")) {
+    return resolveDirCaseInsensitive(APP_ROOT, envName);
   }
-
-  return inferMusicModeFromText(low);
+  const rel = path.relative(APP_ROOT, absDirect);
+  return resolveRelPathCaseInsensitive(APP_ROOT, rel);
 }
+function resolveScriptsDirFromEnv() {
+  const envName = String(process.env.SCRIPTS_DIR || "Scripts").trim();
+  try {
+    if (path.isAbsolute(envName)) return path.resolve(envName);
+  } catch (_) {}
 
-/* ======================================================
-   Session patch safety
-====================================================== */
-
-function safeSessionPatch(patch) {
-  if (!isPlainObject(patch)) return null;
-  const out = Object.create(null);
-
-  for (const k of Object.keys(patch)) {
-    if (!ALLOWED_SESSION_PATCH_KEYS.has(k)) continue;
-    if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
-
-    if (k === "lastMusicYear") {
-      const y = clampYear(patch[k]);
-      if (y) out.lastMusicYear = y;
-      continue;
-    }
-
-    if (k === "activeMusicMode") {
-      const m = normalizeMode(patch[k], "", "");
-      if (m && MUSIC_MODES.has(m)) out.activeMusicMode = m;
-      continue;
-    }
-
-    if (k === "activeMusicChart" || k === "lastMusicChart") {
-      const v = normText(patch[k]);
-      if (v) out[k] = v;
-      continue;
-    }
-
-    if (k === "__musicLastSig") {
-      const v = normText(patch[k]);
-      if (v) out.__musicLastSig = v.slice(0, 80);
-      continue;
-    }
-
-    if (k === "depthLevel") {
-      const n = Number(patch[k]);
-      if (Number.isFinite(n) && n >= 0) out.depthLevel = Math.min(50, Math.trunc(n));
-      continue;
-    }
-
-    if (k === "recentIntent" || k === "recentTopic") {
-      const v = normText(patch[k]);
-      if (v) out[k] = v.slice(0, 48);
-      continue;
-    }
-
-    if (k === "cog") {
-      if (!isPlainObject(patch.cog)) continue;
-      const c = Object.create(null);
-      const s = normLower(patch.cog.state);
-      if (s === "cold" || s === "warm" || s === "engaged") c.state = s;
-      const y = clampYear(patch.cog.year);
-      if (y) c.year = y;
-      const lmy = clampYear(patch.cog.lastMusicYear);
-      if (lmy) c.lastMusicYear = lmy;
-      if (Object.keys(c).length) out.cog = c;
-      continue;
-    }
-
-    if (k === "__nyxPackets") {
-      if (isPlainObject(patch.__nyxPackets)) out.__nyxPackets = patch.__nyxPackets;
-      continue;
-    }
-
-    if (k === "__packIndexSeen") {
-      out.__packIndexSeen = !!patch.__packIndexSeen;
-      continue;
-    }
-
-    const v = patch[k];
-    if (v == null) continue;
-    if (typeof v === "boolean") out[k] = v;
-    else out[k] = String(v).trim();
+  const absDirect = path.resolve(APP_ROOT, envName);
+  const st = statSafe(absDirect);
+  if (st && st.isDirectory()) return absDirect;
+  if (!envName.includes("/") && !envName.includes("\\")) {
+    return resolveDirCaseInsensitive(APP_ROOT, envName);
   }
-
-  return Object.keys(out).length ? out : null;
+  const rel = path.relative(APP_ROOT, absDirect);
+  return resolveRelPathCaseInsensitive(APP_ROOT, rel);
 }
 
-function mergeSession(session, patch) {
-  if (!session || typeof session !== "object") return;
-  const safe = safeSessionPatch(patch);
-  if (!safe) return;
-  for (const k of Object.keys(safe)) session[k] = safe[k];
-}
+let DATA_DIR = resolveDataDirFromEnv();
+let SCRIPTS_DIR = resolveScriptsDirFromEnv();
 
-/* ======================================================
-   FollowUps: widget-compatible (payload.text fallback)
-====================================================== */
-
-function ensureChipPayload(payload) {
-  const p = isPlainObject(payload) ? payload : Object.create(null);
-
-  if (p.action) p.action = normalizeMusicAction(p.action);
-  if (p.mode) p.mode = normalizeMode(p.mode, p.action, "");
-
-  const text = normText(p.text);
-
-  if (!text) {
-    const year = clampYear(p.year);
-    const mode = normLower(p.mode);
-    const lane = normLower(p.lane);
-    const action = normalizeMusicAction(p.action);
-
-    let cmd = "";
-    if (lane === "music" || mode || action === "year" || action === "enter" || action === "start") {
-      if (mode === "top10") cmd = year ? `top 10 ${year}` : "top 10";
-      else if (mode === "number_one") cmd = year ? `#1 ${year}` : "#1";
-      else if (mode === "micro") cmd = year ? `micro moment ${year}` : "micro moment";
-      else if (mode === "story") cmd = year ? `story moment ${year}` : "story moment";
-      else cmd = year ? `music ${year}` : "music";
-    } else if (lane === "system" || action === "help" || action === "reset") {
-      cmd = action === "reset" ? "reset" : action === "help" ? "help" : "help";
-    }
-
-    if (cmd) p.text = cmd;
-  }
-
-  return p;
-}
-
-function sanitizeFollowUps(list) {
-  if (!Array.isArray(list)) return [];
+/**
+ * bounded BFS: find directories named "data" under a starting path
+ */
+function discoverNamedDirs(startAbs, wantNameLower, maxDepth, maxVisits) {
   const out = [];
   const seen = new Set();
+  const q = [{ dir: path.resolve(startAbs), depth: 0 }];
+  let visits = 0;
 
-  for (const it of list) {
-    if (!it || typeof it !== "object") continue;
+  while (q.length) {
+    const cur = q.shift();
+    const dir = cur.dir;
+    const depth = cur.depth;
 
-    const label = normText(it.label);
-    if (!label) continue;
+    if (!dir || seen.has(dir)) continue;
+    seen.add(dir);
 
-    const payload = ensureChipPayload(it.payload);
+    const st = statSafe(dir);
+    if (!st || !st.isDirectory()) continue;
 
-    let key = "";
+    if (visits++ > maxVisits) break;
+
+    let entries = [];
     try {
-      key = sha1(label + "::" + JSON.stringify(payload));
+      entries = fs.readdirSync(dir, { withFileTypes: true });
     } catch (_) {
-      key = sha1(label + "::" + String(Math.random()));
+      continue;
     }
-    if (seen.has(key)) continue;
-    seen.add(key);
 
-    out.push({
-      id: String(it.id || safeId("chip")),
-      type: String(it.type || "chip"),
-      label: clampStr(label, MAX_LABEL_LEN),
-      payload,
-    });
+    for (const ent of entries) {
+      if (visits++ > maxVisits) break;
+      if (!ent || !ent.isDirectory()) continue;
+      const name = safeStr(ent.name);
+      if (!name) continue;
 
-    if (out.length >= MAX_FOLLOWUPS) break;
+      if (name.toLowerCase() === wantNameLower) {
+        const hit = path.join(dir, name);
+        if (!out.includes(hit)) out.push(hit);
+      }
+
+      if (depth + 1 <= maxDepth) {
+        if (name === "node_modules" || name === ".git") continue;
+        q.push({ dir: path.join(dir, name), depth: depth + 1 });
+      }
+    }
   }
 
   return out;
 }
 
-function followUpsToLegacyStrings(followUps) {
-  if (!Array.isArray(followUps)) return [];
-  return followUps
-    .map((x) => String(x && x.label ? x.label : ""))
-    .filter(Boolean)
-    .slice(0, MAX_FOLLOWUPS);
-}
-
-/* ======================================================
-   FIRST-TURN ROUTER FOLLOWUPS
-====================================================== */
-
-function hasUsableFollowUps(fus) {
-  return Array.isArray(fus) && fus.length > 0;
-}
-
-function firstTurnRouterFollowUps() {
-  return sanitizeFollowUps([
-    {
-      id: "router_music",
-      type: "chip",
-      label: "Music",
-      payload: { lane: "music", action: "enter", mode: "top10", text: "Pick a year" },
-    },
-    {
-      id: "router_story",
-      type: "chip",
-      label: "Story moment",
-      payload: { lane: "music", action: "year", mode: "story", text: "Story moment" },
-    },
-    {
-      id: "router_talk",
-      type: "chip",
-      label: "Just talk",
-      payload: { lane: "general", action: "free", text: "Just talk" },
-    },
-  ]);
-}
-
-/* ======================================================
-   Loop control (burst dedupe + sustained fuse)
-====================================================== */
-
-function getReplayStore(session) {
-  if (!session.__replay || typeof session.__replay !== "object") {
-    session.__replay = Object.create(null);
-  }
-  if (!session.__replay.map || typeof session.__replay.map !== "object") {
-    session.__replay.map = Object.create(null);
-  }
-  if (!Array.isArray(session.__replay.order)) session.__replay.order = [];
-  return session.__replay;
-}
-
-function pruneReplayStore(store, tNow) {
-  const order = store.order || [];
-  const map = store.map || Object.create(null);
-
-  const keep = [];
-  for (const key of order) {
-    const rec = map[key];
-    if (!rec || !rec.t) continue;
-    if (tNow - rec.t > REPLAY_TTL_MS) {
-      delete map[key];
-      continue;
-    }
-    keep.push(key);
-  }
-
-  while (keep.length > MAX_SEEN_KEYS) {
-    const k = keep.shift();
-    if (k) delete map[k];
-  }
-
-  store.order = keep;
-}
-
-function sessionScopedVisitorId(session, inputVisitorId) {
-  const s = session && typeof session === "object" ? session : null;
-  return (
-    String(inputVisitorId || "").trim() ||
-    String((s && (s.visitorId || s.sessionId || s.deviceId)) || "").trim() ||
-    "anon"
-  );
-}
-
-function buildBurstKey({ sessionId, inboundHash }) {
-  const sid = String(sessionId || "anon");
-  return sha1(`${sid}::burst::${inboundHash}`);
-}
-
-function rememberReply(session, key, out) {
-  const store = getReplayStore(session);
-  const map = store.map;
-  const tNow = nowMs();
-
-  map[key] = { t: tNow, out };
-  store.order.push(key);
-  pruneReplayStore(store, tNow);
-}
-
-function getRememberedReply(session, key) {
-  const store = getReplayStore(session);
-  const rec = store.map && store.map[key];
-  if (!rec || !rec.t) return null;
-
-  const tNow = nowMs();
-  if (tNow - rec.t > REPLAY_TTL_MS) return null;
-  return rec;
-}
-
-function getLoopStore(session) {
-  if (!session.__loop || typeof session.__loop !== "object") {
-    session.__loop = Object.create(null);
-  }
-  if (!Array.isArray(session.__loop.events)) session.__loop.events = [];
-  return session.__loop;
-}
-
-function recordLoopEvent(session, inboundHash) {
-  const store = getLoopStore(session);
-  const tNow = nowMs();
-  const events = store.events;
-
-  const keep = [];
-  for (const ev of events) {
-    if (!ev || !ev.t) continue;
-    if (tNow - ev.t <= SUSTAIN_WINDOW_MS) keep.push(ev);
-  }
-  keep.push({ t: tNow, h: inboundHash });
-
-  while (keep.length > MAX_LOOP_EVENTS) keep.shift();
-  store.events = keep;
-
-  let repeats = 0;
-  for (let i = keep.length - 1; i >= 0; i--) {
-    if (keep[i].h === inboundHash) repeats++;
-    else break;
-  }
-
-  return repeats;
-}
-
-/* ======================================================
-   Payload extraction HARDENING
-====================================================== */
-
-function buildPayloadFromRoot(input) {
-  if (!input || typeof input !== "object") return null;
-
-  const lane = normText(input.lane || (input.ctx && input.ctx.lane) || "");
-  const action = normText(input.action || (input.ctx && input.ctx.action) || "");
-  const mode = normText(
-    input.mode || input.intent || (input.ctx && (input.ctx.mode || input.ctx.intent)) || ""
-  );
-  const year = clampYear(input.year || (input.ctx && input.ctx.year) || null);
-
-  if (!lane && !action && !mode && !year) return null;
-
-  const p = Object.create(null);
-  if (lane) p.lane = lane;
-  if (action) p.action = action;
-  if (mode) p.mode = mode;
-  if (year) p.year = year;
-
-  const t = normText(input.text || input.message || input.prompt || input.query || "");
-  if (t) p.text = t;
-
-  return p;
-}
-
-function getPayloadFromAny(input) {
-  if (!input || typeof input !== "object") return null;
-
-  const cands = [
-    input.payload,
-    input && input.payload && input.payload.payload,
-    input.ctx && input.ctx.payload,
-    input.client && input.client.payload,
-    input.ui && input.ui.payload,
-    input.body && input.body.payload,
-    input._raw && input._raw.payload,
-  ];
-
-  for (const c of cands) {
-    if (isPlainObject(c)) return c;
-  }
-
-  return buildPayloadFromRoot(input);
-}
-
-/* ======================================================
-   Routing spine (chip-authoritative + text inference)
-====================================================== */
-
-function parseInbound(input) {
-  const payload = getPayloadFromAny(input);
-
-  if (payload && payload.action) payload.action = normalizeMusicAction(payload.action);
-
-  const textPrimary = normText(input.text || input.message || input.prompt || input.query);
-  const textFromPayload =
-    payload && typeof payload.text === "string" ? normText(payload.text) : "";
-  const finalText = textPrimary || textFromPayload || "";
-
-  const low = normLower(finalText);
-
-  const lane = payload && payload.lane ? normLower(payload.lane) : "";
-  const actionRaw = payload && payload.action ? String(payload.action) : "";
-  const action = actionRaw ? normalizeMusicAction(actionRaw) : "";
-  const rawMode = payload && payload.mode ? normLower(payload.mode) : "";
-  const yearFromPayload = clampYear(payload && payload.year);
-  const yearFromText = extractYearFromText(finalText);
-  const year = yearFromPayload || yearFromText || null;
-
-  const mode = normalizeMode(rawMode, action, low);
-
-  return {
-    payload: payload || null,
-    text: finalText,
-    lower: low,
-    lane,
-    action,
-    mode,
-    year,
-    _yearSource: yearFromPayload ? "payload" : yearFromText ? "text" : "",
+function rebuildDataRootCandidates() {
+  const out = [];
+  const pushUnique = (p) => {
+    if (!p) return;
+    try {
+      const rp = path.resolve(p);
+      if (!out.includes(rp)) out.push(rp);
+    } catch (_) {}
   };
+
+  // canonical
+  pushUnique(DATA_DIR);
+  pushUnique(path.resolve(APP_ROOT, "Data"));
+  pushUnique(path.resolve(APP_ROOT, "data"));
+  pushUnique(resolveDirCaseInsensitive(APP_ROOT, "Data"));
+  pushUnique(resolveDirCaseInsensitive(APP_ROOT, "data"));
+
+  // env hints
+  if (DATA_ROOT_HINTS) {
+    const parts = DATA_ROOT_HINTS
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    for (const p of parts) {
+      try {
+        if (path.isAbsolute(p)) pushUnique(p);
+        else pushUnique(path.resolve(APP_ROOT, p));
+      } catch (_) {}
+    }
+  }
+
+  // common mounts
+  pushUnique("/data");
+  pushUnique("/var/data");
+  pushUnique("/mnt/data");
+  pushUnique("/opt/render/project/src/Data");
+  pushUnique("/opt/render/project/src/data");
+  pushUnique("/opt/render/project/Data");
+  pushUnique("/opt/render/project/data");
+  pushUnique("/srv/data");
+  pushUnique("/srv/Data");
+
+  if (DATA_ROOT_AUTODISCOVER) {
+    const starts = [];
+    const addStart = (p) => {
+      if (!p) return;
+      try {
+        const rp = path.resolve(p);
+        if (!starts.includes(rp)) starts.push(rp);
+      } catch (_) {}
+    };
+    addStart(APP_ROOT);
+    addStart(process.cwd());
+    addStart(path.resolve(APP_ROOT, ".."));
+    addStart(path.resolve(APP_ROOT, "../.."));
+
+    for (const s of starts) {
+      try {
+        const found = discoverNamedDirs(s, "data", DATA_ROOT_DISCOVERY_MAX_DEPTH, DATA_ROOT_DISCOVERY_MAX_VISITS);
+        for (const d of found) pushUnique(d);
+      } catch (_) {}
+    }
+  }
+
+  const existing = out.filter((p) => {
+    const st = statSafe(p);
+    return st && st.isDirectory();
+  });
+
+  return existing.length ? existing : out.slice(0, 1);
 }
 
-function looksLikeStructuredMusic({ lane, action, mode, year, lower }) {
-  if (lane === "music" || lane === "years") return true;
-  if (mode && MUSIC_MODES.has(normLower(mode))) return true;
+let DATA_ROOT_CANDIDATES = rebuildDataRootCandidates();
 
-  const a = normalizeMusicAction(action);
-  if (a && MUSIC_ACTIONS_STRONG.has(a)) return true;
+// =========================
+// Manifest fallback search helpers
+// =========================
+function safeReaddir(dirAbs) {
+  try {
+    return fs.readdirSync(dirAbs, { withFileTypes: true });
+  } catch (_) {
+    return [];
+  }
+}
+function findByNameAcrossDataRoots(targetName, wantDir) {
+  const name = safeStr(targetName).trim();
+  if (!name) return null;
+  if (!MANIFEST_SEARCH_FALLBACK) return null;
 
-  if (
-    year &&
-    /\b(top\s*10|top10|hot\s*100|billboard|chart|charts|story\s*moment|micro\s*moment|#\s*1|#1|number\s*one|no\.\s*1|no\s*1|no1)\b/.test(
-      lower
-    )
-  )
-    return true;
+  const roots = Array.isArray(DATA_ROOT_CANDIDATES) ? DATA_ROOT_CANDIDATES.slice(0, 12) : [];
+  const maxVisits = MANIFEST_SEARCH_MAX_VISITS;
+  const maxDepth = MANIFEST_SEARCH_MAX_DEPTH;
+
+  let visits = 0;
+
+  for (const root of roots) {
+    const st = statSafe(root);
+    if (!st || !st.isDirectory()) continue;
+
+    const q = [{ dir: root, depth: 0 }];
+
+    while (q.length) {
+      const { dir, depth } = q.shift();
+      if (depth > maxDepth) continue;
+      if (visits++ > maxVisits) return null;
+
+      const entries = safeReaddir(dir);
+      for (const ent of entries) {
+        if (visits++ > maxVisits) return null;
+
+        const entName = safeStr(ent.name);
+        const fp = path.join(dir, entName);
+
+        if (entName === name) {
+          if (wantDir && ent.isDirectory()) return fp;
+          if (!wantDir && ent.isFile()) return fp;
+        }
+
+        if (ent.isDirectory()) {
+          if (entName === "node_modules" || entName === ".git") continue;
+          q.push({ dir: fp, depth: depth + 1 });
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+// =========================
+// Knowledge: Pinned packs
+// =========================
+const PINNED_PACKS = [
+  {
+    key: "music/top10_by_year",
+    rels: [
+      "top10_by_year_v1.json",
+      "Nyx/top10_by_year_v1.json",
+      "Packs/top10_by_year_v1.json",
+      "music_top10_by_year.json",
+      "Nyx/music_top10_by_year.json",
+      "Packs/music_top10_by_year.json",
+    ],
+  },
+  {
+    key: "music/number1_by_year",
+    rels: [
+      "music_number1_by_year_v1.json",
+      "music_number1_by_year.json",
+      "Nyx/music_number1_by_year.json",
+      "Packs/music_number1_by_year.json",
+      "Nyx/music_number1.json",
+      "music_number1.json",
+    ],
+  },
+  {
+    key: "music/story_moments_by_year",
+    rels: [
+      "music_story_moments_v2.json",
+      "music_story_moments_v1.json",
+      "music_story_moments_1950_1989.generated.json",
+      "music/story_moments_by_year.json",
+      "Nyx/music_story_moments_by_year.json",
+      "Packs/music_story_moments_by_year.json",
+      "Nyx/music_story_moments_v1.json",
+      "music_story_moments_by_year.json",
+    ],
+  },
+  {
+    key: "music/micro_moments_by_year",
+    rels: [
+      "music_moments_v1.json",
+      "music_moments_v2.json",
+      "music_moments_v2_layer2.json",
+      "music_moments_v2_layer2_enriched.json",
+      "music_moments_v2_layer2_filled.json",
+      "music_moments_v2_layer3.json",
+      "music_micro_moments_by_year.json",
+      "Nyx/music_micro_moments_by_year.json",
+      "Packs/music_micro_moments_by_year.json",
+      "Nyx/music_micro_moments.json",
+      "music_micro_moments.json",
+    ],
+  },
+];
+
+// =========================
+// PACK MANIFEST LOADER
+// CRITICAL FIX: build this dynamically so SCRIPTS_DIR changes on reload are reflected.
+// =========================
+function getPackManifest() {
+  return [
+    // ✅ WIKI AUTHORITY FIX:
+    // ingest the whole wikipedia folder; merge split files into canonical year map
+    {
+      key: "music/wiki/yearend_hot100_raw",
+      type: "json_dir_rel",
+      rels: [
+        "wikipedia",
+        "Wikipedia",
+        "wiki",
+        "Wiki",
+        "music/wikipedia",
+        "music/wiki",
+        "packs/wikipedia",
+        "packs/wiki",
+      ],
+      postTransform: (allJson) => manifestMergeYearendHot100FromDir(allJson, "music/wiki/yearend_hot100_raw"),
+      outKey: "music/wiki/yearend_hot100_by_year",
+    },
+
+    {
+      key: "music/top40_weekly_raw",
+      type: "json_dir_rel",
+      rels: ["charts/top40_weekly", "chart/top40_weekly", "music/charts/top40_weekly", "packs/charts/top40_weekly", "top40_weekly"],
+      postTransform: (allJson) => manifestBuildTop40WeeklyIndex(allJson, "music/top40_weekly_raw"),
+      outKey: "music/top40_weekly_by_year_week",
+    },
+    {
+      key: "movies/roku_catalog",
+      type: "json_file_or_dir_rel",
+      rels: ["movies", "Movies"],
+    },
+    {
+      key: "sponsors/packs",
+      type: "json_file_or_dir_rel",
+      rels: ["sponsors", "Sponsors"],
+    },
+    {
+      key: "legacy/scripts_json",
+      type: "json_dir_abs",
+      abs: path.resolve(SCRIPTS_DIR, "packs_json"),
+    },
+  ];
+}
+
+// CORS
+const ORIGINS_ALLOWLIST = String(
+  process.env.CORS_ALLOW_ORIGINS ||
+    process.env.ALLOW_ORIGINS ||
+    "https://sandblast.channel,https://www.sandblast.channel,https://sandblastchannel.com,https://www.sandblastchannel.com"
+)
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+const ORIGINS_REGEX_ALLOWLIST = String(process.env.CORS_ALLOW_ORIGINS_REGEX || "").trim();
+
+function makeOriginRegexes() {
+  const raw = ORIGINS_REGEX_ALLOWLIST
+    .split(";")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const out = [];
+  for (const r of raw) {
+    try {
+      out.push(new RegExp(r));
+    } catch (_) {}
+  }
+  return out;
+}
+const ORIGIN_REGEXES = makeOriginRegexes();
+
+function isAllowedOrigin(origin) {
+  if (!origin) return false;
+  const o = normalizeOrigin(origin);
+  if (ORIGINS_ALLOWLIST.includes(o)) return true;
+  for (const rx of ORIGIN_REGEXES) {
+    try {
+      if (rx.test(o)) return true;
+    } catch (_) {}
+  }
+  return false;
+}
+
+function makeReqId() {
+  try {
+    if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  } catch (_) {}
+  return sha1(`${nowMs()}|${Math.random()}|${process.pid}`).slice(0, 20);
+}
+
+// Loop/guards
+const LOOP_REPLAY_WINDOW_MS = clampInt(process.env.LOOP_REPLAY_WINDOW_MS, 4000, 500, 15000);
+const BURST_WINDOW_MS = clampInt(process.env.BURST_WINDOW_MS, 1200, 200, 5000);
+const BURST_MAX = clampInt(process.env.BURST_MAX, 6, 2, 30);
+const SUSTAINED_WINDOW_MS = clampInt(process.env.SUSTAINED_WINDOW_MS, 12000, 2000, 60000);
+const SUSTAINED_MAX = clampInt(process.env.SUSTAINED_MAX, 18, 6, 120);
+
+// Boot-intro dedupe fuse
+const BOOT_DEDUPE_MS = clampInt(process.env.BOOT_DEDUPE_MS, 1200, 200, 6000);
+const BOOT_MAX_WINDOW_MS = clampInt(process.env.BOOT_MAX_WINDOW_MS, 6000, 1000, 30000);
+const BOOT_MAX = clampInt(process.env.BOOT_MAX, 6, 2, 40);
+
+const SESSION_TTL_MS = clampInt(process.env.SESSION_TTL_MS, 45 * 60 * 1000, 10 * 60 * 1000, 12 * 60 * 60 * 1000);
+const SESSION_MAX = clampInt(process.env.SESSION_MAX, 50000, 5000, 250000);
+
+// ElevenLabs TTS env
+const ELEVEN_API_KEY = String(process.env.ELEVENLABS_API_KEY || process.env.ELEVEN_API_KEY || "").trim();
+const ELEVEN_VOICE_ID = String(process.env.ELEVENLABS_VOICE_ID || process.env.NYX_VOICE_ID || "").trim();
+const ELEVEN_TTS_TIMEOUT_MS = clampInt(process.env.ELEVEN_TTS_TIMEOUT_MS, 20000, 4000, 60000);
+
+const NYX_VOICE_STABILITY = clampFloat(process.env.NYX_VOICE_STABILITY, 0.45, 0, 1);
+const NYX_VOICE_SIMILARITY = clampFloat(process.env.NYX_VOICE_SIMILARITY, 0.72, 0, 1);
+const NYX_VOICE_STYLE = clampFloat(process.env.NYX_VOICE_STYLE, 0.25, 0, 1);
+const NYX_VOICE_SPEAKER_BOOST = toBool(process.env.NYX_VOICE_SPEAKER_BOOST, true);
+
+// =========================
+// Nyx Voice Naturalizer (pre-TTS)
+// =========================
+function builtinNyxVoiceNaturalize(input) {
+  let s = safeStr(input || "");
+  if (!s) return "";
+
+  s = s.replace(/[\u200B-\u200D\uFEFF]/g, "");
+  s = s.replace(/\r\n/g, "\n");
+  s = s.replace(/[ \t]+\n/g, "\n");
+  s = s.replace(/\n{3,}/g, "\n\n");
+  s = s.replace(/[ \t]{2,}/g, " ");
+  s = s.trim();
+
+  s = s.replace(/([!?.,])\1{2,}/g, "$1$1");
+  s = s.replace(/…{2,}/g, "…");
+
+  if (s.length > NYX_VOICE_NATURALIZE_MAXLEN) s = s.slice(0, NYX_VOICE_NATURALIZE_MAXLEN).trim();
+
+  return s;
+}
+
+function nyxVoiceNaturalize(text) {
+  if (!NYX_VOICE_NATURALIZE) return safeStr(text || "");
+  try {
+    if (nyxVoiceNaturalizeMod) {
+      if (typeof nyxVoiceNaturalizeMod === "function") return safeStr(nyxVoiceNaturalizeMod(text) || "");
+      if (typeof nyxVoiceNaturalizeMod.nyxVoiceNaturalize === "function")
+        return safeStr(nyxVoiceNaturalizeMod.nyxVoiceNaturalize(text) || "");
+      if (typeof nyxVoiceNaturalizeMod.default === "function") return safeStr(nyxVoiceNaturalizeMod.default(text) || "");
+    }
+  } catch (_) {}
+  return builtinNyxVoiceNaturalize(text);
+}
+
+// Boot-like detection
+function isBootLike(routeHint, body) {
+  const rh = safeStr(routeHint).toLowerCase();
+  const mode = safeStr(body?.mode || body?.intent || body?.client?.mode || body?.client?.intent).toLowerCase();
+  const src = safeStr(body?.source || body?.client?.source).toLowerCase();
+
+  if (rh === "boot_intro" || rh === "panel_open_intro") return true;
+  if (mode === "boot_intro" || mode === "panel_open_intro") return true;
+
+  if (rh.includes("panel_open_intro") || rh.includes("boot_intro")) return true;
+  if (mode.includes("panel_open_intro") || mode.includes("boot_intro")) return true;
+
+  if (src.includes("panel_open_intro") || src.includes("boot_intro")) return true;
+  if (src.includes("panel-open-intro") || src.includes("boot-intro")) return true;
+
+  if (rh === "boot" && (mode.includes("intro") || src.includes("widget"))) return true;
+  if (mode === "boot" && rh.includes("intro")) return true;
 
   return false;
 }
 
-/* ======================================================
-   YEAR-STICKY MUSIC
-====================================================== */
+// =========================
+// CRITICAL: empty-text chip intent normalization
+// =========================
+function hasIntentSignals(body) {
+  const b = isPlainObject(body) ? body : {};
+  const payload = isPlainObject(b.payload) ? b.payload : {};
+  const ctx = isPlainObject(b.ctx) ? b.ctx : {};
+  const client = isPlainObject(b.client) ? b.client : {};
 
-function getStickyMusicYear(session) {
-  if (!session || typeof session !== "object") return null;
+  const sig =
+    safeStr(payload.text || payload.message).trim() ||
+    safeStr(b.text || b.message || b.prompt || b.query).trim() ||
+    safeStr(payload.mode || payload.action || payload.intent || payload.route || payload.label).trim() ||
+    safeStr(ctx.mode || ctx.action || ctx.intent || ctx.route).trim() ||
+    safeStr(b.mode || b.action || b.intent || b.route).trim() ||
+    safeStr(b.year || payload.year || ctx.year).trim() ||
+    safeStr(client.routeHint || client.source).trim();
 
-  const a = clampYear(session.lastMusicYear);
-  if (a) return a;
-
-  const c = session.cog && typeof session.cog === "object" ? session.cog : null;
-  if (c) {
-    const b = clampYear(c.lastMusicYear);
-    if (b) return b;
-    const d = clampYear(c.year);
-    if (d) return d;
-  }
-
-  return null;
+  return !!sig;
 }
 
-function needsYearForMode(mode) {
-  const m = normLower(mode);
-  return (
-    m === "top10" ||
-    m === "number_one" ||
-    m === "micro" ||
-    m === "story" ||
-    m === "charts" ||
-    m === "year_end"
-  );
+function normalizeInboundSignature(body, inboundText) {
+  const b = isPlainObject(body) ? body : {};
+  const payload = isPlainObject(b.payload) ? b.payload : {};
+  const ctx = isPlainObject(b.ctx) ? b.ctx : {};
+
+  const t = safeStr(inboundText).trim();
+  if (t) return t.slice(0, 240);
+
+  const tok =
+    safeStr(payload.text || payload.message).trim() ||
+    safeStr(payload.mode || payload.action || payload.intent || payload.route || payload.label).trim() ||
+    safeStr(ctx.mode || ctx.action || ctx.intent || ctx.route).trim() ||
+    safeStr(b.mode || b.action || b.intent || b.route || b.label).trim() ||
+    "";
+
+  const year = safeStr(b.year || payload.year || ctx.year).trim();
+  const sig = [tok, year].filter(Boolean).join(" ").trim();
+
+  return sig.slice(0, 240);
 }
 
-/* ======================================================
-   Knowledge helpers (FLEX pack shapes) — UPDATED
-====================================================== */
+// =========================
+// CRITICAL: reset detection + SILENT reset reply
+// =========================
+function isResetCommand(inboundText, source, body) {
+  const t = safeStr(inboundText).trim();
+  if (t === "__cmd:reset__") return true;
 
-function normalizeSongLine(item) {
-  if (!item) return null;
-  if (isString(item)) return item.trim();
-  if (isPlainObject(item)) {
-    const title = normText(item.title || item.song || item.name);
-    const artist = normText(item.artist || item.by);
+  const s = safeStr(source).toLowerCase();
+  if (s === "reset_btn" || s.includes("reset")) return true;
 
-    // FIX: honor pos/position/# as rank, not just rank
-    const rankRaw =
-      item.rank != null
-        ? item.rank
-        : item.pos != null
-        ? item.pos
-        : item.position != null
-        ? item.position
-        : item["#"] != null
-        ? item["#"]
-        : null;
+  const b = isPlainObject(body) ? body : {};
+  const client = isPlainObject(b.client) ? b.client : {};
+  const cs = safeStr(client.source).toLowerCase();
+  if (cs === "reset_btn" || cs.includes("reset")) return true;
 
-    const rank = rankRaw != null ? String(rankRaw).trim() : "";
+  const rh = safeStr(b.routeHint || client.routeHint || "").toLowerCase();
+  const it = safeStr(b.intent || client.intent || b.mode || client.mode || "").toLowerCase();
+  if (rh.includes("reset") || it === "reset") return true;
 
-    const bits = [];
-    if (rank) bits.push(rank + ".");
-    if (title) bits.push(title);
-    if (artist) bits.push("— " + artist);
-    const out = bits.join(" ").trim();
-    return out || null;
-  }
-  return null;
+  return false;
 }
 
-// Option A canonical pinned keys (single source of truth)
-const PINNED_TOP10_KEY = "music/top10_by_year";
-const PINNED_NUMBER1_KEY = "music/number1_by_year";
-const PINNED_STORY_KEY = "music/story_moments_by_year";
-const PINNED_MICRO_KEY = "music/micro_moments_by_year";
-
-// Compatibility keys (dev-safety only)
-const PIN_TOP10_KEYS = ["music/top10_by_year", "music/top10"];
-const PIN_NUMBER1_KEYS = [
-  "music/number1_by_year",
-  "music/number1",
-  "music/number_one_by_year",
-  "music/no1_by_year",
-];
-const PIN_STORY_KEYS = ["music/story_moments_by_year", "music/story_moments", "music/moments"];
-const PIN_MICRO_KEYS = ["music/micro_moments_by_year", "music/micro_moments", "music/micro"];
-
-const KNOWLEDGE_SCAN_CAP = 1200;
-
-// NEW: unwrap common wrapper shapes (now also treats {rows:[...]} wrappers)
-function unwrapPackValue(v, depth = 0) {
-  if (depth > 4) return v;
-  if (v == null) return v;
-
-  if (isArray(v)) return v;
-  if (!isPlainObject(v)) return v;
-
-  // If this is a "wrapper" object with {rows:[...]} and maybe meta, treat wrapper as the pack.
-  if (isArray(v.rows) && v.rows.length) return v;
-
-  const cands = ["data", "json", "value", "content", "pack", "parsed", "payload"];
-  for (const k of cands) {
-    if (Object.prototype.hasOwnProperty.call(v, k)) {
-      const inner = v[k];
-      if (inner != null) return unwrapPackValue(inner, depth + 1);
-    }
-  }
-
-  if (Object.prototype.hasOwnProperty.call(v, "blob") && v.blob != null) {
-    return unwrapPackValue(v.blob, depth + 1);
-  }
-
-  return v;
-}
-
-function shapeHint(x) {
-  if (isArray(x)) return "array";
-  if (isPlainObject(x)) {
-    const keys = Object.keys(x);
-    const head = keys.slice(0, 6).join(",");
-    return `object(${keys.length})[${head}]`;
-  }
-  return typeof x;
-}
-
-function getPinnedPacks(knowledgeJson) {
-  const kj = knowledgeJson && isPlainObject(knowledgeJson) ? knowledgeJson : Object.create(null);
-
-  const top10 = Object.prototype.hasOwnProperty.call(kj, PINNED_TOP10_KEY)
-    ? unwrapPackValue(kj[PINNED_TOP10_KEY])
-    : null;
-  const number1 = Object.prototype.hasOwnProperty.call(kj, PINNED_NUMBER1_KEY)
-    ? unwrapPackValue(kj[PINNED_NUMBER1_KEY])
-    : null;
-  const story = Object.prototype.hasOwnProperty.call(kj, PINNED_STORY_KEY)
-    ? unwrapPackValue(kj[PINNED_STORY_KEY])
-    : null;
-  const micro = Object.prototype.hasOwnProperty.call(kj, PINNED_MICRO_KEY)
-    ? unwrapPackValue(kj[PINNED_MICRO_KEY])
-    : null;
-
-  return { top10, number1, story, micro };
-}
-
-// NEW: extract year rows from a rows-array payload like {rows:[{year,rank,title,artist}...]}
-function extractRowsForYearFromRowsWrapper(wrapper, year) {
-  const v = unwrapPackValue(wrapper);
-  if (!isPlainObject(v)) return null;
-  const rows = unwrapPackValue(v.rows);
-  if (!isArray(rows) || !rows.length) return null;
-
-  const y = Number(year);
-  const picked = [];
-  for (const r of rows) {
-    if (!isPlainObject(r)) continue;
-    const ry = clampYear(r.year ?? r.Year ?? r.y ?? r.yr ?? r.Y);
-    if (ry !== y) continue;
-    picked.push(r);
-  }
-  return picked.length ? picked : null;
-}
-
-// NEW: accept common "year object" containers like {items:[...]} (top10_by_year_v1)
-function _extractListFromYearObject(v) {
-  if (!isPlainObject(v)) return null;
-  const cands = [v.items, v.top10, v.top_10, v.list, v.songs, v.chart, v.entries];
-  for (const c of cands) {
-    if (isArray(c) && c.length) return c;
-  }
-  return null;
-}
-
-// NEW: explicit fast-path for top10_by_year_v1 canonical structure:
-// { version, chart, years:{ "1960":{ items:[...] } } }
-function fastPathTop10YearsItems(obj, year) {
-  const o = unwrapPackValue(obj);
-  if (!isPlainObject(o)) return null;
-  const years = unwrapPackValue(o.years);
-  if (!isPlainObject(years)) return null;
-
-  const yStr = String(year);
-  const yo = years[yStr] || years[year];
-  if (!isPlainObject(yo)) return null;
-
-  const list = _extractListFromYearObject(yo);
-  return list && list.length ? list : null;
-}
-
-function findYearArrayInObject(obj, year) {
-  const o = unwrapPackValue(obj);
-  if (!isPlainObject(o)) return null;
-
-  // FAST-PATH: canonical top10_by_year_v1 wrapper
-  const fp = fastPathTop10YearsItems(o, year);
-  if (fp) return fp;
-
-  const y = String(year);
-
-  // Direct year maps
-  if (o[y] && isArray(o[y])) return o[y];
-  if (o[year] && isArray(o[year])) return o[year];
-
-  // Direct year object with items/list/etc
-  if (o[y] && isPlainObject(o[y])) {
-    const got = _extractListFromYearObject(o[y]);
-    if (got) return got;
-  }
-  if (o[year] && isPlainObject(o[year])) {
-    const got = _extractListFromYearObject(o[year]);
-    if (got) return got;
-  }
-
-  // Support rows wrapper
-  const asRows = extractRowsForYearFromRowsWrapper(o, year);
-  if (asRows) return asRows;
-
-  const candidates = [o.data, o.years, o.byYear, o.year, o.by_year];
-  for (const c of candidates) {
-    const cc = unwrapPackValue(c);
-    if (!isPlainObject(cc)) continue;
-
-    // nested wrapper might itself be top10_by_year_v1
-    const fp2 = fastPathTop10YearsItems(cc, year);
-    if (fp2) return fp2;
-
-    if (cc[y] && isArray(cc[y])) return cc[y];
-    if (cc[year] && isArray(cc[year])) return cc[year];
-
-    if (cc[y] && isPlainObject(cc[y])) {
-      const got = _extractListFromYearObject(cc[y]);
-      if (got) return got;
-    }
-    if (cc[year] && isPlainObject(cc[year])) {
-      const got = _extractListFromYearObject(cc[year]);
-      if (got) return got;
-    }
-
-    const rows2 = extractRowsForYearFromRowsWrapper(cc, year);
-    if (rows2) return rows2;
-  }
-
-  return null;
-}
-
-function findYearTextInObject(obj, year) {
-  const o = unwrapPackValue(obj);
-  if (!isPlainObject(o)) return null;
-  const y = String(year);
-
-  const v1 = o[y] || o[year];
-  if (isString(v1) && v1.trim()) return v1.trim();
-  if (isPlainObject(v1) && isString(v1.moment || v1.story || v1.text))
-    return normText(v1.moment || v1.story || v1.text);
-
-  const candidates = [o.data, o.years, o.byYear, o.year, o.by_year];
-  for (const c of candidates) {
-    const cc = unwrapPackValue(c);
-    if (!isPlainObject(cc)) continue;
-    const v = cc[y] || cc[year];
-    if (isString(v) && v.trim()) return v.trim();
-    if (isPlainObject(v) && isString(v.moment || v.story || v.text))
-      return normText(v.moment || v.story || v.text);
-  }
-
-  return null;
-}
-
-function findMomentInRowsArray(arr, year) {
-  const a = unwrapPackValue(arr);
-  if (!isArray(a)) return null;
-  const y = Number(year);
-
-  for (const row of a) {
-    if (!isPlainObject(row)) continue;
-    const ry = clampYear(row.year || row.y || row.yr);
-    if (ry !== y) continue;
-
-    const t = normText(row.moment || row.story || row.text || row.copy || "");
-    if (t) return t;
-  }
-  return null;
-}
-
-function findNumberOneInRowsArray(arr, year) {
-  const a = unwrapPackValue(arr);
-  if (!isArray(a)) return null;
-  const y = Number(year);
-
-  for (const row of a) {
-    if (!isPlainObject(row)) continue;
-    const ry = clampYear(row.year || row.y || row.yr);
-    if (ry !== y) continue;
-
-    const title = normText(row.title || row.song || row.name || row.track);
-    const artist = normText(row.artist || row.by || row.performer);
-    if (title && artist) return { title, artist };
-    if (title) return { title, artist: "" };
-  }
-  return null;
-}
-
-function findYearInArrayPack(arr, year) {
-  const a = unwrapPackValue(arr);
-  if (!isArray(a)) return null;
-  const y = Number(year);
-
-  for (const row of a) {
-    if (!isPlainObject(row)) continue;
-    const ry = clampYear(row.year || row.y || row.yr);
-    if (ry !== y) continue;
-
-    const list = row.top10 || row.top_10 || row.list || row.songs || row.chart || row.entries;
-    if (isArray(list) && list.length) return list;
-  }
-
-  return null;
-}
-
-function keyLooksLikeTop10(k) {
-  const kl = String(k || "").toLowerCase();
-  if (!kl) return false;
-  return (
-    kl.includes("top10_by_year") ||
-    kl.includes("top10-by-year") ||
-    kl.includes("top_10_by_year") ||
-    kl.includes("top10") ||
-    kl.includes("top_10") ||
-    kl.includes("topten") ||
-    kl.includes("chart") ||
-    kl.includes("charts")
-  );
-}
-
-function keyLooksLikeMoment(k) {
-  const kl = String(k || "").toLowerCase();
-  if (!kl) return false;
-  return kl.includes("moment") || kl.includes("story") || kl.includes("micro");
-}
-
-function keyLooksLikeNumberOne(k) {
-  const kl = String(k || "").toLowerCase();
-  if (!kl) return false;
-  return (
-    kl.includes("number1_by_year") ||
-    kl.includes("number_one_by_year") ||
-    kl.includes("no1_by_year") ||
-    kl.includes("number1") ||
-    kl.includes("number_one") ||
-    kl.includes("no1")
-  );
-}
-
-/**
- * Pinned-only resolvers, with dev-safety fallback if pinned missing.
- */
-
-function findTop10PinnedFirst(pinned, knowledgeJson, year) {
-  const y = clampYear(year);
-  if (!y) return null;
-
-  if (pinned && pinned.top10) {
-    const v = pinned.top10;
-
-    // FAST-PATH (again) in case pinned wrapper is intact
-    const fp = fastPathTop10YearsItems(v, y);
-    if (fp && fp.length)
-      return { sourceKey: PINNED_TOP10_KEY, list: fp, shape: shapeHint(v), pinned: true };
-
-    const direct = findYearArrayInObject(v, y);
-    if (direct && direct.length)
-      return { sourceKey: PINNED_TOP10_KEY, list: direct, shape: shapeHint(v), pinned: true };
-
-    // If pinned is {rows:[{year,rank,title,artist}...]} support it directly
-    const rowsPicked = extractRowsForYearFromRowsWrapper(v, y);
-    if (rowsPicked && rowsPicked.length)
-      return { sourceKey: PINNED_TOP10_KEY, list: rowsPicked, shape: shapeHint(v), pinned: true };
-
-    const asArr = findYearInArrayPack(v, y);
-    if (asArr && asArr.length)
-      return { sourceKey: PINNED_TOP10_KEY, list: asArr, shape: shapeHint(v), pinned: true };
-  }
-
-  if (!knowledgeJson || !isPlainObject(knowledgeJson)) return null;
-
-  for (const k of PIN_TOP10_KEYS) {
-    if (k === PINNED_TOP10_KEY) continue;
-    if (!Object.prototype.hasOwnProperty.call(knowledgeJson, k)) continue;
-    const v = unwrapPackValue(knowledgeJson[k]);
-
-    const fp = fastPathTop10YearsItems(v, y);
-    if (fp && fp.length) return { sourceKey: k, list: fp, shape: shapeHint(v), pinned: false };
-
-    const direct = findYearArrayInObject(v, y);
-    if (direct && direct.length) return { sourceKey: k, list: direct, shape: shapeHint(v), pinned: false };
-
-    const rowsPicked = extractRowsForYearFromRowsWrapper(v, y);
-    if (rowsPicked && rowsPicked.length) return { sourceKey: k, list: rowsPicked, shape: shapeHint(v), pinned: false };
-
-    const asArr = findYearInArrayPack(v, y);
-    if (asArr && asArr.length) return { sourceKey: k, list: asArr, shape: shapeHint(v), pinned: false };
-  }
-
-  const keys = Object.keys(knowledgeJson).slice(0, KNOWLEDGE_SCAN_CAP);
-  for (const k of keys) {
-    if (!keyLooksLikeTop10(k)) continue;
-    const v = unwrapPackValue(knowledgeJson[k]);
-
-    const fp = fastPathTop10YearsItems(v, y);
-    if (fp && fp.length) return { sourceKey: k, list: fp, shape: shapeHint(v), pinned: false };
-
-    const direct = findYearArrayInObject(v, y);
-    if (direct && direct.length) return { sourceKey: k, list: direct, shape: shapeHint(v), pinned: false };
-
-    const rowsPicked = extractRowsForYearFromRowsWrapper(v, y);
-    if (rowsPicked && rowsPicked.length) return { sourceKey: k, list: rowsPicked, shape: shapeHint(v), pinned: false };
-
-    const asArr = findYearInArrayPack(v, y);
-    if (asArr && asArr.length) return { sourceKey: k, list: asArr, shape: shapeHint(v), pinned: false };
-  }
-
-  return null;
-}
-
-function findStoryPinnedFirst(pinned, knowledgeJson, year) {
-  const y = clampYear(year);
-  if (!y) return null;
-
-  if (pinned && pinned.story) {
-    const v = pinned.story;
-
-    const t1 = findYearTextInObject(v, y);
-    if (t1) return { sourceKey: PINNED_STORY_KEY, text: t1, shape: shapeHint(v), pinned: true };
-
-    const rows = isPlainObject(v) ? unwrapPackValue(v.rows) : null;
-    const t2 = rows ? findMomentInRowsArray(rows, y) : null;
-    if (t2) return { sourceKey: PINNED_STORY_KEY, text: t2, shape: shapeHint(v), pinned: true };
-  }
-
-  if (!knowledgeJson || !isPlainObject(knowledgeJson)) return null;
-
-  for (const k of PIN_STORY_KEYS) {
-    if (k === PINNED_STORY_KEY) continue;
-    if (!Object.prototype.hasOwnProperty.call(knowledgeJson, k)) continue;
-    const v = unwrapPackValue(knowledgeJson[k]);
-
-    const t1 = findYearTextInObject(v, y);
-    if (t1) return { sourceKey: k, text: t1, shape: shapeHint(v), pinned: false };
-
-    const rows = isPlainObject(v) ? unwrapPackValue(v.rows) : null;
-    const t2 = rows ? findMomentInRowsArray(rows, y) : null;
-    if (t2) return { sourceKey: k, text: t2, shape: shapeHint(v), pinned: false };
-  }
-
-  const keys = Object.keys(knowledgeJson).slice(0, KNOWLEDGE_SCAN_CAP);
-  for (const k of keys) {
-    if (!keyLooksLikeMoment(k)) continue;
-    const v = unwrapPackValue(knowledgeJson[k]);
-
-    const t1 = findYearTextInObject(v, y);
-    if (t1) return { sourceKey: k, text: t1, shape: shapeHint(v), pinned: false };
-
-    const rows = isPlainObject(v) ? unwrapPackValue(v.rows) : null;
-    const t2 = rows ? findMomentInRowsArray(rows, y) : null;
-    if (t2) return { sourceKey: k, text: t2, shape: shapeHint(v), pinned: false };
-  }
-
-  return null;
-}
-
-function findMicroPinnedFirst(pinned, knowledgeJson, year) {
-  const y = clampYear(year);
-  if (!y) return null;
-
-  if (pinned && pinned.micro) {
-    const v = pinned.micro;
-
-    const t1 = findYearTextInObject(v, y);
-    if (t1) return { sourceKey: PINNED_MICRO_KEY, text: t1, shape: shapeHint(v), pinned: true };
-
-    const rows = isPlainObject(v) ? unwrapPackValue(v.rows) : null;
-    const t2 = rows ? findMomentInRowsArray(rows, y) : null;
-    if (t2) return { sourceKey: PINNED_MICRO_KEY, text: t2, shape: shapeHint(v), pinned: true };
-  }
-
-  if (!knowledgeJson || !isPlainObject(knowledgeJson)) return null;
-
-  for (const k of PIN_MICRO_KEYS) {
-    if (k === PINNED_MICRO_KEY) continue;
-    if (!Object.prototype.hasOwnProperty.call(knowledgeJson, k)) continue;
-    const v = unwrapPackValue(knowledgeJson[k]);
-
-    const t1 = findYearTextInObject(v, y);
-    if (t1) return { sourceKey: k, text: t1, shape: shapeHint(v), pinned: false };
-
-    const rows = isPlainObject(v) ? unwrapPackValue(v.rows) : null;
-    const t2 = rows ? findMomentInRowsArray(rows, y) : null;
-    if (t2) return { sourceKey: k, text: t2, shape: shapeHint(v), pinned: false };
-  }
-
-  const keys = Object.keys(knowledgeJson).slice(0, KNOWLEDGE_SCAN_CAP);
-  for (const k of keys) {
-    if (!keyLooksLikeMoment(k)) continue;
-    const v = unwrapPackValue(knowledgeJson[k]);
-
-    const rows = isPlainObject(v) ? unwrapPackValue(v.rows) : null;
-    const t2 = rows ? findMomentInRowsArray(rows, y) : null;
-    if (t2) return { sourceKey: k, text: t2, shape: shapeHint(v), pinned: false };
-  }
-
-  return null;
-}
-
-function findNumberOnePinnedFirst(pinned, knowledgeJson, year) {
-  const y = clampYear(year);
-  if (!y) return null;
-
-  if (pinned && pinned.number1) {
-    const v = pinned.number1;
-    const yStr = String(y);
-
-    if (isPlainObject(v)) {
-      const direct = v[yStr] || v[y];
-      if (isPlainObject(direct)) {
-        const title = normText(direct.title || direct.song || direct.name || direct.track);
-        const artist = normText(direct.artist || direct.by || direct.performer);
-        if (title)
-          return {
-            sourceKey: PINNED_NUMBER1_KEY,
-            entry: { title, artist },
-            shape: shapeHint(v),
-            pinned: true,
-          };
-      }
-    }
-
-    const rows = isPlainObject(v) ? unwrapPackValue(v.rows) : null;
-    const hit = rows ? findNumberOneInRowsArray(rows, y) : null;
-    if (hit) return { sourceKey: PINNED_NUMBER1_KEY, entry: hit, shape: shapeHint(v), pinned: true };
-  }
-
-  if (!knowledgeJson || !isPlainObject(knowledgeJson)) return null;
-
-  for (const k of PIN_NUMBER1_KEYS) {
-    if (k === PINNED_NUMBER1_KEY) continue;
-    if (!Object.prototype.hasOwnProperty.call(knowledgeJson, k)) continue;
-    const v = unwrapPackValue(knowledgeJson[k]);
-
-    const rows = isPlainObject(v) ? unwrapPackValue(v.rows) : null;
-    const hit = rows ? findNumberOneInRowsArray(rows, y) : null;
-    if (hit) return { sourceKey: k, entry: hit, shape: shapeHint(v), pinned: false };
-
-    if (isPlainObject(v)) {
-      const yStr = String(y);
-      const cand =
-        v[yStr] ||
-        v[y] ||
-        (isPlainObject(v.byYear) ? v.byYear[yStr] || v.byYear[y] : null);
-      if (isPlainObject(cand)) {
-        const title = normText(cand.title || cand.song || cand.name || cand.track);
-        const artist = normText(cand.artist || cand.by || cand.performer);
-        if (title) return { sourceKey: k, entry: { title, artist }, shape: shapeHint(v), pinned: false };
-      }
-    }
-  }
-
-  const keys = Object.keys(knowledgeJson).slice(0, KNOWLEDGE_SCAN_CAP);
-  for (const k of keys) {
-    if (!keyLooksLikeNumberOne(k)) continue;
-
-    const v = unwrapPackValue(knowledgeJson[k]);
-    const rows = isPlainObject(v) ? unwrapPackValue(v.rows) : null;
-    const hit = rows ? findNumberOneInRowsArray(rows, y) : null;
-    if (hit) return { sourceKey: k, entry: hit, shape: shapeHint(v), pinned: false };
-
-    if (isPlainObject(v)) {
-      const yStr = String(y);
-      const cand =
-        v[yStr] ||
-        v[y] ||
-        (isPlainObject(v.byYear) ? v.byYear[yStr] || v.byYear[y] : null);
-      if (isPlainObject(cand)) {
-        const title = normText(cand.title || cand.song || cand.name || cand.track);
-        const artist = normText(cand.artist || cand.by || cand.performer);
-        if (title) return { sourceKey: k, entry: { title, artist }, shape: shapeHint(v), pinned: false };
-      }
-    }
-  }
-
-  return null;
-}
-
-/* ======================================================
-   TOP10 LOOSE ACCEPTANCE (SAFE DERIVATION + PROVENANCE)
-   UPDATED: supports {rows:[...]} payloads + yearObj.items
-====================================================== */
-
-function _parseRank(v) {
-  if (typeof v === "number" && isFinite(v)) return v;
-  const s = normText(v);
-  const m = s.match(/^\s*(\d{1,3})\s*$/);
-  return m ? parseInt(m[1], 10) : null;
-}
-
-function _splitTitleArtist(s) {
-  const t = normText(s);
-  const seps = [" — ", " – ", " - ", ": "];
-  for (const sep of seps) {
-    const idx = t.indexOf(sep);
-    if (idx > 0 && idx < t.length - sep.length) {
-      const a = t.slice(0, idx).trim();
-      const b = t.slice(idx + sep.length).trim();
-      return { title: a, artist: b, split: true };
-    }
-  }
-  return { title: t, artist: "", split: false };
-}
-
-function _extractYearRowsFromPayload(payload, year) {
-  const yStr = String(year);
-  const p = unwrapPackValue(payload);
-
-  if (isPlainObject(p)) {
-    // canonical fast-path (again) for top10_by_year_v1
-    const fp = fastPathTop10YearsItems(p, year);
-    if (fp) return fp;
-
-    // direct year maps
-    const direct = p[yStr] || p[year];
-    if (isArray(direct)) return direct;
-
-    // direct year object with items/list/etc
-    if (isPlainObject(direct)) {
-      const got = _extractListFromYearObject(direct);
-      if (got) return got;
-    }
-
-    // common nests
-    const byYear = unwrapPackValue(p.byYear || p.by_year || p.years || p.data || null);
-    if (isPlainObject(byYear)) {
-      const fp2 = fastPathTop10YearsItems(byYear, year);
-      if (fp2) return fp2;
-
-      const v = byYear[yStr] || byYear[year];
-      if (isArray(v)) return v;
-
-      // nested year object with items/list/etc
-      if (isPlainObject(v)) {
-        const got = _extractListFromYearObject(v);
-        if (got) return got;
-      }
-    }
-
-    // rows wrapper
-    if (isArray(p.rows)) {
-      const picked = extractRowsForYearFromRowsWrapper(p, year);
-      if (picked) return picked;
-    }
-  }
-
-  if (isArray(p)) {
-    const rows = p.filter((r) => {
-      if (!isPlainObject(r)) return false;
-      const ry = clampYear(r.year ?? r.Year ?? r.y ?? r.yr ?? r.Y);
-      return ry === year;
-    });
-    if (rows.length) return rows;
-    return p;
-  }
-
-  return null;
-}
-
-function _normalizeTop10Rows(rows) {
-  if (!isArray(rows)) return null;
-
-  const out = [];
-  for (const r of rows) {
-    if (!r) continue;
-
-    if (typeof r === "string") {
-      const s = r.trim().replace(/^\s*#?\s*/, "");
-      const m = s.match(/^(\d{1,3})\s*[\.\)]\s*(.+)$/);
-      const rank = m ? parseInt(m[1], 10) : null;
-      const rest = m ? m[2] : s;
-      const ta = _splitTitleArtist(rest);
-      out.push({ rank, title: ta.title || "Unknown", artist: ta.artist || "Unknown" });
-      continue;
-    }
-
-    if (isPlainObject(r)) {
-      const rank = _parseRank(r.rank ?? r.Rank ?? r.position ?? r.pos ?? r["#"] ?? r.no ?? r.number);
-
-      let title = normText(r.title ?? r.song ?? r.Song ?? r.track ?? r.name);
-      let artist = normText(r.artist ?? r.Artist ?? r.performer);
-
-      if (!title) title = normText(r.entry ?? r.Item ?? r.single ?? r.value ?? r.text ?? r.line);
-      if (title && !artist) {
-        const ta = _splitTitleArtist(title);
-        if (ta.split && ta.artist) {
-          title = ta.title;
-          artist = ta.artist;
-        }
-      }
-
-      out.push({
-        rank,
-        title: title || "Unknown",
-        artist: artist || "Unknown",
-      });
-    }
-  }
-
-  const cleaned = out
-    .filter((x) => x && typeof x.rank === "number" && x.rank >= 1 && x.rank <= 10)
-    .sort((a, b) => a.rank - b.rank);
-
-  const byRank = new Map();
-  for (const x of cleaned) {
-    if (!byRank.has(x.rank)) byRank.set(x.rank, x);
-  }
-
-  const top10 = [];
-  for (let i = 1; i <= 10; i++) {
-    if (!byRank.has(i)) return null;
-    top10.push(byRank.get(i));
-  }
-
-  return top10;
-}
-
-function resolveTop10LooseButSafe(knowledgeJson, year) {
-  if (!knowledgeJson || !isPlainObject(knowledgeJson)) return null;
-  const y = clampYear(year);
-  if (!y) return null;
-
-  const candidates = [
-    { id: "music/top10_by_year", method: "direct", confidence: "high" },
-    {
-      id: "wikipedia/billboard_yearend_hot100_1970_2010",
-      method: "derived_top10_from_wikipedia_yearend",
-      confidence: "medium",
-    },
-    {
-      id: "wikipedia/billboard_yearend_singles_1950_1959",
-      method: "derived_top10_from_wikipedia_yearend",
-      confidence: "medium",
-    },
-
-    // REMOVED: this was causing the loop you reported
-    // { id: "top100_billboard_yearend_1960s_v1", method: "derived_top10_from_yearend", confidence: "medium" },
-
-    { id: "top10_by_year_source_v1", method: "derived_top10_from_source_table", confidence: "low" },
-  ];
-
-  for (const c of candidates) {
-    if (!Object.prototype.hasOwnProperty.call(knowledgeJson, c.id)) continue;
-
-    const raw = knowledgeJson[c.id];
-    const pack = unwrapPackValue(raw);
-
-    const payload = isPlainObject(pack)
-      ? unwrapPackValue(
-          pack.data ?? pack.payload ?? pack.value ?? pack.json ?? pack.content ?? pack.parsed ?? pack
-        )
-      : pack;
-
-    const rows = _extractYearRowsFromPayload(payload, y);
-
-    let rows2 = rows;
-    if (isArray(rows) && rows.length && isPlainObject(rows[0])) {
-      const nested = findYearInArrayPack(rows, y);
-      if (nested && isArray(nested)) rows2 = nested;
-    }
-
-    const top10 = _normalizeTop10Rows(rows2);
-    if (top10) {
-      return {
-        year: y,
-        top10,
-        sourceId: c.id,
-        method: c.method,
-        confidence: c.confidence,
-        shape: shapeHint(payload),
-      };
-    }
-  }
-
-  return null;
-}
-
-/* ======================================================
-   NYX #1 REVEAL CADENCE (template + era variants)
-====================================================== */
-
-function eraForYear(y) {
-  const year = clampYear(y);
-  if (!year) return "default";
-  if (year >= 1950 && year <= 1959) return "50s";
-  if (year >= 1960 && year <= 1969) return "60s";
-  if (year >= 1970 && year <= 1979) return "70s";
-  return "default";
-}
-
-function pick(arr, fallback) {
-  if (!Array.isArray(arr) || !arr.length) return fallback || "";
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-
-function stillnessLineForEra(era, year) {
-  const y = clampYear(year);
-  if (!y) return "Every year leaves one song standing.";
-
-  if (era === "50s") {
-    return pick(
-      [
-        `Some years felt close to home.\n${y} was one of them.`,
-        "This was a year you heard through open windows.",
-        `The world moved slower here.\nSo did the memories.`,
-      ],
-      `Some years felt close to home.\n${y} was one of them.`
-    );
-  }
-
-  if (era === "60s") {
-    return pick(
-      [
-        "This wasn’t a year that stood still.\nIt was already leaning forward.",
-        `${y} didn’t arrive quietly.\nIt kept moving.`,
-        "Everything felt in motion.\nEven the silence.",
-      ],
-      `${y} didn’t arrive quietly.\nIt kept moving.`
-    );
-  }
-
-  if (era === "70s") {
-    return pick(
-      [
-        "By this point, the world had weight.\nYou could hear it in the music.",
-        "This year didn’t float.\nIt pressed in.",
-        "It wasn’t just style.\nIt was identity.",
-      ],
-      "By this point, the world had weight.\nYou could hear it in the music."
-    );
-  }
-
-  return pick(
-    [
-      `Every year leaves one song standing.`,
-      `Some years don’t rush in.\nThey linger.`,
-      `There’s always one record that tells you the truth.`,
-    ],
-    "Every year leaves one song standing."
-  );
-}
-
-function weightLinesForEra(era) {
-  if (era === "50s") {
-    return pick(
-      [
-        "Familiar.\nComfortable.\nAnd everywhere.",
-        "Simple.\nDirect.\nHard to forget.",
-        "The kind of song people carried with them.",
-      ],
-      "Familiar.\nComfortable.\nAnd everywhere."
-    );
-  }
-
-  if (era === "60s") {
-    return pick(
-      [
-        "Restless.\nFamiliar.\nQuietly unavoidable.",
-        "A shift you could feel.\nEven if you couldn’t name it.",
-        "It didn’t just play.\nIt changed the air.",
-      ],
-      "Restless.\nFamiliar.\nQuietly unavoidable."
-    );
-  }
-
-  if (era === "70s") {
-    return pick(
-      [
-        "It wasn’t just popular.\nIt stayed.",
-        "It didn’t ask for attention.\nIt held it.",
-        "Heavy.\nConfident.\nLived-in.",
-      ],
-      "It wasn’t just popular.\nIt stayed."
-    );
-  }
-
-  return pick(
-    [
-      "It didn’t just play everywhere — it defined how the year felt.",
-      "It had a way of returning.\nAgain and again.",
-      "It stuck.\nThat’s the difference.",
-    ],
-    "It didn’t just play everywhere — it defined how the year felt."
-  );
-}
-
-function buildNumberOneRevealReply(year, entry) {
-  const y = clampYear(year);
-  const title = entry && isPlainObject(entry) ? normText(entry.title) : "";
-  const artist = entry && isPlainObject(entry) ? normText(entry.artist) : "";
-  if (!y || !title) return "";
-
-  const era = eraForYear(y);
-  const still = stillnessLineForEra(era, y);
-
-  // Authority whisper is fixed (canonical)
-  const authority = "When the year finally settled…\none record stood above the rest.";
-
-  // Reveal line is sacred (canonical)
-  const reveal = artist ? `That song was “${title}” — ${artist}.` : `That song was “${title}”.`;
-
-  const weight = weightLinesForEra(era);
-
-  // Invitation is fixed (canonical)
-  const invite =
-    "Do you want the story behind why *this* song claimed the year…\n" +
-    "or should we slip into the moment where it sealed its place?";
-
-  return [still, authority, reveal, weight, invite].filter(Boolean).join("\n\n");
-}
-
-/* ======================================================
-   Music responder
-====================================================== */
-
-function formatTop10Reply(year, list) {
-  const lines = [];
-  const top = list.slice(0, 10);
-
-  for (let i = 0; i < top.length; i++) {
-    const line = normalizeSongLine(top[i]) || null;
-    if (!line) continue;
-    const hasRank = /^\s*\d+\./.test(line);
-    lines.push(hasRank ? line : `${i + 1}. ${line}`);
-  }
-
-  if (!lines.length) return `Top 10 songs of ${year}: (data loaded, but format is unexpected).`;
-  return `Top 10 songs of ${year}:\n\n${lines.join("\n")}`;
-}
-
-function formatNumberOneLine(entry) {
-  if (!entry || !isPlainObject(entry)) return "";
-  const title = normText(entry.title);
-  const artist = normText(entry.artist);
-  if (title && artist) return `${title} — ${artist}`;
-  if (title) return title;
+function silentResetReply() {
   return "";
 }
 
-function buildPowerChainFollowUps(year) {
-  const y = clampYear(year);
-  if (!y) return [];
+// =========================
+// Engine resolver (handleChat OR function export)
+// =========================
+function resolveEngine(mod) {
+  if (!mod) return { fn: null, from: "missing", version: "" };
 
-  return [
-    { id: "chain_no1", type: "chip", label: "#1 song", payload: { lane: "music", action: "year", year: y, mode: "number_one" } },
-    { id: "chain_top10", type: "chip", label: "Top 10", payload: { lane: "music", action: "year", year: y, mode: "top10" } },
-    { id: "chain_micro", type: "chip", label: "Micro moment", payload: { lane: "music", action: "year", year: y, mode: "micro" } },
-    { id: "chain_story", type: "chip", label: "Story moment", payload: { lane: "music", action: "year", year: y, mode: "story" } },
-  ];
+  if (typeof mod === "function") {
+    return { fn: mod, from: "module_function", version: safeStr(mod.CE_VERSION || "") };
+  }
+  if (typeof mod.handleChat === "function") {
+    return { fn: mod.handleChat.bind(mod), from: "module_handleChat", version: safeStr(mod.CE_VERSION || "") };
+  }
+  if (typeof mod.reply === "function") {
+    return { fn: mod.reply.bind(mod), from: "module_reply", version: safeStr(mod.CE_VERSION || "") };
+  }
+  if (typeof mod.chatEngine === "function") {
+    return { fn: mod.chatEngine.bind(mod), from: "module_chatEngine", version: safeStr(mod.CE_VERSION || "") };
+  }
+
+  return { fn: null, from: "invalid", version: safeStr(mod.CE_VERSION || "") };
 }
 
-function musicReply({ year, mode, knowledge, yearSource }) {
-  const y = clampYear(year);
-  const m = normalizeMode(mode, "", "");
+const ENGINE = resolveEngine(chatEngineMod);
+const ENGINE_VERSION = safeStr(ENGINE.version || chatEngineMod?.CE_VERSION || "").trim();
 
-  // LOOP-KILLER: Top 10 requires explicit year. Never answer Top10 from sticky year.
-  if (m === "top10" && yearSource === "sticky") {
-    const chips = sanitizeFollowUps([
-      { id: "pick_1960", type: "chip", label: "1960 Top 10", payload: { lane: "music", action: "year", year: 1960, mode: "top10" } },
-      { id: "pick_1977", type: "chip", label: "1977 Top 10", payload: { lane: "music", action: "year", year: 1977, mode: "top10" } },
-      { id: "pick_1988", type: "chip", label: "1988 Top 10", payload: { lane: "music", action: "year", year: 1988, mode: "top10" } },
-      { id: "pick_1999", type: "chip", label: "1999 Top 10", payload: { lane: "music", action: "year", year: 1999, mode: "top10" } },
-    ]);
+function normalizeEngineOutput(out) {
+  if (out === null || out === undefined) return {};
+  if (typeof out === "string") return { ok: true, reply: out };
+  if (isPlainObject(out)) return out;
+  return { ok: true, reply: safeStr(out) };
+}
 
-    return {
-      reply: "Top 10 needs a specific year (1950–2025). Tap a year chip or type one in.",
-      followUps: chips,
-      sessionPatch: { lane: "music", activeMusicMode: "top10" },
-      meta: { used: "top10_requires_explicit_year" },
-    };
-  }
+// =========================
+// Knowledge Bridge (now includes visibility diagnostics)
+// =========================
+const KNOWLEDGE = {
+  ok: false,
+  loadedAt: 0,
+  filesScanned: 0,
+  filesLoaded: 0,
+  totalBytes: 0,
+  json: {},
+  scripts: {},
+  errors: [],
+  __manifest: [],
+  __packsight: {
+    dataRoots: [],
+    pinnedResolved: [],
+    pinnedMissing: [],
+    manifestResolved: [],
+    probes: [],
+    skips: {},
+    collisions: [],
+    fileMapPreview: [],
+  },
+  __fileMap: Object.create(null),
+  __collisions: [],
+  __skips: {
+    too_large: 0,
+    budget_stop: 0,
+    parse_fail: 0,
+    read_fail: 0,
+    duplicate_fp: 0,
+    key_collision: 0,
+  },
+};
 
-  if (!y) {
-    return {
-      reply: "Pick a year between 1950 and 2025 and I’ll pull the Top 10, #1, or a story moment — your call.",
-      followUps: sanitizeFollowUps([
-        { id: "y1981", type: "chip", label: "1981 Top 10", payload: { lane: "music", action: "year", year: 1981, mode: "top10" } },
-        { id: "y1981no1", type: "chip", label: "#1 song (1981)", payload: { lane: "music", action: "year", year: 1981, mode: "number_one" } },
-        { id: "y1988", type: "chip", label: "1988 Story moment", payload: { lane: "music", action: "year", year: 1988, mode: "story" } },
-      ]),
-      sessionPatch: { lane: "music", activeMusicMode: m && MUSIC_MODES.has(m) ? m : "top10" },
-      meta: { used: "music_no_year" },
-    };
-  }
-
-  const knowledgeJson = knowledge && knowledge.json && isPlainObject(knowledge.json) ? knowledge.json : null;
-  const pinned = getPinnedPacks(knowledgeJson);
-
-  const wantsTop10 = m === "top10";
-  const wantsNumberOne = m === "number_one";
-  const wantsMicro = m === "micro";
-  const wantsStory = m === "story";
-  const wantsCharts = m === "charts" || m === "year_end";
-
-  let reply = "";
-  let diag = null;
-
-  if (wantsNumberOne) {
-    // STRICT: #1 song must come from #1-by-year pack (pinned-first). No “derived #1 from Top10”.
-    const no1 = findNumberOnePinnedFirst(pinned, knowledgeJson, y);
-    if (no1 && no1.entry) {
-      const reveal = buildNumberOneRevealReply(y, no1.entry);
-      reply = reveal || (() => {
-        const line = formatNumberOneLine(no1.entry);
-        return line ? `That song was “${line}”.` : `I have the #1 entry for ${y}, but it’s in an unexpected format.`;
-      })();
-
-      diag = {
-        no1Key: no1.sourceKey,
-        no1Shape: no1.shape || null,
-        pinned: !!no1.pinned,
-        era: eraForYear(y),
-      };
-    } else {
-      reply =
-        `I can’t reveal the year’s #1 for ${y} yet — the #1-by-year pack isn’t available.\n` +
-        `Once ${PINNED_NUMBER1_KEY} is loaded, I’ll do it clean.`;
-      diag = { no1Key: null, pinnedMissing: !pinned.number1 };
-    }
-  } else if (wantsTop10) {
-    const hit = findTop10PinnedFirst(pinned, knowledgeJson, y);
-    const derived = !hit || !isArray(hit.list) || hit.list.length < 10 ? resolveTop10LooseButSafe(knowledgeJson, y) : null;
-
-    if (derived && isArray(derived.top10) && derived.top10.length === 10) {
-      reply = formatTop10Reply(y, derived.top10);
-      reply += `\n\nPower move: tap “#1 song” to anchor, then “Micro moment” to make it cinematic.`;
-      diag = {
-        top10HitKey: derived.sourceId,
-        top10HitShape: derived.shape || null,
-        top10Len: derived.top10.length,
-        top10Method: derived.method,
-        top10Confidence: derived.confidence,
-      };
-    } else if (hit && isArray(hit.list) && hit.list.length >= 10) {
-      reply = formatTop10Reply(y, hit.list);
-      reply += `\n\nPower move: go #1 → Micro moment. That’s your “broadcast-tight” chain.`;
-      diag = { top10HitKey: hit.sourceKey, top10HitShape: hit.shape || null, top10Len: hit.list.length, pinned: !!hit.pinned };
-    } else if (hit && isArray(hit.list) && hit.list.length) {
-      reply =
-        `Top songs of ${y} (partial list from loaded sources):\n\n${hit.list
-          .slice(0, 10)
-          .map((v, i) => `${i + 1}. ${normalizeSongLine(v) || String(v)}`)
-          .join("\n")}`;
-      diag = { top10HitKey: hit.sourceKey, top10HitShape: hit.shape || null, top10Len: hit.list.length, pinned: !!hit.pinned };
-    } else {
-      reply =
-        `I can’t responsibly assemble a clean Top 10 for ${y} from the currently loaded sources. ` +
-        `If you want, I can show the closest ranked list I *do* have and tell you exactly which pack it came from.`;
-      diag = { top10HitKey: null, top10Len: 0, pinnedMissing: !pinned.top10 };
-    }
-  } else if (wantsMicro) {
-    const micro = findMicroPinnedFirst(pinned, knowledgeJson, y);
-    reply =
-      micro && micro.text
-        ? `Micro moment (${y}): ${clampStr(micro.text, 260)}`
-        : `Micro moment for ${y}: give me a vibe (soul, rock, pop) or an artist and I’ll make it razor-specific.`;
-    diag = micro
-      ? { microKey: micro.sourceKey, microShape: micro.shape || null, pinned: !!micro.pinned }
-      : { microKey: null, pinnedMissing: !pinned.micro };
-  } else if (wantsStory) {
-    const story = findStoryPinnedFirst(pinned, knowledgeJson, y);
-    if (story && story.text) {
-      reply = `Story moment for ${y}: ${clampStr(story.text, 900)}`;
-      diag = { storyKey: story.sourceKey, storyShape: story.shape || null, pinned: !!story.pinned };
-    } else {
-      // No meta (“I can anchor…”) — keep Nyx in-presence, and guide forward.
-      const no1 = findNumberOnePinnedFirst(pinned, knowledgeJson, y);
-      if (no1 && no1.entry && normText(no1.entry.title)) {
-        const line = formatNumberOneLine(no1.entry);
-        reply =
-          `Before we go cinematic, we anchor.\n\n` +
-          `For ${y}, the year’s crown went to ${line ? `“${line}”.` : "one song that outlasted the rest."}\n\n` +
-          `Tap “Micro moment” to seal the vibe, or “Top 10” for context.`;
-        diag = { storyKey: null, anchoredByNo1: true, no1Key: no1.sourceKey, no1Shape: no1.shape || null };
-      } else {
-        reply =
-          `Story moment for ${y}: I don’t have the written moment loaded yet.\n` +
-          `If you tap “#1 song” first (once the #1 pack is loaded), I’ll anchor it clean — then we’ll make it cinematic.`;
-        diag = { storyKey: null, pinnedMissing: !pinned.story, no1Missing: !pinned.number1 };
-      }
-    }
-  } else if (wantsCharts) {
-    reply = `Got it — ${y}. Do you want the Top 10 list, or just the #1 with a quick story moment?`;
-  } else {
-    reply = `Tell me what you want for ${y}: Top 10, #1, story moment, or a micro moment.`;
-  }
-
-  const followUps = buildPowerChainFollowUps(y);
-
-  // IMPORTANT: do NOT persist sticky-borrowed years as canonical lastMusicYear.
-  const persistYear = yearSource === "payload" || yearSource === "text" || yearSource === "classifier";
-
-  const sp = { lane: "music", activeMusicMode: m && MUSIC_MODES.has(m) ? m : "top10" };
-  if (persistYear) sp.lastMusicYear = y;
-
-  return {
-    reply,
-    followUps,
-    sessionPatch: sp,
-    meta: { used: "music_reply", mode: m || null, diag: diag || null },
+function resetVisibilityDiagnostics() {
+  KNOWLEDGE.__fileMap = Object.create(null);
+  KNOWLEDGE.__collisions = [];
+  KNOWLEDGE.__skips = {
+    too_large: 0,
+    budget_stop: 0,
+    parse_fail: 0,
+    read_fail: 0,
+    duplicate_fp: 0,
+    key_collision: 0,
   };
 }
 
-/* ======================================================
-   System responder
-====================================================== */
-
-function buildSystemHelpFollowUps() {
-  return sanitizeFollowUps([
-    { id: "sys_music", type: "chip", label: "Music by year", payload: { lane: "music", action: "start", mode: "top10" } },
-    { id: "sys_1981", type: "chip", label: "1981 Top 10", payload: { lane: "music", action: "year", year: 1981, mode: "top10" } },
-    { id: "sys_1988", type: "chip", label: "1988 Story moment", payload: { lane: "music", action: "year", year: 1988, mode: "story" } },
-    { id: "sys_reset", type: "chip", label: "Reset", payload: { lane: "system", action: "reset" } },
-  ]);
+function pushKnowledgeError(type, file, msg) {
+  const e = { type: safeStr(type), file: safeStr(file), msg: safeStr(msg).slice(0, 300) };
+  KNOWLEDGE.errors.push(e);
+  if (KNOWLEDGE.errors.length > 120) KNOWLEDGE.errors.shift();
 }
 
-function handleSystem({ action, session }) {
-  const a = normLower(action);
-
-  if (a === "reset") {
-    try {
-      delete session.__replay;
-      delete session.__loop;
-    } catch (_) {}
-
-    try {
-      session.__turnCount = 0;
-      session.allowPackets = true;
-      session.lane = "general";
-      session.lastMusicYear = null;
-      session.activeMusicMode = null;
-      session.activeMusicChart = null;
-      session.lastMusicChart = null;
-      session.__musicLastSig = null;
-      session.lastIntentSig = null;
-      session.__packIndexSeen = false;
-      session.depthLevel = 0;
-      session.recentIntent = null;
-      session.recentTopic = null;
-    } catch (_) {}
-
-    const followUps = sanitizeFollowUps([
-      { id: "r_music", type: "chip", label: "Music", payload: { lane: "music", action: "start", mode: "top10", text: "Pick a year" } },
-      { id: "r_talk", type: "chip", label: "Just talk", payload: { lane: "general", action: "free", text: "Just talk" } },
-      { id: "r_help", type: "chip", label: "What can you do?", payload: { lane: "system", action: "help" } },
-    ]);
-
-    return {
-      reply: "Reset done. Where do you want to go next?",
-      followUps,
-      sessionPatch: {
-        lane: "general",
-        allowPackets: true,
-        lastMusicYear: null,
-        activeMusicMode: null,
-        activeMusicChart: null,
-        lastMusicChart: null,
-        __musicLastSig: null,
-        depthLevel: 0,
-        recentIntent: null,
-        recentTopic: null,
-      },
-      meta: { used: "system_reset" },
-      directives: [{ type: "reset" }],
-    };
-  }
-
-  return {
-    reply:
-      "Here’s what I can do right now:\n" +
-      "• Music by year (Top 10, #1 song, story moment, micro moment)\n" +
-      "• Keep the chain going with smart follow-ups (no dead ends)\n" +
-      "• General Q&A when you just want to talk\n\n" +
-      "Pick a chip and I’ll drive.",
-    followUps: buildSystemHelpFollowUps(),
-    sessionPatch: { lane: "general", allowPackets: true },
-    meta: { used: "system_help" },
-  };
-}
-
-/* ======================================================
-   Packets gate + always-advance
-====================================================== */
-
-function computeAllowPackets({ structuredMusic, lane }) {
-  if (structuredMusic) return false;
-  if (lane === "music" || lane === "years") return false;
-  return true;
-}
-
-function ensureAdvance({ reply, followUps }) {
-  const r = normText(reply);
-  if (r) return { reply: r, followUps };
-
-  const chips =
-    Array.isArray(followUps) && followUps.length
-      ? followUps
-      : [
-          { id: "help", type: "chip", label: "What can you do?", payload: { lane: "system", action: "help" } },
-          { id: "music", type: "chip", label: "Music by year", payload: { lane: "music", action: "start" } },
-          { id: "reset", type: "chip", label: "Reset", payload: { lane: "system", action: "reset" } },
-        ];
-
-  return {
-    reply: "I’m here — tell me what you want next, or tap a chip and I’ll take it from there.",
-    followUps: chips,
-  };
-}
-
-/* ======================================================
-   Intent classifier integration (optional) — TOP40 PURGED
-====================================================== */
-
-function getIntentSignals(text, payload) {
-  if (!intentClassifier) return null;
+function isWithinRoot(p, root) {
   try {
-    if (typeof intentClassifier.classify === "function") {
-      return intentClassifier.classify(text, { payload: payload || null });
-    }
-    if (typeof intentClassifier.classifyIntent === "function") {
-      return intentClassifier.classifyIntent(text);
-    }
-  } catch (_) {}
-  return null;
+    const rp = path.resolve(p);
+    const rr = path.resolve(root);
+    return rp === rr || rp.startsWith(rr + path.sep);
+  } catch (_) {
+    return false;
+  }
 }
 
-function mapMusicActionToMode(musicAction) {
-  const a = normalizeMusicAction(musicAction);
-  if (!a) return "";
-  if (a === "top10") return "top10";
-  if (a === "year_end") return "year_end";
-  if (a === "number_one") return "number_one";
-  if (a === "charts") return "charts";
-  if (a === "story") return "story";
-  if (a === "micro") return "micro";
-  return a;
-}
-
-/* ======================================================
-   Public API
-====================================================== */
-
-async function handleChat(input = {}) {
-  const tNow = nowMs();
-
-  const session =
-    input && input.session && typeof input.session === "object" ? input.session : Object.create(null);
-
-  const turnCountRaw = Number(session.__turnCount || 0);
-  const turnCount = Number.isFinite(turnCountRaw) && turnCountRaw >= 0 ? turnCountRaw : 0;
-
-  const clientSource = normLower(
-    (input && input.client && input.client.source) ||
-      input.source ||
-      (input && input.meta && input.meta.source) ||
-      ""
-  );
-
-  const sessionId = sessionScopedVisitorId(
-    session,
-    input.visitorId || input.visitorID || input.sessionId
-  );
-
-  const clientRequestId = String(input.clientRequestId || input.requestId || "");
-  const debug = !!input.debug;
-
-  const inbound = parseInbound(input);
-
-  const intentSig = getIntentSignals(inbound.text, inbound.payload);
-  const intentMusicAction =
-    intentSig && (intentSig.musicAction || intentSig.music_action)
-      ? String(intentSig.musicAction || intentSig.music_action)
-      : "";
-  const intentMusicYear =
-    intentSig && (intentSig.musicYear || intentSig.music_year)
-      ? clampYear(intentSig.musicYear || intentSig.music_year)
-      : null;
-
-  let yearSource = inbound._yearSource || "";
-
-  const forcedMode = mapMusicActionToMode(intentMusicAction);
-  if (forcedMode) inbound.mode = forcedMode;
-
-  if (!inbound.year && intentMusicYear) {
-    inbound.year = intentMusicYear;
-    yearSource = "classifier";
-  }
-
-  if (!inbound.mode) inbound.mode = inferMusicModeFromText(inbound.lower);
-
-  if (!inbound.year && inbound.mode && needsYearForMode(inbound.mode)) {
-    const sticky = getStickyMusicYear(session);
-    if (sticky) {
-      inbound.year = sticky;
-      yearSource = "sticky";
-    }
-  }
-
-  const inboundHash = sha1(
-    safeJsonStringify({
-      t: inbound.lower,
-      lane: inbound.lane,
-      action: inbound.action,
-      mode: inbound.mode,
-      year: inbound.year,
-      ys: yearSource,
-      p: inbound.payload
-        ? {
-            lane: inbound.payload.lane,
-            action: inbound.payload.action,
-            mode: inbound.payload.mode,
-            year: inbound.payload.year,
-          }
-        : null,
-    })
-  );
-
-  const repeats = recordLoopEvent(session, inboundHash);
-
-  if (repeats >= SUSTAIN_REPEAT_LIMIT) {
-    const breakerReply =
-      "We’re looping. Want a clean reset, or do you want me to keep the lane and pull a different year’s Top 10?";
-    const breakerFollowUps = sanitizeFollowUps([
-      { id: "reset_all", type: "chip", label: "Reset and restart", payload: { lane: "system", action: "reset" } },
-      { id: "try_1981", type: "chip", label: "Try 1981 Top 10", payload: { lane: "music", action: "year", year: 1981, mode: "top10" } },
-      { id: "try_1977", type: "chip", label: "Try 1977 Top 10", payload: { lane: "music", action: "year", year: 1977, mode: "top10" } },
-    ]);
-
-    return {
-      ok: true,
-      reply: breakerReply,
-      lane: inbound.lane || session.lane || "general",
-      ctx: { loopFuse: true, repeats },
-      ui: null,
-      directives: [{ type: "loop_fuse", repeats }],
-      followUps: breakerFollowUps,
-      followUpsStrings: followUpsToLegacyStrings(breakerFollowUps),
-      sessionPatch: safeSessionPatch({ lastIntentSig: inboundHash, allowPackets: false }) || null,
-      cog: session.cog || null,
-      requestId: clientRequestId || null,
-      meta: debug ? { engine: CE_VERSION, reason: "sustained_loop_fuse", inboundHash, repeats } : null,
-    };
-  }
-
-  const burstKey = buildBurstKey({ sessionId, inboundHash });
-  const remembered = getRememberedReply(session, burstKey);
-  if (remembered && remembered.t && tNow - remembered.t <= BURST_WINDOW_MS) {
-    const out = remembered.out;
-    return Object.assign(Object.create(null), out, {
-      meta: debug
-        ? Object.assign(Object.create(null), out.meta || null, {
-            engine: CE_VERSION,
-            burstReplay: true,
-            burstKey,
-            inboundHash,
-          })
-        : null,
-    });
-  }
-
-  const isSystem =
-    inbound.lane === "system" ||
-    normLower(inbound.action) === "reset" ||
-    normLower(inbound.action) === "help";
-
-  const structuredMusic = looksLikeStructuredMusic({
-    lane: inbound.lane,
-    action: inbound.action,
-    mode: inbound.mode,
-    year: inbound.year,
-    lower: inbound.lower,
-  });
-
-  session.allowPackets = computeAllowPackets({
-    structuredMusic,
-    lane: inbound.lane || session.lane || "",
-  });
-
-  let routed = null;
-
-  if (isSystem) {
-    routed = handleSystem({ action: inbound.action || "help", session });
-    mergeSession(session, routed.sessionPatch);
-  } else if (structuredMusic) {
-    const mode = inbound.mode || inferMusicModeFromText(inbound.lower) || "top10";
-
-    routed = musicReply({
-      year: inbound.year,
-      mode,
-      knowledge: input.knowledge || null,
-      yearSource,
-    });
-
-    mergeSession(session, routed.sessionPatch);
-  } else {
-    if (!routed && packets && typeof packets.handleChat === "function" && session.allowPackets) {
-      const p = await packets.handleChat({
-        text: inbound.text,
-        session,
-        visitorId: sessionId,
-        debug,
-        laneHint: inbound.lane || session.lane || "",
-        routeHint: "",
-      });
-
-      if (p && p.reply) {
-        const fus = sanitizeFollowUps(
-          (p.followUps || []).map((x) => ({
-            id: safeId("chip"),
-            type: "chip",
-            label: x.label,
-            payload: { text: x.send },
-          }))
-        );
-
-        routed = {
-          reply: p.reply,
-          followUps: fus,
-          sessionPatch: p.sessionPatch || null,
-          meta: p.meta || null,
-        };
-        mergeSession(session, routed.sessionPatch);
-      }
-    }
-
-    if (!routed) {
-      const y = inbound.year || extractYearFromText(inbound.text);
-      const mode = inbound.mode || inferMusicModeFromText(inbound.lower) || "story";
-
-      if (y) {
-        routed = musicReply({
-          year: y,
-          mode,
-          knowledge: input.knowledge || null,
-          yearSource: inbound._yearSource || "text",
-        });
-      } else {
-        routed = {
-          reply:
-            "Tell me what you want next—music by year, a show, a channel question, or something else. Give me a year and I’ll anchor instantly.",
-          followUps: sanitizeFollowUps([
-            { id: "chip_1981", type: "chip", label: "1981 Top 10", payload: { lane: "music", action: "year", year: 1981, mode: "top10" } },
-            { id: "chip_1988", type: "chip", label: "1988 Story moment", payload: { lane: "music", action: "year", year: 1988, mode: "story" } },
-            { id: "chip_help", type: "chip", label: "What can you do?", payload: { lane: "system", action: "help" } },
-          ]),
-          sessionPatch: { lane: session.lane || "general", allowPackets: true },
-          meta: { used: "always_advance_fallback" },
-        };
-      }
-      mergeSession(session, routed.sessionPatch);
-    }
-  }
-
-  const isFirstTurn =
-    turnCount === 0 ||
-    clientSource === "panel_open_intro" ||
-    clientSource === "boot_intro" ||
-    clientSource === "panel_open" ||
-    clientSource === "open";
-
-  if (isFirstTurn && (!routed || !hasUsableFollowUps(routed.followUps))) {
-    if (!routed) routed = { reply: "", followUps: [] };
-    routed.followUps = firstTurnRouterFollowUps();
-  }
-
-  const safeOut = ensureAdvance({ reply: routed.reply, followUps: routed.followUps });
-  const followUps = sanitizeFollowUps(safeOut.followUps || []);
-
-  const explicitYearForPatch =
-    inbound.year && (yearSource === "payload" || yearSource === "text" || yearSource === "classifier")
-      ? inbound.year
-      : null;
-
-  const out = {
-    ok: true,
-    reply: clampStr(safeOut.reply, MAX_REPLY_LEN),
-    lane: inbound.lane || session.lane || "general",
-    ctx: {
-      structuredMusic: !!structuredMusic,
-      allowPackets: !!session.allowPackets,
-      repeats,
-      musicMode: inbound.mode || null,
-      musicYear: inbound.year || null,
-      yearSource: yearSource || null,
-      classifierAction: forcedMode || null,
-      payloadSeen: !!inbound.payload,
-      stickyYearUsed: yearSource === "sticky",
-      firstTurn: !!isFirstTurn,
-      clientSource: clientSource || null,
-      system: !!isSystem,
-    },
-    ui: null,
-    directives: (routed && Array.isArray(routed.directives) ? routed.directives : []) || [],
-    followUps,
-    followUpsStrings: followUpsToLegacyStrings(followUps),
-    sessionPatch:
-      safeSessionPatch({
-        lane: inbound.lane || session.lane || "general",
-        lastIntentSig: inboundHash,
-        allowPackets: session.allowPackets === true,
-        lastMusicYear: explicitYearForPatch || session.lastMusicYear || null,
-        activeMusicMode: session.activeMusicMode || inbound.mode || null,
-        activeMusicChart: session.activeMusicChart || null,
-        lastMusicChart: session.lastMusicChart || null,
-        __musicLastSig: session.__musicLastSig || null,
-        depthLevel: session.depthLevel != null ? session.depthLevel : null,
-        recentIntent: session.recentIntent || null,
-        recentTopic: session.recentTopic || null,
-        __nyxPackets: session.__nyxPackets || null,
-        __packIndexSeen: !!session.__packIndexSeen,
-        cog: session.cog || null,
-      }) || null,
-    cog: session.cog || null,
-    requestId: clientRequestId || null,
-    meta: debug
-      ? {
-          engine: CE_VERSION,
-          inboundHash,
-          burstKey,
-          structuredMusic,
-          repeats,
-          lane: inbound.lane || session.lane || "",
-          intentSig: intentSig || null,
-          packetMeta: routed && routed.meta ? routed.meta : null,
-          turnCount,
-          clientSource,
-          isFirstTurn,
-          isSystem,
-        }
-      : null,
-  };
-
+function safeReadFileBytes(fp) {
   try {
-    session.__turnCount = turnCount + 1;
-  } catch (_) {}
+    const st = fs.statSync(fp);
+    const size = Number(st.size || 0);
+    if (!Number.isFinite(size) || size <= 0) return { ok: false, size: 0, buf: null, reason: "empty_or_unknown" };
+    if (size > KNOWLEDGE_MAX_FILE_BYTES) return { ok: false, size, buf: null, reason: "file_too_large" };
+    return { ok: true, size, buf: fs.readFileSync(fp) };
+  } catch (e) {
+    return { ok: false, size: 0, buf: null, reason: safeStr(e?.message || e) };
+  }
+}
 
-  rememberReply(session, burstKey, out);
+function walkFiles(dirAbs, exts, outArr, limit) {
+  if (!dirAbs || !fileExists(dirAbs)) return;
+  let stack = [dirAbs];
+  while (stack.length) {
+    const d = stack.pop();
+    let entries = [];
+    try {
+      entries = fs.readdirSync(d, { withFileTypes: true });
+    } catch (e) {
+      pushKnowledgeError("readdir", d, e?.message || e);
+      continue;
+    }
+    for (const ent of entries) {
+      if (outArr.length >= limit) return;
+      const fp = path.join(d, ent.name);
+      if (ent.isDirectory()) {
+        if (ent.name === "node_modules" || ent.name === ".git") continue;
+        stack.push(fp);
+      } else if (ent.isFile()) {
+        const ext = path.extname(ent.name).toLowerCase();
+        if (exts.includes(ext)) outArr.push(fp);
+      }
+    }
+  }
+}
+
+function fileKeyFromPath(rootAbs, fp) {
+  const rel = path.relative(rootAbs, fp).replace(/\\/g, "/");
+  const noExt = rel.replace(/\.[^/.]+$/, "");
+  return noExt.replace(/[^a-zA-Z0-9/_\-\.]/g, "_");
+}
+
+function bestKeyForFile(fp, roots) {
+  const abs = path.resolve(fp);
+  const candidates = Array.isArray(roots) ? roots : [];
+  let best = null;
+
+  for (const r of candidates) {
+    if (!r) continue;
+    const rr = path.resolve(r);
+    if (!isWithinRoot(abs, rr)) continue;
+    const rel = path.relative(rr, abs).replace(/\\/g, "/");
+    if (!rel || rel.startsWith("..")) continue;
+
+    const score = rel.length;
+    if (!best || score < best.score) best = { root: rr, rel, score };
+  }
+
+  if (best) return fileKeyFromPath(best.root, abs);
+  if (DATA_DIR && isWithinRoot(abs, DATA_DIR)) return fileKeyFromPath(DATA_DIR, abs);
+  return fileKeyFromPath(APP_ROOT, abs);
+}
+
+function sanitizeScriptExport(x) {
+  if (x === null || x === undefined) return null;
+  if (typeof x === "function") return { __type: "function", name: safeStr(x.name || "anonymous") };
+  if (typeof x === "string") return x.slice(0, 4000);
+  if (typeof x === "number" || typeof x === "boolean") return x;
+  if (Array.isArray(x)) return x.slice(0, 200).map((v) => sanitizeScriptExport(v));
+  if (isPlainObject(x)) {
+    const out = {};
+    const keys = Object.keys(x).slice(0, 200);
+    for (const k of keys) {
+      if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
+      out[k] = sanitizeScriptExport(x[k]);
+    }
+    return out;
+  }
+  return { __type: typeof x };
+}
+
+function pinnedPresence() {
+  const out = {};
+  for (const p of PINNED_PACKS) {
+    out[p.key] = Object.prototype.hasOwnProperty.call(KNOWLEDGE.json, p.key);
+  }
   return out;
 }
 
+function resolvePinnedFileAbs(rels) {
+  const arr = Array.isArray(rels) ? rels : [rels];
+  for (const rel of arr) {
+    const relNorm = String(rel).replace(/\\/g, "/").replace(/^\/+/, "");
+    for (const base of DATA_ROOT_CANDIDATES) {
+      const fpDirect = path.resolve(base, relNorm);
+      if (fileExists(fpDirect)) return fpDirect;
+
+      const fpCI = resolveRelPathCaseInsensitive(base, relNorm);
+      if (fileExists(fpCI)) return fpCI;
+    }
+  }
+  return null;
+}
+
+// Top10 shape normalizer (pinned)
+function normalizePinnedTop10Payload(payload) {
+  try {
+    let p = payload;
+
+    if (isPlainObject(p) && isPlainObject(p.byYear)) p = p.byYear;
+
+    if (isPlainObject(p)) {
+      const keys = Object.keys(p);
+      const yearKeys = keys.filter((k) => /^\d{4}$/.test(String(k)));
+      if (yearKeys.length) {
+        let looksRight = true;
+        for (const y of yearKeys) {
+          if (!Array.isArray(p[y])) {
+            looksRight = false;
+            break;
+          }
+        }
+        if (looksRight) {
+          for (const y of yearKeys) {
+            try {
+              p[y].sort((a, b) => Number(a?.rank || 9999) - Number(b?.rank || 9999));
+            } catch (_) {}
+          }
+          return { payload: p, normalized: false, kind: "year_keyed" };
+        }
+      }
+    }
+
+    const rows = Array.isArray(p)
+      ? p
+      : isPlainObject(p) && Array.isArray(p.rows)
+        ? p.rows
+        : isPlainObject(p) && Array.isArray(p.data)
+          ? p.data
+          : isPlainObject(p) && Array.isArray(p.items)
+            ? p.items
+            : null;
+
+    if (!rows) return { payload, normalized: false, kind: "unknown" };
+
+    const byYear = Object.create(null);
+    for (const r of rows) {
+      const y = Number(r && r.year);
+      if (!Number.isFinite(y)) continue;
+      if (!byYear[y]) byYear[y] = [];
+      byYear[y].push(r);
+    }
+    for (const y of Object.keys(byYear)) {
+      byYear[y].sort((a, b) => Number(a?.rank || 9999) - Number(b?.rank || 9999));
+    }
+
+    const any = Object.keys(byYear).length > 0;
+    if (!any) return { payload, normalized: false, kind: "no_years" };
+
+    return { payload: byYear, normalized: true, kind: Array.isArray(p) ? "rows_array" : "rows_wrapped" };
+  } catch (_) {
+    return { payload, normalized: false, kind: "exception" };
+  }
+}
+
+// resolve a manifest REL across all data roots
+function resolveDataRelAcrossRoots(relOrRels, kind /* "file" | "dir" | "either" */) {
+  const rels = Array.isArray(relOrRels) ? relOrRels : [relOrRels];
+  const wantKind = kind || "either";
+
+  for (const rel of rels) {
+    const relNorm = String(rel || "").replace(/\\/g, "/").replace(/^\/+/, "");
+    if (!relNorm) continue;
+
+    for (const base of DATA_ROOT_CANDIDATES) {
+      const direct = path.resolve(base, relNorm);
+      const stD = statSafe(direct);
+      if (stD) {
+        if (wantKind === "file" && stD.isFile()) return direct;
+        if (wantKind === "dir" && stD.isDirectory()) return direct;
+        if (wantKind === "either") return direct;
+      }
+
+      const ci = resolveRelPathCaseInsensitive(base, relNorm);
+      const stC = statSafe(ci);
+      if (stC) {
+        if (wantKind === "file" && stC.isFile()) return ci;
+        if (wantKind === "dir" && stC.isDirectory()) return ci;
+        if (wantKind === "either") return ci;
+      }
+    }
+
+    const baseName = path.posix.basename(relNorm);
+    if (baseName) {
+      if (wantKind === "file") {
+        const hit = findByNameAcrossDataRoots(baseName, false);
+        if (hit) return hit;
+      } else if (wantKind === "dir") {
+        const hit = findByNameAcrossDataRoots(baseName, true);
+        if (hit) return hit;
+      } else {
+        const hitF = findByNameAcrossDataRoots(baseName, false);
+        if (hitF) return hitF;
+        const hitD = findByNameAcrossDataRoots(baseName, true);
+        if (hitD) return hitD;
+      }
+    }
+  }
+
+  return null;
+}
+
+// NEW: record a key->fp "winner" and detect collisions
+function recordKeyWinner(key, fp) {
+  const k = String(key);
+  const f = String(fp);
+  const prev = KNOWLEDGE.__fileMap[k];
+  if (!prev) {
+    KNOWLEDGE.__fileMap[k] = f;
+    return { ok: true, collision: false };
+  }
+  if (prev === f) return { ok: true, collision: false };
+
+  // collision
+  KNOWLEDGE.__skips.key_collision += 1;
+  const entry = { key: k, keptFp: prev, collidedFp: f };
+  KNOWLEDGE.__collisions.push(entry);
+  if (KNOWLEDGE.__collisions.length > 200) KNOWLEDGE.__collisions.shift();
+  return { ok: true, collision: true, keptFp: prev, collidedFp: f };
+}
+
+function loadPinnedPack(rels, forcedKey, loadedFiles, totalBytesRef) {
+  const fp = resolvePinnedFileAbs(rels);
+
+  if (!fp) {
+    const diag = {
+      key: String(forcedKey),
+      triedRels: Array.isArray(rels) ? rels.slice(0, 32) : [rels],
+      roots: Array.isArray(DATA_ROOT_CANDIDATES) ? DATA_ROOT_CANDIDATES.slice(0, 12) : [],
+    };
+    pushKnowledgeError("pinned_missing", `${forcedKey}`, `Pinned pack missing (tried rels).`);
+    if (KNOWLEDGE.__packsight && Array.isArray(KNOWLEDGE.__packsight.pinnedMissing)) {
+      KNOWLEDGE.__packsight.pinnedMissing.push(diag);
+    }
+    return { ok: false, skipped: false, reason: "missing" };
+  }
+
+  if (loadedFiles && loadedFiles.has(fp)) {
+    KNOWLEDGE.__skips.duplicate_fp += 1;
+    return { ok: true, skipped: true, reason: "already_loaded" };
+  }
+
+  const r = safeReadFileBytes(fp);
+  if (!r.ok) {
+    if (r.reason === "file_too_large") KNOWLEDGE.__skips.too_large += 1;
+    else KNOWLEDGE.__skips.read_fail += 1;
+    pushKnowledgeError("pinned_read", fp, r.reason || "read_failed");
+    return { ok: false, skipped: false, reason: r.reason || "read_failed" };
+  }
+
+  const nextTotal = (totalBytesRef.value || 0) + r.size;
+  if (nextTotal > KNOWLEDGE_MAX_TOTAL_BYTES) {
+    KNOWLEDGE.__skips.budget_stop += 1;
+    pushKnowledgeError("pinned_budget", fp, "total bytes budget exceeded (pinned pack skipped)");
+    return { ok: false, skipped: true, reason: "budget" };
+  }
+
+  let parsed = null;
+  try {
+    parsed = JSON.parse(r.buf.toString("utf8"));
+  } catch (e) {
+    KNOWLEDGE.__skips.parse_fail += 1;
+    pushKnowledgeError("pinned_parse", fp, e?.message || e);
+    return { ok: false, skipped: false, reason: "parse_failed" };
+  }
+
+  let top10Note = null;
+  if (String(forcedKey) === "music/top10_by_year") {
+    const norm = normalizePinnedTop10Payload(parsed);
+    parsed = norm.payload;
+    top10Note = { normalized: !!norm.normalized, kind: norm.kind };
+    // eslint-disable-next-line no-console
+    console.log(
+      `[Sandblast][PinnedNormalize] key=${forcedKey} normalized=${top10Note.normalized ? "true" : "false"} kind=${safeStr(
+        top10Note.kind
+      )} fp=${fp}`
+    );
+  }
+
+  // record winner (collision-proof) — and treat pinned as first-wins in-cycle
+  const col = recordKeyWinner(String(forcedKey), fp);
+
+  if (!Object.prototype.hasOwnProperty.call(KNOWLEDGE.json, String(forcedKey))) {
+    KNOWLEDGE.json[String(forcedKey)] = parsed;
+  } else if (col.collision) {
+    // keep first-wins for stability
+  }
+
+  KNOWLEDGE.filesLoaded += 1;
+  totalBytesRef.value = nextTotal;
+  KNOWLEDGE.totalBytes = totalBytesRef.value;
+
+  if (loadedFiles) loadedFiles.add(fp);
+
+  if (KNOWLEDGE.__packsight && Array.isArray(KNOWLEDGE.__packsight.pinnedResolved)) {
+    KNOWLEDGE.__packsight.pinnedResolved.push({ key: String(forcedKey), fp, note: top10Note || undefined });
+  }
+
+  return { ok: true, skipped: false, fp };
+}
+
+// =========================
+// Manifest helpers
+// =========================
+function manifestExtractRows(payload) {
+  if (!payload) return [];
+  if (Array.isArray(payload)) return payload;
+  if (payload && Array.isArray(payload.rows)) return payload.rows;
+  if (payload && Array.isArray(payload.data)) return payload.data;
+  if (payload && Array.isArray(payload.items)) return payload.items;
+  return [];
+}
+
+function manifestBuildTop40WeeklyIndex(allJson, prefixKey) {
+  const byYearWeek = Object.create(null);
+  const root = allJson && typeof allJson === "object" ? allJson : {};
+
+  const keys = Object.keys(root).filter((k) => String(k).startsWith(prefixKey + "/"));
+  for (const k of keys) {
+    const pack = root[k];
+    if (!pack) continue;
+
+    if (pack.byYearWeek && typeof pack.byYearWeek === "object") {
+      for (const y of Object.keys(pack.byYearWeek)) {
+        if (!byYearWeek[y]) byYearWeek[y] = Object.create(null);
+        const weeks = pack.byYearWeek[y] || {};
+        for (const w of Object.keys(weeks)) {
+          byYearWeek[y][w] = weeks[w];
+        }
+      }
+      continue;
+    }
+
+    const rows = manifestExtractRows(pack);
+    if (rows.length) {
+      for (const r of rows) {
+        const y = String(Number(r.year));
+        const w = String(Number(r.week));
+        if (!y || y === "NaN" || !w || w === "NaN") continue;
+        if (!byYearWeek[y]) byYearWeek[y] = Object.create(null);
+        if (!byYearWeek[y][w]) byYearWeek[y][w] = [];
+        byYearWeek[y][w].push(r);
+      }
+    }
+  }
+
+  for (const y of Object.keys(byYearWeek)) {
+    for (const w of Object.keys(byYearWeek[y])) {
+      byYearWeek[y][w].sort((a, b) => Number(a.rank || 9999) - Number(b.rank || 9999));
+    }
+  }
+
+  return { ok: true, label: "top40_weekly", byYearWeek, builtAt: new Date().toISOString() };
+}
+
+// ✅ Merge split wikipedia billboard yearend Hot 100 packs loaded under a dir prefix
+// IMPORTANT: do NOT rely on filename substrings (packs can be named many ways).
+// Instead: treat a pack as “candidate year-end chart rows” if it contains enough rows with plausible {year, rank/title/artist}.
+function manifestMergeYearendHot100FromDir(allJson, prefixKey) {
+  const root = allJson && typeof allJson === "object" ? allJson : {};
+  const keys = Object.keys(root).filter((k) => String(k).startsWith(prefixKey + "/"));
+
+  const out = Object.create(null);
+  let totalRows = 0;
+  let usedPacks = 0;
+  const usedKeys = [];
+
+  const isPlausibleRow = (r) => {
+    if (!r || typeof r !== "object") return false;
+    const y = Number(r.year);
+    if (!Number.isFinite(y) || y < 1900 || y > 2100) return false;
+
+    const rank = Number(r.rank ?? r.pos ?? r.position);
+    const hasRank = Number.isFinite(rank) && rank >= 1 && rank <= 500;
+    const hasTitleish = !!safeStr(r.title || r.song || r.single || r.track).trim();
+    const hasArtistish = !!safeStr(r.artist || r.artists || r.performer).trim();
+
+    // Year-end rows usually have rank + title/artist. We allow some variance, but require at least one of these.
+    return hasRank || (hasTitleish && hasArtistish);
+  };
+
+  for (const k of keys) {
+    const pack = root[k];
+    const rows = manifestExtractRows(pack);
+    if (!rows.length) continue;
+
+    // lightweight “candidate” test
+    let good = 0;
+    const sampleN = Math.min(rows.length, 120);
+    for (let i = 0; i < sampleN; i++) if (isPlausibleRow(rows[i])) good++;
+    const ratio = sampleN ? good / sampleN : 0;
+
+    // require at least some signal (prevents swallowing random wiki datasets)
+    if (good < 10 && ratio < 0.2) continue;
+
+    usedPacks += 1;
+    usedKeys.push(k);
+
+    for (const r of rows) {
+      if (!isPlausibleRow(r)) continue;
+      const y = Number(r.year);
+      if (!out[y]) out[y] = [];
+      out[y].push(r);
+      totalRows += 1;
+    }
+  }
+
+  for (const y of Object.keys(out)) {
+    out[y].sort((a, b) => Number(a.rank || a.pos || 9999) - Number(b.rank || b.pos || 9999));
+  }
+
+  return {
+    ok: true,
+    label: "yearend_hot100",
+    byYear: out,
+    builtAt: new Date().toISOString(),
+    meta: { usedPacks, totalRows, prefixKey, usedKeys: usedKeys.slice(0, 50) },
+  };
+}
+
+function resolveManifestAbsFallback(absPath) {
+  const p = path.resolve(absPath);
+  if (fileExists(p)) return p;
+
+  for (const base of DATA_ROOT_CANDIDATES) {
+    try {
+      const rel = path.relative(base, p);
+      if (rel && !rel.startsWith("..")) {
+        const alt = resolveRelPathCaseInsensitive(base, rel);
+        if (fileExists(alt)) return alt;
+      }
+    } catch (_) {}
+  }
+
+  try {
+    const relS = path.relative(SCRIPTS_DIR, p);
+    if (relS && !relS.startsWith("..")) {
+      const altS = resolveRelPathCaseInsensitive(SCRIPTS_DIR, relS);
+      if (fileExists(altS)) return altS;
+    }
+  } catch (_) {}
+
+  try {
+    const relA = path.relative(APP_ROOT, p);
+    if (relA && !relA.startsWith("..")) {
+      const altA = resolveRelPathCaseInsensitive(APP_ROOT, relA);
+      if (fileExists(altA)) return altA;
+    }
+  } catch (_) {}
+
+  return p;
+}
+
+function manifestLoadJsonFileIntoKey(fp, key, loadedFiles, totalBytesRef) {
+  const realFp = resolveManifestAbsFallback(fp);
+
+  if (loadedFiles && loadedFiles.has(realFp)) {
+    KNOWLEDGE.__skips.duplicate_fp += 1;
+    return { ok: true, skipped: true, reason: "already_loaded" };
+  }
+  if (!fileExists(realFp)) return { ok: false, skipped: false, reason: "missing" };
+
+  const r = safeReadFileBytes(realFp);
+  if (!r.ok) {
+    if (r.reason === "file_too_large") KNOWLEDGE.__skips.too_large += 1;
+    else KNOWLEDGE.__skips.read_fail += 1;
+    pushKnowledgeError("manifest_read", realFp, r.reason || "read_failed");
+    return { ok: false, skipped: false, reason: r.reason || "read_failed" };
+  }
+
+  const nextTotal = (totalBytesRef.value || 0) + r.size;
+  if (nextTotal > KNOWLEDGE_MAX_TOTAL_BYTES) {
+    KNOWLEDGE.__skips.budget_stop += 1;
+    pushKnowledgeError("manifest_budget", realFp, "total bytes budget exceeded (manifest file skipped)");
+    return { ok: false, skipped: true, reason: "budget" };
+  }
+
+  let parsed = null;
+  try {
+    parsed = JSON.parse(r.buf.toString("utf8"));
+  } catch (e) {
+    KNOWLEDGE.__skips.parse_fail += 1;
+    pushKnowledgeError("manifest_parse", realFp, e?.message || e);
+    return { ok: false, skipped: false, reason: "parse_failed" };
+  }
+
+  // collision tracking
+  const col = recordKeyWinner(key, realFp);
+  if (!Object.prototype.hasOwnProperty.call(KNOWLEDGE.json, key)) {
+    KNOWLEDGE.json[key] = parsed;
+  } else if (col.collision) {
+    // keep first-wins to preserve stability
+  }
+
+  KNOWLEDGE.filesLoaded += 1;
+  totalBytesRef.value = nextTotal;
+  KNOWLEDGE.totalBytes = totalBytesRef.value;
+  if (loadedFiles) loadedFiles.add(realFp);
+
+  if (KNOWLEDGE.__packsight && Array.isArray(KNOWLEDGE.__packsight.manifestResolved)) {
+    KNOWLEDGE.__packsight.manifestResolved.push({ key: String(key), fp: realFp });
+  }
+
+  return { ok: true, skipped: false, fp: realFp };
+}
+
+function manifestLoadJsonDirIntoPrefix(dirAbs, prefixKey, loadedFiles, totalBytesRef, maxFiles = 5000) {
+  const realDir = resolveManifestAbsFallback(dirAbs);
+  const st = statSafe(realDir);
+  if (!st || !st.isDirectory()) return { ok: false, reason: "missing_dir", loaded: 0 };
+
+  const files = [];
+  walkFiles(realDir, [".json"], files, maxFiles);
+
+  let loaded = 0;
+  for (const fp of files) {
+    const rel = path.relative(realDir, fp).replace(/\\/g, "/");
+    const noExt = rel.replace(/\.[^/.]+$/, "");
+    const key = `${prefixKey}/${noExt}`;
+    const res = manifestLoadJsonFileIntoKey(fp, key, loadedFiles, totalBytesRef);
+    if (res.ok && !res.skipped) loaded++;
+    if (totalBytesRef.value > KNOWLEDGE_MAX_TOTAL_BYTES) break;
+    if (KNOWLEDGE.filesLoaded >= KNOWLEDGE_MAX_FILES) break;
+  }
+  return { ok: true, loaded, dir: realDir };
+}
+
+function manifestLoadFileOrDir(absPath, baseKey, loadedFiles, totalBytesRef) {
+  try {
+    const resolved = resolveManifestAbsFallback(absPath);
+    if (fileExists(resolved)) {
+      const st = fs.statSync(resolved);
+      if (st.isDirectory()) {
+        return manifestLoadJsonDirIntoPrefix(resolved, baseKey, loadedFiles, totalBytesRef);
+      }
+      if (st.isFile() && path.extname(resolved).toLowerCase() === ".json") {
+        return manifestLoadJsonFileIntoKey(resolved, baseKey, loadedFiles, totalBytesRef);
+      }
+    }
+
+    const tryJson = resolved.endsWith(".json") ? resolved : resolved + ".json";
+    if (fileExists(tryJson)) return manifestLoadJsonFileIntoKey(tryJson, baseKey, loadedFiles, totalBytesRef);
+  } catch (e) {
+    pushKnowledgeError("manifest_stat", absPath, e?.message || e);
+  }
+
+  return { ok: false, reason: "missing_file_or_dir" };
+}
+
+function manifestLoadPacks(loadedFiles, totalBytesRef) {
+  const loadedSummary = [];
+  const PACK_MANIFEST = getPackManifest();
+
+  for (const item of PACK_MANIFEST) {
+    try {
+      if (item.type === "json_file_rel") {
+        const fp = resolveDataRelAcrossRoots(item.rels || item.rel, "file");
+        const res = fp ? manifestLoadJsonFileIntoKey(fp, item.key, loadedFiles, totalBytesRef) : { ok: false, reason: "missing" };
+
+        if (res.ok && !res.skipped && typeof item.transform === "function" && item.outKey) {
+          const derived = item.transform(KNOWLEDGE.json[item.key]);
+          recordKeyWinner(item.outKey, `__derived:${item.key}`);
+          KNOWLEDGE.json[item.outKey] = derived;
+        }
+
+        loadedSummary.push({ key: item.key, ok: res.ok, skipped: !!res.skipped, reason: res.reason || "" });
+        continue;
+      }
+
+      if (item.type === "json_dir_rel") {
+        const dir = resolveDataRelAcrossRoots(item.rels || item.rel, "dir");
+        const res = dir ? manifestLoadJsonDirIntoPrefix(dir, item.key, loadedFiles, totalBytesRef) : { ok: false, reason: "missing_dir" };
+
+        if (res.ok && typeof item.postTransform === "function" && item.outKey) {
+          const derived = item.postTransform(KNOWLEDGE.json, item.key);
+          recordKeyWinner(item.outKey, `__derived:${item.key}`);
+          KNOWLEDGE.json[item.outKey] = derived;
+        }
+
+        loadedSummary.push({ key: item.key, ok: res.ok, loaded: res.loaded || 0, reason: res.reason || "" });
+        continue;
+      }
+
+      if (item.type === "json_file_or_dir_rel") {
+        const p = resolveDataRelAcrossRoots(item.rels || item.rel, "either");
+        const res = p ? manifestLoadFileOrDir(p, item.key, loadedFiles, totalBytesRef) : { ok: false, reason: "missing_file_or_dir" };
+        loadedSummary.push({ key: item.key, ok: res.ok, reason: res.reason || "" });
+        continue;
+      }
+
+      if (item.type === "json_dir_abs") {
+        const res = manifestLoadJsonDirIntoPrefix(item.abs, item.key, loadedFiles, totalBytesRef);
+        loadedSummary.push({ key: item.key, ok: res.ok, loaded: res.loaded || 0, reason: res.reason || "" });
+        continue;
+      }
+
+      if (item.type === "json_file_abs") {
+        const res = manifestLoadJsonFileIntoKey(item.abs, item.key, loadedFiles, totalBytesRef);
+        loadedSummary.push({ key: item.key, ok: res.ok, skipped: !!res.skipped, reason: res.reason || "" });
+        continue;
+      }
+    } catch (e) {
+      pushKnowledgeError("manifest_exception", item.key, e?.message || e);
+      loadedSummary.push({ key: item.key, ok: false, reason: "exception" });
+    }
+  }
+
+  return loadedSummary;
+}
+
+// Probes
+function buildManifestProbes() {
+  const targets = [
+    {
+      id: "wiki_dir",
+      rels: ["wikipedia", "Wikipedia", "wiki", "Wiki"],
+      kind: "dir",
+    },
+    { id: "top40_weekly_dir", rels: ["charts/top40_weekly", "top40_weekly"], kind: "dir" },
+    { id: "movies_root", rels: ["movies", "Movies"], kind: "dir_or_file" },
+    { id: "sponsors_root", rels: ["sponsors", "Sponsors"], kind: "dir_or_file" },
+  ];
+
+  const probes = [];
+  for (const t of targets) {
+    const kind = t.kind === "file" ? "file" : t.kind === "dir" ? "dir" : "either";
+    const bestFound = resolveDataRelAcrossRoots(t.rels, kind);
+    probes.push({ id: t.id, rels: t.rels, kind: t.kind, bestFound: bestFound || null, any: !!bestFound });
+  }
+  return probes;
+}
+
+function reloadKnowledge() {
+  const started = nowMs();
+
+  DATA_DIR = resolveDataDirFromEnv();
+  SCRIPTS_DIR = resolveScriptsDirFromEnv();
+  DATA_ROOT_CANDIDATES = rebuildDataRootCandidates();
+
+  KNOWLEDGE.ok = false;
+  KNOWLEDGE.loadedAt = started;
+  KNOWLEDGE.filesScanned = 0;
+  KNOWLEDGE.filesLoaded = 0;
+  KNOWLEDGE.totalBytes = 0;
+  KNOWLEDGE.json = {};
+  KNOWLEDGE.scripts = {};
+  KNOWLEDGE.errors = [];
+  KNOWLEDGE.__manifest = [];
+
+  resetVisibilityDiagnostics();
+
+  KNOWLEDGE.__packsight = {
+    dataRoots: DATA_ROOT_CANDIDATES.slice(0, 16),
+    pinnedResolved: [],
+    pinnedMissing: [],
+    manifestResolved: [],
+    probes: [],
+    skips: {},
+    collisions: [],
+    fileMapPreview: [],
+  };
+
+  try {
+    KNOWLEDGE.__packsight.probes = buildManifestProbes();
+  } catch (_) {
+    KNOWLEDGE.__packsight.probes = [];
+  }
+
+  const dataOk = DATA_ROOT_CANDIDATES.some((d) => {
+    if (!fileExists(d)) return false;
+    if (KNOWLEDGE_ALLOW_DATA_OUTSIDE_APP_ROOT) return true;
+    return isWithinRoot(d, APP_ROOT);
+  });
+
+  const scriptsOk = (() => {
+    if (!fileExists(SCRIPTS_DIR)) return false;
+    if (KNOWLEDGE_ALLOW_SCRIPTS_OUTSIDE_APP_ROOT) return true;
+    return isWithinRoot(SCRIPTS_DIR, APP_ROOT);
+  })();
+
+  if (!dataOk) {
+    pushKnowledgeError(
+      "dir",
+      DATA_DIR,
+      `DATA roots not readable (missing OR blocked by APP_ROOT). allowOutside=${KNOWLEDGE_ALLOW_DATA_OUTSIDE_APP_ROOT}`
+    );
+  }
+  if (!scriptsOk && KNOWLEDGE_ENABLE_SCRIPTS) {
+    pushKnowledgeError(
+      "dir",
+      SCRIPTS_DIR,
+      `SCRIPTS_DIR not readable (missing OR blocked by APP_ROOT). allowOutside=${KNOWLEDGE_ALLOW_SCRIPTS_OUTSIDE_APP_ROOT}`
+    );
+  }
+
+  const loadedFiles = new Set();
+  const totalBytesRef = { value: 0 };
+
+  if (dataOk) {
+    for (const p of PINNED_PACKS) {
+      try {
+        loadPinnedPack(p.rels, p.key, loadedFiles, totalBytesRef);
+      } catch (e) {
+        pushKnowledgeError("pinned_exception", p.key, e?.message || e);
+      }
+      if (KNOWLEDGE.filesLoaded >= KNOWLEDGE_MAX_FILES) break;
+      if (totalBytesRef.value > KNOWLEDGE_MAX_TOTAL_BYTES) break;
+    }
+  }
+
+  if (dataOk || (scriptsOk && KNOWLEDGE_ENABLE_SCRIPTS)) {
+    try {
+      const manifestSummary = manifestLoadPacks(loadedFiles, totalBytesRef);
+      KNOWLEDGE.__manifest = Array.isArray(manifestSummary) ? manifestSummary : [];
+    } catch (e) {
+      pushKnowledgeError("manifest_load", "PACK_MANIFEST", e?.message || e);
+    }
+  }
+
+  // Walk ALL json under roots (bounded)
+  const jsonFiles = [];
+  const seen = new Set();
+
+  const rootsToWalk = DATA_ROOT_CANDIDATES.filter((d) => {
+    const st = statSafe(d);
+    return st && st.isDirectory();
+  });
+
+  for (const root of rootsToWalk) {
+    if (jsonFiles.length >= KNOWLEDGE_MAX_FILES) break;
+    const tmp = [];
+    walkFiles(root, [".json"], tmp, Math.max(0, KNOWLEDGE_MAX_FILES - jsonFiles.length));
+    for (const fp of tmp) {
+      const abs = path.resolve(fp);
+      if (seen.has(abs)) continue;
+      seen.add(abs);
+      jsonFiles.push(abs);
+      if (jsonFiles.length >= KNOWLEDGE_MAX_FILES) break;
+    }
+  }
+
+  const jsFiles = [];
+  if (scriptsOk && KNOWLEDGE_ENABLE_SCRIPTS) {
+    walkFiles(SCRIPTS_DIR, [".js", ".cjs"], jsFiles, Math.min(KNOWLEDGE_MAX_FILES, 1000));
+  }
+
+  KNOWLEDGE.filesScanned = jsonFiles.length + jsFiles.length;
+
+  for (const fp of jsonFiles) {
+    if (KNOWLEDGE.filesLoaded >= KNOWLEDGE_MAX_FILES) break;
+    if (loadedFiles.has(fp)) {
+      KNOWLEDGE.__skips.duplicate_fp += 1;
+      continue;
+    }
+
+    const r = safeReadFileBytes(fp);
+    if (!r.ok) {
+      if (r.reason === "file_too_large") KNOWLEDGE.__skips.too_large += 1;
+      else KNOWLEDGE.__skips.read_fail += 1;
+      pushKnowledgeError("json_read", fp, r.reason || "read_failed");
+      continue;
+    }
+
+    const nextTotal = totalBytesRef.value + r.size;
+    if (nextTotal > KNOWLEDGE_MAX_TOTAL_BYTES) {
+      KNOWLEDGE.__skips.budget_stop += 1;
+      pushKnowledgeError("budget", fp, "total bytes budget exceeded; stopping load");
+      break;
+    }
+
+    let parsed = null;
+    try {
+      parsed = JSON.parse(r.buf.toString("utf8"));
+    } catch (e) {
+      KNOWLEDGE.__skips.parse_fail += 1;
+      pushKnowledgeError("json_parse", fp, e?.message || e);
+      continue;
+    }
+
+    const key = bestKeyForFile(fp, rootsToWalk.length ? rootsToWalk : DATA_ROOT_CANDIDATES);
+    const col = recordKeyWinner(key, fp);
+
+    if (!Object.prototype.hasOwnProperty.call(KNOWLEDGE.json, key)) {
+      KNOWLEDGE.json[key] = parsed;
+    } else if (col.collision) {
+      // keep first-wins for stability
+    }
+
+    KNOWLEDGE.filesLoaded += 1;
+    totalBytesRef.value = nextTotal;
+    KNOWLEDGE.totalBytes = totalBytesRef.value;
+    loadedFiles.add(fp);
+
+    if (totalBytesRef.value > KNOWLEDGE_MAX_TOTAL_BYTES) break;
+  }
+
+  if (scriptsOk && KNOWLEDGE_ENABLE_SCRIPTS) {
+    for (const fp of jsFiles) {
+      if (KNOWLEDGE.filesLoaded >= KNOWLEDGE_MAX_FILES) break;
+
+      const base = path.basename(fp).toLowerCase();
+      const allowBuildScripts = toBool(process.env.KNOWLEDGE_ALLOW_BUILD_SCRIPTS, false);
+      if (!allowBuildScripts && (base.startsWith("build_") || base.includes("migrate") || base.includes("seed_"))) {
+        continue;
+      }
+
+      let mod = null;
+      try {
+        // eslint-disable-next-line import/no-dynamic-require, global-require
+        mod = require(fp);
+      } catch (e) {
+        pushKnowledgeError("script_require", fp, e?.message || e);
+        continue;
+      }
+
+      const key = fileKeyFromPath(SCRIPTS_DIR, fp);
+      recordKeyWinner(key, fp);
+      KNOWLEDGE.scripts[key] = sanitizeScriptExport(mod);
+      KNOWLEDGE.filesLoaded += 1;
+    }
+  }
+
+  const jsonKeys = Object.keys(KNOWLEDGE.json).length;
+  const scriptKeys = Object.keys(KNOWLEDGE.scripts).length;
+  KNOWLEDGE.ok = jsonKeys + scriptKeys > 0;
+
+  // finalize packsight visibility
+  KNOWLEDGE.__packsight.skips = { ...KNOWLEDGE.__skips };
+  KNOWLEDGE.__packsight.collisions = KNOWLEDGE.__collisions.slice(0, 200);
+  const fmKeys = Object.keys(KNOWLEDGE.__fileMap).slice(0, 120);
+  KNOWLEDGE.__packsight.fileMapPreview = fmKeys.map((k) => ({ key: k, fp: KNOWLEDGE.__fileMap[k] }));
+
+  const pins = pinnedPresence();
+  const pinnedOk = Object.values(pins).some(Boolean);
+
+  // eslint-disable-next-line no-console
+  console.log(
+    `[Sandblast][Knowledge] loaded=${KNOWLEDGE.ok} pinnedAny=${pinnedOk} jsonKeys=${jsonKeys} scriptKeys=${scriptKeys} filesLoaded=${KNOWLEDGE.filesLoaded} totalBytes=${KNOWLEDGE.totalBytes} errors=${KNOWLEDGE.errors.length} skips=${JSON.stringify(
+      KNOWLEDGE.__skips
+    )} collisions=${KNOWLEDGE.__collisions.length} in ${nowMs() - started}ms (APP_ROOT=${APP_ROOT} DATA_DIR=${DATA_DIR} dataRoots=${JSON.stringify(
+      DATA_ROOT_CANDIDATES.slice(0, 10)
+    )} autodiscover=${DATA_ROOT_AUTODISCOVER} hints=${DATA_ROOT_HINTS ? "yes" : "no"} SCRIPTS_DIR=${SCRIPTS_DIR} scriptsEnabled=${KNOWLEDGE_ENABLE_SCRIPTS})`
+  );
+  // eslint-disable-next-line no-console
+  console.log(`[Sandblast][Knowledge] pinnedPresence=${JSON.stringify(pins)}`);
+
+  return { ok: KNOWLEDGE.ok, loadedAt: KNOWLEDGE.loadedAt, jsonKeys, scriptKeys, filesLoaded: KNOWLEDGE.filesLoaded };
+}
+
+function knowledgeStatusForMeta() {
+  return {
+    ok: KNOWLEDGE.ok,
+    loadedAt: KNOWLEDGE.loadedAt,
+    errorCount: KNOWLEDGE.errors.length,
+    errorsPreview: KNOWLEDGE.errors.slice(0, 3),
+    jsonKeyCount: Object.keys(KNOWLEDGE.json).length,
+    scriptKeyCount: Object.keys(KNOWLEDGE.scripts).length,
+    pinned: pinnedPresence(),
+    skips: { ...KNOWLEDGE.__skips },
+    collisions: KNOWLEDGE.__collisions.length,
+    manifest: Array.isArray(KNOWLEDGE.__manifest) ? KNOWLEDGE.__manifest.slice(0, 12) : [],
+  };
+}
+
+function knowledgeSnapshotForEngine() {
+  return {
+    json: KNOWLEDGE.json,
+    scripts: KNOWLEDGE.scripts,
+    meta: {
+      ok: KNOWLEDGE.ok,
+      loadedAt: KNOWLEDGE.loadedAt,
+      jsonKeyCount: Object.keys(KNOWLEDGE.json).length,
+      scriptKeyCount: Object.keys(KNOWLEDGE.scripts).length,
+      filesScanned: KNOWLEDGE.filesScanned,
+      filesLoaded: KNOWLEDGE.filesLoaded,
+      totalBytes: KNOWLEDGE.totalBytes,
+      errorCount: KNOWLEDGE.errors.length,
+      errorsPreview: KNOWLEDGE.errors.slice(0, 5),
+      pinned: pinnedPresence(),
+      skips: { ...KNOWLEDGE.__skips },
+      collisions: KNOWLEDGE.__collisions.slice(0, 50),
+      fileMapPreview: (KNOWLEDGE.__packsight?.fileMapPreview || []).slice(0, 80),
+      manifest: Array.isArray(KNOWLEDGE.__manifest) ? KNOWLEDGE.__manifest : [],
+      packsight: KNOWLEDGE.__packsight,
+    },
+  };
+}
+
+if (KNOWLEDGE_AUTOLOAD) {
+  try {
+    reloadKnowledge();
+  } catch (e) {
+    pushKnowledgeError("boot_load", "reloadKnowledge()", e?.message || e);
+    // eslint-disable-next-line no-console
+    console.log(`[Sandblast][Knowledge] boot load failed: ${safeStr(e?.message || e).slice(0, 200)}`);
+  }
+}
+
+if (KNOWLEDGE_AUTOLOAD && KNOWLEDGE_RELOAD_INTERVAL_MS > 0) {
+  setInterval(() => {
+    try {
+      reloadKnowledge();
+    } catch (e) {
+      pushKnowledgeError("interval_load", "reloadKnowledge()", e?.message || e);
+    }
+  }, KNOWLEDGE_RELOAD_INTERVAL_MS).unref?.();
+}
+
+// =========================
+// Built-in Pack Index (no dependency)
+// =========================
+function buildBuiltinPackIndex() {
+  const jsonKeys = Object.keys(KNOWLEDGE.json || {});
+  const pins = pinnedPresence();
+
+  const groups = {
+    pinned: [],
+    music: [],
+    movies: [],
+    sponsors: [],
+    top10: [],
+    generic: [],
+  };
+
+  const packs = {};
+
+  for (const k of jsonKeys) {
+    const kl = String(k).toLowerCase();
+
+    const domain =
+      kl.includes("sponsor") || kl.startsWith("sponsors/") || kl.includes("/sponsors/")
+        ? "sponsors"
+        : kl.includes("movie") || kl.startsWith("movies/") || kl.includes("/movies/")
+          ? "movies"
+          : kl.includes("music") || kl.startsWith("music/") || kl.includes("/music/")
+            ? "music"
+            : "generic";
+
+    const kind =
+      kl.includes("top10") || kl.includes("top_10") || kl.includes("top-ten") || kl.includes("topten") ? "top10" : "pack";
+
+    packs[k] = {
+      id: k,
+      available: true,
+      domain,
+      kind,
+      file: KNOWLEDGE.__fileMap && KNOWLEDGE.__fileMap[k] ? KNOWLEDGE.__fileMap[k] : undefined,
+    };
+
+    if (domain === "music") groups.music.push(k);
+    if (domain === "movies") groups.movies.push(k);
+    if (domain === "sponsors") groups.sponsors.push(k);
+    if (kind === "top10") groups.top10.push(k);
+    if (domain === "generic") groups.generic.push(k);
+  }
+
+  for (const [pk, ok] of Object.entries(pins || {})) {
+    if (ok) groups.pinned.push(pk);
+  }
+
+  for (const g of Object.keys(groups)) groups[g].sort();
+
+  const groupCounts = {};
+  for (const [gk, arr] of Object.entries(groups)) groupCounts[gk] = Array.isArray(arr) ? arr.length : 0;
+
+  return {
+    ok: true,
+    builtAt: new Date().toISOString(),
+    pinned: pins,
+    summary: {
+      jsonKeyCount: jsonKeys.length,
+      pinnedAny: Object.values(pins || {}).some(Boolean),
+      groups: groupCounts,
+      skips: { ...KNOWLEDGE.__skips },
+      collisionCount: KNOWLEDGE.__collisions.length,
+    },
+    groups,
+    packs,
+  };
+}
+
+function packIndexAvailable() {
+  return !!(
+    packIndexMod &&
+    (typeof packIndexMod.getPackIndex === "function" || typeof packIndexMod.refreshPackIndex === "function")
+  );
+}
+
+function getPackIndexSafe(forceRefresh) {
+  try {
+    if (packIndexMod) {
+      if (forceRefresh && typeof packIndexMod.refreshPackIndex === "function") return packIndexMod.refreshPackIndex();
+      if (typeof packIndexMod.getPackIndex === "function") return packIndexMod.getPackIndex({ forceRefresh: false });
+    }
+  } catch (e) {
+    pushKnowledgeError("packIndex_exception", "Utils/packIndex.js", e?.message || e);
+  }
+  return buildBuiltinPackIndex();
+}
+
+// =========================
+// Session store
+// =========================
+const SESSIONS = new Map();
+
 /**
- * Export aliases for maximum compatibility with index.js resolvers.
+ * CRITICAL FIX: allow caller to pass parsed body (req.body may be string for text/*).
  */
-function module_handleChat(args) {
-  return handleChat(args);
-}
-function respond(args) {
-  return handleChat(args);
-}
-function chat(args) {
-  return handleChat(args);
-}
-function run(args) {
-  return handleChat(args);
-}
-function route(args) {
-  return handleChat(args);
+function sessionKeyFromReq(req, bodyOverride) {
+  const b = isPlainObject(bodyOverride)
+    ? bodyOverride
+    : isPlainObject(req.body)
+      ? req.body
+      : safeJsonParseMaybe(req.body) || {};
+
+  const h = req.headers || {};
+  const sid =
+    safeStr(b.sessionId || b.visitorId || b.deviceId).trim() ||
+    safeStr(h["x-sb-session"] || h["x-session-id"] || h["x-visitor-id"]).trim();
+
+  if (sid) return sid.slice(0, 120);
+
+  const fp = sha1(`${pickClientIp(req)}|${safeStr(req.headers["user-agent"] || "")}`).slice(0, 24);
+  return `fp_${fp}`;
 }
 
-handleChat.CE_VERSION = CE_VERSION;
-module_handleChat.CE_VERSION = CE_VERSION;
+function pruneSessions(now) {
+  for (const [k, v] of SESSIONS.entries()) {
+    if (!v || !v.lastSeenAt) {
+      SESSIONS.delete(k);
+      continue;
+    }
+    if (now - v.lastSeenAt > SESSION_TTL_MS) SESSIONS.delete(k);
+  }
+  if (SESSIONS.size > SESSION_MAX) {
+    const arr = Array.from(SESSIONS.entries()).sort((a, b) => (a[1].lastSeenAt || 0) - (b[1].lastSeenAt || 0));
+    const cut = SESSIONS.size - SESSION_MAX;
+    for (let i = 0; i < cut; i++) SESSIONS.delete(arr[i][0]);
+  }
+}
 
-module.exports = {
-  CE_VERSION,
-  handleChat,
-  module_handleChat,
-  respond,
-  chat,
-  run,
-  route,
-};
+function getSession(req, bodyOverride) {
+  const now = nowMs();
+  pruneSessions(now);
+
+  const key = sessionKeyFromReq(req, bodyOverride);
+  let rec = SESSIONS.get(key);
+  if (!rec) {
+    rec = {
+      data: { sessionId: key, visitorId: key, lane: "general", cog: {} },
+      lastSeenAt: now,
+      burst: [],
+      sustained: [],
+      boot: [],
+    };
+    SESSIONS.set(key, rec);
+  }
+  rec.lastSeenAt = now;
+  if (!Array.isArray(rec.boot)) rec.boot = [];
+  if (!Array.isArray(rec.burst)) rec.burst = [];
+  if (!Array.isArray(rec.sustained)) rec.sustained = [];
+  return { key, rec };
+}
+
+// =========================
+// Loop / guards
+// =========================
+function pushWindow(arr, now, windowMs) {
+  const a = Array.isArray(arr) ? arr : [];
+  a.push(now);
+  const cutoff = now - windowMs;
+  while (a.length && a[0] < cutoff) a.shift();
+  return a;
+}
+
+function checkBurst(rec, now) {
+  rec.burst = pushWindow(rec.burst, now, BURST_WINDOW_MS);
+  if (rec.burst.length > BURST_MAX) return { blocked: true, reason: "burst" };
+  return { blocked: false };
+}
+
+function checkSustained(rec, now) {
+  rec.sustained = pushWindow(rec.sustained, now, SUSTAINED_WINDOW_MS);
+  if (rec.sustained.length > SUSTAINED_MAX) return { blocked: true, reason: "sustained" };
+  return { blocked: false };
+}
+
+function checkBootFuse(rec, now) {
+  rec.boot = pushWindow(rec.boot, now, BOOT_MAX_WINDOW_MS);
+  if (rec.boot.length > BOOT_MAX) return { blocked: true, reason: "boot_rate" };
+
+  const lastBootAt = Number(rec.data.__idx_lastBootAt || 0);
+  if (lastBootAt && now - lastBootAt < BOOT_DEDUPE_MS) return { blocked: true, reason: "boot_dedupe" };
+
+  rec.data.__idx_lastBootAt = now;
+  return { blocked: false };
+}
+
+function replayDedupe(rec, inboundSig, source, clientRequestId) {
+  const now = nowMs();
+  const rid = safeStr(clientRequestId).trim();
+
+  const sigHash = sha1(`${safeStr(rec.data.sessionId)}|${safeStr(source)}|${safeStr(inboundSig)}`).slice(0, 12);
+  const key = rid ? `rid:${rid}|sig:${sigHash}` : `sig:${sigHash}`;
+
+  const lastKey = safeStr(rec.data.__idx_lastReqKey || "");
+  const lastAt = Number(rec.data.__idx_lastReqAt || 0);
+  if (lastKey && key === lastKey && lastAt && now - lastAt <= LOOP_REPLAY_WINDOW_MS) {
+    const lastOut = safeStr(rec.data.__idx_lastOut || "");
+    const lastLane = safeStr(rec.data.__idx_lastLane || "general") || "general";
+    const lastFU = Array.isArray(rec.data.__idx_lastFollowUps) ? rec.data.__idx_lastFollowUps : undefined;
+    const lastFUS = Array.isArray(rec.data.__idx_lastFollowUpsStrings) ? rec.data.__idx_lastFollowUpsStrings : undefined;
+    const lastDir = Array.isArray(rec.data.__idx_lastDirectives) ? rec.data.__idx_lastDirectives : undefined;
+
+    if (lastOut) {
+      return {
+        hit: true,
+        reply: lastOut,
+        lane: lastLane,
+        followUps: lastFU,
+        followUpsStrings: lastFU ? undefined : lastFUS,
+        directives: lastDir,
+      };
+    }
+  }
+
+  rec.data.__idx_lastReqKey = key;
+  rec.data.__idx_lastReqAt = now;
+  return { hit: false };
+}
+
+function writeReplay(rec, reply, lane, extras) {
+  rec.data.__idx_lastOut = safeStr(reply);
+  rec.data.__idx_lastLane = safeStr(lane || "general") || "general";
+  if (extras && typeof extras === "object") {
+    const fu = Array.isArray(extras.followUps) ? extras.followUps.slice(0, 10) : undefined;
+    const fus = Array.isArray(extras.followUpsStrings) ? extras.followUpsStrings.slice(0, 10) : undefined;
+
+    if (fu) {
+      rec.data.__idx_lastFollowUps = fu;
+      rec.data.__idx_lastFollowUpsStrings = [];
+    }
+    if (!fu && fus) rec.data.__idx_lastFollowUpsStrings = fus;
+
+    if (Array.isArray(extras.directives)) rec.data.__idx_lastDirectives = extras.directives.slice(0, 10);
+  }
+}
+
+function writeBootReplay(rec, reply, lane, extras) {
+  rec.data.__idx_lastBootOut = safeStr(reply);
+  rec.data.__idx_lastBootLane = safeStr(lane || "general") || "general";
+  if (extras && typeof extras === "object") {
+    const fu = Array.isArray(extras.followUps) ? extras.followUps.slice(0, 10) : undefined;
+    const fus = Array.isArray(extras.followUpsStrings) ? extras.followUpsStrings.slice(0, 10) : undefined;
+
+    if (fu) {
+      rec.data.__idx_lastBootFollowUps = fu;
+      rec.data.__idx_lastBootFollowUpsStrings = [];
+    }
+    if (!fu && fus) rec.data.__idx_lastBootFollowUpsStrings = fus;
+
+    if (Array.isArray(extras.directives)) rec.data.__idx_lastBootDirectives = extras.directives.slice(0, 10);
+  }
+}
+
+function readBootReplay(rec) {
+  const reply = safeStr(rec.data.__idx_lastBootOut || "");
+  const lane = safeStr(rec.data.__idx_lastBootLane || rec.data.lane || "general") || "general";
+  const followUps = Array.isArray(rec.data.__idx_lastBootFollowUps) ? rec.data.__idx_lastBootFollowUps : undefined;
+  const followUpsStrings = Array.isArray(rec.data.__idx_lastBootFollowUpsStrings)
+    ? rec.data.__idx_lastBootFollowUpsStrings
+    : undefined;
+  const directives = Array.isArray(rec.data.__idx_lastBootDirectives) ? rec.data.__idx_lastBootDirectives : undefined;
+
+  return { reply, lane, followUps, followUpsStrings: followUps ? undefined : followUpsStrings, directives };
+}
+
+// =========================
+// App
+// =========================
+const app = express();
+
+if (toBool(TRUST_PROXY, false)) app.set("trust proxy", 1);
+
+// ---- SAFE JSON PARSE: never crash on invalid JSON ----
+const jsonParser = express.json({ limit: MAX_JSON_BODY });
+
+app.use((req, res, next) => {
+  if (req.method === "OPTIONS") return next();
+  jsonParser(req, res, (err) => {
+    if (err) {
+      return res.status(400).json({
+        ok: false,
+        error: "invalid_json",
+        detail: safeStr(err.message || err).slice(0, 240),
+        meta: { index: INDEX_VERSION },
+      });
+    }
+    return next();
+  });
+});
+app.use(express.text({ type: ["text/*"], limit: MAX_JSON_BODY }));
+
+// =========================
+// CORS hard-lock (CRITICAL: disallowed Origin -> blocked)
+// =========================
+app.use((req, res, next) => {
+  const originRaw = safeStr(req.headers.origin || "");
+  const origin = normalizeOrigin(originRaw);
+  const allow = origin ? isAllowedOrigin(origin) : false;
+
+  if (origin) res.setHeader("Vary", "Origin");
+
+  if (origin && allow) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      [
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+        "X-SB-Session",
+        "X-Session-Id",
+        "X-Visitor-Id",
+        "X-Request-Id",
+        "X-Route-Hint",
+        "X-Client-Source",
+        "x-client-source",
+        "X-SBNYX-Client-Build",
+        "x-sbnyx-client-build",
+        "X-SBNYX-Widget-Version",
+        "x-sbnyx-widget-version",
+        "X-Contract-Version",
+        "x-contract-version",
+      ].join(", ")
+    );
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+    res.setHeader("Access-Control-Max-Age", "600");
+  }
+
+  if (req.method === "OPTIONS") {
+    if (origin && !allow) {
+      return res.status(403).json({ ok: false, error: "cors_blocked", meta: { index: INDEX_VERSION } });
+    }
+    return res.status(204).send("");
+  }
+
+  if (origin && !allow) {
+    return res.status(403).json({ ok: false, error: "cors_blocked", meta: { index: INDEX_VERSION } });
+  }
+
+  return next();
+});
+
+// =========================
+// Health + discovery
+// =========================
+app.get("/", (req, res) => {
+  res.status(200).json({
+    ok: true,
+    service: "sandblast-backend",
+    version: INDEX_VERSION,
+    engine: ENGINE_VERSION || null,
+    engineFrom: ENGINE.from,
+    env: NODE_ENV,
+    knowledge: knowledgeStatusForMeta(),
+    packs: { ok: true, using: packIndexAvailable() ? "external" : "builtin" },
+  });
+});
+
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    ok: true,
+    version: INDEX_VERSION,
+    engine: ENGINE_VERSION || null,
+    engineFrom: ENGINE.from,
+    up: true,
+    now: new Date().toISOString(),
+    knowledge: knowledgeStatusForMeta(),
+    packs: { ok: true, using: packIndexAvailable() ? "external" : "builtin" },
+  });
+});
+
+app.get("/api/health", (req, res) => {
+  res.status(200).json({
+    ok: true,
+    version: INDEX_VERSION,
+    engine: ENGINE_VERSION || null,
+    engineFrom: ENGINE.from,
+    up: true,
+    now: new Date().toISOString(),
+    knowledge: knowledgeStatusForMeta(),
+    packs: { ok: true, using: packIndexAvailable() ? "external" : "builtin" },
+  });
+});
+
+app.get("/api/discovery", (req, res) => {
+  res.status(200).json({
+    ok: true,
+    version: INDEX_VERSION,
+    engine: ENGINE_VERSION || null,
+    engineFrom: ENGINE.from,
+    endpoints: [
+      "/api/sandblast-gpt",
+      "/api/nyx/chat",
+      "/api/chat",
+      "/api/tts",
+      "/api/voice",
+      "/health",
+      "/api/health",
+      "/api/knowledge",
+      "/api/packsight",
+      "/api/debug/knowledge",
+      "/api/debug/packsight",
+      "/api/packs",
+      "/api/packs/refresh",
+    ],
+    knowledge: knowledgeStatusForMeta(),
+    packs: { ok: true, using: packIndexAvailable() ? "external" : "builtin" },
+  });
+});
+
+// =========================
+// Pack Index endpoints (ALWAYS available)
+// =========================
+app.get("/api/packs", (req, res) => {
+  const idx = getPackIndexSafe(false);
+  return res.status(200).json({
+    ok: true,
+    version: INDEX_VERSION,
+    engine: ENGINE_VERSION || null,
+    engineFrom: ENGINE.from,
+    packs: idx,
+  });
+});
+
+function doPacksRefresh(req, res) {
+  const doReloadKnowledge = toBool(req.query.reloadKnowledge, false);
+  if (doReloadKnowledge) {
+    try {
+      reloadKnowledge();
+    } catch (e) {
+      pushKnowledgeError("packs_reloadKnowledge", "reloadKnowledge()", e?.message || e);
+    }
+  }
+  const idx = getPackIndexSafe(true);
+  return res.status(200).json({
+    ok: true,
+    version: INDEX_VERSION,
+    engine: ENGINE_VERSION || null,
+    engineFrom: ENGINE.from,
+    packs: idx,
+  });
+}
+
+app.post("/api/packs/refresh", doPacksRefresh);
+app.get("/api/packs/refresh", doPacksRefresh);
+
+// =========================
+// PUBLIC Packsight (SAFE) — now includes skips/collisions/fileMap preview
+// =========================
+app.get("/api/packsight", (req, res) => {
+  const pins = pinnedPresence();
+  const idx = getPackIndexSafe(false);
+
+  return res.status(200).json({
+    ok: true,
+    version: INDEX_VERSION,
+    engine: ENGINE_VERSION || null,
+    engineFrom: ENGINE.from,
+    data: {
+      appRoot: APP_ROOT,
+      dataDir: DATA_DIR,
+      dataRoots: DATA_ROOT_CANDIDATES,
+      scriptsDir: SCRIPTS_DIR,
+      scriptsEnabled: KNOWLEDGE_ENABLE_SCRIPTS,
+      allowDataOutsideAppRoot: KNOWLEDGE_ALLOW_DATA_OUTSIDE_APP_ROOT,
+      allowScriptsOutsideAppRoot: KNOWLEDGE_ALLOW_SCRIPTS_OUTSIDE_APP_ROOT,
+      dataRootDiscovery: {
+        enabled: DATA_ROOT_AUTODISCOVER,
+        hintsProvided: !!DATA_ROOT_HINTS,
+        hints: DATA_ROOT_HINTS ? DATA_ROOT_HINTS.split(",").map((s) => s.trim()).filter(Boolean) : [],
+        maxDepth: DATA_ROOT_DISCOVERY_MAX_DEPTH,
+        maxVisits: DATA_ROOT_DISCOVERY_MAX_VISITS,
+      },
+      budgets: {
+        maxFiles: KNOWLEDGE_MAX_FILES,
+        maxFileBytes: KNOWLEDGE_MAX_FILE_BYTES,
+        maxTotalBytes: KNOWLEDGE_MAX_TOTAL_BYTES,
+      },
+      manifestSearch: {
+        fallbackEnabled: MANIFEST_SEARCH_FALLBACK,
+        maxVisits: MANIFEST_SEARCH_MAX_VISITS,
+        maxDepth: MANIFEST_SEARCH_MAX_DEPTH,
+      },
+      pinnedPresence: pins,
+      pinnedResolved: KNOWLEDGE.__packsight?.pinnedResolved || [],
+      pinnedMissing: KNOWLEDGE.__packsight?.pinnedMissing || [],
+      manifestPreview: (KNOWLEDGE.__manifest || []).slice(0, 20),
+      manifestResolved: KNOWLEDGE.__packsight?.manifestResolved || [],
+      probes: KNOWLEDGE.__packsight?.probes || [],
+      skips: KNOWLEDGE.__packsight?.skips || { ...KNOWLEDGE.__skips },
+      collisionCount: (KNOWLEDGE.__packsight?.collisions || KNOWLEDGE.__collisions || []).length,
+      collisionsPreview: (KNOWLEDGE.__packsight?.collisions || KNOWLEDGE.__collisions || []).slice(0, 50),
+      fileMapPreview: (KNOWLEDGE.__packsight?.fileMapPreview || []).slice(0, 80),
+      errorCount: KNOWLEDGE.errors.length,
+      errorsPreview: KNOWLEDGE.errors.slice(0, 12),
+    },
+    packsSummary: idx.summary,
+    pinnedKeys: idx.groups?.pinned || [],
+  });
+});
+
+// small knowledge status alias
+app.get("/api/knowledge", (req, res) => {
+  return res.status(200).json({
+    ok: true,
+    version: INDEX_VERSION,
+    engine: ENGINE_VERSION || null,
+    engineFrom: ENGINE.from,
+    knowledge: knowledgeStatusForMeta(),
+    packs: getPackIndexSafe(false).summary,
+  });
+});
+
+// =========================
+// Debug knowledge endpoints (kept)
+// =========================
+if (KNOWLEDGE_DEBUG_ENDPOINT) {
+  app.get("/api/debug/knowledge", (req, res) => {
+    const allowInProd = toBool(process.env.KNOWLEDGE_DEBUG_ALLOW_PROD, false);
+    if (NODE_ENV === "production" && !allowInProd) {
+      return res.status(404).json({ ok: false, error: "not_found" });
+    }
+
+    const jsonKeys = Object.keys(KNOWLEDGE.json);
+    const scriptKeys = Object.keys(KNOWLEDGE.scripts);
+
+    return res.status(200).json({
+      ok: true,
+      version: INDEX_VERSION,
+      engine: ENGINE_VERSION || null,
+      knowledge: {
+        ok: KNOWLEDGE.ok,
+        loadedAt: KNOWLEDGE.loadedAt,
+        appRoot: APP_ROOT,
+        dataDir: DATA_DIR,
+        dataRoots: DATA_ROOT_CANDIDATES,
+        scriptsDir: SCRIPTS_DIR,
+        scriptsEnabled: KNOWLEDGE_ENABLE_SCRIPTS,
+        allowDataOutsideAppRoot: KNOWLEDGE_ALLOW_DATA_OUTSIDE_APP_ROOT,
+        allowScriptsOutsideAppRoot: KNOWLEDGE_ALLOW_SCRIPTS_OUTSIDE_APP_ROOT,
+        dataRootDiscovery: {
+          enabled: DATA_ROOT_AUTODISCOVER,
+          hintsProvided: !!DATA_ROOT_HINTS,
+          maxDepth: DATA_ROOT_DISCOVERY_MAX_DEPTH,
+          maxVisits: DATA_ROOT_DISCOVERY_MAX_VISITS,
+        },
+        manifestSearch: {
+          fallbackEnabled: MANIFEST_SEARCH_FALLBACK,
+          maxVisits: MANIFEST_SEARCH_MAX_VISITS,
+          maxDepth: MANIFEST_SEARCH_MAX_DEPTH,
+        },
+        jsonKeyCount: jsonKeys.length,
+        scriptKeyCount: scriptKeys.length,
+        filesScanned: KNOWLEDGE.filesScanned,
+        filesLoaded: KNOWLEDGE.filesLoaded,
+        totalBytes: KNOWLEDGE.totalBytes,
+        budgets: {
+          maxFiles: KNOWLEDGE_MAX_FILES,
+          maxFileBytes: KNOWLEDGE_MAX_FILE_BYTES,
+          maxTotalBytes: KNOWLEDGE_MAX_TOTAL_BYTES,
+        },
+        pinned: pinnedPresence(),
+        skips: { ...KNOWLEDGE.__skips },
+        collisions: KNOWLEDGE.__collisions.slice(0, 80),
+        fileMapPreview: (KNOWLEDGE.__packsight?.fileMapPreview || []).slice(0, 120),
+        pinnedConfig: PINNED_PACKS.map((p) => ({ key: p.key, rels: p.rels })),
+        pinnedResolved: KNOWLEDGE.__packsight?.pinnedResolved || [],
+        pinnedMissing: KNOWLEDGE.__packsight?.pinnedMissing || [],
+        manifest: Array.isArray(KNOWLEDGE.__manifest) ? KNOWLEDGE.__manifest : [],
+        packsight: KNOWLEDGE.__packsight,
+        errorCount: KNOWLEDGE.errors.length,
+        errorsPreview: KNOWLEDGE.errors.slice(0, 12),
+        jsonKeysPreview: jsonKeys.slice(0, 160),
+        scriptKeysPreview: scriptKeys.slice(0, 80),
+        includeData: KNOWLEDGE_DEBUG_INCLUDE_DATA,
+        json: KNOWLEDGE_DEBUG_INCLUDE_DATA ? KNOWLEDGE.json : undefined,
+        scripts: KNOWLEDGE_DEBUG_INCLUDE_DATA ? KNOWLEDGE.scripts : undefined,
+      },
+      packs: { ok: true, using: packIndexAvailable() ? "external" : "builtin", preview: getPackIndexSafe(false).summary },
+    });
+  });
+
+  app.get("/api/debug/packsight", (req, res) => {
+    const allowInProd = toBool(process.env.KNOWLEDGE_DEBUG_ALLOW_PROD, false);
+    if (NODE_ENV === "production" && !allowInProd) {
+      return res.status(404).json({ ok: false, error: "not_found" });
+    }
+
+    const pins = pinnedPresence();
+    const idx = getPackIndexSafe(false);
+
+    return res.status(200).json({
+      ok: true,
+      version: INDEX_VERSION,
+      engine: ENGINE_VERSION || null,
+      data: {
+        dataDir: DATA_DIR,
+        dataRoots: DATA_ROOT_CANDIDATES,
+        allowDataOutsideAppRoot: KNOWLEDGE_ALLOW_DATA_OUTSIDE_APP_ROOT,
+        dataRootDiscovery: {
+          enabled: DATA_ROOT_AUTODISCOVER,
+          hintsProvided: !!DATA_ROOT_HINTS,
+          maxDepth: DATA_ROOT_DISCOVERY_MAX_DEPTH,
+          maxVisits: DATA_ROOT_DISCOVERY_MAX_VISITS,
+        },
+        pinnedPresence: pins,
+        pinnedResolved: KNOWLEDGE.__packsight?.pinnedResolved || [],
+        pinnedMissing: KNOWLEDGE.__packsight?.pinnedMissing || [],
+        manifestPreview: (KNOWLEDGE.__manifest || []).slice(0, 20),
+        manifestResolved: KNOWLEDGE.__packsight?.manifestResolved || [],
+        probes: KNOWLEDGE.__packsight?.probes || [],
+        skips: { ...KNOWLEDGE.__skips },
+        collisionCount: KNOWLEDGE.__collisions.length,
+        collisionsPreview: KNOWLEDGE.__collisions.slice(0, 50),
+        fileMapPreview: (KNOWLEDGE.__packsight?.fileMapPreview || []).slice(0, 80),
+      },
+      packsSummary: idx.summary,
+      pinnedKeys: idx.groups?.pinned || [],
+    });
+  });
+
+  app.post("/api/debug/knowledge/reload", (req, res) => {
+    const allowInProd = toBool(process.env.KNOWLEDGE_DEBUG_ALLOW_PROD, false);
+    if (NODE_ENV === "production" && !allowInProd) {
+      return res.status(404).json({ ok: false, error: "not_found" });
+    }
+    const summary = reloadKnowledge();
+    return res.status(200).json({
+      ok: true,
+      summary,
+      knowledge: knowledgeStatusForMeta(),
+      packs: { ok: true, using: packIndexAvailable() ? "external" : "builtin", preview: getPackIndexSafe(false).summary },
+    });
+  });
+}
+
+// =========================
+// CHIP PAYLOAD NORMALIZER (kept)
+// =========================
+function normalizeChipPayload(b) {
+  if (!b || typeof b !== "object") return b;
+
+  const rootHas = b.lane || b.action || b.year || b.mode || b.intent || b.route || b.label;
+
+  if (!isPlainObject(b.payload)) b.payload = {};
+
+  if (rootHas) {
+    if (b.lane && !b.payload.lane) b.payload.lane = b.lane;
+    if (b.action && !b.payload.action) b.payload.action = b.action;
+    if (b.year && !b.payload.year) b.payload.year = b.year;
+    if (b.mode && !b.payload.mode) b.payload.mode = b.mode;
+    if (b.intent && !b.payload.intent) b.payload.intent = b.intent;
+    if (b.route && !b.payload.route) b.payload.route = b.route;
+    if (b.label && !b.payload.label) b.payload.label = b.label;
+  }
+
+  if (isPlainObject(b.payload)) {
+    if (b.payload.lane && !b.lane) b.lane = b.payload.lane;
+    if (b.payload.action && !b.action) b.action = b.payload.action;
+    if (b.payload.year && !b.year) b.year = b.payload.year;
+    if (b.payload.mode && !b.mode) b.mode = b.payload.mode;
+
+    if (b.payload.intent && !b.intent) b.intent = b.payload.intent;
+    if (b.payload.route && !b.route) b.route = b.payload.route;
+    if (b.payload.label && !b.label) b.label = b.payload.label;
+  }
+
+  return b;
+}
+
+// =========================
+// CRITICAL: TRUE reset clears session state safely
+// =========================
+function clearSessionState(rec) {
+  if (!rec || !isPlainObject(rec.data)) return;
+
+  const sid = safeStr(rec.data.sessionId || "");
+  const vid = safeStr(rec.data.visitorId || sid || "");
+
+  // wipe data to a safe minimal baseline
+  rec.data = {
+    sessionId: sid || vid || "unknown",
+    visitorId: vid || sid || "unknown",
+    lane: "general",
+    cog: {},
+  };
+
+  // clear rate windows + boot windows
+  rec.burst = [];
+  rec.sustained = [];
+  rec.boot = [];
+
+  // clear replay caches explicitly (paranoia)
+  rec.data.__idx_lastReqKey = "";
+  rec.data.__idx_lastReqAt = 0;
+  rec.data.__idx_lastOut = "";
+  rec.data.__idx_lastLane = "general";
+  rec.data.__idx_lastFollowUps = [];
+  rec.data.__idx_lastFollowUpsStrings = [];
+  rec.data.__idx_lastDirectives = [];
+  rec.data.__idx_lastBootAt = 0;
+  rec.data.__idx_lastBootOut = "";
+  rec.data.__idx_lastBootLane = "general";
+  rec.data.__idx_lastBootFollowUps = [];
+  rec.data.__idx_lastBootFollowUpsStrings = [];
+  rec.data.__idx_lastBootDirectives = [];
+
+  rec.lastSeenAt = nowMs();
+}
+
+// =========================
+// Chat route (kept — no behavior change except reset)
+// =========================
+async function handleChatRoute(req, res) {
+  const startedAt = nowMs();
+  const body = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
+
+  normalizeChipPayload(body);
+
+  const clientRequestId = safeStr(body.requestId || body.clientRequestId || req.headers["x-request-id"] || "").trim();
+  const serverRequestId = clientRequestId || makeReqId();
+
+  const source = safeStr(body?.client?.source || body?.source || req.headers["x-client-source"] || "").trim() || "unknown";
+
+  const routeHint =
+    safeStr(body?.client?.routeHint || body?.routeHint || body?.lane || req.headers["x-route-hint"] || "").trim() ||
+    "general";
+
+  const inboundText = safeStr(body.text || body.message || body.prompt || body.query || body?.payload?.text || "").trim();
+
+  const inboundSig = normalizeInboundSignature(body, inboundText);
+  const meaningful = !!inboundSig || hasIntentSignals(body);
+
+  const { rec } = getSession(req, body);
+
+  const bootLike = isBootLike(routeHint, body);
+  const isReset = isResetCommand(inboundText, source, body);
+
+  // ✅ CRITICAL: reset clears state immediately and returns silent reply
+  if (isReset) {
+    clearSessionState(rec);
+    return res.status(200).json({
+      ok: true,
+      reply: silentResetReply(),
+      lane: "general",
+      sessionPatch: {},
+      requestId: serverRequestId,
+      meta: {
+        index: INDEX_VERSION,
+        engine: ENGINE_VERSION || null,
+        knowledge: knowledgeStatusForMeta(),
+        resetSilenced: true,
+        resetCleared: true,
+        source,
+        routeHint,
+        elapsedMs: nowMs() - startedAt,
+      },
+    });
+  }
+
+  if (bootLike) {
+    const bf = checkBootFuse(rec, startedAt);
+    if (bf.blocked) {
+      const cached = readBootReplay(rec);
+      const reply = cached.reply || "";
+      consists: null;
+      return res.status(200).json({
+        ok: true,
+        reply,
+        lane: cached.lane || rec.data.lane || "general",
+        directives: cached.directives,
+        followUps: cached.followUps,
+        followUpsStrings: cached.followUpsStrings,
+        sessionPatch: {},
+        requestId: serverRequestId,
+        meta: {
+          index: INDEX_VERSION,
+          engine: ENGINE_VERSION || null,
+          knowledge: knowledgeStatusForMeta(),
+          bootLike: true,
+          bootFuse: bf.reason,
+          source,
+          routeHint,
+          elapsedMs: nowMs() - startedAt,
+        },
+      });
+    }
+  }
+
+  if (!bootLike && meaningful) {
+    const burst = checkBurst(rec, startedAt);
+    const sus = checkSustained(rec, startedAt);
+    if (burst.blocked || sus.blocked) {
+      const reply =
+        burst.reason === "burst"
+          ? "One sec — you’re firing a little fast. Try again in a moment."
+          : "Give me a breath — then hit me again with a year or a request.";
+      writeReplay(rec, reply, rec.data.lane || "general");
+
+      return res.status(200).json({
+        ok: true,
+        reply,
+        lane: rec.data.lane || "general",
+        sessionPatch: {},
+        requestId: serverRequestId,
+        meta: {
+          index: INDEX_VERSION,
+          engine: ENGINE_VERSION || null,
+          knowledge: knowledgeStatusForMeta(),
+          throttled: burst.blocked ? "burst" : "sustained",
+          elapsedMs: nowMs() - startedAt,
+        },
+      });
+    }
+  }
+
+  if (!bootLike && meaningful) {
+    const dedupe = replayDedupe(rec, inboundSig, source, clientRequestId);
+    if (dedupe.hit) {
+      return res.status(200).json({
+        ok: true,
+        reply: dedupe.reply,
+        lane: dedupe.lane,
+        directives: dedupe.directives,
+        followUps: dedupe.followUps,
+        followUpsStrings: dedupe.followUpsStrings,
+        sessionPatch: {},
+        requestId: serverRequestId,
+        meta: {
+          index: INDEX_VERSION,
+          engine: ENGINE_VERSION || null,
+          knowledge: knowledgeStatusForMeta(),
+          replay: true,
+          elapsedMs: nowMs() - startedAt,
+        },
+      });
+    }
+  }
+
+  if (!ENGINE.fn) {
+    const reply = "Backend engine not loaded. Check deploy: Utils/chatEngine.js is missing or exports are wrong.";
+    writeReplay(rec, reply, "general");
+    return res.status(500).json({
+      ok: false,
+      reply,
+      lane: "general",
+      requestId: serverRequestId,
+      meta: {
+        index: INDEX_VERSION,
+        engine: "missing_or_invalid",
+        engineFrom: ENGINE.from,
+        engineVersion: ENGINE_VERSION || null,
+        knowledge: knowledgeStatusForMeta(),
+      },
+    });
+  }
+
+  if (KNOWLEDGE_AUTOLOAD && !KNOWLEDGE.ok) {
+    const tried = toBool(global.__SBNYX_KNOWLEDGE_LAZY_TRIED, false);
+    if (!tried) {
+      global.__SBNYX_KNOWLEDGE_LAZY_TRIED = true;
+      try {
+        reloadKnowledge();
+      } catch (e) {
+        pushKnowledgeError("lazy_reload", "reloadKnowledge()", e?.message || e);
+      }
+    }
+  }
+
+  const engineInput = {
+    ...body,
+    requestId: serverRequestId,
+    clientRequestId: clientRequestId || undefined,
+    text: inboundText,
+    source,
+    routeHint,
+    client: {
+      ...(isPlainObject(body.client) ? body.client : {}),
+      source,
+      routeHint,
+    },
+    session: rec.data,
+
+    knowledge: knowledgeSnapshotForEngine(),
+    __knowledgeStatus: knowledgeStatusForMeta(),
+    packIndex: getPackIndexSafe(false),
+  };
+
+  let out;
+  try {
+    out = await ENGINE.fn(engineInput);
+    out = normalizeEngineOutput(out);
+  } catch (e) {
+    const msg = safeStr(e?.message || e).trim();
+    const k = knowledgeStatusForMeta();
+    const reply = k.ok
+      ? "I hit a snag, but I’m still here. Give me a year (1950–2024) and I’ll jump right in."
+      : "I’m online, but my knowledge packs didn’t load yet. Try again in a moment — or hit refresh — and I’ll reconnect.";
+    writeReplay(rec, reply, rec.data.lane || "general");
+    return res.status(500).json({
+      ok: true,
+      reply,
+      lane: rec.data.lane || "general",
+      requestId: serverRequestId,
+      meta: {
+        index: INDEX_VERSION,
+        engine: ENGINE_VERSION || null,
+        knowledge: k,
+        error: safeStr(msg).slice(0, 200),
+      },
+    });
+  }
+
+  if (out && isPlainObject(out.sessionPatch)) {
+    applySessionPatch(rec.data, out.sessionPatch);
+  }
+
+  const lane = safeStr(out?.lane || rec.data.lane || "general") || "general";
+  rec.data.lane = lane;
+
+  const rawReply = safeStr(out?.reply || "").trim();
+  const reply = rawReply || "Okay — tell me what you want next.";
+
+  const directives = Array.isArray(out?.directives) ? out.directives : undefined;
+  const followUps = Array.isArray(out?.followUps) ? out.followUps : undefined;
+  const followUpsStrings =
+    !followUps && Array.isArray(out?.followUpsStrings) && out?.followUpsStrings.length ? out.followUpsStrings : undefined;
+
+  if (!bootLike) {
+    writeReplay(rec, reply, lane, { directives, followUps, followUpsStrings });
+  }
+
+  if (bootLike) {
+    writeBootReplay(rec, reply, lane, { directives, followUps, followUpsStrings });
+  }
+
+  return res.status(200).json({
+    ok: true,
+    reply,
+    lane,
+    ctx: out?.ctx,
+    ui: out?.ui,
+    directives,
+    followUps,
+    followUpsStrings,
+    sessionPatch: out?.sessionPatch || {},
+    cog: out?.cog,
+    requestId: out?.requestId || serverRequestId,
+    meta: {
+      ...(isPlainObject(out?.meta) ? out.meta : {}),
+      index: INDEX_VERSION,
+      engine: ENGINE_VERSION || null,
+      engineFrom: ENGINE.from,
+      knowledge: knowledgeStatusForMeta(),
+      elapsedMs: nowMs() - startedAt,
+      source,
+      routeHint,
+      bootLike: !!bootLike,
+      inboundSig: inboundSig ? String(inboundSig).slice(0, 160) : null,
+      meaningful: !!meaningful,
+      echoSuppressed: !!followUps && Array.isArray(out?.followUpsStrings) && out?.followUpsStrings.length ? true : false,
+      packs: getPackIndexSafe(false).summary,
+    },
+  });
+}
+
+function applySessionPatch(session, patch) {
+  if (!isPlainObject(session) || !isPlainObject(patch)) return;
+
+  const PATCH_KEYS = new Set([
+    "introDone",
+    "introAt",
+    "introVariantId",
+    "introBucket",
+    "lastInText",
+    "lastInAt",
+    "lastOut",
+    "lastOutAt",
+    "turns",
+    "startedAt",
+    "lastTurnAt",
+    "lane",
+    "lastLane",
+    "lastYear",
+    "lastMode",
+    "activeMusicMode",
+    "lastMusicYear",
+    "pendingYear",
+    "pendingMode",
+    "pendingLane",
+    "turnCount",
+    "__hasRealUserTurn",
+    "__introDone",
+    "__cs1",
+    "cog",
+    "allowPackets",
+    "__nyxIntro",
+    "__nyxVelvet",
+
+    // ✅ CRITICAL: allow music loop-dampener/session continuity keys
+    "__musicLastSig",
+    "activeMusicChart",
+    "lastMusicChart",
+    "musicMomentsLoaded",
+    "musicMomentsLoadedAt",
+  ]);
+
+  for (const [k, v] of Object.entries(patch)) {
+    if (!PATCH_KEYS.has(k)) continue;
+    if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
+
+    if (k === "cog") {
+      if (!isPlainObject(session.cog)) session.cog = {};
+      if (isPlainObject(v)) {
+        for (const [ck, cv] of Object.entries(v)) {
+          if (ck === "__proto__" || ck === "constructor" || ck === "prototype") continue;
+          session.cog[ck] = cv;
+        }
+      }
+      continue;
+    }
+
+    if (k === "__nyxIntro") {
+      if (!isPlainObject(session.__nyxIntro)) session.__nyxIntro = {};
+      if (isPlainObject(v)) {
+        for (const [ik, iv] of Object.entries(v)) {
+          if (ik === "__proto__" || ik === "constructor" || ik === "prototype") continue;
+          session.__nyxIntro[ik] = iv;
+        }
+      }
+      continue;
+    }
+
+    session[k] = v;
+  }
+}
+
+// =========================
+// Chat endpoints
+// =========================
+app.post("/api/sandblast-gpt", handleChatRoute);
+app.post("/api/nyx/chat", handleChatRoute);
+app.post("/api/chat", handleChatRoute);
+
+// GET guidance
+function chatGetGuidance(req, res) {
+  return res.status(405).json({
+    ok: false,
+    error: "method_not_allowed",
+    detail:
+      'Use POST with JSON body. Example: { "text": "Top 10 for 1973", "payload": { "lane":"music", "action":"top10", "year":1973 } }',
+    meta: { index: INDEX_VERSION },
+  });
+}
+app.get("/api/chat", chatGetGuidance);
+app.get("/api/nyx/chat", chatGetGuidance);
+app.get("/api/sandblast-gpt", chatGetGuidance);
+
+// =========================
+// TTS (REAL ElevenLabs)
+// =========================
+async function handleTtsRoute(req, res) {
+  const startedAt = nowMs();
+
+  let body = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
+  if (typeof req.body === "string") body = { text: req.body };
+
+  const rawText = safeStr(body.text || body.message || body.prompt || "").trim();
+  const noText = toBool(body.NO_TEXT || body.noText, false);
+
+  const disableNaturalize = toBool(body.disableNaturalize, false);
+
+  const text = disableNaturalize ? rawText : nyxVoiceNaturalize(rawText);
+
+  if (!ELEVEN_API_KEY || !ELEVEN_VOICE_ID || !fetchFn) {
+    return res.status(501).json({
+      ok: false,
+      error: "TTS not configured (missing ELEVENLABS_API_KEY or ELEVENLABS_VOICE_ID or fetch).",
+      meta: { index: INDEX_VERSION },
+    });
+  }
+
+  if (!text && !noText) {
+    return res.status(400).json({ ok: false, error: "Missing text for TTS.", meta: { index: INDEX_VERSION } });
+  }
+
+  const ac = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const t = setTimeout(() => {
+    try {
+      if (ac) ac.abort();
+    } catch (_) {}
+  }, ELEVEN_TTS_TIMEOUT_MS);
+
+  try {
+    const payload = {
+      text: text || " ",
+      model_id: "eleven_monolingual_v1",
+      voice_settings: {
+        stability: NYX_VOICE_STABILITY,
+        similarity_boost: NYX_VOICE_SIMILARITY,
+        style: NYX_VOICE_STYLE,
+        use_speaker_boost: NYX_VOICE_SPEAKER_BOOST,
+      },
+    };
+
+    const r = await fetchFn(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(ELEVEN_VOICE_ID)}`, {
+      method: "POST",
+      headers: {
+        "xi-api-key": ELEVEN_API_KEY,
+        "Content-Type": "application/json",
+        Accept: "audio/mpeg",
+      },
+      body: JSON.stringify(payload),
+      signal: ac ? ac.signal : undefined,
+    });
+
+    if (!r.ok) {
+      const errTxt = await r.text().catch(() => "");
+      return res.status(502).json({
+        ok: false,
+        error: "TTS upstream error",
+        detail: safeStr(errTxt).slice(0, 800),
+        meta: { index: INDEX_VERSION, status: r.status },
+      });
+    }
+
+    const buf = Buffer.from(await r.arrayBuffer());
+
+    res.setHeader("Content-Type", "audio/mpeg");
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Content-Length", String(buf.length));
+    return res.status(200).send(buf);
+  } catch (e) {
+    const msg = safeStr(e?.message || e).trim();
+    const aborted = /aborted|abort|timeout/i.test(msg);
+    return res.status(aborted ? 504 : 500).json({
+      ok: false,
+      error: aborted ? "TTS timeout" : "TTS failure",
+      detail: safeStr(msg).slice(0, 250),
+      meta: { index: INDEX_VERSION, elapsedMs: nowMs() - startedAt },
+    });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+app.post("/api/tts", handleTtsRoute);
+app.post("/api/voice", handleTtsRoute);
+
+function ttsGetGuidance(req, res) {
+  return res.status(405).json({
+    ok: false,
+    error: "method_not_allowed",
+    detail: 'Use POST with JSON body: { text: "..." }',
+    meta: { index: INDEX_VERSION },
+  });
+}
+app.get("/api/tts", ttsGetGuidance);
+app.get("/api/voice", ttsGetGuidance);
+
+// =========================
+// Express error middleware (last)
+// =========================
+app.use((err, req, res, next) => {
+  // eslint-disable-next-line no-console
+  console.log("[Sandblast][ExpressError]", err && (err.stack || err.message || err));
+  if (res.headersSent) return next(err);
+  return res.status(500).json({
+    ok: false,
+    error: "server_error",
+    detail: safeStr(err?.message || err).slice(0, 240),
+    meta: { index: INDEX_VERSION },
+  });
+});
+
+// =========================
+// Start
+// =========================
+app.listen(PORT, () => {
+  // eslint-disable-next-line no-console
+  console.log(`[Sandblast] ${INDEX_VERSION} listening on ${PORT}`);
+  // eslint-disable-next-line no-console
+  console.log(`[Sandblast] Engine: from=${ENGINE.from} version=${ENGINE_VERSION || "(unknown)"} loaded=${!!ENGINE.fn}`);
+  // eslint-disable-next-line no-console
+  console.log(`[Sandblast] Fetch: ${fetchFn ? "OK" : "MISSING"} (global.fetch=${!!global.fetch})`);
+  // eslint-disable-next-line no-console
+  console.log(
+    `[Sandblast] DataRoots: ${JSON.stringify(DATA_ROOT_CANDIDATES.slice(0, 16))} (autodiscover=${DATA_ROOT_AUTODISCOVER} hints=${DATA_ROOT_HINTS ? "yes" : "no"})`
+  );
+  // eslint-disable-next-line no-console
+  console.log(
+    `[Sandblast] Knowledge: autoload=${KNOWLEDGE_AUTOLOAD} ok=${KNOWLEDGE.ok} jsonKeys=${
+      Object.keys(KNOWLEDGE.json).length
+    } scriptKeys=${Object.keys(KNOWLEDGE.scripts).length} errors=${KNOWLEDGE.errors.length} skips=${JSON.stringify(
+      KNOWLEDGE.__skips
+    )} collisions=${KNOWLEDGE.__collisions.length} APP_ROOT=${APP_ROOT} DATA_DIR=${DATA_DIR} SCRIPTS_DIR=${SCRIPTS_DIR} scriptsEnabled=${KNOWLEDGE_ENABLE_SCRIPTS} reloadEveryMs=${KNOWLEDGE_RELOAD_INTERVAL_MS} debugIncludeData=${KNOWLEDGE_DEBUG_INCLUDE_DATA}`
+  );
+});
+
+module.exports = { app, INDEX_VERSION };
