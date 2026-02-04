@@ -116,6 +116,8 @@ Data/wikipedia/**
 # These files MUST be committed for Year-End charts to work
 # =========================
 !Data/wikipedia/
+!Data/wikipedia/charts/
+!Data/wikipedia/charts/**
 !Data/wikipedia/billboard_yearend_hot100_1970_2010.json
 !Data/wikipedia/billboard_yearend_singles_1950_1959.json
 
