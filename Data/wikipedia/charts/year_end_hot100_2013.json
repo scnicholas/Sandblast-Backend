@@ -1,0 +1,512 @@
+{
+  "year": 2013,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_2013",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Thrift Shop\"",
+      "artist": "Macklemore & Ryan Lewis featuring Wanz"
+    },
+    {
+      "pos": 2,
+      "title": "\"Blurred Lines\"",
+      "artist": "Robin Thicke featuring T.I. and Pharrell Williams"
+    },
+    {
+      "pos": 3,
+      "title": "\"Radioactive\"",
+      "artist": "Imagine Dragons"
+    },
+    {
+      "pos": 4,
+      "title": "\"Harlem Shake\"",
+      "artist": "Baauer"
+    },
+    {
+      "pos": 5,
+      "title": "\"Can't Hold Us\"",
+      "artist": "Macklemore & Ryan Lewis featuring Ray Dalton"
+    },
+    {
+      "pos": 6,
+      "title": "\"Mirrors\"",
+      "artist": "Justin Timberlake"
+    },
+    {
+      "pos": 7,
+      "title": "\"Just Give Me a Reason\"",
+      "artist": "Pink featuring Nate Ruess"
+    },
+    {
+      "pos": 8,
+      "title": "\"When I Was Your Man\"",
+      "artist": "Bruno Mars"
+    },
+    {
+      "pos": 9,
+      "title": "\"Cruise\"",
+      "artist": "Florida Georgia Line featuring Nelly"
+    },
+    {
+      "pos": 10,
+      "title": "\"Roar\"",
+      "artist": "Katy Perry"
+    },
+    {
+      "pos": 11,
+      "title": "\"Locked Out of Heaven\"",
+      "artist": "Bruno Mars"
+    },
+    {
+      "pos": 12,
+      "title": "\"Ho Hey\"",
+      "artist": "The Lumineers"
+    },
+    {
+      "pos": 13,
+      "title": "\"Stay\"",
+      "artist": "Rihanna featuring Mikky Ekko"
+    },
+    {
+      "pos": 14,
+      "title": "\"Get Lucky\"",
+      "artist": "Daft Punk featuring Pharrell Williams"
+    },
+    {
+      "pos": 15,
+      "title": "\"Royals\"",
+      "artist": "Lorde"
+    },
+    {
+      "pos": 16,
+      "title": "\"I Knew You Were Trouble\"",
+      "artist": "Taylor Swift"
+    },
+    {
+      "pos": 17,
+      "title": "\"We Can't Stop\"",
+      "artist": "Miley Cyrus"
+    },
+    {
+      "pos": 18,
+      "title": "\"Wrecking Ball\"",
+      "artist": "\"Wrecking Ball\""
+    },
+    {
+      "pos": 19,
+      "title": "\"Wake Me Up\"",
+      "artist": "Avicii"
+    },
+    {
+      "pos": 20,
+      "title": "\"Suit & Tie\"",
+      "artist": "Justin Timberlake featuring Jay-Z"
+    },
+    {
+      "pos": 21,
+      "title": "\"Cups (Pitch Perfect's When I'm Gone)\"",
+      "artist": "Anna Kendrick"
+    },
+    {
+      "pos": 22,
+      "title": "\"Holy Grail\"",
+      "artist": "Jay-Z featuring Justin Timberlake"
+    },
+    {
+      "pos": 23,
+      "title": "\"Scream & Shout\"",
+      "artist": "will.i.am featuring Britney Spears"
+    },
+    {
+      "pos": 24,
+      "title": "\"Clarity\"",
+      "artist": "Zedd featuring Foxes"
+    },
+    {
+      "pos": 25,
+      "title": "\"Sail\"",
+      "artist": "Awolnation"
+    },
+    {
+      "pos": 26,
+      "title": "\"Don't You Worry Child\"",
+      "artist": "Swedish House Mafia featuring John Martin"
+    },
+    {
+      "pos": 27,
+      "title": "\"Diamonds\"",
+      "artist": "Rihanna"
+    },
+    {
+      "pos": 28,
+      "title": "\"I Love It\"",
+      "artist": "Icona Pop featuring Charli XCX"
+    },
+    {
+      "pos": 29,
+      "title": "\"Safe and Sound\"",
+      "artist": "Capital Cities"
+    },
+    {
+      "pos": 30,
+      "title": "\"Treasure\"",
+      "artist": "Bruno Mars"
+    },
+    {
+      "pos": 31,
+      "title": "\"The Way\"",
+      "artist": "Ariana Grande featuring Mac Miller"
+    },
+    {
+      "pos": 32,
+      "title": "\"Started from the Bottom\"",
+      "artist": "Drake"
+    },
+    {
+      "pos": 33,
+      "title": "\"Come & Get It\"",
+      "artist": "Selena Gomez"
+    },
+    {
+      "pos": 34,
+      "title": "\"Hold On, We're Going Home\"",
+      "artist": "Drake featuring Majid Jordan"
+    },
+    {
+      "pos": 35,
+      "title": "\"Daylight\"",
+      "artist": "Maroon 5"
+    },
+    {
+      "pos": 36,
+      "title": "\"Feel This Moment\"",
+      "artist": "Pitbull featuring Christina Aguilera"
+    },
+    {
+      "pos": 37,
+      "title": "\"Applause\"",
+      "artist": "Lady Gaga"
+    },
+    {
+      "pos": 38,
+      "title": "\"One More Night\"",
+      "artist": "Maroon 5"
+    },
+    {
+      "pos": 39,
+      "title": "\"Love Me\"",
+      "artist": "Lil Wayne featuring Drake and Future"
+    },
+    {
+      "pos": 40,
+      "title": "\"My Songs Know What You Did in the Dark (Light Em Up)\"",
+      "artist": "Fall Out Boy"
+    },
+    {
+      "pos": 41,
+      "title": "\"Fuckin' Problems\"",
+      "artist": "ASAP Rocky featuring Drake, 2 Chainz and Kendrick Lamar"
+    },
+    {
+      "pos": 42,
+      "title": "\"Beauty and a Beat\"",
+      "artist": "Justin Bieber featuring Nicki Minaj"
+    },
+    {
+      "pos": 43,
+      "title": "\"Same Love\"",
+      "artist": "Macklemore & Ryan Lewis featuring Mary Lambert"
+    },
+    {
+      "pos": 44,
+      "title": "\"Sweet Nothing\"",
+      "artist": "Calvin Harris featuring Florence Welch"
+    },
+    {
+      "pos": 45,
+      "title": "\"Summertime Sadness\"",
+      "artist": "Lana Del Rey and Cédric Gervais"
+    },
+    {
+      "pos": 46,
+      "title": "\"Home\"",
+      "artist": "Phillip Phillips"
+    },
+    {
+      "pos": 47,
+      "title": "\"It's Time\"",
+      "artist": "Imagine Dragons"
+    },
+    {
+      "pos": 48,
+      "title": "\"Power Trip\"",
+      "artist": "J. Cole featuring Miguel"
+    },
+    {
+      "pos": 49,
+      "title": "\"Girl on Fire\"",
+      "artist": "Alicia Keys featuring Nicki Minaj"
+    },
+    {
+      "pos": 50,
+      "title": "\"Heart Attack\"",
+      "artist": "Demi Lovato"
+    },
+    {
+      "pos": 51,
+      "title": "\"Love Somebody\"",
+      "artist": "Maroon 5"
+    },
+    {
+      "pos": 52,
+      "title": "\"I Will Wait\"",
+      "artist": "Mumford & Sons"
+    },
+    {
+      "pos": 53,
+      "title": "\"Try\"",
+      "artist": "Pink"
+    },
+    {
+      "pos": 54,
+      "title": "\"Wagon Wheel\"",
+      "artist": "Darius Rucker"
+    },
+    {
+      "pos": 55,
+      "title": "\"Gangnam Style\"",
+      "artist": "Psy"
+    },
+    {
+      "pos": 56,
+      "title": "\"I Need Your Love\"",
+      "artist": "Calvin Harris featuring Ellie Goulding"
+    },
+    {
+      "pos": 57,
+      "title": "\"Die Young\"",
+      "artist": "Kesha"
+    },
+    {
+      "pos": 58,
+      "title": "\"Some Nights\"",
+      "artist": "Fun"
+    },
+    {
+      "pos": 59,
+      "title": "\"Bad\"",
+      "artist": "Wale featuring Tiara Thomas or Rihanna"
+    },
+    {
+      "pos": 60,
+      "title": "\"Boys 'Round Here\"",
+      "artist": "Blake Shelton featuring Pistol Annies and Friends"
+    },
+    {
+      "pos": 61,
+      "title": "\"Gone, Gone, Gone\"",
+      "artist": "Phillip Phillips"
+    },
+    {
+      "pos": 62,
+      "title": "\"Demons\"",
+      "artist": "Imagine Dragons"
+    },
+    {
+      "pos": 63,
+      "title": "\"Counting Stars\"",
+      "artist": "OneRepublic"
+    },
+    {
+      "pos": 64,
+      "title": "\"I Cry\"",
+      "artist": "Flo Rida"
+    },
+    {
+      "pos": 65,
+      "title": "\"Little Talks\"",
+      "artist": "Of Monsters and Men"
+    },
+    {
+      "pos": 66,
+      "title": "\"The Other Side\"",
+      "artist": "Jason Derulo"
+    },
+    {
+      "pos": 67,
+      "title": "\"Berzerk\"",
+      "artist": "Eminem"
+    },
+    {
+      "pos": 68,
+      "title": "\"Catch My Breath\"",
+      "artist": "Kelly Clarkson"
+    },
+    {
+      "pos": 69,
+      "title": "\"Crash My Party\"",
+      "artist": "Luke Bryan"
+    },
+    {
+      "pos": 70,
+      "title": "\"Pour It Up\"",
+      "artist": "Rihanna"
+    },
+    {
+      "pos": 71,
+      "title": "\"22\"",
+      "artist": "Taylor Swift"
+    },
+    {
+      "pos": 72,
+      "title": "\"I Want Crazy\"",
+      "artist": "Hunter Hayes"
+    },
+    {
+      "pos": 73,
+      "title": "\"The Fox (What Does the Fox Say?)\"",
+      "artist": "Ylvis"
+    },
+    {
+      "pos": 74,
+      "title": "\"Best Song Ever\"",
+      "artist": "One Direction"
+    },
+    {
+      "pos": 75,
+      "title": "\"The A Team\"",
+      "artist": "Ed Sheeran"
+    },
+    {
+      "pos": 76,
+      "title": "\"Carry On\"",
+      "artist": "Fun"
+    },
+    {
+      "pos": 77,
+      "title": "\"Highway Don't Care\"",
+      "artist": "Tim McGraw featuring Taylor Swift and Keith Urban"
+    },
+    {
+      "pos": 78,
+      "title": "\"That's My Kind of Night\"",
+      "artist": "Luke Bryan"
+    },
+    {
+      "pos": 79,
+      "title": "\"Swimming Pools (Drank)\"",
+      "artist": "Kendrick Lamar"
+    },
+    {
+      "pos": 80,
+      "title": "\"Sure Be Cool If You Did\"",
+      "artist": "Blake Shelton"
+    },
+    {
+      "pos": 81,
+      "title": "\"#Beautiful\"",
+      "artist": "Mariah Carey featuring Miguel"
+    },
+    {
+      "pos": 82,
+      "title": "\"Troublemaker\"",
+      "artist": "Olly Murs featuring Flo Rida"
+    },
+    {
+      "pos": 83,
+      "title": "\"Body Party\"",
+      "artist": "Ciara"
+    },
+    {
+      "pos": 84,
+      "title": "\"Adorn\"",
+      "artist": "Miguel"
+    },
+    {
+      "pos": 85,
+      "title": "\"Hall of Fame\"",
+      "artist": "The Script featuring will.i.am"
+    },
+    {
+      "pos": 86,
+      "title": "\"Let Me Love You (Until You Learn to Love Yourself)\"",
+      "artist": "Ne-Yo"
+    },
+    {
+      "pos": 87,
+      "title": "\"U.O.E.N.O.\"",
+      "artist": "Rocko featuring Future and Rick Ross"
+    },
+    {
+      "pos": 88,
+      "title": "\"Next to Me\"",
+      "artist": "Emeli Sandé"
+    },
+    {
+      "pos": 89,
+      "title": "\"Mama's Broken Heart\"",
+      "artist": "Miranda Lambert"
+    },
+    {
+      "pos": 90,
+      "title": "\"It Goes Like This\"",
+      "artist": "Thomas Rhett"
+    },
+    {
+      "pos": 91,
+      "title": "\"Bugatti\"",
+      "artist": "Ace Hood featuring Future and Rick Ross"
+    },
+    {
+      "pos": 92,
+      "title": "\"Wanted\"",
+      "artist": "Hunter Hayes"
+    },
+    {
+      "pos": 93,
+      "title": "\"Downtown\"",
+      "artist": "Lady Antebellum"
+    },
+    {
+      "pos": 94,
+      "title": "\"Get Your Shine On\"",
+      "artist": "Florida Georgia Line"
+    },
+    {
+      "pos": 95,
+      "title": "\"#thatPower\"",
+      "artist": "will.i.am featuring Justin Bieber"
+    },
+    {
+      "pos": 96,
+      "title": "\"Brave\"",
+      "artist": "Sara Bareilles"
+    },
+    {
+      "pos": 97,
+      "title": "\"Let Her Go\"",
+      "artist": "Passenger"
+    },
+    {
+      "pos": 98,
+      "title": "\"Runnin' Outta Moonlight\"",
+      "artist": "Randy Houser"
+    },
+    {
+      "pos": 99,
+      "title": "\"I'm Different\"",
+      "artist": "2 Chainz"
+    },
+    {
+      "pos": 100,
+      "title": "\"Still Into You\"",
+      "artist": "Paramore"
+    }
+  ]
+}

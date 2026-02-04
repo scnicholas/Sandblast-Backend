@@ -1,0 +1,512 @@
+{
+  "year": 2006,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_2006",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Bad Day\"",
+      "artist": "Daniel Powter"
+    },
+    {
+      "pos": 2,
+      "title": "\"Temperature\"",
+      "artist": "Sean Paul"
+    },
+    {
+      "pos": 3,
+      "title": "\"Promiscuous\"",
+      "artist": "Nelly Furtado featuring Timbaland"
+    },
+    {
+      "pos": 4,
+      "title": "\"You're Beautiful\"",
+      "artist": "James Blunt"
+    },
+    {
+      "pos": 5,
+      "title": "\"Hips Don't Lie\"",
+      "artist": "Shakira featuring Wyclef Jean"
+    },
+    {
+      "pos": 6,
+      "title": "\"Unwritten\"",
+      "artist": "Natasha Bedingfield"
+    },
+    {
+      "pos": 7,
+      "title": "\"Crazy\"",
+      "artist": "Gnarls Barkley"
+    },
+    {
+      "pos": 8,
+      "title": "\"Ridin'\"",
+      "artist": "Chamillionaire featuring Krayzie Bone"
+    },
+    {
+      "pos": 9,
+      "title": "\"SexyBack\"",
+      "artist": "Justin Timberlake featuring Timbaland"
+    },
+    {
+      "pos": 10,
+      "title": "\"Check on It\"",
+      "artist": "Beyoncé featuring Slim Thug and Bun B"
+    },
+    {
+      "pos": 11,
+      "title": "\"Be Without You\"",
+      "artist": "Mary J. Blige"
+    },
+    {
+      "pos": 12,
+      "title": "\"Grillz\"",
+      "artist": "Nelly featuring Paul Wall and Ali & Gipp"
+    },
+    {
+      "pos": 13,
+      "title": "\"Over My Head (Cable Car)\"",
+      "artist": "The Fray"
+    },
+    {
+      "pos": 14,
+      "title": "\"Me & U\"",
+      "artist": "Cassie"
+    },
+    {
+      "pos": 15,
+      "title": "\"Buttons\"",
+      "artist": "Pussycat Dolls featuring Snoop Dogg"
+    },
+    {
+      "pos": 16,
+      "title": "\"Run It!\"",
+      "artist": "Chris Brown featuring Juelz Santana"
+    },
+    {
+      "pos": 17,
+      "title": "\"So Sick\"",
+      "artist": "Ne-Yo"
+    },
+    {
+      "pos": 18,
+      "title": "\"It's Goin' Down\"",
+      "artist": "Yung Joc featuring Nitti"
+    },
+    {
+      "pos": 19,
+      "title": "\"SOS\"",
+      "artist": "Rihanna"
+    },
+    {
+      "pos": 20,
+      "title": "\"I Write Sins Not Tragedies\"",
+      "artist": "Panic! at the Disco"
+    },
+    {
+      "pos": 21,
+      "title": "\"Move Along\"",
+      "artist": "The All-American Rejects"
+    },
+    {
+      "pos": 22,
+      "title": "\"London Bridge\"",
+      "artist": "Fergie"
+    },
+    {
+      "pos": 23,
+      "title": "\"Dani California\"",
+      "artist": "Red Hot Chili Peppers"
+    },
+    {
+      "pos": 24,
+      "title": "\"Snap Yo Fingers\"",
+      "artist": "Lil Jon featuring E-40 and Sean Paul"
+    },
+    {
+      "pos": 25,
+      "title": "\"Lean wit It, Rock wit It\"",
+      "artist": "Dem Franchize Boyz featuring Peanut and Charlay"
+    },
+    {
+      "pos": 26,
+      "title": "\"What Hurts the Most\"",
+      "artist": "Rascal Flatts"
+    },
+    {
+      "pos": 27,
+      "title": "\"How to Save a Life\"",
+      "artist": "The Fray"
+    },
+    {
+      "pos": 28,
+      "title": "\"Unfaithful\"",
+      "artist": "Rihanna"
+    },
+    {
+      "pos": 29,
+      "title": "\"Chasing Cars\"",
+      "artist": "Snow Patrol"
+    },
+    {
+      "pos": 30,
+      "title": "\"Lips of an Angel\"",
+      "artist": "Hinder"
+    },
+    {
+      "pos": 31,
+      "title": "\"Everytime We Touch\"",
+      "artist": "Cascada"
+    },
+    {
+      "pos": 32,
+      "title": "\"Ain't No Other Man\"",
+      "artist": "Christina Aguilera"
+    },
+    {
+      "pos": 33,
+      "title": "\"Dance, Dance\"",
+      "artist": "Fall Out Boy"
+    },
+    {
+      "pos": 34,
+      "title": "\"Gold Digger\"",
+      "artist": "Kanye West featuring Jamie Foxx"
+    },
+    {
+      "pos": 35,
+      "title": "\"Money Maker\"",
+      "artist": "Ludacris featuring Pharrell"
+    },
+    {
+      "pos": 36,
+      "title": "\"Ms. New Booty\"",
+      "artist": "Bubba Sparxxx featuring Ying Yang Twins"
+    },
+    {
+      "pos": 37,
+      "title": "\"(When You Gonna) Give It Up to Me\"",
+      "artist": "Sean Paul featuring Keyshia Cole"
+    },
+    {
+      "pos": 38,
+      "title": "\"Photograph\"",
+      "artist": "Nickelback"
+    },
+    {
+      "pos": 39,
+      "title": "\"Because of You\"",
+      "artist": "Kelly Clarkson"
+    },
+    {
+      "pos": 40,
+      "title": "\"Stickwitu\"",
+      "artist": "Pussycat Dolls"
+    },
+    {
+      "pos": 41,
+      "title": "\"I'm 'n Luv (wit a Stripper)\"",
+      "artist": "T-Pain featuring Mike Jones"
+    },
+    {
+      "pos": 42,
+      "title": "\"My Humps\"",
+      "artist": "The Black Eyed Peas"
+    },
+    {
+      "pos": 43,
+      "title": "\"Where'd You Go\"",
+      "artist": "Fort Minor featuring Holly Brook and Jonah Matranga"
+    },
+    {
+      "pos": 44,
+      "title": "\"Yo (Excuse Me Miss)\"",
+      "artist": "Chris Brown"
+    },
+    {
+      "pos": 45,
+      "title": "\"Walk Away\"",
+      "artist": "Kelly Clarkson"
+    },
+    {
+      "pos": 46,
+      "title": "\"Laffy Taffy\"",
+      "artist": "D4L"
+    },
+    {
+      "pos": 47,
+      "title": "\"What You Know\"",
+      "artist": "T.I."
+    },
+    {
+      "pos": 48,
+      "title": "\"Dirty Little Secret\"",
+      "artist": "The All-American Rejects"
+    },
+    {
+      "pos": 49,
+      "title": "\"Savin' Me\"",
+      "artist": "Nickelback"
+    },
+    {
+      "pos": 50,
+      "title": "\"Don't Forget About Us\"",
+      "artist": "Mariah Carey"
+    },
+    {
+      "pos": 51,
+      "title": "\"Sexy Love\"",
+      "artist": "Ne-Yo"
+    },
+    {
+      "pos": 52,
+      "title": "\"U and Dat\"",
+      "artist": "E-40 featuring T-Pain and Kandi Girl"
+    },
+    {
+      "pos": 53,
+      "title": "\"Far Away\"",
+      "artist": "Nickelback"
+    },
+    {
+      "pos": 54,
+      "title": "\"What's Left of Me\"",
+      "artist": "Nick Lachey"
+    },
+    {
+      "pos": 55,
+      "title": "\"So What\"",
+      "artist": "Field Mob featuring Ciara"
+    },
+    {
+      "pos": 56,
+      "title": "\"Do It to It\"",
+      "artist": "Cherish featuring Sean Paul of the YoungBloodZ"
+    },
+    {
+      "pos": 57,
+      "title": "\"Black Horse and the Cherry Tree\"",
+      "artist": "KT Tunstall"
+    },
+    {
+      "pos": 58,
+      "title": "\"There It Go (The Whistle Song)\"",
+      "artist": "Juelz Santana"
+    },
+    {
+      "pos": 59,
+      "title": "\"Shoulder Lean\"",
+      "artist": "Young Dro featuring T.I."
+    },
+    {
+      "pos": 60,
+      "title": "\"Unpredictable\"",
+      "artist": "Jamie Foxx featuring Ludacris"
+    },
+    {
+      "pos": 61,
+      "title": "\"My Love\"",
+      "artist": "Justin Timberlake featuring T.I."
+    },
+    {
+      "pos": 62,
+      "title": "\"Shake That\"",
+      "artist": "Eminem featuring Nate Dogg"
+    },
+    {
+      "pos": 63,
+      "title": "\"Pullin' Me Back\"",
+      "artist": "Chingy featuring Tyrese"
+    },
+    {
+      "pos": 64,
+      "title": "\"Bossy\"",
+      "artist": "Kelis featuring Too Short"
+    },
+    {
+      "pos": 65,
+      "title": "\"Chain Hang Low\"",
+      "artist": "Jibbs"
+    },
+    {
+      "pos": 66,
+      "title": "\"Smack That\"",
+      "artist": "Akon featuring Eminem"
+    },
+    {
+      "pos": 67,
+      "title": "\"One Wish\"",
+      "artist": "Ray J"
+    },
+    {
+      "pos": 68,
+      "title": "\"Sugar, We're Goin Down\"",
+      "artist": "Fall Out Boy"
+    },
+    {
+      "pos": 69,
+      "title": "\"Gimme That\"",
+      "artist": "Chris Brown featuring Lil Wayne"
+    },
+    {
+      "pos": 70,
+      "title": "\"I Know You See It\"",
+      "artist": "Yung Joc"
+    },
+    {
+      "pos": 71,
+      "title": "\"Who Says You Can't Go Home\"",
+      "artist": "Bon Jovi featuring Jennifer Nettles"
+    },
+    {
+      "pos": 72,
+      "title": "\"Too Little Too Late\"",
+      "artist": "JoJo"
+    },
+    {
+      "pos": 73,
+      "title": "\"Touch It\"",
+      "artist": "Busta Rhymes"
+    },
+    {
+      "pos": 74,
+      "title": "\"Rompe\"",
+      "artist": "Daddy Yankee"
+    },
+    {
+      "pos": 75,
+      "title": "\"Déjà Vu\"",
+      "artist": "Beyoncé featuring Jay-Z"
+    },
+    {
+      "pos": 76,
+      "title": "\"Life Is a Highway\"",
+      "artist": "Rascal Flatts"
+    },
+    {
+      "pos": 77,
+      "title": "\"Call Me When You're Sober\"",
+      "artist": "Evanescence"
+    },
+    {
+      "pos": 78,
+      "title": "\"Jesus, Take the Wheel\"",
+      "artist": "Carrie Underwood"
+    },
+    {
+      "pos": 79,
+      "title": "\"Show Stopper\"",
+      "artist": "Danity Kane featuring Yung Joc"
+    },
+    {
+      "pos": 80,
+      "title": "\"Get Up\"",
+      "artist": "Ciara featuring Chamillionaire"
+    },
+    {
+      "pos": 81,
+      "title": "\"We Be Burnin'\"",
+      "artist": "Sean Paul"
+    },
+    {
+      "pos": 82,
+      "title": "\"Hate Me\"",
+      "artist": "Blue October"
+    },
+    {
+      "pos": 83,
+      "title": "\"You and Me\"",
+      "artist": "Lifehouse"
+    },
+    {
+      "pos": 84,
+      "title": "\"Beep\"",
+      "artist": "Pussycat Dolls featuring will.i.am"
+    },
+    {
+      "pos": 85,
+      "title": "\"I Think They Like Me\"",
+      "artist": "Dem Franchize Boyz featuring Jermaine Dupri, Da Brat and Bow Wow"
+    },
+    {
+      "pos": 86,
+      "title": "\"Say Goodbye\"",
+      "artist": "Chris Brown"
+    },
+    {
+      "pos": 87,
+      "title": "\"Waiting on the World to Change\"",
+      "artist": "John Mayer"
+    },
+    {
+      "pos": 88,
+      "title": "\"Soul Survivor\"",
+      "artist": "Young Jeezy featuring Akon"
+    },
+    {
+      "pos": 89,
+      "title": "\"Pump It\"",
+      "artist": "The Black Eyed Peas"
+    },
+    {
+      "pos": 90,
+      "title": "\"When I'm Gone\"",
+      "artist": "Eminem"
+    },
+    {
+      "pos": 91,
+      "title": "\"Hung Up\"",
+      "artist": "Madonna"
+    },
+    {
+      "pos": 92,
+      "title": "\"Stay Fly\"",
+      "artist": "Three 6 Mafia featuring Young Buck and 8Ball & MJG"
+    },
+    {
+      "pos": 93,
+      "title": "\"Love\"",
+      "artist": "Keyshia Cole"
+    },
+    {
+      "pos": 94,
+      "title": "\"When You're Mad\"",
+      "artist": "Ne-Yo"
+    },
+    {
+      "pos": 95,
+      "title": "\"Why You Wanna\"",
+      "artist": "T.I."
+    },
+    {
+      "pos": 96,
+      "title": "\"Stupid Girls\"",
+      "artist": "Pink"
+    },
+    {
+      "pos": 97,
+      "title": "\"Feel Good Inc.\"",
+      "artist": "Gorillaz"
+    },
+    {
+      "pos": 98,
+      "title": "\"I'm Sprung\"",
+      "artist": "T-Pain"
+    },
+    {
+      "pos": 99,
+      "title": "\"Do I Make You Proud\"",
+      "artist": "Taylor Hicks"
+    },
+    {
+      "pos": 100,
+      "title": "\"For You I Will (Confidence)\"",
+      "artist": "Teddy Geiger"
+    }
+  ]
+}

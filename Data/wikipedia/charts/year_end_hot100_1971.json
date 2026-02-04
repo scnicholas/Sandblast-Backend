@@ -1,0 +1,512 @@
+{
+  "year": 1971,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1971",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Joy to the World\"",
+      "artist": "Three Dog Night"
+    },
+    {
+      "pos": 2,
+      "title": "\"Maggie May\"/\"Reason to Believe\"",
+      "artist": "Rod Stewart"
+    },
+    {
+      "pos": 3,
+      "title": "\"It's Too Late\"/\"I Feel the Earth Move\"",
+      "artist": "Carole King"
+    },
+    {
+      "pos": 4,
+      "title": "\"One Bad Apple\"",
+      "artist": "The Osmonds"
+    },
+    {
+      "pos": 5,
+      "title": "\"How Can You Mend a Broken Heart\"",
+      "artist": "Bee Gees"
+    },
+    {
+      "pos": 6,
+      "title": "\"Indian Reservation (The Lament of the Cherokee Reservation Indian)\"",
+      "artist": "Raiders"
+    },
+    {
+      "pos": 7,
+      "title": "\"Go Away Little Girl\"",
+      "artist": "Donny Osmond"
+    },
+    {
+      "pos": 8,
+      "title": "\"Take Me Home, Country Roads\"",
+      "artist": "John Denver"
+    },
+    {
+      "pos": 9,
+      "title": "\"Just My Imagination (Running Away with Me)\"",
+      "artist": "The Temptations"
+    },
+    {
+      "pos": 10,
+      "title": "\"Knock Three Times\"",
+      "artist": "Tony Orlando and Dawn"
+    },
+    {
+      "pos": 11,
+      "title": "\"Me and Bobby McGee\"",
+      "artist": "Janis Joplin"
+    },
+    {
+      "pos": 12,
+      "title": "\"Tired of Being Alone\"",
+      "artist": "Al Green"
+    },
+    {
+      "pos": 13,
+      "title": "\"Want Ads\"",
+      "artist": "Honey Cone"
+    },
+    {
+      "pos": 14,
+      "title": "\"Smiling Faces Sometimes\"",
+      "artist": "The Undisputed Truth"
+    },
+    {
+      "pos": 15,
+      "title": "\"Treat Her Like a Lady\"",
+      "artist": "Cornelius Brothers & Sister Rose"
+    },
+    {
+      "pos": 16,
+      "title": "\"Brown Sugar\"",
+      "artist": "The Rolling Stones"
+    },
+    {
+      "pos": 17,
+      "title": "\"You've Got a Friend\"",
+      "artist": "James Taylor"
+    },
+    {
+      "pos": 18,
+      "title": "\"Mr. Big Stuff\"",
+      "artist": "Jean Knight"
+    },
+    {
+      "pos": 19,
+      "title": "\"Do You Know What I Mean\"",
+      "artist": "Lee Michaels"
+    },
+    {
+      "pos": 20,
+      "title": "\"The Night They Drove Old Dixie Down\"",
+      "artist": "Joan Baez"
+    },
+    {
+      "pos": 21,
+      "title": "\"What's Going On\"",
+      "artist": "Marvin Gaye"
+    },
+    {
+      "pos": 22,
+      "title": "\"Uncle Albert/Admiral Halsey\"",
+      "artist": "Paul & Linda McCartney"
+    },
+    {
+      "pos": 23,
+      "title": "\"Ain't No Sunshine\"",
+      "artist": "Bill Withers"
+    },
+    {
+      "pos": 24,
+      "title": "\"Signs\"",
+      "artist": "Five Man Electrical Band"
+    },
+    {
+      "pos": 25,
+      "title": "\"She's a Lady\"",
+      "artist": "Tom Jones"
+    },
+    {
+      "pos": 26,
+      "title": "\"I've Found Someone of My Own\"",
+      "artist": "The Free Movement"
+    },
+    {
+      "pos": 27,
+      "title": "\"Superstar\"",
+      "artist": "Murray Head"
+    },
+    {
+      "pos": 28,
+      "title": "\"Amos Moses\"",
+      "artist": "Jerry Reed"
+    },
+    {
+      "pos": 29,
+      "title": "\"Temptation Eyes\"",
+      "artist": "The Grass Roots"
+    },
+    {
+      "pos": 30,
+      "title": "\"Superstar\"",
+      "artist": "The Carpenters"
+    },
+    {
+      "pos": 31,
+      "title": "\"My Sweet Lord\"/\"Isn't It A Pity\"",
+      "artist": "George Harrison"
+    },
+    {
+      "pos": 32,
+      "title": "\"Sweet and Innocent\"",
+      "artist": "Donny Osmond"
+    },
+    {
+      "pos": 33,
+      "title": "\"Put Your Hand in the Hand\"",
+      "artist": "Ocean"
+    },
+    {
+      "pos": 34,
+      "title": "\"Chick-A-Boom (Don't Ya Jes' Love It)\"",
+      "artist": "Daddy Dewdrop"
+    },
+    {
+      "pos": 35,
+      "title": "\"For All We Know\"",
+      "artist": "The Carpenters"
+    },
+    {
+      "pos": 36,
+      "title": "\"If You Could Read My Mind\"",
+      "artist": "Gordon Lightfoot"
+    },
+    {
+      "pos": 37,
+      "title": "\"Help Me Make It Through the Night\"",
+      "artist": "Sammi Smith"
+    },
+    {
+      "pos": 38,
+      "title": "\"Rainy Days and Mondays\"",
+      "artist": "The Carpenters"
+    },
+    {
+      "pos": 39,
+      "title": "\"Gypsys, Tramps & Thieves\"",
+      "artist": "Cher"
+    },
+    {
+      "pos": 40,
+      "title": "\"Never Can Say Goodbye\"",
+      "artist": "The Jackson 5"
+    },
+    {
+      "pos": 41,
+      "title": "\"Rose Garden\"",
+      "artist": "Lynn Anderson"
+    },
+    {
+      "pos": 42,
+      "title": "\"Don't Pull Your Love\"",
+      "artist": "Hamilton, Joe Frank & Reynolds"
+    },
+    {
+      "pos": 43,
+      "title": "\"It Don't Come Easy\"",
+      "artist": "Ringo Starr"
+    },
+    {
+      "pos": 44,
+      "title": "\"Mr. Bojangles\"",
+      "artist": "Nitty Gritty Dirt Band"
+    },
+    {
+      "pos": 45,
+      "title": "\"I Love You for All Seasons\"",
+      "artist": "The Fuzz"
+    },
+    {
+      "pos": 46,
+      "title": "\"Whatcha See Is Whatcha Get\"",
+      "artist": "The Dramatics"
+    },
+    {
+      "pos": 47,
+      "title": "\"That's the Way I've Always Heard It Should Be\"",
+      "artist": "Carly Simon"
+    },
+    {
+      "pos": 48,
+      "title": "\"If You Really Love Me\"",
+      "artist": "Stevie Wonder"
+    },
+    {
+      "pos": 49,
+      "title": "\"Spanish Harlem\"",
+      "artist": "Aretha Franklin"
+    },
+    {
+      "pos": 50,
+      "title": "\"I Don't Know How to Love Him\"",
+      "artist": "Helen Reddy"
+    },
+    {
+      "pos": 51,
+      "title": "\"Yo-Yo\"",
+      "artist": "The Osmonds"
+    },
+    {
+      "pos": 52,
+      "title": "\"Bridge over Troubled Water\"",
+      "artist": "Aretha Franklin"
+    },
+    {
+      "pos": 53,
+      "title": "\"Doesn't Somebody Want to Be Wanted\"",
+      "artist": "The Partridge Family"
+    },
+    {
+      "pos": 54,
+      "title": "\"Draggin' the Line\"",
+      "artist": "Tommy James"
+    },
+    {
+      "pos": 55,
+      "title": "\"Proud Mary\"",
+      "artist": "Ike & Tina Turner"
+    },
+    {
+      "pos": 56,
+      "title": "\"Beginnings\"/\"Colour My World\"",
+      "artist": "Chicago"
+    },
+    {
+      "pos": 57,
+      "title": "\"Stay Awhile\"",
+      "artist": "The Bells"
+    },
+    {
+      "pos": 58,
+      "title": "\"Sweet City Woman\"",
+      "artist": "The Stampeders"
+    },
+    {
+      "pos": 59,
+      "title": "\"Me and You and a Dog Named Boo\"",
+      "artist": "Lobo"
+    },
+    {
+      "pos": 60,
+      "title": "\"Another Day\"/\"Oh Woman, Oh Why\"",
+      "artist": "Paul McCartney"
+    },
+    {
+      "pos": 61,
+      "title": "\"If\"",
+      "artist": "Bread"
+    },
+    {
+      "pos": 62,
+      "title": "\"Mercy Mercy Me (The Ecology)\"",
+      "artist": "Marvin Gaye"
+    },
+    {
+      "pos": 63,
+      "title": "\"One Toke Over the Line\"",
+      "artist": "Brewer & Shipley"
+    },
+    {
+      "pos": 64,
+      "title": "\"She's Not Just Another Woman\"",
+      "artist": "8th Day"
+    },
+    {
+      "pos": 65,
+      "title": "\"Bring the Boys Home\"",
+      "artist": "Freda Payne"
+    },
+    {
+      "pos": 66,
+      "title": "\"I Just Want to Celebrate\"",
+      "artist": "Rare Earth"
+    },
+    {
+      "pos": 67,
+      "title": "\"Never Ending Song of Love\"",
+      "artist": "Delaney & Bonnie & Friends"
+    },
+    {
+      "pos": 68,
+      "title": "\"Easy Loving\"",
+      "artist": "Freddie Hart"
+    },
+    {
+      "pos": 69,
+      "title": "\"Liar\"",
+      "artist": "Three Dog Night"
+    },
+    {
+      "pos": 70,
+      "title": "\"Stick-Up\"",
+      "artist": "Honey Cone"
+    },
+    {
+      "pos": 71,
+      "title": "\"Chirpy Chirpy Cheep Cheep\"",
+      "artist": "Mac and Katie Kissoon"
+    },
+    {
+      "pos": 72,
+      "title": "\"(Where Do I Begin?) Love Story\"",
+      "artist": "Andy Williams"
+    },
+    {
+      "pos": 73,
+      "title": "\"Wild World\"",
+      "artist": "Cat Stevens"
+    },
+    {
+      "pos": 74,
+      "title": "\"When You're Hot, You're Hot\"",
+      "artist": "Jerry Reed"
+    },
+    {
+      "pos": 75,
+      "title": "\"Funky Nassau\"",
+      "artist": "The Beginning of the End"
+    },
+    {
+      "pos": 76,
+      "title": "\"If Not for You\"",
+      "artist": "Olivia Newton-John"
+    },
+    {
+      "pos": 77,
+      "title": "\"Groove Me\"",
+      "artist": "King Floyd"
+    },
+    {
+      "pos": 78,
+      "title": "\"Watching Scotty Grow\"",
+      "artist": "Bobby Goldsboro"
+    },
+    {
+      "pos": 79,
+      "title": "\"Woodstock\"",
+      "artist": "Matthews Southern Comfort"
+    },
+    {
+      "pos": 80,
+      "title": "\"Amazing Grace\"",
+      "artist": "Judy Collins"
+    },
+    {
+      "pos": 81,
+      "title": "\"I Hear You Knocking\"",
+      "artist": "Dave Edmunds"
+    },
+    {
+      "pos": 82,
+      "title": "\"Lonely Days\"",
+      "artist": "Bee Gees"
+    },
+    {
+      "pos": 83,
+      "title": "\"Here Comes That Rainy Day Feeling Again\"",
+      "artist": "The Fortunes"
+    },
+    {
+      "pos": 84,
+      "title": "\"Won't Get Fooled Again\"",
+      "artist": "The Who"
+    },
+    {
+      "pos": 85,
+      "title": "\"Trapped By a Thing Called Love\"",
+      "artist": "Denise LaSalle"
+    },
+    {
+      "pos": 86,
+      "title": "\"Mama's Pearl\"",
+      "artist": "The Jackson 5"
+    },
+    {
+      "pos": 87,
+      "title": "\"Timothy\"",
+      "artist": "The Buoys"
+    },
+    {
+      "pos": 88,
+      "title": "\"I Woke Up In Love This Morning\"",
+      "artist": "The Partridge Family"
+    },
+    {
+      "pos": 89,
+      "title": "\"Theme from Shaft\"",
+      "artist": "Isaac Hayes"
+    },
+    {
+      "pos": 90,
+      "title": "\"If I Were Your Woman\"",
+      "artist": "Gladys Knight & the Pips"
+    },
+    {
+      "pos": 91,
+      "title": "\"I Am...I Said\"",
+      "artist": "Neil Diamond"
+    },
+    {
+      "pos": 92,
+      "title": "\"The Wedding Song (There Is Love)\"",
+      "artist": "Paul Stookey"
+    },
+    {
+      "pos": 93,
+      "title": "\"Don't Knock My Love\"",
+      "artist": "Wilson Pickett"
+    },
+    {
+      "pos": 94,
+      "title": "\"Love Her Madly\"",
+      "artist": "The Doors"
+    },
+    {
+      "pos": 95,
+      "title": "\"Here Comes the Sun\"",
+      "artist": "Richie Havens"
+    },
+    {
+      "pos": 96,
+      "title": "\"Sweet Mary\"",
+      "artist": "Wadsworth Mansion"
+    },
+    {
+      "pos": 97,
+      "title": "\"Right on the Tip of My Tongue\"",
+      "artist": "Brenda & the Tabulations"
+    },
+    {
+      "pos": 98,
+      "title": "\"One Less Bell to Answer\"",
+      "artist": "The 5th Dimension"
+    },
+    {
+      "pos": 99,
+      "title": "\"Riders on the Storm\"",
+      "artist": "The Doors"
+    },
+    {
+      "pos": 100,
+      "title": "\"It's Impossible\"",
+      "artist": "Perry Como"
+    }
+  ]
+}

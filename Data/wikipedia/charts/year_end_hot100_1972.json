@@ -1,0 +1,512 @@
+{
+  "year": 1972,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1972",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"The First Time Ever I Saw Your Face\"",
+      "artist": "Roberta Flack"
+    },
+    {
+      "pos": 2,
+      "title": "\"Alone Again (Naturally)\"",
+      "artist": "Gilbert O'Sullivan"
+    },
+    {
+      "pos": 3,
+      "title": "\"American Pie\"",
+      "artist": "Don McLean"
+    },
+    {
+      "pos": 4,
+      "title": "\"Without You\"",
+      "artist": "Harry Nilsson"
+    },
+    {
+      "pos": 5,
+      "title": "\"The Candy Man\"",
+      "artist": "Sammy Davis Jr."
+    },
+    {
+      "pos": 6,
+      "title": "\"I Gotcha\"",
+      "artist": "Joe Tex"
+    },
+    {
+      "pos": 7,
+      "title": "\"Lean on Me\"",
+      "artist": "Bill Withers"
+    },
+    {
+      "pos": 8,
+      "title": "\"Baby, Don't Get Hooked on Me\"",
+      "artist": "Mac Davis"
+    },
+    {
+      "pos": 9,
+      "title": "\"Brand New Key\"",
+      "artist": "Melanie"
+    },
+    {
+      "pos": 10,
+      "title": "\"Daddy Don't You Walk So Fast\"",
+      "artist": "Wayne Newton"
+    },
+    {
+      "pos": 11,
+      "title": "\"Let's Stay Together\"",
+      "artist": "Al Green"
+    },
+    {
+      "pos": 12,
+      "title": "\"Brandy (You're a Fine Girl)\"",
+      "artist": "Looking Glass"
+    },
+    {
+      "pos": 13,
+      "title": "\"Oh Girl\"",
+      "artist": "The Chi-Lites"
+    },
+    {
+      "pos": 14,
+      "title": "\"Nice to Be with You\"",
+      "artist": "Gallery"
+    },
+    {
+      "pos": 15,
+      "title": "\"My Ding-a-Ling\"",
+      "artist": "Chuck Berry"
+    },
+    {
+      "pos": 16,
+      "title": "\"(If Loving You Is Wrong) I Don't Want to Be Right\"",
+      "artist": "Luther Ingram"
+    },
+    {
+      "pos": 17,
+      "title": "\"Heart of Gold\"",
+      "artist": "Neil Young"
+    },
+    {
+      "pos": 18,
+      "title": "\"Betcha by Golly, Wow\"",
+      "artist": "The Stylistics"
+    },
+    {
+      "pos": 19,
+      "title": "\"I'll Take You There\"",
+      "artist": "The Staple Singers"
+    },
+    {
+      "pos": 20,
+      "title": "\"Ben\"",
+      "artist": "Michael Jackson"
+    },
+    {
+      "pos": 21,
+      "title": "\"The Lion Sleeps Tonight\"",
+      "artist": "Robert John"
+    },
+    {
+      "pos": 22,
+      "title": "\"Outa-Space\"",
+      "artist": "Billy Preston"
+    },
+    {
+      "pos": 23,
+      "title": "\"Slippin' into Darkness\"",
+      "artist": "War"
+    },
+    {
+      "pos": 24,
+      "title": "\"Long Cool Woman in a Black Dress\"",
+      "artist": "The Hollies"
+    },
+    {
+      "pos": 25,
+      "title": "\"How Do You Do\"",
+      "artist": "Mouth & MacNeal"
+    },
+    {
+      "pos": 26,
+      "title": "\"Song Sung Blue\"",
+      "artist": "Neil Diamond"
+    },
+    {
+      "pos": 27,
+      "title": "\"A Horse with No Name\"",
+      "artist": "America"
+    },
+    {
+      "pos": 28,
+      "title": "\"Popcorn\"",
+      "artist": "Hot Butter"
+    },
+    {
+      "pos": 29,
+      "title": "\"Everybody Plays the Fool\"",
+      "artist": "The Main Ingredient"
+    },
+    {
+      "pos": 30,
+      "title": "\"Precious and Few\"",
+      "artist": "Climax"
+    },
+    {
+      "pos": 31,
+      "title": "\"(Last Night) I Didn't Get to Sleep at All\"",
+      "artist": "The 5th Dimension"
+    },
+    {
+      "pos": 32,
+      "title": "\"Nights in White Satin\"",
+      "artist": "The Moody Blues"
+    },
+    {
+      "pos": 33,
+      "title": "\"Go All the Way\"",
+      "artist": "Raspberries"
+    },
+    {
+      "pos": 34,
+      "title": "\"Too Late to Turn Back Now\"",
+      "artist": "Cornelius Brothers & Sister Rose"
+    },
+    {
+      "pos": 35,
+      "title": "\"Back Stabbers\"",
+      "artist": "The O'Jays"
+    },
+    {
+      "pos": 36,
+      "title": "\"Down by the Lazy River\"",
+      "artist": "The Osmonds"
+    },
+    {
+      "pos": 37,
+      "title": "\"Sunshine\"",
+      "artist": "Jonathan Edwards"
+    },
+    {
+      "pos": 38,
+      "title": "\"Starting All Over Again\"",
+      "artist": "Mel and Tim"
+    },
+    {
+      "pos": 39,
+      "title": "\"Day After Day\"",
+      "artist": "Badfinger"
+    },
+    {
+      "pos": 40,
+      "title": "\"Rocket Man\"",
+      "artist": "Elton John"
+    },
+    {
+      "pos": 41,
+      "title": "\"Rockin' Robin\"",
+      "artist": "Michael Jackson"
+    },
+    {
+      "pos": 42,
+      "title": "\"Beautiful Sunday\"",
+      "artist": "Daniel Boone"
+    },
+    {
+      "pos": 43,
+      "title": "\"Scorpio\"",
+      "artist": "Dennis Coffey"
+    },
+    {
+      "pos": 44,
+      "title": "\"Morning Has Broken\"",
+      "artist": "Cat Stevens"
+    },
+    {
+      "pos": 45,
+      "title": "\"City of New Orleans\"",
+      "artist": "Arlo Guthrie"
+    },
+    {
+      "pos": 46,
+      "title": "\"Garden Party\"",
+      "artist": "Ricky Nelson"
+    },
+    {
+      "pos": 47,
+      "title": "\"I Can See Clearly Now\"",
+      "artist": "Johnny Nash"
+    },
+    {
+      "pos": 48,
+      "title": "\"Burning Love\"",
+      "artist": "Elvis Presley"
+    },
+    {
+      "pos": 49,
+      "title": "\"Clean Up Woman\"",
+      "artist": "Betty Wright"
+    },
+    {
+      "pos": 50,
+      "title": "\"Hold Your Head Up\"",
+      "artist": "Argent"
+    },
+    {
+      "pos": 51,
+      "title": "\"Jungle Fever\"",
+      "artist": "The Chakachas"
+    },
+    {
+      "pos": 52,
+      "title": "\"Everything I Own\"",
+      "artist": "Bread"
+    },
+    {
+      "pos": 53,
+      "title": "\"In the Rain\"",
+      "artist": "The Dramatics"
+    },
+    {
+      "pos": 54,
+      "title": "\"Look What You Done for Me\"",
+      "artist": "Al Green"
+    },
+    {
+      "pos": 55,
+      "title": "\"The Happiest Girl in the Whole U.S.A.\"",
+      "artist": "Donna Fargo"
+    },
+    {
+      "pos": 56,
+      "title": "\"Bang a Gong (Get it On)\"",
+      "artist": "T. Rex"
+    },
+    {
+      "pos": 57,
+      "title": "\"Mother and Child Reunion\"",
+      "artist": "Paul Simon"
+    },
+    {
+      "pos": 58,
+      "title": "\"Where Is the Love\"",
+      "artist": "Roberta Flack & Donny Hathaway"
+    },
+    {
+      "pos": 59,
+      "title": "\"I'm Still in Love with You\"",
+      "artist": "Al Green"
+    },
+    {
+      "pos": 60,
+      "title": "\"Layla\"",
+      "artist": "Derek and the Dominos"
+    },
+    {
+      "pos": 61,
+      "title": "\"Day Dreaming\"",
+      "artist": "Aretha Franklin"
+    },
+    {
+      "pos": 62,
+      "title": "\"The Way of Love\"",
+      "artist": "Cher"
+    },
+    {
+      "pos": 63,
+      "title": "\"Black and White\"",
+      "artist": "Three Dog Night"
+    },
+    {
+      "pos": 64,
+      "title": "\"Sylvia's Mother\"",
+      "artist": "Dr. Hook & the Medicine Show"
+    },
+    {
+      "pos": 65,
+      "title": "\"Hurting Each Other\"",
+      "artist": "The Carpenters"
+    },
+    {
+      "pos": 66,
+      "title": "\"Coconut\"",
+      "artist": "Harry Nilsson"
+    },
+    {
+      "pos": 67,
+      "title": "\"Puppy Love\"",
+      "artist": "Donny Osmond"
+    },
+    {
+      "pos": 68,
+      "title": "\"You Don't Mess Around with Jim\"",
+      "artist": "Jim Croce"
+    },
+    {
+      "pos": 69,
+      "title": "\"Hot Rod Lincoln\"",
+      "artist": "Commander Cody and His Lost Planet Airmen"
+    },
+    {
+      "pos": 70,
+      "title": "\"A Cowboy's Work Is Never Done\"",
+      "artist": "Sonny & Cher"
+    },
+    {
+      "pos": 71,
+      "title": "\"Joy\"",
+      "artist": "Apollo 100"
+    },
+    {
+      "pos": 72,
+      "title": "\"Anticipation\"",
+      "artist": "Carly Simon"
+    },
+    {
+      "pos": 73,
+      "title": "\"Never Been to Spain\"",
+      "artist": "Three Dog Night"
+    },
+    {
+      "pos": 74,
+      "title": "\"Kiss an Angel Good Mornin'\"",
+      "artist": "Charley Pride"
+    },
+    {
+      "pos": 75,
+      "title": "\"School's Out\"",
+      "artist": "Alice Cooper"
+    },
+    {
+      "pos": 76,
+      "title": "\"Saturday in the Park\"",
+      "artist": "Chicago"
+    },
+    {
+      "pos": 77,
+      "title": "\"Drowning in the Sea of Love\"",
+      "artist": "Joe Simon"
+    },
+    {
+      "pos": 78,
+      "title": "\"Use Me\"",
+      "artist": "Bill Withers"
+    },
+    {
+      "pos": 79,
+      "title": "\"Family Affair\"",
+      "artist": "Sly & the Family Stone"
+    },
+    {
+      "pos": 80,
+      "title": "\"Troglodyte (Cave Man)\"",
+      "artist": "The Jimmy Castor Bunch"
+    },
+    {
+      "pos": 81,
+      "title": "\"The Witch Queen of New Orleans\"",
+      "artist": "Redbone"
+    },
+    {
+      "pos": 82,
+      "title": "\"Freddie's Dead\"",
+      "artist": "Curtis Mayfield"
+    },
+    {
+      "pos": 83,
+      "title": "\"Power of Love\"",
+      "artist": "Joe Simon"
+    },
+    {
+      "pos": 84,
+      "title": "\"Ain't Understanding Mellow\"",
+      "artist": "Jerry Butler & Brenda Lee Eager"
+    },
+    {
+      "pos": 85,
+      "title": "\"Taxi\"",
+      "artist": "Harry Chapin"
+    },
+    {
+      "pos": 86,
+      "title": "\"Don't Say You Don't Remember\"",
+      "artist": "Beverly Bremers"
+    },
+    {
+      "pos": 87,
+      "title": "\"Sealed with a Kiss\"",
+      "artist": "Bobby Vinton"
+    },
+    {
+      "pos": 88,
+      "title": "\"I Saw the Light\"",
+      "artist": "Todd Rundgren"
+    },
+    {
+      "pos": 89,
+      "title": "\"Motorcycle Mama\"",
+      "artist": "Sailcat"
+    },
+    {
+      "pos": 90,
+      "title": "\"Day by Day\"",
+      "artist": "Original Cast of Godspell"
+    },
+    {
+      "pos": 91,
+      "title": "\"Roundabout\"",
+      "artist": "Yes"
+    },
+    {
+      "pos": 92,
+      "title": "\"Doctor My Eyes\"",
+      "artist": "Jackson Browne"
+    },
+    {
+      "pos": 93,
+      "title": "\"I'd Like to Teach the World to Sing (In Perfect Harmony)\"",
+      "artist": "The New Seekers"
+    },
+    {
+      "pos": 94,
+      "title": "\"Vincent\"",
+      "artist": "Don McLean"
+    },
+    {
+      "pos": 95,
+      "title": "\"Baby Let Me Take You (In My Arms)\"",
+      "artist": "The Detroit Emeralds"
+    },
+    {
+      "pos": 96,
+      "title": "\"Speak to the Sky\"",
+      "artist": "Rick Springfield"
+    },
+    {
+      "pos": 97,
+      "title": "\"I'd Like to Teach the World to Sing (In Perfect Harmony)\"",
+      "artist": "The Hillside Singers"
+    },
+    {
+      "pos": 98,
+      "title": "\"Walkin' in the Rain with the One I Love\"",
+      "artist": "Love Unlimited"
+    },
+    {
+      "pos": 99,
+      "title": "\"Get on the Good Foot\"",
+      "artist": "James Brown"
+    },
+    {
+      "pos": 100,
+      "title": "\"Pop That Thang\"",
+      "artist": "The Isley Brothers"
+    }
+  ]
+}

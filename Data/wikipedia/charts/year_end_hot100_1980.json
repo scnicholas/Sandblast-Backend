@@ -1,0 +1,512 @@
+{
+  "year": 1980,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1980",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Call Me\"",
+      "artist": "Blondie"
+    },
+    {
+      "pos": 2,
+      "title": "\"Another Brick in the Wall, Part II\"",
+      "artist": "Pink Floyd"
+    },
+    {
+      "pos": 3,
+      "title": "\"Magic\"",
+      "artist": "Olivia Newton-John"
+    },
+    {
+      "pos": 4,
+      "title": "\"Rock with You\"",
+      "artist": "Michael Jackson"
+    },
+    {
+      "pos": 5,
+      "title": "\"Do That to Me One More Time\"",
+      "artist": "Captain & Tennille"
+    },
+    {
+      "pos": 6,
+      "title": "\"Crazy Little Thing Called Love\"",
+      "artist": "Queen"
+    },
+    {
+      "pos": 7,
+      "title": "\"Coming Up\"",
+      "artist": "Paul McCartney"
+    },
+    {
+      "pos": 8,
+      "title": "\"Funkytown\"",
+      "artist": "Lipps Inc."
+    },
+    {
+      "pos": 9,
+      "title": "\"It's Still Rock and Roll to Me\"",
+      "artist": "Billy Joel"
+    },
+    {
+      "pos": 10,
+      "title": "\"The Rose\"",
+      "artist": "Bette Midler"
+    },
+    {
+      "pos": 11,
+      "title": "\"Escape (The Piña Colada Song)\"",
+      "artist": "Rupert Holmes"
+    },
+    {
+      "pos": 12,
+      "title": "\"Cars\"",
+      "artist": "Gary Numan"
+    },
+    {
+      "pos": 13,
+      "title": "\"Cruisin\"",
+      "artist": "Smokey Robinson"
+    },
+    {
+      "pos": 14,
+      "title": "\"Working My Way Back to You/Forgive Me, Girl\"",
+      "artist": "The Spinners"
+    },
+    {
+      "pos": 15,
+      "title": "\"Lost in Love\"",
+      "artist": "Air Supply"
+    },
+    {
+      "pos": 16,
+      "title": "\"Little Jeannie\"",
+      "artist": "Elton John"
+    },
+    {
+      "pos": 17,
+      "title": "\"Ride Like the Wind\"",
+      "artist": "Christopher Cross"
+    },
+    {
+      "pos": 18,
+      "title": "\"Upside Down\"",
+      "artist": "Diana Ross"
+    },
+    {
+      "pos": 19,
+      "title": "\"Please Don't Go\"",
+      "artist": "KC and the Sunshine Band"
+    },
+    {
+      "pos": 20,
+      "title": "\"Babe\"",
+      "artist": "Styx"
+    },
+    {
+      "pos": 21,
+      "title": "\"With You I'm Born Again\"",
+      "artist": "Billy Preston and Syreeta"
+    },
+    {
+      "pos": 22,
+      "title": "\"Shining Star\"",
+      "artist": "The Manhattans"
+    },
+    {
+      "pos": 23,
+      "title": "\"Still\"",
+      "artist": "Commodores"
+    },
+    {
+      "pos": 24,
+      "title": "\"Yes, I'm Ready\"",
+      "artist": "Teri DeSario & KC"
+    },
+    {
+      "pos": 25,
+      "title": "\"Sexy Eyes\"",
+      "artist": "Dr. Hook"
+    },
+    {
+      "pos": 26,
+      "title": "\"Steal Away\"",
+      "artist": "Robbie Dupree"
+    },
+    {
+      "pos": 27,
+      "title": "\"Biggest Part of Me\"",
+      "artist": "Ambrosia"
+    },
+    {
+      "pos": 28,
+      "title": "\"This Is It\"",
+      "artist": "Kenny Loggins"
+    },
+    {
+      "pos": 29,
+      "title": "\"Cupid/I've Loved You for a Long Time\"",
+      "artist": "The Spinners"
+    },
+    {
+      "pos": 30,
+      "title": "\"Let's Get Serious\"",
+      "artist": "Jermaine Jackson"
+    },
+    {
+      "pos": 31,
+      "title": "\"Don't Fall in Love with a Dreamer\"",
+      "artist": "Kenny Rogers & Kim Carnes"
+    },
+    {
+      "pos": 32,
+      "title": "\"Sailing\"",
+      "artist": "Christopher Cross"
+    },
+    {
+      "pos": 33,
+      "title": "\"Longer\"",
+      "artist": "Dan Fogelberg"
+    },
+    {
+      "pos": 34,
+      "title": "\"Coward of the County\"",
+      "artist": "Kenny Rogers"
+    },
+    {
+      "pos": 35,
+      "title": "\"Ladies' Night\"",
+      "artist": "Kool & the Gang"
+    },
+    {
+      "pos": 36,
+      "title": "\"Too Hot\"",
+      "artist": "\"Too Hot\""
+    },
+    {
+      "pos": 37,
+      "title": "\"Take Your Time (Do It Right)\"",
+      "artist": "The S.O.S. Band"
+    },
+    {
+      "pos": 38,
+      "title": "\"No More Tears (Enough Is Enough)\"",
+      "artist": "Barbra Streisand & Donna Summer"
+    },
+    {
+      "pos": 39,
+      "title": "\"More Love\"",
+      "artist": "Kim Carnes"
+    },
+    {
+      "pos": 40,
+      "title": "\"Pop Muzik\"",
+      "artist": "M"
+    },
+    {
+      "pos": 41,
+      "title": "\"Brass in Pocket\"",
+      "artist": "The Pretenders"
+    },
+    {
+      "pos": 42,
+      "title": "\"Special Lady\"",
+      "artist": "Ray, Goodman & Brown"
+    },
+    {
+      "pos": 43,
+      "title": "\"Send One Your Love\"",
+      "artist": "Stevie Wonder"
+    },
+    {
+      "pos": 44,
+      "title": "\"The Second Time Around\"",
+      "artist": "Shalamar"
+    },
+    {
+      "pos": 45,
+      "title": "\"We Don't Talk Anymore\"",
+      "artist": "Cliff Richard"
+    },
+    {
+      "pos": 46,
+      "title": "\"Stomp!\"",
+      "artist": "The Brothers Johnson"
+    },
+    {
+      "pos": 47,
+      "title": "\"Heartache Tonight\"",
+      "artist": "Eagles"
+    },
+    {
+      "pos": 48,
+      "title": "\"Tired of Toein' the Line\"",
+      "artist": "Rocky Burnette"
+    },
+    {
+      "pos": 49,
+      "title": "\"Better Love Next Time\"",
+      "artist": "Dr. Hook"
+    },
+    {
+      "pos": 50,
+      "title": "\"Him\"",
+      "artist": "Rupert Holmes"
+    },
+    {
+      "pos": 51,
+      "title": "\"Against the Wind\"",
+      "artist": "Bob Seger and the Silver Bullet Band"
+    },
+    {
+      "pos": 52,
+      "title": "\"On the Radio\"",
+      "artist": "Donna Summer"
+    },
+    {
+      "pos": 53,
+      "title": "\"Emotional Rescue\"",
+      "artist": "The Rolling Stones"
+    },
+    {
+      "pos": 54,
+      "title": "\"Rise\"",
+      "artist": "Herb Alpert"
+    },
+    {
+      "pos": 55,
+      "title": "\"All Out of Love\"",
+      "artist": "Air Supply"
+    },
+    {
+      "pos": 56,
+      "title": "\"Cool Change\"",
+      "artist": "Little River Band"
+    },
+    {
+      "pos": 57,
+      "title": "\"You're Only Lonely\"",
+      "artist": "JD Souther"
+    },
+    {
+      "pos": 58,
+      "title": "\"Desire\"",
+      "artist": "Andy Gibb"
+    },
+    {
+      "pos": 59,
+      "title": "\"Let My Love Open the Door\"",
+      "artist": "Pete Townshend"
+    },
+    {
+      "pos": 60,
+      "title": "\"Romeo's Tune\"",
+      "artist": "Steve Forbert"
+    },
+    {
+      "pos": 61,
+      "title": "\"Daydream Believer\"",
+      "artist": "Anne Murray"
+    },
+    {
+      "pos": 62,
+      "title": "\"I Can't Tell You Why\"",
+      "artist": "Eagles"
+    },
+    {
+      "pos": 63,
+      "title": "\"Don't Let Go\"",
+      "artist": "Isaac Hayes"
+    },
+    {
+      "pos": 64,
+      "title": "\"Don't Do Me Like That\"",
+      "artist": "Tom Petty and the Heartbreakers"
+    },
+    {
+      "pos": 65,
+      "title": "\"She's Out of My Life\"",
+      "artist": "Michael Jackson"
+    },
+    {
+      "pos": 66,
+      "title": "\"Fame\"",
+      "artist": "Irene Cara"
+    },
+    {
+      "pos": 67,
+      "title": "\"Fire Lake\"",
+      "artist": "Bob Seger and the Silver Bullet Band"
+    },
+    {
+      "pos": 68,
+      "title": "\"How Do I Make You\"",
+      "artist": "Linda Ronstadt"
+    },
+    {
+      "pos": 69,
+      "title": "\"Into the Night\"",
+      "artist": "Benny Mardones"
+    },
+    {
+      "pos": 70,
+      "title": "\"Let Me Love You Tonight\"",
+      "artist": "Pure Prairie League"
+    },
+    {
+      "pos": 71,
+      "title": "\"Misunderstanding\"",
+      "artist": "Genesis"
+    },
+    {
+      "pos": 72,
+      "title": "\"An American Dream\"",
+      "artist": "The Dirt Band"
+    },
+    {
+      "pos": 73,
+      "title": "\"One Fine Day\"",
+      "artist": "Carole King"
+    },
+    {
+      "pos": 74,
+      "title": "\"Dim All the Lights\"",
+      "artist": "Donna Summer"
+    },
+    {
+      "pos": 75,
+      "title": "\"You May Be Right\"",
+      "artist": "Billy Joel"
+    },
+    {
+      "pos": 76,
+      "title": "\"Should've Never Let You Go\"",
+      "artist": "Neil & Dara Sedaka"
+    },
+    {
+      "pos": 77,
+      "title": "\"Pilot of the Airwaves\"",
+      "artist": "Charlie Dore"
+    },
+    {
+      "pos": 78,
+      "title": "\"Hurt So Bad\"",
+      "artist": "Linda Ronstadt"
+    },
+    {
+      "pos": 79,
+      "title": "\"Off the Wall\"",
+      "artist": "Michael Jackson"
+    },
+    {
+      "pos": 80,
+      "title": "\"I Pledge My Love\"",
+      "artist": "Peaches & Herb"
+    },
+    {
+      "pos": 81,
+      "title": "\"The Long Run\"",
+      "artist": "Eagles"
+    },
+    {
+      "pos": 82,
+      "title": "\"Stand by Me\"",
+      "artist": "Mickey Gilley"
+    },
+    {
+      "pos": 83,
+      "title": "\"Heartbreaker\"",
+      "artist": "Pat Benatar"
+    },
+    {
+      "pos": 84,
+      "title": "\"Déjà Vu\"",
+      "artist": "Dionne Warwick"
+    },
+    {
+      "pos": 85,
+      "title": "\"Drivin' My Life Away\"",
+      "artist": "Eddie Rabbitt"
+    },
+    {
+      "pos": 86,
+      "title": "\"Take the Long Way Home\"",
+      "artist": "Supertramp"
+    },
+    {
+      "pos": 87,
+      "title": "\"Sara\"",
+      "artist": "Fleetwood Mac"
+    },
+    {
+      "pos": 88,
+      "title": "\"Wait for Me\"",
+      "artist": "Daryl Hall & John Oates"
+    },
+    {
+      "pos": 89,
+      "title": "\"Jojo\"",
+      "artist": "Boz Scaggs"
+    },
+    {
+      "pos": 90,
+      "title": "\"September Morn\"",
+      "artist": "Neil Diamond"
+    },
+    {
+      "pos": 91,
+      "title": "\"Give Me the Night\"",
+      "artist": "George Benson"
+    },
+    {
+      "pos": 92,
+      "title": "\"Broken Hearted Me\"",
+      "artist": "Anne Murray"
+    },
+    {
+      "pos": 93,
+      "title": "\"You Decorated My Life\"",
+      "artist": "Kenny Rogers"
+    },
+    {
+      "pos": 94,
+      "title": "\"Tusk\"",
+      "artist": "Fleetwood Mac"
+    },
+    {
+      "pos": 95,
+      "title": "\"I Wanna Be Your Lover\"",
+      "artist": "Prince"
+    },
+    {
+      "pos": 96,
+      "title": "\"In America\"",
+      "artist": "Charlie Daniels Band"
+    },
+    {
+      "pos": 97,
+      "title": "\"Breakdown Dead Ahead\"",
+      "artist": "Boz Scaggs"
+    },
+    {
+      "pos": 98,
+      "title": "\"Ships\"",
+      "artist": "Barry Manilow"
+    },
+    {
+      "pos": 99,
+      "title": "\"All Night Long\"",
+      "artist": "Joe Walsh"
+    },
+    {
+      "pos": 100,
+      "title": "\"Refugee\"",
+      "artist": "Tom Petty and the Heartbreakers"
+    }
+  ]
+}

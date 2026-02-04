@@ -1,0 +1,512 @@
+{
+  "year": 1991,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1991",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"(Everything I Do) I Do It for You\"",
+      "artist": "Bryan Adams"
+    },
+    {
+      "pos": 2,
+      "title": "\"I Wanna Sex You Up\"",
+      "artist": "Color Me Badd"
+    },
+    {
+      "pos": 3,
+      "title": "\"Gonna Make You Sweat (Everybody Dance Now)\"",
+      "artist": "C+C Music Factory"
+    },
+    {
+      "pos": 4,
+      "title": "\"Rush Rush\"",
+      "artist": "Paula Abdul"
+    },
+    {
+      "pos": 5,
+      "title": "\"One More Try\"",
+      "artist": "Timmy T"
+    },
+    {
+      "pos": 6,
+      "title": "\"Unbelievable\"",
+      "artist": "EMF"
+    },
+    {
+      "pos": 7,
+      "title": "\"More Than Words\"",
+      "artist": "Extreme"
+    },
+    {
+      "pos": 8,
+      "title": "\"I Like the Way (The Kissing Game)\"",
+      "artist": "Hi-Five"
+    },
+    {
+      "pos": 9,
+      "title": "\"The First Time\"",
+      "artist": "Surface"
+    },
+    {
+      "pos": 10,
+      "title": "\"Baby Baby\"",
+      "artist": "Amy Grant"
+    },
+    {
+      "pos": 11,
+      "title": "\"Motownphilly\"",
+      "artist": "Boyz II Men"
+    },
+    {
+      "pos": 12,
+      "title": "\"Because I Love You (The Postman Song)\"",
+      "artist": "Stevie B"
+    },
+    {
+      "pos": 13,
+      "title": "\"Someday\"",
+      "artist": "Mariah Carey"
+    },
+    {
+      "pos": 14,
+      "title": "\"High Enough\"",
+      "artist": "Damn Yankees"
+    },
+    {
+      "pos": 15,
+      "title": "\"From a Distance\"",
+      "artist": "Bette Midler"
+    },
+    {
+      "pos": 16,
+      "title": "\"All the Man That I Need\"",
+      "artist": "Whitney Houston"
+    },
+    {
+      "pos": 17,
+      "title": "\"Right Here, Right Now\"",
+      "artist": "Jesus Jones"
+    },
+    {
+      "pos": 18,
+      "title": "\"I Adore Mi Amor\"",
+      "artist": "Color Me Badd"
+    },
+    {
+      "pos": 19,
+      "title": "\"Love Will Never Do (Without You)\"",
+      "artist": "Janet Jackson"
+    },
+    {
+      "pos": 20,
+      "title": "\"Good Vibrations\"",
+      "artist": "Marky Mark and the Funky Bunch featuring Loleatta Holloway"
+    },
+    {
+      "pos": 21,
+      "title": "\"Justify My Love\"",
+      "artist": "Madonna"
+    },
+    {
+      "pos": 22,
+      "title": "\"Emotions\"",
+      "artist": "Mariah Carey"
+    },
+    {
+      "pos": 23,
+      "title": "\"Joyride\"",
+      "artist": "Roxette"
+    },
+    {
+      "pos": 24,
+      "title": "\"Romantic\"",
+      "artist": "Karyn White"
+    },
+    {
+      "pos": 25,
+      "title": "\"Hold You Tight\"",
+      "artist": "Tara Kemp"
+    },
+    {
+      "pos": 26,
+      "title": "\"I Don't Wanna Cry\"",
+      "artist": "Mariah Carey"
+    },
+    {
+      "pos": 27,
+      "title": "\"You're in Love\"",
+      "artist": "Wilson Phillips"
+    },
+    {
+      "pos": 28,
+      "title": "\"Every Heartbeat\"",
+      "artist": "Amy Grant"
+    },
+    {
+      "pos": 29,
+      "title": "\"Sensitivity\"",
+      "artist": "Ralph Tresvant"
+    },
+    {
+      "pos": 30,
+      "title": "\"Touch Me (All Night Long)\"",
+      "artist": "Cathy Dennis"
+    },
+    {
+      "pos": 31,
+      "title": "\"I've Been Thinking About You\"",
+      "artist": "Londonbeat"
+    },
+    {
+      "pos": 32,
+      "title": "\"Do Anything\"",
+      "artist": "Natural Selection"
+    },
+    {
+      "pos": 33,
+      "title": "\"Losing My Religion\"",
+      "artist": "R.E.M."
+    },
+    {
+      "pos": 34,
+      "title": "\"Coming Out of the Dark\"",
+      "artist": "Gloria Estefan"
+    },
+    {
+      "pos": 35,
+      "title": "\"It Ain't Over 'til It's Over\"",
+      "artist": "Lenny Kravitz"
+    },
+    {
+      "pos": 36,
+      "title": "\"Here We Go\"",
+      "artist": "C+C Music Factory"
+    },
+    {
+      "pos": 37,
+      "title": "\"Where Does My Heart Beat Now\"",
+      "artist": "Celine Dion"
+    },
+    {
+      "pos": 38,
+      "title": "\"Summertime\"",
+      "artist": "DJ Jazzy Jeff & The Fresh Prince"
+    },
+    {
+      "pos": 39,
+      "title": "\"Wind of Change\"",
+      "artist": "Scorpions"
+    },
+    {
+      "pos": 40,
+      "title": "\"P.A.S.S.I.O.N.\"",
+      "artist": "Rythm Syndicate"
+    },
+    {
+      "pos": 41,
+      "title": "\"The Promise of a New Day\"",
+      "artist": "Paula Abdul"
+    },
+    {
+      "pos": 42,
+      "title": "\"I'm Your Baby Tonight\"",
+      "artist": "Whitney Houston"
+    },
+    {
+      "pos": 43,
+      "title": "\"Love of a Lifetime\"",
+      "artist": "FireHouse"
+    },
+    {
+      "pos": 44,
+      "title": "\"Fading Like a Flower (Every Time You Leave)\"",
+      "artist": "Roxette"
+    },
+    {
+      "pos": 45,
+      "title": "\"This House\"",
+      "artist": "Tracie Spencer"
+    },
+    {
+      "pos": 46,
+      "title": "\"Hole Hearted\"",
+      "artist": "Extreme"
+    },
+    {
+      "pos": 47,
+      "title": "\"Power of Love/Love Power\"",
+      "artist": "Luther Vandross"
+    },
+    {
+      "pos": 48,
+      "title": "\"Impulsive\"",
+      "artist": "Wilson Phillips"
+    },
+    {
+      "pos": 49,
+      "title": "\"Love Is a Wonderful Thing\"",
+      "artist": "Michael Bolton"
+    },
+    {
+      "pos": 50,
+      "title": "\"Rhythm of My Heart\"",
+      "artist": "Rod Stewart"
+    },
+    {
+      "pos": 51,
+      "title": "\"Things That Make You Go Hmmm...\"",
+      "artist": "C+C Music Factory"
+    },
+    {
+      "pos": 52,
+      "title": "\"I Touch Myself\"",
+      "artist": "Divinyls"
+    },
+    {
+      "pos": 53,
+      "title": "\"Tom's Diner\"",
+      "artist": "DNA featuring Suzanne Vega"
+    },
+    {
+      "pos": 54,
+      "title": "\"Iesha\"",
+      "artist": "Another Bad Creation"
+    },
+    {
+      "pos": 55,
+      "title": "\"Something to Talk About\"",
+      "artist": "Bonnie Raitt"
+    },
+    {
+      "pos": 56,
+      "title": "\"After the Rain\"",
+      "artist": "Nelson"
+    },
+    {
+      "pos": 57,
+      "title": "\"Play That Funky Music\"",
+      "artist": "Vanilla Ice"
+    },
+    {
+      "pos": 58,
+      "title": "\"Temptation\"",
+      "artist": "Corina"
+    },
+    {
+      "pos": 59,
+      "title": "\"Can't Stop This Thing We Started\"",
+      "artist": "Bryan Adams"
+    },
+    {
+      "pos": 60,
+      "title": "\"I Can't Wait Another Minute\"",
+      "artist": "Hi-Five"
+    },
+    {
+      "pos": 61,
+      "title": "\"3 a.m. Eternal\"",
+      "artist": "The KLF"
+    },
+    {
+      "pos": 62,
+      "title": "\"Time, Love and Tenderness\"",
+      "artist": "Michael Bolton"
+    },
+    {
+      "pos": 63,
+      "title": "\"Sadeness (Part I)\"",
+      "artist": "Enigma"
+    },
+    {
+      "pos": 64,
+      "title": "\"Around the Way Girl\"",
+      "artist": "LL Cool J"
+    },
+    {
+      "pos": 65,
+      "title": "\"I'll Be There\"",
+      "artist": "The Escape Club"
+    },
+    {
+      "pos": 66,
+      "title": "\"Cream\"",
+      "artist": "Prince and The New Power Generation"
+    },
+    {
+      "pos": 67,
+      "title": "\"Now That We Found Love\"",
+      "artist": "Heavy D & the Boyz"
+    },
+    {
+      "pos": 68,
+      "title": "\"Show Me the Way\"",
+      "artist": "Styx"
+    },
+    {
+      "pos": 69,
+      "title": "\"Love Takes Time\"",
+      "artist": "Mariah Carey"
+    },
+    {
+      "pos": 70,
+      "title": "\"Cry for Help\"",
+      "artist": "Rick Astley"
+    },
+    {
+      "pos": 71,
+      "title": "\"The Way You Do the Things You Do\"",
+      "artist": "UB40"
+    },
+    {
+      "pos": 72,
+      "title": "\"Here I Am (Come and Take Me)\"",
+      "artist": "\"Here I Am (Come and Take Me)\""
+    },
+    {
+      "pos": 73,
+      "title": "\"Signs\"",
+      "artist": "Tesla"
+    },
+    {
+      "pos": 74,
+      "title": "\"Too Many Walls\"",
+      "artist": "Cathy Dennis"
+    },
+    {
+      "pos": 75,
+      "title": "\"Crazy\"",
+      "artist": "Seal"
+    },
+    {
+      "pos": 76,
+      "title": "\"I'll Give All My Love to You\"",
+      "artist": "Keith Sweat"
+    },
+    {
+      "pos": 77,
+      "title": "\"Place in this World\"",
+      "artist": "Michael W. Smith"
+    },
+    {
+      "pos": 78,
+      "title": "\"Something to Believe In\"",
+      "artist": "Poison"
+    },
+    {
+      "pos": 79,
+      "title": "\"Wicked Game\"",
+      "artist": "Chris Isaak"
+    },
+    {
+      "pos": 80,
+      "title": "\"Get Here\"",
+      "artist": "Oleta Adams"
+    },
+    {
+      "pos": 81,
+      "title": "\"Round and Round\"",
+      "artist": "Tevin Campbell"
+    },
+    {
+      "pos": 82,
+      "title": "\"Silent Lucidity\"",
+      "artist": "Queensrÿche"
+    },
+    {
+      "pos": 83,
+      "title": "\"I'm Not in Love\"",
+      "artist": "Will to Power"
+    },
+    {
+      "pos": 84,
+      "title": "\"Piece of My Heart\"",
+      "artist": "Tara Kemp"
+    },
+    {
+      "pos": 85,
+      "title": "\"Real Real Real\"",
+      "artist": "Jesus Jones"
+    },
+    {
+      "pos": 86,
+      "title": "\"Everybody Plays the Fool\"",
+      "artist": "Aaron Neville"
+    },
+    {
+      "pos": 87,
+      "title": "\"Just Another Dream\"",
+      "artist": "Cathy Dennis"
+    },
+    {
+      "pos": 88,
+      "title": "\"Strike It Up\"",
+      "artist": "Black Box"
+    },
+    {
+      "pos": 89,
+      "title": "\"Rico Suave\"",
+      "artist": "Gerardo"
+    },
+    {
+      "pos": 90,
+      "title": "\"Disappear\"",
+      "artist": "INXS"
+    },
+    {
+      "pos": 91,
+      "title": "\"Groove Is in the Heart\"",
+      "artist": "Deee-Lite"
+    },
+    {
+      "pos": 92,
+      "title": "\"All This Time\"",
+      "artist": "Sting"
+    },
+    {
+      "pos": 93,
+      "title": "\"The One and Only\"",
+      "artist": "Chesney Hawkes"
+    },
+    {
+      "pos": 94,
+      "title": "\"O.P.P.\"",
+      "artist": "Naughty by Nature"
+    },
+    {
+      "pos": 95,
+      "title": "\"Freedom! '90\"",
+      "artist": "George Michael"
+    },
+    {
+      "pos": 96,
+      "title": "\"I Saw Red\"",
+      "artist": "Warrant"
+    },
+    {
+      "pos": 97,
+      "title": "\"Miles Away\"",
+      "artist": "Winger"
+    },
+    {
+      "pos": 98,
+      "title": "\"Do You Want Me\"",
+      "artist": "Salt-n-Pepa"
+    },
+    {
+      "pos": 99,
+      "title": "\"The Motown Song\"",
+      "artist": "Rod Stewart"
+    },
+    {
+      "pos": 100,
+      "title": "\"Shiny Happy People\"",
+      "artist": "R.E.M."
+    }
+  ]
+}

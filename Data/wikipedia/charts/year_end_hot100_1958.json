@@ -1,0 +1,262 @@
+{
+  "year": 1958,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_year-end_top_50_singles_of_1958",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Volare (Nel blu dipinto di blu)\"",
+      "artist": "Domenico Modugno"
+    },
+    {
+      "pos": 2,
+      "title": "\"All I Have to Do Is Dream\" / \"Claudette\"",
+      "artist": "The Everly Brothers"
+    },
+    {
+      "pos": 3,
+      "title": "\"Don't\" / \"I Beg of You\"",
+      "artist": "Elvis Presley"
+    },
+    {
+      "pos": 4,
+      "title": "\"Witch Doctor\"",
+      "artist": "David Seville"
+    },
+    {
+      "pos": 5,
+      "title": "\"Patricia\"",
+      "artist": "Perez Prado"
+    },
+    {
+      "pos": 6,
+      "title": "\"Sail Along, Silv'ry Moon\" / \"Raunchy\"",
+      "artist": "Billy Vaughn"
+    },
+    {
+      "pos": 7,
+      "title": "\"Catch a Falling Star\" / \"Magic Moments\"",
+      "artist": "Perry Como"
+    },
+    {
+      "pos": 8,
+      "title": "\"Tequila\"",
+      "artist": "The Champs"
+    },
+    {
+      "pos": 9,
+      "title": "\"It's All in the Game\"",
+      "artist": "Tommy Edwards"
+    },
+    {
+      "pos": 10,
+      "title": "\"Return to Me\"",
+      "artist": "Dean Martin"
+    },
+    {
+      "pos": 11,
+      "title": "\"It's Only Make Believe\"",
+      "artist": "Conway Twitty"
+    },
+    {
+      "pos": 12,
+      "title": "\"The Purple People Eater\"",
+      "artist": "Sheb Wooley"
+    },
+    {
+      "pos": 13,
+      "title": "\"Bird Dog\" / \"Devoted to You\"",
+      "artist": "The Everly Brothers"
+    },
+    {
+      "pos": 14,
+      "title": "\"Get a Job\"",
+      "artist": "The Silhouettes"
+    },
+    {
+      "pos": 15,
+      "title": "\"Little Star\"",
+      "artist": "The Elegants"
+    },
+    {
+      "pos": 16,
+      "title": "\"Twilight Time\"",
+      "artist": "The Platters"
+    },
+    {
+      "pos": 17,
+      "title": "\"Stood Up\" / \"Waitin' in School\"",
+      "artist": "Ricky Nelson"
+    },
+    {
+      "pos": 18,
+      "title": "\"He's Got the Whole World in His Hands\"",
+      "artist": "Laurie London"
+    },
+    {
+      "pos": 19,
+      "title": "\"Secretly\"",
+      "artist": "Jimmie Rodgers"
+    },
+    {
+      "pos": 20,
+      "title": "\"At the Hop\"",
+      "artist": "Danny & the Juniors"
+    },
+    {
+      "pos": 21,
+      "title": "\"Yakety Yak\"",
+      "artist": "The Coasters"
+    },
+    {
+      "pos": 22,
+      "title": "\"Wear My Ring Around Your Neck\" / \"Doncha' Think It's Time\"",
+      "artist": "Elvis Presley"
+    },
+    {
+      "pos": 23,
+      "title": "\"Rockin' Robin\" / \"Over and Over\"",
+      "artist": "Bobby Day"
+    },
+    {
+      "pos": 24,
+      "title": "\"Poor Little Fool\"",
+      "artist": "Ricky Nelson"
+    },
+    {
+      "pos": 25,
+      "title": "\"A Wonderful Time Up There\" / \"It's Too Soon to Know\"",
+      "artist": "Pat Boone"
+    },
+    {
+      "pos": 26,
+      "title": "\"Just a Dream\"",
+      "artist": "Jimmy Clanton"
+    },
+    {
+      "pos": 27,
+      "title": "\"Sugartime\"",
+      "artist": "The McGuire Sisters"
+    },
+    {
+      "pos": 28,
+      "title": "\"Tom Dooley\"",
+      "artist": "The Kingston Trio"
+    },
+    {
+      "pos": 29,
+      "title": "\"Sweet Little Sixteen\"",
+      "artist": "Chuck Berry"
+    },
+    {
+      "pos": 30,
+      "title": "\"Topsy II\" / \"Topsy I\"",
+      "artist": "Cozy Cole"
+    },
+    {
+      "pos": 31,
+      "title": "\"Looking Back\" / \"Do I Like It\"",
+      "artist": "Nat King Cole"
+    },
+    {
+      "pos": 32,
+      "title": "\"Book of Love\"",
+      "artist": "The Monotones"
+    },
+    {
+      "pos": 33,
+      "title": "\"Tea for Two Cha Cha\"",
+      "artist": "Tommy Dorsey Orchestra & Warren Covington"
+    },
+    {
+      "pos": 34,
+      "title": "\"Tears on My Pillow\"",
+      "artist": "Little Anthony and the Imperials"
+    },
+    {
+      "pos": 35,
+      "title": "\"Short Shorts\"",
+      "artist": "The Royal Teens"
+    },
+    {
+      "pos": 36,
+      "title": "\"Great Balls of Fire\"",
+      "artist": "Jerry Lee Lewis"
+    },
+    {
+      "pos": 37,
+      "title": "\"Lollipop\"",
+      "artist": "The Chordettes"
+    },
+    {
+      "pos": 38,
+      "title": "\"Splish Splash\"",
+      "artist": "Bobby Darin"
+    },
+    {
+      "pos": 39,
+      "title": "\"Who's Sorry Now?\"",
+      "artist": "Connie Francis"
+    },
+    {
+      "pos": 40,
+      "title": "\"My True Love\" / \"Leroy\"",
+      "artist": "Jack Scott"
+    },
+    {
+      "pos": 41,
+      "title": "\"Endless Sleep\"",
+      "artist": "Jody Reynolds"
+    },
+    {
+      "pos": 42,
+      "title": "\"Do You Want to Dance\"",
+      "artist": "Bobby Freeman"
+    },
+    {
+      "pos": 43,
+      "title": "\"When\"",
+      "artist": "The Kalin Twins"
+    },
+    {
+      "pos": 44,
+      "title": "\"To Know Him Is to Love Him\"",
+      "artist": "The Teddy Bears"
+    },
+    {
+      "pos": 45,
+      "title": "\"April Love\"",
+      "artist": "Pat Boone"
+    },
+    {
+      "pos": 46,
+      "title": "\"Rebel-'Rouser\"",
+      "artist": "Duane Eddy"
+    },
+    {
+      "pos": 47,
+      "title": "\"Oh Julie\"",
+      "artist": "The Crescendos"
+    },
+    {
+      "pos": 48,
+      "title": "\"The Stroll\"",
+      "artist": "The Diamonds"
+    },
+    {
+      "pos": 49,
+      "title": "\"Hard Headed Woman\" / \"Don't Ask Me Why\"",
+      "artist": "Elvis Presley"
+    },
+    {
+      "pos": 50,
+      "title": "\"Peggy Sue\"",
+      "artist": "Buddy Holly"
+    }
+  ]
+}

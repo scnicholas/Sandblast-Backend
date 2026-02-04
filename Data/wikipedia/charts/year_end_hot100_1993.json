@@ -1,0 +1,512 @@
+{
+  "year": 1993,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1993",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"I Will Always Love You\"",
+      "artist": "Whitney Houston"
+    },
+    {
+      "pos": 2,
+      "title": "\"Whoomp! (There It Is)\"",
+      "artist": "Tag Team"
+    },
+    {
+      "pos": 3,
+      "title": "\"Can't Help Falling in Love\"",
+      "artist": "UB40"
+    },
+    {
+      "pos": 4,
+      "title": "\"That's the Way Love Goes\"",
+      "artist": "Janet Jackson"
+    },
+    {
+      "pos": 5,
+      "title": "\"Freak Me\"",
+      "artist": "Silk"
+    },
+    {
+      "pos": 6,
+      "title": "\"Weak\"",
+      "artist": "SWV"
+    },
+    {
+      "pos": 7,
+      "title": "\"If I Ever Fall in Love\"",
+      "artist": "Shai"
+    },
+    {
+      "pos": 8,
+      "title": "\"Dreamlover\"",
+      "artist": "Mariah Carey"
+    },
+    {
+      "pos": 9,
+      "title": "\"Rump Shaker\"",
+      "artist": "Wreckx-n-Effect"
+    },
+    {
+      "pos": 10,
+      "title": "\"Informer\"",
+      "artist": "Snow"
+    },
+    {
+      "pos": 11,
+      "title": "\"Nuthin' but a 'G' Thang\"",
+      "artist": "Dr. Dre"
+    },
+    {
+      "pos": 12,
+      "title": "\"In the Still of the Nite\"",
+      "artist": "Boyz II Men"
+    },
+    {
+      "pos": 13,
+      "title": "\"Don't Walk Away\"",
+      "artist": "Jade"
+    },
+    {
+      "pos": 14,
+      "title": "\"Knockin' da Boots\"",
+      "artist": "H-Town"
+    },
+    {
+      "pos": 15,
+      "title": "\"Lately\"",
+      "artist": "Jodeci"
+    },
+    {
+      "pos": 16,
+      "title": "\"Dazzey Duks\"",
+      "artist": "Duice"
+    },
+    {
+      "pos": 17,
+      "title": "\"Show Me Love\"",
+      "artist": "Robin S."
+    },
+    {
+      "pos": 18,
+      "title": "\"A Whole New World\"",
+      "artist": "Peabo Bryson and Regina Belle"
+    },
+    {
+      "pos": 19,
+      "title": "\"If\"",
+      "artist": "Janet Jackson"
+    },
+    {
+      "pos": 20,
+      "title": "\"I'm So Into You\"",
+      "artist": "SWV"
+    },
+    {
+      "pos": 21,
+      "title": "\"Love Is\"",
+      "artist": "Vanessa Williams and Brian McKnight"
+    },
+    {
+      "pos": 22,
+      "title": "\"Runaway Train\"",
+      "artist": "Soul Asylum"
+    },
+    {
+      "pos": 23,
+      "title": "\"I'll Never Get Over You (Getting Over Me)\"",
+      "artist": "Exposé"
+    },
+    {
+      "pos": 24,
+      "title": "\"Ditty\"",
+      "artist": "Paperboy"
+    },
+    {
+      "pos": 25,
+      "title": "\"Rhythm Is a Dancer\"",
+      "artist": "Snap!"
+    },
+    {
+      "pos": 26,
+      "title": "\"The River of Dreams\"",
+      "artist": "Billy Joel"
+    },
+    {
+      "pos": 27,
+      "title": "\"I'm Gonna Be (500 Miles)\"",
+      "artist": "The Proclaimers"
+    },
+    {
+      "pos": 28,
+      "title": "\"Two Princes\"",
+      "artist": "Spin Doctors"
+    },
+    {
+      "pos": 29,
+      "title": "\"Right Here (Human Nature)\" / \"Downtown\"",
+      "artist": "SWV"
+    },
+    {
+      "pos": 30,
+      "title": "\"I Have Nothing\"",
+      "artist": "Whitney Houston"
+    },
+    {
+      "pos": 31,
+      "title": "\"Mr. Wendal\"",
+      "artist": "Arrested Development"
+    },
+    {
+      "pos": 32,
+      "title": "\"Have I Told You Lately\"",
+      "artist": "Rod Stewart"
+    },
+    {
+      "pos": 33,
+      "title": "\"Saving Forever for You\"",
+      "artist": "Shanice"
+    },
+    {
+      "pos": 34,
+      "title": "\"Ordinary World\"",
+      "artist": "Duran Duran"
+    },
+    {
+      "pos": 35,
+      "title": "\"If I Had No Loot\"",
+      "artist": "Tony! Toni! Toné!"
+    },
+    {
+      "pos": 36,
+      "title": "\"I'd Do Anything for Love (But I Won't Do That)\"",
+      "artist": "Meat Loaf"
+    },
+    {
+      "pos": 37,
+      "title": "\"Slam\"",
+      "artist": "Onyx"
+    },
+    {
+      "pos": 38,
+      "title": "\"Looking Through Patient Eyes\"",
+      "artist": "P.M. Dawn"
+    },
+    {
+      "pos": 39,
+      "title": "\"I'm Every Woman\"",
+      "artist": "Whitney Houston"
+    },
+    {
+      "pos": 40,
+      "title": "\"Baby I'm Yours\"",
+      "artist": "Shai"
+    },
+    {
+      "pos": 41,
+      "title": "\"Come Undone\"",
+      "artist": "Duran Duran"
+    },
+    {
+      "pos": 42,
+      "title": "\"I Don't Wanna Fight\"",
+      "artist": "Tina Turner"
+    },
+    {
+      "pos": 43,
+      "title": "\"I'd Die Without You\"",
+      "artist": "P.M. Dawn"
+    },
+    {
+      "pos": 44,
+      "title": "\"Whoot, There It Is\"",
+      "artist": "95 South"
+    },
+    {
+      "pos": 45,
+      "title": "\"Hip Hop Hooray\"",
+      "artist": "Naughty by Nature"
+    },
+    {
+      "pos": 46,
+      "title": "\"Another Sad Love Song\"",
+      "artist": "Toni Braxton"
+    },
+    {
+      "pos": 47,
+      "title": "\"Will You Be There\"",
+      "artist": "Michael Jackson"
+    },
+    {
+      "pos": 48,
+      "title": "\"Comforter\"",
+      "artist": "Shai"
+    },
+    {
+      "pos": 49,
+      "title": "\"Good Enough\"",
+      "artist": "Bobby Brown"
+    },
+    {
+      "pos": 50,
+      "title": "\"What's Up?\"",
+      "artist": "4 Non Blondes"
+    },
+    {
+      "pos": 51,
+      "title": "\"All That She Wants\"",
+      "artist": "Ace of Base"
+    },
+    {
+      "pos": 52,
+      "title": "\"7\"",
+      "artist": "Prince and The New Power Generation"
+    },
+    {
+      "pos": 53,
+      "title": "\"Dre Day\"",
+      "artist": "Dr. Dre"
+    },
+    {
+      "pos": 54,
+      "title": "\"One Last Cry\"",
+      "artist": "Brian McKnight"
+    },
+    {
+      "pos": 55,
+      "title": "\"Just Kickin' It\"",
+      "artist": "Xscape"
+    },
+    {
+      "pos": 56,
+      "title": "\"I Get Around\"",
+      "artist": "2Pac"
+    },
+    {
+      "pos": 57,
+      "title": "\"Bed of Roses\"",
+      "artist": "Bon Jovi"
+    },
+    {
+      "pos": 58,
+      "title": "\"Real Love\"",
+      "artist": "Mary J. Blige"
+    },
+    {
+      "pos": 59,
+      "title": "\"Here We Go Again!\"",
+      "artist": "Portrait"
+    },
+    {
+      "pos": 60,
+      "title": "\"Cryin'\"",
+      "artist": "Aerosmith"
+    },
+    {
+      "pos": 61,
+      "title": "\"Cat's in the Cradle\"",
+      "artist": "Ugly Kid Joe"
+    },
+    {
+      "pos": 62,
+      "title": "\"What About Your Friends\"",
+      "artist": "TLC"
+    },
+    {
+      "pos": 63,
+      "title": "\"I Got a Man\"",
+      "artist": "Positive K"
+    },
+    {
+      "pos": 64,
+      "title": "\"Hey Mr. D.J.\"",
+      "artist": "Zhané"
+    },
+    {
+      "pos": 65,
+      "title": "\"Insane in the Brain\"",
+      "artist": "Cypress Hill"
+    },
+    {
+      "pos": 66,
+      "title": "\"Deeper and Deeper\"",
+      "artist": "Madonna"
+    },
+    {
+      "pos": 67,
+      "title": "\"Rain\"",
+      "artist": "\"Rain\""
+    },
+    {
+      "pos": 68,
+      "title": "\"The Right Kind of Love\"",
+      "artist": "Jeremy Jordan"
+    },
+    {
+      "pos": 69,
+      "title": "\"Bad Boys\"",
+      "artist": "Inner Circle"
+    },
+    {
+      "pos": 70,
+      "title": "\"That's What Love Can Do\"",
+      "artist": "Boy Krazy"
+    },
+    {
+      "pos": 71,
+      "title": "\"Do You Believe in Us\"",
+      "artist": "Jon Secada"
+    },
+    {
+      "pos": 72,
+      "title": "\"Angel\"",
+      "artist": "\"Angel\""
+    },
+    {
+      "pos": 73,
+      "title": "\"Forever in Love\"",
+      "artist": "Kenny G"
+    },
+    {
+      "pos": 74,
+      "title": "\"Again\"",
+      "artist": "Janet Jackson"
+    },
+    {
+      "pos": 75,
+      "title": "\"Boom! Shake the Room\"",
+      "artist": "DJ Jazzy Jeff & The Fresh Prince"
+    },
+    {
+      "pos": 76,
+      "title": "\"When She Cries\"",
+      "artist": "Restless Heart"
+    },
+    {
+      "pos": 77,
+      "title": "\"Sweat (A La La La La Long)\"",
+      "artist": "Inner Circle"
+    },
+    {
+      "pos": 78,
+      "title": "\"It Was a Good Day\"",
+      "artist": "Ice Cube"
+    },
+    {
+      "pos": 79,
+      "title": "\"More and More\"",
+      "artist": "Captain Hollywood Project"
+    },
+    {
+      "pos": 80,
+      "title": "\"How Do You Talk to an Angel\"",
+      "artist": "The Heights"
+    },
+    {
+      "pos": 81,
+      "title": "\"Rebirth of Slick (Cool Like Dat)\"",
+      "artist": "Digable Planets"
+    },
+    {
+      "pos": 82,
+      "title": "\"What Is Love\"",
+      "artist": "Haddaway"
+    },
+    {
+      "pos": 83,
+      "title": "\"To Love Somebody\"",
+      "artist": "Michael Bolton"
+    },
+    {
+      "pos": 84,
+      "title": "\"Give It Up, Turn It Loose\"",
+      "artist": "En Vogue"
+    },
+    {
+      "pos": 85,
+      "title": "\"Alright\"",
+      "artist": "Kris Kross featuring Super Cat"
+    },
+    {
+      "pos": 86,
+      "title": "\"Check Yo Self\"",
+      "artist": "Ice Cube featuring Das EFX"
+    },
+    {
+      "pos": 87,
+      "title": "\"Fields of Gold\"",
+      "artist": "Sting"
+    },
+    {
+      "pos": 88,
+      "title": "\"Ooh Child\"",
+      "artist": "Dino"
+    },
+    {
+      "pos": 89,
+      "title": "\"Faithful\"",
+      "artist": "Go West"
+    },
+    {
+      "pos": 90,
+      "title": "\"Reason to Believe\"",
+      "artist": "Rod Stewart"
+    },
+    {
+      "pos": 91,
+      "title": "\"Break It Down Again\"",
+      "artist": "Tears for Fears"
+    },
+    {
+      "pos": 92,
+      "title": "\"Nothin' My Love Can't Fix\"",
+      "artist": "Joey Lawrence"
+    },
+    {
+      "pos": 93,
+      "title": "\"Three Little Pigs\"",
+      "artist": "Green Jellÿ"
+    },
+    {
+      "pos": 94,
+      "title": "\"Livin' on the Edge\"",
+      "artist": "Aerosmith"
+    },
+    {
+      "pos": 95,
+      "title": "\"Hey Jealousy\"",
+      "artist": "Gin Blossoms"
+    },
+    {
+      "pos": 96,
+      "title": "\"If I Ever Lose My Faith in You\"",
+      "artist": "Sting"
+    },
+    {
+      "pos": 97,
+      "title": "\"Anniversary\"",
+      "artist": "Tony! Toni! Toné!"
+    },
+    {
+      "pos": 98,
+      "title": "\"One Woman\"",
+      "artist": "Jade"
+    },
+    {
+      "pos": 99,
+      "title": "\"Can't Get Enough of Your Love\"",
+      "artist": "Taylor Dayne"
+    },
+    {
+      "pos": 100,
+      "title": "\"Two Steps Behind\"",
+      "artist": "Def Leppard"
+    }
+  ]
+}

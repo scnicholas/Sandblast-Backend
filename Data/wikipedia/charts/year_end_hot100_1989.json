@@ -1,0 +1,512 @@
+{
+  "year": 1989,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1989",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Look Away\"",
+      "artist": "Chicago"
+    },
+    {
+      "pos": 2,
+      "title": "\"My Prerogative\"",
+      "artist": "Bobby Brown"
+    },
+    {
+      "pos": 3,
+      "title": "\"Every Rose Has Its Thorn\"",
+      "artist": "Poison"
+    },
+    {
+      "pos": 4,
+      "title": "\"Straight Up\"",
+      "artist": "Paula Abdul"
+    },
+    {
+      "pos": 5,
+      "title": "\"Miss You Much\"",
+      "artist": "Janet Jackson"
+    },
+    {
+      "pos": 6,
+      "title": "\"Cold Hearted\"",
+      "artist": "Paula Abdul"
+    },
+    {
+      "pos": 7,
+      "title": "\"Wind Beneath My Wings\"",
+      "artist": "Bette Midler"
+    },
+    {
+      "pos": 8,
+      "title": "\"Girl You Know It's True\"",
+      "artist": "Milli Vanilli"
+    },
+    {
+      "pos": 9,
+      "title": "\"Baby, I Love Your Way/Freebird Medley\"",
+      "artist": "Will to Power"
+    },
+    {
+      "pos": 10,
+      "title": "\"Giving You the Best That I Got\"",
+      "artist": "Anita Baker"
+    },
+    {
+      "pos": 11,
+      "title": "\"Right Here Waiting\"",
+      "artist": "Richard Marx"
+    },
+    {
+      "pos": 12,
+      "title": "\"Waiting For a Star to Fall\"",
+      "artist": "Boy Meets Girl"
+    },
+    {
+      "pos": 13,
+      "title": "\"Lost in Your Eyes\"",
+      "artist": "Debbie Gibson"
+    },
+    {
+      "pos": 14,
+      "title": "\"Don't Wanna Lose You\"",
+      "artist": "Gloria Estefan"
+    },
+    {
+      "pos": 15,
+      "title": "\"Heaven\"",
+      "artist": "Warrant"
+    },
+    {
+      "pos": 16,
+      "title": "\"Girl I'm Gonna Miss You\"",
+      "artist": "Milli Vanilli"
+    },
+    {
+      "pos": 17,
+      "title": "\"The Look\"",
+      "artist": "Roxette"
+    },
+    {
+      "pos": 18,
+      "title": "\"She Drives Me Crazy\"",
+      "artist": "Fine Young Cannibals"
+    },
+    {
+      "pos": 19,
+      "title": "\"On Our Own\"",
+      "artist": "Bobby Brown"
+    },
+    {
+      "pos": 20,
+      "title": "\"Two Hearts\"",
+      "artist": "Phil Collins"
+    },
+    {
+      "pos": 21,
+      "title": "\"Blame It on the Rain\"",
+      "artist": "Milli Vanilli"
+    },
+    {
+      "pos": 22,
+      "title": "\"Listen to Your Heart\"",
+      "artist": "Roxette"
+    },
+    {
+      "pos": 23,
+      "title": "\"I'll Be There for You\"",
+      "artist": "Bon Jovi"
+    },
+    {
+      "pos": 24,
+      "title": "\"If You Don't Know Me by Now\"",
+      "artist": "Simply Red"
+    },
+    {
+      "pos": 25,
+      "title": "\"Like a Prayer\"",
+      "artist": "Madonna"
+    },
+    {
+      "pos": 26,
+      "title": "\"I'll Be Loving You (Forever)\"",
+      "artist": "New Kids on the Block"
+    },
+    {
+      "pos": 27,
+      "title": "\"How Can I Fall?\"",
+      "artist": "Breathe"
+    },
+    {
+      "pos": 28,
+      "title": "\"Baby Don't Forget My Number\"",
+      "artist": "Milli Vanilli"
+    },
+    {
+      "pos": 29,
+      "title": "\"Toy Soldiers\"",
+      "artist": "Martika"
+    },
+    {
+      "pos": 30,
+      "title": "\"Forever Your Girl\"",
+      "artist": "Paula Abdul"
+    },
+    {
+      "pos": 31,
+      "title": "\"The Living Years\"",
+      "artist": "Mike + The Mechanics"
+    },
+    {
+      "pos": 32,
+      "title": "\"Eternal Flame\"",
+      "artist": "The Bangles"
+    },
+    {
+      "pos": 33,
+      "title": "\"Wild Thing\"",
+      "artist": "Tone Loc"
+    },
+    {
+      "pos": 34,
+      "title": "\"When I See You Smile\"",
+      "artist": "Bad English"
+    },
+    {
+      "pos": 35,
+      "title": "\"If I Could Turn Back Time\"",
+      "artist": "Cher"
+    },
+    {
+      "pos": 36,
+      "title": "\"Buffalo Stance\"",
+      "artist": "Neneh Cherry"
+    },
+    {
+      "pos": 37,
+      "title": "\"When I'm with You\"",
+      "artist": "Sheriff"
+    },
+    {
+      "pos": 38,
+      "title": "\"Don't Rush Me\"",
+      "artist": "Taylor Dayne"
+    },
+    {
+      "pos": 39,
+      "title": "\"Born to Be My Baby\"",
+      "artist": "Bon Jovi"
+    },
+    {
+      "pos": 40,
+      "title": "\"Good Thing\"",
+      "artist": "Fine Young Cannibals"
+    },
+    {
+      "pos": 41,
+      "title": "\"The Lover in Me\"",
+      "artist": "Sheena Easton"
+    },
+    {
+      "pos": 42,
+      "title": "\"Bust a Move\"",
+      "artist": "Young MC"
+    },
+    {
+      "pos": 43,
+      "title": "\"Once Bitten, Twice Shy\"",
+      "artist": "Great White"
+    },
+    {
+      "pos": 44,
+      "title": "\"Batdance\"",
+      "artist": "Prince"
+    },
+    {
+      "pos": 45,
+      "title": "\"Rock On\"",
+      "artist": "Michael Damian"
+    },
+    {
+      "pos": 46,
+      "title": "\"Real Love\"",
+      "artist": "Jody Watley"
+    },
+    {
+      "pos": 47,
+      "title": "\"Love Shack\"",
+      "artist": "The B-52's"
+    },
+    {
+      "pos": 48,
+      "title": "\"Every Little Step\"",
+      "artist": "Bobby Brown"
+    },
+    {
+      "pos": 49,
+      "title": "\"Hangin' Tough\"",
+      "artist": "New Kids on the Block"
+    },
+    {
+      "pos": 50,
+      "title": "\"My Heart Can't Tell You No\"",
+      "artist": "Rod Stewart"
+    },
+    {
+      "pos": 51,
+      "title": "\"So Alive\"",
+      "artist": "Love and Rockets"
+    },
+    {
+      "pos": 52,
+      "title": "\"You Got It (The Right Stuff)\"",
+      "artist": "New Kids on the Block"
+    },
+    {
+      "pos": 53,
+      "title": "\"Armageddon It\"",
+      "artist": "Def Leppard"
+    },
+    {
+      "pos": 54,
+      "title": "\"Satisfied\"",
+      "artist": "Richard Marx"
+    },
+    {
+      "pos": 55,
+      "title": "\"Express Yourself\"",
+      "artist": "Madonna"
+    },
+    {
+      "pos": 56,
+      "title": "\"I Like It\"",
+      "artist": "Dino"
+    },
+    {
+      "pos": 57,
+      "title": "\"Soldier of Love\"",
+      "artist": "Donny Osmond"
+    },
+    {
+      "pos": 58,
+      "title": "\"Sowing the Seeds of Love\"",
+      "artist": "Tears for Fears"
+    },
+    {
+      "pos": 59,
+      "title": "\"Cherish\"",
+      "artist": "Madonna"
+    },
+    {
+      "pos": 60,
+      "title": "\"When the Children Cry\"",
+      "artist": "White Lion"
+    },
+    {
+      "pos": 61,
+      "title": "\"18 and Life\"",
+      "artist": "Skid Row"
+    },
+    {
+      "pos": 62,
+      "title": "\"I Don't Want Your Love\"",
+      "artist": "Duran Duran"
+    },
+    {
+      "pos": 63,
+      "title": "\"Second Chance\"",
+      "artist": ".38 Special"
+    },
+    {
+      "pos": 64,
+      "title": "\"The Way You Love Me\"",
+      "artist": "Karyn White"
+    },
+    {
+      "pos": 65,
+      "title": "\"Funky Cold Medina\"",
+      "artist": "Tone Loc"
+    },
+    {
+      "pos": 66,
+      "title": "\"In Your Room\"",
+      "artist": "The Bangles"
+    },
+    {
+      "pos": 67,
+      "title": "\"Miss You Like Crazy\"",
+      "artist": "Natalie Cole"
+    },
+    {
+      "pos": 68,
+      "title": "\"Lovesong\"",
+      "artist": "The Cure"
+    },
+    {
+      "pos": 69,
+      "title": "\"Secret Rendezvous\"",
+      "artist": "Karyn White"
+    },
+    {
+      "pos": 70,
+      "title": "\"Angel Eyes\"",
+      "artist": "The Jeff Healey Band"
+    },
+    {
+      "pos": 71,
+      "title": "\"Patience\"",
+      "artist": "Guns N' Roses"
+    },
+    {
+      "pos": 72,
+      "title": "\"Walk on Water\"",
+      "artist": "Eddie Money"
+    },
+    {
+      "pos": 73,
+      "title": "\"Cover Girl\"",
+      "artist": "New Kids on the Block"
+    },
+    {
+      "pos": 74,
+      "title": "\"Welcome to the Jungle\"",
+      "artist": "Guns N' Roses"
+    },
+    {
+      "pos": 75,
+      "title": "\"Shower Me With Your Love\"",
+      "artist": "Surface"
+    },
+    {
+      "pos": 76,
+      "title": "\"Stand\"",
+      "artist": "R.E.M."
+    },
+    {
+      "pos": 77,
+      "title": "\"Close My Eyes Forever\"",
+      "artist": "Lita Ford and Ozzy Osbourne"
+    },
+    {
+      "pos": 78,
+      "title": "\"All This Time\"",
+      "artist": "Tiffany"
+    },
+    {
+      "pos": 79,
+      "title": "\"After All\"",
+      "artist": "Cher and Peter Cetera"
+    },
+    {
+      "pos": 80,
+      "title": "\"Roni\"",
+      "artist": "Bobby Brown"
+    },
+    {
+      "pos": 81,
+      "title": "\"Love in an Elevator\"",
+      "artist": "Aerosmith"
+    },
+    {
+      "pos": 82,
+      "title": "\"Lay Your Hands on Me\"",
+      "artist": "Bon Jovi"
+    },
+    {
+      "pos": 83,
+      "title": "\"The Promise\"",
+      "artist": "When in Rome"
+    },
+    {
+      "pos": 84,
+      "title": "\"What I Am\"",
+      "artist": "Edie Brickell & New Bohemians"
+    },
+    {
+      "pos": 85,
+      "title": "\"I Remember Holding You\"",
+      "artist": "Boys Club"
+    },
+    {
+      "pos": 86,
+      "title": "\"Paradise City\"",
+      "artist": "Guns N' Roses"
+    },
+    {
+      "pos": 87,
+      "title": "\"I Wanna Have Some Fun\"",
+      "artist": "Samantha Fox"
+    },
+    {
+      "pos": 88,
+      "title": "\"She Wants to Dance with Me\"",
+      "artist": "Rick Astley"
+    },
+    {
+      "pos": 89,
+      "title": "\"Dreamin'\"",
+      "artist": "Vanessa Williams"
+    },
+    {
+      "pos": 90,
+      "title": "\"It's No Crime\"",
+      "artist": "Babyface"
+    },
+    {
+      "pos": 91,
+      "title": "\"Poison\"",
+      "artist": "Alice Cooper"
+    },
+    {
+      "pos": 92,
+      "title": "\"This Time I Know It's for Real\"",
+      "artist": "Donna Summer"
+    },
+    {
+      "pos": 93,
+      "title": "\"Smooth Criminal\"",
+      "artist": "Michael Jackson"
+    },
+    {
+      "pos": 94,
+      "title": "\"Heaven Help Me\"",
+      "artist": "Deon Estus"
+    },
+    {
+      "pos": 95,
+      "title": "\"Rock Wit'cha\"",
+      "artist": "Bobby Brown"
+    },
+    {
+      "pos": 96,
+      "title": "\"Thinking of You\"",
+      "artist": "Sa-Fire"
+    },
+    {
+      "pos": 97,
+      "title": "\"What You Don't Know\"",
+      "artist": "Exposé"
+    },
+    {
+      "pos": 98,
+      "title": "\"Surrender to Me\"",
+      "artist": "Ann Wilson and Robin Zander"
+    },
+    {
+      "pos": 99,
+      "title": "\"The End of the Innocence\"",
+      "artist": "Don Henley"
+    },
+    {
+      "pos": 100,
+      "title": "\"Keep on Movin'\"",
+      "artist": "Soul II Soul"
+    }
+  ]
+}

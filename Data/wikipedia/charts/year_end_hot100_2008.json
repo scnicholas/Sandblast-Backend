@@ -1,0 +1,512 @@
+{
+  "year": 2008,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_2008",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Low\"",
+      "artist": "Flo Rida featuring T-Pain"
+    },
+    {
+      "pos": 2,
+      "title": "\"Bleeding Love\"",
+      "artist": "Leona Lewis"
+    },
+    {
+      "pos": 3,
+      "title": "\"No One\"",
+      "artist": "Alicia Keys"
+    },
+    {
+      "pos": 4,
+      "title": "\"Lollipop\"",
+      "artist": "Lil Wayne featuring Static Major"
+    },
+    {
+      "pos": 5,
+      "title": "\"Apologize\"",
+      "artist": "OneRepublic"
+    },
+    {
+      "pos": 6,
+      "title": "\"No Air\"",
+      "artist": "Jordin Sparks and Chris Brown"
+    },
+    {
+      "pos": 7,
+      "title": "\"Love Song\"",
+      "artist": "Sara Bareilles"
+    },
+    {
+      "pos": 8,
+      "title": "\"Love in This Club\"",
+      "artist": "Usher featuring Young Jeezy"
+    },
+    {
+      "pos": 9,
+      "title": "\"With You\"",
+      "artist": "Chris Brown"
+    },
+    {
+      "pos": 10,
+      "title": "\"Forever\"",
+      "artist": "\"Forever\""
+    },
+    {
+      "pos": 11,
+      "title": "\"Sexy Can I\"",
+      "artist": "Ray J featuring Yung Berg"
+    },
+    {
+      "pos": 12,
+      "title": "\"Take a Bow\"",
+      "artist": "Rihanna"
+    },
+    {
+      "pos": 13,
+      "title": "\"Viva la Vida\"",
+      "artist": "Coldplay"
+    },
+    {
+      "pos": 14,
+      "title": "\"I Kissed a Girl\"",
+      "artist": "Katy Perry"
+    },
+    {
+      "pos": 15,
+      "title": "\"Whatever You Like\"",
+      "artist": "T.I."
+    },
+    {
+      "pos": 16,
+      "title": "\"Disturbia\"",
+      "artist": "Rihanna"
+    },
+    {
+      "pos": 17,
+      "title": "\"Don't Stop the Music\"",
+      "artist": "\"Don't Stop the Music\""
+    },
+    {
+      "pos": 18,
+      "title": "\"Pocketful of Sunshine\"",
+      "artist": "Natasha Bedingfield"
+    },
+    {
+      "pos": 19,
+      "title": "\"Kiss Kiss\"",
+      "artist": "Chris Brown featuring T-Pain"
+    },
+    {
+      "pos": 20,
+      "title": "\"Closer\"",
+      "artist": "Ne-Yo"
+    },
+    {
+      "pos": 21,
+      "title": "\"Bubbly\"",
+      "artist": "Colbie Caillat"
+    },
+    {
+      "pos": 22,
+      "title": "\"Touch My Body\"",
+      "artist": "Mariah Carey"
+    },
+    {
+      "pos": 23,
+      "title": "\"4 Minutes\"",
+      "artist": "Madonna featuring Justin Timberlake and Timbaland"
+    },
+    {
+      "pos": 24,
+      "title": "\"So What\"",
+      "artist": "Pink"
+    },
+    {
+      "pos": 25,
+      "title": "\"Paralyzer\"",
+      "artist": "Finger Eleven"
+    },
+    {
+      "pos": 26,
+      "title": "\"Clumsy\"",
+      "artist": "Fergie"
+    },
+    {
+      "pos": 27,
+      "title": "\"I'm Yours\"",
+      "artist": "Jason Mraz"
+    },
+    {
+      "pos": 28,
+      "title": "\"Leavin'\"",
+      "artist": "Jesse McCartney"
+    },
+    {
+      "pos": 29,
+      "title": "\"Dangerous\"",
+      "artist": "Kardinal Offishall featuring Akon"
+    },
+    {
+      "pos": 30,
+      "title": "\"Tattoo\"",
+      "artist": "Jordin Sparks"
+    },
+    {
+      "pos": 31,
+      "title": "\"See You Again\"",
+      "artist": "Miley Cyrus"
+    },
+    {
+      "pos": 32,
+      "title": "\"Shake It\"",
+      "artist": "Metro Station"
+    },
+    {
+      "pos": 33,
+      "title": "\"Stop and Stare\"",
+      "artist": "OneRepublic"
+    },
+    {
+      "pos": 34,
+      "title": "\"Take You There\"",
+      "artist": "Sean Kingston"
+    },
+    {
+      "pos": 35,
+      "title": "\"Paper Planes\"",
+      "artist": "M.I.A."
+    },
+    {
+      "pos": 36,
+      "title": "\"Hot n Cold\"",
+      "artist": "Katy Perry"
+    },
+    {
+      "pos": 37,
+      "title": "\"Live Your Life\"",
+      "artist": "T.I. featuring Rihanna"
+    },
+    {
+      "pos": 38,
+      "title": "\"Bust It Baby (Part 2)\"",
+      "artist": "Plies featuring Ne-Yo"
+    },
+    {
+      "pos": 39,
+      "title": "\"American Boy\"",
+      "artist": "Estelle featuring Kanye West"
+    },
+    {
+      "pos": 40,
+      "title": "\"Got Money\"",
+      "artist": "Lil Wayne featuring T-Pain"
+    },
+    {
+      "pos": 41,
+      "title": "\"Our Song\"",
+      "artist": "Taylor Swift"
+    },
+    {
+      "pos": 42,
+      "title": "\"Damaged\"",
+      "artist": "Danity Kane"
+    },
+    {
+      "pos": 43,
+      "title": "\"A Milli\"",
+      "artist": "Lil Wayne"
+    },
+    {
+      "pos": 44,
+      "title": "\"Sorry\"",
+      "artist": "Buckcherry"
+    },
+    {
+      "pos": 45,
+      "title": "\"Independent\"",
+      "artist": "Webbie featuring Lil Boosie and Lil Phat"
+    },
+    {
+      "pos": 46,
+      "title": "\"Can't Believe It\"",
+      "artist": "T-Pain featuring Lil Wayne"
+    },
+    {
+      "pos": 47,
+      "title": "\"Like You'll Never See Me Again\"",
+      "artist": "Alicia Keys"
+    },
+    {
+      "pos": 48,
+      "title": "\"Teardrops on My Guitar\"",
+      "artist": "Taylor Swift"
+    },
+    {
+      "pos": 49,
+      "title": "\"When I Grow Up\"",
+      "artist": "Pussycat Dolls"
+    },
+    {
+      "pos": 50,
+      "title": "\"Sexual Eruption\"",
+      "artist": "Snoop Dogg"
+    },
+    {
+      "pos": 51,
+      "title": "\"What You Got\"",
+      "artist": "Colby O'Donis featuring Akon"
+    },
+    {
+      "pos": 52,
+      "title": "\"It's Not My Time\"",
+      "artist": "3 Doors Down"
+    },
+    {
+      "pos": 53,
+      "title": "\"Better in Time\"",
+      "artist": "Leona Lewis"
+    },
+    {
+      "pos": 54,
+      "title": "\"Crank That (Soulja Boy)\"",
+      "artist": "Soulja Boy Tell 'Em"
+    },
+    {
+      "pos": 55,
+      "title": "\"Shadow of the Day\"",
+      "artist": "Linkin Park"
+    },
+    {
+      "pos": 56,
+      "title": "\"Sweetest Girl (Dollar Bill)\"",
+      "artist": "Wyclef Jean featuring Akon, Lil Wayne and Niia"
+    },
+    {
+      "pos": 57,
+      "title": "\"Miss Independent\"",
+      "artist": "Ne-Yo"
+    },
+    {
+      "pos": 58,
+      "title": "\"Fall for You\"",
+      "artist": "Secondhand Serenade"
+    },
+    {
+      "pos": 59,
+      "title": "\"In the Ayer\"",
+      "artist": "Flo Rida featuring will.i.am"
+    },
+    {
+      "pos": 60,
+      "title": "\"Say\"",
+      "artist": "John Mayer"
+    },
+    {
+      "pos": 61,
+      "title": "\"One Step at a Time\"",
+      "artist": "Jordin Sparks"
+    },
+    {
+      "pos": 62,
+      "title": "\"Hate That I Love You\"",
+      "artist": "Rihanna featuring Ne-Yo"
+    },
+    {
+      "pos": 63,
+      "title": "\"Superstar\"",
+      "artist": "Lupe Fiasco featuring Matthew Santos"
+    },
+    {
+      "pos": 64,
+      "title": "\"Suffocate\"",
+      "artist": "J. Holiday"
+    },
+    {
+      "pos": 65,
+      "title": "\"Let It Rock\"",
+      "artist": "Kevin Rudolf featuring Lil Wayne"
+    },
+    {
+      "pos": 66,
+      "title": "\"Get Like Me\"",
+      "artist": "David Banner featuring Chris Brown and Yung Joc"
+    },
+    {
+      "pos": 67,
+      "title": "\"Realize\"",
+      "artist": "Colbie Caillat"
+    },
+    {
+      "pos": 68,
+      "title": "\"Put On\"",
+      "artist": "Young Jeezy featuring Kanye West"
+    },
+    {
+      "pos": 69,
+      "title": "\"The Time of My Life\"",
+      "artist": "David Cook"
+    },
+    {
+      "pos": 70,
+      "title": "\"Lolli Lolli (Pop That Body)\"",
+      "artist": "Three 6 Mafia"
+    },
+    {
+      "pos": 71,
+      "title": "\"Cyclone\"",
+      "artist": "Baby Bash featuring T-Pain"
+    },
+    {
+      "pos": 72,
+      "title": "\"Love Like This\"",
+      "artist": "Natasha Bedingfield featuring Sean Kingston"
+    },
+    {
+      "pos": 73,
+      "title": "\"Burnin' Up\"",
+      "artist": "Jonas Brothers"
+    },
+    {
+      "pos": 74,
+      "title": "\"Love Lockdown\"",
+      "artist": "Kanye West"
+    },
+    {
+      "pos": 75,
+      "title": "\"I Luv Your Girl\"",
+      "artist": "The-Dream"
+    },
+    {
+      "pos": 76,
+      "title": "\"Crush\"",
+      "artist": "David Archuleta"
+    },
+    {
+      "pos": 77,
+      "title": "\"Hypnotized\"",
+      "artist": "Plies featuring Akon"
+    },
+    {
+      "pos": 78,
+      "title": "\"Big Girls Don't Cry\"",
+      "artist": "Fergie"
+    },
+    {
+      "pos": 79,
+      "title": "\"Good Life\"",
+      "artist": "Kanye West featuring T-Pain"
+    },
+    {
+      "pos": 80,
+      "title": "\"Womanizer\"",
+      "artist": "Britney Spears"
+    },
+    {
+      "pos": 81,
+      "title": "\"Love Story\"",
+      "artist": "Taylor Swift"
+    },
+    {
+      "pos": 82,
+      "title": "\"Just Fine\"",
+      "artist": "Mary J. Blige"
+    },
+    {
+      "pos": 83,
+      "title": "\"Piece of Me\"",
+      "artist": "Britney Spears"
+    },
+    {
+      "pos": 84,
+      "title": "\"The Boss\"",
+      "artist": "Rick Ross featuring T-Pain"
+    },
+    {
+      "pos": 85,
+      "title": "\"All Summer Long\"",
+      "artist": "Kid Rock"
+    },
+    {
+      "pos": 86,
+      "title": "\"Can't Help but Wait\"",
+      "artist": "Trey Songz"
+    },
+    {
+      "pos": 87,
+      "title": "\"In Love with a Girl\"",
+      "artist": "Gavin DeGraw"
+    },
+    {
+      "pos": 88,
+      "title": "\"My Life\"",
+      "artist": "The Game featuring Lil Wayne"
+    },
+    {
+      "pos": 89,
+      "title": "\"I Remember\"",
+      "artist": "Keyshia Cole"
+    },
+    {
+      "pos": 90,
+      "title": "\"Flashing Lights\"",
+      "artist": "Kanye West featuring Dwele"
+    },
+    {
+      "pos": 91,
+      "title": "\"Mrs. Officer\"",
+      "artist": "Lil Wayne featuring Bobby Valentino and Kidd Kidd"
+    },
+    {
+      "pos": 92,
+      "title": "\"7 Things\"",
+      "artist": "Miley Cyrus"
+    },
+    {
+      "pos": 93,
+      "title": "\"You're Gonna Miss This\"",
+      "artist": "Trace Adkins"
+    },
+    {
+      "pos": 94,
+      "title": "\"Love Remains the Same\"",
+      "artist": "Gavin Rossdale"
+    },
+    {
+      "pos": 95,
+      "title": "\"Feels Like Tonight\"",
+      "artist": "Daughtry"
+    },
+    {
+      "pos": 96,
+      "title": "\"The Way I Are\"",
+      "artist": "Timbaland featuring Keri Hilson"
+    },
+    {
+      "pos": 97,
+      "title": "\"Addicted\"",
+      "artist": "Saving Abel"
+    },
+    {
+      "pos": 98,
+      "title": "\"Into the Night\"",
+      "artist": "Santana featuring Chad Kroeger"
+    },
+    {
+      "pos": 99,
+      "title": "\"Heaven Sent\"",
+      "artist": "Keyshia Cole"
+    },
+    {
+      "pos": 100,
+      "title": "\"She Got It\"",
+      "artist": "2 Pistols featuring T-Pain and Tay Dizm"
+    }
+  ]
+}

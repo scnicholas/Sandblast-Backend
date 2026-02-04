@@ -1,0 +1,512 @@
+{
+  "year": 2000,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_2000",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Breathe\"",
+      "artist": "Faith Hill"
+    },
+    {
+      "pos": 2,
+      "title": "\"Smooth\"",
+      "artist": "Santana featuring Rob Thomas"
+    },
+    {
+      "pos": 3,
+      "title": "\"Maria Maria\"",
+      "artist": "Santana featuring The Product G&B"
+    },
+    {
+      "pos": 4,
+      "title": "\"I Wanna Know\"",
+      "artist": "Joe"
+    },
+    {
+      "pos": 5,
+      "title": "\"Everything You Want\"",
+      "artist": "Vertical Horizon"
+    },
+    {
+      "pos": 6,
+      "title": "\"Say My Name\"",
+      "artist": "Destiny's Child"
+    },
+    {
+      "pos": 7,
+      "title": "\"I Knew I Loved You\"",
+      "artist": "Savage Garden"
+    },
+    {
+      "pos": 8,
+      "title": "\"Amazed\"",
+      "artist": "Lonestar"
+    },
+    {
+      "pos": 9,
+      "title": "\"Bent\"",
+      "artist": "Matchbox Twenty"
+    },
+    {
+      "pos": 10,
+      "title": "\"He Wasn't Man Enough\"",
+      "artist": "Toni Braxton"
+    },
+    {
+      "pos": 11,
+      "title": "\"Higher\"",
+      "artist": "Creed"
+    },
+    {
+      "pos": 12,
+      "title": "\"Try Again\"",
+      "artist": "Aaliyah"
+    },
+    {
+      "pos": 13,
+      "title": "\"Jumpin', Jumpin'\"",
+      "artist": "Destiny's Child"
+    },
+    {
+      "pos": 14,
+      "title": "\"Thong Song\"",
+      "artist": "Sisqó"
+    },
+    {
+      "pos": 15,
+      "title": "\"Kryptonite\"",
+      "artist": "3 Doors Down"
+    },
+    {
+      "pos": 16,
+      "title": "\"There You Go\"",
+      "artist": "Pink"
+    },
+    {
+      "pos": 17,
+      "title": "\"Music\"",
+      "artist": "Madonna"
+    },
+    {
+      "pos": 18,
+      "title": "\"Doesn't Really Matter\"",
+      "artist": "Janet Jackson"
+    },
+    {
+      "pos": 19,
+      "title": "\"What a Girl Wants\"",
+      "artist": "Christina Aguilera"
+    },
+    {
+      "pos": 20,
+      "title": "\"Back at One\"",
+      "artist": "Brian McKnight"
+    },
+    {
+      "pos": 21,
+      "title": "\"Bye Bye Bye\"",
+      "artist": "NSYNC"
+    },
+    {
+      "pos": 22,
+      "title": "\"You Sang to Me\"",
+      "artist": "Marc Anthony"
+    },
+    {
+      "pos": 23,
+      "title": "\"I Need to Know\"",
+      "artist": "\"I Need to Know\""
+    },
+    {
+      "pos": 24,
+      "title": "\"Get It On Tonite\"",
+      "artist": "Montell Jordan"
+    },
+    {
+      "pos": 25,
+      "title": "\"Incomplete\"",
+      "artist": "Sisqó"
+    },
+    {
+      "pos": 26,
+      "title": "\"I Try\"",
+      "artist": "Macy Gray"
+    },
+    {
+      "pos": 27,
+      "title": "\"It's Gonna Be Me\"",
+      "artist": "NSYNC"
+    },
+    {
+      "pos": 28,
+      "title": "\"That's the Way It Is\"",
+      "artist": "Celine Dion"
+    },
+    {
+      "pos": 29,
+      "title": "\"Country Grammar (Hot Shit)\"",
+      "artist": "Nelly"
+    },
+    {
+      "pos": 30,
+      "title": "\"Bring It All to Me\"",
+      "artist": "Blaque"
+    },
+    {
+      "pos": 31,
+      "title": "\"Show Me the Meaning of Being Lonely\"",
+      "artist": "Backstreet Boys"
+    },
+    {
+      "pos": 32,
+      "title": "\"Hot Boyz\"",
+      "artist": "Missy Elliott featuring Nas, Eve and Q-Tip"
+    },
+    {
+      "pos": 33,
+      "title": "\"Back Here\"",
+      "artist": "BBMak"
+    },
+    {
+      "pos": 34,
+      "title": "\"It Feels So Good\"",
+      "artist": "Sonique"
+    },
+    {
+      "pos": 35,
+      "title": "\"Absolutely (Story of a Girl)\"",
+      "artist": "Nine Days"
+    },
+    {
+      "pos": 36,
+      "title": "\"With Arms Wide Open\"",
+      "artist": "Creed"
+    },
+    {
+      "pos": 37,
+      "title": "\"Be with You\"",
+      "artist": "Enrique Iglesias"
+    },
+    {
+      "pos": 38,
+      "title": "\"Come On Over Baby (All I Want Is You)\"",
+      "artist": "Christina Aguilera"
+    },
+    {
+      "pos": 39,
+      "title": "\"No More\"",
+      "artist": "Ruff Endz"
+    },
+    {
+      "pos": 40,
+      "title": "\"All the Small Things\"",
+      "artist": "Blink-182"
+    },
+    {
+      "pos": 41,
+      "title": "\"The Way You Love Me\"",
+      "artist": "Faith Hill"
+    },
+    {
+      "pos": 42,
+      "title": "\"I Turn to You\"",
+      "artist": "Christina Aguilera"
+    },
+    {
+      "pos": 43,
+      "title": "\"Never Let You Go\"",
+      "artist": "Third Eye Blind"
+    },
+    {
+      "pos": 44,
+      "title": "\"I Need You\"",
+      "artist": "LeAnn Rimes"
+    },
+    {
+      "pos": 45,
+      "title": "\"Thank God I Found You\"",
+      "artist": "Mariah Carey featuring Joe and 98 Degrees"
+    },
+    {
+      "pos": 46,
+      "title": "\"Let's Get Married\"",
+      "artist": "Jagged Edge"
+    },
+    {
+      "pos": 47,
+      "title": "\"My Love Is Your Love\"",
+      "artist": "Whitney Houston"
+    },
+    {
+      "pos": 48,
+      "title": "\"Then the Morning Comes\"",
+      "artist": "Smash Mouth"
+    },
+    {
+      "pos": 49,
+      "title": "\"Blue (Da Ba Dee)\"",
+      "artist": "Eiffel 65"
+    },
+    {
+      "pos": 50,
+      "title": "\"Desert Rose\"",
+      "artist": "Sting featuring Cheb Mami"
+    },
+    {
+      "pos": 51,
+      "title": "\"The Real Slim Shady\"",
+      "artist": "Eminem"
+    },
+    {
+      "pos": 52,
+      "title": "\"Most Girls\"",
+      "artist": "Pink"
+    },
+    {
+      "pos": 53,
+      "title": "\"Wifey\"",
+      "artist": "Next"
+    },
+    {
+      "pos": 54,
+      "title": "\"Wonderful\"",
+      "artist": "Everclear"
+    },
+    {
+      "pos": 55,
+      "title": "\"Oops!... I Did It Again\"",
+      "artist": "Britney Spears"
+    },
+    {
+      "pos": 56,
+      "title": "\"I Wanna Love You Forever\"",
+      "artist": "Jessica Simpson"
+    },
+    {
+      "pos": 57,
+      "title": "\"Give Me Just One Night (Una Noche)\"",
+      "artist": "98 Degrees"
+    },
+    {
+      "pos": 58,
+      "title": "\"Take a Picture\"",
+      "artist": "Filter"
+    },
+    {
+      "pos": 59,
+      "title": "\"Otherside\"",
+      "artist": "Red Hot Chili Peppers"
+    },
+    {
+      "pos": 60,
+      "title": "\"Big Pimpin'\"",
+      "artist": "Jay-Z featuring UGK"
+    },
+    {
+      "pos": 61,
+      "title": "\"Purest of Pain (A Puro Dolor)\"",
+      "artist": "Son by Four"
+    },
+    {
+      "pos": 62,
+      "title": "\"He Can't Love U\"",
+      "artist": "Jagged Edge"
+    },
+    {
+      "pos": 63,
+      "title": "\"Separated\"",
+      "artist": "Avant"
+    },
+    {
+      "pos": 64,
+      "title": "\"I Wish\"",
+      "artist": "Carl Thomas"
+    },
+    {
+      "pos": 65,
+      "title": "\"U Know What's Up\"",
+      "artist": "Donell Jones"
+    },
+    {
+      "pos": 66,
+      "title": "\"Faded\"",
+      "artist": "soulDecision featuring Thrust"
+    },
+    {
+      "pos": 67,
+      "title": "\"Only God Knows Why\"",
+      "artist": "Kid Rock"
+    },
+    {
+      "pos": 68,
+      "title": "\"Shake Ya Ass\"",
+      "artist": "Mystikal"
+    },
+    {
+      "pos": 69,
+      "title": "\"Bag Lady\"",
+      "artist": "Erykah Badu"
+    },
+    {
+      "pos": 70,
+      "title": "\"Meet Virginia\"",
+      "artist": "Train"
+    },
+    {
+      "pos": 71,
+      "title": "\"Party Up (Up in Here)\"",
+      "artist": "DMX"
+    },
+    {
+      "pos": 72,
+      "title": "\"Case of the Ex (Whatcha Gonna Do)\"",
+      "artist": "Mýa"
+    },
+    {
+      "pos": 73,
+      "title": "\"Forgot About Dre\"",
+      "artist": "Dr. Dre featuring Eminem"
+    },
+    {
+      "pos": 74,
+      "title": "\"That's the Way\"",
+      "artist": "Jo Dee Messina"
+    },
+    {
+      "pos": 75,
+      "title": "\"Swear It Again\"",
+      "artist": "Westlife"
+    },
+    {
+      "pos": 76,
+      "title": "\"The Next Episode\"",
+      "artist": "Dr. Dre featuring Snoop Dogg"
+    },
+    {
+      "pos": 77,
+      "title": "\"From the Bottom of My Broken Heart\"",
+      "artist": "Britney Spears"
+    },
+    {
+      "pos": 78,
+      "title": "\"Crash and Burn\"",
+      "artist": "Savage Garden"
+    },
+    {
+      "pos": 79,
+      "title": "\"Yes!\"",
+      "artist": "Chad Brock"
+    },
+    {
+      "pos": 80,
+      "title": "\"The Best Day\"",
+      "artist": "George Strait"
+    },
+    {
+      "pos": 81,
+      "title": "\"Where I Wanna Be\"",
+      "artist": "Donell Jones"
+    },
+    {
+      "pos": 82,
+      "title": "\"How Do You Like Me Now?!\"",
+      "artist": "Toby Keith"
+    },
+    {
+      "pos": 83,
+      "title": "\"My Best Friend\"",
+      "artist": "Tim McGraw"
+    },
+    {
+      "pos": 84,
+      "title": "\"Broadway\"",
+      "artist": "Goo Goo Dolls"
+    },
+    {
+      "pos": 85,
+      "title": "\"What'chu Like\"",
+      "artist": "Da Brat featuring Tyrese"
+    },
+    {
+      "pos": 86,
+      "title": "\"Don't Think I'm Not\"",
+      "artist": "Kandi"
+    },
+    {
+      "pos": 87,
+      "title": "\"I Hope You Dance\"",
+      "artist": "Lee Ann Womack with Sons of the Desert"
+    },
+    {
+      "pos": 88,
+      "title": "\"Better Off Alone\"",
+      "artist": "Alice Deejay"
+    },
+    {
+      "pos": 89,
+      "title": "\"Dance with Me\"",
+      "artist": "Debelah Morgan"
+    },
+    {
+      "pos": 90,
+      "title": "\"What About Now\"",
+      "artist": "Lonestar"
+    },
+    {
+      "pos": 91,
+      "title": "\"I Like It\"",
+      "artist": "Sammie"
+    },
+    {
+      "pos": 92,
+      "title": "\"24/7\"",
+      "artist": "Kevon Edmonds"
+    },
+    {
+      "pos": 93,
+      "title": "\"Girl on TV\"",
+      "artist": "LFO"
+    },
+    {
+      "pos": 94,
+      "title": "\"Bounce with Me\"",
+      "artist": "Lil' Bow Wow featuring Xscape"
+    },
+    {
+      "pos": 95,
+      "title": "\"Cowboy Take Me Away\"",
+      "artist": "Dixie Chicks"
+    },
+    {
+      "pos": 96,
+      "title": "\"I Don't Wanna\"",
+      "artist": "Aaliyah"
+    },
+    {
+      "pos": 97,
+      "title": "\"Independent Women Part I\"",
+      "artist": "Destiny's Child"
+    },
+    {
+      "pos": 98,
+      "title": "\"Gotta Tell You\"",
+      "artist": "Samantha Mumba"
+    },
+    {
+      "pos": 99,
+      "title": "\"Waiting for Tonight\"",
+      "artist": "Jennifer Lopez"
+    },
+    {
+      "pos": 100,
+      "title": "\"Shackles (Praise You)\"",
+      "artist": "Mary Mary"
+    }
+  ]
+}

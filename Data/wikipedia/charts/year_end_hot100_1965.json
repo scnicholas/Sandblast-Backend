@@ -1,0 +1,512 @@
+{
+  "year": 1965,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1965",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Wooly Bully\"",
+      "artist": "Sam the Sham and the Pharaohs"
+    },
+    {
+      "pos": 2,
+      "title": "\"I Can't Help Myself (Sugar Pie Honey Bunch)\"",
+      "artist": "Four Tops"
+    },
+    {
+      "pos": 3,
+      "title": "\"(I Can't Get No) Satisfaction\"",
+      "artist": "The Rolling Stones"
+    },
+    {
+      "pos": 4,
+      "title": "\"You Were on My Mind\"",
+      "artist": "We Five"
+    },
+    {
+      "pos": 5,
+      "title": "\"You've Lost That Lovin' Feelin'\"",
+      "artist": "The Righteous Brothers"
+    },
+    {
+      "pos": 6,
+      "title": "\"Downtown\"",
+      "artist": "Petula Clark"
+    },
+    {
+      "pos": 7,
+      "title": "\"Help!\"",
+      "artist": "The Beatles"
+    },
+    {
+      "pos": 8,
+      "title": "\"Can't You Hear My Heartbeat\"",
+      "artist": "Herman's Hermits"
+    },
+    {
+      "pos": 9,
+      "title": "\"Crying in the Chapel\"",
+      "artist": "Elvis Presley"
+    },
+    {
+      "pos": 10,
+      "title": "\"My Girl\"",
+      "artist": "The Temptations"
+    },
+    {
+      "pos": 11,
+      "title": "\"Help Me, Rhonda\"",
+      "artist": "The Beach Boys"
+    },
+    {
+      "pos": 12,
+      "title": "\"King of the Road\"",
+      "artist": "Roger Miller"
+    },
+    {
+      "pos": 13,
+      "title": "\"The Birds and the Bees\"",
+      "artist": "Jewel Akens"
+    },
+    {
+      "pos": 14,
+      "title": "\"Hold Me, Thrill Me, Kiss Me\"",
+      "artist": "Mel Carter"
+    },
+    {
+      "pos": 15,
+      "title": "\"Shotgun\"",
+      "artist": "Junior Walker & the All Stars"
+    },
+    {
+      "pos": 16,
+      "title": "\"I Got You Babe\"",
+      "artist": "Sonny & Cher"
+    },
+    {
+      "pos": 17,
+      "title": "\"This Diamond Ring\"",
+      "artist": "Gary Lewis & the Playboys"
+    },
+    {
+      "pos": 18,
+      "title": "\"The 'In' Crowd\"",
+      "artist": "Ramsey Lewis Trio"
+    },
+    {
+      "pos": 19,
+      "title": "\"Mrs. Brown, You've Got a Lovely Daughter\"",
+      "artist": "Herman's Hermits"
+    },
+    {
+      "pos": 20,
+      "title": "\"Stop! In the Name of Love\"",
+      "artist": "The Supremes"
+    },
+    {
+      "pos": 21,
+      "title": "\"Unchained Melody\"",
+      "artist": "The Righteous Brothers"
+    },
+    {
+      "pos": 22,
+      "title": "\"Silhouettes\"",
+      "artist": "Herman's Hermits"
+    },
+    {
+      "pos": 23,
+      "title": "\"I'll Never Find Another You\"",
+      "artist": "The Seekers"
+    },
+    {
+      "pos": 24,
+      "title": "\"Cara Mia\"",
+      "artist": "Jay and the Americans"
+    },
+    {
+      "pos": 25,
+      "title": "\"Mr. Tambourine Man\"",
+      "artist": "The Byrds"
+    },
+    {
+      "pos": 26,
+      "title": "\"Cast Your Fate to the Wind\"",
+      "artist": "Sounds Orchestral"
+    },
+    {
+      "pos": 27,
+      "title": "\"Yes, I'm Ready\"",
+      "artist": "Barbara Mason"
+    },
+    {
+      "pos": 28,
+      "title": "\"What's New Pussycat?\"",
+      "artist": "Tom Jones"
+    },
+    {
+      "pos": 29,
+      "title": "\"Eve of Destruction\"",
+      "artist": "Barry McGuire"
+    },
+    {
+      "pos": 30,
+      "title": "\"Hang On Sloopy\"",
+      "artist": "The McCoys"
+    },
+    {
+      "pos": 31,
+      "title": "\"Ticket to Ride\"",
+      "artist": "The Beatles"
+    },
+    {
+      "pos": 32,
+      "title": "\"Red Roses for a Blue Lady\"",
+      "artist": "Bert Kaempfert"
+    },
+    {
+      "pos": 33,
+      "title": "\"Papa's Got a Brand New Bag\"",
+      "artist": "James Brown"
+    },
+    {
+      "pos": 34,
+      "title": "\"Game of Love\"",
+      "artist": "Wayne Fontana & The Mindbenders"
+    },
+    {
+      "pos": 35,
+      "title": "\"The Name Game\"",
+      "artist": "Shirley Ellis"
+    },
+    {
+      "pos": 36,
+      "title": "\"I Know a Place\"",
+      "artist": "Petula Clark"
+    },
+    {
+      "pos": 37,
+      "title": "\"Back in My Arms Again\"",
+      "artist": "The Supremes"
+    },
+    {
+      "pos": 38,
+      "title": "\"Baby I'm Yours\"",
+      "artist": "Barbara Lewis"
+    },
+    {
+      "pos": 39,
+      "title": "\"The Jolly Green Giant\"",
+      "artist": "The Kingsmen"
+    },
+    {
+      "pos": 40,
+      "title": "\"Hush, Hush, Sweet Charlotte\"",
+      "artist": "Patti Page"
+    },
+    {
+      "pos": 41,
+      "title": "\"Like a Rolling Stone\"",
+      "artist": "Bob Dylan"
+    },
+    {
+      "pos": 42,
+      "title": "\"I'm Telling You Now\"",
+      "artist": "Freddie and the Dreamers"
+    },
+    {
+      "pos": 43,
+      "title": "\"Ferry Cross the Mersey\"",
+      "artist": "Gerry and the Pacemakers"
+    },
+    {
+      "pos": 44,
+      "title": "\"Just Once in My Life\"",
+      "artist": "The Righteous Brothers"
+    },
+    {
+      "pos": 45,
+      "title": "\"The Seventh Son\"",
+      "artist": "Johnny Rivers"
+    },
+    {
+      "pos": 46,
+      "title": "\"I'm Henry the Eighth, I Am\"",
+      "artist": "Herman's Hermits"
+    },
+    {
+      "pos": 47,
+      "title": "\"A Walk in the Black Forest\"",
+      "artist": "Horst Jankowski"
+    },
+    {
+      "pos": 48,
+      "title": "\"For Your Love\"",
+      "artist": "The Yardbirds"
+    },
+    {
+      "pos": 49,
+      "title": "\"California Girls\"",
+      "artist": "The Beach Boys"
+    },
+    {
+      "pos": 50,
+      "title": "\"Go Now\"",
+      "artist": "The Moody Blues"
+    },
+    {
+      "pos": 51,
+      "title": "\"Goldfinger\"",
+      "artist": "Shirley Bassey"
+    },
+    {
+      "pos": 52,
+      "title": "\"Down in the Boondocks\"",
+      "artist": "Billy Joe Royal"
+    },
+    {
+      "pos": 53,
+      "title": "\"Baby the Rain Must Fall\"",
+      "artist": "Glenn Yarbrough"
+    },
+    {
+      "pos": 54,
+      "title": "\"Catch Us If You Can\"",
+      "artist": "The Dave Clark Five"
+    },
+    {
+      "pos": 55,
+      "title": "\"Eight Days a Week\"",
+      "artist": "The Beatles"
+    },
+    {
+      "pos": 56,
+      "title": "\"Just a Little\"",
+      "artist": "The Beau Brummels"
+    },
+    {
+      "pos": 57,
+      "title": "\"You Turn Me On\"",
+      "artist": "Ian Whitcomb"
+    },
+    {
+      "pos": 58,
+      "title": "\"I'll Be Doggone\"",
+      "artist": "Marvin Gaye"
+    },
+    {
+      "pos": 59,
+      "title": "\"Save Your Heart for Me\"",
+      "artist": "Gary Lewis & the Playboys"
+    },
+    {
+      "pos": 60,
+      "title": "\"Tired of Waiting for You\"",
+      "artist": "The Kinks"
+    },
+    {
+      "pos": 61,
+      "title": "\"Count Me In\"",
+      "artist": "Gary Lewis & the Playboys"
+    },
+    {
+      "pos": 62,
+      "title": "\"All Day and All of the Night\"",
+      "artist": "The Kinks"
+    },
+    {
+      "pos": 63,
+      "title": "\"What the World Needs Now Is Love\"",
+      "artist": "Jackie DeShannon"
+    },
+    {
+      "pos": 64,
+      "title": "\"It's Not Unusual\"",
+      "artist": "Tom Jones"
+    },
+    {
+      "pos": 65,
+      "title": "\"She's About a Mover\"",
+      "artist": "Sir Douglas Quintet"
+    },
+    {
+      "pos": 66,
+      "title": "\"Shake\"",
+      "artist": "Sam Cooke"
+    },
+    {
+      "pos": 67,
+      "title": "\"Wonderful World\"",
+      "artist": "Herman's Hermits"
+    },
+    {
+      "pos": 68,
+      "title": "\"Nowhere to Run\"",
+      "artist": "Martha and the Vandellas"
+    },
+    {
+      "pos": 69,
+      "title": "\"Heart Full of Soul\"",
+      "artist": "The Yardbirds"
+    },
+    {
+      "pos": 70,
+      "title": "\"Love Potion No. 9\"",
+      "artist": "The Searchers"
+    },
+    {
+      "pos": 71,
+      "title": "\"Laurie (Strange Things Happen)\"",
+      "artist": "Dickey Lee"
+    },
+    {
+      "pos": 72,
+      "title": "\"Baby Don't Go\"",
+      "artist": "Sonny & Cher"
+    },
+    {
+      "pos": 73,
+      "title": "\"It Ain't Me Babe\"",
+      "artist": "The Turtles"
+    },
+    {
+      "pos": 74,
+      "title": "\"Tell Her No\"",
+      "artist": "The Zombies"
+    },
+    {
+      "pos": 75,
+      "title": "\"I Go to Pieces\"",
+      "artist": "Peter and Gordon"
+    },
+    {
+      "pos": 76,
+      "title": "\"Red Roses for a Blue Lady\"",
+      "artist": "Vic Dana"
+    },
+    {
+      "pos": 77,
+      "title": "\"Don't Just Stand There\"",
+      "artist": "Patty Duke"
+    },
+    {
+      "pos": 78,
+      "title": "\"The Tracks of My Tears\"",
+      "artist": "The Miracles"
+    },
+    {
+      "pos": 79,
+      "title": "\"Too Many Rivers\"",
+      "artist": "Brenda Lee"
+    },
+    {
+      "pos": 80,
+      "title": "\"I Like It Like That\"",
+      "artist": "The Dave Clark Five"
+    },
+    {
+      "pos": 81,
+      "title": "\"Little Things\"",
+      "artist": "Bobby Goldsboro"
+    },
+    {
+      "pos": 82,
+      "title": "\"True Love Ways\"",
+      "artist": "Peter and Gordon"
+    },
+    {
+      "pos": 83,
+      "title": "\"It's the Same Old Song\"",
+      "artist": "Four Tops"
+    },
+    {
+      "pos": 84,
+      "title": "\"You've Got Your Troubles\"",
+      "artist": "The Fortunes"
+    },
+    {
+      "pos": 85,
+      "title": "\"Hold What You've Got\"",
+      "artist": "Joe Tex"
+    },
+    {
+      "pos": 86,
+      "title": "\"We Gotta Get Out of This Place\"",
+      "artist": "The Animals"
+    },
+    {
+      "pos": 87,
+      "title": "\"Laugh, Laugh\"",
+      "artist": "The Beau Brummels"
+    },
+    {
+      "pos": 88,
+      "title": "\"The Last Time\"",
+      "artist": "The Rolling Stones"
+    },
+    {
+      "pos": 89,
+      "title": "\"Do You Believe in Magic\"",
+      "artist": "The Lovin' Spoonful"
+    },
+    {
+      "pos": 90,
+      "title": "\"All I Really Want to Do\"",
+      "artist": "Cher"
+    },
+    {
+      "pos": 91,
+      "title": "\"Take Me Back\"",
+      "artist": "Little Anthony and the Imperials"
+    },
+    {
+      "pos": 92,
+      "title": "\"I Want Candy\"",
+      "artist": "The Strangeloves"
+    },
+    {
+      "pos": 93,
+      "title": "\"Ooo Baby Baby\"",
+      "artist": "The Miracles"
+    },
+    {
+      "pos": 94,
+      "title": "\"Laugh at Me\"",
+      "artist": "Sonny"
+    },
+    {
+      "pos": 95,
+      "title": "\"Treat Her Right\"",
+      "artist": "Roy Head"
+    },
+    {
+      "pos": 96,
+      "title": "\"The Race Is On\"",
+      "artist": "Jack Jones"
+    },
+    {
+      "pos": 97,
+      "title": "\"I'm a Fool\"",
+      "artist": "Dino, Desi & Billy"
+    },
+    {
+      "pos": 98,
+      "title": "\"The Boy from New York City\"",
+      "artist": "The Ad Libs"
+    },
+    {
+      "pos": 99,
+      "title": "\"Keep Searchin' (We'll Follow the Sun)\"",
+      "artist": "Del Shannon"
+    },
+    {
+      "pos": 100,
+      "title": "\"How Sweet It Is (To Be Loved by You)\"",
+      "artist": "Marvin Gaye"
+    }
+  ]
+}

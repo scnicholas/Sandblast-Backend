@@ -1,0 +1,512 @@
+{
+  "year": 1994,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1994",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"The Sign\"",
+      "artist": "Ace of Base"
+    },
+    {
+      "pos": 2,
+      "title": "\"I Swear\"",
+      "artist": "All-4-One"
+    },
+    {
+      "pos": 3,
+      "title": "\"I'll Make Love to You\"",
+      "artist": "Boyz II Men"
+    },
+    {
+      "pos": 4,
+      "title": "\"The Power of Love\"",
+      "artist": "Celine Dion"
+    },
+    {
+      "pos": 5,
+      "title": "\"Hero\"",
+      "artist": "Mariah Carey"
+    },
+    {
+      "pos": 6,
+      "title": "\"Stay (I Missed You)\"",
+      "artist": "Lisa Loeb and Nine Stories"
+    },
+    {
+      "pos": 7,
+      "title": "\"Breathe Again\"",
+      "artist": "Toni Braxton"
+    },
+    {
+      "pos": 8,
+      "title": "\"All for Love\"",
+      "artist": "Bryan Adams, Rod Stewart and Sting"
+    },
+    {
+      "pos": 9,
+      "title": "\"All That She Wants\"",
+      "artist": "Ace of Base"
+    },
+    {
+      "pos": 10,
+      "title": "\"Don't Turn Around\"",
+      "artist": "\"Don't Turn Around\""
+    },
+    {
+      "pos": 11,
+      "title": "\"Bump n' Grind\"",
+      "artist": "R. Kelly"
+    },
+    {
+      "pos": 12,
+      "title": "\"Again\"",
+      "artist": "Janet Jackson"
+    },
+    {
+      "pos": 13,
+      "title": "\"I'll Remember\"",
+      "artist": "Madonna"
+    },
+    {
+      "pos": 14,
+      "title": "\"Whatta Man\"",
+      "artist": "Salt-n-Pepa featuring En Vogue"
+    },
+    {
+      "pos": 15,
+      "title": "\"Wild Night\"",
+      "artist": "John Mellencamp with Meshell Ndegeocello"
+    },
+    {
+      "pos": 16,
+      "title": "\"Without You\" / \"Never Forget You\"",
+      "artist": "Mariah Carey"
+    },
+    {
+      "pos": 17,
+      "title": "\"You Mean the World to Me\"",
+      "artist": "Toni Braxton"
+    },
+    {
+      "pos": 18,
+      "title": "\"Can You Feel the Love Tonight\"",
+      "artist": "Elton John"
+    },
+    {
+      "pos": 19,
+      "title": "\"The Most Beautiful Girl in the World\"",
+      "artist": "Prince"
+    },
+    {
+      "pos": 20,
+      "title": "\"Fantastic Voyage\"",
+      "artist": "Coolio"
+    },
+    {
+      "pos": 21,
+      "title": "\"Baby, I Love Your Way\"",
+      "artist": "Big Mountain"
+    },
+    {
+      "pos": 22,
+      "title": "\"Regulate\"",
+      "artist": "Warren G and Nate Dogg"
+    },
+    {
+      "pos": 23,
+      "title": "\"If You Go\"",
+      "artist": "Jon Secada"
+    },
+    {
+      "pos": 24,
+      "title": "\"Back & Forth\"",
+      "artist": "Aaliyah"
+    },
+    {
+      "pos": 25,
+      "title": "\"Now and Forever\"",
+      "artist": "Richard Marx"
+    },
+    {
+      "pos": 26,
+      "title": "\"When Can I See You\"",
+      "artist": "Babyface"
+    },
+    {
+      "pos": 27,
+      "title": "\"Please Forgive Me\"",
+      "artist": "Bryan Adams"
+    },
+    {
+      "pos": 28,
+      "title": "\"So Much in Love\"",
+      "artist": "All-4-One"
+    },
+    {
+      "pos": 29,
+      "title": "\"Shoop\"",
+      "artist": "Salt-n-Pepa"
+    },
+    {
+      "pos": 30,
+      "title": "\"Any Time, Any Place\" / \"And On and On\"",
+      "artist": "Janet Jackson"
+    },
+    {
+      "pos": 31,
+      "title": "\"Shine\"",
+      "artist": "Collective Soul"
+    },
+    {
+      "pos": 32,
+      "title": "\"Said I Loved You...But I Lied\"",
+      "artist": "Michael Bolton"
+    },
+    {
+      "pos": 33,
+      "title": "\"Return to Innocence\"",
+      "artist": "Enigma"
+    },
+    {
+      "pos": 34,
+      "title": "\"All I Wanna Do\"",
+      "artist": "Sheryl Crow"
+    },
+    {
+      "pos": 35,
+      "title": "\"Mmm Mmm Mmm Mmm\"",
+      "artist": "Crash Test Dummies"
+    },
+    {
+      "pos": 36,
+      "title": "\"Can We Talk\"",
+      "artist": "Tevin Campbell"
+    },
+    {
+      "pos": 37,
+      "title": "\"Funkdafied\"",
+      "artist": "Da Brat"
+    },
+    {
+      "pos": 38,
+      "title": "\"I'd Do Anything for Love (But I Won't Do That)\"",
+      "artist": "Meat Loaf"
+    },
+    {
+      "pos": 39,
+      "title": "\"Gangsta Lean\"",
+      "artist": "DRS"
+    },
+    {
+      "pos": 40,
+      "title": "\"Because the Night\"",
+      "artist": "10,000 Maniacs"
+    },
+    {
+      "pos": 41,
+      "title": "\"Cantaloop (Flip Fantasia)\"",
+      "artist": "Us3"
+    },
+    {
+      "pos": 42,
+      "title": "\"Whoomp! (There It Is)\"",
+      "artist": "Tag Team"
+    },
+    {
+      "pos": 43,
+      "title": "\"Come to My Window\"",
+      "artist": "Melissa Etheridge"
+    },
+    {
+      "pos": 44,
+      "title": "\"Stroke You Up\"",
+      "artist": "Changing Faces"
+    },
+    {
+      "pos": 45,
+      "title": "\"I'm Ready\"",
+      "artist": "Tevin Campbell"
+    },
+    {
+      "pos": 46,
+      "title": "\"100% Pure Love\"",
+      "artist": "Crystal Waters"
+    },
+    {
+      "pos": 47,
+      "title": "\"Anytime You Need a Friend\"",
+      "artist": "Mariah Carey"
+    },
+    {
+      "pos": 48,
+      "title": "\"Because of Love\"",
+      "artist": "Janet Jackson"
+    },
+    {
+      "pos": 49,
+      "title": "\"Linger\"",
+      "artist": "The Cranberries"
+    },
+    {
+      "pos": 50,
+      "title": "\"Loser\"",
+      "artist": "Beck"
+    },
+    {
+      "pos": 51,
+      "title": "\"Found Out About You\"",
+      "artist": "Gin Blossoms"
+    },
+    {
+      "pos": 52,
+      "title": "\"Gin and Juice\"",
+      "artist": "Snoop Doggy Dogg"
+    },
+    {
+      "pos": 53,
+      "title": "\"Never Lie\"",
+      "artist": "Immature"
+    },
+    {
+      "pos": 54,
+      "title": "\"Streets of Philadelphia\"",
+      "artist": "Bruce Springsteen"
+    },
+    {
+      "pos": 55,
+      "title": "\"Getto Jam\"",
+      "artist": "Domino"
+    },
+    {
+      "pos": 56,
+      "title": "\"Endless Love\"",
+      "artist": "Luther Vandross & Mariah Carey"
+    },
+    {
+      "pos": 57,
+      "title": "\"I Miss You\"",
+      "artist": "Aaron Hall"
+    },
+    {
+      "pos": 58,
+      "title": "\"Understanding\"",
+      "artist": "Xscape"
+    },
+    {
+      "pos": 59,
+      "title": "\"This D.J.\"",
+      "artist": "Warren G"
+    },
+    {
+      "pos": 60,
+      "title": "\"Cry for You\"",
+      "artist": "Jodeci"
+    },
+    {
+      "pos": 61,
+      "title": "\"Keep Ya Head Up\"",
+      "artist": "2Pac"
+    },
+    {
+      "pos": 62,
+      "title": "\"What's My Name?\"",
+      "artist": "Snoop Doggy Dogg"
+    },
+    {
+      "pos": 63,
+      "title": "\"Another Night\"",
+      "artist": "Real McCoy"
+    },
+    {
+      "pos": 64,
+      "title": "\"Your Body's Callin'\"",
+      "artist": "R. Kelly"
+    },
+    {
+      "pos": 65,
+      "title": "\"Tootsee Roll\"",
+      "artist": "69 Boyz"
+    },
+    {
+      "pos": 66,
+      "title": "\"I Can See Clearly Now (from Cool Runnings)\"",
+      "artist": "Jimmy Cliff"
+    },
+    {
+      "pos": 67,
+      "title": "\"Never Keeping Secrets\"",
+      "artist": "Babyface"
+    },
+    {
+      "pos": 68,
+      "title": "\"Crazy\"",
+      "artist": "Aerosmith"
+    },
+    {
+      "pos": 69,
+      "title": "\"Just Kickin' It\"",
+      "artist": "Xscape"
+    },
+    {
+      "pos": 70,
+      "title": "\"(At Your Best) You Are Love\"",
+      "artist": "Aaliyah"
+    },
+    {
+      "pos": 71,
+      "title": "\"Rock and Roll Dreams Come Through\"",
+      "artist": "Meat Loaf"
+    },
+    {
+      "pos": 72,
+      "title": "\"Amazing\"",
+      "artist": "Aerosmith"
+    },
+    {
+      "pos": 73,
+      "title": "\"Always\"",
+      "artist": "Erasure"
+    },
+    {
+      "pos": 74,
+      "title": "\"Groove Thang\"",
+      "artist": "Zhané"
+    },
+    {
+      "pos": 75,
+      "title": "\"Dreams\"",
+      "artist": "Gabrielle"
+    },
+    {
+      "pos": 76,
+      "title": "\"Mr. Vain\"",
+      "artist": "Culture Beat"
+    },
+    {
+      "pos": 77,
+      "title": "\"Mary Jane's Last Dance\"",
+      "artist": "Tom Petty and the Heartbreakers"
+    },
+    {
+      "pos": 78,
+      "title": "\"Anything\"",
+      "artist": "SWV"
+    },
+    {
+      "pos": 79,
+      "title": "\"Beautiful in My Eyes\"",
+      "artist": "Joshua Kadison"
+    },
+    {
+      "pos": 80,
+      "title": "\"Stay\"",
+      "artist": "Eternal"
+    },
+    {
+      "pos": 81,
+      "title": "\"Flava in Ya Ear\"",
+      "artist": "Craig Mack"
+    },
+    {
+      "pos": 82,
+      "title": "\"U.N.I.T.Y.\"",
+      "artist": "Queen Latifah"
+    },
+    {
+      "pos": 83,
+      "title": "\"Prayer for the Dying\"",
+      "artist": "Seal"
+    },
+    {
+      "pos": 84,
+      "title": "\"Secret\"",
+      "artist": "Madonna"
+    },
+    {
+      "pos": 85,
+      "title": "\"Here Comes the Hotstepper\"",
+      "artist": "Ini Kamoze"
+    },
+    {
+      "pos": 86,
+      "title": "\"Everyday\"",
+      "artist": "Phil Collins"
+    },
+    {
+      "pos": 87,
+      "title": "\"Don't Take the Girl\"",
+      "artist": "Tim McGraw"
+    },
+    {
+      "pos": 88,
+      "title": "\"Got Me Waiting\"",
+      "artist": "Heavy D & the Boyz"
+    },
+    {
+      "pos": 89,
+      "title": "\"December, 1963 (Oh, What a Night)\"",
+      "artist": "The Four Seasons"
+    },
+    {
+      "pos": 90,
+      "title": "\"Indian Outlaw\"",
+      "artist": "Tim McGraw"
+    },
+    {
+      "pos": 91,
+      "title": "\"Always\"",
+      "artist": "Bon Jovi"
+    },
+    {
+      "pos": 92,
+      "title": "\"I'm the Only One\"",
+      "artist": "Melissa Etheridge"
+    },
+    {
+      "pos": 93,
+      "title": "\"Back in the Day\"",
+      "artist": "Ahmad"
+    },
+    {
+      "pos": 94,
+      "title": "\"Love Sneakin' Up On You\"",
+      "artist": "Bonnie Raitt"
+    },
+    {
+      "pos": 95,
+      "title": "\"I'll Take You There (from Threesome)\"",
+      "artist": "General Public"
+    },
+    {
+      "pos": 96,
+      "title": "\"Always in My Heart\"",
+      "artist": "Tevin Campbell"
+    },
+    {
+      "pos": 97,
+      "title": "\"What Is Love\"",
+      "artist": "Haddaway"
+    },
+    {
+      "pos": 98,
+      "title": "\"And Our Feelings\"",
+      "artist": "Babyface"
+    },
+    {
+      "pos": 99,
+      "title": "\"Bop Gun (One Nation)\"",
+      "artist": "Ice Cube featuring George Clinton"
+    },
+    {
+      "pos": 100,
+      "title": "\"I Wanna Be Down\"",
+      "artist": "Brandy"
+    }
+  ]
+}

@@ -1,0 +1,512 @@
+{
+  "year": 1990,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1990",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Hold On\"",
+      "artist": "Wilson Phillips"
+    },
+    {
+      "pos": 2,
+      "title": "\"It Must Have Been Love\"",
+      "artist": "Roxette"
+    },
+    {
+      "pos": 3,
+      "title": "\"Nothing Compares 2 U\"",
+      "artist": "Sinéad O'Connor"
+    },
+    {
+      "pos": 4,
+      "title": "\"Poison\"",
+      "artist": "Bell Biv DeVoe"
+    },
+    {
+      "pos": 5,
+      "title": "\"Vogue\"",
+      "artist": "Madonna"
+    },
+    {
+      "pos": 6,
+      "title": "\"Vision of Love\"",
+      "artist": "Mariah Carey"
+    },
+    {
+      "pos": 7,
+      "title": "\"Another Day in Paradise\"",
+      "artist": "Phil Collins"
+    },
+    {
+      "pos": 8,
+      "title": "\"Hold On\"",
+      "artist": "En Vogue"
+    },
+    {
+      "pos": 9,
+      "title": "\"Cradle of Love\"",
+      "artist": "Billy Idol"
+    },
+    {
+      "pos": 10,
+      "title": "\"Blaze of Glory\"",
+      "artist": "Jon Bon Jovi"
+    },
+    {
+      "pos": 11,
+      "title": "\"Do Me!\"",
+      "artist": "Bell Biv DeVoe"
+    },
+    {
+      "pos": 12,
+      "title": "\"How Am I Supposed to Live Without You\"",
+      "artist": "Michael Bolton"
+    },
+    {
+      "pos": 13,
+      "title": "\"Pump Up the Jam\"",
+      "artist": "Technotronic"
+    },
+    {
+      "pos": 14,
+      "title": "\"Opposites Attract\"",
+      "artist": "Paula Abdul"
+    },
+    {
+      "pos": 15,
+      "title": "\"Escapade\"",
+      "artist": "Janet Jackson"
+    },
+    {
+      "pos": 16,
+      "title": "\"All I Wanna Do Is Make Love to You\"",
+      "artist": "Heart"
+    },
+    {
+      "pos": 17,
+      "title": "\"Close to You\"",
+      "artist": "Maxi Priest"
+    },
+    {
+      "pos": 18,
+      "title": "\"Black Velvet\"",
+      "artist": "Alannah Myles"
+    },
+    {
+      "pos": 19,
+      "title": "\"Release Me\"",
+      "artist": "Wilson Phillips"
+    },
+    {
+      "pos": 20,
+      "title": "\"Don't Know Much\"",
+      "artist": "Linda Ronstadt featuring Aaron Neville"
+    },
+    {
+      "pos": 21,
+      "title": "\"All Around the World\"",
+      "artist": "Lisa Stansfield"
+    },
+    {
+      "pos": 22,
+      "title": "\"I Wanna Be Rich\"",
+      "artist": "Calloway"
+    },
+    {
+      "pos": 23,
+      "title": "\"Rub You the Right Way\"",
+      "artist": "Johnny Gill"
+    },
+    {
+      "pos": 24,
+      "title": "\"She Ain't Worth It\"",
+      "artist": "Glenn Medeiros featuring Bobby Brown"
+    },
+    {
+      "pos": 25,
+      "title": "\"If Wishes Came True\"",
+      "artist": "Sweet Sensation"
+    },
+    {
+      "pos": 26,
+      "title": "\"The Power\"",
+      "artist": "Snap!"
+    },
+    {
+      "pos": 27,
+      "title": "\"(Can't Live Without Your) Love and Affection\"",
+      "artist": "Nelson"
+    },
+    {
+      "pos": 28,
+      "title": "\"Love Will Lead You Back\"",
+      "artist": "Taylor Dayne"
+    },
+    {
+      "pos": 29,
+      "title": "\"Don't Wanna Fall in Love\"",
+      "artist": "Jane Child"
+    },
+    {
+      "pos": 30,
+      "title": "\"Two to Make It Right\"",
+      "artist": "Seduction"
+    },
+    {
+      "pos": 31,
+      "title": "\"Sending All My Love\"",
+      "artist": "Linear"
+    },
+    {
+      "pos": 32,
+      "title": "\"Unskinny Bop\"",
+      "artist": "Poison"
+    },
+    {
+      "pos": 33,
+      "title": "\"Step by Step\"",
+      "artist": "New Kids on the Block"
+    },
+    {
+      "pos": 34,
+      "title": "\"Dangerous\"",
+      "artist": "Roxette"
+    },
+    {
+      "pos": 35,
+      "title": "\"We Didn't Start the Fire\"",
+      "artist": "Billy Joel"
+    },
+    {
+      "pos": 36,
+      "title": "\"I Don't Have the Heart\"",
+      "artist": "James Ingram"
+    },
+    {
+      "pos": 37,
+      "title": "\"Downtown Train\"",
+      "artist": "Rod Stewart"
+    },
+    {
+      "pos": 38,
+      "title": "\"Rhythm Nation\"",
+      "artist": "Janet Jackson"
+    },
+    {
+      "pos": 39,
+      "title": "\"I'll Be Your Everything\"",
+      "artist": "Tommy Page"
+    },
+    {
+      "pos": 40,
+      "title": "\"Roam\"",
+      "artist": "The B-52's"
+    },
+    {
+      "pos": 41,
+      "title": "\"Everything\"",
+      "artist": "Jody Watley"
+    },
+    {
+      "pos": 42,
+      "title": "\"Back to Life (However Do You Want Me)\"",
+      "artist": "Soul II Soul featuring Caron Wheeler"
+    },
+    {
+      "pos": 43,
+      "title": "\"Here and Now\"",
+      "artist": "Luther Vandross"
+    },
+    {
+      "pos": 44,
+      "title": "\"Alright\"",
+      "artist": "Janet Jackson"
+    },
+    {
+      "pos": 45,
+      "title": "\"Ice Ice Baby\"",
+      "artist": "Vanilla Ice"
+    },
+    {
+      "pos": 46,
+      "title": "\"Blame It on the Rain\"",
+      "artist": "Milli Vanilli"
+    },
+    {
+      "pos": 47,
+      "title": "\"Have You Seen Her\"",
+      "artist": "MC Hammer"
+    },
+    {
+      "pos": 48,
+      "title": "\"With Every Beat of My Heart\"",
+      "artist": "Taylor Dayne"
+    },
+    {
+      "pos": 49,
+      "title": "\"Come Back to Me\"",
+      "artist": "Janet Jackson"
+    },
+    {
+      "pos": 50,
+      "title": "\"No More Lies\"",
+      "artist": "Michel'le"
+    },
+    {
+      "pos": 51,
+      "title": "\"Praying for Time\"",
+      "artist": "George Michael"
+    },
+    {
+      "pos": 52,
+      "title": "\"How Can We Be Lovers\"",
+      "artist": "Michael Bolton"
+    },
+    {
+      "pos": 53,
+      "title": "\"Do You Remember?\"",
+      "artist": "Phil Collins"
+    },
+    {
+      "pos": 54,
+      "title": "\"Ready or Not\"",
+      "artist": "After 7"
+    },
+    {
+      "pos": 55,
+      "title": "\"U Can't Touch This\"",
+      "artist": "MC Hammer"
+    },
+    {
+      "pos": 56,
+      "title": "\"I Wish It Would Rain Down\"",
+      "artist": "Phil Collins"
+    },
+    {
+      "pos": 57,
+      "title": "\"Just Between You and Me\"",
+      "artist": "Lou Gramm"
+    },
+    {
+      "pos": 58,
+      "title": "\"Something Happened on the Way to Heaven\"",
+      "artist": "Phil Collins"
+    },
+    {
+      "pos": 59,
+      "title": "\"Black Cat\"",
+      "artist": "Janet Jackson"
+    },
+    {
+      "pos": 60,
+      "title": "\"Can't Stop\"",
+      "artist": "After 7"
+    },
+    {
+      "pos": 61,
+      "title": "\"Janie's Got a Gun\"",
+      "artist": "Aerosmith"
+    },
+    {
+      "pos": 62,
+      "title": "\"The Humpty Dance\"",
+      "artist": "Digital Underground"
+    },
+    {
+      "pos": 63,
+      "title": "\"I'll Be Your Shelter\"",
+      "artist": "Taylor Dayne"
+    },
+    {
+      "pos": 64,
+      "title": "\"Free Fallin'\"",
+      "artist": "Tom Petty"
+    },
+    {
+      "pos": 65,
+      "title": "\"Giving You the Benefit\"",
+      "artist": "Pebbles"
+    },
+    {
+      "pos": 66,
+      "title": "\"Enjoy the Silence\"",
+      "artist": "Depeche Mode"
+    },
+    {
+      "pos": 67,
+      "title": "\"Love Song\"",
+      "artist": "Tesla"
+    },
+    {
+      "pos": 68,
+      "title": "\"Price of Love\"",
+      "artist": "Bad English"
+    },
+    {
+      "pos": 69,
+      "title": "\"Girls Nite Out\"",
+      "artist": "Tyler Collins"
+    },
+    {
+      "pos": 70,
+      "title": "\"King of Wishful Thinking\"",
+      "artist": "Go West"
+    },
+    {
+      "pos": 71,
+      "title": "\"What Kind of Man Would I Be?\"",
+      "artist": "Chicago"
+    },
+    {
+      "pos": 72,
+      "title": "\"I Remember You\"",
+      "artist": "Skid Row"
+    },
+    {
+      "pos": 73,
+      "title": "\"Get Up! (Before the Night Is Over)\"",
+      "artist": "Technotronic featuring Ya Kid K"
+    },
+    {
+      "pos": 74,
+      "title": "\"Here We Are\"",
+      "artist": "Gloria Estefan"
+    },
+    {
+      "pos": 75,
+      "title": "\"Epic\"",
+      "artist": "Faith No More"
+    },
+    {
+      "pos": 76,
+      "title": "\"Love Takes Time\"",
+      "artist": "Mariah Carey"
+    },
+    {
+      "pos": 77,
+      "title": "\"Just Like Jesse James\"",
+      "artist": "Cher"
+    },
+    {
+      "pos": 78,
+      "title": "\"Love Shack\"",
+      "artist": "The B-52's"
+    },
+    {
+      "pos": 79,
+      "title": "\"All or Nothing\"",
+      "artist": "Milli Vanilli"
+    },
+    {
+      "pos": 80,
+      "title": "\"Romeo\"",
+      "artist": "Dino"
+    },
+    {
+      "pos": 81,
+      "title": "\"Everybody Everybody\"",
+      "artist": "Black Box"
+    },
+    {
+      "pos": 82,
+      "title": "\"I Go to Extremes\"",
+      "artist": "Billy Joel"
+    },
+    {
+      "pos": 83,
+      "title": "\"Whip Appeal\"",
+      "artist": "Babyface"
+    },
+    {
+      "pos": 84,
+      "title": "\"Oh Girl\"",
+      "artist": "Paul Young"
+    },
+    {
+      "pos": 85,
+      "title": "\"C'mon and Get My Love\"",
+      "artist": "D Mob with Cathy Dennis"
+    },
+    {
+      "pos": 86,
+      "title": "\"(It's Just) The Way That You Love Me\"",
+      "artist": "Paula Abdul"
+    },
+    {
+      "pos": 87,
+      "title": "\"We Can't Go Wrong\"",
+      "artist": "The Cover Girls"
+    },
+    {
+      "pos": 88,
+      "title": "\"When I'm Back on My Feet Again\"",
+      "artist": "Michael Bolton"
+    },
+    {
+      "pos": 89,
+      "title": "\"Make You Sweat\"",
+      "artist": "Keith Sweat"
+    },
+    {
+      "pos": 90,
+      "title": "\"This One's for the Children\"",
+      "artist": "New Kids on the Block"
+    },
+    {
+      "pos": 91,
+      "title": "\"What It Takes\"",
+      "artist": "Aerosmith"
+    },
+    {
+      "pos": 92,
+      "title": "\"Forever\"",
+      "artist": "Kiss"
+    },
+    {
+      "pos": 93,
+      "title": "\"Jerk Out\"",
+      "artist": "The Time"
+    },
+    {
+      "pos": 94,
+      "title": "\"Just a Friend\"",
+      "artist": "Biz Markie"
+    },
+    {
+      "pos": 95,
+      "title": "\"Whole Wide World\"",
+      "artist": "A'me Lorain"
+    },
+    {
+      "pos": 96,
+      "title": "\"Without You\"",
+      "artist": "Mötley Crüe"
+    },
+    {
+      "pos": 97,
+      "title": "\"Swing the Mood\"",
+      "artist": "Jive Bunny and the Mastermixers"
+    },
+    {
+      "pos": 98,
+      "title": "\"Thieves in the Temple\"",
+      "artist": "Prince"
+    },
+    {
+      "pos": 99,
+      "title": "\"Mentirosa\"",
+      "artist": "Mellow Man Ace"
+    },
+    {
+      "pos": 100,
+      "title": "\"Tic-Tac-Toe\"",
+      "artist": "Kyper"
+    }
+  ]
+}

@@ -1,0 +1,512 @@
+{
+  "year": 1982,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1982",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Physical\"",
+      "artist": "Olivia Newton-John"
+    },
+    {
+      "pos": 2,
+      "title": "\"Eye of the Tiger\"",
+      "artist": "Survivor"
+    },
+    {
+      "pos": 3,
+      "title": "\"I Love Rock 'n Roll\"",
+      "artist": "Joan Jett & The Blackhearts"
+    },
+    {
+      "pos": 4,
+      "title": "\"Ebony and Ivory\"",
+      "artist": "Paul McCartney and Stevie Wonder"
+    },
+    {
+      "pos": 5,
+      "title": "\"Centerfold\"",
+      "artist": "The J. Geils Band"
+    },
+    {
+      "pos": 6,
+      "title": "\"Don't You Want Me\"",
+      "artist": "The Human League"
+    },
+    {
+      "pos": 7,
+      "title": "\"Jack & Diane\"",
+      "artist": "John Cougar"
+    },
+    {
+      "pos": 8,
+      "title": "\"Hurts So Good\"",
+      "artist": "John Cougar"
+    },
+    {
+      "pos": 9,
+      "title": "\"Abracadabra\"",
+      "artist": "Steve Miller Band"
+    },
+    {
+      "pos": 10,
+      "title": "\"Hard to Say I'm Sorry\"",
+      "artist": "Chicago"
+    },
+    {
+      "pos": 11,
+      "title": "\"Tainted Love\"",
+      "artist": "Soft Cell"
+    },
+    {
+      "pos": 12,
+      "title": "\"Chariots of Fire\"",
+      "artist": "Vangelis"
+    },
+    {
+      "pos": 13,
+      "title": "\"Harden My Heart\"",
+      "artist": "Quarterflash"
+    },
+    {
+      "pos": 14,
+      "title": "\"Rosanna\"",
+      "artist": "Toto"
+    },
+    {
+      "pos": 15,
+      "title": "\"I Can't Go for That (No Can Do)\"",
+      "artist": "Daryl Hall & John Oates"
+    },
+    {
+      "pos": 16,
+      "title": "\"867-5309/Jenny\"",
+      "artist": "Tommy Tutone"
+    },
+    {
+      "pos": 17,
+      "title": "\"Key Largo\"",
+      "artist": "Bertie Higgins"
+    },
+    {
+      "pos": 18,
+      "title": "\"You Should Hear How She Talks About You\"",
+      "artist": "Melissa Manchester"
+    },
+    {
+      "pos": 19,
+      "title": "\"Waiting for a Girl Like You\"",
+      "artist": "Foreigner"
+    },
+    {
+      "pos": 20,
+      "title": "\"Don't Talk to Strangers\"",
+      "artist": "Rick Springfield"
+    },
+    {
+      "pos": 21,
+      "title": "\"The Sweetest Thing (I've Ever Known)\"",
+      "artist": "Juice Newton"
+    },
+    {
+      "pos": 22,
+      "title": "\"Always on My Mind\"",
+      "artist": "Willie Nelson"
+    },
+    {
+      "pos": 23,
+      "title": "\"Shake It Up\"",
+      "artist": "The Cars"
+    },
+    {
+      "pos": 24,
+      "title": "\"Let It Whip\"",
+      "artist": "Dazz Band"
+    },
+    {
+      "pos": 25,
+      "title": "\"We Got the Beat\"",
+      "artist": "The Go-Go's"
+    },
+    {
+      "pos": 26,
+      "title": "\"The Other Woman\"",
+      "artist": "Ray Parker Jr."
+    },
+    {
+      "pos": 27,
+      "title": "\"Turn Your Love Around\"",
+      "artist": "George Benson"
+    },
+    {
+      "pos": 28,
+      "title": "\"Sweet Dreams\"",
+      "artist": "Air Supply"
+    },
+    {
+      "pos": 29,
+      "title": "\"Only the Lonely\"",
+      "artist": "The Motels"
+    },
+    {
+      "pos": 30,
+      "title": "\"Who Can It Be Now?\"",
+      "artist": "Men at Work"
+    },
+    {
+      "pos": 31,
+      "title": "\"Hold Me\"",
+      "artist": "Fleetwood Mac"
+    },
+    {
+      "pos": 32,
+      "title": "\"Eye in the Sky\"",
+      "artist": "The Alan Parsons Project"
+    },
+    {
+      "pos": 33,
+      "title": "\"Let's Groove\"",
+      "artist": "Earth, Wind & Fire"
+    },
+    {
+      "pos": 34,
+      "title": "\"Open Arms\"",
+      "artist": "Journey"
+    },
+    {
+      "pos": 35,
+      "title": "\"Leader of the Band\"",
+      "artist": "Dan Fogelberg"
+    },
+    {
+      "pos": 36,
+      "title": "\"Leather and Lace\"",
+      "artist": "Stevie Nicks and Don Henley"
+    },
+    {
+      "pos": 37,
+      "title": "\"Even the Nights Are Better\"",
+      "artist": "Air Supply"
+    },
+    {
+      "pos": 38,
+      "title": "\"I've Never Been to Me\"",
+      "artist": "Charlene"
+    },
+    {
+      "pos": 39,
+      "title": "\"'65 Love Affair\"",
+      "artist": "Paul Davis"
+    },
+    {
+      "pos": 40,
+      "title": "\"Heat of the Moment\"",
+      "artist": "Asia"
+    },
+    {
+      "pos": 41,
+      "title": "\"Take It Easy on Me\"",
+      "artist": "Little River Band"
+    },
+    {
+      "pos": 42,
+      "title": "\"Pac-Man Fever\"",
+      "artist": "Buckner & Garcia"
+    },
+    {
+      "pos": 43,
+      "title": "\"That Girl\"",
+      "artist": "Stevie Wonder"
+    },
+    {
+      "pos": 44,
+      "title": "\"Private Eyes\"",
+      "artist": "Daryl Hall & John Oates"
+    },
+    {
+      "pos": 45,
+      "title": "\"Trouble\"",
+      "artist": "Lindsey Buckingham"
+    },
+    {
+      "pos": 46,
+      "title": "\"Making Love\"",
+      "artist": "Roberta Flack"
+    },
+    {
+      "pos": 47,
+      "title": "\"Love's Been a Little Bit Hard on Me\"",
+      "artist": "Juice Newton"
+    },
+    {
+      "pos": 48,
+      "title": "\"Young Turks\"",
+      "artist": "Rod Stewart"
+    },
+    {
+      "pos": 49,
+      "title": "\"Freeze-Frame\"",
+      "artist": "The J. Geils Band"
+    },
+    {
+      "pos": 50,
+      "title": "\"Keep the Fire Burnin'\"",
+      "artist": "REO Speedwagon"
+    },
+    {
+      "pos": 51,
+      "title": "\"Do You Believe in Love\"",
+      "artist": "Huey Lewis and the News"
+    },
+    {
+      "pos": 52,
+      "title": "\"Cool Night\"",
+      "artist": "Paul Davis"
+    },
+    {
+      "pos": 53,
+      "title": "\"Caught Up In You\"",
+      "artist": ".38 Special"
+    },
+    {
+      "pos": 54,
+      "title": "\"Why Do Fools Fall In Love?\"",
+      "artist": "Diana Ross"
+    },
+    {
+      "pos": 55,
+      "title": "\"Love in the First Degree\"",
+      "artist": "Alabama"
+    },
+    {
+      "pos": 56,
+      "title": "\"Hooked On Classics\"",
+      "artist": "Royal Philharmonic Orchestra"
+    },
+    {
+      "pos": 57,
+      "title": "\"Wasted on the Way\"",
+      "artist": "Crosby, Stills & Nash"
+    },
+    {
+      "pos": 58,
+      "title": "\"Think I'm in Love\"",
+      "artist": "Eddie Money"
+    },
+    {
+      "pos": 59,
+      "title": "\"Love Is in Control (Finger on the Trigger)\"",
+      "artist": "Donna Summer"
+    },
+    {
+      "pos": 60,
+      "title": "\"Personally\"",
+      "artist": "Karla Bonoff"
+    },
+    {
+      "pos": 61,
+      "title": "\"One Hundred Ways\"",
+      "artist": "Quincy Jones featuring James Ingram"
+    },
+    {
+      "pos": 62,
+      "title": "\"Blue Eyes\"",
+      "artist": "Elton John"
+    },
+    {
+      "pos": 63,
+      "title": "\"Our Lips Are Sealed\"",
+      "artist": "The Go-Go's"
+    },
+    {
+      "pos": 64,
+      "title": "\"You Could Have Been with Me\"",
+      "artist": "Sheena Easton"
+    },
+    {
+      "pos": 65,
+      "title": "\"You Can Do Magic\"",
+      "artist": "America"
+    },
+    {
+      "pos": 66,
+      "title": "\"Did It in a Minute\"",
+      "artist": "Daryl Hall & John Oates"
+    },
+    {
+      "pos": 67,
+      "title": "\"I Ran (So Far Away)\"",
+      "artist": "A Flock of Seagulls"
+    },
+    {
+      "pos": 68,
+      "title": "\"Somebody's Baby\"",
+      "artist": "Jackson Browne"
+    },
+    {
+      "pos": 69,
+      "title": "\"Oh No\"",
+      "artist": "Commodores"
+    },
+    {
+      "pos": 70,
+      "title": "\"Take It Away\"",
+      "artist": "Paul McCartney"
+    },
+    {
+      "pos": 71,
+      "title": "\"It's Gonna Take a Miracle\"",
+      "artist": "Deniece Williams"
+    },
+    {
+      "pos": 72,
+      "title": "\"Love Will Turn You Around\"",
+      "artist": "Kenny Rogers"
+    },
+    {
+      "pos": 73,
+      "title": "\"Don't Stop Believin'\"",
+      "artist": "Journey"
+    },
+    {
+      "pos": 74,
+      "title": "\"Comin' In and Out of Your Life\"",
+      "artist": "Barbra Streisand"
+    },
+    {
+      "pos": 75,
+      "title": "\"Gloria\"",
+      "artist": "Laura Branigan"
+    },
+    {
+      "pos": 76,
+      "title": "\"Empty Garden (Hey Hey Johnny)\"",
+      "artist": "Elton John"
+    },
+    {
+      "pos": 77,
+      "title": "\"Yesterday's Songs\"",
+      "artist": "Neil Diamond"
+    },
+    {
+      "pos": 78,
+      "title": "\"Crimson and Clover\"",
+      "artist": "Joan Jett & The Blackhearts"
+    },
+    {
+      "pos": 79,
+      "title": "\"Every Little Thing She Does Is Magic\"",
+      "artist": "The Police"
+    },
+    {
+      "pos": 80,
+      "title": "\"Here I Am\"",
+      "artist": "Air Supply"
+    },
+    {
+      "pos": 81,
+      "title": "\"I Keep Forgettin' (Every Time You're Near)\"",
+      "artist": "Michael McDonald"
+    },
+    {
+      "pos": 82,
+      "title": "\"Get Down on It\"",
+      "artist": "Kool & the Gang"
+    },
+    {
+      "pos": 83,
+      "title": "\"Any Day Now\"",
+      "artist": "Ronnie Milsap"
+    },
+    {
+      "pos": 84,
+      "title": "\"Make a Move on Me\"",
+      "artist": "Olivia Newton-John"
+    },
+    {
+      "pos": 85,
+      "title": "\"Take My Heart (You Can Have It If You Want It)\"",
+      "artist": "Kool & the Gang"
+    },
+    {
+      "pos": 86,
+      "title": "\"Mirror Mirror\"",
+      "artist": "Diana Ross"
+    },
+    {
+      "pos": 87,
+      "title": "\"Vacation\"",
+      "artist": "The Go-Go's"
+    },
+    {
+      "pos": 88,
+      "title": "\"(Oh) Pretty Woman\"",
+      "artist": "Van Halen"
+    },
+    {
+      "pos": 89,
+      "title": "\"Should I Do It\"",
+      "artist": "The Pointer Sisters"
+    },
+    {
+      "pos": 90,
+      "title": "\"Hot in the City\"",
+      "artist": "Billy Idol"
+    },
+    {
+      "pos": 91,
+      "title": "\"Kids in America\"",
+      "artist": "Kim Wilde"
+    },
+    {
+      "pos": 92,
+      "title": "\"Man on Your Mind\"",
+      "artist": "Little River Band"
+    },
+    {
+      "pos": 93,
+      "title": "\"What's Forever For\"",
+      "artist": "Michael Murphey"
+    },
+    {
+      "pos": 94,
+      "title": "\"Waiting on a Friend\"",
+      "artist": "The Rolling Stones"
+    },
+    {
+      "pos": 95,
+      "title": "\"Do I Do\"",
+      "artist": "Stevie Wonder"
+    },
+    {
+      "pos": 96,
+      "title": "\"Working for the Weekend\"",
+      "artist": "Loverboy"
+    },
+    {
+      "pos": 97,
+      "title": "\"Goin' Down\"",
+      "artist": "Greg Guidry"
+    },
+    {
+      "pos": 98,
+      "title": "\"Arthur's Theme (Best That You Can Do)\"",
+      "artist": "Christopher Cross"
+    },
+    {
+      "pos": 99,
+      "title": "\"Through the Years\"",
+      "artist": "Kenny Rogers"
+    },
+    {
+      "pos": 100,
+      "title": "\"Edge of Seventeen\"",
+      "artist": "Stevie Nicks"
+    }
+  ]
+}

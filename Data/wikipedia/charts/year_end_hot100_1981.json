@@ -1,0 +1,512 @@
+{
+  "year": 1981,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1981",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Bette Davis Eyes\"",
+      "artist": "Kim Carnes"
+    },
+    {
+      "pos": 2,
+      "title": "\"Endless Love\"",
+      "artist": "Diana Ross & Lionel Richie"
+    },
+    {
+      "pos": 3,
+      "title": "\"Lady\"",
+      "artist": "Kenny Rogers"
+    },
+    {
+      "pos": 4,
+      "title": "\"(Just Like) Starting Over\"",
+      "artist": "John Lennon"
+    },
+    {
+      "pos": 5,
+      "title": "\"Jessie's Girl\"",
+      "artist": "Rick Springfield"
+    },
+    {
+      "pos": 6,
+      "title": "\"Celebration\"",
+      "artist": "Kool & the Gang"
+    },
+    {
+      "pos": 7,
+      "title": "\"Kiss on My List\"",
+      "artist": "Daryl Hall & John Oates"
+    },
+    {
+      "pos": 8,
+      "title": "\"I Love a Rainy Night\"",
+      "artist": "Eddie Rabbitt"
+    },
+    {
+      "pos": 9,
+      "title": "\"9 To 5\"",
+      "artist": "Dolly Parton"
+    },
+    {
+      "pos": 10,
+      "title": "\"Keep on Loving You\"",
+      "artist": "REO Speedwagon"
+    },
+    {
+      "pos": 11,
+      "title": "\"Theme from The Greatest American Hero (Believe It or Not)\"",
+      "artist": "Joey Scarbury"
+    },
+    {
+      "pos": 12,
+      "title": "\"Morning Train (Nine to Five)\"",
+      "artist": "Sheena Easton"
+    },
+    {
+      "pos": 13,
+      "title": "\"Being with You\"",
+      "artist": "Smokey Robinson"
+    },
+    {
+      "pos": 14,
+      "title": "\"Queen of Hearts\"",
+      "artist": "Juice Newton"
+    },
+    {
+      "pos": 15,
+      "title": "\"Rapture\"",
+      "artist": "Blondie"
+    },
+    {
+      "pos": 16,
+      "title": "\"A Woman Needs Love (Just Like You Do)\"",
+      "artist": "Raydio"
+    },
+    {
+      "pos": 17,
+      "title": "\"The Tide Is High\"",
+      "artist": "Blondie"
+    },
+    {
+      "pos": 18,
+      "title": "\"Just the Two of Us\"",
+      "artist": "Grover Washington, Jr. & Bill Withers"
+    },
+    {
+      "pos": 19,
+      "title": "\"Slow Hand\"",
+      "artist": "The Pointer Sisters"
+    },
+    {
+      "pos": 20,
+      "title": "\"I Love You\"",
+      "artist": "Climax Blues Band"
+    },
+    {
+      "pos": 21,
+      "title": "\"Woman\"",
+      "artist": "John Lennon"
+    },
+    {
+      "pos": 22,
+      "title": "\"Sukiyaki\"",
+      "artist": "A Taste of Honey"
+    },
+    {
+      "pos": 23,
+      "title": "\"The Winner Takes It All\"",
+      "artist": "ABBA"
+    },
+    {
+      "pos": 24,
+      "title": "\"Stars on 45 Medley\"",
+      "artist": "Stars on 45"
+    },
+    {
+      "pos": 25,
+      "title": "\"Angel of the Morning\"",
+      "artist": "Juice Newton"
+    },
+    {
+      "pos": 26,
+      "title": "\"Love on the Rocks\"",
+      "artist": "Neil Diamond"
+    },
+    {
+      "pos": 27,
+      "title": "\"Every Woman in the World\"",
+      "artist": "Air Supply"
+    },
+    {
+      "pos": 28,
+      "title": "\"The One That You Love\"",
+      "artist": "\"The One That You Love\""
+    },
+    {
+      "pos": 29,
+      "title": "\"Guilty\"",
+      "artist": "Barbra Streisand & Barry Gibb"
+    },
+    {
+      "pos": 30,
+      "title": "\"The Best of Times\"",
+      "artist": "Styx"
+    },
+    {
+      "pos": 31,
+      "title": "\"Elvira\"",
+      "artist": "The Oak Ridge Boys"
+    },
+    {
+      "pos": 32,
+      "title": "\"Take It on the Run\"",
+      "artist": "REO Speedwagon"
+    },
+    {
+      "pos": 33,
+      "title": "\"(There's) No Gettin' Over Me\"",
+      "artist": "Ronnie Milsap"
+    },
+    {
+      "pos": 34,
+      "title": "\"Living Inside Myself\"",
+      "artist": "Gino Vannelli"
+    },
+    {
+      "pos": 35,
+      "title": "\"Woman in Love\"",
+      "artist": "Barbra Streisand"
+    },
+    {
+      "pos": 36,
+      "title": "\"The Boy from New York City\"",
+      "artist": "The Manhattan Transfer"
+    },
+    {
+      "pos": 37,
+      "title": "\"Urgent\"",
+      "artist": "Foreigner"
+    },
+    {
+      "pos": 38,
+      "title": "\"Passion\"",
+      "artist": "Rod Stewart"
+    },
+    {
+      "pos": 39,
+      "title": "\"Lady (You Bring Me Up)\"",
+      "artist": "Commodores"
+    },
+    {
+      "pos": 40,
+      "title": "\"Crying\"",
+      "artist": "Don McLean"
+    },
+    {
+      "pos": 41,
+      "title": "\"Hearts\"",
+      "artist": "Marty Balin"
+    },
+    {
+      "pos": 42,
+      "title": "\"It's My Turn\"",
+      "artist": "Diana Ross"
+    },
+    {
+      "pos": 43,
+      "title": "\"You Make My Dreams\"",
+      "artist": "Daryl Hall & John Oates"
+    },
+    {
+      "pos": 44,
+      "title": "\"I Don't Need You\"",
+      "artist": "Kenny Rogers"
+    },
+    {
+      "pos": 45,
+      "title": "\"How 'Bout Us\"",
+      "artist": "Champaign"
+    },
+    {
+      "pos": 46,
+      "title": "\"Hit Me with Your Best Shot\"",
+      "artist": "Pat Benatar"
+    },
+    {
+      "pos": 47,
+      "title": "\"The Breakup Song (They Don't Write 'Em)\"",
+      "artist": "The Greg Kihn Band"
+    },
+    {
+      "pos": 48,
+      "title": "\"Time\"",
+      "artist": "The Alan Parsons Project"
+    },
+    {
+      "pos": 49,
+      "title": "\"Hungry Heart\"",
+      "artist": "Bruce Springsteen"
+    },
+    {
+      "pos": 50,
+      "title": "\"Sweetheart\"",
+      "artist": "Franke and the Knockouts"
+    },
+    {
+      "pos": 51,
+      "title": "\"Somebody's Knockin'\"",
+      "artist": "Terri Gibbs"
+    },
+    {
+      "pos": 52,
+      "title": "\"More Than I Can Say\"",
+      "artist": "Leo Sayer"
+    },
+    {
+      "pos": 53,
+      "title": "\"Together\"",
+      "artist": "Tierra"
+    },
+    {
+      "pos": 54,
+      "title": "\"Too Much Time on My Hands\"",
+      "artist": "Styx"
+    },
+    {
+      "pos": 55,
+      "title": "\"What Are We Doin' in Love\"",
+      "artist": "Dottie West & Kenny Rogers"
+    },
+    {
+      "pos": 56,
+      "title": "\"Who's Crying Now\"",
+      "artist": "Journey"
+    },
+    {
+      "pos": 57,
+      "title": "\"De Do Do Do, De Da Da Da\"",
+      "artist": "The Police"
+    },
+    {
+      "pos": 58,
+      "title": "\"This Little Girl\"",
+      "artist": "Gary U.S. Bonds"
+    },
+    {
+      "pos": 59,
+      "title": "\"Stop Draggin' My Heart Around\"",
+      "artist": "Stevie Nicks & Tom Petty"
+    },
+    {
+      "pos": 60,
+      "title": "\"Giving It Up for Your Love\"",
+      "artist": "Delbert McClinton"
+    },
+    {
+      "pos": 61,
+      "title": "\"A Little in Love\"",
+      "artist": "Cliff Richard"
+    },
+    {
+      "pos": 62,
+      "title": "\"America\"",
+      "artist": "Neil Diamond"
+    },
+    {
+      "pos": 63,
+      "title": "\"Ain't Even Done with the Night\"",
+      "artist": "John Cougar"
+    },
+    {
+      "pos": 64,
+      "title": "\"Arthur's Theme (Best That You Can Do)\"",
+      "artist": "Christopher Cross"
+    },
+    {
+      "pos": 65,
+      "title": "\"Another One Bites the Dust\"",
+      "artist": "Queen"
+    },
+    {
+      "pos": 66,
+      "title": "\"Games People Play\"",
+      "artist": "The Alan Parsons Project"
+    },
+    {
+      "pos": 67,
+      "title": "\"I Can't Stand It\"",
+      "artist": "Eric Clapton"
+    },
+    {
+      "pos": 68,
+      "title": "\"While You See a Chance\"",
+      "artist": "Steve Winwood"
+    },
+    {
+      "pos": 69,
+      "title": "\"Master Blaster (Jammin')\"",
+      "artist": "Stevie Wonder"
+    },
+    {
+      "pos": 70,
+      "title": "\"Hello Again\"",
+      "artist": "Neil Diamond"
+    },
+    {
+      "pos": 71,
+      "title": "\"Don't Stand So Close to Me\"",
+      "artist": "The Police"
+    },
+    {
+      "pos": 72,
+      "title": "\"Hey Nineteen\"",
+      "artist": "Steely Dan"
+    },
+    {
+      "pos": 73,
+      "title": "\"I Ain't Gonna Stand for It\"",
+      "artist": "Stevie Wonder"
+    },
+    {
+      "pos": 74,
+      "title": "\"All Those Years Ago\"",
+      "artist": "George Harrison"
+    },
+    {
+      "pos": 75,
+      "title": "\"Step By Step\"",
+      "artist": "Eddie Rabbitt"
+    },
+    {
+      "pos": 76,
+      "title": "\"The Stroke\"",
+      "artist": "Billy Squier"
+    },
+    {
+      "pos": 77,
+      "title": "\"Feels So Right\"",
+      "artist": "Alabama"
+    },
+    {
+      "pos": 78,
+      "title": "\"Sweet Baby\"",
+      "artist": "Stanley Clarke & George Duke"
+    },
+    {
+      "pos": 79,
+      "title": "\"Same Old Lang Syne\"",
+      "artist": "Dan Fogelberg"
+    },
+    {
+      "pos": 80,
+      "title": "\"Cool Love\"",
+      "artist": "Pablo Cruise"
+    },
+    {
+      "pos": 81,
+      "title": "\"Hold On Tight\"",
+      "artist": "Electric Light Orchestra"
+    },
+    {
+      "pos": 82,
+      "title": "\"It's Now or Never\"",
+      "artist": "John Schneider"
+    },
+    {
+      "pos": 83,
+      "title": "\"Treat Me Right\"",
+      "artist": "Pat Benatar"
+    },
+    {
+      "pos": 84,
+      "title": "\"Winning\"",
+      "artist": "Santana"
+    },
+    {
+      "pos": 85,
+      "title": "\"What Kind of Fool\"",
+      "artist": "Barbra Streisand & Barry Gibb"
+    },
+    {
+      "pos": 86,
+      "title": "\"Watching the Wheels\"",
+      "artist": "John Lennon"
+    },
+    {
+      "pos": 87,
+      "title": "\"Tell It Like It Is\"",
+      "artist": "Heart"
+    },
+    {
+      "pos": 88,
+      "title": "\"Smoky Mountain Rain\"",
+      "artist": "Ronnie Milsap"
+    },
+    {
+      "pos": 89,
+      "title": "\"I Made It Through the Rain\"",
+      "artist": "Barry Manilow"
+    },
+    {
+      "pos": 90,
+      "title": "\"You've Lost That Lovin' Feelin'\"",
+      "artist": "Daryl Hall & John Oates"
+    },
+    {
+      "pos": 91,
+      "title": "\"Suddenly\"",
+      "artist": "Olivia Newton-John & Cliff Richard"
+    },
+    {
+      "pos": 92,
+      "title": "\"For Your Eyes Only\"",
+      "artist": "Sheena Easton"
+    },
+    {
+      "pos": 93,
+      "title": "\"The Beach Boys Medley\"",
+      "artist": "The Beach Boys"
+    },
+    {
+      "pos": 94,
+      "title": "\"Whip It\"",
+      "artist": "Devo"
+    },
+    {
+      "pos": 95,
+      "title": "\"Modern Girl\"",
+      "artist": "Sheena Easton"
+    },
+    {
+      "pos": 96,
+      "title": "\"Really Wanna Know You\"",
+      "artist": "Gary Wright"
+    },
+    {
+      "pos": 97,
+      "title": "\"Seven Year Ache\"",
+      "artist": "Rosanne Cash"
+    },
+    {
+      "pos": 98,
+      "title": "\"I'm Coming Out\"",
+      "artist": "Diana Ross"
+    },
+    {
+      "pos": 99,
+      "title": "\"Miss Sun\"",
+      "artist": "Boz Scaggs"
+    },
+    {
+      "pos": 100,
+      "title": "\"Time Is Time\"",
+      "artist": "Andy Gibb"
+    }
+  ]
+}

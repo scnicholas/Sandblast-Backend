@@ -1,0 +1,512 @@
+{
+  "year": 1988,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1988",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Faith\"",
+      "artist": "George Michael"
+    },
+    {
+      "pos": 2,
+      "title": "\"Need You Tonight\"",
+      "artist": "INXS"
+    },
+    {
+      "pos": 3,
+      "title": "\"Got My Mind Set on You\"",
+      "artist": "George Harrison"
+    },
+    {
+      "pos": 4,
+      "title": "\"Never Gonna Give You Up\"",
+      "artist": "Rick Astley"
+    },
+    {
+      "pos": 5,
+      "title": "\"Sweet Child o' Mine\"",
+      "artist": "Guns N' Roses"
+    },
+    {
+      "pos": 6,
+      "title": "\"So Emotional\"",
+      "artist": "Whitney Houston"
+    },
+    {
+      "pos": 7,
+      "title": "\"Heaven Is a Place on Earth\"",
+      "artist": "Belinda Carlisle"
+    },
+    {
+      "pos": 8,
+      "title": "\"Could've Been\"",
+      "artist": "Tiffany"
+    },
+    {
+      "pos": 9,
+      "title": "\"Hands to Heaven\"",
+      "artist": "Breathe"
+    },
+    {
+      "pos": 10,
+      "title": "\"Roll with It\"",
+      "artist": "Steve Winwood"
+    },
+    {
+      "pos": 11,
+      "title": "\"One More Try\"",
+      "artist": "George Michael"
+    },
+    {
+      "pos": 12,
+      "title": "\"Wishing Well\"",
+      "artist": "Terence Trent D'Arby"
+    },
+    {
+      "pos": 13,
+      "title": "\"Anything for You\"",
+      "artist": "Gloria Estefan and Miami Sound Machine"
+    },
+    {
+      "pos": 14,
+      "title": "\"The Flame\"",
+      "artist": "Cheap Trick"
+    },
+    {
+      "pos": 15,
+      "title": "\"Get Outta My Dreams, Get into My Car\"",
+      "artist": "Billy Ocean"
+    },
+    {
+      "pos": 16,
+      "title": "\"Seasons Change\"",
+      "artist": "Exposé"
+    },
+    {
+      "pos": 17,
+      "title": "\"Is This Love\"",
+      "artist": "Whitesnake"
+    },
+    {
+      "pos": 18,
+      "title": "\"Wild, Wild West\"",
+      "artist": "The Escape Club"
+    },
+    {
+      "pos": 19,
+      "title": "\"Pour Some Sugar on Me\"",
+      "artist": "Def Leppard"
+    },
+    {
+      "pos": 20,
+      "title": "\"I'll Always Love You\"",
+      "artist": "Taylor Dayne"
+    },
+    {
+      "pos": 21,
+      "title": "\"Man in the Mirror\"",
+      "artist": "Michael Jackson"
+    },
+    {
+      "pos": 22,
+      "title": "\"Shake Your Love\"",
+      "artist": "Debbie Gibson"
+    },
+    {
+      "pos": 23,
+      "title": "\"Simply Irresistible\"",
+      "artist": "Robert Palmer"
+    },
+    {
+      "pos": 24,
+      "title": "\"Hold On to the Nights\"",
+      "artist": "Richard Marx"
+    },
+    {
+      "pos": 25,
+      "title": "\"Hungry Eyes\"",
+      "artist": "Eric Carmen"
+    },
+    {
+      "pos": 26,
+      "title": "\"Shattered Dreams\"",
+      "artist": "Johnny Hates Jazz"
+    },
+    {
+      "pos": 27,
+      "title": "\"Father Figure\"",
+      "artist": "George Michael"
+    },
+    {
+      "pos": 28,
+      "title": "\"Naughty Girls (Need Love Too)\"",
+      "artist": "Samantha Fox"
+    },
+    {
+      "pos": 29,
+      "title": "\"A Groovy Kind of Love\"",
+      "artist": "Phil Collins"
+    },
+    {
+      "pos": 30,
+      "title": "\"Love Bites\"",
+      "artist": "Def Leppard"
+    },
+    {
+      "pos": 31,
+      "title": "\"Endless Summer Nights\"",
+      "artist": "Richard Marx"
+    },
+    {
+      "pos": 32,
+      "title": "\"Foolish Beat\"",
+      "artist": "Debbie Gibson"
+    },
+    {
+      "pos": 33,
+      "title": "\"Where Do Broken Hearts Go\"",
+      "artist": "Whitney Houston"
+    },
+    {
+      "pos": 34,
+      "title": "\"Angel\"",
+      "artist": "Aerosmith"
+    },
+    {
+      "pos": 35,
+      "title": "\"A Hazy Shade of Winter\"",
+      "artist": "The Bangles"
+    },
+    {
+      "pos": 36,
+      "title": "\"The Way You Make Me Feel\"",
+      "artist": "Michael Jackson"
+    },
+    {
+      "pos": 37,
+      "title": "\"Don't Worry, Be Happy\"",
+      "artist": "Bobby McFerrin"
+    },
+    {
+      "pos": 38,
+      "title": "\"Make Me Lose Control\"",
+      "artist": "Eric Carmen"
+    },
+    {
+      "pos": 39,
+      "title": "\"Red Red Wine\"",
+      "artist": "UB40"
+    },
+    {
+      "pos": 40,
+      "title": "\"She's Like the Wind\"",
+      "artist": "Patrick Swayze featuring Wendy Fraser"
+    },
+    {
+      "pos": 41,
+      "title": "\"Bad Medicine\"",
+      "artist": "Bon Jovi"
+    },
+    {
+      "pos": 42,
+      "title": "\"Kokomo\"",
+      "artist": "The Beach Boys"
+    },
+    {
+      "pos": 43,
+      "title": "\"I Don't Wanna Go on with You Like That\"",
+      "artist": "Elton John"
+    },
+    {
+      "pos": 44,
+      "title": "\"Together Forever\"",
+      "artist": "Rick Astley"
+    },
+    {
+      "pos": 45,
+      "title": "\"Monkey\"",
+      "artist": "George Michael"
+    },
+    {
+      "pos": 46,
+      "title": "\"Devil Inside\"",
+      "artist": "INXS"
+    },
+    {
+      "pos": 47,
+      "title": "\"Should've Known Better\"",
+      "artist": "Richard Marx"
+    },
+    {
+      "pos": 48,
+      "title": "\"I Don't Wanna Live Without Your Love\"",
+      "artist": "Chicago"
+    },
+    {
+      "pos": 49,
+      "title": "\"The Loco-Motion\"",
+      "artist": "Kylie Minogue"
+    },
+    {
+      "pos": 50,
+      "title": "\"What Have I Done to Deserve This?\"",
+      "artist": "Pet Shop Boys with Dusty Springfield"
+    },
+    {
+      "pos": 51,
+      "title": "\"Make It Real\"",
+      "artist": "The Jets"
+    },
+    {
+      "pos": 52,
+      "title": "\"What's On Your Mind (Pure Energy)\"",
+      "artist": "Information Society"
+    },
+    {
+      "pos": 53,
+      "title": "\"Tell It to My Heart\"",
+      "artist": "Taylor Dayne"
+    },
+    {
+      "pos": 54,
+      "title": "\"Out of the Blue\"",
+      "artist": "Debbie Gibson"
+    },
+    {
+      "pos": 55,
+      "title": "\"Don't You Want Me\"",
+      "artist": "Jody Watley"
+    },
+    {
+      "pos": 56,
+      "title": "\"Desire\"",
+      "artist": "U2"
+    },
+    {
+      "pos": 57,
+      "title": "\"I Get Weak\"",
+      "artist": "Belinda Carlisle"
+    },
+    {
+      "pos": 58,
+      "title": "\"Sign Your Name\"",
+      "artist": "Terence Trent D'Arby"
+    },
+    {
+      "pos": 59,
+      "title": "\"I Want to Be Your Man\"",
+      "artist": "Roger"
+    },
+    {
+      "pos": 60,
+      "title": "\"Girlfriend\"",
+      "artist": "Pebbles"
+    },
+    {
+      "pos": 61,
+      "title": "\"Dirty Diana\"",
+      "artist": "Michael Jackson"
+    },
+    {
+      "pos": 62,
+      "title": "\"1-2-3\"",
+      "artist": "Gloria Estefan and Miami Sound Machine"
+    },
+    {
+      "pos": 63,
+      "title": "\"Mercedes Boy\"",
+      "artist": "Pebbles"
+    },
+    {
+      "pos": 64,
+      "title": "\"Perfect World\"",
+      "artist": "Huey Lewis and the News"
+    },
+    {
+      "pos": 65,
+      "title": "\"New Sensation\"",
+      "artist": "INXS"
+    },
+    {
+      "pos": 66,
+      "title": "\"Catch Me (I'm Falling)\"",
+      "artist": "Pretty Poison"
+    },
+    {
+      "pos": 67,
+      "title": "\"If It Isn't Love\"",
+      "artist": "New Edition"
+    },
+    {
+      "pos": 68,
+      "title": "\"Rocket 2 U\"",
+      "artist": "The Jets"
+    },
+    {
+      "pos": 69,
+      "title": "\"One Good Woman\"",
+      "artist": "Peter Cetera"
+    },
+    {
+      "pos": 70,
+      "title": "\"Don't Be Cruel\"",
+      "artist": "Cheap Trick"
+    },
+    {
+      "pos": 71,
+      "title": "\"Candle in the Wind\"",
+      "artist": "Elton John"
+    },
+    {
+      "pos": 72,
+      "title": "\"Everything Your Heart Desires\"",
+      "artist": "Daryl Hall & John Oates"
+    },
+    {
+      "pos": 73,
+      "title": "\"Say You Will\"",
+      "artist": "Foreigner"
+    },
+    {
+      "pos": 74,
+      "title": "\"I Want Her\"",
+      "artist": "Keith Sweat"
+    },
+    {
+      "pos": 75,
+      "title": "\"Pink Cadillac\"",
+      "artist": "Natalie Cole"
+    },
+    {
+      "pos": 76,
+      "title": "\"Fast Car\"",
+      "artist": "Tracy Chapman"
+    },
+    {
+      "pos": 77,
+      "title": "\"Electric Blue\"",
+      "artist": "Icehouse"
+    },
+    {
+      "pos": 78,
+      "title": "\"The Valley Road\"",
+      "artist": "Bruce Hornsby and the Range"
+    },
+    {
+      "pos": 79,
+      "title": "\"Don't Be Cruel\"",
+      "artist": "Bobby Brown"
+    },
+    {
+      "pos": 80,
+      "title": "\"Always on My Mind\"",
+      "artist": "Pet Shop Boys"
+    },
+    {
+      "pos": 81,
+      "title": "\"Piano in the Dark\"",
+      "artist": "Brenda Russell featuring Joe Esposito"
+    },
+    {
+      "pos": 82,
+      "title": "\"When It's Love\"",
+      "artist": "Van Halen"
+    },
+    {
+      "pos": 83,
+      "title": "\"Don't Shed a Tear\"",
+      "artist": "Paul Carrack"
+    },
+    {
+      "pos": 84,
+      "title": "\"We'll Be Together\"",
+      "artist": "Sting"
+    },
+    {
+      "pos": 85,
+      "title": "\"I Hate Myself for Loving You\"",
+      "artist": "Joan Jett and the Blackhearts"
+    },
+    {
+      "pos": 86,
+      "title": "\"I Don't Want to Live Without You\"",
+      "artist": "Foreigner"
+    },
+    {
+      "pos": 87,
+      "title": "\"Nite and Day\"",
+      "artist": "Al B. Sure!"
+    },
+    {
+      "pos": 88,
+      "title": "\"Don't You Know What the Night Can Do?\"",
+      "artist": "Steve Winwood"
+    },
+    {
+      "pos": 89,
+      "title": "\"One Moment in Time\"",
+      "artist": "Whitney Houston"
+    },
+    {
+      "pos": 90,
+      "title": "\"Can't Stay Away from You\"",
+      "artist": "Gloria Estefan and Miami Sound Machine"
+    },
+    {
+      "pos": 91,
+      "title": "\"Kissing a Fool\"",
+      "artist": "George Michael"
+    },
+    {
+      "pos": 92,
+      "title": "\"Cherry Bomb\"",
+      "artist": "John Cougar Mellencamp"
+    },
+    {
+      "pos": 93,
+      "title": "\"I Still Believe\"",
+      "artist": "Brenda K. Starr"
+    },
+    {
+      "pos": 94,
+      "title": "\"I Found Someone\"",
+      "artist": "Cher"
+    },
+    {
+      "pos": 95,
+      "title": "\"Never Tear Us Apart\"",
+      "artist": "INXS"
+    },
+    {
+      "pos": 96,
+      "title": "\"Valerie\"",
+      "artist": "Steve Winwood"
+    },
+    {
+      "pos": 97,
+      "title": "\"Just Like Paradise\"",
+      "artist": "David Lee Roth"
+    },
+    {
+      "pos": 98,
+      "title": "\"Nothin' But a Good Time\"",
+      "artist": "Poison"
+    },
+    {
+      "pos": 99,
+      "title": "\"Wait\"",
+      "artist": "White Lion"
+    },
+    {
+      "pos": 100,
+      "title": "\"Prove Your Love\"",
+      "artist": "Taylor Dayne"
+    }
+  ]
+}

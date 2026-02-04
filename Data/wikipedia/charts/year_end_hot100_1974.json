@@ -1,0 +1,512 @@
+{
+  "year": 1974,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1974",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"The Way We Were\"",
+      "artist": "Barbra Streisand"
+    },
+    {
+      "pos": 2,
+      "title": "\"Seasons in the Sun\"",
+      "artist": "Terry Jacks"
+    },
+    {
+      "pos": 3,
+      "title": "\"Love's Theme\"",
+      "artist": "Love Unlimited Orchestra"
+    },
+    {
+      "pos": 4,
+      "title": "\"Come and Get Your Love\"",
+      "artist": "Redbone"
+    },
+    {
+      "pos": 5,
+      "title": "\"Dancing Machine\"",
+      "artist": "The Jackson 5"
+    },
+    {
+      "pos": 6,
+      "title": "\"The Loco-Motion\"",
+      "artist": "Grand Funk Railroad"
+    },
+    {
+      "pos": 7,
+      "title": "\"TSOP (The Sound of Philadelphia)\"",
+      "artist": "MFSB & The Three Degrees"
+    },
+    {
+      "pos": 8,
+      "title": "\"The Streak\"",
+      "artist": "Ray Stevens"
+    },
+    {
+      "pos": 9,
+      "title": "\"Bennie and the Jets\"",
+      "artist": "Elton John"
+    },
+    {
+      "pos": 10,
+      "title": "\"One Hell of a Woman\"",
+      "artist": "Mac Davis"
+    },
+    {
+      "pos": 11,
+      "title": "\"Until You Come Back to Me (That's What I'm Gonna Do)\"",
+      "artist": "Aretha Franklin"
+    },
+    {
+      "pos": 12,
+      "title": "\"Jungle Boogie\"",
+      "artist": "Kool & the Gang"
+    },
+    {
+      "pos": 13,
+      "title": "\"Midnight at the Oasis\"",
+      "artist": "Maria Muldaur"
+    },
+    {
+      "pos": 14,
+      "title": "\"You Make Me Feel Brand New\"",
+      "artist": "The Stylistics"
+    },
+    {
+      "pos": 15,
+      "title": "\"Show and Tell\"",
+      "artist": "Al Wilson"
+    },
+    {
+      "pos": 16,
+      "title": "\"Spiders and Snakes\"",
+      "artist": "Jim Stafford"
+    },
+    {
+      "pos": 17,
+      "title": "\"Rock On\"",
+      "artist": "David Essex"
+    },
+    {
+      "pos": 18,
+      "title": "\"Sunshine on My Shoulders\"",
+      "artist": "John Denver"
+    },
+    {
+      "pos": 19,
+      "title": "\"Sideshow\"",
+      "artist": "Blue Magic"
+    },
+    {
+      "pos": 20,
+      "title": "\"Hooked on a Feeling\"",
+      "artist": "Blue Swede"
+    },
+    {
+      "pos": 21,
+      "title": "\"Billy Don't Be a Hero\"",
+      "artist": "Bo Donaldson and The Heywoods"
+    },
+    {
+      "pos": 22,
+      "title": "\"Band on the Run\"",
+      "artist": "Paul McCartney and Wings"
+    },
+    {
+      "pos": 23,
+      "title": "\"The Most Beautiful Girl\"",
+      "artist": "Charlie Rich"
+    },
+    {
+      "pos": 24,
+      "title": "\"Time in a Bottle\"",
+      "artist": "Jim Croce"
+    },
+    {
+      "pos": 25,
+      "title": "\"Annie's Song\"",
+      "artist": "John Denver"
+    },
+    {
+      "pos": 26,
+      "title": "\"Let Me Be There\"",
+      "artist": "Olivia Newton-John"
+    },
+    {
+      "pos": 27,
+      "title": "\"Sundown\"",
+      "artist": "Gordon Lightfoot"
+    },
+    {
+      "pos": 28,
+      "title": "\"(You're) Having My Baby\"",
+      "artist": "Paul Anka"
+    },
+    {
+      "pos": 29,
+      "title": "\"Rock Me Gently\"",
+      "artist": "Andy Kim"
+    },
+    {
+      "pos": 30,
+      "title": "\"Boogie Down\"",
+      "artist": "Eddie Kendricks"
+    },
+    {
+      "pos": 31,
+      "title": "\"You're Sixteen\"",
+      "artist": "Ringo Starr"
+    },
+    {
+      "pos": 32,
+      "title": "\"If You Love Me (Let Me Know)\"",
+      "artist": "Olivia Newton-John"
+    },
+    {
+      "pos": 33,
+      "title": "\"Dark Lady\"",
+      "artist": "Cher"
+    },
+    {
+      "pos": 34,
+      "title": "\"Best Thing That Ever Happened to Me\"",
+      "artist": "Gladys Knight & the Pips"
+    },
+    {
+      "pos": 35,
+      "title": "\"Feel Like Makin' Love\"",
+      "artist": "Roberta Flack"
+    },
+    {
+      "pos": 36,
+      "title": "\"Just Don't Want to Be Lonely\"",
+      "artist": "The Main Ingredient"
+    },
+    {
+      "pos": 37,
+      "title": "\"Nothing from Nothing\"",
+      "artist": "Billy Preston"
+    },
+    {
+      "pos": 38,
+      "title": "\"Rock Your Baby\"",
+      "artist": "George McCrae"
+    },
+    {
+      "pos": 39,
+      "title": "\"Top of the World\"",
+      "artist": "The Carpenters"
+    },
+    {
+      "pos": 40,
+      "title": "\"The Joker\"",
+      "artist": "Steve Miller Band"
+    },
+    {
+      "pos": 41,
+      "title": "\"I've Got to Use My Imagination\"",
+      "artist": "Gladys Knight & the Pips"
+    },
+    {
+      "pos": 42,
+      "title": "\"The Show Must Go On\"",
+      "artist": "Three Dog Night"
+    },
+    {
+      "pos": 43,
+      "title": "\"Rock the Boat\"",
+      "artist": "The Hues Corporation"
+    },
+    {
+      "pos": 44,
+      "title": "\"Smokin' in the Boys Room\"",
+      "artist": "Brownsville Station"
+    },
+    {
+      "pos": 45,
+      "title": "\"Living for the City\"",
+      "artist": "Stevie Wonder"
+    },
+    {
+      "pos": 46,
+      "title": "\"Then Came You\"",
+      "artist": "Dionne Warwick & The Spinners"
+    },
+    {
+      "pos": 47,
+      "title": "\"The Night Chicago Died\"",
+      "artist": "Paper Lace"
+    },
+    {
+      "pos": 48,
+      "title": "\"The Entertainer\"",
+      "artist": "Marvin Hamlisch"
+    },
+    {
+      "pos": 49,
+      "title": "\"Waterloo\"",
+      "artist": "ABBA"
+    },
+    {
+      "pos": 50,
+      "title": "\"The Air That I Breathe\"",
+      "artist": "The Hollies"
+    },
+    {
+      "pos": 51,
+      "title": "\"Rikki Don't Lose That Number\"",
+      "artist": "Steely Dan"
+    },
+    {
+      "pos": 52,
+      "title": "\"Mockingbird\"",
+      "artist": "Carly Simon & James Taylor"
+    },
+    {
+      "pos": 53,
+      "title": "\"Help Me\"",
+      "artist": "Joni Mitchell"
+    },
+    {
+      "pos": 54,
+      "title": "\"You Won't See Me\"",
+      "artist": "Anne Murray"
+    },
+    {
+      "pos": 55,
+      "title": "\"Never, Never Gonna Give You Up\"",
+      "artist": "Barry White"
+    },
+    {
+      "pos": 56,
+      "title": "\"Tell Me Something Good\"",
+      "artist": "Rufus & Chaka Khan"
+    },
+    {
+      "pos": 57,
+      "title": "\"You and Me Against the World\"",
+      "artist": "Helen Reddy"
+    },
+    {
+      "pos": 58,
+      "title": "\"Rock and Roll Heaven\"",
+      "artist": "The Righteous Brothers"
+    },
+    {
+      "pos": 59,
+      "title": "\"Hollywood Swinging\"",
+      "artist": "Kool & the Gang"
+    },
+    {
+      "pos": 60,
+      "title": "\"Be Thankful for What You Got\"",
+      "artist": "William DeVaughn"
+    },
+    {
+      "pos": 61,
+      "title": "\"Hang on in There Baby\"",
+      "artist": "Johnny Bristol"
+    },
+    {
+      "pos": 62,
+      "title": "\"Eres tú\"",
+      "artist": "Mocedades"
+    },
+    {
+      "pos": 63,
+      "title": "\"Takin' Care of Business\"",
+      "artist": "Bachman-Turner Overdrive"
+    },
+    {
+      "pos": 64,
+      "title": "\"Radar Love\"",
+      "artist": "Golden Earring"
+    },
+    {
+      "pos": 65,
+      "title": "\"Please Come to Boston\"",
+      "artist": "Dave Loggins"
+    },
+    {
+      "pos": 66,
+      "title": "\"Keep on Smilin'\"",
+      "artist": "Wet Willie"
+    },
+    {
+      "pos": 67,
+      "title": "\"Lookin' for a Love\"",
+      "artist": "Bobby Womack"
+    },
+    {
+      "pos": 68,
+      "title": "\"Put Your Hands Together\"",
+      "artist": "The O'Jays"
+    },
+    {
+      "pos": 69,
+      "title": "\"On and On\"",
+      "artist": "Gladys Knight & the Pips"
+    },
+    {
+      "pos": 70,
+      "title": "\"Oh Very Young\"",
+      "artist": "Cat Stevens"
+    },
+    {
+      "pos": 71,
+      "title": "\"Leave Me Alone (Ruby Red Dress)\"",
+      "artist": "Helen Reddy"
+    },
+    {
+      "pos": 72,
+      "title": "\"Goodbye Yellow Brick Road\"",
+      "artist": "Elton John"
+    },
+    {
+      "pos": 73,
+      "title": "\"(I've Been) Searchin' So Long\"",
+      "artist": "Chicago"
+    },
+    {
+      "pos": 74,
+      "title": "\"Oh My My\"",
+      "artist": "Ringo Starr"
+    },
+    {
+      "pos": 75,
+      "title": "\"For the Love of Money\"",
+      "artist": "The O'Jays"
+    },
+    {
+      "pos": 76,
+      "title": "\"I Shot the Sheriff\"",
+      "artist": "Eric Clapton"
+    },
+    {
+      "pos": 77,
+      "title": "\"Jet\"",
+      "artist": "Paul McCartney and Wings"
+    },
+    {
+      "pos": 78,
+      "title": "\"Don't Let the Sun Go Down on Me\"",
+      "artist": "Elton John"
+    },
+    {
+      "pos": 79,
+      "title": "\"Tubular Bells\"",
+      "artist": "Mike Oldfield"
+    },
+    {
+      "pos": 80,
+      "title": "\"A Love Song\"",
+      "artist": "Anne Murray"
+    },
+    {
+      "pos": 81,
+      "title": "\"I'm Leaving It (All) Up to You\"",
+      "artist": "Donny and Marie Osmond"
+    },
+    {
+      "pos": 82,
+      "title": "\"Hello It's Me\"",
+      "artist": "Todd Rundgren"
+    },
+    {
+      "pos": 83,
+      "title": "\"I Love\"",
+      "artist": "Tom T. Hall"
+    },
+    {
+      "pos": 84,
+      "title": "\"Clap for the Wolfman\"",
+      "artist": "The Guess Who featuring Wolfman Jack"
+    },
+    {
+      "pos": 85,
+      "title": "\"I'll Have to Say I Love You in a Song\"",
+      "artist": "Jim Croce"
+    },
+    {
+      "pos": 86,
+      "title": "\"The Lord's Prayer\"",
+      "artist": "Sister Janet Mead"
+    },
+    {
+      "pos": 87,
+      "title": "\"Trying to Hold on to My Woman\"",
+      "artist": "Lamont Dozier"
+    },
+    {
+      "pos": 88,
+      "title": "\"Don't You Worry 'bout a Thing\"",
+      "artist": "Stevie Wonder"
+    },
+    {
+      "pos": 89,
+      "title": "\"A Very Special Love Song\"",
+      "artist": "Charlie Rich"
+    },
+    {
+      "pos": 90,
+      "title": "\"My Girl Bill\"",
+      "artist": "Jim Stafford"
+    },
+    {
+      "pos": 91,
+      "title": "\"Helen Wheels\"",
+      "artist": "Paul McCartney and Wings"
+    },
+    {
+      "pos": 92,
+      "title": "\"My Mistake (Was to Love You)\"",
+      "artist": "Diana Ross & Marvin Gaye"
+    },
+    {
+      "pos": 93,
+      "title": "\"Wildwood Weed\"",
+      "artist": "Jim Stafford"
+    },
+    {
+      "pos": 94,
+      "title": "\"Beach Baby\"",
+      "artist": "The First Class"
+    },
+    {
+      "pos": 95,
+      "title": "\"Me and Baby Brother\"",
+      "artist": "War"
+    },
+    {
+      "pos": 96,
+      "title": "\"Rockin' Roll Baby\"",
+      "artist": "The Stylistics"
+    },
+    {
+      "pos": 97,
+      "title": "\"I Honestly Love You\"",
+      "artist": "Olivia Newton-John"
+    },
+    {
+      "pos": 98,
+      "title": "\"Call on Me\"",
+      "artist": "Chicago"
+    },
+    {
+      "pos": 99,
+      "title": "\"Wild Thing\"",
+      "artist": "Fancy"
+    },
+    {
+      "pos": 100,
+      "title": "\"Mighty Love\"",
+      "artist": "The Spinners"
+    }
+  ]
+}

@@ -1,0 +1,512 @@
+{
+  "year": 2012,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_2012",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Somebody That I Used to Know\"",
+      "artist": "Gotye featuring Kimbra"
+    },
+    {
+      "pos": 2,
+      "title": "\"Call Me Maybe\"",
+      "artist": "Carly Rae Jepsen"
+    },
+    {
+      "pos": 3,
+      "title": "\"We Are Young\"",
+      "artist": "Fun featuring Janelle Monáe"
+    },
+    {
+      "pos": 4,
+      "title": "\"Payphone\"",
+      "artist": "Maroon 5 featuring Wiz Khalifa"
+    },
+    {
+      "pos": 5,
+      "title": "\"Lights\"",
+      "artist": "Ellie Goulding"
+    },
+    {
+      "pos": 6,
+      "title": "\"Glad You Came\"",
+      "artist": "The Wanted"
+    },
+    {
+      "pos": 7,
+      "title": "\"Stronger (What Doesn't Kill You)\"",
+      "artist": "Kelly Clarkson"
+    },
+    {
+      "pos": 8,
+      "title": "\"We Found Love\"",
+      "artist": "Rihanna featuring Calvin Harris"
+    },
+    {
+      "pos": 9,
+      "title": "\"Starships\"",
+      "artist": "Nicki Minaj"
+    },
+    {
+      "pos": 10,
+      "title": "\"What Makes You Beautiful\"",
+      "artist": "One Direction"
+    },
+    {
+      "pos": 11,
+      "title": "\"Wild Ones\"",
+      "artist": "Flo Rida featuring Sia"
+    },
+    {
+      "pos": 12,
+      "title": "\"Set Fire to the Rain\"",
+      "artist": "Adele"
+    },
+    {
+      "pos": 13,
+      "title": "\"Sexy and I Know It\"",
+      "artist": "LMFAO"
+    },
+    {
+      "pos": 14,
+      "title": "\"Some Nights\"",
+      "artist": "Fun"
+    },
+    {
+      "pos": 15,
+      "title": "\"Wide Awake\"",
+      "artist": "Katy Perry"
+    },
+    {
+      "pos": 16,
+      "title": "\"Good Feeling\"",
+      "artist": "Flo Rida"
+    },
+    {
+      "pos": 17,
+      "title": "\"Whistle\"",
+      "artist": "\"Whistle\""
+    },
+    {
+      "pos": 18,
+      "title": "\"One More Night\"",
+      "artist": "Maroon 5"
+    },
+    {
+      "pos": 19,
+      "title": "\"Drive By\"",
+      "artist": "Train"
+    },
+    {
+      "pos": 20,
+      "title": "\"The Motto\"",
+      "artist": "Drake featuring Lil Wayne"
+    },
+    {
+      "pos": 21,
+      "title": "\"Where Have You Been\"",
+      "artist": "Rihanna"
+    },
+    {
+      "pos": 22,
+      "title": "\"Everybody Talks\"",
+      "artist": "Neon Trees"
+    },
+    {
+      "pos": 23,
+      "title": "\"Take Care\"",
+      "artist": "Drake featuring Rihanna"
+    },
+    {
+      "pos": 24,
+      "title": "\"Titanium\"",
+      "artist": "David Guetta featuring Sia"
+    },
+    {
+      "pos": 25,
+      "title": "\"I Won't Give Up\"",
+      "artist": "Jason Mraz"
+    },
+    {
+      "pos": 26,
+      "title": "\"It Will Rain\"",
+      "artist": "Bruno Mars"
+    },
+    {
+      "pos": 27,
+      "title": "\"Mercy\"",
+      "artist": "Kanye West, Big Sean, Pusha T and 2 Chainz"
+    },
+    {
+      "pos": 28,
+      "title": "\"Boyfriend\"",
+      "artist": "Justin Bieber"
+    },
+    {
+      "pos": 29,
+      "title": "\"Party Rock Anthem\"",
+      "artist": "LMFAO featuring Lauren Bennett and GoonRock"
+    },
+    {
+      "pos": 30,
+      "title": "\"Too Close\"",
+      "artist": "Alex Clare"
+    },
+    {
+      "pos": 31,
+      "title": "\"Part of Me\"",
+      "artist": "Katy Perry"
+    },
+    {
+      "pos": 32,
+      "title": "\"Young, Wild & Free\"",
+      "artist": "Snoop Dogg and Wiz Khalifa featuring Bruno Mars"
+    },
+    {
+      "pos": 33,
+      "title": "\"We Are Never Ever Getting Back Together\"",
+      "artist": "Taylor Swift"
+    },
+    {
+      "pos": 34,
+      "title": "\"As Long as You Love Me\"",
+      "artist": "Justin Bieber featuring Big Sean"
+    },
+    {
+      "pos": 35,
+      "title": "\"Turn Me On\"",
+      "artist": "David Guetta featuring Nicki Minaj"
+    },
+    {
+      "pos": 36,
+      "title": "\"Moves like Jagger\"",
+      "artist": "Maroon 5 featuring Christina Aguilera"
+    },
+    {
+      "pos": 37,
+      "title": "\"Blow Me (One Last Kiss)\"",
+      "artist": "Pink"
+    },
+    {
+      "pos": 38,
+      "title": "\"Good Time\"",
+      "artist": "Owl City and Carly Rae Jepsen"
+    },
+    {
+      "pos": 39,
+      "title": "\"Give Your Heart a Break\"",
+      "artist": "Demi Lovato"
+    },
+    {
+      "pos": 40,
+      "title": "\"Niggas in Paris\"",
+      "artist": "Jay-Z and Kanye West"
+    },
+    {
+      "pos": 41,
+      "title": "\"The One That Got Away\"",
+      "artist": "Katy Perry"
+    },
+    {
+      "pos": 42,
+      "title": "\"Feel So Close\"",
+      "artist": "Calvin Harris"
+    },
+    {
+      "pos": 43,
+      "title": "\"Someone like You\"",
+      "artist": "Adele"
+    },
+    {
+      "pos": 44,
+      "title": "\"Scream\"",
+      "artist": "Usher"
+    },
+    {
+      "pos": 45,
+      "title": "\"Rack City\"",
+      "artist": "Tyga"
+    },
+    {
+      "pos": 46,
+      "title": "\"Domino\"",
+      "artist": "Jessie J"
+    },
+    {
+      "pos": 47,
+      "title": "\"Gangnam Style\"",
+      "artist": "Psy"
+    },
+    {
+      "pos": 48,
+      "title": "\"International Love\"",
+      "artist": "Pitbull featuring Chris Brown"
+    },
+    {
+      "pos": 49,
+      "title": "\"Home\"",
+      "artist": "Phillip Phillips"
+    },
+    {
+      "pos": 50,
+      "title": "\"Without You\"",
+      "artist": "David Guetta featuring Usher"
+    },
+    {
+      "pos": 51,
+      "title": "\"Ass Back Home\"",
+      "artist": "Gym Class Heroes featuring Neon Hitch"
+    },
+    {
+      "pos": 52,
+      "title": "\"Wanted\"",
+      "artist": "Hunter Hayes"
+    },
+    {
+      "pos": 53,
+      "title": "\"Drunk on You\"",
+      "artist": "Luke Bryan"
+    },
+    {
+      "pos": 54,
+      "title": "\"No Lie\"",
+      "artist": "2 Chainz featuring Drake"
+    },
+    {
+      "pos": 55,
+      "title": "\"Want U Back\"",
+      "artist": "Cher Lloyd"
+    },
+    {
+      "pos": 56,
+      "title": "\"Don't Wake Me Up\"",
+      "artist": "Chris Brown"
+    },
+    {
+      "pos": 57,
+      "title": "\"Dance (A$$)\"",
+      "artist": "Big Sean featuring Nicki Minaj"
+    },
+    {
+      "pos": 58,
+      "title": "\"Springsteen\"",
+      "artist": "Eric Church"
+    },
+    {
+      "pos": 59,
+      "title": "\"Brokenhearted\"",
+      "artist": "Karmin"
+    },
+    {
+      "pos": 60,
+      "title": "\"Not Over You\"",
+      "artist": "Gavin DeGraw"
+    },
+    {
+      "pos": 61,
+      "title": "\"Stereo Hearts\"",
+      "artist": "Gym Class Heroes featuring Adam Levine"
+    },
+    {
+      "pos": 62,
+      "title": "\"Back in Time\"",
+      "artist": "Pitbull"
+    },
+    {
+      "pos": 63,
+      "title": "\"Work Out\"",
+      "artist": "J. Cole"
+    },
+    {
+      "pos": 64,
+      "title": "\"Rumour Has It\"",
+      "artist": "Adele"
+    },
+    {
+      "pos": 65,
+      "title": "\"Let's Go\"",
+      "artist": "Calvin Harris featuring Ne-Yo"
+    },
+    {
+      "pos": 66,
+      "title": "\"Good Girl\"",
+      "artist": "Carrie Underwood"
+    },
+    {
+      "pos": 67,
+      "title": "\"Pontoon\"",
+      "artist": "Little Big Town"
+    },
+    {
+      "pos": 68,
+      "title": "\"Ho Hey\"",
+      "artist": "The Lumineers"
+    },
+    {
+      "pos": 69,
+      "title": "\"Paradise\"",
+      "artist": "Coldplay"
+    },
+    {
+      "pos": 70,
+      "title": "\"Blown Away\"",
+      "artist": "Carrie Underwood"
+    },
+    {
+      "pos": 71,
+      "title": "\"Rolling in the Deep\"",
+      "artist": "Adele"
+    },
+    {
+      "pos": 72,
+      "title": "\"Climax\"",
+      "artist": "Usher"
+    },
+    {
+      "pos": 73,
+      "title": "\"Work Hard, Play Hard\"",
+      "artist": "Wiz Khalifa"
+    },
+    {
+      "pos": 74,
+      "title": "\"Let Me Love You (Until You Learn to Love Yourself)\"",
+      "artist": "Ne-Yo"
+    },
+    {
+      "pos": 75,
+      "title": "\"Pound the Alarm\"",
+      "artist": "Nicki Minaj"
+    },
+    {
+      "pos": 76,
+      "title": "\"Come Over\"",
+      "artist": "Kenny Chesney"
+    },
+    {
+      "pos": 77,
+      "title": "\"Heart Attack\"",
+      "artist": "Trey Songz"
+    },
+    {
+      "pos": 78,
+      "title": "\"Drank in My Cup\"",
+      "artist": "Kirko Bangz"
+    },
+    {
+      "pos": 79,
+      "title": "\"Birthday Cake\"",
+      "artist": "Rihanna featuring Chris Brown"
+    },
+    {
+      "pos": 80,
+      "title": "\"So Good\"",
+      "artist": "B.o.B"
+    },
+    {
+      "pos": 81,
+      "title": "\"50 Ways to Say Goodbye\"",
+      "artist": "Train"
+    },
+    {
+      "pos": 82,
+      "title": "\"Red Solo Cup\"",
+      "artist": "Toby Keith"
+    },
+    {
+      "pos": 83,
+      "title": "\"Love You Like a Love Song\"",
+      "artist": "Selena Gomez & the Scene"
+    },
+    {
+      "pos": 84,
+      "title": "\"Turn Up the Music\"",
+      "artist": "Chris Brown"
+    },
+    {
+      "pos": 85,
+      "title": "\"Die Young\"",
+      "artist": "Kesha"
+    },
+    {
+      "pos": 86,
+      "title": "\"5 O'Clock\"",
+      "artist": "T-Pain featuring Wiz Khalifa and Lily Allen"
+    },
+    {
+      "pos": 87,
+      "title": "\"A Thousand Years\"",
+      "artist": "Christina Perri"
+    },
+    {
+      "pos": 88,
+      "title": "\"Take a Little Ride\"",
+      "artist": "Jason Aldean"
+    },
+    {
+      "pos": 89,
+      "title": "\"You da One\"",
+      "artist": "Rihanna"
+    },
+    {
+      "pos": 90,
+      "title": "\"We Run the Night\"",
+      "artist": "Havana Brown featuring Pitbull"
+    },
+    {
+      "pos": 91,
+      "title": "\"It's Time\"",
+      "artist": "Imagine Dragons"
+    },
+    {
+      "pos": 92,
+      "title": "\"Cashin' Out\"",
+      "artist": "Cash Out"
+    },
+    {
+      "pos": 93,
+      "title": "\"I Don't Want This Night to End\"",
+      "artist": "Luke Bryan"
+    },
+    {
+      "pos": 94,
+      "title": "\"Diamonds\"",
+      "artist": "Rihanna"
+    },
+    {
+      "pos": 95,
+      "title": "\"Hard to Love\"",
+      "artist": "Lee Brice"
+    },
+    {
+      "pos": 96,
+      "title": "\"Somethin' 'Bout a Truck\"",
+      "artist": "Kip Moore"
+    },
+    {
+      "pos": 97,
+      "title": "\"Adorn\"",
+      "artist": "Miguel"
+    },
+    {
+      "pos": 98,
+      "title": "\"Fly Over States\"",
+      "artist": "Jason Aldean"
+    },
+    {
+      "pos": 99,
+      "title": "\"Even If It Breaks Your Heart\"",
+      "artist": "Eli Young Band"
+    },
+    {
+      "pos": 100,
+      "title": "\"Burn It Down\"",
+      "artist": "Linkin Park"
+    }
+  ]
+}

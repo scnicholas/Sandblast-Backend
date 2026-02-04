@@ -1,0 +1,512 @@
+{
+  "year": 1962,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1962",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Stranger on the Shore\"",
+      "artist": "Acker Bilk"
+    },
+    {
+      "pos": 2,
+      "title": "\"I Can't Stop Loving You\"",
+      "artist": "Ray Charles"
+    },
+    {
+      "pos": 3,
+      "title": "\"Mashed Potato Time\"",
+      "artist": "Dee Dee Sharp"
+    },
+    {
+      "pos": 4,
+      "title": "\"Roses Are Red (My Love)\"",
+      "artist": "Bobby Vinton"
+    },
+    {
+      "pos": 5,
+      "title": "\"The Stripper\"",
+      "artist": "David Rose"
+    },
+    {
+      "pos": 6,
+      "title": "\"Johnny Angel\"",
+      "artist": "Shelley Fabares"
+    },
+    {
+      "pos": 7,
+      "title": "\"The Loco-Motion\"",
+      "artist": "Little Eva"
+    },
+    {
+      "pos": 8,
+      "title": "\"Let Me In\"",
+      "artist": "The Sensations"
+    },
+    {
+      "pos": 9,
+      "title": "\"The Twist\"",
+      "artist": "Chubby Checker"
+    },
+    {
+      "pos": 10,
+      "title": "\"Soldier Boy\"",
+      "artist": "The Shirelles"
+    },
+    {
+      "pos": 11,
+      "title": "\"Hey! Baby\"",
+      "artist": "Bruce Channel"
+    },
+    {
+      "pos": 12,
+      "title": "\"The Wanderer\"",
+      "artist": "Dion"
+    },
+    {
+      "pos": 13,
+      "title": "\"Duke of Earl\"",
+      "artist": "Gene Chandler"
+    },
+    {
+      "pos": 14,
+      "title": "\"Palisades Park\"",
+      "artist": "Freddy Cannon"
+    },
+    {
+      "pos": 15,
+      "title": "\"Breaking Up Is Hard to Do\"",
+      "artist": "Neil Sedaka"
+    },
+    {
+      "pos": 16,
+      "title": "\"Wolverton Mountain\"",
+      "artist": "Claude King"
+    },
+    {
+      "pos": 17,
+      "title": "\"Slow Twistin'\"",
+      "artist": "Chubby Checker & Dee Dee Sharp"
+    },
+    {
+      "pos": 18,
+      "title": "\"It Keeps Right On a-Hurtin'\"",
+      "artist": "Johnny Tillotson"
+    },
+    {
+      "pos": 19,
+      "title": "\"The One Who Really Loves You\"",
+      "artist": "Mary Wells"
+    },
+    {
+      "pos": 20,
+      "title": "\"Good Luck Charm\"",
+      "artist": "Elvis Presley"
+    },
+    {
+      "pos": 21,
+      "title": "\"Midnight in Moscow\"",
+      "artist": "Kenny Ball"
+    },
+    {
+      "pos": 22,
+      "title": "\"Sheila\"",
+      "artist": "Tommy Roe"
+    },
+    {
+      "pos": 23,
+      "title": "\"Twistin' the Night Away\"",
+      "artist": "Sam Cooke"
+    },
+    {
+      "pos": 24,
+      "title": "\"The Wah-Watusi\"",
+      "artist": "The Orlons"
+    },
+    {
+      "pos": 25,
+      "title": "\"Peppermint Twist\"",
+      "artist": "Joey Dee and the Starliters"
+    },
+    {
+      "pos": 26,
+      "title": "\"Break It to Me Gently\"",
+      "artist": "Brenda Lee"
+    },
+    {
+      "pos": 27,
+      "title": "\"Playboy\"",
+      "artist": "The Marvelettes"
+    },
+    {
+      "pos": 28,
+      "title": "\"Ramblin' Rose\"",
+      "artist": "Nat King Cole"
+    },
+    {
+      "pos": 29,
+      "title": "\"Sealed with a Kiss\"",
+      "artist": "Brian Hyland"
+    },
+    {
+      "pos": 30,
+      "title": "\"She Cried\"",
+      "artist": "Jay and the Americans"
+    },
+    {
+      "pos": 31,
+      "title": "\"Don't Break the Heart That Loves You\"",
+      "artist": "Connie Francis"
+    },
+    {
+      "pos": 32,
+      "title": "\"Dear Lady Twist\"",
+      "artist": "Gary U.S. Bonds"
+    },
+    {
+      "pos": 33,
+      "title": "\"Norman\"",
+      "artist": "Sue Thompson"
+    },
+    {
+      "pos": 34,
+      "title": "\"Love Letters\"",
+      "artist": "Ketty Lester"
+    },
+    {
+      "pos": 35,
+      "title": "\"Party Lights\"",
+      "artist": "Claudine Clark"
+    },
+    {
+      "pos": 36,
+      "title": "\"Cotton Fields\"",
+      "artist": "The Highwaymen"
+    },
+    {
+      "pos": 37,
+      "title": "\"Alley Cat\"",
+      "artist": "Bent Fabric"
+    },
+    {
+      "pos": 38,
+      "title": "\"Twist and Shout\"",
+      "artist": "The Isley Brothers"
+    },
+    {
+      "pos": 39,
+      "title": "\"Theme from Dr. Kildare (Three Stars Will Shine Tonight)\"",
+      "artist": "Richard Chamberlain"
+    },
+    {
+      "pos": 40,
+      "title": "\"Tuff\"",
+      "artist": "Ace Cannon"
+    },
+    {
+      "pos": 41,
+      "title": "\"Lover Please\"",
+      "artist": "Clyde McPhatter"
+    },
+    {
+      "pos": 42,
+      "title": "\"I Know (You Don't Love Me No More)\"",
+      "artist": "Barbara George"
+    },
+    {
+      "pos": 43,
+      "title": "\"Young World\"",
+      "artist": "Ricky Nelson"
+    },
+    {
+      "pos": 44,
+      "title": "\"Baby It's You\"",
+      "artist": "The Shirelles"
+    },
+    {
+      "pos": 45,
+      "title": "\"Speedy Gonzales\"",
+      "artist": "Pat Boone"
+    },
+    {
+      "pos": 46,
+      "title": "\"A Little Bitty Tear\"",
+      "artist": "Burl Ives"
+    },
+    {
+      "pos": 47,
+      "title": "\"Crying in the Rain\"",
+      "artist": "The Everly Brothers"
+    },
+    {
+      "pos": 48,
+      "title": "\"Al di là\"",
+      "artist": "Emilio Pericoli"
+    },
+    {
+      "pos": 49,
+      "title": "\"Shout! Shout! (Knock Yourself Out)\"",
+      "artist": "Ernie Maresca"
+    },
+    {
+      "pos": 50,
+      "title": "\"What's Your Name\"",
+      "artist": "Don and Juan"
+    },
+    {
+      "pos": 51,
+      "title": "\"Smoky Places\"",
+      "artist": "The Corsairs"
+    },
+    {
+      "pos": 52,
+      "title": "\"Having a Party\"",
+      "artist": "Sam Cooke"
+    },
+    {
+      "pos": 53,
+      "title": "\"Green Onions\"",
+      "artist": "Booker T. & the M.G.'s"
+    },
+    {
+      "pos": 54,
+      "title": "\"You Don't Know Me\"",
+      "artist": "Ray Charles"
+    },
+    {
+      "pos": 55,
+      "title": "\"Sherry\"",
+      "artist": "The Four Seasons"
+    },
+    {
+      "pos": 56,
+      "title": "\"Johnny Get Angry\"",
+      "artist": "Joanie Sommers"
+    },
+    {
+      "pos": 57,
+      "title": "\"Can't Help Falling in Love\"",
+      "artist": "Elvis Presley"
+    },
+    {
+      "pos": 58,
+      "title": "\"Shout\"",
+      "artist": "Joey Dee and the Starliters"
+    },
+    {
+      "pos": 59,
+      "title": "\"Rinky Dink\"",
+      "artist": "Dave \"Baby\" Cortez"
+    },
+    {
+      "pos": 60,
+      "title": "\"Moon River\"",
+      "artist": "Henry Mancini"
+    },
+    {
+      "pos": 61,
+      "title": "\"Ahab the Arab\"",
+      "artist": "Ray Stevens"
+    },
+    {
+      "pos": 62,
+      "title": "\"Things\"",
+      "artist": "Bobby Darin"
+    },
+    {
+      "pos": 63,
+      "title": "\"(The Man Who Shot) Liberty Valance\"",
+      "artist": "Gene Pitney"
+    },
+    {
+      "pos": 64,
+      "title": "\"You Belong to Me\"",
+      "artist": "The Duprees"
+    },
+    {
+      "pos": 65,
+      "title": "\"Dream Baby (How Long Must I Dream)\"",
+      "artist": "Roy Orbison"
+    },
+    {
+      "pos": 66,
+      "title": "\"Snap Your Fingers\"",
+      "artist": "Joe Henderson"
+    },
+    {
+      "pos": 67,
+      "title": "\"Lovers Who Wander\"",
+      "artist": "Dion"
+    },
+    {
+      "pos": 68,
+      "title": "\"Let's Dance\"",
+      "artist": "Chris Montez"
+    },
+    {
+      "pos": 69,
+      "title": "\"Cindy's Birthday\"",
+      "artist": "Johnny Crawford"
+    },
+    {
+      "pos": 70,
+      "title": "\"You Beat Me to the Punch\"",
+      "artist": "Mary Wells"
+    },
+    {
+      "pos": 71,
+      "title": "\"You'll Lose a Good Thing\"",
+      "artist": "Barbara Lynn"
+    },
+    {
+      "pos": 72,
+      "title": "\"Uptown\"",
+      "artist": "The Crystals"
+    },
+    {
+      "pos": 73,
+      "title": "\"Everybody Loves Me But You\"",
+      "artist": "Brenda Lee"
+    },
+    {
+      "pos": 74,
+      "title": "\"Patches\"",
+      "artist": "Dickey Lee"
+    },
+    {
+      "pos": 75,
+      "title": "\"Venus in Blue Jeans\"",
+      "artist": "Jimmy Clanton"
+    },
+    {
+      "pos": 76,
+      "title": "\"Love Me Warm and Tender\"",
+      "artist": "Paul Anka"
+    },
+    {
+      "pos": 77,
+      "title": "\"Teen Age Idol\"",
+      "artist": "Rick Nelson"
+    },
+    {
+      "pos": 78,
+      "title": "\"She's Got You\"",
+      "artist": "Patsy Cline"
+    },
+    {
+      "pos": 79,
+      "title": "\"Dear One\"",
+      "artist": "Larry Finnegan"
+    },
+    {
+      "pos": 80,
+      "title": "\"Her Royal Majesty\"",
+      "artist": "James Darren"
+    },
+    {
+      "pos": 81,
+      "title": "\"Old Rivers\"",
+      "artist": "Walter Brennan"
+    },
+    {
+      "pos": 82,
+      "title": "\"Funny Way of Laughin'\"",
+      "artist": "Burl Ives"
+    },
+    {
+      "pos": 83,
+      "title": "\"A Swingin' Safari\"",
+      "artist": "Billy Vaughn"
+    },
+    {
+      "pos": 84,
+      "title": "\"Tell Me\"",
+      "artist": "Dick and Dee Dee"
+    },
+    {
+      "pos": 85,
+      "title": "\"PT-109\"",
+      "artist": "Jimmy Dean"
+    },
+    {
+      "pos": 86,
+      "title": "\"Little Diane\"",
+      "artist": "Dion"
+    },
+    {
+      "pos": 87,
+      "title": "\"Percolator (Twist)\"",
+      "artist": "Billy Joe and the Checkmates"
+    },
+    {
+      "pos": 88,
+      "title": "\"Twist, Twist Senora\"",
+      "artist": "Gary U.S. Bonds"
+    },
+    {
+      "pos": 89,
+      "title": "\"Twistin' Matilda\"",
+      "artist": "Jimmy Soul"
+    },
+    {
+      "pos": 90,
+      "title": "\"Gravy (For My Mashed Potatoes)\"",
+      "artist": "Dee Dee Sharp"
+    },
+    {
+      "pos": 91,
+      "title": "\"Walk on the Wild Side\"",
+      "artist": "Jimmy Smith"
+    },
+    {
+      "pos": 92,
+      "title": "\"Soul Twist\"",
+      "artist": "King Curtis"
+    },
+    {
+      "pos": 93,
+      "title": "\"I'll Never Dance Again\"",
+      "artist": "Bobby Rydell"
+    },
+    {
+      "pos": 94,
+      "title": "\"I'm Blue (The Gong-Gong Song)\"",
+      "artist": "The Ikettes"
+    },
+    {
+      "pos": 95,
+      "title": "\"Where Have All the Flowers Gone?\"",
+      "artist": "The Kingston Trio"
+    },
+    {
+      "pos": 96,
+      "title": "\"(Girls, Girls, Girls) Made to Love\"",
+      "artist": "Eddie Hodges"
+    },
+    {
+      "pos": 97,
+      "title": "\"Town Without Pity\"",
+      "artist": "Gene Pitney"
+    },
+    {
+      "pos": 98,
+      "title": "\"If I Had a Hammer\"",
+      "artist": "Peter, Paul and Mary"
+    },
+    {
+      "pos": 99,
+      "title": "\"I Wish That We Were Married\"",
+      "artist": "Ronnie & the Hi-Lites"
+    },
+    {
+      "pos": 100,
+      "title": "\"Surfin' Safari\"",
+      "artist": "The Beach Boys"
+    }
+  ]
+}

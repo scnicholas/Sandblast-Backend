@@ -1,0 +1,512 @@
+{
+  "year": 1960,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1960",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Theme from A Summer Place\"",
+      "artist": "Percy Faith"
+    },
+    {
+      "pos": 2,
+      "title": "\"He'll Have to Go\"",
+      "artist": "Jim Reeves"
+    },
+    {
+      "pos": 3,
+      "title": "\"Cathy's Clown\"",
+      "artist": "The Everly Brothers"
+    },
+    {
+      "pos": 4,
+      "title": "\"Running Bear\"",
+      "artist": "Johnny Preston"
+    },
+    {
+      "pos": 5,
+      "title": "\"Teen Angel\"",
+      "artist": "Mark Dinning"
+    },
+    {
+      "pos": 6,
+      "title": "\"I'm Sorry\"",
+      "artist": "Brenda Lee"
+    },
+    {
+      "pos": 7,
+      "title": "\"It's Now or Never\"",
+      "artist": "Elvis Presley"
+    },
+    {
+      "pos": 8,
+      "title": "\"Handy Man\"",
+      "artist": "Jimmy Jones"
+    },
+    {
+      "pos": 9,
+      "title": "\"Stuck on You\"",
+      "artist": "Elvis Presley"
+    },
+    {
+      "pos": 10,
+      "title": "\"The Twist\"",
+      "artist": "Chubby Checker"
+    },
+    {
+      "pos": 11,
+      "title": "\"Everybody's Somebody's Fool\"",
+      "artist": "Connie Francis"
+    },
+    {
+      "pos": 12,
+      "title": "\"Wild One\"",
+      "artist": "Bobby Rydell"
+    },
+    {
+      "pos": 13,
+      "title": "\"Greenfields\"",
+      "artist": "The Brothers Four"
+    },
+    {
+      "pos": 14,
+      "title": "\"What in the World's Come Over You\"",
+      "artist": "Jack Scott"
+    },
+    {
+      "pos": 15,
+      "title": "\"El Paso\"",
+      "artist": "Marty Robbins"
+    },
+    {
+      "pos": 16,
+      "title": "\"Alley Oop\"",
+      "artist": "The Hollywood Argyles"
+    },
+    {
+      "pos": 17,
+      "title": "\"My Heart Has a Mind of Its Own\"",
+      "artist": "Connie Francis"
+    },
+    {
+      "pos": 18,
+      "title": "\"Sweet Nothin's\"",
+      "artist": "Brenda Lee"
+    },
+    {
+      "pos": 19,
+      "title": "\"Itsy Bitsy Teenie Weenie Yellow Polkadot Bikini\"",
+      "artist": "Brian Hyland"
+    },
+    {
+      "pos": 20,
+      "title": "\"Only the Lonely\"",
+      "artist": "Roy Orbison"
+    },
+    {
+      "pos": 21,
+      "title": "\"Where or When\"",
+      "artist": "Dion and the Belmonts"
+    },
+    {
+      "pos": 22,
+      "title": "\"Sixteen Reasons\"",
+      "artist": "Connie Stevens"
+    },
+    {
+      "pos": 23,
+      "title": "\"Puppy Love\"",
+      "artist": "Paul Anka"
+    },
+    {
+      "pos": 24,
+      "title": "\"Why\"",
+      "artist": "Frankie Avalon"
+    },
+    {
+      "pos": 25,
+      "title": "\"Walk, Don't Run\"",
+      "artist": "The Ventures"
+    },
+    {
+      "pos": 26,
+      "title": "\"Save the Last Dance for me\"",
+      "artist": "The Drifters"
+    },
+    {
+      "pos": 27,
+      "title": "\"Baby (You've Got What It Takes)\"",
+      "artist": "Dinah Washington & Brook Benton"
+    },
+    {
+      "pos": 28,
+      "title": "\"Sink the Bismarck\"",
+      "artist": "Johnny Horton"
+    },
+    {
+      "pos": 29,
+      "title": "\"Chain Gang\"",
+      "artist": "Sam Cooke"
+    },
+    {
+      "pos": 30,
+      "title": "\"Let It Be Me\"",
+      "artist": "The Everly Brothers"
+    },
+    {
+      "pos": 31,
+      "title": "\"Good Timin'\"",
+      "artist": "Jimmy Jones"
+    },
+    {
+      "pos": 32,
+      "title": "\"Beyond the Sea\"",
+      "artist": "Bobby Darin"
+    },
+    {
+      "pos": 33,
+      "title": "\"Go, Jimmy, Go\"",
+      "artist": "Jimmy Clanton"
+    },
+    {
+      "pos": 34,
+      "title": "\"Night\"",
+      "artist": "Jackie Wilson"
+    },
+    {
+      "pos": 35,
+      "title": "\"Burning Bridges\"",
+      "artist": "Jack Scott"
+    },
+    {
+      "pos": 36,
+      "title": "\"The Big Hurt\"",
+      "artist": "Toni Fisher"
+    },
+    {
+      "pos": 37,
+      "title": "\"Because They're Young\"",
+      "artist": "Duane Eddy"
+    },
+    {
+      "pos": 38,
+      "title": "\"Lonely Blue Boy\"",
+      "artist": "Conway Twitty"
+    },
+    {
+      "pos": 39,
+      "title": "\"Pretty Blue Eyes\"",
+      "artist": "Steve Lawrence"
+    },
+    {
+      "pos": 40,
+      "title": "\"Way Down Yonder in New Orleans\"",
+      "artist": "Freddy Cannon"
+    },
+    {
+      "pos": 41,
+      "title": "\"Paper Roses\"",
+      "artist": "Anita Bryant"
+    },
+    {
+      "pos": 42,
+      "title": "\"Mr. Custer\"",
+      "artist": "Larry Verne"
+    },
+    {
+      "pos": 43,
+      "title": "\"I Want to Be Wanted\"",
+      "artist": "Brenda Lee"
+    },
+    {
+      "pos": 44,
+      "title": "\"Mule Skinner Blues\"",
+      "artist": "The Fendermen"
+    },
+    {
+      "pos": 45,
+      "title": "\"Cradle of Love\"",
+      "artist": "Johnny Preston"
+    },
+    {
+      "pos": 46,
+      "title": "\"You Got What It Takes\"",
+      "artist": "Marv Johnson"
+    },
+    {
+      "pos": 47,
+      "title": "\"Please Help Me, I'm Falling\"",
+      "artist": "Hank Locklin"
+    },
+    {
+      "pos": 48,
+      "title": "\"Love You So\"",
+      "artist": "Ron Holden"
+    },
+    {
+      "pos": 49,
+      "title": "\"Finger Poppin' Time\"",
+      "artist": "Hank Ballard & The Midnighters"
+    },
+    {
+      "pos": 50,
+      "title": "\"Harbor Lights\"",
+      "artist": "The Platters"
+    },
+    {
+      "pos": 51,
+      "title": "\"Let the Little Girl Dance\"",
+      "artist": "Billy Bland"
+    },
+    {
+      "pos": 52,
+      "title": "\"He'll Have to Stay\"",
+      "artist": "Jeanne Black"
+    },
+    {
+      "pos": 53,
+      "title": "\"Theme from The Apartment\"",
+      "artist": "Ferrante & Teicher"
+    },
+    {
+      "pos": 54,
+      "title": "\"Volare\"",
+      "artist": "Bobby Rydell"
+    },
+    {
+      "pos": 55,
+      "title": "\"A Million to One\"",
+      "artist": "Jimmy Charles"
+    },
+    {
+      "pos": 56,
+      "title": "\"The Village of St. Bernadette\"",
+      "artist": "Andy Williams"
+    },
+    {
+      "pos": 57,
+      "title": "\"White Silver Sands\"",
+      "artist": "Bill Black's Combo"
+    },
+    {
+      "pos": 58,
+      "title": "\"The Old Lamp-Lighter\"",
+      "artist": "The Browns"
+    },
+    {
+      "pos": 59,
+      "title": "\"Devil or Angel\"",
+      "artist": "Bobby Vee"
+    },
+    {
+      "pos": 60,
+      "title": "\"Down by the Station\"",
+      "artist": "The Four Preps"
+    },
+    {
+      "pos": 61,
+      "title": "\"Forever\"",
+      "artist": "The Little Dippers"
+    },
+    {
+      "pos": 62,
+      "title": "\"Image of a Girl\"",
+      "artist": "The Safaris & The Phantom's Band"
+    },
+    {
+      "pos": 63,
+      "title": "\"Kiddio\"",
+      "artist": "Brook Benton"
+    },
+    {
+      "pos": 64,
+      "title": "\"Mission Bell\"",
+      "artist": "Donnie Brooks"
+    },
+    {
+      "pos": 65,
+      "title": "\"I Love the Way You Love\"",
+      "artist": "Marv Johnson"
+    },
+    {
+      "pos": 66,
+      "title": "\"It's Time to Cry\"",
+      "artist": "Paul Anka"
+    },
+    {
+      "pos": 67,
+      "title": "\"Tell Laura I Love Her\"",
+      "artist": "Ray Peterson"
+    },
+    {
+      "pos": 68,
+      "title": "\"Mama\"",
+      "artist": "Connie Francis"
+    },
+    {
+      "pos": 69,
+      "title": "\"Footsteps\"",
+      "artist": "Steve Lawrence"
+    },
+    {
+      "pos": 70,
+      "title": "\"So Sad\"",
+      "artist": "The Everly Brothers"
+    },
+    {
+      "pos": 71,
+      "title": "\"That's All You Gotta Do\"",
+      "artist": "Brenda Lee"
+    },
+    {
+      "pos": 72,
+      "title": "\"Walking to New Orleans\"",
+      "artist": "Fats Domino"
+    },
+    {
+      "pos": 73,
+      "title": "\"Among My Souvenirs\"",
+      "artist": "Connie Francis"
+    },
+    {
+      "pos": 74,
+      "title": "\"Swingin' School\"",
+      "artist": "Bobby Rydell"
+    },
+    {
+      "pos": 75,
+      "title": "\"A Rockin' Good Way (to Mess Around and Fall in Love)\"",
+      "artist": "Dinah Washington & Brook Benton"
+    },
+    {
+      "pos": 76,
+      "title": "\"Stairway to Heaven\"",
+      "artist": "Neil Sedaka"
+    },
+    {
+      "pos": 77,
+      "title": "\"My Home Town\"",
+      "artist": "Paul Anka"
+    },
+    {
+      "pos": 78,
+      "title": "\"Georgia on My Mind\"",
+      "artist": "Ray Charles"
+    },
+    {
+      "pos": 79,
+      "title": "\"Cherry Pie\"",
+      "artist": "Skip & Flip"
+    },
+    {
+      "pos": 80,
+      "title": "\"Wonderful World\"",
+      "artist": "Sam Cooke"
+    },
+    {
+      "pos": 81,
+      "title": "\"Tracy's Theme\"",
+      "artist": "Robert Mersey"
+    },
+    {
+      "pos": 82,
+      "title": "\"Lady Luck\"",
+      "artist": "Lloyd Price"
+    },
+    {
+      "pos": 83,
+      "title": "\"Step by Step\"",
+      "artist": "The Crests"
+    },
+    {
+      "pos": 84,
+      "title": "\"Happy-Go-Lucky Me\"",
+      "artist": "Paul Evans"
+    },
+    {
+      "pos": 85,
+      "title": "\"Young Emotions\"",
+      "artist": "Ricky Nelson"
+    },
+    {
+      "pos": 86,
+      "title": "\"Dreamin'\"",
+      "artist": "Johnny Burnette"
+    },
+    {
+      "pos": 87,
+      "title": "\"Poetry in Motion\"",
+      "artist": "Johnny Tillotson"
+    },
+    {
+      "pos": 88,
+      "title": "\"O Dio Mio\"",
+      "artist": "Annette Funicello"
+    },
+    {
+      "pos": 89,
+      "title": "\"You Talk Too Much\"",
+      "artist": "Joe Jones"
+    },
+    {
+      "pos": 90,
+      "title": "\"Beatnik Fly\"",
+      "artist": "Johnny and the Hurricanes"
+    },
+    {
+      "pos": 91,
+      "title": "\"When Will I Be Loved\"",
+      "artist": "The Everly Brothers"
+    },
+    {
+      "pos": 92,
+      "title": "\"Let's Think About Living\"",
+      "artist": "Bob Luman"
+    },
+    {
+      "pos": 93,
+      "title": "\"Heartaches by the Number\"",
+      "artist": "Guy Mitchell"
+    },
+    {
+      "pos": 94,
+      "title": "\"My Little Corner of the World\"",
+      "artist": "Anita Bryant"
+    },
+    {
+      "pos": 95,
+      "title": "\"Doggin' Around\"",
+      "artist": "Jackie Wilson"
+    },
+    {
+      "pos": 96,
+      "title": "\"Little Bitty Girl\"",
+      "artist": "Bobby Rydell"
+    },
+    {
+      "pos": 97,
+      "title": "\"Money (That's What I Want)\"",
+      "artist": "Barrett Strong"
+    },
+    {
+      "pos": 98,
+      "title": "\"Stay\"",
+      "artist": "Maurice Williams and the Zodiacs"
+    },
+    {
+      "pos": 99,
+      "title": "\"Lonely Weekends\"",
+      "artist": "Charlie Rich"
+    },
+    {
+      "pos": 100,
+      "title": "\"Sandy\"",
+      "artist": "Larry Hall"
+    }
+  ]
+}

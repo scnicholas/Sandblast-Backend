@@ -1,0 +1,512 @@
+{
+  "year": 2017,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_2017",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Shape of You\"",
+      "artist": "Ed Sheeran"
+    },
+    {
+      "pos": 2,
+      "title": "\"Despacito (Remix)\"",
+      "artist": "Luis Fonsi and Daddy Yankee featuring Justin Bieber"
+    },
+    {
+      "pos": 3,
+      "title": "\"That's What I Like\"",
+      "artist": "Bruno Mars"
+    },
+    {
+      "pos": 4,
+      "title": "\"Humble\"",
+      "artist": "Kendrick Lamar"
+    },
+    {
+      "pos": 5,
+      "title": "\"Something Just Like This\"",
+      "artist": "The Chainsmokers and Coldplay"
+    },
+    {
+      "pos": 6,
+      "title": "\"Bad and Boujee\"",
+      "artist": "Migos featuring Lil Uzi Vert"
+    },
+    {
+      "pos": 7,
+      "title": "\"Closer\"",
+      "artist": "The Chainsmokers featuring Halsey"
+    },
+    {
+      "pos": 8,
+      "title": "\"Body Like a Back Road\"",
+      "artist": "Sam Hunt"
+    },
+    {
+      "pos": 9,
+      "title": "\"Believer\"",
+      "artist": "Imagine Dragons"
+    },
+    {
+      "pos": 10,
+      "title": "\"Congratulations\"",
+      "artist": "Post Malone featuring Quavo"
+    },
+    {
+      "pos": 11,
+      "title": "\"Say You Won't Let Go\"",
+      "artist": "James Arthur"
+    },
+    {
+      "pos": 12,
+      "title": "\"I'm the One\"",
+      "artist": "DJ Khaled featuring Justin Bieber, Quavo, Chance the Rapper and Lil Wayne"
+    },
+    {
+      "pos": 13,
+      "title": "\"XO Tour Llif3\"",
+      "artist": "Lil Uzi Vert"
+    },
+    {
+      "pos": 14,
+      "title": "\"Mask Off\"",
+      "artist": "Future"
+    },
+    {
+      "pos": 15,
+      "title": "\"Unforgettable\"",
+      "artist": "French Montana featuring Swae Lee"
+    },
+    {
+      "pos": 16,
+      "title": "\"24K Magic\"",
+      "artist": "Bruno Mars"
+    },
+    {
+      "pos": 17,
+      "title": "\"Stay\"",
+      "artist": "Zedd and Alessia Cara"
+    },
+    {
+      "pos": 18,
+      "title": "\"Wild Thoughts\"",
+      "artist": "DJ Khaled featuring Rihanna and Bryson Tiller"
+    },
+    {
+      "pos": 19,
+      "title": "\"Black Beatles\"",
+      "artist": "Rae Sremmurd featuring Gucci Mane"
+    },
+    {
+      "pos": 20,
+      "title": "\"Starboy\"",
+      "artist": "The Weeknd featuring Daft Punk"
+    },
+    {
+      "pos": 21,
+      "title": "\"Location\"",
+      "artist": "Khalid"
+    },
+    {
+      "pos": 22,
+      "title": "\"Attention\"",
+      "artist": "Charlie Puth"
+    },
+    {
+      "pos": 23,
+      "title": "\"There's Nothing Holdin' Me Back\"",
+      "artist": "Shawn Mendes"
+    },
+    {
+      "pos": 24,
+      "title": "\"Bodak Yellow\"",
+      "artist": "Cardi B"
+    },
+    {
+      "pos": 25,
+      "title": "\"Redbone\"",
+      "artist": "Childish Gambino"
+    },
+    {
+      "pos": 26,
+      "title": "\"I Don't Wanna Live Forever\"",
+      "artist": "Zayn and Taylor Swift"
+    },
+    {
+      "pos": 27,
+      "title": "\"It Ain't Me\"",
+      "artist": "Kygo and Selena Gomez"
+    },
+    {
+      "pos": 28,
+      "title": "\"iSpy\"",
+      "artist": "Kyle featuring Lil Yachty"
+    },
+    {
+      "pos": 29,
+      "title": "\"Issues\"",
+      "artist": "Julia Michaels"
+    },
+    {
+      "pos": 30,
+      "title": "\"Scars to Your Beautiful\"",
+      "artist": "Alessia Cara"
+    },
+    {
+      "pos": 31,
+      "title": "\"1-800-273-8255\"",
+      "artist": "Logic featuring Alessia Cara and Khalid"
+    },
+    {
+      "pos": 32,
+      "title": "\"Slow Hands\"",
+      "artist": "Niall Horan"
+    },
+    {
+      "pos": 33,
+      "title": "\"Love on the Brain\"",
+      "artist": "Rihanna"
+    },
+    {
+      "pos": 34,
+      "title": "\"I Feel It Coming\"",
+      "artist": "The Weeknd featuring Daft Punk"
+    },
+    {
+      "pos": 35,
+      "title": "\"Bounce Back\"",
+      "artist": "Big Sean"
+    },
+    {
+      "pos": 36,
+      "title": "\"Strip That Down\"",
+      "artist": "Liam Payne featuring Quavo"
+    },
+    {
+      "pos": 37,
+      "title": "\"Fake Love\"",
+      "artist": "Drake"
+    },
+    {
+      "pos": 38,
+      "title": "\"Don't Wanna Know\"",
+      "artist": "Maroon 5 featuring Kendrick Lamar"
+    },
+    {
+      "pos": 39,
+      "title": "\"Look What You Made Me Do\"",
+      "artist": "Taylor Swift"
+    },
+    {
+      "pos": 40,
+      "title": "\"Castle on the Hill\"",
+      "artist": "Ed Sheeran"
+    },
+    {
+      "pos": 41,
+      "title": "\"Bad Things\"",
+      "artist": "Machine Gun Kelly and Camila Cabello"
+    },
+    {
+      "pos": 42,
+      "title": "\"Paris\"",
+      "artist": "The Chainsmokers"
+    },
+    {
+      "pos": 43,
+      "title": "\"Side to Side\"",
+      "artist": "Ariana Grande featuring Nicki Minaj"
+    },
+    {
+      "pos": 44,
+      "title": "\"Rockabye\"",
+      "artist": "Clean Bandit featuring Sean Paul and Anne-Marie"
+    },
+    {
+      "pos": 45,
+      "title": "\"Feel It Still\"",
+      "artist": "Portugal. The Man"
+    },
+    {
+      "pos": 46,
+      "title": "\"Let Me Love You\"",
+      "artist": "DJ Snake featuring Justin Bieber"
+    },
+    {
+      "pos": 47,
+      "title": "\"Sorry Not Sorry\"",
+      "artist": "Demi Lovato"
+    },
+    {
+      "pos": 48,
+      "title": "\"Bank Account\"",
+      "artist": "21 Savage"
+    },
+    {
+      "pos": 49,
+      "title": "\"Can't Stop the Feeling!\"",
+      "artist": "Justin Timberlake"
+    },
+    {
+      "pos": 50,
+      "title": "\"Mi Gente\"",
+      "artist": "J Balvin and Willy William featuring Beyoncé"
+    },
+    {
+      "pos": 51,
+      "title": "\"Thunder\"",
+      "artist": "Imagine Dragons"
+    },
+    {
+      "pos": 52,
+      "title": "\"T-shirt\"",
+      "artist": "Migos"
+    },
+    {
+      "pos": 53,
+      "title": "\"Rake It Up\"",
+      "artist": "Yo Gotti featuring Nicki Minaj"
+    },
+    {
+      "pos": 54,
+      "title": "\"Mercy\"",
+      "artist": "Shawn Mendes"
+    },
+    {
+      "pos": 55,
+      "title": "\"Tunnel Vision\"",
+      "artist": "Kodak Black"
+    },
+    {
+      "pos": 56,
+      "title": "\"Rockstar\"",
+      "artist": "Post Malone featuring 21 Savage"
+    },
+    {
+      "pos": 57,
+      "title": "\"In Case You Didn't Know\"",
+      "artist": "Brett Young"
+    },
+    {
+      "pos": 58,
+      "title": "\"Heathens\"",
+      "artist": "Twenty One Pilots"
+    },
+    {
+      "pos": 59,
+      "title": "\"Now or Never\"",
+      "artist": "Halsey"
+    },
+    {
+      "pos": 60,
+      "title": "\"Caroline\"",
+      "artist": "Aminé"
+    },
+    {
+      "pos": 61,
+      "title": "\"Rolex\"",
+      "artist": "Ayo & Teo"
+    },
+    {
+      "pos": 62,
+      "title": "\"DNA\"",
+      "artist": "Kendrick Lamar"
+    },
+    {
+      "pos": 63,
+      "title": "\"Juju on That Beat (TZ Anthem)\"",
+      "artist": "Zay Hilfigerrr & Zayion McCall"
+    },
+    {
+      "pos": 64,
+      "title": "\"Swang\"",
+      "artist": "Rae Sremmurd"
+    },
+    {
+      "pos": 65,
+      "title": "\"Passionfruit\"",
+      "artist": "Drake"
+    },
+    {
+      "pos": 66,
+      "title": "\"Loyalty\"",
+      "artist": "Kendrick Lamar featuring Rihanna"
+    },
+    {
+      "pos": 67,
+      "title": "\"Praying\"",
+      "artist": "Kesha"
+    },
+    {
+      "pos": 68,
+      "title": "\"Goosebumps\"",
+      "artist": "Travis Scott"
+    },
+    {
+      "pos": 69,
+      "title": "\"Cold\"",
+      "artist": "Maroon 5 featuring Future"
+    },
+    {
+      "pos": 70,
+      "title": "\"Broccoli\"",
+      "artist": "DRAM featuring Lil Yachty"
+    },
+    {
+      "pos": 71,
+      "title": "\"Slide\"",
+      "artist": "Calvin Harris featuring Frank Ocean and Migos"
+    },
+    {
+      "pos": 72,
+      "title": "\"What Ifs\"",
+      "artist": "Kane Brown featuring Lauren Alaina"
+    },
+    {
+      "pos": 73,
+      "title": "\"Chained to the Rhythm\"",
+      "artist": "Katy Perry featuring Skip Marley"
+    },
+    {
+      "pos": 74,
+      "title": "\"Feels\"",
+      "artist": "Calvin Harris featuring Pharrell Williams, Katy Perry and Big Sean"
+    },
+    {
+      "pos": 75,
+      "title": "\"All Time Low\"",
+      "artist": "Jon Bellion"
+    },
+    {
+      "pos": 76,
+      "title": "\"Hurricane\"",
+      "artist": "Luke Combs"
+    },
+    {
+      "pos": 77,
+      "title": "\"Too Good at Goodbyes\"",
+      "artist": "Sam Smith"
+    },
+    {
+      "pos": 78,
+      "title": "\"Young Dumb & Broke\"",
+      "artist": "Khalid"
+    },
+    {
+      "pos": 79,
+      "title": "\"Magnolia\"",
+      "artist": "Playboi Carti"
+    },
+    {
+      "pos": 80,
+      "title": "\"Love Galore\"",
+      "artist": "SZA featuring Travis Scott"
+    },
+    {
+      "pos": 81,
+      "title": "\"Drowning\"",
+      "artist": "A Boogie wit da Hoodie featuring Kodak Black"
+    },
+    {
+      "pos": 82,
+      "title": "\"Starving\"",
+      "artist": "Hailee Steinfeld and Grey featuring Zedd"
+    },
+    {
+      "pos": 83,
+      "title": "\"Both\"",
+      "artist": "Gucci Mane featuring Drake"
+    },
+    {
+      "pos": 84,
+      "title": "\"What About Us\"",
+      "artist": "P!nk"
+    },
+    {
+      "pos": 85,
+      "title": "\"Swalla\"",
+      "artist": "Jason Derulo featuring Nicki Minaj and Ty Dolla Sign"
+    },
+    {
+      "pos": 86,
+      "title": "\"Slippery\"",
+      "artist": "Migos featuring Gucci Mane"
+    },
+    {
+      "pos": 87,
+      "title": "\"Sign of the Times\"",
+      "artist": "Harry Styles"
+    },
+    {
+      "pos": 88,
+      "title": "\"Water Under the Bridge\"",
+      "artist": "Adele"
+    },
+    {
+      "pos": 89,
+      "title": "\"Malibu\"",
+      "artist": "Miley Cyrus"
+    },
+    {
+      "pos": 90,
+      "title": "\"Down\"",
+      "artist": "Marian Hill"
+    },
+    {
+      "pos": 91,
+      "title": "\"No Promises\"",
+      "artist": "Cheat Codes featuring Demi Lovato"
+    },
+    {
+      "pos": 92,
+      "title": "\"Treat You Better\"",
+      "artist": "Shawn Mendes"
+    },
+    {
+      "pos": 93,
+      "title": "\"I Get the Bag\"",
+      "artist": "Gucci Mane featuring Migos"
+    },
+    {
+      "pos": 94,
+      "title": "\"Small Town Boy\"",
+      "artist": "Dustin Lynch"
+    },
+    {
+      "pos": 95,
+      "title": "\"Everyday We Lit\"",
+      "artist": "YFN Lucci featuring PnB Rock"
+    },
+    {
+      "pos": 96,
+      "title": "\"Havana\"",
+      "artist": "Camila Cabello featuring Young Thug"
+    },
+    {
+      "pos": 97,
+      "title": "\"What Lovers Do\"",
+      "artist": "Maroon 5 featuring SZA"
+    },
+    {
+      "pos": 98,
+      "title": "\"Do Re Mi\"",
+      "artist": "Blackbear"
+    },
+    {
+      "pos": 99,
+      "title": "\"Look at Me!\"",
+      "artist": "XXXTentacion"
+    },
+    {
+      "pos": 100,
+      "title": "\"The Fighter\"",
+      "artist": "Keith Urban featuring Carrie Underwood"
+    }
+  ]
+}

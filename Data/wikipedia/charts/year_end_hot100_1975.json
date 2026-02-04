@@ -1,0 +1,512 @@
+{
+  "year": 1975,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1975",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Love Will Keep Us Together\"",
+      "artist": "Captain & Tennille"
+    },
+    {
+      "pos": 2,
+      "title": "\"Rhinestone Cowboy\"",
+      "artist": "Glen Campbell"
+    },
+    {
+      "pos": 3,
+      "title": "\"Philadelphia Freedom\"",
+      "artist": "Elton John"
+    },
+    {
+      "pos": 4,
+      "title": "\"Before the Next Teardrop Falls\"",
+      "artist": "Freddy Fender"
+    },
+    {
+      "pos": 5,
+      "title": "\"My Eyes Adored You\"",
+      "artist": "Frankie Valli"
+    },
+    {
+      "pos": 6,
+      "title": "\"Some Kind of Wonderful\"",
+      "artist": "Grand Funk Railroad"
+    },
+    {
+      "pos": 7,
+      "title": "\"Shining Star\"",
+      "artist": "Earth, Wind & Fire"
+    },
+    {
+      "pos": 8,
+      "title": "\"Fame\"",
+      "artist": "David Bowie"
+    },
+    {
+      "pos": 9,
+      "title": "\"Laughter in the Rain\"",
+      "artist": "Neil Sedaka"
+    },
+    {
+      "pos": 10,
+      "title": "\"One of These Nights\"",
+      "artist": "Eagles"
+    },
+    {
+      "pos": 11,
+      "title": "\"Thank God I'm a Country Boy\"",
+      "artist": "John Denver"
+    },
+    {
+      "pos": 12,
+      "title": "\"Jive Talkin'\"",
+      "artist": "Bee Gees"
+    },
+    {
+      "pos": 13,
+      "title": "\"Best of My Love\"",
+      "artist": "Eagles"
+    },
+    {
+      "pos": 14,
+      "title": "\"Lovin' You\"",
+      "artist": "Minnie Riperton"
+    },
+    {
+      "pos": 15,
+      "title": "\"Kung Fu Fighting\"",
+      "artist": "Carl Douglas"
+    },
+    {
+      "pos": 16,
+      "title": "\"Black Water\"",
+      "artist": "The Doobie Brothers"
+    },
+    {
+      "pos": 17,
+      "title": "\"The Ballroom Blitz\"",
+      "artist": "Sweet"
+    },
+    {
+      "pos": 18,
+      "title": "\"(Hey Won't You Play) Another Somebody Done Somebody Wrong Song\"",
+      "artist": "B.J. Thomas"
+    },
+    {
+      "pos": 19,
+      "title": "\"He Don't Love You (Like I Love You)\"",
+      "artist": "Tony Orlando and Dawn"
+    },
+    {
+      "pos": 20,
+      "title": "\"At Seventeen\"",
+      "artist": "Janis Ian"
+    },
+    {
+      "pos": 21,
+      "title": "\"Pick Up the Pieces\"",
+      "artist": "Average White Band"
+    },
+    {
+      "pos": 22,
+      "title": "\"The Hustle\"",
+      "artist": "Van McCoy & the Soul City Symphony"
+    },
+    {
+      "pos": 23,
+      "title": "\"Lady Marmalade\"",
+      "artist": "Labelle"
+    },
+    {
+      "pos": 24,
+      "title": "\"Why Can't We Be Friends?\"",
+      "artist": "War"
+    },
+    {
+      "pos": 25,
+      "title": "\"Love Won't Let Me Wait\"",
+      "artist": "Major Harris"
+    },
+    {
+      "pos": 26,
+      "title": "\"Boogie On Reggae Woman\"",
+      "artist": "Stevie Wonder"
+    },
+    {
+      "pos": 27,
+      "title": "\"Wasted Days and Wasted Nights\"",
+      "artist": "Freddy Fender"
+    },
+    {
+      "pos": 28,
+      "title": "\"Angie Baby\"",
+      "artist": "Helen Reddy"
+    },
+    {
+      "pos": 29,
+      "title": "\"Fight the Power\"",
+      "artist": "The Isley Brothers"
+    },
+    {
+      "pos": 30,
+      "title": "\"Jackie Blue\"",
+      "artist": "Ozark Mountain Daredevils"
+    },
+    {
+      "pos": 31,
+      "title": "\"Fire\"",
+      "artist": "Ohio Players"
+    },
+    {
+      "pos": 32,
+      "title": "\"Magic\"",
+      "artist": "Pilot"
+    },
+    {
+      "pos": 33,
+      "title": "\"Please Mr. Postman\"",
+      "artist": "The Carpenters"
+    },
+    {
+      "pos": 34,
+      "title": "\"Sister Golden Hair\"",
+      "artist": "America"
+    },
+    {
+      "pos": 35,
+      "title": "\"Lucy in the Sky with Diamonds\"",
+      "artist": "Elton John"
+    },
+    {
+      "pos": 36,
+      "title": "\"Mandy\"",
+      "artist": "Barry Manilow"
+    },
+    {
+      "pos": 37,
+      "title": "\"Have You Never Been Mellow\"",
+      "artist": "Olivia Newton-John"
+    },
+    {
+      "pos": 38,
+      "title": "\"Could It Be Magic\"",
+      "artist": "Barry Manilow"
+    },
+    {
+      "pos": 39,
+      "title": "\"Cat's in the Cradle\"",
+      "artist": "Harry Chapin"
+    },
+    {
+      "pos": 40,
+      "title": "\"Wildfire\"",
+      "artist": "Michael Martin Murphey"
+    },
+    {
+      "pos": 41,
+      "title": "\"I'm Not Lisa\"",
+      "artist": "Jessi Colter"
+    },
+    {
+      "pos": 42,
+      "title": "\"Listen to What the Man Said\"",
+      "artist": "Wings"
+    },
+    {
+      "pos": 43,
+      "title": "\"I'm Not in Love\"",
+      "artist": "10cc"
+    },
+    {
+      "pos": 44,
+      "title": "\"I Can Help\"",
+      "artist": "Billy Swan"
+    },
+    {
+      "pos": 45,
+      "title": "\"Fallin' in Love\"",
+      "artist": "Hamilton, Joe Frank & Reynolds"
+    },
+    {
+      "pos": 46,
+      "title": "\"Feelings\"",
+      "artist": "Morris Albert"
+    },
+    {
+      "pos": 47,
+      "title": "\"When Will I Be Loved\"",
+      "artist": "Linda Ronstadt"
+    },
+    {
+      "pos": 48,
+      "title": "\"Chevy Van\"",
+      "artist": "Sammy Johns"
+    },
+    {
+      "pos": 49,
+      "title": "\"You're the First, the Last, My Everything\"",
+      "artist": "Barry White"
+    },
+    {
+      "pos": 50,
+      "title": "\"Please Mr. Please\"",
+      "artist": "Olivia Newton-John"
+    },
+    {
+      "pos": 51,
+      "title": "\"You're No Good\"",
+      "artist": "Linda Ronstadt"
+    },
+    {
+      "pos": 52,
+      "title": "\"Dynomite\"",
+      "artist": "Bazuka"
+    },
+    {
+      "pos": 53,
+      "title": "\"Walking in Rhythm\"",
+      "artist": "The Blackbyrds"
+    },
+    {
+      "pos": 54,
+      "title": "\"The Way We Were/Try to Remember\"",
+      "artist": "Gladys Knight & the Pips"
+    },
+    {
+      "pos": 55,
+      "title": "\"Midnight Blue\"",
+      "artist": "Melissa Manchester"
+    },
+    {
+      "pos": 56,
+      "title": "\"Don't Call Us, We'll Call You\"",
+      "artist": "Sugarloaf"
+    },
+    {
+      "pos": 57,
+      "title": "\"Poetry Man\"",
+      "artist": "Phoebe Snow"
+    },
+    {
+      "pos": 58,
+      "title": "\"How Long?\"",
+      "artist": "Ace"
+    },
+    {
+      "pos": 59,
+      "title": "\"Express\"",
+      "artist": "B.T. Express"
+    },
+    {
+      "pos": 60,
+      "title": "\"That's the Way of the World\"",
+      "artist": "Earth, Wind & Fire"
+    },
+    {
+      "pos": 61,
+      "title": "\"Lady\"",
+      "artist": "Styx"
+    },
+    {
+      "pos": 62,
+      "title": "\"Bad Time\"",
+      "artist": "Grand Funk"
+    },
+    {
+      "pos": 63,
+      "title": "\"Only Women Bleed\"",
+      "artist": "Alice Cooper"
+    },
+    {
+      "pos": 64,
+      "title": "\"Doctor's Orders\"",
+      "artist": "Carol Douglas"
+    },
+    {
+      "pos": 65,
+      "title": "\"Get Down Tonight\"",
+      "artist": "KC and the Sunshine Band"
+    },
+    {
+      "pos": 66,
+      "title": "\"One Man Woman/One Woman Man\"",
+      "artist": "Paul Anka & Odia Coates"
+    },
+    {
+      "pos": 67,
+      "title": "\"You Are So Beautiful\"",
+      "artist": "Joe Cocker"
+    },
+    {
+      "pos": 68,
+      "title": "\"Feel Like Makin' Love\"",
+      "artist": "Bad Company"
+    },
+    {
+      "pos": 69,
+      "title": "\"How Sweet It Is (To Be Loved by You)\"",
+      "artist": "James Taylor"
+    },
+    {
+      "pos": 70,
+      "title": "\"Dance with Me\"",
+      "artist": "Orleans"
+    },
+    {
+      "pos": 71,
+      "title": "\"Cut the Cake\"",
+      "artist": "Average White Band"
+    },
+    {
+      "pos": 72,
+      "title": "\"Never Can Say Goodbye\"",
+      "artist": "Gloria Gaynor"
+    },
+    {
+      "pos": 73,
+      "title": "\"I Don't Like to Sleep Alone\"",
+      "artist": "Paul Anka & Odia Coates"
+    },
+    {
+      "pos": 74,
+      "title": "\"Morning Side of the Mountain\"",
+      "artist": "Donny & Marie Osmond"
+    },
+    {
+      "pos": 75,
+      "title": "\"When Will I See You Again\"",
+      "artist": "The Three Degrees"
+    },
+    {
+      "pos": 76,
+      "title": "\"Get Down, Get Down (Get on the Floor)\"",
+      "artist": "Joe Simon"
+    },
+    {
+      "pos": 77,
+      "title": "\"I'm Sorry\"",
+      "artist": "John Denver"
+    },
+    {
+      "pos": 78,
+      "title": "\"Killer Queen\"",
+      "artist": "Queen"
+    },
+    {
+      "pos": 79,
+      "title": "\"Shoeshine Boy\"",
+      "artist": "Eddie Kendricks"
+    },
+    {
+      "pos": 80,
+      "title": "\"Do It ('Til You're Satisfied)\"",
+      "artist": "B.T. Express"
+    },
+    {
+      "pos": 81,
+      "title": "\"Can't Get It Out of My Head\"",
+      "artist": "Electric Light Orchestra"
+    },
+    {
+      "pos": 82,
+      "title": "\"Sha-La-La (Make Me Happy)\"",
+      "artist": "Al Green"
+    },
+    {
+      "pos": 83,
+      "title": "\"Lonely People\"",
+      "artist": "America"
+    },
+    {
+      "pos": 84,
+      "title": "\"You Got the Love\"",
+      "artist": "Rufus"
+    },
+    {
+      "pos": 85,
+      "title": "\"The Rockford Files Theme\"",
+      "artist": "Mike Post"
+    },
+    {
+      "pos": 86,
+      "title": "\"It Only Takes a Minute\"",
+      "artist": "Tavares"
+    },
+    {
+      "pos": 87,
+      "title": "\"No No Song\"",
+      "artist": "Ringo Starr"
+    },
+    {
+      "pos": 88,
+      "title": "\"Junior's Farm\"",
+      "artist": "Paul McCartney & Wings"
+    },
+    {
+      "pos": 89,
+      "title": "\"Bungle in the Jungle\"",
+      "artist": "Jethro Tull"
+    },
+    {
+      "pos": 90,
+      "title": "\"Long Tall Glasses (I Can Dance)\"",
+      "artist": "Leo Sayer"
+    },
+    {
+      "pos": 91,
+      "title": "\"Misty\"",
+      "artist": "Ray Stevens"
+    },
+    {
+      "pos": 92,
+      "title": "\"Someone Saved My Life Tonight\"",
+      "artist": "Elton John"
+    },
+    {
+      "pos": 93,
+      "title": "\"Bad Blood\"",
+      "artist": "Neil Sedaka"
+    },
+    {
+      "pos": 94,
+      "title": "\"Only Yesterday\"",
+      "artist": "The Carpenters"
+    },
+    {
+      "pos": 95,
+      "title": "\"I'm on Fire\"",
+      "artist": "Dwight Twilley Band"
+    },
+    {
+      "pos": 96,
+      "title": "\"Only You (And You Alone)\"",
+      "artist": "Ringo Starr"
+    },
+    {
+      "pos": 97,
+      "title": "\"Third Rate Romance\"",
+      "artist": "Amazing Rhythm Aces"
+    },
+    {
+      "pos": 98,
+      "title": "\"You Ain't Seen Nothing Yet\"",
+      "artist": "Bachman–Turner Overdrive"
+    },
+    {
+      "pos": 99,
+      "title": "\"Swearin' to God\"",
+      "artist": "Frankie Valli"
+    },
+    {
+      "pos": 100,
+      "title": "\"Get Dancin'\"",
+      "artist": "Disco-Tex and the Sex-O-Lettes"
+    }
+  ]
+}

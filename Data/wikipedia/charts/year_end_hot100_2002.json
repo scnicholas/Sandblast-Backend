@@ -1,0 +1,512 @@
+{
+  "year": 2002,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_2002",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"How You Remind Me\"",
+      "artist": "Nickelback"
+    },
+    {
+      "pos": 2,
+      "title": "\"Foolish\"",
+      "artist": "Ashanti"
+    },
+    {
+      "pos": 3,
+      "title": "\"Hot in Herre\"",
+      "artist": "Nelly"
+    },
+    {
+      "pos": 4,
+      "title": "\"Dilemma\"",
+      "artist": "Nelly featuring Kelly Rowland"
+    },
+    {
+      "pos": 5,
+      "title": "\"Wherever You Will Go\"",
+      "artist": "The Calling"
+    },
+    {
+      "pos": 6,
+      "title": "\"A Thousand Miles\"",
+      "artist": "Vanessa Carlton"
+    },
+    {
+      "pos": 7,
+      "title": "\"In the End\"",
+      "artist": "Linkin Park"
+    },
+    {
+      "pos": 8,
+      "title": "\"What's Luv?\"",
+      "artist": "Fat Joe featuring Ashanti"
+    },
+    {
+      "pos": 9,
+      "title": "\"U Got It Bad\"",
+      "artist": "Usher"
+    },
+    {
+      "pos": 10,
+      "title": "\"Blurry\"",
+      "artist": "Puddle of Mudd"
+    },
+    {
+      "pos": 11,
+      "title": "\"Complicated\"",
+      "artist": "Avril Lavigne"
+    },
+    {
+      "pos": 12,
+      "title": "\"Always on Time\"",
+      "artist": "Ja Rule featuring Ashanti"
+    },
+    {
+      "pos": 13,
+      "title": "\"Ain't It Funny (Murder Remix)\"",
+      "artist": "Jennifer Lopez featuring Ja Rule"
+    },
+    {
+      "pos": 14,
+      "title": "\"The Middle\"",
+      "artist": "Jimmy Eat World"
+    },
+    {
+      "pos": 15,
+      "title": "\"I Need a Girl (Part One)\"",
+      "artist": "P. Diddy featuring Usher and Loon"
+    },
+    {
+      "pos": 16,
+      "title": "\"U Don't Have to Call\"",
+      "artist": "Usher"
+    },
+    {
+      "pos": 17,
+      "title": "\"Family Affair\"",
+      "artist": "Mary J. Blige"
+    },
+    {
+      "pos": 18,
+      "title": "\"I Need a Girl (Part Two)\"",
+      "artist": "P. Diddy featuring Ginuwine, Loon and Mario Winans"
+    },
+    {
+      "pos": 19,
+      "title": "\"Gangsta Lovin'\"",
+      "artist": "Eve featuring Alicia Keys"
+    },
+    {
+      "pos": 20,
+      "title": "\"My Sacrifice\"",
+      "artist": "Creed"
+    },
+    {
+      "pos": 21,
+      "title": "\"Without Me\"",
+      "artist": "Eminem"
+    },
+    {
+      "pos": 22,
+      "title": "\"Hero\"",
+      "artist": "Enrique Iglesias"
+    },
+    {
+      "pos": 23,
+      "title": "\"All You Wanted\"",
+      "artist": "Michelle Branch"
+    },
+    {
+      "pos": 24,
+      "title": "\"Get the Party Started\"",
+      "artist": "Pink"
+    },
+    {
+      "pos": 25,
+      "title": "\"Hero\"",
+      "artist": "Chad Kroeger featuring Josey Scott"
+    },
+    {
+      "pos": 26,
+      "title": "\"Wasting My Time\"",
+      "artist": "Default"
+    },
+    {
+      "pos": 27,
+      "title": "\"One Last Breath\"",
+      "artist": "Creed"
+    },
+    {
+      "pos": 28,
+      "title": "\"Whenever, Wherever\"",
+      "artist": "Shakira"
+    },
+    {
+      "pos": 29,
+      "title": "\"I'm Gonna Be Alright\"",
+      "artist": "Jennifer Lopez featuring Nas"
+    },
+    {
+      "pos": 30,
+      "title": "\"Oh Boy\"",
+      "artist": "Cam'ron featuring Juelz Santana"
+    },
+    {
+      "pos": 31,
+      "title": "\"Heaven\"",
+      "artist": "DJ Sammy featuring Yanou and Do"
+    },
+    {
+      "pos": 32,
+      "title": "\"Hey Baby\"",
+      "artist": "No Doubt featuring Bounty Killer"
+    },
+    {
+      "pos": 33,
+      "title": "\"Girlfriend\"",
+      "artist": "NSYNC featuring Nelly"
+    },
+    {
+      "pos": 34,
+      "title": "\"Just a Friend 2002\"",
+      "artist": "Mario"
+    },
+    {
+      "pos": 35,
+      "title": "\"Soak Up the Sun\"",
+      "artist": "Sheryl Crow"
+    },
+    {
+      "pos": 36,
+      "title": "\"Don't Let Me Get Me\"",
+      "artist": "Pink"
+    },
+    {
+      "pos": 37,
+      "title": "\"Nothin'\"",
+      "artist": "N.O.R.E."
+    },
+    {
+      "pos": 38,
+      "title": "\"Oops (Oh My)\"",
+      "artist": "Tweet featuring Missy Elliott"
+    },
+    {
+      "pos": 39,
+      "title": "\"A Moment Like This\"",
+      "artist": "Kelly Clarkson"
+    },
+    {
+      "pos": 40,
+      "title": "\"Addictive\"",
+      "artist": "Truth Hurts featuring Rakim"
+    },
+    {
+      "pos": 41,
+      "title": "\"Happy\"",
+      "artist": "Ashanti"
+    },
+    {
+      "pos": 42,
+      "title": "\"No Such Thing\"",
+      "artist": "John Mayer"
+    },
+    {
+      "pos": 43,
+      "title": "\"Just Like a Pill\"",
+      "artist": "Pink"
+    },
+    {
+      "pos": 44,
+      "title": "\"Down 4 U\"",
+      "artist": "Ja Rule featuring Ashanti, Charli Baltimore and Vita"
+    },
+    {
+      "pos": 45,
+      "title": "\"Can't Get You Out of My Head\"",
+      "artist": "Kylie Minogue"
+    },
+    {
+      "pos": 46,
+      "title": "\"Superman (It's Not Easy)\"",
+      "artist": "Five for Fighting"
+    },
+    {
+      "pos": 47,
+      "title": "\"Cleanin' Out My Closet\"",
+      "artist": "Eminem"
+    },
+    {
+      "pos": 48,
+      "title": "\"Halfcrazy\"",
+      "artist": "Musiq Soulchild"
+    },
+    {
+      "pos": 49,
+      "title": "\"Lights, Camera, Action!\"",
+      "artist": "Mr. Cheeks"
+    },
+    {
+      "pos": 50,
+      "title": "\"Still Fly\"",
+      "artist": "Big Tymers"
+    },
+    {
+      "pos": 51,
+      "title": "\"A Woman's Worth\"",
+      "artist": "Alicia Keys"
+    },
+    {
+      "pos": 52,
+      "title": "\"7 Days\"",
+      "artist": "Craig David"
+    },
+    {
+      "pos": 53,
+      "title": "\"Hey Ma\"",
+      "artist": "Cam'ron featuring Juelz Santana and Freekey Zekey"
+    },
+    {
+      "pos": 54,
+      "title": "\"Work It\"",
+      "artist": "Missy Elliott"
+    },
+    {
+      "pos": 55,
+      "title": "\"Move Bitch\"",
+      "artist": "Ludacris featuring Mystikal and I-20"
+    },
+    {
+      "pos": 56,
+      "title": "\"Can't Fight the Moonlight\"",
+      "artist": "LeAnn Rimes"
+    },
+    {
+      "pos": 57,
+      "title": "\"Escape\"",
+      "artist": "Enrique Iglesias"
+    },
+    {
+      "pos": 58,
+      "title": "\"More Than A Woman\"",
+      "artist": "Aaliyah"
+    },
+    {
+      "pos": 59,
+      "title": "\"Hella Good\"",
+      "artist": "No Doubt"
+    },
+    {
+      "pos": 60,
+      "title": "\"I Love You\"",
+      "artist": "Faith Evans"
+    },
+    {
+      "pos": 61,
+      "title": "\"Gotta Get thru This\"",
+      "artist": "Daniel Bedingfield"
+    },
+    {
+      "pos": 62,
+      "title": "\"Pass the Courvoisier, Part II\"",
+      "artist": "Busta Rhymes featuring P. Diddy and Pharrell"
+    },
+    {
+      "pos": 63,
+      "title": "\"Lose Yourself\"",
+      "artist": "Eminem"
+    },
+    {
+      "pos": 64,
+      "title": "\"Butterflies\"",
+      "artist": "Michael Jackson"
+    },
+    {
+      "pos": 65,
+      "title": "\"What About Us?\"",
+      "artist": "Brandy"
+    },
+    {
+      "pos": 66,
+      "title": "\"Underneath Your Clothes\"",
+      "artist": "Shakira"
+    },
+    {
+      "pos": 67,
+      "title": "\"Rainy Dayz\"",
+      "artist": "Mary J. Blige featuring Ja Rule"
+    },
+    {
+      "pos": 68,
+      "title": "\"Differences\"",
+      "artist": "Ginuwine"
+    },
+    {
+      "pos": 69,
+      "title": "\"If I Could Go!\"",
+      "artist": "Angie Martinez featuring Lil' Mo and Sacario"
+    },
+    {
+      "pos": 70,
+      "title": "\"The Whole World\"",
+      "artist": "Outkast featuring Killer Mike"
+    },
+    {
+      "pos": 71,
+      "title": "\"Underneath It All\"",
+      "artist": "No Doubt featuring Lady Saw"
+    },
+    {
+      "pos": 72,
+      "title": "\"Caramel\"",
+      "artist": "City High featuring Eve"
+    },
+    {
+      "pos": 73,
+      "title": "\"Luv U Better\"",
+      "artist": "LL Cool J"
+    },
+    {
+      "pos": 74,
+      "title": "\"Gimme the Light\"",
+      "artist": "Sean Paul"
+    },
+    {
+      "pos": 75,
+      "title": "\"Gone\"",
+      "artist": "NSYNC"
+    },
+    {
+      "pos": 76,
+      "title": "\"Livin' It Up\"",
+      "artist": "Ja Rule featuring Case"
+    },
+    {
+      "pos": 77,
+      "title": "\"Rollout (My Business)\"",
+      "artist": "Ludacris"
+    },
+    {
+      "pos": 78,
+      "title": "\"Here Is Gone\"",
+      "artist": "Goo Goo Dolls"
+    },
+    {
+      "pos": 79,
+      "title": "\"No More Drama\"",
+      "artist": "Mary J. Blige"
+    },
+    {
+      "pos": 80,
+      "title": "\"Days Go By\"",
+      "artist": "Dirty Vegas"
+    },
+    {
+      "pos": 81,
+      "title": "\"Baby\"",
+      "artist": "Ashanti"
+    },
+    {
+      "pos": 82,
+      "title": "\"The Good Stuff\"",
+      "artist": "Kenny Chesney"
+    },
+    {
+      "pos": 83,
+      "title": "\"We Thuggin'\"",
+      "artist": "Fat Joe featuring R. Kelly"
+    },
+    {
+      "pos": 84,
+      "title": "\"Good Morning Beautiful\"",
+      "artist": "Steve Holy"
+    },
+    {
+      "pos": 85,
+      "title": "\"Rock the Boat\"",
+      "artist": "Aaliyah"
+    },
+    {
+      "pos": 86,
+      "title": "\"Drive (For Daddy Gene)\"",
+      "artist": "Alan Jackson"
+    },
+    {
+      "pos": 87,
+      "title": "\"Standing Still\"",
+      "artist": "Jewel"
+    },
+    {
+      "pos": 88,
+      "title": "\"Anything\"",
+      "artist": "Jaheim featuring Next"
+    },
+    {
+      "pos": 89,
+      "title": "\"Full Moon\"",
+      "artist": "Brandy"
+    },
+    {
+      "pos": 90,
+      "title": "\"Uh Huh\"",
+      "artist": "B2K"
+    },
+    {
+      "pos": 91,
+      "title": "\"A New Day Has Come\"",
+      "artist": "Celine Dion"
+    },
+    {
+      "pos": 92,
+      "title": "\"Turn Off the Light\"",
+      "artist": "Nelly Furtado"
+    },
+    {
+      "pos": 93,
+      "title": "\"Living and Living Well\"",
+      "artist": "George Strait"
+    },
+    {
+      "pos": 94,
+      "title": "\"My List\"",
+      "artist": "Toby Keith"
+    },
+    {
+      "pos": 95,
+      "title": "\"Hands Clean\"",
+      "artist": "Alanis Morissette"
+    },
+    {
+      "pos": 96,
+      "title": "\"Sk8er Boi\"",
+      "artist": "Avril Lavigne"
+    },
+    {
+      "pos": 97,
+      "title": "\"Long Time Gone\"",
+      "artist": "Dixie Chicks"
+    },
+    {
+      "pos": 98,
+      "title": "\"Where Were You (When the World Stopped Turning)\"",
+      "artist": "Alan Jackson"
+    },
+    {
+      "pos": 99,
+      "title": "\"Like I Love You\"",
+      "artist": "Justin Timberlake"
+    },
+    {
+      "pos": 100,
+      "title": "\"I Do!!\"",
+      "artist": "Toya"
+    }
+  ]
+}

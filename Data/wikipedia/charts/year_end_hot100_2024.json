@@ -1,0 +1,512 @@
+{
+  "year": 2024,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_2024",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Lose Control\"",
+      "artist": "Teddy Swims"
+    },
+    {
+      "pos": 2,
+      "title": "\"A Bar Song (Tipsy)\"",
+      "artist": "Shaboozey"
+    },
+    {
+      "pos": 3,
+      "title": "\"Beautiful Things\"",
+      "artist": "Benson Boone"
+    },
+    {
+      "pos": 4,
+      "title": "\"I Had Some Help\"",
+      "artist": "Post Malone featuring Morgan Wallen"
+    },
+    {
+      "pos": 5,
+      "title": "\"Lovin on Me\"",
+      "artist": "Jack Harlow"
+    },
+    {
+      "pos": 6,
+      "title": "\"Not Like Us\"",
+      "artist": "Kendrick Lamar"
+    },
+    {
+      "pos": 7,
+      "title": "\"Espresso\"",
+      "artist": "Sabrina Carpenter"
+    },
+    {
+      "pos": 8,
+      "title": "\"Million Dollar Baby\"",
+      "artist": "Tommy Richman"
+    },
+    {
+      "pos": 9,
+      "title": "\"I Remember Everything\"",
+      "artist": "Zach Bryan featuring Kacey Musgraves"
+    },
+    {
+      "pos": 10,
+      "title": "\"Too Sweet\"",
+      "artist": "Hozier"
+    },
+    {
+      "pos": 11,
+      "title": "\"Stick Season\"",
+      "artist": "Noah Kahan"
+    },
+    {
+      "pos": 12,
+      "title": "\"Cruel Summer\"",
+      "artist": "Taylor Swift"
+    },
+    {
+      "pos": 13,
+      "title": "\"Greedy\"",
+      "artist": "Tate McRae"
+    },
+    {
+      "pos": 14,
+      "title": "\"Like That\"",
+      "artist": "Future, Metro Boomin and Kendrick Lamar"
+    },
+    {
+      "pos": 15,
+      "title": "\"Birds of a Feather\"",
+      "artist": "Billie Eilish"
+    },
+    {
+      "pos": 16,
+      "title": "\"Please Please Please\"",
+      "artist": "Sabrina Carpenter"
+    },
+    {
+      "pos": 17,
+      "title": "\"Agora Hills\"",
+      "artist": "Doja Cat"
+    },
+    {
+      "pos": 18,
+      "title": "\"Good Luck, Babe!\"",
+      "artist": "Chappell Roan"
+    },
+    {
+      "pos": 19,
+      "title": "\"Saturn\"",
+      "artist": "SZA"
+    },
+    {
+      "pos": 20,
+      "title": "\"Snooze\"",
+      "artist": "\"Snooze\""
+    },
+    {
+      "pos": 21,
+      "title": "\"Paint the Town Red\"",
+      "artist": "Doja Cat"
+    },
+    {
+      "pos": 22,
+      "title": "\"Fortnight\"",
+      "artist": "Taylor Swift featuring Post Malone"
+    },
+    {
+      "pos": 23,
+      "title": "\"Fast Car\"",
+      "artist": "Luke Combs"
+    },
+    {
+      "pos": 24,
+      "title": "\"Water\"",
+      "artist": "Tyla"
+    },
+    {
+      "pos": 25,
+      "title": "\"Feather\"",
+      "artist": "Sabrina Carpenter"
+    },
+    {
+      "pos": 26,
+      "title": "\"We Can't Be Friends (Wait for Your Love)\"",
+      "artist": "Ariana Grande"
+    },
+    {
+      "pos": 27,
+      "title": "\"Austin\"",
+      "artist": "Dasha"
+    },
+    {
+      "pos": 28,
+      "title": "\"Last Night\"",
+      "artist": "Morgan Wallen"
+    },
+    {
+      "pos": 29,
+      "title": "\"Cowgirls\"",
+      "artist": "Morgan Wallen featuring Ernest"
+    },
+    {
+      "pos": 30,
+      "title": "\"Pink Skies\"",
+      "artist": "Zach Bryan"
+    },
+    {
+      "pos": 31,
+      "title": "\"Thinkin' Bout Me\"",
+      "artist": "Morgan Wallen"
+    },
+    {
+      "pos": 32,
+      "title": "\"Texas Hold 'Em\"",
+      "artist": "Beyoncé"
+    },
+    {
+      "pos": 33,
+      "title": "\"Is It Over Now?\"",
+      "artist": "Taylor Swift"
+    },
+    {
+      "pos": 34,
+      "title": "\"Miles on It\"",
+      "artist": "Marshmello and Kane Brown"
+    },
+    {
+      "pos": 35,
+      "title": "\"I Can Do It with a Broken Heart\"",
+      "artist": "Taylor Swift"
+    },
+    {
+      "pos": 36,
+      "title": "\"Wild Ones\"",
+      "artist": "Jessie Murph and Jelly Roll"
+    },
+    {
+      "pos": 37,
+      "title": "\"Ain't No Love in Oklahoma\"",
+      "artist": "Luke Combs"
+    },
+    {
+      "pos": 38,
+      "title": "\"Carnival\"",
+      "artist": "¥$ (Kanye West and Ty Dolla Sign) featuring Rich the Kid and Playboi Carti"
+    },
+    {
+      "pos": 39,
+      "title": "\"Houdini\"",
+      "artist": "Eminem"
+    },
+    {
+      "pos": 40,
+      "title": "\"Wanna Be\"",
+      "artist": "GloRilla and Megan Thee Stallion"
+    },
+    {
+      "pos": 41,
+      "title": "\"Slow It Down\"",
+      "artist": "Benson Boone"
+    },
+    {
+      "pos": 42,
+      "title": "\"Redrum\"",
+      "artist": "21 Savage"
+    },
+    {
+      "pos": 43,
+      "title": "\"Houdini\"",
+      "artist": "Dua Lipa"
+    },
+    {
+      "pos": 44,
+      "title": "\"Yeah Glo!\"",
+      "artist": "GloRilla"
+    },
+    {
+      "pos": 45,
+      "title": "\"Rich Baby Daddy\"",
+      "artist": "Drake featuring Sexyy Red and SZA"
+    },
+    {
+      "pos": 46,
+      "title": "\"What Was I Made For?\"",
+      "artist": "Billie Eilish"
+    },
+    {
+      "pos": 47,
+      "title": "\"End of Beginning\"",
+      "artist": "Djo"
+    },
+    {
+      "pos": 48,
+      "title": "\"Lunch\"",
+      "artist": "Billie Eilish"
+    },
+    {
+      "pos": 49,
+      "title": "\"Never Lose Me\"",
+      "artist": "Flo Milli"
+    },
+    {
+      "pos": 50,
+      "title": "\"Lies Lies Lies\"",
+      "artist": "Morgan Wallen"
+    },
+    {
+      "pos": 51,
+      "title": "\"Type Shit\"",
+      "artist": "Future, Metro Boomin, Travis Scott, and Playboi Carti"
+    },
+    {
+      "pos": 52,
+      "title": "\"Gata Only\"",
+      "artist": "FloyyMenor and Cris MJ"
+    },
+    {
+      "pos": 53,
+      "title": "\"Hot to Go!\"",
+      "artist": "Chappell Roan"
+    },
+    {
+      "pos": 54,
+      "title": "\"All I Want for Christmas Is You\"",
+      "artist": "Mariah Carey"
+    },
+    {
+      "pos": 55,
+      "title": "\"Get It Sexyy\"",
+      "artist": "Sexyy Red"
+    },
+    {
+      "pos": 56,
+      "title": "\"Made for Me\"",
+      "artist": "Muni Long"
+    },
+    {
+      "pos": 57,
+      "title": "\"Vampire\"",
+      "artist": "Olivia Rodrigo"
+    },
+    {
+      "pos": 58,
+      "title": "\"Whatever She Wants\"",
+      "artist": "Bryson Tiller"
+    },
+    {
+      "pos": 59,
+      "title": "\"Rockin' Around the Christmas Tree\"",
+      "artist": "Brenda Lee"
+    },
+    {
+      "pos": 60,
+      "title": "\"Pretty Little Poison\"",
+      "artist": "Warren Zeiders"
+    },
+    {
+      "pos": 61,
+      "title": "\"First Person Shooter\"",
+      "artist": "Drake featuring J. Cole"
+    },
+    {
+      "pos": 62,
+      "title": "\"Die with a Smile\"",
+      "artist": "Lady Gaga and Bruno Mars"
+    },
+    {
+      "pos": 63,
+      "title": "\"I Like the Way You Kiss Me\"",
+      "artist": "Artemas"
+    },
+    {
+      "pos": 64,
+      "title": "\"Need a Favor\"",
+      "artist": "Jelly Roll"
+    },
+    {
+      "pos": 65,
+      "title": "\"Save Me\"",
+      "artist": "Jelly Roll featuring Lainey Wilson"
+    },
+    {
+      "pos": 66,
+      "title": "\"Euphoria\"",
+      "artist": "Kendrick Lamar"
+    },
+    {
+      "pos": 67,
+      "title": "\"Truck Bed\"",
+      "artist": "Hardy"
+    },
+    {
+      "pos": 68,
+      "title": "\"Jingle Bell Rock\"",
+      "artist": "Bobby Helms"
+    },
+    {
+      "pos": 69,
+      "title": "\"Flowers\"",
+      "artist": "Miley Cyrus"
+    },
+    {
+      "pos": 70,
+      "title": "\"Where the Wild Things Are\"",
+      "artist": "Luke Combs"
+    },
+    {
+      "pos": 71,
+      "title": "\"Everybody\"",
+      "artist": "Nicki Minaj featuring Lil Uzi Vert"
+    },
+    {
+      "pos": 72,
+      "title": "\"La Diabla\"",
+      "artist": "Xavi"
+    },
+    {
+      "pos": 73,
+      "title": "\"Stargazing\"",
+      "artist": "Myles Smith"
+    },
+    {
+      "pos": 74,
+      "title": "\"Last Christmas\"",
+      "artist": "Wham!"
+    },
+    {
+      "pos": 75,
+      "title": "\"I Am Not Okay\"",
+      "artist": "Jelly Roll"
+    },
+    {
+      "pos": 76,
+      "title": "\"Pour Me a Drink\"",
+      "artist": "Post Malone featuring Blake Shelton"
+    },
+    {
+      "pos": 77,
+      "title": "\"White Horse\"",
+      "artist": "Chris Stapleton"
+    },
+    {
+      "pos": 78,
+      "title": "\"Lil Boo Thang\"",
+      "artist": "Paul Russell"
+    },
+    {
+      "pos": 79,
+      "title": "\"Good Good\"",
+      "artist": "Usher, Summer Walker and 21 Savage"
+    },
+    {
+      "pos": 80,
+      "title": "\"Act II: Date @ 8\"",
+      "artist": "4Batz and Drake"
+    },
+    {
+      "pos": 81,
+      "title": "\"High Road\"",
+      "artist": "Koe Wetzel featuring Jessie Murph"
+    },
+    {
+      "pos": 82,
+      "title": "\"Monaco\"",
+      "artist": "Bad Bunny"
+    },
+    {
+      "pos": 83,
+      "title": "\"IDGAF\"",
+      "artist": "Drake featuring Yeat"
+    },
+    {
+      "pos": 84,
+      "title": "\"Burn It Down\"",
+      "artist": "Parker McCollum"
+    },
+    {
+      "pos": 85,
+      "title": "\"FukUMean\"",
+      "artist": "Gunna"
+    },
+    {
+      "pos": 86,
+      "title": "\"Taste\"",
+      "artist": "Sabrina Carpenter"
+    },
+    {
+      "pos": 87,
+      "title": "\"Where It Ends\"",
+      "artist": "Bailey Zimmerman"
+    },
+    {
+      "pos": 88,
+      "title": "\"FTCU\"",
+      "artist": "Nicki Minaj"
+    },
+    {
+      "pos": 89,
+      "title": "\"Wildflower\"",
+      "artist": "Billie Eilish"
+    },
+    {
+      "pos": 90,
+      "title": "\"World on Fire\"",
+      "artist": "Nate Smith"
+    },
+    {
+      "pos": 91,
+      "title": "\"On My Mama\"",
+      "artist": "Victoria Monét"
+    },
+    {
+      "pos": 92,
+      "title": "\"Yes, And?\"",
+      "artist": "Ariana Grande"
+    },
+    {
+      "pos": 93,
+      "title": "\"Exes\"",
+      "artist": "Tate McRae"
+    },
+    {
+      "pos": 94,
+      "title": "\"A Holly Jolly Christmas\"",
+      "artist": "Burl Ives"
+    },
+    {
+      "pos": 95,
+      "title": "\"Wind Up Missin' You\"",
+      "artist": "Tucker Wetmore"
+    },
+    {
+      "pos": 96,
+      "title": "\"Bulletproof\"",
+      "artist": "Nate Smith"
+    },
+    {
+      "pos": 97,
+      "title": "\"Fe!n\"",
+      "artist": "Travis Scott featuring Playboi Carti"
+    },
+    {
+      "pos": 98,
+      "title": "\"The Painter\"",
+      "artist": "Cody Johnson"
+    },
+    {
+      "pos": 99,
+      "title": "\"Down Bad\"",
+      "artist": "Taylor Swift"
+    },
+    {
+      "pos": 100,
+      "title": "\"Dance the Night\"",
+      "artist": "Dua Lipa"
+    }
+  ]
+}

@@ -1,0 +1,512 @@
+{
+  "year": 1959,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1959",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"The Battle of New Orleans\"",
+      "artist": "Johnny Horton"
+    },
+    {
+      "pos": 2,
+      "title": "\"Mack the Knife\"",
+      "artist": "Bobby Darin"
+    },
+    {
+      "pos": 3,
+      "title": "\"Personality\"",
+      "artist": "Lloyd Price"
+    },
+    {
+      "pos": 4,
+      "title": "\"Venus\"",
+      "artist": "Frankie Avalon"
+    },
+    {
+      "pos": 5,
+      "title": "\"Lonely Boy\"",
+      "artist": "Paul Anka"
+    },
+    {
+      "pos": 6,
+      "title": "\"Dream Lover\"",
+      "artist": "Bobby Darin"
+    },
+    {
+      "pos": 7,
+      "title": "\"The Three Bells\"",
+      "artist": "The Browns"
+    },
+    {
+      "pos": 8,
+      "title": "\"Come Softly to Me\"",
+      "artist": "The Fleetwoods"
+    },
+    {
+      "pos": 9,
+      "title": "\"Kansas City\"",
+      "artist": "Wilbert Harrison"
+    },
+    {
+      "pos": 10,
+      "title": "\"Mr. Blue\"",
+      "artist": "The Fleetwoods"
+    },
+    {
+      "pos": 11,
+      "title": "\"Sleep Walk\"",
+      "artist": "Santo & Johnny"
+    },
+    {
+      "pos": 12,
+      "title": "\"Put Your Head on My Shoulder\"",
+      "artist": "Paul Anka"
+    },
+    {
+      "pos": 13,
+      "title": "\"Stagger Lee\"",
+      "artist": "Lloyd Price"
+    },
+    {
+      "pos": 14,
+      "title": "\"Donna\"",
+      "artist": "Ritchie Valens"
+    },
+    {
+      "pos": 15,
+      "title": "\"Pink Shoe Laces\"",
+      "artist": "Dodie Stevens"
+    },
+    {
+      "pos": 16,
+      "title": "\"Smoke Gets in Your Eyes\"",
+      "artist": "The Platters"
+    },
+    {
+      "pos": 17,
+      "title": "\"Charlie Brown\"",
+      "artist": "The Coasters"
+    },
+    {
+      "pos": 18,
+      "title": "\"Quiet Village\"",
+      "artist": "Martin Denny"
+    },
+    {
+      "pos": 19,
+      "title": "\"My Heart Is an Open Book\"",
+      "artist": "Carl Dobkins Jr."
+    },
+    {
+      "pos": 20,
+      "title": "\"(Till) I Kissed You\"",
+      "artist": "The Everly Brothers"
+    },
+    {
+      "pos": 21,
+      "title": "\"Sea of Love\"",
+      "artist": "Phil Phillips"
+    },
+    {
+      "pos": 22,
+      "title": "\"The Happy Organ\"",
+      "artist": "Dave Cortez"
+    },
+    {
+      "pos": 23,
+      "title": "\"I'm Gonna Get Married\"",
+      "artist": "Lloyd Price"
+    },
+    {
+      "pos": 24,
+      "title": "\"Sorry (I Ran All the Way Home)\"",
+      "artist": "The Impalas"
+    },
+    {
+      "pos": 25,
+      "title": "\"A Teenager in Love\"",
+      "artist": "Dion and the Belmonts"
+    },
+    {
+      "pos": 26,
+      "title": "\"16 Candles\"",
+      "artist": "The Crests"
+    },
+    {
+      "pos": 27,
+      "title": "\"It's Just a Matter of Time\"",
+      "artist": "Brook Benton"
+    },
+    {
+      "pos": 28,
+      "title": "\"Lipstick on Your Collar\"",
+      "artist": "Connie Francis"
+    },
+    {
+      "pos": 29,
+      "title": "\"There Goes My Baby\"",
+      "artist": "The Drifters"
+    },
+    {
+      "pos": 30,
+      "title": "\"A Big Hunk o' Love\"",
+      "artist": "Elvis Presley"
+    },
+    {
+      "pos": 31,
+      "title": "\"Red River Rock\"",
+      "artist": "Johnny and the Hurricanes"
+    },
+    {
+      "pos": 32,
+      "title": "\"Waterloo\"",
+      "artist": "Stonewall Jackson"
+    },
+    {
+      "pos": 33,
+      "title": "\"Lavender Blue\"",
+      "artist": "Sammy Turner"
+    },
+    {
+      "pos": 34,
+      "title": "\"(Now and Then There's) A Fool Such as I\"",
+      "artist": "Elvis Presley"
+    },
+    {
+      "pos": 35,
+      "title": "\"Guitar Boogie Shuffle\"",
+      "artist": "The Virtues"
+    },
+    {
+      "pos": 36,
+      "title": "\"Teen Beat\"",
+      "artist": "Sandy Nelson"
+    },
+    {
+      "pos": 37,
+      "title": "\"Kookie, Kookie (Lend Me Your Comb)\"",
+      "artist": "Edd Byrnes & Connie Stevens"
+    },
+    {
+      "pos": 38,
+      "title": "\"Tragedy\"",
+      "artist": "Thomas Wayne"
+    },
+    {
+      "pos": 39,
+      "title": "\"My Happiness\"",
+      "artist": "Connie Francis"
+    },
+    {
+      "pos": 40,
+      "title": "\"Tallahassee Lassie\"",
+      "artist": "Freddy Cannon"
+    },
+    {
+      "pos": 41,
+      "title": "\"Tiger\"",
+      "artist": "Fabian"
+    },
+    {
+      "pos": 42,
+      "title": "\"Never Be Anyone Else But You\"",
+      "artist": "Ricky Nelson"
+    },
+    {
+      "pos": 43,
+      "title": "\"Don't You Know?\"",
+      "artist": "Della Reese"
+    },
+    {
+      "pos": 44,
+      "title": "\"I Need Your Love Tonight\"",
+      "artist": "Elvis Presley"
+    },
+    {
+      "pos": 45,
+      "title": "\"What a Diff'rence a Day Makes\"",
+      "artist": "Dinah Washington"
+    },
+    {
+      "pos": 46,
+      "title": "\"The All American Boy\"",
+      "artist": "Bobby Bare"
+    },
+    {
+      "pos": 47,
+      "title": "\"Primrose Lane\"",
+      "artist": "Jerry Wallace"
+    },
+    {
+      "pos": 48,
+      "title": "\"Alvin's Harmonica\"",
+      "artist": "The Chipmunks"
+    },
+    {
+      "pos": 49,
+      "title": "\"Lonely Street\"",
+      "artist": "Andy Williams"
+    },
+    {
+      "pos": 50,
+      "title": "\"What'd I Say\"",
+      "artist": "Ray Charles"
+    },
+    {
+      "pos": 51,
+      "title": "\"Broken Hearted Melody\"",
+      "artist": "Sarah Vaughan"
+    },
+    {
+      "pos": 52,
+      "title": "\"Only You (And You Alone)\"",
+      "artist": "Franck Pourcel"
+    },
+    {
+      "pos": 53,
+      "title": "\"Gotta Travel On\"",
+      "artist": "Billy Grammer"
+    },
+    {
+      "pos": 54,
+      "title": "\"Poison Ivy\"",
+      "artist": "The Coasters"
+    },
+    {
+      "pos": 55,
+      "title": "\"Turn Me Loose\"",
+      "artist": "Fabian"
+    },
+    {
+      "pos": 56,
+      "title": "\"Lonely Teardrops\"",
+      "artist": "Jackie Wilson"
+    },
+    {
+      "pos": 57,
+      "title": "\"Hawaiian Wedding Song\"",
+      "artist": "Andy Williams"
+    },
+    {
+      "pos": 58,
+      "title": "\"Forty Miles of Bad Road\"",
+      "artist": "Duane Eddy"
+    },
+    {
+      "pos": 59,
+      "title": "\"Just Ask Your Heart\"",
+      "artist": "Frankie Avalon"
+    },
+    {
+      "pos": 60,
+      "title": "\"Tell Him No\"",
+      "artist": "Travis and Bob"
+    },
+    {
+      "pos": 61,
+      "title": "\"Frankie\"",
+      "artist": "Connie Francis"
+    },
+    {
+      "pos": 62,
+      "title": "\"I've Had It\"",
+      "artist": "The Bell Notes"
+    },
+    {
+      "pos": 63,
+      "title": "\"I Cried a Tear\"",
+      "artist": "LaVern Baker"
+    },
+    {
+      "pos": 64,
+      "title": "\"Enchanted\"",
+      "artist": "The Platters"
+    },
+    {
+      "pos": 65,
+      "title": "\"Since I Don't Have You\"",
+      "artist": "The Skyliners"
+    },
+    {
+      "pos": 66,
+      "title": "\"Peter Gunn Theme\"",
+      "artist": "Ray Anthony"
+    },
+    {
+      "pos": 67,
+      "title": "\"The Chipmunk Song (Christmas Don't Be Late)\"",
+      "artist": "The Chipmunks"
+    },
+    {
+      "pos": 68,
+      "title": "\"I Want to Walk You Home\"",
+      "artist": "Fats Domino"
+    },
+    {
+      "pos": 69,
+      "title": "\"So Fine\"",
+      "artist": "The Fiestas"
+    },
+    {
+      "pos": 70,
+      "title": "\"Bobby Sox to Stockings\"",
+      "artist": "Frankie Avalon"
+    },
+    {
+      "pos": 71,
+      "title": "\"The Deck of Cards\"",
+      "artist": "Wink Martindale"
+    },
+    {
+      "pos": 72,
+      "title": "\"A Lover's Question\"",
+      "artist": "Clyde McPhatter"
+    },
+    {
+      "pos": 73,
+      "title": "\"I Only Have Eyes for You\"",
+      "artist": "The Flamingos"
+    },
+    {
+      "pos": 74,
+      "title": "\"It's Late\"",
+      "artist": "Ricky Nelson"
+    },
+    {
+      "pos": 75,
+      "title": "\"Petite Fleur\"",
+      "artist": "Chris Barber's Jazz Band"
+    },
+    {
+      "pos": 76,
+      "title": "\"Tall Paul\"",
+      "artist": "Annette Funicello"
+    },
+    {
+      "pos": 77,
+      "title": "\"The Tijuana Jail\"",
+      "artist": "The Kingston Trio"
+    },
+    {
+      "pos": 78,
+      "title": "\"Just a Little Too Much\"",
+      "artist": "Ricky Nelson"
+    },
+    {
+      "pos": 79,
+      "title": "\"Goodbye Baby\"",
+      "artist": "Jack Scott"
+    },
+    {
+      "pos": 80,
+      "title": "\"Along Came Jones\"",
+      "artist": "The Coasters"
+    },
+    {
+      "pos": 81,
+      "title": "\"Three Stars\"",
+      "artist": "Tommy Dee & Carol Kay"
+    },
+    {
+      "pos": 82,
+      "title": "\"A Boy Without a Girl\"",
+      "artist": "Frankie Avalon"
+    },
+    {
+      "pos": 83,
+      "title": "\"Sweeter Than You\"",
+      "artist": "Ricky Nelson"
+    },
+    {
+      "pos": 84,
+      "title": "\"It Was I\"",
+      "artist": "Skip & Flip"
+    },
+    {
+      "pos": 85,
+      "title": "\"Goodbye Jimmy, Goodbye\"",
+      "artist": "Kathy Linden"
+    },
+    {
+      "pos": 86,
+      "title": "\"Manhattan Spiritual\"",
+      "artist": "Reg Owen Orchestra"
+    },
+    {
+      "pos": 87,
+      "title": "\"Endlessly\"",
+      "artist": "Brook Benton"
+    },
+    {
+      "pos": 88,
+      "title": "\"Heartaches by the Number\"",
+      "artist": "Guy Mitchell"
+    },
+    {
+      "pos": 89,
+      "title": "\"Sea Cruise\"",
+      "artist": "Frankie Ford"
+    },
+    {
+      "pos": 90,
+      "title": "\"That's Why (I Love You So)\"",
+      "artist": "Jackie Wilson"
+    },
+    {
+      "pos": 91,
+      "title": "\"You're So Fine\"",
+      "artist": "The Falcons"
+    },
+    {
+      "pos": 92,
+      "title": "\"Kissin' Time\"",
+      "artist": "Bobby Rydell"
+    },
+    {
+      "pos": 93,
+      "title": "\"My Wish Came True\"",
+      "artist": "Elvis Presley"
+    },
+    {
+      "pos": 94,
+      "title": "\"Morgen\"",
+      "artist": "Ivo Robić"
+    },
+    {
+      "pos": 95,
+      "title": "\"Baby Talk\"",
+      "artist": "Jan and Dean"
+    },
+    {
+      "pos": 96,
+      "title": "\"Take a Message to Mary\"",
+      "artist": "The Everly Brothers"
+    },
+    {
+      "pos": 97,
+      "title": "\"The Battle Hymn of the Republic\"",
+      "artist": "Mormon Tabernacle Choir"
+    },
+    {
+      "pos": 98,
+      "title": "\"Bongo Rock\"",
+      "artist": "Preston Epps"
+    },
+    {
+      "pos": 99,
+      "title": "\"In the Mood\"",
+      "artist": "Ernie Fields"
+    },
+    {
+      "pos": 100,
+      "title": "\"Seven Little Girls Sitting in the Back Seat\"",
+      "artist": "Paul Evans"
+    }
+  ]
+}

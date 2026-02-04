@@ -1,0 +1,512 @@
+{
+  "year": 1961,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1961",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Tossin' and Turnin'\"",
+      "artist": "Bobby Lewis"
+    },
+    {
+      "pos": 2,
+      "title": "\"I Fall to Pieces\"",
+      "artist": "Patsy Cline"
+    },
+    {
+      "pos": 3,
+      "title": "\"Michael\"",
+      "artist": "The Highwaymen"
+    },
+    {
+      "pos": 4,
+      "title": "\"Crying\"",
+      "artist": "Roy Orbison"
+    },
+    {
+      "pos": 5,
+      "title": "\"Runaway\"",
+      "artist": "Del Shannon"
+    },
+    {
+      "pos": 6,
+      "title": "\"My True Story\"",
+      "artist": "The Jive Five"
+    },
+    {
+      "pos": 7,
+      "title": "\"Pony Time\"",
+      "artist": "Chubby Checker"
+    },
+    {
+      "pos": 8,
+      "title": "\"Wheels\"",
+      "artist": "The String-A-Longs"
+    },
+    {
+      "pos": 9,
+      "title": "\"Raindrops\"",
+      "artist": "Dee Clark"
+    },
+    {
+      "pos": 10,
+      "title": "\"Wooden Heart\"",
+      "artist": "Joe Dowell"
+    },
+    {
+      "pos": 11,
+      "title": "\"Calcutta\"",
+      "artist": "Lawrence Welk"
+    },
+    {
+      "pos": 12,
+      "title": "\"Take Good Care of My Baby\"",
+      "artist": "Bobby Vee"
+    },
+    {
+      "pos": 13,
+      "title": "\"Running Scared\"",
+      "artist": "Roy Orbison"
+    },
+    {
+      "pos": 14,
+      "title": "\"Dedicated to the One I Love\"",
+      "artist": "The Shirelles"
+    },
+    {
+      "pos": 15,
+      "title": "\"Last Night\"",
+      "artist": "The Mar-Keys"
+    },
+    {
+      "pos": 16,
+      "title": "\"Will You Love Me Tomorrow\"",
+      "artist": "The Shirelles"
+    },
+    {
+      "pos": 17,
+      "title": "\"Exodus\"",
+      "artist": "Ferrante & Teicher"
+    },
+    {
+      "pos": 18,
+      "title": "\"Where the Boys Are\"",
+      "artist": "Connie Francis"
+    },
+    {
+      "pos": 19,
+      "title": "\"Hit the Road Jack\"",
+      "artist": "Ray Charles"
+    },
+    {
+      "pos": 20,
+      "title": "\"Sad Movies (Make Me Cry)\"",
+      "artist": "Sue Thompson"
+    },
+    {
+      "pos": 21,
+      "title": "\"Mother-in-Law\"",
+      "artist": "Ernie K-Doe"
+    },
+    {
+      "pos": 22,
+      "title": "\"Bristol Stomp\"",
+      "artist": "The Dovells"
+    },
+    {
+      "pos": 23,
+      "title": "\"Travelin' Man\"",
+      "artist": "Ricky Nelson"
+    },
+    {
+      "pos": 24,
+      "title": "\"Shop Around\"",
+      "artist": "The Miracles"
+    },
+    {
+      "pos": 25,
+      "title": "\"The Boll Weevil Song\"",
+      "artist": "Brook Benton"
+    },
+    {
+      "pos": 26,
+      "title": "\"A Hundred Pounds of Clay\"",
+      "artist": "Gene McDaniels"
+    },
+    {
+      "pos": 27,
+      "title": "\"The Mountain's High\"",
+      "artist": "Dick and Dee Dee"
+    },
+    {
+      "pos": 28,
+      "title": "\"Don't Worry\"",
+      "artist": "Marty Robbins"
+    },
+    {
+      "pos": 29,
+      "title": "\"On the Rebound\"",
+      "artist": "Floyd Cramer"
+    },
+    {
+      "pos": 30,
+      "title": "\"Portrait of My Love\"",
+      "artist": "Steve Lawrence"
+    },
+    {
+      "pos": 31,
+      "title": "\"Quarter to Three\"",
+      "artist": "Gary U.S. Bonds"
+    },
+    {
+      "pos": 32,
+      "title": "\"Who Put the Bomp (in the Bomp, Bomp, Bomp)\"",
+      "artist": "Barry Mann"
+    },
+    {
+      "pos": 33,
+      "title": "\"Calendar Girl\"",
+      "artist": "Neil Sedaka"
+    },
+    {
+      "pos": 34,
+      "title": "\"I Like It Like That\"",
+      "artist": "Chris Kenner"
+    },
+    {
+      "pos": 35,
+      "title": "\"Apache\"",
+      "artist": "Jørgen Ingmann"
+    },
+    {
+      "pos": 36,
+      "title": "\"Don't Bet Money Honey\"",
+      "artist": "Linda Scott"
+    },
+    {
+      "pos": 37,
+      "title": "\"Without You\"",
+      "artist": "Johnny Tillotson"
+    },
+    {
+      "pos": 38,
+      "title": "\"Wings of a Dove\"",
+      "artist": "Ferlin Husky"
+    },
+    {
+      "pos": 39,
+      "title": "\"Little Sister\"",
+      "artist": "Elvis Presley"
+    },
+    {
+      "pos": 40,
+      "title": "\"Blue Moon\"",
+      "artist": "The Marcels"
+    },
+    {
+      "pos": 41,
+      "title": "\"Daddy's Home\"",
+      "artist": "Shep and the Limelites"
+    },
+    {
+      "pos": 42,
+      "title": "\"This Time\"",
+      "artist": "Troy Shondell"
+    },
+    {
+      "pos": 43,
+      "title": "\"(I Don't Know Why) But I Do\"",
+      "artist": "Clarence \"Frogman\" Henry"
+    },
+    {
+      "pos": 44,
+      "title": "\"Asia Minor\"",
+      "artist": "Kokomo"
+    },
+    {
+      "pos": 45,
+      "title": "\"Hello Walls\"",
+      "artist": "Faron Young"
+    },
+    {
+      "pos": 46,
+      "title": "\"Runaround Sue\"",
+      "artist": "Dion"
+    },
+    {
+      "pos": 47,
+      "title": "\"Yellow Bird\"",
+      "artist": "Arthur Lyman"
+    },
+    {
+      "pos": 48,
+      "title": "\"Hurt\"",
+      "artist": "Timi Yuro"
+    },
+    {
+      "pos": 49,
+      "title": "\"Hello Mary Lou\"",
+      "artist": "Ricky Nelson"
+    },
+    {
+      "pos": 50,
+      "title": "\"There's a Moon Out Tonight\"",
+      "artist": "The Capris"
+    },
+    {
+      "pos": 51,
+      "title": "\"Surrender\"",
+      "artist": "Elvis Presley"
+    },
+    {
+      "pos": 52,
+      "title": "\"I Love How You Love Me\"",
+      "artist": "The Paris Sisters"
+    },
+    {
+      "pos": 53,
+      "title": "\"Ya Ya\"",
+      "artist": "Lee Dorsey"
+    },
+    {
+      "pos": 54,
+      "title": "\"School Is Out\"",
+      "artist": "Gary U.S. Bonds"
+    },
+    {
+      "pos": 55,
+      "title": "\"Mexico\"",
+      "artist": "Bob Moore"
+    },
+    {
+      "pos": 56,
+      "title": "\"You Don't Know What You've Got (Until You Lose It)\"",
+      "artist": "Ral Donner"
+    },
+    {
+      "pos": 57,
+      "title": "\"Walk Right Back\"",
+      "artist": "The Everly Brothers"
+    },
+    {
+      "pos": 58,
+      "title": "\"The Way You Look Tonight\"",
+      "artist": "The Lettermen"
+    },
+    {
+      "pos": 59,
+      "title": "\"Moody River\"",
+      "artist": "Pat Boone"
+    },
+    {
+      "pos": 60,
+      "title": "\"One Mint Julep\"",
+      "artist": "Ray Charles"
+    },
+    {
+      "pos": 61,
+      "title": "\"Take Good Care of Her\"",
+      "artist": "Adam Wade"
+    },
+    {
+      "pos": 62,
+      "title": "\"Gee Whiz (Look at His Eyes)\"",
+      "artist": "Carla Thomas"
+    },
+    {
+      "pos": 63,
+      "title": "\"Stand by Me\"",
+      "artist": "Ben E. King"
+    },
+    {
+      "pos": 64,
+      "title": "\"Spanish Harlem\"",
+      "artist": "\"Spanish Harlem\""
+    },
+    {
+      "pos": 65,
+      "title": "\"It's Gonna Work Out Fine\"",
+      "artist": "Ike & Tina Turner"
+    },
+    {
+      "pos": 66,
+      "title": "\"Baby Blue\"",
+      "artist": "The Echoes"
+    },
+    {
+      "pos": 67,
+      "title": "\"Baby Sittin' Boogie\"",
+      "artist": "Buzz Clifford"
+    },
+    {
+      "pos": 68,
+      "title": "\"Hats Off to Larry\"",
+      "artist": "Del Shannon"
+    },
+    {
+      "pos": 69,
+      "title": "\"Those Oldies but Goodies\"",
+      "artist": "Little Caesar & the Romans"
+    },
+    {
+      "pos": 70,
+      "title": "\"The Fly\"",
+      "artist": "Chubby Checker"
+    },
+    {
+      "pos": 71,
+      "title": "\"(Marie's the Name) His Latest Flame\"",
+      "artist": "Elvis Presley"
+    },
+    {
+      "pos": 72,
+      "title": "\"Wonderland by Night\"",
+      "artist": "Bert Kaempfert"
+    },
+    {
+      "pos": 73,
+      "title": "\"Bless You\"",
+      "artist": "Tony Orlando"
+    },
+    {
+      "pos": 74,
+      "title": "\"I've Told Every Little Star\"",
+      "artist": "Linda Scott"
+    },
+    {
+      "pos": 75,
+      "title": "\"One Track Mind\"",
+      "artist": "Bobby Lewis"
+    },
+    {
+      "pos": 76,
+      "title": "\"Angel Baby\"",
+      "artist": "Rosie and the Originals"
+    },
+    {
+      "pos": 77,
+      "title": "\"Pretty Little Angel Eyes\"",
+      "artist": "Curtis Lee"
+    },
+    {
+      "pos": 78,
+      "title": "\"Think Twice\"",
+      "artist": "Brook Benton"
+    },
+    {
+      "pos": 79,
+      "title": "\"Does Your Chewing Gum Lose Its Flavour (On the Bedpost Overnight?)\"",
+      "artist": "Lonnie Donegan"
+    },
+    {
+      "pos": 80,
+      "title": "\"Breakin' in a Brand New Broken Heart\"",
+      "artist": "Connie Francis"
+    },
+    {
+      "pos": 81,
+      "title": "\"Mama Said\"",
+      "artist": "The Shirelles"
+    },
+    {
+      "pos": 82,
+      "title": "\"Let the Four Winds Blow\"",
+      "artist": "Fats Domino"
+    },
+    {
+      "pos": 83,
+      "title": "\"The Writing on the Wall\"",
+      "artist": "Adam Wade"
+    },
+    {
+      "pos": 84,
+      "title": "\"My Kind of Girl\"",
+      "artist": "Matt Monro"
+    },
+    {
+      "pos": 85,
+      "title": "\"Tonight My Love, Tonight\"",
+      "artist": "Paul Anka"
+    },
+    {
+      "pos": 86,
+      "title": "\"San Antonio Rose\"",
+      "artist": "Floyd Cramer"
+    },
+    {
+      "pos": 87,
+      "title": "\"Big Bad John\"",
+      "artist": "Jimmy Dean"
+    },
+    {
+      "pos": 88,
+      "title": "\"Good Time Baby\"",
+      "artist": "Bobby Rydell"
+    },
+    {
+      "pos": 89,
+      "title": "\"Rubber Ball\"",
+      "artist": "Bobby Vee"
+    },
+    {
+      "pos": 90,
+      "title": "\"Missing You\"",
+      "artist": "Ray Peterson"
+    },
+    {
+      "pos": 91,
+      "title": "\"Dum Dum\"",
+      "artist": "Brenda Lee"
+    },
+    {
+      "pos": 92,
+      "title": "\"I'm Gonna Knock on Your Door\"",
+      "artist": "Eddie Hodges"
+    },
+    {
+      "pos": 93,
+      "title": "\"You Can Depend on Me\"",
+      "artist": "Brenda Lee"
+    },
+    {
+      "pos": 94,
+      "title": "\"Let's Twist Again\"",
+      "artist": "Chubby Checker"
+    },
+    {
+      "pos": 95,
+      "title": "\"Take Five\"",
+      "artist": "The Dave Brubeck Quartet"
+    },
+    {
+      "pos": 96,
+      "title": "\"Are You Lonesome Tonight?\"",
+      "artist": "Elvis Presley"
+    },
+    {
+      "pos": 97,
+      "title": "\"Sea of Heartbreak\"",
+      "artist": "Don Gibson"
+    },
+    {
+      "pos": 98,
+      "title": "\"More Money for You and Me\"",
+      "artist": "The Four Preps"
+    },
+    {
+      "pos": 99,
+      "title": "\"You Must Have Been a Beautiful Baby\"",
+      "artist": "Bobby Darin"
+    },
+    {
+      "pos": 100,
+      "title": "\"Please Stay\"",
+      "artist": "The Drifters"
+    }
+  ]
+}

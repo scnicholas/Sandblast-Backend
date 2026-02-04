@@ -1,0 +1,512 @@
+{
+  "year": 2016,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_2016",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Love Yourself\"",
+      "artist": "Justin Bieber"
+    },
+    {
+      "pos": 2,
+      "title": "\"Sorry\"",
+      "artist": "\"Sorry\""
+    },
+    {
+      "pos": 3,
+      "title": "\"One Dance\"",
+      "artist": "Drake featuring Wizkid and Kyla"
+    },
+    {
+      "pos": 4,
+      "title": "\"Work\"",
+      "artist": "Rihanna featuring Drake"
+    },
+    {
+      "pos": 5,
+      "title": "\"Stressed Out\"",
+      "artist": "Twenty One Pilots"
+    },
+    {
+      "pos": 6,
+      "title": "\"Panda\"",
+      "artist": "Desiigner"
+    },
+    {
+      "pos": 7,
+      "title": "\"Hello\"",
+      "artist": "Adele"
+    },
+    {
+      "pos": 8,
+      "title": "\"Don't Let Me Down\"",
+      "artist": "The Chainsmokers featuring Daya"
+    },
+    {
+      "pos": 9,
+      "title": "\"Can't Stop the Feeling!\"",
+      "artist": "Justin Timberlake"
+    },
+    {
+      "pos": 10,
+      "title": "\"Closer\"",
+      "artist": "The Chainsmokers featuring Halsey"
+    },
+    {
+      "pos": 11,
+      "title": "\"Cheap Thrills\"",
+      "artist": "Sia featuring Sean Paul"
+    },
+    {
+      "pos": 12,
+      "title": "\"7 Years\"",
+      "artist": "Lukas Graham"
+    },
+    {
+      "pos": 13,
+      "title": "\"Needed Me\"",
+      "artist": "Rihanna"
+    },
+    {
+      "pos": 14,
+      "title": "\"My House\"",
+      "artist": "Flo Rida"
+    },
+    {
+      "pos": 15,
+      "title": "\"I Took a Pill in Ibiza\"",
+      "artist": "Mike Posner"
+    },
+    {
+      "pos": 16,
+      "title": "\"Work from Home\"",
+      "artist": "Fifth Harmony featuring Ty Dolla Sign"
+    },
+    {
+      "pos": 17,
+      "title": "\"This Is What You Came For\"",
+      "artist": "Calvin Harris featuring Rihanna"
+    },
+    {
+      "pos": 18,
+      "title": "\"Cake by the Ocean\"",
+      "artist": "DNCE"
+    },
+    {
+      "pos": 19,
+      "title": "\"Me, Myself & I\"",
+      "artist": "G-Eazy and Bebe Rexha"
+    },
+    {
+      "pos": 20,
+      "title": "\"Ride\"",
+      "artist": "Twenty One Pilots"
+    },
+    {
+      "pos": 21,
+      "title": "\"Heathens\"",
+      "artist": "\"Heathens\""
+    },
+    {
+      "pos": 22,
+      "title": "\"Pillowtalk\"",
+      "artist": "Zayn"
+    },
+    {
+      "pos": 23,
+      "title": "\"Stitches\"",
+      "artist": "Shawn Mendes"
+    },
+    {
+      "pos": 24,
+      "title": "\"Hotline Bling\"",
+      "artist": "Drake"
+    },
+    {
+      "pos": 25,
+      "title": "\"Cold Water\"",
+      "artist": "Major Lazer featuring Justin Bieber and MØ"
+    },
+    {
+      "pos": 26,
+      "title": "\"Send My Love (To Your New Lover)\"",
+      "artist": "Adele"
+    },
+    {
+      "pos": 27,
+      "title": "\"Roses\"",
+      "artist": "The Chainsmokers featuring Rozes"
+    },
+    {
+      "pos": 28,
+      "title": "\"Treat You Better\"",
+      "artist": "Shawn Mendes"
+    },
+    {
+      "pos": 29,
+      "title": "\"Too Good\"",
+      "artist": "Drake featuring Rihanna"
+    },
+    {
+      "pos": 30,
+      "title": "\"Low Life\"",
+      "artist": "Future featuring The Weeknd"
+    },
+    {
+      "pos": 31,
+      "title": "\"What Do You Mean?\"",
+      "artist": "Justin Bieber"
+    },
+    {
+      "pos": 32,
+      "title": "\"The Hills\"",
+      "artist": "The Weeknd"
+    },
+    {
+      "pos": 33,
+      "title": "\"Just Like Fire\"",
+      "artist": "P!nk"
+    },
+    {
+      "pos": 34,
+      "title": "\"Broccoli\"",
+      "artist": "DRAM featuring Lil Yachty"
+    },
+    {
+      "pos": 35,
+      "title": "\"Don't\"",
+      "artist": "Bryson Tiller"
+    },
+    {
+      "pos": 36,
+      "title": "\"Dangerous Woman\"",
+      "artist": "Ariana Grande"
+    },
+    {
+      "pos": 37,
+      "title": "\"Jumpman\"",
+      "artist": "Drake and Future"
+    },
+    {
+      "pos": 38,
+      "title": "\"I Hate U, I Love U\"",
+      "artist": "Gnash featuring Olivia O'Brien"
+    },
+    {
+      "pos": 39,
+      "title": "\"Here\"",
+      "artist": "Alessia Cara"
+    },
+    {
+      "pos": 40,
+      "title": "\"Same Old Love\"",
+      "artist": "Selena Gomez"
+    },
+    {
+      "pos": 41,
+      "title": "\"Controlla\"",
+      "artist": "Drake"
+    },
+    {
+      "pos": 42,
+      "title": "\"Like I'm Gonna Lose You\"",
+      "artist": "Meghan Trainor featuring John Legend"
+    },
+    {
+      "pos": 43,
+      "title": "\"One Call Away\"",
+      "artist": "Charlie Puth"
+    },
+    {
+      "pos": 44,
+      "title": "\"Let It Go\"",
+      "artist": "James Bay"
+    },
+    {
+      "pos": 45,
+      "title": "\"No\"",
+      "artist": "Meghan Trainor"
+    },
+    {
+      "pos": 46,
+      "title": "\"Never Forget You\"",
+      "artist": "Zara Larsson and MNEK"
+    },
+    {
+      "pos": 47,
+      "title": "\"Let Me Love You\"",
+      "artist": "DJ Snake featuring Justin Bieber"
+    },
+    {
+      "pos": 48,
+      "title": "\"Don't Mind\"",
+      "artist": "Kent Jones"
+    },
+    {
+      "pos": 49,
+      "title": "\"H.O.L.Y.\"",
+      "artist": "Florida Georgia Line"
+    },
+    {
+      "pos": 50,
+      "title": "\"We Don't Talk Anymore\"",
+      "artist": "Charlie Puth featuring Selena Gomez"
+    },
+    {
+      "pos": 51,
+      "title": "\"Into You\"",
+      "artist": "Ariana Grande"
+    },
+    {
+      "pos": 52,
+      "title": "\"Gold\"",
+      "artist": "Kiiara"
+    },
+    {
+      "pos": 53,
+      "title": "\"Exchange\"",
+      "artist": "Bryson Tiller"
+    },
+    {
+      "pos": 54,
+      "title": "\"679\"",
+      "artist": "Fetty Wap featuring Remy Boyz"
+    },
+    {
+      "pos": 55,
+      "title": "\"Oui\"",
+      "artist": "Jeremih"
+    },
+    {
+      "pos": 56,
+      "title": "\"Hands to Myself\"",
+      "artist": "Selena Gomez"
+    },
+    {
+      "pos": 57,
+      "title": "\"2 Phones\"",
+      "artist": "Kevin Gates"
+    },
+    {
+      "pos": 58,
+      "title": "\"Starboy\"",
+      "artist": "The Weeknd featuring Daft Punk"
+    },
+    {
+      "pos": 59,
+      "title": "\"For Free\"",
+      "artist": "DJ Khaled featuring Drake"
+    },
+    {
+      "pos": 60,
+      "title": "\"Never Be Like You\"",
+      "artist": "Flume featuring Kai"
+    },
+    {
+      "pos": 61,
+      "title": "\"In the Night\"",
+      "artist": "The Weeknd"
+    },
+    {
+      "pos": 62,
+      "title": "\"Me Too\"",
+      "artist": "Meghan Trainor"
+    },
+    {
+      "pos": 63,
+      "title": "\"Ex's & Oh's\"",
+      "artist": "Elle King"
+    },
+    {
+      "pos": 64,
+      "title": "\"Die a Happy Man\"",
+      "artist": "Thomas Rhett"
+    },
+    {
+      "pos": 65,
+      "title": "\"White Iverson\"",
+      "artist": "Post Malone"
+    },
+    {
+      "pos": 66,
+      "title": "\"Close\"",
+      "artist": "Nick Jonas featuring Tove Lo"
+    },
+    {
+      "pos": 67,
+      "title": "\"Unsteady\"",
+      "artist": "X Ambassadors"
+    },
+    {
+      "pos": 68,
+      "title": "\"Sucker for Pain\"",
+      "artist": "Lil Wayne, Wiz Khalifa and Imagine Dragons with Logic and Ty Dolla Sign featuring X Ambassadors"
+    },
+    {
+      "pos": 69,
+      "title": "\"Down in the DM\"",
+      "artist": "Yo Gotti featuring Nicki Minaj"
+    },
+    {
+      "pos": 70,
+      "title": "\"Luv\"",
+      "artist": "Tory Lanez"
+    },
+    {
+      "pos": 71,
+      "title": "\"Sorry\"",
+      "artist": "Beyoncé"
+    },
+    {
+      "pos": 72,
+      "title": "\"Can't Feel My Face\"",
+      "artist": "The Weeknd"
+    },
+    {
+      "pos": 73,
+      "title": "\"Hymn for the Weekend\"",
+      "artist": "Coldplay"
+    },
+    {
+      "pos": 74,
+      "title": "\"Say It\"",
+      "artist": "Tory Lanez"
+    },
+    {
+      "pos": 75,
+      "title": "\"Antidote\"",
+      "artist": "Travis Scott"
+    },
+    {
+      "pos": 76,
+      "title": "\"Lost Boy\"",
+      "artist": "Ruth B"
+    },
+    {
+      "pos": 77,
+      "title": "\"Side to Side\"",
+      "artist": "Ariana Grande featuring Nicki Minaj"
+    },
+    {
+      "pos": 78,
+      "title": "\"Sit Still, Look Pretty\"",
+      "artist": "Daya"
+    },
+    {
+      "pos": 79,
+      "title": "\"Wildest Dreams\"",
+      "artist": "Taylor Swift"
+    },
+    {
+      "pos": 80,
+      "title": "\"Middle\"",
+      "artist": "DJ Snake featuring Bipolar Sunshine"
+    },
+    {
+      "pos": 81,
+      "title": "\"On My Mind\"",
+      "artist": "Ellie Goulding"
+    },
+    {
+      "pos": 82,
+      "title": "\"Pop Style\"",
+      "artist": "Drake featuring Jay-Z and Kanye West"
+    },
+    {
+      "pos": 83,
+      "title": "\"When We Were Young\"",
+      "artist": "Adele"
+    },
+    {
+      "pos": 84,
+      "title": "\"Hide Away\"",
+      "artist": "Daya"
+    },
+    {
+      "pos": 85,
+      "title": "\"Lean On\"",
+      "artist": "Major Lazer and DJ Snake featuring MØ"
+    },
+    {
+      "pos": 86,
+      "title": "\"I Know What You Did Last Summer\"",
+      "artist": "Shawn Mendes and Camila Cabello"
+    },
+    {
+      "pos": 87,
+      "title": "\"All the Way Up\"",
+      "artist": "Fat Joe and Remy Ma featuring French Montana and Infared"
+    },
+    {
+      "pos": 88,
+      "title": "\"Watch Me\"",
+      "artist": "Silentó"
+    },
+    {
+      "pos": 89,
+      "title": "\"Back to Sleep\"",
+      "artist": "Chris Brown"
+    },
+    {
+      "pos": 90,
+      "title": "\"No Limit\"",
+      "artist": "Usher featuring Young Thug"
+    },
+    {
+      "pos": 91,
+      "title": "\"Cut It\"",
+      "artist": "O.T. Genasis featuring Young Dolph"
+    },
+    {
+      "pos": 92,
+      "title": "\"Really Really\"",
+      "artist": "Kevin Gates"
+    },
+    {
+      "pos": 93,
+      "title": "\"All In My Head (Flex)\"",
+      "artist": "Fifth Harmony featuring Fetty Wap"
+    },
+    {
+      "pos": 94,
+      "title": "\"Starving\"",
+      "artist": "Hailee Steinfeld and Grey featuring Zedd"
+    },
+    {
+      "pos": 95,
+      "title": "\"Adventure of a Lifetime\"",
+      "artist": "Coldplay"
+    },
+    {
+      "pos": 96,
+      "title": "\"Humble and Kind\"",
+      "artist": "Tim McGraw"
+    },
+    {
+      "pos": 97,
+      "title": "\"Wicked\"",
+      "artist": "Future"
+    },
+    {
+      "pos": 98,
+      "title": "\"Tiimmy Turner\"",
+      "artist": "Desiigner"
+    },
+    {
+      "pos": 99,
+      "title": "\"See You Again\"",
+      "artist": "Wiz Khalifa featuring Charlie Puth"
+    },
+    {
+      "pos": 100,
+      "title": "\"Perfect\"",
+      "artist": "One Direction"
+    }
+  ]
+}

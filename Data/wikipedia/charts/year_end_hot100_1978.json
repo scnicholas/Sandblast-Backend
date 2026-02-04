@@ -1,0 +1,512 @@
+{
+  "year": 1978,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1978",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Shadow Dancing\"",
+      "artist": "Andy Gibb"
+    },
+    {
+      "pos": 2,
+      "title": "\"Night Fever\"",
+      "artist": "Bee Gees"
+    },
+    {
+      "pos": 3,
+      "title": "\"You Light Up My Life\"",
+      "artist": "Debby Boone"
+    },
+    {
+      "pos": 4,
+      "title": "\"Stayin' Alive\"",
+      "artist": "Bee Gees"
+    },
+    {
+      "pos": 5,
+      "title": "\"Kiss You All Over\"",
+      "artist": "Exile"
+    },
+    {
+      "pos": 6,
+      "title": "\"How Deep Is Your Love\"",
+      "artist": "Bee Gees"
+    },
+    {
+      "pos": 7,
+      "title": "\"Baby Come Back\"",
+      "artist": "Player"
+    },
+    {
+      "pos": 8,
+      "title": "\"(Love Is) Thicker Than Water\"",
+      "artist": "Andy Gibb"
+    },
+    {
+      "pos": 9,
+      "title": "\"Boogie Oogie Oogie\"",
+      "artist": "A Taste of Honey"
+    },
+    {
+      "pos": 10,
+      "title": "\"Three Times a Lady\"",
+      "artist": "Commodores"
+    },
+    {
+      "pos": 11,
+      "title": "\"Grease\"",
+      "artist": "Frankie Valli"
+    },
+    {
+      "pos": 12,
+      "title": "\"I Go Crazy\"",
+      "artist": "Paul Davis"
+    },
+    {
+      "pos": 13,
+      "title": "\"You're the One That I Want\"",
+      "artist": "John Travolta & Olivia Newton-John"
+    },
+    {
+      "pos": 14,
+      "title": "\"Emotion\"",
+      "artist": "Samantha Sang"
+    },
+    {
+      "pos": 15,
+      "title": "\"Lay Down Sally\"",
+      "artist": "Eric Clapton"
+    },
+    {
+      "pos": 16,
+      "title": "\"Miss You\"",
+      "artist": "The Rolling Stones"
+    },
+    {
+      "pos": 17,
+      "title": "\"Just the Way You Are\"",
+      "artist": "Billy Joel"
+    },
+    {
+      "pos": 18,
+      "title": "\"With a Little Luck\"",
+      "artist": "Wings"
+    },
+    {
+      "pos": 19,
+      "title": "\"If I Can't Have You\"",
+      "artist": "Yvonne Elliman"
+    },
+    {
+      "pos": 20,
+      "title": "\"Dance, Dance, Dance (Yowsah, Yowsah, Yowsah)\"",
+      "artist": "Chic"
+    },
+    {
+      "pos": 21,
+      "title": "\"Feels So Good\"",
+      "artist": "Chuck Mangione"
+    },
+    {
+      "pos": 22,
+      "title": "\"Hot Child in the City\"",
+      "artist": "Nick Gilder"
+    },
+    {
+      "pos": 23,
+      "title": "\"Love Is Like Oxygen\"",
+      "artist": "Sweet"
+    },
+    {
+      "pos": 24,
+      "title": "\"It's a Heartache\"",
+      "artist": "Bonnie Tyler"
+    },
+    {
+      "pos": 25,
+      "title": "\"We Will Rock You\" / \"We Are the Champions\"",
+      "artist": "Queen"
+    },
+    {
+      "pos": 26,
+      "title": "\"Baker Street\"",
+      "artist": "Gerry Rafferty"
+    },
+    {
+      "pos": 27,
+      "title": "\"Can't Smile Without You\"",
+      "artist": "Barry Manilow"
+    },
+    {
+      "pos": 28,
+      "title": "\"Too Much, Too Little, Too Late\"",
+      "artist": "Johnny Mathis & Deniece Williams"
+    },
+    {
+      "pos": 29,
+      "title": "\"Dance With Me\"",
+      "artist": "Peter Brown"
+    },
+    {
+      "pos": 30,
+      "title": "\"Two Out of Three Ain't Bad\"",
+      "artist": "Meat Loaf"
+    },
+    {
+      "pos": 31,
+      "title": "\"Jack And Jill\"",
+      "artist": "Raydio"
+    },
+    {
+      "pos": 32,
+      "title": "\"Take a Chance on Me\"",
+      "artist": "ABBA"
+    },
+    {
+      "pos": 33,
+      "title": "\"Sometimes When We Touch\"",
+      "artist": "Dan Hill"
+    },
+    {
+      "pos": 34,
+      "title": "\"Last Dance\"",
+      "artist": "Donna Summer"
+    },
+    {
+      "pos": 35,
+      "title": "\"Hopelessly Devoted to You\"",
+      "artist": "Olivia Newton-John"
+    },
+    {
+      "pos": 36,
+      "title": "\"Hot Blooded\"",
+      "artist": "Foreigner"
+    },
+    {
+      "pos": 37,
+      "title": "\"You're in My Heart (The Final Acclaim)\"",
+      "artist": "Rod Stewart"
+    },
+    {
+      "pos": 38,
+      "title": "\"The Closer I Get to You\"",
+      "artist": "Roberta Flack & Donny Hathaway"
+    },
+    {
+      "pos": 39,
+      "title": "\"Dust in the Wind\"",
+      "artist": "Kansas"
+    },
+    {
+      "pos": 40,
+      "title": "\"Magnet and Steel\"",
+      "artist": "Walter Egan"
+    },
+    {
+      "pos": 41,
+      "title": "\"Short People\"",
+      "artist": "Randy Newman"
+    },
+    {
+      "pos": 42,
+      "title": "\"Use ta Be My Girl\"",
+      "artist": "The O'Jays"
+    },
+    {
+      "pos": 43,
+      "title": "\"Our Love\"",
+      "artist": "Natalie Cole"
+    },
+    {
+      "pos": 44,
+      "title": "\"Love Will Find a Way\"",
+      "artist": "Pablo Cruise"
+    },
+    {
+      "pos": 45,
+      "title": "\"An Everlasting Love\"",
+      "artist": "Andy Gibb"
+    },
+    {
+      "pos": 46,
+      "title": "\"Love Is in the Air\"",
+      "artist": "John Paul Young"
+    },
+    {
+      "pos": 47,
+      "title": "\"Goodbye Girl\"",
+      "artist": "David Gates"
+    },
+    {
+      "pos": 48,
+      "title": "\"Slip Slidin' Away\"",
+      "artist": "Paul Simon"
+    },
+    {
+      "pos": 49,
+      "title": "\"The Groove Line\"",
+      "artist": "Heatwave"
+    },
+    {
+      "pos": 50,
+      "title": "\"Thunder Island\"",
+      "artist": "Jay Ferguson"
+    },
+    {
+      "pos": 51,
+      "title": "\"Imaginary Lover\"",
+      "artist": "Atlanta Rhythm Section"
+    },
+    {
+      "pos": 52,
+      "title": "\"Still the Same\"",
+      "artist": "Bob Seger & The Silver Bullet Band"
+    },
+    {
+      "pos": 53,
+      "title": "\"My Angel Baby\"",
+      "artist": "Toby Beau"
+    },
+    {
+      "pos": 54,
+      "title": "\"Disco Inferno\"",
+      "artist": "The Trammps"
+    },
+    {
+      "pos": 55,
+      "title": "\"On Broadway\"",
+      "artist": "George Benson"
+    },
+    {
+      "pos": 56,
+      "title": "\"Come Sail Away\"",
+      "artist": "Styx"
+    },
+    {
+      "pos": 57,
+      "title": "\"(Every Time I Turn Around) Back in Love Again\"",
+      "artist": "L.T.D."
+    },
+    {
+      "pos": 58,
+      "title": "\"This Time I'm in It for Love\"",
+      "artist": "Player"
+    },
+    {
+      "pos": 59,
+      "title": "\"You Belong to Me\"",
+      "artist": "Carly Simon"
+    },
+    {
+      "pos": 60,
+      "title": "\"Here You Come Again\"",
+      "artist": "Dolly Parton"
+    },
+    {
+      "pos": 61,
+      "title": "\"Blue Bayou\"",
+      "artist": "Linda Ronstadt"
+    },
+    {
+      "pos": 62,
+      "title": "\"Peg\"",
+      "artist": "Steely Dan"
+    },
+    {
+      "pos": 63,
+      "title": "\"You Needed Me\"",
+      "artist": "Anne Murray"
+    },
+    {
+      "pos": 64,
+      "title": "\"Shame\"",
+      "artist": "Evelyn \"Champagne\" King"
+    },
+    {
+      "pos": 65,
+      "title": "\"Reminiscing\"",
+      "artist": "Little River Band"
+    },
+    {
+      "pos": 66,
+      "title": "\"Count On Me\"",
+      "artist": "Jefferson Starship"
+    },
+    {
+      "pos": 67,
+      "title": "\"Baby Hold On\"",
+      "artist": "Eddie Money"
+    },
+    {
+      "pos": 68,
+      "title": "\"Hey Deanie\"",
+      "artist": "Shaun Cassidy"
+    },
+    {
+      "pos": 69,
+      "title": "\"Summer Nights\"",
+      "artist": "John Travolta & Olivia Newton-John"
+    },
+    {
+      "pos": 70,
+      "title": "\"What's Your Name\"",
+      "artist": "Lynyrd Skynyrd"
+    },
+    {
+      "pos": 71,
+      "title": "\"Don't It Make My Brown Eyes Blue\"",
+      "artist": "Crystal Gayle"
+    },
+    {
+      "pos": 72,
+      "title": "\"Because the Night\"",
+      "artist": "Patti Smith Group"
+    },
+    {
+      "pos": 73,
+      "title": "\"Every Kinda People\"",
+      "artist": "Robert Palmer"
+    },
+    {
+      "pos": 74,
+      "title": "\"Copacabana\"",
+      "artist": "Barry Manilow"
+    },
+    {
+      "pos": 75,
+      "title": "\"Always and Forever\"",
+      "artist": "Heatwave"
+    },
+    {
+      "pos": 76,
+      "title": "\"You and I\"",
+      "artist": "Rick James"
+    },
+    {
+      "pos": 77,
+      "title": "\"Serpentine Fire\"",
+      "artist": "Earth, Wind & Fire"
+    },
+    {
+      "pos": 78,
+      "title": "\"Sentimental Lady\"",
+      "artist": "Bob Welch"
+    },
+    {
+      "pos": 79,
+      "title": "\"Falling\"",
+      "artist": "LeBlanc & Carr"
+    },
+    {
+      "pos": 80,
+      "title": "\"Don't Let Me Be Misunderstood\"",
+      "artist": "Santa Esmeralda"
+    },
+    {
+      "pos": 81,
+      "title": "\"Bluer Than Blue\"",
+      "artist": "Michael Johnson"
+    },
+    {
+      "pos": 82,
+      "title": "\"Running on Empty\"",
+      "artist": "Jackson Browne"
+    },
+    {
+      "pos": 83,
+      "title": "\"Whenever I Call You 'Friend'\"",
+      "artist": "Kenny Loggins & Stevie Nicks"
+    },
+    {
+      "pos": 84,
+      "title": "\"Fool (If You Think It's Over)\"",
+      "artist": "Chris Rea"
+    },
+    {
+      "pos": 85,
+      "title": "\"Get Off\"",
+      "artist": "Foxy"
+    },
+    {
+      "pos": 86,
+      "title": "\"Sweet Talkin' Woman\"",
+      "artist": "Electric Light Orchestra"
+    },
+    {
+      "pos": 87,
+      "title": "\"Life's Been Good\"",
+      "artist": "Joe Walsh"
+    },
+    {
+      "pos": 88,
+      "title": "\"I Love the Nightlife\"",
+      "artist": "Alicia Bridges"
+    },
+    {
+      "pos": 89,
+      "title": "\"You Can't Turn Me Off (In The Middle Of Turning Me On)\"",
+      "artist": "High Inergy"
+    },
+    {
+      "pos": 90,
+      "title": "\"It's So Easy\"",
+      "artist": "Linda Ronstadt"
+    },
+    {
+      "pos": 91,
+      "title": "\"Native New Yorker\"",
+      "artist": "Odyssey"
+    },
+    {
+      "pos": 92,
+      "title": "\"Flash Light\"",
+      "artist": "Parliament"
+    },
+    {
+      "pos": 93,
+      "title": "\"Don't Look Back\"",
+      "artist": "Boston"
+    },
+    {
+      "pos": 94,
+      "title": "\"Turn to Stone\"",
+      "artist": "Electric Light Orchestra"
+    },
+    {
+      "pos": 95,
+      "title": "\"I Can't Stand the Rain\"",
+      "artist": "Eruption"
+    },
+    {
+      "pos": 96,
+      "title": "\"Ebony Eyes\"",
+      "artist": "Bob Welch"
+    },
+    {
+      "pos": 97,
+      "title": "\"The Name of the Game\"",
+      "artist": "ABBA"
+    },
+    {
+      "pos": 98,
+      "title": "\"We're All Alone\"",
+      "artist": "Rita Coolidge"
+    },
+    {
+      "pos": 99,
+      "title": "\"Hollywood Nights\"",
+      "artist": "Bob Seger & The Silver Bullet Band"
+    },
+    {
+      "pos": 100,
+      "title": "\"Deacon Blues\"",
+      "artist": "Steely Dan"
+    }
+  ]
+}

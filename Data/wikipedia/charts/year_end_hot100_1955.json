@@ -1,0 +1,162 @@
+{
+  "year": 1955,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_year-end_top_30_singles_of_1955",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Cherry Pink And Apple Blossom White\"",
+      "artist": "Perez Prado"
+    },
+    {
+      "pos": 2,
+      "title": "\"Rock Around the Clock\"",
+      "artist": "Bill Haley & His Comets"
+    },
+    {
+      "pos": 3,
+      "title": "\"The Yellow Rose of Texas\"",
+      "artist": "Mitch Miller"
+    },
+    {
+      "pos": 4,
+      "title": "\"Autumn Leaves\"",
+      "artist": "Roger Williams"
+    },
+    {
+      "pos": 5,
+      "title": "\"Unchained Melody\"",
+      "artist": "Les Baxter"
+    },
+    {
+      "pos": 6,
+      "title": "\"The Ballad of Davy Crockett\"",
+      "artist": "Bill Hayes"
+    },
+    {
+      "pos": 7,
+      "title": "\"Love Is a Many-Splendored Thing\"",
+      "artist": "The Four Aces"
+    },
+    {
+      "pos": 8,
+      "title": "\"Sincerely\"",
+      "artist": "The McGuire Sisters"
+    },
+    {
+      "pos": 9,
+      "title": "\"Ain't That a Shame\"",
+      "artist": "Pat Boone"
+    },
+    {
+      "pos": 10,
+      "title": "\"The Wallflower (Dance with Me, Henry)\"",
+      "artist": "Georgia Gibbs"
+    },
+    {
+      "pos": 11,
+      "title": "\"The Crazy Otto Medley\"",
+      "artist": "Johnny Maddox"
+    },
+    {
+      "pos": 12,
+      "title": "\"Melody of Love\"",
+      "artist": "Billy Vaughn"
+    },
+    {
+      "pos": 13,
+      "title": "\"Sixteen Tons\"",
+      "artist": "Tennessee Ernie Ford"
+    },
+    {
+      "pos": 14,
+      "title": "\"Learnin' the Blues\"",
+      "artist": "Frank Sinatra"
+    },
+    {
+      "pos": 15,
+      "title": "\"Hearts of Stone\"",
+      "artist": "The Fontane Sisters"
+    },
+    {
+      "pos": 16,
+      "title": "\"Tweedle Dee\"",
+      "artist": "Georgia Gibbs"
+    },
+    {
+      "pos": 17,
+      "title": "\"Moments to Remember\"",
+      "artist": "The Four Lads"
+    },
+    {
+      "pos": 18,
+      "title": "\"Mr. Sandman\"",
+      "artist": "The Chordettes"
+    },
+    {
+      "pos": 19,
+      "title": "\"Let Me Go, Lover!\"",
+      "artist": "Joan Weber"
+    },
+    {
+      "pos": 20,
+      "title": "\"A Blossom Fell\"",
+      "artist": "Nat King Cole"
+    },
+    {
+      "pos": 21,
+      "title": "\"Unchained Melody\"",
+      "artist": "Al Hibbler"
+    },
+    {
+      "pos": 22,
+      "title": "\"The Ballad of Davy Crockett\"",
+      "artist": "Fess Parker"
+    },
+    {
+      "pos": 23,
+      "title": "\"Honey-Babe\"",
+      "artist": "Art Mooney"
+    },
+    {
+      "pos": 24,
+      "title": "\"The Ballad of Davy Crockett\"",
+      "artist": "Tennessee Ernie Ford"
+    },
+    {
+      "pos": 25,
+      "title": "\"Ko Ko Mo (I Love You So)\"",
+      "artist": "Perry Como"
+    },
+    {
+      "pos": 26,
+      "title": "\"Hard to Get\"",
+      "artist": "Gisele MacKenzie"
+    },
+    {
+      "pos": 27,
+      "title": "\"The Naughty Lady of Shady Lane\"",
+      "artist": "The Ames Brothers"
+    },
+    {
+      "pos": 28,
+      "title": "\"That's All I Want from You\"",
+      "artist": "Jaye P. Morgan"
+    },
+    {
+      "pos": 29,
+      "title": "\"Only You (And You Alone)\"",
+      "artist": "The Platters"
+    },
+    {
+      "pos": 30,
+      "title": "\"It's a Sin to Tell a Lie\"",
+      "artist": "Somethin' Smith and the Redheads"
+    }
+  ]
+}

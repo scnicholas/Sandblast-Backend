@@ -1,0 +1,512 @@
+{
+  "year": 2025,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_2025",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Die with a Smile\"",
+      "artist": "Lady Gaga and Bruno Mars"
+    },
+    {
+      "pos": 2,
+      "title": "\"Luther\"",
+      "artist": "Kendrick Lamar and SZA"
+    },
+    {
+      "pos": 3,
+      "title": "\"A Bar Song (Tipsy)\"",
+      "artist": "Shaboozey"
+    },
+    {
+      "pos": 4,
+      "title": "\"Lose Control\"",
+      "artist": "Teddy Swims"
+    },
+    {
+      "pos": 5,
+      "title": "\"Birds of a Feather\"",
+      "artist": "Billie Eilish"
+    },
+    {
+      "pos": 6,
+      "title": "\"Beautiful Things\"",
+      "artist": "Benson Boone"
+    },
+    {
+      "pos": 7,
+      "title": "\"Ordinary\"",
+      "artist": "Alex Warren"
+    },
+    {
+      "pos": 8,
+      "title": "\"I Had Some Help\"",
+      "artist": "Post Malone featuring Morgan Wallen"
+    },
+    {
+      "pos": 9,
+      "title": "\"APT.\"",
+      "artist": "Rosé and Bruno Mars"
+    },
+    {
+      "pos": 10,
+      "title": "\"Pink Pony Club\"",
+      "artist": "Chappell Roan"
+    },
+    {
+      "pos": 11,
+      "title": "\"Love Somebody\"",
+      "artist": "Morgan Wallen"
+    },
+    {
+      "pos": 12,
+      "title": "\"Espresso\"",
+      "artist": "Sabrina Carpenter"
+    },
+    {
+      "pos": 13,
+      "title": "\"I'm the Problem\"",
+      "artist": "Morgan Wallen"
+    },
+    {
+      "pos": 14,
+      "title": "\"That's So True\"",
+      "artist": "Gracie Abrams"
+    },
+    {
+      "pos": 15,
+      "title": "\"TV Off\"",
+      "artist": "Kendrick Lamar featuring Lefty Gunplay"
+    },
+    {
+      "pos": 16,
+      "title": "\"Timeless\"",
+      "artist": "The Weeknd and Playboi Carti"
+    },
+    {
+      "pos": 17,
+      "title": "\"Not Like Us\"",
+      "artist": "Kendrick Lamar"
+    },
+    {
+      "pos": 18,
+      "title": "\"Just in Case\"",
+      "artist": "Morgan Wallen"
+    },
+    {
+      "pos": 19,
+      "title": "\"Taste\"",
+      "artist": "Sabrina Carpenter"
+    },
+    {
+      "pos": 20,
+      "title": "\"Squabble Up\"",
+      "artist": "Kendrick Lamar"
+    },
+    {
+      "pos": 21,
+      "title": "\"30 for 30\"",
+      "artist": "SZA and Kendrick Lamar"
+    },
+    {
+      "pos": 22,
+      "title": "\"Mutt\"",
+      "artist": "Leon Thomas"
+    },
+    {
+      "pos": 23,
+      "title": "\"Good News\"",
+      "artist": "Shaboozey"
+    },
+    {
+      "pos": 24,
+      "title": "\"Nokia\"",
+      "artist": "Drake"
+    },
+    {
+      "pos": 25,
+      "title": "\"Golden\"",
+      "artist": "Huntrix: Ejae, Audrey Nuna and Rei Ami"
+    },
+    {
+      "pos": 26,
+      "title": "\"Wildflower\"",
+      "artist": "Billie Eilish"
+    },
+    {
+      "pos": 27,
+      "title": "\"What I Want\"",
+      "artist": "Morgan Wallen featuring Tate McRae"
+    },
+    {
+      "pos": 28,
+      "title": "\"Messy\"",
+      "artist": "Lola Young"
+    },
+    {
+      "pos": 29,
+      "title": "\"Stargazing\"",
+      "artist": "Myles Smith"
+    },
+    {
+      "pos": 30,
+      "title": "\"Love Me Not\"",
+      "artist": "Ravyn Lenae"
+    },
+    {
+      "pos": 31,
+      "title": "\"Good Luck, Babe!\"",
+      "artist": "Chappell Roan"
+    },
+    {
+      "pos": 32,
+      "title": "\"No One Noticed\"",
+      "artist": "The Marías"
+    },
+    {
+      "pos": 33,
+      "title": "\"All the Way\"",
+      "artist": "BigXthaPlug featuring Bailey Zimmerman"
+    },
+    {
+      "pos": 34,
+      "title": "\"Too Sweet\"",
+      "artist": "Hozier"
+    },
+    {
+      "pos": 35,
+      "title": "\"Worst Way\"",
+      "artist": "Riley Green"
+    },
+    {
+      "pos": 36,
+      "title": "\"Sailor Song\"",
+      "artist": "Gigi Perez"
+    },
+    {
+      "pos": 37,
+      "title": "\"Sorry I'm Here for Someone Else\"",
+      "artist": "Benson Boone"
+    },
+    {
+      "pos": 38,
+      "title": "\"Manchild\"",
+      "artist": "Sabrina Carpenter"
+    },
+    {
+      "pos": 39,
+      "title": "\"Anxiety\"",
+      "artist": "Doechii"
+    },
+    {
+      "pos": 40,
+      "title": "\"I Got Better\"",
+      "artist": "Morgan Wallen"
+    },
+    {
+      "pos": 41,
+      "title": "\"Sticky\"",
+      "artist": "Tyler, the Creator featuring GloRilla, Sexyy Red and Lil Wayne"
+    },
+    {
+      "pos": 42,
+      "title": "\"Undressed\"",
+      "artist": "Sombr"
+    },
+    {
+      "pos": 43,
+      "title": "\"I Never Lie\"",
+      "artist": "Zach Top"
+    },
+    {
+      "pos": 44,
+      "title": "\"Back to Friends\"",
+      "artist": "Sombr"
+    },
+    {
+      "pos": 45,
+      "title": "\"Bed Chem\"",
+      "artist": "Sabrina Carpenter"
+    },
+    {
+      "pos": 46,
+      "title": "\"Sports Car\"",
+      "artist": "Tate McRae"
+    },
+    {
+      "pos": 47,
+      "title": "\"Mystical Magical\"",
+      "artist": "Benson Boone"
+    },
+    {
+      "pos": 48,
+      "title": "\"Whatchu Kno About Me\"",
+      "artist": "GloRilla and Sexyy Red"
+    },
+    {
+      "pos": 49,
+      "title": "\"Indigo\"",
+      "artist": "Sam Barber featuring Avery Anna"
+    },
+    {
+      "pos": 50,
+      "title": "\"Please Please Please\"",
+      "artist": "Sabrina Carpenter"
+    },
+    {
+      "pos": 51,
+      "title": "\"DTMF\"",
+      "artist": "Bad Bunny"
+    },
+    {
+      "pos": 52,
+      "title": "\"Blue Strips\"",
+      "artist": "Jessie Murph"
+    },
+    {
+      "pos": 53,
+      "title": "\"Peekaboo\"",
+      "artist": "Kendrick Lamar featuring AzChike"
+    },
+    {
+      "pos": 54,
+      "title": "\"Your Idol\"",
+      "artist": "Saja Boys: Andrew Choi, Neckwav, Danny Chung, Kevin Woo and Samuil Lee"
+    },
+    {
+      "pos": 55,
+      "title": "\"High Road\"",
+      "artist": "Koe Wetzel featuring Jessie Murph"
+    },
+    {
+      "pos": 56,
+      "title": "\"Abracadabra\"",
+      "artist": "Lady Gaga"
+    },
+    {
+      "pos": 57,
+      "title": "\"Who\"",
+      "artist": "Jimin"
+    },
+    {
+      "pos": 58,
+      "title": "\"Burning Blue\"",
+      "artist": "Mariah the Scientist"
+    },
+    {
+      "pos": 59,
+      "title": "\"All I Want for Christmas Is You\"",
+      "artist": "Mariah Carey"
+    },
+    {
+      "pos": 60,
+      "title": "\"Daisies\"",
+      "artist": "Justin Bieber"
+    },
+    {
+      "pos": 61,
+      "title": "\"Soda Pop\"",
+      "artist": "Saja Boys: Andrew Choi, Neckwav, Danny Chung, Kevin Woo and Samuil Lee"
+    },
+    {
+      "pos": 62,
+      "title": "\"Like Him\"",
+      "artist": "Tyler, the Creator featuring Lola Young"
+    },
+    {
+      "pos": 63,
+      "title": "\"Residuals\"",
+      "artist": "Chris Brown"
+    },
+    {
+      "pos": 64,
+      "title": "\"Smile\"",
+      "artist": "Morgan Wallen"
+    },
+    {
+      "pos": 65,
+      "title": "\"Last Christmas\"",
+      "artist": "Wham!"
+    },
+    {
+      "pos": 66,
+      "title": "\"Am I Okay?\"",
+      "artist": "Megan Moroney"
+    },
+    {
+      "pos": 67,
+      "title": "\"Rockin' Around the Christmas Tree\"",
+      "artist": "Brenda Lee"
+    },
+    {
+      "pos": 68,
+      "title": "\"How It's Done\"",
+      "artist": "Huntrix: Ejae, Audrey Nuna and Rei Ami"
+    },
+    {
+      "pos": 69,
+      "title": "\"Happen to Me\"",
+      "artist": "Russell Dickerson"
+    },
+    {
+      "pos": 70,
+      "title": "\"Baile Inolvidable\"",
+      "artist": "Bad Bunny"
+    },
+    {
+      "pos": 71,
+      "title": "\"Weren't for the Wind\"",
+      "artist": "Ella Langley"
+    },
+    {
+      "pos": 72,
+      "title": "\"I Ain't Comin' Back\"",
+      "artist": "Morgan Wallen featuring Post Malone"
+    },
+    {
+      "pos": 73,
+      "title": "\"Cry for Me\"",
+      "artist": "The Weeknd"
+    },
+    {
+      "pos": 74,
+      "title": "\"Bad Dreams\"",
+      "artist": "Teddy Swims"
+    },
+    {
+      "pos": 75,
+      "title": "\"Denial Is a River\"",
+      "artist": "Doechii"
+    },
+    {
+      "pos": 76,
+      "title": "\"BMF\"",
+      "artist": "SZA"
+    },
+    {
+      "pos": 77,
+      "title": "\"Eoo\"",
+      "artist": "Bad Bunny"
+    },
+    {
+      "pos": 78,
+      "title": "\"I'm Gonna Love You\"",
+      "artist": "Cody Johnson and Carrie Underwood"
+    },
+    {
+      "pos": 79,
+      "title": "\"I Am Not Okay\"",
+      "artist": "Jelly Roll"
+    },
+    {
+      "pos": 80,
+      "title": "\"Backup Plan\"",
+      "artist": "Bailey Zimmerman and Luke Combs"
+    },
+    {
+      "pos": 81,
+      "title": "\"Jingle Bell Rock\"",
+      "artist": "Bobby Helms"
+    },
+    {
+      "pos": 82,
+      "title": "\"Revolving Door\"",
+      "artist": "Tate McRae"
+    },
+    {
+      "pos": 83,
+      "title": "\"What It Sounds Like\"",
+      "artist": "Huntrix: Ejae, Audrey Nuna and Rei Ami"
+    },
+    {
+      "pos": 84,
+      "title": "\"Hard Fought Hallelujah\"",
+      "artist": "Brandon Lake and Jelly Roll"
+    },
+    {
+      "pos": 85,
+      "title": "\"Somebody Loves Me\"",
+      "artist": "PartyNextDoor and Drake"
+    },
+    {
+      "pos": 86,
+      "title": "\"Liar\"",
+      "artist": "Jelly Roll"
+    },
+    {
+      "pos": 87,
+      "title": "\"Tu Boda\"",
+      "artist": "Óscar Maydon and Fuerza Regida"
+    },
+    {
+      "pos": 88,
+      "title": "\"After All the Bars Are Closed\"",
+      "artist": "Thomas Rhett"
+    },
+    {
+      "pos": 89,
+      "title": "\"Nuevayol\"",
+      "artist": "Bad Bunny"
+    },
+    {
+      "pos": 90,
+      "title": "\"20 Cigarettes\"",
+      "artist": "Morgan Wallen"
+    },
+    {
+      "pos": 91,
+      "title": "\"Rather Lie\"",
+      "artist": "Playboi Carti and the Weeknd"
+    },
+    {
+      "pos": 92,
+      "title": "\"Free\"",
+      "artist": "Ejae and Andrew Choi"
+    },
+    {
+      "pos": 93,
+      "title": "\"Takedown\"",
+      "artist": "Huntrix: Ejae, Audrey Nuna and Rei Ami"
+    },
+    {
+      "pos": 94,
+      "title": "\"Heart of a Woman\"",
+      "artist": "Summer Walker"
+    },
+    {
+      "pos": 95,
+      "title": "\"House Again\"",
+      "artist": "Hudson Westbrook"
+    },
+    {
+      "pos": 96,
+      "title": "\"Dark Thoughts\"",
+      "artist": "Lil Tecca"
+    },
+    {
+      "pos": 97,
+      "title": "\"No Pole\"",
+      "artist": "Don Toliver"
+    },
+    {
+      "pos": 98,
+      "title": "\"Folded\"",
+      "artist": "Kehlani"
+    },
+    {
+      "pos": 99,
+      "title": "\"Superman\"",
+      "artist": "Morgan Wallen"
+    },
+    {
+      "pos": 100,
+      "title": "\"Loco\"",
+      "artist": "Netón Vega"
+    }
+  ]
+}

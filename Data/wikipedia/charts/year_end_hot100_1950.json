@@ -1,0 +1,157 @@
+{
+  "year": 1950,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_year-end_top_30_singles_of_1950",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Goodnight Irene\"",
+      "artist": "Gordon Jenkins & The Weavers"
+    },
+    {
+      "pos": 3,
+      "title": "\"Third Man Theme\"",
+      "artist": "Anton Karas"
+    },
+    {
+      "pos": 4,
+      "title": "\"Sam's Song\"",
+      "artist": "Gary & Bing Crosby with Matty Matlock"
+    },
+    {
+      "pos": 5,
+      "title": "\"Play a Simple Melody\"",
+      "artist": "\"Play a Simple Melody\""
+    },
+    {
+      "pos": 6,
+      "title": "\"Music, Music, Music\"",
+      "artist": "Teresa Brewer"
+    },
+    {
+      "pos": 7,
+      "title": "\"Third Man Theme\"",
+      "artist": "Guy Lombardo"
+    },
+    {
+      "pos": 8,
+      "title": "\"Chattanoogie Shoe Shine Boy\"",
+      "artist": "Red Foley"
+    },
+    {
+      "pos": 9,
+      "title": "\"Harbor Lights\"",
+      "artist": "Sammy Kaye"
+    },
+    {
+      "pos": 10,
+      "title": "\"It Isn't Fair\"",
+      "artist": "Sammy Kaye & Don Cornell"
+    },
+    {
+      "pos": 11,
+      "title": "\"If I Knew You Were Coming I'd have Baked a Cake\"",
+      "artist": "Eileen Barton with Morty Craft"
+    },
+    {
+      "pos": 12,
+      "title": "\"Bonaparte's Retreat\"",
+      "artist": "Kay Starr with Lou Busch"
+    },
+    {
+      "pos": 13,
+      "title": "\"Tzena, Tzena, Tzena\"",
+      "artist": "Gordon Jenkins & The Weavers"
+    },
+    {
+      "pos": 14,
+      "title": "\"There's No Tomorrow\"",
+      "artist": "Tony Martin with Henri René"
+    },
+    {
+      "pos": 15,
+      "title": "\"The Thing\"",
+      "artist": "Phil Harris with Walter Scharf"
+    },
+    {
+      "pos": 16,
+      "title": "\"Sentimental Me\"",
+      "artist": "Ames Brothers"
+    },
+    {
+      "pos": 17,
+      "title": "\"I Wanna Be Loved\"",
+      "artist": "Andrews Sisters & Gordon Jenkins"
+    },
+    {
+      "pos": 18,
+      "title": "\"Tennessee Waltz\"",
+      "artist": "Patti Page"
+    },
+    {
+      "pos": 19,
+      "title": "\"I Can Dream, Can't I\"",
+      "artist": "Andrews Sisters & Gordon Jenkins"
+    },
+    {
+      "pos": 20,
+      "title": "\"I'll Never Be Free\"",
+      "artist": "Kay Starr & Tennessee Ernie Ford"
+    },
+    {
+      "pos": 21,
+      "title": "\"All My Love\"",
+      "artist": "Patti Page"
+    },
+    {
+      "pos": 22,
+      "title": "\"My Foolish Heart\"",
+      "artist": "Gordon Jenkins"
+    },
+    {
+      "pos": 23,
+      "title": "\"Rag Mop\"",
+      "artist": "Ames Brothers"
+    },
+    {
+      "pos": 24,
+      "title": "\"Bewitched\"",
+      "artist": "Bill Snyder"
+    },
+    {
+      "pos": 25,
+      "title": "\"Hoop-Dee-Doo\"",
+      "artist": "Perry Como & The Fontane Sisters with Mitchell Ayres"
+    },
+    {
+      "pos": 26,
+      "title": "\"Bewitched\"",
+      "artist": "Gordon Jenkins"
+    },
+    {
+      "pos": 27,
+      "title": "\"Can Anyone Explain?\"",
+      "artist": "Ames Brothers"
+    },
+    {
+      "pos": 28,
+      "title": "\"My Foolish Heart\"",
+      "artist": "Billy Eckstine"
+    },
+    {
+      "pos": 29,
+      "title": "\"Dear Hearts and Gentle People\"",
+      "artist": "Bing Crosby with Judd Conlon and Perry Botkin"
+    },
+    {
+      "pos": 30,
+      "title": "\"The Cry of the Wild Goose\"",
+      "artist": "Frankie Laine with Carl T. Fischer"
+    }
+  ]
+}

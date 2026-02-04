@@ -1,0 +1,512 @@
+{
+  "year": 1966,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1966",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"California Dreamin'\"",
+      "artist": "The Mamas & the Papas"
+    },
+    {
+      "pos": 2,
+      "title": "\"96 Tears\"",
+      "artist": "? and the Mysterians"
+    },
+    {
+      "pos": 3,
+      "title": "\"What Becomes of the Brokenhearted\"",
+      "artist": "Jimmy Ruffin"
+    },
+    {
+      "pos": 4,
+      "title": "\"Last Train to Clarksville\"",
+      "artist": "The Monkees"
+    },
+    {
+      "pos": 5,
+      "title": "\"Reach Out I'll Be There\"",
+      "artist": "Four Tops"
+    },
+    {
+      "pos": 6,
+      "title": "\"These Boots Are Made for Walkin'\"",
+      "artist": "Nancy Sinatra"
+    },
+    {
+      "pos": 7,
+      "title": "\"Cherish\"",
+      "artist": "The Association"
+    },
+    {
+      "pos": 8,
+      "title": "\"Strangers in the Night\"",
+      "artist": "Frank Sinatra"
+    },
+    {
+      "pos": 9,
+      "title": "\"Kicks\"",
+      "artist": "Paul Revere & the Raiders"
+    },
+    {
+      "pos": 10,
+      "title": "\"The Ballad of the Green Berets\"",
+      "artist": "SSgt Barry Sadler"
+    },
+    {
+      "pos": 11,
+      "title": "\"Good Lovin'\"",
+      "artist": "The Young Rascals"
+    },
+    {
+      "pos": 12,
+      "title": "\"(You're My) Soul and Inspiration\"",
+      "artist": "The Righteous Brothers"
+    },
+    {
+      "pos": 13,
+      "title": "\"You Can't Hurry Love\"",
+      "artist": "The Supremes"
+    },
+    {
+      "pos": 14,
+      "title": "\"Sunny\"",
+      "artist": "Bobby Hebb"
+    },
+    {
+      "pos": 15,
+      "title": "\"See You in September\"",
+      "artist": "The Happenings"
+    },
+    {
+      "pos": 16,
+      "title": "\"Li'l Red Riding Hood\"",
+      "artist": "Sam the Sham and the Pharaohs"
+    },
+    {
+      "pos": 17,
+      "title": "\"Lightnin' Strikes\"",
+      "artist": "Lou Christie"
+    },
+    {
+      "pos": 18,
+      "title": "\"Poor Side of Town\"",
+      "artist": "Johnny Rivers"
+    },
+    {
+      "pos": 19,
+      "title": "\"Working in the Coal Mine\"",
+      "artist": "Lee Dorsey"
+    },
+    {
+      "pos": 20,
+      "title": "\"A Groovy Kind of Love\"",
+      "artist": "The Mindbenders"
+    },
+    {
+      "pos": 21,
+      "title": "\"You Don't Have to Say You Love Me\"",
+      "artist": "Dusty Springfield"
+    },
+    {
+      "pos": 22,
+      "title": "\"Sunshine Superman\"",
+      "artist": "Donovan"
+    },
+    {
+      "pos": 23,
+      "title": "\"Born a Woman\"",
+      "artist": "Sandy Posey"
+    },
+    {
+      "pos": 24,
+      "title": "\"Monday, Monday\"",
+      "artist": "The Mamas & the Papas"
+    },
+    {
+      "pos": 25,
+      "title": "\"Red Rubber Ball\"",
+      "artist": "The Cyrkle"
+    },
+    {
+      "pos": 26,
+      "title": "\"Born Free\"",
+      "artist": "Roger Williams"
+    },
+    {
+      "pos": 27,
+      "title": "\"Walk Away Renée\"",
+      "artist": "The Left Banke"
+    },
+    {
+      "pos": 28,
+      "title": "\"Cool Jerk\"",
+      "artist": "The Capitols"
+    },
+    {
+      "pos": 29,
+      "title": "\"B-A-B-Y\"",
+      "artist": "Carla Thomas"
+    },
+    {
+      "pos": 30,
+      "title": "\"Hanky Panky\"",
+      "artist": "Tommy James and the Shondells"
+    },
+    {
+      "pos": 31,
+      "title": "\"When a Man Loves a Woman\"",
+      "artist": "Percy Sledge"
+    },
+    {
+      "pos": 32,
+      "title": "\"Time Won't Let Me\"",
+      "artist": "The Outsiders"
+    },
+    {
+      "pos": 33,
+      "title": "\"Bus Stop\"",
+      "artist": "The Hollies"
+    },
+    {
+      "pos": 34,
+      "title": "\"Paint It Black\"",
+      "artist": "The Rolling Stones"
+    },
+    {
+      "pos": 35,
+      "title": "\"Summer in the City\"",
+      "artist": "The Lovin' Spoonful"
+    },
+    {
+      "pos": 36,
+      "title": "\"I'm So Lonesome I Could Cry\"",
+      "artist": "B. J. Thomas & the Triumphs"
+    },
+    {
+      "pos": 37,
+      "title": "\"My Love\"",
+      "artist": "Petula Clark"
+    },
+    {
+      "pos": 38,
+      "title": "\"Daydream\"",
+      "artist": "The Lovin' Spoonful"
+    },
+    {
+      "pos": 39,
+      "title": "\"Ain't Too Proud to Beg\"",
+      "artist": "The Temptations"
+    },
+    {
+      "pos": 40,
+      "title": "\"Wild Thing\"",
+      "artist": "The Troggs"
+    },
+    {
+      "pos": 41,
+      "title": "\"Elusive Butterfly\"",
+      "artist": "Bob Lind"
+    },
+    {
+      "pos": 42,
+      "title": "\"I Am a Rock\"",
+      "artist": "Simon & Garfunkel"
+    },
+    {
+      "pos": 43,
+      "title": "\"Dirty Water\"",
+      "artist": "The Standells"
+    },
+    {
+      "pos": 44,
+      "title": "\"Hooray for Hazel\"",
+      "artist": "Tommy Roe"
+    },
+    {
+      "pos": 45,
+      "title": "\"Crying Time\"",
+      "artist": "Ray Charles"
+    },
+    {
+      "pos": 46,
+      "title": "\"Sweet Pea\"",
+      "artist": "Tommy Roe"
+    },
+    {
+      "pos": 47,
+      "title": "\"Secret Agent Man\"",
+      "artist": "Johnny Rivers"
+    },
+    {
+      "pos": 48,
+      "title": "\"Did You Ever Have to Make Up Your Mind?\"",
+      "artist": "The Lovin' Spoonful"
+    },
+    {
+      "pos": 49,
+      "title": "\"We Can Work It Out\"",
+      "artist": "The Beatles"
+    },
+    {
+      "pos": 50,
+      "title": "\"Homeward Bound\"",
+      "artist": "Simon & Garfunkel"
+    },
+    {
+      "pos": 51,
+      "title": "\"Uptight (Everything's Alright)\"",
+      "artist": "Stevie Wonder"
+    },
+    {
+      "pos": 52,
+      "title": "\"Bang Bang (My Baby Shot Me Down)\"",
+      "artist": "Cher"
+    },
+    {
+      "pos": 53,
+      "title": "\"Sloop John B\"",
+      "artist": "The Beach Boys"
+    },
+    {
+      "pos": 54,
+      "title": "\"19th Nervous Breakdown\"",
+      "artist": "The Rolling Stones"
+    },
+    {
+      "pos": 55,
+      "title": "\"Wipe Out\"",
+      "artist": "The Surfaris"
+    },
+    {
+      "pos": 56,
+      "title": "\"Psychotic Reaction\"",
+      "artist": "Count Five"
+    },
+    {
+      "pos": 57,
+      "title": "\"Paperback Writer\"",
+      "artist": "The Beatles"
+    },
+    {
+      "pos": 58,
+      "title": "\"Beauty Is Only Skin Deep\"",
+      "artist": "The Temptations"
+    },
+    {
+      "pos": 59,
+      "title": "\"No Matter What Shape (Your Stomach's In)\"",
+      "artist": "The T-Bones"
+    },
+    {
+      "pos": 60,
+      "title": "\"Barefootin'\"",
+      "artist": "Robert Parker"
+    },
+    {
+      "pos": 61,
+      "title": "\"Just Like Me\"",
+      "artist": "Paul Revere & the Raiders"
+    },
+    {
+      "pos": 62,
+      "title": "\"Love Makes the World Go Round\"",
+      "artist": "Deon Jackson"
+    },
+    {
+      "pos": 63,
+      "title": "\"The Pied Piper\"",
+      "artist": "Crispian St. Peters"
+    },
+    {
+      "pos": 64,
+      "title": "\"Somewhere My Love\"",
+      "artist": "Ray Conniff Singers"
+    },
+    {
+      "pos": 65,
+      "title": "\"Almost Persuaded\"",
+      "artist": "David Houston"
+    },
+    {
+      "pos": 66,
+      "title": "\"If I Were a Carpenter\"",
+      "artist": "Bobby Darin"
+    },
+    {
+      "pos": 67,
+      "title": "\"Don't Mess with Bill\"",
+      "artist": "The Marvelettes"
+    },
+    {
+      "pos": 68,
+      "title": "\"Cherry, Cherry\"",
+      "artist": "Neil Diamond"
+    },
+    {
+      "pos": 69,
+      "title": "\"Message to Michael\"",
+      "artist": "Dionne Warwick"
+    },
+    {
+      "pos": 70,
+      "title": "\"Love Is a Hurtin' Thing\"",
+      "artist": "Lou Rawls"
+    },
+    {
+      "pos": 71,
+      "title": "\"Gloria\"",
+      "artist": "The Shadows of Knight"
+    },
+    {
+      "pos": 72,
+      "title": "\"My World Is Empty Without You\"",
+      "artist": "The Supremes"
+    },
+    {
+      "pos": 73,
+      "title": "\"Barbara Ann\"",
+      "artist": "The Beach Boys"
+    },
+    {
+      "pos": 74,
+      "title": "\"Rainy Day Women #12 & 35\"",
+      "artist": "Bob Dylan"
+    },
+    {
+      "pos": 75,
+      "title": "\"Guantanamera\"",
+      "artist": "The Sandpipers"
+    },
+    {
+      "pos": 76,
+      "title": "\"I'm Your Puppet\"",
+      "artist": "James & Bobby Purify"
+    },
+    {
+      "pos": 77,
+      "title": "\"Land of 1000 Dances\"",
+      "artist": "Wilson Pickett"
+    },
+    {
+      "pos": 78,
+      "title": "\"Oh How Happy\"",
+      "artist": "The Shades of Blue"
+    },
+    {
+      "pos": 79,
+      "title": "\"Woman\"",
+      "artist": "Peter and Gordon"
+    },
+    {
+      "pos": 80,
+      "title": "\"You Baby\"",
+      "artist": "The Turtles"
+    },
+    {
+      "pos": 81,
+      "title": "\"Sweet Talkin' Guy\"",
+      "artist": "The Chiffons"
+    },
+    {
+      "pos": 82,
+      "title": "\"Five O'Clock World\"",
+      "artist": "The Vogues"
+    },
+    {
+      "pos": 83,
+      "title": "\"Black Is Black\"",
+      "artist": "Los Bravos"
+    },
+    {
+      "pos": 84,
+      "title": "\"Nowhere Man\"",
+      "artist": "The Beatles"
+    },
+    {
+      "pos": 85,
+      "title": "\"Dandy\"",
+      "artist": "Herman's Hermits"
+    },
+    {
+      "pos": 86,
+      "title": "\"Baby Scratch My Back\"",
+      "artist": "Slim Harpo"
+    },
+    {
+      "pos": 87,
+      "title": "\"She's Just My Style\"",
+      "artist": "Gary Lewis & the Playboys"
+    },
+    {
+      "pos": 88,
+      "title": "\"The More I See You\"",
+      "artist": "Chris Montez"
+    },
+    {
+      "pos": 89,
+      "title": "\"I Fought the Law\"",
+      "artist": "The Bobby Fuller Four"
+    },
+    {
+      "pos": 90,
+      "title": "\"Yellow Submarine\"",
+      "artist": "The Beatles"
+    },
+    {
+      "pos": 91,
+      "title": "\"Hungry\"",
+      "artist": "Paul Revere & the Raiders"
+    },
+    {
+      "pos": 92,
+      "title": "\"Zorba the Greek\"",
+      "artist": "Herb Alpert and the Tijuana Brass"
+    },
+    {
+      "pos": 93,
+      "title": "\"Shapes of Things\"",
+      "artist": "The Yardbirds"
+    },
+    {
+      "pos": 94,
+      "title": "\"Along Comes Mary\"",
+      "artist": "The Association"
+    },
+    {
+      "pos": 95,
+      "title": "\"634-5789 (Soulsville, U.S.A.)\"",
+      "artist": "Wilson Pickett"
+    },
+    {
+      "pos": 96,
+      "title": "\"Devil with a Blue Dress On/Good Golly, Miss Molly\"",
+      "artist": "Mitch Ryder & The Detroit Wheels"
+    },
+    {
+      "pos": 97,
+      "title": "\"Wouldn't It Be Nice\"",
+      "artist": "The Beach Boys"
+    },
+    {
+      "pos": 98,
+      "title": "\"This Old Heart of Mine\"",
+      "artist": "The Isley Brothers"
+    },
+    {
+      "pos": 99,
+      "title": "\"Green Grass\"",
+      "artist": "Gary Lewis & the Playboys"
+    },
+    {
+      "pos": 100,
+      "title": "\"A Well Respected Man\"",
+      "artist": "The Kinks"
+    }
+  ]
+}

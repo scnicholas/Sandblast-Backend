@@ -1,0 +1,512 @@
+{
+  "year": 2015,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_2015",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Uptown Funk\"",
+      "artist": "Mark Ronson featuring Bruno Mars"
+    },
+    {
+      "pos": 2,
+      "title": "\"Thinking Out Loud\"",
+      "artist": "Ed Sheeran"
+    },
+    {
+      "pos": 3,
+      "title": "\"See You Again\"",
+      "artist": "Wiz Khalifa featuring Charlie Puth"
+    },
+    {
+      "pos": 4,
+      "title": "\"Trap Queen\"",
+      "artist": "Fetty Wap"
+    },
+    {
+      "pos": 5,
+      "title": "\"Sugar\"",
+      "artist": "Maroon 5"
+    },
+    {
+      "pos": 6,
+      "title": "\"Shut Up and Dance\"",
+      "artist": "Walk the Moon"
+    },
+    {
+      "pos": 7,
+      "title": "\"Blank Space\"",
+      "artist": "Taylor Swift"
+    },
+    {
+      "pos": 8,
+      "title": "\"Watch Me\"",
+      "artist": "Silentó"
+    },
+    {
+      "pos": 9,
+      "title": "\"Earned It\"",
+      "artist": "The Weeknd"
+    },
+    {
+      "pos": 10,
+      "title": "\"The Hills\"",
+      "artist": "\"The Hills\""
+    },
+    {
+      "pos": 11,
+      "title": "\"Cheerleader (Felix Jaehn Remix)\"",
+      "artist": "OMI"
+    },
+    {
+      "pos": 12,
+      "title": "\"Can't Feel My Face\"",
+      "artist": "The Weeknd"
+    },
+    {
+      "pos": 13,
+      "title": "\"Love Me Like You Do\"",
+      "artist": "Ellie Goulding"
+    },
+    {
+      "pos": 14,
+      "title": "\"Take Me to Church\"",
+      "artist": "Hozier"
+    },
+    {
+      "pos": 15,
+      "title": "\"Bad Blood\"",
+      "artist": "Taylor Swift featuring Kendrick Lamar"
+    },
+    {
+      "pos": 16,
+      "title": "\"Lean On\"",
+      "artist": "Major Lazer and DJ Snake featuring MØ"
+    },
+    {
+      "pos": 17,
+      "title": "\"Want to Want Me\"",
+      "artist": "Jason Derulo"
+    },
+    {
+      "pos": 18,
+      "title": "\"Shake It Off\"",
+      "artist": "Taylor Swift"
+    },
+    {
+      "pos": 19,
+      "title": "\"Where Are Ü Now\"",
+      "artist": "Skrillex and Diplo (Jack Ü) featuring Justin Bieber"
+    },
+    {
+      "pos": 20,
+      "title": "\"Fight Song\"",
+      "artist": "Rachel Platten"
+    },
+    {
+      "pos": 21,
+      "title": "\"679\"",
+      "artist": "Fetty Wap featuring Remy Boyz"
+    },
+    {
+      "pos": 22,
+      "title": "\"Lips Are Movin\"",
+      "artist": "Meghan Trainor"
+    },
+    {
+      "pos": 23,
+      "title": "\"Worth It\"",
+      "artist": "Fifth Harmony featuring Kid Ink"
+    },
+    {
+      "pos": 24,
+      "title": "\"Post to Be\"",
+      "artist": "Omarion featuring Chris Brown and Jhené Aiko"
+    },
+    {
+      "pos": 25,
+      "title": "\"Honey, I'm Good.\"",
+      "artist": "Andy Grammer"
+    },
+    {
+      "pos": 26,
+      "title": "\"I'm Not the Only One\"",
+      "artist": "Sam Smith"
+    },
+    {
+      "pos": 27,
+      "title": "\"Good for You\"",
+      "artist": "Selena Gomez featuring ASAP Rocky"
+    },
+    {
+      "pos": 28,
+      "title": "\"All About That Bass\"",
+      "artist": "Meghan Trainor"
+    },
+    {
+      "pos": 29,
+      "title": "\"Style\"",
+      "artist": "Taylor Swift"
+    },
+    {
+      "pos": 30,
+      "title": "\"Hotline Bling\"",
+      "artist": "Drake"
+    },
+    {
+      "pos": 31,
+      "title": "\"Hey Mama\"",
+      "artist": "David Guetta featuring Nicki Minaj, Bebe Rexha and Afrojack"
+    },
+    {
+      "pos": 32,
+      "title": "\"G.D.F.R.\"",
+      "artist": "Flo Rida featuring Sage the Gemini and Lookas"
+    },
+    {
+      "pos": 33,
+      "title": "\"What Do You Mean?\"",
+      "artist": "Justin Bieber"
+    },
+    {
+      "pos": 34,
+      "title": "\"Photograph\"",
+      "artist": "Ed Sheeran"
+    },
+    {
+      "pos": 35,
+      "title": "\"Hello\"",
+      "artist": "Adele"
+    },
+    {
+      "pos": 36,
+      "title": "\"Stitches\"",
+      "artist": "Shawn Mendes"
+    },
+    {
+      "pos": 37,
+      "title": "\"Talking Body\"",
+      "artist": "Tove Lo"
+    },
+    {
+      "pos": 38,
+      "title": "\"Jealous\"",
+      "artist": "Nick Jonas"
+    },
+    {
+      "pos": 39,
+      "title": "\"Time of Our Lives\"",
+      "artist": "Pitbull and Ne-Yo"
+    },
+    {
+      "pos": 40,
+      "title": "\"Locked Away\"",
+      "artist": "R. City featuring Adam Levine"
+    },
+    {
+      "pos": 41,
+      "title": "\"Somebody\"",
+      "artist": "Natalie La Rose featuring Jeremih"
+    },
+    {
+      "pos": 42,
+      "title": "\"FourFiveSeconds\"",
+      "artist": "Rihanna, Kanye West and Paul McCartney"
+    },
+    {
+      "pos": 43,
+      "title": "\"Centuries\"",
+      "artist": "Fall Out Boy"
+    },
+    {
+      "pos": 44,
+      "title": "\"My Way\"",
+      "artist": "Fetty Wap featuring Monty"
+    },
+    {
+      "pos": 45,
+      "title": "\"Take Your Time\"",
+      "artist": "Sam Hunt"
+    },
+    {
+      "pos": 46,
+      "title": "\"Animals\"",
+      "artist": "Maroon 5"
+    },
+    {
+      "pos": 47,
+      "title": "\"I Don't Fuck with You\"",
+      "artist": "Big Sean featuring E-40"
+    },
+    {
+      "pos": 48,
+      "title": "\"Bitch Better Have My Money\"",
+      "artist": "Rihanna"
+    },
+    {
+      "pos": 49,
+      "title": "\"Flex (Ooh, Ooh, Ooh)\"",
+      "artist": "Rich Homie Quan"
+    },
+    {
+      "pos": 50,
+      "title": "\"Nasty Freestyle\"",
+      "artist": "T-Wayne"
+    },
+    {
+      "pos": 51,
+      "title": "\"Only\"",
+      "artist": "Nicki Minaj featuring Drake, Lil Wayne and Chris Brown"
+    },
+    {
+      "pos": 52,
+      "title": "\"Elastic Heart\"",
+      "artist": "Sia"
+    },
+    {
+      "pos": 53,
+      "title": "\"Cool for the Summer\"",
+      "artist": "Demi Lovato"
+    },
+    {
+      "pos": 54,
+      "title": "\"Renegades\"",
+      "artist": "X Ambassadors"
+    },
+    {
+      "pos": 55,
+      "title": "\"I Don't Mind\"",
+      "artist": "Usher featuring Juicy J"
+    },
+    {
+      "pos": 56,
+      "title": "\"Love Me Harder\"",
+      "artist": "Ariana Grande and The Weeknd"
+    },
+    {
+      "pos": 57,
+      "title": "\"Wildest Dreams\"",
+      "artist": "Taylor Swift"
+    },
+    {
+      "pos": 58,
+      "title": "\"Stay with Me\"",
+      "artist": "Sam Smith"
+    },
+    {
+      "pos": 59,
+      "title": "\"You Know You Like It\"",
+      "artist": "DJ Snake and AlunaGeorge"
+    },
+    {
+      "pos": 60,
+      "title": "\"Uma Thurman\"",
+      "artist": "Fall Out Boy"
+    },
+    {
+      "pos": 61,
+      "title": "\"7/11\"",
+      "artist": "Beyoncé"
+    },
+    {
+      "pos": 62,
+      "title": "\"The Heart Wants What It Wants\"",
+      "artist": "Selena Gomez"
+    },
+    {
+      "pos": 63,
+      "title": "\"Girl Crush\"",
+      "artist": "Little Big Town"
+    },
+    {
+      "pos": 64,
+      "title": "\"Slow Motion\"",
+      "artist": "Trey Songz"
+    },
+    {
+      "pos": 65,
+      "title": "\"Drag Me Down\"",
+      "artist": "One Direction"
+    },
+    {
+      "pos": 66,
+      "title": "\"Truffle Butter\"",
+      "artist": "Nicki Minaj featuring Drake and Lil Wayne"
+    },
+    {
+      "pos": 67,
+      "title": "\"One Last Time\"",
+      "artist": "Ariana Grande"
+    },
+    {
+      "pos": 68,
+      "title": "\"Chains\"",
+      "artist": "Nick Jonas"
+    },
+    {
+      "pos": 69,
+      "title": "\"All Eyes on You\"",
+      "artist": "Meek Mill featuring Chris Brown and Nicki Minaj"
+    },
+    {
+      "pos": 70,
+      "title": "\"No Type\"",
+      "artist": "Rae Sremmurd"
+    },
+    {
+      "pos": 71,
+      "title": "\"Riptide\"",
+      "artist": "Vance Joy"
+    },
+    {
+      "pos": 72,
+      "title": "\"Classic Man\"",
+      "artist": "Jidenna featuring Roman GianArthur"
+    },
+    {
+      "pos": 73,
+      "title": "\"Ex's & Oh's\"",
+      "artist": "Elle King"
+    },
+    {
+      "pos": 74,
+      "title": "\"Dear Future Husband\"",
+      "artist": "Meghan Trainor"
+    },
+    {
+      "pos": 75,
+      "title": "\"Marvin Gaye\"",
+      "artist": "Charlie Puth featuring Meghan Trainor"
+    },
+    {
+      "pos": 76,
+      "title": "\"Like I'm Gonna Lose You\"",
+      "artist": "Meghan Trainor featuring John Legend"
+    },
+    {
+      "pos": 77,
+      "title": "\"Habits (Stay High)\"",
+      "artist": "Tove Lo"
+    },
+    {
+      "pos": 78,
+      "title": "\"The Hanging Tree\"",
+      "artist": "James Newton Howard featuring Jennifer Lawrence"
+    },
+    {
+      "pos": 79,
+      "title": "\"CoCo\"",
+      "artist": "O.T. Genasis"
+    },
+    {
+      "pos": 80,
+      "title": "\"Bang Bang\"",
+      "artist": "Jessie J, Ariana Grande and Nicki Minaj"
+    },
+    {
+      "pos": 81,
+      "title": "\"Lay Me Down\"",
+      "artist": "Sam Smith"
+    },
+    {
+      "pos": 82,
+      "title": "\"Tuesday\"",
+      "artist": "ILoveMakonnen featuring Drake"
+    },
+    {
+      "pos": 83,
+      "title": "\"Hit the Quan\"",
+      "artist": "iLoveMemphis"
+    },
+    {
+      "pos": 84,
+      "title": "\"Downtown\"",
+      "artist": "Macklemore & Ryan Lewis featuring Eric Nally, Melle Mel, Kool Moe Dee and Grandmaster Caz"
+    },
+    {
+      "pos": 85,
+      "title": "\"House Party\"",
+      "artist": "Sam Hunt"
+    },
+    {
+      "pos": 86,
+      "title": "\"Ayo\"",
+      "artist": "Chris Brown and Tyga"
+    },
+    {
+      "pos": 87,
+      "title": "\"Kick the Dust Up\"",
+      "artist": "Luke Bryan"
+    },
+    {
+      "pos": 88,
+      "title": "\"Blessings\"",
+      "artist": "Big Sean featuring Drake and Kanye West"
+    },
+    {
+      "pos": 89,
+      "title": "\"Budapest\"",
+      "artist": "George Ezra"
+    },
+    {
+      "pos": 90,
+      "title": "\"Chandelier\"",
+      "artist": "Sia"
+    },
+    {
+      "pos": 91,
+      "title": "\"Heartbeat Song\"",
+      "artist": "Kelly Clarkson"
+    },
+    {
+      "pos": 92,
+      "title": "\"Don't\"",
+      "artist": "Ed Sheeran"
+    },
+    {
+      "pos": 93,
+      "title": "\"Ghost\"",
+      "artist": "Ella Henderson"
+    },
+    {
+      "pos": 94,
+      "title": "\"Here\"",
+      "artist": "Alessia Cara"
+    },
+    {
+      "pos": 95,
+      "title": "\"Waves (Robin Schulz Remix)\"",
+      "artist": "Mr Probz"
+    },
+    {
+      "pos": 96,
+      "title": "\"El Perdón\"",
+      "artist": "Nicky Jam and Enrique Iglesias"
+    },
+    {
+      "pos": 97,
+      "title": "\"She Knows\"",
+      "artist": "Ne-Yo featuring Juicy J"
+    },
+    {
+      "pos": 98,
+      "title": "\"Night Changes\"",
+      "artist": "One Direction"
+    },
+    {
+      "pos": 99,
+      "title": "\"Back to Back\"",
+      "artist": "Drake"
+    },
+    {
+      "pos": 100,
+      "title": "\"How Deep Is Your Love\"",
+      "artist": "Calvin Harris and Disciples"
+    }
+  ]
+}

@@ -1,0 +1,512 @@
+{
+  "year": 1998,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1998",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Too Close\"",
+      "artist": "Next"
+    },
+    {
+      "pos": 2,
+      "title": "\"The Boy Is Mine\"",
+      "artist": "Brandy and Monica"
+    },
+    {
+      "pos": 3,
+      "title": "\"You're Still the One\"",
+      "artist": "Shania Twain"
+    },
+    {
+      "pos": 4,
+      "title": "\"Truly Madly Deeply\"",
+      "artist": "Savage Garden"
+    },
+    {
+      "pos": 5,
+      "title": "\"How Do I Live\"",
+      "artist": "LeAnn Rimes"
+    },
+    {
+      "pos": 6,
+      "title": "\"Together Again\"",
+      "artist": "Janet"
+    },
+    {
+      "pos": 7,
+      "title": "\"All My Life\"",
+      "artist": "K-Ci & JoJo"
+    },
+    {
+      "pos": 8,
+      "title": "\"Candle in the Wind 1997\" / \"Something About the Way You Look Tonight\"",
+      "artist": "Elton John"
+    },
+    {
+      "pos": 9,
+      "title": "\"Nice & Slow\"",
+      "artist": "Usher"
+    },
+    {
+      "pos": 10,
+      "title": "\"I Don't Want to Wait\"",
+      "artist": "Paula Cole"
+    },
+    {
+      "pos": 11,
+      "title": "\"How's It Going to Be\"",
+      "artist": "Third Eye Blind"
+    },
+    {
+      "pos": 12,
+      "title": "\"No, No, No\"",
+      "artist": "Destiny's Child"
+    },
+    {
+      "pos": 13,
+      "title": "\"My Heart Will Go On\"",
+      "artist": "Celine Dion"
+    },
+    {
+      "pos": 14,
+      "title": "\"Gettin' Jiggy wit It\"",
+      "artist": "Will Smith"
+    },
+    {
+      "pos": 15,
+      "title": "\"You Make Me Wanna...\"",
+      "artist": "Usher"
+    },
+    {
+      "pos": 16,
+      "title": "\"My Way\"",
+      "artist": "\"My Way\""
+    },
+    {
+      "pos": 17,
+      "title": "\"My All\"",
+      "artist": "Mariah Carey"
+    },
+    {
+      "pos": 18,
+      "title": "\"The First Night\"",
+      "artist": "Monica"
+    },
+    {
+      "pos": 19,
+      "title": "\"Been Around the World\"",
+      "artist": "Puff Daddy featuring The Notorious B.I.G. and Mase"
+    },
+    {
+      "pos": 20,
+      "title": "\"Adia\"",
+      "artist": "Sarah McLachlan"
+    },
+    {
+      "pos": 21,
+      "title": "\"Crush\"",
+      "artist": "Jennifer Paige"
+    },
+    {
+      "pos": 22,
+      "title": "\"Everybody (Backstreet's Back)\"",
+      "artist": "Backstreet Boys"
+    },
+    {
+      "pos": 23,
+      "title": "\"I Don't Want to Miss a Thing\"",
+      "artist": "Aerosmith"
+    },
+    {
+      "pos": 24,
+      "title": "\"Body Bumpin' (Yippie-Yi-Yo)\"",
+      "artist": "Public Announcement"
+    },
+    {
+      "pos": 25,
+      "title": "\"This Kiss\"",
+      "artist": "Faith Hill"
+    },
+    {
+      "pos": 26,
+      "title": "\"I Don't Ever Want to See You Again\"",
+      "artist": "Uncle Sam"
+    },
+    {
+      "pos": 27,
+      "title": "\"Let's Ride\"",
+      "artist": "Montell Jordan featuring Master P and Silkk the Shocker"
+    },
+    {
+      "pos": 28,
+      "title": "\"Sex and Candy\"",
+      "artist": "Marcy Playground"
+    },
+    {
+      "pos": 29,
+      "title": "\"Show Me Love\"",
+      "artist": "Robyn"
+    },
+    {
+      "pos": 30,
+      "title": "\"A Song for Mama\"",
+      "artist": "Boyz II Men"
+    },
+    {
+      "pos": 31,
+      "title": "\"What You Want\"",
+      "artist": "Mase featuring Total"
+    },
+    {
+      "pos": 32,
+      "title": "\"Frozen\"",
+      "artist": "Madonna"
+    },
+    {
+      "pos": 33,
+      "title": "\"Gone till November\"",
+      "artist": "Wyclef Jean"
+    },
+    {
+      "pos": 34,
+      "title": "\"My Body\"",
+      "artist": "LSG"
+    },
+    {
+      "pos": 35,
+      "title": "\"Tubthumping\"",
+      "artist": "Chumbawamba"
+    },
+    {
+      "pos": 36,
+      "title": "\"Deja Vu (Uptown Baby)\"",
+      "artist": "Lord Tariq and Peter Gunz"
+    },
+    {
+      "pos": 37,
+      "title": "\"I Want You Back\"",
+      "artist": "NSYNC"
+    },
+    {
+      "pos": 38,
+      "title": "\"When the Lights Go Out\"",
+      "artist": "Five"
+    },
+    {
+      "pos": 39,
+      "title": "\"They Don't Know\"",
+      "artist": "Jon B."
+    },
+    {
+      "pos": 40,
+      "title": "\"Make 'Em Say Uhh!\"",
+      "artist": "Master P featuring Fiend, Silkk the Shocker, Mia X and Mystikal"
+    },
+    {
+      "pos": 41,
+      "title": "\"Make It Hot\"",
+      "artist": "Nicole featuring Missy Elliott and Mocha"
+    },
+    {
+      "pos": 42,
+      "title": "\"Never Ever\"",
+      "artist": "All Saints"
+    },
+    {
+      "pos": 43,
+      "title": "\"I Get Lonely\"",
+      "artist": "Janet featuring Blackstreet"
+    },
+    {
+      "pos": 44,
+      "title": "\"Feel So Good\"",
+      "artist": "Mase"
+    },
+    {
+      "pos": 45,
+      "title": "\"Say It\"",
+      "artist": "Voices of Theory"
+    },
+    {
+      "pos": 46,
+      "title": "\"Kiss the Rain\"",
+      "artist": "Billie Myers"
+    },
+    {
+      "pos": 47,
+      "title": "\"Come with Me\"",
+      "artist": "Puff Daddy featuring Jimmy Page"
+    },
+    {
+      "pos": 48,
+      "title": "\"Romeo and Juliet\"",
+      "artist": "Sylk-E. Fyne featuring Chill"
+    },
+    {
+      "pos": 49,
+      "title": "\"It's All About Me\"",
+      "artist": "Mýa and Sisqo"
+    },
+    {
+      "pos": 50,
+      "title": "\"I Will Come to You\"",
+      "artist": "Hanson"
+    },
+    {
+      "pos": 51,
+      "title": "\"One Week\"",
+      "artist": "Barenaked Ladies"
+    },
+    {
+      "pos": 52,
+      "title": "\"Swing My Way\"",
+      "artist": "K. P. & Envyi"
+    },
+    {
+      "pos": 53,
+      "title": "\"The Arms of the One Who Loves You\"",
+      "artist": "Xscape"
+    },
+    {
+      "pos": 54,
+      "title": "\"My Love Is the Shhh!\"",
+      "artist": "Somethin' for the People featuring Trina & Tamara"
+    },
+    {
+      "pos": 55,
+      "title": "\"Daydreamin'\"",
+      "artist": "Tatyana Ali"
+    },
+    {
+      "pos": 56,
+      "title": "\"We're Not Making Love No More\"",
+      "artist": "Dru Hill"
+    },
+    {
+      "pos": 57,
+      "title": "\"Semi-Charmed Life\"",
+      "artist": "Third Eye Blind"
+    },
+    {
+      "pos": 58,
+      "title": "\"I Do\"",
+      "artist": "Lisa Loeb"
+    },
+    {
+      "pos": 59,
+      "title": "\"Lookin' at Me\"",
+      "artist": "Mase featuring Puff Daddy"
+    },
+    {
+      "pos": 60,
+      "title": "\"Looking Through Your Eyes\"",
+      "artist": "LeAnn Rimes"
+    },
+    {
+      "pos": 61,
+      "title": "\"Lately\"",
+      "artist": "Divine"
+    },
+    {
+      "pos": 62,
+      "title": "\"Quit Playing Games (With My Heart)\"",
+      "artist": "Backstreet Boys"
+    },
+    {
+      "pos": 63,
+      "title": "\"I Still Love You\"",
+      "artist": "Next"
+    },
+    {
+      "pos": 64,
+      "title": "\"Time After Time\"",
+      "artist": "INOJ"
+    },
+    {
+      "pos": 65,
+      "title": "\"Are You Jimmy Ray?\"",
+      "artist": "Jimmy Ray"
+    },
+    {
+      "pos": 66,
+      "title": "\"Cruel Summer\"",
+      "artist": "Ace of Base"
+    },
+    {
+      "pos": 67,
+      "title": "\"I Got the Hook Up\"",
+      "artist": "Master P featuring Sons of Funk"
+    },
+    {
+      "pos": 68,
+      "title": "\"Victory\"",
+      "artist": "Puff Daddy & the Family featuring The Notorious B.I.G. and Busta Rhymes"
+    },
+    {
+      "pos": 69,
+      "title": "\"Too Much\"",
+      "artist": "Spice Girls"
+    },
+    {
+      "pos": 70,
+      "title": "\"Ghetto Supastar (That Is What You Are)\"",
+      "artist": "Pras Michel featuring Ol' Dirty Bastard and Mýa"
+    },
+    {
+      "pos": 71,
+      "title": "\"How Deep Is Your Love\"",
+      "artist": "Dru Hill featuring Redman"
+    },
+    {
+      "pos": 72,
+      "title": "\"Friend of Mine\"",
+      "artist": "Kelly Price"
+    },
+    {
+      "pos": 73,
+      "title": "\"Turn It Up (Remix)/Fire It Up\"",
+      "artist": "Busta Rhymes"
+    },
+    {
+      "pos": 74,
+      "title": "\"I'll Be\"",
+      "artist": "Edwin McCain"
+    },
+    {
+      "pos": 75,
+      "title": "\"Ray of Light\"",
+      "artist": "Madonna"
+    },
+    {
+      "pos": 76,
+      "title": "\"All for You\"",
+      "artist": "Sister Hazel"
+    },
+    {
+      "pos": 77,
+      "title": "\"Touch It\"",
+      "artist": "Monifah"
+    },
+    {
+      "pos": 78,
+      "title": "\"Money, Power & Respect\"",
+      "artist": "The Lox featuring DMX and Lil' Kim"
+    },
+    {
+      "pos": 79,
+      "title": "\"Bitter Sweet Symphony\"",
+      "artist": "The Verve"
+    },
+    {
+      "pos": 80,
+      "title": "\"Dangerous\"",
+      "artist": "Busta Rhymes"
+    },
+    {
+      "pos": 81,
+      "title": "\"Spice Up Your Life\"",
+      "artist": "Spice Girls"
+    },
+    {
+      "pos": 82,
+      "title": "\"Because of You\"",
+      "artist": "98 Degrees"
+    },
+    {
+      "pos": 83,
+      "title": "\"The Mummers' Dance\"",
+      "artist": "Loreena McKennitt"
+    },
+    {
+      "pos": 84,
+      "title": "\"All Cried Out\"",
+      "artist": "Allure featuring 112"
+    },
+    {
+      "pos": 85,
+      "title": "\"Still Not a Player\"",
+      "artist": "Big Punisher featuring Joe"
+    },
+    {
+      "pos": 86,
+      "title": "\"The One I Gave My Heart To\"",
+      "artist": "Aaliyah"
+    },
+    {
+      "pos": 87,
+      "title": "\"Foolish Games\" / \"You Were Meant for Me\"",
+      "artist": "Jewel"
+    },
+    {
+      "pos": 88,
+      "title": "\"Love You Down\"",
+      "artist": "INOJ"
+    },
+    {
+      "pos": 89,
+      "title": "\"Do for Love\"",
+      "artist": "2Pac featuring Eric Williams"
+    },
+    {
+      "pos": 90,
+      "title": "\"Raise the Roof\"",
+      "artist": "Luke featuring No Good But So Good"
+    },
+    {
+      "pos": 91,
+      "title": "\"Heaven\"",
+      "artist": "Nu Flavor"
+    },
+    {
+      "pos": 92,
+      "title": "\"The Party Continues\"",
+      "artist": "JD featuring Da Brat"
+    },
+    {
+      "pos": 93,
+      "title": "\"Sock It 2 Me\"",
+      "artist": "Missy Elliott featuring Da Brat"
+    },
+    {
+      "pos": 94,
+      "title": "\"Butta Love\"",
+      "artist": "Next"
+    },
+    {
+      "pos": 95,
+      "title": "\"A Rose Is Still a Rose\"",
+      "artist": "Aretha Franklin"
+    },
+    {
+      "pos": 96,
+      "title": "\"4 Seasons of Loneliness\"",
+      "artist": "Boyz II Men"
+    },
+    {
+      "pos": 97,
+      "title": "\"Father\"",
+      "artist": "LL Cool J"
+    },
+    {
+      "pos": 98,
+      "title": "\"Thinkin' Bout It\"",
+      "artist": "Gerald Levert"
+    },
+    {
+      "pos": 99,
+      "title": "\"Nobody's Supposed to Be Here\"",
+      "artist": "Deborah Cox"
+    },
+    {
+      "pos": 100,
+      "title": "\"Westside\"",
+      "artist": "TQ"
+    }
+  ]
+}

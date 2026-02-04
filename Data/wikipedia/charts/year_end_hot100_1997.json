@@ -1,0 +1,512 @@
+{
+  "year": 1997,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1997",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Candle in the Wind 1997\" / \"Something About the Way You Look Tonight\"",
+      "artist": "Elton John"
+    },
+    {
+      "pos": 2,
+      "title": "\"You Were Meant for Me\" / \"Foolish Games\"",
+      "artist": "Jewel"
+    },
+    {
+      "pos": 3,
+      "title": "\"I'll Be Missing You\"",
+      "artist": "Puff Daddy and Faith Evans featuring 112"
+    },
+    {
+      "pos": 4,
+      "title": "\"Un-Break My Heart\"",
+      "artist": "Toni Braxton"
+    },
+    {
+      "pos": 5,
+      "title": "\"Can't Nobody Hold Me Down\"",
+      "artist": "Puff Daddy featuring Mase"
+    },
+    {
+      "pos": 6,
+      "title": "\"I Believe I Can Fly\"",
+      "artist": "R. Kelly"
+    },
+    {
+      "pos": 7,
+      "title": "\"Don't Let Go (Love)\"",
+      "artist": "En Vogue"
+    },
+    {
+      "pos": 8,
+      "title": "\"Return of the Mack\"",
+      "artist": "Mark Morrison"
+    },
+    {
+      "pos": 9,
+      "title": "\"How Do I Live\"",
+      "artist": "LeAnn Rimes"
+    },
+    {
+      "pos": 10,
+      "title": "\"Wannabe\"",
+      "artist": "Spice Girls"
+    },
+    {
+      "pos": 11,
+      "title": "\"Quit Playing Games (With My Heart)\"",
+      "artist": "Backstreet Boys"
+    },
+    {
+      "pos": 12,
+      "title": "\"MMMBop\"",
+      "artist": "Hanson"
+    },
+    {
+      "pos": 13,
+      "title": "\"For You I Will\"",
+      "artist": "Monica"
+    },
+    {
+      "pos": 14,
+      "title": "\"You Make Me Wanna...\"",
+      "artist": "Usher"
+    },
+    {
+      "pos": 15,
+      "title": "\"Bitch\"",
+      "artist": "Meredith Brooks"
+    },
+    {
+      "pos": 16,
+      "title": "\"Nobody\"",
+      "artist": "Keith Sweat featuring Athena Cage"
+    },
+    {
+      "pos": 17,
+      "title": "\"Semi-Charmed Life\"",
+      "artist": "Third Eye Blind"
+    },
+    {
+      "pos": 18,
+      "title": "\"Barely Breathing\"",
+      "artist": "Duncan Sheik"
+    },
+    {
+      "pos": 19,
+      "title": "\"Hard to Say I'm Sorry\"",
+      "artist": "Az Yet featuring Peter Cetera"
+    },
+    {
+      "pos": 20,
+      "title": "\"Mo Money Mo Problems\"",
+      "artist": "The Notorious B.I.G. featuring Puff Daddy and Mase"
+    },
+    {
+      "pos": 21,
+      "title": "\"The Freshmen\"",
+      "artist": "The Verve Pipe"
+    },
+    {
+      "pos": 22,
+      "title": "\"I Want You\"",
+      "artist": "Savage Garden"
+    },
+    {
+      "pos": 23,
+      "title": "\"No Diggity\"",
+      "artist": "Blackstreet featuring Dr. Dre"
+    },
+    {
+      "pos": 24,
+      "title": "\"I Belong to You (Every Time I See Your Face)\"",
+      "artist": "Rome"
+    },
+    {
+      "pos": 25,
+      "title": "\"Hypnotize\"",
+      "artist": "The Notorious B.I.G."
+    },
+    {
+      "pos": 26,
+      "title": "\"Every Time I Close My Eyes\"",
+      "artist": "Babyface"
+    },
+    {
+      "pos": 27,
+      "title": "\"In My Bed\"",
+      "artist": "Dru Hill"
+    },
+    {
+      "pos": 28,
+      "title": "\"Say You'll Be There\"",
+      "artist": "Spice Girls"
+    },
+    {
+      "pos": 29,
+      "title": "\"Do You Know (What It Takes)\"",
+      "artist": "Robyn"
+    },
+    {
+      "pos": 30,
+      "title": "\"4 Seasons of Loneliness\"",
+      "artist": "Boyz II Men"
+    },
+    {
+      "pos": 31,
+      "title": "\"G.H.E.T.T.O.U.T.\"",
+      "artist": "Changing Faces"
+    },
+    {
+      "pos": 32,
+      "title": "\"Honey\"",
+      "artist": "Mariah Carey"
+    },
+    {
+      "pos": 33,
+      "title": "\"I Believe in You and Me\"",
+      "artist": "Whitney Houston"
+    },
+    {
+      "pos": 34,
+      "title": "\"Da' Dip\"",
+      "artist": "Freak Nasty"
+    },
+    {
+      "pos": 35,
+      "title": "\"2 Become 1\"",
+      "artist": "Spice Girls"
+    },
+    {
+      "pos": 36,
+      "title": "\"All for You\"",
+      "artist": "Sister Hazel"
+    },
+    {
+      "pos": 37,
+      "title": "\"Cupid\"",
+      "artist": "112"
+    },
+    {
+      "pos": 38,
+      "title": "\"Where Have All the Cowboys Gone?\"",
+      "artist": "Paula Cole"
+    },
+    {
+      "pos": 39,
+      "title": "\"Sunny Came Home\"",
+      "artist": "Shawn Colvin"
+    },
+    {
+      "pos": 40,
+      "title": "\"It's Your Love\"",
+      "artist": "Tim McGraw with Faith Hill"
+    },
+    {
+      "pos": 41,
+      "title": "\"Ooh Aah... Just a Little Bit\"",
+      "artist": "Gina G"
+    },
+    {
+      "pos": 42,
+      "title": "\"Mouth\"",
+      "artist": "Merril Bainbridge"
+    },
+    {
+      "pos": 43,
+      "title": "\"All Cried Out\"",
+      "artist": "Allure featuring 112"
+    },
+    {
+      "pos": 44,
+      "title": "\"I'm Still in Love with You\"",
+      "artist": "New Edition"
+    },
+    {
+      "pos": 45,
+      "title": "\"Invisible Man\"",
+      "artist": "98 Degrees"
+    },
+    {
+      "pos": 46,
+      "title": "\"Not Tonight\"",
+      "artist": "Lil' Kim featuring Da Brat, Left Eye, Missy Elliott and Angie Martinez"
+    },
+    {
+      "pos": 47,
+      "title": "\"Look into My Eyes\"",
+      "artist": "Bone Thugs-n-Harmony"
+    },
+    {
+      "pos": 48,
+      "title": "\"Get It Together\"",
+      "artist": "702"
+    },
+    {
+      "pos": 49,
+      "title": "\"All by Myself\"",
+      "artist": "Celine Dion"
+    },
+    {
+      "pos": 50,
+      "title": "\"It's All Coming Back to Me Now\"",
+      "artist": "\"It's All Coming Back to Me Now\""
+    },
+    {
+      "pos": 51,
+      "title": "\"My Love Is the Shhh!\"",
+      "artist": "Somethin' for the People featuring Trina & Tamara"
+    },
+    {
+      "pos": 52,
+      "title": "\"Where Do You Go\"",
+      "artist": "No Mercy"
+    },
+    {
+      "pos": 53,
+      "title": "\"I Finally Found Someone\"",
+      "artist": "Barbra Streisand and Bryan Adams"
+    },
+    {
+      "pos": 54,
+      "title": "\"I'll Be\"",
+      "artist": "Foxy Brown featuring Jay-Z"
+    },
+    {
+      "pos": 55,
+      "title": "\"If It Makes You Happy\"",
+      "artist": "Sheryl Crow"
+    },
+    {
+      "pos": 56,
+      "title": "\"Never Make a Promise\"",
+      "artist": "Dru Hill"
+    },
+    {
+      "pos": 57,
+      "title": "\"When You Love a Woman\"",
+      "artist": "Journey"
+    },
+    {
+      "pos": 58,
+      "title": "\"Up Jumps da Boogie\"",
+      "artist": "Magoo and Timbaland"
+    },
+    {
+      "pos": 59,
+      "title": "\"I Don't Want To\" / \"I Love Me Some Him\"",
+      "artist": "Toni Braxton"
+    },
+    {
+      "pos": 60,
+      "title": "\"Everyday Is a Winding Road\"",
+      "artist": "Sheryl Crow"
+    },
+    {
+      "pos": 61,
+      "title": "\"Cold Rock a Party\"",
+      "artist": "MC Lyte"
+    },
+    {
+      "pos": 62,
+      "title": "\"Pony\"",
+      "artist": "Ginuwine"
+    },
+    {
+      "pos": 63,
+      "title": "\"Building a Mystery\"",
+      "artist": "Sarah McLachlan"
+    },
+    {
+      "pos": 64,
+      "title": "\"I Love You Always Forever\"",
+      "artist": "Donna Lewis"
+    },
+    {
+      "pos": 65,
+      "title": "\"Your Woman\"",
+      "artist": "White Town"
+    },
+    {
+      "pos": 66,
+      "title": "\"C U When U Get There\"",
+      "artist": "Coolio featuring 40 Thevz"
+    },
+    {
+      "pos": 67,
+      "title": "\"Change the World\"",
+      "artist": "Eric Clapton"
+    },
+    {
+      "pos": 68,
+      "title": "\"My Baby Daddy\"",
+      "artist": "B-Rock and the Bizz"
+    },
+    {
+      "pos": 69,
+      "title": "\"Tubthumping\"",
+      "artist": "Chumbawamba"
+    },
+    {
+      "pos": 70,
+      "title": "\"Gotham City\"",
+      "artist": "R. Kelly"
+    },
+    {
+      "pos": 71,
+      "title": "\"Last Night\"",
+      "artist": "Az Yet"
+    },
+    {
+      "pos": 72,
+      "title": "\"ESPN Presents The Jock Jam\"",
+      "artist": "Various Artists"
+    },
+    {
+      "pos": 73,
+      "title": "\"Big Daddy\"",
+      "artist": "Heavy D"
+    },
+    {
+      "pos": 74,
+      "title": "\"What About Us\"",
+      "artist": "Total"
+    },
+    {
+      "pos": 75,
+      "title": "\"Smile\"",
+      "artist": "Scarface featuring 2Pac and Johnny P."
+    },
+    {
+      "pos": 76,
+      "title": "\"What's on Tonight\"",
+      "artist": "Montell Jordan"
+    },
+    {
+      "pos": 77,
+      "title": "\"Secret Garden\"",
+      "artist": "Bruce Springsteen"
+    },
+    {
+      "pos": 78,
+      "title": "\"The One I Gave My Heart To\"",
+      "artist": "Aaliyah"
+    },
+    {
+      "pos": 79,
+      "title": "\"Fly Like an Eagle\"",
+      "artist": "Seal"
+    },
+    {
+      "pos": 80,
+      "title": "\"No Time\"",
+      "artist": "Lil' Kim featuring Puff Daddy"
+    },
+    {
+      "pos": 81,
+      "title": "\"Naked Eye\"",
+      "artist": "Luscious Jackson"
+    },
+    {
+      "pos": 82,
+      "title": "\"Macarena (Bayside Boys Mix)\"",
+      "artist": "Los del Río"
+    },
+    {
+      "pos": 83,
+      "title": "\"On & On\"",
+      "artist": "Erykah Badu"
+    },
+    {
+      "pos": 84,
+      "title": "\"Don't Wanna Be a Player\"",
+      "artist": "Joe"
+    },
+    {
+      "pos": 85,
+      "title": "\"I Shot the Sheriff\"",
+      "artist": "Warren G"
+    },
+    {
+      "pos": 86,
+      "title": "\"You Should Be Mine (Don't Waste Your Time)\"",
+      "artist": "Brian McKnight featuring Mase"
+    },
+    {
+      "pos": 87,
+      "title": "\"Don't Cry for Me Argentina\"",
+      "artist": "Madonna"
+    },
+    {
+      "pos": 88,
+      "title": "\"Someone\"",
+      "artist": "SWV featuring Puff Daddy"
+    },
+    {
+      "pos": 89,
+      "title": "\"Go the Distance\"",
+      "artist": "Michael Bolton"
+    },
+    {
+      "pos": 90,
+      "title": "\"One More Time\"",
+      "artist": "Real McCoy"
+    },
+    {
+      "pos": 91,
+      "title": "\"Butta Love\"",
+      "artist": "Next"
+    },
+    {
+      "pos": 92,
+      "title": "\"Coco Jamboo\"",
+      "artist": "Mr. President"
+    },
+    {
+      "pos": 93,
+      "title": "\"Twisted\"",
+      "artist": "Keith Sweat"
+    },
+    {
+      "pos": 94,
+      "title": "\"Barbie Girl\"",
+      "artist": "Aqua"
+    },
+    {
+      "pos": 95,
+      "title": "\"When You're Gone\" / \"Free to Decide\"",
+      "artist": "The Cranberries"
+    },
+    {
+      "pos": 96,
+      "title": "\"Let Me Clear My Throat\"",
+      "artist": "DJ Kool"
+    },
+    {
+      "pos": 97,
+      "title": "\"I Like It\"",
+      "artist": "The Blackout All-Stars"
+    },
+    {
+      "pos": 98,
+      "title": "\"You're Makin' Me High\" / \"Let It Flow\"",
+      "artist": "Toni Braxton"
+    },
+    {
+      "pos": 99,
+      "title": "\"You Must Love Me\"",
+      "artist": "Madonna"
+    },
+    {
+      "pos": 100,
+      "title": "\"Let It Go\"",
+      "artist": "Ray J"
+    }
+  ]
+}

@@ -1,0 +1,512 @@
+{
+  "year": 2004,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_2004",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Yeah!\"",
+      "artist": "Usher featuring Lil Jon and Ludacris"
+    },
+    {
+      "pos": 2,
+      "title": "\"Burn\"",
+      "artist": "Usher"
+    },
+    {
+      "pos": 3,
+      "title": "\"If I Ain't Got You\"",
+      "artist": "Alicia Keys"
+    },
+    {
+      "pos": 4,
+      "title": "\"This Love\"",
+      "artist": "Maroon 5"
+    },
+    {
+      "pos": 5,
+      "title": "\"The Way You Move\"",
+      "artist": "OutKast featuring Sleepy Brown"
+    },
+    {
+      "pos": 6,
+      "title": "\"The Reason\"",
+      "artist": "Hoobastank"
+    },
+    {
+      "pos": 7,
+      "title": "\"I Don't Wanna Know\"",
+      "artist": "Mario Winans featuring Enya and P. Diddy"
+    },
+    {
+      "pos": 8,
+      "title": "\"Hey Ya!\"",
+      "artist": "OutKast"
+    },
+    {
+      "pos": 9,
+      "title": "\"Goodies\"",
+      "artist": "Ciara featuring Petey Pablo"
+    },
+    {
+      "pos": 10,
+      "title": "\"Lean Back\"",
+      "artist": "Terror Squad featuring Fat Joe and Remy Ma"
+    },
+    {
+      "pos": 11,
+      "title": "\"Tipsy\"",
+      "artist": "J-Kwon"
+    },
+    {
+      "pos": 12,
+      "title": "\"Confessions Part II\"",
+      "artist": "Usher"
+    },
+    {
+      "pos": 13,
+      "title": "\"Slow Motion\"",
+      "artist": "Juvenile featuring Soulja Slim"
+    },
+    {
+      "pos": 14,
+      "title": "\"Freek-a-Leek\"",
+      "artist": "Petey Pablo"
+    },
+    {
+      "pos": 15,
+      "title": "\"Here Without You\"",
+      "artist": "3 Doors Down"
+    },
+    {
+      "pos": 16,
+      "title": "\"Slow Jamz\"",
+      "artist": "Twista featuring Kanye West and Jamie Foxx"
+    },
+    {
+      "pos": 17,
+      "title": "\"Someday\"",
+      "artist": "Nickelback"
+    },
+    {
+      "pos": 18,
+      "title": "\"Naughty Girl\"",
+      "artist": "Beyoncé"
+    },
+    {
+      "pos": 19,
+      "title": "\"My Immortal\"",
+      "artist": "Evanescence"
+    },
+    {
+      "pos": 20,
+      "title": "\"Sunshine\"",
+      "artist": "Lil' Flip featuring Lea"
+    },
+    {
+      "pos": 21,
+      "title": "\"Dirt off Your Shoulder\"",
+      "artist": "Jay-Z"
+    },
+    {
+      "pos": 22,
+      "title": "\"Move Ya Body\"",
+      "artist": "Nina Sky featuring Jabba"
+    },
+    {
+      "pos": 23,
+      "title": "\"Dip It Low\"",
+      "artist": "Christina Milian"
+    },
+    {
+      "pos": 24,
+      "title": "\"My Boo\"",
+      "artist": "Usher and Alicia Keys"
+    },
+    {
+      "pos": 25,
+      "title": "\"One Call Away\"",
+      "artist": "Chingy featuring J-Weav"
+    },
+    {
+      "pos": 26,
+      "title": "\"Me, Myself and I\"",
+      "artist": "Beyoncé"
+    },
+    {
+      "pos": 27,
+      "title": "\"Turn Me On\"",
+      "artist": "Kevin Lyttle featuring Spragga Benz"
+    },
+    {
+      "pos": 28,
+      "title": "\"The First Cut Is the Deepest\"",
+      "artist": "Sheryl Crow"
+    },
+    {
+      "pos": 29,
+      "title": "\"You Don't Know My Name\"",
+      "artist": "Alicia Keys"
+    },
+    {
+      "pos": 30,
+      "title": "\"My Place\"",
+      "artist": "Nelly featuring Jaheim"
+    },
+    {
+      "pos": 31,
+      "title": "\"Overnight Celebrity\"",
+      "artist": "Twista"
+    },
+    {
+      "pos": 32,
+      "title": "\"Hotel\"",
+      "artist": "Cassidy featuring R. Kelly"
+    },
+    {
+      "pos": 33,
+      "title": "\"Numb\"",
+      "artist": "Linkin Park"
+    },
+    {
+      "pos": 34,
+      "title": "\"Diary\"",
+      "artist": "Alicia Keys featuring Tony! Toni! Toné!"
+    },
+    {
+      "pos": 35,
+      "title": "\"She Will Be Loved\"",
+      "artist": "Maroon 5"
+    },
+    {
+      "pos": 36,
+      "title": "\"White Flag\"",
+      "artist": "Dido"
+    },
+    {
+      "pos": 37,
+      "title": "\"Heaven\"",
+      "artist": "Los Lonely Boys"
+    },
+    {
+      "pos": 38,
+      "title": "\"It's My Life\"",
+      "artist": "No Doubt"
+    },
+    {
+      "pos": 39,
+      "title": "\"Pieces of Me\"",
+      "artist": "Ashlee Simpson"
+    },
+    {
+      "pos": 40,
+      "title": "\"Leave (Get Out)\"",
+      "artist": "JoJo"
+    },
+    {
+      "pos": 41,
+      "title": "\"Milkshake\"",
+      "artist": "Kelis"
+    },
+    {
+      "pos": 42,
+      "title": "\"Splash Waterfalls\"",
+      "artist": "Ludacris"
+    },
+    {
+      "pos": 43,
+      "title": "\"Jesus Walks\"",
+      "artist": "Kanye West"
+    },
+    {
+      "pos": 44,
+      "title": "\"Locked Up\"",
+      "artist": "Akon featuring Styles P"
+    },
+    {
+      "pos": 45,
+      "title": "\"Stand Up\"",
+      "artist": "Ludacris featuring Shawnna"
+    },
+    {
+      "pos": 46,
+      "title": "\"Suga Suga\"",
+      "artist": "Baby Bash featuring Frankie J"
+    },
+    {
+      "pos": 47,
+      "title": "\"All Falls Down\"",
+      "artist": "Kanye West featuring Syleena Johnson"
+    },
+    {
+      "pos": 48,
+      "title": "\"Toxic\"",
+      "artist": "Britney Spears"
+    },
+    {
+      "pos": 49,
+      "title": "\"Salt Shaker\"",
+      "artist": "Ying Yang Twins featuring Lil Jon & the East Side Boyz"
+    },
+    {
+      "pos": 50,
+      "title": "\"With You\"",
+      "artist": "Jessica Simpson"
+    },
+    {
+      "pos": 51,
+      "title": "\"Meant to Live\"",
+      "artist": "Switchfoot"
+    },
+    {
+      "pos": 52,
+      "title": "\"I Like That\"",
+      "artist": "Houston featuring Chingy, Nate Dogg and I-20"
+    },
+    {
+      "pos": 53,
+      "title": "\"Sorry 2004\"",
+      "artist": "Ruben Studdard"
+    },
+    {
+      "pos": 54,
+      "title": "\"My Happy Ending\"",
+      "artist": "Avril Lavigne"
+    },
+    {
+      "pos": 55,
+      "title": "\"On Fire\"",
+      "artist": "Lloyd Banks"
+    },
+    {
+      "pos": 56,
+      "title": "\"Roses\"",
+      "artist": "OutKast"
+    },
+    {
+      "pos": 57,
+      "title": "\"Walked Outta Heaven\"",
+      "artist": "Jagged Edge"
+    },
+    {
+      "pos": 58,
+      "title": "\"Lose My Breath\"",
+      "artist": "Destiny's Child"
+    },
+    {
+      "pos": 59,
+      "title": "\"My Band\"",
+      "artist": "D12"
+    },
+    {
+      "pos": 60,
+      "title": "\"I'm Still in Love with You\"",
+      "artist": "Sean Paul featuring Sasha"
+    },
+    {
+      "pos": 61,
+      "title": "\"Through the Wire\"",
+      "artist": "Kanye West"
+    },
+    {
+      "pos": 62,
+      "title": "\"Why?\"",
+      "artist": "Jadakiss featuring Anthony Hamilton"
+    },
+    {
+      "pos": 63,
+      "title": "\"Fuck It (I Don't Want You Back)\"",
+      "artist": "Eamon"
+    },
+    {
+      "pos": 64,
+      "title": "\"Read Your Mind\"",
+      "artist": "Avant"
+    },
+    {
+      "pos": 65,
+      "title": "\"Game Over (Flip)\"",
+      "artist": "Lil' Flip"
+    },
+    {
+      "pos": 66,
+      "title": "\"One Thing\"",
+      "artist": "Finger Eleven"
+    },
+    {
+      "pos": 67,
+      "title": "\"Headsprung\"",
+      "artist": "LL Cool J"
+    },
+    {
+      "pos": 68,
+      "title": "\"Damn!\"",
+      "artist": "YoungBloodZ featuring Lil Jon"
+    },
+    {
+      "pos": 69,
+      "title": "\"Baby Boy\"",
+      "artist": "Beyoncé featuring Sean Paul"
+    },
+    {
+      "pos": 70,
+      "title": "\"Get Low\"",
+      "artist": "Lil Jon & the East Side Boyz featuring Ying Yang Twins"
+    },
+    {
+      "pos": 71,
+      "title": "\"Drop It Like It's Hot\"",
+      "artist": "Snoop Dogg featuring Pharrell"
+    },
+    {
+      "pos": 72,
+      "title": "\"U Should've Known Better\"",
+      "artist": "Monica"
+    },
+    {
+      "pos": 73,
+      "title": "\"On the Way Down\"",
+      "artist": "Ryan Cabrera"
+    },
+    {
+      "pos": 74,
+      "title": "\"Breakaway\"",
+      "artist": "Kelly Clarkson"
+    },
+    {
+      "pos": 75,
+      "title": "\"Why Don't You & I\"",
+      "artist": "Santana featuring Alex Band or Chad Kroeger"
+    },
+    {
+      "pos": 76,
+      "title": "\"Are You Gonna Be My Girl\"",
+      "artist": "Jet"
+    },
+    {
+      "pos": 77,
+      "title": "\"100 Years\"",
+      "artist": "Five for Fighting"
+    },
+    {
+      "pos": 78,
+      "title": "\"Step in the Name of Love\"",
+      "artist": "R. Kelly"
+    },
+    {
+      "pos": 79,
+      "title": "\"Breaking the Habit\"",
+      "artist": "Linkin Park"
+    },
+    {
+      "pos": 80,
+      "title": "\"Gigolo\"",
+      "artist": "Nick Cannon featuring R. Kelly"
+    },
+    {
+      "pos": 81,
+      "title": "\"Live Like You Were Dying\"",
+      "artist": "Tim McGraw"
+    },
+    {
+      "pos": 82,
+      "title": "\"Remember When\"",
+      "artist": "Alan Jackson"
+    },
+    {
+      "pos": 83,
+      "title": "\"Everytime\"",
+      "artist": "Britney Spears"
+    },
+    {
+      "pos": 84,
+      "title": "\"Southside\"",
+      "artist": "Lloyd featuring Ashanti"
+    },
+    {
+      "pos": 85,
+      "title": "\"Dude\"",
+      "artist": "Beenie Man featuring Ms. Thing"
+    },
+    {
+      "pos": 86,
+      "title": "\"Wanna Get to Know You\"",
+      "artist": "G-Unit featuring Joe"
+    },
+    {
+      "pos": 87,
+      "title": "\"Holidae In\"",
+      "artist": "Chingy featuring Ludacris and Snoop Dogg"
+    },
+    {
+      "pos": 88,
+      "title": "\"Let's Get It Started\"",
+      "artist": "The Black Eyed Peas"
+    },
+    {
+      "pos": 89,
+      "title": "\"When the Sun Goes Down\"",
+      "artist": "Kenny Chesney and Uncle Kracker"
+    },
+    {
+      "pos": 90,
+      "title": "\"American Soldier\"",
+      "artist": "Toby Keith"
+    },
+    {
+      "pos": 91,
+      "title": "\"Change Clothes\"",
+      "artist": "Jay-Z"
+    },
+    {
+      "pos": 92,
+      "title": "\"Don't Tell Me\"",
+      "artist": "Avril Lavigne"
+    },
+    {
+      "pos": 93,
+      "title": "\"You'll Think of Me\"",
+      "artist": "Keith Urban"
+    },
+    {
+      "pos": 94,
+      "title": "\"Happy People\"",
+      "artist": "R. Kelly"
+    },
+    {
+      "pos": 95,
+      "title": "\"Hey Mama\"",
+      "artist": "The Black Eyed Peas"
+    },
+    {
+      "pos": 96,
+      "title": "\"Over and Over\"",
+      "artist": "Nelly featuring Tim McGraw"
+    },
+    {
+      "pos": 97,
+      "title": "\"Redneck Woman\"",
+      "artist": "Gretchen Wilson"
+    },
+    {
+      "pos": 98,
+      "title": "\"Just Lose It\"",
+      "artist": "Eminem"
+    },
+    {
+      "pos": 99,
+      "title": "\"Letters from Home\"",
+      "artist": "John Michael Montgomery"
+    },
+    {
+      "pos": 100,
+      "title": "\"I Go Back\"",
+      "artist": "Kenny Chesney"
+    }
+  ]
+}

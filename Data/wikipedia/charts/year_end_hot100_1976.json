@@ -1,0 +1,512 @@
+{
+  "year": 1976,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1976",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Silly Love Songs\"",
+      "artist": "Wings"
+    },
+    {
+      "pos": 2,
+      "title": "\"Don't Go Breaking My Heart\"",
+      "artist": "Elton John & Kiki Dee"
+    },
+    {
+      "pos": 3,
+      "title": "\"Disco Lady\"",
+      "artist": "Johnnie Taylor"
+    },
+    {
+      "pos": 4,
+      "title": "\"December, 1963 (Oh, What a Night)\"",
+      "artist": "The Four Seasons"
+    },
+    {
+      "pos": 5,
+      "title": "\"Play That Funky Music\"",
+      "artist": "Wild Cherry"
+    },
+    {
+      "pos": 6,
+      "title": "\"Kiss and Say Goodbye\"",
+      "artist": "The Manhattans"
+    },
+    {
+      "pos": 7,
+      "title": "\"Love Machine\"",
+      "artist": "The Miracles"
+    },
+    {
+      "pos": 8,
+      "title": "\"50 Ways to Leave Your Lover\"",
+      "artist": "Paul Simon"
+    },
+    {
+      "pos": 9,
+      "title": "\"Love Is Alive\"",
+      "artist": "Gary Wright"
+    },
+    {
+      "pos": 10,
+      "title": "\"A Fifth of Beethoven\"",
+      "artist": "Walter Murphy & The Big Apple Band"
+    },
+    {
+      "pos": 11,
+      "title": "\"Sara Smile\"",
+      "artist": "Daryl Hall & John Oates"
+    },
+    {
+      "pos": 12,
+      "title": "\"Afternoon Delight\"",
+      "artist": "Starland Vocal Band"
+    },
+    {
+      "pos": 13,
+      "title": "\"I Write the Songs\"",
+      "artist": "Barry Manilow"
+    },
+    {
+      "pos": 14,
+      "title": "\"Fly, Robin, Fly\"",
+      "artist": "Silver Convention"
+    },
+    {
+      "pos": 15,
+      "title": "\"Love Hangover\"",
+      "artist": "Diana Ross"
+    },
+    {
+      "pos": 16,
+      "title": "\"Get Closer\"",
+      "artist": "Seals and Crofts"
+    },
+    {
+      "pos": 17,
+      "title": "\"More, More, More\"",
+      "artist": "Andrea True Connection"
+    },
+    {
+      "pos": 18,
+      "title": "\"Bohemian Rhapsody\"",
+      "artist": "Queen"
+    },
+    {
+      "pos": 19,
+      "title": "\"Misty Blue\"",
+      "artist": "Dorothy Moore"
+    },
+    {
+      "pos": 20,
+      "title": "\"Boogie Fever\"",
+      "artist": "The Sylvers"
+    },
+    {
+      "pos": 21,
+      "title": "\"I'd Really Love to See You Tonight\"",
+      "artist": "England Dan & John Ford Coley"
+    },
+    {
+      "pos": 22,
+      "title": "\"You Sexy Thing\"",
+      "artist": "Hot Chocolate"
+    },
+    {
+      "pos": 23,
+      "title": "\"Love Hurts\"",
+      "artist": "Nazareth"
+    },
+    {
+      "pos": 24,
+      "title": "\"Get Up and Boogie\"",
+      "artist": "Silver Convention"
+    },
+    {
+      "pos": 25,
+      "title": "\"Take It to the Limit\"",
+      "artist": "Eagles"
+    },
+    {
+      "pos": 26,
+      "title": "\"(Shake, Shake, Shake) Shake Your Booty\"",
+      "artist": "KC and the Sunshine Band"
+    },
+    {
+      "pos": 27,
+      "title": "\"Sweet Love\"",
+      "artist": "Commodores"
+    },
+    {
+      "pos": 28,
+      "title": "\"Right Back Where We Started From\"",
+      "artist": "Maxine Nightingale"
+    },
+    {
+      "pos": 29,
+      "title": "\"Theme from S.W.A.T.\"",
+      "artist": "Rhythm Heritage"
+    },
+    {
+      "pos": 30,
+      "title": "\"Love Rollercoaster\"",
+      "artist": "Ohio Players"
+    },
+    {
+      "pos": 31,
+      "title": "\"You Should Be Dancing\"",
+      "artist": "Bee Gees"
+    },
+    {
+      "pos": 32,
+      "title": "\"You'll Never Find Another Love Like Mine\"",
+      "artist": "Lou Rawls"
+    },
+    {
+      "pos": 33,
+      "title": "\"Golden Years\"",
+      "artist": "David Bowie"
+    },
+    {
+      "pos": 34,
+      "title": "\"Moonlight Feels Right\"",
+      "artist": "Starbuck"
+    },
+    {
+      "pos": 35,
+      "title": "\"Only Sixteen\"",
+      "artist": "Dr. Hook"
+    },
+    {
+      "pos": 36,
+      "title": "\"Let Your Love Flow\"",
+      "artist": "The Bellamy Brothers"
+    },
+    {
+      "pos": 37,
+      "title": "\"Dream Weaver\"",
+      "artist": "Gary Wright"
+    },
+    {
+      "pos": 38,
+      "title": "\"Turn the Beat Around\"",
+      "artist": "Vicki Sue Robinson"
+    },
+    {
+      "pos": 39,
+      "title": "\"Lonely Night (Angel Face)\"",
+      "artist": "Captain & Tennille"
+    },
+    {
+      "pos": 40,
+      "title": "\"All by Myself\"",
+      "artist": "Eric Carmen"
+    },
+    {
+      "pos": 41,
+      "title": "\"Love to Love You Baby\"",
+      "artist": "Donna Summer"
+    },
+    {
+      "pos": 42,
+      "title": "\"Deep Purple\"",
+      "artist": "Donny & Marie Osmond"
+    },
+    {
+      "pos": 43,
+      "title": "\"Theme from Mahogany (Do You Know Where You're Going To)\"",
+      "artist": "Diana Ross"
+    },
+    {
+      "pos": 44,
+      "title": "\"Sweet Thing\"",
+      "artist": "Rufus"
+    },
+    {
+      "pos": 45,
+      "title": "\"That's the Way (I Like It)\"",
+      "artist": "KC and the Sunshine Band"
+    },
+    {
+      "pos": 46,
+      "title": "\"A Little Bit More\"",
+      "artist": "Dr. Hook"
+    },
+    {
+      "pos": 47,
+      "title": "\"Shannon\"",
+      "artist": "Henry Gross"
+    },
+    {
+      "pos": 48,
+      "title": "\"If You Leave Me Now\"",
+      "artist": "Chicago"
+    },
+    {
+      "pos": 49,
+      "title": "\"Lowdown\"",
+      "artist": "Boz Scaggs"
+    },
+    {
+      "pos": 50,
+      "title": "\"Show Me the Way\"",
+      "artist": "Peter Frampton"
+    },
+    {
+      "pos": 51,
+      "title": "\"Dream On\"",
+      "artist": "Aerosmith"
+    },
+    {
+      "pos": 52,
+      "title": "\"I Love Music\"",
+      "artist": "The O'Jays"
+    },
+    {
+      "pos": 53,
+      "title": "\"Say You Love Me\"",
+      "artist": "Fleetwood Mac"
+    },
+    {
+      "pos": 54,
+      "title": "\"Times of Your Life\"",
+      "artist": "Paul Anka"
+    },
+    {
+      "pos": 55,
+      "title": "\"Devil Woman\"",
+      "artist": "Cliff Richard"
+    },
+    {
+      "pos": 56,
+      "title": "\"Fooled Around and Fell in Love\"",
+      "artist": "Elvin Bishop"
+    },
+    {
+      "pos": 57,
+      "title": "\"Convoy\"",
+      "artist": "C. W. McCall"
+    },
+    {
+      "pos": 58,
+      "title": "\"Welcome Back\"",
+      "artist": "John Sebastian"
+    },
+    {
+      "pos": 59,
+      "title": "\"Sing a Song\"",
+      "artist": "Earth, Wind & Fire"
+    },
+    {
+      "pos": 60,
+      "title": "\"Heaven Must Be Missing an Angel\"",
+      "artist": "Tavares"
+    },
+    {
+      "pos": 61,
+      "title": "\"I'll Be Good to You\"",
+      "artist": "The Brothers Johnson"
+    },
+    {
+      "pos": 62,
+      "title": "\"Rock and Roll Music\"",
+      "artist": "The Beach Boys"
+    },
+    {
+      "pos": 63,
+      "title": "\"Shop Around\"",
+      "artist": "Captain & Tennille"
+    },
+    {
+      "pos": 64,
+      "title": "\"Saturday Night\"",
+      "artist": "Bay City Rollers"
+    },
+    {
+      "pos": 65,
+      "title": "\"Island Girl\"",
+      "artist": "Elton John"
+    },
+    {
+      "pos": 66,
+      "title": "\"Let's Do It Again\"",
+      "artist": "The Staple Singers"
+    },
+    {
+      "pos": 67,
+      "title": "\"Let 'Em In\"",
+      "artist": "Wings"
+    },
+    {
+      "pos": 68,
+      "title": "\"Baby Face\"",
+      "artist": "Wing and a Prayer Fife and Drum Corps"
+    },
+    {
+      "pos": 69,
+      "title": "\"This Masquerade\"",
+      "artist": "George Benson"
+    },
+    {
+      "pos": 70,
+      "title": "\"Evil Woman\"",
+      "artist": "Electric Light Orchestra"
+    },
+    {
+      "pos": 71,
+      "title": "\"Wham Bam\"",
+      "artist": "Silver"
+    },
+    {
+      "pos": 72,
+      "title": "\"I'm Easy\"",
+      "artist": "Keith Carradine"
+    },
+    {
+      "pos": 73,
+      "title": "\"Wake Up Everybody\"",
+      "artist": "Harold Melvin & the Blue Notes"
+    },
+    {
+      "pos": 74,
+      "title": "\"Summer\"",
+      "artist": "War"
+    },
+    {
+      "pos": 75,
+      "title": "\"Let Her In\"",
+      "artist": "John Travolta"
+    },
+    {
+      "pos": 76,
+      "title": "\"Fox on the Run\"",
+      "artist": "Sweet"
+    },
+    {
+      "pos": 77,
+      "title": "\"Rhiannon\"",
+      "artist": "Fleetwood Mac"
+    },
+    {
+      "pos": 78,
+      "title": "\"Got to Get You into My Life\"",
+      "artist": "The Beatles"
+    },
+    {
+      "pos": 79,
+      "title": "\"Fanny (Be Tender with My Love)\"",
+      "artist": "Bee Gees"
+    },
+    {
+      "pos": 80,
+      "title": "\"Getaway\"",
+      "artist": "Earth, Wind & Fire"
+    },
+    {
+      "pos": 81,
+      "title": "\"She's Gone\"",
+      "artist": "Daryl Hall & John Oates"
+    },
+    {
+      "pos": 82,
+      "title": "\"Still the One\"",
+      "artist": "Orleans"
+    },
+    {
+      "pos": 83,
+      "title": "\"You're My Best Friend\"",
+      "artist": "Queen"
+    },
+    {
+      "pos": 84,
+      "title": "\"With Your Love\"",
+      "artist": "Jefferson Starship"
+    },
+    {
+      "pos": 85,
+      "title": "\"Slow Ride\"",
+      "artist": "Foghat"
+    },
+    {
+      "pos": 86,
+      "title": "\"Who'd She Coo?\"",
+      "artist": "Ohio Players"
+    },
+    {
+      "pos": 87,
+      "title": "\"The Boys Are Back in Town\"",
+      "artist": "Thin Lizzy"
+    },
+    {
+      "pos": 88,
+      "title": "\"Walk Away from Love\"",
+      "artist": "David Ruffin"
+    },
+    {
+      "pos": 89,
+      "title": "\"Baby, I Love Your Way (Live)\"",
+      "artist": "Peter Frampton"
+    },
+    {
+      "pos": 90,
+      "title": "\"Young Hearts Run Free\"",
+      "artist": "Candi Staton"
+    },
+    {
+      "pos": 91,
+      "title": "\"Breaking Up Is Hard to Do\"",
+      "artist": "Neil Sedaka"
+    },
+    {
+      "pos": 92,
+      "title": "\"Money Honey\"",
+      "artist": "Bay City Rollers"
+    },
+    {
+      "pos": 93,
+      "title": "\"Give Up the Funk (Tear the Roof off the Sucker)\"",
+      "artist": "Parliament"
+    },
+    {
+      "pos": 94,
+      "title": "\"Junk Food Junkie\"",
+      "artist": "Larry Groce"
+    },
+    {
+      "pos": 95,
+      "title": "\"Tryin' to Get the Feeling Again\"",
+      "artist": "Barry Manilow"
+    },
+    {
+      "pos": 96,
+      "title": "\"Rock and Roll All Nite (Live)\"",
+      "artist": "Kiss"
+    },
+    {
+      "pos": 97,
+      "title": "\"Disco Duck\"",
+      "artist": "Rick Dees & His Cast of Idiots"
+    },
+    {
+      "pos": 98,
+      "title": "\"Take the Money and Run\"",
+      "artist": "Steve Miller Band"
+    },
+    {
+      "pos": 99,
+      "title": "\"Squeeze Box\"",
+      "artist": "The Who"
+    },
+    {
+      "pos": 100,
+      "title": "\"Country Boy (You Got Your Feet in L.A.)\"",
+      "artist": "Glen Campbell"
+    }
+  ]
+}

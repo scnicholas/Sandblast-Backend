@@ -1,0 +1,512 @@
+{
+  "year": 2023,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_2023",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Last Night\"",
+      "artist": "Morgan Wallen"
+    },
+    {
+      "pos": 2,
+      "title": "\"Flowers\"",
+      "artist": "Miley Cyrus"
+    },
+    {
+      "pos": 3,
+      "title": "\"Kill Bill\"",
+      "artist": "SZA"
+    },
+    {
+      "pos": 4,
+      "title": "\"Anti-Hero\"",
+      "artist": "Taylor Swift"
+    },
+    {
+      "pos": 5,
+      "title": "\"Creepin'\"",
+      "artist": "Metro Boomin, the Weeknd and 21 Savage"
+    },
+    {
+      "pos": 6,
+      "title": "\"Calm Down\"",
+      "artist": "Rema and Selena Gomez"
+    },
+    {
+      "pos": 7,
+      "title": "\"Die for You\"",
+      "artist": "The Weeknd and Ariana Grande"
+    },
+    {
+      "pos": 8,
+      "title": "\"Fast Car\"",
+      "artist": "Luke Combs"
+    },
+    {
+      "pos": 9,
+      "title": "\"Snooze\"",
+      "artist": "SZA"
+    },
+    {
+      "pos": 10,
+      "title": "\"I'm Good (Blue)\"",
+      "artist": "David Guetta and Bebe Rexha"
+    },
+    {
+      "pos": 11,
+      "title": "\"Unholy\"",
+      "artist": "Sam Smith and Kim Petras"
+    },
+    {
+      "pos": 12,
+      "title": "\"You Proof\"",
+      "artist": "Morgan Wallen"
+    },
+    {
+      "pos": 13,
+      "title": "\"Something in the Orange\"",
+      "artist": "Zach Bryan"
+    },
+    {
+      "pos": 14,
+      "title": "\"Rich Flex\"",
+      "artist": "Drake and 21 Savage"
+    },
+    {
+      "pos": 15,
+      "title": "\"As It Was\"",
+      "artist": "Harry Styles"
+    },
+    {
+      "pos": 16,
+      "title": "\"Rock and a Hard Place\"",
+      "artist": "Bailey Zimmerman"
+    },
+    {
+      "pos": 17,
+      "title": "\"Under the Influence\"",
+      "artist": "Chris Brown"
+    },
+    {
+      "pos": 18,
+      "title": "\"Cruel Summer\"",
+      "artist": "Taylor Swift"
+    },
+    {
+      "pos": 19,
+      "title": "\"Thinkin' Bout Me\"",
+      "artist": "Morgan Wallen"
+    },
+    {
+      "pos": 20,
+      "title": "\"Boy's a Liar Pt. 2\"",
+      "artist": "PinkPantheress and Ice Spice"
+    },
+    {
+      "pos": 21,
+      "title": "\"Favorite Song\"",
+      "artist": "Toosii"
+    },
+    {
+      "pos": 22,
+      "title": "\"Thought You Should Know\"",
+      "artist": "Morgan Wallen"
+    },
+    {
+      "pos": 23,
+      "title": "\"Thank God\"",
+      "artist": "Kane Brown and Katelyn Brown"
+    },
+    {
+      "pos": 24,
+      "title": "\"Sure Thing\"",
+      "artist": "Miguel"
+    },
+    {
+      "pos": 25,
+      "title": "\"All My Life\"",
+      "artist": "Lil Durk featuring J. Cole"
+    },
+    {
+      "pos": 26,
+      "title": "\"Ella Baila Sola\"",
+      "artist": "Eslabon Armado and Peso Pluma"
+    },
+    {
+      "pos": 27,
+      "title": "\"Karma\"",
+      "artist": "Taylor Swift featuring Ice Spice"
+    },
+    {
+      "pos": 28,
+      "title": "\"Just Wanna Rock\"",
+      "artist": "Lil Uzi Vert"
+    },
+    {
+      "pos": 29,
+      "title": "\"Cuff It\"",
+      "artist": "Beyoncé"
+    },
+    {
+      "pos": 30,
+      "title": "\"Vampire\"",
+      "artist": "Olivia Rodrigo"
+    },
+    {
+      "pos": 31,
+      "title": "\"FukUMean\"",
+      "artist": "Gunna"
+    },
+    {
+      "pos": 32,
+      "title": "\"Lavender Haze\"",
+      "artist": "Taylor Swift"
+    },
+    {
+      "pos": 33,
+      "title": "\"Players\"",
+      "artist": "Coi Leray"
+    },
+    {
+      "pos": 34,
+      "title": "\"Need a Favor\"",
+      "artist": "Jelly Roll"
+    },
+    {
+      "pos": 35,
+      "title": "\"Dance the Night\"",
+      "artist": "Dua Lipa"
+    },
+    {
+      "pos": 36,
+      "title": "\"Love You Anyway\"",
+      "artist": "Luke Combs"
+    },
+    {
+      "pos": 37,
+      "title": "\"One Thing at a Time\"",
+      "artist": "Morgan Wallen"
+    },
+    {
+      "pos": 38,
+      "title": "\"Superhero (Heroes & Villains)\"",
+      "artist": "Metro Boomin, Future and Chris Brown"
+    },
+    {
+      "pos": 39,
+      "title": "\"Bad Habit\"",
+      "artist": "Steve Lacy"
+    },
+    {
+      "pos": 40,
+      "title": "\"La Bebé\"",
+      "artist": "Yng Lvcas and Peso Pluma"
+    },
+    {
+      "pos": 41,
+      "title": "\"Golden Hour\"",
+      "artist": "Jvke"
+    },
+    {
+      "pos": 42,
+      "title": "\"Religiously\"",
+      "artist": "Bailey Zimmerman"
+    },
+    {
+      "pos": 43,
+      "title": "\"Spin Bout U\"",
+      "artist": "Drake and 21 Savage"
+    },
+    {
+      "pos": 44,
+      "title": "\"Cupid\"",
+      "artist": "Fifty Fifty"
+    },
+    {
+      "pos": 45,
+      "title": "\"Search & Rescue\"",
+      "artist": "Drake"
+    },
+    {
+      "pos": 46,
+      "title": "\"Barbie World\"",
+      "artist": "Nicki Minaj and Ice Spice with Aqua"
+    },
+    {
+      "pos": 47,
+      "title": "\"Next Thing You Know\"",
+      "artist": "Jordan Davis"
+    },
+    {
+      "pos": 48,
+      "title": "\"Escapism\"",
+      "artist": "Raye featuring 070 Shake"
+    },
+    {
+      "pos": 49,
+      "title": "\"Un x100to\"",
+      "artist": "Grupo Frontera and Bad Bunny"
+    },
+    {
+      "pos": 50,
+      "title": "\"Until I Found You\"",
+      "artist": "Stephen Sanchez"
+    },
+    {
+      "pos": 51,
+      "title": "\"Shirt\"",
+      "artist": "SZA"
+    },
+    {
+      "pos": 52,
+      "title": "\"Paint the Town Red\"",
+      "artist": "Doja Cat"
+    },
+    {
+      "pos": 53,
+      "title": "\"Made You Look\"",
+      "artist": "Meghan Trainor"
+    },
+    {
+      "pos": 54,
+      "title": "\"Wait in the Truck\"",
+      "artist": "Hardy featuring Lainey Wilson"
+    },
+    {
+      "pos": 55,
+      "title": "\"All I Want for Christmas Is You\"",
+      "artist": "Mariah Carey"
+    },
+    {
+      "pos": 56,
+      "title": "\"Everything I Love\"",
+      "artist": "Morgan Wallen"
+    },
+    {
+      "pos": 57,
+      "title": "\"Chemical\"",
+      "artist": "Post Malone"
+    },
+    {
+      "pos": 58,
+      "title": "\"Heart Like a Truck\"",
+      "artist": "Lainey Wilson"
+    },
+    {
+      "pos": 59,
+      "title": "\"Going, Going, Gone\"",
+      "artist": "Luke Combs"
+    },
+    {
+      "pos": 60,
+      "title": "\"Rockin' Around the Christmas Tree\"",
+      "artist": "Brenda Lee"
+    },
+    {
+      "pos": 61,
+      "title": "\"Dancin' in the Country\"",
+      "artist": "Tyler Hubbard"
+    },
+    {
+      "pos": 62,
+      "title": "\"Daylight\"",
+      "artist": "David Kushner"
+    },
+    {
+      "pos": 63,
+      "title": "\"Lift Me Up\"",
+      "artist": "Rihanna"
+    },
+    {
+      "pos": 64,
+      "title": "\"Eyes Closed\"",
+      "artist": "Ed Sheeran"
+    },
+    {
+      "pos": 65,
+      "title": "\"TQG\"",
+      "artist": "Karol G and Shakira"
+    },
+    {
+      "pos": 66,
+      "title": "\"Try That in a Small Town\"",
+      "artist": "Jason Aldean"
+    },
+    {
+      "pos": 67,
+      "title": "\"Tennessee Orange\"",
+      "artist": "Megan Moroney"
+    },
+    {
+      "pos": 68,
+      "title": "\"Jingle Bell Rock\"",
+      "artist": "Bobby Helms"
+    },
+    {
+      "pos": 69,
+      "title": "\"Princess Diana\"",
+      "artist": "Ice Spice and Nicki Minaj"
+    },
+    {
+      "pos": 70,
+      "title": "\"Tomorrow 2\"",
+      "artist": "GloRilla and Cardi B"
+    },
+    {
+      "pos": 71,
+      "title": "\"A Holly Jolly Christmas\"",
+      "artist": "Burl Ives"
+    },
+    {
+      "pos": 72,
+      "title": "\"Where She Goes\"",
+      "artist": "Bad Bunny"
+    },
+    {
+      "pos": 73,
+      "title": "\"Bebe Dame\"",
+      "artist": "Fuerza Regida and Grupo Frontera"
+    },
+    {
+      "pos": 74,
+      "title": "\"I Remember Everything\"",
+      "artist": "Zach Bryan featuring Kacey Musgraves"
+    },
+    {
+      "pos": 75,
+      "title": "\"I Like You (A Happier Song)\"",
+      "artist": "Post Malone featuring Doja Cat"
+    },
+    {
+      "pos": 76,
+      "title": "\"What It Is (Block Boy)\"",
+      "artist": "Doechii featuring Kodak Black"
+    },
+    {
+      "pos": 77,
+      "title": "\"Nobody Gets Me\"",
+      "artist": "SZA"
+    },
+    {
+      "pos": 78,
+      "title": "\"Rich Men North of Richmond\"",
+      "artist": "Oliver Anthony Music"
+    },
+    {
+      "pos": 79,
+      "title": "\"Super Freaky Girl\"",
+      "artist": "Nicki Minaj"
+    },
+    {
+      "pos": 80,
+      "title": "\"Dial Drunk\"",
+      "artist": "Noah Kahan and Post Malone"
+    },
+    {
+      "pos": 81,
+      "title": "\"What Was I Made For?\"",
+      "artist": "Billie Eilish"
+    },
+    {
+      "pos": 82,
+      "title": "\"Seven\"",
+      "artist": "Jung Kook featuring Latto"
+    },
+    {
+      "pos": 83,
+      "title": "\"Wait for U\"",
+      "artist": "Future featuring Drake and Tems"
+    },
+    {
+      "pos": 84,
+      "title": "\"Last Christmas\"",
+      "artist": "Wham!"
+    },
+    {
+      "pos": 85,
+      "title": "\"Handle on You\"",
+      "artist": "Parker McCollum"
+    },
+    {
+      "pos": 86,
+      "title": "\"Por Las Noches\"",
+      "artist": "Peso Pluma"
+    },
+    {
+      "pos": 87,
+      "title": "\"Memory Lane\"",
+      "artist": "Old Dominion"
+    },
+    {
+      "pos": 88,
+      "title": "\"Area Codes\"",
+      "artist": "Kaliii"
+    },
+    {
+      "pos": 89,
+      "title": "\"Bury Me in Georgia\"",
+      "artist": "Kane Brown"
+    },
+    {
+      "pos": 90,
+      "title": "\"PRC\"",
+      "artist": "Peso Pluma and Natanael Cano"
+    },
+    {
+      "pos": 91,
+      "title": "\"What My World Spins Around\"",
+      "artist": "Jordan Davis"
+    },
+    {
+      "pos": 92,
+      "title": "\"Ain't That Some\"",
+      "artist": "Morgan Wallen"
+    },
+    {
+      "pos": 93,
+      "title": "\"Wild as Her\"",
+      "artist": "Corey Kent"
+    },
+    {
+      "pos": 94,
+      "title": "\"Peaches & Eggplants\"",
+      "artist": "Young Nudy featuring 21 Savage"
+    },
+    {
+      "pos": 95,
+      "title": "\"I Wrote the Book\"",
+      "artist": "Morgan Wallen"
+    },
+    {
+      "pos": 96,
+      "title": "\"Bzrp Music Sessions, Vol. 53\"",
+      "artist": "Bizarrap and Shakira"
+    },
+    {
+      "pos": 97,
+      "title": "\"Meltdown\"",
+      "artist": "Travis Scott featuring Drake"
+    },
+    {
+      "pos": 98,
+      "title": "\"Put It on da Floor Again\"",
+      "artist": "Latto featuring Cardi B"
+    },
+    {
+      "pos": 99,
+      "title": "\"Bloody Mary\"",
+      "artist": "Lady Gaga"
+    },
+    {
+      "pos": 100,
+      "title": "\"Watermelon Moonshine\"",
+      "artist": "Lainey Wilson"
+    }
+  ]
+}

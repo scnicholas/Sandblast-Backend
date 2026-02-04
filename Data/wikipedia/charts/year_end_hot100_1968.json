@@ -1,0 +1,512 @@
+{
+  "year": 1968,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1968",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Hey Jude\"",
+      "artist": "The Beatles"
+    },
+    {
+      "pos": 2,
+      "title": "\"Love is Blue\"",
+      "artist": "Paul Mauriat"
+    },
+    {
+      "pos": 3,
+      "title": "\"Honey\"",
+      "artist": "Bobby Goldsboro"
+    },
+    {
+      "pos": 4,
+      "title": "\"(Sittin' On) The Dock of the Bay\"",
+      "artist": "Otis Redding"
+    },
+    {
+      "pos": 5,
+      "title": "\"People Got to Be Free\"",
+      "artist": "The Rascals"
+    },
+    {
+      "pos": 6,
+      "title": "\"Sunshine of Your Love\"",
+      "artist": "Cream"
+    },
+    {
+      "pos": 7,
+      "title": "\"This Guy's in Love with You\"",
+      "artist": "Herb Alpert"
+    },
+    {
+      "pos": 8,
+      "title": "\"The Good, the Bad and the Ugly\"",
+      "artist": "Hugo Montenegro"
+    },
+    {
+      "pos": 9,
+      "title": "\"Mrs. Robinson\"",
+      "artist": "Simon & Garfunkel"
+    },
+    {
+      "pos": 10,
+      "title": "\"Tighten Up\"",
+      "artist": "Archie Bell & the Drells"
+    },
+    {
+      "pos": 11,
+      "title": "\"Harper Valley PTA\"",
+      "artist": "Jeannie C. Riley"
+    },
+    {
+      "pos": 12,
+      "title": "\"Little Green Apples\"",
+      "artist": "O. C. Smith"
+    },
+    {
+      "pos": 13,
+      "title": "\"Mony Mony\"",
+      "artist": "Tommy James and the Shondells"
+    },
+    {
+      "pos": 14,
+      "title": "\"Hello, I Love You\"",
+      "artist": "The Doors"
+    },
+    {
+      "pos": 15,
+      "title": "\"Young Girl\"",
+      "artist": "Gary Puckett & The Union Gap"
+    },
+    {
+      "pos": 16,
+      "title": "\"Cry Like a Baby\"",
+      "artist": "The Box Tops"
+    },
+    {
+      "pos": 17,
+      "title": "\"Stoned Soul Picnic\"",
+      "artist": "The 5th Dimension"
+    },
+    {
+      "pos": 18,
+      "title": "\"Grazing in the Grass\"",
+      "artist": "Hugh Masekela"
+    },
+    {
+      "pos": 19,
+      "title": "\"Midnight Confessions\"",
+      "artist": "The Grass Roots"
+    },
+    {
+      "pos": 20,
+      "title": "\"Dance to the Music\"",
+      "artist": "Sly and the Family Stone"
+    },
+    {
+      "pos": 21,
+      "title": "\"The Horse\"",
+      "artist": "Cliff Nobles"
+    },
+    {
+      "pos": 22,
+      "title": "\"I Wish It Would Rain\"",
+      "artist": "The Temptations"
+    },
+    {
+      "pos": 23,
+      "title": "\"La-La (Means I Love You)\"",
+      "artist": "The Delfonics"
+    },
+    {
+      "pos": 24,
+      "title": "\"Turn Around, Look at Me\"",
+      "artist": "The Vogues"
+    },
+    {
+      "pos": 25,
+      "title": "\"Judy in Disguise (With Glasses)\"",
+      "artist": "John Fred & His Playboy Band"
+    },
+    {
+      "pos": 26,
+      "title": "\"Spooky\"",
+      "artist": "Classics IV"
+    },
+    {
+      "pos": 27,
+      "title": "\"Love Child\"",
+      "artist": "The Supremes"
+    },
+    {
+      "pos": 28,
+      "title": "\"Angel of the Morning\"",
+      "artist": "Merrilee Rush"
+    },
+    {
+      "pos": 29,
+      "title": "\"The Ballad of Bonnie and Clyde\"",
+      "artist": "Georgie Fame"
+    },
+    {
+      "pos": 30,
+      "title": "\"Those Were the Days\"",
+      "artist": "Mary Hopkin"
+    },
+    {
+      "pos": 31,
+      "title": "\"Born to Be Wild\"",
+      "artist": "Steppenwolf"
+    },
+    {
+      "pos": 32,
+      "title": "\"Cowboys to Girls\"",
+      "artist": "The Intruders"
+    },
+    {
+      "pos": 33,
+      "title": "\"Simon Says\"",
+      "artist": "1910 Fruitgum Company"
+    },
+    {
+      "pos": 34,
+      "title": "\"Lady Willpower\"",
+      "artist": "Gary Puckett & The Union Gap"
+    },
+    {
+      "pos": 35,
+      "title": "\"A Beautiful Morning\"",
+      "artist": "The Rascals"
+    },
+    {
+      "pos": 36,
+      "title": "\"The Look of Love\"",
+      "artist": "Sérgio Mendes & Brasil '66"
+    },
+    {
+      "pos": 37,
+      "title": "\"Hold Me Tight\"",
+      "artist": "Johnny Nash"
+    },
+    {
+      "pos": 38,
+      "title": "\"Yummy Yummy Yummy\"",
+      "artist": "Ohio Express"
+    },
+    {
+      "pos": 39,
+      "title": "\"Fire\"",
+      "artist": "The Crazy World of Arthur Brown"
+    },
+    {
+      "pos": 40,
+      "title": "\"Love Is All Around\"",
+      "artist": "The Troggs"
+    },
+    {
+      "pos": 41,
+      "title": "\"Playboy\"",
+      "artist": "Gene & Debbe"
+    },
+    {
+      "pos": 42,
+      "title": "\"(Theme from) Valley of the Dolls\"",
+      "artist": "Dionne Warwick"
+    },
+    {
+      "pos": 43,
+      "title": "\"Classical Gas\"",
+      "artist": "Mason Williams"
+    },
+    {
+      "pos": 44,
+      "title": "\"Slip Away\"",
+      "artist": "Clarence Carter"
+    },
+    {
+      "pos": 45,
+      "title": "\"Girl Watcher\"",
+      "artist": "The O'Kaysions"
+    },
+    {
+      "pos": 46,
+      "title": "\"(Sweet Sweet Baby) Since You've Been Gone\"",
+      "artist": "Aretha Franklin"
+    },
+    {
+      "pos": 47,
+      "title": "\"Green Tambourine\"",
+      "artist": "The Lemon Pipers"
+    },
+    {
+      "pos": 48,
+      "title": "\"1, 2, 3, Red Light\"",
+      "artist": "1910 Fruitgum Company"
+    },
+    {
+      "pos": 49,
+      "title": "\"Reach Out of the Darkness\"",
+      "artist": "Friend & Lover"
+    },
+    {
+      "pos": 50,
+      "title": "\"Jumpin' Jack Flash\"",
+      "artist": "The Rolling Stones"
+    },
+    {
+      "pos": 51,
+      "title": "\"MacArthur Park\"",
+      "artist": "Richard Harris"
+    },
+    {
+      "pos": 52,
+      "title": "\"Light My Fire\"",
+      "artist": "José Feliciano"
+    },
+    {
+      "pos": 53,
+      "title": "\"I Love You\"",
+      "artist": "People!"
+    },
+    {
+      "pos": 54,
+      "title": "\"Take Time to Know Her\"",
+      "artist": "Percy Sledge"
+    },
+    {
+      "pos": 55,
+      "title": "\"Pictures of Matchstick Men\"",
+      "artist": "Status Quo"
+    },
+    {
+      "pos": 56,
+      "title": "\"Summertime Blues\"",
+      "artist": "Blue Cheer"
+    },
+    {
+      "pos": 57,
+      "title": "\"Ain't Nothing Like the Real Thing\"",
+      "artist": "Marvin Gaye & Tammi Terrell"
+    },
+    {
+      "pos": 58,
+      "title": "\"I Got the Feelin'\"",
+      "artist": "James Brown"
+    },
+    {
+      "pos": 59,
+      "title": "\"I've Gotta Get a Message to You\"",
+      "artist": "The Bee Gees"
+    },
+    {
+      "pos": 60,
+      "title": "\"Lady Madonna\"",
+      "artist": "The Beatles"
+    },
+    {
+      "pos": 61,
+      "title": "\"Hurdy Gurdy Man\"",
+      "artist": "Donovan"
+    },
+    {
+      "pos": 62,
+      "title": "\"Magic Carpet Ride\"",
+      "artist": "Steppenwolf"
+    },
+    {
+      "pos": 63,
+      "title": "\"Bottle of Wine\"",
+      "artist": "The Fireballs"
+    },
+    {
+      "pos": 64,
+      "title": "\"Stay in My Corner\"",
+      "artist": "The Dells"
+    },
+    {
+      "pos": 65,
+      "title": "\"Soul Serenade\"",
+      "artist": "Willie Mitchell"
+    },
+    {
+      "pos": 66,
+      "title": "\"Delilah\"",
+      "artist": "Tom Jones"
+    },
+    {
+      "pos": 67,
+      "title": "\"Nobody but Me\"",
+      "artist": "The Human Beinz"
+    },
+    {
+      "pos": 68,
+      "title": "\"I Thank You\"",
+      "artist": "Sam & Dave"
+    },
+    {
+      "pos": 69,
+      "title": "\"The Fool on the Hill\"",
+      "artist": "Sérgio Mendes & Brasil '66"
+    },
+    {
+      "pos": 70,
+      "title": "\"Sky Pilot\"",
+      "artist": "The Animals"
+    },
+    {
+      "pos": 71,
+      "title": "\"Indian Lake\"",
+      "artist": "The Cowsills"
+    },
+    {
+      "pos": 72,
+      "title": "\"I Wonder What She's Doing Tonight\"",
+      "artist": "Tommy Boyce & Bobby Hart"
+    },
+    {
+      "pos": 73,
+      "title": "\"Over You\"",
+      "artist": "Gary Puckett & The Union Gap"
+    },
+    {
+      "pos": 74,
+      "title": "\"Goin' Out of My Head/Can't Take My Eyes Off You\"",
+      "artist": "The Lettermen"
+    },
+    {
+      "pos": 75,
+      "title": "\"Shoo-Be-Doo-Be-Doo-Da-Day\"",
+      "artist": "Stevie Wonder"
+    },
+    {
+      "pos": 76,
+      "title": "\"The Unicorn\"",
+      "artist": "The Irish Rovers"
+    },
+    {
+      "pos": 77,
+      "title": "\"You Keep Me Hangin' On\"",
+      "artist": "Vanilla Fudge"
+    },
+    {
+      "pos": 78,
+      "title": "\"Revolution\"",
+      "artist": "The Beatles"
+    },
+    {
+      "pos": 79,
+      "title": "\"Woman, Woman\"",
+      "artist": "Gary Puckett & The Union Gap"
+    },
+    {
+      "pos": 80,
+      "title": "\"Elenore\"",
+      "artist": "The Turtles"
+    },
+    {
+      "pos": 81,
+      "title": "\"White Room\"",
+      "artist": "Cream"
+    },
+    {
+      "pos": 82,
+      "title": "\"You're All I Need to Get By\"",
+      "artist": "Marvin Gaye & Tammi Terrell"
+    },
+    {
+      "pos": 83,
+      "title": "\"Baby, Now That I've Found You\"",
+      "artist": "The Foundations"
+    },
+    {
+      "pos": 84,
+      "title": "\"Sweet Inspiration\"",
+      "artist": "The Sweet Inspirations"
+    },
+    {
+      "pos": 85,
+      "title": "\"If You Can Want\"",
+      "artist": "Smokey Robinson and the Miracles"
+    },
+    {
+      "pos": 86,
+      "title": "\"Cab Driver\"",
+      "artist": "The Mills Brothers"
+    },
+    {
+      "pos": 87,
+      "title": "\"Time Has Come Today\"",
+      "artist": "The Chambers Brothers"
+    },
+    {
+      "pos": 88,
+      "title": "\"Do You Know the Way to San Jose\"",
+      "artist": "Dionne Warwick"
+    },
+    {
+      "pos": 89,
+      "title": "\"Scarborough Fair\"",
+      "artist": "Simon & Garfunkel"
+    },
+    {
+      "pos": 90,
+      "title": "\"Say It Loud – I'm Black and I'm Proud\"",
+      "artist": "James Brown"
+    },
+    {
+      "pos": 91,
+      "title": "\"The Mighty Quinn\"",
+      "artist": "Manfred Mann"
+    },
+    {
+      "pos": 92,
+      "title": "\"Here Comes the Judge\"",
+      "artist": "Shorty Long"
+    },
+    {
+      "pos": 93,
+      "title": "\"I Say a Little Prayer\"",
+      "artist": "Aretha Franklin"
+    },
+    {
+      "pos": 94,
+      "title": "\"Think\"",
+      "artist": "\"Think\""
+    },
+    {
+      "pos": 95,
+      "title": "\"Sealed with a Kiss\"",
+      "artist": "Gary Lewis & the Playboys"
+    },
+    {
+      "pos": 96,
+      "title": "\"Piece of My Heart\"",
+      "artist": "Big Brother and the Holding Company"
+    },
+    {
+      "pos": 97,
+      "title": "\"Suzie Q.\"",
+      "artist": "Creedence Clearwater Revival"
+    },
+    {
+      "pos": 98,
+      "title": "\"Bend Me, Shape Me\"",
+      "artist": "The American Breed"
+    },
+    {
+      "pos": 99,
+      "title": "\"Hey, Western Union Man\"",
+      "artist": "Jerry Butler"
+    },
+    {
+      "pos": 100,
+      "title": "\"Never Give You Up\"",
+      "artist": "\"Never Give You Up\""
+    }
+  ]
+}

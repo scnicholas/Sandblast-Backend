@@ -1,0 +1,512 @@
+{
+  "year": 1964,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1964",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"I Want to Hold Your Hand\"",
+      "artist": "The Beatles"
+    },
+    {
+      "pos": 2,
+      "title": "\"She Loves You\"",
+      "artist": "\"She Loves You\""
+    },
+    {
+      "pos": 3,
+      "title": "\"Hello, Dolly!\"",
+      "artist": "Louis Armstrong"
+    },
+    {
+      "pos": 4,
+      "title": "\"Oh, Pretty Woman\"",
+      "artist": "Roy Orbison"
+    },
+    {
+      "pos": 5,
+      "title": "\"I Get Around\"",
+      "artist": "The Beach Boys"
+    },
+    {
+      "pos": 6,
+      "title": "\"Everybody Loves Somebody\"",
+      "artist": "Dean Martin"
+    },
+    {
+      "pos": 7,
+      "title": "\"My Guy\"",
+      "artist": "Mary Wells"
+    },
+    {
+      "pos": 8,
+      "title": "\"We'll Sing in the Sunshine\"",
+      "artist": "Gale Garnett"
+    },
+    {
+      "pos": 9,
+      "title": "\"Last Kiss\"",
+      "artist": "J. Frank Wilson and the Cavaliers"
+    },
+    {
+      "pos": 10,
+      "title": "\"Where Did Our Love Go\"",
+      "artist": "The Supremes"
+    },
+    {
+      "pos": 11,
+      "title": "\"People\"",
+      "artist": "Barbra Streisand"
+    },
+    {
+      "pos": 12,
+      "title": "\"Java\"",
+      "artist": "Al Hirt"
+    },
+    {
+      "pos": 13,
+      "title": "\"A Hard Day's Night\"",
+      "artist": "The Beatles"
+    },
+    {
+      "pos": 14,
+      "title": "\"Love Me Do\"",
+      "artist": "\"Love Me Do\""
+    },
+    {
+      "pos": 15,
+      "title": "\"Do Wah Diddy Diddy\"",
+      "artist": "Manfred Mann"
+    },
+    {
+      "pos": 16,
+      "title": "\"Please Please Me\"",
+      "artist": "The Beatles"
+    },
+    {
+      "pos": 17,
+      "title": "\"Dancing in the Street\"",
+      "artist": "Martha and the Vandellas"
+    },
+    {
+      "pos": 18,
+      "title": "\"Little Children\"",
+      "artist": "Billy J. Kramer & The Dakotas"
+    },
+    {
+      "pos": 19,
+      "title": "\"Love Me with All Your Heart (Cuando Calienta El Sol)\"",
+      "artist": "The Ray Charles Singers"
+    },
+    {
+      "pos": 20,
+      "title": "\"Under the Boardwalk\"",
+      "artist": "The Drifters"
+    },
+    {
+      "pos": 21,
+      "title": "\"Chapel of Love\"",
+      "artist": "The Dixie Cups"
+    },
+    {
+      "pos": 22,
+      "title": "\"Suspicion\"",
+      "artist": "Terry Stafford"
+    },
+    {
+      "pos": 23,
+      "title": "\"Glad All Over\"",
+      "artist": "The Dave Clark Five"
+    },
+    {
+      "pos": 24,
+      "title": "\"Rag Doll\"",
+      "artist": "The Four Seasons"
+    },
+    {
+      "pos": 25,
+      "title": "\"Dawn (Go Away)\"",
+      "artist": "\"Dawn (Go Away)\""
+    },
+    {
+      "pos": 26,
+      "title": "\"Bread and Butter\"",
+      "artist": "The Newbeats"
+    },
+    {
+      "pos": 27,
+      "title": "\"It Hurts to Be in Love\"",
+      "artist": "Gene Pitney"
+    },
+    {
+      "pos": 28,
+      "title": "\"Dead Man's Curve\"",
+      "artist": "Jan and Dean"
+    },
+    {
+      "pos": 29,
+      "title": "\"Come a Little Bit Closer\"",
+      "artist": "Jay and the Americans"
+    },
+    {
+      "pos": 30,
+      "title": "\"A World Without Love\"",
+      "artist": "Peter and Gordon"
+    },
+    {
+      "pos": 31,
+      "title": "\"Have I the Right?\"",
+      "artist": "The Honeycombs"
+    },
+    {
+      "pos": 32,
+      "title": "\"Don't Let the Rain Come Down (Crooked Little Man)\"",
+      "artist": "The Serendipity Singers"
+    },
+    {
+      "pos": 33,
+      "title": "\"Baby Love\"",
+      "artist": "The Supremes"
+    },
+    {
+      "pos": 34,
+      "title": "\"Let It Be Me\"",
+      "artist": "Betty Everett & Jerry Butler"
+    },
+    {
+      "pos": 35,
+      "title": "\"Wishin' and Hopin'\"",
+      "artist": "Dusty Springfield"
+    },
+    {
+      "pos": 36,
+      "title": "\"You Don't Own Me\"",
+      "artist": "Lesley Gore"
+    },
+    {
+      "pos": 37,
+      "title": "\"Walk On By\"",
+      "artist": "Dionne Warwick"
+    },
+    {
+      "pos": 38,
+      "title": "\"The House of the Rising Sun\"",
+      "artist": "The Animals"
+    },
+    {
+      "pos": 39,
+      "title": "\"G.T.O.\"",
+      "artist": "Ronny & the Daytonas"
+    },
+    {
+      "pos": 40,
+      "title": "\"Twist and Shout\"",
+      "artist": "The Beatles"
+    },
+    {
+      "pos": 41,
+      "title": "\"Memphis\"",
+      "artist": "Johnny Rivers"
+    },
+    {
+      "pos": 42,
+      "title": "\"White on White\"",
+      "artist": "Danny Williams"
+    },
+    {
+      "pos": 43,
+      "title": "\"Hey Little Cobra\"",
+      "artist": "The Rip Chords"
+    },
+    {
+      "pos": 44,
+      "title": "\"The Shoop Shoop Song (It's in His Kiss)\"",
+      "artist": "Betty Everett"
+    },
+    {
+      "pos": 45,
+      "title": "\"Bits and Pieces\"",
+      "artist": "The Dave Clark Five"
+    },
+    {
+      "pos": 46,
+      "title": "\"My Boy Lollipop\"",
+      "artist": "Millie Small"
+    },
+    {
+      "pos": 47,
+      "title": "\"Um, Um, Um, Um, Um, Um\"",
+      "artist": "Major Lance"
+    },
+    {
+      "pos": 48,
+      "title": "\"The Little Old Lady (from Pasadena)\"",
+      "artist": "Jan and Dean"
+    },
+    {
+      "pos": 49,
+      "title": "\"Don't Let the Sun Catch You Crying\"",
+      "artist": "Gerry and the Pacemakers"
+    },
+    {
+      "pos": 50,
+      "title": "\"A Summer Song\"",
+      "artist": "Chad & Jeremy"
+    },
+    {
+      "pos": 51,
+      "title": "\"The Girl from Ipanema\"",
+      "artist": "Stan Getz & Astrud Gilberto"
+    },
+    {
+      "pos": 52,
+      "title": "\"Can't Buy Me Love\"",
+      "artist": "The Beatles"
+    },
+    {
+      "pos": 53,
+      "title": "\"Remember (Walking in the Sand)\"",
+      "artist": "The Shangri-Las"
+    },
+    {
+      "pos": 54,
+      "title": "\"C'mon and Swim\"",
+      "artist": "Bobby Freeman"
+    },
+    {
+      "pos": 55,
+      "title": "\"Do You Want to Know a Secret\"",
+      "artist": "The Beatles"
+    },
+    {
+      "pos": 56,
+      "title": "\"Keep On Pushing\"",
+      "artist": "The Impressions"
+    },
+    {
+      "pos": 57,
+      "title": "\"Baby I Need Your Loving\"",
+      "artist": "Four Tops"
+    },
+    {
+      "pos": 58,
+      "title": "\"Navy Blue\"",
+      "artist": "Diane Renay"
+    },
+    {
+      "pos": 59,
+      "title": "\"Diane\"",
+      "artist": "The Bachelors"
+    },
+    {
+      "pos": 60,
+      "title": "\"Out of Limits\"",
+      "artist": "The Marketts"
+    },
+    {
+      "pos": 61,
+      "title": "\"Little Honda\"",
+      "artist": "The Hondells"
+    },
+    {
+      "pos": 62,
+      "title": "\"Chug-a-Lug\"",
+      "artist": "Roger Miller"
+    },
+    {
+      "pos": 63,
+      "title": "\"See the Funny Little Clown\"",
+      "artist": "Bobby Goldsboro"
+    },
+    {
+      "pos": 64,
+      "title": "\"Because\"",
+      "artist": "The Dave Clark Five"
+    },
+    {
+      "pos": 65,
+      "title": "\"(Just Like) Romeo and Juliet\"",
+      "artist": "The Reflections"
+    },
+    {
+      "pos": 66,
+      "title": "\"For You\"",
+      "artist": "Rick Nelson"
+    },
+    {
+      "pos": 67,
+      "title": "\"Today\"",
+      "artist": "The New Christy Minstrels"
+    },
+    {
+      "pos": 68,
+      "title": "\"Can't You See That She's Mine\"",
+      "artist": "The Dave Clark Five"
+    },
+    {
+      "pos": 69,
+      "title": "\"Leader of the Pack\"",
+      "artist": "The Shangri-Las"
+    },
+    {
+      "pos": 70,
+      "title": "\"Funny How Time Slips Away\"",
+      "artist": "Joe Hinton"
+    },
+    {
+      "pos": 71,
+      "title": "\"The Way You Do the Things You Do\"",
+      "artist": "The Temptations"
+    },
+    {
+      "pos": 72,
+      "title": "\"Anyone Who Had a Heart\"",
+      "artist": "Dionne Warwick"
+    },
+    {
+      "pos": 73,
+      "title": "\"I Love You More and More Every Day\"",
+      "artist": "Al Martino"
+    },
+    {
+      "pos": 74,
+      "title": "\"It's Over\"",
+      "artist": "Roy Orbison"
+    },
+    {
+      "pos": 75,
+      "title": "\"Ronnie\"",
+      "artist": "The Four Seasons"
+    },
+    {
+      "pos": 76,
+      "title": "\"Surfin' Bird\"",
+      "artist": "The Trashmen"
+    },
+    {
+      "pos": 77,
+      "title": "\"What Kind of Fool (Do You Think I Am)\"",
+      "artist": "The Tams"
+    },
+    {
+      "pos": 78,
+      "title": "\"The Door Is Still Open to My Heart\"",
+      "artist": "Dean Martin"
+    },
+    {
+      "pos": 79,
+      "title": "\"You Really Got Me\"",
+      "artist": "The Kinks"
+    },
+    {
+      "pos": 80,
+      "title": "\"The Shelter of Your Arms\"",
+      "artist": "Sammy Davis Jr."
+    },
+    {
+      "pos": 81,
+      "title": "\"I'm So Proud\"",
+      "artist": "The Impressions"
+    },
+    {
+      "pos": 82,
+      "title": "\"I Wanna Love Him So Bad\"",
+      "artist": "The Jelly Beans"
+    },
+    {
+      "pos": 83,
+      "title": "\"Dang Me\"",
+      "artist": "Roger Miller"
+    },
+    {
+      "pos": 84,
+      "title": "\"Cotton Candy\"",
+      "artist": "Al Hirt"
+    },
+    {
+      "pos": 85,
+      "title": "\"(You Don't Know) How Glad I Am\"",
+      "artist": "Nancy Wilson"
+    },
+    {
+      "pos": 86,
+      "title": "\"Money (That's What I Want)\"",
+      "artist": "The Kingsmen"
+    },
+    {
+      "pos": 87,
+      "title": "\"Don't Throw Your Love Away\"",
+      "artist": "The Searchers"
+    },
+    {
+      "pos": 88,
+      "title": "\"Hi-Heel Sneakers\"",
+      "artist": "Tommy Tucker"
+    },
+    {
+      "pos": 89,
+      "title": "\"How Do You Do It?\"",
+      "artist": "Gerry and the Pacemakers"
+    },
+    {
+      "pos": 90,
+      "title": "\"Walk, Don't Run '64\"",
+      "artist": "The Ventures"
+    },
+    {
+      "pos": 91,
+      "title": "\"Do You Love Me\"",
+      "artist": "The Dave Clark Five"
+    },
+    {
+      "pos": 92,
+      "title": "\"Shangri-La\"",
+      "artist": "Robert Maxwell"
+    },
+    {
+      "pos": 93,
+      "title": "\"Haunted House\"",
+      "artist": "Jumpin' Gene Simmons"
+    },
+    {
+      "pos": 94,
+      "title": "\"Steal Away\"",
+      "artist": "Jimmy Hughes"
+    },
+    {
+      "pos": 95,
+      "title": "\"I Saw Her Standing There\"",
+      "artist": "The Beatles"
+    },
+    {
+      "pos": 96,
+      "title": "\"A Fool Never Learns\"",
+      "artist": "Andy Williams"
+    },
+    {
+      "pos": 97,
+      "title": "\"Bad to Me\"",
+      "artist": "Billy J. Kramer & The Dakotas"
+    },
+    {
+      "pos": 98,
+      "title": "\"There! I've Said It Again\"",
+      "artist": "Bobby Vinton"
+    },
+    {
+      "pos": 99,
+      "title": "\"Louie Louie\"",
+      "artist": "The Kingsmen"
+    },
+    {
+      "pos": 100,
+      "title": "\"Needles and Pins\"",
+      "artist": "The Searchers"
+    }
+  ]
+}

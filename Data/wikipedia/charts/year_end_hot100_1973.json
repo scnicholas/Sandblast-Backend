@@ -1,0 +1,512 @@
+{
+  "year": 1973,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1973",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Tie a Yellow Ribbon Round the Ole Oak Tree\"",
+      "artist": "Tony Orlando and Dawn"
+    },
+    {
+      "pos": 2,
+      "title": "\"Bad, Bad Leroy Brown\"",
+      "artist": "Jim Croce"
+    },
+    {
+      "pos": 3,
+      "title": "\"Killing Me Softly with His Song\"",
+      "artist": "Roberta Flack"
+    },
+    {
+      "pos": 4,
+      "title": "\"Let's Get It On\"",
+      "artist": "Marvin Gaye"
+    },
+    {
+      "pos": 5,
+      "title": "\"My Love\"",
+      "artist": "Paul McCartney & Wings"
+    },
+    {
+      "pos": 6,
+      "title": "\"Why Me\"",
+      "artist": "Kris Kristofferson"
+    },
+    {
+      "pos": 7,
+      "title": "\"Crocodile Rock\"",
+      "artist": "Elton John"
+    },
+    {
+      "pos": 8,
+      "title": "\"Will It Go Round in Circles\"",
+      "artist": "Billy Preston"
+    },
+    {
+      "pos": 9,
+      "title": "\"You're So Vain\"",
+      "artist": "Carly Simon"
+    },
+    {
+      "pos": 10,
+      "title": "\"Touch Me in the Morning\"",
+      "artist": "Diana Ross"
+    },
+    {
+      "pos": 11,
+      "title": "\"The Night the Lights Went Out in Georgia\"",
+      "artist": "Vicki Lawrence"
+    },
+    {
+      "pos": 12,
+      "title": "\"Playground in My Mind\"",
+      "artist": "Clint Holmes"
+    },
+    {
+      "pos": 13,
+      "title": "\"Brother Louie\"",
+      "artist": "Stories"
+    },
+    {
+      "pos": 14,
+      "title": "\"Delta Dawn\"",
+      "artist": "Helen Reddy"
+    },
+    {
+      "pos": 15,
+      "title": "\"Me and Mrs. Jones\"",
+      "artist": "Billy Paul"
+    },
+    {
+      "pos": 16,
+      "title": "\"Frankenstein\"",
+      "artist": "The Edgar Winter Group"
+    },
+    {
+      "pos": 17,
+      "title": "\"Drift Away\"",
+      "artist": "Dobie Gray"
+    },
+    {
+      "pos": 18,
+      "title": "\"Little Willy\"",
+      "artist": "Sweet"
+    },
+    {
+      "pos": 19,
+      "title": "\"You Are the Sunshine of My Life\"",
+      "artist": "Stevie Wonder"
+    },
+    {
+      "pos": 20,
+      "title": "\"Half-Breed\"",
+      "artist": "Cher"
+    },
+    {
+      "pos": 21,
+      "title": "\"That Lady\"",
+      "artist": "The Isley Brothers"
+    },
+    {
+      "pos": 22,
+      "title": "\"Pillow Talk\"",
+      "artist": "Sylvia Robinson"
+    },
+    {
+      "pos": 23,
+      "title": "\"We're an American Band\"",
+      "artist": "Grand Funk Railroad"
+    },
+    {
+      "pos": 24,
+      "title": "\"Right Place Wrong Time\"",
+      "artist": "Dr. John"
+    },
+    {
+      "pos": 25,
+      "title": "\"Wildflower\"",
+      "artist": "Skylark"
+    },
+    {
+      "pos": 26,
+      "title": "\"Superstition\"",
+      "artist": "Stevie Wonder"
+    },
+    {
+      "pos": 27,
+      "title": "\"Loves Me Like a Rock\"",
+      "artist": "Paul Simon"
+    },
+    {
+      "pos": 28,
+      "title": "\"The Morning After\"",
+      "artist": "Maureen McGovern"
+    },
+    {
+      "pos": 29,
+      "title": "\"Rocky Mountain High\"",
+      "artist": "John Denver"
+    },
+    {
+      "pos": 30,
+      "title": "\"Stuck in the Middle with You\"",
+      "artist": "Stealers Wheel"
+    },
+    {
+      "pos": 31,
+      "title": "\"Shambala\"",
+      "artist": "Three Dog Night"
+    },
+    {
+      "pos": 32,
+      "title": "\"Love Train\"",
+      "artist": "The O'Jays"
+    },
+    {
+      "pos": 33,
+      "title": "\"I'm Gonna Love You Just a Little More Baby\"",
+      "artist": "Barry White"
+    },
+    {
+      "pos": 34,
+      "title": "\"Say, Has Anybody Seen My Sweet Gypsy Rose\"",
+      "artist": "Tony Orlando and Dawn"
+    },
+    {
+      "pos": 35,
+      "title": "\"Keep on Truckin'\"",
+      "artist": "Eddie Kendricks"
+    },
+    {
+      "pos": 36,
+      "title": "\"Danny's Song\"",
+      "artist": "Anne Murray"
+    },
+    {
+      "pos": 37,
+      "title": "\"Dancing in the Moonlight\"",
+      "artist": "King Harvest"
+    },
+    {
+      "pos": 38,
+      "title": "\"Monster Mash\"",
+      "artist": "Bobby 'Boris' Pickett"
+    },
+    {
+      "pos": 39,
+      "title": "\"Natural High\"",
+      "artist": "Bloodstone"
+    },
+    {
+      "pos": 40,
+      "title": "\"Diamond Girl\"",
+      "artist": "Seals and Crofts"
+    },
+    {
+      "pos": 41,
+      "title": "\"Long Train Runnin'\"",
+      "artist": "The Doobie Brothers"
+    },
+    {
+      "pos": 42,
+      "title": "\"Give Me Love (Give Me Peace on Earth)\"",
+      "artist": "George Harrison"
+    },
+    {
+      "pos": 43,
+      "title": "\"If You Want Me to Stay\"",
+      "artist": "Sly & the Family Stone"
+    },
+    {
+      "pos": 44,
+      "title": "\"Daddy's Home\"",
+      "artist": "Jermaine Jackson"
+    },
+    {
+      "pos": 45,
+      "title": "\"Neither One of Us (Wants to Be the First to Say Goodbye)\"",
+      "artist": "Gladys Knight & the Pips"
+    },
+    {
+      "pos": 46,
+      "title": "\"I'm Doin' Fine Now\"",
+      "artist": "New York City"
+    },
+    {
+      "pos": 47,
+      "title": "\"Could It Be I'm Falling in Love\"",
+      "artist": "The Spinners"
+    },
+    {
+      "pos": 48,
+      "title": "\"Daniel\"",
+      "artist": "Elton John"
+    },
+    {
+      "pos": 49,
+      "title": "\"Midnight Train to Georgia\"",
+      "artist": "Gladys Knight & the Pips"
+    },
+    {
+      "pos": 50,
+      "title": "\"Smoke on the Water\"",
+      "artist": "Deep Purple"
+    },
+    {
+      "pos": 51,
+      "title": "\"The Cover of \"Rolling Stone\"\"",
+      "artist": "Dr. Hook & The Medicine Show"
+    },
+    {
+      "pos": 52,
+      "title": "\"Behind Closed Doors\"",
+      "artist": "Charlie Rich"
+    },
+    {
+      "pos": 53,
+      "title": "\"Your Mama Don't Dance\"",
+      "artist": "Loggins and Messina"
+    },
+    {
+      "pos": 54,
+      "title": "\"Feelin' Stronger Every Day\"",
+      "artist": "Chicago"
+    },
+    {
+      "pos": 55,
+      "title": "\"The Cisco Kid\"",
+      "artist": "War"
+    },
+    {
+      "pos": 56,
+      "title": "\"Live and Let Die\"",
+      "artist": "Paul McCartney & Wings"
+    },
+    {
+      "pos": 57,
+      "title": "\"Oh, Babe, What Would You Say?\"",
+      "artist": "Hurricane Smith"
+    },
+    {
+      "pos": 58,
+      "title": "\"I Believe in You (You Believe in Me)\"",
+      "artist": "Johnnie Taylor"
+    },
+    {
+      "pos": 59,
+      "title": "\"Sing\"",
+      "artist": "The Carpenters"
+    },
+    {
+      "pos": 60,
+      "title": "\"Ain't No Woman (Like the One I've Got)\"",
+      "artist": "The Four Tops"
+    },
+    {
+      "pos": 61,
+      "title": "\"Dueling Banjos\"",
+      "artist": "Eric Weissberg & Steve Mandell"
+    },
+    {
+      "pos": 62,
+      "title": "\"Higher Ground\"",
+      "artist": "Stevie Wonder"
+    },
+    {
+      "pos": 63,
+      "title": "\"Here I Am (Come and Take Me)\"",
+      "artist": "Al Green"
+    },
+    {
+      "pos": 64,
+      "title": "\"My Maria\"",
+      "artist": "B.W. Stevenson"
+    },
+    {
+      "pos": 65,
+      "title": "\"Superfly\"",
+      "artist": "Curtis Mayfield"
+    },
+    {
+      "pos": 66,
+      "title": "\"Last Song\"",
+      "artist": "Edward Bear"
+    },
+    {
+      "pos": 67,
+      "title": "\"Get Down\"",
+      "artist": "Gilbert O'Sullivan"
+    },
+    {
+      "pos": 68,
+      "title": "\"Reelin' in the Years\"",
+      "artist": "Steely Dan"
+    },
+    {
+      "pos": 69,
+      "title": "\"Hocus Pocus\"",
+      "artist": "Focus"
+    },
+    {
+      "pos": 70,
+      "title": "\"Yesterday Once More\"",
+      "artist": "The Carpenters"
+    },
+    {
+      "pos": 71,
+      "title": "\"Boogie Woogie Bugle Boy\"",
+      "artist": "Bette Midler"
+    },
+    {
+      "pos": 72,
+      "title": "\"Clair\"",
+      "artist": "Gilbert O'Sullivan"
+    },
+    {
+      "pos": 73,
+      "title": "\"Do It Again\"",
+      "artist": "Steely Dan"
+    },
+    {
+      "pos": 74,
+      "title": "\"Kodachrome\"",
+      "artist": "Paul Simon"
+    },
+    {
+      "pos": 75,
+      "title": "\"Why Can't We Live Together\"",
+      "artist": "Timmy Thomas"
+    },
+    {
+      "pos": 76,
+      "title": "\"Do You Want To Dance?\"",
+      "artist": "Bette Midler"
+    },
+    {
+      "pos": 77,
+      "title": "\"So Very Hard to Go\"",
+      "artist": "Tower of Power"
+    },
+    {
+      "pos": 78,
+      "title": "\"Rockin' Pneumonia and the Boogie Woogie Flu\"",
+      "artist": "Johnny Rivers"
+    },
+    {
+      "pos": 79,
+      "title": "\"Ramblin' Man\"",
+      "artist": "The Allman Brothers Band"
+    },
+    {
+      "pos": 80,
+      "title": "\"Masterpiece\"",
+      "artist": "The Temptations"
+    },
+    {
+      "pos": 81,
+      "title": "\"Peaceful\"",
+      "artist": "Helen Reddy"
+    },
+    {
+      "pos": 82,
+      "title": "\"One of a Kind (Love Affair)\"",
+      "artist": "The Spinners"
+    },
+    {
+      "pos": 83,
+      "title": "\"Funny Face\"",
+      "artist": "Donna Fargo"
+    },
+    {
+      "pos": 84,
+      "title": "\"Funky Worm\"",
+      "artist": "Ohio Players"
+    },
+    {
+      "pos": 85,
+      "title": "\"Angie\"",
+      "artist": "The Rolling Stones"
+    },
+    {
+      "pos": 86,
+      "title": "\"Jambalaya (On the Bayou)\"",
+      "artist": "Blue Ridge Rangers"
+    },
+    {
+      "pos": 87,
+      "title": "\"Don't Expect Me to Be Your Friend\"",
+      "artist": "Lobo"
+    },
+    {
+      "pos": 88,
+      "title": "\"Break Up to Make Up\"",
+      "artist": "The Stylistics"
+    },
+    {
+      "pos": 89,
+      "title": "\"Daisy a Day\"",
+      "artist": "Jud Strunk"
+    },
+    {
+      "pos": 90,
+      "title": "\"Also Sprach Zarathustra (2001)\"",
+      "artist": "Deodato"
+    },
+    {
+      "pos": 91,
+      "title": "\"Stir It Up\"",
+      "artist": "Johnny Nash"
+    },
+    {
+      "pos": 92,
+      "title": "\"Money\"",
+      "artist": "Pink Floyd"
+    },
+    {
+      "pos": 93,
+      "title": "\"Gypsy Man\"",
+      "artist": "War"
+    },
+    {
+      "pos": 94,
+      "title": "\"The World Is a Ghetto\"",
+      "artist": "\"The World Is a Ghetto\""
+    },
+    {
+      "pos": 95,
+      "title": "\"Yes We Can Can\"",
+      "artist": "The Pointer Sisters"
+    },
+    {
+      "pos": 96,
+      "title": "\"Free Ride\"",
+      "artist": "The Edgar Winter Group"
+    },
+    {
+      "pos": 97,
+      "title": "\"Space Oddity\"",
+      "artist": "David Bowie"
+    },
+    {
+      "pos": 98,
+      "title": "\"It Never Rains in Southern California\"",
+      "artist": "Albert Hammond"
+    },
+    {
+      "pos": 99,
+      "title": "\"The Twelfth of Never\"",
+      "artist": "Donny Osmond"
+    },
+    {
+      "pos": 100,
+      "title": "\"Papa Was a Rollin' Stone\"",
+      "artist": "The Temptations"
+    }
+  ]
+}

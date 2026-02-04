@@ -1,0 +1,512 @@
+{
+  "year": 1970,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1970",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Bridge Over Troubled Water\"",
+      "artist": "Simon & Garfunkel"
+    },
+    {
+      "pos": 2,
+      "title": "\"(They Long to Be) Close to You\"",
+      "artist": "The Carpenters"
+    },
+    {
+      "pos": 3,
+      "title": "\"American Woman\"",
+      "artist": "The Guess Who"
+    },
+    {
+      "pos": 4,
+      "title": "\"Raindrops Keep Fallin' on My Head\"",
+      "artist": "B.J. Thomas"
+    },
+    {
+      "pos": 5,
+      "title": "\"War\"",
+      "artist": "Edwin Starr"
+    },
+    {
+      "pos": 6,
+      "title": "\"Ain't No Mountain High Enough\"",
+      "artist": "Diana Ross"
+    },
+    {
+      "pos": 7,
+      "title": "\"I'll Be There\"",
+      "artist": "The Jackson 5"
+    },
+    {
+      "pos": 8,
+      "title": "\"Get Ready\"",
+      "artist": "Rare Earth"
+    },
+    {
+      "pos": 9,
+      "title": "\"Let It Be\"",
+      "artist": "The Beatles"
+    },
+    {
+      "pos": 10,
+      "title": "\"Band of Gold\"",
+      "artist": "Freda Payne"
+    },
+    {
+      "pos": 11,
+      "title": "\"Mama Told Me (Not to Come)\"",
+      "artist": "Three Dog Night"
+    },
+    {
+      "pos": 12,
+      "title": "\"Everything Is Beautiful\"",
+      "artist": "Ray Stevens"
+    },
+    {
+      "pos": 13,
+      "title": "\"Make It with You\"",
+      "artist": "Bread"
+    },
+    {
+      "pos": 14,
+      "title": "\"Hitchin' a Ride\"",
+      "artist": "Vanity Fare"
+    },
+    {
+      "pos": 15,
+      "title": "\"ABC\"",
+      "artist": "The Jackson 5"
+    },
+    {
+      "pos": 16,
+      "title": "\"The Love You Save\"",
+      "artist": "\"The Love You Save\""
+    },
+    {
+      "pos": 17,
+      "title": "\"Cracklin' Rosie\"",
+      "artist": "Neil Diamond"
+    },
+    {
+      "pos": 18,
+      "title": "\"Candida\"",
+      "artist": "Dawn"
+    },
+    {
+      "pos": 19,
+      "title": "\"Thank You (Falettinme Be Mice Elf Agin)\"",
+      "artist": "Sly & the Family Stone"
+    },
+    {
+      "pos": 20,
+      "title": "\"Spill the Wine\"",
+      "artist": "Eric Burdon & War"
+    },
+    {
+      "pos": 21,
+      "title": "\"O-o-h Child\"",
+      "artist": "Five Stairsteps"
+    },
+    {
+      "pos": 22,
+      "title": "\"Spirit in the Sky\"",
+      "artist": "Norman Greenbaum"
+    },
+    {
+      "pos": 23,
+      "title": "\"Lay Down (Candles in the Rain)\"",
+      "artist": "Melanie"
+    },
+    {
+      "pos": 24,
+      "title": "\"Ball of Confusion (That's What the World Is Today)\"",
+      "artist": "The Temptations"
+    },
+    {
+      "pos": 25,
+      "title": "\"Love on a Two-Way Street\"",
+      "artist": "The Moments"
+    },
+    {
+      "pos": 26,
+      "title": "\"Which Way You Goin' Billy?\"",
+      "artist": "The Poppy Family"
+    },
+    {
+      "pos": 27,
+      "title": "\"All Right Now\"",
+      "artist": "Free"
+    },
+    {
+      "pos": 28,
+      "title": "\"I Want You Back\"",
+      "artist": "The Jackson 5"
+    },
+    {
+      "pos": 29,
+      "title": "\"Julie, Do Ya Love Me\"",
+      "artist": "Bobby Sherman"
+    },
+    {
+      "pos": 30,
+      "title": "\"Green-Eyed Lady\"",
+      "artist": "Sugarloaf"
+    },
+    {
+      "pos": 31,
+      "title": "\"Signed, Sealed, Delivered I'm Yours\"",
+      "artist": "Stevie Wonder"
+    },
+    {
+      "pos": 32,
+      "title": "\"Ride Captain Ride\"",
+      "artist": "Blues Image"
+    },
+    {
+      "pos": 33,
+      "title": "\"Venus\"",
+      "artist": "Shocking Blue"
+    },
+    {
+      "pos": 34,
+      "title": "\"Instant Karma!\"",
+      "artist": "John Lennon"
+    },
+    {
+      "pos": 35,
+      "title": "\"Patches\"",
+      "artist": "Clarence Carter"
+    },
+    {
+      "pos": 36,
+      "title": "\"Lookin' out My Back Door\"",
+      "artist": "Creedence Clearwater Revival"
+    },
+    {
+      "pos": 37,
+      "title": "\"Rainy Night in Georgia\"",
+      "artist": "Brook Benton"
+    },
+    {
+      "pos": 38,
+      "title": "\"Something's Burning\"",
+      "artist": "Kenny Rogers & The First Edition"
+    },
+    {
+      "pos": 39,
+      "title": "\"Give Me Just a Little More Time\"",
+      "artist": "Chairmen of the Board"
+    },
+    {
+      "pos": 40,
+      "title": "\"Love Grows (Where My Rosemary Goes)\"",
+      "artist": "Edison Lighthouse"
+    },
+    {
+      "pos": 41,
+      "title": "\"The Long and Winding Road\"",
+      "artist": "The Beatles"
+    },
+    {
+      "pos": 42,
+      "title": "\"Snowbird\"",
+      "artist": "Anne Murray"
+    },
+    {
+      "pos": 43,
+      "title": "\"Reflections of My Life\"",
+      "artist": "Marmalade"
+    },
+    {
+      "pos": 44,
+      "title": "\"Hey There Lonely Girl\"",
+      "artist": "Eddie Holman"
+    },
+    {
+      "pos": 45,
+      "title": "\"The Rapper\"",
+      "artist": "The Jaggerz"
+    },
+    {
+      "pos": 46,
+      "title": "\"He Ain't Heavy, He's My Brother\"",
+      "artist": "The Hollies"
+    },
+    {
+      "pos": 47,
+      "title": "\"Tighter, Tighter\"",
+      "artist": "Alive N Kickin'"
+    },
+    {
+      "pos": 48,
+      "title": "\"Come and Get It\"",
+      "artist": "Badfinger"
+    },
+    {
+      "pos": 49,
+      "title": "\"Cecilia\"",
+      "artist": "Simon & Garfunkel"
+    },
+    {
+      "pos": 50,
+      "title": "\"Love Land\"",
+      "artist": "Charles Wright & the Watts 103rd Street Rhythm Band"
+    },
+    {
+      "pos": 51,
+      "title": "\"Turn Back the Hands of Time\"",
+      "artist": "Tyrone Davis"
+    },
+    {
+      "pos": 52,
+      "title": "\"Lola\"",
+      "artist": "The Kinks"
+    },
+    {
+      "pos": 53,
+      "title": "\"In the Summertime\"",
+      "artist": "Mungo Jerry"
+    },
+    {
+      "pos": 54,
+      "title": "\"Indiana Wants Me\"",
+      "artist": "R. Dean Taylor"
+    },
+    {
+      "pos": 55,
+      "title": "\"(I Know) I'm Losing You\"",
+      "artist": "Rare Earth"
+    },
+    {
+      "pos": 56,
+      "title": "\"Easy Come, Easy Go\"",
+      "artist": "Bobby Sherman"
+    },
+    {
+      "pos": 57,
+      "title": "\"Express Yourself\"",
+      "artist": "Charles Wright & the Watts 103rd Street Rhythm Band"
+    },
+    {
+      "pos": 58,
+      "title": "\"Still Water (Love)\"",
+      "artist": "The Four Tops"
+    },
+    {
+      "pos": 59,
+      "title": "\"Make Me Smile\"",
+      "artist": "Chicago"
+    },
+    {
+      "pos": 60,
+      "title": "\"The House of the Rising Sun\"",
+      "artist": "Frijid Pink"
+    },
+    {
+      "pos": 61,
+      "title": "\"25 or 6 to 4\"",
+      "artist": "Chicago"
+    },
+    {
+      "pos": 62,
+      "title": "\"My Baby Loves Lovin'\"",
+      "artist": "White Plains"
+    },
+    {
+      "pos": 63,
+      "title": "\"Love or Let Me Be Lonely\"",
+      "artist": "The Friends of Distinction"
+    },
+    {
+      "pos": 64,
+      "title": "\"United We Stand\"",
+      "artist": "The Brotherhood of Man"
+    },
+    {
+      "pos": 65,
+      "title": "\"We've Only Just Begun\"",
+      "artist": "The Carpenters"
+    },
+    {
+      "pos": 66,
+      "title": "\"Arizona\"",
+      "artist": "Mark Lindsay"
+    },
+    {
+      "pos": 67,
+      "title": "\"Fire and Rain\"",
+      "artist": "James Taylor"
+    },
+    {
+      "pos": 68,
+      "title": "\"Groovy Situation\"",
+      "artist": "Gene Chandler"
+    },
+    {
+      "pos": 69,
+      "title": "\"Evil Ways\"",
+      "artist": "Santana"
+    },
+    {
+      "pos": 70,
+      "title": "\"No Time\"",
+      "artist": "The Guess Who"
+    },
+    {
+      "pos": 71,
+      "title": "\"Didn't I (Blow Your Mind This Time)\"",
+      "artist": "The Delfonics"
+    },
+    {
+      "pos": 72,
+      "title": "\"The Wonder of You\"",
+      "artist": "Elvis Presley"
+    },
+    {
+      "pos": 73,
+      "title": "\"Up Around the Bend\"",
+      "artist": "Creedence Clearwater Revival"
+    },
+    {
+      "pos": 74,
+      "title": "\"(If You Let Me Make Love To You Then) Why Can't I Touch You?\"",
+      "artist": "Ronnie Dyson"
+    },
+    {
+      "pos": 75,
+      "title": "\"I Just Can't Help Believing\"",
+      "artist": "B.J. Thomas"
+    },
+    {
+      "pos": 76,
+      "title": "\"It's a Shame\"",
+      "artist": "The Spinners"
+    },
+    {
+      "pos": 77,
+      "title": "\"For the Love of Him\"",
+      "artist": "Bobbi Martin"
+    },
+    {
+      "pos": 78,
+      "title": "\"Mississippi Queen\"",
+      "artist": "Mountain"
+    },
+    {
+      "pos": 79,
+      "title": "\"I Want to Take You Higher\"",
+      "artist": "Ike & Tina Turner"
+    },
+    {
+      "pos": 80,
+      "title": "\"The Letter\"",
+      "artist": "Joe Cocker"
+    },
+    {
+      "pos": 81,
+      "title": "\"Ma Belle Amie\"",
+      "artist": "Tee-Set"
+    },
+    {
+      "pos": 82,
+      "title": "\"The Bells\"",
+      "artist": "The Originals"
+    },
+    {
+      "pos": 83,
+      "title": "\"Yellow River\"",
+      "artist": "Christie"
+    },
+    {
+      "pos": 84,
+      "title": "\"Somebody's Been Sleeping\"",
+      "artist": "100 Proof (Aged in Soul)"
+    },
+    {
+      "pos": 85,
+      "title": "\"Vehicle\"",
+      "artist": "The Ides of March"
+    },
+    {
+      "pos": 86,
+      "title": "\"Gimme Dat Ding\"",
+      "artist": "The Pipkins"
+    },
+    {
+      "pos": 87,
+      "title": "\"Lay a Little Lovin' on Me\"",
+      "artist": "Robin McNamara"
+    },
+    {
+      "pos": 88,
+      "title": "\"Up the Ladder to the Roof\"",
+      "artist": "The Supremes"
+    },
+    {
+      "pos": 89,
+      "title": "\"Travelin' Band\"",
+      "artist": "Creedence Clearwater Revival"
+    },
+    {
+      "pos": 90,
+      "title": "\"Come Saturday Morning\"",
+      "artist": "The Sandpipers"
+    },
+    {
+      "pos": 91,
+      "title": "\"Psychedelic Shack\"",
+      "artist": "The Temptations"
+    },
+    {
+      "pos": 92,
+      "title": "\"Without Love (There Is Nothing)\"",
+      "artist": "Tom Jones"
+    },
+    {
+      "pos": 93,
+      "title": "\"Are You Ready?\"",
+      "artist": "Pacific Gas & Electric"
+    },
+    {
+      "pos": 94,
+      "title": "\"Woodstock\"",
+      "artist": "Crosby, Stills, Nash & Young"
+    },
+    {
+      "pos": 95,
+      "title": "\"I'll Never Fall in Love Again\"",
+      "artist": "Dionne Warwick"
+    },
+    {
+      "pos": 96,
+      "title": "\"Look What They've Done to My Song Ma\"",
+      "artist": "The New Seekers"
+    },
+    {
+      "pos": 97,
+      "title": "\"Walk A Mile In My Shoes\"",
+      "artist": "Joe South"
+    },
+    {
+      "pos": 98,
+      "title": "\"The Thrill Is Gone\"",
+      "artist": "B.B. King"
+    },
+    {
+      "pos": 99,
+      "title": "\"It's Only Make Believe\"",
+      "artist": "Glen Campbell"
+    },
+    {
+      "pos": 100,
+      "title": "\"Call Me\"",
+      "artist": "Aretha Franklin"
+    }
+  ]
+}

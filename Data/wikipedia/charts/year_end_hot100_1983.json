@@ -1,0 +1,512 @@
+{
+  "year": 1983,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1983",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Every Breath You Take\"",
+      "artist": "The Police"
+    },
+    {
+      "pos": 2,
+      "title": "\"Billie Jean\"",
+      "artist": "Michael Jackson"
+    },
+    {
+      "pos": 3,
+      "title": "\"Flashdance... What a Feeling\"",
+      "artist": "Irene Cara"
+    },
+    {
+      "pos": 4,
+      "title": "\"Down Under\"",
+      "artist": "Men at Work"
+    },
+    {
+      "pos": 5,
+      "title": "\"Beat It\"",
+      "artist": "Michael Jackson"
+    },
+    {
+      "pos": 6,
+      "title": "\"Total Eclipse of the Heart\"",
+      "artist": "Bonnie Tyler"
+    },
+    {
+      "pos": 7,
+      "title": "\"Maneater\"",
+      "artist": "Daryl Hall & John Oates"
+    },
+    {
+      "pos": 8,
+      "title": "\"Baby, Come to Me\"",
+      "artist": "Patti Austin and James Ingram"
+    },
+    {
+      "pos": 9,
+      "title": "\"Maniac\"",
+      "artist": "Michael Sembello"
+    },
+    {
+      "pos": 10,
+      "title": "\"Sweet Dreams (Are Made of This)\"",
+      "artist": "Eurythmics"
+    },
+    {
+      "pos": 11,
+      "title": "\"Do You Really Want to Hurt Me\"",
+      "artist": "Culture Club"
+    },
+    {
+      "pos": 12,
+      "title": "\"You and I\"",
+      "artist": "Eddie Rabbitt and Crystal Gayle"
+    },
+    {
+      "pos": 13,
+      "title": "\"Come On Eileen\"",
+      "artist": "Dexys Midnight Runners"
+    },
+    {
+      "pos": 14,
+      "title": "\"Shame on the Moon\"",
+      "artist": "Bob Seger & The Silver Bullet Band"
+    },
+    {
+      "pos": 15,
+      "title": "\"She Works Hard for the Money\"",
+      "artist": "Donna Summer"
+    },
+    {
+      "pos": 16,
+      "title": "\"Never Gonna Let You Go\"",
+      "artist": "Sérgio Mendes"
+    },
+    {
+      "pos": 17,
+      "title": "\"Hungry Like the Wolf\"",
+      "artist": "Duran Duran"
+    },
+    {
+      "pos": 18,
+      "title": "\"Let's Dance\"",
+      "artist": "David Bowie"
+    },
+    {
+      "pos": 19,
+      "title": "\"Twilight Zone\"",
+      "artist": "Golden Earring"
+    },
+    {
+      "pos": 20,
+      "title": "\"I Know There's Something Going On\"",
+      "artist": "Frida"
+    },
+    {
+      "pos": 21,
+      "title": "\"Jeopardy\"",
+      "artist": "The Greg Kihn Band"
+    },
+    {
+      "pos": 22,
+      "title": "\"Electric Avenue\"",
+      "artist": "Eddy Grant"
+    },
+    {
+      "pos": 23,
+      "title": "\"She Blinded Me with Science\"",
+      "artist": "Thomas Dolby"
+    },
+    {
+      "pos": 24,
+      "title": "\"Africa\"",
+      "artist": "Toto"
+    },
+    {
+      "pos": 25,
+      "title": "\"Little Red Corvette\"",
+      "artist": "Prince"
+    },
+    {
+      "pos": 26,
+      "title": "\"Back on the Chain Gang\"",
+      "artist": "The Pretenders"
+    },
+    {
+      "pos": 27,
+      "title": "\"Up Where We Belong\"",
+      "artist": "Joe Cocker and Jennifer Warnes"
+    },
+    {
+      "pos": 28,
+      "title": "\"Mr. Roboto\"",
+      "artist": "Styx"
+    },
+    {
+      "pos": 29,
+      "title": "\"You Are\"",
+      "artist": "Lionel Richie"
+    },
+    {
+      "pos": 30,
+      "title": "\"Der Kommissar\"",
+      "artist": "After the Fire"
+    },
+    {
+      "pos": 31,
+      "title": "\"Puttin' on the Ritz\"",
+      "artist": "Taco"
+    },
+    {
+      "pos": 32,
+      "title": "\"Sexual Healing\"",
+      "artist": "Marvin Gaye"
+    },
+    {
+      "pos": 33,
+      "title": "\"(Keep Feeling) Fascination\"",
+      "artist": "The Human League"
+    },
+    {
+      "pos": 34,
+      "title": "\"Time (Clock of the Heart)\"",
+      "artist": "Culture Club"
+    },
+    {
+      "pos": 35,
+      "title": "\"The Safety Dance\"",
+      "artist": "Men Without Hats"
+    },
+    {
+      "pos": 36,
+      "title": "\"Mickey\"",
+      "artist": "Toni Basil"
+    },
+    {
+      "pos": 37,
+      "title": "\"You Can't Hurry Love\"",
+      "artist": "Phil Collins"
+    },
+    {
+      "pos": 38,
+      "title": "\"Separate Ways (Worlds Apart)\"",
+      "artist": "Journey"
+    },
+    {
+      "pos": 39,
+      "title": "\"One on One\"",
+      "artist": "Daryl Hall & John Oates"
+    },
+    {
+      "pos": 40,
+      "title": "\"We've Got Tonight\"",
+      "artist": "Kenny Rogers and Sheena Easton"
+    },
+    {
+      "pos": 41,
+      "title": "\"1999\"",
+      "artist": "Prince"
+    },
+    {
+      "pos": 42,
+      "title": "\"Stray Cat Strut\"",
+      "artist": "Stray Cats"
+    },
+    {
+      "pos": 43,
+      "title": "\"Allentown\"",
+      "artist": "Billy Joel"
+    },
+    {
+      "pos": 44,
+      "title": "\"Stand Back\"",
+      "artist": "Stevie Nicks"
+    },
+    {
+      "pos": 45,
+      "title": "\"Tell Her About It\"",
+      "artist": "Billy Joel"
+    },
+    {
+      "pos": 46,
+      "title": "\"Always Something There to Remind Me\"",
+      "artist": "Naked Eyes"
+    },
+    {
+      "pos": 47,
+      "title": "\"Truly\"",
+      "artist": "Lionel Richie"
+    },
+    {
+      "pos": 48,
+      "title": "\"Dirty Laundry\"",
+      "artist": "Don Henley"
+    },
+    {
+      "pos": 49,
+      "title": "\"The Girl Is Mine\"",
+      "artist": "Michael Jackson and Paul McCartney"
+    },
+    {
+      "pos": 50,
+      "title": "\"Too Shy\"",
+      "artist": "Kajagoogoo"
+    },
+    {
+      "pos": 51,
+      "title": "\"Goody Two-Shoes\"",
+      "artist": "Adam Ant"
+    },
+    {
+      "pos": 52,
+      "title": "\"Rock the Casbah\"",
+      "artist": "The Clash"
+    },
+    {
+      "pos": 53,
+      "title": "\"Our House\"",
+      "artist": "Madness"
+    },
+    {
+      "pos": 54,
+      "title": "\"Overkill\"",
+      "artist": "Men at Work"
+    },
+    {
+      "pos": 55,
+      "title": "\"Is There Something I Should Know?\"",
+      "artist": "Duran Duran"
+    },
+    {
+      "pos": 56,
+      "title": "\"Gloria\"",
+      "artist": "Laura Branigan"
+    },
+    {
+      "pos": 57,
+      "title": "\"Affair of the Heart\"",
+      "artist": "Rick Springfield"
+    },
+    {
+      "pos": 58,
+      "title": "\"She's a Beauty\"",
+      "artist": "The Tubes"
+    },
+    {
+      "pos": 59,
+      "title": "\"Solitaire\"",
+      "artist": "Laura Branigan"
+    },
+    {
+      "pos": 60,
+      "title": "\"Don't Let It End\"",
+      "artist": "Styx"
+    },
+    {
+      "pos": 61,
+      "title": "\"How Am I Supposed to Live Without You\"",
+      "artist": "Laura Branigan"
+    },
+    {
+      "pos": 62,
+      "title": "\"China Girl\"",
+      "artist": "David Bowie"
+    },
+    {
+      "pos": 63,
+      "title": "\"Come Dancing\"",
+      "artist": "The Kinks"
+    },
+    {
+      "pos": 64,
+      "title": "\"Promises, Promises\"",
+      "artist": "Naked Eyes"
+    },
+    {
+      "pos": 65,
+      "title": "\"The Other Guy\"",
+      "artist": "Little River Band"
+    },
+    {
+      "pos": 66,
+      "title": "\"Making Love Out of Nothing at All\"",
+      "artist": "Air Supply"
+    },
+    {
+      "pos": 67,
+      "title": "\"Family Man\"",
+      "artist": "Daryl Hall & John Oates"
+    },
+    {
+      "pos": 68,
+      "title": "\"Wanna Be Startin' Somethin'\"",
+      "artist": "Michael Jackson"
+    },
+    {
+      "pos": 69,
+      "title": "\"I Won't Hold You Back\"",
+      "artist": "Toto"
+    },
+    {
+      "pos": 70,
+      "title": "\"All Right\"",
+      "artist": "Christopher Cross"
+    },
+    {
+      "pos": 71,
+      "title": "\"Straight from the Heart\"",
+      "artist": "Bryan Adams"
+    },
+    {
+      "pos": 72,
+      "title": "\"Heart to Heart\"",
+      "artist": "Kenny Loggins"
+    },
+    {
+      "pos": 73,
+      "title": "\"My Love\"",
+      "artist": "Lionel Richie"
+    },
+    {
+      "pos": 74,
+      "title": "\"I'm Still Standing\"",
+      "artist": "Elton John"
+    },
+    {
+      "pos": 75,
+      "title": "\"Hot Girls in Love\"",
+      "artist": "Loverboy"
+    },
+    {
+      "pos": 76,
+      "title": "\"It's a Mistake\"",
+      "artist": "Men at Work"
+    },
+    {
+      "pos": 77,
+      "title": "\"I'll Tumble 4 Ya\"",
+      "artist": "Culture Club"
+    },
+    {
+      "pos": 78,
+      "title": "\"All This Love\"",
+      "artist": "DeBarge"
+    },
+    {
+      "pos": 79,
+      "title": "\"Your Love Is Driving Me Crazy\"",
+      "artist": "Sammy Hagar"
+    },
+    {
+      "pos": 80,
+      "title": "\"Heartbreaker\"",
+      "artist": "Dionne Warwick"
+    },
+    {
+      "pos": 81,
+      "title": "\"Faithfully\"",
+      "artist": "Journey"
+    },
+    {
+      "pos": 82,
+      "title": "\"Steppin' Out\"",
+      "artist": "Joe Jackson"
+    },
+    {
+      "pos": 83,
+      "title": "\"Take Me to Heart\"",
+      "artist": "Quarterflash"
+    },
+    {
+      "pos": 84,
+      "title": "\"(She's) Sexy + 17\"",
+      "artist": "Stray Cats"
+    },
+    {
+      "pos": 85,
+      "title": "\"Try Again\"",
+      "artist": "Champaign"
+    },
+    {
+      "pos": 86,
+      "title": "\"Dead Giveaway\"",
+      "artist": "Shalamar"
+    },
+    {
+      "pos": 87,
+      "title": "\"Lawyers in Love\"",
+      "artist": "Jackson Browne"
+    },
+    {
+      "pos": 88,
+      "title": "\"What About Me\"",
+      "artist": "Moving Pictures"
+    },
+    {
+      "pos": 89,
+      "title": "\"Human Nature\"",
+      "artist": "Michael Jackson"
+    },
+    {
+      "pos": 90,
+      "title": "\"Photograph\"",
+      "artist": "Def Leppard"
+    },
+    {
+      "pos": 91,
+      "title": "\"Pass the Dutchie\"",
+      "artist": "Musical Youth"
+    },
+    {
+      "pos": 92,
+      "title": "\"True\"",
+      "artist": "Spandau Ballet"
+    },
+    {
+      "pos": 93,
+      "title": "\"Far from Over\"",
+      "artist": "Frank Stallone"
+    },
+    {
+      "pos": 94,
+      "title": "\"I've Got a Rock 'n' Roll Heart\"",
+      "artist": "Eric Clapton"
+    },
+    {
+      "pos": 95,
+      "title": "\"It Might Be You\"",
+      "artist": "Stephen Bishop"
+    },
+    {
+      "pos": 96,
+      "title": "\"Tonight, I Celebrate My Love\"",
+      "artist": "Peabo Bryson and Roberta Flack"
+    },
+    {
+      "pos": 97,
+      "title": "\"You Got Lucky\"",
+      "artist": "Tom Petty and the Heartbreakers"
+    },
+    {
+      "pos": 98,
+      "title": "\"Don't Cry\"",
+      "artist": "Asia"
+    },
+    {
+      "pos": 99,
+      "title": "\"Breaking Us in Two\"",
+      "artist": "Joe Jackson"
+    },
+    {
+      "pos": 100,
+      "title": "\"Fall in Love with Me\"",
+      "artist": "Earth, Wind & Fire"
+    }
+  ]
+}

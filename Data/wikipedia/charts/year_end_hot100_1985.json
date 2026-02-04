@@ -1,0 +1,512 @@
+{
+  "year": 1985,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1985",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Careless Whisper\"",
+      "artist": "George Michael"
+    },
+    {
+      "pos": 2,
+      "title": "\"Like a Virgin\"",
+      "artist": "Madonna"
+    },
+    {
+      "pos": 3,
+      "title": "\"Wake Me Up Before You Go-Go\"",
+      "artist": "Wham!"
+    },
+    {
+      "pos": 4,
+      "title": "\"I Want to Know What Love Is\"",
+      "artist": "Foreigner"
+    },
+    {
+      "pos": 5,
+      "title": "\"I Feel for You\"",
+      "artist": "Chaka Khan"
+    },
+    {
+      "pos": 6,
+      "title": "\"Out of Touch\"",
+      "artist": "Daryl Hall & John Oates"
+    },
+    {
+      "pos": 7,
+      "title": "\"Everybody Wants to Rule the World\"",
+      "artist": "Tears for Fears"
+    },
+    {
+      "pos": 8,
+      "title": "\"Money for Nothing\"",
+      "artist": "Dire Straits"
+    },
+    {
+      "pos": 9,
+      "title": "\"Crazy for You\"",
+      "artist": "Madonna"
+    },
+    {
+      "pos": 10,
+      "title": "\"Take On Me\"",
+      "artist": "a-ha"
+    },
+    {
+      "pos": 11,
+      "title": "\"Everytime You Go Away\"",
+      "artist": "Paul Young"
+    },
+    {
+      "pos": 12,
+      "title": "\"Easy Lover\"",
+      "artist": "Philip Bailey and Phil Collins"
+    },
+    {
+      "pos": 13,
+      "title": "\"Can't Fight This Feeling\"",
+      "artist": "REO Speedwagon"
+    },
+    {
+      "pos": 14,
+      "title": "\"We Built This City\"",
+      "artist": "Starship"
+    },
+    {
+      "pos": 15,
+      "title": "\"The Power of Love\"",
+      "artist": "Huey Lewis and the News"
+    },
+    {
+      "pos": 16,
+      "title": "\"Don't You (Forget About Me)\"",
+      "artist": "Simple Minds"
+    },
+    {
+      "pos": 17,
+      "title": "\"Cherish\"",
+      "artist": "Kool & the Gang"
+    },
+    {
+      "pos": 18,
+      "title": "\"St. Elmo's Fire (Man in Motion)\"",
+      "artist": "John Parr"
+    },
+    {
+      "pos": 19,
+      "title": "\"The Heat Is On\"",
+      "artist": "Glenn Frey"
+    },
+    {
+      "pos": 20,
+      "title": "\"We Are the World\"",
+      "artist": "USA for Africa"
+    },
+    {
+      "pos": 21,
+      "title": "\"Shout\"",
+      "artist": "Tears for Fears"
+    },
+    {
+      "pos": 22,
+      "title": "\"Part-Time Lover\"",
+      "artist": "Stevie Wonder"
+    },
+    {
+      "pos": 23,
+      "title": "\"Saving All My Love for You\"",
+      "artist": "Whitney Houston"
+    },
+    {
+      "pos": 24,
+      "title": "\"Heaven\"",
+      "artist": "Bryan Adams"
+    },
+    {
+      "pos": 25,
+      "title": "\"Everything She Wants\"",
+      "artist": "Wham!"
+    },
+    {
+      "pos": 26,
+      "title": "\"Cool It Now\"",
+      "artist": "New Edition"
+    },
+    {
+      "pos": 27,
+      "title": "\"Miami Vice Theme\"",
+      "artist": "Jan Hammer"
+    },
+    {
+      "pos": 28,
+      "title": "\"Loverboy\"",
+      "artist": "Billy Ocean"
+    },
+    {
+      "pos": 29,
+      "title": "\"Lovergirl\"",
+      "artist": "Teena Marie"
+    },
+    {
+      "pos": 30,
+      "title": "\"You Belong to the City\"",
+      "artist": "Glenn Frey"
+    },
+    {
+      "pos": 31,
+      "title": "\"Oh Sheila\"",
+      "artist": "Ready for the World"
+    },
+    {
+      "pos": 32,
+      "title": "\"Rhythm of the Night\"",
+      "artist": "DeBarge"
+    },
+    {
+      "pos": 33,
+      "title": "\"One More Night\"",
+      "artist": "Phil Collins"
+    },
+    {
+      "pos": 34,
+      "title": "\"Sea of Love\"",
+      "artist": "The Honeydrippers"
+    },
+    {
+      "pos": 35,
+      "title": "\"A View to a Kill\"",
+      "artist": "Duran Duran"
+    },
+    {
+      "pos": 36,
+      "title": "\"The Wild Boys\"",
+      "artist": "Duran Duran"
+    },
+    {
+      "pos": 37,
+      "title": "\"You're the Inspiration\"",
+      "artist": "Chicago"
+    },
+    {
+      "pos": 38,
+      "title": "\"Neutron Dance\"",
+      "artist": "The Pointer Sisters"
+    },
+    {
+      "pos": 39,
+      "title": "\"We Belong\"",
+      "artist": "Pat Benatar"
+    },
+    {
+      "pos": 40,
+      "title": "\"Nightshift\"",
+      "artist": "Commodores"
+    },
+    {
+      "pos": 41,
+      "title": "\"Things Can Only Get Better\"",
+      "artist": "Howard Jones"
+    },
+    {
+      "pos": 42,
+      "title": "\"All I Need\"",
+      "artist": "Jack Wagner"
+    },
+    {
+      "pos": 43,
+      "title": "\"Freeway of Love\"",
+      "artist": "Aretha Franklin"
+    },
+    {
+      "pos": 44,
+      "title": "\"Never Surrender\"",
+      "artist": "Corey Hart"
+    },
+    {
+      "pos": 45,
+      "title": "\"Sussudio\"",
+      "artist": "Phil Collins"
+    },
+    {
+      "pos": 46,
+      "title": "\"Strut\"",
+      "artist": "Sheena Easton"
+    },
+    {
+      "pos": 47,
+      "title": "\"You Give Good Love\"",
+      "artist": "Whitney Houston"
+    },
+    {
+      "pos": 48,
+      "title": "\"The Search Is Over\"",
+      "artist": "Survivor"
+    },
+    {
+      "pos": 49,
+      "title": "\"Missing You\"",
+      "artist": "Diana Ross"
+    },
+    {
+      "pos": 50,
+      "title": "\"Separate Lives\"",
+      "artist": "Phil Collins and Marilyn Martin"
+    },
+    {
+      "pos": 51,
+      "title": "\"Raspberry Beret\"",
+      "artist": "Prince & the Revolution"
+    },
+    {
+      "pos": 52,
+      "title": "\"Suddenly\"",
+      "artist": "Billy Ocean"
+    },
+    {
+      "pos": 53,
+      "title": "\"The Boys of Summer\"",
+      "artist": "Don Henley"
+    },
+    {
+      "pos": 54,
+      "title": "\"One Night in Bangkok\"",
+      "artist": "Murray Head"
+    },
+    {
+      "pos": 55,
+      "title": "\"If You Love Somebody Set Them Free\"",
+      "artist": "Sting"
+    },
+    {
+      "pos": 56,
+      "title": "\"Obsession\"",
+      "artist": "Animotion"
+    },
+    {
+      "pos": 57,
+      "title": "\"We Don't Need Another Hero (Thunderdome)\"",
+      "artist": "Tina Turner"
+    },
+    {
+      "pos": 58,
+      "title": "\"Material Girl\"",
+      "artist": "Madonna"
+    },
+    {
+      "pos": 59,
+      "title": "\"Better Be Good to Me\"",
+      "artist": "Tina Turner"
+    },
+    {
+      "pos": 60,
+      "title": "\"Head over Heels\"",
+      "artist": "Tears for Fears"
+    },
+    {
+      "pos": 61,
+      "title": "\"Axel F\"",
+      "artist": "Harold Faltermeyer"
+    },
+    {
+      "pos": 62,
+      "title": "\"Smooth Operator\"",
+      "artist": "Sade"
+    },
+    {
+      "pos": 63,
+      "title": "\"In My House\"",
+      "artist": "Mary Jane Girls"
+    },
+    {
+      "pos": 64,
+      "title": "\"Don't Lose My Number\"",
+      "artist": "Phil Collins"
+    },
+    {
+      "pos": 65,
+      "title": "\"All Through the Night\"",
+      "artist": "Cyndi Lauper"
+    },
+    {
+      "pos": 66,
+      "title": "\"Run to You\"",
+      "artist": "Bryan Adams"
+    },
+    {
+      "pos": 67,
+      "title": "\"Glory Days\"",
+      "artist": "Bruce Springsteen"
+    },
+    {
+      "pos": 68,
+      "title": "\"Voices Carry\"",
+      "artist": "'Til Tuesday"
+    },
+    {
+      "pos": 69,
+      "title": "\"Misled\"",
+      "artist": "Kool & the Gang"
+    },
+    {
+      "pos": 70,
+      "title": "\"Would I Lie to You?\"",
+      "artist": "Eurythmics"
+    },
+    {
+      "pos": 71,
+      "title": "\"Be Near Me\"",
+      "artist": "ABC"
+    },
+    {
+      "pos": 72,
+      "title": "\"No More Lonely Nights\"",
+      "artist": "Paul McCartney"
+    },
+    {
+      "pos": 73,
+      "title": "\"I Can't Hold Back\"",
+      "artist": "Survivor"
+    },
+    {
+      "pos": 74,
+      "title": "\"Summer of '69\"",
+      "artist": "Bryan Adams"
+    },
+    {
+      "pos": 75,
+      "title": "\"Walking on Sunshine\"",
+      "artist": "Katrina and the Waves"
+    },
+    {
+      "pos": 76,
+      "title": "\"Freedom\"",
+      "artist": "Wham!"
+    },
+    {
+      "pos": 77,
+      "title": "\"Too Late for Goodbyes\"",
+      "artist": "Julian Lennon"
+    },
+    {
+      "pos": 78,
+      "title": "\"Valotte\"",
+      "artist": "\"Valotte\""
+    },
+    {
+      "pos": 79,
+      "title": "\"Some Like It Hot\"",
+      "artist": "The Power Station"
+    },
+    {
+      "pos": 80,
+      "title": "\"Solid\"",
+      "artist": "Ashford & Simpson"
+    },
+    {
+      "pos": 81,
+      "title": "\"Angel\"",
+      "artist": "Madonna"
+    },
+    {
+      "pos": 82,
+      "title": "\"I'm on Fire\"",
+      "artist": "Bruce Springsteen"
+    },
+    {
+      "pos": 83,
+      "title": "\"Method of Modern Love\"",
+      "artist": "Daryl Hall & John Oates"
+    },
+    {
+      "pos": 84,
+      "title": "\"Lay Your Hands on Me\"",
+      "artist": "Thompson Twins"
+    },
+    {
+      "pos": 85,
+      "title": "\"Who's Holding Donna Now\"",
+      "artist": "DeBarge"
+    },
+    {
+      "pos": 86,
+      "title": "\"Lonely Ol' Night\"",
+      "artist": "John Cougar Mellencamp"
+    },
+    {
+      "pos": 87,
+      "title": "\"What About Love\"",
+      "artist": "Heart"
+    },
+    {
+      "pos": 88,
+      "title": "\"California Girls\"",
+      "artist": "David Lee Roth"
+    },
+    {
+      "pos": 89,
+      "title": "\"Fresh\"",
+      "artist": "Kool & the Gang"
+    },
+    {
+      "pos": 90,
+      "title": "\"Do What You Do\"",
+      "artist": "Jermaine Jackson"
+    },
+    {
+      "pos": 91,
+      "title": "\"Jungle Love\"",
+      "artist": "The Time"
+    },
+    {
+      "pos": 92,
+      "title": "\"Born in the U.S.A.\"",
+      "artist": "Bruce Springsteen"
+    },
+    {
+      "pos": 93,
+      "title": "\"Private Dancer\"",
+      "artist": "Tina Turner"
+    },
+    {
+      "pos": 94,
+      "title": "\"Who's Zoomin' Who?\"",
+      "artist": "Aretha Franklin"
+    },
+    {
+      "pos": 95,
+      "title": "\"Fortress Around Your Heart\"",
+      "artist": "Sting"
+    },
+    {
+      "pos": 96,
+      "title": "\"Penny Lover\"",
+      "artist": "Lionel Richie"
+    },
+    {
+      "pos": 97,
+      "title": "\"All She Wants to Do Is Dance\"",
+      "artist": "Don Henley"
+    },
+    {
+      "pos": 98,
+      "title": "\"Dress You Up\"",
+      "artist": "Madonna"
+    },
+    {
+      "pos": 99,
+      "title": "\"Sentimental Street\"",
+      "artist": "Night Ranger"
+    },
+    {
+      "pos": 100,
+      "title": "\"Sugar Walls\"",
+      "artist": "Sheena Easton"
+    }
+  ]
+}

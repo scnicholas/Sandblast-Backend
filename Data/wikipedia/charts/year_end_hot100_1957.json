@@ -1,0 +1,262 @@
+{
+  "year": 1957,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_year-end_top_50_singles_of_1957",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"All Shook Up\"",
+      "artist": "Elvis Presley"
+    },
+    {
+      "pos": 2,
+      "title": "\"Love Letters in the Sand\"",
+      "artist": "Pat Boone"
+    },
+    {
+      "pos": 3,
+      "title": "\"Little Darlin'\"",
+      "artist": "The Diamonds"
+    },
+    {
+      "pos": 4,
+      "title": "\"Young Love\"",
+      "artist": "Tab Hunter"
+    },
+    {
+      "pos": 5,
+      "title": "\"So Rare\"",
+      "artist": "Jimmy Dorsey"
+    },
+    {
+      "pos": 6,
+      "title": "\"Don't Forbid Me\"",
+      "artist": "Pat Boone"
+    },
+    {
+      "pos": 7,
+      "title": "\"Singing the Blues\"",
+      "artist": "Guy Mitchell"
+    },
+    {
+      "pos": 8,
+      "title": "\"Young Love\"",
+      "artist": "Sonny James"
+    },
+    {
+      "pos": 9,
+      "title": "\"Too Much\"",
+      "artist": "Elvis Presley"
+    },
+    {
+      "pos": 10,
+      "title": "\"Round and Round\"",
+      "artist": "Perry Como"
+    },
+    {
+      "pos": 11,
+      "title": "\"Bye Bye Love\"",
+      "artist": "The Everly Brothers"
+    },
+    {
+      "pos": 12,
+      "title": "\"Tammy\"",
+      "artist": "Debbie Reynolds"
+    },
+    {
+      "pos": 13,
+      "title": "\"Party Doll\"",
+      "artist": "Buddy Knox"
+    },
+    {
+      "pos": 14,
+      "title": "\"(Let Me Be Your) Teddy Bear\"",
+      "artist": "Elvis Presley"
+    },
+    {
+      "pos": 15,
+      "title": "\"Day-O (The Banana Boat Song)\"",
+      "artist": "Harry Belafonte"
+    },
+    {
+      "pos": 16,
+      "title": "\"Jailhouse Rock\"",
+      "artist": "Elvis Presley"
+    },
+    {
+      "pos": 17,
+      "title": "\"A White Sport Coat (and a Pink Carnation)\"",
+      "artist": "Marty Robbins"
+    },
+    {
+      "pos": 18,
+      "title": "\"Come Go with Me\"",
+      "artist": "The Del-Vikings"
+    },
+    {
+      "pos": 19,
+      "title": "\"Wake Up Little Susie\"",
+      "artist": "The Everly Brothers"
+    },
+    {
+      "pos": 20,
+      "title": "\"You Send Me\"",
+      "artist": "Sam Cooke"
+    },
+    {
+      "pos": 21,
+      "title": "\"Searchin'\"",
+      "artist": "The Coasters"
+    },
+    {
+      "pos": 22,
+      "title": "\"School Days\"",
+      "artist": "Chuck Berry"
+    },
+    {
+      "pos": 23,
+      "title": "\"Gone\"",
+      "artist": "Ferlin Husky"
+    },
+    {
+      "pos": 24,
+      "title": "\"Diana\"",
+      "artist": "Paul Anka"
+    },
+    {
+      "pos": 25,
+      "title": "\"A Teenager's Romance\"",
+      "artist": "Ricky Nelson"
+    },
+    {
+      "pos": 26,
+      "title": "\"The Banana Boat Song\"",
+      "artist": "The Tarriers"
+    },
+    {
+      "pos": 27,
+      "title": "\"Honeycomb\"",
+      "artist": "Jimmie Rodgers"
+    },
+    {
+      "pos": 28,
+      "title": "\"Whole Lotta Shakin' Goin On\"",
+      "artist": "Jerry Lee Lewis"
+    },
+    {
+      "pos": 29,
+      "title": "\"Dark Moon\"",
+      "artist": "Gale Storm"
+    },
+    {
+      "pos": 30,
+      "title": "\"That'll Be the Day\"",
+      "artist": "Buddy Holly"
+    },
+    {
+      "pos": 31,
+      "title": "\"Butterfly\"",
+      "artist": "Charlie Gracie"
+    },
+    {
+      "pos": 32,
+      "title": "\"Moonlight Gambler\"",
+      "artist": "Frankie Laine"
+    },
+    {
+      "pos": 33,
+      "title": "\"Teen-Age Crush\"",
+      "artist": "Tommy Sands"
+    },
+    {
+      "pos": 34,
+      "title": "\"It's Not for Me to Say\"",
+      "artist": "Johnny Mathis"
+    },
+    {
+      "pos": 35,
+      "title": "\"Silhouettes\"",
+      "artist": "The Rays"
+    },
+    {
+      "pos": 36,
+      "title": "\"Butterfly\"",
+      "artist": "Andy Williams"
+    },
+    {
+      "pos": 37,
+      "title": "\"Marianne\"",
+      "artist": "The Easy Riders"
+    },
+    {
+      "pos": 38,
+      "title": "\"I'm Walkin'\"",
+      "artist": "Fats Domino"
+    },
+    {
+      "pos": 39,
+      "title": "\"Chances Are\"",
+      "artist": "Johnny Mathis"
+    },
+    {
+      "pos": 40,
+      "title": "\"Send for Me\"",
+      "artist": "Nat King Cole"
+    },
+    {
+      "pos": 41,
+      "title": "\"Rainbow\"",
+      "artist": "Russ Hamilton"
+    },
+    {
+      "pos": 42,
+      "title": "\"Be-Bop Baby\"",
+      "artist": "Ricky Nelson"
+    },
+    {
+      "pos": 43,
+      "title": "\"Short Fat Fannie\"",
+      "artist": "Larry Williams"
+    },
+    {
+      "pos": 44,
+      "title": "\"Green Door\"",
+      "artist": "Jim Lowe"
+    },
+    {
+      "pos": 45,
+      "title": "\"I'm Gonna Sit Right Down and Write Myself a Letter\"",
+      "artist": "Billy Williams"
+    },
+    {
+      "pos": 46,
+      "title": "\"Old Cape Cod\"",
+      "artist": "Patti Page"
+    },
+    {
+      "pos": 47,
+      "title": "\"Mr. Lee\"",
+      "artist": "The Bobbettes"
+    },
+    {
+      "pos": 48,
+      "title": "\"Blueberry Hill\"",
+      "artist": "Fats Domino"
+    },
+    {
+      "pos": 49,
+      "title": "\"Whispering Bells\"",
+      "artist": "The Del-Vikings"
+    },
+    {
+      "pos": 50,
+      "title": "\"Blue Monday\"",
+      "artist": "Fats Domino"
+    }
+  ]
+}

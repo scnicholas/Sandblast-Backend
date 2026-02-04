@@ -1,0 +1,512 @@
+{
+  "year": 1995,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1995",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Gangsta's Paradise\"",
+      "artist": "Coolio featuring L.V."
+    },
+    {
+      "pos": 2,
+      "title": "\"Waterfalls\"",
+      "artist": "TLC"
+    },
+    {
+      "pos": 3,
+      "title": "\"Creep\"",
+      "artist": "\"Creep\""
+    },
+    {
+      "pos": 4,
+      "title": "\"Kiss from a Rose\"",
+      "artist": "Seal"
+    },
+    {
+      "pos": 5,
+      "title": "\"On Bended Knee\"",
+      "artist": "Boyz II Men"
+    },
+    {
+      "pos": 6,
+      "title": "\"Another Night\"",
+      "artist": "Real McCoy"
+    },
+    {
+      "pos": 7,
+      "title": "\"Fantasy\"",
+      "artist": "Mariah Carey"
+    },
+    {
+      "pos": 8,
+      "title": "\"Take a Bow\"",
+      "artist": "Madonna"
+    },
+    {
+      "pos": 9,
+      "title": "\"Don't Take It Personal (Just One of Dem Days)\"",
+      "artist": "Monica"
+    },
+    {
+      "pos": 10,
+      "title": "\"This Is How We Do It\"",
+      "artist": "Montell Jordan"
+    },
+    {
+      "pos": 11,
+      "title": "\"I Know\"",
+      "artist": "Dionne Farris"
+    },
+    {
+      "pos": 12,
+      "title": "\"Water Runs Dry\"",
+      "artist": "Boyz II Men"
+    },
+    {
+      "pos": 13,
+      "title": "\"Freak Like Me\"",
+      "artist": "Adina Howard"
+    },
+    {
+      "pos": 14,
+      "title": "\"Run-Around\"",
+      "artist": "Blues Traveler"
+    },
+    {
+      "pos": 15,
+      "title": "\"I Can Love You Like That\"",
+      "artist": "All-4-One"
+    },
+    {
+      "pos": 16,
+      "title": "\"Have You Ever Really Loved a Woman?\"",
+      "artist": "Bryan Adams"
+    },
+    {
+      "pos": 17,
+      "title": "\"Always\"",
+      "artist": "Bon Jovi"
+    },
+    {
+      "pos": 18,
+      "title": "\"Boombastic\" / \"In the Summertime\"",
+      "artist": "Shaggy"
+    },
+    {
+      "pos": 19,
+      "title": "\"Total Eclipse of the Heart\"",
+      "artist": "Nicki French"
+    },
+    {
+      "pos": 20,
+      "title": "\"You Gotta Be\"",
+      "artist": "Des'ree"
+    },
+    {
+      "pos": 21,
+      "title": "\"You Are Not Alone\"",
+      "artist": "Michael Jackson"
+    },
+    {
+      "pos": 22,
+      "title": "\"Hold My Hand\"",
+      "artist": "Hootie & the Blowfish"
+    },
+    {
+      "pos": 23,
+      "title": "\"One More Chance/Stay with Me\"",
+      "artist": "The Notorious B.I.G."
+    },
+    {
+      "pos": 24,
+      "title": "\"Here Comes the Hotstepper\"",
+      "artist": "Ini Kamoze"
+    },
+    {
+      "pos": 25,
+      "title": "\"Candy Rain\"",
+      "artist": "Soul for Real"
+    },
+    {
+      "pos": 26,
+      "title": "\"Let Her Cry\"",
+      "artist": "Hootie & the Blowfish"
+    },
+    {
+      "pos": 27,
+      "title": "\"I Believe\"",
+      "artist": "Blessid Union of Souls"
+    },
+    {
+      "pos": 28,
+      "title": "\"Red Light Special\"",
+      "artist": "TLC"
+    },
+    {
+      "pos": 29,
+      "title": "\"Runaway\"",
+      "artist": "Janet Jackson"
+    },
+    {
+      "pos": 30,
+      "title": "\"Strong Enough\"",
+      "artist": "Sheryl Crow"
+    },
+    {
+      "pos": 31,
+      "title": "\"Colors of the Wind\"",
+      "artist": "Vanessa Williams"
+    },
+    {
+      "pos": 32,
+      "title": "\"Someone to Love\"",
+      "artist": "Jon B. featuring Babyface"
+    },
+    {
+      "pos": 33,
+      "title": "\"Only Wanna Be with You\"",
+      "artist": "Hootie & the Blowfish"
+    },
+    {
+      "pos": 34,
+      "title": "\"If You Love Me\"",
+      "artist": "Brownstone"
+    },
+    {
+      "pos": 35,
+      "title": "\"In the House of Stone and Light\"",
+      "artist": "Martin Page"
+    },
+    {
+      "pos": 36,
+      "title": "\"I Got 5 on It\"",
+      "artist": "Luniz"
+    },
+    {
+      "pos": 37,
+      "title": "\"Baby\"",
+      "artist": "Brandy"
+    },
+    {
+      "pos": 38,
+      "title": "\"Run Away\"",
+      "artist": "Real McCoy"
+    },
+    {
+      "pos": 39,
+      "title": "\"As I Lay Me Down\"",
+      "artist": "Sophie B. Hawkins"
+    },
+    {
+      "pos": 40,
+      "title": "\"He's Mine\"",
+      "artist": "MoKenStef"
+    },
+    {
+      "pos": 41,
+      "title": "\"December\"",
+      "artist": "Collective Soul"
+    },
+    {
+      "pos": 42,
+      "title": "\"I'll Be There for You/You're All I Need to Get By\"",
+      "artist": "Method Man featuring Mary J. Blige"
+    },
+    {
+      "pos": 43,
+      "title": "\"Shy Guy\"",
+      "artist": "Diana King"
+    },
+    {
+      "pos": 44,
+      "title": "\"I'm the Only One\"",
+      "artist": "Melissa Etheridge"
+    },
+    {
+      "pos": 45,
+      "title": "\"Every Little Thing I Do\"",
+      "artist": "Soul for Real"
+    },
+    {
+      "pos": 46,
+      "title": "\"Before I Let You Go\"",
+      "artist": "Blackstreet"
+    },
+    {
+      "pos": 47,
+      "title": "\"Big Poppa\" / \"Warning\"",
+      "artist": "The Notorious B.I.G."
+    },
+    {
+      "pos": 48,
+      "title": "\"Sukiyaki\"",
+      "artist": "4 P.M."
+    },
+    {
+      "pos": 49,
+      "title": "\"I Wanna Be Down\"",
+      "artist": "Brandy"
+    },
+    {
+      "pos": 50,
+      "title": "\"I'll Make Love to You\"",
+      "artist": "Boyz II Men"
+    },
+    {
+      "pos": 51,
+      "title": "\"Dear Mama\" / \"Old School\"",
+      "artist": "2Pac"
+    },
+    {
+      "pos": 52,
+      "title": "\"Hold On\"",
+      "artist": "Jamie Walters"
+    },
+    {
+      "pos": 53,
+      "title": "\"Keep Their Heads Ringin'\"",
+      "artist": "Dr. Dre"
+    },
+    {
+      "pos": 54,
+      "title": "\"The Rhythm of the Night\"",
+      "artist": "Corona"
+    },
+    {
+      "pos": 55,
+      "title": "\"Roll to Me\"",
+      "artist": "Del Amitri"
+    },
+    {
+      "pos": 56,
+      "title": "\"Scream\" / \"Childhood\"",
+      "artist": "Michael Jackson and Janet Jackson"
+    },
+    {
+      "pos": 57,
+      "title": "\"Freek'n You\"",
+      "artist": "Jodeci"
+    },
+    {
+      "pos": 58,
+      "title": "\"I Wish\"",
+      "artist": "Skee-Lo"
+    },
+    {
+      "pos": 59,
+      "title": "\"Believe\"",
+      "artist": "Elton John"
+    },
+    {
+      "pos": 60,
+      "title": "\"Carnival\"",
+      "artist": "Natalie Merchant"
+    },
+    {
+      "pos": 61,
+      "title": "\"You Don't Know How It Feels\"",
+      "artist": "Tom Petty"
+    },
+    {
+      "pos": 62,
+      "title": "\"Back for Good\"",
+      "artist": "Take That"
+    },
+    {
+      "pos": 63,
+      "title": "\"Tootsee Roll\"",
+      "artist": "69 Boyz"
+    },
+    {
+      "pos": 64,
+      "title": "\"You Want This\" / \"70's Love Groove\"",
+      "artist": "Janet Jackson"
+    },
+    {
+      "pos": 65,
+      "title": "\"Tell Me\"",
+      "artist": "Groove Theory"
+    },
+    {
+      "pos": 66,
+      "title": "\"Can't You See\"",
+      "artist": "Total featuring The Notorious B.I.G."
+    },
+    {
+      "pos": 67,
+      "title": "\"All I Wanna Do\"",
+      "artist": "Sheryl Crow"
+    },
+    {
+      "pos": 68,
+      "title": "\"This Lil' Game We Play\"",
+      "artist": "Subway featuring 702"
+    },
+    {
+      "pos": 69,
+      "title": "\"Come and Get Your Love\"",
+      "artist": "Real McCoy"
+    },
+    {
+      "pos": 70,
+      "title": "\"This Ain't a Love Song\"",
+      "artist": "Bon Jovi"
+    },
+    {
+      "pos": 71,
+      "title": "\"Secret\"",
+      "artist": "Madonna"
+    },
+    {
+      "pos": 72,
+      "title": "\"Player's Anthem\"",
+      "artist": "Junior M.A.F.I.A. featuring The Notorious B.I.G."
+    },
+    {
+      "pos": 73,
+      "title": "\"Feel Me Flow\"",
+      "artist": "Naughty by Nature"
+    },
+    {
+      "pos": 74,
+      "title": "\"Every Day of the Week\"",
+      "artist": "Jade"
+    },
+    {
+      "pos": 75,
+      "title": "\"The Sweetest Days\"",
+      "artist": "Vanessa Williams"
+    },
+    {
+      "pos": 76,
+      "title": "\"Short Dick Man\"",
+      "artist": "20 Fingers featuring Gillette"
+    },
+    {
+      "pos": 77,
+      "title": "\"Brokenhearted\"",
+      "artist": "Brandy"
+    },
+    {
+      "pos": 78,
+      "title": "\"No More I Love You's\"",
+      "artist": "Annie Lennox"
+    },
+    {
+      "pos": 79,
+      "title": "\"You Used to Love Me\"",
+      "artist": "Faith Evans"
+    },
+    {
+      "pos": 80,
+      "title": "\"Constantly\"",
+      "artist": "Immature"
+    },
+    {
+      "pos": 81,
+      "title": "\"Hold Me, Thrill Me, Kiss Me, Kill Me\"",
+      "artist": "U2"
+    },
+    {
+      "pos": 82,
+      "title": "\"100% Pure Love\"",
+      "artist": "Crystal Waters"
+    },
+    {
+      "pos": 83,
+      "title": "\"Ask of You\"",
+      "artist": "Raphael Saadiq"
+    },
+    {
+      "pos": 84,
+      "title": "\"Sugar Hill\"",
+      "artist": "AZ"
+    },
+    {
+      "pos": 85,
+      "title": "\"Good\"",
+      "artist": "Better Than Ezra"
+    },
+    {
+      "pos": 86,
+      "title": "\"Brown Sugar\"",
+      "artist": "D'Angelo"
+    },
+    {
+      "pos": 87,
+      "title": "\"Turn the Beat Around\"",
+      "artist": "Gloria Estefan"
+    },
+    {
+      "pos": 88,
+      "title": "\"'Til You Do Me Right\"",
+      "artist": "After 7"
+    },
+    {
+      "pos": 89,
+      "title": "\"1st of tha Month\"",
+      "artist": "Bone Thugs-n-Harmony"
+    },
+    {
+      "pos": 90,
+      "title": "\"Like the Way I Do\" / \"If I Wanted To\"",
+      "artist": "Melissa Etheridge"
+    },
+    {
+      "pos": 91,
+      "title": "\"I Live My Life for You\"",
+      "artist": "FireHouse"
+    },
+    {
+      "pos": 92,
+      "title": "\"Dream About You\" / \"Funky Melody\"",
+      "artist": "Stevie B"
+    },
+    {
+      "pos": 93,
+      "title": "\"Cotton Eye Joe\"",
+      "artist": "Rednex"
+    },
+    {
+      "pos": 94,
+      "title": "\"Thank You\"",
+      "artist": "Boyz II Men"
+    },
+    {
+      "pos": 95,
+      "title": "\"I'll Stand by You\"",
+      "artist": "The Pretenders"
+    },
+    {
+      "pos": 96,
+      "title": "\"I Miss You\"",
+      "artist": "N II U"
+    },
+    {
+      "pos": 97,
+      "title": "\"Give It 2 You\"",
+      "artist": "Da Brat"
+    },
+    {
+      "pos": 98,
+      "title": "\"Best Friend\"",
+      "artist": "Brandy"
+    },
+    {
+      "pos": 99,
+      "title": "\"Misery\"",
+      "artist": "Soul Asylum"
+    },
+    {
+      "pos": 100,
+      "title": "\"Can't Stop Lovin' You\"",
+      "artist": "Van Halen"
+    }
+  ]
+}

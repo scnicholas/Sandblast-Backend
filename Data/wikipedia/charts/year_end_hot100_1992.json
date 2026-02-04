@@ -1,0 +1,512 @@
+{
+  "year": 1992,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1992",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"End of the Road\"",
+      "artist": "Boyz II Men"
+    },
+    {
+      "pos": 2,
+      "title": "\"Baby Got Back\"",
+      "artist": "Sir Mix-a-Lot"
+    },
+    {
+      "pos": 3,
+      "title": "\"Jump\"",
+      "artist": "Kris Kross"
+    },
+    {
+      "pos": 4,
+      "title": "\"Save the Best for Last\"",
+      "artist": "Vanessa Williams"
+    },
+    {
+      "pos": 5,
+      "title": "\"Baby-Baby-Baby\"",
+      "artist": "TLC"
+    },
+    {
+      "pos": 6,
+      "title": "\"Tears in Heaven\"",
+      "artist": "Eric Clapton"
+    },
+    {
+      "pos": 7,
+      "title": "\"My Lovin' (You're Never Gonna Get It)\"",
+      "artist": "En Vogue"
+    },
+    {
+      "pos": 8,
+      "title": "\"Under the Bridge\"",
+      "artist": "Red Hot Chili Peppers"
+    },
+    {
+      "pos": 9,
+      "title": "\"All 4 Love\"",
+      "artist": "Color Me Badd"
+    },
+    {
+      "pos": 10,
+      "title": "\"Just Another Day\"",
+      "artist": "Jon Secada"
+    },
+    {
+      "pos": 11,
+      "title": "\"I Love Your Smile\"",
+      "artist": "Shanice"
+    },
+    {
+      "pos": 12,
+      "title": "\"To Be with You\"",
+      "artist": "Mr. Big"
+    },
+    {
+      "pos": 13,
+      "title": "\"I'm Too Sexy\"",
+      "artist": "Right Said Fred"
+    },
+    {
+      "pos": 14,
+      "title": "\"Black or White\"",
+      "artist": "Michael Jackson"
+    },
+    {
+      "pos": 15,
+      "title": "\"Achy Breaky Heart\"",
+      "artist": "Billy Ray Cyrus"
+    },
+    {
+      "pos": 16,
+      "title": "\"I'll Be There\"",
+      "artist": "Mariah Carey"
+    },
+    {
+      "pos": 17,
+      "title": "\"November Rain\"",
+      "artist": "Guns N' Roses"
+    },
+    {
+      "pos": 18,
+      "title": "\"Life Is a Highway\"",
+      "artist": "Tom Cochrane"
+    },
+    {
+      "pos": 19,
+      "title": "\"Remember the Time\"",
+      "artist": "Michael Jackson"
+    },
+    {
+      "pos": 20,
+      "title": "\"Finally\"",
+      "artist": "CeCe Peniston"
+    },
+    {
+      "pos": 21,
+      "title": "\"This Used to Be My Playground\"",
+      "artist": "Madonna"
+    },
+    {
+      "pos": 22,
+      "title": "\"Sometimes Love Just Ain't Enough\"",
+      "artist": "Patty Smyth and Don Henley"
+    },
+    {
+      "pos": 23,
+      "title": "\"Can't Let Go\"",
+      "artist": "Mariah Carey"
+    },
+    {
+      "pos": 24,
+      "title": "\"Jump Around\"",
+      "artist": "House of Pain"
+    },
+    {
+      "pos": 25,
+      "title": "\"Diamonds and Pearls\"",
+      "artist": "Prince and The New Power Generation"
+    },
+    {
+      "pos": 26,
+      "title": "\"Don't Let the Sun Go Down on Me\"",
+      "artist": "George Michael and Elton John"
+    },
+    {
+      "pos": 27,
+      "title": "\"Masterpiece\"",
+      "artist": "Atlantic Starr"
+    },
+    {
+      "pos": 28,
+      "title": "\"If You Asked Me To\"",
+      "artist": "Celine Dion"
+    },
+    {
+      "pos": 29,
+      "title": "\"Giving Him Something He Can Feel\"",
+      "artist": "En Vogue"
+    },
+    {
+      "pos": 30,
+      "title": "\"Live and Learn\"",
+      "artist": "Joe Public"
+    },
+    {
+      "pos": 31,
+      "title": "\"Come and Talk to Me\"",
+      "artist": "Jodeci"
+    },
+    {
+      "pos": 32,
+      "title": "\"Smells Like Teen Spirit\"",
+      "artist": "Nirvana"
+    },
+    {
+      "pos": 33,
+      "title": "\"Humpin' Around\"",
+      "artist": "Bobby Brown"
+    },
+    {
+      "pos": 34,
+      "title": "\"Damn I Wish I Was Your Lover\"",
+      "artist": "Sophie B. Hawkins"
+    },
+    {
+      "pos": 35,
+      "title": "\"Tell Me What You Want Me to Do\"",
+      "artist": "Tevin Campbell"
+    },
+    {
+      "pos": 36,
+      "title": "\"Ain't 2 Proud 2 Beg\"",
+      "artist": "TLC"
+    },
+    {
+      "pos": 37,
+      "title": "\"It's So Hard to Say Goodbye to Yesterday\"",
+      "artist": "Boyz II Men"
+    },
+    {
+      "pos": 38,
+      "title": "\"Move This\"",
+      "artist": "Technotronic featuring Ya Kid K"
+    },
+    {
+      "pos": 39,
+      "title": "\"Bohemian Rhapsody\"",
+      "artist": "Queen"
+    },
+    {
+      "pos": 40,
+      "title": "\"Tennessee\"",
+      "artist": "Arrested Development"
+    },
+    {
+      "pos": 41,
+      "title": "\"The Best Things in Life Are Free\"",
+      "artist": "Luther Vandross and Janet Jackson"
+    },
+    {
+      "pos": 42,
+      "title": "\"Make It Happen\"",
+      "artist": "Mariah Carey"
+    },
+    {
+      "pos": 43,
+      "title": "\"The One\"",
+      "artist": "Elton John"
+    },
+    {
+      "pos": 44,
+      "title": "\"Set Adrift on Memory Bliss\"",
+      "artist": "P.M. Dawn"
+    },
+    {
+      "pos": 45,
+      "title": "\"Stay\"",
+      "artist": "Shakespears Sister"
+    },
+    {
+      "pos": 46,
+      "title": "\"2 Legit 2 Quit\"",
+      "artist": "Hammer"
+    },
+    {
+      "pos": 47,
+      "title": "\"Please Don't Go\"",
+      "artist": "KWS"
+    },
+    {
+      "pos": 48,
+      "title": "\"Breakin' My Heart (Pretty Brown Eyes)\"",
+      "artist": "Mint Condition"
+    },
+    {
+      "pos": 49,
+      "title": "\"Wishing on a Star\"",
+      "artist": "The Cover Girls"
+    },
+    {
+      "pos": 50,
+      "title": "\"She's Playing Hard to Get\"",
+      "artist": "Hi-Five"
+    },
+    {
+      "pos": 51,
+      "title": "\"I'd Die Without You\"",
+      "artist": "P.M. Dawn"
+    },
+    {
+      "pos": 52,
+      "title": "\"Good for Me\"",
+      "artist": "Amy Grant"
+    },
+    {
+      "pos": 53,
+      "title": "\"All I Want\"",
+      "artist": "Toad the Wet Sprocket"
+    },
+    {
+      "pos": 54,
+      "title": "\"When a Man Loves a Woman\"",
+      "artist": "Michael Bolton"
+    },
+    {
+      "pos": 55,
+      "title": "\"I Can't Dance\"",
+      "artist": "Genesis"
+    },
+    {
+      "pos": 56,
+      "title": "\"Hazard\"",
+      "artist": "Richard Marx"
+    },
+    {
+      "pos": 57,
+      "title": "\"Mysterious Ways\"",
+      "artist": "U2"
+    },
+    {
+      "pos": 58,
+      "title": "\"Too Funky\"",
+      "artist": "George Michael"
+    },
+    {
+      "pos": 59,
+      "title": "\"How Do You Talk to an Angel\"",
+      "artist": "The Heights"
+    },
+    {
+      "pos": 60,
+      "title": "\"One\"",
+      "artist": "U2"
+    },
+    {
+      "pos": 61,
+      "title": "\"Keep on Walkin'\"",
+      "artist": "CeCe Peniston"
+    },
+    {
+      "pos": 62,
+      "title": "\"Hold on My Heart\"",
+      "artist": "Genesis"
+    },
+    {
+      "pos": 63,
+      "title": "\"The Way I Feel About You\"",
+      "artist": "Karyn White"
+    },
+    {
+      "pos": 64,
+      "title": "\"Beauty and the Beast\"",
+      "artist": "Celine Dion and Peabo Bryson"
+    },
+    {
+      "pos": 65,
+      "title": "\"Warm It Up\"",
+      "artist": "Kris Kross"
+    },
+    {
+      "pos": 66,
+      "title": "\"In the Closet\"",
+      "artist": "Michael Jackson"
+    },
+    {
+      "pos": 67,
+      "title": "\"People Everyday\"",
+      "artist": "Arrested Development"
+    },
+    {
+      "pos": 68,
+      "title": "\"No Son of Mine\"",
+      "artist": "Genesis"
+    },
+    {
+      "pos": 69,
+      "title": "\"Wildside\"",
+      "artist": "Marky Mark and the Funky Bunch"
+    },
+    {
+      "pos": 70,
+      "title": "\"Do I Have to Say the Words?\"",
+      "artist": "Bryan Adams"
+    },
+    {
+      "pos": 71,
+      "title": "\"Friday I'm in Love\"",
+      "artist": "The Cure"
+    },
+    {
+      "pos": 72,
+      "title": "\"Everything About You\"",
+      "artist": "Ugly Kid Joe"
+    },
+    {
+      "pos": 73,
+      "title": "\"Blowing Kisses in the Wind\"",
+      "artist": "Paula Abdul"
+    },
+    {
+      "pos": 74,
+      "title": "\"Thought I'd Died and Gone to Heaven\"",
+      "artist": "Bryan Adams"
+    },
+    {
+      "pos": 75,
+      "title": "\"Rhythm Is a Dancer\"",
+      "artist": "Snap!"
+    },
+    {
+      "pos": 76,
+      "title": "\"Addams Groove\"",
+      "artist": "Hammer"
+    },
+    {
+      "pos": 77,
+      "title": "\"Missing You Now\"",
+      "artist": "Michael Bolton"
+    },
+    {
+      "pos": 78,
+      "title": "\"Back to the Hotel\"",
+      "artist": "N2Deep"
+    },
+    {
+      "pos": 79,
+      "title": "\"Everything Changes\"",
+      "artist": "Kathy Troccoli"
+    },
+    {
+      "pos": 80,
+      "title": "\"Have You Ever Needed Someone So Bad\"",
+      "artist": "Def Leppard"
+    },
+    {
+      "pos": 81,
+      "title": "\"Take This Heart\"",
+      "artist": "Richard Marx"
+    },
+    {
+      "pos": 82,
+      "title": "\"When I Look Into Your Eyes\"",
+      "artist": "FireHouse"
+    },
+    {
+      "pos": 83,
+      "title": "\"I Wanna Love You\"",
+      "artist": "Jade"
+    },
+    {
+      "pos": 84,
+      "title": "\"Uhh Ahh\"",
+      "artist": "Boyz II Men"
+    },
+    {
+      "pos": 85,
+      "title": "\"Real Love\"",
+      "artist": "Mary J. Blige"
+    },
+    {
+      "pos": 86,
+      "title": "\"Justified and Ancient\"",
+      "artist": "The KLF"
+    },
+    {
+      "pos": 87,
+      "title": "\"Slow Motion\"",
+      "artist": "Color Me Badd"
+    },
+    {
+      "pos": 88,
+      "title": "\"What About Your Friends\"",
+      "artist": "TLC"
+    },
+    {
+      "pos": 89,
+      "title": "\"Thinkin' Back\"",
+      "artist": "Color Me Badd"
+    },
+    {
+      "pos": 90,
+      "title": "\"Would I Lie to You?\"",
+      "artist": "Charles & Eddie"
+    },
+    {
+      "pos": 91,
+      "title": "\"That's What Love Is For\"",
+      "artist": "Amy Grant"
+    },
+    {
+      "pos": 92,
+      "title": "\"Keep Coming Back\"",
+      "artist": "Richard Marx"
+    },
+    {
+      "pos": 93,
+      "title": "\"Free Your Mind\"",
+      "artist": "En Vogue"
+    },
+    {
+      "pos": 94,
+      "title": "\"Keep It Comin'\"",
+      "artist": "Keith Sweat"
+    },
+    {
+      "pos": 95,
+      "title": "\"Just Take My Heart\"",
+      "artist": "Mr. Big"
+    },
+    {
+      "pos": 96,
+      "title": "\"I Will Remember You\"",
+      "artist": "Amy Grant"
+    },
+    {
+      "pos": 97,
+      "title": "\"We Got a Love Thang\"",
+      "artist": "CeCe Peniston"
+    },
+    {
+      "pos": 98,
+      "title": "\"Let's Get Rocked\"",
+      "artist": "Def Leppard"
+    },
+    {
+      "pos": 99,
+      "title": "\"They Want EFX\"",
+      "artist": "Das EFX"
+    },
+    {
+      "pos": 100,
+      "title": "\"I Can't Make You Love Me\"",
+      "artist": "Bonnie Raitt"
+    }
+  ]
+}

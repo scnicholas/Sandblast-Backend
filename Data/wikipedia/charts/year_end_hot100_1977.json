@@ -1,0 +1,512 @@
+{
+  "year": 1977,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1977",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Tonight's the Night (Gonna Be Alright)\"",
+      "artist": "Rod Stewart"
+    },
+    {
+      "pos": 2,
+      "title": "\"I Just Want to Be Your Everything\"",
+      "artist": "Andy Gibb"
+    },
+    {
+      "pos": 3,
+      "title": "\"Best of My Love\"",
+      "artist": "The Emotions"
+    },
+    {
+      "pos": 4,
+      "title": "\"Evergreen (Love Theme from A Star Is Born)\"",
+      "artist": "Barbra Streisand"
+    },
+    {
+      "pos": 5,
+      "title": "\"Angel in Your Arms\"",
+      "artist": "Hot"
+    },
+    {
+      "pos": 6,
+      "title": "\"I Like Dreamin'\"",
+      "artist": "Kenny Nolan"
+    },
+    {
+      "pos": 7,
+      "title": "\"Don't Leave Me This Way\"",
+      "artist": "Thelma Houston"
+    },
+    {
+      "pos": 8,
+      "title": "\"(Your Love Has Lifted Me) Higher and Higher\"",
+      "artist": "Rita Coolidge"
+    },
+    {
+      "pos": 9,
+      "title": "\"Undercover Angel\"",
+      "artist": "Alan O'Day"
+    },
+    {
+      "pos": 10,
+      "title": "\"Torn Between Two Lovers\"",
+      "artist": "Mary MacGregor"
+    },
+    {
+      "pos": 11,
+      "title": "\"I'm Your Boogie Man\"",
+      "artist": "KC and the Sunshine Band"
+    },
+    {
+      "pos": 12,
+      "title": "\"Dancing Queen\"",
+      "artist": "ABBA"
+    },
+    {
+      "pos": 13,
+      "title": "\"You Make Me Feel Like Dancing\"",
+      "artist": "Leo Sayer"
+    },
+    {
+      "pos": 14,
+      "title": "\"Margaritaville\"",
+      "artist": "Jimmy Buffett"
+    },
+    {
+      "pos": 15,
+      "title": "\"Telephone Line\"",
+      "artist": "Electric Light Orchestra"
+    },
+    {
+      "pos": 16,
+      "title": "\"Whatcha Gonna Do?\"",
+      "artist": "Pablo Cruise"
+    },
+    {
+      "pos": 17,
+      "title": "\"Do You Wanna Make Love\"",
+      "artist": "Peter McCann"
+    },
+    {
+      "pos": 18,
+      "title": "\"Sir Duke\"",
+      "artist": "Stevie Wonder"
+    },
+    {
+      "pos": 19,
+      "title": "\"Hotel California\"",
+      "artist": "Eagles"
+    },
+    {
+      "pos": 20,
+      "title": "\"Got to Give It Up\"",
+      "artist": "Marvin Gaye"
+    },
+    {
+      "pos": 21,
+      "title": "\"Gonna Fly Now\"",
+      "artist": "Bill Conti"
+    },
+    {
+      "pos": 22,
+      "title": "\"Southern Nights\"",
+      "artist": "Glen Campbell"
+    },
+    {
+      "pos": 23,
+      "title": "\"Rich Girl\"",
+      "artist": "Hall & Oates"
+    },
+    {
+      "pos": 24,
+      "title": "\"When I Need You\"",
+      "artist": "Leo Sayer"
+    },
+    {
+      "pos": 25,
+      "title": "\"Hot Line\"",
+      "artist": "The Sylvers"
+    },
+    {
+      "pos": 26,
+      "title": "\"Car Wash\"",
+      "artist": "Rose Royce"
+    },
+    {
+      "pos": 27,
+      "title": "\"You Don't Have to Be a Star (To Be in My Show)\"",
+      "artist": "Marilyn McCoo & Billy Davis Jr."
+    },
+    {
+      "pos": 28,
+      "title": "\"Fly Like an Eagle\"",
+      "artist": "Steve Miller Band"
+    },
+    {
+      "pos": 29,
+      "title": "\"Don't Give Up on Us\"",
+      "artist": "David Soul"
+    },
+    {
+      "pos": 30,
+      "title": "\"On and On\"",
+      "artist": "Stephen Bishop"
+    },
+    {
+      "pos": 31,
+      "title": "\"Feels Like the First Time\"",
+      "artist": "Foreigner"
+    },
+    {
+      "pos": 32,
+      "title": "\"Couldn't Get It Right\"",
+      "artist": "Climax Blues Band"
+    },
+    {
+      "pos": 33,
+      "title": "\"Easy\"",
+      "artist": "Commodores"
+    },
+    {
+      "pos": 34,
+      "title": "\"Right Time of the Night\"",
+      "artist": "Jennifer Warnes"
+    },
+    {
+      "pos": 35,
+      "title": "\"I've Got Love on My Mind\"",
+      "artist": "Natalie Cole"
+    },
+    {
+      "pos": 36,
+      "title": "\"Blinded by the Light\"",
+      "artist": "Manfred Mann's Earth Band"
+    },
+    {
+      "pos": 37,
+      "title": "\"Looks Like We Made It\"",
+      "artist": "Barry Manilow"
+    },
+    {
+      "pos": 38,
+      "title": "\"So in to You\"",
+      "artist": "Atlanta Rhythm Section"
+    },
+    {
+      "pos": 39,
+      "title": "\"Dreams\"",
+      "artist": "Fleetwood Mac"
+    },
+    {
+      "pos": 40,
+      "title": "\"Enjoy Yourself\"",
+      "artist": "The Jacksons"
+    },
+    {
+      "pos": 41,
+      "title": "\"Dazz\"",
+      "artist": "Brick"
+    },
+    {
+      "pos": 42,
+      "title": "\"I'm in You\"",
+      "artist": "Peter Frampton"
+    },
+    {
+      "pos": 43,
+      "title": "\"Lucille\"",
+      "artist": "Kenny Rogers"
+    },
+    {
+      "pos": 44,
+      "title": "\"The Things We Do for Love\"",
+      "artist": "10cc"
+    },
+    {
+      "pos": 45,
+      "title": "\"Da Doo Ron Ron\"",
+      "artist": "Shaun Cassidy"
+    },
+    {
+      "pos": 46,
+      "title": "\"Handy Man\"",
+      "artist": "James Taylor"
+    },
+    {
+      "pos": 47,
+      "title": "\"Just a Song Before I Go\"",
+      "artist": "Crosby, Stills & Nash"
+    },
+    {
+      "pos": 48,
+      "title": "\"You and Me\"",
+      "artist": "Alice Cooper"
+    },
+    {
+      "pos": 49,
+      "title": "\"Swayin' to the Music (Slow Dancing)\"",
+      "artist": "Johnny Rivers"
+    },
+    {
+      "pos": 50,
+      "title": "\"Lonely Boy\"",
+      "artist": "Andrew Gold"
+    },
+    {
+      "pos": 51,
+      "title": "\"I Wish\"",
+      "artist": "Stevie Wonder"
+    },
+    {
+      "pos": 52,
+      "title": "\"Don't Stop\"",
+      "artist": "Fleetwood Mac"
+    },
+    {
+      "pos": 53,
+      "title": "\"Barracuda\"",
+      "artist": "Heart"
+    },
+    {
+      "pos": 54,
+      "title": "\"Strawberry Letter 23\"",
+      "artist": "The Brothers Johnson"
+    },
+    {
+      "pos": 55,
+      "title": "\"Night Moves\"",
+      "artist": "Bob Seger & The Silver Bullet Band"
+    },
+    {
+      "pos": 56,
+      "title": "\"You're My World\"",
+      "artist": "Helen Reddy"
+    },
+    {
+      "pos": 57,
+      "title": "\"Heard It in a Love Song\"",
+      "artist": "The Marshall Tucker Band"
+    },
+    {
+      "pos": 58,
+      "title": "\"Carry On Wayward Son\"",
+      "artist": "Kansas"
+    },
+    {
+      "pos": 59,
+      "title": "\"New Kid in Town\"",
+      "artist": "Eagles"
+    },
+    {
+      "pos": 60,
+      "title": "\"My Heart Belongs to Me\"",
+      "artist": "Barbra Streisand"
+    },
+    {
+      "pos": 61,
+      "title": "\"After the Lovin'\"",
+      "artist": "Engelbert Humperdinck"
+    },
+    {
+      "pos": 62,
+      "title": "\"Jet Airliner\"",
+      "artist": "Steve Miller Band"
+    },
+    {
+      "pos": 63,
+      "title": "\"Stand Tall\"",
+      "artist": "Burton Cummings"
+    },
+    {
+      "pos": 64,
+      "title": "\"Way Down\"",
+      "artist": "Elvis Presley"
+    },
+    {
+      "pos": 65,
+      "title": "\"Weekend in New England\"",
+      "artist": "Barry Manilow"
+    },
+    {
+      "pos": 66,
+      "title": "\"It Was Almost Like a Song\"",
+      "artist": "Ronnie Milsap"
+    },
+    {
+      "pos": 67,
+      "title": "\"Smoke from a Distant Fire\"",
+      "artist": "Sanford-Townsend Band"
+    },
+    {
+      "pos": 68,
+      "title": "\"Cold as Ice\"",
+      "artist": "Foreigner"
+    },
+    {
+      "pos": 69,
+      "title": "\"Ariel\"",
+      "artist": "Dean Friedman"
+    },
+    {
+      "pos": 70,
+      "title": "\"Lost Without Your Love\"",
+      "artist": "Bread"
+    },
+    {
+      "pos": 71,
+      "title": "\"Star Wars Theme/Cantina Band\"",
+      "artist": "Meco"
+    },
+    {
+      "pos": 72,
+      "title": "\"Float On\"",
+      "artist": "The Floaters"
+    },
+    {
+      "pos": 73,
+      "title": "\"Jeans On\"",
+      "artist": "Lord David Dundas"
+    },
+    {
+      "pos": 74,
+      "title": "\"Lido Shuffle\"",
+      "artist": "Boz Scaggs"
+    },
+    {
+      "pos": 75,
+      "title": "\"Keep It Comin' Love\"",
+      "artist": "KC and the Sunshine Band"
+    },
+    {
+      "pos": 76,
+      "title": "\"You Made Me Believe in Magic\"",
+      "artist": "Bay City Rollers"
+    },
+    {
+      "pos": 77,
+      "title": "\"Livin' Thing\"",
+      "artist": "Electric Light Orchestra"
+    },
+    {
+      "pos": 78,
+      "title": "\"Give a Little Bit\"",
+      "artist": "Supertramp"
+    },
+    {
+      "pos": 79,
+      "title": "\"That's Rock 'n' Roll\"",
+      "artist": "Shaun Cassidy"
+    },
+    {
+      "pos": 80,
+      "title": "\"Love So Right\"",
+      "artist": "Bee Gees"
+    },
+    {
+      "pos": 81,
+      "title": "\"The Rubberband Man\"",
+      "artist": "The Spinners"
+    },
+    {
+      "pos": 82,
+      "title": "\"I Never Cry\"",
+      "artist": "Alice Cooper"
+    },
+    {
+      "pos": 83,
+      "title": "\"Nobody Does It Better\"",
+      "artist": "Carly Simon"
+    },
+    {
+      "pos": 84,
+      "title": "\"High School Dance\"",
+      "artist": "The Sylvers"
+    },
+    {
+      "pos": 85,
+      "title": "\"Love's Grown Deep\"",
+      "artist": "Kenny Nolan"
+    },
+    {
+      "pos": 86,
+      "title": "\"Ain't Gonna Bump No More (With No Big Fat Woman)\"",
+      "artist": "Joe Tex"
+    },
+    {
+      "pos": 87,
+      "title": "\"I Wanna Get Next to You\"",
+      "artist": "Rose Royce"
+    },
+    {
+      "pos": 88,
+      "title": "\"Somebody to Love\"",
+      "artist": "Queen"
+    },
+    {
+      "pos": 89,
+      "title": "\"Muskrat Love\"",
+      "artist": "Captain & Tennille"
+    },
+    {
+      "pos": 90,
+      "title": "\"Walk This Way\"",
+      "artist": "Aerosmith"
+    },
+    {
+      "pos": 91,
+      "title": "\"Cherchez La Femme\"",
+      "artist": "Dr. Buzzard's Original Savannah Band"
+    },
+    {
+      "pos": 92,
+      "title": "\"Year of the Cat\"",
+      "artist": "Al Stewart"
+    },
+    {
+      "pos": 93,
+      "title": "\"Boogie Nights\"",
+      "artist": "Heatwave"
+    },
+    {
+      "pos": 94,
+      "title": "\"Go Your Own Way\"",
+      "artist": "Fleetwood Mac"
+    },
+    {
+      "pos": 95,
+      "title": "\"Sorry Seems to Be the Hardest Word\"",
+      "artist": "Elton John"
+    },
+    {
+      "pos": 96,
+      "title": "\"Don't Worry Baby\"",
+      "artist": "B.J. Thomas"
+    },
+    {
+      "pos": 97,
+      "title": "\"Knowing Me, Knowing You\"",
+      "artist": "ABBA"
+    },
+    {
+      "pos": 98,
+      "title": "\"How Much Love\"",
+      "artist": "Leo Sayer"
+    },
+    {
+      "pos": 99,
+      "title": "\"Star Wars (Main Title)\"",
+      "artist": "London Symphony Orchestra"
+    },
+    {
+      "pos": 100,
+      "title": "\"Devil's Gun\"",
+      "artist": "C.J. & Company"
+    }
+  ]
+}

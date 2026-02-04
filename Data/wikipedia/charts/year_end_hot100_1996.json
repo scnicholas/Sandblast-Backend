@@ -1,0 +1,512 @@
+{
+  "year": 1996,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1996",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Macarena (Bayside Boys Mix)\"",
+      "artist": "Los del Río"
+    },
+    {
+      "pos": 2,
+      "title": "\"One Sweet Day\"",
+      "artist": "Mariah Carey and Boyz II Men"
+    },
+    {
+      "pos": 3,
+      "title": "\"Because You Loved Me\"",
+      "artist": "Celine Dion"
+    },
+    {
+      "pos": 4,
+      "title": "\"Nobody Knows\"",
+      "artist": "The Tony Rich Project"
+    },
+    {
+      "pos": 5,
+      "title": "\"Always Be My Baby\"",
+      "artist": "Mariah Carey"
+    },
+    {
+      "pos": 6,
+      "title": "\"Give Me One Reason\"",
+      "artist": "Tracy Chapman"
+    },
+    {
+      "pos": 7,
+      "title": "\"Tha Crossroads\"",
+      "artist": "Bone Thugs-n-Harmony"
+    },
+    {
+      "pos": 8,
+      "title": "\"I Love You Always Forever\"",
+      "artist": "Donna Lewis"
+    },
+    {
+      "pos": 9,
+      "title": "\"You're Makin' Me High\" / \"Let It Flow\"",
+      "artist": "Toni Braxton"
+    },
+    {
+      "pos": 10,
+      "title": "\"Twisted\"",
+      "artist": "Keith Sweat"
+    },
+    {
+      "pos": 11,
+      "title": "\"C'mon N' Ride It (The Train)\"",
+      "artist": "Quad City DJ's"
+    },
+    {
+      "pos": 12,
+      "title": "\"Missing\"",
+      "artist": "Everything but the Girl"
+    },
+    {
+      "pos": 13,
+      "title": "\"Ironic\"",
+      "artist": "Alanis Morissette"
+    },
+    {
+      "pos": 14,
+      "title": "\"Exhale (Shoop Shoop)\"",
+      "artist": "Whitney Houston"
+    },
+    {
+      "pos": 15,
+      "title": "\"Follow You Down\" / \"Til I Hear It from You\"",
+      "artist": "Gin Blossoms"
+    },
+    {
+      "pos": 16,
+      "title": "\"Sittin' Up in My Room\"",
+      "artist": "Brandy"
+    },
+    {
+      "pos": 17,
+      "title": "\"How Do U Want It\" / \"California Love\"",
+      "artist": "2Pac featuring K-Ci and JoJo / 2Pac featuring Dr. Dre and Roger Troutman"
+    },
+    {
+      "pos": 18,
+      "title": "\"It's All Coming Back to Me Now\"",
+      "artist": "Celine Dion"
+    },
+    {
+      "pos": 19,
+      "title": "\"Change the World\"",
+      "artist": "Eric Clapton"
+    },
+    {
+      "pos": 20,
+      "title": "\"Hey Lover\"",
+      "artist": "LL Cool J featuring Boyz II Men"
+    },
+    {
+      "pos": 21,
+      "title": "\"Loungin\"",
+      "artist": "LL Cool J"
+    },
+    {
+      "pos": 22,
+      "title": "\"Insensitive\"",
+      "artist": "Jann Arden"
+    },
+    {
+      "pos": 23,
+      "title": "\"Be My Lover\"",
+      "artist": "La Bouche"
+    },
+    {
+      "pos": 24,
+      "title": "\"Name\"",
+      "artist": "Goo Goo Dolls"
+    },
+    {
+      "pos": 25,
+      "title": "\"Who Will Save Your Soul\"",
+      "artist": "Jewel"
+    },
+    {
+      "pos": 26,
+      "title": "\"Where Do You Go\"",
+      "artist": "No Mercy"
+    },
+    {
+      "pos": 27,
+      "title": "\"I Can't Sleep Baby (If I)\"",
+      "artist": "R. Kelly"
+    },
+    {
+      "pos": 28,
+      "title": "\"Counting Blue Cars\"",
+      "artist": "Dishwalla"
+    },
+    {
+      "pos": 29,
+      "title": "\"You Learn\" / \"You Oughta Know\"",
+      "artist": "Alanis Morissette"
+    },
+    {
+      "pos": 30,
+      "title": "\"One of Us\"",
+      "artist": "Joan Osborne"
+    },
+    {
+      "pos": 31,
+      "title": "\"Wonder\"",
+      "artist": "Natalie Merchant"
+    },
+    {
+      "pos": 32,
+      "title": "\"Not Gon' Cry\"",
+      "artist": "Mary J. Blige"
+    },
+    {
+      "pos": 33,
+      "title": "\"Gangsta's Paradise\"",
+      "artist": "Coolio featuring L.V."
+    },
+    {
+      "pos": 34,
+      "title": "\"Only You\"",
+      "artist": "112 featuring The Notorious B.I.G."
+    },
+    {
+      "pos": 35,
+      "title": "\"Down Low (Nobody Has to Know)\"",
+      "artist": "R. Kelly featuring Ronald Isley"
+    },
+    {
+      "pos": 36,
+      "title": "\"You're the One\"",
+      "artist": "SWV"
+    },
+    {
+      "pos": 37,
+      "title": "\"Sweet Dreams\"",
+      "artist": "La Bouche"
+    },
+    {
+      "pos": 38,
+      "title": "\"Before You Walk Out of My Life\" / \"Like This and Like That\"",
+      "artist": "Monica"
+    },
+    {
+      "pos": 39,
+      "title": "\"Breakfast at Tiffany's\"",
+      "artist": "Deep Blue Something"
+    },
+    {
+      "pos": 40,
+      "title": "\"1, 2, 3, 4 (Sumpin' New)\"",
+      "artist": "Coolio"
+    },
+    {
+      "pos": 41,
+      "title": "\"The World I Know\"",
+      "artist": "Collective Soul"
+    },
+    {
+      "pos": 42,
+      "title": "\"No Diggity\"",
+      "artist": "Blackstreet featuring Dr. Dre"
+    },
+    {
+      "pos": 43,
+      "title": "\"Anything\"",
+      "artist": "3T"
+    },
+    {
+      "pos": 44,
+      "title": "\"1979\"",
+      "artist": "The Smashing Pumpkins"
+    },
+    {
+      "pos": 45,
+      "title": "\"Diggin' on You\"",
+      "artist": "TLC"
+    },
+    {
+      "pos": 46,
+      "title": "\"Why I Love You So Much\" / \"Ain't Nobody\"",
+      "artist": "Monica"
+    },
+    {
+      "pos": 47,
+      "title": "\"Kissin' You\"",
+      "artist": "Total"
+    },
+    {
+      "pos": 48,
+      "title": "\"Count on Me\"",
+      "artist": "Whitney Houston and CeCe Winans"
+    },
+    {
+      "pos": 49,
+      "title": "\"Fantasy\"",
+      "artist": "Mariah Carey"
+    },
+    {
+      "pos": 50,
+      "title": "\"Time\"",
+      "artist": "Hootie & the Blowfish"
+    },
+    {
+      "pos": 51,
+      "title": "\"You'll See\"",
+      "artist": "Madonna"
+    },
+    {
+      "pos": 52,
+      "title": "\"Last Night\"",
+      "artist": "Az Yet"
+    },
+    {
+      "pos": 53,
+      "title": "\"Mouth\"",
+      "artist": "Merril Bainbridge"
+    },
+    {
+      "pos": 54,
+      "title": "\"The Earth, the Sun, the Rain\"",
+      "artist": "Color Me Badd"
+    },
+    {
+      "pos": 55,
+      "title": "\"All the Things (Your Man Won't Do)\"",
+      "artist": "Joe"
+    },
+    {
+      "pos": 56,
+      "title": "\"Wonderwall\"",
+      "artist": "Oasis"
+    },
+    {
+      "pos": 57,
+      "title": "\"Woo Hah!! Got You All in Check\" / \"Everything Remains Raw\"",
+      "artist": "Busta Rhymes"
+    },
+    {
+      "pos": 58,
+      "title": "\"Tell Me\"",
+      "artist": "Groove Theory"
+    },
+    {
+      "pos": 59,
+      "title": "\"Elevators (Me & You)\"",
+      "artist": "Outkast"
+    },
+    {
+      "pos": 60,
+      "title": "\"Hook\"",
+      "artist": "Blues Traveler"
+    },
+    {
+      "pos": 61,
+      "title": "\"Doin' It\"",
+      "artist": "LL Cool J"
+    },
+    {
+      "pos": 62,
+      "title": "\"Fastlove\"",
+      "artist": "George Michael"
+    },
+    {
+      "pos": 63,
+      "title": "\"Touch Me, Tease Me\"",
+      "artist": "Case featuring Foxy Brown"
+    },
+    {
+      "pos": 64,
+      "title": "\"Tonite's tha Night\"",
+      "artist": "Kris Kross"
+    },
+    {
+      "pos": 65,
+      "title": "\"Children\"",
+      "artist": "Robert Miles"
+    },
+    {
+      "pos": 66,
+      "title": "\"Theme from Mission: Impossible\"",
+      "artist": "Adam Clayton and Larry Mullen"
+    },
+    {
+      "pos": 67,
+      "title": "\"Closer to Free\"",
+      "artist": "BoDeans"
+    },
+    {
+      "pos": 68,
+      "title": "\"Just a Girl\"",
+      "artist": "No Doubt"
+    },
+    {
+      "pos": 69,
+      "title": "\"If Your Girl Only Knew\"",
+      "artist": "Aaliyah"
+    },
+    {
+      "pos": 70,
+      "title": "\"Lady\"",
+      "artist": "D'Angelo"
+    },
+    {
+      "pos": 71,
+      "title": "\"Key West Intermezzo (I Saw You First)\"",
+      "artist": "John Mellencamp"
+    },
+    {
+      "pos": 72,
+      "title": "\"Pony\"",
+      "artist": "Ginuwine"
+    },
+    {
+      "pos": 73,
+      "title": "\"Nobody\"",
+      "artist": "Keith Sweat featuring Athena Cage"
+    },
+    {
+      "pos": 74,
+      "title": "\"Old Man & Me (When I Get to Heaven)\"",
+      "artist": "Hootie & the Blowfish"
+    },
+    {
+      "pos": 75,
+      "title": "\"If It Makes You Happy\"",
+      "artist": "Sheryl Crow"
+    },
+    {
+      "pos": 76,
+      "title": "\"As I Lay Me Down\"",
+      "artist": "Sophie B. Hawkins"
+    },
+    {
+      "pos": 77,
+      "title": "\"Keep On, Keepin' On\"",
+      "artist": "MC Lyte featuring Xscape"
+    },
+    {
+      "pos": 78,
+      "title": "\"Jealousy\"",
+      "artist": "Natalie Merchant"
+    },
+    {
+      "pos": 79,
+      "title": "\"I Want to Come Over\"",
+      "artist": "Melissa Etheridge"
+    },
+    {
+      "pos": 80,
+      "title": "\"Who Do U Love\"",
+      "artist": "Deborah Cox"
+    },
+    {
+      "pos": 81,
+      "title": "\"Un-Break My Heart\"",
+      "artist": "Toni Braxton"
+    },
+    {
+      "pos": 82,
+      "title": "\"This Is Your Night\"",
+      "artist": "Amber"
+    },
+    {
+      "pos": 83,
+      "title": "\"You Remind Me of Something\"",
+      "artist": "R. Kelly"
+    },
+    {
+      "pos": 84,
+      "title": "\"Runaway\"",
+      "artist": "Janet Jackson"
+    },
+    {
+      "pos": 85,
+      "title": "\"Set U Free\"",
+      "artist": "Planet Soul"
+    },
+    {
+      "pos": 86,
+      "title": "\"Hit Me Off\"",
+      "artist": "New Edition"
+    },
+    {
+      "pos": 87,
+      "title": "\"No One Else\"",
+      "artist": "Total"
+    },
+    {
+      "pos": 88,
+      "title": "\"My Boo\"",
+      "artist": "Ghost Town DJ's"
+    },
+    {
+      "pos": 89,
+      "title": "\"Get Money\"",
+      "artist": "Junior M.A.F.I.A. featuring The Notorious B.I.G."
+    },
+    {
+      "pos": 90,
+      "title": "\"That Girl\"",
+      "artist": "Maxi Priest featuring Shaggy"
+    },
+    {
+      "pos": 91,
+      "title": "\"Po Pimp\"",
+      "artist": "Do or Die featuring Twista"
+    },
+    {
+      "pos": 92,
+      "title": "\"Until It Sleeps\"",
+      "artist": "Metallica"
+    },
+    {
+      "pos": 93,
+      "title": "\"Hay\"",
+      "artist": "Crucial Conflict"
+    },
+    {
+      "pos": 94,
+      "title": "\"Beautiful Life\"",
+      "artist": "Ace of Base"
+    },
+    {
+      "pos": 95,
+      "title": "\"Back for Good\"",
+      "artist": "Take That"
+    },
+    {
+      "pos": 96,
+      "title": "\"I Got Id\" / \"Long Road\"",
+      "artist": "Pearl Jam"
+    },
+    {
+      "pos": 97,
+      "title": "\"Soon as I Get Home\"",
+      "artist": "Faith Evans"
+    },
+    {
+      "pos": 98,
+      "title": "\"Macarena\"",
+      "artist": "Los del Río"
+    },
+    {
+      "pos": 99,
+      "title": "\"Only Wanna Be with You\"",
+      "artist": "Hootie & the Blowfish"
+    },
+    {
+      "pos": 100,
+      "title": "\"Don't Cry\"",
+      "artist": "Seal"
+    }
+  ]
+}

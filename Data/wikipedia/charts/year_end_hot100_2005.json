@@ -1,0 +1,512 @@
+{
+  "year": 2005,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_2005",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"We Belong Together\"",
+      "artist": "Mariah Carey"
+    },
+    {
+      "pos": 2,
+      "title": "\"Hollaback Girl\"",
+      "artist": "Gwen Stefani"
+    },
+    {
+      "pos": 3,
+      "title": "\"Let Me Love You\"",
+      "artist": "Mario"
+    },
+    {
+      "pos": 4,
+      "title": "\"Since U Been Gone\"",
+      "artist": "Kelly Clarkson"
+    },
+    {
+      "pos": 5,
+      "title": "\"1, 2 Step\"",
+      "artist": "Ciara featuring Missy Elliott"
+    },
+    {
+      "pos": 6,
+      "title": "\"Gold Digger\"",
+      "artist": "Kanye West featuring Jamie Foxx"
+    },
+    {
+      "pos": 7,
+      "title": "\"Boulevard of Broken Dreams\"",
+      "artist": "Green Day"
+    },
+    {
+      "pos": 8,
+      "title": "\"Candy Shop\"",
+      "artist": "50 Cent featuring Olivia"
+    },
+    {
+      "pos": 9,
+      "title": "\"Don't Cha\"",
+      "artist": "The Pussycat Dolls featuring Busta Rhymes"
+    },
+    {
+      "pos": 10,
+      "title": "\"Behind These Hazel Eyes\"",
+      "artist": "Kelly Clarkson"
+    },
+    {
+      "pos": 11,
+      "title": "\"Disco Inferno\"",
+      "artist": "50 Cent"
+    },
+    {
+      "pos": 12,
+      "title": "\"You and Me\"",
+      "artist": "Lifehouse"
+    },
+    {
+      "pos": 13,
+      "title": "\"Don't Phunk with My Heart\"",
+      "artist": "The Black Eyed Peas"
+    },
+    {
+      "pos": 14,
+      "title": "\"Lose Control\"",
+      "artist": "Missy Elliott featuring Ciara and Fatman Scoop"
+    },
+    {
+      "pos": 15,
+      "title": "\"Shake It Off\"",
+      "artist": "Mariah Carey"
+    },
+    {
+      "pos": 16,
+      "title": "\"Mr. Brightside\"",
+      "artist": "The Killers"
+    },
+    {
+      "pos": 17,
+      "title": "\"Just a Lil Bit\"",
+      "artist": "50 Cent"
+    },
+    {
+      "pos": 18,
+      "title": "\"Pon de Replay\"",
+      "artist": "Rihanna"
+    },
+    {
+      "pos": 19,
+      "title": "\"How We Do\"",
+      "artist": "The Game featuring 50 Cent"
+    },
+    {
+      "pos": 20,
+      "title": "\"Beverly Hills\"",
+      "artist": "Weezer"
+    },
+    {
+      "pos": 21,
+      "title": "\"Oh\"",
+      "artist": "Ciara featuring Ludacris"
+    },
+    {
+      "pos": 22,
+      "title": "\"Lonely No More\"",
+      "artist": "Rob Thomas"
+    },
+    {
+      "pos": 23,
+      "title": "\"Drop It Like It's Hot\"",
+      "artist": "Snoop Dogg featuring Pharrell"
+    },
+    {
+      "pos": 24,
+      "title": "\"Hate It or Love It\"",
+      "artist": "The Game featuring 50 Cent"
+    },
+    {
+      "pos": 25,
+      "title": "\"Lovers & Friends\"",
+      "artist": "Lil Jon & the East Side Boyz featuring Usher and Ludacris"
+    },
+    {
+      "pos": 26,
+      "title": "\"Soldier\"",
+      "artist": "Destiny's Child featuring T.I. and Lil Wayne"
+    },
+    {
+      "pos": 27,
+      "title": "\"Breakaway\"",
+      "artist": "Kelly Clarkson"
+    },
+    {
+      "pos": 28,
+      "title": "\"Switch\"",
+      "artist": "Will Smith"
+    },
+    {
+      "pos": 29,
+      "title": "\"Let Me Hold You\"",
+      "artist": "Bow Wow featuring Omarion"
+    },
+    {
+      "pos": 30,
+      "title": "\"Like You\"",
+      "artist": "Bow Wow featuring Ciara"
+    },
+    {
+      "pos": 31,
+      "title": "\"Rich Girl\"",
+      "artist": "Gwen Stefani featuring Eve"
+    },
+    {
+      "pos": 32,
+      "title": "\"My Humps\"",
+      "artist": "The Black Eyed Peas"
+    },
+    {
+      "pos": 33,
+      "title": "\"Obsession (No Es Amor)\"",
+      "artist": "Frankie J featuring Baby Bash"
+    },
+    {
+      "pos": 34,
+      "title": "\"Caught Up\"",
+      "artist": "Usher"
+    },
+    {
+      "pos": 35,
+      "title": "\"Listen to Your Heart\"",
+      "artist": "DHT featuring Edmee"
+    },
+    {
+      "pos": 36,
+      "title": "\"Scars\"",
+      "artist": "Papa Roach"
+    },
+    {
+      "pos": 37,
+      "title": "\"Feel Good Inc.\"",
+      "artist": "Gorillaz"
+    },
+    {
+      "pos": 38,
+      "title": "\"Let Me Go\"",
+      "artist": "3 Doors Down"
+    },
+    {
+      "pos": 39,
+      "title": "\"Holiday\"",
+      "artist": "Green Day"
+    },
+    {
+      "pos": 40,
+      "title": "\"Sugar, We're Goin Down\"",
+      "artist": "Fall Out Boy"
+    },
+    {
+      "pos": 41,
+      "title": "\"Grind with Me\"",
+      "artist": "Pretty Ricky"
+    },
+    {
+      "pos": 42,
+      "title": "\"Run It!\"",
+      "artist": "Chris Brown featuring Juelz Santana"
+    },
+    {
+      "pos": 43,
+      "title": "\"Photograph\"",
+      "artist": "Nickelback"
+    },
+    {
+      "pos": 44,
+      "title": "\"Lonely\"",
+      "artist": "Akon"
+    },
+    {
+      "pos": 45,
+      "title": "\"Collide\"",
+      "artist": "Howie Day"
+    },
+    {
+      "pos": 46,
+      "title": "\"Wake Me Up When September Ends\"",
+      "artist": "Green Day"
+    },
+    {
+      "pos": 47,
+      "title": "\"Slow Down\"",
+      "artist": "Bobby Valentino"
+    },
+    {
+      "pos": 48,
+      "title": "\"Over and Over\"",
+      "artist": "Nelly featuring Tim McGraw"
+    },
+    {
+      "pos": 49,
+      "title": "\"Some Cut\"",
+      "artist": "Trillville featuring Cutty"
+    },
+    {
+      "pos": 50,
+      "title": "\"Get It Poppin'\"",
+      "artist": "Fat Joe featuring Nelly"
+    },
+    {
+      "pos": 51,
+      "title": "\"Play\"",
+      "artist": "David Banner"
+    },
+    {
+      "pos": 52,
+      "title": "\"Soul Survivor\"",
+      "artist": "Young Jeezy featuring Akon"
+    },
+    {
+      "pos": 53,
+      "title": "\"Pimpin' All Over the World\"",
+      "artist": "Ludacris featuring Bobby Valentino"
+    },
+    {
+      "pos": 54,
+      "title": "\"My Boo\"",
+      "artist": "Usher and Alicia Keys"
+    },
+    {
+      "pos": 55,
+      "title": "\"Sugar (Gimme Some)\"",
+      "artist": "Trick Daddy featuring Ludacris, Lil' Kim and Cee Lo Green"
+    },
+    {
+      "pos": 56,
+      "title": "\"Karma\"",
+      "artist": "Alicia Keys"
+    },
+    {
+      "pos": 57,
+      "title": "\"Speed of Sound\"",
+      "artist": "Coldplay"
+    },
+    {
+      "pos": 58,
+      "title": "\"I Don't Want to Be\"",
+      "artist": "Gavin DeGraw"
+    },
+    {
+      "pos": 59,
+      "title": "\"Mockingbird\"",
+      "artist": "Eminem"
+    },
+    {
+      "pos": 60,
+      "title": "\"La Tortura\"",
+      "artist": "Shakira featuring Alejandro Sanz"
+    },
+    {
+      "pos": 61,
+      "title": "\"She Will Be Loved\"",
+      "artist": "Maroon 5"
+    },
+    {
+      "pos": 62,
+      "title": "\"Baby I'm Back\"",
+      "artist": "Baby Bash featuring Akon"
+    },
+    {
+      "pos": 63,
+      "title": "\"Wait (The Whisper Song)\"",
+      "artist": "Ying Yang Twins"
+    },
+    {
+      "pos": 64,
+      "title": "\"Incomplete\"",
+      "artist": "Backstreet Boys"
+    },
+    {
+      "pos": 65,
+      "title": "\"Bring Em Out\"",
+      "artist": "T.I."
+    },
+    {
+      "pos": 66,
+      "title": "\"Cater 2 U\"",
+      "artist": "Destiny's Child"
+    },
+    {
+      "pos": 67,
+      "title": "\"1 Thing\"",
+      "artist": "Amerie"
+    },
+    {
+      "pos": 68,
+      "title": "\"Best of You\"",
+      "artist": "Foo Fighters"
+    },
+    {
+      "pos": 69,
+      "title": "\"It's Like That\"",
+      "artist": "Mariah Carey featuring Jermaine Dupri and Fatman Scoop"
+    },
+    {
+      "pos": 70,
+      "title": "\"Goin' Crazy\"",
+      "artist": "Natalie"
+    },
+    {
+      "pos": 71,
+      "title": "\"Inside Your Heaven\"",
+      "artist": "Carrie Underwood"
+    },
+    {
+      "pos": 72,
+      "title": "\"Because of You\"",
+      "artist": "Kelly Clarkson"
+    },
+    {
+      "pos": 73,
+      "title": "\"Truth Is\"",
+      "artist": "Fantasia"
+    },
+    {
+      "pos": 74,
+      "title": "\"Your Body\"",
+      "artist": "Pretty Ricky"
+    },
+    {
+      "pos": 75,
+      "title": "\"Beautiful Soul\"",
+      "artist": "Jesse McCartney"
+    },
+    {
+      "pos": 76,
+      "title": "\"Cool\"",
+      "artist": "Gwen Stefani"
+    },
+    {
+      "pos": 77,
+      "title": "\"Get Back\"",
+      "artist": "Ludacris"
+    },
+    {
+      "pos": 78,
+      "title": "\"Outta Control\"",
+      "artist": "50 Cent featuring Mobb Deep"
+    },
+    {
+      "pos": 79,
+      "title": "\"U Don't Know Me\"",
+      "artist": "T.I."
+    },
+    {
+      "pos": 80,
+      "title": "\"These Words\"",
+      "artist": "Natasha Bedingfield"
+    },
+    {
+      "pos": 81,
+      "title": "\"Don't Lie\"",
+      "artist": "The Black Eyed Peas"
+    },
+    {
+      "pos": 82,
+      "title": "\"Get Right\"",
+      "artist": "Jennifer Lopez"
+    },
+    {
+      "pos": 83,
+      "title": "\"Daughters\"",
+      "artist": "John Mayer"
+    },
+    {
+      "pos": 84,
+      "title": "\"As Good as I Once Was\"",
+      "artist": "Toby Keith"
+    },
+    {
+      "pos": 85,
+      "title": "\"Girlfight\"",
+      "artist": "Brooke Valentine featuring Lil Jon and Big Boi"
+    },
+    {
+      "pos": 86,
+      "title": "\"Lose My Breath\"",
+      "artist": "Destiny's Child"
+    },
+    {
+      "pos": 87,
+      "title": "\"Ordinary People\"",
+      "artist": "John Legend"
+    },
+    {
+      "pos": 88,
+      "title": "\"We Be Burnin'\"",
+      "artist": "Sean Paul"
+    },
+    {
+      "pos": 89,
+      "title": "\"Just the Girl\"",
+      "artist": "The Click Five"
+    },
+    {
+      "pos": 90,
+      "title": "\"True\"",
+      "artist": "Ryan Cabrera"
+    },
+    {
+      "pos": 91,
+      "title": "\"O\"",
+      "artist": "Omarion"
+    },
+    {
+      "pos": 92,
+      "title": "\"Back Then\"",
+      "artist": "Mike Jones"
+    },
+    {
+      "pos": 93,
+      "title": "\"Numb/Encore\"",
+      "artist": "Jay-Z and Linkin Park"
+    },
+    {
+      "pos": 94,
+      "title": "\"Wonderful\"",
+      "artist": "Ja Rule featuring R. Kelly and Ashanti"
+    },
+    {
+      "pos": 95,
+      "title": "\"I'm Sprung\"",
+      "artist": "T-Pain"
+    },
+    {
+      "pos": 96,
+      "title": "\"Chariot\"",
+      "artist": "Gavin DeGraw"
+    },
+    {
+      "pos": 97,
+      "title": "\"U Already Know\"",
+      "artist": "112 featuring Foxy Brown"
+    },
+    {
+      "pos": 98,
+      "title": "\"Mississippi Girl\"",
+      "artist": "Faith Hill"
+    },
+    {
+      "pos": 99,
+      "title": "\"Number One Spot\"",
+      "artist": "Ludacris"
+    },
+    {
+      "pos": 100,
+      "title": "\"Give Me That\"",
+      "artist": "Webbie featuring Bun B"
+    }
+  ]
+}

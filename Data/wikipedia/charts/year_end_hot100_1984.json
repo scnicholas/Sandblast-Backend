@@ -1,0 +1,512 @@
+{
+  "year": 1984,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1984",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"When Doves Cry\"",
+      "artist": "Prince"
+    },
+    {
+      "pos": 2,
+      "title": "\"What's Love Got to Do with It\"",
+      "artist": "Tina Turner"
+    },
+    {
+      "pos": 3,
+      "title": "\"Say, Say, Say\"",
+      "artist": "Paul McCartney and Michael Jackson"
+    },
+    {
+      "pos": 4,
+      "title": "\"Footloose\"",
+      "artist": "Kenny Loggins"
+    },
+    {
+      "pos": 5,
+      "title": "\"Against All Odds (Take a Look at Me Now)\"",
+      "artist": "Phil Collins"
+    },
+    {
+      "pos": 6,
+      "title": "\"Jump\"",
+      "artist": "Van Halen"
+    },
+    {
+      "pos": 7,
+      "title": "\"Hello\"",
+      "artist": "Lionel Richie"
+    },
+    {
+      "pos": 8,
+      "title": "\"Owner of a Lonely Heart\"",
+      "artist": "Yes"
+    },
+    {
+      "pos": 9,
+      "title": "\"Ghostbusters\"",
+      "artist": "Ray Parker Jr."
+    },
+    {
+      "pos": 10,
+      "title": "\"Karma Chameleon\"",
+      "artist": "Culture Club"
+    },
+    {
+      "pos": 11,
+      "title": "\"Missing You\"",
+      "artist": "John Waite"
+    },
+    {
+      "pos": 12,
+      "title": "\"All Night Long (All Night)\"",
+      "artist": "Lionel Richie"
+    },
+    {
+      "pos": 13,
+      "title": "\"Let's Hear It for the Boy\"",
+      "artist": "Deniece Williams"
+    },
+    {
+      "pos": 14,
+      "title": "\"Dancing in the Dark\"",
+      "artist": "Bruce Springsteen"
+    },
+    {
+      "pos": 15,
+      "title": "\"Girls Just Want to Have Fun\"",
+      "artist": "Cyndi Lauper"
+    },
+    {
+      "pos": 16,
+      "title": "\"The Reflex\"",
+      "artist": "Duran Duran"
+    },
+    {
+      "pos": 17,
+      "title": "\"Time After Time\"",
+      "artist": "Cyndi Lauper"
+    },
+    {
+      "pos": 18,
+      "title": "\"Jump (For My Love)\"",
+      "artist": "The Pointer Sisters"
+    },
+    {
+      "pos": 19,
+      "title": "\"Talking in Your Sleep\"",
+      "artist": "The Romantics"
+    },
+    {
+      "pos": 20,
+      "title": "\"Self Control\"",
+      "artist": "Laura Branigan"
+    },
+    {
+      "pos": 21,
+      "title": "\"Let's Go Crazy\"",
+      "artist": "Prince & the Revolution"
+    },
+    {
+      "pos": 22,
+      "title": "\"Say It Isn't So\"",
+      "artist": "Daryl Hall & John Oates"
+    },
+    {
+      "pos": 23,
+      "title": "\"Hold Me Now\"",
+      "artist": "Thompson Twins"
+    },
+    {
+      "pos": 24,
+      "title": "\"Joanna\"",
+      "artist": "Kool & the Gang"
+    },
+    {
+      "pos": 25,
+      "title": "\"I Just Called to Say I Love You\"",
+      "artist": "Stevie Wonder"
+    },
+    {
+      "pos": 26,
+      "title": "\"Somebody's Watching Me\"",
+      "artist": "Rockwell"
+    },
+    {
+      "pos": 27,
+      "title": "\"Break My Stride\"",
+      "artist": "Matthew Wilder"
+    },
+    {
+      "pos": 28,
+      "title": "\"99 Luftballons/99 Red Balloons\"",
+      "artist": "Nena"
+    },
+    {
+      "pos": 29,
+      "title": "\"I Can Dream About You\"",
+      "artist": "Dan Hartman"
+    },
+    {
+      "pos": 30,
+      "title": "\"The Glamorous Life\"",
+      "artist": "Sheila E."
+    },
+    {
+      "pos": 31,
+      "title": "\"Oh Sherrie\"",
+      "artist": "Steve Perry"
+    },
+    {
+      "pos": 32,
+      "title": "\"Stuck on You\"",
+      "artist": "Lionel Richie"
+    },
+    {
+      "pos": 33,
+      "title": "\"I Guess That's Why They Call It the Blues\"",
+      "artist": "Elton John"
+    },
+    {
+      "pos": 34,
+      "title": "\"She Bop\"",
+      "artist": "Cyndi Lauper"
+    },
+    {
+      "pos": 35,
+      "title": "\"Borderline\"",
+      "artist": "Madonna"
+    },
+    {
+      "pos": 36,
+      "title": "\"Sunglasses at Night\"",
+      "artist": "Corey Hart"
+    },
+    {
+      "pos": 37,
+      "title": "\"Eyes Without a Face\"",
+      "artist": "Billy Idol"
+    },
+    {
+      "pos": 38,
+      "title": "\"Here Comes the Rain Again\"",
+      "artist": "Eurythmics"
+    },
+    {
+      "pos": 39,
+      "title": "\"Uptown Girl\"",
+      "artist": "Billy Joel"
+    },
+    {
+      "pos": 40,
+      "title": "\"Sister Christian\"",
+      "artist": "Night Ranger"
+    },
+    {
+      "pos": 41,
+      "title": "\"Drive\"",
+      "artist": "The Cars"
+    },
+    {
+      "pos": 42,
+      "title": "\"Twist of Fate\"",
+      "artist": "Olivia Newton-John"
+    },
+    {
+      "pos": 43,
+      "title": "\"Union of the Snake\"",
+      "artist": "Duran Duran"
+    },
+    {
+      "pos": 44,
+      "title": "\"The Heart of Rock & Roll\"",
+      "artist": "Huey Lewis and the News"
+    },
+    {
+      "pos": 45,
+      "title": "\"Hard Habit to Break\"",
+      "artist": "Chicago"
+    },
+    {
+      "pos": 46,
+      "title": "\"The Warrior\"",
+      "artist": "Scandal"
+    },
+    {
+      "pos": 47,
+      "title": "\"If Ever You're in My Arms Again\"",
+      "artist": "Peabo Bryson"
+    },
+    {
+      "pos": 48,
+      "title": "\"Automatic\"",
+      "artist": "The Pointer Sisters"
+    },
+    {
+      "pos": 49,
+      "title": "\"Let the Music Play\"",
+      "artist": "Shannon"
+    },
+    {
+      "pos": 50,
+      "title": "\"To All the Girls I've Loved Before\"",
+      "artist": "Julio Iglesias and Willie Nelson"
+    },
+    {
+      "pos": 51,
+      "title": "\"Caribbean Queen (No More Love on the Run)\"",
+      "artist": "Billy Ocean"
+    },
+    {
+      "pos": 52,
+      "title": "\"That's All\"",
+      "artist": "Genesis"
+    },
+    {
+      "pos": 53,
+      "title": "\"Running with the Night\"",
+      "artist": "Lionel Richie"
+    },
+    {
+      "pos": 54,
+      "title": "\"Sad Songs (Say So Much)\"",
+      "artist": "Elton John"
+    },
+    {
+      "pos": 55,
+      "title": "\"I Want a New Drug\"",
+      "artist": "Huey Lewis and the News"
+    },
+    {
+      "pos": 56,
+      "title": "\"Islands in the Stream\"",
+      "artist": "Kenny Rogers and Dolly Parton"
+    },
+    {
+      "pos": 57,
+      "title": "\"Love Is a Battlefield\"",
+      "artist": "Pat Benatar"
+    },
+    {
+      "pos": 58,
+      "title": "\"Infatuation\"",
+      "artist": "Rod Stewart"
+    },
+    {
+      "pos": 59,
+      "title": "\"Almost Paradise\"",
+      "artist": "Mike Reno and Ann Wilson"
+    },
+    {
+      "pos": 60,
+      "title": "\"Legs\"",
+      "artist": "ZZ Top"
+    },
+    {
+      "pos": 61,
+      "title": "\"State of Shock\"",
+      "artist": "The Jacksons"
+    },
+    {
+      "pos": 62,
+      "title": "\"Love Somebody\"",
+      "artist": "Rick Springfield"
+    },
+    {
+      "pos": 63,
+      "title": "\"Miss Me Blind\"",
+      "artist": "Culture Club"
+    },
+    {
+      "pos": 64,
+      "title": "\"If This Is It\"",
+      "artist": "Huey Lewis and the News"
+    },
+    {
+      "pos": 65,
+      "title": "\"You Might Think\"",
+      "artist": "The Cars"
+    },
+    {
+      "pos": 66,
+      "title": "\"Lucky Star\"",
+      "artist": "Madonna"
+    },
+    {
+      "pos": 67,
+      "title": "\"Cover Me\"",
+      "artist": "Bruce Springsteen"
+    },
+    {
+      "pos": 68,
+      "title": "\"Cum on Feel the Noize\"",
+      "artist": "Quiet Riot"
+    },
+    {
+      "pos": 69,
+      "title": "\"Breakdance\"",
+      "artist": "Irene Cara"
+    },
+    {
+      "pos": 70,
+      "title": "\"Adult Education\"",
+      "artist": "Daryl Hall & John Oates"
+    },
+    {
+      "pos": 71,
+      "title": "\"They Don't Know\"",
+      "artist": "Tracey Ullman"
+    },
+    {
+      "pos": 72,
+      "title": "\"An Innocent Man\"",
+      "artist": "Billy Joel"
+    },
+    {
+      "pos": 73,
+      "title": "\"Cruel Summer\"",
+      "artist": "Bananarama"
+    },
+    {
+      "pos": 74,
+      "title": "\"Dance Hall Days\"",
+      "artist": "Wang Chung"
+    },
+    {
+      "pos": 75,
+      "title": "\"Give It Up\"",
+      "artist": "KC and the Sunshine Band"
+    },
+    {
+      "pos": 76,
+      "title": "\"I'm So Excited\"",
+      "artist": "The Pointer Sisters"
+    },
+    {
+      "pos": 77,
+      "title": "\"I Still Can't Get Over Loving You\"",
+      "artist": "Ray Parker Jr."
+    },
+    {
+      "pos": 78,
+      "title": "\"Thriller\"",
+      "artist": "Michael Jackson"
+    },
+    {
+      "pos": 79,
+      "title": "\"Holiday\"",
+      "artist": "Madonna"
+    },
+    {
+      "pos": 80,
+      "title": "\"Breakin'... There's No Stopping Us\"",
+      "artist": "Ollie & Jerry"
+    },
+    {
+      "pos": 81,
+      "title": "\"Nobody Told Me\"",
+      "artist": "John Lennon"
+    },
+    {
+      "pos": 82,
+      "title": "\"Church of the Poison Mind\"",
+      "artist": "Culture Club"
+    },
+    {
+      "pos": 83,
+      "title": "\"Think of Laura\"",
+      "artist": "Christopher Cross"
+    },
+    {
+      "pos": 84,
+      "title": "\"Time Will Reveal\"",
+      "artist": "DeBarge"
+    },
+    {
+      "pos": 85,
+      "title": "\"Wrapped Around Your Finger\"",
+      "artist": "The Police"
+    },
+    {
+      "pos": 86,
+      "title": "\"Pink Houses\"",
+      "artist": "John Cougar Mellencamp"
+    },
+    {
+      "pos": 87,
+      "title": "\"Round and Round\"",
+      "artist": "Ratt"
+    },
+    {
+      "pos": 88,
+      "title": "\"Head over Heels\"",
+      "artist": "The Go-Go's"
+    },
+    {
+      "pos": 89,
+      "title": "\"The Longest Time\"",
+      "artist": "Billy Joel"
+    },
+    {
+      "pos": 90,
+      "title": "\"Tonight\"",
+      "artist": "Kool & the Gang"
+    },
+    {
+      "pos": 91,
+      "title": "\"Got a Hold on Me\"",
+      "artist": "Christine McVie"
+    },
+    {
+      "pos": 92,
+      "title": "\"Dancing in the Sheets\"",
+      "artist": "Shalamar"
+    },
+    {
+      "pos": 93,
+      "title": "\"Undercover of the Night\"",
+      "artist": "The Rolling Stones"
+    },
+    {
+      "pos": 94,
+      "title": "\"On the Dark Side\"",
+      "artist": "John Cafferty and the Beaver Brown Band"
+    },
+    {
+      "pos": 95,
+      "title": "\"New Moon on Monday\"",
+      "artist": "Duran Duran"
+    },
+    {
+      "pos": 96,
+      "title": "\"Major Tom (Coming Home)\"",
+      "artist": "Peter Schilling"
+    },
+    {
+      "pos": 97,
+      "title": "\"Magic\"",
+      "artist": "The Cars"
+    },
+    {
+      "pos": 98,
+      "title": "\"When You Close Your Eyes\"",
+      "artist": "Night Ranger"
+    },
+    {
+      "pos": 99,
+      "title": "\"Rock Me Tonite\"",
+      "artist": "Billy Squier"
+    },
+    {
+      "pos": 100,
+      "title": "\"Yah Mo B There\"",
+      "artist": "James Ingram and Michael McDonald"
+    }
+  ]
+}

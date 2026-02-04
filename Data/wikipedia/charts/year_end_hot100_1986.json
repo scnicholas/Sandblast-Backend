@@ -1,0 +1,512 @@
+{
+  "year": 1986,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1986",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"That's What Friends Are For\"",
+      "artist": "Dionne and Friends (Dionne Warwick, Gladys Knight, Elton John and Stevie Wonder)"
+    },
+    {
+      "pos": 2,
+      "title": "\"Say You, Say Me\"",
+      "artist": "Lionel Richie"
+    },
+    {
+      "pos": 3,
+      "title": "\"I Miss You\"",
+      "artist": "Klymaxx"
+    },
+    {
+      "pos": 4,
+      "title": "\"On My Own\"",
+      "artist": "Patti LaBelle and Michael McDonald"
+    },
+    {
+      "pos": 5,
+      "title": "\"Broken Wings\"",
+      "artist": "Mr. Mister"
+    },
+    {
+      "pos": 6,
+      "title": "\"How Will I Know\"",
+      "artist": "Whitney Houston"
+    },
+    {
+      "pos": 7,
+      "title": "\"Party All the Time\"",
+      "artist": "Eddie Murphy"
+    },
+    {
+      "pos": 8,
+      "title": "\"Burning Heart\"",
+      "artist": "Survivor"
+    },
+    {
+      "pos": 9,
+      "title": "\"Kyrie\"",
+      "artist": "Mr. Mister"
+    },
+    {
+      "pos": 10,
+      "title": "\"Addicted to Love\"",
+      "artist": "Robert Palmer"
+    },
+    {
+      "pos": 11,
+      "title": "\"The Greatest Love of All\"",
+      "artist": "Whitney Houston"
+    },
+    {
+      "pos": 12,
+      "title": "\"Secret Lovers\"",
+      "artist": "Atlantic Starr"
+    },
+    {
+      "pos": 13,
+      "title": "\"Friends and Lovers\"",
+      "artist": "Gloria Loring and Carl Anderson"
+    },
+    {
+      "pos": 14,
+      "title": "\"Glory of Love\"",
+      "artist": "Peter Cetera"
+    },
+    {
+      "pos": 15,
+      "title": "\"West End Girls\"",
+      "artist": "Pet Shop Boys"
+    },
+    {
+      "pos": 16,
+      "title": "\"There'll Be Sad Songs (To Make You Cry)\"",
+      "artist": "Billy Ocean"
+    },
+    {
+      "pos": 17,
+      "title": "\"Alive and Kicking\"",
+      "artist": "Simple Minds"
+    },
+    {
+      "pos": 18,
+      "title": "\"Never\"",
+      "artist": "Heart"
+    },
+    {
+      "pos": 19,
+      "title": "\"Kiss\"",
+      "artist": "Prince and The Revolution"
+    },
+    {
+      "pos": 20,
+      "title": "\"Higher Love\"",
+      "artist": "Steve Winwood"
+    },
+    {
+      "pos": 21,
+      "title": "\"Stuck with You\"",
+      "artist": "Huey Lewis and the News"
+    },
+    {
+      "pos": 22,
+      "title": "\"Holding Back the Years\"",
+      "artist": "Simply Red"
+    },
+    {
+      "pos": 23,
+      "title": "\"Sledgehammer\"",
+      "artist": "Peter Gabriel"
+    },
+    {
+      "pos": 24,
+      "title": "\"Sara\"",
+      "artist": "Starship"
+    },
+    {
+      "pos": 25,
+      "title": "\"Human\"",
+      "artist": "The Human League"
+    },
+    {
+      "pos": 26,
+      "title": "\"I Can't Wait\"",
+      "artist": "Nu Shooz"
+    },
+    {
+      "pos": 27,
+      "title": "\"Take My Breath Away\"",
+      "artist": "Berlin"
+    },
+    {
+      "pos": 28,
+      "title": "\"Rock Me Amadeus\"",
+      "artist": "Falco"
+    },
+    {
+      "pos": 29,
+      "title": "\"Papa Don't Preach\"",
+      "artist": "Madonna"
+    },
+    {
+      "pos": 30,
+      "title": "\"You Give Love a Bad Name\"",
+      "artist": "Bon Jovi"
+    },
+    {
+      "pos": 31,
+      "title": "\"When the Going Gets Tough, the Tough Get Going\"",
+      "artist": "Billy Ocean"
+    },
+    {
+      "pos": 32,
+      "title": "\"When I Think of You\"",
+      "artist": "Janet Jackson"
+    },
+    {
+      "pos": 33,
+      "title": "\"These Dreams\"",
+      "artist": "Heart"
+    },
+    {
+      "pos": 34,
+      "title": "\"Don't Forget Me (When I'm Gone)\"",
+      "artist": "Glass Tiger"
+    },
+    {
+      "pos": 35,
+      "title": "\"Live to Tell\"",
+      "artist": "Madonna"
+    },
+    {
+      "pos": 36,
+      "title": "\"Mad About You\"",
+      "artist": "Belinda Carlisle"
+    },
+    {
+      "pos": 37,
+      "title": "\"Something About You\"",
+      "artist": "Level 42"
+    },
+    {
+      "pos": 38,
+      "title": "\"Venus\"",
+      "artist": "Bananarama"
+    },
+    {
+      "pos": 39,
+      "title": "\"Dancing on the Ceiling\"",
+      "artist": "Lionel Richie"
+    },
+    {
+      "pos": 40,
+      "title": "\"Conga\"",
+      "artist": "Miami Sound Machine"
+    },
+    {
+      "pos": 41,
+      "title": "\"True Colors\"",
+      "artist": "Cyndi Lauper"
+    },
+    {
+      "pos": 42,
+      "title": "\"Danger Zone\"",
+      "artist": "Kenny Loggins"
+    },
+    {
+      "pos": 43,
+      "title": "\"What Have You Done For Me Lately\"",
+      "artist": "Janet Jackson"
+    },
+    {
+      "pos": 44,
+      "title": "\"No One Is to Blame\"",
+      "artist": "Howard Jones"
+    },
+    {
+      "pos": 45,
+      "title": "\"Let's Go All the Way\"",
+      "artist": "Sly Fox"
+    },
+    {
+      "pos": 46,
+      "title": "\"I Didn't Mean to Turn You On\"",
+      "artist": "Robert Palmer"
+    },
+    {
+      "pos": 47,
+      "title": "\"Words Get in the Way\"",
+      "artist": "Miami Sound Machine"
+    },
+    {
+      "pos": 48,
+      "title": "\"Manic Monday\"",
+      "artist": "The Bangles"
+    },
+    {
+      "pos": 49,
+      "title": "\"Walk of Life\"",
+      "artist": "Dire Straits"
+    },
+    {
+      "pos": 50,
+      "title": "\"Amanda\"",
+      "artist": "Boston"
+    },
+    {
+      "pos": 51,
+      "title": "\"Two of Hearts\"",
+      "artist": "Stacey Q"
+    },
+    {
+      "pos": 52,
+      "title": "\"Crush on You\"",
+      "artist": "The Jets"
+    },
+    {
+      "pos": 53,
+      "title": "\"If You Leave\"",
+      "artist": "Orchestral Manoeuvres in the Dark"
+    },
+    {
+      "pos": 54,
+      "title": "\"Invisible Touch\"",
+      "artist": "Genesis"
+    },
+    {
+      "pos": 55,
+      "title": "\"The Sweetest Taboo\"",
+      "artist": "Sade"
+    },
+    {
+      "pos": 56,
+      "title": "\"What You Need\"",
+      "artist": "INXS"
+    },
+    {
+      "pos": 57,
+      "title": "\"Talk to Me\"",
+      "artist": "Stevie Nicks"
+    },
+    {
+      "pos": 58,
+      "title": "\"Nasty\"",
+      "artist": "Janet Jackson"
+    },
+    {
+      "pos": 59,
+      "title": "\"Take Me Home Tonight\"",
+      "artist": "Eddie Money"
+    },
+    {
+      "pos": 60,
+      "title": "\"We Don't Have to Take Our Clothes Off\"",
+      "artist": "Jermaine Stewart"
+    },
+    {
+      "pos": 61,
+      "title": "\"All Cried Out\"",
+      "artist": "Lisa Lisa and Cult Jam"
+    },
+    {
+      "pos": 62,
+      "title": "\"Your Love\"",
+      "artist": "The Outfield"
+    },
+    {
+      "pos": 63,
+      "title": "\"I'm Your Man\"",
+      "artist": "Wham!"
+    },
+    {
+      "pos": 64,
+      "title": "\"Perfect Way\"",
+      "artist": "Scritti Politti"
+    },
+    {
+      "pos": 65,
+      "title": "\"Living in America\"",
+      "artist": "James Brown"
+    },
+    {
+      "pos": 66,
+      "title": "\"R.O.C.K. in the U.S.A.\"",
+      "artist": "John Cougar Mellencamp"
+    },
+    {
+      "pos": 67,
+      "title": "\"Who's Johnny\"",
+      "artist": "El DeBarge"
+    },
+    {
+      "pos": 68,
+      "title": "\"Word Up!\"",
+      "artist": "Cameo"
+    },
+    {
+      "pos": 69,
+      "title": "\"Why Can't This Be Love\"",
+      "artist": "Van Halen"
+    },
+    {
+      "pos": 70,
+      "title": "\"Silent Running (On Dangerous Ground)\"",
+      "artist": "Mike + The Mechanics"
+    },
+    {
+      "pos": 71,
+      "title": "\"Typical Male\"",
+      "artist": "Tina Turner"
+    },
+    {
+      "pos": 72,
+      "title": "\"Small Town\"",
+      "artist": "John Cougar Mellencamp"
+    },
+    {
+      "pos": 73,
+      "title": "\"Tarzan Boy\"",
+      "artist": "Baltimora"
+    },
+    {
+      "pos": 74,
+      "title": "\"All I Need Is a Miracle\"",
+      "artist": "Mike + The Mechanics"
+    },
+    {
+      "pos": 75,
+      "title": "\"Sweet Freedom\"",
+      "artist": "Michael McDonald"
+    },
+    {
+      "pos": 76,
+      "title": "\"True Blue\"",
+      "artist": "Madonna"
+    },
+    {
+      "pos": 77,
+      "title": "\"Rumors\"",
+      "artist": "Timex Social Club"
+    },
+    {
+      "pos": 78,
+      "title": "\"Life in a Northern Town\"",
+      "artist": "Dream Academy"
+    },
+    {
+      "pos": 79,
+      "title": "\"Bad Boy\"",
+      "artist": "Miami Sound Machine"
+    },
+    {
+      "pos": 80,
+      "title": "\"Sleeping Bag\"",
+      "artist": "ZZ Top"
+    },
+    {
+      "pos": 81,
+      "title": "\"Tonight She Comes\"",
+      "artist": "The Cars"
+    },
+    {
+      "pos": 82,
+      "title": "\"Love Touch\"",
+      "artist": "Rod Stewart"
+    },
+    {
+      "pos": 83,
+      "title": "\"A Love Bizarre\"",
+      "artist": "Sheila E."
+    },
+    {
+      "pos": 84,
+      "title": "\"Throwing It All Away\"",
+      "artist": "Genesis"
+    },
+    {
+      "pos": 85,
+      "title": "\"Baby Love\"",
+      "artist": "Regina"
+    },
+    {
+      "pos": 86,
+      "title": "\"Election Day\"",
+      "artist": "Arcadia"
+    },
+    {
+      "pos": 87,
+      "title": "\"Nikita\"",
+      "artist": "Elton John"
+    },
+    {
+      "pos": 88,
+      "title": "\"Take Me Home\"",
+      "artist": "Phil Collins"
+    },
+    {
+      "pos": 89,
+      "title": "\"Walk This Way\"",
+      "artist": "Run–D.M.C. featuring Aerosmith"
+    },
+    {
+      "pos": 90,
+      "title": "\"Sweet Love\"",
+      "artist": "Anita Baker"
+    },
+    {
+      "pos": 91,
+      "title": "\"Your Wildest Dreams\"",
+      "artist": "Moody Blues"
+    },
+    {
+      "pos": 92,
+      "title": "\"Spies Like Us\"",
+      "artist": "Paul McCartney"
+    },
+    {
+      "pos": 93,
+      "title": "\"Object of My Desire\"",
+      "artist": "Starpoint"
+    },
+    {
+      "pos": 94,
+      "title": "\"Dreamtime\"",
+      "artist": "Daryl Hall"
+    },
+    {
+      "pos": 95,
+      "title": "\"Tender Love\"",
+      "artist": "Force MDs"
+    },
+    {
+      "pos": 96,
+      "title": "\"King for a Day\"",
+      "artist": "Thompson Twins"
+    },
+    {
+      "pos": 97,
+      "title": "\"Love Will Conquer All\"",
+      "artist": "Lionel Richie"
+    },
+    {
+      "pos": 98,
+      "title": "\"A Different Corner\"",
+      "artist": "George Michael"
+    },
+    {
+      "pos": 99,
+      "title": "\"I'll Be Over You\"",
+      "artist": "Toto"
+    },
+    {
+      "pos": 100,
+      "title": "\"Go Home\"",
+      "artist": "Stevie Wonder"
+    }
+  ]
+}

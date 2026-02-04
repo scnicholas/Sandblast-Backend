@@ -1,0 +1,512 @@
+{
+  "year": 2014,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_2014",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"Happy\"",
+      "artist": "Pharrell Williams"
+    },
+    {
+      "pos": 2,
+      "title": "\"Dark Horse\"",
+      "artist": "Katy Perry featuring Juicy J"
+    },
+    {
+      "pos": 3,
+      "title": "\"All of Me\"",
+      "artist": "John Legend"
+    },
+    {
+      "pos": 4,
+      "title": "\"Fancy\"",
+      "artist": "Iggy Azalea featuring Charli XCX"
+    },
+    {
+      "pos": 5,
+      "title": "\"Counting Stars\"",
+      "artist": "OneRepublic"
+    },
+    {
+      "pos": 6,
+      "title": "\"Talk Dirty\"",
+      "artist": "Jason Derulo featuring 2 Chainz"
+    },
+    {
+      "pos": 7,
+      "title": "\"Rude\"",
+      "artist": "Magic!"
+    },
+    {
+      "pos": 8,
+      "title": "\"All About That Bass\"",
+      "artist": "Meghan Trainor"
+    },
+    {
+      "pos": 9,
+      "title": "\"Problem\"",
+      "artist": "Ariana Grande featuring Iggy Azalea"
+    },
+    {
+      "pos": 10,
+      "title": "\"Stay with Me\"",
+      "artist": "Sam Smith"
+    },
+    {
+      "pos": 11,
+      "title": "\"Timber\"",
+      "artist": "Pitbull featuring Kesha"
+    },
+    {
+      "pos": 12,
+      "title": "\"Pompeii\"",
+      "artist": "Bastille"
+    },
+    {
+      "pos": 13,
+      "title": "\"Shake It Off\"",
+      "artist": "Taylor Swift"
+    },
+    {
+      "pos": 14,
+      "title": "\"Am I Wrong\"",
+      "artist": "Nico & Vinz"
+    },
+    {
+      "pos": 15,
+      "title": "\"Turn Down for What\"",
+      "artist": "DJ Snake and Lil Jon"
+    },
+    {
+      "pos": 16,
+      "title": "\"The Monster\"",
+      "artist": "Eminem featuring Rihanna"
+    },
+    {
+      "pos": 17,
+      "title": "\"Say Something\"",
+      "artist": "A Great Big World and Christina Aguilera"
+    },
+    {
+      "pos": 18,
+      "title": "\"Team\"",
+      "artist": "Lorde"
+    },
+    {
+      "pos": 19,
+      "title": "\"Let Her Go\"",
+      "artist": "Passenger"
+    },
+    {
+      "pos": 20,
+      "title": "\"Royals\"",
+      "artist": "Lorde"
+    },
+    {
+      "pos": 21,
+      "title": "\"Let It Go\"",
+      "artist": "Idina Menzel"
+    },
+    {
+      "pos": 22,
+      "title": "\"Wake Me Up\"",
+      "artist": "Avicii"
+    },
+    {
+      "pos": 23,
+      "title": "\"Demons\"",
+      "artist": "Imagine Dragons"
+    },
+    {
+      "pos": 24,
+      "title": "\"Story of My Life\"",
+      "artist": "One Direction"
+    },
+    {
+      "pos": 25,
+      "title": "\"Chandelier\"",
+      "artist": "Sia"
+    },
+    {
+      "pos": 26,
+      "title": "\"Black Widow\"",
+      "artist": "Iggy Azalea featuring Rita Ora"
+    },
+    {
+      "pos": 27,
+      "title": "\"Bang Bang\"",
+      "artist": "Jessie J, Ariana Grande and Nicki Minaj"
+    },
+    {
+      "pos": 28,
+      "title": "\"Latch\"",
+      "artist": "Disclosure featuring Sam Smith"
+    },
+    {
+      "pos": 29,
+      "title": "\"Maps\"",
+      "artist": "Maroon 5"
+    },
+    {
+      "pos": 30,
+      "title": "\"Loyal\"",
+      "artist": "Chris Brown featuring Lil Wayne and French Montana or Too Short or Tyga"
+    },
+    {
+      "pos": 31,
+      "title": "\"Best Day of My Life\"",
+      "artist": "American Authors"
+    },
+    {
+      "pos": 32,
+      "title": "\"Habits (Stay High)\"",
+      "artist": "Tove Lo"
+    },
+    {
+      "pos": 33,
+      "title": "\"Summer\"",
+      "artist": "Calvin Harris"
+    },
+    {
+      "pos": 34,
+      "title": "\"Boom Clap\"",
+      "artist": "Charli XCX"
+    },
+    {
+      "pos": 35,
+      "title": "\"Drunk in Love\"",
+      "artist": "Beyoncé featuring Jay-Z"
+    },
+    {
+      "pos": 36,
+      "title": "\"Anaconda\"",
+      "artist": "Nicki Minaj"
+    },
+    {
+      "pos": 37,
+      "title": "\"Break Free\"",
+      "artist": "Ariana Grande featuring Zedd"
+    },
+    {
+      "pos": 38,
+      "title": "\"Bailando\"",
+      "artist": "Enrique Iglesias featuring Descemer Bueno and Gente de Zona"
+    },
+    {
+      "pos": 39,
+      "title": "\"Burn\"",
+      "artist": "Ellie Goulding"
+    },
+    {
+      "pos": 40,
+      "title": "\"Wiggle\"",
+      "artist": "Jason Derulo featuring Snoop Dogg"
+    },
+    {
+      "pos": 41,
+      "title": "\"Rather Be\"",
+      "artist": "Clean Bandit featuring Jess Glynne"
+    },
+    {
+      "pos": 42,
+      "title": "\"Don't Tell 'Em\"",
+      "artist": "Jeremih featuring YG"
+    },
+    {
+      "pos": 43,
+      "title": "\"Show Me\"",
+      "artist": "Kid Ink featuring Chris Brown"
+    },
+    {
+      "pos": 44,
+      "title": "\"Wrecking Ball\"",
+      "artist": "Miley Cyrus"
+    },
+    {
+      "pos": 45,
+      "title": "\"Not a Bad Thing\"",
+      "artist": "Justin Timberlake"
+    },
+    {
+      "pos": 46,
+      "title": "\"Roar\"",
+      "artist": "Katy Perry"
+    },
+    {
+      "pos": 47,
+      "title": "\"Ain't It Fun\"",
+      "artist": "Paramore"
+    },
+    {
+      "pos": 48,
+      "title": "\"The Man\"",
+      "artist": "Aloe Blacc"
+    },
+    {
+      "pos": 49,
+      "title": "\"This Is How We Roll\"",
+      "artist": "Florida Georgia Line featuring Luke Bryan"
+    },
+    {
+      "pos": 50,
+      "title": "\"Classic\"",
+      "artist": "MKTO"
+    },
+    {
+      "pos": 51,
+      "title": "\"A Sky Full of Stars\"",
+      "artist": "Coldplay"
+    },
+    {
+      "pos": 52,
+      "title": "\"Don't\"",
+      "artist": "Ed Sheeran"
+    },
+    {
+      "pos": 53,
+      "title": "\"Na Na\"",
+      "artist": "Trey Songz"
+    },
+    {
+      "pos": 54,
+      "title": "\"Hot Boy\"",
+      "artist": "Bobby Shmurda"
+    },
+    {
+      "pos": 55,
+      "title": "\"Hold On, We're Going Home\"",
+      "artist": "Drake featuring Majid Jordan"
+    },
+    {
+      "pos": 56,
+      "title": "\"Sing\"",
+      "artist": "Ed Sheeran"
+    },
+    {
+      "pos": 57,
+      "title": "\"Radioactive\"",
+      "artist": "Imagine Dragons"
+    },
+    {
+      "pos": 58,
+      "title": "\"My Hitta\"",
+      "artist": "YG featuring Jeezy and Rich Homie Quan"
+    },
+    {
+      "pos": 59,
+      "title": "\"Cool Kids\"",
+      "artist": "Echosmith"
+    },
+    {
+      "pos": 60,
+      "title": "\"Hey Brother\"",
+      "artist": "Avicii"
+    },
+    {
+      "pos": 61,
+      "title": "\"Trumpets\"",
+      "artist": "Jason Derulo"
+    },
+    {
+      "pos": 62,
+      "title": "\"Animals\"",
+      "artist": "Maroon 5"
+    },
+    {
+      "pos": 63,
+      "title": "\"Burnin' It Down\"",
+      "artist": "Jason Aldean"
+    },
+    {
+      "pos": 64,
+      "title": "\"Play It Again\"",
+      "artist": "Luke Bryan"
+    },
+    {
+      "pos": 65,
+      "title": "\"2 On\"",
+      "artist": "Tinashe featuring ScHoolboy Q"
+    },
+    {
+      "pos": 66,
+      "title": "\"Dirt\"",
+      "artist": "Florida Georgia Line"
+    },
+    {
+      "pos": 67,
+      "title": "\"Love Runs Out\"",
+      "artist": "OneRepublic"
+    },
+    {
+      "pos": 68,
+      "title": "\"Bottoms Up\"",
+      "artist": "Brantley Gilbert"
+    },
+    {
+      "pos": 69,
+      "title": "\"Shower\"",
+      "artist": "Becky G"
+    },
+    {
+      "pos": 70,
+      "title": "\"Me and My Broken Heart\"",
+      "artist": "Rixton"
+    },
+    {
+      "pos": 71,
+      "title": "\"Animals\"",
+      "artist": "Martin Garrix"
+    },
+    {
+      "pos": 72,
+      "title": "\"Lifestyle\"",
+      "artist": "Rich Gang featuring Young Thug and Rich Homie Quan"
+    },
+    {
+      "pos": 73,
+      "title": "\"American Kids\"",
+      "artist": "Kenny Chesney"
+    },
+    {
+      "pos": 74,
+      "title": "\"Brave\"",
+      "artist": "Sara Bareilles"
+    },
+    {
+      "pos": 75,
+      "title": "\"Sweater Weather\"",
+      "artist": "The Neighbourhood"
+    },
+    {
+      "pos": 76,
+      "title": "\"Leave the Night On\"",
+      "artist": "Sam Hunt"
+    },
+    {
+      "pos": 77,
+      "title": "\"New Flame\"",
+      "artist": "Chris Brown featuring Usher and Rick Ross"
+    },
+    {
+      "pos": 78,
+      "title": "\"Love Never Felt So Good\"",
+      "artist": "Michael Jackson and Justin Timberlake"
+    },
+    {
+      "pos": 79,
+      "title": "\"Drunk on a Plane\"",
+      "artist": "Dierks Bentley"
+    },
+    {
+      "pos": 80,
+      "title": "\"Birthday\"",
+      "artist": "Katy Perry"
+    },
+    {
+      "pos": 81,
+      "title": "\"Bartender\"",
+      "artist": "Lady Antebellum"
+    },
+    {
+      "pos": 82,
+      "title": "\"La La La\"",
+      "artist": "Naughty Boy featuring Sam Smith"
+    },
+    {
+      "pos": 83,
+      "title": "\"Blurred Lines\"",
+      "artist": "Robin Thicke featuring T.I. and Pharrell Williams"
+    },
+    {
+      "pos": 84,
+      "title": "\"Do What U Want\"",
+      "artist": "Lady Gaga featuring R. Kelly"
+    },
+    {
+      "pos": 85,
+      "title": "\"Can't Remember to Forget You\"",
+      "artist": "Shakira featuring Rihanna"
+    },
+    {
+      "pos": 86,
+      "title": "\"Amnesia\"",
+      "artist": "5 Seconds of Summer"
+    },
+    {
+      "pos": 87,
+      "title": "\"No Mediocre\"",
+      "artist": "T.I. featuring Iggy Azalea"
+    },
+    {
+      "pos": 88,
+      "title": "\"Come with Me Now\"",
+      "artist": "KONGOS"
+    },
+    {
+      "pos": 89,
+      "title": "\"Believe Me\"",
+      "artist": "Lil Wayne featuring Drake"
+    },
+    {
+      "pos": 90,
+      "title": "\"23\"",
+      "artist": "Mike WiLL Made-It featuring Miley Cyrus, Wiz Khalifa, and Juicy J"
+    },
+    {
+      "pos": 91,
+      "title": "\"Beachin'\"",
+      "artist": "Jake Owen"
+    },
+    {
+      "pos": 92,
+      "title": "\"White Walls\"",
+      "artist": "Macklemore & Ryan Lewis featuring ScHoolboy Q and Hollis"
+    },
+    {
+      "pos": 93,
+      "title": "\"She Looks So Perfect\"",
+      "artist": "5 Seconds of Summer"
+    },
+    {
+      "pos": 94,
+      "title": "\"Stay the Night\"",
+      "artist": "Zedd featuring Hayley Williams"
+    },
+    {
+      "pos": 95,
+      "title": "\"Partition\"",
+      "artist": "Beyoncé"
+    },
+    {
+      "pos": 96,
+      "title": "\"Studio\"",
+      "artist": "ScHoolboy Q featuring BJ the Chicago Kid"
+    },
+    {
+      "pos": 97,
+      "title": "\"0 to 100 / The Catch Up\"",
+      "artist": "Drake"
+    },
+    {
+      "pos": 98,
+      "title": "\"I Don't Dance\"",
+      "artist": "Lee Brice"
+    },
+    {
+      "pos": 99,
+      "title": "\"Somethin' Bad\"",
+      "artist": "Miranda Lambert and Carrie Underwood"
+    },
+    {
+      "pos": 100,
+      "title": "\"Adore You\"",
+      "artist": "Miley Cyrus"
+    }
+  ]
+}

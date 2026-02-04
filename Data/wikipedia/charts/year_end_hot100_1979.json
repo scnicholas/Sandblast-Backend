@@ -1,0 +1,512 @@
+{
+  "year": 1979,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1979",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"My Sharona\"",
+      "artist": "The Knack"
+    },
+    {
+      "pos": 2,
+      "title": "\"Bad Girls\"",
+      "artist": "Donna Summer"
+    },
+    {
+      "pos": 3,
+      "title": "\"Le Freak\"",
+      "artist": "Chic"
+    },
+    {
+      "pos": 4,
+      "title": "\"Da Ya Think I'm Sexy?\"",
+      "artist": "Rod Stewart"
+    },
+    {
+      "pos": 5,
+      "title": "\"Reunited\"",
+      "artist": "Peaches & Herb"
+    },
+    {
+      "pos": 6,
+      "title": "\"I Will Survive\"",
+      "artist": "Gloria Gaynor"
+    },
+    {
+      "pos": 7,
+      "title": "\"Hot Stuff\"",
+      "artist": "Donna Summer"
+    },
+    {
+      "pos": 8,
+      "title": "\"Y.M.C.A.\"",
+      "artist": "Village People"
+    },
+    {
+      "pos": 9,
+      "title": "\"Ring My Bell\"",
+      "artist": "Anita Ward"
+    },
+    {
+      "pos": 10,
+      "title": "\"Sad Eyes\"",
+      "artist": "Robert John"
+    },
+    {
+      "pos": 11,
+      "title": "\"Too Much Heaven\"",
+      "artist": "Bee Gees"
+    },
+    {
+      "pos": 12,
+      "title": "\"MacArthur Park\"",
+      "artist": "Donna Summer"
+    },
+    {
+      "pos": 13,
+      "title": "\"When You're in Love with a Beautiful Woman\"",
+      "artist": "Dr. Hook"
+    },
+    {
+      "pos": 14,
+      "title": "\"Makin' It\"",
+      "artist": "David Naughton"
+    },
+    {
+      "pos": 15,
+      "title": "\"Fire\"",
+      "artist": "The Pointer Sisters"
+    },
+    {
+      "pos": 16,
+      "title": "\"Tragedy\"",
+      "artist": "Bee Gees"
+    },
+    {
+      "pos": 17,
+      "title": "\"A Little More Love\"",
+      "artist": "Olivia Newton-John"
+    },
+    {
+      "pos": 18,
+      "title": "\"Heart of Glass\"",
+      "artist": "Blondie"
+    },
+    {
+      "pos": 19,
+      "title": "\"What a Fool Believes\"",
+      "artist": "The Doobie Brothers"
+    },
+    {
+      "pos": 20,
+      "title": "\"Good Times\"",
+      "artist": "Chic"
+    },
+    {
+      "pos": 21,
+      "title": "\"You Don't Bring Me Flowers\"",
+      "artist": "Neil Diamond & Barbra Streisand"
+    },
+    {
+      "pos": 22,
+      "title": "\"Knock on Wood\"",
+      "artist": "Amii Stewart"
+    },
+    {
+      "pos": 23,
+      "title": "\"Stumblin' In\"",
+      "artist": "Suzi Quatro & Chris Norman"
+    },
+    {
+      "pos": 24,
+      "title": "\"Lead Me On\"",
+      "artist": "Maxine Nightingale"
+    },
+    {
+      "pos": 25,
+      "title": "\"Shake Your Body (Down to the Ground)\"",
+      "artist": "The Jacksons"
+    },
+    {
+      "pos": 26,
+      "title": "\"Don't Cry Out Loud\"",
+      "artist": "Melissa Manchester"
+    },
+    {
+      "pos": 27,
+      "title": "\"The Logical Song\"",
+      "artist": "Supertramp"
+    },
+    {
+      "pos": 28,
+      "title": "\"My Life\"",
+      "artist": "Billy Joel"
+    },
+    {
+      "pos": 29,
+      "title": "\"Just When I Needed You Most\"",
+      "artist": "Randy VanWarmer"
+    },
+    {
+      "pos": 30,
+      "title": "\"You Can't Change That\"",
+      "artist": "Raydio"
+    },
+    {
+      "pos": 31,
+      "title": "\"Shake Your Groove Thing\"",
+      "artist": "Peaches & Herb"
+    },
+    {
+      "pos": 32,
+      "title": "\"I'll Never Love This Way Again\"",
+      "artist": "Dionne Warwick"
+    },
+    {
+      "pos": 33,
+      "title": "\"Love You Inside Out\"",
+      "artist": "Bee Gees"
+    },
+    {
+      "pos": 34,
+      "title": "\"I Want You to Want Me\"",
+      "artist": "Cheap Trick"
+    },
+    {
+      "pos": 35,
+      "title": "\"The Main Event/Fight\"",
+      "artist": "Barbra Streisand"
+    },
+    {
+      "pos": 36,
+      "title": "\"Mama Can't Buy You Love\"",
+      "artist": "Elton John"
+    },
+    {
+      "pos": 37,
+      "title": "\"I Was Made for Dancin'\"",
+      "artist": "Leif Garrett"
+    },
+    {
+      "pos": 38,
+      "title": "\"After the Love Has Gone\"",
+      "artist": "Earth, Wind & Fire"
+    },
+    {
+      "pos": 39,
+      "title": "\"Heaven Knows\"",
+      "artist": "Donna Summer and Brooklyn Dreams"
+    },
+    {
+      "pos": 40,
+      "title": "\"The Gambler\"",
+      "artist": "Kenny Rogers"
+    },
+    {
+      "pos": 41,
+      "title": "\"Lotta Love\"",
+      "artist": "Nicolette Larson"
+    },
+    {
+      "pos": 42,
+      "title": "\"Lady\"",
+      "artist": "Little River Band"
+    },
+    {
+      "pos": 43,
+      "title": "\"Heaven Must Have Sent You\"",
+      "artist": "Bonnie Pointer"
+    },
+    {
+      "pos": 44,
+      "title": "\"Hold the Line\"",
+      "artist": "Toto"
+    },
+    {
+      "pos": 45,
+      "title": "\"He's the Greatest Dancer\"",
+      "artist": "Sister Sledge"
+    },
+    {
+      "pos": 46,
+      "title": "\"Sharing the Night Together\"",
+      "artist": "Dr. Hook"
+    },
+    {
+      "pos": 47,
+      "title": "\"She Believes in Me\"",
+      "artist": "Kenny Rogers"
+    },
+    {
+      "pos": 48,
+      "title": "\"In the Navy\"",
+      "artist": "Village People"
+    },
+    {
+      "pos": 49,
+      "title": "\"Music Box Dancer\"",
+      "artist": "Frank Mills"
+    },
+    {
+      "pos": 50,
+      "title": "\"The Devil Went Down to Georgia\"",
+      "artist": "The Charlie Daniels Band"
+    },
+    {
+      "pos": 51,
+      "title": "\"Gold\"",
+      "artist": "John Stewart"
+    },
+    {
+      "pos": 52,
+      "title": "\"Goodnight Tonight\"",
+      "artist": "Wings"
+    },
+    {
+      "pos": 53,
+      "title": "\"We Are Family\"",
+      "artist": "Sister Sledge"
+    },
+    {
+      "pos": 54,
+      "title": "\"Rock 'n' Roll Fantasy\"",
+      "artist": "Bad Company"
+    },
+    {
+      "pos": 55,
+      "title": "\"Every 1's a Winner\"",
+      "artist": "Hot Chocolate"
+    },
+    {
+      "pos": 56,
+      "title": "\"Take Me Home\"",
+      "artist": "Cher"
+    },
+    {
+      "pos": 57,
+      "title": "\"Boogie Wonderland\"",
+      "artist": "Earth, Wind & Fire & The Emotions"
+    },
+    {
+      "pos": 58,
+      "title": "\"(Our Love) Don't Throw It All Away\"",
+      "artist": "Andy Gibb"
+    },
+    {
+      "pos": 59,
+      "title": "\"What You Won't Do for Love\"",
+      "artist": "Bobby Caldwell"
+    },
+    {
+      "pos": 60,
+      "title": "\"New York Groove\"",
+      "artist": "Ace Frehley"
+    },
+    {
+      "pos": 61,
+      "title": "\"Sultans of Swing\"",
+      "artist": "Dire Straits"
+    },
+    {
+      "pos": 62,
+      "title": "\"I Want Your Love\"",
+      "artist": "Chic"
+    },
+    {
+      "pos": 63,
+      "title": "\"Chuck E.'s In Love\"",
+      "artist": "Rickie Lee Jones"
+    },
+    {
+      "pos": 64,
+      "title": "\"I Love the Nightlife\"",
+      "artist": "Alicia Bridges"
+    },
+    {
+      "pos": 65,
+      "title": "\"Ain't No Stoppin' Us Now\"",
+      "artist": "McFadden & Whitehead"
+    },
+    {
+      "pos": 66,
+      "title": "\"Lonesome Loser\"",
+      "artist": "Little River Band"
+    },
+    {
+      "pos": 67,
+      "title": "\"Renegade\"",
+      "artist": "Styx"
+    },
+    {
+      "pos": 68,
+      "title": "\"Love Is the Answer\"",
+      "artist": "England Dan & John Ford Coley"
+    },
+    {
+      "pos": 69,
+      "title": "\"Got to Be Real\"",
+      "artist": "Cheryl Lynn"
+    },
+    {
+      "pos": 70,
+      "title": "\"Born to Be Alive\"",
+      "artist": "Patrick Hernandez"
+    },
+    {
+      "pos": 71,
+      "title": "\"Shine a Little Love\"",
+      "artist": "Electric Light Orchestra"
+    },
+    {
+      "pos": 72,
+      "title": "\"I Just Fall in Love Again\"",
+      "artist": "Anne Murray"
+    },
+    {
+      "pos": 73,
+      "title": "\"Shake It\"",
+      "artist": "Ian Matthews"
+    },
+    {
+      "pos": 74,
+      "title": "\"I Was Made for Lovin' You\"",
+      "artist": "Kiss"
+    },
+    {
+      "pos": 75,
+      "title": "\"I Just Wanna Stop\"",
+      "artist": "Gino Vannelli"
+    },
+    {
+      "pos": 76,
+      "title": "\"Disco Nights (Rock-Freak)\"",
+      "artist": "GQ"
+    },
+    {
+      "pos": 77,
+      "title": "\"Ooo Baby Baby\"",
+      "artist": "Linda Ronstadt"
+    },
+    {
+      "pos": 78,
+      "title": "\"September\"",
+      "artist": "Earth, Wind & Fire"
+    },
+    {
+      "pos": 79,
+      "title": "\"Time Passages\"",
+      "artist": "Al Stewart"
+    },
+    {
+      "pos": 80,
+      "title": "\"Rise\"",
+      "artist": "Herb Alpert"
+    },
+    {
+      "pos": 81,
+      "title": "\"Don't Bring Me Down\"",
+      "artist": "Electric Light Orchestra"
+    },
+    {
+      "pos": 82,
+      "title": "\"Promises\"",
+      "artist": "Eric Clapton"
+    },
+    {
+      "pos": 83,
+      "title": "\"Get Used to It\"",
+      "artist": "Roger Voudouris"
+    },
+    {
+      "pos": 84,
+      "title": "\"How Much I Feel\"",
+      "artist": "Ambrosia"
+    },
+    {
+      "pos": 85,
+      "title": "\"Suspicions\"",
+      "artist": "Eddie Rabbitt"
+    },
+    {
+      "pos": 86,
+      "title": "\"You Take My Breath Away\"",
+      "artist": "Rex Smith"
+    },
+    {
+      "pos": 87,
+      "title": "\"How You Gonna See Me Now\"",
+      "artist": "Alice Cooper"
+    },
+    {
+      "pos": 88,
+      "title": "\"Double Vision\"",
+      "artist": "Foreigner"
+    },
+    {
+      "pos": 89,
+      "title": "\"Everytime I Think of You\"",
+      "artist": "The Babys"
+    },
+    {
+      "pos": 90,
+      "title": "\"I Got My Mind Made Up (You Can Get It Girl)\"",
+      "artist": "Instant Funk"
+    },
+    {
+      "pos": 91,
+      "title": "\"Don't Stop 'til You Get Enough\"",
+      "artist": "Michael Jackson"
+    },
+    {
+      "pos": 92,
+      "title": "\"Bad Case of Loving You (Doctor, Doctor)\"",
+      "artist": "Robert Palmer"
+    },
+    {
+      "pos": 93,
+      "title": "\"Somewhere in the Night\"",
+      "artist": "Barry Manilow"
+    },
+    {
+      "pos": 94,
+      "title": "\"We've Got Tonight\"",
+      "artist": "Bob Seger & The Silver Bullet Band"
+    },
+    {
+      "pos": 95,
+      "title": "\"Dance the Night Away\"",
+      "artist": "Van Halen"
+    },
+    {
+      "pos": 96,
+      "title": "\"Dancin' Shoes\"",
+      "artist": "Nigel Olsson"
+    },
+    {
+      "pos": 97,
+      "title": "\"The Boss\"",
+      "artist": "Diana Ross"
+    },
+    {
+      "pos": 98,
+      "title": "\"Sail On\"",
+      "artist": "Commodores"
+    },
+    {
+      "pos": 99,
+      "title": "\"I Do Love You\"",
+      "artist": "GQ"
+    },
+    {
+      "pos": 100,
+      "title": "\"Strange Way\"",
+      "artist": "Firefall"
+    }
+  ]
+}

@@ -1,0 +1,512 @@
+{
+  "year": 1967,
+  "chart": "Billboard Year-End (Wikipedia)",
+  "sourceUrl": "https://en.wikipedia.org/wiki/Billboard_Year-End_Hot_100_singles_of_1967",
+  "rows": [
+    {
+      "pos": 1,
+      "title": "Title",
+      "artist": "Artist(s)"
+    },
+    {
+      "pos": 1,
+      "title": "\"To Sir With Love\"",
+      "artist": "Lulu"
+    },
+    {
+      "pos": 2,
+      "title": "\"The Letter\"",
+      "artist": "The Box Tops"
+    },
+    {
+      "pos": 3,
+      "title": "\"Ode to Billie Joe\"",
+      "artist": "Bobbie Gentry"
+    },
+    {
+      "pos": 4,
+      "title": "\"Windy\"",
+      "artist": "The Association"
+    },
+    {
+      "pos": 5,
+      "title": "\"I'm a Believer\"",
+      "artist": "The Monkees"
+    },
+    {
+      "pos": 6,
+      "title": "\"Light My Fire\"",
+      "artist": "The Doors"
+    },
+    {
+      "pos": 7,
+      "title": "\"Somethin' Stupid\"",
+      "artist": "Frank & Nancy Sinatra"
+    },
+    {
+      "pos": 8,
+      "title": "\"Happy Together\"",
+      "artist": "The Turtles"
+    },
+    {
+      "pos": 9,
+      "title": "\"Groovin'\"",
+      "artist": "The Young Rascals"
+    },
+    {
+      "pos": 10,
+      "title": "\"Can't Take My Eyes Off You\"",
+      "artist": "Frankie Valli"
+    },
+    {
+      "pos": 11,
+      "title": "\"Little Bit O' Soul\"",
+      "artist": "The Music Explosion"
+    },
+    {
+      "pos": 12,
+      "title": "\"I Think We're Alone Now\"",
+      "artist": "Tommy James and the Shondells"
+    },
+    {
+      "pos": 13,
+      "title": "\"Respect\"",
+      "artist": "Aretha Franklin"
+    },
+    {
+      "pos": 14,
+      "title": "\"I Was Made to Love Her\"",
+      "artist": "Stevie Wonder"
+    },
+    {
+      "pos": 15,
+      "title": "\"Come Back When You Grow Up\"",
+      "artist": "Bobby Vee"
+    },
+    {
+      "pos": 16,
+      "title": "\"Kind of a Drag\"",
+      "artist": "The Buckinghams"
+    },
+    {
+      "pos": 17,
+      "title": "\"Sweet Soul Music\"",
+      "artist": "Arthur Conley"
+    },
+    {
+      "pos": 18,
+      "title": "\"Expressway to Your Heart\"",
+      "artist": "Soul Survivors"
+    },
+    {
+      "pos": 19,
+      "title": "\"Soul Man\"",
+      "artist": "Sam & Dave"
+    },
+    {
+      "pos": 20,
+      "title": "\"Never My Love\"",
+      "artist": "The Association"
+    },
+    {
+      "pos": 21,
+      "title": "\"Apples, Peaches, Pumpkin Pie\"",
+      "artist": "Jay & the Techniques"
+    },
+    {
+      "pos": 22,
+      "title": "\"Come On Down to My Boat\"",
+      "artist": "Every Mother's Son"
+    },
+    {
+      "pos": 23,
+      "title": "\"Incense and Peppermints\"",
+      "artist": "Strawberry Alarm Clock"
+    },
+    {
+      "pos": 24,
+      "title": "\"Ruby Tuesday\"",
+      "artist": "The Rolling Stones"
+    },
+    {
+      "pos": 25,
+      "title": "\"It Must Be Him\"",
+      "artist": "Vikki Carr"
+    },
+    {
+      "pos": 26,
+      "title": "\"Love Is Here and Now You're Gone\"",
+      "artist": "The Supremes"
+    },
+    {
+      "pos": 27,
+      "title": "\"For What It's Worth\"",
+      "artist": "Buffalo Springfield"
+    },
+    {
+      "pos": 28,
+      "title": "\"Gimme Little Sign\"",
+      "artist": "Brenton Wood"
+    },
+    {
+      "pos": 29,
+      "title": "\"The Happening\"",
+      "artist": "The Supremes"
+    },
+    {
+      "pos": 30,
+      "title": "\"All You Need Is Love\"",
+      "artist": "The Beatles"
+    },
+    {
+      "pos": 31,
+      "title": "\"Release Me\"",
+      "artist": "Engelbert Humperdinck"
+    },
+    {
+      "pos": 32,
+      "title": "\"Your Precious Love\"",
+      "artist": "Marvin Gaye & Tammi Terrell"
+    },
+    {
+      "pos": 33,
+      "title": "\"Somebody to Love\"",
+      "artist": "Jefferson Airplane"
+    },
+    {
+      "pos": 34,
+      "title": "\"Get on Up\"",
+      "artist": "The Esquires"
+    },
+    {
+      "pos": 35,
+      "title": "\"Brown Eyed Girl\"",
+      "artist": "Van Morrison"
+    },
+    {
+      "pos": 36,
+      "title": "\"Jimmy Mack\"",
+      "artist": "Martha and the Vandellas"
+    },
+    {
+      "pos": 37,
+      "title": "\"I Got Rhythm\"",
+      "artist": "The Happenings"
+    },
+    {
+      "pos": 38,
+      "title": "\"A Whiter Shade of Pale\"",
+      "artist": "Procol Harum"
+    },
+    {
+      "pos": 39,
+      "title": "\"Don't You Care\"",
+      "artist": "The Buckinghams"
+    },
+    {
+      "pos": 40,
+      "title": "\"Then You Can Tell Me Goodbye\"",
+      "artist": "The Casinos"
+    },
+    {
+      "pos": 41,
+      "title": "\"Reflections\"",
+      "artist": "The Supremes"
+    },
+    {
+      "pos": 42,
+      "title": "\"On a Carousel\"",
+      "artist": "The Hollies"
+    },
+    {
+      "pos": 43,
+      "title": "\"Please Love Me Forever\"",
+      "artist": "Bobby Vinton"
+    },
+    {
+      "pos": 44,
+      "title": "\"Alfie\"",
+      "artist": "Dionne Warwick"
+    },
+    {
+      "pos": 45,
+      "title": "\"Silence Is Golden\"",
+      "artist": "The Tremeloes"
+    },
+    {
+      "pos": 46,
+      "title": "\"My Cup Runneth Over\"",
+      "artist": "Ed Ames"
+    },
+    {
+      "pos": 47,
+      "title": "\"Up, Up and Away\"",
+      "artist": "The 5th Dimension"
+    },
+    {
+      "pos": 48,
+      "title": "\"San Francisco (Be Sure to Wear Flowers in Your Hair)\"",
+      "artist": "Scott McKenzie"
+    },
+    {
+      "pos": 49,
+      "title": "\"The Rain, the Park & Other Things\"",
+      "artist": "The Cowsills"
+    },
+    {
+      "pos": 50,
+      "title": "\"There's a Kind of Hush\"",
+      "artist": "Herman's Hermits"
+    },
+    {
+      "pos": 51,
+      "title": "\"Mercy, Mercy, Mercy\"",
+      "artist": "The Buckinghams"
+    },
+    {
+      "pos": 52,
+      "title": "\"This Is My Song\"",
+      "artist": "Petula Clark"
+    },
+    {
+      "pos": 53,
+      "title": "\"(Your Love Keeps Lifting Me) Higher and Higher\"",
+      "artist": "Jackie Wilson"
+    },
+    {
+      "pos": 54,
+      "title": "\"I've Been Lonely Too Long\"",
+      "artist": "The Young Rascals"
+    },
+    {
+      "pos": 55,
+      "title": "\"Penny Lane\"",
+      "artist": "The Beatles"
+    },
+    {
+      "pos": 56,
+      "title": "\"You're My Everything\"",
+      "artist": "The Temptations"
+    },
+    {
+      "pos": 57,
+      "title": "\"Georgy Girl\"",
+      "artist": "The Seekers"
+    },
+    {
+      "pos": 58,
+      "title": "\"Western Union\"",
+      "artist": "Five Americans"
+    },
+    {
+      "pos": 59,
+      "title": "\"Baby I Love You\"",
+      "artist": "Aretha Franklin"
+    },
+    {
+      "pos": 60,
+      "title": "\"A Little Bit Me, a Little Bit You\"",
+      "artist": "The Monkees"
+    },
+    {
+      "pos": 61,
+      "title": "\"California Nights\"",
+      "artist": "Lesley Gore"
+    },
+    {
+      "pos": 62,
+      "title": "\"Dedicated to the One I Love\"",
+      "artist": "The Mamas & the Papas"
+    },
+    {
+      "pos": 63,
+      "title": "\"How Can I Be Sure\"",
+      "artist": "The Young Rascals"
+    },
+    {
+      "pos": 64,
+      "title": "\"Carrie Anne\"",
+      "artist": "The Hollies"
+    },
+    {
+      "pos": 65,
+      "title": "\"(We Ain't Got) Nothin' Yet\"",
+      "artist": "Blues Magoos"
+    },
+    {
+      "pos": 66,
+      "title": "\"Friday on My Mind\"",
+      "artist": "The Easybeats"
+    },
+    {
+      "pos": 67,
+      "title": "\"Soul Finger\"",
+      "artist": "Bar-Kays"
+    },
+    {
+      "pos": 68,
+      "title": "\"Gimme Some Lovin'\"",
+      "artist": "The Spencer Davis Group"
+    },
+    {
+      "pos": 69,
+      "title": "\"Let It Out (Let It All Hang Out)\"",
+      "artist": "The Hombres"
+    },
+    {
+      "pos": 70,
+      "title": "\"Let's Live for Today\"",
+      "artist": "The Grass Roots"
+    },
+    {
+      "pos": 71,
+      "title": "\"Close Your Eyes\"",
+      "artist": "Peaches & Herb"
+    },
+    {
+      "pos": 72,
+      "title": "\"Groovin'\"",
+      "artist": "Booker T. & the M.G.'s"
+    },
+    {
+      "pos": 73,
+      "title": "\"Funky Broadway\"",
+      "artist": "Wilson Pickett"
+    },
+    {
+      "pos": 74,
+      "title": "\"Pleasant Valley Sunday\"",
+      "artist": "The Monkees"
+    },
+    {
+      "pos": 75,
+      "title": "\"I Never Loved a Man (The Way I Love You)\"",
+      "artist": "Aretha Franklin"
+    },
+    {
+      "pos": 76,
+      "title": "\"Tell It Like It Is\"",
+      "artist": "Aaron Neville"
+    },
+    {
+      "pos": 77,
+      "title": "\"Cold Sweat\"",
+      "artist": "James Brown"
+    },
+    {
+      "pos": 78,
+      "title": "\"She'd Rather Be with Me\"",
+      "artist": "The Turtles"
+    },
+    {
+      "pos": 79,
+      "title": "\"98.6\"",
+      "artist": "Keith"
+    },
+    {
+      "pos": 80,
+      "title": "\"Here We Go Again\"",
+      "artist": "Ray Charles"
+    },
+    {
+      "pos": 81,
+      "title": "\"White Rabbit\"",
+      "artist": "Jefferson Airplane"
+    },
+    {
+      "pos": 82,
+      "title": "\"Bernadette\"",
+      "artist": "Four Tops"
+    },
+    {
+      "pos": 83,
+      "title": "\"The Beat Goes On\"",
+      "artist": "Sonny & Cher"
+    },
+    {
+      "pos": 84,
+      "title": "\"Snoopy Vs. The Red Baron\"",
+      "artist": "The Royal Guardsmen"
+    },
+    {
+      "pos": 85,
+      "title": "\"Society's Child\"",
+      "artist": "Janis Ian"
+    },
+    {
+      "pos": 86,
+      "title": "\"Girl, You'll Be a Woman Soon\"",
+      "artist": "Neil Diamond"
+    },
+    {
+      "pos": 87,
+      "title": "\"Ain't No Mountain High Enough\"",
+      "artist": "Marvin Gaye & Tammi Terrell"
+    },
+    {
+      "pos": 88,
+      "title": "\"I Take It Back\"",
+      "artist": "Sandy Posey"
+    },
+    {
+      "pos": 89,
+      "title": "\"Here Comes My Baby\"",
+      "artist": "The Tremeloes"
+    },
+    {
+      "pos": 90,
+      "title": "\"Everlasting Love\"",
+      "artist": "Robert Knight"
+    },
+    {
+      "pos": 91,
+      "title": "\"I Dig Rock and Roll Music\"",
+      "artist": "Peter, Paul and Mary"
+    },
+    {
+      "pos": 92,
+      "title": "\"Little Ole Man (Uptight, Everything's Alright)\"",
+      "artist": "Bill Cosby"
+    },
+    {
+      "pos": 93,
+      "title": "\"I Had Too Much to Dream (Last Night)\"",
+      "artist": "The Electric Prunes"
+    },
+    {
+      "pos": 94,
+      "title": "\"Daydream Believer\"",
+      "artist": "The Monkees"
+    },
+    {
+      "pos": 95,
+      "title": "\"Baby I Need Your Lovin'\"",
+      "artist": "Johnny Rivers"
+    },
+    {
+      "pos": 96,
+      "title": "\"Mirage\"",
+      "artist": "Tommy James and the Shondells"
+    },
+    {
+      "pos": 97,
+      "title": "\"Green, Green Grass of Home\"",
+      "artist": "Tom Jones"
+    },
+    {
+      "pos": 98,
+      "title": "\"I Can See for Miles\"",
+      "artist": "The Who"
+    },
+    {
+      "pos": 99,
+      "title": "\"Don't Sleep in the Subway\"",
+      "artist": "Petula Clark"
+    },
+    {
+      "pos": 100,
+      "title": "\"Thank the Lord for the Night Time\"",
+      "artist": "Neil Diamond"
+    }
+  ]
+}
