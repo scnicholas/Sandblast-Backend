@@ -17,12 +17,10 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7aY (PINNED TOP10 SHAPE FIX+++++:
- *         + FIX: top10_by_year_v1.json canonical shape:
- *              { years:{ YYYY:{ items:[{pos,title,artist}...] } } }
- *           now has an explicit fast-path so it never “misses” via wrapper variance.
- *         + FIX: normalizeSongLine now honors pos/position/# as rank (not just rank).
- *         + Keeps: rows-shape fix for wikipedia/year-end + pinned rows support,
+ * v0.7aZ (LOOP FIX+++++:
+ *         + REMOVED: top100_billboard_yearend_1960s_v1 from Top10 loose candidates (stops “derived_top10_from_yearend” loop)
+ *         + ADDED: Top10 requires explicit year (if yearSource === "sticky", we refuse + ask for year)
+ *         + Keeps: pinned top10 v1 years{YYYY:{items}} fast-path + normalizeSongLine pos/position rank + rows-shape fix,
  *                 Top40 purge, 2025 range, decade-guard, do-not-persist sticky year,
  *                 pinned-first resolvers, action/mode normalization, system lane responder,
  *                 always-advance, payload-root fallback, chip-authoritative mode,
@@ -56,7 +54,7 @@ try {
 ====================================================== */
 
 const CE_VERSION =
-  "chatEngine v0.7aY (pinned top10 v1 years{YYYY:{items}} fast-path + normalizeSongLine pos/position rank + rows-shape fix + Top40 purge + 2025 range + decade-guard + do-not-persist sticky year + pinned-first resolvers + action/mode normalization + system lane responder + always-advance + payload-root fallback + chip-authoritative mode + sticky-year source + session-scoped burst dedupe)";
+  "chatEngine v0.7aZ (remove top100_billboard_yearend_1960s_v1 from Top10 candidates + Top10 requires explicit year; keeps pinned top10 v1 fast-path + normalizeSongLine pos/position rank + rows-shape fix + Top40 purge + 2025 range + decade-guard + do-not-persist sticky year + pinned-first resolvers + action/mode normalization + system lane responder + always-advance + payload-root fallback + chip-authoritative mode + sticky-year source + session-scoped burst dedupe)";
 
 const MAX_REPLY_LEN = 2400;
 const MAX_FOLLOWUPS = 10;
@@ -100,7 +98,8 @@ function isPlainObject(x) {
   return (
     !!x &&
     typeof x === "object" &&
-    (Object.getPrototypeOf(x) === Object.prototype || Object.getPrototypeOf(x) === null)
+    (Object.getPrototypeOf(x) === Object.prototype ||
+      Object.getPrototypeOf(x) === null)
   );
 }
 
@@ -127,7 +126,9 @@ function clampYear(y) {
 
 function extractYearFromText(text) {
   // IMPORTANT: decade guard — "1960s" must NOT match year 1960
-  const m = String(text || "").match(/\b(19[5-9]\d|20[0-1]\d|202[0-5])(?!s\b)\b/);
+  const m = String(text || "").match(
+    /\b(19[5-9]\d|20[0-1]\d|202[0-5])(?!s\b)\b/
+  );
   if (!m) return null;
   return clampYear(m[1]);
 }
@@ -164,8 +165,10 @@ function inferMusicModeFromText(low) {
   if (/\b(top\s*10|top10)\b/.test(low)) return "top10";
   // NOTE: intentionally NOT supporting top40/top 40 (purged)
   if (/\b(year[-\s]*end|yearend)\b/.test(low)) return "year_end";
-  if (/\b(hot\s*100|billboard|chart|charts|charting|hit\s*parade)\b/.test(low)) return "charts";
-  if (/\b(#\s*1|#1|number\s*one|number\s*1|no\.\s*1|no\s*1|no1)\b/.test(low)) return "number_one";
+  if (/\b(hot\s*100|billboard|chart|charts|charting|hit\s*parade)\b/.test(low))
+    return "charts";
+  if (/\b(#\s*1|#1|number\s*one|number\s*1|no\.\s*1|no\s*1|no1)\b/.test(low))
+    return "number_one";
   if (/\b(micro\s*moment|micro)\b/.test(low)) return "micro";
   if (/\b(story\s*moment|story)\b/.test(low)) return "story";
   return "";
@@ -179,11 +182,29 @@ function normalizeMusicAction(action) {
   const a = normLower(action);
   if (!a) return "";
 
-  if (["top10", "top_10", "top-ten", "topten", "year_top10", "year-top10"].includes(a)) return "top10";
-  if (["number1", "number_1", "no1", "#1", "number-one", "numberone", "number_one", "num1"].includes(a))
+  if (
+    ["top10", "top_10", "top-ten", "topten", "year_top10", "year-top10"].includes(
+      a
+    )
+  )
+    return "top10";
+  if (
+    [
+      "number1",
+      "number_1",
+      "no1",
+      "#1",
+      "number-one",
+      "numberone",
+      "number_one",
+      "num1",
+    ].includes(a)
+  )
     return "number_one";
-  if (["micro", "micro_moment", "micro-moment", "micromoment", "moments_micro"].includes(a)) return "micro";
-  if (["story", "story_moment", "story-moment", "storymoment", "moments_story"].includes(a)) return "story";
+  if (["micro", "micro_moment", "micro-moment", "micromoment", "moments_micro"].includes(a))
+    return "micro";
+  if (["story", "story_moment", "story-moment", "storymoment", "moments_story"].includes(a))
+    return "story";
   if (["charts", "chart", "charting"].includes(a)) return "charts";
   if (["year_end", "yearend", "year-end", "year end"].includes(a)) return "year_end";
 
@@ -580,7 +601,8 @@ function parseInbound(input) {
   if (payload && payload.action) payload.action = normalizeMusicAction(payload.action);
 
   const textPrimary = normText(input.text || input.message || input.prompt || input.query);
-  const textFromPayload = payload && typeof payload.text === "string" ? normText(payload.text) : "";
+  const textFromPayload =
+    payload && typeof payload.text === "string" ? normText(payload.text) : "";
   const finalText = textPrimary || textFromPayload || "";
 
   const low = normLower(finalText);
@@ -674,12 +696,12 @@ function normalizeSongLine(item) {
       item.rank != null
         ? item.rank
         : item.pos != null
-          ? item.pos
-          : item.position != null
-            ? item.position
-            : item["#"] != null
-              ? item["#"]
-              : null;
+        ? item.pos
+        : item.position != null
+        ? item.position
+        : item["#"] != null
+        ? item["#"]
+        : null;
 
     const rank = rankRaw != null ? String(rankRaw).trim() : "";
 
@@ -701,7 +723,12 @@ const PINNED_MICRO_KEY = "music/micro_moments_by_year";
 
 // Compatibility keys (dev-safety only)
 const PIN_TOP10_KEYS = ["music/top10_by_year", "music/top10"];
-const PIN_NUMBER1_KEYS = ["music/number1_by_year", "music/number1", "music/number_one_by_year", "music/no1_by_year"];
+const PIN_NUMBER1_KEYS = [
+  "music/number1_by_year",
+  "music/number1",
+  "music/number_one_by_year",
+  "music/no1_by_year",
+];
 const PIN_STORY_KEYS = ["music/story_moments_by_year", "music/story_moments", "music/moments"];
 const PIN_MICRO_KEYS = ["music/micro_moments_by_year", "music/micro_moments", "music/micro"];
 
@@ -746,12 +773,18 @@ function shapeHint(x) {
 function getPinnedPacks(knowledgeJson) {
   const kj = knowledgeJson && isPlainObject(knowledgeJson) ? knowledgeJson : Object.create(null);
 
-  const top10 = Object.prototype.hasOwnProperty.call(kj, PINNED_TOP10_KEY) ? unwrapPackValue(kj[PINNED_TOP10_KEY]) : null;
+  const top10 = Object.prototype.hasOwnProperty.call(kj, PINNED_TOP10_KEY)
+    ? unwrapPackValue(kj[PINNED_TOP10_KEY])
+    : null;
   const number1 = Object.prototype.hasOwnProperty.call(kj, PINNED_NUMBER1_KEY)
     ? unwrapPackValue(kj[PINNED_NUMBER1_KEY])
     : null;
-  const story = Object.prototype.hasOwnProperty.call(kj, PINNED_STORY_KEY) ? unwrapPackValue(kj[PINNED_STORY_KEY]) : null;
-  const micro = Object.prototype.hasOwnProperty.call(kj, PINNED_MICRO_KEY) ? unwrapPackValue(kj[PINNED_MICRO_KEY]) : null;
+  const story = Object.prototype.hasOwnProperty.call(kj, PINNED_STORY_KEY)
+    ? unwrapPackValue(kj[PINNED_STORY_KEY])
+    : null;
+  const micro = Object.prototype.hasOwnProperty.call(kj, PINNED_MICRO_KEY)
+    ? unwrapPackValue(kj[PINNED_MICRO_KEY])
+    : null;
 
   return { top10, number1, story, micro };
 }
@@ -1133,7 +1166,8 @@ function findNumberOnePinnedFirst(pinned, knowledgeJson, year) {
       if (isPlainObject(direct)) {
         const title = normText(direct.title || direct.song || direct.name || direct.track);
         const artist = normText(direct.artist || direct.by || direct.performer);
-        if (title) return { sourceKey: PINNED_NUMBER1_KEY, entry: { title, artist }, shape: shapeHint(v), pinned: true };
+        if (title)
+          return { sourceKey: PINNED_NUMBER1_KEY, entry: { title, artist }, shape: shapeHint(v), pinned: true };
       }
     }
 
@@ -1155,7 +1189,10 @@ function findNumberOnePinnedFirst(pinned, knowledgeJson, year) {
 
     if (isPlainObject(v)) {
       const yStr = String(y);
-      const cand = v[yStr] || v[y] || (isPlainObject(v.byYear) ? (v.byYear[yStr] || v.byYear[y]) : null);
+      const cand =
+        v[yStr] ||
+        v[y] ||
+        (isPlainObject(v.byYear) ? v.byYear[yStr] || v.byYear[y] : null);
       if (isPlainObject(cand)) {
         const title = normText(cand.title || cand.song || cand.name || cand.track);
         const artist = normText(cand.artist || cand.by || cand.performer);
@@ -1175,7 +1212,10 @@ function findNumberOnePinnedFirst(pinned, knowledgeJson, year) {
 
     if (isPlainObject(v)) {
       const yStr = String(y);
-      const cand = v[yStr] || v[y] || (isPlainObject(v.byYear) ? (v.byYear[yStr] || v.byYear[y]) : null);
+      const cand =
+        v[yStr] ||
+        v[y] ||
+        (isPlainObject(v.byYear) ? v.byYear[yStr] || v.byYear[y] : null);
       if (isPlainObject(cand)) {
         const title = normText(cand.title || cand.song || cand.name || cand.track);
         const artist = normText(cand.artist || cand.by || cand.performer);
@@ -1286,9 +1326,7 @@ function _normalizeTop10Rows(rows) {
     }
 
     if (isPlainObject(r)) {
-      const rank = _parseRank(
-        r.rank ?? r.Rank ?? r.position ?? r.pos ?? r["#"] ?? r.no ?? r.number
-      );
+      const rank = _parseRank(r.rank ?? r.Rank ?? r.position ?? r.pos ?? r["#"] ?? r.no ?? r.number);
 
       let title = normText(r.title ?? r.song ?? r.Song ?? r.track ?? r.name);
       let artist = normText(r.artist ?? r.Artist ?? r.performer);
@@ -1337,7 +1375,10 @@ function resolveTop10LooseButSafe(knowledgeJson, year) {
     { id: "music/top10_by_year", method: "direct", confidence: "high" },
     { id: "wikipedia/billboard_yearend_hot100_1970_2010", method: "derived_top10_from_wikipedia_yearend", confidence: "medium" },
     { id: "wikipedia/billboard_yearend_singles_1950_1959", method: "derived_top10_from_wikipedia_yearend", confidence: "medium" },
-    { id: "top100_billboard_yearend_1960s_v1", method: "derived_top10_from_yearend", confidence: "medium" },
+
+    // REMOVED: this was causing the loop you reported
+    // { id: "top100_billboard_yearend_1960s_v1", method: "derived_top10_from_yearend", confidence: "medium" },
+
     { id: "top10_by_year_source_v1", method: "derived_top10_from_source_table", confidence: "low" },
   ];
 
@@ -1348,7 +1389,9 @@ function resolveTop10LooseButSafe(knowledgeJson, year) {
     const pack = unwrapPackValue(raw);
 
     const payload = isPlainObject(pack)
-      ? unwrapPackValue(pack.data ?? pack.payload ?? pack.value ?? pack.json ?? pack.content ?? pack.parsed ?? pack)
+      ? unwrapPackValue(
+          pack.data ?? pack.payload ?? pack.value ?? pack.json ?? pack.content ?? pack.parsed ?? pack
+        )
       : pack;
 
     const rows = _extractYearRowsFromPayload(payload, y);
@@ -1419,14 +1462,31 @@ function musicReply({ year, mode, knowledge, yearSource }) {
   const y = clampYear(year);
   const m = normalizeMode(mode, "", "");
 
+  // LOOP-KILLER: Top 10 requires explicit year. Never answer Top10 from sticky year.
+  if (m === "top10" && yearSource === "sticky") {
+    const chips = sanitizeFollowUps([
+      { id: "pick_1960", type: "chip", label: "1960 Top 10", payload: { lane: "music", action: "year", year: 1960, mode: "top10" } },
+      { id: "pick_1977", type: "chip", label: "1977 Top 10", payload: { lane: "music", action: "year", year: 1977, mode: "top10" } },
+      { id: "pick_1988", type: "chip", label: "1988 Top 10", payload: { lane: "music", action: "year", year: 1988, mode: "top10" } },
+      { id: "pick_1999", type: "chip", label: "1999 Top 10", payload: { lane: "music", action: "year", year: 1999, mode: "top10" } },
+    ]);
+
+    return {
+      reply: "Top 10 needs a specific year (1950–2025). Tap a year chip or type one in.",
+      followUps: chips,
+      sessionPatch: { lane: "music", activeMusicMode: "top10" },
+      meta: { used: "top10_requires_explicit_year" },
+    };
+  }
+
   if (!y) {
     return {
       reply: "Pick a year between 1950 and 2025 and I’ll pull the Top 10, #1, or a story moment — your call.",
-      followUps: [
+      followUps: sanitizeFollowUps([
         { id: "y1981", type: "chip", label: "1981 Top 10", payload: { lane: "music", action: "year", year: 1981, mode: "top10" } },
         { id: "y1981no1", type: "chip", label: "#1 song (1981)", payload: { lane: "music", action: "year", year: 1981, mode: "number_one" } },
         { id: "y1988", type: "chip", label: "1988 Story moment", payload: { lane: "music", action: "year", year: 1988, mode: "story" } },
-      ],
+      ]),
       sessionPatch: { lane: "music", activeMusicMode: m && MUSIC_MODES.has(m) ? m : "top10" },
       meta: { used: "music_no_year" },
     };
@@ -1492,10 +1552,11 @@ function musicReply({ year, mode, knowledge, yearSource }) {
       reply += `\n\nPower move: go #1 → Micro moment. That’s your “broadcast-tight” chain.`;
       diag = { top10HitKey: hit.sourceKey, top10HitShape: hit.shape || null, top10Len: hit.list.length, pinned: !!hit.pinned };
     } else if (hit && isArray(hit.list) && hit.list.length) {
-      reply = `Top songs of ${y} (partial list from loaded sources):\n\n${hit.list
-        .slice(0, 10)
-        .map((v, i) => `${i + 1}. ${normalizeSongLine(v) || String(v)}`)
-        .join("\n")}`;
+      reply =
+        `Top songs of ${y} (partial list from loaded sources):\n\n${hit.list
+          .slice(0, 10)
+          .map((v, i) => `${i + 1}. ${normalizeSongLine(v) || String(v)}`)
+          .join("\n")}`;
       reply += `\n\nSource: ${hit.sourceKey} • Method: partial • Confidence: low`;
       diag = { top10HitKey: hit.sourceKey, top10HitShape: hit.shape || null, top10Len: hit.list.length, pinned: !!hit.pinned };
     } else {
@@ -1510,14 +1571,18 @@ function musicReply({ year, mode, knowledge, yearSource }) {
       micro && micro.text
         ? `Micro moment (${y}): ${clampStr(micro.text, 260)}`
         : `Micro moment for ${y}: give me a vibe (soul, rock, pop) or an artist and I’ll make it razor-specific.`;
-    diag = micro ? { microKey: micro.sourceKey, microShape: micro.shape || null, pinned: !!micro.pinned } : { microKey: null, pinnedMissing: !pinned.micro };
+    diag = micro
+      ? { microKey: micro.sourceKey, microShape: micro.shape || null, pinned: !!micro.pinned }
+      : { microKey: null, pinnedMissing: !pinned.micro };
   } else if (wantsStory) {
     const story = findStoryPinnedFirst(pinned, knowledgeJson, y);
     reply =
       story && story.text
         ? `Story moment for ${y}: ${clampStr(story.text, 900)}`
         : `Story moment for ${y}: I can anchor it on the year’s #1 song and give you the cultural pulse in 50–60 words.`;
-    diag = story ? { storyKey: story.sourceKey, storyShape: story.shape || null, pinned: !!story.pinned } : { storyKey: null, pinnedMissing: !pinned.story };
+    diag = story
+      ? { storyKey: story.sourceKey, storyShape: story.shape || null, pinned: !!story.pinned }
+      : { storyKey: null, pinnedMissing: !pinned.story };
   } else if (wantsCharts) {
     reply = `Got it — ${y}. Do you want the Top 10 list, or just the #1 with a quick story moment?`;
   } else {
@@ -1695,7 +1760,10 @@ async function handleChat(input = {}) {
       ""
   );
 
-  const sessionId = sessionScopedVisitorId(session, input.visitorId || input.visitorID || input.sessionId);
+  const sessionId = sessionScopedVisitorId(
+    session,
+    input.visitorId || input.visitorID || input.sessionId
+  );
 
   const clientRequestId = String(input.clientRequestId || input.requestId || "");
   const debug = !!input.debug;
@@ -1864,7 +1932,12 @@ async function handleChat(input = {}) {
       const mode = inbound.mode || inferMusicModeFromText(inbound.lower) || "story";
 
       if (y) {
-        routed = musicReply({ year: y, mode, knowledge: input.knowledge || null, yearSource: inbound._yearSource || "text" });
+        routed = musicReply({
+          year: y,
+          mode,
+          knowledge: input.knowledge || null,
+          yearSource: inbound._yearSource || "text",
+        });
       } else {
         routed = {
           reply:
