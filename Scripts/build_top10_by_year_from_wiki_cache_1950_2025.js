@@ -8,6 +8,7 @@
  *   Data/top10_by_year_v1.json
  *
  * Baseline: Top 10 = first 10 rows from each year cache.
+ * Canonical rule: pos is ALWAYS 1–10 by order (index-based).
  * Optional overlay: if Data/top10_input_rows.json contains rows for a year,
  * it can overwrite those entries (higher authority).
  *
@@ -50,34 +51,38 @@ function loadWikiYear(year) {
   const fp = path.join(WIKI_DIR, `year_end_hot100_${year}.json`);
   if (!fs.existsSync(fp)) return null;
   const j = readJson(fp);
-  const rows = Array.isArray(j.rows) ? j.rows : [];
-  return rows;
+  return Array.isArray(j.rows) ? j.rows : [];
 }
 
 function buildTop10FromRows(rows) {
-  // Rows already normalized by your pull script: {pos,title,artist}
+  if (!Array.isArray(rows) || rows.length < 10) return null;
+
+  // Canonical Top10: ordering defines rank
   const top10 = rows.slice(0, 10).map((r, idx) => {
-    const pos = toInt(r.pos) ?? (idx + 1);
     const title = normStr(r.title);
     const artist = normStr(r.artist);
-    return { pos, title, artist };
+    const sourcePos = toInt(r.pos);
+
+    return {
+      pos: idx + 1,            // ✅ authoritative rank
+      title,
+      artist,
+      ...(sourcePos ? { sourcePos } : {}) // optional provenance
+    };
   });
 
-  // Basic validation
-  for (let i = 0; i < top10.length; i++) {
+  // Validate
+  for (let i = 0; i < 10; i++) {
     const it = top10[i];
-    if (!toInt(it.pos)) return null;
+    if (it.pos !== i + 1) return null;
     if (!isNonEmptyString(it.title)) return null;
     if (!isNonEmptyString(it.artist)) return null;
   }
-  return top10.length === 10 ? top10 : null;
+
+  return top10;
 }
 
 function buildOverlayMapFromInputRows() {
-  // If you keep a curated input file, we can use it to overwrite wiki-derived Top10s.
-  // Expected shapes:
-  //  - {rows:[{year,pos,title,artist}, ...]}
-  //  - or raw array [{year,pos,title,artist}, ...]
   if (!fs.existsSync(TOP10_INPUT_ROWS)) return new Map();
 
   let j;
@@ -101,14 +106,23 @@ function buildOverlayMapFromInputRows() {
     byYear.get(y).push({ pos, title, artist });
   }
 
-  // Keep only years with 10+ rows; normalize ordering by pos
   const out = new Map();
   for (const [y, items] of byYear.entries()) {
     const sorted = items
-      .filter((it) => it.pos >= 1 && it.pos <= 10)
+      .filter(it => it.pos >= 1 && it.pos <= 10)
       .sort((a, b) => a.pos - b.pos);
 
-    if (sorted.length >= 10) out.set(y, sorted.slice(0, 10));
+    if (sorted.length >= 10) {
+      out.set(
+        y,
+        sorted.slice(0, 10).map((it, idx) => ({
+          pos: idx + 1,          // canonical
+          title: it.title,
+          artist: it.artist,
+          sourcePos: it.pos
+        }))
+      );
+    }
   }
   return out;
 }
@@ -121,13 +135,11 @@ function main() {
   }
 
   const overlay = buildOverlayMapFromInputRows();
-
   const years = {};
   const missing = [];
   const weak = [];
 
   for (let y = YEAR_START; y <= YEAR_END; y++) {
-    // overlay wins if present
     if (overlay.has(y)) {
       years[String(y)] = { year: y, chart: CHART_NAME, items: overlay.get(y) };
       continue;
@@ -152,7 +164,7 @@ function main() {
   const payload = {
     version: "top10_by_year_v1",
     chart: "Billboard Year-End Hot 100",
-    source: "wikipedia per-year cache (Data/wikipedia/charts) + optional overlay (top10_input_rows.json)",
+    source: "Wikipedia per-year cache (Data/wikipedia/charts) + optional overlay",
     generatedAt: new Date().toISOString(),
     meta: {
       yearStart: YEAR_START,
@@ -160,9 +172,9 @@ function main() {
       wikiDir: path.relative(process.cwd(), WIKI_DIR),
       overlayUsedYears: Array.from(overlay.keys()).sort((a, b) => a - b),
       missingYears: missing,
-      weakYears: weak,
+      weakYears: weak
     },
-    years,
+    years
   };
 
   writeJson(OUT_FILE, payload);
