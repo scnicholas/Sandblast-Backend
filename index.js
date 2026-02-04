@@ -1253,7 +1253,9 @@ function manifestBuildTop40WeeklyIndex(allJson, prefixKey) {
   return { ok: true, label: "top40_weekly", byYearWeek, builtAt: new Date().toISOString() };
 }
 
-// ✅ NEW: merge split wikipedia billboard yearend hot100 packs loaded under a dir prefix
+// ✅ Merge split wikipedia billboard yearend Hot 100 packs loaded under a dir prefix
+// IMPORTANT: do NOT rely on filename substrings (packs can be named many ways).
+// Instead: treat a pack as “candidate year-end chart rows” if it contains enough rows with plausible {year, rank/title/artist}.
 function manifestMergeYearendHot100FromDir(allJson, prefixKey) {
   const root = allJson && typeof allJson === "object" ? allJson : {};
   const keys = Object.keys(root).filter((k) => String(k).startsWith(prefixKey + "/"));
@@ -1261,21 +1263,42 @@ function manifestMergeYearendHot100FromDir(allJson, prefixKey) {
   const out = Object.create(null);
   let totalRows = 0;
   let usedPacks = 0;
+  const usedKeys = [];
+
+  const isPlausibleRow = (r) => {
+    if (!r || typeof r !== "object") return false;
+    const y = Number(r.year);
+    if (!Number.isFinite(y) || y < 1900 || y > 2100) return false;
+
+    const rank = Number(r.rank ?? r.pos ?? r.position);
+    const hasRank = Number.isFinite(rank) && rank >= 1 && rank <= 500;
+    const hasTitleish = !!safeStr(r.title || r.song || r.single || r.track).trim();
+    const hasArtistish = !!safeStr(r.artist || r.artists || r.performer).trim();
+
+    // Year-end rows usually have rank + title/artist. We allow some variance, but require at least one of these.
+    return hasRank || (hasTitleish && hasArtistish);
+  };
 
   for (const k of keys) {
-    const kl = String(k).toLowerCase();
-    // We only want the year-end hot100 files, not "singles" unless you explicitly want them later.
-    if (!kl.includes("yearend_hot100")) continue;
-
     const pack = root[k];
     const rows = manifestExtractRows(pack);
     if (!rows.length) continue;
 
+    // lightweight “candidate” test
+    let good = 0;
+    const sampleN = Math.min(rows.length, 120);
+    for (let i = 0; i < sampleN; i++) if (isPlausibleRow(rows[i])) good++;
+    const ratio = sampleN ? good / sampleN : 0;
+
+    // require at least some signal (prevents swallowing random wiki datasets)
+    if (good < 10 && ratio < 0.2) continue;
+
     usedPacks += 1;
+    usedKeys.push(k);
 
     for (const r of rows) {
-      const y = Number(r && r.year);
-      if (!Number.isFinite(y)) continue;
+      if (!isPlausibleRow(r)) continue;
+      const y = Number(r.year);
       if (!out[y]) out[y] = [];
       out[y].push(r);
       totalRows += 1;
@@ -1283,7 +1306,7 @@ function manifestMergeYearendHot100FromDir(allJson, prefixKey) {
   }
 
   for (const y of Object.keys(out)) {
-    out[y].sort((a, b) => Number(a.rank || 9999) - Number(b.rank || 9999));
+    out[y].sort((a, b) => Number(a.rank || a.pos || 9999) - Number(b.rank || b.pos || 9999));
   }
 
   return {
@@ -1291,7 +1314,7 @@ function manifestMergeYearendHot100FromDir(allJson, prefixKey) {
     label: "yearend_hot100",
     byYear: out,
     builtAt: new Date().toISOString(),
-    meta: { usedPacks, totalRows, prefixKey },
+    meta: { usedPacks, totalRows, prefixKey, usedKeys: usedKeys.slice(0, 50) },
   };
 }
 
