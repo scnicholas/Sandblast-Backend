@@ -26,10 +26,16 @@
  * ✅ HARD-GUARD: disables old "derived_top10_from_yearend" loop by default
  *    - Year-end fallback only if explicitly allowed (allowDerivedTop10=true)
  * ✅ Builds “Guiding Attention in Three Acts” follow-ups as real followUps (and legacy strings)
+ *
+ * v0.7bB (ADVANCE ON TOP10 MISSING++++):
+ * ✅ If Top10 pinned missing, DO NOT dead-end:
+ *    - auto-offer controlled alternatives (Number1 / Story / Micro)
+ *    - if #1 anchor exists, include it inline to keep momentum
+ * ✅ Adds minimal handlers for custom_story / ask_year / switch_lane
  */
 
 const CE_VERSION =
-  "chatEngine v0.7bA (MUSIC LOOP-DAMPENER++++ + SESSION PATCH KEYS++++ + pinned-first resolvers + derived guard)";
+  "chatEngine v0.7bB (ADVANCE ON TOP10 MISSING++++ + MUSIC LOOP-DAMPENER++++ + SESSION PATCH KEYS++++ + pinned-first resolvers + derived guard)";
 
 // -------------------------
 // helpers
@@ -105,6 +111,14 @@ function truthy(v) {
   const s = safeStr(v).trim().toLowerCase();
   return s === "1" || s === "true" || s === "yes" || s === "y" || s === "on";
 }
+function normVibe(v) {
+  const s = safeStr(v).trim().toLowerCase();
+  if (!s) return "";
+  if (s.includes("rom")) return "romantic";
+  if (s.includes("reb")) return "rebellious";
+  if (s.includes("nos")) return "nostalgic";
+  return s;
+}
 
 // -------------------------
 // config
@@ -141,7 +155,12 @@ function normalizeInbound(input) {
     classifyAction(textRaw, payload, body, ctx) ||
     "";
 
-  const intent = safeStr(payload.intent || body.intent || ctx.intent || payload.mode || body.mode || ctx.mode || "").trim() || "";
+  const intent =
+    safeStr(payload.intent || body.intent || ctx.intent || payload.mode || body.mode || ctx.mode || "").trim() ||
+    "";
+
+  const vibe =
+    safeStr(payload.vibe || body.vibe || ctx.vibe || payload.tone || body.tone || ctx.tone || "").trim() || "";
 
   // explicit opt-in for year-end -> derived top10 fallback (off by default to kill loop)
   const allowDerivedTop10 =
@@ -164,6 +183,7 @@ function normalizeInbound(input) {
     year,
     action,
     intent,
+    vibe,
     allowDerivedTop10,
   };
 }
@@ -177,11 +197,11 @@ function extractYearFromText(t) {
   return normYear(y);
 }
 
-function classifyAction(text, payload) {
+function classifyAction(text, payload, body, ctx) {
   const t = safeStr(text).toLowerCase();
 
   // explicit payload wins
-  const pA = safeStr(payload.action || "").trim();
+  const pA = safeStr(payload?.action || "").trim();
   if (pA) return pA;
 
   // music actions
@@ -193,6 +213,14 @@ function classifyAction(text, payload) {
 
   // reset-like (index.js handles reset, but we keep a lightweight hook for engine-only tests)
   if (t === "__cmd:reset__" || /\b(reset|start over|clear session)\b/.test(t)) return "reset";
+
+  // lane switches
+  if (/\b(switch lane|change lane|other lane)\b/.test(t)) return "switch_lane";
+  if (/\b(pick another year|another year|new year)\b/.test(t)) return "ask_year";
+
+  // vibe-only prompt implies a custom story
+  const hasVibe = /\b(romantic|rebellious|nostalgic)\b/.test(t);
+  if (hasVibe && (/\b(story|moment|cinematic)\b/.test(t) || /\b(make it|give me)\b/.test(t))) return "custom_story";
 
   return "";
 }
@@ -471,6 +499,45 @@ function formatNumber1(year, item) {
   return `#1 — ${y}\n\n“${title || "(title unknown)"}” — ${artist || "(artist unknown)"}`;
 }
 
+function formatInlineAnchor(item) {
+  const title = safeStr(item?.title || "").trim();
+  const artist = safeStr(item?.artist || "").trim();
+  if (!title && !artist) return "";
+  return `Quick anchor (so we don’t lose momentum): “${title || "(title unknown)"}” — ${artist || "(artist unknown)"}`;
+}
+
+function buildCustomStory({ year, vibe, number1Item }) {
+  const y = normYear(year);
+  const v = normVibe(vibe) || "nostalgic";
+  const title = safeStr(number1Item?.title || "").trim();
+  const artist = safeStr(number1Item?.artist || "").trim();
+  const anchor = title || artist ? `“${title || "(title)"}” — ${artist || "(artist)"}` : "";
+
+  const open = y ? `${y}.` : `That year.`;
+  const aLine = anchor ? `The needle drops on ${anchor} — ` : `The needle drops — `;
+
+  if (v === "romantic") {
+    return (
+      `${open} ${aLine}` +
+      `and suddenly the room feels softer at the edges. Streetlights look like candlelight, and even your silence has a melody. ` +
+      `It’s the kind of year that makes you text first… then pretend you didn’t.`
+    );
+  }
+  if (v === "rebellious") {
+    return (
+      `${open} ${aLine}` +
+      `and your posture changes. You stop asking permission, stop apologizing for taking up space. ` +
+      `This is a year for leather-jacket confidence, for loud truths, for leaving the party early because you run the night.`
+    );
+  }
+  // nostalgic default
+  return (
+    `${open} ${aLine}` +
+    `and memory does that gentle time-warp thing. A car radio, a kitchen speaker, a hallway dance with socks on. ` +
+    `Not perfect—just *yours*. That’s why it sticks.`
+  );
+}
+
 // -------------------------
 // main engine
 // -------------------------
@@ -493,7 +560,11 @@ async function handleChat(input) {
   const year = norm.year ?? yearSticky ?? null;
 
   // lane inference
-  const lane = safeStr(norm.lane || "").trim() || (norm.action ? "music" : "") || safeStr(session.lane || "").trim() || "general";
+  const lane =
+    safeStr(norm.lane || "").trim() ||
+    (norm.action ? "music" : "") ||
+    safeStr(session.lane || "").trim() ||
+    "general";
 
   // prior chart key (for continuity)
   const prevChart = safeStr(session.activeMusicChart || session.lastMusicChart || "").trim();
@@ -519,8 +590,40 @@ async function handleChat(input) {
     };
   }
 
+  // lightweight lane helpers
+  if (norm.action === "ask_year") {
+    return {
+      ok: true,
+      reply: `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}). I’ll start with Top 10 — or you can pick #1, story, or micro.`,
+      lane: "music",
+      followUps: [
+        { id: "fu_1973", type: "chip", label: "1973", payload: { lane: "music", action: "top10", year: 1973 } },
+        { id: "fu_1988", type: "chip", label: "1988", payload: { lane: "music", action: "top10", year: 1988 } },
+        { id: "fu_1992", type: "chip", label: "1992", payload: { lane: "music", action: "top10", year: 1992 } },
+      ],
+      followUpsStrings: ["1973", "1988", "1992"],
+      sessionPatch: { lane: "music" },
+      meta: { engine: CE_VERSION, route: "ask_year", elapsedMs: nowMs() - started },
+    };
+  }
+  if (norm.action === "switch_lane") {
+    return {
+      ok: true,
+      reply: `Sure. Where to?\n\n• Music\n• Movies\n• Sponsors`,
+      lane: "general",
+      followUps: [
+        { id: "fu_music", type: "chip", label: "Music", payload: { lane: "music" } },
+        { id: "fu_movies", type: "chip", label: "Movies", payload: { lane: "movies" } },
+        { id: "fu_sponsors", type: "chip", label: "Sponsors", payload: { lane: "sponsors" } },
+      ],
+      followUpsStrings: ["Music", "Movies", "Sponsors"],
+      sessionPatch: { lane: "general" },
+      meta: { engine: CE_VERSION, route: "switch_lane", elapsedMs: nowMs() - started },
+    };
+  }
+
   // year guard for music actions that require year
-  const requiresYear = ["top10", "number1", "story_moment", "micro_moment", "yearend_hot100"];
+  const requiresYear = ["top10", "number1", "story_moment", "micro_moment", "yearend_hot100", "custom_story"];
   if (requiresYear.includes(norm.action) && !year) {
     return {
       ok: true,
@@ -555,21 +658,90 @@ async function handleChat(input) {
   // MUSIC
   // ---------------------------------
   if (lane === "music" || action) {
+    // custom story (templated, controlled, no hallucinated facts)
+    if (action === "custom_story") {
+      const v = normVibe(norm.vibe || norm.payload?.vibe || norm.ctx?.vibe || norm.text) || "nostalgic";
+      const n1 = resolveNumber1ForYear(knowledge, year);
+      const sig = buildMusicSig({
+        action: "custom_story",
+        year,
+        method: n1.ok ? n1.method : "templated",
+        sourceKey: n1.ok ? n1.sourceKey : "none",
+        extra: v,
+      });
+
+      if (shouldDampen(session, sig)) {
+        return {
+          ok: true,
+          reply: `Want to keep that vibe but switch the lens?\n\nPick: #1 anchor, Top 10, or micro moment.`,
+          lane: "music",
+          followUps: threeActFollowUps(year).followUps,
+          followUpsStrings: threeActFollowUps(year).followUpsStrings,
+          sessionPatch: {
+            lane: "music",
+            lastYear: year,
+            lastMusicYear: year,
+            __musicLastSig: sig,
+            lastMusicChart: prevChart,
+            activeMusicChart: "custom_story",
+            musicMomentsLoaded: !!session.musicMomentsLoaded,
+            musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
+          },
+          meta: { engine: CE_VERSION, route: "custom_story", dampened: true, musicSig: sig, elapsedMs: nowMs() - started },
+        };
+      }
+
+      const story = buildCustomStory({ year, vibe: v, number1Item: n1.ok ? n1.item : null });
+
+      return {
+        ok: true,
+        reply: `Okay… now we make it cinematic.\n\n${story}`,
+        lane: "music",
+        followUps: [
+          { id: "fu_micro", type: "chip", label: "“Tap micro moment—let’s seal the vibe.”", payload: { lane: "music", action: "micro_moment", year } },
+          { id: "fu_n1", type: "chip", label: `#1 for ${year}`, payload: { lane: "music", action: "number1", year } },
+          { id: "fu_top10", type: "chip", label: `Top 10 for ${year}`, payload: { lane: "music", action: "top10", year } },
+        ],
+        followUpsStrings: ["Tap micro moment—let’s seal the vibe.", `#1 for ${year}`, `Top 10 for ${year}`],
+        sessionPatch: {
+          lane: "music",
+          lastYear: year,
+          lastMusicYear: year,
+          __musicLastSig: sig,
+          lastMusicChart: prevChart,
+          activeMusicChart: "custom_story",
+          musicMomentsLoaded: true,
+          musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || nowMs(),
+        },
+        meta: { engine: CE_VERSION, route: "custom_story", vibe: v, musicSig: sig, elapsedMs: nowMs() - started },
+      };
+    }
+
     // top10
     if (action === "top10") {
       const res = resolveTop10ForYear(knowledge, year, { allowDerivedTop10: norm.allowDerivedTop10 });
 
       if (!res.ok) {
+        // ADVANCE ON TOP10 MISSING++++
         const why =
           res.reason === "pinned_missing_no_fallback"
             ? `I don’t have a pinned Top 10 for ${year} loaded yet — and I’m deliberately not deriving it from year-end data (that’s the loop you told me to kill).`
             : `I don’t have a clean Top 10 for ${year} loaded yet.`;
 
+        // try a safe, pinned alternative to keep flow moving
+        const n1 = resolveNumber1ForYear(knowledge, year);
+        const n1Line = n1.ok ? formatInlineAnchor(n1.item) : "";
+
         const acts = threeActFollowUps(year);
+
+        const reply =
+          `${why}\n\n` +
+          (n1Line ? `${n1Line}\n\n` : "") +
+          `Pick your next move (no loop, no guesswork):`;
 
         return {
           ok: true,
-          reply: `${why}\n\nIf you want, ask for the #1 anchor instead — and I’ll still make it feel like a moment.`,
+          reply,
           lane: "music",
           followUps: acts.followUps,
           followUpsStrings: acts.followUpsStrings,
@@ -582,7 +754,15 @@ async function handleChat(input) {
             musicMomentsLoaded: !!session.musicMomentsLoaded,
             musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
           },
-          meta: { engine: CE_VERSION, route: "top10", found: false, reason: res.reason, allowDerivedTop10: !!norm.allowDerivedTop10, elapsedMs: nowMs() - started },
+          meta: {
+            engine: CE_VERSION,
+            route: "top10",
+            found: false,
+            reason: res.reason,
+            allowDerivedTop10: !!norm.allowDerivedTop10,
+            number1Inline: !!n1.ok,
+            elapsedMs: nowMs() - started,
+          },
         };
       }
 
@@ -637,8 +817,7 @@ async function handleChat(input) {
       const acts = threeActFollowUps(year);
       const microPack = !!getPinnedMicroMoments(knowledge);
       const momentsLoaded = !!session.musicMomentsLoaded || microPack;
-      const momentsLoadedAt =
-        Number(session.musicMomentsLoadedAt || 0) || (microPack ? nowMs() : 0);
+      const momentsLoadedAt = Number(session.musicMomentsLoadedAt || 0) || (microPack ? nowMs() : 0);
 
       return {
         ok: true,
@@ -706,7 +885,15 @@ async function handleChat(input) {
             musicMomentsLoaded: momentsLoaded,
             musicMomentsLoadedAt: momentsLoadedAt,
           },
-          meta: { engine: CE_VERSION, route: "number1", found: false, reason: res.reason, musicSig: sig, musicChartKey: "number1", elapsedMs: nowMs() - started },
+          meta: {
+            engine: CE_VERSION,
+            route: "number1",
+            found: false,
+            reason: res.reason,
+            musicSig: sig,
+            musicChartKey: "number1",
+            elapsedMs: nowMs() - started,
+          },
         };
       }
 
@@ -751,7 +938,15 @@ async function handleChat(input) {
           musicMomentsLoaded: momentsLoaded,
           musicMomentsLoadedAt: momentsLoadedAt,
         },
-        meta: { engine: CE_VERSION, route: "number1", method: res.method, sourceKey: res.sourceKey, musicSig: sig, musicChartKey: "number1", elapsedMs: nowMs() - started },
+        meta: {
+          engine: CE_VERSION,
+          route: "number1",
+          method: res.method,
+          sourceKey: res.sourceKey,
+          musicSig: sig,
+          musicChartKey: "number1",
+          elapsedMs: nowMs() - started,
+        },
       };
     }
 
@@ -775,8 +970,8 @@ async function handleChat(input) {
         return {
           ok: true,
           reply:
-            `I don’t have a story moment loaded for ${year} yet — but I can still build one if you tell me the mood.\n\n` +
-            `Want it: romantic, rebellious, or nostalgic?`,
+            `I don’t have a pinned story moment for ${year} yet — but I can still make it cinematic.\n\n` +
+            `Pick the mood: romantic, rebellious, or nostalgic.`,
           lane: "music",
           followUps: [
             { id: "fu_rom", type: "chip", label: "Romantic", payload: { lane: "music", action: "custom_story", year, vibe: "romantic" } },
@@ -794,7 +989,15 @@ async function handleChat(input) {
             musicMomentsLoaded: momentsLoaded,
             musicMomentsLoadedAt: momentsLoadedAt,
           },
-          meta: { engine: CE_VERSION, route: "story_moment", found: false, reason: res.reason, musicSig: sig, musicChartKey: "story", elapsedMs: nowMs() - started },
+          meta: {
+            engine: CE_VERSION,
+            route: "story_moment",
+            found: false,
+            reason: res.reason,
+            musicSig: sig,
+            musicChartKey: "story",
+            elapsedMs: nowMs() - started,
+          },
         };
       }
 
@@ -840,7 +1043,15 @@ async function handleChat(input) {
           musicMomentsLoaded: momentsLoaded,
           musicMomentsLoadedAt: momentsLoadedAt,
         },
-        meta: { engine: CE_VERSION, route: "story_moment", method: res.method, sourceKey: res.sourceKey, musicSig: sig, musicChartKey: "story", elapsedMs: nowMs() - started },
+        meta: {
+          engine: CE_VERSION,
+          route: "story_moment",
+          method: res.method,
+          sourceKey: res.sourceKey,
+          musicSig: sig,
+          musicChartKey: "story",
+          elapsedMs: nowMs() - started,
+        },
       };
     }
 
@@ -861,7 +1072,7 @@ async function handleChat(input) {
           ok: true,
           reply:
             `I don’t see a micro moment loaded for ${year} yet.\n\n` +
-            `If you want, ask for Top 10 or the #1 anchor — and I’ll still keep the vibe tight.`,
+            `If you want, hit Top 10 or the #1 anchor — I’ll keep the vibe tight.`,
           lane: "music",
           followUps: [
             { id: "fu_top10", type: "chip", label: `Top 10 for ${year}`, payload: { lane: "music", action: "top10", year } },
@@ -878,14 +1089,22 @@ async function handleChat(input) {
             musicMomentsLoaded: !!session.musicMomentsLoaded,
             musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
           },
-          meta: { engine: CE_VERSION, route: "micro_moment", found: false, reason: res.reason, musicSig: sig, musicChartKey: "micro", elapsedMs: nowMs() - started },
+          meta: {
+            engine: CE_VERSION,
+            route: "micro_moment",
+            found: false,
+            reason: res.reason,
+            musicSig: sig,
+            musicChartKey: "micro",
+            elapsedMs: nowMs() - started,
+          },
         };
       }
 
       if (shouldDampen(session, sig)) {
         return {
           ok: true,
-          reply: `Micro moment for ${year} is already sealed. Want to jump years, or do another lane?`,
+          reply: `Micro moment for ${year} is already sealed. Want to jump years, or switch lanes?`,
           lane: "music",
           followUps: [
             { id: "fu_newyear", type: "chip", label: "Pick another year", payload: { lane: "music", action: "ask_year" } },
