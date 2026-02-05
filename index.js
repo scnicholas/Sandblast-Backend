@@ -14,6 +14,10 @@
  *    - __musicLastSig, activeMusicChart, lastMusicChart, musicMomentsLoaded, musicMomentsLoadedAt
  * ✅ CRITICAL: reset command actually clears session state (not just silences output)
  *    - safe wipe of rec.data (preserves sessionId/visitorId), clears rate windows, clears replay caches
+ *
+ * NOTE:
+ * - This file includes ONE critical syntax fix vs the paste you provided:
+ *   removed a stray `consists: null;` line inside the boot-fuse return block (it would crash Node at startup).
  */
 
 // =========================
@@ -2559,7 +2563,6 @@ async function handleChatRoute(req, res) {
     if (bf.blocked) {
       const cached = readBootReplay(rec);
       const reply = cached.reply || "";
-      consists: null;
       return res.status(200).json({
         ok: true,
         reply,
