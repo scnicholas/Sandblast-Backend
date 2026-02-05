@@ -7,8 +7,8 @@
  * Output:
  *   Data/top10_by_year_v1.json
  *
- * Baseline: Top 10 = first 10 rows from each year cache.
- * Canonical rule: pos is ALWAYS 1–10 by order (index-based).
+ * Baseline: Top 10 = first 10 VALID song rows from each year cache.
+ * Canonical rule: pos is ALWAYS 1–10 by order (index-based) AFTER cleaning/filtering.
  * Optional overlay: if Data/top10_input_rows.json contains rows for a year,
  * it can overwrite those entries (higher authority).
  *
@@ -40,11 +40,56 @@ function isNonEmptyString(x) {
   return typeof x === "string" && x.trim().length > 0;
 }
 function normStr(x) {
-  return String(x || "").replace(/\s+/g, " ").trim();
+  return String(x || "")
+    .replace(/\u00a0/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 function toInt(x) {
   const n = parseInt(String(x || "").replace(/[^\d]/g, ""), 10);
   return Number.isFinite(n) ? n : null;
+}
+
+function isHeaderRow(title, artist) {
+  const t = normStr(title).toLowerCase();
+  const a = normStr(artist).toLowerCase();
+  if (!t && !a) return true;
+
+  // Common header variants
+  const tIsTitle = t === "title" || t === "song" || t === "single";
+  const aIsArtist = a === "artist" || a === "artist(s)" || a === "artists";
+  if (tIsTitle && (aIsArtist || !a)) return true;
+  if (aIsArtist && (!t || tIsTitle)) return true;
+
+  // Rank header leakage
+  if (
+    t === "№" ||
+    t === "no" ||
+    t === "no." ||
+    t === "rank" ||
+    t === "pos" ||
+    t === "position"
+  )
+    return true;
+  if (
+    a === "№" ||
+    a === "no" ||
+    a === "no." ||
+    a === "rank" ||
+    a === "pos" ||
+    a === "position"
+  )
+    return true;
+
+  return false;
+}
+
+function isJunkRow(title, artist) {
+  const t = normStr(title);
+  const a = normStr(artist);
+  if (!t && !a) return true;
+  if (isHeaderRow(t, a)) return true;
+  return false;
 }
 
 function loadWikiYear(year) {
@@ -57,17 +102,26 @@ function loadWikiYear(year) {
 function buildTop10FromRows(rows) {
   if (!Array.isArray(rows) || rows.length < 10) return null;
 
-  // Canonical Top10: ordering defines rank
-  const top10 = rows.slice(0, 10).map((r, idx) => {
-    const title = normStr(r.title);
-    const artist = normStr(r.artist);
-    const sourcePos = toInt(r.pos);
+  // FIX++++: clean/filter FIRST, then take first 10 valid rows
+  const cleaned = rows
+    .map((r) => {
+      const title = normStr(r && (r.title ?? r.song ?? r.single ?? r.track));
+      const artist = normStr(r && (r.artist ?? r["artist(s)"] ?? r.artists ?? r.performer));
+      const sourcePos = toInt(r && r.pos);
+      return { title, artist, sourcePos };
+    })
+    .filter((r) => !isJunkRow(r.title, r.artist))
+    .filter((r) => isNonEmptyString(r.title) && isNonEmptyString(r.artist));
 
+  if (cleaned.length < 10) return null;
+
+  // Canonical Top10: ordering defines rank (after cleaning)
+  const top10 = cleaned.slice(0, 10).map((r, idx) => {
     return {
-      pos: idx + 1,            // ✅ authoritative rank
-      title,
-      artist,
-      ...(sourcePos ? { sourcePos } : {}) // optional provenance
+      pos: idx + 1, // ✅ authoritative rank
+      title: r.title,
+      artist: r.artist,
+      ...(r.sourcePos ? { sourcePos: r.sourcePos } : {}) // optional provenance
     };
   });
 
@@ -77,6 +131,7 @@ function buildTop10FromRows(rows) {
     if (it.pos !== i + 1) return null;
     if (!isNonEmptyString(it.title)) return null;
     if (!isNonEmptyString(it.artist)) return null;
+    if (isHeaderRow(it.title, it.artist)) return null; // extra guard
   }
 
   return top10;
@@ -99,9 +154,11 @@ function buildOverlayMapFromInputRows() {
     const y = toInt(r.year);
     const pos = toInt(r.pos ?? r.position ?? r.rank);
     const title = normStr(r.title ?? r.song ?? r.single ?? r.track);
-    const artist = normStr(r.artist ?? r.artists ?? r.performer);
+    const artist = normStr(r.artist ?? r["artist(s)"] ?? r.artists ?? r.performer);
 
     if (!y || !pos || !isNonEmptyString(title) || !isNonEmptyString(artist)) continue;
+    if (isHeaderRow(title, artist)) continue;
+
     if (!byYear.has(y)) byYear.set(y, []);
     byYear.get(y).push({ pos, title, artist });
   }
@@ -109,14 +166,14 @@ function buildOverlayMapFromInputRows() {
   const out = new Map();
   for (const [y, items] of byYear.entries()) {
     const sorted = items
-      .filter(it => it.pos >= 1 && it.pos <= 10)
+      .filter((it) => it.pos >= 1 && it.pos <= 10)
       .sort((a, b) => a.pos - b.pos);
 
     if (sorted.length >= 10) {
       out.set(
         y,
         sorted.slice(0, 10).map((it, idx) => ({
-          pos: idx + 1,          // canonical
+          pos: idx + 1, // canonical
           title: it.title,
           artist: it.artist,
           sourcePos: it.pos
