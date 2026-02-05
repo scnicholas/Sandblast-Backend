@@ -4,22 +4,14 @@
  * Scripts/build_top10_by_year_from_wiki_cache_1950_2025.js
  *
  * Build Top10 store from Wikipedia per-year cache:
- *   Data/wikipedia/charts/year_end_hot100_<YEAR>.json
+ *   Data/wikipedia/charts/year_end_hot100_<YEAR>[.json]
  *
  * Output:
  *   Data/top10_by_year_v1.json
  *
  * NEW:
  *   Data/top10_wiki_anomalies.json      (per-year anomaly/diff logger)
- *   Data/top10_wiki_top10_preview.json  (pre-overlay preview, useful for audits)
- *
- * Baseline: Top 10 = first 10 VALID song rows from each year cache.
- * Canonical rule: pos is ALWAYS 1–10 by order (index-based) AFTER cleaning/filtering.
- * Optional overlay: if Data/top10_input_rows.json contains rows for a year,
- * it can overwrite those entries (higher authority).
- *
- * Usage:
- *   node Scripts/build_top10_by_year_from_wiki_cache_1950_2025.js
+ *   Data/top10_wiki_top10_preview.json  (pre-overlay preview)
  */
 
 const fs = require("fs");
@@ -39,15 +31,39 @@ const PREVIEW_FILE = path.join(DATA_DIR, "top10_wiki_top10_preview.json");
 
 const CHART_NAME = "Billboard Year-End Hot 100 (Wikipedia cache)";
 
-function readJson(fp) {
-  return JSON.parse(fs.readFileSync(fp, "utf8"));
-}
-function writeJson(fp, obj) {
-  fs.writeFileSync(fp, JSON.stringify(obj, null, 2), "utf8");
-}
 function ensureDir(fp) {
   const dir = path.dirname(fp);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
+
+function readJsonSafe(fp) {
+  // Handles UTF-8 BOM and common trailing junk scenarios
+  let txt = fs.readFileSync(fp, "utf8");
+  // strip BOM
+  txt = txt.replace(/^\uFEFF/, "");
+  // Trim leading/trailing whitespace
+  txt = txt.trim();
+
+  // If there is accidental text before the first { or [, slice from first JSON token
+  const firstObj = txt.indexOf("{");
+  const firstArr = txt.indexOf("[");
+  let start = -1;
+  if (firstObj >= 0 && firstArr >= 0) start = Math.min(firstObj, firstArr);
+  else start = Math.max(firstObj, firstArr);
+  if (start > 0) txt = txt.slice(start);
+
+  // If there is accidental trailing text after last } or ], slice to last JSON token
+  const lastObj = txt.lastIndexOf("}");
+  const lastArr = txt.lastIndexOf("]");
+  let end = -1;
+  end = Math.max(lastObj, lastArr);
+  if (end >= 0 && end < txt.length - 1) txt = txt.slice(0, end + 1);
+
+  return JSON.parse(txt);
+}
+
+function writeJson(fp, obj) {
+  fs.writeFileSync(fp, JSON.stringify(obj, null, 2), "utf8");
 }
 
 function isNonEmptyString(x) {
@@ -130,30 +146,7 @@ function isHeaderRow(title, artist) {
   return false;
 }
 
-function isJunkRow(title, artist) {
-  const t = normStr(title);
-  const a = normStr(artist);
-  if (!t && !a) return true;
-  if (isHeaderRow(t, a)) return true;
-  if (t && a && t.toLowerCase() === a.toLowerCase()) return true;
-  if (t.length < 2 || a.length < 2) return true;
-  return false;
-}
-
-function loadWikiYear(year) {
-  const fp = path.join(WIKI_DIR, `year_end_hot100_${year}.json`);
-  if (!fs.existsSync(fp)) return null;
-
-  try {
-    const j = readJson(fp);
-    return Array.isArray(j.rows) ? j.rows : [];
-  } catch {
-    return []; // parse failed or invalid JSON
-  }
-}
-
 function sniffRowShape(rows) {
-  // Give a quick “shape fingerprint” so anomalies jump out
   const sample = Array.isArray(rows) ? rows.slice(0, 6) : [];
   const keys = new Set();
   for (const r of sample) {
@@ -162,19 +155,41 @@ function sniffRowShape(rows) {
   return { sampleKeys: Array.from(keys).sort(), sampleCount: sample.length };
 }
 
+function resolveWikiYearFile(year) {
+  const base = path.join(WIKI_DIR, `year_end_hot100_${year}`);
+  const cand1 = `${base}.json`;
+  const cand2 = base; // no extension
+
+  if (fs.existsSync(cand1)) return cand1;
+  if (fs.existsSync(cand2)) return cand2;
+
+  // Also try common case variants just in case
+  const cand3 = path.join(WIKI_DIR, `year_end_hot100_${year}.JSON`);
+  if (fs.existsSync(cand3)) return cand3;
+
+  return null;
+}
+
+function loadWikiYear(year) {
+  const fp = resolveWikiYearFile(year);
+  if (!fp) return { fp: null, rows: null, readError: null };
+
+  try {
+    const j = readJsonSafe(fp);
+    const rows = Array.isArray(j.rows) ? j.rows : [];
+    return { fp, rows, readError: null };
+  } catch (e) {
+    return { fp, rows: [], readError: String(e && e.message ? e.message : e) };
+  }
+}
+
 function buildTop10FromRows(rows, year) {
   const diag = {
     year,
     rowCount: Array.isArray(rows) ? rows.length : 0,
     ok: false,
     picked: 0,
-    dropped: {
-      empty: 0,
-      header: 0,
-      titleEqArtist: 0,
-      tooShort: 0,
-      dup: 0
-    },
+    dropped: { empty: 0, header: 0, titleEqArtist: 0, tooShort: 0, dup: 0 },
     firstProblems: [],
     shape: sniffRowShape(rows)
   };
@@ -207,22 +222,16 @@ function buildTop10FromRows(rows, year) {
       if (diag.firstProblems.length < 6) diag.firstProblems.push("empty_title_or_artist");
       continue;
     }
-
-    // header check
     if (isHeaderRow(title, artist)) {
       diag.dropped.header++;
       if (diag.firstProblems.length < 6) diag.firstProblems.push("header_row");
       continue;
     }
-
-    // title==artist corruption
     if (title.toLowerCase() === artist.toLowerCase()) {
       diag.dropped.titleEqArtist++;
       if (diag.firstProblems.length < 6) diag.firstProblems.push("title_eq_artist");
       continue;
     }
-
-    // too-short
     if (title.length < 2 || artist.length < 2) {
       diag.dropped.tooShort++;
       if (diag.firstProblems.length < 6) diag.firstProblems.push("too_short");
@@ -239,12 +248,7 @@ function buildTop10FromRows(rows, year) {
 
     const sourcePos = toInt(getField(r, ["pos", "Pos", "position", "Position", "rank", "Rank", "№", "No.", "no"]));
 
-    picked.push({
-      title,
-      artist,
-      ...(sourcePos ? { sourcePos } : {})
-    });
-
+    picked.push({ title, artist, ...(sourcePos ? { sourcePos } : {}) });
     if (picked.length >= 10) break;
   }
 
@@ -262,25 +266,15 @@ function buildTop10FromRows(rows, year) {
     ...(r.sourcePos ? { sourcePos: r.sourcePos } : {})
   }));
 
-  // hard validate
   for (let i = 0; i < 10; i++) {
     const it = top10[i];
-    if (it.pos !== i + 1) {
-      diag.firstProblems.push("pos_not_canonical");
-      return { top10: null, diag };
-    }
-    if (!isNonEmptyString(it.title) || !isNonEmptyString(it.artist)) {
-      diag.firstProblems.push("empty_in_top10");
-      return { top10: null, diag };
-    }
-    if (isHeaderRow(it.title, it.artist)) {
-      diag.firstProblems.push("header_in_top10");
-      return { top10: null, diag };
-    }
-    if (it.title.toLowerCase() === it.artist.toLowerCase()) {
-      diag.firstProblems.push("title_eq_artist_in_top10");
-      return { top10: null, diag };
-    }
+    if (it.pos !== i + 1) return { top10: null, diag: { ...diag, firstProblems: diag.firstProblems.concat("pos_not_canonical") } };
+    if (!isNonEmptyString(it.title) || !isNonEmptyString(it.artist))
+      return { top10: null, diag: { ...diag, firstProblems: diag.firstProblems.concat("empty_in_top10") } };
+    if (isHeaderRow(it.title, it.artist))
+      return { top10: null, diag: { ...diag, firstProblems: diag.firstProblems.concat("header_in_top10") } };
+    if (it.title.toLowerCase() === it.artist.toLowerCase())
+      return { top10: null, diag: { ...diag, firstProblems: diag.firstProblems.concat("title_eq_artist_in_top10") } };
   }
 
   diag.ok = true;
@@ -292,7 +286,7 @@ function buildOverlayMapFromInputRows() {
 
   let j;
   try {
-    j = readJson(TOP10_INPUT_ROWS);
+    j = readJsonSafe(TOP10_INPUT_ROWS);
   } catch {
     return new Map();
   }
@@ -347,7 +341,7 @@ function main() {
   const overlay = buildOverlayMapFromInputRows();
 
   const years = {};
-  const preview = {}; // pre-overlay preview of what the wiki build produced
+  const preview = {};
   const anomalies = [];
 
   const missing = [];
@@ -357,22 +351,16 @@ function main() {
   for (let y = YEAR_START; y <= YEAR_END; y++) {
     const yKey = String(y);
 
-    // overlay wins
     if (overlay.has(y)) {
       overlayUsed.push(y);
       years[yKey] = { year: y, chart: CHART_NAME, items: overlay.get(y) };
       preview[yKey] = { year: y, chart: CHART_NAME, items: overlay.get(y), note: "overlay_used" };
-      anomalies.push({
-        year: y,
-        ok: true,
-        source: "overlay",
-        note: "overlay_override_used",
-        picked: 10
-      });
+      anomalies.push({ year: y, ok: true, source: "overlay", note: "overlay_override_used", picked: 10 });
       continue;
     }
 
-    const rows = loadWikiYear(y);
+    const { fp, rows, readError } = loadWikiYear(y);
+
     if (rows === null) {
       missing.push(y);
       years[yKey] = { year: y, chart: CHART_NAME, items: [] };
@@ -382,8 +370,25 @@ function main() {
         ok: false,
         source: "wiki",
         note: "missing_file",
+        expected: [`year_end_hot100_${y}.json`, `year_end_hot100_${y}`],
+        foundFile: null,
         rowCount: 0,
         picked: 0
+      });
+      continue;
+    }
+
+    if (readError) {
+      weak.push(y);
+      years[yKey] = { year: y, chart: CHART_NAME, items: [] };
+      preview[yKey] = { year: y, chart: CHART_NAME, items: [], note: "read_or_parse_error" };
+      anomalies.push({
+        year: y,
+        ok: false,
+        source: "wiki",
+        note: "read_or_parse_error",
+        foundFile: fp ? path.relative(process.cwd(), fp) : null,
+        readError
       });
       continue;
     }
@@ -399,6 +404,7 @@ function main() {
         ok: false,
         source: "wiki",
         note: "weak_or_unbuildable",
+        foundFile: fp ? path.relative(process.cwd(), fp) : null,
         ...diag
       });
       continue;
@@ -407,11 +413,11 @@ function main() {
     years[yKey] = { year: y, chart: CHART_NAME, items: top10 };
     preview[yKey] = { year: y, chart: CHART_NAME, items: top10, note: "wiki_built_ok" };
 
-    // keep a light diag even on ok years (helps spot drift)
     anomalies.push({
       year: y,
       ok: true,
       source: "wiki",
+      foundFile: fp ? path.relative(process.cwd(), fp) : null,
       picked: 10,
       rowCount: diag.rowCount,
       dropped: diag.dropped,
