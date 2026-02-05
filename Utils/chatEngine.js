@@ -17,15 +17,15 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7bD (PINNED TOP10 KEY ALIASES++++ + ACCURATE MISS REASONS++++ + YEAR-END ROUTE++++):
- * ✅ Top10 pack lookup supports multiple key aliases + heuristic scan in knowledge.json
- * ✅ Distinguishes missing_pack vs year_missing_in_pack vs empty_items_for_year
- * ✅ Adds explicit yearend_hot100 handler (uses wiki-by-year when requested)
- * ✅ Keeps: loop dampener, derived guard default OFF, 3-act followUps, session keys
+ * v0.7bE (PAYLOAD BEATS SILENCE++++ + CHIP-CLICK ADVANCE++++):
+ * ✅ If payload.action exists, we treat the turn as actionable even if text is empty
+ * ✅ If payload.year exists, it is a valid yearSource (prevents “need year” on chip clicks)
+ * ✅ Adds meta.turnSignals echo (hasPayload/payloadAction/payloadYear/textEmpty) for quick diagnosis
+ * ✅ Keeps: v0.7bD pinned aliases, miss reasons, year-end route, loop dampener, derived guard default OFF, 3-act followUps, session keys
  */
 
 const CE_VERSION =
-  "chatEngine v0.7bD (PINNED TOP10 KEY ALIASES++++ + ACCURATE MISS REASONS++++ + YEAR-END ROUTE++++ + loop dampener + derived guard)";
+  "chatEngine v0.7bE (PAYLOAD BEATS SILENCE++++ + CHIP-CLICK ADVANCE++++ + pinned aliases + accurate miss reasons + year-end route + loop dampener)";
 
 // -------------------------
 // helpers
@@ -40,7 +40,8 @@ function isPlainObject(x) {
   return (
     !!x &&
     typeof x === "object" &&
-    (Object.getPrototypeOf(x) === Object.prototype || Object.getPrototypeOf(x) === null)
+    (Object.getPrototypeOf(x) === Object.prototype ||
+      Object.getPrototypeOf(x) === null)
   );
 }
 function clampInt(v, def, min, max) {
@@ -82,7 +83,12 @@ function compactList(items, maxN) {
 }
 function normalizeSongLine(r) {
   const o = isPlainObject(r) ? r : {};
-  const pos = clampInt(o.pos ?? o.rank ?? o.position ?? o["#"] ?? o.no ?? o.number, null, 1, 500);
+  const pos = clampInt(
+    o.pos ?? o.rank ?? o.position ?? o["#"] ?? o.no ?? o.number,
+    null,
+    1,
+    500
+  );
   const title = safeStr(o.title ?? o.song ?? o.single ?? o.track ?? "").trim();
   const artist = safeStr(o.artist ?? o.artists ?? o.performer ?? "").trim();
   return { pos: pos || null, title, artist };
@@ -120,16 +126,27 @@ function classifyAction(text, payload) {
 
   if (/\b(top\s*10|top ten)\b/.test(t)) return "top10";
   if (/\b(#\s*1|number\s*1|number one|no\.\s*1)\b/.test(t)) return "number1";
-  if (/\b(story\s*moment|make it cinematic|cinematic)\b/.test(t)) return "story_moment";
-  if (/\b(micro\s*moment|tap micro|seal the vibe)\b/.test(t)) return "micro_moment";
-  if (/\b(year[-\s]*end|year end|yearend)\b/.test(t) && /\bhot\s*100\b/.test(t)) return "yearend_hot100";
+  if (/\b(story\s*moment|make it cinematic|cinematic)\b/.test(t))
+    return "story_moment";
+  if (/\b(micro\s*moment|tap micro|seal the vibe)\b/.test(t))
+    return "micro_moment";
+  if (
+    /\b(year[-\s]*end|year end|yearend)\b/.test(t) &&
+    /\bhot\s*100\b/.test(t)
+  )
+    return "yearend_hot100";
 
-  if (t === "__cmd:reset__" || /\b(reset|start over|clear session)\b/.test(t)) return "reset";
+  if (t === "__cmd:reset__" || /\b(reset|start over|clear session)\b/.test(t))
+    return "reset";
   if (/\b(pick another year|another year|new year)\b/.test(t)) return "ask_year";
-  if (/\b(switch lane|change lane|other lane)\b/.test(t)) return "switch_lane";
+  if (/\b(switch lane|change lane|other lane)\b/.test(t))
+    return "switch_lane";
 
   const hasVibe = /\b(romantic|rebellious|nostalgic)\b/.test(t);
-  if (hasVibe && (/\b(story|moment|cinematic)\b/.test(t) || /\b(make it|give me)\b/.test(t)))
+  if (
+    hasVibe &&
+    (/\b(story|moment|cinematic)\b/.test(t) || /\b(make it|give me)\b/.test(t))
+  )
     return "custom_story";
 
   return "";
@@ -142,21 +159,29 @@ function normalizeInbound(input) {
   const client = isPlainObject(body.client) ? body.client : {};
 
   const textRaw = safeStr(
-    body.text || body.message || body.prompt || body.query || payload.text || payload.message || ""
+    body.text ||
+      body.message ||
+      body.prompt ||
+      body.query ||
+      payload.text ||
+      payload.message ||
+      ""
   ).trim();
 
-  const lane = safeStr(body.lane || payload.lane || ctx.lane || "").trim();
+  // PAYLOAD BEATS SILENCE: treat chip clicks as real turns even when text is empty
+  const payloadAction = safeStr(payload.action || body.action || ctx.action || "").trim();
+  const inferredAction = classifyAction(textRaw, payload);
+  const action = payloadAction || inferredAction || "";
+
+  const payloadYear =
+    normYear(payload.year) ?? normYear(body.year) ?? normYear(ctx.year) ?? null;
+
   const year =
-    normYear(body.year) ??
-    normYear(payload.year) ??
-    normYear(ctx.year) ??
+    payloadYear ??
     extractYearFromText(textRaw) ??
     null;
 
-  const action =
-    safeStr(payload.action || body.action || ctx.action || "").trim() ||
-    classifyAction(textRaw, payload) ||
-    "";
+  const lane = safeStr(body.lane || payload.lane || ctx.lane || "").trim();
 
   const vibe = safeStr(payload.vibe || body.vibe || ctx.vibe || "").trim() || "";
 
@@ -168,7 +193,30 @@ function normalizeInbound(input) {
     truthy(body.allowYearendFallback) ||
     truthy(ctx.allowYearendFallback);
 
-  return { body, payload, ctx, client, text: textRaw, lane, year, action, vibe, allowDerivedTop10 };
+  const textEmpty = !safeStr(textRaw).trim();
+  const hasPayload = isPlainObject(payload) && Object.keys(payload).length > 0;
+
+  return {
+    body,
+    payload,
+    ctx,
+    client,
+    text: textRaw,
+    lane,
+    year,
+    action,
+    vibe,
+    allowDerivedTop10,
+    turnSignals: {
+      hasPayload,
+      payloadAction: payloadAction || "",
+      payloadYear: payloadYear ?? null,
+      textEmpty,
+      // useful for diagnosing "chip ignored" reports
+      effectiveAction: action || "",
+      effectiveYear: year ?? null,
+    },
+  };
 }
 
 // -------------------------
@@ -652,16 +700,18 @@ async function handleChat(input) {
   const session = isPlainObject(norm.body.session)
     ? norm.body.session
     : isPlainObject(input?.session)
-      ? input.session
-      : {};
+    ? input.session
+    : {};
 
   const knowledge = isPlainObject(input?.knowledge)
     ? input.knowledge
     : isPlainObject(norm.body.knowledge)
-      ? norm.body.knowledge
-      : {};
+    ? norm.body.knowledge
+    : {};
 
   const yearSticky = normYear(session.lastYear) ?? null;
+
+  // PAYLOAD YEAR BEATS STICKY YEAR (chip click should override prior context)
   const year = norm.year ?? yearSticky ?? null;
 
   const lane =
@@ -688,7 +738,12 @@ async function handleChat(input) {
         musicMomentsLoaded: false,
         musicMomentsLoadedAt: 0,
       },
-      meta: { engine: CE_VERSION, resetHint: true, elapsedMs: nowMs() - started },
+      meta: {
+        engine: CE_VERSION,
+        resetHint: true,
+        turnSignals: norm.turnSignals,
+        elapsedMs: nowMs() - started,
+      },
     };
   }
 
@@ -704,7 +759,7 @@ async function handleChat(input) {
       ],
       followUpsStrings: ["1973", "1988", "1992"],
       sessionPatch: { lane: "music" },
-      meta: { engine: CE_VERSION, route: "ask_year", elapsedMs: nowMs() - started },
+      meta: { engine: CE_VERSION, route: "ask_year", turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
     };
   }
 
@@ -720,11 +775,13 @@ async function handleChat(input) {
       ],
       followUpsStrings: ["Music", "Movies", "Sponsors"],
       sessionPatch: { lane: "general" },
-      meta: { engine: CE_VERSION, route: "switch_lane", elapsedMs: nowMs() - started },
+      meta: { engine: CE_VERSION, route: "switch_lane", turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
     };
   }
 
   const requiresYear = ["top10", "number1", "story_moment", "micro_moment", "yearend_hot100", "custom_story"];
+
+  // CHIP-CLICK ADVANCE: if action is present via payload, do NOT misfire "need year" unless year truly absent
   if (requiresYear.includes(norm.action) && !year) {
     return {
       ok: true,
@@ -737,7 +794,7 @@ async function handleChat(input) {
       ],
       followUpsStrings: ["1973", "1988", "1960"],
       sessionPatch: { lane: "music" },
-      meta: { engine: CE_VERSION, needYear: true, elapsedMs: nowMs() - started },
+      meta: { engine: CE_VERSION, needYear: true, turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
     };
   }
 
@@ -747,7 +804,7 @@ async function handleChat(input) {
       reply: `I can do ${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}. Give me a year in that range and I’ll take you there.`,
       lane: "music",
       sessionPatch: { lane: "music" },
-      meta: { engine: CE_VERSION, outOfRange: true, year, elapsedMs: nowMs() - started },
+      meta: { engine: CE_VERSION, outOfRange: true, year, turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
     };
   }
 
@@ -787,7 +844,7 @@ async function handleChat(input) {
             musicMomentsLoaded: !!session.musicMomentsLoaded,
             musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
           },
-          meta: { engine: CE_VERSION, route: "custom_story", dampened: true, musicSig: sig, elapsedMs: nowMs() - started },
+          meta: { engine: CE_VERSION, route: "custom_story", dampened: true, musicSig: sig, turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
         };
       }
 
@@ -812,7 +869,7 @@ async function handleChat(input) {
           musicMomentsLoaded: true,
           musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || nowMs(),
         },
-        meta: { engine: CE_VERSION, route: "custom_story", vibe: v, musicSig: sig, elapsedMs: nowMs() - started },
+        meta: { engine: CE_VERSION, route: "custom_story", vibe: v, musicSig: sig, turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
       };
     }
 
@@ -857,7 +914,7 @@ async function handleChat(input) {
             musicMomentsLoaded: !!session.musicMomentsLoaded,
             musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
           },
-          meta: { engine: CE_VERSION, route: "yearend_hot100", found: false, reason: res.reason, musicSig: sig, elapsedMs: nowMs() - started },
+          meta: { engine: CE_VERSION, route: "yearend_hot100", found: false, reason: res.reason, musicSig: sig, turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
         };
       }
 
@@ -881,7 +938,7 @@ async function handleChat(input) {
             musicMomentsLoaded: !!session.musicMomentsLoaded,
             musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
           },
-          meta: { engine: CE_VERSION, route: "yearend_hot100", dampened: true, musicSig: sig, elapsedMs: nowMs() - started },
+          meta: { engine: CE_VERSION, route: "yearend_hot100", dampened: true, musicSig: sig, turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
         };
       }
 
@@ -914,6 +971,7 @@ async function handleChat(input) {
           foundBy: res.foundBy,
           confidence: res.confidence || "high",
           musicSig: sig,
+          turnSignals: norm.turnSignals,
           elapsedMs: nowMs() - started,
         },
       };
@@ -968,6 +1026,7 @@ async function handleChat(input) {
             found: false,
             reason: res.reason,
             allowDerivedTop10: !!norm.allowDerivedTop10,
+            turnSignals: norm.turnSignals,
             elapsedMs: nowMs() - started,
           },
         };
@@ -1013,6 +1072,7 @@ async function handleChat(input) {
             method: res.method,
             sourceKey: res.sourceKey,
             foundBy: res.foundBy,
+            turnSignals: norm.turnSignals,
             elapsedMs: nowMs() - started,
           },
         };
@@ -1049,6 +1109,7 @@ async function handleChat(input) {
           musicSig: sig,
           musicChartKey: "top10",
           allowDerivedTop10: !!norm.allowDerivedTop10,
+          turnSignals: norm.turnSignals,
           elapsedMs: nowMs() - started,
         },
       };
@@ -1090,7 +1151,7 @@ async function handleChat(input) {
             musicMomentsLoaded: momentsLoaded,
             musicMomentsLoadedAt: momentsLoadedAt,
           },
-          meta: { engine: CE_VERSION, route: "number1", found: false, reason: res.reason, musicSig: sig, elapsedMs: nowMs() - started },
+          meta: { engine: CE_VERSION, route: "number1", found: false, reason: res.reason, musicSig: sig, turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
         };
       }
 
@@ -1111,7 +1172,7 @@ async function handleChat(input) {
             musicMomentsLoaded: momentsLoaded,
             musicMomentsLoadedAt: momentsLoadedAt,
           },
-          meta: { engine: CE_VERSION, route: "number1", dampened: true, musicSig: sig, elapsedMs: nowMs() - started },
+          meta: { engine: CE_VERSION, route: "number1", dampened: true, musicSig: sig, turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
         };
       }
 
@@ -1131,7 +1192,7 @@ async function handleChat(input) {
           musicMomentsLoaded: momentsLoaded,
           musicMomentsLoadedAt: momentsLoadedAt,
         },
-        meta: { engine: CE_VERSION, route: "number1", method: res.method, sourceKey: res.sourceKey, foundBy: res.foundBy, musicSig: sig, elapsedMs: nowMs() - started },
+        meta: { engine: CE_VERSION, route: "number1", method: res.method, sourceKey: res.sourceKey, foundBy: res.foundBy, musicSig: sig, turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
       };
     }
 
@@ -1154,8 +1215,7 @@ async function handleChat(input) {
       if (!res.ok) {
         return {
           ok: true,
-          reply:
-            `I don’t have a pinned story moment for ${year} yet — but I can still make it cinematic.\n\nPick the mood: romantic, rebellious, or nostalgic.`,
+          reply: `I don’t have a pinned story moment for ${year} yet — but I can still make it cinematic.\n\nPick the mood: romantic, rebellious, or nostalgic.`,
           lane: "music",
           followUps: [
             { id: "fu_rom", type: "chip", label: "Romantic", payload: { lane: "music", action: "custom_story", year, vibe: "romantic" } },
@@ -1173,7 +1233,7 @@ async function handleChat(input) {
             musicMomentsLoaded: momentsLoaded,
             musicMomentsLoadedAt: momentsLoadedAt,
           },
-          meta: { engine: CE_VERSION, route: "story_moment", found: false, reason: res.reason, musicSig: sig, elapsedMs: nowMs() - started },
+          meta: { engine: CE_VERSION, route: "story_moment", found: false, reason: res.reason, musicSig: sig, turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
         };
       }
 
@@ -1194,7 +1254,7 @@ async function handleChat(input) {
             musicMomentsLoaded: momentsLoaded,
             musicMomentsLoadedAt: momentsLoadedAt,
           },
-          meta: { engine: CE_VERSION, route: "story_moment", dampened: true, musicSig: sig, elapsedMs: nowMs() - started },
+          meta: { engine: CE_VERSION, route: "story_moment", dampened: true, musicSig: sig, turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
         };
       }
 
@@ -1214,7 +1274,7 @@ async function handleChat(input) {
           musicMomentsLoaded: momentsLoaded,
           musicMomentsLoadedAt: momentsLoadedAt,
         },
-        meta: { engine: CE_VERSION, route: "story_moment", method: res.method, sourceKey: res.sourceKey, foundBy: res.foundBy, musicSig: sig, elapsedMs: nowMs() - started },
+        meta: { engine: CE_VERSION, route: "story_moment", method: res.method, sourceKey: res.sourceKey, foundBy: res.foundBy, musicSig: sig, turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
       };
     }
 
@@ -1231,8 +1291,7 @@ async function handleChat(input) {
       if (!res.ok) {
         return {
           ok: true,
-          reply:
-            `I don’t see a micro moment loaded for ${year} yet.\n\nIf you want, hit Top 10 or the #1 anchor — I’ll keep the vibe tight.`,
+          reply: `I don’t see a micro moment loaded for ${year} yet.\n\nIf you want, hit Top 10 or the #1 anchor — I’ll keep the vibe tight.`,
           lane: "music",
           followUps: [
             { id: "fu_top10", type: "chip", label: `Top 10 for ${year}`, payload: { lane: "music", action: "top10", year } },
@@ -1249,7 +1308,7 @@ async function handleChat(input) {
             musicMomentsLoaded: !!session.musicMomentsLoaded,
             musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
           },
-          meta: { engine: CE_VERSION, route: "micro_moment", found: false, reason: res.reason, musicSig: sig, elapsedMs: nowMs() - started },
+          meta: { engine: CE_VERSION, route: "micro_moment", found: false, reason: res.reason, musicSig: sig, turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
         };
       }
 
@@ -1273,7 +1332,7 @@ async function handleChat(input) {
             musicMomentsLoaded: true,
             musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || nowMs(),
           },
-          meta: { engine: CE_VERSION, route: "micro_moment", dampened: true, musicSig: sig, elapsedMs: nowMs() - started },
+          meta: { engine: CE_VERSION, route: "micro_moment", dampened: true, musicSig: sig, turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
         };
       }
 
@@ -1296,7 +1355,7 @@ async function handleChat(input) {
           musicMomentsLoaded: true,
           musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || nowMs(),
         },
-        meta: { engine: CE_VERSION, route: "micro_moment", method: res.method, sourceKey: res.sourceKey, foundBy: res.foundBy, musicSig: sig, elapsedMs: nowMs() - started },
+        meta: { engine: CE_VERSION, route: "micro_moment", method: res.method, sourceKey: res.sourceKey, foundBy: res.foundBy, musicSig: sig, turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
       };
     }
 
@@ -1321,7 +1380,7 @@ async function handleChat(input) {
           musicMomentsLoaded: !!session.musicMomentsLoaded,
           musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
         },
-        meta: { engine: CE_VERSION, route: "music_menu", elapsedMs: nowMs() - started },
+        meta: { engine: CE_VERSION, route: "music_menu", turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
       };
     }
 
@@ -1330,7 +1389,7 @@ async function handleChat(input) {
       reply: `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}) and I’ll start with the Top 10.`,
       lane: "music",
       sessionPatch: { lane: "music" },
-      meta: { engine: CE_VERSION, route: "music_need_year", elapsedMs: nowMs() - started },
+      meta: { engine: CE_VERSION, route: "music_need_year", turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
     };
   }
 
@@ -1339,10 +1398,12 @@ async function handleChat(input) {
   // ---------------------------------
   return {
     ok: true,
-    reply: safeStr(norm.text) ? `Tell me what you want next — music, movies, or sponsors.` : `Okay — tell me what you want next.`,
+    reply: safeStr(norm.text)
+      ? `Tell me what you want next — music, movies, or sponsors.`
+      : `Okay — tell me what you want next.`,
     lane: lane || "general",
     sessionPatch: { lane: lane || "general" },
-    meta: { engine: CE_VERSION, route: "general", elapsedMs: nowMs() - started },
+    meta: { engine: CE_VERSION, route: "general", turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
   };
 }
 
