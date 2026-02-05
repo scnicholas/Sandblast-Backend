@@ -17,14 +17,15 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7bC (PINNED TOP10 KEY ALIASES++++ + ACCURATE MISS REASONS++++):
+ * v0.7bD (PINNED TOP10 KEY ALIASES++++ + ACCURATE MISS REASONS++++ + YEAR-END ROUTE++++):
  * ✅ Top10 pack lookup supports multiple key aliases + heuristic scan in knowledge.json
  * ✅ Distinguishes missing_pack vs year_missing_in_pack vs empty_items_for_year
+ * ✅ Adds explicit yearend_hot100 handler (uses wiki-by-year when requested)
  * ✅ Keeps: loop dampener, derived guard default OFF, 3-act followUps, session keys
  */
 
 const CE_VERSION =
-  "chatEngine v0.7bC (PINNED TOP10 KEY ALIASES++++ + ACCURATE MISS REASONS++++ + loop dampener + derived guard)";
+  "chatEngine v0.7bD (PINNED TOP10 KEY ALIASES++++ + ACCURATE MISS REASONS++++ + YEAR-END ROUTE++++ + loop dampener + derived guard)";
 
 // -------------------------
 // helpers
@@ -171,7 +172,7 @@ function normalizeInbound(input) {
 }
 
 // -------------------------
-// knowledge accessors (ALIases + scan)
+// knowledge accessors (aliases + scan)
 // -------------------------
 function getJsonRoot(knowledge) {
   const k = isPlainObject(knowledge) ? knowledge : {};
@@ -196,11 +197,12 @@ function looksLikeTop10Store(obj) {
   //  - { years: { "1992": { items:[...] } } }   (your canonical top10_by_year_v1.json)
   //  - { byYear: { "1992": [...] } }
   //  - { "1992": [...] }
+  //  - { rows:[{year,pos,title,artist}, ...] }
   if (!obj) return false;
   if (isPlainObject(obj.years)) return true;
   if (isPlainObject(obj.byYear)) return true;
   if (Array.isArray(obj.rows)) return true;
-  // year-keyed arrays: detect at least one plausible year key
+
   const keys = isPlainObject(obj) ? Object.keys(obj) : [];
   if (keys.some((k) => /^\d{4}$/.test(k) && Array.isArray(obj[k]))) return true;
   return false;
@@ -210,7 +212,6 @@ function findTop10PackHeuristic(knowledge) {
   const json = getJsonRoot(knowledge);
   const entries = Object.entries(json);
 
-  // Prefer keys that explicitly mention top10_by_year
   const ranked = entries
     .map(([k, v]) => {
       const lk = k.toLowerCase();
@@ -222,7 +223,7 @@ function findTop10PackHeuristic(knowledge) {
       if (looksLikeTop10Store(v)) score += 30;
       return { k, v, score };
     })
-    .filter((x) => x.score >= 40) // must be pretty convincing
+    .filter((x) => x.score >= 40)
     .sort((a, b) => b.score - a.score);
 
   if (ranked.length) return { pack: ranked[0].v, key: ranked[0].k, method: "heuristic_scan" };
@@ -230,7 +231,6 @@ function findTop10PackHeuristic(knowledge) {
 }
 
 function getPinnedTop10(knowledge) {
-  // Most likely keys across your versions/manifests
   const aliases = [
     "music/top10_by_year",
     "music/top10_by_year_v1",
@@ -308,41 +308,57 @@ function resolveTop10ForYear(knowledge, year, opts) {
   const top10 = top10Hit.pack;
 
   if (top10) {
-    // canonical: { years: { "1992": { items:[...] } } }
     if (isPlainObject(top10.years)) {
       const block = top10.years[String(y)];
-      if (!block) return { ok: false, reason: "year_missing_in_pack", sourceKey: top10Hit.key, foundBy: top10Hit.foundBy };
+      if (!block)
+        return { ok: false, reason: "year_missing_in_pack", sourceKey: top10Hit.key, foundBy: top10Hit.foundBy };
       const items = asArray(block.items).map(normalizeSongLine).filter((r) => r.title || r.artist);
-      if (!items.length) return { ok: false, reason: "empty_items_for_year", sourceKey: top10Hit.key, foundBy: top10Hit.foundBy };
-      return { ok: true, method: "pinned_top10_years_items", sourceKey: top10Hit.key, foundBy: top10Hit.foundBy, year: y, items };
+      if (!items.length)
+        return { ok: false, reason: "empty_items_for_year", sourceKey: top10Hit.key, foundBy: top10Hit.foundBy };
+      return {
+        ok: true,
+        method: "pinned_top10_years_items",
+        sourceKey: top10Hit.key,
+        foundBy: top10Hit.foundBy,
+        year: y,
+        items,
+      };
     }
 
-    // byYear map: { byYear: { "1992": [...] } }
     if (isPlainObject(top10.byYear)) {
       const arr = top10.byYear[String(y)];
-      if (!arr) return { ok: false, reason: "year_missing_in_pack", sourceKey: top10Hit.key, foundBy: top10Hit.foundBy };
+      if (!arr)
+        return { ok: false, reason: "year_missing_in_pack", sourceKey: top10Hit.key, foundBy: top10Hit.foundBy };
       const items = asArray(arr).map(normalizeSongLine).filter((r) => r.title || r.artist);
-      if (!items.length) return { ok: false, reason: "empty_items_for_year", sourceKey: top10Hit.key, foundBy: top10Hit.foundBy };
+      if (!items.length)
+        return { ok: false, reason: "empty_items_for_year", sourceKey: top10Hit.key, foundBy: top10Hit.foundBy };
       return { ok: true, method: "pinned_top10_byYear_array", sourceKey: top10Hit.key, foundBy: top10Hit.foundBy, year: y, items };
     }
 
-    // year-keyed array: { "1992": [ ... ] }
     if (isPlainObject(top10) && Array.isArray(top10[String(y)])) {
       const items = top10[String(y)].map(normalizeSongLine).filter((r) => r.title || r.artist);
-      if (!items.length) return { ok: false, reason: "empty_items_for_year", sourceKey: top10Hit.key, foundBy: top10Hit.foundBy };
-      return { ok: true, method: "pinned_top10_year_keyed_array", sourceKey: top10Hit.key, foundBy: top10Hit.foundBy, year: y, items };
+      if (!items.length)
+        return { ok: false, reason: "empty_items_for_year", sourceKey: top10Hit.key, foundBy: top10Hit.foundBy };
+      return {
+        ok: true,
+        method: "pinned_top10_year_keyed_array",
+        sourceKey: top10Hit.key,
+        foundBy: top10Hit.foundBy,
+        year: y,
+        items,
+      };
     }
 
-    // rows array
     if (Array.isArray(top10.rows)) {
       const rows = top10.rows.filter((r) => Number(r?.year) === y);
-      if (!rows.length) return { ok: false, reason: "year_missing_in_pack", sourceKey: top10Hit.key, foundBy: top10Hit.foundBy };
+      if (!rows.length)
+        return { ok: false, reason: "year_missing_in_pack", sourceKey: top10Hit.key, foundBy: top10Hit.foundBy };
       const items = rows.map(normalizeSongLine).filter((r) => r.title || r.artist);
-      if (!items.length) return { ok: false, reason: "empty_items_for_year", sourceKey: top10Hit.key, foundBy: top10Hit.foundBy };
+      if (!items.length)
+        return { ok: false, reason: "empty_items_for_year", sourceKey: top10Hit.key, foundBy: top10Hit.foundBy };
       return { ok: true, method: "pinned_top10_rows", sourceKey: top10Hit.key, foundBy: top10Hit.foundBy, year: y, items };
     }
 
-    // Pack exists but shape is unexpected
     return { ok: false, reason: "unsupported_pack_shape", sourceKey: top10Hit.key, foundBy: top10Hit.foundBy };
   }
 
@@ -386,6 +402,42 @@ function resolveTop10ForYear(knowledge, year, opts) {
   }
 
   return { ok: false, reason: "not_found" };
+}
+
+function resolveYearendHot100ForYear(knowledge, year) {
+  const y = normYear(year);
+  if (!y) return { ok: false, reason: "missing_year" };
+
+  const wikiHit = getWikiYearendByYear(knowledge);
+  const wiki = wikiHit.pack;
+  if (!wiki) return { ok: false, reason: "missing_pack" };
+
+  const byYear = isPlainObject(wiki.byYear) ? wiki.byYear : null;
+  const rows = byYear && Array.isArray(byYear[String(y)]) ? byYear[String(y)] : null;
+  if (!rows) return { ok: false, reason: "year_missing_in_pack", sourceKey: wikiHit.key, foundBy: wikiHit.foundBy };
+
+  const items = rows
+    .map((r) => {
+      const o = normalizeSongLine(r);
+      if (!o.title) o.title = safeStr(r.song || r.single || r.track || "").trim();
+      if (!o.artist) o.artist = safeStr(r.artist || r.performer || "").trim();
+      if (!o.pos) o.pos = clampInt(r.rank ?? r.pos ?? r.position, null, 1, 500);
+      return o;
+    })
+    .filter((r) => r.title || r.artist)
+    .sort((a, b) => Number(a.pos || 9999) - Number(b.pos || 9999));
+
+  if (!items.length) return { ok: false, reason: "empty_items_for_year", sourceKey: wikiHit.key, foundBy: wikiHit.foundBy };
+
+  return {
+    ok: true,
+    method: "wiki_yearend_hot100_byYear",
+    sourceKey: wikiHit.key,
+    foundBy: wikiHit.foundBy,
+    year: y,
+    items,
+    confidence: "high",
+  };
 }
 
 function resolveNumber1ForYear(knowledge, year) {
@@ -527,6 +579,19 @@ function formatTop10(year, items) {
     return `${pos}. ${title}${artist}`;
   });
   const head = y ? `Top 10 — ${y}` : `Top 10`;
+  return `${head}\n\n${list.join("\n")}`;
+}
+
+function formatYearendHot100(year, items, maxN) {
+  const y = normYear(year);
+  const n = clampInt(maxN, 10, 5, 100);
+  const list = compactList(items, n).map((r, i) => {
+    const pos = r.pos || i + 1;
+    const title = r.title ? `“${r.title}”` : "“(title unknown)”";
+    const artist = r.artist ? ` — ${r.artist}` : "";
+    return `${pos}. ${title}${artist}`;
+  });
+  const head = y ? `Billboard Year-End Hot 100 — ${y}` : `Billboard Year-End Hot 100`;
   return `${head}\n\n${list.join("\n")}`;
 }
 
@@ -703,8 +768,9 @@ async function handleChat(input) {
         extra: v,
       });
 
+      const acts = threeActFollowUps(year);
+
       if (shouldDampen(session, sig)) {
-        const acts = threeActFollowUps(year);
         return {
           ok: true,
           reply: `Want to keep that vibe but switch the lens?\n\nPick: #1 anchor, Top 10, or micro moment.`,
@@ -747,6 +813,109 @@ async function handleChat(input) {
           musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || nowMs(),
         },
         meta: { engine: CE_VERSION, route: "custom_story", vibe: v, musicSig: sig, elapsedMs: nowMs() - started },
+      };
+    }
+
+    if (action === "yearend_hot100") {
+      // Explicit request: OK to use wiki year-end as authority for this route.
+      const res = resolveYearendHot100ForYear(knowledge, year);
+      const sig = buildMusicSig({
+        action: "yearend_hot100",
+        year,
+        method: res.method || "none",
+        sourceKey: res.sourceKey || "none",
+        extra: "v1",
+      });
+
+      if (!res.ok) {
+        let why = `I can’t see the year-end Hot 100 pack for ${year} right now.`;
+        if (res.reason === "missing_pack") why = `I can’t find the wiki year-end Hot 100 by-year pack in knowledge.`;
+        if (res.reason === "year_missing_in_pack") why = `I found the year-end pack, but ${year} is missing inside it.`;
+        if (res.reason === "empty_items_for_year") why = `I found ${year}, but the rows are empty (bad ingest / cache gap).`;
+
+        const debug =
+          res.sourceKey || res.foundBy
+            ? `\n\n(Yearend probe: key=${safeStr(res.sourceKey || "n/a")} foundBy=${safeStr(res.foundBy || "n/a")})`
+            : "";
+
+        return {
+          ok: true,
+          reply: `${why}${debug}\n\nWant Top 10 instead (pinned store)?`,
+          lane: "music",
+          followUps: [
+            { id: "fu_top10", type: "chip", label: `Top 10 for ${year}`, payload: { lane: "music", action: "top10", year } },
+            { id: "fu_n1", type: "chip", label: `#1 for ${year}`, payload: { lane: "music", action: "number1", year } },
+          ],
+          followUpsStrings: [`Top 10 for ${year}`, `#1 for ${year}`],
+          sessionPatch: {
+            lane: "music",
+            lastYear: year,
+            lastMusicYear: year,
+            __musicLastSig: sig,
+            lastMusicChart: prevChart,
+            activeMusicChart: "yearend_hot100",
+            musicMomentsLoaded: !!session.musicMomentsLoaded,
+            musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
+          },
+          meta: { engine: CE_VERSION, route: "yearend_hot100", found: false, reason: res.reason, musicSig: sig, elapsedMs: nowMs() - started },
+        };
+      }
+
+      if (shouldDampen(session, sig)) {
+        return {
+          ok: true,
+          reply: `We just hit that same year-end list for ${year}. Want the pinned Top 10 (cleaner), or the #1 anchor?`,
+          lane: "music",
+          followUps: [
+            { id: "fu_top10", type: "chip", label: `Top 10 for ${year}`, payload: { lane: "music", action: "top10", year } },
+            { id: "fu_n1", type: "chip", label: `#1 for ${year}`, payload: { lane: "music", action: "number1", year } },
+          ],
+          followUpsStrings: [`Top 10 for ${year}`, `#1 for ${year}`],
+          sessionPatch: {
+            lane: "music",
+            lastYear: year,
+            lastMusicYear: year,
+            __musicLastSig: sig,
+            lastMusicChart: prevChart,
+            activeMusicChart: "yearend_hot100",
+            musicMomentsLoaded: !!session.musicMomentsLoaded,
+            musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
+          },
+          meta: { engine: CE_VERSION, route: "yearend_hot100", dampened: true, musicSig: sig, elapsedMs: nowMs() - started },
+        };
+      }
+
+      // Default to top 20 for this route (gives value without spamming 100 lines)
+      return {
+        ok: true,
+        reply: formatYearendHot100(year, res.items, 20),
+        lane: "music",
+        followUps: [
+          { id: "fu_top10", type: "chip", label: `Top 10 for ${year} (pinned)`, payload: { lane: "music", action: "top10", year } },
+          { id: "fu_n1", type: "chip", label: `#1 for ${year}`, payload: { lane: "music", action: "number1", year } },
+          { id: "fu_story", type: "chip", label: "“Okay… now we make it cinematic.”", payload: { lane: "music", action: "story_moment", year } },
+        ],
+        followUpsStrings: [`Top 10 for ${year} (pinned)`, `#1 for ${year}`, `Okay… now we make it cinematic.`],
+        sessionPatch: {
+          lane: "music",
+          lastYear: year,
+          lastMusicYear: year,
+          __musicLastSig: sig,
+          lastMusicChart: prevChart,
+          activeMusicChart: "yearend_hot100",
+          musicMomentsLoaded: !!session.musicMomentsLoaded,
+          musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
+        },
+        meta: {
+          engine: CE_VERSION,
+          route: "yearend_hot100",
+          method: res.method,
+          sourceKey: res.sourceKey,
+          foundBy: res.foundBy,
+          confidence: res.confidence || "high",
+          musicSig: sig,
+          elapsedMs: nowMs() - started,
+        },
       };
     }
 
@@ -895,6 +1064,8 @@ async function handleChat(input) {
         extra: "v1",
       });
 
+      const acts = threeActFollowUps(year);
+
       const microPack = !!getPinnedMicroMoments(knowledge).pack;
       const momentsLoaded = !!session.musicMomentsLoaded || microPack;
       const momentsLoadedAt = Number(session.musicMomentsLoadedAt || 0) || (microPack ? nowMs() : 0);
@@ -924,7 +1095,6 @@ async function handleChat(input) {
       }
 
       if (shouldDampen(session, sig)) {
-        const acts = threeActFollowUps(year);
         return {
           ok: true,
           reply: `We already pinned the #1 anchor for ${year}. Want it cinematic, or micro?\n\nPick a chip.`,
@@ -949,8 +1119,8 @@ async function handleChat(input) {
         ok: true,
         reply: formatNumber1(year, res.item),
         lane: "music",
-        followUps: threeActFollowUps(year).followUps.slice(1),
-        followUpsStrings: threeActFollowUps(year).followUpsStrings.slice(1),
+        followUps: acts.followUps.slice(1),
+        followUpsStrings: acts.followUpsStrings.slice(1),
         sessionPatch: {
           lane: "music",
           lastYear: year,
@@ -974,6 +1144,8 @@ async function handleChat(input) {
         sourceKey: res.sourceKey || "none",
         extra: "v1",
       });
+
+      const acts = threeActFollowUps(year);
 
       const microPack = !!getPinnedMicroMoments(knowledge).pack;
       const momentsLoaded = !!session.musicMomentsLoaded || microPack;
@@ -1006,7 +1178,6 @@ async function handleChat(input) {
       }
 
       if (shouldDampen(session, sig)) {
-        const acts = threeActFollowUps(year);
         return {
           ok: true,
           reply: `We already made ${year} cinematic. Want the micro moment to seal it?`,
@@ -1031,8 +1202,8 @@ async function handleChat(input) {
         ok: true,
         reply: `Okay… now we make it cinematic.\n\n${safeStr(res.text).trim()}`,
         lane: "music",
-        followUps: [threeActFollowUps(year).followUps[2]],
-        followUpsStrings: [threeActFollowUps(year).followUpsStrings[2]],
+        followUps: [acts.followUps[2]],
+        followUpsStrings: [acts.followUpsStrings[2]],
         sessionPatch: {
           lane: "music",
           lastYear: year,
@@ -1134,10 +1305,13 @@ async function handleChat(input) {
       const acts = threeActFollowUps(year);
       return {
         ok: true,
-        reply: `Tell me what you want for ${year}: Top 10, #1 anchor, story moment, or micro moment.`,
+        reply: `Tell me what you want for ${year}: Top 10, #1 anchor, story moment, micro moment — or the Year-End Hot 100 list.`,
         lane: "music",
-        followUps: acts.followUps,
-        followUpsStrings: acts.followUpsStrings,
+        followUps: [
+          ...acts.followUps,
+          { id: "fu_yearend", type: "chip", label: `Year-End Hot 100 (${year})`, payload: { lane: "music", action: "yearend_hot100", year } },
+        ],
+        followUpsStrings: [...acts.followUpsStrings, `Year-End Hot 100 (${year})`],
         sessionPatch: {
           lane: "music",
           lastYear: year,
