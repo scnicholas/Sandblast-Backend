@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18bd (CRITICAL NYX COG++++: Intent+Chip continuity + Conversational Spine evaluator at gateway)
+ * index.js v1.5.18be (CRITICAL NYX COG++++: Intent+Chip continuity + Conversational Spine evaluator at gateway)
  *
  * Keeps:
  * ✅ WIKI AUTHORITY FIX++++ (wikipedia split hot100 dir ingest + merged year map)
@@ -19,6 +19,10 @@
  *    - engineInput.cse + engineInput.chipContext + engineInput.turnSignals
  * ✅ applySessionPatch allows new safe keys for intent/chip persistence:
  *    - __cseLastState, __cseLastAt, __cseLastReason, __lastOfferedChips, __lastOfferedAt, __lastUserAct
+ *
+ * v1.5.18be fixes (tight + surgical):
+ * ✅ CSE robustness: structured followUp payload counts as ADVANCE even if source string isn’t “chip-like”
+ * ✅ applySessionPatch: removed accidental `" __lastOfferedChips"` (leading space) key check
  *
  * NOTE:
  * - This patch does NOT touch Top10 data behavior. Top10 (1950–2025) remains pinned-first and collision-stable.
@@ -81,7 +85,7 @@ const nyxVoiceNaturalizeMod =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18bd (CRITICAL NYX COG++++: gateway CSE evaluator + chip continuity signals; keeps v1.5.18bc reset/sessionPatch keys + v1.5.18bb WIKI AUTHORITY FIX++++ + CRITICAL FIXES++++: sessionKey uses parsed body + manifest abs rebuilt after reload + strict CORS hard-lock 403 + JSON parser once + LOAD VISIBILITY++++: key collisions + skip reasons + fileMap + packsight proof + PINNED REL FIXES: story_moments_v2 + ordered rel preferences + DATA ROOT AUTODISCOVERY++++ + PINNED RESOLVE DIAGNOSTICS++++ + rebuild roots on reloadKnowledge + TOP10 NORMALIZATION + BLOCKER PRUNE++++ + SOURCE REL BLOCK REMOVAL + KNOWLEDGE INJECTION FIX + /api/chat GET GUIDANCE + MANIFEST RESOLVER UPGRADE++++: multi-candidate rels + bounded basename/dirname fallback search across ALL data roots + probes show bestFound + keeps PACK VISIBILITY HARDENING++++ + CHIP SIGNAL ROUNDTRIP intent/route/label + allow Data outside APP_ROOT + bigger budgets + PUBLIC /api/packsight + case-insensitive Data/Scripts resolution + pinned/manifest path fallback + packsight diagnostics + manifest target probes + pinned packs to real Data/* files + manifest tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + loop fuse + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
+  "index.js v1.5.18be (CRITICAL NYX COG++++: gateway CSE evaluator + chip continuity signals; keeps v1.5.18bc reset/sessionPatch keys + v1.5.18bb WIKI AUTHORITY FIX++++ + CRITICAL FIXES++++: sessionKey uses parsed body + manifest abs rebuilt after reload + strict CORS hard-lock 403 + JSON parser once + LOAD VISIBILITY++++: key collisions + skip reasons + fileMap + packsight proof + PINNED REL FIXES: story_moments_v2 + ordered rel preferences + DATA ROOT AUTODISCOVERY++++ + PINNED RESOLVE DIAGNOSTICS++++ + rebuild roots on reloadKnowledge + TOP10 NORMALIZATION + BLOCKER PRUNE++++ + SOURCE REL BLOCK REMOVAL + KNOWLEDGE INJECTION FIX + /api/chat GET GUIDANCE + MANIFEST RESOLVER UPGRADE++++: multi-candidate rels + bounded basename/dirname fallback search across ALL data roots + probes show bestFound + keeps PACK VISIBILITY HARDENING++++ + CHIP SIGNAL ROUNDTRIP intent/route/label + allow Data outside APP_ROOT + bigger budgets + PUBLIC /api/packsight + case-insensitive Data/Scripts resolution + pinned/manifest path fallback + packsight diagnostics + manifest target probes + pinned packs to real Data/* files + manifest tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + loop fuse + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS + CSE robustness fix + sessionPatch normalize fix)";
 
 // =========================
 // Utils
@@ -208,7 +212,7 @@ const DATA_ROOT_DISCOVERY_MAX_DEPTH = clampInt(process.env.DATA_ROOT_DISCOVERY_M
 const DATA_ROOT_DISCOVERY_MAX_VISITS = clampInt(process.env.DATA_ROOT_DISCOVERY_MAX_VISITS, 2500, 200, 20000);
 
 // Nyx Voice Naturalizer knobs
-const NYX_VOICE_NATURALIZE = toBool(process.env.NYX_VOICE_NATURALIZE, true);
+const NYX_VOICE_NATURALIZE = toBool(process.env.NYX_VOICE_NATURALIZE || process.env.NYX_VOICE_NATURALIZE, true);
 const NYX_VOICE_NATURALIZE_MAXLEN = clampInt(process.env.NYX_VOICE_NATURALIZE_MAXLEN, 2200, 200, 20000);
 
 // =========================
@@ -2089,12 +2093,12 @@ function computeCSE(rec, inboundText, body, source) {
   const nextLane = safeStr(b.lane || p.lane || ctx.lane || "").trim() || prevLane;
   const redirect = nextLane && prevLane && nextLane !== prevLane && nextLane !== "general";
 
-  // CHIP ADVANCE: empty text + structured payload + chip-like source
-  if (!hasText && chipish && click.hasStructured) {
+  // CHIP ADVANCE: empty text + structured payload (even if source string isn't chip-like)
+  if (!hasText && click.hasStructured) {
     const idHit = click.id && offered.includes(click.id);
     return {
-      state: "ADVANCE",
-      reason: idHit ? "chip_click_matched" : "chip_click",
+      state: redirect ? "REDIRECT" : "ADVANCE",
+      reason: chipish ? (idHit ? "chip_click_matched" : "chip_click") : "structured_payload",
       chip: { ...click, matchedOffer: !!idHit },
       offeredAgeMs: offeredAt ? nowMs() - offeredAt : null,
       redirect,
@@ -3038,8 +3042,8 @@ function applySessionPatch(session, patch) {
       continue;
     }
 
-    // normalize arrays for continuity keys
-    if ((k === "__lastOfferedChips" || k === " __lastOfferedChips") && Array.isArray(v)) {
+    // normalize arrays for continuity keys (FIX: removed accidental leading-space variant)
+    if (k === "__lastOfferedChips" && Array.isArray(v)) {
       session.__lastOfferedChips = v.map((x) => safeStr(x).trim()).filter(Boolean).slice(0, 12);
       continue;
     }
