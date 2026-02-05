@@ -1,8 +1,10 @@
 "use strict";
 
 /**
+ * Scripts/build_top10_by_year_from_wiki_cache_1950_2025.js
+ *
  * Build Top10 store from Wikipedia per-year cache:
- *   Data/wikipedia/charts/year_end_hot100_<YEAR>.json
+ *   Data/wikipedia/charts/year_end_hot100_<YEAR>.json   (or without .json)
  *
  * Output:
  *   Data/top10_by_year_v1.json
@@ -11,6 +13,14 @@
  * Canonical rule: pos is ALWAYS 1–10 by order (index-based) AFTER cleaning/filtering.
  * Optional overlay: if Data/top10_input_rows.json contains rows for a year,
  * it can overwrite those entries (higher authority).
+ *
+ * Hardening:
+ *  ✅ Skips embedded header rows (even if pos=1)
+ *  ✅ Strips wrapping quotes + wiki citation markers ([1], [a], etc.)
+ *  ✅ Rejects corrupted rows (title == artist, too short, empty)
+ *  ✅ Deduplicates (title+artist) within a year while collecting Top10
+ *  ✅ Tolerates file naming: with/without .json extension
+ *  ✅ ATOMIC WRITE + post-write JSON verification (prevents half-written corruption)
  *
  * Usage:
  *   node Scripts/build_top10_by_year_from_wiki_cache_1950_2025.js
@@ -25,29 +35,99 @@ const YEAR_END = 2025;
 const DATA_DIR = path.resolve(__dirname, "..", "Data");
 const WIKI_DIR = path.join(DATA_DIR, "wikipedia", "charts");
 const OUT_FILE = path.join(DATA_DIR, "top10_by_year_v1.json");
-
 const TOP10_INPUT_ROWS = path.join(DATA_DIR, "top10_input_rows.json"); // optional overlay
 
 const CHART_NAME = "Billboard Year-End Hot 100 (Wikipedia cache)";
 
+function readText(fp) {
+  return fs.readFileSync(fp, "utf8");
+}
 function readJson(fp) {
-  return JSON.parse(fs.readFileSync(fp, "utf8"));
+  return JSON.parse(readText(fp));
 }
-function writeJson(fp, obj) {
-  fs.writeFileSync(fp, JSON.stringify(obj, null, 2), "utf8");
+
+// Atomic write to prevent corruption if process is interrupted mid-write
+function writeJsonAtomic(fp, obj) {
+  const dir = path.dirname(fp);
+  const tmp = path.join(
+    dir,
+    `.${path.basename(fp)}.tmp.${process.pid}.${Date.now()}`
+  );
+  const s = JSON.stringify(obj, null, 2);
+  fs.writeFileSync(tmp, s, "utf8");
+  // Rename is atomic on most filesystems
+  fs.renameSync(tmp, fp);
+
+  // Self-verify immediately (catches any external append/poisoning)
+  const verify = readText(fp);
+  JSON.parse(verify);
 }
+
 function isNonEmptyString(x) {
   return typeof x === "string" && x.trim().length > 0;
 }
+
 function normStr(x) {
   return String(x || "")
     .replace(/\u00a0/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
+
+function stripWrappingQuotes(s) {
+  let x = normStr(s);
+  for (let i = 0; i < 3; i++) {
+    const m = x.match(/^["'“”‘’](.*)["'“”‘’]$/);
+    if (!m) break;
+    x = normStr(m[1]);
+  }
+  return x;
+}
+
+function stripCitations(s) {
+  // Remove common wiki footnote markers like [1], [a], [12]
+  return normStr(String(s || "").replace(/\[[^\]]*?\]/g, ""));
+}
+
 function toInt(x) {
   const n = parseInt(String(x || "").replace(/[^\d]/g, ""), 10);
   return Number.isFinite(n) ? n : null;
+}
+
+function getField(row, keys) {
+  if (!row || typeof row !== "object") return "";
+  for (const k of keys) {
+    if (row[k] != null) return row[k];
+  }
+  return "";
+}
+
+function normalizeTitleArtist(rawTitle, rawArtist) {
+  let title = stripWrappingQuotes(stripCitations(rawTitle));
+  let artist = stripWrappingQuotes(stripCitations(rawArtist));
+  title = normStr(title);
+  artist = normStr(artist);
+  return { title, artist };
+}
+
+function isHeaderLikeToken(x) {
+  const t = normStr(x).toLowerCase();
+  return (
+    t === "title" ||
+    t === "song" ||
+    t === "single" ||
+    t === "track" ||
+    t === "artist" ||
+    t === "artist(s)" ||
+    t === "artists" ||
+    t === "performer" ||
+    t === "№" ||
+    t === "no" ||
+    t === "no." ||
+    t === "rank" ||
+    t === "pos" ||
+    t === "position"
+  );
 }
 
 function isHeaderRow(title, artist) {
@@ -55,31 +135,14 @@ function isHeaderRow(title, artist) {
   const a = normStr(artist).toLowerCase();
   if (!t && !a) return true;
 
-  // Common header variants
-  const tIsTitle = t === "title" || t === "song" || t === "single";
-  const aIsArtist = a === "artist" || a === "artist(s)" || a === "artists";
+  // Exact header pairs
+  if (isHeaderLikeToken(t) && isHeaderLikeToken(a)) return true;
+
+  // Common “Title / Artist(s)” pattern
+  const tIsTitle = t === "title" || t === "song" || t === "single" || t === "track";
+  const aIsArtist = a === "artist" || a === "artist(s)" || a === "artists" || a === "performer";
   if (tIsTitle && (aIsArtist || !a)) return true;
   if (aIsArtist && (!t || tIsTitle)) return true;
-
-  // Rank header leakage
-  if (
-    t === "№" ||
-    t === "no" ||
-    t === "no." ||
-    t === "rank" ||
-    t === "pos" ||
-    t === "position"
-  )
-    return true;
-  if (
-    a === "№" ||
-    a === "no" ||
-    a === "no." ||
-    a === "rank" ||
-    a === "pos" ||
-    a === "position"
-  )
-    return true;
 
   return false;
 }
@@ -89,49 +152,106 @@ function isJunkRow(title, artist) {
   const a = normStr(artist);
   if (!t && !a) return true;
   if (isHeaderRow(t, a)) return true;
+
+  // Corrupted rows (title equals artist)
+  if (t && a && t.toLowerCase() === a.toLowerCase()) return true;
+
+  // Too-short junk
+  if (t.length < 2 || a.length < 2) return true;
+
   return false;
 }
 
+function findYearFile(year) {
+  // tolerate with/without extension (your screenshot suggests extensions may be hidden)
+  const base = path.join(WIKI_DIR, `year_end_hot100_${year}`);
+  const candidates = [base, `${base}.json`];
+  for (const fp of candidates) {
+    if (fs.existsSync(fp)) return fp;
+  }
+  return null;
+}
+
 function loadWikiYear(year) {
-  const fp = path.join(WIKI_DIR, `year_end_hot100_${year}.json`);
-  if (!fs.existsSync(fp)) return null;
-  const j = readJson(fp);
-  return Array.isArray(j.rows) ? j.rows : [];
+  const fp = findYearFile(year);
+  if (!fp) return null;
+
+  let j;
+  try {
+    j = readJson(fp);
+  } catch {
+    // If a year file is corrupt, treat as weak year but keep pipeline running
+    return [];
+  }
+
+  // expected: {year, chart, sourceUrl, rows:[...]}
+  if (j && Array.isArray(j.rows)) return j.rows;
+
+  // tolerate alternate shapes
+  if (Array.isArray(j)) return j;
+  if (j && Array.isArray(j.data?.rows)) return j.data.rows;
+
+  return [];
 }
 
 function buildTop10FromRows(rows) {
   if (!Array.isArray(rows) || rows.length < 10) return null;
 
-  // FIX++++: clean/filter FIRST, then take first 10 valid rows
-  const cleaned = rows
-    .map((r) => {
-      const title = normStr(r && (r.title ?? r.song ?? r.single ?? r.track));
-      const artist = normStr(r && (r.artist ?? r["artist(s)"] ?? r.artists ?? r.performer));
-      const sourcePos = toInt(r && r.pos);
-      return { title, artist, sourcePos };
-    })
-    .filter((r) => !isJunkRow(r.title, r.artist))
-    .filter((r) => isNonEmptyString(r.title) && isNonEmptyString(r.artist));
+  const picked = [];
+  const seen = new Set();
 
-  if (cleaned.length < 10) return null;
+  for (const r of rows) {
+    const rawTitle = getField(r, ["title", "Title", "song", "Song", "single", "Single", "track", "Track"]);
+    const rawArtist = getField(r, [
+      "artist",
+      "Artist",
+      "artist(s)",
+      "Artist(s)",
+      "artists",
+      "Artists",
+      "performer",
+      "Performer"
+    ]);
 
-  // Canonical Top10: ordering defines rank (after cleaning)
-  const top10 = cleaned.slice(0, 10).map((r, idx) => {
-    return {
-      pos: idx + 1, // ✅ authoritative rank
-      title: r.title,
-      artist: r.artist,
-      ...(r.sourcePos ? { sourcePos: r.sourcePos } : {}) // optional provenance
-    };
-  });
+    const { title, artist } = normalizeTitleArtist(rawTitle, rawArtist);
 
-  // Validate
+    // provenance only (NOT used for Top10 ordering)
+    const sourcePos = toInt(getField(r, ["pos", "Pos", "position", "Position", "rank", "Rank", "№", "No.", "no"]));
+
+    if (!isNonEmptyString(title) || !isNonEmptyString(artist)) continue;
+    if (isJunkRow(title, artist)) continue;
+
+    const key = `${title.toLowerCase()}@@${artist.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    picked.push({
+      title,
+      artist,
+      ...(sourcePos ? { sourcePos } : {})
+    });
+
+    if (picked.length >= 10) break;
+  }
+
+  if (picked.length < 10) return null;
+
+  // canonical: index-based 1–10
+  const top10 = picked.slice(0, 10).map((r, idx) => ({
+    pos: idx + 1,
+    title: r.title,
+    artist: r.artist,
+    ...(r.sourcePos ? { sourcePos: r.sourcePos } : {})
+  }));
+
+  // hard validate
   for (let i = 0; i < 10; i++) {
     const it = top10[i];
     if (it.pos !== i + 1) return null;
     if (!isNonEmptyString(it.title)) return null;
     if (!isNonEmptyString(it.artist)) return null;
-    if (isHeaderRow(it.title, it.artist)) return null; // extra guard
+    if (isHeaderRow(it.title, it.artist)) return null;
+    if (it.title.toLowerCase() === it.artist.toLowerCase()) return null;
   }
 
   return top10;
@@ -153,11 +273,14 @@ function buildOverlayMapFromInputRows() {
   for (const r of rows) {
     const y = toInt(r.year);
     const pos = toInt(r.pos ?? r.position ?? r.rank);
-    const title = normStr(r.title ?? r.song ?? r.single ?? r.track);
-    const artist = normStr(r.artist ?? r["artist(s)"] ?? r.artists ?? r.performer);
+    const rawTitle = r.title ?? r.song ?? r.single ?? r.track ?? r.Title ?? r.Song;
+    const rawArtist = r.artist ?? r["artist(s)"] ?? r["Artist(s)"] ?? r.artists ?? r.performer ?? r.Artist;
+
+    const { title, artist } = normalizeTitleArtist(rawTitle, rawArtist);
 
     if (!y || !pos || !isNonEmptyString(title) || !isNonEmptyString(artist)) continue;
     if (isHeaderRow(title, artist)) continue;
+    if (title.toLowerCase() === artist.toLowerCase()) continue;
 
     if (!byYear.has(y)) byYear.set(y, []);
     byYear.get(y).push({ pos, title, artist });
@@ -197,25 +320,28 @@ function main() {
   const weak = [];
 
   for (let y = YEAR_START; y <= YEAR_END; y++) {
+    const yKey = String(y);
+
     if (overlay.has(y)) {
-      years[String(y)] = { year: y, chart: CHART_NAME, items: overlay.get(y) };
+      years[yKey] = { year: y, chart: CHART_NAME, items: overlay.get(y) };
       continue;
     }
 
     const rows = loadWikiYear(y);
-    if (!rows) {
+    if (rows === null) {
       missing.push(y);
+      years[yKey] = { year: y, chart: CHART_NAME, items: [] };
       continue;
     }
 
     const top10 = buildTop10FromRows(rows);
     if (!top10) {
       weak.push(y);
-      years[String(y)] = { year: y, chart: CHART_NAME, items: [] };
+      years[yKey] = { year: y, chart: CHART_NAME, items: [] };
       continue;
     }
 
-    years[String(y)] = { year: y, chart: CHART_NAME, items: top10 };
+    years[yKey] = { year: y, chart: CHART_NAME, items: top10 };
   }
 
   const payload = {
@@ -234,7 +360,13 @@ function main() {
     years
   };
 
-  writeJson(OUT_FILE, payload);
+  try {
+    writeJsonAtomic(OUT_FILE, payload);
+  } catch (e) {
+    console.error("❌ Write/verify failed for output JSON:", e && e.message ? e.message : e);
+    process.exitCode = 1;
+    return;
+  }
 
   console.log("✅ Wrote:", path.relative(process.cwd(), OUT_FILE));
   console.log("Years:", Object.keys(years).length, "Missing:", missing.length, "Weak:", weak.length);
