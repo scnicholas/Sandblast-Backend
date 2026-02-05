@@ -23,11 +23,13 @@
  * ✅ Top10 resolver is PINNED-FIRST and supports your canonical shape:
  *    - {years:{YYYY:{items:[{pos|rank,title,artist}]}}}  (top10_by_year_v1.json)
  *    - year-keyed arrays OR rows arrays fallback supported
- * ✅ Avoids the old "derived_top10_from_yearend" loop unless explicitly needed
+ * ✅ HARD-GUARD: disables old "derived_top10_from_yearend" loop by default
+ *    - Year-end fallback only if explicitly allowed (allowDerivedTop10=true)
  * ✅ Builds “Guiding Attention in Three Acts” follow-ups as real followUps (and legacy strings)
  */
 
-const CE_VERSION = "chatEngine v0.7bA (MUSIC LOOP-DAMPENER++++ + SESSION PATCH KEYS++++ + pinned-first resolvers)";
+const CE_VERSION =
+  "chatEngine v0.7bA (MUSIC LOOP-DAMPENER++++ + SESSION PATCH KEYS++++ + pinned-first resolvers + derived guard)";
 
 // -------------------------
 // helpers
@@ -84,9 +86,6 @@ function normYear(y) {
   if (t < 1900 || t > 2100) return null;
   return t;
 }
-function isYearToken(s) {
-  return /^\d{4}$/.test(String(s || "").trim());
-}
 function normalizeSongLine(r) {
   const o = isPlainObject(r) ? r : {};
   const pos = clampInt(o.pos ?? o.rank ?? o.position ?? o["#"] ?? o.no ?? o.number, null, 1, 500);
@@ -100,6 +99,11 @@ function compactList(items, maxN) {
 }
 function asArray(x) {
   return Array.isArray(x) ? x : [];
+}
+function truthy(v) {
+  if (v === true) return true;
+  const s = safeStr(v).trim().toLowerCase();
+  return s === "1" || s === "true" || s === "yes" || s === "y" || s === "on";
 }
 
 // -------------------------
@@ -117,8 +121,9 @@ function normalizeInbound(input) {
   const ctx = isPlainObject(body.ctx) ? body.ctx : {};
   const client = isPlainObject(body.client) ? body.client : {};
 
-  const textRaw =
-    safeStr(body.text || body.message || body.prompt || body.query || payload.text || payload.message || "").trim();
+  const textRaw = safeStr(
+    body.text || body.message || body.prompt || body.query || payload.text || payload.message || ""
+  ).trim();
 
   const routeHint = safeStr(body.routeHint || client.routeHint || body.lane || payload.lane || "").trim();
   const source = safeStr(body.source || client.source || "").trim();
@@ -136,8 +141,16 @@ function normalizeInbound(input) {
     classifyAction(textRaw, payload, body, ctx) ||
     "";
 
-  const intent =
-    safeStr(payload.intent || body.intent || ctx.intent || payload.mode || body.mode || ctx.mode || "").trim() || "";
+  const intent = safeStr(payload.intent || body.intent || ctx.intent || payload.mode || body.mode || ctx.mode || "").trim() || "";
+
+  // explicit opt-in for year-end -> derived top10 fallback (off by default to kill loop)
+  const allowDerivedTop10 =
+    truthy(payload.allowDerivedTop10) ||
+    truthy(body.allowDerivedTop10) ||
+    truthy(ctx.allowDerivedTop10) ||
+    truthy(payload.allowYearendFallback) ||
+    truthy(body.allowYearendFallback) ||
+    truthy(ctx.allowYearendFallback);
 
   return {
     body,
@@ -151,6 +164,7 @@ function normalizeInbound(input) {
     year,
     action,
     intent,
+    allowDerivedTop10,
   };
 }
 
@@ -163,7 +177,7 @@ function extractYearFromText(t) {
   return normYear(y);
 }
 
-function classifyAction(text, payload, body, ctx) {
+function classifyAction(text, payload) {
   const t = safeStr(text).toLowerCase();
 
   // explicit payload wins
@@ -212,9 +226,11 @@ function getWikiYearendByYear(knowledge) {
 // -------------------------
 // resolvers
 // -------------------------
-function resolveTop10ForYear(knowledge, year) {
+function resolveTop10ForYear(knowledge, year, opts) {
   const y = normYear(year);
   if (!y) return { ok: false, reason: "missing_year" };
+
+  const allowDerivedTop10 = !!(opts && opts.allowDerivedTop10);
 
   // PINNED FIRST
   const top10 = getPinnedTop10(knowledge);
@@ -246,15 +262,18 @@ function resolveTop10ForYear(knowledge, year) {
     }
   }
 
-  // FALLBACK ONLY if pinned missing
+  // HARD GUARD: year-end fallback disabled unless explicitly allowed
+  if (!allowDerivedTop10) {
+    return { ok: false, reason: "pinned_missing_no_fallback" };
+  }
+
+  // FALLBACK ONLY if explicitly allowed
   const wiki = getWikiYearendByYear(knowledge);
   if (wiki && isPlainObject(wiki.byYear) && Array.isArray(wiki.byYear[String(y)])) {
     const rows = wiki.byYear[String(y)];
-    // take top 10 by rank/pos if present, else first 10
     const items = rows
       .map((r) => {
         const o = normalizeSongLine(r);
-        // try title/artist fallback keys
         if (!o.title) o.title = safeStr(r.song || r.single || r.track || "").trim();
         if (!o.artist) o.artist = safeStr(r.artist || r.performer || "").trim();
         if (!o.pos) o.pos = clampInt(r.rank ?? r.pos ?? r.position, null, 1, 500);
@@ -289,10 +308,6 @@ function resolveNumber1ForYear(knowledge, year) {
   const p = getPinnedNumber1(knowledge);
   if (!p) return { ok: false, reason: "missing_pack" };
 
-  // supported shapes:
-  //  - {rows:[{year,title,artist}]}
-  //  - {"1960":{title,artist}} or {"1960":[{...}]}
-  //  - {byYear:{...}}
   if (Array.isArray(p.rows)) {
     const hit = p.rows.find((r) => Number(r?.year) === y);
     if (hit) {
@@ -325,10 +340,6 @@ function resolveStoryMomentForYear(knowledge, year) {
   const p = getPinnedStoryMoments(knowledge);
   if (!p) return { ok: false, reason: "missing_pack" };
 
-  // shapes:
-  // - {rows:[{year,text|moment|story}]}
-  // - {byYear:{YYYY:{text}}}
-  // - year-keyed
   const getText = (r) => safeStr(r?.text || r?.moment || r?.story || r?.copy || r?.line || "").trim();
 
   if (Array.isArray(p.rows)) {
@@ -427,7 +438,11 @@ function threeActFollowUps(year) {
     },
   ];
 
-  const fus = [`Want the #1 anchor next for ${yLabel}?`, `Okay… now we make it cinematic.`, `Tap micro moment—let’s seal the vibe.`];
+  const fus = [
+    `Want the #1 anchor next for ${yLabel}?`,
+    `Okay… now we make it cinematic.`,
+    `Tap micro moment—let’s seal the vibe.`,
+  ];
 
   return { followUps: fu, followUpsStrings: fus };
 }
@@ -451,7 +466,8 @@ function formatNumber1(year, item) {
   const y = normYear(year);
   const title = safeStr(item?.title || "").trim();
   const artist = safeStr(item?.artist || "").trim();
-  if (!title && !artist) return y ? `#1 — ${y}\n\nI don’t have a clean #1 anchor for this year yet.` : `I don’t have a clean #1 anchor yet.`;
+  if (!title && !artist)
+    return y ? `#1 — ${y}\n\nI don’t have a clean #1 anchor for this year yet.` : `I don’t have a clean #1 anchor yet.`;
   return `#1 — ${y}\n\n“${title || "(title unknown)"}” — ${artist || "(artist unknown)"}`;
 }
 
@@ -462,18 +478,25 @@ async function handleChat(input) {
   const started = nowMs();
 
   const norm = normalizeInbound(input);
-  const session = isPlainObject(norm.body.session) ? norm.body.session : isPlainObject(input?.session) ? input.session : {};
-  const knowledge = isPlainObject(input?.knowledge) ? input.knowledge : isPlainObject(norm.body.knowledge) ? norm.body.knowledge : {};
+  const session = isPlainObject(norm.body.session)
+    ? norm.body.session
+    : isPlainObject(input?.session)
+      ? input.session
+      : {};
+  const knowledge = isPlainObject(input?.knowledge)
+    ? input.knowledge
+    : isPlainObject(norm.body.knowledge)
+      ? norm.body.knowledge
+      : {};
 
   const yearSticky = normYear(session.lastYear) ?? null;
   const year = norm.year ?? yearSticky ?? null;
 
   // lane inference
-  const lane =
-    safeStr(norm.lane || "").trim() ||
-    (norm.action ? "music" : "") ||
-    safeStr(session.lane || "").trim() ||
-    "general";
+  const lane = safeStr(norm.lane || "").trim() || (norm.action ? "music" : "") || safeStr(session.lane || "").trim() || "general";
+
+  // prior chart key (for continuity)
+  const prevChart = safeStr(session.activeMusicChart || session.lastMusicChart || "").trim();
 
   // quick reset hook (mostly for local tests; index.js now does the true reset)
   if (norm.action === "reset") {
@@ -534,24 +557,32 @@ async function handleChat(input) {
   if (lane === "music" || action) {
     // top10
     if (action === "top10") {
-      const res = resolveTop10ForYear(knowledge, year);
+      const res = resolveTop10ForYear(knowledge, year, { allowDerivedTop10: norm.allowDerivedTop10 });
 
       if (!res.ok) {
+        const why =
+          res.reason === "pinned_missing_no_fallback"
+            ? `I don’t have a pinned Top 10 for ${year} loaded yet — and I’m deliberately not deriving it from year-end data (that’s the loop you told me to kill).`
+            : `I don’t have a clean Top 10 for ${year} loaded yet.`;
+
+        const acts = threeActFollowUps(year);
+
         return {
           ok: true,
-          reply: `I don’t have a clean Top 10 for ${year} loaded yet. If you want, ask for the #1 anchor instead—and I’ll still make it feel like a moment.`,
+          reply: `${why}\n\nIf you want, ask for the #1 anchor instead — and I’ll still make it feel like a moment.`,
           lane: "music",
-          ...threeActFollowUps(year),
+          followUps: acts.followUps,
+          followUpsStrings: acts.followUpsStrings,
           sessionPatch: {
             lane: "music",
             lastYear: year,
             lastMusicYear: year,
+            lastMusicChart: prevChart,
             activeMusicChart: "",
-            lastMusicChart: safeStr(session.activeMusicChart || session.lastMusicChart || ""),
             musicMomentsLoaded: !!session.musicMomentsLoaded,
             musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
           },
-          meta: { engine: CE_VERSION, route: "top10", found: false, reason: res.reason, elapsedMs: nowMs() - started },
+          meta: { engine: CE_VERSION, route: "top10", found: false, reason: res.reason, allowDerivedTop10: !!norm.allowDerivedTop10, elapsedMs: nowMs() - started },
         };
       }
 
@@ -584,17 +615,30 @@ async function handleChat(input) {
             lastYear: year,
             lastMusicYear: year,
             __musicLastSig: sig,
+            lastMusicChart: prevChart,
             activeMusicChart: "top10",
-            lastMusicChart: safeStr(session.activeMusicChart || session.lastMusicChart || ""),
             musicMomentsLoaded: !!session.musicMomentsLoaded,
             musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
           },
-          meta: { engine: CE_VERSION, route: "top10", dampened: true, sig, method: res.method, sourceKey: res.sourceKey, elapsedMs: nowMs() - started },
+          meta: {
+            engine: CE_VERSION,
+            route: "top10",
+            dampened: true,
+            musicSig: sig,
+            musicChartKey: "top10",
+            method: res.method,
+            sourceKey: res.sourceKey,
+            elapsedMs: nowMs() - started,
+          },
         };
       }
 
       const reply = formatTop10(year, res.items);
       const acts = threeActFollowUps(year);
+      const microPack = !!getPinnedMicroMoments(knowledge);
+      const momentsLoaded = !!session.musicMomentsLoaded || microPack;
+      const momentsLoadedAt =
+        Number(session.musicMomentsLoadedAt || 0) || (microPack ? nowMs() : 0);
 
       return {
         ok: true,
@@ -607,13 +651,10 @@ async function handleChat(input) {
           lastYear: year,
           lastMusicYear: year,
           __musicLastSig: sig,
+          lastMusicChart: prevChart,
           activeMusicChart: "top10",
-          lastMusicChart: safeStr(session.activeMusicChart || session.lastMusicChart || ""),
-          // if micro moments pack exists, mark as loaded; otherwise preserve state
-          musicMomentsLoaded: !!session.musicMomentsLoaded || !!getPinnedMicroMoments(knowledge),
-          musicMomentsLoadedAt:
-            (!!session.musicMomentsLoadedAt && Number(session.musicMomentsLoadedAt)) ||
-            (!!getPinnedMicroMoments(knowledge) ? nowMs() : 0),
+          musicMomentsLoaded: momentsLoaded,
+          musicMomentsLoadedAt: momentsLoadedAt,
         },
         meta: {
           engine: CE_VERSION,
@@ -621,6 +662,9 @@ async function handleChat(input) {
           method: res.method,
           sourceKey: res.sourceKey,
           confidence: res.confidence || "high",
+          musicSig: sig,
+          musicChartKey: "top10",
+          allowDerivedTop10: !!norm.allowDerivedTop10,
           elapsedMs: nowMs() - started,
         },
       };
@@ -638,6 +682,10 @@ async function handleChat(input) {
         extra: "v1",
       });
 
+      const microPack = !!getPinnedMicroMoments(knowledge);
+      const momentsLoaded = !!session.musicMomentsLoaded || microPack;
+      const momentsLoadedAt = Number(session.musicMomentsLoadedAt || 0) || (microPack ? nowMs() : 0);
+
       if (!res.ok) {
         return {
           ok: true,
@@ -653,12 +701,12 @@ async function handleChat(input) {
             lastYear: year,
             lastMusicYear: year,
             __musicLastSig: sig,
+            lastMusicChart: prevChart,
             activeMusicChart: "number1",
-            lastMusicChart: safeStr(session.activeMusicChart || session.lastMusicChart || ""),
-            musicMomentsLoaded: !!session.musicMomentsLoaded,
-            musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
+            musicMomentsLoaded: momentsLoaded,
+            musicMomentsLoadedAt: momentsLoadedAt,
           },
-          meta: { engine: CE_VERSION, route: "number1", found: false, reason: res.reason, elapsedMs: nowMs() - started },
+          meta: { engine: CE_VERSION, route: "number1", found: false, reason: res.reason, musicSig: sig, musicChartKey: "number1", elapsedMs: nowMs() - started },
         };
       }
 
@@ -678,13 +726,12 @@ async function handleChat(input) {
             lastYear: year,
             lastMusicYear: year,
             __musicLastSig: sig,
+            lastMusicChart: prevChart,
             activeMusicChart: "number1",
-            lastMusicChart: safeStr(session.activeMusicChart || session.lastMusicChart || ""),
-            musicMomentsLoaded: !!session.musicMomentsLoaded || !!getPinnedMicroMoments(knowledge),
-            musicMomentsLoadedAt:
-              Number(session.musicMomentsLoadedAt || 0) || (!!getPinnedMicroMoments(knowledge) ? nowMs() : 0),
+            musicMomentsLoaded: momentsLoaded,
+            musicMomentsLoadedAt: momentsLoadedAt,
           },
-          meta: { engine: CE_VERSION, route: "number1", dampened: true, sig, elapsedMs: nowMs() - started },
+          meta: { engine: CE_VERSION, route: "number1", dampened: true, musicSig: sig, musicChartKey: "number1", elapsedMs: nowMs() - started },
         };
       }
 
@@ -699,13 +746,12 @@ async function handleChat(input) {
           lastYear: year,
           lastMusicYear: year,
           __musicLastSig: sig,
+          lastMusicChart: prevChart,
           activeMusicChart: "number1",
-          lastMusicChart: safeStr(session.activeMusicChart || session.lastMusicChart || ""),
-          musicMomentsLoaded: !!session.musicMomentsLoaded || !!getPinnedMicroMoments(knowledge),
-          musicMomentsLoadedAt:
-            Number(session.musicMomentsLoadedAt || 0) || (!!getPinnedMicroMoments(knowledge) ? nowMs() : 0),
+          musicMomentsLoaded: momentsLoaded,
+          musicMomentsLoadedAt: momentsLoadedAt,
         },
-        meta: { engine: CE_VERSION, route: "number1", method: res.method, sourceKey: res.sourceKey, elapsedMs: nowMs() - started },
+        meta: { engine: CE_VERSION, route: "number1", method: res.method, sourceKey: res.sourceKey, musicSig: sig, musicChartKey: "number1", elapsedMs: nowMs() - started },
       };
     }
 
@@ -720,6 +766,10 @@ async function handleChat(input) {
         sourceKey: res.sourceKey || "none",
         extra: "v1",
       });
+
+      const microPack = !!getPinnedMicroMoments(knowledge);
+      const momentsLoaded = !!session.musicMomentsLoaded || microPack;
+      const momentsLoadedAt = Number(session.musicMomentsLoadedAt || 0) || (microPack ? nowMs() : 0);
 
       if (!res.ok) {
         return {
@@ -739,12 +789,12 @@ async function handleChat(input) {
             lastYear: year,
             lastMusicYear: year,
             __musicLastSig: sig,
+            lastMusicChart: prevChart,
             activeMusicChart: "story",
-            lastMusicChart: safeStr(session.activeMusicChart || session.lastMusicChart || ""),
-            musicMomentsLoaded: !!session.musicMomentsLoaded,
-            musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
+            musicMomentsLoaded: momentsLoaded,
+            musicMomentsLoadedAt: momentsLoadedAt,
           },
-          meta: { engine: CE_VERSION, route: "story_moment", found: false, reason: res.reason, elapsedMs: nowMs() - started },
+          meta: { engine: CE_VERSION, route: "story_moment", found: false, reason: res.reason, musicSig: sig, musicChartKey: "story", elapsedMs: nowMs() - started },
         };
       }
 
@@ -762,13 +812,12 @@ async function handleChat(input) {
             lastYear: year,
             lastMusicYear: year,
             __musicLastSig: sig,
+            lastMusicChart: prevChart,
             activeMusicChart: "story",
-            lastMusicChart: safeStr(session.activeMusicChart || session.lastMusicChart || ""),
-            musicMomentsLoaded: !!session.musicMomentsLoaded || !!getPinnedMicroMoments(knowledge),
-            musicMomentsLoadedAt:
-              Number(session.musicMomentsLoadedAt || 0) || (!!getPinnedMicroMoments(knowledge) ? nowMs() : 0),
+            musicMomentsLoaded: momentsLoaded,
+            musicMomentsLoadedAt: momentsLoadedAt,
           },
-          meta: { engine: CE_VERSION, route: "story_moment", dampened: true, sig, elapsedMs: nowMs() - started },
+          meta: { engine: CE_VERSION, route: "story_moment", dampened: true, musicSig: sig, musicChartKey: "story", elapsedMs: nowMs() - started },
         };
       }
 
@@ -786,13 +835,12 @@ async function handleChat(input) {
           lastYear: year,
           lastMusicYear: year,
           __musicLastSig: sig,
+          lastMusicChart: prevChart,
           activeMusicChart: "story",
-          lastMusicChart: safeStr(session.activeMusicChart || session.lastMusicChart || ""),
-          musicMomentsLoaded: !!session.musicMomentsLoaded || !!getPinnedMicroMoments(knowledge),
-          musicMomentsLoadedAt:
-            Number(session.musicMomentsLoadedAt || 0) || (!!getPinnedMicroMoments(knowledge) ? nowMs() : 0),
+          musicMomentsLoaded: momentsLoaded,
+          musicMomentsLoadedAt: momentsLoadedAt,
         },
-        meta: { engine: CE_VERSION, route: "story_moment", method: res.method, sourceKey: res.sourceKey, elapsedMs: nowMs() - started },
+        meta: { engine: CE_VERSION, route: "story_moment", method: res.method, sourceKey: res.sourceKey, musicSig: sig, musicChartKey: "story", elapsedMs: nowMs() - started },
       };
     }
 
@@ -825,12 +873,12 @@ async function handleChat(input) {
             lastYear: year,
             lastMusicYear: year,
             __musicLastSig: sig,
+            lastMusicChart: prevChart,
             activeMusicChart: "micro",
-            lastMusicChart: safeStr(session.activeMusicChart || session.lastMusicChart || ""),
             musicMomentsLoaded: !!session.musicMomentsLoaded,
             musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
           },
-          meta: { engine: CE_VERSION, route: "micro_moment", found: false, reason: res.reason, elapsedMs: nowMs() - started },
+          meta: { engine: CE_VERSION, route: "micro_moment", found: false, reason: res.reason, musicSig: sig, musicChartKey: "micro", elapsedMs: nowMs() - started },
         };
       }
 
@@ -849,12 +897,12 @@ async function handleChat(input) {
             lastYear: year,
             lastMusicYear: year,
             __musicLastSig: sig,
+            lastMusicChart: prevChart,
             activeMusicChart: "micro",
-            lastMusicChart: safeStr(session.activeMusicChart || session.lastMusicChart || ""),
             musicMomentsLoaded: true,
             musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || nowMs(),
           },
-          meta: { engine: CE_VERSION, route: "micro_moment", dampened: true, sig, elapsedMs: nowMs() - started },
+          meta: { engine: CE_VERSION, route: "micro_moment", dampened: true, musicSig: sig, musicChartKey: "micro", elapsedMs: nowMs() - started },
         };
       }
 
@@ -874,27 +922,28 @@ async function handleChat(input) {
           lastYear: year,
           lastMusicYear: year,
           __musicLastSig: sig,
+          lastMusicChart: prevChart,
           activeMusicChart: "micro",
-          lastMusicChart: safeStr(session.activeMusicChart || session.lastMusicChart || ""),
           musicMomentsLoaded: true,
           musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || nowMs(),
         },
-        meta: { engine: CE_VERSION, route: "micro_moment", method: res.method, sourceKey: res.sourceKey, elapsedMs: nowMs() - started },
+        meta: { engine: CE_VERSION, route: "micro_moment", method: res.method, sourceKey: res.sourceKey, musicSig: sig, musicChartKey: "micro", elapsedMs: nowMs() - started },
       };
     }
 
     // fallback music response
     if (year) {
+      const acts = threeActFollowUps(year);
       return {
         ok: true,
         reply: `Tell me what you want for ${year}: Top 10, #1 anchor, story moment, or micro moment.`,
         lane: "music",
-        ...threeActFollowUps(year),
+        followUps: acts.followUps,
+        followUpsStrings: acts.followUpsStrings,
         sessionPatch: {
           lane: "music",
           lastYear: year,
           lastMusicYear: year,
-          // preserve loop dampener keys but don't overwrite sig
           activeMusicChart: safeStr(session.activeMusicChart || ""),
           lastMusicChart: safeStr(session.lastMusicChart || ""),
           musicMomentsLoaded: !!session.musicMomentsLoaded,
