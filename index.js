@@ -3,21 +3,26 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18bc (CRITICAL PATCH++++: session patch keys for music loop-dampener + TRUE reset clears session state safely)
+ * index.js v1.5.18bd (CRITICAL NYX COG++++: Intent+Chip continuity + Conversational Spine evaluator at gateway)
  *
  * Keeps:
  * ✅ WIKI AUTHORITY FIX++++ (wikipedia split hot100 dir ingest + merged year map)
  * ✅ CRITICAL FIXES++++ already present (sessionKey uses parsed body + manifest abs rebuilt after reload + strict CORS hard-lock 403 + JSON parser once + LOAD VISIBILITY++++ etc.)
+ * ✅ v1.5.18bc: sessionPatch allows music loop-dampener keys + TRUE reset clears session state safely
  *
- * Adds (v1.5.18bc):
- * ✅ CRITICAL: applySessionPatch allows music loop-dampener keys:
- *    - __musicLastSig, activeMusicChart, lastMusicChart, musicMomentsLoaded, musicMomentsLoadedAt
- * ✅ CRITICAL: reset command actually clears session state (not just silences output)
- *    - safe wipe of rec.data (preserves sessionId/visitorId), clears rate windows, clears replay caches
+ * Adds (v1.5.18bd):
+ * ✅ CSE (Conversational State Evaluator) at the gateway:
+ *    - classifies inbound turn as ADVANCE / STALL / RESIST / REDIRECT (lightweight, deterministic)
+ *    - detects chip-click style turns even when inbound text is empty
+ *    - captures last offered chips + timestamps (so Nyx can react to “ignored chip” vs “accepted chip”)
+ * ✅ Chip continuity metadata passed into engineInput:
+ *    - engineInput.cse + engineInput.chipContext + engineInput.turnSignals
+ * ✅ applySessionPatch allows new safe keys for intent/chip persistence:
+ *    - __cseLastState, __cseLastAt, __cseLastReason, __lastOfferedChips, __lastOfferedAt, __lastUserAct
  *
  * NOTE:
- * - This file includes ONE critical syntax fix vs the paste you provided:
- *   removed a stray `consists: null;` line inside the boot-fuse return block (it would crash Node at startup).
+ * - This patch does NOT touch Top10 data behavior. Top10 (1950–2025) remains pinned-first and collision-stable.
+ * - This patch improves Nyx “rigidity” by giving chatEngine reliable signals to evaluate user reaction.
  */
 
 // =========================
@@ -76,7 +81,7 @@ const nyxVoiceNaturalizeMod =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18bc (CRITICAL PATCH++++: sessionPatch allows music loop-dampener keys + TRUE reset clears session state; keeps v1.5.18bb WIKI AUTHORITY FIX++++ + CRITICAL FIXES++++: sessionKey uses parsed body + manifest abs rebuilt after reload + strict CORS hard-lock 403 + JSON parser once + LOAD VISIBILITY++++: key collisions + skip reasons + fileMap + packsight proof + PINNED REL FIXES: story_moments_v2 + ordered rel preferences + DATA ROOT AUTODISCOVERY++++ + PINNED RESOLVE DIAGNOSTICS++++ + rebuild roots on reloadKnowledge + TOP10 NORMALIZATION + BLOCKER PRUNE++++ + SOURCE REL BLOCK REMOVAL + KNOWLEDGE INJECTION FIX + /api/chat GET GUIDANCE + MANIFEST RESOLVER UPGRADE++++: multi-candidate rels + bounded basename/dirname fallback search across ALL data roots + probes show bestFound + keeps PACK VISIBILITY HARDENING++++ + CHIP SIGNAL ROUNDTRIP intent/route/label + allow Data outside APP_ROOT + bigger budgets + PUBLIC /api/packsight + case-insensitive Data/Scripts resolution + pinned/manifest path fallback + packsight diagnostics + manifest target probes + pinned packs to real Data/* files + manifest tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + loop fuse + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
+  "index.js v1.5.18bd (CRITICAL NYX COG++++: gateway CSE evaluator + chip continuity signals; keeps v1.5.18bc reset/sessionPatch keys + v1.5.18bb WIKI AUTHORITY FIX++++ + CRITICAL FIXES++++: sessionKey uses parsed body + manifest abs rebuilt after reload + strict CORS hard-lock 403 + JSON parser once + LOAD VISIBILITY++++: key collisions + skip reasons + fileMap + packsight proof + PINNED REL FIXES: story_moments_v2 + ordered rel preferences + DATA ROOT AUTODISCOVERY++++ + PINNED RESOLVE DIAGNOSTICS++++ + rebuild roots on reloadKnowledge + TOP10 NORMALIZATION + BLOCKER PRUNE++++ + SOURCE REL BLOCK REMOVAL + KNOWLEDGE INJECTION FIX + /api/chat GET GUIDANCE + MANIFEST RESOLVER UPGRADE++++: multi-candidate rels + bounded basename/dirname fallback search across ALL data roots + probes show bestFound + keeps PACK VISIBILITY HARDENING++++ + CHIP SIGNAL ROUNDTRIP intent/route/label + allow Data outside APP_ROOT + bigger budgets + PUBLIC /api/packsight + case-insensitive Data/Scripts resolution + pinned/manifest path fallback + packsight diagnostics + manifest target probes + pinned packs to real Data/* files + manifest tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + loop fuse + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
 
 // =========================
 // Utils
@@ -1241,8 +1246,6 @@ function manifestBuildTop40WeeklyIndex(allJson, prefixKey) {
 }
 
 // ✅ Merge split wikipedia billboard yearend Hot 100 packs loaded under a dir prefix
-// IMPORTANT: do NOT rely on filename substrings (packs can be named many ways).
-// Instead: treat a pack as “candidate year-end chart rows” if it contains enough rows with plausible {year, rank/title/artist}.
 function manifestMergeYearendHot100FromDir(allJson, prefixKey) {
   const root = allJson && typeof allJson === "object" ? allJson : {};
   const keys = Object.keys(root).filter((k) => String(k).startsWith(prefixKey + "/"));
@@ -1261,8 +1264,6 @@ function manifestMergeYearendHot100FromDir(allJson, prefixKey) {
     const hasRank = Number.isFinite(rank) && rank >= 1 && rank <= 500;
     const hasTitleish = !!safeStr(r.title || r.song || r.single || r.track).trim();
     const hasArtistish = !!safeStr(r.artist || r.artists || r.performer).trim();
-
-    // Year-end rows usually have rank + title/artist. We allow some variance, but require at least one of these.
     return hasRank || (hasTitleish && hasArtistish);
   };
 
@@ -1271,13 +1272,11 @@ function manifestMergeYearendHot100FromDir(allJson, prefixKey) {
     const rows = manifestExtractRows(pack);
     if (!rows.length) continue;
 
-    // lightweight “candidate” test
     let good = 0;
     const sampleN = Math.min(rows.length, 120);
     for (let i = 0; i < sampleN; i++) if (isPlausibleRow(rows[i])) good++;
     const ratio = sampleN ? good / sampleN : 0;
 
-    // require at least some signal (prevents swallowing random wiki datasets)
     if (good < 10 && ratio < 0.2) continue;
 
     usedPacks += 1;
@@ -1371,7 +1370,6 @@ function manifestLoadJsonFileIntoKey(fp, key, loadedFiles, totalBytesRef) {
     return { ok: false, skipped: false, reason: "parse_failed" };
   }
 
-  // collision tracking
   const col = recordKeyWinner(key, realFp);
   if (!Object.prototype.hasOwnProperty.call(KNOWLEDGE.json, key)) {
     KNOWLEDGE.json[key] = parsed;
@@ -1934,7 +1932,19 @@ function getSession(req, bodyOverride) {
   let rec = SESSIONS.get(key);
   if (!rec) {
     rec = {
-      data: { sessionId: key, visitorId: key, lane: "general", cog: {} },
+      data: {
+        sessionId: key,
+        visitorId: key,
+        lane: "general",
+        cog: {},
+        // Nyx continuity (gateway-owned)
+        __lastOfferedChips: [],
+        __lastOfferedAt: 0,
+        __cseLastState: "",
+        __cseLastAt: 0,
+        __cseLastReason: "",
+        __lastUserAct: "",
+      },
       lastSeenAt: now,
       burst: [],
       sustained: [],
@@ -1946,6 +1956,7 @@ function getSession(req, bodyOverride) {
   if (!Array.isArray(rec.boot)) rec.boot = [];
   if (!Array.isArray(rec.burst)) rec.burst = [];
   if (!Array.isArray(rec.sustained)) rec.sustained = [];
+  if (!Array.isArray(rec.data.__lastOfferedChips)) rec.data.__lastOfferedChips = [];
   return { key, rec };
 }
 
@@ -2016,6 +2027,126 @@ function replayDedupe(rec, inboundSig, source, clientRequestId) {
   return { hit: false };
 }
 
+// =========================
+// CRITICAL NYX COG++++ (gateway CSE + chip continuity)
+// =========================
+function sourceLooksLikeChip(source, body) {
+  const s = safeStr(source).toLowerCase();
+  if (s.includes("chip") || s.includes("followup") || s.includes("quick") || s.includes("suggest")) return true;
+  const b = isPlainObject(body) ? body : {};
+  const c = isPlainObject(b.client) ? b.client : {};
+  const cs = safeStr(c.source).toLowerCase();
+  if (cs.includes("chip") || cs.includes("followup") || cs.includes("quick") || cs.includes("suggest")) return true;
+  const rh = safeStr(b.routeHint || c.routeHint).toLowerCase();
+  if (rh.includes("chip") || rh.includes("followup")) return true;
+  return false;
+}
+
+function extractChipClick(body) {
+  const b = isPlainObject(body) ? body : {};
+  const p = isPlainObject(b.payload) ? b.payload : {};
+  // prefer explicit ids if present
+  const id =
+    safeStr(p.id || p.followUpId || p.chipId || b.followUpId || b.chipId || "").trim() ||
+    safeStr(p.label || b.label || "").trim();
+  const action = safeStr(p.action || b.action || "").trim();
+  const route = safeStr(p.route || b.route || p.intent || b.intent || p.mode || b.mode || "").trim();
+  const year = safeStr(p.year || b.year || "").trim();
+  const lane = safeStr(p.lane || b.lane || "").trim();
+
+  const hasStructured =
+    !!action ||
+    !!route ||
+    !!year ||
+    !!lane ||
+    (!!safeStr(p.text || p.message).trim() && safeStr(p.text || p.message).trim().length < 4);
+
+  return {
+    id: id || "",
+    action,
+    route,
+    year: year ? Number(year) : undefined,
+    lane,
+    hasStructured,
+  };
+}
+
+function computeCSE(rec, inboundText, body, source) {
+  const t = safeStr(inboundText).trim();
+  const b = isPlainObject(body) ? body : {};
+  const p = isPlainObject(b.payload) ? b.payload : {};
+  const ctx = isPlainObject(b.ctx) ? b.ctx : {};
+  const offered = Array.isArray(rec?.data?.__lastOfferedChips) ? rec.data.__lastOfferedChips : [];
+  const offeredAt = Number(rec?.data?.__lastOfferedAt || 0);
+
+  const chipish = sourceLooksLikeChip(source, b);
+  const click = extractChipClick(b);
+  const hasIntent = hasIntentSignals(b);
+  const hasText = !!t;
+
+  // REDIRECT heuristic: explicit lane/route change away from previous lane
+  const prevLane = safeStr(rec?.data?.lane || "general") || "general";
+  const nextLane = safeStr(b.lane || p.lane || ctx.lane || "").trim() || prevLane;
+  const redirect = nextLane && prevLane && nextLane !== prevLane && nextLane !== "general";
+
+  // CHIP ADVANCE: empty text + structured payload + chip-like source
+  if (!hasText && chipish && click.hasStructured) {
+    const idHit = click.id && offered.includes(click.id);
+    return {
+      state: "ADVANCE",
+      reason: idHit ? "chip_click_matched" : "chip_click",
+      chip: { ...click, matchedOffer: !!idHit },
+      offeredAgeMs: offeredAt ? nowMs() - offeredAt : null,
+      redirect,
+    };
+  }
+
+  // ADVANCE via text: user clearly moved forward (typed, or provided year/action)
+  if (hasText && hasIntent) {
+    return {
+      state: redirect ? "REDIRECT" : "ADVANCE",
+      reason: redirect ? "redirect_text" : "text_with_intent",
+      chip: null,
+      offeredAgeMs: offeredAt ? nowMs() - offeredAt : null,
+      redirect,
+    };
+  }
+
+  // STALL: empty text but there are signals (often UI sends intent-only)
+  if (!hasText && hasIntent) {
+    return {
+      state: redirect ? "REDIRECT" : "STALL",
+      reason: redirect ? "redirect_signal" : "empty_text_intent_signal",
+      chip: null,
+      offeredAgeMs: offeredAt ? nowMs() - offeredAt : null,
+      redirect,
+    };
+  }
+
+  // RESIST: user typed something that ignores last offered chips (weak heuristic)
+  if (hasText && offered.length) {
+    const tl = t.toLowerCase();
+    const mentionsOffer = offered.some((x) => x && tl.includes(String(x).toLowerCase()));
+    if (!mentionsOffer && offeredAt && nowMs() - offeredAt < 2 * 60 * 1000) {
+      return {
+        state: redirect ? "REDIRECT" : "RESIST",
+        reason: redirect ? "redirect_resist" : "ignored_recent_offer",
+        chip: null,
+        offeredAgeMs: nowMs() - offeredAt,
+        redirect,
+      };
+    }
+  }
+
+  return {
+    state: "STALL",
+    reason: "no_signal",
+    chip: null,
+    offeredAgeMs: offeredAt ? nowMs() - offeredAt : null,
+    redirect,
+  };
+}
+
 function writeReplay(rec, reply, lane, extras) {
   rec.data.__idx_lastOut = safeStr(reply);
   rec.data.__idx_lastLane = safeStr(lane || "general") || "general";
@@ -2026,8 +2157,20 @@ function writeReplay(rec, reply, lane, extras) {
     if (fu) {
       rec.data.__idx_lastFollowUps = fu;
       rec.data.__idx_lastFollowUpsStrings = [];
+      // CRITICAL NYX COG++++: record last offered chips
+      const offered = fu
+        .map((x) => safeStr(x?.id || x?.label || "").trim())
+        .filter(Boolean)
+        .slice(0, 10);
+      rec.data.__lastOfferedChips = offered;
+      rec.data.__lastOfferedAt = nowMs();
     }
-    if (!fu && fus) rec.data.__idx_lastFollowUpsStrings = fus;
+    if (!fu && fus) {
+      rec.data.__idx_lastFollowUpsStrings = fus;
+      const offered = fus.map((x) => safeStr(x).trim()).filter(Boolean).slice(0, 10);
+      rec.data.__lastOfferedChips = offered;
+      rec.data.__lastOfferedAt = nowMs();
+    }
 
     if (Array.isArray(extras.directives)) rec.data.__idx_lastDirectives = extras.directives.slice(0, 10);
   }
@@ -2043,8 +2186,19 @@ function writeBootReplay(rec, reply, lane, extras) {
     if (fu) {
       rec.data.__idx_lastBootFollowUps = fu;
       rec.data.__idx_lastBootFollowUpsStrings = [];
+      const offered = fu
+        .map((x) => safeStr(x?.id || x?.label || "").trim())
+        .filter(Boolean)
+        .slice(0, 10);
+      rec.data.__lastOfferedChips = offered;
+      rec.data.__lastOfferedAt = nowMs();
     }
-    if (!fu && fus) rec.data.__idx_lastBootFollowUpsStrings = fus;
+    if (!fu && fus) {
+      rec.data.__idx_lastBootFollowUpsStrings = fus;
+      const offered = fus.map((x) => safeStr(x).trim()).filter(Boolean).slice(0, 10);
+      rec.data.__lastOfferedChips = offered;
+      rec.data.__lastOfferedAt = nowMs();
+    }
 
     if (Array.isArray(extras.directives)) rec.data.__idx_lastBootDirectives = extras.directives.slice(0, 10);
   }
@@ -2245,7 +2399,7 @@ app.post("/api/packs/refresh", doPacksRefresh);
 app.get("/api/packs/refresh", doPacksRefresh);
 
 // =========================
-// PUBLIC Packsight (SAFE) — now includes skips/collisions/fileMap preview
+// PUBLIC Packsight (SAFE)
 // =========================
 app.get("/api/packsight", (req, res) => {
   const pins = pinnedPresence();
@@ -2483,6 +2637,12 @@ function clearSessionState(rec) {
     visitorId: vid || sid || "unknown",
     lane: "general",
     cog: {},
+    __lastOfferedChips: [],
+    __lastOfferedAt: 0,
+    __cseLastState: "",
+    __cseLastAt: 0,
+    __cseLastReason: "",
+    __lastUserAct: "",
   };
 
   // clear rate windows + boot windows
@@ -2509,7 +2669,7 @@ function clearSessionState(rec) {
 }
 
 // =========================
-// Chat route (kept — no behavior change except reset)
+// Chat route (kept — plus CSE/chip continuity signals)
 // =========================
 async function handleChatRoute(req, res) {
   const startedAt = nowMs();
@@ -2558,6 +2718,16 @@ async function handleChatRoute(req, res) {
     });
   }
 
+  // ---- CRITICAL NYX COG++++: compute CSE BEFORE throttles/dedupe (so engine sees accurate signals)
+  const cse = computeCSE(rec, inboundText, body, source);
+  rec.data.__cseLastState = safeStr(cse.state);
+  rec.data.__cseLastAt = nowMs();
+  rec.data.__cseLastReason = safeStr(cse.reason);
+  rec.data.__lastUserAct = safeStr(
+    (cse && cse.chip && (cse.chip.id || cse.chip.action || cse.chip.route)) ||
+      (inboundText ? inboundText.slice(0, 48) : "signal")
+  );
+
   if (bootLike) {
     const bf = checkBootFuse(rec, startedAt);
     if (bf.blocked) {
@@ -2581,6 +2751,7 @@ async function handleChatRoute(req, res) {
           source,
           routeHint,
           elapsedMs: nowMs() - startedAt,
+          cse,
         },
       });
     }
@@ -2608,6 +2779,7 @@ async function handleChatRoute(req, res) {
           knowledge: knowledgeStatusForMeta(),
           throttled: burst.blocked ? "burst" : "sustained",
           elapsedMs: nowMs() - startedAt,
+          cse,
         },
       });
     }
@@ -2631,6 +2803,7 @@ async function handleChatRoute(req, res) {
           knowledge: knowledgeStatusForMeta(),
           replay: true,
           elapsedMs: nowMs() - startedAt,
+          cse,
         },
       });
     }
@@ -2650,6 +2823,7 @@ async function handleChatRoute(req, res) {
         engineFrom: ENGINE.from,
         engineVersion: ENGINE_VERSION || null,
         knowledge: knowledgeStatusForMeta(),
+        cse,
       },
     });
   }
@@ -2666,6 +2840,21 @@ async function handleChatRoute(req, res) {
     }
   }
 
+  const chipContext = {
+    lastOfferedChips: Array.isArray(rec.data.__lastOfferedChips) ? rec.data.__lastOfferedChips.slice(0, 10) : [],
+    lastOfferedAt: Number(rec.data.__lastOfferedAt || 0),
+    offeredAgeMs: Number(rec.data.__lastOfferedAt || 0) ? nowMs() - Number(rec.data.__lastOfferedAt || 0) : null,
+    sourceLooksLikeChip: sourceLooksLikeChip(source, body),
+  };
+
+  const turnSignals = {
+    hasText: !!safeStr(inboundText).trim(),
+    hasIntentSignals: hasIntentSignals(body),
+    inboundSig: inboundSig ? String(inboundSig).slice(0, 160) : null,
+    routeHint,
+    source,
+  };
+
   const engineInput = {
     ...body,
     requestId: serverRequestId,
@@ -2680,6 +2869,11 @@ async function handleChatRoute(req, res) {
     },
     session: rec.data,
 
+    // ✅ NEW: conversational evaluator + chip continuity
+    cse,
+    chipContext,
+    turnSignals,
+
     knowledge: knowledgeSnapshotForEngine(),
     __knowledgeStatus: knowledgeStatusForMeta(),
     packIndex: getPackIndexSafe(false),
@@ -2693,7 +2887,7 @@ async function handleChatRoute(req, res) {
     const msg = safeStr(e?.message || e).trim();
     const k = knowledgeStatusForMeta();
     const reply = k.ok
-      ? "I hit a snag, but I’m still here. Give me a year (1950–2024) and I’ll jump right in."
+      ? "I hit a snag, but I’m still here. Give me a year (1950–2025) and I’ll jump right in."
       : "I’m online, but my knowledge packs didn’t load yet. Try again in a moment — or hit refresh — and I’ll reconnect.";
     writeReplay(rec, reply, rec.data.lane || "general");
     return res.status(500).json({
@@ -2706,6 +2900,7 @@ async function handleChatRoute(req, res) {
         engine: ENGINE_VERSION || null,
         knowledge: k,
         error: safeStr(msg).slice(0, 200),
+        cse,
       },
     });
   }
@@ -2755,14 +2950,19 @@ async function handleChatRoute(req, res) {
       source,
       routeHint,
       bootLike: !!bootLike,
-      inboundSig: inboundSig ? String(inboundSig).slice(0, 160) : null,
       meaningful: !!meaningful,
       echoSuppressed: !!followUps && Array.isArray(out?.followUpsStrings) && out?.followUpsStrings.length ? true : false,
       packs: getPackIndexSafe(false).summary,
+      cse,
+      chipContext,
+      turnSignals,
     },
   });
 }
 
+// =========================
+// SessionPatch allowlist (expanded for Nyx COG++++)
+// =========================
 function applySessionPatch(session, patch) {
   if (!isPlainObject(session) || !isPlainObject(patch)) return;
 
@@ -2802,6 +3002,14 @@ function applySessionPatch(session, patch) {
     "lastMusicChart",
     "musicMomentsLoaded",
     "musicMomentsLoadedAt",
+
+    // ✅ CRITICAL NYX COG++++ (safe continuity keys)
+    "__cseLastState",
+    "__cseLastAt",
+    "__cseLastReason",
+    "__lastOfferedChips",
+    "__lastOfferedAt",
+    "__lastUserAct",
   ]);
 
   for (const [k, v] of Object.entries(patch)) {
@@ -2827,6 +3035,12 @@ function applySessionPatch(session, patch) {
           session.__nyxIntro[ik] = iv;
         }
       }
+      continue;
+    }
+
+    // normalize arrays for continuity keys
+    if ((k === "__lastOfferedChips" || k === " __lastOfferedChips") && Array.isArray(v)) {
+      session.__lastOfferedChips = v.map((x) => safeStr(x).trim()).filter(Boolean).slice(0, 12);
       continue;
     }
 
