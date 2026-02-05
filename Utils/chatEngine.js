@@ -17,25 +17,14 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7bA (MUSIC LOOP-DAMPENER++++ + SESSION PATCH KEYS++++):
- * ✅ Uses + updates these session continuity keys (index.js now allows them):
- *    - __musicLastSig, activeMusicChart, lastMusicChart, musicMomentsLoaded, musicMomentsLoadedAt
- * ✅ Top10 resolver is PINNED-FIRST and supports your canonical shape:
- *    - {years:{YYYY:{items:[{pos|rank,title,artist}]}}}  (top10_by_year_v1.json)
- *    - year-keyed arrays OR rows arrays fallback supported
- * ✅ HARD-GUARD: disables old "derived_top10_from_yearend" loop by default
- *    - Year-end fallback only if explicitly allowed (allowDerivedTop10=true)
- * ✅ Builds “Guiding Attention in Three Acts” follow-ups as real followUps (and legacy strings)
- *
- * v0.7bB (ADVANCE ON TOP10 MISSING++++):
- * ✅ If Top10 pinned missing, DO NOT dead-end:
- *    - auto-offer controlled alternatives (Number1 / Story / Micro)
- *    - if #1 anchor exists, include it inline to keep momentum
- * ✅ Adds minimal handlers for custom_story / ask_year / switch_lane
+ * v0.7bC (PINNED TOP10 KEY ALIASES++++ + ACCURATE MISS REASONS++++):
+ * ✅ Top10 pack lookup supports multiple key aliases + heuristic scan in knowledge.json
+ * ✅ Distinguishes missing_pack vs year_missing_in_pack vs empty_items_for_year
+ * ✅ Keeps: loop dampener, derived guard default OFF, 3-act followUps, session keys
  */
 
 const CE_VERSION =
-  "chatEngine v0.7bB (ADVANCE ON TOP10 MISSING++++ + MUSIC LOOP-DAMPENER++++ + SESSION PATCH KEYS++++ + pinned-first resolvers + derived guard)";
+  "chatEngine v0.7bC (PINNED TOP10 KEY ALIASES++++ + ACCURATE MISS REASONS++++ + loop dampener + derived guard)";
 
 // -------------------------
 // helpers
@@ -62,8 +51,7 @@ function clampInt(v, def, min, max) {
   return t;
 }
 function sha1Lite(str) {
-  // small, dependency-free-ish hash (NOT cryptographic)
-  // stable enough for loop signatures
+  // small stable hash (NOT cryptographic) for loop signatures
   const s = safeStr(str);
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) {
@@ -72,36 +60,12 @@ function sha1Lite(str) {
   }
   return (h >>> 0).toString(16);
 }
-function pick(obj, path, def) {
-  try {
-    const parts = String(path).split(".");
-    let cur = obj;
-    for (const p of parts) {
-      if (!cur) return def;
-      cur = cur[p];
-    }
-    return cur === undefined ? def : cur;
-  } catch (_) {
-    return def;
-  }
-}
 function normYear(y) {
   const n = Number(y);
   if (!Number.isFinite(n)) return null;
   const t = Math.trunc(n);
   if (t < 1900 || t > 2100) return null;
   return t;
-}
-function normalizeSongLine(r) {
-  const o = isPlainObject(r) ? r : {};
-  const pos = clampInt(o.pos ?? o.rank ?? o.position ?? o["#"] ?? o.no ?? o.number, null, 1, 500);
-  const title = safeStr(o.title ?? o.song ?? o.single ?? o.track ?? "").trim();
-  const artist = safeStr(o.artist ?? o.artists ?? o.performer ?? "").trim();
-  return { pos: pos || null, title, artist };
-}
-function compactList(items, maxN) {
-  const arr = Array.isArray(items) ? items : [];
-  return arr.slice(0, maxN);
 }
 function asArray(x) {
   return Array.isArray(x) ? x : [];
@@ -110,6 +74,25 @@ function truthy(v) {
   if (v === true) return true;
   const s = safeStr(v).trim().toLowerCase();
   return s === "1" || s === "true" || s === "yes" || s === "y" || s === "on";
+}
+function compactList(items, maxN) {
+  const arr = Array.isArray(items) ? items : [];
+  return arr.slice(0, maxN);
+}
+function normalizeSongLine(r) {
+  const o = isPlainObject(r) ? r : {};
+  const pos = clampInt(o.pos ?? o.rank ?? o.position ?? o["#"] ?? o.no ?? o.number, null, 1, 500);
+  const title = safeStr(o.title ?? o.song ?? o.single ?? o.track ?? "").trim();
+  const artist = safeStr(o.artist ?? o.artists ?? o.performer ?? "").trim();
+  return { pos: pos || null, title, artist };
+}
+function extractYearFromText(t) {
+  const s = safeStr(t).trim();
+  if (!s) return null;
+  const m = s.match(/\b(19[5-9]\d|20[0-2]\d|2025)\b/);
+  if (!m) return null;
+  const y = Number(m[1]);
+  return normYear(y);
 }
 function normVibe(v) {
   const s = safeStr(v).trim().toLowerCase();
@@ -129,6 +112,28 @@ const PUBLIC_MAX_YEAR = 2025;
 // -------------------------
 // inbound parse / intent
 // -------------------------
+function classifyAction(text, payload) {
+  const t = safeStr(text).toLowerCase();
+  const pA = safeStr(payload?.action || "").trim();
+  if (pA) return pA;
+
+  if (/\b(top\s*10|top ten)\b/.test(t)) return "top10";
+  if (/\b(#\s*1|number\s*1|number one|no\.\s*1)\b/.test(t)) return "number1";
+  if (/\b(story\s*moment|make it cinematic|cinematic)\b/.test(t)) return "story_moment";
+  if (/\b(micro\s*moment|tap micro|seal the vibe)\b/.test(t)) return "micro_moment";
+  if (/\b(year[-\s]*end|year end|yearend)\b/.test(t) && /\bhot\s*100\b/.test(t)) return "yearend_hot100";
+
+  if (t === "__cmd:reset__" || /\b(reset|start over|clear session)\b/.test(t)) return "reset";
+  if (/\b(pick another year|another year|new year)\b/.test(t)) return "ask_year";
+  if (/\b(switch lane|change lane|other lane)\b/.test(t)) return "switch_lane";
+
+  const hasVibe = /\b(romantic|rebellious|nostalgic)\b/.test(t);
+  if (hasVibe && (/\b(story|moment|cinematic)\b/.test(t) || /\b(make it|give me)\b/.test(t)))
+    return "custom_story";
+
+  return "";
+}
+
 function normalizeInbound(input) {
   const body = isPlainObject(input) ? input : {};
   const payload = isPlainObject(body.payload) ? body.payload : {};
@@ -139,10 +144,7 @@ function normalizeInbound(input) {
     body.text || body.message || body.prompt || body.query || payload.text || payload.message || ""
   ).trim();
 
-  const routeHint = safeStr(body.routeHint || client.routeHint || body.lane || payload.lane || "").trim();
-  const source = safeStr(body.source || client.source || "").trim();
   const lane = safeStr(body.lane || payload.lane || ctx.lane || "").trim();
-
   const year =
     normYear(body.year) ??
     normYear(payload.year) ??
@@ -152,17 +154,11 @@ function normalizeInbound(input) {
 
   const action =
     safeStr(payload.action || body.action || ctx.action || "").trim() ||
-    classifyAction(textRaw, payload, body, ctx) ||
+    classifyAction(textRaw, payload) ||
     "";
 
-  const intent =
-    safeStr(payload.intent || body.intent || ctx.intent || payload.mode || body.mode || ctx.mode || "").trim() ||
-    "";
+  const vibe = safeStr(payload.vibe || body.vibe || ctx.vibe || "").trim() || "";
 
-  const vibe =
-    safeStr(payload.vibe || body.vibe || ctx.vibe || payload.tone || body.tone || ctx.tone || "").trim() || "";
-
-  // explicit opt-in for year-end -> derived top10 fallback (off by default to kill loop)
   const allowDerivedTop10 =
     truthy(payload.allowDerivedTop10) ||
     truthy(body.allowDerivedTop10) ||
@@ -171,84 +167,132 @@ function normalizeInbound(input) {
     truthy(body.allowYearendFallback) ||
     truthy(ctx.allowYearendFallback);
 
-  return {
-    body,
-    payload,
-    ctx,
-    client,
-    text: textRaw,
-    routeHint,
-    source,
-    lane,
-    year,
-    action,
-    intent,
-    vibe,
-    allowDerivedTop10,
-  };
-}
-
-function extractYearFromText(t) {
-  const s = safeStr(t).trim();
-  if (!s) return null;
-  const m = s.match(/\b(19[5-9]\d|20[0-2]\d|2025)\b/);
-  if (!m) return null;
-  const y = Number(m[1]);
-  return normYear(y);
-}
-
-function classifyAction(text, payload, body, ctx) {
-  const t = safeStr(text).toLowerCase();
-
-  // explicit payload wins
-  const pA = safeStr(payload?.action || "").trim();
-  if (pA) return pA;
-
-  // music actions
-  if (/\b(top\s*10|top ten)\b/.test(t)) return "top10";
-  if (/\b(#\s*1|number\s*1|number one|no\.\s*1)\b/.test(t)) return "number1";
-  if (/\b(story\s*moment|make it cinematic|cinematic)\b/.test(t)) return "story_moment";
-  if (/\b(micro\s*moment|tap micro|seal the vibe)\b/.test(t)) return "micro_moment";
-  if (/\b(year[-\s]*end|year end|yearend)\b/.test(t) && /\bhot\s*100\b/.test(t)) return "yearend_hot100";
-
-  // reset-like (index.js handles reset, but we keep a lightweight hook for engine-only tests)
-  if (t === "__cmd:reset__" || /\b(reset|start over|clear session)\b/.test(t)) return "reset";
-
-  // lane switches
-  if (/\b(switch lane|change lane|other lane)\b/.test(t)) return "switch_lane";
-  if (/\b(pick another year|another year|new year)\b/.test(t)) return "ask_year";
-
-  // vibe-only prompt implies a custom story
-  const hasVibe = /\b(romantic|rebellious|nostalgic)\b/.test(t);
-  if (hasVibe && (/\b(story|moment|cinematic)\b/.test(t) || /\b(make it|give me)\b/.test(t))) return "custom_story";
-
-  return "";
+  return { body, payload, ctx, client, text: textRaw, lane, year, action, vibe, allowDerivedTop10 };
 }
 
 // -------------------------
-// knowledge accessors
+// knowledge accessors (ALIases + scan)
 // -------------------------
-function getPack(knowledge, key) {
+function getJsonRoot(knowledge) {
   const k = isPlainObject(knowledge) ? knowledge : {};
-  const json = isPlainObject(k.json) ? k.json : {};
+  return isPlainObject(k.json) ? k.json : {};
+}
+
+function getPack(knowledge, key) {
+  const json = getJsonRoot(knowledge);
   return json[key];
 }
 
+function getPackAny(knowledge, keys) {
+  for (const k of asArray(keys)) {
+    const hit = getPack(knowledge, k);
+    if (hit) return { pack: hit, key: k, method: "alias_key" };
+  }
+  return { pack: null, key: "", method: "" };
+}
+
+function looksLikeTop10Store(obj) {
+  // Accept common shapes:
+  //  - { years: { "1992": { items:[...] } } }   (your canonical top10_by_year_v1.json)
+  //  - { byYear: { "1992": [...] } }
+  //  - { "1992": [...] }
+  if (!obj) return false;
+  if (isPlainObject(obj.years)) return true;
+  if (isPlainObject(obj.byYear)) return true;
+  if (Array.isArray(obj.rows)) return true;
+  // year-keyed arrays: detect at least one plausible year key
+  const keys = isPlainObject(obj) ? Object.keys(obj) : [];
+  if (keys.some((k) => /^\d{4}$/.test(k) && Array.isArray(obj[k]))) return true;
+  return false;
+}
+
+function findTop10PackHeuristic(knowledge) {
+  const json = getJsonRoot(knowledge);
+  const entries = Object.entries(json);
+
+  // Prefer keys that explicitly mention top10_by_year
+  const ranked = entries
+    .map(([k, v]) => {
+      const lk = k.toLowerCase();
+      let score = 0;
+      if (lk.includes("top10_by_year")) score += 50;
+      if (lk.includes("top10")) score += 20;
+      if (lk.includes("music")) score += 10;
+      if (lk.includes("wiki")) score -= 5; // don't accidentally pick wiki year-end
+      if (looksLikeTop10Store(v)) score += 30;
+      return { k, v, score };
+    })
+    .filter((x) => x.score >= 40) // must be pretty convincing
+    .sort((a, b) => b.score - a.score);
+
+  if (ranked.length) return { pack: ranked[0].v, key: ranked[0].k, method: "heuristic_scan" };
+  return { pack: null, key: "", method: "" };
+}
+
 function getPinnedTop10(knowledge) {
-  return getPack(knowledge, "music/top10_by_year");
+  // Most likely keys across your versions/manifests
+  const aliases = [
+    "music/top10_by_year",
+    "music/top10_by_year_v1",
+    "music/top10_by_year_store",
+    "music/top10_by_year_v1.json",
+    "music/top10_store",
+    "music/top10",
+    "top10_by_year_v1",
+    "top10_by_year",
+  ];
+
+  const a = getPackAny(knowledge, aliases);
+  if (a.pack && looksLikeTop10Store(a.pack)) return { pack: a.pack, key: a.key, foundBy: a.method };
+
+  const h = findTop10PackHeuristic(knowledge);
+  if (h.pack) return { pack: h.pack, key: h.key, foundBy: h.method };
+
+  return { pack: null, key: "", foundBy: "" };
 }
+
 function getPinnedNumber1(knowledge) {
-  return getPack(knowledge, "music/number1_by_year");
+  const aliases = [
+    "music/number1_by_year",
+    "music/number1_by_year_v1",
+    "music/number1_by_year_v1.json",
+    "music/number1",
+    "number1_by_year",
+  ];
+  const a = getPackAny(knowledge, aliases);
+  return a.pack ? { pack: a.pack, key: a.key, foundBy: a.method } : { pack: null, key: "", foundBy: "" };
 }
+
 function getPinnedStoryMoments(knowledge) {
-  return getPack(knowledge, "music/story_moments_by_year");
+  const aliases = [
+    "music/story_moments_by_year",
+    "music/story_moments_by_year_v1",
+    "music/story_moments_by_year_v2",
+    "music/story_moments",
+  ];
+  const a = getPackAny(knowledge, aliases);
+  return a.pack ? { pack: a.pack, key: a.key, foundBy: a.method } : { pack: null, key: "", foundBy: "" };
 }
+
 function getPinnedMicroMoments(knowledge) {
-  return getPack(knowledge, "music/micro_moments_by_year");
+  const aliases = [
+    "music/micro_moments_by_year",
+    "music/micro_moments_by_year_v1",
+    "music/micro_moments_by_year_v2",
+    "music/micro_moments",
+  ];
+  const a = getPackAny(knowledge, aliases);
+  return a.pack ? { pack: a.pack, key: a.key, foundBy: a.method } : { pack: null, key: "", foundBy: "" };
 }
+
 function getWikiYearendByYear(knowledge) {
-  // derived outKey from index manifest
-  return getPack(knowledge, "music/wiki/yearend_hot100_by_year");
+  const aliases = [
+    "music/wiki/yearend_hot100_by_year",
+    "music/wiki/yearend_hot100_by_year_v1",
+    "music/wiki/yearend_hot100",
+  ];
+  const a = getPackAny(knowledge, aliases);
+  return a.pack ? { pack: a.pack, key: a.key, foundBy: a.method } : { pack: null, key: "", foundBy: "" };
 }
 
 // -------------------------
@@ -260,43 +304,57 @@ function resolveTop10ForYear(knowledge, year, opts) {
 
   const allowDerivedTop10 = !!(opts && opts.allowDerivedTop10);
 
-  // PINNED FIRST
-  const top10 = getPinnedTop10(knowledge);
+  const top10Hit = getPinnedTop10(knowledge);
+  const top10 = top10Hit.pack;
+
   if (top10) {
-    // canonical: { years: { "1960": { items:[...] } } }
-    if (isPlainObject(top10.years) && isPlainObject(top10.years[String(y)])) {
+    // canonical: { years: { "1992": { items:[...] } } }
+    if (isPlainObject(top10.years)) {
       const block = top10.years[String(y)];
+      if (!block) return { ok: false, reason: "year_missing_in_pack", sourceKey: top10Hit.key, foundBy: top10Hit.foundBy };
       const items = asArray(block.items).map(normalizeSongLine).filter((r) => r.title || r.artist);
-      if (items.length) {
-        return { ok: true, method: "pinned_top10_years_items", sourceKey: "music/top10_by_year", year: y, items };
-      }
+      if (!items.length) return { ok: false, reason: "empty_items_for_year", sourceKey: top10Hit.key, foundBy: top10Hit.foundBy };
+      return { ok: true, method: "pinned_top10_years_items", sourceKey: top10Hit.key, foundBy: top10Hit.foundBy, year: y, items };
     }
 
-    // year-keyed array: { "1960": [ ... ] }
+    // byYear map: { byYear: { "1992": [...] } }
+    if (isPlainObject(top10.byYear)) {
+      const arr = top10.byYear[String(y)];
+      if (!arr) return { ok: false, reason: "year_missing_in_pack", sourceKey: top10Hit.key, foundBy: top10Hit.foundBy };
+      const items = asArray(arr).map(normalizeSongLine).filter((r) => r.title || r.artist);
+      if (!items.length) return { ok: false, reason: "empty_items_for_year", sourceKey: top10Hit.key, foundBy: top10Hit.foundBy };
+      return { ok: true, method: "pinned_top10_byYear_array", sourceKey: top10Hit.key, foundBy: top10Hit.foundBy, year: y, items };
+    }
+
+    // year-keyed array: { "1992": [ ... ] }
     if (isPlainObject(top10) && Array.isArray(top10[String(y)])) {
       const items = top10[String(y)].map(normalizeSongLine).filter((r) => r.title || r.artist);
-      if (items.length) {
-        return { ok: true, method: "pinned_top10_year_keyed_array", sourceKey: "music/top10_by_year", year: y, items };
-      }
+      if (!items.length) return { ok: false, reason: "empty_items_for_year", sourceKey: top10Hit.key, foundBy: top10Hit.foundBy };
+      return { ok: true, method: "pinned_top10_year_keyed_array", sourceKey: top10Hit.key, foundBy: top10Hit.foundBy, year: y, items };
     }
 
-    // rows array (less common)
+    // rows array
     if (Array.isArray(top10.rows)) {
       const rows = top10.rows.filter((r) => Number(r?.year) === y);
+      if (!rows.length) return { ok: false, reason: "year_missing_in_pack", sourceKey: top10Hit.key, foundBy: top10Hit.foundBy };
       const items = rows.map(normalizeSongLine).filter((r) => r.title || r.artist);
-      if (items.length) {
-        return { ok: true, method: "pinned_top10_rows", sourceKey: "music/top10_by_year", year: y, items };
-      }
+      if (!items.length) return { ok: false, reason: "empty_items_for_year", sourceKey: top10Hit.key, foundBy: top10Hit.foundBy };
+      return { ok: true, method: "pinned_top10_rows", sourceKey: top10Hit.key, foundBy: top10Hit.foundBy, year: y, items };
     }
+
+    // Pack exists but shape is unexpected
+    return { ok: false, reason: "unsupported_pack_shape", sourceKey: top10Hit.key, foundBy: top10Hit.foundBy };
   }
 
-  // HARD GUARD: year-end fallback disabled unless explicitly allowed
+  // NO pinned top10 pack discovered anywhere
   if (!allowDerivedTop10) {
-    return { ok: false, reason: "pinned_missing_no_fallback" };
+    return { ok: false, reason: "missing_pack_no_fallback" };
   }
 
   // FALLBACK ONLY if explicitly allowed
-  const wiki = getWikiYearendByYear(knowledge);
+  const wikiHit = getWikiYearendByYear(knowledge);
+  const wiki = wikiHit.pack;
+
   if (wiki && isPlainObject(wiki.byYear) && Array.isArray(wiki.byYear[String(y)])) {
     const rows = wiki.byYear[String(y)];
     const items = rows
@@ -318,7 +376,8 @@ function resolveTop10ForYear(knowledge, year, opts) {
       return {
         ok: true,
         method: "fallback_yearend_hot100_top10",
-        sourceKey: "music/wiki/yearend_hot100_by_year",
+        sourceKey: wikiHit.key,
+        foundBy: wikiHit.foundBy,
         year: y,
         items: sorted,
         confidence: "medium",
@@ -333,29 +392,30 @@ function resolveNumber1ForYear(knowledge, year) {
   const y = normYear(year);
   if (!y) return { ok: false, reason: "missing_year" };
 
-  const p = getPinnedNumber1(knowledge);
+  const hit = getPinnedNumber1(knowledge);
+  const p = hit.pack;
   if (!p) return { ok: false, reason: "missing_pack" };
 
   if (Array.isArray(p.rows)) {
-    const hit = p.rows.find((r) => Number(r?.year) === y);
-    if (hit) {
-      const o = normalizeSongLine(hit);
-      return { ok: true, method: "pinned_rows", sourceKey: "music/number1_by_year", year: y, item: o };
+    const row = p.rows.find((r) => Number(r?.year) === y);
+    if (row) {
+      const o = normalizeSongLine(row);
+      return { ok: true, method: "pinned_rows", sourceKey: hit.key, foundBy: hit.foundBy, year: y, item: o };
     }
   }
 
   if (isPlainObject(p.byYear) && (isPlainObject(p.byYear[String(y)]) || Array.isArray(p.byYear[String(y)]))) {
     const v = p.byYear[String(y)];
-    const hit = Array.isArray(v) ? v[0] : v;
-    const o = normalizeSongLine(hit);
-    return { ok: true, method: "pinned_byYear", sourceKey: "music/number1_by_year", year: y, item: o };
+    const row = Array.isArray(v) ? v[0] : v;
+    const o = normalizeSongLine(row);
+    return { ok: true, method: "pinned_byYear", sourceKey: hit.key, foundBy: hit.foundBy, year: y, item: o };
   }
 
   if (isPlainObject(p[String(y)]) || Array.isArray(p[String(y)])) {
     const v = p[String(y)];
-    const hit = Array.isArray(v) ? v[0] : v;
-    const o = normalizeSongLine(hit);
-    return { ok: true, method: "pinned_year_key", sourceKey: "music/number1_by_year", year: y, item: o };
+    const row = Array.isArray(v) ? v[0] : v;
+    const o = normalizeSongLine(row);
+    return { ok: true, method: "pinned_year_key", sourceKey: hit.key, foundBy: hit.foundBy, year: y, item: o };
   }
 
   return { ok: false, reason: "not_found" };
@@ -365,28 +425,26 @@ function resolveStoryMomentForYear(knowledge, year) {
   const y = normYear(year);
   if (!y) return { ok: false, reason: "missing_year" };
 
-  const p = getPinnedStoryMoments(knowledge);
+  const hit = getPinnedStoryMoments(knowledge);
+  const p = hit.pack;
   if (!p) return { ok: false, reason: "missing_pack" };
 
   const getText = (r) => safeStr(r?.text || r?.moment || r?.story || r?.copy || r?.line || "").trim();
 
   if (Array.isArray(p.rows)) {
-    const hit = p.rows.find((r) => Number(r?.year) === y);
-    const txt = hit ? getText(hit) : "";
-    if (txt) return { ok: true, method: "pinned_rows", sourceKey: "music/story_moments_by_year", year: y, text: txt };
+    const row = p.rows.find((r) => Number(r?.year) === y);
+    const txt = row ? getText(row) : "";
+    if (txt) return { ok: true, method: "pinned_rows", sourceKey: hit.key, foundBy: hit.foundBy, year: y, text: txt };
   }
-
   if (isPlainObject(p.byYear) && p.byYear[String(y)]) {
-    const v = p.byYear[String(y)];
-    const txt = getText(v);
-    if (txt) return { ok: true, method: "pinned_byYear", sourceKey: "music/story_moments_by_year", year: y, text: txt };
+    const txt = getText(p.byYear[String(y)]);
+    if (txt) return { ok: true, method: "pinned_byYear", sourceKey: hit.key, foundBy: hit.foundBy, year: y, text: txt };
   }
-
   if (p[String(y)]) {
     const v = p[String(y)];
-    const hit = Array.isArray(v) ? v[0] : v;
-    const txt = getText(hit);
-    if (txt) return { ok: true, method: "pinned_year_key", sourceKey: "music/story_moments_by_year", year: y, text: txt };
+    const row = Array.isArray(v) ? v[0] : v;
+    const txt = getText(row);
+    if (txt) return { ok: true, method: "pinned_year_key", sourceKey: hit.key, foundBy: hit.foundBy, year: y, text: txt };
   }
 
   return { ok: false, reason: "not_found" };
@@ -396,28 +454,26 @@ function resolveMicroMomentForYear(knowledge, year) {
   const y = normYear(year);
   if (!y) return { ok: false, reason: "missing_year" };
 
-  const p = getPinnedMicroMoments(knowledge);
+  const hit = getPinnedMicroMoments(knowledge);
+  const p = hit.pack;
   if (!p) return { ok: false, reason: "missing_pack" };
 
   const getText = (r) => safeStr(r?.text || r?.moment || r?.micro || r?.copy || r?.line || "").trim();
 
   if (Array.isArray(p.rows)) {
-    const hit = p.rows.find((r) => Number(r?.year) === y);
-    const txt = hit ? getText(hit) : "";
-    if (txt) return { ok: true, method: "pinned_rows", sourceKey: "music/micro_moments_by_year", year: y, text: txt };
+    const row = p.rows.find((r) => Number(r?.year) === y);
+    const txt = row ? getText(row) : "";
+    if (txt) return { ok: true, method: "pinned_rows", sourceKey: hit.key, foundBy: hit.foundBy, year: y, text: txt };
   }
-
   if (isPlainObject(p.byYear) && p.byYear[String(y)]) {
-    const v = p.byYear[String(y)];
-    const txt = getText(v);
-    if (txt) return { ok: true, method: "pinned_byYear", sourceKey: "music/micro_moments_by_year", year: y, text: txt };
+    const txt = getText(p.byYear[String(y)]);
+    if (txt) return { ok: true, method: "pinned_byYear", sourceKey: hit.key, foundBy: hit.foundBy, year: y, text: txt };
   }
-
   if (p[String(y)]) {
     const v = p[String(y)];
-    const hit = Array.isArray(v) ? v[0] : v;
-    const txt = getText(hit);
-    if (txt) return { ok: true, method: "pinned_year_key", sourceKey: "music/micro_moments_by_year", year: y, text: txt };
+    const row = Array.isArray(v) ? v[0] : v;
+    const txt = getText(row);
+    if (txt) return { ok: true, method: "pinned_year_key", sourceKey: hit.key, foundBy: hit.foundBy, year: y, text: txt };
   }
 
   return { ok: false, reason: "not_found" };
@@ -430,7 +486,6 @@ function buildMusicSig({ action, year, method, sourceKey, extra }) {
   const base = `${safeStr(action)}|${safeStr(year)}|${safeStr(method)}|${safeStr(sourceKey)}|${safeStr(extra)}`;
   return sha1Lite(base).slice(0, 12);
 }
-
 function shouldDampen(session, nextSig) {
   const s = isPlainObject(session) ? session : {};
   const last = safeStr(s.__musicLastSig || "").trim();
@@ -445,34 +500,19 @@ function threeActFollowUps(year) {
   const y = normYear(year);
   const yLabel = y ? String(y) : "that year";
 
-  const fu = [
-    {
-      id: "fu_number1",
-      type: "chip",
-      label: "“Want the #1 anchor next?”",
-      payload: { lane: "music", action: "number1", year: y || undefined, route: "number1" },
-    },
-    {
-      id: "fu_story",
-      type: "chip",
-      label: "“Okay… now we make it cinematic.”",
-      payload: { lane: "music", action: "story_moment", year: y || undefined, route: "story_moment" },
-    },
-    {
-      id: "fu_micro",
-      type: "chip",
-      label: "“Tap micro moment—let’s seal the vibe.”",
-      payload: { lane: "music", action: "micro_moment", year: y || undefined, route: "micro_moment" },
-    },
+  const followUps = [
+    { id: "fu_number1", type: "chip", label: "“Want the #1 anchor next?”", payload: { lane: "music", action: "number1", year: y || undefined, route: "number1" } },
+    { id: "fu_story", type: "chip", label: "“Okay… now we make it cinematic.”", payload: { lane: "music", action: "story_moment", year: y || undefined, route: "story_moment" } },
+    { id: "fu_micro", type: "chip", label: "“Tap micro moment—let’s seal the vibe.”", payload: { lane: "music", action: "micro_moment", year: y || undefined, route: "micro_moment" } },
   ];
 
-  const fus = [
+  const followUpsStrings = [
     `Want the #1 anchor next for ${yLabel}?`,
     `Okay… now we make it cinematic.`,
     `Tap micro moment—let’s seal the vibe.`,
   ];
 
-  return { followUps: fu, followUpsStrings: fus };
+  return { followUps, followUpsStrings };
 }
 
 // -------------------------
@@ -530,7 +570,6 @@ function buildCustomStory({ year, vibe, number1Item }) {
       `This is a year for leather-jacket confidence, for loud truths, for leaving the party early because you run the night.`
     );
   }
-  // nostalgic default
   return (
     `${open} ${aLine}` +
     `and memory does that gentle time-warp thing. A car radio, a kitchen speaker, a hallway dance with socks on. ` +
@@ -543,13 +582,14 @@ function buildCustomStory({ year, vibe, number1Item }) {
 // -------------------------
 async function handleChat(input) {
   const started = nowMs();
-
   const norm = normalizeInbound(input);
+
   const session = isPlainObject(norm.body.session)
     ? norm.body.session
     : isPlainObject(input?.session)
       ? input.session
       : {};
+
   const knowledge = isPlainObject(input?.knowledge)
     ? input.knowledge
     : isPlainObject(norm.body.knowledge)
@@ -559,17 +599,14 @@ async function handleChat(input) {
   const yearSticky = normYear(session.lastYear) ?? null;
   const year = norm.year ?? yearSticky ?? null;
 
-  // lane inference
   const lane =
     safeStr(norm.lane || "").trim() ||
     (norm.action ? "music" : "") ||
     safeStr(session.lane || "").trim() ||
     "general";
 
-  // prior chart key (for continuity)
   const prevChart = safeStr(session.activeMusicChart || session.lastMusicChart || "").trim();
 
-  // quick reset hook (mostly for local tests; index.js now does the true reset)
   if (norm.action === "reset") {
     return {
       ok: true,
@@ -590,7 +627,6 @@ async function handleChat(input) {
     };
   }
 
-  // lightweight lane helpers
   if (norm.action === "ask_year") {
     return {
       ok: true,
@@ -606,6 +642,7 @@ async function handleChat(input) {
       meta: { engine: CE_VERSION, route: "ask_year", elapsedMs: nowMs() - started },
     };
   }
+
   if (norm.action === "switch_lane") {
     return {
       ok: true,
@@ -622,7 +659,6 @@ async function handleChat(input) {
     };
   }
 
-  // year guard for music actions that require year
   const requiresYear = ["top10", "number1", "story_moment", "micro_moment", "yearend_hot100", "custom_story"];
   if (requiresYear.includes(norm.action) && !year) {
     return {
@@ -640,7 +676,6 @@ async function handleChat(input) {
     };
   }
 
-  // range guard
   if (year && (year < PUBLIC_MIN_YEAR || year > PUBLIC_MAX_YEAR)) {
     return {
       ok: true,
@@ -651,16 +686,14 @@ async function handleChat(input) {
     };
   }
 
-  // default action if lane/music and year present
   const action = norm.action || (lane === "music" && year ? "top10" : "");
 
   // ---------------------------------
   // MUSIC
   // ---------------------------------
   if (lane === "music" || action) {
-    // custom story (templated, controlled, no hallucinated facts)
     if (action === "custom_story") {
-      const v = normVibe(norm.vibe || norm.payload?.vibe || norm.ctx?.vibe || norm.text) || "nostalgic";
+      const v = normVibe(norm.vibe || norm.text) || "nostalgic";
       const n1 = resolveNumber1ForYear(knowledge, year);
       const sig = buildMusicSig({
         action: "custom_story",
@@ -671,12 +704,13 @@ async function handleChat(input) {
       });
 
       if (shouldDampen(session, sig)) {
+        const acts = threeActFollowUps(year);
         return {
           ok: true,
           reply: `Want to keep that vibe but switch the lens?\n\nPick: #1 anchor, Top 10, or micro moment.`,
           lane: "music",
-          followUps: threeActFollowUps(year).followUps,
-          followUpsStrings: threeActFollowUps(year).followUpsStrings,
+          followUps: acts.followUps,
+          followUpsStrings: acts.followUpsStrings,
           sessionPatch: {
             lane: "music",
             lastYear: year,
@@ -692,7 +726,6 @@ async function handleChat(input) {
       }
 
       const story = buildCustomStory({ year, vibe: v, number1Item: n1.ok ? n1.item : null });
-
       return {
         ok: true,
         reply: `Okay… now we make it cinematic.\n\n${story}`,
@@ -717,31 +750,37 @@ async function handleChat(input) {
       };
     }
 
-    // top10
     if (action === "top10") {
       const res = resolveTop10ForYear(knowledge, year, { allowDerivedTop10: norm.allowDerivedTop10 });
 
       if (!res.ok) {
-        // ADVANCE ON TOP10 MISSING++++
-        const why =
-          res.reason === "pinned_missing_no_fallback"
-            ? `I don’t have a pinned Top 10 for ${year} loaded yet — and I’m deliberately not deriving it from year-end data (that’s the loop you told me to kill).`
-            : `I don’t have a clean Top 10 for ${year} loaded yet.`;
-
-        // try a safe, pinned alternative to keep flow moving
         const n1 = resolveNumber1ForYear(knowledge, year);
         const n1Line = n1.ok ? formatInlineAnchor(n1.item) : "";
 
-        const acts = threeActFollowUps(year);
+        let why = `I don’t have a clean Top 10 for ${year} loaded yet.`;
+        if (res.reason === "missing_pack_no_fallback") {
+          why = `I can’t find the pinned Top 10 store in knowledge at all — so I’m refusing to derive from year-end (loop prevention).`;
+        } else if (res.reason === "year_missing_in_pack") {
+          why = `I can see the Top 10 store, but ${year} is missing inside it (so it’s not “unloaded”… it’s absent).`;
+        } else if (res.reason === "empty_items_for_year") {
+          why = `I can see ${year} in the Top 10 store, but its items are empty (weak build / cache gap).`;
+        } else if (res.reason === "unsupported_pack_shape") {
+          why = `I found a Top 10 pack, but its shape isn’t one of the supported store formats yet.`;
+        }
 
-        const reply =
-          `${why}\n\n` +
-          (n1Line ? `${n1Line}\n\n` : "") +
-          `Pick your next move (no loop, no guesswork):`;
+        const acts = threeActFollowUps(year);
+        const debug =
+          res.sourceKey || res.foundBy
+            ? `\n\n(Top10 probe: key=${safeStr(res.sourceKey || "n/a")} foundBy=${safeStr(res.foundBy || "n/a")})`
+            : "";
 
         return {
           ok: true,
-          reply,
+          reply:
+            `${why}\n\n` +
+            (n1Line ? `${n1Line}\n\n` : "") +
+            `Pick your next move:` +
+            debug,
           lane: "music",
           followUps: acts.followUps,
           followUpsStrings: acts.followUpsStrings,
@@ -760,7 +799,6 @@ async function handleChat(input) {
             found: false,
             reason: res.reason,
             allowDerivedTop10: !!norm.allowDerivedTop10,
-            number1Inline: !!n1.ok,
             elapsedMs: nowMs() - started,
           },
         };
@@ -774,19 +812,16 @@ async function handleChat(input) {
         extra: "v1",
       });
 
-      // loop dampener: same sig twice => shift forward (ask for #1 / story / micro)
+      const acts = threeActFollowUps(year);
+
       if (shouldDampen(session, sig)) {
-        const reply =
-          `We just hit that same chart beat for ${year}. Want me to switch gears?\n\n` +
-          `• “Want the #1 anchor next?”\n` +
-          `• “Okay… now we make it cinematic.”\n` +
-          `• “Tap micro moment—let’s seal the vibe.”`;
-
-        const acts = threeActFollowUps(year);
-
         return {
           ok: true,
-          reply,
+          reply:
+            `We just hit that same chart beat for ${year}. Want me to switch gears?\n\n` +
+            `• “Want the #1 anchor next?”\n` +
+            `• “Okay… now we make it cinematic.”\n` +
+            `• “Tap micro moment—let’s seal the vibe.”`,
           lane: "music",
           followUps: acts.followUps,
           followUpsStrings: acts.followUpsStrings,
@@ -808,14 +843,14 @@ async function handleChat(input) {
             musicChartKey: "top10",
             method: res.method,
             sourceKey: res.sourceKey,
+            foundBy: res.foundBy,
             elapsedMs: nowMs() - started,
           },
         };
       }
 
       const reply = formatTop10(year, res.items);
-      const acts = threeActFollowUps(year);
-      const microPack = !!getPinnedMicroMoments(knowledge);
+      const microPack = !!getPinnedMicroMoments(knowledge).pack;
       const momentsLoaded = !!session.musicMomentsLoaded || microPack;
       const momentsLoadedAt = Number(session.musicMomentsLoadedAt || 0) || (microPack ? nowMs() : 0);
 
@@ -840,6 +875,7 @@ async function handleChat(input) {
           route: "top10",
           method: res.method,
           sourceKey: res.sourceKey,
+          foundBy: res.foundBy,
           confidence: res.confidence || "high",
           musicSig: sig,
           musicChartKey: "top10",
@@ -849,10 +885,8 @@ async function handleChat(input) {
       };
     }
 
-    // number1
     if (action === "number1") {
       const res = resolveNumber1ForYear(knowledge, year);
-
       const sig = buildMusicSig({
         action: "number1",
         year,
@@ -861,7 +895,7 @@ async function handleChat(input) {
         extra: "v1",
       });
 
-      const microPack = !!getPinnedMicroMoments(knowledge);
+      const microPack = !!getPinnedMicroMoments(knowledge).pack;
       const momentsLoaded = !!session.musicMomentsLoaded || microPack;
       const momentsLoadedAt = Number(session.musicMomentsLoadedAt || 0) || (microPack ? nowMs() : 0);
 
@@ -885,28 +919,17 @@ async function handleChat(input) {
             musicMomentsLoaded: momentsLoaded,
             musicMomentsLoadedAt: momentsLoadedAt,
           },
-          meta: {
-            engine: CE_VERSION,
-            route: "number1",
-            found: false,
-            reason: res.reason,
-            musicSig: sig,
-            musicChartKey: "number1",
-            elapsedMs: nowMs() - started,
-          },
+          meta: { engine: CE_VERSION, route: "number1", found: false, reason: res.reason, musicSig: sig, elapsedMs: nowMs() - started },
         };
       }
 
-      const reply = formatNumber1(year, res.item);
-      const acts = threeActFollowUps(year);
-
-      // dampen if repeated
       if (shouldDampen(session, sig)) {
+        const acts = threeActFollowUps(year);
         return {
           ok: true,
           reply: `We already pinned the #1 anchor for ${year}. Want it cinematic, or micro?\n\nPick a chip.`,
           lane: "music",
-          followUps: acts.followUps.slice(1), // story + micro
+          followUps: acts.followUps.slice(1),
           followUpsStrings: acts.followUpsStrings.slice(1),
           sessionPatch: {
             lane: "music",
@@ -918,16 +941,16 @@ async function handleChat(input) {
             musicMomentsLoaded: momentsLoaded,
             musicMomentsLoadedAt: momentsLoadedAt,
           },
-          meta: { engine: CE_VERSION, route: "number1", dampened: true, musicSig: sig, musicChartKey: "number1", elapsedMs: nowMs() - started },
+          meta: { engine: CE_VERSION, route: "number1", dampened: true, musicSig: sig, elapsedMs: nowMs() - started },
         };
       }
 
       return {
         ok: true,
-        reply,
+        reply: formatNumber1(year, res.item),
         lane: "music",
-        followUps: acts.followUps.slice(1), // after #1, push story+micro
-        followUpsStrings: acts.followUpsStrings.slice(1),
+        followUps: threeActFollowUps(year).followUps.slice(1),
+        followUpsStrings: threeActFollowUps(year).followUpsStrings.slice(1),
         sessionPatch: {
           lane: "music",
           lastYear: year,
@@ -938,22 +961,12 @@ async function handleChat(input) {
           musicMomentsLoaded: momentsLoaded,
           musicMomentsLoadedAt: momentsLoadedAt,
         },
-        meta: {
-          engine: CE_VERSION,
-          route: "number1",
-          method: res.method,
-          sourceKey: res.sourceKey,
-          musicSig: sig,
-          musicChartKey: "number1",
-          elapsedMs: nowMs() - started,
-        },
+        meta: { engine: CE_VERSION, route: "number1", method: res.method, sourceKey: res.sourceKey, foundBy: res.foundBy, musicSig: sig, elapsedMs: nowMs() - started },
       };
     }
 
-    // story moment
     if (action === "story_moment") {
       const res = resolveStoryMomentForYear(knowledge, year);
-
       const sig = buildMusicSig({
         action: "story_moment",
         year,
@@ -962,7 +975,7 @@ async function handleChat(input) {
         extra: "v1",
       });
 
-      const microPack = !!getPinnedMicroMoments(knowledge);
+      const microPack = !!getPinnedMicroMoments(knowledge).pack;
       const momentsLoaded = !!session.musicMomentsLoaded || microPack;
       const momentsLoadedAt = Number(session.musicMomentsLoadedAt || 0) || (microPack ? nowMs() : 0);
 
@@ -970,8 +983,7 @@ async function handleChat(input) {
         return {
           ok: true,
           reply:
-            `I don’t have a pinned story moment for ${year} yet — but I can still make it cinematic.\n\n` +
-            `Pick the mood: romantic, rebellious, or nostalgic.`,
+            `I don’t have a pinned story moment for ${year} yet — but I can still make it cinematic.\n\nPick the mood: romantic, rebellious, or nostalgic.`,
           lane: "music",
           followUps: [
             { id: "fu_rom", type: "chip", label: "Romantic", payload: { lane: "music", action: "custom_story", year, vibe: "romantic" } },
@@ -989,19 +1001,10 @@ async function handleChat(input) {
             musicMomentsLoaded: momentsLoaded,
             musicMomentsLoadedAt: momentsLoadedAt,
           },
-          meta: {
-            engine: CE_VERSION,
-            route: "story_moment",
-            found: false,
-            reason: res.reason,
-            musicSig: sig,
-            musicChartKey: "story",
-            elapsedMs: nowMs() - started,
-          },
+          meta: { engine: CE_VERSION, route: "story_moment", found: false, reason: res.reason, musicSig: sig, elapsedMs: nowMs() - started },
         };
       }
 
-      // dampen repeated story moment calls
       if (shouldDampen(session, sig)) {
         const acts = threeActFollowUps(year);
         return {
@@ -1020,19 +1023,16 @@ async function handleChat(input) {
             musicMomentsLoaded: momentsLoaded,
             musicMomentsLoadedAt: momentsLoadedAt,
           },
-          meta: { engine: CE_VERSION, route: "story_moment", dampened: true, musicSig: sig, musicChartKey: "story", elapsedMs: nowMs() - started },
+          meta: { engine: CE_VERSION, route: "story_moment", dampened: true, musicSig: sig, elapsedMs: nowMs() - started },
         };
       }
 
-      const reply = `Okay… now we make it cinematic.\n\n${safeStr(res.text).trim()}`;
-      const acts = threeActFollowUps(year);
-
       return {
         ok: true,
-        reply,
+        reply: `Okay… now we make it cinematic.\n\n${safeStr(res.text).trim()}`,
         lane: "music",
-        followUps: [acts.followUps[2]], // micro moment next
-        followUpsStrings: [acts.followUpsStrings[2]],
+        followUps: [threeActFollowUps(year).followUps[2]],
+        followUpsStrings: [threeActFollowUps(year).followUpsStrings[2]],
         sessionPatch: {
           lane: "music",
           lastYear: year,
@@ -1043,22 +1043,12 @@ async function handleChat(input) {
           musicMomentsLoaded: momentsLoaded,
           musicMomentsLoadedAt: momentsLoadedAt,
         },
-        meta: {
-          engine: CE_VERSION,
-          route: "story_moment",
-          method: res.method,
-          sourceKey: res.sourceKey,
-          musicSig: sig,
-          musicChartKey: "story",
-          elapsedMs: nowMs() - started,
-        },
+        meta: { engine: CE_VERSION, route: "story_moment", method: res.method, sourceKey: res.sourceKey, foundBy: res.foundBy, musicSig: sig, elapsedMs: nowMs() - started },
       };
     }
 
-    // micro moment
     if (action === "micro_moment") {
       const res = resolveMicroMomentForYear(knowledge, year);
-
       const sig = buildMusicSig({
         action: "micro_moment",
         year,
@@ -1071,8 +1061,7 @@ async function handleChat(input) {
         return {
           ok: true,
           reply:
-            `I don’t see a micro moment loaded for ${year} yet.\n\n` +
-            `If you want, hit Top 10 or the #1 anchor — I’ll keep the vibe tight.`,
+            `I don’t see a micro moment loaded for ${year} yet.\n\nIf you want, hit Top 10 or the #1 anchor — I’ll keep the vibe tight.`,
           lane: "music",
           followUps: [
             { id: "fu_top10", type: "chip", label: `Top 10 for ${year}`, payload: { lane: "music", action: "top10", year } },
@@ -1089,15 +1078,7 @@ async function handleChat(input) {
             musicMomentsLoaded: !!session.musicMomentsLoaded,
             musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
           },
-          meta: {
-            engine: CE_VERSION,
-            route: "micro_moment",
-            found: false,
-            reason: res.reason,
-            musicSig: sig,
-            musicChartKey: "micro",
-            elapsedMs: nowMs() - started,
-          },
+          meta: { engine: CE_VERSION, route: "micro_moment", found: false, reason: res.reason, musicSig: sig, elapsedMs: nowMs() - started },
         };
       }
 
@@ -1121,15 +1102,13 @@ async function handleChat(input) {
             musicMomentsLoaded: true,
             musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || nowMs(),
           },
-          meta: { engine: CE_VERSION, route: "micro_moment", dampened: true, musicSig: sig, musicChartKey: "micro", elapsedMs: nowMs() - started },
+          meta: { engine: CE_VERSION, route: "micro_moment", dampened: true, musicSig: sig, elapsedMs: nowMs() - started },
         };
       }
 
-      const reply = `Tap micro moment—let’s seal the vibe.\n\n${safeStr(res.text).trim()}`;
-
       return {
         ok: true,
-        reply,
+        reply: `Tap micro moment—let’s seal the vibe.\n\n${safeStr(res.text).trim()}`,
         lane: "music",
         followUps: [
           { id: "fu_top10", type: "chip", label: `Top 10 for ${year}`, payload: { lane: "music", action: "top10", year } },
@@ -1146,11 +1125,11 @@ async function handleChat(input) {
           musicMomentsLoaded: true,
           musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || nowMs(),
         },
-        meta: { engine: CE_VERSION, route: "micro_moment", method: res.method, sourceKey: res.sourceKey, musicSig: sig, musicChartKey: "micro", elapsedMs: nowMs() - started },
+        meta: { engine: CE_VERSION, route: "micro_moment", method: res.method, sourceKey: res.sourceKey, foundBy: res.foundBy, musicSig: sig, elapsedMs: nowMs() - started },
       };
     }
 
-    // fallback music response
+    // fallback menu
     if (year) {
       const acts = threeActFollowUps(year);
       return {
@@ -1196,6 +1175,5 @@ async function handleChat(input) {
 module.exports = {
   CE_VERSION,
   handleChat,
-  // also export as function for compatibility
   default: handleChat,
 };
