@@ -14,6 +14,10 @@
  * Optional overlay: if Data/top10_input_rows.json contains rows for a year,
  * it can overwrite those entries (higher authority).
  *
+ * HARDENING FIX++++:
+ * ✅ Atomic JSON write (temp file + rename) to prevent corrupted/concatenated output
+ * ✅ Verifies output is valid JSON by re-parsing what was written
+ *
  * Usage:
  *   node Scripts/build_top10_by_year_from_wiki_cache_1950_2025.js
  */
@@ -33,10 +37,39 @@ const TOP10_INPUT_ROWS = path.join(DATA_DIR, "top10_input_rows.json"); // option
 const CHART_NAME = "Billboard Year-End Hot 100 (Wikipedia cache)";
 
 function readJson(fp) {
-  return JSON.parse(fs.readFileSync(fp, "utf8"));
+  // UTF-8 read; trim BOM if present
+  const raw = fs.readFileSync(fp, "utf8");
+  const s = raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw;
+  return JSON.parse(s);
 }
-function writeJson(fp, obj) {
-  fs.writeFileSync(fp, JSON.stringify(obj, null, 2), "utf8");
+
+function ensureDirExists(dir) {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
+
+function writeJsonAtomic(fp, obj) {
+  ensureDirExists(path.dirname(fp));
+
+  // Create deterministic JSON string (one object, nothing else)
+  const json = JSON.stringify(obj, null, 2) + "\n";
+
+  // Write to temp file first, then rename (atomic on same filesystem)
+  const tmp = `${fp}.tmp_${process.pid}_${Date.now()}`;
+  fs.writeFileSync(tmp, json, { encoding: "utf8", flag: "w" });
+
+  // Verify written content parses cleanly BEFORE replacing final
+  try {
+    const verify = fs.readFileSync(tmp, "utf8");
+    JSON.parse(verify.charCodeAt(0) === 0xfeff ? verify.slice(1) : verify);
+  } catch (e) {
+    try {
+      fs.unlinkSync(tmp);
+    } catch (_) {}
+    throw new Error(`Refusing to write invalid JSON. Temp parse failed: ${e && e.message ? e.message : e}`);
+  }
+
+  // Replace
+  fs.renameSync(tmp, fp);
 }
 
 function isNonEmptyString(x) {
@@ -174,7 +207,7 @@ function buildTop10FromRows(rows) {
       "artists",
       "Artists",
       "performer",
-      "Performer"
+      "Performer",
     ]);
 
     const { title, artist } = normalizeTitleArtist(rawTitle, rawArtist);
@@ -193,7 +226,7 @@ function buildTop10FromRows(rows) {
     picked.push({
       title,
       artist,
-      ...(sourcePos ? { sourcePos } : {})
+      ...(sourcePos ? { sourcePos } : {}),
     });
 
     if (picked.length >= 10) break;
@@ -206,7 +239,7 @@ function buildTop10FromRows(rows) {
     pos: idx + 1,
     title: r.title,
     artist: r.artist,
-    ...(r.sourcePos ? { sourcePos: r.sourcePos } : {})
+    ...(r.sourcePos ? { sourcePos: r.sourcePos } : {}),
   }));
 
   // Validate hard
@@ -264,7 +297,7 @@ function buildOverlayMapFromInputRows() {
           pos: idx + 1,
           title: it.title,
           artist: it.artist,
-          sourcePos: it.pos
+          sourcePos: it.pos,
         }))
       );
     }
@@ -321,12 +354,18 @@ function main() {
       wikiDir: path.relative(process.cwd(), WIKI_DIR),
       overlayUsedYears: Array.from(overlay.keys()).sort((a, b) => a - b),
       missingYears: missing,
-      weakYears: weak
+      weakYears: weak,
     },
-    years
+    years,
   };
 
-  writeJson(OUT_FILE, payload);
+  try {
+    writeJsonAtomic(OUT_FILE, payload);
+  } catch (e) {
+    console.error("❌ Failed to write Top10 store safely:", e && e.message ? e.message : e);
+    process.exitCode = 1;
+    return;
+  }
 
   console.log("✅ Wrote:", path.relative(process.cwd(), OUT_FILE));
   console.log("Years:", Object.keys(years).length, "Missing:", missing.length, "Weak:", weak.length);
