@@ -17,23 +17,18 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7bJ (DESIRE+CONFIDENCE ARBITRATION++++ + VELVET MODE (MUSIC-FIRST)++++ + TONE REGRESSION TESTS++++):
- * ✅ Adds latent desire inference (authority/comfort/curiosity/validation/mastery)
- * ✅ Adds confidence scalar (user/nyx 0.0–1.0) & mediator arbitration
- * ✅ Velvet Mode: enters on music/memory engagement first (top10→story/micro/custom; repeat topic; accepted chip)
- * ✅ Enforces tone constitution via validateNyxTone (no “Earlier you said…”, no meta-memory, no over-hedge)
- * ✅ Adds lightweight automated tone regression tests (no external deps)
- *
- * Keeps:
- * ✅ TOP10-ONLY++++ (no #1 route anywhere)
- * ✅ Top10 visibility fix (no Top 4 truncation), Mac Mode signal, Marion mediator,
- * ✅ dominance on ADVANCE, compression budgets, cog telemetry patch,
- * ✅ payload beats silence, chip-click advance, pinned aliases, accurate miss reasons,
- * ✅ year-end route, loop dampener, derived guard default OFF, followUps, session keys
+ * v0.7bK (CHIP COMPRESSION++++: removes verbose micro-moment + “pick another year” phrases from chips; keeps as dialogue routes)
+ * ✅ Chips are now short + readable (no “Tap micro moment—let’s seal the vibe.”, no long “Pick another year”)
+ * ✅ Micro-moment route still exists (type it / payload action works) — just not spammed as a big chip
+ * ✅ Keeps: TOP10-ONLY++++ (no #1 route anywhere), Top10 visibility fix (no Top 4 truncation),
+ *          Mac Mode signal, Marion mediator, desire+confidence arbitration, Velvet mode (music-first),
+ *          tone constitution + regression tests, payload beats silence, chip-click advance,
+ *          pinned aliases, accurate miss reasons, year-end route, loop dampener, derived guard default OFF,
+ *          followUps, session keys
  */
 
 const CE_VERSION =
-  "chatEngine v0.7bJ (DESIRE+CONFIDENCE ARBITRATION++++ + VELVET (MUSIC-FIRST)++++ + TONE TESTS++++ + TOP10-ONLY + Top10 visibility fix + Marion mediator + payload beats silence + chip-click advance + pinned aliases + accurate miss reasons + year-end route + loop dampener)";
+  "chatEngine v0.7bK (CHIP COMPRESSION++++ + DESIRE+CONFIDENCE ARBITRATION++++ + VELVET (MUSIC-FIRST)++++ + TONE TESTS++++ + TOP10-ONLY + Top10 visibility fix + Marion mediator + payload beats silence + chip-click advance + pinned aliases + accurate miss reasons + year-end route + loop dampener)";
 
 // -------------------------
 // helpers
@@ -220,8 +215,11 @@ function classifyAction(text, payload) {
   if (/\b(top\s*10|top ten)\b/.test(t)) return "top10";
   if (/\b(story\s*moment|make it cinematic|cinematic)\b/.test(t))
     return "story_moment";
+
+  // micro route still supported (typed or payload), just not promoted as a verbose chip
   if (/\b(micro\s*moment|tap micro|seal the vibe)\b/.test(t))
     return "micro_moment";
+
   if (
     /\b(year[-\s]*end|year end|yearend)\b/.test(t) &&
     /\bhot\s*100\b/.test(t)
@@ -465,7 +463,6 @@ function computeVelvet(norm, session, cog, desire) {
   const lane = safeStr(norm?.lane || "").trim() || (action ? "music" : "");
   const yr = normYear(norm?.year);
   const lastYear = normYear(s.lastYear);
-  const lastAction = safeStr(s.lastAction || "").trim();
   const lastLane = safeStr(s.lane || "").trim();
   const now = nowMs();
 
@@ -1289,15 +1286,15 @@ function shouldDampen(session, nextSig) {
 }
 
 // -------------------------
-// followUps (Top10-centric, 3 acts)
+// followUps (Top10-centric, compact chips)
 // -------------------------
-function threeActFollowUps(year) {
+function compactMusicFollowUps(year) {
   const y = normYear(year);
   const followUps = [
     {
       id: "fu_story",
       type: "chip",
-      label: "“Okay… now we make it cinematic.”",
+      label: "Make it cinematic",
       payload: {
         lane: "music",
         action: "story_moment",
@@ -1306,30 +1303,14 @@ function threeActFollowUps(year) {
       },
     },
     {
-      id: "fu_micro",
-      type: "chip",
-      label: "“Tap micro moment—let’s seal the vibe.”",
-      payload: {
-        lane: "music",
-        action: "micro_moment",
-        year: y || undefined,
-        route: "micro_moment",
-      },
-    },
-    {
       id: "fu_newyear",
       type: "chip",
-      label: "Pick another year",
+      label: "Another year",
       payload: { lane: "music", action: "ask_year", route: "ask_year" },
     },
   ];
 
-  const followUpsStrings = [
-    `Okay… now we make it cinematic.`,
-    `Tap micro moment—let’s seal the vibe.`,
-    `Pick another year`,
-  ];
-
+  const followUpsStrings = ["Make it cinematic", "Another year"];
   return { followUps, followUpsStrings };
 }
 
@@ -1745,10 +1726,10 @@ async function handleChat(input) {
         extra: v,
       });
 
-      const acts = threeActFollowUps(year);
+      const acts = compactMusicFollowUps(year);
 
       if (shouldDampen(session, sig)) {
-        const replyRaw = `Switch the lens. Pick: Top 10, story moment, or micro moment.`;
+        const replyRaw = `Switch the lens. Pick: Top 10 or cinematic.`;
         const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
         const sigLine = detectSignatureLine(reply);
 
@@ -1793,29 +1774,19 @@ async function handleChat(input) {
         lane: "music",
         followUps: [
           {
-            id: "fu_micro",
-            type: "chip",
-            label: "“Tap micro moment—let’s seal the vibe.”",
-            payload: { lane: "music", action: "micro_moment", year },
-          },
-          {
             id: "fu_top10",
             type: "chip",
-            label: `Top 10 for ${year}`,
+            label: `Top 10 (${year})`,
             payload: { lane: "music", action: "top10", year },
           },
           {
             id: "fu_newyear",
             type: "chip",
-            label: "Pick another year",
+            label: "Another year",
             payload: { lane: "music", action: "ask_year" },
           },
         ],
-        followUpsStrings: [
-          "Tap micro moment—let’s seal the vibe.",
-          `Top 10 for ${year}`,
-          "Pick another year",
-        ],
+        followUpsStrings: [`Top 10 (${year})`, "Another year"],
         sessionPatch: {
           lane: "music",
           lastYear: year,
@@ -1870,7 +1841,7 @@ async function handleChat(input) {
               )} foundBy=${safeStr(res.foundBy || "n/a")})`
             : "";
 
-        const replyRaw = `${why}${debug}\n\nNext: run pinned Top 10 for ${year}.`;
+        const replyRaw = `${why}${debug}\n\nNext: pinned Top 10 for ${year}.`;
         const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
         const sigLine = detectSignatureLine(reply);
 
@@ -1882,17 +1853,17 @@ async function handleChat(input) {
             {
               id: "fu_top10",
               type: "chip",
-              label: `Top 10 for ${year}`,
+              label: `Top 10 (${year})`,
               payload: { lane: "music", action: "top10", year },
             },
             {
               id: "fu_newyear",
               type: "chip",
-              label: "Pick another year",
+              label: "Another year",
               payload: { lane: "music", action: "ask_year" },
             },
           ],
-          followUpsStrings: [`Top 10 for ${year}`, "Pick another year"],
+          followUpsStrings: [`Top 10 (${year})`, "Another year"],
           sessionPatch: {
             lane: "music",
             lastYear: year,
@@ -1934,17 +1905,17 @@ async function handleChat(input) {
             {
               id: "fu_top10",
               type: "chip",
-              label: `Top 10 for ${year}`,
+              label: `Top 10 (${year})`,
               payload: { lane: "music", action: "top10", year },
             },
             {
               id: "fu_newyear",
               type: "chip",
-              label: "Pick another year",
+              label: "Another year",
               payload: { lane: "music", action: "ask_year" },
             },
           ],
-          followUpsStrings: [`Top 10 for ${year}`, "Pick another year"],
+          followUpsStrings: [`Top 10 (${year})`, "Another year"],
           sessionPatch: {
             lane: "music",
             lastYear: year,
@@ -1984,27 +1955,23 @@ async function handleChat(input) {
           {
             id: "fu_top10",
             type: "chip",
-            label: `Top 10 for ${year} (pinned)`,
+            label: `Top 10 (${year})`,
             payload: { lane: "music", action: "top10", year },
           },
           {
             id: "fu_story",
             type: "chip",
-            label: "“Okay… now we make it cinematic.”",
+            label: "Make it cinematic",
             payload: { lane: "music", action: "story_moment", year },
           },
           {
-            id: "fu_micro",
+            id: "fu_newyear",
             type: "chip",
-            label: "“Tap micro moment—let’s seal the vibe.”",
-            payload: { lane: "music", action: "micro_moment", year },
+            label: "Another year",
+            payload: { lane: "music", action: "ask_year" },
           },
         ],
-        followUpsStrings: [
-          `Top 10 for ${year} (pinned)`,
-          `Okay… now we make it cinematic.`,
-          `Tap micro moment—let’s seal the vibe.`,
-        ],
+        followUpsStrings: [`Top 10 (${year})`, "Make it cinematic", "Another year"],
         sessionPatch: {
           lane: "music",
           lastYear: year,
@@ -2052,7 +2019,7 @@ async function handleChat(input) {
           why = `Top 10 pack found, but the shape isn’t supported yet.`;
         }
 
-        const acts = threeActFollowUps(year);
+        const acts = compactMusicFollowUps(year);
         const debug =
           res.sourceKey || res.foundBy
             ? `\n\n(Top10 probe: key=${safeStr(
@@ -2060,7 +2027,7 @@ async function handleChat(input) {
               )} foundBy=${safeStr(res.foundBy || "n/a")})`
             : "";
 
-        const replyRaw = `${why}\n\nNext move: story moment or micro moment.${debug}`;
+        const replyRaw = `${why}\n\nNext move: cinematic.${debug}`;
         const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
         const sigLine = detectSignatureLine(reply);
 
@@ -2105,14 +2072,13 @@ async function handleChat(input) {
         extra: "v1",
       });
 
-      const acts = threeActFollowUps(year);
+      const acts = compactMusicFollowUps(year);
 
       if (shouldDampen(session, sig)) {
         const replyRaw =
           `Same Top 10 beat for ${year}. Switch gears:\n` +
-          `• story moment\n` +
-          `• micro moment\n` +
-          `• pick another year`;
+          `• cinematic\n` +
+          `• another year`;
         const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
         const sigLine = detectSignatureLine(reply);
 
@@ -2289,7 +2255,7 @@ async function handleChat(input) {
       }
 
       if (shouldDampen(session, sig)) {
-        const replyRaw = `Already cinematic for ${year}. Next: micro moment.`;
+        const replyRaw = `Already cinematic for ${year}. Next: Top 10 or another year.`;
         const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
         const sigLine = detectSignatureLine(reply);
 
@@ -2299,13 +2265,19 @@ async function handleChat(input) {
           lane: "music",
           followUps: [
             {
-              id: "fu_micro",
+              id: "fu_top10",
               type: "chip",
-              label: "“Tap micro moment—let’s seal the vibe.”",
-              payload: { lane: "music", action: "micro_moment", year },
+              label: `Top 10 (${year})`,
+              payload: { lane: "music", action: "top10", year },
+            },
+            {
+              id: "fu_newyear",
+              type: "chip",
+              label: "Another year",
+              payload: { lane: "music", action: "ask_year" },
             },
           ],
-          followUpsStrings: ["Tap micro moment—let’s seal the vibe."],
+          followUpsStrings: [`Top 10 (${year})`, "Another year"],
           sessionPatch: {
             lane: "music",
             lastYear: year,
@@ -2343,13 +2315,19 @@ async function handleChat(input) {
         lane: "music",
         followUps: [
           {
-            id: "fu_micro",
+            id: "fu_top10",
             type: "chip",
-            label: "“Tap micro moment—let’s seal the vibe.”",
-            payload: { lane: "music", action: "micro_moment", year },
+            label: `Top 10 (${year})`,
+            payload: { lane: "music", action: "top10", year },
+          },
+          {
+            id: "fu_newyear",
+            type: "chip",
+            label: "Another year",
+            payload: { lane: "music", action: "ask_year" },
           },
         ],
-        followUpsStrings: ["Tap micro moment—let’s seal the vibe."],
+        followUpsStrings: [`Top 10 (${year})`, "Another year"],
         sessionPatch: {
           lane: "music",
           lastYear: year,
@@ -2390,7 +2368,7 @@ async function handleChat(input) {
       });
 
       if (!res.ok) {
-        const replyRaw = `No micro moment loaded for ${year}. Next: Top 10 or story moment.`;
+        const replyRaw = `No micro moment loaded for ${year}. Next: Top 10 or cinematic.`;
         const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
         const sigLine = detectSignatureLine(reply);
 
@@ -2402,20 +2380,17 @@ async function handleChat(input) {
             {
               id: "fu_top10",
               type: "chip",
-              label: `Top 10 for ${year}`,
+              label: `Top 10 (${year})`,
               payload: { lane: "music", action: "top10", year },
             },
             {
               id: "fu_story",
               type: "chip",
-              label: "“Okay… now we make it cinematic.”",
+              label: "Make it cinematic",
               payload: { lane: "music", action: "story_moment", year },
             },
           ],
-          followUpsStrings: [
-            `Top 10 for ${year}`,
-            `Okay… now we make it cinematic.`,
-          ],
+          followUpsStrings: [`Top 10 (${year})`, "Make it cinematic"],
           sessionPatch: {
             lane: "music",
             lastYear: year,
@@ -2445,7 +2420,7 @@ async function handleChat(input) {
       }
 
       if (shouldDampen(session, sig)) {
-        const replyRaw = `Micro moment for ${year} is already sealed. Next: pick another year or switch lanes.`;
+        const replyRaw = `Micro moment for ${year} is already sealed. Next: another year or switch lanes.`;
         const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
         const sigLine = detectSignatureLine(reply);
 
@@ -2457,7 +2432,7 @@ async function handleChat(input) {
             {
               id: "fu_newyear",
               type: "chip",
-              label: "Pick another year",
+              label: "Another year",
               payload: { lane: "music", action: "ask_year" },
             },
             {
@@ -2467,7 +2442,7 @@ async function handleChat(input) {
               payload: { lane: "general", action: "switch_lane" },
             },
           ],
-          followUpsStrings: ["Pick another year", "Switch lanes"],
+          followUpsStrings: ["Another year", "Switch lanes"],
           sessionPatch: {
             lane: "music",
             lastYear: year,
@@ -2496,9 +2471,7 @@ async function handleChat(input) {
         };
       }
 
-      const replyRaw = `Tap micro moment—let’s seal the vibe.\n\n${safeStr(
-        res.text
-      ).trim()}`;
+      const replyRaw = `Micro moment.\n\n${safeStr(res.text).trim()}`;
       const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
       const sigLine = detectSignatureLine(reply);
 
@@ -2510,20 +2483,17 @@ async function handleChat(input) {
           {
             id: "fu_top10",
             type: "chip",
-            label: `Top 10 for ${year}`,
+            label: `Top 10 (${year})`,
             payload: { lane: "music", action: "top10", year },
           },
           {
             id: "fu_story",
             type: "chip",
-            label: "“Okay… now we make it cinematic.”",
+            label: "Make it cinematic",
             payload: { lane: "music", action: "story_moment", year },
           },
         ],
-        followUpsStrings: [
-          `Top 10 for ${year}`,
-          `Okay… now we make it cinematic.`,
-        ],
+        followUpsStrings: [`Top 10 (${year})`, "Make it cinematic"],
         sessionPatch: {
           lane: "music",
           lastYear: year,
@@ -2556,8 +2526,8 @@ async function handleChat(input) {
 
     // fallback menu (Top10-only)
     if (year) {
-      const acts = threeActFollowUps(year);
-      const replyRaw = `For ${year}: Top 10, story moment, micro moment, or Year-End Hot 100.`;
+      const acts = compactMusicFollowUps(year);
+      const replyRaw = `For ${year}: Top 10, cinematic, or Year-End Hot 100.`;
       const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
       const sigLine = detectSignatureLine(reply);
 
@@ -2569,23 +2539,23 @@ async function handleChat(input) {
           {
             id: "fu_top10",
             type: "chip",
-            label: `Top 10 for ${year}`,
+            label: `Top 10 (${year})`,
             payload: { lane: "music", action: "top10", year },
           },
-          ...acts.followUps.slice(0, 2),
+          acts.followUps[0],
           {
             id: "fu_yearend",
             type: "chip",
             label: `Year-End Hot 100 (${year})`,
             payload: { lane: "music", action: "yearend_hot100", year },
           },
-          acts.followUps[2],
+          acts.followUps[1],
         ],
         followUpsStrings: [
-          `Top 10 for ${year}`,
-          ...acts.followUpsStrings.slice(0, 2),
+          `Top 10 (${year})`,
+          acts.followUpsStrings[0],
           `Year-End Hot 100 (${year})`,
-          acts.followUpsStrings[2],
+          acts.followUpsStrings[1],
         ],
         sessionPatch: {
           lane: "music",
