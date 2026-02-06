@@ -3,30 +3,25 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18be (CRITICAL NYX COG++++: Intent+Chip continuity + Conversational Spine evaluator at gateway)
+ * index.js v1.5.18bf (TTS FAIL-OPEN++++: eliminates scary HTTP 5xx for widget; returns 204 + exposed headers)
  *
  * Keeps:
  * ✅ WIKI AUTHORITY FIX++++ (wikipedia split hot100 dir ingest + merged year map)
  * ✅ CRITICAL FIXES++++ already present (sessionKey uses parsed body + manifest abs rebuilt after reload + strict CORS hard-lock 403 + JSON parser once + LOAD VISIBILITY++++ etc.)
  * ✅ v1.5.18bc: sessionPatch allows music loop-dampener keys + TRUE reset clears session state safely
+ * ✅ v1.5.18be: gateway CSE evaluator + chip continuity signals; sessionPatch normalize fix
  *
- * Adds (v1.5.18bd):
- * ✅ CSE (Conversational State Evaluator) at the gateway:
- *    - classifies inbound turn as ADVANCE / STALL / RESIST / REDIRECT (lightweight, deterministic)
- *    - detects chip-click style turns even when inbound text is empty
- *    - captures last offered chips + timestamps (so Nyx can react to “ignored chip” vs “accepted chip”)
- * ✅ Chip continuity metadata passed into engineInput:
- *    - engineInput.cse + engineInput.chipContext + engineInput.turnSignals
- * ✅ applySessionPatch allows new safe keys for intent/chip persistence:
- *    - __cseLastState, __cseLastAt, __cseLastReason, __lastOfferedChips, __lastOfferedAt, __lastUserAct
+ * Adds (v1.5.18bf):
+ * ✅ TTS FAIL-OPEN (default ON): for widget stability, /api/tts & /api/voice return 204 (ok) on failure,
+ *    with exposed diagnostic headers:
+ *      - X-SBNYX-TTS-ERROR
+ *      - X-SBNYX-TTS-DETAIL
+ *      - X-SBNYX-TTS-UPSTREAM-STATUS
+ *      - X-SBNYX-TTS-FAILOPEN
+ * ✅ CORS exposes these headers so the widget can read them and auto-disable voice gracefully
  *
- * v1.5.18be fixes (tight + surgical):
- * ✅ CSE robustness: structured followUp payload counts as ADVANCE even if source string isn’t “chip-like”
- * ✅ applySessionPatch: removed accidental `" __lastOfferedChips"` (leading space) key check
- *
- * NOTE:
- * - This patch does NOT touch Top10 data behavior. Top10 (1950–2025) remains pinned-first and collision-stable.
- * - This patch improves Nyx “rigidity” by giving chatEngine reliable signals to evaluate user reaction.
+ * Env:
+ *  - TTS_FAIL_OPEN=true|false (default true)
  */
 
 // =========================
@@ -85,7 +80,7 @@ const nyxVoiceNaturalizeMod =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18be (CRITICAL NYX COG++++: gateway CSE evaluator + chip continuity signals; keeps v1.5.18bc reset/sessionPatch keys + v1.5.18bb WIKI AUTHORITY FIX++++ + CRITICAL FIXES++++: sessionKey uses parsed body + manifest abs rebuilt after reload + strict CORS hard-lock 403 + JSON parser once + LOAD VISIBILITY++++: key collisions + skip reasons + fileMap + packsight proof + PINNED REL FIXES: story_moments_v2 + ordered rel preferences + DATA ROOT AUTODISCOVERY++++ + PINNED RESOLVE DIAGNOSTICS++++ + rebuild roots on reloadKnowledge + TOP10 NORMALIZATION + BLOCKER PRUNE++++ + SOURCE REL BLOCK REMOVAL + KNOWLEDGE INJECTION FIX + /api/chat GET GUIDANCE + MANIFEST RESOLVER UPGRADE++++: multi-candidate rels + bounded basename/dirname fallback search across ALL data roots + probes show bestFound + keeps PACK VISIBILITY HARDENING++++ + CHIP SIGNAL ROUNDTRIP intent/route/label + allow Data outside APP_ROOT + bigger budgets + PUBLIC /api/packsight + case-insensitive Data/Scripts resolution + pinned/manifest path fallback + packsight diagnostics + manifest target probes + pinned packs to real Data/* files + manifest tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + loop fuse + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS + CSE robustness fix + sessionPatch normalize fix)";
+  "index.js v1.5.18bf (TTS FAIL-OPEN++++: 204 + exposed diagnostic headers to prevent widget-facing 5xx; keeps v1.5.18be CSE/chip continuity + v1.5.18bc reset/sessionPatch keys + v1.5.18bb WIKI AUTHORITY FIX++++ + CRITICAL FIXES++++: sessionKey uses parsed body + manifest abs rebuilt after reload + strict CORS hard-lock 403 + JSON parser once + LOAD VISIBILITY++++: key collisions + skip reasons + fileMap + packsight proof + PINNED REL FIXES: story_moments_v2 + ordered rel preferences + DATA ROOT AUTODISCOVERY++++ + PINNED RESOLVE DIAGNOSTICS++++ + rebuild roots on reloadKnowledge + TOP10 NORMALIZATION + BLOCKER PRUNE++++ + SOURCE REL BLOCK REMOVAL + KNOWLEDGE INJECTION FIX + /api/chat GET GUIDANCE + MANIFEST RESOLVER UPGRADE++++: multi-candidate rels + bounded basename/dirname fallback search across ALL data roots + probes show bestFound + keeps PACK VISIBILITY HARDENING++++ + CHIP SIGNAL ROUNDTRIP intent/route/label + allow Data outside APP_ROOT + bigger budgets + PUBLIC /api/packsight + case-insensitive Data/Scripts resolution + pinned/manifest path fallback + packsight diagnostics + manifest target probes + pinned packs to real Data/* files + manifest tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + loop fuse + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS + TTS fail-open)";
 
 // =========================
 // Utils
@@ -646,6 +641,9 @@ const NYX_VOICE_STABILITY = clampFloat(process.env.NYX_VOICE_STABILITY, 0.45, 0,
 const NYX_VOICE_SIMILARITY = clampFloat(process.env.NYX_VOICE_SIMILARITY, 0.72, 0, 1);
 const NYX_VOICE_STYLE = clampFloat(process.env.NYX_VOICE_STYLE, 0.25, 0, 1);
 const NYX_VOICE_SPEAKER_BOOST = toBool(process.env.NYX_VOICE_SPEAKER_BOOST, true);
+
+// ✅ NEW: TTS fail-open (prevents widget-facing 5xx; returns 204 + headers)
+const TTS_FAIL_OPEN = toBool(process.env.TTS_FAIL_OPEN, true);
 
 // =========================
 // Nyx Voice Naturalizer (pre-TTS)
@@ -1429,7 +1427,9 @@ function manifestLoadPacks(loadedFiles, totalBytesRef) {
     try {
       if (item.type === "json_file_rel") {
         const fp = resolveDataRelAcrossRoots(item.rels || item.rel, "file");
-        const res = fp ? manifestLoadJsonFileIntoKey(fp, item.key, loadedFiles, totalBytesRef) : { ok: false, reason: "missing" };
+        const res = fp
+          ? manifestLoadJsonFileIntoKey(fp, item.key, loadedFiles, totalBytesRef)
+          : { ok: false, reason: "missing" };
 
         if (res.ok && !res.skipped && typeof item.transform === "function" && item.outKey) {
           const derived = item.transform(KNOWLEDGE.json[item.key]);
@@ -1443,7 +1443,9 @@ function manifestLoadPacks(loadedFiles, totalBytesRef) {
 
       if (item.type === "json_dir_rel") {
         const dir = resolveDataRelAcrossRoots(item.rels || item.rel, "dir");
-        const res = dir ? manifestLoadJsonDirIntoPrefix(dir, item.key, loadedFiles, totalBytesRef) : { ok: false, reason: "missing_dir" };
+        const res = dir
+          ? manifestLoadJsonDirIntoPrefix(dir, item.key, loadedFiles, totalBytesRef)
+          : { ok: false, reason: "missing_dir" };
 
         if (res.ok && typeof item.postTransform === "function" && item.outKey) {
           const derived = item.postTransform(KNOWLEDGE.json, item.key);
@@ -2259,8 +2261,20 @@ app.use((req, res, next) => {
         "x-sbnyx-widget-version",
         "X-Contract-Version",
         "x-contract-version",
+        // ✅ expose-read companion headers are separate (below)
       ].join(", ")
     );
+    // ✅ NEW: allow widget to read TTS diagnostics in failure cases
+    res.setHeader(
+      "Access-Control-Expose-Headers",
+      [
+        "X-SBNYX-TTS-ERROR",
+        "X-SBNYX-TTS-DETAIL",
+        "X-SBNYX-TTS-UPSTREAM-STATUS",
+        "X-SBNYX-TTS-FAILOPEN",
+      ].join(", ")
+    );
+
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
     res.setHeader("Access-Control-Max-Age", "600");
   }
@@ -2412,8 +2426,7 @@ app.get("/api/packsight", (req, res) => {
       },
       budgets: {
         maxFiles: KNOWLEDGE_MAX_FILES,
-        maxFileBytes: KNOWLEDGE_MAX_FILE_BYTES,
-        maxTotalBytes: KNOWLEDGE_MAX_TOTAL_BYTES,
+        maxFileBytes: KNOWLEDGE_MAX_FILE_BYTESUARDS: KNOWLEDGE_MAX_TOTAL_BYTES,
       },
       manifestSearch: {
         fallbackEnabled: MANIFEST_SEARCH_FALLBACK,
@@ -3055,7 +3068,25 @@ app.get("/api/nyx/chat", chatGetGuidance);
 app.get("/api/sandblast-gpt", chatGetGuidance);
 
 // =========================
-// TTS (REAL ElevenLabs)
+// TTS FAIL-OPEN helper (204 + headers)
+// =========================
+function ttsFailOpen(res, code, detail, upstreamStatus) {
+  try {
+    res.setHeader("X-SBNYX-TTS-FAILOPEN", TTS_FAIL_OPEN ? "1" : "0");
+    if (code) res.setHeader("X-SBNYX-TTS-ERROR", safeStr(code).slice(0, 80));
+    if (detail) res.setHeader("X-SBNYX-TTS-DETAIL", safeStr(detail).slice(0, 240));
+    if (upstreamStatus !== undefined && upstreamStatus !== null) {
+      res.setHeader("X-SBNYX-TTS-UPSTREAM-STATUS", safeStr(upstreamStatus).slice(0, 24));
+    }
+    // IMPORTANT: 204 is "ok" to fetch(), and has no body (prevents audio parse errors from JSON bodies)
+    return res.status(204).send("");
+  } catch (_) {
+    return res.status(204).send("");
+  }
+}
+
+// =========================
+// TTS (REAL ElevenLabs) — now fail-open by default
 // =========================
 async function handleTtsRoute(req, res) {
   const startedAt = nowMs();
@@ -3070,7 +3101,9 @@ async function handleTtsRoute(req, res) {
 
   const text = disableNaturalize ? rawText : nyxVoiceNaturalize(rawText);
 
+  // missing config
   if (!ELEVEN_API_KEY || !ELEVEN_VOICE_ID || !fetchFn) {
+    if (TTS_FAIL_OPEN) return ttsFailOpen(res, "tts_not_configured", "Missing ELEVENLABS_API_KEY or ELEVENLABS_VOICE_ID or fetch.", null);
     return res.status(501).json({
       ok: false,
       error: "TTS not configured (missing ELEVENLABS_API_KEY or ELEVENLABS_VOICE_ID or fetch).",
@@ -3078,7 +3111,9 @@ async function handleTtsRoute(req, res) {
     });
   }
 
+  // missing text
   if (!text && !noText) {
+    if (TTS_FAIL_OPEN) return ttsFailOpen(res, "tts_missing_text", "Missing text for TTS.", null);
     return res.status(400).json({ ok: false, error: "Missing text for TTS.", meta: { index: INDEX_VERSION } });
   }
 
@@ -3114,6 +3149,14 @@ async function handleTtsRoute(req, res) {
 
     if (!r.ok) {
       const errTxt = await r.text().catch(() => "");
+      if (TTS_FAIL_OPEN) {
+        // eslint-disable-next-line no-console
+        console.log(
+          `[Sandblast][TTS] fail-open upstream_status=${r.status} elapsedMs=${nowMs() - startedAt} detail=${safeStr(errTxt).slice(0, 160)}`
+        );
+        return ttsFailOpen(res, "tts_upstream_error", safeStr(errTxt).slice(0, 220) || "Upstream error", r.status);
+      }
+
       return res.status(502).json({
         ok: false,
         error: "TTS upstream error",
@@ -3132,6 +3175,15 @@ async function handleTtsRoute(req, res) {
   } catch (e) {
     const msg = safeStr(e?.message || e).trim();
     const aborted = /aborted|abort|timeout/i.test(msg);
+
+    if (TTS_FAIL_OPEN) {
+      // eslint-disable-next-line no-console
+      console.log(
+        `[Sandblast][TTS] fail-open error=${aborted ? "timeout" : "failure"} elapsedMs=${nowMs() - startedAt} detail=${safeStr(msg).slice(0, 180)}`
+      );
+      return ttsFailOpen(res, aborted ? "tts_timeout" : "tts_failure", safeStr(msg).slice(0, 220), null);
+    }
+
     return res.status(aborted ? 504 : 500).json({
       ok: false,
       error: aborted ? "TTS timeout" : "TTS failure",
@@ -3194,6 +3246,8 @@ app.listen(PORT, () => {
       KNOWLEDGE.__skips
     )} collisions=${KNOWLEDGE.__collisions.length} APP_ROOT=${APP_ROOT} DATA_DIR=${DATA_DIR} SCRIPTS_DIR=${SCRIPTS_DIR} scriptsEnabled=${KNOWLEDGE_ENABLE_SCRIPTS} reloadEveryMs=${KNOWLEDGE_RELOAD_INTERVAL_MS} debugIncludeData=${KNOWLEDGE_DEBUG_INCLUDE_DATA}`
   );
+  // eslint-disable-next-line no-console
+  console.log(`[Sandblast] TTS: failOpen=${TTS_FAIL_OPEN ? "true" : "false"} timeoutMs=${ELEVEN_TTS_TIMEOUT_MS}`);
 });
 
 module.exports = { app, INDEX_VERSION };
