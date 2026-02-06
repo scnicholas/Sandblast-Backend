@@ -200,6 +200,15 @@ function pickSignatureTransition(session, cog) {
   return "";
 }
 
+function detectSignatureLine(replyText) {
+  const first = safeStr(replyText).split("\n")[0].trim();
+  if (!first) return "";
+  for (const t of SIGNATURE_TRANSITIONS) {
+    if (first === t) return first;
+  }
+  return "";
+}
+
 // -------------------------
 // inbound parse / intent
 // -------------------------
@@ -360,10 +369,18 @@ function inferLatentDesire(norm, session, cog) {
   const macMode = safeStr(cog?.mode || "").toLowerCase();
 
   // Strong signals
-  if (/\b(optimi[sz]e|systems?|framework|architecture|hard(en)?|constraints?|regression tests?|unit tests?)\b/.test(t))
+  if (
+    /\b(optimi[sz]e|systems?|framework|architecture|hard(en)?|constraints?|regression tests?|unit tests?)\b/.test(
+      t
+    )
+  )
     return LATENT_DESIRE.MASTERY;
 
-  if (/\b(am i right|do i make sense|how am i perceived|handsome|attractive|validation|do you think)\b/.test(t))
+  if (
+    /\b(am i right|do i make sense|how am i perceived|handsome|attractive|validation|do you think)\b/.test(
+      t
+    )
+  )
     return LATENT_DESIRE.VALIDATION;
 
   if (/\b(why|meaning|connect|pattern|link|what connects|deeper|layer)\b/.test(t))
@@ -403,11 +420,17 @@ function inferConfidence(norm, session, cog) {
   // user confidence proxy
   let user = 0.5;
 
-  if (action || (hasPayload && (norm?.turnSignals?.payloadAction || norm?.turnSignals?.payloadYear !== null)))
+  if (
+    action ||
+    (hasPayload &&
+      (norm?.turnSignals?.payloadAction ||
+        norm?.turnSignals?.payloadYear !== null))
+  )
     user += 0.15; // decisive click/action
   if (textEmpty && hasPayload) user += 0.05; // confident chip tap
-  if (/\b(i('?m)?\s+not\s+sure|confused|stuck|overwhelmed)\b/i.test(text)) user -= 0.25;
-  if (/\b(are you sure|really\??)\b/i.test(text)) user -= 0.10;
+  if (/\b(i('?m)?\s+not\s+sure|confused|stuck|overwhelmed)\b/i.test(text))
+    user -= 0.25;
+  if (/\b(are you sure|really\??)\b/i.test(text)) user -= 0.1;
 
   // Nyx confidence: how firmly she should lead
   let nyx = 0.55;
@@ -422,7 +445,8 @@ function inferConfidence(norm, session, cog) {
   const lastAction = safeStr(s.lastAction || "").trim();
   const lastYear = normYear(s.lastYear);
   const yr = normYear(norm?.year);
-  if (lastAction && lastAction === action && lastYear && yr && lastYear === yr) nyx += 0.10;
+  if (lastAction && lastAction === action && lastYear && yr && lastYear === yr)
+    nyx += 0.1;
 
   // Mode arbitration
   const mode = safeStr(cog?.mode || "").toLowerCase();
@@ -452,8 +476,18 @@ function computeVelvet(norm, session, cog, desire) {
     action === "custom_story" ||
     /\b(why|meaning|connect|deeper|layer)\b/i.test(safeStr(norm?.text || ""));
 
-  const repeatedTopic = !!(lastLane && lane && lastLane === lane && yr && lastYear && yr === lastYear);
-  const acceptedChip = !!(norm?.turnSignals?.hasPayload && (norm?.turnSignals?.payloadAction || norm?.turnSignals?.payloadYear !== null));
+  const repeatedTopic = !!(
+    lastLane &&
+    lane &&
+    lastLane === lane &&
+    yr &&
+    lastYear &&
+    yr === lastYear
+  );
+  const acceptedChip = !!(
+    norm?.turnSignals?.hasPayload &&
+    (norm?.turnSignals?.payloadAction || norm?.turnSignals?.payloadYear !== null)
+  );
 
   // music-first rule: velvet is primarily for music/memory moments first
   const musicFirstEligible = lane === "music" || action;
@@ -464,23 +498,40 @@ function computeVelvet(norm, session, cog, desire) {
   if (repeatedTopic) signals++;
   if (acceptedChip) signals++;
   if (clamp01(cog?.confidence?.nyx) >= 0.6) signals++;
-  if (desire === LATENT_DESIRE.COMFORT || desire === LATENT_DESIRE.CURIOSITY) signals++;
+  if (desire === LATENT_DESIRE.COMFORT || desire === LATENT_DESIRE.CURIOSITY)
+    signals++;
 
   if (!musicFirstEligible) {
     // outside music: keep velvet only if already active (don’t spread too early)
-    return { velvet: already, velvetSince: Number(s.velvetSince || 0) || 0, reason: already ? "carry" : "no" };
+    return {
+      velvet: already,
+      velvetSince: Number(s.velvetSince || 0) || 0,
+      reason: already ? "carry" : "no",
+    };
   }
 
   if (already) {
     // exit rules: hard topic shift or stabilize intent
     if (safeStr(cog?.intent).toUpperCase() === "STABILIZE") {
-      return { velvet: false, velvetSince: Number(s.velvetSince || 0) || 0, reason: "stabilize_exit" };
+      return {
+        velvet: false,
+        velvetSince: Number(s.velvetSince || 0) || 0,
+        reason: "stabilize_exit",
+      };
     }
     if (lastLane && lane && lastLane !== lane) {
-      return { velvet: false, velvetSince: Number(s.velvetSince || 0) || 0, reason: "lane_shift_exit" };
+      return {
+        velvet: false,
+        velvetSince: Number(s.velvetSince || 0) || 0,
+        reason: "lane_shift_exit",
+      };
     }
     // otherwise keep it
-    return { velvet: true, velvetSince: Number(s.velvetSince || 0) || now, reason: "hold" };
+    return {
+      velvet: true,
+      velvetSince: Number(s.velvetSince || 0) || now,
+      reason: "hold",
+    };
   }
 
   if (signals >= 2) {
@@ -647,19 +698,38 @@ function mediatorMarion(norm, session) {
 
   // Micro grounding allowance (1 line max unless STABILIZE)
   const grounding = mode === "user" || mode === "transitional";
-  const groundingMaxLines =
-    intent === "STABILIZE" ? 3 : grounding ? 1 : 0;
+  const groundingMaxLines = intent === "STABILIZE" ? 3 : grounding ? 1 : 0;
 
   // Desire + confidence (arbitrated here so the rest of the engine can be deterministic)
-  const latentDesire = inferLatentDesire(norm, s, { mode, intent, dominance, budget });
-  const confidence = inferConfidence(norm, s, { mode, intent, dominance, budget });
+  const latentDesire = inferLatentDesire(norm, s, {
+    mode,
+    intent,
+    dominance,
+    budget,
+  });
+  const confidence = inferConfidence(norm, s, {
+    mode,
+    intent,
+    dominance,
+    budget,
+  });
 
   // Velvet binding (music-first)
-  const velvet = computeVelvet(norm, s, { mode, intent, dominance, budget, confidence }, latentDesire);
+  const velvet = computeVelvet(
+    norm,
+    s,
+    { mode, intent, dominance, budget, confidence },
+    latentDesire
+  );
 
   // Slight dominance correction: if velvet and user mode, soften; if mastery+architect and advance, firm stays.
-  if (velvet.velvet && mode === "user" && intent !== "ADVANCE") dominance = "soft";
-  if (latentDesire === LATENT_DESIRE.MASTERY && (mode === "architect" || mode === "transitional") && intent === "ADVANCE")
+  if (velvet.velvet && mode === "user" && intent !== "ADVANCE")
+    dominance = "soft";
+  if (
+    latentDesire === LATENT_DESIRE.MASTERY &&
+    (mode === "architect" || mode === "transitional") &&
+    intent === "ADVANCE"
+  )
     dominance = "firm";
 
   return {
@@ -688,8 +758,13 @@ function validateNyxTone(cog, reply) {
   const text = safeStr(reply);
 
   // Absolute bans: memory meta / creepy recall
-  if (/\bearlier you (said|mentioned)\b/i.test(text)) return { ok: false, reason: "ban:earlier_you_said" };
-  if (/\b(as an ai|i (remember|recall)|in our previous conversation|you told me before)\b/i.test(text))
+  if (/\bearlier you (said|mentioned)\b/i.test(text))
+    return { ok: false, reason: "ban:earlier_you_said" };
+  if (
+    /\b(as an ai|i (remember|recall)|in our previous conversation|you told me before)\b/i.test(
+      text
+    )
+  )
     return { ok: false, reason: "ban:meta_memory" };
 
   // Avoid excess hedging in firm ADVANCE
@@ -734,7 +809,10 @@ function applyTurnConstitutionToReply(rawReply, cog, session) {
     // minimal, deterministic correction (no big rewrites)
     reply = reply
       .replace(/\bearlier you (said|mentioned)\b.*$/i, "")
-      .replace(/\b(as an ai|i (remember|recall)|in our previous conversation|you told me before)\b.*$/i, "")
+      .replace(
+        /\b(as an ai|i (remember|recall)|in our previous conversation|you told me before)\b.*$/i,
+        ""
+      )
       .replace(/\b(i think|maybe|perhaps|might be|could be)\b/gi, "")
       .replace(/\s{2,}/g, " ")
       .trim();
@@ -1007,9 +1085,11 @@ function resolveTop10ForYear(knowledge, year, opts) {
     const items = rows
       .map((r) => {
         const o = normalizeSongLine(r);
-        if (!o.title) o.title = safeStr(r.song || r.single || r.track || "").trim();
+        if (!o.title)
+          o.title = safeStr(r.song || r.single || r.track || "").trim();
         if (!o.artist) o.artist = safeStr(r.artist || r.performer || "").trim();
-        if (!o.pos) o.pos = clampInt(r.rank ?? r.pos ?? r.position, null, 1, 500);
+        if (!o.pos)
+          o.pos = clampInt(r.rank ?? r.pos ?? r.position, null, 1, 500);
         return o;
       })
       .filter((r) => r.title || r.artist);
@@ -1331,28 +1411,56 @@ function runToneRegressionTests() {
   // 1) Ranked list budget should keep 10 lines in short
   const top10Mock =
     "Top 10 — 1984\n\n" +
-    Array.from({ length: 10 }).map((_, i) => `${i + 1}. “Song” — Artist`).join("\n");
+    Array.from({ length: 10 })
+      .map((_, i) => `${i + 1}. “Song” — Artist`)
+      .join("\n");
   const b1 = applyBudgetText(top10Mock, "short");
   assert("budget_ranked_list_keeps_10", countNumberedLines(b1) >= 10, b1);
 
   // 2) Firm ADVANCE removes softness tails
-  const cFirm = { intent: "ADVANCE", dominance: "firm", budget: "short", confidence: { nyx: 0.9 } };
+  const cFirm = {
+    intent: "ADVANCE",
+    dominance: "firm",
+    budget: "short",
+    confidence: { nyx: 0.9 },
+  };
   const soft = "Do X. Let me know if you'd like.";
-  const out2 = applyTurnConstitutionToReply(soft, cFirm, { lastSigTransition: "" });
+  const out2 = applyTurnConstitutionToReply(soft, cFirm, {
+    lastSigTransition: "",
+  });
   assert("firm_removes_soft_tail", !/\blet me know\b/i.test(out2), out2);
 
   // 3) Ban “Earlier you said…”
   const out3 = applyTurnConstitutionToReply("Earlier you said X, so Y.", cFirm, {});
-  assert("ban_earlier_you_said", !/\bearlier you (said|mentioned)\b/i.test(out3), out3);
+  assert(
+    "ban_earlier_you_said",
+    !/\bearlier you (said|mentioned)\b/i.test(out3),
+    out3
+  );
 
   // 4) Signature transition not repeated consecutively
   const s1 = { lastSigTransition: SIGNATURE_TRANSITIONS[0] };
   const out4 = applyTurnConstitutionToReply("Do X.", cFirm, s1);
-  assert("no_repeat_signature_transition", !out4.startsWith(SIGNATURE_TRANSITIONS[0]), out4);
+  assert(
+    "no_repeat_signature_transition",
+    !out4.startsWith(SIGNATURE_TRANSITIONS[0]),
+    out4
+  );
 
   // 5) Velvet computation: story_moment should be eligible (music-first)
   const v = computeVelvet(
-    { action: "story_moment", lane: "music", year: 1988, text: "" , turnSignals:{hasPayload:true,payloadAction:"story_moment",payloadYear:1988,textEmpty:true}},
+    {
+      action: "story_moment",
+      lane: "music",
+      year: 1988,
+      text: "",
+      turnSignals: {
+        hasPayload: true,
+        payloadAction: "story_moment",
+        payloadYear: 1988,
+        textEmpty: true,
+      },
+    },
     { lane: "music", lastYear: 1988, lastAction: "top10" },
     { confidence: { nyx: 0.7 } },
     LATENT_DESIRE.COMFORT
@@ -1447,6 +1555,8 @@ async function handleChat(input) {
   if (norm.action === "ask_year") {
     const replyRaw = `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}). I’ll start with Top 10.`;
     const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
+    const sigLine = detectSignatureLine(reply);
+
     return {
       ok: true,
       reply,
@@ -1472,7 +1582,11 @@ async function handleChat(input) {
         },
       ],
       followUpsStrings: ["1973", "1988", "1992"],
-      sessionPatch: { lane: "music", ...baseCogPatch },
+      sessionPatch: {
+        lane: "music",
+        ...(sigLine ? { lastSigTransition: sigLine } : {}),
+        ...baseCogPatch,
+      },
       cog,
       meta: {
         engine: CE_VERSION,
@@ -1486,17 +1600,38 @@ async function handleChat(input) {
   if (norm.action === "switch_lane") {
     const replyRaw = `Pick a lane:\n\n• Music\n• Movies\n• Sponsors`;
     const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
+    const sigLine = detectSignatureLine(reply);
+
     return {
       ok: true,
       reply,
       lane: "general",
       followUps: [
-        { id: "fu_music", type: "chip", label: "Music", payload: { lane: "music" } },
-        { id: "fu_movies", type: "chip", label: "Movies", payload: { lane: "movies" } },
-        { id: "fu_sponsors", type: "chip", label: "Sponsors", payload: { lane: "sponsors" } },
+        {
+          id: "fu_music",
+          type: "chip",
+          label: "Music",
+          payload: { lane: "music" },
+        },
+        {
+          id: "fu_movies",
+          type: "chip",
+          label: "Movies",
+          payload: { lane: "movies" },
+        },
+        {
+          id: "fu_sponsors",
+          type: "chip",
+          label: "Sponsors",
+          payload: { lane: "sponsors" },
+        },
       ],
       followUpsStrings: ["Music", "Movies", "Sponsors"],
-      sessionPatch: { lane: "general", ...baseCogPatch },
+      sessionPatch: {
+        lane: "general",
+        ...(sigLine ? { lastSigTransition: sigLine } : {}),
+        ...baseCogPatch,
+      },
       cog,
       meta: {
         engine: CE_VERSION,
@@ -1518,6 +1653,8 @@ async function handleChat(input) {
   if (requiresYear.includes(norm.action) && !year) {
     const replyRaw = `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`;
     const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
+    const sigLine = detectSignatureLine(reply);
+
     return {
       ok: true,
       reply,
@@ -1543,7 +1680,11 @@ async function handleChat(input) {
         },
       ],
       followUpsStrings: ["1973", "1988", "1960"],
-      sessionPatch: { lane: "music", ...baseCogPatch },
+      sessionPatch: {
+        lane: "music",
+        ...(sigLine ? { lastSigTransition: sigLine } : {}),
+        ...baseCogPatch,
+      },
       cog,
       meta: {
         engine: CE_VERSION,
@@ -1557,11 +1698,17 @@ async function handleChat(input) {
   if (year && (year < PUBLIC_MIN_YEAR || year > PUBLIC_MAX_YEAR)) {
     const replyRaw = `Use a year in ${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}.`;
     const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
+    const sigLine = detectSignatureLine(reply);
+
     return {
       ok: true,
       reply,
       lane: "music",
-      sessionPatch: { lane: "music", ...baseCogPatch },
+      sessionPatch: {
+        lane: "music",
+        ...(sigLine ? { lastSigTransition: sigLine } : {}),
+        ...baseCogPatch,
+      },
       cog,
       meta: {
         engine: CE_VERSION,
@@ -1583,9 +1730,12 @@ async function handleChat(input) {
     if (action === "custom_story") {
       const v = normVibe(norm.vibe || norm.text) || "nostalgic";
 
-      // Anchor story off Top10 #1 (not a #1 route; just first item in Top 10)
-      const t10 = resolveTop10ForYear(knowledge, year, { allowDerivedTop10: false });
-      const anchorItem = t10.ok && t10.items && t10.items.length ? t10.items[0] : null;
+      // Anchor story off Top10 first item (NOT a #1 route; just first item in Top 10 list)
+      const t10 = resolveTop10ForYear(knowledge, year, {
+        allowDerivedTop10: false,
+      });
+      const anchorItem =
+        t10.ok && t10.items && t10.items.length ? t10.items[0] : null;
 
       const sig = buildMusicSig({
         action: "custom_story",
@@ -1600,6 +1750,8 @@ async function handleChat(input) {
       if (shouldDampen(session, sig)) {
         const replyRaw = `Switch the lens. Pick: Top 10, story moment, or micro moment.`;
         const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
+        const sigLine = detectSignatureLine(reply);
+
         return {
           ok: true,
           reply,
@@ -1615,7 +1767,7 @@ async function handleChat(input) {
             activeMusicChart: "custom_story",
             musicMomentsLoaded: !!session.musicMomentsLoaded,
             musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
-            lastSigTransition: pickSignatureTransition(session, cog) ? pickSignatureTransition(session, cog) : safeStr(session.lastSigTransition || ""),
+            ...(sigLine ? { lastSigTransition: sigLine } : {}),
             ...baseCogPatch,
           },
           cog,
@@ -1633,7 +1785,8 @@ async function handleChat(input) {
       const story = buildCustomStory({ year, vibe: v, anchorItem });
       const replyRaw = `Okay… now we make it cinematic.\n\n${story}`;
       const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
-      const usedTrans = reply.startsWith("Now we") || reply.startsWith("This is") || reply.startsWith("Let’s") || reply.startsWith("Here’s") || reply.startsWith("This isn’t");
+      const sigLine = detectSignatureLine(reply);
+
       return {
         ok: true,
         reply,
@@ -1671,8 +1824,9 @@ async function handleChat(input) {
           lastMusicChart: prevChart,
           activeMusicChart: "custom_story",
           musicMomentsLoaded: true,
-          musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || nowMs(),
-          lastSigTransition: usedTrans ? reply.split("\n")[0].trim() : safeStr(session.lastSigTransition || ""),
+          musicMomentsLoadedAt:
+            Number(session.musicMomentsLoadedAt || 0) || nowMs(),
+          ...(sigLine ? { lastSigTransition: sigLine } : {}),
           ...baseCogPatch,
         },
         cog,
@@ -1711,11 +1865,14 @@ async function handleChat(input) {
 
         const debug =
           res.sourceKey || res.foundBy
-            ? `\n\n(Yearend probe: key=${safeStr(res.sourceKey || "n/a")} foundBy=${safeStr(res.foundBy || "n/a")})`
+            ? `\n\n(Yearend probe: key=${safeStr(
+                res.sourceKey || "n/a"
+              )} foundBy=${safeStr(res.foundBy || "n/a")})`
             : "";
 
         const replyRaw = `${why}${debug}\n\nNext: run pinned Top 10 for ${year}.`;
         const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
+        const sigLine = detectSignatureLine(reply);
 
         return {
           ok: true,
@@ -1745,6 +1902,7 @@ async function handleChat(input) {
             activeMusicChart: "yearend_hot100",
             musicMomentsLoaded: !!session.musicMomentsLoaded,
             musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
+            ...(sigLine ? { lastSigTransition: sigLine } : {}),
             ...baseCogPatch,
           },
           cog,
@@ -1766,6 +1924,8 @@ async function handleChat(input) {
       if (shouldDampen(session, sig)) {
         const replyRaw = `Already served year-end for ${year}. Next: pinned Top 10.`;
         const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
+        const sigLine = detectSignatureLine(reply);
+
         return {
           ok: true,
           reply,
@@ -1794,6 +1954,7 @@ async function handleChat(input) {
             activeMusicChart: "yearend_hot100",
             musicMomentsLoaded: !!session.musicMomentsLoaded,
             musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
+            ...(sigLine ? { lastSigTransition: sigLine } : {}),
             ...baseCogPatch,
           },
           cog,
@@ -1813,7 +1974,7 @@ async function handleChat(input) {
 
       const replyRaw = formatYearendHot100(year, res.items, 20);
       const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
-      const usedTrans = reply.startsWith("Now we") || reply.startsWith("This is") || reply.startsWith("Let’s") || reply.startsWith("Here’s") || reply.startsWith("This isn’t");
+      const sigLine = detectSignatureLine(reply);
 
       return {
         ok: true,
@@ -1853,7 +2014,7 @@ async function handleChat(input) {
           activeMusicChart: "yearend_hot100",
           musicMomentsLoaded: !!session.musicMomentsLoaded,
           musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
-          lastSigTransition: usedTrans ? reply.split("\n")[0].trim() : safeStr(session.lastSigTransition || ""),
+          ...(sigLine ? { lastSigTransition: sigLine } : {}),
           ...baseCogPatch,
         },
         cog,
@@ -1894,13 +2055,14 @@ async function handleChat(input) {
         const acts = threeActFollowUps(year);
         const debug =
           res.sourceKey || res.foundBy
-            ? `\n\n(Top10 probe: key=${safeStr(res.sourceKey || "n/a")} foundBy=${safeStr(res.foundBy || "n/a")})`
+            ? `\n\n(Top10 probe: key=${safeStr(
+                res.sourceKey || "n/a"
+              )} foundBy=${safeStr(res.foundBy || "n/a")})`
             : "";
 
-        const replyRaw =
-          `${why}\n\n` + `Next move: story moment or micro moment.` + debug;
-
+        const replyRaw = `${why}\n\nNext move: story moment or micro moment.${debug}`;
         const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
+        const sigLine = detectSignatureLine(reply);
 
         return {
           ok: true,
@@ -1916,6 +2078,7 @@ async function handleChat(input) {
             activeMusicChart: "",
             musicMomentsLoaded: !!session.musicMomentsLoaded,
             musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
+            ...(sigLine ? { lastSigTransition: sigLine } : {}),
             ...baseCogPatch,
           },
           cog,
@@ -1951,6 +2114,8 @@ async function handleChat(input) {
           `• micro moment\n` +
           `• pick another year`;
         const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
+        const sigLine = detectSignatureLine(reply);
+
         return {
           ok: true,
           reply,
@@ -1966,6 +2131,7 @@ async function handleChat(input) {
             activeMusicChart: "top10",
             musicMomentsLoaded: !!session.musicMomentsLoaded,
             musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
+            ...(sigLine ? { lastSigTransition: sigLine } : {}),
             ...baseCogPatch,
           },
           cog,
@@ -1989,7 +2155,7 @@ async function handleChat(input) {
 
       const replyRaw = formatTop10(year, res.items);
       const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
-      const usedTrans = reply.startsWith("Now we") || reply.startsWith("This is") || reply.startsWith("Let’s") || reply.startsWith("Here’s") || reply.startsWith("This isn’t");
+      const sigLine = detectSignatureLine(reply);
 
       const microPack = !!getPinnedMicroMoments(knowledge).pack;
       const momentsLoaded = !!session.musicMomentsLoaded || microPack;
@@ -2011,7 +2177,7 @@ async function handleChat(input) {
           activeMusicChart: "top10",
           musicMomentsLoaded: momentsLoaded,
           musicMomentsLoadedAt: momentsLoadedAt,
-          lastSigTransition: usedTrans ? reply.split("\n")[0].trim() : safeStr(session.lastSigTransition || ""),
+          ...(sigLine ? { lastSigTransition: sigLine } : {}),
           ...baseCogPatch,
         },
         cog,
@@ -2052,6 +2218,8 @@ async function handleChat(input) {
       if (!res.ok) {
         const replyRaw = `No pinned story moment for ${year}. Pick a mood: romantic, rebellious, or nostalgic.`;
         const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
+        const sigLine = detectSignatureLine(reply);
+
         return {
           ok: true,
           reply,
@@ -2061,19 +2229,34 @@ async function handleChat(input) {
               id: "fu_rom",
               type: "chip",
               label: "Romantic",
-              payload: { lane: "music", action: "custom_story", year, vibe: "romantic" },
+              payload: {
+                lane: "music",
+                action: "custom_story",
+                year,
+                vibe: "romantic",
+              },
             },
             {
               id: "fu_reb",
               type: "chip",
               label: "Rebellious",
-              payload: { lane: "music", action: "custom_story", year, vibe: "rebellious" },
+              payload: {
+                lane: "music",
+                action: "custom_story",
+                year,
+                vibe: "rebellious",
+              },
             },
             {
               id: "fu_nos",
               type: "chip",
               label: "Nostalgic",
-              payload: { lane: "music", action: "custom_story", year, vibe: "nostalgic" },
+              payload: {
+                lane: "music",
+                action: "custom_story",
+                year,
+                vibe: "nostalgic",
+              },
             },
           ],
           followUpsStrings: ["Romantic", "Rebellious", "Nostalgic"],
@@ -2086,6 +2269,7 @@ async function handleChat(input) {
             activeMusicChart: "story",
             musicMomentsLoaded: momentsLoaded,
             musicMomentsLoadedAt: momentsLoadedAt,
+            ...(sigLine ? { lastSigTransition: sigLine } : {}),
             ...baseCogPatch,
           },
           cog,
@@ -2107,6 +2291,8 @@ async function handleChat(input) {
       if (shouldDampen(session, sig)) {
         const replyRaw = `Already cinematic for ${year}. Next: micro moment.`;
         const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
+        const sigLine = detectSignatureLine(reply);
+
         return {
           ok: true,
           reply,
@@ -2129,6 +2315,7 @@ async function handleChat(input) {
             activeMusicChart: "story",
             musicMomentsLoaded: momentsLoaded,
             musicMomentsLoadedAt: momentsLoadedAt,
+            ...(sigLine ? { lastSigTransition: sigLine } : {}),
             ...baseCogPatch,
           },
           cog,
@@ -2148,7 +2335,7 @@ async function handleChat(input) {
 
       const replyRaw = `Okay… now we make it cinematic.\n\n${safeStr(res.text).trim()}`;
       const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
-      const usedTrans = reply.startsWith("Now we") || reply.startsWith("This is") || reply.startsWith("Let’s") || reply.startsWith("Here’s") || reply.startsWith("This isn’t");
+      const sigLine = detectSignatureLine(reply);
 
       return {
         ok: true,
@@ -2172,7 +2359,7 @@ async function handleChat(input) {
           activeMusicChart: "story",
           musicMomentsLoaded: momentsLoaded,
           musicMomentsLoadedAt: momentsLoadedAt,
-          lastSigTransition: usedTrans ? reply.split("\n")[0].trim() : safeStr(session.lastSigTransition || ""),
+          ...(sigLine ? { lastSigTransition: sigLine } : {}),
           ...baseCogPatch,
         },
         cog,
@@ -2205,6 +2392,8 @@ async function handleChat(input) {
       if (!res.ok) {
         const replyRaw = `No micro moment loaded for ${year}. Next: Top 10 or story moment.`;
         const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
+        const sigLine = detectSignatureLine(reply);
+
         return {
           ok: true,
           reply,
@@ -2233,6 +2422,7 @@ async function handleChat(input) {
             activeMusicChart: "micro",
             musicMomentsLoaded: !!session.musicMomentsLoaded,
             musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
+            ...(sigLine ? { lastSigTransition: sigLine } : {}),
             ...baseCogPatch,
           },
           cog,
@@ -2254,13 +2444,25 @@ async function handleChat(input) {
       if (shouldDampen(session, sig)) {
         const replyRaw = `Micro moment for ${year} is already sealed. Next: pick another year or switch lanes.`;
         const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
+        const sigLine = detectSignatureLine(reply);
+
         return {
           ok: true,
           reply,
           lane: "music",
           followUps: [
-            { id: "fu_newyear", type: "chip", label: "Pick another year", payload: { lane: "music", action: "ask_year" } },
-            { id: "fu_general", type: "chip", label: "Switch lanes", payload: { lane: "general", action: "switch_lane" } },
+            {
+              id: "fu_newyear",
+              type: "chip",
+              label: "Pick another year",
+              payload: { lane: "music", action: "ask_year" },
+            },
+            {
+              id: "fu_general",
+              type: "chip",
+              label: "Switch lanes",
+              payload: { lane: "general", action: "switch_lane" },
+            },
           ],
           followUpsStrings: ["Pick another year", "Switch lanes"],
           sessionPatch: {
@@ -2271,7 +2473,9 @@ async function handleChat(input) {
             lastMusicChart: prevChart,
             activeMusicChart: "micro",
             musicMomentsLoaded: true,
-            musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || nowMs(),
+            musicMomentsLoadedAt:
+              Number(session.musicMomentsLoadedAt || 0) || nowMs(),
+            ...(sigLine ? { lastSigTransition: sigLine } : {}),
             ...baseCogPatch,
           },
           cog,
@@ -2289,9 +2493,11 @@ async function handleChat(input) {
         };
       }
 
-      const replyRaw = `Tap micro moment—let’s seal the vibe.\n\n${safeStr(res.text).trim()}`;
+      const replyRaw = `Tap micro moment—let’s seal the vibe.\n\n${safeStr(
+        res.text
+      ).trim()}`;
       const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
-      const usedTrans = reply.startsWith("Now we") || reply.startsWith("This is") || reply.startsWith("Let’s") || reply.startsWith("Here’s") || reply.startsWith("This isn’t");
+      const sigLine = detectSignatureLine(reply);
 
       return {
         ok: true,
@@ -2320,8 +2526,9 @@ async function handleChat(input) {
           lastMusicChart: prevChart,
           activeMusicChart: "micro",
           musicMomentsLoaded: true,
-          musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || nowMs(),
-          lastSigTransition: usedTrans ? reply.split("\n")[0].trim() : safeStr(session.lastSigTransition || ""),
+          musicMomentsLoadedAt:
+            Number(session.musicMomentsLoadedAt || 0) || nowMs(),
+          ...(sigLine ? { lastSigTransition: sigLine } : {}),
           ...baseCogPatch,
         },
         cog,
@@ -2346,6 +2553,8 @@ async function handleChat(input) {
       const acts = threeActFollowUps(year);
       const replyRaw = `For ${year}: Top 10, story moment, micro moment, or Year-End Hot 100.`;
       const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
+      const sigLine = detectSignatureLine(reply);
+
       return {
         ok: true,
         reply,
@@ -2380,6 +2589,7 @@ async function handleChat(input) {
           lastMusicChart: safeStr(session.lastMusicChart || ""),
           musicMomentsLoaded: !!session.musicMomentsLoaded,
           musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
+          ...(sigLine ? { lastSigTransition: sigLine } : {}),
           ...baseCogPatch,
         },
         cog,
@@ -2397,11 +2607,17 @@ async function handleChat(input) {
 
     const replyRaw = `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`;
     const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
+    const sigLine = detectSignatureLine(reply);
+
     return {
       ok: true,
       reply,
       lane: "music",
-      sessionPatch: { lane: "music", ...baseCogPatch },
+      sessionPatch: {
+        lane: "music",
+        ...(sigLine ? { lastSigTransition: sigLine } : {}),
+        ...baseCogPatch,
+      },
       cog,
       meta: {
         engine: CE_VERSION,
@@ -2424,11 +2640,17 @@ async function handleChat(input) {
   ) {
     const replyRaw = `Defaulting to Music. Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`;
     const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
+    const sigLine = detectSignatureLine(reply);
+
     return {
       ok: true,
       reply,
       lane: "music",
-      sessionPatch: { lane: "music", ...baseCogPatch },
+      sessionPatch: {
+        lane: "music",
+        ...(sigLine ? { lastSigTransition: sigLine } : {}),
+        ...baseCogPatch,
+      },
       cog,
       meta: {
         engine: CE_VERSION,
@@ -2446,12 +2668,17 @@ async function handleChat(input) {
     ? `Tell me what you want next: music, movies, or sponsors.`
     : `Okay — tell me what you want next.`;
   const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
+  const sigLine = detectSignatureLine(reply);
 
   return {
     ok: true,
     reply,
     lane: lane || "general",
-    sessionPatch: { lane: lane || "general", ...baseCogPatch },
+    sessionPatch: {
+      lane: lane || "general",
+      ...(sigLine ? { lastSigTransition: sigLine } : {}),
+      ...baseCogPatch,
+    },
     cog,
     meta: {
       engine: CE_VERSION,
