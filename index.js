@@ -3,25 +3,31 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18bf (TTS FAIL-OPEN++++: eliminates scary HTTP 5xx for widget; returns 204 + exposed headers)
+ * index.js v1.5.18bg (SECURITY HARDENING++++ + TTS FAIL-OPEN++++ kept)
  *
  * Keeps:
  * ✅ WIKI AUTHORITY FIX++++ (wikipedia split hot100 dir ingest + merged year map)
  * ✅ CRITICAL FIXES++++ already present (sessionKey uses parsed body + manifest abs rebuilt after reload + strict CORS hard-lock 403 + JSON parser once + LOAD VISIBILITY++++ etc.)
  * ✅ v1.5.18bc: sessionPatch allows music loop-dampener keys + TRUE reset clears session state safely
  * ✅ v1.5.18be: gateway CSE evaluator + chip continuity signals; sessionPatch normalize fix
+ * ✅ v1.5.18bf: TTS FAIL-OPEN (default ON): /api/tts & /api/voice return 204 on failure + exposed diag headers
  *
- * Adds (v1.5.18bf):
- * ✅ TTS FAIL-OPEN (default ON): for widget stability, /api/tts & /api/voice return 204 (ok) on failure,
- *    with exposed diagnostic headers:
- *      - X-SBNYX-TTS-ERROR
- *      - X-SBNYX-TTS-DETAIL
- *      - X-SBNYX-TTS-UPSTREAM-STATUS
- *      - X-SBNYX-TTS-FAILOPEN
- * ✅ CORS exposes these headers so the widget can read them and auto-disable voice gracefully
+ * Adds (v1.5.18bg):
+ * ✅ SECURITY: Origin/Referer coherence guard (optional strict mode)
+ *    - If both Origin + Referer exist and hosts don’t match → block (403)
+ *    - If strict mode enabled, Referer-only must be allowlisted
+ * ✅ SECURITY: Explicit allow of widget provenance headers (for Phase-1 widget hardening)
+ *    - X-SBNYX-Origin, X-SBNYX-Referrer, X-SBNYX-Widget-Id, X-SBNYX-Nonce
+ * ✅ SECURITY: Prototype-pollution stripping + string length clamps on inbound bodies (non-breaking)
+ * ✅ SECURITY: Default API security headers (nosniff, frame-ancestors deny, referrer policy)
+ * ✅ TTS: max text clamp + per-session TTS burst limiter (reduces abuse/billing spikes)
  *
  * Env:
  *  - TTS_FAIL_OPEN=true|false (default true)
+ *  - STRICT_ORIGIN_REFERER=true|false (default false)   // turn on when widget is stable
+ *  - TTS_MAX_CHARS=900 (default 900)
+ *  - TTS_BURST_WINDOW_MS=30000 (default 30000)
+ *  - TTS_BURST_MAX=6 (default 6)
  */
 
 // =========================
@@ -80,7 +86,7 @@ const nyxVoiceNaturalizeMod =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18bf (TTS FAIL-OPEN++++: 204 + exposed diagnostic headers to prevent widget-facing 5xx; keeps v1.5.18be CSE/chip continuity + v1.5.18bc reset/sessionPatch keys + v1.5.18bb WIKI AUTHORITY FIX++++ + CRITICAL FIXES++++: sessionKey uses parsed body + manifest abs rebuilt after reload + strict CORS hard-lock 403 + JSON parser once + LOAD VISIBILITY++++: key collisions + skip reasons + fileMap + packsight proof + PINNED REL FIXES: story_moments_v2 + ordered rel preferences + DATA ROOT AUTODISCOVERY++++ + PINNED RESOLVE DIAGNOSTICS++++ + rebuild roots on reloadKnowledge + TOP10 NORMALIZATION + BLOCKER PRUNE++++ + SOURCE REL BLOCK REMOVAL + KNOWLEDGE INJECTION FIX + /api/chat GET GUIDANCE + MANIFEST RESOLVER UPGRADE++++: multi-candidate rels + bounded basename/dirname fallback search across ALL data roots + probes show bestFound + keeps PACK VISIBILITY HARDENING++++ + CHIP SIGNAL ROUNDTRIP intent/route/label + allow Data outside APP_ROOT + bigger budgets + PUBLIC /api/packsight + case-insensitive Data/Scripts resolution + pinned/manifest path fallback + packsight diagnostics + manifest target probes + pinned packs to real Data/* files + manifest tolerance + tts get alias + built-in pack index + manifest pack loader + chip normalizer + nyx voice naturalizer + crash-proof boot + safe JSON parse + diagnostic logging + error middleware + knowledge bridge + loop fuse + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS + TTS fail-open)";
+  "index.js v1.5.18bg (SECURITY HARDENING++++: origin/referrer coherence + inbound sanitization + security headers + TTS burst clamp; keeps v1.5.18bf TTS fail-open + v1.5.18be CSE/chip continuity + v1.5.18bc reset/sessionPatch keys + v1.5.18bb WIKI AUTHORITY FIX++++ + CRITICAL FIXES++++: sessionKey uses parsed body + manifest abs rebuilt after reload + strict CORS hard-lock 403 + JSON parser once + LOAD VISIBILITY++++ + pack index + nyx voice naturalizer + crash-proof boot + diagnostics)";
 
 // =========================
 // Utils
@@ -155,6 +161,83 @@ function statSafe(p) {
     return null;
   }
 }
+function parseUrlHost(u) {
+  const s = safeStr(u).trim();
+  if (!s) return "";
+  try {
+    const x = new URL(s);
+    return safeStr(x.host || "").toLowerCase();
+  } catch (_) {
+    return "";
+  }
+}
+function parseOriginHost(o) {
+  const s = normalizeOrigin(o);
+  if (!s) return "";
+  try {
+    const x = new URL(s);
+    return safeStr(x.host || "").toLowerCase();
+  } catch (_) {
+    // origin might come without scheme; best-effort
+    const m = s.replace(/^https?:\/\//i, "");
+    return safeStr(m.split("/")[0]).toLowerCase();
+  }
+}
+function isBrowserishUA(ua) {
+  const s = safeStr(ua).toLowerCase();
+  if (!s) return false;
+  // quick heuristic; not used to block by itself
+  return (
+    s.includes("mozilla/") ||
+    s.includes("chrome/") ||
+    s.includes("safari/") ||
+    s.includes("firefox/") ||
+    s.includes("edg/") ||
+    s.includes("opr/")
+  );
+}
+
+/**
+ * SECURITY: shallow-safe inbound sanitizer:
+ * - strips __proto__/constructor/prototype keys recursively
+ * - clamps string lengths
+ * - clamps depth and entry counts to prevent pathological payloads
+ * Non-breaking: keeps unknown keys; only removes dangerous proto keys + clamps huge strings.
+ */
+function sanitizeInboundValue(val, depth, maxDepth, maxEntries, maxStrLen) {
+  if (depth > maxDepth) return null;
+  if (val === null || val === undefined) return val;
+
+  if (typeof val === "string") {
+    const s = val.length > maxStrLen ? val.slice(0, maxStrLen) : val;
+    return s;
+  }
+  if (typeof val === "number" || typeof val === "boolean") return val;
+
+  if (Array.isArray(val)) {
+    const out = [];
+    const n = Math.min(val.length, maxEntries);
+    for (let i = 0; i < n; i++) out.push(sanitizeInboundValue(val[i], depth + 1, maxDepth, maxEntries, maxStrLen));
+    return out;
+  }
+
+  if (isPlainObject(val)) {
+    const out = {};
+    const keys = Object.keys(val).slice(0, maxEntries);
+    for (const k of keys) {
+      if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
+      out[k] = sanitizeInboundValue(val[k], depth + 1, maxDepth, maxEntries, maxStrLen);
+    }
+    return out;
+  }
+
+  // drop functions/symbols/etc.
+  return null;
+}
+function sanitizeInboundBody(body) {
+  const b = isPlainObject(body) ? body : {};
+  return sanitizeInboundValue(b, 0, 6, 200, 6000) || {};
+}
 
 // =========================
 // Env / knobs
@@ -163,6 +246,9 @@ const PORT = Number(process.env.PORT || 10000);
 const NODE_ENV = String(process.env.NODE_ENV || "production").trim();
 const TRUST_PROXY = String(process.env.TRUST_PROXY || "").trim();
 const MAX_JSON_BODY = String(process.env.MAX_JSON_BODY || "512kb");
+
+// --- Security knobs ---
+const STRICT_ORIGIN_REFERER = toBool(process.env.STRICT_ORIGIN_REFERER, false);
 
 // --- Knowledge Bridge knobs ---
 const KNOWLEDGE_AUTOLOAD = toBool(process.env.KNOWLEDGE_AUTOLOAD, true);
@@ -610,6 +696,30 @@ function isAllowedOrigin(origin) {
   return false;
 }
 
+function allowedHostsSnapshot() {
+  const hosts = new Set();
+  for (const o of ORIGINS_ALLOWLIST) {
+    const h = parseOriginHost(o);
+    if (h) hosts.add(h);
+  }
+  return hosts;
+}
+function isAllowedHost(host) {
+  const h = safeStr(host).toLowerCase();
+  if (!h) return false;
+  const allowHosts = allowedHostsSnapshot();
+  if (allowHosts.has(h)) return true;
+
+  // Also allow if it matches an origin regex when reconstituted as https://host
+  const candidate = `https://${h}`;
+  for (const rx of ORIGIN_REGEXES) {
+    try {
+      if (rx.test(candidate)) return true;
+    } catch (_) {}
+  }
+  return false;
+}
+
 function makeReqId() {
   try {
     if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
@@ -642,8 +752,13 @@ const NYX_VOICE_SIMILARITY = clampFloat(process.env.NYX_VOICE_SIMILARITY, 0.72, 
 const NYX_VOICE_STYLE = clampFloat(process.env.NYX_VOICE_STYLE, 0.25, 0, 1);
 const NYX_VOICE_SPEAKER_BOOST = toBool(process.env.NYX_VOICE_SPEAKER_BOOST, true);
 
-// ✅ NEW: TTS fail-open (prevents widget-facing 5xx; returns 204 + headers)
+// ✅ TTS fail-open (prevents widget-facing 5xx; returns 204 + headers)
 const TTS_FAIL_OPEN = toBool(process.env.TTS_FAIL_OPEN, true);
+
+// ✅ NEW: TTS abuse clamps
+const TTS_MAX_CHARS = clampInt(process.env.TTS_MAX_CHARS, 900, 120, 4000);
+const TTS_BURST_WINDOW_MS = clampInt(process.env.TTS_BURST_WINDOW_MS, 30000, 2000, 5 * 60 * 1000);
+const TTS_BURST_MAX = clampInt(process.env.TTS_BURST_MAX, 6, 1, 60);
 
 // =========================
 // Nyx Voice Naturalizer (pre-TTS)
@@ -1933,6 +2048,8 @@ function getSession(req, bodyOverride) {
         __cseLastAt: 0,
         __cseLastReason: "",
         __lastUserAct: "",
+        // TTS abuse window (per session)
+        __ttsBurst: [],
       },
       lastSeenAt: now,
       burst: [],
@@ -1946,6 +2063,7 @@ function getSession(req, bodyOverride) {
   if (!Array.isArray(rec.burst)) rec.burst = [];
   if (!Array.isArray(rec.sustained)) rec.sustained = [];
   if (!Array.isArray(rec.data.__lastOfferedChips)) rec.data.__lastOfferedChips = [];
+  if (!Array.isArray(rec.data.__ttsBurst)) rec.data.__ttsBurst = [];
   return { key, rec };
 }
 
@@ -1980,6 +2098,12 @@ function checkBootFuse(rec, now) {
   if (lastBootAt && now - lastBootAt < BOOT_DEDUPE_MS) return { blocked: true, reason: "boot_dedupe" };
 
   rec.data.__idx_lastBootAt = now;
+  return { blocked: false };
+}
+
+function checkTtsBurst(rec, now) {
+  rec.data.__ttsBurst = pushWindow(rec.data.__ttsBurst, now, TTS_BURST_WINDOW_MS);
+  if (rec.data.__ttsBurst.length > TTS_BURST_MAX) return { blocked: true, reason: "tts_burst" };
   return { blocked: false };
 }
 
@@ -2232,6 +2356,22 @@ app.use((req, res, next) => {
 app.use(express.text({ type: ["text/*"], limit: MAX_JSON_BODY }));
 
 // =========================
+// Baseline security headers (API-safe)
+// =========================
+app.use((req, res, next) => {
+  try {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Referrer-Policy", "no-referrer");
+    // APIs should not be framed (clickjacking reduction)
+    res.setHeader("X-Frame-Options", "DENY");
+    // Modern framing control (best-effort; harmless if ignored)
+    res.setHeader("Content-Security-Policy", "frame-ancestors 'none'");
+    res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+  } catch (_) {}
+  return next();
+});
+
+// =========================
 // CORS hard-lock (CRITICAL: disallowed Origin -> blocked)
 // =========================
 app.use((req, res, next) => {
@@ -2263,10 +2403,15 @@ app.use((req, res, next) => {
         "x-sbnyx-widget-version",
         "X-Contract-Version",
         "x-contract-version",
-        // ✅ expose-read companion headers are separate (below)
+
+        // ✅ NEW: widget provenance headers (Phase-1 security hardening)
+        "X-SBNYX-Origin",
+        "X-SBNYX-Referrer",
+        "X-SBNYX-Widget-Id",
+        "X-SBNYX-Nonce",
       ].join(", ")
     );
-    // ✅ NEW: allow widget to read TTS diagnostics in failure cases
+    // ✅ allow widget to read TTS diagnostics in failure cases
     res.setHeader(
       "Access-Control-Expose-Headers",
       [
@@ -2291,6 +2436,49 @@ app.use((req, res, next) => {
   if (origin && !allow) {
     return res.status(403).json({ ok: false, error: "cors_blocked", meta: { index: INDEX_VERSION } });
   }
+
+  return next();
+});
+
+// =========================
+// SECURITY: Origin/Referer coherence gate (non-breaking default)
+// =========================
+app.use((req, res, next) => {
+  const origin = normalizeOrigin(req.headers.origin || "");
+  const referer = safeStr(req.headers.referer || req.headers.referrer || "").trim();
+  const ua = safeStr(req.headers["user-agent"] || "");
+
+  const originHost = origin ? parseOriginHost(origin) : "";
+  const refererHost = referer ? parseUrlHost(referer) : "";
+
+  // If both exist, they should match (host-level). If mismatch: block.
+  if (originHost && refererHost && originHost !== refererHost) {
+    return res.status(403).json({
+      ok: false,
+      error: "origin_referer_mismatch",
+      meta: { index: INDEX_VERSION, originHost, refererHost },
+    });
+  }
+
+  // Strict mode: if only referer exists, require it be allowlisted (helps prevent simple CSRF-style abuse)
+  if (STRICT_ORIGIN_REFERER && !originHost && refererHost) {
+    if (!isAllowedHost(refererHost)) {
+      return res.status(403).json({
+        ok: false,
+        error: "referer_not_allowed",
+        meta: { index: INDEX_VERSION, refererHost, strict: true, ua: isBrowserishUA(ua) ? "browserish" : "other" },
+      });
+    }
+  }
+
+  // record a compact security context (useful for logging/engine meta)
+  req.__sb_sec = {
+    origin: origin || "",
+    referer: referer || "",
+    originHost,
+    refererHost,
+    ip: pickClientIp(req),
+  };
 
   return next();
 });
@@ -2428,7 +2616,6 @@ app.get("/api/packsight", (req, res) => {
       },
       budgets: {
         maxFiles: KNOWLEDGE_MAX_FILES,
-        // ✅ FIX (Render crash): correct budgets fields
         maxFileBytes: KNOWLEDGE_MAX_FILE_BYTES,
         maxTotalBytes: KNOWLEDGE_MAX_TOTAL_BYTES,
       },
@@ -2645,6 +2832,7 @@ function clearSessionState(rec) {
     __cseLastAt: 0,
     __cseLastReason: "",
     __lastUserAct: "",
+    __ttsBurst: [],
   };
 
   // clear rate windows + boot windows
@@ -2675,7 +2863,10 @@ function clearSessionState(rec) {
 // =========================
 async function handleChatRoute(req, res) {
   const startedAt = nowMs();
-  const body = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
+
+  // SECURITY: sanitize inbound body early (proto keys + oversized strings)
+  const rawBody = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
+  const body = sanitizeInboundBody(rawBody);
 
   normalizeChipPayload(body);
 
@@ -2688,7 +2879,8 @@ async function handleChatRoute(req, res) {
     safeStr(body?.client?.routeHint || body?.routeHint || body?.lane || req.headers["x-route-hint"] || "").trim() ||
     "general";
 
-  const inboundText = safeStr(body.text || body.message || body.prompt || body.query || body?.payload?.text || "").trim();
+  let inboundText = safeStr(body.text || body.message || body.prompt || body.query || body?.payload?.text || "").trim();
+  if (inboundText.length > 1200) inboundText = inboundText.slice(0, 1200).trim();
 
   const inboundSig = normalizeInboundSignature(body, inboundText);
   const meaningful = !!inboundSig || hasIntentSignals(body);
@@ -2871,10 +3063,13 @@ async function handleChatRoute(req, res) {
     },
     session: rec.data,
 
-    // ✅ NEW: conversational evaluator + chip continuity
+    // ✅ conversational evaluator + chip continuity
     cse,
     chipContext,
     turnSignals,
+
+    // ✅ optional security context (for diagnostics only)
+    security: req.__sb_sec || undefined,
 
     knowledge: knowledgeSnapshotForEngine(),
     __knowledgeStatus: knowledgeStatusForMeta(),
@@ -2958,6 +3153,7 @@ async function handleChatRoute(req, res) {
       cse,
       chipContext,
       turnSignals,
+      security: req.__sb_sec || undefined,
     },
   });
 }
@@ -2998,14 +3194,14 @@ function applySessionPatch(session, patch) {
     "__nyxIntro",
     "__nyxVelvet",
 
-    // ✅ CRITICAL: allow music loop-dampener/session continuity keys
+    // ✅ allow music loop-dampener/session continuity keys
     "__musicLastSig",
     "activeMusicChart",
     "lastMusicChart",
     "musicMomentsLoaded",
     "musicMomentsLoadedAt",
 
-    // ✅ CRITICAL NYX COG++++ (safe continuity keys)
+    // ✅ NYX COG continuity keys
     "__cseLastState",
     "__cseLastAt",
     "__cseLastReason",
@@ -3040,7 +3236,7 @@ function applySessionPatch(session, patch) {
       continue;
     }
 
-    // normalize arrays for continuity keys (FIX: removed accidental leading-space variant)
+    // normalize arrays for continuity keys
     if (k === "__lastOfferedChips" && Array.isArray(v)) {
       session.__lastOfferedChips = v.map((x) => safeStr(x).trim()).filter(Boolean).slice(0, 12);
       continue;
@@ -3095,15 +3291,30 @@ function ttsFailOpen(res, code, detail, upstreamStatus) {
 async function handleTtsRoute(req, res) {
   const startedAt = nowMs();
 
+  // Security/sanity: sanitize inbound body
   let body = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
   if (typeof req.body === "string") body = { text: req.body };
+  body = sanitizeInboundBody(body);
 
   const rawText = safeStr(body.text || body.message || body.prompt || "").trim();
   const noText = toBool(body.NO_TEXT || body.noText, false);
 
   const disableNaturalize = toBool(body.disableNaturalize, false);
 
-  const text = disableNaturalize ? rawText : nyxVoiceNaturalize(rawText);
+  // clamp before naturalize (prevents huge allocations)
+  const rawClamped = rawText.length > TTS_MAX_CHARS ? rawText.slice(0, TTS_MAX_CHARS) : rawText;
+  let text = disableNaturalize ? rawClamped : nyxVoiceNaturalize(rawClamped);
+
+  // clamp again after naturalize (belt+suspenders)
+  if (text.length > TTS_MAX_CHARS) text = text.slice(0, TTS_MAX_CHARS).trim();
+
+  // per-session TTS burst limiter (helps prevent bill spikes)
+  const { rec } = getSession(req, body);
+  const tb = checkTtsBurst(rec, startedAt);
+  if (tb.blocked) {
+    if (TTS_FAIL_OPEN) return ttsFailOpen(res, "tts_rate_limited", "Too many TTS calls too fast.", null);
+    return res.status(429).json({ ok: false, error: "tts_rate_limited", meta: { index: INDEX_VERSION } });
+  }
 
   // missing config
   if (!ELEVEN_API_KEY || !ELEVEN_VOICE_ID || !fetchFn) {
@@ -3265,6 +3476,12 @@ app.listen(PORT, () => {
   );
   // eslint-disable-next-line no-console
   console.log(`[Sandblast] TTS: failOpen=${TTS_FAIL_OPEN ? "true" : "false"} timeoutMs=${ELEVEN_TTS_TIMEOUT_MS}`);
+  // eslint-disable-next-line no-console
+  console.log(
+    `[Sandblast] TTS clamps: maxChars=${TTS_MAX_CHARS} burstWindowMs=${TTS_BURST_WINDOW_MS} burstMax=${TTS_BURST_MAX} strictOriginReferer=${
+      STRICT_ORIGIN_REFERER ? "true" : "false"
+    }`
+  );
 });
 
 module.exports = { app, INDEX_VERSION };
