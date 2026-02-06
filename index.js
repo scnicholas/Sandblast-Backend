@@ -552,16 +552,7 @@ function getPackManifest() {
     {
       key: "music/wiki/yearend_hot100_raw",
       type: "json_dir_rel",
-      rels: [
-        "wikipedia",
-        "Wikipedia",
-        "wiki",
-        "Wiki",
-        "music/wikipedia",
-        "music/wiki",
-        "packs/wikipedia",
-        "packs/wiki",
-      ],
+      rels: ["wikipedia", "Wikipedia", "wiki", "Wiki", "music/wikipedia", "music/wiki", "packs/wikipedia", "packs/wiki"],
       postTransform: (allJson) => manifestMergeYearendHot100FromDir(allJson, "music/wiki/yearend_hot100_raw"),
       outKey: "music/wiki/yearend_hot100_by_year",
     },
@@ -569,25 +560,19 @@ function getPackManifest() {
     {
       key: "music/top40_weekly_raw",
       type: "json_dir_rel",
-      rels: ["charts/top40_weekly", "chart/top40_weekly", "music/charts/top40_weekly", "packs/charts/top40_weekly", "top40_weekly"],
+      rels: [
+        "charts/top40_weekly",
+        "chart/top40_weekly",
+        "music/charts/top40_weekly",
+        "packs/charts/top40_weekly",
+        "top40_weekly",
+      ],
       postTransform: (allJson) => manifestBuildTop40WeeklyIndex(allJson, "music/top40_weekly_raw"),
       outKey: "music/top40_weekly_by_year_week",
     },
-    {
-      key: "movies/roku_catalog",
-      type: "json_file_or_dir_rel",
-      rels: ["movies", "Movies"],
-    },
-    {
-      key: "sponsors/packs",
-      type: "json_file_or_dir_rel",
-      rels: ["sponsors", "Sponsors"],
-    },
-    {
-      key: "legacy/scripts_json",
-      type: "json_dir_abs",
-      abs: path.resolve(SCRIPTS_DIR, "packs_json"),
-    },
+    { key: "movies/roku_catalog", type: "json_file_or_dir_rel", rels: ["movies", "Movies"] },
+    { key: "sponsors/packs", type: "json_file_or_dir_rel", rels: ["sponsors", "Sponsors"] },
+    { key: "legacy/scripts_json", type: "json_dir_abs", abs: path.resolve(SCRIPTS_DIR, "packs_json") },
   ];
 }
 
@@ -1500,11 +1485,7 @@ function manifestLoadPacks(loadedFiles, totalBytesRef) {
 // Probes
 function buildManifestProbes() {
   const targets = [
-    {
-      id: "wiki_dir",
-      rels: ["wikipedia", "Wikipedia", "wiki", "Wiki"],
-      kind: "dir",
-    },
+    { id: "wiki_dir", rels: ["wikipedia", "Wikipedia", "wiki", "Wiki"], kind: "dir" },
     { id: "top40_weekly_dir", rels: ["charts/top40_weekly", "top40_weekly"], kind: "dir" },
     { id: "movies_root", rels: ["movies", "Movies"], kind: "dir_or_file" },
     { id: "sponsors_root", rels: ["sponsors", "Sponsors"], kind: "dir_or_file" },
