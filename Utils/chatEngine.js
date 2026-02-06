@@ -17,15 +17,16 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7bG (TOP10 VISIBILITY FIX++++ + COG MEDIATOR “MARION”++++ + MAC MODE SIGNAL++++ + TURN CONSTITUTION++++):
- * ✅ FIX: “short” budget no longer truncates ranked lists to Top 4 (detects numbered lists and allocates enough lines)
- * ✅ Keeps: Mac Mode Signal, Marion mediator, dominance on ADVANCE, compression budgets, cog telemetry patch,
+ * v0.7bH (TOP10 COMPLETION GUARD++++):
+ * ✅ Adds Top10 Completion Guard: if pinned Top10 returns <10 rows, auto-complete from Year-End Hot100 (same year) when available.
+ * ✅ De-dupes by (title|artist) signature and fills positions deterministically to 10.
+ * ✅ Keeps ALL critical components unchanged: Marion mediator, Mac Mode signal, turn constitution, compression budgets,
  *          payload beats silence, chip-click advance, pinned aliases, accurate miss reasons,
- *          year-end route, loop dampener, derived guard default OFF, 3-act followUps, session keys
+ *          year-end route, loop dampener, derived guard default OFF, 3-act followUps, session keys.
  */
 
 const CE_VERSION =
-  "chatEngine v0.7bG (TOP10 VISIBILITY FIX++++ + COG MEDIATOR++++ + MAC MODE SIGNAL++++ + TURN CONSTITUTION++++ + payload beats silence + chip-click advance + pinned aliases + accurate miss reasons + year-end route + loop dampener)";
+  "chatEngine v0.7bH (TOP10 COMPLETION GUARD++++ + TOP10 VISIBILITY FIX++++ + COG MEDIATOR++++ + MAC MODE SIGNAL++++ + TURN CONSTITUTION++++ + payload beats silence + chip-click advance + pinned aliases + accurate miss reasons + year-end route + loop dampener)";
 
 // -------------------------
 // helpers
@@ -139,8 +140,8 @@ function applyBudgetText(s, budget) {
   // Top 10 format typically needs: header + blank + 10 rows = 12 lines.
   // Year-end excerpts (20 rows) needs more; budget will still cap it.
   if (numbered >= 6) {
-    if (budget === "short") return takeLines(txt, 16);   // safely covers Top 10
-    return takeLines(txt, 28);                           // covers 20-row excerpt comfortably
+    if (budget === "short") return takeLines(txt, 16); // safely covers Top 10
+    return takeLines(txt, 28); // covers 20-row excerpt comfortably
   }
 
   // Non-list copy: tighter.
@@ -562,6 +563,81 @@ function getWikiYearendByYear(knowledge) {
   ];
   const a = getPackAny(knowledge, aliases);
   return a.pack ? { pack: a.pack, key: a.key, foundBy: a.method } : { pack: null, key: "", foundBy: "" };
+}
+
+// -------------------------
+// TOP10 COMPLETION GUARD (minimal, non-invasive)
+// -------------------------
+function sigSongKey(r) {
+  const t = safeStr(r?.title || "").trim().toLowerCase();
+  const a = safeStr(r?.artist || "").trim().toLowerCase();
+  return `${t}|${a}`;
+}
+function sortByPosThenIndex(items) {
+  const arr = asArray(items).slice();
+  return arr.sort((x, y) => {
+    const ax = Number(x?.pos || 9999);
+    const ay = Number(y?.pos || 9999);
+    if (ax !== ay) return ax - ay;
+    return 0;
+  });
+}
+function dedupeByTitleArtist(items) {
+  const out = [];
+  const seen = new Set();
+  for (const r of asArray(items)) {
+    const k = sigSongKey(r);
+    // If both missing, still allow as unique by object identity-ish:
+    const kk = k === "|" ? `__blank__:${out.length}` : k;
+    if (seen.has(kk)) continue;
+    seen.add(kk);
+    out.push(r);
+  }
+  return out;
+}
+function normalizeTop10List(items) {
+  // normalize + sort + de-dupe, but DO NOT invent rows here.
+  const normed = asArray(items).map(normalizeSongLine).filter((r) => r.title || r.artist);
+  const deduped = dedupeByTitleArtist(normed);
+  return sortByPosThenIndex(deduped);
+}
+function completeTop10IfShort(knowledge, year, baseItems) {
+  const y = normYear(year);
+  const base = normalizeTop10List(baseItems);
+  if (!y) return { items: base.slice(0, 10), completed: false, used: "none" };
+  if (base.length >= 10) {
+    // ensure 1..10 pos is sensible
+    const out = base.slice(0, 10).map((r, i) => ({ ...r, pos: r.pos || i + 1 }));
+    return { items: out, completed: false, used: "none" };
+  }
+
+  // Try to complete from year-end Hot100 (same year). This is additive only.
+  const yr = resolveYearendHot100ForYear(knowledge, y);
+  if (!yr.ok || !Array.isArray(yr.items) || !yr.items.length) {
+    const out = base.map((r, i) => ({ ...r, pos: r.pos || i + 1 }));
+    return { items: out.slice(0, 10), completed: false, used: "none", yearendOk: false };
+  }
+
+  const seen = new Set(base.map(sigSongKey));
+  const merged = base.slice();
+  for (const r0 of yr.items) {
+    if (merged.length >= 10) break;
+    const r = normalizeSongLine(r0);
+    if (!r.title && !r.artist) continue;
+    const k = sigSongKey(r);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    merged.push(r);
+  }
+
+  const final = normalizeTop10List(merged).slice(0, 10).map((r, i) => ({ ...r, pos: r.pos || i + 1 }));
+  return {
+    items: final,
+    completed: final.length >= 10,
+    used: final.length > base.length ? "yearend_merge" : "none",
+    yearendSourceKey: yr.sourceKey || "",
+    yearendFoundBy: yr.foundBy || "",
+  };
 }
 
 // -------------------------
@@ -1294,12 +1370,16 @@ async function handleChat(input) {
         };
       }
 
+      // TOP10 COMPLETION GUARD (non-invasive): if <10 rows, complete from year-end hot100
+      const completion = completeTop10IfShort(knowledge, year, res.items);
+      const finalItems = completion.items;
+
       const sig = buildMusicSig({
         action: "top10",
         year,
         method: res.method,
         sourceKey: res.sourceKey,
-        extra: "v1",
+        extra: completion.used === "yearend_merge" ? "v1+yearend" : "v1",
       });
 
       const acts = threeActFollowUps(year);
@@ -1337,13 +1417,16 @@ async function handleChat(input) {
             method: res.method,
             sourceKey: res.sourceKey,
             foundBy: res.foundBy,
+            top10Completed: !!completion.completed,
+            top10CompletionUsed: completion.used || "none",
+            top10CompletionYearendKey: completion.yearendSourceKey || "",
             turnSignals: norm.turnSignals,
             elapsedMs: nowMs() - started,
           },
         };
       }
 
-      const replyRaw = formatTop10(year, res.items);
+      const replyRaw = formatTop10(year, finalItems);
       const microPack = !!getPinnedMicroMoments(knowledge).pack;
       const momentsLoaded = !!session.musicMomentsLoaded || microPack;
       const momentsLoadedAt = Number(session.musicMomentsLoadedAt || 0) || (microPack ? nowMs() : 0);
@@ -1376,6 +1459,10 @@ async function handleChat(input) {
           musicSig: sig,
           musicChartKey: "top10",
           allowDerivedTop10: !!norm.allowDerivedTop10,
+          top10Completed: !!completion.completed,
+          top10CompletionUsed: completion.used || "none",
+          top10CompletionYearendKey: completion.yearendSourceKey || "",
+          top10CompletionYearendFoundBy: completion.yearendFoundBy || "",
           turnSignals: norm.turnSignals,
           elapsedMs: nowMs() - started,
         },
