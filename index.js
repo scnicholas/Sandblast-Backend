@@ -1459,7 +1459,9 @@ function manifestLoadPacks(loadedFiles, totalBytesRef) {
 
       if (item.type === "json_file_or_dir_rel") {
         const p = resolveDataRelAcrossRoots(item.rels || item.rel, "either");
-        const res = p ? manifestLoadFileOrDir(p, item.key, loadedFiles, totalBytesRef) : { ok: false, reason: "missing_file_or_dir" };
+        const res = p
+          ? manifestLoadFileOrDir(p, item.key, loadedFiles, totalBytesRef)
+          : { ok: false, reason: "missing_file_or_dir" };
         loadedSummary.push({ key: item.key, ok: res.ok, reason: res.reason || "" });
         continue;
       }
@@ -2426,7 +2428,9 @@ app.get("/api/packsight", (req, res) => {
       },
       budgets: {
         maxFiles: KNOWLEDGE_MAX_FILES,
-        maxFileBytes: KNOWLEDGE_MAX_FILE_BYTESUARDS: KNOWLEDGE_MAX_TOTAL_BYTES,
+        // ✅ FIX (Render crash): correct budgets fields
+        maxFileBytes: KNOWLEDGE_MAX_FILE_BYTES,
+        maxTotalBytes: KNOWLEDGE_MAX_TOTAL_BYTES,
       },
       manifestSearch: {
         fallbackEnabled: MANIFEST_SEARCH_FALLBACK,
@@ -3103,7 +3107,13 @@ async function handleTtsRoute(req, res) {
 
   // missing config
   if (!ELEVEN_API_KEY || !ELEVEN_VOICE_ID || !fetchFn) {
-    if (TTS_FAIL_OPEN) return ttsFailOpen(res, "tts_not_configured", "Missing ELEVENLABS_API_KEY or ELEVENLABS_VOICE_ID or fetch.", null);
+    if (TTS_FAIL_OPEN)
+      return ttsFailOpen(
+        res,
+        "tts_not_configured",
+        "Missing ELEVENLABS_API_KEY or ELEVENLABS_VOICE_ID or fetch.",
+        null
+      );
     return res.status(501).json({
       ok: false,
       error: "TTS not configured (missing ELEVENLABS_API_KEY or ELEVENLABS_VOICE_ID or fetch).",
@@ -3152,7 +3162,10 @@ async function handleTtsRoute(req, res) {
       if (TTS_FAIL_OPEN) {
         // eslint-disable-next-line no-console
         console.log(
-          `[Sandblast][TTS] fail-open upstream_status=${r.status} elapsedMs=${nowMs() - startedAt} detail=${safeStr(errTxt).slice(0, 160)}`
+          `[Sandblast][TTS] fail-open upstream_status=${r.status} elapsedMs=${nowMs() - startedAt} detail=${safeStr(errTxt).slice(
+            0,
+            160
+          )}`
         );
         return ttsFailOpen(res, "tts_upstream_error", safeStr(errTxt).slice(0, 220) || "Upstream error", r.status);
       }
@@ -3179,7 +3192,9 @@ async function handleTtsRoute(req, res) {
     if (TTS_FAIL_OPEN) {
       // eslint-disable-next-line no-console
       console.log(
-        `[Sandblast][TTS] fail-open error=${aborted ? "timeout" : "failure"} elapsedMs=${nowMs() - startedAt} detail=${safeStr(msg).slice(0, 180)}`
+        `[Sandblast][TTS] fail-open error=${aborted ? "timeout" : "failure"} elapsedMs=${nowMs() - startedAt} detail=${safeStr(
+          msg
+        ).slice(0, 180)}`
       );
       return ttsFailOpen(res, aborted ? "tts_timeout" : "tts_failure", safeStr(msg).slice(0, 220), null);
     }
@@ -3236,7 +3251,9 @@ app.listen(PORT, () => {
   console.log(`[Sandblast] Fetch: ${fetchFn ? "OK" : "MISSING"} (global.fetch=${!!global.fetch})`);
   // eslint-disable-next-line no-console
   console.log(
-    `[Sandblast] DataRoots: ${JSON.stringify(DATA_ROOT_CANDIDATES.slice(0, 16))} (autodiscover=${DATA_ROOT_AUTODISCOVER} hints=${DATA_ROOT_HINTS ? "yes" : "no"})`
+    `[Sandblast] DataRoots: ${JSON.stringify(DATA_ROOT_CANDIDATES.slice(0, 16))} (autodiscover=${DATA_ROOT_AUTODISCOVER} hints=${
+      DATA_ROOT_HINTS ? "yes" : "no"
+    })`
   );
   // eslint-disable-next-line no-console
   console.log(
