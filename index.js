@@ -21,6 +21,8 @@
  * ✅ SECURITY: Prototype-pollution stripping + string length clamps on inbound bodies (non-breaking)
  * ✅ SECURITY: Default API security headers (nosniff, frame-ancestors deny, referrer policy)
  * ✅ TTS: max text clamp + per-session TTS burst limiter (reduces abuse/billing spikes)
+ * ✅ SECURITY: Public diagnostics redaction (prevents filesystem/path leakage in /, /health, /api/health, /api/knowledge, /api/packsight)
+ *    - Full packsight/knowledge detail only when debug secret header matches
  *
  * Env:
  *  - TTS_FAIL_OPEN=true|false (default true)
@@ -28,6 +30,9 @@
  *  - TTS_MAX_CHARS=900 (default 900)
  *  - TTS_BURST_WINDOW_MS=30000 (default 30000)
  *  - TTS_BURST_MAX=6 (default 6)
+ *  - PUBLIC_DIAGNOSTICS_SAFE=true|false (default true)  // redact paths in public endpoints
+ *  - DEBUG_SHARED_SECRET=...                           // enables full diagnostic payloads when header matches
+ *  - DEBUG_SHARED_HEADER=X-SB-DEBUG-SECRET             // header name (default)
  */
 
 // =========================
@@ -86,7 +91,7 @@ const nyxVoiceNaturalizeMod =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18bg (SECURITY HARDENING++++: origin/referrer coherence + inbound sanitization + security headers + TTS burst clamp; keeps v1.5.18bf TTS fail-open + v1.5.18be CSE/chip continuity + v1.5.18bc reset/sessionPatch keys + v1.5.18bb WIKI AUTHORITY FIX++++ + CRITICAL FIXES++++: sessionKey uses parsed body + manifest abs rebuilt after reload + strict CORS hard-lock 403 + JSON parser once + LOAD VISIBILITY++++ + pack index + nyx voice naturalizer + crash-proof boot + diagnostics)";
+  "index.js v1.5.18bg (SECURITY HARDENING++++: origin/referrer coherence + inbound sanitization + security headers + TTS burst clamp + PUBLIC DIAG REDACTION; keeps v1.5.18bf TTS fail-open + v1.5.18be CSE/chip continuity + v1.5.18bc reset/sessionPatch keys + v1.5.18bb WIKI AUTHORITY FIX++++ + CRITICAL FIXES++++: sessionKey uses parsed body + manifest abs rebuilt after reload + strict CORS hard-lock 403 + JSON parser once + LOAD VISIBILITY++++ + pack index + nyx voice naturalizer + crash-proof boot + diagnostics)";
 
 // =========================
 // Utils
@@ -178,7 +183,6 @@ function parseOriginHost(o) {
     const x = new URL(s);
     return safeStr(x.host || "").toLowerCase();
   } catch (_) {
-    // origin might come without scheme; best-effort
     const m = s.replace(/^https?:\/\//i, "");
     return safeStr(m.split("/")[0]).toLowerCase();
   }
@@ -186,7 +190,6 @@ function parseOriginHost(o) {
 function isBrowserishUA(ua) {
   const s = safeStr(ua).toLowerCase();
   if (!s) return false;
-  // quick heuristic; not used to block by itself
   return (
     s.includes("mozilla/") ||
     s.includes("chrome/") ||
@@ -217,7 +220,8 @@ function sanitizeInboundValue(val, depth, maxDepth, maxEntries, maxStrLen) {
   if (Array.isArray(val)) {
     const out = [];
     const n = Math.min(val.length, maxEntries);
-    for (let i = 0; i < n; i++) out.push(sanitizeInboundValue(val[i], depth + 1, maxDepth, maxEntries, maxStrLen));
+    for (let i = 0; i < n; i++)
+      out.push(sanitizeInboundValue(val[i], depth + 1, maxDepth, maxEntries, maxStrLen));
     return out;
   }
 
@@ -231,7 +235,6 @@ function sanitizeInboundValue(val, depth, maxDepth, maxEntries, maxStrLen) {
     return out;
   }
 
-  // drop functions/symbols/etc.
   return null;
 }
 function sanitizeInboundBody(body) {
@@ -249,6 +252,11 @@ const MAX_JSON_BODY = String(process.env.MAX_JSON_BODY || "512kb");
 
 // --- Security knobs ---
 const STRICT_ORIGIN_REFERER = toBool(process.env.STRICT_ORIGIN_REFERER, false);
+
+// ✅ NEW: public diagnostics redaction
+const PUBLIC_DIAGNOSTICS_SAFE = toBool(process.env.PUBLIC_DIAGNOSTICS_SAFE, true);
+const DEBUG_SHARED_SECRET = String(process.env.DEBUG_SHARED_SECRET || "").trim();
+const DEBUG_SHARED_HEADER = String(process.env.DEBUG_SHARED_HEADER || "X-SB-DEBUG-SECRET").trim();
 
 // --- Knowledge Bridge knobs ---
 const KNOWLEDGE_AUTOLOAD = toBool(process.env.KNOWLEDGE_AUTOLOAD, true);
@@ -295,6 +303,16 @@ const DATA_ROOT_DISCOVERY_MAX_VISITS = clampInt(process.env.DATA_ROOT_DISCOVERY_
 // Nyx Voice Naturalizer knobs
 const NYX_VOICE_NATURALIZE = toBool(process.env.NYX_VOICE_NATURALIZE || process.env.NYX_VOICE_NATURALIZE, true);
 const NYX_VOICE_NATURALIZE_MAXLEN = clampInt(process.env.NYX_VOICE_NATURALIZE_MAXLEN, 2200, 200, 20000);
+
+// =========================
+// Debug auth helpers (for full diagnostics)
+// =========================
+function isDebugAuthed(req) {
+  if (!DEBUG_SHARED_SECRET) return false;
+  const hdrName = DEBUG_SHARED_HEADER.toLowerCase();
+  const got = safeStr(req.headers[hdrName] || req.headers[DEBUG_SHARED_HEADER] || "").trim();
+  return !!got && got === DEBUG_SHARED_SECRET;
+}
 
 // =========================
 // Case-insensitive dir/path resolution (Linux-safe)
@@ -628,8 +646,6 @@ const PINNED_PACKS = [
 // =========================
 function getPackManifest() {
   return [
-    // ✅ WIKI AUTHORITY FIX:
-    // ingest the whole wikipedia folder; merge split files into canonical year map
     {
       key: "music/wiki/yearend_hot100_raw",
       type: "json_dir_rel",
@@ -637,7 +653,6 @@ function getPackManifest() {
       postTransform: (allJson) => manifestMergeYearendHot100FromDir(allJson, "music/wiki/yearend_hot100_raw"),
       outKey: "music/wiki/yearend_hot100_by_year",
     },
-
     {
       key: "music/top40_weekly_raw",
       type: "json_dir_rel",
@@ -710,7 +725,6 @@ function isAllowedHost(host) {
   const allowHosts = allowedHostsSnapshot();
   if (allowHosts.has(h)) return true;
 
-  // Also allow if it matches an origin regex when reconstituted as https://host
   const candidate = `https://${h}`;
   for (const rx of ORIGIN_REGEXES) {
     try {
@@ -1205,7 +1219,6 @@ function recordKeyWinner(key, fp) {
   }
   if (prev === f) return { ok: true, collision: false };
 
-  // collision
   KNOWLEDGE.__skips.key_collision += 1;
   const entry = { key: k, keptFp: prev, collidedFp: f };
   KNOWLEDGE.__collisions.push(entry);
@@ -1271,7 +1284,6 @@ function loadPinnedPack(rels, forcedKey, loadedFiles, totalBytesRef) {
     );
   }
 
-  // record winner (collision-proof) — and treat pinned as first-wins in-cycle
   const col = recordKeyWinner(String(forcedKey), fp);
 
   if (!Object.prototype.hasOwnProperty.call(KNOWLEDGE.json, String(forcedKey))) {
@@ -1542,9 +1554,7 @@ function manifestLoadPacks(loadedFiles, totalBytesRef) {
     try {
       if (item.type === "json_file_rel") {
         const fp = resolveDataRelAcrossRoots(item.rels || item.rel, "file");
-        const res = fp
-          ? manifestLoadJsonFileIntoKey(fp, item.key, loadedFiles, totalBytesRef)
-          : { ok: false, reason: "missing" };
+        const res = fp ? manifestLoadJsonFileIntoKey(fp, item.key, loadedFiles, totalBytesRef) : { ok: false, reason: "missing" };
 
         if (res.ok && !res.skipped && typeof item.transform === "function" && item.outKey) {
           const derived = item.transform(KNOWLEDGE.json[item.key]);
@@ -1558,9 +1568,7 @@ function manifestLoadPacks(loadedFiles, totalBytesRef) {
 
       if (item.type === "json_dir_rel") {
         const dir = resolveDataRelAcrossRoots(item.rels || item.rel, "dir");
-        const res = dir
-          ? manifestLoadJsonDirIntoPrefix(dir, item.key, loadedFiles, totalBytesRef)
-          : { ok: false, reason: "missing_dir" };
+        const res = dir ? manifestLoadJsonDirIntoPrefix(dir, item.key, loadedFiles, totalBytesRef) : { ok: false, reason: "missing_dir" };
 
         if (res.ok && typeof item.postTransform === "function" && item.outKey) {
           const derived = item.postTransform(KNOWLEDGE.json, item.key);
@@ -1574,9 +1582,7 @@ function manifestLoadPacks(loadedFiles, totalBytesRef) {
 
       if (item.type === "json_file_or_dir_rel") {
         const p = resolveDataRelAcrossRoots(item.rels || item.rel, "either");
-        const res = p
-          ? manifestLoadFileOrDir(p, item.key, loadedFiles, totalBytesRef)
-          : { ok: false, reason: "missing_file_or_dir" };
+        const res = p ? manifestLoadFileOrDir(p, item.key, loadedFiles, totalBytesRef) : { ok: false, reason: "missing_file_or_dir" };
         loadedSummary.push({ key: item.key, ok: res.ok, reason: res.reason || "" });
         continue;
       }
@@ -1836,7 +1842,25 @@ function reloadKnowledge() {
   return { ok: KNOWLEDGE.ok, loadedAt: KNOWLEDGE.loadedAt, jsonKeys, scriptKeys, filesLoaded: KNOWLEDGE.filesLoaded };
 }
 
-function knowledgeStatusForMeta() {
+// =========================
+// Public diagnostics (redacted) helpers
+// =========================
+function redactPathValue(s) {
+  const v = safeStr(s);
+  if (!v) return "";
+  // Avoid leaking absolute paths; keep only basename-ish token.
+  const base = v.replace(/\\/g, "/").split("/").filter(Boolean).slice(-1)[0] || "";
+  return base ? `…/${base}` : "";
+}
+function redactErrorObj(e) {
+  if (!e || typeof e !== "object") return null;
+  return {
+    type: safeStr(e.type || "").slice(0, 40),
+    file: redactPathValue(e.file || ""),
+    msg: safeStr(e.msg || "").slice(0, 140),
+  };
+}
+function knowledgeStatusForMetaFull() {
   return {
     ok: KNOWLEDGE.ok,
     loadedAt: KNOWLEDGE.loadedAt,
@@ -1848,6 +1872,27 @@ function knowledgeStatusForMeta() {
     skips: { ...KNOWLEDGE.__skips },
     collisions: KNOWLEDGE.__collisions.length,
     manifest: Array.isArray(KNOWLEDGE.__manifest) ? KNOWLEDGE.__manifest.slice(0, 12) : [],
+  };
+}
+function knowledgeStatusForMetaPublic(req) {
+  const full = knowledgeStatusForMetaFull();
+  if (!PUBLIC_DIAGNOSTICS_SAFE) return full;
+  if (isDebugAuthed(req)) return full;
+
+  return {
+    ok: full.ok,
+    loadedAt: full.loadedAt,
+    errorCount: full.errorCount,
+    errorsPreview: full.errorsPreview.map(redactErrorObj).filter(Boolean),
+    jsonKeyCount: full.jsonKeyCount,
+    scriptKeyCount: full.scriptKeyCount,
+    pinned: full.pinned,
+    skips: full.skips,
+    collisions: full.collisions,
+    manifest: Array.isArray(full.manifest)
+      ? full.manifest.map((m) => ({ key: safeStr(m.key), ok: !!m.ok, reason: safeStr(m.reason || "").slice(0, 60) })).slice(0, 12)
+      : [],
+    redacted: true,
   };
 }
 
@@ -2158,7 +2203,6 @@ function sourceLooksLikeChip(source, body) {
 function extractChipClick(body) {
   const b = isPlainObject(body) ? body : {};
   const p = isPlainObject(b.payload) ? b.payload : {};
-  // prefer explicit ids if present
   const id =
     safeStr(p.id || p.followUpId || p.chipId || b.followUpId || b.chipId || "").trim() ||
     safeStr(p.label || b.label || "").trim();
@@ -2197,12 +2241,10 @@ function computeCSE(rec, inboundText, body, source) {
   const hasIntent = hasIntentSignals(b);
   const hasText = !!t;
 
-  // REDIRECT heuristic: explicit lane/route change away from previous lane
   const prevLane = safeStr(rec?.data?.lane || "general") || "general";
   const nextLane = safeStr(b.lane || p.lane || ctx.lane || "").trim() || prevLane;
   const redirect = nextLane && prevLane && nextLane !== prevLane && nextLane !== "general";
 
-  // CHIP ADVANCE: empty text + structured payload (even if source string isn't chip-like)
   if (!hasText && click.hasStructured) {
     const idHit = click.id && offered.includes(click.id);
     return {
@@ -2214,7 +2256,6 @@ function computeCSE(rec, inboundText, body, source) {
     };
   }
 
-  // ADVANCE via text: user clearly moved forward (typed, or provided year/action)
   if (hasText && hasIntent) {
     return {
       state: redirect ? "REDIRECT" : "ADVANCE",
@@ -2225,7 +2266,6 @@ function computeCSE(rec, inboundText, body, source) {
     };
   }
 
-  // STALL: empty text but there are signals (often UI sends intent-only)
   if (!hasText && hasIntent) {
     return {
       state: redirect ? "REDIRECT" : "STALL",
@@ -2236,7 +2276,6 @@ function computeCSE(rec, inboundText, body, source) {
     };
   }
 
-  // RESIST: user typed something that ignores last offered chips (weak heuristic)
   if (hasText && offered.length) {
     const tl = t.toLowerCase();
     const mentionsOffer = offered.some((x) => x && tl.includes(String(x).toLowerCase()));
@@ -2270,7 +2309,6 @@ function writeReplay(rec, reply, lane, extras) {
     if (fu) {
       rec.data.__idx_lastFollowUps = fu;
       rec.data.__idx_lastFollowUpsStrings = [];
-      // CRITICAL NYX COG++++: record last offered chips
       const offered = fu
         .map((x) => safeStr(x?.id || x?.label || "").trim())
         .filter(Boolean)
@@ -2362,9 +2400,7 @@ app.use((req, res, next) => {
   try {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Referrer-Policy", "no-referrer");
-    // APIs should not be framed (clickjacking reduction)
     res.setHeader("X-Frame-Options", "DENY");
-    // Modern framing control (best-effort; harmless if ignored)
     res.setHeader("Content-Security-Policy", "frame-ancestors 'none'");
     res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
   } catch (_) {}
@@ -2404,14 +2440,16 @@ app.use((req, res, next) => {
         "X-Contract-Version",
         "x-contract-version",
 
-        // ✅ NEW: widget provenance headers (Phase-1 security hardening)
+        // ✅ widget provenance headers
         "X-SBNYX-Origin",
         "X-SBNYX-Referrer",
         "X-SBNYX-Widget-Id",
         "X-SBNYX-Nonce",
+
+        // ✅ debug secret header (optional; harmless if unused)
+        DEBUG_SHARED_HEADER,
       ].join(", ")
     );
-    // ✅ allow widget to read TTS diagnostics in failure cases
     res.setHeader(
       "Access-Control-Expose-Headers",
       [
@@ -2451,7 +2489,6 @@ app.use((req, res, next) => {
   const originHost = origin ? parseOriginHost(origin) : "";
   const refererHost = referer ? parseUrlHost(referer) : "";
 
-  // If both exist, they should match (host-level). If mismatch: block.
   if (originHost && refererHost && originHost !== refererHost) {
     return res.status(403).json({
       ok: false,
@@ -2460,7 +2497,6 @@ app.use((req, res, next) => {
     });
   }
 
-  // Strict mode: if only referer exists, require it be allowlisted (helps prevent simple CSRF-style abuse)
   if (STRICT_ORIGIN_REFERER && !originHost && refererHost) {
     if (!isAllowedHost(refererHost)) {
       return res.status(403).json({
@@ -2471,7 +2507,6 @@ app.use((req, res, next) => {
     }
   }
 
-  // record a compact security context (useful for logging/engine meta)
   req.__sb_sec = {
     origin: origin || "",
     referer: referer || "",
@@ -2494,7 +2529,7 @@ app.get("/", (req, res) => {
     engine: ENGINE_VERSION || null,
     engineFrom: ENGINE.from,
     env: NODE_ENV,
-    knowledge: knowledgeStatusForMeta(),
+    knowledge: knowledgeStatusForMetaPublic(req),
     packs: { ok: true, using: packIndexAvailable() ? "external" : "builtin" },
   });
 });
@@ -2507,7 +2542,7 @@ app.get("/health", (req, res) => {
     engineFrom: ENGINE.from,
     up: true,
     now: new Date().toISOString(),
-    knowledge: knowledgeStatusForMeta(),
+    knowledge: knowledgeStatusForMetaPublic(req),
     packs: { ok: true, using: packIndexAvailable() ? "external" : "builtin" },
   });
 });
@@ -2520,7 +2555,7 @@ app.get("/api/health", (req, res) => {
     engineFrom: ENGINE.from,
     up: true,
     now: new Date().toISOString(),
-    knowledge: knowledgeStatusForMeta(),
+    knowledge: knowledgeStatusForMetaPublic(req),
     packs: { ok: true, using: packIndexAvailable() ? "external" : "builtin" },
   });
 });
@@ -2546,7 +2581,7 @@ app.get("/api/discovery", (req, res) => {
       "/api/packs",
       "/api/packs/refresh",
     ],
-    knowledge: knowledgeStatusForMeta(),
+    knowledge: knowledgeStatusForMetaPublic(req),
     packs: { ok: true, using: packIndexAvailable() ? "external" : "builtin" },
   });
 });
@@ -2588,11 +2623,49 @@ app.post("/api/packs/refresh", doPacksRefresh);
 app.get("/api/packs/refresh", doPacksRefresh);
 
 // =========================
-// PUBLIC Packsight (SAFE)
+// PUBLIC Packsight (SAFE by default; full only w/ debug secret)
 // =========================
 app.get("/api/packsight", (req, res) => {
   const pins = pinnedPresence();
   const idx = getPackIndexSafe(false);
+
+  const authed = isDebugAuthed(req);
+  const safeMode = PUBLIC_DIAGNOSTICS_SAFE && !authed;
+
+  if (safeMode) {
+    return res.status(200).json({
+      ok: true,
+      version: INDEX_VERSION,
+      engine: ENGINE_VERSION || null,
+      engineFrom: ENGINE.from,
+      redacted: true,
+      data: {
+        scriptsEnabled: KNOWLEDGE_ENABLE_SCRIPTS,
+        allowDataOutsideAppRoot: KNOWLEDGE_ALLOW_DATA_OUTSIDE_APP_ROOT,
+        allowScriptsOutsideAppRoot: KNOWLEDGE_ALLOW_SCRIPTS_OUTSIDE_APP_ROOT,
+        budgets: {
+          maxFiles: KNOWLEDGE_MAX_FILES,
+          maxFileBytes: KNOWLEDGE_MAX_FILE_BYTES,
+          maxTotalBytes: KNOWLEDGE_MAX_TOTAL_BYTES,
+        },
+        manifestSearch: {
+          fallbackEnabled: MANIFEST_SEARCH_FALLBACK,
+          maxVisits: MANIFEST_SEARCH_MAX_VISITS,
+          maxDepth: MANIFEST_SEARCH_MAX_DEPTH,
+        },
+        pinnedPresence: pins,
+        pinnedResolvedCount: (KNOWLEDGE.__packsight?.pinnedResolved || []).length,
+        pinnedMissingCount: (KNOWLEDGE.__packsight?.pinnedMissing || []).length,
+        probes: (KNOWLEDGE.__packsight?.probes || []).map((p) => ({ id: p.id, any: !!p.any })),
+        skips: KNOWLEDGE.__packsight?.skips || { ...KNOWLEDGE.__skips },
+        collisionCount: (KNOWLEDGE.__packsight?.collisions || KNOWLEDGE.__collisions || []).length,
+        errorCount: KNOWLEDGE.errors.length,
+        errorsPreview: KNOWLEDGE.errors.slice(0, 6).map(redactErrorObj).filter(Boolean),
+      },
+      packsSummary: idx.summary,
+      pinnedKeys: idx.groups?.pinned || [],
+    });
+  }
 
   return res.status(200).json({
     ok: true,
@@ -2649,7 +2722,7 @@ app.get("/api/knowledge", (req, res) => {
     version: INDEX_VERSION,
     engine: ENGINE_VERSION || null,
     engineFrom: ENGINE.from,
-    knowledge: knowledgeStatusForMeta(),
+    knowledge: knowledgeStatusForMetaPublic(req),
     packs: getPackIndexSafe(false).summary,
   });
 });
@@ -2771,7 +2844,7 @@ if (KNOWLEDGE_DEBUG_ENDPOINT) {
     return res.status(200).json({
       ok: true,
       summary,
-      knowledge: knowledgeStatusForMeta(),
+      knowledge: knowledgeStatusForMetaFull(),
       packs: { ok: true, using: packIndexAvailable() ? "external" : "builtin", preview: getPackIndexSafe(false).summary },
     });
   });
@@ -2820,7 +2893,6 @@ function clearSessionState(rec) {
   const sid = safeStr(rec.data.sessionId || "");
   const vid = safeStr(rec.data.visitorId || sid || "");
 
-  // wipe data to a safe minimal baseline
   rec.data = {
     sessionId: sid || vid || "unknown",
     visitorId: vid || sid || "unknown",
@@ -2835,12 +2907,10 @@ function clearSessionState(rec) {
     __ttsBurst: [],
   };
 
-  // clear rate windows + boot windows
   rec.burst = [];
   rec.sustained = [];
   rec.boot = [];
 
-  // clear replay caches explicitly (paranoia)
   rec.data.__idx_lastReqKey = "";
   rec.data.__idx_lastReqAt = 0;
   rec.data.__idx_lastOut = "";
@@ -2864,7 +2934,6 @@ function clearSessionState(rec) {
 async function handleChatRoute(req, res) {
   const startedAt = nowMs();
 
-  // SECURITY: sanitize inbound body early (proto keys + oversized strings)
   const rawBody = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
   const body = sanitizeInboundBody(rawBody);
 
@@ -2890,7 +2959,6 @@ async function handleChatRoute(req, res) {
   const bootLike = isBootLike(routeHint, body);
   const isReset = isResetCommand(inboundText, source, body);
 
-  // ✅ CRITICAL: reset clears state immediately and returns silent reply
   if (isReset) {
     clearSessionState(rec);
     return res.status(200).json({
@@ -2902,7 +2970,7 @@ async function handleChatRoute(req, res) {
       meta: {
         index: INDEX_VERSION,
         engine: ENGINE_VERSION || null,
-        knowledge: knowledgeStatusForMeta(),
+        knowledge: knowledgeStatusForMetaPublic(req),
         resetSilenced: true,
         resetCleared: true,
         source,
@@ -2912,7 +2980,6 @@ async function handleChatRoute(req, res) {
     });
   }
 
-  // ---- CRITICAL NYX COG++++: compute CSE BEFORE throttles/dedupe (so engine sees accurate signals)
   const cse = computeCSE(rec, inboundText, body, source);
   rec.data.__cseLastState = safeStr(cse.state);
   rec.data.__cseLastAt = nowMs();
@@ -2939,7 +3006,7 @@ async function handleChatRoute(req, res) {
         meta: {
           index: INDEX_VERSION,
           engine: ENGINE_VERSION || null,
-          knowledge: knowledgeStatusForMeta(),
+          knowledge: knowledgeStatusForMetaPublic(req),
           bootLike: true,
           bootFuse: bf.reason,
           source,
@@ -2970,7 +3037,7 @@ async function handleChatRoute(req, res) {
         meta: {
           index: INDEX_VERSION,
           engine: ENGINE_VERSION || null,
-          knowledge: knowledgeStatusForMeta(),
+          knowledge: knowledgeStatusForMetaPublic(req),
           throttled: burst.blocked ? "burst" : "sustained",
           elapsedMs: nowMs() - startedAt,
           cse,
@@ -2994,7 +3061,7 @@ async function handleChatRoute(req, res) {
         meta: {
           index: INDEX_VERSION,
           engine: ENGINE_VERSION || null,
-          knowledge: knowledgeStatusForMeta(),
+          knowledge: knowledgeStatusForMetaPublic(req),
           replay: true,
           elapsedMs: nowMs() - startedAt,
           cse,
@@ -3016,7 +3083,7 @@ async function handleChatRoute(req, res) {
         engine: "missing_or_invalid",
         engineFrom: ENGINE.from,
         engineVersion: ENGINE_VERSION || null,
-        knowledge: knowledgeStatusForMeta(),
+        knowledge: knowledgeStatusForMetaPublic(req),
         cse,
       },
     });
@@ -3062,17 +3129,12 @@ async function handleChatRoute(req, res) {
       routeHint,
     },
     session: rec.data,
-
-    // ✅ conversational evaluator + chip continuity
     cse,
     chipContext,
     turnSignals,
-
-    // ✅ optional security context (for diagnostics only)
     security: req.__sb_sec || undefined,
-
     knowledge: knowledgeSnapshotForEngine(),
-    __knowledgeStatus: knowledgeStatusForMeta(),
+    __knowledgeStatus: knowledgeStatusForMetaFull(),
     packIndex: getPackIndexSafe(false),
   };
 
@@ -3082,7 +3144,7 @@ async function handleChatRoute(req, res) {
     out = normalizeEngineOutput(out);
   } catch (e) {
     const msg = safeStr(e?.message || e).trim();
-    const k = knowledgeStatusForMeta();
+    const k = knowledgeStatusForMetaFull();
     const reply = k.ok
       ? "I hit a snag, but I’m still here. Give me a year (1950–2025) and I’ll jump right in."
       : "I’m online, but my knowledge packs didn’t load yet. Try again in a moment — or hit refresh — and I’ll reconnect.";
@@ -3095,7 +3157,7 @@ async function handleChatRoute(req, res) {
       meta: {
         index: INDEX_VERSION,
         engine: ENGINE_VERSION || null,
-        knowledge: k,
+        knowledge: knowledgeStatusForMetaPublic(req),
         error: safeStr(msg).slice(0, 200),
         cse,
       },
@@ -3142,7 +3204,7 @@ async function handleChatRoute(req, res) {
       index: INDEX_VERSION,
       engine: ENGINE_VERSION || null,
       engineFrom: ENGINE.from,
-      knowledge: knowledgeStatusForMeta(),
+      knowledge: knowledgeStatusForMetaPublic(req),
       elapsedMs: nowMs() - startedAt,
       source,
       routeHint,
@@ -3194,14 +3256,12 @@ function applySessionPatch(session, patch) {
     "__nyxIntro",
     "__nyxVelvet",
 
-    // ✅ allow music loop-dampener/session continuity keys
     "__musicLastSig",
     "activeMusicChart",
     "lastMusicChart",
     "musicMomentsLoaded",
     "musicMomentsLoadedAt",
 
-    // ✅ NYX COG continuity keys
     "__cseLastState",
     "__cseLastAt",
     "__cseLastReason",
@@ -3236,7 +3296,6 @@ function applySessionPatch(session, patch) {
       continue;
     }
 
-    // normalize arrays for continuity keys
     if (k === "__lastOfferedChips" && Array.isArray(v)) {
       session.__lastOfferedChips = v.map((x) => safeStr(x).trim()).filter(Boolean).slice(0, 12);
       continue;
@@ -3278,7 +3337,6 @@ function ttsFailOpen(res, code, detail, upstreamStatus) {
     if (upstreamStatus !== undefined && upstreamStatus !== null) {
       res.setHeader("X-SBNYX-TTS-UPSTREAM-STATUS", safeStr(upstreamStatus).slice(0, 24));
     }
-    // IMPORTANT: 204 is "ok" to fetch(), and has no body (prevents audio parse errors from JSON bodies)
     return res.status(204).send("");
   } catch (_) {
     return res.status(204).send("");
@@ -3291,7 +3349,6 @@ function ttsFailOpen(res, code, detail, upstreamStatus) {
 async function handleTtsRoute(req, res) {
   const startedAt = nowMs();
 
-  // Security/sanity: sanitize inbound body
   let body = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
   if (typeof req.body === "string") body = { text: req.body };
   body = sanitizeInboundBody(body);
@@ -3301,14 +3358,11 @@ async function handleTtsRoute(req, res) {
 
   const disableNaturalize = toBool(body.disableNaturalize, false);
 
-  // clamp before naturalize (prevents huge allocations)
   const rawClamped = rawText.length > TTS_MAX_CHARS ? rawText.slice(0, TTS_MAX_CHARS) : rawText;
   let text = disableNaturalize ? rawClamped : nyxVoiceNaturalize(rawClamped);
 
-  // clamp again after naturalize (belt+suspenders)
   if (text.length > TTS_MAX_CHARS) text = text.slice(0, TTS_MAX_CHARS).trim();
 
-  // per-session TTS burst limiter (helps prevent bill spikes)
   const { rec } = getSession(req, body);
   const tb = checkTtsBurst(rec, startedAt);
   if (tb.blocked) {
@@ -3316,7 +3370,6 @@ async function handleTtsRoute(req, res) {
     return res.status(429).json({ ok: false, error: "tts_rate_limited", meta: { index: INDEX_VERSION } });
   }
 
-  // missing config
   if (!ELEVEN_API_KEY || !ELEVEN_VOICE_ID || !fetchFn) {
     if (TTS_FAIL_OPEN)
       return ttsFailOpen(
@@ -3332,7 +3385,6 @@ async function handleTtsRoute(req, res) {
     });
   }
 
-  // missing text
   if (!text && !noText) {
     if (TTS_FAIL_OPEN) return ttsFailOpen(res, "tts_missing_text", "Missing text for TTS.", null);
     return res.status(400).json({ ok: false, error: "Missing text for TTS.", meta: { index: INDEX_VERSION } });
@@ -3480,7 +3532,7 @@ app.listen(PORT, () => {
   console.log(
     `[Sandblast] TTS clamps: maxChars=${TTS_MAX_CHARS} burstWindowMs=${TTS_BURST_WINDOW_MS} burstMax=${TTS_BURST_MAX} strictOriginReferer=${
       STRICT_ORIGIN_REFERER ? "true" : "false"
-    }`
+    } publicDiagSafe=${PUBLIC_DIAGNOSTICS_SAFE ? "true" : "false"} debugSecret=${DEBUG_SHARED_SECRET ? "set" : "unset"}`
   );
 });
 
