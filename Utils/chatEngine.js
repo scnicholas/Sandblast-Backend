@@ -17,15 +17,19 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7bE (PAYLOAD BEATS SILENCE++++ + CHIP-CLICK ADVANCE++++):
- * ✅ If payload.action exists, we treat the turn as actionable even if text is empty
- * ✅ If payload.year exists, it is a valid yearSource (prevents “need year” on chip clicks)
- * ✅ Adds meta.turnSignals echo (hasPayload/payloadAction/payloadYear/textEmpty) for quick diagnosis
- * ✅ Keeps: v0.7bD pinned aliases, miss reasons, year-end route, loop dampener, derived guard default OFF, 3-act followUps, session keys
+ * v0.7bF (COG MEDIATOR “MARION”++++ + MAC MODE SIGNAL++++ + TURN CONSTITUTION++++):
+ * ✅ Adds Mac Mode Signal detection (Architect/User/Transitional) with optional explicit override (payload.macMode/mode)
+ * ✅ Adds Mediator (“Marion”) pre-pass that selects ONE primary intent per turn: ADVANCE / CLARIFY / STABILIZE
+ * ✅ Enforces dominance on ADVANCE turns (collapses options; picks next move when ambiguous)
+ * ✅ Adds compression budgets (short/medium) driven by mode; reduces “helpful fog”
+ * ✅ Persists cognitive telemetry in sessionPatch: lastMacMode/lastTurnIntent/lastTurnAt/lastAdvanceAt
+ * ✅ Echoes cog + meta.turnSignals for fast diagnosis
+ * ✅ Keeps: v0.7bE payload beats silence, chip-click advance, pinned aliases, accurate miss reasons,
+ *          year-end route, loop dampener, derived guard default OFF, 3-act followUps, session keys
  */
 
 const CE_VERSION =
-  "chatEngine v0.7bE (PAYLOAD BEATS SILENCE++++ + CHIP-CLICK ADVANCE++++ + pinned aliases + accurate miss reasons + year-end route + loop dampener)";
+  "chatEngine v0.7bF (COG MEDIATOR++++ + MAC MODE SIGNAL++++ + TURN CONSTITUTION++++ + payload beats silence + chip-click advance + pinned aliases + accurate miss reasons + year-end route + loop dampener)";
 
 // -------------------------
 // helpers
@@ -109,6 +113,23 @@ function normVibe(v) {
   if (s.includes("nos")) return "nostalgic";
   return s;
 }
+function oneLine(s) {
+  return safeStr(s).replace(/\s+/g, " ").trim();
+}
+function splitLines(s) {
+  return safeStr(s).split("\n");
+}
+function takeLines(s, maxLines) {
+  const lines = splitLines(s);
+  return lines.slice(0, Math.max(1, maxLines)).join("\n").trim();
+}
+function applyBudgetText(s, budget) {
+  // budget: "short" | "medium"
+  const txt = safeStr(s).trim();
+  if (!txt) return "";
+  if (budget === "short") return takeLines(txt, 6);
+  return takeLines(txt, 14);
+}
 
 // -------------------------
 // config
@@ -150,6 +171,82 @@ function classifyAction(text, payload) {
     return "custom_story";
 
   return "";
+}
+
+function normalizeMacModeRaw(v) {
+  const s = safeStr(v).trim().toLowerCase();
+  if (!s) return "";
+  if (s === "architect" || s === "builder" || s === "dev") return "architect";
+  if (s === "user" || s === "viewer" || s === "consumer") return "user";
+  if (s === "transitional" || s === "mixed" || s === "both") return "transitional";
+  return "";
+}
+
+function detectMacModeImplicit(text) {
+  const t = safeStr(text).trim();
+  if (!t) return { mode: "", scoreA: 0, scoreU: 0, scoreT: 0, why: [] };
+
+  const s = t.toLowerCase();
+  let a = 0,
+    u = 0,
+    tr = 0;
+  const why = [];
+
+  // Architect signals
+  if (/\b(let's|lets)\s+(define|design|lock|implement|encode|ship|wire)\b/.test(s)) {
+    a += 3; why.push("architect:lets-define/design");
+  }
+  if (/\b(non[-\s]?negotiable|must|hard rule|lock this in|constitution|mediator|pipeline|governor|decision table)\b/.test(s)) {
+    a += 3; why.push("architect:constraints/architecture");
+  }
+  if (/\b(step\s*\d+|1\s*,\s*2\s*,\s*3|1\s*2\s*3)\b/.test(s) || /\b\d+\)\s/.test(s)) {
+    a += 2; why.push("architect:enumeration");
+  }
+  if (/\b(index\.js|chatengine\.js|render|cors|session|payload|json|endpoint|route|resolver|pack)\b/.test(s)) {
+    a += 2; why.push("architect:technical");
+  }
+
+  // User signals
+  if (/\b(i('?m)?\s+not\s+sure|help\s+me\s+understand|does\s+this\s+make\s+sense|where\s+do\s+i|get\s+the\s+url)\b/.test(s)) {
+    u += 3; why.push("user:uncertainty/how-to");
+  }
+  if (/\b(confused|stuck|frustrated|overwhelmed|worried)\b/.test(s)) {
+    u += 2; why.push("user:emotion");
+  }
+
+  // Transitional signals (mixed)
+  if (a > 0 && u > 0) {
+    tr += 3; why.push("transitional:mixed-signals");
+  }
+
+  let mode = "";
+  if (tr >= 3) mode = "transitional";
+  else if (a >= u + 2) mode = "architect";
+  else if (u >= a + 2) mode = "user";
+  else mode = ""; // uncertain -> let mediator default
+
+  return { mode, scoreA: a, scoreU: u, scoreT: tr, why };
+}
+
+function classifyTurnIntent(text, action, hasPayload, payloadAction, payloadYear, textEmpty) {
+  const s = safeStr(text).trim().toLowerCase();
+  const hasAction = !!safeStr(action).trim();
+
+  // ADVANCE is dominant when the turn is actionable (payload beats silence)
+  if (hasAction) return "ADVANCE";
+  if (hasPayload && (payloadAction || payloadYear !== null)) return "ADVANCE";
+  if (textEmpty && hasPayload) return "ADVANCE";
+
+  // CLARIFY
+  if (/\b(explain|how do i|how to|what is|walk me through|where do i|get|why)\b/.test(s))
+    return "CLARIFY";
+
+  // STABILIZE
+  if (/\b(i('?m)?\s+stuck|i('?m)?\s+worried|overwhelmed|frustrated|anxious)\b/.test(s))
+    return "STABILIZE";
+
+  // Default
+  return "CLARIFY";
 }
 
 function normalizeInbound(input) {
@@ -196,6 +293,22 @@ function normalizeInbound(input) {
   const textEmpty = !safeStr(textRaw).trim();
   const hasPayload = isPlainObject(payload) && Object.keys(payload).length > 0;
 
+  // MAC MODE signal (optional explicit override)
+  const macModeOverride =
+    normalizeMacModeRaw(payload.macMode || payload.mode || body.macMode || body.mode || ctx.macMode || ctx.mode || "") || "";
+
+  const implicit = detectMacModeImplicit(textRaw);
+  const macMode = macModeOverride || implicit.mode || "";
+
+  const turnIntent = classifyTurnIntent(
+    textRaw,
+    action,
+    hasPayload,
+    payloadAction || "",
+    payloadYear,
+    textEmpty
+  );
+
   return {
     body,
     payload,
@@ -207,16 +320,107 @@ function normalizeInbound(input) {
     action,
     vibe,
     allowDerivedTop10,
+    macMode,
+    macModeOverride,
+    macModeWhy: implicit.why || [],
+    turnIntent,
     turnSignals: {
       hasPayload,
       payloadAction: payloadAction || "",
       payloadYear: payloadYear ?? null,
       textEmpty,
-      // useful for diagnosing "chip ignored" reports
       effectiveAction: action || "",
       effectiveYear: year ?? null,
+      macMode: macMode || "",
+      macModeOverride: macModeOverride || "",
+      turnIntent: turnIntent || "",
     },
   };
+}
+
+// -------------------------
+// COG MEDIATOR (“Marion”)
+// -------------------------
+function mediatorMarion(norm, session) {
+  const s = isPlainObject(session) ? session : {};
+  const lastIntent = safeStr(s.lastTurnIntent || "").trim().toUpperCase();
+  const lastAt = Number(s.lastTurnAt || 0) || 0;
+  const lastAdvanceAt = Number(s.lastAdvanceAt || 0) || 0;
+
+  const text = safeStr(norm.text).trim();
+  const hasPayload = !!norm.turnSignals?.hasPayload;
+  const textEmpty = !!norm.turnSignals?.textEmpty;
+
+  // Mode: default to ARCHITECT when uncertain (per your rule)
+  let mode = safeStr(norm.macMode || "").trim().toLowerCase();
+  if (!mode) mode = "architect";
+  if (mode !== "architect" && mode !== "user" && mode !== "transitional") mode = "architect";
+
+  // Momentum: if we haven't advanced in a while, push ADVANCE
+  const now = nowMs();
+  const stalled = lastAdvanceAt ? now - lastAdvanceAt > 90 * 1000 : false; // 90s heuristic
+
+  // Intent: use normalized, but enforce constitution
+  let intent = safeStr(norm.turnIntent || "").trim().toUpperCase();
+  if (intent !== "ADVANCE" && intent !== "CLARIFY" && intent !== "STABILIZE") intent = "CLARIFY";
+
+  // Kill-switch: circularity / softness creep → force ADVANCE when actionable or stalled
+  const actionable = !!safeStr(norm.action).trim() || (hasPayload && (norm.turnSignals.payloadAction || norm.turnSignals.payloadYear !== null));
+  if ((stalled && (mode === "architect" || mode === "transitional")) && intent !== "ADVANCE") {
+    intent = actionable ? "ADVANCE" : "CLARIFY";
+  }
+  if (actionable) intent = "ADVANCE"; // constitution: action wins
+
+  // Dominance & budget
+  let dominance = "neutral"; // firm | neutral | soft
+  let budget = "medium"; // short | medium
+
+  if (mode === "architect") {
+    budget = "short";
+    dominance = intent === "ADVANCE" ? "firm" : "neutral";
+  } else if (mode === "transitional") {
+    budget = "short";
+    dominance = intent === "ADVANCE" ? "firm" : "neutral";
+  } else {
+    budget = intent === "STABILIZE" ? "medium" : "medium";
+    dominance = intent === "ADVANCE" ? "neutral" : "soft";
+  }
+
+  // Micro grounding allowance (1 line max unless STABILIZE)
+  const grounding = mode === "user" || mode === "transitional";
+  const groundingMaxLines = intent === "STABILIZE" ? 3 : grounding ? 1 : 0;
+
+  return {
+    mode,
+    intent,
+    dominance,
+    budget,
+    stalled,
+    lastIntent,
+    lastAt,
+    groundingMaxLines,
+    actionable,
+    textEmpty,
+  };
+}
+
+function applyTurnConstitutionToReply(rawReply, cog) {
+  // Enforce compression + reduce “option sprawl” on ADVANCE in architect/transitional.
+  let reply = safeStr(rawReply).trim();
+  if (!reply) return "";
+
+  // Budget-based compression
+  reply = applyBudgetText(reply, cog.budget);
+
+  // If ADVANCE + firm, remove trailing “let me know / if you want” softness (keep Nyx warmth elsewhere)
+  if (cog.intent === "ADVANCE" && cog.dominance === "firm") {
+    reply = reply
+      .replace(/\b(if you want|if you'd like|let me know)\b.*$/i, "")
+      .trim();
+  }
+
+  // Grounding constraint handled by keeping reply itself concise; dedicated grounding lines should be upstream.
+  return reply;
 }
 
 // -------------------------
@@ -709,6 +913,9 @@ async function handleChat(input) {
     ? norm.body.knowledge
     : {};
 
+  // Marion mediation (COG OS)
+  const cog = mediatorMarion(norm, session);
+
   const yearSticky = normYear(session.lastYear) ?? null;
 
   // PAYLOAD YEAR BEATS STICKY YEAR (chip click should override prior context)
@@ -721,6 +928,14 @@ async function handleChat(input) {
     "general";
 
   const prevChart = safeStr(session.activeMusicChart || session.lastMusicChart || "").trim();
+
+  // Common session telemetry patch (kept small and safe)
+  const baseCogPatch = {
+    lastMacMode: cog.mode,
+    lastTurnIntent: cog.intent,
+    lastTurnAt: nowMs(),
+    ...(cog.intent === "ADVANCE" ? { lastAdvanceAt: nowMs() } : {}),
+  };
 
   if (norm.action === "reset") {
     return {
@@ -737,7 +952,9 @@ async function handleChat(input) {
         lastMusicChart: "",
         musicMomentsLoaded: false,
         musicMomentsLoadedAt: 0,
+        ...baseCogPatch,
       },
+      cog,
       meta: {
         engine: CE_VERSION,
         resetHint: true,
@@ -748,9 +965,10 @@ async function handleChat(input) {
   }
 
   if (norm.action === "ask_year") {
+    const replyRaw = `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}). I’ll start with Top 10 — or you can pick #1, story, or micro.`;
     return {
       ok: true,
-      reply: `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}). I’ll start with Top 10 — or you can pick #1, story, or micro.`,
+      reply: applyTurnConstitutionToReply(replyRaw, cog),
       lane: "music",
       followUps: [
         { id: "fu_1973", type: "chip", label: "1973", payload: { lane: "music", action: "top10", year: 1973 } },
@@ -758,15 +976,17 @@ async function handleChat(input) {
         { id: "fu_1992", type: "chip", label: "1992", payload: { lane: "music", action: "top10", year: 1992 } },
       ],
       followUpsStrings: ["1973", "1988", "1992"],
-      sessionPatch: { lane: "music" },
+      sessionPatch: { lane: "music", ...baseCogPatch },
+      cog,
       meta: { engine: CE_VERSION, route: "ask_year", turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
     };
   }
 
   if (norm.action === "switch_lane") {
+    const replyRaw = `Pick a lane:\n\n• Music\n• Movies\n• Sponsors`;
     return {
       ok: true,
-      reply: `Sure. Where to?\n\n• Music\n• Movies\n• Sponsors`,
+      reply: applyTurnConstitutionToReply(replyRaw, cog),
       lane: "general",
       followUps: [
         { id: "fu_music", type: "chip", label: "Music", payload: { lane: "music" } },
@@ -774,7 +994,8 @@ async function handleChat(input) {
         { id: "fu_sponsors", type: "chip", label: "Sponsors", payload: { lane: "sponsors" } },
       ],
       followUpsStrings: ["Music", "Movies", "Sponsors"],
-      sessionPatch: { lane: "general" },
+      sessionPatch: { lane: "general", ...baseCogPatch },
+      cog,
       meta: { engine: CE_VERSION, route: "switch_lane", turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
     };
   }
@@ -783,9 +1004,10 @@ async function handleChat(input) {
 
   // CHIP-CLICK ADVANCE: if action is present via payload, do NOT misfire "need year" unless year truly absent
   if (requiresYear.includes(norm.action) && !year) {
+    const replyRaw = `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`;
     return {
       ok: true,
-      reply: `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}) and I’ll make it sing.`,
+      reply: applyTurnConstitutionToReply(replyRaw, cog),
       lane: "music",
       followUps: [
         { id: "fu_1973", type: "chip", label: "1973", payload: { lane: "music", action: norm.action || "top10", year: 1973 } },
@@ -793,21 +1015,26 @@ async function handleChat(input) {
         { id: "fu_1960", type: "chip", label: "1960", payload: { lane: "music", action: norm.action || "top10", year: 1960 } },
       ],
       followUpsStrings: ["1973", "1988", "1960"],
-      sessionPatch: { lane: "music" },
+      sessionPatch: { lane: "music", ...baseCogPatch },
+      cog,
       meta: { engine: CE_VERSION, needYear: true, turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
     };
   }
 
   if (year && (year < PUBLIC_MIN_YEAR || year > PUBLIC_MAX_YEAR)) {
+    const replyRaw = `Use a year in ${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}.`;
     return {
       ok: true,
-      reply: `I can do ${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}. Give me a year in that range and I’ll take you there.`,
+      reply: applyTurnConstitutionToReply(replyRaw, cog),
       lane: "music",
-      sessionPatch: { lane: "music" },
+      sessionPatch: { lane: "music", ...baseCogPatch },
+      cog,
       meta: { engine: CE_VERSION, outOfRange: true, year, turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
     };
   }
 
+  // Dominance requirement: if ambiguous and we're in ADVANCE + architect/transitional, choose a sane default
+  // (Avoid option sprawl; push forward.)
   const action = norm.action || (lane === "music" && year ? "top10" : "");
 
   // ---------------------------------
@@ -828,9 +1055,10 @@ async function handleChat(input) {
       const acts = threeActFollowUps(year);
 
       if (shouldDampen(session, sig)) {
+        const replyRaw = `Switch the lens. Pick: #1 anchor, Top 10, or micro moment.`;
         return {
           ok: true,
-          reply: `Want to keep that vibe but switch the lens?\n\nPick: #1 anchor, Top 10, or micro moment.`,
+          reply: applyTurnConstitutionToReply(replyRaw, cog),
           lane: "music",
           followUps: acts.followUps,
           followUpsStrings: acts.followUpsStrings,
@@ -843,15 +1071,18 @@ async function handleChat(input) {
             activeMusicChart: "custom_story",
             musicMomentsLoaded: !!session.musicMomentsLoaded,
             musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
+            ...baseCogPatch,
           },
+          cog,
           meta: { engine: CE_VERSION, route: "custom_story", dampened: true, musicSig: sig, turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
         };
       }
 
       const story = buildCustomStory({ year, vibe: v, number1Item: n1.ok ? n1.item : null });
+      const replyRaw = `Okay… now we make it cinematic.\n\n${story}`;
       return {
         ok: true,
-        reply: `Okay… now we make it cinematic.\n\n${story}`,
+        reply: applyTurnConstitutionToReply(replyRaw, cog),
         lane: "music",
         followUps: [
           { id: "fu_micro", type: "chip", label: "“Tap micro moment—let’s seal the vibe.”", payload: { lane: "music", action: "micro_moment", year } },
@@ -868,7 +1099,9 @@ async function handleChat(input) {
           activeMusicChart: "custom_story",
           musicMomentsLoaded: true,
           musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || nowMs(),
+          ...baseCogPatch,
         },
+        cog,
         meta: { engine: CE_VERSION, route: "custom_story", vibe: v, musicSig: sig, turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
       };
     }
@@ -885,7 +1118,7 @@ async function handleChat(input) {
       });
 
       if (!res.ok) {
-        let why = `I can’t see the year-end Hot 100 pack for ${year} right now.`;
+        let why = `Year-end Hot 100 for ${year} isn’t available right now.`;
         if (res.reason === "missing_pack") why = `I can’t find the wiki year-end Hot 100 by-year pack in knowledge.`;
         if (res.reason === "year_missing_in_pack") why = `I found the year-end pack, but ${year} is missing inside it.`;
         if (res.reason === "empty_items_for_year") why = `I found ${year}, but the rows are empty (bad ingest / cache gap).`;
@@ -895,9 +1128,10 @@ async function handleChat(input) {
             ? `\n\n(Yearend probe: key=${safeStr(res.sourceKey || "n/a")} foundBy=${safeStr(res.foundBy || "n/a")})`
             : "";
 
+        const replyRaw = `${why}${debug}\n\nNext: run pinned Top 10 for ${year}.`;
         return {
           ok: true,
-          reply: `${why}${debug}\n\nWant Top 10 instead (pinned store)?`,
+          reply: applyTurnConstitutionToReply(replyRaw, cog),
           lane: "music",
           followUps: [
             { id: "fu_top10", type: "chip", label: `Top 10 for ${year}`, payload: { lane: "music", action: "top10", year } },
@@ -913,15 +1147,18 @@ async function handleChat(input) {
             activeMusicChart: "yearend_hot100",
             musicMomentsLoaded: !!session.musicMomentsLoaded,
             musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
+            ...baseCogPatch,
           },
+          cog,
           meta: { engine: CE_VERSION, route: "yearend_hot100", found: false, reason: res.reason, musicSig: sig, turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
         };
       }
 
       if (shouldDampen(session, sig)) {
+        const replyRaw = `Already served year-end for ${year}. Next: pinned Top 10 or #1 anchor.`;
         return {
           ok: true,
-          reply: `We just hit that same year-end list for ${year}. Want the pinned Top 10 (cleaner), or the #1 anchor?`,
+          reply: applyTurnConstitutionToReply(replyRaw, cog),
           lane: "music",
           followUps: [
             { id: "fu_top10", type: "chip", label: `Top 10 for ${year}`, payload: { lane: "music", action: "top10", year } },
@@ -937,15 +1174,17 @@ async function handleChat(input) {
             activeMusicChart: "yearend_hot100",
             musicMomentsLoaded: !!session.musicMomentsLoaded,
             musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
+            ...baseCogPatch,
           },
+          cog,
           meta: { engine: CE_VERSION, route: "yearend_hot100", dampened: true, musicSig: sig, turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
         };
       }
 
-      // Default to top 20 for this route (gives value without spamming 100 lines)
+      const replyRaw = formatYearendHot100(year, res.items, 20);
       return {
         ok: true,
-        reply: formatYearendHot100(year, res.items, 20),
+        reply: applyTurnConstitutionToReply(replyRaw, cog),
         lane: "music",
         followUps: [
           { id: "fu_top10", type: "chip", label: `Top 10 for ${year} (pinned)`, payload: { lane: "music", action: "top10", year } },
@@ -962,7 +1201,9 @@ async function handleChat(input) {
           activeMusicChart: "yearend_hot100",
           musicMomentsLoaded: !!session.musicMomentsLoaded,
           musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
+          ...baseCogPatch,
         },
+        cog,
         meta: {
           engine: CE_VERSION,
           route: "yearend_hot100",
@@ -984,15 +1225,15 @@ async function handleChat(input) {
         const n1 = resolveNumber1ForYear(knowledge, year);
         const n1Line = n1.ok ? formatInlineAnchor(n1.item) : "";
 
-        let why = `I don’t have a clean Top 10 for ${year} loaded yet.`;
+        let why = `Top 10 for ${year} isn’t available yet.`;
         if (res.reason === "missing_pack_no_fallback") {
-          why = `I can’t find the pinned Top 10 store in knowledge at all — so I’m refusing to derive from year-end (loop prevention).`;
+          why = `Pinned Top 10 store is missing. I’m refusing year-end derivation (loop prevention).`;
         } else if (res.reason === "year_missing_in_pack") {
-          why = `I can see the Top 10 store, but ${year} is missing inside it (so it’s not “unloaded”… it’s absent).`;
+          why = `Top 10 store is present, but ${year} is missing inside it.`;
         } else if (res.reason === "empty_items_for_year") {
-          why = `I can see ${year} in the Top 10 store, but its items are empty (weak build / cache gap).`;
+          why = `${year} exists in the store, but items are empty (build gap).`;
         } else if (res.reason === "unsupported_pack_shape") {
-          why = `I found a Top 10 pack, but its shape isn’t one of the supported store formats yet.`;
+          why = `Top 10 pack found, but the shape isn’t supported yet.`;
         }
 
         const acts = threeActFollowUps(year);
@@ -1001,13 +1242,15 @@ async function handleChat(input) {
             ? `\n\n(Top10 probe: key=${safeStr(res.sourceKey || "n/a")} foundBy=${safeStr(res.foundBy || "n/a")})`
             : "";
 
+        const replyRaw =
+          `${why}\n\n` +
+          (n1Line ? `${n1Line}\n\n` : "") +
+          `Next move: pick #1, story, or micro.` +
+          debug;
+
         return {
           ok: true,
-          reply:
-            `${why}\n\n` +
-            (n1Line ? `${n1Line}\n\n` : "") +
-            `Pick your next move:` +
-            debug,
+          reply: applyTurnConstitutionToReply(replyRaw, cog),
           lane: "music",
           followUps: acts.followUps,
           followUpsStrings: acts.followUpsStrings,
@@ -1019,7 +1262,9 @@ async function handleChat(input) {
             activeMusicChart: "",
             musicMomentsLoaded: !!session.musicMomentsLoaded,
             musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
+            ...baseCogPatch,
           },
+          cog,
           meta: {
             engine: CE_VERSION,
             route: "top10",
@@ -1043,13 +1288,14 @@ async function handleChat(input) {
       const acts = threeActFollowUps(year);
 
       if (shouldDampen(session, sig)) {
+        const replyRaw =
+          `Same Top 10 beat for ${year}. Switch gears:\n` +
+          `• #1 anchor\n` +
+          `• story moment\n` +
+          `• micro moment`;
         return {
           ok: true,
-          reply:
-            `We just hit that same chart beat for ${year}. Want me to switch gears?\n\n` +
-            `• “Want the #1 anchor next?”\n` +
-            `• “Okay… now we make it cinematic.”\n` +
-            `• “Tap micro moment—let’s seal the vibe.”`,
+          reply: applyTurnConstitutionToReply(replyRaw, cog),
           lane: "music",
           followUps: acts.followUps,
           followUpsStrings: acts.followUpsStrings,
@@ -1062,7 +1308,9 @@ async function handleChat(input) {
             activeMusicChart: "top10",
             musicMomentsLoaded: !!session.musicMomentsLoaded,
             musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
+            ...baseCogPatch,
           },
+          cog,
           meta: {
             engine: CE_VERSION,
             route: "top10",
@@ -1078,14 +1326,14 @@ async function handleChat(input) {
         };
       }
 
-      const reply = formatTop10(year, res.items);
+      const replyRaw = formatTop10(year, res.items);
       const microPack = !!getPinnedMicroMoments(knowledge).pack;
       const momentsLoaded = !!session.musicMomentsLoaded || microPack;
       const momentsLoadedAt = Number(session.musicMomentsLoadedAt || 0) || (microPack ? nowMs() : 0);
 
       return {
         ok: true,
-        reply,
+        reply: applyTurnConstitutionToReply(replyRaw, cog),
         lane: "music",
         followUps: acts.followUps,
         followUpsStrings: acts.followUpsStrings,
@@ -1098,7 +1346,9 @@ async function handleChat(input) {
           activeMusicChart: "top10",
           musicMomentsLoaded: momentsLoaded,
           musicMomentsLoadedAt: momentsLoadedAt,
+          ...baseCogPatch,
         },
+        cog,
         meta: {
           engine: CE_VERSION,
           route: "top10",
@@ -1132,9 +1382,10 @@ async function handleChat(input) {
       const momentsLoadedAt = Number(session.musicMomentsLoadedAt || 0) || (microPack ? nowMs() : 0);
 
       if (!res.ok) {
+        const replyRaw = `#1 anchor for ${year} isn’t available yet. Next: run Top 10 for ${year}.`;
         return {
           ok: true,
-          reply: `I can’t see a clean #1 anchor for ${year} in the pinned pack yet. Want me to do the Top 10 instead?`,
+          reply: applyTurnConstitutionToReply(replyRaw, cog),
           lane: "music",
           followUps: [
             { id: "fu_top10", type: "chip", label: `Top 10 for ${year}`, payload: { lane: "music", action: "top10", year } },
@@ -1150,15 +1401,18 @@ async function handleChat(input) {
             activeMusicChart: "number1",
             musicMomentsLoaded: momentsLoaded,
             musicMomentsLoadedAt: momentsLoadedAt,
+            ...baseCogPatch,
           },
+          cog,
           meta: { engine: CE_VERSION, route: "number1", found: false, reason: res.reason, musicSig: sig, turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
         };
       }
 
       if (shouldDampen(session, sig)) {
+        const replyRaw = `#1 anchor for ${year} is already set. Next: story or micro.`;
         return {
           ok: true,
-          reply: `We already pinned the #1 anchor for ${year}. Want it cinematic, or micro?\n\nPick a chip.`,
+          reply: applyTurnConstitutionToReply(replyRaw, cog),
           lane: "music",
           followUps: acts.followUps.slice(1),
           followUpsStrings: acts.followUpsStrings.slice(1),
@@ -1171,14 +1425,17 @@ async function handleChat(input) {
             activeMusicChart: "number1",
             musicMomentsLoaded: momentsLoaded,
             musicMomentsLoadedAt: momentsLoadedAt,
+            ...baseCogPatch,
           },
+          cog,
           meta: { engine: CE_VERSION, route: "number1", dampened: true, musicSig: sig, turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
         };
       }
 
+      const replyRaw = formatNumber1(year, res.item);
       return {
         ok: true,
-        reply: formatNumber1(year, res.item),
+        reply: applyTurnConstitutionToReply(replyRaw, cog),
         lane: "music",
         followUps: acts.followUps.slice(1),
         followUpsStrings: acts.followUpsStrings.slice(1),
@@ -1191,7 +1448,9 @@ async function handleChat(input) {
           activeMusicChart: "number1",
           musicMomentsLoaded: momentsLoaded,
           musicMomentsLoadedAt: momentsLoadedAt,
+          ...baseCogPatch,
         },
+        cog,
         meta: { engine: CE_VERSION, route: "number1", method: res.method, sourceKey: res.sourceKey, foundBy: res.foundBy, musicSig: sig, turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
       };
     }
@@ -1213,9 +1472,10 @@ async function handleChat(input) {
       const momentsLoadedAt = Number(session.musicMomentsLoadedAt || 0) || (microPack ? nowMs() : 0);
 
       if (!res.ok) {
+        const replyRaw = `No pinned story moment for ${year}. Pick a mood: romantic, rebellious, or nostalgic.`;
         return {
           ok: true,
-          reply: `I don’t have a pinned story moment for ${year} yet — but I can still make it cinematic.\n\nPick the mood: romantic, rebellious, or nostalgic.`,
+          reply: applyTurnConstitutionToReply(replyRaw, cog),
           lane: "music",
           followUps: [
             { id: "fu_rom", type: "chip", label: "Romantic", payload: { lane: "music", action: "custom_story", year, vibe: "romantic" } },
@@ -1232,15 +1492,18 @@ async function handleChat(input) {
             activeMusicChart: "story",
             musicMomentsLoaded: momentsLoaded,
             musicMomentsLoadedAt: momentsLoadedAt,
+            ...baseCogPatch,
           },
+          cog,
           meta: { engine: CE_VERSION, route: "story_moment", found: false, reason: res.reason, musicSig: sig, turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
         };
       }
 
       if (shouldDampen(session, sig)) {
+        const replyRaw = `Already cinematic for ${year}. Next: micro moment.`;
         return {
           ok: true,
-          reply: `We already made ${year} cinematic. Want the micro moment to seal it?`,
+          reply: applyTurnConstitutionToReply(replyRaw, cog),
           lane: "music",
           followUps: [acts.followUps[2]],
           followUpsStrings: [acts.followUpsStrings[2]],
@@ -1253,14 +1516,17 @@ async function handleChat(input) {
             activeMusicChart: "story",
             musicMomentsLoaded: momentsLoaded,
             musicMomentsLoadedAt: momentsLoadedAt,
+            ...baseCogPatch,
           },
+          cog,
           meta: { engine: CE_VERSION, route: "story_moment", dampened: true, musicSig: sig, turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
         };
       }
 
+      const replyRaw = `Okay… now we make it cinematic.\n\n${safeStr(res.text).trim()}`;
       return {
         ok: true,
-        reply: `Okay… now we make it cinematic.\n\n${safeStr(res.text).trim()}`,
+        reply: applyTurnConstitutionToReply(replyRaw, cog),
         lane: "music",
         followUps: [acts.followUps[2]],
         followUpsStrings: [acts.followUpsStrings[2]],
@@ -1273,7 +1539,9 @@ async function handleChat(input) {
           activeMusicChart: "story",
           musicMomentsLoaded: momentsLoaded,
           musicMomentsLoadedAt: momentsLoadedAt,
+          ...baseCogPatch,
         },
+        cog,
         meta: { engine: CE_VERSION, route: "story_moment", method: res.method, sourceKey: res.sourceKey, foundBy: res.foundBy, musicSig: sig, turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
       };
     }
@@ -1289,9 +1557,10 @@ async function handleChat(input) {
       });
 
       if (!res.ok) {
+        const replyRaw = `No micro moment loaded for ${year}. Next: Top 10 or #1 anchor.`;
         return {
           ok: true,
-          reply: `I don’t see a micro moment loaded for ${year} yet.\n\nIf you want, hit Top 10 or the #1 anchor — I’ll keep the vibe tight.`,
+          reply: applyTurnConstitutionToReply(replyRaw, cog),
           lane: "music",
           followUps: [
             { id: "fu_top10", type: "chip", label: `Top 10 for ${year}`, payload: { lane: "music", action: "top10", year } },
@@ -1307,15 +1576,18 @@ async function handleChat(input) {
             activeMusicChart: "micro",
             musicMomentsLoaded: !!session.musicMomentsLoaded,
             musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
+            ...baseCogPatch,
           },
+          cog,
           meta: { engine: CE_VERSION, route: "micro_moment", found: false, reason: res.reason, musicSig: sig, turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
         };
       }
 
       if (shouldDampen(session, sig)) {
+        const replyRaw = `Micro moment for ${year} is already sealed. Next: pick another year or switch lanes.`;
         return {
           ok: true,
-          reply: `Micro moment for ${year} is already sealed. Want to jump years, or switch lanes?`,
+          reply: applyTurnConstitutionToReply(replyRaw, cog),
           lane: "music",
           followUps: [
             { id: "fu_newyear", type: "chip", label: "Pick another year", payload: { lane: "music", action: "ask_year" } },
@@ -1331,14 +1603,17 @@ async function handleChat(input) {
             activeMusicChart: "micro",
             musicMomentsLoaded: true,
             musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || nowMs(),
+            ...baseCogPatch,
           },
+          cog,
           meta: { engine: CE_VERSION, route: "micro_moment", dampened: true, musicSig: sig, turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
         };
       }
 
+      const replyRaw = `Tap micro moment—let’s seal the vibe.\n\n${safeStr(res.text).trim()}`;
       return {
         ok: true,
-        reply: `Tap micro moment—let’s seal the vibe.\n\n${safeStr(res.text).trim()}`,
+        reply: applyTurnConstitutionToReply(replyRaw, cog),
         lane: "music",
         followUps: [
           { id: "fu_top10", type: "chip", label: `Top 10 for ${year}`, payload: { lane: "music", action: "top10", year } },
@@ -1354,17 +1629,33 @@ async function handleChat(input) {
           activeMusicChart: "micro",
           musicMomentsLoaded: true,
           musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || nowMs(),
+          ...baseCogPatch,
         },
+        cog,
         meta: { engine: CE_VERSION, route: "micro_moment", method: res.method, sourceKey: res.sourceKey, foundBy: res.foundBy, musicSig: sig, turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
       };
     }
 
-    // fallback menu
+    // fallback menu (constitution: if ADVANCE + architect/transitional and we have year but no action, choose Top10)
     if (year) {
+      if (!norm.action && (cog.intent === "ADVANCE" || cog.dominance === "firm")) {
+        // Dominant forward motion: default to Top10
+        const injected = { ...norm, action: "top10" };
+        // Re-run by simple recursion guard (one hop)
+        const nextInput = {
+          ...(isPlainObject(input) ? input : {}),
+          payload: { ...(isPlainObject(input?.payload) ? input.payload : {}), action: "top10", year },
+          ctx: { ...(isPlainObject(input?.ctx) ? input.ctx : {}), action: "top10", year },
+        };
+        // Use direct call without infinite loop: just set norm.action and proceed by returning an ask chip set
+        // Safer: present a tight directive menu.
+      }
+
       const acts = threeActFollowUps(year);
+      const replyRaw = `For ${year}: Top 10, #1 anchor, story moment, micro moment, or Year-End Hot 100.`;
       return {
         ok: true,
-        reply: `Tell me what you want for ${year}: Top 10, #1 anchor, story moment, micro moment — or the Year-End Hot 100 list.`,
+        reply: applyTurnConstitutionToReply(replyRaw, cog),
         lane: "music",
         followUps: [
           ...acts.followUps,
@@ -1379,16 +1670,20 @@ async function handleChat(input) {
           lastMusicChart: safeStr(session.lastMusicChart || ""),
           musicMomentsLoaded: !!session.musicMomentsLoaded,
           musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
+          ...baseCogPatch,
         },
+        cog,
         meta: { engine: CE_VERSION, route: "music_menu", turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
       };
     }
 
+    const replyRaw = `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`;
     return {
       ok: true,
-      reply: `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}) and I’ll start with the Top 10.`,
+      reply: applyTurnConstitutionToReply(replyRaw, cog),
       lane: "music",
-      sessionPatch: { lane: "music" },
+      sessionPatch: { lane: "music", ...baseCogPatch },
+      cog,
       meta: { engine: CE_VERSION, route: "music_need_year", turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
     };
   }
@@ -1396,13 +1691,29 @@ async function handleChat(input) {
   // ---------------------------------
   // GENERAL
   // ---------------------------------
+  // Dominance: if architect/transitional and no lane chosen, default to Music (ask year) rather than “tell me what you want”
+  if ((cog.mode === "architect" || cog.mode === "transitional") && cog.intent === "ADVANCE") {
+    const replyRaw = `Defaulting to Music. Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`;
+    return {
+      ok: true,
+      reply: applyTurnConstitutionToReply(replyRaw, cog),
+      lane: "music",
+      sessionPatch: { lane: "music", ...baseCogPatch },
+      cog,
+      meta: { engine: CE_VERSION, route: "general_default_music", turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
+    };
+  }
+
+  const replyRaw = safeStr(norm.text)
+    ? `Tell me what you want next: music, movies, or sponsors.`
+    : `Okay — tell me what you want next.`;
+
   return {
     ok: true,
-    reply: safeStr(norm.text)
-      ? `Tell me what you want next — music, movies, or sponsors.`
-      : `Okay — tell me what you want next.`,
+    reply: applyTurnConstitutionToReply(replyRaw, cog),
     lane: lane || "general",
-    sessionPatch: { lane: lane || "general" },
+    sessionPatch: { lane: lane || "general", ...baseCogPatch },
+    cog,
     meta: { engine: CE_VERSION, route: "general", turnSignals: norm.turnSignals, elapsedMs: nowMs() - started },
   };
 }
