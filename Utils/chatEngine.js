@@ -2412,7 +2412,10 @@ async function handleChat(input) {
               payload: { lane: "music", action: "story_moment", year },
             },
           ],
-          followUpsStrings: [`Top 10 for ${year}`, `Okay… now we make it cinematic.`],
+          followUpsStrings: [
+            `Top 10 for ${year}`,
+            `Okay… now we make it cinematic.`,
+          ],
           sessionPatch: {
             lane: "music",
             lastYear: year,
@@ -2517,7 +2520,10 @@ async function handleChat(input) {
             payload: { lane: "music", action: "story_moment", year },
           },
         ],
-        followUpsStrings: [`Top 10 for ${year}`, `Okay… now we make it cinematic.`],
+        followUpsStrings: [
+          `Top 10 for ${year}`,
+          `Okay… now we make it cinematic.`,
+        ],
         sessionPatch: {
           lane: "music",
           lastYear: year,
