@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18bk (SECURITY HARDENING++++: timing-safe debug auth + request timeout + content-type gate + no-store API + block Origin:null)
+ * index.js v1.5.18bl (STABILITY HARDENING++++: CHAT fail-open on engine missing/throw + keeps v1.5.18bk security list)
  *
  * Keeps:
  * ✅ WIKI AUTHORITY FIX++++ (wikipedia split hot100 dir ingest + merged year map)
@@ -13,15 +13,13 @@
  * ✅ v1.5.18bf: TTS FAIL-OPEN (default ON): /api/tts & /api/voice return 204 on failure + exposed diag headers
  * ✅ v1.5.18bg: Origin/Referer coherence guard + widget provenance headers + inbound sanitizer + security headers + TTS clamps + public diagnostics redaction
  * ✅ v1.5.18bh: text/* body support + public meta redaction + HSTS/perms policy + NYX_VOICE_NATURALIZE env read bug fix
- * ✅ v1.5.18bi: error-meta redaction intent (but hosts still leaked)
+ * ✅ v1.5.18bi: error-meta redaction intent
  * ✅ v1.5.18bj: backend self-host referer allow + hostOnly normalize + TRUE host redaction in 403 meta
+ * ✅ v1.5.18bk: timing-safe debug auth + request timeout + content-type gate + no-store API + block Origin:null
  *
- * Adds (v1.5.18bk):
- * ✅ SECURITY: timing-safe debug secret compare (timingSafeEqual)
- * ✅ SECURITY/STABILITY: request timeout guard (REQUEST_TIMEOUT_MS, default 25000ms)
- * ✅ SECURITY: API no-store headers (prevents intermediary caching of API/meta)
- * ✅ SECURITY: block Origin: null (sandbox/file contexts) under CORS hard-lock
- * ✅ SECURITY: Content-Type gate for /api/chat + /api/tts (allow JSON + text/*; reject others with 415; TTS respects fail-open)
+ * Adds (v1.5.18bl):
+ * ✅ STABILITY: /api/chat now “fail-open” when engine missing or throws (returns 200 + ok:true + safe reply + meta.error)
+ *    - avoids widget-facing 5xx for chat path (mirrors TTS fail-open philosophy)
  *
  * Env:
  *  - PUBLIC_BACKEND_HOST=sandblast-backend.onrender.com (optional override)
@@ -95,7 +93,7 @@ const nyxVoiceNaturalizeMod =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18bk (SECURITY HARDENING++++: timing-safe debug auth + request timeout + content-type gate + no-store API + block Origin:null; keeps v1.5.18bj host redaction + backend referer allow + hostOnly normalize; keeps v1.5.18bg security + v1.5.18bf TTS fail-open + v1.5.18be CSE/chip continuity + v1.5.18bc reset/sessionPatch keys + v1.5.18bb WIKI AUTHORITY FIX++++ + CRITICAL FIXES++++ + diagnostics)";
+  "index.js v1.5.18bl (STABILITY HARDENING++++: chat fail-open on engine missing/throw; keeps v1.5.18bk timing-safe debug auth + request timeout + content-type gate + no-store API + block Origin:null; keeps v1.5.18bj host redaction + backend referer allow + hostOnly normalize; keeps v1.5.18bg security + v1.5.18bf TTS fail-open + v1.5.18be CSE/chip continuity + v1.5.18bc reset/sessionPatch keys + v1.5.18bb WIKI AUTHORITY FIX++++ + CRITICAL FIXES++++ + diagnostics)";
 
 // =========================
 // Utils
@@ -2491,7 +2489,7 @@ app.use((req, res, next) => {
   const origin = normalizeOrigin(originRaw);
 
   // ✅ SECURITY: Origin:null is a common sandbox/file context — block it under hard-lock posture
-  if (origin === "null") {
+  if (origin && origin.toLowerCase() === "null") {
     return res.status(403).json({ ok: false, error: "cors_blocked", meta: { index: INDEX_VERSION } });
   }
 
@@ -3196,11 +3194,12 @@ async function handleChatRoute(req, res) {
     }
   }
 
+  // ✅ v1.5.18bl: CHAT fail-open (no widget-facing 5xx)
   if (!ENGINE.fn) {
     const reply = "Backend engine not loaded. Check deploy: Utils/chatEngine.js is missing or exports are wrong.";
     writeReplay(rec, reply, "general");
-    return res.status(500).json({
-      ok: false,
+    return res.status(200).json({
+      ok: true,
       reply,
       lane: "general",
       requestId: serverRequestId,
@@ -3210,6 +3209,7 @@ async function handleChatRoute(req, res) {
         engineFrom: ENGINE.from,
         engineVersion: ENGINE_VERSION || null,
         knowledge: knowledgeStatusForMetaPublic(req),
+        error: "engine_missing",
         cse,
       },
     });
@@ -3275,7 +3275,9 @@ async function handleChatRoute(req, res) {
       ? "I hit a snag, but I’m still here. Give me a year (1950–2025) and I’ll jump right in."
       : "I’m online, but my knowledge packs didn’t load yet. Try again in a moment — or hit refresh — and I’ll reconnect.";
     writeReplay(rec, reply, rec.data.lane || "general");
-    return res.status(500).json({
+
+    // ✅ v1.5.18bl: fail-open chat (200)
+    return res.status(200).json({
       ok: true,
       reply,
       lane: rec.data.lane || "general",
@@ -3285,6 +3287,7 @@ async function handleChatRoute(req, res) {
         engine: ENGINE_VERSION || null,
         knowledge: knowledgeStatusForMetaPublic(req),
         error: safeStr(msg).slice(0, 200),
+        failOpen: true,
         cse,
       },
     });
