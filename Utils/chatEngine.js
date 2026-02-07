@@ -17,10 +17,10 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7bL (MARION SPINE LOGGING++++ + COUNSELOR-LITE INTRO++++ + CHIP COMPRESSION++++ kept)
- * ✅ Marion: tighter state spine + bounded trace logging for long-run continuity (no PII, capped size)
- * ✅ Adds: counselor-lite “listening” intro route (non-clinical, Year-2 psych vibe; not therapy; bridges into lanes)
- * ✅ Keeps: CHIP COMPRESSION++++ (no verbose micro-moment / pick-another-year chips),
+ * v0.7bM (STATE SPINE++++ canonical + click-to-context binding + pendingAsk + action trace)
+ * ✅ Adds: canonical __spine object in sessionPatch on every turn (survives across turns cleanly)
+ * ✅ Adds: click-to-context binding (payload-route/year capture), chip offer history (bounded), pendingAsk
+ * ✅ Keeps: MARION SPINE LOGGING++++, counselor-lite intro, CHIP COMPRESSION++++,
  *          TOP10-ONLY++++ (no #1 route anywhere), Top10 visibility fix (no Top 4 truncation),
  *          Mac Mode signal, Marion mediator, desire+confidence arbitration, Velvet mode (music-first),
  *          tone constitution + regression tests, payload beats silence, chip-click advance,
@@ -29,7 +29,7 @@
  */
 
 const CE_VERSION =
-  "chatEngine v0.7bL (MARION SPINE LOGGING++++ + COUNSELOR-LITE INTRO++++ + CHIP COMPRESSION++++ + DESIRE+CONFIDENCE ARBITRATION++++ + VELVET (MUSIC-FIRST)++++ + TONE TESTS++++ + TOP10-ONLY + Top10 visibility fix + Marion mediator + payload beats silence + chip-click advance + pinned aliases + accurate miss reasons + year-end route + loop dampener)";
+  "chatEngine v0.7bM (STATE SPINE++++ + MARION SPINE LOGGING++++ + COUNSELOR-LITE INTRO++++ + CHIP COMPRESSION++++ + DESIRE+CONFIDENCE ARBITRATION++++ + VELVET (MUSIC-FIRST)++++ + TONE TESTS++++ + TOP10-ONLY + Top10 visibility fix + Marion mediator + payload beats silence + chip-click advance + pinned aliases + accurate miss reasons + year-end route + loop dampener)";
 
 // -------------------------
 // helpers
@@ -162,6 +162,277 @@ function applyBudgetText(s, budget) {
 // -------------------------
 const PUBLIC_MIN_YEAR = 1950;
 const PUBLIC_MAX_YEAR = 2025;
+
+// -------------------------
+// STATE SPINE (canonical, survives across turns)
+// -------------------------
+function defaultSpine() {
+  return {
+    v: 1,
+    updatedAt: nowMs(),
+
+    lane: "general",
+    stage: "boot", // boot | warm | engaged
+    topic: "unknown", // top10_by_year | story_moment | year_end | help | unknown
+
+    lastUserIntent: "unknown", // ask | choose | confirm | reject | redirect | silent_click | unknown
+    pendingAsk: null, // {kind,prompt,options[],createdAt} | null
+
+    activeContext: null, // {kind,id,route,lane,label,year,payload,clickedAt} | null
+    lastChipsOffered: [], // [{id,label,route,lane,payload}] bounded
+    lastChipClicked: null, // {id,label,route,lane,payload,clickedAt} | null
+
+    goal: { primary: null, secondary: [], updatedAt: 0 },
+
+    lastActionTaken: null, // served_top10 | asked_year | served_moment | redirected | ...
+    lastTurnSig: null, // stable signature for loop-fuse/debug
+  };
+}
+
+function coerceSpine(s) {
+  const d = defaultSpine();
+  if (!s || typeof s !== "object") return d;
+
+  const out = { ...d, ...s };
+  out.v = 1;
+
+  if (!out.goal || typeof out.goal !== "object")
+    out.goal = { primary: null, secondary: [], updatedAt: 0 };
+  if (!Array.isArray(out.goal.secondary)) out.goal.secondary = [];
+
+  if (!Array.isArray(out.lastChipsOffered)) out.lastChipsOffered = [];
+  if (out.lastChipsOffered.length > 12)
+    out.lastChipsOffered = out.lastChipsOffered.slice(0, 12);
+
+  if (out.pendingAsk && typeof out.pendingAsk !== "object") out.pendingAsk = null;
+  if (out.activeContext && typeof out.activeContext !== "object")
+    out.activeContext = null;
+
+  out.updatedAt = nowMs();
+  return out;
+}
+
+function mergeSpine(prev, patch) {
+  const a = coerceSpine(prev);
+  const b = patch && typeof patch === "object" ? patch : {};
+
+  const out = { ...a, ...b };
+  out.v = 1;
+  out.updatedAt = nowMs();
+
+  if (b.goal && typeof b.goal === "object") {
+    out.goal = {
+      primary: b.goal.primary ?? a.goal.primary ?? null,
+      secondary: Array.isArray(b.goal.secondary)
+        ? b.goal.secondary
+        : a.goal.secondary || [],
+      updatedAt: nowMs(),
+    };
+  }
+
+  if (Array.isArray(b.lastChipsOffered)) {
+    out.lastChipsOffered = b.lastChipsOffered.slice(0, 12);
+  } else if (Array.isArray(a.lastChipsOffered)) {
+    out.lastChipsOffered = a.lastChipsOffered.slice(0, 12);
+  } else {
+    out.lastChipsOffered = [];
+  }
+
+  if (b.lastChipClicked && typeof b.lastChipClicked === "object") {
+    out.lastChipClicked = {
+      ...b.lastChipClicked,
+      clickedAt: b.lastChipClicked.clickedAt || nowMs(),
+    };
+  }
+
+  return out;
+}
+
+function computeTurnSig({ lane, topic, intent, activeContext, text }) {
+  const y =
+    activeContext && typeof activeContext.year === "number"
+      ? String(activeContext.year)
+      : "";
+  const rid = activeContext && activeContext.route ? activeContext.route : "";
+  const t = (text || "").trim().slice(0, 64);
+  return [lane || "", topic || "", intent || "", rid || "", y || "", t].join("|");
+}
+
+function inferUserIntent(norm) {
+  const txt = safeStr(norm?.text || "").trim();
+  const hasPayload = !!norm?.turnSignals?.hasPayload;
+  const textEmpty = !!norm?.turnSignals?.textEmpty;
+  const hasAction = !!safeStr(norm?.action || "").trim();
+
+  if (hasPayload && textEmpty) return "silent_click";
+  if (hasAction && hasPayload) return "choose";
+  if (hasAction && !txt) return "choose";
+  if (txt) return "ask";
+  return "unknown";
+}
+
+function topicFromAction(action) {
+  const a = safeStr(action || "").trim();
+  if (!a) return "unknown";
+  if (a === "top10") return "top10_by_year";
+  if (a === "story_moment" || a === "custom_story") return "story_moment";
+  if (a === "micro_moment") return "story_moment";
+  if (a === "yearend_hot100") return "year_end";
+  if (a === "ask_year") return "help";
+  if (a === "switch_lane") return "help";
+  if (a === "counsel_intro") return "help";
+  if (a === "reset") return "help";
+  return "unknown";
+}
+
+function stageProgress(prevStage, cog, spinePrev) {
+  const p = safeStr(prevStage || "boot");
+  const intent = safeStr(cog?.intent || "").toUpperCase();
+  // deterministic progression:
+  // boot -> warm on first real interaction; warm -> engaged when ADVANCE occurs
+  if (p === "boot") return "warm";
+  if (p === "warm" && intent === "ADVANCE") return "engaged";
+  // if already engaged, stay engaged (don’t bounce)
+  if (p === "engaged") return "engaged";
+  return p || "warm";
+}
+
+function buildActiveContext(norm, spinePrev) {
+  // click-to-context binding: capture payload route/action/year when present
+  const hasPayload = !!norm?.turnSignals?.hasPayload;
+  const textEmpty = !!norm?.turnSignals?.textEmpty;
+
+  const p = isPlainObject(norm?.payload) ? norm.payload : {};
+  const route = safeStr(p.route || p.action || "").trim();
+  const lane = safeStr(p.lane || norm?.lane || spinePrev?.lane || "").trim();
+  const year = normYear(p.year) ?? normYear(norm?.year) ?? null;
+
+  // if it was a silent click with route/action, treat as click context
+  if (hasPayload && (route || year !== null || lane) && textEmpty) {
+    const id = safeStr(p.id || p._id || "").trim() || safeStr(norm?.action || "").trim() || route || "";
+    const label = safeStr(p.label || "").trim();
+
+    // keep payload minimal (avoid bloat / PII)
+    const payloadMini = {};
+    if (safeStr(p.action)) payloadMini.action = safeStr(p.action);
+    if (safeStr(p.route)) payloadMini.route = safeStr(p.route);
+    if (safeStr(p.lane)) payloadMini.lane = safeStr(p.lane);
+    if (year !== null) payloadMini.year = year;
+    if (safeStr(p.vibe)) payloadMini.vibe = safeStr(p.vibe);
+
+    return {
+      kind: "chip",
+      id,
+      route: route || safeStr(norm?.action || "").trim(),
+      lane: lane || "general",
+      label,
+      year: year !== null ? year : undefined,
+      payload: Object.keys(payloadMini).length ? payloadMini : undefined,
+      clickedAt: nowMs(),
+    };
+  }
+
+  // If there is explicit action or year, carry forward prior context
+  return spinePrev?.activeContext || null;
+}
+
+function buildChipsOffered(followUps) {
+  const arr = Array.isArray(followUps) ? followUps : [];
+  const mapped = arr
+    .map((f) => {
+      const id = safeStr(f?.id || "").trim();
+      const label = safeStr(f?.label || "").trim();
+      const payload = isPlainObject(f?.payload) ? f.payload : {};
+      const route = safeStr(payload.route || payload.action || "").trim();
+      const lane = safeStr(payload.lane || "").trim();
+      const mini = {};
+      if (safeStr(payload.action)) mini.action = safeStr(payload.action);
+      if (safeStr(payload.route)) mini.route = safeStr(payload.route);
+      if (safeStr(payload.lane)) mini.lane = safeStr(payload.lane);
+      const yr = normYear(payload.year);
+      if (yr !== null) mini.year = yr;
+      if (safeStr(payload.vibe)) mini.vibe = safeStr(payload.vibe);
+      return {
+        id,
+        label,
+        route,
+        lane,
+        payload: Object.keys(mini).length ? mini : undefined,
+      };
+    })
+    .filter((x) => x.id || x.label || x.route);
+
+  return mapped.slice(0, 12);
+}
+
+function buildPendingAsk(kind, prompt, options) {
+  return {
+    kind: safeStr(kind || "").trim() || "need_more_detail",
+    prompt: safeStr(prompt || "").trim(),
+    options: Array.isArray(options) ? options.slice(0, 8) : [],
+    createdAt: nowMs(),
+  };
+}
+
+function spineFinalize({
+  spinePrev,
+  norm,
+  cog,
+  lane,
+  actionTaken,
+  followUps,
+  pendingAsk,
+  topicOverride,
+}) {
+  const lastUserIntent = inferUserIntent(norm);
+  const activeContext = buildActiveContext(norm, spinePrev);
+
+  const topic =
+    safeStr(topicOverride || "").trim() ||
+    topicFromAction(safeStr(norm?.action || "").trim());
+
+  const stage = stageProgress(spinePrev.stage, cog, spinePrev);
+
+  const turnSig = computeTurnSig({
+    lane,
+    topic,
+    intent: lastUserIntent,
+    activeContext,
+    text: safeStr(norm?.text || ""),
+  });
+
+  // If the user typed an explicit year (not a click), clear pendingAsk
+  const typedYear = !norm?.turnSignals?.textEmpty && normYear(norm?.year) !== null;
+
+  const patch = {
+    lane: safeStr(lane || spinePrev.lane || "general"),
+    stage,
+    topic,
+    lastUserIntent,
+    activeContext,
+    pendingAsk: typedYear ? null : pendingAsk || null,
+    lastActionTaken: safeStr(actionTaken || "").trim() || null,
+    lastTurnSig: turnSig,
+  };
+
+  // chip offer memory
+  const offered = buildChipsOffered(followUps);
+  if (offered.length) patch.lastChipsOffered = offered;
+
+  // chip click memory: only when it truly was a silent click context
+  if (activeContext && activeContext.kind === "chip" && lastUserIntent === "silent_click") {
+    patch.lastChipClicked = {
+      id: safeStr(activeContext.id),
+      label: safeStr(activeContext.label || ""),
+      route: safeStr(activeContext.route || ""),
+      lane: safeStr(activeContext.lane || ""),
+      payload: activeContext.payload,
+      clickedAt: activeContext.clickedAt || nowMs(),
+    };
+  }
+
+  return mergeSpine(spinePrev, patch);
+}
 
 // -------------------------
 // Marion spine logging (bounded, no PII)
@@ -1568,7 +1839,11 @@ function runToneRegressionTests() {
   assert("firm_removes_soft_tail", !/\blet me know\b/i.test(out2), out2);
 
   // 3) Ban “Earlier you said…”
-  const out3 = applyTurnConstitutionToReply("Earlier you said X, so Y.", cFirm, {});
+  const out3 = applyTurnConstitutionToReply(
+    "Earlier you said X, so Y.",
+    cFirm,
+    {}
+  );
   assert(
     "ban_earlier_you_said",
     !/\bearlier you (said|mentioned)\b/i.test(out3),
@@ -1612,7 +1887,11 @@ function runToneRegressionTests() {
   );
   assert("marion_trace_bounded", safeStr(tr).length <= MARION_TRACE_MAX, tr);
 
-  return { ok: failures.length === 0, failures, ran: 6 };
+  // 7) Spine must coerce + bound
+  const sp = coerceSpine({ lastChipsOffered: new Array(50).fill({ id: "x" }) });
+  assert("spine_bounds_chips", sp.lastChipsOffered.length <= 12, sp.lastChipsOffered.length);
+
+  return { ok: failures.length === 0, failures, ran: 7 };
 }
 
 // -------------------------
@@ -1633,6 +1912,9 @@ async function handleChat(input) {
     : isPlainObject(norm.body.knowledge)
     ? norm.body.knowledge
     : {};
+
+  // STATE SPINE (prev)
+  const spinePrev = coerceSpine(session.__spine);
 
   // Marion mediation (COG OS)
   const cog = mediatorMarion(norm, session);
@@ -1675,6 +1957,17 @@ async function handleChat(input) {
   };
 
   if (norm.action === "reset") {
+    const spineNext = spineFinalize({
+      spinePrev,
+      norm,
+      cog,
+      lane: "general",
+      actionTaken: "reset",
+      followUps: null,
+      pendingAsk: null,
+      topicOverride: "help",
+    });
+
     return {
       ok: true,
       reply: "",
@@ -1692,6 +1985,7 @@ async function handleChat(input) {
         lastSigTransition: "",
         velvetMode: false,
         velvetSince: 0,
+        __spine: spineNext,
         ...baseCogPatch,
       },
       cog,
@@ -1711,6 +2005,17 @@ async function handleChat(input) {
     const sigLine = detectSignatureLine(reply);
     const f = counselorFollowUps();
 
+    const spineNext = spineFinalize({
+      spinePrev,
+      norm,
+      cog,
+      lane: "general",
+      actionTaken: "served_counsel_intro",
+      followUps: f.followUps,
+      pendingAsk: null,
+      topicOverride: "help",
+    });
+
     return {
       ok: true,
       reply,
@@ -1720,6 +2025,7 @@ async function handleChat(input) {
       sessionPatch: {
         lane: "general",
         ...(sigLine ? { lastSigTransition: sigLine } : {}),
+        __spine: spineNext,
         ...baseCogPatch,
       },
       cog,
@@ -1737,34 +2043,52 @@ async function handleChat(input) {
     const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
     const sigLine = detectSignatureLine(reply);
 
+    const fu = [
+      {
+        id: "fu_1973",
+        type: "chip",
+        label: "1973",
+        payload: { lane: "music", action: "top10", year: 1973, route: "top10" },
+      },
+      {
+        id: "fu_1988",
+        type: "chip",
+        label: "1988",
+        payload: { lane: "music", action: "top10", year: 1988, route: "top10" },
+      },
+      {
+        id: "fu_1992",
+        type: "chip",
+        label: "1992",
+        payload: { lane: "music", action: "top10", year: 1992, route: "top10" },
+      },
+    ];
+
+    const spineNext = spineFinalize({
+      spinePrev,
+      norm,
+      cog,
+      lane: "music",
+      actionTaken: "asked_year",
+      followUps: fu,
+      pendingAsk: buildPendingAsk(
+        "need_year",
+        `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`,
+        fu.map((x) => ({ id: x.id, label: x.label, payload: x.payload }))
+      ),
+      topicOverride: "help",
+    });
+
     return {
       ok: true,
       reply,
       lane: "music",
-      followUps: [
-        {
-          id: "fu_1973",
-          type: "chip",
-          label: "1973",
-          payload: { lane: "music", action: "top10", year: 1973 },
-        },
-        {
-          id: "fu_1988",
-          type: "chip",
-          label: "1988",
-          payload: { lane: "music", action: "top10", year: 1988 },
-        },
-        {
-          id: "fu_1992",
-          type: "chip",
-          label: "1992",
-          payload: { lane: "music", action: "top10", year: 1992 },
-        },
-      ],
+      followUps: fu,
       followUpsStrings: ["1973", "1988", "1992"],
       sessionPatch: {
         lane: "music",
         ...(sigLine ? { lastSigTransition: sigLine } : {}),
+        __spine: spineNext,
         ...baseCogPatch,
       },
       cog,
@@ -1782,34 +2106,37 @@ async function handleChat(input) {
     const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
     const sigLine = detectSignatureLine(reply);
 
+    const fu = [
+      { id: "fu_music", type: "chip", label: "Music", payload: { lane: "music", action: "ask_year", route: "ask_year" } },
+      { id: "fu_movies", type: "chip", label: "Movies", payload: { lane: "movies", route: "movies" } },
+      { id: "fu_sponsors", type: "chip", label: "Sponsors", payload: { lane: "sponsors", route: "sponsors" } },
+    ];
+
+    const spineNext = spineFinalize({
+      spinePrev,
+      norm,
+      cog,
+      lane: "general",
+      actionTaken: "redirected",
+      followUps: fu,
+      pendingAsk: buildPendingAsk(
+        "need_pick",
+        "Pick a lane.",
+        fu.map((x) => ({ id: x.id, label: x.label, payload: x.payload }))
+      ),
+      topicOverride: "help",
+    });
+
     return {
       ok: true,
       reply,
       lane: "general",
-      followUps: [
-        {
-          id: "fu_music",
-          type: "chip",
-          label: "Music",
-          payload: { lane: "music" },
-        },
-        {
-          id: "fu_movies",
-          type: "chip",
-          label: "Movies",
-          payload: { lane: "movies" },
-        },
-        {
-          id: "fu_sponsors",
-          type: "chip",
-          label: "Sponsors",
-          payload: { lane: "sponsors" },
-        },
-      ],
+      followUps: fu,
       followUpsStrings: ["Music", "Movies", "Sponsors"],
       sessionPatch: {
         lane: "general",
         ...(sigLine ? { lastSigTransition: sigLine } : {}),
+        __spine: spineNext,
         ...baseCogPatch,
       },
       cog,
@@ -1835,34 +2162,52 @@ async function handleChat(input) {
     const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
     const sigLine = detectSignatureLine(reply);
 
+    const fu = [
+      {
+        id: "fu_1973",
+        type: "chip",
+        label: "1973",
+        payload: { lane: "music", action: norm.action || "top10", year: 1973, route: safeStr(norm.action || "top10") },
+      },
+      {
+        id: "fu_1988",
+        type: "chip",
+        label: "1988",
+        payload: { lane: "music", action: norm.action || "top10", year: 1988, route: safeStr(norm.action || "top10") },
+      },
+      {
+        id: "fu_1960",
+        type: "chip",
+        label: "1960",
+        payload: { lane: "music", action: norm.action || "top10", year: 1960, route: safeStr(norm.action || "top10") },
+      },
+    ];
+
+    const spineNext = spineFinalize({
+      spinePrev,
+      norm,
+      cog,
+      lane: "music",
+      actionTaken: "asked_year",
+      followUps: fu,
+      pendingAsk: buildPendingAsk(
+        "need_year",
+        `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`,
+        fu.map((x) => ({ id: x.id, label: x.label, payload: x.payload }))
+      ),
+      topicOverride: "help",
+    });
+
     return {
       ok: true,
       reply,
       lane: "music",
-      followUps: [
-        {
-          id: "fu_1973",
-          type: "chip",
-          label: "1973",
-          payload: { lane: "music", action: norm.action || "top10", year: 1973 },
-        },
-        {
-          id: "fu_1988",
-          type: "chip",
-          label: "1988",
-          payload: { lane: "music", action: norm.action || "top10", year: 1988 },
-        },
-        {
-          id: "fu_1960",
-          type: "chip",
-          label: "1960",
-          payload: { lane: "music", action: norm.action || "top10", year: 1960 },
-        },
-      ],
+      followUps: fu,
       followUpsStrings: ["1973", "1988", "1960"],
       sessionPatch: {
         lane: "music",
         ...(sigLine ? { lastSigTransition: sigLine } : {}),
+        __spine: spineNext,
         ...baseCogPatch,
       },
       cog,
@@ -1880,6 +2225,21 @@ async function handleChat(input) {
     const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
     const sigLine = detectSignatureLine(reply);
 
+    const spineNext = spineFinalize({
+      spinePrev,
+      norm,
+      cog,
+      lane: "music",
+      actionTaken: "asked_year",
+      followUps: null,
+      pendingAsk: buildPendingAsk(
+        "need_year",
+        `Use a year in ${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}.`,
+        []
+      ),
+      topicOverride: "help",
+    });
+
     return {
       ok: true,
       reply,
@@ -1887,6 +2247,7 @@ async function handleChat(input) {
       sessionPatch: {
         lane: "music",
         ...(sigLine ? { lastSigTransition: sigLine } : {}),
+        __spine: spineNext,
         ...baseCogPatch,
       },
       cog,
@@ -1932,6 +2293,17 @@ async function handleChat(input) {
         const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
         const sigLine = detectSignatureLine(reply);
 
+        const spineNext = spineFinalize({
+          spinePrev,
+          norm,
+          cog,
+          lane: "music",
+          actionTaken: "served_menu",
+          followUps: acts.followUps,
+          pendingAsk: null,
+          topicOverride: "story_moment",
+        });
+
         return {
           ok: true,
           reply,
@@ -1948,6 +2320,7 @@ async function handleChat(input) {
             musicMomentsLoaded: !!session.musicMomentsLoaded,
             musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
             ...(sigLine ? { lastSigTransition: sigLine } : {}),
+            __spine: spineNext,
             ...baseCogPatch,
           },
           cog,
@@ -1967,24 +2340,37 @@ async function handleChat(input) {
       const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
       const sigLine = detectSignatureLine(reply);
 
+      const fu = [
+        {
+          id: "fu_top10",
+          type: "chip",
+          label: `Top 10 (${year})`,
+          payload: { lane: "music", action: "top10", year, route: "top10" },
+        },
+        {
+          id: "fu_newyear",
+          type: "chip",
+          label: "Another year",
+          payload: { lane: "music", action: "ask_year", route: "ask_year" },
+        },
+      ];
+
+      const spineNext = spineFinalize({
+        spinePrev,
+        norm,
+        cog,
+        lane: "music",
+        actionTaken: "served_moment",
+        followUps: fu,
+        pendingAsk: null,
+        topicOverride: "story_moment",
+      });
+
       return {
         ok: true,
         reply,
         lane: "music",
-        followUps: [
-          {
-            id: "fu_top10",
-            type: "chip",
-            label: `Top 10 (${year})`,
-            payload: { lane: "music", action: "top10", year },
-          },
-          {
-            id: "fu_newyear",
-            type: "chip",
-            label: "Another year",
-            payload: { lane: "music", action: "ask_year" },
-          },
-        ],
+        followUps: fu,
         followUpsStrings: [`Top 10 (${year})`, "Another year"],
         sessionPatch: {
           lane: "music",
@@ -1997,6 +2383,7 @@ async function handleChat(input) {
           musicMomentsLoadedAt:
             Number(session.musicMomentsLoadedAt || 0) || nowMs(),
           ...(sigLine ? { lastSigTransition: sigLine } : {}),
+          __spine: spineNext,
           ...baseCogPatch,
         },
         cog,
@@ -2044,24 +2431,37 @@ async function handleChat(input) {
         const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
         const sigLine = detectSignatureLine(reply);
 
+        const fu = [
+          {
+            id: "fu_top10",
+            type: "chip",
+            label: `Top 10 (${year})`,
+            payload: { lane: "music", action: "top10", year, route: "top10" },
+          },
+          {
+            id: "fu_newyear",
+            type: "chip",
+            label: "Another year",
+            payload: { lane: "music", action: "ask_year", route: "ask_year" },
+          },
+        ];
+
+        const spineNext = spineFinalize({
+          spinePrev,
+          norm,
+          cog,
+          lane: "music",
+          actionTaken: "served_error",
+          followUps: fu,
+          pendingAsk: null,
+          topicOverride: "year_end",
+        });
+
         return {
           ok: true,
           reply,
           lane: "music",
-          followUps: [
-            {
-              id: "fu_top10",
-              type: "chip",
-              label: `Top 10 (${year})`,
-              payload: { lane: "music", action: "top10", year },
-            },
-            {
-              id: "fu_newyear",
-              type: "chip",
-              label: "Another year",
-              payload: { lane: "music", action: "ask_year" },
-            },
-          ],
+          followUps: fu,
           followUpsStrings: [`Top 10 (${year})`, "Another year"],
           sessionPatch: {
             lane: "music",
@@ -2073,6 +2473,7 @@ async function handleChat(input) {
             musicMomentsLoaded: !!session.musicMomentsLoaded,
             musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
             ...(sigLine ? { lastSigTransition: sigLine } : {}),
+            __spine: spineNext,
             ...baseCogPatch,
           },
           cog,
@@ -2096,24 +2497,37 @@ async function handleChat(input) {
         const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
         const sigLine = detectSignatureLine(reply);
 
+        const fu = [
+          {
+            id: "fu_top10",
+            type: "chip",
+            label: `Top 10 (${year})`,
+            payload: { lane: "music", action: "top10", year, route: "top10" },
+          },
+          {
+            id: "fu_newyear",
+            type: "chip",
+            label: "Another year",
+            payload: { lane: "music", action: "ask_year", route: "ask_year" },
+          },
+        ];
+
+        const spineNext = spineFinalize({
+          spinePrev,
+          norm,
+          cog,
+          lane: "music",
+          actionTaken: "served_menu",
+          followUps: fu,
+          pendingAsk: null,
+          topicOverride: "year_end",
+        });
+
         return {
           ok: true,
           reply,
           lane: "music",
-          followUps: [
-            {
-              id: "fu_top10",
-              type: "chip",
-              label: `Top 10 (${year})`,
-              payload: { lane: "music", action: "top10", year },
-            },
-            {
-              id: "fu_newyear",
-              type: "chip",
-              label: "Another year",
-              payload: { lane: "music", action: "ask_year" },
-            },
-          ],
+          followUps: fu,
           followUpsStrings: [`Top 10 (${year})`, "Another year"],
           sessionPatch: {
             lane: "music",
@@ -2125,6 +2539,7 @@ async function handleChat(input) {
             musicMomentsLoaded: !!session.musicMomentsLoaded,
             musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
             ...(sigLine ? { lastSigTransition: sigLine } : {}),
+            __spine: spineNext,
             ...baseCogPatch,
           },
           cog,
@@ -2146,30 +2561,43 @@ async function handleChat(input) {
       const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
       const sigLine = detectSignatureLine(reply);
 
+      const fu = [
+        {
+          id: "fu_top10",
+          type: "chip",
+          label: `Top 10 (${year})`,
+          payload: { lane: "music", action: "top10", year, route: "top10" },
+        },
+        {
+          id: "fu_story",
+          type: "chip",
+          label: "Make it cinematic",
+          payload: { lane: "music", action: "story_moment", year, route: "story_moment" },
+        },
+        {
+          id: "fu_newyear",
+          type: "chip",
+          label: "Another year",
+          payload: { lane: "music", action: "ask_year", route: "ask_year" },
+        },
+      ];
+
+      const spineNext = spineFinalize({
+        spinePrev,
+        norm,
+        cog,
+        lane: "music",
+        actionTaken: "served_year_end",
+        followUps: fu,
+        pendingAsk: null,
+        topicOverride: "year_end",
+      });
+
       return {
         ok: true,
         reply,
         lane: "music",
-        followUps: [
-          {
-            id: "fu_top10",
-            type: "chip",
-            label: `Top 10 (${year})`,
-            payload: { lane: "music", action: "top10", year },
-          },
-          {
-            id: "fu_story",
-            type: "chip",
-            label: "Make it cinematic",
-            payload: { lane: "music", action: "story_moment", year },
-          },
-          {
-            id: "fu_newyear",
-            type: "chip",
-            label: "Another year",
-            payload: { lane: "music", action: "ask_year" },
-          },
-        ],
+        followUps: fu,
         followUpsStrings: [`Top 10 (${year})`, "Make it cinematic", "Another year"],
         sessionPatch: {
           lane: "music",
@@ -2181,6 +2609,7 @@ async function handleChat(input) {
           musicMomentsLoaded: !!session.musicMomentsLoaded,
           musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
           ...(sigLine ? { lastSigTransition: sigLine } : {}),
+          __spine: spineNext,
           ...baseCogPatch,
         },
         cog,
@@ -2230,6 +2659,17 @@ async function handleChat(input) {
         const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
         const sigLine = detectSignatureLine(reply);
 
+        const spineNext = spineFinalize({
+          spinePrev,
+          norm,
+          cog,
+          lane: "music",
+          actionTaken: "served_error",
+          followUps: acts.followUps,
+          pendingAsk: null,
+          topicOverride: "top10_by_year",
+        });
+
         return {
           ok: true,
           reply,
@@ -2245,6 +2685,7 @@ async function handleChat(input) {
             musicMomentsLoaded: !!session.musicMomentsLoaded,
             musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
             ...(sigLine ? { lastSigTransition: sigLine } : {}),
+            __spine: spineNext,
             ...baseCogPatch,
           },
           cog,
@@ -2281,6 +2722,17 @@ async function handleChat(input) {
         const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
         const sigLine = detectSignatureLine(reply);
 
+        const spineNext = spineFinalize({
+          spinePrev,
+          norm,
+          cog,
+          lane: "music",
+          actionTaken: "served_menu",
+          followUps: acts.followUps,
+          pendingAsk: null,
+          topicOverride: "top10_by_year",
+        });
+
         return {
           ok: true,
           reply,
@@ -2297,6 +2749,7 @@ async function handleChat(input) {
             musicMomentsLoaded: !!session.musicMomentsLoaded,
             musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
             ...(sigLine ? { lastSigTransition: sigLine } : {}),
+            __spine: spineNext,
             ...baseCogPatch,
           },
           cog,
@@ -2327,6 +2780,17 @@ async function handleChat(input) {
       const momentsLoadedAt =
         Number(session.musicMomentsLoadedAt || 0) || (microPack ? nowMs() : 0);
 
+      const spineNext = spineFinalize({
+        spinePrev,
+        norm,
+        cog,
+        lane: "music",
+        actionTaken: "served_top10",
+        followUps: acts.followUps,
+        pendingAsk: null,
+        topicOverride: "top10_by_year",
+      });
+
       return {
         ok: true,
         reply,
@@ -2343,6 +2807,7 @@ async function handleChat(input) {
           musicMomentsLoaded: momentsLoaded,
           musicMomentsLoadedAt: momentsLoadedAt,
           ...(sigLine ? { lastSigTransition: sigLine } : {}),
+          __spine: spineNext,
           ...baseCogPatch,
         },
         cog,
@@ -2385,45 +2850,65 @@ async function handleChat(input) {
         const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
         const sigLine = detectSignatureLine(reply);
 
+        const fu = [
+          {
+            id: "fu_rom",
+            type: "chip",
+            label: "Romantic",
+            payload: {
+              lane: "music",
+              action: "custom_story",
+              year,
+              vibe: "romantic",
+              route: "custom_story",
+            },
+          },
+          {
+            id: "fu_reb",
+            type: "chip",
+            label: "Rebellious",
+            payload: {
+              lane: "music",
+              action: "custom_story",
+              year,
+              vibe: "rebellious",
+              route: "custom_story",
+            },
+          },
+          {
+            id: "fu_nos",
+            type: "chip",
+            label: "Nostalgic",
+            payload: {
+              lane: "music",
+              action: "custom_story",
+              year,
+              vibe: "nostalgic",
+              route: "custom_story",
+            },
+          },
+        ];
+
+        const spineNext = spineFinalize({
+          spinePrev,
+          norm,
+          cog,
+          lane: "music",
+          actionTaken: "served_menu",
+          followUps: fu,
+          pendingAsk: buildPendingAsk(
+            "need_pick",
+            "Pick a mood.",
+            fu.map((x) => ({ id: x.id, label: x.label, payload: x.payload }))
+          ),
+          topicOverride: "story_moment",
+        });
+
         return {
           ok: true,
           reply,
           lane: "music",
-          followUps: [
-            {
-              id: "fu_rom",
-              type: "chip",
-              label: "Romantic",
-              payload: {
-                lane: "music",
-                action: "custom_story",
-                year,
-                vibe: "romantic",
-              },
-            },
-            {
-              id: "fu_reb",
-              type: "chip",
-              label: "Rebellious",
-              payload: {
-                lane: "music",
-                action: "custom_story",
-                year,
-                vibe: "rebellious",
-              },
-            },
-            {
-              id: "fu_nos",
-              type: "chip",
-              label: "Nostalgic",
-              payload: {
-                lane: "music",
-                action: "custom_story",
-                year,
-                vibe: "nostalgic",
-              },
-            },
-          ],
+          followUps: fu,
           followUpsStrings: ["Romantic", "Rebellious", "Nostalgic"],
           sessionPatch: {
             lane: "music",
@@ -2435,6 +2920,7 @@ async function handleChat(input) {
             musicMomentsLoaded: momentsLoaded,
             musicMomentsLoadedAt: momentsLoadedAt,
             ...(sigLine ? { lastSigTransition: sigLine } : {}),
+            __spine: spineNext,
             ...baseCogPatch,
           },
           cog,
@@ -2458,24 +2944,37 @@ async function handleChat(input) {
         const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
         const sigLine = detectSignatureLine(reply);
 
+        const fu = [
+          {
+            id: "fu_top10",
+            type: "chip",
+            label: `Top 10 (${year})`,
+            payload: { lane: "music", action: "top10", year, route: "top10" },
+          },
+          {
+            id: "fu_newyear",
+            type: "chip",
+            label: "Another year",
+            payload: { lane: "music", action: "ask_year", route: "ask_year" },
+          },
+        ];
+
+        const spineNext = spineFinalize({
+          spinePrev,
+          norm,
+          cog,
+          lane: "music",
+          actionTaken: "served_menu",
+          followUps: fu,
+          pendingAsk: null,
+          topicOverride: "story_moment",
+        });
+
         return {
           ok: true,
           reply,
           lane: "music",
-          followUps: [
-            {
-              id: "fu_top10",
-              type: "chip",
-              label: `Top 10 (${year})`,
-              payload: { lane: "music", action: "top10", year },
-            },
-            {
-              id: "fu_newyear",
-              type: "chip",
-              label: "Another year",
-              payload: { lane: "music", action: "ask_year" },
-            },
-          ],
+          followUps: fu,
           followUpsStrings: [`Top 10 (${year})`, "Another year"],
           sessionPatch: {
             lane: "music",
@@ -2487,6 +2986,7 @@ async function handleChat(input) {
             musicMomentsLoaded: momentsLoaded,
             musicMomentsLoadedAt: momentsLoadedAt,
             ...(sigLine ? { lastSigTransition: sigLine } : {}),
+            __spine: spineNext,
             ...baseCogPatch,
           },
           cog,
@@ -2508,24 +3008,37 @@ async function handleChat(input) {
       const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
       const sigLine = detectSignatureLine(reply);
 
+      const fu = [
+        {
+          id: "fu_top10",
+          type: "chip",
+          label: `Top 10 (${year})`,
+          payload: { lane: "music", action: "top10", year, route: "top10" },
+        },
+        {
+          id: "fu_newyear",
+          type: "chip",
+          label: "Another year",
+          payload: { lane: "music", action: "ask_year", route: "ask_year" },
+        },
+      ];
+
+      const spineNext = spineFinalize({
+        spinePrev,
+        norm,
+        cog,
+        lane: "music",
+        actionTaken: "served_moment",
+        followUps: fu,
+        pendingAsk: null,
+        topicOverride: "story_moment",
+      });
+
       return {
         ok: true,
         reply,
         lane: "music",
-        followUps: [
-          {
-            id: "fu_top10",
-            type: "chip",
-            label: `Top 10 (${year})`,
-            payload: { lane: "music", action: "top10", year },
-          },
-          {
-            id: "fu_newyear",
-            type: "chip",
-            label: "Another year",
-            payload: { lane: "music", action: "ask_year" },
-          },
-        ],
+        followUps: fu,
         followUpsStrings: [`Top 10 (${year})`, "Another year"],
         sessionPatch: {
           lane: "music",
@@ -2537,6 +3050,7 @@ async function handleChat(input) {
           musicMomentsLoaded: momentsLoaded,
           musicMomentsLoadedAt: momentsLoadedAt,
           ...(sigLine ? { lastSigTransition: sigLine } : {}),
+          __spine: spineNext,
           ...baseCogPatch,
         },
         cog,
@@ -2571,24 +3085,37 @@ async function handleChat(input) {
         const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
         const sigLine = detectSignatureLine(reply);
 
+        const fu = [
+          {
+            id: "fu_top10",
+            type: "chip",
+            label: `Top 10 (${year})`,
+            payload: { lane: "music", action: "top10", year, route: "top10" },
+          },
+          {
+            id: "fu_story",
+            type: "chip",
+            label: "Make it cinematic",
+            payload: { lane: "music", action: "story_moment", year, route: "story_moment" },
+          },
+        ];
+
+        const spineNext = spineFinalize({
+          spinePrev,
+          norm,
+          cog,
+          lane: "music",
+          actionTaken: "served_error",
+          followUps: fu,
+          pendingAsk: null,
+          topicOverride: "story_moment",
+        });
+
         return {
           ok: true,
           reply,
           lane: "music",
-          followUps: [
-            {
-              id: "fu_top10",
-              type: "chip",
-              label: `Top 10 (${year})`,
-              payload: { lane: "music", action: "top10", year },
-            },
-            {
-              id: "fu_story",
-              type: "chip",
-              label: "Make it cinematic",
-              payload: { lane: "music", action: "story_moment", year },
-            },
-          ],
+          followUps: fu,
           followUpsStrings: [`Top 10 (${year})`, "Make it cinematic"],
           sessionPatch: {
             lane: "music",
@@ -2600,6 +3127,7 @@ async function handleChat(input) {
             musicMomentsLoaded: !!session.musicMomentsLoaded,
             musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
             ...(sigLine ? { lastSigTransition: sigLine } : {}),
+            __spine: spineNext,
             ...baseCogPatch,
           },
           cog,
@@ -2623,24 +3151,37 @@ async function handleChat(input) {
         const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
         const sigLine = detectSignatureLine(reply);
 
+        const fu = [
+          {
+            id: "fu_newyear",
+            type: "chip",
+            label: "Another year",
+            payload: { lane: "music", action: "ask_year", route: "ask_year" },
+          },
+          {
+            id: "fu_general",
+            type: "chip",
+            label: "Switch lanes",
+            payload: { lane: "general", action: "switch_lane", route: "switch_lane" },
+          },
+        ];
+
+        const spineNext = spineFinalize({
+          spinePrev,
+          norm,
+          cog,
+          lane: "music",
+          actionTaken: "served_menu",
+          followUps: fu,
+          pendingAsk: null,
+          topicOverride: "story_moment",
+        });
+
         return {
           ok: true,
           reply,
           lane: "music",
-          followUps: [
-            {
-              id: "fu_newyear",
-              type: "chip",
-              label: "Another year",
-              payload: { lane: "music", action: "ask_year" },
-            },
-            {
-              id: "fu_general",
-              type: "chip",
-              label: "Switch lanes",
-              payload: { lane: "general", action: "switch_lane" },
-            },
-          ],
+          followUps: fu,
           followUpsStrings: ["Another year", "Switch lanes"],
           sessionPatch: {
             lane: "music",
@@ -2653,6 +3194,7 @@ async function handleChat(input) {
             musicMomentsLoadedAt:
               Number(session.musicMomentsLoadedAt || 0) || nowMs(),
             ...(sigLine ? { lastSigTransition: sigLine } : {}),
+            __spine: spineNext,
             ...baseCogPatch,
           },
           cog,
@@ -2674,24 +3216,37 @@ async function handleChat(input) {
       const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
       const sigLine = detectSignatureLine(reply);
 
+      const fu = [
+        {
+          id: "fu_top10",
+          type: "chip",
+          label: `Top 10 (${year})`,
+          payload: { lane: "music", action: "top10", year, route: "top10" },
+        },
+        {
+          id: "fu_story",
+          type: "chip",
+          label: "Make it cinematic",
+          payload: { lane: "music", action: "story_moment", year, route: "story_moment" },
+        },
+      ];
+
+      const spineNext = spineFinalize({
+        spinePrev,
+        norm,
+        cog,
+        lane: "music",
+        actionTaken: "served_moment",
+        followUps: fu,
+        pendingAsk: null,
+        topicOverride: "story_moment",
+      });
+
       return {
         ok: true,
         reply,
         lane: "music",
-        followUps: [
-          {
-            id: "fu_top10",
-            type: "chip",
-            label: `Top 10 (${year})`,
-            payload: { lane: "music", action: "top10", year },
-          },
-          {
-            id: "fu_story",
-            type: "chip",
-            label: "Make it cinematic",
-            payload: { lane: "music", action: "story_moment", year },
-          },
-        ],
+        followUps: fu,
         followUpsStrings: [`Top 10 (${year})`, "Make it cinematic"],
         sessionPatch: {
           lane: "music",
@@ -2704,6 +3259,7 @@ async function handleChat(input) {
           musicMomentsLoadedAt:
             Number(session.musicMomentsLoadedAt || 0) || nowMs(),
           ...(sigLine ? { lastSigTransition: sigLine } : {}),
+          __spine: spineNext,
           ...baseCogPatch,
         },
         cog,
@@ -2730,26 +3286,39 @@ async function handleChat(input) {
       const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
       const sigLine = detectSignatureLine(reply);
 
+      const fu = [
+        {
+          id: "fu_top10",
+          type: "chip",
+          label: `Top 10 (${year})`,
+          payload: { lane: "music", action: "top10", year, route: "top10" },
+        },
+        acts.followUps[0],
+        {
+          id: "fu_yearend",
+          type: "chip",
+          label: `Year-End Hot 100 (${year})`,
+          payload: { lane: "music", action: "yearend_hot100", year, route: "yearend_hot100" },
+        },
+        acts.followUps[1],
+      ];
+
+      const spineNext = spineFinalize({
+        spinePrev,
+        norm,
+        cog,
+        lane: "music",
+        actionTaken: "served_menu",
+        followUps: fu,
+        pendingAsk: null,
+        topicOverride: "help",
+      });
+
       return {
         ok: true,
         reply,
         lane: "music",
-        followUps: [
-          {
-            id: "fu_top10",
-            type: "chip",
-            label: `Top 10 (${year})`,
-            payload: { lane: "music", action: "top10", year },
-          },
-          acts.followUps[0],
-          {
-            id: "fu_yearend",
-            type: "chip",
-            label: `Year-End Hot 100 (${year})`,
-            payload: { lane: "music", action: "yearend_hot100", year },
-          },
-          acts.followUps[1],
-        ],
+        followUps: fu,
         followUpsStrings: [
           `Top 10 (${year})`,
           acts.followUpsStrings[0],
@@ -2765,6 +3334,7 @@ async function handleChat(input) {
           musicMomentsLoaded: !!session.musicMomentsLoaded,
           musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
           ...(sigLine ? { lastSigTransition: sigLine } : {}),
+          __spine: spineNext,
           ...baseCogPatch,
         },
         cog,
@@ -2784,6 +3354,21 @@ async function handleChat(input) {
     const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
     const sigLine = detectSignatureLine(reply);
 
+    const spineNext = spineFinalize({
+      spinePrev,
+      norm,
+      cog,
+      lane: "music",
+      actionTaken: "asked_year",
+      followUps: null,
+      pendingAsk: buildPendingAsk(
+        "need_year",
+        `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`,
+        []
+      ),
+      topicOverride: "help",
+    });
+
     return {
       ok: true,
       reply,
@@ -2791,6 +3376,7 @@ async function handleChat(input) {
       sessionPatch: {
         lane: "music",
         ...(sigLine ? { lastSigTransition: sigLine } : {}),
+        __spine: spineNext,
         ...baseCogPatch,
       },
       cog,
@@ -2817,6 +3403,21 @@ async function handleChat(input) {
     const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
     const sigLine = detectSignatureLine(reply);
 
+    const spineNext = spineFinalize({
+      spinePrev,
+      norm,
+      cog,
+      lane: "music",
+      actionTaken: "asked_year",
+      followUps: null,
+      pendingAsk: buildPendingAsk(
+        "need_year",
+        `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`,
+        []
+      ),
+      topicOverride: "help",
+    });
+
     return {
       ok: true,
       reply,
@@ -2824,6 +3425,7 @@ async function handleChat(input) {
       sessionPatch: {
         lane: "music",
         ...(sigLine ? { lastSigTransition: sigLine } : {}),
+        __spine: spineNext,
         ...baseCogPatch,
       },
       cog,
@@ -2850,6 +3452,17 @@ async function handleChat(input) {
     const sigLine = detectSignatureLine(reply);
     const f = counselorFollowUps();
 
+    const spineNext = spineFinalize({
+      spinePrev,
+      norm,
+      cog,
+      lane: "general",
+      actionTaken: "served_counsel_intro",
+      followUps: f.followUps,
+      pendingAsk: null,
+      topicOverride: "help",
+    });
+
     return {
       ok: true,
       reply,
@@ -2859,6 +3472,7 @@ async function handleChat(input) {
       sessionPatch: {
         lane: "general",
         ...(sigLine ? { lastSigTransition: sigLine } : {}),
+        __spine: spineNext,
         ...baseCogPatch,
       },
       cog,
@@ -2877,13 +3491,37 @@ async function handleChat(input) {
   const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
   const sigLine = detectSignatureLine(reply);
 
+  const fu = [
+    { id: "fu_music", type: "chip", label: "Music", payload: { lane: "music", action: "ask_year", route: "ask_year" } },
+    { id: "fu_movies", type: "chip", label: "Movies", payload: { lane: "movies", route: "movies" } },
+    { id: "fu_sponsors", type: "chip", label: "Sponsors", payload: { lane: "sponsors", route: "sponsors" } },
+  ];
+
+  const spineNext = spineFinalize({
+    spinePrev,
+    norm,
+    cog,
+    lane: lane || "general",
+    actionTaken: "served_menu",
+    followUps: fu,
+    pendingAsk: buildPendingAsk(
+      "need_pick",
+      "Pick what you want next.",
+      fu.map((x) => ({ id: x.id, label: x.label, payload: x.payload }))
+    ),
+    topicOverride: "help",
+  });
+
   return {
     ok: true,
     reply,
     lane: lane || "general",
+    followUps: fu,
+    followUpsStrings: ["Music", "Movies", "Sponsors"],
     sessionPatch: {
       lane: lane || "general",
       ...(sigLine ? { lastSigTransition: sigLine } : {}),
+      __spine: spineNext,
       ...baseCogPatch,
     },
     cog,
@@ -2909,4 +3547,10 @@ module.exports = {
   SIGNATURE_TRANSITIONS,
   validateNyxTone,
   runToneRegressionTests,
+
+  // Spine helpers (safe for internal diagnostics)
+  defaultSpine,
+  coerceSpine,
+  mergeSpine,
+  computeTurnSig,
 };
