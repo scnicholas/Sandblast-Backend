@@ -17,10 +17,11 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7bK (CHIP COMPRESSION++++: removes verbose micro-moment + “pick another year” phrases from chips; keeps as dialogue routes)
- * ✅ Chips are now short + readable (no “Tap micro moment—let’s seal the vibe.”, no long “Pick another year”)
- * ✅ Micro-moment route still exists (type it / payload action works) — just not spammed as a big chip
- * ✅ Keeps: TOP10-ONLY++++ (no #1 route anywhere), Top10 visibility fix (no Top 4 truncation),
+ * v0.7bL (MARION SPINE LOGGING++++ + COUNSELOR-LITE INTRO++++ + CHIP COMPRESSION++++ kept)
+ * ✅ Marion: tighter state spine + bounded trace logging for long-run continuity (no PII, capped size)
+ * ✅ Adds: counselor-lite “listening” intro route (non-clinical, Year-2 psych vibe; not therapy; bridges into lanes)
+ * ✅ Keeps: CHIP COMPRESSION++++ (no verbose micro-moment / pick-another-year chips),
+ *          TOP10-ONLY++++ (no #1 route anywhere), Top10 visibility fix (no Top 4 truncation),
  *          Mac Mode signal, Marion mediator, desire+confidence arbitration, Velvet mode (music-first),
  *          tone constitution + regression tests, payload beats silence, chip-click advance,
  *          pinned aliases, accurate miss reasons, year-end route, loop dampener, derived guard default OFF,
@@ -28,7 +29,7 @@
  */
 
 const CE_VERSION =
-  "chatEngine v0.7bK (CHIP COMPRESSION++++ + DESIRE+CONFIDENCE ARBITRATION++++ + VELVET (MUSIC-FIRST)++++ + TONE TESTS++++ + TOP10-ONLY + Top10 visibility fix + Marion mediator + payload beats silence + chip-click advance + pinned aliases + accurate miss reasons + year-end route + loop dampener)";
+  "chatEngine v0.7bL (MARION SPINE LOGGING++++ + COUNSELOR-LITE INTRO++++ + CHIP COMPRESSION++++ + DESIRE+CONFIDENCE ARBITRATION++++ + VELVET (MUSIC-FIRST)++++ + TONE TESTS++++ + TOP10-ONLY + Top10 visibility fix + Marion mediator + payload beats silence + chip-click advance + pinned aliases + accurate miss reasons + year-end route + loop dampener)";
 
 // -------------------------
 // helpers
@@ -63,7 +64,7 @@ function clamp01(n) {
   return x;
 }
 function sha1Lite(str) {
-  // small stable hash (NOT cryptographic) for loop signatures
+  // small stable hash (NOT cryptographic) for loop signatures / traces
   const s = safeStr(str);
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) {
@@ -163,6 +164,38 @@ const PUBLIC_MIN_YEAR = 1950;
 const PUBLIC_MAX_YEAR = 2025;
 
 // -------------------------
+// Marion spine logging (bounded, no PII)
+// -------------------------
+const MARION_TRACE_MAX = 160; // hard cap in chars
+function marionTraceBuild(norm, s, med) {
+  // IMPORTANT: no raw user text; only booleans + enums + tiny numeric features
+  const y = normYear(norm?.year);
+  const parts = [
+    `m=${safeStr(med?.mode || "")}`,
+    `i=${safeStr(med?.intent || "")}`,
+    `d=${safeStr(med?.dominance || "")}`,
+    `b=${safeStr(med?.budget || "")}`,
+    `a=${safeStr(norm?.action || "") || "-"}`,
+    `y=${y !== null ? y : "-"}`,
+    `p=${med?.actionable ? "1" : "0"}`,
+    `e=${med?.textEmpty ? "1" : "0"}`,
+    `st=${med?.stalled ? "1" : "0"}`,
+    `ld=${safeStr(med?.latentDesire || "")}`,
+    `cu=${String(Math.round(clamp01(med?.confidence?.user) * 100))}`,
+    `cn=${String(Math.round(clamp01(med?.confidence?.nyx) * 100))}`,
+    `v=${med?.velvet ? "1" : "0"}`,
+    `vr=${safeStr(med?.velvetReason || "") || "-"}`,
+  ];
+
+  const base = parts.join("|");
+  if (base.length <= MARION_TRACE_MAX) return base;
+  return base.slice(0, MARION_TRACE_MAX - 3) + "...";
+}
+function marionTraceHash(trace) {
+  return sha1Lite(safeStr(trace)).slice(0, 10);
+}
+
+// -------------------------
 // cognitive enums (DESIRE / transitions)
 // -------------------------
 const LATENT_DESIRE = Object.freeze({
@@ -211,6 +244,14 @@ function classifyAction(text, payload) {
   const t = safeStr(text).toLowerCase();
   const pA = safeStr(payload?.action || "").trim();
   if (pA) return pA;
+
+  // counselor-lite / listening entry (non-clinical)
+  if (
+    /\b(i need to talk|can we talk|just talk|listen to me|i need someone to listen|vent|i want to vent|what should we talk about|what do you want to talk about)\b/.test(
+      t
+    )
+  )
+    return "counsel_intro";
 
   if (/\b(top\s*10|top ten)\b/.test(t)) return "top10";
   if (/\b(story\s*moment|make it cinematic|cinematic)\b/.test(t))
@@ -386,6 +427,9 @@ function inferLatentDesire(norm, session, cog) {
 
   if (/\b(worried|overwhelmed|stuck|anxious|stress|reassure|calm)\b/.test(t))
     return LATENT_DESIRE.COMFORT;
+
+  // counselor-lite typically comfort/clarity
+  if (a === "counsel_intro") return LATENT_DESIRE.COMFORT;
 
   // Music interactions typically seek anchoring/authority unless explicitly reflective
   if (a === "top10" || a === "yearend_hot100") return LATENT_DESIRE.AUTHORITY;
@@ -729,6 +773,40 @@ function mediatorMarion(norm, session) {
   )
     dominance = "firm";
 
+  // Marion spine state (explicit + stable)
+  let marionState = "SEEK"; // SEEK | DELIVER | STABILIZE | BRIDGE
+  let marionReason = "default";
+  const a = safeStr(norm.action || "").trim();
+
+  if (intent === "STABILIZE") {
+    marionState = "STABILIZE";
+    marionReason = "intent_stabilize";
+  } else if (intent === "ADVANCE") {
+    marionState = "DELIVER";
+    marionReason = actionable ? "actionable" : "advance";
+  } else if (a === "switch_lane" || a === "ask_year") {
+    marionState = "BRIDGE";
+    marionReason = "routing";
+  } else {
+    marionState = "SEEK";
+    marionReason = "clarify";
+  }
+
+  // bounded trace for continuity
+  const trace = marionTraceBuild(norm, s, {
+    mode,
+    intent,
+    dominance,
+    budget,
+    stalled,
+    actionable,
+    textEmpty,
+    latentDesire,
+    confidence,
+    velvet: velvet.velvet,
+    velvetReason: velvet.reason || "",
+  });
+
   return {
     mode,
     intent,
@@ -745,6 +823,76 @@ function mediatorMarion(norm, session) {
     velvet: velvet.velvet,
     velvetSince: velvet.velvetSince || 0,
     velvetReason: velvet.reason || "",
+    // new spine fields
+    marionState,
+    marionReason,
+    marionTrace: trace,
+    marionTraceHash: marionTraceHash(trace),
+  };
+}
+
+// -------------------------
+// counselor-lite (non-clinical) scaffolding
+// -------------------------
+function counselorLiteIntro(norm, session, cog) {
+  const mode = safeStr(cog?.mode || "").toLowerCase();
+  const desire = safeStr(cog?.latentDesire || "");
+  const velvet = !!cog?.velvet;
+
+  const preface =
+    mode === "architect"
+      ? "Okay. Quick signal-check so I don’t waste your time."
+      : "Okay. I’m here — talk to me.";
+
+  // Keep it “year-2 psych student” style: reflective, simple, not clinical
+  const reflect =
+    desire === LATENT_DESIRE.COMFORT
+      ? "Before we do anything else: what’s the one sentence version of what you’re carrying right now?"
+      : desire === LATENT_DESIRE.MASTERY
+      ? "What outcome do you want by the end of this conversation — one sentence, measurable?"
+      : desire === LATENT_DESIRE.VALIDATION
+      ? "Do you want reassurance, a reality-check, or a plan?"
+      : "What’s the real topic underneath the topic — and what would “better” feel like?";
+
+  const boundaries =
+    "Just so we’re clean: I can help you think and choose next steps — I’m not a therapist, and I won’t diagnose.";
+
+  const bridge = velvet
+    ? "If you want a softer entry, we can also anchor in a year and let music do the opening."
+    : "If you want a lighter entry, we can pivot into music or movies and let that open the door.";
+
+  return `${preface}\n\n${reflect}\n\n${boundaries}\n${bridge}`;
+}
+
+function counselorFollowUps() {
+  return {
+    followUps: [
+      {
+        id: "fu_talk_plan",
+        type: "chip",
+        label: "I want a plan",
+        payload: { lane: "general", action: "counsel_intro", focus: "plan" },
+      },
+      {
+        id: "fu_talk_listen",
+        type: "chip",
+        label: "Just listen",
+        payload: { lane: "general", action: "counsel_intro", focus: "listen" },
+      },
+      {
+        id: "fu_music",
+        type: "chip",
+        label: "Music",
+        payload: { lane: "music", action: "ask_year" },
+      },
+      {
+        id: "fu_movies",
+        type: "chip",
+        label: "Movies",
+        payload: { lane: "movies" },
+      },
+    ],
+    followUpsStrings: ["I want a plan", "Just listen", "Music", "Movies"],
   };
 }
 
@@ -1362,7 +1510,9 @@ function buildCustomStory({ year, vibe, anchorItem }) {
       : "";
 
   const open = y ? `${y}.` : `That year.`;
-  const aLine = anchor ? `The needle drops on ${anchor} — ` : `The needle drops — `;
+  const aLine = anchor
+    ? `The needle drops on ${anchor} — `
+    : `The needle drops — `;
 
   if (v === "romantic") {
     return (
@@ -1454,7 +1604,15 @@ function runToneRegressionTests() {
   );
   assert("velvet_entry_music_first", v.velvet === true, JSON.stringify(v));
 
-  return { ok: failures.length === 0, failures, ran: 5 };
+  // 6) Marion trace must be bounded
+  const tr = marionTraceBuild(
+    { action: "top10", year: 1988, turnSignals: { hasPayload: true } },
+    {},
+    { mode: "architect", intent: "ADVANCE", dominance: "firm", budget: "short" }
+  );
+  assert("marion_trace_bounded", safeStr(tr).length <= MARION_TRACE_MAX, tr);
+
+  return { ok: failures.length === 0, failures, ran: 6 };
 }
 
 // -------------------------
@@ -1500,6 +1658,7 @@ async function handleChat(input) {
     lastTurnIntent: cog.intent,
     lastTurnAt: nowMs(),
     ...(cog.intent === "ADVANCE" ? { lastAdvanceAt: nowMs() } : {}),
+
     // new cognitive telemetry
     lastLatentDesire: cog.latentDesire,
     lastUserConfidence: clamp01(cog?.confidence?.user),
@@ -1507,6 +1666,12 @@ async function handleChat(input) {
     velvetMode: !!cog.velvet,
     velvetSince: cog.velvet ? Number(cog.velvetSince || 0) || nowMs() : 0,
     lastAction: safeStr(norm.action || ""),
+
+    // Marion spine logging (bounded)
+    marionState: safeStr(cog.marionState || ""),
+    marionReason: safeStr(cog.marionReason || ""),
+    marionTrace: safeStr(cog.marionTrace || ""),
+    marionTraceHash: safeStr(cog.marionTraceHash || ""),
   };
 
   if (norm.action === "reset") {
@@ -1533,6 +1698,34 @@ async function handleChat(input) {
       meta: {
         engine: CE_VERSION,
         resetHint: true,
+        turnSignals: norm.turnSignals,
+        elapsedMs: nowMs() - started,
+      },
+    };
+  }
+
+  // Counselor-lite listening intro (non-clinical)
+  if (norm.action === "counsel_intro") {
+    const replyRaw = counselorLiteIntro(norm, session, cog);
+    const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
+    const sigLine = detectSignatureLine(reply);
+    const f = counselorFollowUps();
+
+    return {
+      ok: true,
+      reply,
+      lane: "general",
+      followUps: f.followUps,
+      followUpsStrings: f.followUpsStrings,
+      sessionPatch: {
+        lane: "general",
+        ...(sigLine ? { lastSigTransition: sigLine } : {}),
+        ...baseCogPatch,
+      },
+      cog,
+      meta: {
+        engine: CE_VERSION,
+        route: "counsel_intro",
         turnSignals: norm.turnSignals,
         elapsedMs: nowMs() - started,
       },
@@ -2640,6 +2833,38 @@ async function handleChat(input) {
         velvet: !!cog.velvet,
         desire: cog.latentDesire,
         confidence: cog.confidence,
+        turnSignals: norm.turnSignals,
+        elapsedMs: nowMs() - started,
+      },
+    };
+  }
+
+  // If user is asking for a “what do you want to talk about” opener, route into counselor-lite intro
+  if (
+    /\b(what do you want to talk about|what should we talk about|can we talk|i need to talk|just talk)\b/i.test(
+      safeStr(norm.text || "")
+    )
+  ) {
+    const replyRaw = counselorLiteIntro(norm, session, cog);
+    const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
+    const sigLine = detectSignatureLine(reply);
+    const f = counselorFollowUps();
+
+    return {
+      ok: true,
+      reply,
+      lane: "general",
+      followUps: f.followUps,
+      followUpsStrings: f.followUpsStrings,
+      sessionPatch: {
+        lane: "general",
+        ...(sigLine ? { lastSigTransition: sigLine } : {}),
+        ...baseCogPatch,
+      },
+      cog,
+      meta: {
+        engine: CE_VERSION,
+        route: "general_counsel_intro",
         turnSignals: norm.turnSignals,
         elapsedMs: nowMs() - started,
       },
