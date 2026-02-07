@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18bi (SECURITY HARDENING+++++ polish + TEXT/* CHAT SUPPORT++++ + ERROR META REDACTION FIX++++)
+ * index.js v1.5.18bj (SECURITY FIX++++: allow backend self-host referer + hostOnly normalize + true host redaction in 403 meta)
  *
  * Keeps:
  * ✅ WIKI AUTHORITY FIX++++ (wikipedia split hot100 dir ingest + merged year map)
@@ -13,12 +13,15 @@
  * ✅ v1.5.18bf: TTS FAIL-OPEN (default ON): /api/tts & /api/voice return 204 on failure + exposed diag headers
  * ✅ v1.5.18bg: Origin/Referer coherence guard + widget provenance headers + inbound sanitizer + security headers + TTS clamps + public diagnostics redaction
  * ✅ v1.5.18bh: text/* body support + public meta redaction + HSTS/perms policy + NYX_VOICE_NATURALIZE env read bug fix
+ * ✅ v1.5.18bi: error-meta redaction intent (but hosts still leaked)
  *
- * Adds (v1.5.18bi):
- * ✅ SECURITY FIX: redacts Origin/Referer host fields in *error responses* unless debug secret is provided
- *    - prevents accidental leakage via 403 meta payloads (origin_referer_mismatch, referer_not_allowed)
+ * Adds (v1.5.18bj):
+ * ✅ SECURITY FIX: backend self-host referer allow (prevents false 403 when refererHost = backend host)
+ * ✅ SECURITY FIX: hostOnly() normalization strips ports for Origin/Referer host comparisons
+ * ✅ SECURITY FIX: securityForMeta() now truly redacts originHost/refererHost unless debug secret is provided
  *
  * Env:
+ *  - PUBLIC_BACKEND_HOST=sandblast-backend.onrender.com (optional override)
  *  - TTS_FAIL_OPEN=true|false (default true)
  *  - STRICT_ORIGIN_REFERER=true|false (default false)
  *  - TTS_MAX_CHARS=900 (default 900)
@@ -88,7 +91,7 @@ const nyxVoiceNaturalizeMod =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18bi (SECURITY HARDENING+++++: error-meta redaction fix + HSTS/perms policy + chat text/* support; keeps v1.5.18bg security + v1.5.18bf TTS fail-open + v1.5.18be CSE/chip continuity + v1.5.18bc reset/sessionPatch keys + v1.5.18bb WIKI AUTHORITY FIX++++ + CRITICAL FIXES++++ + diagnostics)";
+  "index.js v1.5.18bj (SECURITY FIX++++: backend self-host referer allow + hostOnly normalize + true host redaction; keeps v1.5.18bg security + v1.5.18bf TTS fail-open + v1.5.18be CSE/chip continuity + v1.5.18bc reset/sessionPatch keys + v1.5.18bb WIKI AUTHORITY FIX++++ + CRITICAL FIXES++++ + diagnostics)";
 
 // =========================
 // Utils
@@ -163,12 +166,18 @@ function statSafe(p) {
     return null;
   }
 }
+
+// ✅ hostOnly normalize: strips ports (and handles empties safely)
+function hostOnly(h) {
+  return safeStr(h).toLowerCase().replace(/:\d+$/, "");
+}
+
 function parseUrlHost(u) {
   const s = safeStr(u).trim();
   if (!s) return "";
   try {
     const x = new URL(s);
-    return safeStr(x.host || "").toLowerCase();
+    return hostOnly(x.host || "");
   } catch (_) {
     return "";
   }
@@ -178,10 +187,10 @@ function parseOriginHost(o) {
   if (!s) return "";
   try {
     const x = new URL(s);
-    return safeStr(x.host || "").toLowerCase();
+    return hostOnly(x.host || "");
   } catch (_) {
     const m = s.replace(/^https?:\/\//i, "");
-    return safeStr(m.split("/")[0]).toLowerCase();
+    return hostOnly(m.split("/")[0] || "");
   }
 }
 function isBrowserishUA(ua) {
@@ -246,6 +255,11 @@ const PORT = Number(process.env.PORT || 10000);
 const NODE_ENV = String(process.env.NODE_ENV || "production").trim();
 const TRUST_PROXY = String(process.env.TRUST_PROXY || "").trim();
 const MAX_JSON_BODY = String(process.env.MAX_JSON_BODY || "512kb");
+
+// ✅ Backend host (self-host referer allow)
+// NOTE: used ONLY for referer/origin host allow checks (NOT for CORS allow-origins)
+const BACKEND_HOST =
+  hostOnly((process.env.PUBLIC_BACKEND_HOST || "").trim()) || "sandblast-backend.onrender.com";
 
 // --- Security knobs ---
 const STRICT_ORIGIN_REFERER = toBool(process.env.STRICT_ORIGIN_REFERER, false);
@@ -718,15 +732,25 @@ function isAllowedOrigin(origin) {
 
 function allowedHostsSnapshot() {
   const hosts = new Set();
+
+  // ✅ allow browser origins’ hosts
   for (const o of ORIGINS_ALLOWLIST) {
-    const h = parseOriginHost(o);
+    const h = hostOnly(parseOriginHost(o));
     if (h) hosts.add(h);
   }
+
+  // ✅ allow backend self host (fixes strict refererHost = backend)
+  if (BACKEND_HOST) hosts.add(hostOnly(BACKEND_HOST));
+
   return hosts;
 }
 function isAllowedHost(host) {
-  const h = safeStr(host).toLowerCase();
+  const h = hostOnly(host);
   if (!h) return false;
+
+  // ✅ fast allow: backend
+  if (BACKEND_HOST && h === hostOnly(BACKEND_HOST)) return true;
+
   const allowHosts = allowedHostsSnapshot();
   if (allowHosts.has(h)) return true;
 
@@ -2506,9 +2530,10 @@ function securityForMeta(req) {
   const authed = isDebugAuthed(req);
   if (!PUBLIC_DIAGNOSTICS_SAFE || authed) return sec;
 
+  // ✅ true redaction: do NOT leak hosts
   return {
-    originHost: safeStr(sec.originHost || ""),
-    refererHost: safeStr(sec.refererHost || ""),
+    originHost: "",
+    refererHost: "",
     ip: sec.ip ? `…${sha1(String(sec.ip)).slice(0, 6)}` : "",
     redacted: true,
   };
@@ -2522,8 +2547,8 @@ app.use((req, res, next) => {
   const referer = safeStr(req.headers.referer || req.headers.referrer || "").trim();
   const ua = safeStr(req.headers["user-agent"] || "");
 
-  const originHost = origin ? parseOriginHost(origin) : "";
-  const refererHost = referer ? parseUrlHost(referer) : "";
+  const originHost = origin ? hostOnly(parseOriginHost(origin)) : "";
+  const refererHost = referer ? hostOnly(parseUrlHost(referer)) : "";
 
   // ✅ attach sec early so *all* responses can safely redact it
   req.__sb_sec = {
@@ -2543,6 +2568,7 @@ app.use((req, res, next) => {
   }
 
   if (STRICT_ORIGIN_REFERER && !originHost && refererHost) {
+    // ✅ allow backend host explicitly (and via allowlist)
     if (!isAllowedHost(refererHost)) {
       return res.status(403).json({
         ok: false,
@@ -3578,7 +3604,7 @@ app.listen(PORT, () => {
       STRICT_ORIGIN_REFERER ? "true" : "false"
     } publicDiagSafe=${PUBLIC_DIAGNOSTICS_SAFE ? "true" : "false"} debugSecret=${DEBUG_SHARED_SECRET ? "set" : "unset"} hsts=${
       SECURITY_HSTS ? "true" : "false"
-    }`
+    } backendHost=${BACKEND_HOST}`
   );
 });
 
