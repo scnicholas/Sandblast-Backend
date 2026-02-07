@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18bg (SECURITY HARDENING++++ + TTS FAIL-OPEN++++ kept)
+ * index.js v1.5.18bh (SECURITY HARDENING+++++ polish + TEXT/* CHAT SUPPORT++++)
  *
  * Keeps:
  * ✅ WIKI AUTHORITY FIX++++ (wikipedia split hot100 dir ingest + merged year map)
@@ -11,28 +11,26 @@
  * ✅ v1.5.18bc: sessionPatch allows music loop-dampener keys + TRUE reset clears session state safely
  * ✅ v1.5.18be: gateway CSE evaluator + chip continuity signals; sessionPatch normalize fix
  * ✅ v1.5.18bf: TTS FAIL-OPEN (default ON): /api/tts & /api/voice return 204 on failure + exposed diag headers
+ * ✅ v1.5.18bg: Origin/Referer coherence guard + widget provenance headers + inbound sanitizer + security headers + TTS clamps + public diagnostics redaction
  *
- * Adds (v1.5.18bg):
- * ✅ SECURITY: Origin/Referer coherence guard (optional strict mode)
- *    - If both Origin + Referer exist and hosts don’t match → block (403)
- *    - If strict mode enabled, Referer-only must be allowlisted
- * ✅ SECURITY: Explicit allow of widget provenance headers (for Phase-1 widget hardening)
- *    - X-SBNYX-Origin, X-SBNYX-Referrer, X-SBNYX-Widget-Id, X-SBNYX-Nonce
- * ✅ SECURITY: Prototype-pollution stripping + string length clamps on inbound bodies (non-breaking)
- * ✅ SECURITY: Default API security headers (nosniff, frame-ancestors deny, referrer policy)
- * ✅ TTS: max text clamp + per-session TTS burst limiter (reduces abuse/billing spikes)
- * ✅ SECURITY: Public diagnostics redaction (prevents filesystem/path leakage in /, /health, /api/health, /api/knowledge, /api/packsight)
- *    - Full packsight/knowledge detail only when debug secret header matches
+ * Adds (v1.5.18bh):
+ * ✅ CHAT: text/* body support for /api/chat (treat body as {text: "..."}), non-breaking
+ * ✅ SECURITY: public meta redaction for request security fields (no full referer/origin leakage unless debug secret)
+ * ✅ SECURITY: optional HSTS + Permissions-Policy (safe defaults; toggles)
+ * ✅ FIX: NYX_VOICE_NATURALIZE env read bug (duplicate key)
  *
  * Env:
  *  - TTS_FAIL_OPEN=true|false (default true)
- *  - STRICT_ORIGIN_REFERER=true|false (default false)   // turn on when widget is stable
+ *  - STRICT_ORIGIN_REFERER=true|false (default false)
  *  - TTS_MAX_CHARS=900 (default 900)
  *  - TTS_BURST_WINDOW_MS=30000 (default 30000)
  *  - TTS_BURST_MAX=6 (default 6)
- *  - PUBLIC_DIAGNOSTICS_SAFE=true|false (default true)  // redact paths in public endpoints
- *  - DEBUG_SHARED_SECRET=...                           // enables full diagnostic payloads when header matches
- *  - DEBUG_SHARED_HEADER=X-SB-DEBUG-SECRET             // header name (default)
+ *  - PUBLIC_DIAGNOSTICS_SAFE=true|false (default true)
+ *  - DEBUG_SHARED_SECRET=...
+ *  - DEBUG_SHARED_HEADER=X-SB-DEBUG-SECRET (default)
+ *  - SECURITY_HSTS=true|false (default true in production)
+ *  - SECURITY_HSTS_MAX_AGE=15552000 (default 15552000; 180d)
+ *  - SECURITY_PERMISSIONS_POLICY=... (optional override)
  */
 
 // =========================
@@ -91,7 +89,7 @@ const nyxVoiceNaturalizeMod =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18bg (SECURITY HARDENING++++: origin/referrer coherence + inbound sanitization + security headers + TTS burst clamp + PUBLIC DIAG REDACTION; keeps v1.5.18bf TTS fail-open + v1.5.18be CSE/chip continuity + v1.5.18bc reset/sessionPatch keys + v1.5.18bb WIKI AUTHORITY FIX++++ + CRITICAL FIXES++++: sessionKey uses parsed body + manifest abs rebuilt after reload + strict CORS hard-lock 403 + JSON parser once + LOAD VISIBILITY++++ + pack index + nyx voice naturalizer + crash-proof boot + diagnostics)";
+  "index.js v1.5.18bh (SECURITY HARDENING+++++: meta redaction + HSTS/perms policy + NYX_VOICE_NATURALIZE env fix + chat text/* support; keeps v1.5.18bg security + v1.5.18bf TTS fail-open + v1.5.18be CSE/chip continuity + v1.5.18bc reset/sessionPatch keys + v1.5.18bb WIKI AUTHORITY FIX++++ + CRITICAL FIXES++++ + diagnostics)";
 
 // =========================
 // Utils
@@ -253,10 +251,18 @@ const MAX_JSON_BODY = String(process.env.MAX_JSON_BODY || "512kb");
 // --- Security knobs ---
 const STRICT_ORIGIN_REFERER = toBool(process.env.STRICT_ORIGIN_REFERER, false);
 
-// ✅ NEW: public diagnostics redaction
+// ✅ public diagnostics redaction
 const PUBLIC_DIAGNOSTICS_SAFE = toBool(process.env.PUBLIC_DIAGNOSTICS_SAFE, true);
 const DEBUG_SHARED_SECRET = String(process.env.DEBUG_SHARED_SECRET || "").trim();
 const DEBUG_SHARED_HEADER = String(process.env.DEBUG_SHARED_HEADER || "X-SB-DEBUG-SECRET").trim();
+
+// ✅ NEW: optional HSTS + Permissions-Policy
+const SECURITY_HSTS = toBool(process.env.SECURITY_HSTS, NODE_ENV === "production");
+const SECURITY_HSTS_MAX_AGE = clampInt(process.env.SECURITY_HSTS_MAX_AGE, 15552000, 0, 63072000);
+const SECURITY_PERMISSIONS_POLICY = String(
+  process.env.SECURITY_PERMISSIONS_POLICY ||
+    "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()"
+).trim();
 
 // --- Knowledge Bridge knobs ---
 const KNOWLEDGE_AUTOLOAD = toBool(process.env.KNOWLEDGE_AUTOLOAD, true);
@@ -301,7 +307,7 @@ const DATA_ROOT_DISCOVERY_MAX_DEPTH = clampInt(process.env.DATA_ROOT_DISCOVERY_M
 const DATA_ROOT_DISCOVERY_MAX_VISITS = clampInt(process.env.DATA_ROOT_DISCOVERY_MAX_VISITS, 2500, 200, 20000);
 
 // Nyx Voice Naturalizer knobs
-const NYX_VOICE_NATURALIZE = toBool(process.env.NYX_VOICE_NATURALIZE || process.env.NYX_VOICE_NATURALIZE, true);
+const NYX_VOICE_NATURALIZE = toBool(process.env.NYX_VOICE_NATURALIZE, true);
 const NYX_VOICE_NATURALIZE_MAXLEN = clampInt(process.env.NYX_VOICE_NATURALIZE_MAXLEN, 2200, 200, 20000);
 
 // =========================
@@ -769,7 +775,7 @@ const NYX_VOICE_SPEAKER_BOOST = toBool(process.env.NYX_VOICE_SPEAKER_BOOST, true
 // ✅ TTS fail-open (prevents widget-facing 5xx; returns 204 + headers)
 const TTS_FAIL_OPEN = toBool(process.env.TTS_FAIL_OPEN, true);
 
-// ✅ NEW: TTS abuse clamps
+// ✅ TTS abuse clamps
 const TTS_MAX_CHARS = clampInt(process.env.TTS_MAX_CHARS, 900, 120, 4000);
 const TTS_BURST_WINDOW_MS = clampInt(process.env.TTS_BURST_WINDOW_MS, 30000, 2000, 5 * 60 * 1000);
 const TTS_BURST_MAX = clampInt(process.env.TTS_BURST_MAX, 6, 1, 60);
@@ -1554,7 +1560,9 @@ function manifestLoadPacks(loadedFiles, totalBytesRef) {
     try {
       if (item.type === "json_file_rel") {
         const fp = resolveDataRelAcrossRoots(item.rels || item.rel, "file");
-        const res = fp ? manifestLoadJsonFileIntoKey(fp, item.key, loadedFiles, totalBytesRef) : { ok: false, reason: "missing" };
+        const res = fp
+          ? manifestLoadJsonFileIntoKey(fp, item.key, loadedFiles, totalBytesRef)
+          : { ok: false, reason: "missing" };
 
         if (res.ok && !res.skipped && typeof item.transform === "function" && item.outKey) {
           const derived = item.transform(KNOWLEDGE.json[item.key]);
@@ -1848,7 +1856,6 @@ function reloadKnowledge() {
 function redactPathValue(s) {
   const v = safeStr(s);
   if (!v) return "";
-  // Avoid leaking absolute paths; keep only basename-ish token.
   const base = v.replace(/\\/g, "/").split("/").filter(Boolean).slice(-1)[0] || "";
   return base ? `…/${base}` : "";
 }
@@ -1890,7 +1897,9 @@ function knowledgeStatusForMetaPublic(req) {
     skips: full.skips,
     collisions: full.collisions,
     manifest: Array.isArray(full.manifest)
-      ? full.manifest.map((m) => ({ key: safeStr(m.key), ok: !!m.ok, reason: safeStr(m.reason || "").slice(0, 60) })).slice(0, 12)
+      ? full.manifest
+          .map((m) => ({ key: safeStr(m.key), ok: !!m.ok, reason: safeStr(m.reason || "").slice(0, 60) }))
+          .slice(0, 12)
       : [],
     redacted: true,
   };
@@ -2403,6 +2412,12 @@ app.use((req, res, next) => {
     res.setHeader("X-Frame-Options", "DENY");
     res.setHeader("Content-Security-Policy", "frame-ancestors 'none'");
     res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+    res.setHeader("Permissions-Policy", SECURITY_PERMISSIONS_POLICY);
+
+    // HSTS only makes sense over HTTPS; Render terminates TLS upstream, but header still helps browsers.
+    if (SECURITY_HSTS && SECURITY_HSTS_MAX_AGE > 0) {
+      res.setHeader("Strict-Transport-Security", `max-age=${SECURITY_HSTS_MAX_AGE}; includeSubDomains`);
+    }
   } catch (_) {}
   return next();
 });
@@ -2517,6 +2532,24 @@ app.use((req, res, next) => {
 
   return next();
 });
+
+// =========================
+// Public meta redaction for security fields
+// =========================
+function securityForMeta(req) {
+  const sec = req && req.__sb_sec ? req.__sb_sec : null;
+  if (!sec) return undefined;
+
+  const authed = isDebugAuthed(req);
+  if (!PUBLIC_DIAGNOSTICS_SAFE || authed) return sec;
+
+  return {
+    originHost: safeStr(sec.originHost || ""),
+    refererHost: safeStr(sec.refererHost || ""),
+    ip: sec.ip ? `…${sha1(String(sec.ip)).slice(0, 6)}` : "",
+    redacted: true,
+  };
+}
 
 // =========================
 // Health + discovery
@@ -2934,9 +2967,11 @@ function clearSessionState(rec) {
 async function handleChatRoute(req, res) {
   const startedAt = nowMs();
 
-  const rawBody = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
-  const body = sanitizeInboundBody(rawBody);
+  // ✅ CHAT text/* support: treat raw string as {text:"..."} (non-breaking)
+  let rawBody = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
+  if (typeof req.body === "string") rawBody = { text: req.body };
 
+  const body = sanitizeInboundBody(rawBody);
   normalizeChipPayload(body);
 
   const clientRequestId = safeStr(body.requestId || body.clientRequestId || req.headers["x-request-id"] || "").trim();
@@ -3215,7 +3250,7 @@ async function handleChatRoute(req, res) {
       cse,
       chipContext,
       turnSignals,
-      security: req.__sb_sec || undefined,
+      security: securityForMeta(req),
     },
   });
 }
@@ -3532,7 +3567,9 @@ app.listen(PORT, () => {
   console.log(
     `[Sandblast] TTS clamps: maxChars=${TTS_MAX_CHARS} burstWindowMs=${TTS_BURST_WINDOW_MS} burstMax=${TTS_BURST_MAX} strictOriginReferer=${
       STRICT_ORIGIN_REFERER ? "true" : "false"
-    } publicDiagSafe=${PUBLIC_DIAGNOSTICS_SAFE ? "true" : "false"} debugSecret=${DEBUG_SHARED_SECRET ? "set" : "unset"}`
+    } publicDiagSafe=${PUBLIC_DIAGNOSTICS_SAFE ? "true" : "false"} debugSecret=${DEBUG_SHARED_SECRET ? "set" : "unset"} hsts=${
+      SECURITY_HSTS ? "true" : "false"
+    }`
   );
 });
 
