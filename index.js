@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18bh (SECURITY HARDENING+++++ polish + TEXT/* CHAT SUPPORT++++)
+ * index.js v1.5.18bi (SECURITY HARDENING+++++ polish + TEXT/* CHAT SUPPORT++++ + ERROR META REDACTION FIX++++)
  *
  * Keeps:
  * ✅ WIKI AUTHORITY FIX++++ (wikipedia split hot100 dir ingest + merged year map)
@@ -12,12 +12,11 @@
  * ✅ v1.5.18be: gateway CSE evaluator + chip continuity signals; sessionPatch normalize fix
  * ✅ v1.5.18bf: TTS FAIL-OPEN (default ON): /api/tts & /api/voice return 204 on failure + exposed diag headers
  * ✅ v1.5.18bg: Origin/Referer coherence guard + widget provenance headers + inbound sanitizer + security headers + TTS clamps + public diagnostics redaction
+ * ✅ v1.5.18bh: text/* body support + public meta redaction + HSTS/perms policy + NYX_VOICE_NATURALIZE env read bug fix
  *
- * Adds (v1.5.18bh):
- * ✅ CHAT: text/* body support for /api/chat (treat body as {text: "..."}), non-breaking
- * ✅ SECURITY: public meta redaction for request security fields (no full referer/origin leakage unless debug secret)
- * ✅ SECURITY: optional HSTS + Permissions-Policy (safe defaults; toggles)
- * ✅ FIX: NYX_VOICE_NATURALIZE env read bug (duplicate key)
+ * Adds (v1.5.18bi):
+ * ✅ SECURITY FIX: redacts Origin/Referer host fields in *error responses* unless debug secret is provided
+ *    - prevents accidental leakage via 403 meta payloads (origin_referer_mismatch, referer_not_allowed)
  *
  * Env:
  *  - TTS_FAIL_OPEN=true|false (default true)
@@ -89,7 +88,7 @@ const nyxVoiceNaturalizeMod =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18bh (SECURITY HARDENING+++++: meta redaction + HSTS/perms policy + NYX_VOICE_NATURALIZE env fix + chat text/* support; keeps v1.5.18bg security + v1.5.18bf TTS fail-open + v1.5.18be CSE/chip continuity + v1.5.18bc reset/sessionPatch keys + v1.5.18bb WIKI AUTHORITY FIX++++ + CRITICAL FIXES++++ + diagnostics)";
+  "index.js v1.5.18bi (SECURITY HARDENING+++++: error-meta redaction fix + HSTS/perms policy + chat text/* support; keeps v1.5.18bg security + v1.5.18bf TTS fail-open + v1.5.18be CSE/chip continuity + v1.5.18bc reset/sessionPatch keys + v1.5.18bb WIKI AUTHORITY FIX++++ + CRITICAL FIXES++++ + diagnostics)";
 
 // =========================
 // Utils
@@ -256,7 +255,7 @@ const PUBLIC_DIAGNOSTICS_SAFE = toBool(process.env.PUBLIC_DIAGNOSTICS_SAFE, true
 const DEBUG_SHARED_SECRET = String(process.env.DEBUG_SHARED_SECRET || "").trim();
 const DEBUG_SHARED_HEADER = String(process.env.DEBUG_SHARED_HEADER || "X-SB-DEBUG-SECRET").trim();
 
-// ✅ NEW: optional HSTS + Permissions-Policy
+// ✅ optional HSTS + Permissions-Policy
 const SECURITY_HSTS = toBool(process.env.SECURITY_HSTS, NODE_ENV === "production");
 const SECURITY_HSTS_MAX_AGE = clampInt(process.env.SECURITY_HSTS_MAX_AGE, 15552000, 0, 63072000);
 const SECURITY_PERMISSIONS_POLICY = String(
@@ -1576,7 +1575,9 @@ function manifestLoadPacks(loadedFiles, totalBytesRef) {
 
       if (item.type === "json_dir_rel") {
         const dir = resolveDataRelAcrossRoots(item.rels || item.rel, "dir");
-        const res = dir ? manifestLoadJsonDirIntoPrefix(dir, item.key, loadedFiles, totalBytesRef) : { ok: false, reason: "missing_dir" };
+        const res = dir
+          ? manifestLoadJsonDirIntoPrefix(dir, item.key, loadedFiles, totalBytesRef)
+          : { ok: false, reason: "missing_dir" };
 
         if (res.ok && typeof item.postTransform === "function" && item.outKey) {
           const derived = item.postTransform(KNOWLEDGE.json, item.key);
@@ -1590,7 +1591,9 @@ function manifestLoadPacks(loadedFiles, totalBytesRef) {
 
       if (item.type === "json_file_or_dir_rel") {
         const p = resolveDataRelAcrossRoots(item.rels || item.rel, "either");
-        const res = p ? manifestLoadFileOrDir(p, item.key, loadedFiles, totalBytesRef) : { ok: false, reason: "missing_file_or_dir" };
+        const res = p
+          ? manifestLoadFileOrDir(p, item.key, loadedFiles, totalBytesRef)
+          : { ok: false, reason: "missing_file_or_dir" };
         loadedSummary.push({ key: item.key, ok: res.ok, reason: res.reason || "" });
         continue;
       }
@@ -2494,46 +2497,6 @@ app.use((req, res, next) => {
 });
 
 // =========================
-// SECURITY: Origin/Referer coherence gate (non-breaking default)
-// =========================
-app.use((req, res, next) => {
-  const origin = normalizeOrigin(req.headers.origin || "");
-  const referer = safeStr(req.headers.referer || req.headers.referrer || "").trim();
-  const ua = safeStr(req.headers["user-agent"] || "");
-
-  const originHost = origin ? parseOriginHost(origin) : "";
-  const refererHost = referer ? parseUrlHost(referer) : "";
-
-  if (originHost && refererHost && originHost !== refererHost) {
-    return res.status(403).json({
-      ok: false,
-      error: "origin_referer_mismatch",
-      meta: { index: INDEX_VERSION, originHost, refererHost },
-    });
-  }
-
-  if (STRICT_ORIGIN_REFERER && !originHost && refererHost) {
-    if (!isAllowedHost(refererHost)) {
-      return res.status(403).json({
-        ok: false,
-        error: "referer_not_allowed",
-        meta: { index: INDEX_VERSION, refererHost, strict: true, ua: isBrowserishUA(ua) ? "browserish" : "other" },
-      });
-    }
-  }
-
-  req.__sb_sec = {
-    origin: origin || "",
-    referer: referer || "",
-    originHost,
-    refererHost,
-    ip: pickClientIp(req),
-  };
-
-  return next();
-});
-
-// =========================
 // Public meta redaction for security fields
 // =========================
 function securityForMeta(req) {
@@ -2550,6 +2513,52 @@ function securityForMeta(req) {
     redacted: true,
   };
 }
+
+// =========================
+// SECURITY: Origin/Referer coherence gate (non-breaking default)
+// =========================
+app.use((req, res, next) => {
+  const origin = normalizeOrigin(req.headers.origin || "");
+  const referer = safeStr(req.headers.referer || req.headers.referrer || "").trim();
+  const ua = safeStr(req.headers["user-agent"] || "");
+
+  const originHost = origin ? parseOriginHost(origin) : "";
+  const refererHost = referer ? parseUrlHost(referer) : "";
+
+  // ✅ attach sec early so *all* responses can safely redact it
+  req.__sb_sec = {
+    origin: origin || "",
+    referer: referer || "",
+    originHost,
+    refererHost,
+    ip: pickClientIp(req),
+  };
+
+  if (originHost && refererHost && originHost !== refererHost) {
+    return res.status(403).json({
+      ok: false,
+      error: "origin_referer_mismatch",
+      meta: { index: INDEX_VERSION, security: securityForMeta(req) },
+    });
+  }
+
+  if (STRICT_ORIGIN_REFERER && !originHost && refererHost) {
+    if (!isAllowedHost(refererHost)) {
+      return res.status(403).json({
+        ok: false,
+        error: "referer_not_allowed",
+        meta: {
+          index: INDEX_VERSION,
+          security: securityForMeta(req),
+          strict: true,
+          ua: isBrowserishUA(ua) ? "browserish" : "other",
+        },
+      });
+    }
+  }
+
+  return next();
+});
 
 // =========================
 // Health + discovery
