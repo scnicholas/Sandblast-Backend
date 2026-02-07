@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18bj (SECURITY FIX++++: allow backend self-host referer + hostOnly normalize + true host redaction in 403 meta)
+ * index.js v1.5.18bk (SECURITY HARDENING++++: timing-safe debug auth + request timeout + content-type gate + no-store API + block Origin:null)
  *
  * Keeps:
  * ✅ WIKI AUTHORITY FIX++++ (wikipedia split hot100 dir ingest + merged year map)
@@ -14,11 +14,14 @@
  * ✅ v1.5.18bg: Origin/Referer coherence guard + widget provenance headers + inbound sanitizer + security headers + TTS clamps + public diagnostics redaction
  * ✅ v1.5.18bh: text/* body support + public meta redaction + HSTS/perms policy + NYX_VOICE_NATURALIZE env read bug fix
  * ✅ v1.5.18bi: error-meta redaction intent (but hosts still leaked)
+ * ✅ v1.5.18bj: backend self-host referer allow + hostOnly normalize + TRUE host redaction in 403 meta
  *
- * Adds (v1.5.18bj):
- * ✅ SECURITY FIX: backend self-host referer allow (prevents false 403 when refererHost = backend host)
- * ✅ SECURITY FIX: hostOnly() normalization strips ports for Origin/Referer host comparisons
- * ✅ SECURITY FIX: securityForMeta() now truly redacts originHost/refererHost unless debug secret is provided
+ * Adds (v1.5.18bk):
+ * ✅ SECURITY: timing-safe debug secret compare (timingSafeEqual)
+ * ✅ SECURITY/STABILITY: request timeout guard (REQUEST_TIMEOUT_MS, default 25000ms)
+ * ✅ SECURITY: API no-store headers (prevents intermediary caching of API/meta)
+ * ✅ SECURITY: block Origin: null (sandbox/file contexts) under CORS hard-lock
+ * ✅ SECURITY: Content-Type gate for /api/chat + /api/tts (allow JSON + text/*; reject others with 415; TTS respects fail-open)
  *
  * Env:
  *  - PUBLIC_BACKEND_HOST=sandblast-backend.onrender.com (optional override)
@@ -33,6 +36,7 @@
  *  - SECURITY_HSTS=true|false (default true in production)
  *  - SECURITY_HSTS_MAX_AGE=15552000 (default 15552000; 180d)
  *  - SECURITY_PERMISSIONS_POLICY=... (optional override)
+ *  - REQUEST_TIMEOUT_MS=25000 (default 25000; clamp 5000–120000)
  */
 
 // =========================
@@ -91,7 +95,7 @@ const nyxVoiceNaturalizeMod =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18bj (SECURITY FIX++++: backend self-host referer allow + hostOnly normalize + true host redaction; keeps v1.5.18bg security + v1.5.18bf TTS fail-open + v1.5.18be CSE/chip continuity + v1.5.18bc reset/sessionPatch keys + v1.5.18bb WIKI AUTHORITY FIX++++ + CRITICAL FIXES++++ + diagnostics)";
+  "index.js v1.5.18bk (SECURITY HARDENING++++: timing-safe debug auth + request timeout + content-type gate + no-store API + block Origin:null; keeps v1.5.18bj host redaction + backend referer allow + hostOnly normalize; keeps v1.5.18bg security + v1.5.18bf TTS fail-open + v1.5.18be CSE/chip continuity + v1.5.18bc reset/sessionPatch keys + v1.5.18bb WIKI AUTHORITY FIX++++ + CRITICAL FIXES++++ + diagnostics)";
 
 // =========================
 // Utils
@@ -255,6 +259,7 @@ const PORT = Number(process.env.PORT || 10000);
 const NODE_ENV = String(process.env.NODE_ENV || "production").trim();
 const TRUST_PROXY = String(process.env.TRUST_PROXY || "").trim();
 const MAX_JSON_BODY = String(process.env.MAX_JSON_BODY || "512kb");
+const REQUEST_TIMEOUT_MS = clampInt(process.env.REQUEST_TIMEOUT_MS, 25000, 5000, 120000);
 
 // ✅ Backend host (self-host referer allow)
 // NOTE: used ONLY for referer/origin host allow checks (NOT for CORS allow-origins)
@@ -330,7 +335,17 @@ function isDebugAuthed(req) {
   if (!DEBUG_SHARED_SECRET) return false;
   const hdrName = DEBUG_SHARED_HEADER.toLowerCase();
   const got = safeStr(req.headers[hdrName] || req.headers[DEBUG_SHARED_HEADER] || "").trim();
-  return !!got && got === DEBUG_SHARED_SECRET;
+  if (!got) return false;
+
+  // ✅ timing-safe compare
+  try {
+    const a = Buffer.from(String(got), "utf8");
+    const b = Buffer.from(String(DEBUG_SHARED_SECRET), "utf8");
+    if (a.length !== b.length) return false;
+    return crypto.timingSafeEqual(a, b);
+  } catch (_) {
+    return false;
+  }
 }
 
 // =========================
@@ -2430,6 +2445,25 @@ app.use((req, res, next) => {
 app.use(express.text({ type: ["text/*"], limit: MAX_JSON_BODY }));
 
 // =========================
+// Request timeout + API no-store (security + stability)
+// =========================
+app.use((req, res, next) => {
+  try {
+    req.setTimeout?.(REQUEST_TIMEOUT_MS);
+    res.setTimeout?.(REQUEST_TIMEOUT_MS);
+  } catch (_) {}
+
+  try {
+    if (String(req.path || "").startsWith("/api/") || req.path === "/health") {
+      res.setHeader("Cache-Control", "no-store, max-age=0");
+      res.setHeader("Pragma", "no-cache");
+    }
+  } catch (_) {}
+
+  return next();
+});
+
+// =========================
 // Baseline security headers (API-safe)
 // =========================
 app.use((req, res, next) => {
@@ -2455,6 +2489,12 @@ app.use((req, res, next) => {
 app.use((req, res, next) => {
   const originRaw = safeStr(req.headers.origin || "");
   const origin = normalizeOrigin(originRaw);
+
+  // ✅ SECURITY: Origin:null is a common sandbox/file context — block it under hard-lock posture
+  if (origin === "null") {
+    return res.status(403).json({ ok: false, error: "cors_blocked", meta: { index: INDEX_VERSION } });
+  }
+
   const allow = origin ? isAllowedOrigin(origin) : false;
 
   if (origin) res.setHeader("Vary", "Origin");
@@ -3002,6 +3042,22 @@ function clearSessionState(rec) {
 async function handleChatRoute(req, res) {
   const startedAt = nowMs();
 
+  // ✅ Content-Type gate (allow missing, JSON, text/*)
+  try {
+    const m = String(req.method || "").toUpperCase();
+    if (m !== "POST") return res.status(405).json({ ok: false, error: "method_not_allowed", meta: { index: INDEX_VERSION } });
+    const ct = safeStr(req.headers["content-type"] || "").toLowerCase();
+    const okCT = !ct || ct.includes("application/json") || ct.startsWith("text/");
+    if (!okCT) {
+      return res.status(415).json({
+        ok: false,
+        error: "unsupported_media_type",
+        detail: "Use application/json or text/*.",
+        meta: { index: INDEX_VERSION },
+      });
+    }
+  } catch (_) {}
+
   // ✅ CHAT text/* support: treat raw string as {text:"..."} (non-breaking)
   let rawBody = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
   if (typeof req.body === "string") rawBody = { text: req.body };
@@ -3419,6 +3475,23 @@ function ttsFailOpen(res, code, detail, upstreamStatus) {
 async function handleTtsRoute(req, res) {
   const startedAt = nowMs();
 
+  // ✅ Content-Type gate (allow missing, JSON, text/*). Fail-open honored.
+  try {
+    const m = String(req.method || "").toUpperCase();
+    if (m !== "POST") return res.status(405).json({ ok: false, error: "method_not_allowed", meta: { index: INDEX_VERSION } });
+    const ct = safeStr(req.headers["content-type"] || "").toLowerCase();
+    const okCT = !ct || ct.includes("application/json") || ct.startsWith("text/");
+    if (!okCT) {
+      if (TTS_FAIL_OPEN) return ttsFailOpen(res, "unsupported_media_type", "Use application/json or text/*.", null);
+      return res.status(415).json({
+        ok: false,
+        error: "unsupported_media_type",
+        detail: "Use application/json or text/*.",
+        meta: { index: INDEX_VERSION },
+      });
+    }
+  } catch (_) {}
+
   let body = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
   if (typeof req.body === "string") body = { text: req.body };
   body = sanitizeInboundBody(body);
@@ -3604,7 +3677,7 @@ app.listen(PORT, () => {
       STRICT_ORIGIN_REFERER ? "true" : "false"
     } publicDiagSafe=${PUBLIC_DIAGNOSTICS_SAFE ? "true" : "false"} debugSecret=${DEBUG_SHARED_SECRET ? "set" : "unset"} hsts=${
       SECURITY_HSTS ? "true" : "false"
-    } backendHost=${BACKEND_HOST}`
+    } backendHost=${BACKEND_HOST} requestTimeoutMs=${REQUEST_TIMEOUT_MS}`
   );
 });
 
