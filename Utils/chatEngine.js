@@ -818,6 +818,12 @@ function applyTurnConstitutionToReply(rawReply, cog, session) {
     reply = applyBudgetText(reply, cog.budget);
   }
 
+  // FAIL-SAFE: never allow constitution to silence Nyx
+  if (!reply) {
+    reply = `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}). I’ll start with Top 10.`;
+    reply = applyBudgetText(reply, cog.budget);
+  }
+
   return reply;
 }
 
