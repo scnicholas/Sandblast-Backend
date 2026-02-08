@@ -17,9 +17,8 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7bM (STATE SPINE++++ canonical + click-to-context binding + pendingAsk + action trace)
- * ✅ Adds: canonical __spine object in sessionPatch on every turn (survives across turns cleanly)
- * ✅ Adds: click-to-context binding (payload-route/year capture), chip offer history (bounded), pendingAsk
+ * v0.7bN (HARDENING++++: actionable payload gating + activeContext refresh + typedYear precision + tone scrub scope + loop sig normalization + meta consistency)
+ * ✅ Keeps: v0.7bM STATE SPINE++++ canonical + click-to-context binding + pendingAsk + action trace
  * ✅ Keeps: MARION SPINE LOGGING++++, counselor-lite intro, CHIP COMPRESSION++++,
  *          TOP10-ONLY++++ (no #1 route anywhere), Top10 visibility fix (no Top 4 truncation),
  *          Mac Mode signal, Marion mediator, desire+confidence arbitration, Velvet mode (music-first),
@@ -29,7 +28,7 @@
  */
 
 const CE_VERSION =
-  "chatEngine v0.7bM (STATE SPINE++++ + MARION SPINE LOGGING++++ + COUNSELOR-LITE INTRO++++ + CHIP COMPRESSION++++ + DESIRE+CONFIDENCE ARBITRATION++++ + VELVET (MUSIC-FIRST)++++ + TONE TESTS++++ + TOP10-ONLY + Top10 visibility fix + Marion mediator + payload beats silence + chip-click advance + pinned aliases + accurate miss reasons + year-end route + loop dampener)";
+  "chatEngine v0.7bN (HARDENING++++: actionable payload gating + activeContext refresh + typedYear precision + tone scrub scope + loop sig normalization + meta consistency | STATE SPINE++++ + MARION SPINE LOGGING++++ + COUNSELOR-LITE INTRO++++ + CHIP COMPRESSION++++ + DESIRE+CONFIDENCE ARBITRATION++++ + VELVET (MUSIC-FIRST)++++ + TONE TESTS++++ + TOP10-ONLY + Top10 visibility fix + Marion mediator + payload beats silence + chip-click advance + pinned aliases + accurate miss reasons + year-end route + loop dampener)";
 
 // -------------------------
 // helpers
@@ -112,6 +111,9 @@ function extractYearFromText(t) {
   const y = Number(m[1]);
   return normYear(y);
 }
+function textHasYearToken(t) {
+  return extractYearFromText(t) !== null;
+}
 function normVibe(v) {
   const s = safeStr(v).trim().toLowerCase();
   if (!s) return "";
@@ -155,6 +157,40 @@ function applyBudgetText(s, budget) {
   // Non-list copy: tighter.
   if (budget === "short") return takeLines(txt, 6);
   return takeLines(txt, 14);
+}
+
+function stableSourceKey(sourceKey) {
+  // Normalize potentially long/variable keys to a stable short token for loop sigs.
+  // Examples:
+  //  "music/top10_by_year_v1.json" -> "top10_by_year_v1"
+  //  "music/wiki/yearend_hot100_by_year" -> "yearend_hot100_by_year"
+  const s = safeStr(sourceKey).trim();
+  if (!s) return "";
+  const parts = s.split(/[\\/]/).filter(Boolean);
+  const last = parts.length ? parts[parts.length - 1] : s;
+  return last.replace(/\.json$/i, "");
+}
+
+function hasActionablePayload(payload) {
+  if (!isPlainObject(payload)) return false;
+  const keys = Object.keys(payload);
+  if (!keys.length) return false;
+  // Only these keys count as "turn is actionable" (prevents ADVANCE on trivial client metadata).
+  const actionable = new Set([
+    "action",
+    "route",
+    "year",
+    "id",
+    "_id",
+    "label",
+    "lane",
+    "vibe",
+    "macMode",
+    "mode",
+    "allowDerivedTop10",
+    "allowYearendFallback",
+  ]);
+  return keys.some((k) => actionable.has(k));
 }
 
 // -------------------------
@@ -285,7 +321,7 @@ function topicFromAction(action) {
   return "unknown";
 }
 
-function stageProgress(prevStage, cog, spinePrev) {
+function stageProgress(prevStage, cog) {
   const p = safeStr(prevStage || "boot");
   const intent = safeStr(cog?.intent || "").toUpperCase();
   // deterministic progression:
@@ -309,7 +345,11 @@ function buildActiveContext(norm, spinePrev) {
 
   // if it was a silent click with route/action, treat as click context
   if (hasPayload && (route || year !== null || lane) && textEmpty) {
-    const id = safeStr(p.id || p._id || "").trim() || safeStr(norm?.action || "").trim() || route || "";
+    const id =
+      safeStr(p.id || p._id || "").trim() ||
+      safeStr(norm?.action || "").trim() ||
+      route ||
+      "";
     const label = safeStr(p.label || "").trim();
 
     // keep payload minimal (avoid bloat / PII)
@@ -332,7 +372,24 @@ function buildActiveContext(norm, spinePrev) {
     };
   }
 
-  // If there is explicit action or year, carry forward prior context
+  // HARDENING: if the user typed (non-empty text) and changed action/year, don't carry stale chip context
+  const txt = safeStr(norm?.text || "").trim();
+  const typed = !!txt && !textEmpty;
+  const hasExplicitAction = !!safeStr(norm?.action || "").trim();
+  const hasYear = normYear(norm?.year) !== null;
+
+  if (typed && (hasExplicitAction || hasYear)) {
+    // Create a minimal "typed" context (or clear); avoids stale route contaminating turnSig/loop fuse.
+    const typedCtx = {};
+    if (hasExplicitAction) typedCtx.route = safeStr(norm?.action || "").trim();
+    if (hasYear) typedCtx.year = normYear(norm?.year);
+    if (safeStr(norm?.lane || "").trim()) typedCtx.lane = safeStr(norm.lane).trim();
+    return Object.keys(typedCtx).length
+      ? { kind: "typed", id: "typed", route: typedCtx.route || "", lane: typedCtx.lane || (spinePrev?.lane || "general"), year: typedCtx.year, clickedAt: nowMs() }
+      : null;
+  }
+
+  // Otherwise carry forward prior context
   return spinePrev?.activeContext || null;
 }
 
@@ -391,7 +448,7 @@ function spineFinalize({
     safeStr(topicOverride || "").trim() ||
     topicFromAction(safeStr(norm?.action || "").trim());
 
-  const stage = stageProgress(spinePrev.stage, cog, spinePrev);
+  const stage = stageProgress(spinePrev.stage, cog);
 
   const turnSig = computeTurnSig({
     lane,
@@ -401,8 +458,10 @@ function spineFinalize({
     text: safeStr(norm?.text || ""),
   });
 
-  // If the user typed an explicit year (not a click), clear pendingAsk
-  const typedYear = !norm?.turnSignals?.textEmpty && normYear(norm?.year) !== null;
+  // HARDENING: clear pendingAsk only if user text contains a year token (not merely because norm.year is set).
+  const typedYear =
+    !norm?.turnSignals?.textEmpty &&
+    textHasYearToken(norm?.text || "");
 
   const patch = {
     lane: safeStr(lane || spinePrev.lane || "general"),
@@ -420,7 +479,11 @@ function spineFinalize({
   if (offered.length) patch.lastChipsOffered = offered;
 
   // chip click memory: only when it truly was a silent click context
-  if (activeContext && activeContext.kind === "chip" && lastUserIntent === "silent_click") {
+  if (
+    activeContext &&
+    activeContext.kind === "chip" &&
+    lastUserIntent === "silent_click"
+  ) {
     patch.lastChipClicked = {
       id: safeStr(activeContext.id),
       label: safeStr(activeContext.label || ""),
@@ -640,15 +703,17 @@ function classifyTurnIntent(
   hasPayload,
   payloadAction,
   payloadYear,
-  textEmpty
+  textEmpty,
+  payloadActionable
 ) {
   const s = safeStr(text).trim().toLowerCase();
   const hasAction = !!safeStr(action).trim();
 
   // ADVANCE is dominant when the turn is actionable (payload beats silence)
   if (hasAction) return "ADVANCE";
-  if (hasPayload && (payloadAction || payloadYear !== null)) return "ADVANCE";
-  if (textEmpty && hasPayload) return "ADVANCE";
+  if (payloadActionable && hasPayload && (payloadAction || payloadYear !== null))
+    return "ADVANCE";
+  if (payloadActionable && textEmpty && hasPayload) return "ADVANCE";
 
   // CLARIFY
   if (
@@ -729,18 +794,20 @@ function inferConfidence(norm, session, cog) {
   const action = safeStr(norm?.action || "").trim();
   const hasPayload = !!norm?.turnSignals?.hasPayload;
   const textEmpty = !!norm?.turnSignals?.textEmpty;
+  const actionablePayload = !!norm?.turnSignals?.payloadActionable;
 
   // user confidence proxy
   let user = 0.5;
 
   if (
     action ||
-    (hasPayload &&
+    (actionablePayload &&
+      hasPayload &&
       (norm?.turnSignals?.payloadAction ||
         norm?.turnSignals?.payloadYear !== null))
   )
     user += 0.15; // decisive click/action
-  if (textEmpty && hasPayload) user += 0.05; // confident chip tap
+  if (textEmpty && hasPayload && actionablePayload) user += 0.05; // confident chip tap
   if (/\b(i('?m)?\s+not\s+sure|confused|stuck|overwhelmed)\b/i.test(text))
     user -= 0.25;
   if (/\b(are you sure|really\??)\b/i.test(text)) user -= 0.1;
@@ -798,6 +865,7 @@ function computeVelvet(norm, session, cog, desire) {
   );
   const acceptedChip = !!(
     norm?.turnSignals?.hasPayload &&
+    norm?.turnSignals?.payloadActionable &&
     (norm?.turnSignals?.payloadAction || norm?.turnSignals?.payloadYear !== null)
   );
 
@@ -897,6 +965,7 @@ function normalizeInbound(input) {
 
   const textEmpty = !safeStr(textRaw).trim();
   const hasPayload = isPlainObject(payload) && Object.keys(payload).length > 0;
+  const payloadActionable = hasPayload && hasActionablePayload(payload);
 
   // MAC MODE signal (optional explicit override)
   const macModeOverride =
@@ -919,7 +988,8 @@ function normalizeInbound(input) {
     hasPayload,
     payloadAction || "",
     payloadYear,
-    textEmpty
+    textEmpty,
+    payloadActionable
   );
 
   return {
@@ -939,6 +1009,7 @@ function normalizeInbound(input) {
     turnIntent,
     turnSignals: {
       hasPayload,
+      payloadActionable,
       payloadAction: payloadAction || "",
       payloadYear: payloadYear ?? null,
       textEmpty,
@@ -962,6 +1033,7 @@ function mediatorMarion(norm, session) {
 
   const hasPayload = !!norm.turnSignals?.hasPayload;
   const textEmpty = !!norm.turnSignals?.textEmpty;
+  const payloadActionable = !!norm.turnSignals?.payloadActionable;
 
   // Mode: default to ARCHITECT when uncertain (per your rule)
   let mode = safeStr(norm.macMode || "").trim().toLowerCase();
@@ -981,9 +1053,11 @@ function mediatorMarion(norm, session) {
   // Kill-switch: circularity / softness creep → force ADVANCE when actionable or stalled
   const actionable =
     !!safeStr(norm.action).trim() ||
-    (hasPayload &&
+    (payloadActionable &&
+      hasPayload &&
       (norm.turnSignals.payloadAction ||
         norm.turnSignals.payloadYear !== null));
+
   if (
     stalled &&
     (mode === "architect" || mode === "transitional") &&
@@ -1229,9 +1303,15 @@ function applyTurnConstitutionToReply(rawReply, cog, session) {
         /\b(as an ai|i (remember|recall)|in our previous conversation|you told me before)\b.*$/i,
         ""
       )
-      .replace(/\b(i think|maybe|perhaps|might be|could be)\b/gi, "")
-      .replace(/\s{2,}/g, " ")
       .trim();
+
+    // HARDENING: only strip hedges when firm ADVANCE (avoid grammar damage elsewhere)
+    if (cog?.intent === "ADVANCE" && cog?.dominance === "firm") {
+      reply = reply
+        .replace(/\b(i think|maybe|perhaps|might be|could be)\b/gi, "")
+        .replace(/\s{2,}/g, " ")
+        .trim();
+    }
 
     // re-apply budget after trimming
     reply = applyBudgetText(reply, cog.budget);
@@ -1698,7 +1778,7 @@ function resolveMicroMomentForYear(knowledge, year) {
 // loop dampener
 // -------------------------
 function buildMusicSig({ action, year, method, sourceKey, extra }) {
-  const base = `${safeStr(action)}|${safeStr(year)}|${safeStr(method)}|${safeStr(
+  const base = `${safeStr(action)}|${safeStr(year)}|${safeStr(method)}|${stableSourceKey(
     sourceKey
   )}|${safeStr(extra)}`;
   return sha1Lite(base).slice(0, 12);
@@ -1868,13 +1948,14 @@ function runToneRegressionTests() {
       text: "",
       turnSignals: {
         hasPayload: true,
+        payloadActionable: true,
         payloadAction: "story_moment",
         payloadYear: 1988,
         textEmpty: true,
       },
     },
     { lane: "music", lastYear: 1988, lastAction: "top10" },
-    { confidence: { nyx: 0.7 } },
+    { intent: "ADVANCE", confidence: { nyx: 0.7 } },
     LATENT_DESIRE.COMFORT
   );
   assert("velvet_entry_music_first", v.velvet === true, JSON.stringify(v));
@@ -2268,6 +2349,7 @@ async function handleChat(input) {
   // MUSIC
   // ---------------------------------
   if (lane === "music" || action) {
+    // ---- custom_story ----
     if (action === "custom_story") {
       const v = normVibe(norm.vibe || norm.text) || "nostalgic";
 
@@ -2329,6 +2411,7 @@ async function handleChat(input) {
             route: "custom_story",
             dampened: true,
             musicSig: sig,
+            confidence: cog.confidence,
             turnSignals: norm.turnSignals,
             elapsedMs: nowMs() - started,
           },
@@ -2401,6 +2484,7 @@ async function handleChat(input) {
       };
     }
 
+    // ---- yearend_hot100 ----
     if (action === "yearend_hot100") {
       const res = resolveYearendHot100ForYear(knowledge, year);
       const sig = buildMusicSig({
@@ -2548,8 +2632,6 @@ async function handleChat(input) {
             route: "yearend_hot100",
             dampened: true,
             musicSig: sig,
-            velvet: !!cog.velvet,
-            desire: cog.latentDesire,
             confidence: cog.confidence,
             turnSignals: norm.turnSignals,
             elapsedMs: nowMs() - started,
@@ -2619,17 +2701,17 @@ async function handleChat(input) {
           method: res.method,
           sourceKey: res.sourceKey,
           foundBy: res.foundBy,
-          confidence: res.confidence || "high",
+          confidence: cog.confidence,
           musicSig: sig,
           velvet: !!cog.velvet,
           desire: cog.latentDesire,
-          confidenceScalar: cog.confidence,
           turnSignals: norm.turnSignals,
           elapsedMs: nowMs() - started,
         },
       };
     }
 
+    // ---- top10 ----
     if (action === "top10") {
       const res = resolveTop10ForYear(knowledge, year, {
         allowDerivedTop10: norm.allowDerivedTop10,
@@ -2817,19 +2899,19 @@ async function handleChat(input) {
           method: res.method,
           sourceKey: res.sourceKey,
           foundBy: res.foundBy,
-          confidence: res.confidence || "high",
+          confidence: cog.confidence,
           musicSig: sig,
           musicChartKey: "top10",
           allowDerivedTop10: !!norm.allowDerivedTop10,
           velvet: !!cog.velvet,
           desire: cog.latentDesire,
-          confidenceScalar: cog.confidence,
           turnSignals: norm.turnSignals,
           elapsedMs: nowMs() - started,
         },
       };
     }
 
+    // ---- story_moment ----
     if (action === "story_moment") {
       const res = resolveStoryMomentForYear(knowledge, year);
       const sig = buildMusicSig({
@@ -2995,8 +3077,6 @@ async function handleChat(input) {
             route: "story_moment",
             dampened: true,
             musicSig: sig,
-            velvet: !!cog.velvet,
-            desire: cog.latentDesire,
             confidence: cog.confidence,
             turnSignals: norm.turnSignals,
             elapsedMs: nowMs() - started,
@@ -3060,16 +3140,17 @@ async function handleChat(input) {
           method: res.method,
           sourceKey: res.sourceKey,
           foundBy: res.foundBy,
+          confidence: cog.confidence,
           musicSig: sig,
           velvet: !!cog.velvet,
           desire: cog.latentDesire,
-          confidenceScalar: cog.confidence,
           turnSignals: norm.turnSignals,
           elapsedMs: nowMs() - started,
         },
       };
     }
 
+    // ---- micro_moment ----
     if (action === "micro_moment") {
       const res = resolveMicroMomentForYear(knowledge, year);
       const sig = buildMusicSig({
@@ -3203,8 +3284,6 @@ async function handleChat(input) {
             route: "micro_moment",
             dampened: true,
             musicSig: sig,
-            velvet: !!cog.velvet,
-            desire: cog.latentDesire,
             confidence: cog.confidence,
             turnSignals: norm.turnSignals,
             elapsedMs: nowMs() - started,
@@ -3269,10 +3348,10 @@ async function handleChat(input) {
           method: res.method,
           sourceKey: res.sourceKey,
           foundBy: res.foundBy,
+          confidence: cog.confidence,
           musicSig: sig,
           velvet: !!cog.velvet,
           desire: cog.latentDesire,
-          confidenceScalar: cog.confidence,
           turnSignals: norm.turnSignals,
           elapsedMs: nowMs() - started,
         },
