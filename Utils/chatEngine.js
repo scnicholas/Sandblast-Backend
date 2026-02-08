@@ -17,7 +17,8 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7bN (HARDENING++++: actionable payload gating + activeContext refresh + typedYear precision + tone scrub scope + loop sig normalization + meta consistency)
+ * v0.7bO (STATE SPINE ENFORCEMENT++++: rev increment per turn + single decideNextMove() + Nyx move-explains every turn)
+ * ✅ Keeps: v0.7bN HARDENING++++: actionable payload gating + activeContext refresh + typedYear precision + tone scrub scope + loop sig normalization + meta consistency
  * ✅ Keeps: v0.7bM STATE SPINE++++ canonical + click-to-context binding + pendingAsk + action trace
  * ✅ Keeps: MARION SPINE LOGGING++++, counselor-lite intro, CHIP COMPRESSION++++,
  *          TOP10-ONLY++++ (no #1 route anywhere), Top10 visibility fix (no Top 4 truncation),
@@ -28,7 +29,7 @@
  */
 
 const CE_VERSION =
-  "chatEngine v0.7bN (HARDENING++++: actionable payload gating + activeContext refresh + typedYear precision + tone scrub scope + loop sig normalization + meta consistency | STATE SPINE++++ + MARION SPINE LOGGING++++ + COUNSELOR-LITE INTRO++++ + CHIP COMPRESSION++++ + DESIRE+CONFIDENCE ARBITRATION++++ + VELVET (MUSIC-FIRST)++++ + TONE TESTS++++ + TOP10-ONLY + Top10 visibility fix + Marion mediator + payload beats silence + chip-click advance + pinned aliases + accurate miss reasons + year-end route + loop dampener)";
+  "chatEngine v0.7bO (STATE SPINE ENFORCEMENT++++: rev per turn + decideNextMove() + move-explain every turn | HARDENING++++ + STATE SPINE++++ + MARION SPINE LOGGING++++ + COUNSELOR-LITE INTRO++++ + CHIP COMPRESSION++++ + DESIRE+CONFIDENCE ARBITRATION++++ + VELVET (MUSIC-FIRST)++++ + TONE TESTS++++ + TOP10-ONLY + Top10 visibility fix + Marion mediator + payload beats silence + chip-click advance + pinned aliases + accurate miss reasons + year-end route + loop dampener)";
 
 // -------------------------
 // helpers
@@ -205,6 +206,7 @@ const PUBLIC_MAX_YEAR = 2025;
 function defaultSpine() {
   return {
     v: 1,
+    rev: 0, // ENFORCEMENT++++: increments exactly once per turn via spineFinalize()
     updatedAt: nowMs(),
 
     lane: "general",
@@ -221,6 +223,8 @@ function defaultSpine() {
     goal: { primary: null, secondary: [], updatedAt: 0 },
 
     lastActionTaken: null, // served_top10 | asked_year | served_moment | redirected | ...
+    lastMove: null, // ADVANCE | NARROW | CLARIFY | CLOSE
+    lastDecision: null, // {move,rationale} bounded
     lastTurnSig: null, // stable signature for loop-fuse/debug
   };
 }
@@ -231,6 +235,10 @@ function coerceSpine(s) {
 
   const out = { ...d, ...s };
   out.v = 1;
+
+  // ENFORCEMENT++++
+  out.rev = Number.isFinite(out.rev) ? Math.trunc(out.rev) : 0;
+  if (out.rev < 0) out.rev = 0;
 
   if (!out.goal || typeof out.goal !== "object")
     out.goal = { primary: null, secondary: [], updatedAt: 0 };
@@ -256,6 +264,10 @@ function mergeSpine(prev, patch) {
   out.v = 1;
   out.updatedAt = nowMs();
 
+  // ENFORCEMENT++++: rev increments on finalize (not on arbitrary merges elsewhere)
+  // (mergeSpine is only used by spineFinalize in this file)
+  out.rev = a.rev + 1;
+
   if (b.goal && typeof b.goal === "object") {
     out.goal = {
       primary: b.goal.primary ?? a.goal.primary ?? null,
@@ -278,6 +290,14 @@ function mergeSpine(prev, patch) {
     out.lastChipClicked = {
       ...b.lastChipClicked,
       clickedAt: b.lastChipClicked.clickedAt || nowMs(),
+    };
+  }
+
+  // Bound lastDecision
+  if (out.lastDecision && typeof out.lastDecision === "object") {
+    out.lastDecision = {
+      move: safeStr(out.lastDecision.move || "").slice(0, 20),
+      rationale: safeStr(out.lastDecision.rationale || "").slice(0, 60),
     };
   }
 
@@ -385,7 +405,14 @@ function buildActiveContext(norm, spinePrev) {
     if (hasYear) typedCtx.year = normYear(norm?.year);
     if (safeStr(norm?.lane || "").trim()) typedCtx.lane = safeStr(norm.lane).trim();
     return Object.keys(typedCtx).length
-      ? { kind: "typed", id: "typed", route: typedCtx.route || "", lane: typedCtx.lane || (spinePrev?.lane || "general"), year: typedCtx.year, clickedAt: nowMs() }
+      ? {
+          kind: "typed",
+          id: "typed",
+          route: typedCtx.route || "",
+          lane: typedCtx.lane || (spinePrev?.lane || "general"),
+          year: typedCtx.year,
+          clickedAt: nowMs(),
+        }
       : null;
   }
 
@@ -431,6 +458,95 @@ function buildPendingAsk(kind, prompt, options) {
   };
 }
 
+// -------------------------
+// SINGLE DECIDER (plan) + MOVE EXPLAIN (out loud)
+// -------------------------
+const NEXT_MOVE = Object.freeze({
+  ADVANCE: "ADVANCE",
+  NARROW: "NARROW",
+  CLARIFY: "CLARIFY",
+  CLOSE: "CLOSE",
+});
+
+function decideNextMove(spinePrev, norm, cog) {
+  const s = coerceSpine(spinePrev);
+  const n = norm || {};
+  const text = safeStr(n.text || "").trim();
+  const textEmpty = !!n?.turnSignals?.textEmpty;
+  const hasPayload = !!n?.turnSignals?.hasPayload;
+  const payloadActionable = !!n?.turnSignals?.payloadActionable;
+  const hasAction = !!safeStr(n.action || "").trim();
+
+  // If we have a pending ask, bias to CLARIFY unless the user clearly answered it.
+  if (s.pendingAsk && isPlainObject(s.pendingAsk)) {
+    const kind = safeStr(s.pendingAsk.kind || "");
+    const answeredYear = kind === "need_year" ? textHasYearToken(text) : false;
+    const answeredPick =
+      kind === "need_pick" ? /^(music|movies|sponsors)$/i.test(text) : false;
+
+    const answered = answeredYear || answeredPick || (!!text && text.length >= 8);
+
+    if (!answered) {
+      return {
+        move: NEXT_MOVE.CLARIFY,
+        speak: "I’m going to get one quick detail so I can move forward cleanly.",
+        rationale: "pendingAsk_unresolved",
+      };
+    }
+  }
+
+  // Chip-click / actionable payload beats silence -> ADVANCE
+  if ((hasAction && payloadActionable) || (payloadActionable && hasPayload && textEmpty)) {
+    return {
+      move: NEXT_MOVE.ADVANCE,
+      speak: "I’m going to execute that selection and keep momentum.",
+      rationale: "actionable_payload",
+    };
+  }
+
+  // Explicit “next steps / implement” -> ADVANCE
+  if (/\b(next steps|what next|implement|wire it|do them all|ship it)\b/i.test(text)) {
+    return {
+      move: NEXT_MOVE.ADVANCE,
+      speak: "I’m going to advance: smallest next change first, then we verify.",
+      rationale: "advance_request",
+    };
+  }
+
+  // Marion intent informs default
+  const intent = safeStr(cog?.intent || "").toUpperCase();
+  if (intent === "ADVANCE") {
+    return {
+      move: NEXT_MOVE.ADVANCE,
+      speak: "I’m going to move forward using what you gave me, and I’ll flag assumptions clearly.",
+      rationale: "marion_advance",
+    };
+  }
+
+  // If empty text and non-actionable -> NARROW if context exists, else CLARIFY
+  if (!text && textEmpty) {
+    const hasCtx = !!s.activeContext || !!s.topic || !!s.lane;
+    return hasCtx
+      ? {
+          move: NEXT_MOVE.NARROW,
+          speak: "I’ll keep us moving by narrowing this to the most likely next step.",
+          rationale: "empty_inbound_narrow",
+        }
+      : {
+          move: NEXT_MOVE.CLARIFY,
+          speak: "I need one small input to aim this correctly, then I’ll proceed.",
+          rationale: "empty_inbound_clarify",
+        };
+  }
+
+  // Default
+  return {
+    move: NEXT_MOVE.CLARIFY,
+    speak: "I’m going to ask one clarifying question so we don’t build the wrong thing.",
+    rationale: "default_clarify",
+  };
+}
+
 function spineFinalize({
   spinePrev,
   norm,
@@ -440,6 +556,7 @@ function spineFinalize({
   followUps,
   pendingAsk,
   topicOverride,
+  decision, // {move,rationale} optional
 }) {
   const lastUserIntent = inferUserIntent(norm);
   const activeContext = buildActiveContext(norm, spinePrev);
@@ -472,6 +589,13 @@ function spineFinalize({
     pendingAsk: typedYear ? null : pendingAsk || null,
     lastActionTaken: safeStr(actionTaken || "").trim() || null,
     lastTurnSig: turnSig,
+
+    // New: decision trace (bounded)
+    lastMove: decision && decision.move ? safeStr(decision.move).slice(0, 20) : null,
+    lastDecision:
+      decision && decision.move
+        ? { move: safeStr(decision.move), rationale: safeStr(decision.rationale || "") }
+        : null,
   };
 
   // chip offer memory
@@ -494,7 +618,16 @@ function spineFinalize({
     };
   }
 
-  return mergeSpine(spinePrev, patch);
+  const next = mergeSpine(spinePrev, patch);
+
+  // ENFORCEMENT++++: must increment exactly once per turn
+  const prevRev = Number.isFinite(spinePrev?.rev) ? spinePrev.rev : 0;
+  if (!(Number.isFinite(next.rev) && next.rev === prevRev + 1)) {
+    // fail-open (never break UX): correct it
+    next.rev = prevRev + 1;
+  }
+
+  return next;
 }
 
 // -------------------------
@@ -1276,12 +1409,14 @@ function applyTurnConstitutionToReply(rawReply, cog, session) {
   let reply = safeStr(rawReply).trim();
   if (!reply) return "";
 
+  // ENFORCEMENT++++: Nyx explains the move out loud every turn (1 sentence, always first)
+  const moveLine = oneLine(safeStr(cog?.nextMoveSpeak || "")).trim();
   // Optional: signature transition insertion (rare, deliberate)
   const trans = pickSignatureTransition(session || {}, cog || {});
-  if (trans) {
-    // keep it as a clean first line, not spammy
-    reply = `${trans}\n\n${reply}`;
-  }
+
+  // Compose: moveLine -> signatureTransition -> content
+  if (trans) reply = `${trans}\n\n${reply}`;
+  if (moveLine) reply = `${moveLine}\n\n${reply}`;
 
   // Budget-based compression (with ranked-list protection in applyBudgetText)
   reply = applyBudgetText(reply, cog.budget);
@@ -1911,6 +2046,7 @@ function runToneRegressionTests() {
     dominance: "firm",
     budget: "short",
     confidence: { nyx: 0.9 },
+    nextMoveSpeak: "I’m going to advance: smallest next change first, then we verify.",
   };
   const soft = "Do X. Let me know if you'd like.";
   const out2 = applyTurnConstitutionToReply(soft, cFirm, {
@@ -1970,9 +2106,28 @@ function runToneRegressionTests() {
 
   // 7) Spine must coerce + bound
   const sp = coerceSpine({ lastChipsOffered: new Array(50).fill({ id: "x" }) });
-  assert("spine_bounds_chips", sp.lastChipsOffered.length <= 12, sp.lastChipsOffered.length);
+  assert(
+    "spine_bounds_chips",
+    sp.lastChipsOffered.length <= 12,
+    sp.lastChipsOffered.length
+  );
 
-  return { ok: failures.length === 0, failures, ran: 7 };
+  // 8) Spine rev increments via finalize
+  const sp0 = coerceSpine(null);
+  const sp1 = spineFinalize({
+    spinePrev: sp0,
+    norm: { text: "hi", action: "", turnSignals: { textEmpty: false } },
+    cog: { intent: "CLARIFY" },
+    lane: "general",
+    actionTaken: "served_menu",
+    followUps: [],
+    pendingAsk: null,
+    topicOverride: "help",
+    decision: { move: "CLARIFY", rationale: "test" },
+  });
+  assert("spine_rev_increments", sp1.rev === sp0.rev + 1, `${sp0.rev}->${sp1.rev}`);
+
+  return { ok: failures.length === 0, failures, ran: 8 };
 }
 
 // -------------------------
@@ -1999,6 +2154,12 @@ async function handleChat(input) {
 
   // Marion mediation (COG OS)
   const cog = mediatorMarion(norm, session);
+
+  // Single decider (plan) - computed once per turn
+  const decision = decideNextMove(spinePrev, norm, cog);
+  cog.nextMove = decision.move;
+  cog.nextMoveSpeak = decision.speak;
+  cog.nextMoveWhy = decision.rationale;
 
   const yearSticky = normYear(session.lastYear) ?? null;
 
@@ -2047,6 +2208,7 @@ async function handleChat(input) {
       followUps: null,
       pendingAsk: null,
       topicOverride: "help",
+      decision,
     });
 
     return {
@@ -2095,6 +2257,7 @@ async function handleChat(input) {
       followUps: f.followUps,
       pendingAsk: null,
       topicOverride: "help",
+      decision,
     });
 
     return {
@@ -2158,6 +2321,7 @@ async function handleChat(input) {
         fu.map((x) => ({ id: x.id, label: x.label, payload: x.payload }))
       ),
       topicOverride: "help",
+      decision,
     });
 
     return {
@@ -2188,7 +2352,12 @@ async function handleChat(input) {
     const sigLine = detectSignatureLine(reply);
 
     const fu = [
-      { id: "fu_music", type: "chip", label: "Music", payload: { lane: "music", action: "ask_year", route: "ask_year" } },
+      {
+        id: "fu_music",
+        type: "chip",
+        label: "Music",
+        payload: { lane: "music", action: "ask_year", route: "ask_year" },
+      },
       { id: "fu_movies", type: "chip", label: "Movies", payload: { lane: "movies", route: "movies" } },
       { id: "fu_sponsors", type: "chip", label: "Sponsors", payload: { lane: "sponsors", route: "sponsors" } },
     ];
@@ -2206,6 +2375,7 @@ async function handleChat(input) {
         fu.map((x) => ({ id: x.id, label: x.label, payload: x.payload }))
       ),
       topicOverride: "help",
+      decision,
     });
 
     return {
@@ -2248,19 +2418,34 @@ async function handleChat(input) {
         id: "fu_1973",
         type: "chip",
         label: "1973",
-        payload: { lane: "music", action: norm.action || "top10", year: 1973, route: safeStr(norm.action || "top10") },
+        payload: {
+          lane: "music",
+          action: norm.action || "top10",
+          year: 1973,
+          route: safeStr(norm.action || "top10"),
+        },
       },
       {
         id: "fu_1988",
         type: "chip",
         label: "1988",
-        payload: { lane: "music", action: norm.action || "top10", year: 1988, route: safeStr(norm.action || "top10") },
+        payload: {
+          lane: "music",
+          action: norm.action || "top10",
+          year: 1988,
+          route: safeStr(norm.action || "top10"),
+        },
       },
       {
         id: "fu_1960",
         type: "chip",
         label: "1960",
-        payload: { lane: "music", action: norm.action || "top10", year: 1960, route: safeStr(norm.action || "top10") },
+        payload: {
+          lane: "music",
+          action: norm.action || "top10",
+          year: 1960,
+          route: safeStr(norm.action || "top10"),
+        },
       },
     ];
 
@@ -2277,6 +2462,7 @@ async function handleChat(input) {
         fu.map((x) => ({ id: x.id, label: x.label, payload: x.payload }))
       ),
       topicOverride: "help",
+      decision,
     });
 
     return {
@@ -2319,6 +2505,7 @@ async function handleChat(input) {
         []
       ),
       topicOverride: "help",
+      decision,
     });
 
     return {
@@ -2384,6 +2571,7 @@ async function handleChat(input) {
           followUps: acts.followUps,
           pendingAsk: null,
           topicOverride: "story_moment",
+          decision,
         });
 
         return {
@@ -2447,6 +2635,7 @@ async function handleChat(input) {
         followUps: fu,
         pendingAsk: null,
         topicOverride: "story_moment",
+        decision,
       });
 
       return {
@@ -2539,6 +2728,7 @@ async function handleChat(input) {
           followUps: fu,
           pendingAsk: null,
           topicOverride: "year_end",
+          decision,
         });
 
         return {
@@ -2555,7 +2745,8 @@ async function handleChat(input) {
             lastMusicChart: prevChart,
             activeMusicChart: "yearend_hot100",
             musicMomentsLoaded: !!session.musicMomentsLoaded,
-            musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
+            musicMomentsLoadedAt:
+              Number(session.musicMomentsLoadedAt || 0) || 0,
             ...(sigLine ? { lastSigTransition: sigLine } : {}),
             __spine: spineNext,
             ...baseCogPatch,
@@ -2605,6 +2796,7 @@ async function handleChat(input) {
           followUps: fu,
           pendingAsk: null,
           topicOverride: "year_end",
+          decision,
         });
 
         return {
@@ -2621,7 +2813,8 @@ async function handleChat(input) {
             lastMusicChart: prevChart,
             activeMusicChart: "yearend_hot100",
             musicMomentsLoaded: !!session.musicMomentsLoaded,
-            musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
+            musicMomentsLoadedAt:
+              Number(session.musicMomentsLoadedAt || 0) || 0,
             ...(sigLine ? { lastSigTransition: sigLine } : {}),
             __spine: spineNext,
             ...baseCogPatch,
@@ -2654,7 +2847,12 @@ async function handleChat(input) {
           id: "fu_story",
           type: "chip",
           label: "Make it cinematic",
-          payload: { lane: "music", action: "story_moment", year, route: "story_moment" },
+          payload: {
+            lane: "music",
+            action: "story_moment",
+            year,
+            route: "story_moment",
+          },
         },
         {
           id: "fu_newyear",
@@ -2673,6 +2871,7 @@ async function handleChat(input) {
         followUps: fu,
         pendingAsk: null,
         topicOverride: "year_end",
+        decision,
       });
 
       return {
@@ -2680,7 +2879,11 @@ async function handleChat(input) {
         reply,
         lane: "music",
         followUps: fu,
-        followUpsStrings: [`Top 10 (${year})`, "Make it cinematic", "Another year"],
+        followUpsStrings: [
+          `Top 10 (${year})`,
+          "Make it cinematic",
+          "Another year",
+        ],
         sessionPatch: {
           lane: "music",
           lastYear: year,
@@ -2689,7 +2892,8 @@ async function handleChat(input) {
           lastMusicChart: prevChart,
           activeMusicChart: "yearend_hot100",
           musicMomentsLoaded: !!session.musicMomentsLoaded,
-          musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
+          musicMomentsLoadedAt:
+            Number(session.musicMomentsLoadedAt || 0) || 0,
           ...(sigLine ? { lastSigTransition: sigLine } : {}),
           __spine: spineNext,
           ...baseCogPatch,
@@ -2750,6 +2954,7 @@ async function handleChat(input) {
           followUps: acts.followUps,
           pendingAsk: null,
           topicOverride: "top10_by_year",
+          decision,
         });
 
         return {
@@ -2765,7 +2970,8 @@ async function handleChat(input) {
             lastMusicChart: prevChart,
             activeMusicChart: "",
             musicMomentsLoaded: !!session.musicMomentsLoaded,
-            musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
+            musicMomentsLoadedAt:
+              Number(session.musicMomentsLoadedAt || 0) || 0,
             ...(sigLine ? { lastSigTransition: sigLine } : {}),
             __spine: spineNext,
             ...baseCogPatch,
@@ -2813,6 +3019,7 @@ async function handleChat(input) {
           followUps: acts.followUps,
           pendingAsk: null,
           topicOverride: "top10_by_year",
+          decision,
         });
 
         return {
@@ -2829,7 +3036,8 @@ async function handleChat(input) {
             lastMusicChart: prevChart,
             activeMusicChart: "top10",
             musicMomentsLoaded: !!session.musicMomentsLoaded,
-            musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
+            musicMomentsLoadedAt:
+              Number(session.musicMomentsLoadedAt || 0) || 0,
             ...(sigLine ? { lastSigTransition: sigLine } : {}),
             __spine: spineNext,
             ...baseCogPatch,
@@ -2871,6 +3079,7 @@ async function handleChat(input) {
         followUps: acts.followUps,
         pendingAsk: null,
         topicOverride: "top10_by_year",
+        decision,
       });
 
       return {
@@ -2984,6 +3193,7 @@ async function handleChat(input) {
             fu.map((x) => ({ id: x.id, label: x.label, payload: x.payload }))
           ),
           topicOverride: "story_moment",
+          decision,
         });
 
         return {
@@ -3050,6 +3260,7 @@ async function handleChat(input) {
           followUps: fu,
           pendingAsk: null,
           topicOverride: "story_moment",
+          decision,
         });
 
         return {
@@ -3112,6 +3323,7 @@ async function handleChat(input) {
         followUps: fu,
         pendingAsk: null,
         topicOverride: "story_moment",
+        decision,
       });
 
       return {
@@ -3177,7 +3389,12 @@ async function handleChat(input) {
             id: "fu_story",
             type: "chip",
             label: "Make it cinematic",
-            payload: { lane: "music", action: "story_moment", year, route: "story_moment" },
+            payload: {
+              lane: "music",
+              action: "story_moment",
+              year,
+              route: "story_moment",
+            },
           },
         ];
 
@@ -3190,6 +3407,7 @@ async function handleChat(input) {
           followUps: fu,
           pendingAsk: null,
           topicOverride: "story_moment",
+          decision,
         });
 
         return {
@@ -3206,7 +3424,8 @@ async function handleChat(input) {
             lastMusicChart: prevChart,
             activeMusicChart: "micro",
             musicMomentsLoaded: !!session.musicMomentsLoaded,
-            musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
+            musicMomentsLoadedAt:
+              Number(session.musicMomentsLoadedAt || 0) || 0,
             ...(sigLine ? { lastSigTransition: sigLine } : {}),
             __spine: spineNext,
             ...baseCogPatch,
@@ -3243,7 +3462,11 @@ async function handleChat(input) {
             id: "fu_general",
             type: "chip",
             label: "Switch lanes",
-            payload: { lane: "general", action: "switch_lane", route: "switch_lane" },
+            payload: {
+              lane: "general",
+              action: "switch_lane",
+              route: "switch_lane",
+            },
           },
         ];
 
@@ -3256,6 +3479,7 @@ async function handleChat(input) {
           followUps: fu,
           pendingAsk: null,
           topicOverride: "story_moment",
+          decision,
         });
 
         return {
@@ -3306,7 +3530,12 @@ async function handleChat(input) {
           id: "fu_story",
           type: "chip",
           label: "Make it cinematic",
-          payload: { lane: "music", action: "story_moment", year, route: "story_moment" },
+          payload: {
+            lane: "music",
+            action: "story_moment",
+            year,
+            route: "story_moment",
+          },
         },
       ];
 
@@ -3319,6 +3548,7 @@ async function handleChat(input) {
         followUps: fu,
         pendingAsk: null,
         topicOverride: "story_moment",
+        decision,
       });
 
       return {
@@ -3377,7 +3607,12 @@ async function handleChat(input) {
           id: "fu_yearend",
           type: "chip",
           label: `Year-End Hot 100 (${year})`,
-          payload: { lane: "music", action: "yearend_hot100", year, route: "yearend_hot100" },
+          payload: {
+            lane: "music",
+            action: "yearend_hot100",
+            year,
+            route: "yearend_hot100",
+          },
         },
         acts.followUps[1],
       ];
@@ -3391,6 +3626,7 @@ async function handleChat(input) {
         followUps: fu,
         pendingAsk: null,
         topicOverride: "help",
+        decision,
       });
 
       return {
@@ -3411,7 +3647,8 @@ async function handleChat(input) {
           activeMusicChart: safeStr(session.activeMusicChart || ""),
           lastMusicChart: safeStr(session.lastMusicChart || ""),
           musicMomentsLoaded: !!session.musicMomentsLoaded,
-          musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
+          musicMomentsLoadedAt:
+            Number(session.musicMomentsLoadedAt || 0) || 0,
           ...(sigLine ? { lastSigTransition: sigLine } : {}),
           __spine: spineNext,
           ...baseCogPatch,
@@ -3446,6 +3683,7 @@ async function handleChat(input) {
         []
       ),
       topicOverride: "help",
+      decision,
     });
 
     return {
@@ -3495,6 +3733,7 @@ async function handleChat(input) {
         []
       ),
       topicOverride: "help",
+      decision,
     });
 
     return {
@@ -3540,6 +3779,7 @@ async function handleChat(input) {
       followUps: f.followUps,
       pendingAsk: null,
       topicOverride: "help",
+      decision,
     });
 
     return {
@@ -3571,9 +3811,24 @@ async function handleChat(input) {
   const sigLine = detectSignatureLine(reply);
 
   const fu = [
-    { id: "fu_music", type: "chip", label: "Music", payload: { lane: "music", action: "ask_year", route: "ask_year" } },
-    { id: "fu_movies", type: "chip", label: "Movies", payload: { lane: "movies", route: "movies" } },
-    { id: "fu_sponsors", type: "chip", label: "Sponsors", payload: { lane: "sponsors", route: "sponsors" } },
+    {
+      id: "fu_music",
+      type: "chip",
+      label: "Music",
+      payload: { lane: "music", action: "ask_year", route: "ask_year" },
+    },
+    {
+      id: "fu_movies",
+      type: "chip",
+      label: "Movies",
+      payload: { lane: "movies", route: "movies" },
+    },
+    {
+      id: "fu_sponsors",
+      type: "chip",
+      label: "Sponsors",
+      payload: { lane: "sponsors", route: "sponsors" },
+    },
   ];
 
   const spineNext = spineFinalize({
@@ -3589,6 +3844,7 @@ async function handleChat(input) {
       fu.map((x) => ({ id: x.id, label: x.label, payload: x.payload }))
     ),
     topicOverride: "help",
+    decision,
   });
 
   return {
@@ -3624,6 +3880,7 @@ module.exports = {
   // Expose for diagnostics / internal tests (safe, no side effects)
   LATENT_DESIRE,
   SIGNATURE_TRANSITIONS,
+  NEXT_MOVE,
   validateNyxTone,
   runToneRegressionTests,
 
@@ -3632,4 +3889,5 @@ module.exports = {
   coerceSpine,
   mergeSpine,
   computeTurnSig,
+  decideNextMove,
 };
