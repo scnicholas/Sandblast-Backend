@@ -5,13 +5,15 @@
  *
  * Canonical Conversational State Spine for Nyx.
  * - single source of truth for state shape + update logic
- * - update-on-every-turn guard (revision increments)
- * - deterministic decideNextMove(state) planner
+ * - update-on-every-turn guard (revision increments exactly once per turn)
+ * - deterministic decideNextMove(state,inbound) planner (single decider)
  *
  * Designed to be imported by Utils/chatEngine.js (pure, no express).
+ *
+ * v1.1.0 (ALIGNMENT++++: chip-click context binding + pendingAsk hygiene + bounded traces + turnSig + rev enforcement)
  */
 
-const SPINE_VERSION = "stateSpine v1.0.0";
+const SPINE_VERSION = "stateSpine v1.1.0";
 
 const LANE = Object.freeze({
   MUSIC: "music",
@@ -38,16 +40,28 @@ const MOVE = Object.freeze({
   CLOSE: "close",
 });
 
+// -------------------------
+// small helpers (pure)
+// -------------------------
+function nowMs() {
+  return Date.now();
+}
 function nowIso() {
   return new Date().toISOString();
 }
-
-function safeStr(x, max = 200) {
-  if (x == null) return "";
+function safeStr(x, max = 240) {
+  if (x === null || x === undefined) return "";
   const s = String(x);
   return s.length > max ? s.slice(0, max) + "…" : s;
 }
-
+function isPlainObject(x) {
+  return (
+    !!x &&
+    typeof x === "object" &&
+    (Object.getPrototypeOf(x) === Object.prototype ||
+      Object.getPrototypeOf(x) === null)
+  );
+}
 function clamp01(n) {
   const x = Number(n);
   if (!Number.isFinite(x)) return 0;
@@ -55,100 +69,339 @@ function clamp01(n) {
   if (x > 1) return 1;
   return x;
 }
-
+function asArray(x) {
+  return Array.isArray(x) ? x : [];
+}
 function normalizeLane(x) {
-  const v = String(x || "").toLowerCase().trim();
-  if (Object.values(LANE).includes(v)) return v;
-  return LANE.GENERAL;
+  const v = safeStr(x, 40).toLowerCase().trim();
+  return Object.values(LANE).includes(v) ? v : LANE.GENERAL;
 }
-
 function normalizeStage(x) {
-  const v = String(x || "").toLowerCase().trim();
-  if (Object.values(STAGE).includes(v)) return v;
-  return STAGE.OPEN;
+  const v = safeStr(x, 40).toLowerCase().trim();
+  return Object.values(STAGE).includes(v) ? v : STAGE.OPEN;
+}
+function normYear(y) {
+  const n = Number(y);
+  if (!Number.isFinite(n)) return null;
+  const t = Math.trunc(n);
+  if (t < 1900 || t > 2100) return null;
+  return t;
+}
+function extractYearFromText(t) {
+  const s = safeStr(t, 2000).trim();
+  if (!s) return null;
+  const m = s.match(/\b(19[5-9]\d|20[0-2]\d|2025)\b/);
+  if (!m) return null;
+  return normYear(Number(m[1]));
+}
+function textHasYearToken(t) {
+  return extractYearFromText(t) !== null;
 }
 
-function inferEngagement(prev, inbound) {
-  // simple: cold->warm on meaningful text, warm->velvet on repeated engagement intent
-  const p = String(prev || "cold");
-  const txt = safeStr(inbound?.text || "", 800).trim();
-  const hasText = txt.length >= 8;
-  const wantsMore = /next steps|implement|do them all|keep going|continue/i.test(txt);
+function hasActionablePayload(payload) {
+  if (!isPlainObject(payload)) return false;
+  const keys = Object.keys(payload);
+  if (!keys.length) return false;
 
-  if (p === "velvet") return "velvet";
-  if (hasText && wantsMore) return "velvet";
-  if (hasText) return "warm";
-  return p || "cold";
+  // Only these keys count as "actionable" (prevents ADVANCE on trivial client metadata).
+  const actionable = new Set([
+    "action",
+    "route",
+    "year",
+    "id",
+    "_id",
+    "label",
+    "lane",
+    "vibe",
+    "macMode",
+    "mode",
+    "allowDerivedTop10",
+    "allowYearendFallback",
+    "focus",
+  ]);
+  return keys.some((k) => actionable.has(k));
 }
 
+function buildPendingAsk(kind, prompt, options) {
+  return {
+    kind: safeStr(kind || "", 40).trim() || "need_more_detail",
+    prompt: safeStr(prompt || "", 220).trim(),
+    options: Array.isArray(options) ? options.slice(0, 8) : [],
+    createdAt: nowMs(),
+  };
+}
+
+function buildChipsOffered(followUps) {
+  const arr = Array.isArray(followUps) ? followUps : [];
+  const mapped = arr
+    .map((f) => {
+      const id = safeStr(f?.id || "", 80).trim();
+      const label = safeStr(f?.label || "", 120).trim();
+      const payload = isPlainObject(f?.payload) ? f.payload : {};
+      const route = safeStr(payload.route || payload.action || "", 80).trim();
+      const lane = safeStr(payload.lane || "", 24).trim();
+
+      const mini = {};
+      if (safeStr(payload.action)) mini.action = safeStr(payload.action, 60);
+      if (safeStr(payload.route)) mini.route = safeStr(payload.route, 60);
+      if (safeStr(payload.lane)) mini.lane = safeStr(payload.lane, 24);
+      const yr = normYear(payload.year);
+      if (yr !== null) mini.year = yr;
+      if (safeStr(payload.vibe)) mini.vibe = safeStr(payload.vibe, 40);
+
+      return {
+        id,
+        label,
+        route,
+        lane,
+        payload: Object.keys(mini).length ? mini : undefined,
+      };
+    })
+    .filter((x) => x.id || x.label || x.route);
+
+  return mapped.slice(0, 12);
+}
+
+function inferUserIntent(norm) {
+  const txt = safeStr(norm?.text || "", 2000).trim();
+  const hasPayload = !!norm?.signals?.hasPayload;
+  const textEmpty = !!norm?.signals?.textEmpty;
+  const hasAction = !!safeStr(norm?.action || "", 80).trim();
+
+  if (hasPayload && textEmpty) return "silent_click";
+  if (hasAction && hasPayload) return "choose";
+  if (hasAction && !txt) return "choose";
+  if (txt) return "ask";
+  return "unknown";
+}
+
+function computeTurnSig({ lane, topic, intent, activeContext, text }) {
+  const y =
+    activeContext && typeof activeContext.year === "number"
+      ? String(activeContext.year)
+      : "";
+  const rid = activeContext && activeContext.route ? activeContext.route : "";
+  const t = safeStr(text || "", 240).trim().slice(0, 64);
+  return [lane || "", topic || "", intent || "", rid || "", y || "", t].join("|");
+}
+
+function topicFromAction(action) {
+  const a = safeStr(action || "", 80).trim();
+  if (!a) return "unknown";
+  if (a === "top10") return "top10_by_year";
+  if (a === "story_moment" || a === "custom_story") return "story_moment";
+  if (a === "micro_moment") return "story_moment";
+  if (a === "yearend_hot100") return "year_end";
+  if (a === "ask_year") return "help";
+  if (a === "switch_lane") return "help";
+  if (a === "counsel_intro") return "help";
+  if (a === "reset") return "help";
+  return "unknown";
+}
+
+function stageProgress(prevStage, move) {
+  // Deterministic stage evolution (simple + stable):
+  // open -> triage -> clarify/deliver -> confirm -> close
+  const p = safeStr(prevStage || STAGE.OPEN, 20).toLowerCase();
+  const m = safeStr(move || "", 20).toLowerCase();
+
+  if (p === STAGE.CLOSE) return STAGE.CLOSE;
+
+  if (m === MOVE.CLOSE) return STAGE.CLOSE;
+  if (m === MOVE.CLARIFY) return STAGE.CLARIFY;
+  if (m === MOVE.ADVANCE) return STAGE.DELIVER;
+  if (m === MOVE.NARROW) return STAGE.TRIAGE;
+
+  // fallback: gentle progression
+  if (p === STAGE.OPEN) return STAGE.TRIAGE;
+  return p;
+}
+
+function buildActiveContext(norm, spinePrev) {
+  // click-to-context binding: capture payload route/action/year when present
+  const hasPayload = !!norm?.signals?.hasPayload;
+  const textEmpty = !!norm?.signals?.textEmpty;
+
+  const p = isPlainObject(norm?.payload) ? norm.payload : {};
+  const route = safeStr(p.route || p.action || "", 80).trim();
+  const lane = safeStr(p.lane || norm?.lane || spinePrev?.lane || "", 24).trim();
+  const year = normYear(p.year) ?? normYear(norm?.year) ?? null;
+
+  // Silent click with actionable payload -> chip context
+  if (hasPayload && norm?.signals?.payloadActionable && textEmpty) {
+    const id =
+      safeStr(p.id || p._id || "", 80).trim() ||
+      safeStr(norm?.action || "", 60).trim() ||
+      route ||
+      "";
+    const label = safeStr(p.label || "", 140).trim();
+
+    const payloadMini = {};
+    if (safeStr(p.action)) payloadMini.action = safeStr(p.action, 60);
+    if (safeStr(p.route)) payloadMini.route = safeStr(p.route, 60);
+    if (safeStr(p.lane)) payloadMini.lane = safeStr(p.lane, 24);
+    if (year !== null) payloadMini.year = year;
+    if (safeStr(p.vibe)) payloadMini.vibe = safeStr(p.vibe, 40);
+
+    return {
+      kind: "chip",
+      id,
+      route: route || safeStr(norm?.action || "", 60).trim(),
+      lane: lane || LANE.GENERAL,
+      label,
+      year: year !== null ? year : undefined,
+      payload: Object.keys(payloadMini).length ? payloadMini : undefined,
+      clickedAt: nowMs(),
+    };
+  }
+
+  // If the user typed (non-empty text) and provided action/year, do NOT carry stale chip context.
+  const typedText = safeStr(norm?.text || "", 2000).trim();
+  const typed = !!typedText && !textEmpty;
+  const hasExplicitAction = !!safeStr(norm?.action || "", 80).trim();
+  const hasYear = normYear(norm?.year) !== null;
+
+  if (typed && (hasExplicitAction || hasYear)) {
+    const typedCtx = {};
+    if (hasExplicitAction) typedCtx.route = safeStr(norm?.action || "", 60).trim();
+    if (hasYear) typedCtx.year = normYear(norm?.year);
+    if (safeStr(norm?.lane || "", 24).trim())
+      typedCtx.lane = safeStr(norm.lane, 24).trim();
+
+    return Object.keys(typedCtx).length
+      ? {
+          kind: "typed",
+          id: "typed",
+          route: typedCtx.route || "",
+          lane: typedCtx.lane || (spinePrev?.lane || LANE.GENERAL),
+          year: typedCtx.year,
+          clickedAt: nowMs(),
+        }
+      : null;
+  }
+
+  return spinePrev?.activeContext || null;
+}
+
+// -------------------------
+// state (canonical)
+// -------------------------
 function createState(seed = {}) {
-  const createdAt = nowIso();
-  const state = {
+  const createdAtIso = nowIso();
+  return {
     __spineVersion: SPINE_VERSION,
-    rev: 0,
-    createdAt,
-    updatedAt: createdAt,
+    rev: 0, // increments exactly once per turn via finalizeTurn()
+    createdAt: createdAtIso,
+    updatedAt: createdAtIso,
 
     // Core spine
     lane: normalizeLane(seed.lane),
     stage: normalizeStage(seed.stage),
-    topic: safeStr(seed.topic || ""),
-    lastUserIntent: safeStr(seed.lastUserIntent || ""),
+    topic: safeStr(seed.topic || "", 80) || "unknown",
 
-    // "pendingAsk": what Nyx needs from the user to proceed
-    pendingAsk: seed.pendingAsk
+    lastUserIntent: safeStr(seed.lastUserIntent || "", 40) || "unknown",
+    pendingAsk: seed.pendingAsk && typeof seed.pendingAsk === "object" ? seed.pendingAsk : null,
+
+    // Context memory
+    activeContext: seed.activeContext && typeof seed.activeContext === "object" ? seed.activeContext : null,
+    lastChipsOffered: Array.isArray(seed.lastChipsOffered) ? seed.lastChipsOffered.slice(0, 12) : [],
+    lastChipClicked: seed.lastChipClicked && typeof seed.lastChipClicked === "object" ? seed.lastChipClicked : null,
+
+    // Goal inference (small)
+    goal: seed.goal && typeof seed.goal === "object"
       ? {
-          id: safeStr(seed.pendingAsk.id || ""),
-          type: safeStr(seed.pendingAsk.type || "clarify"), // clarify|confirm|choice|input
-          prompt: safeStr(seed.pendingAsk.prompt || ""),
-          createdAt: safeStr(seed.pendingAsk.createdAt || createdAt),
-          required: seed.pendingAsk.required !== false,
+          primary: safeStr(seed.goal.primary || "", 120) || null,
+          secondary: Array.isArray(seed.goal.secondary) ? seed.goal.secondary.slice(0, 8) : [],
+          updatedAt: Number(seed.goal.updatedAt || 0) || 0,
+        }
+      : { primary: null, secondary: [], updatedAt: 0 },
+
+    // Decisions / loop fuse (small)
+    lastMove: safeStr(seed.lastMove || "", 20) || null,
+    lastDecision: seed.lastDecision && typeof seed.lastDecision === "object"
+      ? {
+          move: safeStr(seed.lastDecision.move || "", 20),
+          rationale: safeStr(seed.lastDecision.rationale || "", 60),
         }
       : null,
+    lastActionTaken: safeStr(seed.lastActionTaken || "", 40) || null,
+    lastTurnSig: safeStr(seed.lastTurnSig || "", 220) || null,
 
-    // Goal inference
-    goal: seed.goal
-      ? {
-          label: safeStr(seed.goal.label || ""),
-          confidence: clamp01(seed.goal.confidence),
-          locked: !!seed.goal.locked,
-          updatedAt: safeStr(seed.goal.updatedAt || createdAt),
-        }
-      : { label: "", confidence: 0, locked: false, updatedAt: createdAt },
-
-    // Turn signals
-    engagementTemp: inferEngagement(seed.engagementTemp, { text: "" }),
-    lastMove: "",
-
-    // Evidence trail (small, safe)
-    lastUserText: "",
-    lastAssistantSummary: "",
+    // Evidence trail (NO raw user text by default; callers may provide sanitized summaries)
+    lastUserText: safeStr(seed.lastUserText || "", 0), // default empty; keep at 0 unless caller overrides intentionally
+    lastAssistantSummary: safeStr(seed.lastAssistantSummary || "", 320),
 
     // Stats
     turns: {
-      user: 0,
-      assistant: 0,
-      sinceReset: 0,
+      user: Number.isFinite(seed?.turns?.user) ? Math.max(0, Math.trunc(seed.turns.user)) : 0,
+      assistant: Number.isFinite(seed?.turns?.assistant) ? Math.max(0, Math.trunc(seed.turns.assistant)) : 0,
+      sinceReset: Number.isFinite(seed?.turns?.sinceReset) ? Math.max(0, Math.trunc(seed.turns.sinceReset)) : 0,
     },
 
-    // Diagnostics
+    // Diagnostics (bounded)
     diag: {
-      lastDecision: null,
-      lastUpdateReason: "",
+      lastUpdateReason: safeStr(seed?.diag?.lastUpdateReason || "", 120),
     },
   };
+}
 
-  return state;
+function coerceState(prev) {
+  const d = createState();
+  if (!prev || typeof prev !== "object") return d;
+
+  const out = { ...d, ...prev };
+  out.__spineVersion = SPINE_VERSION;
+
+  out.rev = Number.isFinite(out.rev) ? Math.trunc(out.rev) : 0;
+  if (out.rev < 0) out.rev = 0;
+
+  out.lane = normalizeLane(out.lane);
+  out.stage = normalizeStage(out.stage);
+  out.topic = safeStr(out.topic || "", 80) || "unknown";
+  out.lastUserIntent = safeStr(out.lastUserIntent || "", 40) || "unknown";
+
+  if (!out.goal || typeof out.goal !== "object")
+    out.goal = { primary: null, secondary: [], updatedAt: 0 };
+  if (!Array.isArray(out.goal.secondary)) out.goal.secondary = [];
+
+  if (!Array.isArray(out.lastChipsOffered)) out.lastChipsOffered = [];
+  if (out.lastChipsOffered.length > 12)
+    out.lastChipsOffered = out.lastChipsOffered.slice(0, 12);
+
+  if (out.pendingAsk && typeof out.pendingAsk !== "object") out.pendingAsk = null;
+  if (out.activeContext && typeof out.activeContext !== "object") out.activeContext = null;
+
+  if (out.lastDecision && typeof out.lastDecision === "object") {
+    out.lastDecision = {
+      move: safeStr(out.lastDecision.move || "", 20),
+      rationale: safeStr(out.lastDecision.rationale || "", 60),
+    };
+  } else {
+    out.lastDecision = null;
+  }
+
+  if (!out.turns || typeof out.turns !== "object") {
+    out.turns = { user: 0, assistant: 0, sinceReset: 0 };
+  } else {
+    out.turns.user = Number.isFinite(out.turns.user) ? Math.max(0, Math.trunc(out.turns.user)) : 0;
+    out.turns.assistant = Number.isFinite(out.turns.assistant) ? Math.max(0, Math.trunc(out.turns.assistant)) : 0;
+    out.turns.sinceReset = Number.isFinite(out.turns.sinceReset) ? Math.max(0, Math.trunc(out.turns.sinceReset)) : 0;
+  }
+
+  out.updatedAt = nowIso();
+  return out;
 }
 
 /**
  * Must be called ON EVERY TURN.
  * - merges safe fields
- * - increments rev
+ * - increments rev exactly once per call
  * - updates timestamps
+ *
+ * NOTE: For strict enforcement, prefer finalizeTurn() (which is structured).
  */
 function updateState(prev, patch = {}, reason = "turn") {
-  const p = prev && typeof prev === "object" ? prev : createState();
+  const p = coerceState(prev);
   const updatedAt = nowIso();
 
   const next = {
@@ -156,134 +409,369 @@ function updateState(prev, patch = {}, reason = "turn") {
     ...patch,
     lane: patch.lane ? normalizeLane(patch.lane) : p.lane,
     stage: patch.stage ? normalizeStage(patch.stage) : p.stage,
-    topic: patch.topic != null ? safeStr(patch.topic, 240) : p.topic,
+    topic: patch.topic != null ? safeStr(patch.topic, 80) : p.topic,
     lastUserIntent:
-      patch.lastUserIntent != null ? safeStr(patch.lastUserIntent, 120) : p.lastUserIntent,
-    lastUserText: patch.lastUserText != null ? safeStr(patch.lastUserText, 800) : p.lastUserText,
+      patch.lastUserIntent != null ? safeStr(patch.lastUserIntent, 40) : p.lastUserIntent,
+
+    // Evidence trail (bounded, caller-controlled)
+    lastUserText: patch.lastUserText != null ? safeStr(patch.lastUserText, 0) : p.lastUserText,
     lastAssistantSummary:
       patch.lastAssistantSummary != null
-        ? safeStr(patch.lastAssistantSummary, 400)
+        ? safeStr(patch.lastAssistantSummary, 320)
         : p.lastAssistantSummary,
 
     goal: patch.goal
       ? {
           ...p.goal,
           ...patch.goal,
-          label: patch.goal.label != null ? safeStr(patch.goal.label, 140) : p.goal.label,
-          confidence:
-            patch.goal.confidence != null ? clamp01(patch.goal.confidence) : p.goal.confidence,
-          locked: patch.goal.locked != null ? !!patch.goal.locked : p.goal.locked,
-          updatedAt,
+          primary:
+            patch.goal.primary != null ? safeStr(patch.goal.primary, 120) : p.goal.primary,
+          secondary: Array.isArray(patch.goal.secondary)
+            ? patch.goal.secondary.slice(0, 8)
+            : p.goal.secondary,
+          updatedAt: nowMs(),
         }
       : p.goal,
 
-    pendingAsk: patch.pendingAsk === null
-      ? null
-      : patch.pendingAsk
-      ? {
-          id: safeStr(patch.pendingAsk.id || p.pendingAsk?.id || ""),
-          type: safeStr(patch.pendingAsk.type || p.pendingAsk?.type || "clarify"),
-          prompt: safeStr(patch.pendingAsk.prompt || p.pendingAsk?.prompt || ""),
-          createdAt: safeStr(p.pendingAsk?.createdAt || updatedAt),
-          required: patch.pendingAsk.required != null ? !!patch.pendingAsk.required : true,
-        }
-      : p.pendingAsk,
+    pendingAsk:
+      patch.pendingAsk === null
+        ? null
+        : patch.pendingAsk
+        ? {
+            ...p.pendingAsk,
+            ...patch.pendingAsk,
+            kind: safeStr(patch.pendingAsk.kind || p.pendingAsk?.kind || "need_more_detail", 40),
+            prompt: safeStr(patch.pendingAsk.prompt || p.pendingAsk?.prompt || "", 220),
+            options: Array.isArray(patch.pendingAsk.options)
+              ? patch.pendingAsk.options.slice(0, 8)
+              : asArray(p.pendingAsk?.options).slice(0, 8),
+            createdAt: Number(p.pendingAsk?.createdAt || 0) || nowMs(),
+          }
+        : p.pendingAsk,
 
-    engagementTemp: patch.engagementTemp
-      ? String(patch.engagementTemp)
-      : p.engagementTemp,
+    activeContext:
+      patch.activeContext === null
+        ? null
+        : patch.activeContext
+        ? patch.activeContext
+        : p.activeContext,
+
+    lastChipsOffered: Array.isArray(patch.lastChipsOffered)
+      ? patch.lastChipsOffered.slice(0, 12)
+      : p.lastChipsOffered,
+
+    lastChipClicked:
+      patch.lastChipClicked === null
+        ? null
+        : patch.lastChipClicked
+        ? patch.lastChipClicked
+        : p.lastChipClicked,
+
+    lastMove: patch.lastMove != null ? safeStr(patch.lastMove, 20) : p.lastMove,
+    lastDecision:
+      patch.lastDecision && typeof patch.lastDecision === "object"
+        ? {
+            move: safeStr(patch.lastDecision.move || "", 20),
+            rationale: safeStr(patch.lastDecision.rationale || "", 60),
+          }
+        : p.lastDecision,
+
+    lastActionTaken:
+      patch.lastActionTaken != null ? safeStr(patch.lastActionTaken, 40) : p.lastActionTaken,
+    lastTurnSig: patch.lastTurnSig != null ? safeStr(patch.lastTurnSig, 220) : p.lastTurnSig,
+
+    turns: patch.turns && typeof patch.turns === "object"
+      ? {
+          user: Number.isFinite(patch.turns.user) ? Math.max(0, Math.trunc(patch.turns.user)) : p.turns.user,
+          assistant: Number.isFinite(patch.turns.assistant) ? Math.max(0, Math.trunc(patch.turns.assistant)) : p.turns.assistant,
+          sinceReset: Number.isFinite(patch.turns.sinceReset) ? Math.max(0, Math.trunc(patch.turns.sinceReset)) : p.turns.sinceReset,
+        }
+      : p.turns,
 
     updatedAt,
     rev: (Number.isFinite(p.rev) ? p.rev : 0) + 1,
+
     diag: {
       ...p.diag,
-      ...patch.diag,
+      ...(patch.diag && typeof patch.diag === "object" ? patch.diag : {}),
       lastUpdateReason: safeStr(reason, 120),
     },
   };
 
-  // Turn counter increments can be driven by caller
+  // Hard bounds
+  if (Array.isArray(next.lastChipsOffered) && next.lastChipsOffered.length > 12)
+    next.lastChipsOffered = next.lastChipsOffered.slice(0, 12);
+
+  if (next.lastDecision && typeof next.lastDecision === "object") {
+    next.lastDecision = {
+      move: safeStr(next.lastDecision.move || "", 20),
+      rationale: safeStr(next.lastDecision.rationale || "", 60),
+    };
+  } else {
+    next.lastDecision = null;
+  }
+
   return next;
 }
 
-/**
- * Single deterministic planner.
- * Output includes:
- * - move: ADVANCE | NARROW | CLARIFY | CLOSE
- * - stage: next stage
- * - speak: one-sentence "Nyx explains the move out loud"
- * - ask: optional pendingAsk
- */
+// -------------------------
+// inbound normalization (tiny, for planner/spine only)
+// -------------------------
+function normalizeInbound(inbound = {}) {
+  const body = isPlainObject(inbound) ? inbound : {};
+  const payload = isPlainObject(body.payload) ? body.payload : {};
+  const text = safeStr(body.text || body.message || payload.text || payload.message || "", 2000).trim();
+
+  const action = safeStr(body.action || payload.action || payload.route || "", 80).trim();
+  const lane = safeStr(body.lane || payload.lane || "", 24).trim();
+  const year = normYear(body.year) ?? normYear(payload.year) ?? extractYearFromText(text) ?? null;
+
+  const textEmpty = !text;
+  const hasPayload = Object.keys(payload).length > 0;
+  const payloadActionable = hasPayload && hasActionablePayload(payload);
+
+  return {
+    text,
+    payload,
+    lane,
+    year,
+    action,
+    signals: {
+      textEmpty,
+      hasPayload,
+      payloadActionable,
+    },
+  };
+}
+
+// -------------------------
+// deterministic planner (single decider)
+// -------------------------
 function decideNextMove(state, inbound = {}) {
-  const s = state || createState();
-  const text = safeStr(inbound.text || "", 1200).trim();
-  const hasText = text.length > 0;
+  const s = coerceState(state);
+  const n = normalizeInbound(inbound);
 
-  // If we already have a pending ask, we should try to resolve it
-  if (s.pendingAsk && s.pendingAsk.required) {
-    const move = MOVE.CLARIFY;
-    const stage = STAGE.CLARIFY;
-    const speak = `I’m going to get one quick detail so I can move forward cleanly.`;
+  const text = n.text;
+  const hasText = !!text;
+  const textEmpty = n.signals.textEmpty;
+
+  const hasAction = !!safeStr(n.action || "", 80).trim();
+  const payloadActionable = !!n.signals.payloadActionable;
+  const hasPayload = !!n.signals.hasPayload;
+
+  // If we already have a pending ask, try to resolve it based on typed evidence.
+  if (s.pendingAsk && isPlainObject(s.pendingAsk)) {
+    const kind = safeStr(s.pendingAsk.kind || "", 40);
+    const answeredYear = kind === "need_year" ? textHasYearToken(text) : false;
+
+    // “need_pick” can be answered by short lane words, otherwise require a bit more text.
+    const answeredPick =
+      kind === "need_pick" ? /^(music|movies|news|sponsors|help|general)$/i.test(text) : false;
+
+    const answered = answeredYear || answeredPick || (hasText && text.length >= 8);
+
+    if (!answered) {
+      return {
+        move: MOVE.CLARIFY,
+        stage: STAGE.CLARIFY,
+        speak: "I’m going to get one quick detail so I can move forward cleanly.",
+        ask: s.pendingAsk,
+        rationale: "pendingAsk_unresolved",
+      };
+    }
+  }
+
+  // Chip-click / actionable payload beats silence -> ADVANCE
+  if ((hasAction && payloadActionable) || (payloadActionable && hasPayload && textEmpty)) {
     return {
-      move,
-      stage,
-      speak,
-      ask: s.pendingAsk,
-      rationale: "pending_ask_required",
+      move: MOVE.ADVANCE,
+      stage: STAGE.DELIVER,
+      speak: "I’m going to execute that selection and keep momentum.",
+      ask: null,
+      rationale: "actionable_payload",
     };
   }
 
-  // No text: treat as a stall; narrow via last context if we can, otherwise clarify
-  if (!hasText) {
-    const move = s.topic ? MOVE.NARROW : MOVE.CLARIFY;
-    const stage = move === MOVE.NARROW ? STAGE.TRIAGE : STAGE.CLARIFY;
-    const speak =
-      move === MOVE.NARROW
-        ? `I’ll keep us moving by narrowing this to the most likely next step.`
-        : `I need one small input to aim this correctly, then I’ll proceed.`;
-    const ask =
-      move === MOVE.CLARIFY
-        ? {
-            id: "need_intent",
-            type: "clarify",
-            prompt: "What are we advancing right now: state spine, guidance layer, goal inference, or response filter?",
-            required: true,
-          }
-        : null;
-
-    return { move, stage, speak, ask, rationale: "empty_inbound" };
-  }
-
-  // Common "next steps" trigger: advance by offering an immediate actionable plan
-  if (/next steps|what next|do them all|implement/i.test(text)) {
-    const move = MOVE.ADVANCE;
-    const stage = STAGE.DELIVER;
-    const speak = `I’m going to advance: I’ll propose the smallest next change you can paste in and verify in one run.`;
-    return { move, stage, speak, ask: null, rationale: "advance_request" };
-  }
-
-  // Ambiguous short input → clarify
-  if (text.length < 10) {
-    const move = MOVE.CLARIFY;
-    const stage = STAGE.CLARIFY;
-    const speak = `I’m going to ask one clarifying question so we don’t build the wrong thing.`;
-    const ask = {
-      id: "short_ambig",
-      type: "clarify",
-      prompt: "Say what you want Nyx to do next in one phrase (e.g., “wire it into chatEngine”, “add tests”, “connect to sessionPatch”).",
-      required: true,
+  // Explicit “next steps / implement” -> ADVANCE
+  if (/\b(next steps|what next|implement|wire it|do them all|ship it)\b/i.test(text)) {
+    return {
+      move: MOVE.ADVANCE,
+      stage: STAGE.DELIVER,
+      speak: "I’m going to advance: smallest next change first, then we verify.",
+      ask: null,
+      rationale: "advance_request",
     };
-    return { move, stage, speak, ask, rationale: "too_short" };
   }
 
-  // Default: advance
+  // Empty text and non-actionable -> NARROW if context exists, else CLARIFY
+  if (!hasText && textEmpty) {
+    const hasCtx = !!s.activeContext || !!s.topic || !!s.lane;
+    return hasCtx
+      ? {
+          move: MOVE.NARROW,
+          stage: STAGE.TRIAGE,
+          speak: "I’ll keep us moving by narrowing this to the most likely next step.",
+          ask: null,
+          rationale: "empty_inbound_narrow",
+        }
+      : {
+          move: MOVE.CLARIFY,
+          stage: STAGE.CLARIFY,
+          speak: "I need one small input to aim this correctly, then I’ll proceed.",
+          ask: buildPendingAsk(
+            "need_pick",
+            "What are we advancing right now: state spine, guidance layer, goal inference, or response filter?",
+            []
+          ),
+          rationale: "empty_inbound_clarify",
+        };
+  }
+
+  // Very short typed input -> CLARIFY
+  if (hasText && text.length < 10) {
+    return {
+      move: MOVE.CLARIFY,
+      stage: STAGE.CLARIFY,
+      speak: "I’m going to ask one clarifying question so we don’t build the wrong thing.",
+      ask: buildPendingAsk(
+        "need_more_detail",
+        "Say what you want next in one phrase (e.g., “wire into chatEngine”, “add tests”, “connect to sessionPatch”).",
+        []
+      ),
+      rationale: "too_short",
+    };
+  }
+
+  // Default
   return {
     move: MOVE.ADVANCE,
     stage: STAGE.DELIVER,
-    speak: `I’m going to move forward using what you gave me, and I’ll flag any assumptions clearly.`,
+    speak: "I’m going to move forward using what you gave me, and I’ll flag assumptions clearly.",
     ask: null,
     rationale: "default_advance",
   };
+}
+
+// -------------------------
+// finalize (structured, rev enforcement)
+// -------------------------
+function finalizeTurn({
+  prevState,
+  inbound,
+  lane,
+  topicOverride,
+  actionTaken,
+  followUps,
+  pendingAsk, // optional; if undefined, keep logic-controlled value
+  decision, // {move, rationale, speak, stage}
+  assistantSummary, // optional, bounded
+  updateReason = "turn",
+}) {
+  const prev = coerceState(prevState);
+  const n = normalizeInbound(inbound);
+
+  const lastUserIntent = inferUserIntent({
+    text: n.text,
+    action: n.action,
+    signals: n.signals,
+  });
+
+  const activeContext = buildActiveContext(
+    {
+      text: n.text,
+      payload: n.payload,
+      year: n.year,
+      lane: n.lane,
+      action: n.action,
+      signals: n.signals,
+    },
+    prev
+  );
+
+  const topic =
+    safeStr(topicOverride || "", 80).trim() ||
+    topicFromAction(safeStr(n.action || "", 80).trim()) ||
+    prev.topic ||
+    "unknown";
+
+  const move = safeStr(decision?.move || "", 20).toLowerCase();
+  const nextStage = decision?.stage
+    ? normalizeStage(decision.stage)
+    : stageProgress(prev.stage, move);
+
+  const turnSig = computeTurnSig({
+    lane: normalizeLane(lane || n.lane || prev.lane),
+    topic,
+    intent: lastUserIntent,
+    activeContext,
+    text: n.text,
+  });
+
+  // PendingAsk hygiene:
+  // - Only clear a "need_year" ask if the user actually typed a year token (not just payload year).
+  const typedYear =
+    !n.signals.textEmpty && textHasYearToken(n.text || "");
+  let nextPendingAsk = prev.pendingAsk;
+
+  if (pendingAsk === null) nextPendingAsk = null;
+  else if (pendingAsk && typeof pendingAsk === "object") nextPendingAsk = pendingAsk;
+  // else: keep prev.pendingAsk, unless typedYear resolves it
+  if (typedYear && nextPendingAsk && safeStr(nextPendingAsk.kind || "", 40) === "need_year") {
+    nextPendingAsk = null;
+  }
+
+  const patch = {
+    lane: normalizeLane(lane || n.lane || prev.lane),
+    stage: nextStage,
+    topic,
+    lastUserIntent,
+    activeContext,
+    pendingAsk: nextPendingAsk,
+
+    lastActionTaken: safeStr(actionTaken || "", 40).trim() || null,
+
+    lastMove: decision?.move ? safeStr(decision.move, 20) : null,
+    lastDecision:
+      decision?.move
+        ? { move: safeStr(decision.move, 20), rationale: safeStr(decision.rationale || "", 60) }
+        : null,
+
+    lastTurnSig: turnSig,
+
+    ...(assistantSummary != null
+      ? { lastAssistantSummary: safeStr(assistantSummary, 320) }
+      : {}),
+
+    ...(Array.isArray(followUps) && followUps.length
+      ? { lastChipsOffered: buildChipsOffered(followUps) }
+      : {}),
+
+    // Chip click memory: only when it truly was a silent click context
+    ...(activeContext &&
+    activeContext.kind === "chip" &&
+    lastUserIntent === "silent_click"
+      ? {
+          lastChipClicked: {
+            id: safeStr(activeContext.id, 80),
+            label: safeStr(activeContext.label || "", 140),
+            route: safeStr(activeContext.route || "", 80),
+            lane: safeStr(activeContext.lane || "", 24),
+            payload: activeContext.payload,
+            clickedAt: activeContext.clickedAt || nowMs(),
+          },
+        }
+      : {}),
+  };
+
+  const next = updateState(prev, patch, updateReason);
+
+  // ENFORCEMENT++++: must increment exactly once per turn
+  const prevRev = Number.isFinite(prev.rev) ? prev.rev : 0;
+  if (!(Number.isFinite(next.rev) && next.rev === prevRev + 1)) {
+    next.rev = prevRev + 1; // fail-open correction
+  }
+
+  return next;
 }
 
 /**
@@ -307,8 +795,20 @@ module.exports = {
   LANE,
   STAGE,
   MOVE,
+
+  // state
   createState,
+  coerceState,
   updateState,
+  finalizeTurn,
+
+  // planner
   decideNextMove,
+
+  // helpers (useful for chatEngine integration / diagnostics)
+  computeTurnSig,
+  topicFromAction,
+  buildPendingAsk,
+  buildChipsOffered,
   assertTurnUpdated,
 };
