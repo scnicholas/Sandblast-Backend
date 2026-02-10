@@ -17,23 +17,28 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7bQ (STATE SPINE WIRED++++: uses Utils/stateSpine.js as canonical rev planner + pendingAsk clear on chip-year)
- * ✅ Keeps: v0.7bP PENDINGASK CLEAR ON CHIP-YEAR++++ (now handled through stateSpine finalize)
+ * v0.7bR (MARION SO WIRED++++: uses Utils/marionSO.js as canonical cog mediator; keeps STATE SPINE WIRED++++)
+ * ✅ Keeps: v0.7bQ STATE SPINE WIRED++++ (Utils/stateSpine.js canonical planner + pendingAsk clear on chip-year)
+ * ✅ Keeps: v0.7bP PENDINGASK CLEAR ON CHIP-YEAR++++ (via stateSpine finalize)
  * ✅ Keeps: v0.7bO STATE SPINE ENFORCEMENT++++ (rev per turn + single decideNextMove() + move-explain every turn)
  * ✅ Keeps: v0.7bN HARDENING++++ (actionable payload gating + activeContext refresh + typedYear precision + tone scrub scope + loop sig normalization + meta consistency)
  * ✅ Keeps: v0.7bM click-to-context binding + pendingAsk + action trace
  * ✅ Keeps: MARION SPINE LOGGING++++, counselor-lite intro, CHIP COMPRESSION++++,
  *          TOP10-ONLY++++ (no #1 route anywhere), Top10 visibility fix (no Top 4 truncation),
- *          Mac Mode signal, Marion mediator, desire+confidence arbitration, Velvet mode (music-first),
+ *          Mac Mode signal, desire+confidence arbitration, Velvet mode (music-first),
  *          tone constitution + regression tests, payload beats silence, chip-click advance,
  *          pinned aliases, accurate miss reasons, year-end route, loop dampener, derived guard default OFF,
  *          followUps, session keys
  */
 
 const CE_VERSION =
-  "chatEngine v0.7bQ (STATE SPINE WIRED++++ via Utils/stateSpine.js | PENDINGASK CLEAR ON CHIP-YEAR++++ | HARDENING++++ + MARION SPINE LOGGING++++ + COUNSELOR-LITE INTRO++++ + CHIP COMPRESSION++++ + DESIRE+CONFIDENCE ARBITRATION++++ + VELVET (MUSIC-FIRST)++++ + TONE TESTS++++ + TOP10-ONLY + Top10 visibility fix + Marion mediator + payload beats silence + chip-click advance + pinned aliases + accurate miss reasons + year-end route + loop dampener)";
+  "chatEngine v0.7bR (MARION SO WIRED++++ via Utils/marionSO.js | STATE SPINE WIRED++++ via Utils/stateSpine.js | PENDINGASK CLEAR ON CHIP-YEAR++++ | HARDENING++++ + MARION SPINE LOGGING++++ + COUNSELOR-LITE INTRO++++ + CHIP COMPRESSION++++ + DESIRE+CONFIDENCE ARBITRATION++++ + VELVET (MUSIC-FIRST)++++ + TONE TESTS++++ + TOP10-ONLY + Top10 visibility fix + payload beats silence + chip-click advance + pinned aliases + accurate miss reasons + year-end route + loop dampener)";
 
 const Spine = require("./stateSpine");
+const MarionSO = require("./marionSO");
+
+// Prefer MarionSO enums when present; keep local fallback for backward compatibility/tests.
+const SO_LATENT_DESIRE = MarionSO && MarionSO.LATENT_DESIRE ? MarionSO.LATENT_DESIRE : null;
 
 // -------------------------
 // helpers
@@ -476,7 +481,7 @@ function detectMacModeImplicit(text) {
     why.push("architect:enumeration");
   }
   if (
-    /\b(index\.js|chatengine\.js|render|cors|session|payload|json|endpoint|route|resolver|pack|tests?)\b/.test(
+    /\b(index\.js|chatengine\.js|statespine\.js|render|cors|session|payload|json|endpoint|route|resolver|pack|tests?)\b/.test(
       s
     )
   ) {
@@ -840,6 +845,9 @@ function normalizeInbound(input) {
 
 // -------------------------
 // COG MEDIATOR (“Marion”) + desire/confidence arbitration
+// NOTE: v0.7bR uses MarionSO.mediate() as canonical.
+// This legacy local mediator is preserved for backward compatibility/tests,
+// but the engine path uses MarionSO now.
 // -------------------------
 function mediatorMarion(norm, session) {
   const s = isPlainObject(session) ? session : {};
@@ -1795,8 +1803,17 @@ async function handleChat(input) {
   // STATE SPINE (canonical prev)
   const corePrev = coerceCoreSpine(session);
 
-  // Marion mediation (COG OS)
-  const cog = mediatorMarion(norm, session);
+  // Marion mediation (COG OS) — CANONICAL via MarionSO
+  // FAIL-OPEN: if MarionSO is missing/throws, fall back to legacy mediatorMarion.
+  let cog = null;
+  try {
+    if (MarionSO && typeof MarionSO.mediate === "function") {
+      cog = MarionSO.mediate(norm, session, {});
+    }
+  } catch (e) {
+    cog = null;
+  }
+  if (!cog) cog = mediatorMarion(norm, session);
 
   // Canonical state spine planner (single call)
   const corePlan = Spine.decideNextMove(corePrev, { text: norm.text || "" });
@@ -1806,6 +1823,13 @@ async function handleChat(input) {
   cog.nextMoveSpeak = safeStr(corePlan.speak || "");
   cog.nextMoveWhy = safeStr(corePlan.rationale || "");
   cog.nextMoveStage = safeStr(corePlan.stage || "");
+
+  // Ensure LATENT_DESIRE string compatibility if MarionSO enum is used
+  // (No-op if already string values; just guards if future enum changes.)
+  if (SO_LATENT_DESIRE && cog && safeStr(cog.latentDesire || "")) {
+    const ld = safeStr(cog.latentDesire || "");
+    cog.latentDesire = ld; // keep as simple string
+  }
 
   const yearSticky = normYear(session.lastYear) ?? null;
 
@@ -1823,13 +1847,13 @@ async function handleChat(input) {
 
   // Common session telemetry patch (kept small and safe)
   const baseCogPatch = {
-    lastMacMode: cog.mode,
-    lastTurnIntent: cog.intent,
+    lastMacMode: safeStr(cog.mode || ""),
+    lastTurnIntent: safeStr(cog.intent || ""),
     lastTurnAt: nowMs(),
-    ...(cog.intent === "ADVANCE" ? { lastAdvanceAt: nowMs() } : {}),
+    ...(safeStr(cog.intent || "").toUpperCase() === "ADVANCE" ? { lastAdvanceAt: nowMs() } : {}),
 
     // new cognitive telemetry
-    lastLatentDesire: cog.latentDesire,
+    lastLatentDesire: safeStr(cog.latentDesire || ""),
     lastUserConfidence: clamp01(cog?.confidence?.user),
     lastNyxConfidence: clamp01(cog?.confidence?.nyx),
     velvetMode: !!cog.velvet,
