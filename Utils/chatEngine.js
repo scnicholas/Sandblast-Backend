@@ -17,7 +17,8 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7bO (STATE SPINE ENFORCEMENT++++: rev increment per turn + single decideNextMove() + Nyx move-explains every turn)
+ * v0.7bP (PENDINGASK CLEAR ON CHIP-YEAR++++: pendingAsk clears when user answers via silent chip year, not just typed year)
+ * ✅ Keeps: v0.7bO STATE SPINE ENFORCEMENT++++: rev increment per turn + single decideNextMove() + Nyx move-explains every turn
  * ✅ Keeps: v0.7bN HARDENING++++: actionable payload gating + activeContext refresh + typedYear precision + tone scrub scope + loop sig normalization + meta consistency
  * ✅ Keeps: v0.7bM STATE SPINE++++ canonical + click-to-context binding + pendingAsk + action trace
  * ✅ Keeps: MARION SPINE LOGGING++++, counselor-lite intro, CHIP COMPRESSION++++,
@@ -29,7 +30,7 @@
  */
 
 const CE_VERSION =
-  "chatEngine v0.7bO (STATE SPINE ENFORCEMENT++++: rev per turn + decideNextMove() + move-explain every turn | HARDENING++++ + STATE SPINE++++ + MARION SPINE LOGGING++++ + COUNSELOR-LITE INTRO++++ + CHIP COMPRESSION++++ + DESIRE+CONFIDENCE ARBITRATION++++ + VELVET (MUSIC-FIRST)++++ + TONE TESTS++++ + TOP10-ONLY + Top10 visibility fix + Marion mediator + payload beats silence + chip-click advance + pinned aliases + accurate miss reasons + year-end route + loop dampener)";
+  "chatEngine v0.7bP (PENDINGASK CLEAR ON CHIP-YEAR++++ | STATE SPINE ENFORCEMENT++++: rev per turn + decideNextMove() + move-explain every turn | HARDENING++++ + STATE SPINE++++ + MARION SPINE LOGGING++++ + COUNSELOR-LITE INTRO++++ + CHIP COMPRESSION++++ + DESIRE+CONFIDENCE ARBITRATION++++ + VELVET (MUSIC-FIRST)++++ + TONE TESTS++++ + TOP10-ONLY + Top10 visibility fix + Marion mediator + payload beats silence + chip-click advance + pinned aliases + accurate miss reasons + year-end route + loop dampener)";
 
 // -------------------------
 // helpers
@@ -575,10 +576,17 @@ function spineFinalize({
     text: safeStr(norm?.text || ""),
   });
 
-  // HARDENING: clear pendingAsk only if user text contains a year token (not merely because norm.year is set).
+  // HARDENING: clear pendingAsk only if user *actually answered*:
+  // - typed a year token, OR
+  // - silent chip click includes a payloadYear and is actionable
   const typedYear =
-    !norm?.turnSignals?.textEmpty &&
-    textHasYearToken(norm?.text || "");
+    !norm?.turnSignals?.textEmpty && textHasYearToken(norm?.text || "");
+  const chipYearAnswer =
+    !!norm?.turnSignals?.payloadActionable &&
+    norm?.turnSignals?.payloadYear !== null &&
+    norm?.turnSignals?.hasPayload === true;
+
+  const answeredPendingAsk = typedYear || chipYearAnswer;
 
   const patch = {
     lane: safeStr(lane || spinePrev.lane || "general"),
@@ -586,7 +594,7 @@ function spineFinalize({
     topic,
     lastUserIntent,
     activeContext,
-    pendingAsk: typedYear ? null : pendingAsk || null,
+    pendingAsk: answeredPendingAsk ? null : pendingAsk || null,
     lastActionTaken: safeStr(actionTaken || "").trim() || null,
     lastTurnSig: turnSig,
 
