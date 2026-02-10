@@ -10,10 +10,10 @@
  *
  * Designed to be imported by Utils/chatEngine.js (pure, no express).
  *
- * v1.1.0 (ALIGNMENT++++: chip-click context binding + pendingAsk hygiene + bounded traces + turnSig + rev enforcement)
+ * v1.1.1 (CRITICAL COMPAT++++: pendingAsk schema dual-support (kind/options OR id/type/required) + need_year detection + safe clear rules)
  */
 
-const SPINE_VERSION = "stateSpine v1.1.0";
+const SPINE_VERSION = "stateSpine v1.1.1";
 
 const LANE = Object.freeze({
   MUSIC: "music",
@@ -122,13 +122,79 @@ function hasActionablePayload(payload) {
   return keys.some((k) => actionable.has(k));
 }
 
+// -------------------------
+// CRITICAL: pendingAsk schema compatibility
+// Supports BOTH shapes:
+//  A) { kind, prompt, options, createdAt }
+//  B) { id, type, prompt, required }   <-- used by chatEngine.js
+// Normalizes to a superset so both planners + chatEngine finalize logic behave.
+// -------------------------
+function normalizePendingAsk(p) {
+  if (!p || typeof p !== "object") return null;
+
+  const kindRaw = safeStr(p.kind || "", 40).trim();
+  const idRaw = safeStr(p.id || "", 80).trim();
+  const typeRaw = safeStr(p.type || "", 40).trim();
+
+  // Heuristic: prefer explicit kind; else map id/type into kind.
+  // chatEngine uses id like "need_year" and type like "clarify".
+  const kind =
+    kindRaw ||
+    (idRaw ? safeStr(idRaw, 40) : "") ||
+    (typeRaw ? safeStr(typeRaw, 40) : "") ||
+    "need_more_detail";
+
+  const prompt = safeStr(p.prompt || "", 220).trim();
+  const options = Array.isArray(p.options) ? p.options.slice(0, 8) : [];
+
+  // chatEngine uses required flag; default true.
+  const required =
+    typeof p.required === "boolean"
+      ? p.required
+      : safeStr(p.required || "").trim()
+      ? !/^(0|false|no|n|off)$/i.test(safeStr(p.required).trim())
+      : true;
+
+  const createdAt = Number(p.createdAt || 0) || nowMs();
+
+  const out = {
+    // canonical fields
+    kind,
+    prompt,
+    options,
+    createdAt,
+
+    // compat fields retained (so chatEngine can store/reuse without loss)
+    id: idRaw || undefined,
+    type: typeRaw || undefined,
+    required,
+  };
+
+  return out;
+}
+
+function isNeedYearAsk(pendingAsk) {
+  const pa = normalizePendingAsk(pendingAsk);
+  if (!pa) return false;
+
+  const k = safeStr(pa.kind || "", 80).toLowerCase();
+  const id = safeStr(pa.id || "", 80).toLowerCase();
+  const pr = safeStr(pa.prompt || "", 240).toLowerCase();
+
+  if (k === "need_year" || id === "need_year") return true;
+  // Robust fallback: prompt contains "year" and "1950–2025" style patterns
+  if (/\byear\b/.test(pr)) return true;
+  return false;
+}
+
 function buildPendingAsk(kind, prompt, options) {
-  return {
+  return normalizePendingAsk({
     kind: safeStr(kind || "", 40).trim() || "need_more_detail",
     prompt: safeStr(prompt || "", 220).trim(),
     options: Array.isArray(options) ? options.slice(0, 8) : [],
     createdAt: nowMs(),
-  };
+    required: true,
+  });
 }
 
 function buildChipsOffered(followUps) {
@@ -288,9 +354,11 @@ function buildActiveContext(norm, spinePrev) {
 // -------------------------
 function createState(seed = {}) {
   const createdAtIso = nowIso();
+  const pendingAsk = normalizePendingAsk(seed.pendingAsk);
+
   return {
     __spineVersion: SPINE_VERSION,
-    rev: 0, // increments exactly once per turn via finalizeTurn()
+    rev: 0, // increments exactly once per turn via updateState/finalizeTurn
     createdAt: createdAtIso,
     updatedAt: createdAtIso,
 
@@ -300,30 +368,42 @@ function createState(seed = {}) {
     topic: safeStr(seed.topic || "", 80) || "unknown",
 
     lastUserIntent: safeStr(seed.lastUserIntent || "", 40) || "unknown",
-    pendingAsk: seed.pendingAsk && typeof seed.pendingAsk === "object" ? seed.pendingAsk : null,
+    pendingAsk: pendingAsk || null,
 
     // Context memory
-    activeContext: seed.activeContext && typeof seed.activeContext === "object" ? seed.activeContext : null,
-    lastChipsOffered: Array.isArray(seed.lastChipsOffered) ? seed.lastChipsOffered.slice(0, 12) : [],
-    lastChipClicked: seed.lastChipClicked && typeof seed.lastChipClicked === "object" ? seed.lastChipClicked : null,
+    activeContext:
+      seed.activeContext && typeof seed.activeContext === "object"
+        ? seed.activeContext
+        : null,
+    lastChipsOffered: Array.isArray(seed.lastChipsOffered)
+      ? seed.lastChipsOffered.slice(0, 12)
+      : [],
+    lastChipClicked:
+      seed.lastChipClicked && typeof seed.lastChipClicked === "object"
+        ? seed.lastChipClicked
+        : null,
 
     // Goal inference (small)
-    goal: seed.goal && typeof seed.goal === "object"
-      ? {
-          primary: safeStr(seed.goal.primary || "", 120) || null,
-          secondary: Array.isArray(seed.goal.secondary) ? seed.goal.secondary.slice(0, 8) : [],
-          updatedAt: Number(seed.goal.updatedAt || 0) || 0,
-        }
-      : { primary: null, secondary: [], updatedAt: 0 },
+    goal:
+      seed.goal && typeof seed.goal === "object"
+        ? {
+            primary: safeStr(seed.goal.primary || "", 120) || null,
+            secondary: Array.isArray(seed.goal.secondary)
+              ? seed.goal.secondary.slice(0, 8)
+              : [],
+            updatedAt: Number(seed.goal.updatedAt || 0) || 0,
+          }
+        : { primary: null, secondary: [], updatedAt: 0 },
 
     // Decisions / loop fuse (small)
     lastMove: safeStr(seed.lastMove || "", 20) || null,
-    lastDecision: seed.lastDecision && typeof seed.lastDecision === "object"
-      ? {
-          move: safeStr(seed.lastDecision.move || "", 20),
-          rationale: safeStr(seed.lastDecision.rationale || "", 60),
-        }
-      : null,
+    lastDecision:
+      seed.lastDecision && typeof seed.lastDecision === "object"
+        ? {
+            move: safeStr(seed.lastDecision.move || "", 20),
+            rationale: safeStr(seed.lastDecision.rationale || "", 60),
+          }
+        : null,
     lastActionTaken: safeStr(seed.lastActionTaken || "", 40) || null,
     lastTurnSig: safeStr(seed.lastTurnSig || "", 220) || null,
 
@@ -333,9 +413,15 @@ function createState(seed = {}) {
 
     // Stats
     turns: {
-      user: Number.isFinite(seed?.turns?.user) ? Math.max(0, Math.trunc(seed.turns.user)) : 0,
-      assistant: Number.isFinite(seed?.turns?.assistant) ? Math.max(0, Math.trunc(seed.turns.assistant)) : 0,
-      sinceReset: Number.isFinite(seed?.turns?.sinceReset) ? Math.max(0, Math.trunc(seed.turns.sinceReset)) : 0,
+      user: Number.isFinite(seed?.turns?.user)
+        ? Math.max(0, Math.trunc(seed.turns.user))
+        : 0,
+      assistant: Number.isFinite(seed?.turns?.assistant)
+        ? Math.max(0, Math.trunc(seed.turns.assistant))
+        : 0,
+      sinceReset: Number.isFinite(seed?.turns?.sinceReset)
+        ? Math.max(0, Math.trunc(seed.turns.sinceReset))
+        : 0,
     },
 
     // Diagnostics (bounded)
@@ -360,6 +446,8 @@ function coerceState(prev) {
   out.topic = safeStr(out.topic || "", 80) || "unknown";
   out.lastUserIntent = safeStr(out.lastUserIntent || "", 40) || "unknown";
 
+  out.pendingAsk = normalizePendingAsk(out.pendingAsk);
+
   if (!out.goal || typeof out.goal !== "object")
     out.goal = { primary: null, secondary: [], updatedAt: 0 };
   if (!Array.isArray(out.goal.secondary)) out.goal.secondary = [];
@@ -368,7 +456,6 @@ function coerceState(prev) {
   if (out.lastChipsOffered.length > 12)
     out.lastChipsOffered = out.lastChipsOffered.slice(0, 12);
 
-  if (out.pendingAsk && typeof out.pendingAsk !== "object") out.pendingAsk = null;
   if (out.activeContext && typeof out.activeContext !== "object") out.activeContext = null;
 
   if (out.lastDecision && typeof out.lastDecision === "object") {
@@ -383,9 +470,15 @@ function coerceState(prev) {
   if (!out.turns || typeof out.turns !== "object") {
     out.turns = { user: 0, assistant: 0, sinceReset: 0 };
   } else {
-    out.turns.user = Number.isFinite(out.turns.user) ? Math.max(0, Math.trunc(out.turns.user)) : 0;
-    out.turns.assistant = Number.isFinite(out.turns.assistant) ? Math.max(0, Math.trunc(out.turns.assistant)) : 0;
-    out.turns.sinceReset = Number.isFinite(out.turns.sinceReset) ? Math.max(0, Math.trunc(out.turns.sinceReset)) : 0;
+    out.turns.user = Number.isFinite(out.turns.user)
+      ? Math.max(0, Math.trunc(out.turns.user))
+      : 0;
+    out.turns.assistant = Number.isFinite(out.turns.assistant)
+      ? Math.max(0, Math.trunc(out.turns.assistant))
+      : 0;
+    out.turns.sinceReset = Number.isFinite(out.turns.sinceReset)
+      ? Math.max(0, Math.trunc(out.turns.sinceReset))
+      : 0;
   }
 
   out.updatedAt = nowIso();
@@ -397,12 +490,18 @@ function coerceState(prev) {
  * - merges safe fields
  * - increments rev exactly once per call
  * - updates timestamps
- *
- * NOTE: For strict enforcement, prefer finalizeTurn() (which is structured).
  */
 function updateState(prev, patch = {}, reason = "turn") {
   const p = coerceState(prev);
   const updatedAt = nowIso();
+
+  // Normalize pendingAsk in patch (supports chatEngine schema)
+  const patchPendingAsk =
+    patch.pendingAsk === null
+      ? null
+      : patch.pendingAsk
+      ? normalizePendingAsk(patch.pendingAsk)
+      : undefined;
 
   const next = {
     ...p,
@@ -434,18 +533,21 @@ function updateState(prev, patch = {}, reason = "turn") {
       : p.goal,
 
     pendingAsk:
-      patch.pendingAsk === null
+      patchPendingAsk === null
         ? null
-        : patch.pendingAsk
+        : patchPendingAsk
         ? {
-            ...p.pendingAsk,
-            ...patch.pendingAsk,
-            kind: safeStr(patch.pendingAsk.kind || p.pendingAsk?.kind || "need_more_detail", 40),
-            prompt: safeStr(patch.pendingAsk.prompt || p.pendingAsk?.prompt || "", 220),
-            options: Array.isArray(patch.pendingAsk.options)
-              ? patch.pendingAsk.options.slice(0, 8)
-              : asArray(p.pendingAsk?.options).slice(0, 8),
-            createdAt: Number(p.pendingAsk?.createdAt || 0) || nowMs(),
+            ...(normalizePendingAsk(p.pendingAsk) || {}),
+            ...patchPendingAsk,
+            // keep hard bounds stable
+            kind: safeStr(patchPendingAsk.kind || "need_more_detail", 40),
+            prompt: safeStr(patchPendingAsk.prompt || "", 220),
+            options: Array.isArray(patchPendingAsk.options)
+              ? patchPendingAsk.options.slice(0, 8)
+              : asArray(patchPendingAsk.options).slice(0, 8),
+            createdAt: Number(patchPendingAsk.createdAt || 0) || nowMs(),
+            required:
+              typeof patchPendingAsk.required === "boolean" ? patchPendingAsk.required : true,
           }
         : p.pendingAsk,
 
@@ -480,13 +582,20 @@ function updateState(prev, patch = {}, reason = "turn") {
       patch.lastActionTaken != null ? safeStr(patch.lastActionTaken, 40) : p.lastActionTaken,
     lastTurnSig: patch.lastTurnSig != null ? safeStr(patch.lastTurnSig, 220) : p.lastTurnSig,
 
-    turns: patch.turns && typeof patch.turns === "object"
-      ? {
-          user: Number.isFinite(patch.turns.user) ? Math.max(0, Math.trunc(patch.turns.user)) : p.turns.user,
-          assistant: Number.isFinite(patch.turns.assistant) ? Math.max(0, Math.trunc(patch.turns.assistant)) : p.turns.assistant,
-          sinceReset: Number.isFinite(patch.turns.sinceReset) ? Math.max(0, Math.trunc(patch.turns.sinceReset)) : p.turns.sinceReset,
-        }
-      : p.turns,
+    turns:
+      patch.turns && typeof patch.turns === "object"
+        ? {
+            user: Number.isFinite(patch.turns.user)
+              ? Math.max(0, Math.trunc(patch.turns.user))
+              : p.turns.user,
+            assistant: Number.isFinite(patch.turns.assistant)
+              ? Math.max(0, Math.trunc(patch.turns.assistant))
+              : p.turns.assistant,
+            sinceReset: Number.isFinite(patch.turns.sinceReset)
+              ? Math.max(0, Math.trunc(patch.turns.sinceReset))
+              : p.turns.sinceReset,
+          }
+        : p.turns,
 
     updatedAt,
     rev: (Number.isFinite(p.rev) ? p.rev : 0) + 1,
@@ -511,6 +620,8 @@ function updateState(prev, patch = {}, reason = "turn") {
     next.lastDecision = null;
   }
 
+  next.pendingAsk = normalizePendingAsk(next.pendingAsk);
+
   return next;
 }
 
@@ -520,11 +631,15 @@ function updateState(prev, patch = {}, reason = "turn") {
 function normalizeInbound(inbound = {}) {
   const body = isPlainObject(inbound) ? inbound : {};
   const payload = isPlainObject(body.payload) ? body.payload : {};
-  const text = safeStr(body.text || body.message || payload.text || payload.message || "", 2000).trim();
+  const text = safeStr(
+    body.text || body.message || payload.text || payload.message || "",
+    2000
+  ).trim();
 
   const action = safeStr(body.action || payload.action || payload.route || "", 80).trim();
   const lane = safeStr(body.lane || payload.lane || "", 24).trim();
-  const year = normYear(body.year) ?? normYear(payload.year) ?? extractYearFromText(text) ?? null;
+  const year =
+    normYear(body.year) ?? normYear(payload.year) ?? extractYearFromText(text) ?? null;
 
   const textEmpty = !text;
   const hasPayload = Object.keys(payload).length > 0;
@@ -561,12 +676,18 @@ function decideNextMove(state, inbound = {}) {
 
   // If we already have a pending ask, try to resolve it based on typed evidence.
   if (s.pendingAsk && isPlainObject(s.pendingAsk)) {
-    const kind = safeStr(s.pendingAsk.kind || "", 40);
-    const answeredYear = kind === "need_year" ? textHasYearToken(text) : false;
+    const pa = normalizePendingAsk(s.pendingAsk);
+    const kind = safeStr(pa?.kind || "", 80).toLowerCase();
+    const id = safeStr(pa?.id || "", 80).toLowerCase();
 
-    // “need_pick” can be answered by short lane words, otherwise require a bit more text.
+    const answeredYear =
+      (kind === "need_year" || id === "need_year" || isNeedYearAsk(pa)) && textHasYearToken(text);
+
+    // “need_pick” can be answered by short lane words
     const answeredPick =
-      kind === "need_pick" ? /^(music|movies|news|sponsors|help|general)$/i.test(text) : false;
+      kind === "need_pick" || id === "need_pick"
+        ? /^(music|movies|news|sponsors|help|general)$/i.test(text)
+        : false;
 
     const answered = answeredYear || answeredPick || (hasText && text.length >= 8);
 
@@ -575,7 +696,7 @@ function decideNextMove(state, inbound = {}) {
         move: MOVE.CLARIFY,
         stage: STAGE.CLARIFY,
         speak: "I’m going to get one quick detail so I can move forward cleanly.",
-        ask: s.pendingAsk,
+        ask: pa,
         rationale: "pendingAsk_unresolved",
       };
     }
@@ -708,15 +829,15 @@ function finalizeTurn({
   });
 
   // PendingAsk hygiene:
-  // - Only clear a "need_year" ask if the user actually typed a year token (not just payload year).
-  const typedYear =
-    !n.signals.textEmpty && textHasYearToken(n.text || "");
+  // - Only clear need_year if user typed a year token (not just payload year).
+  const typedYear = !n.signals.textEmpty && textHasYearToken(n.text || "");
   let nextPendingAsk = prev.pendingAsk;
 
   if (pendingAsk === null) nextPendingAsk = null;
-  else if (pendingAsk && typeof pendingAsk === "object") nextPendingAsk = pendingAsk;
+  else if (pendingAsk && typeof pendingAsk === "object") nextPendingAsk = normalizePendingAsk(pendingAsk);
   // else: keep prev.pendingAsk, unless typedYear resolves it
-  if (typedYear && nextPendingAsk && safeStr(nextPendingAsk.kind || "", 40) === "need_year") {
+
+  if (typedYear && nextPendingAsk && isNeedYearAsk(nextPendingAsk)) {
     nextPendingAsk = null;
   }
 
@@ -782,9 +903,7 @@ function assertTurnUpdated(prevState, nextState) {
   const a = prevState && typeof prevState.rev === "number" ? prevState.rev : -1;
   const b = nextState && typeof nextState.rev === "number" ? nextState.rev : -1;
   if (!(b === a + 1)) {
-    const err = new Error(
-      `STATE_SPINE_NOT_UPDATED: expected rev ${a + 1} but got ${b}`
-    );
+    const err = new Error(`STATE_SPINE_NOT_UPDATED: expected rev ${a + 1} but got ${b}`);
     err.code = "STATE_SPINE_NOT_UPDATED";
     throw err;
   }
