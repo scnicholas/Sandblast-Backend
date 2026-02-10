@@ -12,15 +12,20 @@
  * - Keep it safe: no raw user text in traces; bounded outputs; fail-open behavior
  * - Keep it portable: no express, no fs, no index.js imports, no knowledge access
  *
- * v1.0.0 (MARION SO MODULE++++: extracted mediator + desire/confidence/velvet + bounded trace/hash)
+ * v1.0.1 (MARION POLISH++++: marion style contract + deterministic clock hook + stricter privacy + tighter intent/stall logic)
+ * ✅ Adds MarionStyleContract for 2-sentence system narrator, tags, no-apology language.
+ * ✅ Adds opts.nowMs() injection for deterministic tests; defaults to Date.now().
+ * ✅ Tightens “actionable” detection + ADVANCE precedence; reduces false CLARIFY when chips exist.
+ * ✅ Hardens traces: never include user text; clamps macModeWhy; hashes remain stable.
+ * ✅ Adds handoff hints for Marion↔Nyx (no overlap) while staying pure.
  */
 
-const MARION_VERSION = "marionSO v1.0.0";
+const MARION_VERSION = "marionSO v1.0.1";
 
 // -------------------------
 // helpers
 // -------------------------
-function nowMs() {
+function nowMsDefault() {
   return Date.now();
 }
 function safeStr(x, max = 200) {
@@ -67,7 +72,7 @@ function normYear(y) {
 }
 
 // -------------------------
-// enums
+// enums + contracts
 // -------------------------
 const LATENT_DESIRE = Object.freeze({
   AUTHORITY: "authority",
@@ -79,6 +84,27 @@ const LATENT_DESIRE = Object.freeze({
 
 const MARION_TRACE_MAX = 160; // hard cap in chars
 
+// Marion narration style contract (used by chatEngine/UI, but defined here as canonical policy)
+const MARION_STYLE_CONTRACT = Object.freeze({
+  maxSentences: 2,
+  forbidTokens: ["sorry", "unfortunately", "i think", "maybe", "might", "i’m sorry", "im sorry"],
+  allowMetaphor: false,
+  tone: "system",
+  // tag guidance (optional): chat UI may show these on Marion outputs
+  tags: Object.freeze({
+    ok: "[marion:ok]",
+    hold: "[marion:hold]",
+    retry: "[marion:retry]",
+    deny: "[marion:deny]",
+  }),
+  // handoff rule: Marion ends, Nyx begins (no blended registers)
+  handoff: Object.freeze({
+    marionEndsHard: true,
+    nyxBeginsAfter: true,
+    allowSameTurnSplit: true, // if same payload, must be separated blocks
+  }),
+});
+
 // -------------------------
 // mac mode inference (lightweight)
 // -------------------------
@@ -87,19 +113,17 @@ function normalizeMacModeRaw(v) {
   if (!s) return "";
   if (s === "architect" || s === "builder" || s === "dev") return "architect";
   if (s === "user" || s === "viewer" || s === "consumer") return "user";
-  if (s === "transitional" || s === "mixed" || s === "both")
-    return "transitional";
+  if (s === "transitional" || s === "mixed" || s === "both") return "transitional";
   return "";
 }
 
 function detectMacModeImplicit(text) {
+  // NOTE: we do scan text for mode inference, but we never store raw text.
   const t = safeStr(text, 1400).trim();
   if (!t) return { mode: "", scoreA: 0, scoreU: 0, scoreT: 0, why: [] };
 
   const s = t.toLowerCase();
-  let a = 0,
-    u = 0,
-    tr = 0;
+  let a = 0, u = 0, tr = 0;
   const why = [];
 
   // Architect signals
@@ -107,11 +131,7 @@ function detectMacModeImplicit(text) {
     a += 3;
     why.push("architect:lets-define/design");
   }
-  if (
-    /\b(non[-\s]?negotiable|must|hard rule|lock this in|constitution|mediator|pipeline|governor|decision table)\b/.test(
-      s
-    )
-  ) {
+  if (/\b(non[-\s]?negotiable|must|hard rule|lock this in|constitution|mediator|pipeline|governor|decision table)\b/.test(s)) {
     a += 3;
     why.push("architect:constraints/architecture");
   }
@@ -119,21 +139,13 @@ function detectMacModeImplicit(text) {
     a += 2;
     why.push("architect:enumeration");
   }
-  if (
-    /\b(index\.js|chatengine\.js|statespine\.js|render|cors|session|payload|json|endpoint|route|resolver|pack|tests?)\b/.test(
-      s
-    )
-  ) {
+  if (/\b(index\.js|chatengine\.js|statespine\.js|render|cors|session|payload|json|endpoint|route|resolver|pack|tests?)\b/.test(s)) {
     a += 2;
     why.push("architect:technical");
   }
 
   // User signals
-  if (
-    /\b(i('?m)?\s+not\s+sure|help\s+me\s+understand|does\s+this\s+make\s+sense|where\s+do\s+i|get\s+the\s+url)\b/.test(
-      s
-    )
-  ) {
+  if (/\b(i('?m)?\s+not\s+sure|help\s+me\s+understand|does\s+this\s+make\s+sense|where\s+do\s+i|get\s+the\s+url)\b/.test(s)) {
     u += 3;
     why.push("user:uncertainty/how-to");
   }
@@ -172,18 +184,21 @@ function classifyTurnIntent(norm) {
 
   const actionable =
     !!action ||
-    (payloadActionable &&
-      hasPayload &&
-      (payloadAction || payloadYear !== null)) ||
+    (payloadActionable && hasPayload && (payloadAction || payloadYear !== null)) ||
     (payloadActionable && textEmpty && hasPayload);
 
+  // Constitution: actionable always ADVANCE
   if (actionable) return "ADVANCE";
 
-  if (/\b(explain|how do i|how to|what is|walk me through|where do i|get|why)\b/.test(text))
-    return "CLARIFY";
-
-  if (/\b(i('?m)?\s+stuck|i('?m)?\s+worried|overwhelmed|frustrated|anxious)\b/.test(text))
+  // Stabilize has priority when explicit emotion/dysregulation shows up
+  if (/\b(i('?m)?\s+stuck|i('?m)?\s+worried|overwhelmed|frustrated|anxious|panic|stress(ed)?|reassure|calm)\b/.test(text)) {
     return "STABILIZE";
+  }
+
+  // Clarify patterns
+  if (/\b(explain|how do i|how to|what is|walk me through|where do i|get|why|help me)\b/.test(text)) {
+    return "CLARIFY";
+  }
 
   return "CLARIFY";
 }
@@ -196,38 +211,33 @@ function inferLatentDesire(norm, session, med) {
   const a = safeStr(norm?.action || "", 80).toLowerCase();
   const mode = safeStr(med?.mode || "", 20).toLowerCase();
 
-  // Strong signals
-  if (
-    /\b(optimi[sz]e|systems?|framework|architecture|hard(en)?|constraints?|regression tests?|unit tests?)\b/.test(
-      t
-    )
-  )
+  // Strong mastery signals
+  if (/\b(optimi[sz]e|systems?|framework|architecture|hard(en)?|constraints?|regression tests?|unit tests?|audit|refactor|contract|deterministic)\b/.test(t)) {
     return LATENT_DESIRE.MASTERY;
+  }
 
-  if (
-    /\b(am i right|do i make sense|how am i perceived|handsome|attractive|validation|do you think)\b/.test(
-      t
-    )
-  )
+  if (/\b(am i right|do i make sense|how am i perceived|handsome|attractive|validation|do you think)\b/.test(t)) {
     return LATENT_DESIRE.VALIDATION;
+  }
 
-  if (/\b(why|meaning|connect|pattern|link|what connects|deeper|layer)\b/.test(t))
+  if (/\b(why|meaning|connect|pattern|link|what connects|deeper|layer)\b/.test(t)) {
     return LATENT_DESIRE.CURIOSITY;
+  }
 
-  if (/\b(worried|overwhelmed|stuck|anxious|stress|reassure|calm)\b/.test(t))
+  if (/\b(worried|overwhelmed|stuck|anxious|stress|reassure|calm)\b/.test(t)) {
     return LATENT_DESIRE.COMFORT;
+  }
 
   // counselor-lite typically comfort/clarity
   if (a === "counsel_intro") return LATENT_DESIRE.COMFORT;
 
   // Music interactions typically seek anchoring/authority unless explicitly reflective
   if (a === "top10" || a === "yearend_hot100") return LATENT_DESIRE.AUTHORITY;
-  if (a === "story_moment" || a === "micro_moment" || a === "custom_story")
-    return LATENT_DESIRE.COMFORT;
+  if (a === "story_moment" || a === "micro_moment" || a === "custom_story") return LATENT_DESIRE.COMFORT;
 
   // Architect mode leans authority/mastery depending on density
   if (mode === "architect") {
-    if (/\bdesign|implement|encode|ship|lock\b/.test(t)) return LATENT_DESIRE.MASTERY;
+    if (/\bdesign|implement|encode|ship|lock|wire|merge|pin|canonical\b/.test(t)) return LATENT_DESIRE.MASTERY;
     return LATENT_DESIRE.AUTHORITY;
   }
 
@@ -257,8 +267,9 @@ function inferConfidence(norm, session, med) {
       hasPayload &&
       (safeStr(norm?.turnSignals?.payloadAction || "", 60).trim() ||
         normYear(norm?.turnSignals?.payloadYear) !== null))
-  )
+  ) {
     user += 0.15;
+  }
 
   if (textEmpty && hasPayload && actionablePayload) user += 0.05;
 
@@ -288,14 +299,13 @@ function inferConfidence(norm, session, med) {
 // -------------------------
 // velvet mode (music-first)
 // -------------------------
-function computeVelvet(norm, session, med, desire) {
+function computeVelvet(norm, session, med, desire, now) {
   const s = isPlainObject(session) ? session : {};
   const action = safeStr(norm?.action || "", 80).trim();
   const lane = safeStr(norm?.lane || "", 40).trim() || (action ? "music" : "");
   const yr = normYear(norm?.year);
   const lastYear = normYear(s.lastYear);
   const lastLane = safeStr(s.lane || "", 40).trim();
-  const now = nowMs();
 
   const already = truthy(s.velvetMode);
 
@@ -310,7 +320,8 @@ function computeVelvet(norm, session, med, desire) {
   const acceptedChip = !!(
     norm?.turnSignals?.hasPayload &&
     norm?.turnSignals?.payloadActionable &&
-    (safeStr(norm?.turnSignals?.payloadAction || "", 60).trim() || normYear(norm?.turnSignals?.payloadYear) !== null)
+    (safeStr(norm?.turnSignals?.payloadAction || "", 60).trim() ||
+      normYear(norm?.turnSignals?.payloadYear) !== null)
   );
 
   // music-first eligibility
@@ -384,6 +395,10 @@ function mediate(norm, session, opts = {}) {
   try {
     const s = isPlainObject(session) ? session : {};
     const n = isPlainObject(norm) ? norm : {};
+    const o = isPlainObject(opts) ? opts : {};
+
+    const clockNow = typeof o.nowMs === "function" ? o.nowMs : nowMsDefault;
+    const now = Number(clockNow()) || nowMsDefault();
 
     const hasPayload = !!n?.turnSignals?.hasPayload;
     const textEmpty = !!n?.turnSignals?.textEmpty;
@@ -408,7 +423,6 @@ function mediate(norm, session, opts = {}) {
     if (mode !== "architect" && mode !== "user" && mode !== "transitional") mode = "architect";
 
     // Momentum / stall heuristic
-    const now = nowMs();
     const lastAdvanceAt = Number(s.lastAdvanceAt || 0) || 0;
     const stalled = lastAdvanceAt ? now - lastAdvanceAt > 90 * 1000 : false;
 
@@ -418,17 +432,20 @@ function mediate(norm, session, opts = {}) {
       intent = classifyTurnIntent(n);
     }
 
-    // actionable definition
+    // actionable definition (tightened)
+    const payloadAction = safeStr(n?.turnSignals?.payloadAction || "", 60).trim();
+    const payloadYear = normYear(n?.turnSignals?.payloadYear);
+
     const actionable =
       !!safeStr(n.action || "", 80).trim() ||
-      (payloadActionable &&
-        hasPayload &&
-        (safeStr(n?.turnSignals?.payloadAction || "", 60).trim() || normYear(n?.turnSignals?.payloadYear) !== null));
+      (payloadActionable && hasPayload && (payloadAction || payloadYear !== null)) ||
+      (payloadActionable && textEmpty && hasPayload);
 
     if (actionable) intent = "ADVANCE";
 
+    // If stalled and not actionable, prefer CLARIFY (avoid spinning)
     if (stalled && (mode === "architect" || mode === "transitional") && intent !== "ADVANCE") {
-      intent = actionable ? "ADVANCE" : "CLARIFY";
+      intent = "CLARIFY";
     }
 
     // Dominance & budget baseline
@@ -443,7 +460,7 @@ function mediate(norm, session, opts = {}) {
       dominance = intent === "ADVANCE" ? "neutral" : "soft";
     }
 
-    // grounding allowance
+    // grounding allowance (how many “why/meaning” lines Nyx can add before action)
     const grounding = mode === "user" || mode === "transitional";
     const groundingMaxLines = intent === "STABILIZE" ? 3 : grounding ? 1 : 0;
 
@@ -452,7 +469,13 @@ function mediate(norm, session, opts = {}) {
     const confidence = inferConfidence(n, s, { mode, intent, dominance, budget });
 
     // Velvet binding (music-first)
-    const velvet = computeVelvet(n, s, { mode, intent, dominance, budget, confidence }, latentDesire);
+    const velvet = computeVelvet(
+      n,
+      s,
+      { mode, intent, dominance, budget, confidence },
+      latentDesire,
+      now
+    );
 
     // dominance correction
     if (velvet.velvet && mode === "user" && intent !== "ADVANCE") dominance = "soft";
@@ -498,6 +521,20 @@ function mediate(norm, session, opts = {}) {
       velvetReason: velvet.reason || "",
     });
 
+    // handoff hints: keep channels separated
+    const handoff = {
+      marionEndsHard: true,
+      nyxBeginsAfter: true,
+      allowSameTurnSplit: true,
+      // If a renderer is present: Marion should emit tag, then Nyx speaks without tags.
+      marionTagSuggested:
+        intent === "ADVANCE"
+          ? MARION_STYLE_CONTRACT.tags.ok
+          : intent === "STABILIZE"
+          ? MARION_STYLE_CONTRACT.tags.hold
+          : MARION_STYLE_CONTRACT.tags.ok,
+    };
+
     const cog = {
       // identity
       marionVersion: MARION_VERSION,
@@ -530,17 +567,20 @@ function mediate(norm, session, opts = {}) {
       marionState,
       marionReason,
 
+      // style + handoff policy (pure hints)
+      marionStyle: MARION_STYLE_CONTRACT,
+      handoff,
+
       // bounded logging
       marionTrace: safeStr(trace, MARION_TRACE_MAX + 8),
       marionTraceHash: hashTrace(trace),
 
       // optional: explainability hooks (safe)
       macModeOverride: macModeOverride || "",
-      macModeWhy: Array.isArray(implicit.why) ? implicit.why.slice(0, 6) : [],
+      macModeWhy: Array.isArray(implicit.why) ? implicit.why.slice(0, 6).map((x) => safeStr(x, 60)) : [],
     };
 
     // Optional policy hooks (future-safe)
-    const o = isPlainObject(opts) ? opts : {};
     if (o && o.forceBudget && (o.forceBudget === "short" || o.forceBudget === "medium")) {
       cog.budget = o.forceBudget;
     }
@@ -559,6 +599,7 @@ function mediate(norm, session, opts = {}) {
     return cog;
   } catch (e) {
     // fail-open, never break UX
+    const code = safeStr(e && (e.code || e.name) ? e.code || e.name : "ERR", 40);
     return {
       marionVersion: MARION_VERSION,
       mode: "architect",
@@ -576,11 +617,18 @@ function mediate(norm, session, opts = {}) {
       velvetReason: "fail_open",
       marionState: "SEEK",
       marionReason: "fail_open",
+      marionStyle: MARION_STYLE_CONTRACT,
+      handoff: {
+        marionEndsHard: true,
+        nyxBeginsAfter: true,
+        allowSameTurnSplit: true,
+        marionTagSuggested: MARION_STYLE_CONTRACT.tags.retry,
+      },
       marionTrace: "fail_open",
       marionTraceHash: sha1Lite("fail_open").slice(0, 10),
       macModeOverride: "",
       macModeWhy: [],
-      errorCode: safeStr(e && (e.code || e.name) ? e.code || e.name : "ERR", 40),
+      errorCode: code,
     };
   }
 }
@@ -588,6 +636,7 @@ function mediate(norm, session, opts = {}) {
 module.exports = {
   MARION_VERSION,
   LATENT_DESIRE,
+  MARION_STYLE_CONTRACT,
   mediate,
 
   // (optional exports for diagnostics)
