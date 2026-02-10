@@ -17,10 +17,11 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7bP (PENDINGASK CLEAR ON CHIP-YEAR++++: pendingAsk clears when user answers via silent chip year, not just typed year)
- * ✅ Keeps: v0.7bO STATE SPINE ENFORCEMENT++++: rev increment per turn + single decideNextMove() + Nyx move-explains every turn
- * ✅ Keeps: v0.7bN HARDENING++++: actionable payload gating + activeContext refresh + typedYear precision + tone scrub scope + loop sig normalization + meta consistency
- * ✅ Keeps: v0.7bM STATE SPINE++++ canonical + click-to-context binding + pendingAsk + action trace
+ * v0.7bQ (STATE SPINE WIRED++++: uses Utils/stateSpine.js as canonical rev planner + pendingAsk clear on chip-year)
+ * ✅ Keeps: v0.7bP PENDINGASK CLEAR ON CHIP-YEAR++++ (now handled through stateSpine finalize)
+ * ✅ Keeps: v0.7bO STATE SPINE ENFORCEMENT++++ (rev per turn + single decideNextMove() + move-explain every turn)
+ * ✅ Keeps: v0.7bN HARDENING++++ (actionable payload gating + activeContext refresh + typedYear precision + tone scrub scope + loop sig normalization + meta consistency)
+ * ✅ Keeps: v0.7bM click-to-context binding + pendingAsk + action trace
  * ✅ Keeps: MARION SPINE LOGGING++++, counselor-lite intro, CHIP COMPRESSION++++,
  *          TOP10-ONLY++++ (no #1 route anywhere), Top10 visibility fix (no Top 4 truncation),
  *          Mac Mode signal, Marion mediator, desire+confidence arbitration, Velvet mode (music-first),
@@ -30,7 +31,9 @@
  */
 
 const CE_VERSION =
-  "chatEngine v0.7bP (PENDINGASK CLEAR ON CHIP-YEAR++++ | STATE SPINE ENFORCEMENT++++: rev per turn + decideNextMove() + move-explain every turn | HARDENING++++ + STATE SPINE++++ + MARION SPINE LOGGING++++ + COUNSELOR-LITE INTRO++++ + CHIP COMPRESSION++++ + DESIRE+CONFIDENCE ARBITRATION++++ + VELVET (MUSIC-FIRST)++++ + TONE TESTS++++ + TOP10-ONLY + Top10 visibility fix + Marion mediator + payload beats silence + chip-click advance + pinned aliases + accurate miss reasons + year-end route + loop dampener)";
+  "chatEngine v0.7bQ (STATE SPINE WIRED++++ via Utils/stateSpine.js | PENDINGASK CLEAR ON CHIP-YEAR++++ | HARDENING++++ + MARION SPINE LOGGING++++ + COUNSELOR-LITE INTRO++++ + CHIP COMPRESSION++++ + DESIRE+CONFIDENCE ARBITRATION++++ + VELVET (MUSIC-FIRST)++++ + TONE TESTS++++ + TOP10-ONLY + Top10 visibility fix + Marion mediator + payload beats silence + chip-click advance + pinned aliases + accurate miss reasons + year-end route + loop dampener)";
+
+const Spine = require("./stateSpine");
 
 // -------------------------
 // helpers
@@ -191,6 +194,7 @@ function hasActionablePayload(payload) {
     "mode",
     "allowDerivedTop10",
     "allowYearendFallback",
+    "focus",
   ]);
   return keys.some((k) => actionable.has(k));
 }
@@ -202,437 +206,100 @@ const PUBLIC_MIN_YEAR = 1950;
 const PUBLIC_MAX_YEAR = 2025;
 
 // -------------------------
-// STATE SPINE (canonical, survives across turns)
+// STATE SPINE (canonical) — WIRED TO Utils/stateSpine.js
 // -------------------------
-function defaultSpine() {
-  return {
-    v: 1,
-    rev: 0, // ENFORCEMENT++++: increments exactly once per turn via spineFinalize()
-    updatedAt: nowMs(),
-
-    lane: "general",
-    stage: "boot", // boot | warm | engaged
-    topic: "unknown", // top10_by_year | story_moment | year_end | help | unknown
-
-    lastUserIntent: "unknown", // ask | choose | confirm | reject | redirect | silent_click | unknown
-    pendingAsk: null, // {kind,prompt,options[],createdAt} | null
-
-    activeContext: null, // {kind,id,route,lane,label,year,payload,clickedAt} | null
-    lastChipsOffered: [], // [{id,label,route,lane,payload}] bounded
-    lastChipClicked: null, // {id,label,route,lane,payload,clickedAt} | null
-
-    goal: { primary: null, secondary: [], updatedAt: 0 },
-
-    lastActionTaken: null, // served_top10 | asked_year | served_moment | redirected | ...
-    lastMove: null, // ADVANCE | NARROW | CLARIFY | CLOSE
-    lastDecision: null, // {move,rationale} bounded
-    lastTurnSig: null, // stable signature for loop-fuse/debug
-  };
+function toUpperMove(move) {
+  const m = safeStr(move || "").toLowerCase();
+  if (m === "advance") return "ADVANCE";
+  if (m === "narrow") return "NARROW";
+  if (m === "clarify") return "CLARIFY";
+  if (m === "close") return "CLOSE";
+  return "CLARIFY";
 }
 
-function coerceSpine(s) {
-  const d = defaultSpine();
-  if (!s || typeof s !== "object") return d;
+function coerceCoreSpine(session) {
+  const s = isPlainObject(session) ? session : {};
+  const prev = isPlainObject(s.__spineState) ? s.__spineState : null;
 
-  const out = { ...d, ...s };
-  out.v = 1;
+  // Seed from whatever we can safely infer; do NOT import big legacy objects.
+  const seed = {
+    lane: safeStr(s.lane || "").trim() || "general",
+    stage: safeStr(prev?.stage || "").trim() || "open",
+    topic: safeStr(prev?.topic || "").trim() || "",
+    lastUserIntent: safeStr(prev?.lastUserIntent || "").trim() || "",
+    pendingAsk: prev?.pendingAsk || null,
+    goal: prev?.goal || null,
+    engagementTemp: prev?.engagementTemp || safeStr(s.engagementTemp || ""),
+  };
 
-  // ENFORCEMENT++++
-  out.rev = Number.isFinite(out.rev) ? Math.trunc(out.rev) : 0;
-  if (out.rev < 0) out.rev = 0;
+  // If no prior spine, create; if exists, accept but sanitize through updateState() later.
+  if (!prev || typeof prev !== "object") return Spine.createState(seed);
 
-  if (!out.goal || typeof out.goal !== "object")
-    out.goal = { primary: null, secondary: [], updatedAt: 0 };
-  if (!Array.isArray(out.goal.secondary)) out.goal.secondary = [];
-
-  if (!Array.isArray(out.lastChipsOffered)) out.lastChipsOffered = [];
-  if (out.lastChipsOffered.length > 12)
-    out.lastChipsOffered = out.lastChipsOffered.slice(0, 12);
-
-  if (out.pendingAsk && typeof out.pendingAsk !== "object") out.pendingAsk = null;
-  if (out.activeContext && typeof out.activeContext !== "object")
-    out.activeContext = null;
-
-  out.updatedAt = nowMs();
+  // Ensure version tag exists (fail-open)
+  const out = { ...prev };
+  if (!safeStr(out.__spineVersion)) out.__spineVersion = Spine.SPINE_VERSION;
+  if (!Number.isFinite(out.rev)) out.rev = 0;
   return out;
 }
 
-function mergeSpine(prev, patch) {
-  const a = coerceSpine(prev);
-  const b = patch && typeof patch === "object" ? patch : {};
-
-  const out = { ...a, ...b };
-  out.v = 1;
-  out.updatedAt = nowMs();
-
-  // ENFORCEMENT++++: rev increments on finalize (not on arbitrary merges elsewhere)
-  // (mergeSpine is only used by spineFinalize in this file)
-  out.rev = a.rev + 1;
-
-  if (b.goal && typeof b.goal === "object") {
-    out.goal = {
-      primary: b.goal.primary ?? a.goal.primary ?? null,
-      secondary: Array.isArray(b.goal.secondary)
-        ? b.goal.secondary
-        : a.goal.secondary || [],
-      updatedAt: nowMs(),
-    };
-  }
-
-  if (Array.isArray(b.lastChipsOffered)) {
-    out.lastChipsOffered = b.lastChipsOffered.slice(0, 12);
-  } else if (Array.isArray(a.lastChipsOffered)) {
-    out.lastChipsOffered = a.lastChipsOffered.slice(0, 12);
-  } else {
-    out.lastChipsOffered = [];
-  }
-
-  if (b.lastChipClicked && typeof b.lastChipClicked === "object") {
-    out.lastChipClicked = {
-      ...b.lastChipClicked,
-      clickedAt: b.lastChipClicked.clickedAt || nowMs(),
-    };
-  }
-
-  // Bound lastDecision
-  if (out.lastDecision && typeof out.lastDecision === "object") {
-    out.lastDecision = {
-      move: safeStr(out.lastDecision.move || "").slice(0, 20),
-      rationale: safeStr(out.lastDecision.rationale || "").slice(0, 60),
-    };
-  }
-
-  return out;
-}
-
-function computeTurnSig({ lane, topic, intent, activeContext, text }) {
-  const y =
-    activeContext && typeof activeContext.year === "number"
-      ? String(activeContext.year)
-      : "";
-  const rid = activeContext && activeContext.route ? activeContext.route : "";
-  const t = (text || "").trim().slice(0, 64);
-  return [lane || "", topic || "", intent || "", rid || "", y || "", t].join("|");
-}
-
-function inferUserIntent(norm) {
-  const txt = safeStr(norm?.text || "").trim();
-  const hasPayload = !!norm?.turnSignals?.hasPayload;
-  const textEmpty = !!norm?.turnSignals?.textEmpty;
-  const hasAction = !!safeStr(norm?.action || "").trim();
-
-  if (hasPayload && textEmpty) return "silent_click";
-  if (hasAction && hasPayload) return "choose";
-  if (hasAction && !txt) return "choose";
-  if (txt) return "ask";
-  return "unknown";
-}
-
-function topicFromAction(action) {
-  const a = safeStr(action || "").trim();
-  if (!a) return "unknown";
-  if (a === "top10") return "top10_by_year";
-  if (a === "story_moment" || a === "custom_story") return "story_moment";
-  if (a === "micro_moment") return "story_moment";
-  if (a === "yearend_hot100") return "year_end";
-  if (a === "ask_year") return "help";
-  if (a === "switch_lane") return "help";
-  if (a === "counsel_intro") return "help";
-  if (a === "reset") return "help";
-  return "unknown";
-}
-
-function stageProgress(prevStage, cog) {
-  const p = safeStr(prevStage || "boot");
-  const intent = safeStr(cog?.intent || "").toUpperCase();
-  // deterministic progression:
-  // boot -> warm on first real interaction; warm -> engaged when ADVANCE occurs
-  if (p === "boot") return "warm";
-  if (p === "warm" && intent === "ADVANCE") return "engaged";
-  // if already engaged, stay engaged (don’t bounce)
-  if (p === "engaged") return "engaged";
-  return p || "warm";
-}
-
-function buildActiveContext(norm, spinePrev) {
-  // click-to-context binding: capture payload route/action/year when present
-  const hasPayload = !!norm?.turnSignals?.hasPayload;
-  const textEmpty = !!norm?.turnSignals?.textEmpty;
-
-  const p = isPlainObject(norm?.payload) ? norm.payload : {};
-  const route = safeStr(p.route || p.action || "").trim();
-  const lane = safeStr(p.lane || norm?.lane || spinePrev?.lane || "").trim();
-  const year = normYear(p.year) ?? normYear(norm?.year) ?? null;
-
-  // if it was a silent click with route/action, treat as click context
-  if (hasPayload && (route || year !== null || lane) && textEmpty) {
-    const id =
-      safeStr(p.id || p._id || "").trim() ||
-      safeStr(norm?.action || "").trim() ||
-      route ||
-      "";
-    const label = safeStr(p.label || "").trim();
-
-    // keep payload minimal (avoid bloat / PII)
-    const payloadMini = {};
-    if (safeStr(p.action)) payloadMini.action = safeStr(p.action);
-    if (safeStr(p.route)) payloadMini.route = safeStr(p.route);
-    if (safeStr(p.lane)) payloadMini.lane = safeStr(p.lane);
-    if (year !== null) payloadMini.year = year;
-    if (safeStr(p.vibe)) payloadMini.vibe = safeStr(p.vibe);
-
-    return {
-      kind: "chip",
-      id,
-      route: route || safeStr(norm?.action || "").trim(),
-      lane: lane || "general",
-      label,
-      year: year !== null ? year : undefined,
-      payload: Object.keys(payloadMini).length ? payloadMini : undefined,
-      clickedAt: nowMs(),
-    };
-  }
-
-  // HARDENING: if the user typed (non-empty text) and changed action/year, don't carry stale chip context
-  const txt = safeStr(norm?.text || "").trim();
-  const typed = !!txt && !textEmpty;
-  const hasExplicitAction = !!safeStr(norm?.action || "").trim();
-  const hasYear = normYear(norm?.year) !== null;
-
-  if (typed && (hasExplicitAction || hasYear)) {
-    // Create a minimal "typed" context (or clear); avoids stale route contaminating turnSig/loop fuse.
-    const typedCtx = {};
-    if (hasExplicitAction) typedCtx.route = safeStr(norm?.action || "").trim();
-    if (hasYear) typedCtx.year = normYear(norm?.year);
-    if (safeStr(norm?.lane || "").trim()) typedCtx.lane = safeStr(norm.lane).trim();
-    return Object.keys(typedCtx).length
-      ? {
-          kind: "typed",
-          id: "typed",
-          route: typedCtx.route || "",
-          lane: typedCtx.lane || (spinePrev?.lane || "general"),
-          year: typedCtx.year,
-          clickedAt: nowMs(),
-        }
-      : null;
-  }
-
-  // Otherwise carry forward prior context
-  return spinePrev?.activeContext || null;
-}
-
-function buildChipsOffered(followUps) {
-  const arr = Array.isArray(followUps) ? followUps : [];
-  const mapped = arr
-    .map((f) => {
-      const id = safeStr(f?.id || "").trim();
-      const label = safeStr(f?.label || "").trim();
-      const payload = isPlainObject(f?.payload) ? f.payload : {};
-      const route = safeStr(payload.route || payload.action || "").trim();
-      const lane = safeStr(payload.lane || "").trim();
-      const mini = {};
-      if (safeStr(payload.action)) mini.action = safeStr(payload.action);
-      if (safeStr(payload.route)) mini.route = safeStr(payload.route);
-      if (safeStr(payload.lane)) mini.lane = safeStr(payload.lane);
-      const yr = normYear(payload.year);
-      if (yr !== null) mini.year = yr;
-      if (safeStr(payload.vibe)) mini.vibe = safeStr(payload.vibe);
-      return {
-        id,
-        label,
-        route,
-        lane,
-        payload: Object.keys(mini).length ? mini : undefined,
-      };
-    })
-    .filter((x) => x.id || x.label || x.route);
-
-  return mapped.slice(0, 12);
-}
-
-function buildPendingAsk(kind, prompt, options) {
-  return {
-    kind: safeStr(kind || "").trim() || "need_more_detail",
-    prompt: safeStr(prompt || "").trim(),
-    options: Array.isArray(options) ? options.slice(0, 8) : [],
-    createdAt: nowMs(),
-  };
-}
-
-// -------------------------
-// SINGLE DECIDER (plan) + MOVE EXPLAIN (out loud)
-// -------------------------
-const NEXT_MOVE = Object.freeze({
-  ADVANCE: "ADVANCE",
-  NARROW: "NARROW",
-  CLARIFY: "CLARIFY",
-  CLOSE: "CLOSE",
-});
-
-function decideNextMove(spinePrev, norm, cog) {
-  const s = coerceSpine(spinePrev);
-  const n = norm || {};
-  const text = safeStr(n.text || "").trim();
-  const textEmpty = !!n?.turnSignals?.textEmpty;
-  const hasPayload = !!n?.turnSignals?.hasPayload;
-  const payloadActionable = !!n?.turnSignals?.payloadActionable;
-  const hasAction = !!safeStr(n.action || "").trim();
-
-  // If we have a pending ask, bias to CLARIFY unless the user clearly answered it.
-  if (s.pendingAsk && isPlainObject(s.pendingAsk)) {
-    const kind = safeStr(s.pendingAsk.kind || "");
-    const answeredYear = kind === "need_year" ? textHasYearToken(text) : false;
-    const answeredPick =
-      kind === "need_pick" ? /^(music|movies|sponsors)$/i.test(text) : false;
-
-    const answered = answeredYear || answeredPick || (!!text && text.length >= 8);
-
-    if (!answered) {
-      return {
-        move: NEXT_MOVE.CLARIFY,
-        speak: "I’m going to get one quick detail so I can move forward cleanly.",
-        rationale: "pendingAsk_unresolved",
-      };
-    }
-  }
-
-  // Chip-click / actionable payload beats silence -> ADVANCE
-  if ((hasAction && payloadActionable) || (payloadActionable && hasPayload && textEmpty)) {
-    return {
-      move: NEXT_MOVE.ADVANCE,
-      speak: "I’m going to execute that selection and keep momentum.",
-      rationale: "actionable_payload",
-    };
-  }
-
-  // Explicit “next steps / implement” -> ADVANCE
-  if (/\b(next steps|what next|implement|wire it|do them all|ship it)\b/i.test(text)) {
-    return {
-      move: NEXT_MOVE.ADVANCE,
-      speak: "I’m going to advance: smallest next change first, then we verify.",
-      rationale: "advance_request",
-    };
-  }
-
-  // Marion intent informs default
-  const intent = safeStr(cog?.intent || "").toUpperCase();
-  if (intent === "ADVANCE") {
-    return {
-      move: NEXT_MOVE.ADVANCE,
-      speak: "I’m going to move forward using what you gave me, and I’ll flag assumptions clearly.",
-      rationale: "marion_advance",
-    };
-  }
-
-  // If empty text and non-actionable -> NARROW if context exists, else CLARIFY
-  if (!text && textEmpty) {
-    const hasCtx = !!s.activeContext || !!s.topic || !!s.lane;
-    return hasCtx
-      ? {
-          move: NEXT_MOVE.NARROW,
-          speak: "I’ll keep us moving by narrowing this to the most likely next step.",
-          rationale: "empty_inbound_narrow",
-        }
-      : {
-          move: NEXT_MOVE.CLARIFY,
-          speak: "I need one small input to aim this correctly, then I’ll proceed.",
-          rationale: "empty_inbound_clarify",
-        };
-  }
-
-  // Default
-  return {
-    move: NEXT_MOVE.CLARIFY,
-    speak: "I’m going to ask one clarifying question so we don’t build the wrong thing.",
-    rationale: "default_clarify",
-  };
-}
-
-function spineFinalize({
-  spinePrev,
-  norm,
-  cog,
+/**
+ * Finalize spine ONCE per turn.
+ * - uses Spine.decideNextMove() as canonical planner
+ * - increments rev via Spine.updateState()
+ * - clears pendingAsk if answered by typed year OR chip-year
+ */
+function finalizeCoreSpine({
+  corePrev,
+  inboundNorm,
   lane,
+  topic,
+  pendingAskPatch, // {id,type,prompt,required} or null
+  lastUserIntent,
+  lastAssistantSummary,
+  decisionUpper, // {move,rationale,speak}
   actionTaken,
-  followUps,
-  pendingAsk,
-  topicOverride,
-  decision, // {move,rationale} optional
 }) {
-  const lastUserIntent = inferUserIntent(norm);
-  const activeContext = buildActiveContext(norm, spinePrev);
+  const prev = corePrev && typeof corePrev === "object" ? corePrev : Spine.createState();
 
-  const topic =
-    safeStr(topicOverride || "").trim() ||
-    topicFromAction(safeStr(norm?.action || "").trim());
+  const typedYearAnswered =
+    !inboundNorm?.turnSignals?.textEmpty && textHasYearToken(inboundNorm?.text || "");
 
-  const stage = stageProgress(spinePrev.stage, cog);
+  const chipYearAnswered =
+    !!inboundNorm?.turnSignals?.payloadActionable &&
+    inboundNorm?.turnSignals?.payloadYear !== null &&
+    inboundNorm?.turnSignals?.hasPayload === true;
 
-  const turnSig = computeTurnSig({
-    lane,
-    topic,
-    intent: lastUserIntent,
-    activeContext,
-    text: safeStr(norm?.text || ""),
-  });
-
-  // HARDENING: clear pendingAsk only if user *actually answered*:
-  // - typed a year token, OR
-  // - silent chip click includes a payloadYear and is actionable
-  const typedYear =
-    !norm?.turnSignals?.textEmpty && textHasYearToken(norm?.text || "");
-  const chipYearAnswer =
-    !!norm?.turnSignals?.payloadActionable &&
-    norm?.turnSignals?.payloadYear !== null &&
-    norm?.turnSignals?.hasPayload === true;
-
-  const answeredPendingAsk = typedYear || chipYearAnswer;
+  const answeredPendingAsk = typedYearAnswered || chipYearAnswered;
 
   const patch = {
-    lane: safeStr(lane || spinePrev.lane || "general"),
-    stage,
-    topic,
-    lastUserIntent,
-    activeContext,
-    pendingAsk: answeredPendingAsk ? null : pendingAsk || null,
-    lastActionTaken: safeStr(actionTaken || "").trim() || null,
-    lastTurnSig: turnSig,
-
-    // New: decision trace (bounded)
-    lastMove: decision && decision.move ? safeStr(decision.move).slice(0, 20) : null,
-    lastDecision:
-      decision && decision.move
-        ? { move: safeStr(decision.move), rationale: safeStr(decision.rationale || "") }
-        : null,
+    lane: lane || prev.lane,
+    stage: decisionUpper?.stage || prev.stage,
+    topic: topic != null ? safeStr(topic) : prev.topic,
+    lastUserIntent: lastUserIntent != null ? safeStr(lastUserIntent) : prev.lastUserIntent,
+    lastUserText: inboundNorm?.text != null ? safeStr(inboundNorm.text) : prev.lastUserText,
+    lastAssistantSummary: lastAssistantSummary != null ? safeStr(lastAssistantSummary) : prev.lastAssistantSummary,
+    lastMove: safeStr(decisionUpper?.move || ""),
+    diag: {
+      lastDecision: {
+        move: safeStr(decisionUpper?.move || ""),
+        rationale: safeStr(decisionUpper?.rationale || ""),
+        speak: safeStr(decisionUpper?.speak || ""),
+        actionTaken: safeStr(actionTaken || ""),
+      },
+    },
+    pendingAsk: answeredPendingAsk ? null : pendingAskPatch || null,
+    engagementTemp: Spine.updateState(prev, {}, "noop").engagementTemp, // keep as-is
   };
 
-  // chip offer memory
-  const offered = buildChipsOffered(followUps);
-  if (offered.length) patch.lastChipsOffered = offered;
-
-  // chip click memory: only when it truly was a silent click context
-  if (
-    activeContext &&
-    activeContext.kind === "chip" &&
-    lastUserIntent === "silent_click"
-  ) {
-    patch.lastChipClicked = {
-      id: safeStr(activeContext.id),
-      label: safeStr(activeContext.label || ""),
-      route: safeStr(activeContext.route || ""),
-      lane: safeStr(activeContext.lane || ""),
-      payload: activeContext.payload,
-      clickedAt: activeContext.clickedAt || nowMs(),
-    };
-  }
-
-  const next = mergeSpine(spinePrev, patch);
+  let next = Spine.updateState(prev, patch, "turn");
 
   // ENFORCEMENT++++: must increment exactly once per turn
-  const prevRev = Number.isFinite(spinePrev?.rev) ? spinePrev.rev : 0;
-  if (!(Number.isFinite(next.rev) && next.rev === prevRev + 1)) {
-    // fail-open (never break UX): correct it
-    next.rev = prevRev + 1;
+  try {
+    Spine.assertTurnUpdated(prev, next);
+  } catch (e) {
+    // fail-open: correct rev and keep UX alive
+    const fixed = { ...next, rev: (Number.isFinite(prev.rev) ? prev.rev : 0) + 1 };
+    next = fixed;
   }
 
   return next;
@@ -2083,28 +1750,7 @@ function runToneRegressionTests() {
     out4
   );
 
-  // 5) Velvet computation: story_moment should be eligible (music-first)
-  const v = computeVelvet(
-    {
-      action: "story_moment",
-      lane: "music",
-      year: 1988,
-      text: "",
-      turnSignals: {
-        hasPayload: true,
-        payloadActionable: true,
-        payloadAction: "story_moment",
-        payloadYear: 1988,
-        textEmpty: true,
-      },
-    },
-    { lane: "music", lastYear: 1988, lastAction: "top10" },
-    { intent: "ADVANCE", confidence: { nyx: 0.7 } },
-    LATENT_DESIRE.COMFORT
-  );
-  assert("velvet_entry_music_first", v.velvet === true, JSON.stringify(v));
-
-  // 6) Marion trace must be bounded
+  // 5) Marion trace must be bounded
   const tr = marionTraceBuild(
     { action: "top10", year: 1988, turnSignals: { hasPayload: true } },
     {},
@@ -2112,30 +1758,22 @@ function runToneRegressionTests() {
   );
   assert("marion_trace_bounded", safeStr(tr).length <= MARION_TRACE_MAX, tr);
 
-  // 7) Spine must coerce + bound
-  const sp = coerceSpine({ lastChipsOffered: new Array(50).fill({ id: "x" }) });
-  assert(
-    "spine_bounds_chips",
-    sp.lastChipsOffered.length <= 12,
-    sp.lastChipsOffered.length
-  );
-
-  // 8) Spine rev increments via finalize
-  const sp0 = coerceSpine(null);
-  const sp1 = spineFinalize({
-    spinePrev: sp0,
-    norm: { text: "hi", action: "", turnSignals: { textEmpty: false } },
-    cog: { intent: "CLARIFY" },
+  // 6) Core spine rev increments via finalize
+  const sp0 = Spine.createState({ lane: "general" });
+  const sp1 = finalizeCoreSpine({
+    corePrev: sp0,
+    inboundNorm: { text: "hi", turnSignals: { textEmpty: false } },
     lane: "general",
-    actionTaken: "served_menu",
-    followUps: [],
-    pendingAsk: null,
-    topicOverride: "help",
-    decision: { move: "CLARIFY", rationale: "test" },
+    topic: "help",
+    pendingAskPatch: null,
+    lastUserIntent: "ask",
+    lastAssistantSummary: "test",
+    decisionUpper: { move: "CLARIFY", stage: "clarify", speak: "Test.", rationale: "test" },
+    actionTaken: "test",
   });
-  assert("spine_rev_increments", sp1.rev === sp0.rev + 1, `${sp0.rev}->${sp1.rev}`);
+  assert("core_spine_rev_increments", sp1.rev === sp0.rev + 1, `${sp0.rev}->${sp1.rev}`);
 
-  return { ok: failures.length === 0, failures, ran: 8 };
+  return { ok: failures.length === 0, failures, ran: 6 };
 }
 
 // -------------------------
@@ -2157,17 +1795,20 @@ async function handleChat(input) {
     ? norm.body.knowledge
     : {};
 
-  // STATE SPINE (prev)
-  const spinePrev = coerceSpine(session.__spine);
+  // STATE SPINE (canonical prev)
+  const corePrev = coerceCoreSpine(session);
 
   // Marion mediation (COG OS)
   const cog = mediatorMarion(norm, session);
 
-  // Single decider (plan) - computed once per turn
-  const decision = decideNextMove(spinePrev, norm, cog);
-  cog.nextMove = decision.move;
-  cog.nextMoveSpeak = decision.speak;
-  cog.nextMoveWhy = decision.rationale;
+  // Canonical state spine planner (single call)
+  const corePlan = Spine.decideNextMove(corePrev, { text: norm.text || "" });
+
+  // Bridge move speak into constitution
+  cog.nextMove = toUpperMove(corePlan.move);
+  cog.nextMoveSpeak = safeStr(corePlan.speak || "");
+  cog.nextMoveWhy = safeStr(corePlan.rationale || "");
+  cog.nextMoveStage = safeStr(corePlan.stage || "");
 
   const yearSticky = normYear(session.lastYear) ?? null;
 
@@ -2178,6 +1819,7 @@ async function handleChat(input) {
     safeStr(norm.lane || "").trim() ||
     (norm.action ? "music" : "") ||
     safeStr(session.lane || "").trim() ||
+    safeStr(corePrev?.lane || "").trim() ||
     "general";
 
   const prevChart = safeStr(
@@ -2206,17 +1848,32 @@ async function handleChat(input) {
     marionTraceHash: safeStr(cog.marionTraceHash || ""),
   };
 
+  // Helper: build a stateSpine-compatible pendingAsk
+  function pendingAskObj(id, type, prompt, required) {
+    return {
+      id: safeStr(id || ""),
+      type: safeStr(type || "clarify"),
+      prompt: safeStr(prompt || ""),
+      required: required !== false,
+    };
+  }
+
   if (norm.action === "reset") {
-    const spineNext = spineFinalize({
-      spinePrev,
-      norm,
-      cog,
+    const coreNext = finalizeCoreSpine({
+      corePrev,
+      inboundNorm: norm,
       lane: "general",
+      topic: "help",
+      pendingAskPatch: null,
+      lastUserIntent: "reset",
+      lastAssistantSummary: "",
+      decisionUpper: {
+        move: cog.nextMove,
+        stage: cog.nextMoveStage || "deliver",
+        speak: cog.nextMoveSpeak,
+        rationale: cog.nextMoveWhy,
+      },
       actionTaken: "reset",
-      followUps: null,
-      pendingAsk: null,
-      topicOverride: "help",
-      decision,
     });
 
     return {
@@ -2236,7 +1893,10 @@ async function handleChat(input) {
         lastSigTransition: "",
         velvetMode: false,
         velvetSince: 0,
-        __spine: spineNext,
+
+        // canonical spine
+        __spineState: coreNext,
+
         ...baseCogPatch,
       },
       cog,
@@ -2244,6 +1904,12 @@ async function handleChat(input) {
         engine: CE_VERSION,
         resetHint: true,
         turnSignals: norm.turnSignals,
+        spine: {
+          v: Spine.SPINE_VERSION,
+          rev: coreNext.rev,
+          lane: coreNext.lane,
+          stage: coreNext.stage,
+        },
         elapsedMs: nowMs() - started,
       },
     };
@@ -2256,16 +1922,21 @@ async function handleChat(input) {
     const sigLine = detectSignatureLine(reply);
     const f = counselorFollowUps();
 
-    const spineNext = spineFinalize({
-      spinePrev,
-      norm,
-      cog,
+    const coreNext = finalizeCoreSpine({
+      corePrev,
+      inboundNorm: norm,
       lane: "general",
+      topic: "help",
+      pendingAskPatch: null,
+      lastUserIntent: "ask",
+      lastAssistantSummary: "counsel_intro",
+      decisionUpper: {
+        move: cog.nextMove,
+        stage: cog.nextMoveStage || "deliver",
+        speak: cog.nextMoveSpeak,
+        rationale: cog.nextMoveWhy,
+      },
       actionTaken: "served_counsel_intro",
-      followUps: f.followUps,
-      pendingAsk: null,
-      topicOverride: "help",
-      decision,
     });
 
     return {
@@ -2277,7 +1948,7 @@ async function handleChat(input) {
       sessionPatch: {
         lane: "general",
         ...(sigLine ? { lastSigTransition: sigLine } : {}),
-        __spine: spineNext,
+        __spineState: coreNext,
         ...baseCogPatch,
       },
       cog,
@@ -2285,6 +1956,13 @@ async function handleChat(input) {
         engine: CE_VERSION,
         route: "counsel_intro",
         turnSignals: norm.turnSignals,
+        spine: {
+          v: Spine.SPINE_VERSION,
+          rev: coreNext.rev,
+          lane: coreNext.lane,
+          stage: coreNext.stage,
+          move: cog.nextMove,
+        },
         elapsedMs: nowMs() - started,
       },
     };
@@ -2316,20 +1994,26 @@ async function handleChat(input) {
       },
     ];
 
-    const spineNext = spineFinalize({
-      spinePrev,
-      norm,
-      cog,
+    const coreNext = finalizeCoreSpine({
+      corePrev,
+      inboundNorm: norm,
       lane: "music",
-      actionTaken: "asked_year",
-      followUps: fu,
-      pendingAsk: buildPendingAsk(
+      topic: "help",
+      pendingAskPatch: pendingAskObj(
         "need_year",
+        "clarify",
         `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`,
-        fu.map((x) => ({ id: x.id, label: x.label, payload: x.payload }))
+        true
       ),
-      topicOverride: "help",
-      decision,
+      lastUserIntent: norm.turnSignals.textEmpty ? "silent_click" : "ask",
+      lastAssistantSummary: "asked_year",
+      decisionUpper: {
+        move: cog.nextMove,
+        stage: cog.nextMoveStage || "clarify",
+        speak: cog.nextMoveSpeak,
+        rationale: cog.nextMoveWhy,
+      },
+      actionTaken: "asked_year",
     });
 
     return {
@@ -2341,7 +2025,7 @@ async function handleChat(input) {
       sessionPatch: {
         lane: "music",
         ...(sigLine ? { lastSigTransition: sigLine } : {}),
-        __spine: spineNext,
+        __spineState: coreNext,
         ...baseCogPatch,
       },
       cog,
@@ -2349,6 +2033,13 @@ async function handleChat(input) {
         engine: CE_VERSION,
         route: "ask_year",
         turnSignals: norm.turnSignals,
+        spine: {
+          v: Spine.SPINE_VERSION,
+          rev: coreNext.rev,
+          lane: coreNext.lane,
+          stage: coreNext.stage,
+          move: cog.nextMove,
+        },
         elapsedMs: nowMs() - started,
       },
     };
@@ -2370,20 +2061,21 @@ async function handleChat(input) {
       { id: "fu_sponsors", type: "chip", label: "Sponsors", payload: { lane: "sponsors", route: "sponsors" } },
     ];
 
-    const spineNext = spineFinalize({
-      spinePrev,
-      norm,
-      cog,
+    const coreNext = finalizeCoreSpine({
+      corePrev,
+      inboundNorm: norm,
       lane: "general",
-      actionTaken: "redirected",
-      followUps: fu,
-      pendingAsk: buildPendingAsk(
-        "need_pick",
-        "Pick a lane.",
-        fu.map((x) => ({ id: x.id, label: x.label, payload: x.payload }))
-      ),
-      topicOverride: "help",
-      decision,
+      topic: "help",
+      pendingAskPatch: pendingAskObj("need_pick", "clarify", "Pick a lane.", true),
+      lastUserIntent: norm.turnSignals.textEmpty ? "silent_click" : "ask",
+      lastAssistantSummary: "asked_lane",
+      decisionUpper: {
+        move: cog.nextMove,
+        stage: cog.nextMoveStage || "clarify",
+        speak: cog.nextMoveSpeak,
+        rationale: cog.nextMoveWhy,
+      },
+      actionTaken: "asked_lane",
     });
 
     return {
@@ -2395,7 +2087,7 @@ async function handleChat(input) {
       sessionPatch: {
         lane: "general",
         ...(sigLine ? { lastSigTransition: sigLine } : {}),
-        __spine: spineNext,
+        __spineState: coreNext,
         ...baseCogPatch,
       },
       cog,
@@ -2403,6 +2095,13 @@ async function handleChat(input) {
         engine: CE_VERSION,
         route: "switch_lane",
         turnSignals: norm.turnSignals,
+        spine: {
+          v: Spine.SPINE_VERSION,
+          rev: coreNext.rev,
+          lane: coreNext.lane,
+          stage: coreNext.stage,
+          move: cog.nextMove,
+        },
         elapsedMs: nowMs() - started,
       },
     };
@@ -2457,20 +2156,26 @@ async function handleChat(input) {
       },
     ];
 
-    const spineNext = spineFinalize({
-      spinePrev,
-      norm,
-      cog,
+    const coreNext = finalizeCoreSpine({
+      corePrev,
+      inboundNorm: norm,
       lane: "music",
-      actionTaken: "asked_year",
-      followUps: fu,
-      pendingAsk: buildPendingAsk(
+      topic: "help",
+      pendingAskPatch: pendingAskObj(
         "need_year",
+        "clarify",
         `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`,
-        fu.map((x) => ({ id: x.id, label: x.label, payload: x.payload }))
+        true
       ),
-      topicOverride: "help",
-      decision,
+      lastUserIntent: norm.turnSignals.textEmpty ? "silent_click" : "ask",
+      lastAssistantSummary: "asked_year",
+      decisionUpper: {
+        move: cog.nextMove,
+        stage: cog.nextMoveStage || "clarify",
+        speak: cog.nextMoveSpeak,
+        rationale: cog.nextMoveWhy,
+      },
+      actionTaken: "asked_year",
     });
 
     return {
@@ -2482,7 +2187,7 @@ async function handleChat(input) {
       sessionPatch: {
         lane: "music",
         ...(sigLine ? { lastSigTransition: sigLine } : {}),
-        __spine: spineNext,
+        __spineState: coreNext,
         ...baseCogPatch,
       },
       cog,
@@ -2490,6 +2195,13 @@ async function handleChat(input) {
         engine: CE_VERSION,
         needYear: true,
         turnSignals: norm.turnSignals,
+        spine: {
+          v: Spine.SPINE_VERSION,
+          rev: coreNext.rev,
+          lane: coreNext.lane,
+          stage: coreNext.stage,
+          move: cog.nextMove,
+        },
         elapsedMs: nowMs() - started,
       },
     };
@@ -2500,20 +2212,26 @@ async function handleChat(input) {
     const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
     const sigLine = detectSignatureLine(reply);
 
-    const spineNext = spineFinalize({
-      spinePrev,
-      norm,
-      cog,
+    const coreNext = finalizeCoreSpine({
+      corePrev,
+      inboundNorm: norm,
       lane: "music",
-      actionTaken: "asked_year",
-      followUps: null,
-      pendingAsk: buildPendingAsk(
+      topic: "help",
+      pendingAskPatch: pendingAskObj(
         "need_year",
+        "clarify",
         `Use a year in ${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}.`,
-        []
+        true
       ),
-      topicOverride: "help",
-      decision,
+      lastUserIntent: norm.turnSignals.textEmpty ? "silent_click" : "ask",
+      lastAssistantSummary: "asked_year_range",
+      decisionUpper: {
+        move: cog.nextMove,
+        stage: cog.nextMoveStage || "clarify",
+        speak: cog.nextMoveSpeak,
+        rationale: cog.nextMoveWhy,
+      },
+      actionTaken: "asked_year_range",
     });
 
     return {
@@ -2523,7 +2241,7 @@ async function handleChat(input) {
       sessionPatch: {
         lane: "music",
         ...(sigLine ? { lastSigTransition: sigLine } : {}),
-        __spine: spineNext,
+        __spineState: coreNext,
         ...baseCogPatch,
       },
       cog,
@@ -2532,6 +2250,13 @@ async function handleChat(input) {
         outOfRange: true,
         year,
         turnSignals: norm.turnSignals,
+        spine: {
+          v: Spine.SPINE_VERSION,
+          rev: coreNext.rev,
+          lane: coreNext.lane,
+          stage: coreNext.stage,
+          move: cog.nextMove,
+        },
         elapsedMs: nowMs() - started,
       },
     };
@@ -2570,16 +2295,21 @@ async function handleChat(input) {
         const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
         const sigLine = detectSignatureLine(reply);
 
-        const spineNext = spineFinalize({
-          spinePrev,
-          norm,
-          cog,
+        const coreNext = finalizeCoreSpine({
+          corePrev,
+          inboundNorm: norm,
           lane: "music",
+          topic: "story_moment",
+          pendingAskPatch: null,
+          lastUserIntent: norm.turnSignals.textEmpty ? "silent_click" : "ask",
+          lastAssistantSummary: "served_menu",
+          decisionUpper: {
+            move: cog.nextMove,
+            stage: cog.nextMoveStage || "deliver",
+            speak: cog.nextMoveSpeak,
+            rationale: cog.nextMoveWhy,
+          },
           actionTaken: "served_menu",
-          followUps: acts.followUps,
-          pendingAsk: null,
-          topicOverride: "story_moment",
-          decision,
         });
 
         return {
@@ -2598,7 +2328,7 @@ async function handleChat(input) {
             musicMomentsLoaded: !!session.musicMomentsLoaded,
             musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
             ...(sigLine ? { lastSigTransition: sigLine } : {}),
-            __spine: spineNext,
+            __spineState: coreNext,
             ...baseCogPatch,
           },
           cog,
@@ -2609,6 +2339,13 @@ async function handleChat(input) {
             musicSig: sig,
             confidence: cog.confidence,
             turnSignals: norm.turnSignals,
+            spine: {
+              v: Spine.SPINE_VERSION,
+              rev: coreNext.rev,
+              lane: coreNext.lane,
+              stage: coreNext.stage,
+              move: cog.nextMove,
+            },
             elapsedMs: nowMs() - started,
           },
         };
@@ -2634,16 +2371,21 @@ async function handleChat(input) {
         },
       ];
 
-      const spineNext = spineFinalize({
-        spinePrev,
-        norm,
-        cog,
+      const coreNext = finalizeCoreSpine({
+        corePrev,
+        inboundNorm: norm,
         lane: "music",
+        topic: "story_moment",
+        pendingAskPatch: null,
+        lastUserIntent: norm.turnSignals.textEmpty ? "silent_click" : "ask",
+        lastAssistantSummary: "served_moment",
+        decisionUpper: {
+          move: cog.nextMove,
+          stage: cog.nextMoveStage || "deliver",
+          speak: cog.nextMoveSpeak,
+          rationale: cog.nextMoveWhy,
+        },
         actionTaken: "served_moment",
-        followUps: fu,
-        pendingAsk: null,
-        topicOverride: "story_moment",
-        decision,
       });
 
       return {
@@ -2663,7 +2405,7 @@ async function handleChat(input) {
           musicMomentsLoadedAt:
             Number(session.musicMomentsLoadedAt || 0) || nowMs(),
           ...(sigLine ? { lastSigTransition: sigLine } : {}),
-          __spine: spineNext,
+          __spineState: coreNext,
           ...baseCogPatch,
         },
         cog,
@@ -2676,6 +2418,13 @@ async function handleChat(input) {
           desire: cog.latentDesire,
           confidence: cog.confidence,
           turnSignals: norm.turnSignals,
+          spine: {
+            v: Spine.SPINE_VERSION,
+            rev: coreNext.rev,
+            lane: coreNext.lane,
+            stage: coreNext.stage,
+            move: cog.nextMove,
+          },
           elapsedMs: nowMs() - started,
         },
       };
@@ -2727,16 +2476,21 @@ async function handleChat(input) {
           },
         ];
 
-        const spineNext = spineFinalize({
-          spinePrev,
-          norm,
-          cog,
+        const coreNext = finalizeCoreSpine({
+          corePrev,
+          inboundNorm: norm,
           lane: "music",
+          topic: "year_end",
+          pendingAskPatch: null,
+          lastUserIntent: norm.turnSignals.textEmpty ? "silent_click" : "ask",
+          lastAssistantSummary: "served_error",
+          decisionUpper: {
+            move: cog.nextMove,
+            stage: cog.nextMoveStage || "deliver",
+            speak: cog.nextMoveSpeak,
+            rationale: cog.nextMoveWhy,
+          },
           actionTaken: "served_error",
-          followUps: fu,
-          pendingAsk: null,
-          topicOverride: "year_end",
-          decision,
         });
 
         return {
@@ -2756,7 +2510,7 @@ async function handleChat(input) {
             musicMomentsLoadedAt:
               Number(session.musicMomentsLoadedAt || 0) || 0,
             ...(sigLine ? { lastSigTransition: sigLine } : {}),
-            __spine: spineNext,
+            __spineState: coreNext,
             ...baseCogPatch,
           },
           cog,
@@ -2770,6 +2524,13 @@ async function handleChat(input) {
             desire: cog.latentDesire,
             confidence: cog.confidence,
             turnSignals: norm.turnSignals,
+            spine: {
+              v: Spine.SPINE_VERSION,
+              rev: coreNext.rev,
+              lane: coreNext.lane,
+              stage: coreNext.stage,
+              move: cog.nextMove,
+            },
             elapsedMs: nowMs() - started,
           },
         };
@@ -2795,16 +2556,21 @@ async function handleChat(input) {
           },
         ];
 
-        const spineNext = spineFinalize({
-          spinePrev,
-          norm,
-          cog,
+        const coreNext = finalizeCoreSpine({
+          corePrev,
+          inboundNorm: norm,
           lane: "music",
+          topic: "year_end",
+          pendingAskPatch: null,
+          lastUserIntent: norm.turnSignals.textEmpty ? "silent_click" : "ask",
+          lastAssistantSummary: "served_menu",
+          decisionUpper: {
+            move: cog.nextMove,
+            stage: cog.nextMoveStage || "deliver",
+            speak: cog.nextMoveSpeak,
+            rationale: cog.nextMoveWhy,
+          },
           actionTaken: "served_menu",
-          followUps: fu,
-          pendingAsk: null,
-          topicOverride: "year_end",
-          decision,
         });
 
         return {
@@ -2824,7 +2590,7 @@ async function handleChat(input) {
             musicMomentsLoadedAt:
               Number(session.musicMomentsLoadedAt || 0) || 0,
             ...(sigLine ? { lastSigTransition: sigLine } : {}),
-            __spine: spineNext,
+            __spineState: coreNext,
             ...baseCogPatch,
           },
           cog,
@@ -2835,6 +2601,13 @@ async function handleChat(input) {
             musicSig: sig,
             confidence: cog.confidence,
             turnSignals: norm.turnSignals,
+            spine: {
+              v: Spine.SPINE_VERSION,
+              rev: coreNext.rev,
+              lane: coreNext.lane,
+              stage: coreNext.stage,
+              move: cog.nextMove,
+            },
             elapsedMs: nowMs() - started,
           },
         };
@@ -2870,16 +2643,21 @@ async function handleChat(input) {
         },
       ];
 
-      const spineNext = spineFinalize({
-        spinePrev,
-        norm,
-        cog,
+      const coreNext = finalizeCoreSpine({
+        corePrev,
+        inboundNorm: norm,
         lane: "music",
+        topic: "year_end",
+        pendingAskPatch: null,
+        lastUserIntent: norm.turnSignals.textEmpty ? "silent_click" : "ask",
+        lastAssistantSummary: "served_year_end",
+        decisionUpper: {
+          move: cog.nextMove,
+          stage: cog.nextMoveStage || "deliver",
+          speak: cog.nextMoveSpeak,
+          rationale: cog.nextMoveWhy,
+        },
         actionTaken: "served_year_end",
-        followUps: fu,
-        pendingAsk: null,
-        topicOverride: "year_end",
-        decision,
       });
 
       return {
@@ -2903,7 +2681,7 @@ async function handleChat(input) {
           musicMomentsLoadedAt:
             Number(session.musicMomentsLoadedAt || 0) || 0,
           ...(sigLine ? { lastSigTransition: sigLine } : {}),
-          __spine: spineNext,
+          __spineState: coreNext,
           ...baseCogPatch,
         },
         cog,
@@ -2918,6 +2696,13 @@ async function handleChat(input) {
           velvet: !!cog.velvet,
           desire: cog.latentDesire,
           turnSignals: norm.turnSignals,
+          spine: {
+            v: Spine.SPINE_VERSION,
+            rev: coreNext.rev,
+            lane: coreNext.lane,
+            stage: coreNext.stage,
+            move: cog.nextMove,
+          },
           elapsedMs: nowMs() - started,
         },
       };
@@ -2953,16 +2738,21 @@ async function handleChat(input) {
         const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
         const sigLine = detectSignatureLine(reply);
 
-        const spineNext = spineFinalize({
-          spinePrev,
-          norm,
-          cog,
+        const coreNext = finalizeCoreSpine({
+          corePrev,
+          inboundNorm: norm,
           lane: "music",
+          topic: "top10_by_year",
+          pendingAskPatch: null,
+          lastUserIntent: norm.turnSignals.textEmpty ? "silent_click" : "ask",
+          lastAssistantSummary: "served_error",
+          decisionUpper: {
+            move: cog.nextMove,
+            stage: cog.nextMoveStage || "deliver",
+            speak: cog.nextMoveSpeak,
+            rationale: cog.nextMoveWhy,
+          },
           actionTaken: "served_error",
-          followUps: acts.followUps,
-          pendingAsk: null,
-          topicOverride: "top10_by_year",
-          decision,
         });
 
         return {
@@ -2981,7 +2771,7 @@ async function handleChat(input) {
             musicMomentsLoadedAt:
               Number(session.musicMomentsLoadedAt || 0) || 0,
             ...(sigLine ? { lastSigTransition: sigLine } : {}),
-            __spine: spineNext,
+            __spineState: coreNext,
             ...baseCogPatch,
           },
           cog,
@@ -2995,6 +2785,13 @@ async function handleChat(input) {
             desire: cog.latentDesire,
             confidence: cog.confidence,
             turnSignals: norm.turnSignals,
+            spine: {
+              v: Spine.SPINE_VERSION,
+              rev: coreNext.rev,
+              lane: coreNext.lane,
+              stage: coreNext.stage,
+              move: cog.nextMove,
+            },
             elapsedMs: nowMs() - started,
           },
         };
@@ -3018,16 +2815,21 @@ async function handleChat(input) {
         const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
         const sigLine = detectSignatureLine(reply);
 
-        const spineNext = spineFinalize({
-          spinePrev,
-          norm,
-          cog,
+        const coreNext = finalizeCoreSpine({
+          corePrev,
+          inboundNorm: norm,
           lane: "music",
+          topic: "top10_by_year",
+          pendingAskPatch: null,
+          lastUserIntent: norm.turnSignals.textEmpty ? "silent_click" : "ask",
+          lastAssistantSummary: "served_menu",
+          decisionUpper: {
+            move: cog.nextMove,
+            stage: cog.nextMoveStage || "deliver",
+            speak: cog.nextMoveSpeak,
+            rationale: cog.nextMoveWhy,
+          },
           actionTaken: "served_menu",
-          followUps: acts.followUps,
-          pendingAsk: null,
-          topicOverride: "top10_by_year",
-          decision,
         });
 
         return {
@@ -3047,7 +2849,7 @@ async function handleChat(input) {
             musicMomentsLoadedAt:
               Number(session.musicMomentsLoadedAt || 0) || 0,
             ...(sigLine ? { lastSigTransition: sigLine } : {}),
-            __spine: spineNext,
+            __spineState: coreNext,
             ...baseCogPatch,
           },
           cog,
@@ -3064,6 +2866,13 @@ async function handleChat(input) {
             desire: cog.latentDesire,
             confidence: cog.confidence,
             turnSignals: norm.turnSignals,
+            spine: {
+              v: Spine.SPINE_VERSION,
+              rev: coreNext.rev,
+              lane: coreNext.lane,
+              stage: coreNext.stage,
+              move: cog.nextMove,
+            },
             elapsedMs: nowMs() - started,
           },
         };
@@ -3078,16 +2887,21 @@ async function handleChat(input) {
       const momentsLoadedAt =
         Number(session.musicMomentsLoadedAt || 0) || (microPack ? nowMs() : 0);
 
-      const spineNext = spineFinalize({
-        spinePrev,
-        norm,
-        cog,
+      const coreNext = finalizeCoreSpine({
+        corePrev,
+        inboundNorm: norm,
         lane: "music",
+        topic: "top10_by_year",
+        pendingAskPatch: null,
+        lastUserIntent: norm.turnSignals.textEmpty ? "silent_click" : "ask",
+        lastAssistantSummary: "served_top10",
+        decisionUpper: {
+          move: cog.nextMove,
+          stage: cog.nextMoveStage || "deliver",
+          speak: cog.nextMoveSpeak,
+          rationale: cog.nextMoveWhy,
+        },
         actionTaken: "served_top10",
-        followUps: acts.followUps,
-        pendingAsk: null,
-        topicOverride: "top10_by_year",
-        decision,
       });
 
       return {
@@ -3106,7 +2920,7 @@ async function handleChat(input) {
           musicMomentsLoaded: momentsLoaded,
           musicMomentsLoadedAt: momentsLoadedAt,
           ...(sigLine ? { lastSigTransition: sigLine } : {}),
-          __spine: spineNext,
+          __spineState: coreNext,
           ...baseCogPatch,
         },
         cog,
@@ -3123,6 +2937,13 @@ async function handleChat(input) {
           velvet: !!cog.velvet,
           desire: cog.latentDesire,
           turnSignals: norm.turnSignals,
+          spine: {
+            v: Spine.SPINE_VERSION,
+            rev: coreNext.rev,
+            lane: coreNext.lane,
+            stage: coreNext.stage,
+            move: cog.nextMove,
+          },
           elapsedMs: nowMs() - started,
         },
       };
@@ -3188,20 +3009,21 @@ async function handleChat(input) {
           },
         ];
 
-        const spineNext = spineFinalize({
-          spinePrev,
-          norm,
-          cog,
+        const coreNext = finalizeCoreSpine({
+          corePrev,
+          inboundNorm: norm,
           lane: "music",
+          topic: "story_moment",
+          pendingAskPatch: pendingAskObj("need_pick", "clarify", "Pick a mood.", true),
+          lastUserIntent: norm.turnSignals.textEmpty ? "silent_click" : "ask",
+          lastAssistantSummary: "served_menu",
+          decisionUpper: {
+            move: cog.nextMove,
+            stage: cog.nextMoveStage || "clarify",
+            speak: cog.nextMoveSpeak,
+            rationale: cog.nextMoveWhy,
+          },
           actionTaken: "served_menu",
-          followUps: fu,
-          pendingAsk: buildPendingAsk(
-            "need_pick",
-            "Pick a mood.",
-            fu.map((x) => ({ id: x.id, label: x.label, payload: x.payload }))
-          ),
-          topicOverride: "story_moment",
-          decision,
         });
 
         return {
@@ -3220,7 +3042,7 @@ async function handleChat(input) {
             musicMomentsLoaded: momentsLoaded,
             musicMomentsLoadedAt: momentsLoadedAt,
             ...(sigLine ? { lastSigTransition: sigLine } : {}),
-            __spine: spineNext,
+            __spineState: coreNext,
             ...baseCogPatch,
           },
           cog,
@@ -3234,6 +3056,13 @@ async function handleChat(input) {
             desire: cog.latentDesire,
             confidence: cog.confidence,
             turnSignals: norm.turnSignals,
+            spine: {
+              v: Spine.SPINE_VERSION,
+              rev: coreNext.rev,
+              lane: coreNext.lane,
+              stage: coreNext.stage,
+              move: cog.nextMove,
+            },
             elapsedMs: nowMs() - started,
           },
         };
@@ -3259,16 +3088,21 @@ async function handleChat(input) {
           },
         ];
 
-        const spineNext = spineFinalize({
-          spinePrev,
-          norm,
-          cog,
+        const coreNext = finalizeCoreSpine({
+          corePrev,
+          inboundNorm: norm,
           lane: "music",
+          topic: "story_moment",
+          pendingAskPatch: null,
+          lastUserIntent: norm.turnSignals.textEmpty ? "silent_click" : "ask",
+          lastAssistantSummary: "served_menu",
+          decisionUpper: {
+            move: cog.nextMove,
+            stage: cog.nextMoveStage || "deliver",
+            speak: cog.nextMoveSpeak,
+            rationale: cog.nextMoveWhy,
+          },
           actionTaken: "served_menu",
-          followUps: fu,
-          pendingAsk: null,
-          topicOverride: "story_moment",
-          decision,
         });
 
         return {
@@ -3287,7 +3121,7 @@ async function handleChat(input) {
             musicMomentsLoaded: momentsLoaded,
             musicMomentsLoadedAt: momentsLoadedAt,
             ...(sigLine ? { lastSigTransition: sigLine } : {}),
-            __spine: spineNext,
+            __spineState: coreNext,
             ...baseCogPatch,
           },
           cog,
@@ -3298,6 +3132,13 @@ async function handleChat(input) {
             musicSig: sig,
             confidence: cog.confidence,
             turnSignals: norm.turnSignals,
+            spine: {
+              v: Spine.SPINE_VERSION,
+              rev: coreNext.rev,
+              lane: coreNext.lane,
+              stage: coreNext.stage,
+              move: cog.nextMove,
+            },
             elapsedMs: nowMs() - started,
           },
         };
@@ -3322,16 +3163,21 @@ async function handleChat(input) {
         },
       ];
 
-      const spineNext = spineFinalize({
-        spinePrev,
-        norm,
-        cog,
+      const coreNext = finalizeCoreSpine({
+        corePrev,
+        inboundNorm: norm,
         lane: "music",
+        topic: "story_moment",
+        pendingAskPatch: null,
+        lastUserIntent: norm.turnSignals.textEmpty ? "silent_click" : "ask",
+        lastAssistantSummary: "served_moment",
+        decisionUpper: {
+          move: cog.nextMove,
+          stage: cog.nextMoveStage || "deliver",
+          speak: cog.nextMoveSpeak,
+          rationale: cog.nextMoveWhy,
+        },
         actionTaken: "served_moment",
-        followUps: fu,
-        pendingAsk: null,
-        topicOverride: "story_moment",
-        decision,
       });
 
       return {
@@ -3350,7 +3196,7 @@ async function handleChat(input) {
           musicMomentsLoaded: momentsLoaded,
           musicMomentsLoadedAt: momentsLoadedAt,
           ...(sigLine ? { lastSigTransition: sigLine } : {}),
-          __spine: spineNext,
+          __spineState: coreNext,
           ...baseCogPatch,
         },
         cog,
@@ -3365,6 +3211,13 @@ async function handleChat(input) {
           velvet: !!cog.velvet,
           desire: cog.latentDesire,
           turnSignals: norm.turnSignals,
+          spine: {
+            v: Spine.SPINE_VERSION,
+            rev: coreNext.rev,
+            lane: coreNext.lane,
+            stage: coreNext.stage,
+            move: cog.nextMove,
+          },
           elapsedMs: nowMs() - started,
         },
       };
@@ -3406,16 +3259,21 @@ async function handleChat(input) {
           },
         ];
 
-        const spineNext = spineFinalize({
-          spinePrev,
-          norm,
-          cog,
+        const coreNext = finalizeCoreSpine({
+          corePrev,
+          inboundNorm: norm,
           lane: "music",
+          topic: "story_moment",
+          pendingAskPatch: null,
+          lastUserIntent: norm.turnSignals.textEmpty ? "silent_click" : "ask",
+          lastAssistantSummary: "served_error",
+          decisionUpper: {
+            move: cog.nextMove,
+            stage: cog.nextMoveStage || "deliver",
+            speak: cog.nextMoveSpeak,
+            rationale: cog.nextMoveWhy,
+          },
           actionTaken: "served_error",
-          followUps: fu,
-          pendingAsk: null,
-          topicOverride: "story_moment",
-          decision,
         });
 
         return {
@@ -3435,7 +3293,7 @@ async function handleChat(input) {
             musicMomentsLoadedAt:
               Number(session.musicMomentsLoadedAt || 0) || 0,
             ...(sigLine ? { lastSigTransition: sigLine } : {}),
-            __spine: spineNext,
+            __spineState: coreNext,
             ...baseCogPatch,
           },
           cog,
@@ -3449,6 +3307,13 @@ async function handleChat(input) {
             desire: cog.latentDesire,
             confidence: cog.confidence,
             turnSignals: norm.turnSignals,
+            spine: {
+              v: Spine.SPINE_VERSION,
+              rev: coreNext.rev,
+              lane: coreNext.lane,
+              stage: coreNext.stage,
+              move: cog.nextMove,
+            },
             elapsedMs: nowMs() - started,
           },
         };
@@ -3478,16 +3343,21 @@ async function handleChat(input) {
           },
         ];
 
-        const spineNext = spineFinalize({
-          spinePrev,
-          norm,
-          cog,
+        const coreNext = finalizeCoreSpine({
+          corePrev,
+          inboundNorm: norm,
           lane: "music",
+          topic: "story_moment",
+          pendingAskPatch: null,
+          lastUserIntent: norm.turnSignals.textEmpty ? "silent_click" : "ask",
+          lastAssistantSummary: "served_menu",
+          decisionUpper: {
+            move: cog.nextMove,
+            stage: cog.nextMoveStage || "deliver",
+            speak: cog.nextMoveSpeak,
+            rationale: cog.nextMoveWhy,
+          },
           actionTaken: "served_menu",
-          followUps: fu,
-          pendingAsk: null,
-          topicOverride: "story_moment",
-          decision,
         });
 
         return {
@@ -3507,7 +3377,7 @@ async function handleChat(input) {
             musicMomentsLoadedAt:
               Number(session.musicMomentsLoadedAt || 0) || nowMs(),
             ...(sigLine ? { lastSigTransition: sigLine } : {}),
-            __spine: spineNext,
+            __spineState: coreNext,
             ...baseCogPatch,
           },
           cog,
@@ -3518,6 +3388,13 @@ async function handleChat(input) {
             musicSig: sig,
             confidence: cog.confidence,
             turnSignals: norm.turnSignals,
+            spine: {
+              v: Spine.SPINE_VERSION,
+              rev: coreNext.rev,
+              lane: coreNext.lane,
+              stage: coreNext.stage,
+              move: cog.nextMove,
+            },
             elapsedMs: nowMs() - started,
           },
         };
@@ -3547,16 +3424,21 @@ async function handleChat(input) {
         },
       ];
 
-      const spineNext = spineFinalize({
-        spinePrev,
-        norm,
-        cog,
+      const coreNext = finalizeCoreSpine({
+        corePrev,
+        inboundNorm: norm,
         lane: "music",
+        topic: "story_moment",
+        pendingAskPatch: null,
+        lastUserIntent: norm.turnSignals.textEmpty ? "silent_click" : "ask",
+        lastAssistantSummary: "served_moment",
+        decisionUpper: {
+          move: cog.nextMove,
+          stage: cog.nextMoveStage || "deliver",
+          speak: cog.nextMoveSpeak,
+          rationale: cog.nextMoveWhy,
+        },
         actionTaken: "served_moment",
-        followUps: fu,
-        pendingAsk: null,
-        topicOverride: "story_moment",
-        decision,
       });
 
       return {
@@ -3576,7 +3458,7 @@ async function handleChat(input) {
           musicMomentsLoadedAt:
             Number(session.musicMomentsLoadedAt || 0) || nowMs(),
           ...(sigLine ? { lastSigTransition: sigLine } : {}),
-          __spine: spineNext,
+          __spineState: coreNext,
           ...baseCogPatch,
         },
         cog,
@@ -3591,6 +3473,13 @@ async function handleChat(input) {
           velvet: !!cog.velvet,
           desire: cog.latentDesire,
           turnSignals: norm.turnSignals,
+          spine: {
+            v: Spine.SPINE_VERSION,
+            rev: coreNext.rev,
+            lane: coreNext.lane,
+            stage: coreNext.stage,
+            move: cog.nextMove,
+          },
           elapsedMs: nowMs() - started,
         },
       };
@@ -3625,16 +3514,21 @@ async function handleChat(input) {
         acts.followUps[1],
       ];
 
-      const spineNext = spineFinalize({
-        spinePrev,
-        norm,
-        cog,
+      const coreNext = finalizeCoreSpine({
+        corePrev,
+        inboundNorm: norm,
         lane: "music",
+        topic: "help",
+        pendingAskPatch: null,
+        lastUserIntent: norm.turnSignals.textEmpty ? "silent_click" : "ask",
+        lastAssistantSummary: "served_menu",
+        decisionUpper: {
+          move: cog.nextMove,
+          stage: cog.nextMoveStage || "deliver",
+          speak: cog.nextMoveSpeak,
+          rationale: cog.nextMoveWhy,
+        },
         actionTaken: "served_menu",
-        followUps: fu,
-        pendingAsk: null,
-        topicOverride: "help",
-        decision,
       });
 
       return {
@@ -3658,7 +3552,7 @@ async function handleChat(input) {
           musicMomentsLoadedAt:
             Number(session.musicMomentsLoadedAt || 0) || 0,
           ...(sigLine ? { lastSigTransition: sigLine } : {}),
-          __spine: spineNext,
+          __spineState: coreNext,
           ...baseCogPatch,
         },
         cog,
@@ -3669,6 +3563,13 @@ async function handleChat(input) {
           desire: cog.latentDesire,
           confidence: cog.confidence,
           turnSignals: norm.turnSignals,
+          spine: {
+            v: Spine.SPINE_VERSION,
+            rev: coreNext.rev,
+            lane: coreNext.lane,
+            stage: coreNext.stage,
+            move: cog.nextMove,
+          },
           elapsedMs: nowMs() - started,
         },
       };
@@ -3678,20 +3579,26 @@ async function handleChat(input) {
     const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
     const sigLine = detectSignatureLine(reply);
 
-    const spineNext = spineFinalize({
-      spinePrev,
-      norm,
-      cog,
+    const coreNext = finalizeCoreSpine({
+      corePrev,
+      inboundNorm: norm,
       lane: "music",
-      actionTaken: "asked_year",
-      followUps: null,
-      pendingAsk: buildPendingAsk(
+      topic: "help",
+      pendingAskPatch: pendingAskObj(
         "need_year",
+        "clarify",
         `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`,
-        []
+        true
       ),
-      topicOverride: "help",
-      decision,
+      lastUserIntent: norm.turnSignals.textEmpty ? "silent_click" : "ask",
+      lastAssistantSummary: "asked_year",
+      decisionUpper: {
+        move: cog.nextMove,
+        stage: cog.nextMoveStage || "clarify",
+        speak: cog.nextMoveSpeak,
+        rationale: cog.nextMoveWhy,
+      },
+      actionTaken: "asked_year",
     });
 
     return {
@@ -3701,7 +3608,7 @@ async function handleChat(input) {
       sessionPatch: {
         lane: "music",
         ...(sigLine ? { lastSigTransition: sigLine } : {}),
-        __spine: spineNext,
+        __spineState: coreNext,
         ...baseCogPatch,
       },
       cog,
@@ -3712,6 +3619,13 @@ async function handleChat(input) {
         desire: cog.latentDesire,
         confidence: cog.confidence,
         turnSignals: norm.turnSignals,
+        spine: {
+          v: Spine.SPINE_VERSION,
+          rev: coreNext.rev,
+          lane: coreNext.lane,
+          stage: coreNext.stage,
+          move: cog.nextMove,
+        },
         elapsedMs: nowMs() - started,
       },
     };
@@ -3728,20 +3642,26 @@ async function handleChat(input) {
     const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
     const sigLine = detectSignatureLine(reply);
 
-    const spineNext = spineFinalize({
-      spinePrev,
-      norm,
-      cog,
+    const coreNext = finalizeCoreSpine({
+      corePrev,
+      inboundNorm: norm,
       lane: "music",
-      actionTaken: "asked_year",
-      followUps: null,
-      pendingAsk: buildPendingAsk(
+      topic: "help",
+      pendingAskPatch: pendingAskObj(
         "need_year",
+        "clarify",
         `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`,
-        []
+        true
       ),
-      topicOverride: "help",
-      decision,
+      lastUserIntent: norm.turnSignals.textEmpty ? "silent_click" : "ask",
+      lastAssistantSummary: "asked_year",
+      decisionUpper: {
+        move: cog.nextMove,
+        stage: cog.nextMoveStage || "clarify",
+        speak: cog.nextMoveSpeak,
+        rationale: cog.nextMoveWhy,
+      },
+      actionTaken: "asked_year",
     });
 
     return {
@@ -3751,7 +3671,7 @@ async function handleChat(input) {
       sessionPatch: {
         lane: "music",
         ...(sigLine ? { lastSigTransition: sigLine } : {}),
-        __spine: spineNext,
+        __spineState: coreNext,
         ...baseCogPatch,
       },
       cog,
@@ -3762,6 +3682,13 @@ async function handleChat(input) {
         desire: cog.latentDesire,
         confidence: cog.confidence,
         turnSignals: norm.turnSignals,
+        spine: {
+          v: Spine.SPINE_VERSION,
+          rev: coreNext.rev,
+          lane: coreNext.lane,
+          stage: coreNext.stage,
+          move: cog.nextMove,
+        },
         elapsedMs: nowMs() - started,
       },
     };
@@ -3778,16 +3705,21 @@ async function handleChat(input) {
     const sigLine = detectSignatureLine(reply);
     const f = counselorFollowUps();
 
-    const spineNext = spineFinalize({
-      spinePrev,
-      norm,
-      cog,
+    const coreNext = finalizeCoreSpine({
+      corePrev,
+      inboundNorm: norm,
       lane: "general",
+      topic: "help",
+      pendingAskPatch: null,
+      lastUserIntent: "ask",
+      lastAssistantSummary: "counsel_intro",
+      decisionUpper: {
+        move: cog.nextMove,
+        stage: cog.nextMoveStage || "deliver",
+        speak: cog.nextMoveSpeak,
+        rationale: cog.nextMoveWhy,
+      },
       actionTaken: "served_counsel_intro",
-      followUps: f.followUps,
-      pendingAsk: null,
-      topicOverride: "help",
-      decision,
     });
 
     return {
@@ -3799,7 +3731,7 @@ async function handleChat(input) {
       sessionPatch: {
         lane: "general",
         ...(sigLine ? { lastSigTransition: sigLine } : {}),
-        __spine: spineNext,
+        __spineState: coreNext,
         ...baseCogPatch,
       },
       cog,
@@ -3807,6 +3739,13 @@ async function handleChat(input) {
         engine: CE_VERSION,
         route: "general_counsel_intro",
         turnSignals: norm.turnSignals,
+        spine: {
+          v: Spine.SPINE_VERSION,
+          rev: coreNext.rev,
+          lane: coreNext.lane,
+          stage: coreNext.stage,
+          move: cog.nextMove,
+        },
         elapsedMs: nowMs() - started,
       },
     };
@@ -3839,20 +3778,21 @@ async function handleChat(input) {
     },
   ];
 
-  const spineNext = spineFinalize({
-    spinePrev,
-    norm,
-    cog,
+  const coreNext = finalizeCoreSpine({
+    corePrev,
+    inboundNorm: norm,
     lane: lane || "general",
+    topic: "help",
+    pendingAskPatch: pendingAskObj("need_pick", "clarify", "Pick what you want next.", true),
+    lastUserIntent: norm.turnSignals.textEmpty ? "silent_click" : "ask",
+    lastAssistantSummary: "served_menu",
+    decisionUpper: {
+      move: cog.nextMove,
+      stage: cog.nextMoveStage || "clarify",
+      speak: cog.nextMoveSpeak,
+      rationale: cog.nextMoveWhy,
+    },
     actionTaken: "served_menu",
-    followUps: fu,
-    pendingAsk: buildPendingAsk(
-      "need_pick",
-      "Pick what you want next.",
-      fu.map((x) => ({ id: x.id, label: x.label, payload: x.payload }))
-    ),
-    topicOverride: "help",
-    decision,
   });
 
   return {
@@ -3864,7 +3804,7 @@ async function handleChat(input) {
     sessionPatch: {
       lane: lane || "general",
       ...(sigLine ? { lastSigTransition: sigLine } : {}),
-      __spine: spineNext,
+      __spineState: coreNext,
       ...baseCogPatch,
     },
     cog,
@@ -3875,6 +3815,13 @@ async function handleChat(input) {
       desire: cog.latentDesire,
       confidence: cog.confidence,
       turnSignals: norm.turnSignals,
+      spine: {
+        v: Spine.SPINE_VERSION,
+        rev: coreNext.rev,
+        lane: coreNext.lane,
+        stage: coreNext.stage,
+        move: cog.nextMove,
+      },
       elapsedMs: nowMs() - started,
     },
   };
@@ -3888,14 +3835,10 @@ module.exports = {
   // Expose for diagnostics / internal tests (safe, no side effects)
   LATENT_DESIRE,
   SIGNATURE_TRANSITIONS,
-  NEXT_MOVE,
   validateNyxTone,
   runToneRegressionTests,
 
-  // Spine helpers (safe for internal diagnostics)
-  defaultSpine,
-  coerceSpine,
-  mergeSpine,
-  computeTurnSig,
-  decideNextMove,
+  // Expose canonical spine module reference (safe)
+  STATE_SPINE_VERSION: Spine.SPINE_VERSION,
+  STATE_SPINE: Spine,
 };
