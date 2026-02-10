@@ -256,10 +256,11 @@ function finalizeCoreSpine({
   pendingAskPatch, // {id,type,prompt,required} or null
   lastUserIntent,
   lastAssistantSummary,
-  decisionUpper, // {move,rationale,speak}
+  decisionUpper, // {move,rationale,speak,stage}
   actionTaken,
 }) {
-  const prev = corePrev && typeof corePrev === "object" ? corePrev : Spine.createState();
+  const prev =
+    corePrev && typeof corePrev === "object" ? corePrev : Spine.createState();
 
   const typedYearAnswered =
     !inboundNorm?.turnSignals?.textEmpty && textHasYearToken(inboundNorm?.text || "");
@@ -271,13 +272,20 @@ function finalizeCoreSpine({
 
   const answeredPendingAsk = typedYearAnswered || chipYearAnswered;
 
+  // IMPORTANT FIX (rev discipline):
+  // Never call Spine.updateState() inside the patch builder (would risk extra rev bumps).
   const patch = {
     lane: lane || prev.lane,
-    stage: decisionUpper?.stage || prev.stage,
+    stage: safeStr(decisionUpper?.stage || "") || prev.stage,
     topic: topic != null ? safeStr(topic) : prev.topic,
-    lastUserIntent: lastUserIntent != null ? safeStr(lastUserIntent) : prev.lastUserIntent,
-    lastUserText: inboundNorm?.text != null ? safeStr(inboundNorm.text) : prev.lastUserText,
-    lastAssistantSummary: lastAssistantSummary != null ? safeStr(lastAssistantSummary) : prev.lastAssistantSummary,
+    lastUserIntent:
+      lastUserIntent != null ? safeStr(lastUserIntent) : prev.lastUserIntent,
+    lastUserText:
+      inboundNorm?.text != null ? safeStr(inboundNorm.text) : prev.lastUserText,
+    lastAssistantSummary:
+      lastAssistantSummary != null
+        ? safeStr(lastAssistantSummary)
+        : prev.lastAssistantSummary,
     lastMove: safeStr(decisionUpper?.move || ""),
     diag: {
       lastDecision: {
@@ -288,7 +296,7 @@ function finalizeCoreSpine({
       },
     },
     pendingAsk: answeredPendingAsk ? null : pendingAskPatch || null,
-    engagementTemp: Spine.updateState(prev, {}, "noop").engagementTemp, // keep as-is
+    engagementTemp: prev.engagementTemp,
   };
 
   let next = Spine.updateState(prev, patch, "turn");
@@ -1397,11 +1405,9 @@ function resolveTop10ForYear(knowledge, year, opts) {
     const items = rows
       .map((r) => {
         const o = normalizeSongLine(r);
-        if (!o.title)
-          o.title = safeStr(r.song || r.single || r.track || "").trim();
+        if (!o.title) o.title = safeStr(r.song || r.single || r.track || "").trim();
         if (!o.artist) o.artist = safeStr(r.artist || r.performer || "").trim();
-        if (!o.pos)
-          o.pos = clampInt(r.rank ?? r.pos ?? r.position, null, 1, 500);
+        if (!o.pos) o.pos = clampInt(r.rank ?? r.pos ?? r.position, null, 1, 500);
         return o;
       })
       .filter((r) => r.title || r.artist);
@@ -1671,9 +1677,7 @@ function buildCustomStory({ year, vibe, anchorItem }) {
       : "";
 
   const open = y ? `${y}.` : `That year.`;
-  const aLine = anchor
-    ? `The needle drops on ${anchor} — `
-    : `The needle drops — `;
+  const aLine = anchor ? `The needle drops on ${anchor} — ` : `The needle drops — `;
 
   if (v === "romantic") {
     return (
@@ -1730,25 +1734,13 @@ function runToneRegressionTests() {
   assert("firm_removes_soft_tail", !/\blet me know\b/i.test(out2), out2);
 
   // 3) Ban “Earlier you said…”
-  const out3 = applyTurnConstitutionToReply(
-    "Earlier you said X, so Y.",
-    cFirm,
-    {}
-  );
-  assert(
-    "ban_earlier_you_said",
-    !/\bearlier you (said|mentioned)\b/i.test(out3),
-    out3
-  );
+  const out3 = applyTurnConstitutionToReply("Earlier you said X, so Y.", cFirm, {});
+  assert("ban_earlier_you_said", !/\bearlier you (said|mentioned)\b/i.test(out3), out3);
 
   // 4) Signature transition not repeated consecutively
   const s1 = { lastSigTransition: SIGNATURE_TRANSITIONS[0] };
   const out4 = applyTurnConstitutionToReply("Do X.", cFirm, s1);
-  assert(
-    "no_repeat_signature_transition",
-    !out4.startsWith(SIGNATURE_TRANSITIONS[0]),
-    out4
-  );
+  assert("no_repeat_signature_transition", !out4.startsWith(SIGNATURE_TRANSITIONS[0]), out4);
 
   // 5) Marion trace must be bounded
   const tr = marionTraceBuild(
@@ -1768,7 +1760,12 @@ function runToneRegressionTests() {
     pendingAskPatch: null,
     lastUserIntent: "ask",
     lastAssistantSummary: "test",
-    decisionUpper: { move: "CLARIFY", stage: "clarify", speak: "Test.", rationale: "test" },
+    decisionUpper: {
+      move: "CLARIFY",
+      stage: "clarify",
+      speak: "Test.",
+      rationale: "test",
+    },
     actionTaken: "test",
   });
   assert("core_spine_rev_increments", sp1.rev === sp0.rev + 1, `${sp0.rev}->${sp1.rev}`);
@@ -1822,9 +1819,7 @@ async function handleChat(input) {
     safeStr(corePrev?.lane || "").trim() ||
     "general";
 
-  const prevChart = safeStr(
-    session.activeMusicChart || session.lastMusicChart || ""
-  ).trim();
+  const prevChart = safeStr(session.activeMusicChart || session.lastMusicChart || "").trim();
 
   // Common session telemetry patch (kept small and safe)
   const baseCogPatch = {
@@ -2107,13 +2102,7 @@ async function handleChat(input) {
     };
   }
 
-  const requiresYear = [
-    "top10",
-    "story_moment",
-    "micro_moment",
-    "yearend_hot100",
-    "custom_story",
-  ];
+  const requiresYear = ["top10", "story_moment", "micro_moment", "yearend_hot100", "custom_story"];
 
   if (requiresYear.includes(norm.action) && !year) {
     const replyRaw = `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`;
@@ -2274,11 +2263,8 @@ async function handleChat(input) {
       const v = normVibe(norm.vibe || norm.text) || "nostalgic";
 
       // Anchor story off Top10 first item (NOT a #1 route; just first item in Top 10 list)
-      const t10 = resolveTop10ForYear(knowledge, year, {
-        allowDerivedTop10: false,
-      });
-      const anchorItem =
-        t10.ok && t10.items && t10.items.length ? t10.items[0] : null;
+      const t10 = resolveTop10ForYear(knowledge, year, { allowDerivedTop10: false });
+      const anchorItem = t10.ok && t10.items && t10.items.length ? t10.items[0] : null;
 
       const sig = buildMusicSig({
         action: "custom_story",
@@ -2402,8 +2388,7 @@ async function handleChat(input) {
           lastMusicChart: prevChart,
           activeMusicChart: "custom_story",
           musicMomentsLoaded: true,
-          musicMomentsLoadedAt:
-            Number(session.musicMomentsLoadedAt || 0) || nowMs(),
+          musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || nowMs(),
           ...(sigLine ? { lastSigTransition: sigLine } : {}),
           __spineState: coreNext,
           ...baseCogPatch,
@@ -2452,9 +2437,9 @@ async function handleChat(input) {
 
         const debug =
           res.sourceKey || res.foundBy
-            ? `\n\n(Yearend probe: key=${safeStr(
-                res.sourceKey || "n/a"
-              )} foundBy=${safeStr(res.foundBy || "n/a")})`
+            ? `\n\n(Yearend probe: key=${safeStr(res.sourceKey || "n/a")} foundBy=${safeStr(
+                res.foundBy || "n/a"
+              )})`
             : "";
 
         const replyRaw = `${why}${debug}\n\nNext: pinned Top 10 for ${year}.`;
@@ -2507,8 +2492,7 @@ async function handleChat(input) {
             lastMusicChart: prevChart,
             activeMusicChart: "yearend_hot100",
             musicMomentsLoaded: !!session.musicMomentsLoaded,
-            musicMomentsLoadedAt:
-              Number(session.musicMomentsLoadedAt || 0) || 0,
+            musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
             ...(sigLine ? { lastSigTransition: sigLine } : {}),
             __spineState: coreNext,
             ...baseCogPatch,
@@ -2587,8 +2571,7 @@ async function handleChat(input) {
             lastMusicChart: prevChart,
             activeMusicChart: "yearend_hot100",
             musicMomentsLoaded: !!session.musicMomentsLoaded,
-            musicMomentsLoadedAt:
-              Number(session.musicMomentsLoadedAt || 0) || 0,
+            musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
             ...(sigLine ? { lastSigTransition: sigLine } : {}),
             __spineState: coreNext,
             ...baseCogPatch,
@@ -2628,12 +2611,7 @@ async function handleChat(input) {
           id: "fu_story",
           type: "chip",
           label: "Make it cinematic",
-          payload: {
-            lane: "music",
-            action: "story_moment",
-            year,
-            route: "story_moment",
-          },
+          payload: { lane: "music", action: "story_moment", year, route: "story_moment" },
         },
         {
           id: "fu_newyear",
@@ -2665,11 +2643,7 @@ async function handleChat(input) {
         reply,
         lane: "music",
         followUps: fu,
-        followUpsStrings: [
-          `Top 10 (${year})`,
-          "Make it cinematic",
-          "Another year",
-        ],
+        followUpsStrings: [`Top 10 (${year})`, "Make it cinematic", "Another year"],
         sessionPatch: {
           lane: "music",
           lastYear: year,
@@ -2678,8 +2652,7 @@ async function handleChat(input) {
           lastMusicChart: prevChart,
           activeMusicChart: "yearend_hot100",
           musicMomentsLoaded: !!session.musicMomentsLoaded,
-          musicMomentsLoadedAt:
-            Number(session.musicMomentsLoadedAt || 0) || 0,
+          musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
           ...(sigLine ? { lastSigTransition: sigLine } : {}),
           __spineState: coreNext,
           ...baseCogPatch,
@@ -2729,9 +2702,9 @@ async function handleChat(input) {
         const acts = compactMusicFollowUps(year);
         const debug =
           res.sourceKey || res.foundBy
-            ? `\n\n(Top10 probe: key=${safeStr(
-                res.sourceKey || "n/a"
-              )} foundBy=${safeStr(res.foundBy || "n/a")})`
+            ? `\n\n(Top10 probe: key=${safeStr(res.sourceKey || "n/a")} foundBy=${safeStr(
+                res.foundBy || "n/a"
+              )})`
             : "";
 
         const replyRaw = `${why}\n\nNext move: cinematic.${debug}`;
@@ -2768,8 +2741,7 @@ async function handleChat(input) {
             lastMusicChart: prevChart,
             activeMusicChart: "",
             musicMomentsLoaded: !!session.musicMomentsLoaded,
-            musicMomentsLoadedAt:
-              Number(session.musicMomentsLoadedAt || 0) || 0,
+            musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
             ...(sigLine ? { lastSigTransition: sigLine } : {}),
             __spineState: coreNext,
             ...baseCogPatch,
@@ -2809,9 +2781,7 @@ async function handleChat(input) {
 
       if (shouldDampen(session, sig)) {
         const replyRaw =
-          `Same Top 10 beat for ${year}. Switch gears:\n` +
-          `• cinematic\n` +
-          `• another year`;
+          `Same Top 10 beat for ${year}. Switch gears:\n` + `• cinematic\n` + `• another year`;
         const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
         const sigLine = detectSignatureLine(reply);
 
@@ -2846,8 +2816,7 @@ async function handleChat(input) {
             lastMusicChart: prevChart,
             activeMusicChart: "top10",
             musicMomentsLoaded: !!session.musicMomentsLoaded,
-            musicMomentsLoadedAt:
-              Number(session.musicMomentsLoadedAt || 0) || 0,
+            musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
             ...(sigLine ? { lastSigTransition: sigLine } : {}),
             __spineState: coreNext,
             ...baseCogPatch,
@@ -2884,8 +2853,7 @@ async function handleChat(input) {
 
       const microPack = !!getPinnedMicroMoments(knowledge).pack;
       const momentsLoaded = !!session.musicMomentsLoaded || microPack;
-      const momentsLoadedAt =
-        Number(session.musicMomentsLoadedAt || 0) || (microPack ? nowMs() : 0);
+      const momentsLoadedAt = Number(session.musicMomentsLoadedAt || 0) || (microPack ? nowMs() : 0);
 
       const coreNext = finalizeCoreSpine({
         corePrev,
@@ -2962,8 +2930,7 @@ async function handleChat(input) {
 
       const microPack = !!getPinnedMicroMoments(knowledge).pack;
       const momentsLoaded = !!session.musicMomentsLoaded || microPack;
-      const momentsLoadedAt =
-        Number(session.musicMomentsLoadedAt || 0) || (microPack ? nowMs() : 0);
+      const momentsLoadedAt = Number(session.musicMomentsLoadedAt || 0) || (microPack ? nowMs() : 0);
 
       if (!res.ok) {
         const replyRaw = `No pinned story moment for ${year}. Pick a mood: romantic, rebellious, or nostalgic.`;
@@ -2975,37 +2942,19 @@ async function handleChat(input) {
             id: "fu_rom",
             type: "chip",
             label: "Romantic",
-            payload: {
-              lane: "music",
-              action: "custom_story",
-              year,
-              vibe: "romantic",
-              route: "custom_story",
-            },
+            payload: { lane: "music", action: "custom_story", year, vibe: "romantic", route: "custom_story" },
           },
           {
             id: "fu_reb",
             type: "chip",
             label: "Rebellious",
-            payload: {
-              lane: "music",
-              action: "custom_story",
-              year,
-              vibe: "rebellious",
-              route: "custom_story",
-            },
+            payload: { lane: "music", action: "custom_story", year, vibe: "rebellious", route: "custom_story" },
           },
           {
             id: "fu_nos",
             type: "chip",
             label: "Nostalgic",
-            payload: {
-              lane: "music",
-              action: "custom_story",
-              year,
-              vibe: "nostalgic",
-              route: "custom_story",
-            },
+            payload: { lane: "music", action: "custom_story", year, vibe: "nostalgic", route: "custom_story" },
           },
         ];
 
@@ -3250,12 +3199,7 @@ async function handleChat(input) {
             id: "fu_story",
             type: "chip",
             label: "Make it cinematic",
-            payload: {
-              lane: "music",
-              action: "story_moment",
-              year,
-              route: "story_moment",
-            },
+            payload: { lane: "music", action: "story_moment", year, route: "story_moment" },
           },
         ];
 
@@ -3290,8 +3234,7 @@ async function handleChat(input) {
             lastMusicChart: prevChart,
             activeMusicChart: "micro",
             musicMomentsLoaded: !!session.musicMomentsLoaded,
-            musicMomentsLoadedAt:
-              Number(session.musicMomentsLoadedAt || 0) || 0,
+            musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
             ...(sigLine ? { lastSigTransition: sigLine } : {}),
             __spineState: coreNext,
             ...baseCogPatch,
@@ -3335,11 +3278,7 @@ async function handleChat(input) {
             id: "fu_general",
             type: "chip",
             label: "Switch lanes",
-            payload: {
-              lane: "general",
-              action: "switch_lane",
-              route: "switch_lane",
-            },
+            payload: { lane: "general", action: "switch_lane", route: "switch_lane" },
           },
         ];
 
@@ -3374,8 +3313,7 @@ async function handleChat(input) {
             lastMusicChart: prevChart,
             activeMusicChart: "micro",
             musicMomentsLoaded: true,
-            musicMomentsLoadedAt:
-              Number(session.musicMomentsLoadedAt || 0) || nowMs(),
+            musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || nowMs(),
             ...(sigLine ? { lastSigTransition: sigLine } : {}),
             __spineState: coreNext,
             ...baseCogPatch,
@@ -3415,12 +3353,7 @@ async function handleChat(input) {
           id: "fu_story",
           type: "chip",
           label: "Make it cinematic",
-          payload: {
-            lane: "music",
-            action: "story_moment",
-            year,
-            route: "story_moment",
-          },
+          payload: { lane: "music", action: "story_moment", year, route: "story_moment" },
         },
       ];
 
@@ -3455,8 +3388,7 @@ async function handleChat(input) {
           lastMusicChart: prevChart,
           activeMusicChart: "micro",
           musicMomentsLoaded: true,
-          musicMomentsLoadedAt:
-            Number(session.musicMomentsLoadedAt || 0) || nowMs(),
+          musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || nowMs(),
           ...(sigLine ? { lastSigTransition: sigLine } : {}),
           __spineState: coreNext,
           ...baseCogPatch,
@@ -3504,12 +3436,7 @@ async function handleChat(input) {
           id: "fu_yearend",
           type: "chip",
           label: `Year-End Hot 100 (${year})`,
-          payload: {
-            lane: "music",
-            action: "yearend_hot100",
-            year,
-            route: "yearend_hot100",
-          },
+          payload: { lane: "music", action: "yearend_hot100", year, route: "yearend_hot100" },
         },
         acts.followUps[1],
       ];
@@ -3549,8 +3476,7 @@ async function handleChat(input) {
           activeMusicChart: safeStr(session.activeMusicChart || ""),
           lastMusicChart: safeStr(session.lastMusicChart || ""),
           musicMomentsLoaded: !!session.musicMomentsLoaded,
-          musicMomentsLoadedAt:
-            Number(session.musicMomentsLoadedAt || 0) || 0,
+          musicMomentsLoadedAt: Number(session.musicMomentsLoadedAt || 0) || 0,
           ...(sigLine ? { lastSigTransition: sigLine } : {}),
           __spineState: coreNext,
           ...baseCogPatch,
@@ -3634,10 +3560,7 @@ async function handleChat(input) {
   // ---------------------------------
   // GENERAL
   // ---------------------------------
-  if (
-    (cog.mode === "architect" || cog.mode === "transitional") &&
-    cog.intent === "ADVANCE"
-  ) {
+  if ((cog.mode === "architect" || cog.mode === "transitional") && cog.intent === "ADVANCE") {
     const replyRaw = `Defaulting to Music. Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`;
     const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
     const sigLine = detectSignatureLine(reply);
@@ -3758,24 +3681,9 @@ async function handleChat(input) {
   const sigLine = detectSignatureLine(reply);
 
   const fu = [
-    {
-      id: "fu_music",
-      type: "chip",
-      label: "Music",
-      payload: { lane: "music", action: "ask_year", route: "ask_year" },
-    },
-    {
-      id: "fu_movies",
-      type: "chip",
-      label: "Movies",
-      payload: { lane: "movies", route: "movies" },
-    },
-    {
-      id: "fu_sponsors",
-      type: "chip",
-      label: "Sponsors",
-      payload: { lane: "sponsors", route: "sponsors" },
-    },
+    { id: "fu_music", type: "chip", label: "Music", payload: { lane: "music", action: "ask_year", route: "ask_year" } },
+    { id: "fu_movies", type: "chip", label: "Movies", payload: { lane: "movies", route: "movies" } },
+    { id: "fu_sponsors", type: "chip", label: "Sponsors", payload: { lane: "sponsors", route: "sponsors" } },
   ];
 
   const coreNext = finalizeCoreSpine({
