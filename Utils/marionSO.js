@@ -12,14 +12,15 @@
  * - Keep it safe: no raw user text in traces; bounded outputs; fail-open behavior
  * - Keep it portable: no express, no fs, no index.js imports, no knowledge access
  *
- * v1.0.5 (RISK BRIDGE++++ + ETHICS EXPAND++++ + CYBER/EN/FIN/STRAT++++ + LAW/PSYCH BOND++++ + MOVE POLICY++++ + PURE NO-MUTATION++++)
+ * v1.0.5 (RISKBRIDGE v1++++ + CYBER/EN/FIN/STRAT LAYERS++++ + LAW/ETHICS++++ + MOVE POLICY++++ + PURE NO-MUTATION++++)
+ * ✅ Adds: RiskBridge v1 (Psych+Ethics+lawSeed → riskTier/domains/signals + lawOverrides hints).
+ * ✅ A-Mode: Law remains final arbiter (RiskBridge provides hints; LawLayer applies constitution).
  * ✅ Keeps: LawLayer precedence (containment, action supremacy, stall/no-spin, budget clamps, coherence, velvet guard).
- * ✅ Upgrades: Law↔Psych bond via RiskBridge (riskTier + domains + overrides) feeding Law + movePolicy.
- * ✅ Expands: EthicsLayer beyond self-harm (violence, illegal, privacy/doxx, sexual safety, hate/harassment, medical/legal/financial high-stakes posture).
- * ✅ Keeps: CyberLayer (defensive-only risk awareness + social engineering flags); cyberTags + cyberSignals.
+ * ✅ Keeps: EthicsLayer (bounded harm-avoidance + user-agency + non-deceptive posture); ethicsTags + ethicsSignals.
+ * ✅ Keeps: CyberLayer (defensive-only flags); cyberTags + cyberSignals.
  * ✅ Keeps: EnglishLayer (clarity/structure/audience); englishTags + englishSignals.
  * ✅ Keeps: Finance/EconLayer (non-advice posture + unit-econ/budgeting/compliance cues); finTags + finSignals.
- * ✅ Keeps: StrategyLayer (systems thinking + decision-making cues: tradeoffs, metrics, sequencing); strategyTags + strategySignals.
+ * ✅ Keeps: StrategyLayer (systems thinking + decision-making cues); strategyTags + strategySignals.
  * ✅ Keeps: movePolicy hints for StateSpine reconciliation.
  * ✅ Keeps: PsychologyReasoningObject (PRO) always-on (no persistence, no raw text stored).
  * ✅ Keeps: MarionStyleContract, deterministic clock hook, stricter privacy, tighter intent/stall logic, handoff hints.
@@ -58,7 +59,7 @@ function truthy(v) {
   const s = safeStr(v, 40).trim().toLowerCase();
   return s === "1" || s === "true" || s === "yes" || s === "y" || s === "on";
 }
-function stableHashLite(str) {
+function sha1Lite(str) {
   // small stable hash (NOT cryptographic) for traces
   const s = safeStr(str, 2000);
   let h = 2166136261;
@@ -68,9 +69,6 @@ function stableHashLite(str) {
   }
   return (h >>> 0).toString(16);
 }
-// backwards compat name (do not treat as SHA-1)
-const sha1Lite = stableHashLite;
-
 function normYear(y) {
   const n = Number(y);
   if (!Number.isFinite(n)) return null;
@@ -139,37 +137,6 @@ const PSYCH = Object.freeze({
   }),
 });
 
-// Risk Bridge (Law↔Psych coupling, bounded, non-content)
-const RISK = Object.freeze({
-  TIER: Object.freeze({
-    NONE: "none",
-    LOW: "low",
-    MEDIUM: "medium",
-    HIGH: "high",
-  }),
-  DOMAINS: Object.freeze({
-    SELF_HARM: "self_harm",
-    VIOLENCE: "violence",
-    ILLEGAL: "illegal",
-    PRIVACY: "privacy",
-    SEXUAL_SAFETY: "sexual_safety",
-    HATE: "hate",
-    MEDICAL: "medical",
-    LEGAL: "legal",
-    FINANCE: "finance",
-    CYBER: "cyber",
-  }),
-  SIGNALS: Object.freeze({
-    MINIMIZE_RISKY_DETAIL: "minimize_risky_detail",
-    AVOID_INSTRUCTIONS: "avoid_instructions",
-    OFFER_SAFE_ALTS: "offer_safe_alternatives",
-    ENCOURAGE_HELP: "encourage_help_seeking",
-    PROTECT_PRIVACY: "protect_privacy",
-    PROFESSIONAL_DISCLAIMER: "professional_disclaimer",
-    VERIFY_SOURCE: "verify_source",
-  }),
-});
-
 // Law Layer v1 (constitutional, ordered precedence)
 const LAW = Object.freeze({
   TAGS: Object.freeze({
@@ -179,7 +146,6 @@ const LAW = Object.freeze({
     BUDGET_CLAMP: "law:budget_clamp",
     COHERENCE: "law:coherence",
     VELVET_GUARD: "law:velvet_guard",
-    RISK_CLAMP: "law:risk_clamp",
   }),
 });
 
@@ -191,25 +157,34 @@ const ETHICS = Object.freeze({
     HARM_AVOIDANCE: "ethics:harm_avoidance",
     PRIVACY_MIN: "ethics:privacy_min",
     SAFETY_REDIRECT: "ethics:safety_redirect",
-    VIOLENCE_AVOID: "ethics:violence_avoid",
-    ILLEGAL_AVOID: "ethics:illegal_avoid",
-    PRIVACY_PROTECT: "ethics:privacy_protect",
-    SEXUAL_SAFETY: "ethics:sexual_safety",
-    HATE_AVOID: "ethics:hate_avoid",
-    HS_MEDICAL: "ethics:medical_highstakes",
-    HS_LEGAL: "ethics:legal_highstakes",
-    HS_FINANCE: "ethics:finance_highstakes",
   }),
   SIGNALS: Object.freeze({
     MINIMIZE_RISKY_DETAIL: "minimize_risky_detail",
     USE_NEUTRAL_TONE: "use_neutral_tone",
     OFFER_OPTIONS_NOT_ORDERS: "offer_options_not_orders",
     ENCOURAGE_HELP_SEEKING: "encourage_help_seeking",
-    REFUSE_ILLEGAL_ASSISTANCE: "refuse_illegal_assistance",
-    REFUSE_VIOLENCE_ASSISTANCE: "refuse_violence_assistance",
-    PROTECT_PRIVACY: "protect_privacy",
-    PROFESSIONAL_DISCLAIMER: "professional_disclaimer",
-    AVOID_STEP_BY_STEP: "avoid_step_by_step",
+  }),
+});
+
+// RiskBridge v1 (cross-layer aggregation; Law is final)
+const RISK = Object.freeze({
+  TIERS: Object.freeze({
+    NONE: "none",
+    LOW: "low",
+    MEDIUM: "medium",
+    HIGH: "high",
+  }),
+  DOMAINS: Object.freeze({
+    SELF_HARM: "risk:self_harm",
+    VIOLENCE: "risk:violence",
+    ILLEGAL: "risk:illegal",
+    PRIVACY: "risk:privacy",
+    SEXUAL: "risk:sexual",
+    HATE: "risk:hate",
+    MEDICAL: "risk:medical",
+    LEGAL: "risk:legal",
+    FINANCIAL: "risk:financial",
+    CYBER: "risk:cyber",
   }),
 });
 
@@ -287,7 +262,7 @@ const STRATEGY = Object.freeze({
   }),
 });
 
-// Marion narration style contract
+// Marion narration style contract (canonical policy hints)
 const MARION_STYLE_CONTRACT = Object.freeze({
   maxSentences: 2,
   forbidTokens: [
@@ -327,6 +302,7 @@ function normalizeMacModeRaw(v) {
 }
 
 function detectMacModeImplicit(text) {
+  // scan for inference but never store raw text
   const t = safeStr(text, 1400).trim();
   if (!t) return { mode: "", scoreA: 0, scoreU: 0, scoreT: 0, why: [] };
 
@@ -336,6 +312,7 @@ function detectMacModeImplicit(text) {
     tr = 0;
   const why = [];
 
+  // Architect signals
   if (/\b(let's|lets)\s+(define|design|lock|implement|encode|ship|wire)\b/.test(s)) {
     a += 3;
     why.push("architect:lets-define/design");
@@ -361,6 +338,7 @@ function detectMacModeImplicit(text) {
     why.push("architect:technical");
   }
 
+  // User signals
   if (
     /\b(i('?m)?\s+not\s+sure|help\s+me\s+understand|does\s+this\s+make\s+sense|where\s+do\s+i|get\s+the\s+url)\b/.test(
       s
@@ -374,6 +352,7 @@ function detectMacModeImplicit(text) {
     why.push("user:emotion");
   }
 
+  // Transitional signals
   if (a > 0 && u > 0) {
     tr += 3;
     why.push("transitional:mixed-signals");
@@ -383,13 +362,12 @@ function detectMacModeImplicit(text) {
   if (tr >= 3) mode = "transitional";
   else if (a >= u + 2) mode = "architect";
   else if (u >= a + 2) mode = "user";
-  else mode = "";
 
   return { mode, scoreA: a, scoreU: u, scoreT: tr, why };
 }
 
 // -------------------------
-// PSYCHOLOGY LAYER
+// PSYCHOLOGY LAYER (always-on, deterministic, bounded)
 // -------------------------
 function estimateCognitiveLoad(norm, session, nowMs) {
   const text = safeStr(norm?.text || "", 1400);
@@ -493,124 +471,6 @@ function computePsychologyReasoningObject(norm, session, medSeed, nowMs) {
 }
 
 // -------------------------
-// Risk Bridge (bond Law↔Psych)
-// -------------------------
-function computeRiskBridge(norm, psych, seed) {
-  const n = isPlainObject(norm) ? norm : {};
-  const p = isPlainObject(psych) ? psych : {};
-  const s = isPlainObject(seed) ? seed : {};
-
-  const text = safeStr(n?.text || "", 1400).toLowerCase();
-  const actionable = !!s.actionable;
-
-  // domain detectors (lightweight; no storage)
-  const selfHarm =
-    /\b(suicid(e|al)|kill myself|end it all|self[-\s]?harm|cutting|i don't want to live)\b/.test(
-      text
-    );
-
-  const violence =
-    /\b(kill (him|her|them)|hurt (him|her|them)|shoot|stab|bomb|murder|assassinat|poison|make a weapon|violent)\b/.test(
-      text
-    );
-
-  const illegal =
-    /\b(forge|counterfeit|launder|money laundering|bribe|extortion|blackmail|steal|fraud|evade|bypass (law|police)|break into)\b/.test(
-      text
-    );
-
-  const privacy =
-    /\b(doxx|doxxing|address|phone number|social security|sin\b|credit card|password|otp|2fa code|verification code|leak|exfiltrat)\b/.test(
-      text
-    );
-
-  const sexualSafety =
-    /\b(minor|underage|child sexual|cp|non[-\s]?consensual|rape|coerc(e|ion))\b/.test(text);
-
-  const hate =
-    /\b(hate (them|him|her)|exterminate|genocide|racial slur|ethnic cleansing)\b/.test(text);
-
-  const medical =
-    /\b(diagnos|symptom|medication|dose|treatment|doctor|hospital|suicide prevention)\b/.test(text);
-
-  const legalTopic =
-    /\b(law|legal|lawsuit|contract|sue|court|defamation|criminal charge)\b/.test(text);
-
-  const financeTopic =
-    /\b(price|pricing|revenue|profit|margin|budget|cashflow|forecast|break[-\s]?even|roi|ltv|cac|unit economics|tax|sred|grant)\b/.test(
-      text
-    );
-
-  const cyberTopic =
-    /\b(cyber|security|infosec|phish|phishing|malware|ransom|ddos|sql injection|xss|csrf|breach|exploit|hack)\b/.test(
-      text
-    );
-
-  // intent-unsafe / operational asks (cross-domain)
-  const howToBad =
-    /\b(how to (hack|break in|steal|bypass)|make (a|an) (bomb|weapon|malware)|write (a|an) malware|ddos (a|an)|phish (a|an)|credential stuffing)\b/.test(
-      text
-    );
-
-  const domains = [];
-  if (selfHarm) domains.push(RISK.DOMAINS.SELF_HARM);
-  if (violence) domains.push(RISK.DOMAINS.VIOLENCE);
-  if (illegal) domains.push(RISK.DOMAINS.ILLEGAL);
-  if (privacy) domains.push(RISK.DOMAINS.PRIVACY);
-  if (sexualSafety) domains.push(RISK.DOMAINS.SEXUAL_SAFETY);
-  if (hate) domains.push(RISK.DOMAINS.HATE);
-  if (medical) domains.push(RISK.DOMAINS.MEDICAL);
-  if (legalTopic) domains.push(RISK.DOMAINS.LEGAL);
-  if (financeTopic) domains.push(RISK.DOMAINS.FINANCE);
-  if (cyberTopic) domains.push(RISK.DOMAINS.CYBER);
-
-  let tier = RISK.TIER.NONE;
-
-  // Tiering rules (bounded + deterministic)
-  if (sexualSafety || selfHarm) tier = RISK.TIER.HIGH;
-  else if (howToBad || violence) tier = RISK.TIER.HIGH;
-  else if (illegal || (cyberTopic && howToBad) || privacy) tier = RISK.TIER.MEDIUM;
-  else if (cyberTopic || medical || legalTopic || financeTopic || hate) tier = RISK.TIER.LOW;
-
-  // Psych amplification: dysregulated raises tier one step (max HIGH)
-  const reg = safeStr(p.regulationState || "", 16);
-  if (reg === PSYCH.REG.DYSREGULATED) {
-    if (tier === RISK.TIER.NONE) tier = RISK.TIER.LOW;
-    else if (tier === RISK.TIER.LOW) tier = RISK.TIER.MEDIUM;
-    else if (tier === RISK.TIER.MEDIUM) tier = RISK.TIER.HIGH;
-  }
-
-  const signals = [];
-  if (tier === RISK.TIER.HIGH || tier === RISK.TIER.MEDIUM) {
-    signals.push(RISK.SIGNALS.MINIMIZE_RISKY_DETAIL, RISK.SIGNALS.AVOID_INSTRUCTIONS, RISK.SIGNALS.OFFER_SAFE_ALTS);
-  }
-  if (selfHarm) signals.push(RISK.SIGNALS.ENCOURAGE_HELP);
-  if (privacy) signals.push(RISK.SIGNALS.PROTECT_PRIVACY);
-  if (medical || legalTopic || financeTopic) signals.push(RISK.SIGNALS.PROFESSIONAL_DISCLAIMER);
-  if (cyberTopic) signals.push(RISK.SIGNALS.VERIFY_SOURCE);
-
-  // Law override hints (not content)
-  const overrides = {
-    budgetClamp: tier === RISK.TIER.HIGH || tier === RISK.TIER.MEDIUM,
-    velvetBlock: tier === RISK.TIER.HIGH || (tier === RISK.TIER.MEDIUM && domains.includes(RISK.DOMAINS.CYBER)),
-    // if risky and not actionable, bias toward clarify or stabilize depending on distress domain
-    intentBias:
-      tier === RISK.TIER.HIGH && !actionable
-        ? (domains.includes(RISK.DOMAINS.SELF_HARM) ? "STABILIZE" : "CLARIFY")
-        : "",
-    // avoid “firm dominance” unless executing a safe action; keeps tone controlled
-    dominanceBias: tier === RISK.TIER.HIGH && !actionable ? "neutral" : "",
-  };
-
-  return {
-    riskTier: tier,
-    riskDomains: uniqBounded(domains, 8),
-    riskSignals: uniqBounded(signals, 8),
-    lawOverrides: overrides,
-  };
-}
-
-// -------------------------
 // move policy (StateSpine reconciliation hint)
 // -------------------------
 function normalizeMove(m) {
@@ -620,15 +480,14 @@ function normalizeMove(m) {
 }
 
 function deriveMovePolicy(cog) {
+  const intent = safeStr(cog?.intent || "", 20).toUpperCase();
   const actionable = !!cog?.actionable;
   const reg = safeStr(cog?.psychology?.regulationState || "", 16);
-  const tier = safeStr(cog?.riskTier || "", 12);
 
-  let preferredMove = normalizeMove(cog?.intent || "CLARIFY");
+  let preferredMove = normalizeMove(intent);
   let hardOverride = false;
   let reason = "intent";
 
-  // Psych containment
   if (reg === PSYCH.REG.DYSREGULATED) {
     preferredMove = actionable ? "ADVANCE" : "STABILIZE";
     hardOverride = !actionable;
@@ -639,54 +498,213 @@ function deriveMovePolicy(cog) {
     reason = "strained_clarify";
   }
 
-  // Risk bridge: HIGH risk biases away from wandering
-  if ((tier === RISK.TIER.HIGH || tier === RISK.TIER.MEDIUM) && !actionable) {
-    preferredMove = preferredMove === "ADVANCE" ? "CLARIFY" : preferredMove;
-    if (tier === RISK.TIER.HIGH) {
-      hardOverride = hardOverride || false;
-      reason = reason === "intent" ? "risk_bridge" : reason;
+  return { preferredMove, hardOverride, reason };
+}
+
+// -------------------------
+// ETHICS LAYER (bounded harm-avoidance + agency + non-deception)
+// -------------------------
+function computeEthicsLayer(norm, psych, seed) {
+  const n = isPlainObject(norm) ? norm : {};
+  const p = isPlainObject(psych) ? psych : {};
+  const s = isPlainObject(seed) ? seed : {};
+
+  const tags = [ETHICS.TAGS.NON_DECEPTIVE, ETHICS.TAGS.PRIVACY_MIN];
+  const signals = [];
+
+  const text = safeStr(n?.text || "", 1400).toLowerCase();
+  const reg = safeStr(p.regulationState || "", 16);
+  const agencyPref = safeStr(p.agencyPreference || "", 16);
+
+  const selfHarm =
+    /\b(suicid(e|al)|kill myself|end it all|self[-\s]?harm|cutting|i don't want to live)\b/.test(
+      text
+    );
+
+  if (selfHarm) {
+    tags.push(ETHICS.TAGS.HARM_AVOIDANCE, ETHICS.TAGS.SAFETY_REDIRECT);
+    signals.push(ETHICS.SIGNALS.MINIMIZE_RISKY_DETAIL, ETHICS.SIGNALS.ENCOURAGE_HELP_SEEKING);
+  } else if (reg === PSYCH.REG.DYSREGULATED) {
+    tags.push(ETHICS.TAGS.HARM_AVOIDANCE);
+    signals.push(ETHICS.SIGNALS.USE_NEUTRAL_TONE, ETHICS.SIGNALS.MINIMIZE_RISKY_DETAIL);
+  }
+
+  tags.push(ETHICS.TAGS.AGENCY_RESPECT);
+  if (agencyPref === PSYCH.AGENCY.AUTONOMOUS && !s.actionable) {
+    signals.push(ETHICS.SIGNALS.OFFER_OPTIONS_NOT_ORDERS);
+  }
+
+  return {
+    ethicsTags: uniqBounded(tags.map((x) => safeStr(x, 32)), 8),
+    ethicsSignals: uniqBounded(signals.map((x) => safeStr(x, 40)), 6),
+  };
+}
+
+// -------------------------
+// RISKBRIDGE v1 (Psych + Ethics + lawSeed -> risk tier/domains/signals + lawOverride hints)
+// Law is final arbiter (A-mode). RiskBridge only suggests.
+// -------------------------
+function computeRiskBridge(norm, psych, ethics, lawSeed) {
+  const n = isPlainObject(norm) ? norm : {};
+  const p = isPlainObject(psych) ? psych : {};
+  const e = isPlainObject(ethics) ? ethics : {};
+  const seed = isPlainObject(lawSeed) ? lawSeed : {};
+
+  const text = safeStr(n?.text || "", 1400).toLowerCase();
+
+  const domains = [];
+  const signals = [];
+  let tier = RISK.TIERS.NONE;
+
+  const reg = safeStr(p.regulationState || "", 16);
+  const load = safeStr(p.cognitiveLoad || "", 12);
+  const pressure = safeStr(p.socialPressure || "", 12);
+  const actionable = !!seed.actionable;
+
+  // --- SELF-HARM (high) ---
+  const selfHarm =
+    /\b(suicid(e|al)|kill myself|end it all|self[-\s]?harm|cutting|i don't want to live)\b/.test(
+      text
+    );
+  if (selfHarm) {
+    domains.push(RISK.DOMAINS.SELF_HARM);
+    tier = RISK.TIERS.HIGH;
+    signals.push("containment_required");
+  }
+
+  // --- ILLEGAL INTENT (high) ---
+  const illegal =
+    /\b(how to (steal|fraud)|bypass (the )?law|evade (the )?law|counterfeit|forg(e|ery)|identity theft)\b/.test(
+      text
+    );
+  if (illegal) {
+    domains.push(RISK.DOMAINS.ILLEGAL);
+    tier = RISK.TIERS.HIGH;
+    signals.push("illegal_intent_detected");
+  }
+
+  // --- HIGH STAKES TOPICS (medium baseline) ---
+  if (/\b(diagnose|medical advice|prescription|dose)\b/.test(text)) {
+    domains.push(RISK.DOMAINS.MEDICAL);
+    if (tier !== RISK.TIERS.HIGH) tier = RISK.TIERS.MEDIUM;
+  }
+  if (/\b(legal advice|lawsuit|sue|liability|contract dispute)\b/.test(text)) {
+    domains.push(RISK.DOMAINS.LEGAL);
+    if (tier !== RISK.TIERS.HIGH) tier = RISK.TIERS.MEDIUM;
+  }
+  if (/\b(financial advice|invest|portfolio|trading|crypto|tax)\b/.test(text)) {
+    domains.push(RISK.DOMAINS.FINANCIAL);
+    if (tier !== RISK.TIERS.HIGH) tier = RISK.TIERS.MEDIUM;
+  }
+  if (/\b(cyber|security|infosec|phish|malware|exploit|breach|hack)\b/.test(text)) {
+    domains.push(RISK.DOMAINS.CYBER);
+    if (tier !== RISK.TIERS.HIGH) tier = RISK.TIERS.MEDIUM;
+  }
+
+  // --- DYSREGULATION escalator (medium if not already high) ---
+  if (reg === PSYCH.REG.DYSREGULATED && tier !== RISK.TIERS.HIGH) {
+    tier = RISK.TIERS.MEDIUM;
+    signals.push("emotional_instability");
+  }
+
+  // --- MULTI-DOMAIN escalator (medium if not high) ---
+  if (domains.length >= 2 && tier !== RISK.TIERS.HIGH) {
+    tier = RISK.TIERS.MEDIUM;
+    signals.push("multi_domain");
+  }
+
+  // --- Overload/pressure soft escalator (low->medium via clamp signals) ---
+  if (
+    tier === RISK.TIERS.NONE &&
+    (load === PSYCH.LOAD.HIGH || pressure === PSYCH.PRESSURE.HIGH)
+  ) {
+    tier = RISK.TIERS.LOW;
+    signals.push("high_load_or_pressure");
+  }
+
+  // Law override hints (NOT absolute; LawLayer still applies constitution)
+  const lawOverrides = {};
+
+  // Never override actionable ADVANCE here (Law’s action supremacy remains king).
+  if (!actionable) {
+    if (tier === RISK.TIERS.HIGH) {
+      lawOverrides.forceIntent = "STABILIZE";
+      lawOverrides.budgetClamp = "short";
+      lawOverrides.velvetBlock = true;
+      lawOverrides.dominanceBias = "firm";
+    } else if (tier === RISK.TIERS.MEDIUM) {
+      lawOverrides.budgetClamp = "short";
+      lawOverrides.velvetBlock = true;
+      // intent hint left to Law/PRO unless dysregulated already caught
+    } else if (tier === RISK.TIERS.LOW) {
+      lawOverrides.budgetClamp = "short";
+    }
+  } else {
+    // actionable: clamp output shape (reduce sprawl), but keep ADVANCE
+    if (tier === RISK.TIERS.MEDIUM || tier === RISK.TIERS.HIGH) {
+      lawOverrides.budgetClamp = "short";
+      lawOverrides.velvetBlock = true;
     }
   }
 
-  return { preferredMove, hardOverride, reason };
+  // extra signal from ethics if safety redirect present
+  if (Array.isArray(e.ethicsTags) && e.ethicsTags.includes(ETHICS.TAGS.SAFETY_REDIRECT)) {
+    signals.push("ethics_safety_redirect");
+    if (!domains.includes(RISK.DOMAINS.SELF_HARM)) domains.push(RISK.DOMAINS.SELF_HARM);
+    tier = RISK.TIERS.HIGH;
+    if (!actionable) {
+      lawOverrides.forceIntent = "STABILIZE";
+      lawOverrides.budgetClamp = "short";
+      lawOverrides.velvetBlock = true;
+      lawOverrides.dominanceBias = "firm";
+    }
+  }
+
+  return {
+    riskTier: tier,
+    riskDomains: uniqBounded(domains, 6),
+    riskSignals: uniqBounded(signals, 6),
+    lawOverrides: isPlainObject(lawOverrides) ? { ...lawOverrides } : {},
+  };
+}
+
+function applyRiskOverridesToLawSeed(lawSeed, risk) {
+  const seed = isPlainObject(lawSeed) ? { ...lawSeed } : {};
+  const r = isPlainObject(risk) ? risk : {};
+  const o = isPlainObject(r.lawOverrides) ? r.lawOverrides : {};
+
+  // A-mode: never break action supremacy. If actionable, do not force intent.
+  if (!seed.actionable && o.forceIntent) {
+    const fi = normalizeMove(o.forceIntent);
+    seed.intent = fi;
+  }
+
+  if (o.budgetClamp === "short") seed.budget = "short";
+  if (typeof o.velvetBlock === "boolean" && o.velvetBlock) seed.velvetAllowed = false;
+
+  if (o.dominanceBias === "firm" || o.dominanceBias === "neutral") {
+    // if user-mode, do not hard force firm unless already stabilize (avoid steamrolling)
+    if (safeStr(seed.mode || "", 20).toLowerCase() !== "user") seed.dominance = o.dominanceBias;
+  }
+
+  return seed;
 }
 
 // -------------------------
 // LAW LAYER (constitutional precedence)
 // -------------------------
-function applyLawLayer(seed, psych, risk) {
+function applyLawLayer(seed, psych) {
   const out = isPlainObject(seed) ? { ...seed } : {};
   const tags = [];
   const reasons = [];
 
   const p = isPlainObject(psych) ? psych : {};
-  const r = isPlainObject(risk) ? risk : {};
-
   const reg = safeStr(p.regulationState || "", 16);
   const load = safeStr(p.cognitiveLoad || "", 12);
   const pressure = safeStr(p.socialPressure || "", 12);
 
   const actionable = !!out.actionable;
   const stalled = !!out.stalled;
-
-  // Rule 0: Risk bridge clamps (bond)
-  const tier = safeStr(r.riskTier || "", 12);
-  if (tier === RISK.TIER.HIGH || tier === RISK.TIER.MEDIUM) {
-    // Budget clamp + velvet block for risky contexts
-    out.budget = "short";
-    if (r?.lawOverrides?.velvetBlock) out.velvetAllowed = false;
-
-    // Intent bias if provided and not actionable
-    const bias = normalizeMove(r?.lawOverrides?.intentBias || "");
-    if (!actionable && (bias === "CLARIFY" || bias === "STABILIZE")) out.intent = bias;
-
-    // Dominance bias (avoid oversteer on risky non-actionable turns)
-    const domBias = safeStr(r?.lawOverrides?.dominanceBias || "", 10);
-    if (!actionable && (domBias === "neutral" || domBias === "soft")) out.dominance = domBias;
-
-    tags.push(LAW.TAGS.RISK_CLAMP, LAW.TAGS.BUDGET_CLAMP);
-    reasons.push("risk_bridge");
-  }
 
   // Rule 1: Containment precedence
   if (reg === PSYCH.REG.DYSREGULATED) {
@@ -746,91 +764,6 @@ function applyLawLayer(seed, psych, risk) {
 }
 
 // -------------------------
-// ETHICS LAYER (expanded; bounded posture signals only)
-// -------------------------
-function computeEthicsLayer(norm, psych, seed, risk) {
-  const n = isPlainObject(norm) ? norm : {};
-  const p = isPlainObject(psych) ? psych : {};
-  const s = isPlainObject(seed) ? seed : {};
-  const r = isPlainObject(risk) ? risk : {};
-
-  const tags = [ETHICS.TAGS.NON_DECEPTIVE, ETHICS.TAGS.PRIVACY_MIN];
-  const signals = [];
-
-  const text = safeStr(n?.text || "", 1400).toLowerCase();
-  const reg = safeStr(p.regulationState || "", 16);
-  const agencyPref = safeStr(p.agencyPreference || "", 16);
-
-  // Pull from RiskBridge when present (no double-thinking)
-  const domains = new Set(Array.isArray(r.riskDomains) ? r.riskDomains : []);
-  const tier = safeStr(r.riskTier || "", 12);
-
-  // Domain-specific posture
-  if (domains.has(RISK.DOMAINS.SELF_HARM)) {
-    tags.push(ETHICS.TAGS.HARM_AVOIDANCE, ETHICS.TAGS.SAFETY_REDIRECT);
-    signals.push(ETHICS.SIGNALS.MINIMIZE_RISKY_DETAIL, ETHICS.SIGNALS.ENCOURAGE_HELP_SEEKING);
-  } else if (reg === PSYCH.REG.DYSREGULATED) {
-    tags.push(ETHICS.TAGS.HARM_AVOIDANCE);
-    signals.push(ETHICS.SIGNALS.USE_NEUTRAL_TONE, ETHICS.SIGNALS.MINIMIZE_RISKY_DETAIL);
-  }
-
-  if (domains.has(RISK.DOMAINS.VIOLENCE)) {
-    tags.push(ETHICS.TAGS.VIOLENCE_AVOID, ETHICS.TAGS.SAFETY_REDIRECT);
-    signals.push(ETHICS.SIGNALS.REFUSE_VIOLENCE_ASSISTANCE, ETHICS.SIGNALS.AVOID_STEP_BY_STEP);
-  }
-
-  if (domains.has(RISK.DOMAINS.ILLEGAL)) {
-    tags.push(ETHICS.TAGS.ILLEGAL_AVOID);
-    signals.push(ETHICS.SIGNALS.REFUSE_ILLEGAL_ASSISTANCE, ETHICS.SIGNALS.AVOID_STEP_BY_STEP);
-  }
-
-  if (domains.has(RISK.DOMAINS.PRIVACY)) {
-    tags.push(ETHICS.TAGS.PRIVACY_PROTECT);
-    signals.push(ETHICS.SIGNALS.PROTECT_PRIVACY, ETHICS.SIGNALS.MINIMIZE_RISKY_DETAIL);
-  }
-
-  if (domains.has(RISK.DOMAINS.SEXUAL_SAFETY)) {
-    tags.push(ETHICS.TAGS.SEXUAL_SAFETY, ETHICS.TAGS.SAFETY_REDIRECT);
-    signals.push(ETHICS.SIGNALS.MINIMIZE_RISKY_DETAIL, ETHICS.SIGNALS.AVOID_STEP_BY_STEP);
-  }
-
-  if (domains.has(RISK.DOMAINS.HATE)) {
-    tags.push(ETHICS.TAGS.HATE_AVOID);
-    signals.push(ETHICS.SIGNALS.USE_NEUTRAL_TONE, ETHICS.SIGNALS.MINIMIZE_RISKY_DETAIL);
-  }
-
-  // High-stakes posture (non-advice signals)
-  if (domains.has(RISK.DOMAINS.MEDICAL)) {
-    tags.push(ETHICS.TAGS.HS_MEDICAL);
-    signals.push(ETHICS.SIGNALS.PROFESSIONAL_DISCLAIMER);
-  }
-  if (domains.has(RISK.DOMAINS.LEGAL)) {
-    tags.push(ETHICS.TAGS.HS_LEGAL);
-    signals.push(ETHICS.SIGNALS.PROFESSIONAL_DISCLAIMER);
-  }
-  if (domains.has(RISK.DOMAINS.FINANCE)) {
-    tags.push(ETHICS.TAGS.HS_FINANCE);
-    signals.push(ETHICS.SIGNALS.PROFESSIONAL_DISCLAIMER);
-  }
-
-  // Generic risk posture
-  if (tier === RISK.TIER.HIGH || tier === RISK.TIER.MEDIUM) {
-    signals.push(ETHICS.SIGNALS.MINIMIZE_RISKY_DETAIL);
-  }
-
-  // Agency respect
-  tags.push(ETHICS.TAGS.AGENCY_RESPECT);
-  if (agencyPref === PSYCH.AGENCY.AUTONOMOUS && !s.actionable) {
-    signals.push(ETHICS.SIGNALS.OFFER_OPTIONS_NOT_ORDERS);
-  }
-
-  return {
-    ethicsTags: uniqBounded(tags.map((x) => safeStr(x, 40)), 8),
-    ethicsSignals: uniqBounded(signals.map((x) => safeStr(x, 48)), 8),
-  };
-}
-
-// -------------------------
 // CYBER LAYER (defensive-only risk awareness)
 // -------------------------
 function computeCyberLayer(norm, psych) {
@@ -879,12 +812,12 @@ function computeCyberLayer(norm, psych) {
 
   return {
     cyberTags: uniqBounded(tags, 8),
-    cyberSignals: uniqBounded(signals, 8),
+    cyberSignals: uniqBounded(signals, 6),
   };
 }
 
 // -------------------------
-// ENGLISH LAYER
+// ENGLISH LAYER (clarity + audience + structure)
 // -------------------------
 function computeEnglishLayer(norm, seed) {
   const n = isPlainObject(norm) ? norm : {};
@@ -920,7 +853,10 @@ function computeEnglishLayer(norm, seed) {
     signals.push(ENGLISH.SIGNALS.DEFINE_JARGON, ENGLISH.SIGNALS.ASK_AUDIENCE);
   }
 
-  if (safeStr(s.mode || "", 20).toLowerCase() === "user" && safeStr(s.intent || "", 20) !== "ADVANCE") {
+  // Default clarity assist for user-mode on non-advance turns
+  const mode = safeStr(s.mode || "", 20).toLowerCase();
+  const intent = safeStr(s.intent || "", 20).toUpperCase();
+  if (mode === "user" && intent !== "ADVANCE") {
     if (!tags.length) tags.push(ENGLISH.TAGS.CLARITY);
     signals.push(ENGLISH.SIGNALS.USE_PLAIN_LANGUAGE);
   }
@@ -932,12 +868,12 @@ function computeEnglishLayer(norm, seed) {
 
   return {
     englishTags: uniqBounded(tags.map((x) => safeStr(x, 24)), 8),
-    englishSignals: uniqBounded(signals.map((x) => safeStr(x, 40)), 8),
+    englishSignals: uniqBounded(signals.map((x) => safeStr(x, 40)), 6),
   };
 }
 
 // -------------------------
-// FIN/ECO LAYER
+// FIN/ECO LAYER (non-advice posture + unit economics)
 // -------------------------
 function computeFinanceLayer(norm) {
   const n = isPlainObject(norm) ? norm : {};
@@ -959,7 +895,7 @@ function computeFinanceLayer(norm) {
     signals.push(FIN.SIGNALS.CLARIFY_ASSUMPTIONS, FIN.SIGNALS.ASK_CONSTRAINTS);
 
     if (/\bprice|pricing\b/.test(text)) tags.push(FIN.TAGS.PRICING);
-    if (/\bbudget|cashflow|forecast\b/.test(text)) tags.push(FIN.TAGS.BUDGETING);
+    if (/\b(budget|cashflow|forecast)\b/.test(text)) tags.push(FIN.TAGS.BUDGETING);
     if (/\b(ltv|cac|unit economics|margin|break[-\s]?even)\b/.test(text)) tags.push(FIN.TAGS.UNIT_ECON);
 
     if (/\b(tax|sred|grant|funding|compliance)\b/.test(text)) {
@@ -973,12 +909,12 @@ function computeFinanceLayer(norm) {
 
   return {
     finTags: uniqBounded(tags.map((x) => safeStr(x, 28)), 8),
-    finSignals: uniqBounded(signals.map((x) => safeStr(x, 40)), 8),
+    finSignals: uniqBounded(signals.map((x) => safeStr(x, 40)), 6),
   };
 }
 
 // -------------------------
-// STRATEGY LAYER
+// STRATEGY LAYER (systems thinking + decision-making cues)
 // -------------------------
 function computeStrategyLayer(norm, seed, psych) {
   const n = isPlainObject(norm) ? norm : {};
@@ -1028,7 +964,7 @@ function computeStrategyLayer(norm, seed, psych) {
 
   return {
     strategyTags: uniqBounded(tags.map((x) => safeStr(x, 28)), 8),
-    strategySignals: uniqBounded(signals.map((x) => safeStr(x, 40)), 8),
+    strategySignals: uniqBounded(signals.map((x) => safeStr(x, 40)), 6),
   };
 }
 
@@ -1285,37 +1221,25 @@ function computeVelvet(norm, session, med, desire, now, velvetAllowed) {
 function buildTrace(norm, session, med) {
   const y = normYear(norm?.year);
   const parts = [
-    `m=${safeStr(med?.mode || "", 20)}`,
-    `i=${safeStr(med?.intent || "", 20)}`,
-    `d=${safeStr(med?.dominance || "", 20)}`,
-    `b=${safeStr(med?.budget || "", 20)}`,
-    `a=${safeStr(norm?.action || "", 60) || "-"}`,
+    `m=${safeStr(med?.mode || "", 16)}`,
+    `i=${safeStr(med?.intent || "", 10)}`,
+    `d=${safeStr(med?.dominance || "", 8)}`,
+    `b=${safeStr(med?.budget || "", 8)}`,
+    `a=${safeStr(norm?.action || "", 18) || "-"}`,
     `y=${y !== null ? y : "-"}`,
     `p=${med?.actionable ? "1" : "0"}`,
     `e=${med?.textEmpty ? "1" : "0"}`,
     `st=${med?.stalled ? "1" : "0"}`,
-    `ld=${safeStr(med?.latentDesire || "", 20)}`,
-    `cu=${String(Math.round(clamp01(med?.confidence?.user) * 100))}`,
+    `rk=${safeStr(med?.riskTier || "", 6) || "-"}`,
+    `ld=${safeStr(med?.latentDesire || "", 10)}`,
     `cn=${String(Math.round(clamp01(med?.confidence?.nyx) * 100))}`,
     `v=${med?.velvet ? "1" : "0"}`,
-    `vr=${safeStr(med?.velvetReason || "", 30) || "-"}`,
-    // psych (bounded)
-    `pl=${safeStr(med?.psychology?.cognitiveLoad || "", 8) || "-"}`,
-    `pr=${safeStr(med?.psychology?.regulationState || "", 12) || "-"}`,
-    `pa=${safeStr(med?.psychology?.agencyPreference || "", 10) || "-"}`,
-    `ps=${safeStr(med?.psychology?.socialPressure || "", 8) || "-"}`,
-    // risk (first domain)
-    `rk=${safeStr(med?.riskTier || "", 8) || "-"}`,
-    `rd=${Array.isArray(med?.riskDomains) && med.riskDomains.length ? safeStr(med.riskDomains[0], 12) : "-"}`,
-    // law/ethics/cyber/edu/strategy (first tags only)
-    `lw=${Array.isArray(med?.lawTags) && med.lawTags.length ? safeStr(med.lawTags[0], 14) : "-"}`,
-    `et=${Array.isArray(med?.ethicsTags) && med.ethicsTags.length ? safeStr(med.ethicsTags[0], 14) : "-"}`,
-    `cy=${Array.isArray(med?.cyberTags) && med.cyberTags.length ? safeStr(med.cyberTags[0], 14) : "-"}`,
-    `en=${Array.isArray(med?.englishTags) && med.englishTags.length ? safeStr(med.englishTags[0], 10) : "-"}`,
-    `fi=${Array.isArray(med?.finTags) && med.finTags.length ? safeStr(med.finTags[0], 10) : "-"}`,
-    `stg=${Array.isArray(med?.strategyTags) && med.strategyTags.length ? safeStr(med.strategyTags[0], 12) : "-"}`,
-    // move hint (bounded)
-    `mv=${safeStr(med?.movePolicy?.preferredMove || "", 10) || "-"}`,
+    `pl=${safeStr(med?.psychology?.cognitiveLoad || "", 6) || "-"}`,
+    `pr=${safeStr(med?.psychology?.regulationState || "", 10) || "-"}`,
+    `lw=${Array.isArray(med?.lawTags) && med.lawTags.length ? safeStr(med.lawTags[0], 12) : "-"}`,
+    `et=${Array.isArray(med?.ethicsTags) && med.ethicsTags.length ? safeStr(med.ethicsTags[0], 12) : "-"}`,
+    `cy=${Array.isArray(med?.cyberTags) && med.cyberTags.length ? safeStr(med.cyberTags[0], 12) : "-"}`,
+    `mv=${safeStr(med?.movePolicy?.preferredMove || "", 8) || "-"}`,
   ];
 
   const base = parts.join("|");
@@ -1323,7 +1247,7 @@ function buildTrace(norm, session, med) {
   return base.slice(0, MARION_TRACE_MAX - 3) + "...";
 }
 function hashTrace(trace) {
-  return stableHashLite(safeStr(trace, 400)).slice(0, 10);
+  return sha1Lite(safeStr(trace, 400)).slice(0, 10);
 }
 
 // -------------------------
@@ -1342,6 +1266,7 @@ function mediate(norm, session, opts = {}) {
     const textEmpty = !!n?.turnSignals?.textEmpty;
     const payloadActionable = !!n?.turnSignals?.payloadActionable;
 
+    // Mode: default to ARCHITECT when uncertain (your constitution)
     const macModeOverride =
       normalizeMacModeRaw(
         n?.turnSignals?.macModeOverride ||
@@ -1359,14 +1284,17 @@ function mediate(norm, session, opts = {}) {
     if (!mode) mode = "architect";
     if (mode !== "architect" && mode !== "user" && mode !== "transitional") mode = "architect";
 
+    // Momentum / stall heuristic
     const lastAdvanceAt = Number(s.lastAdvanceAt || 0) || 0;
     const stalled = lastAdvanceAt ? now - lastAdvanceAt > 90 * 1000 : false;
 
+    // Intent (with constitution: action wins)
     let intent = toUpperToken(n.turnIntent || "", 20);
     if (!intent || (intent !== "ADVANCE" && intent !== "CLARIFY" && intent !== "STABILIZE")) {
       intent = classifyTurnIntent(n);
     }
 
+    // actionable definition (tightened)
     const payloadAction = safeStr(n?.turnSignals?.payloadAction || "", 60).trim();
     const payloadYear = normYear(n?.turnSignals?.payloadYear);
 
@@ -1377,10 +1305,12 @@ function mediate(norm, session, opts = {}) {
 
     if (actionable) intent = "ADVANCE";
 
+    // If stalled and not actionable, prefer CLARIFY (avoid spinning)
     if (stalled && (mode === "architect" || mode === "transitional") && intent !== "ADVANCE") {
       intent = "CLARIFY";
     }
 
+    // Dominance & budget baseline
     let dominance = "neutral"; // firm | neutral | soft
     let budget = "medium"; // short | medium
 
@@ -1392,10 +1322,11 @@ function mediate(norm, session, opts = {}) {
       dominance = intent === "ADVANCE" ? "neutral" : "soft";
     }
 
+    // grounding allowance
     const grounding = mode === "user" || mode === "transitional";
     let groundingMaxLines = intent === "STABILIZE" ? 3 : grounding ? 1 : 0;
 
-    // --- PSYCH LAYER ---
+    // --- PSYCH LAYER (always-on) ---
     const psych0 = computePsychologyReasoningObject(
       n,
       s,
@@ -1403,15 +1334,14 @@ function mediate(norm, session, opts = {}) {
       now
     );
 
+    // Desire + confidence
     const latentDesire = inferLatentDesire(n, s, { mode, intent, dominance, budget });
     const confidence = inferConfidence(n, s, { mode, intent, dominance, budget });
+
     psych0.motivation = safeStr(latentDesire || "", 16);
 
-    // --- RISK BRIDGE (bond) ---
-    const risk = computeRiskBridge(n, psych0, { mode, intent, actionable });
-
-    // --- LAW LAYER ---
-    const lawSeed = {
+    // --- Build initial lawSeed (pre-risk) ---
+    const lawSeed0 = {
       mode,
       intent,
       dominance,
@@ -1423,8 +1353,17 @@ function mediate(norm, session, opts = {}) {
       velvetAllowed: true,
     };
 
-    const lawApplied = applyLawLayer(lawSeed, psych0, risk);
+    // --- ETHICS (pre-law, so RiskBridge can consume it) ---
+    const ethics0 = computeEthicsLayer(n, psych0, lawSeed0);
 
+    // --- RISKBRIDGE (A-mode: Law final; risk provides hints only) ---
+    const risk0 = computeRiskBridge(n, psych0, ethics0, lawSeed0);
+    const lawSeed1 = applyRiskOverridesToLawSeed(lawSeed0, risk0);
+
+    // --- LAW LAYER (final arbiter) ---
+    const lawApplied = applyLawLayer(lawSeed1, psych0);
+
+    // Apply law outputs to live variables
     intent = normalizeMove(lawApplied.intent);
     dominance = safeStr(lawApplied.dominance || dominance, 10) || dominance;
     budget = safeStr(lawApplied.budget || budget, 10) || budget;
@@ -1441,6 +1380,7 @@ function mediate(norm, session, opts = {}) {
       velvetAllowed
     );
 
+    // dominance correction (still allowed; law already ran)
     if (velvet.velvet && mode === "user" && intent !== "ADVANCE") dominance = "soft";
     if (
       latentDesire === LATENT_DESIRE.MASTERY &&
@@ -1450,6 +1390,7 @@ function mediate(norm, session, opts = {}) {
       dominance = "firm";
     }
 
+    // Marion state machine (light)
     let marionState = "SEEK"; // SEEK | DELIVER | STABILIZE | BRIDGE
     let marionReason = "default";
     const a = safeStr(n.action || "", 80).trim();
@@ -1482,12 +1423,12 @@ function mediate(norm, session, opts = {}) {
       textEmpty: !!textEmpty,
       groundingMaxLines,
 
-      // risk bridge outputs
-      riskTier: safeStr(risk.riskTier || "", 12),
-      riskDomains: Array.isArray(risk.riskDomains) ? risk.riskDomains.slice(0, 8) : [],
-      riskSignals: Array.isArray(risk.riskSignals) ? risk.riskSignals.slice(0, 8) : [],
+      // riskbridge outputs (bounded)
+      riskTier: safeStr(risk0?.riskTier || RISK.TIERS.NONE, 10),
+      riskDomains: uniqBounded(risk0?.riskDomains || [], 6),
+      riskSignals: uniqBounded(risk0?.riskSignals || [], 6),
+      riskLawOverrides: isPlainObject(risk0?.lawOverrides) ? { ...risk0.lawOverrides } : {},
 
-      // law outputs
       lawTags: Array.isArray(lawApplied.lawTags) ? lawApplied.lawTags.slice(0, 8) : [],
       lawReasons: Array.isArray(lawApplied.lawReasons) ? lawApplied.lawReasons.slice(0, 8) : [],
       velvetAllowed: !!velvetAllowed,
@@ -1533,27 +1474,24 @@ function mediate(norm, session, opts = {}) {
     // Apply psychology impacts (post-law)
     cog = applyPsychologyToMediator(cog, psych0);
 
-    // --- ETHICS LAYER (expanded) ---
-    const ethics = computeEthicsLayer(n, psych0, cog, risk);
+    // Ethics (final, bounded)
+    const ethics = computeEthicsLayer(n, psych0, cog);
     cog.ethicsTags = ethics.ethicsTags;
     cog.ethicsSignals = ethics.ethicsSignals;
 
-    // --- CYBER LAYER (defensive-only) ---
+    // Cyber/English/Fin/Strategy layers (bounded)
     const cyber = computeCyberLayer(n, psych0);
     cog.cyberTags = cyber.cyberTags;
     cog.cyberSignals = cyber.cyberSignals;
 
-    // --- ENGLISH LAYER ---
     const english = computeEnglishLayer(n, { mode: cog.mode, intent: cog.intent });
     cog.englishTags = english.englishTags;
     cog.englishSignals = english.englishSignals;
 
-    // --- FIN/ECO LAYER ---
     const fin = computeFinanceLayer(n);
     cog.finTags = fin.finTags;
     cog.finSignals = fin.finSignals;
 
-    // --- STRATEGY LAYER ---
     const strat = computeStrategyLayer(n, { mode: cog.mode, intent: cog.intent }, psych0);
     cog.strategyTags = strat.strategyTags;
     cog.strategySignals = strat.strategySignals;
@@ -1564,20 +1502,11 @@ function mediate(norm, session, opts = {}) {
       confidence: cog.confidence,
       latentDesire: cog.latentDesire,
       velvet: cog.velvet,
-      velvetReason: cog.velvetReason,
-      stalled: cog.stalled,
-      actionable: cog.actionable,
-      textEmpty: cog.textEmpty,
       psychology: cog.psychology,
       movePolicy: cog.movePolicy,
-      riskTier: cog.riskTier,
-      riskDomains: cog.riskDomains,
       lawTags: cog.lawTags,
       ethicsTags: cog.ethicsTags,
       cyberTags: cog.cyberTags,
-      englishTags: cog.englishTags,
-      finTags: cog.finTags,
-      strategyTags: cog.strategyTags,
     });
 
     cog.marionTrace = safeStr(trace, MARION_TRACE_MAX + 8);
@@ -1622,11 +1551,10 @@ function mediate(norm, session, opts = {}) {
       actionable: false,
       textEmpty: false,
       groundingMaxLines: 0,
-
-      riskTier: RISK.TIER.LOW,
+      riskTier: RISK.TIERS.LOW,
       riskDomains: [],
-      riskSignals: [RISK.SIGNALS.MINIMIZE_RISKY_DETAIL],
-
+      riskSignals: ["fail_open"],
+      riskLawOverrides: {},
       lawTags: [LAW.TAGS.COHERENCE],
       lawReasons: ["fail_open"],
       velvetAllowed: false,
@@ -1667,7 +1595,7 @@ function mediate(norm, session, opts = {}) {
         marionTagSuggested: MARION_STYLE_CONTRACT.tags.retry,
       },
       marionTrace: "fail_open",
-      marionTraceHash: stableHashLite("fail_open").slice(0, 10),
+      marionTraceHash: sha1Lite("fail_open").slice(0, 10),
       macModeOverride: "",
       macModeWhy: [],
       privacy: { noRawTextInTrace: true, boundedTrace: true, sideEffectFree: true },
@@ -1681,31 +1609,34 @@ module.exports = {
   LATENT_DESIRE,
   MARION_STYLE_CONTRACT,
   PSYCH,
-  RISK,
   LAW,
   ETHICS,
+  RISK,
   CYBER,
   ENGLISH,
   FIN,
   STRATEGY,
   mediate,
 
-  // optional exports for diagnostics
+  // diagnostics
   buildTrace,
   hashTrace,
 
-  // bridge/law/ethics exports for deterministic unit tests
+  // risk bridge exports (unit tests)
   computeRiskBridge,
+  applyRiskOverridesToLawSeed,
+
+  // law/ethics exports (unit tests)
   applyLawLayer,
   computeEthicsLayer,
 
-  // cyber/edu/strategy exports for deterministic unit tests
+  // cyber/edu/strategy exports (unit tests)
   computeCyberLayer,
   computeEnglishLayer,
   computeFinanceLayer,
   computeStrategyLayer,
 
-  // psych exports for deterministic unit tests
+  // psych exports (unit tests)
   computePsychologyReasoningObject,
   applyPsychologyToMediator,
 };
