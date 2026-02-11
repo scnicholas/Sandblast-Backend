@@ -12,14 +12,14 @@
  * - Keep it safe: no raw user text in traces; bounded outputs; fail-open behavior
  * - Keep it portable: no express, no fs, no index.js imports, no knowledge access
  *
- * v1.0.2 (PSYCH LAYER ALWAYS-ON++++: PsychologyReasoningObject v1 + load/regulation/agency/social pressure wiring)
- * ✅ Adds PsychologyReasoningObject (PRO) computed every turn (no persistence, no raw text stored).
- * ✅ PRO influences budget, dominance, groundingMaxLines, and some intent arbitration (containment on dysregulation).
- * ✅ Deterministic, bounded heuristics; fail-open safe defaults.
+ * v1.0.3 (MOVE POLICY OUTPUT++++ + PURE NO-MUTATION++++: adds movePolicy hints for StateSpine reconciliation; removes norm mutation; keeps PRO always-on)
+ * ✅ Adds movePolicy { preferredMove, hardOverride, reason } for chatEngine to reconcile Spine move when needed.
+ * ✅ Removes norm mutation (__nowMs); estimators accept nowMs directly.
+ * ✅ Keeps: PsychologyReasoningObject (PRO) computed every turn (no persistence, no raw text stored).
  * ✅ Keeps: MarionStyleContract, deterministic clock hook, stricter privacy, tighter intent/stall logic, handoff hints.
  */
 
-const MARION_VERSION = "marionSO v1.0.2";
+const MARION_VERSION = "marionSO v1.0.3";
 
 // -------------------------
 // helpers
@@ -163,7 +163,11 @@ function detectMacModeImplicit(text) {
     a += 3;
     why.push("architect:lets-define/design");
   }
-  if (/\b(non[-\s]?negotiable|must|hard rule|lock this in|constitution|mediator|pipeline|governor|decision table)\b/.test(s)) {
+  if (
+    /\b(non[-\s]?negotiable|must|hard rule|lock this in|constitution|mediator|pipeline|governor|decision table)\b/.test(
+      s
+    )
+  ) {
     a += 3;
     why.push("architect:constraints/architecture");
   }
@@ -204,13 +208,14 @@ function detectMacModeImplicit(text) {
 // -------------------------
 // PSYCHOLOGY LAYER (always-on, deterministic, bounded)
 // -------------------------
-function estimateCognitiveLoad(norm, session) {
+function estimateCognitiveLoad(norm, session, nowMs) {
   // No raw storage; we only compute.
   const text = safeStr(norm?.text || "", 1400);
   const s = text.toLowerCase();
 
   const len = text.length;
-  const hasEnum = /\b(step\s*\d+|1\s*,\s*2\s*,\s*3|1\s*2\s*3)\b/.test(s) || /\b\d+\)\s/.test(s);
+  const hasEnum =
+    /\b(step\s*\d+|1\s*,\s*2\s*,\s*3|1\s*2\s*3)\b/.test(s) || /\b\d+\)\s/.test(s);
   const qMarks = (text.match(/\?/g) || []).length;
   const tech = /\b(index\.js|chatengine\.js|statespine\.js|cors|session|payload|endpoint|route|resolver|json|tests?)\b/.test(s);
   const urgent = /\b(asap|urgent|right now|immediately|quick|fast)\b/.test(s);
@@ -226,7 +231,7 @@ function estimateCognitiveLoad(norm, session) {
 
   // If user is stalled, treat as slightly higher load (friction increases load)
   const lastAdvanceAt = Number(isPlainObject(session) ? session.lastAdvanceAt : 0) || 0;
-  const now = Number(norm?.__nowMs || 0) || 0; // optional, injected by caller; if absent, ignored
+  const now = Number(nowMs || 0) || 0;
   if (lastAdvanceAt && now && now - lastAdvanceAt > 90 * 1000) score += 1;
 
   if (score >= 4) return PSYCH.LOAD.HIGH;
@@ -238,16 +243,12 @@ function estimateRegulationState(norm) {
   const text = safeStr(norm?.text || "", 1400).toLowerCase();
 
   // Dysregulated signals (containment)
-  if (
-    /\b(panic|i can'?t breathe|i'?m freaking out|meltdown|spiral|breakdown|i can'?t do this)\b/.test(text)
-  ) {
+  if (/\b(panic|i can'?t breathe|i'?m freaking out|meltdown|spiral|breakdown|i can'?t do this)\b/.test(text)) {
     return PSYCH.REG.DYSREGULATED;
   }
 
   // Strained signals
-  if (
-    /\b(overwhelmed|stuck|frustrated|anxious|stress(ed)?|worried|i'?m not sure|confused)\b/.test(text)
-  ) {
+  if (/\b(overwhelmed|stuck|frustrated|anxious|stress(ed)?|worried|i'?m not sure|confused)\b/.test(text)) {
     return PSYCH.REG.STRAINED;
   }
 
@@ -290,9 +291,9 @@ function estimateSocialPressure(norm, session) {
   return PSYCH.PRESSURE.LOW;
 }
 
-function computePsychologyReasoningObject(norm, session, medSeed) {
+function computePsychologyReasoningObject(norm, session, medSeed, nowMs) {
   const mode = safeStr(medSeed?.mode || "", 20).toLowerCase();
-  const load = estimateCognitiveLoad(norm, session);
+  const load = estimateCognitiveLoad(norm, session, nowMs);
   const regulationState = estimateRegulationState(norm);
   const agencyPreference = estimateAgencyPreference(norm, session, mode);
   const socialPressure = estimateSocialPressure(norm, session);
@@ -307,7 +308,39 @@ function computePsychologyReasoningObject(norm, session, medSeed) {
   };
 }
 
-// Apply PRO impacts to mediator outputs (budget/dominance/grounding and containment)
+function normalizeMove(m) {
+  const s = safeStr(m, 20).trim().toUpperCase();
+  if (s === "ADVANCE" || s === "CLARIFY" || s === "STABILIZE") return s;
+  return "CLARIFY";
+}
+
+function deriveMovePolicy(cog) {
+  // A small hint object for chatEngine to reconcile StateSpine’s move,
+  // without Marion touching Spine or storing text.
+  const intent = safeStr(cog?.intent || "", 20).toUpperCase();
+  const actionable = !!cog?.actionable;
+  const reg = safeStr(cog?.psychology?.regulationState || "", 16);
+
+  // Defaults: intent == preferredMove
+  let preferredMove = normalizeMove(intent);
+  let hardOverride = false;
+  let reason = "intent";
+
+  // Containment: dysregulated turns should not “wander”.
+  if (reg === PSYCH.REG.DYSREGULATED) {
+    preferredMove = actionable ? "ADVANCE" : "STABILIZE";
+    hardOverride = !actionable; // if actionable, allow doing the thing; otherwise hold/contain
+    reason = actionable ? "dysregulated_actionable" : "dysregulated_containment";
+  } else if (reg === PSYCH.REG.STRAINED && !actionable) {
+    preferredMove = "CLARIFY";
+    hardOverride = false;
+    reason = "strained_clarify";
+  }
+
+  return { preferredMove, hardOverride, reason };
+}
+
+// Apply PRO impacts to mediator outputs (budget/dominance/grounding and some intent arbitration)
 function applyPsychologyToMediator(cog, psych) {
   const out = isPlainObject(cog) ? { ...cog } : {};
   const p = isPlainObject(psych) ? psych : {};
@@ -321,14 +354,18 @@ function applyPsychologyToMediator(cog, psych) {
   if (p.regulationState === PSYCH.REG.DYSREGULATED) {
     out.intent = out.actionable ? "ADVANCE" : "STABILIZE";
     out.dominance = "firm";
-    out.groundingMaxLines = Math.max(0, Math.min(2, Number(out.groundingMaxLines || 0) || 0));
+    const cur = Number(out.groundingMaxLines);
+    const curSafe = Number.isFinite(cur) ? cur : 0;
+    out.groundingMaxLines = Math.max(0, Math.min(2, curSafe));
   }
 
   // Strained: reduce ambiguity; prefer clarify over wander
   if (p.regulationState === PSYCH.REG.STRAINED && !out.actionable) {
     out.intent = "CLARIFY";
     if (out.dominance !== "firm") out.dominance = "neutral";
-    out.groundingMaxLines = Math.max(0, Math.min(1, Number(out.groundingMaxLines || 0) || 0));
+    const cur = Number(out.groundingMaxLines);
+    const curSafe = Number.isFinite(cur) ? cur : 0;
+    out.groundingMaxLines = Math.max(0, Math.min(1, curSafe));
   }
 
   // Agency preference affects dominance posture slightly
@@ -345,6 +382,9 @@ function applyPsychologyToMediator(cog, psych) {
     agencyPreference: safeStr(p.agencyPreference || "", 16),
     socialPressure: safeStr(p.socialPressure || "", 12),
   };
+
+  // Move reconciliation hint (computed from final state)
+  out.movePolicy = deriveMovePolicy(out);
 
   return out;
 }
@@ -562,6 +602,8 @@ function buildTrace(norm, session, med) {
     `pr=${safeStr(med?.psychology?.regulationState || "", 12) || "-"}`,
     `pa=${safeStr(med?.psychology?.agencyPreference || "", 10) || "-"}`,
     `ps=${safeStr(med?.psychology?.socialPressure || "", 8) || "-"}`,
+    // move hint (bounded)
+    `mv=${safeStr(med?.movePolicy?.preferredMove || "", 10) || "-"}`,
   ];
 
   const base = parts.join("|");
@@ -584,9 +626,6 @@ function mediate(norm, session, opts = {}) {
 
     const clockNow = typeof o.nowMs === "function" ? o.nowMs : nowMsDefault;
     const now = Number(clockNow()) || nowMsDefault();
-
-    // (optional) allow psych load estimator to use clock without storing anything
-    n.__nowMs = now;
 
     const hasPayload = !!n?.turnSignals?.hasPayload;
     const textEmpty = !!n?.turnSignals?.textEmpty;
@@ -653,7 +692,12 @@ function mediate(norm, session, opts = {}) {
     const groundingMaxLines = intent === "STABILIZE" ? 3 : grounding ? 1 : 0;
 
     // --- PSYCH LAYER (always-on) ---
-    const psych0 = computePsychologyReasoningObject(n, s, { mode, intent, dominance, budget, actionable, textEmpty, stalled });
+    const psych0 = computePsychologyReasoningObject(
+      n,
+      s,
+      { mode, intent, dominance, budget, actionable, textEmpty, stalled },
+      now
+    );
 
     // Desire + confidence (arbitrated here)
     const latentDesire = inferLatentDesire(n, s, { mode, intent, dominance, budget });
@@ -663,21 +707,11 @@ function mediate(norm, session, opts = {}) {
     psych0.motivation = safeStr(latentDesire || "", 16);
 
     // Velvet binding (music-first)
-    const velvet = computeVelvet(
-      n,
-      s,
-      { mode, intent, dominance, budget, confidence },
-      latentDesire,
-      now
-    );
+    const velvet = computeVelvet(n, s, { mode, intent, dominance, budget, confidence }, latentDesire, now);
 
     // dominance correction
     if (velvet.velvet && mode === "user" && intent !== "ADVANCE") dominance = "soft";
-    if (
-      latentDesire === LATENT_DESIRE.MASTERY &&
-      (mode === "architect" || mode === "transitional") &&
-      intent === "ADVANCE"
-    ) {
+    if (latentDesire === LATENT_DESIRE.MASTERY && (mode === "architect" || mode === "transitional") && intent === "ADVANCE") {
       dominance = "firm";
     }
 
@@ -752,6 +786,13 @@ function mediate(norm, session, opts = {}) {
       macModeWhy: Array.isArray(implicit.why)
         ? implicit.why.slice(0, 6).map((x) => safeStr(x, 60))
         : [],
+
+      // privacy declaration (non-functional; used only for audits/tests)
+      privacy: {
+        noRawTextInTrace: true,
+        boundedTrace: true,
+        sideEffectFree: true,
+      },
     };
 
     // Apply psychology impacts last (so it can override intent/budget/dominance safely)
@@ -768,6 +809,7 @@ function mediate(norm, session, opts = {}) {
       actionable: cog.actionable,
       textEmpty: cog.textEmpty,
       psychology: cog.psychology,
+      movePolicy: cog.movePolicy,
     });
 
     cog.marionTrace = safeStr(trace, MARION_TRACE_MAX + 8);
@@ -782,11 +824,14 @@ function mediate(norm, session, opts = {}) {
     }
     if (o && o.forceIntent && (o.forceIntent === "ADVANCE" || o.forceIntent === "CLARIFY" || o.forceIntent === "STABILIZE")) {
       cog.intent = o.forceIntent;
+      // keep movePolicy aligned if intent forced
+      cog.movePolicy = deriveMovePolicy(cog);
     }
     if (o && typeof o.forceVelvet === "boolean") {
       cog.velvet = o.forceVelvet;
       cog.velvetSince = o.forceVelvet ? now : 0;
       cog.velvetReason = o.forceVelvet ? "forced_on" : "forced_off";
+      cog.movePolicy = deriveMovePolicy(cog);
     }
 
     return cog;
@@ -817,6 +862,7 @@ function mediate(norm, session, opts = {}) {
         agencyPreference: PSYCH.AGENCY.GUIDED,
         socialPressure: PSYCH.PRESSURE.LOW,
       },
+      movePolicy: { preferredMove: "CLARIFY", hardOverride: false, reason: "fail_open" },
       marionStyle: MARION_STYLE_CONTRACT,
       handoff: {
         marionEndsHard: true,
@@ -828,6 +874,7 @@ function mediate(norm, session, opts = {}) {
       marionTraceHash: sha1Lite("fail_open").slice(0, 10),
       macModeOverride: "",
       macModeWhy: [],
+      privacy: { noRawTextInTrace: true, boundedTrace: true, sideEffectFree: true },
       errorCode: code,
     };
   }
