@@ -29,6 +29,11 @@
  *          tone constitution + regression tests, payload beats silence, chip-click advance,
  *          pinned aliases, accurate miss reasons, year-end route, loop dampener, derived guard default OFF,
  *          followUps, session keys
+ *
+ * ✅ Option A GREETING PREFIX++++:
+ *    - Adds a small first-turn greeting line ONCE per session
+ *    - NEVER applied on replay/burst (inboundKey repeat) to prevent perceived loops / repeated TTS
+ *    - Inserted after move-explain line to preserve “move speaks first” constitution
  */
 
 const CE_VERSION =
@@ -199,6 +204,51 @@ function hasActionablePayload(payload) {
     "focus",
   ]);
   return keys.some((k) => actionable.has(k));
+}
+
+// -------------------------
+// Option A greeting prefix (once per session, never on replay/burst)
+// -------------------------
+function buildInboundKey(norm) {
+  // Keep stable + bounded; no need for cryptographic strength.
+  // IMPORTANT: include only what defines “same turn” for replay detection.
+  const p = isPlainObject(norm?.payload) ? norm.payload : {};
+  const keyObj = {
+    t: safeStr(norm?.text || ""),
+    a: safeStr(norm?.action || ""),
+    y: normYear(norm?.year),
+    l: safeStr(norm?.lane || ""),
+    v: safeStr(norm?.vibe || ""),
+    // actionable payload subset only
+    pa: safeStr(p.action || ""),
+    py: normYear(p.year),
+    pl: safeStr(p.lane || ""),
+    pr: safeStr(p.route || ""),
+    pv: safeStr(p.vibe || ""),
+  };
+  return sha1Lite(JSON.stringify(keyObj)).slice(0, 18);
+}
+
+function computeOptionAGreetingLine(session, norm, cog, inboundKey) {
+  const s = isPlainObject(session) ? session : {};
+  const already = truthy(s.__greeted);
+  if (already) return "";
+
+  // Never greet on replay/burst (same inboundKey)
+  const lastKey = safeStr(s.__lastInboundKey || "").trim();
+  if (lastKey && inboundKey && lastKey === inboundKey) return "";
+
+  // Avoid greeting on text-empty chip taps (these are frequently re-fired by UI)
+  if (norm?.turnSignals?.textEmpty && norm?.turnSignals?.hasPayload) return "";
+
+  // Don’t step on counselor-lite boundary/intro.
+  if (safeStr(norm?.action || "") === "counsel_intro") return "";
+
+  // Keep tiny; mode-sensitive but not verbose.
+  const mode = safeStr(cog?.mode || "").toLowerCase();
+  if (mode === "architect") return "Alright, Mac.";
+  if (mode === "transitional") return "Okay, Mac.";
+  return "Hey Mac.";
 }
 
 // -------------------------
@@ -395,7 +445,10 @@ function computeNoveltyScore(norm, session, cog) {
 function buildDiscoveryHint(norm, session, cog, noveltyScore) {
   const mode = safeStr(cog?.mode || "").toLowerCase();
   const intent = safeStr(cog?.intent || "").toUpperCase();
-  const lane = safeStr(norm?.lane || "").trim() || safeStr(session?.lane || "").trim() || "general";
+  const lane =
+    safeStr(norm?.lane || "").trim() ||
+    safeStr(session?.lane || "").trim() ||
+    "general";
   const action = safeStr(norm?.action || "").trim();
 
   // Only for CLARIFY turns that are non-actionable, where novelty is high-ish.
@@ -422,7 +475,8 @@ function buildDiscoveryHint(norm, session, cog, noveltyScore) {
 
   if (!forcedChoice) {
     // user mode: still sharp, but softer.
-    question = lane === "music" ? `Which one should I do first?` : `What should we do first?`;
+    question =
+      lane === "music" ? `Which one should I do first?` : `What should we do first?`;
   }
 
   return {
@@ -434,7 +488,15 @@ function buildDiscoveryHint(norm, session, cog, noveltyScore) {
   };
 }
 
-function buildBoundedTelemetry(norm, session, cog, corePrev, corePlan, noveltyScore, discoveryHint) {
+function buildBoundedTelemetry(
+  norm,
+  session,
+  cog,
+  corePrev,
+  corePlan,
+  noveltyScore,
+  discoveryHint
+) {
   // No raw text. Scalars + enums only.
   const s = isPlainObject(session) ? session : {};
   const y = normYear(norm?.year ?? s.lastYear);
@@ -1235,9 +1297,31 @@ function applyTurnConstitutionToReply(rawReply, cog, session) {
   // Optional: signature transition insertion (rare, deliberate)
   const trans = pickSignatureTransition(session || {}, cog || {});
 
-  // Compose: moveLine -> signatureTransition -> content
+  // Compose base: signatureTransition -> content (we’ll prepend moveLine & greeting after)
   if (trans) reply = `${trans}\n\n${reply}`;
+
+  // Move line MUST be first.
   if (moveLine) reply = `${moveLine}\n\n${reply}`;
+
+  // Option A greeting (ONCE per session, never on replay/burst)
+  const greet = oneLine(safeStr(cog?.greetLine || "")).trim();
+  if (greet) {
+    // Insert after moveLine (to preserve “move speaks first” constitution).
+    // If moveLine absent, greeting becomes first.
+    if (moveLine) {
+      const parts = reply.split("\n\n");
+      if (parts.length >= 2) {
+        // parts[0] is moveLine (and possibly trans already handled above)
+        // Insert greeting after the first paragraph (moveLine).
+        parts.splice(1, 0, greet);
+        reply = parts.join("\n\n");
+      } else {
+        reply = `${reply}\n\n${greet}`;
+      }
+    } else {
+      reply = `${greet}\n\n${reply}`;
+    }
+  }
 
   // Budget-based compression (with ranked-list protection in applyBudgetText)
   reply = applyBudgetText(reply, cog.budget);
@@ -1908,7 +1992,12 @@ function runToneRegressionTests() {
   });
   assert("core_spine_rev_increments", sp1.rev === sp0.rev + 1, `${sp0.rev}->${sp1.rev}`);
 
-  return { ok: failures.length === 0, failures, ran: 6 };
+  // 7) Option A: greeting should not duplicate when inboundKey repeats (simulate)
+  const sess = { __greeted: false, __lastInboundKey: "abc" };
+  const g = computeOptionAGreetingLine(sess, { turnSignals: { textEmpty: false, hasPayload: false } }, { mode: "user" }, "abc");
+  assert("optionA_no_greet_on_replay", g === "", g);
+
+  return { ok: failures.length === 0, failures, ran: 7 };
 }
 
 // -------------------------
@@ -1976,6 +2065,11 @@ async function handleChat(input) {
     discoveryHint
   );
 
+  // Option A: compute inboundKey + one-time greeting (never on replay/burst)
+  const inboundKey = buildInboundKey(norm);
+  cog.inboundKey = inboundKey;
+  cog.greetLine = computeOptionAGreetingLine(session, norm, cog, inboundKey);
+
   const yearSticky = normYear(session.lastYear) ?? null;
 
   // PAYLOAD YEAR BEATS STICKY YEAR (chip click should override prior context)
@@ -1996,6 +2090,10 @@ async function handleChat(input) {
     lastTurnIntent: safeStr(cog.intent || ""),
     lastTurnAt: nowMs(),
     ...(safeStr(cog.intent || "").toUpperCase() === "ADVANCE" ? { lastAdvanceAt: nowMs() } : {}),
+
+    // Option A replay gating + greeting state
+    __lastInboundKey: inboundKey,
+    ...(cog.greetLine ? { __greeted: true, __greetedAt: nowMs() } : {}),
 
     // new cognitive telemetry
     lastLatentDesire: safeStr(cog.latentDesire || ""),
@@ -2072,6 +2170,11 @@ async function handleChat(input) {
         lastSigTransition: "",
         velvetMode: false,
         velvetSince: 0,
+
+        // Option A greeting state reset
+        __greeted: false,
+        __greetedAt: 0,
+        __lastInboundKey: "",
 
         // canonical spine
         __spineState: coreNext,
