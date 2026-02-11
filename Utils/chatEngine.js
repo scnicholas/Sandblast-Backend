@@ -17,7 +17,7 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7bR (MARION SO WIRED++++: uses Utils/marionSO.js as canonical cog mediator; keeps STATE SPINE WIRED++++)
+ * v0.7bS (MARION SO WIRED++++ + TELEMETRY++++ + DISCOVERY HINT++++: MarionSO remains canonical mediator; adds bounded telemetry + novelty/discovery hint for brittle/novel scenarios)
  * ✅ Keeps: v0.7bQ STATE SPINE WIRED++++ (Utils/stateSpine.js canonical planner + pendingAsk clear on chip-year)
  * ✅ Keeps: v0.7bP PENDINGASK CLEAR ON CHIP-YEAR++++ (via stateSpine finalize)
  * ✅ Keeps: v0.7bO STATE SPINE ENFORCEMENT++++ (rev per turn + single decideNextMove() + move-explain every turn)
@@ -32,7 +32,7 @@
  */
 
 const CE_VERSION =
-  "chatEngine v0.7bR (MARION SO WIRED++++ via Utils/marionSO.js | STATE SPINE WIRED++++ via Utils/stateSpine.js | PENDINGASK CLEAR ON CHIP-YEAR++++ | HARDENING++++ + MARION SPINE LOGGING++++ + COUNSELOR-LITE INTRO++++ + CHIP COMPRESSION++++ + DESIRE+CONFIDENCE ARBITRATION++++ + VELVET (MUSIC-FIRST)++++ + TONE TESTS++++ + TOP10-ONLY + Top10 visibility fix + payload beats silence + chip-click advance + pinned aliases + accurate miss reasons + year-end route + loop dampener)";
+  "chatEngine v0.7bS (MARION SO WIRED++++ via Utils/marionSO.js | TELEMETRY++++ + DISCOVERY HINT++++ | STATE SPINE WIRED++++ via Utils/stateSpine.js | PENDINGASK CLEAR ON CHIP-YEAR++++ | HARDENING++++ + MARION SPINE LOGGING++++ + COUNSELOR-LITE INTRO++++ + CHIP COMPRESSION++++ + DESIRE+CONFIDENCE ARBITRATION++++ + VELVET (MUSIC-FIRST)++++ + TONE TESTS++++ + TOP10-ONLY + Top10 visibility fix + payload beats silence + chip-click advance + pinned aliases + accurate miss reasons + year-end route + loop dampener)";
 
 const Spine = require("./stateSpine");
 const MarionSO = require("./marionSO");
@@ -171,9 +171,6 @@ function applyBudgetText(s, budget) {
 
 function stableSourceKey(sourceKey) {
   // Normalize potentially long/variable keys to a stable short token for loop sigs.
-  // Examples:
-  //  "music/top10_by_year_v1.json" -> "top10_by_year_v1"
-  //  "music/wiki/yearend_hot100_by_year" -> "yearend_hot100_by_year"
   const s = safeStr(sourceKey).trim();
   if (!s) return "";
   const parts = s.split(/[\\/]/).filter(Boolean);
@@ -268,7 +265,8 @@ function finalizeCoreSpine({
     corePrev && typeof corePrev === "object" ? corePrev : Spine.createState();
 
   const typedYearAnswered =
-    !inboundNorm?.turnSignals?.textEmpty && textHasYearToken(inboundNorm?.text || "");
+    !inboundNorm?.turnSignals?.textEmpty &&
+    textHasYearToken(inboundNorm?.text || "");
 
   const chipYearAnswered =
     !!inboundNorm?.turnSignals?.payloadActionable &&
@@ -277,8 +275,6 @@ function finalizeCoreSpine({
 
   const answeredPendingAsk = typedYearAnswered || chipYearAnswered;
 
-  // IMPORTANT FIX (rev discipline):
-  // Never call Spine.updateState() inside the patch builder (would risk extra rev bumps).
   const patch = {
     lane: lane || prev.lane,
     stage: safeStr(decisionUpper?.stage || "") || prev.stage,
@@ -311,7 +307,10 @@ function finalizeCoreSpine({
     Spine.assertTurnUpdated(prev, next);
   } catch (e) {
     // fail-open: correct rev and keep UX alive
-    const fixed = { ...next, rev: (Number.isFinite(prev.rev) ? prev.rev : 0) + 1 };
+    const fixed = {
+      ...next,
+      rev: (Number.isFinite(prev.rev) ? prev.rev : 0) + 1,
+    };
     next = fixed;
   }
 
@@ -348,6 +347,137 @@ function marionTraceBuild(norm, s, med) {
 }
 function marionTraceHash(trace) {
   return sha1Lite(safeStr(trace)).slice(0, 10);
+}
+
+// -------------------------
+// TELEMETRY++++ + novelty/discovery hint (bounded, no text)
+// -------------------------
+function computeNoveltyScore(norm, session, cog) {
+  const s = isPlainObject(session) ? session : {};
+  const t = safeStr(norm?.text || "");
+  const action = safeStr(norm?.action || "").trim();
+  const lane = safeStr(norm?.lane || "").trim();
+  const hasPayload = !!norm?.turnSignals?.hasPayload;
+  const actionablePayload = !!norm?.turnSignals?.payloadActionable;
+  const textEmpty = !!norm?.turnSignals?.textEmpty;
+
+  let score = 0;
+
+  // Unknown/empty action is a novelty driver (especially outside music).
+  if (!action) score += 0.18;
+
+  // Long unstructured text -> likely novel scenario.
+  const len = t.length;
+  if (len >= 180) score += 0.18;
+  if (len >= 420) score += 0.18;
+
+  // Many question marks / mixed asks -> novelty.
+  const q = (t.match(/\?/g) || []).length;
+  if (q >= 2) score += 0.12;
+  if (q >= 4) score += 0.12;
+
+  // No payload and not actionable -> higher novelty.
+  if (!hasPayload && !action) score += 0.12;
+
+  // Text empty with payload is usually NOT novel (chip tap = clear).
+  if (textEmpty && actionablePayload) score -= 0.15;
+
+  // Lane shifts without explicit instruction can signal novelty/confusion.
+  const lastLane = safeStr(s.lane || "").trim();
+  if (lastLane && lane && lastLane !== lane && !action) score += 0.10;
+
+  // Stabilize intent lowers novelty (it’s not "unknown", it’s dysregulation/need).
+  if (safeStr(cog?.intent || "").toUpperCase() === "STABILIZE") score -= 0.10;
+
+  return clamp01(score);
+}
+
+function buildDiscoveryHint(norm, session, cog, noveltyScore) {
+  const mode = safeStr(cog?.mode || "").toLowerCase();
+  const intent = safeStr(cog?.intent || "").toUpperCase();
+  const lane = safeStr(norm?.lane || "").trim() || safeStr(session?.lane || "").trim() || "general";
+  const action = safeStr(norm?.action || "").trim();
+
+  // Only for CLARIFY turns that are non-actionable, where novelty is high-ish.
+  const actionable = !!cog?.actionable;
+  if (intent !== "CLARIFY" || actionable) {
+    return { enabled: false, reason: "no" };
+  }
+  if (noveltyScore < 0.65) {
+    return { enabled: false, reason: "low_novelty" };
+  }
+
+  // Prefer forced-choice collapse for architect/transitional; gentle for user.
+  const forcedChoice = mode === "architect" || mode === "transitional";
+
+  // Decide the single constraint question (no text storage).
+  let question = "Pick one: what do you want next?";
+  let options = ["Music", "Movies", "Sponsors"];
+
+  if (lane === "music" || action) {
+    // If they’re already near music but unclear, ask for year/route explicitly.
+    question = `Pick one: Top 10, cinematic, or year-end?`;
+    options = ["Top 10", "Make it cinematic", "Year-End Hot 100"];
+  }
+
+  if (!forcedChoice) {
+    // user mode: still sharp, but softer.
+    question = lane === "music" ? `Which one should I do first?` : `What should we do first?`;
+  }
+
+  return {
+    enabled: true,
+    reason: "novelty_high",
+    forcedChoice: !!forcedChoice,
+    question,
+    options: options.slice(0, 4),
+  };
+}
+
+function buildBoundedTelemetry(norm, session, cog, corePrev, corePlan, noveltyScore, discoveryHint) {
+  // No raw text. Scalars + enums only.
+  const s = isPlainObject(session) ? session : {};
+  const y = normYear(norm?.year ?? s.lastYear);
+  return {
+    v: "telemetry.v1",
+    t: nowMs(),
+    marion: {
+      version: safeStr(cog?.marionVersion || ""),
+      mode: safeStr(cog?.mode || ""),
+      intent: safeStr(cog?.intent || ""),
+      dominance: safeStr(cog?.dominance || ""),
+      budget: safeStr(cog?.budget || ""),
+      actionable: !!cog?.actionable,
+      stalled: !!cog?.stalled,
+      textEmpty: !!cog?.textEmpty,
+      latentDesire: safeStr(cog?.latentDesire || ""),
+      confUser: Math.round(clamp01(cog?.confidence?.user) * 100),
+      confNyx: Math.round(clamp01(cog?.confidence?.nyx) * 100),
+      velvet: !!cog?.velvet,
+      traceHash: safeStr(cog?.marionTraceHash || ""),
+      novelty: Math.round(clamp01(noveltyScore) * 100),
+      discovery: discoveryHint?.enabled
+        ? {
+            enabled: true,
+            forcedChoice: !!discoveryHint.forcedChoice,
+            reason: safeStr(discoveryHint.reason || ""),
+          }
+        : { enabled: false, reason: safeStr(discoveryHint?.reason || "no") },
+    },
+    turn: {
+      lane: safeStr(norm?.lane || s.lane || corePrev?.lane || ""),
+      action: safeStr(norm?.action || ""),
+      year: y !== null ? y : null,
+      hasPayload: !!norm?.turnSignals?.hasPayload,
+      payloadActionable: !!norm?.turnSignals?.payloadActionable,
+    },
+    spine: {
+      v: Spine.SPINE_VERSION,
+      prevRev: Number.isFinite(corePrev?.rev) ? corePrev.rev : 0,
+      plannedMove: safeStr(corePlan?.move || ""),
+      plannedStage: safeStr(corePlan?.stage || ""),
+    },
+  };
 }
 
 // -------------------------
@@ -845,7 +975,7 @@ function normalizeInbound(input) {
 
 // -------------------------
 // COG MEDIATOR (“Marion”) + desire/confidence arbitration
-// NOTE: v0.7bR uses MarionSO.mediate() as canonical.
+// NOTE: v0.7bS uses MarionSO.mediate() as canonical.
 // This legacy local mediator is preserved for backward compatibility/tests,
 // but the engine path uses MarionSO now.
 // -------------------------
@@ -1825,11 +1955,26 @@ async function handleChat(input) {
   cog.nextMoveStage = safeStr(corePlan.stage || "");
 
   // Ensure LATENT_DESIRE string compatibility if MarionSO enum is used
-  // (No-op if already string values; just guards if future enum changes.)
   if (SO_LATENT_DESIRE && cog && safeStr(cog.latentDesire || "")) {
     const ld = safeStr(cog.latentDesire || "");
     cog.latentDesire = ld; // keep as simple string
   }
+
+  // TELEMETRY++++ + DISCOVERY HINT++++ (no text)
+  const noveltyScore = computeNoveltyScore(norm, session, cog);
+  const discoveryHint = buildDiscoveryHint(norm, session, cog, noveltyScore);
+  cog.noveltyScore = clamp01(noveltyScore);
+  cog.discoveryHint = discoveryHint;
+
+  const telemetry = buildBoundedTelemetry(
+    norm,
+    session,
+    cog,
+    corePrev,
+    corePlan,
+    noveltyScore,
+    discoveryHint
+  );
 
   const yearSticky = normYear(session.lastYear) ?? null;
 
@@ -1865,6 +2010,11 @@ async function handleChat(input) {
     marionReason: safeStr(cog.marionReason || ""),
     marionTrace: safeStr(cog.marionTrace || ""),
     marionTraceHash: safeStr(cog.marionTraceHash || ""),
+
+    // novelty/discovery snapshot (bounded, no text)
+    lastNoveltyScore: clamp01(cog.noveltyScore),
+    lastDiscoveryHintOn: !!(cog.discoveryHint && cog.discoveryHint.enabled),
+    lastDiscoveryHintReason: safeStr(cog.discoveryHint?.reason || ""),
   };
 
   // Helper: build a stateSpine-compatible pendingAsk
@@ -1874,6 +2024,16 @@ async function handleChat(input) {
       type: safeStr(type || "clarify"),
       prompt: safeStr(prompt || ""),
       required: required !== false,
+    };
+  }
+
+  function metaBase(extra) {
+    return {
+      engine: CE_VERSION,
+      ...extra,
+      turnSignals: norm.turnSignals,
+      telemetry,
+      elapsedMs: nowMs() - started,
     };
   }
 
@@ -1919,18 +2079,15 @@ async function handleChat(input) {
         ...baseCogPatch,
       },
       cog,
-      meta: {
-        engine: CE_VERSION,
+      meta: metaBase({
         resetHint: true,
-        turnSignals: norm.turnSignals,
         spine: {
           v: Spine.SPINE_VERSION,
           rev: coreNext.rev,
           lane: coreNext.lane,
           stage: coreNext.stage,
         },
-        elapsedMs: nowMs() - started,
-      },
+      }),
     };
   }
 
@@ -1971,10 +2128,8 @@ async function handleChat(input) {
         ...baseCogPatch,
       },
       cog,
-      meta: {
-        engine: CE_VERSION,
+      meta: metaBase({
         route: "counsel_intro",
-        turnSignals: norm.turnSignals,
         spine: {
           v: Spine.SPINE_VERSION,
           rev: coreNext.rev,
@@ -1982,8 +2137,7 @@ async function handleChat(input) {
           stage: coreNext.stage,
           move: cog.nextMove,
         },
-        elapsedMs: nowMs() - started,
-      },
+      }),
     };
   }
 
@@ -2048,10 +2202,8 @@ async function handleChat(input) {
         ...baseCogPatch,
       },
       cog,
-      meta: {
-        engine: CE_VERSION,
+      meta: metaBase({
         route: "ask_year",
-        turnSignals: norm.turnSignals,
         spine: {
           v: Spine.SPINE_VERSION,
           rev: coreNext.rev,
@@ -2059,13 +2211,18 @@ async function handleChat(input) {
           stage: coreNext.stage,
           move: cog.nextMove,
         },
-        elapsedMs: nowMs() - started,
-      },
+      }),
     };
   }
 
   if (norm.action === "switch_lane") {
-    const replyRaw = `Pick a lane:\n\n• Music\n• Movies\n• Sponsors`;
+    // DISCOVERY HINT can tighten this if novelty is high.
+    const baseMenu = `Pick a lane:\n\n• Music\n• Movies\n• Sponsors`;
+    const replyRaw =
+      discoveryHint && discoveryHint.enabled && discoveryHint.forcedChoice
+        ? `${safeStr(discoveryHint.question).trim()}\n\n• Music\n• Movies\n• Sponsors`
+        : baseMenu;
+
     const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
     const sigLine = detectSignatureLine(reply);
 
@@ -2110,10 +2267,8 @@ async function handleChat(input) {
         ...baseCogPatch,
       },
       cog,
-      meta: {
-        engine: CE_VERSION,
+      meta: metaBase({
         route: "switch_lane",
-        turnSignals: norm.turnSignals,
         spine: {
           v: Spine.SPINE_VERSION,
           rev: coreNext.rev,
@@ -2121,8 +2276,7 @@ async function handleChat(input) {
           stage: coreNext.stage,
           move: cog.nextMove,
         },
-        elapsedMs: nowMs() - started,
-      },
+      }),
     };
   }
 
@@ -2204,10 +2358,8 @@ async function handleChat(input) {
         ...baseCogPatch,
       },
       cog,
-      meta: {
-        engine: CE_VERSION,
+      meta: metaBase({
         needYear: true,
-        turnSignals: norm.turnSignals,
         spine: {
           v: Spine.SPINE_VERSION,
           rev: coreNext.rev,
@@ -2215,8 +2367,7 @@ async function handleChat(input) {
           stage: coreNext.stage,
           move: cog.nextMove,
         },
-        elapsedMs: nowMs() - started,
-      },
+      }),
     };
   }
 
@@ -2258,11 +2409,9 @@ async function handleChat(input) {
         ...baseCogPatch,
       },
       cog,
-      meta: {
-        engine: CE_VERSION,
+      meta: metaBase({
         outOfRange: true,
         year,
-        turnSignals: norm.turnSignals,
         spine: {
           v: Spine.SPINE_VERSION,
           rev: coreNext.rev,
@@ -2270,8 +2419,7 @@ async function handleChat(input) {
           stage: coreNext.stage,
           move: cog.nextMove,
         },
-        elapsedMs: nowMs() - started,
-      },
+      }),
     };
   }
 
@@ -2342,13 +2490,11 @@ async function handleChat(input) {
             ...baseCogPatch,
           },
           cog,
-          meta: {
-            engine: CE_VERSION,
+          meta: metaBase({
             route: "custom_story",
             dampened: true,
             musicSig: sig,
             confidence: cog.confidence,
-            turnSignals: norm.turnSignals,
             spine: {
               v: Spine.SPINE_VERSION,
               rev: coreNext.rev,
@@ -2356,8 +2502,7 @@ async function handleChat(input) {
               stage: coreNext.stage,
               move: cog.nextMove,
             },
-            elapsedMs: nowMs() - started,
-          },
+          }),
         };
       }
 
@@ -2418,15 +2563,13 @@ async function handleChat(input) {
           ...baseCogPatch,
         },
         cog,
-        meta: {
-          engine: CE_VERSION,
+        meta: metaBase({
           route: "custom_story",
           vibe: v,
           musicSig: sig,
           velvet: !!cog.velvet,
           desire: cog.latentDesire,
           confidence: cog.confidence,
-          turnSignals: norm.turnSignals,
           spine: {
             v: Spine.SPINE_VERSION,
             rev: coreNext.rev,
@@ -2434,8 +2577,7 @@ async function handleChat(input) {
             stage: coreNext.stage,
             move: cog.nextMove,
           },
-          elapsedMs: nowMs() - started,
-        },
+        }),
       };
     }
 
@@ -2522,8 +2664,7 @@ async function handleChat(input) {
             ...baseCogPatch,
           },
           cog,
-          meta: {
-            engine: CE_VERSION,
+          meta: metaBase({
             route: "yearend_hot100",
             found: false,
             reason: res.reason,
@@ -2531,7 +2672,6 @@ async function handleChat(input) {
             velvet: !!cog.velvet,
             desire: cog.latentDesire,
             confidence: cog.confidence,
-            turnSignals: norm.turnSignals,
             spine: {
               v: Spine.SPINE_VERSION,
               rev: coreNext.rev,
@@ -2539,8 +2679,7 @@ async function handleChat(input) {
               stage: coreNext.stage,
               move: cog.nextMove,
             },
-            elapsedMs: nowMs() - started,
-          },
+          }),
         };
       }
 
@@ -2601,13 +2740,11 @@ async function handleChat(input) {
             ...baseCogPatch,
           },
           cog,
-          meta: {
-            engine: CE_VERSION,
+          meta: metaBase({
             route: "yearend_hot100",
             dampened: true,
             musicSig: sig,
             confidence: cog.confidence,
-            turnSignals: norm.turnSignals,
             spine: {
               v: Spine.SPINE_VERSION,
               rev: coreNext.rev,
@@ -2615,8 +2752,7 @@ async function handleChat(input) {
               stage: coreNext.stage,
               move: cog.nextMove,
             },
-            elapsedMs: nowMs() - started,
-          },
+          }),
         };
       }
 
@@ -2682,8 +2818,7 @@ async function handleChat(input) {
           ...baseCogPatch,
         },
         cog,
-        meta: {
-          engine: CE_VERSION,
+        meta: metaBase({
           route: "yearend_hot100",
           method: res.method,
           sourceKey: res.sourceKey,
@@ -2692,7 +2827,6 @@ async function handleChat(input) {
           musicSig: sig,
           velvet: !!cog.velvet,
           desire: cog.latentDesire,
-          turnSignals: norm.turnSignals,
           spine: {
             v: Spine.SPINE_VERSION,
             rev: coreNext.rev,
@@ -2700,8 +2834,7 @@ async function handleChat(input) {
             stage: coreNext.stage,
             move: cog.nextMove,
           },
-          elapsedMs: nowMs() - started,
-        },
+        }),
       };
     }
 
@@ -2771,8 +2904,7 @@ async function handleChat(input) {
             ...baseCogPatch,
           },
           cog,
-          meta: {
-            engine: CE_VERSION,
+          meta: metaBase({
             route: "top10",
             found: false,
             reason: res.reason,
@@ -2780,7 +2912,6 @@ async function handleChat(input) {
             velvet: !!cog.velvet,
             desire: cog.latentDesire,
             confidence: cog.confidence,
-            turnSignals: norm.turnSignals,
             spine: {
               v: Spine.SPINE_VERSION,
               rev: coreNext.rev,
@@ -2788,8 +2919,7 @@ async function handleChat(input) {
               stage: coreNext.stage,
               move: cog.nextMove,
             },
-            elapsedMs: nowMs() - started,
-          },
+          }),
         };
       }
 
@@ -2846,8 +2976,7 @@ async function handleChat(input) {
             ...baseCogPatch,
           },
           cog,
-          meta: {
-            engine: CE_VERSION,
+          meta: metaBase({
             route: "top10",
             dampened: true,
             musicSig: sig,
@@ -2858,7 +2987,6 @@ async function handleChat(input) {
             velvet: !!cog.velvet,
             desire: cog.latentDesire,
             confidence: cog.confidence,
-            turnSignals: norm.turnSignals,
             spine: {
               v: Spine.SPINE_VERSION,
               rev: coreNext.rev,
@@ -2866,8 +2994,7 @@ async function handleChat(input) {
               stage: coreNext.stage,
               move: cog.nextMove,
             },
-            elapsedMs: nowMs() - started,
-          },
+          }),
         };
       }
 
@@ -2877,7 +3004,8 @@ async function handleChat(input) {
 
       const microPack = !!getPinnedMicroMoments(knowledge).pack;
       const momentsLoaded = !!session.musicMomentsLoaded || microPack;
-      const momentsLoadedAt = Number(session.musicMomentsLoadedAt || 0) || (microPack ? nowMs() : 0);
+      const momentsLoadedAt =
+        Number(session.musicMomentsLoadedAt || 0) || (microPack ? nowMs() : 0);
 
       const coreNext = finalizeCoreSpine({
         corePrev,
@@ -2916,8 +3044,7 @@ async function handleChat(input) {
           ...baseCogPatch,
         },
         cog,
-        meta: {
-          engine: CE_VERSION,
+        meta: metaBase({
           route: "top10",
           method: res.method,
           sourceKey: res.sourceKey,
@@ -2928,7 +3055,6 @@ async function handleChat(input) {
           allowDerivedTop10: !!norm.allowDerivedTop10,
           velvet: !!cog.velvet,
           desire: cog.latentDesire,
-          turnSignals: norm.turnSignals,
           spine: {
             v: Spine.SPINE_VERSION,
             rev: coreNext.rev,
@@ -2936,8 +3062,7 @@ async function handleChat(input) {
             stage: coreNext.stage,
             move: cog.nextMove,
           },
-          elapsedMs: nowMs() - started,
-        },
+        }),
       };
     }
 
@@ -2954,7 +3079,8 @@ async function handleChat(input) {
 
       const microPack = !!getPinnedMicroMoments(knowledge).pack;
       const momentsLoaded = !!session.musicMomentsLoaded || microPack;
-      const momentsLoadedAt = Number(session.musicMomentsLoadedAt || 0) || (microPack ? nowMs() : 0);
+      const momentsLoadedAt =
+        Number(session.musicMomentsLoadedAt || 0) || (microPack ? nowMs() : 0);
 
       if (!res.ok) {
         const replyRaw = `No pinned story moment for ${year}. Pick a mood: romantic, rebellious, or nostalgic.`;
@@ -3019,8 +3145,7 @@ async function handleChat(input) {
             ...baseCogPatch,
           },
           cog,
-          meta: {
-            engine: CE_VERSION,
+          meta: metaBase({
             route: "story_moment",
             found: false,
             reason: res.reason,
@@ -3028,7 +3153,6 @@ async function handleChat(input) {
             velvet: !!cog.velvet,
             desire: cog.latentDesire,
             confidence: cog.confidence,
-            turnSignals: norm.turnSignals,
             spine: {
               v: Spine.SPINE_VERSION,
               rev: coreNext.rev,
@@ -3036,8 +3160,7 @@ async function handleChat(input) {
               stage: coreNext.stage,
               move: cog.nextMove,
             },
-            elapsedMs: nowMs() - started,
-          },
+          }),
         };
       }
 
@@ -3098,13 +3221,11 @@ async function handleChat(input) {
             ...baseCogPatch,
           },
           cog,
-          meta: {
-            engine: CE_VERSION,
+          meta: metaBase({
             route: "story_moment",
             dampened: true,
             musicSig: sig,
             confidence: cog.confidence,
-            turnSignals: norm.turnSignals,
             spine: {
               v: Spine.SPINE_VERSION,
               rev: coreNext.rev,
@@ -3112,8 +3233,7 @@ async function handleChat(input) {
               stage: coreNext.stage,
               move: cog.nextMove,
             },
-            elapsedMs: nowMs() - started,
-          },
+          }),
         };
       }
 
@@ -3173,8 +3293,7 @@ async function handleChat(input) {
           ...baseCogPatch,
         },
         cog,
-        meta: {
-          engine: CE_VERSION,
+        meta: metaBase({
           route: "story_moment",
           method: res.method,
           sourceKey: res.sourceKey,
@@ -3183,7 +3302,6 @@ async function handleChat(input) {
           musicSig: sig,
           velvet: !!cog.velvet,
           desire: cog.latentDesire,
-          turnSignals: norm.turnSignals,
           spine: {
             v: Spine.SPINE_VERSION,
             rev: coreNext.rev,
@@ -3191,8 +3309,7 @@ async function handleChat(input) {
             stage: coreNext.stage,
             move: cog.nextMove,
           },
-          elapsedMs: nowMs() - started,
-        },
+        }),
       };
     }
 
@@ -3264,8 +3381,7 @@ async function handleChat(input) {
             ...baseCogPatch,
           },
           cog,
-          meta: {
-            engine: CE_VERSION,
+          meta: metaBase({
             route: "micro_moment",
             found: false,
             reason: res.reason,
@@ -3273,7 +3389,6 @@ async function handleChat(input) {
             velvet: !!cog.velvet,
             desire: cog.latentDesire,
             confidence: cog.confidence,
-            turnSignals: norm.turnSignals,
             spine: {
               v: Spine.SPINE_VERSION,
               rev: coreNext.rev,
@@ -3281,8 +3396,7 @@ async function handleChat(input) {
               stage: coreNext.stage,
               move: cog.nextMove,
             },
-            elapsedMs: nowMs() - started,
-          },
+          }),
         };
       }
 
@@ -3343,13 +3457,11 @@ async function handleChat(input) {
             ...baseCogPatch,
           },
           cog,
-          meta: {
-            engine: CE_VERSION,
+          meta: metaBase({
             route: "micro_moment",
             dampened: true,
             musicSig: sig,
             confidence: cog.confidence,
-            turnSignals: norm.turnSignals,
             spine: {
               v: Spine.SPINE_VERSION,
               rev: coreNext.rev,
@@ -3357,8 +3469,7 @@ async function handleChat(input) {
               stage: coreNext.stage,
               move: cog.nextMove,
             },
-            elapsedMs: nowMs() - started,
-          },
+          }),
         };
       }
 
@@ -3418,8 +3529,7 @@ async function handleChat(input) {
           ...baseCogPatch,
         },
         cog,
-        meta: {
-          engine: CE_VERSION,
+        meta: metaBase({
           route: "micro_moment",
           method: res.method,
           sourceKey: res.sourceKey,
@@ -3428,7 +3538,6 @@ async function handleChat(input) {
           musicSig: sig,
           velvet: !!cog.velvet,
           desire: cog.latentDesire,
-          turnSignals: norm.turnSignals,
           spine: {
             v: Spine.SPINE_VERSION,
             rev: coreNext.rev,
@@ -3436,15 +3545,18 @@ async function handleChat(input) {
             stage: coreNext.stage,
             move: cog.nextMove,
           },
-          elapsedMs: nowMs() - started,
-        },
+        }),
       };
     }
 
     // fallback menu (Top10-only)
     if (year) {
       const acts = compactMusicFollowUps(year);
-      const replyRaw = `For ${year}: Top 10, cinematic, or Year-End Hot 100.`;
+      const replyRaw =
+        discoveryHint && discoveryHint.enabled && discoveryHint.forcedChoice
+          ? `${safeStr(discoveryHint.question).trim()}\n\nFor ${year}: Top 10, cinematic, or Year-End Hot 100.`
+          : `For ${year}: Top 10, cinematic, or Year-End Hot 100.`;
+
       const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
       const sigLine = detectSignatureLine(reply);
 
@@ -3506,13 +3618,11 @@ async function handleChat(input) {
           ...baseCogPatch,
         },
         cog,
-        meta: {
-          engine: CE_VERSION,
+        meta: metaBase({
           route: "music_menu",
           velvet: !!cog.velvet,
           desire: cog.latentDesire,
           confidence: cog.confidence,
-          turnSignals: norm.turnSignals,
           spine: {
             v: Spine.SPINE_VERSION,
             rev: coreNext.rev,
@@ -3520,8 +3630,7 @@ async function handleChat(input) {
             stage: coreNext.stage,
             move: cog.nextMove,
           },
-          elapsedMs: nowMs() - started,
-        },
+        }),
       };
     }
 
@@ -3562,13 +3671,11 @@ async function handleChat(input) {
         ...baseCogPatch,
       },
       cog,
-      meta: {
-        engine: CE_VERSION,
+      meta: metaBase({
         route: "music_need_year",
         velvet: !!cog.velvet,
         desire: cog.latentDesire,
         confidence: cog.confidence,
-        turnSignals: norm.turnSignals,
         spine: {
           v: Spine.SPINE_VERSION,
           rev: coreNext.rev,
@@ -3576,8 +3683,7 @@ async function handleChat(input) {
           stage: coreNext.stage,
           move: cog.nextMove,
         },
-        elapsedMs: nowMs() - started,
-      },
+      }),
     };
   }
 
@@ -3622,13 +3728,11 @@ async function handleChat(input) {
         ...baseCogPatch,
       },
       cog,
-      meta: {
-        engine: CE_VERSION,
+      meta: metaBase({
         route: "general_default_music",
         velvet: !!cog.velvet,
         desire: cog.latentDesire,
         confidence: cog.confidence,
-        turnSignals: norm.turnSignals,
         spine: {
           v: Spine.SPINE_VERSION,
           rev: coreNext.rev,
@@ -3636,8 +3740,7 @@ async function handleChat(input) {
           stage: coreNext.stage,
           move: cog.nextMove,
         },
-        elapsedMs: nowMs() - started,
-      },
+      }),
     };
   }
 
@@ -3682,10 +3785,8 @@ async function handleChat(input) {
         ...baseCogPatch,
       },
       cog,
-      meta: {
-        engine: CE_VERSION,
+      meta: metaBase({
         route: "general_counsel_intro",
-        turnSignals: norm.turnSignals,
         spine: {
           v: Spine.SPINE_VERSION,
           rev: coreNext.rev,
@@ -3693,14 +3794,18 @@ async function handleChat(input) {
           stage: coreNext.stage,
           move: cog.nextMove,
         },
-        elapsedMs: nowMs() - started,
-      },
+      }),
     };
   }
 
-  const replyRaw = safeStr(norm.text)
-    ? `Tell me what you want next: music, movies, or sponsors.`
-    : `Okay — tell me what you want next.`;
+  // DISCOVERY HINT: if novelty is high, force-choice chips instead of open-ended ask.
+  const replyRaw =
+    discoveryHint && discoveryHint.enabled
+      ? safeStr(discoveryHint.question).trim()
+      : safeStr(norm.text)
+      ? `Tell me what you want next: music, movies, or sponsors.`
+      : `Okay — tell me what you want next.`;
+
   const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
   const sigLine = detectSignatureLine(reply);
 
@@ -3740,13 +3845,11 @@ async function handleChat(input) {
       ...baseCogPatch,
     },
     cog,
-    meta: {
-      engine: CE_VERSION,
+    meta: metaBase({
       route: "general",
       velvet: !!cog.velvet,
       desire: cog.latentDesire,
       confidence: cog.confidence,
-      turnSignals: norm.turnSignals,
       spine: {
         v: Spine.SPINE_VERSION,
         rev: coreNext.rev,
@@ -3754,8 +3857,7 @@ async function handleChat(input) {
         stage: coreNext.stage,
         move: cog.nextMove,
       },
-      elapsedMs: nowMs() - started,
-    },
+    }),
   };
 }
 
