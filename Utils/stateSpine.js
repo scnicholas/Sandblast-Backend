@@ -10,12 +10,15 @@
  *
  * Designed to be imported by Utils/chatEngine.js (pure, no express).
  *
- * v1.1.2 (CRITICAL COMPAT++++ + PENDINGASK CLEAR ON CHIP-YEAR++++)
+ * v1.1.3 (PRIVACY TURN-SIG++++ + CHIP-YEAR CLEAR++++ + NEED_PICK RESOLVE++++ + HARDENING++++)
  * ✅ Keeps: pendingAsk schema dual-support (kind/options OR id/type/required) + need_year detection + safe clear rules.
- * ✅ Adds: clears need_year when user selects a chip / payload carries a valid year (silent_click/choose with payloadActionable).
+ * ✅ Keeps: clears need_year when user selects a chip / payload carries a valid year (silent_click/choose with payloadActionable).
+ * ✅ Adds: turnSig no longer includes raw user text (hash-only).
+ * ✅ Adds: resolves need_pick via chip lane/action or typed lane token.
+ * ✅ Tightens: chip-year detection uses inbound normalized year (payload.year OR extracted year OR body.year).
  */
 
-const SPINE_VERSION = "stateSpine v1.1.2";
+const SPINE_VERSION = "stateSpine v1.1.3";
 
 const LANE = Object.freeze({
   MUSIC: "music",
@@ -64,13 +67,6 @@ function isPlainObject(x) {
       Object.getPrototypeOf(x) === null)
   );
 }
-function clamp01(n) {
-  const x = Number(n);
-  if (!Number.isFinite(x)) return 0;
-  if (x < 0) return 0;
-  if (x > 1) return 1;
-  return x;
-}
 function asArray(x) {
   return Array.isArray(x) ? x : [];
 }
@@ -99,6 +95,16 @@ function extractYearFromText(t) {
 function textHasYearToken(t) {
   return extractYearFromText(t) !== null;
 }
+function sha1Lite(str) {
+  // small stable hash (NOT cryptographic) for diagnostics without raw text
+  const s = safeStr(str, 2000);
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(16);
+}
 
 function hasActionablePayload(payload) {
   if (!isPlainObject(payload)) return false;
@@ -122,6 +128,11 @@ function hasActionablePayload(payload) {
     "focus",
   ]);
   return keys.some((k) => actionable.has(k));
+}
+
+function isLaneToken(t) {
+  const s = safeStr(t, 64).trim().toLowerCase();
+  return s === "music" || s === "movies" || s === "news" || s === "sponsors" || s === "help" || s === "general";
 }
 
 // -------------------------
@@ -188,6 +199,14 @@ function isNeedYearAsk(pendingAsk) {
   return false;
 }
 
+function isNeedPickAsk(pendingAsk) {
+  const pa = normalizePendingAsk(pendingAsk);
+  if (!pa) return false;
+  const k = safeStr(pa.kind || "", 80).toLowerCase();
+  const id = safeStr(pa.id || "", 80).toLowerCase();
+  return k === "need_pick" || id === "need_pick";
+}
+
 function buildPendingAsk(kind, prompt, options) {
   return normalizePendingAsk({
     kind: safeStr(kind || "", 40).trim() || "need_more_detail",
@@ -248,8 +267,14 @@ function computeTurnSig({ lane, topic, intent, activeContext, text }) {
       ? String(activeContext.year)
       : "";
   const rid = activeContext && activeContext.route ? activeContext.route : "";
-  const t = safeStr(text || "", 240).trim().slice(0, 64);
-  return [lane || "", topic || "", intent || "", rid || "", y || "", t].join("|");
+
+  // PRIVACY++++: do not include raw text; only include a short stable hash + coarse flags.
+  const raw = safeStr(text || "", 2000);
+  const hasAnyText = raw ? "1" : "0";
+  const hasYear = textHasYearToken(raw) ? "1" : "0";
+  const th = raw ? sha1Lite(raw).slice(0, 10) : "";
+
+  return [lane || "", topic || "", intent || "", rid || "", y || "", hasAnyText, hasYear, th].join("|");
 }
 
 function topicFromAction(action) {
@@ -279,7 +304,6 @@ function stageProgress(prevStage, move) {
   if (m === MOVE.ADVANCE) return STAGE.DELIVER;
   if (m === MOVE.NARROW) return STAGE.TRIAGE;
 
-  // fallback: gentle progression
   if (p === STAGE.OPEN) return STAGE.TRIAGE;
   return p;
 }
@@ -406,7 +430,7 @@ function createState(seed = {}) {
           }
         : null,
     lastActionTaken: safeStr(seed.lastActionTaken || "", 40) || null,
-    lastTurnSig: safeStr(seed.lastTurnSig || "", 220) || null,
+    lastTurnSig: safeStr(seed.lastTurnSig || "", 240) || null,
 
     // Evidence trail (NO raw user text by default; callers may provide sanitized summaries)
     lastUserText: safeStr(seed.lastUserText || "", 0), // default empty; keep at 0 unless caller overrides intentionally
@@ -540,7 +564,6 @@ function updateState(prev, patch = {}, reason = "turn") {
         ? {
             ...(normalizePendingAsk(p.pendingAsk) || {}),
             ...patchPendingAsk,
-            // keep hard bounds stable
             kind: safeStr(patchPendingAsk.kind || "need_more_detail", 40),
             prompt: safeStr(patchPendingAsk.prompt || "", 220),
             options: Array.isArray(patchPendingAsk.options)
@@ -581,7 +604,7 @@ function updateState(prev, patch = {}, reason = "turn") {
 
     lastActionTaken:
       patch.lastActionTaken != null ? safeStr(patch.lastActionTaken, 40) : p.lastActionTaken,
-    lastTurnSig: patch.lastTurnSig != null ? safeStr(patch.lastTurnSig, 220) : p.lastTurnSig,
+    lastTurnSig: patch.lastTurnSig != null ? safeStr(patch.lastTurnSig, 240) : p.lastTurnSig,
 
     turns:
       patch.turns && typeof patch.turns === "object"
@@ -608,7 +631,6 @@ function updateState(prev, patch = {}, reason = "turn") {
     },
   };
 
-  // Hard bounds
   if (Array.isArray(next.lastChipsOffered) && next.lastChipsOffered.length > 12)
     next.lastChipsOffered = next.lastChipsOffered.slice(0, 12);
 
@@ -675,20 +697,22 @@ function decideNextMove(state, inbound = {}) {
   const payloadActionable = !!n.signals.payloadActionable;
   const hasPayload = !!n.signals.hasPayload;
 
-  // If we already have a pending ask, try to resolve it based on typed evidence.
+  // If we already have a pending ask, try to resolve it based on typed/click evidence.
   if (s.pendingAsk && isPlainObject(s.pendingAsk)) {
     const pa = normalizePendingAsk(s.pendingAsk);
     const kind = safeStr(pa?.kind || "", 80).toLowerCase();
     const id = safeStr(pa?.id || "", 80).toLowerCase();
 
     const answeredYear =
-      (kind === "need_year" || id === "need_year" || isNeedYearAsk(pa)) && textHasYearToken(text);
+      (kind === "need_year" || id === "need_year" || isNeedYearAsk(pa)) &&
+      (textHasYearToken(text) || (payloadActionable && n.year !== null));
 
-    // “need_pick” can be answered by short lane words
+    // “need_pick” can be answered by short lane words OR a lane-bearing chip.
     const answeredPick =
-      kind === "need_pick" || id === "need_pick"
-        ? /^(music|movies|news|sponsors|help|general)$/i.test(text)
-        : false;
+      (kind === "need_pick" || id === "need_pick" || isNeedPickAsk(pa)) &&
+      (isLaneToken(text) ||
+        (payloadActionable && !!safeStr(n.payload?.lane || "", 24).trim()) ||
+        (payloadActionable && !!safeStr(n.lane || "", 24).trim()));
 
     const answered = answeredYear || answeredPick || (hasText && text.length >= 8);
 
@@ -830,24 +854,34 @@ function finalizeTurn({
   });
 
   // PendingAsk hygiene:
-  // - clear need_year if user typed a year token (not just payload year), OR
-  // - clear need_year if user clicked/selected a payload that includes a valid year (chip-year).
+  // - clear need_year if user typed a year token, OR
+  // - clear need_year if user clicked/selected a payload that resolves year (chip-year via inbound.year).
   const typedYear = !n.signals.textEmpty && textHasYearToken(n.text || "");
-  const payloadYear = n.signals.payloadActionable ? normYear(n.payload?.year) : null;
   const chipYearResolved =
-    payloadYear !== null &&
-    (lastUserIntent === "silent_click" || lastUserIntent === "choose") &&
-    !!n.signals.payloadActionable;
+    n.signals.payloadActionable &&
+    n.year !== null &&
+    (lastUserIntent === "silent_click" || lastUserIntent === "choose");
+
+  // Also resolve need_pick via lane-bearing evidence
+  const typedLaneResolved = !n.signals.textEmpty && isLaneToken(n.text || "");
+  const chipLaneResolved =
+    n.signals.payloadActionable &&
+    (safeStr(n.payload?.lane || "", 24).trim() || safeStr(n.lane || "", 24).trim()) &&
+    (lastUserIntent === "silent_click" || lastUserIntent === "choose");
 
   let nextPendingAsk = prev.pendingAsk;
 
   if (pendingAsk === null) nextPendingAsk = null;
   else if (pendingAsk && typeof pendingAsk === "object")
     nextPendingAsk = normalizePendingAsk(pendingAsk);
-  // else: keep prev.pendingAsk, unless typedYear/chipYear resolves it
+  // else: keep prev.pendingAsk, unless evidence resolves it
 
-  if ((typedYear || chipYearResolved) && nextPendingAsk && isNeedYearAsk(nextPendingAsk)) {
-    nextPendingAsk = null;
+  if (nextPendingAsk) {
+    if ((typedYear || chipYearResolved) && isNeedYearAsk(nextPendingAsk)) {
+      nextPendingAsk = null;
+    } else if ((typedLaneResolved || chipLaneResolved) && isNeedPickAsk(nextPendingAsk)) {
+      nextPendingAsk = null;
+    }
   }
 
   const patch = {
