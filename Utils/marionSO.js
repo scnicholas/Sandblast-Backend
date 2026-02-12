@@ -10,17 +10,27 @@
  * Goals:
  * - Keep chatEngine deterministic: Marion only classifies/mediates (mode/intent/budget/dominance)
  * - Keep it safe: no raw user text in traces; bounded outputs; fail-open behavior
- * - Keep it portable: no express, no fs, no index.js imports, no knowledge access
+ * - Keep it portable: no express, no fs, no index.js imports
  *
- * v1.0.7 (CRITICAL HARDENING++++ + CONTRACT CLAMP++++ + RISK COVERAGE++++ + MODE HYSTERESIS SUGGESTION++++ + TRACE POLICY CHECK++++)
- * ✅ Adds: finalizeContract() hard clamps enums, bounds arrays/strings, and enforces no-raw-text trace doctrine.
- * ✅ Adds: RiskBridge domain coverage for violence/hate/privacy/sexual (conservative heuristics, Law still final).
- * ✅ Adds: mode hysteresis suggestion (returns sessionPatchSuggestion, does NOT mutate session).
- * ✅ Adds: dev-only tracePolicyCheck() (opt-in) to catch accidental raw text leakage into trace-like fields.
- * ✅ Keeps: prior behavior intent/action supremacy, Law precedence, PRO always-on, movePolicy hints.
+ * v1.0.8 (PSYCHOLOGY KNOWLEDGE WIRE++++ + FAIL-OPEN++++ + NO-RAW-TEXT DOCTRINE PRESERVED++++)
+ * ✅ Adds: optional integration to Utils/psychologyKnowledge.js (query in mediator-safe way)
+ * ✅ Adds: psychologyHints payload (bounded, non-PII, no raw user text) for chatEngine to consume
+ * ✅ FAIL-OPEN: if module missing/throws/contract mismatch, Marion continues without knowledge hints
+ * ✅ Keeps: finalizeContract() clamps + no-raw-text trace doctrine; RiskBridge; mode hysteresis suggestion; tracePolicyCheck
  */
 
-const MARION_VERSION = "marionSO v1.0.7";
+const MARION_VERSION = "marionSO v1.0.8";
+
+// -------------------------
+// Optional Psychology Knowledge module (FAIL-OPEN)
+// -------------------------
+let PsychologyK = null;
+try {
+  // eslint-disable-next-line global-require
+  PsychologyK = require("./psychologyKnowledge");
+} catch (e) {
+  PsychologyK = null;
+}
 
 // -------------------------
 // helpers
@@ -262,7 +272,15 @@ const STRATEGY = Object.freeze({
 // Marion narration style contract (canonical policy hints)
 const MARION_STYLE_CONTRACT = Object.freeze({
   maxSentences: 2,
-  forbidTokens: ["sorry", "unfortunately", "i think", "maybe", "might", "i’m sorry", "im sorry"],
+  forbidTokens: [
+    "sorry",
+    "unfortunately",
+    "i think",
+    "maybe",
+    "might",
+    "i’m sorry",
+    "im sorry",
+  ],
   allowMetaphor: false,
   tone: "system",
   tags: Object.freeze({
@@ -286,7 +304,8 @@ function normalizeMacModeRaw(v) {
   if (!s) return "";
   if (s === "architect" || s === "builder" || s === "dev") return "architect";
   if (s === "user" || s === "viewer" || s === "consumer") return "user";
-  if (s === "transitional" || s === "mixed" || s === "both") return "transitional";
+  if (s === "transitional" || s === "mixed" || s === "both")
+    return "transitional";
   return "";
 }
 
@@ -396,6 +415,205 @@ function suggestModeHysteresisPatch(session, chosenMode, implicit) {
     },
     effectiveMode: nextMode,
   };
+}
+
+// -------------------------
+// PSYCHOLOGY KNOWLEDGE WIRE (bounded, non-PII)
+// Marion queries psychologyKnowledge.js using ONLY mediator-safe features.
+// NO RAW USER TEXT is passed.
+// -------------------------
+function safeTokenSet(tokens, max = 10) {
+  const out = [];
+  const seen = new Set();
+  for (const t of Array.isArray(tokens) ? tokens : []) {
+    const v = safeStr(t, 32).trim().toLowerCase();
+    if (!v) continue;
+    if (seen.has(v)) continue;
+    seen.add(v);
+    out.push(v);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+function buildPsychologyQuery(norm, session, cog) {
+  const n = isPlainObject(norm) ? norm : {};
+  const s = isPlainObject(session) ? session : {};
+  const c = isPlainObject(cog) ? cog : {};
+
+  // STRICT: avoid passing norm.text entirely.
+  const action = safeStr(n.action || "", 24).trim().toLowerCase();
+  const lane = safeStr(n.lane || s.lane || "", 24).trim().toLowerCase();
+  const intent = safeStr(c.intent || "", 12).trim().toUpperCase();
+  const mode = safeStr(c.mode || "", 16).trim().toLowerCase();
+  const desire = safeStr(c.latentDesire || "", 16).trim().toLowerCase();
+
+  const reg = safeStr(c?.psychology?.regulationState || "", 16);
+  const load = safeStr(c?.psychology?.cognitiveLoad || "", 12);
+  const agency = safeStr(c?.psychology?.agencyPreference || "", 16);
+  const pressure = safeStr(c?.psychology?.socialPressure || "", 12);
+
+  const riskTier = safeStr(c.riskTier || "", 10).trim().toLowerCase();
+  const riskDomains = safeTokenSet(c.riskDomains || [], 6);
+
+  // coarse “needs” signals (safe)
+  const needs = [];
+  if (intent === "STABILIZE" || reg === PSYCH.REG.DYSREGULATED) needs.push("regulation");
+  if (reg === PSYCH.REG.STRAINED) needs.push("reduce_load");
+  if (load === PSYCH.LOAD.HIGH) needs.push("brevity");
+  if (agency === PSYCH.AGENCY.AUTONOMOUS) needs.push("options");
+  if (desire === "mastery") needs.push("framework");
+  if (desire === "comfort") needs.push("validation");
+  if (riskTier === "high" || riskDomains.includes("risk:self_harm")) needs.push("safety_redirect");
+
+  // topic tokens (non-text, deterministic)
+  const tokens = safeTokenSet(
+    [
+      lane || "",
+      action || "",
+      intent || "",
+      mode || "",
+      desire || "",
+      reg || "",
+      load || "",
+      pressure || "",
+      ...riskDomains,
+      ...needs,
+    ],
+    12
+  );
+
+  const keyObj = {
+    lane,
+    action,
+    intent,
+    mode,
+    desire,
+    reg,
+    load,
+    agency,
+    pressure,
+    riskTier,
+    riskDomains,
+    tokens,
+  };
+
+  const queryKey = sha1Lite(JSON.stringify(keyObj)).slice(0, 14);
+
+  return {
+    enabled: true,
+    queryKey,
+    tokens,
+    features: {
+      lane,
+      action,
+      intent,
+      mode,
+      desire,
+      regulationState: reg,
+      cognitiveLoad: load,
+      agencyPreference: agency,
+      socialPressure: pressure,
+      riskTier,
+      riskDomains,
+      needs: safeTokenSet(needs, 8),
+    },
+  };
+}
+
+function clampPsychHints(hints) {
+  const h = isPlainObject(hints) ? hints : {};
+  const out = {
+    enabled: !!h.enabled,
+    queryKey: safeStr(h.queryKey || "", 18),
+    packs: isPlainObject(h.packs)
+      ? {
+          foundations: safeStr(h.packs.foundations || "", 32),
+          clinicalSafety: safeStr(h.packs.clinicalSafety || "", 32),
+          biases: safeStr(h.packs.biases || "", 32),
+        }
+      : {},
+    // small, high-signal guidance for response shaping (NOT user-visible)
+    focus: safeStr(h.focus || "", 32), // e.g., "cognitive_bias", "emotion_regulation", "learning", "motivation"
+    stance: safeStr(h.stance || "", 32), // e.g., "normalize+options", "teach+verify", "contain+redirect"
+    principles: uniqBounded(h.principles || [], 8), // short phrases
+    frameworks: uniqBounded(h.frameworks || [], 6), // e.g., CBT, operant conditioning, memory model
+    guardrails: uniqBounded(h.guardrails || [], 6), // e.g., "avoid diagnosis", "safety redirect"
+    exampleTypes: uniqBounded(h.exampleTypes || [], 6), // e.g., "everyday", "workplace", "relationships"
+    // optional “prompt atoms” that chatEngine can use to shape tone
+    responseCues: uniqBounded(h.responseCues || [], 8), // e.g., "ask 1 clarifier", "offer 3 options", "use short steps"
+    // diagnostics (still bounded)
+    hits: uniqBounded(h.hits || [], 10), // e.g., concept IDs (no text)
+    confidence: clamp01(h.confidence),
+    reason: safeStr(h.reason || "", 60),
+  };
+  return out;
+}
+
+function queryPsychologyKnowledge(norm, session, cog) {
+  // FAIL-OPEN. Never throws. Never passes raw text.
+  const q = buildPsychologyQuery(norm, session, cog);
+  if (!q.enabled) return { enabled: false, reason: "disabled" };
+
+  if (!PsychologyK || typeof PsychologyK !== "object") {
+    return { enabled: false, reason: "module_missing" };
+  }
+
+  try {
+    // Support multiple possible APIs (so we don’t brick if you adjust psychologyKnowledge.js)
+    // Preferred: PsychologyK.getMarionHints({ features, tokens, queryKey }, { session, cog })
+    if (typeof PsychologyK.getMarionHints === "function") {
+      const res = PsychologyK.getMarionHints(
+        { features: q.features, tokens: q.tokens, queryKey: q.queryKey },
+        { session: isPlainObject(session) ? session : {}, cog: isPlainObject(cog) ? cog : {} }
+      );
+      const h = clampPsychHints(res);
+      return { ...h, enabled: true, queryKey: q.queryKey };
+    }
+
+    // Alternate: PsychologyK.query({ features, tokens, queryKey })
+    if (typeof PsychologyK.query === "function") {
+      const res = PsychologyK.query({ features: q.features, tokens: q.tokens, queryKey: q.queryKey });
+      const h = clampPsychHints(res);
+      return { ...h, enabled: true, queryKey: q.queryKey };
+    }
+
+    // Alternate: PsychologyK.mediatePsych({ ... })
+    if (typeof PsychologyK.mediatePsych === "function") {
+      const res = PsychologyK.mediatePsych({ features: q.features, tokens: q.tokens, queryKey: q.queryKey });
+      const h = clampPsychHints(res);
+      return { ...h, enabled: true, queryKey: q.queryKey };
+    }
+
+    // If it exposes packs/meta only, still surface versions
+    const packs = isPlainObject(PsychologyK.PACKS) ? PsychologyK.PACKS : null;
+    if (packs) {
+      return clampPsychHints({
+        enabled: true,
+        queryKey: q.queryKey,
+        packs: {
+          foundations: packs.foundations || "",
+          clinicalSafety: packs.clinicalSafety || "",
+          biases: packs.biases || "",
+        },
+        focus: "",
+        stance: "",
+        principles: [],
+        frameworks: [],
+        guardrails: [],
+        exampleTypes: [],
+        responseCues: [],
+        hits: [],
+        confidence: 0,
+        reason: "packs_only",
+      });
+    }
+
+    return { enabled: false, reason: "no_api" };
+  } catch (e) {
+    const code = safeStr(e && (e.code || e.name) ? e.code || e.name : "ERR", 40);
+    return { enabled: false, reason: `psych_query_fail:${code}` };
+  }
 }
 
 // -------------------------
@@ -974,7 +1192,8 @@ function computeFinanceLayer(norm) {
 
     if (/\bprice|pricing\b/.test(text)) tags.push(FIN.TAGS.PRICING);
     if (/\b(budget|cashflow|forecast)\b/.test(text)) tags.push(FIN.TAGS.BUDGETING);
-    if (/\b(ltv|cac|unit economics|margin|break[-\s]?even)\b/.test(text)) tags.push(FIN.TAGS.UNIT_ECON);
+    if (/\b(ltv|cac|unit economics|margin|break[-\s]?even)\b/.test(text))
+      tags.push(FIN.TAGS.UNIT_ECON);
 
     if (/\b(tax|sred|grant|funding|compliance)\b/.test(text)) {
       tags.push(FIN.TAGS.COMPLIANCE, FIN.TAGS.RISK_DISCLOSURE);
@@ -1076,7 +1295,8 @@ function applyPsychologyToMediator(cog, psych) {
   }
 
   if (p.agencyPreference === PSYCH.AGENCY.GUIDED) {
-    if (out.intent === "ADVANCE") out.dominance = out.dominance === "soft" ? "neutral" : out.dominance;
+    if (out.intent === "ADVANCE")
+      out.dominance = out.dominance === "soft" ? "neutral" : out.dominance;
   } else if (p.agencyPreference === PSYCH.AGENCY.AUTONOMOUS) {
     if (out.dominance === "firm" && out.intent !== "ADVANCE") out.dominance = "neutral";
   }
@@ -1302,6 +1522,7 @@ function buildTrace(norm, session, med) {
     `et=${Array.isArray(med?.ethicsTags) && med.ethicsTags.length ? safeStr(med.ethicsTags[0], 12) : "-"}`,
     `cy=${Array.isArray(med?.cyberTags) && med.cyberTags.length ? safeStr(med.cyberTags[0], 12) : "-"}`,
     `mv=${safeStr(med?.movePolicy?.preferredMove || "", 8) || "-"}`,
+    `pk=${med?.psychologyHints?.enabled ? "1" : "0"}`,
   ];
 
   const base = parts.join("|");
@@ -1330,10 +1551,19 @@ function tracePolicyCheck(cog, norm, opts) {
   ].filter(Boolean);
 
   // Only inspect a tiny subset of fields that are likely to accidentally leak text.
-  const fields = ["marionTrace", "macModeWhy", "lawReasons", "riskSignals", "ethicsSignals"];
+  const fields = [
+    "marionTrace",
+    "macModeWhy",
+    "lawReasons",
+    "riskSignals",
+    "ethicsSignals",
+    // psychologyHints is allowed, but must never contain raw user text; still check defensively
+    "psychologyHints",
+  ];
+
   for (const f of fields) {
     const v = cog && cog[f];
-    const s = Array.isArray(v) ? v.join("|") : safeStr(v, 800);
+    const s = Array.isArray(v) ? v.join("|") : safeStr(v, 1200);
     if (!s) continue;
     for (const needle of needles) {
       if (needle && needle.length >= 10 && s.includes(needle)) {
@@ -1356,13 +1586,23 @@ function finalizeContract(cog, nowMs, extra) {
 
   const riskTier = toLowerToken(c.riskTier, 10);
   const riskTierNorm =
-    riskTier === RISK.TIERS.NONE || riskTier === RISK.TIERS.LOW || riskTier === RISK.TIERS.MEDIUM || riskTier === RISK.TIERS.HIGH
+    riskTier === RISK.TIERS.NONE ||
+    riskTier === RISK.TIERS.LOW ||
+    riskTier === RISK.TIERS.MEDIUM ||
+    riskTier === RISK.TIERS.HIGH
       ? riskTier
       : RISK.TIERS.LOW;
 
   const velvetAllowed = c.velvetAllowed !== false;
   const velvet = !!c.velvet && velvetAllowed && intent !== "STABILIZE";
-  const velvetSince = velvet ? clampInt(c.velvetSince, 0, Number(nowMs || 0) || nowMsDefault(), Number(nowMs || 0) || nowMsDefault()) : 0;
+  const velvetSince = velvet
+    ? clampInt(
+        c.velvetSince,
+        0,
+        Number(nowMs || 0) || nowMsDefault(),
+        Number(nowMs || 0) || nowMsDefault()
+      )
+    : 0;
 
   const out = {
     ...c,
@@ -1416,10 +1656,19 @@ function finalizeContract(cog, nowMs, extra) {
     marionReason: safeStr(c.marionReason || "default", 40),
 
     marionStyle: MARION_STYLE_CONTRACT,
-    handoff: isPlainObject(c.handoff) ? { ...c.handoff } : { marionEndsHard: true, nyxBeginsAfter: true, allowSameTurnSplit: true },
+    handoff: isPlainObject(c.handoff)
+      ? { ...c.handoff }
+      : { marionEndsHard: true, nyxBeginsAfter: true, allowSameTurnSplit: true },
 
     macModeOverride: safeStr(c.macModeOverride || "", 60),
-    macModeWhy: Array.isArray(c.macModeWhy) ? c.macModeWhy.slice(0, 6).map((x) => safeStr(x, 60)) : [],
+    macModeWhy: Array.isArray(c.macModeWhy)
+      ? c.macModeWhy.slice(0, 6).map((x) => safeStr(x, 60))
+      : [],
+
+    // Psychology knowledge hints (bounded)
+    psychologyHints: isPlainObject(c.psychologyHints)
+      ? clampPsychHints(c.psychologyHints)
+      : { enabled: false, reason: "none" },
 
     privacy: {
       noRawTextInTrace: true,
@@ -1480,7 +1729,12 @@ function mediate(norm, session, opts = {}) {
     const implicit = detectMacModeImplicit(n.text || "");
     let modeCandidate = macModeOverride || implicit.mode || "";
     if (!modeCandidate) modeCandidate = "architect";
-    if (modeCandidate !== "architect" && modeCandidate !== "user" && modeCandidate !== "transitional") modeCandidate = "architect";
+    if (
+      modeCandidate !== "architect" &&
+      modeCandidate !== "user" &&
+      modeCandidate !== "transitional"
+    )
+      modeCandidate = "architect";
 
     // Suggest hysteresis; do not mutate session
     const hysteresis = suggestModeHysteresisPatch(s, modeCandidate, implicit);
@@ -1585,7 +1839,11 @@ function mediate(norm, session, opts = {}) {
 
     // dominance correction (still allowed; law already ran)
     if (velvet.velvet && mode === "user" && intent !== "ADVANCE") dominance = "soft";
-    if (latentDesire === LATENT_DESIRE.MASTERY && (mode === "architect" || mode === "transitional") && intent === "ADVANCE") {
+    if (
+      latentDesire === LATENT_DESIRE.MASTERY &&
+      (mode === "architect" || mode === "transitional") &&
+      intent === "ADVANCE"
+    ) {
       dominance = "firm";
     }
 
@@ -1689,6 +1947,12 @@ function mediate(norm, session, opts = {}) {
     cog.strategyTags = strat.strategyTags;
     cog.strategySignals = strat.strategySignals;
 
+    // -------------------------
+    // PsychologyKnowledge hints (NEW): mediator-safe query
+    // -------------------------
+    const psyHints = queryPsychologyKnowledge(n, s, cog);
+    cog.psychologyHints = clampPsychHints(psyHints);
+
     // trace (no raw text)
     const trace = buildTrace(n, s, {
       ...cog,
@@ -1700,6 +1964,7 @@ function mediate(norm, session, opts = {}) {
       lawTags: cog.lawTags,
       ethicsTags: cog.ethicsTags,
       cyberTags: cog.cyberTags,
+      psychologyHints: cog.psychologyHints,
     });
 
     cog.marionTrace = safeStr(trace, MARION_TRACE_MAX + 8);
@@ -1709,7 +1974,11 @@ function mediate(norm, session, opts = {}) {
     if (o && o.forceBudget && (o.forceBudget === "short" || o.forceBudget === "medium")) {
       cog.budget = o.forceBudget;
     }
-    if (o && o.forceDominance && (o.forceDominance === "firm" || o.forceDominance === "neutral" || o.forceDominance === "soft")) {
+    if (
+      o &&
+      o.forceDominance &&
+      (o.forceDominance === "firm" || o.forceDominance === "neutral" || o.forceDominance === "soft")
+    ) {
       cog.dominance = o.forceDominance;
     }
     if (o && o.forceIntent && (o.forceIntent === "ADVANCE" || o.forceIntent === "CLARIFY" || o.forceIntent === "STABILIZE")) {
@@ -1765,7 +2034,11 @@ function mediate(norm, session, opts = {}) {
         agencyPreference: PSYCH.AGENCY.GUIDED,
         socialPressure: PSYCH.PRESSURE.LOW,
       },
-      ethicsTags: [ETHICS.TAGS.NON_DECEPTIVE, ETHICS.TAGS.PRIVACY_MIN, ETHICS.TAGS.HARM_AVOIDANCE],
+      ethicsTags: [
+        ETHICS.TAGS.NON_DECEPTIVE,
+        ETHICS.TAGS.PRIVACY_MIN,
+        ETHICS.TAGS.HARM_AVOIDANCE,
+      ],
       ethicsSignals: [ETHICS.SIGNALS.USE_NEUTRAL_TONE],
       cyberTags: [CYBER.TAGS.DEFENSIVE_ONLY],
       cyberSignals: [CYBER.SIGNALS.SAFE_DEFAULTS],
@@ -1775,6 +2048,7 @@ function mediate(norm, session, opts = {}) {
       finSignals: [],
       strategyTags: [],
       strategySignals: [],
+      psychologyHints: { enabled: false, reason: "fail_open" },
       movePolicy: { preferredMove: "CLARIFY", hardOverride: false, reason: "fail_open" },
       marionStyle: MARION_STYLE_CONTRACT,
       handoff: {
@@ -1816,6 +2090,11 @@ module.exports = {
   finalizeContract,
   tracePolicyCheck,
   suggestModeHysteresisPatch,
+
+  // psych knowledge exports (integration tests)
+  buildPsychologyQuery,
+  queryPsychologyKnowledge,
+  clampPsychHints,
 
   // risk bridge exports (unit tests)
   computeRiskBridge,
