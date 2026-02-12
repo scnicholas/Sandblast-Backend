@@ -12,26 +12,15 @@
  * - Keep it safe: no raw user text in traces; bounded outputs; fail-open behavior
  * - Keep it portable: no express, no fs, no index.js imports, no knowledge access
  *
- * v1.0.6 (PURE NO-MUTATION FIX++++ + STRATEGY MODE NORMALIZATION++++ + EXPORTS COMMENT CLEANUP++++)
- * ✅ Fix: no mutation of psych object (motivation set via copy).
- * ✅ Fix: StrategyLayer checks mode case-insensitively.
- * ✅ Cleanup: small comment/label nits, no behavior regressions intended.
- *
- * v1.0.5 (RISKBRIDGE v1++++ + CYBER/EN/FIN/STRAT LAYERS++++ + LAW/ETHICS++++ + MOVE POLICY++++ + PURE NO-MUTATION++++)
- * ✅ Adds: RiskBridge v1 (Psych+Ethics+lawSeed → riskTier/domains/signals + lawOverrides hints).
- * ✅ A-Mode: Law remains final arbiter (RiskBridge provides hints; LawLayer applies constitution).
- * ✅ Keeps: LawLayer precedence (containment, action supremacy, stall/no-spin, budget clamps, coherence, velvet guard).
- * ✅ Keeps: EthicsLayer (bounded harm-avoidance + user-agency + non-deceptive posture); ethicsTags + ethicsSignals.
- * ✅ Keeps: CyberLayer (defensive-only flags); cyberTags + cyberSignals.
- * ✅ Keeps: EnglishLayer (clarity/structure/audience); englishTags + englishSignals.
- * ✅ Keeps: Finance/EconLayer (non-advice posture + unit-econ/budgeting/compliance cues); finTags + finSignals.
- * ✅ Keeps: StrategyLayer (systems thinking + decision-making cues); strategyTags + strategySignals.
- * ✅ Keeps: movePolicy hints for StateSpine reconciliation.
- * ✅ Keeps: PsychologyReasoningObject (PRO) always-on (no persistence, no raw text stored).
- * ✅ Keeps: MarionStyleContract, deterministic clock hook, stricter privacy, tighter intent/stall logic, handoff hints.
+ * v1.0.7 (CRITICAL HARDENING++++ + CONTRACT CLAMP++++ + RISK COVERAGE++++ + MODE HYSTERESIS SUGGESTION++++ + TRACE POLICY CHECK++++)
+ * ✅ Adds: finalizeContract() hard clamps enums, bounds arrays/strings, and enforces no-raw-text trace doctrine.
+ * ✅ Adds: RiskBridge domain coverage for violence/hate/privacy/sexual (conservative heuristics, Law still final).
+ * ✅ Adds: mode hysteresis suggestion (returns sessionPatchSuggestion, does NOT mutate session).
+ * ✅ Adds: dev-only tracePolicyCheck() (opt-in) to catch accidental raw text leakage into trace-like fields.
+ * ✅ Keeps: prior behavior intent/action supremacy, Law precedence, PRO always-on, movePolicy hints.
  */
 
-const MARION_VERSION = "marionSO v1.0.6";
+const MARION_VERSION = "marionSO v1.0.7";
 
 // -------------------------
 // helpers
@@ -104,6 +93,9 @@ function uniqBounded(arr, max = 8) {
 }
 function toUpperToken(x, max = 24) {
   return safeStr(x, max).trim().toUpperCase();
+}
+function toLowerToken(x, max = 24) {
+  return safeStr(x, max).trim().toLowerCase();
 }
 
 // -------------------------
@@ -270,15 +262,7 @@ const STRATEGY = Object.freeze({
 // Marion narration style contract (canonical policy hints)
 const MARION_STYLE_CONTRACT = Object.freeze({
   maxSentences: 2,
-  forbidTokens: [
-    "sorry",
-    "unfortunately",
-    "i think",
-    "maybe",
-    "might",
-    "i’m sorry",
-    "im sorry",
-  ],
+  forbidTokens: ["sorry", "unfortunately", "i think", "maybe", "might", "i’m sorry", "im sorry"],
   allowMetaphor: false,
   tone: "system",
   tags: Object.freeze({
@@ -369,6 +353,49 @@ function detectMacModeImplicit(text) {
   else if (u >= a + 2) mode = "user";
 
   return { mode, scoreA: a, scoreU: u, scoreT: tr, why };
+}
+
+function suggestModeHysteresisPatch(session, chosenMode, implicit) {
+  // No mutation; merely suggests what caller *could* patch into session.
+  const s = isPlainObject(session) ? session : {};
+  const prevMode = normalizeMacModeRaw(s.macMode || s.mode || s.lastMode || "");
+  const nextMode = normalizeMacModeRaw(chosenMode);
+
+  if (!nextMode) return null;
+
+  const confA = Number(implicit?.scoreA) || 0;
+  const confU = Number(implicit?.scoreU) || 0;
+  const confT = Number(implicit?.scoreT) || 0;
+
+  // confidence heuristic (conservative)
+  let conf = 0.55;
+  if (nextMode === "transitional") conf = 0.65;
+  else if (nextMode === "architect") conf = clamp01(0.5 + confA * 0.05);
+  else if (nextMode === "user") conf = clamp01(0.5 + confU * 0.05);
+
+  // Hysteresis: don’t thrash modes on weak signal.
+  if (prevMode && prevMode !== nextMode && conf < 0.7) {
+    return {
+      sessionPatchSuggestion: {
+        macMode: prevMode,
+        macModeStability: "held",
+        macModeConfidence: clamp01(conf),
+        macModeCandidate: nextMode,
+      },
+      effectiveMode: prevMode,
+    };
+  }
+
+  return {
+    sessionPatchSuggestion: {
+      macMode: nextMode,
+      macModeStability: prevMode === nextMode ? "steady" : "switched",
+      macModeConfidence: clamp01(conf),
+      macModeCandidate: nextMode,
+      macModeScores: { a: confA, u: confU, t: confT },
+    },
+    effectiveMode: nextMode,
+  };
 }
 
 // -------------------------
@@ -483,6 +510,16 @@ function normalizeMove(m) {
   if (s === "ADVANCE" || s === "CLARIFY" || s === "STABILIZE") return s;
   return "CLARIFY";
 }
+function normalizeDominance(d) {
+  const s = safeStr(d, 12).trim().toLowerCase();
+  if (s === "firm" || s === "neutral" || s === "soft") return s;
+  return "neutral";
+}
+function normalizeBudget(b) {
+  const s = safeStr(b, 12).trim().toLowerCase();
+  if (s === "short" || s === "medium") return s;
+  return "short";
+}
 
 function deriveMovePolicy(cog) {
   const intent = safeStr(cog?.intent || "", 20).toUpperCase();
@@ -577,6 +614,17 @@ function computeRiskBridge(norm, psych, ethics, lawSeed) {
     signals.push("containment_required");
   }
 
+  // --- VIOLENCE / THREATS (high/medium) ---
+  const violence =
+    /\b(kill|murder|shoot|stab|bomb|attack|hurt them|hurt him|hurt her|beat (them|him|her)|make a weapon)\b/.test(
+      text
+    );
+  if (violence) {
+    domains.push(RISK.DOMAINS.VIOLENCE);
+    if (tier !== RISK.TIERS.HIGH) tier = RISK.TIERS.MEDIUM;
+    signals.push("violence_related");
+  }
+
   // --- ILLEGAL INTENT (high) ---
   const illegal =
     /\b(how to (steal|fraud)|bypass (the )?law|evade (the )?law|counterfeit|forg(e|ery)|identity theft)\b/.test(
@@ -586,6 +634,37 @@ function computeRiskBridge(norm, psych, ethics, lawSeed) {
     domains.push(RISK.DOMAINS.ILLEGAL);
     tier = RISK.TIERS.HIGH;
     signals.push("illegal_intent_detected");
+  }
+
+  // --- PRIVACY (medium) ---
+  const privacy =
+    /\b(doxx|dox|ip address|track (a|an|the) (person|user)|stalk|find (their|his|her) address|social security|sin number|credit card number)\b/.test(
+      text
+    );
+  if (privacy) {
+    domains.push(RISK.DOMAINS.PRIVACY);
+    if (tier !== RISK.TIERS.HIGH) tier = RISK.TIERS.MEDIUM;
+    signals.push("privacy_sensitive");
+  }
+
+  // --- SEXUAL (medium) ---
+  const sexual =
+    /\b(nudes?|porn|explicit|sexual|sex tape|onlyfans|hook up|fetish|bdsm)\b/.test(text);
+  if (sexual) {
+    domains.push(RISK.DOMAINS.SEXUAL);
+    if (tier !== RISK.TIERS.HIGH) tier = RISK.TIERS.MEDIUM;
+    signals.push("sexual_content");
+  }
+
+  // --- HATE (medium/high) ---
+  const hate =
+    /\b(nazi|white power|genocide|ethnic cleansing|kill (all|the) (jews|muslims|christians|blacks|whites)|racial superiority)\b/.test(
+      text
+    );
+  if (hate) {
+    domains.push(RISK.DOMAINS.HATE);
+    if (tier !== RISK.TIERS.HIGH) tier = RISK.TIERS.MEDIUM;
+    signals.push("hate_related");
   }
 
   // --- HIGH STAKES TOPICS (medium baseline) ---
@@ -619,10 +698,7 @@ function computeRiskBridge(norm, psych, ethics, lawSeed) {
   }
 
   // --- Overload/pressure soft escalator (none->low via clamp signals) ---
-  if (
-    tier === RISK.TIERS.NONE &&
-    (load === PSYCH.LOAD.HIGH || pressure === PSYCH.PRESSURE.HIGH)
-  ) {
+  if (tier === RISK.TIERS.NONE && (load === PSYCH.LOAD.HIGH || pressure === PSYCH.PRESSURE.HIGH)) {
     tier = RISK.TIERS.LOW;
     signals.push("high_load_or_pressure");
   }
@@ -630,7 +706,7 @@ function computeRiskBridge(norm, psych, ethics, lawSeed) {
   // Law override hints (NOT absolute; LawLayer still applies constitution)
   const lawOverrides = {};
 
-  // Never override actionable ADVANCE here (Law’s action supremacy remains king).
+  // Doctrine: never override actionable ADVANCE here (Law’s action supremacy remains king).
   if (!actionable) {
     if (tier === RISK.TIERS.HIGH) {
       lawOverrides.forceIntent = "STABILIZE";
@@ -640,7 +716,6 @@ function computeRiskBridge(norm, psych, ethics, lawSeed) {
     } else if (tier === RISK.TIERS.MEDIUM) {
       lawOverrides.budgetClamp = "short";
       lawOverrides.velvetBlock = true;
-      // intent hint left to Law/PRO unless dysregulated already caught
     } else if (tier === RISK.TIERS.LOW) {
       lawOverrides.budgetClamp = "short";
     }
@@ -678,7 +753,7 @@ function applyRiskOverridesToLawSeed(lawSeed, risk) {
   const r = isPlainObject(risk) ? risk : {};
   const o = isPlainObject(r.lawOverrides) ? r.lawOverrides : {};
 
-  // A-mode: never break action supremacy. If actionable, do not force intent.
+  // A-mode doctrine: never break action supremacy. If actionable, do not force intent.
   if (!seed.actionable && o.forceIntent) {
     const fi = normalizeMove(o.forceIntent);
     seed.intent = fi;
@@ -721,7 +796,7 @@ function applyLawLayer(seed, psych) {
     reasons.push(actionable ? "containment_actionable" : "containment_hold");
   }
 
-  // Rule 2: Action supremacy
+  // Rule 2: Action supremacy (supreme)
   if (actionable) {
     out.intent = "ADVANCE";
     if (safeStr(out.mode || "", 20).toLowerCase() !== "user") out.dominance = "firm";
@@ -839,9 +914,7 @@ function computeEnglishLayer(norm, seed) {
     );
 
   const docOrComms =
-    /\b(email|letter|proposal|pitch|script|press release|bio|about page|copy|caption)\b/.test(
-      text
-    );
+    /\b(email|letter|proposal|pitch|script|press release|bio|about page|copy|caption)\b/.test(text);
 
   const technicalDensity =
     /\b(api|cors|endpoint|resolver|session|deterministic|contract|telemetry|governor|policy)\b/.test(
@@ -901,8 +974,7 @@ function computeFinanceLayer(norm) {
 
     if (/\bprice|pricing\b/.test(text)) tags.push(FIN.TAGS.PRICING);
     if (/\b(budget|cashflow|forecast)\b/.test(text)) tags.push(FIN.TAGS.BUDGETING);
-    if (/\b(ltv|cac|unit economics|margin|break[-\s]?even)\b/.test(text))
-      tags.push(FIN.TAGS.UNIT_ECON);
+    if (/\b(ltv|cac|unit economics|margin|break[-\s]?even)\b/.test(text)) tags.push(FIN.TAGS.UNIT_ECON);
 
     if (/\b(tax|sred|grant|funding|compliance)\b/.test(text)) {
       tags.push(FIN.TAGS.COMPLIANCE, FIN.TAGS.RISK_DISCLOSURE);
@@ -1004,8 +1076,7 @@ function applyPsychologyToMediator(cog, psych) {
   }
 
   if (p.agencyPreference === PSYCH.AGENCY.GUIDED) {
-    if (out.intent === "ADVANCE")
-      out.dominance = out.dominance === "soft" ? "neutral" : out.dominance;
+    if (out.intent === "ADVANCE") out.dominance = out.dominance === "soft" ? "neutral" : out.dominance;
   } else if (p.agencyPreference === PSYCH.AGENCY.AUTONOMOUS) {
     if (out.dominance === "firm" && out.intent !== "ADVANCE") out.dominance = "neutral";
   }
@@ -1091,8 +1162,7 @@ function inferLatentDesire(norm, session, med) {
   if (a === "story_moment" || a === "micro_moment" || a === "custom_story") return LATENT_DESIRE.COMFORT;
 
   if (mode === "architect") {
-    if (/\bdesign|implement|encode|ship|lock|wire|merge|pin|canonical\b/.test(t))
-      return LATENT_DESIRE.MASTERY;
+    if (/\bdesign|implement|encode|ship|lock|wire|merge|pin|canonical\b/.test(t)) return LATENT_DESIRE.MASTERY;
     return LATENT_DESIRE.AUTHORITY;
   }
 
@@ -1118,8 +1188,7 @@ function inferConfidence(norm, session, med) {
     action ||
     (actionablePayload &&
       hasPayload &&
-      (safeStr(norm?.turnSignals?.payloadAction || "", 60).trim() ||
-        normYear(norm?.turnSignals?.payloadYear) !== null))
+      (safeStr(norm?.turnSignals?.payloadAction || "", 60).trim() || normYear(norm?.turnSignals?.payloadYear) !== null))
   ) {
     user += 0.15;
   }
@@ -1165,14 +1234,12 @@ function computeVelvet(norm, session, med, desire, now, velvetAllowed) {
     action === "custom_story" ||
     /\b(why|meaning|connect|deeper|layer)\b/i.test(safeStr(norm?.text || "", 1400));
 
-  const repeatedTopic =
-    !!(lastLane && lane && lastLane === lane && yr && lastYear && yr === lastYear);
+  const repeatedTopic = !!(lastLane && lane && lastLane === lane && yr && lastYear && yr === lastYear);
 
   const acceptedChip = !!(
     norm?.turnSignals?.hasPayload &&
     norm?.turnSignals?.payloadActionable &&
-    (safeStr(norm?.turnSignals?.payloadAction || "", 60).trim() ||
-      normYear(norm?.turnSignals?.payloadYear) !== null)
+    (safeStr(norm?.turnSignals?.payloadAction || "", 60).trim() || normYear(norm?.turnSignals?.payloadYear) !== null)
   );
 
   const musicFirstEligible = lane === "music" || !!action;
@@ -1193,33 +1260,20 @@ function computeVelvet(norm, session, med, desire, now, velvetAllowed) {
   if (desire === LATENT_DESIRE.COMFORT || desire === LATENT_DESIRE.CURIOSITY) signals++;
 
   if (!musicFirstEligible) {
-    return {
-      velvet: already,
-      velvetSince: Number(s.velvetSince || 0) || 0,
-      reason: already ? "carry" : "no",
-    };
+    return { velvet: already, velvetSince: Number(s.velvetSince || 0) || 0, reason: already ? "carry" : "no" };
   }
 
   if (already) {
     if (safeStr(med?.intent || "", 20).toUpperCase() === "STABILIZE") {
-      return {
-        velvet: false,
-        velvetSince: Number(s.velvetSince || 0) || 0,
-        reason: "stabilize_exit",
-      };
+      return { velvet: false, velvetSince: Number(s.velvetSince || 0) || 0, reason: "stabilize_exit" };
     }
     if (lastLane && lane && lastLane !== lane) {
-      return {
-        velvet: false,
-        velvetSince: Number(s.velvetSince || 0) || 0,
-        reason: "lane_shift_exit",
-      };
+      return { velvet: false, velvetSince: Number(s.velvetSince || 0) || 0, reason: "lane_shift_exit" };
     }
     return { velvet: true, velvetSince: Number(s.velvetSince || 0) || now, reason: "hold" };
   }
 
   if (signals >= 2) return { velvet: true, velvetSince: now, reason: "entry" };
-
   return { velvet: false, velvetSince: 0, reason: "no" };
 }
 
@@ -1259,6 +1313,142 @@ function hashTrace(trace) {
 }
 
 // -------------------------
+// contract clamp + dev safety checks
+// -------------------------
+function tracePolicyCheck(cog, norm, opts) {
+  const o = isPlainObject(opts) ? opts : {};
+  if (!truthy(o.devTracePolicyCheck)) return null;
+
+  const nText = safeStr(norm?.text || "", 2000).trim();
+  if (!nText) return null;
+
+  const out = [];
+  const needles = [
+    nText.slice(0, 18),
+    nText.slice(0, 24),
+    nText.slice(Math.max(0, nText.length - 18)),
+  ].filter(Boolean);
+
+  // Only inspect a tiny subset of fields that are likely to accidentally leak text.
+  const fields = ["marionTrace", "macModeWhy", "lawReasons", "riskSignals", "ethicsSignals"];
+  for (const f of fields) {
+    const v = cog && cog[f];
+    const s = Array.isArray(v) ? v.join("|") : safeStr(v, 800);
+    if (!s) continue;
+    for (const needle of needles) {
+      if (needle && needle.length >= 10 && s.includes(needle)) {
+        out.push(`trace_policy_violation:${f}`);
+        break;
+      }
+    }
+  }
+  return out.length ? uniqBounded(out, 6) : null;
+}
+
+function finalizeContract(cog, nowMs, extra) {
+  const c = isPlainObject(cog) ? { ...cog } : {};
+  const ex = isPlainObject(extra) ? extra : {};
+
+  const mode = normalizeMacModeRaw(c.mode) || "architect";
+  const intent = normalizeMove(c.intent);
+  const dominance = normalizeDominance(c.dominance);
+  const budget = normalizeBudget(c.budget);
+
+  const riskTier = toLowerToken(c.riskTier, 10);
+  const riskTierNorm =
+    riskTier === RISK.TIERS.NONE || riskTier === RISK.TIERS.LOW || riskTier === RISK.TIERS.MEDIUM || riskTier === RISK.TIERS.HIGH
+      ? riskTier
+      : RISK.TIERS.LOW;
+
+  const velvetAllowed = c.velvetAllowed !== false;
+  const velvet = !!c.velvet && velvetAllowed && intent !== "STABILIZE";
+  const velvetSince = velvet ? clampInt(c.velvetSince, 0, Number(nowMs || 0) || nowMsDefault(), Number(nowMs || 0) || nowMsDefault()) : 0;
+
+  const out = {
+    ...c,
+    marionVersion: MARION_VERSION,
+
+    mode,
+    intent,
+    dominance,
+    budget,
+
+    stalled: !!c.stalled,
+    actionable: !!c.actionable,
+    textEmpty: !!c.textEmpty,
+
+    groundingMaxLines: clampInt(c.groundingMaxLines, 0, 3, 0),
+
+    riskTier: riskTierNorm,
+    riskDomains: uniqBounded(c.riskDomains || [], 6),
+    riskSignals: uniqBounded(c.riskSignals || [], 6),
+
+    lawTags: uniqBounded(c.lawTags || [], 8),
+    lawReasons: uniqBounded(c.lawReasons || [], 8),
+
+    ethicsTags: uniqBounded(c.ethicsTags || [], 8),
+    ethicsSignals: uniqBounded(c.ethicsSignals || [], 6),
+
+    cyberTags: uniqBounded(c.cyberTags || [], 8),
+    cyberSignals: uniqBounded(c.cyberSignals || [], 6),
+
+    englishTags: uniqBounded(c.englishTags || [], 8),
+    englishSignals: uniqBounded(c.englishSignals || [], 6),
+
+    finTags: uniqBounded(c.finTags || [], 8),
+    finSignals: uniqBounded(c.finSignals || [], 6),
+
+    strategyTags: uniqBounded(c.strategyTags || [], 8),
+    strategySignals: uniqBounded(c.strategySignals || [], 6),
+
+    latentDesire: safeStr(c.latentDesire || LATENT_DESIRE.CURIOSITY, 16),
+    confidence: {
+      user: clamp01(c?.confidence?.user),
+      nyx: clamp01(c?.confidence?.nyx),
+    },
+
+    velvetAllowed: !!velvetAllowed,
+    velvet,
+    velvetSince,
+    velvetReason: safeStr(c.velvetReason || "", 40),
+
+    marionState: safeStr(c.marionState || "SEEK", 16).toUpperCase(),
+    marionReason: safeStr(c.marionReason || "default", 40),
+
+    marionStyle: MARION_STYLE_CONTRACT,
+    handoff: isPlainObject(c.handoff) ? { ...c.handoff } : { marionEndsHard: true, nyxBeginsAfter: true, allowSameTurnSplit: true },
+
+    macModeOverride: safeStr(c.macModeOverride || "", 60),
+    macModeWhy: Array.isArray(c.macModeWhy) ? c.macModeWhy.slice(0, 6).map((x) => safeStr(x, 60)) : [],
+
+    privacy: {
+      noRawTextInTrace: true,
+      boundedTrace: true,
+      sideEffectFree: true,
+    },
+
+    movePolicy: isPlainObject(c.movePolicy)
+      ? {
+          preferredMove: normalizeMove(c.movePolicy.preferredMove),
+          hardOverride: !!c.movePolicy.hardOverride,
+          reason: safeStr(c.movePolicy.reason || "intent", 40),
+        }
+      : deriveMovePolicy({ ...c, intent, actionable: !!c.actionable, psychology: c.psychology }),
+  };
+
+  // Always clamp trace fields last.
+  out.marionTrace = safeStr(out.marionTrace || "", MARION_TRACE_MAX + 8);
+  out.marionTraceHash = safeStr(out.marionTraceHash || "", 16);
+
+  // Optional dev trace policy check output (never throws)
+  if (Array.isArray(ex.tracePolicyIssues) && ex.tracePolicyIssues.length) {
+    out.tracePolicyIssues = uniqBounded(ex.tracePolicyIssues, 6);
+  }
+
+  return out;
+}
+
+// -------------------------
 // main: mediate
 // -------------------------
 function mediate(norm, session, opts = {}) {
@@ -1288,9 +1478,13 @@ function mediate(norm, session, opts = {}) {
       ) || "";
 
     const implicit = detectMacModeImplicit(n.text || "");
-    let mode = macModeOverride || implicit.mode || "";
-    if (!mode) mode = "architect";
-    if (mode !== "architect" && mode !== "user" && mode !== "transitional") mode = "architect";
+    let modeCandidate = macModeOverride || implicit.mode || "";
+    if (!modeCandidate) modeCandidate = "architect";
+    if (modeCandidate !== "architect" && modeCandidate !== "user" && modeCandidate !== "transitional") modeCandidate = "architect";
+
+    // Suggest hysteresis; do not mutate session
+    const hysteresis = suggestModeHysteresisPatch(s, modeCandidate, implicit);
+    const mode = (hysteresis && hysteresis.effectiveMode) || modeCandidate;
 
     // Momentum / stall heuristic
     const lastAdvanceAt = Number(s.lastAdvanceAt || 0) || 0;
@@ -1347,10 +1541,7 @@ function mediate(norm, session, opts = {}) {
     const confidence = inferConfidence(n, s, { mode, intent, dominance, budget });
 
     // PURE: no mutation — create psych copy with motivation populated
-    const psych0 = {
-      ...psychSeed,
-      motivation: safeStr(latentDesire || "", 16),
-    };
+    const psych0 = { ...psychSeed, motivation: safeStr(latentDesire || "", 16) };
 
     // --- Build initial lawSeed (pre-risk) ---
     const lawSeed0 = {
@@ -1377,8 +1568,8 @@ function mediate(norm, session, opts = {}) {
 
     // Apply law outputs to live variables
     intent = normalizeMove(lawApplied.intent);
-    dominance = safeStr(lawApplied.dominance || dominance, 10) || dominance;
-    budget = safeStr(lawApplied.budget || budget, 10) || budget;
+    dominance = normalizeDominance(lawApplied.dominance || dominance);
+    budget = normalizeBudget(lawApplied.budget || budget);
     groundingMaxLines = clampInt(lawApplied.groundingMaxLines, 0, 3, groundingMaxLines);
     const velvetAllowed = lawApplied.velvetAllowed !== false;
 
@@ -1394,11 +1585,7 @@ function mediate(norm, session, opts = {}) {
 
     // dominance correction (still allowed; law already ran)
     if (velvet.velvet && mode === "user" && intent !== "ADVANCE") dominance = "soft";
-    if (
-      latentDesire === LATENT_DESIRE.MASTERY &&
-      (mode === "architect" || mode === "transitional") &&
-      intent === "ADVANCE"
-    ) {
+    if (latentDesire === LATENT_DESIRE.MASTERY && (mode === "architect" || mode === "transitional") && intent === "ADVANCE") {
       dominance = "firm";
     }
 
@@ -1446,10 +1633,7 @@ function mediate(norm, session, opts = {}) {
       velvetAllowed: !!velvetAllowed,
 
       latentDesire,
-      confidence: {
-        user: clamp01(confidence.user),
-        nyx: clamp01(confidence.nyx),
-      },
+      confidence: { user: clamp01(confidence.user), nyx: clamp01(confidence.nyx) },
 
       velvet: !!velvet.velvet,
       velvetSince: velvet.velvet ? Number(velvet.velvetSince || 0) || now : 0,
@@ -1472,15 +1656,12 @@ function mediate(norm, session, opts = {}) {
       },
 
       macModeOverride: macModeOverride || "",
-      macModeWhy: Array.isArray(implicit.why)
-        ? implicit.why.slice(0, 6).map((x) => safeStr(x, 60))
-        : [],
+      macModeWhy: Array.isArray(implicit.why) ? implicit.why.slice(0, 6).map((x) => safeStr(x, 60)) : [],
 
-      privacy: {
-        noRawTextInTrace: true,
-        boundedTrace: true,
-        sideEffectFree: true,
-      },
+      // mode hysteresis suggestion (no session mutation)
+      ...(hysteresis && hysteresis.sessionPatchSuggestion ? { sessionPatchSuggestion: hysteresis.sessionPatchSuggestion } : {}),
+
+      privacy: { noRawTextInTrace: true, boundedTrace: true, sideEffectFree: true },
     };
 
     // Apply psychology impacts (post-law)
@@ -1528,18 +1709,11 @@ function mediate(norm, session, opts = {}) {
     if (o && o.forceBudget && (o.forceBudget === "short" || o.forceBudget === "medium")) {
       cog.budget = o.forceBudget;
     }
-    if (
-      o &&
-      o.forceDominance &&
-      (o.forceDominance === "firm" || o.forceDominance === "neutral" || o.forceDominance === "soft")
-    ) {
+    if (o && o.forceDominance && (o.forceDominance === "firm" || o.forceDominance === "neutral" || o.forceDominance === "soft")) {
       cog.dominance = o.forceDominance;
     }
-    if (
-      o &&
-      o.forceIntent &&
-      (o.forceIntent === "ADVANCE" || o.forceIntent === "CLARIFY" || o.forceIntent === "STABILIZE")
-    ) {
+    if (o && o.forceIntent && (o.forceIntent === "ADVANCE" || o.forceIntent === "CLARIFY" || o.forceIntent === "STABILIZE")) {
+      // doctrine: allow explicit forceIntent (caller responsibility); then re-derive movePolicy
       cog.intent = o.forceIntent;
       cog.movePolicy = deriveMovePolicy(cog);
     }
@@ -1550,10 +1724,17 @@ function mediate(norm, session, opts = {}) {
       cog.movePolicy = deriveMovePolicy(cog);
     }
 
-    return cog;
+    // Dev trace policy check (optional, never throws)
+    const issues = tracePolicyCheck(cog, n, o);
+
+    // FINAL: contract clamp (the “94–95%” stabilizer)
+    const final = finalizeContract(cog, now, { tracePolicyIssues: issues });
+
+    return final;
   } catch (e) {
     const code = safeStr(e && (e.code || e.name) ? e.code || e.name : "ERR", 40);
-    return {
+    const now = nowMsDefault();
+    const fail = {
       marionVersion: MARION_VERSION,
       mode: "architect",
       intent: "CLARIFY",
@@ -1584,11 +1765,7 @@ function mediate(norm, session, opts = {}) {
         agencyPreference: PSYCH.AGENCY.GUIDED,
         socialPressure: PSYCH.PRESSURE.LOW,
       },
-      ethicsTags: [
-        ETHICS.TAGS.NON_DECEPTIVE,
-        ETHICS.TAGS.PRIVACY_MIN,
-        ETHICS.TAGS.HARM_AVOIDANCE,
-      ],
+      ethicsTags: [ETHICS.TAGS.NON_DECEPTIVE, ETHICS.TAGS.PRIVACY_MIN, ETHICS.TAGS.HARM_AVOIDANCE],
       ethicsSignals: [ETHICS.SIGNALS.USE_NEUTRAL_TONE],
       cyberTags: [CYBER.TAGS.DEFENSIVE_ONLY],
       cyberSignals: [CYBER.SIGNALS.SAFE_DEFAULTS],
@@ -1613,6 +1790,7 @@ function mediate(norm, session, opts = {}) {
       privacy: { noRawTextInTrace: true, boundedTrace: true, sideEffectFree: true },
       errorCode: code,
     };
+    return finalizeContract(fail, now, {});
   }
 }
 
@@ -1633,6 +1811,11 @@ module.exports = {
   // diagnostics
   buildTrace,
   hashTrace,
+
+  // hardening exports (unit tests / integration)
+  finalizeContract,
+  tracePolicyCheck,
+  suggestModeHysteresisPatch,
 
   // risk bridge exports (unit tests)
   computeRiskBridge,
