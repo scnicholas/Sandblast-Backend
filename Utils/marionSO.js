@@ -12,6 +12,11 @@
  * - Keep it safe: no raw user text in traces; bounded outputs; fail-open behavior
  * - Keep it portable: no express, no fs, no index.js imports, no knowledge access
  *
+ * v1.0.6 (PURE NO-MUTATION FIX++++ + STRATEGY MODE NORMALIZATION++++ + EXPORTS COMMENT CLEANUP++++)
+ * ✅ Fix: no mutation of psych object (motivation set via copy).
+ * ✅ Fix: StrategyLayer checks mode case-insensitively.
+ * ✅ Cleanup: small comment/label nits, no behavior regressions intended.
+ *
  * v1.0.5 (RISKBRIDGE v1++++ + CYBER/EN/FIN/STRAT LAYERS++++ + LAW/ETHICS++++ + MOVE POLICY++++ + PURE NO-MUTATION++++)
  * ✅ Adds: RiskBridge v1 (Psych+Ethics+lawSeed → riskTier/domains/signals + lawOverrides hints).
  * ✅ A-Mode: Law remains final arbiter (RiskBridge provides hints; LawLayer applies constitution).
@@ -26,7 +31,7 @@
  * ✅ Keeps: MarionStyleContract, deterministic clock hook, stricter privacy, tighter intent/stall logic, handoff hints.
  */
 
-const MARION_VERSION = "marionSO v1.0.5";
+const MARION_VERSION = "marionSO v1.0.6";
 
 // -------------------------
 // helpers
@@ -464,7 +469,7 @@ function computePsychologyReasoningObject(norm, session, medSeed, nowMs) {
   return {
     cognitiveLoad: load,
     regulationState,
-    motivation: "", // filled after latent desire inference
+    motivation: "", // filled after latent desire inference (via copy, no mutation)
     agencyPreference,
     socialPressure,
   };
@@ -613,7 +618,7 @@ function computeRiskBridge(norm, psych, ethics, lawSeed) {
     signals.push("multi_domain");
   }
 
-  // --- Overload/pressure soft escalator (low->medium via clamp signals) ---
+  // --- Overload/pressure soft escalator (none->low via clamp signals) ---
   if (
     tier === RISK.TIERS.NONE &&
     (load === PSYCH.LOAD.HIGH || pressure === PSYCH.PRESSURE.HIGH)
@@ -896,7 +901,8 @@ function computeFinanceLayer(norm) {
 
     if (/\bprice|pricing\b/.test(text)) tags.push(FIN.TAGS.PRICING);
     if (/\b(budget|cashflow|forecast)\b/.test(text)) tags.push(FIN.TAGS.BUDGETING);
-    if (/\b(ltv|cac|unit economics|margin|break[-\s]?even)\b/.test(text)) tags.push(FIN.TAGS.UNIT_ECON);
+    if (/\b(ltv|cac|unit economics|margin|break[-\s]?even)\b/.test(text))
+      tags.push(FIN.TAGS.UNIT_ECON);
 
     if (/\b(tax|sred|grant|funding|compliance)\b/.test(text)) {
       tags.push(FIN.TAGS.COMPLIANCE, FIN.TAGS.RISK_DISCLOSURE);
@@ -936,7 +942,9 @@ function computeStrategyLayer(norm, seed, psych) {
   const sequencingLanguage =
     /\b(first|next|then|after that|sequence|phase|layer|step\s*\d+)\b/.test(text);
 
-  if (strategicLanguage || safeStr(s.mode || "", 20) === "architect") {
+  const seedMode = safeStr(s.mode || "", 20).toLowerCase();
+
+  if (strategicLanguage || seedMode === "architect") {
     tags.push(STRATEGY.TAGS.TRADEOFFS, STRATEGY.TAGS.EXECUTION);
     signals.push(STRATEGY.SIGNALS.DEFINE_GOAL, STRATEGY.SIGNALS.IDENTIFY_CONSTRAINTS);
 
@@ -1327,7 +1335,7 @@ function mediate(norm, session, opts = {}) {
     let groundingMaxLines = intent === "STABILIZE" ? 3 : grounding ? 1 : 0;
 
     // --- PSYCH LAYER (always-on) ---
-    const psych0 = computePsychologyReasoningObject(
+    const psychSeed = computePsychologyReasoningObject(
       n,
       s,
       { mode, intent, dominance, budget, actionable, textEmpty, stalled },
@@ -1338,7 +1346,11 @@ function mediate(norm, session, opts = {}) {
     const latentDesire = inferLatentDesire(n, s, { mode, intent, dominance, budget });
     const confidence = inferConfidence(n, s, { mode, intent, dominance, budget });
 
-    psych0.motivation = safeStr(latentDesire || "", 16);
+    // PURE: no mutation — create psych copy with motivation populated
+    const psych0 = {
+      ...psychSeed,
+      motivation: safeStr(latentDesire || "", 16),
+    };
 
     // --- Build initial lawSeed (pre-risk) ---
     const lawSeed0 = {
@@ -1630,7 +1642,7 @@ module.exports = {
   applyLawLayer,
   computeEthicsLayer,
 
-  // cyber/edu/strategy exports (unit tests)
+  // cyber/english/finance/strategy exports (unit tests)
   computeCyberLayer,
   computeEnglishLayer,
   computeFinanceLayer,
