@@ -24,10 +24,11 @@
  * ✅ Fix++++: Ranked-list budgeting now guarantees 10 numbered lines survive constitution prefixes
  * ✅ Fix++++: reset sessionPatch ordering (reset flags cannot be overridden by baseCogPatch)
  * ✅ Fix++++: Option A greeting never triggers on reset
+ * ✅ Fix++++: Music.handleMusicTurn is now awaited (supports sync OR async implementations safely)
  */
 
 const CE_VERSION =
-  "chatEngine v0.7bU (MUSIC EXTRACTION++++ -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js | TELEMETRY++++ + DISCOVERY HINT++++ | STATE SPINE WIRED++++ via Utils/stateSpine.js | HARDENING++++ + ranked-list budget guarantee + reset ordering fix)";
+  "chatEngine v0.7bU (MUSIC EXTRACTION++++ -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js | TELEMETRY++++ + DISCOVERY HINT++++ | STATE SPINE WIRED++++ via Utils/stateSpine.js | HARDENING++++ + ranked-list budget guarantee + reset ordering fix + await music module)";
 
 const Spine = require("./stateSpine");
 const MarionSO = require("./marionSO");
@@ -437,8 +438,7 @@ function buildDiscoveryHint(norm, session, cog, noveltyScore) {
   }
 
   if (!forcedChoice) {
-    question =
-      lane === "music" ? `Which one should I do first?` : `What should we do first?`;
+    question = lane === "music" ? `Which one should I do first?` : `What should we do first?`;
   }
 
   return {
@@ -614,9 +614,7 @@ function detectMacModeImplicit(text) {
     tr = 0;
   const why = [];
 
-  if (
-    /\b(let's|lets)\s+(define|design|lock|implement|encode|ship|wire)\b/.test(s)
-  ) {
+  if (/\b(let's|lets)\s+(define|design|lock|implement|encode|ship|wire)\b/.test(s)) {
     a += 3;
     why.push("architect:lets-define/design");
   }
@@ -628,10 +626,7 @@ function detectMacModeImplicit(text) {
     a += 3;
     why.push("architect:constraints/architecture");
   }
-  if (
-    /\b(step\s*\d+|1\s*,\s*2\s*,\s*3|1\s*2\s*3)\b/.test(s) ||
-    /\b\d+\)\s/.test(s)
-  ) {
+  if (/\b(step\s*\d+|1\s*,\s*2\s*,\s*3|1\s*2\s*3)\b/.test(s) || /\b\d+\)\s/.test(s)) {
     a += 2;
     why.push("architect:enumeration");
   }
@@ -688,18 +683,10 @@ function classifyTurnIntent(
     return "ADVANCE";
   if (payloadActionable && textEmpty && hasPayload) return "ADVANCE";
 
-  if (
-    /\b(explain|how do i|how to|what is|walk me through|where do i|get|why)\b/.test(
-      s
-    )
-  )
+  if (/\b(explain|how do i|how to|what is|walk me through|where do i|get|why)\b/.test(s))
     return "CLARIFY";
 
-  if (
-    /\b(i('?m)?\s+stuck|i('?m)?\s+worried|overwhelmed|frustrated|anxious)\b/.test(
-      s
-    )
-  )
+  if (/\b(i('?m)?\s+stuck|i('?m)?\s+worried|overwhelmed|frustrated|anxious)\b/.test(s))
     return "STABILIZE";
 
   return "CLARIFY";
@@ -741,8 +728,7 @@ function inferLatentDesire(norm, session, cog) {
     return LATENT_DESIRE.COMFORT;
 
   if (macMode === "architect") {
-    if (/\bdesign|implement|encode|ship|lock\b/.test(t))
-      return LATENT_DESIRE.MASTERY;
+    if (/\bdesign|implement|encode|ship|lock\b/.test(t)) return LATENT_DESIRE.MASTERY;
     return LATENT_DESIRE.AUTHORITY;
   }
 
@@ -768,13 +754,11 @@ function inferConfidence(norm, session, cog) {
     action ||
     (actionablePayload &&
       hasPayload &&
-      (norm?.turnSignals?.payloadAction ||
-        norm?.turnSignals?.payloadYear !== null))
+      (norm?.turnSignals?.payloadAction || norm?.turnSignals?.payloadYear !== null))
   )
     user += 0.15;
   if (textEmpty && hasPayload && actionablePayload) user += 0.05;
-  if (/\b(i('?m)?\s+not\s+sure|confused|stuck|overwhelmed)\b/i.test(text))
-    user -= 0.25;
+  if (/\b(i('?m)?\s+not\s+sure|confused|stuck|overwhelmed)\b/i.test(text)) user -= 0.25;
   if (/\b(are you sure|really\??)\b/i.test(text)) user -= 0.1;
 
   let nyx = 0.55;
@@ -785,8 +769,7 @@ function inferConfidence(norm, session, cog) {
   const lastAction = safeStr(s.lastAction || "").trim();
   const lastYear = normYear(s.lastYear);
   const yr = normYear(norm?.year);
-  if (lastAction && lastAction === action && lastYear && yr && lastYear === yr)
-    nyx += 0.1;
+  if (lastAction && lastAction === action && lastYear && yr && lastYear === yr) nyx += 0.1;
 
   const mode = safeStr(cog?.mode || "").toLowerCase();
   if (mode === "architect" || mode === "transitional") nyx += 0.05;
@@ -814,14 +797,7 @@ function computeVelvet(norm, session, cog, desire) {
     action === "custom_story" ||
     /\b(why|meaning|connect|deeper|layer)\b/i.test(safeStr(norm?.text || ""));
 
-  const repeatedTopic = !!(
-    lastLane &&
-    lane &&
-    lastLane === lane &&
-    yr &&
-    lastYear &&
-    yr === lastYear
-  );
+  const repeatedTopic = !!(lastLane && lane && lastLane === lane && yr && lastYear && yr === lastYear);
   const acceptedChip = !!(
     norm?.turnSignals?.hasPayload &&
     norm?.turnSignals?.payloadActionable &&
@@ -835,42 +811,23 @@ function computeVelvet(norm, session, cog, desire) {
   if (repeatedTopic) signals++;
   if (acceptedChip) signals++;
   if (clamp01(cog?.confidence?.nyx) >= 0.6) signals++;
-  if (desire === LATENT_DESIRE.COMFORT || desire === LATENT_DESIRE.CURIOSITY)
-    signals++;
+  if (desire === LATENT_DESIRE.COMFORT || desire === LATENT_DESIRE.CURIOSITY) signals++;
 
   if (!musicFirstEligible) {
-    return {
-      velvet: already,
-      velvetSince: Number(s.velvetSince || 0) || 0,
-      reason: already ? "carry" : "no",
-    };
+    return { velvet: already, velvetSince: Number(s.velvetSince || 0) || 0, reason: already ? "carry" : "no" };
   }
 
   if (already) {
     if (safeStr(cog?.intent).toUpperCase() === "STABILIZE") {
-      return {
-        velvet: false,
-        velvetSince: Number(s.velvetSince || 0) || 0,
-        reason: "stabilize_exit",
-      };
+      return { velvet: false, velvetSince: Number(s.velvetSince || 0) || 0, reason: "stabilize_exit" };
     }
     if (lastLane && lane && lastLane !== lane) {
-      return {
-        velvet: false,
-        velvetSince: Number(s.velvetSince || 0) || 0,
-        reason: "lane_shift_exit",
-      };
+      return { velvet: false, velvetSince: Number(s.velvetSince || 0) || 0, reason: "lane_shift_exit" };
     }
-    return {
-      velvet: true,
-      velvetSince: Number(s.velvetSince || 0) || now,
-      reason: "hold",
-    };
+    return { velvet: true, velvetSince: Number(s.velvetSince || 0) || now, reason: "hold" };
   }
 
-  if (signals >= 2) {
-    return { velvet: true, velvetSince: now, reason: "entry" };
-  }
+  if (signals >= 2) return { velvet: true, velvetSince: now, reason: "entry" };
 
   return { velvet: false, velvetSince: 0, reason: "no" };
 }
@@ -894,18 +851,14 @@ function normalizeInbound(input) {
       ""
   ).trim();
 
-  const payloadAction = safeStr(payload.action || body.action || ctx.action || "")
-    .trim();
+  const payloadAction = safeStr(payload.action || body.action || ctx.action || "").trim();
   const inferredAction = classifyAction(textRaw, payload);
   const action = payloadAction || inferredAction || "";
 
-  const payloadYear =
-    normYear(payload.year) ?? normYear(body.year) ?? normYear(ctx.year) ?? null;
-
+  const payloadYear = normYear(payload.year) ?? normYear(body.year) ?? normYear(ctx.year) ?? null;
   const year = payloadYear ?? extractYearFromText(textRaw) ?? null;
 
   const lane = safeStr(body.lane || payload.lane || ctx.lane || "").trim();
-
   const vibe = safeStr(payload.vibe || body.vibe || ctx.vibe || "").trim() || "";
 
   const allowDerivedTop10 =
@@ -989,28 +942,21 @@ function mediatorMarion(norm, session) {
 
   let mode = safeStr(norm.macMode || "").trim().toLowerCase();
   if (!mode) mode = "architect";
-  if (mode !== "architect" && mode !== "user" && mode !== "transitional")
-    mode = "architect";
+  if (mode !== "architect" && mode !== "user" && mode !== "transitional") mode = "architect";
 
   const now = nowMs();
   const stalled = lastAdvanceAt ? now - lastAdvanceAt > 90 * 1000 : false;
 
   let intent = safeStr(norm.turnIntent || "").trim().toUpperCase();
-  if (intent !== "ADVANCE" && intent !== "CLARIFY" && intent !== "STABILIZE")
-    intent = "CLARIFY";
+  if (intent !== "ADVANCE" && intent !== "CLARIFY" && intent !== "STABILIZE") intent = "CLARIFY";
 
   const actionable =
     !!safeStr(norm.action).trim() ||
     (payloadActionable &&
       hasPayload &&
-      (norm.turnSignals.payloadAction ||
-        norm.turnSignals.payloadYear !== null));
+      (norm.turnSignals.payloadAction || norm.turnSignals.payloadYear !== null));
 
-  if (
-    stalled &&
-    (mode === "architect" || mode === "transitional") &&
-    intent !== "ADVANCE"
-  ) {
+  if (stalled && (mode === "architect" || mode === "transitional") && intent !== "ADVANCE") {
     intent = actionable ? "ADVANCE" : "CLARIFY";
   }
   if (actionable) intent = "ADVANCE";
@@ -1032,28 +978,12 @@ function mediatorMarion(norm, session) {
   const grounding = mode === "user" || mode === "transitional";
   const groundingMaxLines = intent === "STABILIZE" ? 3 : grounding ? 1 : 0;
 
-  const latentDesire = inferLatentDesire(norm, s, {
-    mode,
-    intent,
-    dominance,
-    budget,
-  });
-  const confidence = inferConfidence(norm, s, {
-    mode,
-    intent,
-    dominance,
-    budget,
-  });
+  const latentDesire = inferLatentDesire(norm, s, { mode, intent, dominance, budget });
+  const confidence = inferConfidence(norm, s, { mode, intent, dominance, budget });
 
-  const velvet = computeVelvet(
-    norm,
-    s,
-    { mode, intent, dominance, budget, confidence },
-    latentDesire
-  );
+  const velvet = computeVelvet(norm, s, { mode, intent, dominance, budget, confidence }, latentDesire);
 
-  if (velvet.velvet && mode === "user" && intent !== "ADVANCE")
-    dominance = "soft";
+  if (velvet.velvet && mode === "user" && intent !== "ADVANCE") dominance = "soft";
   if (
     latentDesire === LATENT_DESIRE.MASTERY &&
     (mode === "architect" || mode === "transitional") &&
@@ -1287,11 +1217,7 @@ function runToneRegressionTests() {
   const composed = applyTurnConstitutionToReply(listBody, cFirm, {
     lastSigTransition: "",
   });
-  assert(
-    "budget_ranked_list_keeps_10_with_prefix",
-    countNumberedLines(composed) >= 10,
-    composed
-  );
+  assert("budget_ranked_list_keeps_10_with_prefix", countNumberedLines(composed) >= 10, composed);
 
   // 2) Firm ADVANCE removes softness tails
   const soft = "Do X. Let me know if you'd like.";
@@ -1302,26 +1228,14 @@ function runToneRegressionTests() {
 
   // 3) Ban “Earlier you said…”
   const out3 = applyTurnConstitutionToReply("Earlier you said X, so Y.", cFirm, {});
-  assert(
-    "ban_earlier_you_said",
-    !/\bearlier you (said|mentioned)\b/i.test(out3),
-    out3
-  );
+  assert("ban_earlier_you_said", !/\bearlier you (said|mentioned)\b/i.test(out3), out3);
 
   // 4) Signature transition not repeated consecutively + must be valid or blank
   const s1 = { lastSigTransition: SIGNATURE_TRANSITIONS[0] };
   const out4 = applyTurnConstitutionToReply("Do X.", cFirm, s1);
   const sig4 = detectSignatureLine(out4);
-  assert(
-    "no_repeat_signature_transition",
-    sig4 !== SIGNATURE_TRANSITIONS[0],
-    out4
-  );
-  assert(
-    "signature_is_valid_transition_or_blank",
-    sig4 === "" || SIGNATURE_TRANSITIONS.includes(sig4),
-    sig4
-  );
+  assert("no_repeat_signature_transition", sig4 !== SIGNATURE_TRANSITIONS[0], out4);
+  assert("signature_is_valid_transition_or_blank", sig4 === "" || SIGNATURE_TRANSITIONS.includes(sig4), sig4);
 
   // 5) Marion trace must be bounded
   const tr = marionTraceBuild(
@@ -1341,19 +1255,10 @@ function runToneRegressionTests() {
     pendingAskPatch: null,
     lastUserIntent: "ask",
     lastAssistantSummary: "test",
-    decisionUpper: {
-      move: "CLARIFY",
-      stage: "clarify",
-      speak: "Test.",
-      rationale: "test",
-    },
+    decisionUpper: { move: "CLARIFY", stage: "clarify", speak: "Test.", rationale: "test" },
     actionTaken: "test",
   });
-  assert(
-    "core_spine_rev_increments",
-    sp1.rev === sp0.rev + 1,
-    `${sp0.rev}->${sp1.rev}`
-  );
+  assert("core_spine_rev_increments", sp1.rev === sp0.rev + 1, `${sp0.rev}->${sp1.rev}`);
 
   // 7) Option A: greeting should not duplicate when inboundKey repeats
   const sess = { __greeted: false, __lastInboundKey: "abc" };
@@ -1454,9 +1359,7 @@ async function handleChat(input) {
     lastMacMode: safeStr(cog.mode || ""),
     lastTurnIntent: safeStr(cog.intent || ""),
     lastTurnAt: nowMs(),
-    ...(safeStr(cog.intent || "").toUpperCase() === "ADVANCE"
-      ? { lastAdvanceAt: nowMs() }
-      : {}),
+    ...(safeStr(cog.intent || "").toUpperCase() === "ADVANCE" ? { lastAdvanceAt: nowMs() } : {}),
 
     __lastInboundKey: inboundKey,
     ...(cog.greetLine ? { __greeted: true, __greetedAt: nowMs() } : {}),
@@ -1523,6 +1426,7 @@ async function handleChat(input) {
       reply: "",
       lane: "general",
       sessionPatch: {
+        // ordering: baseCogPatch FIRST, then hard reset flags override it
         ...baseCogPatch,
 
         lane: "general",
@@ -1547,12 +1451,7 @@ async function handleChat(input) {
       cog,
       meta: metaBase({
         resetHint: true,
-        spine: {
-          v: Spine.SPINE_VERSION,
-          rev: coreNext.rev,
-          lane: coreNext.lane,
-          stage: coreNext.stage,
-        },
+        spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage },
       }),
     };
   }
@@ -1598,13 +1497,7 @@ async function handleChat(input) {
       cog,
       meta: metaBase({
         route: "counsel_intro",
-        spine: {
-          v: Spine.SPINE_VERSION,
-          rev: coreNext.rev,
-          lane: coreNext.lane,
-          stage: coreNext.stage,
-          move: cog.nextMove,
-        },
+        spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: cog.nextMove },
       }),
     };
   }
@@ -1618,24 +1511,9 @@ async function handleChat(input) {
     const sigLine = detectSignatureLine(reply);
 
     const fu = [
-      {
-        id: "fu_1973",
-        type: "chip",
-        label: "1973",
-        payload: { lane: "music", action: "top10", year: 1973, route: "top10" },
-      },
-      {
-        id: "fu_1988",
-        type: "chip",
-        label: "1988",
-        payload: { lane: "music", action: "top10", year: 1988, route: "top10" },
-      },
-      {
-        id: "fu_1992",
-        type: "chip",
-        label: "1992",
-        payload: { lane: "music", action: "top10", year: 1992, route: "top10" },
-      },
+      { id: "fu_1973", type: "chip", label: "1973", payload: { lane: "music", action: "top10", year: 1973, route: "top10" } },
+      { id: "fu_1988", type: "chip", label: "1988", payload: { lane: "music", action: "top10", year: 1988, route: "top10" } },
+      { id: "fu_1992", type: "chip", label: "1992", payload: { lane: "music", action: "top10", year: 1992, route: "top10" } },
     ];
 
     const coreNext = finalizeCoreSpine({
@@ -1643,20 +1521,10 @@ async function handleChat(input) {
       inboundNorm: norm,
       lane: "music",
       topic: "help",
-      pendingAskPatch: pendingAskObj(
-        "need_year",
-        "clarify",
-        `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`,
-        true
-      ),
+      pendingAskPatch: pendingAskObj("need_year", "clarify", `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`, true),
       lastUserIntent: norm.turnSignals.textEmpty ? "silent_click" : "ask",
       lastAssistantSummary: "asked_year",
-      decisionUpper: {
-        move: cog.nextMove,
-        stage: cog.nextMoveStage || "clarify",
-        speak: cog.nextMoveSpeak,
-        rationale: cog.nextMoveWhy,
-      },
+      decisionUpper: { move: cog.nextMove, stage: cog.nextMoveStage || "clarify", speak: cog.nextMoveSpeak, rationale: cog.nextMoveWhy },
       actionTaken: "asked_year",
     });
 
@@ -1675,13 +1543,7 @@ async function handleChat(input) {
       cog,
       meta: metaBase({
         route: "ask_year",
-        spine: {
-          v: Spine.SPINE_VERSION,
-          rev: coreNext.rev,
-          lane: coreNext.lane,
-          stage: coreNext.stage,
-          move: cog.nextMove,
-        },
+        spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: cog.nextMove },
       }),
     };
   }
@@ -1697,24 +1559,9 @@ async function handleChat(input) {
     const sigLine = detectSignatureLine(reply);
 
     const fu = [
-      {
-        id: "fu_music",
-        type: "chip",
-        label: "Music",
-        payload: { lane: "music", action: "ask_year", route: "ask_year" },
-      },
-      {
-        id: "fu_movies",
-        type: "chip",
-        label: "Movies",
-        payload: { lane: "movies", route: "movies" },
-      },
-      {
-        id: "fu_sponsors",
-        type: "chip",
-        label: "Sponsors",
-        payload: { lane: "sponsors", route: "sponsors" },
-      },
+      { id: "fu_music", type: "chip", label: "Music", payload: { lane: "music", action: "ask_year", route: "ask_year" } },
+      { id: "fu_movies", type: "chip", label: "Movies", payload: { lane: "movies", route: "movies" } },
+      { id: "fu_sponsors", type: "chip", label: "Sponsors", payload: { lane: "sponsors", route: "sponsors" } },
     ];
 
     const coreNext = finalizeCoreSpine({
@@ -1725,12 +1572,7 @@ async function handleChat(input) {
       pendingAskPatch: pendingAskObj("need_pick", "clarify", "Pick a lane.", true),
       lastUserIntent: norm.turnSignals.textEmpty ? "silent_click" : "ask",
       lastAssistantSummary: "asked_lane",
-      decisionUpper: {
-        move: cog.nextMove,
-        stage: cog.nextMoveStage || "clarify",
-        speak: cog.nextMoveSpeak,
-        rationale: cog.nextMoveWhy,
-      },
+      decisionUpper: { move: cog.nextMove, stage: cog.nextMoveStage || "clarify", speak: cog.nextMoveSpeak, rationale: cog.nextMoveWhy },
       actionTaken: "asked_lane",
     });
 
@@ -1749,13 +1591,7 @@ async function handleChat(input) {
       cog,
       meta: metaBase({
         route: "switch_lane",
-        spine: {
-          v: Spine.SPINE_VERSION,
-          rev: coreNext.rev,
-          lane: coreNext.lane,
-          stage: coreNext.stage,
-          move: cog.nextMove,
-        },
+        spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: cog.nextMove },
       }),
     };
   }
@@ -1763,13 +1599,7 @@ async function handleChat(input) {
   // -------------------------
   // year guards (engine-owned)
   // -------------------------
-  const requiresYear = [
-    "top10",
-    "story_moment",
-    "micro_moment",
-    "yearend_hot100",
-    "custom_story",
-  ];
+  const requiresYear = ["top10", "story_moment", "micro_moment", "yearend_hot100", "custom_story"];
 
   if (requiresYear.includes(norm.action) && !year) {
     const replyRaw = `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`;
@@ -1781,34 +1611,19 @@ async function handleChat(input) {
         id: "fu_1973",
         type: "chip",
         label: "1973",
-        payload: {
-          lane: "music",
-          action: norm.action || "top10",
-          year: 1973,
-          route: safeStr(norm.action || "top10"),
-        },
+        payload: { lane: "music", action: norm.action || "top10", year: 1973, route: safeStr(norm.action || "top10") },
       },
       {
         id: "fu_1988",
         type: "chip",
         label: "1988",
-        payload: {
-          lane: "music",
-          action: norm.action || "top10",
-          year: 1988,
-          route: safeStr(norm.action || "top10"),
-        },
+        payload: { lane: "music", action: norm.action || "top10", year: 1988, route: safeStr(norm.action || "top10") },
       },
       {
         id: "fu_1960",
         type: "chip",
         label: "1960",
-        payload: {
-          lane: "music",
-          action: norm.action || "top10",
-          year: 1960,
-          route: safeStr(norm.action || "top10"),
-        },
+        payload: { lane: "music", action: norm.action || "top10", year: 1960, route: safeStr(norm.action || "top10") },
       },
     ];
 
@@ -1817,20 +1632,10 @@ async function handleChat(input) {
       inboundNorm: norm,
       lane: "music",
       topic: "help",
-      pendingAskPatch: pendingAskObj(
-        "need_year",
-        "clarify",
-        `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`,
-        true
-      ),
+      pendingAskPatch: pendingAskObj("need_year", "clarify", `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`, true),
       lastUserIntent: norm.turnSignals.textEmpty ? "silent_click" : "ask",
       lastAssistantSummary: "asked_year",
-      decisionUpper: {
-        move: cog.nextMove,
-        stage: cog.nextMoveStage || "clarify",
-        speak: cog.nextMoveSpeak,
-        rationale: cog.nextMoveWhy,
-      },
+      decisionUpper: { move: cog.nextMove, stage: cog.nextMoveStage || "clarify", speak: cog.nextMoveSpeak, rationale: cog.nextMoveWhy },
       actionTaken: "asked_year",
     });
 
@@ -1849,13 +1654,7 @@ async function handleChat(input) {
       cog,
       meta: metaBase({
         needYear: true,
-        spine: {
-          v: Spine.SPINE_VERSION,
-          rev: coreNext.rev,
-          lane: coreNext.lane,
-          stage: coreNext.stage,
-          move: cog.nextMove,
-        },
+        spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: cog.nextMove },
       }),
     };
   }
@@ -1870,20 +1669,10 @@ async function handleChat(input) {
       inboundNorm: norm,
       lane: "music",
       topic: "help",
-      pendingAskPatch: pendingAskObj(
-        "need_year",
-        "clarify",
-        `Use a year in ${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}.`,
-        true
-      ),
+      pendingAskPatch: pendingAskObj("need_year", "clarify", `Use a year in ${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}.`, true),
       lastUserIntent: norm.turnSignals.textEmpty ? "silent_click" : "ask",
       lastAssistantSummary: "asked_year_range",
-      decisionUpper: {
-        move: cog.nextMove,
-        stage: cog.nextMoveStage || "clarify",
-        speak: cog.nextMoveSpeak,
-        rationale: cog.nextMoveWhy,
-      },
+      decisionUpper: { move: cog.nextMove, stage: cog.nextMoveStage || "clarify", speak: cog.nextMoveSpeak, rationale: cog.nextMoveWhy },
       actionTaken: "asked_year_range",
     });
 
@@ -1901,13 +1690,7 @@ async function handleChat(input) {
       meta: metaBase({
         outOfRange: true,
         year,
-        spine: {
-          v: Spine.SPINE_VERSION,
-          rev: coreNext.rev,
-          lane: coreNext.lane,
-          stage: coreNext.stage,
-          move: cog.nextMove,
-        },
+        spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: cog.nextMove },
       }),
     };
   }
@@ -1923,25 +1706,27 @@ async function handleChat(input) {
     // returning:
     //   {
     //     ok, replyRaw, followUps, followUpsStrings,
-    //     sessionPatch, meta, route, topic, lastAssistantSummary
+    //     sessionPatch, meta, route, topic, lastAssistantSummary, pendingAsk, spineStage, actionTaken
     //   }
     //
     // chatEngine applies constitution + spine finalize + baseCogPatch.
     let musicOut = null;
     try {
       if (Music && typeof Music.handleMusicTurn === "function") {
-        musicOut = Music.handleMusicTurn({
-          norm,
-          session,
-          knowledge,
-          year,
-          action,
-          opts: {
-            allowDerivedTop10: !!norm.allowDerivedTop10,
-            publicMinYear: PUBLIC_MIN_YEAR,
-            publicMaxYear: PUBLIC_MAX_YEAR,
-          },
-        });
+        musicOut = await Promise.resolve(
+          Music.handleMusicTurn({
+            norm,
+            session,
+            knowledge,
+            year,
+            action,
+            opts: {
+              allowDerivedTop10: !!norm.allowDerivedTop10,
+              publicMinYear: PUBLIC_MIN_YEAR,
+              publicMaxYear: PUBLIC_MAX_YEAR,
+            },
+          })
+        );
       }
     } catch (e) {
       musicOut = null;
@@ -1958,20 +1743,10 @@ async function handleChat(input) {
         inboundNorm: norm,
         lane: "music",
         topic: "help",
-        pendingAskPatch: pendingAskObj(
-          "need_music_module",
-          "clarify",
-          "Wire Utils/musicKnowledge.js (handleMusicTurn).",
-          true
-        ),
+        pendingAskPatch: pendingAskObj("need_music_module", "clarify", "Wire Utils/musicKnowledge.js (handleMusicTurn).", true),
         lastUserIntent: norm.turnSignals.textEmpty ? "silent_click" : "ask",
         lastAssistantSummary: "music_module_missing",
-        decisionUpper: {
-          move: cog.nextMove,
-          stage: cog.nextMoveStage || "clarify",
-          speak: cog.nextMoveSpeak,
-          rationale: cog.nextMoveWhy,
-        },
+        decisionUpper: { move: cog.nextMove, stage: cog.nextMoveStage || "clarify", speak: cog.nextMoveSpeak, rationale: cog.nextMoveWhy },
         actionTaken: "music_module_missing",
       });
 
@@ -1988,22 +1763,12 @@ async function handleChat(input) {
         cog,
         meta: metaBase({
           route: "music_module_missing",
-          spine: {
-            v: Spine.SPINE_VERSION,
-            rev: coreNext.rev,
-            lane: coreNext.lane,
-            stage: coreNext.stage,
-            move: cog.nextMove,
-          },
+          spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: cog.nextMove },
         }),
       };
     }
 
-    const reply = applyTurnConstitutionToReply(
-      safeStr(musicOut.replyRaw || ""),
-      cog,
-      session
-    );
+    const reply = applyTurnConstitutionToReply(safeStr(musicOut.replyRaw || ""), cog, session);
     const sigLine = detectSignatureLine(reply);
 
     const coreNext = finalizeCoreSpine({
@@ -2043,13 +1808,7 @@ async function handleChat(input) {
       meta: metaBase({
         route: safeStr(musicOut.route || "music"),
         ...(isPlainObject(musicOut.meta) ? musicOut.meta : {}),
-        spine: {
-          v: Spine.SPINE_VERSION,
-          rev: coreNext.rev,
-          lane: coreNext.lane,
-          stage: coreNext.stage,
-          move: cog.nextMove,
-        },
+        spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: cog.nextMove },
       }),
     };
   }
@@ -2057,10 +1816,7 @@ async function handleChat(input) {
   // -------------------------
   // GENERAL handling
   // -------------------------
-  if (
-    (cog.mode === "architect" || cog.mode === "transitional") &&
-    cog.intent === "ADVANCE"
-  ) {
+  if ((cog.mode === "architect" || cog.mode === "transitional") && cog.intent === "ADVANCE") {
     const replyRaw = `Defaulting to Music. Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`;
     const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
     const sigLine = detectSignatureLine(reply);
@@ -2070,20 +1826,10 @@ async function handleChat(input) {
       inboundNorm: norm,
       lane: "music",
       topic: "help",
-      pendingAskPatch: pendingAskObj(
-        "need_year",
-        "clarify",
-        `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`,
-        true
-      ),
+      pendingAskPatch: pendingAskObj("need_year", "clarify", `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`, true),
       lastUserIntent: norm.turnSignals.textEmpty ? "silent_click" : "ask",
       lastAssistantSummary: "asked_year",
-      decisionUpper: {
-        move: cog.nextMove,
-        stage: cog.nextMoveStage || "clarify",
-        speak: cog.nextMoveSpeak,
-        rationale: cog.nextMoveWhy,
-      },
+      decisionUpper: { move: cog.nextMove, stage: cog.nextMoveStage || "clarify", speak: cog.nextMoveSpeak, rationale: cog.nextMoveWhy },
       actionTaken: "asked_year",
     });
 
@@ -2103,13 +1849,7 @@ async function handleChat(input) {
         velvet: !!cog.velvet,
         desire: cog.latentDesire,
         confidence: cog.confidence,
-        spine: {
-          v: Spine.SPINE_VERSION,
-          rev: coreNext.rev,
-          lane: coreNext.lane,
-          stage: coreNext.stage,
-          move: cog.nextMove,
-        },
+        spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: cog.nextMove },
       }),
     };
   }
@@ -2132,12 +1872,7 @@ async function handleChat(input) {
       pendingAskPatch: null,
       lastUserIntent: "ask",
       lastAssistantSummary: "counsel_intro",
-      decisionUpper: {
-        move: cog.nextMove,
-        stage: cog.nextMoveStage || "deliver",
-        speak: cog.nextMoveSpeak,
-        rationale: cog.nextMoveWhy,
-      },
+      decisionUpper: { move: cog.nextMove, stage: cog.nextMoveStage || "deliver", speak: cog.nextMoveSpeak, rationale: cog.nextMoveWhy },
       actionTaken: "served_counsel_intro",
     });
 
@@ -2156,13 +1891,7 @@ async function handleChat(input) {
       cog,
       meta: metaBase({
         route: "general_counsel_intro",
-        spine: {
-          v: Spine.SPINE_VERSION,
-          rev: coreNext.rev,
-          lane: coreNext.lane,
-          stage: coreNext.stage,
-          move: cog.nextMove,
-        },
+        spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: cog.nextMove },
       }),
     };
   }
@@ -2178,19 +1907,9 @@ async function handleChat(input) {
   const sigLine = detectSignatureLine(reply);
 
   const fu = [
-    {
-      id: "fu_music",
-      type: "chip",
-      label: "Music",
-      payload: { lane: "music", action: "ask_year", route: "ask_year" },
-    },
+    { id: "fu_music", type: "chip", label: "Music", payload: { lane: "music", action: "ask_year", route: "ask_year" } },
     { id: "fu_movies", type: "chip", label: "Movies", payload: { lane: "movies", route: "movies" } },
-    {
-      id: "fu_sponsors",
-      type: "chip",
-      label: "Sponsors",
-      payload: { lane: "sponsors", route: "sponsors" },
-    },
+    { id: "fu_sponsors", type: "chip", label: "Sponsors", payload: { lane: "sponsors", route: "sponsors" } },
   ];
 
   const coreNext = finalizeCoreSpine({
@@ -2198,20 +1917,10 @@ async function handleChat(input) {
     inboundNorm: norm,
     lane: lane || "general",
     topic: "help",
-    pendingAskPatch: pendingAskObj(
-      "need_pick",
-      "clarify",
-      "Pick what you want next.",
-      true
-    ),
+    pendingAskPatch: pendingAskObj("need_pick", "clarify", "Pick what you want next.", true),
     lastUserIntent: norm.turnSignals.textEmpty ? "silent_click" : "ask",
     lastAssistantSummary: "served_menu",
-    decisionUpper: {
-      move: cog.nextMove,
-      stage: cog.nextMoveStage || "clarify",
-      speak: cog.nextMoveSpeak,
-      rationale: cog.nextMoveWhy,
-    },
+    decisionUpper: { move: cog.nextMove, stage: cog.nextMoveStage || "clarify", speak: cog.nextMoveSpeak, rationale: cog.nextMoveWhy },
     actionTaken: "served_menu",
   });
 
@@ -2233,13 +1942,7 @@ async function handleChat(input) {
       velvet: !!cog.velvet,
       desire: cog.latentDesire,
       confidence: cog.confidence,
-      spine: {
-        v: Spine.SPINE_VERSION,
-        rev: coreNext.rev,
-        lane: coreNext.lane,
-        stage: coreNext.stage,
-        move: cog.nextMove,
-      },
+      spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: cog.nextMove },
     }),
   };
 }
