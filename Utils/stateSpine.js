@@ -10,10 +10,12 @@
  *
  * Designed to be imported by Utils/chatEngine.js (pure, no express).
  *
- * v1.1.1 (CRITICAL COMPAT++++: pendingAsk schema dual-support (kind/options OR id/type/required) + need_year detection + safe clear rules)
+ * v1.1.2 (CRITICAL COMPAT++++ + PENDINGASK CLEAR ON CHIP-YEAR++++)
+ * ✅ Keeps: pendingAsk schema dual-support (kind/options OR id/type/required) + need_year detection + safe clear rules.
+ * ✅ Adds: clears need_year when user selects a chip / payload carries a valid year (silent_click/choose with payloadActionable).
  */
 
-const SPINE_VERSION = "stateSpine v1.1.1";
+const SPINE_VERSION = "stateSpine v1.1.2";
 
 const LANE = Object.freeze({
   MUSIC: "music",
@@ -182,7 +184,6 @@ function isNeedYearAsk(pendingAsk) {
   const pr = safeStr(pa.prompt || "", 240).toLowerCase();
 
   if (k === "need_year" || id === "need_year") return true;
-  // Robust fallback: prompt contains "year" and "1950–2025" style patterns
   if (/\byear\b/.test(pr)) return true;
   return false;
 }
@@ -829,15 +830,23 @@ function finalizeTurn({
   });
 
   // PendingAsk hygiene:
-  // - Only clear need_year if user typed a year token (not just payload year).
+  // - clear need_year if user typed a year token (not just payload year), OR
+  // - clear need_year if user clicked/selected a payload that includes a valid year (chip-year).
   const typedYear = !n.signals.textEmpty && textHasYearToken(n.text || "");
+  const payloadYear = n.signals.payloadActionable ? normYear(n.payload?.year) : null;
+  const chipYearResolved =
+    payloadYear !== null &&
+    (lastUserIntent === "silent_click" || lastUserIntent === "choose") &&
+    !!n.signals.payloadActionable;
+
   let nextPendingAsk = prev.pendingAsk;
 
   if (pendingAsk === null) nextPendingAsk = null;
-  else if (pendingAsk && typeof pendingAsk === "object") nextPendingAsk = normalizePendingAsk(pendingAsk);
-  // else: keep prev.pendingAsk, unless typedYear resolves it
+  else if (pendingAsk && typeof pendingAsk === "object")
+    nextPendingAsk = normalizePendingAsk(pendingAsk);
+  // else: keep prev.pendingAsk, unless typedYear/chipYear resolves it
 
-  if (typedYear && nextPendingAsk && isNeedYearAsk(nextPendingAsk)) {
+  if ((typedYear || chipYearResolved) && nextPendingAsk && isNeedYearAsk(nextPendingAsk)) {
     nextPendingAsk = null;
   }
 
