@@ -12,13 +12,12 @@
  * - Keep it safe: no raw user text in traces; bounded outputs; fail-open behavior
  * - Keep it portable: no express, no fs, no index.js imports
  *
- * v1.1.0 (ENGLISH KNOWLEDGE WIRE++++ + CYBER/PSY FAIL-OPEN++++ + NO-RAW-TEXT DOCTRINE PRESERVED++++)
- * ✅ Adds: optional integration to Utils/englishKnowledge.js (mediator-safe query)
- * ✅ Adds: englishKnowledgeHints payload (bounded, non-PII, no raw user text) for chatEngine to consume
+ * v1.1.1 (ENGLISH KNOWLEDGE WIRE HARDEN++++ + DOUBLE-CLAMP FIX++++ + FAIL-OPEN PRESERVED++++)
+ * ✅ EnglishKnowledge integration is now consistently clamped once (no double-clamp)
  * ✅ Keeps: psychologyKnowledge integration + cyberKnowledge integration + Law/Ethics/RiskBridge/Cyber/English/Fin/Strategy layers
  */
 
-const MARION_VERSION = "marionSO v1.1.0";
+const MARION_VERSION = "marionSO v1.1.1";
 
 // -------------------------
 // Optional Knowledge modules (FAIL-OPEN)
@@ -1932,6 +1931,7 @@ function finalizeContract(cog, nowMs, extra) {
       ? clampCyberHints(c.cyberKnowledgeHints)
       : { enabled: false, reason: "none" },
 
+    // IMPORTANT: already clamped at queryEnglishKnowledge() callsite
     englishKnowledgeHints: isPlainObject(c.englishKnowledgeHints)
       ? clampEnglishHints(c.englishKnowledgeHints)
       : { enabled: false, reason: "none" },
@@ -2190,7 +2190,7 @@ function mediate(norm, session, opts = {}) {
     const cyHints = queryCyberKnowledge(n, s, cog);
     cog.cyberKnowledgeHints = clampCyberHints(cyHints);
 
-    // EnglishKnowledge hints (mediator-safe, NO RAW TEXT)
+    // EnglishKnowledge hints (mediator-safe, NO RAW TEXT) — already clamped by queryEnglishKnowledge()
     const enHints = queryEnglishKnowledge(n, s, cog);
     cog.englishKnowledgeHints = clampEnglishHints(enHints);
 
