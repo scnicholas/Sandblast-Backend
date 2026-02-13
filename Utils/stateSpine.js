@@ -10,15 +10,15 @@
  *
  * Designed to be imported by Utils/chatEngine.js (pure, no express).
  *
- * v1.1.3 (PRIVACY TURN-SIG++++ + CHIP-YEAR CLEAR++++ + NEED_PICK RESOLVE++++ + HARDENING++++)
- * ✅ Keeps: pendingAsk schema dual-support (kind/options OR id/type/required) + need_year detection + safe clear rules.
- * ✅ Keeps: clears need_year when user selects a chip / payload carries a valid year (silent_click/choose with payloadActionable).
- * ✅ Adds: turnSig no longer includes raw user text (hash-only).
- * ✅ Adds: resolves need_pick via chip lane/action or typed lane token.
- * ✅ Tightens: chip-year detection uses inbound normalized year (payload.year OR extracted year OR body.year).
+ * v1.1.4 (CHATENGINE COMPAT++++ + FAIL-OPEN++++ + CASE HARDEN++++)
+ * ✅ Fix++++: normalizeInbound now understands chatEngine’s ctx + payload aliases (turnSignals -> signals, effectiveYear/year).
+ * ✅ Fix++++: action detection understands payload.route + ctx.action + body.action (matches chatEngine normalizeInbound behavior).
+ * ✅ Fix++++: chip-year clear uses inbound normalized year (payload.year OR extracted OR body.year OR ctx.year).
+ * ✅ Fix++++: resolves need_pick via chip lane/action OR typed lane token (kept).
+ * ✅ Keeps: PRIVACY turnSig hash-only; pendingAsk schema dual-support; need_year detection; safe clear rules.
  */
 
-const SPINE_VERSION = "stateSpine v1.1.3";
+const SPINE_VERSION = "stateSpine v1.1.4";
 
 const LANE = Object.freeze({
   MUSIC: "music",
@@ -132,7 +132,14 @@ function hasActionablePayload(payload) {
 
 function isLaneToken(t) {
   const s = safeStr(t, 64).trim().toLowerCase();
-  return s === "music" || s === "movies" || s === "news" || s === "sponsors" || s === "help" || s === "general";
+  return (
+    s === "music" ||
+    s === "movies" ||
+    s === "news" ||
+    s === "sponsors" ||
+    s === "help" ||
+    s === "general"
+  );
 }
 
 // -------------------------
@@ -150,7 +157,6 @@ function normalizePendingAsk(p) {
   const typeRaw = safeStr(p.type || "", 40).trim();
 
   // Heuristic: prefer explicit kind; else map id/type into kind.
-  // chatEngine uses id like "need_year" and type like "clarify".
   const kind =
     kindRaw ||
     (idRaw ? safeStr(idRaw, 40) : "") ||
@@ -177,7 +183,7 @@ function normalizePendingAsk(p) {
     options,
     createdAt,
 
-    // compat fields retained (so chatEngine can store/reuse without loss)
+    // compat fields retained
     id: idRaw || undefined,
     type: typeRaw || undefined,
     required,
@@ -274,7 +280,16 @@ function computeTurnSig({ lane, topic, intent, activeContext, text }) {
   const hasYear = textHasYearToken(raw) ? "1" : "0";
   const th = raw ? sha1Lite(raw).slice(0, 10) : "";
 
-  return [lane || "", topic || "", intent || "", rid || "", y || "", hasAnyText, hasYear, th].join("|");
+  return [
+    lane || "",
+    topic || "",
+    intent || "",
+    rid || "",
+    y || "",
+    hasAnyText,
+    hasYear,
+    th,
+  ].join("|");
 }
 
 function topicFromAction(action) {
@@ -481,7 +496,8 @@ function coerceState(prev) {
   if (out.lastChipsOffered.length > 12)
     out.lastChipsOffered = out.lastChipsOffered.slice(0, 12);
 
-  if (out.activeContext && typeof out.activeContext !== "object") out.activeContext = null;
+  if (out.activeContext && typeof out.activeContext !== "object")
+    out.activeContext = null;
 
   if (out.lastDecision && typeof out.lastDecision === "object") {
     out.lastDecision = {
@@ -535,10 +551,13 @@ function updateState(prev, patch = {}, reason = "turn") {
     stage: patch.stage ? normalizeStage(patch.stage) : p.stage,
     topic: patch.topic != null ? safeStr(patch.topic, 80) : p.topic,
     lastUserIntent:
-      patch.lastUserIntent != null ? safeStr(patch.lastUserIntent, 40) : p.lastUserIntent,
+      patch.lastUserIntent != null
+        ? safeStr(patch.lastUserIntent, 40)
+        : p.lastUserIntent,
 
     // Evidence trail (bounded, caller-controlled)
-    lastUserText: patch.lastUserText != null ? safeStr(patch.lastUserText, 0) : p.lastUserText,
+    lastUserText:
+      patch.lastUserText != null ? safeStr(patch.lastUserText, 0) : p.lastUserText,
     lastAssistantSummary:
       patch.lastAssistantSummary != null
         ? safeStr(patch.lastAssistantSummary, 320)
@@ -549,7 +568,9 @@ function updateState(prev, patch = {}, reason = "turn") {
           ...p.goal,
           ...patch.goal,
           primary:
-            patch.goal.primary != null ? safeStr(patch.goal.primary, 120) : p.goal.primary,
+            patch.goal.primary != null
+              ? safeStr(patch.goal.primary, 120)
+              : p.goal.primary,
           secondary: Array.isArray(patch.goal.secondary)
             ? patch.goal.secondary.slice(0, 8)
             : p.goal.secondary,
@@ -571,7 +592,9 @@ function updateState(prev, patch = {}, reason = "turn") {
               : asArray(patchPendingAsk.options).slice(0, 8),
             createdAt: Number(patchPendingAsk.createdAt || 0) || nowMs(),
             required:
-              typeof patchPendingAsk.required === "boolean" ? patchPendingAsk.required : true,
+              typeof patchPendingAsk.required === "boolean"
+                ? patchPendingAsk.required
+                : true,
           }
         : p.pendingAsk,
 
@@ -603,8 +626,11 @@ function updateState(prev, patch = {}, reason = "turn") {
         : p.lastDecision,
 
     lastActionTaken:
-      patch.lastActionTaken != null ? safeStr(patch.lastActionTaken, 40) : p.lastActionTaken,
-    lastTurnSig: patch.lastTurnSig != null ? safeStr(patch.lastTurnSig, 240) : p.lastTurnSig,
+      patch.lastActionTaken != null
+        ? safeStr(patch.lastActionTaken, 40)
+        : p.lastActionTaken,
+    lastTurnSig:
+      patch.lastTurnSig != null ? safeStr(patch.lastTurnSig, 240) : p.lastTurnSig,
 
     turns:
       patch.turns && typeof patch.turns === "object"
@@ -651,34 +677,74 @@ function updateState(prev, patch = {}, reason = "turn") {
 // -------------------------
 // inbound normalization (tiny, for planner/spine only)
 // -------------------------
+// NOTE: This must accept chatEngine's inbound shapes:
+// - body.ctx and/or body.payload
+// - chatEngine turnSignals naming
 function normalizeInbound(inbound = {}) {
   const body = isPlainObject(inbound) ? inbound : {};
   const payload = isPlainObject(body.payload) ? body.payload : {};
+  const ctx = isPlainObject(body.ctx) ? body.ctx : {};
+
   const text = safeStr(
-    body.text || body.message || payload.text || payload.message || "",
+    body.text ||
+      body.message ||
+      body.prompt ||
+      body.query ||
+      ctx.text ||
+      ctx.message ||
+      payload.text ||
+      payload.message ||
+      "",
     2000
   ).trim();
 
-  const action = safeStr(body.action || payload.action || payload.route || "", 80).trim();
-  const lane = safeStr(body.lane || payload.lane || "", 24).trim();
+  // action: prefer explicit payload.action/body.action/ctx.action, else payload.route
+  const action = safeStr(
+    body.action ||
+      ctx.action ||
+      payload.action ||
+      payload.route ||
+      "",
+    80
+  ).trim();
+
+  const lane = safeStr(body.lane || ctx.lane || payload.lane || "", 24).trim();
+
+  // year: accept multiple aliases used across the system
   const year =
-    normYear(body.year) ?? normYear(payload.year) ?? extractYearFromText(text) ?? null;
+    normYear(body.year) ??
+    normYear(ctx.year) ??
+    normYear(payload.year) ??
+    // chatEngine passes "year" already normalized on its own norm,
+    // but if it ever passes "effectiveYear" through ctx, accept it.
+    normYear(ctx.effectiveYear) ??
+    extractYearFromText(text) ??
+    null;
 
   const textEmpty = !text;
-  const hasPayload = Object.keys(payload).length > 0;
+
+  const hasPayload = isPlainObject(payload) && Object.keys(payload).length > 0;
   const payloadActionable = hasPayload && hasActionablePayload(payload);
+
+  // chatEngine calls it turnSignals; accept it when present
+  const ts = isPlainObject(body.turnSignals) ? body.turnSignals : null;
+  const signals = {
+    textEmpty: ts && typeof ts.textEmpty === "boolean" ? ts.textEmpty : textEmpty,
+    hasPayload: ts && typeof ts.hasPayload === "boolean" ? ts.hasPayload : hasPayload,
+    payloadActionable:
+      ts && typeof ts.payloadActionable === "boolean"
+        ? ts.payloadActionable
+        : payloadActionable,
+  };
 
   return {
     text,
     payload,
+    ctx,
     lane,
     year,
     action,
-    signals: {
-      textEmpty,
-      hasPayload,
-      payloadActionable,
-    },
+    signals,
   };
 }
 
