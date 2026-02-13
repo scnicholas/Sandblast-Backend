@@ -25,10 +25,18 @@
  * ✅ Fix++++: reset sessionPatch ordering (reset flags cannot be overridden by baseCogPatch)
  * ✅ Fix++++: Option A greeting never triggers on reset
  * ✅ Fix++++: Music.handleMusicTurn is now awaited (supports sync OR async implementations safely)
+ *
+ * v0.7bV (EXPORT HARDENING++++)
+ * ✅ Adds bulletproof export shim: supports require("./chatEngine") as:
+ *    - function (callable)
+ *    - { handleChat }
+ *    - { chatEngine }
+ *    - { default }
+ * ✅ Prevents “exports wrong” breakages across backend loaders.
  */
 
 const CE_VERSION =
-  "chatEngine v0.7bU (MUSIC EXTRACTION++++ -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js | TELEMETRY++++ + DISCOVERY HINT++++ | STATE SPINE WIRED++++ via Utils/stateSpine.js | HARDENING++++ + ranked-list budget guarantee + reset ordering fix + await music module)";
+  "chatEngine v0.7bV (MUSIC EXTRACTION++++ -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js | TELEMETRY++++ + DISCOVERY HINT++++ | STATE SPINE WIRED++++ via Utils/stateSpine.js | HARDENING++++ + ranked-list budget guarantee + reset ordering fix + await music module | EXPORT HARDENING++++ shim)";
 
 const Spine = require("./stateSpine");
 const MarionSO = require("./marionSO");
@@ -1701,15 +1709,6 @@ async function handleChat(input) {
   const action = norm.action || (lane === "music" && year ? "top10" : "");
 
   if (lane === "music" || action) {
-    // REQUIRE: Music module must implement:
-    //   handleMusicTurn({ norm, session, knowledge, year, action, opts })
-    // returning:
-    //   {
-    //     ok, replyRaw, followUps, followUpsStrings,
-    //     sessionPatch, meta, route, topic, lastAssistantSummary, pendingAsk, spineStage, actionTaken
-    //   }
-    //
-    // chatEngine applies constitution + spine finalize + baseCogPatch.
     let musicOut = null;
     try {
       if (Music && typeof Music.handleMusicTurn === "function") {
@@ -1788,7 +1787,6 @@ async function handleChat(input) {
       actionTaken: safeStr(musicOut.actionTaken || "served_music"),
     });
 
-    // musicOut.sessionPatch should ONLY include music-related keys
     const musicPatch = isPlainObject(musicOut.sessionPatch) ? musicOut.sessionPatch : {};
 
     return {
@@ -1947,18 +1945,49 @@ async function handleChat(input) {
   };
 }
 
-module.exports = {
+/**
+ * EXPORT HARDENING++++
+ * - Some loaders do: const { chatEngine } = require("./Utils/chatEngine")
+ * - Others do: const chatEngine = require("./Utils/chatEngine")
+ * - Others do: const { handleChat } = require(...)
+ * This makes ALL of them work.
+ */
+const chatEngine = handleChat;
+
+// Build an export object, then merge onto the callable function (so require() can be invoked directly).
+const _exportObj = {
   CE_VERSION,
+
+  // primary callable(s)
   handleChat,
+  chatEngine,
   default: handleChat,
 
-  // Expose for diagnostics / internal tests (safe, no side effects)
+  // diagnostics / internal tests (safe, no side effects)
   LATENT_DESIRE,
   SIGNATURE_TRANSITIONS,
   validateNyxTone,
   runToneRegressionTests,
 
-  // Expose canonical spine module reference (safe)
+  // canonical spine module reference (safe)
   STATE_SPINE_VERSION: Spine.SPINE_VERSION,
   STATE_SPINE: Spine,
 };
+
+// Make module.exports callable (function) AND also have properties.
+const _callable = function exportedChatEngine() {
+  // preserve async semantics
+  // eslint-disable-next-line prefer-rest-params
+  return handleChat.apply(null, arguments);
+};
+Object.assign(_callable, _exportObj);
+
+// Also provide explicit names to satisfy destructuring import patterns.
+_callable.chatEngine = handleChat;
+_callable.handleChat = handleChat;
+_callable.default = handleChat;
+
+// Mark (lightly) for interop
+_callable.__esModule = true;
+
+module.exports = _callable;
