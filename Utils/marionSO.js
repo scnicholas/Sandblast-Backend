@@ -12,12 +12,14 @@
  * - Keep it safe: no raw user text in traces; bounded outputs; fail-open behavior
  * - Keep it portable: no express, no fs, no index.js imports
  *
- * v1.1.1 (ENGLISH KNOWLEDGE WIRE HARDEN++++ + DOUBLE-CLAMP FIX++++ + FAIL-OPEN PRESERVED++++)
- * ✅ EnglishKnowledge integration is now consistently clamped once (no double-clamp)
- * ✅ Keeps: psychologyKnowledge integration + cyberKnowledge integration + Law/Ethics/RiskBridge/Cyber/English/Fin/Strategy layers
+ * v1.1.2 (FINANCE KNOWLEDGE WIRE++++ + TRACE/CONTRACT HARDEN++++ + FAIL-OPEN PRESERVED++++)
+ * ✅ Adds FinanceKnowledge integration (FAIL-OPEN; NO RAW TEXT)
+ * ✅ Adds financeKnowledgeHints to contract + trace bit fk
+ * ✅ Keeps: psychologyKnowledge integration + cyberKnowledge integration + EnglishKnowledge integration
+ * ✅ Keeps: Law/Ethics/RiskBridge/Cyber/English/Fin/Strategy layers
  */
 
-const MARION_VERSION = "marionSO v1.1.1";
+const MARION_VERSION = "marionSO v1.1.2";
 
 // -------------------------
 // Optional Knowledge modules (FAIL-OPEN)
@@ -44,6 +46,14 @@ try {
   EnglishK = require("./englishKnowledge");
 } catch (e) {
   EnglishK = null;
+}
+
+let FinanceK = null;
+try {
+  // eslint-disable-next-line global-require
+  FinanceK = require("./financeKnowledge");
+} catch (e) {
+  FinanceK = null;
 }
 
 // -------------------------
@@ -893,6 +903,148 @@ function queryEnglishKnowledge(norm, session, cog) {
   } catch (e) {
     const code = safeStr(e && (e.code || e.name) ? e.code || e.name : "ERR", 40);
     return { enabled: false, reason: `english_query_fail:${code}` };
+  }
+}
+
+// -------------------------
+// FINANCE KNOWLEDGE WIRE (bounded, non-PII, NO RAW TEXT)
+// -------------------------
+function buildFinanceQuery(norm, session, cog) {
+  const n = isPlainObject(norm) ? norm : {};
+  const s = isPlainObject(session) ? session : {};
+  const c = isPlainObject(cog) ? cog : {};
+
+  // STRICT: do NOT pass n.text
+  const action = safeStr(n.action || "", 24).trim().toLowerCase();
+  const lane = safeStr(n.lane || s.lane || "", 24).trim().toLowerCase();
+  const intent = safeStr(c.intent || "", 12).trim().toUpperCase();
+  const mode = safeStr(c.mode || "", 16).trim().toLowerCase();
+
+  const riskTier = safeStr(c.riskTier || "", 10).trim().toLowerCase();
+  const riskDomains = safeTokenSet(c.riskDomains || [], 6);
+
+  const finTags = safeTokenSet(c.finTags || [], 8);
+  const finSignals = safeTokenSet(c.finSignals || [], 8);
+
+  // “needs” tokens (safe)
+  const needs = [];
+  if (finTags.includes(FIN.TAGS.UNIT_ECON)) needs.push("unit_econ");
+  if (finTags.includes(FIN.TAGS.PRICING)) needs.push("pricing");
+  if (finTags.includes(FIN.TAGS.BUDGETING)) needs.push("budgeting");
+  if (finTags.includes(FIN.TAGS.COMPLIANCE)) needs.push("compliance");
+  if (finSignals.includes(FIN.SIGNALS.CLARIFY_ASSUMPTIONS)) needs.push("clarify_assumptions");
+  if (finSignals.includes(FIN.SIGNALS.ASK_CONSTRAINTS)) needs.push("ask_constraints");
+  if (finSignals.includes(FIN.SIGNALS.USE_SCENARIOS)) needs.push("scenarios");
+  if (finSignals.includes(FIN.SIGNALS.ENCOURAGE_PRO)) needs.push("encourage_pro");
+
+  // If user is high-risk, clamp guidance to conservative, non-prescriptive posture
+  if (riskTier === RISK.TIERS.HIGH || riskDomains.includes(RISK.DOMAINS.SELF_HARM)) {
+    needs.push("safety_redirect");
+  }
+
+  const tokens = safeTokenSet(
+    [
+      "finance",
+      lane || "",
+      action || "",
+      intent || "",
+      mode || "",
+      riskTier || "",
+      ...riskDomains,
+      ...finTags,
+      ...finSignals,
+      ...needs,
+    ],
+    14
+  );
+
+  const keyObj = { lane, action, intent, mode, riskTier, riskDomains, finTags, finSignals, tokens };
+  const queryKey = sha1Lite(JSON.stringify(keyObj)).slice(0, 14);
+
+  return {
+    enabled: true,
+    queryKey,
+    tokens,
+    features: {
+      lane,
+      action,
+      intent,
+      mode,
+      riskTier,
+      riskDomains,
+      finTags,
+      finSignals,
+      needs: safeTokenSet(needs, 10),
+    },
+  };
+}
+
+function clampFinanceHints(hints) {
+  const h = isPlainObject(hints) ? hints : {};
+  return {
+    enabled: !!h.enabled,
+    queryKey: safeStr(h.queryKey || "", 18),
+    packs: isPlainObject(h.packs)
+      ? {
+          primary: safeStr(h.packs.primary || "", 64),
+          versions: isPlainObject(h.packs.versions) ? h.packs.versions : {},
+        }
+      : {},
+    focus: safeStr(h.focus || "", 32),
+    stance: safeStr(h.stance || "", 32),
+    principles: uniqBounded(h.principles || [], 8),
+    frameworks: uniqBounded(h.frameworks || [], 6),
+    guardrails: uniqBounded(h.guardrails || [], 6),
+    exampleTypes: uniqBounded(h.exampleTypes || [], 6),
+    responseCues: uniqBounded(h.responseCues || [], 8),
+    hits: uniqBounded(h.hits || [], 10),
+    confidence: clamp01(h.confidence),
+    reason: safeStr(h.reason || "", 60),
+  };
+}
+
+function queryFinanceKnowledge(norm, session, cog) {
+  const q = buildFinanceQuery(norm, session, cog);
+  if (!q.enabled) return { enabled: false, reason: "disabled" };
+
+  if (!FinanceK || typeof FinanceK !== "object") {
+    return { enabled: false, reason: "module_missing" };
+  }
+
+  try {
+    // Preferred: FinanceK.getMarionHints({ features, tokens, queryKey }, ctx)
+    if (typeof FinanceK.getMarionHints === "function") {
+      const res = FinanceK.getMarionHints(
+        { features: q.features, tokens: q.tokens, queryKey: q.queryKey },
+        { session: isPlainObject(session) ? session : {}, cog: isPlainObject(cog) ? cog : {} }
+      );
+      const h = clampFinanceHints(res);
+      return { ...h, enabled: true, queryKey: q.queryKey };
+    }
+
+    // Alternate API names, tolerated
+    if (typeof FinanceK.query === "function") {
+      const res = FinanceK.query({ features: q.features, tokens: q.tokens, queryKey: q.queryKey });
+      const h = clampFinanceHints(res);
+      return { ...h, enabled: true, queryKey: q.queryKey };
+    }
+
+    // Pack meta fallback (optional)
+    const packs = isPlainObject(FinanceK.PACK_FILES) ? FinanceK.PACK_FILES : null;
+    if (packs) {
+      return clampFinanceHints({
+        enabled: true,
+        queryKey: q.queryKey,
+        packs: { primary: "", versions: packs },
+        confidence: 0,
+        reason: "packs_only",
+      });
+    }
+
+    return { enabled: false, reason: "no_api" };
+  } catch (e) {
+    const code = safeStr(e && (e.code || e.name) ? e.code || e.name : "ERR", 40);
+    return { enabled: false, reason: `finance_query_fail:${code}` };
   }
 }
 
@@ -1781,6 +1933,7 @@ function buildTrace(norm, session, med) {
     `pk=${med?.psychologyHints?.enabled ? "1" : "0"}`,
     `ck=${med?.cyberKnowledgeHints?.enabled ? "1" : "0"}`,
     `ek=${med?.englishKnowledgeHints?.enabled ? "1" : "0"}`,
+    `fk=${med?.financeKnowledgeHints?.enabled ? "1" : "0"}`,
   ];
 
   const base = parts.join("|");
@@ -1817,6 +1970,7 @@ function tracePolicyCheck(cog, norm, opts) {
     "psychologyHints",
     "cyberKnowledgeHints",
     "englishKnowledgeHints",
+    "financeKnowledgeHints",
   ];
 
   for (const f of fields) {
@@ -1934,6 +2088,10 @@ function finalizeContract(cog, nowMs, extra) {
     // IMPORTANT: already clamped at queryEnglishKnowledge() callsite
     englishKnowledgeHints: isPlainObject(c.englishKnowledgeHints)
       ? clampEnglishHints(c.englishKnowledgeHints)
+      : { enabled: false, reason: "none" },
+
+    financeKnowledgeHints: isPlainObject(c.financeKnowledgeHints)
+      ? clampFinanceHints(c.financeKnowledgeHints)
       : { enabled: false, reason: "none" },
 
     privacy: {
@@ -2190,9 +2348,13 @@ function mediate(norm, session, opts = {}) {
     const cyHints = queryCyberKnowledge(n, s, cog);
     cog.cyberKnowledgeHints = clampCyberHints(cyHints);
 
-    // EnglishKnowledge hints (mediator-safe, NO RAW TEXT) — already clamped by queryEnglishKnowledge()
+    // EnglishKnowledge hints (mediator-safe, NO RAW TEXT)
     const enHints = queryEnglishKnowledge(n, s, cog);
     cog.englishKnowledgeHints = clampEnglishHints(enHints);
+
+    // FinanceKnowledge hints (mediator-safe, NO RAW TEXT)
+    const fiHints = queryFinanceKnowledge(n, s, cog);
+    cog.financeKnowledgeHints = clampFinanceHints(fiHints);
 
     const trace = buildTrace(n, s, {
       ...cog,
@@ -2207,6 +2369,7 @@ function mediate(norm, session, opts = {}) {
       psychologyHints: cog.psychologyHints,
       cyberKnowledgeHints: cog.cyberKnowledgeHints,
       englishKnowledgeHints: cog.englishKnowledgeHints,
+      financeKnowledgeHints: cog.financeKnowledgeHints,
     });
 
     cog.marionTrace = safeStr(trace, MARION_TRACE_MAX + 8);
@@ -2292,6 +2455,7 @@ function mediate(norm, session, opts = {}) {
       psychologyHints: { enabled: false, reason: "fail_open" },
       cyberKnowledgeHints: { enabled: false, reason: "fail_open" },
       englishKnowledgeHints: { enabled: false, reason: "fail_open" },
+      financeKnowledgeHints: { enabled: false, reason: "fail_open" },
       movePolicy: { preferredMove: "CLARIFY", hardOverride: false, reason: "fail_open" },
       marionStyle: MARION_STYLE_CONTRACT,
       handoff: {
@@ -2348,6 +2512,11 @@ module.exports = {
   buildEnglishQuery,
   queryEnglishKnowledge,
   clampEnglishHints,
+
+  // finance knowledge exports (integration tests)
+  buildFinanceQuery,
+  queryFinanceKnowledge,
+  clampFinanceHints,
 
   // risk bridge exports (unit tests)
   computeRiskBridge,
