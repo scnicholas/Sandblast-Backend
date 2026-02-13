@@ -12,13 +12,13 @@
  * - Keep it safe: no raw user text in traces; bounded outputs; fail-open behavior
  * - Keep it portable: no express, no fs, no index.js imports
  *
- * v1.0.9 (CYBER KNOWLEDGE WIRE++++ + FAIL-OPEN++++ + NO-RAW-TEXT DOCTRINE PRESERVED++++)
- * ✅ Adds: optional integration to Utils/cyberKnowledge.js (mediator-safe query)
- * ✅ Adds: cyberKnowledgeHints payload (bounded, non-PII, no raw user text) for chatEngine to consume
- * ✅ Keeps: psychologyKnowledge integration + Law/Ethics/RiskBridge/Cyber/English/Fin/Strategy layers
+ * v1.1.0 (ENGLISH KNOWLEDGE WIRE++++ + CYBER/PSY FAIL-OPEN++++ + NO-RAW-TEXT DOCTRINE PRESERVED++++)
+ * ✅ Adds: optional integration to Utils/englishKnowledge.js (mediator-safe query)
+ * ✅ Adds: englishKnowledgeHints payload (bounded, non-PII, no raw user text) for chatEngine to consume
+ * ✅ Keeps: psychologyKnowledge integration + cyberKnowledge integration + Law/Ethics/RiskBridge/Cyber/English/Fin/Strategy layers
  */
 
-const MARION_VERSION = "marionSO v1.0.9";
+const MARION_VERSION = "marionSO v1.1.0";
 
 // -------------------------
 // Optional Knowledge modules (FAIL-OPEN)
@@ -37,6 +37,14 @@ try {
   CyberK = require("./cyberKnowledge");
 } catch (e) {
   CyberK = null;
+}
+
+let EnglishK = null;
+try {
+  // eslint-disable-next-line global-require
+  EnglishK = require("./englishKnowledge");
+} catch (e) {
+  EnglishK = null;
 }
 
 // -------------------------
@@ -175,7 +183,7 @@ const ETHICS = Object.freeze({
   SIGNALS: Object.freeze({
     MINIMIZE_RISKY_DETAIL: "minimize_risky_detail",
     USE_NEUTRAL_TONE: "use_neutral_tone",
-    OFFER_OPTIONS_NOT_ORDERS: "offer_options_not_orders",
+    OFFER_OPTIONS_NOT_ORDERS: "offer_options_not_ORDERS",
     ENCOURAGE_HELP_SEEKING: "encourage_help_seeking",
   }),
 });
@@ -311,8 +319,7 @@ function normalizeMacModeRaw(v) {
   if (!s) return "";
   if (s === "architect" || s === "builder" || s === "dev") return "architect";
   if (s === "user" || s === "viewer" || s === "consumer") return "user";
-  if (s === "transitional" || s === "mixed" || s === "both")
-    return "transitional";
+  if (s === "transitional" || s === "mixed" || s === "both") return "transitional";
   return "";
 }
 
@@ -425,7 +432,7 @@ function suggestModeHysteresisPatch(session, chosenMode, implicit) {
 }
 
 // -------------------------
-// PSYCHOLOGY KNOWLEDGE WIRE (bounded, non-PII)
+// shared: safe token set
 // -------------------------
 function safeTokenSet(tokens, max = 10) {
   const out = [];
@@ -441,6 +448,9 @@ function safeTokenSet(tokens, max = 10) {
   return out;
 }
 
+// -------------------------
+// PSYCHOLOGY KNOWLEDGE WIRE (bounded, non-PII)
+// -------------------------
 function buildPsychologyQuery(norm, session, cog) {
   const n = isPlainObject(norm) ? norm : {};
   const s = isPlainObject(session) ? session : {};
@@ -643,7 +653,7 @@ function buildCyberQuery(norm, session, cog) {
       ...riskDomains,
       ...cyberTags,
       ...cyberSignals,
-      ...needs
+      ...needs,
     ],
     14
   );
@@ -664,8 +674,8 @@ function buildCyberQuery(norm, session, cog) {
       riskDomains,
       cyberTags,
       cyberSignals,
-      needs: safeTokenSet(needs, 8)
-    }
+      needs: safeTokenSet(needs, 8),
+    },
   };
 }
 
@@ -678,7 +688,7 @@ function clampCyberHints(hints) {
       ? {
           safetyPosture: safeStr(h.packs.safetyPosture || "", 48),
           topPacks: uniqBounded(h.packs.topPacks || [], 3),
-          versions: isPlainObject(h.packs.versions) ? h.packs.versions : {}
+          versions: isPlainObject(h.packs.versions) ? h.packs.versions : {},
         }
       : {},
     focus: safeStr(h.focus || "", 32),
@@ -690,7 +700,7 @@ function clampCyberHints(hints) {
     responseCues: uniqBounded(h.responseCues || [], 8),
     hits: uniqBounded(h.hits || [], 10),
     confidence: clamp01(h.confidence),
-    reason: safeStr(h.reason || "", 60)
+    reason: safeStr(h.reason || "", 60),
   };
 }
 
@@ -729,10 +739,10 @@ function queryCyberKnowledge(norm, session, cog) {
         packs: {
           safetyPosture: packs.safetyPosture || "",
           topPacks: [],
-          versions: packs
+          versions: packs,
         },
         confidence: 0,
-        reason: "packs_only"
+        reason: "packs_only",
       });
     }
 
@@ -740,6 +750,150 @@ function queryCyberKnowledge(norm, session, cog) {
   } catch (e) {
     const code = safeStr(e && (e.code || e.name) ? e.code || e.name : "ERR", 40);
     return { enabled: false, reason: `cyber_query_fail:${code}` };
+  }
+}
+
+// -------------------------
+// ENGLISH KNOWLEDGE WIRE (bounded, non-PII, NO RAW TEXT)
+// -------------------------
+function buildEnglishQuery(norm, session, cog) {
+  const n = isPlainObject(norm) ? norm : {};
+  const s = isPlainObject(session) ? session : {};
+  const c = isPlainObject(cog) ? cog : {};
+
+  // STRICT: do NOT pass n.text
+  const action = safeStr(n.action || "", 24).trim().toLowerCase();
+  const lane = safeStr(n.lane || s.lane || "", 24).trim().toLowerCase();
+  const intent = safeStr(c.intent || "", 12).trim().toUpperCase();
+  const mode = safeStr(c.mode || "", 16).trim().toLowerCase();
+
+  const riskTier = safeStr(c.riskTier || "", 10).trim().toLowerCase();
+  const riskDomains = safeTokenSet(c.riskDomains || [], 6);
+
+  const englishTags = safeTokenSet(c.englishTags || [], 8);
+  const englishSignals = safeTokenSet(c.englishSignals || [], 8);
+
+  // “needs” tokens (safe): derived from Marion’s own English layer & common academic tasks
+  const needs = [];
+  if (englishTags.includes(ENGLISH.TAGS.CLARITY)) needs.push("clarity");
+  if (englishTags.includes(ENGLISH.TAGS.STRUCTURE)) needs.push("structure");
+  if (englishTags.includes(ENGLISH.TAGS.AUDIENCE)) needs.push("audience");
+  if (englishTags.includes(ENGLISH.TAGS.TONE)) needs.push("tone");
+  if (englishTags.includes(ENGLISH.TAGS.DEFINITIONS)) needs.push("definitions");
+  if (englishSignals.includes(ENGLISH.SIGNALS.DEFINE_JARGON)) needs.push("define_jargon");
+  if (englishSignals.includes(ENGLISH.SIGNALS.USE_PLAIN_LANGUAGE)) needs.push("plain_language");
+
+  // If user is high-risk, clamp to safer tutoring patterns; don’t surface “generate/submit” templates
+  if (riskTier === RISK.TIERS.HIGH || riskDomains.includes(RISK.DOMAINS.SELF_HARM)) {
+    needs.push("safety_redirect");
+  }
+
+  const tokens = safeTokenSet(
+    [
+      "english",
+      lane || "",
+      action || "",
+      intent || "",
+      mode || "",
+      riskTier || "",
+      ...riskDomains,
+      ...englishTags,
+      ...englishSignals,
+      ...needs,
+    ],
+    14
+  );
+
+  const keyObj = { lane, action, intent, mode, riskTier, riskDomains, englishTags, englishSignals, tokens };
+  const queryKey = sha1Lite(JSON.stringify(keyObj)).slice(0, 14);
+
+  return {
+    enabled: true,
+    queryKey,
+    tokens,
+    features: {
+      lane,
+      action,
+      intent,
+      mode,
+      riskTier,
+      riskDomains,
+      englishTags,
+      englishSignals,
+      needs: safeTokenSet(needs, 10),
+    },
+  };
+}
+
+function clampEnglishHints(hints) {
+  const h = isPlainObject(hints) ? hints : {};
+  return {
+    enabled: !!h.enabled,
+    queryKey: safeStr(h.queryKey || "", 18),
+    packs: isPlainObject(h.packs)
+      ? {
+          curriculum: safeStr(h.packs.curriculum || "", 48),
+          core: uniqBounded(h.packs.core || [], 6),
+          faces: uniqBounded(h.packs.faces || [], 4),
+          dialogue: uniqBounded(h.packs.dialogue || [], 4),
+          versions: isPlainObject(h.packs.versions) ? h.packs.versions : {},
+        }
+      : {},
+    focus: safeStr(h.focus || "", 32),
+    stance: safeStr(h.stance || "", 32),
+    principles: uniqBounded(h.principles || [], 8),
+    frameworks: uniqBounded(h.frameworks || [], 6),
+    guardrails: uniqBounded(h.guardrails || [], 6),
+    exampleTypes: uniqBounded(h.exampleTypes || [], 6),
+    responseCues: uniqBounded(h.responseCues || [], 8),
+    hits: uniqBounded(h.hits || [], 10),
+    confidence: clamp01(h.confidence),
+    reason: safeStr(h.reason || "", 60),
+  };
+}
+
+function queryEnglishKnowledge(norm, session, cog) {
+  const q = buildEnglishQuery(norm, session, cog);
+  if (!q.enabled) return { enabled: false, reason: "disabled" };
+
+  if (!EnglishK || typeof EnglishK !== "object") {
+    return { enabled: false, reason: "module_missing" };
+  }
+
+  try {
+    // Preferred: EnglishK.getMarionHints({ features, tokens, queryKey }, ctx)
+    if (typeof EnglishK.getMarionHints === "function") {
+      const res = EnglishK.getMarionHints(
+        { features: q.features, tokens: q.tokens, queryKey: q.queryKey },
+        { session: isPlainObject(session) ? session : {}, cog: isPlainObject(cog) ? cog : {} }
+      );
+      const h = clampEnglishHints(res);
+      return { ...h, enabled: true, queryKey: q.queryKey };
+    }
+
+    // Alternate API names, tolerated
+    if (typeof EnglishK.query === "function") {
+      const res = EnglishK.query({ features: q.features, tokens: q.tokens, queryKey: q.queryKey });
+      const h = clampEnglishHints(res);
+      return { ...h, enabled: true, queryKey: q.queryKey };
+    }
+
+    // Pack meta fallback (optional)
+    const packs = isPlainObject(EnglishK.PACK_FILES) ? EnglishK.PACK_FILES : null;
+    if (packs) {
+      return clampEnglishHints({
+        enabled: true,
+        queryKey: q.queryKey,
+        packs: { curriculum: packs.curriculum || "", core: [], faces: [], dialogue: [], versions: packs },
+        confidence: 0,
+        reason: "packs_only",
+      });
+    }
+
+    return { enabled: false, reason: "no_api" };
+  } catch (e) {
+    const code = safeStr(e && (e.code || e.name) ? e.code || e.name : "ERR", 40);
+    return { enabled: false, reason: `english_query_fail:${code}` };
   }
 }
 
@@ -1627,6 +1781,7 @@ function buildTrace(norm, session, med) {
     `mv=${safeStr(med?.movePolicy?.preferredMove || "", 8) || "-"}`,
     `pk=${med?.psychologyHints?.enabled ? "1" : "0"}`,
     `ck=${med?.cyberKnowledgeHints?.enabled ? "1" : "0"}`,
+    `ek=${med?.englishKnowledgeHints?.enabled ? "1" : "0"}`,
   ];
 
   const base = parts.join("|");
@@ -1662,6 +1817,7 @@ function tracePolicyCheck(cog, norm, opts) {
     "ethicsSignals",
     "psychologyHints",
     "cyberKnowledgeHints",
+    "englishKnowledgeHints",
   ];
 
   for (const f of fields) {
@@ -1776,6 +1932,10 @@ function finalizeContract(cog, nowMs, extra) {
       ? clampCyberHints(c.cyberKnowledgeHints)
       : { enabled: false, reason: "none" },
 
+    englishKnowledgeHints: isPlainObject(c.englishKnowledgeHints)
+      ? clampEnglishHints(c.englishKnowledgeHints)
+      : { enabled: false, reason: "none" },
+
     privacy: {
       noRawTextInTrace: true,
       boundedTrace: true,
@@ -1832,11 +1992,7 @@ function mediate(norm, session, opts = {}) {
     const implicit = detectMacModeImplicit(n.text || "");
     let modeCandidate = macModeOverride || implicit.mode || "";
     if (!modeCandidate) modeCandidate = "architect";
-    if (
-      modeCandidate !== "architect" &&
-      modeCandidate !== "user" &&
-      modeCandidate !== "transitional"
-    )
+    if (modeCandidate !== "architect" && modeCandidate !== "user" && modeCandidate !== "transitional")
       modeCandidate = "architect";
 
     const hysteresis = suggestModeHysteresisPatch(s, modeCandidate, implicit);
@@ -2034,6 +2190,10 @@ function mediate(norm, session, opts = {}) {
     const cyHints = queryCyberKnowledge(n, s, cog);
     cog.cyberKnowledgeHints = clampCyberHints(cyHints);
 
+    // EnglishKnowledge hints (mediator-safe, NO RAW TEXT)
+    const enHints = queryEnglishKnowledge(n, s, cog);
+    cog.englishKnowledgeHints = clampEnglishHints(enHints);
+
     const trace = buildTrace(n, s, {
       ...cog,
       confidence: cog.confidence,
@@ -2045,7 +2205,8 @@ function mediate(norm, session, opts = {}) {
       ethicsTags: cog.ethicsTags,
       cyberTags: cog.cyberTags,
       psychologyHints: cog.psychologyHints,
-      cyberKnowledgeHints: cog.cyberKnowledgeHints
+      cyberKnowledgeHints: cog.cyberKnowledgeHints,
+      englishKnowledgeHints: cog.englishKnowledgeHints,
     });
 
     cog.marionTrace = safeStr(trace, MARION_TRACE_MAX + 8);
@@ -2061,7 +2222,11 @@ function mediate(norm, session, opts = {}) {
     ) {
       cog.dominance = o.forceDominance;
     }
-    if (o && o.forceIntent && (o.forceIntent === "ADVANCE" || o.forceIntent === "CLARIFY" || o.forceIntent === "STABILIZE")) {
+    if (
+      o &&
+      o.forceIntent &&
+      (o.forceIntent === "ADVANCE" || o.forceIntent === "CLARIFY" || o.forceIntent === "STABILIZE")
+    ) {
       cog.intent = o.forceIntent;
       cog.movePolicy = deriveMovePolicy(cog);
     }
@@ -2126,6 +2291,7 @@ function mediate(norm, session, opts = {}) {
       strategySignals: [],
       psychologyHints: { enabled: false, reason: "fail_open" },
       cyberKnowledgeHints: { enabled: false, reason: "fail_open" },
+      englishKnowledgeHints: { enabled: false, reason: "fail_open" },
       movePolicy: { preferredMove: "CLARIFY", hardOverride: false, reason: "fail_open" },
       marionStyle: MARION_STYLE_CONTRACT,
       handoff: {
@@ -2177,6 +2343,11 @@ module.exports = {
   buildCyberQuery,
   queryCyberKnowledge,
   clampCyberHints,
+
+  // english knowledge exports (integration tests)
+  buildEnglishQuery,
+  queryEnglishKnowledge,
+  clampEnglishHints,
 
   // risk bridge exports (unit tests)
   computeRiskBridge,
