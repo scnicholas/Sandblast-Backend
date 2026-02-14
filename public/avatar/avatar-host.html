@@ -82,6 +82,20 @@
       padding:18px;
       z-index:10;
     }
+
+    /* Embedded mode: hide debug panel + tighten grid */
+    .embed #wrap{
+      grid-template-columns: 1fr;
+      padding:0;
+      height:100vh;
+    }
+    .embed #panel{ display:none; }
+    .embed #avatarRoot{
+      border-radius:0;
+      border:0;
+      height:100vh;
+      min-height:100vh;
+    }
   </style>
 </head>
 
@@ -142,7 +156,7 @@
       </div>
     </div>
 
-    <!-- RIGHT: Debug + manual controls -->
+    <!-- RIGHT: Debug + manual controls (auto-hidden when embedded) -->
     <div id="panel">
       <div class="row">
         <button data-act="armAudio">Arm Audio</button>
@@ -165,6 +179,11 @@
         <div><b>velvet</b>: <span id="hudVelvet">0</span></div>
         <div><b>anim</b>: <span id="hudAnim"></span></div>
         <div><b>amp</b>: <span id="hudAmp">0.00</span></div>
+        <div style="margin-top:10px;opacity:.9">
+          <b>bridge</b>: <span id="hudBridge">waiting</span><br/>
+          <b>parent</b>: <span id="hudParent">—</span><br/>
+          <b>apiBase</b>: <span id="hudApi">—</span>
+        </div>
       </div>
 
       <audio id="nyxAudio" preload="auto" style="display:none"></audio>
@@ -179,6 +198,19 @@
 
   <script>
     (function(){
+      // ----------------------------
+      // Embedded mode detection
+      // ----------------------------
+      try{
+        if (window.top !== window.self) document.documentElement.classList.add('embed');
+      }catch(_){
+        // cross-origin access throws: assume embedded
+        document.documentElement.classList.add('embed');
+      }
+
+      // ----------------------------
+      // Host UI handles (kept)
+      // ----------------------------
       window.NYX_HOST_UI = {
         root: document.getElementById('avatarRoot'),
         overlay: document.getElementById('nyxOverlay'),
@@ -188,17 +220,158 @@
         chips: document.getElementById('nyxChips')
       };
 
-      function onChipClick(e){
-        const el = e.target.closest('[data-chip]');
-        if(!el) return;
-        const chip = String(el.getAttribute('data-chip') || '').toLowerCase();
-        if(!chip) return;
+      // ----------------------------
+      // Bridge config + security
+      // ----------------------------
+      var CFG = {
+        token: "",
+        enforce: true,
+        apiBase: "",
+        allowedOrigins: [],
+        urls: {}
+      };
 
-        const rail = window.NYX_HOST_UI.chips;
+      var LOCKED_PARENT_ORIGIN = ""; // once set, only accept messages from this origin
+
+      function safeStr(x){ return (x===null||x===undefined) ? "" : String(x); }
+      function isObj(x){ return !!x && typeof x === "object" && !Array.isArray(x); }
+
+      function setHud(id, val){
+        var el = document.getElementById(id);
+        if(el) el.textContent = safeStr(val || "—");
+      }
+
+      function isTokenOk(t){
+        t = safeStr(t).trim();
+        return t.length >= 12;
+      }
+
+      function originAllowed(incomingOrigin){
+        // if locked, require exact match
+        if (LOCKED_PARENT_ORIGIN) return incomingOrigin === LOCKED_PARENT_ORIGIN;
+
+        // if not locked yet, allow any *well-formed* origin to deliver first config
+        // (we lock immediately after valid config)
+        return !!incomingOrigin && incomingOrigin !== "null";
+      }
+
+      function applyConfig(payload, senderOrigin){
+        var p = isObj(payload) ? payload : {};
+        var token = safeStr(p.token).trim();
+        if (!isTokenOk(token)) return false;
+
+        var apiBase = safeStr(p.apiBase).trim().replace(/\/+$/,"");
+        if (!apiBase) return false;
+
+        CFG.token = token;
+        CFG.enforce = (p.enforce !== false);
+        CFG.apiBase = apiBase;
+
+        CFG.allowedOrigins = Array.isArray(p.allowedOrigins) ? p.allowedOrigins.map(String) : [];
+        CFG.urls = isObj(p.urls) ? p.urls : {};
+
+        // Lock to the first valid sender origin
+        LOCKED_PARENT_ORIGIN = senderOrigin;
+
+        // Expose for other scripts (bridge/shell can consume this)
+        window.NYX_CONFIG = {
+          token: CFG.token,
+          enforce: CFG.enforce,
+          apiBase: CFG.apiBase,
+          allowedOrigins: CFG.allowedOrigins.slice(0),
+          urls: Object.assign({}, CFG.urls)
+        };
+
+        // Let the rest of your system know config is ready
+        window.dispatchEvent(new CustomEvent("nyx:config", { detail: window.NYX_CONFIG }));
+
+        // HUD
+        setHud("hudBridge", "configured");
+        setHud("hudParent", LOCKED_PARENT_ORIGIN);
+        setHud("hudApi", CFG.apiBase);
+
+        // Ack parent
+        try{
+          window.parent.postMessage({
+            type: "NYX_ACK",
+            payload: {
+              ok: true,
+              token: CFG.token,
+              apiBase: CFG.apiBase,
+              host: window.location.origin
+            }
+          }, LOCKED_PARENT_ORIGIN);
+        }catch(_){}
+
+        return true;
+      }
+
+      window.addEventListener("message", function(ev){
+        var origin = safeStr(ev.origin || "");
+        if (!originAllowed(origin)) return;
+
+        var data = ev.data;
+        if (!isObj(data)) return;
+
+        if (data.type === "NYX_CONFIG") {
+          var ok = applyConfig(data.payload, origin);
+          if(!ok){
+            setHud("hudBridge", "bad_config");
+          }
+        }
+      });
+
+      // Signal READY (parent will answer with NYX_CONFIG)
+      function signalReady(){
+        setHud("hudBridge", "ready");
+        try{
+          // Use "*" for the initial READY because we don't yet know parent origin.
+          // We lock origin as soon as we receive a valid NYX_CONFIG.
+          window.parent.postMessage({
+            type: "NYX_READY",
+            payload: { ok:true, host: window.location.origin }
+          }, "*");
+        }catch(_){}
+      }
+
+      // ----------------------------
+      // Chip handling (kept + enhanced)
+      // ----------------------------
+      function setActiveChip(chip){
+        var rail = window.NYX_HOST_UI.chips;
         if(rail){
           rail.querySelectorAll('.chip').forEach(n => n.classList.remove('is-active'));
-          const active = rail.querySelector(`.chip[data-chip="${chip}"]`);
+          var active = rail.querySelector('.chip[data-chip="'+chip+'"]');
           if(active) active.classList.add('is-active');
+        }
+      }
+
+      function openUrlForChip(chip){
+        chip = safeStr(chip).toLowerCase();
+        var urls = CFG.urls || {};
+        var url = safeStr(urls[chip] || "").trim();
+        if(!url) return false;
+
+        // only open in response to user click
+        try{
+          window.open(url, "_blank", "noopener,noreferrer");
+          return true;
+        }catch(_){
+          return false;
+        }
+      }
+
+      function onChipClick(e){
+        var el = e.target.closest('[data-chip]');
+        if(!el) return;
+        var chip = safeStr(el.getAttribute('data-chip') || '').toLowerCase();
+        if(!chip) return;
+
+        setActiveChip(chip);
+
+        // If chip corresponds to external link, open it (roku/radio/schedule)
+        if (chip === "roku" || chip === "radio" || chip === "schedule") {
+          openUrlForChip(chip);
         }
 
         window.dispatchEvent(new CustomEvent('nyx:chip', { detail: { chip } }));
@@ -206,6 +379,11 @@
 
       document.getElementById('nyxBubbleActions')?.addEventListener('click', onChipClick);
       document.getElementById('nyxChips')?.addEventListener('click', onChipClick);
+
+      // Boot
+      signalReady();
+      // resend READY once (helps some browsers)
+      setTimeout(signalReady, 350);
     })();
   </script>
 </body>
