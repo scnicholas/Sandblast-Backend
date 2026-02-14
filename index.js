@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18bl (STABILITY HARDENING++++: CHAT fail-open on engine missing/throw + keeps v1.5.18bk security list)
+ * index.js v1.5.18bm (STABILITY HARDENING++++: CHAT fail-open on engine missing/throw + keeps v1.5.18bk security list)
  *
  * Keeps:
  * ✅ WIKI AUTHORITY FIX++++ (wikipedia split hot100 dir ingest + merged year map)
@@ -17,7 +17,7 @@
  * ✅ v1.5.18bj: backend self-host referer allow + hostOnly normalize + TRUE host redaction in 403 meta
  * ✅ v1.5.18bk: timing-safe debug auth + request timeout + content-type gate + no-store API + block Origin:null
  *
- * Adds (v1.5.18bl):
+ * Adds (v1.5.18bm):
  * ✅ STABILITY: /api/chat now “fail-open” when engine missing or throws (returns 200 + ok:true + safe reply + meta.error)
  *    - avoids widget-facing 5xx for chat path (mirrors TTS fail-open philosophy)
  *
@@ -93,7 +93,7 @@ const nyxVoiceNaturalizeMod =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18bl (STABILITY HARDENING++++: chat fail-open on engine missing/throw; keeps v1.5.18bk timing-safe debug auth + request timeout + content-type gate + no-store API + block Origin:null; keeps v1.5.18bj host redaction + backend referer allow + hostOnly normalize; keeps v1.5.18bg security + v1.5.18bf TTS fail-open + v1.5.18be CSE/chip continuity + v1.5.18bc reset/sessionPatch keys + v1.5.18bb WIKI AUTHORITY FIX++++ + CRITICAL FIXES++++ + diagnostics)";
+  "index.js v1.5.18bm (STABILITY HARDENING++++: chat fail-open on engine missing/throw; keeps v1.5.18bk timing-safe debug auth + request timeout + content-type gate + no-store API + block Origin:null; keeps v1.5.18bj host redaction + backend referer allow + hostOnly normalize; keeps v1.5.18bg security + v1.5.18bf TTS fail-open + v1.5.18be CSE/chip continuity + v1.5.18bc reset/sessionPatch keys + v1.5.18bb WIKI AUTHORITY FIX++++ + CRITICAL FIXES++++ + diagnostics)";
 
 // =========================
 // Utils
@@ -2423,35 +2423,6 @@ const app = express();
 
 if (toBool(TRUST_PROXY, false)) app.set("trust proxy", 1);
 
-// =========================
-// AVATAR HOST (Option A): self-host avatar-host.html from backend
-//  - Put files under: /public/avatar/*
-//  - Served at:      /avatar/*  (e.g. /avatar/avatar-host.html)
-//  - IMPORTANT: We allow framing ONLY for /avatar/* by Sandblast origins.
-// =========================
-const AVATAR_PUBLIC_DIR = path.join(APP_ROOT, "public", "avatar");
-
-// mark avatar paths so security header middleware can be conditional
-app.use("/avatar", (req, _res, next) => {
-  req.__sb_isAvatar = true;
-  next();
-});
-
-// static serve (Render-safe)
-app.use(
-  "/avatar",
-  express.static(AVATAR_PUBLIC_DIR, {
-    etag: true,
-    maxAge: "1h",
-    setHeaders: (res) => {
-      try {
-        res.setHeader("X-Content-Type-Options", "nosniff");
-        res.setHeader("Cache-Control", "public, max-age=3600");
-      } catch (_) {}
-    },
-  })
-);
-
 // ---- SAFE JSON PARSE: never crash on invalid JSON ----
 const jsonParser = express.json({ limit: MAX_JSON_BODY });
 
@@ -2470,6 +2441,33 @@ app.use((req, res, next) => {
   });
 });
 app.use(express.text({ type: ["text/*"], limit: MAX_JSON_BODY }));
+
+  /**
+   * AVATAR HOSTING (CRITICAL)
+   * Serves the Nyx avatar UI + assets from /public/avatar so embeds can load:
+   *   https://<backend>/avatar/avatar-host.html
+   *   https://<backend>/avatar/assets/nyx-hero.webp
+   *
+   * Convenience routes (for older widgets):
+   *   /avatar-host and /avatar-host.html
+   */
+  const PUBLIC_DIR = path.join(__dirname, "public");
+  const AVATAR_DIR = path.join(PUBLIC_DIR, "avatar");
+
+  // Light caching for avatar assets (safe to tune)
+  app.use("/avatar", express.static(AVATAR_DIR, {
+    etag: true,
+    maxAge: "1h",
+    setHeaders: (res) => {
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("Referrer-Policy", "no-referrer");
+    }
+  }));
+
+  app.get("/avatar-host", (req, res) => res.sendFile(path.join(AVATAR_DIR, "avatar-host.html")));
+  app.get("/avatar-host.html", (req, res) => res.sendFile(path.join(AVATAR_DIR, "avatar-host.html")));
+  app.get("/avatar/avatar-host", (req, res) => res.redirect(302, "/avatar/avatar-host.html"));
+
 
 // =========================
 // Request timeout + API no-store (security + stability)
@@ -2491,30 +2489,16 @@ app.use((req, res, next) => {
 });
 
 // =========================
-// =========================
 // Baseline security headers (API-safe)
-//  - IMPORTANT: /avatar/* must be embeddable in an iframe on Sandblast origins (Option A)
-//    so we DO NOT set X-Frame-Options=DENY on /avatar and we set CSP frame-ancestors allowlist.
 // =========================
 app.use((req, res, next) => {
   try {
-    const isAvatar = !!req.__sb_isAvatar || String(req.path || "").startsWith("/avatar");
-
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Referrer-Policy", "no-referrer");
+    res.setHeader("X-Frame-Options", "DENY");
+    res.setHeader("Content-Security-Policy", "frame-ancestors 'none'");
     res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
     res.setHeader("Permissions-Policy", SECURITY_PERMISSIONS_POLICY);
-
-    if (!isAvatar) {
-      // API + normal pages: deny framing
-      res.setHeader("X-Frame-Options", "DENY");
-      res.setHeader("Content-Security-Policy", "frame-ancestors 'none'");
-    } else {
-      // /avatar/*: allow Sandblast sites to iframe
-      const fa = ["'self'"].concat(Array.isArray(ORIGINS_ALLOWLIST) ? ORIGINS_ALLOWLIST : []).join(" ");
-      res.setHeader("Content-Security-Policy", `frame-ancestors ${fa}`);
-      // NOTE: do NOT set X-Frame-Options here (it would block cross-origin iframing)
-    }
 
     // HSTS only makes sense over HTTPS; Render terminates TLS upstream, but header still helps browsers.
     if (SECURITY_HSTS && SECURITY_HSTS_MAX_AGE > 0) {
@@ -3237,7 +3221,7 @@ async function handleChatRoute(req, res) {
     }
   }
 
-  // ✅ v1.5.18bl: CHAT fail-open (no widget-facing 5xx)
+  // ✅ v1.5.18bm: CHAT fail-open (no widget-facing 5xx)
   if (!ENGINE.fn) {
     const reply = "Backend engine not loaded. Check deploy: Utils/chatEngine.js is missing or exports are wrong.";
     writeReplay(rec, reply, "general");
@@ -3319,7 +3303,7 @@ async function handleChatRoute(req, res) {
       : "I’m online, but my knowledge packs didn’t load yet. Try again in a moment — or hit refresh — and I’ll reconnect.";
     writeReplay(rec, reply, rec.data.lane || "general");
 
-    // ✅ v1.5.18bl: fail-open chat (200)
+    // ✅ v1.5.18bm: fail-open chat (200)
     return res.status(200).json({
       ok: true,
       reply,
