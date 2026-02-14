@@ -3037,7 +3037,7 @@ function clearSessionState(rec) {
 // =========================
 // Chat route (kept — plus CSE/chip continuity signals)
 // =========================
-async async function handleChatRoute(req, res) {
+async function handleChatRoute(req, res) {
   const startedAt = nowMs();
 
   // ✅ Content-Type gate (allow missing, JSON, text/*)
