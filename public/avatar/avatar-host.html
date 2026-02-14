@@ -239,6 +239,47 @@
         chips: document.getElementById('nyxChips')
       };
 
+      
+      // ----------------------------
+      // Shell mount wiring (heroSrc)
+      // ----------------------------
+      function mountShellFromConfig(){
+        try{
+          var mountEl = document.getElementById("nyxShellMount");
+          if(!mountEl) return;
+
+          // Avoid double-mounting if controller/bridge already mounted it
+          if (window.NyxAvatarShell && typeof window.NyxAvatarShell.getInstance === "function") {
+            var inst = window.NyxAvatarShell.getInstance();
+            if (inst && inst.el && inst.el.parentNode) {
+              // If already mounted, just update hero if supported
+              try{
+                if (window.NYX_CONFIG && window.NYX_CONFIG.heroSrc && inst.setHero) inst.setHero(window.NYX_CONFIG.heroSrc);
+              }catch(_){}
+              return;
+            }
+          }
+
+          if(!window.NyxAvatarShell || typeof window.NyxAvatarShell.mount !== "function") return;
+
+          var hero = (window.NYX_CONFIG && window.NYX_CONFIG.heroSrc) ? String(window.NYX_CONFIG.heroSrc).trim() : "";
+          // IMPORTANT: heroSrc should be SAME-ORIGIN relative (recommended) or a full https URL you control.
+          // Example: "/avatar/assets/nyx-hero.png"
+          window.NyxAvatarShell.mount(mountEl, { heroSrc: hero || "" });
+
+        }catch(_){}
+      }
+
+      // Mount once config is ready (and also attempt on load)
+      window.addEventListener("nyx:config", function(){
+        mountShellFromConfig();
+      });
+      document.addEventListener("DOMContentLoaded", function(){
+        // In case config arrives very early/late; this stays fail-open.
+        setTimeout(mountShellFromConfig, 50);
+        setTimeout(mountShellFromConfig, 450);
+      });
+
       // ----------------------------
       // Bridge config + security
       // ----------------------------
@@ -247,7 +288,8 @@
         enforce: true,
         apiBase: "",
         allowedOrigins: [],
-        urls: {}
+        urls: {},
+        heroSrc: ""
       };
 
       // once set, only accept messages from this origin
@@ -318,6 +360,10 @@
         CFG.allowedOrigins = Array.isArray(p.allowedOrigins) ? p.allowedOrigins.map(String) : [];
         CFG.urls = isObj(p.urls) ? p.urls : {};
 
+        // Optional: hero portrait (face+shoulders) for shell
+        // Accepts: payload.heroSrc OR payload.assets.heroSrc OR payload.assets.hero
+        CFG.heroSrc = safeStr(p.heroSrc || (p.assets && (p.assets.heroSrc || p.assets.hero)) || "").trim();
+
         // Lock to the first valid sender origin (embedded only)
         if (EMBEDDED && senderOrigin) LOCKED_PARENT_ORIGIN = senderOrigin;
 
@@ -327,6 +373,9 @@
         setHud("hudBridge", EMBEDDED ? "configured" : "standalone");
         setHud("hudParent", EMBEDDED ? (LOCKED_PARENT_ORIGIN || "—") : "(direct)");
         setHud("hudApi", CFG.apiBase);
+
+        // Mount/refresh shell now that config is set
+        try{ mountShellFromConfig(); }catch(_){ }
 
         // Ack parent (embedded)
         if (EMBEDDED && LOCKED_PARENT_ORIGIN){
