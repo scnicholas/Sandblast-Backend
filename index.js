@@ -2423,6 +2423,35 @@ const app = express();
 
 if (toBool(TRUST_PROXY, false)) app.set("trust proxy", 1);
 
+// =========================
+// AVATAR HOST (Option A): self-host avatar-host.html from backend
+//  - Put files under: /public/avatar/*
+//  - Served at:      /avatar/*  (e.g. /avatar/avatar-host.html)
+//  - IMPORTANT: We allow framing ONLY for /avatar/* by Sandblast origins.
+// =========================
+const AVATAR_PUBLIC_DIR = path.join(APP_ROOT, "public", "avatar");
+
+// mark avatar paths so security header middleware can be conditional
+app.use("/avatar", (req, _res, next) => {
+  req.__sb_isAvatar = true;
+  next();
+});
+
+// static serve (Render-safe)
+app.use(
+  "/avatar",
+  express.static(AVATAR_PUBLIC_DIR, {
+    etag: true,
+    maxAge: "1h",
+    setHeaders: (res) => {
+      try {
+        res.setHeader("X-Content-Type-Options", "nosniff");
+        res.setHeader("Cache-Control", "public, max-age=3600");
+      } catch (_) {}
+    },
+  })
+);
+
 // ---- SAFE JSON PARSE: never crash on invalid JSON ----
 const jsonParser = express.json({ limit: MAX_JSON_BODY });
 
@@ -2462,16 +2491,30 @@ app.use((req, res, next) => {
 });
 
 // =========================
+// =========================
 // Baseline security headers (API-safe)
+//  - IMPORTANT: /avatar/* must be embeddable in an iframe on Sandblast origins (Option A)
+//    so we DO NOT set X-Frame-Options=DENY on /avatar and we set CSP frame-ancestors allowlist.
 // =========================
 app.use((req, res, next) => {
   try {
+    const isAvatar = !!req.__sb_isAvatar || String(req.path || "").startsWith("/avatar");
+
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Referrer-Policy", "no-referrer");
-    res.setHeader("X-Frame-Options", "DENY");
-    res.setHeader("Content-Security-Policy", "frame-ancestors 'none'");
     res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
     res.setHeader("Permissions-Policy", SECURITY_PERMISSIONS_POLICY);
+
+    if (!isAvatar) {
+      // API + normal pages: deny framing
+      res.setHeader("X-Frame-Options", "DENY");
+      res.setHeader("Content-Security-Policy", "frame-ancestors 'none'");
+    } else {
+      // /avatar/*: allow Sandblast sites to iframe
+      const fa = ["'self'"].concat(Array.isArray(ORIGINS_ALLOWLIST) ? ORIGINS_ALLOWLIST : []).join(" ");
+      res.setHeader("Content-Security-Policy", `frame-ancestors ${fa}`);
+      // NOTE: do NOT set X-Frame-Options here (it would block cross-origin iframing)
+    }
 
     // HSTS only makes sense over HTTPS; Render terminates TLS upstream, but header still helps browsers.
     if (SECURITY_HSTS && SECURITY_HSTS_MAX_AGE > 0) {
