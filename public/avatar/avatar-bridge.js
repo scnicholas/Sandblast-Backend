@@ -5,26 +5,29 @@
 /**
  * Nyx Avatar Bridge (Standalone)
  *
- * v0.8.0 (MARION→UI BRIDGE + HOST CONTROL FIX + URL PASS-THROUGH)
+ * v0.8.1 (HANDSHAKE LOCK++++ + FIRST-CONFIG ACCEPT++++ + TOKEN LATCH++++)
  *
- * Keeps v0.7.0:
- *  ✅ PHASE H1: Public-ready security + config (NYX_CONFIG, origin whitelist, token rotation, apiBase, enforce)
- *  ✅ PHASE H2: Deterministic presence (TURN_START/END + inflight counter + netPending)
- *  ✅ PHASE H3: Settle polish (audio ended + pending drops to 0 + tiny delay) + settleHint into controller + shell.triggerSettle
- *  ✅ PHASE H4: visibility pause/resume
+ * Keeps v0.8.0:
+ *  ✅ Public-ready security + config (NYX_CONFIG, origin whitelist, token rotation, apiBase, enforce)
+ *  ✅ Deterministic presence (TURN_START/END + inflight counter + netPending)
+ *  ✅ Settle polish (audio ended + pending drops to 0 + tiny delay) + settleHint into controller + shell.triggerSettle
+ *  ✅ visibility pause/resume
  *  ✅ ObjectURL revocation (no leaks)
  *  ✅ Fetch/XHR wrapping (guarded)
  *  ✅ Protocol versioning (v:1)
  *  ✅ Presence HUD split (final vs hint)
  *  ✅ Audio fail-soft + speaking truth
+ *  ✅ Marion→Nyx UI bridge (setMarionCog, setLane, setUrls)
+ *  ✅ Host controls binding fix (button[data-act] direct binding)
  *
- * Adds:
- *  ✅ Marion→Nyx UI bridge:
- *     - AvatarController.setMarionCog(packet.cog) (structured only)
- *     - AvatarController.setLane(lane)
- *     - AvatarController.setUrls(packet.urls) (schedule/radio/roku/music etc.)
- *  ✅ Fix host controls binding (no dependency on #controls wrapper)
- *     - Supports avatar-host.html actions: armAudio/idle/listen/speak/toggleVelvet/sendChat/speakText
+ * Adds v0.8.1:
+ *  ✅ HANDSHAKE LOCK:
+ *     - Accept FIRST valid NYX_CONFIG from any non-null origin
+ *     - Lock parent origin to that sender (prevents hostile reconfiguration)
+ *  ✅ TOKEN LATCH:
+ *     - Before config: token unknown; only NYX_CONFIG processed
+ *     - After config: token strictly required (when enforce=true)
+ *  ✅ NYX_ACK sent to locked parent on successful config
  */
 
 (function () {
@@ -41,25 +44,35 @@
   // =========================
   const SECURITY = {
     // Parent can tighten/replace via NYX_CONFIG.
+    // These are fallback defaults only; once we lock, we accept only that origin.
     allowedOrigins: [
       window.location.origin,
       "https://sandblastchannel.com",
       "https://sandblast.channel",
     ],
-    expectedToken: "dev-token-change-me",
+
+    // token is unknown until NYX_CONFIG is received
+    expectedToken: "",
+
     enforce: true,
   };
 
   const CONFIG = {
-    apiBase: "",         // e.g. https://your-backend.onrender.com
+    apiBase: "",         // e.g. https://sandblast-backend.onrender.com
     configuredAt: 0,
+    parentOrigin: "",    // locked parent origin
   };
 
   function safeStr(x) { return x == null ? "" : String(x); }
   const clamp01 = (n) => Math.max(0, Math.min(1, Number(n) || 0));
 
+  function isTokenPlausible(t) {
+    t = safeStr(t).trim();
+    return t.length >= 12;
+  }
+
   function isAllowedOrigin(origin) {
-    const o = String(origin || "");
+    const o = safeStr(origin);
     const list = SECURITY.allowedOrigins || [];
     for (let i = 0; i < list.length; i++) {
       if (o === list[i]) return true;
@@ -67,14 +80,29 @@
     return false;
   }
 
+  // LOCKED ORIGIN logic:
+  // - if CONFIG.parentOrigin is set, require exact match
+  // - otherwise, fall back to allowlist (or accept NYX_CONFIG specifically)
   function okOrigin(ev) {
     if (!SECURITY.enforce) return true;
-    return !!(ev && ev.origin && isAllowedOrigin(ev.origin));
+    const o = safeStr(ev && ev.origin);
+    if (!o || o === "null") return false;
+    if (CONFIG.parentOrigin) return o === CONFIG.parentOrigin;
+    return isAllowedOrigin(o);
   }
 
+  // Token logic:
+  // - if enforce=false, always ok
+  // - if expectedToken not set yet (pre-config), only allow token checks to pass for NYX_CONFIG bootstrap
   function okToken(payload) {
     if (!SECURITY.enforce) return true;
-    return !!(payload && payload.token && payload.token === SECURITY.expectedToken);
+
+    const got = safeStr(payload && payload.token).trim();
+    if (!SECURITY.expectedToken) {
+      // pre-config: we don't know token yet
+      return false;
+    }
+    return !!(got && got === SECURITY.expectedToken);
   }
 
   // =========================
@@ -166,7 +194,7 @@
 
   function hudInitSecurity() {
     try {
-      if (hud.origin) hudSet(hud.origin, (SECURITY.allowedOrigins && SECURITY.allowedOrigins[0]) ? "whitelist" : "—");
+      if (hud.origin) hudSet(hud.origin, CONFIG.parentOrigin ? ("lock@" + CONFIG.parentOrigin) : "whitelist");
       if (hud.token) hudSet(hud.token, SECURITY.expectedToken ? "set" : "—");
     } catch (_) {}
   }
@@ -335,7 +363,7 @@
   if (audioEl) {
     audioEl.addEventListener("ended", () => {
       revokeObjectUrl();
-      // H3: settle after audio ends
+      // settle after audio ends
       state.diag.settleHint = true;
       scheduleSettleSoon(0);
     });
@@ -395,10 +423,9 @@
       hintPresence: state.inlet.hintPresence,
     };
 
-    // NEW: pass structured cognition + urls into UI controller (fail-open)
+    // pass structured cognition + urls into UI controller (fail-open)
     try {
       if (packet.cog && typeof window.AvatarController.setMarionCog === "function") {
-        // structured object only — controller is responsible for not persisting raw text
         window.AvatarController.setMarionCog(packet.cog);
         state.inlet.lastCog = { ok: true, keys: Object.keys(packet.cog || {}).slice(0, 24) };
       }
@@ -424,12 +451,27 @@
   }
 
   // =========================
-  // Config inlet (H1)
+  // Config inlet (H1) + LOCK (v0.8.1)
   // =========================
-  function applyConfig(payload, origin) {
+  function applyConfig(payload, origin, evSource) {
     const p = payload && typeof payload === "object" ? payload : {};
+    const o = safeStr(origin);
+    if (!o || o === "null") return false;
 
-    // allowedOrigins
+    // token rotation (required for config)
+    const token = safeStr(p.token).trim();
+    if (!isTokenPlausible(token)) return false;
+
+    // apiBase (required)
+    const apiBase = safeStr(p.apiBase).trim().replace(/\/+$/, "");
+    if (!apiBase || !apiBase.startsWith("http")) return false;
+
+    // enforce toggle (optional)
+    if (typeof p.enforce === "boolean") {
+      SECURITY.enforce = p.enforce;
+    }
+
+    // allowedOrigins (optional; but AFTER lock, only locked origin is accepted anyway)
     if (Array.isArray(p.allowedOrigins) && p.allowedOrigins.length) {
       const cleaned = [];
       for (let i = 0; i < p.allowedOrigins.length; i++) {
@@ -439,20 +481,14 @@
       if (cleaned.length) SECURITY.allowedOrigins = cleaned;
     }
 
-    // expected token rotation
-    if (typeof p.token === "string" && p.token.trim().length >= 12) {
-      SECURITY.expectedToken = p.token.trim();
-    }
+    // latch token + apiBase
+    SECURITY.expectedToken = token;
+    CONFIG.apiBase = apiBase;
+    CONFIG.configuredAt = Date.now();
 
-    // enforce toggle (optional)
-    if (typeof p.enforce === "boolean") {
-      SECURITY.enforce = p.enforce;
-    }
-
-    // apiBase
-    if (typeof p.apiBase === "string") {
-      const b = p.apiBase.trim();
-      CONFIG.apiBase = (b && b.startsWith("http")) ? b.replace(/\/+$/, "") : "";
+    // LOCK parent origin on first successful config
+    if (!CONFIG.parentOrigin) {
+      CONFIG.parentOrigin = o;
     }
 
     // Optional: url hints (pass-through to controller)
@@ -462,32 +498,65 @@
       }
     } catch (_) {}
 
-    CONFIG.configuredAt = Date.now();
-
+    // HUD
     try {
       if (hud.hs) hudSet(hud.hs, "config@" + new Date().toLocaleTimeString());
-      if (hud.origin) hudSet(hud.origin, "ok@" + safeStr(origin || "").slice(0, 28));
+      if (hud.origin) hudSet(hud.origin, "lock@" + safeStr(CONFIG.parentOrigin).slice(0, 64));
       if (hud.token) hudSet(hud.token, SECURITY.expectedToken ? "set" : "—");
     } catch (_) {}
+
+    // ACK back to parent (helps parent confirm handshake)
+    try {
+      const target = CONFIG.parentOrigin || o;
+      const src = evSource || window.parent;
+      if (src && typeof src.postMessage === "function") {
+        src.postMessage(
+          {
+            type: "NYX_ACK",
+            payload: {
+              ok: true,
+              v: PROTOCOL_VERSION,
+              token: SECURITY.expectedToken,
+              apiBase: CONFIG.apiBase,
+              host: window.location.origin,
+              lockedOrigin: CONFIG.parentOrigin || "",
+            },
+          },
+          target
+        );
+      }
+    } catch (_) {}
+
+    return true;
   }
 
   // =========================
-  // postMessage (secure + handshake + lifecycle) (H1/H2)
+  // postMessage (secure + lifecycle) (H1/H2)
   // =========================
   window.addEventListener("message", (ev) => {
     const d = ev && ev.data;
     if (!d || typeof d !== "object") return;
 
-    // Allow NYX_CONFIG only if origin already allowed OR enforcement is off.
+    // --- Bootstrap: accept FIRST valid NYX_CONFIG from any non-null origin ---
     if (d.type === "NYX_CONFIG") {
-      if (SECURITY.enforce && !okOrigin(ev)) return;
+      const origin = safeStr(ev.origin);
+      if (!origin || origin === "null") return;
+
+      // If locked, require exact origin.
+      if (CONFIG.parentOrigin && origin !== CONFIG.parentOrigin) return;
+
+      // Require plausible token + apiBase for config; do NOT require okToken() yet
       const pl = d.payload || {};
-      const tokenOk = okToken(pl) || (SECURITY.expectedToken === "dev-token-change-me" && typeof pl.token === "string");
-      if (SECURITY.enforce && !tokenOk) return;
-      applyConfig(pl, ev.origin);
+      const token = safeStr(pl.token).trim();
+      const apiBase = safeStr(pl.apiBase).trim();
+      if (!isTokenPlausible(token)) return;
+      if (!apiBase || !apiBase.startsWith("http")) return;
+
+      applyConfig(pl, origin, ev.source);
       return;
     }
 
+    // After config, enforce origin
     if (SECURITY.enforce && !okOrigin(ev)) return;
 
     if (d.type === "NYX_PING") {
@@ -648,8 +717,8 @@
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ text: safeStr(text || "ping"), sessionId: "avatar-host" }),
       });
-    } catch (_) {
-      return Promise.reject(_);
+    } catch (e) {
+      return Promise.reject(e);
     }
   }
 
@@ -661,8 +730,8 @@
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ text: safeStr(text || "Nyx test."), voice: "nyx" }),
       });
-    } catch (_) {
-      return Promise.reject(_);
+    } catch (e) {
+      return Promise.reject(e);
     }
   }
 
@@ -688,14 +757,12 @@
         state.velvet = !state.velvet;
         try {
           if (typeof window.AvatarController.setMarionCog === "function") {
-            // optional hint to soften greeting on velvet toggle (no raw text)
             window.AvatarController.setMarionCog({ tone: state.velvet ? "velvet" : "neutral", stage: state.stage });
           }
         } catch (_) {}
         return;
       }
 
-      // avatar-host.html actions:
       if (act === "sendChat") {
         const ta = document.getElementById("prompt");
         const txt = ta ? ta.value : "ping";
@@ -709,7 +776,6 @@
         return;
       }
 
-      // legacy debug acts
       if (act === "testCHAT") { hostFetchChat("ping").catch(() => {}); return; }
       if (act === "testTTS") { hostFetchTts("Nyx test.").catch(() => {}); return; }
     }, { passive: true });
