@@ -1,0 +1,74 @@
+<!-- parent-harness.html (PARENT-SIDE) (NEW)
+     Drives avatar.html end-to-end (iframe + consciousness packets).
+     Place alongside:
+       - avatar.html
+       - consciousness-adapter.js
+       - demo-parent.js
+       - avatar-bridge.js + AvatarController + NyxAvatarShell (loaded inside avatar.html)
+-->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nyx Avatar Parent Harness</title>
+  <style>
+    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+    body { margin: 0; padding: 16px; display: grid; gap: 12px; }
+    .row { display: grid; grid-template-columns: 1fr 360px; gap: 12px; align-items: start; }
+    .panel { border: 1px solid rgba(0,0,0,.15); border-radius: 12px; padding: 12px; }
+    iframe { width: 100%; height: 620px; border: 1px solid rgba(0,0,0,.15); border-radius: 12px; background: #0b0b10; }
+    .controls { display: grid; gap: 8px; }
+    button { padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(0,0,0,.15); cursor: pointer; }
+    input[type="text"] { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(0,0,0,.15); }
+    .muted { opacity: .75; font-size: 13px; }
+    pre { margin: 0; white-space: pre-wrap; word-break: break-word; font-size: 12px; }
+    .status { font-weight: 600; }
+    label { display:flex; gap:8px; align-items:center; user-select:none; }
+  </style>
+</head>
+<body>
+
+  <div class="panel">
+    <div class="status">Status: <span id="status">booting…</span></div>
+    <div class="muted">
+      This parent page embeds <code>avatar.html</code> as an iframe and sends <code>NYX_CONSCIOUSNESS</code> packets.
+      Toggle MOCK vs REAL to switch between simulated Nyx replies and <code>/api/chat</code>.
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="panel">
+      <iframe id="avatarFrame" title="Nyx Avatar" src="./avatar.html"></iframe>
+    </div>
+
+    <div class="panel">
+      <div class="controls">
+        <button id="btnPing">Ping Avatar</button>
+        <button id="btnBoot">Boot State</button>
+        <button id="btnEngage">Engaged / Listening</button>
+        <button id="btnVelvet">Toggle Velvet Packet</button>
+
+        <label>
+          <input id="chkCaption" type="checkbox" />
+          Include caption (short reply text)
+        </label>
+
+        <button id="btnMock">Mode: MOCK</button>
+
+        <div class="muted">Send a line to Nyx (mock or /api/chat):</div>
+        <input id="inputText" type="text" placeholder="e.g., Give me Top 10 for 1988." />
+        <button id="btnSend">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="muted">Log</div>
+    <pre id="log"></pre>
+  </div>
+
+  <script src="./consciousness-adapter.js"></script>
+  <script src="./demo-parent.js"></script>
+</body>
+</html>
