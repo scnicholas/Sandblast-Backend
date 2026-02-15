@@ -10,7 +10,13 @@
 
   <!-- Host-only tiny layout helpers (kept minimal; aesthetics live in avatar.css) -->
   <style>
-    body{margin:0}
+    /* HARD CANVAS (critical): make iframe content NOT transparent */
+    html,body{height:100%}
+    body{
+      margin:0;
+      background:#0b0b10; /* solid base so glow has contrast */
+    }
+
     #wrap{
       display:grid;
       grid-template-columns: 1fr 320px;
@@ -25,7 +31,9 @@
       overflow:hidden;
       min-height:420px;
       position:relative;
-      background: rgba(12,12,18,.55);
+
+      /* HARD CANVAS (critical): avoid “see-through” blend collapse */
+      background:#0b0b10; /* <- was rgba(...) */
     }
     #panel{
       border:1px solid rgba(255,255,255,.08);
@@ -104,20 +112,7 @@
       border:0;
       height:100vh;
       min-height:100vh;
-    }
-
-    /* Embedded debug override (enable with ?debug=1) */
-    .embed-debug #wrap{
-      grid-template-columns: 1fr 320px;
-      padding:12px;
-      height:100vh;
-    }
-    .embed-debug #panel{ display:block; }
-    .embed-debug #avatarRoot{
-      border-radius:16px;
-      border:1px solid rgba(255,255,255,.08);
-      height:auto;
-      min-height:420px;
+      background:#0b0b10; /* keep solid in embed */
     }
   </style>
 </head>
@@ -227,52 +222,16 @@
     (function(){
       // ============================
       // Avatar Host Hardening (FULL)
-      //
-      // FIXES APPLIED (critical+):
-      // ✅ Do NOT trust sender-supplied allowlist (anchored allowlist in iframe)
-      // ✅ Lock parent origin on first valid config
-      // ✅ Nonce handshake (READY includes nonce; CONFIG must echo)
-      // ✅ Do NOT expose raw token on window (closure-only)
-      // ✅ Enforce apiBase allowlist (origin must be approved)
-      // ✅ Enforce mode blocks actions if enforce=true and token missing
-      // ✅ Safer fetch patch: only inject token header for allowed api origins + /api/*
-      // ✅ Handles "api/..." relative without leading slash
-      // ✅ ACK does NOT leak token
-      // ✅ Visible build stamp (hostVer) so you can confirm what's live
-      // ✅ Embedded debug mode via ?debug=1 (shows panel + verbose console)
-      // ✅ Safer standalone fallback: show avatar + allow shell mount even if config missing
-      // ✅ Better blocked messaging + HUD stamping
       // ============================
 
-      // -------- BUILD STAMP (ops sanity) --------
       var HOST_VER = "avatar-host v1.0.6 (embed debug + stronger HUD + safe standalone)";
       try{ console.log("[NyxHost]", HOST_VER); }catch(_){}
 
-      // ----------------------------
-      // Embedded mode + debug flag
-      // ----------------------------
       var EMBEDDED = false;
       try{ EMBEDDED = (window.top !== window.self); }
-      catch(_){ EMBEDDED = true; } // cross-origin throws: assume embedded
+      catch(_){ EMBEDDED = true; }
+      if (EMBEDDED) document.documentElement.classList.add('embed');
 
-      var qs0 = null, DEBUG = false;
-      try{
-        qs0 = new URLSearchParams(window.location.search || "");
-        DEBUG = (qs0.get("debug") === "1" || qs0.get("debug") === "true");
-      }catch(_){}
-
-      if (EMBEDDED) {
-        document.documentElement.classList.add(DEBUG ? "embed-debug" : "embed");
-      }
-
-      function dlog(){
-        if(!DEBUG) return;
-        try{ console.log.apply(console, arguments); }catch(_){}
-      }
-
-      // ----------------------------
-      // Host UI handles (kept)
-      // ----------------------------
       window.NYX_HOST_UI = {
         root: document.getElementById('avatarRoot'),
         overlay: document.getElementById('nyxOverlay'),
@@ -282,9 +241,6 @@
         chips: document.getElementById('nyxChips')
       };
 
-      // ----------------------------
-      // Utils
-      // ----------------------------
       function safeStr(x){ return (x===null||x===undefined) ? "" : String(x); }
       function isObj(x){ return !!x && typeof x === "object" && !Array.isArray(x); }
 
@@ -328,9 +284,6 @@
         catch(_){ return ""; }
       }
 
-      // ----------------------------
-      // Shell mount wiring (heroSrc)
-      // ----------------------------
       function mountShellFromConfig(heroSrc){
         try{
           var mountEl = document.getElementById("nyxShellMount");
@@ -356,18 +309,11 @@
         }catch(_){}
       }
 
-      // ----------------------------
-      // Anchored allowlists (CRITICAL FIX)
-      // ----------------------------
-      // Only these parent origins may configure this iframe.
-      // Add/remove as needed; keep tight.
       var ALLOWED_PARENT_ORIGINS = [
         "https://sandblast.channel",
         "https://www.sandblast.channel"
       ];
 
-      // Only these API origins may be used as apiBase.
-      // Keep this list minimal. If your API is on Render, include it.
       var ALLOWED_API_ORIGINS = [
         "https://sandblast-backend.onrender.com",
         "https://sandblast.channel",
@@ -390,9 +336,6 @@
         return false;
       }
 
-      // ----------------------------
-      // Bridge config (closure-only token)
-      // ----------------------------
       var CFG = {
         enforce: true,
         apiBase: "",
@@ -402,13 +345,9 @@
         tokenHeader: "X-SB-WIDGET-TOKEN"
       };
 
-      // token never leaves closure
       var _TOKEN = "";
-
-      // Parent locking
       var LOCKED_PARENT_ORIGIN = "";
 
-      // Nonce handshake (anti-race / anti-replay lite)
       var READY_NONCE = "";
       function genNonce(){
         try{
@@ -437,9 +376,6 @@
         }catch(_){}
       }
 
-      // ----------------------------
-      // Token-injecting fetch wrapper (safer)
-      // ----------------------------
       var _nativeFetch = window.fetch ? window.fetch.bind(window) : null;
 
       function resolveUrl(input){
@@ -451,7 +387,6 @@
       }
 
       function canonicalizeApiish(urlStr){
-        // Fix edge case: "api/chat" (missing leading slash)
         var u = safeStr(urlStr).trim();
         if (/^api\//i.test(u)) return "/" + u;
         return u;
@@ -459,21 +394,12 @@
 
       function isApiRequest(urlStr){
         urlStr = canonicalizeApiish(urlStr);
-
-        // Relative /api/*
         if (/^\/api\//i.test(urlStr)) return true;
 
-        // Absolute /api/*
         try{
           var abs = new URL(urlStr, window.location.href);
-
-          // Must be /api/*
           if (abs.pathname.indexOf("/api/") !== 0) return false;
-
-          // If apiBase is set, require same origin as apiBase origin.
           if (CFG.apiOrigin) return abs.origin === CFG.apiOrigin;
-
-          // Otherwise, require same origin as this iframe.
           return abs.origin === window.location.origin;
         }catch(_){}
         return false;
@@ -507,7 +433,6 @@
           if (!has) out[key] = token;
         }
 
-        // Only set Content-Type if caller didn't provide one.
         var hasCT = false;
         Object.keys(out).forEach(function(k){
           if (String(k).toLowerCase() === "content-type") hasCT = true;
@@ -520,24 +445,18 @@
 
       function nyxFetch(input, init){
         if (!_nativeFetch) throw new Error("fetch_not_supported");
-
-        // Enforce means: do not allow API calls without token
         if (CFG.enforce && !_TOKEN) {
           showBlocked("token_missing");
           return Promise.reject(new Error("nyx_token_missing"));
         }
-
         var url = resolveUrl(input);
         if (isApiRequest(url)) init = injectTokenHeaders(init);
         return _nativeFetch(input, init);
       }
 
-      // Expose helpers for other scripts (preferred)
       window.NYX_FETCH = nyxFetch;
       window.NYX_TOKEN_HEADER = function(){ return CFG.tokenHeader || "X-SB-WIDGET-TOKEN"; };
 
-      // Compatibility: monkey-patch fetch to auto-inject on /api/* ONLY.
-      // (Still global, but tightly scoped to avoid breaking non-API calls.)
       if (_nativeFetch){
         window.fetch = function(input, init){
           try{
@@ -548,9 +467,6 @@
         };
       }
 
-      // ----------------------------
-      // Expose config (NO TOKEN)
-      // ----------------------------
       function exposeConfig(){
         window.NYX_CONFIG = {
           enforce: CFG.enforce,
@@ -562,9 +478,7 @@
           tokenSet: !!_TOKEN,
           tokenLen: _TOKEN ? _TOKEN.length : 0,
           parentLocked: !!LOCKED_PARENT_ORIGIN,
-          hostVer: HOST_VER,
-          embedded: !!EMBEDDED,
-          debug: !!DEBUG
+          hostVer: HOST_VER
         };
 
         window.NYX_API_BASE = CFG.apiBase;
@@ -572,72 +486,39 @@
         window.dispatchEvent(new CustomEvent("nyx:config", { detail: window.NYX_CONFIG }));
       }
 
-      // ----------------------------
-      // Config apply (critical fixes)
-      // ----------------------------
       function applyConfig(payload, senderOrigin){
         var p = isObj(payload) ? payload : {};
-        var sender = safeStr(senderOrigin || "");
 
-        dlog("[NyxHost] NYX_CONFIG received from", sender, p);
-
-        // 1) Anchor parent allowlist: NEVER trust sender-supplied allowlist
         if (EMBEDDED){
           if (LOCKED_PARENT_ORIGIN) {
-            if (sender !== LOCKED_PARENT_ORIGIN) {
-              dlog("[NyxHost] reject: parent_locked_mismatch", sender, LOCKED_PARENT_ORIGIN);
-              return false;
-            }
+            if (senderOrigin !== LOCKED_PARENT_ORIGIN) return false;
           } else {
-            if (!parentOriginAllowed(sender)) {
-              dlog("[NyxHost] reject: parent_not_allowed", sender);
-              return false;
-            }
+            if (!parentOriginAllowed(senderOrigin)) return false;
           }
         }
 
-        // 2) Nonce handshake: require nonce echo when embedded
-        // Parent must include: payload.nonce === READY_NONCE
         if (EMBEDDED){
           var n = safeStr(p.nonce || p.readyNonce || "").trim();
-          if (!n || n !== READY_NONCE) {
-            dlog("[NyxHost] reject: nonce_bad", n, "expected", READY_NONCE);
-            return false;
-          }
+          if (!n || n !== READY_NONCE) return false;
         }
 
-        // 3) Validate apiBase against allowlist
         var apiBase = normalizeApiBase(p.apiBase);
-        if (!apiBase) {
-          dlog("[NyxHost] reject: apiBase_missing");
-          return false;
-        }
+        if (!apiBase) return false;
 
         var apiOrigin = originOf(apiBase);
-        if (!apiOriginAllowed(apiOrigin)) {
-          dlog("[NyxHost] reject: apiOrigin_not_allowed", apiOrigin, apiBase);
-          return false;
-        }
+        if (!apiOriginAllowed(apiOrigin)) return false;
 
-        // 4) Token + enforce logic
         var token = safeStr(p.token).trim();
         var enforce = (p.enforce !== false);
 
-        // In embedded mode, enforce requires token.
         if (EMBEDDED && enforce){
-          if (!isTokenOk(token)) {
-            dlog("[NyxHost] reject: token_bad_len", token ? token.length : 0);
-            return false;
-          }
+          if (!isTokenOk(token)) return false;
         } else {
-          // If not enforcing, allow empty token (but token injection won't happen)
           if (!isTokenOk(token)) token = "";
         }
 
-        // 5) Token header sanitize
         var tokenHeader = parseTokenHeader(p);
 
-        // 6) Apply non-sensitive fields
         CFG.enforce = enforce;
         CFG.apiBase = apiBase;
         CFG.apiOrigin = apiOrigin;
@@ -648,13 +529,10 @@
         CFG.heroSrc = normalizeHeroSrc(p.heroSrc || (p.assets && (p.assets.heroSrc || p.assets.hero)) || "");
         if (!CFG.heroSrc) CFG.heroSrc = "/avatar/assets/nyx-hero.webp";
 
-        // Apply token only in closure
         _TOKEN = token;
 
-        // Lock parent on first valid config
-        if (EMBEDDED && sender && !LOCKED_PARENT_ORIGIN) LOCKED_PARENT_ORIGIN = sender;
+        if (EMBEDDED && senderOrigin && !LOCKED_PARENT_ORIGIN) LOCKED_PARENT_ORIGIN = senderOrigin;
 
-        // Update HUD
         setHud("hudBridge", EMBEDDED ? "configured" : "standalone");
         setHud("hudParent", EMBEDDED ? (LOCKED_PARENT_ORIGIN || "—") : "(direct)");
         setHud("hudApi", CFG.apiBase);
@@ -662,11 +540,9 @@
         setHud("hudTokenHeader", CFG.tokenHeader);
         setHud("hudHostVer", HOST_VER);
 
-        // Expose config (no token) + mount shell
         exposeConfig();
         try{ mountShellFromConfig(CFG.heroSrc); }catch(_){}
 
-        // ACK: no token leakage
         if (EMBEDDED && LOCKED_PARENT_ORIGIN){
           try{
             window.parent.postMessage({
@@ -686,15 +562,10 @@
           }catch(_){}
         }
 
-        dlog("[NyxHost] CONFIG applied OK", { parent: LOCKED_PARENT_ORIGIN, apiBase: CFG.apiBase, heroSrc: CFG.heroSrc, enforce: CFG.enforce });
         return true;
       }
 
-      // ----------------------------
-      // Bootstrap fallback (query params / standalone)
-      // ----------------------------
       function bootstrapFromQuery(){
-        // In embedded mode, we do NOT bootstrap from query (avoid token leakage via URL).
         if (EMBEDDED) return;
 
         try{
@@ -707,14 +578,12 @@
           var tokenHeader = safeStr(qs.get("tokenHeader") || qs.get("token_header") || "").trim();
 
           if (apiBase){
-            // Standalone allowlist check
             var apiOrigin = originOf(apiBase);
             if (!apiOriginAllowed(apiOrigin)) apiBase = normalizeApiBase(window.location.origin);
           } else {
             apiBase = normalizeApiBase(window.location.origin);
           }
 
-          // In standalone, nonce isn't required (but harmless)
           applyConfig({
             apiBase: apiBase,
             token: token,
@@ -735,9 +604,6 @@
         }
       }
 
-      // ----------------------------
-      // Message receiver (NYX_CONFIG)
-      // ----------------------------
       window.addEventListener("message", function(ev){
         var origin = safeStr(ev.origin || "");
         var data = ev.data;
@@ -747,7 +613,6 @@
 
         var payload = isObj(data.payload) ? data.payload : {};
 
-        // Embedded mode requires parent allowlist anchored here, and requires nonce
         var ok = applyConfig(payload, origin);
         if(!ok){
           setHud("hudBridge", "bad_config");
@@ -756,9 +621,6 @@
         }
       });
 
-      // ----------------------------
-      // READY signal (with nonce + safe fields only)
-      // ----------------------------
       function signalReady(){
         setHud("hudHostVer", HOST_VER);
 
@@ -768,15 +630,11 @@
           setHud("hudApi", CFG.apiBase || window.location.origin);
           setHud("hudToken", _TOKEN ? ("set ("+_TOKEN.length+")") : "missing");
           setHud("hudTokenHeader", CFG.tokenHeader || "X-SB-WIDGET-TOKEN");
-
-          // Standalone: mount shell with default hero so you ALWAYS see something
-          try{ mountShellFromConfig(CFG.heroSrc || "/avatar/assets/nyx-hero.webp"); }catch(_){}
           return;
         }
 
         setHud("hudBridge", "ready");
 
-        // Send READY to "*" (because we don't know the parent yet), but include only nonce + non-sensitive metadata.
         try{
           window.parent.postMessage({
             type: "NYX_READY",
@@ -785,16 +643,12 @@
               nonce: READY_NONCE,
               host: window.location.origin,
               href: window.location.href,
-              hostVer: HOST_VER,
-              debug: !!DEBUG
+              hostVer: HOST_VER
             }
           }, "*");
         }catch(_){}
       }
 
-      // ----------------------------
-      // Chips UI wiring (kept)
-      // ----------------------------
       function setActiveChip(chip){
         var rail = window.NYX_HOST_UI.chips;
         if(rail){
@@ -834,24 +688,11 @@
       var chips = document.getElementById('nyxChips');
       if (chips) chips.addEventListener('click', onChipClick);
 
-      // ----------------------------
-      // Init
-      // ----------------------------
       bootstrapFromQuery();
       signalReady();
       setTimeout(signalReady, 350);
 
-      // If embed + enforce, start blocked until configured
       if (EMBEDDED) showBlocked("waiting_config");
-
-      // Debug HUD stamps
-      setHud("hudHostVer", HOST_VER);
-      if (DEBUG){
-        dlog("[NyxHost] embedded:", EMBEDDED, "origin:", window.location.origin, "href:", window.location.href);
-        dlog("[NyxHost] READY_NONCE:", READY_NONCE);
-        dlog("[NyxHost] allowed parents:", ALLOWED_PARENT_ORIGINS);
-        dlog("[NyxHost] allowed apis:", ALLOWED_API_ORIGINS);
-      }
     })();
   </script>
 </body>
