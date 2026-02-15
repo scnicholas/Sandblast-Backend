@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18bn (STABILITY HARDENING++++: CHAT fail-open on engine missing/throw + keeps v1.5.18bk security list)
+ * index.js v1.5.18bo (STABILITY HARDENING++++: CHAT fail-open on engine missing/throw + keeps v1.5.18bk security list)
  *
  * Keeps:
  * ✅ WIKI AUTHORITY FIX++++ (wikipedia split hot100 dir ingest + merged year map)
@@ -99,7 +99,7 @@ const nyxVoiceNaturalizeMod =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18bn (STABILITY HARDENING++++: chat fail-open on engine missing/throw; keeps v1.5.18bk timing-safe debug auth + request timeout + content-type gate + no-store API + block Origin:null; keeps v1.5.18bj host redaction + backend referer allow + hostOnly normalize; keeps v1.5.18bg security + v1.5.18bf TTS fail-open + v1.5.18be CSE/chip continuity + v1.5.18bc reset/sessionPatch keys + v1.5.18bb WIKI AUTHORITY FIX++++ + CRITICAL FIXES++++ + diagnostics)";
+  "index.js v1.5.18bo (AVATAR CACHE CONTROL++++: no-store for /avatar/*.html|.js|.css to prevent stale widget; keeps v1.5.18bn chat fail-open + v1.5.18bk security + request timeout + no-store API + Origin:null block + diagnostics)";
 
 // =========================
 // Utils
@@ -2467,29 +2467,59 @@ app.use((req, res, next) => {
 app.use(express.text({ type: ["text/*"], limit: MAX_JSON_BODY }));
 
   /**
-   * AVATAR HOSTING (CRITICAL)
-   * Serves the Nyx avatar UI + assets from /public/avatar so embeds can load:
-   *   https://<backend>/avatar/avatar-host.html
-   *   https://<backend>/avatar/assets/nyx-hero.webp
+   * AVATAR HOSTING (iframe-safe + cache-control hardening)
    *
-   * Convenience routes (for older widgets):
-   *   /avatar-host and /avatar-host.html
+   * IMPORTANT:
+   * - We want rapid iteration on /avatar/*.js|.css|.html while keeping images reasonably cached.
+   * - So: no-store for markup + scripts + styles (prevents “no change” stale loads),
+   *   but allow short caching for binary assets (webp/png/svg/woff/etc).
    */
-  const PUBLIC_DIR = path.join(__dirname, "public");
-  const AVATAR_DIR = path.join(PUBLIC_DIR, "avatar");
+  const AVATAR_DIR = path.join(__dirname, "public", "avatar");
 
-  // Light caching for avatar assets (safe to tune)
-  app.use("/avatar", express.static(AVATAR_DIR, {
-    etag: true,
+  const AVATAR_STATIC_OPTS = {
     maxAge: "1h",
-    setHeaders: (res) => {
-      res.setHeader("X-Content-Type-Options", "nosniff");
-      res.setHeader("Referrer-Policy", "no-referrer");
-    }
-  }));
+    etag: true,
+    setHeaders: (res, servedPath) => {
+      try {
+        const p = String(servedPath || "").toLowerCase();
 
-  app.get("/avatar-host", (req, res) => res.sendFile(path.join(AVATAR_DIR, "avatar-host.html")));
-  app.get("/avatar-host.html", (req, res) => res.sendFile(path.join(AVATAR_DIR, "avatar-host.html")));
+        // Never cache code/markup (fixes stale shell/bridge/controller in iframe)
+        if (
+          p.endsWith(".html") ||
+          p.endsWith(".js") ||
+          p.endsWith(".css") ||
+          p.endsWith(".json") ||
+          p.endsWith(".map")
+        ) {
+          res.setHeader("Cache-Control", "no-store, max-age=0");
+          res.setHeader("Pragma", "no-cache");
+        } else {
+          // Binary assets can be cached briefly (still revalidated by ETag)
+          res.setHeader("Cache-Control", "public, max-age=3600");
+        }
+
+        // Force correct webp mime if upstream ever misses it (rare, but safe)
+        if (p.endsWith(".webp")) {
+          const ct = String(res.getHeader("Content-Type") || "");
+          if (!ct) res.setHeader("Content-Type", "image/webp");
+        }
+
+        res.setHeader("X-SB-Avatar-Static", "1");
+      } catch (_) {}
+    },
+  };
+
+  app.use("/avatar", express.static(AVATAR_DIR, AVATAR_STATIC_OPTS));
+
+
+  app.get("/avatar-host", (req, res) => {
+    try{ res.setHeader("Cache-Control","no-store, max-age=0"); res.setHeader("Pragma","no-cache"); }catch(_){ }
+    return res.sendFile(path.join(AVATAR_DIR, "avatar-host.html"));
+  });
+  app.get("/avatar-host.html", (req, res) => {
+    try{ res.setHeader("Cache-Control","no-store, max-age=0"); res.setHeader("Pragma","no-cache"); }catch(_){ }
+    return res.sendFile(path.join(AVATAR_DIR, "avatar-host.html"));
+  });
   app.get("/avatar/avatar-host", (req, res) => res.redirect(302, "/avatar/avatar-host.html"));
 
 
