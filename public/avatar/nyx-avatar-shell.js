@@ -1,34 +1,29 @@
 /* nyx-avatar-shell.js
  *
  * Nyx Avatar Shell — DOM renderer (no frameworks)
- * v1.3.1 (MOUNT FAIL-OPEN++++ + Z-INDEX SAFETY++++ + NO WIPE HOST FALLBACK++++ + HERO CACHEBUST SAFE++++)
- *
- * Why v1.3.1:
- * - Your avatar-host.html provides a fallback DOM (#nyxAvatar) so you ALWAYS see Nyx.
- * - v1.3.0 *cleared the mount element*, which can accidentally erase the fallback before the shell fully renders
- *   (and if CSS fails / image fails / script order hiccups → “nothing shows”).
- *
- * Changes:
- * ✅ DO NOT clear mountEl children anymore (preserve fallback DOM)
- * ✅ Shell inserts itself as a positioned overlay with safe z-index that won’t hide the overlay UI
- * ✅ Hero onerror fails back to abstract layers WITHOUT removing the whole shell
- * ✅ Adds load timeout + decode try (helps flaky image first paint)
- * ✅ Adds debug attributes + visibility safe-guards
+ * v1.3.1 (HERO AVATAR SUPPORT + VISIBILITY AWARE DRIFT + AESTHETIC HARDENING + SOLID CANVAS + ISOLATION)
  *
  * Contract:
  *   window.NyxAvatarShell.mount(mountEl[, opts]) -> instance
  *
- * Back-compat helpers:
+ * Back-compat helpers exposed (safe no-ops if unused by bridge/controller):
  *   window.NyxAvatarShell.applyDirective(d)
  *   window.NyxAvatarShell.setPresence(p)
  *   window.NyxAvatarShell.setVelvet(bool)
  *   window.NyxAvatarShell.setAmp(n)
  *   window.NyxAvatarShell.triggerSettle()
  *
- * Optional:
+ * New (optional, non-breaking):
  *   window.NyxAvatarShell.setStage(stage)
  *   window.NyxAvatarShell.setAnimSet(name)
- *   window.NyxAvatarShell.setHero(src)
+ *
+ * Notes:
+ * - Designed to mount into your existing avatar-host.html (#nyxShellMount).
+ * - Doesn’t assume anything about avatar-controller.js / avatar-bridge.js; it’s permissive.
+ * - This shell can render:
+ *     (A) Abstract “presence” layers (default, asset-free)
+ *     (B) Hero avatar image (face+shoulders) if opts.heroSrc is provided
+ * - Drift is tiny, non-looped random-walk and pauses when tab is hidden.
  */
 
 (function () {
@@ -55,40 +50,36 @@
   --nyx-shell-ink: rgba(255,255,255,0.92);
   --nyx-shell-cyan: rgba(120,190,255,0.85);
 
-  --nyx-shell-amp: 0.10;          /* 0..1 */
-  --nyx-shell-velvet: 0;          /* 0/1 */
-  --nyx-shell-dom: 0.55;          /* 0..1 */
+  --nyx-shell-amp: 0.10;
+  --nyx-shell-velvet: 0;
+  --nyx-shell-dom: 0.55;
   --nyx-shell-driftX: 0px;
   --nyx-shell-driftY: 0px;
-  --nyx-shell-glowTight: 1.0;     /* 0.7..1.2 */
-  --nyx-shell-focus: 1.0;         /* 0.95..1.05 */
+  --nyx-shell-glowTight: 1.0;
+  --nyx-shell-focus: 1.0;
   --nyx-shell-settle: 0;
 }
 
-/* IMPORTANT:
-   Shell is an overlay inside #nyxShellMount. It must NOT wipe host fallback.
-   It must also not block overlay UI; therefore pointer-events:none and controlled z-index.
-*/
 .nyxShell{
   position:absolute;
   inset:0;
   overflow:hidden;
   border-radius: inherit;
 
-  pointer-events:none;
-
-  /* Sit above fallback avatar DOM (z=1), below overlay UI (host uses z=20). */
-  z-index: 6;
+  /* CRITICAL: isolate blending from any parent visuals */
+  isolation: isolate;
 
   transform: translate3d(var(--nyx-shell-driftX), var(--nyx-shell-driftY), 0);
   will-change: transform, filter, opacity;
-  filter: saturate(var(--nyx-shell-focus)) contrast(1.03);
+  filter: saturate(var(--nyx-shell-focus)) contrast(1.05);
   user-select:none;
   -webkit-user-select:none;
 
+  /* CRITICAL: hard base canvas so visuals don’t “collapse” into darkness */
   background:
     radial-gradient(1200px 900px at 50% 40%, rgba(255,255,255,0.035) 0%, transparent 55%),
-    radial-gradient(900px 720px at 50% 70%, rgba(0,0,0,0.45) 0%, transparent 62%);
+    radial-gradient(900px 720px at 50% 70%, rgba(0,0,0,0.45) 0%, transparent 62%),
+    #0b0b10;
 }
 
 .nyxShell * { box-sizing:border-box; }
@@ -103,35 +94,35 @@
 .nyxGlow{
   background:
     radial-gradient(420px 320px at 50% 46%,
-      rgba(255,255,255, calc(0.08 * var(--nyx-shell-glowTight))) 0%,
-      rgba(255,255,255, 0.03) 36%,
+      rgba(255,255,255, calc(0.10 * var(--nyx-shell-glowTight))) 0%,
+      rgba(255,255,255, 0.04) 36%,
       transparent 62%),
     radial-gradient(560px 420px at 50% 52%,
-      rgba(140,0,35, calc(0.14 + 0.18*var(--nyx-shell-velvet))) 0%,
-      rgba(140,0,35, 0.06) 40%,
+      rgba(140,0,35, calc(0.18 + 0.20*var(--nyx-shell-velvet))) 0%,
+      rgba(140,0,35, 0.07) 40%,
       transparent 70%),
     radial-gradient(900px 720px at 50% 70%,
-      rgba(0,0,0,0.30) 0%,
+      rgba(0,0,0,0.32) 0%,
       transparent 60%);
-  opacity: 0.92;
-  filter: blur(calc(10px - 3px*var(--nyx-shell-glowTight)));
+  opacity: 0.95;
+  filter: blur(calc(9px - 3px*var(--nyx-shell-glowTight)));
 }
 
 .nyxRings{
   background:
     radial-gradient(closest-side at 50% 50%,
       transparent 62%,
-      rgba(255,255,255,0.07) 62.5%,
+      rgba(255,255,255,0.08) 62.5%,
       transparent 64%),
     radial-gradient(closest-side at 50% 50%,
       transparent 70%,
-      rgba(140,0,35,0.10) 70.5%,
+      rgba(140,0,35,0.12) 70.5%,
       transparent 72.5%),
     radial-gradient(closest-side at 50% 50%,
       transparent 79%,
-      rgba(255,255,255,0.04) 79.5%,
+      rgba(255,255,255,0.05) 79.5%,
       transparent 81%);
-  opacity: 0.85;
+  opacity: 0.88;
   transform: scale(calc(1.0 + 0.02*var(--nyx-shell-amp)));
 }
 
@@ -140,20 +131,22 @@
   background:
     radial-gradient(220px 220px at 50% 48%,
       rgba(255,255,255,0.10) 0%,
-      rgba(255,255,255,0.04) 38%,
-      rgba(140,0,35,0.10) 54%,
+      rgba(255,255,255,0.05) 38%,
+      rgba(140,0,35,0.12) 54%,
       transparent 74%),
     radial-gradient(120px 120px at 50% 48%,
-      rgba(140,0,35,0.26) 0%,
-      rgba(140,0,35,0.10) 40%,
+      rgba(140,0,35,0.28) 0%,
+      rgba(140,0,35,0.12) 40%,
       transparent 70%);
-  mix-blend-mode: screen;
-  opacity: 0.78;
+
+  /* softer blending to avoid “washed out / invisible” on dark sites */
+  mix-blend-mode: normal;
+  opacity: 0.82;
   transform: translateY(calc(-2px * var(--nyx-shell-dom)));
 }
 
 .nyxGrid{
-  opacity: 0.22;
+  opacity: 0.20;
   background-image:
     linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(255,255,255,0.06) 1px, transparent 1px);
@@ -170,8 +163,8 @@
 }
 
 .nyxVignette{
-  background: radial-gradient(900px 700px at 50% 50%, transparent 45%, rgba(0,0,0,0.58) 85%);
-  opacity: 0.85;
+  background: radial-gradient(900px 700px at 50% 50%, transparent 45%, rgba(0,0,0,0.60) 85%);
+  opacity: 0.88;
 }
 
 /* Hero avatar image (optional) */
@@ -192,42 +185,33 @@
   height: auto;
   object-fit: contain;
   display:block;
-
   filter:
-    drop-shadow(0 18px 60px rgba(0,0,0,0.55))
-    drop-shadow(0 0 26px rgba(120,190,255,0.18))
-    drop-shadow(0 0 22px rgba(140,0,35,0.10));
+    drop-shadow(0 18px 60px rgba(0,0,0,0.60))
+    drop-shadow(0 0 28px rgba(120,190,255,0.20))
+    drop-shadow(0 0 26px rgba(140,0,35,0.14));
   transform: translateY(calc(-6px + (-2px * var(--nyx-shell-dom))));
-  opacity: 0.96;
+  opacity: 0.98;
   will-change: transform, filter, opacity;
   transition: transform 240ms cubic-bezier(.2,.8,.2,1), filter 240ms cubic-bezier(.2,.8,.2,1), opacity 200ms ease;
 }
 
-/* Presence modulation */
 .nyxShell[data-presence="idle"]{ --nyx-shell-focus: 1.00; --nyx-shell-glowTight: 1.00; }
-.nyxShell[data-presence="listening"]{ --nyx-shell-focus: 1.02; --nyx-shell-glowTight: 1.12; }
-.nyxShell[data-presence="thinking"]{ --nyx-shell-focus: 0.99; --nyx-shell-glowTight: 0.92; }
-.nyxShell[data-presence="speaking"]{ --nyx-shell-focus: 1.015; --nyx-shell-glowTight: 1.06; }
-.nyxShell[data-presence="error"]{
-  --nyx-shell-focus: 0.97;
-  --nyx-shell-glowTight: 0.90;
-  filter: saturate(0.95) contrast(1.07);
-}
+.nyxShell[data-presence="listening"]{ --nyx-shell-focus: 1.03; --nyx-shell-glowTight: 1.12; }
+.nyxShell[data-presence="thinking"]{ --nyx-shell-focus: 1.00; --nyx-shell-glowTight: 0.94; }
+.nyxShell[data-presence="speaking"]{ --nyx-shell-focus: 1.02; --nyx-shell-glowTight: 1.07; }
+.nyxShell[data-presence="error"]{ --nyx-shell-focus: 0.98; --nyx-shell-glowTight: 0.92; filter: saturate(0.96) contrast(1.06); }
 
-/* When hero is present, keep abstract layers softer */
-.nyxShell[data-hero="1"] .nyxGrid{ opacity: 0.14; }
-.nyxShell[data-hero="1"] .nyxRings{ opacity: 0.72; }
-.nyxShell[data-hero="1"] .nyxIris{ opacity: 0.62; }
+.nyxShell[data-hero="1"] .nyxGrid{ opacity: 0.13; }
+.nyxShell[data-hero="1"] .nyxRings{ opacity: 0.74; }
+.nyxShell[data-hero="1"] .nyxIris{ opacity: 0.66; }
 
-/* Speaking: tiny glow push on hero */
 .nyxShell[data-presence="speaking"] .nyxHero{
   filter:
-    drop-shadow(0 18px 60px rgba(0,0,0,0.55))
-    drop-shadow(0 0 28px rgba(120,190,255,0.24))
-    drop-shadow(0 0 26px rgba(140,0,35,0.14));
+    drop-shadow(0 18px 60px rgba(0,0,0,0.60))
+    drop-shadow(0 0 30px rgba(120,190,255,0.26))
+    drop-shadow(0 0 28px rgba(140,0,35,0.18));
 }
 
-/* Settle */
 .nyxShell.nyxSettle .nyxRings{
   transition: transform 180ms cubic-bezier(.2,.9,.2,1);
   transform: scale(0.996);
@@ -254,7 +238,6 @@
   function createDriftController(root) {
     let raf = 0;
     let lastT = 0;
-
     let tx = 0, ty = 0;
     let x = 0, y = 0;
 
@@ -328,24 +311,12 @@
 
     const cfg = (opts && typeof opts === "object") ? opts : {};
 
-    // Ensure mountEl can host absolutely positioned children
-    try {
-      const cs = window.getComputedStyle(mountEl);
-      if (cs && cs.position === "static") {
-        mountEl.style.position = "relative";
-      }
-    } catch (_) {
-      // fail-open
-      mountEl.style.position = "relative";
-    }
-
     const root = document.createElement("div");
     root.className = "nyxShell";
     root.setAttribute("data-presence", "idle");
     root.setAttribute("data-version", SHELL_VERSION);
     root.setAttribute("data-hero", "0");
 
-    // Layers (order matters)
     const glow = document.createElement("div");
     glow.className = "nyxLayer nyxGlow";
 
@@ -371,27 +342,8 @@
     root.appendChild(noise);
     root.appendChild(vig);
 
-    // Optional hero layer
     let heroWrap = null;
     let heroImg = null;
-    let heroFailTimer = 0;
-
-    function clearHeroFailTimer() {
-      if (heroFailTimer) {
-        try { clearTimeout(heroFailTimer); } catch (_) {}
-        heroFailTimer = 0;
-      }
-    }
-
-    function disableHero() {
-      try { root.setAttribute("data-hero", "0"); } catch (_) {}
-      clearHeroFailTimer();
-      try {
-        if (heroWrap && heroWrap.parentNode) heroWrap.parentNode.removeChild(heroWrap);
-      } catch (_) {}
-      heroWrap = null;
-      heroImg = null;
-    }
 
     function enableHero(src) {
       const s = String(src || "").trim();
@@ -400,10 +352,9 @@
       if (!heroWrap) {
         heroWrap = document.createElement("div");
         heroWrap.className = "nyxHeroWrap";
-
         heroImg = document.createElement("img");
         heroImg.className = "nyxHero";
-        heroImg.alt = (cfg.heroAlt ? String(cfg.heroAlt) : "Nyx");
+        heroImg.alt = "Nyx";
         heroImg.decoding = "async";
         heroImg.loading = "eager";
         heroWrap.appendChild(heroImg);
@@ -411,42 +362,23 @@
       }
 
       root.setAttribute("data-hero", "1");
-
-      // Set src (with safe cache-bust if caller didn't provide one)
       heroImg.src = s;
 
-      // Fail-open if asset fails or stalls
       heroImg.onerror = function () {
-        disableHero();
-      };
-
-      // If load never completes (network hiccup), fail-open to abstract layers
-      clearHeroFailTimer();
-      heroFailTimer = setTimeout(function () {
+        try { root.setAttribute("data-hero", "0"); } catch (_) {}
         try {
-          // If still not complete after 4.5s, drop hero
-          if (heroImg && !heroImg.complete) disableHero();
-        } catch (_) {
-          disableHero();
-        }
-      }, 4500);
-
-      // Best-effort decode for smooth first paint
-      try {
-        if (heroImg && heroImg.decode) {
-          heroImg.decode().then(function(){ /* ok */ }).catch(function(){ /* ignore */ });
-        }
-      } catch (_) {}
+          if (heroWrap && heroWrap.parentNode) heroWrap.parentNode.removeChild(heroWrap);
+        } catch (_) {}
+        heroWrap = null;
+        heroImg = null;
+      };
 
       return true;
     }
 
-    // Mount WITHOUT wiping host fallback
-    // - Keep existing children (fallback avatar DOM)
-    // - Insert shell overlay at the end so it sits above fallback but below overlay UI (host z-index handles overlay)
+    while (mountEl.firstChild) mountEl.removeChild(mountEl.firstChild);
     mountEl.appendChild(root);
 
-    // Drift controller
     const drift = createDriftController(root);
     const prefersReduced = (() => {
       try { return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches; }
@@ -454,7 +386,6 @@
     })();
     if (!prefersReduced) drift.start();
 
-    // State
     const state = {
       presence: "idle",
       amp: 0.10,
@@ -574,11 +505,9 @@
 
     function destroy() {
       try { drift.stop(); } catch (_) {}
-      disableHero();
       if (root && root.parentNode) root.parentNode.removeChild(root);
     }
 
-    // Default tuning
     if (cfg) {
       if (cfg.presence) setPresence(cfg.presence);
       if (isNum(cfg.amp)) setAmp(cfg.amp);
@@ -606,9 +535,6 @@
     };
   }
 
-  // -----------------------------
-  // Singleton public API
-  // -----------------------------
   let _instance = null;
 
   function mount(mountEl, opts) {
