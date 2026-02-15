@@ -1,14 +1,13 @@
 /* avatar.css
  *
- * v1.1.2 (HERO FALLBACK FORCE++++ + SPEECH TAIL UNCLIPPED++++ + AVATAR ALWAYS VISIBLE++++ + BLACK DOMINANCE++++)
+ * v1.1.3 (HERO LAYER BOOST++++ + NYX VISIBILITY FIX++++ + SPOTLIGHT POP++++ + SPEECH TAIL SAFE++++)
  *
  * Fixes:
- * - Nyx hero not visible: add forced CSS fallback hero to #nyxShellMount
- * - Speech bubble tail not showing: bubble overflow was clipping ::after tail
- * - Keep chip rail horizontal + unified styling
+ * - Nyx faint/hidden: promote hero to filtered layer + add spotlight lift
+ * - Keep true-black canvas + bubble tail unclipped
+ * - Keep chip rail horizontal
  */
 
-/* avatar.css */
 :root{
   /* Core palette */
   --bg:#000000;
@@ -33,24 +32,33 @@
   --chip-border:rgba(255,255,255,.12);
 
   /* Hero framing */
-  --hero-fit: cover;           /* cover | contain */
-  --hero-pos: 50% 18%;         /* bias eyes upward */
-  --hero-fallback: url("/avatar/assets/nyx-hero.png");
+  --hero-fit: cover;                 /* cover | contain */
+  --hero-pos: 50% 18%;               /* bias eyes upward */
+  --hero-fallback: url("/avatar/assets/nyx-hero.webp");
+
+  /* HERO VISIBILITY TUNING (the magic) */
+  --hero-opacity: 1;                 /* 0.75..1 */
+  --hero-brightness: 1.18;           /* 1.05..1.30 */
+  --hero-contrast: 1.14;             /* 1.05..1.25 */
+  --hero-saturate: 1.08;             /* 1.0..1.2 */
+  --hero-gamma: 1;                   /* keep 1 (placeholder if needed later) */
+
+  /* Spotlight behind Nyx */
+  --spot-alpha: .22;                 /* 0.10..0.28 */
+  --spot-alpha2: .14;
 
   /* driven by directive (avatar-shell writes these) */
-  --breath:1;         /* ~0.6..1.4 */
-  --motion:0.25;      /* 0..1 */
-  --blink:1;          /* ~0.6..1.6 */
-  --mouth:0;          /* 0..1 */
-  --jaw:0.42;         /* 0..1 */
-  --gazeWander:0.25;  /* 0..1 */
-  --headTilt:0.07;    /* -1..1 */
+  --breath:1;
+  --motion:0.25;
+  --blink:1;
+  --mouth:0;
+  --jaw:0.42;
+  --gazeWander:0.25;
+  --headTilt:0.07;
 }
 
 *{box-sizing:border-box}
 html,body{height:100%}
-
-/* HARD FORCE: wins against host inline styles */
 html, body{ background:#000 !important; }
 
 body{
@@ -79,34 +87,66 @@ body{
 }
 
 /* =========================
-   HERO / AVATAR VISIBILITY FIX
-   - make Nyx show even if shell fails
+   HERO / NYX VISIBILITY FIX
+   - hero becomes a FILTERED layer
 ========================= */
 
 #nyxShellMount{
   position:absolute;
   inset:0;
   z-index:10;
-
-  /* critical: ensure hero can paint */
   overflow:hidden;
-  border-radius:0;
-  background-color:#000 !important;
+  background:#000 !important;
 
-  /* forced fallback hero */
-  background-image: var(--hero-fallback);
-  background-size: var(--hero-fit) !important;
-  background-position: var(--hero-pos) !important;
-  background-repeat:no-repeat !important;
-
-  /* keep your layout intent */
+  /* keep layout intent */
   display:flex;
   align-items:center;
   justify-content:center;
-  padding:0 !important;
+
+  /* IMPORTANT: don't rely on raw background here anymore */
+  background-image:none !important;
 }
 
-/* If shell injects an <img>, force it to be stage-filling */
+/* HERO LAYER (filtered) */
+#nyxShellMount::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:1;
+
+  background-image: var(--hero-fallback);
+  background-size: var(--hero-fit);
+  background-position: var(--hero-pos);
+  background-repeat:no-repeat;
+
+  opacity: var(--hero-opacity);
+
+  /* make Nyx POP */
+  filter:
+    brightness(var(--hero-brightness))
+    contrast(var(--hero-contrast))
+    saturate(var(--hero-saturate));
+
+  transform: translateZ(0) scale(1.01);
+}
+
+/* SPOTLIGHT (subtle lift behind face / upper torso) */
+#nyxShellMount::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:2;
+  pointer-events:none;
+
+  background:
+    radial-gradient(520px 420px at 50% 28%, rgba(255,255,255,var(--spot-alpha)), transparent 62%),
+    radial-gradient(680px 520px at 50% 40%, rgba(140,0,35,var(--spot-alpha2)), transparent 68%),
+    radial-gradient(980px 780px at 50% 75%, rgba(0,0,0,.45), transparent 60%);
+  mix-blend-mode: screen;
+  opacity: .75;
+}
+
+/* If shell injects an <img>, keep it (but don't let it dim Nyx) */
 #nyxShellMount img{
   position:absolute !important;
   inset:0 !important;
@@ -115,10 +155,14 @@ body{
   object-fit: var(--hero-fit) !important;
   object-position: var(--hero-pos) !important;
   display:block !important;
-  z-index:1;
+  z-index:3;
+  filter:
+    brightness(var(--hero-brightness))
+    contrast(var(--hero-contrast))
+    saturate(var(--hero-saturate)) !important;
 }
 
-/* If shell uses wrappers / bg layers, normalize them */
+/* wrapper normalization */
 #nyxShellMount .hero,
 #nyxShellMount .nyx-hero,
 #nyxShellMount .heroStage,
@@ -127,21 +171,25 @@ body{
 #nyxShellMount .hero-img{
   position:absolute !important;
   inset:0 !important;
+  z-index:3 !important;
   background-size: var(--hero-fit) !important;
   background-position: var(--hero-pos) !important;
   background-repeat:no-repeat !important;
-  z-index:1;
+  filter:
+    brightness(var(--hero-brightness))
+    contrast(var(--hero-contrast))
+    saturate(var(--hero-saturate)) !important;
 }
 
-/* Keep fallback SVG/avatar DOM as LAST resort (above hero bg if present) */
+/* fallback DOM stays available */
 #nyxAvatar{
   position:relative;
-  z-index:2;
+  z-index:4;
   opacity:1 !important;
   visibility:visible !important;
 }
 
-/* Overlay always above hero/avatar */
+/* Overlay always above everything */
 #nyxOverlay{
   position:absolute;
   inset:0;
@@ -149,7 +197,6 @@ body{
   background:transparent !important;
 }
 
-/* If your host has a panel, keep it black */
 #panel{
   background:#000 !important;
   border-color: var(--line) !important;
@@ -163,23 +210,19 @@ body{
 
 /* -------------------------
    OVERLAY POSITIONING
-   (keep bubble off face + above chat bar)
 ------------------------- */
-
 .overlay-inner{
-  bottom:110px !important; /* higher so bubble clears face + chatbar */
+  bottom:110px !important;
   gap:12px !important;
   padding:0 14px !important;
 }
-
 @media (max-height: 640px){
   .overlay-inner{ bottom:92px !important; }
 }
 
 /* -------------------------
-   COMIC SPEECH BUBBLE (tail MUST NOT be clipped)
+   COMIC SPEECH BUBBLE (tail visible)
 ------------------------- */
-
 #nyxBubble,
 .bubble{
   display:block !important;
@@ -202,14 +245,11 @@ body{
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 
-  /* CRITICAL: allow tail to render */
-  overflow: visible !important;
-
+  overflow: visible !important; /* CRITICAL */
   will-change: transform, opacity, box-shadow;
   transform: translateZ(0);
 }
 
-/* inner highlight band */
 #nyxBubble::before,
 .bubble::before{
   content:"";
@@ -223,7 +263,6 @@ body{
   opacity:.75;
 }
 
-/* tail (now visible because overflow is NOT hidden) */
 #nyxBubble::after,
 .bubble::after{
   content:"";
@@ -241,7 +280,6 @@ body{
   pointer-events:none;
 }
 
-/* bubble text */
 #nyxBubbleText,
 .bubble-text{
   position:relative;
@@ -252,7 +290,6 @@ body{
   color: var(--text);
 }
 
-/* Links inside bubble: kill browser blue */
 #nyxBubble a,
 .bubble a{
   color: rgba(255,255,255,.90);
@@ -266,7 +303,6 @@ body{
   border-bottom-color: rgba(140,0,35,.92);
 }
 
-/* actions row spacing (horizontal) */
 #nyxBubbleActions,
 .bubble-actions{
   position:relative;
@@ -276,10 +312,6 @@ body{
   gap:8px;
   justify-content:flex-start;
 }
-
-/* -------------------------
-   ACTION PILLS
-------------------------- */
 
 .action-pill{
   user-select:none;
@@ -304,10 +336,7 @@ body{
 }
 .action-pill.schedule .ext{ margin-left:6px; opacity:.85; }
 
-/* -------------------------
-   LOUD typing glow + POP animation
-------------------------- */
-
+/* typing glow + pop */
 #nyxBubble.typing,
 .bubble.typing{
   animation: pulseGlow 1.15s ease-in-out infinite;
@@ -317,7 +346,6 @@ body{
   50%  { box-shadow: 0 18px 60px var(--bubble-shadow), 0 0 52px rgba(140,0,35,.72); }
   100% { box-shadow: 0 18px 60px var(--bubble-shadow), 0 0 22px rgba(140,0,35,.20); }
 }
-
 #nyxBubble.pop,
 .bubble.pop{
   animation: bubblePop 280ms cubic-bezier(.2,.9,.2,1);
@@ -330,9 +358,8 @@ body{
 }
 
 /* -------------------------
-   CHIPS (horizontal rail)
+   CHIPS (horizontal)
 ------------------------- */
-
 #nyxChips,
 .chips{
   display:flex !important;
@@ -367,155 +394,6 @@ body{
   box-shadow: 0 10px 30px rgba(0,0,0,.35), 0 0 22px rgba(140,0,35,.25);
 }
 .chip .ext{ margin-left:6px; opacity:.85; }
-
-/* -------------------------
-   Fallback avatar visuals (only visible if hero missing)
-------------------------- */
-
-.avatar{
-  width:min(520px, 100%);
-  aspect-ratio: 16 / 9;
-  position:relative;
-  border-radius:16px;
-  border:1px solid rgba(255,255,255,.06);
-  background:
-    radial-gradient(380px 220px at 50% 35%, rgba(140,0,35,.14), transparent 65%),
-    radial-gradient(280px 200px at 60% 60%, rgba(255,255,255,.05), transparent 60%),
-    rgba(10,10,14,.72);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,.03);
-  transform: rotate(calc(var(--headTilt) * 2deg));
-  transition: transform 240ms ease;
-}
-
-.avatar::before{
-  content:"";
-  position:absolute; inset:0;
-  border-radius:16px;
-  background: radial-gradient(520px 260px at 50% 40%, rgba(255,255,255,.06), transparent 60%);
-  opacity: calc(.35 + (var(--motion) * .15));
-  transform: scale(calc(1 + (var(--breath) - 1) * 0.015));
-  transition: opacity 300ms ease;
-  pointer-events:none;
-}
-
-.silhouette{
-  position:absolute;
-  left:50%; top:50%;
-  transform: translate(-50%,-50%);
-  width:62%;
-  height:80%;
-  filter: drop-shadow(0 18px 40px rgba(0,0,0,.45));
-}
-.head{
-  position:absolute;
-  left:50%;
-  top:18%;
-  transform: translateX(-50%);
-  width:44%;
-  aspect-ratio:1/1;
-  border-radius:50%;
-  background:
-    radial-gradient(70px 55px at 40% 38%, rgba(255,255,255,.12), transparent 65%),
-    radial-gradient(90px 70px at 60% 60%, rgba(140,0,35,.18), transparent 60%),
-    rgba(255,255,255,.05);
-  border:1px solid rgba(255,255,255,.08);
-}
-.shoulders{
-  position:absolute;
-  left:50%;
-  top:48%;
-  transform: translateX(-50%) scaleX(1.05);
-  width:86%;
-  height:44%;
-  border-radius: 42% 42% 20% 20%;
-  background:
-    radial-gradient(120px 90px at 50% 20%, rgba(255,255,255,.08), transparent 70%),
-    rgba(255,255,255,.04);
-  border:1px solid rgba(255,255,255,.06);
-  transform-origin: 50% 10%;
-  animation: breathe calc(3.8s / var(--breath)) ease-in-out infinite;
-}
-
-.eye{
-  position:absolute;
-  top:42%;
-  width:12%;
-  height:9%;
-  border-radius:999px;
-  background: rgba(255,255,255,.10);
-  border:1px solid rgba(255,255,255,.10);
-  overflow:hidden;
-}
-.eye.left{ left:32% }
-.eye.right{ right:32% }
-.pupil{
-  position:absolute;
-  left:50%;
-  top:50%;
-  width:34%;
-  height:50%;
-  border-radius:999px;
-  background: rgba(255,255,255,.75);
-  transform: translate(-50%,-50%);
-  opacity:.85;
-}
-
-.lid{
-  position:absolute;
-  inset:0;
-  background: rgba(10,10,14,.92);
-  transform: translateY(-110%);
-  animation: blink calc(5.2s / var(--blink)) ease-in-out infinite;
-}
-
-.mouth{
-  position:absolute;
-  left:50%;
-  top:70%;
-  transform: translateX(-50%);
-  width:20%;
-  height:8%;
-  border-radius: 0 0 999px 999px;
-  border:1px solid rgba(255,255,255,.10);
-  background: rgba(255,255,255,.06);
-  transform-origin: 50% 50%;
-}
-.mouth::after{
-  content:"";
-  position:absolute;
-  left:50%; top:50%;
-  transform: translate(-50%,-50%);
-  width:60%;
-  height:40%;
-  border-radius:999px;
-  background: rgba(140,0,35,.28);
-  opacity: calc(.12 + (var(--mouth) * .75));
-  filter: blur(.2px);
-}
-.avatar.is-speaking .mouth{
-  transform: translateX(-50%) scaleY(calc(1 + var(--mouth) * 0.9));
-}
-
-.avatar.gaze-direct .pupil{ opacity:.95; }
-.avatar.gaze-soft .pupil{ opacity:.80; }
-.avatar.gaze-away .pupil{ opacity:.70; }
-
-.avatar.mood-intense{
-  box-shadow: 0 18px 70px rgba(140,0,35,.22), inset 0 0 0 1px rgba(255,255,255,.03);
-}
-.avatar.mood-attentive{
-  box-shadow: 0 18px 70px rgba(90,110,255,.18), inset 0 0 0 1px rgba(255,255,255,.03);
-}
-
-@keyframes breathe{
-  0%,100%{ transform: translateX(-50%) scaleX(1.05) scaleY(1); }
-  50%{ transform: translateX(-50%) scaleX(1.05) scaleY(calc(1 + (var(--motion) * .03))); }
-}
-@keyframes blink{
-  0%,92%,100%{ transform: translateY(-110%); }
-  94%{ transform: translateY(0%); }
-  96%{ transform: translateY(-110%); }
-}
 
 /* -------------------------
    HUD + controls (kept)
