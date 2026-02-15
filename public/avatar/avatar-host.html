@@ -6,14 +6,11 @@
   <title>Nyx Avatar Host</title>
 
   <!-- Use the real skin (CACHE-BUST so you actually see updates) -->
-  <link rel="stylesheet" href="./avatar.css?v=113" />
+  <link rel="stylesheet" href="./avatar.css?v=114" />
 
   <style>
     html,body{height:100%}
-    body{
-      margin:0;
-      background:#000 !important;
-    }
+    body{ margin:0; background:#000 !important; }
 
     #wrap{
       display:grid;
@@ -52,7 +49,7 @@
       padding:10px;
     }
 
-    .hud{font:12px ui-monospace,Menlo,Consolas,monospace;opacity:.9;line-height:1.5}
+    .hud{font:12px ui-monospace,Menlo,Consolas,monospace;opacity:.92;line-height:1.55}
     .hud b{opacity:.85}
 
     button{
@@ -91,8 +88,6 @@
       pointer-events:auto;
     }
 
-    .is-hidden{ display:none !important; }
-
     #nyxShellMount{
       position:absolute;
       inset:0;
@@ -103,11 +98,7 @@
       z-index:10;
     }
 
-    .embed #wrap{
-      grid-template-columns: 1fr;
-      padding:0;
-      height:100vh;
-    }
+    .embed #wrap{ grid-template-columns: 1fr; padding:0; height:100vh; }
     .embed #panel{ display:none; }
     .embed #avatarRoot{
       border-radius:0;
@@ -179,19 +170,20 @@
       </div>
 
       <div class="hud">
-        <div><b>presence</b>: <span id="hudPresence">idle</span></div>
-        <div><b>stage</b>: <span id="hudStage">warm</span></div>
-        <div><b>dominance</b>: <span id="hudDom">neutral</span></div>
-        <div><b>velvet</b>: <span id="hudVelvet">0</span></div>
-        <div><b>anim</b>: <span id="hudAnim"></span></div>
-        <div><b>amp</b>: <span id="hudAmp">0.00</span></div>
+        <div><b>bridge</b>: <span id="hudBridge">waiting</span></div>
+        <div><b>reason</b>: <span id="hudReason">—</span></div>
+        <div><b>parent</b>: <span id="hudParent">—</span></div>
+        <div><b>apiBase</b>: <span id="hudApi">—</span></div>
+        <div><b>token</b>: <span id="hudToken">—</span></div>
+        <div><b>tokenHeader</b>: <span id="hudTokenHeader">—</span></div>
+        <div><b>hostVer</b>: <span id="hudHostVer">—</span></div>
         <div style="margin-top:10px;opacity:.9">
-          <b>bridge</b>: <span id="hudBridge">waiting</span><br/>
-          <b>parent</b>: <span id="hudParent">—</span><br/>
-          <b>apiBase</b>: <span id="hudApi">—</span><br/>
-          <b>token</b>: <span id="hudToken">—</span><br/>
-          <b>tokenHeader</b>: <span id="hudTokenHeader">—</span><br/>
-          <b>hostVer</b>: <span id="hudHostVer">—</span>
+          <b>presence</b>: <span id="hudPresence">idle</span><br/>
+          <b>stage</b>: <span id="hudStage">warm</span><br/>
+          <b>dominance</b>: <span id="hudDom">neutral</span><br/>
+          <b>velvet</b>: <span id="hudVelvet">0</span><br/>
+          <b>anim</b>: <span id="hudAnim"></span><br/>
+          <b>amp</b>: <span id="hudAmp">0.00</span><br/>
         </div>
       </div>
 
@@ -199,14 +191,14 @@
     </div>
   </div>
 
-  <script src="./avatar-contract.js?v=113"></script>
-  <script src="./nyx-avatar-shell.js?v=113"></script>
-  <script src="./avatar-controller.js?v=113"></script>
-  <script src="./avatar-bridge.js?v=113"></script>
+  <script src="./avatar-contract.js?v=114"></script>
+  <script src="./nyx-avatar-shell.js?v=114"></script>
+  <script src="./avatar-controller.js?v=114"></script>
+  <script src="./avatar-bridge.js?v=114"></script>
 
   <script>
   (function(){
-    var HOST_VER = "avatar-host v1.0.9 (nonce timing hardened + png default hero + safer fallbacks)";
+    var HOST_VER = "avatar-host v1.1.0 (reason codes + hardened config gate + png default hero)";
     try{ console.log("[NyxHost]", HOST_VER); }catch(_){}
 
     var EMBEDDED = false;
@@ -324,7 +316,7 @@
     }
     window.NYX_UI = { setBubbleText:setBubbleText, bubbleTyping:bubbleTyping, bubblePop:bubblePop };
 
-    // Bridge policy (keep hard)
+    // Bridge policy
     var ALLOWED_PARENT_ORIGINS = [
       "https://sandblast.channel",
       "https://www.sandblast.channel"
@@ -384,8 +376,28 @@
 
     function showBlocked(reason){
       setHud("hudBridge", "blocked");
+      setHud("hudReason", reason || "blocked");
       try{
         setBubbleText("Nyx isn’t configured yet ("+safeStr(reason)+").", { pop:true, typing:false });
+      }catch(_){}
+    }
+
+    // --- Reason code helpers ---
+    function reject(code){
+      return { ok:false, code: safeStr(code || "rejected") };
+    }
+    function accept(){
+      return { ok:true, code:"ok" };
+    }
+    function reportReject(code, extra){
+      try{
+        setHud("hudBridge", "bad_config");
+        setHud("hudReason", code || "bad_config");
+        setHud("hudHostVer", HOST_VER);
+        if (EMBEDDED) showBlocked(code || "bad_config");
+        try{
+          console.warn("[NyxHost] applyConfig rejected:", code, extra || {});
+        }catch(_){}
       }catch(_){}
     }
 
@@ -501,48 +513,50 @@
     function applyConfig(payload, senderOrigin){
       var p = isObj(payload) ? payload : {};
 
-      // 1) Origin gate (keep hard)
+      // ORIGIN GATE
       if (EMBEDDED){
-        if (LOCKED_PARENT_ORIGIN) {
-          if (senderOrigin !== LOCKED_PARENT_ORIGIN) return false;
+        if (!senderOrigin || senderOrigin === "null") return reject("origin_missing");
+        if (LOCKED_PARENT_ORIGIN){
+          if (senderOrigin !== LOCKED_PARENT_ORIGIN) return reject("origin_mismatch_locked");
         } else {
-          if (!parentOriginAllowed(senderOrigin)) return false;
+          if (!parentOriginAllowed(senderOrigin)) return reject("origin_not_allowed");
         }
       }
 
-      // 2) Nonce gate (hardened against timing)
-      // - If nonce is PRESENT and WRONG -> reject
-      // - If nonce is MISSING -> accept (origin gate already passed)
+      // NONCE GATE (optional-but-strict)
       if (EMBEDDED){
         var n = safeStr(p.nonce || p.readyNonce || "").trim();
-        if (n && n !== READY_NONCE) return false;
+        if (n && n !== READY_NONCE) return reject("nonce_mismatch");
       }
 
-      // 3) apiBase (fallback instead of hard fail)
+      // API BASE (fallback)
       var apiBase = normalizeApiBase(p.apiBase);
       if (!apiBase) apiBase = normalizeApiBase(window.location.origin);
+      if (!apiBase) return reject("apiBase_empty");
 
       var apiOrigin = originOf(apiBase);
-      if (!apiOriginAllowed(apiOrigin)) return false;
+      if (!apiOrigin) return reject("apiOrigin_parse_fail");
+      if (!apiOriginAllowed(apiOrigin)) return reject("apiOrigin_not_allowed");
 
-      // 4) token policy (keep hardened)
-      var token = safeStr(p.token).trim();
+      // TOKEN POLICY
       var enforce = (p.enforce !== false);
+      var token = safeStr(p.token).trim();
+
       if (EMBEDDED && enforce){
-        if (!isTokenOk(token)) return false;
+        if (!isTokenOk(token)) return reject("token_invalid_or_short");
       } else {
         if (!isTokenOk(token)) token = "";
       }
 
       var tokenHeader = parseTokenHeader(p);
 
+      // APPLY
       CFG.enforce = enforce;
       CFG.apiBase = apiBase;
       CFG.apiOrigin = apiOrigin;
       CFG.tokenHeader = tokenHeader;
       CFG.urls = isObj(p.urls) ? p.urls : {};
 
-      // PNG default hero
       CFG.heroSrc = normalizeHeroSrc(p.heroSrc || (p.assets && (p.assets.heroSrc || p.assets.hero)) || "");
       if (!CFG.heroSrc) CFG.heroSrc = "/avatar/assets/nyx-hero.png";
 
@@ -551,6 +565,7 @@
       if (EMBEDDED && senderOrigin && !LOCKED_PARENT_ORIGIN) LOCKED_PARENT_ORIGIN = senderOrigin;
 
       setHud("hudBridge", EMBEDDED ? "configured" : "standalone");
+      setHud("hudReason", "ok");
       setHud("hudParent", EMBEDDED ? (LOCKED_PARENT_ORIGIN || "—") : "(direct)");
       setHud("hudApi", CFG.apiBase);
       setHud("hudToken", _TOKEN ? ("set ("+_TOKEN.length+")") : (CFG.enforce ? "missing (blocked)" : "missing"));
@@ -585,12 +600,11 @@
         }catch(_){}
       }
 
-      return true;
+      return accept();
     }
 
     function bootstrapFromQuery(){
       if (EMBEDDED) return;
-
       try{
         var qs = new URLSearchParams(window.location.search || "");
         var apiBase = normalizeApiBase(qs.get("apiBase"));
@@ -627,16 +641,16 @@
     window.addEventListener("message", function(ev){
       var origin = safeStr(ev.origin || "");
       var data = ev.data;
+
       if (!isObj(data)) return;
       if (data.type !== "NYX_CONFIG") return;
 
       var payload = isObj(data.payload) ? data.payload : {};
-      var ok = applyConfig(payload, origin);
+      var res = applyConfig(payload, origin);
 
-      if(!ok){
-        setHud("hudBridge", "bad_config");
-        setHud("hudHostVer", HOST_VER);
-        if (EMBEDDED) showBlocked("bad_config");
+      if(!res || res.ok !== true){
+        var code = (res && res.code) ? res.code : "bad_config";
+        reportReject(code, { origin: origin, hasNonce: !!(payload && (payload.nonce||payload.readyNonce)), hasApiBase: !!(payload && payload.apiBase), tokenLen: safeStr(payload && payload.token).trim().length });
       }
     });
 
@@ -645,6 +659,7 @@
 
       if (!EMBEDDED){
         setHud("hudBridge", "standalone");
+        setHud("hudReason", "standalone");
         setHud("hudParent", "(direct)");
         setHud("hudApi", CFG.apiBase || window.location.origin);
         setHud("hudToken", _TOKEN ? ("set ("+_TOKEN.length+")") : "missing");
@@ -653,6 +668,8 @@
       }
 
       setHud("hudBridge", "ready");
+      setHud("hudReason", "waiting_config");
+
       try{
         window.parent.postMessage({
           type: "NYX_READY",
@@ -681,12 +698,8 @@
       var urls = CFG.urls || {};
       var url = safeStr(urls[chip] || "").trim();
       if(!url) return false;
-      try{
-        window.open(url, "_blank", "noopener,noreferrer");
-        return true;
-      }catch(_){
-        return false;
-      }
+      try{ window.open(url, "_blank", "noopener,noreferrer"); return true; }
+      catch(_){ return false; }
     }
 
     function onChipClick(e){
