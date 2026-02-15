@@ -6,7 +6,7 @@
   <title>Nyx Avatar Host</title>
 
   <!-- CACHE-BUST -->
-  <link rel="stylesheet" href="./avatar.css?v=111" />
+  <link rel="stylesheet" href="./avatar.css?v=112" />
 
   <style>
     html,body{height:100%}
@@ -121,7 +121,7 @@
     <div id="avatarRoot">
 
       <div id="nyxShellMount">
-        <!-- Fallback silhouette (still shows even if shell fails) -->
+        <!-- Fallback silhouette -->
         <div class="avatar gaze-soft mood-attentive" id="nyxAvatar">
           <div class="silhouette">
             <div class="head">
@@ -196,14 +196,14 @@
 
   </div>
 
-  <script src="./avatar-contract.js?v=111"></script>
-  <script src="./nyx-avatar-shell.js?v=111"></script>
-  <script src="./avatar-controller.js?v=111"></script>
-  <script src="./avatar-bridge.js?v=111"></script>
+  <script src="./avatar-contract.js?v=112"></script>
+  <script src="./nyx-avatar-shell.js?v=112"></script>
+  <script src="./avatar-controller.js?v=112"></script>
+  <script src="./avatar-bridge.js?v=112"></script>
 
   <script>
     (function(){
-      var HOST_VER = "avatar-host v1.0.9 (HERO HARD-FALLBACK + no black-wash + cache-bust)";
+      var HOST_VER = "avatar-host v1.1.0 (PNG hero default + hero hard-fallback)";
       try{ console.log("[NyxHost]", HOST_VER); }catch(_){}
 
       var EMBEDDED = false;
@@ -221,6 +221,7 @@
       };
 
       var mountEl = document.getElementById("nyxShellMount");
+      var DEFAULT_HERO = "/avatar/assets/nyx-hero.png";
 
       function safeStr(x){ return (x===null||x===undefined) ? "" : String(x); }
       function isObj(x){ return !!x && typeof x === "object" && !Array.isArray(x); }
@@ -253,15 +254,13 @@
         try{
           if(!mountEl) return;
           var hero = normalizeHeroSrc(heroSrc || "");
-          if(!hero) hero = "/avatar/assets/nyx-hero.webp";
+          if(!hero) hero = DEFAULT_HERO;
 
-          // HARD-FALLBACK: paint hero even if shell does nothing
           mountEl.style.backgroundImage = "url('" + hero.replace(/'/g, "%27") + "')";
           mountEl.style.backgroundRepeat = "no-repeat";
           mountEl.style.backgroundSize = "cover";
           mountEl.style.backgroundPosition = "50% 18%";
 
-          // also set css var used by avatar.css
           mountEl.style.setProperty("--nyx-hero-url", "url('" + hero.replace(/'/g, "%27") + "')");
         }catch(_){}
       }
@@ -285,7 +284,7 @@
       function mountShellFromConfig(heroSrc){
         try{
           var hero = normalizeHeroSrc(heroSrc || "");
-          if (!hero) hero = "/avatar/assets/nyx-hero.png";
+          if (!hero) hero = DEFAULT_HERO;
 
           preloadImage(hero);
           forceMountHero(hero);
@@ -307,7 +306,6 @@
         }catch(_){}
       }
 
-      // Bubble helpers
       var _bubbleTimer = null;
 
       function bubbleTyping(on){
@@ -445,7 +443,7 @@
         CFG.urls = isObj(p.urls) ? p.urls : {};
 
         CFG.heroSrc = normalizeHeroSrc(p.heroSrc || (p.assets && (p.assets.heroSrc || p.assets.hero)) || "");
-        if (!CFG.heroSrc) CFG.heroSrc = "/avatar/assets/nyx-hero.webp";
+        if (!CFG.heroSrc) CFG.heroSrc = DEFAULT_HERO;
 
         _TOKEN = token;
         if (EMBEDDED && senderOrigin && !LOCKED_PARENT_ORIGIN) LOCKED_PARENT_ORIGIN = senderOrigin;
@@ -487,8 +485,7 @@
 
           applyConfig({ apiBase: apiBase, token: token, enforce: enforce, heroSrc: heroSrc, tokenHeader: tokenHeader, nonce: READY_NONCE }, "");
         }catch(_){
-          // still force a hero so Nyx is never blank
-          forceMountHero("/avatar/assets/nyx-hero.webp");
+          forceMountHero(DEFAULT_HERO);
         }
       }
 
@@ -504,6 +501,7 @@
           setHud("hudBridge", "bad_config");
           setHud("hudHostVer", HOST_VER);
           setBubbleText("Nyx isn’t configured yet (bad_config).", { pop:true, typing:false });
+          forceMountHero(DEFAULT_HERO);
         }
       });
 
@@ -539,12 +537,15 @@
       var chips = document.getElementById('nyxChips');
       if (chips) chips.addEventListener('click', onChipClick);
 
-      bootstrapFromQuery();
+      // Always paint a hero immediately so it's never blank while waiting for config
+      forceMountHero(DEFAULT_HERO);
 
-      // Visual self-test (quick)
+      bootstrapFromQuery();
+      setHud("hudHostVer", HOST_VER);
+
       setTimeout(function(){
         bubbleTyping(true);
-        setBubbleText("POP TEST — if Nyx is visible behind this bubble now, the hero fallback is working.", { pop:true });
+        setBubbleText("POP TEST — PNG hero fallback should be visible behind this bubble now.", { pop:true });
         setTimeout(function(){ bubbleTyping(false); }, 900);
       }, 900);
 
