@@ -14,7 +14,7 @@
     html,body{height:100%}
     body{
       margin:0;
-      background:#0b0b10; /* solid base so glow has contrast */
+      background:#000; /* true black base to match avatar.css v1.0.7 */
     }
 
     #wrap{
@@ -25,6 +25,7 @@
       height:100vh;
       box-sizing:border-box;
     }
+
     #avatarRoot{
       border:1px solid rgba(255,255,255,.08);
       border-radius:16px;
@@ -33,29 +34,35 @@
       position:relative;
 
       /* HARD CANVAS (critical): avoid “see-through” blend collapse */
-      background:#0b0b10; /* <- was rgba(...) */
+      background:#000; /* seamless black */
     }
+
     #panel{
       border:1px solid rgba(255,255,255,.08);
       border-radius:16px;
       padding:12px;
-      background: rgba(18,18,26,.55);
-      backdrop-filter: blur(8px);
+
+      /* darken to match the rest; no gray wash */
+      background:#000;
     }
+
     .row{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+
     textarea{
       width:100%;
       box-sizing:border-box;
-      background:#0f0f16;
+      background:#0b0b10;
       color:#fff;
       border:1px solid rgba(255,255,255,.12);
       border-radius:10px;
       padding:10px;
     }
+
     .hud{font:12px ui-monospace,Menlo,Consolas,monospace;opacity:.9;line-height:1.5}
     .hud b{opacity:.85}
+
     button{
-      background:#141421;
+      background:#0b0b10;
       color:#fff;
       border:1px solid rgba(255,255,255,.14);
       border-radius:10px;
@@ -112,7 +119,7 @@
       border:0;
       height:100vh;
       min-height:100vh;
-      background:#0b0b10; /* keep solid in embed */
+      background:#000; /* keep solid in embed */
     }
   </style>
 </head>
@@ -224,7 +231,7 @@
       // Avatar Host Hardening (FULL)
       // ============================
 
-      var HOST_VER = "avatar-host v1.0.6 (embed debug + stronger HUD + safe standalone)";
+      var HOST_VER = "avatar-host v1.0.7 (seamless black + bubble alive hooks + safe standalone)";
       try{ console.log("[NyxHost]", HOST_VER); }catch(_){}
 
       var EMBEDDED = false;
@@ -309,6 +316,55 @@
         }catch(_){}
       }
 
+      // ----------------------------
+      // Bubble "alive" hooks
+      // ----------------------------
+      var _bubbleTimer = null;
+
+      function bubbleTyping(on){
+        try{
+          var b = window.NYX_HOST_UI.bubble;
+          if(!b) return;
+          if(on) b.classList.add("typing");
+          else b.classList.remove("typing");
+        }catch(_){}
+      }
+
+      function bubblePop(){
+        try{
+          var b = window.NYX_HOST_UI.bubble;
+          if(!b) return;
+          b.classList.remove("pop");
+          // force reflow so animation re-triggers
+          void b.offsetWidth;
+          b.classList.add("pop");
+          clearTimeout(_bubbleTimer);
+          _bubbleTimer = setTimeout(function(){
+            try{ b.classList.remove("pop"); }catch(_){}
+          }, 320);
+        }catch(_){}
+      }
+
+      function setBubbleText(text, opts){
+        opts = opts || {};
+        var t = window.NYX_HOST_UI.bubbleText;
+        if(!t) return;
+        t.textContent = safeStr(text || "");
+        if(opts.pop) bubblePop();
+        if(opts.typing === true) bubbleTyping(true);
+        if(opts.typing === false) bubbleTyping(false);
+      }
+
+      // Expose a small API so Marion/bridge/controller can animate bubble without importing anything
+      window.NYX_UI = {
+        setBubbleText: setBubbleText,
+        bubbleTyping: bubbleTyping,
+        bubblePop: bubblePop
+      };
+
+      // ----------------------------
+      // Bridge policy
+      // ----------------------------
       var ALLOWED_PARENT_ORIGINS = [
         "https://sandblast.channel",
         "https://www.sandblast.channel"
@@ -371,8 +427,7 @@
       function showBlocked(reason){
         setHud("hudBridge", "blocked");
         try{
-          var t = document.getElementById("nyxBubbleText");
-          if (t) t.textContent = "Nyx isn’t configured yet ("+safeStr(reason)+").";
+          setBubbleText("Nyx isn’t configured yet ("+safeStr(reason)+").", { pop:true, typing:false });
         }catch(_){}
       }
 
@@ -543,6 +598,15 @@
         exposeConfig();
         try{ mountShellFromConfig(CFG.heroSrc); }catch(_){}
 
+        // Kick the bubble into "alive" mode briefly after config lands
+        try{
+          bubbleTyping(true);
+          setTimeout(function(){
+            bubbleTyping(false);
+            bubblePop();
+          }, 380);
+        }catch(_){}
+
         if (EMBEDDED && LOCKED_PARENT_ORIGIN){
           try{
             window.parent.postMessage({
@@ -687,6 +751,17 @@
       if (bubbleActions) bubbleActions.addEventListener('click', onChipClick);
       var chips = document.getElementById('nyxChips');
       if (chips) chips.addEventListener('click', onChipClick);
+
+      // If other scripts want to show “typing”, give them a signal:
+      window.addEventListener("nyx:typing", function(ev){
+        try{ bubbleTyping(!!(ev && ev.detail && ev.detail.on)); }catch(_){}
+      });
+      window.addEventListener("nyx:bubble", function(ev){
+        try{
+          var d = (ev && ev.detail) ? ev.detail : {};
+          setBubbleText(d.text || "", { pop: d.pop !== false, typing: (d.typing===true ? true : (d.typing===false ? false : undefined)) });
+        }catch(_){}
+      });
 
       bootstrapFromQuery();
       signalReady();
