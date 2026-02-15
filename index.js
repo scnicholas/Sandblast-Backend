@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18bo (STABILITY HARDENING++++: CHAT fail-open on engine missing/throw + keeps v1.5.18bk security list)
+ * index.js v1.5.18bn (STABILITY HARDENING++++: CHAT fail-open on engine missing/throw + keeps v1.5.18bk security list)
  *
  * Keeps:
  * ✅ WIKI AUTHORITY FIX++++ (wikipedia split hot100 dir ingest + merged year map)
@@ -98,8 +98,7 @@ const nyxVoiceNaturalizeMod =
 // =========================
 // Version
 // =========================
-const INDEX_VERSION =
-  "index.js v1.5.18bo (AVATAR CACHE CONTROL++++: no-store for /avatar/*.html|.js|.css to prevent stale widget; keeps v1.5.18bn chat fail-open + v1.5.18bk security + request timeout + no-store API + Origin:null block + diagnostics)";
+const INDEX_VERSION = "index.js v1.5.18bq (AVATAR HERO FALLBACK ROUTE + STATIC CACHE HARDENING)";
 
 // =========================
 // Utils
@@ -2467,63 +2466,83 @@ app.use((req, res, next) => {
 app.use(express.text({ type: ["text/*"], limit: MAX_JSON_BODY }));
 
   /**
-   * AVATAR HOSTING (iframe-safe + cache-control hardening)
+   * AVATAR HOSTING (CRITICAL)
    *
-   * IMPORTANT:
-   * - We want rapid iteration on /avatar/*.js|.css|.html while keeping images reasonably cached.
-   * - So: no-store for markup + scripts + styles (prevents “no change” stale loads),
-   *   but allow short caching for binary assets (webp/png/svg/woff/etc).
+   * Notes:
+   * - /avatar/* is served from PUBLIC_DIR/avatar (public/avatar)
+   * - Some deploy pipelines (or repo layouts) may place nyx-hero.webp at public/avatar/nyx-hero.webp
+   *   instead of public/avatar/assets/nyx-hero.webp. We provide a safe fallback route so the widget
+   *   doesn’t black-screen on a missing asset.
    */
-  const AVATAR_DIR = path.join(__dirname, "public", "avatar");
+
+  const PUBLIC_DIR = path.join(__dirname, "public");
+  const AVATAR_DIR = path.join(PUBLIC_DIR, "avatar");
+  const AVATAR_ASSETS_DIR = path.join(AVATAR_DIR, "assets");
+
+  // Fail-soft visibility (helps debugging 404s in production logs)
+  try {
+    if (!fs.existsSync(AVATAR_DIR)) {
+      console.warn("[AVATAR] AVATAR_DIR missing:", AVATAR_DIR);
+    } else {
+      const hero1 = path.join(AVATAR_ASSETS_DIR, "nyx-hero.webp");
+      const hero2 = path.join(AVATAR_DIR, "nyx-hero.webp");
+      console.log("[AVATAR] AVATAR_DIR:", AVATAR_DIR,
+        "| hero@assets:", fs.existsSync(hero1) ? "YES" : "no",
+        "| hero@root:", fs.existsSync(hero2) ? "YES" : "no");
+    }
+  } catch (_) {}
 
   const AVATAR_STATIC_OPTS = {
-    maxAge: "1h",
+    // long-lived cache for immutable assets; html is handled by explicit routes below
+    maxAge: "7d",
     etag: true,
-    setHeaders: (res, servedPath) => {
+    lastModified: true,
+    index: false,
+    fallthrough: true,
+    setHeaders: (res, filePath) => {
       try {
-        const p = String(servedPath || "").toLowerCase();
-
-        // Never cache code/markup (fixes stale shell/bridge/controller in iframe)
-        if (
-          p.endsWith(".html") ||
-          p.endsWith(".js") ||
-          p.endsWith(".css") ||
-          p.endsWith(".json") ||
-          p.endsWith(".map")
-        ) {
+        const fp = String(filePath || "");
+        // Never aggressively cache HTML (we want hotfixes to land)
+        if (/\.(html?)$/i.test(fp)) {
           res.setHeader("Cache-Control", "no-store, max-age=0");
-          res.setHeader("Pragma", "no-cache");
-        } else {
-          // Binary assets can be cached briefly (still revalidated by ETag)
-          res.setHeader("Cache-Control", "public, max-age=3600");
+          return;
         }
-
-        // Force correct webp mime if upstream ever misses it (rare, but safe)
-        if (p.endsWith(".webp")) {
-          const ct = String(res.getHeader("Content-Type") || "");
-          if (!ct) res.setHeader("Content-Type", "image/webp");
-        }
-
-        res.setHeader("X-SB-Avatar-Static", "1");
+        // Cache-busted assets can be cached hard
+        res.setHeader("Cache-Control", "public, max-age=604800, immutable");
       } catch (_) {}
     },
   };
 
+  // --- HERO FALLBACK ROUTE (fixes nyx-hero.webp 404 in the widget) ---
+  // Tries:
+  //   1) public/avatar/assets/nyx-hero.webp
+  //   2) public/avatar/nyx-hero.webp
+  // If neither exists → 404 (with a diagnostic header)
+  app.get("/avatar/assets/nyx-hero.webp", (req, res) => {
+    try {
+      const a = path.join(AVATAR_ASSETS_DIR, "nyx-hero.webp");
+      const b = path.join(AVATAR_DIR, "nyx-hero.webp");
+      const pick = fs.existsSync(a) ? a : (fs.existsSync(b) ? b : "");
+      if (!pick) {
+        res.setHeader("X-Nyx-Avatar-Hero", "missing");
+        return res.status(404).send("nyx-hero.webp not found");
+      }
+      res.setHeader("X-Nyx-Avatar-Hero", pick.endsWith("/assets/nyx-hero.webp") ? "assets" : "root");
+      // if the widget cache-busts, this can be immutable
+      res.setHeader("Cache-Control", "public, max-age=604800, immutable");
+      return res.sendFile(pick);
+    } catch (e) {
+      try { res.setHeader("X-Nyx-Avatar-Hero", "error"); } catch (_) {}
+      return res.status(500).send("hero route error");
+    }
+  });
+
+  // Serve /avatar/* static (includes /avatar/assets/*)
   app.use("/avatar", express.static(AVATAR_DIR, AVATAR_STATIC_OPTS));
 
-
-  app.get("/avatar-host", (req, res) => {
-    try{ res.setHeader("Cache-Control","no-store, max-age=0"); res.setHeader("Pragma","no-cache"); }catch(_){ }
-    return res.sendFile(path.join(AVATAR_DIR, "avatar-host.html"));
-  });
-  app.get("/avatar-host.html", (req, res) => {
-    try{ res.setHeader("Cache-Control","no-store, max-age=0"); res.setHeader("Pragma","no-cache"); }catch(_){ }
-    return res.sendFile(path.join(AVATAR_DIR, "avatar-host.html"));
-  });
-  app.get("/avatar/avatar-host", (req, res) => res.redirect(302, "/avatar/avatar-host.html"));
-
-
-
+  // Convenience routes
+  app.get("/avatar-host.html", (req, res) => res.sendFile(path.join(AVATAR_DIR, "avatar-host.html")));
+  app.get("/avatar/", (req, res) => res.redirect("/avatar/avatar-host.html"));
 // =========================
 // Widget/API token guard (optional)
 // - Emits X-SB-Token-Warning if placeholder token is detected.
