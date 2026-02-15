@@ -1,33 +1,34 @@
 // avatar-bridge.js
-// Nyx Avatar Bridge (Standalone) — RESEND ENTIRE FILE
+// Nyx Avatar Bridge — RESEND ENTIRE FILE
 "use strict";
 
 /**
- * Nyx Avatar Bridge (Standalone)
+ * Nyx Avatar Bridge
  *
- * v0.8.1 (HANDSHAKE LOCK++++ + FIRST-CONFIG ACCEPT++++ + TOKEN LATCH++++)
+ * v0.8.2 (HOST-AWARE++++ + NO TOKEN LEAK++++ + NO DOUBLE-HANDSHAKE++++ + FETCH WRAP GUARD++++)
  *
- * Keeps v0.8.0:
- *  ✅ Public-ready security + config (NYX_CONFIG, origin whitelist, token rotation, apiBase, enforce)
- *  ✅ Deterministic presence (TURN_START/END + inflight counter + netPending)
- *  ✅ Settle polish (audio ended + pending drops to 0 + tiny delay) + settleHint into controller + shell.triggerSettle
- *  ✅ visibility pause/resume
- *  ✅ ObjectURL revocation (no leaks)
- *  ✅ Fetch/XHR wrapping (guarded)
- *  ✅ Protocol versioning (v:1)
- *  ✅ Presence HUD split (final vs hint)
- *  ✅ Audio fail-soft + speaking truth
- *  ✅ Marion→Nyx UI bridge (setMarionCog, setLane, setUrls)
- *  ✅ Host controls binding fix (button[data-act] direct binding)
+ * Why this update:
+ * ✅ Your avatar-host.html now owns the secure handshake (nonce + anchored parent allowlist + closure token).
+ * ✅ This bridge must NOT fight that handshake or require a token it can’t/shouldn’t see.
  *
- * Adds v0.8.1:
- *  ✅ HANDSHAKE LOCK:
- *     - Accept FIRST valid NYX_CONFIG from any non-null origin
- *     - Lock parent origin to that sender (prevents hostile reconfiguration)
- *  ✅ TOKEN LATCH:
- *     - Before config: token unknown; only NYX_CONFIG processed
- *     - After config: token strictly required (when enforce=true)
- *  ✅ NYX_ACK sent to locked parent on successful config
+ * Changes in v0.8.2:
+ * ✅ HOST-AWARE: listens for nyx:config from avatar-host and uses NYX_API_BASE if provided
+ * ✅ NO DOUBLE-HANDSHAKE: NYX_CONFIG handling becomes legacy-only (opt-in), so host is the authority
+ * ✅ NO TOKEN LEAK: NYX_ACK no longer sends token back (ever)
+ * ✅ ORIGIN LOCK: locks to first valid parent origin for consciousness/lifecycle packets (post-host config)
+ * ✅ TOKEN OPTIONAL: if a token is present + expectedToken latched (legacy), enforce it; otherwise origin-lock only
+ * ✅ FETCH WRAP GUARD: avoids wrapping twice when host already patched fetch (prefers NYX_FETCH when available)
+ *
+ * Keeps:
+ * ✅ Deterministic presence (TURN_START/END + inflight + netPending)
+ * ✅ Settle polish (audio ended + pending drops to 0 + delay) + settleHint into controller + shell.triggerSettle
+ * ✅ visibility pause/resume
+ * ✅ ObjectURL revocation (no leaks)
+ * ✅ Protocol versioning (v:1)
+ * ✅ Presence HUD split (final vs hint)
+ * ✅ Audio fail-soft + speaking truth
+ * ✅ Marion→Nyx UI bridge (setMarionCog, setLane, setUrls)
+ * ✅ Host controls binding fix (button[data-act] direct binding)
  */
 
 (function () {
@@ -40,27 +41,27 @@
   const PROTOCOL_VERSION = 1;
 
   // =========================
-  // Security + Config (H1)
+  // Security + Config
   // =========================
   const SECURITY = {
-    // Parent can tighten/replace via NYX_CONFIG.
-    // These are fallback defaults only; once we lock, we accept only that origin.
+    // Bridge-level allowlist (host already enforces anchored allowlist; keep this aligned + tight).
     allowedOrigins: [
-      window.location.origin,
-      "https://sandblastchannel.com",
       "https://sandblast.channel",
+      "https://www.sandblast.channel",
     ],
 
-    // token is unknown until NYX_CONFIG is received
+    // Legacy mode only (host no longer exposes token to window)
     expectedToken: "",
 
+    // Enforce means: if expectedToken exists, require it; otherwise origin-lock only.
     enforce: true,
   };
 
   const CONFIG = {
     apiBase: "",         // e.g. https://sandblast-backend.onrender.com
     configuredAt: 0,
-    parentOrigin: "",    // locked parent origin
+    parentOrigin: "",    // locked parent origin (for consciousness/lifecycle packets)
+    hostConfigSeen: false,
   };
 
   function safeStr(x) { return x == null ? "" : String(x); }
@@ -80,11 +81,10 @@
     return false;
   }
 
-  // LOCKED ORIGIN logic:
+  // Origin logic:
   // - if CONFIG.parentOrigin is set, require exact match
-  // - otherwise, fall back to allowlist (or accept NYX_CONFIG specifically)
+  // - otherwise, require allowlist (tight) for embedded parents
   function okOrigin(ev) {
-    if (!SECURITY.enforce) return true;
     const o = safeStr(ev && ev.origin);
     if (!o || o === "null") return false;
     if (CONFIG.parentOrigin) return o === CONFIG.parentOrigin;
@@ -92,16 +92,15 @@
   }
 
   // Token logic:
-  // - if enforce=false, always ok
-  // - if expectedToken not set yet (pre-config), only allow token checks to pass for NYX_CONFIG bootstrap
+  // - If expectedToken is set (legacy), require match when enforce=true
+  // - If expectedToken is empty (host-owned token), DO NOT block packets; rely on origin lock
   function okToken(payload) {
     if (!SECURITY.enforce) return true;
 
+    // Host-owned mode (preferred): no token visible here.
+    if (!SECURITY.expectedToken) return true;
+
     const got = safeStr(payload && payload.token).trim();
-    if (!SECURITY.expectedToken) {
-      // pre-config: we don't know token yet
-      return false;
-    }
     return !!(got && got === SECURITY.expectedToken);
   }
 
@@ -274,6 +273,35 @@
   }
 
   // =========================
+  // Host config awareness (IMPORTANT)
+  // =========================
+  function syncFromHostConfig(detail) {
+    try {
+      // avatar-host exposes NYX_API_BASE and NYX_CONFIG (no token).
+      if (window.NYX_API_BASE && typeof window.NYX_API_BASE === "string") {
+        CONFIG.apiBase = safeStr(window.NYX_API_BASE).trim().replace(/\/+$/, "");
+      } else if (detail && detail.apiBase) {
+        CONFIG.apiBase = safeStr(detail.apiBase).trim().replace(/\/+$/, "");
+      }
+
+      CONFIG.configuredAt = Date.now();
+      CONFIG.hostConfigSeen = true;
+
+      // HUD hint only (host owns real parent lock and token)
+      if (hud.hs) hudSet(hud.hs, "host_config@" + new Date().toLocaleTimeString());
+      if (hud.token) hudSet(hud.token, "host");
+    } catch (_) {}
+  }
+
+  try {
+    window.addEventListener("nyx:config", function (ev) {
+      syncFromHostConfig(ev && ev.detail);
+    });
+    // If host already exposed config before this bridge loaded:
+    if (window.NYX_CONFIG) syncFromHostConfig(window.NYX_CONFIG);
+  } catch (_) {}
+
+  // =========================
   // Audio (fail-soft)
   // =========================
   const audioEl = document.getElementById("nyxAudio") || null;
@@ -363,7 +391,6 @@
   if (audioEl) {
     audioEl.addEventListener("ended", () => {
       revokeObjectUrl();
-      // settle after audio ends
       state.diag.settleHint = true;
       scheduleSettleSoon(0);
     });
@@ -372,7 +399,7 @@
   }
 
   // =========================
-  // Presence arbitration (H2)
+  // Presence arbitration
   // =========================
   function computePresence() {
     if (isAudioPlaying()) return "speaking";
@@ -413,7 +440,7 @@
       normPresence(packet.hintPresence) ||
       "";
 
-    // Store a SAFE summary (no raw user text)
+    // SAFE summary (no raw user text)
     state.inlet.lastPacket = {
       lane: state.lane,
       topic: state.topic,
@@ -451,14 +478,16 @@
   }
 
   // =========================
-  // Config inlet (H1) + LOCK (v0.8.1)
+  // Legacy config inlet (NYX_CONFIG) — HOST IS AUTHORITY NOW
   // =========================
-  function applyConfig(payload, origin, evSource) {
+  // If you still send NYX_CONFIG to this bridge directly (older hosts),
+  // we will accept it ONCE and lock origin, BUT we will NOT leak token in ACK.
+  function applyLegacyConfig(payload, origin, evSource) {
     const p = payload && typeof payload === "object" ? payload : {};
     const o = safeStr(origin);
     if (!o || o === "null") return false;
 
-    // token rotation (required for config)
+    // token rotation (required for legacy config)
     const token = safeStr(p.token).trim();
     if (!isTokenPlausible(token)) return false;
 
@@ -466,12 +495,9 @@
     const apiBase = safeStr(p.apiBase).trim().replace(/\/+$/, "");
     if (!apiBase || !apiBase.startsWith("http")) return false;
 
-    // enforce toggle (optional)
-    if (typeof p.enforce === "boolean") {
-      SECURITY.enforce = p.enforce;
-    }
+    if (typeof p.enforce === "boolean") SECURITY.enforce = p.enforce;
 
-    // allowedOrigins (optional; but AFTER lock, only locked origin is accepted anyway)
+    // allowedOrigins (optional)
     if (Array.isArray(p.allowedOrigins) && p.allowedOrigins.length) {
       const cleaned = [];
       for (let i = 0; i < p.allowedOrigins.length; i++) {
@@ -486,12 +512,10 @@
     CONFIG.apiBase = apiBase;
     CONFIG.configuredAt = Date.now();
 
-    // LOCK parent origin on first successful config
-    if (!CONFIG.parentOrigin) {
-      CONFIG.parentOrigin = o;
-    }
+    // LOCK parent origin on first successful legacy config
+    if (!CONFIG.parentOrigin) CONFIG.parentOrigin = o;
 
-    // Optional: url hints (pass-through to controller)
+    // Optional: url hints (pass-through)
     try {
       if (p.urls && typeof p.urls === "object" && typeof window.AvatarController.setUrls === "function") {
         window.AvatarController.setUrls(p.urls);
@@ -500,12 +524,12 @@
 
     // HUD
     try {
-      if (hud.hs) hudSet(hud.hs, "config@" + new Date().toLocaleTimeString());
+      if (hud.hs) hudSet(hud.hs, "legacy_config@" + new Date().toLocaleTimeString());
       if (hud.origin) hudSet(hud.origin, "lock@" + safeStr(CONFIG.parentOrigin).slice(0, 64));
-      if (hud.token) hudSet(hud.token, SECURITY.expectedToken ? "set" : "—");
+      if (hud.token) hudSet(hud.token, "legacy");
     } catch (_) {}
 
-    // ACK back to parent (helps parent confirm handshake)
+    // ACK back to parent (NO TOKEN LEAK)
     try {
       const target = CONFIG.parentOrigin || o;
       const src = evSource || window.parent;
@@ -516,10 +540,10 @@
             payload: {
               ok: true,
               v: PROTOCOL_VERSION,
-              token: SECURITY.expectedToken,
               apiBase: CONFIG.apiBase,
               host: window.location.origin,
               lockedOrigin: CONFIG.parentOrigin || "",
+              mode: "legacy",
             },
           },
           target
@@ -531,36 +555,48 @@
   }
 
   // =========================
-  // postMessage (secure + lifecycle) (H1/H2)
+  // postMessage (secure + lifecycle)
   // =========================
   window.addEventListener("message", (ev) => {
     const d = ev && ev.data;
     if (!d || typeof d !== "object") return;
 
-    // --- Bootstrap: accept FIRST valid NYX_CONFIG from any non-null origin ---
+    // 1) Legacy NYX_CONFIG handling (only if host config not seen yet)
     if (d.type === "NYX_CONFIG") {
+      // If host already configured, ignore to prevent double-handshake fights.
+      if (CONFIG.hostConfigSeen) return;
+
       const origin = safeStr(ev.origin);
       if (!origin || origin === "null") return;
 
-      // If locked, require exact origin.
+      // If already locked, require exact match.
       if (CONFIG.parentOrigin && origin !== CONFIG.parentOrigin) return;
 
-      // Require plausible token + apiBase for config; do NOT require okToken() yet
       const pl = d.payload || {};
       const token = safeStr(pl.token).trim();
       const apiBase = safeStr(pl.apiBase).trim();
       if (!isTokenPlausible(token)) return;
       if (!apiBase || !apiBase.startsWith("http")) return;
 
-      applyConfig(pl, origin, ev.source);
+      applyLegacyConfig(pl, origin, ev.source);
       return;
     }
 
-    // After config, enforce origin
-    if (SECURITY.enforce && !okOrigin(ev)) return;
+    // 2) For all other packets: require origin lock/allowlist
+    if (!okOrigin(ev)) return;
+
+    // Lock parent origin on first valid post-config message (host mode)
+    if (!CONFIG.parentOrigin) {
+      CONFIG.parentOrigin = safeStr(ev.origin);
+      try {
+        if (hud.origin) hudSet(hud.origin, "lock@" + safeStr(CONFIG.parentOrigin).slice(0, 64));
+      } catch (_) {}
+    }
+
+    // 3) Token optional (host mode) / enforced (legacy mode)
+    if (!okToken(d.payload)) return;
 
     if (d.type === "NYX_PING") {
-      if (!okToken(d.payload)) return;
       try {
         ev.source.postMessage(
           { type: "NYX_PONG", payload: { t: Date.now(), v: PROTOCOL_VERSION } },
@@ -571,19 +607,16 @@
     }
 
     if (d.type === "NYX_CONSCIOUSNESS") {
-      if (!okToken(d.payload)) return;
       applyConsciousness(d.payload);
       return;
     }
 
     // Deterministic lifecycle
     if (d.type === "NYX_TURN_START") {
-      if (!okToken(d.payload)) return;
       incInflight();
       return;
     }
     if (d.type === "NYX_TURN_END") {
-      if (!okToken(d.payload)) return;
       decInflight();
       scheduleSettleSoon(180);
       return;
@@ -591,7 +624,7 @@
   });
 
   // =========================
-  // Fetch/XHR sniffing (guarded) + API_BASE routing (H1/H2)
+  // Fetch/XHR sniffing + API_BASE routing (GUARDED)
   // =========================
   function sniffUrl(u) {
     const url = safeStr(u);
@@ -603,13 +636,17 @@
 
   function rewriteToApiBase(url) {
     const u = safeStr(url);
-    if (!CONFIG.apiBase) return u;
-    if (u.startsWith("/api/")) return CONFIG.apiBase + u;
+    const base = safeStr(CONFIG.apiBase || window.NYX_API_BASE || "").trim().replace(/\/+$/, "");
+    if (!base) return u;
+    if (u.startsWith("/api/")) return base + u;
     return u;
   }
 
-  if (!window.__NYX_FETCH_WRAPPED__ && window.fetch) {
-    window.__NYX_FETCH_WRAPPED__ = true;
+  // Prefer host-provided NYX_FETCH if present; otherwise wrap fetch once.
+  const HOST_FETCH = (typeof window.NYX_FETCH === "function") ? window.NYX_FETCH : null;
+
+  if (!window.__NYX_BRIDGE_FETCH_WRAPPED__ && window.fetch && !HOST_FETCH) {
+    window.__NYX_BRIDGE_FETCH_WRAPPED__ = true;
     const _fetch = window.fetch.bind(window);
 
     window.fetch = async function (input, init) {
@@ -628,11 +665,9 @@
         if (typeof input === "string") {
           url = rewriteToApiBase(url);
           input = url;
-        } else if (input && input.url && input.url.startsWith("/api/")) {
-          const newUrl = rewriteToApiBase(input.url);
-          try {
-            input = new Request(newUrl, input);
-          } catch (_) {}
+        } else if (input && input.url && String(input.url).startsWith("/api/")) {
+          const newUrl = rewriteToApiBase(String(input.url));
+          try { input = new Request(newUrl, input); } catch (_) {}
         }
       } catch (_) {}
 
@@ -663,8 +698,9 @@
     };
   }
 
-  if (!window.__NYX_XHR_WRAPPED__ && window.XMLHttpRequest) {
-    window.__NYX_XHR_WRAPPED__ = true;
+  // XHR wrap only if not already wrapped; OK even if host patched fetch.
+  if (!window.__NYX_BRIDGE_XHR_WRAPPED__ && window.XMLHttpRequest) {
+    window.__NYX_BRIDGE_XHR_WRAPPED__ = true;
     const XHR = window.XMLHttpRequest;
     const origOpen = XHR.prototype.open;
     const origSend = XHR.prototype.send;
@@ -673,7 +709,7 @@
       try {
         this.__nyx_url = safeStr(url || "");
         this.__nyx_sniff = sniffUrl(this.__nyx_url);
-        if (this.__nyx_url.startsWith("/api/") && CONFIG.apiBase) {
+        if (this.__nyx_url.startsWith("/api/") && (CONFIG.apiBase || window.NYX_API_BASE)) {
           this.__nyx_url = rewriteToApiBase(this.__nyx_url);
           return origOpen.call(this, method, this.__nyx_url);
         }
@@ -711,8 +747,10 @@
 
   function hostFetchChat(text) {
     try {
-      const url = (CONFIG.apiBase ? (CONFIG.apiBase + "/api/chat") : "/api/chat");
-      return fetch(url, {
+      const base = safeStr(CONFIG.apiBase || window.NYX_API_BASE || "").trim().replace(/\/+$/, "");
+      const url = (base ? (base + "/api/chat") : "/api/chat");
+      const f = HOST_FETCH || window.fetch;
+      return f(url, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ text: safeStr(text || "ping"), sessionId: "avatar-host" }),
@@ -724,8 +762,10 @@
 
   function hostFetchTts(text) {
     try {
-      const url = (CONFIG.apiBase ? (CONFIG.apiBase + "/api/tts") : "/api/tts");
-      return fetch(url, {
+      const base = safeStr(CONFIG.apiBase || window.NYX_API_BASE || "").trim().replace(/\/+$/, "");
+      const url = (base ? (base + "/api/tts") : "/api/tts");
+      const f = HOST_FETCH || window.fetch;
+      return f(url, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ text: safeStr(text || "Nyx test."), voice: "nyx" }),
@@ -783,7 +823,7 @@
   bindControls();
 
   // =========================
-  // Visibility pause (H4)
+  // Visibility pause
   // =========================
   let rafId = 0;
 
@@ -878,7 +918,6 @@
     state,
     armAudio,
     applyConsciousness,
-    applyConfig,
     __protocol: PROTOCOL_VERSION,
     __security: SECURITY,
     __config: CONFIG,
