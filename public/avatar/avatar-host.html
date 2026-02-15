@@ -192,7 +192,8 @@
           <b>bridge</b>: <span id="hudBridge">waiting</span><br/>
           <b>parent</b>: <span id="hudParent">—</span><br/>
           <b>apiBase</b>: <span id="hudApi">—</span><br/>
-          <b>token</b>: <span id="hudToken">—</span>
+          <b>token</b>: <span id="hudToken">—</span><br/>
+          <b>tokenHeader</b>: <span id="hudTokenHeader">—</span>
         </div>
       </div>
 
@@ -210,15 +211,12 @@
   <script>
     (function(){
       // ============================
-      // Critical host hardening (A)
-      // + TOKEN ENFORCEMENT SUPPORT (B)
-      //
-      // B adds a safe fetch wrapper that AUTO-INJECTS the widget token header on:
-      //   - "/api/*" relative calls
-      //   - "<apiBase>/api/*" absolute calls
-      //
-      // This is the minimal-change way to make existing scripts work immediately
-      // when SB_WIDGET_TOKEN_ENFORCE=true on the backend.
+      // Avatar Host Hardening
+      // - Parent origin allowlist enforcement
+      // - Lock parent origin on first valid NYX_CONFIG
+      // - TokenHeader support (X-SB-WIDGET-TOKEN default)
+      // - Token-injecting fetch wrapper for /api/*
+      // - No raw token leakage in ACK
       // ============================
 
       // ----------------------------
@@ -242,9 +240,25 @@
       };
 
       // ----------------------------
-      // Shell mount wiring (heroSrc)
+      // Utils
       // ----------------------------
       function safeStr(x){ return (x===null||x===undefined) ? "" : String(x); }
+      function isObj(x){ return !!x && typeof x === "object" && !Array.isArray(x); }
+
+      function setHud(id, val){
+        var el = document.getElementById(id);
+        if(el) el.textContent = safeStr(val || "—");
+      }
+
+      function isTokenOk(t){
+        t = safeStr(t).trim();
+        return t.length >= 12;
+      }
+
+      function normalizeApiBase(s){
+        s = safeStr(s).trim().replace(/\/+$/,"");
+        return s;
+      }
 
       function normalizeHeroSrc(src){
         src = safeStr(src).trim();
@@ -266,6 +280,9 @@
         }catch(_){}
       }
 
+      // ----------------------------
+      // Shell mount wiring (heroSrc)
+      // ----------------------------
       function mountShellFromConfig(){
         try{
           var mountEl = document.getElementById("nyxShellMount");
@@ -310,29 +327,54 @@
         tokenHeader: "X-SB-WIDGET-TOKEN"
       };
 
-      // once set, only accept messages from this origin
+      // Once set, only accept future messages from this origin
       var LOCKED_PARENT_ORIGIN = "";
 
-      function isObj(x){ return !!x && typeof x === "object" && !Array.isArray(x); }
-
-      function setHud(id, val){
-        var el = document.getElementById(id);
-        if(el) el.textContent = safeStr(val || "—");
+      function parseTokenHeader(p){
+        var h = safeStr(p.tokenHeader || p.token_header || p.tokenHeaderName || "").trim();
+        // Very small sanitation: forbid whitespace/control
+        if(!h) h = "X-SB-WIDGET-TOKEN";
+        if (/[\s\r\n\t]/.test(h)) h = "X-SB-WIDGET-TOKEN";
+        return h;
       }
 
-      function isTokenOk(t){
-        t = safeStr(t).trim();
-        return t.length >= 12;
+      function originInAllowlist(origin, list){
+        if(!origin || origin === "null") return false;
+        if(!Array.isArray(list) || !list.length) return false;
+        for (var i=0;i<list.length;i++){
+          if (safeStr(list[i]) === origin) return true;
+        }
+        return false;
       }
 
-      function normalizeApiBase(s){
-        s = safeStr(s).trim().replace(/\/+$/,"");
-        return s;
-      }
-
-      function originAllowed(incomingOrigin){
+      function originAllowed(incomingOrigin, incomingAllowlist){
+        // If we already locked the parent, only accept from that parent.
         if (LOCKED_PARENT_ORIGIN) return incomingOrigin === LOCKED_PARENT_ORIGIN;
+
+        // During initial handshake, require the parent to be in the provided allowlist (embedded mode only).
+        if (EMBEDDED){
+          return originInAllowlist(incomingOrigin, incomingAllowlist);
+        }
+
+        // Standalone mode: accept local messages but don't lock.
         return !!incomingOrigin && incomingOrigin !== "null";
+      }
+
+      function exposeConfig(){
+        window.NYX_CONFIG = {
+          token: CFG.token,
+          enforce: CFG.enforce,
+          apiBase: CFG.apiBase,
+          allowedOrigins: (CFG.allowedOrigins || []).slice(0),
+          urls: Object.assign({}, CFG.urls || {}),
+          heroSrc: CFG.heroSrc || "",
+          tokenHeader: CFG.tokenHeader || "X-SB-WIDGET-TOKEN"
+        };
+
+        window.NYX_API_BASE = CFG.apiBase;
+        window.NYX_TOKEN = CFG.token;
+
+        window.dispatchEvent(new CustomEvent("nyx:config", { detail: window.NYX_CONFIG }));
       }
 
       // ----------------------------
@@ -348,20 +390,36 @@
         return "";
       }
 
-      function startsWithApiPath(u){
-        u = safeStr(u);
-        if (/^\/api\//i.test(u)) return true;
+      function isApiRequest(urlStr){
+        urlStr = safeStr(urlStr);
 
+        // Relative /api/*
+        if (/^\/api\//i.test(urlStr)) return true;
+
+        // Absolute /api/*
         try{
-          var abs = new URL(u, window.location.href);
-          var apiBase = CFG.apiBase ? new URL(CFG.apiBase, window.location.href) : null;
-
-          if (/^\/api\//i.test(abs.pathname)) {
-            if (apiBase) return (abs.origin === apiBase.origin) || (abs.origin === window.location.origin);
-            return abs.origin === window.location.origin;
+          var abs = new URL(urlStr, window.location.href);
+          if (!/^\/api\//i.test(abs.pathname)) {
+            // Allow exact "<apiBase>/api/*" too
+            if (CFG.apiBase){
+              try{
+                var b = new URL(CFG.apiBase, window.location.href);
+                if (abs.origin === b.origin && abs.pathname.indexOf("/api/") === 0) return true;
+              }catch(_){}
+            }
+            return false;
           }
 
-          if (apiBase && abs.href.indexOf(apiBase.origin) === 0 && abs.pathname.indexOf("/api/") === 0) return true;
+          // If absolute /api/*: accept if it's same-origin, or matches apiBase origin if set
+          if (CFG.apiBase){
+            try{
+              var base = new URL(CFG.apiBase, window.location.href);
+              return (abs.origin === base.origin);
+            }catch(_){
+              return (abs.origin === window.location.origin);
+            }
+          }
+          return (abs.origin === window.location.origin);
         }catch(_){}
         return false;
       }
@@ -394,6 +452,7 @@
           if (!has) out[key] = token;
         }
 
+        // Only set Content-Type if caller didn't provide one.
         var hasCT = false;
         Object.keys(out).forEach(function(k){
           if (String(k).toLowerCase() === "content-type") hasCT = true;
@@ -407,8 +466,7 @@
       function nyxFetch(input, init){
         if (!_nativeFetch) throw new Error("fetch_not_supported");
         var url = resolveUrl(input);
-        var should = startsWithApiPath(url);
-        if (should) init = injectTokenHeaders(init);
+        if (isApiRequest(url)) init = injectTokenHeaders(init);
         return _nativeFetch(input, init);
       }
 
@@ -421,36 +479,30 @@
         window.fetch = function(input, init){
           try{
             var url = resolveUrl(input);
-            if (startsWithApiPath(url)) return nyxFetch(input, init);
+            if (isApiRequest(url)) return nyxFetch(input, init);
           }catch(_){}
           return _nativeFetch(input, init);
         };
       }
 
-      function exposeConfig(){
-        window.NYX_CONFIG = {
-          token: CFG.token,
-          enforce: CFG.enforce,
-          apiBase: CFG.apiBase,
-          allowedOrigins: (CFG.allowedOrigins || []).slice(0),
-          urls: Object.assign({}, CFG.urls || {}),
-          heroSrc: CFG.heroSrc || "",
-          tokenHeader: CFG.tokenHeader || "X-SB-WIDGET-TOKEN"
-        };
-
-        window.NYX_API_BASE = CFG.apiBase;
-        window.NYX_TOKEN = CFG.token;
-
-        window.dispatchEvent(new CustomEvent("nyx:config", { detail: window.NYX_CONFIG }));
-      }
-
+      // ----------------------------
+      // Config apply
+      // ----------------------------
       function applyConfig(payload, senderOrigin){
         var p = isObj(payload) ? payload : {};
+        var incomingAllow = Array.isArray(p.allowedOrigins) ? p.allowedOrigins.map(String) : [];
+
+        // HARD GATE (embedded): sender must be in allowlist BEFORE any lock/config
+        if (EMBEDDED){
+          if (!originAllowed(senderOrigin, incomingAllow)) return false;
+        } else {
+          // Standalone: accept, but don't lock
+          if (!senderOrigin || senderOrigin === "null") senderOrigin = "";
+        }
+
         var token = safeStr(p.token).trim();
         var apiBase = normalizeApiBase(p.apiBase);
-
-        var tokenHeader = safeStr(p.tokenHeader || p.token_header || p.tokenHeaderName || "").trim();
-        if (!tokenHeader) tokenHeader = "X-SB-WIDGET-TOKEN";
+        var tokenHeader = parseTokenHeader(p);
 
         if (EMBEDDED) {
           if (!isTokenOk(token)) return false;
@@ -466,13 +518,14 @@
         CFG.apiBase = apiBase;
         CFG.tokenHeader = tokenHeader;
 
-        CFG.allowedOrigins = Array.isArray(p.allowedOrigins) ? p.allowedOrigins.map(String) : [];
+        CFG.allowedOrigins = incomingAllow;
         CFG.urls = isObj(p.urls) ? p.urls : {};
 
         CFG.heroSrc = normalizeHeroSrc(p.heroSrc || (p.assets && (p.assets.heroSrc || p.assets.hero)) || "");
         if (!CFG.heroSrc) CFG.heroSrc = "/avatar/assets/nyx-hero.webp";
 
-        if (EMBEDDED && senderOrigin) LOCKED_PARENT_ORIGIN = senderOrigin;
+        // LOCK PARENT after first valid config in embedded mode
+        if (EMBEDDED && senderOrigin && !LOCKED_PARENT_ORIGIN) LOCKED_PARENT_ORIGIN = senderOrigin;
 
         exposeConfig();
 
@@ -480,16 +533,19 @@
         setHud("hudParent", EMBEDDED ? (LOCKED_PARENT_ORIGIN || "—") : "(direct)");
         setHud("hudApi", CFG.apiBase);
         setHud("hudToken", token ? ("set ("+token.length+")") : "missing");
+        setHud("hudTokenHeader", CFG.tokenHeader);
 
         try{ mountShellFromConfig(); }catch(_){}
 
+        // ACK: do NOT echo the raw token back (unnecessary + leaks via parent logs)
         if (EMBEDDED && LOCKED_PARENT_ORIGIN){
           try{
             window.parent.postMessage({
               type: "NYX_ACK",
               payload: {
                 ok: true,
-                token: CFG.token,
+                tokenSet: !!CFG.token,
+                tokenLen: CFG.token ? CFG.token.length : 0,
                 apiBase: CFG.apiBase,
                 tokenHeader: CFG.tokenHeader,
                 host: window.location.origin,
@@ -502,6 +558,9 @@
         return true;
       }
 
+      // ----------------------------
+      // Bootstrap fallback (query params / standalone)
+      // ----------------------------
       function bootstrapFromQuery(){
         try{
           var qs = new URLSearchParams(window.location.search || "");
@@ -513,45 +572,68 @@
           var tokenHeader = safeStr(qs.get("tokenHeader") || qs.get("token_header") || "").trim();
 
           if (apiBase || token || heroSrc || tokenHeader){
-            applyConfig({ apiBase: apiBase, token: token, enforce: enforce, heroSrc: heroSrc, tokenHeader: tokenHeader }, "");
+            applyConfig({ apiBase: apiBase, token: token, enforce: enforce, heroSrc: heroSrc, tokenHeader: tokenHeader, allowedOrigins: [] }, "");
           } else if (!EMBEDDED) {
-            applyConfig({ apiBase: window.location.origin, token: "", enforce: false, heroSrc: "" }, "");
+            applyConfig({ apiBase: window.location.origin, token: "", enforce: false, heroSrc: "", tokenHeader: "" , allowedOrigins: []}, "");
           }
         }catch(_){
-          if (!EMBEDDED) applyConfig({ apiBase: window.location.origin, token: "", enforce: false, heroSrc: "" }, "");
+          if (!EMBEDDED) applyConfig({ apiBase: window.location.origin, token: "", enforce: false, heroSrc: "", tokenHeader: "", allowedOrigins: [] }, "");
         }
       }
 
+      // ----------------------------
+      // Message receiver (NYX_CONFIG)
+      // ----------------------------
       window.addEventListener("message", function(ev){
         var origin = safeStr(ev.origin || "");
-        if (!originAllowed(origin)) return;
-
         var data = ev.data;
-        if (!isObj(data)) return;
 
-        if (data.type === "NYX_CONFIG") {
-          var ok = applyConfig(data.payload, origin);
-          if(!ok) setHud("hudBridge", "bad_config");
+        if (!isObj(data)) return;
+        if (data.type !== "NYX_CONFIG") return;
+
+        // Require payload to be an object and contain allowlist when embedded
+        var payload = isObj(data.payload) ? data.payload : {};
+        if (EMBEDDED && (!Array.isArray(payload.allowedOrigins) || !payload.allowedOrigins.length)) {
+          // No allowlist => reject in embed mode
+          setHud("hudBridge", "bad_config");
+          return;
         }
+
+        var ok = applyConfig(payload, origin);
+        if(!ok) setHud("hudBridge", "bad_config");
       });
 
+      // ----------------------------
+      // READY signal (safe-ish)
+      // ----------------------------
       function signalReady(){
         if (!EMBEDDED){
           setHud("hudBridge", "standalone");
           setHud("hudParent", "(direct)");
           setHud("hudApi", CFG.apiBase || window.location.origin);
           setHud("hudToken", CFG.token ? ("set ("+CFG.token.length+")") : "missing");
+          setHud("hudTokenHeader", CFG.tokenHeader || "X-SB-WIDGET-TOKEN");
           return;
         }
+
         setHud("hudBridge", "ready");
+
+        // Prefer a known/allowed target when possible; otherwise use "*" and rely on allowlist gating on config.
+        var target = "*";
+        if (CFG.allowedOrigins && CFG.allowedOrigins.length === 1) target = CFG.allowedOrigins[0];
+        if (LOCKED_PARENT_ORIGIN) target = LOCKED_PARENT_ORIGIN;
+
         try{
           window.parent.postMessage({
             type: "NYX_READY",
             payload: { ok:true, host: window.location.origin, href: window.location.href }
-          }, "*");
+          }, target);
         }catch(_){}
       }
 
+      // ----------------------------
+      // Chips UI wiring (kept)
+      // ----------------------------
       function setActiveChip(chip){
         var rail = window.NYX_HOST_UI.chips;
         if(rail){
@@ -591,6 +673,9 @@
       var chips = document.getElementById('nyxChips');
       if (chips) chips.addEventListener('click', onChipClick);
 
+      // ----------------------------
+      // Init
+      // ----------------------------
       bootstrapFromQuery();
       signalReady();
       setTimeout(signalReady, 350);
