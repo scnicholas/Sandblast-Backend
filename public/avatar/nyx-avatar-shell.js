@@ -1,7 +1,7 @@
 /* nyx-avatar-shell.js
  *
  * Nyx Avatar Shell — DOM renderer (no frameworks)
- * v1.3.1 (HERO AVATAR SUPPORT + VISIBILITY AWARE DRIFT + AESTHETIC HARDENING + SOLID CANVAS + ISOLATION)
+ * v1.3.1 (HERO AVATAR SUPPORT + VISIBILITY AWARE DRIFT + AESTHETIC HARDENING + SOLID CANVAS + ISOLATION + HERO FAILOPEN DIAG)
  *
  * Contract:
  *   window.NyxAvatarShell.mount(mountEl[, opts]) -> instance
@@ -33,6 +33,7 @@
 
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
   const isNum = (v) => typeof v === "number" && Number.isFinite(v);
+  const safeStr = (x) => (x == null ? "" : String(x));
 
   // -----------------------------
   // Style injection (idempotent)
@@ -224,6 +225,25 @@
   transform: translateY(calc(-5px + (-2px * var(--nyx-shell-dom))));
 }
 
+/* Hero fallback badge (only shown if hero fails to load) */
+.nyxHeroFail{
+  position:absolute;
+  left:12px;
+  bottom:12px;
+  padding:8px 10px;
+  border-radius:12px;
+  border:1px solid rgba(255,255,255,0.10);
+  background: rgba(0,0,0,0.38);
+  color: rgba(255,255,255,0.86);
+  font: 12px/1.25 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  z-index: 9;
+  pointer-events:none;
+  max-width: calc(100% - 24px);
+  overflow:hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @media (prefers-reduced-motion: reduce){
   .nyxShell{ transform: none !important; }
   .nyxHero{ transition: none !important; }
@@ -342,43 +362,74 @@
     root.appendChild(noise);
     root.appendChild(vig);
 
+    // --- Hero layer + fail-open diagnostics (never silently disappears) ---
     let heroWrap = null;
     let heroImg = null;
+    let heroFail = null;
+    let heroAttempt = 0;
 
-    function enableHero(src) {
-      const s = String(src || "").trim();
-      if (!s) return false;
+    function ensureHeroNodes() {
+      if (heroWrap) return;
 
-      if (!heroWrap) {
-        heroWrap = document.createElement("div");
-        heroWrap.className = "nyxHeroWrap";
-        heroImg = document.createElement("img");
-        heroImg.className = "nyxHero";
-        heroImg.alt = "Nyx";
-        heroImg.decoding = "async";
-        heroImg.loading = "eager";
-        heroWrap.appendChild(heroImg);
-        root.appendChild(heroWrap);
-      }
+      heroWrap = document.createElement("div");
+      heroWrap.className = "nyxHeroWrap";
 
-      root.setAttribute("data-hero", "1");
-      heroImg.src = s;
+      heroImg = document.createElement("img");
+      heroImg.className = "nyxHero";
+      heroImg.alt = "Nyx";
+      heroImg.decoding = "async";
+      heroImg.loading = "eager";
+      heroWrap.appendChild(heroImg);
 
-      heroImg.onerror = function () {
-        try { root.setAttribute("data-hero", "0"); } catch (_) {}
-        try {
-          if (heroWrap && heroWrap.parentNode) heroWrap.parentNode.removeChild(heroWrap);
-        } catch (_) {}
-        heroWrap = null;
-        heroImg = null;
+      root.appendChild(heroWrap);
+
+      // failure badge (only created once)
+      heroFail = document.createElement("div");
+      heroFail.className = "nyxHeroFail";
+      heroFail.style.display = "none";
+      heroFail.textContent = "hero: —";
+      root.appendChild(heroFail);
+
+      heroImg.onload = function () {
+        try { heroFail.style.display = "none"; } catch (_) {}
+        try { root.setAttribute("data-hero", "1"); } catch (_) {}
       };
 
+      heroImg.onerror = function () {
+        // IMPORTANT: do NOT remove the nodes; keep evidence.
+        try { root.setAttribute("data-hero", "0"); } catch (_) {}
+        try {
+          if (heroFail) {
+            heroFail.style.display = "";
+            heroFail.textContent = "hero failed (" + heroAttempt + "): " + safeStr(heroImg && heroImg.src).slice(0, 160);
+          }
+        } catch (_) {}
+        try {
+          // loud, but controlled
+          console.warn("[NyxAvatarShell] hero image failed to load:", safeStr(heroImg && heroImg.src));
+        } catch (_) {}
+      };
+    }
+
+    function enableHero(src) {
+      const s = safeStr(src).trim();
+      if (!s) return false;
+
+      ensureHeroNodes();
+
+      heroAttempt += 1;
+      root.setAttribute("data-hero", "1"); // optimistic; onerror flips to 0
+      heroImg.src = s;
+
+      // show "attempt" badge only if it errors; keep quiet otherwise
       return true;
     }
 
+    // Mount
     while (mountEl.firstChild) mountEl.removeChild(mountEl.firstChild);
     mountEl.appendChild(root);
 
+    // Drift controller
     const drift = createDriftController(root);
     const prefersReduced = (() => {
       try { return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches; }
@@ -386,6 +437,7 @@
     })();
     if (!prefersReduced) drift.start();
 
+    // State
     const state = {
       presence: "idle",
       amp: 0.10,
@@ -427,21 +479,21 @@
     }
 
     function setStage(stage) {
-      const s = String(stage || "").trim().toLowerCase();
+      const s = safeStr(stage).trim().toLowerCase();
       state.stage = s;
       if (s) root.setAttribute("data-stage", s);
       else root.removeAttribute("data-stage");
     }
 
     function setAnimSet(name) {
-      const s = String(name || "").trim().toLowerCase();
+      const s = safeStr(name).trim().toLowerCase();
       state.animSet = s;
       if (s) root.setAttribute("data-anim", s);
       else root.removeAttribute("data-anim");
     }
 
     function setHero(src) {
-      const s = String(src || "").trim();
+      const s = safeStr(src).trim();
       state.hero = s;
       if (!s) return;
       enableHero(s);
@@ -508,6 +560,7 @@
       if (root && root.parentNode) root.parentNode.removeChild(root);
     }
 
+    // Default tuning
     if (cfg) {
       if (cfg.presence) setPresence(cfg.presence);
       if (isNum(cfg.amp)) setAmp(cfg.amp);
@@ -535,6 +588,9 @@
     };
   }
 
+  // -----------------------------
+  // Singleton public API
+  // -----------------------------
   let _instance = null;
 
   function mount(mountEl, opts) {
@@ -556,6 +612,7 @@
   function setHero(src) { if (_instance && _instance.setHero) _instance.setHero(src); }
   function getInstance() { return _instance; }
 
+  // Expose
   window.NyxAvatarShell = {
     version: SHELL_VERSION,
     mount,
