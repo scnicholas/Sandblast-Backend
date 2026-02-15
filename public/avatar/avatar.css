@@ -1,19 +1,14 @@
 /* avatar.css
  *
- * v1.1.1 (HORIZONTAL CHIP RAIL++++ + INPUT BAR RESERVE++++ + BUBBLE RESPONSIVE++++ + HERO TARGET HARDEN++++ + EMBED STABILITY++++)
+ * v1.1.2 (HERO FALLBACK FORCE++++ + SPEECH TAIL UNCLIPPED++++ + AVATAR ALWAYS VISIBLE++++ + BLACK DOMINANCE++++)
  *
- * Goals:
- * - Force chips to be horizontal left→right (single row; scroll if needed)
- * - Reserve space for upcoming bottom text bar (no layout collisions)
- * - Comic-panel speech bubble with tail + premium outline + reliable sizing
- * - Kill default blue links inside bubble; use brand styling
- * - Hero framing controls without accidentally styling future UI icons
- * - Keep absolute black canvas and embed safety
+ * Fixes:
+ * - Nyx hero not visible: add forced CSS fallback hero to #nyxShellMount
+ * - Speech bubble tail not showing: bubble overflow was clipping ::after tail
+ * - Keep chip rail horizontal + unified styling
  */
 
-/* =========================
-   ROOT TOKENS
-   ========================= */
+/* avatar.css */
 :root{
   /* Core palette */
   --bg:#000000;
@@ -37,12 +32,10 @@
   --chip-bg:rgba(12,12,18,.82);
   --chip-border:rgba(255,255,255,.12);
 
-  /* Hero image framing (tunable) */
-  --hero-fit: cover;          /* cover | contain */
-  --hero-pos: 50% 20%;        /* eyes higher */
-
-  /* Reserve space for future input bar */
-  --input-reserve: 74px;
+  /* Hero framing */
+  --hero-fit: cover;           /* cover | contain */
+  --hero-pos: 50% 18%;         /* bias eyes upward */
+  --hero-fallback: url("/avatar/assets/nyx-hero.webp");
 
   /* driven by directive (avatar-shell writes these) */
   --breath:1;         /* ~0.6..1.4 */
@@ -70,15 +63,14 @@ body{
   color:var(--text);
 }
 
-/* =========================
+/* -------------------------
    EMBED SAFETY + CANVAS
-   ========================= */
+------------------------- */
 
 #avatarRoot{
   position:relative;
   min-height:420px;
-  width:100%;
-  overflow:hidden; /* ensure overlay doesn’t spill */
+
   background:#000 !important;
   background:
     radial-gradient(900px 420px at 50% 20%, rgba(255,255,255,.035), transparent 62%),
@@ -86,28 +78,78 @@ body{
     var(--panel) !important;
 }
 
+/* =========================
+   HERO / AVATAR VISIBILITY FIX
+   - make Nyx show even if shell fails
+========================= */
+
 #nyxShellMount{
   position:absolute;
   inset:0;
+  z-index:10;
+
+  /* critical: ensure hero can paint */
+  overflow:hidden;
+  border-radius:0;
+  background-color:#000 !important;
+
+  /* forced fallback hero */
+  background-image: var(--hero-fallback);
+  background-size: var(--hero-fit) !important;
+  background-position: var(--hero-pos) !important;
+  background-repeat:no-repeat !important;
+
+  /* keep your layout intent */
   display:flex;
   align-items:center;
   justify-content:center;
-  padding:18px;
-  z-index:10;
+  padding:0 !important;
 }
 
+/* If shell injects an <img>, force it to be stage-filling */
+#nyxShellMount img{
+  position:absolute !important;
+  inset:0 !important;
+  width:100% !important;
+  height:100% !important;
+  object-fit: var(--hero-fit) !important;
+  object-position: var(--hero-pos) !important;
+  display:block !important;
+  z-index:1;
+}
+
+/* If shell uses wrappers / bg layers, normalize them */
+#nyxShellMount .hero,
+#nyxShellMount .nyx-hero,
+#nyxShellMount .heroStage,
+#nyxShellMount .hero-layer,
+#nyxShellMount .heroImage,
+#nyxShellMount .hero-img{
+  position:absolute !important;
+  inset:0 !important;
+  background-size: var(--hero-fit) !important;
+  background-position: var(--hero-pos) !important;
+  background-repeat:no-repeat !important;
+  z-index:1;
+}
+
+/* Keep fallback SVG/avatar DOM as LAST resort (above hero bg if present) */
+#nyxAvatar{
+  position:relative;
+  z-index:2;
+  opacity:1 !important;
+  visibility:visible !important;
+}
+
+/* Overlay always above hero/avatar */
 #nyxOverlay{
   position:absolute;
   inset:0;
-  z-index:9999; /* bubble guarantee */
-  pointer-events:none; /* overlay container ignores clicks; children enable */
+  z-index:9999;
+  background:transparent !important;
 }
 
-#nyxAvatar{
-  opacity:1;
-  visibility:visible;
-}
-
+/* If your host has a panel, keep it black */
 #panel{
   background:#000 !important;
   border-color: var(--line) !important;
@@ -119,144 +161,33 @@ body{
   background: transparent !important;
 }
 
-/* =========================
-   HERO FRAMING (HARDENED)
-   - Avoid styling future icons/buttons by only targeting likely hero elements.
-   ========================= */
-
-/* If the shell uses an IMG for hero, it is typically a large stage image.
-   We restrict to images that are direct-ish children / known wrappers. */
-#nyxShellMount .hero img,
-#nyxShellMount .nyx-hero img,
-#nyxShellMount .heroStage img,
-#nyxShellMount .hero-layer img,
-#nyxShellMount .heroImage img,
-#nyxShellMount img.hero,
-#nyxShellMount img.nyx-hero{
-  width:100% !important;
-  height:100% !important;
-  object-fit: var(--hero-fit) !important;
-  object-position: var(--hero-pos) !important;
-  display:block;
-}
-
-/* Common hero wrapper patterns */
-#nyxShellMount .hero,
-#nyxShellMount .nyx-hero,
-#nyxShellMount .heroStage,
-#nyxShellMount .hero-layer,
-#nyxShellMount .heroImage,
-#nyxShellMount .hero-img{
-  background-size: var(--hero-fit) !important;
-  background-position: var(--hero-pos) !important;
-  background-repeat:no-repeat !important;
-}
-
-/* =========================
-   OPTIONAL demo wrappers (kept)
-   ========================= */
-
-.stage{
-  min-height:100%;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  padding:24px;
-}
-
-.panel{
-  width:min(720px, 92vw);
-  border:1px solid var(--line);
-  background:
-    radial-gradient(900px 420px at 50% 0%, rgba(255,255,255,.03), transparent 60%),
-    linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.01)),
-    var(--panel);
-  border-radius:18px;
-  padding:18px;
-  box-shadow:0 18px 60px rgba(0,0,0,.65);
-}
-
-.brand{
-  display:flex;
-  align-items:baseline;
-  justify-content:space-between;
-  gap:10px;
-  padding:6px 6px 14px 6px;
-  border-bottom:1px solid var(--line);
-}
-.brand-title{ font-size:20px; font-weight:700; letter-spacing:.2px; }
-.brand-sub{ font-size:13px; color:var(--muted); }
-
-.avatar-root{
-  margin-top:16px;
-  border:1px solid var(--line);
-  border-radius:18px;
-  overflow:hidden;
-  background:
-    radial-gradient(500px 240px at 50% 30%, rgba(255,255,255,.05), transparent 60%),
-    radial-gradient(560px 260px at 55% 65%, rgba(140,0,35,.10), transparent 65%),
-    var(--panel);
-  padding:18px;
-  min-height:320px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-}
-
-/* =========================
+/* -------------------------
    OVERLAY POSITIONING
-   - Raise bubble & reserve bottom for upcoming input bar
-   ========================= */
+   (keep bubble off face + above chat bar)
+------------------------- */
 
 .overlay-inner{
-  position:absolute;
-  left:0;
-  right:0;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-
-  /* Lift above the future input bar */
-  bottom: calc(86px + var(--input-reserve)) !important;
-
+  bottom:110px !important; /* higher so bubble clears face + chatbar */
   gap:12px !important;
   padding:0 14px !important;
-
-  pointer-events:none; /* container ignores; children enable */
 }
 
-/* small heights need less lift */
 @media (max-height: 640px){
-  .overlay-inner{
-    bottom: calc(64px + var(--input-reserve)) !important;
-  }
-}
-@media (max-height: 560px){
-  .overlay-inner{
-    bottom: calc(52px + var(--input-reserve)) !important;
-  }
+  .overlay-inner{ bottom:92px !important; }
 }
 
-/* allow clicking inside bubble/chips */
-.overlay-inner .bubble,
-.overlay-inner .chips,
-.overlay-inner .chip,
-.overlay-inner .action-pill{
-  pointer-events:auto;
-}
-
-/* =========================
-   COMIC SPEECH BUBBLE (responsive)
-   ========================= */
+/* -------------------------
+   COMIC SPEECH BUBBLE (tail MUST NOT be clipped)
+------------------------- */
 
 #nyxBubble,
 .bubble{
   display:block !important;
+  pointer-events:auto;
 
-  /* responsive width rules */
-  width: min(720px, calc(100vw - 56px));
-  max-width: min(720px, calc(100vw - 56px));
   min-width: 300px;
+  max-width: min(720px, calc(100vw - 56px));
+  width: max-content;
 
   position: relative;
 
@@ -271,7 +202,9 @@ body{
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 
-  overflow:hidden;
+  /* CRITICAL: allow tail to render */
+  overflow: visible !important;
+
   will-change: transform, opacity, box-shadow;
   transform: translateZ(0);
 }
@@ -290,7 +223,7 @@ body{
   opacity:.75;
 }
 
-/* tail */
+/* tail (now visible because overflow is NOT hidden) */
 #nyxBubble::after,
 .bubble::after{
   content:"";
@@ -319,7 +252,7 @@ body{
   color: var(--text);
 }
 
-/* Links: kill browser blue */
+/* Links inside bubble: kill browser blue */
 #nyxBubble a,
 .bubble a{
   color: rgba(255,255,255,.90);
@@ -333,7 +266,7 @@ body{
   border-bottom-color: rgba(140,0,35,.92);
 }
 
-/* actions row spacing */
+/* actions row spacing (horizontal) */
 #nyxBubbleActions,
 .bubble-actions{
   position:relative;
@@ -341,11 +274,12 @@ body{
   display:flex;
   flex-wrap:wrap;
   gap:8px;
+  justify-content:flex-start;
 }
 
-/* =========================
-   ACTION PILLS (inside bubble)
-   ========================= */
+/* -------------------------
+   ACTION PILLS
+------------------------- */
 
 .action-pill{
   user-select:none;
@@ -370,9 +304,9 @@ body{
 }
 .action-pill.schedule .ext{ margin-left:6px; opacity:.85; }
 
-/* =========================
+/* -------------------------
    LOUD typing glow + POP animation
-   ========================= */
+------------------------- */
 
 #nyxBubble.typing,
 .bubble.typing{
@@ -395,46 +329,24 @@ body{
   100% { transform: translateY(0) scale(1); opacity:1; }
 }
 
-/* =========================
-   CHIPS — FORCE HORIZONTAL RAIL (single row)
-   ========================= */
+/* -------------------------
+   CHIPS (horizontal rail)
+------------------------- */
 
 #nyxChips,
 .chips{
   display:flex !important;
-  flex-direction: row !important;
-  flex-wrap: nowrap !important;        /* critical: prevents vertical stack */
-  align-items:center !important;
-  justify-content:center !important;
-  gap:10px !important;
-
-  width: min(720px, calc(100vw - 56px)) !important;
-  max-width: min(720px, calc(100vw - 56px)) !important;
-
-  overflow-x:auto !important;          /* scroll if tight */
-  overflow-y:hidden !important;
-
-  padding:10px 12px !important;
-
-  background: rgba(0,0,0,.35);
-  border: 1px solid rgba(255,255,255,.10);
-  border-radius: 999px;
-
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;               /* Firefox */
+  flex-direction:row !important;
+  flex-wrap:wrap;
+  gap:8px;
+  justify-content:center;
+  align-items:center;
 }
 
-/* hide scrollbar in webkit */
-#nyxChips::-webkit-scrollbar,
-.chips::-webkit-scrollbar{ display:none; }
-
 .chip{
-  flex: 0 0 auto !important;
-  white-space: nowrap !important;
-
   user-select:none;
   cursor:pointer;
-  padding: 10px 14px;
+  padding: 9px 12px;
   border-radius: 999px;
   border: 1px solid var(--chip-border);
   background: var(--chip-bg);
@@ -456,9 +368,9 @@ body{
 }
 .chip .ext{ margin-left:6px; opacity:.85; }
 
-/* =========================
-   Avatar visuals (fallback)
-   ========================= */
+/* -------------------------
+   Fallback avatar visuals (only visible if hero missing)
+------------------------- */
 
 .avatar{
   width:min(520px, 100%);
@@ -605,9 +517,9 @@ body{
   96%{ transform: translateY(-110%); }
 }
 
-/* =========================
+/* -------------------------
    HUD + controls (kept)
-   ========================= */
+------------------------- */
 .hud{
   margin-top:14px;
   display:grid;
