@@ -1,13 +1,14 @@
 /* avatar.css
  *
- * v1.1.3 (HERO LAYER BOOST++++ + NYX VISIBILITY FIX++++ + SPOTLIGHT POP++++ + SPEECH TAIL SAFE++++)
+ * v1.1.1 (HERO HARD-FALLBACK++++ + STOP BLACK-WASH++++ + OVERLAY SAFE++++ + HORIZONTAL PILLS++++)
  *
- * Fixes:
- * - Nyx faint/hidden: promote hero to filtered layer + add spotlight lift
- * - Keep true-black canvas + bubble tail unclipped
- * - Keep chip rail horizontal
+ * Goals:
+ * - Guarantee Nyx hero is visible even if shell fails (host sets --nyx-hero-url + background-image)
+ * - Prevent “black wash” layers from dimming hero/PNG/canvas
+ * - Keep true black canvas + premium bubble + unified chips
  */
 
+/* avatar.css */
 :root{
   /* Core palette */
   --bg:#000000;
@@ -32,20 +33,10 @@
   --chip-border:rgba(255,255,255,.12);
 
   /* Hero framing */
-  --hero-fit: cover;                 /* cover | contain */
-  --hero-pos: 50% 18%;               /* bias eyes upward */
-  --hero-fallback: url("/avatar/assets/nyx-hero.webp");
-
-  /* HERO VISIBILITY TUNING (the magic) */
-  --hero-opacity: 1;                 /* 0.75..1 */
-  --hero-brightness: 1.18;           /* 1.05..1.30 */
-  --hero-contrast: 1.14;             /* 1.05..1.25 */
-  --hero-saturate: 1.08;             /* 1.0..1.2 */
-  --hero-gamma: 1;                   /* keep 1 (placeholder if needed later) */
-
-  /* Spotlight behind Nyx */
-  --spot-alpha: .22;                 /* 0.10..0.28 */
-  --spot-alpha2: .14;
+  --hero-fit: cover;          /* cover | contain */
+  --hero-pos: 50% 18%;        /* bring eyes up */
+  --hero-opacity: 1;          /* hard visibility */
+  --hero-dim: 0;              /* 0 = no dim overlay */
 
   /* driven by directive (avatar-shell writes these) */
   --breath:1;
@@ -55,10 +46,15 @@
   --jaw:0.42;
   --gazeWander:0.25;
   --headTilt:0.07;
+
+  /* host sets this as url("...") */
+  --nyx-hero-url: none;
 }
 
 *{box-sizing:border-box}
 html,body{height:100%}
+
+/* HARD FORCE: wins against host inline styles */
 html, body{ background:#000 !important; }
 
 body{
@@ -72,7 +68,7 @@ body{
 }
 
 /* -------------------------
-   EMBED SAFETY + CANVAS
+   CANVAS + EMBED SAFETY
 ------------------------- */
 
 #avatarRoot{
@@ -86,115 +82,66 @@ body{
     var(--panel) !important;
 }
 
-/* =========================
-   HERO / NYX VISIBILITY FIX
-   - hero becomes a FILTERED layer
-========================= */
-
+/* Mount sits BELOW overlay, ABOVE background */
 #nyxShellMount{
   position:absolute;
   inset:0;
-  z-index:10;
-  overflow:hidden;
-  background:#000 !important;
-
-  /* keep layout intent */
   display:flex;
   align-items:center;
   justify-content:center;
+  padding:18px;
+  z-index:10;
 
-  /* IMPORTANT: don't rely on raw background here anymore */
-  background-image:none !important;
-}
-
-/* HERO LAYER (filtered) */
-#nyxShellMount::before{
-  content:"";
-  position:absolute;
-  inset:0;
-  z-index:1;
-
-  background-image: var(--hero-fallback);
+  /* HERO HARD-FALLBACK (set by host JS) */
+  background-image: var(--nyx-hero-url);
   background-size: var(--hero-fit);
   background-position: var(--hero-pos);
   background-repeat:no-repeat;
-
-  opacity: var(--hero-opacity);
-
-  /* make Nyx POP */
-  filter:
-    brightness(var(--hero-brightness))
-    contrast(var(--hero-contrast))
-    saturate(var(--hero-saturate));
-
-  transform: translateZ(0) scale(1.01);
+  opacity: 1 !important;
 }
 
-/* SPOTLIGHT (subtle lift behind face / upper torso) */
-#nyxShellMount::after{
+/* Optional very light vignette to frame (NOT a black wash) */
+#nyxShellMount::before{
   content:"";
-  position:absolute;
-  inset:0;
-  z-index:2;
+  position:absolute; inset:0;
   pointer-events:none;
-
+  opacity: .22;
   background:
-    radial-gradient(520px 420px at 50% 28%, rgba(255,255,255,var(--spot-alpha)), transparent 62%),
-    radial-gradient(680px 520px at 50% 40%, rgba(140,0,35,var(--spot-alpha2)), transparent 68%),
-    radial-gradient(980px 780px at 50% 75%, rgba(0,0,0,.45), transparent 60%);
-  mix-blend-mode: screen;
-  opacity: .75;
+    radial-gradient(60% 55% at 50% 36%, rgba(255,255,255,.06), transparent 62%),
+    radial-gradient(70% 60% at 50% 50%, rgba(140,0,35,.08), transparent 68%);
 }
 
-/* If shell injects an <img>, keep it (but don't let it dim Nyx) */
-#nyxShellMount img{
-  position:absolute !important;
-  inset:0 !important;
+/* Kill “black wash” overlays inside mount (defensive) */
+#nyxShellMount *{
+  opacity: 1 !important;
+  filter: none !important;
+  mix-blend-mode: normal !important;
+}
+
+/* If shell uses media/canvas */
+#nyxShellMount img,
+#nyxShellMount canvas,
+#nyxShellMount video{
   width:100% !important;
   height:100% !important;
   object-fit: var(--hero-fit) !important;
   object-position: var(--hero-pos) !important;
   display:block !important;
-  z-index:3;
-  filter:
-    brightness(var(--hero-brightness))
-    contrast(var(--hero-contrast))
-    saturate(var(--hero-saturate)) !important;
+  opacity: var(--hero-opacity) !important;
+  filter:none !important;
 }
 
-/* wrapper normalization */
-#nyxShellMount .hero,
-#nyxShellMount .nyx-hero,
-#nyxShellMount .heroStage,
-#nyxShellMount .hero-layer,
-#nyxShellMount .heroImage,
-#nyxShellMount .hero-img{
-  position:absolute !important;
-  inset:0 !important;
-  z-index:3 !important;
-  background-size: var(--hero-fit) !important;
-  background-position: var(--hero-pos) !important;
-  background-repeat:no-repeat !important;
-  filter:
-    brightness(var(--hero-brightness))
-    contrast(var(--hero-contrast))
-    saturate(var(--hero-saturate)) !important;
-}
-
-/* fallback DOM stays available */
-#nyxAvatar{
-  position:relative;
-  z-index:4;
-  opacity:1 !important;
-  visibility:visible !important;
-}
-
-/* Overlay always above everything */
+/* Overlay always above avatar */
 #nyxOverlay{
   position:absolute;
   inset:0;
   z-index:9999;
-  background:transparent !important;
+  background: transparent !important;
+}
+
+#nyxAvatar{
+  opacity:1 !important;
+  visibility:visible !important;
 }
 
 #panel{
@@ -211,18 +158,21 @@ body{
 /* -------------------------
    OVERLAY POSITIONING
 ------------------------- */
+
 .overlay-inner{
-  bottom:110px !important;
+  bottom:72px !important;
   gap:12px !important;
   padding:0 14px !important;
 }
+
 @media (max-height: 640px){
-  .overlay-inner{ bottom:92px !important; }
+  .overlay-inner{ bottom:52px !important; }
 }
 
 /* -------------------------
-   COMIC SPEECH BUBBLE (tail visible)
+   COMIC SPEECH BUBBLE
 ------------------------- */
+
 #nyxBubble,
 .bubble{
   display:block !important;
@@ -245,7 +195,7 @@ body{
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 
-  overflow: visible !important; /* CRITICAL */
+  overflow:hidden;
   will-change: transform, opacity, box-shadow;
   transform: translateZ(0);
 }
@@ -290,6 +240,7 @@ body{
   color: var(--text);
 }
 
+/* Links inside bubble: kill browser blue */
 #nyxBubble a,
 .bubble a{
   color: rgba(255,255,255,.90);
@@ -307,11 +258,20 @@ body{
 .bubble-actions{
   position:relative;
   padding: 0 14px 14px 14px;
-  display:flex;
-  flex-wrap:wrap;
+
+  /* HORIZONTAL row */
+  display:flex !important;
+  flex-direction: row !important;
+  flex-wrap: wrap !important;
+
   gap:8px;
+  align-items:center;
   justify-content:flex-start;
 }
+
+/* -------------------------
+   ACTION PILLS (inside bubble)
+------------------------- */
 
 .action-pill{
   user-select:none;
@@ -323,6 +283,7 @@ body{
   color: rgba(255,255,255,.90);
   font-size: 13px;
   letter-spacing:.2px;
+  white-space: nowrap;
   transition: transform 120ms ease, background 160ms ease, border-color 160ms ease;
 }
 .action-pill:hover{
@@ -346,6 +307,7 @@ body{
   50%  { box-shadow: 0 18px 60px var(--bubble-shadow), 0 0 52px rgba(140,0,35,.72); }
   100% { box-shadow: 0 18px 60px var(--bubble-shadow), 0 0 22px rgba(140,0,35,.20); }
 }
+
 #nyxBubble.pop,
 .bubble.pop{
   animation: bubblePop 280ms cubic-bezier(.2,.9,.2,1);
@@ -358,16 +320,16 @@ body{
 }
 
 /* -------------------------
-   CHIPS (horizontal)
+   CHIPS (unified)
 ------------------------- */
+
 #nyxChips,
 .chips{
   display:flex !important;
-  flex-direction:row !important;
-  flex-wrap:wrap;
+  flex-direction: row !important;
+  flex-wrap:wrap !important;
   gap:8px;
   justify-content:center;
-  align-items:center;
 }
 
 .chip{
@@ -380,6 +342,7 @@ body{
   color: rgba(255,255,255,.86);
   font-size: 13px;
   letter-spacing:.2px;
+  white-space: nowrap;
   box-shadow: 0 10px 30px rgba(0,0,0,.35);
   transition: transform 120ms ease, background 160ms ease, border-color 160ms ease, box-shadow 200ms ease;
 }
@@ -396,56 +359,142 @@ body{
 .chip .ext{ margin-left:6px; opacity:.85; }
 
 /* -------------------------
-   HUD + controls (kept)
+   FALLBACK AVATAR (simple silhouette)
 ------------------------- */
-.hud{
-  margin-top:14px;
-  display:grid;
-  grid-template-columns: repeat(2, minmax(0,1fr));
-  gap:8px;
-  padding:12px;
-  border:1px solid var(--line);
-  border-radius:14px;
-  background: rgba(255,255,255,.02);
-}
-.hud-row{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:8px;
-  padding:6px 8px;
-  border:1px solid rgba(255,255,255,.05);
-  border-radius:10px;
-  background: rgba(0,0,0,.18);
-}
-.hud-k{ color:var(--muted); font-size:12px; }
-.hud-v{ font-size:12px; color:var(--text); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 
-.controls{
-  margin-top:12px;
-  display:flex;
-  gap:10px;
-  flex-wrap:wrap;
+.avatar{
+  width:min(520px, 100%);
+  aspect-ratio: 16 / 9;
+  position:relative;
+  border-radius:16px;
+  border:1px solid rgba(255,255,255,.06);
+  background:
+    radial-gradient(380px 220px at 50% 35%, rgba(140,0,35,.14), transparent 65%),
+    radial-gradient(280px 200px at 60% 60%, rgba(255,255,255,.05), transparent 60%),
+    rgba(10,10,14,.72);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.03);
+  transform: rotate(calc(var(--headTilt) * 2deg));
+  transition: transform 240ms ease;
 }
-button{
-  border:1px solid rgba(255,255,255,.12);
-  background: rgba(255,255,255,.04);
-  color: var(--text);
-  padding:9px 12px;
-  border-radius:12px;
-  cursor:pointer;
-  transition: transform 120ms ease, background 160ms ease;
-}
-button:hover{ transform: translateY(-1px); background: rgba(255,255,255,.06); }
-button.primary{
-  border-color: rgba(140,0,35,.55);
-  background: rgba(140,0,35,.18);
-}
-button.primary:hover{ background: rgba(140,0,35,.26); }
 
-.hint{
-  margin-top:12px;
-  color: var(--muted);
-  font-size:12px;
-  line-height:1.35;
+.avatar::before{
+  content:"";
+  position:absolute; inset:0;
+  border-radius:16px;
+  background: radial-gradient(520px 260px at 50% 40%, rgba(255,255,255,.06), transparent 60%);
+  opacity: calc(.35 + (var(--motion) * .15));
+  transform: scale(calc(1 + (var(--breath) - 1) * 0.015));
+  transition: opacity 300ms ease;
+  pointer-events:none;
+}
+
+.silhouette{
+  position:absolute;
+  left:50%; top:50%;
+  transform: translate(-50%,-50%);
+  width:62%;
+  height:80%;
+  filter: drop-shadow(0 18px 40px rgba(0,0,0,.45));
+}
+
+.head{
+  position:absolute;
+  left:50%;
+  top:18%;
+  transform: translateX(-50%);
+  width:44%;
+  aspect-ratio:1/1;
+  border-radius:50%;
+  background:
+    radial-gradient(70px 55px at 40% 38%, rgba(255,255,255,.12), transparent 65%),
+    radial-gradient(90px 70px at 60% 60%, rgba(140,0,35,.18), transparent 60%),
+    rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.08);
+}
+
+.shoulders{
+  position:absolute;
+  left:50%;
+  top:48%;
+  transform: translateX(-50%) scaleX(1.05);
+  width:86%;
+  height:44%;
+  border-radius: 42% 42% 20% 20%;
+  background:
+    radial-gradient(120px 90px at 50% 20%, rgba(255,255,255,.08), transparent 70%),
+    rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.06);
+  transform-origin: 50% 10%;
+  animation: breathe calc(3.8s / var(--breath)) ease-in-out infinite;
+}
+
+.eye{
+  position:absolute;
+  top:42%;
+  width:12%;
+  height:9%;
+  border-radius:999px;
+  background: rgba(255,255,255,.10);
+  border:1px solid rgba(255,255,255,.10);
+  overflow:hidden;
+}
+.eye.left{ left:32% }
+.eye.right{ right:32% }
+
+.pupil{
+  position:absolute;
+  left:50%;
+  top:50%;
+  width:34%;
+  height:50%;
+  border-radius:999px;
+  background: rgba(255,255,255,.75);
+  transform: translate(-50%,-50%);
+  opacity:.85;
+}
+
+.lid{
+  position:absolute;
+  inset:0;
+  background: rgba(10,10,14,.92);
+  transform: translateY(-110%);
+  animation: blink calc(5.2s / var(--blink)) ease-in-out infinite;
+}
+
+.mouth{
+  position:absolute;
+  left:50%;
+  top:70%;
+  transform: translateX(-50%);
+  width:20%;
+  height:8%;
+  border-radius: 0 0 999px 999px;
+  border:1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.06);
+  transform-origin: 50% 50%;
+}
+.mouth::after{
+  content:"";
+  position:absolute;
+  left:50%; top:50%;
+  transform: translate(-50%,-50%);
+  width:60%;
+  height:40%;
+  border-radius:999px;
+  background: rgba(140,0,35,.28);
+  opacity: calc(.12 + (var(--mouth) * .75));
+  filter: blur(.2px);
+}
+.avatar.is-speaking .mouth{
+  transform: translateX(-50%) scaleY(calc(1 + var(--mouth) * 0.9));
+}
+
+@keyframes breathe{
+  0%,100%{ transform: translateX(-50%) scaleX(1.05) scaleY(1); }
+  50%{ transform: translateX(-50%) scaleX(1.05) scaleY(calc(1 + (var(--motion) * .03))); }
+}
+@keyframes blink{
+  0%,92%,100%{ transform: translateY(-110%); }
+  94%{ transform: translateY(0%); }
+  96%{ transform: translateY(-110%); }
 }
