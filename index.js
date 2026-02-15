@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.18bm (STABILITY HARDENING++++: CHAT fail-open on engine missing/throw + keeps v1.5.18bk security list)
+ * index.js v1.5.18bn (STABILITY HARDENING++++: CHAT fail-open on engine missing/throw + keeps v1.5.18bk security list)
  *
  * Keeps:
  * ✅ WIKI AUTHORITY FIX++++ (wikipedia split hot100 dir ingest + merged year map)
@@ -17,9 +17,12 @@
  * ✅ v1.5.18bj: backend self-host referer allow + hostOnly normalize + TRUE host redaction in 403 meta
  * ✅ v1.5.18bk: timing-safe debug auth + request timeout + content-type gate + no-store API + block Origin:null
  *
- * Adds (v1.5.18bm):
+ * Adds (v1.5.18bn):
  * ✅ STABILITY: /api/chat now “fail-open” when engine missing or throws (returns 200 + ok:true + safe reply + meta.error)
  *    - avoids widget-facing 5xx for chat path (mirrors TTS fail-open philosophy)
+
+ * ✅ AVATAR HOSTING: serves /public/avatar at /avatar + convenience routes (/avatar-host, /avatar-host.html)
+ * ✅ TOKEN GUARD: detects placeholder widget token and emits X-SB-Token-Warning; optional API token enforcement via env
  *
  * Env:
  *  - PUBLIC_BACKEND_HOST=sandblast-backend.onrender.com (optional override)
@@ -35,6 +38,9 @@
  *  - SECURITY_HSTS_MAX_AGE=15552000 (default 15552000; 180d)
  *  - SECURITY_PERMISSIONS_POLICY=... (optional override)
  *  - REQUEST_TIMEOUT_MS=25000 (default 25000; clamp 5000–120000)
+ *  - SB_WIDGET_TOKEN=... (optional shared token for widget/API calls)
+ *  - SB_WIDGET_TOKEN_HEADER=X-SB-WIDGET-TOKEN (optional; default shown)
+ *  - SB_WIDGET_TOKEN_ENFORCE=true|false (default false; if true and SB_WIDGET_TOKEN set, blocks /api/* without token)
  */
 
 // =========================
@@ -93,7 +99,7 @@ const nyxVoiceNaturalizeMod =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.18bm (STABILITY HARDENING++++: chat fail-open on engine missing/throw; keeps v1.5.18bk timing-safe debug auth + request timeout + content-type gate + no-store API + block Origin:null; keeps v1.5.18bj host redaction + backend referer allow + hostOnly normalize; keeps v1.5.18bg security + v1.5.18bf TTS fail-open + v1.5.18be CSE/chip continuity + v1.5.18bc reset/sessionPatch keys + v1.5.18bb WIKI AUTHORITY FIX++++ + CRITICAL FIXES++++ + diagnostics)";
+  "index.js v1.5.18bn (STABILITY HARDENING++++: chat fail-open on engine missing/throw; keeps v1.5.18bk timing-safe debug auth + request timeout + content-type gate + no-store API + block Origin:null; keeps v1.5.18bj host redaction + backend referer allow + hostOnly normalize; keeps v1.5.18bg security + v1.5.18bf TTS fail-open + v1.5.18be CSE/chip continuity + v1.5.18bc reset/sessionPatch keys + v1.5.18bb WIKI AUTHORITY FIX++++ + CRITICAL FIXES++++ + diagnostics)";
 
 // =========================
 // Utils
@@ -208,6 +214,17 @@ function isBrowserishUA(ua) {
   );
 }
 
+
+function isPlaceholderWidgetToken(tok) {
+  const s = safeStr(tok).trim();
+  if (!s) return false;
+  return (
+    s.includes("REPLACE_WITH_LONG_RANDOM_TOKEN") ||
+    s.includes("REPLACE_WITH_LONG_RANDOM_TOKEN_32_PLUS_CHARS") ||
+    s.toLowerCase().includes("replace_with_long_random_token")
+  );
+}
+
 /**
  * SECURITY: shallow-safe inbound sanitizer:
  * - strips __proto__/constructor/prototype keys recursively
@@ -271,6 +288,13 @@ const STRICT_ORIGIN_REFERER = toBool(process.env.STRICT_ORIGIN_REFERER, false);
 const PUBLIC_DIAGNOSTICS_SAFE = toBool(process.env.PUBLIC_DIAGNOSTICS_SAFE, true);
 const DEBUG_SHARED_SECRET = String(process.env.DEBUG_SHARED_SECRET || "").trim();
 const DEBUG_SHARED_HEADER = String(process.env.DEBUG_SHARED_HEADER || "X-SB-DEBUG-SECRET").trim();
+
+// Widget/API token (optional)
+// Addresses accidental placeholder usage: token: 'REPLACE_WITH_LONG_RANDOM_TOKEN_32_PLUS_CHARS'
+const SB_WIDGET_TOKEN = String(process.env.SB_WIDGET_TOKEN || process.env.AVATAR_BRIDGE_TOKEN || "").trim();
+const SB_WIDGET_TOKEN_HEADER = String(process.env.SB_WIDGET_TOKEN_HEADER || "X-SB-WIDGET-TOKEN").trim();
+const SB_WIDGET_TOKEN_ENFORCE = toBool(process.env.SB_WIDGET_TOKEN_ENFORCE, false);
+
 
 // ✅ optional HSTS + Permissions-Policy
 const SECURITY_HSTS = toBool(process.env.SECURITY_HSTS, NODE_ENV === "production");
@@ -2467,6 +2491,36 @@ app.use(express.text({ type: ["text/*"], limit: MAX_JSON_BODY }));
   app.get("/avatar-host", (req, res) => res.sendFile(path.join(AVATAR_DIR, "avatar-host.html")));
   app.get("/avatar-host.html", (req, res) => res.sendFile(path.join(AVATAR_DIR, "avatar-host.html")));
   app.get("/avatar/avatar-host", (req, res) => res.redirect(302, "/avatar/avatar-host.html"));
+
+
+
+// =========================
+// Widget/API token guard (optional)
+// - Emits X-SB-Token-Warning if placeholder token is detected.
+// - If SB_WIDGET_TOKEN_ENFORCE=true and SB_WIDGET_TOKEN is set, blocks /api/* without the correct token.
+// =========================
+app.use((req, res, next) => {
+  try {
+    const hdr = SB_WIDGET_TOKEN_HEADER.toLowerCase();
+    const got = safeStr(req.headers[hdr] || req.headers[SB_WIDGET_TOKEN_HEADER] || "").trim();
+
+    if (isPlaceholderWidgetToken(got)) {
+      res.setHeader("X-SB-Token-Warning", "Replace widget TOKEN placeholder (REPLACE_WITH_LONG_RANDOM_TOKEN_32_PLUS_CHARS).");
+    }
+
+    if (SB_WIDGET_TOKEN_ENFORCE && SB_WIDGET_TOKEN) {
+      // Only protect API routes (leave /avatar and other static/public routes accessible)
+      if (req.path && String(req.path).startsWith("/api/")) {
+        if (!got || got !== SB_WIDGET_TOKEN) {
+          res.status(403).json({ ok: false, error: "bad_token" });
+          return;
+        }
+      }
+    }
+  } catch (_) {}
+  return next();
+});
+
 
 
 // =========================
