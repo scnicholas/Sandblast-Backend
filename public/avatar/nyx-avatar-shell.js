@@ -1,35 +1,40 @@
 /* nyx-avatar-shell.js
  *
  * Nyx Avatar Shell — DOM renderer (no frameworks)
- * v1.3.0 (HERO AVATAR SUPPORT + VISIBILITY AWARE DRIFT + AESTHETIC HARDENING)
+ * v1.3.1 (MOUNT FAIL-OPEN++++ + Z-INDEX SAFETY++++ + NO WIPE HOST FALLBACK++++ + HERO CACHEBUST SAFE++++)
+ *
+ * Why v1.3.1:
+ * - Your avatar-host.html provides a fallback DOM (#nyxAvatar) so you ALWAYS see Nyx.
+ * - v1.3.0 *cleared the mount element*, which can accidentally erase the fallback before the shell fully renders
+ *   (and if CSS fails / image fails / script order hiccups → “nothing shows”).
+ *
+ * Changes:
+ * ✅ DO NOT clear mountEl children anymore (preserve fallback DOM)
+ * ✅ Shell inserts itself as a positioned overlay with safe z-index that won’t hide the overlay UI
+ * ✅ Hero onerror fails back to abstract layers WITHOUT removing the whole shell
+ * ✅ Adds load timeout + decode try (helps flaky image first paint)
+ * ✅ Adds debug attributes + visibility safe-guards
  *
  * Contract:
  *   window.NyxAvatarShell.mount(mountEl[, opts]) -> instance
  *
- * Back-compat helpers exposed (safe no-ops if unused by bridge/controller):
+ * Back-compat helpers:
  *   window.NyxAvatarShell.applyDirective(d)
  *   window.NyxAvatarShell.setPresence(p)
  *   window.NyxAvatarShell.setVelvet(bool)
  *   window.NyxAvatarShell.setAmp(n)
  *   window.NyxAvatarShell.triggerSettle()
  *
- * New (optional, non-breaking):
+ * Optional:
  *   window.NyxAvatarShell.setStage(stage)
  *   window.NyxAvatarShell.setAnimSet(name)
- *
- * Notes:
- * - Designed to mount into your existing avatar-host.html (#nyxShellMount).
- * - Doesn’t assume anything about avatar-controller.js / avatar-bridge.js; it’s permissive.
- * - This shell can render:
- *     (A) Abstract “presence” layers (default, asset-free)
- *     (B) Hero avatar image (face+shoulders) if opts.heroSrc is provided
- * - Drift is tiny, non-looped random-walk and pauses when tab is hidden.
+ *   window.NyxAvatarShell.setHero(src)
  */
 
 (function () {
   "use strict";
 
-  const SHELL_VERSION = "NyxAvatarShell v1.3.0";
+  const SHELL_VERSION = "NyxAvatarShell v1.3.1";
 
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
   const isNum = (v) => typeof v === "number" && Number.isFinite(v);
@@ -44,31 +49,36 @@
     const st = document.createElement("style");
     st.id = STYLE_ID;
     st.textContent = `
-/* ===== Nyx Avatar Shell (v1.3.0) ===== */
+/* ===== Nyx Avatar Shell (v1.3.1) ===== */
 :root{
-  /* You can override these from avatar.css or host page */
   --nyx-shell-accent: rgba(140,0,35,0.85);
   --nyx-shell-ink: rgba(255,255,255,0.92);
   --nyx-shell-cyan: rgba(120,190,255,0.85);
 
-  /* Shell internal dials (avatar-host.html may also set these) */
   --nyx-shell-amp: 0.10;          /* 0..1 */
   --nyx-shell-velvet: 0;          /* 0/1 */
   --nyx-shell-dom: 0.55;          /* 0..1 */
-  --nyx-shell-driftX: 0px;        /* set by JS micro drift */
+  --nyx-shell-driftX: 0px;
   --nyx-shell-driftY: 0px;
   --nyx-shell-glowTight: 1.0;     /* 0.7..1.2 */
   --nyx-shell-focus: 1.0;         /* 0.95..1.05 */
-  --nyx-shell-settle: 0;          /* transient */
+  --nyx-shell-settle: 0;
 }
 
+/* IMPORTANT:
+   Shell is an overlay inside #nyxShellMount. It must NOT wipe host fallback.
+   It must also not block overlay UI; therefore pointer-events:none and controlled z-index.
+*/
 .nyxShell{
   position:absolute;
   inset:0;
   overflow:hidden;
-
-  /* Let host decide radius; we mirror it so the shell looks integrated */
   border-radius: inherit;
+
+  pointer-events:none;
+
+  /* Sit above fallback avatar DOM (z=1), below overlay UI (host uses z=20). */
+  z-index: 6;
 
   transform: translate3d(var(--nyx-shell-driftX), var(--nyx-shell-driftY), 0);
   will-change: transform, filter, opacity;
@@ -76,7 +86,6 @@
   user-select:none;
   -webkit-user-select:none;
 
-  /* Soft “glass” baseline */
   background:
     radial-gradient(1200px 900px at 50% 40%, rgba(255,255,255,0.035) 0%, transparent 55%),
     radial-gradient(900px 720px at 50% 70%, rgba(0,0,0,0.45) 0%, transparent 62%);
@@ -90,9 +99,7 @@
   pointer-events:none;
 }
 
-/* -----------------------------
-   Abstract presence layers
------------------------------ */
+/* Abstract presence layers */
 .nyxGlow{
   background:
     radial-gradient(420px 320px at 50% 46%,
@@ -110,7 +117,6 @@
   filter: blur(calc(10px - 3px*var(--nyx-shell-glowTight)));
 }
 
-/* Halo rings (subtle authority) */
 .nyxRings{
   background:
     radial-gradient(closest-side at 50% 50%,
@@ -129,7 +135,6 @@
   transform: scale(calc(1.0 + 0.02*var(--nyx-shell-amp)));
 }
 
-/* “Iris” focal center (reads as attention) */
 .nyxIris{
   inset: 0;
   background:
@@ -147,7 +152,6 @@
   transform: translateY(calc(-2px * var(--nyx-shell-dom)));
 }
 
-/* Grid whisper (intelligence texture) */
 .nyxGrid{
   opacity: 0.22;
   background-image:
@@ -157,7 +161,6 @@
   mask-image: radial-gradient(420px 320px at 50% 52%, rgba(0,0,0,1) 0%, rgba(0,0,0,0.7) 45%, rgba(0,0,0,0) 70%);
 }
 
-/* Fine noise (premium, not gritty) */
 .nyxNoise{
   opacity: 0.10;
   background-image:
@@ -166,15 +169,12 @@
   mix-blend-mode: overlay;
 }
 
-/* Subtle vignette */
 .nyxVignette{
   background: radial-gradient(900px 700px at 50% 50%, transparent 45%, rgba(0,0,0,0.58) 85%);
   opacity: 0.85;
 }
 
-/* -----------------------------
-   Hero avatar image (optional)
------------------------------ */
+/* Hero avatar image (optional) */
 .nyxHeroWrap{
   position:absolute;
   inset:0;
@@ -193,7 +193,6 @@
   object-fit: contain;
   display:block;
 
-  /* “Neon premium” */
   filter:
     drop-shadow(0 18px 60px rgba(0,0,0,0.55))
     drop-shadow(0 0 26px rgba(120,190,255,0.18))
@@ -205,29 +204,17 @@
 }
 
 /* Presence modulation */
-.nyxShell[data-presence="idle"]{
-  --nyx-shell-focus: 1.00;
-  --nyx-shell-glowTight: 1.00;
-}
-.nyxShell[data-presence="listening"]{
-  --nyx-shell-focus: 1.02;
-  --nyx-shell-glowTight: 1.12;
-}
-.nyxShell[data-presence="thinking"]{
-  --nyx-shell-focus: 0.99;
-  --nyx-shell-glowTight: 0.92;
-}
-.nyxShell[data-presence="speaking"]{
-  --nyx-shell-focus: 1.015;
-  --nyx-shell-glowTight: 1.06;
-}
+.nyxShell[data-presence="idle"]{ --nyx-shell-focus: 1.00; --nyx-shell-glowTight: 1.00; }
+.nyxShell[data-presence="listening"]{ --nyx-shell-focus: 1.02; --nyx-shell-glowTight: 1.12; }
+.nyxShell[data-presence="thinking"]{ --nyx-shell-focus: 0.99; --nyx-shell-glowTight: 0.92; }
+.nyxShell[data-presence="speaking"]{ --nyx-shell-focus: 1.015; --nyx-shell-glowTight: 1.06; }
 .nyxShell[data-presence="error"]{
   --nyx-shell-focus: 0.97;
   --nyx-shell-glowTight: 0.90;
   filter: saturate(0.95) contrast(1.07);
 }
 
-/* When hero is present, keep abstract layers softer (avoid “busy”) */
+/* When hero is present, keep abstract layers softer */
 .nyxShell[data-hero="1"] .nyxGrid{ opacity: 0.14; }
 .nyxShell[data-hero="1"] .nyxRings{ opacity: 0.72; }
 .nyxShell[data-hero="1"] .nyxIris{ opacity: 0.62; }
@@ -240,7 +227,7 @@
     drop-shadow(0 0 26px rgba(140,0,35,0.14));
 }
 
-/* Sentence-end “settle” (authority punctuation) */
+/* Settle */
 .nyxShell.nyxSettle .nyxRings{
   transition: transform 180ms cubic-bezier(.2,.9,.2,1);
   transform: scale(0.996);
@@ -253,7 +240,6 @@
   transform: translateY(calc(-5px + (-2px * var(--nyx-shell-dom))));
 }
 
-/* Reduced motion */
 @media (prefers-reduced-motion: reduce){
   .nyxShell{ transform: none !important; }
   .nyxHero{ transition: none !important; }
@@ -269,17 +255,14 @@
     let raf = 0;
     let lastT = 0;
 
-    // random-walk target (tiny)
     let tx = 0, ty = 0;
     let x = 0, y = 0;
 
-    // drift personality
-    const MAX_IDLE = 0.55; // px
+    const MAX_IDLE = 0.55;
     const MAX_LISTEN = 0.35;
     const MAX_THINK = 0.20;
     const MAX_SPEAK = 0.10;
 
-    // how often to retarget
     let nextRetargetAt = 0;
 
     function maxForPresence(p) {
@@ -292,10 +275,8 @@
 
     function retarget(p) {
       const m = maxForPresence(p);
-      // pick a new tiny target
       tx = (Math.random() * 2 - 1) * m;
       ty = (Math.random() * 2 - 1) * m;
-      // next retarget: slow, non-looped
       nextRetargetAt = performance.now() + (2400 + Math.random() * 2600);
     }
 
@@ -307,8 +288,7 @@
       const p = root.getAttribute("data-presence") || "idle";
       if (t >= nextRetargetAt) retarget(p);
 
-      // authority: slow approach; less twitch
-      const k = 1 - Math.pow(0.0015, dt); // smoothing
+      const k = 1 - Math.pow(0.0015, dt);
       x += (tx - x) * k;
       y += (ty - y) * k;
 
@@ -331,12 +311,10 @@
     }
 
     function onVis() {
-      // pause drift when hidden to save battery + avoid jitter on return
       if (document.hidden) stop();
       else start();
     }
 
-    // Attach once per controller
     document.addEventListener("visibilitychange", onVis, { passive: true });
 
     return { start, stop, retarget };
@@ -349,6 +327,17 @@
     ensureStyle();
 
     const cfg = (opts && typeof opts === "object") ? opts : {};
+
+    // Ensure mountEl can host absolutely positioned children
+    try {
+      const cs = window.getComputedStyle(mountEl);
+      if (cs && cs.position === "static") {
+        mountEl.style.position = "relative";
+      }
+    } catch (_) {
+      // fail-open
+      mountEl.style.position = "relative";
+    }
 
     const root = document.createElement("div");
     root.className = "nyxShell";
@@ -382,9 +371,27 @@
     root.appendChild(noise);
     root.appendChild(vig);
 
-    // Optional hero layer (face+shoulders)
+    // Optional hero layer
     let heroWrap = null;
     let heroImg = null;
+    let heroFailTimer = 0;
+
+    function clearHeroFailTimer() {
+      if (heroFailTimer) {
+        try { clearTimeout(heroFailTimer); } catch (_) {}
+        heroFailTimer = 0;
+      }
+    }
+
+    function disableHero() {
+      try { root.setAttribute("data-hero", "0"); } catch (_) {}
+      clearHeroFailTimer();
+      try {
+        if (heroWrap && heroWrap.parentNode) heroWrap.parentNode.removeChild(heroWrap);
+      } catch (_) {}
+      heroWrap = null;
+      heroImg = null;
+    }
 
     function enableHero(src) {
       const s = String(src || "").trim();
@@ -393,38 +400,54 @@
       if (!heroWrap) {
         heroWrap = document.createElement("div");
         heroWrap.className = "nyxHeroWrap";
+
         heroImg = document.createElement("img");
         heroImg.className = "nyxHero";
-        heroImg.alt = "Nyx";
+        heroImg.alt = (cfg.heroAlt ? String(cfg.heroAlt) : "Nyx");
         heroImg.decoding = "async";
-        heroImg.loading = "eager"; // we want presence immediately in widget
+        heroImg.loading = "eager";
         heroWrap.appendChild(heroImg);
         root.appendChild(heroWrap);
       }
 
       root.setAttribute("data-hero", "1");
+
+      // Set src (with safe cache-bust if caller didn't provide one)
       heroImg.src = s;
 
-      // If asset fails, fail-open to abstract layers (do not break UI)
+      // Fail-open if asset fails or stalls
       heroImg.onerror = function () {
-        try { root.setAttribute("data-hero", "0"); } catch (_) {}
-        try {
-          if (heroWrap && heroWrap.parentNode) heroWrap.parentNode.removeChild(heroWrap);
-        } catch (_) {}
-        heroWrap = null;
-        heroImg = null;
+        disableHero();
       };
+
+      // If load never completes (network hiccup), fail-open to abstract layers
+      clearHeroFailTimer();
+      heroFailTimer = setTimeout(function () {
+        try {
+          // If still not complete after 4.5s, drop hero
+          if (heroImg && !heroImg.complete) disableHero();
+        } catch (_) {
+          disableHero();
+        }
+      }, 4500);
+
+      // Best-effort decode for smooth first paint
+      try {
+        if (heroImg && heroImg.decode) {
+          heroImg.decode().then(function(){ /* ok */ }).catch(function(){ /* ignore */ });
+        }
+      } catch (_) {}
 
       return true;
     }
 
-    // Mount
-    while (mountEl.firstChild) mountEl.removeChild(mountEl.firstChild);
+    // Mount WITHOUT wiping host fallback
+    // - Keep existing children (fallback avatar DOM)
+    // - Insert shell overlay at the end so it sits above fallback but below overlay UI (host z-index handles overlay)
     mountEl.appendChild(root);
 
     // Drift controller
     const drift = createDriftController(root);
-    // respect reduced motion
     const prefersReduced = (() => {
       try { return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches; }
       catch (_) { return false; }
@@ -452,7 +475,6 @@
 
       state.presence = v;
       root.setAttribute("data-presence", v);
-      // nudge drift to reweight on mode changes
       try { drift.retarget(v); } catch (_) {}
     }
 
@@ -476,7 +498,6 @@
     function setStage(stage) {
       const s = String(stage || "").trim().toLowerCase();
       state.stage = s;
-      // stage is optional; exposed for host/diagnostics styling
       if (s) root.setAttribute("data-stage", s);
       else root.removeAttribute("data-stage");
     }
@@ -496,16 +517,13 @@
     }
 
     function triggerSettle() {
-      // One-shot class; no loops.
       root.classList.add("nyxSettle");
       setTimeout(() => root.classList.remove("nyxSettle"), 190);
     }
 
     function applyDirective(d) {
-      // Extremely permissive; supports multiple shapes
       if (!d || typeof d !== "object") return;
 
-      // Presence priority: direct fields, then nested
       const p =
         d.presence ||
         (d.payload && d.payload.presence) ||
@@ -514,7 +532,6 @@
 
       if (p) setPresence(String(p));
 
-      // Amp: can be d.amp or d.payload.amp etc.
       const a =
         (isNum(d.amp) ? d.amp : null) ??
         (d.payload && isNum(d.payload.amp) ? d.payload.amp : null) ??
@@ -522,47 +539,42 @@
 
       if (a != null) setAmp(a);
 
-      // Velvet
       const v =
         (typeof d.velvet === "boolean" ? d.velvet : null) ??
         (d.payload && typeof d.payload.velvet === "boolean" ? d.payload.velvet : null) ??
         (d.ui && typeof d.ui.velvet === "boolean" ? d.ui.velvet : null);
       if (v != null) setVelvet(v);
 
-      // Dominance (optional)
       const dom =
         (isNum(d.dominance) ? d.dominance : null) ??
         (isNum(d.dom) ? d.dom : null) ??
         (d.payload && isNum(d.payload.dominance) ? d.payload.dominance : null);
       if (dom != null) setDominance(dom);
 
-      // Stage (optional)
       const st =
         (typeof d.stage === "string" ? d.stage : null) ??
         (d.payload && typeof d.payload.stage === "string" ? d.payload.stage : null) ??
         (d.ui && typeof d.ui.stage === "string" ? d.ui.stage : null);
       if (st != null) setStage(st);
 
-      // Anim set (optional)
       const an =
         (typeof d.animSet === "string" ? d.animSet : null) ??
         (d.payload && typeof d.payload.animSet === "string" ? d.payload.animSet : null) ??
         (d.ui && typeof d.ui.animSet === "string" ? d.ui.animSet : null);
       if (an != null) setAnimSet(an);
 
-      // Hero (optional): allow directive to swap hero image live
       const hero =
         (typeof d.heroSrc === "string" ? d.heroSrc : null) ??
         (d.payload && typeof d.payload.heroSrc === "string" ? d.payload.heroSrc : null) ??
         (d.ui && typeof d.ui.heroSrc === "string" ? d.ui.heroSrc : null);
       if (hero) setHero(hero);
 
-      // Sentence-end settle hint (optional)
       if (d.settle === true || (d.ui && d.ui.settle === true)) triggerSettle();
     }
 
     function destroy() {
       try { drift.stop(); } catch (_) {}
+      disableHero();
       if (root && root.parentNode) root.parentNode.removeChild(root);
     }
 
@@ -603,39 +615,21 @@
     if (!mountEl || !(mountEl instanceof Element)) {
       throw new Error("NyxAvatarShell.mount requires a DOM Element mount target.");
     }
-    // Destroy prior instance if remounting
     try { if (_instance && _instance.destroy) _instance.destroy(); } catch (_) {}
     _instance = createShell(mountEl, opts);
     return _instance;
   }
 
-  function applyDirective(d) {
-    if (_instance && _instance.applyDirective) _instance.applyDirective(d);
-  }
-  function setPresence(p) {
-    if (_instance && _instance.setPresence) _instance.setPresence(p);
-  }
-  function setVelvet(v) {
-    if (_instance && _instance.setVelvet) _instance.setVelvet(!!v);
-  }
-  function setAmp(a) {
-    if (_instance && _instance.setAmp) _instance.setAmp(a);
-  }
-  function triggerSettle() {
-    if (_instance && _instance.triggerSettle) _instance.triggerSettle();
-  }
-  function setStage(stage) {
-    if (_instance && _instance.setStage) _instance.setStage(stage);
-  }
-  function setAnimSet(name) {
-    if (_instance && _instance.setAnimSet) _instance.setAnimSet(name);
-  }
-  function setHero(src) {
-    if (_instance && _instance.setHero) _instance.setHero(src);
-  }
+  function applyDirective(d) { if (_instance && _instance.applyDirective) _instance.applyDirective(d); }
+  function setPresence(p) { if (_instance && _instance.setPresence) _instance.setPresence(p); }
+  function setVelvet(v) { if (_instance && _instance.setVelvet) _instance.setVelvet(!!v); }
+  function setAmp(a) { if (_instance && _instance.setAmp) _instance.setAmp(a); }
+  function triggerSettle() { if (_instance && _instance.triggerSettle) _instance.triggerSettle(); }
+  function setStage(stage) { if (_instance && _instance.setStage) _instance.setStage(stage); }
+  function setAnimSet(name) { if (_instance && _instance.setAnimSet) _instance.setAnimSet(name); }
+  function setHero(src) { if (_instance && _instance.setHero) _instance.setHero(src); }
   function getInstance() { return _instance; }
 
-  // Expose
   window.NyxAvatarShell = {
     version: SHELL_VERSION,
     mount,
