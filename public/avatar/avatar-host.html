@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Nyx Avatar Host</title>
 
-  <!-- Use the real skin -->
-  <link rel="stylesheet" href="./avatar.css" />
+  <!-- Use the real skin (CACHE-BUST so you actually see updates) -->
+  <link rel="stylesheet" href="./avatar.css?v=109" />
 
   <!-- Host-only tiny layout helpers (kept minimal; aesthetics live in avatar.css) -->
   <style>
@@ -14,7 +14,7 @@
     html,body{height:100%}
     body{
       margin:0;
-      background:#000; /* true black base to match avatar.css v1.0.7 */
+      background:#000 !important; /* true black base */
     }
 
     #wrap{
@@ -34,7 +34,7 @@
       position:relative;
 
       /* HARD CANVAS (critical): avoid “see-through” blend collapse */
-      background:#000; /* seamless black */
+      background:#000 !important; /* seamless black */
     }
 
     #panel{
@@ -43,7 +43,7 @@
       padding:12px;
 
       /* darken to match the rest; no gray wash */
-      background:#000;
+      background:#000 !important;
     }
 
     .row{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
@@ -76,7 +76,7 @@
       position:absolute;
       inset:0;
       pointer-events:none;
-      z-index:20;
+      z-index:9999; /* bubble guarantee */
     }
     .overlay-inner{
       position:absolute;
@@ -119,7 +119,7 @@
       border:0;
       height:100vh;
       min-height:100vh;
-      background:#000; /* keep solid in embed */
+      background:#000 !important; /* keep solid in embed */
     }
   </style>
 </head>
@@ -220,10 +220,10 @@
   </div>
 
   <!-- IMPORTANT: keep these relative so /avatar/avatar-host.html serves them correctly -->
-  <script src="./avatar-contract.js"></script>
-  <script src="./nyx-avatar-shell.js"></script>
-  <script src="./avatar-controller.js"></script>
-  <script src="./avatar-bridge.js"></script>
+  <script src="./avatar-contract.js?v=109"></script>
+  <script src="./nyx-avatar-shell.js?v=109"></script>
+  <script src="./avatar-controller.js?v=109"></script>
+  <script src="./avatar-bridge.js?v=109"></script>
 
   <script>
     (function(){
@@ -231,7 +231,7 @@
       // Avatar Host Hardening (FULL)
       // ============================
 
-      var HOST_VER = "avatar-host v1.0.7 (seamless black + bubble alive hooks + safe standalone)";
+      var HOST_VER = "avatar-host v1.0.8 (cache-bust + bubble self-test + seamless black + safe standalone)";
       try{ console.log("[NyxHost]", HOST_VER); }catch(_){}
 
       var EMBEDDED = false;
@@ -335,13 +335,12 @@
           var b = window.NYX_HOST_UI.bubble;
           if(!b) return;
           b.classList.remove("pop");
-          // force reflow so animation re-triggers
-          void b.offsetWidth;
+          void b.offsetWidth; /* reflow to re-trigger */
           b.classList.add("pop");
           clearTimeout(_bubbleTimer);
           _bubbleTimer = setTimeout(function(){
             try{ b.classList.remove("pop"); }catch(_){}
-          }, 320);
+          }, 360);
         }catch(_){}
       }
 
@@ -355,12 +354,24 @@
         if(opts.typing === false) bubbleTyping(false);
       }
 
-      // Expose a small API so Marion/bridge/controller can animate bubble without importing anything
+      // Expose API so Marion/bridge/controller can animate bubble without importing anything
       window.NYX_UI = {
         setBubbleText: setBubbleText,
         bubbleTyping: bubbleTyping,
         bubblePop: bubblePop
       };
+
+      // ----------------------------
+      // Bubble VISUAL SELF-TEST
+      // - If you don't see this pop, you're not loading updated files.
+      // ----------------------------
+      setTimeout(function(){
+        try{
+          bubbleTyping(true);
+          setBubbleText("POP TEST — if you see this animate + glow, the bubble pipeline is alive.", { pop:true });
+          setTimeout(function(){ bubbleTyping(false); }, 900);
+        }catch(_){}
+      }, 900);
 
       // ----------------------------
       // Bridge policy
@@ -580,7 +591,6 @@
         CFG.tokenHeader = tokenHeader;
 
         CFG.urls = isObj(p.urls) ? p.urls : {};
-
         CFG.heroSrc = normalizeHeroSrc(p.heroSrc || (p.assets && (p.assets.heroSrc || p.assets.hero)) || "");
         if (!CFG.heroSrc) CFG.heroSrc = "/avatar/assets/nyx-hero.webp";
 
@@ -601,10 +611,8 @@
         // Kick the bubble into "alive" mode briefly after config lands
         try{
           bubbleTyping(true);
-          setTimeout(function(){
-            bubbleTyping(false);
-            bubblePop();
-          }, 380);
+          setBubbleText("Configured. Nyx is online.", { pop:true });
+          setTimeout(function(){ bubbleTyping(false); bubblePop(); }, 520);
         }catch(_){}
 
         if (EMBEDDED && LOCKED_PARENT_ORIGIN){
@@ -759,7 +767,10 @@
       window.addEventListener("nyx:bubble", function(ev){
         try{
           var d = (ev && ev.detail) ? ev.detail : {};
-          setBubbleText(d.text || "", { pop: d.pop !== false, typing: (d.typing===true ? true : (d.typing===false ? false : undefined)) });
+          setBubbleText(d.text || "", {
+            pop: d.pop !== false,
+            typing: (d.typing===true ? true : (d.typing===false ? false : undefined))
+          });
         }catch(_){}
       });
 
