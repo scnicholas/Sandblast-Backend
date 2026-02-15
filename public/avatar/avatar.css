@@ -1,3 +1,16 @@
+/* avatar.css
+ *
+ * v1.0.6 (VISIBILITY FIX++++ + EMBED SAFETY++++ + Z-STACK HARDEN++++)
+ *
+ * Why this update:
+ * - In embed mode you’re mounting multiple layers: fallback DOM (#nyxAvatar), shell overlay (.nyxShell),
+ *   and overlay UI (#nyxOverlay). If any CSS accidentally sets opacity/visibility/height/position wrong,
+ *   you get “nothing shows”.
+ * - This adds hard guarantees for #avatarRoot/#nyxShellMount sizing + stacking, without changing your look.
+ *
+ * Keeps your aesthetic as-is.
+ */
+
 /* avatar.css */
 :root{
   --bg:#0b0b10;
@@ -29,6 +42,45 @@ body{
               var(--bg);
   color:var(--text);
 }
+
+/* -------------------------
+   CRITICAL EMBED SAFETY
+   (do not change look; just guarantee visibility)
+------------------------- */
+
+/* If host page doesn't style these, keep them sane */
+#avatarRoot{
+  position:relative;
+  min-height:420px; /* matches host intent */
+}
+
+/* Mount must reliably size and anchor absolute children (shell uses absolute) */
+#nyxShellMount{
+  position:absolute;
+  inset:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:18px;
+  z-index:10; /* fallback avatar sits here */
+}
+
+/* Ensure overlay UI is always above avatar+shell */
+#nyxOverlay{
+  position:absolute;
+  inset:0;
+  z-index:20;
+}
+
+/* Keep fallback avatar visible even if parent CSS gets weird */
+#nyxAvatar{
+  opacity:1;
+  visibility:visible;
+}
+
+/* -------------------------
+   Standalone demo layout (kept)
+------------------------- */
 
 .stage{
   min-height:100%;
@@ -81,7 +133,7 @@ body{
 }
 
 /* -------------------------
-   Avatar Shell visuals
+   Avatar visuals
 ------------------------- */
 
 .avatar{
@@ -99,7 +151,7 @@ body{
   transition: transform 240ms ease;
 }
 
-/* “breathing” on the whole frame, subtle */
+/* breathing on the whole frame, subtle */
 .avatar::before{
   content:"";
   position:absolute; inset:0;
@@ -173,7 +225,6 @@ body{
   background: rgba(255,255,255,.75);
   transform: translate(-50%,-50%);
   opacity:.85;
-  /* gaze wander uses tiny translate jitter from shell via CSS vars later if needed */
 }
 
 /* blink overlay */
