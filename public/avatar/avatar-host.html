@@ -6,15 +6,14 @@
   <title>Nyx Avatar Host</title>
 
   <!-- Use the real skin (CACHE-BUST so you actually see updates) -->
-  <link rel="stylesheet" href="./avatar.css?v=109" />
+  <link rel="stylesheet" href="./avatar.css?v=111" />
 
-  <!-- Host-only tiny layout helpers (kept minimal; aesthetics live in avatar.css) -->
   <style>
     /* HARD CANVAS (critical): make iframe content NOT transparent */
     html,body{height:100%}
     body{
       margin:0;
-      background:#000 !important; /* true black base */
+      background:#000 !important;
     }
 
     #wrap{
@@ -32,17 +31,13 @@
       overflow:hidden;
       min-height:420px;
       position:relative;
-
-      /* HARD CANVAS (critical): avoid “see-through” blend collapse */
-      background:#000 !important; /* seamless black */
+      background:#000 !important;
     }
 
     #panel{
       border:1px solid rgba(255,255,255,.08);
       border-radius:16px;
       padding:12px;
-
-      /* darken to match the rest; no gray wash */
       background:#000 !important;
     }
 
@@ -56,6 +51,8 @@
       border:1px solid rgba(255,255,255,.12);
       border-radius:10px;
       padding:10px;
+      resize:vertical;
+      min-height:86px;
     }
 
     .hud{font:12px ui-monospace,Menlo,Consolas,monospace;opacity:.9;line-height:1.5}
@@ -76,7 +73,7 @@
       position:absolute;
       inset:0;
       pointer-events:none;
-      z-index:9999; /* bubble guarantee */
+      z-index:9999;
     }
     .overlay-inner{
       position:absolute;
@@ -91,6 +88,7 @@
     }
     .overlay-inner .bubble,
     .overlay-inner .chip,
+    .overlay-inner .chips,
     .overlay-inner .action-pill{
       pointer-events:auto;
     }
@@ -107,6 +105,77 @@
       z-index:10;
     }
 
+    /* ============================
+       EMBED CHAT BAR (CRITICAL)
+       - user input inside widget
+       ============================ */
+    #nyxChatBar{
+      position:absolute;
+      left:12px;
+      right:12px;
+      bottom:12px;
+      z-index:10000;
+      pointer-events:auto;
+
+      display:flex;
+      gap:10px;
+      align-items:flex-end;
+
+      padding:10px 12px;
+      border-radius:18px;
+      border:1px solid rgba(255,255,255,.10);
+
+      background: rgba(0,0,0,.55);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+
+      box-shadow: 0 16px 50px rgba(0,0,0,.70);
+    }
+
+    #nyxInput{
+      flex:1 1 auto;
+      min-width:0;
+
+      height:44px;
+      max-height:92px;
+      overflow:auto;
+
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(12,12,18,.85);
+      color: rgba(255,255,255,.92);
+
+      padding:10px 12px;
+      font: 14px system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      line-height:1.35;
+      outline:none;
+    }
+    #nyxInput::placeholder{ color: rgba(255,255,255,.45); }
+
+    .nyxBtn{
+      flex:0 0 auto;
+      height:44px;
+      border-radius:14px;
+      padding:0 14px;
+      border:1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.06);
+      color: rgba(255,255,255,.92);
+      cursor:pointer;
+      transition: transform 120ms ease, background 160ms ease, border-color 160ms ease;
+      user-select:none;
+    }
+    .nyxBtn:hover{ transform: translateY(-1px); background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.20); }
+    .nyxBtn.primary{
+      border-color: rgba(140,0,35,.55);
+      background: rgba(140,0,35,.18);
+    }
+    .nyxBtn.primary:hover{ background: rgba(140,0,35,.26); }
+    .nyxBtn:disabled{
+      opacity:.55;
+      cursor:not-allowed;
+      transform:none;
+    }
+
     /* Embedded mode: hide debug panel + tighten grid */
     .embed #wrap{
       grid-template-columns: 1fr;
@@ -119,7 +188,12 @@
       border:0;
       height:100vh;
       min-height:100vh;
-      background:#000 !important; /* keep solid in embed */
+      background:#000 !important;
+    }
+
+    /* Tighter padding in embed */
+    .embed #nyxChatBar{
+      left:10px; right:10px; bottom:10px;
     }
   </style>
 </head>
@@ -130,8 +204,6 @@
     <!-- LEFT: Avatar stage -->
     <div id="avatarRoot">
 
-      <!-- Guaranteed mount target + fallback avatar DOM.
-           Shell can enhance/replace this; but even if shell fails, you SEE Nyx. -->
       <div id="nyxShellMount">
         <div class="avatar gaze-soft mood-attentive" id="nyxAvatar">
           <div class="silhouette">
@@ -179,6 +251,14 @@
 
         </div>
       </div>
+
+      <!-- CRITICAL: Embedded user input (inside widget) -->
+      <div id="nyxChatBar" aria-label="Nyx chat input">
+        <textarea id="nyxInput" rows="1" placeholder="Type to Nyx… (Enter to send, Shift+Enter newline)"></textarea>
+        <button class="nyxBtn primary" id="nyxSendBtn" type="button">Send</button>
+        <button class="nyxBtn" id="nyxSpeakBtn" type="button" title="Speak the typed text">Speak</button>
+      </div>
+
     </div>
 
     <!-- RIGHT: Debug + manual controls (auto-hidden when embedded) -->
@@ -220,10 +300,10 @@
   </div>
 
   <!-- IMPORTANT: keep these relative so /avatar/avatar-host.html serves them correctly -->
-  <script src="./avatar-contract.js?v=109"></script>
-  <script src="./nyx-avatar-shell.js?v=109"></script>
-  <script src="./avatar-controller.js?v=109"></script>
-  <script src="./avatar-bridge.js?v=109"></script>
+  <script src="./avatar-contract.js?v=111"></script>
+  <script src="./nyx-avatar-shell.js?v=111"></script>
+  <script src="./avatar-controller.js?v=111"></script>
+  <script src="./avatar-bridge.js?v=111"></script>
 
   <script>
     (function(){
@@ -231,7 +311,7 @@
       // Avatar Host Hardening (FULL)
       // ============================
 
-      var HOST_VER = "avatar-host v1.0.8 (cache-bust + bubble self-test + seamless black + safe standalone)";
+      var HOST_VER = "avatar-host v1.0.9 (embed chat bar + chip rail support + cache-bust + bubble self-test + safe standalone)";
       try{ console.log("[NyxHost]", HOST_VER); }catch(_){}
 
       var EMBEDDED = false;
@@ -245,7 +325,10 @@
         bubble: document.getElementById('nyxBubble'),
         bubbleText: document.getElementById('nyxBubbleText'),
         bubbleActions: document.getElementById('nyxBubbleActions'),
-        chips: document.getElementById('nyxChips')
+        chips: document.getElementById('nyxChips'),
+        input: document.getElementById('nyxInput'),
+        sendBtn: document.getElementById('nyxSendBtn'),
+        speakBtn: document.getElementById('nyxSpeakBtn')
       };
 
       function safeStr(x){ return (x===null||x===undefined) ? "" : String(x); }
@@ -354,7 +437,6 @@
         if(opts.typing === false) bubbleTyping(false);
       }
 
-      // Expose API so Marion/bridge/controller can animate bubble without importing anything
       window.NYX_UI = {
         setBubbleText: setBubbleText,
         bubbleTyping: bubbleTyping,
@@ -363,7 +445,6 @@
 
       // ----------------------------
       // Bubble VISUAL SELF-TEST
-      // - If you don't see this pop, you're not loading updated files.
       // ----------------------------
       setTimeout(function(){
         try{
@@ -608,7 +689,6 @@
         exposeConfig();
         try{ mountShellFromConfig(CFG.heroSrc); }catch(_){}
 
-        // Kick the bubble into "alive" mode briefly after config lands
         try{
           bubbleTyping(true);
           setBubbleText("Configured. Nyx is online.", { pop:true });
@@ -774,9 +854,170 @@
         }catch(_){}
       });
 
+      // ----------------------------
+      // EMBED CHAT BAR LOGIC (CRITICAL)
+      // ----------------------------
+      function apiUrl(path){
+        var base = (CFG.apiBase || window.location.origin).replace(/\/+$/,"");
+        if (!path) return base;
+        if (path[0] !== "/") path = "/" + path;
+        return base + path;
+      }
+
+      function setSending(on){
+        var btn = window.NYX_HOST_UI.sendBtn;
+        if(btn) btn.disabled = !!on;
+      }
+
+      async function sendChatText(text){
+        text = safeStr(text).trim();
+        if(!text) return;
+
+        setSending(true);
+        try{
+          bubbleTyping(true);
+          setBubbleText("…", { pop:true });
+
+          var res = await window.NYX_FETCH(apiUrl("/api/chat"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              message: text,
+              chip: (document.querySelector('.chip.is-active') && document.querySelector('.chip.is-active').getAttribute('data-chip')) || "general"
+            })
+          });
+
+          var data = null;
+          try{ data = await res.json(); }catch(_){}
+
+          // Try a few common response fields safely:
+          var reply =
+            (data && (data.reply || data.text || data.message || data.output || data.answer)) ||
+            (res && res.ok ? "Done." : ("Error (" + (res.status || "0") + ")"));
+
+          setBubbleText(reply, { pop:true });
+        }catch(err){
+          setBubbleText("I couldn’t reach chat right now.", { pop:true, typing:false });
+        }finally{
+          bubbleTyping(false);
+          setSending(false);
+        }
+      }
+
+      async function speakTypedText(text){
+        text = safeStr(text).trim();
+        if(!text) return;
+        try{
+          bubbleTyping(true);
+          setBubbleText("Speaking…", { pop:true });
+
+          // Call TTS endpoint (token header still injected by NYX_FETCH)
+          await window.NYX_FETCH(apiUrl("/api/tts"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: text })
+          });
+
+          bubblePop();
+        }catch(_){
+          setBubbleText("TTS failed (but chat still works).", { pop:true, typing:false });
+        }finally{
+          bubbleTyping(false);
+        }
+      }
+
+      function autosizeInput(el){
+        try{
+          el.style.height = "44px";
+          var h = Math.min(92, Math.max(44, el.scrollHeight));
+          el.style.height = h + "px";
+        }catch(_){}
+      }
+
+      function bindChatBar(){
+        var input = window.NYX_HOST_UI.input;
+        var sendBtn = window.NYX_HOST_UI.sendBtn;
+        var speakBtn = window.NYX_HOST_UI.speakBtn;
+        if(!input || !sendBtn) return;
+
+        autosizeInput(input);
+
+        input.addEventListener("input", function(){
+          autosizeInput(input);
+        });
+
+        input.addEventListener("keydown", function(e){
+          if(e.key === "Enter" && !e.shiftKey){
+            e.preventDefault();
+            var t = safeStr(input.value);
+            input.value = "";
+            autosizeInput(input);
+            sendChatText(t);
+          }
+        });
+
+        sendBtn.addEventListener("click", function(){
+          var t = safeStr(input.value);
+          input.value = "";
+          autosizeInput(input);
+          sendChatText(t);
+        });
+
+        if(speakBtn){
+          speakBtn.addEventListener("click", function(){
+            speakTypedText(safeStr(input.value));
+          });
+        }
+      }
+
+      // keep chip continuity for chat payload
+      function getActiveChip(){
+        var el = document.querySelector('.chip.is-active');
+        return el ? safeStr(el.getAttribute('data-chip')||"general") : "general";
+      }
+
+      // also allow action-pill clicks to set active chip (visual + event)
+      function setActiveChipBoth(chip){
+        setActiveChip(chip);
+        // optional: also reflect on action pills (nice UX)
+        try{
+          document.querySelectorAll('#nyxBubbleActions .action-pill').forEach(function(n){
+            n.classList.remove('is-active');
+            if (safeStr(n.getAttribute('data-chip')).toLowerCase() === safeStr(chip).toLowerCase()){
+              n.classList.add('is-active');
+            }
+          });
+        }catch(_){}
+      }
+
+      // patch chip click handler to also update pills state
+      function onChipClickEnhanced(e){
+        var el = e.target && e.target.closest ? e.target.closest('[data-chip]') : null;
+        if(!el) return;
+        var chip = safeStr(el.getAttribute('data-chip') || '').toLowerCase();
+        if(!chip) return;
+
+        setActiveChipBoth(chip);
+
+        if (chip === "roku" || chip === "radio" || chip === "schedule") openUrlForChip(chip);
+        window.dispatchEvent(new CustomEvent('nyx:chip', { detail: { chip: chip } }));
+      }
+      try{
+        if (bubbleActions){
+          bubbleActions.removeEventListener('click', onChipClick);
+          bubbleActions.addEventListener('click', onChipClickEnhanced);
+        }
+        if (chips){
+          chips.removeEventListener('click', onChipClick);
+          chips.addEventListener('click', onChipClickEnhanced);
+        }
+      }catch(_){}
+
       bootstrapFromQuery();
       signalReady();
       setTimeout(signalReady, 350);
+
+      bindChatBar();
 
       if (EMBEDDED) showBlocked("waiting_config");
     })();
