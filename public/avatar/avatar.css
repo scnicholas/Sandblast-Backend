@@ -35,7 +35,7 @@
   /* Hero framing */
   --hero-fit: cover;           /* cover | contain */
   --hero-pos: 50% 18%;         /* bias eyes upward */
-  --hero-fallback: url("/avatar/assets/nyx-hero.webp");
+  --hero-fallback: url("/avatar/assets/nyx-hero.png");
 
   /* driven by directive (avatar-shell writes these) */
   --breath:1;         /* ~0.6..1.4 */
