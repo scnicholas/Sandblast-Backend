@@ -191,7 +191,8 @@
         <div style="margin-top:10px;opacity:.9">
           <b>bridge</b>: <span id="hudBridge">waiting</span><br/>
           <b>parent</b>: <span id="hudParent">—</span><br/>
-          <b>apiBase</b>: <span id="hudApi">—</span>
+          <b>apiBase</b>: <span id="hudApi">—</span><br/>
+          <b>token</b>: <span id="hudToken">—</span>
         </div>
       </div>
 
@@ -210,21 +211,22 @@
     (function(){
       // ============================
       // Critical host hardening (A)
-      // - Works embedded OR standalone (direct open)
-      // - Default apiBase to this host if not configured
-      // - Accept NYX_CONFIG only once, then LOCK sender origin
-      // - Optional querystring bootstrap (?apiBase=...&token=...&enforce=1)
+      // + TOKEN ENFORCEMENT SUPPORT (B)
+      //
+      // B adds a safe fetch wrapper that AUTO-INJECTS the widget token header on:
+      //   - "/api/*" relative calls
+      //   - "<apiBase>/api/*" absolute calls
+      //
+      // This is the minimal-change way to make existing scripts work immediately
+      // when SB_WIDGET_TOKEN_ENFORCE=true on the backend.
       // ============================
 
       // ----------------------------
       // Embedded mode detection
       // ----------------------------
       var EMBEDDED = false;
-      try{
-        EMBEDDED = (window.top !== window.self);
-      }catch(_){
-        EMBEDDED = true; // cross-origin throws: assume embedded
-      }
+      try{ EMBEDDED = (window.top !== window.self); }
+      catch(_){ EMBEDDED = true; } // cross-origin throws: assume embedded
       if (EMBEDDED) document.documentElement.classList.add('embed');
 
       // ----------------------------
@@ -239,43 +241,58 @@
         chips: document.getElementById('nyxChips')
       };
 
-      
       // ----------------------------
       // Shell mount wiring (heroSrc)
       // ----------------------------
+      function safeStr(x){ return (x===null||x===undefined) ? "" : String(x); }
+
+      function normalizeHeroSrc(src){
+        src = safeStr(src).trim();
+        if(!src) return "";
+        if (/^file:\/\//i.test(src)) return "";
+        if (/^https?:\/\//i.test(src)) return src;
+        if (src[0] !== "/") src = "/" + src;
+        return src;
+      }
+
+      function preloadImage(src){
+        src = normalizeHeroSrc(src);
+        if(!src) return;
+        try{
+          var img = new Image();
+          img.decoding = "async";
+          img.loading = "eager";
+          img.src = src;
+        }catch(_){}
+      }
+
       function mountShellFromConfig(){
         try{
           var mountEl = document.getElementById("nyxShellMount");
           if(!mountEl) return;
 
-          // Avoid double-mounting if controller/bridge already mounted it
+          var hero = (window.NYX_CONFIG && window.NYX_CONFIG.heroSrc) ? normalizeHeroSrc(window.NYX_CONFIG.heroSrc) : "";
+          if (hero) preloadImage(hero);
+
           if (window.NyxAvatarShell && typeof window.NyxAvatarShell.getInstance === "function") {
             var inst = window.NyxAvatarShell.getInstance();
             if (inst && inst.el && inst.el.parentNode) {
-              // If already mounted, just update hero if supported
               try{
-                if (window.NYX_CONFIG && window.NYX_CONFIG.heroSrc && inst.setHero) inst.setHero(window.NYX_CONFIG.heroSrc);
+                if (hero && typeof inst.setHero === "function") inst.setHero(hero);
+                if (hero && typeof inst.setHeroSrc === "function") inst.setHeroSrc(hero);
+                if (hero && typeof inst.applyDirective === "function") inst.applyDirective({ heroSrc: hero });
               }catch(_){}
               return;
             }
           }
 
           if(!window.NyxAvatarShell || typeof window.NyxAvatarShell.mount !== "function") return;
-
-          var hero = (window.NYX_CONFIG && window.NYX_CONFIG.heroSrc) ? String(window.NYX_CONFIG.heroSrc).trim() : "";
-          // IMPORTANT: heroSrc should be SAME-ORIGIN relative (recommended) or a full https URL you control.
-          // Example: "/avatar/assets/nyx-hero.png"
           window.NyxAvatarShell.mount(mountEl, { heroSrc: hero || "" });
-
         }catch(_){}
       }
 
-      // Mount once config is ready (and also attempt on load)
-      window.addEventListener("nyx:config", function(){
-        mountShellFromConfig();
-      });
+      window.addEventListener("nyx:config", function(){ mountShellFromConfig(); });
       document.addEventListener("DOMContentLoaded", function(){
-        // In case config arrives very early/late; this stays fail-open.
         setTimeout(mountShellFromConfig, 50);
         setTimeout(mountShellFromConfig, 450);
       });
@@ -289,13 +306,13 @@
         apiBase: "",
         allowedOrigins: [],
         urls: {},
-        heroSrc: ""
+        heroSrc: "",
+        tokenHeader: "X-SB-WIDGET-TOKEN"
       };
 
       // once set, only accept messages from this origin
       var LOCKED_PARENT_ORIGIN = "";
 
-      function safeStr(x){ return (x===null||x===undefined) ? "" : String(x); }
       function isObj(x){ return !!x && typeof x === "object" && !Array.isArray(x); }
 
       function setHud(id, val){
@@ -314,11 +331,100 @@
       }
 
       function originAllowed(incomingOrigin){
-        // if locked, require exact match
         if (LOCKED_PARENT_ORIGIN) return incomingOrigin === LOCKED_PARENT_ORIGIN;
-
-        // if not locked yet, allow any well-formed origin to deliver first config
         return !!incomingOrigin && incomingOrigin !== "null";
+      }
+
+      // ----------------------------
+      // Token-injecting fetch wrapper
+      // ----------------------------
+      var _nativeFetch = window.fetch ? window.fetch.bind(window) : null;
+
+      function resolveUrl(input){
+        try{
+          if (typeof input === "string") return input;
+          if (input && typeof input === "object" && input.url) return String(input.url);
+        }catch(_){}
+        return "";
+      }
+
+      function startsWithApiPath(u){
+        u = safeStr(u);
+        if (/^\/api\//i.test(u)) return true;
+
+        try{
+          var abs = new URL(u, window.location.href);
+          var apiBase = CFG.apiBase ? new URL(CFG.apiBase, window.location.href) : null;
+
+          if (/^\/api\//i.test(abs.pathname)) {
+            if (apiBase) return (abs.origin === apiBase.origin) || (abs.origin === window.location.origin);
+            return abs.origin === window.location.origin;
+          }
+
+          if (apiBase && abs.href.indexOf(apiBase.origin) === 0 && abs.pathname.indexOf("/api/") === 0) return true;
+        }catch(_){}
+        return false;
+      }
+
+      function injectTokenHeaders(init){
+        init = init || {};
+        var headers = init.headers;
+
+        var out = {};
+        try{
+          if (headers && typeof Headers !== "undefined" && headers instanceof Headers){
+            headers.forEach(function(v,k){ out[k] = v; });
+          } else if (Array.isArray(headers)){
+            headers.forEach(function(pair){
+              if (Array.isArray(pair) && pair.length >= 2) out[String(pair[0])] = String(pair[1]);
+            });
+          } else if (headers && typeof headers === "object"){
+            Object.keys(headers).forEach(function(k){ out[k] = headers[k]; });
+          }
+        }catch(_){}
+
+        var key = CFG.tokenHeader || "X-SB-WIDGET-TOKEN";
+        var token = CFG.token;
+
+        if (token){
+          var has = false;
+          Object.keys(out).forEach(function(k){
+            if (String(k).toLowerCase() === String(key).toLowerCase()) has = true;
+          });
+          if (!has) out[key] = token;
+        }
+
+        var hasCT = false;
+        Object.keys(out).forEach(function(k){
+          if (String(k).toLowerCase() === "content-type") hasCT = true;
+        });
+        if (!hasCT) out["Content-Type"] = "application/json";
+
+        init.headers = out;
+        return init;
+      }
+
+      function nyxFetch(input, init){
+        if (!_nativeFetch) throw new Error("fetch_not_supported");
+        var url = resolveUrl(input);
+        var should = startsWithApiPath(url);
+        if (should) init = injectTokenHeaders(init);
+        return _nativeFetch(input, init);
+      }
+
+      // Expose helpers for other scripts (preferred)
+      window.NYX_FETCH = nyxFetch;
+      window.NYX_TOKEN_HEADER = function(){ return CFG.tokenHeader || "X-SB-WIDGET-TOKEN"; };
+
+      // Compatibility: monkey-patch fetch to auto-inject on /api/*
+      if (_nativeFetch){
+        window.fetch = function(input, init){
+          try{
+            var url = resolveUrl(input);
+            if (startsWithApiPath(url)) return nyxFetch(input, init);
+          }catch(_){}
+          return _nativeFetch(input, init);
+        };
       }
 
       function exposeConfig(){
@@ -327,10 +433,11 @@
           enforce: CFG.enforce,
           apiBase: CFG.apiBase,
           allowedOrigins: (CFG.allowedOrigins || []).slice(0),
-          urls: Object.assign({}, CFG.urls || {})
+          urls: Object.assign({}, CFG.urls || {}),
+          heroSrc: CFG.heroSrc || "",
+          tokenHeader: CFG.tokenHeader || "X-SB-WIDGET-TOKEN"
         };
 
-        // Compatibility aliases (some scripts like having these)
         window.NYX_API_BASE = CFG.apiBase;
         window.NYX_TOKEN = CFG.token;
 
@@ -342,42 +449,40 @@
         var token = safeStr(p.token).trim();
         var apiBase = normalizeApiBase(p.apiBase);
 
-        // hard requirements in embedded mode; in standalone we allow no token/enforce=false
+        var tokenHeader = safeStr(p.tokenHeader || p.token_header || p.tokenHeaderName || "").trim();
+        if (!tokenHeader) tokenHeader = "X-SB-WIDGET-TOKEN";
+
         if (EMBEDDED) {
           if (!isTokenOk(token)) return false;
           if (!apiBase) return false;
         } else {
-          // Standalone: apiBase defaults to same origin if missing
           if (!apiBase) apiBase = normalizeApiBase(window.location.origin);
-          if (!isTokenOk(token)) token = ""; // ok
+          if (!isTokenOk(token)) token = "";
           if (p.enforce === undefined) p.enforce = false;
         }
 
         CFG.token = token;
         CFG.enforce = (p.enforce !== false);
         CFG.apiBase = apiBase;
+        CFG.tokenHeader = tokenHeader;
 
         CFG.allowedOrigins = Array.isArray(p.allowedOrigins) ? p.allowedOrigins.map(String) : [];
         CFG.urls = isObj(p.urls) ? p.urls : {};
 
-        // Optional: hero portrait (face+shoulders) for shell
-        // Accepts: payload.heroSrc OR payload.assets.heroSrc OR payload.assets.hero
-        CFG.heroSrc = safeStr(p.heroSrc || (p.assets && (p.assets.heroSrc || p.assets.hero)) || "").trim();
+        CFG.heroSrc = normalizeHeroSrc(p.heroSrc || (p.assets && (p.assets.heroSrc || p.assets.hero)) || "");
+        if (!CFG.heroSrc) CFG.heroSrc = "/avatar/assets/nyx-hero.webp";
 
-        // Lock to the first valid sender origin (embedded only)
         if (EMBEDDED && senderOrigin) LOCKED_PARENT_ORIGIN = senderOrigin;
 
         exposeConfig();
 
-        // HUD
         setHud("hudBridge", EMBEDDED ? "configured" : "standalone");
         setHud("hudParent", EMBEDDED ? (LOCKED_PARENT_ORIGIN || "—") : "(direct)");
         setHud("hudApi", CFG.apiBase);
+        setHud("hudToken", token ? ("set ("+token.length+")") : "missing");
 
-        // Mount/refresh shell now that config is set
-        try{ mountShellFromConfig(); }catch(_){ }
+        try{ mountShellFromConfig(); }catch(_){}
 
-        // Ack parent (embedded)
         if (EMBEDDED && LOCKED_PARENT_ORIGIN){
           try{
             window.parent.postMessage({
@@ -386,7 +491,9 @@
                 ok: true,
                 token: CFG.token,
                 apiBase: CFG.apiBase,
-                host: window.location.origin
+                tokenHeader: CFG.tokenHeader,
+                host: window.location.origin,
+                heroSrc: CFG.heroSrc
               }
             }, LOCKED_PARENT_ORIGIN);
           }catch(_){}
@@ -395,11 +502,6 @@
         return true;
       }
 
-      // ----------------------------
-      // Querystring bootstrap (critical for quick debug)
-      // Example:
-      // /avatar/avatar-host.html?apiBase=https://sandblast-backend.onrender.com&token=XXXX&enforce=1
-      // ----------------------------
       function bootstrapFromQuery(){
         try{
           var qs = new URLSearchParams(window.location.search || "");
@@ -407,24 +509,19 @@
           var token = safeStr(qs.get("token") || "").trim();
           var enforceRaw = safeStr(qs.get("enforce") || "").trim().toLowerCase();
           var enforce = (enforceRaw === "" ? undefined : (enforceRaw === "1" || enforceRaw === "true" || enforceRaw === "yes" || enforceRaw === "on"));
+          var heroSrc = normalizeHeroSrc(qs.get("heroSrc") || "");
+          var tokenHeader = safeStr(qs.get("tokenHeader") || qs.get("token_header") || "").trim();
 
-          // Only apply if apiBase is present OR token is present
-          if (apiBase || token){
-            applyConfig({ apiBase: apiBase, token: token, enforce: enforce }, "");
+          if (apiBase || token || heroSrc || tokenHeader){
+            applyConfig({ apiBase: apiBase, token: token, enforce: enforce, heroSrc: heroSrc, tokenHeader: tokenHeader }, "");
           } else if (!EMBEDDED) {
-            // Standalone default (critical: makes local testing work immediately)
-            applyConfig({ apiBase: window.location.origin, token: "", enforce: false }, "");
+            applyConfig({ apiBase: window.location.origin, token: "", enforce: false, heroSrc: "" }, "");
           }
         }catch(_){
-          if (!EMBEDDED) {
-            applyConfig({ apiBase: window.location.origin, token: "", enforce: false }, "");
-          }
+          if (!EMBEDDED) applyConfig({ apiBase: window.location.origin, token: "", enforce: false, heroSrc: "" }, "");
         }
       }
 
-      // ----------------------------
-      // message listener
-      // ----------------------------
       window.addEventListener("message", function(ev){
         var origin = safeStr(ev.origin || "");
         if (!originAllowed(origin)) return;
@@ -434,27 +531,20 @@
 
         if (data.type === "NYX_CONFIG") {
           var ok = applyConfig(data.payload, origin);
-          if(!ok){
-            setHud("hudBridge", "bad_config");
-          }
+          if(!ok) setHud("hudBridge", "bad_config");
         }
       });
 
-      // ----------------------------
-      // Signal READY (parent will answer with NYX_CONFIG)
-      // ----------------------------
       function signalReady(){
         if (!EMBEDDED){
-          // Standalone: we don't need READY, but keep HUD sane
           setHud("hudBridge", "standalone");
           setHud("hudParent", "(direct)");
           setHud("hudApi", CFG.apiBase || window.location.origin);
+          setHud("hudToken", CFG.token ? ("set ("+CFG.token.length+")") : "missing");
           return;
         }
         setHud("hudBridge", "ready");
         try{
-          // Use "*" for the initial READY because we don't yet know parent origin.
-          // We lock origin as soon as we receive a valid NYX_CONFIG.
           window.parent.postMessage({
             type: "NYX_READY",
             payload: { ok:true, host: window.location.origin, href: window.location.href }
@@ -462,9 +552,6 @@
         }catch(_){}
       }
 
-      // ----------------------------
-      // Chip handling (kept + safer defaults)
-      // ----------------------------
       function setActiveChip(chip){
         var rail = window.NYX_HOST_UI.chips;
         if(rail){
@@ -479,8 +566,6 @@
         var urls = CFG.urls || {};
         var url = safeStr(urls[chip] || "").trim();
         if(!url) return false;
-
-        // only open in response to user click
         try{
           window.open(url, "_blank", "noopener,noreferrer");
           return true;
@@ -497,11 +582,7 @@
 
         setActiveChip(chip);
 
-        // If chip corresponds to external link, open it (roku/radio/schedule)
-        if (chip === "roku" || chip === "radio" || chip === "schedule") {
-          openUrlForChip(chip);
-        }
-
+        if (chip === "roku" || chip === "radio" || chip === "schedule") openUrlForChip(chip);
         window.dispatchEvent(new CustomEvent('nyx:chip', { detail: { chip: chip } }));
       }
 
@@ -510,10 +591,8 @@
       var chips = document.getElementById('nyxChips');
       if (chips) chips.addEventListener('click', onChipClick);
 
-      // Boot
       bootstrapFromQuery();
       signalReady();
-      // resend READY once (helps some browsers)
       setTimeout(signalReady, 350);
     })();
   </script>
