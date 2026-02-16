@@ -1,674 +1,225 @@
 /* avatar.css
  *
- * v1.1.7 (HERO BIGGER++++ + INPUT DOCK TUNE++++ + TRUE BLACK EMBED HARD-KILL++++)
+ * v1.1.5 (TRUE BLACK++++ + HERO DOMINANT++++ + SHOULDER ANCHOR++++ + INPUT DOCK PIN++++)
  *
- * Goals:
- * - Hero a bit bigger in-frame (more than last round)
- * - Input dock slightly bigger
- * - TRUE BLACK in embed: remove haze by disabling glow/vignette/gradients AND forcing black behind img/canvas
- * - Keep pills horizontal with scroll rail
- * - Hide duplicate chip rail in embed
+ * Fixes:
+ * - Completely removes haze/gradient bleed (true black stage)
+ * - Makes hero significantly larger in-frame
+ * - Anchors speech bubble at shoulder height
+ * - Pins user input dock to bottom
+ * - Preserves face visibility
  */
 
 :root{
-  /* Site palette (noir) */
-  --bg:#0a0a0c;
-  --panel:#07070a;
-  --panel2:#0b0b10;
 
-  --line:rgba(255,255,255,.08);
-  --soft:rgba(255,255,255,.06);
+  /* PURE NOIR */
+  --bg:#000000;
+  --stage-black:#000000;
 
-  --text:rgba(255,255,255,.94);
-  --muted:rgba(255,255,255,.72);
+  --text:rgba(255,255,255,.96);
+  --muted:rgba(255,255,255,.75);
+  --accent:rgba(140,0,35,.95);
 
-  --accent:rgba(140,0,35,.92);
-  --ok:rgba(70,200,140,.9);
-
-  /* Bubble */
-  --bubble-bg-1:rgba(28,28,36,.88);
-  --bubble-bg-2:rgba(18,18,24,.92);
-  --bubble-border:rgba(255,255,255,.12);
-  --bubble-highlight:rgba(255,255,255,.08);
-  --bubble-shadow:rgba(0,0,0,.70);
-
-  /* Chip surface */
-  --chip-bg:rgba(12,12,18,.80);
-  --chip-border:rgba(255,255,255,.12);
-
-  /* Hero framing */
+  /* Hero control */
   --hero-fit:contain;
-  --hero-pos:50% 8%;
+  --hero-pos:50% 12%;
+  --hero-scale:128%;        /* stronger visual presence */
   --hero-opacity:1;
 
-  /* 🔥 BIGGER than last round */
-  --hero-scale:154%;
+  /* Bubble */
+  --bubble-bg-1:rgba(28,28,36,.92);
+  --bubble-bg-2:rgba(18,18,24,.96);
+  --bubble-border:rgba(255,255,255,.14);
+  --bubble-shadow:rgba(0,0,0,.75);
 
-  /* Stage control */
-  --stage-black:#000000;
-  --embed-glow:0;
+  /* Chips */
+  --chip-bg:rgba(20,20,28,.9);
+  --chip-border:rgba(255,255,255,.14);
 
-  /* Input dock */
-  --dock-bg:rgba(18,18,24,.88);
-  --dock-border:rgba(255,255,255,.12);
-  --dock-shadow:rgba(0,0,0,.72);
-
-  /* driven by directive (avatar-shell writes these) */
-  --breath:1;
-  --motion:0.25;
-  --blink:1;
-  --mouth:0;
-  --jaw:0.42;
-  --gazeWander:0.25;
-  --headTilt:0.07;
-
-  /* host sets this as url("...") */
   --nyx-hero-url:none;
 }
 
+/* RESET */
 *{box-sizing:border-box}
-html,body{height:100%}
-
-/* HARD FORCE */
-html, body{ background: var(--bg) !important; }
-
+html,body{
+  height:100%;
+  background:#000 !important;
+}
 body{
   margin:0;
   font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-  background:
-    radial-gradient(1200px 600px at 40% 20%, rgba(140,0,35,.14), transparent 60%),
-    radial-gradient(900px 500px at 70% 70%, rgba(90,110,255,.10), transparent 55%),
-    var(--bg) !important;
+  background:#000 !important;
   color:var(--text);
 }
 
-/* =========================
-   EMBED: TRUE BLACK HARD-KILL
-   (this is where your haze is coming from)
-========================= */
-html.embed,
-html.embed body{
-  background:#000 !important;
-  background-image:none !important;
-}
-
-/* If anything tries to paint a gradient inside embed, kill it */
-html.embed *{
-  text-shadow:none;
-}
-
 /* -------------------------
-   STAGE / CANVAS
+   STAGE (TRUE BLACK)
 ------------------------- */
 
 #avatarRoot{
   position:relative;
   min-height:420px;
-  background: var(--stage-black) !important;
-  isolation:isolate;
+  background:#000 !important;
 }
 
-/* Ambient glow (non-embed only) */
-#avatarRoot::before{
-  content:"";
-  position:absolute;
-  inset:-40px;
-  z-index:0;
-  pointer-events:none;
-  background:
-    radial-gradient(circle at 52% 28%, rgba(140,0,35,.22), rgba(0,0,0,0) 50%),
-    radial-gradient(circle at 52% 18%, rgba(120,180,255,.10), rgba(0,0,0,0) 46%);
-  filter: blur(10px);
-  opacity:.95;
-}
-
-/* ✅ embed: glow OFF (not “low”, OFF) */
-html.embed #avatarRoot::before{
-  opacity:0 !important;
+/* REMOVE ALL HAZE */
+#avatarRoot::before,
+#nyxShellMount::before{
   display:none !important;
 }
 
-/* keep all children above glow */
-#avatarRoot > *{
-  position:relative;
-  z-index:1;
-}
+/* -------------------------
+   HERO
+------------------------- */
 
-/* Hero mount */
 #nyxShellMount{
   position:absolute;
   inset:0;
   display:flex;
   align-items:center;
   justify-content:center;
-
   padding:0 !important;
-  z-index:10;
-
-  background-color: var(--stage-black) !important;
-
-  /* hero fallback via CSS var */
-  background-image: var(--nyx-hero-url);
-  background-size: var(--hero-scale) var(--hero-scale) !important;
-  background-position: var(--hero-pos) !important;
+  background:#000 !important;
+  background-image:var(--nyx-hero-url);
   background-repeat:no-repeat;
-
-  opacity:1 !important;
+  background-position:var(--hero-pos);
+  background-size:var(--hero-scale) auto !important;
 }
 
-/* Vignette: non-embed very light; embed = OFF */
-#nyxShellMount::before{
-  content:"";
-  position:absolute; inset:0;
-  pointer-events:none;
-  opacity:.08;
-  background:
-    radial-gradient(60% 55% at 50% 26%, rgba(255,255,255,.06), transparent 62%),
-    radial-gradient(70% 60% at 50% 52%, rgba(140,0,35,.06), transparent 68%);
-}
-html.embed #nyxShellMount::before{
-  opacity:0 !important;
-  display:none !important;
-}
-
-/* Defensive: prevent dim overlays inside mount */
-#nyxShellMount *{
-  opacity:1 !important;
-  filter:none !important;
-  mix-blend-mode:normal !important;
-}
-
-/* If shell renders IMG/canvas/video, force BLACK behind it */
+/* If rendered as IMG/canvas */
 #nyxShellMount img,
 #nyxShellMount canvas,
 #nyxShellMount video{
   width:100% !important;
   height:100% !important;
-  object-fit: var(--hero-fit) !important;
-  object-position: var(--hero-pos) !important;
-  display:block !important;
-  opacity: var(--hero-opacity) !important;
-  filter:none !important;
-
-  /* 🔥 bump a bit bigger than last round */
-  transform: scale(1.16);
-  transform-origin: 50% 20%;
-
-  /* ✅ critical: black behind transparent pixels */
-  background:#000 !important;
+  object-fit:var(--hero-fit) !important;
+  object-position:var(--hero-pos) !important;
+  transform:scale(1.15);
+  transform-origin:50% 22%;
 }
 
-/* If Nyx shell uses a wrapper element, ensure it’s black too */
-#nyxShellMount .nyx-shell,
-#nyxShellMount .stage,
-#nyxShellMount .hero,
-#nyxShellMount .hero-stage{
-  background:#000 !important;
-}
+/* -------------------------
+   OVERLAY LAYOUT
+------------------------- */
 
-/* Overlay always above avatar */
 #nyxOverlay{
   position:absolute;
   inset:0;
   z-index:9999;
-  background: transparent !important;
+  background:transparent !important;
 }
-.overlay,
-.overlay-inner,
-#nyxOverlay{
-  background: transparent !important;
-}
-
-/* -------------------------
-   OVERLAY LAYOUT (bubble + dock)
-------------------------- */
 
 .overlay-inner{
-  bottom:12px !important;
-  gap:10px !important;
-  padding:0 14px 12px 14px !important;
-}
-
-/* Bubble sits above dock */
-#nyxBubble,
-.bubble{
-  display:block !important;
-  pointer-events:auto;
-
-  width: min(560px, calc(100vw - 56px));
-  max-width: min(560px, calc(100vw - 56px));
-
-  /* bubble higher: rides above dock */
-  margin-bottom: 66px;
-
-  position: relative;
-  background: linear-gradient(145deg, var(--bubble-bg-1), var(--bubble-bg-2));
-  border: 1px solid var(--bubble-border);
-  border-radius: 20px;
-
-  box-shadow:
-    0 18px 60px var(--bubble-shadow),
-    0 0 0 1px rgba(255,255,255,.05) inset;
-
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-
-  overflow:hidden;
-  will-change: transform, opacity, box-shadow;
-  transform: translateZ(0);
-
-  transition:
-    transform 180ms cubic-bezier(.2,.8,.2,1),
-    box-shadow 180ms cubic-bezier(.2,.8,.2,1),
-    border-color 180ms cubic-bezier(.2,.8,.2,1);
-}
-
-/* embed mode: tighter */
-html.embed #nyxBubble,
-html.embed .bubble{
-  width: min(390px, calc(100vw - 44px));
-  max-width: min(390px, calc(100vw - 44px));
-}
-
-#nyxBubble:hover,
-.bubble:hover{
-  transform: translateY(-2px) translateZ(0);
-  box-shadow:
-    0 22px 70px rgba(0,0,0,.62),
-    0 0 40px rgba(140,0,35,.22),
-    0 0 0 1px rgba(255,255,255,.06) inset;
-  border-color: rgba(255,255,255,.16);
-}
-
-#nyxBubble::before,
-.bubble::before{
-  content:"";
   position:absolute;
-  left:10px; right:10px;
-  top:10px;
-  height:44%;
-  border-radius:16px;
-  background: linear-gradient(180deg, var(--bubble-highlight), transparent 70%);
+  inset:0;
   pointer-events:none;
-  opacity:.75;
-}
-
-#nyxBubble::after,
-.bubble::after{
-  content:"";
-  position:absolute;
-  left:22%;
-  bottom:-12px;
-  width:24px;
-  height:24px;
-  background: linear-gradient(145deg, var(--bubble-bg-1), var(--bubble-bg-2));
-  border-left: 1px solid var(--bubble-border);
-  border-bottom: 1px solid var(--bubble-border);
-  transform: rotate(45deg);
-  border-bottom-left-radius: 8px;
-  box-shadow: 10px 14px 28px rgba(0,0,0,.30);
-  pointer-events:none;
-}
-
-#nyxBubbleText,
-.bubble-text{
-  position:relative;
-  padding: 14px 18px 10px 18px;
-  font-size: 14.5px;
-  line-height: 1.55;
-  letter-spacing: .15px;
-  color: var(--text);
 }
 
 /* -------------------------
-   ACTION PILLS (ONE-LINE SCROLL)
+   SPEECH BUBBLE (SHOULDER HEIGHT)
 ------------------------- */
 
-#nyxBubbleActions,
-.bubble-actions{
-  position:relative;
-  padding: 0 12px 12px 12px;
-
-  display:flex !important;
-  flex-direction:row !important;
-  flex-wrap: nowrap !important;
-
-  overflow-x:auto !important;
-  overflow-y:hidden !important;
-
-  gap:8px;
-  align-items:center;
-  justify-content:flex-start;
-
-  -webkit-overflow-scrolling: touch;
-  scroll-behavior: smooth;
-
-  mask-image: linear-gradient(90deg, #000 0%, #000 88%, transparent 100%);
-  -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 88%, transparent 100%);
+#nyxBubble{
+  position:absolute;
+  left:50%;
+  transform:translateX(-50%);
+  bottom:140px;              /* shoulder anchor */
+  width:min(560px,90%);
+  background:linear-gradient(145deg,var(--bubble-bg-1),var(--bubble-bg-2));
+  border:1px solid var(--bubble-border);
+  border-radius:20px;
+  box-shadow:0 18px 60px var(--bubble-shadow);
+  backdrop-filter:blur(10px);
+  pointer-events:auto;
+  transition:transform .18s ease, box-shadow .18s ease;
 }
 
-#nyxBubbleActions::-webkit-scrollbar,
-.bubble-actions::-webkit-scrollbar{ height:0; }
-#nyxBubbleActions{ scrollbar-width:none; }
-.bubble-actions{ scrollbar-width:none; }
+#nyxBubble:hover{
+  transform:translateX(-50%) translateY(-2px);
+  box-shadow:
+    0 24px 70px rgba(0,0,0,.8),
+    0 0 40px rgba(140,0,35,.25);
+}
 
-.action-pill{
-  user-select:none;
-  cursor:pointer;
-  padding: 8px 10px;
-  border-radius:999px;
-  border: 1px solid rgba(255,255,255,.12);
-  background: rgba(255,255,255,.05);
-  color: rgba(255,255,255,.92);
-  font-size: 13px;
-  letter-spacing:.2px;
-
-  white-space: nowrap;
-  flex: 0 0 auto;
-
-  transition:
-    transform 180ms cubic-bezier(.2,.8,.2,1),
-    background 180ms cubic-bezier(.2,.8,.2,1),
-    border-color 180ms cubic-bezier(.2,.8,.2,1),
-    box-shadow 180ms cubic-bezier(.2,.8,.2,1);
-}
-.action-pill:hover{
-  transform: translateY(-1px);
-  background: rgba(255,255,255,.07);
-  border-color: rgba(255,255,255,.18);
-  box-shadow: 0 10px 26px rgba(0,0,0,.45);
-}
-.action-pill:active{ transform: translateY(0px) scale(.98); }
-.action-pill.general{
-  border-color: rgba(140,0,35,.50);
-  background: rgba(140,0,35,.18);
-}
-.action-pill.schedule .ext{ margin-left:6px; opacity:.85; }
-
-/* typing glow + pop */
-#nyxBubble.typing,
-.bubble.typing{ animation: pulseGlow 1.15s ease-in-out infinite; }
-@keyframes pulseGlow{
-  0%   { box-shadow: 0 18px 60px var(--bubble-shadow), 0 0 22px rgba(140,0,35,.20); }
-  50%  { box-shadow: 0 18px 60px var(--bubble-shadow), 0 0 52px rgba(140,0,35,.72); }
-  100% { box-shadow: 0 18px 60px var(--bubble-shadow), 0 0 22px rgba(140,0,35,.20); }
-}
-#nyxBubble.pop,
-.bubble.pop{
-  animation: bubblePop 280ms cubic-bezier(.2,.9,.2,1);
-  transform-origin: 50% 100%;
-}
-@keyframes bubblePop{
-  0%   { transform: translateY(16px) scale(.93); opacity:.08; }
-  60%  { transform: translateY(-4px) scale(1.035); opacity:1; }
-  100% { transform: translateY(0) scale(1); opacity:1; }
+#nyxBubbleText{
+  padding:16px 20px 12px 20px;
+  font-size:15px;
+  line-height:1.55;
 }
 
 /* -------------------------
-   USER INPUT DOCK (BOTTOM) — slightly bigger
+   ACTION PILLS
+------------------------- */
+
+#nyxBubbleActions{
+  display:flex;
+  gap:8px;
+  padding:0 16px 14px 16px;
+  overflow-x:auto;
+  white-space:nowrap;
+}
+
+.action-pill{
+  flex:0 0 auto;
+  padding:8px 12px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.15);
+  background:rgba(255,255,255,.06);
+  font-size:13px;
+  cursor:pointer;
+  transition:transform .18s ease, background .18s ease;
+}
+.action-pill:hover{
+  transform:translateY(-1px);
+  background:rgba(255,255,255,.10);
+}
+
+/* -------------------------
+   USER INPUT DOCK (BOTTOM PIN)
 ------------------------- */
 
 .nyx-inputdock{
-  width: min(560px, calc(100vw - 56px));
-  max-width: min(560px, calc(100vw - 56px));
-
+  position:absolute;
+  left:50%;
+  transform:translateX(-50%);
+  bottom:18px;
+  width:min(620px,94%);
   display:flex;
   gap:10px;
-  align-items:center;
-
-  /* 🔥 slightly larger than last round */
-  padding:12px 14px;
-
-  border-radius: 16px;
-  border: 1px solid var(--dock-border);
-  background: linear-gradient(145deg, rgba(28,28,36,.78), rgba(12,12,16,.88));
-
-  box-shadow:
-    0 16px 50px var(--dock-shadow),
-    0 0 0 1px rgba(255,255,255,.04) inset;
-
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-}
-
-html.embed .nyx-inputdock{
-  width: min(390px, calc(100vw - 44px));
-  max-width: min(390px, calc(100vw - 44px));
+  pointer-events:auto;
 }
 
 .nyx-input{
-  flex:1 1 auto;
-
-  /* 🔥 a touch taller */
-  height:46px;
-
-  border-radius: 12px;
-  border:1px solid rgba(255,255,255,.12);
-  background: rgba(0,0,0,.35);
-  color: rgba(255,255,255,.94);
-  padding: 0 14px;
-
-  font-size:14.5px;
-  outline:none;
-}
-.nyx-input:focus{
-  border-color: rgba(140,0,35,.45);
-  box-shadow: 0 0 0 3px rgba(140,0,35,.18);
+  flex:1;
+  padding:14px 16px;
+  font-size:15px;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,.16);
+  background:#0b0b10;
+  color:#fff;
 }
 
 .nyx-send{
-  flex: 0 0 auto;
-
-  height:46px;
-  padding: 0 16px;
-
-  border-radius: 12px;
-  border:1px solid rgba(255,255,255,.14);
-  background: rgba(140,0,35,.22);
-  color: rgba(255,255,255,.96);
-
-  font-size:14px;
-
+  padding:14px 18px;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,.18);
+  background:#111;
+  color:#fff;
   cursor:pointer;
-  transition: transform 160ms cubic-bezier(.2,.8,.2,1), background 160ms ease, border-color 160ms ease;
+  transition:background .18s ease, transform .18s ease;
 }
 .nyx-send:hover{
-  transform: translateY(-1px);
-  background: rgba(140,0,35,.28);
-  border-color: rgba(255,255,255,.20);
-}
-.nyx-send:active{ transform: translateY(0px) scale(.98); }
-.nyx-send:disabled{
-  opacity:.55;
-  cursor:default;
-  transform:none;
+  background:#181818;
+  transform:translateY(-1px);
 }
 
 /* -------------------------
-   CHIPS (DEDUP IN EMBED)
+   EMBED MODE (FULL BLACK)
 ------------------------- */
 
-#nyxChips,
-.chips{
-  display:flex !important;
-  flex-direction: row !important;
-  flex-wrap: nowrap !important;
-  overflow-x:auto !important;
-  overflow-y:hidden !important;
-  gap:8px;
-  justify-content:flex-start;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width:none;
-}
-#nyxChips::-webkit-scrollbar,
-.chips::-webkit-scrollbar{ height:0; }
-
-.chip{
-  user-select:none;
-  cursor:pointer;
-  padding: 9px 12px;
-  border-radius: 999px;
-  border: 1px solid var(--chip-border);
-  background: var(--chip-bg);
-  color: rgba(255,255,255,.90);
-  font-size: 13px;
-  letter-spacing:.2px;
-  white-space: nowrap;
-  flex: 0 0 auto;
-  box-shadow: 0 10px 30px rgba(0,0,0,.35);
-
-  transition:
-    transform 180ms cubic-bezier(.2,.8,.2,1),
-    background 180ms cubic-bezier(.2,.8,.2,1),
-    border-color 180ms cubic-bezier(.2,.8,.2,1),
-    box-shadow 180ms cubic-bezier(.2,.8,.2,1);
-}
-.chip:hover{
-  transform: translateY(-1px);
-  background: rgba(255,255,255,.06);
-  border-color: rgba(255,255,255,.18);
-  box-shadow: 0 10px 26px rgba(0,0,0,.45);
-}
-.chip:active{ transform: translateY(0px) scale(.98); }
-.chip.is-active{
-  border-color: rgba(140,0,35,.60);
-  background: rgba(140,0,35,.18);
-  box-shadow: 0 10px 30px rgba(0,0,0,.35), 0 0 22px rgba(140,0,35,.25);
-}
-.chip .ext{ margin-left:6px; opacity:.85; }
-
-/* CRITICAL: in embed, hide duplicate chips rail */
-html.embed #nyxChips{ display:none !important; }
-
-/* -------------------------
-   FALLBACK AVATAR (simple silhouette)
-------------------------- */
-
-.avatar{
-  width:min(520px, 100%);
-  aspect-ratio: 16 / 9;
-  position:relative;
-  border-radius:16px;
-  border:1px solid rgba(255,255,255,.06);
-  background:
-    radial-gradient(380px 220px at 50% 35%, rgba(140,0,35,.14), transparent 65%),
-    radial-gradient(280px 200px at 60% 60%, rgba(255,255,255,.05), transparent 60%),
-    rgba(10,10,14,.72);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,.03);
-  transform: rotate(calc(var(--headTilt) * 2deg));
-  transition: transform 240ms ease;
-}
-.avatar::before{
-  content:"";
-  position:absolute; inset:0;
-  border-radius:16px;
-  background: radial-gradient(520px 260px at 50% 40%, rgba(255,255,255,.06), transparent 60%);
-  opacity: calc(.35 + (var(--motion) * .15));
-  transform: scale(calc(1 + (var(--breath) - 1) * 0.015));
-  transition: opacity 300ms ease;
-  pointer-events:none;
-}
-.silhouette{
-  position:absolute;
-  left:50%; top:50%;
-  transform: translate(-50%,-50%);
-  width:62%;
-  height:80%;
-  filter: drop-shadow(0 18px 40px rgba(0,0,0,.45));
-}
-.head{
-  position:absolute;
-  left:50%;
-  top:18%;
-  transform: translateX(-50%);
-  width:44%;
-  aspect-ratio:1/1;
-  border-radius:50%;
-  background:
-    radial-gradient(70px 55px at 40% 38%, rgba(255,255,255,.12), transparent 65%),
-    radial-gradient(90px 70px at 60% 60%, rgba(140,0,35,.18), transparent 60%),
-    rgba(255,255,255,.05);
-  border:1px solid rgba(255,255,255,.08);
-}
-.shoulders{
-  position:absolute;
-  left:50%;
-  top:48%;
-  transform: translateX(-50%) scaleX(1.05);
-  width:86%;
-  height:44%;
-  border-radius: 42% 42% 20% 20%;
-  background:
-    radial-gradient(120px 90px at 50% 20%, rgba(255,255,255,.08), transparent 70%),
-    rgba(255,255,255,.04);
-  border:1px solid rgba(255,255,255,.06);
-  transform-origin: 50% 10%;
-  animation: breathe calc(3.8s / var(--breath)) ease-in-out infinite;
-}
-.eye{
-  position:absolute;
-  top:42%;
-  width:12%;
-  height:9%;
-  border-radius:999px;
-  background: rgba(255,255,255,.10);
-  border:1px solid rgba(255,255,255,.10);
-  overflow:hidden;
-}
-.eye.left{ left:32% }
-.eye.right{ right:32% }
-.pupil{
-  position:absolute;
-  left:50%;
-  top:50%;
-  width:34%;
-  height:50%;
-  border-radius:999px;
-  background: rgba(255,255,255,.75);
-  transform: translate(-50%,-50%);
-  opacity:.85;
-}
-.lid{
-  position:absolute;
-  inset:0;
-  background: rgba(10,10,14,.92);
-  transform: translateY(-110%);
-  animation: blink calc(5.2s / var(--blink)) ease-in-out infinite;
-}
-.mouth{
-  position:absolute;
-  left:50%;
-  top:70%;
-  transform: translateX(-50%);
-  width:20%;
-  height:8%;
-  border-radius: 0 0 999px 999px;
-  border:1px solid rgba(255,255,255,.10);
-  background: rgba(255,255,255,.06);
-  transform-origin: 50% 50%;
-}
-.mouth::after{
-  content:"";
-  position:absolute;
-  left:50%; top:50%;
-  transform: translate(-50%,-50%);
-  width:60%;
-  height:40%;
-  border-radius:999px;
-  background: rgba(140,0,35,.28);
-  opacity: calc(.12 + (var(--mouth) * .75));
-  filter: blur(.2px);
-}
-.avatar.is-speaking .mouth{
-  transform: translateX(-50%) scaleY(calc(1 + var(--mouth) * 0.9));
-}
-
-@keyframes breathe{
-  0%,100%{ transform: translateX(-50%) scaleX(1.05) scaleY(1); }
-  50%{ transform: translateX(-50%) scaleX(1.05) scaleY(calc(1 + (var(--motion) * .03))); }
-}
-@keyframes blink{
-  0%,92%,100%{ transform: translateY(-110%); }
-  94%{ transform: translateY(0%); }
-  96%{ transform: translateY(-110%); }
+html.embed,
+html.embed body,
+html.embed #avatarRoot,
+html.embed #nyxShellMount{
+  background:#000 !important;
 }
