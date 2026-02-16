@@ -6,7 +6,7 @@
   <title>Nyx Avatar Host</title>
 
   <!-- Use the real skin (CACHE-BUST so you actually see updates) -->
-  <link rel="stylesheet" href="./avatar.css?v=118" />
+  <link rel="stylesheet" href="./avatar.css?v=119" />
 
   <style>
     html,body{height:100%}
@@ -29,6 +29,7 @@
       min-height:420px;
       position:relative;
       background:#000 !important;
+      isolation:isolate; /* CRITICAL: fixes stacking contexts so overlay can sit above hero */
     }
 
     #panel{
@@ -63,23 +64,33 @@
     }
     button:hover{ border-color: rgba(255,255,255,.22); }
 
+    /* =========================
+       CRITICAL OVERLAY VISIBILITY (EXPANDED)
+       - Forces bubble + dock above hero
+       - Prevents "hero-only stage" bug
+    ========================= */
     .overlay{
       position:absolute;
       inset:0;
+      z-index:2147483000;     /* CRITICAL: sit above everything */
       pointer-events:none;
-      z-index:9999;
+      display:block !important;
+      opacity:1 !important;
+      visibility:visible !important;
     }
+
     .overlay-inner{
       position:absolute;
-      left:0; right:0;
-      bottom:0;
+      inset:0;
       display:flex;
       flex-direction:column;
       align-items:center;
+      justify-content:flex-end;
       gap:10px;
       padding:0 12px 12px 12px;
       pointer-events:none;
     }
+
     .overlay-inner .bubble,
     .overlay-inner .chip,
     .overlay-inner .action-pill,
@@ -100,6 +111,37 @@
       background:#000 !important;
     }
 
+    /* Cognitive badge base (safe even if avatar.css doesn't define it yet) */
+    .nyx-cog-badge{
+      align-self:center;
+      margin-bottom:6px;
+      padding:8px 12px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(10,10,14,.78);
+      color:rgba(255,255,255,.84);
+      font:12px ui-monospace, Menlo, Consolas, monospace;
+      letter-spacing:.2px;
+      box-shadow:0 14px 40px rgba(0,0,0,.55);
+      backdrop-filter: blur(10px);
+      pointer-events:none;
+      user-select:none;
+    }
+
+    /* Ensure bubble + input dock never get hidden by some other CSS */
+    #nyxBubble,
+    #nyxBubbleText,
+    #nyxBubbleActions,
+    #nyxInputDock{
+      display:block !important;
+      opacity:1 !important;
+      visibility:visible !important;
+    }
+    #nyxInputDock{
+      display:flex !important;
+    }
+
+    /* embed tweaks */
     .embed #wrap{ grid-template-columns: 1fr; padding:0; height:100vh; background:#000 !important; }
     .embed #panel{ display:none; }
     .embed #avatarRoot{
@@ -109,6 +151,9 @@
       min-height:100vh;
       background:#000 !important;
     }
+
+    /* Optional: tiny, tasteful "alive" micro-motion hook (CSS class only) */
+    .nyx-alive #nyxBubble{ will-change: transform; }
   </style>
 </head>
 
@@ -132,10 +177,10 @@
       <div class="overlay" id="nyxOverlay">
         <div class="overlay-inner">
 
-          <!-- Cognitive transparency badge (optional, driven by body classes) -->
+          <!-- Cognitive transparency badge -->
           <div class="nyx-cog-badge" id="nyxCogBadge" aria-live="polite">Marion: standing by</div>
 
-          <!-- Speech bubble (Nyx output) — sits at shoulder height -->
+          <!-- Speech bubble (Nyx output) -->
           <div class="bubble" id="nyxBubble">
             <div class="bubble-text" id="nyxBubbleText">Hi… I’m Nyx. How are you today?</div>
 
@@ -152,7 +197,7 @@
             </div>
           </div>
 
-          <!-- (Optional) duplicate chip rail (hidden in embed by CSS) -->
+          <!-- (Optional) duplicate chip rail -->
           <div class="chips" id="nyxChips">
             <div class="chip is-active" data-chip="general">General</div>
             <div class="chip" data-chip="music">Music</div>
@@ -210,22 +255,21 @@
     </div>
   </div>
 
-  <script src="./avatar-contract.js?v=118"></script>
-  <script src="./nyx-avatar-shell.js?v=118"></script>
-  <script src="./avatar-controller.js?v=118"></script>
-  <script src="./avatar-bridge.js?v=118"></script>
+  <script src="./avatar-contract.js?v=119"></script>
+  <script src="./nyx-avatar-shell.js?v=119"></script>
+  <script src="./avatar-controller.js?v=119"></script>
+  <script src="./avatar-bridge.js?v=119"></script>
 
   <script>
   (function(){
-    var HOST_VER = "avatar-host v1.1.4 (cache-bust v118++++ + cognitive transparency badge++++ + thinking state++++ + mode tint++++ + progressive disclosure++++ + alive toggle++++)";
+    var HOST_VER = "avatar-host v1.1.5 (cache-bust v119++++ + CRITICAL overlay force++++ + isolation stacking fix++++ + cog badge base++++ + thinking/mode hooks++++)";
     try{ console.log("[NyxHost]", HOST_VER); }catch(_){}
 
     var EMBEDDED = false;
     try{ EMBEDDED = (window.top !== window.self); } catch(_){ EMBEDDED = true; }
     if (EMBEDDED) document.documentElement.classList.add('embed');
 
-    // Enable optional micro-motion if desired (default ON in embed, can be toggled)
-    // You can force-off by adding ?alive=0 in standalone testing.
+    // Alive motion toggle
     var ALIVE_DEFAULT = true;
     try{
       var qsAlive = new URLSearchParams(window.location.search || "");
@@ -320,9 +364,7 @@
     // UI STATE: THINKING + MODE + BADGE
     // -------------------------
     function setThinking(on){
-      try{
-        document.body.classList.toggle("nyx-thinking", !!on);
-      }catch(_){}
+      try{ document.body.classList.toggle("nyx-thinking", !!on); }catch(_){}
     }
 
     function setMode(mode){
@@ -349,6 +391,31 @@
         if (el.style.display === "none") el.style.display = "";
       }catch(_){}
     }
+
+    // Hook bridge-emitted contracts (from updated avatar-bridge.js v0.9.0)
+    window.addEventListener("nyx:state", function(ev){
+      try{
+        var st = safeStr(ev && ev.detail && ev.detail.state).toLowerCase();
+        if (!st) return;
+        setThinking(st === "thinking");
+        setHud("hudPresence", st);
+      }catch(_){}
+    });
+
+    window.addEventListener("nyx:mode", function(ev){
+      try{
+        var m = safeStr(ev && ev.detail && ev.detail.mode).toLowerCase();
+        if (!m) return;
+        setMode(m);
+      }catch(_){}
+    });
+
+    window.addEventListener("nyx:cog", function(ev){
+      try{
+        var line = safeStr(ev && ev.detail && ev.detail.line);
+        if (line) setCogBadge(line);
+      }catch(_){}
+    });
 
     // Bubble hooks
     var _bubbleTimer = null;
@@ -450,22 +517,15 @@
       }catch(_){}
     }
 
-    // --- Reason code helpers ---
-    function reject(code){
-      return { ok:false, code: safeStr(code || "rejected") };
-    }
-    function accept(){
-      return { ok:true, code:"ok" };
-    }
+    function reject(code){ return { ok:false, code: safeStr(code || "rejected") }; }
+    function accept(){ return { ok:true, code:"ok" }; }
     function reportReject(code, extra){
       try{
         setHud("hudBridge", "bad_config");
         setHud("hudReason", code || "bad_config");
         setHud("hudHostVer", HOST_VER);
         if (EMBEDDED) showBlocked(code || "bad_config");
-        try{
-          console.warn("[NyxHost] applyConfig rejected:", code, extra || {});
-        }catch(_){}
+        try{ console.warn("[NyxHost] applyConfig rejected:", code, extra || {}); }catch(_){}
       }catch(_){}
     }
 
@@ -615,13 +675,13 @@
         }
       }
 
-      // NONCE GATE (optional-but-strict)
+      // NONCE GATE
       if (EMBEDDED){
         var n = safeStr(p.nonce || p.readyNonce || "").trim();
         if (n && n !== READY_NONCE) return reject("nonce_mismatch");
       }
 
-      // API BASE (fallback)
+      // API BASE
       var apiBase = normalizeApiBase(p.apiBase);
       if (!apiBase) apiBase = normalizeApiBase(window.location.origin);
       if (!apiBase) return reject("apiBase_empty");
@@ -835,7 +895,6 @@
       if (el.tagName === "A") return;
 
       if (chip === "more"){
-        // simple progressive disclosure: reveal all pills (placeholder; refine later)
         try{
           var ba = window.NYX_HOST_UI.bubbleActions;
           if(ba){
@@ -894,11 +953,10 @@
 
       setSending(true);
 
-      // cognition "pause" (feels deliberate)
       setThinking(true);
       setCogBadge("Marion: interpreting intent…");
       bubbleTyping(true);
-      await cognitionDelay(420);
+      await cognitionDelay(260);
 
       try{
         var payload = { message: text };
@@ -924,9 +982,7 @@
           outText = res && res.ok ? "Done." : ("Error ("+(res?res.status:"?")+")");
         }
 
-        // first successful reply: reveal More pill (progressive disclosure)
         revealMorePill();
-
         setBubbleText(outText, { pop:true, typing:false });
       }catch(err){
         setBubbleText("I couldn’t reach chat right now.", { pop:true, typing:false });
@@ -959,7 +1015,6 @@
         var root = document.getElementById("avatarRoot");
         if(root){
           root.addEventListener("pointerdown", function(ev){
-            // ignore clicks on interactive elements
             var target = ev && ev.target;
             if (!target) return;
             if (target.closest && target.closest("button,a,input,textarea,.action-pill,.chip")) return;
