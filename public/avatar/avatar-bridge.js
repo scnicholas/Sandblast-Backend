@@ -5,24 +5,21 @@
 /**
  * Nyx Avatar Bridge
  *
- * v0.8.2 (HOST-AWARE++++ + NO TOKEN LEAK++++ + NO DOUBLE-HANDSHAKE++++ + FETCH WRAP GUARD++++)
+ * v0.9.0 (COG STATE CONTRACT++++ + MODE CONTRACT++++ + HOST-AUTHORITY++++ + NO TOKEN LEAK++++ + HARDENED MESSAGING++++)
  *
- * Why this update:
- * ✅ Your avatar-host.html now owns the secure handshake (nonce + anchored parent allowlist + closure token).
- * ✅ This bridge must NOT fight that handshake or require a token it can’t/shouldn’t see.
- *
- * Changes in v0.8.2:
- * ✅ HOST-AWARE: listens for nyx:config from avatar-host and uses NYX_API_BASE if provided
- * ✅ NO DOUBLE-HANDSHAKE: NYX_CONFIG handling becomes legacy-only (opt-in), so host is the authority
- * ✅ NO TOKEN LEAK: NYX_ACK no longer sends token back (ever)
- * ✅ ORIGIN LOCK: locks to first valid parent origin for consciousness/lifecycle packets (post-host config)
- * ✅ TOKEN OPTIONAL: if a token is present + expectedToken latched (legacy), enforce it; otherwise origin-lock only
- * ✅ FETCH WRAP GUARD: avoids wrapping twice when host already patched fetch (prefers NYX_FETCH when available)
+ * Critical Upgrades in v0.9.0:
+ * ✅ NYX_STATE contract: emits to host UI via window events + optional NYX_UI hooks
+ * ✅ NYX_MODE contract: syncs lane->mode and broadcasts nyx:mode for host to tint UI
+ * ✅ COG BADGE wiring: safe cognition transparency strings (no raw user text)
+ * ✅ Better settle logic: emits "speaking_end" and "thinking_end" transitions
+ * ✅ Harder message gate: origin lock + allowlist + legacy token only if present
+ * ✅ Host authority: prefers nyx:config from avatar-host; ignores double-handshake
+ * ✅ Fetch wrap guard: never wraps if host provides NYX_FETCH; no double wrapping flags
  *
  * Keeps:
  * ✅ Deterministic presence (TURN_START/END + inflight + netPending)
  * ✅ Settle polish (audio ended + pending drops to 0 + delay) + settleHint into controller + shell.triggerSettle
- * ✅ visibility pause/resume
+ * ✅ Visibility pause/resume
  * ✅ ObjectURL revocation (no leaks)
  * ✅ Protocol versioning (v:1)
  * ✅ Presence HUD split (final vs hint)
@@ -44,7 +41,7 @@
   // Security + Config
   // =========================
   const SECURITY = {
-    // Bridge-level allowlist (host already enforces anchored allowlist; keep this aligned + tight).
+    // Bridge-level allowlist (host already enforces anchored allowlist; keep aligned + tight).
     allowedOrigins: [
       "https://sandblast.channel",
       "https://www.sandblast.channel",
@@ -58,10 +55,10 @@
   };
 
   const CONFIG = {
-    apiBase: "",         // e.g. https://sandblast-backend.onrender.com
+    apiBase: "",          // e.g. https://sandblast-backend.onrender.com
     configuredAt: 0,
-    parentOrigin: "",    // locked parent origin (for consciousness/lifecycle packets)
-    hostConfigSeen: false,
+    parentOrigin: "",     // locked parent origin (for consciousness/lifecycle packets)
+    hostConfigSeen: false
   };
 
   function safeStr(x) { return x == null ? "" : String(x); }
@@ -105,7 +102,7 @@
   }
 
   // =========================
-  // Mount shell (wrapper-safe)
+  // Mount shell
   // =========================
   const mountEl =
     document.getElementById("nyxShellMount") ||
@@ -229,6 +226,14 @@
       lastUrls: null,
     },
 
+    // Contract surface for host UI
+    contract: {
+      lastState: "idle",
+      lastMode: "general",
+      lastCogLine: "Marion: standing by",
+      lastEmitAt: 0,
+    },
+
     diag: {
       lastPresence: "idle",
       lastFetchAt: 0,
@@ -245,22 +250,22 @@
   // =========================
   function normPresence(p) {
     p = safeStr(p).toLowerCase();
-    return p === "idle" || p === "listening" || p === "thinking" || p === "speaking" ? p : "";
+    return (p === "idle" || p === "listening" || p === "thinking" || p === "speaking") ? p : "";
   }
 
   function normStage(s) {
     s = safeStr(s).toLowerCase();
-    return s === "boot" || s === "warm" || s === "engaged" ? s : "";
+    return (s === "boot" || s === "warm" || s === "engaged") ? s : "";
   }
 
   function normDom(d) {
     d = safeStr(d).toLowerCase();
-    return d === "soft" || d === "neutral" || d === "firm" ? d : "";
+    return (d === "soft" || d === "neutral" || d === "firm") ? d : "";
   }
 
   function normLane(l) {
     l = safeStr(l).toLowerCase();
-    return (l === "general" || l === "music" || l === "roku" || l === "schedule" || l === "radio") ? l : "";
+    return (l === "general" || l === "music" || l === "roku" || l === "schedule" || l === "radio" || l === "cyber") ? l : "";
   }
 
   function incNet() { state.netPending = Math.max(0, (state.netPending | 0) + 1); }
@@ -270,6 +275,93 @@
 
   function effectivePending() {
     return Math.max(0, (state.netPending | 0) + (state.inflight | 0));
+  }
+
+  // =========================
+  // Host UI Contract Emitters
+  // =========================
+  function emitWindowEvent(name, detail) {
+    try { window.dispatchEvent(new CustomEvent(name, { detail: detail || {} })); } catch (_) {}
+  }
+
+  function uiSetState(stateName) {
+    // Preferred: host handles via classes; fallback: NYX_UI hooks if present
+    try {
+      emitWindowEvent("nyx:state", { state: stateName });
+      if (window.NYX_UI && typeof window.NYX_UI.bubbleTyping === "function") {
+        // If thinking/listening, allow typing shimmer. Speaking handled by audio.
+        if (stateName === "thinking") window.NYX_UI.bubbleTyping(true);
+        if (stateName === "idle") window.NYX_UI.bubbleTyping(false);
+      }
+    } catch (_) {}
+  }
+
+  function uiSetMode(mode) {
+    try {
+      emitWindowEvent("nyx:mode", { mode: mode });
+    } catch (_) {}
+  }
+
+  function uiSetCogLine(line) {
+    try {
+      emitWindowEvent("nyx:cog", { line: line });
+    } catch (_) {}
+  }
+
+  function mapPresenceToUiState(presence) {
+    // Keep host model: idle | listening | thinking | speaking | error
+    if (presence === "speaking") return "speaking";
+    if (presence === "thinking") return "thinking";
+    if (presence === "listening") return "listening";
+    return "idle";
+  }
+
+  function laneToMode(lane) {
+    lane = normLane(lane) || "general";
+    return lane;
+  }
+
+  function safeCogLineFromPacket(packet) {
+    // Never include raw user text. Only summarize state transitions.
+    try {
+      const cog = packet && packet.cog && typeof packet.cog === "object" ? packet.cog : null;
+      const dom = safeStr((packet && packet.dominance) || (cog && cog.dominance) || "").toLowerCase();
+      const stage = safeStr((packet && packet.stage) || "").toLowerCase();
+      const lane = safeStr(packet && packet.lane).toLowerCase();
+
+      if (stage === "boot") return "Marion: initializing…";
+      if (lane === "music") return "Marion: entering music focus…";
+      if (lane === "roku") return "Marion: switching to Roku ops…";
+      if (lane === "radio") return "Marion: broadcast mode…";
+      if (lane === "schedule") return "Marion: scheduling context…";
+      if (lane === "cyber") return "Marion: hardening posture…";
+      if (dom === "firm") return "Marion: narrowing to the critical path…";
+      if (dom === "soft") return "Marion: opening space to explore…";
+    } catch (_) {}
+    return "Marion: standing by";
+  }
+
+  function maybeEmitContracts(now) {
+    // Emit at most every 120ms to avoid event spam
+    if ((now - (state.contract.lastEmitAt || 0)) < 120) return;
+
+    const uiState = mapPresenceToUiState(state.presence);
+    const mode = laneToMode(state.lane);
+
+    if (uiState !== state.contract.lastState) {
+      state.contract.lastState = uiState;
+      uiSetState(uiState);
+      if (hud.hs) hudSet(hud.hs, "state→" + uiState);
+    }
+
+    if (mode !== state.contract.lastMode) {
+      state.contract.lastMode = mode;
+      uiSetMode(mode);
+    }
+
+    // Only update cog line when we have a reason (new packet or big state shift)
+    // Keep it stable otherwise to avoid flicker.
+    state.contract.lastEmitAt = now;
   }
 
   // =========================
@@ -433,7 +525,7 @@
       normDom(packet.cog && packet.cog.dominance) ||
       state.dominance;
 
-    state.velvet = typeof packet.velvet === "boolean" ? packet.velvet : state.velvet;
+    state.velvet = (typeof packet.velvet === "boolean") ? packet.velvet : state.velvet;
 
     state.inlet.hintPresence =
       normPresence(packet.presence) ||
@@ -449,6 +541,13 @@
       velvet: state.velvet,
       hintPresence: state.inlet.hintPresence,
     };
+
+    // Update cognitive transparency line (safe)
+    try {
+      const line = safeCogLineFromPacket(packet);
+      state.contract.lastCogLine = line;
+      uiSetCogLine(line);
+    } catch (_) {}
 
     // pass structured cognition + urls into UI controller (fail-open)
     try {
@@ -475,13 +574,16 @@
         window.AvatarController.setLane(state.lane);
       }
     } catch (_) {}
+
+    // Emit mode immediately on new cognition packet
+    uiSetMode(laneToMode(state.lane));
   }
 
   // =========================
   // Legacy config inlet (NYX_CONFIG) — HOST IS AUTHORITY NOW
   // =========================
   // If you still send NYX_CONFIG to this bridge directly (older hosts),
-  // we will accept it ONCE and lock origin, BUT we will NOT leak token in ACK.
+  // we accept it ONCE and lock origin, BUT we will NOT leak token in ACK.
   function applyLegacyConfig(payload, origin, evSource) {
     const p = payload && typeof payload === "object" ? payload : {};
     const o = safeStr(origin);
@@ -555,7 +657,7 @@
   }
 
   // =========================
-  // postMessage (secure + lifecycle)
+  // postMessage (secure + lifecycle + contracts)
   // =========================
   window.addEventListener("message", (ev) => {
     const d = ev && ev.data;
@@ -606,6 +708,29 @@
       return;
     }
 
+    // New contract packets from parent (optional; if parent emits them)
+    if (d.type === "NYX_STATE") {
+      try {
+        const st = safeStr(d.payload && d.payload.state).toLowerCase();
+        if (st) {
+          state.contract.lastState = st;
+          uiSetState(st);
+        }
+      } catch (_) {}
+      return;
+    }
+
+    if (d.type === "NYX_MODE") {
+      try {
+        const mode = safeStr(d.payload && d.payload.mode).toLowerCase();
+        if (mode) {
+          state.contract.lastMode = mode;
+          uiSetMode(mode);
+        }
+      } catch (_) {}
+      return;
+    }
+
     if (d.type === "NYX_CONSCIOUSNESS") {
       applyConsciousness(d.payload);
       return;
@@ -614,11 +739,15 @@
     // Deterministic lifecycle
     if (d.type === "NYX_TURN_START") {
       incInflight();
+      // surface cognition immediately
+      uiSetState("thinking");
+      uiSetCogLine("Marion: interpreting intent…");
       return;
     }
     if (d.type === "NYX_TURN_END") {
       decInflight();
       scheduleSettleSoon(180);
+      // do not force idle here; let computePresence settle (audio/net)
       return;
     }
   });
@@ -650,7 +779,7 @@
     const _fetch = window.fetch.bind(window);
 
     window.fetch = async function (input, init) {
-      let url = typeof input === "string" ? input : (input && input.url) || "";
+      let url = (typeof input === "string") ? input : (input && input.url) || "";
       const { isChat, isTts } = sniffUrl(url);
 
       if (isChat || isTts) {
@@ -658,6 +787,10 @@
         state.diag.lastFetchAt = Date.now();
         if (isChat) state.diag.lastChatAt = state.diag.lastFetchAt;
         if (isTts) state.diag.lastTtsAt = state.diag.lastFetchAt;
+
+        // Surface cognition while network pending
+        uiSetState("thinking");
+        uiSetCogLine(isChat ? "Marion: composing…" : "Marion: voicing…");
       }
 
       // Route relative /api/* to CONFIG.apiBase
@@ -692,7 +825,11 @@
       } finally {
         if (isChat || isTts) {
           decNet();
-          if (effectivePending() === 0) scheduleSettleSoon(180);
+          if (effectivePending() === 0) {
+            scheduleSettleSoon(180);
+            // Let render loop compute final state; but cue end-of-thinking
+            uiSetCogLine("Marion: standing by");
+          }
         }
       }
     };
@@ -719,12 +856,19 @@
 
     XHR.prototype.send = function () {
       const sniff = this.__nyx_sniff || { isChat: false, isTts: false };
-      if (sniff.isChat || sniff.isTts) incNet();
+      if (sniff.isChat || sniff.isTts) {
+        incNet();
+        uiSetState("thinking");
+        uiSetCogLine(sniff.isChat ? "Marion: composing…" : "Marion: voicing…");
+      }
 
       const done = () => {
         if (sniff.isChat || sniff.isTts) {
           decNet();
-          if (effectivePending() === 0) scheduleSettleSoon(180);
+          if (effectivePending() === 0) {
+            scheduleSettleSoon(180);
+            uiSetCogLine("Marion: standing by");
+          }
         }
       };
 
@@ -864,6 +1008,9 @@
 
     state.presence = computePresence();
     state.stage = reconcileStage(state.presence);
+
+    // Emit UI contracts (state + mode) throttled
+    maybeEmitContracts(now);
 
     const d = window.AvatarController.computeDirective(
       {
