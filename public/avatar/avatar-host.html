@@ -9,27 +9,37 @@
   <link rel="stylesheet" href="./avatar.css?v=119" />
 
   <style>
-    html,body{height:100%}
-    body{ margin:0; background:#000 !important; }
+    /* =========================
+       CRITICAL: iframe-safe sizing
+       - DO NOT use 100vh inside an iframe drawer (it pushes overlay off-screen)
+       - Use 100% + min-height:0 so flex/grid children can shrink correctly
+    ========================= */
+    html, body{
+      height:100%;
+      margin:0;
+      background:#000 !important;
+    }
+    body{ background:#000 !important; }
 
     #wrap{
       display:grid;
       grid-template-columns: 1fr 320px;
       gap:12px;
       padding:12px;
-      height:100vh;
+      height:100%;            /* CRITICAL: was 100vh */
       box-sizing:border-box;
       background:#000 !important;
+      min-height:0;           /* CRITICAL: allow grid children to fit */
     }
 
     #avatarRoot{
       border:1px solid rgba(255,255,255,.08);
       border-radius:16px;
       overflow:hidden;
-      min-height:420px;
+      min-height:0;           /* CRITICAL: was 420px -> breaks inside 600px drawer */
       position:relative;
       background:#000 !important;
-      isolation:isolate; /* CRITICAL: fixes stacking contexts so overlay can sit above hero */
+      isolation:isolate;      /* CRITICAL: fixes stacking contexts so overlay sits above hero */
     }
 
     #panel{
@@ -37,6 +47,8 @@
       border-radius:16px;
       padding:12px;
       background:#000 !important;
+      min-height:0;
+      overflow:auto;
     }
 
     .row{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
@@ -65,7 +77,7 @@
     button:hover{ border-color: rgba(255,255,255,.22); }
 
     /* =========================
-       CRITICAL OVERLAY VISIBILITY (EXPANDED)
+       CRITICAL OVERLAY VISIBILITY
        - Forces bubble + dock above hero
        - Prevents "hero-only stage" bug
     ========================= */
@@ -89,6 +101,7 @@
       gap:10px;
       padding:0 12px 12px 12px;
       pointer-events:none;
+      min-height:0;
     }
 
     .overlay-inner .bubble,
@@ -139,16 +152,24 @@
     }
     #nyxInputDock{
       display:flex !important;
+      width:100%;
+      max-width:720px;
     }
 
-    /* embed tweaks */
-    .embed #wrap{ grid-template-columns: 1fr; padding:0; height:100vh; background:#000 !important; }
+    /* embed tweaks (iframe drawer-safe) */
+    .embed #wrap{
+      grid-template-columns: 1fr;
+      padding:0;
+      height:100%;            /* CRITICAL: was 100vh */
+      background:#000 !important;
+      min-height:0;
+    }
     .embed #panel{ display:none; }
     .embed #avatarRoot{
       border-radius:0;
       border:0;
-      height:100vh;
-      min-height:100vh;
+      height:100%;
+      min-height:0;           /* CRITICAL: was 100vh/min-height:100vh */
       background:#000 !important;
     }
 
@@ -262,7 +283,7 @@
 
   <script>
   (function(){
-    var HOST_VER = "avatar-host v1.1.5 (cache-bust v119++++ + CRITICAL overlay force++++ + isolation stacking fix++++ + cog badge base++++ + thinking/mode hooks++++)";
+    var HOST_VER = "avatar-host v1.1.6 (cache-bust v119++++ + iframe-safe height(100%)++++ + min-height:0++++ + CRITICAL overlay force++++ + isolation stacking fix++++ + cog badge base++++ + thinking/mode hooks++++)";
     try{ console.log("[NyxHost]", HOST_VER); }catch(_){}
 
     var EMBEDDED = false;
@@ -392,7 +413,7 @@
       }catch(_){}
     }
 
-    // Hook bridge-emitted contracts (from updated avatar-bridge.js v0.9.0)
+    // Hook bridge-emitted contracts (optional)
     window.addEventListener("nyx:state", function(ev){
       try{
         var st = safeStr(ev && ev.detail && ev.detail.state).toLowerCase();
@@ -1010,7 +1031,7 @@
         }
       });
 
-      // Tap-to-focus: clicking anywhere in avatarRoot focuses input (optional)
+      // Tap-to-focus
       try{
         var root = document.getElementById("avatarRoot");
         if(root){
@@ -1039,7 +1060,7 @@
       }catch(_){}
     });
 
-    // Dev panel actions (minimal; safe)
+    // Dev panel actions
     function wireDevPanel(){
       var panel = document.getElementById("panel");
       if(!panel) return;
