@@ -1,14 +1,14 @@
 /* avatar.css
  *
- * v1.1.1 (HERO HARD-FALLBACK++++ + STOP BLACK-WASH++++ + OVERLAY SAFE++++ + HORIZONTAL PILLS++++)
+ * v1.1.2 (ONE-LINE PILLS++++ + EMBED CHIP DEDUPE++++ + SCROLL RAIL++++ + HERO SAFE++++)
  *
  * Goals:
- * - Guarantee Nyx hero is visible even if shell fails (host sets --nyx-hero-url + background-image)
- * - Prevent “black wash” layers from dimming hero/PNG/canvas
- * - Keep true black canvas + premium bubble + unified chips
+ * - Keep action pills horizontal (left→right) ALWAYS; no vertical stacking
+ * - If space is tight, scroll horizontally instead of wrapping
+ * - Remove duplicate chip rail in embedded widget mode to reduce clutter
+ * - Preserve hero visibility (PNG) and prevent black-wash dim layers
  */
 
-/* avatar.css */
 :root{
   /* Core palette */
   --bg:#000000;
@@ -34,9 +34,8 @@
 
   /* Hero framing */
   --hero-fit: cover;          /* cover | contain */
-  --hero-pos: 50% 32%;        /* IMPORTANT: centers face better in widget */
-  --hero-opacity: 1;          /* hard visibility */
-  --hero-dim: 0;              /* 0 = no dim overlay */
+  --hero-pos: 50% 18%;
+  --hero-opacity: 1;
 
   /* driven by directive (avatar-shell writes these) */
   --breath:1;
@@ -47,22 +46,23 @@
   --gazeWander:0.25;
   --headTilt:0.07;
 
-  /* host may set this as url("...") */
+  /* host sets this as url("...") */
   --nyx-hero-url: none;
 }
 
 *{box-sizing:border-box}
 html,body{height:100%}
 
-/* HARD FORCE: wins against host inline styles */
+/* HARD FORCE */
 html, body{ background:#000 !important; }
 
 body{
   margin:0;
   font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-
-  /* STOP BLACK-WASH: keep body pure black (no radial dim layers) */
-  background: var(--bg) !important;
+  background:
+    radial-gradient(1200px 600px at 40% 20%, rgba(140,0,35,.14), transparent 60%),
+    radial-gradient(900px 500px at 70% 70%, rgba(90,110,255,.10), transparent 55%),
+    var(--bg) !important;
   color:var(--text);
 }
 
@@ -73,21 +73,14 @@ body{
 #avatarRoot{
   position:relative;
   min-height:420px;
+
   background:#000 !important;
-  overflow:hidden; /* keeps vignette + hero clean */
+  background:
+    radial-gradient(900px 420px at 50% 20%, rgba(255,255,255,.035), transparent 62%),
+    radial-gradient(640px 320px at 55% 62%, rgba(140,0,35,.10), transparent 66%),
+    var(--panel) !important;
 }
 
-/* Soft vignette to frame hero without washing it */
-#avatarRoot::after{
-  content:"";
-  position:absolute;
-  inset:0;
-  pointer-events:none;
-  z-index:2;
-  background: radial-gradient(circle at center, rgba(0,0,0,0) 52%, rgba(0,0,0,.62) 100%);
-}
-
-/* Mount sits BELOW overlay, ABOVE background */
 #nyxShellMount{
   position:absolute;
   inset:0;
@@ -97,7 +90,7 @@ body{
   padding:18px;
   z-index:10;
 
-  /* HERO HARD-FALLBACK (set by host JS via --nyx-hero-url) */
+  /* HERO HARD-FALLBACK (host JS should set --nyx-hero-url) */
   background-image: var(--nyx-hero-url);
   background-size: var(--hero-fit);
   background-position: var(--hero-pos);
@@ -106,27 +99,24 @@ body{
   opacity: 1 !important;
 }
 
-/* Optional very light “sheen” (NOT a dimmer) */
+/* light vignette (NOT a black wash) */
 #nyxShellMount::before{
   content:"";
   position:absolute; inset:0;
   pointer-events:none;
-  z-index:1;
   opacity:.18;
   background:
-    radial-gradient(60% 55% at 50% 34%, rgba(255,255,255,.07), transparent 62%),
-    radial-gradient(70% 60% at 50% 50%, rgba(140,0,35,.10), transparent 68%);
+    radial-gradient(60% 55% at 50% 36%, rgba(255,255,255,.06), transparent 62%),
+    radial-gradient(70% 60% at 50% 50%, rgba(140,0,35,.08), transparent 68%);
 }
 
-/* Kill “black wash” overlays inside mount (defensive)
-   NOTE: Do NOT force-opacity on every child; that can break shell visuals.
-*/
+/* Defensive: prevent dim overlays inside mount */
 #nyxShellMount *{
+  opacity: 1 !important;
   filter: none !important;
   mix-blend-mode: normal !important;
 }
 
-/* If shell uses media/canvas */
 #nyxShellMount img,
 #nyxShellMount canvas,
 #nyxShellMount video{
@@ -147,16 +137,6 @@ body{
   background: transparent !important;
 }
 
-#nyxAvatar{
-  opacity:1 !important;
-  visibility:visible !important;
-}
-
-#panel{
-  background:#000 !important;
-  border-color: var(--line) !important;
-}
-
 .overlay,
 .overlay-inner,
 #nyxOverlay{
@@ -168,14 +148,13 @@ body{
 ------------------------- */
 
 .overlay-inner{
-  /* lift bubble so it stops sitting on Nyx's face */
-  bottom:110px !important;
+  bottom:72px !important;
   gap:12px !important;
   padding:0 14px !important;
 }
 
 @media (max-height: 640px){
-  .overlay-inner{ bottom:72px !important; }
+  .overlay-inner{ bottom:52px !important; }
 }
 
 /* -------------------------
@@ -187,9 +166,9 @@ body{
   display:block !important;
   pointer-events:auto;
 
-  min-width: 260px;
-  max-width: 420px; /* better proportion inside the widget */
-  width: max-content;
+  /* IMPORTANT: avoid max-content causing weird wrapping behavior in tight widgets */
+  width: min(680px, calc(100vw - 56px));
+  max-width: min(680px, calc(100vw - 56px));
 
   position: relative;
 
@@ -242,14 +221,14 @@ body{
 #nyxBubbleText,
 .bubble-text{
   position:relative;
-  padding: 18px 22px;
+  padding: 18px 22px 12px 22px;
   font-size: 16px;
   line-height: 1.70;
   letter-spacing: .2px;
   color: var(--text);
 }
 
-/* Links inside bubble: kill browser blue */
+/* Links inside bubble */
 #nyxBubble a,
 .bubble a{
   color: rgba(255,255,255,.90);
@@ -263,24 +242,40 @@ body{
   border-bottom-color: rgba(140,0,35,.92);
 }
 
+/* -------------------------
+   ACTION PILLS (ONE-LINE SCROLL RAIL)
+------------------------- */
+
 #nyxBubbleActions,
 .bubble-actions{
   position:relative;
   padding: 0 14px 14px 14px;
 
-  /* HORIZONTAL row */
   display:flex !important;
-  flex-direction: row !important;
-  flex-wrap: wrap !important;
+  flex-direction:row !important;
+
+  /* CRITICAL: never wrap; scroll instead */
+  flex-wrap: nowrap !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
 
   gap:8px;
   align-items:center;
   justify-content:flex-start;
+
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+
+  /* subtle fade hint at right edge */
+  mask-image: linear-gradient(90deg, #000 0%, #000 88%, transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 88%, transparent 100%);
 }
 
-/* -------------------------
-   ACTION PILLS (inside bubble)
-------------------------- */
+/* Hide scrollbars (still scrollable) */
+#nyxBubbleActions::-webkit-scrollbar,
+.bubble-actions::-webkit-scrollbar{ height:0; }
+#nyxBubbleActions{ scrollbar-width:none; }
+.bubble-actions{ scrollbar-width:none; }
 
 .action-pill{
   user-select:none;
@@ -292,7 +287,11 @@ body{
   color: rgba(255,255,255,.90);
   font-size: 13px;
   letter-spacing:.2px;
+
+  /* CRITICAL: prevent shrinking / wrapping */
   white-space: nowrap;
+  flex: 0 0 auto;
+
   transition: transform 120ms ease, background 160ms ease, border-color 160ms ease;
 }
 .action-pill:hover{
@@ -329,17 +328,24 @@ body{
 }
 
 /* -------------------------
-   CHIPS (unified)
+   CHIPS (DEDUPLICATE IN EMBED)
 ------------------------- */
 
+/* Default chips style (non-embed/dev) */
 #nyxChips,
 .chips{
   display:flex !important;
   flex-direction: row !important;
-  flex-wrap:wrap !important;
+  flex-wrap: nowrap !important;
+  overflow-x:auto !important;
+  overflow-y:hidden !important;
   gap:8px;
-  justify-content:center;
+  justify-content:flex-start;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width:none;
 }
+#nyxChips::-webkit-scrollbar,
+.chips::-webkit-scrollbar{ height:0; }
 
 .chip{
   user-select:none;
@@ -352,6 +358,7 @@ body{
   font-size: 13px;
   letter-spacing:.2px;
   white-space: nowrap;
+  flex: 0 0 auto;
   box-shadow: 0 10px 30px rgba(0,0,0,.35);
   transition: transform 120ms ease, background 160ms ease, border-color 160ms ease, box-shadow 200ms ease;
 }
@@ -366,6 +373,11 @@ body{
   box-shadow: 0 10px 30px rgba(0,0,0,.35), 0 0 22px rgba(140,0,35,.25);
 }
 .chip .ext{ margin-left:6px; opacity:.85; }
+
+/* CRITICAL: In embedded widget mode, hide the duplicate chip rail entirely */
+html.embed #nyxChips{
+  display:none !important;
+}
 
 /* -------------------------
    FALLBACK AVATAR (simple silhouette)
