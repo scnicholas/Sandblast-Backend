@@ -1,12 +1,11 @@
 /* avatar.css
  *
- * v1.1.6 (USER INPUT DOCK++++ + BUBBLE SHOULDER HEIGHT++++ + HERO BIGGER++++ + TRUE BLACK STAGE++++)
+ * v1.1.7 (HERO BIGGER++++ + INPUT DOCK TUNE++++ + TRUE BLACK EMBED HARD-KILL++++)
  *
  * Goals:
- * - User text box at bottom (input dock)
- * - Bubble higher (shoulder height), face visible
- * - Hero a bit bigger in-frame
- * - Kill haze: stage is true black (especially embed)
+ * - Hero a bit bigger in-frame (more than last round)
+ * - Input dock slightly bigger
+ * - TRUE BLACK in embed: remove haze by disabling glow/vignette/gradients AND forcing black behind img/canvas
  * - Keep pills horizontal with scroll rail
  * - Hide duplicate chip rail in embed
  */
@@ -39,9 +38,11 @@
 
   /* Hero framing */
   --hero-fit:contain;
-  --hero-pos:50% 9%;
+  --hero-pos:50% 8%;
   --hero-opacity:1;
-  --hero-scale:136%;
+
+  /* 🔥 BIGGER than last round */
+  --hero-scale:154%;
 
   /* Stage control */
   --stage-black:#000000;
@@ -81,10 +82,19 @@ body{
   color:var(--text);
 }
 
-/* EMBED: TRUE BLACK everywhere */
-html.embed, html.embed body{
+/* =========================
+   EMBED: TRUE BLACK HARD-KILL
+   (this is where your haze is coming from)
+========================= */
+html.embed,
+html.embed body{
   background:#000 !important;
   background-image:none !important;
+}
+
+/* If anything tries to paint a gradient inside embed, kill it */
+html.embed *{
+  text-shadow:none;
 }
 
 /* -------------------------
@@ -94,10 +104,7 @@ html.embed, html.embed body{
 #avatarRoot{
   position:relative;
   min-height:420px;
-
-  /* CRITICAL: true black stage */
   background: var(--stage-black) !important;
-
   isolation:isolate;
 }
 
@@ -114,8 +121,11 @@ html.embed, html.embed body{
   filter: blur(10px);
   opacity:.95;
 }
+
+/* ✅ embed: glow OFF (not “low”, OFF) */
 html.embed #avatarRoot::before{
-  opacity: var(--embed-glow) !important;
+  opacity:0 !important;
+  display:none !important;
 }
 
 /* keep all children above glow */
@@ -136,6 +146,8 @@ html.embed #avatarRoot::before{
   z-index:10;
 
   background-color: var(--stage-black) !important;
+
+  /* hero fallback via CSS var */
   background-image: var(--nyx-hero-url);
   background-size: var(--hero-scale) var(--hero-scale) !important;
   background-position: var(--hero-pos) !important;
@@ -144,17 +156,20 @@ html.embed #avatarRoot::before{
   opacity:1 !important;
 }
 
-/* keep vignette very light */
+/* Vignette: non-embed very light; embed = OFF */
 #nyxShellMount::before{
   content:"";
   position:absolute; inset:0;
   pointer-events:none;
-  opacity:.10;
+  opacity:.08;
   background:
     radial-gradient(60% 55% at 50% 26%, rgba(255,255,255,.06), transparent 62%),
-    radial-gradient(70% 60% at 50% 52%, rgba(140,0,35,.07), transparent 68%);
+    radial-gradient(70% 60% at 50% 52%, rgba(140,0,35,.06), transparent 68%);
 }
-html.embed #nyxShellMount::before{ opacity:.05 !important; }
+html.embed #nyxShellMount::before{
+  opacity:0 !important;
+  display:none !important;
+}
 
 /* Defensive: prevent dim overlays inside mount */
 #nyxShellMount *{
@@ -163,7 +178,7 @@ html.embed #nyxShellMount::before{ opacity:.05 !important; }
   mix-blend-mode:normal !important;
 }
 
-/* If shell renders an IMG/canvas/video */
+/* If shell renders IMG/canvas/video, force BLACK behind it */
 #nyxShellMount img,
 #nyxShellMount canvas,
 #nyxShellMount video{
@@ -175,8 +190,20 @@ html.embed #nyxShellMount::before{ opacity:.05 !important; }
   opacity: var(--hero-opacity) !important;
   filter:none !important;
 
-  transform: scale(1.10);
-  transform-origin: 50% 22%;
+  /* 🔥 bump a bit bigger than last round */
+  transform: scale(1.16);
+  transform-origin: 50% 20%;
+
+  /* ✅ critical: black behind transparent pixels */
+  background:#000 !important;
+}
+
+/* If Nyx shell uses a wrapper element, ensure it’s black too */
+#nyxShellMount .nyx-shell,
+#nyxShellMount .stage,
+#nyxShellMount .hero,
+#nyxShellMount .hero-stage{
+  background:#000 !important;
 }
 
 /* Overlay always above avatar */
@@ -196,14 +223,13 @@ html.embed #nyxShellMount::before{ opacity:.05 !important; }
    OVERLAY LAYOUT (bubble + dock)
 ------------------------- */
 
-/* We anchor the input dock at bottom and float bubble above it */
 .overlay-inner{
   bottom:12px !important;
   gap:10px !important;
   padding:0 14px 12px 14px !important;
 }
 
-/* Bubble rides above dock height */
+/* Bubble sits above dock */
 #nyxBubble,
 .bubble{
   display:block !important;
@@ -212,8 +238,8 @@ html.embed #nyxShellMount::before{ opacity:.05 !important; }
   width: min(560px, calc(100vw - 56px));
   max-width: min(560px, calc(100vw - 56px));
 
-  /* lift it up above the dock so it sits at shoulders */
-  margin-bottom: 64px;
+  /* bubble higher: rides above dock */
+  margin-bottom: 66px;
 
   position: relative;
   background: linear-gradient(145deg, var(--bubble-bg-1), var(--bubble-bg-2));
@@ -240,8 +266,8 @@ html.embed #nyxShellMount::before{ opacity:.05 !important; }
 /* embed mode: tighter */
 html.embed #nyxBubble,
 html.embed .bubble{
-  width: min(380px, calc(100vw - 46px));
-  max-width: min(380px, calc(100vw - 46px));
+  width: min(390px, calc(100vw - 44px));
+  max-width: min(390px, calc(100vw - 44px));
 }
 
 #nyxBubble:hover,
@@ -379,7 +405,7 @@ html.embed .bubble{
 }
 
 /* -------------------------
-   USER INPUT DOCK (BOTTOM)
+   USER INPUT DOCK (BOTTOM) — slightly bigger
 ------------------------- */
 
 .nyx-inputdock{
@@ -390,7 +416,8 @@ html.embed .bubble{
   gap:10px;
   align-items:center;
 
-  padding:10px 12px;
+  /* 🔥 slightly larger than last round */
+  padding:12px 14px;
 
   border-radius: 16px;
   border: 1px solid var(--dock-border);
@@ -405,18 +432,23 @@ html.embed .bubble{
 }
 
 html.embed .nyx-inputdock{
-  width: min(380px, calc(100vw - 46px));
-  max-width: min(380px, calc(100vw - 46px));
+  width: min(390px, calc(100vw - 44px));
+  max-width: min(390px, calc(100vw - 44px));
 }
 
 .nyx-input{
   flex:1 1 auto;
-  height:42px;
+
+  /* 🔥 a touch taller */
+  height:46px;
+
   border-radius: 12px;
   border:1px solid rgba(255,255,255,.12);
   background: rgba(0,0,0,.35);
   color: rgba(255,255,255,.94);
-  padding: 0 12px;
+  padding: 0 14px;
+
+  font-size:14.5px;
   outline:none;
 }
 .nyx-input:focus{
@@ -426,14 +458,18 @@ html.embed .nyx-inputdock{
 
 .nyx-send{
   flex: 0 0 auto;
-  height:42px;
-  padding: 0 14px;
+
+  height:46px;
+  padding: 0 16px;
+
   border-radius: 12px;
   border:1px solid rgba(255,255,255,.14);
   background: rgba(140,0,35,.22);
   color: rgba(255,255,255,.96);
-  cursor:pointer;
 
+  font-size:14px;
+
+  cursor:pointer;
   transition: transform 160ms cubic-bezier(.2,.8,.2,1), background 160ms ease, border-color 160ms ease;
 }
 .nyx-send:hover{
@@ -441,9 +477,7 @@ html.embed .nyx-inputdock{
   background: rgba(140,0,35,.28);
   border-color: rgba(255,255,255,.20);
 }
-.nyx-send:active{
-  transform: translateY(0px) scale(.98);
-}
+.nyx-send:active{ transform: translateY(0px) scale(.98); }
 .nyx-send:disabled{
   opacity:.55;
   cursor:default;
