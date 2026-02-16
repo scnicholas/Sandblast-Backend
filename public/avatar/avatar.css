@@ -1,6 +1,6 @@
 /* avatar.css
  *
- * v1.1.3 (AMBIENT GLOW++++ + PREMIUM CONTRAST++++ + FACE FULL++++ + BUBBLE SHRINK++++ + NOIR-10%++++ + HOVER MICRO++++)
+ * v1.1.4 (STAGE BLACK++++ + HERO SCALE++++ + FACE SAFE++++ + SHOULDER BUBBLE++++ + EMBED PURE-BLACK++++)
  *
  * Goals:
  * - Keep action pills horizontal (left→right) ALWAYS; no vertical stacking
@@ -9,38 +9,46 @@
  * - Preserve hero visibility (PNG) and prevent black-wash dim layers
  * - Add ambient glow behind avatar, lighten bubble ~12–15%, increase typography contrast
  * - Show Nyx’s entire face (favor contain + face-safe positioning)
- * - Shrink speech bubble so face stays visible
- * - Reduce pure-black usage by ~10% while keeping noir
+ * - Make avatar image a bit bigger in-frame (reduce padding + gentle scale)
+ * - Make STAGE behind Nyx totally black (kill haze bleed) esp in widget/embed
+ * - Bubble should cover shoulders only (keep neck + head visible)
  * - Introduce subtle hover micro-animations
  */
 
 :root{
   /* Core palette (NOIR-10%: soften pure black slightly) */
-  --bg:#0a0a0c;                 /* was #000000 */
-  --panel:#07070a;              /* was #000000 */
-  --panel2:#0b0b10;             /* was #050508 */
+  --bg:#0a0a0c;
+  --panel:#07070a;
+  --panel2:#0b0b10;
   --line:rgba(255,255,255,.08);
   --soft:rgba(255,255,255,.06);
-  --text:rgba(255,255,255,.94); /* higher contrast */
-  --muted:rgba(255,255,255,.72);/* higher contrast */
+  --text:rgba(255,255,255,.94);
+  --muted:rgba(255,255,255,.72);
   --accent:rgba(140,0,35,.92);
   --ok:rgba(70,200,140,.9);
 
   /* Bubble (comic panel) — LIGHTEN ~12–15% */
-  --bubble-bg-1:rgba(28,28,36,.88); /* was 20,20,28,.96 */
-  --bubble-bg-2:rgba(18,18,24,.92); /* was 6,6,10,.96 */
-  --bubble-border:rgba(255,255,255,.12);  /* slightly cleaner */
+  --bubble-bg-1:rgba(28,28,36,.88);
+  --bubble-bg-2:rgba(18,18,24,.92);
+  --bubble-border:rgba(255,255,255,.12);
   --bubble-highlight:rgba(255,255,255,.08);
-  --bubble-shadow:rgba(0,0,0,.70);        /* less heavy */
+  --bubble-shadow:rgba(0,0,0,.70);
 
   /* Chip surface */
   --chip-bg:rgba(12,12,18,.80);
   --chip-border:rgba(255,255,255,.12);
 
-  /* Hero framing (FACE FULL) */
-  --hero-fit: contain;          /* was cover; contain shows full face */
-  --hero-pos: 50% 18%;
+  /* Hero framing (FACE SAFE + BIGGER IN-FRAME) */
+  --hero-fit: contain;          /* face-safe */
+  --hero-pos: 50% 14%;          /* bias toward head */
   --hero-opacity: 1;
+
+  /* Gentle scale (background-image) without switching to cover */
+  --hero-scale: 112%;           /* bump to 118% if you want larger */
+
+  /* Stage control */
+  --stage-black: #000000;       /* hard black behind avatar */
+  --embed-glow: 0;              /* 0 = no glow in embed (pure black) */
 
   /* driven by directive (avatar-shell writes these) */
   --breath:1;
@@ -79,17 +87,14 @@ body{
   position:relative;
   min-height:420px;
 
-  /* keep noir but not pure-black */
-  background: var(--panel) !important;
-  background:
-    radial-gradient(900px 420px at 50% 20%, rgba(255,255,255,.035), transparent 62%),
-    radial-gradient(640px 320px at 55% 62%, rgba(140,0,35,.10), transparent 66%),
-    var(--panel) !important;
+  /* CRITICAL: STAGE BLACK (kill haze bleed) */
+  background: var(--stage-black) !important;
 
   isolation:isolate; /* lets glow sit behind safely */
 }
 
-/* AMBIENT GLOW behind avatar */
+/* AMBIENT GLOW behind avatar (desktop / non-embed)
+   NOTE: stage itself stays black; glow is outside it (via ::before). */
 #avatarRoot::before{
   content:"";
   position:absolute;
@@ -101,6 +106,11 @@ body{
     radial-gradient(circle at 52% 18%, rgba(120,180,255,.10), rgba(0,0,0,0) 46%);
   filter: blur(10px);
   opacity:.95;
+}
+
+/* In embedded widget mode: PURE BLACK look (remove glow) */
+html.embed #avatarRoot::before{
+  opacity: var(--embed-glow) !important; /* default 0 */
 }
 
 /* keep all children above glow */
@@ -115,13 +125,21 @@ body{
   display:flex;
   align-items:center;
   justify-content:center;
-  padding:18px;
+
+  /* CRITICAL: make avatar bigger in frame */
+  padding:6px !important; /* was 18px */
+
   z-index:10;
+
+  /* HARD BLACK stage behind hero */
+  background-color: var(--stage-black) !important;
 
   /* HERO HARD-FALLBACK (host JS should set --nyx-hero-url) */
   background-image: var(--nyx-hero-url);
-  background-size: var(--hero-fit);
-  background-position: var(--hero-pos);
+
+  /* Bigger but still face-safe */
+  background-size: var(--hero-scale) auto !important; /* was var(--hero-fit) */
+  background-position: var(--hero-pos) !important;
   background-repeat:no-repeat;
 
   opacity: 1 !important;
@@ -132,10 +150,15 @@ body{
   content:"";
   position:absolute; inset:0;
   pointer-events:none;
-  opacity:.18;
+  opacity:.14;
   background:
-    radial-gradient(60% 55% at 50% 30%, rgba(255,255,255,.07), transparent 62%),
+    radial-gradient(60% 55% at 50% 28%, rgba(255,255,255,.07), transparent 62%),
     radial-gradient(70% 60% at 50% 52%, rgba(140,0,35,.09), transparent 68%);
+}
+
+/* In embed: keep mount vignette minimal (avoid “haze”) */
+html.embed #nyxShellMount::before{
+  opacity:.06 !important;
 }
 
 /* Defensive: prevent dim overlays inside mount */
@@ -145,16 +168,21 @@ body{
   mix-blend-mode: normal !important;
 }
 
+/* If shell renders IMG/canvas/video instead of background-image, keep it face-safe + big */
 #nyxShellMount img,
 #nyxShellMount canvas,
 #nyxShellMount video{
   width:100% !important;
   height:100% !important;
-  object-fit: var(--hero-fit) !important;
+  object-fit: var(--hero-fit) !important;        /* contain */
   object-position: var(--hero-pos) !important;
   display:block !important;
   opacity: var(--hero-opacity) !important;
   filter:none !important;
+
+  /* subtle scale so it matches background approach */
+  transform: scale(1.06);
+  transform-origin: 50% 28%;
 }
 
 /* Overlay always above avatar */
@@ -175,14 +203,15 @@ body{
    OVERLAY POSITIONING
 ------------------------- */
 
+/* Bubble should cover shoulders (not belly); keep neck/head visible */
 .overlay-inner{
-  bottom:72px !important;
-  gap:12px !important;
+  bottom:18px !important; /* was 72px (too high for shoulder coverage) */
+  gap:10px !important;
   padding:0 14px !important;
 }
 
 @media (max-height: 640px){
-  .overlay-inner{ bottom:52px !important; }
+  .overlay-inner{ bottom:14px !important; }
 }
 
 /* -------------------------
@@ -194,7 +223,7 @@ body{
   display:block !important;
   pointer-events:auto;
 
-  /* SHRINK bubble to keep face visible */
+  /* Shrink bubble so it doesn’t dominate the stage */
   width: min(560px, calc(100vw - 56px));
   max-width: min(560px, calc(100vw - 56px));
 
@@ -221,7 +250,7 @@ body{
     border-color 180ms cubic-bezier(.2,.8,.2,1);
 }
 
-/* embed mode: keep it even tighter */
+/* embed mode: keep it tighter */
 html.embed #nyxBubble,
 html.embed .bubble{
   width: min(380px, calc(100vw - 46px));
@@ -272,11 +301,9 @@ html.embed .bubble{
 #nyxBubbleText,
 .bubble-text{
   position:relative;
-
-  /* smaller text block so bubble doesn’t dominate face */
   padding: 14px 18px 10px 18px;
-  font-size: 14.5px;     /* was 16px */
-  line-height: 1.55;     /* was 1.70 */
+  font-size: 14.5px;
+  line-height: 1.55;
   letter-spacing: .15px;
   color: var(--text);
 }
@@ -393,7 +420,6 @@ html.embed .bubble{
    CHIPS (DEDUPLICATE IN EMBED)
 ------------------------- */
 
-/* Default chips style (non-embed/dev) */
 #nyxChips,
 .chips{
   display:flex !important;
@@ -578,7 +604,7 @@ html.embed #nyxChips{
   filter: blur(.2px);
 }
 .avatar.is-speaking .mouth{
-  transform: translateX(-50%) scaleY(calc(1 + var(--mouth) * 0.9));
+  transform: translateX(-50%) scaleY(calc(1 + (var(--mouth) * 0.9)));
 }
 
 @keyframes breathe{
