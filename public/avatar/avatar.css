@@ -72,10 +72,13 @@ html, body{ background: var(--bg) !important; }
 body{
   margin:0;
   font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+
+  /* Keep site noir texture, but avatar stage will be hard-black */
   background:
     radial-gradient(1200px 600px at 40% 20%, rgba(140,0,35,.14), transparent 60%),
     radial-gradient(900px 500px at 70% 70%, rgba(90,110,255,.10), transparent 55%),
     var(--bg) !important;
+
   color:var(--text);
 }
 
@@ -137,8 +140,8 @@ html.embed #avatarRoot::before{
   /* HERO HARD-FALLBACK (host JS should set --nyx-hero-url) */
   background-image: var(--nyx-hero-url);
 
-  /* Bigger but still face-safe */
-  background-size: var(--hero-scale) auto !important; /* was var(--hero-fit) */
+  /* Bigger but still face-safe (contain-like sizing via scale percent) */
+  background-size: var(--hero-scale) auto !important;
   background-position: var(--hero-pos) !important;
   background-repeat:no-repeat;
 
@@ -203,9 +206,9 @@ html.embed #nyxShellMount::before{
    OVERLAY POSITIONING
 ------------------------- */
 
-/* Bubble should cover shoulders (not belly); keep neck/head visible */
+/* Bubble should cover shoulders only; keep neck/head visible */
 .overlay-inner{
-  bottom:18px !important; /* was 72px (too high for shoulder coverage) */
+  bottom:22px !important; /* tuned for shoulder coverage */
   gap:10px !important;
   padding:0 14px !important;
 }
