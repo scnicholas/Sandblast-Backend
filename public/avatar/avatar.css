@@ -1,17 +1,30 @@
 /* avatar.css
  *
- * v1.1.5 (TRUE BLACK++++ + HERO DOMINANT++++ + SHOULDER ANCHOR++++ + INPUT DOCK PIN++++)
+ * v1.1.6 (AVATAR PRESENCE++++ + DEPTH SEPARATION++++ + COGNITIVE TRANSPARENCY CUES++++ + UX MICRO-MOTION++++)
  *
- * Fixes:
- * - Completely removes haze/gradient bleed (true black stage)
- * - Makes hero significantly larger in-frame
- * - Anchors speech bubble at shoulder height
- * - Pins user input dock to bottom
- * - Preserves face visibility
+ * Critical Upgrades:
+ * ✅ Avatar Presence (Step 2):
+ * - Adds controlled depth stack: bottom shoulder/torso anchor + subtle face spotlight (NOT haze)
+ * - Adds optional “alive” micro-motion (safe, slow, premium) with reduced-motion support
+ * - Improves hero framing + parallax illusion without JS
+ *
+ * ✅ UX Flow Assist (early support for Step 3):
+ * - Bubble is quieter; avatar leads (rebalanced contrast/opacity)
+ * - Action pills feel less “dashboard” and more “responsive”
+ *
+ * ✅ Emotional / Cognitive Transparency (Step 4 scaffolding):
+ * - Adds optional cognition badge + state ring + “thinking” shimmer class hooks
+ * - Adds mode tint hooks (music/cyber/radio/roku/etc) via body/html classes
+ *
+ * Notes:
+ * - This CSS is backward-safe. New features activate only if you add the optional classes:
+ *     html.nyx-alive  (enables micro-motion)
+ *     body.nyx-thinking (adds “cognition” shimmer)
+ *     body.nyx-mode-music / nyx-mode-cyber / nyx-mode-roku / nyx-mode-radio / nyx-mode-general / nyx-mode-schedule
+ * - If you don’t add them yet, nothing breaks—Nyx still renders clean.
  */
 
 :root{
-
   /* PURE NOIR */
   --bg:#000000;
   --stage-black:#000000;
@@ -20,22 +33,39 @@
   --muted:rgba(255,255,255,.75);
   --accent:rgba(140,0,35,.95);
 
+  /* Secondary accents (mode tints) */
+  --mode-general: rgba(255,255,255,.12);
+  --mode-music:   rgba(140,0,35,.28);
+  --mode-cyber:   rgba(0,170,255,.22);
+  --mode-roku:    rgba(142,75,255,.22);
+  --mode-radio:   rgba(255,190,0,.18);
+  --mode-schedule:rgba(70,200,140,.18);
+
   /* Hero control */
   --hero-fit:contain;
   --hero-pos:50% 12%;
-  --hero-scale:128%;        /* stronger visual presence */
+  --hero-scale:132%;          /* slightly stronger presence */
   --hero-opacity:1;
 
-  /* Bubble */
-  --bubble-bg-1:rgba(28,28,36,.92);
-  --bubble-bg-2:rgba(18,18,24,.96);
-  --bubble-border:rgba(255,255,255,.14);
-  --bubble-shadow:rgba(0,0,0,.75);
+  /* Depth layers (NO haze; controlled anchors only) */
+  --shoulder-shadow: rgba(0,0,0,.92);  /* bottom anchor for torso/shoulders */
+  --face-spot: rgba(255,255,255,.055); /* subtle face spotlight */
+  --vignette: rgba(0,0,0,.68);         /* edge vignette to frame hero */
+
+  /* Bubble (quieter, avatar leads) */
+  --bubble-bg-1:rgba(22,22,28,.82);    /* reduced opacity */
+  --bubble-bg-2:rgba(12,12,18,.88);
+  --bubble-border:rgba(255,255,255,.12);
+  --bubble-shadow:rgba(0,0,0,.78);
 
   /* Chips */
-  --chip-bg:rgba(20,20,28,.9);
-  --chip-border:rgba(255,255,255,.14);
+  --chip-bg:rgba(20,20,28,.82);
+  --chip-border:rgba(255,255,255,.12);
 
+  /* Motion */
+  --ease:cubic-bezier(.2,.8,.2,1);
+
+  /* Hero injected by host */
   --nyx-hero-url:none;
 }
 
@@ -60,6 +90,7 @@ body{
   position:relative;
   min-height:420px;
   background:#000 !important;
+  isolation:isolate; /* ensures our pseudo-layers stack cleanly */
 }
 
 /* REMOVE ALL HAZE */
@@ -69,7 +100,7 @@ body{
 }
 
 /* -------------------------
-   HERO
+   HERO (DOMINANT + DEPTH)
 ------------------------- */
 
 #nyxShellMount{
@@ -79,14 +110,46 @@ body{
   align-items:center;
   justify-content:center;
   padding:0 !important;
+
   background:#000 !important;
   background-image:var(--nyx-hero-url);
   background-repeat:no-repeat;
   background-position:var(--hero-pos);
   background-size:var(--hero-scale) auto !important;
+  opacity:var(--hero-opacity);
+
+  z-index:1;
 }
 
-/* If rendered as IMG/canvas */
+/* Controlled vignette + face spotlight + shoulder anchor (NOT haze) */
+#nyxShellMount::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  z-index:2;
+
+  /* 3-layer depth stack */
+  background:
+    /* shoulder/torso anchor */
+    linear-gradient(to top,
+      var(--shoulder-shadow) 0%,
+      rgba(0,0,0,.72) 18%,
+      rgba(0,0,0,0) 46%
+    ),
+    /* subtle face spotlight */
+    radial-gradient(40% 28% at 50% 24%,
+      var(--face-spot) 0%,
+      rgba(255,255,255,0) 68%
+    ),
+    /* edge vignette for premium framing */
+    radial-gradient(120% 100% at 50% 50%,
+      rgba(0,0,0,0) 52%,
+      var(--vignette) 100%
+    );
+}
+
+/* If rendered as IMG/canvas/video */
 #nyxShellMount img,
 #nyxShellMount canvas,
 #nyxShellMount video{
@@ -94,8 +157,47 @@ body{
   height:100% !important;
   object-fit:var(--hero-fit) !important;
   object-position:var(--hero-pos) !important;
-  transform:scale(1.15);
+
+  transform:scale(1.16);
   transform-origin:50% 22%;
+
+  /* tiny crisping without looking “filtered” */
+  filter:contrast(1.04) saturate(1.03);
+}
+
+/* -------------------------
+   MICRO-MOTION (OPTIONAL)
+   Enable by adding: html.nyx-alive
+------------------------- */
+
+@keyframes nyx-bg-drift{
+  0%   { background-position: 50% 11%; }
+  50%  { background-position: 50% 13%; }
+  100% { background-position: 50% 11%; }
+}
+@keyframes nyx-breathe{
+  0%   { transform:scale(1.155); }
+  50%  { transform:scale(1.168); }
+  100% { transform:scale(1.155); }
+}
+
+html.nyx-alive #nyxShellMount{
+  animation: nyx-bg-drift 12s var(--ease) infinite;
+}
+html.nyx-alive #nyxShellMount img,
+html.nyx-alive #nyxShellMount canvas,
+html.nyx-alive #nyxShellMount video{
+  animation: nyx-breathe 9.5s var(--ease) infinite;
+}
+
+/* Reduced motion respect */
+@media (prefers-reduced-motion: reduce){
+  html.nyx-alive #nyxShellMount,
+  html.nyx-alive #nyxShellMount img,
+  html.nyx-alive #nyxShellMount canvas,
+  html.nyx-alive #nyxShellMount video{
+    animation:none !important;
+  }
 }
 
 /* -------------------------
@@ -105,7 +207,7 @@ body{
 #nyxOverlay{
   position:absolute;
   inset:0;
-  z-index:9999;
+  z-index:9;
   background:transparent !important;
 }
 
@@ -116,7 +218,78 @@ body{
 }
 
 /* -------------------------
-   SPEECH BUBBLE (SHOULDER HEIGHT)
+   COGNITIVE TRANSPARENCY (HOOKS)
+   These are optional UI cues you can toggle via classes.
+------------------------- */
+
+/* A subtle “state ring” around the bubble when Nyx is active */
+body.nyx-thinking #nyxBubble{
+  box-shadow:
+    0 18px 60px rgba(0,0,0,.82),
+    0 0 0 1px rgba(255,255,255,.06),
+    0 0 36px rgba(255,255,255,.05);
+}
+
+/* Optional cognition badge (only visible if element exists) */
+#nyxCogBadge,
+.nyx-cog-badge{
+  position:absolute;
+  left:50%;
+  transform:translateX(-50%);
+  bottom: calc(140px + 84px); /* sits above bubble */
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:7px 10px;
+
+  font-size:12px;
+  letter-spacing:.2px;
+  color:rgba(255,255,255,.86);
+
+  border:1px solid rgba(255,255,255,.10);
+  border-radius:999px;
+  background:rgba(0,0,0,.55);
+  backdrop-filter:blur(10px);
+  pointer-events:none;
+
+  opacity:0;
+  transition:opacity .18s var(--ease), transform .18s var(--ease);
+}
+body.nyx-thinking #nyxCogBadge,
+body.nyx-thinking .nyx-cog-badge{
+  opacity:1;
+  transform:translateX(-50%) translateY(-2px);
+}
+
+/* Tiny “thinking shimmer” line inside the badge (safe + premium) */
+#nyxCogBadge::after,
+.nyx-cog-badge::after{
+  content:"";
+  width:26px;height:2px;
+  border-radius:2px;
+  background:rgba(255,255,255,.18);
+  opacity:.0;
+  margin-left:2px;
+}
+@keyframes nyx-shimmer{
+  0%{ transform:translateX(-10px); opacity:.05; }
+  50%{ opacity:.22; }
+  100%{ transform:translateX(10px); opacity:.05; }
+}
+body.nyx-thinking #nyxCogBadge::after,
+body.nyx-thinking .nyx-cog-badge::after{
+  opacity:1;
+  animation:nyx-shimmer 1.2s var(--ease) infinite;
+}
+@media (prefers-reduced-motion: reduce){
+  body.nyx-thinking #nyxCogBadge::after,
+  body.nyx-thinking .nyx-cog-badge::after{
+    animation:none !important;
+  }
+}
+
+/* -------------------------
+   SPEECH BUBBLE (SHOULDER HEIGHT, QUIETER)
 ------------------------- */
 
 #nyxBubble{
@@ -125,20 +298,25 @@ body{
   transform:translateX(-50%);
   bottom:140px;              /* shoulder anchor */
   width:min(560px,90%);
+
   background:linear-gradient(145deg,var(--bubble-bg-1),var(--bubble-bg-2));
   border:1px solid var(--bubble-border);
   border-radius:20px;
+
   box-shadow:0 18px 60px var(--bubble-shadow);
   backdrop-filter:blur(10px);
+
   pointer-events:auto;
-  transition:transform .18s ease, box-shadow .18s ease;
+  transition:transform .18s var(--ease), box-shadow .18s var(--ease), border-color .18s var(--ease);
 }
 
+/* Hover becomes “alive” but restrained */
 #nyxBubble:hover{
   transform:translateX(-50%) translateY(-2px);
+  border-color:rgba(255,255,255,.16);
   box-shadow:
-    0 24px 70px rgba(0,0,0,.8),
-    0 0 40px rgba(140,0,35,.25);
+    0 22px 70px rgba(0,0,0,.84),
+    0 0 28px rgba(140,0,35,.18);
 }
 
 #nyxBubbleText{
@@ -148,7 +326,7 @@ body{
 }
 
 /* -------------------------
-   ACTION PILLS
+   ACTION PILLS (RESPONSIVE, NOT DASHBOARD-Y)
 ------------------------- */
 
 #nyxBubbleActions{
@@ -157,20 +335,37 @@ body{
   padding:0 16px 14px 16px;
   overflow-x:auto;
   white-space:nowrap;
+  scrollbar-width:thin;
 }
 
 .action-pill{
   flex:0 0 auto;
   padding:8px 12px;
   border-radius:999px;
-  border:1px solid rgba(255,255,255,.15);
-  background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.13);
+  background:rgba(255,255,255,.045);
+
   font-size:13px;
   cursor:pointer;
-  transition:transform .18s ease, background .18s ease;
+
+  transition:transform .18s var(--ease), background .18s var(--ease), border-color .18s var(--ease);
 }
 .action-pill:hover{
   transform:translateY(-1px);
+  background:rgba(255,255,255,.085);
+  border-color:rgba(255,255,255,.18);
+}
+
+/* Mode “temperature” by chip type (works with existing data-chip attributes) */
+.action-pill[data-chip="music"]{ background:color-mix(in srgb, rgba(255,255,255,.04) 70%, var(--mode-music)); }
+.action-pill[data-chip="cyber"]{ background:color-mix(in srgb, rgba(255,255,255,.04) 70%, var(--mode-cyber)); }
+.action-pill[data-chip="roku"]{  background:color-mix(in srgb, rgba(255,255,255,.04) 70%, var(--mode-roku)); }
+.action-pill[data-chip="radio"]{ background:color-mix(in srgb, rgba(255,255,255,.04) 70%, var(--mode-radio)); }
+.action-pill[data-chip="schedule"]{ background:color-mix(in srgb, rgba(255,255,255,.04) 70%, var(--mode-schedule)); }
+
+/* Optional: if you add .is-active in JS, it looks “selected” */
+.action-pill.is-active{
+  border-color:rgba(255,255,255,.22);
   background:rgba(255,255,255,.10);
 }
 
@@ -187,6 +382,7 @@ body{
   display:flex;
   gap:10px;
   pointer-events:auto;
+  z-index:10;
 }
 
 .nyx-input{
@@ -194,24 +390,44 @@ body{
   padding:14px 16px;
   font-size:15px;
   border-radius:14px;
-  border:1px solid rgba(255,255,255,.16);
-  background:#0b0b10;
+  border:1px solid rgba(255,255,255,.14);
+  background:#07070b;
   color:#fff;
+  outline:none;
+  transition:border-color .18s var(--ease), box-shadow .18s var(--ease);
+}
+.nyx-input:focus{
+  border-color:rgba(255,255,255,.22);
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,.06),
+    0 0 22px rgba(255,255,255,.05);
 }
 
 .nyx-send{
   padding:14px 18px;
   border-radius:14px;
-  border:1px solid rgba(255,255,255,.18);
-  background:#111;
+  border:1px solid rgba(255,255,255,.16);
+  background:#0d0d12;
   color:#fff;
   cursor:pointer;
-  transition:background .18s ease, transform .18s ease;
+  transition:background .18s var(--ease), transform .18s var(--ease), border-color .18s var(--ease);
 }
 .nyx-send:hover{
-  background:#181818;
+  background:#14141b;
+  border-color:rgba(255,255,255,.22);
   transform:translateY(-1px);
 }
+
+/* -------------------------
+   MODE TINT HOOKS (BODY CLASSES)
+   These subtly shift the overall “temperature” without fighting true black.
+------------------------- */
+
+body.nyx-mode-music #nyxBubble{ box-shadow:0 18px 60px rgba(0,0,0,.82), 0 0 40px rgba(140,0,35,.14); }
+body.nyx-mode-cyber #nyxBubble{ box-shadow:0 18px 60px rgba(0,0,0,.82), 0 0 40px rgba(0,170,255,.12); }
+body.nyx-mode-roku  #nyxBubble{ box-shadow:0 18px 60px rgba(0,0,0,.82), 0 0 40px rgba(142,75,255,.12); }
+body.nyx-mode-radio #nyxBubble{ box-shadow:0 18px 60px rgba(0,0,0,.82), 0 0 40px rgba(255,190,0,.10); }
+body.nyx-mode-schedule #nyxBubble{ box-shadow:0 18px 60px rgba(0,0,0,.82), 0 0 40px rgba(70,200,140,.10); }
 
 /* -------------------------
    EMBED MODE (FULL BLACK)
