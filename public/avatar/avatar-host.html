@@ -6,7 +6,7 @@
   <title>Nyx Avatar Host</title>
 
   <!-- Use the real skin (CACHE-BUST so you actually see updates) -->
-  <link rel="stylesheet" href="./avatar.css?v=114" />
+  <link rel="stylesheet" href="./avatar.css?v=115" />
 
   <style>
     html,body{height:100%}
@@ -139,6 +139,9 @@
               <div class="action-pill" data-chip="roku">Roku</div>
               <div class="action-pill schedule" data-chip="schedule">Schedule<span class="ext">↗</span></div>
               <div class="action-pill" data-chip="radio">Radio</div>
+
+              <!-- NEW: News Canada pill (opens configured URL) -->
+              <a class="action-pill general" data-chip="news-canada" id="nyxNewsCanadaPill" href="#" target="_blank" rel="noopener noreferrer">News Canada<span class="ext">↗</span></a>
             </div>
           </div>
 
@@ -191,14 +194,14 @@
     </div>
   </div>
 
-  <script src="./avatar-contract.js?v=114"></script>
-  <script src="./nyx-avatar-shell.js?v=114"></script>
-  <script src="./avatar-controller.js?v=114"></script>
-  <script src="./avatar-bridge.js?v=114"></script>
+  <script src="./avatar-contract.js?v=115"></script>
+  <script src="./nyx-avatar-shell.js?v=115"></script>
+  <script src="./avatar-controller.js?v=115"></script>
+  <script src="./avatar-bridge.js?v=115"></script>
 
   <script>
   (function(){
-    var HOST_VER = "avatar-host v1.1.0 (reason codes + hardened config gate + png default hero)";
+    var HOST_VER = "avatar-host v1.1.1 (news-canada link++++ + url insertion + hardened config gate + png default hero)";
     try{ console.log("[NyxHost]", HOST_VER); }catch(_){}
 
     var EMBEDDED = false;
@@ -492,6 +495,29 @@
       };
     }
 
+    /* -------------------------
+       NEWS CANADA URL INSERTION
+       - Parent can override with payload.urls["news-canada"]
+       - Fallback defaults to /news-canada on sandblast.channel
+    ------------------------- */
+    function defaultNewsCanadaUrl(){
+      // Prefer same-site canonical link
+      return "https://sandblast.channel/news-canada";
+    }
+
+    function syncNewsCanadaLink(){
+      try{
+        var el = document.getElementById("nyxNewsCanadaPill");
+        if(!el) return;
+
+        var urls = CFG.urls || {};
+        var u = safeStr(urls["news-canada"] || urls["newscanada"] || urls["newsCanada"] || "").trim();
+        if(!u) u = defaultNewsCanadaUrl();
+
+        el.href = u;
+      }catch(_){}
+    }
+
     function exposeConfig(){
       window.NYX_CONFIG = {
         enforce: CFG.enforce,
@@ -503,7 +529,13 @@
         tokenSet: !!_TOKEN,
         tokenLen: _TOKEN ? _TOKEN.length : 0,
         parentLocked: !!LOCKED_PARENT_ORIGIN,
-        hostVer: HOST_VER
+        hostVer: HOST_VER,
+
+        // helpful for debugging/consumers
+        newsCanadaUrl: (function(){
+          var u = safeStr((CFG.urls||{})["news-canada"] || "").trim();
+          return u || defaultNewsCanadaUrl();
+        })()
       };
 
       window.NYX_API_BASE = CFG.apiBase;
@@ -574,6 +606,9 @@
 
       exposeConfig();
       try{ mountShellFromConfig(CFG.heroSrc); }catch(_){}
+
+      // ensure the News Canada pill points to the configured URL
+      syncNewsCanadaLink();
 
       try{
         bubbleTyping(true);
@@ -664,6 +699,9 @@
         setHud("hudApi", CFG.apiBase || window.location.origin);
         setHud("hudToken", _TOKEN ? ("set ("+_TOKEN.length+")") : "missing");
         setHud("hudTokenHeader", CFG.tokenHeader || "X-SB-WIDGET-TOKEN");
+
+        // ensure link is live even in standalone
+        syncNewsCanadaLink();
         return;
       }
 
@@ -708,8 +746,14 @@
       var chip = safeStr(el.getAttribute('data-chip') || '').toLowerCase();
       if(!chip) return;
 
+      // For anchor pills (News Canada), let the browser handle navigation
+      if (el.tagName === "A") return;
+
       setActiveChip(chip);
-      if (chip === "roku" || chip === "radio" || chip === "schedule") openUrlForChip(chip);
+
+      // open URL chips (adds news-canada support)
+      if (chip === "roku" || chip === "radio" || chip === "schedule" || chip === "news-canada") openUrlForChip(chip);
+
       window.dispatchEvent(new CustomEvent('nyx:chip', { detail: { chip: chip } }));
     }
 
