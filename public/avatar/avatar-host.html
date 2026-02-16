@@ -6,7 +6,7 @@
   <title>Nyx Avatar Host</title>
 
   <!-- Use the real skin (CACHE-BUST so you actually see updates) -->
-  <link rel="stylesheet" href="./avatar.css?v=117" />
+  <link rel="stylesheet" href="./avatar.css?v=118" />
 
   <style>
     html,body{height:100%}
@@ -132,17 +132,23 @@
       <div class="overlay" id="nyxOverlay">
         <div class="overlay-inner">
 
+          <!-- Cognitive transparency badge (optional, driven by body classes) -->
+          <div class="nyx-cog-badge" id="nyxCogBadge" aria-live="polite">Marion: standing by</div>
+
           <!-- Speech bubble (Nyx output) — sits at shoulder height -->
           <div class="bubble" id="nyxBubble">
             <div class="bubble-text" id="nyxBubbleText">Hi… I’m Nyx. How are you today?</div>
 
             <div class="bubble-actions" id="nyxBubbleActions">
-              <div class="action-pill general" data-chip="general">General</div>
+              <div class="action-pill general is-active" data-chip="general">General</div>
               <div class="action-pill" data-chip="music">Music</div>
               <div class="action-pill" data-chip="roku">Roku</div>
               <div class="action-pill schedule" data-chip="schedule">Schedule<span class="ext">↗</span></div>
               <div class="action-pill" data-chip="radio">Radio</div>
               <a class="action-pill general" data-chip="news-canada" id="nyxNewsCanadaPill" href="#" target="_blank" rel="noopener noreferrer">News Canada<span class="ext">↗</span></a>
+
+              <!-- Progressive disclosure (initially hidden until first reply) -->
+              <div class="action-pill" data-chip="more" id="nyxMorePill" style="display:none">More</div>
             </div>
           </div>
 
@@ -173,6 +179,7 @@
         <button data-act="listen">Listen</button>
         <button data-act="speak">Speak</button>
         <button data-act="toggleVelvet">Velvet</button>
+        <button data-act="toggleAlive">Alive</button>
       </div>
 
       <textarea id="prompt" rows="4" placeholder="Type a message…"></textarea>
@@ -203,19 +210,29 @@
     </div>
   </div>
 
-  <script src="./avatar-contract.js?v=117"></script>
-  <script src="./nyx-avatar-shell.js?v=117"></script>
-  <script src="./avatar-controller.js?v=117"></script>
-  <script src="./avatar-bridge.js?v=117"></script>
+  <script src="./avatar-contract.js?v=118"></script>
+  <script src="./nyx-avatar-shell.js?v=118"></script>
+  <script src="./avatar-controller.js?v=118"></script>
+  <script src="./avatar-bridge.js?v=118"></script>
 
   <script>
   (function(){
-    var HOST_VER = "avatar-host v1.1.3 (cache-bust v117++++ + user input dock++++ + bubble shoulder height++++ + embed black++++)";
+    var HOST_VER = "avatar-host v1.1.4 (cache-bust v118++++ + cognitive transparency badge++++ + thinking state++++ + mode tint++++ + progressive disclosure++++ + alive toggle++++)";
     try{ console.log("[NyxHost]", HOST_VER); }catch(_){}
 
     var EMBEDDED = false;
     try{ EMBEDDED = (window.top !== window.self); } catch(_){ EMBEDDED = true; }
     if (EMBEDDED) document.documentElement.classList.add('embed');
+
+    // Enable optional micro-motion if desired (default ON in embed, can be toggled)
+    // You can force-off by adding ?alive=0 in standalone testing.
+    var ALIVE_DEFAULT = true;
+    try{
+      var qsAlive = new URLSearchParams(window.location.search || "");
+      var aliveRaw = (qsAlive.get("alive")||"").trim();
+      if (aliveRaw) ALIVE_DEFAULT = !(aliveRaw === "0" || aliveRaw.toLowerCase() === "false" || aliveRaw.toLowerCase() === "off");
+    }catch(_){}
+    if (ALIVE_DEFAULT) document.documentElement.classList.add("nyx-alive");
 
     window.NYX_HOST_UI = {
       root: document.getElementById('avatarRoot'),
@@ -223,7 +240,9 @@
       bubble: document.getElementById('nyxBubble'),
       bubbleText: document.getElementById('nyxBubbleText'),
       bubbleActions: document.getElementById('nyxBubbleActions'),
-      chips: document.getElementById('nyxChips')
+      chips: document.getElementById('nyxChips'),
+      cogBadge: document.getElementById('nyxCogBadge'),
+      morePill: document.getElementById('nyxMorePill')
     };
 
     var inputEl = document.getElementById("nyxUserInput");
@@ -294,6 +313,40 @@
 
         if(!window.NyxAvatarShell || typeof window.NyxAvatarShell.mount !== "function") return;
         window.NyxAvatarShell.mount(mountEl, { heroSrc: hero || "" });
+      }catch(_){}
+    }
+
+    // -------------------------
+    // UI STATE: THINKING + MODE + BADGE
+    // -------------------------
+    function setThinking(on){
+      try{
+        document.body.classList.toggle("nyx-thinking", !!on);
+      }catch(_){}
+    }
+
+    function setMode(mode){
+      mode = safeStr(mode).toLowerCase().trim();
+      var modes = ["general","music","roku","radio","schedule","cyber"];
+      try{
+        modes.forEach(function(m){ document.body.classList.remove("nyx-mode-"+m); });
+        if (mode && modes.indexOf(mode) >= 0) document.body.classList.add("nyx-mode-"+mode);
+      }catch(_){}
+    }
+
+    function setCogBadge(text){
+      try{
+        var el = window.NYX_HOST_UI.cogBadge;
+        if(!el) return;
+        el.textContent = safeStr(text || "Marion: standing by");
+      }catch(_){}
+    }
+
+    function revealMorePill(){
+      try{
+        var el = window.NYX_HOST_UI.morePill;
+        if(!el) return;
+        if (el.style.display === "none") el.style.display = "";
       }catch(_){}
     }
 
@@ -617,9 +670,16 @@
       syncNewsCanadaLink();
 
       try{
+        setThinking(true);
+        setCogBadge("Marion: establishing context…");
         bubbleTyping(true);
         setBubbleText("Configured. Nyx is online.", { pop:true });
-        setTimeout(function(){ bubbleTyping(false); bubblePop(); }, 520);
+        setTimeout(function(){
+          bubbleTyping(false);
+          setThinking(false);
+          setCogBadge("Marion: standing by");
+          bubblePop();
+        }, 520);
       }catch(_){}
 
       if (EMBEDDED && LOCKED_PARENT_ORIGIN){
@@ -726,13 +786,34 @@
       }catch(_){}
     }
 
+    // -------------------------
+    // MODE + ACTIVE CHIP (sync both rails)
+    // -------------------------
     function setActiveChip(chip){
+      chip = safeStr(chip).toLowerCase();
+
       var rail = window.NYX_HOST_UI.chips;
       if(rail){
         rail.querySelectorAll('.chip').forEach(function(n){ n.classList.remove('is-active'); });
         var active = rail.querySelector('.chip[data-chip="'+chip+'"]');
         if(active) active.classList.add('is-active');
       }
+
+      var pills = window.NYX_HOST_UI.bubbleActions;
+      if(pills){
+        pills.querySelectorAll('.action-pill').forEach(function(n){ n.classList.remove('is-active'); });
+        var ap = pills.querySelector('.action-pill[data-chip="'+chip+'"]');
+        if(ap) ap.classList.add('is-active');
+      }
+
+      // Mode tint + badge language
+      setMode(chip);
+      if (chip === "music") setCogBadge("Marion: entering music focus…");
+      else if (chip === "cyber") setCogBadge("Marion: hardening posture…");
+      else if (chip === "roku") setCogBadge("Marion: switching to Roku ops…");
+      else if (chip === "radio") setCogBadge("Marion: broadcast mode…");
+      else if (chip === "schedule") setCogBadge("Marion: scheduling context…");
+      else setCogBadge("Marion: standing by");
     }
 
     function openUrlForChip(chip){
@@ -750,7 +831,19 @@
       var chip = safeStr(el.getAttribute('data-chip') || '').toLowerCase();
       if(!chip) return;
 
+      // Let anchors behave normally
       if (el.tagName === "A") return;
+
+      if (chip === "more"){
+        // simple progressive disclosure: reveal all pills (placeholder; refine later)
+        try{
+          var ba = window.NYX_HOST_UI.bubbleActions;
+          if(ba){
+            ba.querySelectorAll('.action-pill').forEach(function(n){ n.style.display=""; });
+          }
+        }catch(_){}
+        return;
+      }
 
       setActiveChip(chip);
 
@@ -784,6 +877,12 @@
       }catch(_){}
     }
 
+    function cognitionDelay(ms){
+      ms = parseInt(ms, 10);
+      if (!isFinite(ms) || ms < 0) ms = 0;
+      return new Promise(function(resolve){ setTimeout(resolve, ms); });
+    }
+
     async function sendUserMessage(text){
       text = safeStr(text).trim();
       if(!text) return;
@@ -794,10 +893,17 @@
       }
 
       setSending(true);
+
+      // cognition "pause" (feels deliberate)
+      setThinking(true);
+      setCogBadge("Marion: interpreting intent…");
       bubbleTyping(true);
+      await cognitionDelay(420);
 
       try{
         var payload = { message: text };
+
+        setCogBadge("Marion: composing…");
 
         var res = await window.NYX_FETCH(apiUrl("/api/chat"), {
           method: "POST",
@@ -818,11 +924,16 @@
           outText = res && res.ok ? "Done." : ("Error ("+(res?res.status:"?")+")");
         }
 
+        // first successful reply: reveal More pill (progressive disclosure)
+        revealMorePill();
+
         setBubbleText(outText, { pop:true, typing:false });
       }catch(err){
         setBubbleText("I couldn’t reach chat right now.", { pop:true, typing:false });
       }finally{
         bubbleTyping(false);
+        setThinking(false);
+        setCogBadge("Marion: standing by");
         setSending(false);
       }
     }
@@ -842,6 +953,20 @@
           sendBtn.click();
         }
       });
+
+      // Tap-to-focus: clicking anywhere in avatarRoot focuses input (optional)
+      try{
+        var root = document.getElementById("avatarRoot");
+        if(root){
+          root.addEventListener("pointerdown", function(ev){
+            // ignore clicks on interactive elements
+            var target = ev && ev.target;
+            if (!target) return;
+            if (target.closest && target.closest("button,a,input,textarea,.action-pill,.chip")) return;
+            inputEl && inputEl.focus && inputEl.focus();
+          });
+        }
+      }catch(_){}
     }
 
     wireInput();
@@ -859,11 +984,33 @@
       }catch(_){}
     });
 
+    // Dev panel actions (minimal; safe)
+    function wireDevPanel(){
+      var panel = document.getElementById("panel");
+      if(!panel) return;
+
+      panel.addEventListener("click", function(e){
+        var btn = e.target && e.target.closest ? e.target.closest("button[data-act]") : null;
+        if(!btn) return;
+        var act = safeStr(btn.getAttribute("data-act") || "").trim();
+
+        if (act === "toggleAlive"){
+          document.documentElement.classList.toggle("nyx-alive");
+          setHud("hudAnim", document.documentElement.classList.contains("nyx-alive") ? "alive" : "still");
+        }
+      });
+    }
+    wireDevPanel();
+
     bootstrapFromQuery();
     signalReady();
     setTimeout(signalReady, 350);
 
     if (EMBEDDED) showBlocked("waiting_config");
+
+    // default mode
+    setMode("general");
+    setActiveChip("general");
   })();
   </script>
 </body>
