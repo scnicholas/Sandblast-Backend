@@ -6,7 +6,7 @@
   <title>Nyx Avatar Host</title>
 
   <!-- Use the real skin (CACHE-BUST so you actually see updates) -->
-  <link rel="stylesheet" href="./avatar.css?v=116" />
+  <link rel="stylesheet" href="./avatar.css?v=117" />
 
   <style>
     html,body{height:100%}
@@ -203,14 +203,14 @@
     </div>
   </div>
 
-  <script src="./avatar-contract.js?v=116"></script>
-  <script src="./nyx-avatar-shell.js?v=116"></script>
-  <script src="./avatar-controller.js?v=116"></script>
-  <script src="./avatar-bridge.js?v=116"></script>
+  <script src="./avatar-contract.js?v=117"></script>
+  <script src="./nyx-avatar-shell.js?v=117"></script>
+  <script src="./avatar-controller.js?v=117"></script>
+  <script src="./avatar-bridge.js?v=117"></script>
 
   <script>
   (function(){
-    var HOST_VER = "avatar-host v1.1.2 (user input dock++++ + bubble shoulder height++++ + embed black++++)";
+    var HOST_VER = "avatar-host v1.1.3 (cache-bust v117++++ + user input dock++++ + bubble shoulder height++++ + embed black++++)";
     try{ console.log("[NyxHost]", HOST_VER); }catch(_){}
 
     var EMBEDDED = false;
@@ -797,7 +797,6 @@
       bubbleTyping(true);
 
       try{
-        // You can extend payload later with mode/chip/session keys if desired.
         var payload = { message: text };
 
         var res = await window.NYX_FETCH(apiUrl("/api/chat"), {
