@@ -1,39 +1,44 @@
 /* avatar.css
  *
- * v1.1.2 (ONE-LINE PILLS++++ + EMBED CHIP DEDUPE++++ + SCROLL RAIL++++ + HERO SAFE++++)
+ * v1.1.3 (AMBIENT GLOW++++ + PREMIUM CONTRAST++++ + FACE FULL++++ + BUBBLE SHRINK++++ + NOIR-10%++++ + HOVER MICRO++++)
  *
  * Goals:
  * - Keep action pills horizontal (left→right) ALWAYS; no vertical stacking
  * - If space is tight, scroll horizontally instead of wrapping
  * - Remove duplicate chip rail in embedded widget mode to reduce clutter
  * - Preserve hero visibility (PNG) and prevent black-wash dim layers
+ * - Add ambient glow behind avatar, lighten bubble ~12–15%, increase typography contrast
+ * - Show Nyx’s entire face (favor contain + face-safe positioning)
+ * - Shrink speech bubble so face stays visible
+ * - Reduce pure-black usage by ~10% while keeping noir
+ * - Introduce subtle hover micro-animations
  */
 
 :root{
-  /* Core palette */
-  --bg:#000000;
-  --panel:#000000;
-  --panel2:#050508;
+  /* Core palette (NOIR-10%: soften pure black slightly) */
+  --bg:#0a0a0c;                 /* was #000000 */
+  --panel:#07070a;              /* was #000000 */
+  --panel2:#0b0b10;             /* was #050508 */
   --line:rgba(255,255,255,.08);
   --soft:rgba(255,255,255,.06);
-  --text:rgba(255,255,255,.92);
-  --muted:rgba(255,255,255,.68);
+  --text:rgba(255,255,255,.94); /* higher contrast */
+  --muted:rgba(255,255,255,.72);/* higher contrast */
   --accent:rgba(140,0,35,.92);
   --ok:rgba(70,200,140,.9);
 
-  /* Bubble (comic panel) */
-  --bubble-bg-1:rgba(20,20,28,.96);
-  --bubble-bg-2:rgba(6,6,10,.96);
-  --bubble-border:rgba(255,255,255,.14);
-  --bubble-highlight:rgba(255,255,255,.07);
-  --bubble-shadow:rgba(0,0,0,.82);
+  /* Bubble (comic panel) — LIGHTEN ~12–15% */
+  --bubble-bg-1:rgba(28,28,36,.88); /* was 20,20,28,.96 */
+  --bubble-bg-2:rgba(18,18,24,.92); /* was 6,6,10,.96 */
+  --bubble-border:rgba(255,255,255,.12);  /* slightly cleaner */
+  --bubble-highlight:rgba(255,255,255,.08);
+  --bubble-shadow:rgba(0,0,0,.70);        /* less heavy */
 
   /* Chip surface */
-  --chip-bg:rgba(12,12,18,.82);
+  --chip-bg:rgba(12,12,18,.80);
   --chip-border:rgba(255,255,255,.12);
 
-  /* Hero framing */
-  --hero-fit: cover;          /* cover | contain */
+  /* Hero framing (FACE FULL) */
+  --hero-fit: contain;          /* was cover; contain shows full face */
   --hero-pos: 50% 18%;
   --hero-opacity: 1;
 
@@ -54,7 +59,7 @@
 html,body{height:100%}
 
 /* HARD FORCE */
-html, body{ background:#000 !important; }
+html, body{ background: var(--bg) !important; }
 
 body{
   margin:0;
@@ -74,11 +79,34 @@ body{
   position:relative;
   min-height:420px;
 
-  background:#000 !important;
+  /* keep noir but not pure-black */
+  background: var(--panel) !important;
   background:
     radial-gradient(900px 420px at 50% 20%, rgba(255,255,255,.035), transparent 62%),
     radial-gradient(640px 320px at 55% 62%, rgba(140,0,35,.10), transparent 66%),
     var(--panel) !important;
+
+  isolation:isolate; /* lets glow sit behind safely */
+}
+
+/* AMBIENT GLOW behind avatar */
+#avatarRoot::before{
+  content:"";
+  position:absolute;
+  inset:-40px;
+  z-index:0;
+  pointer-events:none;
+  background:
+    radial-gradient(circle at 52% 28%, rgba(140,0,35,.22), rgba(0,0,0,0) 50%),
+    radial-gradient(circle at 52% 18%, rgba(120,180,255,.10), rgba(0,0,0,0) 46%);
+  filter: blur(10px);
+  opacity:.95;
+}
+
+/* keep all children above glow */
+#avatarRoot > *{
+  position:relative;
+  z-index:1;
 }
 
 #nyxShellMount{
@@ -106,8 +134,8 @@ body{
   pointer-events:none;
   opacity:.18;
   background:
-    radial-gradient(60% 55% at 50% 36%, rgba(255,255,255,.06), transparent 62%),
-    radial-gradient(70% 60% at 50% 50%, rgba(140,0,35,.08), transparent 68%);
+    radial-gradient(60% 55% at 50% 30%, rgba(255,255,255,.07), transparent 62%),
+    radial-gradient(70% 60% at 50% 52%, rgba(140,0,35,.09), transparent 68%);
 }
 
 /* Defensive: prevent dim overlays inside mount */
@@ -166,15 +194,15 @@ body{
   display:block !important;
   pointer-events:auto;
 
-  /* IMPORTANT: avoid max-content causing weird wrapping behavior in tight widgets */
-  width: min(680px, calc(100vw - 56px));
-  max-width: min(680px, calc(100vw - 56px));
+  /* SHRINK bubble to keep face visible */
+  width: min(560px, calc(100vw - 56px));
+  max-width: min(560px, calc(100vw - 56px));
 
   position: relative;
 
   background: linear-gradient(145deg, var(--bubble-bg-1), var(--bubble-bg-2));
   border: 1px solid var(--bubble-border);
-  border-radius: 22px;
+  border-radius: 20px;
 
   box-shadow:
     0 18px 60px var(--bubble-shadow),
@@ -186,6 +214,29 @@ body{
   overflow:hidden;
   will-change: transform, opacity, box-shadow;
   transform: translateZ(0);
+
+  transition:
+    transform 180ms cubic-bezier(.2,.8,.2,1),
+    box-shadow 180ms cubic-bezier(.2,.8,.2,1),
+    border-color 180ms cubic-bezier(.2,.8,.2,1);
+}
+
+/* embed mode: keep it even tighter */
+html.embed #nyxBubble,
+html.embed .bubble{
+  width: min(380px, calc(100vw - 46px));
+  max-width: min(380px, calc(100vw - 46px));
+}
+
+/* subtle hover lift on bubble */
+#nyxBubble:hover,
+.bubble:hover{
+  transform: translateY(-2px) translateZ(0);
+  box-shadow:
+    0 22px 70px rgba(0,0,0,.62),
+    0 0 40px rgba(140,0,35,.22),
+    0 0 0 1px rgba(255,255,255,.06) inset;
+  border-color: rgba(255,255,255,.16);
 }
 
 #nyxBubble::before,
@@ -195,7 +246,7 @@ body{
   left:10px; right:10px;
   top:10px;
   height:44%;
-  border-radius: 18px;
+  border-radius: 16px;
   background: linear-gradient(180deg, var(--bubble-highlight), transparent 70%);
   pointer-events:none;
   opacity:.75;
@@ -207,38 +258,41 @@ body{
   position:absolute;
   left:22%;
   bottom:-12px;
-  width:26px;
-  height:26px;
+  width:24px;
+  height:24px;
   background: linear-gradient(145deg, var(--bubble-bg-1), var(--bubble-bg-2));
   border-left: 1px solid var(--bubble-border);
   border-bottom: 1px solid var(--bubble-border);
   transform: rotate(45deg);
   border-bottom-left-radius: 8px;
-  box-shadow: 10px 14px 28px rgba(0,0,0,.35);
+  box-shadow: 10px 14px 28px rgba(0,0,0,.30);
   pointer-events:none;
 }
 
 #nyxBubbleText,
 .bubble-text{
   position:relative;
-  padding: 18px 22px 12px 22px;
-  font-size: 16px;
-  line-height: 1.70;
-  letter-spacing: .2px;
+
+  /* smaller text block so bubble doesn’t dominate face */
+  padding: 14px 18px 10px 18px;
+  font-size: 14.5px;     /* was 16px */
+  line-height: 1.55;     /* was 1.70 */
+  letter-spacing: .15px;
   color: var(--text);
 }
 
 /* Links inside bubble */
 #nyxBubble a,
 .bubble a{
-  color: rgba(255,255,255,.90);
+  color: rgba(255,255,255,.92);
   text-decoration: none;
   border-bottom: 1px solid rgba(140,0,35,.55);
   padding-bottom: 1px;
+  transition: color 160ms ease, border-color 160ms ease;
 }
 #nyxBubble a:hover,
 .bubble a:hover{
-  color: rgba(255,255,255,.98);
+  color: rgba(255,255,255,.99);
   border-bottom-color: rgba(140,0,35,.92);
 }
 
@@ -249,7 +303,7 @@ body{
 #nyxBubbleActions,
 .bubble-actions{
   position:relative;
-  padding: 0 14px 14px 14px;
+  padding: 0 12px 12px 12px;
 
   display:flex !important;
   flex-direction:row !important;
@@ -284,7 +338,7 @@ body{
   border-radius: 999px;
   border: 1px solid rgba(255,255,255,.12);
   background: rgba(255,255,255,.05);
-  color: rgba(255,255,255,.90);
+  color: rgba(255,255,255,.92);
   font-size: 13px;
   letter-spacing:.2px;
 
@@ -292,12 +346,20 @@ body{
   white-space: nowrap;
   flex: 0 0 auto;
 
-  transition: transform 120ms ease, background 160ms ease, border-color 160ms ease;
+  transition:
+    transform 180ms cubic-bezier(.2,.8,.2,1),
+    background 180ms cubic-bezier(.2,.8,.2,1),
+    border-color 180ms cubic-bezier(.2,.8,.2,1),
+    box-shadow 180ms cubic-bezier(.2,.8,.2,1);
 }
 .action-pill:hover{
   transform: translateY(-1px);
   background: rgba(255,255,255,.07);
   border-color: rgba(255,255,255,.18);
+  box-shadow: 0 10px 26px rgba(0,0,0,.45);
+}
+.action-pill:active{
+  transform: translateY(0px) scale(.98);
 }
 .action-pill.general{
   border-color: rgba(140,0,35,.50);
@@ -354,18 +416,27 @@ body{
   border-radius: 999px;
   border: 1px solid var(--chip-border);
   background: var(--chip-bg);
-  color: rgba(255,255,255,.86);
+  color: rgba(255,255,255,.90);
   font-size: 13px;
   letter-spacing:.2px;
   white-space: nowrap;
   flex: 0 0 auto;
   box-shadow: 0 10px 30px rgba(0,0,0,.35);
-  transition: transform 120ms ease, background 160ms ease, border-color 160ms ease, box-shadow 200ms ease;
+
+  transition:
+    transform 180ms cubic-bezier(.2,.8,.2,1),
+    background 180ms cubic-bezier(.2,.8,.2,1),
+    border-color 180ms cubic-bezier(.2,.8,.2,1),
+    box-shadow 180ms cubic-bezier(.2,.8,.2,1);
 }
 .chip:hover{
   transform: translateY(-1px);
   background: rgba(255,255,255,.06);
   border-color: rgba(255,255,255,.18);
+  box-shadow: 0 10px 26px rgba(0,0,0,.45);
+}
+.chip:active{
+  transform: translateY(0px) scale(.98);
 }
 .chip.is-active{
   border-color: rgba(140,0,35,.60);
