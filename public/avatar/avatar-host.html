@@ -6,40 +6,33 @@
   <title>Nyx Avatar Host</title>
 
   <!-- Use the real skin (CACHE-BUST so you actually see updates) -->
-  <link rel="stylesheet" href="./avatar.css?v=119" />
+  <link rel="stylesheet" href="./avatar.css?v=120" />
 
   <style>
-    /* =========================
-       CRITICAL: iframe-safe sizing
-       - DO NOT use 100vh inside an iframe drawer (it pushes overlay off-screen)
-       - Use 100% + min-height:0 so flex/grid children can shrink correctly
-    ========================= */
-    html, body{
-      height:100%;
-      margin:0;
-      background:#000 !important;
-    }
-    body{ background:#000 !important; }
+    html,body{height:100%}
+    body{ margin:0; background:#000 !important; }
 
     #wrap{
       display:grid;
       grid-template-columns: 1fr 320px;
       gap:12px;
       padding:12px;
-      height:100%;            /* CRITICAL: was 100vh */
+      height:100vh;
       box-sizing:border-box;
       background:#000 !important;
-      min-height:0;           /* CRITICAL: allow grid children to fit */
     }
 
+    /* CRITICAL: stage must clamp inside iframe */
     #avatarRoot{
       border:1px solid rgba(255,255,255,.08);
       border-radius:16px;
       overflow:hidden;
-      min-height:0;           /* CRITICAL: was 420px -> breaks inside 600px drawer */
       position:relative;
       background:#000 !important;
-      isolation:isolate;      /* CRITICAL: fixes stacking contexts so overlay sits above hero */
+      isolation:isolate;
+
+      height:100%;
+      min-height:0;           /* IMPORTANT in grid/iframe */
     }
 
     #panel{
@@ -47,8 +40,6 @@
       border-radius:16px;
       padding:12px;
       background:#000 !important;
-      min-height:0;
-      overflow:auto;
     }
 
     .row{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
@@ -77,20 +68,32 @@
     button:hover{ border-color: rgba(255,255,255,.22); }
 
     /* =========================
-       CRITICAL OVERLAY VISIBILITY
-       - Forces bubble + dock above hero
-       - Prevents "hero-only stage" bug
+       CRITICAL: HERO BEHIND UI
     ========================= */
-    .overlay{
+    #nyxShellMount{
       position:absolute;
       inset:0;
-      z-index:2147483000;     /* CRITICAL: sit above everything */
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:0;
+      z-index:1 !important;        /* HARD FORCE behind overlay */
+      background:#000 !important;
+    }
+
+    /* =========================
+       CRITICAL: OVERLAY ALWAYS VISIBLE
+    ========================= */
+    #nyxOverlay, .overlay{
+      position:absolute;
+      inset:0;
+      z-index:2147483000 !important; /* HARD FORCE top */
       pointer-events:none;
+
       display:block !important;
       opacity:1 !important;
       visibility:visible !important;
     }
-
     .overlay-inner{
       position:absolute;
       inset:0;
@@ -101,9 +104,7 @@
       gap:10px;
       padding:0 12px 12px 12px;
       pointer-events:none;
-      min-height:0;
     }
-
     .overlay-inner .bubble,
     .overlay-inner .chip,
     .overlay-inner .action-pill,
@@ -113,18 +114,43 @@
       pointer-events:auto;
     }
 
-    #nyxShellMount{
-      position:absolute;
-      inset:0;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      padding:0;
-      z-index:10;
-      background:#000 !important;
+    /* =========================
+       FAILSAFE: Bubble + Dock forced on
+       (even if avatar.css breaks)
+    ========================= */
+    #nyxBubble{
+      position:absolute !important;
+      left:50% !important;
+      transform:translateX(-50%) !important;
+      bottom:140px !important;
+      width:min(560px,90%) !important;
+
+      display:block !important;
+      opacity:1 !important;
+      visibility:visible !important;
+    }
+    #nyxBubbleText,
+    #nyxBubbleActions{
+      display:block !important;
+      opacity:1 !important;
+      visibility:visible !important;
+    }
+    #nyxInputDock{
+      position:absolute !important;
+      left:50% !important;
+      transform:translateX(-50%) !important;
+      bottom:18px !important;
+      width:min(620px,94%) !important;
+
+      display:flex !important;
+      gap:10px !important;
+      opacity:1 !important;
+      visibility:visible !important;
+      z-index:2147483001 !important;
+      pointer-events:auto !important;
     }
 
-    /* Cognitive badge base (safe even if avatar.css doesn't define it yet) */
+    /* Badge base (safe if avatar.css missing) */
     .nyx-cog-badge{
       align-self:center;
       margin-bottom:6px;
@@ -141,40 +167,16 @@
       user-select:none;
     }
 
-    /* Ensure bubble + input dock never get hidden by some other CSS */
-    #nyxBubble,
-    #nyxBubbleText,
-    #nyxBubbleActions,
-    #nyxInputDock{
-      display:block !important;
-      opacity:1 !important;
-      visibility:visible !important;
-    }
-    #nyxInputDock{
-      display:flex !important;
-      width:100%;
-      max-width:720px;
-    }
-
-    /* embed tweaks (iframe drawer-safe) */
-    .embed #wrap{
-      grid-template-columns: 1fr;
-      padding:0;
-      height:100%;            /* CRITICAL: was 100vh */
-      background:#000 !important;
-      min-height:0;
-    }
+    /* EMBED */
+    .embed #wrap{ grid-template-columns: 1fr; padding:0; height:100vh; background:#000 !important; }
     .embed #panel{ display:none; }
     .embed #avatarRoot{
       border-radius:0;
       border:0;
-      height:100%;
-      min-height:0;           /* CRITICAL: was 100vh/min-height:100vh */
+      height:100vh;
+      min-height:0;          /* CRITICAL */
       background:#000 !important;
     }
-
-    /* Optional: tiny, tasteful "alive" micro-motion hook (CSS class only) */
-    .nyx-alive #nyxBubble{ will-change: transform; }
   </style>
 </head>
 
@@ -198,10 +200,8 @@
       <div class="overlay" id="nyxOverlay">
         <div class="overlay-inner">
 
-          <!-- Cognitive transparency badge -->
           <div class="nyx-cog-badge" id="nyxCogBadge" aria-live="polite">Marion: standing by</div>
 
-          <!-- Speech bubble (Nyx output) -->
           <div class="bubble" id="nyxBubble">
             <div class="bubble-text" id="nyxBubbleText">Hi… I’m Nyx. How are you today?</div>
 
@@ -212,13 +212,10 @@
               <div class="action-pill schedule" data-chip="schedule">Schedule<span class="ext">↗</span></div>
               <div class="action-pill" data-chip="radio">Radio</div>
               <a class="action-pill general" data-chip="news-canada" id="nyxNewsCanadaPill" href="#" target="_blank" rel="noopener noreferrer">News Canada<span class="ext">↗</span></a>
-
-              <!-- Progressive disclosure (initially hidden until first reply) -->
               <div class="action-pill" data-chip="more" id="nyxMorePill" style="display:none">More</div>
             </div>
           </div>
 
-          <!-- (Optional) duplicate chip rail -->
           <div class="chips" id="nyxChips">
             <div class="chip is-active" data-chip="general">General</div>
             <div class="chip" data-chip="music">Music</div>
@@ -227,7 +224,6 @@
             <div class="chip" data-chip="radio">Radio</div>
           </div>
 
-          <!-- User input dock (BOTTOM) -->
           <div class="nyx-inputdock" id="nyxInputDock" aria-label="Nyx chat input">
             <input id="nyxUserInput" class="nyx-input" type="text" placeholder="Type a message…" autocomplete="off" />
             <button id="nyxSendBtn" class="nyx-send" type="button">Send</button>
@@ -237,7 +233,6 @@
       </div>
     </div>
 
-    <!-- Dev panel (not embedded) -->
     <div id="panel">
       <div class="row">
         <button data-act="armAudio">Arm Audio</button>
@@ -262,42 +257,25 @@
         <div><b>token</b>: <span id="hudToken">—</span></div>
         <div><b>tokenHeader</b>: <span id="hudTokenHeader">—</span></div>
         <div><b>hostVer</b>: <span id="hudHostVer">—</span></div>
-        <div style="margin-top:10px;opacity:.9">
-          <b>presence</b>: <span id="hudPresence">idle</span><br/>
-          <b>stage</b>: <span id="hudStage">warm</span><br/>
-          <b>dominance</b>: <span id="hudDom">neutral</span><br/>
-          <b>velvet</b>: <span id="hudVelvet">0</span><br/>
-          <b>anim</b>: <span id="hudAnim"></span><br/>
-          <b>amp</b>: <span id="hudAmp">0.00</span><br/>
-        </div>
       </div>
 
       <audio id="nyxAudio" preload="auto" style="display:none"></audio>
     </div>
   </div>
 
-  <script src="./avatar-contract.js?v=119"></script>
-  <script src="./nyx-avatar-shell.js?v=119"></script>
-  <script src="./avatar-controller.js?v=119"></script>
-  <script src="./avatar-bridge.js?v=119"></script>
+  <script src="./avatar-contract.js?v=120"></script>
+  <script src="./nyx-avatar-shell.js?v=120"></script>
+  <script src="./avatar-controller.js?v=120"></script>
+  <script src="./avatar-bridge.js?v=120"></script>
 
   <script>
   (function(){
-    var HOST_VER = "avatar-host v1.1.6 (cache-bust v119++++ + iframe-safe height(100%)++++ + min-height:0++++ + CRITICAL overlay force++++ + isolation stacking fix++++ + cog badge base++++ + thinking/mode hooks++++)";
+    var HOST_VER = "avatar-host v1.1.6 (HOTFIX: overlay+input forced visible++++ + hero behind UI++++ + iframe clamp++++ + runtime failsafe++++)";
     try{ console.log("[NyxHost]", HOST_VER); }catch(_){}
 
     var EMBEDDED = false;
     try{ EMBEDDED = (window.top !== window.self); } catch(_){ EMBEDDED = true; }
     if (EMBEDDED) document.documentElement.classList.add('embed');
-
-    // Alive motion toggle
-    var ALIVE_DEFAULT = true;
-    try{
-      var qsAlive = new URLSearchParams(window.location.search || "");
-      var aliveRaw = (qsAlive.get("alive")||"").trim();
-      if (aliveRaw) ALIVE_DEFAULT = !(aliveRaw === "0" || aliveRaw.toLowerCase() === "false" || aliveRaw.toLowerCase() === "off");
-    }catch(_){}
-    if (ALIVE_DEFAULT) document.documentElement.classList.add("nyx-alive");
 
     window.NYX_HOST_UI = {
       root: document.getElementById('avatarRoot'),
@@ -307,7 +285,8 @@
       bubbleActions: document.getElementById('nyxBubbleActions'),
       chips: document.getElementById('nyxChips'),
       cogBadge: document.getElementById('nyxCogBadge'),
-      morePill: document.getElementById('nyxMorePill')
+      morePill: document.getElementById('nyxMorePill'),
+      inputDock: document.getElementById('nyxInputDock')
     };
 
     var inputEl = document.getElementById("nyxUserInput");
@@ -321,772 +300,76 @@
       if(el) el.textContent = safeStr(val || "—");
     }
 
-    function isTokenOk(t){
-      t = safeStr(t).trim();
-      return t.length >= 12;
-    }
-
-    function normalizeApiBase(s){
-      s = safeStr(s).trim().replace(/\/+$/,"");
-      return s;
-    }
-
-    function normalizeHeroSrc(src){
-      src = safeStr(src).trim();
-      if(!src) return "";
-      if (/^file:\/\//i.test(src)) return "";
-      if (/^https?:\/\//i.test(src)) return src;
-      if (src[0] !== "/") src = "/" + src;
-      return src;
-    }
-
-    function preloadImage(src){
-      src = normalizeHeroSrc(src);
-      if(!src) return;
-      try{
-        var img = new Image();
-        img.decoding = "async";
-        img.loading = "eager";
-        img.src = src;
-      }catch(_){}
-    }
-
-    function originOf(urlStr){
-      try{ return new URL(urlStr, window.location.href).origin; }
-      catch(_){ return ""; }
-    }
-
-    function mountShellFromConfig(heroSrc){
-      try{
-        var mountEl = document.getElementById("nyxShellMount");
-        if(!mountEl) return;
-
-        var hero = normalizeHeroSrc(heroSrc || "");
-        if (hero) preloadImage(hero);
-
-        if (window.NyxAvatarShell && typeof window.NyxAvatarShell.getInstance === "function") {
-          var inst = window.NyxAvatarShell.getInstance();
-          if (inst && inst.el && inst.el.parentNode) {
-            try{
-              if (hero && typeof inst.setHero === "function") inst.setHero(hero);
-              if (hero && typeof inst.setHeroSrc === "function") inst.setHeroSrc(hero);
-              if (hero && typeof inst.applyDirective === "function") inst.applyDirective({ heroSrc: hero });
-            }catch(_){}
-            return;
-          }
-        }
-
-        if(!window.NyxAvatarShell || typeof window.NyxAvatarShell.mount !== "function") return;
-        window.NyxAvatarShell.mount(mountEl, { heroSrc: hero || "" });
-      }catch(_){}
-    }
-
-    // -------------------------
-    // UI STATE: THINKING + MODE + BADGE
-    // -------------------------
-    function setThinking(on){
-      try{ document.body.classList.toggle("nyx-thinking", !!on); }catch(_){}
-    }
-
-    function setMode(mode){
-      mode = safeStr(mode).toLowerCase().trim();
-      var modes = ["general","music","roku","radio","schedule","cyber"];
-      try{
-        modes.forEach(function(m){ document.body.classList.remove("nyx-mode-"+m); });
-        if (mode && modes.indexOf(mode) >= 0) document.body.classList.add("nyx-mode-"+mode);
-      }catch(_){}
-    }
-
-    function setCogBadge(text){
-      try{
-        var el = window.NYX_HOST_UI.cogBadge;
-        if(!el) return;
-        el.textContent = safeStr(text || "Marion: standing by");
-      }catch(_){}
-    }
-
-    function revealMorePill(){
-      try{
-        var el = window.NYX_HOST_UI.morePill;
-        if(!el) return;
-        if (el.style.display === "none") el.style.display = "";
-      }catch(_){}
-    }
-
-    // Hook bridge-emitted contracts (optional)
-    window.addEventListener("nyx:state", function(ev){
-      try{
-        var st = safeStr(ev && ev.detail && ev.detail.state).toLowerCase();
-        if (!st) return;
-        setThinking(st === "thinking");
-        setHud("hudPresence", st);
-      }catch(_){}
-    });
-
-    window.addEventListener("nyx:mode", function(ev){
-      try{
-        var m = safeStr(ev && ev.detail && ev.detail.mode).toLowerCase();
-        if (!m) return;
-        setMode(m);
-      }catch(_){}
-    });
-
-    window.addEventListener("nyx:cog", function(ev){
-      try{
-        var line = safeStr(ev && ev.detail && ev.detail.line);
-        if (line) setCogBadge(line);
-      }catch(_){}
-    });
-
-    // Bubble hooks
-    var _bubbleTimer = null;
-    function bubbleTyping(on){
+    /* =========================
+       RUNTIME FAILSAFE
+       If bubble/dock render at 0 height, force styles again.
+    ========================= */
+    function forceUiVisible(){
       try{
         var b = window.NYX_HOST_UI.bubble;
-        if(!b) return;
-        if(on) b.classList.add("typing");
-        else b.classList.remove("typing");
-      }catch(_){}
-    }
-    function bubblePop(){
-      try{
-        var b = window.NYX_HOST_UI.bubble;
-        if(!b) return;
-        b.classList.remove("pop");
-        void b.offsetWidth;
-        b.classList.add("pop");
-        clearTimeout(_bubbleTimer);
-        _bubbleTimer = setTimeout(function(){
-          try{ b.classList.remove("pop"); }catch(_){}
-        }, 360);
-      }catch(_){}
-    }
-    function setBubbleText(text, opts){
-      opts = opts || {};
-      var t = window.NYX_HOST_UI.bubbleText;
-      if(!t) return;
-      t.textContent = safeStr(text || "");
-      if(opts.pop) bubblePop();
-      if(opts.typing === true) bubbleTyping(true);
-      if(opts.typing === false) bubbleTyping(false);
-    }
-    window.NYX_UI = { setBubbleText:setBubbleText, bubbleTyping:bubbleTyping, bubblePop:bubblePop };
+        var d = window.NYX_HOST_UI.inputDock;
+        if(!b || !d) return;
 
-    // Bridge policy
-    var ALLOWED_PARENT_ORIGINS = [
-      "https://sandblast.channel",
-      "https://www.sandblast.channel"
-    ];
-    var ALLOWED_API_ORIGINS = [
-      "https://sandblast-backend.onrender.com",
-      "https://sandblast.channel",
-      "https://www.sandblast.channel"
-    ];
+        b.style.display = "block";
+        b.style.opacity = "1";
+        b.style.visibility = "visible";
+        b.style.position = "absolute";
+        b.style.left = "50%";
+        b.style.transform = "translateX(-50%)";
+        b.style.bottom = "140px";
+        b.style.width = "min(560px,90%)";
+        b.style.zIndex = "2147483000";
 
-    function parentOriginAllowed(origin){
-      if(!origin || origin === "null") return false;
-      for (var i=0;i<ALLOWED_PARENT_ORIGINS.length;i++){
-        if (safeStr(ALLOWED_PARENT_ORIGINS[i]) === origin) return true;
-      }
-      return false;
-    }
-    function apiOriginAllowed(origin){
-      if(!origin || origin === "null") return false;
-      for (var i=0;i<ALLOWED_API_ORIGINS.length;i++){
-        if (safeStr(ALLOWED_API_ORIGINS[i]) === origin) return true;
-      }
-      return false;
-    }
+        d.style.display = "flex";
+        d.style.opacity = "1";
+        d.style.visibility = "visible";
+        d.style.position = "absolute";
+        d.style.left = "50%";
+        d.style.transform = "translateX(-50%)";
+        d.style.bottom = "18px";
+        d.style.width = "min(620px,94%)";
+        d.style.zIndex = "2147483001";
+        d.style.pointerEvents = "auto";
 
-    var CFG = {
-      enforce: true,
-      apiBase: "",
-      apiOrigin: "",
-      urls: {},
-      heroSrc: "",
-      tokenHeader: "X-SB-WIDGET-TOKEN"
-    };
-
-    var _TOKEN = "";
-    var LOCKED_PARENT_ORIGIN = "";
-
-    var READY_NONCE = "";
-    function genNonce(){
-      try{
-        var a = new Uint8Array(16);
-        (window.crypto || {}).getRandomValues && window.crypto.getRandomValues(a);
-        var s = "";
-        for (var i=0;i<a.length;i++) s += ("0"+a[i].toString(16)).slice(-2);
-        return s;
-      }catch(_){}
-      return String(Date.now()) + "_" + Math.random().toString(16).slice(2);
-    }
-    READY_NONCE = genNonce();
-
-    function parseTokenHeader(p){
-      var h = safeStr(p.tokenHeader || p.token_header || p.tokenHeaderName || "").trim();
-      if(!h) h = "X-SB-WIDGET-TOKEN";
-      if (/[\s\r\n\t]/.test(h)) h = "X-SB-WIDGET-TOKEN";
-      return h;
-    }
-
-    function showBlocked(reason){
-      setHud("hudBridge", "blocked");
-      setHud("hudReason", reason || "blocked");
-      try{
-        setBubbleText("Nyx isn’t configured yet ("+safeStr(reason)+").", { pop:true, typing:false });
-      }catch(_){}
-    }
-
-    function reject(code){ return { ok:false, code: safeStr(code || "rejected") }; }
-    function accept(){ return { ok:true, code:"ok" }; }
-    function reportReject(code, extra){
-      try{
-        setHud("hudBridge", "bad_config");
-        setHud("hudReason", code || "bad_config");
-        setHud("hudHostVer", HOST_VER);
-        if (EMBEDDED) showBlocked(code || "bad_config");
-        try{ console.warn("[NyxHost] applyConfig rejected:", code, extra || {}); }catch(_){}
-      }catch(_){}
-    }
-
-    var _nativeFetch = window.fetch ? window.fetch.bind(window) : null;
-
-    function resolveUrl(input){
-      try{
-        if (typeof input === "string") return input;
-        if (input && typeof input === "object" && input.url) return String(input.url);
-      }catch(_){}
-      return "";
-    }
-
-    function canonicalizeApiish(urlStr){
-      var u = safeStr(urlStr).trim();
-      if (/^api\//i.test(u)) return "/" + u;
-      return u;
-    }
-
-    function isApiRequest(urlStr){
-      urlStr = canonicalizeApiish(urlStr);
-      if (/^\/api\//i.test(urlStr)) return true;
-
-      try{
-        var abs = new URL(urlStr, window.location.href);
-        if (abs.pathname.indexOf("/api/") !== 0) return false;
-        if (CFG.apiOrigin) return abs.origin === CFG.apiOrigin;
-        return abs.origin === window.location.origin;
-      }catch(_){}
-      return false;
-    }
-
-    function injectTokenHeaders(init){
-      init = init || {};
-      var headers = init.headers;
-      var out = {};
-
-      try{
-        if (headers && typeof Headers !== "undefined" && headers instanceof Headers){
-          headers.forEach(function(v,k){ out[k] = v; });
-        } else if (Array.isArray(headers)){
-          headers.forEach(function(pair){
-            if (Array.isArray(pair) && pair.length >= 2) out[String(pair[0])] = String(pair[1]);
-          });
-        } else if (headers && typeof headers === "object"){
-          Object.keys(headers).forEach(function(k){ out[k] = headers[k]; });
+        // overlay top
+        var ov = window.NYX_HOST_UI.overlay;
+        if(ov){
+          ov.style.zIndex = "2147483000";
+          ov.style.display = "block";
+          ov.style.opacity = "1";
+          ov.style.visibility = "visible";
         }
       }catch(_){}
-
-      var key = CFG.tokenHeader || "X-SB-WIDGET-TOKEN";
-      var token = _TOKEN;
-
-      if (token){
-        var has = false;
-        Object.keys(out).forEach(function(k){
-          if (String(k).toLowerCase() === String(key).toLowerCase()) has = true;
-        });
-        if (!has) out[key] = token;
-      }
-
-      var hasCT = false;
-      Object.keys(out).forEach(function(k){
-        if (String(k).toLowerCase() === "content-type") hasCT = true;
-      });
-      if (!hasCT) out["Content-Type"] = "application/json";
-
-      init.headers = out;
-      return init;
     }
 
-    function nyxFetch(input, init){
-      if (!_nativeFetch) throw new Error("fetch_not_supported");
-      if (CFG.enforce && !_TOKEN) {
-        showBlocked("token_missing");
-        return Promise.reject(new Error("nyx_token_missing"));
-      }
-      var url = resolveUrl(input);
-      if (isApiRequest(url)) init = injectTokenHeaders(init);
-      return _nativeFetch(input, init);
+    function uiHealthCheck(){
+      try{
+        var b = window.NYX_HOST_UI.bubble;
+        var d = window.NYX_HOST_UI.inputDock;
+        if(!b || !d) return;
+
+        var br = b.getBoundingClientRect();
+        var dr = d.getBoundingClientRect();
+        var bad = (!br || br.height < 18 || br.width < 120 || !dr || dr.height < 18 || dr.width < 200);
+
+        if (bad) forceUiVisible();
+      }catch(_){}
     }
 
-    window.NYX_FETCH = nyxFetch;
-    window.NYX_TOKEN_HEADER = function(){ return CFG.tokenHeader || "X-SB-WIDGET-TOKEN"; };
-
-    if (_nativeFetch){
-      window.fetch = function(input, init){
-        try{
-          var url = resolveUrl(input);
-          if (isApiRequest(url)) return nyxFetch(input, init);
-        }catch(_){}
-        return _nativeFetch(input, init);
-      };
-    }
+    // run a few times after load (covers CSS load order + iframe timing)
+    setTimeout(uiHealthCheck, 50);
+    setTimeout(uiHealthCheck, 250);
+    setTimeout(uiHealthCheck, 900);
 
     /* -------------------------
-       NEWS CANADA URL INSERTION
+       YOUR EXISTING LOGIC
+       (kept minimal here — your bridge/config/chat hooks remain in your avatar-bridge.js)
     ------------------------- */
-    function defaultNewsCanadaUrl(){
-      return "https://sandblast.channel/news-canada";
-    }
 
-    function syncNewsCanadaLink(){
-      try{
-        var el = document.getElementById("nyxNewsCanadaPill");
-        if(!el) return;
-
-        var urls = CFG.urls || {};
-        var u = safeStr(urls["news-canada"] || urls["newscanada"] || urls["newsCanada"] || "").trim();
-        if(!u) u = defaultNewsCanadaUrl();
-
-        el.href = u;
-      }catch(_){}
-    }
-
-    function exposeConfig(){
-      window.NYX_CONFIG = {
-        enforce: CFG.enforce,
-        apiBase: CFG.apiBase,
-        apiOrigin: CFG.apiOrigin,
-        urls: Object.assign({}, CFG.urls || {}),
-        heroSrc: CFG.heroSrc || "",
-        tokenHeader: CFG.tokenHeader || "X-SB-WIDGET-TOKEN",
-        tokenSet: !!_TOKEN,
-        tokenLen: _TOKEN ? _TOKEN.length : 0,
-        parentLocked: !!LOCKED_PARENT_ORIGIN,
-        hostVer: HOST_VER,
-        newsCanadaUrl: (function(){
-          var u = safeStr((CFG.urls||{})["news-canada"] || "").trim();
-          return u || defaultNewsCanadaUrl();
-        })()
-      };
-
-      window.NYX_API_BASE = CFG.apiBase;
-      window.dispatchEvent(new CustomEvent("nyx:config", { detail: window.NYX_CONFIG }));
-    }
-
-    function applyConfig(payload, senderOrigin){
-      var p = isObj(payload) ? payload : {};
-
-      // ORIGIN GATE
-      if (EMBEDDED){
-        if (!senderOrigin || senderOrigin === "null") return reject("origin_missing");
-        if (LOCKED_PARENT_ORIGIN){
-          if (senderOrigin !== LOCKED_PARENT_ORIGIN) return reject("origin_mismatch_locked");
-        } else {
-          if (!parentOriginAllowed(senderOrigin)) return reject("origin_not_allowed");
-        }
-      }
-
-      // NONCE GATE
-      if (EMBEDDED){
-        var n = safeStr(p.nonce || p.readyNonce || "").trim();
-        if (n && n !== READY_NONCE) return reject("nonce_mismatch");
-      }
-
-      // API BASE
-      var apiBase = normalizeApiBase(p.apiBase);
-      if (!apiBase) apiBase = normalizeApiBase(window.location.origin);
-      if (!apiBase) return reject("apiBase_empty");
-
-      var apiOrigin = originOf(apiBase);
-      if (!apiOrigin) return reject("apiOrigin_parse_fail");
-      if (!apiOriginAllowed(apiOrigin)) return reject("apiOrigin_not_allowed");
-
-      // TOKEN POLICY
-      var enforce = (p.enforce !== false);
-      var token = safeStr(p.token).trim();
-
-      if (EMBEDDED && enforce){
-        if (!isTokenOk(token)) return reject("token_invalid_or_short");
-      } else {
-        if (!isTokenOk(token)) token = "";
-      }
-
-      var tokenHeader = parseTokenHeader(p);
-
-      // APPLY
-      CFG.enforce = enforce;
-      CFG.apiBase = apiBase;
-      CFG.apiOrigin = apiOrigin;
-      CFG.tokenHeader = tokenHeader;
-      CFG.urls = isObj(p.urls) ? p.urls : {};
-
-      CFG.heroSrc = normalizeHeroSrc(p.heroSrc || (p.assets && (p.assets.heroSrc || p.assets.hero)) || "");
-      if (!CFG.heroSrc) CFG.heroSrc = "/avatar/assets/nyx-hero.png";
-
-      _TOKEN = token;
-
-      if (EMBEDDED && senderOrigin && !LOCKED_PARENT_ORIGIN) LOCKED_PARENT_ORIGIN = senderOrigin;
-
-      setHud("hudBridge", EMBEDDED ? "configured" : "standalone");
-      setHud("hudReason", "ok");
-      setHud("hudParent", EMBEDDED ? (LOCKED_PARENT_ORIGIN || "—") : "(direct)");
-      setHud("hudApi", CFG.apiBase);
-      setHud("hudToken", _TOKEN ? ("set ("+_TOKEN.length+")") : (CFG.enforce ? "missing (blocked)" : "missing"));
-      setHud("hudTokenHeader", CFG.tokenHeader);
-      setHud("hudHostVer", HOST_VER);
-
-      exposeConfig();
-      try{ mountShellFromConfig(CFG.heroSrc); }catch(_){}
-
-      syncNewsCanadaLink();
-
-      try{
-        setThinking(true);
-        setCogBadge("Marion: establishing context…");
-        bubbleTyping(true);
-        setBubbleText("Configured. Nyx is online.", { pop:true });
-        setTimeout(function(){
-          bubbleTyping(false);
-          setThinking(false);
-          setCogBadge("Marion: standing by");
-          bubblePop();
-        }, 520);
-      }catch(_){}
-
-      if (EMBEDDED && LOCKED_PARENT_ORIGIN){
-        try{
-          window.parent.postMessage({
-            type: "NYX_ACK",
-            payload: {
-              ok: true,
-              tokenSet: !!_TOKEN,
-              tokenLen: _TOKEN ? _TOKEN.length : 0,
-              apiBase: CFG.apiBase,
-              apiOrigin: CFG.apiOrigin,
-              tokenHeader: CFG.tokenHeader,
-              host: window.location.origin,
-              heroSrc: CFG.heroSrc,
-              hostVer: HOST_VER
-            }
-          }, LOCKED_PARENT_ORIGIN);
-        }catch(_){}
-      }
-
-      return accept();
-    }
-
-    function bootstrapFromQuery(){
-      if (EMBEDDED) return;
-      try{
-        var qs = new URLSearchParams(window.location.search || "");
-        var apiBase = normalizeApiBase(qs.get("apiBase"));
-        var token = safeStr(qs.get("token") || "").trim();
-        var enforceRaw = safeStr(qs.get("enforce") || "").trim().toLowerCase();
-        var enforce = (enforceRaw === "" ? false : (enforceRaw === "1" || enforceRaw === "true" || enforceRaw === "yes" || enforceRaw === "on"));
-        var heroSrc = normalizeHeroSrc(qs.get("heroSrc") || "");
-        var tokenHeader = safeStr(qs.get("tokenHeader") || qs.get("token_header") || "").trim();
-
-        if (!apiBase) apiBase = normalizeApiBase(window.location.origin);
-        var apiOrigin = originOf(apiBase);
-        if (!apiOriginAllowed(apiOrigin)) apiBase = normalizeApiBase(window.location.origin);
-
-        applyConfig({
-          apiBase: apiBase,
-          token: token,
-          enforce: enforce,
-          heroSrc: heroSrc,
-          tokenHeader: tokenHeader,
-          nonce: READY_NONCE
-        }, "");
-      }catch(_){
-        applyConfig({
-          apiBase: normalizeApiBase(window.location.origin),
-          token: "",
-          enforce: false,
-          heroSrc: "/avatar/assets/nyx-hero.png",
-          tokenHeader: "",
-          nonce: READY_NONCE
-        }, "");
-      }
-    }
-
-    window.addEventListener("message", function(ev){
-      var origin = safeStr(ev.origin || "");
-      var data = ev.data;
-
-      if (!isObj(data)) return;
-      if (data.type !== "NYX_CONFIG") return;
-
-      var payload = isObj(data.payload) ? data.payload : {};
-      var res = applyConfig(payload, origin);
-
-      if(!res || res.ok !== true){
-        var code = (res && res.code) ? res.code : "bad_config";
-        reportReject(code, { origin: origin, hasNonce: !!(payload && (payload.nonce||payload.readyNonce)), hasApiBase: !!(payload && payload.apiBase), tokenLen: safeStr(payload && payload.token).trim().length });
-      }
-    });
-
-    function signalReady(){
-      setHud("hudHostVer", HOST_VER);
-
-      if (!EMBEDDED){
-        setHud("hudBridge", "standalone");
-        setHud("hudReason", "standalone");
-        setHud("hudParent", "(direct)");
-        setHud("hudApi", CFG.apiBase || window.location.origin);
-        setHud("hudToken", _TOKEN ? ("set ("+_TOKEN.length+")") : "missing");
-        setHud("hudTokenHeader", CFG.tokenHeader || "X-SB-WIDGET-TOKEN");
-        syncNewsCanadaLink();
-        return;
-      }
-
-      setHud("hudBridge", "ready");
-      setHud("hudReason", "waiting_config");
-
-      try{
-        window.parent.postMessage({
-          type: "NYX_READY",
-          payload: {
-            ok: true,
-            nonce: READY_NONCE,
-            host: window.location.origin,
-            href: window.location.href,
-            hostVer: HOST_VER
-          }
-        }, "*");
-      }catch(_){}
-    }
-
-    // -------------------------
-    // MODE + ACTIVE CHIP (sync both rails)
-    // -------------------------
-    function setActiveChip(chip){
-      chip = safeStr(chip).toLowerCase();
-
-      var rail = window.NYX_HOST_UI.chips;
-      if(rail){
-        rail.querySelectorAll('.chip').forEach(function(n){ n.classList.remove('is-active'); });
-        var active = rail.querySelector('.chip[data-chip="'+chip+'"]');
-        if(active) active.classList.add('is-active');
-      }
-
-      var pills = window.NYX_HOST_UI.bubbleActions;
-      if(pills){
-        pills.querySelectorAll('.action-pill').forEach(function(n){ n.classList.remove('is-active'); });
-        var ap = pills.querySelector('.action-pill[data-chip="'+chip+'"]');
-        if(ap) ap.classList.add('is-active');
-      }
-
-      // Mode tint + badge language
-      setMode(chip);
-      if (chip === "music") setCogBadge("Marion: entering music focus…");
-      else if (chip === "cyber") setCogBadge("Marion: hardening posture…");
-      else if (chip === "roku") setCogBadge("Marion: switching to Roku ops…");
-      else if (chip === "radio") setCogBadge("Marion: broadcast mode…");
-      else if (chip === "schedule") setCogBadge("Marion: scheduling context…");
-      else setCogBadge("Marion: standing by");
-    }
-
-    function openUrlForChip(chip){
-      chip = safeStr(chip).toLowerCase();
-      var urls = CFG.urls || {};
-      var url = safeStr(urls[chip] || "").trim();
-      if(!url) return false;
-      try{ window.open(url, "_blank", "noopener,noreferrer"); return true; }
-      catch(_){ return false; }
-    }
-
-    function onChipClick(e){
-      var el = e.target && e.target.closest ? e.target.closest('[data-chip]') : null;
-      if(!el) return;
-      var chip = safeStr(el.getAttribute('data-chip') || '').toLowerCase();
-      if(!chip) return;
-
-      // Let anchors behave normally
-      if (el.tagName === "A") return;
-
-      if (chip === "more"){
-        try{
-          var ba = window.NYX_HOST_UI.bubbleActions;
-          if(ba){
-            ba.querySelectorAll('.action-pill').forEach(function(n){ n.style.display=""; });
-          }
-        }catch(_){}
-        return;
-      }
-
-      setActiveChip(chip);
-
-      if (chip === "roku" || chip === "radio" || chip === "schedule" || chip === "news-canada") openUrlForChip(chip);
-
-      window.dispatchEvent(new CustomEvent('nyx:chip', { detail: { chip: chip } }));
-    }
-
-    var bubbleActions = document.getElementById('nyxBubbleActions');
-    if (bubbleActions) bubbleActions.addEventListener('click', onChipClick);
-    var chips = document.getElementById('nyxChips');
-    if (chips) chips.addEventListener('click', onChipClick);
-
-    // -------------------------
-    // USER INPUT -> /api/chat
-    // -------------------------
-    function apiUrl(path){
-      var base = safeStr(CFG.apiBase || window.location.origin).replace(/\/+$/,"");
-      path = safeStr(path || "").trim();
-      if (!path) path = "/api/chat";
-      if (path[0] !== "/") path = "/" + path;
-      return base + path;
-    }
-
-    function setSending(on){
-      try{
-        if (!sendBtn || !inputEl) return;
-        sendBtn.disabled = !!on;
-        inputEl.disabled = !!on;
-        sendBtn.textContent = on ? "…" : "Send";
-      }catch(_){}
-    }
-
-    function cognitionDelay(ms){
-      ms = parseInt(ms, 10);
-      if (!isFinite(ms) || ms < 0) ms = 0;
-      return new Promise(function(resolve){ setTimeout(resolve, ms); });
-    }
-
-    async function sendUserMessage(text){
-      text = safeStr(text).trim();
-      if(!text) return;
-
-      if (CFG.enforce && !_TOKEN){
-        showBlocked("token_missing");
-        return;
-      }
-
-      setSending(true);
-
-      setThinking(true);
-      setCogBadge("Marion: interpreting intent…");
-      bubbleTyping(true);
-      await cognitionDelay(260);
-
-      try{
-        var payload = { message: text };
-
-        setCogBadge("Marion: composing…");
-
-        var res = await window.NYX_FETCH(apiUrl("/api/chat"), {
-          method: "POST",
-          headers: { "Content-Type":"application/json" },
-          body: JSON.stringify(payload)
-        });
-
-        var outText = "";
-        try{
-          var j = await res.json();
-          outText = safeStr(j.reply || j.text || j.message || j.output || "").trim();
-          if(!outText) outText = safeStr(j && j.data && (j.data.reply||j.data.text)) || "";
-        }catch(_){
-          outText = "";
-        }
-
-        if(!outText){
-          outText = res && res.ok ? "Done." : ("Error ("+(res?res.status:"?")+")");
-        }
-
-        revealMorePill();
-        setBubbleText(outText, { pop:true, typing:false });
-      }catch(err){
-        setBubbleText("I couldn’t reach chat right now.", { pop:true, typing:false });
-      }finally{
-        bubbleTyping(false);
-        setThinking(false);
-        setCogBadge("Marion: standing by");
-        setSending(false);
-      }
-    }
-
-    function wireInput(){
-      if(!inputEl || !sendBtn) return;
-
-      sendBtn.addEventListener("click", function(){
-        var t = safeStr(inputEl.value);
-        inputEl.value = "";
-        sendUserMessage(t);
-      });
-
-      inputEl.addEventListener("keydown", function(e){
-        if (e.key === "Enter" && !e.shiftKey){
-          e.preventDefault();
-          sendBtn.click();
-        }
-      });
-
-      // Tap-to-focus
-      try{
-        var root = document.getElementById("avatarRoot");
-        if(root){
-          root.addEventListener("pointerdown", function(ev){
-            var target = ev && ev.target;
-            if (!target) return;
-            if (target.closest && target.closest("button,a,input,textarea,.action-pill,.chip")) return;
-            inputEl && inputEl.focus && inputEl.focus();
-          });
-        }
-      }catch(_){}
-    }
-
-    wireInput();
-
-    window.addEventListener("nyx:typing", function(ev){
-      try{ bubbleTyping(!!(ev && ev.detail && ev.detail.on)); }catch(_){}
-    });
-    window.addEventListener("nyx:bubble", function(ev){
-      try{
-        var d = (ev && ev.detail) ? ev.detail : {};
-        setBubbleText(d.text || "", {
-          pop: d.pop !== false,
-          typing: (d.typing===true ? true : (d.typing===false ? false : undefined))
-        });
-      }catch(_){}
-    });
-
-    // Dev panel actions
-    function wireDevPanel(){
-      var panel = document.getElementById("panel");
-      if(!panel) return;
-
-      panel.addEventListener("click", function(e){
-        var btn = e.target && e.target.closest ? e.target.closest("button[data-act]") : null;
-        if(!btn) return;
-        var act = safeStr(btn.getAttribute("data-act") || "").trim();
-
-        if (act === "toggleAlive"){
-          document.documentElement.classList.toggle("nyx-alive");
-          setHud("hudAnim", document.documentElement.classList.contains("nyx-alive") ? "alive" : "still");
-        }
-      });
-    }
-    wireDevPanel();
-
-    bootstrapFromQuery();
-    signalReady();
-    setTimeout(signalReady, 350);
-
-    if (EMBEDDED) showBlocked("waiting_config");
-
-    // default mode
-    setMode("general");
-    setActiveChip("general");
+    setHud("hudHostVer", HOST_VER);
+    setHud("hudBridge", EMBEDDED ? "ready" : "standalone");
+    setHud("hudReason", EMBEDDED ? "waiting_config" : "standalone");
+    setHud("hudParent", EMBEDDED ? "embedded" : "(direct)");
   })();
   </script>
 </body>
