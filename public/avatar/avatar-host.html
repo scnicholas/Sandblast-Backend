@@ -6,7 +6,7 @@
   <title>Nyx Avatar Host</title>
 
   <!-- Use the real skin (CACHE-BUST so you actually see updates) -->
-  <link rel="stylesheet" href="./avatar.css?v=115" />
+  <link rel="stylesheet" href="./avatar.css?v=116" />
 
   <style>
     html,body{height:100%}
@@ -140,8 +140,8 @@
               <div class="action-pill schedule" data-chip="schedule">Schedule<span class="ext">↗</span></div>
               <div class="action-pill" data-chip="radio">Radio</div>
 
-              <!-- NEW: News Canada pill (opens configured URL) -->
-              <a class="action-pill general" data-chip="news-canada" id="nyxNewsCanadaPill" href="#" target="_blank" rel="noopener noreferrer">News Canada<span class="ext">↗</span></a>
+              <!-- News Canada pill (opens configured URL) -->
+              <a class="action-pill" data-chip="news-canada" id="nyxNewsCanadaPill" href="#" target="_blank" rel="noopener noreferrer">News Canada<span class="ext">↗</span></a>
             </div>
           </div>
 
@@ -194,14 +194,14 @@
     </div>
   </div>
 
-  <script src="./avatar-contract.js?v=115"></script>
-  <script src="./nyx-avatar-shell.js?v=115"></script>
-  <script src="./avatar-controller.js?v=115"></script>
-  <script src="./avatar-bridge.js?v=115"></script>
+  <script src="./avatar-contract.js?v=116"></script>
+  <script src="./nyx-avatar-shell.js?v=116"></script>
+  <script src="./avatar-controller.js?v=116"></script>
+  <script src="./avatar-bridge.js?v=116"></script>
 
   <script>
   (function(){
-    var HOST_VER = "avatar-host v1.1.1 (news-canada link++++ + url insertion + hardened config gate + png default hero)";
+    var HOST_VER = "avatar-host v1.1.2 (news-canada link++++ + url insertion + anchor-safe click gate + hardened config gate + png default hero)";
     try{ console.log("[NyxHost]", HOST_VER); }catch(_){}
 
     var EMBEDDED = false;
@@ -501,7 +501,6 @@
        - Fallback defaults to /news-canada on sandblast.channel
     ------------------------- */
     function defaultNewsCanadaUrl(){
-      // Prefer same-site canonical link
       return "https://sandblast.channel/news-canada";
     }
 
@@ -530,8 +529,6 @@
         tokenLen: _TOKEN ? _TOKEN.length : 0,
         parentLocked: !!LOCKED_PARENT_ORIGIN,
         hostVer: HOST_VER,
-
-        // helpful for debugging/consumers
         newsCanadaUrl: (function(){
           var u = safeStr((CFG.urls||{})["news-canada"] || "").trim();
           return u || defaultNewsCanadaUrl();
@@ -607,7 +604,7 @@
       exposeConfig();
       try{ mountShellFromConfig(CFG.heroSrc); }catch(_){}
 
-      // ensure the News Canada pill points to the configured URL
+      // ensure News Canada pill points to the configured URL
       syncNewsCanadaLink();
 
       try{
@@ -751,7 +748,6 @@
 
       setActiveChip(chip);
 
-      // open URL chips (adds news-canada support)
       if (chip === "roku" || chip === "radio" || chip === "schedule" || chip === "news-canada") openUrlForChip(chip);
 
       window.dispatchEvent(new CustomEvent('nyx:chip', { detail: { chip: chip } }));
