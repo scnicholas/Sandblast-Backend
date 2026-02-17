@@ -154,7 +154,7 @@ body{margin:0;background:#000;overflow:hidden}
       Hi… I’m Nyx. How are you today?
     </div>
 
-    <div class="bubble-actions">
+    <div class="bubble-actions" id="nyxChips">
       <div class="action-pill" data-chip="general">General</div>
       <div class="action-pill" data-chip="music">Music</div>
       <div class="action-pill" data-chip="roku">Roku</div>
@@ -164,13 +164,13 @@ body{margin:0;background:#000;overflow:hidden}
     </div>
 
     <div class="nyx-controls">
-      <button class="nyx-mini" id="nyxMic">🎙️</button>
-      <button class="nyx-mini" id="nyxVoiceToggle">🔊 Voice</button>
+      <button class="nyx-mini" id="nyxMic" type="button">🎙️</button>
+      <button class="nyx-mini" id="nyxVoiceToggle" type="button">🔊 Voice</button>
     </div>
 
     <div class="nyx-row">
-      <input id="nyxInput" type="text" placeholder="Type a message…" />
-      <button id="nyxSend">Send</button>
+      <input id="nyxInput" type="text" placeholder="Type a message…" autocomplete="off" />
+      <button id="nyxSend" type="button">Send</button>
     </div>
 
     <div id="nyxDiag">HOST v9110 • ready</div>
@@ -179,7 +179,250 @@ body{margin:0;background:#000;overflow:hidden}
 
 <script>
 (function(){
-  window.parent && window.parent.postMessage({type:"NYX_READY"}, "*");
+  "use strict";
+
+  // ==========
+  // Utilities
+  // ==========
+  function $(id){ return document.getElementById(id); }
+  function safeJsonParse(str){
+    try { return JSON.parse(str); } catch(e){ return null; }
+  }
+  function getOriginFromReferrer(){
+    // If embedded, this will usually be the parent page URL.
+    // If blocked/blank, we fall back to '*' but we won't trust inbound messages then.
+    try{
+      var r = document.referrer || "";
+      if(!r) return null;
+      return (new URL(r)).origin;
+    }catch(e){
+      return null;
+    }
+  }
+
+  var diagEl = $("nyxDiag");
+  function diag(msg){
+    if(!diagEl) return;
+    diagEl.textContent = msg;
+  }
+
+  // ==========
+  // Bridge State
+  // ==========
+  var PARENT_ORIGIN = getOriginFromReferrer(); // null if unknown
+  var READY_SENT = false;
+  var READY_ACK = false;
+  var CONFIG = {
+    version: "9110",
+    // optional fields parent can send:
+    // token, apiBase, heroSrc, voiceDefaultOn, etc.
+  };
+
+  function postToParent(payload){
+    if(!window.parent || window.parent === window) return false;
+    try{
+      var target = PARENT_ORIGIN || "*";
+      window.parent.postMessage(payload, target);
+      return true;
+    }catch(e){
+      return false;
+    }
+  }
+
+  function sendReady(){
+    // Send a deterministic READY packet with a stable schema
+    READY_SENT = true;
+    postToParent({
+      type: "NYX_READY",
+      v: CONFIG.version,
+      ts: Date.now()
+    });
+  }
+
+  // Retry READY a few times to beat race conditions
+  var tries = 0;
+  var maxTries = 12; // ~3s at 250ms
+  var timer = setInterval(function(){
+    tries++;
+    if(READY_ACK || tries > maxTries){
+      clearInterval(timer);
+      return;
+    }
+    sendReady();
+  }, 250);
+
+  // One immediate READY on load
+  sendReady();
+
+  // ==========
+  // Inbound messages (hardened)
+  // ==========
+  window.addEventListener("message", function(ev){
+    try{
+      // If we know the parent origin, require it.
+      if(PARENT_ORIGIN && ev.origin !== PARENT_ORIGIN) return;
+
+      var data = ev.data;
+
+      // Support stringified JSON (some parents do this)
+      if(typeof data === "string"){
+        var parsed = safeJsonParse(data);
+        if(parsed) data = parsed;
+      }
+
+      if(!data || typeof data !== "object") return;
+      var t = data.type;
+
+      if(t === "NYX_READY_ACK"){
+        READY_ACK = true;
+        diag("HOST v9110 • ready (ack)");
+        return;
+      }
+
+      if(t === "NYX_CONFIG"){
+        // Merge only known-safe keys (avoid prototype pollution / weird payloads)
+        var c = data.config && typeof data.config === "object" ? data.config : {};
+        if(typeof c.apiBase === "string") CONFIG.apiBase = c.apiBase;
+        if(typeof c.token === "string") CONFIG.token = c.token;
+        if(typeof c.heroSrc === "string") CONFIG.heroSrc = c.heroSrc;
+        if(typeof c.voiceDefaultOn === "boolean") CONFIG.voiceDefaultOn = c.voiceDefaultOn;
+
+        // Apply hero override only if provided (no visual change unless parent sets it)
+        if(CONFIG.heroSrc){
+          document.documentElement.style.setProperty("--nyx-hero-abs", 'url("' + CONFIG.heroSrc + '")');
+          document.documentElement.style.setProperty("--nyx-hero-url", 'var(--nyx-hero-abs)');
+        }
+
+        diag("HOST v9110 • config loaded");
+        postToParent({ type:"NYX_CONFIG_ACK", v: CONFIG.version, ts: Date.now() });
+        return;
+      }
+
+      if(t === "NYX_PING"){
+        postToParent({ type:"NYX_PONG", v: CONFIG.version, ts: Date.now() });
+        return;
+      }
+
+      // Optional: parent can set bubble text safely
+      if(t === "NYX_SET_BUBBLE" && typeof data.text === "string"){
+        var el = $("nyxBubbleText");
+        if(el) el.textContent = data.text;
+        return;
+      }
+
+    }catch(err){
+      // Never throw from message handler.
+    }
+  });
+
+  // ==========
+  // UI wiring (no styling changes)
+  // ==========
+  var input = $("nyxInput");
+  var sendBtn = $("nyxSend");
+  var chips = $("nyxChips");
+  var bubble = $("nyxBubbleText");
+
+  function emitUserText(text, meta){
+    // Never emit empty or undefined payloads
+    if(!text || typeof text !== "string") return;
+
+    postToParent({
+      type: "NYX_USER_TEXT",
+      v: CONFIG.version,
+      ts: Date.now(),
+      text: text,
+      meta: meta && typeof meta === "object" ? meta : {}
+    });
+  }
+
+  function openLinkForChip(chip){
+    // Keep your ↗ intent, but do not change UI.
+    // Parent can intercept NYX_NAV if preferred.
+    if(chip === "schedule"){
+      postToParent({ type:"NYX_NAV", where:"schedule", ts: Date.now() });
+      return;
+    }
+    if(chip === "news-canada"){
+      postToParent({ type:"NYX_NAV", where:"news-canada", ts: Date.now() });
+      return;
+    }
+  }
+
+  if(sendBtn){
+    sendBtn.addEventListener("click", function(){
+      try{
+        var text = (input && input.value ? String(input.value) : "").trim();
+        if(!text) return;
+        emitUserText(text, { source:"send" });
+        if(input) input.value = "";
+      }catch(e){}
+    });
+  }
+
+  if(input){
+    input.addEventListener("keydown", function(e){
+      try{
+        if(e.key === "Enter"){
+          e.preventDefault();
+          if(sendBtn) sendBtn.click();
+        }
+      }catch(err){}
+    });
+  }
+
+  if(chips){
+    chips.addEventListener("click", function(e){
+      try{
+        var t = e.target;
+        if(!t) return;
+        // Walk up to the pill
+        while(t && t !== chips && !(t.classList && t.classList.contains("action-pill"))){
+          t = t.parentNode;
+        }
+        if(!t || t === chips) return;
+
+        var chip = t.getAttribute("data-chip");
+        if(!chip) return;
+
+        // For ↗ chips, emit nav signal (parent decides what to do)
+        if(chip === "schedule" || chip === "news-canada"){
+          openLinkForChip(chip);
+          return;
+        }
+
+        // For normal chips, emit chip selection + optionally prefill bubble
+        postToParent({
+          type: "NYX_CHIP",
+          v: CONFIG.version,
+          ts: Date.now(),
+          chip: chip
+        });
+
+      }catch(err){}
+    });
+  }
+
+  // Mic / Voice toggles emit signals only (no local audio logic here yet)
+  var micBtn = $("nyxMic");
+  var voiceBtn = $("nyxVoiceToggle");
+
+  if(micBtn){
+    micBtn.addEventListener("click", function(){
+      try{
+        postToParent({ type:"NYX_MIC_TOGGLE", v: CONFIG.version, ts: Date.now() });
+      }catch(e){}
+    });
+  }
+
+  if(voiceBtn){
+    voiceBtn.addEventListener("click", function(){
+      try{
+        postToParent({ type:"NYX_VOICE_TOGGLE", v: CONFIG.version, ts: Date.now() });
+      }catch(e){}
+    });
+  }
+
 })();
 </script>
 
