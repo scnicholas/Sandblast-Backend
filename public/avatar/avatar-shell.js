@@ -2,20 +2,10 @@
 "use strict";
 
 /**
- * Nyx Avatar Shell (Renderer)
- *
- * v1.1.0 (TRANSPARENT STAGE++++ + NO BLACK PAINT++++ + SAFE OVERLAY COMPAT++++)
- *
- * Why this update:
- * - Your hero PNG is supposed to live on #nyxShellMount (background-image).
- * - The shell must NEVER paint an opaque background that “black-washes” the hero.
- * - The shell must also be safe inside an iframe widget (no layout fighting, no pointer theft).
- *
- * What this does:
- * ✅ Forces root + wrapper backgrounds to transparent (hard).
- * ✅ Uses absolute fill layout so it never pushes UI.
- * ✅ Disables pointer-events so bubble/input stay fully interactive.
- * ✅ Keeps silhouette as a subtle fallback only (does not obscure hero).
+ * Nyx Avatar Shell (HERO IMG GUARANTEE++++)
+ * - Pure renderer
+ * - GUARANTEES hero renders by using a real <img> layer (not CSS bg)
+ * - Provides setHero / setHeroSrc helpers for host + bridge
  */
 (function () {
   function el(tag, cls) {
@@ -24,71 +14,60 @@
     return n;
   }
 
-  function injectSafetyCSS() {
-    // Inject once
-    if (document.getElementById("nyxShellSafetyCSS")) return;
-
-    const s = document.createElement("style");
-    s.id = "nyxShellSafetyCSS";
-    s.textContent = `
-      /* === Nyx Shell Safety CSS (do not remove) === */
-      #nyxShellMount, #nyxAvatar, .nyx-shell-wrap, .nyx-shell-wrap *{
-        background: transparent !important;
-      }
-      .nyx-shell-wrap{
-        position:absolute !important;
-        inset:0 !important;
-        width:100% !important;
-        height:100% !important;
-        min-height:0 !important;
-        pointer-events:none !important; /* UI overlay must be clickable */
-        z-index:1 !important;           /* stays behind overlay */
-      }
-      /* Fallback silhouette should never “fight” the hero PNG */
-      .nyx-shell-wrap .silhouette{
-        position:absolute;
-        inset:0;
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        opacity:.14;                    /* subtle fallback only */
-        filter: contrast(1.02) saturate(1.02);
-      }
-    `;
-    document.head.appendChild(s);
+  function safeStr(x) {
+    return x === null || x === undefined ? "" : String(x);
   }
 
+  const ABS_FALLBACK = "https://sandblast-backend.onrender.com/avatar/assets/nyx-hero.png";
+  const REL_FALLBACK = "/avatar/assets/nyx-hero.png";
+
   function buildAvatar(root) {
-    injectSafetyCSS();
-
-    // IMPORTANT: do not let the shell create/keep any opaque paint
-    try {
-      root.style.background = "transparent";
-      root.style.setProperty("background", "transparent", "important");
-      root.style.setProperty("pointer-events", "none");
-    } catch (_) {}
-
     root.innerHTML = "";
 
-    const wrap = el("div", "avatar nyx-shell-wrap mood-calm gaze-soft");
-    wrap.setAttribute("aria-label", "Nyx Avatar");
-    wrap.style.background = "transparent";
-    wrap.style.pointerEvents = "none";
+    // Stage container
+    const stage = el("div", "nyx-stage");
+    stage.setAttribute("aria-label", "Nyx Avatar");
 
+    // ✅ Hero image layer (guaranteed paint)
+    const heroWrap = el("div", "nyx-hero");
+    const heroImg = el("img", "nyx-hero-img");
+    heroImg.alt = "Nyx Hero";
+    heroImg.decoding = "async";
+    heroImg.loading = "eager";
+    heroImg.referrerPolicy = "no-referrer";
+
+    // hard fallback chain
+    heroImg.onerror = function () {
+      // If current src isn't ABS fallback, try ABS
+      const cur = safeStr(heroImg.src);
+      if (cur.indexOf(ABS_FALLBACK) === -1) {
+        heroImg.src = ABS_FALLBACK + "?v=" + Date.now();
+        return;
+      }
+      // then REL fallback
+      if (cur.indexOf(REL_FALLBACK) === -1) {
+        heroImg.src = REL_FALLBACK + "?v=" + Date.now();
+        return;
+      }
+      // last resort: hide broken img so silhouette can show
+      heroImg.style.display = "none";
+    };
+
+    heroWrap.appendChild(heroImg);
+
+    // Subtle silhouette fallback (never blocks hero)
+    const wrap = el("div", "avatar mood-calm gaze-soft nyx-silhouette");
     const sil = el("div", "silhouette");
 
     const head = el("div", "head");
+
     const eyeL = el("div", "eye left");
-    const pupilL = el("div", "pupil");
-    const lidL = el("div", "lid");
-    eyeL.appendChild(pupilL);
-    eyeL.appendChild(lidL);
+    eyeL.appendChild(el("div", "pupil"));
+    eyeL.appendChild(el("div", "lid"));
 
     const eyeR = el("div", "eye right");
-    const pupilR = el("div", "pupil");
-    const lidR = el("div", "lid");
-    eyeR.appendChild(pupilR);
-    eyeR.appendChild(lidR);
+    eyeR.appendChild(el("div", "pupil"));
+    eyeR.appendChild(el("div", "lid"));
 
     const mouth = el("div", "mouth");
 
@@ -102,26 +81,24 @@
     sil.appendChild(shoulders);
 
     wrap.appendChild(sil);
-    root.appendChild(wrap);
 
-    return { wrap };
+    // Assemble
+    stage.appendChild(heroWrap);
+    stage.appendChild(wrap);
+    root.appendChild(stage);
+
+    return { stage, heroImg, wrap };
   }
 
   function setVar(node, name, value) {
-    // Keep safe numeric/string coercion
-    if (value === undefined || value === null) return;
-    node.style.setProperty(name, String(value));
+    try {
+      node.style.setProperty(name, String(value));
+    } catch (_) {}
   }
 
   function applyDirective(avatar, d) {
-    const wrap = avatar.wrap;
     d = d || {};
-
-    // Transparent enforcement (again) in case any other script tries to paint it
-    try {
-      wrap.style.background = "transparent";
-      wrap.style.pointerEvents = "none";
-    } catch (_) {}
+    const wrap = avatar.wrap;
 
     // CSS vars (driven)
     setVar(wrap, "--breath", d.breathRate);
@@ -144,19 +121,68 @@
     wrap.classList.remove("gaze-soft", "gaze-direct", "gaze-away");
     wrap.classList.add("gaze-" + (d.gaze || "soft"));
 
-    // animSet data tag (future mapping)
     wrap.dataset.animset = d.animSet || "";
+
+    // ✅ hero support
+    if (d.heroSrc) {
+      setHeroSrc(avatar, d.heroSrc);
+    }
+  }
+
+  function normalizeHeroSrc(src) {
+    src = safeStr(src).trim();
+    if (!src) return "";
+    if (/^file:\/\//i.test(src)) return "";
+    return src;
+  }
+
+  function setHeroSrc(avatar, src) {
+    try {
+      const hero = avatar && avatar.heroImg;
+      if (!hero) return;
+
+      src = normalizeHeroSrc(src);
+      if (!src) src = ABS_FALLBACK;
+
+      // cache-bust lightly
+      const bust = "v=" + Date.now();
+      hero.style.display = "";
+      hero.src = src + (src.indexOf("?") >= 0 ? "&" : "?") + bust;
+    } catch (_) {}
   }
 
   // Expose API
   window.NyxAvatarShell = {
-    mount(rootEl) {
+    mount(rootEl, opts) {
+      opts = opts || {};
       const avatar = buildAvatar(rootEl);
+
+      // initial hero
+      const initialHero =
+        normalizeHeroSrc(opts.heroSrc) ||
+        normalizeHeroSrc(opts.hero) ||
+        ABS_FALLBACK;
+
+      setHeroSrc(avatar, initialHero);
+
       return {
         apply(directive) {
           applyDirective(avatar, directive || {});
         },
+        setHero(url) {
+          setHeroSrc(avatar, url);
+        },
+        setHeroSrc(url) {
+          setHeroSrc(avatar, url);
+        },
+        get el() {
+          return rootEl;
+        }
       };
     },
+    getInstance() {
+      // optional pattern; host may or may not use this
+      return null;
+    }
   };
 })();
