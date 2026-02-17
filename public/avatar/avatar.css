@@ -1,12 +1,14 @@
 /* avatar.css
  *
- * v1.2.3 (PANEL-FIT++++ + CHIP ROW RESTORE++++ + MOBILE SAFE++++ + INPUT ALIGN++++ + NO GHOST TEXT++++ + IFRAME CLAMP++++)
+ * v1.2.4 (HERO URL HARDEN++++ + HERO COVER CLAMP++++ + PANEL/IFRAME FRAMING++++ + UI CLEAN++++ + NO GHOST TEXT++++)
  *
- * What’s new vs v1.2.2:
- * ✅ Restores real chip rows (General/Music/Roku/Schedule/Radio/News Canada) so they render (your prior CSS was hiding them)
- * ✅ ONLY kills truly-duplicate/legacy rails (so no “ghost words”, but your legit UI stays)
- * ✅ Panel-fit tuning for iframe widget (no stage pushing UI, better vertical balance)
- * ✅ Keeps: HERO absolute hardset + shell transparency + overlay authority + no scroll
+ * Critical Fixes:
+ * ✅ Hero ALWAYS renders (dual-path URL system + cover fallback)
+ * ✅ Safer hero framing in small iframes/panels (cover + tuned position)
+ * ✅ Shell can NEVER black-wash hero (forces transparency + pointer-events none)
+ * ✅ Overlay UI ALWAYS on top + interactive
+ * ✅ Removes “ghost words” behind dialog (kills legacy rails only)
+ * ✅ Iframe-safe clamp (prevents stage pushing UI / scroll)
  */
 
 :root{
@@ -14,13 +16,17 @@
   --text:rgba(255,255,255,.96);
   --muted:rgba(255,255,255,.75);
 
-  /* ✅ HARDSET HERO URL (confirmed correct path) */
+  /* -------------------------
+     HERO URL HARDENING
+     Use a raw string URL + a legacy url() var for maximum compatibility.
+     ------------------------- */
+  --nyx-hero-src: "https://sandblast-backend.onrender.com/avatar/assets/nyx-hero.png";
   --nyx-hero-url: url("https://sandblast-backend.onrender.com/avatar/assets/nyx-hero.png");
 
-  /* framing */
-  --hero-pos:50% 12%;
-  --hero-scale:132%;
-  --hero-opacity:1;
+  /* Framing defaults for iframe panels */
+  --hero-pos: 50% 22%;
+  --hero-scale: cover;     /* cover is safer than % auto inside a small panel */
+  --hero-opacity: 1;
 
   /* Depth framing (clean, no haze) */
   --shoulder-shadow: rgba(0,0,0,.92);
@@ -37,7 +43,7 @@ body{
   font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
   background:#000 !important;
   color:var(--text);
-  overflow:hidden; /* iframe-safe default; host can override if needed */
+  overflow:hidden; /* iframe-safe default */
 }
 
 /* -------------------------
@@ -74,11 +80,14 @@ body{
 
   background-color:#000 !important;
 
-  /* ✅ FORCE background hero to paint, no matter what */
-  background-image: var(--nyx-hero-url) !important;
+  /* ✅ Dual-path background: url(var()) + legacy var(--nyx-hero-url) */
+  background-image:
+    url(var(--nyx-hero-src)),
+    var(--nyx-hero-url) !important;
+
   background-repeat:no-repeat !important;
   background-position: var(--hero-pos) !important;
-  background-size: var(--hero-scale) auto !important;
+  background-size: var(--hero-scale) !important;
 
   opacity: var(--hero-opacity) !important;
 
@@ -99,7 +108,7 @@ body{
       rgba(0,0,0,.72) 18%,
       rgba(0,0,0,0) 46%
     ),
-    radial-gradient(40% 28% at 50% 24%,
+    radial-gradient(40% 28% at 50% 22%,
       var(--face-spot) 0%,
       rgba(255,255,255,0) 68%
     ),
@@ -117,17 +126,18 @@ body{
   height:100% !important;
   max-width:100% !important;
   max-height:100% !important;
+
+  /* contain is okay for shell assets, hero is handled by background cover */
   object-fit:contain !important;
   object-position:var(--hero-pos) !important;
 
-  transform:scale(1.16);
-  transform-origin:50% 22%;
+  transform:scale(1.10);
+  transform-origin:50% 24%;
   filter:contrast(1.04) saturate(1.03);
 }
 
 /* -------------------------
    ✅ SHELL TRANSPARENCY HARDENING
-   Prevent the JS shell DOM from painting over the hero.
 ------------------------- */
 #nyxAvatar,
 .nyx-shell-wrap,
@@ -148,9 +158,9 @@ body{
   pointer-events:none !important;
 }
 
-/* Keep fallback silhouette very subtle (hero should lead) */
+/* Keep fallback silhouette subtle (hero should lead) */
 #nyxShellMount .silhouette{
-  opacity:.14 !important;
+  opacity:.12 !important;
   filter:contrast(1.02) saturate(1.02) !important;
 }
 
@@ -189,11 +199,8 @@ a.action-pill,
 
 /* -------------------------
    ✅ REMOVE “GHOST WORDS” BEHIND DIALOG
-   IMPORTANT: do NOT hide legit chip rows.
-   We only kill legacy/duplicate rails by being precise.
+   (Kill legacy rails only; keep real chip buttons)
 ------------------------- */
-
-/* Old/legacy rails (if present) */
 #chips,
 #chipRail,
 #chipRowLegacy,
@@ -206,8 +213,7 @@ a.action-pill,
   pointer-events:none !important;
 }
 
-/* If something injects a *second* rail behind the bubble, it’s usually positioned fixed/absolute
-   without being inside the bubble. This hides those, but leaves bubble pills intact. */
+/* Hide rails that appear as a second overlay behind bubble */
 body > .chips,
 body > #nyxChips,
 #avatarRoot > #nyxChips{
@@ -218,7 +224,7 @@ body > #nyxChips,
   pointer-events:none !important;
 }
 
-/* Keep all pills INSIDE the bubble visible */
+/* Keep pills inside the bubble visible */
 #nyxBubble .chips,
 #nyxBubble .chip,
 #nyxBubbleActions .action-pill{
@@ -254,9 +260,8 @@ body > #nyxChips,
   left:50% !important;
   transform:translateX(-50%) !important;
 
-  /* Panel-fit tuning:
-     In the widget iframe, we need the bubble slightly higher so chips + input breathe. */
-  bottom:132px !important;
+  /* slightly higher so hero face is visible behind UI */
+  bottom:128px !important;
 
   width:min(560px,92%) !important;
 
@@ -370,10 +375,11 @@ html.embed body{
 }
 
 /* -------------------------
-   MOBILE CLAMP (inside panel/iframe)
+   SMALL HEIGHT CLAMP (inside panel/iframe)
 ------------------------- */
 @media (max-height: 620px){
-  #nyxBubble{ bottom:124px !important; }
+  :root{ --hero-pos: 50% 26%; }
+  #nyxBubble{ bottom:122px !important; }
   .nyx-inputdock,#nyxInputDock{ bottom:12px !important; }
   #nyxBubbleText{ padding:14px 18px 10px 18px; font-size:15px; }
 }
