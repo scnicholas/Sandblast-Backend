@@ -1,6 +1,11 @@
 /* avatar.css
  *
- * v1.2.1 (HERO FRAME FIX++++ + NO SCROLL PILL WRAP++++ + CLEAN LAYERING++++)
+ * v1.2.1 (HERO URL HARDSET++++ + NO GHOST TEXT++++ + STAGE GUARANTEE++++)
+ *
+ * Fixes:
+ * ✅ Forces hero image to ALWAYS render (absolute URL)
+ * ✅ Prevents “words behind dialog box” by disabling duplicate rails + accidental overlays
+ * ✅ Keeps overlay UI authoritative above hero
  */
 
 :root{
@@ -8,14 +13,14 @@
   --text:rgba(255,255,255,.96);
   --muted:rgba(255,255,255,.75);
 
-  /* Host can override by setting --nyx-hero-url to url("...") */
-  --nyx-hero-url: url("/avatar/assets/nyx-hero.png");
+  /* ✅ HARDSET HERO URL (your confirmed correct path) */
+  --nyx-hero-url: url("https://sandblast-backend.onrender.com/avatar/assets/nyx-hero.png");
 
-  /* ✅ FIXED HERO FRAMING (was too zoomed + too high) */
-  --hero-pos:50% 35%;
-  --hero-scale:105%;
+  --hero-pos:50% 12%;
+  --hero-scale:132%;
   --hero-opacity:1;
 
+  /* Depth framing (clean, no haze) */
   --shoulder-shadow: rgba(0,0,0,.92);
   --face-spot: rgba(255,255,255,.055);
   --vignette: rgba(0,0,0,.78);
@@ -32,7 +37,9 @@ body{
   color:var(--text);
 }
 
-/* Stage clamp */
+/* -------------------------
+   STAGE CLAMP (IFRAME SAFE)
+------------------------- */
 #avatarRoot{
   position:relative;
   height:100%;
@@ -42,29 +49,35 @@ body{
   overflow:hidden;
 }
 
-/* HERO */
+/* -------------------------
+   HERO (GUARANTEED)
+------------------------- */
 #nyxShellMount{
-  position:absolute;
-  inset:0;
-  height:100%;
-  width:100%;
-  min-height:0;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  padding:0 !important;
+  position:absolute !important;
+  inset:0 !important;
+  height:100% !important;
+  width:100% !important;
+  min-height:0 !important;
 
-  background:#000 !important;
-  background-image: var(--nyx-hero-url, url("/avatar/assets/nyx-hero.png")) !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+
+  background-color:#000 !important;
+
+  /* ✅ FORCE background hero to paint, no matter what */
+  background-image: var(--nyx-hero-url) !important;
   background-repeat:no-repeat !important;
-  background-position:var(--hero-pos) !important;
-  background-size:var(--hero-scale) auto !important;
+  background-position: var(--hero-pos) !important;
+  background-size: var(--hero-scale) auto !important;
 
-  opacity:var(--hero-opacity);
-  z-index:1 !important;      /* keep hero behind overlay */
-  overflow:hidden;
+  opacity: var(--hero-opacity) !important;
+
+  z-index:1 !important;      /* hero behind UI */
+  overflow:hidden !important;
 }
 
+/* Depth framing (shoulders + subtle face light + vignette) */
 #nyxShellMount::after{
   content:"";
   position:absolute;
@@ -74,7 +87,7 @@ body{
   background:
     linear-gradient(to top,
       var(--shoulder-shadow) 0%,
-      rgba(0,0,0,.80) 18%,     /* ✅ deeper noir (was .72) */
+      rgba(0,0,0,.72) 18%,
       rgba(0,0,0,0) 46%
     ),
     radial-gradient(40% 28% at 50% 24%,
@@ -87,17 +100,59 @@ body{
     );
 }
 
-/* OVERLAY AUTHORITY */
+/* If the shell uses an <img>/<canvas>, keep it framed */
+#nyxShellMount img,
+#nyxShellMount canvas,
+#nyxShellMount video{
+  width:100% !important;
+  height:100% !important;
+  max-width:100% !important;
+  max-height:100% !important;
+  object-fit:contain !important;
+  object-position:var(--hero-pos) !important;
+
+  transform:scale(1.16);
+  transform-origin:50% 22%;
+  filter:contrast(1.04) saturate(1.03);
+}
+
+/* -------------------------
+   OVERLAY AUTHORITY (UI ALWAYS ON TOP)
+------------------------- */
 #nyxOverlay,
 .overlay{
-  position:absolute;
-  inset:0;
+  position:absolute !important;
+  inset:0 !important;
   z-index:2147483000 !important;
   background:transparent !important;
   pointer-events:none;
 }
 
-/* Kill the duplicate rail so nothing sits behind the bubble */
+.overlay-inner{
+  position:absolute !important;
+  inset:0 !important;
+  pointer-events:none;
+}
+
+/* Ensure bubble/input can be interacted with */
+#nyxBubble,
+#nyxBubbleActions,
+#nyxBubbleText,
+#nyxInputDock,
+.nyx-inputdock,
+.nyx-input,
+.nyx-send,
+.action-pill,
+a.action-pill{
+  pointer-events:auto;
+}
+
+/* -------------------------
+   ✅ REMOVE “GHOST WORDS” BEHIND DIALOG
+   (duplicate rails / accidental text layers)
+------------------------- */
+
+/* Kill duplicate rail completely */
 #nyxChips{
   display:none !important;
   visibility:hidden !important;
@@ -106,76 +161,95 @@ body{
   pointer-events:none !important;
 }
 
-/* Bubble */
+/* If any “chip” markup exists elsewhere, keep it hidden too */
+.chips,
+.chip{
+  display:none !important;
+  visibility:hidden !important;
+  opacity:0 !important;
+  pointer-events:none !important;
+}
+
+/* -------------------------
+   BUBBLE (CLEAN)
+------------------------- */
 #nyxBubble{
-  position:absolute;
-  left:50%;
-  transform:translateX(-50%);
-  bottom:140px;
-  width:min(560px,90%);
+  position:absolute !important;
+  left:50% !important;
+  transform:translateX(-50%) !important;
+  bottom:140px !important;
+  width:min(560px,90%) !important;
+
   background:linear-gradient(145deg, rgba(28,28,36,.94), rgba(14,14,20,.96));
   border:1px solid rgba(255,255,255,.16);
   border-radius:20px;
   box-shadow:0 28px 80px rgba(0,0,0,.85);
   backdrop-filter:blur(14px);
-  pointer-events:auto;
+
+  z-index:2147483000 !important;
 }
 
 #nyxBubbleText{
   padding:18px 22px 14px 22px;
   font-size:15.5px;
   line-height:1.6;
+  color:rgba(255,255,255,.92);
 }
 
-/* Actions — ✅ NO SCROLLBAR */
+/* Actions row: no ugly bars */
 #nyxBubbleActions{
   display:flex;
-  flex-wrap:wrap;            /* ✅ wrap instead of overflow */
   gap:8px;
   padding:0 16px 14px 16px;
-  justify-content:center;    /* ✅ looks intentional */
+  overflow-x:auto;
+  white-space:nowrap;
+
+  scrollbar-width:none;
 }
+#nyxBubbleActions::-webkit-scrollbar{ width:0; height:0; }
 
 .action-pill{
   flex:0 0 auto;
   padding:8px 12px;
   border-radius:999px;
   border:1px solid rgba(255,255,255,.14);
-  background:rgba(255,255,255,.05);
-  color:rgba(255,255,255,.88);
+  background:rgba(255,255,255,.045);
+  color:rgba(255,255,255,.86);
   font-size:13px;
   cursor:pointer;
-  pointer-events:auto;
   transition:transform .18s var(--ease), background .18s var(--ease), border-color .18s var(--ease);
 }
 .action-pill:hover{
   transform:translateY(-1px);
-  background:rgba(255,255,255,.09);
+  background:rgba(255,255,255,.08);
   border-color:rgba(255,255,255,.20);
 }
 .action-pill.is-active{
-  background:rgba(255,255,255,.12);
-  border-color:rgba(255,255,255,.24);
+  border-color:rgba(255,255,255,.22);
+  background:rgba(255,255,255,.10);
 }
 
-/* Input dock */
-.nyx-inputdock{
-  position:absolute;
-  left:50%;
-  transform:translateX(-50%);
-  bottom:22px;               /* ✅ lifted (was 20) */
-  width:min(620px,94%);
-  display:flex;
-  gap:10px;
-  pointer-events:auto;
+/* -------------------------
+   INPUT DOCK (CLEAN)
+------------------------- */
+.nyx-inputdock,
+#nyxInputDock{
+  position:absolute !important;
+  left:50% !important;
+  transform:translateX(-50%) !important;
+  bottom:20px !important;
+  width:min(620px,94%) !important;
 
-  padding:10px;
-  border-radius:18px;
-  background:rgba(10,10,14,.82);
-  border:1px solid rgba(255,255,255,.10);
-  box-shadow:0 18px 60px rgba(0,0,0,.75);
+  display:flex !important;
+  gap:10px !important;
 
-  z-index:2147483001;
+  padding:10px !important;
+  border-radius:18px !important;
+  background:rgba(10,10,14,.82) !important;
+  border:1px solid rgba(255,255,255,.10) !important;
+  box-shadow:0 18px 60px rgba(0,0,0,.75) !important;
+
+  z-index:2147483001 !important;
 }
 
 .nyx-input{
@@ -188,8 +262,6 @@ body{
   color:#fff;
   outline:none;
 }
-.nyx-input::placeholder{ color: rgba(255,255,255,.35); }
-
 .nyx-send{
   padding:14px 18px;
   border-radius:14px;
@@ -197,15 +269,9 @@ body{
   background:#111119;
   color:#fff;
   cursor:pointer;
-  transition:transform .18s var(--ease), background .18s var(--ease), border-color .18s var(--ease);
-}
-.nyx-send:hover{
-  transform:translateY(-1px);
-  background:#161622;
-  border-color:rgba(255,255,255,.22);
 }
 
-/* Embed no-scroll */
+/* Embed: no scroll */
 html.embed,
 html.embed body{
   height:100%;
