@@ -1,11 +1,13 @@
 /* avatar.css
  *
- * v1.2.1 (HERO URL HARDSET++++ + NO GHOST TEXT++++ + STAGE GUARANTEE++++)
+ * v1.2.2 (HERO ABS++++ + SHELL TRANSPARENT++++ + UI CLEAN++++ + NO GHOST TEXT++++ + IFRAME CLAMP++++)
  *
- * Fixes:
- * ✅ Forces hero image to ALWAYS render (absolute URL)
- * ✅ Prevents “words behind dialog box” by disabling duplicate rails + accidental overlays
- * ✅ Keeps overlay UI authoritative above hero
+ * Critical Fixes:
+ * ✅ Hero ALWAYS renders (absolute URL hardset + host var supported)
+ * ✅ Nyx shell can NEVER black-wash the hero (forces transparency + pointer-events none)
+ * ✅ Overlay UI ALWAYS on top + interactive
+ * ✅ Removes “ghost words” behind dialog (kills duplicate rails + stray chips)
+ * ✅ Iframe-safe clamp (prevents stage pushing UI / scroll)
  */
 
 :root{
@@ -13,9 +15,10 @@
   --text:rgba(255,255,255,.96);
   --muted:rgba(255,255,255,.75);
 
-  /* ✅ HARDSET HERO URL (your confirmed correct path) */
+  /* ✅ HARDSET HERO URL (confirmed correct path) */
   --nyx-hero-url: url("https://sandblast-backend.onrender.com/avatar/assets/nyx-hero.png");
 
+  /* framing */
   --hero-pos:50% 12%;
   --hero-scale:132%;
   --hero-opacity:1;
@@ -35,6 +38,7 @@ body{
   font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
   background:#000 !important;
   color:var(--text);
+  overflow:hidden; /* iframe-safe default; host can override if needed */
 }
 
 /* -------------------------
@@ -47,6 +51,12 @@ body{
   background:#000 !important;
   isolation:isolate;
   overflow:hidden;
+}
+
+/* Kill any accidental haze layers */
+#avatarRoot::before,
+#nyxShellMount::before{
+  display:none !important;
 }
 
 /* -------------------------
@@ -100,7 +110,7 @@ body{
     );
 }
 
-/* If the shell uses an <img>/<canvas>, keep it framed */
+/* If the shell uses an <img>/<canvas>/<video>, keep it framed */
 #nyxShellMount img,
 #nyxShellMount canvas,
 #nyxShellMount video{
@@ -114,6 +124,35 @@ body{
   transform:scale(1.16);
   transform-origin:50% 22%;
   filter:contrast(1.04) saturate(1.03);
+}
+
+/* -------------------------
+   ✅ SHELL TRANSPARENCY HARDENING
+   Prevent the JS shell DOM from painting over the hero.
+------------------------- */
+#nyxAvatar,
+.nyx-shell-wrap,
+.avatar.nyx-shell-wrap,
+.avatar.nyx-shell-wrap *,
+#nyxShellMount .avatar,
+#nyxShellMount .avatar *,
+#nyxShellMount .silhouette,
+#nyxShellMount .head,
+#nyxShellMount .shoulders{
+  background:transparent !important;
+}
+
+/* Ensure shell never steals clicks from overlay UI */
+#nyxShellMount .avatar,
+#nyxShellMount .nyx-shell-wrap,
+#nyxShellMount .silhouette{
+  pointer-events:none !important;
+}
+
+/* Keep fallback silhouette very subtle (hero should lead) */
+#nyxShellMount .silhouette{
+  opacity:.14 !important;
+  filter:contrast(1.02) saturate(1.02) !important;
 }
 
 /* -------------------------
@@ -143,16 +182,15 @@ body{
 .nyx-input,
 .nyx-send,
 .action-pill,
-a.action-pill{
+a.action-pill,
+.nyx-cog-badge,
+#nyxCogBadge{
   pointer-events:auto;
 }
 
 /* -------------------------
    ✅ REMOVE “GHOST WORDS” BEHIND DIALOG
-   (duplicate rails / accidental text layers)
 ------------------------- */
-
-/* Kill duplicate rail completely */
 #nyxChips{
   display:none !important;
   visibility:hidden !important;
@@ -161,13 +199,35 @@ a.action-pill{
   pointer-events:none !important;
 }
 
-/* If any “chip” markup exists elsewhere, keep it hidden too */
+/* Hide any accidental chip rails that might be duplicated */
 .chips,
-.chip{
+.chip,
+#chips,
+[data-role="chips"],
+[data-ui="chips"]{
   display:none !important;
   visibility:hidden !important;
   opacity:0 !important;
   pointer-events:none !important;
+}
+
+/* -------------------------
+   COG BADGE (SUBTLE)
+------------------------- */
+.nyx-cog-badge,
+#nyxCogBadge{
+  align-self:center;
+  margin-bottom:6px;
+  padding:8px 12px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.12);
+  background:rgba(10,10,14,.72);
+  color:rgba(255,255,255,.78);
+  font:12px ui-monospace, Menlo, Consolas, monospace;
+  letter-spacing:.2px;
+  box-shadow:0 14px 40px rgba(0,0,0,.55);
+  backdrop-filter: blur(10px);
+  user-select:none;
 }
 
 /* -------------------------
@@ -218,6 +278,7 @@ a.action-pill{
   font-size:13px;
   cursor:pointer;
   transition:transform .18s var(--ease), background .18s var(--ease), border-color .18s var(--ease);
+  text-decoration:none;
 }
 .action-pill:hover{
   transform:translateY(-1px);
@@ -262,6 +323,8 @@ a.action-pill{
   color:#fff;
   outline:none;
 }
+.nyx-input::placeholder{ color:rgba(255,255,255,.42); }
+
 .nyx-send{
   padding:14px 18px;
   border-radius:14px;
@@ -270,8 +333,11 @@ a.action-pill{
   color:#fff;
   cursor:pointer;
 }
+.nyx-send:hover{ border-color:rgba(255,255,255,.22); background:#151523; }
 
-/* Embed: no scroll */
+/* -------------------------
+   EMBED: NO SCROLL
+------------------------- */
 html.embed,
 html.embed body{
   height:100%;
