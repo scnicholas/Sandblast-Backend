@@ -12,14 +12,21 @@
  * - Keep it safe: no raw user text in traces; bounded outputs; fail-open behavior
  * - Keep it portable: no express, no fs, no index.js imports
  *
- * v1.1.5 (PSYCHE BRIDGE ENABLED++++ + KNOWLEDGE OFFLOAD++++ + FINANCE CASE FIX++++)
+ * v1.1.6 (CHIP BRIDGE LOCK++++ + PAYLOAD LANE CANON++++ + BRIDGE STATE++++ + RISK FORCE INTENT FIX++++)
+ * ✅ Locks chip bridge: payload.action="chip" produces lane switch signals + BRIDGE state
+ * ✅ Canonical lane inference from payload (turnSignals.payloadLane / payload.lane) before session fallback
+ * ✅ Chip intent fast-path: ADVANCE + BRIDGE + marionReason="chip_select"
+ * ✅ Risk forceIntent override applies even when actionable (Law still final)
+ * ✅ Adds contract fields: lane, laneAction, laneReason (bounded)
+ *
+ * v1.1.5 kept:
  * ✅ Integrates PsycheBridge (option 2): Marion stops doing domain retrieval/merging; PsycheBridge aggregates knowledge into a single psyche object
  * ✅ Preserves FAIL-OPEN behavior: if PsycheBridge missing, falls back to legacy per-domain hint calls (optional modules)
  * ✅ Fixes Finance module case on Linux/Render: "./FinanceKnowledge" (capital F)
  * ✅ Keeps TRACE POLICY CHECK HARDEN++++ + ETHICS SIGNAL FIX++++ + SAFER SERIALIZATION++++
  */
 
-const MARION_VERSION = "marionSO v1.1.5";
+const MARION_VERSION = "marionSO v1.1.6";
 
 // -------------------------
 // Optional PsycheBridge (FAIL-OPEN)
@@ -125,7 +132,6 @@ function toLowerToken(x, max = 24) {
   return safeStr(x, max).trim().toLowerCase();
 }
 function safeSerialize(x, max = 1200) {
-  // Dev-only helper: attempt to stringify objects so tracePolicyCheck can detect leaks.
   try {
     if (x === null || x === undefined) return "";
     if (typeof x === "string") return safeStr(x, max);
@@ -346,6 +352,51 @@ const MARION_STYLE_CONTRACT = Object.freeze({
 });
 
 // -------------------------
+// NEW: lane canonicalization (CHIP BRIDGE LOCK)
+// -------------------------
+function normalizeLaneRaw(v) {
+  const s = safeStr(v, 40).trim().toLowerCase();
+  if (!s) return "";
+  // whitelist known lanes used by Nyx chips & backend
+  if (s === "general" || s === "music" || s === "roku" || s === "radio" || s === "schedule" || s === "news-canada") return s;
+  // allow other lanes but clamp token shape
+  if (/^[a-z0-9][a-z0-9_-]{0,30}$/.test(s)) return s;
+  return "";
+}
+
+function readPayloadLane(norm) {
+  const n = isPlainObject(norm) ? norm : {};
+  const ts = isPlainObject(n.turnSignals) ? n.turnSignals : {};
+  // common places your stack might stash lane
+  const candidates = [
+    ts.payloadLane,
+    ts.lane,
+    n.payload && n.payload.lane,
+    n.body && n.body.lane,
+    n.lane,
+  ];
+  for (const c of candidates) {
+    const v = normalizeLaneRaw(c);
+    if (v) return v;
+  }
+  return "";
+}
+
+function detectChipSelect(norm) {
+  const n = isPlainObject(norm) ? norm : {};
+  const ts = isPlainObject(n.turnSignals) ? n.turnSignals : {};
+  const payloadAction = safeStr(ts.payloadAction || "", 40).trim().toLowerCase();
+  const payloadIntent = safeStr(ts.payloadIntent || "", 40).trim().toLowerCase();
+  const payloadLabel = safeStr(ts.payloadLabel || ts.payloadChip || "", 40).trim().toLowerCase();
+
+  // Host sends:
+  // payload.action="chip", payload.intent="select", label=<chip>, lane=<lane>
+  if (payloadAction === "chip") return { isChip: true, why: "payload_action_chip", label: payloadLabel };
+  if (payloadIntent === "select" && payloadLabel) return { isChip: true, why: "payload_intent_select", label: payloadLabel };
+  return { isChip: false, why: "", label: "" };
+}
+
+// -------------------------
 // mac mode inference (lightweight)
 // -------------------------
 function normalizeMacModeRaw(v) {
@@ -358,61 +409,34 @@ function normalizeMacModeRaw(v) {
 }
 
 function detectMacModeImplicit(text) {
-  // scan for inference but never store raw text
   const t = safeStr(text, 1400).trim();
   if (!t) return { mode: "", scoreA: 0, scoreU: 0, scoreT: 0, why: [] };
 
   const s = t.toLowerCase();
-  let a = 0,
-    u = 0,
-    tr = 0;
+  let a = 0, u = 0, tr = 0;
   const why = [];
 
-  // Architect signals
   if (/\b(let's|lets)\s+(define|design|lock|implement|encode|ship|wire)\b/.test(s)) {
-    a += 3;
-    why.push("architect:lets-define/design");
+    a += 3; why.push("architect:lets-define/design");
   }
-  if (
-    /\b(non[-\s]?negotiable|must|hard rule|lock this in|constitution|mediator|pipeline|governor|decision table)\b/.test(
-      s
-    )
-  ) {
-    a += 3;
-    why.push("architect:constraints/architecture");
+  if (/\b(non[-\s]?negotiable|must|hard rule|lock this in|constitution|mediator|pipeline|governor|decision table)\b/.test(s)) {
+    a += 3; why.push("architect:constraints/architecture");
   }
   if (/\b(step\s*\d+|1\s*,\s*2\s*,\s*3|1\s*2\s*3)\b/.test(s) || /\b\d+\)\s/.test(s)) {
-    a += 2;
-    why.push("architect:enumeration");
+    a += 2; why.push("architect:enumeration");
   }
-  if (
-    /\b(index\.js|chatengine\.js|statespine\.js|render|cors|session|payload|json|endpoint|route|resolver|pack|tests?)\b/.test(
-      s
-    )
-  ) {
-    a += 2;
-    why.push("architect:technical");
+  if (/\b(index\.js|chatengine\.js|statespine\.js|render|cors|session|payload|json|endpoint|route|resolver|pack|tests?)\b/.test(s)) {
+    a += 2; why.push("architect:technical");
   }
 
-  // User signals
-  if (
-    /\b(i('?m)?\s+not\s+sure|help\s+me\s+understand|does\s+this\s+make\s+sense|where\s+do i|get\s+the\s+url)\b/.test(
-      s
-    )
-  ) {
-    u += 3;
-    why.push("user:uncertainty/how-to");
+  if (/\b(i('?m)?\s+not\s+sure|help\s+me\s+understand|does\s+this\s+make\s+sense|where\s+do i|get\s+the\s+url)\b/.test(s)) {
+    u += 3; why.push("user:uncertainty/how-to");
   }
   if (/\b(confused|stuck|frustrated|overwhelmed|worried)\b/.test(s)) {
-    u += 2;
-    why.push("user:emotion");
+    u += 2; why.push("user:emotion");
   }
 
-  // Transitional signals
-  if (a > 0 && u > 0) {
-    tr += 3;
-    why.push("transitional:mixed-signals");
-  }
+  if (a > 0 && u > 0) { tr += 3; why.push("transitional:mixed-signals"); }
 
   let mode = "";
   if (tr >= 3) mode = "transitional";
@@ -423,7 +447,6 @@ function detectMacModeImplicit(text) {
 }
 
 function suggestModeHysteresisPatch(session, chosenMode, implicit) {
-  // No mutation; merely suggests what caller *could* patch into session.
   const s = isPlainObject(session) ? session : {};
   const prevMode = normalizeMacModeRaw(s.macMode || s.mode || s.lastMode || "");
   const nextMode = normalizeMacModeRaw(chosenMode);
@@ -434,13 +457,11 @@ function suggestModeHysteresisPatch(session, chosenMode, implicit) {
   const confU = Number(implicit?.scoreU) || 0;
   const confT = Number(implicit?.scoreT) || 0;
 
-  // confidence heuristic (conservative)
   let conf = 0.55;
   if (nextMode === "transitional") conf = 0.65;
   else if (nextMode === "architect") conf = clamp01(0.5 + confA * 0.05);
   else if (nextMode === "user") conf = clamp01(0.5 + confU * 0.05);
 
-  // Hysteresis: don’t thrash modes on weak signal.
   if (prevMode && prevMode !== nextMode && conf < 0.7) {
     return {
       sessionPatchSuggestion: {
@@ -482,16 +503,16 @@ function safeTokenSet(tokens, max = 10) {
   return out;
 }
 
-// -------------------------
-// PSYCHOLOGY KNOWLEDGE WIRE (legacy fallback; bounded, non-PII)
-// NOTE: With PsycheBridge enabled, Marion does NOT need to call this.
-// -------------------------
+/* =========================
+   LEGACY KNOWLEDGE WIRES
+   (UNCHANGED from your file)
+   ========================= */
+
 function buildPsychologyQuery(norm, session, cog) {
   const n = isPlainObject(norm) ? norm : {};
   const s = isPlainObject(session) ? session : {};
   const c = isPlainObject(cog) ? cog : {};
 
-  // STRICT: avoid passing norm.text entirely.
   const action = safeStr(n.action || "", 24).trim().toLowerCase();
   const lane = safeStr(n.lane || s.lane || "", 24).trim().toLowerCase();
   const intent = safeStr(c.intent || "", 12).trim().toUpperCase();
@@ -506,7 +527,6 @@ function buildPsychologyQuery(norm, session, cog) {
   const riskTier = safeStr(c.riskTier || "", 10).trim().toLowerCase();
   const riskDomains = safeTokenSet(c.riskDomains || [], 6);
 
-  // coarse “needs” signals (safe)
   const needs = [];
   if (intent === "STABILIZE" || reg === PSYCH.REG.DYSREGULATED) needs.push("regulation");
   if (reg === PSYCH.REG.STRAINED) needs.push("reduce_load");
@@ -517,35 +537,11 @@ function buildPsychologyQuery(norm, session, cog) {
   if (riskTier === "high" || riskDomains.includes("risk:self_harm")) needs.push("safety_redirect");
 
   const tokens = safeTokenSet(
-    [
-      lane || "",
-      action || "",
-      intent || "",
-      mode || "",
-      desire || "",
-      reg || "",
-      load || "",
-      pressure || "",
-      ...riskDomains,
-      ...needs,
-    ],
+    [lane || "", action || "", intent || "", mode || "", desire || "", reg || "", load || "", pressure || "", ...riskDomains, ...needs],
     12
   );
 
-  const keyObj = {
-    lane,
-    action,
-    intent,
-    mode,
-    desire,
-    reg,
-    load,
-    agency,
-    pressure,
-    riskTier,
-    riskDomains,
-    tokens,
-  };
+  const keyObj = { lane, action, intent, mode, desire, reg, load, agency, pressure, riskTier, riskDomains, tokens };
   const queryKey = sha1Lite(JSON.stringify(keyObj)).slice(0, 14);
 
   return {
@@ -598,10 +594,7 @@ function clampPsychHints(hints) {
 function queryPsychologyKnowledge(norm, session, cog) {
   const q = buildPsychologyQuery(norm, session, cog);
   if (!q.enabled) return { enabled: false, reason: "disabled" };
-
-  if (!PsychologyK || typeof PsychologyK !== "object") {
-    return { enabled: false, reason: "module_missing" };
-  }
+  if (!PsychologyK || typeof PsychologyK !== "object") return { enabled: false, reason: "module_missing" };
 
   try {
     if (typeof PsychologyK.getMarionHints === "function") {
@@ -630,16 +623,11 @@ function queryPsychologyKnowledge(norm, session, cog) {
       return clampPsychHints({
         enabled: true,
         queryKey: q.queryKey,
-        packs: {
-          foundations: packs.foundations || "",
-          clinicalSafety: packs.clinicalSafety || "",
-          biases: packs.biases || "",
-        },
+        packs: { foundations: packs.foundations || "", clinicalSafety: packs.clinicalSafety || "", biases: packs.biases || "" },
         confidence: 0,
         reason: "packs_only",
       });
     }
-
     return { enabled: false, reason: "no_api" };
   } catch (e) {
     const code = safeStr(e && (e.code || e.name) ? e.code || e.name : "ERR", 40);
@@ -647,15 +635,16 @@ function queryPsychologyKnowledge(norm, session, cog) {
   }
 }
 
-// -------------------------
-// CYBER KNOWLEDGE WIRE (legacy fallback)
-// -------------------------
+/* =========================
+   CYBER / ENGLISH / FIN / AI legacy wires
+   (Paste exactly as you had them — unchanged)
+   ========================= */
+
 function buildCyberQuery(norm, session, cog) {
   const n = isPlainObject(norm) ? norm : {};
   const s = isPlainObject(session) ? session : {};
   const c = isPlainObject(cog) ? cog : {};
 
-  // STRICT: do NOT pass n.text
   const action = safeStr(n.action || "", 24).trim().toLowerCase();
   const lane = safeStr(n.lane || s.lane || "", 24).trim().toLowerCase();
   const intent = safeStr(c.intent || "", 12).trim().toUpperCase();
@@ -667,7 +656,6 @@ function buildCyberQuery(norm, session, cog) {
   const cyberTags = safeTokenSet(c.cyberTags || [], 8);
   const cyberSignals = safeTokenSet(c.cyberSignals || [], 8);
 
-  // “needs” tokens (safe)
   const needs = [];
   if (cyberTags.includes(CYBER.TAGS.REDTEAM_BLOCK)) needs.push("posture");
   if (riskDomains.includes(RISK.DOMAINS.CYBER)) needs.push("risk:cyber");
@@ -677,40 +665,14 @@ function buildCyberQuery(norm, session, cog) {
   if (intent === "STABILIZE") needs.push("containment");
 
   const tokens = safeTokenSet(
-    [
-      "risk:cyber",
-      lane || "",
-      action || "",
-      intent || "",
-      mode || "",
-      riskTier || "",
-      ...riskDomains,
-      ...cyberTags,
-      ...cyberSignals,
-      ...needs,
-    ],
+    ["risk:cyber", lane || "", action || "", intent || "", mode || "", riskTier || "", ...riskDomains, ...cyberTags, ...cyberSignals, ...needs],
     14
   );
 
   const keyObj = { lane, action, intent, mode, riskTier, riskDomains, cyberTags, cyberSignals, tokens };
   const queryKey = sha1Lite(JSON.stringify(keyObj)).slice(0, 14);
 
-  return {
-    enabled: true,
-    queryKey,
-    tokens,
-    features: {
-      lane,
-      action,
-      intent,
-      mode,
-      riskTier,
-      riskDomains,
-      cyberTags,
-      cyberSignals,
-      needs: safeTokenSet(needs, 8),
-    },
-  };
+  return { enabled: true, queryKey, tokens, features: { lane, action, intent, mode, riskTier, riskDomains, cyberTags, cyberSignals, needs: safeTokenSet(needs, 8) } };
 }
 
 function clampCyberHints(hints) {
@@ -719,11 +681,7 @@ function clampCyberHints(hints) {
     enabled: !!h.enabled,
     queryKey: safeStr(h.queryKey || "", 18),
     packs: isPlainObject(h.packs)
-      ? {
-          safetyPosture: safeStr(h.packs.safetyPosture || "", 48),
-          topPacks: uniqBounded(h.packs.topPacks || [], 3),
-          versions: isPlainObject(h.packs.versions) ? h.packs.versions : {},
-        }
+      ? { safetyPosture: safeStr(h.packs.safetyPosture || "", 48), topPacks: uniqBounded(h.packs.topPacks || [], 3), versions: isPlainObject(h.packs.versions) ? h.packs.versions : {} }
       : {},
     focus: safeStr(h.focus || "", 32),
     stance: safeStr(h.stance || "", 32),
@@ -741,10 +699,7 @@ function clampCyberHints(hints) {
 function queryCyberKnowledge(norm, session, cog) {
   const q = buildCyberQuery(norm, session, cog);
   if (!q.enabled) return { enabled: false, reason: "disabled" };
-
-  if (!CyberK || typeof CyberK !== "object") {
-    return { enabled: false, reason: "module_missing" };
-  }
+  if (!CyberK || typeof CyberK !== "object") return { enabled: false, reason: "module_missing" };
 
   try {
     if (typeof CyberK.getMarionHints === "function") {
@@ -780,9 +735,6 @@ function queryCyberKnowledge(norm, session, cog) {
   }
 }
 
-// -------------------------
-// ENGLISH KNOWLEDGE WIRE (legacy fallback)
-// -------------------------
 function buildEnglishQuery(norm, session, cog) {
   const n = isPlainObject(norm) ? norm : {};
   const s = isPlainObject(session) ? session : {};
@@ -808,45 +760,17 @@ function buildEnglishQuery(norm, session, cog) {
   if (englishSignals.includes(ENGLISH.SIGNALS.DEFINE_JARGON)) needs.push("define_jargon");
   if (englishSignals.includes(ENGLISH.SIGNALS.USE_PLAIN_LANGUAGE)) needs.push("plain_language");
 
-  if (riskTier === RISK.TIERS.HIGH || riskDomains.includes(RISK.DOMAINS.SELF_HARM)) {
-    needs.push("safety_redirect");
-  }
+  if (riskTier === RISK.TIERS.HIGH || riskDomains.includes(RISK.DOMAINS.SELF_HARM)) needs.push("safety_redirect");
 
   const tokens = safeTokenSet(
-    [
-      "english",
-      lane || "",
-      action || "",
-      intent || "",
-      mode || "",
-      riskTier || "",
-      ...riskDomains,
-      ...englishTags,
-      ...englishSignals,
-      ...needs,
-    ],
+    ["english", lane || "", action || "", intent || "", mode || "", riskTier || "", ...riskDomains, ...englishTags, ...englishSignals, ...needs],
     14
   );
 
   const keyObj = { lane, action, intent, mode, riskTier, riskDomains, englishTags, englishSignals, tokens };
   const queryKey = sha1Lite(JSON.stringify(keyObj)).slice(0, 14);
 
-  return {
-    enabled: true,
-    queryKey,
-    tokens,
-    features: {
-      lane,
-      action,
-      intent,
-      mode,
-      riskTier,
-      riskDomains,
-      englishTags,
-      englishSignals,
-      needs: safeTokenSet(needs, 10),
-    },
-  };
+  return { enabled: true, queryKey, tokens, features: { lane, action, intent, mode, riskTier, riskDomains, englishTags, englishSignals, needs: safeTokenSet(needs, 10) } };
 }
 
 function clampEnglishHints(hints) {
@@ -855,13 +779,7 @@ function clampEnglishHints(hints) {
     enabled: !!h.enabled,
     queryKey: safeStr(h.queryKey || "", 18),
     packs: isPlainObject(h.packs)
-      ? {
-          curriculum: safeStr(h.packs.curriculum || "", 48),
-          core: uniqBounded(h.packs.core || [], 6),
-          faces: uniqBounded(h.packs.faces || [], 4),
-          dialogue: uniqBounded(h.packs.dialogue || [], 4),
-          versions: isPlainObject(h.packs.versions) ? h.packs.versions : {},
-        }
+      ? { curriculum: safeStr(h.packs.curriculum || "", 48), core: uniqBounded(h.packs.core || [], 6), faces: uniqBounded(h.packs.faces || [], 4), dialogue: uniqBounded(h.packs.dialogue || [], 4), versions: isPlainObject(h.packs.versions) ? h.packs.versions : {} }
       : {},
     focus: safeStr(h.focus || "", 32),
     stance: safeStr(h.stance || "", 32),
@@ -879,10 +797,7 @@ function clampEnglishHints(hints) {
 function queryEnglishKnowledge(norm, session, cog) {
   const q = buildEnglishQuery(norm, session, cog);
   if (!q.enabled) return { enabled: false, reason: "disabled" };
-
-  if (!EnglishK || typeof EnglishK !== "object") {
-    return { enabled: false, reason: "module_missing" };
-  }
+  if (!EnglishK || typeof EnglishK !== "object") return { enabled: false, reason: "module_missing" };
 
   try {
     if (typeof EnglishK.getMarionHints === "function") {
@@ -918,9 +833,6 @@ function queryEnglishKnowledge(norm, session, cog) {
   }
 }
 
-// -------------------------
-// FINANCE KNOWLEDGE WIRE (legacy fallback)
-// -------------------------
 function buildFinanceQuery(norm, session, cog) {
   const n = isPlainObject(norm) ? norm : {};
   const s = isPlainObject(session) ? session : {};
@@ -946,46 +858,17 @@ function buildFinanceQuery(norm, session, cog) {
   if (finSignals.includes(FIN.SIGNALS.ASK_CONSTRAINTS)) needs.push("ask_constraints");
   if (finSignals.includes(FIN.SIGNALS.USE_SCENARIOS)) needs.push("scenarios");
   if (finSignals.includes(FIN.SIGNALS.ENCOURAGE_PRO)) needs.push("encourage_pro");
-
-  if (riskTier === RISK.TIERS.HIGH || riskDomains.includes(RISK.DOMAINS.SELF_HARM)) {
-    needs.push("safety_redirect");
-  }
+  if (riskTier === RISK.TIERS.HIGH || riskDomains.includes(RISK.DOMAINS.SELF_HARM)) needs.push("safety_redirect");
 
   const tokens = safeTokenSet(
-    [
-      "finance",
-      lane || "",
-      action || "",
-      intent || "",
-      mode || "",
-      riskTier || "",
-      ...riskDomains,
-      ...finTags,
-      ...finSignals,
-      ...needs,
-    ],
+    ["finance", lane || "", action || "", intent || "", mode || "", riskTier || "", ...riskDomains, ...finTags, ...finSignals, ...needs],
     14
   );
 
   const keyObj = { lane, action, intent, mode, riskTier, riskDomains, finTags, finSignals, tokens };
   const queryKey = sha1Lite(JSON.stringify(keyObj)).slice(0, 14);
 
-  return {
-    enabled: true,
-    queryKey,
-    tokens,
-    features: {
-      lane,
-      action,
-      intent,
-      mode,
-      riskTier,
-      riskDomains,
-      finTags,
-      finSignals,
-      needs: safeTokenSet(needs, 10),
-    },
-  };
+  return { enabled: true, queryKey, tokens, features: { lane, action, intent, mode, riskTier, riskDomains, finTags, finSignals, needs: safeTokenSet(needs, 10) } };
 }
 
 function clampFinanceHints(hints) {
@@ -993,9 +876,7 @@ function clampFinanceHints(hints) {
   return {
     enabled: !!h.enabled,
     queryKey: safeStr(h.queryKey || "", 18),
-    packs: isPlainObject(h.packs)
-      ? { primary: safeStr(h.packs.primary || "", 64), versions: isPlainObject(h.packs.versions) ? h.packs.versions : {} }
-      : {},
+    packs: isPlainObject(h.packs) ? { primary: safeStr(h.packs.primary || "", 64), versions: isPlainObject(h.packs.versions) ? h.packs.versions : {} } : {},
     focus: safeStr(h.focus || "", 32),
     stance: safeStr(h.stance || "", 32),
     principles: uniqBounded(h.principles || [], 8),
@@ -1012,10 +893,7 @@ function clampFinanceHints(hints) {
 function queryFinanceKnowledge(norm, session, cog) {
   const q = buildFinanceQuery(norm, session, cog);
   if (!q.enabled) return { enabled: false, reason: "disabled" };
-
-  if (!FinanceK || typeof FinanceK !== "object") {
-    return { enabled: false, reason: "module_missing" };
-  }
+  if (!FinanceK || typeof FinanceK !== "object") return { enabled: false, reason: "module_missing" };
 
   try {
     if (typeof FinanceK.getMarionHints === "function") {
@@ -1051,9 +929,6 @@ function queryFinanceKnowledge(norm, session, cog) {
   }
 }
 
-// -------------------------
-// AI KNOWLEDGE WIRE (legacy fallback)
-// -------------------------
 function buildAIQuery(norm, session, cog) {
   const n = isPlainObject(norm) ? norm : {};
   const s = isPlainObject(session) ? session : {};
@@ -1084,22 +959,7 @@ function buildAIQuery(norm, session, cog) {
   const keyObj = { lane, action, intent, mode, riskTier, riskDomains, aiTags, aiSignals, tokens };
   const queryKey = sha1Lite(JSON.stringify(keyObj)).slice(0, 14);
 
-  return {
-    enabled: true,
-    queryKey,
-    tokens,
-    features: {
-      lane,
-      action,
-      intent,
-      mode,
-      riskTier,
-      riskDomains,
-      aiTags,
-      aiSignals,
-      needs: safeTokenSet(needs, 10),
-    },
-  };
+  return { enabled: true, queryKey, tokens, features: { lane, action, intent, mode, riskTier, riskDomains, aiTags, aiSignals, needs: safeTokenSet(needs, 10) } };
 }
 
 function clampAIHints(hints) {
@@ -1108,13 +968,7 @@ function clampAIHints(hints) {
     enabled: !!h.enabled,
     queryKey: safeStr(h.queryKey || "", 18),
     packs: isPlainObject(h.packs)
-      ? {
-          intro: safeStr(h.packs.intro || "", 64),
-          ethicsLaw: safeStr(h.packs.ethicsLaw || "", 64),
-          agents: safeStr(h.packs.agents || "", 64),
-          cross: uniqBounded(h.packs.cross || [], 6),
-          versions: isPlainObject(h.packs.versions) ? h.packs.versions : {},
-        }
+      ? { intro: safeStr(h.packs.intro || "", 64), ethicsLaw: safeStr(h.packs.ethicsLaw || "", 64), agents: safeStr(h.packs.agents || "", 64), cross: uniqBounded(h.packs.cross || [], 6), versions: isPlainObject(h.packs.versions) ? h.packs.versions : {} }
       : {},
     focus: safeStr(h.focus || "", 32),
     stance: safeStr(h.stance || "", 32),
@@ -1132,10 +986,7 @@ function clampAIHints(hints) {
 function queryAIKnowledge(norm, session, cog) {
   const q = buildAIQuery(norm, session, cog);
   if (!q.enabled) return { enabled: false, reason: "disabled" };
-
-  if (!AIK || typeof AIK !== "object") {
-    return { enabled: false, reason: "module_missing" };
-  }
+  if (!AIK || typeof AIK !== "object") return { enabled: false, reason: "module_missing" };
 
   try {
     if (typeof AIK.getMarionHints === "function") {
@@ -1158,13 +1009,7 @@ function queryAIKnowledge(norm, session, cog) {
       return clampAIHints({
         enabled: true,
         queryKey: q.queryKey,
-        packs: {
-          intro: packs.ai_intro || "",
-          ethicsLaw: packs.ai_law_ethics || "",
-          agents: packs.ai_agents || "",
-          cross: [],
-          versions: packs,
-        },
+        packs: { intro: packs.ai_intro || "", ethicsLaw: packs.ai_law_ethics || "", agents: packs.ai_agents || "", cross: [], versions: packs },
         confidence: 0,
         reason: "packs_only",
       });
@@ -1247,12 +1092,8 @@ function estimateAgencyPreference(norm, session, mode) {
 
 function estimateSocialPressure(norm) {
   const text = safeStr(norm?.text || "", 1400).toLowerCase();
-  if (/\b(demo|client|stakeholder|investor|sponsor|launch|press|deadline|meeting)\b/.test(text)) {
-    return PSYCH.PRESSURE.HIGH;
-  }
-  if (/\b(team|we need|today|this week|timeline)\b/.test(text)) {
-    return PSYCH.PRESSURE.MEDIUM;
-  }
+  if (/\b(demo|client|stakeholder|investor|sponsor|launch|press|deadline|meeting)\b/.test(text)) return PSYCH.PRESSURE.HIGH;
+  if (/\b(team|we need|today|this week|timeline)\b/.test(text)) return PSYCH.PRESSURE.MEDIUM;
   return PSYCH.PRESSURE.LOW;
 }
 
@@ -1262,7 +1103,6 @@ function computePsychologyReasoningObject(norm, session, medSeed, nowMs) {
   const regulationState = estimateRegulationState(norm);
   const agencyPreference = estimateAgencyPreference(norm, session, mode);
   const socialPressure = estimateSocialPressure(norm);
-
   return { cognitiveLoad: load, regulationState, motivation: "", agencyPreference, socialPressure };
 }
 
@@ -1334,9 +1174,7 @@ function computeEthicsLayer(norm, psych, seed) {
   }
 
   tags.push(ETHICS.TAGS.AGENCY_RESPECT);
-  if (agencyPref === PSYCH.AGENCY.AUTONOMOUS && !s.actionable) {
-    signals.push(ETHICS.SIGNALS.OFFER_OPTIONS_NOT_ORDERS);
-  }
+  if (agencyPref === PSYCH.AGENCY.AUTONOMOUS && !s.actionable) signals.push(ETHICS.SIGNALS.OFFER_OPTIONS_NOT_ORDERS);
 
   return {
     ethicsTags: uniqBounded(tags.map((x) => safeStr(x, 32)), 8),
@@ -1447,35 +1285,26 @@ function computeRiskBridge(norm, psych, ethics, lawSeed) {
 
   const lawOverrides = {};
 
-  if (!actionable) {
-    if (tier === RISK.TIERS.HIGH) {
-      lawOverrides.forceIntent = "STABILIZE";
-      lawOverrides.budgetClamp = "short";
-      lawOverrides.velvetBlock = true;
-      lawOverrides.dominanceBias = "firm";
-    } else if (tier === RISK.TIERS.MEDIUM) {
-      lawOverrides.budgetClamp = "short";
-      lawOverrides.velvetBlock = true;
-    } else if (tier === RISK.TIERS.LOW) {
-      lawOverrides.budgetClamp = "short";
-    }
-  } else {
-    if (tier === RISK.TIERS.MEDIUM || tier === RISK.TIERS.HIGH) {
-      lawOverrides.budgetClamp = "short";
-      lawOverrides.velvetBlock = true;
-    }
+  if (tier === RISK.TIERS.HIGH) {
+    lawOverrides.budgetClamp = "short";
+    lawOverrides.velvetBlock = true;
+    lawOverrides.dominanceBias = "firm";
+    if (!actionable) lawOverrides.forceIntent = "STABILIZE";
+  } else if (tier === RISK.TIERS.MEDIUM) {
+    lawOverrides.budgetClamp = "short";
+    lawOverrides.velvetBlock = true;
+  } else if (tier === RISK.TIERS.LOW && !actionable) {
+    lawOverrides.budgetClamp = "short";
   }
 
   if (Array.isArray(e.ethicsTags) && e.ethicsTags.includes(ETHICS.TAGS.SAFETY_REDIRECT)) {
     signals.push("ethics_safety_redirect");
     if (!domains.includes(RISK.DOMAINS.SELF_HARM)) domains.push(RISK.DOMAINS.SELF_HARM);
     tier = RISK.TIERS.HIGH;
-    if (!actionable) {
-      lawOverrides.forceIntent = "STABILIZE";
-      lawOverrides.budgetClamp = "short";
-      lawOverrides.velvetBlock = true;
-      lawOverrides.dominanceBias = "firm";
-    }
+    lawOverrides.forceIntent = "STABILIZE";
+    lawOverrides.budgetClamp = "short";
+    lawOverrides.velvetBlock = true;
+    lawOverrides.dominanceBias = "firm";
   }
 
   return {
@@ -1491,7 +1320,8 @@ function applyRiskOverridesToLawSeed(lawSeed, risk) {
   const r = isPlainObject(risk) ? risk : {};
   const o = isPlainObject(r.lawOverrides) ? r.lawOverrides : {};
 
-  if (!seed.actionable && o.forceIntent) {
+  // FIX++++: forceIntent must win even if actionable (safety precedence)
+  if (o.forceIntent) {
     const fi = normalizeMove(o.forceIntent);
     seed.intent = fi;
   }
@@ -1531,7 +1361,7 @@ function applyLawLayer(seed, psych) {
     reasons.push(actionable ? "containment_actionable" : "containment_hold");
   }
 
-  if (actionable) {
+  if (actionable && out.intent !== "STABILIZE") {
     out.intent = "ADVANCE";
     if (safeStr(out.mode || "", 20).toLowerCase() !== "user") out.dominance = "firm";
     tags.push(LAW.TAGS.ACTION_SUPREMACY);
@@ -1573,9 +1403,11 @@ function applyLawLayer(seed, psych) {
   };
 }
 
-// -------------------------
-// CYBER LAYER (defensive-only risk awareness)
-// -------------------------
+/* =========================
+   CYBER / ENGLISH / FIN / STRATEGY / AI layers
+   (UNCHANGED logic — same as your file)
+   ========================= */
+
 function computeCyberLayer(norm, psych) {
   const n = isPlainObject(norm) ? norm : {};
   const p = isPlainObject(psych) ? psych : {};
@@ -1607,9 +1439,7 @@ function computeCyberLayer(norm, psych) {
   }
 
   const reg = safeStr(p.regulationState || "", 16);
-  if (reg === PSYCH.REG.DYSREGULATED && mentionsSecurity) {
-    signals.push(CYBER.SIGNALS.AVOID_STEP_BY_STEP);
-  }
+  if (reg === PSYCH.REG.DYSREGULATED && mentionsSecurity) signals.push(CYBER.SIGNALS.AVOID_STEP_BY_STEP);
 
   if (suspiciousAsk) {
     tags.push(CYBER.TAGS.REDTEAM_BLOCK);
@@ -1619,9 +1449,6 @@ function computeCyberLayer(norm, psych) {
   return { cyberTags: uniqBounded(tags, 8), cyberSignals: uniqBounded(signals, 6) };
 }
 
-// -------------------------
-// ENGLISH LAYER
-// -------------------------
 function computeEnglishLayer(norm, seed) {
   const n = isPlainObject(norm) ? norm : {};
   const s = isPlainObject(seed) ? seed : {};
@@ -1666,9 +1493,6 @@ function computeEnglishLayer(norm, seed) {
   };
 }
 
-// -------------------------
-// FIN/ECO LAYER
-// -------------------------
 function computeFinanceLayer(norm) {
   const n = isPlainObject(norm) ? norm : {};
   const text = safeStr(n?.text || "", 1400).toLowerCase();
@@ -1700,15 +1524,9 @@ function computeFinanceLayer(norm) {
     }
   }
 
-  return {
-    finTags: uniqBounded(tags.map((x) => safeStr(x, 28)), 8),
-    finSignals: uniqBounded(signals.map((x) => safeStr(x, 40)), 6),
-  };
+  return { finTags: uniqBounded(tags.map((x) => safeStr(x, 28)), 8), finSignals: uniqBounded(signals.map((x) => safeStr(x, 40)), 6) };
 }
 
-// -------------------------
-// STRATEGY LAYER
-// -------------------------
 function computeStrategyLayer(norm, seed, psych) {
   const n = isPlainObject(norm) ? norm : {};
   const s = isPlainObject(seed) ? seed : {};
@@ -1749,19 +1567,11 @@ function computeStrategyLayer(norm, seed, psych) {
     }
   }
 
-  if (safeStr(p.cognitiveLoad || "", 12) === PSYCH.LOAD.HIGH && tags.length) {
-    signals.push(STRATEGY.SIGNALS.NEXT_ACTIONS);
-  }
+  if (safeStr(p.cognitiveLoad || "", 12) === PSYCH.LOAD.HIGH && tags.length) signals.push(STRATEGY.SIGNALS.NEXT_ACTIONS);
 
-  return {
-    strategyTags: uniqBounded(tags.map((x) => safeStr(x, 28)), 8),
-    strategySignals: uniqBounded(signals.map((x) => safeStr(x, 40)), 6),
-  };
+  return { strategyTags: uniqBounded(tags.map((x) => safeStr(x, 28)), 8), strategySignals: uniqBounded(signals.map((x) => safeStr(x, 40)), 6) };
 }
 
-// -------------------------
-// AI LAYER
-// -------------------------
 function computeAILayer(norm) {
   const n = isPlainObject(norm) ? norm : {};
   const text = safeStr(n?.text || "", 1400).toLowerCase();
@@ -1793,9 +1603,7 @@ function computeAILayer(norm) {
   if (aiCyber) tags.push(AI.TAGS.AI_CYBER);
   if (aiMkt) tags.push(AI.TAGS.AI_MKT);
 
-  if (aiCore || llm || agents) {
-    signals.push(AI.SIGNALS.DEFINE_TERMS, AI.SIGNALS.USE_EXAMPLES, AI.SIGNALS.MENTION_LIMITS);
-  }
+  if (aiCore || llm || agents) signals.push(AI.SIGNALS.DEFINE_TERMS, AI.SIGNALS.USE_EXAMPLES, AI.SIGNALS.MENTION_LIMITS);
   if (evals) signals.push(AI.SIGNALS.EVAL_FIRST);
   if (agents) signals.push(AI.SIGNALS.ASK_CONSTRAINTS);
   if (governance || aiLaw) signals.push(AI.SIGNALS.SAFETY_POSTURE);
@@ -1810,9 +1618,7 @@ function applyPsychologyToMediator(cog, psych) {
   const out = isPlainObject(cog) ? { ...cog } : {};
   const p = isPlainObject(psych) ? psych : {};
 
-  if (p.cognitiveLoad === PSYCH.LOAD.HIGH || p.socialPressure === PSYCH.PRESSURE.HIGH) {
-    out.budget = "short";
-  }
+  if (p.cognitiveLoad === PSYCH.LOAD.HIGH || p.socialPressure === PSYCH.PRESSURE.HIGH) out.budget = "short";
 
   if (p.regulationState === PSYCH.REG.DYSREGULATED) {
     out.intent = out.actionable ? "ADVANCE" : "STABILIZE";
@@ -1887,28 +1693,20 @@ function inferLatentDesire(norm, session, med) {
   const a = safeStr(norm?.action || "", 80).toLowerCase();
   const mode = safeStr(med?.mode || "", 20).toLowerCase();
 
-  if (
-    /\b(optimi[sz]e|systems?|framework|architecture|hard(en)?|constraints?|regression tests?|unit tests?|audit|refactor|contract|deterministic)\b/.test(
-      t
-    )
-  ) {
+  if (/\b(optimi[sz]e|systems?|framework|architecture|hard(en)?|constraints?|regression tests?|unit tests?|audit|refactor|contract|deterministic)\b/.test(t)) {
     return LATENT_DESIRE.MASTERY;
   }
-
   if (/\b(am i right|do i make sense|how am i perceived|handsome|attractive|validation|do you think)\b/.test(t)) {
     return LATENT_DESIRE.VALIDATION;
   }
-
   if (/\b(why|meaning|connect|pattern|link|what connects|deeper|layer)\b/.test(t)) {
     return LATENT_DESIRE.CURIOSITY;
   }
-
   if (/\b(worried|overwhelmed|stuck|anxious|stress|reassure|calm)\b/.test(t)) {
     return LATENT_DESIRE.COMFORT;
   }
 
   if (a === "counsel_intro") return LATENT_DESIRE.COMFORT;
-
   if (a === "top10" || a === "yearend_hot100") return LATENT_DESIRE.AUTHORITY;
   if (a === "story_moment" || a === "micro_moment" || a === "custom_story") return LATENT_DESIRE.COMFORT;
 
@@ -1918,7 +1716,6 @@ function inferLatentDesire(norm, session, med) {
   }
 
   if (truthy(session?.velvetMode)) return LATENT_DESIRE.COMFORT;
-
   return LATENT_DESIRE.CURIOSITY;
 }
 
@@ -1943,14 +1740,12 @@ function inferConfidence(norm, session, med) {
   ) {
     user += 0.15;
   }
-
   if (textEmpty && hasPayload && actionablePayload) user += 0.05;
 
   if (/\b(i('?m)?\s+not\s+sure|confused|stuck|overwhelmed)\b/i.test(text)) user -= 0.25;
   if (/\b(are you sure|really\??)\b/i.test(text)) user -= 0.1;
 
   let nyx = 0.55;
-
   if (safeStr(med?.intent || "", 20).toUpperCase() === "ADVANCE") nyx += 0.15;
   if (safeStr(med?.intent || "", 20).toUpperCase() === "STABILIZE") nyx -= 0.25;
 
@@ -2006,17 +1801,11 @@ function computeVelvet(norm, session, med, desire, now, velvetAllowed) {
   if (clamp01(med?.confidence?.nyx) >= 0.6) signals++;
   if (desire === LATENT_DESIRE.COMFORT || desire === LATENT_DESIRE.CURIOSITY) signals++;
 
-  if (!musicFirstEligible) {
-    return { velvet: already, velvetSince: Number(s.velvetSince || 0) || 0, reason: already ? "carry" : "no" };
-  }
+  if (!musicFirstEligible) return { velvet: already, velvetSince: Number(s.velvetSince || 0) || 0, reason: already ? "carry" : "no" };
 
   if (already) {
-    if (safeStr(med?.intent || "", 20).toUpperCase() === "STABILIZE") {
-      return { velvet: false, velvetSince: Number(s.velvetSince || 0) || 0, reason: "stabilize_exit" };
-    }
-    if (lastLane && lane && lastLane !== lane) {
-      return { velvet: false, velvetSince: Number(s.velvetSince || 0) || 0, reason: "lane_shift_exit" };
-    }
+    if (safeStr(med?.intent || "", 20).toUpperCase() === "STABILIZE") return { velvet: false, velvetSince: Number(s.velvetSince || 0) || 0, reason: "stabilize_exit" };
+    if (lastLane && lane && lastLane !== lane) return { velvet: false, velvetSince: Number(s.velvetSince || 0) || 0, reason: "lane_shift_exit" };
     return { velvet: true, velvetSince: Number(s.velvetSince || 0) || now, reason: "hold" };
   }
 
@@ -2034,6 +1823,8 @@ function buildTrace(norm, session, med) {
     `i=${safeStr(med?.intent || "", 10)}`,
     `d=${safeStr(med?.dominance || "", 8)}`,
     `b=${safeStr(med?.budget || "", 8)}`,
+    `ln=${safeStr(med?.lane || "", 12) || "-"}`,
+    `la=${safeStr(med?.laneAction || "", 12) || "-"}`,
     `a=${safeStr(norm?.action || "", 18) || "-"}`,
     `y=${y !== null ? y : "-"}`,
     `p=${med?.actionable ? "1" : "0"}`,
@@ -2050,8 +1841,6 @@ function buildTrace(norm, session, med) {
     `cy=${Array.isArray(med?.cyberTags) && med.cyberTags.length ? safeStr(med.cyberTags[0], 12) : "-"}`,
     `ai=${Array.isArray(med?.aiTags) && med.aiTags.length ? safeStr(med.aiTags[0], 12) : "-"}`,
     `mv=${safeStr(med?.movePolicy?.preferredMove || "", 8) || "-"}`,
-
-    // Knowledge flags (PsycheBridge sets psyche.enabled; legacy uses *_Hints)
     `pb=${med?.psyche?.enabled ? "1" : "0"}`,
     `pk=${med?.psychologyHints?.enabled ? "1" : "0"}`,
     `ck=${med?.cyberKnowledgeHints?.enabled ? "1" : "0"}`,
@@ -2118,6 +1907,10 @@ function finalizeContract(cog, nowMs, extra) {
   const dominance = normalizeDominance(c.dominance);
   const budget = normalizeBudget(c.budget);
 
+  const lane = normalizeLaneRaw(c.lane) || "general";
+  const laneAction = safeStr(c.laneAction || "", 24).trim().toLowerCase();
+  const laneReason = safeStr(c.laneReason || "", 40);
+
   const riskTier = toLowerToken(c.riskTier, 10);
   const riskTierNorm =
     riskTier === RISK.TIERS.NONE || riskTier === RISK.TIERS.LOW || riskTier === RISK.TIERS.MEDIUM || riskTier === RISK.TIERS.HIGH
@@ -2138,6 +1931,10 @@ function finalizeContract(cog, nowMs, extra) {
     intent,
     dominance,
     budget,
+
+    lane,
+    laneAction: laneAction || "",
+    laneReason: laneReason || "",
 
     stalled: !!c.stalled,
     actionable: !!c.actionable,
@@ -2189,7 +1986,6 @@ function finalizeContract(cog, nowMs, extra) {
     macModeOverride: safeStr(c.macModeOverride || "", 60),
     macModeWhy: Array.isArray(c.macModeWhy) ? c.macModeWhy.slice(0, 6).map((x) => safeStr(x, 60)) : [],
 
-    // PsycheBridge payload (bounded by PsycheBridge itself; we still clamp string lengths)
     psyche: isPlainObject(c.psyche)
       ? {
           enabled: !!c.psyche.enabled,
@@ -2204,12 +2000,10 @@ function finalizeContract(cog, nowMs, extra) {
           guardrails: uniqBounded(c.psyche.guardrails || [], 10),
           confidence: clamp01(c.psyche.confidence),
           reason: safeStr(c.psyche.reason || "", 60),
-          // keep domains optional but bounded (for debug); avoid deep nesting explosion
           domains: isPlainObject(c.psyche.domains) ? c.psyche.domains : undefined,
         }
       : { enabled: false, reason: "none" },
 
-    // Legacy hints kept for backward compatibility (Nyx can ignore when psyche.enabled=1)
     psychologyHints: isPlainObject(c.psychologyHints) ? clampPsychHints(c.psychologyHints) : { enabled: false, reason: "none" },
     cyberKnowledgeHints: isPlainObject(c.cyberKnowledgeHints) ? clampCyberHints(c.cyberKnowledgeHints) : { enabled: false, reason: "none" },
     englishKnowledgeHints: isPlainObject(c.englishKnowledgeHints) ? clampEnglishHints(c.englishKnowledgeHints) : { enabled: false, reason: "none" },
@@ -2219,27 +2013,20 @@ function finalizeContract(cog, nowMs, extra) {
     privacy: { noRawTextInTrace: true, boundedTrace: true, sideEffectFree: true },
 
     movePolicy: isPlainObject(c.movePolicy)
-      ? {
-          preferredMove: normalizeMove(c.movePolicy.preferredMove),
-          hardOverride: !!c.movePolicy.hardOverride,
-          reason: safeStr(c.movePolicy.reason || "intent", 40),
-        }
+      ? { preferredMove: normalizeMove(c.movePolicy.preferredMove), hardOverride: !!c.movePolicy.hardOverride, reason: safeStr(c.movePolicy.reason || "intent", 40) }
       : deriveMovePolicy({ ...c, intent, actionable: !!c.actionable, psychology: c.psychology }),
   };
 
   out.marionTrace = safeStr(out.marionTrace || "", MARION_TRACE_MAX + 8);
   out.marionTraceHash = safeStr(out.marionTraceHash || "", 16);
 
-  if (Array.isArray(ex.tracePolicyIssues) && ex.tracePolicyIssues.length) {
-    out.tracePolicyIssues = uniqBounded(ex.tracePolicyIssues, 6);
-  }
+  if (Array.isArray(ex.tracePolicyIssues) && ex.tracePolicyIssues.length) out.tracePolicyIssues = uniqBounded(ex.tracePolicyIssues, 6);
 
   return out;
 }
 
 // -------------------------
 // PsycheBridge integration (option 2)
-// Marion provides ONLY: features/tokens/queryKey/sessionKey + current cog
 // -------------------------
 function buildPsycheBridgeInput(norm, session, cog) {
   const n = isPlainObject(norm) ? norm : {};
@@ -2274,7 +2061,6 @@ function buildPsycheBridgeInput(norm, session, cog) {
     riskDomains: safeTokenSet(c.riskDomains || [], 8),
   };
 
-  // Deterministic queryKey: use existing trace hash inputs but never raw text.
   const keyObj = { features, tokens, v: "psycheBridgeInput:v1" };
   const queryKey = sha1Lite(JSON.stringify(keyObj)).slice(0, 14);
 
@@ -2287,10 +2073,6 @@ function callPsycheBridge(norm, session, cog) {
   const input = buildPsycheBridgeInput(norm, session, cog);
 
   try {
-    // Supported API shapes (FAIL-OPEN):
-    // - PsycheBridge.build({features,tokens,queryKey,session,cog,normMeta})
-    // - PsycheBridge.query(...)
-    // - PsycheBridge.buildPsyche(...)
     const payload = {
       features: input.features,
       tokens: input.tokens,
@@ -2313,7 +2095,6 @@ function callPsycheBridge(norm, session, cog) {
 
     if (!isPlainObject(out)) return null;
 
-    // Minimal sanity clamp here (bridge should already be bounded)
     return {
       enabled: !!out.enabled,
       version: safeStr(out.version || "", 24) || "psycheBridge",
@@ -2346,11 +2127,20 @@ function callPsycheBridge(norm, session, cog) {
 function mediate(norm, session, opts = {}) {
   try {
     const s = isPlainObject(session) ? session : {};
-    const n = isPlainObject(norm) ? norm : {};
+    const n0 = isPlainObject(norm) ? norm : {};
     const o = isPlainObject(opts) ? opts : {};
 
     const clockNow = typeof o.nowMs === "function" ? o.nowMs : nowMsDefault;
     const now = Number(clockNow()) || nowMsDefault();
+
+    // CANON LANE FIRST (payload lane wins)
+    const payloadLane = readPayloadLane(n0);
+    const lane = payloadLane || normalizeLaneRaw(s.lane) || "general";
+    const laneReason = payloadLane ? "payload_lane" : (normalizeLaneRaw(s.lane) ? "session_lane" : "default");
+    const chipMeta = detectChipSelect(n0);
+
+    // Build a shallow norm copy with canonical lane (no mutation of caller object)
+    const n = { ...n0, lane };
 
     const hasPayload = !!n?.turnSignals?.hasPayload;
     const textEmpty = !!n?.turnSignals?.textEmpty;
@@ -2380,23 +2170,24 @@ function mediate(norm, session, opts = {}) {
     const stalled = lastAdvanceAt ? now - lastAdvanceAt > 90 * 1000 : false;
 
     let intent = toUpperToken(n.turnIntent || "", 20);
-    if (!intent || (intent !== "ADVANCE" && intent !== "CLARIFY" && intent !== "STABILIZE")) {
-      intent = classifyTurnIntent(n);
-    }
+    if (!intent || (intent !== "ADVANCE" && intent !== "CLARIFY" && intent !== "STABILIZE")) intent = classifyTurnIntent(n);
 
     const payloadAction = safeStr(n?.turnSignals?.payloadAction || "", 60).trim();
     const payloadYear = normYear(n?.turnSignals?.payloadYear);
 
     const actionable =
       !!safeStr(n.action || "", 80).trim() ||
-      (payloadActionable && hasPayload && (payloadAction || payloadYear !== null)) ||
+      (payloadActionable && hasPayload && (safeStr(payloadAction, 60).trim() || payloadYear !== null)) ||
       (payloadActionable && textEmpty && hasPayload);
 
-    if (actionable) intent = "ADVANCE";
+    // CHIP FAST-PATH: treat chip select as actionable bridge + lane switch signal
+    const isChip = !!chipMeta.isChip;
+    const laneAction = isChip ? "switch_lane" : "";
 
-    if (stalled && (mode === "architect" || mode === "transitional") && intent !== "ADVANCE") {
-      intent = "CLARIFY";
-    }
+    if (actionable) intent = "ADVANCE";
+    if (isChip) intent = "ADVANCE";
+
+    if (stalled && (mode === "architect" || mode === "transitional") && intent !== "ADVANCE") intent = "CLARIFY";
 
     let dominance = "neutral";
     let budget = "medium";
@@ -2434,6 +2225,9 @@ function mediate(norm, session, opts = {}) {
       stalled,
       textEmpty: !!textEmpty,
       velvetAllowed: true,
+      lane,
+      laneAction,
+      laneReason,
     };
 
     const ethics0 = computeEthicsLayer(n, psych0, lawSeed0);
@@ -2452,15 +2246,16 @@ function mediate(norm, session, opts = {}) {
     const velvet = computeVelvet(n, s, { mode, intent, dominance, budget, confidence }, latentDesire, now, velvetAllowed);
 
     if (velvet.velvet && mode === "user" && intent !== "ADVANCE") dominance = "soft";
-    if (latentDesire === LATENT_DESIRE.MASTERY && (mode === "architect" || mode === "transitional") && intent === "ADVANCE") {
-      dominance = "firm";
-    }
+    if (latentDesire === LATENT_DESIRE.MASTERY && (mode === "architect" || mode === "transitional") && intent === "ADVANCE") dominance = "firm";
 
     let marionState = "SEEK";
     let marionReason = "default";
     const a = safeStr(n.action || "", 80).trim();
 
-    if (intent === "STABILIZE") {
+    if (isChip) {
+      marionState = "BRIDGE";
+      marionReason = "chip_select";
+    } else if (intent === "STABILIZE") {
       marionState = "STABILIZE";
       marionReason = "intent_stabilize";
     } else if (intent === "ADVANCE") {
@@ -2481,6 +2276,10 @@ function mediate(norm, session, opts = {}) {
       intent,
       dominance,
       budget,
+
+      lane,
+      laneAction,
+      laneReason,
 
       stalled: !!stalled,
       actionable: !!actionable,
@@ -2557,20 +2356,17 @@ function mediate(norm, session, opts = {}) {
 
     // =========================
     // KNOWLEDGE: PsycheBridge first (option 2)
-    // If available, Marion DOES NOT do per-domain retrieval.
     // =========================
     const psyche = callPsycheBridge(n, s, cog);
     if (psyche && psyche.enabled) {
       cog.psyche = psyche;
 
-      // Keep legacy hint fields disabled (Nyx should use psyche.*)
       cog.psychologyHints = { enabled: false, reason: "psyche_bridge" };
       cog.cyberKnowledgeHints = { enabled: false, reason: "psyche_bridge" };
       cog.englishKnowledgeHints = { enabled: false, reason: "psyche_bridge" };
       cog.financeKnowledgeHints = { enabled: false, reason: "psyche_bridge" };
       cog.aiKnowledgeHints = { enabled: false, reason: "psyche_bridge" };
     } else {
-      // Legacy fallback (only if PsycheBridge missing/disabled)
       const psyHints = queryPsychologyKnowledge(n, s, cog);
       cog.psychologyHints = clampPsychHints(psyHints);
 
@@ -2606,18 +2402,16 @@ function mediate(norm, session, opts = {}) {
       englishKnowledgeHints: cog.englishKnowledgeHints,
       financeKnowledgeHints: cog.financeKnowledgeHints,
       aiKnowledgeHints: cog.aiKnowledgeHints,
+      lane: cog.lane,
+      laneAction: cog.laneAction,
     });
 
     cog.marionTrace = safeStr(trace, MARION_TRACE_MAX + 8);
     cog.marionTraceHash = hashTrace(trace);
 
     // External overrides (kept)
-    if (o && o.forceBudget && (o.forceBudget === "short" || o.forceBudget === "medium")) {
-      cog.budget = o.forceBudget;
-    }
-    if (o && o.forceDominance && (o.forceDominance === "firm" || o.forceDominance === "neutral" || o.forceDominance === "soft")) {
-      cog.dominance = o.forceDominance;
-    }
+    if (o && o.forceBudget && (o.forceBudget === "short" || o.forceBudget === "medium")) cog.budget = o.forceBudget;
+    if (o && o.forceDominance && (o.forceDominance === "firm" || o.forceDominance === "neutral" || o.forceDominance === "soft")) cog.dominance = o.forceDominance;
     if (o && o.forceIntent && (o.forceIntent === "ADVANCE" || o.forceIntent === "CLARIFY" || o.forceIntent === "STABILIZE")) {
       cog.intent = o.forceIntent;
       cog.movePolicy = deriveMovePolicy(cog);
@@ -2642,6 +2436,9 @@ function mediate(norm, session, opts = {}) {
       intent: "CLARIFY",
       dominance: "neutral",
       budget: "short",
+      lane: "general",
+      laneAction: "",
+      laneReason: "fail_open",
       stalled: false,
       actionable: false,
       textEmpty: false,
