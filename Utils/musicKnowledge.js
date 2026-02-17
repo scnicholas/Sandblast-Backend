@@ -106,8 +106,8 @@ function cleanTitleArtifacts(s) {
   let out = t.replace(/\\"/g, '"');
 
   // Normalize weird patterns like:  A" / "B   or   A\" / \"B
-  out = out.replace(/\s*"\s*\/\s*"\s*/g, ' / ');
-  out = out.replace(/\s*“\s*\/\s*”\s*/g, ' / ');
+  out = out.replace(/\s*"\s*\/\s*"\s*/g, " / ");
+  out = out.replace(/\s*“\s*\/\s*”\s*/g, " / ");
 
   // Collapse repeated whitespace
   out = out.replace(/\s+/g, " ").trim();
@@ -179,9 +179,7 @@ function dedupeExactSongs(items, meta) {
 // Deterministic Top10 Builder
 // =========================
 function buildTop10(rawItems, meta) {
-  const normalized = Array.isArray(rawItems)
-    ? rawItems.map(normalizeItem)
-    : [];
+  const normalized = Array.isArray(rawItems) ? rawItems.map(normalizeItem) : [];
 
   const cleaned = dedupeExactSongs(normalized, meta);
 
@@ -293,9 +291,7 @@ function getTop10ByYear(year, opts) {
   const items = buildTop10(bucket.items, meta);
 
   const resolvedChart =
-    cleanText(bucket.chart) ||
-    cleanText(store?.chart) ||
-    "Billboard Year-End Hot 100";
+    cleanText(bucket.chart) || cleanText(store?.chart) || "Billboard Year-End Hot 100";
 
   return {
     year: y,
